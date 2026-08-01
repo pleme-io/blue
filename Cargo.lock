@@ -29,6 +29,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-bidama"
+version = "0.0.1"
+dependencies = [
+ "blue-lang-waku",
+]
+
+[[package]]
 name = "blue-lang-check"
 version = "0.0.1"
 dependencies = [

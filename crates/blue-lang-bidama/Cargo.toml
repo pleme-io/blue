@@ -1,0 +1,12 @@
+[package]
+name = "blue-lang-bidama"
+description = "bidama — a blue package, and posture resolution: join the floors, check against the root ceiling."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+blue-lang-waku = { workspace = true }

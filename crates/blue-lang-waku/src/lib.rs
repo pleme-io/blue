@@ -93,6 +93,17 @@ impl Reach {
             }
         }
     }
+
+    /// The least upper bound: union of what each side may name.
+    ///
+    /// This is what a set of packages jointly REQUIRE — the dual of
+    /// `meet`, and the operation posture resolution runs over floors.
+    pub fn join(&self, other: &Reach) -> Reach {
+        match (self, other) {
+            (Reach::Unrestricted, _) | (_, Reach::Unrestricted) => Reach::Unrestricted,
+            (Reach::Only(a), Reach::Only(b)) => Reach::Only(a.union(b).cloned().collect()),
+        }
+    }
 }
 
 /// What has already been **evaluated** when this computation runs.
@@ -119,11 +130,11 @@ pub enum When {
 
 impl When {
     pub fn meet(self, other: When) -> When {
-        if self <= other {
-            self
-        } else {
-            other
-        }
+        if self <= other { self } else { other }
+    }
+
+    pub fn join(self, other: When) -> When {
+        if self >= other { self } else { other }
     }
 
     /// Does this schedule keep the evaluator in the artifact?
@@ -152,11 +163,11 @@ pub enum Where {
 
 impl Where {
     pub fn meet(self, other: Where) -> Where {
-        if self <= other {
-            self
-        } else {
-            other
-        }
+        if self <= other { self } else { other }
+    }
+
+    pub fn join(self, other: Where) -> Where {
+        if self >= other { self } else { other }
     }
 }
 
@@ -216,6 +227,20 @@ impl Waku {
             reach: self.reach.meet(&other.reach),
             when: self.when.meet(other.when),
             place: self.place.meet(other.place),
+        }
+    }
+
+    /// The least upper bound. Componentwise.
+    ///
+    /// **This is not an operation on a running computation** — `narrow`
+    /// remains the only one of those, and it cannot widen. `join` is a
+    /// *resolution-time* operation over the FLOORS a set of packages
+    /// declare: the smallest frame that satisfies all of them.
+    pub fn join(&self, other: &Waku) -> Waku {
+        Waku {
+            reach: self.reach.join(&other.reach),
+            when: self.when.join(other.when),
+            place: self.place.join(other.place),
         }
     }
 
@@ -355,6 +380,34 @@ mod tests {
                         assert!(c.leq(&m), "{c:?} is below both but not below the meet {m:?}");
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn join_is_the_least_upper_bound() {
+        for a in frames() {
+            for b in frames() {
+                let j = a.join(&b);
+                assert!(a.leq(&j), "join not above a: {a:?} vs {j:?}");
+                assert!(b.leq(&j), "join not above b: {b:?} vs {j:?}");
+                for c in frames() {
+                    if a.leq(&c) && b.leq(&c) {
+                        assert!(j.leq(&c), "{c:?} is above both but not above the join {j:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// Absorption ties meet and join together. If these fail, the two
+    /// operations are not duals and the structure is not a lattice.
+    #[test]
+    fn absorption_laws_hold() {
+        for a in frames() {
+            for b in frames() {
+                assert_eq!(a.meet(&a.join(&b)), a, "meet-absorption: {a:?} {b:?}");
+                assert_eq!(a.join(&a.meet(&b)), a, "join-absorption: {a:?} {b:?}");
             }
         }
     }

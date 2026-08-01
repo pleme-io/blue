@@ -19,11 +19,20 @@
 //!    (`mod`, `rem`, `first`, `inc`, `even?`, the actor and transducer
 //!    helpers, …). Loading it is not optional garnish: blue's own operator
 //!    lowering depends on it.
+//! 3. **blue's own core** ([`stdlib`]) — strings and number conversion, which
+//!    tatara-lisp does not have in any form. A Ruby-surface language without
+//!    `length` or `upcase` is not usable, and the semantics are Ruby's
+//!    (characters, not bytes), which is why they are blue's and not the
+//!    substrate's.
 
 pub mod erase;
+pub mod inputs;
 pub mod pipeline;
+pub mod stdlib;
 
 pub use erase::erase_types;
+pub use inputs::{declarations, install_input_primitives, Declaration, InputError, Inputs};
+pub use stdlib::install_blue_stdlib;
 pub use pipeline::{parse, run, Run, RunError};
 
 use tatara_lisp_eval::{install_lisp_stdlib_with, install_primitives, Interpreter};
@@ -37,6 +46,10 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     let mut interp = Interpreter::new();
     install_primitives(&mut interp);
     install_lisp_stdlib_with(&mut interp, host);
+    // Layer 3: blue's own core — strings and number conversion, which
+    // tatara-lisp does not carry at all. See `stdlib` for why the
+    // character-counting semantics are blue's rather than the substrate's.
+    stdlib::install_blue_stdlib(&mut interp);
     interp
 }
 

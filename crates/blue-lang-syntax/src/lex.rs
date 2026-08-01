@@ -236,6 +236,43 @@ impl<'a> Lexer<'a> {
                         b'\\' => '\\',
                         b'"' => '"',
                         b'0' => '\0',
+                        // `\u{...}` — a Unicode scalar by codepoint. Ruby and
+                        // Elixir both have it, and without it a blue source
+                        // file can only carry a non-ASCII character literally,
+                        // which is exactly the case where an explicit escape
+                        // matters most (combining marks, zero-width joiners,
+                        // anything invisible in an editor).
+                        b'u' => {
+                            self.pos += 1; // past 'u'
+                            if self.peek() != Some(b'{') {
+                                return Err(self.err("expected `{` after \\u", start));
+                            }
+                            self.pos += 1; // past '{'
+                            let hex_start = self.pos;
+                            while self.peek().is_some_and(|c| c != b'}') {
+                                self.pos += 1;
+                            }
+                            if self.peek() != Some(b'}') {
+                                return Err(self.err("unterminated \\u{...} escape", start));
+                            }
+                            let hex = &self.src[hex_start..self.pos];
+                            let code = u32::from_str_radix(hex, 16).map_err(|_| {
+                                self.err(format!("`{hex}` is not hexadecimal"), start)
+                            })?;
+                            // A surrogate or out-of-range value is REJECTED, not
+                            // replaced with U+FFFD: silently substituting a
+                            // different character is how a codepoint typo
+                            // becomes a rendering mystery.
+                            let ch = char::from_u32(code).ok_or_else(|| {
+                                self.err(
+                                    format!("`{hex}` is not a Unicode scalar value"),
+                                    start,
+                                )
+                            })?;
+                            buf.push(ch);
+                            self.pos += 1; // past '}'
+                            continue;
+                        }
                         other => {
                             return Err(self.err(
                                 format!("unknown escape \\{}", other as char),

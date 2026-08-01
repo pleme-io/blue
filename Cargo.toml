@@ -31,5 +31,5 @@ clap = { version = "4", features = ["derive"] }
 # tatara mono-workspace (see its CLAUDE.md). Pinned by rev so a build is
 # reproducible; bump the rev after pushing tatara-lisp, which is the
 # trunk-based order anyway.
-tatara-lisp = { git = "https://github.com/pleme-io/tatara-lisp", rev = "f7d49d23f5d173b8fe112f8000a900d6152f2d8e" }
-tatara-lisp-eval = { git = "https://github.com/pleme-io/tatara-lisp", rev = "f7d49d23f5d173b8fe112f8000a900d6152f2d8e" }
+tatara-lisp = { git = "https://github.com/pleme-io/tatara-lisp", rev = "3172672740f4cd6d191ae3a596029bbd07eeaf49" }
+tatara-lisp-eval = { git = "https://github.com/pleme-io/tatara-lisp", rev = "3172672740f4cd6d191ae3a596029bbd07eeaf49" }

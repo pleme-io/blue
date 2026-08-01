@@ -14,3 +14,4 @@ tatara-lisp-eval = { workspace = true }
 blue-lang-syntax = { workspace = true }
 blue-lang-check = { workspace = true }
 thiserror = { workspace = true }
+blake3 = "1"

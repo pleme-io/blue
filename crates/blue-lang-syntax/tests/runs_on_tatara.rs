@@ -212,3 +212,28 @@ fn renamed_comparison_operators_mean_what_they_say() {
 // `blue_lang_runtime::pipeline::annotating_buys_analysis_and_changes_nothing_else`.
 // Asserting it here would have to re-implement erasure in the test harness,
 // which is how a second, drifting copy of a pipeline stage gets born.
+
+/// **`\u{...}` escapes.** Ruby and Elixir both have them, and without one a
+/// blue file can only carry a non-ASCII character literally — exactly the case
+/// where an explicit escape matters most, since combining marks and zero-width
+/// characters are invisible in an editor.
+#[test]
+fn unicode_escapes_produce_the_right_scalar() {
+    assert!(matches!(run(r#""\u{41}""#), Value::Str(ref s) if &**s == "A"));
+    assert!(matches!(run(r#""\u{e9}""#), Value::Str(ref s) if &**s == "é"));
+    assert!(matches!(run(r#""\u{1F600}""#), Value::Str(ref s) if &**s == "😀"));
+    // Mixed with ordinary text and other escapes.
+    assert!(matches!(run(r#""a\u{301}\n""#), Value::Str(ref s) if &**s == "a\u{301}\n"));
+}
+
+/// A bad codepoint is REJECTED, not silently replaced with U+FFFD — a
+/// substituted character turns a typo into a rendering mystery.
+#[test]
+fn a_bad_unicode_escape_is_rejected() {
+    for bad in [r#""\u{D800}""#, r#""\u{110000}""#, r#""\u{zz}""#, r#""\u41""#, r#""\u{41""#] {
+        assert!(
+            blue_lang_syntax::parse_program(bad).is_err(),
+            "{bad} must be rejected rather than substituted"
+        );
+    }
+}

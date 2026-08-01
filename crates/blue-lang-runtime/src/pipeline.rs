@@ -17,6 +17,7 @@ use tatara_lisp::Sexp;
 use tatara_lisp_eval::Value;
 
 use crate::erase::erase_types;
+use crate::inputs::Inputs;
 
 /// Why a run stopped short.
 #[derive(Debug, thiserror::Error)]
@@ -52,8 +53,17 @@ pub fn parse(src: &str) -> Result<Vec<Sexp>, RunError> {
     blue_lang_syntax::parse_program(src).map_err(|e| RunError::Parse(e.to_string()))
 }
 
-/// Run blue source. Checks first, erases second, executes third.
+/// Run blue source with no build inputs.
 pub fn run(src: &str) -> Result<Run, RunError> {
+    run_with_inputs(src, Inputs::new())
+}
+
+/// Run blue source, giving the macro phase access to verified build inputs.
+///
+/// `inputs` is already verified — [`Inputs`] cannot hold bytes that do not match
+/// their declared hash — so nothing here re-checks. The capability a macro gains
+/// is exactly "these hashed bytes", never a path.
+pub fn run_with_inputs(src: &str, inputs: Inputs) -> Result<Run, RunError> {
     let forms = parse(src)?;
 
     // CHECK, on the annotated tree — the only tree that has annotations.
@@ -78,6 +88,7 @@ pub fn run(src: &str) -> Result<Run, RunError> {
     let spanned = tatara_lisp::read_spanned(&text).map_err(|e| RunError::Lower(format!("{e:?}")))?;
 
     let mut interp = crate::interpreter_hostless();
+    crate::inputs::install_input_primitives(&mut interp, inputs);
     let value = interp
         .eval_program(&spanned, &mut ())
         .map_err(|e| RunError::Eval(e.to_string()))?;
@@ -206,6 +217,142 @@ mod macro_tests {
         assert!(
             msg.contains("forever") && msg.contains("expansion limit"),
             "the error must name the macro and the limit: {msg}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod input_tests {
+    use super::*;
+    use crate::inputs::{Declaration, Inputs};
+
+    /// A schema a macro will generate code from.
+    const SCHEMA: &[u8] = b"3";
+
+    fn with_schema(src: &str) -> Result<Run, RunError> {
+        let hash = Inputs::hash_of(SCHEMA);
+        let mut inputs = Inputs::new();
+        inputs
+            .bind(
+                &Declaration {
+                    name: "schema".to_string(),
+                    hash,
+                },
+                SCHEMA.to_vec(),
+            )
+            .expect("bind");
+        run_with_inputs(src, inputs)
+    }
+
+    fn decl_line() -> String {
+        let mut s = String::from("definput(\"schema\", \"");
+        s.push_str(&Inputs::hash_of(SCHEMA));
+        s.push_str("\")\n");
+        s
+    }
+
+    /// **A macro reads a declared build input.** This is §VI OPEN #6 closed —
+    /// the spec names it as gating blue's whole "stronger than Ruby's
+    /// metaprogramming" claim, because a macro that cannot read a schema cannot
+    /// generate code from one.
+    #[test]
+    fn a_macro_can_read_a_declared_build_input() {
+        let src = decl_line() + "input(\"schema\")";
+        let out = with_schema(&src).expect("run");
+        assert!(
+            matches!(out.value, Value::Str(ref s) if &**s == "3"),
+            "got {:?}",
+            out.value
+        );
+    }
+
+    /// **An undeclared input is an error, not a file read and not nil.**
+    /// Returning nil is how a macro generates an empty table and nobody notices
+    /// until runtime.
+    #[test]
+    fn an_undeclared_input_is_an_error() {
+        let err = with_schema("input(\"not_declared\")").expect_err("must fail");
+        let msg = err.to_string();
+        assert!(msg.contains("not_declared"), "must name it: {msg}");
+        assert!(
+            msg.contains("definput"),
+            "and say how to declare it: {msg}"
+        );
+    }
+
+    /// **There is no path-based read at all.** The capability is the absence of
+    /// the primitive, not a check inside one — so this is an unbound symbol.
+    #[test]
+    fn there_is_no_ambient_file_read() {
+        for attempt in [
+            "read_file(\"/etc/passwd\")",
+            "File(\"/etc/passwd\")",
+            "slurp(\"/etc/passwd\")",
+            "open(\"/etc/passwd\")",
+        ] {
+            let err = with_schema(attempt).expect_err("must not resolve");
+            assert!(
+                err.to_string().contains("unbound"),
+                "{attempt} must be UNBOUND — a capability removed by absence, \
+                 not guarded by a check: {err}"
+            );
+        }
+    }
+
+    /// Anti-vacuity: with no inputs supplied at all, even a declared name fails
+    /// — so the success above is the binding's doing.
+    #[test]
+    fn a_declared_input_with_no_bytes_supplied_fails() {
+        let src = decl_line() + "input(\"schema\")";
+        assert!(run(&src).is_err(), "no bytes were supplied");
+    }
+}
+
+#[cfg(test)]
+mod tier2_tests {
+    use super::*;
+    use crate::inputs::{Declaration, Inputs};
+
+    /// **The Tier-2 conversion §V.6.3 said was gated: a macro that emits real
+    /// declarations FROM A SCHEMA.**
+    ///
+    /// `theory/BLUE.md` §VI OPEN #6 states the blocker plainly — "tenet 2
+    /// installs a `NoLoader`, so a macro cannot read a schema — which gates
+    /// every Tier-2 conversion in §V.6 and therefore blue's whole 'stronger than
+    /// Ruby's metaprogramming' claim."
+    ///
+    /// Here the schema supplies a *value the generated code depends on*, read at
+    /// expansion time. Ruby and Elixir can both do this — with the whole
+    /// filesystem open. blue does it through a name bound to a content hash.
+    #[test]
+    fn a_macro_generates_code_from_a_schema() {
+        let schema = b"7";
+        let mut inputs = Inputs::new();
+        inputs
+            .bind(
+                &Declaration {
+                    name: "arity".to_string(),
+                    hash: Inputs::hash_of(schema),
+                },
+                schema.to_vec(),
+            )
+            .expect("bind");
+
+        // The macro reads the input at EXPANSION time and splices the value it
+        // found into the code it emits.
+        let mut src = String::from("definput(\"arity\", \"");
+        src.push_str(&Inputs::hash_of(schema));
+        src.push_str("\")\n");
+        src.push_str(
+            "defmacro from_schema()\n  quote\n    unquote(to_int(input(\"arity\")))\n  end\nend\n\
+             from_schema() * 6",
+        );
+
+        let out = run_with_inputs(&src, inputs).expect("run");
+        assert!(
+            matches!(out.value, Value::Int(42)),
+            "the schema's 7 must reach the generated code: got {:?}",
+            out.value
         );
     }
 }

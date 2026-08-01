@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime", "crates/blue-lang-cli", "crates/blue-lang-test", "crates/blue-lang-pkg"]
+members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime", "crates/blue-lang-cli", "crates/blue-lang-test", "crates/blue-lang-pkg", "crates/blue-lang-wasm"]
 resolver = "2"
 
 [workspace.package]

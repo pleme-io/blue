@@ -1,0 +1,17 @@
+[package]
+name = "blue-lang-wasm"
+description = "blue compiled to WebAssembly — no host imports, no WASI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+# Both: cdylib is the wasm artifact, rlib lets the host-side tests link it.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+blue-lang-runtime = { workspace = true }
+tatara-lisp-eval = { workspace = true }

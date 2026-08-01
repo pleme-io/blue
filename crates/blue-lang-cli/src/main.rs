@@ -90,6 +90,9 @@ enum Cmd {
     /// Report the blueshift: how far this program is shifted, and what is
     /// shifting it.
     Shift { file: PathBuf },
+    /// The morphology: what each posture grants, what it forfeits, which pairs
+    /// are genuinely exclusive, and which language each shape corresponds to.
+    Morph,
 }
 
 fn main() -> ExitCode {
@@ -281,6 +284,40 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 // reader can tell "this shifted me" from "this is holding me".
                 let arrow = if f.kind.shifts_forward() { "→" } else { "·" };
                 println!("  {arrow} {:<24} {}", f.kind.label(), f.detail);
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Morph => {
+            use blue_lang_bidama::{enforcement, exclusive_pairs, qualities_at, shapes, Quality};
+
+            println!("QUALITIES — where each is enforced\n");
+            for q in Quality::ALL {
+                let (layer, why) = enforcement(q);
+                let mark = if layer.is_enforced() { "✓" } else { "·" };
+                println!("  {mark} {:<30} {}", q.label(), layer.label());
+                println!("      {why}");
+            }
+
+            println!("\nMUTUALLY EXCLUSIVE — derived by enumerating the lattice\n");
+            for (a, b) in exclusive_pairs() {
+                println!(
+                    "  {:<30} ⊥ {:<30} (both on the {:?} axis)",
+                    a.label(),
+                    b.label(),
+                    a.axis()
+                );
+            }
+            println!(
+                "\n  Every exclusive pair shares an axis. Two qualities on DIFFERENT\n                   coordinates always have a posture granting both — which is what a\n                   per-package posture buys over one global choice."
+            );
+
+            println!("\nSHAPES — a language is a point; blue is the space\n");
+            for s in shapes() {
+                let q = qualities_at(&s.posture);
+                println!("  {:<22} {}", s.name, s.because);
+                let names: Vec<&str> = q.iter().map(|x| x.label()).collect();
+                println!("      grants: {}", names.join(", "));
             }
             Ok(ExitCode::SUCCESS)
         }

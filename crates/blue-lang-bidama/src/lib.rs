@@ -36,6 +36,11 @@
 //! exposure is Rust's `no_std` shape, not a continuum, and this resolver is
 //! deliberately small to match.
 
+pub mod morph;
+pub mod quality;
+pub use morph::{enforcement, shape_of, shapes, Layer, Shape};
+pub use quality::{all_postures, exclusive_pairs, forfeits_at, qualities_at, witness, Axis, Quality};
+
 use blue_lang_waku::{Waku, When};
 
 /// A blue package.

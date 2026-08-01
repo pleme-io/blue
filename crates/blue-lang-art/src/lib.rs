@@ -1,52 +1,82 @@
 //! blue's mark, wordmark, and theme.
 //!
-//! # The mark is the blueshift ramp: `░▒▓█`
+//! # The mark is a COLOUR shift across Nord's Frost band
 //!
 //! blue's central ratified metaphor is **blueshift** — the wave that shifts with
 //! the author across tatara-lisp and Rust as a program is written
-//! (`theory/BLUE.md` §V.20). A spectral shift toward blue *is* a compression of
-//! light toward one end of a band, and `░▒▓█` is exactly that: four cells of
-//! increasing density resolving to solid.
+//! (`theory/BLUE.md` §V.20). A blueshift is a shift in **colour**, so the mark
+//! is four solid cells walking Nord's own Frost band toward blue:
 //!
-//! katsuji's docs warn that `░▒▓` "read as fuzz at cell size; reach for it
-//! deliberately, not for 'texture'." This is the deliberate case — **the
-//! gradient is the meaning, not decoration.** Read left to right it is the
-//! language's whole thesis in four cells: loose, then denser, then locked.
+//! ```text
+//! ████   nord7 → nord8 → nord9 → nord10
+//!        teal    cyan    light   deep blue
+//! ```
 //!
-//! Every glyph is a [`Crisp`], so the mark cannot name a shape mado will not
-//! draw. That is the same reason mado's own wordmark is typed rather than a
-//! string literal — and the reason this composition lives here rather than in
-//! katsuji, which owns *how a styled line becomes bytes* and explicitly not
-//! layout.
+//! ## What this replaced, and why
+//!
+//! The first version was `░▒▓█` — a *density* ramp, every cell painted the same
+//! `Ink::Blue`. It was wrong twice over, and the operator spotted it immediately
+//! as "a blue box":
+//!
+//! - **It rendered a shift with nothing shifting.** One flat colour across four
+//!   cells varies only density, which is not what a blueshift is.
+//! - **`░▒▓` read as fuzz.** katsuji's docs say so in as many words — "reach for
+//!   it deliberately, not for 'texture'" — and the first draft quoted that
+//!   warning and then argued past it on the grounds that the gradient *was* the
+//!   meaning. Intent does not make an illegible glyph legible. Four dither cells
+//!   ending in `█`, all one colour, look like a blue box because that is what
+//!   they are.
+//!
+//! Solid blocks are legible at any size, and the colour does the work the shape
+//! was failing to do.
+//!
+//! # No truecolor, deliberately
+//!
+//! The Frost tones are named by their **ANSI slot**, never by hex. katsuji has no
+//! `Ink::Rgb` and no `from_hex` on purpose: a literal `\x1b[38;2;…m` "pins a
+//! colour that stops tracking" the user's theme. Naming the slot means the mark
+//! renders in *the reader's* Nord, and follows them if they retheme.
 //!
 //! # The theme is `irodori`'s Nord, never a local copy
 //!
-//! Colours come from [`irodori`], the fleet's Nord palette. blue does not carry
-//! its own hex values: the fleet rule is that an app's visual default *derives*
-//! from the shared tokens so one edit propagates, and copying another app's
-//! palette is named as the anti-pattern. What blue chooses is which Nord *roles*
-//! to bind — see [`Theme`].
+//! Colours come from [`irodori`], the fleet's Nord palette. blue carries no hex:
+//! the fleet rule is that an app's visual default *derives* from the shared
+//! tokens so one edit propagates, and copying another app's palette is the named
+//! anti-pattern. What blue chooses is which Nord *roles* to bind — see [`Theme`].
 
 use irodori::{Color, NordPalette, NORD};
 use katsuji::{Attr, Crisp, Ink, Line, Piece};
 
-/// The mark, as the four glyphs it is made of.
+/// The mark: four solid cells, one per Frost tone, walking toward blue.
 ///
-/// A typed array rather than a string so the ramp cannot silently gain a fifth
-/// cell or lose its order — the shape *is* the meaning, and `"░▒▓█"` as a
-/// literal would let either happen unnoticed.
-pub const RAMP: [Crisp; 4] = [
-    Crisp::ShadeLight,
-    Crisp::ShadeMedium,
-    Crisp::ShadeDark,
-    Crisp::Full,
-];
+/// A typed array rather than a string of escapes, so the ramp cannot silently
+/// lose a step or reorder — the *progression* is the meaning.
+///
+/// Named by ANSI slot, not hex, so the mark tracks the reader's theme. Under
+/// Nord these are `nord7 → nord8 → nord9 → nord10`; mado pins `ansi[4]` to
+/// `#5E81AC` (nord10) and `ansi[6]` to `#88C0D0` (nord8), which is the fleet's
+/// own binding rather than upstream Nord's.
+pub const SHIFT: [Ink; 4] = [Ink::BrightCyan, Ink::Cyan, Ink::BrightBlue, Ink::Blue];
 
-/// The mark as text, for contexts with no styled-line renderer — a README, a
-/// commit message, a browser tab.
+/// The glyph every cell of the mark uses. Solid — no dither.
+pub const CELL: Crisp = Crisp::Full;
+
+/// The mark as plain text, for contexts with no colour — a README, a commit
+/// message, a browser tab.
+///
+/// **The colour is the meaning, so plain text loses it.** This returns the
+/// shape only; anywhere colour is available, use [`mark_line`].
 #[must_use]
 pub fn mark() -> String {
-    RAMP.iter().map(|g| g.ch()).collect()
+    core::iter::repeat_n(CELL.ch(), SHIFT.len()).collect()
+}
+
+/// The mark as a styled line — the real thing.
+#[must_use]
+pub fn mark_line() -> Line {
+    SHIFT
+        .iter()
+        .fold(Line::new(), |l, ink| l.piece(Piece::glyph(CELL).ink(*ink)))
 }
 
 /// blue's Nord bindings.
@@ -127,28 +157,19 @@ impl Default for Theme {
 /// wordmark against a `0.1.98` binary.
 #[must_use]
 pub fn wordmark(version: &str) -> Vec<Line> {
-    // `Ink::Blue` is katsuji's name for the frost blue under Nord — the ANSI
-    // slot blue's `nord10` primary occupies in a Nord terminal. Using the ink
-    // rather than a truecolor escape means the mark honours a user's palette
-    // instead of overriding it.
-    let ramp = |g: Crisp| Piece::glyph(g).ink(Ink::Blue);
-
     vec![
-        // The ramp, then the name. One accent slot, gaps doing the spacing —
+        // The shift, then the name. One accent slot, gaps doing the spacing —
         // the restraint mado's banner establishes.
-        Line::new()
-            .piece(ramp(Crisp::ShadeLight))
-            .piece(ramp(Crisp::ShadeMedium))
-            .piece(ramp(Crisp::ShadeDark))
-            .piece(ramp(Crisp::Full))
+        SHIFT
+            .iter()
+            .fold(Line::new(), |l, ink| l.piece(Piece::glyph(CELL).ink(*ink)))
             .piece(Piece::text("  blue  ").ink(Ink::BrightWhite).attr(Attr::Bold))
             .piece(Piece::text(version).ink(Ink::BrightBlack)),
         // A single rule under it, in the crisp light set. Not `━` heavy and not
         // `╌` dashed: neither has renderer geometry.
         Line::new().piece(Piece::glyphs(Crisp::Horizontal, 20).ink(Ink::BrightBlack)),
         Line::new().piece(
-            Piece::text("a Ruby/Elixir surface on tatara-lisp and Rust")
-                .ink(Ink::BrightBlack),
+            Piece::text("a Ruby/Elixir surface on tatara-lisp and Rust").ink(Ink::BrightBlack),
         ),
     ]
 }
@@ -157,39 +178,83 @@ pub fn wordmark(version: &str) -> Vec<Line> {
 mod tests {
     use super::*;
 
-    /// The mark is the ramp, in order, and nothing else.
+    /// The mark is four solid cells — no dither.
     #[test]
-    fn the_mark_is_the_blueshift_ramp() {
-        assert_eq!(mark(), "░▒▓█");
+    fn the_mark_is_four_solid_cells() {
+        assert_eq!(mark(), "████");
     }
 
-    /// **The ramp must increase.** A shift that does not monotonically compress
-    /// is not a shift — and a reordered array would still render four glyphs, so
-    /// only checking the order catches it.
+    /// **No dither glyph may appear in the mark.**
+    ///
+    /// The first version was `░▒▓█`, which katsuji's own docs warn "read as fuzz
+    /// at cell size". It shipped, and the operator read it as a blue box. This
+    /// names the mistake so it cannot come back.
     #[test]
-    fn the_ramp_increases_in_density() {
+    fn the_mark_uses_no_dither_glyph() {
+        for bad in [Crisp::ShadeLight, Crisp::ShadeMedium, Crisp::ShadeDark] {
+            assert!(
+                !mark().contains(bad.ch()),
+                "{bad:?} reads as fuzz at cell size — the mark must be solid"
+            );
+        }
+    }
+
+    /// **The colour must actually shift.** This is the whole mark: a blueshift
+    /// with one flat colour is not a shift at all, which is precisely what the
+    /// first version shipped.
+    #[test]
+    fn every_cell_of_the_shift_is_a_different_ink() {
+        let mut seen: Vec<Ink> = Vec::new();
+        for ink in SHIFT {
+            assert!(
+                !seen.contains(&ink),
+                "{ink:?} repeats — a shift with a repeated colour is not shifting"
+            );
+            seen.push(ink);
+        }
+        assert_eq!(seen.len(), 4);
+    }
+
+    /// **And it must shift toward BLUE**, across Nord's Frost band in order:
+    /// nord7 teal → nord8 cyan → nord9 light → nord10 deep. Reversed, it is a
+    /// redshift.
+    #[test]
+    fn the_shift_walks_the_frost_band_toward_blue() {
         assert_eq!(
-            RAMP,
-            [
-                Crisp::ShadeLight,
-                Crisp::ShadeMedium,
-                Crisp::ShadeDark,
-                Crisp::Full
-            ],
-            "the ramp is the meaning; its order is not cosmetic"
+            SHIFT,
+            [Ink::BrightCyan, Ink::Cyan, Ink::BrightBlue, Ink::Blue],
+            "the direction is the meaning: toward blue, not away from it"
+        );
+        assert_eq!(*SHIFT.last().expect("non-empty"), Ink::Blue, "it ends on blue");
+    }
+
+    /// **Named by ANSI slot, never by hex.** katsuji has no `Ink::Rgb` on
+    /// purpose — a truecolor literal pins a colour that stops tracking the
+    /// reader's theme. Rendering must therefore emit plain SGR.
+    #[test]
+    fn the_mark_emits_no_truecolor_escape() {
+        let rendered = mark_line().render();
+        assert!(
+            !rendered.contains("38;2;"),
+            "a truecolor escape would stop tracking the reader's theme: {rendered:?}"
         );
     }
 
-    /// **Every glyph in the mark is crisp.** `Crisp` has no variant for a glyph
-    /// mado cannot draw, so this is enforced by the type — asserted anyway
-    /// because the *point* of typing it is easy to undo by switching to a
-    /// string.
+    /// The styled mark carries four distinct colour runs.
     #[test]
-    fn every_mark_glyph_has_renderer_geometry() {
-        for g in RAMP {
+    fn the_styled_mark_paints_four_runs() {
+        let rendered = mark_line().render();
+        for ink in SHIFT {
+            let param = match ink {
+                Ink::BrightCyan => "96",
+                Ink::Cyan => "36",
+                Ink::BrightBlue => "94",
+                Ink::Blue => "34",
+                other => panic!("unexpected ink in SHIFT: {other:?}"),
+            };
             assert!(
-                Crisp::ALL.contains(&g),
-                "{g:?} must be in the crisp set — the set is what guarantees it renders"
+                rendered.contains(param),
+                "expected SGR {param} for {ink:?} in {rendered:?}"
             );
         }
     }
@@ -264,12 +329,10 @@ mod tests {
         let rendered: String = lines.iter().map(Line::render).collect();
         assert!(rendered.contains("blue"), "the name: {rendered:?}");
         assert!(rendered.contains("9.9.9"), "the version: {rendered:?}");
-        for g in RAMP {
-            assert!(
-                rendered.contains(g.ch()),
-                "the ramp glyph {g:?} must appear: {rendered:?}"
-            );
-        }
+        assert!(
+            rendered.contains(CELL.ch()),
+            "the mark must appear: {rendered:?}"
+        );
     }
 
     /// **The version is never hardcoded.** mado shipped a `0.1.0` wordmark

@@ -1,6 +1,6 @@
 ```
-░▒▓█  blue
-────────────────────
+████  blue          nord7 → nord8 → nord9 → nord10
+────────────────────    teal   cyan   light  deep blue
 a Ruby/Elixir surface on tatara-lisp and Rust
 ```
 
@@ -10,11 +10,12 @@ rewriting on that AST, and the runtime is Rust — not the BEAM.
 
 ## The mark is a blueshift
 
-`░▒▓█` is not decoration. **Blueshift** is blue's central metaphor: the wave that
-shifts with you across tatara-lisp and Rust as you write. A spectral shift toward
-blue is a compression of light toward one end of a band, and the ramp is exactly
-that — four cells of increasing density resolving to solid. Read left to right it
-is the language's thesis: **loose, then denser, then locked.**
+Four solid cells walking Nord's Frost band toward blue. **Blueshift** is blue's
+central metaphor — the wave that shifts with you across tatara-lisp and Rust as
+you write — and a blueshift is a shift in *colour*, so the mark shifts colour.
+
+Named by ANSI slot, never by hex, so it renders in *your* Nord and follows you if
+you retheme.
 
 Declare nothing and blue is dynamic and fast. Annotate one function and *that
 function* gets analysis. Nothing else changes — same tree, same answer, same

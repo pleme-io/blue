@@ -89,9 +89,14 @@ Each of these is a defect that shipped, not a style preference.
   so putting them in the `Sexp` would break canonicality. `fmt --write` deleted
   every one until the formatter learned to re-interleave them by position against
   each form's recorded span. A comment *inside* a form is refused, not moved.
-- **The mark is `░▒▓█` and its order is meaning.** Typed as an array of
-  `katsuji::Crisp`, never a string. Colours are `irodori` lookups — blue carries
-  no hex, and a test enforces it.
+- **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
+  across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
+  ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a
+  *density* ramp in one flat colour — which shipped and read as a blue box. It
+  was wrong twice: a shift with nothing shifting, and dither glyphs katsuji's own
+  docs warn "read as fuzz at cell size". **Quoting a warning and arguing past it
+  is not clearing it.** Theme colours are `irodori` lookups; blue carries no hex,
+  and a test enforces it.
 
 ## Testing discipline
 

@@ -34,6 +34,11 @@ pub enum Response {
     None,
     /// A reply and a push, in that order.
     ReplyAndNotify(Value, Value),
+    /// Several messages, in order. Used when one event produces more than one
+    /// PUSH — `didOpen` emits both diagnostics and the shift reading. Distinct
+    /// from `ReplyAndNotify`, which pairs a *reply* with a push; conflating
+    /// them would make the variant name lie about what is being sent.
+    Messages(Vec<Value>),
 }
 
 /// Open documents, keyed by URI.
@@ -95,7 +100,10 @@ impl Server {
                 let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
                 let text = str_at(&req.params, &["textDocument", "text"]).unwrap_or_default();
                 self.documents.insert(uri.clone(), text.clone());
-                Response::Notify(diagnostics_notification(&uri, &text))
+                Response::Messages(vec![
+                    diagnostics_notification(&uri, &text),
+                    shift_notification(&uri, &text),
+                ])
             }
 
             "textDocument/didChange" => {
@@ -115,7 +123,12 @@ impl Server {
                     .unwrap_or_default()
                     .to_string();
                 self.documents.insert(uri.clone(), text.clone());
-                Response::Notify(diagnostics_notification(&uri, &text))
+                // The reading is pushed on EVERY edit, so it tracks the author
+                // as they type rather than when they remember to ask.
+                Response::Messages(vec![
+                    diagnostics_notification(&uri, &text),
+                    shift_notification(&uri, &text),
+                ])
             }
 
             "textDocument/didClose" => {
@@ -161,13 +174,47 @@ impl Server {
                     line: u32_at(&req.params, &["position", "line"]).unwrap_or(0),
                     character: u32_at(&req.params, &["position", "character"]).unwrap_or(0),
                 };
+                // Every hover carries the document's reading underneath the
+                // signature. A custom request only helps a client that knows to
+                // ask; hover works in every editor today, which is what makes
+                // the shift *always visible* rather than opt-in.
+                let reading = crate::shift_of(&text);
                 match hover(&text, pos) {
                     None => reply(&id, Value::Null),
-                    Some(sig) => reply(
-                        &id,
-                        json!({ "contents": { "kind": "markdown", "value": format_code(&sig) } }),
-                    ),
+                    Some(sig) => {
+                        let mut md = format_code(&sig);
+                        md.push_str("\n\n---\n\n");
+                        md.push_str(&reading.summary());
+                        if let Some(rung) = reading.rung {
+                            md.push_str("\n\n");
+                            md.push_str(rung.meaning());
+                        }
+                        // Name what is holding it back — the actionable half.
+                        let held = reading.holding_back();
+                        if !held.is_empty() {
+                            md.push_str("\n\nshifting further:");
+                            for f in held.iter().take(3) {
+                                md.push_str("\n- ");
+                                md.push_str(&f.detail);
+                            }
+                        }
+                        reply(
+                            &id,
+                            json!({ "contents": { "kind": "markdown", "value": md } }),
+                        )
+                    }
                 }
+            }
+
+            // `blue/shift` — the reading. A custom method because LSP has no
+            // standard "where am I on this language's own continuum", which is
+            // the point: no other language has one to report.
+            "blue/shift" => {
+                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
+                let Some(text) = self.documents.get(&uri).cloned() else {
+                    return reply(&id, Value::Null);
+                };
+                reply(&id, shift_json(&crate::shift_of(&text)))
             }
 
             // An unknown METHOD with an id is an error reply; an unknown
@@ -189,6 +236,11 @@ impl Server {
                 Response::ReplyAndNotify(a, b) => {
                     write_message(&mut output, &a)?;
                     write_message(&mut output, &b)?;
+                }
+                Response::Messages(all) => {
+                    for m in all {
+                        write_message(&mut output, &m)?;
+                    }
                 }
             }
             if self.shutting_down {
@@ -260,6 +312,35 @@ fn publish(uri: &str, diagnostics: Vec<Value>) -> Value {
         "method": "textDocument/publishDiagnostics",
         "params": { "uri": uri, "diagnostics": diagnostics },
     })
+}
+
+/// The reading as JSON.
+fn shift_json(s: &crate::Shift) -> Value {
+    json!({
+        "rung": s.rung.map(|r| r.label()),
+        "ramp": s.rung.map(crate::Rung::ramp),
+        "meaning": s.rung.map(crate::Rung::meaning),
+        "summary": s.summary(),
+        "analysedNodes": s.analysed_nodes,
+        "typedDeclarations": s.typed_declarations,
+        "totalDeclarations": s.total_declarations,
+        "factors": s.factors.iter().map(|f| json!({
+            "kind": f.kind.label(),
+            "subject": f.subject,
+            "shiftsForward": f.kind.shifts_forward(),
+            "range": range_json(f.range),
+            "detail": f.detail,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// A `blue/shift` notification, pushed on open and on every change.
+fn shift_notification(uri: &str, text: &str) -> Value {
+    let mut params = shift_json(&crate::shift_of(text));
+    if let Some(obj) = params.as_object_mut() {
+        obj.insert("uri".to_string(), json!(uri));
+    }
+    json!({ "jsonrpc": "2.0", "method": "blue/shift", "params": params })
 }
 
 fn range_json(r: crate::Range) -> Value {
@@ -346,6 +427,20 @@ mod tests {
         }))
     }
 
+    /// The diagnostics push from an open/change, which now also carries a
+    /// `blue/shift` push alongside it.
+    fn diagnostics_of(r: &Response) -> Value {
+        match r {
+            Response::Notify(v) => v.clone(),
+            Response::Messages(all) => all
+                .iter()
+                .find(|m| m["method"] == json!("textDocument/publishDiagnostics"))
+                .cloned()
+                .expect("a diagnostics push"),
+            other => panic!("expected a push, got {other:?}"),
+        }
+    }
+
     fn req(id: i64, method: &str, params: Value) -> Value {
         json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })
     }
@@ -388,9 +483,7 @@ mod tests {
     #[test]
     fn opening_a_document_pushes_diagnostics() {
         let mut s = Server::new();
-        let Response::Notify(n) = open(&mut s, "file:///a.b", "def add(") else {
-            panic!("expected a push");
-        };
+        let n = diagnostics_of(&open(&mut s, "file:///a.b", "def add("));
         assert_eq!(n["method"], json!("textDocument/publishDiagnostics"));
         let diags = n["params"]["diagnostics"].as_array().expect("array");
         assert_eq!(diags.len(), 1);
@@ -403,9 +496,7 @@ mod tests {
     #[test]
     fn a_clean_document_pushes_an_empty_diagnostic_list() {
         let mut s = Server::new();
-        let Response::Notify(n) = open(&mut s, "file:///a.b", PROGRAM) else {
-            panic!()
-        };
+        let n = diagnostics_of(&open(&mut s, "file:///a.b", PROGRAM));
         assert_eq!(n["params"]["diagnostics"], json!([]));
     }
 
@@ -429,16 +520,14 @@ mod tests {
     fn a_change_replaces_the_document_and_re_publishes() {
         let mut s = Server::new();
         open(&mut s, "file:///a.b", "def add(");
-        let Response::Notify(n) = s.handle_value(&json!({
+        let n = diagnostics_of(&s.handle_value(&json!({
             "jsonrpc": "2.0",
             "method": "textDocument/didChange",
             "params": {
                 "textDocument": { "uri": "file:///a.b" },
                 "contentChanges": [{ "text": PROGRAM }],
             },
-        })) else {
-            panic!()
-        };
+        })));
         assert_eq!(
             n["params"]["diagnostics"],
             json!([]),
@@ -540,6 +629,125 @@ mod tests {
         };
         assert_eq!(r["result"], Value::Null);
         assert!(s.is_shutting_down());
+    }
+
+    // ---- the shift reading, where an author actually sees it -----------
+
+    /// **Every hover carries the reading.** A custom request only helps a
+    /// client that knows to ask; hover works in every editor today, which is
+    /// what makes the shift always-visible rather than opt-in.
+    #[test]
+    fn hover_carries_the_shift_reading() {
+        let mut s = Server::new();
+        open(&mut s, "file:///a.b", PROGRAM);
+        let Response::Reply(r) = s.handle_value(&req(
+            20,
+            "textDocument/hover",
+            json!({
+                "textDocument": { "uri": "file:///a.b" },
+                "position": { "line": 0, "character": 5 },
+            }),
+        )) else {
+            panic!()
+        };
+        let md = r["result"]["contents"]["value"].as_str().expect("markdown");
+        assert!(md.contains("def add("), "the signature: {md}");
+        assert!(md.contains("checked"), "and the rung: {md}");
+        assert!(md.contains("nodes analysed"), "and its cost: {md}");
+    }
+
+    /// And it names what is HOLDING IT BACK, which is the actionable half.
+    #[test]
+    fn hover_names_what_is_holding_the_shift_back() {
+        let mut s = Server::new();
+        open(
+            &mut s,
+            "file:///a.b",
+            "def typed(a: Int) -> Int\n  a\nend\ndef loose(x)\n  x\nend",
+        );
+        let Response::Reply(r) = s.handle_value(&req(
+            21,
+            "textDocument/hover",
+            json!({
+                "textDocument": { "uri": "file:///a.b" },
+                "position": { "line": 0, "character": 5 },
+            }),
+        )) else {
+            panic!()
+        };
+        let md = r["result"]["contents"]["value"].as_str().expect("markdown");
+        assert!(md.contains("annotated"), "the mixed rung: {md}");
+        assert!(md.contains("loose"), "must name the untyped decl: {md}");
+    }
+
+    /// **The reading is PUSHED on every edit**, so it tracks the author as they
+    /// type rather than when they remember to ask.
+    #[test]
+    fn every_edit_pushes_a_shift_reading() {
+        let mut s = Server::new();
+        let opened = open(&mut s, "file:///a.b", PROGRAM);
+        let Response::Messages(all) = &opened else {
+            panic!("didOpen must push more than diagnostics: {opened:?}")
+        };
+        let shift = all
+            .iter()
+            .find(|m| m["method"] == json!("blue/shift"))
+            .expect("a blue/shift push");
+        assert_eq!(shift["params"]["rung"], json!("checked"));
+        assert_eq!(shift["params"]["uri"], json!("file:///a.b"));
+    }
+
+    /// The custom request answers on demand, with every factor located.
+    #[test]
+    fn the_shift_request_returns_located_factors() {
+        let mut s = Server::new();
+        open(
+            &mut s,
+            "file:///a.b",
+            "def typed(a: Int) -> Int\n  a\nend\ndef loose(x)\n  x\nend",
+        );
+        let Response::Reply(r) = s.handle_value(&req(
+            22,
+            "blue/shift",
+            json!({ "textDocument": { "uri": "file:///a.b" } }),
+        )) else {
+            panic!()
+        };
+        let res = &r["result"];
+        assert_eq!(res["rung"], json!("annotated"));
+        assert_eq!(res["typedDeclarations"], json!(1));
+        assert_eq!(res["totalDeclarations"], json!(2));
+        let factors = res["factors"].as_array().expect("factors");
+        assert!(!factors.is_empty());
+        for f in factors {
+            assert!(f["range"].is_object(), "every factor must be LOCATED: {f}");
+            assert!(f["detail"].as_str().is_some_and(|d| !d.is_empty()));
+        }
+        assert!(
+            factors
+                .iter()
+                .any(|f| f["shiftsForward"] == json!(false) && f["subject"] == json!("loose")),
+            "must mark what holds it back: {factors:?}"
+        );
+    }
+
+    /// Anti-vacuity: the pushed rung MOVES with the document. A constant would
+    /// satisfy the assertions above.
+    #[test]
+    fn the_pushed_reading_moves_with_the_document() {
+        let mut s = Server::new();
+        let loose = open(&mut s, "file:///a.b", "def f(x)\n  x\nend");
+        let tight = open(&mut s, "file:///b.b", PROGRAM);
+        let rung = |r: &Response| match r {
+            Response::Messages(all) => all
+                .iter()
+                .find(|m| m["method"] == json!("blue/shift"))
+                .map(|m| m["params"]["rung"].clone())
+                .expect("shift"),
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(rung(&loose), json!("dynamic"));
+        assert_eq!(rung(&tight), json!("checked"));
     }
 
     // ---- framing --------------------------------------------------------

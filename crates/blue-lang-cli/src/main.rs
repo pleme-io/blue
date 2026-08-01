@@ -17,6 +17,7 @@
 //! blue posture BLUEFILE        the posture the manifest's floors require
 //! blue lsp                     speak LSP over stdio
 //! blue banner                  the wordmark — the blueshift ramp
+//! blue shift   FILE            how far this is shifted, and what is shifting it
 //! ```
 //!
 //! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
@@ -86,6 +87,9 @@ enum Cmd {
     Lsp,
     /// Print blue's wordmark.
     Banner,
+    /// Report the blueshift: how far this program is shifted, and what is
+    /// shifting it.
+    Shift { file: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -259,6 +263,25 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             println!("  when:  {:?}", floor.when);
             println!("  where: {:?}", floor.place);
             println!("  reach: {}", describe_reach(&floor.reach));
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Shift { file } => {
+            let reading = blue_lang_lsp::shift_of(&read(&file)?);
+            println!("{}", reading.summary());
+            if let Some(rung) = reading.rung {
+                println!("{}", rung.meaning());
+            }
+            if reading.factors.is_empty() {
+                return Ok(ExitCode::SUCCESS);
+            }
+            println!();
+            for f in &reading.factors {
+                // The arrow says which direction each factor pushes, so a
+                // reader can tell "this shifted me" from "this is holding me".
+                let arrow = if f.kind.shifts_forward() { "→" } else { "·" };
+                println!("  {arrow} {:<24} {}", f.kind.label(), f.detail);
+            }
             Ok(ExitCode::SUCCESS)
         }
 

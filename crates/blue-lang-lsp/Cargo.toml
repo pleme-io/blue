@@ -12,5 +12,6 @@ repository.workspace = true
 blue-lang-syntax = { workspace = true }
 blue-lang-fmt = { workspace = true }
 blue-lang-check = { workspace = true }
+blue-lang-runtime = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

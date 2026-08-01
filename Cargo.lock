@@ -135,6 +135,7 @@ version = "0.0.1"
 dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-runtime",
  "blue-lang-syntax",
  "serde",
  "serde_json",

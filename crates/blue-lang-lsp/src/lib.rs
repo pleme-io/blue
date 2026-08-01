@@ -15,13 +15,18 @@
 //! ## What this supports
 //!
 //! `textDocument/didOpen`, `didChange`, `formatting`, `hover`, and push
-//! diagnostics. **Not** completion, go-to-definition, rename, or references:
+//! diagnostics — plus **`blue/shift`**, a custom request answering "how far is
+//! this shifted, and what is shifting it" ([`shift`]). Blueshift is blue's
+//! central model; a model that governs the language and is invisible while you
+//! use it is one the author has to hold in their head. **Not** completion, go-to-definition, rename, or references:
 //! each needs a resolved name table blue does not build yet, and a completion
 //! list assembled from a token scan is worse than no completion — it suggests
 //! names that do not exist.
 
 pub mod analysis;
 pub mod server;
+pub mod shift;
 
 pub use analysis::{analyse, hover, Analysis, Declaration, Diagnostic, LineIndex, Position, Range, Severity};
 pub use server::{handle, Response, Server};
+pub use shift::{shift_of, Factor, FactorKind, Rung, Shift};

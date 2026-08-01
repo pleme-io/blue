@@ -1,0 +1,47 @@
+name: auto-release
+
+# blue's crates are absent from crates.io because nothing has ever published
+# them — this repo had NO `.github/workflows/` at all (measured 2026-08-01).
+# That absence is the load-bearing blocker for blue's adoption, not any gap in
+# the language: a consumer that wants blue today can only reach it with a
+# `git =` dependency, and a git dep inside an ALREADY-PUBLISHED crate freezes
+# that crate's own publishing and silently auto-defers everything downstream
+# of it. So "shikumi gains a blue config provider" is gated on this file, not
+# on shikumi.
+#
+# Preconditions verified before adding this, rather than assumed:
+#   - `GET /repos/pleme-io/blue/actions/permissions` -> {"enabled": true}.
+#     blue's `org.yaml` record carries no `actions_enabled` key, so it takes
+#     the default; the 14-of-860 records that pin it `false` (tear among them)
+#     are the exception, and blue is not one of them.
+#   - All 13 crates carry `description` + `license`, and `[workspace.package]`
+#     supplies version/license/repository/readme — so cargo has what the
+#     registry requires.
+#   - 403 tests green on the workspace.
+#
+# TIER-HONEST: committing this shim proves ADOPTION, not publication. Nothing
+# here is evidence that a release ran or that any crate reached the registry.
+# The done-predicate is `blue-lang-syntax` returning a version from
+# `crates.io/api/v1/crates/blue-lang-syntax` — today it returns 404. Do not
+# cite this file as "blue is on crates.io".
+#
+# Shape is the canonical 3-line consumer shim (precedent: awase, and every
+# other cargo repo in the fleet). The release logic lives once in substrate;
+# a hand-written publish job here would be drift.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: "patch | minor | major"
+        required: false
+        default: patch
+
+jobs:
+  release:
+    uses: pleme-io/substrate/.github/workflows/cargo-auto-release.yml@main
+    with:
+      bump-type: ${{ inputs.bump-type || 'patch' }}
+    secrets: inherit

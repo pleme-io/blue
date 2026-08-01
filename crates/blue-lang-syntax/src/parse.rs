@@ -59,22 +59,48 @@ pub fn parse_expr(src: &str) -> Result<Sexp, ParseError> {
     }
 }
 
-/// Binding powers. Higher binds tighter.
+/// What an infix operator binds like, and what it lowers to.
 ///
-/// The table is the surface's operator precedence, and it follows Ruby's
-/// where Ruby has an opinion. `|>` sits below every arithmetic and
-/// comparison operator so `a |> f |> g` chains left-to-right without
-/// parentheses, which is the whole point of having it.
-fn infix_power(op: &str) -> Option<(u8, u8)> {
-    let p = match op {
-        "||" => (1, 2),
-        "&&" => (3, 4),
-        "==" | "!=" | "<" | "<=" | ">" | ">=" => (5, 6),
-        "+" | "-" => (7, 8),
-        "*" | "/" | "%" => (9, 10),
-        _ => return None,
-    };
-    Some(p)
+/// **One row per operator, carrying both facts.** Precedence and callee
+/// used to live apart, and the cost was immediate: the surface spelling was
+/// emitted verbatim, so `a == b` lowered to `(== a b)` — a symbol no
+/// interpreter binds — and the program died at *runtime* with `unbound
+/// symbol ==`. Splitting the two invites exactly that: add an operator to
+/// the precedence table, forget the lowering, ship a parse that cannot run.
+/// Joined here, "has a precedence" and "has a callee" are the same fact.
+#[derive(Clone, Copy, Debug)]
+pub struct Infix {
+    /// Surface spelling.
+    pub op: &'static str,
+    /// Left and right binding power. Higher binds tighter.
+    pub power: (u8, u8),
+    /// The tatara-lisp callee this lowers to.
+    pub callee: &'static str,
+}
+
+/// The complete infix table. Precedence follows Ruby's where Ruby has an
+/// opinion; `|>` (below) sits under everything so `a |> f |> g` chains
+/// without parentheses.
+pub const INFIX: &[Infix] = &[
+    Infix { op: "||", power: (1, 2), callee: "or" },
+    Infix { op: "&&", power: (3, 4), callee: "and" },
+    // `==`/`!=` are the surface spellings Ruby and Elixir users type;
+    // tatara spells them `=` and `not=`.
+    Infix { op: "==", power: (5, 6), callee: "=" },
+    Infix { op: "!=", power: (5, 6), callee: "not=" },
+    Infix { op: "<", power: (5, 6), callee: "<" },
+    Infix { op: "<=", power: (5, 6), callee: "<=" },
+    Infix { op: ">", power: (5, 6), callee: ">" },
+    Infix { op: ">=", power: (5, 6), callee: ">=" },
+    Infix { op: "+", power: (7, 8), callee: "+" },
+    Infix { op: "-", power: (7, 8), callee: "-" },
+    Infix { op: "*", power: (9, 10), callee: "*" },
+    Infix { op: "/", power: (9, 10), callee: "/" },
+    Infix { op: "%", power: (9, 10), callee: "mod" },
+];
+
+fn infix(op: &str) -> Option<&'static Infix> {
+    INFIX.iter().find(|i| i.op == op)
 }
 
 const PIPE_POWER: (u8, u8) = (0, 1);
@@ -176,10 +202,12 @@ impl Parser {
             }
 
             // Infix
-            let (op, (lbp, rbp)) = match self.peek() {
-                TokenKind::Pipe => ("|>".to_string(), PIPE_POWER),
-                TokenKind::Op(o) => match infix_power(o) {
-                    Some(bp) => (o.clone(), bp),
+            // `callee == None` marks the pipeline, which is a rewrite rather
+            // than a call.
+            let (callee, (lbp, rbp)) = match self.peek() {
+                TokenKind::Pipe => (None, PIPE_POWER),
+                TokenKind::Op(o) => match infix(o) {
+                    Some(i) => (Some(i.callee), i.power),
                     None => break,
                 },
                 _ => break,
@@ -191,7 +219,7 @@ impl Parser {
             self.skip_newlines();
             let rhs = self.expr(rbp)?;
 
-            lhs = if op == "|>" {
+            lhs = if callee.is_none() {
                 // `x |> f`      => (f x)
                 // `x |> f(a)`   => (f x a)   — the pipeline threads into
                 //                  the FIRST argument position, as Elixir's
@@ -204,7 +232,7 @@ impl Parser {
                     callee => Sexp::List(vec![callee, lhs]),
                 }
             } else {
-                Sexp::List(vec![sym(&op), lhs, rhs])
+                Sexp::List(vec![sym(callee.unwrap()), lhs, rhs])
             };
         }
 
@@ -558,9 +586,13 @@ mod tests {
         assert_eq!(q("a + 1 < b"), "(< (+ a 1) b)");
     }
 
+    /// The expected tree names `or`/`and`, not `||`/`&&`: the surface
+    /// spelling is the SURFACE's, and lowering renames it to the form
+    /// tatara-lisp actually has. This test previously asserted the verbatim
+    /// spelling, which is how `(== a b)` — a symbol nothing binds — shipped.
     #[test]
-    fn logical_operators_bind_loosest() {
-        assert_eq!(q("a && b || c"), "(|| (&& a b) c)");
+    fn logical_operators_bind_loosest_and_lower_to_tataras_names() {
+        assert_eq!(q("a && b || c"), "(or (and a b) c)");
     }
 
     #[test]

@@ -63,19 +63,23 @@ fn sym_name(s: &Sexp) -> Option<&str> {
     }
 }
 
-/// Operators that render infix, with their precedence. Must agree with the
-/// parser's table or the round-trip law breaks — which is what
-/// `blue_lang_syntax`'s own tests plus this crate's round-trip property
-/// jointly enforce.
-fn infix_prec(op: &str) -> Option<u8> {
-    Some(match op {
-        "||" => 1,
-        "&&" => 3,
-        "==" | "!=" | "<" | "<=" | ">" | ">=" => 5,
-        "+" | "-" => 7,
-        "*" | "/" | "%" => 9,
-        _ => return None,
-    })
+/// Given the tatara-lisp callee of an infix form, the surface spelling to
+/// print and the precedence to print it at.
+///
+/// **This reads the parser's own table — it is not a second copy of it.**
+/// The previous version was a duplicate with a comment saying "must agree
+/// with the parser's table", and it did not: when the parser began lowering
+/// `==` to `=`, this table still knew only `==`, so `(= a b)` fell through
+/// the infix branch and printed as `a.=(b)`, which does not re-parse. A
+/// comment cannot hold two tables in agreement; sharing one can.
+///
+/// Formatting is the INVERSE direction, so the lookup is keyed by callee.
+/// [`callees_are_unique`] proves that inverse is a function.
+fn infix_render(callee: &str) -> Option<(&'static str, u8)> {
+    blue_lang_syntax::INFIX
+        .iter()
+        .find(|i| i.callee == callee)
+        .map(|i| (i.op, i.power.0))
 }
 
 fn expr(s: &Sexp) -> Doc {
@@ -114,8 +118,8 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
             }
 
             // Infix operators.
-            if let Some(op) = head {
-                if let Some(prec) = infix_prec(op) {
+            if let Some(callee) = head {
+                if let Some((op, prec)) = infix_render(callee) {
                     if items.len() == 3 {
                         let inner = Doc::join(
                             [
@@ -141,7 +145,7 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
             // and there is at least a receiver. Rendered `recv.name(args)`,
             // and `recv.name` with no args — uniform access, per §V.13.
             if let Some(name) = head {
-                if items.len() >= 2 && infix_prec(name).is_none() && !is_reserved(name) {
+                if items.len() >= 2 && infix_render(name).is_none() && !is_reserved(name) {
                     return send_form(name, &items[1], &items[2..]);
                 }
             }

@@ -1,6 +1,6 @@
 [package]
-name = "blue-lang-syntax"
-description = "blue's surface syntax: lexer, parser, and lowering to the tatara-lisp quoted form."
+name = "blue-lang-proc"
+description = "blue processes and supervision — OTP's structure over the preemptive scheduler."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,8 @@ repository.workspace = true
 
 [dependencies]
 tatara-lisp = { workspace = true }
+tatara-lisp-eval = { workspace = true }
 
 [dev-dependencies]
 blue-lang-runtime = { workspace = true }
-tatara-lisp-eval = { workspace = true }
+blue-lang-syntax = { workspace = true }

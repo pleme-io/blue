@@ -162,3 +162,56 @@ fn every_corpus_entry_parses() {
 fn width_is_a_constant_not_a_parameter() {
     assert_eq!(blue_lang_fmt::WIDTH, 90);
 }
+
+/// **The inverse lowering must be a function.** The formatter maps a callee
+/// back to a surface spelling, so two operators sharing a callee would make
+/// that map ambiguous and silently pick whichever came first — a round-trip
+/// that changes the program's text without changing its tree.
+///
+/// This is the invariant that lets the formatter read the parser's table
+/// instead of keeping its own copy.
+#[test]
+fn callees_are_unique() {
+    let mut seen: Vec<&str> = Vec::new();
+    let mut dupes: Vec<&str> = Vec::new();
+    for i in blue_lang_syntax::INFIX {
+        if seen.contains(&i.callee) {
+            dupes.push(i.callee);
+        }
+        seen.push(i.callee);
+    }
+    assert!(
+        dupes.is_empty(),
+        "these callees are claimed by more than one operator, so formatting them is ambiguous: {dupes:?}"
+    );
+}
+
+/// Every operator in the parser's table round-trips through the formatter.
+///
+/// The generic round-trip law only covers the fixed corpus; this one is
+/// driven by the table itself, so a NEW operator is covered the moment it is
+/// declared rather than when someone remembers to add a corpus entry.
+#[test]
+fn every_operator_in_the_table_round_trips() {
+    let mut broken: Vec<(String, String)> = Vec::new();
+    for i in blue_lang_syntax::INFIX {
+        let src = format!("a {} b", i.op);
+        let before = match blue_lang_syntax::parse_program(&src) {
+            Ok(f) => f,
+            Err(e) => {
+                broken.push((i.op.to_string(), format!("parse: {e}")));
+                continue;
+            }
+        };
+        let text = blue_lang_fmt::format_source(&src).expect("format");
+        match blue_lang_syntax::parse_program(&text) {
+            Ok(after) if after == before => {}
+            Ok(after) => broken.push((
+                i.op.to_string(),
+                format!("tree changed: {before:?} -> {after:?} via {text:?}"),
+            )),
+            Err(e) => broken.push((i.op.to_string(), format!("{text:?} does not re-parse: {e}"))),
+        }
+    }
+    assert!(broken.is_empty(), "operators that do not round-trip: {broken:#?}");
+}

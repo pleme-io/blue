@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama"]
+members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime"]
 resolver = "2"
 
 [workspace.package]
@@ -13,6 +13,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 blue-lang-syntax = { path = "crates/blue-lang-syntax" }
+blue-lang-runtime = { path = "crates/blue-lang-runtime" }
 blue-lang-waku = { path = "crates/blue-lang-waku" }
 tatara-lisp = { path = "../tatara-lisp/tatara-lisp" }
 tatara-lisp-eval = { path = "../tatara-lisp/tatara-lisp-eval" }

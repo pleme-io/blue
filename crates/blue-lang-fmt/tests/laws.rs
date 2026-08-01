@@ -1,0 +1,164 @@
+//! The two formatter laws, property-tested over a corpus.
+//!
+//! An idempotence test ALONE is satisfied by a formatter that deletes the
+//! whole file — which is how `caixa-fmt` shipped comment loss its proptest
+//! structurally could not see, because it compared trees that had already
+//! dropped trivia. So the load-bearing law here is the second one:
+//! formatting must not change what the program MEANS, checked by
+//! re-parsing and comparing trees.
+
+use blue_lang_fmt::format_source;
+use blue_lang_syntax::parse_program;
+
+/// Every construct the surface currently supports. Each entry is a
+/// separate law check, so a failure names the construct.
+const CORPUS: &[&str] = &[
+    "1",
+    "1.5",
+    "true",
+    "false",
+    "nil",
+    ":ok",
+    r#""hi""#,
+    r#""a\nb\t\"q\"""#,
+    "x",
+    "1 + 2",
+    "1 + 2 * 3",
+    "(1 + 2) * 3",
+    "1 - 2 - 3",
+    "1 - (2 - 3)",
+    "a < b",
+    "a == b",
+    "a && b || c",
+    "a || b && c",
+    "-x",
+    "!x",
+    "-(a + b)",
+    "f()",
+    "f(1)",
+    "f(1, 2, 3)",
+    "user.name",
+    "user.greet(1)",
+    "a.b.c",
+    "a.b(1).c",
+    "[]",
+    "[1, 2, 3]",
+    "[1 + 2, f(3)]",
+    "{}",
+    "{a: 1}",
+    "{a: 1, b: 2}",
+    r#"{"k" => 1}"#,
+    r#"{a: 1, "k" => 2}"#,
+    "x |> f",
+    "x |> f(1)",
+    "x |> f |> g",
+    "1 + 2 |> f",
+    "if a\n  1\nend",
+    "if a\n  1\nelse\n  2\nend",
+    "unless a\n  1\nend",
+    "if a\n  1\n  2\nend",
+    "def f()\n  1\nend",
+    "def add(a, b)\n  a + b\nend",
+    "def f(n)\n  if n\n    1\n  else\n    2\n  end\nend",
+    "def f(n)\n  n |> g |> h\nend",
+    // multi-form programs
+    "def f()\n  1\nend\nf()",
+    "1\n2\n3",
+    // a long call that must break
+    "some_function(aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, eeeeeeeeee, ffffffffff, gggggggggg)",
+];
+
+/// LAW 1 — idempotence. `fmt(fmt(s)) == fmt(s)`.
+#[test]
+fn formatting_is_idempotent() {
+    for src in CORPUS {
+        let once = format_source(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let twice = format_source(&once)
+            .unwrap_or_else(|e| panic!("re-formatting {once:?} failed: {e}"));
+        assert_eq!(
+            once, twice,
+            "not idempotent for {src:?}\n  once:  {once:?}\n  twice: {twice:?}"
+        );
+    }
+}
+
+/// LAW 2 — semantic round-trip. `parse(fmt(s)) == parse(s)`.
+///
+/// This is the one that matters: formatting may change bytes, never
+/// meaning. Compared as TREES, so whitespace and spelling choices are
+/// permitted and a changed program is not.
+#[test]
+fn formatting_preserves_the_tree() {
+    for src in CORPUS {
+        let before = parse_program(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let formatted = format_source(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let after = parse_program(&formatted)
+            .unwrap_or_else(|e| panic!("formatted output of {src:?} does not re-parse:\n{formatted}\n{e}"));
+        assert_eq!(
+            before, after,
+            "formatting changed the tree for {src:?}\n  formatted: {formatted:?}"
+        );
+    }
+}
+
+/// LAW 3 — canonicality. Formatted output is a fixed point reached in ONE
+/// step from any spelling of the same tree. Two different spellings that
+/// parse identically must format identically, which is the text↔tree
+/// bijection §V.16.1's content-addressed identity depends on.
+#[test]
+fn equal_trees_format_to_equal_text() {
+    let pairs: &[(&str, &str)] = &[
+        ("{a: 1}", "{:a => 1}"),
+        ("1+2", "1 + 2"),
+        ("f( 1 , 2 )", "f(1,2)"),
+        ("user.name", "user . name"),
+        ("[1,2]", "[ 1 , 2 ]"),
+        ("if a\n1\nend", "if a\n  1\nend"),
+    ];
+    for (a, b) in pairs {
+        let pa = parse_program(a).expect("parse a");
+        let pb = parse_program(b).expect("parse b");
+        assert_eq!(pa, pb, "{a:?} and {b:?} do not parse to the same tree");
+        assert_eq!(
+            format_source(a).expect("fmt a"),
+            format_source(b).expect("fmt b"),
+            "equal trees formatted differently: {a:?} vs {b:?}"
+        );
+    }
+}
+
+/// ANTI-VACUITY. The laws must be falsifiable: the corpus has to contain
+/// inputs that formatting actually CHANGES. If `fmt` were the identity
+/// function every law above would pass and prove nothing.
+#[test]
+fn the_formatter_actually_reformats_something() {
+    let changed = CORPUS
+        .iter()
+        .filter(|src| {
+            format_source(src).map(|out| out.trim() != src.trim()).unwrap_or(false)
+        })
+        .count();
+    assert!(
+        changed >= 5,
+        "only {changed} corpus entries were reformatted — the laws may be \
+         passing because the formatter is near-identity"
+    );
+}
+
+/// ANTI-VACUITY. The corpus must be non-trivial and fully parseable; a
+/// silently-skipped entry would weaken every law above.
+#[test]
+fn every_corpus_entry_parses() {
+    assert!(CORPUS.len() >= 40, "corpus too small to be meaningful");
+    for src in CORPUS {
+        parse_program(src).unwrap_or_else(|e| panic!("corpus entry {src:?} does not parse: {e}"));
+    }
+}
+
+/// There is no configuration surface. This is a compile-time fact — the
+/// crate exposes no config type — and this test records the intent so a
+/// future addition has to delete it deliberately.
+#[test]
+fn width_is_a_constant_not_a_parameter() {
+    assert_eq!(blue_lang_fmt::WIDTH, 90);
+}

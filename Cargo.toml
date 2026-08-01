@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/blue-lang-syntax"]
+members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt"]
 resolver = "2"
 
 [workspace.package]
@@ -12,5 +12,6 @@ repository = "https://github.com/pleme-io/blue"
 readme = "README.md"
 
 [workspace.dependencies]
+blue-lang-syntax = { path = "crates/blue-lang-syntax" }
 tatara-lisp = { path = "../tatara-lisp/tatara-lisp" }
 tatara-lisp-eval = { path = "../tatara-lisp/tatara-lisp-eval" }

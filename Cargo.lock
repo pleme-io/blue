@@ -29,6 +29,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-fmt"
+version = "0.0.1"
+dependencies = [
+ "blue-lang-syntax",
+ "tatara-lisp",
+]
+
+[[package]]
 name = "blue-lang-syntax"
 version = "0.0.1"
 dependencies = [

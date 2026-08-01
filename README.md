@@ -33,6 +33,17 @@ and evaluates to `120` on the shipped tatara-lisp interpreter.
 | Crate | Status |
 |---|---|
 | `blue-lang-syntax` | lexer, precedence-climbing parser, lowering to `tatara_lisp::Sexp` |
+| `blue-lang-fmt` | Wadler/Oppen pretty-printer + the canonical formatter. **No configuration type exists.** |
+
+## The formatter's two laws
+
+Property-tested over a 50-entry corpus, not asserted:
+
+1. **Idempotence** — `fmt(fmt(s)) == fmt(s)`
+2. **Semantic round-trip** — `parse(fmt(s)) == parse(s)`, compared as trees
+
+Plus canonicality: two spellings that parse to one tree format to one text.
+That is the text↔tree bijection content-addressed identity depends on.
 
 Everything else in the design — the typing ladder, the memory model, the
 `waku` frame, `bīdama` packages, the formatter, the LSP — is **design only**.

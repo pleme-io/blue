@@ -1,0 +1,13 @@
+[package]
+name = "blue-lang-fmt"
+description = "blue's canonical formatter. One output per program; no configuration surface exists."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+blue-lang-syntax = { workspace = true }
+tatara-lisp = { workspace = true }

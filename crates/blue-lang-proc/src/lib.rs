@@ -41,8 +41,11 @@ use std::sync::Arc;
 use tatara_lisp_eval::vm::{Budget, Chunk, Progress, Vm, VmError};
 use tatara_lisp_eval::{Interpreter, Value};
 
+pub mod mailbox;
+pub use mailbox::{install_process_primitives, System};
+
 /// A process identifier.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Pid(pub u64);
 
 /// Why a process stopped.
@@ -71,6 +74,9 @@ impl ExitReason {
 #[derive(Clone, Debug)]
 pub enum ProcState {
     Runnable,
+    /// Parked inside `receive` with an empty mailbox. Becomes `Runnable`
+    /// again the moment a message arrives — a *free* wait, costing no fuel.
+    Blocked,
     Done(Value),
     Exited(ExitReason),
 }
@@ -78,6 +84,10 @@ pub enum ProcState {
 impl ProcState {
     pub fn is_runnable(&self) -> bool {
         matches!(self, ProcState::Runnable)
+    }
+
+    pub fn is_blocked(&self) -> bool {
+        matches!(self, ProcState::Blocked)
     }
 
     pub fn is_done(&self) -> bool {
@@ -139,6 +149,48 @@ impl Proc {
     }
 }
 
+/// What the scheduler needs to know about the host, and nothing more.
+///
+/// The supervisor schedules; it does not know what a mailbox is. It only
+/// asks *"can this parked process proceed now?"* and *"is there anything
+/// pending that could make one proceed?"* — which is exactly enough to wake
+/// a blocked process and to tell a live wait from a deadlock.
+///
+/// Keeping it a trait rather than hard-coding [`System`] means a host with a
+/// different readiness source — a timer, a socket, a market feed — plugs in
+/// without touching the scheduler.
+pub trait Readiness {
+    /// May this parked process now make progress?
+    fn is_ready(&self, pid: Pid) -> bool;
+
+    /// Is there any pending work at all? When every process is parked and
+    /// this is false, nothing will ever change: that is a deadlock, and
+    /// spinning on it forever is the failure mode this question exists to
+    /// prevent.
+    fn any_pending(&self) -> bool;
+
+    /// The scheduler is about to give `pid` a slice. A host whose primitives
+    /// are process-relative — `receive`, `self` — needs this to answer them.
+    /// Default: nothing.
+    fn set_current(&mut self, _pid: Pid) {}
+
+    /// `pid` is about to restart, so its per-process host state should be
+    /// discarded. Default: nothing.
+    fn on_restart(&mut self, _pid: Pid) {}
+}
+
+/// A host with no readiness source of its own. Nothing ever becomes ready,
+/// so a process that parks under `()` is immediately a deadlock — which is
+/// the honest answer, since there is nothing to deliver.
+impl Readiness for () {
+    fn is_ready(&self, _pid: Pid) -> bool {
+        false
+    }
+    fn any_pending(&self) -> bool {
+        false
+    }
+}
+
 /// Restart strategy. Names follow `caixa-core`'s `estrategia`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Strategy {
@@ -159,6 +211,15 @@ pub enum Event {
     /// Restart intensity exceeded: the supervisor gave up rather than
     /// restarting in a tight loop forever.
     GaveUp { pid: Pid, restarts: usize },
+    /// A process parked waiting for a message.
+    Blocked { pid: Pid },
+    /// A parked process was woken by an arriving message.
+    Woke { pid: Pid },
+    /// Every remaining process is parked and nothing is pending, so no
+    /// message can ever arrive. Reported rather than spun on, because a
+    /// deadlocked switch that *looks* busy is far worse than one that says
+    /// which processes are stuck.
+    Deadlocked { blocked: Vec<Pid> },
 }
 
 /// A supervisor over an ordered set of children.
@@ -202,8 +263,27 @@ impl Supervisor {
     }
 
     /// Is anything still runnable?
-    pub fn has_work(&self) -> bool {
-        self.procs.iter().any(Proc::is_runnable)
+    /// Is there anything to run *right now*?
+    ///
+    /// A blocked process counts only if the host says it is ready. A blocked
+    /// process with nothing pending is not work — it is a deadlock, and
+    /// [`Supervisor::round`] reports it.
+    pub fn has_work<H: Readiness>(&self, host: &H) -> bool {
+        self.procs
+            .iter()
+            .any(|p| p.is_runnable() || (p.state.is_blocked() && host.is_ready(p.pid)))
+    }
+
+    /// Processes parked with nothing to wake them.
+    pub fn deadlocked<H: Readiness>(&self, host: &H) -> Vec<Pid> {
+        if host.any_pending() {
+            return Vec::new();
+        }
+        self.procs
+            .iter()
+            .filter(|p| p.state.is_blocked())
+            .map(|p| p.pid)
+            .collect()
     }
 
     /// Run one scheduling round: give every runnable process one quantum,
@@ -212,16 +292,38 @@ impl Supervisor {
     /// Round-robin, so a long-running child cannot starve a short one —
     /// that is preemption's contribution, and it holds without any child
     /// cooperating.
-    pub fn round<H: 'static>(&mut self, interp: &mut Interpreter<H>, host: &mut H) {
+    pub fn round<H: Readiness + 'static>(
+        &mut self,
+        interp: &mut Interpreter<H>,
+        host: &mut H,
+    ) {
         let mut exited: Vec<(usize, ExitReason)> = Vec::new();
+
+        // Wake first, so a message that arrived during the previous round is
+        // acted on in this one rather than a round later.
+        for idx in 0..self.procs.len() {
+            if self.procs[idx].state.is_blocked() && host.is_ready(self.procs[idx].pid) {
+                self.procs[idx].state = ProcState::Runnable;
+                let pid = self.procs[idx].pid;
+                self.events.push(Event::Woke { pid });
+            }
+        }
 
         for idx in 0..self.procs.len() {
             if !self.procs[idx].is_runnable() {
                 continue;
             }
             let chunk = self.procs[idx].chunk.clone();
+            // Tell the host whose slice this is, so `receive` and `self`
+            // resolve to the right process.
+            host.set_current(self.procs[idx].pid);
             match self.procs[idx].vm.step(chunk, interp, host) {
                 Ok(Progress::Yielded) => {}
+                Ok(Progress::Blocked) => {
+                    self.procs[idx].state = ProcState::Blocked;
+                    let pid = self.procs[idx].pid;
+                    self.events.push(Event::Blocked { pid });
+                }
                 Ok(Progress::Done(v)) => {
                     self.procs[idx].state = ProcState::Done(v);
                     let pid = self.procs[idx].pid;
@@ -245,7 +347,7 @@ impl Supervisor {
 
         for (idx, reason) in exited {
             if reason.is_abnormal() {
-                self.apply_strategy(idx);
+                self.apply_strategy(idx, host);
             }
         }
     }
@@ -254,21 +356,28 @@ impl Supervisor {
     ///
     /// The bound is a test-and-operator safety net, not a semantic: a
     /// supervision tree that cannot settle should say so rather than spin.
-    pub fn run_to_quiescence<H: 'static>(
+    pub fn run_to_quiescence<H: Readiness + 'static>(
         &mut self,
         interp: &mut Interpreter<H>,
         host: &mut H,
         max_rounds: usize,
     ) -> usize {
         let mut rounds = 0;
-        while self.has_work() && rounds < max_rounds {
+        while self.has_work(host) && rounds < max_rounds {
             self.round(interp, host);
             rounds += 1;
+        }
+        // Settling with processes still parked is a deadlock, not quiescence.
+        // Saying so once, here, is what keeps a stuck system from reading as
+        // a finished one.
+        let stuck = self.deadlocked(host);
+        if !stuck.is_empty() {
+            self.events.push(Event::Deadlocked { blocked: stuck });
         }
         rounds
     }
 
-    fn apply_strategy(&mut self, exited_idx: usize) {
+    fn apply_strategy<H: Readiness>(&mut self, exited_idx: usize, host: &mut H) {
         let targets: Vec<usize> = match self.strategy {
             Strategy::OneForOne => vec![exited_idx],
             Strategy::OneForAll => (0..self.procs.len()).collect(),
@@ -288,6 +397,11 @@ impl Supervisor {
         for idx in targets {
             self.procs[idx].restart();
             let pid = self.procs[idx].pid;
+            // A restarted process starts clean on the host side too. In
+            // particular its mailbox is emptied: the messages in flight were
+            // addressed to the incarnation that died, and replaying them into
+            // the fresh one is how a poison message kills a process forever.
+            host.on_restart(pid);
             self.events.push(Event::Restarted { pid });
         }
     }
@@ -381,7 +495,7 @@ mod tests {
             "the supervisor must give up: {:?}",
             sup.events
         );
-        assert!(!sup.has_work(), "nothing should still be runnable");
+        assert!(!sup.has_work(&()), "nothing should still be runnable");
     }
 
     // ---- normal completion -------------------------------------------

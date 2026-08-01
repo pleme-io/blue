@@ -232,14 +232,14 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.3.14"
+version = "0.3.15"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.3.14"
+version = "0.3.15"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -248,7 +248,7 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.3.14"
+version = "0.3.15"
 dependencies = [
  "blake3",
  "serde",
@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.3.14"
+version = "0.3.15"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.3.14"
+version = "0.3.15"
 dependencies = [
  "tatara-lisp",
  "thiserror",

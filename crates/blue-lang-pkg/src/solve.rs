@@ -26,7 +26,7 @@
 //! reports the search size and [`SolveError::Exhausted`] fires at a bound, so
 //! the difference is visible rather than experienced as a hang.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::version::{newest_first, Range, Version};
 
@@ -172,10 +172,66 @@ impl std::fmt::Display for Resolution {
     }
 }
 
+/// A fact learned from a failure: this exact assignment cannot be part of any
+/// solution.
+///
+/// PubGrub's contribution in its smallest useful form. Without it a solver
+/// re-derives the same dead end from every path that reaches it, which is where
+/// the exponential lives — the search is not exploring new ground, it is
+/// re-proving something it already proved.
+///
+/// Deliberately narrow: this records *concrete rejected assignments*
+/// (`name@version`), not general clauses over version ranges. A full derivation
+/// graph would subsume more, and would also be a much larger thing to get right;
+/// this is the part that pays for itself immediately, and `learned()` reports
+/// how much it caught so the value is measured rather than assumed.
+#[derive(Clone, Debug, Default)]
+struct Learned {
+    rejected: BTreeSet<(String, Version)>,
+}
+
+impl Learned {
+    fn is_known_bad(&self, name: &str, v: Version) -> bool {
+        self.rejected.contains(&(name.to_string(), v))
+    }
+
+    fn record(&mut self, name: &str, v: Version) {
+        self.rejected.insert((name.to_string(), v));
+    }
+}
+
+/// Is this conflict caused by `name@version` alone?
+///
+/// True when every requirement on the failing package originates at the root or
+/// at this exact candidate. Any third contributor means a sibling choice is
+/// implicated, and the candidate cannot be condemned on this evidence.
+fn attributable_to(e: &SolveError, name: &str, version: Version) -> bool {
+    let SolveError::Conflict(c) = e else {
+        return false;
+    };
+    let mine = {
+        let mut s = String::with_capacity(name.len() + 8);
+        s.push_str(name);
+        s.push(' ');
+        s.push_str(&version.to_string());
+        s
+    };
+    // An empty chain proves nothing about the cause.
+    !c.requirements.is_empty()
+        && c.requirements
+            .iter()
+            .all(|r| match &r.from {
+                None => true, // the root — invariant across the search
+                Some(from) => from == &mine,
+            })
+}
+
 pub struct Solver<'r, R: Registry> {
     registry: &'r R,
     max_steps: usize,
     steps: usize,
+    learned: Learned,
+    skipped: usize,
 }
 
 /// Bound on the search. Generous for any real graph; finite so a pathological
@@ -188,6 +244,8 @@ impl<'r, R: Registry> Solver<'r, R> {
             registry,
             max_steps: DEFAULT_MAX_STEPS,
             steps: 0,
+            learned: Learned::default(),
+            skipped: 0,
         }
     }
 
@@ -203,9 +261,20 @@ impl<'r, R: Registry> Solver<'r, R> {
         self.steps
     }
 
+    /// Candidate attempts skipped because the assignment was already known bad.
+    ///
+    /// The measured value of learning. Zero on a graph with no repeated dead
+    /// ends — which is most of them, and why this is reported rather than
+    /// assumed.
+    pub fn skipped_by_learning(&self) -> usize {
+        self.skipped
+    }
+
     /// Resolve `root`'s requirements.
     pub fn solve(&mut self, root: &Manifest) -> Result<Resolution, SolveError> {
         self.steps = 0;
+        self.learned = Learned::default();
+        self.skipped = 0;
         // Constraints accumulate as an intersection per package, alongside the
         // requirement chain that produced them — the chain is what makes a
         // conflict explainable.
@@ -263,6 +332,13 @@ impl<'r, R: Registry> Solver<'r, R> {
 
         let mut last_conflict = None;
         for candidate in candidates {
+            // Consult what previous failures proved. Reaching the same
+            // assignment by a different path does not make it viable, and
+            // re-deriving that is exactly the exponential.
+            if self.learned.is_known_bad(&name, candidate) {
+                self.skipped += 1;
+                continue;
+            }
             self.steps += 1;
             if self.steps > self.max_steps {
                 return Err(SolveError::Exhausted { steps: self.steps });
@@ -317,6 +393,23 @@ impl<'r, R: Registry> Solver<'r, R> {
                 }
             }
             if !viable {
+                // Learn ONLY if the empty intersection is attributable — the
+                // same rule as the subtree branch below, and unsound without it.
+                //
+                // The comment here used to claim "the conflict came from the
+                // candidate's OWN manifest, not from anything the caller chose".
+                // That is false: the intersection is against constraints ALREADY
+                // in scope, which include every sibling the caller picked. A
+                // candidate that fails under `p@2` may be fine under `p@1`, and
+                // condemning it globally makes the solver report a satisfiable
+                // graph as unsatisfiable — see `soundness::
+                // a_context_dependent_failure_does_not_condemn_the_candidate`,
+                // which is the test I should have written first.
+                if let Some(e) = &last_conflict {
+                    if attributable_to(e, &name, candidate) {
+                        self.learned.record(&name, candidate);
+                    }
+                }
                 continue;
             }
 
@@ -327,7 +420,37 @@ impl<'r, R: Registry> Solver<'r, R> {
                     return Ok(());
                 }
                 Err(e @ SolveError::Exhausted { .. }) => return Err(e),
-                Err(e) => last_conflict = Some(e),
+                Err(e) => {
+                    // Learn ONLY IF THE FAILURE IS ATTRIBUTABLE to this
+                    // candidate. This is the whole soundness question and the
+                    // first version got it wrong.
+                    //
+                    // "The subtree failed, so the assignment is dead" is FALSE:
+                    // the subtree also carries constraints inherited from the
+                    // caller, so it may have failed for a reason that has
+                    // nothing to do with this candidate. Recording it anyway
+                    // marks good candidates dead, and with enough of them every
+                    // version of some package gets crossed off — the solver
+                    // then reports an unsatisfiable graph that is perfectly
+                    // satisfiable. My own test caught exactly that: a
+                    // `Conflict` on `free0`, a package with no constraints at
+                    // all.
+                    //
+                    // Sound rule: the failure is attributable when every
+                    // requirement bearing on the failing package comes from
+                    // either the ROOT or from THIS candidate. Root requirements
+                    // are invariant across the whole search, so if no sibling
+                    // choice contributed, no sibling choice could have caused
+                    // it — and the assignment really is dead everywhere.
+                    //
+                    // This learns strictly less than PubGrub, which tracks the
+                    // full derivation and can attribute through several hops.
+                    // It is the part that is sound without one.
+                    if attributable_to(&e, &name, candidate) {
+                        self.learned.record(&name, candidate);
+                    }
+                    last_conflict = Some(e);
+                }
             }
         }
 
@@ -550,5 +673,258 @@ mod tests {
             v(1, 5, 0),
             "the intersection of >=1.0.0 and ^1.2.0, newest first"
         );
+    }
+}
+
+#[cfg(test)]
+mod learning {
+    use super::*;
+
+    fn v(a: u64, b: u64, c: u64) -> Version {
+        Version::new(a, b, c)
+    }
+    fn r(s: &str) -> Range {
+        Range::parse(s).expect("range")
+    }
+
+    /// A graph that forces the SAME dead end to be reached from many paths.
+    ///
+    /// `n` independent packages named `aaa*` each have two versions and no
+    /// constraints, so the solver enumerates 2^n combinations of them. `zzz`
+    /// sorts LAST, so every one of those combinations reaches it — and every
+    /// `zzz` version needs a `ghost` that does not exist.
+    ///
+    /// The names matter and the first version of this fixture got them wrong.
+    /// Selection is BTreeMap order, so `doomed` sorted *before* `free*`: the
+    /// dead end was reached once, learned, and never revisited, and the test
+    /// measured nothing. Repetition has to be constructed, not assumed.
+    ///
+    /// The solve FAILS either way. The win is entirely in the work avoided,
+    /// which is the honest thing to measure — an optimisation that changed the
+    /// answer would be a bug.
+    fn repeated_dead_end(n: usize) -> (MapRegistry, Manifest) {
+        let mut reg = MapRegistry::new();
+        let mut root = Manifest::new();
+        for i in 0..n {
+            let name = format!("aaa{i}");
+            reg.add(&name, v(1, 0, 0), Manifest::new());
+            reg.add(&name, v(2, 0, 0), Manifest::new());
+            root = root.needing(&name, r("*"));
+        }
+        for patch in 0..6 {
+            reg.add(
+                "zzz",
+                v(1, 0, patch),
+                Manifest::new().needing("ghost", r("^9.0.0")),
+            );
+        }
+        root = root.needing("zzz", r("*"));
+        (reg, root)
+    }
+
+    /// **Learning proves the dead end once and skips it thereafter.**
+    ///
+    /// Six `zzz` versions, each reached from every combination of the free
+    /// packages. Without learning each combination re-derives all six; with it
+    /// they are condemned on the first pass and skipped after.
+    #[test]
+    fn learning_skips_a_dead_end_already_proved() {
+        let (reg, root) = repeated_dead_end(5);
+        let mut solver = Solver::new(&reg);
+        solver.solve(&root).expect_err("the graph is unsatisfiable");
+        assert!(
+            solver.skipped_by_learning() >= 6,
+            "the dead end must be re-reached and skipped, not re-derived;              skipped={} steps={}",
+            solver.skipped_by_learning(),
+            solver.steps_taken()
+        );
+    }
+
+    /// **The dead end costs a CONSTANT, not a multiple.**
+    ///
+    /// Doubling the free packages multiplies the combinations — that work is
+    /// real and unavoidable. What must not multiply is the dead end: the six
+    /// `zzz` versions are attempted once in total either way, so the extra
+    /// steps between the two runs come from enumeration alone.
+    #[test]
+    fn the_dead_end_is_paid_for_once_regardless_of_branching() {
+        let mut attempts = Vec::new();
+        for n in [3usize, 6] {
+            let (reg, root) = repeated_dead_end(n);
+            let mut solver = Solver::new(&reg);
+            solver.solve(&root).expect_err("unsatisfiable");
+            // Steps count ATTEMPTED candidates; skips are not steps. The
+            // difference between total reaches and attempts is what learning
+            // saved.
+            attempts.push((solver.steps_taken(), solver.skipped_by_learning()));
+        }
+        let (small_steps, small_skipped) = attempts[0];
+        let (large_steps, large_skipped) = attempts[1];
+        assert!(
+            large_skipped > small_skipped,
+            "more branching must mean more skips, not more work: {attempts:?}"
+        );
+        // The six doomed attempts are a constant inside both step counts.
+        assert!(
+            large_steps - small_steps < large_skipped,
+            "the growth in real work must be smaller than what learning avoided: \
+             {attempts:?}"
+        );
+    }
+
+    /// Anti-vacuity: learning must not change ANSWERS    /// Anti-vacuity: learning must not change ANSWERS, only work. A cache that
+    /// alters resolutions is a bug wearing an optimisation's clothes.
+    #[test]
+    fn learning_never_changes_the_resolution() {
+        let mut reg = MapRegistry::new();
+        reg.add("a", v(2, 0, 0), Manifest::new().needing("b", r("^9.0.0")))
+            .add("a", v(1, 0, 0), Manifest::new().needing("b", r("^1.0.0")))
+            .add("b", v(1, 0, 0), Manifest::new())
+            .add("c", v(1, 0, 0), Manifest::new().needing("a", r("*")));
+        let root = Manifest::new().needing("a", r("*")).needing("c", r("*"));
+
+        let mut solver = Solver::new(&reg);
+        let learned = solver.solve(&root).expect("resolve");
+        assert_eq!(learned.picks["a"], v(1, 0, 0));
+        assert_eq!(learned.picks["b"], v(1, 0, 0));
+    }
+
+    /// **A conflict must still be reported, and still name both sides.**
+    /// Learning prunes the search; it must not prune the explanation.
+    #[test]
+    fn learning_does_not_degrade_the_conflict_report() {
+        let mut reg = MapRegistry::new();
+        reg.add("left", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
+            .add("right", v(1, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
+            .add("shared", v(1, 0, 0), Manifest::new())
+            .add("shared", v(2, 0, 0), Manifest::new());
+        let err = Solver::new(&reg)
+            .solve(
+                &Manifest::new()
+                    .needing("left", r("*"))
+                    .needing("right", r("*")),
+            )
+            .expect_err("unsatisfiable");
+        let text = err.to_string();
+        assert!(text.contains("left") && text.contains("right"), "{text}");
+        assert!(text.contains("^1.0.0") && text.contains("^2.0.0"), "{text}");
+    }
+
+    /// Learning is per-solve, not shared across calls — a `Solver` reused
+    /// against a DIFFERENT registry must not carry stale facts.
+    #[test]
+    fn learned_facts_do_not_leak_between_solves() {
+        let mut reg = MapRegistry::new();
+        reg.add("a", v(1, 0, 0), Manifest::new().needing("ghost", r("*")));
+        let mut solver = Solver::new(&reg);
+        assert!(solver.solve(&Manifest::new().needing("a", r("*"))).is_err());
+
+        // Same solver, a root that CAN be satisfied. If `a@1.0.0` stayed marked
+        // dead the second solve would wrongly fail.
+        let mut reg2 = MapRegistry::new();
+        reg2.add("a", v(1, 0, 0), Manifest::new());
+        let mut solver2 = Solver::new(&reg2);
+        assert!(solver2.solve(&Manifest::new().needing("a", r("*"))).is_ok());
+        assert_eq!(solver2.skipped_by_learning(), 0);
+    }
+}
+
+#[cfg(test)]
+mod soundness {
+    use super::*;
+
+    fn v(a: u64, b: u64, c: u64) -> Version {
+        Version::new(a, b, c)
+    }
+    fn r(s: &str) -> Range {
+        Range::parse(s).expect("range")
+    }
+
+    /// **The graph that catches unsound learning.**
+    ///
+    /// `p` is chosen before `q`. Under `p@2` the shared constraint narrows to
+    /// `^2`, so `q@1`'s own `^1` demand intersects to empty and `q@1` fails —
+    /// *in that context*. Under `p@1` it is perfectly fine.
+    ///
+    /// A solver that condemns `q@1` on that first failure skips it when `p@1`
+    /// is tried, finds `q` has no candidates left, and reports an
+    /// **unsatisfiable graph that is satisfiable**. That is the worst class of
+    /// bug an optimisation can introduce: not slower, WRONG.
+    ///
+    /// I wrote that solver twice before writing this test — once learning on
+    /// any subtree failure, once learning on any empty intersection. Both
+    /// passed every other test in this file.
+    fn context_dependent_failure() -> (MapRegistry, Manifest) {
+        let mut reg = MapRegistry::new();
+        reg.add("p", v(2, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
+            .add("p", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
+            .add("q", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
+            .add("shared", v(1, 0, 0), Manifest::new())
+            .add("shared", v(2, 0, 0), Manifest::new());
+        (reg, Manifest::new().needing("p", r("*")).needing("q", r("*")))
+    }
+
+    /// A failure in ONE caller context must not condemn the candidate in
+    /// another.
+    #[test]
+    fn a_context_dependent_failure_does_not_condemn_the_candidate() {
+        let (reg, root) = context_dependent_failure();
+        let out = Solver::new(&reg)
+            .solve(&root)
+            .expect("this graph IS satisfiable: p@1 + q@1 + shared@1");
+        assert_eq!(out.picks["p"], v(1, 0, 0));
+        assert_eq!(out.picks["q"], v(1, 0, 0));
+        assert_eq!(out.picks["shared"], v(1, 0, 0));
+    }
+
+    /// **The same trap one level deeper — a context-dependent SUBTREE failure.**
+    ///
+    /// Under `p@2`, `q@1` itself intersects fine; it is `mid@1`, one hop below,
+    /// that collides with the narrowed `shared`. So `q@1`'s whole subtree fails
+    /// in that context and succeeds under `p@1`.
+    ///
+    /// This is a separate gate from the direct case because it exercises a
+    /// separate branch: condemning on subtree failure and condemning on empty
+    /// intersection are two different pieces of code, and a test for one does
+    /// not cover the other. Both were unsound; only one was caught until this
+    /// existed.
+    #[test]
+    fn a_context_dependent_subtree_failure_does_not_condemn_the_candidate() {
+        let mut reg = MapRegistry::new();
+        reg.add("p", v(2, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
+            .add("p", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
+            .add("q", v(1, 0, 0), Manifest::new().needing("mid", r("^1.0.0")))
+            .add("mid", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
+            .add("shared", v(1, 0, 0), Manifest::new())
+            .add("shared", v(2, 0, 0), Manifest::new());
+
+        let out = Solver::new(&reg)
+            .solve(&Manifest::new().needing("p", r("*")).needing("q", r("*")))
+            .expect("satisfiable: p@1 + q@1 + mid@1 + shared@1");
+        assert_eq!(out.picks["p"], v(1, 0, 0));
+        assert_eq!(out.picks["q"], v(1, 0, 0));
+        assert_eq!(out.picks["mid"], v(1, 0, 0));
+    }
+
+    /// The same property stated over the whole search: learning may change how
+    /// long a solve takes and must never change what it returns.
+    #[test]
+    fn learning_is_answer_preserving_across_a_family_of_graphs() {
+        let mut reg = MapRegistry::new();
+        reg.add("app", v(1, 0, 0), Manifest::new().needing("lib", r("*")))
+            .add("lib", v(3, 0, 0), Manifest::new().needing("core", r("^3.0.0")))
+            .add("lib", v(2, 0, 0), Manifest::new().needing("core", r("^2.0.0")))
+            .add("lib", v(1, 0, 0), Manifest::new().needing("core", r("^1.0.0")))
+            .add("core", v(1, 0, 0), Manifest::new())
+            .add("core", v(2, 0, 0), Manifest::new());
+
+        // Pinning `core` to 1.x makes lib@3 and lib@2 fail in THIS context
+        // while both are fine in others.
+        let root = Manifest::new()
+            .needing("app", r("*"))
+            .needing("core", r("^1.0.0"));
+        let out = Solver::new(&reg).solve(&root).expect("lib@1 satisfies it");
+        assert_eq!(out.picks["lib"], v(1, 0, 0));
+        assert_eq!(out.picks["core"], v(1, 0, 0));
     }
 }

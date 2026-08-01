@@ -13,14 +13,17 @@
 //! blue erase   FILE            the tatara-lisp form after type erasure
 //! blue check   FILE            the sliding-scale report: analysis and seams
 //! blue test    FILE            run the file's `test` blocks
+//! blue deps    BLUEFILE        resolve the manifest's dependencies
+//! blue posture BLUEFILE        the posture the manifest's floors require
 //! ```
 //!
-//! **`blue posture` is deliberately absent.** A posture is resolved from the
-//! *floors a package set declares* (`blue_lang_bidama::resolve`), and blue has
-//! no package-declaration surface yet — no `Bluefile`, no `defbidama` reader.
-//! A subcommand that read postures out of a single source file would be
-//! inventing a declaration format ahead of the design, so it waits for the
-//! package manager rather than shipping a guess.
+//! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
+//! program — see `blue_lang_pkg::bluefile`. `posture` was previously absent
+//! because there was no declaration surface to read a floor from; there is one
+//! now.
+//!
+//! **Neither fetches anything.** Resolution is real; there is no registry
+//! client, so `deps` resolves against what it is given and installs nothing.
 //!
 //! `blue ast` and `blue erase` are separate on purpose: the difference
 //! between them *is* the sliding scale, and being able to print both sides of
@@ -64,6 +67,10 @@ enum Cmd {
     Check { file: PathBuf },
     /// Run the file's `test` blocks.
     Test { file: PathBuf },
+    /// Resolve a Bluefile's dependencies. Does not fetch.
+    Deps { file: PathBuf },
+    /// Report the posture a Bluefile's declared floor requires.
+    Posture { file: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -95,6 +102,8 @@ enum CliError {
     Blue(#[from] blue_lang_runtime::RunError),
     #[error("{0}")]
     Fmt(String),
+    #[error("{0}")]
+    Pkg(String),
 }
 
 fn read(path: &Path) -> Result<String, CliError> {
@@ -191,6 +200,48 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             } else {
                 ExitCode::FAILURE
             })
+        }
+
+        Cmd::Deps { file } => {
+            let manifest = blue_lang_pkg::read_bluefile(&read(&file)?)
+                .map_err(|e| CliError::Pkg(e.to_string()))?;
+            println!("{} {}", manifest.name, manifest.version);
+            if manifest.manifest.needs.is_empty() {
+                println!("  (no dependencies)");
+                return Ok(ExitCode::SUCCESS);
+            }
+            for (dep, range) in &manifest.manifest.needs {
+                println!("  needs {dep} {range}");
+            }
+            // No registry client exists, so there is nothing to resolve
+            // AGAINST. Saying so beats printing a resolution of an empty
+            // registry and letting it read as success.
+            println!("\nresolution requires a registry; none is configured");
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Posture { file } => {
+            let manifest = blue_lang_pkg::read_bluefile(&read(&file)?)
+                .map_err(|e| CliError::Pkg(e.to_string()))?;
+            let floor = &manifest.floor;
+            println!("{} {}", manifest.name, manifest.version);
+            println!("  when:  {:?}", floor.when);
+            println!("  where: {:?}", floor.place);
+            println!("  reach: {}", describe_reach(&floor.reach));
+            Ok(ExitCode::SUCCESS)
+        }
+    }
+}
+
+fn describe_reach(r: &blue_lang_waku::Reach) -> String {
+    match r {
+        blue_lang_waku::Reach::Unrestricted => "unrestricted".to_string(),
+        blue_lang_waku::Reach::Only(names) => {
+            let list = names.iter().cloned().collect::<Vec<_>>().join(", ");
+            let mut out = String::with_capacity(list.len() + 6);
+            out.push_str("only ");
+            out.push_str(&list);
+            out
         }
     }
 }

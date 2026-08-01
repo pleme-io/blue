@@ -99,9 +99,11 @@ version = "0.0.1"
 dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-pkg",
  "blue-lang-runtime",
  "blue-lang-syntax",
  "blue-lang-test",
+ "blue-lang-waku",
  "clap",
  "tatara-lisp-eval",
  "thiserror",
@@ -113,6 +115,19 @@ version = "0.0.1"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
+]
+
+[[package]]
+name = "blue-lang-pkg"
+version = "0.0.1"
+dependencies = [
+ "blue-lang-bidama",
+ "blue-lang-runtime",
+ "blue-lang-syntax",
+ "blue-lang-waku",
+ "tatara-lisp",
+ "tatara-lisp-eval",
+ "thiserror",
 ]
 
 [[package]]

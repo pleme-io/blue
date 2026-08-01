@@ -265,7 +265,7 @@ fn help_lists_every_subcommand() {
     let o = run(&["--help"]);
     assert!(o.status.success());
     let help = stdout(&o);
-    for cmd in ["run", "fmt", "ast", "erase", "check", "test"] {
+    for cmd in ["run", "fmt", "ast", "erase", "check", "test", "deps", "posture"] {
         assert!(help.contains(cmd), "--help must list `{cmd}`: {help}");
     }
 }
@@ -338,5 +338,62 @@ fn test_on_a_file_with_no_tests_reports_zero() {
         stdout(&o).contains("0 test(s)"),
         "an empty run must be visibly empty: {}",
         stdout(&o)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// deps / posture — the Bluefile
+// ---------------------------------------------------------------------------
+
+/// A Bluefile whose version is COMPUTED. A data-format manifest could not
+/// express this, and it is the reason the Bluefile is a blue program.
+const BLUEFILE: &str = "def app_version()\n  \"0.2.0\"\nend\n\npackage(\"myapp\", app_version())\nneeds(\"gaming\", \"^1.2\")\nposture(:preceding)";
+
+#[test]
+fn deps_reports_the_manifest_including_a_computed_version() {
+    let f = write("deps", BLUEFILE);
+    let o = run(&["deps", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    let out = stdout(&o);
+    assert!(
+        out.contains("myapp 0.2.0"),
+        "the version came from a function call: {out}"
+    );
+    assert!(out.contains("needs gaming ^1.2.0"), "{out}");
+}
+
+/// **`deps` must not claim to have resolved anything.** There is no registry
+/// client, and printing an empty resolution would read as success.
+#[test]
+fn deps_says_it_cannot_resolve_rather_than_printing_a_hollow_resolution() {
+    let f = write("deps-honest", BLUEFILE);
+    let out = stdout(&run(&["deps", f.to_str().unwrap()]));
+    assert!(
+        out.contains("requires a registry"),
+        "it must say resolution is not configured: {out}"
+    );
+}
+
+#[test]
+fn posture_reports_the_declared_floor() {
+    let f = write("posture", BLUEFILE);
+    let o = run(&["posture", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    let out = stdout(&o);
+    assert!(out.contains("Preceding"), "the declared `when`: {out}");
+    assert!(out.contains("unrestricted"), "undeclared reach is the top: {out}");
+}
+
+/// A Bluefile with no `package` call fails, rather than defaulting to an
+/// anonymous package at 0.0.0.
+#[test]
+fn a_bluefile_without_a_package_call_fails() {
+    let f = write("bluefile-nopkg", "needs(\"a\", \"*\")");
+    let o = run(&["deps", f.to_str().unwrap()]);
+    assert!(!o.status.success(), "must fail");
+    assert!(
+        stderr(&o).contains("package"),
+        "and say what is missing: {}",
+        stderr(&o)
     );
 }

@@ -45,6 +45,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-waku"
+version = "0.0.1"
+dependencies = [
+ "blue-lang-syntax",
+ "tatara-lisp",
+]
+
+[[package]]
 name = "cc"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

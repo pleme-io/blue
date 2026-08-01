@@ -34,6 +34,7 @@ and evaluates to `120` on the shipped tatara-lisp interpreter.
 |---|---|
 | `blue-lang-syntax` | lexer, precedence-climbing parser, lowering to `tatara_lisp::Sexp` |
 | `blue-lang-fmt` | Wadler/Oppen pretty-printer + the canonical formatter. **No configuration type exists.** |
+| `blue-lang-waku` | the frame — REACH/WHEN/WHERE — with the lattice laws property-tested and `narrow` proven never to widen |
 
 ## The formatter's two laws
 

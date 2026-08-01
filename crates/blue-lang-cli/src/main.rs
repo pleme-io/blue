@@ -12,6 +12,7 @@
 //! blue ast     FILE            the tatara-lisp form — homoiconicity, visible
 //! blue erase   FILE            the tatara-lisp form after type erasure
 //! blue check   FILE            the sliding-scale report: analysis and seams
+//! blue test    FILE            run the file's `test` blocks
 //! ```
 //!
 //! **`blue posture` is deliberately absent.** A posture is resolved from the
@@ -61,6 +62,8 @@ enum Cmd {
     Erase { file: PathBuf },
     /// Report what the type checker did: analysis performed, seams found.
     Check { file: PathBuf },
+    /// Run the file's `test` blocks.
+    Test { file: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -169,6 +172,26 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             })
         }
 
+        Cmd::Test { file } => {
+            let forms = blue_lang_runtime::parse(&read(&file)?)?;
+            let report = blue_lang_test::run(&forms);
+            // Failures to stderr, the tally to stdout, so a CI job can capture
+            // one without the other.
+            for failure in &report.failures {
+                eprintln!("{failure}");
+            }
+            println!(
+                "{} test(s): {} passed, {} failed",
+                report.total(),
+                report.passed,
+                report.failures.len()
+            );
+            Ok(if report.ok() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            })
+        }
     }
 }
 

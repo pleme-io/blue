@@ -265,7 +265,7 @@ fn help_lists_every_subcommand() {
     let o = run(&["--help"]);
     assert!(o.status.success());
     let help = stdout(&o);
-    for cmd in ["run", "fmt", "ast", "erase", "check"] {
+    for cmd in ["run", "fmt", "ast", "erase", "check", "test"] {
         assert!(help.contains(cmd), "--help must list `{cmd}`: {help}");
     }
 }
@@ -274,4 +274,69 @@ fn help_lists_every_subcommand() {
 fn no_arguments_is_an_error_not_a_silent_success() {
     let o = blue().output().expect("spawn");
     assert!(!o.status.success(), "bare `blue` must not exit 0");
+}
+
+// ---------------------------------------------------------------------------
+// test
+// ---------------------------------------------------------------------------
+
+const SUITE: &str = "def add(a, b)\n  a + b\nend\n\ntest \"adds\"\n  assert add(1, 2) == 3\nend";
+
+#[test]
+fn test_runs_a_passing_suite_and_exits_zero() {
+    let f = write("test-pass", SUITE);
+    let o = run(&["test", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert!(
+        stdout(&o).contains("1 passed, 0 failed"),
+        "expected a tally: {}",
+        stdout(&o)
+    );
+}
+
+/// **A failing suite must exit non-zero.** `blue test` in CI is only its exit
+/// code; a runner that prints failures and exits 0 is a gate that passes
+/// everything.
+#[test]
+fn test_exits_non_zero_when_a_test_fails() {
+    let f = write(
+        "test-fail",
+        "test \"wrong\"\n  assert 1 + 1 == 3\nend",
+    );
+    let o = run(&["test", f.to_str().unwrap()]);
+    assert!(!o.status.success(), "a failing suite must fail the process");
+    assert!(
+        stdout(&o).contains("0 passed, 1 failed"),
+        "tally: {}",
+        stdout(&o)
+    );
+}
+
+/// **The failure names the expression, in blue syntax.** The whole point of
+/// `assert` being a surface form rather than a library call.
+#[test]
+fn test_failure_reports_the_expression_as_written() {
+    let f = write(
+        "test-msg",
+        "def add(a, b)\n  a + b\nend\n\ntest \"wrong\"\n  assert add(1, 2) == 4\nend",
+    );
+    let o = run(&["test", f.to_str().unwrap()]);
+    assert!(
+        stderr(&o).contains("assert add(1, 2) == 4"),
+        "the message must be the expression in canonical blue source: {}",
+        stderr(&o)
+    );
+}
+
+/// A file with no tests is not a pass by default — the tally must say zero, so
+/// a mis-typed filename or an un-run suite cannot read as success.
+#[test]
+fn test_on_a_file_with_no_tests_reports_zero() {
+    let f = write("test-none", "def f(x)\n  x\nend");
+    let o = run(&["test", f.to_str().unwrap()]);
+    assert!(
+        stdout(&o).contains("0 test(s)"),
+        "an empty run must be visibly empty: {}",
+        stdout(&o)
+    );
 }

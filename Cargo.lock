@@ -101,6 +101,7 @@ dependencies = [
  "blue-lang-fmt",
  "blue-lang-runtime",
  "blue-lang-syntax",
+ "blue-lang-test",
  "clap",
  "tatara-lisp-eval",
  "thiserror",
@@ -140,6 +141,17 @@ name = "blue-lang-syntax"
 version = "0.0.1"
 dependencies = [
  "blue-lang-runtime",
+ "tatara-lisp",
+ "tatara-lisp-eval",
+]
+
+[[package]]
+name = "blue-lang-test"
+version = "0.0.1"
+dependencies = [
+ "blue-lang-fmt",
+ "blue-lang-runtime",
+ "blue-lang-syntax",
  "tatara-lisp",
  "tatara-lisp-eval",
 ]

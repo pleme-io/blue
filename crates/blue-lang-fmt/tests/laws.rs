@@ -13,6 +13,9 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    // Tests and assertions.
+    "test \"adds\"\n  assert 1 + 1 == 2\nend",
+    "test \"two asserts\"\n  assert true\n  assert 1 < 2\nend",
     // Macros and the quasiquote family. Absent until `defmacro` shipped
     // rendering as `defmacro(double, x(), ...)` — text that does not re-parse.
     "defmacro double(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend",

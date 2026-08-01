@@ -20,4 +20,6 @@ pub mod lex;
 pub mod parse;
 
 pub use lex::{lex, LexError, Span, Token, TokenKind};
-pub use parse::{parse_expr, parse_program, Infix, ParseError, INFIX, SURFACE_KEYWORDS};
+pub use parse::{
+    parse_expr, parse_program, Infix, ParseError, INFIX, LOWERED_ASSERT, SURFACE_KEYWORDS,
+};

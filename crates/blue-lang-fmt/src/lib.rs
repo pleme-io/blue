@@ -121,6 +121,21 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 Some("define") if items.len() == 3 && matches!(&items[1], Sexp::List(_)) => {
                     return def_form(items)
                 }
+                // (deftest "name" body)
+                Some("deftest")
+                    if items.len() == 3
+                        && matches!(&items[1], Sexp::Atom(Atom::Str(_))) =>
+                {
+                    return test_form(items)
+                }
+                // (blue-assert 'expr expr) — print the expression ONCE.
+                //
+                // The lowering carries it twice (as data and as value) so a
+                // failure can name itself. Printing both would be a second
+                // rendering of one thing, and would not re-parse.
+                Some(n) if n == blue_lang_syntax::LOWERED_ASSERT && items.len() == 3 => {
+                    return Doc::text("assert ").concat(expr(&items[2]))
+                }
                 // (defmacro name (params) body)
                 //
                 // Note the shape differs from `define`: the name is a bare
@@ -405,6 +420,21 @@ fn render_ty(t: &Sexp) -> Option<String> {
         }
         other => Some(other.to_string()),
     }
+}
+
+/// `(deftest "name" body)` → `test "name" … end`.
+fn test_form(items: &[Sexp]) -> Doc {
+    let name = match &items[1] {
+        Sexp::Atom(Atom::Str(s)) => s.clone(),
+        other => other.to_string(),
+    };
+    let mut head = String::from("test \"");
+    head.push_str(&name);
+    head.push('"');
+    Doc::text(head)
+        .concat(Doc::text("\n"))
+        .concat(indent_block(&items[2]))
+        .concat(Doc::text("\nend"))
 }
 
 /// `(defmacro name (a b) body)` → `defmacro name(a, b) … end`.

@@ -115,6 +115,14 @@ pub const INFIX: &[Infix] = &[
 ///
 /// `do` and `end` are absent deliberately: they are block delimiters, not
 /// expression heads, and have no standalone rendering to test.
+/// The callee `assert e` lowers to.
+///
+/// **Owned here, by the lowering itself, and read by every consumer.** It was
+/// briefly a literal here and a separate `const` in `blue-lang-test`, and the
+/// shadowing gate then could not see a parser that lowered to the wrong name:
+/// the gate checked its own copy. Same duplication class as the operator table.
+pub const LOWERED_ASSERT: &str = "blue-assert";
+
 pub const SURFACE_KEYWORDS: &[&str] = &[
     "if",
     "unless",
@@ -123,6 +131,8 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
     "quote",
     "unquote",
     "unquote_splice",
+    "test",
+    "assert",
 ];
 
 fn infix(op: &str) -> Option<&'static Infix> {
@@ -301,6 +311,8 @@ impl Parser {
                 "unless" => self.if_form(true),
                 "def" => self.def_form(),
                 "defmacro" => self.defmacro_form(),
+                "test" => self.test_form(),
+                "assert" => self.assert_form(),
                 "quote" => self.quote_form(),
                 "unquote" => self.unquote_form(false),
                 "unquote_splice" => self.unquote_form(true),
@@ -463,6 +475,61 @@ impl Parser {
     /// Annotations are per-parameter, so a signature may be partially
     /// annotated. That is the ladder at its finest grain: `a: Int` is
     /// checked and a bare `b` stays `dyn`, in the same signature.
+    /// `test "name" ... end` => `(deftest "name" body)`
+    ///
+    /// A string, not an identifier: a test name is prose for a human report,
+    /// and forcing it into an identifier is how test names become
+    /// `test_adds_two_numbers_correctly`.
+    fn test_form(&mut self) -> Result<Sexp, ParseError> {
+        let name = match self.bump() {
+            TokenKind::Str(s) => s,
+            other => {
+                return Err(self.error(format!(
+                    "expected a string name after `test`, found {other:?}"
+                )))
+            }
+        };
+        let body = self.body(&["end"])?;
+        self.expect_ident("end")?;
+        Ok(Sexp::List(vec![
+            sym("deftest"),
+            Sexp::Atom(Atom::Str(name)),
+            body,
+        ]))
+    }
+
+    /// `assert expr` => `(blue-assert 'expr expr)`
+    ///
+    /// **`blue-assert`, not `assert`.** tatara-lisp's stdlib already defines
+    /// `assert` as a macro — `(defmacro assert (pred message) …)` — and a macro
+    /// in the expander is consulted before any primitive in the registry. So
+    /// lowering to `assert` bound `pred` to the *quoted form*, which is
+    /// truthy, and **every assertion silently passed**. A test framework whose
+    /// assertions always pass is the worst defect it can have: every test in
+    /// the suite goes green.
+    ///
+    /// The lesson generalizes: any name blue lowers to that tatara already
+    /// binds is silently captured. `blue_lang_test`'s
+    /// `no_lowered_name_is_shadowed_by_the_runtime` gates the whole class.
+    ///
+    /// **Both the form and the value.** A test framework whose failure says
+    /// only "assertion failed" makes the author re-derive what they were
+    /// checking; one that shows the expression does not. The quoted form is
+    /// the expression as DATA, so the runner can render it — and it renders it
+    /// through `blue-lang-fmt`, meaning the failure message is in canonical
+    /// blue syntax rather than the underlying tatara-lisp.
+    ///
+    /// This is homoiconicity paying for itself: the capture needs no source
+    /// map, no macro hygiene, and no string of the original text.
+    fn assert_form(&mut self) -> Result<Sexp, ParseError> {
+        let e = self.expr(0)?;
+        Ok(Sexp::List(vec![
+            sym(LOWERED_ASSERT),
+            Sexp::Quote(Box::new(e.clone())),
+            e,
+        ]))
+    }
+
     /// `defmacro name(a, b) ... end` => `(defmacro name (a b) body)`
     ///
     /// **Deliberately untyped.** A macro's parameters are *source forms*, not

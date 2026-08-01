@@ -15,12 +15,16 @@ use blue_lang_proc::{
 use tatara_lisp_eval::vm::{compile_program, Budget, Chunk};
 use tatara_lisp_eval::{install_lisp_stdlib_with, install_primitives, Interpreter, Value};
 
-/// A process interpreter: the blue runtime plus the three primitives that
-/// need a scheduler.
-fn system_interp(sys: &mut System) -> Interpreter<System> {
+/// A process interpreter: the blue runtime plus the three primitives that need
+/// a scheduler. **Built per process**, which is what makes globals private.
+///
+/// The stdlib needs a host to evaluate against; a throwaway `System` is used
+/// for that one step, because the stdlib's definitions do not touch mailboxes
+/// and the real `System` is owned by the caller.
+fn system_interp() -> Interpreter<System> {
     let mut i = Interpreter::new();
     install_primitives(&mut i);
-    install_lisp_stdlib_with(&mut i, sys);
+    install_lisp_stdlib_with(&mut i, &mut System::new());
     install_process_primitives(&mut i);
     i
 }
@@ -42,8 +46,8 @@ fn quantum(q: usize) -> Budget {
 
 /// Spawn with a mailbox. Registering it on the system is what makes the pid
 /// addressable; a pid with no mailbox is `undeliverable`, not a silent drop.
-fn spawn(sup: &mut Supervisor, sys: &mut System, chunk: Arc<Chunk>, b: Budget) -> Pid {
-    let pid = sup.spawn(chunk, b);
+fn spawn(sup: &mut Supervisor<System>, sys: &mut System, chunk: Arc<Chunk>, b: Budget) -> Pid {
+    let pid = sup.spawn(chunk, b, system_interp);
     sys.register(pid);
     pid
 }
@@ -70,9 +74,7 @@ fn a_receiver_blocks_then_wakes_with_the_message() {
         blue(&format!("send({}, 99)", receiver.0)),
         quantum(50),
     );
-
-    let mut interp = system_interp(&mut sys);
-    sup.run_to_quiescence(&mut interp, &mut sys, 100);
+    sup.run_to_quiescence(&mut sys, 100);
 
     assert!(
         sup.events.iter().any(|e| matches!(e, Event::Blocked { pid } if *pid == receiver)),
@@ -123,9 +125,7 @@ fn waiting_costs_no_fuel() {
         )),
         quantum(20),
     );
-
-    let mut interp = system_interp(&mut sys);
-    sup.run_to_quiescence(&mut interp, &mut sys, 2000);
+    sup.run_to_quiescence(&mut sys, 2000);
 
     assert!(
         sup.state_of(sender).is_some_and(ProcState::is_done),
@@ -150,9 +150,7 @@ fn a_receiver_with_no_sender_is_a_reported_deadlock() {
     let mut sys = System::new();
     let mut sup = Supervisor::new(Strategy::OneForOne, 3);
     let lonely = spawn(&mut sup, &mut sys, blue("receive()"), quantum(50));
-
-    let mut interp = system_interp(&mut sys);
-    let rounds = sup.run_to_quiescence(&mut interp, &mut sys, 500);
+    let rounds = sup.run_to_quiescence(&mut sys, 500);
 
     assert!(
         rounds < 500,
@@ -182,9 +180,7 @@ fn a_receiver_with_a_sender_is_not_reported_as_deadlocked() {
         blue(&format!("send({}, 1)", r.0)),
         quantum(50),
     );
-
-    let mut interp = system_interp(&mut sys);
-    sup.run_to_quiescence(&mut interp, &mut sys, 200);
+    sup.run_to_quiescence(&mut sys, 200);
 
     assert!(
         !sup.events.iter().any(|e| matches!(e, Event::Deadlocked { .. })),
@@ -218,9 +214,7 @@ fn messages_arrive_in_send_order() {
         blue(&format!("send({p}, 1)\nsend({p}, 2)", p = receiver.0)),
         quantum(50),
     );
-
-    let mut interp = system_interp(&mut sys);
-    sup.run_to_quiescence(&mut interp, &mut sys, 200);
+    sup.run_to_quiescence(&mut sys, 200);
 
     assert_eq!(
         sup.state_of(receiver).and_then(ProcState::done_int),
@@ -237,9 +231,7 @@ fn self_is_the_running_process() {
     let mut sup = Supervisor::new(Strategy::OneForOne, 3);
     let a = spawn(&mut sup, &mut sys, blue("self()"), quantum(50));
     let b = spawn(&mut sup, &mut sys, blue("self()"), quantum(50));
-
-    let mut interp = system_interp(&mut sys);
-    sup.run_to_quiescence(&mut interp, &mut sys, 100);
+    sup.run_to_quiescence(&mut sys, 100);
 
     assert_eq!(sup.state_of(a).and_then(ProcState::done_int), Some(a.0 as i64));
     assert_eq!(sup.state_of(b).and_then(ProcState::done_int), Some(b.0 as i64));
@@ -268,9 +260,7 @@ fn a_request_reply_round_trip_completes() {
         blue(&format!("send({}, self())\nreceive()", server.0)),
         quantum(50),
     );
-
-    let mut interp = system_interp(&mut sys);
-    sup.run_to_quiescence(&mut interp, &mut sys, 300);
+    sup.run_to_quiescence(&mut sys, 300);
 
     assert_eq!(
         sup.state_of(client).and_then(ProcState::done_int),
@@ -302,9 +292,7 @@ fn a_restart_clears_the_mailbox() {
     sys.send(crasher, Value::Int(1));
     sys.send(crasher, Value::Int(2));
     assert_eq!(sys.mail_count(crasher), 2, "precondition: mail is queued");
-
-    let mut interp = system_interp(&mut sys);
-    sup.round(&mut interp, &mut sys);
+    sup.round(&mut sys);
 
     assert!(sup.restarts_of(crasher).is_some_and(|n| n > 0), "it must have restarted");
     assert_eq!(

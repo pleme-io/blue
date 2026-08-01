@@ -20,13 +20,26 @@
 //! process's crash cannot corrupt another's stack, and a runaway is
 //! contained.
 //!
-//! It is **not** BEAM's isolation. Processes share one `Interpreter`, so
-//! they share **globals**. A process that mutates a global is visible to its
-//! siblings. `theory/BLUE.md` §V records the destination — per-process heaps
-//! (`sumika`) with copy-on-send — and that is unbuilt. Until it is, the
-//! honest claim is **per-process control-state isolation, shared global
-//! state** — which is enough for supervision and *not* enough for
-//! let-it-crash to be a safety guarantee.
+//! **Each process also owns its own `Interpreter`**, so it owns its own
+//! globals. A definition or a mutation in one process is invisible to its
+//! siblings, and a restart discards them — which is what makes let-it-crash a
+//! guarantee rather than a hope: the restarted process cannot inherit the
+//! corrupted state that killed it.
+//!
+//! Messages are **deep-copied on send** ([`mailbox::deep_copy`]). `Value` is
+//! `Arc`-based, so a naive send would share structure between processes and
+//! quietly reintroduce the coupling the separate interpreters removed.
+//!
+//! The cost is stated rather than hidden: one interpreter per process means
+//! the primitives and the Lisp stdlib are installed per process, and
+//! [`Supervisor::interpreters_built`] counts it. That is the same trade the
+//! test framework makes for per-test isolation, and for the same reason —
+//! shared state makes order significant.
+//!
+//! This is `sumika` at the *environment* level. It is **not** a per-process
+//! GC heap: allocation still goes through Rust's allocator and reclamation is
+//! still `Arc` refcounting, so there is no independent per-process collection
+//! pause. `theory/BLUE.md` §V records that as the remaining distance.
 //!
 //! ## Strategy names follow `caixa`, deliberately
 //!
@@ -42,7 +55,7 @@ use tatara_lisp_eval::vm::{Budget, Chunk, Progress, Vm, VmError};
 use tatara_lisp_eval::{Interpreter, Value};
 
 pub mod mailbox;
-pub use mailbox::{install_process_primitives, System};
+pub use mailbox::{deep_copy, install_process_primitives, System};
 
 /// A process identifier.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -110,24 +123,40 @@ impl ProcState {
     }
 }
 
-/// One process: a program plus its own VM.
-pub struct Proc {
+/// One process: a program, its own VM, and **its own interpreter**.
+pub struct Proc<H> {
     pub pid: Pid,
     /// The code. Retained so a supervisor can restart from a clean VM.
     chunk: Arc<Chunk>,
     vm: Vm,
+    /// This process's own globals. The reason a sibling cannot see its
+    /// definitions, and the reason a restart discards them.
+    interp: Interpreter<H>,
+    /// Rebuilds the interpreter on restart. A closure rather than a stored
+    /// clone: `Interpreter` holds registered closures, and a restart must
+    /// produce a *fresh* environment rather than a copy of a possibly-corrupt
+    /// one.
+    build: Arc<dyn Fn() -> Interpreter<H> + Send + Sync>,
     budget: Budget,
     pub state: ProcState,
     /// How many times this process has been restarted.
     pub restarts: usize,
 }
 
-impl Proc {
-    fn new(pid: Pid, chunk: Arc<Chunk>, budget: Budget) -> Self {
+impl<H> Proc<H> {
+    fn new(
+        pid: Pid,
+        chunk: Arc<Chunk>,
+        budget: Budget,
+        build: Arc<dyn Fn() -> Interpreter<H> + Send + Sync>,
+    ) -> Self {
+        let interp = build();
         Self {
             pid,
             chunk,
             vm: Vm::with_budget(budget),
+            interp,
+            build,
             budget,
             state: ProcState::Runnable,
             restarts: 0,
@@ -140,6 +169,10 @@ impl Proc {
     /// because the crashed process's stack was never shared.
     fn restart(&mut self) {
         self.vm = Vm::with_budget(self.budget);
+        // A FRESH interpreter, not a saved copy. The whole point of
+        // let-it-crash is that the restarted process cannot inherit the state
+        // that killed it.
+        self.interp = (self.build)();
         self.state = ProcState::Runnable;
         self.restarts += 1;
     }
@@ -223,8 +256,8 @@ pub enum Event {
 }
 
 /// A supervisor over an ordered set of children.
-pub struct Supervisor {
-    procs: Vec<Proc>,
+pub struct Supervisor<H> {
+    procs: Vec<Proc<H>>,
     strategy: Strategy,
     /// Maximum restarts of any single child before the supervisor gives up.
     ///
@@ -233,9 +266,12 @@ pub struct Supervisor {
     max_restarts: usize,
     next_pid: u64,
     pub events: Vec<Event>,
+    /// Interpreters constructed — one per spawn plus one per restart. Reported
+    /// so the cost of per-process isolation is visible rather than hidden.
+    pub interpreters_built: usize,
 }
 
-impl Supervisor {
+impl<H: 'static> Supervisor<H> {
     pub fn new(strategy: Strategy, max_restarts: usize) -> Self {
         Self {
             procs: Vec::new(),
@@ -243,19 +279,42 @@ impl Supervisor {
             max_restarts,
             next_pid: 1,
             events: Vec::new(),
+            interpreters_built: 0,
         }
     }
 
     /// Add a child. Order matters for [`Strategy::RestForOne`].
-    pub fn spawn(&mut self, chunk: Arc<Chunk>, budget: Budget) -> Pid {
+    ///
+    /// `build` constructs this process's interpreter, and is called again on
+    /// every restart. It is a factory rather than a value because a restart
+    /// must produce a *fresh* environment: handing over one pre-built
+    /// interpreter would mean a crashed process restarts into the globals that
+    /// killed it.
+    pub fn spawn<F>(&mut self, chunk: Arc<Chunk>, budget: Budget, build: F) -> Pid
+    where
+        F: Fn() -> Interpreter<H> + Send + Sync + 'static,
+    {
         let pid = Pid(self.next_pid);
         self.next_pid += 1;
-        self.procs.push(Proc::new(pid, chunk, budget));
+        self.procs.push(Proc::new(pid, chunk, budget, Arc::new(build)));
+        self.interpreters_built += 1;
         pid
     }
 
     pub fn state_of(&self, pid: Pid) -> Option<&ProcState> {
         self.procs.iter().find(|p| p.pid == pid).map(|p| &p.state)
+    }
+
+    /// Does this process's own environment bind `name`?
+    ///
+    /// Exposed because "a restart discards the environment" is otherwise
+    /// untestable: a counter proves a rebuild was *requested*, not that the old
+    /// bindings are gone. Also useful when debugging a supervision tree.
+    pub fn proc_binds(&self, pid: Pid, name: &str) -> Option<bool> {
+        self.procs
+            .iter()
+            .find(|p| p.pid == pid)
+            .map(|p| p.interp.lookup_global(name).is_some())
     }
 
     pub fn restarts_of(&self, pid: Pid) -> Option<usize> {
@@ -268,14 +327,20 @@ impl Supervisor {
     /// A blocked process counts only if the host says it is ready. A blocked
     /// process with nothing pending is not work — it is a deadlock, and
     /// [`Supervisor::round`] reports it.
-    pub fn has_work<H: Readiness>(&self, host: &H) -> bool {
+    pub fn has_work(&self, host: &H) -> bool
+    where
+        H: Readiness,
+    {
         self.procs
             .iter()
             .any(|p| p.is_runnable() || (p.state.is_blocked() && host.is_ready(p.pid)))
     }
 
     /// Processes parked with nothing to wake them.
-    pub fn deadlocked<H: Readiness>(&self, host: &H) -> Vec<Pid> {
+    pub fn deadlocked(&self, host: &H) -> Vec<Pid>
+    where
+        H: Readiness,
+    {
         if host.any_pending() {
             return Vec::new();
         }
@@ -292,11 +357,10 @@ impl Supervisor {
     /// Round-robin, so a long-running child cannot starve a short one —
     /// that is preemption's contribution, and it holds without any child
     /// cooperating.
-    pub fn round<H: Readiness + 'static>(
-        &mut self,
-        interp: &mut Interpreter<H>,
-        host: &mut H,
-    ) {
+    pub fn round(&mut self, host: &mut H)
+    where
+        H: Readiness,
+    {
         let mut exited: Vec<(usize, ExitReason)> = Vec::new();
 
         // Wake first, so a message that arrived during the previous round is
@@ -317,7 +381,11 @@ impl Supervisor {
             // Tell the host whose slice this is, so `receive` and `self`
             // resolve to the right process.
             host.set_current(self.procs[idx].pid);
-            match self.procs[idx].vm.step(chunk, interp, host) {
+            // Destructure so the VM and this process's OWN interpreter can be
+            // borrowed at once.
+            let proc = &mut self.procs[idx];
+            let (vm, interp) = (&mut proc.vm, &mut proc.interp);
+            match vm.step(chunk, interp, host) {
                 Ok(Progress::Yielded) => {}
                 Ok(Progress::Blocked) => {
                     self.procs[idx].state = ProcState::Blocked;
@@ -356,15 +424,13 @@ impl Supervisor {
     ///
     /// The bound is a test-and-operator safety net, not a semantic: a
     /// supervision tree that cannot settle should say so rather than spin.
-    pub fn run_to_quiescence<H: Readiness + 'static>(
-        &mut self,
-        interp: &mut Interpreter<H>,
-        host: &mut H,
-        max_rounds: usize,
-    ) -> usize {
+    pub fn run_to_quiescence(&mut self, host: &mut H, max_rounds: usize) -> usize
+    where
+        H: Readiness,
+    {
         let mut rounds = 0;
         while self.has_work(host) && rounds < max_rounds {
-            self.round(interp, host);
+            self.round(host);
             rounds += 1;
         }
         // Settling with processes still parked is a deadlock, not quiescence.
@@ -377,7 +443,10 @@ impl Supervisor {
         rounds
     }
 
-    fn apply_strategy<H: Readiness>(&mut self, exited_idx: usize, host: &mut H) {
+    fn apply_strategy(&mut self, exited_idx: usize, host: &mut H)
+    where
+        H: Readiness,
+    {
         let targets: Vec<usize> = match self.strategy {
             Strategy::OneForOne => vec![exited_idx],
             Strategy::OneForAll => (0..self.procs.len()).collect(),
@@ -396,6 +465,7 @@ impl Supervisor {
 
         for idx in targets {
             self.procs[idx].restart();
+            self.interpreters_built += 1;
             let pid = self.procs[idx].pid;
             // A restarted process starts clean on the host side too. In
             // particular its mailbox is emptied: the messages in flight were
@@ -430,7 +500,9 @@ mod tests {
         compile(&text)
     }
 
-    fn interp() -> Interpreter<()> {
+    /// Each process builds its own. Passed as a factory, so a restart gets a
+    /// fresh one.
+    fn build() -> Interpreter<()> {
         blue_lang_runtime::interpreter_hostless()
     }
 
@@ -447,16 +519,12 @@ mod tests {
     fn a_runaway_is_contained_and_restarted() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 3);
         let spin = compile("(define (spin n) (spin (+ n 1))) (spin 0)");
-        let pid = sup.spawn(
-            spin,
-            Budget {
+        let pid = sup.spawn(spin, Budget {
                 fuel: Some(2_000),
                 max_depth: None,
                 quantum: Some(200),
-            },
-        );
-        let mut i = interp();
-        sup.run_to_quiescence(&mut i, &mut (), 200);
+            }, build);
+        sup.run_to_quiescence(&mut (), 200);
 
         assert!(
             sup.events
@@ -479,16 +547,12 @@ mod tests {
     fn restart_intensity_stops_an_unfixable_child() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 2);
         let spin = compile("(define (spin n) (spin (+ n 1))) (spin 0)");
-        sup.spawn(
-            spin,
-            Budget {
+        sup.spawn(spin, Budget {
                 fuel: Some(500),
                 max_depth: None,
                 quantum: Some(100),
-            },
-        );
-        let mut i = interp();
-        sup.run_to_quiescence(&mut i, &mut (), 500);
+            }, build);
+        sup.run_to_quiescence(&mut (), 500);
 
         assert!(
             sup.events.iter().any(|e| matches!(e, Event::GaveUp { .. })),
@@ -503,9 +567,8 @@ mod tests {
     #[test]
     fn a_healthy_process_finishes_and_is_not_restarted() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 3);
-        let pid = sup.spawn(blue("1 + 2"), preemptive(50));
-        let mut i = interp();
-        sup.run_to_quiescence(&mut i, &mut (), 100);
+        let pid = sup.spawn(blue("1 + 2"), preemptive(50), build);
+        sup.run_to_quiescence(&mut (), 100);
 
         assert_eq!(sup.state_of(pid).and_then(ProcState::done_int), Some(3));
         assert_eq!(sup.restarts_of(pid), Some(0), "a healthy child must not restart");
@@ -516,22 +579,18 @@ mod tests {
     #[test]
     fn a_long_child_does_not_starve_a_short_one() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 3);
-        let long = sup.spawn(
-            blue("def loop(n)\n  if n == 0\n    1\n  else\n    loop(n - 1)\n  end\nend\nloop(400)"),
-            preemptive(20),
-        );
-        let short = sup.spawn(blue("2 + 3"), preemptive(20));
-        let mut i = interp();
-
+        let long = sup.spawn(blue("def loop(n)\n  if n == 0\n    1\n  else\n    loop(n - 1)\n  end\nend\nloop(400)"), preemptive(20), build);
+        let short = sup.spawn(blue("2 + 3"), preemptive(20), build);
+        
         // One round is enough for the SHORT child; the long one is still going.
-        sup.round(&mut i, &mut ());
+        sup.round(&mut ());
         assert_eq!(sup.state_of(short).and_then(ProcState::done_int), Some(5));
         assert!(
             sup.state_of(long).is_some_and(ProcState::is_runnable),
             "the long child should still be running"
         );
 
-        sup.run_to_quiescence(&mut i, &mut (), 1000);
+        sup.run_to_quiescence(&mut (), 1000);
         assert_eq!(sup.state_of(long).and_then(ProcState::done_int), Some(1));
     }
 
@@ -555,11 +614,10 @@ mod tests {
     #[test]
     fn one_for_one_restarts_only_the_child_that_exited() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 5);
-        let a = sup.spawn(blue("1"), preemptive(50));
-        let bad = sup.spawn(crashing(), tiny_budget());
-        let c = sup.spawn(blue("2"), preemptive(50));
-        let mut i = interp();
-        sup.round(&mut i, &mut ());
+        let a = sup.spawn(blue("1"), preemptive(50), build);
+        let bad = sup.spawn(crashing(), tiny_budget(), build);
+        let c = sup.spawn(blue("2"), preemptive(50), build);
+        sup.round(&mut ());
 
         assert_eq!(sup.restarts_of(bad), Some(1), "the crasher must restart");
         assert_eq!(sup.restarts_of(a), Some(0), "a sibling must NOT restart");
@@ -569,11 +627,10 @@ mod tests {
     #[test]
     fn one_for_all_restarts_every_child() {
         let mut sup = Supervisor::new(Strategy::OneForAll, 5);
-        let a = sup.spawn(crashing(), tiny_budget());
-        let b = sup.spawn(blue("1"), preemptive(50));
-        let c = sup.spawn(blue("2"), preemptive(50));
-        let mut i = interp();
-        sup.round(&mut i, &mut ());
+        let a = sup.spawn(crashing(), tiny_budget(), build);
+        let b = sup.spawn(blue("1"), preemptive(50), build);
+        let c = sup.spawn(blue("2"), preemptive(50), build);
+        sup.round(&mut ());
 
         assert_eq!(sup.restarts_of(a), Some(1));
         assert_eq!(sup.restarts_of(b), Some(1), "one_for_all must restart siblings");
@@ -586,11 +643,10 @@ mod tests {
     #[test]
     fn rest_for_one_restarts_the_child_and_its_successors_only() {
         let mut sup = Supervisor::new(Strategy::RestForOne, 5);
-        let before = sup.spawn(blue("1"), preemptive(50));
-        let bad = sup.spawn(crashing(), tiny_budget());
-        let after = sup.spawn(blue("2"), preemptive(50));
-        let mut i = interp();
-        sup.round(&mut i, &mut ());
+        let before = sup.spawn(blue("1"), preemptive(50), build);
+        let bad = sup.spawn(crashing(), tiny_budget(), build);
+        let after = sup.spawn(blue("2"), preemptive(50), build);
+        sup.round(&mut ());
 
         assert_eq!(sup.restarts_of(before), Some(0), "a predecessor must not restart");
         assert_eq!(sup.restarts_of(bad), Some(1));
@@ -605,10 +661,9 @@ mod tests {
     #[test]
     fn a_normal_exit_is_not_treated_as_a_crash() {
         let mut sup = Supervisor::new(Strategy::OneForAll, 5);
-        let a = sup.spawn(blue("1"), preemptive(50));
-        let b = sup.spawn(blue("2"), preemptive(50));
-        let mut i = interp();
-        sup.run_to_quiescence(&mut i, &mut (), 100);
+        let a = sup.spawn(blue("1"), preemptive(50), build);
+        let b = sup.spawn(blue("2"), preemptive(50), build);
+        sup.run_to_quiescence(&mut (), 100);
 
         assert!(
             !sup.events.iter().any(|e| matches!(e, Event::Restarted { .. })),
@@ -624,13 +679,9 @@ mod tests {
     #[test]
     fn a_crash_does_not_disturb_a_siblings_result() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 1);
-        let _bad = sup.spawn(crashing(), tiny_budget());
-        let good = sup.spawn(
-            blue("def sum(n, acc)\n  if n == 0\n    acc\n  else\n    sum(n - 1, acc + n)\n  end\nend\nsum(10, 0)"),
-            preemptive(15),
-        );
-        let mut i = interp();
-        sup.run_to_quiescence(&mut i, &mut (), 500);
+        let _bad = sup.spawn(crashing(), tiny_budget(), build);
+        let good = sup.spawn(blue("def sum(n, acc)\n  if n == 0\n    acc\n  else\n    sum(n - 1, acc + n)\n  end\nend\nsum(10, 0)"), preemptive(15), build);
+        sup.run_to_quiescence(&mut (), 500);
 
         assert_eq!(
             sup.state_of(good).and_then(ProcState::done_int),
@@ -644,12 +695,8 @@ mod tests {
     #[test]
     fn blue_source_runs_under_supervision() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 3);
-        let pid = sup.spawn(
-            blue("def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\nfact(6)"),
-            preemptive(30),
-        );
-        let mut i = interp();
-        sup.run_to_quiescence(&mut i, &mut (), 1000);
+        let pid = sup.spawn(blue("def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\nfact(6)"), preemptive(30), build);
+        sup.run_to_quiescence(&mut (), 1000);
         assert_eq!(sup.state_of(pid).and_then(ProcState::done_int), Some(720));
     }
 }

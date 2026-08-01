@@ -85,7 +85,14 @@ impl System {
         self.current
     }
 
+    /// Enqueue a **deep copy** of `msg`.
+    ///
+    /// `Value` is `Arc`-based, so pushing it as-is would share structure
+    /// between two processes and quietly reintroduce exactly the coupling that
+    /// separate interpreters removed. Copying at the boundary is what makes
+    /// "processes share nothing" true rather than nearly true.
     pub fn send(&mut self, to: Pid, msg: Value) {
+        let msg = deep_copy(&msg);
         match self.boxes.get_mut(&to) {
             Some(q) => q.push_back(msg),
             None => self.undeliverable.push((to, msg)),
@@ -113,6 +120,34 @@ impl System {
     /// Is any mailbox non-empty? Used to tell a live wait from a deadlock.
     pub fn any_mail(&self) -> bool {
         self.boxes.values().any(|q| !q.is_empty())
+    }
+}
+
+/// Copy a value so nothing is shared with the sender.
+///
+/// Scalars are already values. Containers are rebuilt, so the receiver holds
+/// its own `Arc`s. **Non-data values are refused rather than shared**: a
+/// closure captures its defining environment, so sending one would hand a
+/// second process a live reference into the first's globals — the exact leak
+/// this function exists to prevent. Refusing yields `Nil` at the boundary
+/// rather than silently sharing.
+pub fn deep_copy(v: &Value) -> Value {
+    match v {
+        Value::Nil
+        | Value::Bool(_)
+        | Value::Int(_)
+        | Value::Float(_)
+        | Value::Str(_)
+        | Value::Symbol(_)
+        | Value::Keyword(_) => v.clone(),
+        Value::List(items) => Value::List(std::sync::Arc::new(
+            items.iter().map(deep_copy).collect::<Vec<_>>(),
+        )),
+        Value::Sexp(s, span) => Value::Sexp(s.clone(), *span),
+        // A closure, a promise, a foreign handle, an error object: each either
+        // captures an environment or wraps host state. Not copyable, and not
+        // safe to share.
+        _ => Value::Nil,
     }
 }
 

@@ -13,6 +13,12 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    // Macros and the quasiquote family. Absent until `defmacro` shipped
+    // rendering as `defmacro(double, x(), ...)` — text that does not re-parse.
+    "defmacro double(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend",
+    "defmacro nullary()\n  quote\n    1\n  end\nend",
+    "defmacro two(a, b)\n  quote\n    unquote(a) + unquote(b)\n  end\nend",
+    "defmacro splat(xs)\n  quote\n    f(unquote_splice(xs))\n  end\nend",
     // Annotated defs. The corpus held NONE, which is exactly why an
     // annotated def printed as a method send and did not re-parse: the three
     // laws below are only as strong as what they are run over.
@@ -223,4 +229,28 @@ fn every_operator_in_the_table_round_trips() {
         }
     }
     assert!(broken.is_empty(), "operators that do not round-trip: {broken:#?}");
+}
+
+/// **Every surface keyword must appear in the corpus.**
+///
+/// This is the structural answer to a failure that happened three times: a form
+/// was added to the parser, the formatter was not extended, and all three
+/// formatting laws passed anyway — because a law cannot notice a case nobody
+/// wrote down. The annotated `def` rendered as a method send; `defmacro`
+/// rendered as `defmacro(double, x(), …)`, which does not re-parse at all.
+///
+/// Making the omission itself the failure means adding a keyword to
+/// `SURFACE_KEYWORDS` forces the corpus entry, which then drags the new form
+/// through idempotence, tree-preservation and canonicality automatically.
+#[test]
+fn every_surface_keyword_appears_in_the_corpus() {
+    let missing: Vec<&str> = blue_lang_syntax::SURFACE_KEYWORDS
+        .iter()
+        .copied()
+        .filter(|kw| !CORPUS.iter().any(|src| src.contains(*kw)))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "these surface keywords have no corpus entry, so no formatting law covers them: {missing:?}"
+    );
 }

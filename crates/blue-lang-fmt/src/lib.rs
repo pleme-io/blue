@@ -94,6 +94,23 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
 
         Sexp::List(items) if items.is_empty() => Doc::text("()"),
 
+        // The quasiquote family. These are STRUCTURAL Sexp variants, not
+        // lists, and the formatter used to have no arm for them at all —
+        // they fell through the catch-all and rendered as nothing.
+        Sexp::Quasiquote(inner) => Doc::text("quote")
+            .concat(Doc::text("\n"))
+            .concat(indent_block(inner))
+            .concat(Doc::text("\nend")),
+        Sexp::Unquote(inner) => Doc::text("unquote(")
+            .concat(expr(inner))
+            .concat(Doc::text(")")),
+        Sexp::UnquoteSplice(inner) => Doc::text("unquote_splice(")
+            .concat(expr(inner))
+            .concat(Doc::text(")")),
+        // `'x` has no blue surface syntax yet; render the tatara form so it is
+        // visible rather than silently dropped.
+        Sexp::Quote(inner) => Doc::text("'").concat(expr(inner)),
+
         Sexp::List(items) => {
             let head = sym_name(&items[0]);
 
@@ -103,6 +120,17 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 // (define (name params...) body)
                 Some("define") if items.len() == 3 && matches!(&items[1], Sexp::List(_)) => {
                     return def_form(items)
+                }
+                // (defmacro name (params) body)
+                //
+                // Note the shape differs from `define`: the name is a bare
+                // symbol at index 1 and the params are a list at index 2,
+                // because that is tatara-lisp's own `defmacro` shape and blue
+                // registers into the SAME expander rather than a parallel one.
+                Some("defmacro")
+                    if items.len() == 4 && matches!(&items[2], Sexp::List(_)) =>
+                {
+                    return defmacro_form(items)
                 }
                 // (define-typed (name (p T)...) R body) — the annotated def.
                 // Rendered back to `def name(p: T) -> R`, because a tree the
@@ -377,6 +405,24 @@ fn render_ty(t: &Sexp) -> Option<String> {
         }
         other => Some(other.to_string()),
     }
+}
+
+/// `(defmacro name (a b) body)` → `defmacro name(a, b) … end`.
+fn defmacro_form(items: &[Sexp]) -> Doc {
+    let name = sym_name(&items[1]).unwrap_or("_");
+    let Sexp::List(params) = &items[2] else {
+        return Doc::text(items[2].to_string());
+    };
+    let ps: Vec<&str> = params.iter().map(|p| sym_name(p).unwrap_or("_")).collect();
+    let mut head = String::from("defmacro ");
+    head.push_str(name);
+    head.push('(');
+    head.push_str(&ps.join(", "));
+    head.push(')');
+    Doc::text(head)
+        .concat(Doc::text("\n"))
+        .concat(indent_block(&items[3]))
+        .concat(Doc::text("\nend"))
 }
 
 fn begin_form(forms: &[Sexp]) -> Doc {

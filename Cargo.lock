@@ -368,16 +368,16 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.3.17"
-source = "git+https://github.com/pleme-io/tatara-lisp?rev=eef9c9998690b2648873fb57b7f07ece1f3e75f9#eef9c9998690b2648873fb57b7f07ece1f3e75f9"
+version = "0.3.18"
+source = "git+https://github.com/pleme-io/tatara-lisp?rev=f7d49d23f5d173b8fe112f8000a900d6152f2d8e#f7d49d23f5d173b8fe112f8000a900d6152f2d8e"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.3.17"
-source = "git+https://github.com/pleme-io/tatara-lisp?rev=eef9c9998690b2648873fb57b7f07ece1f3e75f9#eef9c9998690b2648873fb57b7f07ece1f3e75f9"
+version = "0.3.18"
+source = "git+https://github.com/pleme-io/tatara-lisp?rev=f7d49d23f5d173b8fe112f8000a900d6152f2d8e#f7d49d23f5d173b8fe112f8000a900d6152f2d8e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -386,8 +386,8 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.3.17"
-source = "git+https://github.com/pleme-io/tatara-lisp?rev=eef9c9998690b2648873fb57b7f07ece1f3e75f9#eef9c9998690b2648873fb57b7f07ece1f3e75f9"
+version = "0.3.18"
+source = "git+https://github.com/pleme-io/tatara-lisp?rev=f7d49d23f5d173b8fe112f8000a900d6152f2d8e#f7d49d23f5d173b8fe112f8000a900d6152f2d8e"
 dependencies = [
  "blake3",
  "serde",
@@ -399,8 +399,8 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.3.17"
-source = "git+https://github.com/pleme-io/tatara-lisp?rev=eef9c9998690b2648873fb57b7f07ece1f3e75f9#eef9c9998690b2648873fb57b7f07ece1f3e75f9"
+version = "0.3.18"
+source = "git+https://github.com/pleme-io/tatara-lisp?rev=f7d49d23f5d173b8fe112f8000a900d6152f2d8e#f7d49d23f5d173b8fe112f8000a900d6152f2d8e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -409,8 +409,8 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.3.17"
-source = "git+https://github.com/pleme-io/tatara-lisp?rev=eef9c9998690b2648873fb57b7f07ece1f3e75f9#eef9c9998690b2648873fb57b7f07ece1f3e75f9"
+version = "0.3.18"
+source = "git+https://github.com/pleme-io/tatara-lisp?rev=f7d49d23f5d173b8fe112f8000a900d6152f2d8e#f7d49d23f5d173b8fe112f8000a900d6152f2d8e"
 dependencies = [
  "tatara-lisp",
  "thiserror",

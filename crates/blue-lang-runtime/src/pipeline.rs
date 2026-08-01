@@ -164,3 +164,48 @@ mod tests {
         assert_eq!(int("2 + 3 * 4"), 14);
     }
 }
+
+#[cfg(test)]
+mod macro_tests {
+    use super::*;
+
+    fn int(src: &str) -> i64 {
+        match run(src).unwrap_or_else(|e| panic!("{src:?}: {e}")).value {
+            Value::Int(v) => v,
+            other => panic!("{src:?} produced {other:?}"),
+        }
+    }
+
+    /// **A blue macro expands and runs.** Tenet 2's surface, end to end.
+    #[test]
+    fn a_macro_expands_and_runs() {
+        assert_eq!(
+            int("defmacro double(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend\ndouble(21)"),
+            42
+        );
+    }
+
+    /// A macro receives *source forms*, not values — so it can duplicate its
+    /// argument, which a function cannot do without re-evaluating it.
+    #[test]
+    fn a_macro_operates_on_syntax_not_values() {
+        assert_eq!(
+            int("defmacro sq(e)\n  quote\n    unquote(e) * unquote(e)\n  end\nend\nsq(2 + 3)"),
+            25,
+            "the argument form `2 + 3` must be substituted twice"
+        );
+    }
+
+    /// **A runaway macro is a typed error, not a dead compiler.** This is the
+    /// property that makes the metaprogramming surface safe to hand to a user.
+    #[test]
+    fn a_runaway_macro_fails_the_compilation_rather_than_the_process() {
+        let err = run("defmacro forever(x)\n  quote\n    forever(unquote(x))\n  end\nend\nforever(1)")
+            .expect_err("a self-referential macro must be rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("forever") && msg.contains("expansion limit"),
+            "the error must name the macro and the limit: {msg}"
+        );
+    }
+}

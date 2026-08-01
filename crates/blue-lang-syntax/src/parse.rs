@@ -99,6 +99,32 @@ pub const INFIX: &[Infix] = &[
     Infix { op: "%", power: (9, 10), callee: "mod" },
 ];
 
+/// Every surface keyword that BEGINS an expression.
+///
+/// Exists so the formatter's corpus can be checked against it. Three separate
+/// times a form was added to this parser, the formatter was not extended, and
+/// all three formatting laws still passed — because the corpus is
+/// hand-maintained and contained no example of the new form. The annotated
+/// `def` rendered as a method send; `defmacro` rendered as
+/// `defmacro(double, x(), …)`, which does not re-parse at all.
+///
+/// A law cannot notice a case nobody wrote down. `blue-lang-fmt`'s
+/// `every_surface_keyword_appears_in_the_corpus` closes that by making the
+/// omission itself the failure, so adding a keyword here forces the corpus
+/// entry that exercises the other three laws over it.
+///
+/// `do` and `end` are absent deliberately: they are block delimiters, not
+/// expression heads, and have no standalone rendering to test.
+pub const SURFACE_KEYWORDS: &[&str] = &[
+    "if",
+    "unless",
+    "def",
+    "defmacro",
+    "quote",
+    "unquote",
+    "unquote_splice",
+];
+
 fn infix(op: &str) -> Option<&'static Infix> {
     INFIX.iter().find(|i| i.op == op)
 }
@@ -274,6 +300,10 @@ impl Parser {
                 "if" => self.if_form(false),
                 "unless" => self.if_form(true),
                 "def" => self.def_form(),
+                "defmacro" => self.defmacro_form(),
+                "quote" => self.quote_form(),
+                "unquote" => self.unquote_form(false),
+                "unquote_splice" => self.unquote_form(true),
                 "do" => Err(ParseError {
                     message: "`do` without a preceding call".into(),
                     span,
@@ -433,6 +463,104 @@ impl Parser {
     /// Annotations are per-parameter, so a signature may be partially
     /// annotated. That is the ladder at its finest grain: `a: Int` is
     /// checked and a bare `b` stays `dyn`, in the same signature.
+    /// `defmacro name(a, b) ... end` => `(defmacro name (a b) body)`
+    ///
+    /// **Deliberately untyped.** A macro's parameters are *source forms*, not
+    /// values, so `a: Int` would be a category error: the argument at expansion
+    /// time is a fragment of syntax. §IV's ladder types values; macro
+    /// parameters are not on it. Annotating one is rejected rather than
+    /// silently ignored — an ignored annotation is how an author comes to
+    /// believe a check is running.
+    fn defmacro_form(&mut self) -> Result<Sexp, ParseError> {
+        let name = match self.bump() {
+            TokenKind::Ident(n) => n,
+            other => {
+                return Err(self.error(format!(
+                    "expected a name after `defmacro`, found {other:?}"
+                )))
+            }
+        };
+        let mut params: Vec<String> = Vec::new();
+        if self.at(&TokenKind::LParen) {
+            self.bump();
+            self.skip_newlines();
+            if !self.eat(&TokenKind::RParen) {
+                loop {
+                    self.skip_newlines();
+                    match self.bump() {
+                        TokenKind::Ident(p) => params.push(p),
+                        TokenKind::Label(p) => {
+                            return Err(self.error(format!(
+                                "macro parameter `{p}` cannot be typed: a macro receives \
+                                 source forms, not values"
+                            )))
+                        }
+                        other => {
+                            return Err(self
+                                .error(format!("expected a parameter name, found {other:?}")))
+                        }
+                    }
+                    self.skip_newlines();
+                    if self.eat(&TokenKind::Comma) {
+                        continue;
+                    }
+                    self.expect(&TokenKind::RParen, "`,` or `)`")?;
+                    break;
+                }
+            }
+        }
+        if matches!(self.peek(), TokenKind::Op(o) if o == "->") {
+            return Err(self.error(
+                "a macro has no return type: it produces source forms, not values".to_string(),
+            ));
+        }
+
+        let body = self.body(&["end"])?;
+        self.expect_ident("end")?;
+
+        // `(defmacro name (params) body)` — tatara-lisp's own shape, so blue
+        // registers into the SAME expander rather than a parallel one.
+        Ok(Sexp::List(vec![
+            sym("defmacro"),
+            sym(&name),
+            Sexp::List(params.iter().map(|p| sym(p)).collect()),
+            body,
+        ]))
+    }
+
+    /// `quote ... end` => `` `body `` (a quasiquote).
+    ///
+    /// Quasiquote rather than plain quote, because a macro body that could not
+    /// splice its arguments in would be useless — this is Elixir's `quote do`,
+    /// which is likewise a template and not inert data.
+    fn quote_form(&mut self) -> Result<Sexp, ParseError> {
+        let body = self.body(&["end"])?;
+        self.expect_ident("end")?;
+        // `Sexp::Quasiquote`, NOT `(quasiquote body)` as a list.
+        //
+        // The list form Displays as the text `(quasiquote …)`, which the
+        // tatara-lisp reader reads back as an ordinary list whose head happens
+        // to be the symbol `quasiquote` — losing the structure. The evaluator
+        // then reached the inner `,x` with no enclosing quasiquote and rejected
+        // it: "unquote outside of quasiquote". Building the real variant makes
+        // it Display as `` ` `` and survive the round trip.
+        Ok(Sexp::Quasiquote(Box::new(body)))
+    }
+
+    /// `unquote(expr)` => `,expr`; `unquote_splice(expr)` => `,@expr`.
+    fn unquote_form(&mut self, splice: bool) -> Result<Sexp, ParseError> {
+        self.expect(&TokenKind::LParen, "`(` after unquote")?;
+        self.skip_newlines();
+        let inner = self.expr(0)?;
+        self.skip_newlines();
+        self.expect(&TokenKind::RParen, "`)`")?;
+        Ok(if splice {
+            Sexp::UnquoteSplice(Box::new(inner))
+        } else {
+            Sexp::Unquote(Box::new(inner))
+        })
+    }
+
     fn def_form(&mut self) -> Result<Sexp, ParseError> {
         let name = match self.bump() {
             TokenKind::Ident(n) => n,

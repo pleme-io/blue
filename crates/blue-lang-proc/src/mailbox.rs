@@ -16,17 +16,23 @@
 //! certainly arrive can die of a budget it never needed. A telephony process
 //! idle between calls would be the first casualty.
 //!
-//! ## `receive` obeys the park contract
+//! ## `receive` cannot lose a message, structurally
 //!
-//! [`tatara_lisp_eval::vm::Park`] requires that a parking primitive consume
-//! nothing, because the call is re-executed. `receive` therefore **checks
-//! before it dequeues**: it parks on an empty mailbox and only pops when
-//! there is something to pop. Dequeue-then-park would lose the message.
+//! A parking primitive must consume nothing, because its call is
+//! re-executed — and `receive` is registered through
+//! [`Interpreter::register_awaitable_fn`], whose readiness phase holds an
+//! **immutable** `&System`. Dequeue-then-park is therefore not discouraged
+//! here; it does not typecheck (`register_awaitable_fn`'s `compile_fail`
+//! doctest asserts exactly that).
+//!
+//! This matters most for the case that does not exist yet. A *selective*
+//! receive takes a message, finds it does not match the pattern, and must
+//! wait — the shape that loses the message on every non-match. The split
+//! removes the possibility before the feature that would have hit it.
 
 use std::collections::{HashMap, VecDeque};
 
 use tatara_lisp_eval::ffi::Arity;
-use tatara_lisp_eval::vm::Vm;
 use tatara_lisp_eval::{Interpreter, Value};
 
 use crate::Pid;
@@ -144,16 +150,17 @@ pub fn install_process_primitives(interp: &mut Interpreter<System>) {
     );
 
     // (receive) -> the oldest message, parking while the mailbox is empty.
-    interp.register_fn(
+    //
+    // Two-phase: `ready` may only LOOK at the mailbox (it holds `&System`),
+    // and `take` runs only once something is there. The compiler, not a
+    // comment, is what stops a future selective receive from popping a
+    // message and then parking.
+    interp.register_awaitable_fn(
         "receive",
         Arity::Exact(0),
+        |_args: &[Value], sys: &System| sys.has_mail(sys.current()),
         |_args: &[Value], sys: &mut System, _span| {
             let me = sys.current();
-            // CHECK, then dequeue. Parking after a pop would lose the
-            // message, because the parked call runs again from the top.
-            if !sys.has_mail(me) {
-                return Ok(Vm::park());
-            }
             Ok(sys
                 .boxes
                 .get_mut(&me)

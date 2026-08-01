@@ -40,9 +40,14 @@ checker.
 | sliding-scale typing; `Seam`; `Stats` | `blue-lang-check` |
 | REACH/WHEN/WHERE frame lattice | `blue-lang-waku` |
 | package posture floors + resolution | `blue-lang-bidama` |
-| processes, supervision, mailboxes | `blue-lang-proc` |
+| processes, supervision, mailboxes, isolation | `blue-lang-proc` |
 | interpreter construction, erasure, pipeline | `blue-lang-runtime` |
-| `blue run/fmt/ast/erase/check` | `blue-lang-cli` |
+| `test`/`assert` runner | `blue-lang-test` |
+| Bluefile + version solver | `blue-lang-pkg` |
+| the WASM surface (zero host imports) | `blue-lang-wasm` |
+| LSP: transport-free core + stdio shim | `blue-lang-lsp` |
+| the mark, wordmark, Nord theme | `blue-lang-art` |
+| every subcommand | `blue-lang-cli` |
 
 ## Rules this repo has learned the hard way
 
@@ -73,7 +78,20 @@ Each of these is a defect that shipped, not a style preference.
   **When you change rendering, read the output.**
 - **A corpus is only as strong as what is in it.** The annotated-`def`
   rendering bug survived because the formatter corpus contained no annotated
-  defs. Add the case with the rule.
+  defs. Add the case with the rule. `SURFACE_KEYWORDS` now makes the *omission*
+  the failure — adding a keyword forces the corpus entry.
+- **A name blue lowers to must not be one tatara already binds.** `assert e`
+  lowered to `(assert 'e e)`; the stdlib binds `assert` as a macro, a macro beats
+  a primitive, and **every assertion in every test silently passed**. Lowered
+  names live in the parser (`LOWERED_ASSERT`) and
+  `no_lowered_name_is_shadowed_by_the_runtime` gates the class.
+- **Comments are not in the tree, and must not be lost.** They carry no meaning,
+  so putting them in the `Sexp` would break canonicality. `fmt --write` deleted
+  every one until the formatter learned to re-interleave them by position against
+  each form's recorded span. A comment *inside* a form is refused, not moved.
+- **The mark is `░▒▓█` and its order is meaning.** Typed as an array of
+  `katsuji::Crisp`, never a string. Colours are `irodori` lookups — blue carries
+  no hex, and a test enforces it.
 
 ## Testing discipline
 
@@ -98,8 +116,11 @@ tatara-lisp first and bumping the rev — which is the trunk-based order anyway.
 
 ## What is not built
 
-Stated so nobody cites it as existing: no LSP, no test framework, no package
-manager or `Bluefile`, no `blue posture` subcommand (it needs a
-package-declaration surface that does not exist), no WASM target, no
-per-process heaps, and no self-hosting. `theory/BLUE.md` holds the tier
-ledger; **do not build against a DESIGN-tier row without saying so.**
+Stated so nobody cites it as existing: **no per-process GC heap** (processes have
+private environments and messages are deep-copied, but reclamation is `Arc`
+refcounting — no independent collection pause), **no registry client** (resolution
+is real; nothing fetches), **no self-hosting on the implementation axis**
+(`spec/*.b` is the specification axis only), **no comment attachment inside a
+form**, and **no completion / go-to-definition** (each needs a resolved name
+table). `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
+DESIGN-tier row without saying so.**

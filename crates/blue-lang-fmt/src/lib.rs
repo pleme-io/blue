@@ -302,7 +302,9 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 }
                 Some("begin") => return begin_form(&items[1..]),
                 Some("list") => return seq("[", "]", &items[1..]),
-                Some("map") => return map_form(&items[1..]),
+                Some(n) if n == blue_lang_syntax::LOWERED_MAP => {
+                    return map_form(&items[1..])
+                }
                 Some("not") if items.len() == 2 => {
                     return Doc::text("!").concat(expr_prec(&items[1], 11))
                 }
@@ -380,7 +382,7 @@ fn is_zero(s: &Sexp) -> bool {
 fn is_reserved(name: &str) -> bool {
     matches!(
         name,
-        "if" | "define" | "begin" | "list" | "map" | "not" | "quote" | "lambda" | "let"
+        "if" | "define" | "begin" | "list" | "hash-map" | "not" | "quote" | "lambda" | "let"
     )
 }
 

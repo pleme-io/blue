@@ -15,7 +15,9 @@
 //! A blue interpreter is built in two layers, and both are required:
 //!
 //! 1. **Rust primitives** — arithmetic, comparison, list ops, I/O.
-//! 2. **The Lisp stdlib** — everything tatara defines in tatara-lisp itself
+//! 2. **The full tatara stdlib** — primitives, higher-order functions
+//!    (`map`/`filter`/`fold`), maps, channels, fibers, type-check, and
+//!    everything tatara defines in tatara-lisp itself
 //!    (`mod`, `rem`, `first`, `inc`, `even?`, the actor and transducer
 //!    helpers, …). Loading it is not optional garnish: blue's own operator
 //!    lowering depends on it.
@@ -33,9 +35,9 @@ pub mod stdlib;
 pub use erase::erase_types;
 pub use inputs::{declarations, install_input_primitives, Declaration, InputError, Inputs};
 pub use stdlib::install_blue_stdlib;
-pub use pipeline::{parse, run, Run, RunError};
+pub use pipeline::{parse, run, run_with_inputs, Run, RunError};
 
-use tatara_lisp_eval::{install_lisp_stdlib_with, install_primitives, Interpreter};
+use tatara_lisp_eval::{install_full_stdlib_with, Interpreter};
 
 /// Build an interpreter with the complete blue runtime installed.
 ///
@@ -44,8 +46,17 @@ use tatara_lisp_eval::{install_lisp_stdlib_with, install_primitives, Interpreter
 /// an unbound symbol at the far end of a program.
 pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     let mut interp = Interpreter::new();
-    install_primitives(&mut interp);
-    install_lisp_stdlib_with(&mut interp, host);
+    // The FULL substrate, not just `install_primitives`.
+    //
+    // blue called `install_primitives` + `install_lisp_stdlib_with` and got
+    // neither `install_hof` nor `install_map` — so `map`, `filter`, `fold` and
+    // every map literal were UNBOUND SYMBOLS. A language with no higher-order
+    // functions, in a workspace whose whole surface is Ruby's.
+    //
+    // Same shape as the stdlib gap this crate was created to fix: the substrate
+    // has layers, and naming them one at a time is how one gets missed. Call
+    // the composed installer.
+    install_full_stdlib_with(&mut interp, host);
     // Layer 3: blue's own core — strings and number conversion, which
     // tatara-lisp does not carry at all. See `stdlib` for why the
     // character-counting semantics are blue's rather than the substrate's.
@@ -88,7 +99,7 @@ mod tests {
     fn a_bare_interpreter_lacks_the_stdlib() {
         let forms = tatara_lisp::read_spanned("(mod 7 3)").expect("read");
         let mut bare = Interpreter::new();
-        install_primitives(&mut bare);
+        tatara_lisp_eval::install_primitives(&mut bare);
         assert!(
             bare.eval_program(&forms, &mut ()).is_err(),
             "if a bare interpreter already resolved `mod`, this crate would be measuring nothing"

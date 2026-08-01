@@ -456,8 +456,15 @@ mod shadowing {
     #[test]
     fn no_lowered_name_is_shadowed_by_the_runtime() {
         // Every callee blue's lowering introduces that must be BLUE's.
-        // Read from the PARSER, so a lowering that changes to a shadowed name
-        // is caught. A local copy here would let the gate check itself.
+        // Names blue must OWN. Read from the PARSER, so a lowering that changes
+        // to a shadowed name is caught — a local copy would let the gate check
+        // itself.
+        //
+        // NOT every lowered name belongs here. `LOWERED_MAP` is `hash-map`,
+        // which blue deliberately DELEGATES to the runtime; for that direction
+        // being bound is required, and `every_delegated_name_resolves` asserts
+        // the opposite. Conflating the two made this gate flag a correct
+        // delegation as a bug.
         const LOWERED: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
 
         let mut shadowed: Vec<(&str, String)> = Vec::new();
@@ -484,6 +491,35 @@ mod shadowing {
             shadowed.is_empty(),
             "these names are already bound by the runtime, so blue's definition is silently \
              shadowed: {shadowed:#?}"
+        );
+    }
+
+    /// **Every name blue DELEGATES to must resolve.** The mirror of the gate
+    /// above, and a real one: a typo in a delegated name is not caught by
+    /// "must not be shadowed" — it is caught by "must be bound".
+    ///
+    /// `{a: 1}` lowering to `(map …)` failed exactly here in spirit: `map` was
+    /// bound, but to the higher-order function rather than the constructor, so
+    /// the literal called the HOF with key/value pairs. Resolution alone cannot
+    /// catch a wrong-but-bound name, which is why the map literal also has an
+    /// end-to-end test.
+    #[test]
+    fn every_delegated_name_resolves() {
+        const DELEGATED: &[&str] = &[blue_lang_syntax::LOWERED_MAP];
+        let mut missing: Vec<&str> = Vec::new();
+        for name in DELEGATED {
+            let mut interp = blue_lang_runtime::interpreter_hostless();
+            let probe = format!("({name})");
+            let forms = tatara_lisp::read_spanned(&probe).expect("read probe");
+            if let Err(e) = interp.eval_program(&forms, &mut ()) {
+                if e.to_string().contains("unbound") {
+                    missing.push(name);
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "blue lowers to these names but the runtime does not bind them: {missing:?}"
         );
     }
 

@@ -50,7 +50,16 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Parse, type-check, erase, and execute a program.
-    Run { file: PathBuf },
+    Run {
+        file: PathBuf,
+        /// Supply a build input: `--input name=path`.
+        ///
+        /// The program must also `definput(name, "b3:…")`; the bytes are
+        /// verified against that hash before any macro can read them. A
+        /// mismatch is refused — see `blue_lang_runtime::inputs`.
+        #[arg(long = "input", value_name = "NAME=PATH")]
+        inputs: Vec<String>,
+    },
     /// Format a program. There is one formatting; this produces it.
     Fmt {
         file: PathBuf,
@@ -121,8 +130,14 @@ fn read(path: &Path) -> Result<String, CliError> {
 
 fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.cmd {
-        Cmd::Run { file } => {
-            let out = blue_lang_runtime::run(&read(&file)?)?;
+        Cmd::Run { file, inputs } => {
+            let src = read(&file)?;
+            // Always bind, even with no `--input` flags: a program that
+            // DECLARES an input and gets no material must hear "you forgot the
+            // flag", not the macro-level "no input named …" from deep inside
+            // expansion. Short-circuiting on an empty flag list is what made it
+            // report the wrong one.
+            let out = blue_lang_runtime::run_with_inputs(&src, bind_inputs(&src, &inputs)?)?;
             println!("{}", render(&out.value));
             Ok(ExitCode::SUCCESS)
         }
@@ -268,6 +283,54 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
     }
+}
+
+/// Bind `--input name=path` pairs against the program's own `definput`
+/// declarations.
+///
+/// The declaration is the contract and the flag supplies the material. Both
+/// halves are required, and each missing half is its own error: supplying bytes
+/// for a name the program never declared is a different mistake from declaring
+/// a name and forgetting the flag, and telling them apart is the difference
+/// between a fixable message and a puzzle.
+fn bind_inputs(src: &str, pairs: &[String]) -> Result<blue_lang_runtime::Inputs, CliError> {
+    let forms = blue_lang_runtime::parse(src)?;
+    let declared = blue_lang_runtime::declarations(&forms);
+    let mut inputs = blue_lang_runtime::Inputs::new();
+
+    for pair in pairs {
+        let (name, path) = pair.split_once('=').ok_or_else(|| {
+            CliError::Pkg("--input expects NAME=PATH, e.g. --input schema=./schema.json".into())
+        })?;
+        let decl = declared.iter().find(|d| d.name == name).ok_or_else(|| {
+            CliError::Pkg(
+                "`".to_string()
+                    + name
+                    + "` was supplied but the program never declares it. Add                        definput(\"" + name + "\", \"b3:…\").",
+            )
+        })?;
+        let bytes = std::fs::read(path).map_err(|source| CliError::Read {
+            path: path.to_string(),
+            source,
+        })?;
+        inputs
+            .bind(decl, bytes)
+            .map_err(|e| CliError::Pkg(e.to_string()))?;
+    }
+
+    // A declaration with no material is refused rather than left absent: the
+    // macro would otherwise fail deep inside expansion with "no input named …",
+    // which points at the macro instead of at the missing flag.
+    if let Some(missing) = declared.iter().find(|d| inputs.get(&d.name).is_none()) {
+        return Err(CliError::Pkg(
+            "input `".to_string()
+                + &missing.name
+                + "` is declared but no bytes were supplied — pass --input "
+                + &missing.name
+                + "=<path>",
+        ));
+    }
+    Ok(inputs)
 }
 
 fn describe_reach(r: &blue_lang_waku::Reach) -> String {

@@ -182,6 +182,15 @@ pub const INFIX: &[Infix] = &[
 /// the gate checked its own copy. Same duplication class as the operator table.
 pub const LOWERED_ASSERT: &str = "blue-assert";
 
+/// The callee a `{...}` map literal lowers to.
+///
+/// **`hash-map`, not `map`.** tatara binds `map` to the higher-order function,
+/// so a literal lowering to `(map …)` called the HOF with the key/value pairs
+/// as arguments and failed with "expected list, got int". Same shadowing class
+/// as [`LOWERED_ASSERT`], caught by the same gate once the name was listed
+/// there — it was not, which is why this shipped.
+pub const LOWERED_MAP: &str = "hash-map";
+
 pub const SURFACE_KEYWORDS: &[&str] = &[
     "if",
     "unless",
@@ -467,7 +476,7 @@ impl Parser {
     /// formatter may always choose the shorthand. The rocket survives only
     /// where the key is not a plain symbol.
     fn map_literal(&mut self) -> Result<Sexp, ParseError> {
-        let mut items = vec![sym("map")];
+        let mut items = vec![sym(LOWERED_MAP)];
         self.skip_newlines();
         if self.eat(&TokenKind::RBrace) {
             return Ok(Sexp::List(items));
@@ -907,14 +916,14 @@ mod tests {
     #[test]
     fn label_and_rocket_produce_the_same_tree_for_a_symbol_key() {
         assert_eq!(q("{a: 1}"), q("{:a => 1}"));
-        assert_eq!(q("{a: 1}"), "(map :a 1)");
+        assert_eq!(q("{a: 1}"), "(hash-map :a 1)");
     }
 
     /// And where the key is NOT a plain symbol, the rocket is the only
     /// spelling — so it survives because it must, never as a style choice.
     #[test]
     fn a_string_key_has_no_shorthand() {
-        assert_eq!(q(r#"{"k" => 1}"#), r#"(map "k" 1)"#);
+        assert_eq!(q(r#"{"k" => 1}"#), r#"(hash-map "k" 1)"#);
     }
 
     #[test]

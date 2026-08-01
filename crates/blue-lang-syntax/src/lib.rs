@@ -25,5 +25,5 @@ pub use lex::{lex, LexError, Span, Token, TokenKind};
 pub use tatara_lisp::{Atom, Sexp};
 pub use parse::{
     comments, parse_expr, parse_program, parse_program_spanned, Comment, Infix, ParseError, INFIX,
-    LOWERED_ASSERT, SURFACE_KEYWORDS,
+    LOWERED_ASSERT, LOWERED_MAP, SURFACE_KEYWORDS,
 };

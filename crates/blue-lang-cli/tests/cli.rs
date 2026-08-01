@@ -460,3 +460,109 @@ fn fmt_write_still_works_without_comments() {
         "1 + 2"
     );
 }
+
+// ---------------------------------------------------------------------------
+// build inputs — capability-restricted, content-addressed macro I/O
+// ---------------------------------------------------------------------------
+
+fn write_bytes(name: &str, bytes: &[u8]) -> PathBuf {
+    let mut p = std::env::temp_dir();
+    p.push(format!("blue-cli-input-{name}"));
+    std::fs::write(&p, bytes).expect("write input");
+    p
+}
+
+const SCHEMA: &[u8] = b"id,name,email\n";
+/// BLAKE3 of SCHEMA. Written out rather than computed so the test pins the
+/// *value*: if hashing ever changed, a computed expectation would follow it
+/// silently.
+const SCHEMA_HASH: &str = "b3:1e8c349d3151d7c4c19836c6ba0e0d82270a2c174d98af445e102055040ac92c";
+
+fn schema_program() -> String {
+    let mut s = String::from("definput(\"schema\", \"");
+    s.push_str(SCHEMA_HASH);
+    s.push_str("\")\n");
+    s.push_str(
+        "defmacro column_count()\n  quote\n    length(split(trim(input(\"schema\")), \",\"))\n  end\nend\n\
+         column_count()",
+    );
+    s
+}
+
+/// **A macro generates code from a schema, read at expansion time.** The
+/// Tier-2 conversion `theory/BLUE.md` §VI OPEN #6 named as gating blue's
+/// "stronger than Ruby's metaprogramming" claim.
+#[test]
+fn a_macro_reads_a_content_addressed_input() {
+    let f = write("input-ok", &schema_program());
+    let schema = write_bytes("schema-ok", SCHEMA);
+    let o = run(&[
+        "run",
+        f.to_str().unwrap(),
+        "--input",
+        &format!("schema={}", schema.display()),
+    ]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "3", "three columns in the schema");
+}
+
+/// **Bytes that do not match the declared hash are refused**, and the error
+/// names both so the author can tell "I edited the file" from "I pasted the
+/// wrong hash".
+#[test]
+fn input_bytes_must_match_the_declared_hash() {
+    let f = write("input-tampered", &schema_program());
+    let schema = write_bytes("schema-tampered", b"id,name,email,extra\n");
+    let o = run(&[
+        "run",
+        f.to_str().unwrap(),
+        "--input",
+        &format!("schema={}", schema.display()),
+    ]);
+    assert!(!o.status.success(), "a hash mismatch must fail the run");
+    let err = stderr(&o);
+    assert!(err.contains(SCHEMA_HASH), "must name the expected: {err}");
+    assert!(err.contains("hash to"), "and the actual: {err}");
+}
+
+/// **A declared input with no `--input` names the FLAG**, not the macro. The
+/// first version short-circuited when the flag list was empty, so this reported
+/// the macro-level "no input named …" from deep inside expansion — pointing at
+/// the wrong thing entirely.
+#[test]
+fn a_declared_input_with_no_flag_names_the_missing_flag() {
+    let f = write("input-missing", &schema_program());
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(!o.status.success());
+    let err = stderr(&o);
+    assert!(err.contains("--input schema="), "must name the flag: {err}");
+}
+
+/// Supplying a name the program never declared is a DIFFERENT mistake, and
+/// reads differently.
+#[test]
+fn an_undeclared_input_name_is_its_own_error() {
+    let f = write("input-undeclared", &schema_program());
+    let schema = write_bytes("schema-undeclared", SCHEMA);
+    let o = run(&[
+        "run",
+        f.to_str().unwrap(),
+        "--input",
+        &format!("nosuch={}", schema.display()),
+    ]);
+    assert!(!o.status.success());
+    assert!(
+        stderr(&o).contains("never declares it"),
+        "got: {}",
+        stderr(&o)
+    );
+}
+
+/// A program with no declarations is unaffected — the check is narrow.
+#[test]
+fn a_program_without_declarations_still_runs() {
+    let f = write("input-none", PROGRAM);
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "720");
+}

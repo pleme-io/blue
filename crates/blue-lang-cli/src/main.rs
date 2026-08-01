@@ -16,6 +16,7 @@
 //! blue deps    BLUEFILE        resolve the manifest's dependencies
 //! blue posture BLUEFILE        the posture the manifest's floors require
 //! blue lsp                     speak LSP over stdio
+//! blue banner                  the wordmark — the blueshift ramp
 //! ```
 //!
 //! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
@@ -74,6 +75,8 @@ enum Cmd {
     Posture { file: PathBuf },
     /// Run the language server, speaking LSP over stdin/stdout.
     Lsp,
+    /// Print blue's wordmark.
+    Banner,
 }
 
 fn main() -> ExitCode {
@@ -126,8 +129,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 
         Cmd::Fmt { file, check, write } => {
             let src = read(&file)?;
-            let formatted =
-                blue_lang_fmt::format_source(&src).map_err(|e| CliError::Fmt(e.to_string()))?;
+            // The LOSSLESS rendering is the canonical form of a file that has
+            // comments, so `--check` must compare against it. Comparing against
+            // the comment-stripped rendering made every commented file report
+            // "not formatted" forever — a --check that can never be satisfied.
+            let formatted = blue_lang_fmt::format_source_lossless(&src)
+                .map_err(|e| CliError::Fmt(e.to_string()))?;
             if check {
                 // Compare trimmed: a trailing newline is not drift.
                 if formatted.trim_end() == src.trim_end() {
@@ -237,6 +244,15 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             println!("  when:  {:?}", floor.when);
             println!("  where: {:?}", floor.place);
             println!("  reach: {}", describe_reach(&floor.reach));
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Banner => {
+            // The version comes from the crate, never a literal — mado shipped a
+            // 0.1.0 wordmark against a 0.1.98 binary from exactly that mistake.
+            for line in blue_lang_art::wordmark(env!("CARGO_PKG_VERSION")) {
+                println!("{}", line.render());
+            }
             Ok(ExitCode::SUCCESS)
         }
 

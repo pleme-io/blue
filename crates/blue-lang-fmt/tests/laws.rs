@@ -257,3 +257,206 @@ fn every_surface_keyword_appears_in_the_corpus() {
         "these surface keywords have no corpus entry, so no formatting law covers them: {missing:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Comment preservation
+//
+// `blue fmt --write` silently DELETED every comment in a file. A comment is the
+// one part of a program a machine cannot reconstruct, so that was data loss on
+// a routine operation.
+//
+// Comments are not in the tree — they carry no meaning, and putting them there
+// would break canonicality (two programs differing only in a comment would stop
+// formatting identically). They are re-interleaved by POSITION instead.
+// ---------------------------------------------------------------------------
+
+use blue_lang_fmt::{format_source_lossless, FormatError};
+
+#[test]
+fn a_leading_comment_survives_formatting() {
+    let src = "# a note\n1 + 2\n";
+    let out = format_source_lossless(src).expect("lossless");
+    assert!(out.contains("# a note"), "the comment must survive: {out:?}");
+    assert!(out.contains("1 + 2"), "and so must the code: {out:?}");
+    assert!(
+        out.find("# a note") < out.find("1 + 2"),
+        "and stay before it: {out:?}"
+    );
+}
+
+#[test]
+fn a_multi_line_comment_block_survives_in_order() {
+    let src = "# first\n# second\n# third\n1 + 2\n";
+    let out = format_source_lossless(src).expect("lossless");
+    let f = out.find("# first").expect("first");
+    let s = out.find("# second").expect("second");
+    let t = out.find("# third").expect("third");
+    assert!(f < s && s < t, "order must be preserved: {out:?}");
+}
+
+/// A comment between two top-level forms attaches to the one that follows.
+#[test]
+fn a_comment_between_forms_stays_between_them() {
+    let src = "1 + 1\n# about the second\n2 + 2\n";
+    let out = format_source_lossless(src).expect("lossless");
+    let first = out.find("1 + 1").expect("first form");
+    let note = out.find("# about the second").expect("comment");
+    let second = out.find("2 + 2").expect("second form");
+    assert!(
+        first < note && note < second,
+        "the comment must stay between the forms: {out:?}"
+    );
+}
+
+/// A trailing comment stays on its own line's end rather than being promoted
+/// above the code.
+#[test]
+fn a_trailing_comment_stays_trailing() {
+    let src = "1 + 2 # why\n";
+    let out = format_source_lossless(src).expect("lossless");
+    let line = out.lines().find(|l| l.contains("1 + 2")).expect("code line");
+    assert!(
+        line.contains("# why"),
+        "the trailing comment must stay on the code line: {line:?}"
+    );
+}
+
+/// Comments around a `def` — the shape a real file actually has.
+#[test]
+fn comments_around_a_definition_survive() {
+    let src = "# Adds two numbers.\ndef add(a, b)\n  a + b\nend\n\n# And uses it.\nadd(1, 2)\n";
+    let out = format_source_lossless(src).expect("lossless");
+    assert!(out.contains("# Adds two numbers."), "{out}");
+    assert!(out.contains("# And uses it."), "{out}");
+    assert!(out.contains("def add(a, b)"), "{out}");
+    assert!(
+        out.find("# Adds two numbers.") < out.find("def add"),
+        "the doc comment must precede the def: {out}"
+    );
+}
+
+/// **Formatting with comments is idempotent.** Otherwise `fmt` would keep
+/// changing a file that already looks right — and `--check` would never settle.
+#[test]
+fn formatting_with_comments_is_idempotent() {
+    for src in [
+        "# a\n1 + 2\n",
+        "# a\n# b\n\ndef f(x)\n  x\nend\n",
+        "1 + 1\n# mid\n2 + 2\n",
+        "1 + 2 # trailing\n",
+    ] {
+        let once = format_source_lossless(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let twice = format_source_lossless(&once)
+            .unwrap_or_else(|e| panic!("second pass on {once:?}: {e}"));
+        assert_eq!(once, twice, "not idempotent for {src:?}");
+    }
+}
+
+/// **And it preserves the tree.** The comment machinery must not disturb the
+/// program.
+#[test]
+fn formatting_with_comments_preserves_the_tree() {
+    for src in [
+        "# a\n1 + 2\n",
+        "# doc\ndef add(a, b)\n  a + b\nend\nadd(1, 2)\n",
+        "1 + 1\n# mid\n2 + 2\n",
+    ] {
+        let before = parse_program(src).expect("parse");
+        let out = format_source_lossless(src).expect("format");
+        let after = parse_program(&out).expect("re-parse");
+        assert_eq!(before, after, "the tree changed for {src:?}\n{out}");
+    }
+}
+
+/// **No comment is lost, ever** — the property the whole feature exists for.
+#[test]
+fn no_comment_is_lost() {
+    for src in [
+        "# a\n1 + 2\n",
+        "# a\n# b\n1 + 2\n",
+        "1 + 1\n# mid\n2 + 2\n",
+        "1 + 2 # trailing\n",
+        "# lead\ndef f(x)\n  x\nend\n# tail\n",
+    ] {
+        let before = blue_lang_fmt::comment_count(src);
+        let out = format_source_lossless(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let after = blue_lang_fmt::comment_count(&out);
+        assert_eq!(
+            before, after,
+            "lost {} comment(s) formatting {src:?}\n{out}",
+            before - after
+        );
+    }
+}
+
+/// **A comment inside a form is REFUSED, not dropped.** Those lines have been
+/// re-laid out and there is no line left to attach it to. Naming the line is
+/// what makes the refusal actionable.
+#[test]
+fn a_comment_inside_a_form_is_refused_with_its_line() {
+    let src = "def f(x)\n  # inside the body\n  x\nend\n";
+    let err = format_source_lossless(src).expect_err("must refuse");
+    match err {
+        FormatError::UnplaceableComments { count, ref lines } => {
+            assert_eq!(count, 1);
+            assert_eq!(lines, "2", "the line must be named so the author can find it");
+        }
+        other => panic!("expected UnplaceableComments, got {other}"),
+    }
+}
+
+/// Anti-vacuity: the refusal is NARROW. A file whose comments are all placeable
+/// must format, or the feature would be a blanket refusal wearing a fix's
+/// clothes.
+#[test]
+fn placeable_comments_do_not_trigger_the_refusal() {
+    for src in [
+        "# a\n1 + 2\n",
+        "# a\ndef f(x)\n  x\nend\n",
+        "1 + 2 # t\n",
+        "# only a comment\n",
+    ] {
+        assert!(
+            format_source_lossless(src).is_ok(),
+            "must not refuse {src:?}: {:?}",
+            format_source_lossless(src).err().map(|e| e.to_string())
+        );
+    }
+}
+
+/// A `#` inside a string is not a comment, so a file containing one must still
+/// format. Counting by scanning text rather than lexing would refuse it.
+#[test]
+fn a_hash_inside_a_string_is_not_a_comment() {
+    let src = "\"not # a comment\"\n";
+    assert_eq!(blue_lang_fmt::comment_count(src), 0);
+    assert!(format_source_lossless(src).is_ok());
+}
+
+/// **A comment block does not grow blank lines.** The first implementation
+/// measured the gap from each comment to the FORM's start rather than to
+/// whatever came next, so every pair of consecutive comment lines got a blank
+/// line between them — a three-line header became six lines, and `--check`
+/// could never settle.
+#[test]
+fn a_comment_block_is_not_padded_with_blank_lines() {
+    let src = "# one\n# two\n# three\n1 + 2\n";
+    let out = format_source_lossless(src).expect("lossless");
+    assert_eq!(
+        out, src,
+        "a canonical comment block must round-trip byte for byte"
+    );
+    assert!(
+        !out.contains("\n\n#"),
+        "no blank line may appear inside the block: {out:?}"
+    );
+}
+
+/// A blank line the author DID write between a comment and the code is kept —
+/// so the fix above did not simply delete all blank lines.
+#[test]
+fn a_deliberate_blank_line_after_a_comment_is_kept() {
+    let src = "# header\n\n1 + 2\n";
+    let out = format_source_lossless(src).expect("lossless");
+    assert_eq!(out, src, "got {out:?}");
+}

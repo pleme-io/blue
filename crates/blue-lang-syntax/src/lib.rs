@@ -24,5 +24,6 @@ pub use lex::{lex, LexError, Span, Token, TokenKind};
 // tatara-lisp directly just to name the node types blue emits.
 pub use tatara_lisp::{Atom, Sexp};
 pub use parse::{
-    parse_expr, parse_program, Infix, ParseError, INFIX, LOWERED_ASSERT, SURFACE_KEYWORDS,
+    comments, parse_expr, parse_program, parse_program_spanned, Comment, Infix, ParseError, INFIX,
+    LOWERED_ASSERT, SURFACE_KEYWORDS,
 };

@@ -44,35 +44,133 @@ pub fn format_source(src: &str) -> Result<String, ParseError> {
 pub enum FormatError {
     #[error("{0}")]
     Parse(#[from] ParseError),
-    /// The input carries comments the tree does not, so formatting would
-    /// delete them.
+    /// A comment sits *inside* a form, where the formatter cannot put it back.
     ///
-    /// **This exists because formatting is a routine, destructive operation.**
-    /// The parser drops comments (they are lexed as trivia and never attached
-    /// to a node), so `blue fmt --write` silently deleted every comment in a
-    /// file. Losing a comment on save is not a cosmetic issue: it is the one
-    /// piece of a program the machine cannot reconstruct.
+    /// Comments are not in the `Sexp` tree — they carry no meaning, and putting
+    /// them there would break canonicality, since two programs differing only in
+    /// a comment would stop formatting identically. They are re-interleaved by
+    /// POSITION instead, which works for a comment before a top-level form or
+    /// trailing one, and cannot work for a comment buried in the middle of an
+    /// expression: the formatter has re-laid out those lines and there is no
+    /// line left to attach it to.
     ///
-    /// Comment attachment — deciding which node a comment belongs to — is real
-    /// work and is not done. Until it is, refusing loudly is strictly better
-    /// than proceeding: `theory/BLUE.md` §V.26 carries the row.
+    /// Refusing is the honest answer for that case. `blue fmt --write` used to
+    /// delete every comment silently, and a comment is the one part of a program
+    /// a machine cannot reconstruct.
     #[error(
-        "refusing to format: this would delete {count} comment(s).          blue's formatter does not preserve comments yet, and dropping them silently          would lose the only part of a program a machine cannot reconstruct."
+        "refusing to format: {count} comment(s) sit inside a form, at line(s) {lines}. \
+blue re-interleaves comments by position, so it can place one before or after a \
+top-level form but not one buried inside an expression — and dropping it silently \
+would lose the only part of a program a machine cannot reconstruct."
     )]
-    WouldDropComments { count: usize },
+    UnplaceableComments { count: usize, lines: String },
 }
 
-/// Format, refusing rather than losing comments.
+/// Format, preserving comments.
 ///
-/// This is what `blue fmt --write` uses. [`format_source`] stays available for
-/// callers that only want the rendering of a tree — the round-trip laws, the
-/// LSP's formatting reply — where nothing is being overwritten.
+/// The tree is rendered canonically, then comments are put back by source
+/// position: a comment on its own line is emitted before the top-level form it
+/// preceded; a trailing comment is appended to that form's last line. A comment
+/// *inside* a form is refused rather than dropped — see
+/// [`FormatError::UnplaceableComments`].
+///
+/// This is what `blue fmt --write` uses. [`format_source`] remains the plain
+/// tree rendering for callers where nothing is being overwritten — the
+/// round-trip laws, the LSP's formatting reply.
 pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
-    let count = comment_count(src);
-    if count > 0 {
-        return Err(FormatError::WouldDropComments { count });
+    let spanned = blue_lang_syntax::parse_program_spanned(src)?;
+    let comments = blue_lang_syntax::comments(src);
+
+    if comments.is_empty() {
+        return Ok(format_forms(
+            &spanned.iter().map(|(f, _)| f.clone()).collect::<Vec<_>>(),
+        ));
     }
-    Ok(format_source(src)?)
+
+    // A comment strictly inside a form's span cannot be placed: those lines have
+    // been re-laid out.
+    let unplaceable: Vec<&blue_lang_syntax::Comment> = comments
+        .iter()
+        .filter(|c| {
+            spanned
+                .iter()
+                .any(|(_, sp)| c.span.start > sp.start && c.span.start < sp.end)
+        })
+        .collect();
+    if !unplaceable.is_empty() {
+        let lines = unplaceable
+            .iter()
+            .map(|c| line_of(src, c.span.start).to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(FormatError::UnplaceableComments {
+            count: unplaceable.len(),
+            lines,
+        });
+    }
+
+    let mut out = String::new();
+    let mut pending = comments.iter().peekable();
+
+    for (form, span) in &spanned {
+        // Every own-line comment before this form, in order.
+        while let Some(c) = pending.peek() {
+            if c.span.start >= span.start {
+                break;
+            }
+            let c = pending.next().expect("peeked");
+            out.push_str(c.text.trim_end());
+            out.push('\n');
+            // A blank line is preserved only if the author left one between THIS
+            // comment and WHATEVER COMES NEXT — the following comment, or the
+            // form. Measuring to the form's start instead put a blank line
+            // between every pair of consecutive comment lines, which turned a
+            // three-line header into a six-line one.
+            let next_start = pending
+                .peek()
+                .filter(|n| n.span.start < span.start)
+                .map_or(span.start, |n| n.span.start);
+            if blank_line_between(src, c.span.end, next_start) {
+                out.push('\n');
+            }
+        }
+        let rendered = format_forms(std::slice::from_ref(form));
+        out.push_str(rendered.trim_end());
+        // A trailing comment on the form's own last line.
+        if let Some(c) = pending.peek() {
+            if !c.own_line && c.span.start >= span.end && same_line(src, span.end, c.span.start) {
+                let c = pending.next().expect("peeked");
+                out.push(' ');
+                out.push_str(c.text.trim_end());
+            }
+        }
+        out.push('\n');
+    }
+
+    // Anything after the last form.
+    for c in pending {
+        out.push_str(c.text.trim_end());
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// 1-based line number of a byte offset, for error messages.
+fn line_of(src: &str, offset: usize) -> usize {
+    src[..offset.min(src.len())].bytes().filter(|b| *b == b'\n').count() + 1
+}
+
+fn same_line(src: &str, a: usize, b: usize) -> bool {
+    let (lo, hi) = (a.min(b), b.max(a));
+    !src[lo.min(src.len())..hi.min(src.len())].contains('\n')
+}
+
+fn blank_line_between(src: &str, from: usize, to: usize) -> bool {
+    src[from.min(src.len())..to.min(src.len())]
+        .bytes()
+        .filter(|b| *b == b'\n')
+        .count()
+        > 1
 }
 
 /// How many comments the source carries.
@@ -81,14 +179,7 @@ pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
 /// literal is not a comment, and a scanner that thought so would refuse to
 /// format a perfectly good file.
 pub fn comment_count(src: &str) -> usize {
-    blue_lang_syntax::lex(src)
-        .map(|tokens| {
-            tokens
-                .iter()
-                .filter(|t| matches!(t.kind, blue_lang_syntax::TokenKind::Comment(_)))
-                .count()
-        })
-        .unwrap_or(0)
+    blue_lang_syntax::comments(src).len()
 }
 
 /// Render already-parsed forms. Exposed so a caller holding a tree does

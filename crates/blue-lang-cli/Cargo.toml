@@ -20,6 +20,8 @@ blue-lang-check = { workspace = true }
 blue-lang-test = { workspace = true }
 blue-lang-pkg = { workspace = true }
 blue-lang-lsp = { workspace = true }
+blue-lang-art = { workspace = true }
+katsuji = { git = "https://github.com/pleme-io/katsuji", branch = "main" }
 blue-lang-waku = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 clap = { workspace = true }

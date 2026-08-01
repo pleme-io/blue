@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime", "crates/blue-lang-cli", "crates/blue-lang-test", "crates/blue-lang-pkg", "crates/blue-lang-wasm", "crates/blue-lang-lsp"]
+members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime", "crates/blue-lang-cli", "crates/blue-lang-test", "crates/blue-lang-pkg", "crates/blue-lang-wasm", "crates/blue-lang-lsp", "crates/blue-lang-art"]
 resolver = "2"
 
 [workspace.package]
@@ -22,6 +22,7 @@ blue-lang-proc = { path = "crates/blue-lang-proc" }
 blue-lang-test = { path = "crates/blue-lang-test" }
 blue-lang-pkg = { path = "crates/blue-lang-pkg" }
 blue-lang-lsp = { path = "crates/blue-lang-lsp" }
+blue-lang-art = { path = "crates/blue-lang-art" }
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
 # Git deps, not path deps. A path dep pointing outside the repo cannot

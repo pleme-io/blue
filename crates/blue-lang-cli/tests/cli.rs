@@ -265,7 +265,7 @@ fn help_lists_every_subcommand() {
     let o = run(&["--help"]);
     assert!(o.status.success());
     let help = stdout(&o);
-    for cmd in ["run", "fmt", "ast", "erase", "check", "test", "deps", "posture", "lsp"] {
+    for cmd in ["run", "fmt", "ast", "erase", "check", "test", "deps", "posture", "lsp", "banner"] {
         assert!(help.contains(cmd), "--help must list `{cmd}`: {help}");
     }
 }
@@ -398,16 +398,42 @@ fn a_bluefile_without_a_package_call_fails() {
     );
 }
 
-/// **`fmt --write` must refuse rather than delete comments.**
+/// **`fmt --write` must not delete comments.**
 ///
-/// blue's formatter drops comments — they are lexed as trivia and never
-/// attached to a node — so `--write` used to silently delete every one. A
-/// comment is the single part of a program a machine cannot reconstruct, so
-/// losing one on save is data loss, not a cosmetic issue.
+/// It used to delete every one: comments are lexed as trivia and were never
+/// attached to a node, so formatting dropped them silently. A comment is the one
+/// part of a program a machine cannot reconstruct, so that was data loss on a
+/// routine operation. The formatter now re-interleaves them by position.
 #[test]
-fn fmt_write_refuses_to_delete_comments() {
-    let original = "# keep me\n1 + 2\n";
-    let f = write("fmt-comments", original);
+fn fmt_write_preserves_comments() {
+    let f = write("fmt-comments", "# keep me\n1   +   2\n");
+    let o = run(&["fmt", "--write", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    let after = std::fs::read_to_string(&f).expect("read back");
+    assert!(after.contains("# keep me"), "the comment must survive: {after:?}");
+    assert!(after.contains("1 + 2"), "and the code must be formatted: {after:?}");
+}
+
+/// And `--check` settles on a commented file. Comparing against the
+/// comment-stripped rendering made every commented file report "not formatted"
+/// forever — a gate that can never be satisfied.
+#[test]
+fn fmt_check_settles_on_a_commented_file() {
+    let f = write("fmt-check-comments", "# note\n1 + 2\n");
+    let o = run(&["fmt", "--check", f.to_str().unwrap()]);
+    assert!(
+        o.status.success(),
+        "an already-canonical commented file must pass --check: {}",
+        stderr(&o)
+    );
+}
+
+/// A comment *inside* a form is still refused, because those lines are re-laid
+/// out and there is nowhere to put it back. Refusing names the line.
+#[test]
+fn fmt_write_refuses_a_comment_it_cannot_place() {
+    let original = "def f(x)\n  # inside\n  x\nend\n";
+    let f = write("fmt-inner-comment", original);
     let o = run(&["fmt", "--write", f.to_str().unwrap()]);
     assert!(!o.status.success(), "it must refuse");
     assert!(

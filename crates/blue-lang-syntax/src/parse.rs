@@ -42,9 +42,68 @@ impl From<crate::lex::LexError> for ParseError {
 
 /// Parse a blue program into a sequence of tatara-lisp forms.
 pub fn parse_program(src: &str) -> Result<Vec<Sexp>, ParseError> {
-    let toks: Vec<Token> = lex(src)?.into_iter().filter(|t| !matches!(t.kind, TokenKind::Comment(_))).collect();
+    Ok(parse_program_spanned(src)?
+        .into_iter()
+        .map(|(form, _)| form)
+        .collect())
+}
+
+/// Parse, keeping each top-level form's source span.
+///
+/// The spans are what let the formatter put comments back. A comment is not
+/// part of a program's *meaning*, so it has no place in the `Sexp` tree —
+/// putting it there would break canonicality, since two programs differing only
+/// in a comment would stop formatting identically. Instead the formatter renders
+/// the tree and re-interleaves comments by position, which needs to know where
+/// each form started and ended.
+pub fn parse_program_spanned(src: &str) -> Result<Vec<(Sexp, Span)>, ParseError> {
+    let toks: Vec<Token> = lex(src)?
+        .into_iter()
+        .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
+        .collect();
     let mut p = Parser { toks, pos: 0 };
-    p.program()
+    p.program_spanned()
+}
+
+/// Every comment in `src`, with its byte span and whether it sits alone on its
+/// line.
+///
+/// `own_line` is the distinction that decides placement: a comment alone on its
+/// line belongs *before* the form that follows, while one after code on the same
+/// line belongs *to* that line. Conflating them moves a trailing note onto the
+/// wrong row.
+pub fn comments(src: &str) -> Vec<Comment> {
+    lex(src)
+        .map(|toks| {
+            toks.iter()
+                .filter_map(|t| match &t.kind {
+                    TokenKind::Comment(text) => Some(Comment {
+                        text: text.clone(),
+                        span: t.span,
+                        own_line: line_before_is_blank(src, t.span.start),
+                    }),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A comment, and where it sat.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Comment {
+    /// The text, including the leading `#`.
+    pub text: String,
+    pub span: Span,
+    /// Nothing but whitespace precedes it on its line.
+    pub own_line: bool,
+}
+
+fn line_before_is_blank(src: &str, start: usize) -> bool {
+    src[..start.min(src.len())]
+        .rsplit('\n')
+        .next()
+        .is_some_and(|prefix| prefix.trim().is_empty())
 }
 
 /// Parse a single blue expression. Convenience for tests and the REPL.
@@ -202,14 +261,22 @@ impl Parser {
         matches!(self.peek(), TokenKind::Ident(n) if n == name)
     }
 
-    fn program(&mut self) -> Result<Vec<Sexp>, ParseError> {
+    fn program_spanned(&mut self) -> Result<Vec<(Sexp, Span)>, ParseError> {
         let mut out = Vec::new();
         loop {
             self.skip_newlines();
             if matches!(self.peek(), TokenKind::Eof) {
                 break;
             }
-            out.push(self.expr(0)?);
+            let start = self.peek_span().start;
+            let form = self.expr(0)?;
+            // The last token consumed ends the form. `pos` has already advanced
+            // past it, so look one back.
+            let end = self
+                .toks
+                .get(self.pos.saturating_sub(1))
+                .map_or(start, |t| t.span.end);
+            out.push((form, Span::new(start, end)));
         }
         Ok(out)
     }

@@ -122,28 +122,23 @@ fn spec_discovery_finds_the_files() {
     );
 }
 
-/// **Every spec file's CODE is canonically formatted.**
+/// **Every spec file is canonically formatted, comments included.**
 ///
-/// Compared against the formatting of the code with comments removed, because
-/// blue's formatter does not preserve comments yet — asserting byte equality
-/// against the commented file would force the spec files to be comment-free,
-/// and a specification nobody can annotate is worth much less than one that is.
-///
-/// `blue fmt --write` refuses on these files for the same reason
-/// (`FormatError::WouldDropComments`), so the gap cannot cause data loss; see
-/// `blue-lang-cli`'s `fmt_write_refuses_to_delete_comments`.
+/// This compared the *comment-stripped* code until the formatter learned to
+/// preserve comments. It no longer has to: `format_source_lossless` is the
+/// canonical rendering of a commented file, so the spec files can be checked as
+/// written — which is what a gate over blue's own specification should do.
 #[test]
-fn every_spec_files_code_is_canonically_formatted() {
+fn every_spec_file_is_canonically_formatted() {
     let mut drifted: Vec<String> = Vec::new();
     for path in spec_files() {
         let src = std::fs::read_to_string(&path).expect("read spec");
-        let code = strip_comments(&src);
-        match blue_lang_fmt::format_source(&code) {
+        match blue_lang_fmt::format_source_lossless(&src) {
             Err(e) => drifted.push(format!("{}: {e}", path.display())),
             Ok(formatted) => {
-                if formatted.trim_end() != code.trim_end() {
+                if formatted.trim_end() != src.trim_end() {
                     drifted.push(format!(
-                        "{}: the code is not canonically formatted\n--- want ---\n{formatted}\n--- got ---\n{code}",
+                        "{}: not canonically formatted\n--- want ---\n{formatted}\n--- got ---\n{src}",
                         path.display()
                     ));
                 }
@@ -153,38 +148,26 @@ fn every_spec_files_code_is_canonically_formatted() {
     assert!(drifted.is_empty(), "{}", drifted.join("\n"));
 }
 
-/// Drop whole-line comments and the blank lines they leave, so what remains is
-/// the code the formatter is responsible for.
-fn strip_comments(src: &str) -> String {
-    let lines: Vec<&str> = src
-        .lines()
-        .filter(|l| !l.trim_start().starts_with('#'))
-        .collect();
-    let mut out = String::new();
-    for line in lines {
-        if line.trim().is_empty() && out.is_empty() {
-            continue; // leading blanks left by a stripped header
-        }
-        out.push_str(line);
-        out.push('\n');
+/// **No spec file loses a comment to formatting.** The spec files are where the
+/// comment-dropping bug was found, so they carry its regression test.
+#[test]
+fn no_spec_file_loses_a_comment() {
+    for path in spec_files() {
+        let src = std::fs::read_to_string(&path).expect("read spec");
+        let before = blue_lang_fmt::comment_count(&src);
+        assert!(
+            before > 0,
+            "{} carries no comments, so it cannot witness the regression",
+            path.display()
+        );
+        let out = blue_lang_fmt::format_source_lossless(&src)
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        assert_eq!(
+            blue_lang_fmt::comment_count(&out),
+            before,
+            "{} lost comments to formatting",
+            path.display()
+        );
     }
-    out
 }
 
-/// Anti-vacuity: the comment stripper must actually remove something, or the
-/// test above is comparing a file to itself.
-#[test]
-fn the_comment_stripper_removes_comments() {
-    let src = "# a comment\ntest \"t\"\n  assert true\nend\n";
-    let stripped = strip_comments(src);
-    assert!(!stripped.contains('#'), "got {stripped:?}");
-    assert!(stripped.contains("assert true"), "and keeps the code: {stripped:?}");
-    assert!(
-        spec_files().iter().any(|p| {
-            let s = std::fs::read_to_string(p).expect("read");
-            strip_comments(&s) != s
-        }),
-        "at least one spec file must actually carry comments, or the stripper \
-         is being exercised on nothing"
-    );
-}

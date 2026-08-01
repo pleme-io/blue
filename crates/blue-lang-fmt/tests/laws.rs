@@ -13,6 +13,10 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    // case/when.
+    "case x\nwhen 1\n  \"one\"\nend",
+    "case x\nwhen 1\n  \"one\"\nwhen 2\n  \"two\"\nend",
+    "case x\nwhen 1\n  \"one\"\nelse\n  \"other\"\nend",
     // String interpolation. The formatter had no arm and printed the lowered
     // `concat(concat("a", x), "")` — correct tree, nothing a person would write.
     "\"value: #{x}\"",

@@ -295,6 +295,8 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 Some(n) if n == blue_lang_syntax::LOWERED_ASSERT && items.len() == 3 => {
                     return Doc::text("assert ").concat(expr(&items[2]))
                 }
+                // (let ((case-subject S)) (cond …)) — a lowered `case`.
+                Some("let") if is_case(s) => return case_form(s),
                 // A `concat` chain from string interpolation, rendered back as
                 // `"a#{x}b"`.
                 //
@@ -602,6 +604,79 @@ fn render_ty(t: &Sexp) -> Option<String> {
         }
         other => Some(other.to_string()),
     }
+}
+
+/// Is this the exact shape `case_form` lowers to?
+///
+/// Narrow on purpose: a hand-written `let` binding something called
+/// `case-subject` is vanishingly unlikely, but the check still requires the
+/// full shape — one binding, that name, and a `cond` body — so an ordinary
+/// `let` can never be printed as a `case`.
+fn is_case(s: &Sexp) -> bool {
+    let Sexp::List(items) = s else { return false };
+    if items.len() != 3 || sym_name(&items[0]) != Some("let") {
+        return false;
+    }
+    let Sexp::List(binds) = &items[1] else {
+        return false;
+    };
+    if binds.len() != 1 {
+        return false;
+    }
+    let Sexp::List(pair) = &binds[0] else {
+        return false;
+    };
+    pair.len() == 2
+        && sym_name(&pair[0]) == Some("case-subject")
+        && matches!(&items[2], Sexp::List(c) if sym_name(&c[0]) == Some("cond"))
+}
+
+/// `(let ((case-subject S)) (cond ((equal? case-subject P) B) … (else E)))`
+/// → `case S / when P / B / … / else / E / end`.
+fn case_form(s: &Sexp) -> Doc {
+    let Sexp::List(items) = s else {
+        return Doc::text(s.to_string());
+    };
+    let subject = match &items[1] {
+        Sexp::List(binds) => match &binds[0] {
+            Sexp::List(pair) => pair[1].clone(),
+            other => other.clone(),
+        },
+        other => other.clone(),
+    };
+    let Sexp::List(cond) = &items[2] else {
+        return Doc::text(s.to_string());
+    };
+
+    let mut doc = Doc::text("case ").concat(expr(&subject));
+    for clause in &cond[1..] {
+        let Sexp::List(parts) = clause else { continue };
+        if parts.len() != 2 {
+            continue;
+        }
+        if sym_name(&parts[0]) == Some("else") {
+            // A `case` with no author-written else lowers to `(else nil)`;
+            // printing it back would add an else nobody wrote.
+            if matches!(parts[1], Sexp::Nil) {
+                continue;
+            }
+            doc = doc
+                .concat(Doc::text("\nelse\n"))
+                .concat(indent_block(&parts[1]));
+            continue;
+        }
+        // The test is `(equal? case-subject PATTERN)`; print the pattern.
+        let pattern = match &parts[0] {
+            Sexp::List(test) if test.len() == 3 => test[2].clone(),
+            other => other.clone(),
+        };
+        doc = doc
+            .concat(Doc::text("\nwhen "))
+            .concat(expr(&pattern))
+            .concat(Doc::text("\n"))
+            .concat(indent_block(&parts[1]));
+    }
+    doc.concat(Doc::text("\nend"))
 }
 
 /// Render a `concat` chain back as an interpolated string, if it is one.

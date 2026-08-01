@@ -216,6 +216,7 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
     "test",
     "assert",
     "fn",
+    "case",
 ];
 
 /// A surface keyword may not be rebound. `if = 1` is a mistake, not a binding,
@@ -471,6 +472,7 @@ impl Parser {
                 "unless" => self.if_form(true),
                 "def" => self.def_form(),
                 "defmacro" => self.defmacro_form(),
+                "case" => self.case_form(),
                 "fn" => self.lambda_form(),
                 "test" => self.test_form(),
                 "assert" => self.assert_form(),
@@ -636,6 +638,79 @@ impl Parser {
     /// Annotations are per-parameter, so a signature may be partially
     /// annotated. That is the ladder at its finest grain: `a: Int` is
     /// checked and a bare `b` stays `dyn`, in the same signature.
+    /// `case subject / when a / … / else / … / end` => a `cond` over equality.
+    ///
+    /// **Value matching, not destructuring.** Elixir's `case` binds pattern
+    /// variables; blue's compares with the same `equal?` the `==` operator uses,
+    /// so `when [1, 2]` matches a list by value. Destructuring needs a pattern
+    /// language and a binder, which blue does not have — and a `case` that
+    /// *looked* like Elixir's while silently only comparing would be worse than
+    /// one that plainly compares.
+    ///
+    /// The subject is evaluated ONCE, into a binding, so `case expensive()` does
+    /// not re-run per arm. That is a correctness property, not an optimisation:
+    /// a subject with a side effect would fire once per `when`.
+    fn case_form(&mut self) -> Result<Sexp, ParseError> {
+        let subject = self.expr(0)?;
+        self.skip_newlines();
+
+        // A fresh name the surface cannot spell, so it cannot capture a user
+        // binding of the same name.
+        let subject_var = "case-subject";
+        let mut arms: Vec<Sexp> = Vec::new();
+        let mut otherwise: Option<Sexp> = None;
+
+        loop {
+            self.skip_newlines();
+            if self.at_ident("end") {
+                break;
+            }
+            if self.eat_ident("else") {
+                otherwise = Some(self.body(&["end"])?);
+                continue;
+            }
+            if !self.eat_ident("when") {
+                return Err(self.error(format!(
+                    "expected `when`, `else` or `end` in a case, found {:?}",
+                    self.peek()
+                )));
+            }
+            self.skip_newlines();
+            let pattern = self.expr(0)?;
+            let body = self.body(&["when", "else", "end"])?;
+            arms.push(Sexp::List(vec![
+                Sexp::List(vec![
+                    sym("equal?"),
+                    sym(subject_var),
+                    pattern,
+                ]),
+                body,
+            ]));
+        }
+        self.expect_ident("end")?;
+
+        if arms.is_empty() && otherwise.is_none() {
+            return Err(self.error("a case needs at least one `when` or an `else`".to_string()));
+        }
+
+        // A case with no matching arm and no else is NIL, matching Ruby. Elixir
+        // raises CaseClauseError; blue follows Ruby because its `if` without an
+        // else is already nil, and having two different answers to "no branch
+        // taken" in one language is the inconsistency.
+        let mut cond = vec![sym("cond")];
+        cond.extend(arms);
+        cond.push(Sexp::List(vec![
+            sym("else"),
+            otherwise.unwrap_or(Sexp::Nil),
+        ]));
+
+        Ok(Sexp::List(vec![
+            sym("let"),
+            Sexp::List(vec![Sexp::List(vec![sym(subject_var), subject])]),
+            Sexp::List(cond),
+        ]))
+    }
+
     /// `fn(a, b) ... end` => `(lambda (a b) body)`
     ///
     /// Without this the higher-order functions are unreachable in practice:
@@ -918,6 +993,16 @@ impl Parser {
             return Ok(Sexp::List(list));
         }
         Ok(sym(&name))
+    }
+
+    /// Consume `name` if it is the next token, else leave the position alone.
+    fn eat_ident(&mut self, name: &str) -> bool {
+        if self.at_ident(name) {
+            self.bump();
+            true
+        } else {
+            false
+        }
     }
 
     fn expect_ident(&mut self, name: &str) -> Result<(), ParseError> {

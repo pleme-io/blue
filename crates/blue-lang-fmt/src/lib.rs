@@ -39,6 +39,58 @@ pub fn format_source(src: &str) -> Result<String, ParseError> {
     Ok(format_forms(&forms))
 }
 
+/// Why a lossless format could not be produced.
+#[derive(Debug, thiserror::Error)]
+pub enum FormatError {
+    #[error("{0}")]
+    Parse(#[from] ParseError),
+    /// The input carries comments the tree does not, so formatting would
+    /// delete them.
+    ///
+    /// **This exists because formatting is a routine, destructive operation.**
+    /// The parser drops comments (they are lexed as trivia and never attached
+    /// to a node), so `blue fmt --write` silently deleted every comment in a
+    /// file. Losing a comment on save is not a cosmetic issue: it is the one
+    /// piece of a program the machine cannot reconstruct.
+    ///
+    /// Comment attachment — deciding which node a comment belongs to — is real
+    /// work and is not done. Until it is, refusing loudly is strictly better
+    /// than proceeding: `theory/BLUE.md` §V.26 carries the row.
+    #[error(
+        "refusing to format: this would delete {count} comment(s).          blue's formatter does not preserve comments yet, and dropping them silently          would lose the only part of a program a machine cannot reconstruct."
+    )]
+    WouldDropComments { count: usize },
+}
+
+/// Format, refusing rather than losing comments.
+///
+/// This is what `blue fmt --write` uses. [`format_source`] stays available for
+/// callers that only want the rendering of a tree — the round-trip laws, the
+/// LSP's formatting reply — where nothing is being overwritten.
+pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
+    let count = comment_count(src);
+    if count > 0 {
+        return Err(FormatError::WouldDropComments { count });
+    }
+    Ok(format_source(src)?)
+}
+
+/// How many comments the source carries.
+///
+/// Counted from the LEXER, not by scanning for `#`: a `#` inside a string
+/// literal is not a comment, and a scanner that thought so would refuse to
+/// format a perfectly good file.
+pub fn comment_count(src: &str) -> usize {
+    blue_lang_syntax::lex(src)
+        .map(|tokens| {
+            tokens
+                .iter()
+                .filter(|t| matches!(t.kind, blue_lang_syntax::TokenKind::Comment(_)))
+                .count()
+        })
+        .unwrap_or(0)
+}
+
 /// Render already-parsed forms. Exposed so a caller holding a tree does
 /// not have to round-trip through text to print it.
 pub fn format_forms(forms: &[Sexp]) -> String {

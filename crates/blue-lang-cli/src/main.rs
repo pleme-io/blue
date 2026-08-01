@@ -137,6 +137,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 return Ok(ExitCode::FAILURE);
             }
             if write {
+                // The LOSSLESS path, because this overwrites the file. blue's
+                // formatter drops comments, and `--write` used to delete every
+                // one silently. Refusing is strictly better than losing the one
+                // part of a program a machine cannot reconstruct.
+                let formatted = blue_lang_fmt::format_source_lossless(&src)
+                    .map_err(|e| CliError::Fmt(e.to_string()))?;
                 std::fs::write(&file, &formatted).map_err(|source| CliError::Write {
                     path: file.display().to_string(),
                     source,

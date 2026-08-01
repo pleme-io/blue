@@ -14,3 +14,6 @@ blue-lang-syntax = { workspace = true }
 blue-lang-fmt = { workspace = true }
 tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
+
+[dev-dependencies]
+blue-lang-fmt = { workspace = true }

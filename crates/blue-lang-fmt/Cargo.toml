@@ -9,5 +9,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+thiserror = { workspace = true }
 blue-lang-syntax = { workspace = true }
 tatara-lisp = { workspace = true }

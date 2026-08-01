@@ -397,3 +397,40 @@ fn a_bluefile_without_a_package_call_fails() {
         stderr(&o)
     );
 }
+
+/// **`fmt --write` must refuse rather than delete comments.**
+///
+/// blue's formatter drops comments — they are lexed as trivia and never
+/// attached to a node — so `--write` used to silently delete every one. A
+/// comment is the single part of a program a machine cannot reconstruct, so
+/// losing one on save is data loss, not a cosmetic issue.
+#[test]
+fn fmt_write_refuses_to_delete_comments() {
+    let original = "# keep me\n1 + 2\n";
+    let f = write("fmt-comments", original);
+    let o = run(&["fmt", "--write", f.to_str().unwrap()]);
+    assert!(!o.status.success(), "it must refuse");
+    assert!(
+        stderr(&o).contains("comment"),
+        "and say why: {}",
+        stderr(&o)
+    );
+    assert_eq!(
+        std::fs::read_to_string(&f).expect("read back"),
+        original,
+        "the file must be untouched"
+    );
+}
+
+/// And `--write` still works on a file with no comments, so the refusal is
+/// narrow rather than a blanket failure.
+#[test]
+fn fmt_write_still_works_without_comments() {
+    let f = write("fmt-nocomments", "1   +   2");
+    let o = run(&["fmt", "--write", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert_eq!(
+        std::fs::read_to_string(&f).expect("read back").trim(),
+        "1 + 2"
+    );
+}

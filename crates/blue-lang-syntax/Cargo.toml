@@ -1,0 +1,15 @@
+[package]
+name = "blue-lang-syntax"
+description = "blue's surface syntax: lexer, parser, and lowering to the tatara-lisp quoted form."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tatara-lisp = { workspace = true }
+
+[dev-dependencies]
+tatara-lisp-eval = { workspace = true }

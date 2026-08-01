@@ -1,0 +1,649 @@
+//! Precedence-climbing parser, lowering straight to the tatara-lisp
+//! quoted form.
+//!
+//! **The load-bearing design decision, made here and once:** the parser's
+//! output IS a `tatara_lisp::Sexp`. There is no private blue AST that later
+//! gets converted. That is Tenet 1 — *blue source parses to tatara-lisp* —
+//! and building it any other way would make homoiconicity a conversion step
+//! rather than an identity, which is the difference between blue's macro
+//! story working and merely being claimed.
+//!
+//! The consequence to keep in view: every surface construct must have a
+//! well-defined s-expression it means. Where the mapping is not obvious it
+//! is written down in the test module, because the tests are the
+//! specification of the surface until the mechanized spec exists.
+
+use tatara_lisp::{Atom, Sexp};
+
+use crate::lex::{lex, Span, Token, TokenKind};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParseError {
+    pub message: String,
+    pub span: Span,
+}
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} at {}..{}", self.message, self.span.start, self.span.end)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
+impl From<crate::lex::LexError> for ParseError {
+    fn from(e: crate::lex::LexError) -> Self {
+        Self {
+            message: e.message,
+            span: e.span,
+        }
+    }
+}
+
+/// Parse a blue program into a sequence of tatara-lisp forms.
+pub fn parse_program(src: &str) -> Result<Vec<Sexp>, ParseError> {
+    let toks: Vec<Token> = lex(src)?.into_iter().filter(|t| !matches!(t.kind, TokenKind::Comment(_))).collect();
+    let mut p = Parser { toks, pos: 0 };
+    p.program()
+}
+
+/// Parse a single blue expression. Convenience for tests and the REPL.
+pub fn parse_expr(src: &str) -> Result<Sexp, ParseError> {
+    let forms = parse_program(src)?;
+    match forms.len() {
+        1 => Ok(forms.into_iter().next().expect("checked len")),
+        n => Err(ParseError {
+            message: format!("expected exactly one expression, found {n}"),
+            span: Span::new(0, src.len()),
+        }),
+    }
+}
+
+/// Binding powers. Higher binds tighter.
+///
+/// The table is the surface's operator precedence, and it follows Ruby's
+/// where Ruby has an opinion. `|>` sits below every arithmetic and
+/// comparison operator so `a |> f |> g` chains left-to-right without
+/// parentheses, which is the whole point of having it.
+fn infix_power(op: &str) -> Option<(u8, u8)> {
+    let p = match op {
+        "||" => (1, 2),
+        "&&" => (3, 4),
+        "==" | "!=" | "<" | "<=" | ">" | ">=" => (5, 6),
+        "+" | "-" => (7, 8),
+        "*" | "/" | "%" => (9, 10),
+        _ => return None,
+    };
+    Some(p)
+}
+
+const PIPE_POWER: (u8, u8) = (0, 1);
+
+struct Parser {
+    toks: Vec<Token>,
+    pos: usize,
+}
+
+impl Parser {
+    fn peek(&self) -> &TokenKind {
+        &self.toks[self.pos.min(self.toks.len() - 1)].kind
+    }
+
+    fn peek_span(&self) -> Span {
+        self.toks[self.pos.min(self.toks.len() - 1)].span
+    }
+
+    fn bump(&mut self) -> TokenKind {
+        let k = self.toks[self.pos.min(self.toks.len() - 1)].kind.clone();
+        if self.pos < self.toks.len() {
+            self.pos += 1;
+        }
+        k
+    }
+
+    fn at(&self, k: &TokenKind) -> bool {
+        self.peek() == k
+    }
+
+    fn eat(&mut self, k: &TokenKind) -> bool {
+        if self.at(k) {
+            self.bump();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect(&mut self, k: &TokenKind, what: &str) -> Result<(), ParseError> {
+        if self.eat(k) {
+            Ok(())
+        } else {
+            Err(self.error(format!("expected {what}, found {:?}", self.peek())))
+        }
+    }
+
+    fn error(&self, message: impl Into<String>) -> ParseError {
+        ParseError {
+            message: message.into(),
+            span: self.peek_span(),
+        }
+    }
+
+    /// Skip statement separators (newlines and semicolon-free layout).
+    fn skip_newlines(&mut self) {
+        while matches!(self.peek(), TokenKind::Newline) {
+            self.bump();
+        }
+    }
+
+    fn at_ident(&self, name: &str) -> bool {
+        matches!(self.peek(), TokenKind::Ident(n) if n == name)
+    }
+
+    fn program(&mut self) -> Result<Vec<Sexp>, ParseError> {
+        let mut out = Vec::new();
+        loop {
+            self.skip_newlines();
+            if matches!(self.peek(), TokenKind::Eof) {
+                break;
+            }
+            out.push(self.expr(0)?);
+        }
+        Ok(out)
+    }
+
+    /// Pratt loop.
+    fn expr(&mut self, min_bp: u8) -> Result<Sexp, ParseError> {
+        let mut lhs = self.prefix()?;
+
+        loop {
+            // Postfix: `.name`, `.name(args)`, `(args)`
+            match self.peek() {
+                TokenKind::Dot => {
+                    self.bump();
+                    lhs = self.finish_send(lhs)?;
+                    continue;
+                }
+                TokenKind::LParen => {
+                    // A call on an expression already parsed: `f(x)`.
+                    let args = self.paren_args()?;
+                    let mut list = vec![lhs];
+                    list.extend(args);
+                    lhs = Sexp::List(list);
+                    continue;
+                }
+                _ => {}
+            }
+
+            // Infix
+            let (op, (lbp, rbp)) = match self.peek() {
+                TokenKind::Pipe => ("|>".to_string(), PIPE_POWER),
+                TokenKind::Op(o) => match infix_power(o) {
+                    Some(bp) => (o.clone(), bp),
+                    None => break,
+                },
+                _ => break,
+            };
+            if lbp < min_bp {
+                break;
+            }
+            self.bump();
+            self.skip_newlines();
+            let rhs = self.expr(rbp)?;
+
+            lhs = if op == "|>" {
+                // `x |> f`      => (f x)
+                // `x |> f(a)`   => (f x a)   — the pipeline threads into
+                //                  the FIRST argument position, as Elixir's
+                //                  does; that is what makes it composable.
+                match rhs {
+                    Sexp::List(mut items) if !items.is_empty() => {
+                        items.insert(1, lhs);
+                        Sexp::List(items)
+                    }
+                    callee => Sexp::List(vec![callee, lhs]),
+                }
+            } else {
+                Sexp::List(vec![sym(&op), lhs, rhs])
+            };
+        }
+
+        Ok(lhs)
+    }
+
+    fn prefix(&mut self) -> Result<Sexp, ParseError> {
+        let span = self.peek_span();
+        match self.bump() {
+            TokenKind::Int(v) => Ok(Sexp::Atom(Atom::Int(v))),
+            TokenKind::Float(v) => Ok(Sexp::Atom(Atom::Float(v))),
+            TokenKind::Str(s) => Ok(Sexp::Atom(Atom::Str(s))),
+            TokenKind::Sym(s) => Ok(Sexp::Atom(Atom::Keyword(s))),
+            TokenKind::True => Ok(Sexp::Atom(Atom::Bool(true))),
+            TokenKind::False => Ok(Sexp::Atom(Atom::Bool(false))),
+            TokenKind::Nil => Ok(Sexp::Nil),
+
+            TokenKind::Op(o) if o == "-" => {
+                let rhs = self.expr(11)?; // binds tighter than `*`
+                Ok(Sexp::List(vec![sym("-"), Sexp::Atom(Atom::Int(0)), rhs]))
+            }
+            TokenKind::Op(o) if o == "!" => {
+                let rhs = self.expr(11)?;
+                Ok(Sexp::List(vec![sym("not"), rhs]))
+            }
+
+            TokenKind::LParen => {
+                self.skip_newlines();
+                let inner = self.expr(0)?;
+                self.skip_newlines();
+                self.expect(&TokenKind::RParen, "`)`")?;
+                Ok(inner)
+            }
+
+            TokenKind::LBracket => self.list_literal(),
+            TokenKind::LBrace => self.map_literal(),
+
+            TokenKind::Ident(name) => match name.as_str() {
+                "if" => self.if_form(false),
+                "unless" => self.if_form(true),
+                "def" => self.def_form(),
+                "do" => Err(ParseError {
+                    message: "`do` without a preceding call".into(),
+                    span,
+                }),
+                "end" => Err(ParseError {
+                    message: "unexpected `end`".into(),
+                    span,
+                }),
+                _ => Ok(sym(&name)),
+            },
+
+            other => Err(ParseError {
+                message: format!("expected an expression, found {other:?}"),
+                span,
+            }),
+        }
+    }
+
+    /// After a `.`: `recv.name` or `recv.name(args)`.
+    ///
+    /// **A bare `recv.name` is a SEND, not a field read.** Blue commits to
+    /// the uniform access principle here: a structure exposes no public
+    /// fields, so a field can later become a computed method without
+    /// breaking a caller.
+    fn finish_send(&mut self, recv: Sexp) -> Result<Sexp, ParseError> {
+        let name = match self.bump() {
+            TokenKind::Ident(n) => n,
+            other => {
+                return Err(self.error(format!("expected a method name after `.`, found {other:?}")))
+            }
+        };
+        let mut list = vec![sym(&name), recv];
+        if self.at(&TokenKind::LParen) {
+            list.extend(self.paren_args()?);
+        }
+        Ok(Sexp::List(list))
+    }
+
+    fn paren_args(&mut self) -> Result<Vec<Sexp>, ParseError> {
+        self.expect(&TokenKind::LParen, "`(`")?;
+        let mut args = Vec::new();
+        self.skip_newlines();
+        if self.eat(&TokenKind::RParen) {
+            return Ok(args);
+        }
+        loop {
+            self.skip_newlines();
+            args.push(self.expr(0)?);
+            self.skip_newlines();
+            if self.eat(&TokenKind::Comma) {
+                continue;
+            }
+            self.expect(&TokenKind::RParen, "`,` or `)`")?;
+            break;
+        }
+        Ok(args)
+    }
+
+    fn list_literal(&mut self) -> Result<Sexp, ParseError> {
+        let mut items = vec![sym("list")];
+        self.skip_newlines();
+        if self.eat(&TokenKind::RBracket) {
+            return Ok(Sexp::List(items));
+        }
+        loop {
+            self.skip_newlines();
+            items.push(self.expr(0)?);
+            self.skip_newlines();
+            if self.eat(&TokenKind::Comma) {
+                continue;
+            }
+            self.expect(&TokenKind::RBracket, "`,` or `]`")?;
+            break;
+        }
+        Ok(Sexp::List(items))
+    }
+
+    /// `{a: 1, "k" => v}` — both spellings, one tree.
+    ///
+    /// This is §V.13's rendering law at the parser: `a: 1` and `:a => 1`
+    /// produce the *same* s-expression, which is precisely why the
+    /// formatter may always choose the shorthand. The rocket survives only
+    /// where the key is not a plain symbol.
+    fn map_literal(&mut self) -> Result<Sexp, ParseError> {
+        let mut items = vec![sym("map")];
+        self.skip_newlines();
+        if self.eat(&TokenKind::RBrace) {
+            return Ok(Sexp::List(items));
+        }
+        loop {
+            self.skip_newlines();
+            match self.peek().clone() {
+                TokenKind::Label(name) => {
+                    self.bump();
+                    self.skip_newlines();
+                    items.push(Sexp::Atom(Atom::Keyword(name)));
+                    items.push(self.expr(0)?);
+                }
+                _ => {
+                    let k = self.expr(0)?;
+                    self.skip_newlines();
+                    self.expect(&TokenKind::Rocket, "`=>` in a map literal")?;
+                    self.skip_newlines();
+                    items.push(k);
+                    items.push(self.expr(0)?);
+                }
+            }
+            self.skip_newlines();
+            if self.eat(&TokenKind::Comma) {
+                continue;
+            }
+            self.expect(&TokenKind::RBrace, "`,` or `}`")?;
+            break;
+        }
+        Ok(Sexp::List(items))
+    }
+
+    /// `if c ... [else ...] end`, and `unless` as its negation.
+    ///
+    /// `unless` lowers to `(if (not c) ...)` rather than to a distinct
+    /// form: one tree per meaning, so the formatter and every downstream
+    /// tool see exactly one shape.
+    fn if_form(&mut self, negate: bool) -> Result<Sexp, ParseError> {
+        let cond = self.expr(0)?;
+        let cond = if negate {
+            Sexp::List(vec![sym("not"), cond])
+        } else {
+            cond
+        };
+        let then = self.body(&["else", "end"])?;
+        let els = if self.at_ident("else") {
+            self.bump();
+            let e = self.body(&["end"])?;
+            self.expect_ident("end")?;
+            Some(e)
+        } else {
+            self.expect_ident("end")?;
+            None
+        };
+        let mut out = vec![sym("if"), cond, then];
+        if let Some(e) = els {
+            out.push(e);
+        }
+        Ok(Sexp::List(out))
+    }
+
+    /// `def name(a, b) ... end` => `(define (name a b) body...)`
+    fn def_form(&mut self) -> Result<Sexp, ParseError> {
+        let name = match self.bump() {
+            TokenKind::Ident(n) => n,
+            other => return Err(self.error(format!("expected a name after `def`, found {other:?}"))),
+        };
+        let mut sig = vec![sym(&name)];
+        if self.at(&TokenKind::LParen) {
+            self.bump();
+            self.skip_newlines();
+            if !self.eat(&TokenKind::RParen) {
+                loop {
+                    self.skip_newlines();
+                    match self.bump() {
+                        TokenKind::Ident(p) => sig.push(sym(&p)),
+                        other => {
+                            return Err(self.error(format!(
+                                "expected a parameter name, found {other:?}"
+                            )))
+                        }
+                    }
+                    self.skip_newlines();
+                    if self.eat(&TokenKind::Comma) {
+                        continue;
+                    }
+                    self.expect(&TokenKind::RParen, "`,` or `)`")?;
+                    break;
+                }
+            }
+        }
+        let body = self.body(&["end"])?;
+        self.expect_ident("end")?;
+        Ok(Sexp::List(vec![sym("define"), Sexp::List(sig), body]))
+    }
+
+    fn expect_ident(&mut self, name: &str) -> Result<(), ParseError> {
+        if self.at_ident(name) {
+            self.bump();
+            Ok(())
+        } else {
+            Err(self.error(format!("expected `{name}`, found {:?}", self.peek())))
+        }
+    }
+
+    /// A sequence of expressions up to one of `terminators`, wrapped in
+    /// `(begin ...)` when there is more than one.
+    fn body(&mut self, terminators: &[&str]) -> Result<Sexp, ParseError> {
+        let mut forms = Vec::new();
+        loop {
+            self.skip_newlines();
+            if matches!(self.peek(), TokenKind::Eof) {
+                return Err(self.error(format!(
+                    "unterminated block: expected one of {terminators:?}"
+                )));
+            }
+            if terminators.iter().any(|t| self.at_ident(t)) {
+                break;
+            }
+            forms.push(self.expr(0)?);
+        }
+        Ok(match forms.len() {
+            0 => Sexp::Nil,
+            1 => forms.into_iter().next().expect("checked len"),
+            _ => {
+                let mut list = vec![sym("begin")];
+                list.extend(forms);
+                Sexp::List(list)
+            }
+        })
+    }
+}
+
+fn sym(s: &str) -> Sexp {
+    Sexp::Atom(Atom::Symbol(s.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Render an `Sexp` to canonical text so tests can state the expected
+    /// quoted form as a string. This is `Display`, which tatara-lisp owns —
+    /// blue does not build Lisp syntax by concatenation.
+    fn q(src: &str) -> String {
+        parse_expr(src).map(|s| s.to_string()).unwrap_or_else(|e| panic!("{src:?}: {e}"))
+    }
+
+    // ---- the thesis: Ruby-shaped source becomes tatara-lisp ----------
+
+    #[test]
+    fn arithmetic_respects_precedence() {
+        assert_eq!(q("1 + 2 * 3"), "(+ 1 (* 2 3))");
+        assert_eq!(q("(1 + 2) * 3"), "(* (+ 1 2) 3)");
+    }
+
+    #[test]
+    fn comparison_binds_looser_than_arithmetic() {
+        assert_eq!(q("a + 1 < b"), "(< (+ a 1) b)");
+    }
+
+    #[test]
+    fn logical_operators_bind_loosest() {
+        assert_eq!(q("a && b || c"), "(|| (&& a b) c)");
+    }
+
+    #[test]
+    fn left_associativity() {
+        assert_eq!(q("1 - 2 - 3"), "(- (- 1 2) 3)");
+    }
+
+    /// A bare `recv.name` is a SEND. Blue commits to uniform access here,
+    /// so a field can later become a computed method without breaking
+    /// callers.
+    #[test]
+    fn method_call_without_parens_is_a_send() {
+        assert_eq!(q("user.name"), "(name user)");
+    }
+
+    #[test]
+    fn method_call_with_args() {
+        assert_eq!(q("user.greet(1, 2)"), "(greet user 1 2)");
+    }
+
+    #[test]
+    fn chained_sends_read_left_to_right() {
+        assert_eq!(q("a.b.c"), "(c (b a))");
+    }
+
+    #[test]
+    fn plain_call() {
+        assert_eq!(q("f(1, 2)"), "(f 1 2)");
+    }
+
+    /// The pipeline threads into the FIRST argument, as Elixir's does —
+    /// that is what makes `|>` composable rather than decorative.
+    #[test]
+    fn pipeline_threads_into_first_argument() {
+        assert_eq!(q("x |> f"), "(f x)");
+        assert_eq!(q("x |> f(1)"), "(f x 1)");
+        assert_eq!(q("x |> f |> g"), "(g (f x))");
+    }
+
+    #[test]
+    fn pipeline_binds_looser_than_arithmetic() {
+        assert_eq!(q("1 + 2 |> f"), "(f (+ 1 2))");
+    }
+
+    // ---- §V.13's rendering law, enforced at the parser ---------------
+
+    /// `a: 1` and `:a => 1` are the SAME TREE. That is exactly why the
+    /// formatter may always render the shorthand: they are not two
+    /// spellings of two things, they are two spellings of one thing.
+    #[test]
+    fn label_and_rocket_produce_the_same_tree_for_a_symbol_key() {
+        assert_eq!(q("{a: 1}"), q("{:a => 1}"));
+        assert_eq!(q("{a: 1}"), "(map :a 1)");
+    }
+
+    /// And where the key is NOT a plain symbol, the rocket is the only
+    /// spelling — so it survives because it must, never as a style choice.
+    #[test]
+    fn a_string_key_has_no_shorthand() {
+        assert_eq!(q(r#"{"k" => 1}"#), r#"(map "k" 1)"#);
+    }
+
+    #[test]
+    fn list_literal() {
+        assert_eq!(q("[1, 2, 3]"), "(list 1 2 3)");
+        assert_eq!(q("[]"), "(list)");
+    }
+
+    // ---- blocks ------------------------------------------------------
+
+    #[test]
+    fn if_else_end() {
+        assert_eq!(q("if a\n  1\nelse\n  2\nend"), "(if a 1 2)");
+    }
+
+    #[test]
+    fn if_without_else() {
+        assert_eq!(q("if a\n  1\nend"), "(if a 1)");
+    }
+
+    /// `unless` lowers to `(if (not c) …)` — one tree per meaning, so
+    /// every downstream tool sees exactly one shape.
+    #[test]
+    fn unless_is_a_negated_if() {
+        assert_eq!(q("unless a\n  1\nend"), "(if (not a) 1)");
+    }
+
+    #[test]
+    fn multi_statement_body_becomes_begin() {
+        assert_eq!(q("if a\n  1\n  2\nend"), "(if a (begin 1 2))");
+    }
+
+    #[test]
+    fn def_lowers_to_define() {
+        assert_eq!(
+            q("def add(a, b)\n  a + b\nend"),
+            "(define (add a b) (+ a b))"
+        );
+    }
+
+    #[test]
+    fn def_with_no_params() {
+        assert_eq!(q("def zero()\n  0\nend"), "(define (zero) 0)");
+    }
+
+    // ---- literals ----------------------------------------------------
+
+    #[test]
+    fn literals_lower_to_atoms() {
+        assert_eq!(q("42"), "42");
+        assert_eq!(q("true"), "#t");
+        assert_eq!(q(":ok"), ":ok");
+        assert_eq!(q(r#""hi""#), r#""hi""#);
+    }
+
+    #[test]
+    fn unary_minus_and_not() {
+        assert_eq!(q("-x"), "(- 0 x)");
+        assert_eq!(q("!x"), "(not x)");
+    }
+
+    // ---- programs and errors -----------------------------------------
+
+    #[test]
+    fn a_program_is_a_sequence_of_forms() {
+        let forms = parse_program("def f()\n  1\nend\nf()").expect("parse");
+        assert_eq!(forms.len(), 2);
+        assert_eq!(forms[1].to_string(), "(f)");
+    }
+
+    #[test]
+    fn unterminated_block_is_an_error_naming_what_was_expected() {
+        let e = parse_program("if a\n  1").expect_err("must fail");
+        assert!(e.message.contains("unterminated"), "{}", e.message);
+    }
+
+    #[test]
+    fn a_parse_error_carries_a_span_into_the_source() {
+        let src = "1 + )";
+        let e = parse_program(src).expect_err("must fail");
+        assert!(e.span.start < src.len(), "span {:?} outside source", e.span);
+    }
+
+    /// Anti-vacuity: `q` must be able to FAIL. If every input parsed, the
+    /// assertions above would be worthless.
+    #[test]
+    fn the_parser_rejects_garbage() {
+        assert!(parse_program("def").is_err());
+        assert!(parse_program("(1").is_err());
+        assert!(parse_program("end").is_err());
+    }
+}

@@ -1,0 +1,16 @@
+[workspace]
+members = ["crates/blue-lang-syntax"]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.89.0"
+authors = ["Pleme.io <engineering@pleme.io>"]
+license = "MIT"
+repository = "https://github.com/pleme-io/blue"
+readme = "README.md"
+
+[workspace.dependencies]
+tatara-lisp = { path = "../tatara-lisp/tatara-lisp" }
+tatara-lisp-eval = { path = "../tatara-lisp/tatara-lisp-eval" }

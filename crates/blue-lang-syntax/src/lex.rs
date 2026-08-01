@@ -1,0 +1,451 @@
+//! The blue lexer.
+//!
+//! Blue's surface is Ruby/Elixir-shaped, so the lexer's job is different
+//! from an s-expression reader's: it must distinguish `foo` the send from
+//! `foo(x)` the call, keep `:sym` distinct from `a ? b : c`, and record
+//! enough position to point a diagnostic at the byte the human typed.
+//!
+//! Two decisions here are load-bearing downstream and are made once:
+//!
+//! 1. **Every token carries a byte span.** `theory/BLUE.md` §0 requires
+//!    total provenance — every node in an expanded program traceable to the
+//!    source that caused it — and provenance cannot be recovered later if
+//!    the lexer drops it.
+//! 2. **Trivia is a token, not a skip.** Comments and newlines are emitted
+//!    rather than discarded, because a canonical formatter and an LSP both
+//!    need a lossless stream. The measured failure this avoids is
+//!    tatara-lisp's own reader, which discards trivia at tokenize time and
+//!    thereby makes a comment-preserving formatter unbuildable on top of it.
+//!    Callers that do not want trivia filter it; callers that need it
+//!    cannot conjure it back.
+
+use std::fmt;
+
+/// A half-open byte range into the source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl Span {
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenKind {
+    // literals
+    Int(i64),
+    Float(f64),
+    Str(String),
+    /// `:name` — a Ruby symbol, which lowers to a tatara-lisp keyword.
+    Sym(String),
+    True,
+    False,
+    Nil,
+
+    /// An identifier, or a keyword-like head (`if`, `do`, `end`, …).
+    /// The parser decides which; the lexer does not need to know.
+    Ident(String),
+
+    // punctuation
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    LBrace,
+    RBrace,
+    Comma,
+    Dot,
+    /// `:` in a hash literal (`foo: 1`) is folded into `Label`; a bare
+    /// colon is retained for anything else.
+    Colon,
+    /// `foo:` — a hash-literal label. Lexing this as one token is what
+    /// makes `{foo: 1}` and `{:foo => 1}` distinguishable at the parser
+    /// without lookahead games.
+    Label(String),
+    /// `=>` — the "rocket".
+    Rocket,
+    /// `|>` — the pipeline operator.
+    Pipe,
+
+    /// Any operator run: `+ - * / == != < <= > >= && || = ! %`.
+    Op(String),
+
+    // trivia — emitted, never skipped
+    Comment(String),
+    Newline,
+
+    Eof,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub span: Span,
+}
+
+impl Token {
+    /// Is this token trivia (a comment or a newline)?
+    pub fn is_trivia(&self) -> bool {
+        matches!(self.kind, TokenKind::Comment(_) | TokenKind::Newline)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LexError {
+    pub message: String,
+    pub span: Span,
+}
+
+impl fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} at {}..{}", self.message, self.span.start, self.span.end)
+    }
+}
+
+impl std::error::Error for LexError {}
+
+/// Characters that may begin or continue an operator run.
+const OP_CHARS: &str = "+-*/=<>!%&|";
+
+/// Tokenize `src`, including trivia.
+pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
+    Lexer::new(src).run()
+}
+
+struct Lexer<'a> {
+    src: &'a str,
+    bytes: &'a [u8],
+    pos: usize,
+    out: Vec<Token>,
+}
+
+impl<'a> Lexer<'a> {
+    fn new(src: &'a str) -> Self {
+        Self {
+            src,
+            bytes: src.as_bytes(),
+            pos: 0,
+            out: Vec::new(),
+        }
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.bytes.get(self.pos).copied()
+    }
+
+    fn peek_at(&self, n: usize) -> Option<u8> {
+        self.bytes.get(self.pos + n).copied()
+    }
+
+    fn push(&mut self, kind: TokenKind, start: usize) {
+        self.out.push(Token {
+            kind,
+            span: Span::new(start, self.pos),
+        });
+    }
+
+    fn err(&self, message: impl Into<String>, start: usize) -> LexError {
+        LexError {
+            message: message.into(),
+            span: Span::new(start, self.pos.max(start + 1)),
+        }
+    }
+
+    fn run(mut self) -> Result<Vec<Token>, LexError> {
+        while let Some(c) = self.peek() {
+            let start = self.pos;
+            match c {
+                b'\n' => {
+                    self.pos += 1;
+                    self.push(TokenKind::Newline, start);
+                }
+                // Horizontal whitespace carries no meaning in blue and is
+                // reconstructed by the formatter, so it is the one thing
+                // dropped. Newlines are kept: they are statement separators.
+                b' ' | b'\t' | b'\r' => {
+                    self.pos += 1;
+                }
+                b'#' => {
+                    while let Some(c) = self.peek() {
+                        if c == b'\n' {
+                            break;
+                        }
+                        self.pos += 1;
+                    }
+                    let text = self.src[start..self.pos].to_string();
+                    self.push(TokenKind::Comment(text), start);
+                }
+                b'"' => self.lex_string(start)?,
+                b'0'..=b'9' => self.lex_number(start)?,
+                b':' => self.lex_colon(start),
+                b'(' => self.one(TokenKind::LParen, start),
+                b')' => self.one(TokenKind::RParen, start),
+                b'[' => self.one(TokenKind::LBracket, start),
+                b']' => self.one(TokenKind::RBracket, start),
+                b'{' => self.one(TokenKind::LBrace, start),
+                b'}' => self.one(TokenKind::RBrace, start),
+                b',' => self.one(TokenKind::Comma, start),
+                b'.' => self.one(TokenKind::Dot, start),
+                c if is_ident_start(c) => self.lex_ident(start),
+                c if OP_CHARS.as_bytes().contains(&c) => self.lex_op(start),
+                _ => {
+                    self.pos += 1;
+                    return Err(self.err(
+                        format!("unexpected character {:?}", c as char),
+                        start,
+                    ));
+                }
+            }
+        }
+        let end = self.pos;
+        self.out.push(Token {
+            kind: TokenKind::Eof,
+            span: Span::new(end, end),
+        });
+        Ok(self.out)
+    }
+
+    fn one(&mut self, kind: TokenKind, start: usize) {
+        self.pos += 1;
+        self.push(kind, start);
+    }
+
+    fn lex_string(&mut self, start: usize) -> Result<(), LexError> {
+        self.pos += 1; // opening quote
+        let mut buf = String::new();
+        loop {
+            match self.peek() {
+                None => return Err(self.err("unterminated string literal", start)),
+                Some(b'"') => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(b'\\') => {
+                    self.pos += 1;
+                    let esc = self
+                        .peek()
+                        .ok_or_else(|| self.err("unterminated escape", start))?;
+                    let ch = match esc {
+                        b'n' => '\n',
+                        b't' => '\t',
+                        b'r' => '\r',
+                        b'\\' => '\\',
+                        b'"' => '"',
+                        b'0' => '\0',
+                        other => {
+                            return Err(self.err(
+                                format!("unknown escape \\{}", other as char),
+                                start,
+                            ))
+                        }
+                    };
+                    buf.push(ch);
+                    self.pos += 1;
+                }
+                Some(_) => {
+                    let ch = self.src[self.pos..]
+                        .chars()
+                        .next()
+                        .expect("peek said there is a byte");
+                    buf.push(ch);
+                    self.pos += ch.len_utf8();
+                }
+            }
+        }
+        self.push(TokenKind::Str(buf), start);
+        Ok(())
+    }
+
+    fn lex_number(&mut self, start: usize) -> Result<(), LexError> {
+        while matches!(self.peek(), Some(b'0'..=b'9' | b'_')) {
+            self.pos += 1;
+        }
+        // A `.` is a decimal point only when a digit follows; otherwise it
+        // is the method-call dot and belongs to the next token. This is why
+        // `1.foo` sends `foo` to `1` rather than failing to lex.
+        let is_float = self.peek() == Some(b'.')
+            && matches!(self.peek_at(1), Some(b'0'..=b'9'));
+        if is_float {
+            self.pos += 1;
+            while matches!(self.peek(), Some(b'0'..=b'9' | b'_')) {
+                self.pos += 1;
+            }
+        }
+        let text: String = self.src[start..self.pos].chars().filter(|c| *c != '_').collect();
+        if is_float {
+            let v: f64 = text
+                .parse()
+                .map_err(|_| self.err(format!("invalid float literal {text:?}"), start))?;
+            self.push(TokenKind::Float(v), start);
+        } else {
+            let v: i64 = text
+                .parse()
+                .map_err(|_| self.err(format!("integer literal out of range: {text:?}"), start))?;
+            self.push(TokenKind::Int(v), start);
+        }
+        Ok(())
+    }
+
+    fn lex_colon(&mut self, start: usize) {
+        // `:name` is a symbol; a bare `:` is punctuation.
+        if matches!(self.peek_at(1), Some(c) if is_ident_start(c)) {
+            self.pos += 1;
+            let s = self.pos;
+            while matches!(self.peek(), Some(c) if is_ident_continue(c)) {
+                self.pos += 1;
+            }
+            let name = self.src[s..self.pos].to_string();
+            self.push(TokenKind::Sym(name), start);
+        } else {
+            self.one(TokenKind::Colon, start);
+        }
+    }
+
+    fn lex_ident(&mut self, start: usize) {
+        while matches!(self.peek(), Some(c) if is_ident_continue(c)) {
+            self.pos += 1;
+        }
+        // Ruby's trailing `?` and `!` are part of the name.
+        if matches!(self.peek(), Some(b'?') | Some(b'!')) {
+            self.pos += 1;
+        }
+        let name = self.src[start..self.pos].to_string();
+
+        // `foo:` is a hash label — one token, so `{foo: 1}` needs no
+        // lookahead in the parser. Not folded when followed by `:`, which
+        // would be `foo::bar`.
+        if self.peek() == Some(b':') && self.peek_at(1) != Some(b':') {
+            self.pos += 1;
+            self.push(TokenKind::Label(name), start);
+            return;
+        }
+
+        let kind = match name.as_str() {
+            "true" => TokenKind::True,
+            "false" => TokenKind::False,
+            "nil" => TokenKind::Nil,
+            _ => TokenKind::Ident(name),
+        };
+        self.push(kind, start);
+    }
+
+    fn lex_op(&mut self, start: usize) {
+        while matches!(self.peek(), Some(c) if OP_CHARS.as_bytes().contains(&c)) {
+            self.pos += 1;
+        }
+        let text = self.src[start..self.pos].to_string();
+        let kind = match text.as_str() {
+            "=>" => TokenKind::Rocket,
+            "|>" => TokenKind::Pipe,
+            _ => TokenKind::Op(text),
+        };
+        self.push(kind, start);
+    }
+}
+
+fn is_ident_start(c: u8) -> bool {
+    c.is_ascii_alphabetic() || c == b'_'
+}
+
+fn is_ident_continue(c: u8) -> bool {
+    c.is_ascii_alphanumeric() || c == b'_'
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn kinds(src: &str) -> Vec<TokenKind> {
+        lex(src)
+            .expect("lex")
+            .into_iter()
+            .filter(|t| !t.is_trivia() && t.kind != TokenKind::Eof)
+            .map(|t| t.kind)
+            .collect()
+    }
+
+    #[test]
+    fn lexes_integers_and_floats() {
+        assert_eq!(kinds("1 2.5 1_000"), vec![
+            TokenKind::Int(1),
+            TokenKind::Float(2.5),
+            TokenKind::Int(1000),
+        ]);
+    }
+
+    /// `1.foo` is a send, not a malformed float. The decimal point is a
+    /// decimal point only when a digit follows it.
+    #[test]
+    fn a_dot_after_a_digit_is_a_send_unless_a_digit_follows() {
+        assert_eq!(kinds("1.foo"), vec![
+            TokenKind::Int(1),
+            TokenKind::Dot,
+            TokenKind::Ident("foo".into()),
+        ]);
+    }
+
+    #[test]
+    fn lexes_symbols_and_labels_distinctly() {
+        assert_eq!(kinds(":foo"), vec![TokenKind::Sym("foo".into())]);
+        assert_eq!(kinds("foo:"), vec![TokenKind::Label("foo".into())]);
+    }
+
+    #[test]
+    fn ruby_predicate_and_bang_suffixes_are_part_of_the_name() {
+        assert_eq!(kinds("empty? save!"), vec![
+            TokenKind::Ident("empty?".into()),
+            TokenKind::Ident("save!".into()),
+        ]);
+    }
+
+    #[test]
+    fn lexes_strings_with_escapes() {
+        assert_eq!(kinds(r#""a\nb""#), vec![TokenKind::Str("a\nb".into())]);
+    }
+
+    #[test]
+    fn unterminated_string_is_an_error_with_a_span() {
+        let e = lex("\"oops").expect_err("must fail");
+        assert!(e.message.contains("unterminated"), "{}", e.message);
+        assert_eq!(e.span.start, 0);
+    }
+
+    /// Trivia is EMITTED, not skipped. A formatter and an LSP both need a
+    /// lossless stream, and neither can recover what the lexer discarded.
+    #[test]
+    fn comments_and_newlines_are_emitted_as_trivia() {
+        let toks = lex("1 # hi\n2").expect("lex");
+        assert!(
+            toks.iter().any(|t| matches!(&t.kind, TokenKind::Comment(c) if c == "# hi")),
+            "comment was dropped: {toks:?}"
+        );
+        assert!(
+            toks.iter().any(|t| t.kind == TokenKind::Newline),
+            "newline was dropped"
+        );
+    }
+
+    /// Anti-vacuity for the span claim: spans must be real byte offsets
+    /// into the source, not placeholders.
+    #[test]
+    fn spans_point_at_the_actual_bytes() {
+        let src = "foo + 1";
+        let toks = lex(src).expect("lex");
+        let first = &toks[0];
+        assert_eq!(&src[first.span.start..first.span.end], "foo");
+        let last_int = toks
+            .iter()
+            .find(|t| matches!(t.kind, TokenKind::Int(_)))
+            .expect("an int token");
+        assert_eq!(&src[last_int.span.start..last_int.span.end], "1");
+    }
+
+    #[test]
+    fn lexes_pipeline_and_rocket() {
+        assert_eq!(kinds("|> =>"), vec![TokenKind::Pipe, TokenKind::Rocket]);
+    }
+}

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime"]
+members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime", "crates/blue-lang-cli"]
 resolver = "2"
 
 [workspace.package]
@@ -15,5 +15,17 @@ readme = "README.md"
 blue-lang-syntax = { path = "crates/blue-lang-syntax" }
 blue-lang-runtime = { path = "crates/blue-lang-runtime" }
 blue-lang-waku = { path = "crates/blue-lang-waku" }
-tatara-lisp = { path = "../tatara-lisp/tatara-lisp" }
-tatara-lisp-eval = { path = "../tatara-lisp/tatara-lisp-eval" }
+blue-lang-check = { path = "crates/blue-lang-check" }
+blue-lang-fmt = { path = "crates/blue-lang-fmt" }
+blue-lang-bidama = { path = "crates/blue-lang-bidama" }
+blue-lang-proc = { path = "crates/blue-lang-proc" }
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+# Git deps, not path deps. A path dep pointing outside the repo cannot
+# resolve inside a Nix build sandbox, where the source is just this
+# repository — which is precisely why tatara-lisp was extracted from the
+# tatara mono-workspace (see its CLAUDE.md). Pinned by rev so a build is
+# reproducible; bump the rev after pushing tatara-lisp, which is the
+# trunk-based order anyway.
+tatara-lisp = { git = "https://github.com/pleme-io/tatara-lisp", rev = "eef9c9998690b2648873fb57b7f07ece1f3e75f9" }
+tatara-lisp-eval = { git = "https://github.com/pleme-io/tatara-lisp", rev = "eef9c9998690b2648873fb57b7f07ece1f3e75f9" }

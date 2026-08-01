@@ -20,6 +20,12 @@
 //!    helpers, …). Loading it is not optional garnish: blue's own operator
 //!    lowering depends on it.
 
+pub mod erase;
+pub mod pipeline;
+
+pub use erase::erase_types;
+pub use pipeline::{parse, run, Run, RunError};
+
 use tatara_lisp_eval::{install_lisp_stdlib_with, install_primitives, Interpreter};
 
 /// Build an interpreter with the complete blue runtime installed.

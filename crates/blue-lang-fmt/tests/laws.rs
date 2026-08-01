@@ -13,6 +13,15 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    // Annotated defs. The corpus held NONE, which is exactly why an
+    // annotated def printed as a method send and did not re-parse: the three
+    // laws below are only as strong as what they are run over.
+    "def add(a: Int, b: Int) -> Int\n  a + b\nend",
+    "def id(x: Int)\n  x\nend",
+    "def ret(x) -> Str\n  x\nend",
+    "def mixed(a: Int, b, c: Str) -> Int\n  a\nend",
+    "def nested(x: Int) -> Int\n  def inner(y: Int) -> Int\n    y\n  end\nend",
+    "def ctor(xs: List(Int)) -> Int\n  1\nend",
     "1",
     "1.5",
     "true",

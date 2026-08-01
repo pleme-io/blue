@@ -1,6 +1,6 @@
 [package]
-name = "blue-lang-runtime"
-description = "The blue runtime — one definition of what a blue program runs against."
+name = "blue-lang-cli"
+description = "The blue command line: run, fmt, ast, erase, check."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,9 +8,15 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "blue"
+path = "src/main.rs"
+
 [dependencies]
-tatara-lisp = { workspace = true }
-tatara-lisp-eval = { workspace = true }
+blue-lang-runtime = { workspace = true }
 blue-lang-syntax = { workspace = true }
+blue-lang-fmt = { workspace = true }
 blue-lang-check = { workspace = true }
+tatara-lisp-eval = { workspace = true }
+clap = { workspace = true }
 thiserror = { workspace = true }

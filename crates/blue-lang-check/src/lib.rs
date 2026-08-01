@@ -113,6 +113,16 @@ pub struct Diagnostic {
     pub message: String,
 }
 
+/// A diagnostic renders itself. Per ★★ TYPED EMISSION the only sanctioned
+/// ways to produce a string are a `Display`-family `write!`, a typed log or
+/// error macro, and a typed AST builder — so a consumer that needed the text
+/// was a missing `Display`, not a licence to `format!` at the call site.
+impl std::fmt::Display for Diagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
 /// A runtime check the compiler must insert because a static one was not
 /// available — a **seam**.
 ///

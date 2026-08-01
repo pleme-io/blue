@@ -104,6 +104,16 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 Some("define") if items.len() == 3 && matches!(&items[1], Sexp::List(_)) => {
                     return def_form(items)
                 }
+                // (define-typed (name (p T)...) R body) — the annotated def.
+                // Rendered back to `def name(p: T) -> R`, because a tree the
+                // formatter cannot print is a tree the round-trip law cannot
+                // hold for: an annotated def previously printed as a method
+                // send and did not re-parse at all.
+                Some("define-typed")
+                    if items.len() == 4 && matches!(&items[1], Sexp::List(_)) =>
+                {
+                    return typed_def_form(items)
+                }
                 Some("begin") => return begin_form(&items[1..]),
                 Some("list") => return seq("[", "]", &items[1..]),
                 Some("map") => return map_form(&items[1..]),
@@ -141,16 +151,32 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 }
             }
 
-            // A send: (name recv args...) where `name` is a plain symbol
-            // and there is at least a receiver. Rendered `recv.name(args)`,
-            // and `recv.name` with no args — uniform access, per §V.13.
-            if let Some(name) = head {
-                if items.len() >= 2 && infix_render(name).is_none() && !is_reserved(name) {
-                    return send_form(name, &items[1], &items[2..]);
-                }
-            }
-
-            // Plain call: (f a b)
+            // Call form: (f a b) renders `f(a, b)`.
+            //
+            // ## Why not the send form, given uniform access
+            //
+            // §V.13's uniform access means `f(x)` and `x.f` are the SAME
+            // program: both lower to `(f x)`. Canonicality (law 3 — equal
+            // trees format to equal text) therefore forces one rendering for
+            // both spellings, and the choice is a pure readability question
+            // with no semantic content.
+            //
+            // It used to choose the send form, and the result was systematic:
+            // `fact(n - 1)` rendered `(n - 1).fact`, `sum(10, 0)` rendered
+            // `10.sum(0)`, and a recursive call read backwards. It satisfied
+            // all three laws while making every ordinary call worse — longer,
+            // parenthesised, and inverted. A round-trip law cannot catch that;
+            // only reading the output can.
+            //
+            // The call form is chosen because it is never actively confusing.
+            // The cost is narrow and named: attribute-style access
+            // (`person.age`) also renders `age(person)`. Recovering that needs
+            // the AST metadata slot §V.6.3 already flags as owed — a way for
+            // the tree to remember which surface was written — not a second
+            // rendering rule here.
+            //
+            // `x.f` still PARSES. It formats to `f(x)`, which is "one way to
+            // format" doing exactly what it says.
             let callee = expr_prec(&items[0], 12);
             callee.concat(seq("(", ")", &items[1..]))
         }
@@ -258,15 +284,6 @@ fn map_form(kvs: &[Sexp]) -> Doc {
         .group()
 }
 
-fn send_form(name: &str, recv: &Sexp, args: &[Sexp]) -> Doc {
-    let base = expr_prec(recv, 12).concat(Doc::text(format!(".{name}")));
-    if args.is_empty() {
-        base
-    } else {
-        base.concat(seq("(", ")", args))
-    }
-}
-
 fn if_form(items: &[Sexp]) -> Doc {
     let mut d = Doc::text("if ")
         .concat(expr(&items[1]))
@@ -293,6 +310,73 @@ fn def_form(items: &[Sexp]) -> Doc {
         .concat(Doc::text("\n"))
         .concat(indent_block(&items[2]))
         .concat(Doc::text("\nend"))
+}
+
+/// `(define-typed (name (p T) ...) R body)` → `def name(p: T, ...) -> R`.
+///
+/// A `dyn` annotation is *omitted* rather than printed. `dyn` is what the
+/// parser fills in for an unannotated parameter, so printing it would turn
+/// every plain `def` into an annotated one on the first format — the scale
+/// would slide by itself, in the direction nobody asked for.
+fn typed_def_form(items: &[Sexp]) -> Doc {
+    let Sexp::List(sig) = &items[1] else {
+        return Doc::text(items[1].to_string());
+    };
+    let name = sym_name(&sig[0]).unwrap_or("_");
+    let params: Vec<String> = sig[1..]
+        .iter()
+        .map(|p| match p {
+            Sexp::List(pair) if pair.len() == 2 => {
+                let pname = sym_name(&pair[0]).unwrap_or("_");
+                match render_ty(&pair[1]) {
+                    Some(t) => {
+                        let mut out = String::with_capacity(pname.len() + t.len() + 2);
+                        out.push_str(pname);
+                        out.push_str(": ");
+                        out.push_str(&t);
+                        out
+                    }
+                    None => pname.to_string(),
+                }
+            }
+            other => sym_name(other).unwrap_or("_").to_string(),
+        })
+        .collect();
+
+    let mut head = String::from("def ");
+    head.push_str(name);
+    head.push('(');
+    head.push_str(&params.join(", "));
+    head.push(')');
+    if let Some(r) = render_ty(&items[2]) {
+        head.push_str(" -> ");
+        head.push_str(&r);
+    }
+
+    Doc::text(head)
+        .concat(Doc::text("\n"))
+        .concat(indent_block(&items[3]))
+        .concat(Doc::text("\nend"))
+}
+
+/// A type as source text, or `None` for `dyn` — the absence of an annotation.
+fn render_ty(t: &Sexp) -> Option<String> {
+    match t {
+        Sexp::Atom(Atom::Symbol(n)) if &**n == "dyn" => None,
+        Sexp::Atom(Atom::Symbol(n)) => Some(n.to_string()),
+        // A constructor: (List Int) -> List(Int)
+        Sexp::List(items) if items.len() == 2 => {
+            let head = sym_name(&items[0])?;
+            let arg = render_ty(&items[1]).unwrap_or_else(|| "dyn".to_string());
+            let mut out = String::with_capacity(head.len() + arg.len() + 2);
+            out.push_str(head);
+            out.push('(');
+            out.push_str(&arg);
+            out.push(')');
+            Some(out)
+        }
+        other => Some(other.to_string()),
+    }
 }
 
 fn begin_form(forms: &[Sexp]) -> Doc {
@@ -360,15 +444,40 @@ mod tests {
         assert_eq!(f("1 - 2 - 3").trim(), "1 - 2 - 3");
     }
 
+    /// **An ordinary call renders as a call.**
+    ///
+    /// This is the assertion that was missing while the formatter turned
+    /// every call into a send. `fact(n - 1)` became `(n - 1).fact` and all
+    /// three formatting laws still passed, because a round-trip law cares
+    /// about the tree and not about whether the text is readable.
     #[test]
-    fn a_bare_send_stays_bare() {
-        assert_eq!(f("user.name").trim(), "user.name");
-        assert_eq!(f("a.b.c").trim(), "a.b.c");
+    fn an_ordinary_call_renders_as_a_call() {
+        assert_eq!(f("fact(6)").trim(), "fact(6)");
+        assert_eq!(f("sum(10, 0)").trim(), "sum(10, 0)");
+        assert_eq!(f("fact(n - 1)").trim(), "fact(n - 1)");
+        assert_eq!(f("g(f(x))").trim(), "g(f(x))");
     }
 
+    /// **The named cost of the choice above.** Uniform access makes `x.f` and
+    /// `f(x)` the same tree, so canonicality forces one rendering — and
+    /// attribute-style access converges on the call form too.
+    ///
+    /// This is asserted rather than left implicit so the trade is visible in
+    /// the test list. Recovering `person.age` needs the AST metadata slot
+    /// (§V.6.3), not a second rendering rule.
     #[test]
-    fn a_send_with_args_keeps_its_parens() {
-        assert_eq!(f("user.greet(1, 2)").trim(), "user.greet(1, 2)");
+    fn send_syntax_parses_and_converges_on_the_call_form() {
+        assert_eq!(f("user.name").trim(), "name(user)");
+        assert_eq!(f("a.b.c").trim(), "c(b(a))");
+        assert_eq!(f("user.greet(1, 2)").trim(), "greet(user, 1, 2)");
+    }
+
+    /// And the convergence is real: both spellings format to the same text,
+    /// which is what "one way to format" means operationally.
+    #[test]
+    fn both_spellings_of_one_call_format_identically() {
+        assert_eq!(f("user.greet(1, 2)"), f("greet(user, 1, 2)"));
+        assert_eq!(f("x.f"), f("f(x)"));
     }
 
     #[test]

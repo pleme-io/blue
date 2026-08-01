@@ -203,3 +203,12 @@ fn renamed_comparison_operators_mean_what_they_say() {
     assert!(matches!(run("true && false"), Value::Bool(false)));
     assert!(matches!(run("true || false"), Value::Bool(true)));
 }
+
+// NOTE on annotated defs. `(define-typed …)` is READABLE by tatara-lisp's
+// reader — it is an ordinary list — but not EVALUABLE, because tatara has no
+// such form. Type erasure is what makes it runnable, and erasure is a
+// pipeline stage, so the "annotating changes nothing else" claim is asserted
+// where the pipeline lives:
+// `blue_lang_runtime::pipeline::annotating_buys_analysis_and_changes_nothing_else`.
+// Asserting it here would have to re-implement erasure in the test harness,
+// which is how a second, drifting copy of a pipeline stage gets born.

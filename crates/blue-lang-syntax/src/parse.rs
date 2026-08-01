@@ -143,9 +143,17 @@ pub struct Infix {
 pub const INFIX: &[Infix] = &[
     Infix { op: "||", power: (1, 2), callee: "or" },
     Infix { op: "&&", power: (3, 4), callee: "and" },
-    // `==`/`!=` are the surface spellings Ruby and Elixir users type;
-    // tatara spells them `=` and `not=`.
-    Infix { op: "==", power: (5, 6), callee: "=" },
+    // `==` is STRUCTURAL equality, so it lowers to `equal?` and not to `=`.
+    //
+    // tatara's `=` is NUMERIC comparison: `"a" = "a"` is a type error, not
+    // false. Lowering `==` to it meant every string, list or nil comparison
+    // failed with "expected number, got string" — found by blue's own spec
+    // suite the moment a test compared two strings, which is the first thing
+    // anybody does.
+    //
+    // `equal?` is structural and total over the value domain: strings, lists
+    // and nil all compare, and numbers still compare as numbers.
+    Infix { op: "==", power: (5, 6), callee: "equal?" },
     Infix { op: "!=", power: (5, 6), callee: "not=" },
     Infix { op: "<", power: (5, 6), callee: "<" },
     Infix { op: "<=", power: (5, 6), callee: "<=" },
@@ -201,7 +209,14 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
     "unquote_splice",
     "test",
     "assert",
+    "fn",
 ];
+
+/// A surface keyword may not be rebound. `if = 1` is a mistake, not a binding,
+/// and letting it through would shadow the form for the rest of the file.
+fn is_reserved_word(name: &str) -> bool {
+    SURFACE_KEYWORDS.contains(&name) || matches!(name, "do" | "end" | "else" | "true" | "false" | "nil")
+}
 
 fn infix(op: &str) -> Option<&'static Infix> {
     INFIX.iter().find(|i| i.op == op)
@@ -278,7 +293,7 @@ impl Parser {
                 break;
             }
             let start = self.peek_span().start;
-            let form = self.expr(0)?;
+            let form = self.statement()?;
             // The last token consumed ends the form. `pos` has already advanced
             // past it, so look one back.
             let end = self
@@ -288,6 +303,40 @@ impl Parser {
             out.push((form, Span::new(start, end)));
         }
         Ok(out)
+    }
+
+    /// A statement: either a binding or an expression.
+    ///
+    /// `x = 5` lowers to `(define x 5)`. Blue had NO way to name a value — a
+    /// capability probe found `x = 5` was a parse error, which makes every
+    /// program a single expression. That is more fundamental than anything else
+    /// the probe found.
+    ///
+    /// Only at STATEMENT position, never inside an expression, so `f(x = 1)` is
+    /// still an error rather than a silent binding. Ruby allows assignment as an
+    /// expression and it is a well-known footgun — `if x = 1` where `==` was
+    /// meant. Blue declines it, and the cost is only that a walrus-style idiom
+    /// has to be two lines.
+    fn statement(&mut self) -> Result<Sexp, ParseError> {
+        if let TokenKind::Ident(name) = self.peek().clone() {
+            if self.peek_at(1) == "=" && !is_reserved_word(&name) {
+                self.bump(); // name
+                self.bump(); // =
+                self.skip_newlines();
+                let value = self.expr(0)?;
+                return Ok(Sexp::List(vec![sym("define"), sym(&name), value]));
+            }
+        }
+        self.expr(0)
+    }
+
+    /// The token `n` positions ahead, for the two-token lookahead a binding
+    /// needs. Returns `Eof` past the end rather than panicking.
+    fn peek_at(&self, n: usize) -> String {
+        match self.toks.get(self.pos + n).map(|t| &t.kind) {
+            Some(TokenKind::Op(o)) => o.clone(),
+            _ => String::new(),
+        }
     }
 
     /// Pratt loop.
@@ -387,6 +436,7 @@ impl Parser {
                 "unless" => self.if_form(true),
                 "def" => self.def_form(),
                 "defmacro" => self.defmacro_form(),
+                "fn" => self.lambda_form(),
                 "test" => self.test_form(),
                 "assert" => self.assert_form(),
                 "quote" => self.quote_form(),
@@ -551,6 +601,49 @@ impl Parser {
     /// Annotations are per-parameter, so a signature may be partially
     /// annotated. That is the ladder at its finest grain: `a: Int` is
     /// checked and a bare `b` stays `dyn`, in the same signature.
+    /// `fn(a, b) ... end` => `(lambda (a b) body)`
+    ///
+    /// Without this the higher-order functions are unreachable in practice:
+    /// `map(inc, xs)` works only because `inc` happens to be a named stdlib
+    /// function, and there was no way to write the one-off the call site
+    /// actually wants.
+    ///
+    /// `fn` rather than Ruby's `->` or `lambda`: `->` collides with the return-
+    /// type arrow the typed `def` already uses, and reusing one glyph for two
+    /// unrelated things is the ambiguity the FORM axis exists to prevent.
+    fn lambda_form(&mut self) -> Result<Sexp, ParseError> {
+        let mut params: Vec<String> = Vec::new();
+        if self.at(&TokenKind::LParen) {
+            self.bump();
+            self.skip_newlines();
+            if !self.eat(&TokenKind::RParen) {
+                loop {
+                    self.skip_newlines();
+                    match self.bump() {
+                        TokenKind::Ident(p) => params.push(p),
+                        other => {
+                            return Err(self
+                                .error(format!("expected a parameter name, found {other:?}")))
+                        }
+                    }
+                    self.skip_newlines();
+                    if self.eat(&TokenKind::Comma) {
+                        continue;
+                    }
+                    self.expect(&TokenKind::RParen, "`,` or `)`")?;
+                    break;
+                }
+            }
+        }
+        let body = self.body(&["end"])?;
+        self.expect_ident("end")?;
+        Ok(Sexp::List(vec![
+            sym("lambda"),
+            Sexp::List(params.iter().map(|p| sym(p)).collect()),
+            body,
+        ]))
+    }
+
     /// `test "name" ... end` => `(deftest "name" body)`
     ///
     /// A string, not an identifier: a test name is prose for a human report,
@@ -815,7 +908,7 @@ impl Parser {
             if terminators.iter().any(|t| self.at_ident(t)) {
                 break;
             }
-            forms.push(self.expr(0)?);
+            forms.push(self.statement()?);
         }
         Ok(match forms.len() {
             0 => Sexp::Nil,

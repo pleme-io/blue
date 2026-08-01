@@ -185,7 +185,7 @@ fn the_operator_table_is_populated_and_actually_renames_where_needed() {
         .map(|i| (i.op, i.callee))
         .collect();
     assert!(
-        renamed.contains(&("==", "=")) && renamed.contains(&("!=", "not=")),
+        renamed.contains(&("==", "equal?")) && renamed.contains(&("!=", "not=")),
         "the surface spellings that differ from tatara's must be renamed: {renamed:?}"
     );
 }
@@ -234,6 +234,47 @@ fn a_bad_unicode_escape_is_rejected() {
         assert!(
             blue_lang_syntax::parse_program(bad).is_err(),
             "{bad} must be rejected rather than substituted"
+        );
+    }
+}
+
+/// **`==` is STRUCTURAL, over every value class — not numeric comparison.**
+///
+/// It lowered to tatara's `=`, which is numeric-only, so `"a" == "a"` was a
+/// *type error* rather than `true`. Every string, list and nil comparison
+/// failed with "expected number, got string". Found by blue's own spec suite
+/// the moment a test compared two strings, which is the first thing anybody
+/// does — and missed by the operator-coverage gate, which resolves each callee
+/// against the interpreter using NUMERIC operands and so never exercised the
+/// other classes.
+#[test]
+fn equality_is_structural_over_every_value_class() {
+    assert!(matches!(run(r#""a" == "a""#), Value::Bool(true)));
+    assert!(matches!(run(r#""a" == "b""#), Value::Bool(false)));
+    assert!(matches!(run(r#""a" != "b""#), Value::Bool(true)));
+    assert!(matches!(run("[1, 2] == [1, 2]"), Value::Bool(true)));
+    assert!(matches!(run("[1, 2] == [1, 3]"), Value::Bool(false)));
+    assert!(matches!(run("nil == nil"), Value::Bool(true)));
+    assert!(matches!(run("1 == 1"), Value::Bool(true)));
+    // Across classes it is FALSE, not an error — a comparison that raises is
+    // unusable in a conditional.
+    assert!(matches!(run(r#"1 == "1""#), Value::Bool(false)));
+}
+
+/// The operator-coverage gate resolves callees with NUMERIC operands, so it
+/// cannot see a callee that is bound but numeric-only. This sweeps the other
+/// value classes through every comparison operator.
+#[test]
+fn comparison_operators_work_on_non_numeric_operands() {
+    for (src, want) in [
+        (r#""a" == "a""#, true),
+        (r#""a" != "a""#, false),
+        ("[1] == [1]", true),
+        ("nil != nil", false),
+    ] {
+        assert!(
+            matches!(run(src), Value::Bool(b) if b == want),
+            "{src} should be {want}"
         );
     }
 }

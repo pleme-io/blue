@@ -264,6 +264,22 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 Some("define") if items.len() == 3 && matches!(&items[1], Sexp::List(_)) => {
                     return def_form(items)
                 }
+                // (define name value) — a BINDING, rendered `name = value`.
+                //
+                // Without this arm it fell through to the plain-call path and
+                // printed `define(x, 5)`. That re-parses to the same tree, so
+                // every round-trip law passed — and `fmt --write` silently
+                // rewrote every binding in the spec files. Third time a green
+                // law has coexisted with unreadable output; the tree is not the
+                // thing being checked here.
+                Some("define")
+                    if items.len() == 3
+                        && matches!(&items[1], Sexp::Atom(Atom::Symbol(_))) =>
+                {
+                    return Doc::text(sym_name(&items[1]).unwrap_or("_").to_string())
+                        .concat(Doc::text(" = "))
+                        .concat(expr(&items[2]))
+                }
                 // (deftest "name" body)
                 Some("deftest")
                     if items.len() == 3
@@ -278,6 +294,12 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 // rendering of one thing, and would not re-parse.
                 Some(n) if n == blue_lang_syntax::LOWERED_ASSERT && items.len() == 3 => {
                     return Doc::text("assert ").concat(expr(&items[2]))
+                }
+                // (lambda (params) body)
+                Some("lambda")
+                    if items.len() == 3 && matches!(&items[1], Sexp::List(_)) =>
+                {
+                    return lambda_form(items)
                 }
                 // (defmacro name (params) body)
                 //
@@ -565,6 +587,21 @@ fn render_ty(t: &Sexp) -> Option<String> {
         }
         other => Some(other.to_string()),
     }
+}
+
+/// `(lambda (a b) body)` → `fn(a, b) … end`.
+fn lambda_form(items: &[Sexp]) -> Doc {
+    let Sexp::List(params) = &items[1] else {
+        return Doc::text(items[1].to_string());
+    };
+    let ps: Vec<&str> = params.iter().map(|p| sym_name(p).unwrap_or("_")).collect();
+    let mut head = String::from("fn(");
+    head.push_str(&ps.join(", "));
+    head.push(')');
+    Doc::text(head)
+        .concat(Doc::text("\n"))
+        .concat(indent_block(&items[2]))
+        .concat(Doc::text("\nend"))
 }
 
 /// `(deftest "name" body)` → `test "name" … end`.

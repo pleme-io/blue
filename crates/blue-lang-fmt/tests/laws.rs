@@ -13,6 +13,12 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    // Lambdas and bindings.
+    "fn(x)\n  x + 1\nend",
+    "fn()\n  1\nend",
+    "fn(a, b)\n  a + b\nend",
+    "x = 5",
+    "total = 1 + 2",
     // Tests and assertions.
     "test \"adds\"\n  assert 1 + 1 == 2\nend",
     "test \"two asserts\"\n  assert true\n  assert 1 < 2\nend",
@@ -459,4 +465,36 @@ fn a_deliberate_blank_line_after_a_comment_is_kept() {
     let src = "# header\n\n1 + 2\n";
     let out = format_source_lossless(src).expect("lossless");
     assert_eq!(out, src, "got {out:?}");
+}
+
+/// **A binding renders as `name = value`, not `define(name, value)`.**
+///
+/// It rendered as the call form, which re-parses to the *same tree* — so all
+/// three laws passed while `fmt --write` silently rewrote every binding in
+/// blue's own spec files. The third time a green round-trip law has coexisted
+/// with output no one would write, after the method-send calls and the
+/// unparseable `defmacro`.
+///
+/// A round-trip law measures the tree. Reading the output is the only thing
+/// that measures the output.
+#[test]
+fn a_binding_renders_as_an_assignment() {
+    assert_eq!(format_source("x = 5").expect("fmt").trim(), "x = 5");
+    assert_eq!(
+        format_source("total = 1 + 2").expect("fmt").trim(),
+        "total = 1 + 2"
+    );
+    assert!(
+        !format_source("x = 5").expect("fmt").contains("define("),
+        "must not print the lowered call form"
+    );
+}
+
+/// And a `def` still renders as a `def` — the two share the `define` head, so
+/// the new arm must not capture the function form.
+#[test]
+fn a_def_still_renders_as_a_def() {
+    let out = format_source("def f(x)\n  x\nend").expect("fmt");
+    assert!(out.contains("def f(x)"), "got {out}");
+    assert!(!out.contains(" = "), "a def is not a binding: {out}");
 }

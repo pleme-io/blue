@@ -20,6 +20,9 @@ pub mod lex;
 pub mod parse;
 
 pub use lex::{lex, LexError, Span, Token, TokenKind};
+// Re-exported so a consumer walking blue trees does not have to depend on
+// tatara-lisp directly just to name the node types blue emits.
+pub use tatara_lisp::{Atom, Sexp};
 pub use parse::{
     parse_expr, parse_program, Infix, ParseError, INFIX, LOWERED_ASSERT, SURFACE_KEYWORDS,
 };

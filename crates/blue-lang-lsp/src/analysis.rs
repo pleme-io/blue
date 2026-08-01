@@ -1,0 +1,417 @@
+//! The analysis core — **transport-free**.
+//!
+//! Nothing here knows about JSON-RPC, stdio, or LSP. It takes source text and
+//! returns diagnostics, formatting edits and hovers, as plain Rust types.
+//!
+//! That split is not tidiness. An analysis core reachable only through a
+//! protocol can be tested only by speaking that protocol, so its tests become
+//! slow, awkward, and few — and the editor experience is exactly what nobody
+//! wants to be under-tested. Everything below is a direct function call.
+//!
+//! ## Positions
+//!
+//! blue's lexer carries byte offsets. LSP speaks UTF-16 code units on lines.
+//! The conversion lives in [`LineIndex`] and is the one place that knows about
+//! it — a per-call conversion is how an editor ends up underlining the wrong
+//! characters in a file with any non-ASCII in it.
+
+use blue_lang_syntax::Span;
+
+/// Severity, in LSP's numbering so the shim does not have to translate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Severity {
+    Error = 1,
+    Warning = 2,
+    Information = 3,
+    Hint = 4,
+}
+
+/// A zero-based line and UTF-16 character offset — LSP's coordinates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Position {
+    pub line: u32,
+    pub character: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Range {
+    pub start: Position,
+    pub end: Position,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Diagnostic {
+    pub range: Range,
+    pub severity: Severity,
+    pub message: String,
+    /// Which analysis produced it, so a reader can tell a parse failure from a
+    /// type error without parsing the message.
+    pub source: &'static str,
+}
+
+/// Byte offsets ↔ LSP positions.
+///
+/// Built once per analysis. Line starts are cached because a diagnostic list
+/// needs many conversions over one document, and a linear scan per conversion
+/// makes a large file's diagnostics quadratic.
+pub struct LineIndex {
+    /// Byte offset of the start of each line.
+    line_starts: Vec<usize>,
+    text: String,
+}
+
+impl LineIndex {
+    pub fn new(text: &str) -> Self {
+        let mut line_starts = vec![0];
+        for (i, b) in text.bytes().enumerate() {
+            if b == b'\n' {
+                line_starts.push(i + 1);
+            }
+        }
+        Self {
+            line_starts,
+            text: text.to_string(),
+        }
+    }
+
+    /// Byte offset → position, counting **UTF-16 code units** within the line.
+    ///
+    /// Not bytes and not chars. LSP specifies UTF-16, and a client given byte
+    /// offsets underlines the wrong span in any file containing non-ASCII —
+    /// silently, and only for the users who have such files.
+    pub fn position(&self, offset: usize) -> Position {
+        let offset = offset.min(self.text.len());
+        let line = match self.line_starts.binary_search(&offset) {
+            Ok(exact) => exact,
+            Err(next) => next - 1,
+        };
+        let line_start = self.line_starts[line];
+        let character = self.text[line_start..offset]
+            .chars()
+            .map(|c| c.len_utf16() as u32)
+            .sum();
+        Position {
+            line: line as u32,
+            character,
+        }
+    }
+
+    pub fn range(&self, span: Span) -> Range {
+        Range {
+            start: self.position(span.start),
+            end: self.position(span.end),
+        }
+    }
+
+    /// Position → byte offset. Needed for hover, which arrives as a position.
+    pub fn offset(&self, pos: Position) -> usize {
+        let line = pos.line as usize;
+        if line >= self.line_starts.len() {
+            return self.text.len();
+        }
+        let line_start = self.line_starts[line];
+        let line_end = self
+            .line_starts
+            .get(line + 1)
+            .copied()
+            .unwrap_or(self.text.len());
+        let mut utf16 = 0u32;
+        for (byte_off, c) in self.text[line_start..line_end].char_indices() {
+            if utf16 >= pos.character {
+                return line_start + byte_off;
+            }
+            utf16 += c.len_utf16() as u32;
+        }
+        line_end
+    }
+
+    pub fn whole_document(&self) -> Range {
+        Range {
+            start: Position::default(),
+            end: self.position(self.text.len()),
+        }
+    }
+}
+
+/// Everything the editor gets for one document.
+#[derive(Clone, Debug, Default)]
+pub struct Analysis {
+    pub diagnostics: Vec<Diagnostic>,
+    /// Canonical formatting, or `None` when the source does not parse.
+    ///
+    /// `None` rather than the original text: returning the input unchanged
+    /// would make "format on save" appear to succeed on a file it could not
+    /// format.
+    pub formatted: Option<String>,
+    /// Typed declarations found, for hover and for the status line.
+    pub declarations: Vec<Declaration>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Declaration {
+    pub name: String,
+    /// The signature as blue source, e.g. `def add(a: Int, b: Int) -> Int`.
+    pub signature: String,
+    pub range: Range,
+}
+
+/// Analyse one document.
+///
+/// **Parse failures suppress the later stages rather than compounding.** A file
+/// mid-edit is unparseable most of the time, and a type checker run on a
+/// half-tree produces cascades of errors about code the author has not written
+/// yet — which trains people to ignore the diagnostics.
+pub fn analyse(src: &str) -> Analysis {
+    let index = LineIndex::new(src);
+    let mut out = Analysis::default();
+
+    let forms = match blue_lang_syntax::parse_program(src) {
+        Ok(f) => f,
+        Err(e) => {
+            out.diagnostics.push(Diagnostic {
+                range: index.range(e.span),
+                severity: Severity::Error,
+                message: e.message.clone(),
+                source: "parse",
+            });
+            return out;
+        }
+    };
+
+    for d in blue_lang_check::check_program(&forms).diagnostics {
+        // The checker reports messages without spans today, so these attach to
+        // the start of the document. Stated rather than faked: inventing a span
+        // would put a squiggle under unrelated code, which is worse than a
+        // diagnostic in the gutter.
+        out.diagnostics.push(Diagnostic {
+            range: Range::default(),
+            severity: Severity::Error,
+            message: d.message,
+            source: "types",
+        });
+    }
+
+    out.formatted = Some(blue_lang_fmt::format_forms(&forms));
+    out.declarations = declarations(&forms, &index);
+    out
+}
+
+fn declarations(forms: &[blue_lang_syntax::Sexp], index: &LineIndex) -> Vec<Declaration> {
+    use blue_lang_syntax::Sexp;
+    let mut out = Vec::new();
+    for form in forms {
+        let Sexp::List(items) = form else { continue };
+        let head = match items.first() {
+            Some(Sexp::Atom(blue_lang_syntax::Atom::Symbol(s))) => &**s,
+            _ => continue,
+        };
+        let name = match (head, items.get(1)) {
+            ("define" | "define-typed", Some(Sexp::List(sig))) => match sig.first() {
+                Some(Sexp::Atom(blue_lang_syntax::Atom::Symbol(n))) => n.to_string(),
+                _ => continue,
+            },
+            ("defmacro", Some(Sexp::Atom(blue_lang_syntax::Atom::Symbol(n)))) => n.to_string(),
+            _ => continue,
+        };
+        // The signature is the FORMATTER's first line. Reusing it means hover
+        // and the file cannot disagree about how a signature is spelled — the
+        // same reason the test framework renders assertions through it.
+        let rendered = blue_lang_fmt::format_forms(std::slice::from_ref(form));
+        let signature = rendered.lines().next().unwrap_or_default().to_string();
+        out.push(Declaration {
+            name,
+            signature,
+            range: index.whole_document(),
+        });
+    }
+    out
+}
+
+/// The declaration whose name appears at `pos`, for hover.
+pub fn hover(src: &str, pos: Position) -> Option<String> {
+    let index = LineIndex::new(src);
+    let offset = index.offset(pos);
+    let word = word_at(src, offset)?;
+    analyse(src)
+        .declarations
+        .into_iter()
+        .find(|d| d.name == word)
+        .map(|d| d.signature)
+}
+
+fn word_at(src: &str, offset: usize) -> Option<String> {
+    let is_word = |c: char| c.is_alphanumeric() || c == '_' || c == '-' || c == '?' || c == '!';
+    if offset > src.len() {
+        return None;
+    }
+    let start = src[..offset]
+        .char_indices()
+        .rev()
+        .take_while(|(_, c)| is_word(*c))
+        .last()
+        .map_or(offset, |(i, _)| i);
+    let end = src[offset..]
+        .char_indices()
+        .take_while(|(_, c)| is_word(*c))
+        .last()
+        .map_or(offset, |(i, c)| offset + i + c.len_utf8());
+    let word = &src[start..end];
+    if word.is_empty() {
+        None
+    } else {
+        Some(word.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PROGRAM: &str = "def add(a: Int, b: Int) -> Int\n  a + b\nend\nadd(1, 2)";
+
+    #[test]
+    fn a_clean_document_has_no_diagnostics_and_formats() {
+        let a = analyse(PROGRAM);
+        assert!(a.diagnostics.is_empty(), "{:?}", a.diagnostics);
+        assert!(a.formatted.is_some());
+    }
+
+    /// A parse error is reported at its span, tagged `parse`.
+    #[test]
+    fn a_parse_error_is_reported_with_a_position() {
+        let a = analyse("def add(\n");
+        assert_eq!(a.diagnostics.len(), 1);
+        assert_eq!(a.diagnostics[0].source, "parse");
+        assert_eq!(a.diagnostics[0].severity, Severity::Error);
+    }
+
+    /// **An unparseable document must not also be formatted.** Returning the
+    /// input unchanged would make format-on-save appear to succeed on a file it
+    /// could not format.
+    #[test]
+    fn an_unparseable_document_yields_no_formatting() {
+        assert!(analyse("def add(").formatted.is_none());
+    }
+
+    /// **A parse error must not produce type errors too.** A file mid-edit is
+    /// unparseable most of the time, and cascading errors about code the author
+    /// has not written yet trains people to ignore diagnostics.
+    #[test]
+    fn a_parse_error_does_not_cascade_into_type_errors() {
+        let a = analyse("def bad(a: Int) -> Str\n  a\n");
+        assert!(
+            a.diagnostics.iter().all(|d| d.source == "parse"),
+            "only the parse failure should be reported: {:?}",
+            a.diagnostics
+        );
+    }
+
+    #[test]
+    fn a_type_error_is_reported_and_tagged() {
+        let a = analyse("def bad(a: Int) -> Str\n  a\nend");
+        assert_eq!(a.diagnostics.len(), 1, "{:?}", a.diagnostics);
+        assert_eq!(a.diagnostics[0].source, "types");
+        assert!(a.diagnostics[0].message.contains("Str"));
+    }
+
+    /// Anti-vacuity: an untyped program produces no type diagnostics, so the
+    /// one above is the annotation's doing.
+    #[test]
+    fn an_untyped_program_produces_no_type_diagnostics() {
+        assert!(analyse("def ok(a)\n  a\nend").diagnostics.is_empty());
+    }
+
+    // ---- positions ------------------------------------------------------
+
+    #[test]
+    fn positions_are_line_and_character() {
+        let index = LineIndex::new("abc\ndefg\nhi");
+        assert_eq!(index.position(0), Position { line: 0, character: 0 });
+        assert_eq!(index.position(2), Position { line: 0, character: 2 });
+        assert_eq!(index.position(4), Position { line: 1, character: 0 });
+        assert_eq!(index.position(6), Position { line: 1, character: 2 });
+        assert_eq!(index.position(9), Position { line: 2, character: 0 });
+    }
+
+    /// **UTF-16 code units, not bytes and not chars.** LSP specifies UTF-16; a
+    /// client given byte offsets underlines the wrong span in any file with
+    /// non-ASCII, silently, and only for the users who have such files.
+    #[test]
+    fn characters_are_counted_in_utf16_code_units() {
+        // "é" is 2 bytes, 1 UTF-16 unit. "😀" is 4 bytes, 2 UTF-16 units.
+        let text = "é😀x";
+        let index = LineIndex::new(text);
+        assert_eq!(index.position(2).character, 1, "é is one UTF-16 unit");
+        assert_eq!(index.position(6).character, 3, "é + 😀 is three");
+        assert_eq!(
+            index.position(7).character,
+            4,
+            "and 7 bytes in is four UTF-16 units, not seven"
+        );
+    }
+
+    /// Round-trip, so hover's position→offset agrees with diagnostics'
+    /// offset→position. A mismatch means hover reads a different word than the
+    /// one the user pointed at.
+    #[test]
+    fn positions_round_trip_through_offsets() {
+        for text in ["abc\ndefg\nhi", "é😀x\nyz", "", "\n\n\n", "one line only"] {
+            let index = LineIndex::new(text);
+            for offset in 0..=text.len() {
+                if !text.is_char_boundary(offset) {
+                    continue;
+                }
+                let pos = index.position(offset);
+                assert_eq!(
+                    index.offset(pos),
+                    offset,
+                    "round trip failed at {offset} in {text:?} (pos {pos:?})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_offset_past_the_end_is_clamped_rather_than_panicking() {
+        let index = LineIndex::new("ab");
+        assert_eq!(index.position(999), index.position(2));
+        assert_eq!(
+            index.offset(Position {
+                line: 99,
+                character: 99
+            }),
+            2
+        );
+    }
+
+    // ---- declarations and hover ----------------------------------------
+
+    #[test]
+    fn declarations_are_found_for_defs_and_macros() {
+        let a = analyse("def f(x)\n  x\nend\ndefmacro m(y)\n  quote\n    unquote(y)\n  end\nend");
+        let names: Vec<&str> = a.declarations.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, vec!["f", "m"]);
+    }
+
+    /// **The hover signature is the formatter's output.** Hover and the file
+    /// cannot disagree about how a signature is spelled.
+    #[test]
+    fn hover_reports_the_signature_as_canonical_blue_source() {
+        // Point at `add` in the definition on line 0.
+        let sig = hover(PROGRAM, Position { line: 0, character: 5 }).expect("hover");
+        assert_eq!(sig, "def add(a: Int, b: Int) -> Int");
+    }
+
+    #[test]
+    fn hover_finds_a_declaration_from_its_call_site() {
+        // `add(1, 2)` is on line 3.
+        let sig = hover(PROGRAM, Position { line: 3, character: 1 }).expect("hover");
+        assert!(sig.starts_with("def add("), "got {sig}");
+    }
+
+    #[test]
+    fn hover_on_nothing_is_none() {
+        assert!(hover(PROGRAM, Position { line: 1, character: 4 }).is_none());
+        assert!(hover("", Position::default()).is_none());
+    }
+}

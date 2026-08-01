@@ -15,6 +15,7 @@
 //! blue test    FILE            run the file's `test` blocks
 //! blue deps    BLUEFILE        resolve the manifest's dependencies
 //! blue posture BLUEFILE        the posture the manifest's floors require
+//! blue lsp                     speak LSP over stdio
 //! ```
 //!
 //! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
@@ -71,6 +72,8 @@ enum Cmd {
     Deps { file: PathBuf },
     /// Report the posture a Bluefile's declared floor requires.
     Posture { file: PathBuf },
+    /// Run the language server, speaking LSP over stdin/stdout.
+    Lsp,
 }
 
 fn main() -> ExitCode {
@@ -228,6 +231,18 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             println!("  when:  {:?}", floor.when);
             println!("  where: {:?}", floor.place);
             println!("  reach: {}", describe_reach(&floor.reach));
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Lsp => {
+            let stdin = std::io::stdin();
+            let stdout = std::io::stdout();
+            blue_lang_lsp::Server::new()
+                .serve(stdin.lock(), stdout.lock())
+                .map_err(|source| CliError::Write {
+                    path: "<stdio>".to_string(),
+                    source,
+                })?;
             Ok(ExitCode::SUCCESS)
         }
     }

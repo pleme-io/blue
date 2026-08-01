@@ -265,7 +265,7 @@ fn help_lists_every_subcommand() {
     let o = run(&["--help"]);
     assert!(o.status.success());
     let help = stdout(&o);
-    for cmd in ["run", "fmt", "ast", "erase", "check", "test", "deps", "posture"] {
+    for cmd in ["run", "fmt", "ast", "erase", "check", "test", "deps", "posture", "lsp"] {
         assert!(help.contains(cmd), "--help must list `{cmd}`: {help}");
     }
 }

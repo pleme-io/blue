@@ -99,6 +99,7 @@ version = "0.0.1"
 dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-lsp",
  "blue-lang-pkg",
  "blue-lang-runtime",
  "blue-lang-syntax",
@@ -115,6 +116,17 @@ version = "0.0.1"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
+]
+
+[[package]]
+name = "blue-lang-lsp"
+version = "0.0.1"
+dependencies = [
+ "blue-lang-check",
+ "blue-lang-fmt",
+ "blue-lang-syntax",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

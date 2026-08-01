@@ -1,0 +1,16 @@
+[package]
+name = "blue-lang-lsp"
+description = "blue's language server: a transport-free analysis core plus a stdio shim."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+blue-lang-syntax = { workspace = true }
+blue-lang-fmt = { workspace = true }
+blue-lang-check = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

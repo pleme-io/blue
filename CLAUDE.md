@@ -89,6 +89,26 @@ Each of these is a defect that shipped, not a style preference.
   so putting them in the `Sexp` would break canonicality. `fmt --write` deleted
   every one until the formatter learned to re-interleave them by position against
   each form's recorded span. A comment *inside* a form is refused, not moved.
+- **Call the COMPOSED substrate installer, never the layers by name.** blue
+  called `install_primitives` + `install_lisp_stdlib_with` and got neither
+  `install_hof` nor `install_map` — so `map`, `filter`, `fold` and every `{...}`
+  literal were unbound. Use `install_full_stdlib_with`. This is the same defect
+  as the stdlib gap that created `blue-lang-runtime`; naming layers one at a
+  time *is* the bug.
+- **A lowered name is either OWNED or DELEGATED, and the two invariants are
+  opposite.** `blue-assert` must NOT be bound by the runtime; `hash-map` must
+  BE bound. One gate conflated them and flagged a correct delegation as a bug.
+  Neither gate catches a wrong-but-*bound* name — `map` was bound, to the HOF
+  instead of the constructor — so a delegated name also needs an end-to-end test.
+- **`==` is `equal?`, not `=`.** tatara's `=` is numeric-only, so lowering `==`
+  to it made every string/list/nil comparison a type error. The
+  operator-coverage gate could not see it: it resolves callees with numeric
+  operands, proving the callee is bound and nothing about the other classes.
+- **A round-trip law measures the tree, never the readability** — now with a
+  third citation. `x = 5` rendered as `define(x, 5)` and interpolation as
+  `concat(concat("a", x), "")`; both re-parse to the same tree, so all three
+  laws passed while `fmt --write` silently rewrote real files. **Ship the
+  formatter arm WITH the surface form, and read the output.**
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
   across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
   ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a
@@ -126,6 +146,7 @@ private environments and messages are deep-copied, but reclamation is `Arc`
 refcounting — no independent collection pause), **no registry client** (resolution
 is real; nothing fetches), **no self-hosting on the implementation axis**
 (`spec/*.b` is the specification axis only), **no comment attachment inside a
-form**, and **no completion / go-to-definition** (each needs a resolved name
-table). `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
+form**, **no completion / go-to-definition** (each needs a resolved name table),
+and no **`case`/`when` pattern matching** or **ranges** — the two remaining
+surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**

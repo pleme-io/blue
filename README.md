@@ -35,6 +35,24 @@ and evaluates to `120` on the shipped tatara-lisp interpreter.
 | `blue-lang-syntax` | lexer, precedence-climbing parser, lowering to `tatara_lisp::Sexp` |
 | `blue-lang-fmt` | Wadler/Oppen pretty-printer + the canonical formatter. **No configuration type exists.** |
 | `blue-lang-waku` | the frame — REACH/WHEN/WHERE — with the lattice laws property-tested and `narrow` proven never to widen |
+| `blue-lang-check` | the typing ladder: **zero analysis at rung 0, measured**; checked where declared; seams recorded |
+
+## The ladder, measured
+
+```blue
+def add(a, b)          # rung 0 — 0 nodes visited
+  a + b
+end
+
+def add(a: Int, b: Int) -> Int   # rung 1 — checked
+  a + b
+end
+```
+
+`Stats::visited` is `0` for an unannotated program, and **stays 0 when you
+wrap it in fifty more unannotated functions.** Cost is a function of
+annotation density, not of the call graph — that is what makes the ladder
+slide exactly rather than approximately.
 
 ## The formatter's two laws
 

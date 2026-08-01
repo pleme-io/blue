@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku"]
+members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check"]
 resolver = "2"
 
 [workspace.package]

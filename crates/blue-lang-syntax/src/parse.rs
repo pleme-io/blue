@@ -392,13 +392,25 @@ impl Parser {
         Ok(Sexp::List(out))
     }
 
-    /// `def name(a, b) ... end` => `(define (name a b) body...)`
+    /// `def name(a, b) ... end`            => `(define (name a b) body)`
+    /// `def name(a: T, b: T) -> R ... end`  => `(define-typed (name (a T) (b T)) R body)`
+    ///
+    /// **The two shapes are deliberately different heads.** §0 says an
+    /// unannotated program gets ZERO analysis, and the cleanest way to
+    /// mean that is for untyped code not to reach the typing machinery at
+    /// all — not to reach it and be waved through. A checker that must
+    /// walk every node to discover there is nothing to check has already
+    /// paid the cost the ladder exists to avoid.
+    ///
+    /// Annotations are per-parameter, so a signature may be partially
+    /// annotated. That is the ladder at its finest grain: `a: Int` is
+    /// checked and a bare `b` stays `dyn`, in the same signature.
     fn def_form(&mut self) -> Result<Sexp, ParseError> {
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
             other => return Err(self.error(format!("expected a name after `def`, found {other:?}"))),
         };
-        let mut sig = vec![sym(&name)];
+        let mut params: Vec<(String, Option<Sexp>)> = Vec::new();
         if self.at(&TokenKind::LParen) {
             self.bump();
             self.skip_newlines();
@@ -406,7 +418,14 @@ impl Parser {
                 loop {
                     self.skip_newlines();
                     match self.bump() {
-                        TokenKind::Ident(p) => sig.push(sym(&p)),
+                        // `a` — unannotated
+                        TokenKind::Ident(p) => params.push((p, None)),
+                        // `a:` came through as one token, so a type follows
+                        TokenKind::Label(p) => {
+                            self.skip_newlines();
+                            let ty = self.type_expr()?;
+                            params.push((p, Some(ty)));
+                        }
                         other => {
                             return Err(self.error(format!(
                                 "expected a parameter name, found {other:?}"
@@ -422,9 +441,56 @@ impl Parser {
                 }
             }
         }
+
+        // Optional `-> R`
+        let ret = if matches!(self.peek(), TokenKind::Op(o) if o == "->") {
+            self.bump();
+            self.skip_newlines();
+            Some(self.type_expr()?)
+        } else {
+            None
+        };
+
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
-        Ok(Sexp::List(vec![sym("define"), Sexp::List(sig), body]))
+
+        let annotated = ret.is_some() || params.iter().any(|(_, t)| t.is_some());
+        if !annotated {
+            let mut sig = vec![sym(&name)];
+            sig.extend(params.into_iter().map(|(p, _)| sym(&p)));
+            return Ok(Sexp::List(vec![sym("define"), Sexp::List(sig), body]));
+        }
+
+        // Typed shape. An un-annotated parameter in an otherwise annotated
+        // signature is written `(p dyn)` so the checker sees the ladder
+        // position explicitly rather than inferring it from absence.
+        let mut sig = vec![sym(&name)];
+        for (p, t) in params {
+            let ty = t.unwrap_or_else(|| sym("dyn"));
+            sig.push(Sexp::List(vec![sym(&p), ty]));
+        }
+        Ok(Sexp::List(vec![
+            sym("define-typed"),
+            Sexp::List(sig),
+            ret.unwrap_or_else(|| sym("dyn")),
+            body,
+        ]))
+    }
+
+    /// A type expression. Currently a bare name (`Int`, `Str`, `dyn`) or a
+    /// one-argument constructor (`List(Int)`).
+    fn type_expr(&mut self) -> Result<Sexp, ParseError> {
+        let name = match self.bump() {
+            TokenKind::Ident(n) => n,
+            other => return Err(self.error(format!("expected a type name, found {other:?}"))),
+        };
+        if self.at(&TokenKind::LParen) {
+            let args = self.paren_args()?;
+            let mut list = vec![sym(&name)];
+            list.extend(args);
+            return Ok(Sexp::List(list));
+        }
+        Ok(sym(&name))
     }
 
     fn expect_ident(&mut self, name: &str) -> Result<(), ParseError> {

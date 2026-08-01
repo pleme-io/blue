@@ -1,0 +1,15 @@
+[package]
+name = "blue-lang-check"
+description = "blue's typing ladder: zero analysis at rung 0, checked where declared, obligations discharged at the seam."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tatara-lisp = { workspace = true }
+
+[dev-dependencies]
+blue-lang-syntax = { workspace = true }

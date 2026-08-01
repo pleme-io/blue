@@ -40,6 +40,20 @@ pub enum TokenKind {
     Int(i64),
     Float(f64),
     Str(String),
+    /// An interpolated string: alternating literal and expression parts.
+    ///
+    /// `"a#{x}b"` lexes to `["a", "b"]` literals with `["x"]` between them —
+    /// the expression is kept as SOURCE TEXT and parsed by the parser, which
+    /// already knows how to parse an expression. Re-implementing expression
+    /// lexing inside the string lexer would be a second parser, and the two
+    /// would drift.
+    InterpolatedStr {
+        /// `parts.len() == exprs.len() + 1`, always — the literal before each
+        /// expression, plus the tail. An empty literal is kept rather than
+        /// dropped so that invariant holds for `"#{a}#{b}"` too.
+        parts: Vec<String>,
+        exprs: Vec<String>,
+    },
     /// `:name` — a Ruby symbol, which lowers to a tatara-lisp keyword.
     Sym(String),
     True,
@@ -217,7 +231,39 @@ impl<'a> Lexer<'a> {
     fn lex_string(&mut self, start: usize) -> Result<(), LexError> {
         self.pos += 1; // opening quote
         let mut buf = String::new();
+        // Interpolation state. `parts` collects the literal run before each
+        // `#{…}`; `exprs` collects the raw source between the braces.
+        let mut parts: Vec<String> = Vec::new();
+        let mut exprs: Vec<String> = Vec::new();
         loop {
+            // `#{` opens an interpolation. A bare `#` is just a character — a
+            // string full of `#` comments would otherwise be unwritable.
+            if self.peek() == Some(b'#') && self.src.as_bytes().get(self.pos + 1) == Some(&b'{') {
+                self.pos += 2;
+                let expr_start = self.pos;
+                // Track nesting so `"#{ {a: 1} }"` closes on the right brace.
+                let mut depth = 1usize;
+                while let Some(c) = self.peek() {
+                    match c {
+                        b'{' => depth += 1,
+                        b'}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    self.pos += 1;
+                }
+                if self.peek() != Some(b'}') {
+                    return Err(self.err("unterminated `#{` interpolation", start));
+                }
+                exprs.push(self.src[expr_start..self.pos].to_string());
+                self.pos += 1; // past '}'
+                parts.push(std::mem::take(&mut buf));
+                continue;
+            }
             match self.peek() {
                 None => return Err(self.err("unterminated string literal", start)),
                 Some(b'"') => {
@@ -293,7 +339,12 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        self.push(TokenKind::Str(buf), start);
+        if exprs.is_empty() {
+            self.push(TokenKind::Str(buf), start);
+        } else {
+            parts.push(buf);
+            self.push(TokenKind::InterpolatedStr { parts, exprs }, start);
+        }
         Ok(())
     }
 

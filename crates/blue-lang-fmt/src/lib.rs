@@ -295,6 +295,21 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 Some(n) if n == blue_lang_syntax::LOWERED_ASSERT && items.len() == 3 => {
                     return Doc::text("assert ").concat(expr(&items[2]))
                 }
+                // A `concat` chain from string interpolation, rendered back as
+                // `"a#{x}b"`.
+                //
+                // Without this it printed `concat(concat("value: ", x), "")` —
+                // correct, re-parses to the same tree, and nothing a person
+                // would write. Same trap as the binding: the round-trip laws
+                // cannot see it, so the arm has to exist before `fmt --write`
+                // touches a file with interpolation in it.
+                Some(n) if n == blue_lang_syntax::LOWERED_CONCAT && items.len() == 3 => {
+                    if let Some(rendered) = interpolation(s) {
+                        return Doc::text(rendered);
+                    }
+                    // A hand-written `concat(a, b)` is not interpolation and
+                    // stays a call.
+                }
                 // (lambda (params) body)
                 Some("lambda")
                     if items.len() == 3 && matches!(&items[1], Sexp::List(_)) =>
@@ -586,6 +601,74 @@ fn render_ty(t: &Sexp) -> Option<String> {
             Some(out)
         }
         other => Some(other.to_string()),
+    }
+}
+
+/// Render a `concat` chain back as an interpolated string, if it is one.
+///
+/// `None` when the chain is not interpolation-shaped — a hand-written
+/// `concat(a, b)` must stay a call. The shape is specifically: a left-leaning
+/// spine of `concat` whose leftmost leaf is a string literal and whose literal
+/// and expression parts alternate, which is exactly what the parser emits.
+fn interpolation(s: &Sexp) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    let mut exprs: Vec<String> = Vec::new();
+    if !collect_interpolation(s, &mut parts, &mut exprs) {
+        return None;
+    }
+    // Interpolation always produces at least one expression; a bare literal
+    // would have lexed as a plain string.
+    if exprs.is_empty() || parts.len() != exprs.len() + 1 {
+        return None;
+    }
+    let mut out = String::from("\"");
+    for (i, part) in parts.iter().enumerate() {
+        // The body only — `render_string` would add its own quotes, and the
+        // interpolated form supplies one pair around the whole thing.
+        let quoted = render_string(part);
+        out.push_str(&quoted[1..quoted.len() - 1]);
+        if let Some(e) = exprs.get(i) {
+            out.push_str("#{");
+            out.push_str(e);
+            out.push('}');
+        }
+    }
+    out.push('"');
+    Some(out)
+}
+
+/// Walk the left-leaning `concat` spine, gathering literals and expressions.
+fn collect_interpolation(s: &Sexp, parts: &mut Vec<String>, exprs: &mut Vec<String>) -> bool {
+    match s {
+        Sexp::Atom(Atom::Str(lit)) => {
+            parts.push(lit.clone());
+            true
+        }
+        Sexp::List(items)
+            if items.len() == 3
+                && sym_name(&items[0]) == Some(blue_lang_syntax::LOWERED_CONCAT) =>
+        {
+            if !collect_interpolation(&items[1], parts, exprs) {
+                return false;
+            }
+            match &items[2] {
+                // A literal continues the current part.
+                Sexp::Atom(Atom::Str(lit)) => {
+                    if let Some(last) = parts.last_mut() {
+                        last.push_str(lit);
+                    }
+                    true
+                }
+                // Anything else is an interpolated expression; a new literal
+                // part opens after it.
+                other => {
+                    exprs.push(pretty(&expr(other), WIDTH));
+                    parts.push(String::new());
+                    true
+                }
+            }
+        }
+        _ => false,
     }
 }
 

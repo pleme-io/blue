@@ -199,6 +199,12 @@ pub const LOWERED_ASSERT: &str = "blue-assert";
 /// there — it was not, which is why this shipped.
 pub const LOWERED_MAP: &str = "hash-map";
 
+/// The callee string interpolation lowers to.
+///
+/// blue's own `concat`, which renders either side through `to_s` — that is what
+/// lets `"n=#{42}"` interpolate a number. Not `+`, which is arithmetic.
+pub const LOWERED_CONCAT: &str = "concat";
+
 pub const SURFACE_KEYWORDS: &[&str] = &[
     "if",
     "unless",
@@ -406,6 +412,35 @@ impl Parser {
             TokenKind::Int(v) => Ok(Sexp::Atom(Atom::Int(v))),
             TokenKind::Float(v) => Ok(Sexp::Atom(Atom::Float(v))),
             TokenKind::Str(s) => Ok(Sexp::Atom(Atom::Str(s))),
+
+            // `"a#{x}b"` → `(concat (concat "a" x) "b")`.
+            //
+            // Lowered to `concat`, not to `+`: blue's `+` is arithmetic (see
+            // the INFIX table), and interpolation must render a value of ANY
+            // type — `concat` goes through `to_s`, which is what makes
+            // `"n=#{42}"` work.
+            //
+            // The expression source is parsed HERE with the ordinary parser
+            // rather than lexed inside the string, so an interpolation can hold
+            // anything an expression can and the two can never drift.
+            TokenKind::InterpolatedStr { parts, exprs } => {
+                let mut acc = Sexp::Atom(Atom::Str(parts[0].clone()));
+                for (i, raw) in exprs.iter().enumerate() {
+                    let inner = parse_expr(raw).map_err(|e| ParseError {
+                        message: format!("in interpolation `#{{{raw}}}`: {}", e.message),
+                        span,
+                    })?;
+                    acc = Sexp::List(vec![sym(LOWERED_CONCAT), acc, inner]);
+                    // `parts.len() == exprs.len() + 1` by construction, so this
+                    // index is always in range.
+                    acc = Sexp::List(vec![
+                        sym(LOWERED_CONCAT),
+                        acc,
+                        Sexp::Atom(Atom::Str(parts[i + 1].clone())),
+                    ]);
+                }
+                Ok(acc)
+            }
             TokenKind::Sym(s) => Ok(Sexp::Atom(Atom::Keyword(s))),
             TokenKind::True => Ok(Sexp::Atom(Atom::Bool(true))),
             TokenKind::False => Ok(Sexp::Atom(Atom::Bool(false))),

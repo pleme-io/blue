@@ -13,6 +13,14 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    // String interpolation. The formatter had no arm and printed the lowered
+    // `concat(concat("a", x), "")` — correct tree, nothing a person would write.
+    "\"value: #{x}\"",
+    "\"#{a} and #{b}\"",
+    "\"#{a}#{b}\"",
+    "\"n=#{1 + 2}\"",
+    // A hand-written concat is NOT interpolation and must stay a call.
+    "concat(\"a\", \"b\")",
     // Lambdas and bindings.
     "fn(x)\n  x + 1\nend",
     "fn()\n  1\nend",
@@ -497,4 +505,26 @@ fn a_def_still_renders_as_a_def() {
     let out = format_source("def f(x)\n  x\nend").expect("fmt");
     assert!(out.contains("def f(x)"), "got {out}");
     assert!(!out.contains(" = "), "a def is not a binding: {out}");
+}
+
+/// **Interpolation renders back as interpolation**, not as the lowered
+/// `concat` chain it becomes.
+#[test]
+fn interpolation_renders_as_interpolation() {
+    assert_eq!(
+        format_source("\"value: #{x}\"").expect("fmt").trim(),
+        "\"value: #{x}\""
+    );
+    assert!(
+        !format_source("\"value: #{x}\"").expect("fmt").contains("concat("),
+        "must not print the lowered chain"
+    );
+}
+
+/// And a hand-written `concat` is not interpolation — the shape check must be
+/// narrow or every two-argument concat turns into a string literal.
+#[test]
+fn a_hand_written_concat_stays_a_call() {
+    let out = format_source("concat(\"a\", \"b\")").expect("fmt");
+    assert!(out.contains("concat("), "got {out}");
 }

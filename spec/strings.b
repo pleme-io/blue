@@ -17,7 +17,7 @@ test "case and trim"
 end
 test "concat, not plus"
   assert concat("a", "b") == "ab"
-  assert concat("n=", 42) == "n=42"
+  assert "n=#{42}" == "n=42"
 end
 test "split and join round-trip"
   assert join(split("a,b,c", ","), "-") == "a-b-c"

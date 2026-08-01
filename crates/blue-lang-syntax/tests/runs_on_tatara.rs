@@ -278,3 +278,50 @@ fn comparison_operators_work_on_non_numeric_operands() {
         );
     }
 }
+
+/// **String interpolation — the most-used Ruby feature blue was missing.**
+///
+/// Lowers to `concat`, which renders through `to_s`, so a value of any type
+/// interpolates. `+` would not: it is arithmetic in blue.
+#[test]
+fn string_interpolation_renders_any_value() {
+    assert!(matches!(run(r##"x = 5
+"value: #{x}""##), Value::Str(ref s) if &**s == "value: 5"));
+    assert!(matches!(run(r##""n=#{42}""##), Value::Str(ref s) if &**s == "n=42"));
+    assert!(matches!(run(r##"a = 2
+"sum: #{a + 3}""##), Value::Str(ref s) if &**s == "sum: 5"));
+}
+
+/// Several interpolations, including adjacent ones — the case where the
+/// "one literal part before each expression, plus a tail" invariant is easiest
+/// to get wrong by dropping the empty literal between them.
+#[test]
+fn multiple_and_adjacent_interpolations_compose() {
+    assert!(matches!(run(r##"a = 1
+b = 2
+"#{a} and #{b}""##), Value::Str(ref s) if &**s == "1 and 2"));
+    assert!(matches!(run(r##"a = 1
+b = 2
+"#{a}#{b}""##), Value::Str(ref s) if &**s == "12"));
+}
+
+/// A bare `#` is a character, not the start of an interpolation — otherwise a
+/// string containing a comment character would be unwritable.
+#[test]
+fn a_bare_hash_in_a_string_is_literal() {
+    assert!(matches!(run(r##""a # b""##), Value::Str(ref s) if &**s == "a # b"));
+    assert!(matches!(run(r##""#""##), Value::Str(ref s) if &**s == "#"));
+}
+
+/// An unterminated or malformed interpolation is rejected, and the error names
+/// the offending source so the author can find it inside a long string.
+#[test]
+fn a_malformed_interpolation_is_rejected() {
+    assert!(blue_lang_syntax::parse_program(r##""a#{x""##).is_err(), "unterminated");
+    let err = blue_lang_syntax::parse_program(r##""a#{+}b""##).expect_err("bad expr");
+    assert!(
+        err.message.contains("interpolation"),
+        "must name the interpolation: {}",
+        err.message
+    );
+}

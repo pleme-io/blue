@@ -1,0 +1,2 @@
+package("toukei", "0.1.0")
+needs("narabi", "^0.1")

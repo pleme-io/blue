@@ -16,3 +16,6 @@ blue-lang-bidama = { workspace = true }
 tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+blue-lang-test = { workspace = true }

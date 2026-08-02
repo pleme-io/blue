@@ -107,6 +107,22 @@ fn use_target(form: &Sexp) -> Option<String> {
     }
 }
 
+/// Is this form a lowered `test` block?
+///
+/// `test "…" … end` lowers to `(deftest …)`, which only the test harness
+/// binds. Public because two callers need it and for opposite reasons: the
+/// resolver drops IMPORTED tests (a dependency's tests are not the importer's
+/// to run), and `pipeline::run` drops ALL of them (a `test` block is a
+/// declaration for the harness, not code to execute — without this,
+/// `blue run` on any file that contains its own tests dies on an unbound
+/// `deftest`, which is every package in this distribution).
+pub fn is_test_form(form: &Sexp) -> bool {
+    let Sexp::List(items) = form else {
+        return false;
+    };
+    matches!(items.first(), Some(Sexp::Atom(Atom::Symbol(s))) if s == "deftest")
+}
+
 /// Replace every `use(...)` with the forms of the package it names.
 ///
 /// Transitive by construction: a loaded package's own `use` calls are resolved
@@ -152,6 +168,20 @@ fn expand(
         for (label, src) in sources {
             let parsed = blue_lang_syntax::parse_program(&src)
                 .map_err(|e| describe(chain, &name, &format!("{label}: {e}")))?;
+            // An imported package's TEST blocks do not come along.
+            //
+            // A dependency's tests are not the importer's to run, and trying
+            // is not merely untidy — it is a hard failure. `test` lowers to
+            // `deftest`, which only the test harness binds, so the ordinary
+            // evaluator sees an unbound symbol. Measured, the moment kazu
+            // gained test blocks: every program importing it died with
+            // `unbound symbol: deftest`, pointing at a line the importer never
+            // wrote.
+            //
+            // Dropping them here also makes the distribution gate honest for
+            // free: `blue test kika.b` now reports kika's tests rather than
+            // kika's plus everything it transitively imports.
+            let parsed = parsed.into_iter().filter(|f| !is_test_form(f)).collect();
             out.extend(expand(parsed, loader, seen, &inner_chain)?);
         }
     }
@@ -274,6 +304,42 @@ mod tests {
     ///
     /// This pass runs on EVERY program, so a bug here would corrupt source
     /// that never mentions a package.
+    /// An imported package's tests must NOT come along.
+    ///
+    /// Not a tidiness point: `deftest` is unbound outside the test harness, so
+    /// an inherited test block kills any program that imports a tested
+    /// package — which is every package in a distribution worth having.
+    #[test]
+    fn an_imported_packages_tests_are_not_inherited() {
+        let loader = MemLoader(BTreeMap::from([(
+            "kazu",
+            "def double(n)\n  n * 2\nend\n\ntest \"doubles\"\n  assert double(2) == 4\nend",
+        )]));
+        let out = resolve_uses(parse("use(\"kazu\")\ndouble(21)"), &loader).expect("resolves");
+        assert!(
+            out.iter().all(|f| !super::is_test_form(f)),
+            "an imported test block survived and would reach the evaluator as \
+             an unbound `deftest`: {out:?}"
+        );
+        // The DEFINITIONS still arrive — dropping tests must not drop code.
+        assert!(
+            out.len() >= 2,
+            "filtering tests also removed the package's definitions: {out:?}"
+        );
+    }
+
+    /// But the ENTRY program keeps its own tests.
+    #[test]
+    fn the_entry_programs_own_tests_survive() {
+        let loader = MemLoader(BTreeMap::new());
+        let src = "def f(n)\n  n\nend\n\ntest \"t\"\n  assert f(1) == 1\nend";
+        let out = resolve_uses(parse(src), &loader).expect("resolves");
+        assert!(
+            out.iter().any(|f| super::is_test_form(f)),
+            "the file's OWN tests were dropped; only imported ones should be: {out:?}"
+        );
+    }
+
     #[test]
     fn a_program_without_imports_is_unchanged() {
         let loader = MemLoader(BTreeMap::new());

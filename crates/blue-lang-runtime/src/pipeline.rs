@@ -97,6 +97,20 @@ pub fn run_with_loader(
     // build, not their production run.
     let forms = crate::uses::resolve_uses(forms, loader).map_err(RunError::Import)?;
 
+    // `test` blocks are declarations for the harness, not code to run.
+    //
+    // Dropped here rather than in `resolve_uses`, because `blue test` calls
+    // the resolver and then NEEDS the entry file's blocks — so the two
+    // callers want different things and the split has to live at this level.
+    //
+    // Without this, `blue run` on a file containing its own tests fails with
+    // `unbound symbol: deftest`: every package in the bidama distribution
+    // carries tests, so every one of them was unrunnable.
+    let forms: Vec<_> = forms
+        .into_iter()
+        .filter(|f| !crate::uses::is_test_form(f))
+        .collect();
+
     // CHECK, on the annotated tree — the only tree that has annotations.
     let outcome = blue_lang_check::check_program(&forms);
     if !outcome.ok() {

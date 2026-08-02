@@ -1,0 +1,3 @@
+package("ran", "0.1.0")
+needs("retsu", "^0.1")
+needs("shuugou", "^0.1")

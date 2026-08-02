@@ -23,3 +23,29 @@ def longer(a, b)
     a
   end
 end
+
+test "empty and present are exact opposites"
+  assert empty("") == true
+  assert empty("a") == false
+  assert present("") == false
+  assert present("a") == true
+end
+
+test "longer picks the longer string"
+  assert longer("abc", "a") == "abc"
+  assert longer("a", "abc") == "abc"
+end
+
+test "the string primitives blue exposes"
+  assert upcase("abc") == "ABC"
+  assert downcase("ABC") == "abc"
+  assert trim("  a  ") == "a"
+  assert concat("a", "b") == "ab"
+  assert chars("abc") == ["a", "b", "c"]
+  assert join(["a", "b"], "-") == "a-b"
+  assert split("a-b", "-") == ["a", "b"]
+end
+
+test "split and join round-trip"
+  assert join(split("a,b,c", ","), ",") == "a,b,c"
+end

@@ -61,43 +61,39 @@ stdlib that becomes the deprecated option while the ecosystem routes around it.
 
 ---
 
-## 3. The blocker this review exists to name
+## 3. The blocker this review named — and the correction
 
-Every competitor above builds its collection library on a **closure/block**
-form: Ruby's `{ |x| }`, Elixir's `fn`, Clojure's `#()`, Rust's `|x|`, Go's
-func literals. `map`, `filter`, `reduce`, `each_with_index`, `group_by` — the
-entire spine of "everything a language could want" — are higher-order.
+**The original claim here was wrong, and it is left visible rather than
+quietly rewritten, because the mistake is instructive.**
 
-**Blue's surface does not have blocks yet.** Measured 2026-08-01:
+This section first argued that blue could not have a real standard library
+because it lacked a closure form, citing one measurement:
 
 ```
 [1, 2, 3].map { |x| x * 2 }
   -> Parse error: expected an expression, found Op("|")
 ```
 
-That is not a gap in the distribution; it is a gap in the language, and it caps
-what any distribution can express. A bidama library written around it would be
-first-order helpers wearing a stdlib's name — which is worse than a small
-honest one, because it *looks* finished.
+That measurement is real. The conclusion drawn from it was not. Blue has
+lambdas — `fn(x) … end` — and the higher-order functions were already there:
 
-**So the sequencing is: block/lambda syntax → the sequence abstraction →
-the extensive distribution.** Building the library first means building it
-twice, and the second build is the one that deletes the first.
+```
+map(fn(x) x * 2 end, [1,2,3])            => [2, 4, 6]
+filter(fn(x) x > 2 end, [1,2,3,4])       => [3, 4]
+reduce(fn(a, b) a + b end, 0, [1,2,3,4]) => 10
+```
 
-**A second gap, found while writing this and since closed.** Blue also had no
-*import* form — no `use`, no `require`, nothing. `retsu/Bluefile` declared
-`needs("kazu", "^0.1")` and `retsu`'s source never referenced kazu, because it
-could not: the dependency graph was described by a manifest, a resolver, a git
-registry and a nix derivation, and traversed by none of them. That is a
-strictly larger hole than block syntax — blocks cap how *expressive* a library
-can be, imports cap whether a distribution is a distribution at all.
+What failed was Ruby's **brace-block** sugar and a method-position call. One
+syntax was tested, and a missing capability was inferred from it. The cost of
+that error was a deferred standard library and a recommendation not to build
+one — an expensive conclusion from a single unchecked assumption.
 
-`use("name")` now resolves through `BLUE_PATH`, which a nix store path
-satisfies directly (`bidamas/mk-bidama.nix`). Block syntax remains the blocker
-for the library's *shape*; it is no longer the only one standing between blue
-and a working distribution.
+**The real gap, found by writing the library**, was that blue had no *import*
+form at all: a package could not see another package. That is now `use("name")`,
+resolving through `BLUE_PATH`, which a nix store path satisfies directly.
 
----
+Brace blocks and `xs.map { … }` remain genuinely absent, and are worth adding
+for ergonomics. They were never what stood between blue and a standard library.
 
 ## 4. Exotic domains — where blue could be genuinely different
 
@@ -122,5 +118,6 @@ rather than defaulted. Blue's actual differentiators are not "a faster map":
 1. **Git-based is the right default** — Go proves the shape works; the fleet's
    content-addressing makes it natural rather than contrarian.
 2. **Nix is the pinning layer, not a competing package manager.** They compose.
-3. **The distribution is blocked on block syntax**, and saying so is more useful
-   than shipping more first-order bidamas.
+3. **The distribution was NOT blocked on block syntax** — that was this
+   review's own error, corrected in §3. It was blocked on the absence of an
+   import form, which no amount of syntax would have fixed.

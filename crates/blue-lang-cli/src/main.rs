@@ -238,6 +238,20 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 
         Cmd::Test { file } => {
             let forms = blue_lang_runtime::parse(&read(&file)?)?;
+            // Imports resolve here too, for the same reason they do in `run`.
+            //
+            // Wiring only `run` was a real gap and it failed loudly the first
+            // time a bidama with a dependency was tested: EVERY test in the
+            // file errored with `unbound symbol: use`, because the import never
+            // expanded and `use` reached the evaluator as a call. A package
+            // that cannot be tested with its dependencies is a package with no
+            // tests, so this is not a convenience — a distribution where only
+            // the leaf packages can be tested has no gate on the rest.
+            let forms = blue_lang_runtime::uses::resolve_uses(
+                forms,
+                &blue_lang_pkg::load_path::LoadPath::from_env(),
+            )
+            .map_err(blue_lang_runtime::pipeline::RunError::Import)?;
             let report = blue_lang_test::run(&forms);
             // Failures to stderr, the tally to stdout, so a CI job can capture
             // one without the other.

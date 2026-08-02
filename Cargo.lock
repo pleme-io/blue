@@ -176,6 +176,7 @@ dependencies = [
  "blue-lang-bidama",
  "blue-lang-runtime",
  "blue-lang-syntax",
+ "blue-lang-test",
  "blue-lang-waku",
  "tatara-lisp",
  "tatara-lisp-eval",

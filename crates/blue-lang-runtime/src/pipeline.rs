@@ -32,6 +32,14 @@ pub enum RunError {
     Lower(String),
     #[error("runtime error: {0}")]
     Eval(String),
+    /// A `use("name")` could not be resolved.
+    ///
+    /// Its own variant rather than folded into `Parse`, because the reader's
+    /// next action is different: a parse error is in the source in front of
+    /// them, an import error is in their packaging — a missing bidama, a
+    /// BLUE_PATH that does not contain it, or no loader at all.
+    #[error("import error: {0}")]
+    Import(String),
 }
 
 /// What a run produced, plus what the checker did on the way.
@@ -64,7 +72,30 @@ pub fn run(src: &str) -> Result<Run, RunError> {
 /// their declared hash — so nothing here re-checks. The capability a macro gains
 /// is exactly "these hashed bytes", never a path.
 pub fn run_with_inputs(src: &str, inputs: Inputs) -> Result<Run, RunError> {
+    run_with_loader(src, inputs, &crate::uses::NoLoader)
+}
+
+/// Run blue source with a loader, so `use("name")` can resolve.
+///
+/// Split from [`run_with_inputs`] rather than folded into it because loading a
+/// package reads a filesystem, and this crate has a `wasm32-unknown-unknown`
+/// consumer with zero host imports. The capability is injected by callers that
+/// have it — `blue_lang_pkg::LoadPath` is the real one — and absent by default,
+/// where a `use` is a typed error naming the package.
+pub fn run_with_loader(
+    src: &str,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+) -> Result<Run, RunError> {
     let forms = parse(src)?;
+
+    // RESOLVE imports first, so everything below sees ONE program.
+    //
+    // Before the check on purpose: imported code is type-checked at the point
+    // its consumer imports it, rather than at whatever later moment its code
+    // first runs. A package that does not typecheck should break its importer's
+    // build, not their production run.
+    let forms = crate::uses::resolve_uses(forms, loader).map_err(RunError::Import)?;
 
     // CHECK, on the annotated tree — the only tree that has annotations.
     let outcome = blue_lang_check::check_program(&forms);

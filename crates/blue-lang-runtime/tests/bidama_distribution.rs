@@ -34,7 +34,23 @@ fn bidama(name: &str) -> String {
 /// debug form.
 fn eval_with(name: &str, expr: &str) -> String {
     let src = format!("{}\n{expr}", bidama(name));
-    match blue_lang_runtime::pipeline::run(&src) {
+    // Through a real LoadPath, not the default NoLoader: a bidama may `use`
+    // another one, and running the distribution with imports disabled would
+    // fail on exactly the dependency edge this distribution exists to have.
+    //
+    // `blue-lang-pkg` is a DEV-dependency here. Cargo permits a cycle in dev
+    // dependencies and not in normal ones, which is the right shape: the
+    // library must not depend on the packaging crate (it compiles to wasm with
+    // no filesystem), while its tests legitimately need the real loader.
+    let lp = blue_lang_pkg::load_path::LoadPath::new([PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("bidamas")]);
+    match blue_lang_runtime::pipeline::run_with_loader(
+        &src,
+        blue_lang_runtime::inputs::Inputs::new(),
+        &lp,
+    ) {
         Ok(r) => format!("{:?}", r.value),
         Err(e) => panic!("{name} + `{expr}` failed to run: {e:?}"),
     }
@@ -104,6 +120,21 @@ fn moji_counts_characters_not_bytes() {
     // exactly the bug the UTF-8 crash in the LSP came from.
     assert_eq!(eval_with("moji", "\"日本語\".length"), "Int(3)");
     assert_eq!(eval_with("moji", "\"🔥\".length"), "Int(1)");
+}
+
+/// The cross-package call — the whole point of a distribution.
+///
+/// `clamped_sum` is defined in retsu and calls `clamp`, which exists only in
+/// kazu. It can only evaluate if `use("kazu")` resolved, so this is the test
+/// that fails when the dependency edge breaks, rather than a manifest
+/// assertion that would stay green while nothing worked.
+#[test]
+fn retsu_calls_into_kazu() {
+    // sum_to(10) is 55, clamped into 1..10 -> 10.
+    assert_eq!(eval_with("retsu", "clamped_sum(10, 1, 10)"), "Int(10)");
+    // And below the ceiling it passes through, so the clamp is really running
+    // rather than always returning its bound.
+    assert_eq!(eval_with("retsu", "clamped_sum(3, 1, 100)"), "Int(6)");
 }
 
 #[test]

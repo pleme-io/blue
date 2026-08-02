@@ -199,6 +199,7 @@ version = "0.0.7"
 dependencies = [
  "blake3",
  "blue-lang-check",
+ "blue-lang-pkg",
  "blue-lang-syntax",
  "tatara-lisp",
  "tatara-lisp-eval",

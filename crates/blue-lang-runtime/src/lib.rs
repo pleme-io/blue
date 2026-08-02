@@ -31,6 +31,7 @@ pub mod erase;
 pub mod inputs;
 pub mod pipeline;
 pub mod stdlib;
+pub mod uses;
 
 pub use erase::erase_types;
 pub use inputs::{declarations, install_input_primitives, Declaration, InputError, Inputs};

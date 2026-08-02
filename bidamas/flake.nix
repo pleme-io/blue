@@ -28,12 +28,23 @@
   #
   # ## Tier — do not round this up
   #
-  # This packages the distribution as DATA and checks each package's manifest
-  # parses. It does not build blue, does not run the bidamas' behaviour tests
-  # (those live in `blue-lang-runtime/tests/bidama_distribution.rs`, where a
-  # failure is a red build), and does not make nix the *resolver*. Calling this
-  # "nix is blue's package manager" would be a round-up: nix is the delivery and
-  # pinning layer, and the resolver is still `blue-lang-pkg`.
+  # **What is now real, and measured:** each bidama is its own derivation with
+  # its `needs(...)` as a nix dependency (`mk-bidama.nix`), and `bluePath`
+  # joins them into a store path the runtime loads DIRECTLY — verified by
+  # running `BLUE_PATH=$(nix build … .#bluePath) blue run` on a program whose
+  # `use("retsu")` transitively pulls kazu, which printed the right answer, and
+  # failed naming the package with BLUE_PATH unset.
+  #
+  # **What is still not true:** nix is not the *resolver*. A root holds one
+  # directory per name, so version selection happens when the root is built —
+  # there is no solver here, and `blue-lang-pkg` still owns resolution. Nor
+  # does this run the bidamas' behaviour tests; those live in
+  # `blue-lang-runtime/tests/bidama_distribution.rs`, where a failure is a red
+  # build.
+  #
+  # So: nix builds, pins and DELIVERS blue's packages, and the runtime consumes
+  # its output with no adapter. "Nix is blue's package manager" is fair for
+  # delivery and false for resolution — say which.
 
   description = "bidamas — blue's standard distribution, pinned";
 
@@ -45,12 +56,26 @@
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       # Every bidama as its OWN derivation, with needs(...) wired as real nix
       # dependencies. See mk-bidama.nix for what that buys and its one ceiling.
-      bidamaLib = pkgs: import ./mk-bidama.nix { inherit (pkgs) lib runCommand; };
+      bidamaLib = pkgs: import ./mk-bidama.nix {
+        inherit (pkgs) lib runCommand symlinkJoin makeWrapper;
+      };
       distributionFor = pkgs: (bidamaLib pkgs).mkDistribution { root = ./.; inherit pkgs; };
     in
     {
       packages = forAll (pkgs: (distributionFor pkgs) // {
         default = self.packages.${pkgs.system}.bidamas;
+
+        # The distribution as a single BLUE_PATH root.
+        #
+        # This is the output a consumer actually wants: one store path that
+        # `blue_lang_pkg::LoadPath` can search directly, with every bidama and
+        # its dependency closure inside it.
+        #
+        #     BLUE_PATH=$(nix build --no-link --print-out-paths .#bluePath) \
+        #       blue run program.b
+        bluePath = (bidamaLib pkgs).mkBluePath {
+          bidamas = distributionFor pkgs;
+        };
 
         # The distribution, verbatim, as a store path.
         #

@@ -15,3 +15,8 @@ blue-lang-syntax = { workspace = true }
 blue-lang-check = { workspace = true }
 thiserror = { workspace = true }
 blake3 = "1"
+
+[dev-dependencies]
+# Cyclic in dev only, which Cargo allows: the tests need the real filesystem
+# loader, the library must not (it targets wasm with no host imports).
+blue-lang-pkg = { workspace = true }

@@ -144,7 +144,24 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // flag", not the macro-level "no input named …" from deep inside
             // expansion. Short-circuiting on an empty flag list is what made it
             // report the wrong one.
-            let out = blue_lang_runtime::run_with_inputs(&src, bind_inputs(&src, &inputs)?)?;
+            // Imports resolve through BLUE_PATH.
+            //
+            // The CLI is the one place a *user's* environment can supply the
+            // loader, and without this wire `use("kazu")` fails from the
+            // command line no matter what nix built — the derivations, the
+            // BLUE_PATH root and the resolver would all be correct and none of
+            // them reachable from `blue run`.
+            //
+            // Reading the environment rather than taking a flag because that is
+            // what makes the nix wrapper work: `mkBlueWithBidamas` prefixes
+            // BLUE_PATH, so a wrapped `blue` resolves the distribution with no
+            // argument, and an unwrapped one still honours a checkout.
+            let loader = blue_lang_pkg::load_path::LoadPath::from_env();
+            let out = blue_lang_runtime::pipeline::run_with_loader(
+                &src,
+                bind_inputs(&src, &inputs)?,
+                &loader,
+            )?;
             println!("{}", render(&out.value));
             Ok(ExitCode::SUCCESS)
         }

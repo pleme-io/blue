@@ -84,6 +84,19 @@ honest one, because it *looks* finished.
 the extensive distribution.** Building the library first means building it
 twice, and the second build is the one that deletes the first.
 
+**A second gap, found while writing this and since closed.** Blue also had no
+*import* form — no `use`, no `require`, nothing. `retsu/Bluefile` declared
+`needs("kazu", "^0.1")` and `retsu`'s source never referenced kazu, because it
+could not: the dependency graph was described by a manifest, a resolver, a git
+registry and a nix derivation, and traversed by none of them. That is a
+strictly larger hole than block syntax — blocks cap how *expressive* a library
+can be, imports cap whether a distribution is a distribution at all.
+
+`use("name")` now resolves through `BLUE_PATH`, which a nix store path
+satisfies directly (`bidamas/mk-bidama.nix`). Block syntax remains the blocker
+for the library's *shape*; it is no longer the only one standing between blue
+and a working distribution.
+
 ---
 
 ## 4. Exotic domains — where blue could be genuinely different

@@ -46,7 +46,7 @@
 # cannot see. The fix is a `blue bluefile --deps --json` subcommand, so nix
 # consumes blue's own evaluation rather than re-deriving it. Named, not built.
 
-{ lib, runCommand }:
+{ lib, runCommand, symlinkJoin ? null, makeWrapper ? null }:
 
 let
   # Dependency names declared by a Bluefile, as a list of strings.
@@ -129,6 +129,52 @@ rec {
       ${lib.concatMapStringsSep "\n"
           (d: ''echo "${d}" >> $out/${name}/.bidama-deps'')
           (map toString resolved)}
+    '';
+
+  # A single `BLUE_PATH` root containing the given bidamas.
+  #
+  # ## Why this is the whole nix-native claim, in one function
+  #
+  # `blue_lang_pkg::LoadPath` searches roots whose immediate children are
+  # package directories, and `mkBidama` above produces exactly `$out/<name>/`.
+  # So a bidama's store path is ALREADY a valid root — there is no install
+  # step, no manifest translation, no adapter between "what nix built" and
+  # "what the runtime loads". Joining several of them yields one root holding
+  # a chosen set of packages:
+  #
+  #     BLUE_PATH=$(nix build --no-link --print-out-paths .#bluePath)
+  #
+  # The loader cannot tell a store path from a working tree, which is the
+  # property worth having: the same code path serves `nix develop` and a
+  # developer's checkout, so what CI runs is what the laptop ran.
+  #
+  # Closure-complete by construction — `mkBidama` writes each dependency's
+  # store PATH into the output, so joining a package brings its dependencies
+  # whether or not the caller listed them.
+  mkBluePath = { bidamas, name ? "blue-path" }:
+    assert lib.assertMsg (symlinkJoin != null)
+      "mkBluePath needs symlinkJoin; pass the full pkgs set";
+    symlinkJoin { inherit name; paths = lib.attrValues bidamas; };
+
+  # `blue`, with a `BLUE_PATH` baked in.
+  #
+  # The reason to wrap rather than document an export: an operator who has to
+  # set an environment variable to make imports work will one day not set it,
+  # and the failure — an unresolved package — reads as a broken distribution
+  # rather than a missing variable. A wrapper makes the working configuration
+  # the only one that ships.
+  #
+  # `--prefix`, not `--set`: a caller's own BLUE_PATH still wins, because the
+  # loader searches left to right and prefixing puts these roots first only
+  # relative to nothing. A local checkout stays overridable, which is the
+  # difference between a default and a cage.
+  mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas" }:
+    assert lib.assertMsg (makeWrapper != null)
+      "mkBlueWithBidamas needs makeWrapper; pass the full pkgs set";
+    runCommand name { nativeBuildInputs = [ makeWrapper ]; } ''
+      mkdir -p $out/bin
+      makeWrapper ${blue}/bin/blue $out/bin/blue \
+        --prefix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"
     '';
 
   # Build every bidama in a distribution directory, wiring the graph.

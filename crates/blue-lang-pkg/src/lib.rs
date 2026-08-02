@@ -32,6 +32,7 @@ pub mod bluefile;
 /// checkout, not a package server. See the module docs for what it does and
 /// does NOT claim.
 pub mod git_registry;
+pub mod load_path;
 pub mod solve;
 pub mod version;
 

@@ -280,3 +280,64 @@ fn the_depth_limit_does_not_reject_realistic_nesting() {
         );
     }
 }
+
+/// The bound is a PARAMETER, and the parameter is the one that is read.
+///
+/// `parse_program_with_depth` exists so `BlueConfig::max_expr_depth` can raise
+/// or lower it without a recompile. A version that accepted the argument and
+/// went on checking the constant would look identical from the outside and be
+/// pure decoration, so this drives the bound from BOTH sides of the default:
+/// a depth the constant would accept must be REFUSED under a small argument,
+/// and a depth the constant would refuse must be ACCEPTED under a large one.
+#[test]
+fn the_depth_bound_is_taken_from_the_argument_not_the_constant() {
+    // Below the default, and refused anyway. `MAX_EXPR_DEPTH` would accept it.
+    let shallow = format!("{}1{}", "(".repeat(40), ")".repeat(40));
+    assert!(
+        blue_lang_syntax::parse_program(&shallow).is_ok(),
+        "precondition: the DEFAULT bound accepts depth 40"
+    );
+    let err = blue_lang_syntax::parse_program_with_depth(&shallow, 8)
+        .expect_err("a caller-supplied bound of 8 must reject depth 40");
+    assert!(
+        err.to_string().contains("nests deeper than 8"),
+        "the message must name the bound that was ACTUALLY applied, not the \
+         constant — got: {err}"
+    );
+
+    // Above the default, and accepted anyway. `MAX_EXPR_DEPTH` would refuse it.
+    let deep_n = blue_lang_syntax::MAX_EXPR_DEPTH + 32;
+    let deep = format!("{}1{}", "(".repeat(deep_n), ")".repeat(deep_n));
+    assert!(
+        blue_lang_syntax::parse_program(&deep).is_err(),
+        "precondition: the DEFAULT bound refuses depth MAX + 32"
+    );
+    assert!(
+        blue_lang_syntax::parse_program_with_depth(&deep, deep_n * 4).is_ok(),
+        "a caller-supplied bound above the constant must ADMIT what the \
+         constant refuses — otherwise the argument is ignored"
+    );
+}
+
+/// The defaulting entry points are the parameterized ones at `MAX_EXPR_DEPTH`.
+///
+/// Two entry points that both parse but disagree about the bound would be the
+/// `INFIX`-table defect again in a new place, so the delegation is pinned
+/// rather than assumed.
+#[test]
+fn the_default_entry_points_delegate_to_the_bounded_ones() {
+    for src in ["1 + 2", "def f(x)\n  x\nend", "{a: 1, b: [2, 3]}"] {
+        assert_eq!(
+            blue_lang_syntax::parse_program(src),
+            blue_lang_syntax::parse_program_with_depth(src, blue_lang_syntax::MAX_EXPR_DEPTH),
+            "parse_program must BE parse_program_with_depth(_, MAX_EXPR_DEPTH)"
+        );
+        assert_eq!(
+            blue_lang_syntax::parse_program_spanned(src),
+            blue_lang_syntax::parse_program_spanned_with_depth(
+                src,
+                blue_lang_syntax::MAX_EXPR_DEPTH
+            ),
+        );
+    }
+}

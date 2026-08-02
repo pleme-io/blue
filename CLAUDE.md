@@ -1,10 +1,39 @@
 # blue — Claude Orientation
 
-pending-shikumi: M1 — no configuration surface exists to type yet. The knobs
-that will be configurable (posture ceiling, default execution budget,
-formatter width) are each blocked on an unsettled design (`theory/BLUE.md`
-§V.19, §V.13). Emitting an options schema now would freeze guesses as a
-public interface. `flake.nix` carries no `module` for the same reason.
+pending-shikumi: M2 — execution budget has no default constant; will type when
+one lands. Everything else is closed: `BlueConfig`
+(`crates/blue-lang-cli/src/config.rs`) implements `shikumi::TieredConfig` with
+the two bounds that *do* have shipped overridable defaults, `flake.nix` carries
+the module trio that deploys them, and `blue config <tier>` is the operator
+surface.
+
+The M1 waiver this replaces claimed three knobs were "blocked on an unsettled
+design". Measured 2026-08-01, two of the three were not blocked — they were
+**settled against being configurable**, which is a stronger statement and was
+worth correcting rather than carrying:
+
+- **Formatter width** — settled AGAINST. `blue-lang-fmt`'s module docs already
+  said so: "There is no configuration type in this crate, and that is the
+  feature… there is nowhere to put a knob." Typing it would forfeit §0 (one way
+  to write a thing) and the content-addressed identity §V.16.1 rests on. It is
+  a regression, not pending work.
+- **Posture ceiling** — settled elsewhere. §V.24 moved ceilings to the ROOT as
+  a Bluefile input; `blue_lang_waku::Waku` deliberately carries none and
+  `blue_lang_bidama::resolve(bidama, ceiling)` takes it as an argument. A
+  daemon knob would rebuild the anti-pattern §V.24 removed.
+- **Execution budget** — genuinely open, for a concrete reason rather than a
+  philosophical one: **no default constant exists in blue to expose**. `Budget`
+  matches zero lines in `blue-lang-runtime`, `-test` and `-cli`. This is the
+  whole of M2.
+
+**The admission rule, which is what makes the surface safe to have shipped:** a
+knob may live in `BlueConfig` only if it is a **BOUND, never a preference**.
+Raising `solver_max_steps` or `max_expr_depth` changes no program's meaning —
+only whether a pathological input is refused — so neither can freeze a design
+guess as a public interface, which was the M1 objection. A preference would.
+Both are also read for real (`blue deps` → `Solver::with_max_steps`, every
+parsing subcommand → `parse_with_depth`), each with a red run recorded in the
+test that proves it.
 
 pending-tela: not a frontend. No `pending-urdume:` — blue is a language
 workspace, not a Rust service.
@@ -47,7 +76,7 @@ checker.
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
 | LSP: transport-free core + stdio shim | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
-| every subcommand | `blue-lang-cli` |
+| every subcommand; `BlueConfig` (the two typed bounds) | `blue-lang-cli` |
 
 ## Rules this repo has learned the hard way
 

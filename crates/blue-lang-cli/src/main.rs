@@ -15,6 +15,7 @@
 //! blue test    FILE            run the file's `test` blocks
 //! blue deps    BLUEFILE        resolve the manifest's dependencies
 //! blue posture BLUEFILE        the posture the manifest's floors require
+//! blue config  [TIER]          the bounds blue is running with
 //! blue lsp                     speak LSP over stdio
 //! blue banner                  the wordmark — the blueshift ramp
 //! blue shift   FILE            how far this is shifted, and what is shifting it
@@ -26,16 +27,25 @@
 //! now.
 //!
 //! **Neither fetches anything.** Resolution is real; there is no registry
-//! client, so `deps` resolves against what it is given and installs nothing.
+//! *client*, so `deps` resolves against the distribution already on
+//! `BLUE_PATH` (via `GitRegistry`) and installs nothing. With no distribution
+//! there, it says so rather than printing a hollow resolution.
+//!
+//! Every subcommand runs under the bounds in `config` — resolved once, here,
+//! and threaded down.
 //!
 //! `blue ast` and `blue erase` are separate on purpose: the difference
 //! between them *is* the sliding scale, and being able to print both sides of
 //! it is how a reader sees that annotations are consumed rather than carried.
 
+mod config;
+
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+
+use config::BlueConfig;
 
 #[derive(Parser)]
 #[command(
@@ -93,6 +103,12 @@ enum Cmd {
     /// The morphology: what each posture grants, what it forfeits, which pairs
     /// are genuinely exclusive, and which language each shape corresponds to.
     Morph,
+    /// Show the bounds `blue` is running with, at any tier.
+    ///
+    /// The fleet-uniform `config-show` surface, supplied by shikumi rather
+    /// than hand-rolled here — see `config` for what may live in it and why
+    /// the surface is two fields.
+    Config(shikumi::cli::ConfigShowCommand),
 }
 
 fn main() -> ExitCode {
@@ -126,6 +142,8 @@ enum CliError {
     Fmt(String),
     #[error("{0}")]
     Pkg(String),
+    #[error("{0}")]
+    Config(#[from] shikumi::cli::ConfigShowError),
 }
 
 fn read(path: &Path) -> Result<String, CliError> {
@@ -135,7 +153,49 @@ fn read(path: &Path) -> Result<String, CliError> {
     })
 }
 
+/// Parse under the CONFIGURED nesting bound.
+///
+/// Every direct parse the CLI performs goes through here rather than through
+/// `blue_lang_runtime::parse`, for the same reason the pipeline owns stage
+/// order: a second door that quietly uses the compiled-in default would make
+/// `max_expr_depth` true of some subcommands and not others, and nothing would
+/// say which.
+fn parse(src: &str, cfg: &BlueConfig) -> Result<Vec<blue_lang_syntax::Sexp>, CliError> {
+    Ok(blue_lang_runtime::parse_with_depth(src, cfg.max_expr_depth)?)
+}
+
+/// The distribution on `BLUE_PATH`, if any root holds one.
+///
+/// Roots are searched in order and the FIRST non-empty one wins — the same
+/// "first match wins" rule `LoadPath` itself documents, so `blue deps` and
+/// `use(...)` cannot disagree about which distribution is in effect.
+fn scan_registry() -> Result<Option<blue_lang_pkg::git_registry::GitRegistry>, CliError> {
+    use blue_lang_pkg::git_registry::{GitRegistry, GitRegistryError};
+    for root in blue_lang_pkg::load_path::LoadPath::from_env().roots() {
+        let registry = match GitRegistry::scan(root) {
+            Ok(r) => r,
+            // A stale entry in a `PATH`-shaped list is normal, so an unreadable
+            // root is skipped. A Bluefile that EXISTS and does not parse is a
+            // broken package and is reported — the scanner draws that line
+            // deliberately, and swallowing it here would undo it.
+            Err(GitRegistryError::Unreadable { .. }) => continue,
+            Err(e @ GitRegistryError::BadManifest { .. }) => {
+                return Err(CliError::Pkg(e.to_string()))
+            }
+        };
+        if !registry.is_empty() {
+            return Ok(Some(registry));
+        }
+    }
+    Ok(None)
+}
+
 fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
+    // Resolved ONCE, at the top, and threaded down — never re-read per
+    // subcommand. Two reads of a config are two chances to disagree about it,
+    // and the pipeline's own lesson (one place owns the order) applies to the
+    // bounds the pipeline runs under just as much.
+    let cfg = config::resolve();
     match cli.cmd {
         Cmd::Run { file, inputs } => {
             let src = read(&file)?;
@@ -159,7 +219,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             let loader = blue_lang_pkg::load_path::LoadPath::from_env();
             let out = blue_lang_runtime::pipeline::run_with_loader(
                 &src,
-                bind_inputs(&src, &inputs)?,
+                bind_inputs(&src, &inputs, &cfg)?,
                 &loader,
             )?;
             println!("{}", render(&out.value));
@@ -200,14 +260,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Ast { file } => {
-            for form in blue_lang_runtime::parse(&read(&file)?)? {
+            for form in parse(&read(&file)?, &cfg)? {
                 println!("{form}");
             }
             Ok(ExitCode::SUCCESS)
         }
 
         Cmd::Erase { file } => {
-            let forms = blue_lang_runtime::parse(&read(&file)?)?;
+            let forms = parse(&read(&file)?, &cfg)?;
             for form in blue_lang_runtime::erase_types(&forms) {
                 println!("{form}");
             }
@@ -215,7 +275,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Check { file } => {
-            let forms = blue_lang_runtime::parse(&read(&file)?)?;
+            let forms = parse(&read(&file)?, &cfg)?;
             let outcome = blue_lang_check::check_program(&forms);
             // Report the analysis performed, not just pass/fail. §0's rule is
             // that an invisible cost is the one unacceptable outcome, and the
@@ -237,7 +297,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Test { file } => {
-            let forms = blue_lang_runtime::parse(&read(&file)?)?;
+            let forms = parse(&read(&file)?, &cfg)?;
             // Imports resolve here too, for the same reason they do in `run`.
             //
             // Wiring only `run` was a real gap and it failed loudly the first
@@ -282,10 +342,36 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             for (dep, range) in &manifest.manifest.needs {
                 println!("  needs {dep} {range}");
             }
-            // No registry client exists, so there is nothing to resolve
-            // AGAINST. Saying so beats printing a resolution of an empty
-            // registry and letting it read as success.
-            println!("\nresolution requires a registry; none is configured");
+
+            // Resolve against the distribution on BLUE_PATH, if there is one.
+            //
+            // There is still no registry CLIENT — nothing fetches — but
+            // `GitRegistry` reads a checkout that is already on disk, and that
+            // is a real registry for resolution purposes. Printing "none is
+            // configured" while a scannable distribution sat on BLUE_PATH was
+            // the CLI declining to use the thing it had.
+            let Some(registry) = scan_registry()? else {
+                println!("\nno distribution on BLUE_PATH; nothing to resolve against");
+                return Ok(ExitCode::SUCCESS);
+            };
+            // The configured bound, not the constructor's default. This is the
+            // only production caller of the solver, so it is the only place
+            // `solver_max_steps` can be read — and if it is not read here the
+            // knob is decoration.
+            let mut solver =
+                blue_lang_pkg::Solver::new(&registry).with_max_steps(cfg.solver_max_steps);
+            let resolution = solver
+                .solve(&manifest.manifest)
+                .map_err(|e| CliError::Pkg(e.to_string()))?;
+            println!("\nresolved against {} package(s):", registry.len());
+            for (name, version) in &resolution.picks {
+                println!("  {name} {version}");
+            }
+            println!(
+                "  ({} step(s), {} skipped by learning)",
+                solver.steps_taken(),
+                solver.skipped_by_learning()
+            );
             Ok(ExitCode::SUCCESS)
         }
 
@@ -362,6 +448,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
+        Cmd::Config(cmd) => {
+            cmd.run::<BlueConfig>(config::TIER_ENV)?;
+            Ok(ExitCode::SUCCESS)
+        }
+
         Cmd::Lsp => {
             let stdin = std::io::stdin();
             let stdout = std::io::stdout();
@@ -384,8 +475,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 /// for a name the program never declared is a different mistake from declaring
 /// a name and forgetting the flag, and telling them apart is the difference
 /// between a fixable message and a puzzle.
-fn bind_inputs(src: &str, pairs: &[String]) -> Result<blue_lang_runtime::Inputs, CliError> {
-    let forms = blue_lang_runtime::parse(src)?;
+fn bind_inputs(
+    src: &str,
+    pairs: &[String],
+    cfg: &BlueConfig,
+) -> Result<blue_lang_runtime::Inputs, CliError> {
+    let forms = parse(src, cfg)?;
     let declared = blue_lang_runtime::declarations(&forms);
     let mut inputs = blue_lang_runtime::Inputs::new();
 

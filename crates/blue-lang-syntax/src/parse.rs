@@ -46,7 +46,19 @@ impl From<crate::lex::LexError> for ParseError {
 
 /// Parse a blue program into a sequence of tatara-lisp forms.
 pub fn parse_program(src: &str) -> Result<Vec<Sexp>, ParseError> {
-    Ok(parse_program_spanned(src)?
+    parse_program_with_depth(src, MAX_EXPR_DEPTH)
+}
+
+/// [`parse_program`] with the nesting bound supplied by the caller.
+///
+/// The bound is a **safety limit, not a dialect**: `max_depth` cannot change
+/// what any program means, only whether a pathological one is refused before
+/// the stack is at risk. That is why it is a parameter here and
+/// [`MAX_EXPR_DEPTH`] is only the default — a knob that could alter meaning
+/// would belong nowhere near a config file (see `blue-lang-cli`'s `config`
+/// module for the rule this obeys).
+pub fn parse_program_with_depth(src: &str, max_depth: usize) -> Result<Vec<Sexp>, ParseError> {
+    Ok(parse_program_spanned_with_depth(src, max_depth)?
         .into_iter()
         .map(|(form, _)| form)
         .collect())
@@ -61,6 +73,14 @@ pub fn parse_program(src: &str) -> Result<Vec<Sexp>, ParseError> {
 /// the tree and re-interleaves comments by position, which needs to know where
 /// each form started and ended.
 pub fn parse_program_spanned(src: &str) -> Result<Vec<(Sexp, Span)>, ParseError> {
+    parse_program_spanned_with_depth(src, MAX_EXPR_DEPTH)
+}
+
+/// [`parse_program_spanned`] with the nesting bound supplied by the caller.
+pub fn parse_program_spanned_with_depth(
+    src: &str,
+    max_depth: usize,
+) -> Result<Vec<(Sexp, Span)>, ParseError> {
     let toks: Vec<Token> = lex(src)?
         .into_iter()
         .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
@@ -69,6 +89,7 @@ pub fn parse_program_spanned(src: &str) -> Result<Vec<(Sexp, Span)>, ParseError>
         toks,
         pos: 0,
         depth: 0,
+        max_depth,
     };
     p.program_spanned()
 }
@@ -295,7 +316,7 @@ const PIPE_POWER: (u8, u8) = (0, 1);
 struct Parser {
     toks: Vec<Token>,
     pos: usize,
-    /// Current expression-nesting depth, bounded by [`MAX_EXPR_DEPTH`].
+    /// Current expression-nesting depth, bounded by [`Self::max_depth`].
     ///
     /// Without this the parser does not fail on deep input — it **aborts the
     /// process** with a stack overflow (SIGABRT), which `catch_unwind` cannot
@@ -303,6 +324,13 @@ struct Parser {
     /// outright. Every consumer inherited it — an LSP parsing a half-typed
     /// line, a formatter, and shikumi loading a `.b` config off disk.
     depth: usize,
+    /// The bound [`Self::depth`] is checked against.
+    ///
+    /// Defaults to [`MAX_EXPR_DEPTH`] on every entry point that does not name
+    /// one; `parse_program_with_depth` exists so an operator can raise it
+    /// without recompiling. It is a **bound**, so raising it changes no
+    /// program's meaning — only which pathological inputs are refused.
+    max_depth: usize,
 }
 
 /// Maximum expression nesting before the parser refuses.
@@ -415,9 +443,10 @@ impl Parser {
         // about is TOTAL nesting, not which grammar production produced it, so
         // two independent counters would each permit their own full budget and
         // together exceed what the stack can hold.
-        if self.depth >= MAX_EXPR_DEPTH {
+        let max = self.max_depth;
+        if self.depth >= max {
             return Err(self.error(format!(
-                "statement nests deeper than {MAX_EXPR_DEPTH}; refusing to \
+                "statement nests deeper than {max}; refusing to \
                  recurse further (this is a limit, not a syntax error)"
             )));
         }
@@ -460,9 +489,10 @@ impl Parser {
         // function is via `?` or a normal return, and both are covered by the
         // explicit decrements below. A guard object would be tidier but would
         // also hide the invariant this comment is here to state.
-        if self.depth >= MAX_EXPR_DEPTH {
+        let max = self.max_depth;
+        if self.depth >= max {
             return Err(self.error(format!(
-                "expression nests deeper than {MAX_EXPR_DEPTH}; refusing to \
+                "expression nests deeper than {max}; refusing to \
                  recurse further (this is a limit, not a syntax error)"
             )));
         }

@@ -27,3 +27,17 @@ blue-lang-bidama = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 clap = { workspace = true }
 thiserror = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+# The fleet ★★ CONFIGURATION MANAGEMENT surface. `cli` brings the
+# `config-show` clap factory, so `blue config <tier>` is one struct rather
+# than a hand-rolled subcommand — Pillar 12 at the config boundary.
+#
+# The `blue` feature is deliberately OFF. shikumi's blue front-end pins
+# `blue-lang-syntax = "0.0.2"` from crates.io; turning it on inside THIS
+# workspace would resolve a SECOND copy of the parser beside the local
+# path dep, and the `.b` config would be parsed by neither the version
+# blue ships nor the one it tests. See `blue.b` for the round-trip result.
+shikumi = { git = "https://github.com/pleme-io/shikumi", branch = "main", features = ["cli"] }
+
+[dev-dependencies]
+serde_json = "1"

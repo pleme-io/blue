@@ -16,8 +16,18 @@ use std::process::{Command, Output};
 /// The binary under test. Cargo sets `CARGO_BIN_EXE_<name>` for integration
 /// tests, which is how this finds the just-built `blue` rather than whatever
 /// is on `PATH`.
+///
+/// Blue's three environment inputs are **cleared**, so a developer who has a
+/// distribution on `BLUE_PATH` or a deployed `~/.config/blue/blue.yaml` does
+/// not get different results from CI. A test that passes only on an unconfigured
+/// machine is the "passes locally" class this repo already paid for once with
+/// `lld`.
 fn blue() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_blue"))
+    let mut c = Command::new(env!("CARGO_BIN_EXE_blue"));
+    c.env_remove("BLUE_PATH")
+        .env_remove("BLUE_CONFIG")
+        .env_remove("BLUE_TIER");
+    c
 }
 
 /// A scratch `.b` file, named per test so parallel tests cannot collide.
@@ -30,6 +40,30 @@ fn write(name: &str, src: &str) -> PathBuf {
 
 fn run(args: &[&str]) -> Output {
     blue().args(args).output().expect("spawn blue")
+}
+
+/// `run`, with environment set for this invocation only.
+///
+/// Per-process rather than `std::env::set_var`, which would race every other
+/// test in this binary — cargo runs them on threads of one process.
+fn run_env(args: &[&str], env: &[(&str, &str)]) -> Output {
+    let mut c = blue();
+    for (k, v) in env {
+        c.env(k, v);
+    }
+    c.args(args).output().expect("spawn blue")
+}
+
+/// A scratch file with an arbitrary name/extension, for fixtures that are not
+/// `.b` sources (config YAML, `Bluefile`s inside a distribution).
+fn write_at(rel: &str, contents: &str) -> PathBuf {
+    let mut p = std::env::temp_dir();
+    p.push(format!("blue-cli-test-{rel}"));
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent).expect("create fixture dir");
+    }
+    std::fs::write(&p, contents).expect("write fixture");
+    p
 }
 
 fn stdout(o: &Output) -> String {
@@ -363,15 +397,181 @@ fn deps_reports_the_manifest_including_a_computed_version() {
     assert!(out.contains("needs gaming ^1.2.0"), "{out}");
 }
 
-/// **`deps` must not claim to have resolved anything.** There is no registry
-/// client, and printing an empty resolution would read as success.
+/// **`deps` must not claim to have resolved anything** when there is nothing
+/// to resolve against. Printing an empty resolution would read as success.
+///
+/// The message changed 2026-08-01 (from "requires a registry") because the
+/// claim behind it stopped being true: `GitRegistry` reads a distribution
+/// already on disk, so a `BLUE_PATH` that names one IS something to resolve
+/// against. What is honest now is the narrower statement — no distribution on
+/// the load path.
 #[test]
 fn deps_says_it_cannot_resolve_rather_than_printing_a_hollow_resolution() {
     let f = write("deps-honest", BLUEFILE);
     let out = stdout(&run(&["deps", f.to_str().unwrap()]));
     assert!(
-        out.contains("requires a registry"),
-        "it must say resolution is not configured: {out}"
+        out.contains("nothing to resolve against"),
+        "it must say resolution has no distribution: {out}"
+    );
+    assert!(
+        !out.contains("resolved against"),
+        "it must not claim a resolution it did not perform: {out}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// config — the two bounds, and proof that they are READ
+// ---------------------------------------------------------------------------
+
+/// A one-package distribution `blue deps` can actually resolve against.
+fn distribution(name: &str) -> PathBuf {
+    let manifest = write_at(
+        &format!("dist-{name}/gaming/Bluefile"),
+        "package(\"gaming\", \"1.2.0\")",
+    );
+    manifest
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("<root>/gaming/Bluefile")
+        .to_path_buf()
+}
+
+#[test]
+fn config_show_prints_the_prescribed_bounds() {
+    let out = stdout(&run(&["config", "default"]));
+    assert!(out.contains("solver_max_steps: 100000"), "{out}");
+    assert!(out.contains("max_expr_depth: 256"), "{out}");
+}
+
+#[test]
+fn config_show_bare_is_the_zero_opinion_floor() {
+    let out = stdout(&run(&["config", "bare"]));
+    assert!(out.contains("solver_max_steps: 0"), "{out}");
+    assert!(out.contains("max_expr_depth: 0"), "{out}");
+}
+
+/// `deps` resolves against a distribution on `BLUE_PATH`.
+///
+/// The precondition for the next test: without a real resolution happening,
+/// `solver_max_steps` could not be observed being read.
+#[test]
+fn deps_resolves_against_a_distribution_on_the_load_path() {
+    let f = write("deps-resolve", BLUEFILE);
+    let root = distribution("resolve");
+    let out = stdout(&run_env(
+        &["deps", f.to_str().unwrap()],
+        &[("BLUE_PATH", root.to_str().unwrap())],
+    ));
+    assert!(out.contains("resolved against 1 package(s)"), "{out}");
+    assert!(out.contains("gaming 1.2.0"), "{out}");
+}
+
+/// **`solver_max_steps` is read from the deployed YAML, end to end.**
+///
+/// This is the test that makes the config non-decorative. It exercises the
+/// entire chain a fleet operator gets — a YAML file, `BLUE_CONFIG` pointing at
+/// it (the env var substrate's module trio sets), shikumi's tier resolution,
+/// then `Solver::with_max_steps` — by setting a bound so small that a
+/// resolution which SUCCEEDS at the default must now fail.
+///
+/// The budget is 0, not 1: this graph resolves in exactly one step, and a
+/// budget of 1 admits it (`steps > max_steps` fires after the increment).
+/// Measured, not reasoned about — the first version of this test used 1 and
+/// went green against a working wire, which is the vacuous-gate trap this
+/// repo's testing discipline names.
+///
+/// Red run: with the `.with_max_steps(cfg.solver_max_steps)` call removed from
+/// `main.rs`, the solver used its own 100_000 default and the run succeeded —
+/// `resolved against 1 package(s)` — failing the assertion below. Restored.
+#[test]
+fn solver_max_steps_is_read_from_the_deployed_yaml() {
+    let f = write("deps-bounded", BLUEFILE);
+    let root = distribution("bounded");
+    // `max_expr_depth` stays at the shipped default so a failure here can only
+    // be the solver bound — if the tier had resolved to `bare()` instead of the
+    // file, a depth of 0 would have failed the Bluefile PARSE, with a different
+    // message, and this test would not be measuring what it claims.
+    let cfg = write_at("cfg-solver.yaml", "solver_max_steps: 0\nmax_expr_depth: 256\n");
+
+    let o = run_env(
+        &["deps", f.to_str().unwrap()],
+        &[
+            ("BLUE_PATH", root.to_str().unwrap()),
+            ("BLUE_CONFIG", cfg.to_str().unwrap()),
+        ],
+    );
+    assert!(
+        !o.status.success(),
+        "a 0-step budget must not resolve anything; stdout: {} stderr: {}",
+        stdout(&o),
+        stderr(&o)
+    );
+    assert!(
+        stderr(&o).contains("gave up after"),
+        "the failure must name the exhausted budget: {}",
+        stderr(&o)
+    );
+}
+
+/// **`max_expr_depth` is read from the deployed YAML, end to end.**
+///
+/// Same chain, the other knob: a depth blue accepts by default must be refused
+/// once the deployed config lowers the bound, and the error must name the bound
+/// that was actually applied rather than the compiled-in constant.
+///
+/// Red run: reverting `Cmd::Ast` to `blue_lang_runtime::parse` turned this red
+/// with `left: true, right: false` on the exit status — the file parsed fine
+/// under the 256 default, exactly as a decoration knob would.
+#[test]
+fn max_expr_depth_is_read_from_the_deployed_yaml() {
+    // Depth 12 — far below the 256 default, far above the configured 4.
+    let src = format!("{}1{}", "(".repeat(12), ")".repeat(12));
+    let f = write("ast-bounded", &src);
+    let cfg = write_at("cfg-depth.yaml", "solver_max_steps: 100000\nmax_expr_depth: 4\n");
+
+    assert!(
+        run(&["ast", f.to_str().unwrap()]).status.success(),
+        "precondition: the DEFAULT bound accepts this file"
+    );
+
+    let o = run_env(
+        &["ast", f.to_str().unwrap()],
+        &[("BLUE_CONFIG", cfg.to_str().unwrap())],
+    );
+    assert!(
+        !o.status.success(),
+        "a configured bound of 4 must refuse depth 12: {}",
+        stdout(&o)
+    );
+    assert!(
+        stderr(&o).contains("nests deeper than 4"),
+        "the error must name the CONFIGURED bound, not the constant: {}",
+        stderr(&o)
+    );
+}
+
+/// `BLUE_TIER` is the explicit override, so it beats a `BLUE_CONFIG` file.
+///
+/// Without this ordering an operator could not get back to a known state
+/// without deleting their config, which is the thing a tier selector exists to
+/// avoid.
+#[test]
+fn an_explicit_tier_beats_the_config_file() {
+    let src = format!("{}1{}", "(".repeat(12), ")".repeat(12));
+    let f = write("ast-tier", &src);
+    let cfg = write_at("cfg-tier.yaml", "solver_max_steps: 100000\nmax_expr_depth: 4\n");
+
+    let o = run_env(
+        &["ast", f.to_str().unwrap()],
+        &[
+            ("BLUE_CONFIG", cfg.to_str().unwrap()),
+            ("BLUE_TIER", "default"),
+        ],
+    );
+    assert!(
+        o.status.success(),
+        "BLUE_TIER=default must ignore the file's lower bound: {}",
+        stderr(&o)
     );
 }
 

@@ -58,7 +58,18 @@ pub struct Run {
 
 /// Parse blue source to tatara-lisp forms.
 pub fn parse(src: &str) -> Result<Vec<Sexp>, RunError> {
-    blue_lang_syntax::parse_program(src).map_err(|e| RunError::Parse(e.to_string()))
+    parse_with_depth(src, blue_lang_syntax::MAX_EXPR_DEPTH)
+}
+
+/// [`parse`] with the parser's nesting bound supplied by the caller.
+///
+/// The bound exists so a stack overflow — which `catch_unwind` cannot catch —
+/// arrives as a typed `Err` instead. It is a *limit*, not a dialect: raising
+/// it changes no program's meaning, which is exactly why it is safe to expose
+/// as configuration (`blue-lang-cli`'s `config` module holds the rule).
+pub fn parse_with_depth(src: &str, max_depth: usize) -> Result<Vec<Sexp>, RunError> {
+    blue_lang_syntax::parse_program_with_depth(src, max_depth)
+        .map_err(|e| RunError::Parse(e.to_string()))
 }
 
 /// Run blue source with no build inputs.

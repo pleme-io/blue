@@ -69,7 +69,13 @@ fn workspace_root() -> PathBuf {
 /// cannot measure is not a gate.
 fn metadata() -> serde_json::Value {
     let out = Command::new(env!("CARGO"))
-        .args(["metadata", "--no-deps", "--format-version", "1", "--offline"])
+        .args([
+            "metadata",
+            "--no-deps",
+            "--format-version",
+            "1",
+            "--offline",
+        ])
         .current_dir(workspace_root())
         .output()
         .expect("`cargo metadata` must be runnable; this gate may not skip");

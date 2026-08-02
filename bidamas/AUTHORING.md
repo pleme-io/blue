@@ -173,3 +173,15 @@ one. Every one of these caught a real bug in this distribution:
    and every `needs` must have a matching `use(...)` in the source, which is
    also enforced.
 4. Raise the count floors in `flake.nix` and `distribution.rs`.
+5. Add the matching `needs(...)`/`use(...)` pair to **`zenbu`** — the facade
+   bidama that declares every other one, so a consumer can take the whole
+   distribution as a single dependency. It is an ordinary package with a long
+   manifest, not a special case, which is precisely why nothing updates it for
+   you: `granularity.rs::the_facade_is_an_ordinary_bidama_with_many_needs`
+   turns the omission into a red build.
+
+   **Do not compute that list.** A Bluefile is blue code, so
+   `needs(some_variable, …)` works — and `mk-bidama.nix` reads the graph by
+   splitting the text on `needs("`, so nix would not see it. Measured: one
+   computed entry left blue resolving 17 dependencies, nix seeing 16, and the
+   built closure one bidama short, with nothing red.

@@ -45,6 +45,15 @@
 # Tier: **only-mitigated** — ceiling is a computed `needs(...)` that the regex
 # cannot see. The fix is a `blue bluefile --deps --json` subcommand, so nix
 # consumes blue's own evaluation rather than re-deriving it. Named, not built.
+#
+# **The ceiling is measured, not hypothetical** (2026-08-02). Rewriting one of
+# `zenbu`'s seventeen entries as `computed = "moji"` / `needs(computed, "^0.1")`
+# left blue's resolver reporting 17 dependencies, this file's `depsOf` seeing 16,
+# and `nix build .#zenbu` producing a closure of 17 bidamas instead of 18 — with
+# no test anywhere going red. `granularity.rs::the_regex_and_evaluated_dependency_views_agree`
+# closes that: it compares this text split against `GitRegistry`'s EVALUATED
+# manifest for every package and fails when they disagree. Tier moves from
+# *undetected* to **CI-gate-caught**; the fix above is still unbuilt.
 
 { lib, runCommand, symlinkJoin ? null, makeWrapper ? null }:
 

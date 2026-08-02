@@ -74,6 +74,7 @@ primitives, so collisions here are the expected case, not the surprising one.
 | `ongaku` | 音楽 | twelve-tone music theory — scales, triads | 2026-08-01 | KEEP | rename to `gakuri` refuted 3/3; shared 音 with `oto` is Law 3 working |
 | `seimei` | 生命 | cellular automata — Rule 110, Conway's Life | 2026-08-01 | KEEP | rename to `saibou` refuted 3/3 |
 | `ran` | 乱 | seeded deterministic PRNG | 2026-08-01 | KEEP | rename to `chuusen` refuted 3/3; 乱 is the canonical morpheme (乱数). An English homograph is not a naming law — cf. `tear`, `tend`, `gen`, `blue` |
+| `zenbu` | 全部 | the facade — every bidama in the distribution, as one dependency | 2026-08-02 | KEEP_WITH_NOTE | The only STRUCTURAL name in the set. Every sibling is a subject noun (numbers, lists, geometry); this one names the *collection*, deliberately — the `goi` (語彙) rule says a domain lexicon is exhaustible, so a facade that spent a subject word would burn one for nothing. **`soroi` (揃い) was the first choice and is REFUTED by the sweep:** it is already live in blue's OWN spec as `(defsoroi …)` (`theory/BLUE.md` §V.10, `theory/VOCABULARY.md`), glossed *"a matched set — nothing missing"*. Same word, same kanji, same gloss, same repo — the `koyomi` failure exactly, and invisible from inside `bidamas/`. That hit also refutes **`ichishiki` (一式, "one complete set")**, which is clean on the *word* (0 fleet hits) and collides on the *gloss* — the `kōshi` (格子) rejection of 2026-08-01 repeated. **Measured 2026-08-02** over the 970 repo directories under `~/code/github/pleme-io/` (`rg --no-ignore`, excluding `.git`/`target`/`node_modules`/`.direnv`; positive control `kikai` = 1163 occurrences in 176 files, so the absences below were *read*, not assumed): `zenbu` = 8 raw hits, **0 real** — every one is base64 payload inside a vendored `*.caixa.lisp` or Japanese prose in `caixa-erased-serde/benches/twitter.json`. That is the `emoji` class of noise, not a live primitive. 0 repo-name hits; 0 in `theory/VOCABULARY.md`; 0 inside blue. **The one containment worth carrying:** bare `zen` IS live (`opencode-zen`, `kura-provider/src/zen.rs`, `dougu/src/zen.rs`). It is the benign direction — `zenbu` is the LONGER string and therefore self-retrievable, and 禅 shares neither kanji nor meaning with 全部, so a reader who lands here while searching `zen` cannot believe they arrived. Contrast `kika`→`kikai`, where the interferer *was* the answer 664 times in 665 and offered no such signal. 0 importers, and structurally there will never be any: the facade is the leaf every other bidama is upstream of. |
 
 ## Adding a package
 
@@ -84,5 +85,11 @@ primitives, so collisions here are the expected case, not the surprising one.
    which reads as "no matches" and is a lie — use `find | xargs`, and run a
    positive control that fires before trusting any absence.
 3. Add the row here in the same commit as the package.
-4. Raise the package-count floor in `flake.nix` and the `>= 17` floor in
+4. Raise the package-count floor in `flake.nix` and the `>= 18` floor in
    `distribution.rs`.
+5. Add a `needs(...)`/`use(...)` pair to **`zenbu`**, the facade. It is an
+   ordinary bidama that declares every other one, so a consumer can take the
+   whole distribution as a single dependency — and a package left out of it is
+   a package the facade silently stops covering.
+   `granularity.rs::the_facade_is_an_ordinary_bidama_with_many_needs` fails the
+   build if you forget.

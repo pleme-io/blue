@@ -26,8 +26,8 @@
 //!    import and would otherwise count as the importer's. It caught `moji`
 //!    shipping with zero, and the own-source refinement caught that `kikagaku`
 //!    could have done the same invisibly;
-//! 3. the total test count clears a floor (82 at the time of writing, floored
-//!    at 80), so a package silently losing its tests cannot pass as "green".
+//! 3. the total test count clears a floor (469 at the time of writing, floored
+//!    at 450), so a package silently losing its tests cannot pass as "green".
 //!    The count is of each package's OWN tests: imported tests are stripped by
 //!    the resolver, so this number does not inflate with the dependency graph.
 //!
@@ -102,8 +102,43 @@ fn run_tests(name: &str) -> (usize, Vec<String>) {
     )
 }
 
+/// Run `body` on a thread with the stack a real blue process has.
+///
+/// The Rust test harness gives each test thread 2 MiB; a binary's main thread
+/// gets 8. That difference is an artefact of the harness, not a property of
+/// blue — and it is load-bearing here, because blue's evaluator recurses per
+/// nested call, so the deepest bidama test overflowed 2 MiB while passing
+/// under the CLI. Measured: every one of the 17 packages passes
+/// `blue test <pkg>` individually; only the harness aborted.
+///
+/// Running the gate at 8 MiB makes it test what a user actually runs. It does
+/// NOT paper over a real limit — see the ceiling recorded below, which is a
+/// genuine constraint on blue and is documented rather than raised away.
+fn with_real_stack<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> T {
+    std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(body)
+        .expect("spawn gate thread")
+        .join()
+        .expect("the distribution gate panicked")
+}
+
+/// blue's evaluator recursion ceiling, measured 2026-08-02.
+///
+/// `junjo.sort` is insertion sort and recurses once per element. At the 8 MiB
+/// a real process has it sorts 200 elements and dies somewhere before 400 —
+/// silently, as a stack overflow, not a typed error. That is a real limit on
+/// the distribution and it is recorded here rather than hidden: any bidama
+/// test that walks a list must stay well inside it, and the fix is a
+/// trampolined or iterative evaluator, not a larger stack.
+const _RECURSION_CEILING_NOTE: () = ();
+
 #[test]
 fn every_bidama_passes_its_own_tests() {
+    with_real_stack(every_bidama_passes_its_own_tests_inner)
+}
+
+fn every_bidama_passes_its_own_tests_inner() {
     let pkgs = packages();
     assert!(
         pkgs.len() >= 17,
@@ -136,7 +171,7 @@ fn every_bidama_passes_its_own_tests() {
         broken.join("\n")
     );
     assert!(
-        total >= 80,
+        total >= 450,
         "only {total} bidama tests ran across {} packages; the distribution \
          lost tests without any of them failing",
         pkgs.len()
@@ -258,5 +293,65 @@ fn every_bidama_has_a_name_ledger_row() {
             .chain(orphaned)
             .collect::<Vec<_>>()
             .join("\n")
+    );
+}
+
+/// No two packages may define the same name.
+///
+/// `use()` inlines a package's forms into ONE FLAT namespace, so two packages
+/// defining the same name shadow each other with no error, no warning and no
+/// failing test. Whichever import lands second wins.
+///
+/// This is not hypothetical and it is not rare — it happened DURING the session
+/// that wrote this distribution. `retsu` gained `slice(xs, start, count)` and
+/// `index_of(xs, v)` while `moji` was independently writing string functions of
+/// the same names, at the SAME ARITY. Same arity is what makes it dangerous: a
+/// mismatched arity fails loudly, whereas these would have silently answered a
+/// string question with a list function.
+///
+/// The class dies here. A duplicate is a red build naming both packages, which
+/// is the whole reason to have a distribution gate rather than trusting each
+/// package's own green suite.
+#[test]
+fn no_two_packages_define_the_same_name() {
+    let mut owner: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let mut clashes = Vec::new();
+
+    for name in packages() {
+        let src = std::fs::read_to_string(dist().join(&name).join(format!("{name}.b")))
+            .unwrap_or_else(|e| panic!("{name} source unreadable: {e}"));
+        for line in src.lines() {
+            let Some(rest) = line.strip_prefix("def ") else {
+                continue;
+            };
+            let Some(fname) = rest.split('(').next().map(str::trim) else {
+                continue;
+            };
+            if fname.is_empty() {
+                continue;
+            }
+            match owner.get(fname) {
+                Some(first) if first != &name => clashes.push(format!(
+                    "`{fname}` is defined by BOTH {first} and {name} — under \
+                     use() the second silently shadows the first"
+                )),
+                _ => {
+                    owner.insert(fname.to_owned(), name.clone());
+                }
+            }
+        }
+    }
+
+    assert!(
+        clashes.is_empty(),
+        "{} cross-package name collision(s):\n{}",
+        clashes.len(),
+        clashes.join("\n")
+    );
+    assert!(
+        owner.len() >= 700,
+        "only {} distinct function names found across the distribution; the \
+         scan is not seeing the definitions it is meant to police",
+        owner.len()
     );
 }

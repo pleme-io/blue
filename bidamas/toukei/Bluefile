@@ -1,2 +1,3 @@
 package("toukei", "0.1.0")
 needs("junjo", "^0.1")
+needs("shuugou", "^0.1")

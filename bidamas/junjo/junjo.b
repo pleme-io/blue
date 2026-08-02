@@ -11,7 +11,13 @@ def insert_ordered(x, xs)
   if is_empty(xs)
     [x]
   else
-    if x <= first(xs)
+    # `compare`, not `<=`, so this sorts STRINGS as well as numbers.
+    #
+    # `<` and `<=` are a type error on strings ("expected number, got string"),
+    # so a `<=`-phrased sort could not order a list of words at all — it raised.
+    # The reachable `compare` builtin is total over the value domain and returns
+    # -1/0/1, so one implementation serves both.
+    if compare(x, first(xs)) <= 0
       cons(x, xs)
     else
       cons(first(xs), insert_ordered(x, rest(xs)))
@@ -52,7 +58,7 @@ def is_sorted(xs)
   if size(xs) < 2
     true
   else
-    if first(xs) <= nth(1, xs)
+    if compare(first(xs), nth(1, xs)) <= 0
       is_sorted(rest(xs))
     else
       false
@@ -719,4 +725,15 @@ test "sort_lists orders lexicographically, which plain sort cannot do at all"
   assert sort_lists([[1, 2], [1]]) == [[1], [1, 2]]
   # Sorting an already-sorted list of lists changes nothing.
   assert sort_lists(sort_lists([[3], [1, 1], [2]])) == [[1, 1], [2], [3]]
+end
+
+test "sort orders STRINGS, not only numbers"
+  # `<=` raises on strings, so this is the assertion that would have failed
+  # before sort was phrased on `compare`.
+  assert sort(["pear", "apple", "fig"]) == ["apple", "fig", "pear"]
+  assert is_sorted(["a", "b", "c"]) == true
+  assert is_sorted(["b", "a"]) == false
+  # And numbers still sort, which is what makes `compare` the right seam
+  # rather than a string-only special case.
+  assert sort([3, 1, 2]) == [1, 2, 3]
 end

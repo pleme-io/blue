@@ -87,8 +87,39 @@ sqrt(25) == 5       => false      # Float(5.0) vs Int(5)
 near(sqrt(25), 5)   => true       # kazu
 ```
 
-Use `kazu`'s `near(a, b)` for anything that has been through `sqrt`, a division
-or a mean. Use `floor(n / 2)` where you want integer division.
+Use `kazu`'s `near(a, b)` for anything that has been through `sqrt`. Use
+`floor(n / 2)` where you want integer division.
+
+**But the rule above is only half true, and the false half is the dangerous
+one.** Division NORMALISES to `Int` when it divides exactly, while `sqrt` never
+does:
+
+```
+6 / 3 == 2          => true       # exact division comes back Int
+(0 - 6) / 3 == 0-2  => true
+sqrt(16) == 4       => FALSE      # sqrt always returns Float
+sqrt(0) == 0        => FALSE      # so even zero fails the obvious check
+```
+
+`sqrt(0) == 0` being false is a live trap: it breaks `n == 0` for any value that
+came through a root. Comparison operators (`<`, `>`) DO work across numeric
+kinds, which is the escape hatch.
+
+**`%` and `modulo` are EUCLIDEAN, not truncating** — the result is never
+negative, which is the opposite of C, Rust, JS and Ruby:
+
+```
+(0 - 7) % 3   => 2        # NOT -1
+7 % (0 - 3)   => 1
+5 % 0         => runtime error, not a typed one
+```
+
+Any modulo idiom ported from another language will silently compute something
+else. `kazu.mod_positive` names the guarantee so a caller need not know.
+
+**`<` and `<=` are a TYPE ERROR on strings** ("expected number, got string").
+The reachable `compare(a, b)` builtin is total and returns -1/0/1 — that is why
+`junjo.sort` is phrased on `compare` and can order words as well as numbers.
 
 ---
 
@@ -106,15 +137,26 @@ Assignment works (`x = 5`); there is no `let`. Nested lambdas and closures work.
 
 ## Names you cannot call at all
 
-Blue's lexer treats `-` as an operator and does not accept `?`/`!` in
-identifiers, so a chunk of the underlying tatara-lisp stdlib is **unreachable**:
-`every?`, `sort-by`, `string-length`, `count-if`. That is why `junjo`
-implements its own `sort` — not preference, necessity.
+Blue's lexer treats `-` as an operator, so every KEBAB-CASE name in the
+underlying tatara-lisp stdlib is **unreachable**: `sort-by`, `string-length`,
+`count-if`. That is why `junjo` implements its own `sort` — necessity, not
+preference.
+
+A trailing `?` or `!` IS now part of an identifier (fixed 2026-08-02), so
+`contains?`, `starts_with?`, `ends_with?` and `to_int!` are reachable. They
+were dead code in the runtime until then — registered and uncallable.
 
 Reachable: `length` `nth` `car` `cdr` `cons` `append` `take` `drop` `reverse`
 `list` `range` `min` `max` `abs` `gcd` `lcm` `modulo` `expt` `sqrt` `sin` `cos`
 `tan` `log` `exp` `floor` `ceiling` `round` `map` `filter` `reduce` `concat`
-`split` `join` `chars` `upcase` `downcase` `trim` `replace` `to_s`.
+`split` `join` `chars` `upcase` `downcase` `trim` `replace` `to_s` `compare`
+`some` `find` `remove` `partition` `apply` `print` `println` `to_int`
+`to_float`, and — since the lexer learned trailing `?`/`!` — `contains?`
+`starts_with?` `ends_with?` `to_int!`.
+
+`compare` in particular is worth knowing before you need it: it is the only
+total ordering primitive, and its absence from this list once cost an author a
+hand-rolled character-ordinal table.
 
 **Do not shadow a reachable name** with a `def` of your own unless you mean to
 replace it everywhere in the file.

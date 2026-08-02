@@ -220,10 +220,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // BLUE_PATH, so a wrapped `blue` resolves the distribution with no
             // argument, and an unwrapped one still honours a checkout.
             let loader = blue_lang_pkg::load_path::LoadPath::from_env();
-            let out = blue_lang_runtime::pipeline::run_with_loader(
+            // The SURFACE the program is written in: BLUE_LANG wins, else the
+            // host locale. An explicit choice must beat a detected one.
+            let surface = resolve_surface().map_err(CliError::Pkg)?;
+            let out = blue_lang_runtime::pipeline::run_in_surface(
                 &src,
                 bind_inputs(&src, &inputs, &cfg)?,
                 &loader,
+                surface.as_ref(),
             )?;
             println!("{}", render(&out.value));
             Ok(ExitCode::SUCCESS)
@@ -565,4 +569,34 @@ fn render(v: &tatara_lisp_eval::Value) -> String {
         }
         other => format!("{other:?}"),
     }
+}
+
+/// Which `yakugo` surface to parse in: `BLUE_LANG`, else the host locale.
+fn resolve_surface() -> Result<Option<blue_lang_syntax::yakugo::Yakugo>, String> {
+    if let Ok(tag) = std::env::var("BLUE_LANG") {
+        if tag.is_empty() {
+            return Ok(None);
+        }
+        return match blue_lang_syntax::yakugo::pack_for_locale(&tag)? {
+            Some(p) => Ok(Some(p)),
+            None => Err(format!(
+                "BLUE_LANG=\"{tag}\" names no surface. Available: {}",
+                blue_lang_syntax::yakugo::BUILTIN_PACKS
+                    .iter()
+                    .map(|(t, _)| *t)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+        };
+    }
+    // The host locale is a HINT, so an unrecognised one is simply English —
+    // unlike an explicit BLUE_LANG, nobody asked for it.
+    for var in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(loc) = std::env::var(var) {
+            if let Some(p) = blue_lang_syntax::yakugo::pack_for_locale(&loc)? {
+                return Ok(Some(p));
+            }
+        }
+    }
+    Ok(None)
 }

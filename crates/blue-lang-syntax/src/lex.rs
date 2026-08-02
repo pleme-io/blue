@@ -440,6 +440,25 @@ impl<'a> Lexer<'a> {
         while matches!(self.peek(), Some(c) if is_ident_continue(c)) {
             self.pos += 1;
         }
+
+        // A TRAILING `?` or `!` is part of the name, as in Ruby.
+        //
+        // Without this, four builtins the runtime registers — `contains?`,
+        // `starts_with?`, `ends_with?` and `to_int!` — were unreachable from
+        // every blue program ever written: dead code in the runtime and a
+        // silent capability gap that made `moji` reimplement three of them by
+        // hand.
+        //
+        // The `=` guard is what keeps `!=` working. `a != b` is safe either way
+        // (the `!` follows a space), but `a!=b` is not: without the lookahead
+        // the `!` would be eaten into the identifier and the comparison would
+        // vanish. So a trailing `!` joins the name only when what follows is
+        // NOT `=`.
+        if matches!(self.peek(), Some(b'?'))
+            || (matches!(self.peek(), Some(b'!')) && !matches!(self.peek_at(1), Some(b'=')))
+        {
+            self.pos += 1;
+        }
         // Ruby's trailing `?` and `!` are part of the name.
         if matches!(self.peek(), Some(b'?') | Some(b'!')) {
             self.pos += 1;

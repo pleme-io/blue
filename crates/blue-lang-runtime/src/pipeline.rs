@@ -98,7 +98,30 @@ pub fn run_with_loader(
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
 ) -> Result<Run, RunError> {
-    let forms = parse(src)?;
+    run_in_surface(src, inputs, loader, None)
+}
+
+/// Run blue source written in a `yakugo` surface.
+///
+/// The pack applies at PARSE time and nowhere else — by the time the checker
+/// sees the program it is canonical, so every stage below is identical whatever
+/// surface the author wrote in. That is what makes a surface a surface: it
+/// changes how a program is spelled and nothing about how it runs.
+///
+/// # Errors
+///
+/// As [`run_with_loader`].
+pub fn run_in_surface(
+    src: &str,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+) -> Result<Run, RunError> {
+    let forms = match surface {
+        Some(pack) => blue_lang_syntax::parse_program_in(src, pack)
+            .map_err(|e| RunError::Parse(e.to_string()))?,
+        None => parse(src)?,
+    };
 
     // RESOLVE imports first, so everything below sees ONE program.
     //

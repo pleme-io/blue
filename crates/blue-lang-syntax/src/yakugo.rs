@@ -229,6 +229,10 @@ pub const BUILTIN_PACKS: &[(&str, &str)] = &[
     ("ar", include_str!("../packs/ar.lisp")),
     ("hi", include_str!("../packs/hi.lisp")),
     ("sw", include_str!("../packs/sw.lisp")),
+    // NOT a human language — the generalisation made concrete. A symbolic
+    // surface over the SAME structure, so the mechanism cannot be mistaken
+    // for translation.
+    ("math", include_str!("../packs/math.lisp")),
 ];
 
 /// Load every builtin pack.

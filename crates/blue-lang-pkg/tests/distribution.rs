@@ -202,3 +202,61 @@ fn every_declared_dependency_is_actually_imported() {
         }
     }
 }
+
+/// Every package must have a row in the name ledger, and every row a package.
+///
+/// This is the gate for the failure that actually happened: fourteen names were
+/// minted inline, without the `/naming` collision sweep, and three of them
+/// collided with live fleet primitives — one exactly, on the same subject.
+/// Nothing caught it, because nothing required a name to have been adjudicated
+/// before it shipped.
+///
+/// A skill cannot enforce that. A skill runs when somebody invokes it, and the
+/// entire failure was *not invoking it*. So the requirement lands where adding
+/// a package actually happens: a package without a ledger row fails the build.
+///
+/// **Tier: CI-caught, not unrepresentable.** A careless row still passes — this
+/// proves the question was ASKED at the moment the package landed, not that it
+/// was answered well. That is the step that was skipped, so that is the step
+/// gated.
+#[test]
+fn every_bidama_has_a_name_ledger_row() {
+    let ledger = std::fs::read_to_string(dist().join("NAMES.md"))
+        .expect("bidamas/NAMES.md must exist — it is the name adjudication ledger");
+
+    let pkgs = packages();
+    let mut missing = Vec::new();
+    for name in &pkgs {
+        // A row starts with the name in backticks in the first column.
+        if !ledger.contains(&format!("| `{name}` |")) {
+            missing.push(format!(
+                "{name}: no row in NAMES.md — run /naming, sweep the word, its                  near-homophones AND its gloss against the fleet, then add the row"
+            ));
+        }
+    }
+
+    // And the reverse: a row whose package is gone means a rename or deletion
+    // left the ledger describing a distribution that no longer exists.
+    let mut orphaned = Vec::new();
+    for line in ledger.lines() {
+        let Some(rest) = line.strip_prefix("| `") else {
+            continue;
+        };
+        let Some(name) = rest.split('`').next() else {
+            continue;
+        };
+        if !pkgs.iter().any(|p| p == name) {
+            orphaned.push(format!("{name}: ledger row with no package directory"));
+        }
+    }
+
+    assert!(
+        missing.is_empty() && orphaned.is_empty(),
+        "name ledger out of sync with the distribution:\n{}",
+        missing
+            .into_iter()
+            .chain(orphaned)
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}

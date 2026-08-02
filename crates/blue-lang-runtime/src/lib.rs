@@ -64,9 +64,54 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     interp
 }
 
+/// The prebuilt hostless substrate, built once per process.
+///
+/// **Measured 2026-08-01, and this is the entire reason the fork exists.**
+/// Profiling a trivial blue program found the run dominated by ONE thing:
+///
+/// ```text
+/// parse                     9.6 µs
+/// check                     1.6 µs
+/// interpreter_hostless()  5 820 µs   <- 98.4% of the run
+/// ```
+///
+/// Splitting that further: `Interpreter::new()` is 24 µs and
+/// `install_full_stdlib_with` is the rest — the stdlib was being rebuilt from
+/// scratch on every single `run()`, and blue's whole surface (`map`, `filter`,
+/// string ops) lives in it, so no program could avoid the cost.
+///
+/// `fork` already existed upstream for exactly this, and blue simply was not
+/// using it. tatara-lisp-eval's own `fork_cost.rs` opens with *"cheapness is
+/// the entire reason it exists"* — the capability was built, documented and
+/// guarded, and the consumer kept paying full price beside it.
+///
+/// | | per call |
+/// |---|---|
+/// | rebuild (`Interpreter::new` + `install_full_stdlib_with`) | **9.03 ms** |
+/// | `fork()` of a prebuilt base | **0.102 ms** |
+///
+/// **88× on the dominant cost.** This is purgatory's computation-layer clause
+/// made real: the stdlib is the most-reused computation in the language, and
+/// it was being discarded and recomputed rather than resurrected.
+///
+/// Isolation is `fork`'s contract, not an assumption made here — its
+/// correctness gates live upstream in `fork.rs`, and `fork_cost.rs` guards
+/// against a future change that deep-copies (which would keep every
+/// correctness test green while silently restoring the cost this removes).
+static HOSTLESS_BASE: std::sync::LazyLock<std::sync::Mutex<Interpreter<()>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(interpreter(&mut ())));
+
 /// The common host-free case.
+///
+/// Forks the process-wide base rather than rebuilding the stdlib. Falls back to
+/// a full build if the lock is poisoned: a poisoned lock means another thread
+/// panicked mid-fork, and answering a correct-but-slow interpreter beats
+/// propagating someone else's panic into an unrelated caller.
 pub fn interpreter_hostless() -> Interpreter<()> {
-    interpreter(&mut ())
+    match HOSTLESS_BASE.lock() {
+        Ok(base) => base.fork(),
+        Err(_) => interpreter(&mut ()),
+    }
 }
 
 #[cfg(test)]

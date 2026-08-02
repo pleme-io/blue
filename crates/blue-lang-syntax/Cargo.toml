@@ -12,5 +12,13 @@ repository.workspace = true
 tatara-lisp = { workspace = true }
 
 [dev-dependencies]
+# Property-based totality. The corpus suites prove the parser survives THESE
+# inputs; proptest widens that to input the corpus cannot reach — random and,
+# more usefully, structurally-generated near-valid programs, which is where
+# real parsers break. Dev-only, so no consumer carries it.
+proptest = "1"
+# The cross-crate differential lives here because it is a property ABOUT the
+# parser (format must preserve what parse sees). Dev-only, so no cycle ships.
+blue-lang-fmt = { workspace = true }
 blue-lang-runtime = { workspace = true }
 tatara-lisp-eval = { workspace = true }

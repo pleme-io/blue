@@ -3,3 +3,10 @@
 result
 result-*
 .direnv/
+
+# `gen build` writes two artifacts. `Cargo.gen.lock` is the committed one —
+# the slim delta substrate reconstructs the build graph from, in pure Nix.
+# `Cargo.build-spec.json` is the full intermediate it is derived from: same
+# information, 2.1× the bytes (417 KB vs 197 KB here), and a second copy to
+# keep in sync. Committing both means two artifacts that can disagree.
+Cargo.build-spec.json

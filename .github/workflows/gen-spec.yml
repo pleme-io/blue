@@ -1,0 +1,53 @@
+name: gen-spec
+
+# The freshness mechanism for the committed `Cargo.gen.lock`, without which
+# committing it would only trade one failure mode for another.
+#
+# ── WHY A COMMITTED ARTIFACT NEEDS THIS ────────────────────────────────
+#
+# `Cargo.gen.lock` is DERIVED from `Cargo.lock`. A checked-in derived file
+# can go stale — someone lands a `cargo update`, does not re-run `gen build`,
+# and substrate then reconstructs the build graph from a delta describing a
+# dependency set that is no longer the one in the lock. That is a real cost,
+# and it is the cost this file pays.
+#
+# Two things hold it, and they cover different moments:
+#
+#   1. THIS WORKFLOW — the regen. On a push to main it runs
+#      `gen build . --commit`, which is a no-op when fresh and otherwise
+#      commits the regenerated delta as gen-spec-bot. On a PR it regenerates
+#      WITHOUT committing and fails if the result differs, so a lock change
+#      cannot merge without its delta.
+#
+#   2. `checks.gen-confirm` — the gate, already in this flake and until now
+#      passing vacuously. substrate's tool-release emits
+#      `gen confirm . --if-present`, whose `--if-present` TOLERATES a repo
+#      with no delta. blue had none, so the check was green over nothing.
+#      With the delta committed it does what it is named for: recompute
+#      `sha256(Cargo.lock)` offline and compare it to the delta's recorded
+#      `cargo_lock_sha256` (the D2 tie). A stale delta now fails
+#      `nix flake check` — including locally, before CI ever sees it.
+#
+# So the honest statement is that (2) is the load-bearing half and (1) keeps
+# it from ever needing to fire. Neither existed before this commit.
+#
+# The `paths:` filter is the whole trigger surface: the delta is a function
+# of the manifests and the lock, and of nothing else.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+
+jobs:
+  gen-spec:
+    uses: pleme-io/substrate/.github/workflows/reusable-gen-spec.yml@main
+    secrets: inherit

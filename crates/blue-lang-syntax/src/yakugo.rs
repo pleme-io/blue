@@ -49,6 +49,8 @@
 
 use std::collections::BTreeMap;
 
+use tatara_lisp::{Atom, Sexp};
+
 use crate::lex::{lex, Token, TokenKind};
 
 /// One language's lexicon: its word for each of blue's words.
@@ -288,6 +290,48 @@ pub fn canonical_tokens(src: &str, pack: &Yakugo) -> Result<Vec<Token>, crate::l
     Ok(apply(lex(src)?, pack))
 }
 
+/// Rewrite a FORM TREE's symbols through a pack — the phase-free half.
+///
+/// [`apply`] works on tokens, which is right for the static phase and only the
+/// static phase: `def`, `end` and `else` are structural, so a program written
+/// in another surface cannot even be parsed without translating them first.
+///
+/// This works on the tree instead, which is what makes the other two phases
+/// possible:
+///
+/// | phase | mechanism | why that one |
+/// |---|---|---|
+/// | **static** (source) | [`apply`], on tokens | keywords are structural — the source will not parse otherwise |
+/// | **build** (macro expansion) | this, on the emitted forms | a macro emits a TREE; there are no tokens left to rewrite |
+/// | **runtime** (eval / REPL) | this, on a form before evaluation | same reason — by then the program is data |
+///
+/// The direction is deliberately the same as `apply`'s — localized to
+/// canonical — so one pack serves every phase and a reader never has to ask
+/// which way a given call runs.
+///
+/// Strings are left alone, as they are in [`apply`]: a translated program's
+/// data is its own.
+#[must_use]
+pub fn rewrite_symbols(form: Sexp, pack: &Yakugo) -> Sexp {
+    match form {
+        Sexp::Atom(Atom::Symbol(name)) => {
+            let canon = pack.canon(&name).map_or(name, ToOwned::to_owned);
+            Sexp::Atom(Atom::Symbol(canon))
+        }
+        Sexp::List(items) => Sexp::List(
+            items
+                .into_iter()
+                .map(|f| rewrite_symbols(f, pack))
+                .collect(),
+        ),
+        Sexp::Quote(inner) => Sexp::Quote(Box::new(rewrite_symbols(*inner, pack))),
+        Sexp::Quasiquote(inner) => Sexp::Quasiquote(Box::new(rewrite_symbols(*inner, pack))),
+        Sexp::Unquote(inner) => Sexp::Unquote(Box::new(rewrite_symbols(*inner, pack))),
+        Sexp::UnquoteSplice(inner) => Sexp::UnquoteSplice(Box::new(rewrite_symbols(*inner, pack))),
+        other => other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +452,64 @@ mod tests {
             strings.contains(&fin),
             "the string literal {fin:?} was rewritten by the pack; only Ident \
              tokens may be translated: {strings:?}"
+        );
+    }
+
+    /// The AST pass agrees with the token pass — one pack, every phase.
+    ///
+    /// If these diverged, a program would mean one thing when parsed from
+    /// source and another when the same forms arrived from a macro, which is
+    /// the drift the whole design exists to prevent.
+    #[test]
+    fn the_ast_rewrite_agrees_with_the_token_rewrite() {
+        for (tag, _) in BUILTIN_PACKS {
+            let p = pack(tag);
+            let english = "def double(n)\n  n * 2\nend";
+            let localized = translate(english, &p);
+
+            // Static phase: through the tokens.
+            let via_tokens = crate::parse_program_in(&localized, &p)
+                .unwrap_or_else(|e| panic!("{tag}: token path: {e}"));
+
+            // Build/runtime phase: parse the LOCALIZED text far enough to get
+            // a tree, then rewrite the tree. Keywords have to be canonical for
+            // it to parse at all, which is exactly why the token pass exists —
+            // so the fair comparison is a tree that already parsed.
+            let via_ast: Vec<Sexp> = crate::parse_program(english)
+                .expect("english parses")
+                .into_iter()
+                .map(|f| rewrite_symbols(f, &p))
+                .collect();
+
+            assert_eq!(
+                format!("{via_tokens:?}"),
+                format!("{via_ast:?}"),
+                "{tag}: the token pass and the AST pass disagree — one pack must \
+                 mean the same thing at every phase"
+            );
+        }
+    }
+
+    /// A quoted form is data, and its symbols are still rewritten.
+    #[test]
+    fn the_ast_rewrite_descends_into_quotes() {
+        let p = pack("fr");
+        let fin = p
+            .words
+            .iter()
+            .find(|(_, c)| c.as_str() == "end")
+            .map(|(l, _)| l.clone())
+            .expect("fr translates end");
+        let quoted = Sexp::Quote(Box::new(Sexp::Atom(Atom::Symbol(fin))));
+        let out = rewrite_symbols(quoted, &p);
+        assert_eq!(
+            format!("{out:?}"),
+            format!(
+                "{:?}",
+                Sexp::Quote(Box::new(Sexp::Atom(Atom::Symbol("end".into()))))
+            ),
+            "a quoted symbol was left untranslated — macro-emitted trees are \
+             mostly quoted, so skipping them would make the build phase a no-op"
         );
     }
 

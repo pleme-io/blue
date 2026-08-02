@@ -49,6 +49,32 @@ pub fn parse_program(src: &str) -> Result<Vec<Sexp>, ParseError> {
     parse_program_with_depth(src, MAX_EXPR_DEPTH)
 }
 
+/// Parse a program written in a [`Yakugo`](crate::yakugo::Yakugo) surface.
+///
+/// The pack is applied to the TOKEN STREAM, between lexing and parsing, so the
+/// parser below is untouched and every keyword site works by construction.
+/// What comes out is the same `Sexp` the English surface produces — that is
+/// the invariant the pack tests assert, and the only thing that makes a
+/// surface a surface rather than a dialect.
+///
+/// # Errors
+///
+/// Lex and parse errors propagate unchanged. A pack cannot repair source that
+/// does not tokenize, and reporting otherwise would name the wrong problem.
+pub fn parse_program_in(src: &str, pack: &crate::yakugo::Yakugo) -> Result<Vec<Sexp>, ParseError> {
+    let toks: Vec<Token> = crate::yakugo::canonical_tokens(src, pack)?
+        .into_iter()
+        .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
+        .collect();
+    let mut p = Parser {
+        toks,
+        pos: 0,
+        depth: 0,
+        max_depth: MAX_EXPR_DEPTH,
+    };
+    Ok(p.program_spanned()?.into_iter().map(|(f, _)| f).collect())
+}
+
 /// [`parse_program`] with the nesting bound supplied by the caller.
 ///
 /// The bound is a **safety limit, not a dialect**: `max_depth` cannot change

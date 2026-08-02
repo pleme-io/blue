@@ -19,13 +19,14 @@
 pub mod kigou;
 pub mod lex;
 pub mod parse;
+pub mod yakugo;
 
 pub use lex::{lex, LexError, Span, Token, TokenKind};
 // Re-exported so a consumer walking blue trees does not have to depend on
 // tatara-lisp directly just to name the node types blue emits.
 pub use parse::{
-    comments, parse_expr, parse_program, parse_program_spanned, parse_program_spanned_with_depth,
-    parse_program_with_depth, Comment, Infix, ParseError, INFIX, LOWERED_ASSERT, LOWERED_CONCAT,
-    LOWERED_MAP, MAX_EXPR_DEPTH, SURFACE_KEYWORDS,
+    comments, parse_expr, parse_program, parse_program_in, parse_program_spanned,
+    parse_program_spanned_with_depth, parse_program_with_depth, Comment, Infix, ParseError, INFIX,
+    LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_MAP, MAX_EXPR_DEPTH, SURFACE_KEYWORDS,
 };
 pub use tatara_lisp::{Atom, Sexp};

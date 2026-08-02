@@ -151,6 +151,20 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Decode the whole UTF-8 character at the cursor, with its byte width.
+    ///
+    /// The lexer scans bytes because that is right for ASCII, which is all of
+    /// blue's structure. This is the seam where it stops being right: a
+    /// character outside ASCII has to be decoded before anything can classify
+    /// it, and the previous approach — treating every byte >= 0x80 as a letter
+    /// — could not tell `≠` from `文`, so an operator was unreachable and a
+    /// malformed sequence became a silent identifier.
+    fn decode_char(&self) -> Option<(char, usize)> {
+        let rest = self.src.get(self.pos..)?;
+        let ch = rest.chars().next()?;
+        Some((ch, ch.len_utf8()))
+    }
+
     fn peek(&self) -> Option<u8> {
         self.bytes.get(self.pos).copied()
     }
@@ -208,6 +222,36 @@ impl<'a> Lexer<'a> {
                 b'}' => self.one(TokenKind::RBrace, start),
                 b',' => self.one(TokenKind::Comma, start),
                 b'.' => self.one(TokenKind::Dot, start),
+                // Non-ASCII goes through the UTF-8 layer, which decodes a
+                // whole CHARACTER and asks `kigou` what it means. This must
+                // precede the ident branch: a symbol like `≠` is an operator,
+                // not the first letter of a name.
+                c if c >= 0x80 => {
+                    let Some((ch, width)) = self.decode_char() else {
+                        self.pos += 1;
+                        return Err(self.err("invalid UTF-8 in source", start));
+                    };
+                    match crate::kigou::classify(ch) {
+                        crate::kigou::Class::Operator(op) => {
+                            self.pos += width;
+                            self.push(TokenKind::Op(op.to_owned()), start);
+                        }
+                        crate::kigou::Class::Word => self.lex_ident(start),
+                        crate::kigou::Class::Reject => {
+                            self.pos += width;
+                            return Err(self.err(
+                                format!(
+                                    "the character {ch:?} (U+{:04X}) is not legal in blue source \
+                                     outside a string — invisible and control characters are \
+                                     rejected because source that looks correct and is not costs \
+                                     far more than a clear error here",
+                                    ch as u32
+                                ),
+                                start,
+                            ));
+                        }
+                    }
+                }
                 c if is_ident_start(c) => self.lex_ident(start),
                 c if OP_CHARS.as_bytes().contains(&c) => self.lex_op(start),
                 _ => {
@@ -454,7 +498,7 @@ impl<'a> Lexer<'a> {
 // lexer. Accepting too much is a surface question; rejecting every non-Latin
 // script was a correctness one.
 fn is_ident_start(c: u8) -> bool {
-    c.is_ascii_alphabetic() || c == b'_' || c >= 0x80
+    c.is_ascii_alphabetic() || c == b'_'
 }
 
 fn is_ident_continue(c: u8) -> bool {

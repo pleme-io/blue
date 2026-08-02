@@ -16,6 +16,7 @@
 //! assert_eq!(form.to_string(), "(greet user 1)");
 //! ```
 
+pub mod kigou;
 pub mod lex;
 pub mod parse;
 

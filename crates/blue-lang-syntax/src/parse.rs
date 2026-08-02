@@ -304,7 +304,10 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
 /// and letting it through would shadow the form for the rest of the file.
 fn is_reserved_word(name: &str) -> bool {
     SURFACE_KEYWORDS.contains(&name)
-        || matches!(name, "do" | "end" | "else" | "true" | "false" | "nil")
+        || matches!(
+            name,
+            "do" | "end" | "else" | "elsif" | "true" | "false" | "nil"
+        )
 }
 
 fn infix(op: &str) -> Option<&'static Infix> {
@@ -775,6 +778,32 @@ impl Parser {
     /// `unless` lowers to `(if (not c) ...)` rather than to a distinct
     /// form: one tree per meaning, so the formatter and every downstream
     /// tool see exactly one shape.
+    /// An `elsif` arm: an `if` that does NOT consume the closing `end`.
+    ///
+    /// `if / elsif / elsif / else / end` is one `end` for the whole chain, so
+    /// every arm but the first must leave it for its parent.
+    fn if_chain(&mut self) -> Result<Sexp, ParseError> {
+        let cond = self.expr(0)?;
+        let then = self.body(&["elsif", "else", "end"])?;
+        let els = if self.at_ident("elsif") {
+            self.bump();
+            Some(self.if_chain()?)
+        } else if self.at_ident("else") {
+            self.bump();
+            let e = self.body(&["end"])?;
+            self.expect_ident("end")?;
+            Some(e)
+        } else {
+            self.expect_ident("end")?;
+            None
+        };
+        let mut out = vec![sym("if"), cond, then];
+        if let Some(e) = els {
+            out.push(e);
+        }
+        Ok(Sexp::List(out))
+    }
+
     fn if_form(&mut self, negate: bool) -> Result<Sexp, ParseError> {
         let cond = self.expr(0)?;
         let cond = if negate {
@@ -782,8 +811,25 @@ impl Parser {
         } else {
             cond
         };
-        let then = self.body(&["else", "end"])?;
-        let els = if self.at_ident("else") {
+        // `elsif` terminates the then-body too, or the chain is swallowed.
+        //
+        // It used to be absent entirely — not a keyword, not reserved, nowhere
+        // in this file — so `elsif cond` parsed as a stray expression inside
+        // the then-body and the branch it guarded VANISHED. No error: the
+        // program ran and returned the `else` value. Measured:
+        //
+        //   if a < 1 then 1 elsif a < 5 then 2 else 3 end   with a = 3
+        //     wanted 2, returned 3
+        //
+        // A silent wrong answer in the most-used control form in the language,
+        // reachable by writing the Ruby every blue user already knows.
+        let then = self.body(&["elsif", "else", "end"])?;
+        let els = if self.at_ident("elsif") {
+            self.bump();
+            // The chain shares ONE `end`, so recurse without consuming it and
+            // let the outermost `if` close the whole thing.
+            Some(self.if_chain()?)
+        } else if self.at_ident("else") {
             self.bump();
             let e = self.body(&["end"])?;
             self.expect_ident("end")?;

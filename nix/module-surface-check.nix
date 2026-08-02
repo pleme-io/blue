@@ -46,6 +46,28 @@ let
     warnings = mkOption { type = types.listOf types.str; default = [ ]; };
   };
 
+  # Option trees module-trio NAMES but blue never populates — its launchd /
+  # systemd / anvil / app-bundle branches are all `mkIf false` for this spec.
+  #
+  # They still have to be declared. `lib.modules.pushDownProperties` forces an
+  # `mkIf`'s content to an attrset to collect its attribute NAMES before the
+  # condition is ever consulted, so a disabled branch still registers a
+  # definition. An undeclared one then renders "option does not exist", and
+  # rendering that message evaluates the definition — which for the anvil branch
+  # is `${mcpCfg.package}` with `mcpCfg = null`. The error you get is a null
+  # dereference from a branch that is switched off, which is thoroughly
+  # misleading; declaring the tree is what makes it discharge to nothing.
+  #
+  # `types.attrs` here and nowhere else: these are placeholders for other
+  # projects' option trees, and the values are unreachable by construction (a
+  # false `mkIf` discharges to no definition, so nothing is ever merged into
+  # them). Every option BLUE declares is strictly typed.
+  foreignTrees = {
+    launchd = mkOption { type = types.attrs; default = { }; };
+    systemd = mkOption { type = types.attrs; default = { }; };
+    blackmatter = mkOption { type = types.attrs; default = { }; };
+  };
+
   # Stub of the home-manager options blue's HM module writes into.
   hmBase = { ... }: {
     options = {
@@ -54,8 +76,10 @@ let
         packages = mkOption { type = types.listOf types.package; default = [ ]; };
         file = mkOption { type = types.attrsOf fileEntry; default = { }; };
         sessionVariables = mkOption { type = types.attrsOf types.str; default = { }; };
+        # Named by the app-bundle branch (`appBundle = null`, so never valued).
+        activation = mkOption { type = types.attrs; default = { }; };
       };
-    } // assertionOptions;
+    } // assertionOptions // foreignTrees;
   };
 
   # Stub of the NixOS / nix-darwin options blue's system modules write into.
@@ -71,7 +95,7 @@ let
         };
         variables = mkOption { type = types.attrsOf types.str; default = { }; };
       };
-    } // assertionOptions;
+    } // assertionOptions // foreignTrees;
   };
 
   evalWith = base: module: settings:
@@ -101,8 +125,13 @@ let
     # The defect this whole surface was rewritten to fix: module-trio writes the
     # YAML but only exports BLUE_CONFIG from its anvil block, which blue does
     # not use. Without this the config file exists and blue never reads it.
+    # `or null`, not a bare attribute access: if the export is dropped entirely
+    # — which is precisely the regression this claim guards — a bare access dies
+    # with "attribute 'BLUE_CONFIG' missing" and the reader learns nothing about
+    # what was supposed to set it.
     (expect "the HM module points BLUE_CONFIG at the YAML it deploys"
-      (hm.home.sessionVariables.BLUE_CONFIG == "/home/tester/.config/blue/blue.yaml"))
+      ((hm.home.sessionVariables.BLUE_CONFIG or null)
+        == "/home/tester/.config/blue/blue.yaml"))
 
     (expect "BLUE_TIER is absent unless the operator pins a tier"
       (!(hm.home.sessionVariables ? BLUE_TIER)))
@@ -113,18 +142,23 @@ let
       (!(hm.home.file ? ".config/blue/lsp.json")))
 
     (expect "the NixOS module points BLUE_CONFIG at /etc"
-      (nixos.environment.variables.BLUE_CONFIG == "/etc/blue/blue.yaml"))
+      ((nixos.environment.variables.BLUE_CONFIG or null) == "/etc/blue/blue.yaml"))
     (expect "the NixOS module writes /etc/blue/blue.yaml"
       (nixos.environment.etc ? "blue/blue.yaml"))
     (expect "the Darwin module points BLUE_CONFIG at /etc"
-      (darwin.environment.variables.BLUE_CONFIG == "/etc/blue/blue.yaml"))
+      ((darwin.environment.variables.BLUE_CONFIG or null) == "/etc/blue/blue.yaml"))
   ];
 
   # ── 2. The LSP surface ────────────────────────────────────────────────
   hmLsp = evalWith hmBase homeManagerModule {
     programs.blue = { enable = true; lsp.enable = true; };
   };
-  lspJson = builtins.fromJSON hmLsp.home.file.".config/blue/lsp.json".text;
+  # `unsafeDiscardStringContext` because the descriptor's `command` is a real
+  # store path, and `fromJSON` refuses any string carrying context. Discarding
+  # it is safe here and only here: this value is read by the assertions below
+  # and never enters a derivation, so there is no build dependency to lose.
+  lspJson = builtins.fromJSON
+    (builtins.unsafeDiscardStringContext hmLsp.home.file.".config/blue/lsp.json".text);
 
   lspChecks = [
     (expect "the LSP descriptor names the `lsp` subcommand" (lspJson.args == [ "lsp" ]))
@@ -188,7 +222,7 @@ let
     (expect "a pinned tier alone is allowed"
       (lib.all (a: a.assertion) agreeable.assertions))
     (expect "a pinned tier is exported as BLUE_TIER"
-      (agreeable.home.sessionVariables.BLUE_TIER == "bare"))
+      ((agreeable.home.sessionVariables.BLUE_TIER or null) == "bare"))
   ];
 
   # ── 5. Hand-authored settings shadow the typed options, loudly ────────

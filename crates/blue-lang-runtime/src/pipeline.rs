@@ -28,6 +28,17 @@ pub enum RunError {
     /// just the first: a caller fixing one error wants to see the rest.
     #[error("{} type error(s):\n{}", .0.len(), .0.join("\n"))]
     Types(Vec<String>),
+    /// **No longer reachable, and that is the point.** This reported "blue
+    /// emitted a tree the reader could not read back" — a failure only a
+    /// print-then-reparse hop could have. [`crate::lower_to_spanned`] deleted
+    /// the hop, so there is nothing left to fail: the tree the evaluator gets
+    /// IS the tree erasure produced, not a re-reading of its text.
+    ///
+    /// Kept rather than removed because it is public API on a released crate
+    /// and a consumer may still match on it, per ★★ MODULARIZE, DON'T DELETE.
+    /// It is retired, not orphaned — if a future stage ever serialises again
+    /// it has a typed home. **Nothing constructs it today**; do not read its
+    /// presence as evidence the pipeline can still fail this way.
     #[error("the emitted tatara-lisp could not be read back: {0}")]
     Lower(String),
     #[error("runtime error: {0}")]
@@ -160,16 +171,12 @@ pub fn run_in_surface(
     // ERASE, so the interpreter never sees a type.
     let erased = erase_types(&forms);
 
-    // LOWER through tatara-lisp's own reader. If blue emitted a tree the
-    // reader cannot read back, that is a lowering defect and this is where it
-    // surfaces rather than three stages later.
-    let text = erased
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    let spanned =
-        tatara_lisp::read_spanned(&text).map_err(|e| RunError::Lower(format!("{e:?}")))?;
+    // LOWER to what the evaluator eats. This used to print the tree and read
+    // it back through `tatara_lisp::read_spanned` — a round trip through a
+    // lexer, over bytes blue had just written itself. See
+    // `crate::lower_to_spanned` for why that is a silent-miscompile path and
+    // not merely wasteful.
+    let spanned = crate::lower_to_spanned(&erased);
 
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, inputs);
@@ -257,6 +264,96 @@ mod tests {
         assert_eq!(int("6 % 3"), 0);
         assert_eq!(int("7 % 3"), 1);
         assert_eq!(int("2 + 3 * 4"), 14);
+    }
+
+    /// **The deleted hop was a no-op on everything blue emits — so removing it
+    /// is a swap, not a behaviour change.**
+    ///
+    /// The old lowering printed the erased tree and read it back through
+    /// `tatara_lisp::read_spanned`. This walks a corpus and asserts the two
+    /// paths land on the same tree, which is the equivalence the swap rests on.
+    /// It is stated as a *measurement over this corpus*, not as a theorem:
+    /// the round trip is not identity in general (that is precisely why it had
+    /// to go), it merely happened to be identity for the bytes blue emits.
+    #[test]
+    fn the_deleted_round_trip_agreed_with_the_direct_lowering() {
+        let corpus = [
+            "def add(a, b)\n  a + b\nend\nadd(2, 3)",
+            "def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\nfact(5)",
+            "def f(a, b)\n  c = a + b\n  c * 2\nend\nf(1, 2)",
+            "defmacro sq(e)\n  quote\n    unquote(e) * unquote(e)\n  end\nend\nsq(2 + 3)",
+            "\"a string with spaces, a ( and a )\"",
+            "def g(a: Int) -> Int\n  a + 1\nend\ng(1)",
+            "6 % 3",
+            "1.5 + 2.25",
+        ];
+        for src in corpus {
+            let erased = erase_types(&parse(src).expect("parse"));
+
+            let direct: Vec<Sexp> = crate::lower_to_spanned(&erased)
+                .iter()
+                .map(tatara_lisp::Spanned::to_sexp)
+                .collect();
+            assert_eq!(direct, erased, "the direct lowering must be the identity");
+
+            let text = erased
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            let round_tripped: Vec<Sexp> = tatara_lisp::read_spanned(&text)
+                .unwrap_or_else(|e| panic!("{src:?}: the old path could not read back: {e:?}"))
+                .iter()
+                .map(tatara_lisp::Spanned::to_sexp)
+                .collect();
+            assert_eq!(
+                round_tripped, erased,
+                "{src:?}: the old print-and-reparse path changed the tree"
+            );
+        }
+    }
+
+    /// Anti-vacuity for the test above: the round trip really is *not* the
+    /// identity in general, so agreeing on the corpus was a property of what
+    /// blue happens to emit rather than a property of the reader.
+    ///
+    /// **`Atom::Symbol`'s `Display` writes the name raw, with no escaping.**
+    /// `Atom::Str` escapes and its docs explain at length why; the symbol arm
+    /// is `f.write_str(s)`. So print-then-read is not inverse over the symbol
+    /// domain, and the failure is *silent*: a symbol containing a space prints
+    /// as two tokens, reads back as two symbols, and the result is a perfectly
+    /// well-formed tree with a different meaning. No error, nothing to catch.
+    ///
+    /// Measured 2026-08-02 across the separators: `a b` and `x'y` come back
+    /// `Ok` with a different tree; `x)y`, `x"y` and `x;y` come back `Err`;
+    /// `x{y` and `x[y` DO round-trip at this level — those two are one symbol
+    /// in and one symbol out, so the brace-fusion reported in tatara *source*
+    /// is not what bites a printed tree. The silent pair is what makes this a
+    /// miscompile class rather than a noisy one.
+    #[test]
+    fn the_round_trip_is_not_the_identity_in_general() {
+        let tree = Sexp::List(vec![
+            Sexp::Atom(tatara_lisp::Atom::Symbol("f".into())),
+            Sexp::Atom(tatara_lisp::Atom::Symbol("a b".into())),
+        ]);
+        let text = tree.to_string();
+        let back: Vec<Sexp> = tatara_lisp::read_spanned(&text)
+            .expect("it reads back cleanly — that IS the problem")
+            .iter()
+            .map(tatara_lisp::Spanned::to_sexp)
+            .collect();
+        assert_ne!(
+            back,
+            vec![tree.clone()],
+            "if print-then-read became inverse over symbols, the class would be \
+             closed upstream and this test should be deleted rather than relaxed"
+        );
+        // …and the direct lowering is unaffected by any of it.
+        let direct: Vec<Sexp> = crate::lower_to_spanned(std::slice::from_ref(&tree))
+            .iter()
+            .map(tatara_lisp::Spanned::to_sexp)
+            .collect();
+        assert_eq!(direct, vec![tree]);
     }
 }
 

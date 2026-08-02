@@ -19,21 +19,47 @@
 //! from an `if` — using the language the project is already written in, with the
 //! same formatter and the same diagnostics.
 //!
-//! ## The cost, stated plainly
+//! ## The cost, and the frame that pays it
 //!
-//! Evaluating a manifest is executing code. That is fine here because the code
-//! is the project's own, and the same is true of `Rakefile`, `build.rs` and
-//! `setup.py`. But it means a Bluefile is **not** safe to read from an
-//! untrusted package: resolving a dependency's manifest would run the
-//! dependency's code at resolve time. blue's answer is the `waku` frame — a
-//! manifest read under a `Reach` that omits IO cannot *name* a file operation
-//! — and **that restriction is not wired here yet.** Until it is, only read
-//! Bluefiles you would run.
+//! Evaluating a manifest is executing code. That is fine for a project's own
+//! Bluefile, and the same is true of `Rakefile`, `build.rs` and `setup.py`. But
+//! **resolving a dependency runs the dependency's code**: `GitRegistry` reads a
+//! `Bluefile` out of every package on `BLUE_PATH`, and reading it is running
+//! it.
+//!
+//! This module used to end that paragraph with "blue's answer is the `waku`
+//! frame … **and that restriction is not wired here yet.** Until it is, only
+//! read Bluefiles you would run." It is wired now: [`manifest_frame`] is the
+//! frame a manifest evaluates in, and [`read_bluefile`] checks the manifest's
+//! forms against it **before** the interpreter sees them.
+//!
+//! **What that buys, stated precisely.** Nothing dangerous is bound in the
+//! manifest interpreter today — it is [`blue_lang_runtime::interpreter_hostless`]
+//! plus three recording primitives — so the manifest was safe by *absence of a
+//! binding*. That safety was an accident of the current wiring and had no gate:
+//! one more `register_fn` in [`install_manifest_primitives`] would have handed
+//! every third-party manifest a capability, silently. With the frame, a name
+//! outside the declared vocabulary is refused, so installing a capability
+//! without naming it in the frame is a **failing test**, not a quiet grant.
+//!
+//! **Honest tier: parse-time-rejected at this boundary, and no further.** A
+//! [`Bluefile`] cannot be constructed from a manifest that escapes the frame,
+//! and this is its only constructor. The check itself is `check_reach` over a
+//! tree — a manifest that built a name at run time and `eval`d it would be
+//! outside what the tree shows, which is what `When` tracks and this does not.
+//! It is not unrepresentability: the escape is a `Result::Err`, not an absent
+//! code path.
+//!
+//! **What is still missing, so nobody cites this as more than it is.** The
+//! frame is a constant blue fixes, not something a manifest declares. A
+//! *declared* `Reach` needs a closed capability universe to declare over, and
+//! blue has none — `Reach::Only` still takes arbitrary strings. `posture` still
+//! accepts only the `when` coordinate for exactly that reason.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
-use blue_lang_waku::{Waku, When};
+use blue_lang_waku::{check_reach_program, Waku, When};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{Interpreter, Value};
 
@@ -65,6 +91,57 @@ pub enum BluefileError {
     Version(#[from] crate::version::VersionError),
     #[error("`{0}` is not a recognised `when` posture (sealed, preceding, anytime)")]
     BadWhen(String),
+    /// The manifest named something [`manifest_frame`] does not permit.
+    ///
+    /// Reported before evaluation, and carrying **every** escaping name rather
+    /// than the first: a manifest author fixing one wants to see the rest, and
+    /// a reviewer reading a refusal wants the whole set the package asked for.
+    #[error(
+        "this Bluefile names {} outside the manifest frame: {}. \
+         A manifest may use the vocabulary in `blue_lang_pkg::bluefile::manifest_frame`; \
+         widening it is a deliberate edit there, not something a manifest can ask for.",
+        if .names.len() == 1 { "a name" } else { "names" },
+        .names.join(", ")
+    )]
+    Escapes { names: Vec<String> },
+}
+
+/// The manifest primitives — the three names a Bluefile is *for*.
+const MANIFEST_PRIMITIVES: &[&str] = &["package", "needs", "posture"];
+
+/// The heads `blue-lang-syntax` lowers control flow to.
+///
+/// These are `match` arms in tatara's evaluator rather than bindings, so
+/// omitting one would not actually withhold it — they are listed because
+/// `check_reach` reports a head like any other symbol and the frame has to
+/// answer. See `blue_lang_waku::walk_binder`'s note on why that question is
+/// left open there.
+const MANIFEST_FORMS: &[&str] = &[
+    "define", "defmacro", "lambda", "let", "begin", "if", "cond", "else", "not",
+];
+
+/// The frame a Bluefile is evaluated in.
+///
+/// `When::Preceding` because a manifest is read top to bottom and nothing in it
+/// should need a resident evaluator; `Where::Process` because it computes in
+/// its own heap. The `Reach` is the manifest vocabulary: the three primitives,
+/// the control-flow heads, and **every operator callee in
+/// [`blue_lang_syntax::INFIX`], read from that table rather than copied out of
+/// it.** The repo's own rule is that `INFIX` is one table and both directions
+/// read it; a hand-copied operator list here would be the third copy that
+/// disagreed.
+///
+/// Deliberately small. A manifest that wants `map` over a dependency list is
+/// refused, and that is the design: widening the vocabulary a third party's
+/// code may name is an edit to this function, reviewed once, rather than
+/// something any manifest can help itself to.
+#[must_use]
+pub fn manifest_frame() -> Waku {
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    names.extend(MANIFEST_PRIMITIVES.iter().map(|s| (*s).to_string()));
+    names.extend(MANIFEST_FORMS.iter().map(|s| (*s).to_string()));
+    names.extend(blue_lang_syntax::INFIX.iter().map(|i| i.callee.to_string()));
+    Waku::macro_phase(names)
 }
 
 /// What the primitives record while the manifest runs.
@@ -83,19 +160,27 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
         blue_lang_syntax::parse_program(src).map_err(|e| BluefileError::Parse(e.to_string()))?;
     let collected: Shared = Arc::new(Mutex::new(Collected::default()));
 
+    let erased = blue_lang_runtime::erase_types(&forms);
+
+    // THE FRAME, checked BEFORE the interpreter exists.
+    //
+    // Before evaluation and not during it, because the point is that a
+    // manifest which names something outside the vocabulary never runs at all
+    // — not that it runs until it reaches the bad call. `package("m","1.0.0")`
+    // followed by an escaping call would otherwise have recorded the package
+    // first.
+    let escapes = check_reach_program(&manifest_frame(), &erased);
+    if !escapes.is_empty() {
+        return Err(BluefileError::Escapes {
+            names: escapes.into_iter().map(|e| e.name).collect(),
+        });
+    }
+
     let mut interp = blue_lang_runtime::interpreter_hostless();
     install_manifest_primitives(&mut interp, &collected);
 
-    let erased = blue_lang_runtime::erase_types(&forms);
-    let text = erased
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    let spanned =
-        tatara_lisp::read_spanned(&text).map_err(|e| BluefileError::Eval(format!("{e:?}")))?;
     interp
-        .eval_program(&spanned, &mut ())
+        .eval_program(&blue_lang_runtime::lower_to_spanned(&erased), &mut ())
         .map_err(|e| BluefileError::Eval(e.to_string()))?;
 
     let c = collected.lock().expect("manifest lock");
@@ -289,9 +374,97 @@ mod tests {
 
     /// A runtime error in the manifest is reported as such, not swallowed into
     /// a half-built manifest.
+    ///
+    /// The program has to fail *inside the frame* to reach evaluation at all —
+    /// this used to be `no_such_thing()`, which the frame now refuses before
+    /// the interpreter exists. Calling a permitted primitive wrongly is the
+    /// remaining way to get there, and it is the more honest test: it proves
+    /// the `Eval` arm is still reachable rather than dead behind the gate.
     #[test]
     fn a_runtime_error_in_a_bluefile_is_reported() {
-        let err = read_bluefile("package(\"m\", \"1.0.0\")\nno_such_thing()").expect_err("reject");
+        let err = read_bluefile("package(\"m\", \"1.0.0\")\nneeds(\"a\")").expect_err("reject");
         assert!(matches!(err, BluefileError::Eval(_)), "got {err}");
+    }
+
+    // ── the manifest frame ────────────────────────────────────────────────
+
+    /// **The gate, red.** A manifest that names something the frame does not
+    /// permit is refused, and the refusal names it.
+    ///
+    /// `no_such_thing()` was previously an `Eval` error — the manifest ran,
+    /// recorded its package, and died at the call. That is the behaviour this
+    /// changes.
+    #[test]
+    fn a_manifest_naming_something_outside_the_frame_is_refused() {
+        let err =
+            read_bluefile("package(\"m\", \"1.0.0\")\nno_such_thing()").expect_err("must refuse");
+        match err {
+            BluefileError::Escapes { names } => {
+                assert_eq!(names, vec!["no_such_thing".to_string()])
+            }
+            other => panic!("expected an escape, got {other}"),
+        }
+    }
+
+    /// **And it is refused BEFORE anything runs.** The escape sits after a
+    /// perfectly good `package(...)`; if the check ran during evaluation the
+    /// name would have been recorded first. Nothing observable survives a
+    /// refused manifest.
+    #[test]
+    fn a_refused_manifest_never_runs_its_earlier_forms() {
+        let src = "package(\"recorded\", \"1.0.0\")\nread_file(\"/etc/passwd\")";
+        let err = read_bluefile(src).expect_err("must refuse");
+        assert!(
+            matches!(err, BluefileError::Escapes { ref names } if names == &["read_file".to_string()]),
+            "got {err}"
+        );
+        // The whole point: there is no half-built manifest to observe. The
+        // error carries no package, and `read_bluefile` is the only way to get
+        // a `Bluefile`, so nothing downstream can see one.
+        assert!(read_bluefile(src).is_err());
+    }
+
+    /// **Anti-vacuity.** Every Bluefile the distribution actually ships passes
+    /// the frame. A frame nothing can satisfy would make the test above pass
+    /// for the wrong reason, and a frame everything satisfies would make it
+    /// impossible — this pins both ends against real files.
+    #[test]
+    fn every_bluefile_in_the_distribution_stays_inside_the_frame() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../bidamas")
+            .canonicalize()
+            .expect("the distribution is in the repo");
+        let mut checked = 0usize;
+        for entry in std::fs::read_dir(&root).expect("read bidamas") {
+            let manifest = entry.expect("entry").path().join("Bluefile");
+            if !manifest.is_file() {
+                continue;
+            }
+            let src = std::fs::read_to_string(&manifest).expect("read manifest");
+            read_bluefile(&src).unwrap_or_else(|e| {
+                panic!("{} escaped the manifest frame: {e}", manifest.display())
+            });
+            checked += 1;
+        }
+        assert!(
+            checked >= 18,
+            "only {checked} manifests were checked — the corpus went missing, \
+             which would make this test pass over nothing"
+        );
+    }
+
+    /// The frame reads the operator table rather than copying it, so an
+    /// operator added to `INFIX` is usable in a manifest with no second edit.
+    #[test]
+    fn the_frame_permits_every_operator_the_parser_lowers_to() {
+        let frame = manifest_frame();
+        for infix in blue_lang_syntax::INFIX {
+            assert!(
+                frame.reach.permits(infix.callee),
+                "`{}` lowers to `{}`, which the manifest frame does not permit",
+                infix.op,
+                infix.callee
+            );
+        }
     }
 }

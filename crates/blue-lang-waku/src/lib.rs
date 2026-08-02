@@ -292,31 +292,215 @@ pub struct Escape {
 /// outside what this can see, which is precisely why `When::Anytime` is
 /// tracked as a separate coordinate rather than folded into `Reach`.
 pub fn check_reach(waku: &Waku, form: &tatara_lisp::Sexp) -> Vec<Escape> {
+    check_reach_program(waku, std::slice::from_ref(form))
+}
+
+/// [`check_reach`] over a whole program: several forms sharing one scope.
+///
+/// **This is the surface a real gate wants, and the single-form one is the
+/// special case.** A top-level `define` in form 1 is in scope for form 2, so
+/// checking each form independently reports every cross-form reference as an
+/// escape. That is why the only non-test caller takes this entry point.
+pub fn check_reach_program(waku: &Waku, forms: &[tatara_lisp::Sexp]) -> Vec<Escape> {
     let mut found = BTreeSet::new();
-    walk(form, waku, &mut found);
+    walk_body(forms, waku, &BTreeSet::new(), &mut found);
     found.into_iter().map(|name| Escape { name }).collect()
 }
 
-fn walk(s: &tatara_lisp::Sexp, waku: &Waku, out: &mut BTreeSet<String>) {
+/// Heads that introduce bindings rather than reference them.
+///
+/// **A binder is not a name the frame has to permit — it is a name the
+/// program itself supplies.** Before this distinction existed, `check_reach`
+/// counted *every* symbol, so under any `Reach::Only` a program escaped on
+/// its own function names and its own parameters: the frame in
+/// `restricted_reach_still_permits_arbitrary_computation` had to name
+/// `"fact"` and `"n"` to let `fact` call itself. A gate that can only be
+/// pointed at `Reach::Unrestricted` without rejecting correct programs is a
+/// gate nothing can use, which is exactly why this function had no caller
+/// outside its own tests.
+///
+/// The shapes are the ones `blue-lang-syntax` emits — `(define (f a) …)`,
+/// `(define x v)`, `(defmacro m (a) …)`, `(lambda (a) …)`, `(let ((x v)) …)`
+/// and `(begin …)`. A head not listed here is walked as an ordinary call, so
+/// an unrecognised binder over-reports rather than under-reports: it can make
+/// a correct program look like an escape, never make an escape look correct.
+const DEFINE: &str = "define";
+const DEFMACRO: &str = "defmacro";
+const LAMBDA: &str = "lambda";
+const LET: &str = "let";
+const BEGIN: &str = "begin";
+
+/// Walk a sequence of forms that share one scope.
+///
+/// Definitions are collected across the whole sequence *before* any form is
+/// walked, so mutual recursion and forward references resolve. A `define`
+/// binds for the rest of its level, and the level is what this function is.
+fn walk_body(
+    forms: &[tatara_lisp::Sexp],
+    waku: &Waku,
+    outer: &BTreeSet<String>,
+    out: &mut BTreeSet<String>,
+) {
+    let mut scope = outer.clone();
+    for f in forms {
+        if let Some(name) = defined_name(f) {
+            scope.insert(name);
+        }
+    }
+    for f in forms {
+        walk(f, waku, &scope, out);
+    }
+}
+
+/// The name `form` defines at its own level, if it defines one.
+fn defined_name(form: &tatara_lisp::Sexp) -> Option<String> {
+    use tatara_lisp::{Atom, Sexp};
+    let Sexp::List(items) = form else {
+        return None;
+    };
+    let Some(Sexp::Atom(Atom::Symbol(head))) = items.first() else {
+        return None;
+    };
+    match head.as_str() {
+        // `(define (f a b) …)` and `(define x v)`.
+        DEFINE => match items.get(1)? {
+            Sexp::List(sig) => symbol_of(sig.first()?),
+            other => symbol_of(other),
+        },
+        // `(defmacro m (a) …)`.
+        DEFMACRO => symbol_of(items.get(1)?),
+        _ => None,
+    }
+}
+
+fn symbol_of(s: &tatara_lisp::Sexp) -> Option<String> {
+    use tatara_lisp::{Atom, Sexp};
+    match s {
+        Sexp::Atom(Atom::Symbol(n)) => Some(n.clone()),
+        _ => None,
+    }
+}
+
+/// Every symbol appearing in a parameter list, added to the callee's scope.
+///
+/// `&rest` is swept up along with the name it introduces. Binding the marker
+/// itself is harmless — nothing references it — and the alternative is a
+/// second place that has to know tatara's parameter grammar.
+fn params_of(s: &tatara_lisp::Sexp, into: &mut BTreeSet<String>) {
+    use tatara_lisp::Sexp;
+    if let Sexp::List(items) = s {
+        for i in items {
+            if let Some(n) = symbol_of(i) {
+                into.insert(n);
+            }
+        }
+    }
+}
+
+fn walk(s: &tatara_lisp::Sexp, waku: &Waku, scope: &BTreeSet<String>, out: &mut BTreeSet<String>) {
     use tatara_lisp::{Atom, Sexp};
     match s {
         Sexp::Atom(Atom::Symbol(name)) => {
-            if !waku.reach.permits(name) {
+            if !scope.contains(name) && !waku.reach.permits(name) {
                 out.insert(name.clone());
             }
         }
         Sexp::List(items) => {
+            if walk_binder(items, waku, scope, out) {
+                return;
+            }
             for i in items {
-                walk(i, waku, out);
+                walk(i, waku, scope, out);
             }
         }
         Sexp::Quote(_) => {
             // Quoted data is not a reference to a binding.
         }
         Sexp::Quasiquote(inner) | Sexp::Unquote(inner) | Sexp::UnquoteSplice(inner) => {
-            walk(inner, waku, out)
+            walk(inner, waku, scope, out)
         }
         _ => {}
+    }
+}
+
+/// Walk `items` as a binding form. `false` if it is not one.
+///
+/// The head symbol is still walked in every arm: a special form is a `match`
+/// arm in no environment, so whether `define` is a name the frame must permit
+/// is a question this crate deliberately does not answer — it reports the head
+/// like any other symbol and lets the frame say. Changing that is a change to
+/// what `Reach` *means*, not a bug fix, and belongs with the capability
+/// universe that would give it somewhere to be decided.
+fn walk_binder(
+    items: &[tatara_lisp::Sexp],
+    waku: &Waku,
+    scope: &BTreeSet<String>,
+    out: &mut BTreeSet<String>,
+) -> bool {
+    use tatara_lisp::{Atom, Sexp};
+    let Some(Sexp::Atom(Atom::Symbol(head))) = items.first() else {
+        return false;
+    };
+    match head.as_str() {
+        DEFINE if items.len() >= 3 => {
+            walk(&items[0], waku, scope, out);
+            let mut inner = scope.clone();
+            match &items[1] {
+                // `(define (f a b) body…)` — the name and the parameters.
+                sig @ Sexp::List(_) => params_of(sig, &mut inner),
+                // `(define x v)` — the name, so a recursive lambda sees it.
+                other => {
+                    if let Some(n) = symbol_of(other) {
+                        inner.insert(n);
+                    }
+                }
+            }
+            walk_body(&items[2..], waku, &inner, out);
+            true
+        }
+        DEFMACRO if items.len() >= 4 => {
+            walk(&items[0], waku, scope, out);
+            let mut inner = scope.clone();
+            if let Some(n) = symbol_of(&items[1]) {
+                inner.insert(n);
+            }
+            params_of(&items[2], &mut inner);
+            walk_body(&items[3..], waku, &inner, out);
+            true
+        }
+        LAMBDA if items.len() >= 3 => {
+            walk(&items[0], waku, scope, out);
+            let mut inner = scope.clone();
+            params_of(&items[1], &mut inner);
+            walk_body(&items[2..], waku, &inner, out);
+            true
+        }
+        LET if items.len() >= 3 => {
+            walk(&items[0], waku, scope, out);
+            let mut inner = scope.clone();
+            if let Sexp::List(bindings) = &items[1] {
+                for b in bindings {
+                    if let Sexp::List(pair) = b {
+                        // The value is evaluated in the OUTER scope.
+                        for v in pair.iter().skip(1) {
+                            walk(v, waku, scope, out);
+                        }
+                        if let Some(n) = pair.first().and_then(symbol_of) {
+                            inner.insert(n);
+                        }
+                    }
+                }
+            }
+            walk_body(&items[2..], waku, &inner, out);
+            true
+        }
+        // A sequence is one scope, so a `define` inside it binds for the rest.
+        BEGIN if items.len() >= 2 => {
+            walk(&items[0], waku, scope, out);
+            walk_body(&items[1..], waku, scope, out);
+            true
+        }
+        _ => false,
     }
 }
 
@@ -553,18 +737,70 @@ mod tests {
 
     /// Full compute survives the restriction — this is the property that
     /// makes a capability-restricted macro phase usable rather than inert.
+    ///
+    /// **The frame names the OPERATORS and nothing else.** It used to have to
+    /// name `"fact"` and `"n"` as well, because the walk counted a program's
+    /// own function name and its own parameter as references it had to be
+    /// permitted to make. That is what kept this function unusable outside its
+    /// own tests: any real frame would have had to enumerate the program's
+    /// identifiers, which the frame cannot know.
     #[test]
     fn restricted_reach_still_permits_arbitrary_computation() {
-        let w = Waku::macro_phase(["+", "*", "-", "<", "if", "define", "fact", "n"]);
+        let w = Waku::macro_phase(["+", "*", "-", "<", "if", "define"]);
         let src = "def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend";
         let forms = blue_lang_syntax::parse_program(src).expect("parse");
-        for f in &forms {
-            assert!(
-                check_reach(&w, f).is_empty(),
-                "a pure recursive function escaped a restricted frame: {:?}",
-                check_reach(&w, f)
-            );
-        }
+        let escapes = check_reach_program(&w, &forms);
+        assert!(
+            escapes.is_empty(),
+            "a pure recursive function escaped a restricted frame: {escapes:?}"
+        );
+    }
+
+    /// A local binding is in scope for the rest of its sequence.
+    ///
+    /// `c = a + b` lowers to a `define` inside the function's `begin`, so a
+    /// walk that does not treat a sequence as one scope reports `c` as an
+    /// escape at its own use site.
+    #[test]
+    fn a_local_binding_is_not_an_escape() {
+        let w = Waku::macro_phase(["+", "*", "define", "begin"]);
+        let src = "def f(a, b)\n  c = a + b\n  c * 2\nend";
+        let forms = blue_lang_syntax::parse_program(src).expect("parse");
+        let escapes = check_reach_program(&w, &forms);
+        assert!(escapes.is_empty(), "got {escapes:?}");
+    }
+
+    /// A top-level definition is in scope for a LATER top-level form — which
+    /// is only visible to a program-level walk, and is why the gate uses one.
+    #[test]
+    fn a_definition_reaches_a_later_form() {
+        let w = Waku::macro_phase(["define"]);
+        let forms = blue_lang_syntax::parse_program("def g()\n  1\nend\ng()").expect("parse");
+        assert!(
+            check_reach_program(&w, &forms).is_empty(),
+            "got {:?}",
+            check_reach_program(&w, &forms)
+        );
+        // …and checking the forms one at a time cannot see it. Recorded so the
+        // program-level entry point is not "tidier", it is load-bearing.
+        let alone = check_reach(&w, &forms[1]);
+        assert_eq!(alone.len(), 1, "got {alone:?}");
+        assert_eq!(alone[0].name, "g");
+    }
+
+    /// Anti-vacuity for the binder work: scoping must not swallow a name the
+    /// program never bound. `read_file` is free in exactly the same position
+    /// `fact` is bound in, and only one of them escapes.
+    #[test]
+    fn a_free_name_inside_a_binder_still_escapes() {
+        let w = Waku::macro_phase(["+", "<", "if", "define"]);
+        let src = "def f(n)\n  read_file(n)\nend";
+        let forms = blue_lang_syntax::parse_program(src).expect("parse");
+        let names: Vec<String> = check_reach_program(&w, &forms)
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
+        assert_eq!(names, vec!["read_file".to_string()], "got {names:?}");
     }
 
     #[test]

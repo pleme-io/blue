@@ -115,6 +115,40 @@ pub fn interpreter_hostless() -> Interpreter<()> {
     }
 }
 
+/// Lift blue's emitted forms into what the evaluator eats. **The one door.**
+///
+/// `Interpreter::eval_program` takes `&[Spanned]`; blue's stages produce
+/// `Sexp`. Two callers bridged that gap by *printing the tree and reading it
+/// back* — `forms.map(ToString::to_string).join("\n")` into
+/// `tatara_lisp::read_spanned`. Both now call this instead, and the round trip
+/// is gone.
+///
+/// **Why it had to go.** Printing a tree we already hold and re-parsing it puts
+/// the reader's lexer between blue and its own output, for nothing — and the
+/// printer and the reader are **not inverses**. `Atom::Str`'s `Display` escapes
+/// its payload and its own docs explain at length why; the `Atom::Symbol` arm
+/// is a bare `write_str`. So a symbol whose text carries a separator prints as
+/// several tokens and reads back as several symbols: a well-formed tree with a
+/// different meaning, no error raised. Measured 2026-08-02 —
+/// `pipeline::tests::the_round_trip_is_not_the_identity_in_general` pins which
+/// separators are silent and which are loud. The only thing that kept this from
+/// biting was blue happening not to emit those bytes. A stage that never
+/// serialises cannot be mis-read.
+///
+/// **What is given up: spans.** The old path's spans pointed into the
+/// re-printed lisp text, a buffer no human ever wrote and no diagnostic could
+/// usefully cite — they were positions in blue's own output, not in the
+/// author's source. `Span::synthetic` says the same thing honestly. Carrying
+/// real blue-source spans through erasure is a separate piece of work and
+/// would start from `Spanned::from_sexp_at`, not from a printer.
+#[must_use]
+pub fn lower_to_spanned(forms: &[tatara_lisp::Sexp]) -> Vec<tatara_lisp::Spanned> {
+    forms
+        .iter()
+        .map(tatara_lisp::Spanned::from_sexp_synthetic)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -40,7 +40,8 @@ fn stderr(o: &Output) -> String {
     String::from_utf8_lossy(&o.stderr).to_string()
 }
 
-const PROGRAM: &str = "def fact(n: Int) -> Int\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\nfact(6)";
+const PROGRAM: &str =
+    "def fact(n: Int) -> Int\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\nfact(6)";
 
 // ---------------------------------------------------------------------------
 // run
@@ -265,7 +266,10 @@ fn help_lists_every_subcommand() {
     let o = run(&["--help"]);
     assert!(o.status.success());
     let help = stdout(&o);
-    for cmd in ["run", "fmt", "ast", "erase", "check", "test", "deps", "posture", "lsp", "banner", "shift", "morph"] {
+    for cmd in [
+        "run", "fmt", "ast", "erase", "check", "test", "deps", "posture", "lsp", "banner", "shift",
+        "morph",
+    ] {
         assert!(help.contains(cmd), "--help must list `{cmd}`: {help}");
     }
 }
@@ -299,10 +303,7 @@ fn test_runs_a_passing_suite_and_exits_zero() {
 /// everything.
 #[test]
 fn test_exits_non_zero_when_a_test_fails() {
-    let f = write(
-        "test-fail",
-        "test \"wrong\"\n  assert 1 + 1 == 3\nend",
-    );
+    let f = write("test-fail", "test \"wrong\"\n  assert 1 + 1 == 3\nend");
     let o = run(&["test", f.to_str().unwrap()]);
     assert!(!o.status.success(), "a failing suite must fail the process");
     assert!(
@@ -381,7 +382,10 @@ fn posture_reports_the_declared_floor() {
     assert!(o.status.success(), "stderr: {}", stderr(&o));
     let out = stdout(&o);
     assert!(out.contains("Preceding"), "the declared `when`: {out}");
-    assert!(out.contains("unrestricted"), "undeclared reach is the top: {out}");
+    assert!(
+        out.contains("unrestricted"),
+        "undeclared reach is the top: {out}"
+    );
 }
 
 /// A Bluefile with no `package` call fails, rather than defaulting to an
@@ -410,8 +414,14 @@ fn fmt_write_preserves_comments() {
     let o = run(&["fmt", "--write", f.to_str().unwrap()]);
     assert!(o.status.success(), "stderr: {}", stderr(&o));
     let after = std::fs::read_to_string(&f).expect("read back");
-    assert!(after.contains("# keep me"), "the comment must survive: {after:?}");
-    assert!(after.contains("1 + 2"), "and the code must be formatted: {after:?}");
+    assert!(
+        after.contains("# keep me"),
+        "the comment must survive: {after:?}"
+    );
+    assert!(
+        after.contains("1 + 2"),
+        "and the code must be formatted: {after:?}"
+    );
 }
 
 /// And `--check` settles on a commented file. Comparing against the

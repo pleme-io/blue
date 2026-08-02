@@ -228,7 +228,9 @@ fn read_typed_decl(form: &Sexp) -> Option<(String, Sig)> {
     if head != "define-typed" {
         return None;
     }
-    let Sexp::List(sig) = &items[1] else { return None };
+    let Sexp::List(sig) = &items[1] else {
+        return None;
+    };
     let Sexp::Atom(Atom::Symbol(name)) = &sig[0] else {
         return None;
     };
@@ -314,11 +316,7 @@ fn infer(
                     let got = infer(a, env, sigs, out);
                     if !got.accepts(&arg) {
                         out.diagnostics.push(Diagnostic {
-                            message: format!(
-                                "`{head}` expects {}, got {}",
-                                arg.name(),
-                                got.name()
-                            ),
+                            message: format!("`{head}` expects {}, got {}", arg.name(), got.name()),
                         });
                     }
                 }
@@ -444,7 +442,11 @@ mod tests {
     fn an_operator_misuse_inside_a_typed_body_is_reported() {
         let o = check("def f(s: Str) -> Int\n  s + 1\nend");
         assert!(!o.ok());
-        assert!(msgs(&o).iter().any(|m| m.contains("expects Int")), "{:?}", msgs(&o));
+        assert!(
+            msgs(&o).iter().any(|m| m.contains("expects Int")),
+            "{:?}",
+            msgs(&o)
+        );
     }
 
     // ---- the seam discipline ------------------------------------------
@@ -458,7 +460,11 @@ mod tests {
             "def add(a: Int, b: Int) -> Int\n  a + b\nend\n\
              def g() -> Int\n  add(mystery(), 2)\nend",
         );
-        assert!(o.ok(), "a dyn argument must not be an error: {:?}", msgs(&o));
+        assert!(
+            o.ok(),
+            "a dyn argument must not be an error: {:?}",
+            msgs(&o)
+        );
         assert_eq!(o.seams.len(), 1, "expected exactly one seam: {:?}", o.seams);
         assert_eq!(o.seams[0].expected, Ty::Int);
         assert!(o.seams[0].at.contains("argument 1"));
@@ -529,9 +535,7 @@ mod tests {
     /// would pass the seam test by doing nothing.
     #[test]
     fn seams_are_actually_recorded() {
-        let o = check(
-            "def f(a: Int) -> Int\n  a\nend\ndef g() -> Int\n  f(unknown())\nend",
-        );
+        let o = check("def f(a: Int) -> Int\n  a\nend\ndef g() -> Int\n  f(unknown())\nend");
         assert!(!o.seams.is_empty());
     }
 

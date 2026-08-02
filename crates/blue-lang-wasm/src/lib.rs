@@ -164,7 +164,10 @@ mod tests {
     fn zero_is_distinguishable_from_an_error() {
         assert_eq!(decode(eval_tagged("0")), Decoded::Int(0));
         assert_eq!(decode(eval_tagged("no_such_fn()")), Decoded::Error);
-        assert_ne!(decode(eval_tagged("0")), decode(eval_tagged("no_such_fn()")));
+        assert_ne!(
+            decode(eval_tagged("0")),
+            decode(eval_tagged("no_such_fn()"))
+        );
     }
 
     #[test]

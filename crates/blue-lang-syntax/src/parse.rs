@@ -25,7 +25,11 @@ pub struct ParseError {
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} at {}..{}", self.message, self.span.start, self.span.end)
+        write!(
+            f,
+            "{} at {}..{}",
+            self.message, self.span.start, self.span.end
+        )
     }
 }
 
@@ -61,7 +65,11 @@ pub fn parse_program_spanned(src: &str) -> Result<Vec<(Sexp, Span)>, ParseError>
         .into_iter()
         .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
         .collect();
-    let mut p = Parser { toks, pos: 0 };
+    let mut p = Parser {
+        toks,
+        pos: 0,
+        depth: 0,
+    };
     p.program_spanned()
 }
 
@@ -141,8 +149,16 @@ pub struct Infix {
 /// opinion; `|>` (below) sits under everything so `a |> f |> g` chains
 /// without parentheses.
 pub const INFIX: &[Infix] = &[
-    Infix { op: "||", power: (1, 2), callee: "or" },
-    Infix { op: "&&", power: (3, 4), callee: "and" },
+    Infix {
+        op: "||",
+        power: (1, 2),
+        callee: "or",
+    },
+    Infix {
+        op: "&&",
+        power: (3, 4),
+        callee: "and",
+    },
     // `==` is STRUCTURAL equality, so it lowers to `equal?` and not to `=`.
     //
     // tatara's `=` is NUMERIC comparison: `"a" = "a"` is a type error, not
@@ -153,17 +169,61 @@ pub const INFIX: &[Infix] = &[
     //
     // `equal?` is structural and total over the value domain: strings, lists
     // and nil all compare, and numbers still compare as numbers.
-    Infix { op: "==", power: (5, 6), callee: "equal?" },
-    Infix { op: "!=", power: (5, 6), callee: "not=" },
-    Infix { op: "<", power: (5, 6), callee: "<" },
-    Infix { op: "<=", power: (5, 6), callee: "<=" },
-    Infix { op: ">", power: (5, 6), callee: ">" },
-    Infix { op: ">=", power: (5, 6), callee: ">=" },
-    Infix { op: "+", power: (7, 8), callee: "+" },
-    Infix { op: "-", power: (7, 8), callee: "-" },
-    Infix { op: "*", power: (9, 10), callee: "*" },
-    Infix { op: "/", power: (9, 10), callee: "/" },
-    Infix { op: "%", power: (9, 10), callee: "mod" },
+    Infix {
+        op: "==",
+        power: (5, 6),
+        callee: "equal?",
+    },
+    Infix {
+        op: "!=",
+        power: (5, 6),
+        callee: "not=",
+    },
+    Infix {
+        op: "<",
+        power: (5, 6),
+        callee: "<",
+    },
+    Infix {
+        op: "<=",
+        power: (5, 6),
+        callee: "<=",
+    },
+    Infix {
+        op: ">",
+        power: (5, 6),
+        callee: ">",
+    },
+    Infix {
+        op: ">=",
+        power: (5, 6),
+        callee: ">=",
+    },
+    Infix {
+        op: "+",
+        power: (7, 8),
+        callee: "+",
+    },
+    Infix {
+        op: "-",
+        power: (7, 8),
+        callee: "-",
+    },
+    Infix {
+        op: "*",
+        power: (9, 10),
+        callee: "*",
+    },
+    Infix {
+        op: "/",
+        power: (9, 10),
+        callee: "/",
+    },
+    Infix {
+        op: "%",
+        power: (9, 10),
+        callee: "mod",
+    },
 ];
 
 /// Every surface keyword that BEGINS an expression.
@@ -222,7 +282,8 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
 /// A surface keyword may not be rebound. `if = 1` is a mistake, not a binding,
 /// and letting it through would shadow the form for the rest of the file.
 fn is_reserved_word(name: &str) -> bool {
-    SURFACE_KEYWORDS.contains(&name) || matches!(name, "do" | "end" | "else" | "true" | "false" | "nil")
+    SURFACE_KEYWORDS.contains(&name)
+        || matches!(name, "do" | "end" | "else" | "true" | "false" | "nil")
 }
 
 fn infix(op: &str) -> Option<&'static Infix> {
@@ -234,7 +295,23 @@ const PIPE_POWER: (u8, u8) = (0, 1);
 struct Parser {
     toks: Vec<Token>,
     pos: usize,
+    /// Current expression-nesting depth, bounded by [`MAX_EXPR_DEPTH`].
+    ///
+    /// Without this the parser does not fail on deep input — it **aborts the
+    /// process** with a stack overflow (SIGABRT), which `catch_unwind` cannot
+    /// catch. Measured 2026-08-01: `"(".repeat(2_000)` killed the test runner
+    /// outright. Every consumer inherited it — an LSP parsing a half-typed
+    /// line, a formatter, and shikumi loading a `.b` config off disk.
+    depth: usize,
 }
+
+/// Maximum expression nesting before the parser refuses.
+///
+/// Chosen well above anything human-written (blue's own `spec/*.b` peaks in
+/// single digits) and far below the measured overflow point, so the bound is
+/// hit as a typed `Err` long before the stack is at risk. A limit that is
+/// merely *near* the crash point is not a safety bound; it is a race.
+pub const MAX_EXPR_DEPTH: usize = 256;
 
 impl Parser {
     fn peek(&self) -> &TokenKind {
@@ -348,6 +425,28 @@ impl Parser {
 
     /// Pratt loop.
     fn expr(&mut self, min_bp: u8) -> Result<Sexp, ParseError> {
+        // Depth guard at the single recursion cycle (`expr` -> `prefix` ->
+        // `expr`). Returning an Err here converts an UNRECOVERABLE abort into
+        // an ordinary parse failure a caller can render — the difference
+        // between an LSP showing a squiggle and an LSP being gone.
+        //
+        // The decrement is deliberately not RAII: every exit from this
+        // function is via `?` or a normal return, and both are covered by the
+        // explicit decrements below. A guard object would be tidier but would
+        // also hide the invariant this comment is here to state.
+        if self.depth >= MAX_EXPR_DEPTH {
+            return Err(self.error(format!(
+                "expression nests deeper than {MAX_EXPR_DEPTH}; refusing to \
+                 recurse further (this is a limit, not a syntax error)"
+            )));
+        }
+        self.depth += 1;
+        let r = self.expr_inner(min_bp);
+        self.depth -= 1;
+        r
+    }
+
+    fn expr_inner(&mut self, min_bp: u8) -> Result<Sexp, ParseError> {
         let mut lhs = self.prefix()?;
 
         loop {
@@ -679,11 +778,7 @@ impl Parser {
             let pattern = self.expr(0)?;
             let body = self.body(&["when", "else", "end"])?;
             arms.push(Sexp::List(vec![
-                Sexp::List(vec![
-                    sym("equal?"),
-                    sym(subject_var),
-                    pattern,
-                ]),
+                Sexp::List(vec![sym("equal?"), sym(subject_var), pattern]),
                 body,
             ]));
         }
@@ -732,8 +827,9 @@ impl Parser {
                     match self.bump() {
                         TokenKind::Ident(p) => params.push(p),
                         other => {
-                            return Err(self
-                                .error(format!("expected a parameter name, found {other:?}")))
+                            return Err(
+                                self.error(format!("expected a parameter name, found {other:?}"))
+                            )
                         }
                     }
                     self.skip_newlines();
@@ -821,9 +917,7 @@ impl Parser {
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
             other => {
-                return Err(self.error(format!(
-                    "expected a name after `defmacro`, found {other:?}"
-                )))
+                return Err(self.error(format!("expected a name after `defmacro`, found {other:?}")))
             }
         };
         let mut params: Vec<String> = Vec::new();
@@ -842,8 +936,9 @@ impl Parser {
                             )))
                         }
                         other => {
-                            return Err(self
-                                .error(format!("expected a parameter name, found {other:?}")))
+                            return Err(
+                                self.error(format!("expected a parameter name, found {other:?}"))
+                            )
                         }
                     }
                     self.skip_newlines();
@@ -910,7 +1005,9 @@ impl Parser {
     fn def_form(&mut self) -> Result<Sexp, ParseError> {
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
-            other => return Err(self.error(format!("expected a name after `def`, found {other:?}"))),
+            other => {
+                return Err(self.error(format!("expected a name after `def`, found {other:?}")))
+            }
         };
         let mut params: Vec<(String, Option<Sexp>)> = Vec::new();
         if self.at(&TokenKind::LParen) {
@@ -929,9 +1026,9 @@ impl Parser {
                             params.push((p, Some(ty)));
                         }
                         other => {
-                            return Err(self.error(format!(
-                                "expected a parameter name, found {other:?}"
-                            )))
+                            return Err(
+                                self.error(format!("expected a parameter name, found {other:?}"))
+                            )
                         }
                     }
                     self.skip_newlines();
@@ -1054,7 +1151,9 @@ mod tests {
     /// quoted form as a string. This is `Display`, which tatara-lisp owns —
     /// blue does not build Lisp syntax by concatenation.
     fn q(src: &str) -> String {
-        parse_expr(src).map(|s| s.to_string()).unwrap_or_else(|e| panic!("{src:?}: {e}"))
+        parse_expr(src)
+            .map(|s| s.to_string())
+            .unwrap_or_else(|e| panic!("{src:?}: {e}"))
     }
 
     // ---- the thesis: Ruby-shaped source becomes tatara-lisp ----------

@@ -116,7 +116,11 @@ pub struct LexError {
 
 impl fmt::Display for LexError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} at {}..{}", self.message, self.span.start, self.span.end)
+        write!(
+            f,
+            "{} at {}..{}",
+            self.message, self.span.start, self.span.end
+        )
     }
 }
 
@@ -208,10 +212,7 @@ impl<'a> Lexer<'a> {
                 c if OP_CHARS.as_bytes().contains(&c) => self.lex_op(start),
                 _ => {
                     self.pos += 1;
-                    return Err(self.err(
-                        format!("unexpected character {:?}", c as char),
-                        start,
-                    ));
+                    return Err(self.err(format!("unexpected character {:?}", c as char), start));
                 }
             }
         }
@@ -310,20 +311,16 @@ impl<'a> Lexer<'a> {
                             // different character is how a codepoint typo
                             // becomes a rendering mystery.
                             let ch = char::from_u32(code).ok_or_else(|| {
-                                self.err(
-                                    format!("`{hex}` is not a Unicode scalar value"),
-                                    start,
-                                )
+                                self.err(format!("`{hex}` is not a Unicode scalar value"), start)
                             })?;
                             buf.push(ch);
                             self.pos += 1; // past '}'
                             continue;
                         }
                         other => {
-                            return Err(self.err(
-                                format!("unknown escape \\{}", other as char),
-                                start,
-                            ))
+                            return Err(
+                                self.err(format!("unknown escape \\{}", other as char), start)
+                            )
                         }
                     };
                     buf.push(ch);
@@ -355,15 +352,17 @@ impl<'a> Lexer<'a> {
         // A `.` is a decimal point only when a digit follows; otherwise it
         // is the method-call dot and belongs to the next token. This is why
         // `1.foo` sends `foo` to `1` rather than failing to lex.
-        let is_float = self.peek() == Some(b'.')
-            && matches!(self.peek_at(1), Some(b'0'..=b'9'));
+        let is_float = self.peek() == Some(b'.') && matches!(self.peek_at(1), Some(b'0'..=b'9'));
         if is_float {
             self.pos += 1;
             while matches!(self.peek(), Some(b'0'..=b'9' | b'_')) {
                 self.pos += 1;
             }
         }
-        let text: String = self.src[start..self.pos].chars().filter(|c| *c != '_').collect();
+        let text: String = self.src[start..self.pos]
+            .chars()
+            .filter(|c| *c != '_')
+            .collect();
         if is_float {
             let v: f64 = text
                 .parse()
@@ -458,22 +457,28 @@ mod tests {
 
     #[test]
     fn lexes_integers_and_floats() {
-        assert_eq!(kinds("1 2.5 1_000"), vec![
-            TokenKind::Int(1),
-            TokenKind::Float(2.5),
-            TokenKind::Int(1000),
-        ]);
+        assert_eq!(
+            kinds("1 2.5 1_000"),
+            vec![
+                TokenKind::Int(1),
+                TokenKind::Float(2.5),
+                TokenKind::Int(1000),
+            ]
+        );
     }
 
     /// `1.foo` is a send, not a malformed float. The decimal point is a
     /// decimal point only when a digit follows it.
     #[test]
     fn a_dot_after_a_digit_is_a_send_unless_a_digit_follows() {
-        assert_eq!(kinds("1.foo"), vec![
-            TokenKind::Int(1),
-            TokenKind::Dot,
-            TokenKind::Ident("foo".into()),
-        ]);
+        assert_eq!(
+            kinds("1.foo"),
+            vec![
+                TokenKind::Int(1),
+                TokenKind::Dot,
+                TokenKind::Ident("foo".into()),
+            ]
+        );
     }
 
     #[test]
@@ -484,10 +489,13 @@ mod tests {
 
     #[test]
     fn ruby_predicate_and_bang_suffixes_are_part_of_the_name() {
-        assert_eq!(kinds("empty? save!"), vec![
-            TokenKind::Ident("empty?".into()),
-            TokenKind::Ident("save!".into()),
-        ]);
+        assert_eq!(
+            kinds("empty? save!"),
+            vec![
+                TokenKind::Ident("empty?".into()),
+                TokenKind::Ident("save!".into()),
+            ]
+        );
     }
 
     #[test]
@@ -508,7 +516,8 @@ mod tests {
     fn comments_and_newlines_are_emitted_as_trivia() {
         let toks = lex("1 # hi\n2").expect("lex");
         assert!(
-            toks.iter().any(|t| matches!(&t.kind, TokenKind::Comment(c) if c == "# hi")),
+            toks.iter()
+                .any(|t| matches!(&t.kind, TokenKind::Comment(c) if c == "# hi")),
             "comment was dropped: {toks:?}"
         );
         assert!(

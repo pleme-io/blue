@@ -176,8 +176,13 @@ fn every_infix_operator_lowers_to_a_callee_the_interpreter_resolves() {
 #[test]
 fn the_operator_table_is_populated_and_actually_renames_where_needed() {
     let ops: Vec<&str> = blue_lang_syntax::INFIX.iter().map(|i| i.op).collect();
-    for expected in ["==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%", "&&", "||"] {
-        assert!(ops.contains(&expected), "operator {expected} is missing from INFIX");
+    for expected in [
+        "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%", "&&", "||",
+    ] {
+        assert!(
+            ops.contains(&expected),
+            "operator {expected} is missing from INFIX"
+        );
     }
     let renamed: Vec<(&str, &str)> = blue_lang_syntax::INFIX
         .iter()
@@ -230,7 +235,13 @@ fn unicode_escapes_produce_the_right_scalar() {
 /// substituted character turns a typo into a rendering mystery.
 #[test]
 fn a_bad_unicode_escape_is_rejected() {
-    for bad in [r#""\u{D800}""#, r#""\u{110000}""#, r#""\u{zz}""#, r#""\u41""#, r#""\u{41""#] {
+    for bad in [
+        r#""\u{D800}""#,
+        r#""\u{110000}""#,
+        r#""\u{zz}""#,
+        r#""\u41""#,
+        r#""\u{41""#,
+    ] {
         assert!(
             blue_lang_syntax::parse_program(bad).is_err(),
             "{bad} must be rejected rather than substituted"
@@ -317,7 +328,10 @@ fn a_bare_hash_in_a_string_is_literal() {
 /// the offending source so the author can find it inside a long string.
 #[test]
 fn a_malformed_interpolation_is_rejected() {
-    assert!(blue_lang_syntax::parse_program(r##""a#{x""##).is_err(), "unterminated");
+    assert!(
+        blue_lang_syntax::parse_program(r##""a#{x""##).is_err(),
+        "unterminated"
+    );
     let err = blue_lang_syntax::parse_program(r##""a#{+}b""##).expect_err("bad expr");
     assert!(
         err.message.contains("interpolation"),

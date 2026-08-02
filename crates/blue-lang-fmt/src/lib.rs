@@ -74,9 +74,15 @@ would lose the only part of a program a machine cannot reconstruct."
 /// *inside* a form is refused rather than dropped — see
 /// [`FormatError::UnplaceableComments`].
 ///
-/// This is what `blue fmt --write` uses. [`format_source`] remains the plain
-/// tree rendering for callers where nothing is being overwritten — the
-/// round-trip laws, the LSP's formatting reply.
+/// **This is what every caller that shows a user their own file uses** —
+/// `blue fmt --write` and the LSP's `textDocument/formatting` reply alike.
+/// [`format_source`] remains the plain tree rendering, and its only honest
+/// callers are the ones comparing trees: the round-trip laws.
+///
+/// The distinction is not stylistic. The LSP used to reply with
+/// [`format_forms`], so formatting `spec/bindings.b` in an editor returned 707
+/// bytes for 1010 and deleted all six comments. Two doors to the formatter,
+/// one of them fixed. If you are adding a third, it comes through here.
 pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
     let spanned = blue_lang_syntax::parse_program_spanned(src)?;
     let comments = blue_lang_syntax::comments(src);
@@ -157,7 +163,11 @@ pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
 
 /// 1-based line number of a byte offset, for error messages.
 fn line_of(src: &str, offset: usize) -> usize {
-    src[..offset.min(src.len())].bytes().filter(|b| *b == b'\n').count() + 1
+    src[..offset.min(src.len())]
+        .bytes()
+        .filter(|b| *b == b'\n')
+        .count()
+        + 1
 }
 
 fn same_line(src: &str, a: usize, b: usize) -> bool {
@@ -191,12 +201,6 @@ pub fn format_forms(forms: &[Sexp]) -> String {
         out.push('\n');
     }
     out
-}
-
-/// Is this s-expression a call to `head`?
-fn is_call(s: &Sexp, head: &str) -> bool {
-    matches!(s, Sexp::List(items)
-        if matches!(items.first(), Some(Sexp::Atom(Atom::Symbol(h))) if h == head))
 }
 
 fn sym_name(s: &Sexp) -> Option<&str> {
@@ -273,8 +277,7 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 // law has coexisted with unreadable output; the tree is not the
                 // thing being checked here.
                 Some("define")
-                    if items.len() == 3
-                        && matches!(&items[1], Sexp::Atom(Atom::Symbol(_))) =>
+                    if items.len() == 3 && matches!(&items[1], Sexp::Atom(Atom::Symbol(_))) =>
                 {
                     return Doc::text(sym_name(&items[1]).unwrap_or("_").to_string())
                         .concat(Doc::text(" = "))
@@ -282,8 +285,7 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 }
                 // (deftest "name" body)
                 Some("deftest")
-                    if items.len() == 3
-                        && matches!(&items[1], Sexp::Atom(Atom::Str(_))) =>
+                    if items.len() == 3 && matches!(&items[1], Sexp::Atom(Atom::Str(_))) =>
                 {
                     return test_form(items)
                 }
@@ -313,9 +315,7 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                     // stays a call.
                 }
                 // (lambda (params) body)
-                Some("lambda")
-                    if items.len() == 3 && matches!(&items[1], Sexp::List(_)) =>
-                {
+                Some("lambda") if items.len() == 3 && matches!(&items[1], Sexp::List(_)) => {
                     return lambda_form(items)
                 }
                 // (defmacro name (params) body)
@@ -324,9 +324,7 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 // symbol at index 1 and the params are a list at index 2,
                 // because that is tatara-lisp's own `defmacro` shape and blue
                 // registers into the SAME expander rather than a parallel one.
-                Some("defmacro")
-                    if items.len() == 4 && matches!(&items[2], Sexp::List(_)) =>
-                {
+                Some("defmacro") if items.len() == 4 && matches!(&items[2], Sexp::List(_)) => {
                     return defmacro_form(items)
                 }
                 // (define-typed (name (p T)...) R body) — the annotated def.
@@ -334,16 +332,12 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
                 // formatter cannot print is a tree the round-trip law cannot
                 // hold for: an annotated def previously printed as a method
                 // send and did not re-parse at all.
-                Some("define-typed")
-                    if items.len() == 4 && matches!(&items[1], Sexp::List(_)) =>
-                {
+                Some("define-typed") if items.len() == 4 && matches!(&items[1], Sexp::List(_)) => {
                     return typed_def_form(items)
                 }
                 Some("begin") => return begin_form(&items[1..]),
                 Some("list") => return seq("[", "]", &items[1..]),
-                Some(n) if n == blue_lang_syntax::LOWERED_MAP => {
-                    return map_form(&items[1..])
-                }
+                Some(n) if n == blue_lang_syntax::LOWERED_MAP => return map_form(&items[1..]),
                 Some("not") if items.len() == 2 => {
                     return Doc::text("!").concat(expr_prec(&items[1], 11))
                 }
@@ -407,22 +401,11 @@ fn expr_prec(s: &Sexp, min_prec: u8) -> Doc {
             let callee = expr_prec(&items[0], 12);
             callee.concat(seq("(", ")", &items[1..]))
         }
-
-        // Quoting has no blue surface yet; render the tatara-lisp form so
-        // output is never silently wrong.
-        other => Doc::text(other.to_string()),
     }
 }
 
 fn is_zero(s: &Sexp) -> bool {
     matches!(s, Sexp::Atom(Atom::Int(0)))
-}
-
-fn is_reserved(name: &str) -> bool {
-    matches!(
-        name,
-        "if" | "define" | "begin" | "list" | "hash-map" | "not" | "quote" | "lambda" | "let"
-    )
 }
 
 fn atom(a: &Atom) -> Doc {
@@ -433,7 +416,6 @@ fn atom(a: &Atom) -> Doc {
         Atom::Int(i) => Doc::text(i.to_string()),
         Atom::Float(f) => Doc::text(render_float(*f)),
         Atom::Bool(b) => Doc::text(if *b { "true" } else { "false" }),
-        other => Doc::text(format!("{other:?}")),
     }
 }
 
@@ -492,11 +474,8 @@ fn map_form(kvs: &[Sexp]) -> Doc {
     let mut pairs = Vec::new();
     for pair in kvs.chunks(2) {
         let d = match pair {
-            [Sexp::Atom(Atom::Keyword(k)), v] => Doc::text(format!("{k}: "))
-                .concat(expr(v)),
-            [k, v] => expr(k)
-                .concat(Doc::text(" => "))
-                .concat(expr(v)),
+            [Sexp::Atom(Atom::Keyword(k)), v] => Doc::text(format!("{k}: ")).concat(expr(v)),
+            [k, v] => expr(k).concat(Doc::text(" => ")).concat(expr(v)),
             // Odd trailing key — render it rather than silently dropping.
             [k] => expr(k),
             _ => Doc::nil(),
@@ -517,9 +496,7 @@ fn if_form(items: &[Sexp]) -> Doc {
         .concat(Doc::text("\n"))
         .concat(indent_block(&items[2]));
     if let Some(els) = items.get(3) {
-        d = d
-            .concat(Doc::text("\nelse\n"))
-            .concat(indent_block(els));
+        d = d.concat(Doc::text("\nelse\n")).concat(indent_block(els));
     }
     d.concat(Doc::text("\nend"))
 }
@@ -806,7 +783,13 @@ fn indent_block(body: &Sexp) -> Doc {
     let rendered = pretty(&expr(body), WIDTH.saturating_sub(2));
     let indented = rendered
         .lines()
-        .map(|l| if l.is_empty() { String::new() } else { format!("  {l}") })
+        .map(|l| {
+            if l.is_empty() {
+                String::new()
+            } else {
+                format!("  {l}")
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n");
     Doc::text(indented)

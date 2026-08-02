@@ -27,6 +27,8 @@ pub mod analysis;
 pub mod server;
 pub mod shift;
 
-pub use analysis::{analyse, hover, Analysis, Declaration, Diagnostic, LineIndex, Position, Range, Severity};
+pub use analysis::{
+    analyse, hover, Analysis, Declaration, Diagnostic, LineIndex, Position, Range, Severity,
+};
 pub use server::{handle, Response, Server};
 pub use shift::{shift_of, Factor, FactorKind, Rung, Shift};

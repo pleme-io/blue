@@ -117,7 +117,9 @@ fn spec_discovery_finds_the_files() {
         files.len()
     );
     assert!(
-        files.iter().all(|p| p.extension().is_some_and(|e| e == "b")),
+        files
+            .iter()
+            .all(|p| p.extension().is_some_and(|e| e == "b")),
         "discovery must find `.b` files"
     );
 }
@@ -170,4 +172,3 @@ fn no_spec_file_loses_a_comment() {
         );
     }
 }
-

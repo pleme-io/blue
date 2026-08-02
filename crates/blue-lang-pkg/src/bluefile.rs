@@ -33,7 +33,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use blue_lang_waku::{When, Waku};
+use blue_lang_waku::{Waku, When};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{Interpreter, Value};
 
@@ -79,8 +79,8 @@ type Shared = Arc<Mutex<Collected>>;
 
 /// Read a Bluefile from blue source.
 pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
-    let forms = blue_lang_syntax::parse_program(src)
-        .map_err(|e| BluefileError::Parse(e.to_string()))?;
+    let forms =
+        blue_lang_syntax::parse_program(src).map_err(|e| BluefileError::Parse(e.to_string()))?;
     let collected: Shared = Arc::new(Mutex::new(Collected::default()));
 
     let mut interp = blue_lang_runtime::interpreter_hostless();

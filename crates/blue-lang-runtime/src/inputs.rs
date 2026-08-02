@@ -58,7 +58,9 @@ pub const HASH_PREFIX: &str = "b3:";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum InputError {
-    #[error("input `{name}`: expected hash `{expected}`, but the supplied bytes hash to `{actual}`")]
+    #[error(
+        "input `{name}`: expected hash `{expected}`, but the supplied bytes hash to `{actual}`"
+    )]
     HashMismatch {
         name: String,
         expected: String,
@@ -258,7 +260,10 @@ mod tests {
     fn bytes_that_do_not_match_the_declared_hash_are_refused() {
         let mut i = Inputs::new();
         let err = i
-            .bind(&decl("schema", &Inputs::hash_of(BYTES)), b"tampered".to_vec())
+            .bind(
+                &decl("schema", &Inputs::hash_of(BYTES)),
+                b"tampered".to_vec(),
+            )
             .expect_err("must refuse");
         assert!(matches!(err, InputError::HashMismatch { .. }), "{err}");
         assert_eq!(i.get("schema"), None, "and nothing may be bound");
@@ -287,7 +292,9 @@ mod tests {
     fn a_hash_without_the_algorithm_prefix_is_refused() {
         let mut i = Inputs::new();
         let bare = blake3::hash(BYTES).to_hex().to_string();
-        let err = i.bind(&decl("schema", &bare), BYTES.to_vec()).expect_err("refuse");
+        let err = i
+            .bind(&decl("schema", &bare), BYTES.to_vec())
+            .expect_err("refuse");
         assert!(matches!(err, InputError::UnknownAlgorithm { .. }), "{err}");
     }
 

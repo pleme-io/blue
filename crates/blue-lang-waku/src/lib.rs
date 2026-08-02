@@ -88,9 +88,7 @@ impl Reach {
     pub fn meet(&self, other: &Reach) -> Reach {
         match (self, other) {
             (Reach::Unrestricted, o) | (o, Reach::Unrestricted) => o.clone(),
-            (Reach::Only(a), Reach::Only(b)) => {
-                Reach::Only(a.intersection(b).cloned().collect())
-            }
+            (Reach::Only(a), Reach::Only(b)) => Reach::Only(a.intersection(b).cloned().collect()),
         }
     }
 
@@ -130,11 +128,19 @@ pub enum When {
 
 impl When {
     pub fn meet(self, other: When) -> When {
-        if self <= other { self } else { other }
+        if self <= other {
+            self
+        } else {
+            other
+        }
     }
 
     pub fn join(self, other: When) -> When {
-        if self >= other { self } else { other }
+        if self >= other {
+            self
+        } else {
+            other
+        }
     }
 
     /// Does this schedule keep the evaluator in the artifact?
@@ -163,11 +169,19 @@ pub enum Where {
 
 impl Where {
     pub fn meet(self, other: Where) -> Where {
-        if self <= other { self } else { other }
+        if self <= other {
+            self
+        } else {
+            other
+        }
     }
 
     pub fn join(self, other: Where) -> Where {
-        if self >= other { self } else { other }
+        if self >= other {
+            self
+        } else {
+            other
+        }
     }
 }
 
@@ -377,7 +391,10 @@ mod tests {
                 assert!(m.leq(&b), "meet not below b: {m:?} vs {b:?}");
                 for c in frames() {
                     if c.leq(&a) && c.leq(&b) {
-                        assert!(c.leq(&m), "{c:?} is below both but not below the meet {m:?}");
+                        assert!(
+                            c.leq(&m),
+                            "{c:?} is below both but not below the meet {m:?}"
+                        );
                     }
                 }
             }
@@ -393,7 +410,10 @@ mod tests {
                 assert!(b.leq(&j), "join not above b: {b:?} vs {j:?}");
                 for c in frames() {
                     if a.leq(&c) && b.leq(&c) {
-                        assert!(j.leq(&c), "{c:?} is above both but not above the join {j:?}");
+                        assert!(
+                            j.leq(&c),
+                            "{c:?} is above both but not above the join {j:?}"
+                        );
                     }
                 }
             }
@@ -469,7 +489,10 @@ mod tests {
         let a = Waku::top();
         let b = Waku::macro_phase(["+"]);
         assert_ne!(a.narrow(&b), a, "narrow was a no-op on the top frame");
-        assert!(!a.leq(&a.narrow(&b)), "the narrowed frame should be strictly below top");
+        assert!(
+            !a.leq(&a.narrow(&b)),
+            "the narrowed frame should be strictly below top"
+        );
     }
 
     // ---- the quantized coordinate --------------------------------------
@@ -514,7 +537,9 @@ mod tests {
         let escapes = check_reach(&w, &parse("read_file(1)"));
         assert_eq!(
             escapes,
-            vec![Escape { name: "read_file".into() }],
+            vec![Escape {
+                name: "read_file".into()
+            }],
             "the IO name should have escaped the frame"
         );
     }

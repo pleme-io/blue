@@ -246,7 +246,11 @@ pub fn exclusive_pairs() -> Vec<(Quality, Quality)> {
 #[must_use]
 pub fn forfeits_at(w: &Waku) -> BTreeSet<Quality> {
     let have = qualities_at(w);
-    Quality::ALL.iter().copied().filter(|q| !have.contains(q)).collect()
+    Quality::ALL
+        .iter()
+        .copied()
+        .filter(|q| !have.contains(q))
+        .collect()
 }
 
 #[cfg(test)]

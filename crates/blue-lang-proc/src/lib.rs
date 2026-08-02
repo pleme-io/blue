@@ -239,23 +239,66 @@ pub enum Strategy {
 /// behaviour rather than infer it from final state.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
-    Exited { pid: Pid, reason: ExitReason },
-    Restarted { pid: Pid },
+    Exited {
+        pid: Pid,
+        reason: ExitReason,
+    },
+    Restarted {
+        pid: Pid,
+    },
     /// Restart intensity exceeded: the supervisor gave up rather than
     /// restarting in a tight loop forever.
-    GaveUp { pid: Pid, restarts: usize },
+    GaveUp {
+        pid: Pid,
+        restarts: usize,
+    },
     /// A process parked waiting for a message.
-    Blocked { pid: Pid },
+    Blocked {
+        pid: Pid,
+    },
     /// A parked process was woken by an arriving message.
-    Woke { pid: Pid },
+    Woke {
+        pid: Pid,
+    },
     /// Every remaining process is parked and nothing is pending, so no
     /// message can ever arrive. Reported rather than spun on, because a
     /// deadlocked switch that *looks* busy is far worse than one that says
     /// which processes are stuck.
-    Deadlocked { blocked: Vec<Pid> },
+    Deadlocked {
+        blocked: Vec<Pid>,
+    },
 }
 
 /// A supervisor over an ordered set of children.
+/// A [`Supervisor::spawn`] factory that forks one prototype instead of
+/// rebuilding the standard library per process and per restart.
+///
+/// The isolation guarantee is unchanged, and that is why this is a fork rather
+/// than a shared interpreter. Each child gets a private writable frame, so its
+/// `define`s are invisible to every sibling; the inherited frames sit below its
+/// write floor, so a `set!` reaching one raises `SetSealed` rather than
+/// mutating state a sibling can observe; and a restart is a *new* fork, so the
+/// incarnation that died leaves nothing behind.
+///
+/// ```ignore
+/// let prototype = Arc::new(blue_lang_runtime::interpreter(&mut System::new()));
+/// let pid = sup.spawn(chunk, budget, forking(&prototype));
+/// ```
+///
+/// Build the prototype, install everything on it, *then* fork. A `define` the
+/// prototype runs after a child forks is visible to that child — the frames are
+/// shared, which is the whole point.
+#[must_use]
+pub fn forking<H: 'static>(
+    prototype: &Arc<Interpreter<H>>,
+) -> impl Fn() -> Interpreter<H> + Send + Sync + 'static
+where
+    Interpreter<H>: Send + Sync,
+{
+    let prototype = Arc::clone(prototype);
+    move || prototype.fork()
+}
+
 pub struct Supervisor<H> {
     procs: Vec<Proc<H>>,
     strategy: Strategy,
@@ -290,13 +333,22 @@ impl<H: 'static> Supervisor<H> {
     /// must produce a *fresh* environment: handing over one pre-built
     /// interpreter would mean a crashed process restarts into the globals that
     /// killed it.
+    ///
+    /// **Prefer [`forking`] to a closure that builds from scratch.** A factory
+    /// calling `interpreter_hostless()` evaluates the whole Lisp standard
+    /// library on every spawn *and every restart* — ~945µs each, for an
+    /// identical result — and a supervision tree under a crash loop pays it
+    /// repeatedly. `forking` gives the same guarantee (a restart gets a clean
+    /// private frame, and cannot write the prototype's globals) for ~29µs.
+    #[allow(clippy::doc_markdown)]
     pub fn spawn<F>(&mut self, chunk: Arc<Chunk>, budget: Budget, build: F) -> Pid
     where
         F: Fn() -> Interpreter<H> + Send + Sync + 'static,
     {
         let pid = Pid(self.next_pid);
         self.next_pid += 1;
-        self.procs.push(Proc::new(pid, chunk, budget, Arc::new(build)));
+        self.procs
+            .push(Proc::new(pid, chunk, budget, Arc::new(build)));
         self.interpreters_built += 1;
         pid
     }
@@ -496,7 +548,11 @@ mod tests {
 
     fn blue(src: &str) -> Arc<Chunk> {
         let forms = blue_lang_syntax::parse_program(src).expect("parse blue");
-        let text = forms.iter().map(|f| f.to_string()).collect::<Vec<_>>().join("\n");
+        let text = forms
+            .iter()
+            .map(|f| f.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
         compile(&text)
     }
 
@@ -519,22 +575,32 @@ mod tests {
     fn a_runaway_is_contained_and_restarted() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 3);
         let spin = compile("(define (spin n) (spin (+ n 1))) (spin 0)");
-        let pid = sup.spawn(spin, Budget {
+        let pid = sup.spawn(
+            spin,
+            Budget {
                 fuel: Some(2_000),
                 max_depth: None,
                 quantum: Some(200),
-            }, build);
+            },
+            build,
+        );
         sup.run_to_quiescence(&mut (), 200);
 
         assert!(
-            sup.events
-                .iter()
-                .any(|e| matches!(e, Event::Exited { reason: ExitReason::Runaway(_), .. })),
+            sup.events.iter().any(|e| matches!(
+                e,
+                Event::Exited {
+                    reason: ExitReason::Runaway(_),
+                    ..
+                }
+            )),
             "the runaway must exit with a Runaway reason: {:?}",
             sup.events
         );
         assert!(
-            sup.events.iter().any(|e| matches!(e, Event::Restarted { .. })),
+            sup.events
+                .iter()
+                .any(|e| matches!(e, Event::Restarted { .. })),
             "the supervisor must have restarted it"
         );
         assert!(sup.restarts_of(pid).unwrap() > 0);
@@ -547,11 +613,15 @@ mod tests {
     fn restart_intensity_stops_an_unfixable_child() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 2);
         let spin = compile("(define (spin n) (spin (+ n 1))) (spin 0)");
-        sup.spawn(spin, Budget {
+        sup.spawn(
+            spin,
+            Budget {
                 fuel: Some(500),
                 max_depth: None,
                 quantum: Some(100),
-            }, build);
+            },
+            build,
+        );
         sup.run_to_quiescence(&mut (), 500);
 
         assert!(
@@ -571,7 +641,11 @@ mod tests {
         sup.run_to_quiescence(&mut (), 100);
 
         assert_eq!(sup.state_of(pid).and_then(ProcState::done_int), Some(3));
-        assert_eq!(sup.restarts_of(pid), Some(0), "a healthy child must not restart");
+        assert_eq!(
+            sup.restarts_of(pid),
+            Some(0),
+            "a healthy child must not restart"
+        );
     }
 
     /// Round-robin fairness at the supervisor level: a long child must not
@@ -579,9 +653,13 @@ mod tests {
     #[test]
     fn a_long_child_does_not_starve_a_short_one() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 3);
-        let long = sup.spawn(blue("def loop(n)\n  if n == 0\n    1\n  else\n    loop(n - 1)\n  end\nend\nloop(400)"), preemptive(20), build);
+        let long = sup.spawn(
+            blue("def loop(n)\n  if n == 0\n    1\n  else\n    loop(n - 1)\n  end\nend\nloop(400)"),
+            preemptive(20),
+            build,
+        );
         let short = sup.spawn(blue("2 + 3"), preemptive(20), build);
-        
+
         // One round is enough for the SHORT child; the long one is still going.
         sup.round(&mut ());
         assert_eq!(sup.state_of(short).and_then(ProcState::done_int), Some(5));
@@ -633,8 +711,16 @@ mod tests {
         sup.round(&mut ());
 
         assert_eq!(sup.restarts_of(a), Some(1));
-        assert_eq!(sup.restarts_of(b), Some(1), "one_for_all must restart siblings");
-        assert_eq!(sup.restarts_of(c), Some(1), "one_for_all must restart siblings");
+        assert_eq!(
+            sup.restarts_of(b),
+            Some(1),
+            "one_for_all must restart siblings"
+        );
+        assert_eq!(
+            sup.restarts_of(c),
+            Some(1),
+            "one_for_all must restart siblings"
+        );
     }
 
     /// `rest_for_one` restarts the exited child and everything declared
@@ -648,7 +734,11 @@ mod tests {
         let after = sup.spawn(blue("2"), preemptive(50), build);
         sup.round(&mut ());
 
-        assert_eq!(sup.restarts_of(before), Some(0), "a predecessor must not restart");
+        assert_eq!(
+            sup.restarts_of(before),
+            Some(0),
+            "a predecessor must not restart"
+        );
         assert_eq!(sup.restarts_of(bad), Some(1));
         assert_eq!(sup.restarts_of(after), Some(1), "a successor must restart");
     }
@@ -666,7 +756,9 @@ mod tests {
         sup.run_to_quiescence(&mut (), 100);
 
         assert!(
-            !sup.events.iter().any(|e| matches!(e, Event::Restarted { .. })),
+            !sup.events
+                .iter()
+                .any(|e| matches!(e, Event::Restarted { .. })),
             "a normal exit must not trigger one_for_all: {:?}",
             sup.events
         );
@@ -695,7 +787,13 @@ mod tests {
     #[test]
     fn blue_source_runs_under_supervision() {
         let mut sup = Supervisor::new(Strategy::OneForOne, 3);
-        let pid = sup.spawn(blue("def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\nfact(6)"), preemptive(30), build);
+        let pid = sup.spawn(
+            blue(
+                "def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\nfact(6)",
+            ),
+            preemptive(30),
+            build,
+        );
         sup.run_to_quiescence(&mut (), 1000);
         assert_eq!(sup.state_of(pid).and_then(ProcState::done_int), Some(720));
     }

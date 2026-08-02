@@ -109,6 +109,25 @@ Each of these is a defect that shipped, not a style preference.
   `concat(concat("a", x), "")`; both re-parse to the same tree, so all three
   laws passed while `fmt --write` silently rewrote real files. **Ship the
   formatter arm WITH the surface form, and read the output.**
+- **Isolation is the SEAL, not the rebuild.** The test runner and the process
+  supervisor both threw an interpreter away per child to get isolation, at
+  ~945µs each — essentially the entire cost of running a test, spent
+  re-evaluating the stdlib to reach an identical state. `Interpreter::fork`
+  shares the evaluated globals and seals them: a child's `define`s land in a
+  private frame, and a `set!` reaching an inherited binding raises `SetSealed`.
+  Same guarantee, 29µs. **Use `blue_lang_proc::forking` for `spawn`**, never a
+  factory that rebuilds. A plain `Clone` is NOT a fork — `Env::set` writes
+  through the `Arc`.
+- **A name has three arbiters, and an environment lookup sees one.** Special
+  forms are `match` arms in no environment; a macro rewrites before evaluation
+  and beats a same-named binding. `assert` was lost to the second, and the
+  replacement gate was still blind to the first while blue lowers to `not`. Ask
+  `Interpreter::resolve_head`, which answers *which* arbiter claims the name.
+- **Two doors to the formatter is one door too many.** `fmt --write` learned to
+  re-interleave comments; the LSP kept calling `format_forms`, so
+  `textDocument/formatting` returned 707 bytes for 1010 and **deleted all six
+  comments in the buffer**. Everything that shows a user their own file goes
+  through `format_source_lossless`; `format_source` is for comparing trees.
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
   across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
   ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a

@@ -36,10 +36,17 @@
 //! exposure is Rust's `no_std` shape, not a continuum, and this resolver is
 //! deliberately small to match.
 
+pub mod beam;
 pub mod morph;
 pub mod quality;
+pub use beam::{
+    beam_variants, reachable_by_blue, reachable_by_hosted_language, Contradiction, Distribution,
+    Failure, Heap, Interleaving, Latency, Model, Payload, Scheduling, Support,
+};
 pub use morph::{enforcement, shape_of, shapes, Layer, Shape};
-pub use quality::{all_postures, exclusive_pairs, forfeits_at, qualities_at, witness, Axis, Quality};
+pub use quality::{
+    all_postures, exclusive_pairs, forfeits_at, qualities_at, witness, Axis, Quality,
+};
 
 use blue_lang_waku::{Waku, When};
 
@@ -204,8 +211,14 @@ mod tests {
     fn compatible_packages_resolve_to_the_join_of_their_floors() {
         let bs = [pure("a", &["+"]), pure("b", &["*"])];
         let r = resolve(&bs, &Waku::top()).expect("resolves");
-        assert!(r.posture.reach.permits("+"), "the join must include a's names");
-        assert!(r.posture.reach.permits("*"), "the join must include b's names");
+        assert!(
+            r.posture.reach.permits("+"),
+            "the join must include a's names"
+        );
+        assert!(
+            r.posture.reach.permits("*"),
+            "the join must include b's names"
+        );
     }
 
     /// The resolved posture is the SMALLEST frame satisfying everyone —
@@ -238,7 +251,11 @@ mod tests {
         };
         let err = resolve(&[needs_eval("scripting")], &ceiling).expect_err("must conflict");
         assert_eq!(err.culprits, vec!["scripting"]);
-        assert!(err.because.contains("resident evaluator"), "{}", err.because);
+        assert!(
+            err.because.contains("resident evaluator"),
+            "{}",
+            err.because
+        );
         assert!(
             err.because.contains("quantizes"),
             "the message should say WHY there is no middle posture: {}",
@@ -253,8 +270,11 @@ mod tests {
             when: When::Preceding,
             ..Waku::top()
         };
-        let err = resolve(&[needs_eval("a"), pure("ok", &["+"]), needs_eval("b")], &ceiling)
-            .expect_err("must conflict");
+        let err = resolve(
+            &[needs_eval("a"), pure("ok", &["+"]), needs_eval("b")],
+            &ceiling,
+        )
+        .expect_err("must conflict");
         assert_eq!(err.culprits, vec!["a", "b"]);
         assert!(!err.culprits.contains(&"ok".to_string()));
     }

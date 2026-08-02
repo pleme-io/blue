@@ -109,8 +109,8 @@ const CORPUS: &[&str] = &[
 fn formatting_is_idempotent() {
     for src in CORPUS {
         let once = format_source(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
-        let twice = format_source(&once)
-            .unwrap_or_else(|e| panic!("re-formatting {once:?} failed: {e}"));
+        let twice =
+            format_source(&once).unwrap_or_else(|e| panic!("re-formatting {once:?} failed: {e}"));
         assert_eq!(
             once, twice,
             "not idempotent for {src:?}\n  once:  {once:?}\n  twice: {twice:?}"
@@ -128,8 +128,9 @@ fn formatting_preserves_the_tree() {
     for src in CORPUS {
         let before = parse_program(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
         let formatted = format_source(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
-        let after = parse_program(&formatted)
-            .unwrap_or_else(|e| panic!("formatted output of {src:?} does not re-parse:\n{formatted}\n{e}"));
+        let after = parse_program(&formatted).unwrap_or_else(|e| {
+            panic!("formatted output of {src:?} does not re-parse:\n{formatted}\n{e}")
+        });
         assert_eq!(
             before, after,
             "formatting changed the tree for {src:?}\n  formatted: {formatted:?}"
@@ -171,7 +172,9 @@ fn the_formatter_actually_reformats_something() {
     let changed = CORPUS
         .iter()
         .filter(|src| {
-            format_source(src).map(|out| out.trim() != src.trim()).unwrap_or(false)
+            format_source(src)
+                .map(|out| out.trim() != src.trim())
+                .unwrap_or(false)
         })
         .count();
     assert!(
@@ -249,7 +252,10 @@ fn every_operator_in_the_table_round_trips() {
             Err(e) => broken.push((i.op.to_string(), format!("{text:?} does not re-parse: {e}"))),
         }
     }
-    assert!(broken.is_empty(), "operators that do not round-trip: {broken:#?}");
+    assert!(
+        broken.is_empty(),
+        "operators that do not round-trip: {broken:#?}"
+    );
 }
 
 /// **Every surface keyword must appear in the corpus.**
@@ -294,7 +300,10 @@ use blue_lang_fmt::{format_source_lossless, FormatError};
 fn a_leading_comment_survives_formatting() {
     let src = "# a note\n1 + 2\n";
     let out = format_source_lossless(src).expect("lossless");
-    assert!(out.contains("# a note"), "the comment must survive: {out:?}");
+    assert!(
+        out.contains("# a note"),
+        "the comment must survive: {out:?}"
+    );
     assert!(out.contains("1 + 2"), "and so must the code: {out:?}");
     assert!(
         out.find("# a note") < out.find("1 + 2"),
@@ -332,7 +341,10 @@ fn a_comment_between_forms_stays_between_them() {
 fn a_trailing_comment_stays_trailing() {
     let src = "1 + 2 # why\n";
     let out = format_source_lossless(src).expect("lossless");
-    let line = out.lines().find(|l| l.contains("1 + 2")).expect("code line");
+    let line = out
+        .lines()
+        .find(|l| l.contains("1 + 2"))
+        .expect("code line");
     assert!(
         line.contains("# why"),
         "the trailing comment must stay on the code line: {line:?}"
@@ -400,7 +412,8 @@ fn no_comment_is_lost() {
         let out = format_source_lossless(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
         let after = blue_lang_fmt::comment_count(&out);
         assert_eq!(
-            before, after,
+            before,
+            after,
             "lost {} comment(s) formatting {src:?}\n{out}",
             before - after
         );
@@ -417,7 +430,10 @@ fn a_comment_inside_a_form_is_refused_with_its_line() {
     match err {
         FormatError::UnplaceableComments { count, ref lines } => {
             assert_eq!(count, 1);
-            assert_eq!(lines, "2", "the line must be named so the author can find it");
+            assert_eq!(
+                lines, "2",
+                "the line must be named so the author can find it"
+            );
         }
         other => panic!("expected UnplaceableComments, got {other}"),
     }
@@ -520,7 +536,9 @@ fn interpolation_renders_as_interpolation() {
         "\"value: #{x}\""
     );
     assert!(
-        !format_source("\"value: #{x}\"").expect("fmt").contains("concat("),
+        !format_source("\"value: #{x}\"")
+            .expect("fmt")
+            .contains("concat("),
         "must not print the lowered chain"
     );
 }

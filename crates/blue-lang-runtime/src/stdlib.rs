@@ -41,7 +41,11 @@ fn as_str(v: &Value, span: tatara_lisp::Span) -> Result<String, EvalError> {
         // A symbol is text the author wrote; accepting it makes `upcase(:ok)`
         // work the way a Ruby programmer expects of a symbol.
         Value::Symbol(s) | Value::Keyword(s) => Ok(s.to_string()),
-        other => Err(EvalError::type_mismatch("a string", other.type_name(), span)),
+        other => Err(EvalError::type_mismatch(
+            "a string",
+            other.type_name(),
+            span,
+        )),
     }
 }
 
@@ -97,15 +101,11 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     // overloads `+` on String, but blue's `+` lowers to tatara's numeric `+`,
     // and silently making it polymorphic would make a type error at a seam
     // disappear into a string.
-    interp.register_fn(
-        "concat",
-        Arity::Exact(2),
-        |a: &[Value], _h: &mut H, _s| {
-            let mut out = render(&a[0]);
-            out.push_str(&render(&a[1]));
-            Ok(Value::Str(out.into()))
-        },
-    );
+    interp.register_fn("concat", Arity::Exact(2), |a: &[Value], _h: &mut H, _s| {
+        let mut out = render(&a[0]);
+        out.push_str(&render(&a[1]));
+        Ok(Value::Str(out.into()))
+    });
 
     interp.register_fn("split", Arity::Exact(2), |a: &[Value], _h: &mut H, s| {
         let text = as_str(&a[0], s)?;
@@ -114,7 +114,9 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         // does. Rust's `split("")` yields leading/trailing empties instead,
         // which is the wrong answer here.
         let parts: Vec<Value> = if sep.is_empty() {
-            text.chars().map(|c| Value::Str(c.to_string().into())).collect()
+            text.chars()
+                .map(|c| Value::Str(c.to_string().into()))
+                .collect()
         } else {
             text.split(sep.as_str())
                 .map(|p| Value::Str(p.into()))
@@ -127,27 +129,42 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         let sep = as_str(&a[1], s)?;
         match &a[0] {
             Value::List(items) => Ok(Value::Str(
-                items.iter().map(render).collect::<Vec<_>>().join(&sep).into(),
+                items
+                    .iter()
+                    .map(render)
+                    .collect::<Vec<_>>()
+                    .join(&sep)
+                    .into(),
             )),
             other => Err(EvalError::type_mismatch("a list", other.type_name(), s).into()),
         }
     });
 
-    interp.register_fn("contains?", Arity::Exact(2), |a: &[Value], _h: &mut H, s| {
-        Ok(Value::Bool(as_str(&a[0], s)?.contains(&as_str(&a[1], s)?)))
-    });
+    interp.register_fn(
+        "contains?",
+        Arity::Exact(2),
+        |a: &[Value], _h: &mut H, s| {
+            Ok(Value::Bool(as_str(&a[0], s)?.contains(&as_str(&a[1], s)?)))
+        },
+    );
 
     interp.register_fn(
         "starts_with?",
         Arity::Exact(2),
         |a: &[Value], _h: &mut H, s| {
-            Ok(Value::Bool(as_str(&a[0], s)?.starts_with(&as_str(&a[1], s)?)))
+            Ok(Value::Bool(
+                as_str(&a[0], s)?.starts_with(&as_str(&a[1], s)?),
+            ))
         },
     );
 
-    interp.register_fn("ends_with?", Arity::Exact(2), |a: &[Value], _h: &mut H, s| {
-        Ok(Value::Bool(as_str(&a[0], s)?.ends_with(&as_str(&a[1], s)?)))
-    });
+    interp.register_fn(
+        "ends_with?",
+        Arity::Exact(2),
+        |a: &[Value], _h: &mut H, s| {
+            Ok(Value::Bool(as_str(&a[0], s)?.ends_with(&as_str(&a[1], s)?)))
+        },
+    );
 
     interp.register_fn("replace", Arity::Exact(3), |a: &[Value], _h: &mut H, s| {
         Ok(Value::Str(
@@ -187,19 +204,23 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     // `String#to_i` answers 0 for garbage, which silently turns a parse failure
     // into a plausible number; nil is falsy and cannot be mistaken for a
     // result. `to_int!` is the raising form for callers who want the failure.
-    interp.register_fn("to_int", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        match &a[0] {
+    interp.register_fn(
+        "to_int",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::Int(n) => Ok(Value::Int(*n)),
             Value::Float(x) => Ok(Value::Int(*x as i64)),
             other => Ok(as_str(other, s)?
                 .trim()
                 .parse::<i64>()
                 .map_or(Value::Nil, Value::Int)),
-        }
-    });
+        },
+    );
 
-    interp.register_fn("to_int!", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        match &a[0] {
+    interp.register_fn(
+        "to_int!",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::Int(n) => Ok(Value::Int(*n)),
             Value::Float(x) => Ok(Value::Int(*x as i64)),
             other => {
@@ -213,27 +234,31 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                     .into()
                 })
             }
-        }
-    });
+        },
+    );
 
-    interp.register_fn("to_float", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        match &a[0] {
+    interp.register_fn(
+        "to_float",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::Float(x) => Ok(Value::Float(*x)),
             Value::Int(n) => Ok(Value::Float(*n as f64)),
             other => Ok(as_str(other, s)?
                 .trim()
                 .parse::<f64>()
                 .map_or(Value::Nil, Value::Float)),
-        }
-    });
+        },
+    );
 
-    interp.register_fn("abs", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        match &a[0] {
+    interp.register_fn(
+        "abs",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::Int(n) => Ok(Value::Int(n.abs())),
             Value::Float(x) => Ok(Value::Float(x.abs())),
             other => Err(EvalError::type_mismatch("a number", other.type_name(), s).into()),
-        }
-    });
+        },
+    );
 }
 
 #[cfg(test)]
@@ -241,7 +266,9 @@ mod tests {
     use super::*;
 
     fn eval(src: &str) -> Value {
-        crate::run(src).unwrap_or_else(|e| panic!("{src:?}: {e}")).value
+        crate::run(src)
+            .unwrap_or_else(|e| panic!("{src:?}: {e}"))
+            .value
     }
 
     fn s(src: &str) -> String {
@@ -325,10 +352,22 @@ mod tests {
 
     #[test]
     fn predicates() {
-        assert!(matches!(eval("contains?(\"hello\", \"ell\")"), Value::Bool(true)));
-        assert!(matches!(eval("contains?(\"hello\", \"xyz\")"), Value::Bool(false)));
-        assert!(matches!(eval("starts_with?(\"hello\", \"he\")"), Value::Bool(true)));
-        assert!(matches!(eval("ends_with?(\"hello\", \"lo\")"), Value::Bool(true)));
+        assert!(matches!(
+            eval("contains?(\"hello\", \"ell\")"),
+            Value::Bool(true)
+        ));
+        assert!(matches!(
+            eval("contains?(\"hello\", \"xyz\")"),
+            Value::Bool(false)
+        ));
+        assert!(matches!(
+            eval("starts_with?(\"hello\", \"he\")"),
+            Value::Bool(true)
+        ));
+        assert!(matches!(
+            eval("ends_with?(\"hello\", \"lo\")"),
+            Value::Bool(true)
+        ));
     }
 
     #[test]

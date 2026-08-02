@@ -16,12 +16,12 @@
 //! that touches I/O.
 
 use std::collections::HashMap;
-use std::io::{BufRead, Read, Write};
+use std::io::{BufRead, Write};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::analysis::{analyse, hover, Position, Severity};
+use crate::analysis::{analyse, hover, Position};
 
 /// What the server produced for one incoming message.
 #[derive(Clone, Debug, PartialEq)]
@@ -228,7 +228,11 @@ impl Server {
     }
 
     /// The stdio loop. The only part of this crate that does I/O.
-    pub fn serve<R: BufRead, W: Write>(&mut self, mut input: R, mut output: W) -> std::io::Result<()> {
+    pub fn serve<R: BufRead, W: Write>(
+        &mut self,
+        mut input: R,
+        mut output: W,
+    ) -> std::io::Result<()> {
         while let Some(msg) = read_message(&mut input)? {
             match self.handle_value(&msg) {
                 Response::None => {}
@@ -584,7 +588,10 @@ mod tests {
             panic!()
         };
         let value = r["result"]["contents"]["value"].as_str().expect("markdown");
-        assert!(value.contains("def add(a: Int, b: Int) -> Int"), "got {value}");
+        assert!(
+            value.contains("def add(a: Int, b: Int) -> Int"),
+            "got {value}"
+        );
         assert!(value.starts_with("```blue"), "fenced as blue: {value}");
     }
 
@@ -783,7 +790,10 @@ mod tests {
         Server::new()
             .serve(std::io::BufReader::new(&input[..]), &mut out)
             .expect("serve must not error");
-        assert!(out.is_empty(), "nothing should be replied to an unframed message");
+        assert!(
+            out.is_empty(),
+            "nothing should be replied to an unframed message"
+        );
     }
 
     #[test]

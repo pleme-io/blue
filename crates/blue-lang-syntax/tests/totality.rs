@@ -54,7 +54,11 @@ fn corpus() -> Vec<(String, String)> {
         if p.extension().and_then(|s| s.to_str()) != Some("b") {
             continue;
         }
-        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+        let name = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
         if let Ok(src) = std::fs::read_to_string(&p) {
             out.push((name, src));
         }
@@ -80,7 +84,9 @@ fn no_prefix_of_the_spec_corpus_panics_the_parser() {
         for end in 0..=src.len() {
             // Byte-truncation lands mid-codepoint sometimes; `&str` cannot
             // hold that, so skip those rather than pretend to test them.
-            let Some(slice) = src.get(..end) else { continue };
+            let Some(slice) = src.get(..end) else {
+                continue;
+            };
             let r = std::panic::catch_unwind(|| {
                 // Both public entry points, because a caller may reach either.
                 let _ = blue_lang_syntax::lex(slice);
@@ -111,10 +117,10 @@ fn no_prefix_of_the_spec_corpus_panics_the_parser() {
 /// are here rather than assumed safe.
 #[test]
 fn hostile_inputs_return_rather_than_abort() {
-    // Depth reduced from 2_000 after MEASURING the real limit — see the
-    // `parser_recursion_depth` test below, which pins where it actually breaks.
-    let deep_parens = "(".repeat(64);
-    let deep_blocks = "def a\n".repeat(64);
+    // 2_000 again — the depth that used to ABORT the runner. It now returns
+    // Err via MAX_EXPR_DEPTH, which is the whole point of the guard.
+    let deep_parens = "(".repeat(2_000);
+    let deep_blocks = "def a\n".repeat(2_000);
     let cases: Vec<(&str, &str)> = vec![
         ("empty", ""),
         ("nul", "\0"),
@@ -215,6 +221,55 @@ fn parser_nesting_depth_is_bounded_and_the_bound_is_measured() {
             r.is_ok(),
             "parser panicked at nesting depth {depth}, which was previously \
              known-good — this is a REGRESSION in the safe range"
+        );
+    }
+}
+
+/// The regression test for the defect this file found: input that once ABORTED
+/// the process now returns a typed `Err`.
+///
+/// Before `MAX_EXPR_DEPTH` (2026-08-01), `"(".repeat(2_000)` produced
+/// `fatal runtime error: stack overflow, aborting` — SIGABRT, uncatchable,
+/// process gone. This asserts the conversion to an ordinary parse failure, and
+/// asserts the ERROR NAMES ITSELF, so an operator who hits the bound learns it
+/// is a limit rather than hunting for a syntax mistake that is not there.
+///
+/// Deliberately tests well past the limit (10x) as well: a guard that holds at
+/// exactly limit+1 but not at 10x limit is not a guard, and that difference is
+/// invisible unless something checks it.
+#[test]
+fn depth_beyond_the_limit_is_an_err_not_an_abort() {
+    for n in [
+        blue_lang_syntax::MAX_EXPR_DEPTH + 1,
+        blue_lang_syntax::MAX_EXPR_DEPTH * 10,
+        2_000,
+    ] {
+        let src = "(".repeat(n);
+        let err = blue_lang_syntax::parse_program(&src)
+            .expect_err("input past MAX_EXPR_DEPTH must be rejected, not accepted");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("nests deeper than"),
+            "the bound must name ITSELF so the operator knows this is a limit \
+             and not a syntax error they should go hunting for — got: {msg}"
+        );
+    }
+}
+
+/// The bound must not reject anything a human would plausibly write.
+///
+/// A depth limit set too low is a correctness bug wearing a safety hat: it
+/// turns valid programs into parse errors. blue's own spec corpus peaks in
+/// single digits, so a limit of 256 has enormous headroom — this pins that
+/// claim rather than asserting it.
+#[test]
+fn the_depth_limit_does_not_reject_realistic_nesting() {
+    for n in [1usize, 8, 32, 64, 128, blue_lang_syntax::MAX_EXPR_DEPTH - 1] {
+        let src = format!("{}1{}", "(".repeat(n), ")".repeat(n));
+        assert!(
+            blue_lang_syntax::parse_program(&src).is_ok(),
+            "well-formed nesting at depth {n} must PARSE — a limit that \
+             rejects valid programs is a bug, not a safeguard"
         );
     }
 }

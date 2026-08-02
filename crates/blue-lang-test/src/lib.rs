@@ -27,17 +27,25 @@
 //! homoiconicity plus a single canonical formatting buys, and it is the reason
 //! `assert` is a surface form rather than a library function.
 //!
-//! ## Isolation is per-test, and paid for honestly
+//! ## Isolation is per-test, and no longer paid for per-test
 //!
-//! Each test runs in a **fresh interpreter** with the file's non-test
-//! top-level forms replayed into it. So one test cannot see another's
-//! mutations, and a test that crashes cannot corrupt the next.
+//! Each test runs in its own **forked interpreter**: it reads every preamble
+//! definition, its own `define`s land in a private frame no sibling can see,
+//! and a `set!` reaching an inherited binding is refused rather than silently
+//! mutating state the next test would observe. Test order cannot matter, and a
+//! test that crashes cannot corrupt the next.
 //!
-//! The cost is that the preamble is evaluated once per test — O(tests ×
-//! preamble). That is deliberate: sharing one interpreter would make test
-//! order significant, which is the single worst property a test framework can
-//! have. [`Report::preamble_evaluations`] reports the count so the cost is
-//! visible rather than hidden.
+//! This used to be a *fresh* interpreter per test with the preamble replayed
+//! into it — O(tests × preamble), and measured at ~900µs per test of which
+//! ~945µs was building the interpreter, so essentially the entire cost of
+//! running a test was evaluating the standard library again to reach the same
+//! state. `Interpreter::fork` shares the evaluated globals instead: 29µs
+//! against 1.59ms, and the isolation is a property of the seal rather than of
+//! having thrown the interpreter away.
+//!
+//! [`Report::preamble_evaluations`] still reports the count — it is now 1
+//! regardless of test count, which is the whole point, and a regression to
+//! per-test replay would show up there.
 //!
 //! ## `pending-dojo:` blue-facet
 //!
@@ -100,8 +108,12 @@ impl std::fmt::Display for Failure {
 pub struct Report {
     pub passed: usize,
     pub failures: Vec<Failure>,
-    /// How many times the file's preamble was replayed — one per test. Exposed
-    /// so the cost of per-test isolation is visible rather than hidden.
+    /// How many times the file's preamble was evaluated. **One**, regardless
+    /// of test count — the tests fork a prototype that already holds it.
+    ///
+    /// Kept rather than deleted because it was one-per-test until forks landed,
+    /// and a regression to replay would show up here as a number that tracks
+    /// the test count again.
     pub preamble_evaluations: usize,
 }
 
@@ -241,9 +253,12 @@ fn value_to_sexp(v: &Value) -> Option<Sexp> {
         Value::Symbol(s) => Sexp::Atom(Atom::Symbol(s.to_string())),
         Value::Keyword(k) => Sexp::Atom(Atom::Keyword(k.to_string())),
         Value::Sexp(s, _) => s.clone(),
-        Value::List(items) => {
-            Sexp::List(items.iter().map(value_to_sexp).collect::<Option<Vec<_>>>()?)
-        }
+        Value::List(items) => Sexp::List(
+            items
+                .iter()
+                .map(value_to_sexp)
+                .collect::<Option<Vec<_>>>()?,
+        ),
         _ => return None,
     })
 }
@@ -260,17 +275,57 @@ pub fn run(forms: &[Sexp]) -> Report {
     let (tests, preamble) = split(forms);
     let mut report = Report::default();
 
+    // Build the interpreter and evaluate the preamble ONCE, then fork per test.
+    //
+    // This used to be a fresh `interpreter_hostless()` plus a preamble replay
+    // inside the loop — O(tests x preamble), and measured at ~900µs per test of
+    // which ~945µs was the interpreter alone, so essentially the whole cost of
+    // a test was building the standard library again to get the same answer.
+    //
+    // The isolation is not weakened, and that is the point of using `fork`
+    // rather than reusing one interpreter: a fork's own `define`s land in a
+    // private frame the parent and every sibling are blind to, and a `set!`
+    // reaching an inherited binding raises `SetSealed` instead of mutating
+    // state the next test would observe. Test order still cannot matter — see
+    // `tatara-lisp-eval/tests/fork.rs`, whose isolation gates all go red if
+    // `fork` is weakened to a clone.
+    let mut prototype = blue_lang_runtime::interpreter_hostless();
+    // The preamble may legitimately assert at the top level, so `assert` has to
+    // be bound while it runs. Each fork overwrites this with its own recorder.
+    let preamble_rec = Recorder::default();
+    install_assert(&mut prototype, &preamble_rec);
+
+    let preamble_error = match eval_all(&mut prototype, &preamble) {
+        Err(e) => Some(e),
+        Ok(()) if preamble_rec.failed.load(Ordering::SeqCst) => {
+            Some("an assertion in the file's preamble failed".to_string())
+        }
+        Ok(()) => None,
+    };
+    report.preamble_evaluations = 1;
+
+    // A broken preamble fails every test, exactly as it did when each test
+    // replayed it. Reported per test rather than once so the shape of the
+    // report does not change with the shape of the runner.
+    if let Some(error) = preamble_error {
+        for test in &tests {
+            report.failures.push(Failure::Errored {
+                test: test.name.clone(),
+                error: error.clone(),
+            });
+        }
+        return report;
+    }
+
     for test in &tests {
         let rec = Recorder::default();
-        let mut interp = blue_lang_runtime::interpreter_hostless();
+        let mut interp = prototype.fork();
         install_assert(&mut interp, &rec);
-        report.preamble_evaluations += 1;
 
-        // The preamble and the body go through the same erase-then-read path
-        // the pipeline uses, so a test sees exactly the program `blue run`
-        // would have run.
-        let mut program: Vec<Sexp> = preamble.clone();
-        program.push(test.body.clone());
+        // Only the body: the preamble is already in the frames this fork
+        // inherits. It still goes through the same erase-then-read path the
+        // pipeline uses, so a test sees exactly the program `blue run` would.
+        let program: Vec<Sexp> = vec![test.body.clone()];
 
         match eval_all(&mut interp, &program) {
             Err(error) => report.failures.push(Failure::Errored {
@@ -326,7 +381,9 @@ mod tests {
 
     #[test]
     fn a_passing_test_passes() {
-        let r = report(&format!("{PREAMBLE}test \"adds\"\n  assert add(1, 2) == 3\nend"));
+        let r = report(&format!(
+            "{PREAMBLE}test \"adds\"\n  assert add(1, 2) == 3\nend"
+        ));
         assert!(r.ok(), "{r}");
         assert_eq!(r.passed, 1);
     }
@@ -336,7 +393,9 @@ mod tests {
     /// author re-derive what they were checking.
     #[test]
     fn a_failing_assertion_reports_the_expression_as_blue_source() {
-        let r = report(&format!("{PREAMBLE}test \"adds\"\n  assert add(1, 2) == 4\nend"));
+        let r = report(&format!(
+            "{PREAMBLE}test \"adds\"\n  assert add(1, 2) == 4\nend"
+        ));
         assert!(!r.ok());
         match &r.failures[0] {
             Failure::Assertion { test, expression } => {
@@ -375,10 +434,49 @@ mod tests {
         );
         assert!(r.ok(), "{r}");
         assert_eq!(r.passed, 2);
-        assert_eq!(
-            r.preamble_evaluations, 2,
-            "isolation costs one preamble replay per test, and it is reported"
+    }
+
+    /// **Isolation no longer costs a preamble replay.** One evaluation, however
+    /// many tests — the forks inherit it.
+    ///
+    /// This asserted `== tests.len()` until forks landed, which was an honest
+    /// record of a real cost and is now the regression signal: if someone
+    /// reverts to a fresh interpreter per test, this number tracks the test
+    /// count again and says so.
+    #[test]
+    fn the_preamble_is_evaluated_once_however_many_tests_there_are() {
+        let preamble = "def base(x)\n  x + 1\nend\n";
+        for n in [1usize, 2, 5] {
+            let body: String = (0..n)
+                .map(|i| format!("test \"t{i}\"\n  assert base(1) == 2\nend\n"))
+                .collect();
+            let r = report(&(preamble.to_string() + &body));
+            assert!(r.ok(), "{r}");
+            assert_eq!(r.passed, n);
+            assert_eq!(
+                r.preamble_evaluations, 1,
+                "{n} tests must still cost exactly one preamble evaluation"
+            );
+        }
+    }
+
+    /// **A test may not write a binding it inherited from the preamble.**
+    ///
+    /// The mutable half of isolation, and the half a shared interpreter loses
+    /// silently: with one interpreter this `set!` would succeed and the next
+    /// test would read the mutated value. The fork refuses it.
+    #[test]
+    fn a_test_cannot_mutate_the_preamble_out_from_under_its_siblings() {
+        let r = report(
+            "counter = 0\n\
+             test \"mutates\"\n  counter = 99\n  assert counter == 99\nend\n\
+             test \"unaffected\"\n  assert counter == 0\nend",
         );
+        assert!(
+            r.ok(),
+            "the second test saw the first's write — isolation is broken:\n{r}"
+        );
+        assert_eq!(r.passed, 2);
     }
 
     /// A test may use the file's definitions AND its macros.
@@ -400,7 +498,11 @@ mod tests {
             Failure::Assertion { expression, .. } => assert_eq!(expression, "1 == 2"),
             other => panic!("got {other:?}"),
         }
-        assert_eq!(r.failures.len(), 1, "one failure per test, not one per assert");
+        assert_eq!(
+            r.failures.len(),
+            1,
+            "one failure per test, not one per assert"
+        );
     }
 
     /// Anti-vacuity: a file with no tests reports zero, rather than reporting
@@ -418,24 +520,25 @@ mod tests {
     #[test]
     fn only_false_and_nil_fail_an_assertion() {
         assert!(report("test \"t\"\n  assert true\nend").ok());
-        assert!(report("test \"t\"\n  assert 0\nend").ok(), "0 is truthy in blue");
+        assert!(
+            report("test \"t\"\n  assert 0\nend").ok(),
+            "0 is truthy in blue"
+        );
         assert!(!report("test \"t\"\n  assert false\nend").ok());
         assert!(!report("test \"t\"\n  assert nil\nend").ok());
     }
 
     #[test]
     fn split_separates_tests_from_the_preamble() {
-        let forms = blue_lang_syntax::parse_program(&format!(
-            "{PREAMBLE}test \"a\"\n  assert true\nend"
-        ))
-        .expect("parse");
+        let forms =
+            blue_lang_syntax::parse_program(&format!("{PREAMBLE}test \"a\"\n  assert true\nend"))
+                .expect("parse");
         let (tests, preamble) = split(&forms);
         assert_eq!(tests.len(), 1);
         assert_eq!(tests[0].name, "a");
         assert_eq!(preamble.len(), 1, "the def stays in the preamble");
     }
 }
-
 
 #[cfg(test)]
 mod shadowing {

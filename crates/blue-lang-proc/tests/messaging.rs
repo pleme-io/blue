@@ -77,12 +77,16 @@ fn a_receiver_blocks_then_wakes_with_the_message() {
     sup.run_to_quiescence(&mut sys, 100);
 
     assert!(
-        sup.events.iter().any(|e| matches!(e, Event::Blocked { pid } if *pid == receiver)),
+        sup.events
+            .iter()
+            .any(|e| matches!(e, Event::Blocked { pid } if *pid == receiver)),
         "the receiver must have parked on an empty mailbox: {:?}",
         sup.events
     );
     assert!(
-        sup.events.iter().any(|e| matches!(e, Event::Woke { pid } if *pid == receiver)),
+        sup.events
+            .iter()
+            .any(|e| matches!(e, Event::Woke { pid } if *pid == receiver)),
         "and been woken by the message: {:?}",
         sup.events
     );
@@ -183,7 +187,9 @@ fn a_receiver_with_a_sender_is_not_reported_as_deadlocked() {
     sup.run_to_quiescence(&mut sys, 200);
 
     assert!(
-        !sup.events.iter().any(|e| matches!(e, Event::Deadlocked { .. })),
+        !sup.events
+            .iter()
+            .any(|e| matches!(e, Event::Deadlocked { .. })),
         "a satisfiable wait must not be reported as a deadlock: {:?}",
         sup.events
     );
@@ -233,8 +239,14 @@ fn self_is_the_running_process() {
     let b = spawn(&mut sup, &mut sys, blue("self()"), quantum(50));
     sup.run_to_quiescence(&mut sys, 100);
 
-    assert_eq!(sup.state_of(a).and_then(ProcState::done_int), Some(a.0 as i64));
-    assert_eq!(sup.state_of(b).and_then(ProcState::done_int), Some(b.0 as i64));
+    assert_eq!(
+        sup.state_of(a).and_then(ProcState::done_int),
+        Some(a.0 as i64)
+    );
+    assert_eq!(
+        sup.state_of(b).and_then(ProcState::done_int),
+        Some(b.0 as i64)
+    );
     assert_ne!(a.0, b.0, "two processes must not share a pid");
 }
 
@@ -248,12 +260,7 @@ fn a_request_reply_round_trip_completes() {
     let mut sup = Supervisor::new(Strategy::OneForOne, 3);
 
     // Reserve the server's pid by spawning it first.
-    let server = spawn(
-        &mut sup,
-        &mut sys,
-        blue("send(receive(), 42)"),
-        quantum(50),
-    );
+    let server = spawn(&mut sup, &mut sys, blue("send(receive(), 42)"), quantum(50));
     let client = spawn(
         &mut sup,
         &mut sys,
@@ -294,7 +301,10 @@ fn a_restart_clears_the_mailbox() {
     assert_eq!(sys.mail_count(crasher), 2, "precondition: mail is queued");
     sup.round(&mut sys);
 
-    assert!(sup.restarts_of(crasher).is_some_and(|n| n > 0), "it must have restarted");
+    assert!(
+        sup.restarts_of(crasher).is_some_and(|n| n > 0),
+        "it must have restarted"
+    );
     assert_eq!(
         sys.mail_count(crasher),
         0,

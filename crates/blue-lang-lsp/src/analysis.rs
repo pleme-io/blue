@@ -191,7 +191,20 @@ pub fn analyse(src: &str) -> Analysis {
         });
     }
 
-    out.formatted = Some(blue_lang_fmt::format_forms(&forms));
+    // `format_source_lossless`, not `format_forms`. Comments are not in the
+    // tree, so a formatter that starts from parsed forms cannot emit them —
+    // `format_forms` on `spec/bindings.b` returned 707 bytes for 1010 in and
+    // **deleted all six comments**. Measured, not inferred.
+    //
+    // This is the same defect `fmt --write` had, fixed there and not here,
+    // because the two paths reached the formatter through different doors. An
+    // editor is the worse place for it: `textDocument/formatting` replaces the
+    // whole buffer with this string, so every comment in the file vanished on
+    // format, in a tool whose whole promise is that it is safe to run.
+    //
+    // Falling back to the lossy render on error would reintroduce exactly that,
+    // so a document that cannot be losslessly formatted offers no formatting.
+    out.formatted = blue_lang_fmt::format_source_lossless(src).ok();
     out.declarations = declarations(&forms, &index);
     out
 }
@@ -276,6 +289,55 @@ mod tests {
         assert!(a.formatted.is_some());
     }
 
+    /// **Formatting a document must not delete its comments.**
+    ///
+    /// `analyse` used to call `format_forms`, which renders the parsed tree —
+    /// and comments are deliberately not in the tree, so it could not emit
+    /// them. On `spec/bindings.b` that was 1010 bytes in, 707 out, six
+    /// comments to zero, delivered to the editor as a whole-buffer replace.
+    ///
+    /// The count is asserted, not just non-emptiness: a formatter that dropped
+    /// five of six comments would satisfy "some comments survive".
+    #[test]
+    fn formatting_preserves_every_comment() {
+        let src = "# header one\n# header two\nx = 1\n\n# about add\ndef add(a, b)\n  a + b\nend\n";
+        let formatted = analyse(src).formatted.expect("clean document formats");
+
+        let count = |s: &str| {
+            s.lines()
+                .filter(|l| l.trim_start().starts_with('#'))
+                .count()
+        };
+        assert_eq!(
+            count(&formatted),
+            count(src),
+            "comments were lost.\n--- in ---\n{src}\n--- out ---\n{formatted}"
+        );
+        for comment in ["# header one", "# header two", "# about add"] {
+            assert!(
+                formatted.contains(comment),
+                "`{comment}` is missing from:\n{formatted}"
+            );
+        }
+    }
+
+    /// The LSP and the CLI must format through the same door.
+    ///
+    /// They diverged once: `fmt --write` learned to re-interleave comments and
+    /// `analyse` kept the lossy renderer, so the same file formatted two
+    /// different ways depending on which tool you used. Asserting byte
+    /// equality against the CLI's own entry point makes a second divergence a
+    /// red build rather than a bug report from someone who lost their comments.
+    #[test]
+    fn the_editor_and_the_cli_format_identically() {
+        let src = "# keep me\nx    =    1\ndef add(a,b)\n  a+b\nend\n";
+        assert_eq!(
+            analyse(src).formatted.as_deref(),
+            blue_lang_fmt::format_source_lossless(src).ok().as_deref(),
+            "the editor and the CLI disagree about how this file should look"
+        );
+    }
+
     /// A parse error is reported at its span, tagged `parse`.
     #[test]
     fn a_parse_error_is_reported_with_a_position() {
@@ -326,11 +388,41 @@ mod tests {
     #[test]
     fn positions_are_line_and_character() {
         let index = LineIndex::new("abc\ndefg\nhi");
-        assert_eq!(index.position(0), Position { line: 0, character: 0 });
-        assert_eq!(index.position(2), Position { line: 0, character: 2 });
-        assert_eq!(index.position(4), Position { line: 1, character: 0 });
-        assert_eq!(index.position(6), Position { line: 1, character: 2 });
-        assert_eq!(index.position(9), Position { line: 2, character: 0 });
+        assert_eq!(
+            index.position(0),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            index.position(2),
+            Position {
+                line: 0,
+                character: 2
+            }
+        );
+        assert_eq!(
+            index.position(4),
+            Position {
+                line: 1,
+                character: 0
+            }
+        );
+        assert_eq!(
+            index.position(6),
+            Position {
+                line: 1,
+                character: 2
+            }
+        );
+        assert_eq!(
+            index.position(9),
+            Position {
+                line: 2,
+                character: 0
+            }
+        );
     }
 
     /// **UTF-16 code units, not bytes and not chars.** LSP specifies UTF-16; a
@@ -398,20 +490,41 @@ mod tests {
     #[test]
     fn hover_reports_the_signature_as_canonical_blue_source() {
         // Point at `add` in the definition on line 0.
-        let sig = hover(PROGRAM, Position { line: 0, character: 5 }).expect("hover");
+        let sig = hover(
+            PROGRAM,
+            Position {
+                line: 0,
+                character: 5,
+            },
+        )
+        .expect("hover");
         assert_eq!(sig, "def add(a: Int, b: Int) -> Int");
     }
 
     #[test]
     fn hover_finds_a_declaration_from_its_call_site() {
         // `add(1, 2)` is on line 3.
-        let sig = hover(PROGRAM, Position { line: 3, character: 1 }).expect("hover");
+        let sig = hover(
+            PROGRAM,
+            Position {
+                line: 3,
+                character: 1,
+            },
+        )
+        .expect("hover");
         assert!(sig.starts_with("def add("), "got {sig}");
     }
 
     #[test]
     fn hover_on_nothing_is_none() {
-        assert!(hover(PROGRAM, Position { line: 1, character: 4 }).is_none());
+        assert!(hover(
+            PROGRAM,
+            Position {
+                line: 1,
+                character: 4
+            }
+        )
+        .is_none());
         assert!(hover("", Position::default()).is_none());
     }
 }

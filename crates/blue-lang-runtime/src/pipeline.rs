@@ -70,7 +70,11 @@ pub fn run_with_inputs(src: &str, inputs: Inputs) -> Result<Run, RunError> {
     let outcome = blue_lang_check::check_program(&forms);
     if !outcome.ok() {
         return Err(RunError::Types(
-            outcome.diagnostics.iter().map(ToString::to_string).collect(),
+            outcome
+                .diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
         ));
     }
 
@@ -85,7 +89,8 @@ pub fn run_with_inputs(src: &str, inputs: Inputs) -> Result<Run, RunError> {
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join("\n");
-    let spanned = tatara_lisp::read_spanned(&text).map_err(|e| RunError::Lower(format!("{e:?}")))?;
+    let spanned =
+        tatara_lisp::read_spanned(&text).map_err(|e| RunError::Lower(format!("{e:?}")))?;
 
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, inputs);
@@ -211,8 +216,9 @@ mod macro_tests {
     /// property that makes the metaprogramming surface safe to hand to a user.
     #[test]
     fn a_runaway_macro_fails_the_compilation_rather_than_the_process() {
-        let err = run("defmacro forever(x)\n  quote\n    forever(unquote(x))\n  end\nend\nforever(1)")
-            .expect_err("a self-referential macro must be rejected");
+        let err =
+            run("defmacro forever(x)\n  quote\n    forever(unquote(x))\n  end\nend\nforever(1)")
+                .expect_err("a self-referential macro must be rejected");
         let msg = err.to_string();
         assert!(
             msg.contains("forever") && msg.contains("expansion limit"),
@@ -274,10 +280,7 @@ mod input_tests {
         let err = with_schema("input(\"not_declared\")").expect_err("must fail");
         let msg = err.to_string();
         assert!(msg.contains("not_declared"), "must name it: {msg}");
-        assert!(
-            msg.contains("definput"),
-            "and say how to declare it: {msg}"
-        );
+        assert!(msg.contains("definput"), "and say how to declare it: {msg}");
     }
 
     /// **There is no path-based read at all.** The capability is the absence of

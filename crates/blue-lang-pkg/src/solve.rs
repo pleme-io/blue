@@ -218,12 +218,10 @@ fn attributable_to(e: &SolveError, name: &str, version: Version) -> bool {
     };
     // An empty chain proves nothing about the cause.
     !c.requirements.is_empty()
-        && c.requirements
-            .iter()
-            .all(|r| match &r.from {
-                None => true, // the root — invariant across the search
-                Some(from) => from == &mine,
-            })
+        && c.requirements.iter().all(|r| match &r.from {
+            None => true, // the root — invariant across the search
+            Some(from) => from == &mine,
+        })
 }
 
 pub struct Solver<'r, R: Registry> {
@@ -520,9 +518,17 @@ mod tests {
     #[test]
     fn a_rejected_candidate_does_not_poison_the_retry() {
         let mut reg = MapRegistry::new();
-        reg.add("a", v(2, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
-            .add("a", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
-            .add("shared", v(1, 0, 0), Manifest::new());
+        reg.add(
+            "a",
+            v(2, 0, 0),
+            Manifest::new().needing("shared", r("^2.0.0")),
+        )
+        .add(
+            "a",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.0.0")),
+        )
+        .add("shared", v(1, 0, 0), Manifest::new());
         // The root also pins `shared` to 1.x, so a@2.0.0 must fail and a@1.0.0
         // must then succeed against an UNPOLLUTED constraint set.
         let out = solve(
@@ -542,13 +548,23 @@ mod tests {
     #[test]
     fn a_conflict_names_both_requirements_and_what_was_available() {
         let mut reg = MapRegistry::new();
-        reg.add("left", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
-            .add("right", v(1, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
-            .add("shared", v(1, 0, 0), Manifest::new())
-            .add("shared", v(2, 0, 0), Manifest::new());
+        reg.add(
+            "left",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.0.0")),
+        )
+        .add(
+            "right",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^2.0.0")),
+        )
+        .add("shared", v(1, 0, 0), Manifest::new())
+        .add("shared", v(2, 0, 0), Manifest::new());
         let err = solve(
             &reg,
-            Manifest::new().needing("left", r("*")).needing("right", r("*")),
+            Manifest::new()
+                .needing("left", r("*"))
+                .needing("right", r("*")),
         )
         .expect_err("1.x and 2.x cannot both hold");
 
@@ -576,13 +592,15 @@ mod tests {
         let reg = MapRegistry::new();
         let err = solve(&reg, Manifest::new().needing("ghost", r("*"))).expect_err("no versions");
         assert!(
-            err.to_string().contains("no versions of `ghost` are published"),
+            err.to_string()
+                .contains("no versions of `ghost` are published"),
             "got {err}"
         );
 
         let mut reg2 = MapRegistry::new();
         reg2.add("real", v(1, 0, 0), Manifest::new());
-        let err2 = solve(&reg2, Manifest::new().needing("real", r("^5.0.0"))).expect_err("no match");
+        let err2 =
+            solve(&reg2, Manifest::new().needing("real", r("^5.0.0"))).expect_err("no match");
         let text = err2.to_string();
         assert!(!text.contains("no versions"), "it IS published: {text}");
         assert!(text.contains("available: 1.0.0"), "{text}");
@@ -612,7 +630,11 @@ mod tests {
         let mut reg = MapRegistry::new();
         // Enough candidates that a 1-step budget cannot finish.
         for patch in 0..20 {
-            reg.add("a", v(1, 0, patch), Manifest::new().needing("b", r("^9.0.0")));
+            reg.add(
+                "a",
+                v(1, 0, patch),
+                Manifest::new().needing("b", r("^9.0.0")),
+            );
         }
         reg.add("b", v(1, 0, 0), Manifest::new());
         let err = Solver::new(&reg)
@@ -635,7 +657,11 @@ mod tests {
     fn the_same_graph_resolves_with_a_normal_budget() {
         let mut reg = MapRegistry::new();
         for patch in 0..20 {
-            reg.add("a", v(1, 0, patch), Manifest::new().needing("b", r("^9.0.0")));
+            reg.add(
+                "a",
+                v(1, 0, patch),
+                Manifest::new().needing("b", r("^9.0.0")),
+            );
         }
         reg.add("a", v(0, 9, 0), Manifest::new());
         reg.add("b", v(1, 0, 0), Manifest::new());
@@ -658,14 +684,24 @@ mod tests {
     #[test]
     fn a_diamond_resolves_to_a_single_shared_version() {
         let mut reg = MapRegistry::new();
-        reg.add("left", v(1, 0, 0), Manifest::new().needing("shared", r(">=1.0.0")))
-            .add("right", v(1, 0, 0), Manifest::new().needing("shared", r("^1.2.0")))
-            .add("shared", v(1, 0, 0), Manifest::new())
-            .add("shared", v(1, 5, 0), Manifest::new())
-            .add("shared", v(2, 0, 0), Manifest::new());
+        reg.add(
+            "left",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r(">=1.0.0")),
+        )
+        .add(
+            "right",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.2.0")),
+        )
+        .add("shared", v(1, 0, 0), Manifest::new())
+        .add("shared", v(1, 5, 0), Manifest::new())
+        .add("shared", v(2, 0, 0), Manifest::new());
         let out = solve(
             &reg,
-            Manifest::new().needing("left", r("*")).needing("right", r("*")),
+            Manifest::new()
+                .needing("left", r("*"))
+                .needing("right", r("*")),
         )
         .expect("resolve");
         assert_eq!(
@@ -794,10 +830,18 @@ mod learning {
     #[test]
     fn learning_does_not_degrade_the_conflict_report() {
         let mut reg = MapRegistry::new();
-        reg.add("left", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
-            .add("right", v(1, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
-            .add("shared", v(1, 0, 0), Manifest::new())
-            .add("shared", v(2, 0, 0), Manifest::new());
+        reg.add(
+            "left",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.0.0")),
+        )
+        .add(
+            "right",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^2.0.0")),
+        )
+        .add("shared", v(1, 0, 0), Manifest::new())
+        .add("shared", v(2, 0, 0), Manifest::new());
         let err = Solver::new(&reg)
             .solve(
                 &Manifest::new()
@@ -856,12 +900,27 @@ mod soundness {
     /// passed every other test in this file.
     fn context_dependent_failure() -> (MapRegistry, Manifest) {
         let mut reg = MapRegistry::new();
-        reg.add("p", v(2, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
-            .add("p", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
-            .add("q", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
-            .add("shared", v(1, 0, 0), Manifest::new())
-            .add("shared", v(2, 0, 0), Manifest::new());
-        (reg, Manifest::new().needing("p", r("*")).needing("q", r("*")))
+        reg.add(
+            "p",
+            v(2, 0, 0),
+            Manifest::new().needing("shared", r("^2.0.0")),
+        )
+        .add(
+            "p",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.0.0")),
+        )
+        .add(
+            "q",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.0.0")),
+        )
+        .add("shared", v(1, 0, 0), Manifest::new())
+        .add("shared", v(2, 0, 0), Manifest::new());
+        (
+            reg,
+            Manifest::new().needing("p", r("*")).needing("q", r("*")),
+        )
     }
 
     /// A failure in ONE caller context must not condemn the candidate in
@@ -891,12 +950,24 @@ mod soundness {
     #[test]
     fn a_context_dependent_subtree_failure_does_not_condemn_the_candidate() {
         let mut reg = MapRegistry::new();
-        reg.add("p", v(2, 0, 0), Manifest::new().needing("shared", r("^2.0.0")))
-            .add("p", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
-            .add("q", v(1, 0, 0), Manifest::new().needing("mid", r("^1.0.0")))
-            .add("mid", v(1, 0, 0), Manifest::new().needing("shared", r("^1.0.0")))
-            .add("shared", v(1, 0, 0), Manifest::new())
-            .add("shared", v(2, 0, 0), Manifest::new());
+        reg.add(
+            "p",
+            v(2, 0, 0),
+            Manifest::new().needing("shared", r("^2.0.0")),
+        )
+        .add(
+            "p",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.0.0")),
+        )
+        .add("q", v(1, 0, 0), Manifest::new().needing("mid", r("^1.0.0")))
+        .add(
+            "mid",
+            v(1, 0, 0),
+            Manifest::new().needing("shared", r("^1.0.0")),
+        )
+        .add("shared", v(1, 0, 0), Manifest::new())
+        .add("shared", v(2, 0, 0), Manifest::new());
 
         let out = Solver::new(&reg)
             .solve(&Manifest::new().needing("p", r("*")).needing("q", r("*")))
@@ -912,9 +983,21 @@ mod soundness {
     fn learning_is_answer_preserving_across_a_family_of_graphs() {
         let mut reg = MapRegistry::new();
         reg.add("app", v(1, 0, 0), Manifest::new().needing("lib", r("*")))
-            .add("lib", v(3, 0, 0), Manifest::new().needing("core", r("^3.0.0")))
-            .add("lib", v(2, 0, 0), Manifest::new().needing("core", r("^2.0.0")))
-            .add("lib", v(1, 0, 0), Manifest::new().needing("core", r("^1.0.0")))
+            .add(
+                "lib",
+                v(3, 0, 0),
+                Manifest::new().needing("core", r("^3.0.0")),
+            )
+            .add(
+                "lib",
+                v(2, 0, 0),
+                Manifest::new().needing("core", r("^2.0.0")),
+            )
+            .add(
+                "lib",
+                v(1, 0, 0),
+                Manifest::new().needing("core", r("^1.0.0")),
+            )
             .add("core", v(1, 0, 0), Manifest::new())
             .add("core", v(2, 0, 0), Manifest::new());
 

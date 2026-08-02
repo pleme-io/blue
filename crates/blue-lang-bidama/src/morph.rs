@@ -220,7 +220,9 @@ mod tests {
         let lattice = all_postures();
         for s in shapes() {
             assert!(
-                lattice.iter().any(|w| qualities_at(w) == qualities_at(&s.posture)),
+                lattice
+                    .iter()
+                    .any(|w| qualities_at(w) == qualities_at(&s.posture)),
                 "{} sits at a coordinate blue cannot express",
                 s.name
             );
@@ -236,7 +238,10 @@ mod tests {
         for s in shapes() {
             let q = qualities_at(&s.posture);
             if let Some((other, _)) = seen.iter().find(|(_, prev)| *prev == q) {
-                panic!("{} and {other} are the same point — the catalog is not distinct", s.name);
+                panic!(
+                    "{} and {other} are the same point — the catalog is not distinct",
+                    s.name
+                );
             }
             seen.push((s.name, q));
         }
@@ -283,9 +288,15 @@ mod tests {
     /// mapping is checkable, not asserted.
     #[test]
     fn rubys_shape_forfeits_what_ruby_actually_forfeits() {
-        let ruby = shapes().into_iter().find(|s| s.name == "Ruby").expect("declared");
+        let ruby = shapes()
+            .into_iter()
+            .find(|s| s.name == "Ruby")
+            .expect("declared");
         let lost = crate::quality::forfeits_at(&ruby.posture);
-        assert!(lost.contains(&Quality::MinimalArtifact), "Ruby cannot tree-shake");
+        assert!(
+            lost.contains(&Quality::MinimalArtifact),
+            "Ruby cannot tree-shake"
+        );
         assert!(lost.contains(&Quality::PreemptiveScheduling));
         assert!(lost.contains(&Quality::ProcessIsolation));
         assert!(lost.contains(&Quality::ReproducibleMacroPhase));
@@ -351,7 +362,12 @@ mod tests {
                 assert_eq!(layer, Layer::Rust);
                 continue;
             }
-            assert_eq!(layer, expected, "{} is enforced at the wrong layer", q.label());
+            assert_eq!(
+                layer,
+                expected,
+                "{} is enforced at the wrong layer",
+                q.label()
+            );
         }
     }
 

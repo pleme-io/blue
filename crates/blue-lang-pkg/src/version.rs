@@ -226,7 +226,9 @@ impl Range {
             }
         }
         probes.push(Version::new(0, 0, 0));
-        probes.iter().all(|v| self.contains(*v) == other.contains(*v))
+        probes
+            .iter()
+            .all(|v| self.contains(*v) == other.contains(*v))
     }
 
     /// `(inclusive lower, exclusive upper)`.
@@ -330,7 +332,10 @@ mod tests {
         let r = Range::parse("^0.2.1").unwrap();
         assert!(r.contains(v(0, 2, 1)));
         assert!(r.contains(v(0, 2, 99)));
-        assert!(!r.contains(v(0, 3, 0)), "0.3.0 is a breaking change from 0.2.x");
+        assert!(
+            !r.contains(v(0, 3, 0)),
+            "0.3.0 is a breaking change from 0.2.x"
+        );
         assert!(!r.contains(v(0, 2, 0)), "below the floor");
 
         let r1 = Range::parse("^1.2.0").unwrap();

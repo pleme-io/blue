@@ -13,5 +13,8 @@ tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 
 [dev-dependencies]
+# The replay suite pins `Model::BLUE_TODAY.interleaving` against what it
+# demonstrates, so the bīdama ledger cannot drift from the scheduler.
+blue-lang-bidama = { workspace = true }
 blue-lang-runtime = { workspace = true }
 blue-lang-syntax = { workspace = true }

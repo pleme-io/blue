@@ -127,7 +127,11 @@ impl Theme {
         // `get` returns Option; a missing index would mean the palette is not
         // Nord. Falling back to the canonical NORD keeps this total without
         // inventing a colour.
-        let at = |i: usize| p.get(i).or_else(|| NORD.get(i)).unwrap_or(Color::new(0, 0, 0));
+        let at = |i: usize| {
+            p.get(i)
+                .or_else(|| NORD.get(i))
+                .unwrap_or(Color::new(0, 0, 0))
+        };
         Self {
             primary: at(NORD_PRIMARY),
             accent: at(NORD_ACCENT),
@@ -163,7 +167,11 @@ pub fn wordmark(version: &str) -> Vec<Line> {
         SHIFT
             .iter()
             .fold(Line::new(), |l, ink| l.piece(Piece::glyph(CELL).ink(*ink)))
-            .piece(Piece::text("  blue  ").ink(Ink::BrightWhite).attr(Attr::Bold))
+            .piece(
+                Piece::text("  blue  ")
+                    .ink(Ink::BrightWhite)
+                    .attr(Attr::Bold),
+            )
             .piece(Piece::text(version).ink(Ink::BrightBlack)),
         // A single rule under it, in the crisp light set. Not `━` heavy and not
         // `╌` dashed: neither has renderer geometry.
@@ -225,7 +233,11 @@ mod tests {
             [Ink::BrightCyan, Ink::Cyan, Ink::BrightBlue, Ink::Blue],
             "the direction is the meaning: toward blue, not away from it"
         );
-        assert_eq!(*SHIFT.last().expect("non-empty"), Ink::Blue, "it ends on blue");
+        assert_eq!(
+            *SHIFT.last().expect("non-empty"),
+            Ink::Blue,
+            "it ends on blue"
+        );
     }
 
     /// **Named by ANSI slot, never by hex.** katsuji has no `Ink::Rgb` on

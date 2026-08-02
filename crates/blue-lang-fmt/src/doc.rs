@@ -31,7 +31,9 @@ pub enum Doc {
     Text(Rc<str>),
     /// Break candidate. `flat` is what it renders as when the enclosing
     /// group fits on one line.
-    Line { flat: &'static str },
+    Line {
+        flat: &'static str,
+    },
     Concat(Rc<Doc>, Rc<Doc>),
     Nest(isize, Rc<Doc>),
     Group(Rc<Doc>),
@@ -207,10 +209,7 @@ mod tests {
 
     #[test]
     fn a_group_that_fits_stays_flat() {
-        let d = tight("a")
-            .concat(Doc::line())
-            .concat(tight("b"))
-            .group();
+        let d = tight("a").concat(Doc::line()).concat(tight("b")).group();
         assert_eq!(pretty(&d, 80), "a b");
     }
 
@@ -246,10 +245,7 @@ mod tests {
     #[test]
     fn inner_groups_decide_independently() {
         let inner = tight("b").concat(Doc::line()).concat(tight("c")).group();
-        let d = tight("aaaaaaaa")
-            .concat(Doc::line())
-            .concat(inner)
-            .group();
+        let d = tight("aaaaaaaa").concat(Doc::line()).concat(inner).group();
         assert_eq!(pretty(&d, 10), "aaaaaaaa\nb c");
     }
 
@@ -257,10 +253,7 @@ mod tests {
     /// width yields exactly one string, always.
     #[test]
     fn rendering_is_deterministic() {
-        let d = tight("x")
-            .concat(Doc::line())
-            .concat(tight("y"))
-            .group();
+        let d = tight("x").concat(Doc::line()).concat(tight("y")).group();
         let a = pretty(&d, 3);
         for _ in 0..100 {
             assert_eq!(pretty(&d, 3), a);
@@ -272,7 +265,10 @@ mod tests {
     /// measuring nothing.
     #[test]
     fn width_changes_the_output() {
-        let d = tight("aaa").concat(Doc::line()).concat(tight("bbb")).group();
+        let d = tight("aaa")
+            .concat(Doc::line())
+            .concat(tight("bbb"))
+            .group();
         assert_ne!(pretty(&d, 80), pretty(&d, 3));
     }
 }

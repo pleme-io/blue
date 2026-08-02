@@ -41,7 +41,20 @@ on:
 
 jobs:
   release:
-    uses: pleme-io/substrate/.github/workflows/cargo-auto-release.yml@main
-    with:
-      bump-type: ${{ inputs.bump-type || 'patch' }}
+    # rust-auto-release, NOT cargo-auto-release. blue is a 13-crate workspace
+    # with a shared [workspace.package].version, and cargo-auto-release is the
+    # SINGLE-CRATE releaser: it looks for [package].version at the repo root,
+    # finds none, and stops with
+    #
+    #   ERROR cargo-bump: package.version not found (workspace? use
+    #   rust-workspace-bump)
+    #
+    # which is the error naming its own fix. The first shim here used the
+    # wrong one (2026-08-01) — corrected against precedent: asobi, banken and
+    # carve are all workspaces on this reusable.
+    #
+    # The third variant, cargo-publish-each-member-auto-release, is for
+    # workspaces WITHOUT a shared [workspace.package].version, so it is not
+    # this repo either. Pick by workspace shape, not by name similarity.
+    uses: pleme-io/substrate/.github/workflows/rust-auto-release.yml@main
     secrets: inherit

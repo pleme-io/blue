@@ -35,13 +35,20 @@ fn corpus() -> Vec<(String, String)> {
         if p.extension().and_then(|s| s.to_str()) != Some("b") {
             continue;
         }
-        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+        let name = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
         if let Ok(src) = std::fs::read_to_string(&p) {
             out.push((name, src));
         }
     }
     out.sort();
-    assert!(!out.is_empty(), "spec corpus EMPTY — suite would pass vacuously");
+    assert!(
+        !out.is_empty(),
+        "spec corpus EMPTY — suite would pass vacuously"
+    );
     out
 }
 
@@ -56,7 +63,9 @@ fn no_parseable_prefix_panics_the_checker() {
     let mut reached = 0usize;
     for (name, src) in corpus() {
         for end in 0..=src.len() {
-            let Some(slice) = src.get(..end) else { continue };
+            let Some(slice) = src.get(..end) else {
+                continue;
+            };
             checked += 1;
             let Ok(forms) = blue_lang_syntax::parse_program(slice) else {
                 continue;

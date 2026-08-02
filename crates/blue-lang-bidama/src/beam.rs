@@ -50,7 +50,7 @@ use std::fmt;
 // ── the seven dimensions ───────────────────────────────────────────────────
 
 /// How a process loses the CPU.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Scheduling {
     /// A process runs until it blocks or returns. Simplest, and the reason a
     /// single long computation can stall every other process.
@@ -67,7 +67,7 @@ pub enum Scheduling {
 }
 
 /// What crosses a `send`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Payload {
     /// The message is reconstructed in the receiver. No aliasing at any cost.
     DeepCopy,
@@ -82,7 +82,7 @@ pub enum Payload {
 }
 
 /// Where a process's values live and how they are reclaimed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Heap {
     /// One heap per process, collected independently. A pause is bounded by
     /// *that* process's live set, not the system's.
@@ -98,7 +98,7 @@ pub enum Heap {
 }
 
 /// What happens when one process fails.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Failure {
     /// The process dies at the fault; a supervisor restarts it from a known
     /// state. Sound exactly when the fault cannot have damaged a peer.
@@ -111,7 +111,7 @@ pub enum Failure {
 }
 
 /// What latency guarantee the runtime offers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Latency {
     /// None stated.
     Unbounded,
@@ -123,7 +123,7 @@ pub enum Latency {
 }
 
 /// Whether a process identifier may name a process on another machine.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Distribution {
     /// Every process is in this address space.
     LocalOnly,
@@ -133,7 +133,7 @@ pub enum Distribution {
 }
 
 /// Whether the same inputs reproduce the same interleaving.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Interleaving {
     /// Scheduling order is not part of the program's meaning.
     Nondeterministic,
@@ -145,7 +145,7 @@ pub enum Interleaving {
 // ── a point in the space ───────────────────────────────────────────────────
 
 /// One concurrency runtime: a choice on each dimension.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Model {
     pub scheduling: Scheduling,
     pub payload: Payload,
@@ -369,6 +369,58 @@ impl Model {
         self.contradiction().is_none()
     }
 
+    /// Combine two packages' required runtime models.
+    ///
+    /// **Equality-or-conflict. There is no meet, and this is the third algebra
+    /// in the resolution, not a second copy of the first.**
+    ///
+    /// waku posture is a genuine lattice — `meet`/`join` componentwise, laws
+    /// property-tested — so combining two postures always yields a posture.
+    /// `Model` is not, for two independent reasons, and either alone is fatal:
+    ///
+    /// 1. **The dimensions carry no order.** `ReductionCounted` is not "more"
+    ///    than `CooperativeYield`; they are different machines. The enums
+    ///    deliberately do NOT derive `Ord`, because deriving it would order
+    ///    them by *declaration position* and make `a.min(b)` compile into a
+    ///    plausible-looking answer that means nothing. That derive was present
+    ///    and is removed; the hazard is now a type error rather than a comment.
+    /// 2. **Componentwise combination is not closed.** [`Self::contradiction`]
+    ///    excludes points, so mixing two realizable models dimension by
+    ///    dimension can land on an excluded one — a "meet" that leaves the
+    ///    set. That kills lattice-hood regardless of ordering.
+    ///
+    /// So two packages either want the same runtime or they cannot be woven,
+    /// and the honest answer names every dimension they disagree on rather
+    /// than picking one.
+    pub fn unify(a: Model, b: Model) -> Result<Model, Vec<&'static str>> {
+        if a == b {
+            return Ok(a);
+        }
+        let mut differing = Vec::new();
+        if a.scheduling != b.scheduling {
+            differing.push("scheduling");
+        }
+        if a.payload != b.payload {
+            differing.push("payload");
+        }
+        if a.heap != b.heap {
+            differing.push("heap");
+        }
+        if a.failure != b.failure {
+            differing.push("failure");
+        }
+        if a.latency != b.latency {
+            differing.push("latency");
+        }
+        if a.distribution != b.distribution {
+            differing.push("distribution");
+        }
+        if a.interleaving != b.interleaving {
+            differing.push("interleaving");
+        }
+        Err(differing)
+    }
+
     /// Does this point keep all three guarantees the BEAM is chosen for?
     ///
     /// Transparent distribution, let-it-crash supervision, and a soft latency
@@ -503,14 +555,86 @@ pub fn beam_variants() -> Vec<Model> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeSet;
+    use std::collections::HashSet;
+
+    /// Two packages wanting the same runtime weave; two wanting different ones
+    /// do not, and the refusal names every dimension they disagree on.
+    #[test]
+    fn unify_is_equality_or_conflict_and_names_every_disagreement() {
+        assert_eq!(Model::unify(Model::BEAM, Model::BEAM), Ok(Model::BEAM));
+
+        // The case the whole design exists for: a replay-dependent package and
+        // a wall-clock-scheduled one cannot be woven, and you learn it here
+        // rather than in production.
+        let replayable = Model {
+            interleaving: Interleaving::Replayable,
+            scheduling: Scheduling::ReductionCounted,
+            ..Model::BEAM
+        };
+        let wall_clock = Model {
+            scheduling: Scheduling::WallClockSlice,
+            ..Model::BEAM
+        };
+        let Err(diff) = Model::unify(replayable, wall_clock) else {
+            panic!("these two runtimes are not the same machine");
+        };
+        assert!(diff.contains(&"scheduling"), "{diff:?}");
+        assert!(diff.contains(&"interleaving"), "{diff:?}");
+        assert_eq!(diff.len(), 2, "and nothing else differs: {diff:?}");
+    }
+
+    /// **There is no meaningful order on a runtime model, so there must be no
+    /// order at all.**
+    ///
+    /// The dimensions once derived `Ord`, which orders them by declaration
+    /// position — `RunToCompletion < CooperativeYield < ReductionCounted` — so
+    /// `a.min(b)` compiled and produced a confident answer with no meaning. A
+    /// reader reaching for a lattice operation on a non-lattice got one.
+    ///
+    /// The derive is gone, so that call is now a type error. This test pins the
+    /// *reason* rather than the absence, since `Ord` is easy to re-add for a
+    /// `BTreeSet` and the compile error is the only thing standing between
+    /// here and a plausible-looking wrong answer.
+    #[test]
+    fn a_model_carries_no_order_because_none_of_its_dimensions_do() {
+        // Ordering the runtime points would have to mean one is "less
+        // scheduler" than another. Name two that are simply different
+        // machines, and assert only what is true of them: inequality.
+        assert_ne!(Scheduling::ReductionCounted, Scheduling::WallClockSlice);
+        assert_ne!(Heap::PerProcessCollected, Heap::Refcounted);
+
+        // The closure argument, which holds independently of ordering:
+        // combining two realizable models componentwise can leave the set.
+        let a = Model {
+            distribution: Distribution::TransparentRemote,
+            payload: Payload::DeepCopy,
+            ..Model::BEAM
+        };
+        let b = Model {
+            distribution: Distribution::LocalOnly,
+            payload: Payload::LinearMove,
+            ..Model::BEAM
+        };
+        assert!(a.realizable() && b.realizable());
+        let componentwise = Model {
+            distribution: a.distribution, // from a
+            payload: b.payload,           // from b
+            ..Model::BEAM
+        };
+        assert_eq!(
+            componentwise.contradiction(),
+            Some(Contradiction::PointerOffMachine),
+            "mixing two realizable models dimension-by-dimension left the set — \
+             this is why there is no meet, independent of any ordering"
+        );
+    }
 
     #[test]
     fn the_space_is_the_full_product() {
         // 4 scheduling x 4 payload x 4 heap x 3 failure x 3 latency
         //   x 2 distribution x 2 interleaving
         assert_eq!(Model::all().len(), 4 * 4 * 4 * 3 * 3 * 2 * 2);
-        let unique: BTreeSet<_> = Model::all().into_iter().collect();
+        let unique: HashSet<_> = Model::all().into_iter().collect();
         assert_eq!(unique.len(), Model::all().len(), "no duplicate points");
     }
 
@@ -623,21 +747,21 @@ mod tests {
             .collect();
         assert!(kept.contains(&Model::BEAM));
 
-        let payloads: BTreeSet<_> = kept.iter().map(|m| m.payload).collect();
+        let payloads: HashSet<_> = kept.iter().map(|m| m.payload).collect();
         assert_eq!(
             payloads,
-            BTreeSet::from([Payload::DeepCopy]),
+            HashSet::from([Payload::DeepCopy]),
             "transparent distribution forces the payload — this one IS pinned"
         );
 
-        let schedulings: BTreeSet<_> = kept.iter().map(|m| m.scheduling).collect();
+        let schedulings: HashSet<_> = kept.iter().map(|m| m.scheduling).collect();
         assert!(
             schedulings.len() > 1,
             "the BEAM's guarantees do not force reduction counting; \
              it is a choice, and therefore a place a variant can differ"
         );
 
-        let heaps: BTreeSet<_> = kept.iter().map(|m| m.heap).collect();
+        let heaps: HashSet<_> = kept.iter().map(|m| m.heap).collect();
         assert!(heaps.len() > 1, "nor do they force a per-process collector");
     }
 

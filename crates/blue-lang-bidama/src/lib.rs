@@ -72,21 +72,80 @@ impl Bidama {
 /// **Every conflict names both sides and the specific property**, because a
 /// resolver that cannot answer *why* is not a resolver — that is the whole
 /// standard PubGrub set, applied to postures.
+///
+/// **One variant per waku coordinate, and the caller can match on it.** This
+/// was a struct carrying the reason as a prose `String`, which had two costs.
+/// A consumer could not act on the cause without parsing English. And
+/// `explain` ended in an unconditional branch that asserted "requires a heap
+/// the root does not permit" — correct only because `Waku::leq` happens to
+/// have exactly three coordinates, so the moment a fourth algebra joined the
+/// resolution its conflicts would have been reported as heap conflicts, with
+/// an empty culprit list and no way to notice.
+///
+/// The variants are the coordinates. Adding one is a compile error at every
+/// match, which is the point.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Conflict {
+pub enum Conflict {
+    /// **WHEN** — the quantized coordinate, and the only one that can produce
+    /// a structural mutual exclusion: an artifact either carries the evaluator
+    /// or it does not, so there is no middle posture satisfying both.
+    Schedule {
+        culprits: Vec<String>,
+        /// Whether what was demanded is specifically a resident evaluator,
+        /// which is the case an author most needs to see.
+        needs_resident_evaluator: bool,
+    },
+    /// **REACH** — a package wants names the root's capability policy does not
+    /// grant.
+    Capability { culprits: Vec<String> },
+    /// **WHERE** — a package wants a heap the root does not permit.
+    Heap { culprits: Vec<String> },
+}
+
+impl Conflict {
     /// The packages whose floors jointly exceeded the ceiling.
-    pub culprits: Vec<String>,
-    /// The coordinate that failed, in prose.
-    pub because: String,
+    #[must_use]
+    pub fn culprits(&self) -> &[String] {
+        match self {
+            Self::Schedule { culprits, .. }
+            | Self::Capability { culprits }
+            | Self::Heap { culprits } => culprits,
+        }
+    }
+
+    /// Which coordinate failed, as a stable label.
+    #[must_use]
+    pub const fn coordinate(&self) -> &'static str {
+        match self {
+            Self::Schedule { .. } => "when",
+            Self::Capability { .. } => "reach",
+            Self::Heap { .. } => "where",
+        }
+    }
 }
 
 impl std::fmt::Display for Conflict {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let because = match self {
+            Self::Schedule {
+                needs_resident_evaluator: true,
+                ..
+            } => {
+                "a resident evaluator (runtime `eval`) is required, but the root seals \
+                 the artifact. This is the one axis that quantizes — an artifact either \
+                 carries the evaluator or it does not, so there is no middle posture \
+                 that satisfies both."
+            }
+            Self::Schedule { .. } => {
+                "a wider evaluation schedule is required, but the root seals the artifact."
+            }
+            Self::Capability { .. } => "requires names the root's capability policy does not grant",
+            Self::Heap { .. } => "requires a heap the root does not permit",
+        };
         write!(
             f,
-            "cannot resolve: {} — {}",
-            self.culprits.join(" and "),
-            self.because
+            "cannot resolve: {} — {because}",
+            self.culprits().join(" and ")
         )
     }
 }
@@ -135,18 +194,9 @@ fn explain(bidama: &[Bidama], ceiling: &Waku, joined: &Waku) -> Conflict {
             .filter(|b| b.floor.when > ceiling.when)
             .map(|b| b.name.clone())
             .collect();
-        let need = if joined.when == When::Anytime {
-            "a resident evaluator (runtime `eval`)"
-        } else {
-            "a wider evaluation schedule"
-        };
-        return Conflict {
-            because: format!(
-                "{need} is required, but the root seals the artifact. This is the one \
-                 axis that quantizes — an artifact either carries the evaluator or it \
-                 does not, so there is no middle posture that satisfies both."
-            ),
+        return Conflict::Schedule {
             culprits,
+            needs_resident_evaluator: joined.when == When::Anytime,
         };
     }
 
@@ -156,21 +206,34 @@ fn explain(bidama: &[Bidama], ceiling: &Waku, joined: &Waku) -> Conflict {
             .filter(|b| !b.floor.reach.leq(&ceiling.reach))
             .map(|b| b.name.clone())
             .collect();
-        return Conflict {
-            because: "requires names the root's capability policy does not grant".into(),
-            culprits,
-        };
+        return Conflict::Capability { culprits };
     }
 
-    let culprits: Vec<String> = bidama
-        .iter()
-        .filter(|b| b.floor.place > ceiling.place)
-        .map(|b| b.name.clone())
-        .collect();
-    Conflict {
-        because: "requires a heap the root does not permit".into(),
-        culprits,
+    // WHERE — checked with an `if`, not as a fallthrough.
+    //
+    // This used to be the unconditional tail: whatever was left got reported
+    // as a heap conflict. That was true only because `Waku::leq` compares
+    // exactly three coordinates, so "not WHEN and not REACH" implied WHERE by
+    // arithmetic rather than by test. `every_failing_pair_is_explained_by_a_
+    // coordinate_that_actually_exceeds` is what now holds that, exhaustively
+    // over every posture pair, so the implication is checked rather than
+    // assumed — and a fourth coordinate lands here as an explicit gap instead
+    // of silently wearing WHERE's label with an empty culprit list.
+    if joined.place > ceiling.place {
+        let culprits: Vec<String> = bidama
+            .iter()
+            .filter(|b| b.floor.place > ceiling.place)
+            .map(|b| b.name.clone())
+            .collect();
+        return Conflict::Heap { culprits };
     }
+
+    unreachable!(
+        "resolve only calls explain when `joined ⊑ ceiling` is false, and \
+         `Waku::leq` is componentwise over exactly WHEN, REACH and WHERE — so \
+         at least one of the three above must have fired. Reaching here means \
+         a coordinate was added to `Waku` without adding it to `Conflict`."
+    )
 }
 
 #[cfg(test)]
@@ -238,6 +301,64 @@ mod tests {
         assert!(!bs[1].floor.leq(&smaller));
     }
 
+    /// **Every failing resolution is explained by a coordinate that actually
+    /// exceeds the ceiling.** Exhaustive over every ordered posture pair.
+    ///
+    /// This is what holds the `unreachable!` at the end of `explain`. That
+    /// branch used to be the *reporting* path: whatever was not WHEN and not
+    /// REACH was labelled a heap conflict, which was true only because
+    /// `Waku::leq` compares exactly three coordinates. So the implication was
+    /// arithmetic, not a test, and a fourth coordinate would have inherited
+    /// WHERE's label with an empty culprit list — a conflict that reads as
+    /// explained and names nobody.
+    ///
+    /// Checking it over all pairs means the `unreachable!` is a fact about
+    /// this lattice rather than a hope, and adding a coordinate to `Waku`
+    /// fails here rather than lying at runtime.
+    #[test]
+    fn every_failing_pair_is_explained_by_a_coordinate_that_actually_exceeds() {
+        let postures = all_postures();
+        let mut failures = 0usize;
+
+        for floor in &postures {
+            for ceiling in &postures {
+                if floor.leq(ceiling) {
+                    continue;
+                }
+                failures += 1;
+                let err = resolve(&[Bidama::new("p", floor.clone())], ceiling)
+                    .expect_err("floor exceeds ceiling, so this must conflict");
+
+                // The named coordinate must be one that genuinely exceeds.
+                let honest = match &err {
+                    Conflict::Schedule { .. } => floor.when > ceiling.when,
+                    Conflict::Capability { .. } => !floor.reach.leq(&ceiling.reach),
+                    Conflict::Heap { .. } => floor.place > ceiling.place,
+                };
+                assert!(
+                    honest,
+                    "reported {} for {floor:?} under {ceiling:?}, but that \
+                     coordinate does not exceed",
+                    err.coordinate()
+                );
+
+                // And it must name somebody. An empty culprit list is the
+                // exact symptom the old fallthrough produced.
+                assert!(
+                    !err.culprits().is_empty(),
+                    "{} conflict named nobody for {floor:?} under {ceiling:?}",
+                    err.coordinate()
+                );
+            }
+        }
+
+        // Anti-vacuity: if no pair failed, the loop above asserted nothing.
+        assert!(
+            failures > 0,
+            "no posture pair failed to resolve — this gate measured nothing"
+        );
+    }
+
     // ---- the one axis that can partition an ecosystem -----------------
 
     /// A package needing runtime `eval` cannot go in a sealed artifact,
@@ -250,16 +371,22 @@ mod tests {
             place: Where::Shared,
         };
         let err = resolve(&[needs_eval("scripting")], &ceiling).expect_err("must conflict");
-        assert_eq!(err.culprits, vec!["scripting"]);
+        assert_eq!(err.culprits(), ["scripting"]);
+        assert_eq!(err.coordinate(), "when");
         assert!(
-            err.because.contains("resident evaluator"),
-            "{}",
-            err.because
+            matches!(
+                err,
+                Conflict::Schedule {
+                    needs_resident_evaluator: true,
+                    ..
+                }
+            ),
+            "the CAUSE must be matchable, not only readable: {err:?}"
         );
+        assert!(err.to_string().contains("resident evaluator"), "{err}");
         assert!(
-            err.because.contains("quantizes"),
-            "the message should say WHY there is no middle posture: {}",
-            err.because
+            err.to_string().contains("quantizes"),
+            "the message should say WHY there is no middle posture: {err}"
         );
     }
 
@@ -275,8 +402,8 @@ mod tests {
             &ceiling,
         )
         .expect_err("must conflict");
-        assert_eq!(err.culprits, vec!["a", "b"]);
-        assert!(!err.culprits.contains(&"ok".to_string()));
+        assert_eq!(err.culprits(), ["a", "b"]);
+        assert!(!err.culprits().contains(&"ok".to_string()));
     }
 
     /// The bit is surfaced on SUCCESS too, so a build knows which artifact
@@ -298,8 +425,9 @@ mod tests {
             place: Where::Shared,
         };
         let err = resolve(&[pure("net", &["http_get"])], &ceiling).expect_err("must conflict");
-        assert_eq!(err.culprits, vec!["net"]);
-        assert!(err.because.contains("capability policy"), "{}", err.because);
+        assert_eq!(err.culprits(), ["net"]);
+        assert_eq!(err.coordinate(), "reach");
+        assert!(err.to_string().contains("capability policy"), "{err}");
     }
 
     #[test]
@@ -316,7 +444,8 @@ mod tests {
             },
         );
         let err = resolve(&[shared], &ceiling).expect_err("must conflict");
-        assert!(err.because.contains("heap"), "{}", err.because);
+        assert_eq!(err.coordinate(), "where");
+        assert!(err.to_string().contains("heap"), "{err}");
     }
 
     // ---- order independence -------------------------------------------

@@ -28,6 +28,10 @@
 //! anything.
 
 pub mod bluefile;
+/// Git-backed resolution — a distribution is a directory of bidamas in a
+/// checkout, not a package server. See the module docs for what it does and
+/// does NOT claim.
+pub mod git_registry;
 pub mod solve;
 pub mod version;
 

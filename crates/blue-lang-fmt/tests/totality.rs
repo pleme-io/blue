@@ -34,7 +34,11 @@ fn corpus() -> Vec<(String, String)> {
         if p.extension().and_then(|s| s.to_str()) != Some("b") {
             continue;
         }
-        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+        let name = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
         if let Ok(src) = std::fs::read_to_string(&p) {
             out.push((name, src));
         }
@@ -54,7 +58,9 @@ fn no_prefix_of_the_corpus_panics_the_formatter() {
     let mut checked = 0usize;
     for (name, src) in corpus() {
         for end in 0..=src.len() {
-            let Some(slice) = src.get(..end) else { continue };
+            let Some(slice) = src.get(..end) else {
+                continue;
+            };
             let r = std::panic::catch_unwind(|| {
                 let _ = blue_lang_fmt::format_source(slice);
                 let _ = blue_lang_fmt::format_source_lossless(slice);
@@ -86,8 +92,10 @@ fn formatting_is_idempotent_over_the_corpus() {
             continue; // unparseable input is the parser suite's problem
         };
         let twice = blue_lang_fmt::format_source(&once).unwrap_or_else(|e| {
-            panic!("{name}: formatter output does not re-parse — that is worse \
-                    than non-idempotence, it means format() emits invalid blue: {e}")
+            panic!(
+                "{name}: formatter output does not re-parse — that is worse \
+                    than non-idempotence, it means format() emits invalid blue: {e}"
+            )
         });
         assert_eq!(
             once, twice,

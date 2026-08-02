@@ -39,13 +39,20 @@ fn corpus() -> Vec<(String, String)> {
         if p.extension().and_then(|s| s.to_str()) != Some("b") {
             continue;
         }
-        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+        let name = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
         if let Ok(src) = std::fs::read_to_string(&p) {
             out.push((name, src));
         }
     }
     out.sort();
-    assert!(!out.is_empty(), "spec corpus EMPTY — suite would pass vacuously");
+    assert!(
+        !out.is_empty(),
+        "spec corpus EMPTY — suite would pass vacuously"
+    );
     out
 }
 
@@ -99,7 +106,9 @@ fn truncated_programs_do_not_abort_the_evaluator() {
     let mut checked = 0usize;
     for (name, src) in corpus() {
         for end in (0..=src.len()).step_by(7) {
-            let Some(slice) = src.get(..end) else { continue };
+            let Some(slice) = src.get(..end) else {
+                continue;
+            };
             let r = std::panic::catch_unwind(|| {
                 let _ = blue_lang_runtime::pipeline::run(slice);
             });

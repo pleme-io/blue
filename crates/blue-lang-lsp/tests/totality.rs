@@ -38,13 +38,20 @@ fn corpus() -> Vec<(String, String)> {
         if p.extension().and_then(|s| s.to_str()) != Some("b") {
             continue;
         }
-        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+        let name = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
         if let Ok(src) = std::fs::read_to_string(&p) {
             out.push((name, src));
         }
     }
     out.sort();
-    assert!(!out.is_empty(), "spec corpus EMPTY — suite would pass vacuously");
+    assert!(
+        !out.is_empty(),
+        "spec corpus EMPTY — suite would pass vacuously"
+    );
     out
 }
 
@@ -54,7 +61,9 @@ fn no_prefix_of_the_corpus_panics_analyse() {
     let mut checked = 0usize;
     for (name, src) in corpus() {
         for end in 0..=src.len() {
-            let Some(slice) = src.get(..end) else { continue };
+            let Some(slice) = src.get(..end) else {
+                continue;
+            };
             let r = std::panic::catch_unwind(|| {
                 let _ = analyse(slice);
             });
@@ -83,12 +92,30 @@ fn hover_survives_any_position_including_out_of_bounds() {
         let lines = src.lines().count() as u32;
         let widest = src.lines().map(|l| l.len()).max().unwrap_or(0) as u32;
         let positions = [
-            Position { line: 0, character: 0 },
-            Position { line: 0, character: u32::MAX },
-            Position { line: lines, character: 0 },          // one past the end
-            Position { line: lines + 100, character: 0 },     // far past
-            Position { line: u32::MAX, character: u32::MAX }, // the pathological case
-            Position { line: lines.saturating_sub(1), character: widest + 50 },
+            Position {
+                line: 0,
+                character: 0,
+            },
+            Position {
+                line: 0,
+                character: u32::MAX,
+            },
+            Position {
+                line: lines,
+                character: 0,
+            }, // one past the end
+            Position {
+                line: lines + 100,
+                character: 0,
+            }, // far past
+            Position {
+                line: u32::MAX,
+                character: u32::MAX,
+            }, // the pathological case
+            Position {
+                line: lines.saturating_sub(1),
+                character: widest + 50,
+            },
         ];
         for pos in positions {
             let r = std::panic::catch_unwind(|| {
@@ -116,9 +143,14 @@ fn hover_survives_the_delete_race() {
         let full_lines = src.lines().count() as u32;
         for frac in [2usize, 4, 8] {
             let cut = src.len() / frac;
-            let Some(shorter) = src.get(..cut) else { continue };
+            let Some(shorter) = src.get(..cut) else {
+                continue;
+            };
             // Ask the SHORTER text about a position valid only in the longer.
-            let pos = Position { line: full_lines, character: 0 };
+            let pos = Position {
+                line: full_lines,
+                character: 0,
+            };
             let r = std::panic::catch_unwind(|| {
                 let _ = hover(shorter, pos);
                 let _ = analyse(shorter);
@@ -162,7 +194,13 @@ fn hostile_sources_do_not_abort_the_lsp() {
     ] {
         let r = std::panic::catch_unwind(|| {
             let _ = analyse(src);
-            let _ = hover(src, Position { line: 0, character: 0 });
+            let _ = hover(
+                src,
+                Position {
+                    line: 0,
+                    character: 0,
+                },
+            );
         });
         assert!(r.is_ok(), "PANIC on hostile LSP input `{label}`");
     }
@@ -200,7 +238,13 @@ fn non_ascii_source_does_not_panic_the_offset_mapping() {
     ] {
         let r = std::panic::catch_unwind(|| {
             let _ = analyse(src);
-            let _ = hover(src, Position { line: 0, character: 1 });
+            let _ = hover(
+                src,
+                Position {
+                    line: 0,
+                    character: 1,
+                },
+            );
         });
         assert!(
             r.is_ok(),

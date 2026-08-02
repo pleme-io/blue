@@ -630,6 +630,25 @@ impl Parser {
     /// breaking a caller.
     fn finish_send(&mut self, recv: Sexp) -> Result<Sexp, ParseError> {
         let name = match self.bump() {
+            // A RESERVED WORD is not a method name.
+            //
+            // Found by the formatter property suite, minimal input `1.def`.
+            // The send parsed happily into `(def 1)` — `def` is just an
+            // identifier to the lexer — and the formatter then rendered that
+            // as `def(1)`, which the parser rejects. So `format` turned valid
+            // source into source that does not parse: corruption, not a style
+            // choice, and silent until a round-trip property looked.
+            //
+            // Rejecting here rather than teaching the formatter to quote it
+            // fixes the class instead of the symptom: `x.if`, `x.end` and
+            // `x.case` all lower onto special forms the same way, and none of
+            // them is a method anyone meant to call.
+            TokenKind::Ident(n) if is_reserved_word(&n) => {
+                return Err(self.error(format!(
+                    "`{n}` is a reserved word and cannot be a method name — \
+                     `recv.{n}` would lower onto the `{n}` form itself"
+                )))
+            }
             TokenKind::Ident(n) => n,
             other => {
                 return Err(self.error(format!("expected a method name after `.`, found {other:?}")))

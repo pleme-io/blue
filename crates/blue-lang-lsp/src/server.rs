@@ -420,6 +420,9 @@ fn write_message<W: Write>(output: &mut W, value: &Value) -> std::io::Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Only the tests assert on severity codes, so this is imported here rather
+    // than at module scope where it would be dead in a normal build.
+    use crate::Severity;
 
     const PROGRAM: &str = "def add(a: Int, b: Int) -> Int\n  a + b\nend";
 

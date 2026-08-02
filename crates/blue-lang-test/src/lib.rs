@@ -542,7 +542,6 @@ mod tests {
 
 #[cfg(test)]
 mod shadowing {
-    use super::*;
 
     /// **No name blue lowers to may already be bound by the runtime.**
     ///
@@ -570,26 +569,23 @@ mod shadowing {
         // delegation as a bug.
         const LOWERED: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
 
-        let mut shadowed: Vec<(&str, String)> = Vec::new();
-        for name in LOWERED {
-            // A bare blue runtime — primitives + the Lisp stdlib, no blue
-            // additions. If the name resolves here, blue's definition would be
-            // the loser.
-            let mut interp = blue_lang_runtime::interpreter_hostless();
-            let probe = format!("({name})");
-            let forms = tatara_lisp::read_spanned(&probe).expect("read probe");
-            match interp.eval_program(&forms, &mut ()) {
-                // An arity or type complaint means the name RESOLVED — it is
-                // bound to something, and that something is not blue's.
-                Ok(_) => shadowed.push((name, "resolved and returned a value".to_string())),
-                Err(e) => {
-                    let msg = e.to_string();
-                    if !msg.contains("unbound") {
-                        shadowed.push((name, msg));
-                    }
-                }
-            }
-        }
+        // A bare blue runtime — primitives + the Lisp stdlib, no blue
+        // additions. If a name resolves here, blue's definition is the loser.
+        //
+        // Asked through `resolve_head`, which consults all three arbiters in
+        // the evaluator's own order and says WHICH one claims the name. The
+        // previous probe evaluated `(name)` and matched the error text for
+        // "unbound" — it worked, and it decided a silent-failure question by
+        // string comparison against a message nothing stops anyone rewording.
+        let interp = blue_lang_runtime::interpreter_hostless();
+        let shadowed: Vec<(&str, String)> = LOWERED
+            .iter()
+            .filter_map(|name| {
+                interp
+                    .resolve_head(name)
+                    .map(|by| (*name, format!("{by:?}")))
+            })
+            .collect();
         assert!(
             shadowed.is_empty(),
             "these names are already bound by the runtime, so blue's definition is silently \
@@ -609,17 +605,12 @@ mod shadowing {
     #[test]
     fn every_delegated_name_resolves() {
         const DELEGATED: &[&str] = &[blue_lang_syntax::LOWERED_MAP];
-        let mut missing: Vec<&str> = Vec::new();
-        for name in DELEGATED {
-            let mut interp = blue_lang_runtime::interpreter_hostless();
-            let probe = format!("({name})");
-            let forms = tatara_lisp::read_spanned(&probe).expect("read probe");
-            if let Err(e) = interp.eval_program(&forms, &mut ()) {
-                if e.to_string().contains("unbound") {
-                    missing.push(name);
-                }
-            }
-        }
+        let interp = blue_lang_runtime::interpreter_hostless();
+        let missing: Vec<&str> = DELEGATED
+            .iter()
+            .filter(|name| interp.resolve_head(name).is_none())
+            .copied()
+            .collect();
         assert!(
             missing.is_empty(),
             "blue lowers to these names but the runtime does not bind them: {missing:?}"

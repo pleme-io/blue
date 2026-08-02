@@ -402,6 +402,32 @@ impl Parser {
     /// meant. Blue declines it, and the cost is only that a walrus-style idiom
     /// has to be two lines.
     fn statement(&mut self) -> Result<Sexp, ParseError> {
+        // The SECOND recursion cycle, and it needs the same guard as `expr`.
+        //
+        // Guarding `expr` alone was not enough — measured 2026-08-01: with the
+        // expression bound in place, `"def a\n".repeat(2_000)` STILL aborted
+        // the process. Block nesting (`def` opening a body that contains more
+        // statements) recurses through here, not through `expr`, so a fix
+        // applied to one cycle silently left the other reachable. Two paths to
+        // the same crash; one guard covered one of them.
+        //
+        // Shares `self.depth` with `expr` on purpose: what the stack cares
+        // about is TOTAL nesting, not which grammar production produced it, so
+        // two independent counters would each permit their own full budget and
+        // together exceed what the stack can hold.
+        if self.depth >= MAX_EXPR_DEPTH {
+            return Err(self.error(format!(
+                "statement nests deeper than {MAX_EXPR_DEPTH}; refusing to \
+                 recurse further (this is a limit, not a syntax error)"
+            )));
+        }
+        self.depth += 1;
+        let r = self.statement_inner();
+        self.depth -= 1;
+        r
+    }
+
+    fn statement_inner(&mut self) -> Result<Sexp, ParseError> {
         if let TokenKind::Ident(name) = self.peek().clone() {
             if self.peek_at(1) == "=" && !is_reserved_word(&name) {
                 self.bump(); // name

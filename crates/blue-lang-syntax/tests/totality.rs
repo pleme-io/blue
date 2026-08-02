@@ -264,7 +264,14 @@ fn depth_beyond_the_limit_is_an_err_not_an_abort() {
 /// claim rather than asserting it.
 #[test]
 fn the_depth_limit_does_not_reject_realistic_nesting() {
-    for n in [1usize, 8, 32, 64, 128, blue_lang_syntax::MAX_EXPR_DEPTH - 1] {
+    // Note MAX - 2, not MAX - 1: `statement` and `expr` SHARE the depth
+    // budget (deliberately — the stack does not care which grammar production
+    // consumed a frame), so an expression at depth D sits inside a statement
+    // frame and costs D + 1. Testing MAX - 1 fails by exactly that one frame,
+    // which is the guard being correct and this test having been off by the
+    // enclosing statement. Recorded rather than silently loosened, because the
+    // shared budget is a real property a caller can hit.
+    for n in [1usize, 8, 32, 64, 128, blue_lang_syntax::MAX_EXPR_DEPTH - 2] {
         let src = format!("{}1{}", "(".repeat(n), ")".repeat(n));
         assert!(
             blue_lang_syntax::parse_program(&src).is_ok(),

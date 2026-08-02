@@ -1,5 +1,5 @@
 use("retsu")
-# fugou (符号) — base conversion and checksums.
+# shinsuu (進数) — base conversion and checksums.
 #
 # Encoding is where a library's edge cases live: zero, the empty input, and
 # the digit that is a letter. Each has a test here, because each is a place an

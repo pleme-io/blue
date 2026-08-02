@@ -103,19 +103,44 @@ emitted grammar exists and something depends on the incremental path.
 
 ---
 
-## 5. Name — proposed, NOT ratified
+## 5. Names — RATIFIED (`/naming`, 2026-08-01)
 
-The grammar spec and its emitters need a name from a metaphor family, per the
-fleet naming laws (Japanese for foundational substrate; blue's existing family
-is the window lineage — **mado** window → **garasu** glass → **waku** frame →
-**bīdama** the small glass bead).
+**The grammar spec is `kiwari` (木割).** The earlier proposal `kōshi` (格子) was
+**rejected**, and the reason is worth keeping: 格子 glosses to *lattice*, and
+blue already has one — `waku`'s order-theoretic posture lattice, 22 live uses,
+already indexed in `blue/CLAUDE.md` as "REACH/WHEN/WHERE frame **lattice**". A
+second primitive glossing to the same word does not merely fail to teach, it
+routes the reader to the wrong crate. A Japanese speaker separates 格子
+(grid-lattice) from 束 (order-lattice); our readers get romaji plus an English
+gloss, where they are one word. Law 2 failed independently too — nobody guesses
+"the one grammar spec that emits parser, grammar.js, queries and docs" from
+"latticework", and the defence offered ("the part of a window that gives shape
+to what is otherwise a hole") was a post-hoc simile, which is itself the tell.
 
-Proposed: **`kōshi` (格子)** — *lattice, latticework, the window's grid*. It is
-the part of a window that gives shape to what is otherwise a hole, which is what
-a grammar is to a language, and it sits inside the family blue already opened
-without repeating any member of it.
+**木割** is the proportioning rule-book of Japanese traditional carpentry (the
+*kiwari-sho* manuals, e.g. *Shōmei*, 1608): the codified system from which every
+member's dimensions derive from one base module, so no two pieces of the
+building can disagree. It teaches both halves this primitive needs — the
+codified rules of the thing (grammar), and one source with nothing able to drift
+(the whole reason it exists). Zero fleet collisions.
 
-Run `/naming` before committing to it.
+Two cautions, recorded rather than discovered later: the naive morpheme read is
+"wood-splitting", so the architectural sense must be glossed at first use; and
+`kiwari` rhymes with `hikari` (光), the fleet's live syntax-highlight vocabulary,
+whose territory M2 touches. Different initial consonant, no shared morpheme — a
+caution, not a collision. **This also widens blue's family**: the lineage is the
+Japanese wooden house (`genkan`, `kannuki`, `oshiire`, `sumika`, `todojimari`,
+`waku`), not the window alone.
+
+**The incremental parse engine is `kizami` (刻み)** — *a notch; an increment or
+step* (5分刻み = in five-minute increments; 刻む = to carve, to notch). The
+literal meaning states the defining property: it re-cuts only the notch an edit
+touched and leaves the rest of the board standing. It joins the Craft/Making
+family (匠) with `tatara`, `takumi`, `shikumi`, `forja` — deliberately NOT
+blue's house lineage, because the engine is fleet substrate consumed outside
+blue. Zero fleet collisions; the kanji 刻 appears nowhere in the fleet.
+crates.io availability is unchecked — a publishability question to settle before
+M4, not a naming defect.
 
 ---
 
@@ -127,7 +152,7 @@ Run `/naming` before committing to it.
 | **M1** | Emit `grammar.js` from the spec; ship a real tree-sitter grammar | differential vs blue's parser over every file AND every prefix |
 | **M2** | Emit highlight/fold/indent queries; wire into blackmatter-nvim | an operator sees blue highlighted from the generated artifact |
 | **M3** | Emit blue's own parser from the spec, retiring the hand-written one | byte-identical `Sexp` on the whole corpus before the old parser is deleted |
-| **M4** | Rust incremental engine + content-addressed subtree memo | measured against the C runtime on a real buffer, not a microbenchmark |
+| **M4** | `kizami` — Rust incremental engine + content-addressed subtree memo | measured against the C runtime on a real buffer, not a microbenchmark |
 
 **M3 is the one that makes the whole thing true**, and it is the one most
 tempting to skip: at M1 you already have a working editor grammar, and the
@@ -150,7 +175,7 @@ Measured gaps in blue's surface today, none of which block the above:
   siblings, which is the kind of thing a grammar spec makes visible.
 - **Kebab-case and `?`/`!` suffixed names are unreachable** from blue's lexer,
   so a chunk of the underlying tatara-lisp stdlib (`every?`, `sort-by`,
-  `string-length`) cannot be called at all. `narabi` reimplements `sort` for
+  `string-length`) cannot be called at all. `junjo` reimplements `sort` for
   exactly this reason.
 - **`nil` and `[]` are distinguishable** and `length(nil)` errors, which
   `retsu`'s total `size`/`first`/`rest` currently paper over at the library

@@ -1,4 +1,4 @@
-use("narabi")
+use("junjo")
 # toukei (統計) — descriptive statistics.
 #
 # Integer-mean is the trap this avoids: `/` is float division in blue, so

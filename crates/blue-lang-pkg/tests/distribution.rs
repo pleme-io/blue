@@ -24,7 +24,7 @@
 //! 2. **every** package declares at least one test IN ITS OWN SOURCE — counted
 //!    before imports resolve, because a dependency's tests come along with the
 //!    import and would otherwise count as the importer's. It caught `moji`
-//!    shipping with zero, and the own-source refinement caught that `kika`
+//!    shipping with zero, and the own-source refinement caught that `kikagaku`
 //!    could have done the same invisibly;
 //! 3. the total test count clears a floor (82 at the time of writing, floored
 //!    at 80), so a package silently losing its tests cannot pass as "green".
@@ -63,7 +63,7 @@ fn packages() -> Vec<String> {
 /// package's dependencies' tests counted as its own — which meant a package
 /// with zero tests of its own passed as long as it imported something tested.
 ///
-/// Measured: emptying every test out of `kika` (which imports kazu and retsu)
+/// Measured: emptying every test out of `kikagaku` (which imports kazu and retsu)
 /// left the gate green, because kazu's and retsu's tests came along with the
 /// import. Only `moji`, which has no dependencies, was ever really checked.
 /// A gate that only catches the leaf packages is worse than none — it reports
@@ -119,7 +119,7 @@ fn every_bidama_passes_its_own_tests() {
         total += passed;
         // A package with no tests OF ITS OWN is the regression this catches.
         // `moji` shipped that way and read as green, because zero failures is
-        // zero failures — and `kika` would have too, hidden behind its
+        // zero failures — and `kikagaku` would have too, hidden behind its
         // dependencies' tests, until this counted own-source blocks.
         if own_test_count(name) == 0 {
             broken.push(format!("{name}: ZERO tests of its own — untested"));

@@ -88,9 +88,16 @@
           # A distribution with no packages is a packaging bug that otherwise
           # surfaces much later as "package not found", pointing the reader at
           # a missing dependency instead of an empty directory.
+          # The floor tracks the REAL package count, not a token minimum.
+          #
+          # It was 3 while 17 packages shipped, which would have passed a
+          # distribution that had silently lost fourteen of them — a gate
+          # reporting coverage it never measured. Raise this when a package
+          # lands; a rename is count-preserving and needs no change here.
           count=$(find $out -mindepth 2 -name Bluefile | wc -l)
-          if [ "$count" -lt 3 ]; then
-            echo "bidamas: only $count Bluefile(s) found; refusing to publish" >&2
+          if [ "$count" -lt 17 ]; then
+            echo "bidamas: only $count Bluefile(s) found, expected >=17; \
+refusing to publish a thinned distribution" >&2
             exit 1
           fi
           echo "bidamas: packaged $count package(s)"

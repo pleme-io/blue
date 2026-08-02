@@ -1,6 +1,6 @@
 use("kazu")
 use("retsu")
-# kika (幾何) — plane geometry on [x, y] points.
+# kikagaku (幾何学) — plane geometry on [x, y] points.
 #
 # A point is a two-element list, for the same reason a set is a list: no new
 # type, so every list function keeps working. Areas come out of the shoelace

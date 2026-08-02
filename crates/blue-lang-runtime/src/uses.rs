@@ -179,8 +179,8 @@ fn expand(
             // wrote.
             //
             // Dropping them here also makes the distribution gate honest for
-            // free: `blue test kika.b` now reports kika's tests rather than
-            // kika's plus everything it transitively imports.
+            // free: `blue test kikagaku.b` now reports kikagaku's tests
+            // rather than kikagaku's plus everything it transitively imports.
             let parsed = parsed.into_iter().filter(|f| !is_test_form(f)).collect();
             out.extend(expand(parsed, loader, seen, &inner_chain)?);
         }

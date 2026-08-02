@@ -1,0 +1,2 @@
+package("junjo", "0.1.0")
+needs("ronri", "^0.1")

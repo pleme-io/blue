@@ -1,5 +1,5 @@
 use("ronri")
-# narabi (並び) — ordering: sorting, searching, selection.
+# junjo (順序) — ordering: sorting, searching, selection.
 #
 # Sorting lives in blue rather than being borrowed, because the interpreter's
 # own `sort-by` is not reachable from blue's surface — a hyphen lexes as an

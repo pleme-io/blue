@@ -1,5 +1,5 @@
 use("retsu")
-# koyomi (暦) — the proleptic Gregorian calendar, as arithmetic.
+# hizuke (日付) — the proleptic Gregorian calendar, as arithmetic.
 #
 # No clock. Every function here is a pure function of numbers, which is what
 # makes a calendar testable: "what day was 2000-01-01" has one answer forever,

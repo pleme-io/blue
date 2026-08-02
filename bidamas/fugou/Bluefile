@@ -1,2 +1,0 @@
-package("fugou", "0.1.0")
-needs("retsu", "^0.1")

@@ -434,12 +434,31 @@ impl<'a> Lexer<'a> {
     }
 }
 
+// An identifier may be written in ANY script, not only Latin.
+//
+// The lexer works on bytes, and the rule that makes that safe is a property of
+// UTF-8 rather than a trick: every byte of a multi-byte character is >= 0x80,
+// and every character blue gives structural meaning — operators, delimiters,
+// quotes, `#` — is ASCII, hence < 0x80. So "byte >= 0x80 is part of an
+// identifier" consumes each multi-byte character whole, leaves every ASCII
+// decision untouched, and keeps `src[start..pos]` on a char boundary.
+//
+// Without this the `yakugo` language packs cannot exist at all: `définir` died
+// on 'Ã' and `定義` on 'å' — a UTF-8 continuation byte reported as a character,
+// which is the diagnostic a byte-oriented lexer gives for text it was never
+// built to read.
+//
+// PERMISSIVE, deliberately and worth stating: this admits any non-ASCII byte,
+// so an emoji or a lone combining mark is a legal identifier. Enforcing
+// XID_Start/XID_Continue would need real char decoding through the whole
+// lexer. Accepting too much is a surface question; rejecting every non-Latin
+// script was a correctness one.
 fn is_ident_start(c: u8) -> bool {
-    c.is_ascii_alphabetic() || c == b'_'
+    c.is_ascii_alphabetic() || c == b'_' || c >= 0x80
 }
 
 fn is_ident_continue(c: u8) -> bool {
-    c.is_ascii_alphanumeric() || c == b'_'
+    c.is_ascii_alphanumeric() || c == b'_' || c >= 0x80
 }
 
 #[cfg(test)]

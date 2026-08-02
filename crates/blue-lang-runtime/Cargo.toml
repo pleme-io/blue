@@ -19,4 +19,14 @@ blake3 = "1"
 [dev-dependencies]
 # Cyclic in dev only, which Cargo allows: the tests need the real filesystem
 # loader, the library must not (it targets wasm with no host imports).
-blue-lang-pkg = { workspace = true }
+# PATH ONLY, deliberately no version — this is a publish-cycle break.
+#
+# blue-lang-pkg depends on blue-lang-runtime, so a VERSIONED dev-dep back the
+# other way means neither crate can ever publish first: cargo requires a
+# versioned dev-dependency to resolve on the registry, and each was waiting for
+# the other. Measured as `no matching package named blue-lang-pkg found`.
+#
+# Cargo DROPS a path-only dev-dependency when packaging, so the cycle exists
+# for local `cargo test` (where it is legal and useful — the tests need the
+# real filesystem loader) and does not exist in the published manifest.
+blue-lang-pkg = { path = "../blue-lang-pkg" }

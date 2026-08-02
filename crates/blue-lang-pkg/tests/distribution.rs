@@ -92,8 +92,8 @@ fn run_tests(name: &str) -> (usize, Vec<String>) {
         .unwrap_or_else(|e| panic!("{name} must parse: {e}"));
     // Through the real loader: a package's tests exercise its dependencies'
     // functions, so resolution has to happen or every test errors on `use`.
-    let forms = resolve_uses(forms, &lp)
-        .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
+    let forms =
+        resolve_uses(forms, &lp).unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
 
     let report = blue_lang_test::run(&forms);
     (

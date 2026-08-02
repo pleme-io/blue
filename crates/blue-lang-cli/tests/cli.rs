@@ -491,7 +491,10 @@ fn solver_max_steps_is_read_from_the_deployed_yaml() {
     // be the solver bound — if the tier had resolved to `bare()` instead of the
     // file, a depth of 0 would have failed the Bluefile PARSE, with a different
     // message, and this test would not be measuring what it claims.
-    let cfg = write_at("cfg-solver.yaml", "solver_max_steps: 0\nmax_expr_depth: 256\n");
+    let cfg = write_at(
+        "cfg-solver.yaml",
+        "solver_max_steps: 0\nmax_expr_depth: 256\n",
+    );
 
     let o = run_env(
         &["deps", f.to_str().unwrap()],
@@ -527,7 +530,10 @@ fn max_expr_depth_is_read_from_the_deployed_yaml() {
     // Depth 12 — far below the 256 default, far above the configured 4.
     let src = format!("{}1{}", "(".repeat(12), ")".repeat(12));
     let f = write("ast-bounded", &src);
-    let cfg = write_at("cfg-depth.yaml", "solver_max_steps: 100000\nmax_expr_depth: 4\n");
+    let cfg = write_at(
+        "cfg-depth.yaml",
+        "solver_max_steps: 100000\nmax_expr_depth: 4\n",
+    );
 
     assert!(
         run(&["ast", f.to_str().unwrap()]).status.success(),
@@ -559,7 +565,10 @@ fn max_expr_depth_is_read_from_the_deployed_yaml() {
 fn an_explicit_tier_beats_the_config_file() {
     let src = format!("{}1{}", "(".repeat(12), ")".repeat(12));
     let f = write("ast-tier", &src);
-    let cfg = write_at("cfg-tier.yaml", "solver_max_steps: 100000\nmax_expr_depth: 4\n");
+    let cfg = write_at(
+        "cfg-tier.yaml",
+        "solver_max_steps: 100000\nmax_expr_depth: 4\n",
+    );
 
     let o = run_env(
         &["ast", f.to_str().unwrap()],

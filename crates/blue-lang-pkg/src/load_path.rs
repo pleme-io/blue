@@ -101,10 +101,7 @@ impl LoadPath {
     /// so a later root still gets its chance.
     #[must_use]
     pub fn resolve(&self, name: &str) -> Option<PathBuf> {
-        self.roots
-            .iter()
-            .map(|r| r.join(name))
-            .find(|p| p.is_dir())
+        self.roots.iter().map(|r| r.join(name)).find(|p| p.is_dir())
     }
 }
 

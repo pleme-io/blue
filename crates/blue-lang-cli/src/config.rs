@@ -243,8 +243,8 @@ mod tests {
     /// ``flake.nix must emit the `max_expression_depth` key``.
     #[test]
     fn every_field_is_emitted_by_the_module_trio() {
-        let json = serde_json::to_value(BlueConfig::prescribed_default())
-            .expect("BlueConfig serializes");
+        let json =
+            serde_json::to_value(BlueConfig::prescribed_default()).expect("BlueConfig serializes");
         let keys: Vec<String> = json
             .as_object()
             .expect("BlueConfig is a struct, so a JSON object")
@@ -253,11 +253,9 @@ mod tests {
             .collect();
         assert_eq!(keys.len(), 2, "two knobs, per this module's docs");
 
-        let flake = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../flake.nix"
-        ))
-        .expect("the workspace flake is two directories up from this crate");
+        let flake =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../flake.nix"))
+                .expect("the workspace flake is two directories up from this crate");
         for key in keys {
             assert!(
                 flake.contains(&key),
@@ -303,9 +301,8 @@ mod tests {
     /// shikumi's bump to make, not blue's.
     #[test]
     fn blue_dot_b_lowers_to_a_shape_shikumi_accepts() {
-        let src =
-            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../blue.b"))
-                .expect("blue.b sits at the workspace root");
+        let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../blue.b"))
+            .expect("blue.b sits at the workspace root");
         let forms = blue_lang_syntax::parse_program(&src).expect("blue.b must parse");
         assert_eq!(forms.len(), 1, "shikumi reads the FIRST form and only it");
 

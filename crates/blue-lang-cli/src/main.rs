@@ -161,7 +161,10 @@ fn read(path: &Path) -> Result<String, CliError> {
 /// `max_expr_depth` true of some subcommands and not others, and nothing would
 /// say which.
 fn parse(src: &str, cfg: &BlueConfig) -> Result<Vec<blue_lang_syntax::Sexp>, CliError> {
-    Ok(blue_lang_runtime::parse_with_depth(src, cfg.max_expr_depth)?)
+    Ok(blue_lang_runtime::parse_with_depth(
+        src,
+        cfg.max_expr_depth,
+    )?)
 }
 
 /// The distribution on `BLUE_PATH`, if any root holds one.

@@ -43,9 +43,13 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+      # Every bidama as its OWN derivation, with needs(...) wired as real nix
+      # dependencies. See mk-bidama.nix for what that buys and its one ceiling.
+      bidamaLib = pkgs: import ./mk-bidama.nix { inherit (pkgs) lib runCommand; };
+      distributionFor = pkgs: (bidamaLib pkgs).mkDistribution { root = ./.; inherit pkgs; };
     in
     {
-      packages = forAll (pkgs: {
+      packages = forAll (pkgs: (distributionFor pkgs) // {
         default = self.packages.${pkgs.system}.bidamas;
 
         # The distribution, verbatim, as a store path.

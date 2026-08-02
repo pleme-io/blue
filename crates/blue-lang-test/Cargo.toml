@@ -16,4 +16,7 @@ tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 
 [dev-dependencies]
-blue-lang-fmt = { workspace = true }
+# PATH ONLY — a sibling dev-dep never carries a version. See the rule in
+# `blue-lang-runtime`'s dev-dep block and the gate in `blue-lang-cli`'s
+# `tests/registry_graph.rs`.
+blue-lang-fmt = { path = "../blue-lang-fmt" }

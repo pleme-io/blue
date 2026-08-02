@@ -21,9 +21,21 @@ name: auto-release
 #
 # TIER-HONEST: committing this shim proves ADOPTION, not publication. Nothing
 # here is evidence that a release ran or that any crate reached the registry.
-# The done-predicate is `blue-lang-syntax` returning a version from
-# `crates.io/api/v1/crates/blue-lang-syntax` — today it returns 404. Do not
-# cite this file as "blue is on crates.io".
+# The done-predicate is every member returning a version from
+# `crates.io/api/v1/crates/<name>`.
+#
+# STATE, measured 2026-08-02 07:40Z (five of thirteen, not zero — the line
+# above this one used to say "today it returns 404" and that is now false):
+#   on the registry  blue-lang-syntax, -check, -waku, -proc at 0.0.12;
+#                    blue-lang-art at 0.0.19
+#   absent           blue-lang-fmt, -runtime, -bidama, -test, -lsp, -wasm,
+#                    -pkg, -cli
+#
+# The four at 0.0.12 froze there because the registry graph went cyclic at
+# v0.0.13 (see `blue-lang-cli/tests/registry_graph.rs` for the full account).
+# blue-lang-art kept publishing straight through at 0.0.19 — it is the one
+# member with no blue sibling in any dependency block, which is what identifies
+# the cycle rather than a rate limit as the cause.
 #
 # Shape is the canonical 3-line consumer shim (precedent: awase, and every
 # other cargo repo in the fleet). The release logic lives once in substrate;
@@ -32,6 +44,21 @@ name: auto-release
 on:
   push:
     branches: [main]
+  # The drip tick. `rust-auto-release.yml`'s `drip` job — the resume engine that
+  # finishes a large new-crate bootstrap across crates.io's rate-limit refill —
+  # runs on exactly three events, and `schedule` is the only one that fires
+  # without a human or a source change. Without it blue's bootstrap could only
+  # advance on a push, and a push BUMPS, so every attempt started over at a
+  # version none of the thirteen had reached.
+  #
+  # Nine of thirteen crates still have to be CREATED on the registry, and crate
+  # creation is the rate-limited act (a new version of an existing crate is
+  # cheap). A tick every 15 minutes drains that backlog hands-off and then
+  # converges to a no-op in seconds — the reusable's `rust-workspace-publish`
+  # is idempotent and treats already-published as success, so it is safe to
+  # leave armed permanently.
+  schedule:
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       bump-type:

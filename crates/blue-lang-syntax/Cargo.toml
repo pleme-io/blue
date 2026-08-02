@@ -18,7 +18,16 @@ tatara-lisp = { workspace = true }
 # real parsers break. Dev-only, so no consumer carries it.
 proptest = "1"
 # The cross-crate differential lives here because it is a property ABOUT the
-# parser (format must preserve what parse sees). Dev-only, so no cycle ships.
-blue-lang-fmt = { workspace = true }
-blue-lang-runtime = { workspace = true }
+# parser (format must preserve what parse sees).
+#
+# PATH ONLY, no version — see the rule in `blue-lang-runtime`'s dev-dep block.
+# "Dev-only, so no cycle ships" is FALSE for a versioned dev-dep: cargo keeps a
+# dev-dependency that carries a `version` in the published manifest, so it must
+# resolve on the registry, and `blue-lang-fmt` depends on this crate. That is a
+# registry cycle and it stalled every publish from v0.0.13 to v0.0.19.
+# `workspace = true` cannot express "unversioned here" — one
+# [workspace.dependencies] entry serves both dep kinds — so a sibling dev-dep
+# spells its path out. `the_registry_dependency_graph_is_acyclic` is the gate.
+blue-lang-fmt = { path = "../blue-lang-fmt" }
+blue-lang-runtime = { path = "../blue-lang-runtime" }
 tatara-lisp-eval = { workspace = true }

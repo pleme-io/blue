@@ -18,4 +18,8 @@ tatara-lisp-eval = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-blue-lang-test = { workspace = true }
+# PATH ONLY — a sibling dev-dep never carries a version. See the rule in
+# `blue-lang-runtime`'s dev-dep block and the gate in `blue-lang-cli`'s
+# `tests/registry_graph.rs`. blue-lang-test depends on blue-lang-runtime,
+# which this crate depends on, so a versioned edge back is a registry cycle.
+blue-lang-test = { path = "../blue-lang-test" }

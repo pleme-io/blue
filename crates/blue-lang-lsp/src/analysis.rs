@@ -80,7 +80,28 @@ impl LineIndex {
     /// offsets underlines the wrong span in any file containing non-ASCII —
     /// silently, and only for the users who have such files.
     pub fn position(&self, offset: usize) -> Position {
-        let offset = offset.min(self.text.len());
+        let mut offset = offset.min(self.text.len());
+        // Snap DOWN to a char boundary before slicing.
+        //
+        // Clamping to `len()` is not enough: a byte offset can land INSIDE a
+        // multi-byte character, and `self.text[line_start..offset]` below then
+        // panics with "byte index N is not a char boundary". Measured
+        // 2026-08-01: `analyse("🔥🔥🔥")` aborted here at offset 1.
+        //
+        // The irony is the reason this is worth a comment — this function
+        // exists to compute UTF-16 offsets correctly FOR non-ASCII files, and
+        // it was the one place that crashed on them. Offsets arrive from
+        // parser error spans, which are byte indices into a buffer the user may
+        // have half-typed a character into, so mid-codepoint is a normal
+        // arrival, not a corrupt one.
+        //
+        // Snapping down (rather than up) keeps the reported position inside the
+        // character the offset pointed at, which is where an editor should
+        // underline. `str::floor_char_boundary` would say this in one call but
+        // is still unstable.
+        while offset > 0 && !self.text.is_char_boundary(offset) {
+            offset -= 1;
+        }
         let line = match self.line_starts.binary_search(&offset) {
             Ok(exact) => exact,
             Err(next) => next - 1,

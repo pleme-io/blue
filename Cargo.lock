@@ -243,6 +243,7 @@ dependencies = [
  "blue-lang-check",
  "blue-lang-pkg",
  "blue-lang-syntax",
+ "serde_json",
  "tatara-lisp",
  "tatara-lisp-eval",
  "thiserror",
@@ -480,7 +481,7 @@ dependencies = [
 [[package]]
 name = "gen-macros"
 version = "0.1.32"
-source = "git+https://github.com/pleme-io/gen#e174470020226ca8e46a798210a59aba6088a953"
+source = "git+https://github.com/pleme-io/gen#4727c4758a5fa3b4d7d885966c254ea120e7f90a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -490,7 +491,7 @@ dependencies = [
 [[package]]
 name = "gen-platform"
 version = "0.1.32"
-source = "git+https://github.com/pleme-io/gen#e174470020226ca8e46a798210a59aba6088a953"
+source = "git+https://github.com/pleme-io/gen#4727c4758a5fa3b4d7d885966c254ea120e7f90a"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -503,7 +504,7 @@ dependencies = [
 [[package]]
 name = "gen-types"
 version = "0.1.32"
-source = "git+https://github.com/pleme-io/gen#e174470020226ca8e46a798210a59aba6088a953"
+source = "git+https://github.com/pleme-io/gen#4727c4758a5fa3b4d7d885966c254ea120e7f90a"
 dependencies = [
  "blake3",
  "chrono",

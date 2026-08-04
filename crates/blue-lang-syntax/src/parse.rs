@@ -326,14 +326,27 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
     "case",
 ];
 
+/// The words that are reserved but are not heads of a `SURFACE_KEYWORDS` form
+/// — block delimiters and the three literals.
+///
+/// Split out as data rather than inlined in a `matches!` because a reserved
+/// word is not only the parser's business: a highlighter has to paint exactly
+/// this set, and one that reads `SURFACE_KEYWORDS` alone silently under-paints
+/// `do` / `end` / `else` / `elsif`. That was not hypothetical — escriba's
+/// `escriba-render/src/langs.rs` hand-transcribed "SURFACE_KEYWORDS plus the
+/// four block words `is_reserved_word` adds", because the union was
+/// unreachable from outside this module. A transcription is a second
+/// definition, and it drifts the first time this list changes.
+pub const BLOCK_KEYWORDS: &[&str] = &["do", "end", "else", "elsif", "true", "false", "nil"];
+
 /// A surface keyword may not be rebound. `if = 1` is a mistake, not a binding,
 /// and letting it through would shadow the form for the rest of the file.
-fn is_reserved_word(name: &str) -> bool {
-    SURFACE_KEYWORDS.contains(&name)
-        || matches!(
-            name,
-            "do" | "end" | "else" | "elsif" | "true" | "false" | "nil"
-        )
+///
+/// Public because it is the ONE answer to "is this identifier a keyword" —
+/// the parser's rebinding check and every downstream highlighter read it here
+/// rather than each carrying its own copy of the list.
+pub fn is_reserved_word(name: &str) -> bool {
+    SURFACE_KEYWORDS.contains(&name) || BLOCK_KEYWORDS.contains(&name)
 }
 
 fn infix(op: &str) -> Option<&'static Infix> {

@@ -14,21 +14,37 @@
 //!
 //! ## What this supports
 //!
-//! `textDocument/didOpen`, `didChange`, `formatting`, `hover`, and push
-//! diagnostics — plus **`blue/shift`**, a custom request answering "how far is
-//! this shifted, and what is shifting it" ([`shift`]). Blueshift is blue's
-//! central model; a model that governs the language and is invisible while you
-//! use it is one the author has to hold in their head. **Not** completion, go-to-definition, rename, or references:
-//! each needs a resolved name table blue does not build yet, and a completion
-//! list assembled from a token scan is worse than no completion — it suggests
-//! names that do not exist.
+//! `textDocument/didOpen`, `didChange`, `formatting`, `hover`,
+//! `semanticTokens/full`, and push diagnostics — plus **`blue/shift`**, a
+//! custom request answering "how far is this shifted, and what is shifting it"
+//! ([`shift`]). Blueshift is blue's central model; a model that governs the
+//! language and is invisible while you use it is one the author has to hold in
+//! their head.
+//!
+//! **Semantic tokens are how a blue buffer gets colour** ([`tokens`]), and
+//! they are the *only* way it does: `docs/NATURALIZE-TREESITTER.md` §2 refuses
+//! a hand-authored tree-sitter grammar as a second definition of blue's
+//! syntax, so the editor reads the same lexer the compiler does. An editor
+//! needs no per-language configuration to consume them.
+//!
+//! **Not** completion, go-to-definition, rename, or references: each needs a
+//! resolved name table blue does not build yet, and a completion list
+//! assembled from a token scan is worse than no completion — it suggests names
+//! that do not exist. Semantic tokens are not an exception to that rule; they
+//! classify only what the token stream states outright, and [`tokens`] lists
+//! what it therefore declines to guess.
 
 pub mod analysis;
 pub mod server;
 pub mod shift;
+pub mod tokens;
 
 pub use analysis::{
     analyse, hover, Analysis, Declaration, Diagnostic, LineIndex, Position, Range, Severity,
 };
 pub use server::{handle, Response, Server};
 pub use shift::{shift_of, Factor, FactorKind, Rung, Shift};
+pub use tokens::{
+    encode, legend_modifiers, legend_types, semantic_tokens, SemanticToken, SemanticTokenModifier,
+    SemanticTokenType,
+};

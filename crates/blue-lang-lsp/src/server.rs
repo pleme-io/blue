@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::analysis::{analyse, hover, Position};
+use crate::tokens;
 
 /// What the server produced for one incoming message.
 #[derive(Clone, Debug, PartialEq)]
@@ -165,6 +166,19 @@ impl Server {
                 }
             }
 
+            "textDocument/semanticTokens/full" => {
+                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
+                // An unknown document replies null, not an empty token list.
+                // Empty `data` is a positive claim — "this buffer has no
+                // colour" — and a client caches it; null says "no answer",
+                // which is the truth when the document was never opened.
+                let Some(text) = self.documents.get(&uri).cloned() else {
+                    return reply(&id, Value::Null);
+                };
+                let data = tokens::encode(&tokens::semantic_tokens(&text));
+                reply(&id, json!({ "data": data }))
+            }
+
             "textDocument/hover" => {
                 let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
                 let Some(text) = self.documents.get(&uri).cloned() else {
@@ -270,6 +284,21 @@ fn capabilities() -> Value {
             "textDocumentSync": 1,
             "documentFormattingProvider": true,
             "hoverProvider": true,
+            // Colour. The legend is derived from `tokens::SemanticTokenType`,
+            // never written out here — the enum's order IS the wire format,
+            // and a second spelling of it is a way to repaint every buffer
+            // wrongly with a one-line edit.
+            //
+            // `range` is deliberately absent: blue lexes a whole document
+            // fast enough that a range request would add a second code path
+            // for no measured gain, and a client falls back to `full`.
+            "semanticTokensProvider": {
+                "legend": {
+                    "tokenTypes": tokens::legend_types(),
+                    "tokenModifiers": tokens::legend_modifiers(),
+                },
+                "full": true,
+            },
         },
         "serverInfo": { "name": "blue-lsp", "version": env!("CARGO_PKG_VERSION") },
     })
@@ -466,6 +495,105 @@ mod tests {
         assert!(caps.get("completionProvider").is_none());
         assert!(caps.get("definitionProvider").is_none());
         assert!(caps.get("renameProvider").is_none());
+    }
+
+    #[test]
+    fn initialize_advertises_semantic_tokens_with_a_derived_legend() {
+        let Response::Reply(r) = handle(&req(1, "initialize", json!({}))) else {
+            panic!("expected a reply");
+        };
+        let provider = &r["result"]["capabilities"]["semanticTokensProvider"];
+
+        assert_eq!(provider["full"], json!(true));
+        // `range` is not implemented, so it is not claimed.
+        assert!(provider.get("range").is_none());
+
+        // The legend must BE the enum's order. A client resolves a token's
+        // type by indexing this array, so a legend that disagrees with
+        // `SemanticTokenType::index()` paints every token as the wrong thing
+        // while looking entirely well-formed on the wire.
+        let types: Vec<&str> = provider["legend"]["tokenTypes"]
+            .as_array()
+            .expect("tokenTypes")
+            .iter()
+            .map(|v| v.as_str().expect("a string"))
+            .collect();
+        assert_eq!(types, tokens::legend_types());
+        for ty in tokens::SemanticTokenType::ALL {
+            assert_eq!(types[ty.index() as usize], ty.lsp_name());
+        }
+
+        let mods: Vec<&str> = provider["legend"]["tokenModifiers"]
+            .as_array()
+            .expect("tokenModifiers")
+            .iter()
+            .map(|v| v.as_str().expect("a string"))
+            .collect();
+        assert_eq!(mods, tokens::legend_modifiers());
+    }
+
+    #[test]
+    fn semantic_tokens_full_paints_an_open_document() {
+        let mut s = Server::new();
+        s.handle_value(&req(
+            0,
+            "textDocument/didOpen",
+            json!({ "textDocument": { "uri": "file:///a.b", "text": "def add(a, b)\n  a + b\nend\n" } }),
+        ));
+
+        let Response::Reply(r) = s.handle_value(&req(
+            1,
+            "textDocument/semanticTokens/full",
+            json!({ "textDocument": { "uri": "file:///a.b" } }),
+        )) else {
+            panic!("expected a reply");
+        };
+
+        let data: Vec<u32> = r["result"]["data"]
+            .as_array()
+            .expect("data")
+            .iter()
+            .map(|v| v.as_u64().expect("a u32") as u32)
+            .collect();
+
+        assert!(!data.is_empty());
+        assert_eq!(data.len() % 5, 0, "five integers per token");
+
+        // First token is `def` at 0:0, length 3, a keyword, no modifiers.
+        assert_eq!(
+            data[..5],
+            [0, 0, 3, tokens::SemanticTokenType::Keyword.index(), 0]
+        );
+        // Second is `add` — same line, delta 4 — a function DECLARATION.
+        assert_eq!(
+            data[5..10],
+            [
+                0,
+                4,
+                3,
+                tokens::SemanticTokenType::Function.index(),
+                tokens::SemanticTokenModifier::Declaration.bit(),
+            ]
+        );
+
+        // And it agrees with the analysis core, so the shim really is a shim.
+        assert_eq!(
+            data,
+            tokens::encode(&tokens::semantic_tokens("def add(a, b)\n  a + b\nend\n"))
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_for_an_unopened_document_is_null_not_empty() {
+        // Empty `data` claims "this buffer has no colour" and gets cached.
+        let Response::Reply(r) = Server::new().handle_value(&req(
+            1,
+            "textDocument/semanticTokens/full",
+            json!({ "textDocument": { "uri": "file:///never-opened.b" } }),
+        )) else {
+            panic!("expected a reply");
+        };
+        assert_eq!(r["result"], Value::Null);
     }
 
     /// **Full sync only, and advertised as such.** Advertising incremental and

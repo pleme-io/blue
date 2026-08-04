@@ -1,19 +1,19 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "490d1f73f84cde35b7cee589d0154adfe78c2c51ce3d8ffd5b7821d29e4ded97",
+  "cargo_lock_sha256": "295d5a628e65d6f875c7247b3d236fb0b2bcd7d0237c1ae5b5a1f6c9303ced04",
   "manifest_sha256": {
     "Cargo.toml": "c8c0e377eac7fc30fc7a11b0bcda572e534b4768013e1e23208306b3ca38cbd1",
     "crates/blue-lang-art/Cargo.toml": "d4f796c3beccb198b42082171e5eb27754f4147243efba7b9d19dbbcf30de398",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "ac9d171e6bf5d097e0704a89a1a2dc5b808b88230c40b25218acd43a45041f1c",
-    "crates/blue-lang-cli/Cargo.toml": "379e771ce9a3c7ced4613f617a7982ab75ba0175a8382e6639f10317d0082e14",
+    "crates/blue-lang-cli/Cargo.toml": "5fa35be2ef852957c2fcc18a88531a9ea75c1fe1009a1ed700d86d33f3a7008a",
     "crates/blue-lang-fmt/Cargo.toml": "5b971097d81f37433bfc4d04cc72a135fdaa1f5cc79327197597e5482eb629de",
     "crates/blue-lang-lsp/Cargo.toml": "7cea9b882efc3a0b1797a901b76d87156088ac2eb644e94cf7f37f87e3ff1d3a",
     "crates/blue-lang-pkg/Cargo.toml": "7d335076faa688464af758940b7e4ee1cbe3cfd0d8bea4e551477626e75bef1e",
     "crates/blue-lang-proc/Cargo.toml": "f297f049a2eada7419858a3730f49f4477bd9f1156a137cfd5f48b3eee955267",
-    "crates/blue-lang-runtime/Cargo.toml": "0b16da920f748701d11fb12f2e22490f237b50c5c105b87a74a59b79f924a123",
+    "crates/blue-lang-runtime/Cargo.toml": "4a26cb21010a42a112a10bd1f924e6d886c76b2adafce747d0c4e92cee84c6a7",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
-    "crates/blue-lang-test/Cargo.toml": "9c020c16702edf2f6d35aeab6de24352b3c78baddd43674c449e962a6c1511ee",
+    "crates/blue-lang-test/Cargo.toml": "7d1debae4043dc3444dfa1496a823b12c05b9fb4d09ed80466e70e68a3235b52",
     "crates/blue-lang-waku/Cargo.toml": "0cabf59de44ca4682816d411f803f338237b017db5ef06109a42b0f188e14eb2",
     "crates/blue-lang-wasm/Cargo.toml": "3ab3ef8b5d72a58b7e97638166d93098fa0b45bcb89f6857cbfe1f85c8229ed8"
   },
@@ -353,7 +353,9 @@
             "name": "blue_lang_runtime",
             "package_key": "blue-lang-runtime-0.0.21",
             "kind": "normal",
-            "features": [],
+            "features": [
+              "sys"
+            ],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -698,6 +700,16 @@
             "tree": "target"
           },
           {
+            "name": "serde_json",
+            "package_key": "serde_json-1.0.151",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "tatara_lisp",
             "package_key": "tatara-lisp-0.3.21-ff908b2e79e988a5c017ac44ee1e9cc09f3115a7",
             "kind": "normal",
@@ -729,7 +741,9 @@
           }
         ],
         "build_dependencies": [],
-        "features": []
+        "features": [
+          "sys"
+        ]
       },
       "blue-lang-syntax-0.0.21": {
         "runtime_dependencies": [
@@ -763,7 +777,9 @@
             "name": "blue_lang_runtime",
             "package_key": "blue-lang-runtime-0.0.21",
             "kind": "normal",
-            "features": [],
+            "features": [
+              "sys"
+            ],
             "uses_default_features": true,
             "optional": false,
             "target": null,

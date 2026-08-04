@@ -461,6 +461,12 @@ mod input_tests {
 
     /// **There is no path-based read at all.** The capability is the absence of
     /// the primitive, not a check inside one — so this is an unbound symbol.
+    ///
+    /// Holds for the DEFAULT surface — the one every embedder gets. The `sys`
+    /// cargo feature (CLI only) is the one declared exception: it is the
+    /// operator's own trusted host surface, and is asserted in
+    /// `sys_read_file_is_the_trusted_cli_only_exception` below.
+    #[cfg(not(feature = "sys"))]
     #[test]
     fn there_is_no_ambient_file_read() {
         for attempt in [
@@ -476,6 +482,28 @@ mod input_tests {
                  not guarded by a check: {err}"
             );
         }
+    }
+
+    /// With the `sys` feature compiled in, `read_file` IS bound — that is the
+    /// point of the feature. The doctrine does not move: this is the operator's
+    /// own machine (the CLI), not an embedder's sandbox. Pin the boundary so a
+    /// future default-build change is heard, and assert that `input()` still
+    /// works beside it.
+    #[cfg(feature = "sys")]
+    #[test]
+    fn sys_read_file_is_the_trusted_cli_only_exception() {
+        let err = with_schema("definitely_not_a_primitive(\"x\")").expect_err("must not resolve");
+        assert!(err.to_string().contains("unbound"), "{err}");
+        assert!(
+            with_schema("read_file(\"/etc/passwd\")").is_ok(),
+            "with `sys` on, read_file is the trusted CLI surface"
+        );
+        let out = with_schema("input(\"schema\")").expect("run");
+        assert!(
+            matches!(out.value, Value::Str(ref s) if &**s == "3"),
+            "input() still binds beside the sys surface: {:?}",
+            out.value
+        );
     }
 
     /// Anti-vacuity: with no inputs supplied at all, even a declared name fails

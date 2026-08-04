@@ -9,7 +9,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-blue-lang-runtime = { workspace = true }
+# `sys` is ON here so a program tested through this harness can use the
+# host-side system surface. The wasm consumer is never in the same build
+# graph, so its zero-host-import surface is unaffected.
+blue-lang-runtime = { workspace = true, features = ["sys"] }
 blue-lang-syntax = { workspace = true }
 blue-lang-fmt = { workspace = true }
 tatara-lisp = { workspace = true }

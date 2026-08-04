@@ -29,8 +29,11 @@
 
 pub mod erase;
 pub mod inputs;
+pub mod json;
 pub mod pipeline;
 pub mod stdlib;
+#[cfg(feature = "sys")]
+pub mod sys;
 pub mod uses;
 
 pub use erase::erase_types;
@@ -62,6 +65,17 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // tatara-lisp does not carry at all. See `stdlib` for why the
     // character-counting semantics are blue's rather than the substrate's.
     stdlib::install_blue_stdlib(&mut interp);
+    // Layer 4: blue's JSON surface — parse, stringify, read. Pure
+    // computation, no host imports, so it is installed unconditionally; the
+    // `wasm32-unknown-unknown` consumer keeps it. See `json` for why objects
+    // arrive as alists rather than Maps.
+    json::install_json_stdlib(&mut interp);
+    // Layer 5: the host-side system surface — process, filesystem, env,
+    // clock. Feature-gated: every sys primitive is a host import, so the
+    // wasm consumer (which builds with `sys` OFF) keeps its zero-host-import
+    // surface by construction. Only the CLI turns it on.
+    #[cfg(feature = "sys")]
+    sys::install_sys_stdlib(&mut interp);
     interp
 }
 
@@ -160,7 +174,7 @@ mod tests {
         interp.eval_program(&forms, &mut ()).expect("eval")
     }
 
-    /// Both layers are present. A test that only checked layer 1 is exactly
+    /// Every layer is present. A test that only checked layer 1 is exactly
     /// what let the stdlib gap survive.
     #[test]
     fn both_layers_are_installed() {
@@ -170,6 +184,13 @@ mod tests {
         assert!(matches!(eval("(mod 7 3)"), Value::Int(1)));
         assert!(matches!(eval("(inc 41)"), Value::Int(42)));
         assert!(matches!(eval("(first (list 9 8))"), Value::Int(9)));
+        // Layer 3: blue's own core — string and number conversion.
+        assert!(matches!(eval(r#"(length "héllo")"#), Value::Int(5)));
+        // Layer 4: the JSON surface.
+        assert!(matches!(
+            eval(r#"(json_parse "{\"outcome\":\"ok\"}")"#),
+            Value::List(_)
+        ));
     }
 
     /// Anti-vacuity: a bare interpreter really does LACK layer 2, so the test

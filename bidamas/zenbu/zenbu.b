@@ -30,7 +30,7 @@
 #
 # ## Do not compute this list, however much you want to
 #
-# Seventeen literal `needs` lines are exactly the shape that invites
+# Nineteen literal `needs` lines are exactly the shape that invites
 # `map(fn(d) needs(d, "^0.1") end, siblings())` — and a Bluefile is blue code,
 # so that would *work*. It would also silently halve the package: `mk-bidama.nix`
 # reads the dependency graph by splitting the manifest text on `needs("`, so a
@@ -46,6 +46,7 @@
 # nix consumes blue's own evaluation instead of re-deriving it.
 
 use("angou")
+use("deeta")
 use("gyouretsu")
 use("hizuke")
 use("junjo")
@@ -60,6 +61,7 @@ use("retsu")
 use("ronri")
 use("seimei")
 use("shinsuu")
+use("shisutemu")
 use("shuugou")
 use("toukei")
 
@@ -72,6 +74,7 @@ test "every bidama in the distribution answers through this one import"
   # The distinguishing case for a facade is a MISSING ARM, so the value of this
   # block is that it has as many lines as the Bluefile has `needs`.
   assert is_prime(97) == true
+  assert get_str(json_parse("{\"a\":\"x\"}"), "a", "d") == "x"
   assert dot([1, 2, 3], [4, 5, 6]) == 32
   assert is_leap(2000) == true
   assert sort([3, 1, 2]) == [1, 2, 3]
@@ -86,6 +89,7 @@ test "every bidama in the distribution answers through this one import"
   assert every(fn(v) v > 0 end, [1, 2, 3]) == true
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
+  assert age_s(3600000) == "1h0m"
   assert contains([1, 2, 3], 2) == true
   assert near(mean([2, 4, 6]), 4) == true
 end

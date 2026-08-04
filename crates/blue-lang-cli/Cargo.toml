@@ -13,7 +13,7 @@ name = "blue"
 path = "src/main.rs"
 
 [dependencies]
-blue-lang-runtime = { workspace = true }
+blue-lang-runtime = { workspace = true, features = ["sys"] }
 blue-lang-syntax = { workspace = true }
 blue-lang-fmt = { workspace = true }
 blue-lang-check = { workspace = true }

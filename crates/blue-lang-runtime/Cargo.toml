@@ -15,6 +15,15 @@ blue-lang-syntax = { workspace = true }
 blue-lang-check = { workspace = true }
 thiserror = { workspace = true }
 blake3 = "1"
+serde_json = "1"
+
+[features]
+# Host-side system primitives — process, filesystem, env, clock.
+#
+# OFF by default: the `wasm32-unknown-unknown` consumer must keep its
+# zero-host-import surface, and every sys primitive is a host import. The CLI
+# (the one place a user's machine can supply a process to fork) turns it on.
+sys = []
 
 [dev-dependencies]
 # Cyclic in dev only, which Cargo allows: the tests need the real filesystem

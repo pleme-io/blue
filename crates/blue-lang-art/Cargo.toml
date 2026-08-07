@@ -9,7 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-# Both are public pleme-io repos, so a public `blue` stays buildable by an
-# outside clone. Neither is on crates.io yet, hence the git deps.
-katsuji = { version = "0.1.1", git = "https://github.com/pleme-io/katsuji", branch = "main" }
-irodori = { version = "0.2.0", git = "https://github.com/pleme-io/irodori", branch = "main" }
+# Both are published pleme-io crates, so a public `blue` stays buildable by
+# an outside clone with no git access at all.
+katsuji = "0.1"
+irodori = "0.2"

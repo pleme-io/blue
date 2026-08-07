@@ -21,7 +21,7 @@ blue-lang-test = { workspace = true }
 blue-lang-pkg = { workspace = true }
 blue-lang-lsp = { workspace = true }
 blue-lang-art = { workspace = true }
-katsuji = { version = "0.1.1", git = "https://github.com/pleme-io/katsuji", branch = "main" }
+katsuji = "0.1"
 blue-lang-waku = { workspace = true }
 blue-lang-bidama = { workspace = true }
 tatara-lisp-eval = { workspace = true }
@@ -37,7 +37,7 @@ serde = { version = "1", features = ["derive"] }
 # workspace would resolve a SECOND copy of the parser beside the local
 # path dep, and the `.b` config would be parsed by neither the version
 # blue ships nor the one it tests. See `blue.b` for the round-trip result.
-shikumi = { version = "0.1.345", git = "https://github.com/pleme-io/shikumi", branch = "main", features = ["cli"] }
+shikumi = { version = "0.1", features = ["cli"] }
 
 [dev-dependencies]
 serde_json = "1"

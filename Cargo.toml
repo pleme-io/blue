@@ -25,11 +25,12 @@ blue-lang-lsp = { path = "crates/blue-lang-lsp", version = "0.0.22" }
 blue-lang-art = { path = "crates/blue-lang-art", version = "0.0.22" }
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
-# Git deps, not path deps. A path dep pointing outside the repo cannot
+# Registry deps, not path deps. A path dep pointing outside the repo cannot
 # resolve inside a Nix build sandbox, where the source is just this
 # repository — which is precisely why tatara-lisp was extracted from the
-# tatara mono-workspace (see its CLAUDE.md). Pinned by rev so a build is
-# reproducible; bump the rev after pushing tatara-lisp, which is the
-# trunk-based order anyway.
-tatara-lisp = { version = "0.3.21", git = "https://github.com/pleme-io/tatara-lisp", rev = "ff908b2e79e988a5c017ac44ee1e9cc09f3115a7" }
-tatara-lisp-eval = { version = "0.3.21", git = "https://github.com/pleme-io/tatara-lisp", rev = "ff908b2e79e988a5c017ac44ee1e9cc09f3115a7" }
+# tatara mono-workspace (see its CLAUDE.md). Resolved from crates.io: a git
+# source and a registry source are DISTINCT to cargo even at an identical
+# version, so a git dep silently doubles the crate in every consumer graph —
+# and a crate carrying one cannot be published at all.
+tatara-lisp = "0.3"
+tatara-lisp-eval = "0.3"

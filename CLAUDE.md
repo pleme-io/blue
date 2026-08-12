@@ -66,7 +66,7 @@ checker.
 |---|---|
 | lexer + Pratt parser → `Sexp`; the `INFIX` table | `blue-lang-syntax` |
 | the one formatting (Wadler/Oppen) | `blue-lang-fmt` |
-| sliding-scale typing; `Seam`; `Stats` | `blue-lang-check` |
+| sliding-scale typing; `Seam`; `Stats`; diagnostic spans | `blue-lang-check` |
 | REACH/WHEN/WHERE frame lattice | `blue-lang-waku` |
 | package posture floors + resolution | `blue-lang-bidama` |
 | processes, supervision, mailboxes, isolation | `blue-lang-proc` |
@@ -138,6 +138,21 @@ Each of these is a defect that shipped, not a style preference.
   `concat(concat("a", x), "")`; both re-parse to the same tree, so all three
   laws passed while `fmt --write` silently rewrote real files. **Ship the
   formatter arm WITH the surface form, and read the output.**
+- **A span is a property of the tree that `to_sexp` throws away, so tree tests
+  cannot see it either** — the same lesson, fourth citation, now off the
+  formatter. Making the parser build `Spanned` landed two mis-anchored
+  productions (`body`'s synthesized `begin`, `case`'s `else`) that every one of
+  the 82 parser tests passed over, because both TREES were correct and the
+  spans were not compared to anything. The gate that found them walks each node
+  asserting it sits inside its parent's span. **A derived artifact needs a test
+  that reads the artifact, not the thing it was derived from.**
+- **A diagnostic without a span is a diagnostic the editor puts in the wrong
+  place.** `Diagnostic` carried only a message, so the LSP attached every type
+  error to `Range::default()` — line 0, column 0 — and drew the squiggle on the
+  first character of the file. It was not the LSP's bug: the parser had already
+  discarded the position, and a span discarded at the parser is unrecoverable.
+  **When a layer reports a location it does not have, look upstream for where
+  the location was dropped, not downstream for somewhere to invent one.**
 - **Isolation is the SEAL, not the rebuild.** The test runner and the process
   supervisor both threw an interpreter away per child to get isolation, at
   ~945µs each — essentially the entire cost of running a test, spent
@@ -182,10 +197,25 @@ hit:
 
 ## Dependencies
 
-`tatara-lisp` and `tatara-lisp-eval` are **git deps pinned by rev**, not path
-deps. A path dep outside the repo cannot resolve in a Nix sandbox, where the
-source is just this repository. Co-developing the two means pushing
-tatara-lisp first and bumping the rev — which is the trunk-based order anyway.
+`tatara-lisp` and `tatara-lisp-eval` are **crates.io registry deps**, not path
+deps and not git deps.
+
+A path dep outside the repo cannot resolve in a Nix sandbox, where the source
+is just this repository — which is why `tatara-lisp` was extracted from the
+tatara mono-workspace in the first place. A GIT dep does resolve there, and is
+still wrong: a git source and a registry source are DISTINCT to cargo even at
+an identical version, so a git dep silently doubles the crate in every
+consumer's graph, and a crate carrying one **cannot be published at all**.
+
+Co-developing the two means publishing tatara-lisp first and bumping the
+version — the trunk-based order anyway. That is a real cost and it is the one
+being paid deliberately: the alternative costs publishability.
+
+**Corrected 2026-08-12.** This section said "git deps pinned by rev" and had
+said so since before `ffbe667` (*deps: pleme-io dependencies to crates.io,
+never git*) made it false. Stale in the worst direction — it instructed the
+next author to do the exact thing `Cargo.toml`'s own comment explains would
+make this workspace unpublishable.
 
 ## `Cargo.gen.lock` is committed, and that is a trade
 

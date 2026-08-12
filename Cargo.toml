@@ -3,7 +3,7 @@ members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-
 resolver = "2"
 
 [workspace.package]
-version = "0.0.25"
+version = "0.0.26"
 edition = "2021"
 rust-version = "1.89.0"
 authors = ["Pleme.io <engineering@pleme.io>"]
@@ -12,17 +12,17 @@ repository = "https://github.com/pleme-io/blue"
 readme = "README.md"
 
 [workspace.dependencies]
-blue-lang-syntax = { path = "crates/blue-lang-syntax", version = "0.0.25" }
-blue-lang-runtime = { path = "crates/blue-lang-runtime", version = "0.0.25" }
-blue-lang-waku = { path = "crates/blue-lang-waku", version = "0.0.25" }
-blue-lang-check = { path = "crates/blue-lang-check", version = "0.0.25" }
-blue-lang-fmt = { path = "crates/blue-lang-fmt", version = "0.0.25" }
-blue-lang-bidama = { path = "crates/blue-lang-bidama", version = "0.0.25" }
-blue-lang-proc = { path = "crates/blue-lang-proc", version = "0.0.25" }
-blue-lang-test = { path = "crates/blue-lang-test", version = "0.0.25" }
-blue-lang-pkg = { path = "crates/blue-lang-pkg", version = "0.0.25" }
-blue-lang-lsp = { path = "crates/blue-lang-lsp", version = "0.0.25" }
-blue-lang-art = { path = "crates/blue-lang-art", version = "0.0.25" }
+blue-lang-syntax = { path = "crates/blue-lang-syntax", version = "0.0.26" }
+blue-lang-runtime = { path = "crates/blue-lang-runtime", version = "0.0.26" }
+blue-lang-waku = { path = "crates/blue-lang-waku", version = "0.0.26" }
+blue-lang-check = { path = "crates/blue-lang-check", version = "0.0.26" }
+blue-lang-fmt = { path = "crates/blue-lang-fmt", version = "0.0.26" }
+blue-lang-bidama = { path = "crates/blue-lang-bidama", version = "0.0.26" }
+blue-lang-proc = { path = "crates/blue-lang-proc", version = "0.0.26" }
+blue-lang-test = { path = "crates/blue-lang-test", version = "0.0.26" }
+blue-lang-pkg = { path = "crates/blue-lang-pkg", version = "0.0.26" }
+blue-lang-lsp = { path = "crates/blue-lang-lsp", version = "0.0.26" }
+blue-lang-art = { path = "crates/blue-lang-art", version = "0.0.26" }
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
 # Registry deps, not path deps. A path dep pointing outside the repo cannot

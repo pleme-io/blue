@@ -38,7 +38,9 @@ pub mod uses;
 
 pub use erase::erase_types;
 pub use inputs::{declarations, install_input_primitives, Declaration, InputError, Inputs};
-pub use pipeline::{parse, parse_with_depth, run, run_with_inputs, Run, RunError};
+pub use pipeline::{
+    parse, parse_tree_with_depth, parse_with_depth, run, run_with_inputs, Run, RunError,
+};
 pub use stdlib::install_blue_stdlib;
 
 use tatara_lisp_eval::{install_full_stdlib_with, Interpreter};

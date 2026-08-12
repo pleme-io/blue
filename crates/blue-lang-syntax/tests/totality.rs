@@ -341,3 +341,165 @@ fn the_default_entry_points_delegate_to_the_bounded_ones() {
         );
     }
 }
+
+// ---- span well-formedness, over every spec file and every prefix ----------
+//
+// The parser assigns a span at ~75 construction sites. The suites above and the
+// unit tests in `parse.rs` all measure the TREE, via `Display` or `to_sexp`, so
+// every one of them passes with every span wrong. That is the same trap this
+// repo hit with the formatter: "a round-trip law measures the tree, never the
+// readability", now in a third place — a spanless projection cannot see a span.
+//
+// So the spans get their own invariants, and they are structural rather than
+// per-construct: an independent walk asserting four properties of every node in
+// every form. That catches a mis-anchored production without anyone having to
+// think of it, which is what a matrix over 75 sites has to do to be worth having.
+
+/// What a well-formed span satisfies. Returns the first violation found.
+fn span_violation(
+    node: &blue_lang_syntax::Spanned,
+    parent: Option<blue_lang_syntax::Span>,
+    src: &str,
+) -> Option<String> {
+    use std::fmt::Write as _;
+    let s = node.span;
+    let mut why = String::new();
+
+    // 1. REAL. `Span::synthetic()` means "no source origin", which is false of
+    //    everything the parser builds — even a node blue synthesizes was caused
+    //    by a token the author typed.
+    if s.is_synthetic() {
+        let _ = write!(why, "synthetic span on {:?}", node.to_sexp().to_string());
+        return Some(why);
+    }
+    // 2. IN BOUNDS and ordered. An out-of-range offset is what makes a client
+    //    underline nothing, or panic.
+    if s.start > s.end || s.end > src.len() {
+        let _ = write!(
+            why,
+            "span {s:?} is inverted or past the {} byte source",
+            src.len()
+        );
+        return Some(why);
+    }
+    // 3. On CHAR BOUNDARIES. `LineIndex::position` slices `src[line_start..off]`,
+    //    and a mid-codepoint offset panicked there once already (measured
+    //    2026-08-01, `analyse("🔥🔥🔥")`). It now snaps down, but a span landing
+    //    mid-character still reports the wrong column.
+    if !src.is_char_boundary(s.start) || !src.is_char_boundary(s.end) {
+        let _ = write!(why, "span {s:?} is not on a char boundary");
+        return Some(why);
+    }
+    // 4. CONTAINED in its parent. The invariant that actually finds mistakes: a
+    //    production anchored at the wrong token puts a child outside its parent,
+    //    and no shape test can see it. Both known violations were found this way
+    //    (`case`'s else clause, `body`'s synthesized `begin`).
+    if let Some(p) = parent {
+        if s.start < p.start || s.end > p.end {
+            let _ = write!(
+                why,
+                "span {s:?} escapes its parent {p:?} — node {:?}",
+                node.to_sexp().to_string()
+            );
+            return Some(why);
+        }
+    }
+
+    let kids: Vec<&blue_lang_syntax::Spanned> = match &node.form {
+        blue_lang_syntax::SpannedForm::List(xs) => xs.iter().collect(),
+        blue_lang_syntax::SpannedForm::Quote(i)
+        | blue_lang_syntax::SpannedForm::Quasiquote(i)
+        | blue_lang_syntax::SpannedForm::Unquote(i)
+        | blue_lang_syntax::SpannedForm::UnquoteSplice(i) => vec![i],
+        _ => Vec::new(),
+    };
+    kids.into_iter()
+        .find_map(|k| span_violation(k, Some(s), src))
+}
+
+/// Every node in every spec file has a well-formed span.
+///
+/// RED RUN (2026-08-12), twice — this test is the reason two real span bugs are
+/// not in the tree. Each was re-introduced on its own and measured separately.
+///
+/// 1. `body`'s synthesized `begin` anchored at the pre-`skip_newlines` mark
+///    (`Span::new(start, start)`) instead of at the first form's start:
+///
+///      arithmetic.b: span Span { start: 236, end: 236 } escapes its parent
+///      Span { start: 239, end: 276 } — node "begin"
+///
+/// 2. `case`'s `(else body)` clause anchored at the `case` keyword
+///    (`list_at(head, …)`) instead of spanning its own keyword through its body:
+///
+///      matching.b: span Span { start: 463, end: 467 } escapes its parent
+///      Span { start: 416, end: 420 } — node "else"
+///
+/// Both are invisible to every other suite in this repo, because `to_sexp`
+/// projects the spans away and both trees were already correct. That is the
+/// point of walking the spanned tree: a shape gate cannot see a position.
+#[test]
+fn every_node_sits_inside_its_parents_span() {
+    let mut nodes = 0usize;
+    for (name, src) in corpus() {
+        let forms = blue_lang_syntax::parse_program_tree(&src)
+            .unwrap_or_else(|e| panic!("{name} must parse: {e}"));
+        assert!(
+            !forms.is_empty(),
+            "{name}: no forms — gate would be vacuous"
+        );
+        for form in &forms {
+            if let Some(why) = span_violation(form, None, &src) {
+                panic!("{name}: {why}");
+            }
+            nodes += count_nodes(form);
+        }
+    }
+    // Anti-vacuity: a corpus that stopped producing nodes would pass an empty
+    // walk. The floor is far below the measured count so it survives ordinary
+    // spec edits while still failing if the corpus collapses.
+    assert!(
+        nodes > 500,
+        "only {nodes} nodes walked — corpus shrank, gate weakened"
+    );
+}
+
+fn count_nodes(node: &blue_lang_syntax::Spanned) -> usize {
+    1 + match &node.form {
+        blue_lang_syntax::SpannedForm::List(xs) => xs.iter().map(count_nodes).sum(),
+        blue_lang_syntax::SpannedForm::Quote(i)
+        | blue_lang_syntax::SpannedForm::Quasiquote(i)
+        | blue_lang_syntax::SpannedForm::Unquote(i)
+        | blue_lang_syntax::SpannedForm::UnquoteSplice(i) => count_nodes(i),
+        _ => 0,
+    }
+}
+
+/// The same invariants over every PREFIX that parses.
+///
+/// A prefix is a half-typed program, and a half-typed program is where an
+/// anchor computed from "the last token consumed" is most likely to point
+/// somewhere absurd — the whole reason `span_since` looks one token back.
+#[test]
+fn every_parseable_prefix_has_well_formed_spans() {
+    let mut reached = 0usize;
+    for (name, src) in corpus() {
+        for end in 0..=src.len() {
+            let Some(slice) = src.get(..end) else {
+                continue;
+            };
+            let Ok(forms) = blue_lang_syntax::parse_program_tree(slice) else {
+                continue;
+            };
+            reached += 1;
+            for form in &forms {
+                if let Some(why) = span_violation(form, None, slice) {
+                    panic!("{name}: {end}-byte prefix: {why}\n---\n{slice}\n---");
+                }
+            }
+        }
+    }
+    assert!(
+        reached > 20,
+        "only {reached} prefixes reached the parser — gate nearly vacuous"
+    );
+}

@@ -22,17 +22,20 @@
 use std::fmt;
 
 /// A half-open byte range into the source.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-}
-
-impl Span {
-    pub fn new(start: usize, end: usize) -> Self {
-        Self { start, end }
-    }
-}
+///
+/// **tatara-lisp's `Span`, not a blue one.** blue used to declare its own
+/// `{ start, end }` pair here, which was a strict subset of the substrate's:
+/// tatara's carries the same two fields plus `synthetic()` / `is_synthetic()`,
+/// `merge`, `line_col` and a `Display`. Two structurally-identical span types
+/// in one pipeline is the duplication that forces a conversion at every
+/// boundary — and the boundary that mattered is the one where a *checker*
+/// diagnostic reaches the LSP, because a conversion that has to invent a value
+/// for "no span" is how a type error ends up reported at line 0.
+///
+/// Sharing the type also means the parser can emit `tatara_lisp::Spanned`
+/// directly: the tree blue parses into is the tree the evaluator eats, spans
+/// and all.
+pub use tatara_lisp::Span;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenKind {

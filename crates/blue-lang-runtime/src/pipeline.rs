@@ -83,6 +83,21 @@ pub fn parse_with_depth(src: &str, max_depth: usize) -> Result<Vec<Sexp>, RunErr
         .map_err(|e| RunError::Parse(e.to_string()))
 }
 
+/// [`parse_with_depth`] keeping **every node's** source span.
+///
+/// The door for anything that will report a position to a human. It exists here,
+/// beside the spanless one, so a caller that wants spans still parses under the
+/// CONFIGURED nesting bound — a separate `blue_lang_syntax` call would be the
+/// second door `parse_with_depth`'s own docs exist to prevent, with
+/// `max_expr_depth` true of some subcommands and not others.
+pub fn parse_tree_with_depth(
+    src: &str,
+    max_depth: usize,
+) -> Result<Vec<blue_lang_syntax::Spanned>, RunError> {
+    blue_lang_syntax::parse_program_tree_with_depth(src, max_depth)
+        .map_err(|e| RunError::Parse(e.to_string()))
+}
+
 /// Run blue source with no build inputs.
 pub fn run(src: &str) -> Result<Run, RunError> {
     run_with_inputs(src, Inputs::new())
@@ -157,7 +172,28 @@ pub fn run_in_surface(
         .collect();
 
     // CHECK, on the annotated tree — the only tree that has annotations.
-    let outcome = blue_lang_check::check_program(&forms);
+    //
+    // **This is the ONE caller that checks a SPANLESS tree, and the reason is a
+    // missing type, not an oversight.** `blue_lang_check::check_program` takes
+    // `Spanned` so an editor can put a squiggle where the error is, and every
+    // other caller hands it `parse_program_tree`'s output. This one cannot: by
+    // this line `resolve_uses` has flattened the entry file and every
+    // transitively imported package into ONE list, and `Span` is a byte range
+    // with no file identity. Real spans here would report an imported package's
+    // error at that offset in the *entry* file — a precise-looking answer
+    // pointing at unrelated code, which is worse than admitting ignorance.
+    //
+    // So the spans are stamped synthetic, honestly, and `RunError::Types`
+    // carries only messages — which is exactly what it carried before spans
+    // existed, so nothing regresses. Fixing it properly means a `FileId`
+    // alongside the byte range and a table from id to source; that is the same
+    // prerequisite a debugger needs to show a frame from an imported package,
+    // and it is not built.
+    let spanless: Vec<tatara_lisp::Spanned> = forms
+        .iter()
+        .map(tatara_lisp::Spanned::from_sexp_synthetic)
+        .collect();
+    let outcome = blue_lang_check::check_program(&spanless);
     if !outcome.ok() {
         return Err(RunError::Types(
             outcome

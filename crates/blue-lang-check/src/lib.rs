@@ -31,7 +31,7 @@
 
 use std::collections::BTreeMap;
 
-use tatara_lisp::{Atom, Sexp};
+use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 
 /// A blue type at rung 1.
 ///
@@ -111,6 +111,20 @@ impl Ty {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostic {
     pub message: String,
+    /// The byte range in the source that caused it.
+    ///
+    /// **This field is why the checker walks [`Spanned`] and not `Sexp`.** It
+    /// carried only `message` until 2026-08-12, and the consequence was visible
+    /// in every editor: `blue-lang-lsp` had nowhere to get a range from, so it
+    /// attached every type error to `Range::default()` — line 0, column 0 —
+    /// while parse errors, which had a span, pointed at the right byte. A type
+    /// error in a 300-line file was reported on its first character.
+    ///
+    /// Synthetic only for a node with no source origin at all. A checker fed a
+    /// tree lifted with `Spanned::from_sexp_synthetic` reports synthetic spans
+    /// throughout, which is honest and useless — see [`check_program`] on which
+    /// door a consumer should be using.
+    pub span: Span,
 }
 
 /// A diagnostic renders itself. Per ★★ TYPED EMISSION the only sanctioned
@@ -135,6 +149,14 @@ pub struct Seam {
     pub expected: Ty,
     /// Where the check sits, for the report.
     pub at: String,
+    /// The byte range of the argument the check guards.
+    ///
+    /// Spanned for the same reason a diagnostic is: §0's rule is that an
+    /// invisible cost is the one unacceptable outcome, and "argument 1 of `add`"
+    /// is only half a location — it does not say *which* call. A seam is also
+    /// the place a debugger will want to break, since it is exactly where the
+    /// compiler inserts work the source does not show.
+    pub span: Span,
 }
 
 /// What the checker did, so the claim "zero analysis" can be *measured*
@@ -168,7 +190,14 @@ struct Sig {
 }
 
 /// Check a program.
-pub fn check_program(forms: &[Sexp]) -> Outcome {
+///
+/// **Takes the SPANNED tree, which is the parser's real output.** Reach for
+/// `blue_lang_syntax::parse_program_tree`, not `parse_program` — a caller that
+/// lifts a spanless tree with `Spanned::from_sexp_synthetic` gets an `Outcome`
+/// whose every diagnostic says `<synthetic>` where a position should be, and an
+/// editor given that has nothing to underline. That is not a hypothetical: it is
+/// exactly the state this function replaced.
+pub fn check_program(forms: &[Spanned]) -> Outcome {
     let mut out = Outcome::default();
     let mut sigs: BTreeMap<String, Sig> = BTreeMap::new();
 
@@ -188,19 +217,22 @@ pub fn check_program(forms: &[Sexp]) -> Outcome {
     // unannotated program never enters the loop body.
     for form in forms {
         if let Some((name, _)) = read_typed_decl(form) {
-            let Sexp::List(items) = form else { continue };
+            let Some(items) = form.as_list() else {
+                continue;
+            };
             let sig = sigs.get(&name).expect("just inserted");
             let mut env: BTreeMap<String, Ty> = BTreeMap::new();
-            if let Sexp::List(params) = &items[1] {
+            if let Some(params) = items[1].as_list() {
                 for (i, p) in params[1..].iter().enumerate() {
-                    if let Sexp::List(pair) = p {
-                        if let Sexp::Atom(Atom::Symbol(pn)) = &pair[0] {
-                            env.insert(pn.clone(), sig.params[i].clone());
+                    if let Some(pair) = p.as_list() {
+                        if let Some(pn) = pair[0].as_symbol() {
+                            env.insert(pn.to_string(), sig.params[i].clone());
                         }
                     }
                 }
             }
-            let body_ty = infer(&items[3], &env, &sigs, &mut out);
+            let body = &items[3];
+            let body_ty = infer(body, &env, &sigs, &mut out);
             if !body_ty.accepts(&sig.ret) {
                 out.diagnostics.push(Diagnostic {
                     message: format!(
@@ -208,6 +240,13 @@ pub fn check_program(forms: &[Sexp]) -> Outcome {
                         sig.ret.name(),
                         body_ty.name()
                     ),
+                    // The BODY, not the return annotation and not the whole
+                    // `def`. The annotation is a statement of intent the author
+                    // meant; the body is the thing that disagrees with it, and
+                    // rustc points at the tail expression for the same reason.
+                    // Pointing at the whole declaration would underline a
+                    // twenty-line function to report one wrong line.
+                    span: body.span,
                 });
             }
         }
@@ -217,35 +256,28 @@ pub fn check_program(forms: &[Sexp]) -> Outcome {
 }
 
 /// Read `(define-typed (name (p T) ...) R body)`.
-fn read_typed_decl(form: &Sexp) -> Option<(String, Sig)> {
-    let Sexp::List(items) = form else { return None };
+fn read_typed_decl(form: &Spanned) -> Option<(String, Sig)> {
+    let items = form.as_list()?;
     if items.len() != 4 {
         return None;
     }
-    let Sexp::Atom(Atom::Symbol(head)) = &items[0] else {
-        return None;
-    };
-    if head != "define-typed" {
+    if items[0].as_symbol()? != "define-typed" {
         return None;
     }
-    let Sexp::List(sig) = &items[1] else {
-        return None;
-    };
-    let Sexp::Atom(Atom::Symbol(name)) = &sig[0] else {
-        return None;
-    };
+    let sig = items[1].as_list()?;
+    let name = sig[0].as_symbol()?;
     let params = sig[1..]
         .iter()
-        .map(|p| match p {
-            Sexp::List(pair) if pair.len() == 2 => Ty::from_sexp(&pair[1]),
+        .map(|p| match p.as_list() {
+            Some(pair) if pair.len() == 2 => Ty::from_sexp(&pair[1].to_sexp()),
             _ => Ty::Dyn,
         })
         .collect();
     Some((
-        name.clone(),
+        name.to_string(),
         Sig {
             params,
-            ret: Ty::from_sexp(&items[2]),
+            ret: Ty::from_sexp(&items[2].to_sexp()),
         },
     ))
 }
@@ -263,27 +295,27 @@ fn op_sig(op: &str) -> Option<(Ty, Ty)> {
 }
 
 fn infer(
-    s: &Sexp,
+    s: &Spanned,
     env: &BTreeMap<String, Ty>,
     sigs: &BTreeMap<String, Sig>,
     out: &mut Outcome,
 ) -> Ty {
     out.stats.visited += 1;
-    match s {
-        Sexp::Nil => Ty::Nil,
-        Sexp::Atom(Atom::Int(_)) => Ty::Int,
-        Sexp::Atom(Atom::Float(_)) => Ty::Float,
-        Sexp::Atom(Atom::Str(_)) => Ty::Str,
-        Sexp::Atom(Atom::Bool(_)) => Ty::Bool,
-        Sexp::Atom(Atom::Keyword(_)) => Ty::Sym,
-        Sexp::Atom(Atom::Symbol(n)) => env.get(n).cloned().unwrap_or(Ty::Dyn),
+    match &s.form {
+        SpannedForm::Nil => Ty::Nil,
+        SpannedForm::Atom(Atom::Int(_)) => Ty::Int,
+        SpannedForm::Atom(Atom::Float(_)) => Ty::Float,
+        SpannedForm::Atom(Atom::Str(_)) => Ty::Str,
+        SpannedForm::Atom(Atom::Bool(_)) => Ty::Bool,
+        SpannedForm::Atom(Atom::Keyword(_)) => Ty::Sym,
+        SpannedForm::Atom(Atom::Symbol(n)) => env.get(n).cloned().unwrap_or(Ty::Dyn),
 
-        Sexp::List(items) if items.is_empty() => Ty::Nil,
+        SpannedForm::List(items) if items.is_empty() => Ty::Nil,
 
-        Sexp::List(items) => {
-            let head = match &items[0] {
-                Sexp::Atom(Atom::Symbol(h)) => h.as_str(),
-                _ => {
+        SpannedForm::List(items) => {
+            let head = match items[0].as_symbol() {
+                Some(h) => h,
+                None => {
                     for i in items {
                         infer(i, env, sigs, out);
                     }
@@ -317,6 +349,12 @@ fn infer(
                     if !got.accepts(&arg) {
                         out.diagnostics.push(Diagnostic {
                             message: format!("`{head}` expects {}, got {}", arg.name(), got.name()),
+                            // The OFFENDING OPERAND, not the whole operator
+                            // expression. `s + 1` where `s: Str` is a complaint
+                            // about `s`; underlining `s + 1` would leave the
+                            // reader to work out which half is wrong, and in
+                            // `a + b + c` it would underline all of it.
+                            span: a.span,
                         });
                     }
                 }
@@ -338,6 +376,7 @@ fn infer(
                         out.seams.push(Seam {
                             expected: want.clone(),
                             at: format!("argument {} of `{head}`", i + 1),
+                            span: a.span,
                         });
                     } else if !got.accepts(want) {
                         out.diagnostics.push(Diagnostic {
@@ -347,6 +386,7 @@ fn infer(
                                 want.name(),
                                 got.name()
                             ),
+                            span: a.span,
                         });
                     }
                 }
@@ -370,15 +410,28 @@ fn infer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blue_lang_syntax::parse_program;
+    use blue_lang_syntax::parse_program_tree;
 
     fn check(src: &str) -> Outcome {
-        let forms = parse_program(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let forms = parse_program_tree(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
         check_program(&forms)
     }
 
     fn msgs(o: &Outcome) -> Vec<String> {
         o.diagnostics.iter().map(|d| d.message.clone()).collect()
+    }
+
+    /// The `(line, column)` a span's start resolves to in `src`, ZERO-based —
+    /// what an editor would show, and what a fixture can state by hand.
+    fn line_col(src: &str, span: Span) -> (usize, usize) {
+        let (l, c) = Span::line_col(src, span.start);
+        (l - 1, c - 1)
+    }
+
+    /// The exact source text a span covers. Independent evidence: it is a slice
+    /// of the input, computed by nothing the checker owns.
+    fn text(src: &str, span: Span) -> &str {
+        &src[span.start..span.end]
     }
 
     // ---- rung 0: ZERO analysis, measured ------------------------------
@@ -537,6 +590,212 @@ mod tests {
     fn seams_are_actually_recorded() {
         let o = check("def f(a: Int) -> Int\n  a\nend\ndef g() -> Int\n  f(unknown())\nend");
         assert!(!o.seams.is_empty());
+    }
+
+    // ---- spans ----------------------------------------------------------
+    //
+    // Every assertion below states a position as a LITERAL line and column,
+    // hand-counted from the fixture above it, and separately asserts the exact
+    // source text the span slices out. Neither number comes from the checker, so
+    // neither can agree with a wrong answer: a span off by one byte fails the
+    // text assertion, and a span pointing at the wrong node fails both.
+    //
+    // Every fixture deliberately puts its error somewhere OTHER than line 0,
+    // column 0. That was the value the LSP reported for every type error before
+    // this field existed, so a gate whose fixture happens to have its error on
+    // the first byte would pass against the exact bug being fixed.
+
+    /// A return-type mismatch points at the BODY that disagrees.
+    ///
+    /// RED RUN (2026-08-12): `span: body.span` in `check_program` changed to
+    /// `span: form.span` — the whole declaration, which is the plausible wrong
+    /// answer rather than a nonsense one:
+    ///
+    ///   assertion `left == right` failed: the diagnostic must point at the body
+    ///     left: (4, 0)
+    ///    right: (5, 2)
+    ///
+    /// It reported the `def` keyword on line 4 instead of the body on line 5.
+    #[test]
+    fn a_return_type_mismatch_points_at_the_body() {
+        // line 0: def ok(a: Int) -> Int
+        // line 1:   a
+        // line 2: end
+        // line 3:
+        // line 4: def bad(a: Int) -> Str
+        // line 5:   a + 1        <- the body that produces Int
+        // line 6: end
+        let src = "def ok(a: Int) -> Int\n  a\nend\n\ndef bad(a: Int) -> Str\n  a + 1\nend\n";
+        let o = check(src);
+        assert_eq!(o.diagnostics.len(), 1, "{:?}", msgs(&o));
+
+        let d = &o.diagnostics[0];
+        assert_eq!(
+            line_col(src, d.span),
+            (5, 2),
+            "the diagnostic must point at the body, got {:?} for {}",
+            d.span,
+            d.message
+        );
+        assert_eq!(
+            text(src, d.span),
+            "a + 1",
+            "the span must cover exactly the body expression"
+        );
+    }
+
+    /// An operator misuse points at the OFFENDING OPERAND, not the expression.
+    ///
+    /// RED RUN (2026-08-12): `span: a.span` in the `op_sig` arm changed to
+    /// `span: s.span` — the enclosing operator expression, which is what a
+    /// coarser implementation would report:
+    ///
+    ///   assertion `left == right` failed: the span must cover exactly the bad
+    ///   operand
+    ///     left: "s + 1"
+    ///    right: "s"
+    ///
+    /// The line and column happened to still match, because `s` starts the
+    /// expression — which is why the text assertion is here and not optional.
+    #[test]
+    fn an_operator_misuse_points_at_the_offending_operand() {
+        // line 0: # a comment, so nothing lands on line 0 by accident
+        // line 1: def wrong(s: Str) -> Int
+        // line 2:   s + 1     <- `s` at column 2 is the Str where Int was wanted
+        // line 3: end
+        let src = "# a comment, so nothing lands on line 0 by accident\n\
+                   def wrong(s: Str) -> Int\n\
+                   \x20 s + 1\n\
+                   end\n";
+        let o = check(src);
+        assert_eq!(o.diagnostics.len(), 1, "{:?}", msgs(&o));
+
+        let d = &o.diagnostics[0];
+        assert!(d.message.contains("expects Int"), "{}", d.message);
+        assert_eq!(line_col(src, d.span), (2, 2), "span {:?}", d.span);
+        assert_eq!(
+            text(src, d.span),
+            "s",
+            "the span must cover exactly the bad operand"
+        );
+    }
+
+    /// A wrong call argument points at THAT argument.
+    #[test]
+    fn a_wrong_argument_points_at_the_argument() {
+        // line 0: def add(a: Int, b: Int) -> Int
+        // line 1:   a + b
+        // line 2: end
+        // line 3:
+        // line 4: def g() -> Int
+        // line 5:   add(1, "two")   <- `"two"` starts at column 9
+        // line 6: end
+        let src = "def add(a: Int, b: Int) -> Int\n  a + b\nend\n\n\
+                   def g() -> Int\n  add(1, \"two\")\nend\n";
+        let o = check(src);
+        let d = o
+            .diagnostics
+            .iter()
+            .find(|d| d.message.contains("argument 2"))
+            .unwrap_or_else(|| panic!("expected an argument-2 diagnostic: {:?}", msgs(&o)));
+
+        assert_eq!(line_col(src, d.span), (5, 9), "span {:?}", d.span);
+        assert_eq!(text(src, d.span), "\"two\"");
+    }
+
+    /// A seam records WHERE the inserted check sits, not just which argument
+    /// slot it guards. "argument 1 of `add`" does not say which call.
+    #[test]
+    fn a_seam_carries_the_span_of_the_argument_it_guards() {
+        // line 0: def add(a: Int, b: Int) -> Int
+        // line 1:   a + b
+        // line 2: end
+        // line 3:
+        // line 4: def g() -> Int
+        // line 5:   add(mystery(), 2)   <- `mystery()` starts at column 6
+        // line 6: end
+        let src = "def add(a: Int, b: Int) -> Int\n  a + b\nend\n\n\
+                   def g() -> Int\n  add(mystery(), 2)\nend\n";
+        let o = check(src);
+        assert!(
+            o.ok(),
+            "a dyn argument is a seam, not an error: {:?}",
+            msgs(&o)
+        );
+        assert_eq!(o.seams.len(), 1, "{:?}", o.seams);
+
+        let seam = &o.seams[0];
+        assert_eq!(line_col(src, seam.span), (5, 6), "span {:?}", seam.span);
+        assert_eq!(text(src, seam.span), "mystery()");
+    }
+
+    /// **No reported position is synthetic.** A synthetic span is the sentinel
+    /// for "this node has no source origin", and a checker that emitted them for
+    /// ordinary user code would be reporting positions no editor can use — which
+    /// is the whole failure mode `Diagnostic::span` exists to close, wearing a
+    /// different mask.
+    ///
+    /// The corpus is every diagnostic shape the checker can produce, so a new
+    /// construction site that forgets its span is caught here rather than in an
+    /// editor.
+    ///
+    /// RED RUN (2026-08-12): the corpus fed through
+    /// `Spanned::from_sexp_synthetic(&parse_program(src))` instead of
+    /// `parse_program_tree` — the lift a caller reaching for the spanless parse
+    /// would perform:
+    ///
+    ///   thread 'tests::no_reported_position_is_synthetic' panicked:
+    ///   `def f(a: Int) -> Str\n  a\nend` reported a synthetic span for
+    ///   ``f` declares it returns Str, but its body produces Int`
+    ///
+    /// It trips on the first corpus entry and panics there, so the run proves
+    /// the gate fires — not that every entry independently would. This is also
+    /// the gate that proves the spans survive the PARSER, not merely that the
+    /// field exists to be filled in.
+    #[test]
+    fn no_reported_position_is_synthetic() {
+        let corpus = [
+            "def f(a: Int) -> Str\n  a\nend",
+            "def f(s: Str) -> Int\n  s + 1\nend",
+            "def add(a: Int, b: Int) -> Int\n  a + b\nend\ndef g() -> Int\n  add(1, \"x\")\nend",
+            "def f(a: Int) -> Int\n  a\nend\ndef g() -> Int\n  f(unknown())\nend",
+            "def f(a: Int, b) -> Int\n  a\nend\ndef g() -> Int\n  f(\"bad\", 1)\nend",
+        ];
+        let mut diagnostics = 0;
+        let mut seams = 0;
+        for src in corpus {
+            let o = check(src);
+            for d in &o.diagnostics {
+                assert!(
+                    !d.span.is_synthetic(),
+                    "{src:?} reported a synthetic span for `{}`",
+                    d.message
+                );
+                assert!(
+                    d.span.end <= src.len(),
+                    "{src:?}: span {:?} runs past the source ({} bytes)",
+                    d.span,
+                    src.len()
+                );
+                diagnostics += 1;
+            }
+            for s in &o.seams {
+                assert!(
+                    !s.span.is_synthetic(),
+                    "{src:?} seam at {} is synthetic",
+                    s.at
+                );
+                seams += 1;
+            }
+        }
+        // Anti-vacuity: the loop above proves nothing if the corpus reported
+        // nothing. Counted, not asserted non-empty, so a corpus that silently
+        // stopped producing three of four findings still fails. The count is 4
+        // and not 5 because the fourth entry's `unknown()` argument is a SEAM
+        // rather than an error — the count caught that when it was first written
+        // as 5, which is the kind of mistake `assert!(!is_empty())` hides.
+        assert_eq!(diagnostics, 4, "the corpus stopped reporting diagnostics");
+        assert_eq!(seams, 1, "the corpus stopped reporting seams");
     }
 
     /// Correctness never moves: a program that runs must still run whether

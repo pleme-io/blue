@@ -117,7 +117,24 @@ impl LineIndex {
         }
     }
 
+    /// Span → range.
+    ///
+    /// A **synthetic** span becomes the whole document rather than a position.
+    /// `Span::synthetic()` is `usize::MAX..usize::MAX`, which [`Self::position`]
+    /// would dutifully clamp to the last byte of the file — a precise-looking
+    /// answer that is a lie about a node with no source origin. Nothing blue's
+    /// parser emits is synthetic, so this arm exists for the macro-expanded and
+    /// cross-file trees that will reach here later; the whole document is the
+    /// honest statement "somewhere in this file, and I cannot say where".
+    ///
+    /// It is deliberately NOT `Range::default()`. Line 0, column 0 is a real
+    /// position — it names the first character — and reporting an unknown
+    /// location as a known one is precisely the bug that made every blue type
+    /// error appear at the top of the file.
     pub fn range(&self, span: Span) -> Range {
+        if span.is_synthetic() {
+            return self.whole_document();
+        }
         Range {
             start: self.position(span.start),
             end: self.position(span.end),
@@ -182,11 +199,27 @@ pub struct Declaration {
 /// mid-edit is unparseable most of the time, and a type checker run on a
 /// half-tree produces cascades of errors about code the author has not written
 /// yet — which trains people to ignore the diagnostics.
+///
+/// That is the *preference*; there is also no choice. blue's parser performs no
+/// error recovery — `parse_program_tree` returns `Result<Vec<Spanned>, _>` and
+/// bails on the first failure — so on a parse error there is no half-tree to
+/// check even if we wanted one. Reporting parse AND type diagnostics together
+/// is not a matter of deleting the early return here; it needs the parser to
+/// synthesize error nodes and keep going, which it does not do. Stated so the
+/// next reader does not go looking for the `if` to remove.
 pub fn analyse(src: &str) -> Analysis {
     let index = LineIndex::new(src);
     let mut out = Analysis::default();
 
-    let forms = match blue_lang_syntax::parse_program(src) {
+    // `parse_program_tree`, NOT `parse_program`.
+    //
+    // The tree carries a span on every node, and the spanless parse does not.
+    // While the checker walked `Sexp`, a type diagnostic arrived here with no
+    // position at all and was attached to `Range::default()` — line 0, column 0
+    // — so an error on line 200 of a file underlined its first character while
+    // the parse error beside it pointed at the right byte. Reaching for
+    // `parse_program` here is how that comes back.
+    let forms = match blue_lang_syntax::parse_program_tree(src) {
         Ok(f) => f,
         Err(e) => {
             out.diagnostics.push(Diagnostic {
@@ -200,12 +233,8 @@ pub fn analyse(src: &str) -> Analysis {
     };
 
     for d in blue_lang_check::check_program(&forms).diagnostics {
-        // The checker reports messages without spans today, so these attach to
-        // the start of the document. Stated rather than faked: inventing a span
-        // would put a squiggle under unrelated code, which is worse than a
-        // diagnostic in the gutter.
         out.diagnostics.push(Diagnostic {
-            range: Range::default(),
+            range: index.range(d.span),
             severity: Severity::Error,
             message: d.message,
             source: "types",
@@ -230,32 +259,43 @@ pub fn analyse(src: &str) -> Analysis {
     out
 }
 
-fn declarations(forms: &[blue_lang_syntax::Sexp], index: &LineIndex) -> Vec<Declaration> {
-    use blue_lang_syntax::Sexp;
+fn declarations(forms: &[blue_lang_syntax::Spanned], index: &LineIndex) -> Vec<Declaration> {
     let mut out = Vec::new();
     for form in forms {
-        let Sexp::List(items) = form else { continue };
-        let head = match items.first() {
-            Some(Sexp::Atom(blue_lang_syntax::Atom::Symbol(s))) => &**s,
-            _ => continue,
+        let Some(items) = form.as_list() else {
+            continue;
+        };
+        let Some(head) = items.first().and_then(|h| h.as_symbol()) else {
+            continue;
         };
         let name = match (head, items.get(1)) {
-            ("define" | "define-typed", Some(Sexp::List(sig))) => match sig.first() {
-                Some(Sexp::Atom(blue_lang_syntax::Atom::Symbol(n))) => n.to_string(),
-                _ => continue,
+            ("define" | "define-typed", Some(sig)) => {
+                match sig.as_list().and_then(|s| s.first()?.as_symbol()) {
+                    Some(n) => n.to_string(),
+                    None => continue,
+                }
+            }
+            ("defmacro", Some(n)) => match n.as_symbol() {
+                Some(n) => n.to_string(),
+                None => continue,
             },
-            ("defmacro", Some(Sexp::Atom(blue_lang_syntax::Atom::Symbol(n)))) => n.to_string(),
             _ => continue,
         };
         // The signature is the FORMATTER's first line. Reusing it means hover
         // and the file cannot disagree about how a signature is spelled — the
         // same reason the test framework renders assertions through it.
-        let rendered = blue_lang_fmt::format_forms(std::slice::from_ref(form));
+        let rendered = blue_lang_fmt::format_forms(std::slice::from_ref(&form.to_sexp()));
         let signature = rendered.lines().next().unwrap_or_default().to_string();
         out.push(Declaration {
             name,
             signature,
-            range: index.whole_document(),
+            // The declaration's OWN range, not `whole_document()`.
+            //
+            // It was the whole document, for the same reason type diagnostics
+            // were at line 0: nothing downstream had a span to offer. A
+            // document-wide range is what makes a symbol list unusable —
+            // "go to definition" lands on byte 0 for every name in the file.
+            range: index.range(form.span),
         });
     }
     out
@@ -395,6 +435,240 @@ mod tests {
         assert_eq!(a.diagnostics.len(), 1, "{:?}", a.diagnostics);
         assert_eq!(a.diagnostics[0].source, "types");
         assert!(a.diagnostics[0].message.contains("Str"));
+    }
+
+    // ---- type diagnostics have REAL positions ---------------------------
+    //
+    // Until 2026-08-12 `blue_lang_check::Diagnostic` carried only a message, so
+    // every type diagnostic here was emitted with `Range::default()` — line 0,
+    // character 0 — and an author with a type error on line 200 got a squiggle
+    // under the first character of their file. The parse-error path beside it
+    // had a real span the whole time, which is what made the asymmetry visible.
+    //
+    // Every fixture below puts its error somewhere other than line 0, and every
+    // expected position is counted by hand from the fixture rather than read
+    // back from the analysis. A gate whose fixture had its error at byte 0 would
+    // pass against the exact bug.
+
+    /// A type error is reported at ITS OWN position, not at the top of the file.
+    ///
+    /// RED RUN (2026-08-12): the type arm in `analyse` reverted to
+    /// `range: Range::default()`, which is precisely the code this replaces:
+    ///
+    ///   assertion `left == right` failed: a type error must be reported where
+    ///   it is, not at the top of the file
+    ///     left: Position { line: 0, character: 0 }
+    ///    right: Position { line: 4, character: 2 }
+    #[test]
+    fn a_type_error_is_reported_at_its_own_position() {
+        // line 0: # a comment, so nothing is at byte 0 by accident
+        // line 1: def fine(a: Int) -> Int
+        // line 2:   a
+        // line 3: end
+        // line 4: def bad(a: Int) -> Str
+        // line 5:   a          <- the body, at character 2
+        // line 6: end
+        let src = "# a comment, so nothing is at byte 0 by accident\n\
+                   def fine(a: Int) -> Int\n\
+                   \x20 a\n\
+                   end\n\
+                   def bad(a: Int) -> Str\n\
+                   \x20 a\n\
+                   end\n";
+        let a = analyse(src);
+        let d = a
+            .diagnostics
+            .iter()
+            .find(|d| d.source == "types")
+            .unwrap_or_else(|| panic!("expected a type diagnostic: {:?}", a.diagnostics));
+
+        assert_eq!(
+            d.range.start,
+            Position {
+                line: 5,
+                character: 2
+            },
+            "a type error must be reported where it is, not at the top of the file"
+        );
+        assert_eq!(
+            d.range.end,
+            Position {
+                line: 5,
+                character: 3
+            },
+            "the range must cover exactly the one-character body"
+        );
+    }
+
+    /// **The type-diagnostic range is counted in UTF-16 code units too.**
+    ///
+    /// The conversion was already correct and already tested — for PARSE errors,
+    /// the only diagnostics that had a span. Routing type diagnostics through the
+    /// same [`LineIndex`] is what puts them under the same guarantee, and this is
+    /// the test that says so: the expected character is 15, while the byte offset
+    /// within the line is 18. An implementation that shipped bytes would report
+    /// 18 and this fixture is the only kind that can tell.
+    #[test]
+    fn a_type_diagnostic_position_counts_utf16_code_units() {
+        // line 0: def bad(s: Str) -> Int
+        // line 1:   "héllo 😀" + s
+        //
+        // UTF-16 units on line 1:  0,1 spaces · 2 `"` · 3 h · 4 é · 5,6 ll · 7 o
+        //                          8 space · 9,10 😀 (a surrogate pair) · 11 `"`
+        //                          12 space · 13 `+` · 14 space · 15 s
+        // Bytes on line 1 put `s` at 18, because é is 2 bytes and 😀 is 4.
+        let src = "def bad(s: Str) -> Int\n  \"héllo 😀\" + s\nend\n";
+        let a = analyse(src);
+        let types: Vec<&Diagnostic> = a
+            .diagnostics
+            .iter()
+            .filter(|d| d.source == "types")
+            .collect();
+        assert_eq!(types.len(), 2, "{:?}", a.diagnostics);
+
+        // The string literal is the first bad operand: characters 2..12.
+        assert_eq!(
+            (types[0].range.start.character, types[0].range.end.character),
+            (2, 12),
+            "the string literal's range: {:?}",
+            types[0].range
+        );
+        // `s` is the second: character 15, NOT byte 18.
+        assert_eq!(
+            types[1].range.start,
+            Position {
+                line: 1,
+                character: 15
+            },
+            "`s` sits after a 2-byte é and a 4-byte 😀; 18 would mean bytes leaked \
+             into a UTF-16 field. Got {:?}",
+            types[1].range
+        );
+    }
+
+    /// **No type diagnostic lands on the whole-document default.**
+    ///
+    /// The class gate rather than a per-fixture one: a future construction site
+    /// in the checker that forgets its span reports `Span::synthetic()`, which
+    /// [`LineIndex::range`] turns into the whole document — visibly wrong, but
+    /// only if something is looking.
+    ///
+    /// RED RUN (2026-08-12): with the type arm reverted to `Range::default()`:
+    ///
+    ///   assertion `left != right` failed: "# pad\ndef f(a: Int) -> Str\n  a\nend\n":
+    ///   ``f` declares it returns Str, but its body produces Int` reported at 0,0
+    ///     left: Position { line: 0, character: 0 }
+    ///    right: Position { line: 0, character: 0 }
+    ///
+    /// It trips on the first corpus entry and panics there, so the run proves the
+    /// gate fires — not that every entry independently would.
+    #[test]
+    fn no_type_diagnostic_lands_on_a_default_or_whole_document_range() {
+        let corpus = [
+            "# pad\ndef f(a: Int) -> Str\n  a\nend\n",
+            "# pad\ndef f(s: Str) -> Int\n  s + 1\nend\n",
+            "# pad\ndef add(a: Int, b: Int) -> Int\n  a + b\nend\ndef g() -> Int\n  add(1, \"x\")\nend\n",
+            "# pad\ndef f(a: Int, b) -> Int\n  a\nend\ndef g() -> Int\n  f(\"bad\", 1)\nend\n",
+        ];
+        let mut seen = 0;
+        for src in corpus {
+            let a = analyse(src);
+            let whole = LineIndex::new(src).whole_document();
+            for d in a.diagnostics.iter().filter(|d| d.source == "types") {
+                assert_ne!(
+                    d.range.start,
+                    Position::default(),
+                    "{src:?}: `{}` reported at 0,0 — every fixture here is padded \
+                     with a comment line, so nothing legitimately starts there",
+                    d.message
+                );
+                assert_ne!(
+                    d.range, whole,
+                    "{src:?}: `{}` reported over the whole document, which is what a \
+                     synthetic span converts to",
+                    d.message
+                );
+                seen += 1;
+            }
+        }
+        // Anti-vacuity: counted, so a corpus that stopped producing three of
+        // four diagnostics fails rather than passing over an empty loop.
+        assert_eq!(seen, 4, "the corpus stopped producing type diagnostics");
+    }
+
+    /// A declaration's range is the declaration, not the file.
+    ///
+    /// Same defect, same cause: `declarations` had no span to offer and used
+    /// `whole_document()`, so every symbol in a file claimed to span all of it.
+    ///
+    /// RED RUN (2026-08-12): `range: index.range(form.span)` in `declarations`
+    /// reverted to `index.whole_document()`:
+    ///
+    ///   assertion `left == right` failed
+    ///     left: Position { line: 6, character: 0 }
+    ///    right: Position { line: 2, character: 3 }
+    ///
+    /// The first declaration claimed to end at the end of the file. Note that
+    /// reverting the *diagnostic* arm does NOT redden this test and reverting
+    /// this one does not redden those — two construction sites, two gates.
+    #[test]
+    fn a_declaration_range_is_the_declaration_not_the_whole_file() {
+        // line 0: def one(a)
+        // line 1:   a
+        // line 2: end
+        // line 3: def two(b)
+        let src = "def one(a)\n  a\nend\ndef two(b)\n  b\nend\n";
+        let a = analyse(src);
+        assert_eq!(a.declarations.len(), 2, "{:?}", a.declarations);
+
+        assert_eq!(
+            a.declarations[0].range.start,
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            a.declarations[0].range.end,
+            Position {
+                line: 2,
+                character: 3
+            }
+        );
+        assert_eq!(
+            a.declarations[1].range.start,
+            Position {
+                line: 3,
+                character: 0
+            }
+        );
+        assert_eq!(
+            a.declarations[1].range.end,
+            Position {
+                line: 5,
+                character: 3
+            }
+        );
+
+        let whole = LineIndex::new(src).whole_document();
+        for d in &a.declarations {
+            assert_ne!(d.range, whole, "`{}` still spans the whole file", d.name);
+        }
+    }
+
+    /// A synthetic span becomes the whole document, never line 0.
+    ///
+    /// Nothing blue's parser emits is synthetic, so this pins the conversion
+    /// directly rather than through `analyse`. The distinction matters: `0,0` is
+    /// a real position naming the first character, so reporting an unknown
+    /// location that way is a false claim, while the whole document is the true
+    /// one — "somewhere in this file".
+    #[test]
+    fn a_synthetic_span_becomes_the_whole_document_not_the_origin() {
+        let index = LineIndex::new("abc\ndef\n");
+        let r = index.range(blue_lang_syntax::Span::synthetic());
+        assert_eq!(r, index.whole_document());
+        assert_ne!(r, Range::default());
     }
 
     /// Anti-vacuity: an untyped program produces no type diagnostics, so the

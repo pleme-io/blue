@@ -195,7 +195,10 @@ pub fn shift_of(src: &str) -> Shift {
     let index = crate::analysis::LineIndex::new(src);
     let mut out = Shift::default();
 
-    let Ok(forms) = blue_lang_syntax::parse_program(src) else {
+    // The SPANNED tree: a `Factor` carries a range an editor draws, so a factor
+    // built from a spanless tree can only point at the whole file — which is
+    // what every one of them did.
+    let Ok(forms) = blue_lang_syntax::parse_program_tree(src) else {
         // An unparseable document has no reading. Reporting `Dynamic` would be
         // a lie about a file that has no meaning yet.
         return out;
@@ -205,11 +208,20 @@ pub fn shift_of(src: &str) -> Shift {
     out.analysed_nodes = outcome.stats.visited;
     out.typed_declarations = outcome.stats.typed_decls;
 
-    let inputs = blue_lang_runtime::declarations(&forms);
+    let spanless: Vec<blue_lang_syntax::Sexp> = forms
+        .iter()
+        .map(blue_lang_syntax::Spanned::to_sexp)
+        .collect();
+    let inputs = blue_lang_runtime::declarations(&spanless);
     for decl in &inputs {
         out.factors.push(Factor {
             kind: FactorKind::CapabilityDeclaration,
             subject: decl.name.clone(),
+            // Still the whole document, and this is the last one.
+            // `blue_lang_runtime::inputs::Declaration` carries a name and a hash
+            // and no span, so there is nothing here to convert; giving it one
+            // means threading spans through `inputs::declarations`, a change in
+            // another crate with its own consumers.
             range: index.whole_document(),
             detail: {
                 let mut d = String::from("the macro phase may read `");
@@ -229,7 +241,7 @@ pub fn shift_of(src: &str) -> Shift {
             Factor {
                 kind: FactorKind::TypeAnnotation,
                 subject: name.clone(),
-                range: index.whole_document(),
+                range: index.range(form.span),
                 detail: {
                     let mut d = String::from("`");
                     d.push_str(&name);
@@ -241,7 +253,7 @@ pub fn shift_of(src: &str) -> Shift {
             Factor {
                 kind: FactorKind::UntypedDeclaration,
                 subject: name.clone(),
-                range: index.whole_document(),
+                range: index.range(form.span),
                 detail: {
                     let mut d = String::from("`");
                     d.push_str(&name);
@@ -256,7 +268,7 @@ pub fn shift_of(src: &str) -> Shift {
         out.factors.push(Factor {
             kind: FactorKind::Seam,
             subject: seam.at.clone(),
-            range: index.whole_document(),
+            range: index.range(seam.span),
             detail: "a typed↔untyped boundary — a runtime check lands here".to_string(),
         });
     }
@@ -289,26 +301,16 @@ fn rung_for(s: &Shift, has_capability: bool) -> Option<Rung> {
 }
 
 /// `(name, is_typed)` for a declaration form.
-fn declaration_of(form: &blue_lang_syntax::Sexp) -> Option<(String, bool)> {
-    use blue_lang_syntax::{Atom, Sexp};
-    let Sexp::List(items) = form else { return None };
-    let head = match items.first() {
-        Some(Sexp::Atom(Atom::Symbol(s))) => &**s,
-        _ => return None,
-    };
-    let typed = match head {
+fn declaration_of(form: &blue_lang_syntax::Spanned) -> Option<(String, bool)> {
+    let items = form.as_list()?;
+    let typed = match items.first()?.as_symbol()? {
         "define" => false,
         "define-typed" => true,
         _ => return None,
     };
     // Both spell the signature as a list whose head is the name.
-    match items.get(1) {
-        Some(Sexp::List(sig)) => match sig.first() {
-            Some(Sexp::Atom(Atom::Symbol(n))) => Some((n.to_string(), typed)),
-            _ => None,
-        },
-        _ => None,
-    }
+    let name = items.get(1)?.as_list()?.first()?.as_symbol()?;
+    Some((name.to_string(), typed))
 }
 
 #[cfg(test)]

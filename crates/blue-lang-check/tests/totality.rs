@@ -12,10 +12,11 @@
 //! with no body, references to names that do not exist yet. A checker that
 //! panics on those does not produce a diagnostic; it takes the editor with it.
 //!
-//! `check_program` takes `&[Sexp]`, not `&str`, so this suite feeds it the
+//! `check_program` takes `&[Spanned]`, not `&str`, so this suite feeds it the
 //! forms of every corpus prefix that PARSES. That is the honest input domain:
 //! the checker is never handed raw text, and testing it with hand-built ASTs
-//! would exercise shapes the parser cannot actually produce.
+//! would exercise shapes the parser cannot actually produce — and hand-built
+//! spans in particular would prove nothing about the ones the parser assigns.
 //!
 //! Tier: **CI-caught**. Finite corpus; proves the property over these inputs.
 
@@ -67,7 +68,7 @@ fn no_parseable_prefix_panics_the_checker() {
                 continue;
             };
             checked += 1;
-            let Ok(forms) = blue_lang_syntax::parse_program(slice) else {
+            let Ok(forms) = blue_lang_syntax::parse_program_tree(slice) else {
                 continue;
             };
             reached += 1;
@@ -103,7 +104,7 @@ fn no_parseable_prefix_panics_the_checker() {
 #[test]
 fn checking_the_same_forms_twice_agrees() {
     for (name, src) in corpus() {
-        let Ok(forms) = blue_lang_syntax::parse_program(&src) else {
+        let Ok(forms) = blue_lang_syntax::parse_program_tree(&src) else {
             continue;
         };
         let a = format!("{:?}", blue_lang_check::check_program(&forms));
@@ -118,7 +119,7 @@ fn checking_the_same_forms_twice_agrees() {
 /// is what an LSP sees the instant a new file is created.
 #[test]
 fn the_empty_program_checks_cleanly() {
-    let forms = blue_lang_syntax::parse_program("").unwrap_or_default();
+    let forms = blue_lang_syntax::parse_program_tree("").unwrap_or_default();
     let r = std::panic::catch_unwind(|| {
         let _ = blue_lang_check::check_program(&forms);
     });

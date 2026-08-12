@@ -12,8 +12,37 @@
 //! well-defined s-expression it means. Where the mapping is not obvious it
 //! is written down in the test module, because the tests are the
 //! specification of the surface until the mechanized spec exists.
+//!
+//! ## Spans are built, not bolted on
+//!
+//! Every production returns a [`Spanned`] — tatara-lisp's parallel tree where
+//! **each node** carries the byte range that produced it — and the spanless
+//! [`parse_program`] is a projection of it via `Spanned::to_sexp`.
+//!
+//! That direction is deliberate and it is the second time this file has learned
+//! the lesson: the spanless tree is derivable from the spanned one and the
+//! reverse is not. When the parser produced `Sexp` and callers wanted positions,
+//! the only answers available were *invent one* (a squiggle under unrelated
+//! code) or *use nothing* — and the type checker took the second, so every type
+//! error in the editor was reported at line 0, column 0 regardless of where it
+//! was. A span discarded at the parser cannot be recovered by anything
+//! downstream, exactly as [`crate::lex`] says of trivia.
+//!
+//! Two honest limits, both stated where they are caused rather than inferred:
+//!
+//! - A node blue **synthesizes** (the `define` a `def` lowers to, the `not` an
+//!   `unless` lowers to, the `equal?` a `case` arm compares with) has no source
+//!   text of its own. It is given the span of the token that *caused* it — the
+//!   `def`, the `unless`, the `when` — which is where a reader looks when told
+//!   something about it.
+//! - An interpolation's inner expression is parsed from a **sub-source** (the
+//!   text between `#{` and `}`), so its own offsets are relative to that
+//!   substring and would point into the wrong buffer. Those nodes are stamped
+//!   with the whole string literal's span instead. Sub-span accuracy inside an
+//!   interpolation needs the lexer to record each part's offset in the outer
+//!   source, which it does not.
 
-use tatara_lisp::{Atom, Sexp};
+use tatara_lisp::{Atom, Sexp, Spanned, SpannedForm};
 
 use crate::lex::{lex, Span, Token, TokenKind};
 
@@ -49,6 +78,35 @@ pub fn parse_program(src: &str) -> Result<Vec<Sexp>, ParseError> {
     parse_program_with_depth(src, MAX_EXPR_DEPTH)
 }
 
+/// Parse a blue program keeping **every node's** source span.
+///
+/// This is the parser's real output; [`parse_program`] projects the spans away.
+/// Reach for this one whenever a position is going to be shown to a human — an
+/// editor squiggle, a `line:col` in a CLI error, a future debugger's breakpoint
+/// table. Reach for [`parse_program`] only when the consumer genuinely does not
+/// care where anything was.
+pub fn parse_program_tree(src: &str) -> Result<Vec<Spanned>, ParseError> {
+    parse_program_tree_with_depth(src, MAX_EXPR_DEPTH)
+}
+
+/// [`parse_program_tree`] with the nesting bound supplied by the caller.
+pub fn parse_program_tree_with_depth(
+    src: &str,
+    max_depth: usize,
+) -> Result<Vec<Spanned>, ParseError> {
+    let toks: Vec<Token> = lex(src)?
+        .into_iter()
+        .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
+        .collect();
+    let mut p = Parser {
+        toks,
+        pos: 0,
+        depth: 0,
+        max_depth,
+    };
+    p.program()
+}
+
 /// Parse a program written in a [`Yakugo`](crate::yakugo::Yakugo) surface.
 ///
 /// The pack is applied to the TOKEN STREAM, between lexing and parsing, so the
@@ -72,7 +130,7 @@ pub fn parse_program_in(src: &str, pack: &crate::yakugo::Yakugo) -> Result<Vec<S
         depth: 0,
         max_depth: MAX_EXPR_DEPTH,
     };
-    Ok(p.program_spanned()?.into_iter().map(|(f, _)| f).collect())
+    Ok(p.program()?.iter().map(Spanned::to_sexp).collect())
 }
 
 /// [`parse_program`] with the nesting bound supplied by the caller.
@@ -84,9 +142,9 @@ pub fn parse_program_in(src: &str, pack: &crate::yakugo::Yakugo) -> Result<Vec<S
 /// would belong nowhere near a config file (see `blue-lang-cli`'s `config`
 /// module for the rule this obeys).
 pub fn parse_program_with_depth(src: &str, max_depth: usize) -> Result<Vec<Sexp>, ParseError> {
-    Ok(parse_program_spanned_with_depth(src, max_depth)?
-        .into_iter()
-        .map(|(form, _)| form)
+    Ok(parse_program_tree_with_depth(src, max_depth)?
+        .iter()
+        .map(Spanned::to_sexp)
         .collect())
 }
 
@@ -98,6 +156,10 @@ pub fn parse_program_with_depth(src: &str, max_depth: usize) -> Result<Vec<Sexp>
 /// in a comment would stop formatting identically. Instead the formatter renders
 /// the tree and re-interleaves comments by position, which needs to know where
 /// each form started and ended.
+///
+/// A projection of [`parse_program_tree`], which carries a span on every node
+/// rather than only the top-level ones. This entry point survives because the
+/// formatter wants exactly the top-level pairing and nothing deeper.
 pub fn parse_program_spanned(src: &str) -> Result<Vec<(Sexp, Span)>, ParseError> {
     parse_program_spanned_with_depth(src, MAX_EXPR_DEPTH)
 }
@@ -107,17 +169,10 @@ pub fn parse_program_spanned_with_depth(
     src: &str,
     max_depth: usize,
 ) -> Result<Vec<(Sexp, Span)>, ParseError> {
-    let toks: Vec<Token> = lex(src)?
-        .into_iter()
-        .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
-        .collect();
-    let mut p = Parser {
-        toks,
-        pos: 0,
-        depth: 0,
-        max_depth,
-    };
-    p.program_spanned()
+    Ok(parse_program_tree_with_depth(src, max_depth)?
+        .iter()
+        .map(|f| (f.to_sexp(), f.span))
+        .collect())
 }
 
 /// Every comment in `src`, with its byte span and whether it sits alone on its
@@ -439,22 +494,33 @@ impl Parser {
         matches!(self.peek(), TokenKind::Ident(n) if n == name)
     }
 
-    fn program_spanned(&mut self) -> Result<Vec<(Sexp, Span)>, ParseError> {
+    /// Byte offset where the next token begins — the anchor a production spans
+    /// *from*. Paired with [`Self::span_since`].
+    fn mark(&self) -> usize {
+        self.peek_span().start
+    }
+
+    /// The span from `start` to the end of the **last consumed** token.
+    ///
+    /// `pos` has already advanced past that token, so this looks one back. Call
+    /// it after a production has consumed everything it owns; calling it early
+    /// yields a span that stops short of the node it describes.
+    fn span_since(&self, start: usize) -> Span {
+        let end = self
+            .toks
+            .get(self.pos.saturating_sub(1))
+            .map_or(start, |t| t.span.end);
+        Span::new(start, end.max(start))
+    }
+
+    fn program(&mut self) -> Result<Vec<Spanned>, ParseError> {
         let mut out = Vec::new();
         loop {
             self.skip_newlines();
             if matches!(self.peek(), TokenKind::Eof) {
                 break;
             }
-            let start = self.peek_span().start;
-            let form = self.statement()?;
-            // The last token consumed ends the form. `pos` has already advanced
-            // past it, so look one back.
-            let end = self
-                .toks
-                .get(self.pos.saturating_sub(1))
-                .map_or(start, |t| t.span.end);
-            out.push((form, Span::new(start, end)));
+            out.push(self.statement()?);
         }
         Ok(out)
     }
@@ -471,7 +537,7 @@ impl Parser {
     /// expression and it is a well-known footgun — `if x = 1` where `==` was
     /// meant. Blue declines it, and the cost is only that a walrus-style idiom
     /// has to be two lines.
-    fn statement(&mut self) -> Result<Sexp, ParseError> {
+    fn statement(&mut self) -> Result<Spanned, ParseError> {
         // The SECOND recursion cycle, and it needs the same guard as `expr`.
         //
         // Guarding `expr` alone was not enough — measured 2026-08-01: with the
@@ -498,14 +564,21 @@ impl Parser {
         r
     }
 
-    fn statement_inner(&mut self) -> Result<Sexp, ParseError> {
+    fn statement_inner(&mut self) -> Result<Spanned, ParseError> {
         if let TokenKind::Ident(name) = self.peek().clone() {
             if self.peek_at(1) == "=" && !is_reserved_word(&name) {
+                let name_span = self.peek_span();
                 self.bump(); // name
                 self.bump(); // =
                 self.skip_newlines();
                 let value = self.expr(0)?;
-                return Ok(Sexp::List(vec![sym("define"), sym(&name), value]));
+                // `define` is synthesized — `x = 5` contains no such word — so
+                // it takes the span of the name being bound, which is what a
+                // reader looks at when told something about the binding.
+                return Ok(list_at(
+                    self.span_since(name_span.start),
+                    vec![sym_at(name_span, "define"), sym_at(name_span, &name), value],
+                ));
             }
         }
         self.expr(0)
@@ -521,7 +594,7 @@ impl Parser {
     }
 
     /// Pratt loop.
-    fn expr(&mut self, min_bp: u8) -> Result<Sexp, ParseError> {
+    fn expr(&mut self, min_bp: u8) -> Result<Spanned, ParseError> {
         // Depth guard at the single recursion cycle (`expr` -> `prefix` ->
         // `expr`). Returning an Err here converts an UNRECOVERABLE abort into
         // an ordinary parse failure a caller can render — the difference
@@ -544,7 +617,8 @@ impl Parser {
         r
     }
 
-    fn expr_inner(&mut self, min_bp: u8) -> Result<Sexp, ParseError> {
+    fn expr_inner(&mut self, min_bp: u8) -> Result<Spanned, ParseError> {
+        let start = self.mark();
         let mut lhs = self.prefix()?;
 
         loop {
@@ -552,7 +626,7 @@ impl Parser {
             match self.peek() {
                 TokenKind::Dot => {
                     self.bump();
-                    lhs = self.finish_send(lhs)?;
+                    lhs = self.finish_send(start, lhs)?;
                     continue;
                 }
                 TokenKind::LParen => {
@@ -560,7 +634,7 @@ impl Parser {
                     let args = self.paren_args()?;
                     let mut list = vec![lhs];
                     list.extend(args);
-                    lhs = Sexp::List(list);
+                    lhs = list_at(self.span_since(start), list);
                     continue;
                 }
                 _ => {}
@@ -569,6 +643,7 @@ impl Parser {
             // Infix
             // `callee == None` marks the pipeline, which is a rewrite rather
             // than a call.
+            let op_span = self.peek_span();
             let (callee, (lbp, rbp)) = match self.peek() {
                 TokenKind::Pipe => (None, PIPE_POWER),
                 TokenKind::Op(o) => match infix(o) {
@@ -589,27 +664,39 @@ impl Parser {
                 // `x |> f(a)`   => (f x a)   — the pipeline threads into
                 //                  the FIRST argument position, as Elixir's
                 //                  does; that is what makes it composable.
-                match rhs {
-                    Sexp::List(mut items) if !items.is_empty() => {
+                let rhs_span = rhs.span;
+                match rhs.form {
+                    SpannedForm::List(mut items) if !items.is_empty() => {
                         items.insert(1, lhs);
-                        Sexp::List(items)
+                        list_at(self.span_since(start), items)
                     }
-                    callee => Sexp::List(vec![callee, lhs]),
+                    callee => list_at(
+                        self.span_since(start),
+                        vec![Spanned::new(rhs_span, callee), lhs],
+                    ),
                 }
             } else {
-                Sexp::List(vec![sym(callee.unwrap()), lhs, rhs])
+                // The callee symbol takes the OPERATOR's span, not the whole
+                // expression's: `a + b` lowers to `(+ a b)` and the `+` node is
+                // the one byte-range in the source that means it. Handing it the
+                // whole expression's span would make a diagnostic about the
+                // operator underline both operands too.
+                list_at(
+                    self.span_since(start),
+                    vec![sym_at(op_span, callee.unwrap()), lhs, rhs],
+                )
             };
         }
 
         Ok(lhs)
     }
 
-    fn prefix(&mut self) -> Result<Sexp, ParseError> {
+    fn prefix(&mut self) -> Result<Spanned, ParseError> {
         let span = self.peek_span();
         match self.bump() {
-            TokenKind::Int(v) => Ok(Sexp::Atom(Atom::Int(v))),
-            TokenKind::Float(v) => Ok(Sexp::Atom(Atom::Float(v))),
-            TokenKind::Str(s) => Ok(Sexp::Atom(Atom::Str(s))),
+            TokenKind::Int(v) => Ok(atom_at(span, Atom::Int(v))),
+            TokenKind::Float(v) => Ok(atom_at(span, Atom::Float(v))),
+            TokenKind::Str(s) => Ok(atom_at(span, Atom::Str(s))),
 
             // `"a#{x}b"` → `(concat (concat "a" x) "b")`.
             //
@@ -622,35 +709,54 @@ impl Parser {
             // rather than lexed inside the string, so an interpolation can hold
             // anything an expression can and the two can never drift.
             TokenKind::InterpolatedStr { parts, exprs } => {
-                let mut acc = Sexp::Atom(Atom::Str(parts[0].clone()));
+                // Every node here carries the WHOLE string literal's span.
+                //
+                // The inner expression is parsed from `raw` — a substring — so
+                // its own offsets index that substring, not `src`. Carrying them
+                // through would produce spans that look real and point into a
+                // buffer nobody has: for `"a#{x}"` at offset 40, `x`'s span
+                // would be 0..1, i.e. the start of the file. The lexer does not
+                // record where each part sat in the outer source, so the string
+                // literal is the most precise honest answer available.
+                let mut acc = atom_at(span, Atom::Str(parts[0].clone()));
                 for (i, raw) in exprs.iter().enumerate() {
                     let inner = parse_expr(raw).map_err(|e| ParseError {
                         message: format!("in interpolation `#{{{raw}}}`: {}", e.message),
                         span,
                     })?;
-                    acc = Sexp::List(vec![sym(LOWERED_CONCAT), acc, inner]);
+                    let inner = Spanned::from_sexp_at(&inner, span);
+                    acc = list_at(span, vec![sym_at(span, LOWERED_CONCAT), acc, inner]);
                     // `parts.len() == exprs.len() + 1` by construction, so this
                     // index is always in range.
-                    acc = Sexp::List(vec![
-                        sym(LOWERED_CONCAT),
-                        acc,
-                        Sexp::Atom(Atom::Str(parts[i + 1].clone())),
-                    ]);
+                    acc = list_at(
+                        span,
+                        vec![
+                            sym_at(span, LOWERED_CONCAT),
+                            acc,
+                            atom_at(span, Atom::Str(parts[i + 1].clone())),
+                        ],
+                    );
                 }
                 Ok(acc)
             }
-            TokenKind::Sym(s) => Ok(Sexp::Atom(Atom::Keyword(s))),
-            TokenKind::True => Ok(Sexp::Atom(Atom::Bool(true))),
-            TokenKind::False => Ok(Sexp::Atom(Atom::Bool(false))),
-            TokenKind::Nil => Ok(Sexp::Nil),
+            TokenKind::Sym(s) => Ok(atom_at(span, Atom::Keyword(s))),
+            TokenKind::True => Ok(atom_at(span, Atom::Bool(true))),
+            TokenKind::False => Ok(atom_at(span, Atom::Bool(false))),
+            TokenKind::Nil => Ok(Spanned::new(span, SpannedForm::Nil)),
 
             TokenKind::Op(o) if o == "-" => {
                 let rhs = self.expr(11)?; // binds tighter than `*`
-                Ok(Sexp::List(vec![sym("-"), Sexp::Atom(Atom::Int(0)), rhs]))
+                Ok(list_at(
+                    self.span_since(span.start),
+                    vec![sym_at(span, "-"), atom_at(span, Atom::Int(0)), rhs],
+                ))
             }
             TokenKind::Op(o) if o == "!" => {
                 let rhs = self.expr(11)?;
-                Ok(Sexp::List(vec![sym("not"), rhs]))
+                Ok(list_at(
+                    self.span_since(span.start),
+                    vec![sym_at(span, "not"), rhs],
+                ))
             }
 
             TokenKind::LParen => {
@@ -658,24 +764,27 @@ impl Parser {
                 let inner = self.expr(0)?;
                 self.skip_newlines();
                 self.expect(&TokenKind::RParen, "`)`")?;
+                // The inner expression's own span, NOT one widened to include
+                // the parentheses: grouping is not part of the expression's
+                // meaning, and `(a + b)` should underline `a + b`.
                 Ok(inner)
             }
 
-            TokenKind::LBracket => self.list_literal(),
-            TokenKind::LBrace => self.map_literal(),
+            TokenKind::LBracket => self.list_literal(span),
+            TokenKind::LBrace => self.map_literal(span),
 
             TokenKind::Ident(name) => match name.as_str() {
-                "if" => self.if_form(false),
-                "unless" => self.if_form(true),
-                "def" => self.def_form(),
-                "defmacro" => self.defmacro_form(),
-                "case" => self.case_form(),
-                "fn" => self.lambda_form(),
-                "test" => self.test_form(),
-                "assert" => self.assert_form(),
-                "quote" => self.quote_form(),
-                "unquote" => self.unquote_form(false),
-                "unquote_splice" => self.unquote_form(true),
+                "if" => self.if_form(span, false),
+                "unless" => self.if_form(span, true),
+                "def" => self.def_form(span),
+                "defmacro" => self.defmacro_form(span),
+                "case" => self.case_form(span),
+                "fn" => self.lambda_form(span),
+                "test" => self.test_form(span),
+                "assert" => self.assert_form(span),
+                "quote" => self.quote_form(span),
+                "unquote" => self.unquote_form(span, false),
+                "unquote_splice" => self.unquote_form(span, true),
                 "do" => Err(ParseError {
                     message: "`do` without a preceding call".into(),
                     span,
@@ -684,7 +793,7 @@ impl Parser {
                     message: "unexpected `end`".into(),
                     span,
                 }),
-                _ => Ok(sym(&name)),
+                _ => Ok(sym_at(span, &name)),
             },
 
             other => Err(ParseError {
@@ -700,7 +809,8 @@ impl Parser {
     /// the uniform access principle here: a structure exposes no public
     /// fields, so a field can later become a computed method without
     /// breaking a caller.
-    fn finish_send(&mut self, recv: Sexp) -> Result<Sexp, ParseError> {
+    fn finish_send(&mut self, start: usize, recv: Spanned) -> Result<Spanned, ParseError> {
+        let name_span = self.peek_span();
         let name = match self.bump() {
             // A RESERVED WORD is not a method name.
             //
@@ -726,14 +836,14 @@ impl Parser {
                 return Err(self.error(format!("expected a method name after `.`, found {other:?}")))
             }
         };
-        let mut list = vec![sym(&name), recv];
+        let mut list = vec![sym_at(name_span, &name), recv];
         if self.at(&TokenKind::LParen) {
             list.extend(self.paren_args()?);
         }
-        Ok(Sexp::List(list))
+        Ok(list_at(self.span_since(start), list))
     }
 
-    fn paren_args(&mut self) -> Result<Vec<Sexp>, ParseError> {
+    fn paren_args(&mut self) -> Result<Vec<Spanned>, ParseError> {
         self.expect(&TokenKind::LParen, "`(`")?;
         let mut args = Vec::new();
         self.skip_newlines();
@@ -753,11 +863,11 @@ impl Parser {
         Ok(args)
     }
 
-    fn list_literal(&mut self) -> Result<Sexp, ParseError> {
-        let mut items = vec![sym("list")];
+    fn list_literal(&mut self, open: Span) -> Result<Spanned, ParseError> {
+        let mut items = vec![sym_at(open, "list")];
         self.skip_newlines();
         if self.eat(&TokenKind::RBracket) {
-            return Ok(Sexp::List(items));
+            return Ok(list_at(self.span_since(open.start), items));
         }
         loop {
             self.skip_newlines();
@@ -769,7 +879,7 @@ impl Parser {
             self.expect(&TokenKind::RBracket, "`,` or `]`")?;
             break;
         }
-        Ok(Sexp::List(items))
+        Ok(list_at(self.span_since(open.start), items))
     }
 
     /// `{a: 1, "k" => v}` — both spellings, one tree.
@@ -778,19 +888,20 @@ impl Parser {
     /// produce the *same* s-expression, which is precisely why the
     /// formatter may always choose the shorthand. The rocket survives only
     /// where the key is not a plain symbol.
-    fn map_literal(&mut self) -> Result<Sexp, ParseError> {
-        let mut items = vec![sym(LOWERED_MAP)];
+    fn map_literal(&mut self, open: Span) -> Result<Spanned, ParseError> {
+        let mut items = vec![sym_at(open, LOWERED_MAP)];
         self.skip_newlines();
         if self.eat(&TokenKind::RBrace) {
-            return Ok(Sexp::List(items));
+            return Ok(list_at(self.span_since(open.start), items));
         }
         loop {
             self.skip_newlines();
             match self.peek().clone() {
                 TokenKind::Label(name) => {
+                    let label_span = self.peek_span();
                     self.bump();
                     self.skip_newlines();
-                    items.push(Sexp::Atom(Atom::Keyword(name)));
+                    items.push(atom_at(label_span, Atom::Keyword(name)));
                     items.push(self.expr(0)?);
                 }
                 _ => {
@@ -809,7 +920,7 @@ impl Parser {
             self.expect(&TokenKind::RBrace, "`,` or `}`")?;
             break;
         }
-        Ok(Sexp::List(items))
+        Ok(list_at(self.span_since(open.start), items))
     }
 
     /// `if c ... [else ...] end`, and `unless` as its negation.
@@ -821,12 +932,13 @@ impl Parser {
     ///
     /// `if / elsif / elsif / else / end` is one `end` for the whole chain, so
     /// every arm but the first must leave it for its parent.
-    fn if_chain(&mut self) -> Result<Sexp, ParseError> {
+    fn if_chain(&mut self, head: Span) -> Result<Spanned, ParseError> {
         let cond = self.expr(0)?;
         let then = self.body(&["elsif", "else", "end"])?;
         let els = if self.at_ident("elsif") {
+            let elsif = self.peek_span();
             self.bump();
-            Some(self.if_chain()?)
+            Some(self.if_chain(elsif)?)
         } else if self.at_ident("else") {
             self.bump();
             let e = self.body(&["end"])?;
@@ -836,17 +948,20 @@ impl Parser {
             self.expect_ident("end")?;
             None
         };
-        let mut out = vec![sym("if"), cond, then];
+        let mut out = vec![sym_at(head, "if"), cond, then];
         if let Some(e) = els {
             out.push(e);
         }
-        Ok(Sexp::List(out))
+        Ok(list_at(self.span_since(head.start), out))
     }
 
-    fn if_form(&mut self, negate: bool) -> Result<Sexp, ParseError> {
+    fn if_form(&mut self, head: Span, negate: bool) -> Result<Spanned, ParseError> {
         let cond = self.expr(0)?;
         let cond = if negate {
-            Sexp::List(vec![sym("not"), cond])
+            // `unless c` lowers to `(if (not c) …)`. The synthesized `not` takes
+            // the `unless` keyword's span — that word is what put it there.
+            let inner = cond.span;
+            list_at(head.merge(inner), vec![sym_at(head, "not"), cond])
         } else {
             cond
         };
@@ -864,10 +979,11 @@ impl Parser {
         // reachable by writing the Ruby every blue user already knows.
         let then = self.body(&["elsif", "else", "end"])?;
         let els = if self.at_ident("elsif") {
+            let elsif = self.peek_span();
             self.bump();
             // The chain shares ONE `end`, so recurse without consuming it and
             // let the outermost `if` close the whole thing.
-            Some(self.if_chain()?)
+            Some(self.if_chain(elsif)?)
         } else if self.at_ident("else") {
             self.bump();
             let e = self.body(&["end"])?;
@@ -877,11 +993,11 @@ impl Parser {
             self.expect_ident("end")?;
             None
         };
-        let mut out = vec![sym("if"), cond, then];
+        let mut out = vec![sym_at(head, "if"), cond, then];
         if let Some(e) = els {
             out.push(e);
         }
-        Ok(Sexp::List(out))
+        Ok(list_at(self.span_since(head.start), out))
     }
 
     /// `def name(a, b) ... end`            => `(define (name a b) body)`
@@ -909,25 +1025,31 @@ impl Parser {
     /// The subject is evaluated ONCE, into a binding, so `case expensive()` does
     /// not re-run per arm. That is a correctness property, not an optimisation:
     /// a subject with a side effect would fire once per `when`.
-    fn case_form(&mut self) -> Result<Sexp, ParseError> {
+    fn case_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
         let subject = self.expr(0)?;
         self.skip_newlines();
 
         // A fresh name the surface cannot spell, so it cannot capture a user
         // binding of the same name.
         let subject_var = "case-subject";
-        let mut arms: Vec<Sexp> = Vec::new();
-        let mut otherwise: Option<Sexp> = None;
+        let mut arms: Vec<Spanned> = Vec::new();
+        let mut otherwise: Option<Spanned> = None;
+        // The `else` keyword's own span, so the synthesized `(else body)` clause
+        // sits where the author wrote it rather than back at `case`.
+        let mut else_kw: Option<Span> = None;
 
         loop {
             self.skip_newlines();
             if self.at_ident("end") {
                 break;
             }
+            let maybe_else = self.peek_span();
             if self.eat_ident("else") {
+                else_kw = Some(maybe_else);
                 otherwise = Some(self.body(&["end"])?);
                 continue;
             }
+            let when = self.peek_span();
             if !self.eat_ident("when") {
                 return Err(self.error(format!(
                     "expected `when`, `else` or `end` in a case, found {:?}",
@@ -937,10 +1059,14 @@ impl Parser {
             self.skip_newlines();
             let pattern = self.expr(0)?;
             let body = self.body(&["when", "else", "end"])?;
-            arms.push(Sexp::List(vec![
-                Sexp::List(vec![sym("equal?"), sym(subject_var), pattern]),
-                body,
-            ]));
+            // The synthesized comparison takes the arm's `when` span: that word
+            // is what put an `equal?` there, and it is where a reader looks when
+            // told an arm cannot match.
+            let test = list_at(
+                when.merge(pattern.span),
+                vec![sym_at(when, "equal?"), sym_at(when, subject_var), pattern],
+            );
+            arms.push(list_at(when.merge(body.span), vec![test, body]));
         }
         self.expect_ident("end")?;
 
@@ -952,18 +1078,34 @@ impl Parser {
         // raises CaseClauseError; blue follows Ruby because its `if` without an
         // else is already nil, and having two different answers to "no branch
         // taken" in one language is the inconsistency.
-        let mut cond = vec![sym("cond")];
+        let mut cond = vec![sym_at(head, "cond")];
         cond.extend(arms);
-        cond.push(Sexp::List(vec![
-            sym("else"),
-            otherwise.unwrap_or(Sexp::Nil),
-        ]));
+        // The `else` clause spans its own keyword through its body. Anchoring it
+        // at `head` — the `case` keyword — put a node whose subtree sits at the
+        // END of the form at a span near its START, so the else body escaped its
+        // parent's range entirely. `every_node_sits_inside_its_parents_span`
+        // caught that; it is the kind of mistake no output-shape test can see,
+        // because the tree is correct and only the positions are wrong.
+        let else_span = else_kw.unwrap_or(head);
+        let else_body = otherwise.unwrap_or_else(|| Spanned::new(else_span, SpannedForm::Nil));
+        cond.push(list_at(
+            else_span.merge(else_body.span),
+            vec![sym_at(else_span, "else"), else_body],
+        ));
 
-        Ok(Sexp::List(vec![
-            sym("let"),
-            Sexp::List(vec![Sexp::List(vec![sym(subject_var), subject])]),
-            Sexp::List(cond),
-        ]))
+        let whole = self.span_since(head.start);
+        let binding = list_at(
+            head.merge(subject.span),
+            vec![sym_at(head, subject_var), subject],
+        );
+        Ok(list_at(
+            whole,
+            vec![
+                sym_at(head, "let"),
+                list_at(binding.span, vec![binding]),
+                list_at(whole, cond),
+            ],
+        ))
     }
 
     /// `fn(a, b) ... end` => `(lambda (a b) body)`
@@ -976,16 +1118,17 @@ impl Parser {
     /// `fn` rather than Ruby's `->` or `lambda`: `->` collides with the return-
     /// type arrow the typed `def` already uses, and reusing one glyph for two
     /// unrelated things is the ambiguity the FORM axis exists to prevent.
-    fn lambda_form(&mut self) -> Result<Sexp, ParseError> {
-        let mut params: Vec<String> = Vec::new();
+    fn lambda_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+        let mut params: Vec<Spanned> = Vec::new();
         if self.at(&TokenKind::LParen) {
             self.bump();
             self.skip_newlines();
             if !self.eat(&TokenKind::RParen) {
                 loop {
                     self.skip_newlines();
+                    let p_span = self.peek_span();
                     match self.bump() {
-                        TokenKind::Ident(p) => params.push(p),
+                        TokenKind::Ident(p) => params.push(sym_at(p_span, &p)),
                         other => {
                             return Err(
                                 self.error(format!("expected a parameter name, found {other:?}"))
@@ -1001,13 +1144,13 @@ impl Parser {
                 }
             }
         }
+        let params_span = cover(&params, head);
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
-        Ok(Sexp::List(vec![
-            sym("lambda"),
-            Sexp::List(params.iter().map(|p| sym(p)).collect()),
-            body,
-        ]))
+        Ok(list_at(
+            self.span_since(head.start),
+            vec![sym_at(head, "lambda"), list_at(params_span, params), body],
+        ))
     }
 
     /// `test "name" ... end` => `(deftest "name" body)`
@@ -1015,7 +1158,8 @@ impl Parser {
     /// A string, not an identifier: a test name is prose for a human report,
     /// and forcing it into an identifier is how test names become
     /// `test_adds_two_numbers_correctly`.
-    fn test_form(&mut self) -> Result<Sexp, ParseError> {
+    fn test_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+        let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Str(s) => s,
             other => {
@@ -1026,11 +1170,14 @@ impl Parser {
         };
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
-        Ok(Sexp::List(vec![
-            sym("deftest"),
-            Sexp::Atom(Atom::Str(name)),
-            body,
-        ]))
+        Ok(list_at(
+            self.span_since(head.start),
+            vec![
+                sym_at(head, "deftest"),
+                atom_at(name_span, Atom::Str(name)),
+                body,
+            ],
+        ))
     }
 
     /// `assert expr` => `(blue-assert 'expr expr)`
@@ -1056,13 +1203,13 @@ impl Parser {
     ///
     /// This is homoiconicity paying for itself: the capture needs no source
     /// map, no macro hygiene, and no string of the original text.
-    fn assert_form(&mut self) -> Result<Sexp, ParseError> {
+    fn assert_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
         let e = self.expr(0)?;
-        Ok(Sexp::List(vec![
-            sym(LOWERED_ASSERT),
-            Sexp::Quote(Box::new(e.clone())),
-            e,
-        ]))
+        let quoted = Spanned::new(e.span, SpannedForm::Quote(Box::new(e.clone())));
+        Ok(list_at(
+            self.span_since(head.start),
+            vec![sym_at(head, LOWERED_ASSERT), quoted, e],
+        ))
     }
 
     /// `defmacro name(a, b) ... end` => `(defmacro name (a b) body)`
@@ -1073,22 +1220,24 @@ impl Parser {
     /// parameters are not on it. Annotating one is rejected rather than
     /// silently ignored — an ignored annotation is how an author comes to
     /// believe a check is running.
-    fn defmacro_form(&mut self) -> Result<Sexp, ParseError> {
+    fn defmacro_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+        let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
             other => {
                 return Err(self.error(format!("expected a name after `defmacro`, found {other:?}")))
             }
         };
-        let mut params: Vec<String> = Vec::new();
+        let mut params: Vec<Spanned> = Vec::new();
         if self.at(&TokenKind::LParen) {
             self.bump();
             self.skip_newlines();
             if !self.eat(&TokenKind::RParen) {
                 loop {
                     self.skip_newlines();
+                    let p_span = self.peek_span();
                     match self.bump() {
-                        TokenKind::Ident(p) => params.push(p),
+                        TokenKind::Ident(p) => params.push(sym_at(p_span, &p)),
                         TokenKind::Label(p) => {
                             return Err(self.error(format!(
                                 "macro parameter `{p}` cannot be typed: a macro receives \
@@ -1116,17 +1265,21 @@ impl Parser {
             ));
         }
 
+        let params_span = cover(&params, name_span);
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
 
         // `(defmacro name (params) body)` — tatara-lisp's own shape, so blue
         // registers into the SAME expander rather than a parallel one.
-        Ok(Sexp::List(vec![
-            sym("defmacro"),
-            sym(&name),
-            Sexp::List(params.iter().map(|p| sym(p)).collect()),
-            body,
-        ]))
+        Ok(list_at(
+            self.span_since(head.start),
+            vec![
+                sym_at(head, "defmacro"),
+                sym_at(name_span, &name),
+                list_at(params_span, params),
+                body,
+            ],
+        ))
     }
 
     /// `quote ... end` => `` `body `` (a quasiquote).
@@ -1134,7 +1287,7 @@ impl Parser {
     /// Quasiquote rather than plain quote, because a macro body that could not
     /// splice its arguments in would be useless — this is Elixir's `quote do`,
     /// which is likewise a template and not inert data.
-    fn quote_form(&mut self) -> Result<Sexp, ParseError> {
+    fn quote_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
         // `Sexp::Quasiquote`, NOT `(quasiquote body)` as a list.
@@ -1145,45 +1298,54 @@ impl Parser {
         // then reached the inner `,x` with no enclosing quasiquote and rejected
         // it: "unquote outside of quasiquote". Building the real variant makes
         // it Display as `` ` `` and survive the round trip.
-        Ok(Sexp::Quasiquote(Box::new(body)))
+        Ok(Spanned::new(
+            self.span_since(head.start),
+            SpannedForm::Quasiquote(Box::new(body)),
+        ))
     }
 
     /// `unquote(expr)` => `,expr`; `unquote_splice(expr)` => `,@expr`.
-    fn unquote_form(&mut self, splice: bool) -> Result<Sexp, ParseError> {
+    fn unquote_form(&mut self, head: Span, splice: bool) -> Result<Spanned, ParseError> {
         self.expect(&TokenKind::LParen, "`(` after unquote")?;
         self.skip_newlines();
         let inner = self.expr(0)?;
         self.skip_newlines();
         self.expect(&TokenKind::RParen, "`)`")?;
-        Ok(if splice {
-            Sexp::UnquoteSplice(Box::new(inner))
-        } else {
-            Sexp::Unquote(Box::new(inner))
-        })
+        let span = self.span_since(head.start);
+        Ok(Spanned::new(
+            span,
+            if splice {
+                SpannedForm::UnquoteSplice(Box::new(inner))
+            } else {
+                SpannedForm::Unquote(Box::new(inner))
+            },
+        ))
     }
 
-    fn def_form(&mut self) -> Result<Sexp, ParseError> {
+    fn def_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+        let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
             other => {
                 return Err(self.error(format!("expected a name after `def`, found {other:?}")))
             }
         };
-        let mut params: Vec<(String, Option<Sexp>)> = Vec::new();
+        let mut params: Vec<(String, Span, Option<Spanned>)> = Vec::new();
         if self.at(&TokenKind::LParen) {
             self.bump();
             self.skip_newlines();
             if !self.eat(&TokenKind::RParen) {
                 loop {
                     self.skip_newlines();
+                    let p_span = self.peek_span();
                     match self.bump() {
                         // `a` — unannotated
-                        TokenKind::Ident(p) => params.push((p, None)),
+                        TokenKind::Ident(p) => params.push((p, p_span, None)),
                         // `a:` came through as one token, so a type follows
                         TokenKind::Label(p) => {
                             self.skip_newlines();
                             let ty = self.type_expr()?;
-                            params.push((p, Some(ty)));
+                            params.push((p, p_span, Some(ty)));
                         }
                         other => {
                             return Err(
@@ -1200,6 +1362,8 @@ impl Parser {
                 }
             }
         }
+        // The signature list spans the name through the closing `)`.
+        let sig_span = self.span_since(name_span.start);
 
         // Optional `-> R`
         let ret = if matches!(self.peek(), TokenKind::Op(o) if o == "->") {
@@ -1212,44 +1376,56 @@ impl Parser {
 
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
+        let whole = self.span_since(head.start);
 
-        let annotated = ret.is_some() || params.iter().any(|(_, t)| t.is_some());
+        let annotated = ret.is_some() || params.iter().any(|(_, _, t)| t.is_some());
         if !annotated {
-            let mut sig = vec![sym(&name)];
-            sig.extend(params.into_iter().map(|(p, _)| sym(&p)));
-            return Ok(Sexp::List(vec![sym("define"), Sexp::List(sig), body]));
+            let mut sig = vec![sym_at(name_span, &name)];
+            sig.extend(params.into_iter().map(|(p, s, _)| sym_at(s, &p)));
+            return Ok(list_at(
+                whole,
+                vec![sym_at(head, "define"), list_at(sig_span, sig), body],
+            ));
         }
 
         // Typed shape. An un-annotated parameter in an otherwise annotated
         // signature is written `(p dyn)` so the checker sees the ladder
         // position explicitly rather than inferring it from absence.
-        let mut sig = vec![sym(&name)];
-        for (p, t) in params {
-            let ty = t.unwrap_or_else(|| sym("dyn"));
-            sig.push(Sexp::List(vec![sym(&p), ty]));
+        //
+        // A `dyn` written by the parser rather than the author takes the
+        // parameter's own span, so a diagnostic about it points at the
+        // parameter — the only thing in the source it could mean.
+        let mut sig = vec![sym_at(name_span, &name)];
+        for (p, s, t) in params {
+            let ty = t.unwrap_or_else(|| sym_at(s, "dyn"));
+            sig.push(list_at(s.merge(ty.span), vec![sym_at(s, &p), ty]));
         }
-        Ok(Sexp::List(vec![
-            sym("define-typed"),
-            Sexp::List(sig),
-            ret.unwrap_or_else(|| sym("dyn")),
-            body,
-        ]))
+        Ok(list_at(
+            whole,
+            vec![
+                sym_at(head, "define-typed"),
+                list_at(sig_span, sig),
+                ret.unwrap_or_else(|| sym_at(head, "dyn")),
+                body,
+            ],
+        ))
     }
 
     /// A type expression. Currently a bare name (`Int`, `Str`, `dyn`) or a
     /// one-argument constructor (`List(Int)`).
-    fn type_expr(&mut self) -> Result<Sexp, ParseError> {
+    fn type_expr(&mut self) -> Result<Spanned, ParseError> {
+        let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
             other => return Err(self.error(format!("expected a type name, found {other:?}"))),
         };
         if self.at(&TokenKind::LParen) {
             let args = self.paren_args()?;
-            let mut list = vec![sym(&name)];
+            let mut list = vec![sym_at(name_span, &name)];
             list.extend(args);
-            return Ok(Sexp::List(list));
+            return Ok(list_at(self.span_since(name_span.start), list));
         }
-        Ok(sym(&name))
+        Ok(sym_at(name_span, &name))
     }
 
     /// Consume `name` if it is the next token, else leave the position alone.
@@ -1273,7 +1449,10 @@ impl Parser {
 
     /// A sequence of expressions up to one of `terminators`, wrapped in
     /// `(begin ...)` when there is more than one.
-    fn body(&mut self, terminators: &[&str]) -> Result<Sexp, ParseError> {
+    fn body(&mut self, terminators: &[&str]) -> Result<Spanned, ParseError> {
+        // Anchored BEFORE the leading newlines are skipped, so an empty body's
+        // span sits where the body would have started.
+        let start = self.mark();
         let mut forms = Vec::new();
         loop {
             self.skip_newlines();
@@ -1288,19 +1467,60 @@ impl Parser {
             forms.push(self.statement()?);
         }
         Ok(match forms.len() {
-            0 => Sexp::Nil,
+            0 => Spanned::new(Span::new(start, start), SpannedForm::Nil),
             1 => forms.into_iter().next().expect("checked len"),
             _ => {
-                let mut list = vec![sym("begin")];
+                // `cover`, NOT `span_since`: the loop breaks *before* consuming
+                // the terminator but *after* `skip_newlines`, so the last token
+                // behind `pos` can be a newline and `span_since` would stretch
+                // the body across trailing blank lines. The forms know exactly
+                // where they are.
+                let span = cover(&forms, Span::new(start, start));
+                // The synthesized `begin` is zero-width at the FIRST FORM's
+                // start, not at `start`. `start` is anchored before the leading
+                // newlines are skipped, so it sits earlier than the body itself
+                // — and a head node outside its own list's span is a span bug
+                // that `every_node_sits_inside_its_parents_span` reports.
+                let head = Span::new(span.start, span.start);
+                let mut list = vec![sym_at(head, "begin")];
                 list.extend(forms);
-                Sexp::List(list)
+                list_at(span, list)
             }
         })
     }
 }
 
-fn sym(s: &str) -> Sexp {
-    Sexp::Atom(Atom::Symbol(s.to_string()))
+/// A symbol node at `span`.
+fn sym_at(span: Span, s: &str) -> Spanned {
+    Spanned::new(span, SpannedForm::Atom(Atom::Symbol(s.to_string())))
+}
+
+/// An atom node at `span`.
+fn atom_at(span: Span, a: Atom) -> Spanned {
+    Spanned::new(span, SpannedForm::Atom(a))
+}
+
+/// A list node at `span`.
+fn list_at(span: Span, items: Vec<Spanned>) -> Spanned {
+    Spanned::new(span, SpannedForm::List(items))
+}
+
+/// The smallest span covering every node in `items`, or `fallback` when there
+/// are none.
+///
+/// The fallback is a parameter rather than `Span::synthetic()` because a
+/// synthetic span is a claim that a node has no source origin at all — and an
+/// empty parameter list in `def f()` very much has one. Defaulting to synthetic
+/// here is how "no span" leaks into a tree where every node does have a place.
+fn cover(items: &[Spanned], fallback: Span) -> Span {
+    let merged = items
+        .iter()
+        .fold(Span::synthetic(), |acc, s| acc.merge(s.span));
+    if merged.is_synthetic() {
+        fallback
+    } else {
+        merged
+    }
 }
 
 #[cfg(test)]

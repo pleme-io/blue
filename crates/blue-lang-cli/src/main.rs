@@ -167,6 +167,33 @@ fn parse(src: &str, cfg: &BlueConfig) -> Result<Vec<blue_lang_syntax::Sexp>, Cli
     )?)
 }
 
+/// [`parse`] keeping every node's source span, under the same configured bound.
+fn parse_tree(src: &str, cfg: &BlueConfig) -> Result<Vec<blue_lang_syntax::Spanned>, CliError> {
+    Ok(blue_lang_runtime::parse_tree_with_depth(
+        src,
+        cfg.max_expr_depth,
+    )?)
+}
+
+/// A `file:line:col` prefix.
+///
+/// A typed `Display` rather than a `format!` at the call site, per ★★ TYPED
+/// EMISSION: a consumer that needed the text was a missing `Display`, not a
+/// licence to build the string by interpolation. Both `line` and `col` are
+/// ONE-based here, because this string is read by humans and by editors, and
+/// both count from 1 — `Span::line_col` already answers in those terms.
+struct Located {
+    file: String,
+    line: usize,
+    col: usize,
+}
+
+impl std::fmt::Display for Located {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}:{}:", self.file, self.line, self.col)
+    }
+}
+
 /// The distribution on `BLUE_PATH`, if any root holds one.
 ///
 /// Roots are searched in order and the FIRST non-empty one wins — the same
@@ -282,7 +309,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Check { file } => {
-            let forms = parse(&read(&file)?, &cfg)?;
+            let src = read(&file)?;
+            let forms = parse_tree(&src, &cfg)?;
             let outcome = blue_lang_check::check_program(&forms);
             // Report the analysis performed, not just pass/fail. §0's rule is
             // that an invisible cost is the one unacceptable outcome, and the
@@ -290,11 +318,27 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             println!("typed declarations: {}", outcome.stats.typed_decls);
             println!("nodes analysed:     {}", outcome.stats.visited);
             println!("seams:              {}", outcome.seams.len());
+            // `file:line:col`, the shape every editor and every `cc` already
+            // knows how to jump to. The position is the diagnostic's own span,
+            // so a reader is never told to go looking for the error.
+            let at = |span: blue_lang_syntax::Span| {
+                let (line, col) = blue_lang_syntax::Span::line_col(&src, span.start);
+                Located {
+                    file: file.display().to_string(),
+                    line,
+                    col,
+                }
+            };
             for seam in &outcome.seams {
-                println!("  seam at {} expects {:?}", seam.at, seam.expected);
+                println!(
+                    "  {} seam at {} expects {:?}",
+                    at(seam.span),
+                    seam.at,
+                    seam.expected
+                );
             }
             for d in &outcome.diagnostics {
-                eprintln!("error: {d}");
+                eprintln!("{} error: {d}", at(d.span));
             }
             Ok(if outcome.ok() {
                 ExitCode::SUCCESS

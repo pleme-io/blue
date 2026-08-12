@@ -26,9 +26,10 @@ pub use lex::{lex, LexError, Span, Token, TokenKind};
 // tatara-lisp directly just to name the node types blue emits.
 pub use parse::{
     comments, is_reserved_word, parse_expr, parse_program, parse_program_in, parse_program_spanned,
-    parse_program_spanned_with_depth, parse_program_tree, parse_program_tree_with_depth,
-    parse_program_with_depth, Comment, Infix, ParseError, BLOCK_KEYWORDS, INFIX, LOWERED_ASSERT,
-    LOWERED_CONCAT, LOWERED_MAP, MAX_EXPR_DEPTH, SURFACE_KEYWORDS,
+    parse_program_spanned_with_depth, parse_program_tree, parse_program_tree_in,
+    parse_program_tree_with_depth, parse_program_with_depth, Comment, Infix, ParseError,
+    BLOCK_KEYWORDS, INFIX, LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_MAP, MAX_EXPR_DEPTH,
+    SURFACE_KEYWORDS,
 };
 // `Spanned`/`SpannedForm` alongside `Sexp` for the same reason `Sexp` is here:
 // the parser's real output is the spanned tree, and a consumer that wants a

@@ -120,6 +120,31 @@ pub fn parse_program_tree_with_depth(
 /// Lex and parse errors propagate unchanged. A pack cannot repair source that
 /// does not tokenize, and reporting otherwise would name the wrong problem.
 pub fn parse_program_in(src: &str, pack: &crate::yakugo::Yakugo) -> Result<Vec<Sexp>, ParseError> {
+    Ok(parse_program_tree_in(src, pack)?
+        .iter()
+        .map(Spanned::to_sexp)
+        .collect())
+}
+
+/// [`parse_program_in`] keeping **every node's** source span.
+///
+/// The same relation [`parse_program_tree`] has to [`parse_program`], and it
+/// exists for the same reason: a surface is a spelling, so a program written in
+/// one has positions exactly as real as an English-surface program's. Without
+/// this door, `pipeline::run_in_surface` would have to lift a spanless tree back
+/// up and every type error in a `yakugo` program would report `<synthetic>` —
+/// a position the parser HAD and threw away one line earlier, which is the
+/// class `Diagnostic::span`'s own docs name.
+///
+/// [`parse_program_in`] is now its projection, so the two cannot drift.
+///
+/// # Errors
+///
+/// As [`parse_program_in`].
+pub fn parse_program_tree_in(
+    src: &str,
+    pack: &crate::yakugo::Yakugo,
+) -> Result<Vec<Spanned>, ParseError> {
     let toks: Vec<Token> = crate::yakugo::canonical_tokens(src, pack)?
         .into_iter()
         .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
@@ -130,7 +155,7 @@ pub fn parse_program_in(src: &str, pack: &crate::yakugo::Yakugo) -> Result<Vec<S
         depth: 0,
         max_depth: MAX_EXPR_DEPTH,
     };
-    Ok(p.program()?.iter().map(Spanned::to_sexp).collect())
+    p.program()
 }
 
 /// [`parse_program`] with the nesting bound supplied by the caller.

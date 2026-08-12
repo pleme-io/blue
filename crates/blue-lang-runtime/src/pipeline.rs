@@ -18,6 +18,7 @@ use tatara_lisp_eval::Value;
 
 use crate::erase::erase_types;
 use crate::inputs::Inputs;
+use crate::uses::Entry;
 
 /// Why a run stopped short.
 #[derive(Debug, thiserror::Error)]
@@ -26,6 +27,12 @@ pub enum RunError {
     Parse(String),
     /// The type checker rejected the program. Carries every diagnostic, not
     /// just the first: a caller fixing one error wants to see the rest.
+    ///
+    /// Each one is already rendered `file:line:col: message` against the file
+    /// the offending form came from — which, in a program with imports, is
+    /// frequently not the file the user named. The rendering happens here
+    /// rather than at the consumer because here is where the file table exists;
+    /// see `uses::ResolvedProgram::locate`.
     #[error("{} type error(s):\n{}", .0.len(), .0.join("\n"))]
     Types(Vec<String>),
     /// **No longer reachable, and that is the point.** This reported "blue
@@ -98,6 +105,16 @@ pub fn parse_tree_with_depth(
         .map_err(|e| RunError::Parse(e.to_string()))
 }
 
+/// [`parse`] keeping **every node's** source span.
+///
+/// The spanned twin of [`parse`], at the same default bound — the door for
+/// anything downstream of a parse that will report a position, which since
+/// `use` learned to carry file identity is every path through
+/// [`run_in_surface`].
+pub fn parse_tree(src: &str) -> Result<Vec<blue_lang_syntax::Spanned>, RunError> {
+    parse_tree_with_depth(src, blue_lang_syntax::MAX_EXPR_DEPTH)
+}
+
 /// Run blue source with no build inputs.
 pub fn run(src: &str) -> Result<Run, RunError> {
     run_with_inputs(src, Inputs::new())
@@ -124,7 +141,7 @@ pub fn run_with_loader(
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
 ) -> Result<Run, RunError> {
-    run_in_surface(src, inputs, loader, None)
+    run_in_surface(Entry::anonymous(src), inputs, loader, None)
 }
 
 /// Run blue source written in a `yakugo` surface.
@@ -134,19 +151,25 @@ pub fn run_with_loader(
 /// surface the author wrote in. That is what makes a surface a surface: it
 /// changes how a program is spelled and nothing about how it runs.
 ///
+/// `entry` carries the source AND the file it was read from, because a type
+/// error has to be reported somewhere: a caller with a path should pass it, and
+/// one without ([`Entry::anonymous`]) gets diagnostics that say so rather than
+/// diagnostics that guess. Imported packages name themselves through the
+/// loader either way.
+///
 /// # Errors
 ///
 /// As [`run_with_loader`].
 pub fn run_in_surface(
-    src: &str,
+    entry: Entry<'_>,
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
 ) -> Result<Run, RunError> {
     let forms = match surface {
-        Some(pack) => blue_lang_syntax::parse_program_in(src, pack)
+        Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
             .map_err(|e| RunError::Parse(e.to_string()))?,
-        None => parse(src)?,
+        None => parse_tree(entry.text)?,
     };
 
     // RESOLVE imports first, so everything below sees ONE program.
@@ -155,7 +178,11 @@ pub fn run_in_surface(
     // its consumer imports it, rather than at whatever later moment its code
     // first runs. A package that does not typecheck should break its importer's
     // build, not their production run.
-    let forms = crate::uses::resolve_uses(forms, loader).map_err(RunError::Import)?;
+    //
+    // One program, but not one FILE: the result records which file each
+    // top-level form came from, which is what lets a diagnostic below name a
+    // place instead of only a problem.
+    let mut program = crate::uses::resolve_uses(forms, entry, loader).map_err(RunError::Import)?;
 
     // `test` blocks are declarations for the harness, not code to run.
     //
@@ -166,46 +193,46 @@ pub fn run_in_surface(
     // Without this, `blue run` on a file containing its own tests fails with
     // `unbound symbol: deftest`: every package in the bidama distribution
     // carries tests, so every one of them was unrunnable.
-    let forms: Vec<_> = forms
-        .into_iter()
-        .filter(|f| !crate::uses::is_test_form(f))
-        .collect();
+    //
+    // Through `retain`, which drops each form's owner with it. A plain filter
+    // over the forms alone would slide every later form onto the wrong file.
+    program.retain(|f| !crate::uses::is_test_form(f));
 
     // CHECK, on the annotated tree — the only tree that has annotations.
     //
-    // **This is the ONE caller that checks a SPANLESS tree, and the reason is a
-    // missing type, not an oversight.** `blue_lang_check::check_program` takes
-    // `Spanned` so an editor can put a squiggle where the error is, and every
-    // other caller hands it `parse_program_tree`'s output. This one cannot: by
-    // this line `resolve_uses` has flattened the entry file and every
-    // transitively imported package into ONE list, and `Span` is a byte range
-    // with no file identity. Real spans here would report an imported package's
-    // error at that offset in the *entry* file — a precise-looking answer
-    // pointing at unrelated code, which is worse than admitting ignorance.
+    // **On the REAL spanned tree, including every imported package's.** This
+    // was the one caller that checked a spanless lift, because `resolve_uses`
+    // flattened the entry file and its imports into one list and `Span` is a
+    // byte range with no file identity — so a real span here would have
+    // reported an imported package's error at that offset in the ENTRY file, a
+    // precise-looking answer pointing at unrelated code.
     //
-    // So the spans are stamped synthetic, honestly, and `RunError::Types`
-    // carries only messages — which is exactly what it carried before spans
-    // existed, so nothing regresses. Fixing it properly means a `FileId`
-    // alongside the byte range and a table from id to source; that is the same
-    // prerequisite a debugger needs to show a frame from an imported package,
-    // and it is not built.
-    let spanless: Vec<tatara_lisp::Spanned> = forms
-        .iter()
-        .map(tatara_lisp::Spanned::from_sexp_synthetic)
-        .collect();
-    let outcome = blue_lang_check::check_program(&spanless);
+    // The fix is not a wider `Span` (that type is upstream, and its own docs
+    // put file identity on the caller: spans "are meaningful only relative to
+    // the string that produced them, which the caller is responsible for
+    // holding onto"). blue holds onto it BESIDE the span, per top-level form —
+    // see `uses::ResolvedProgram`.
+    let outcome = blue_lang_check::check_program(program.forms());
     if !outcome.ok() {
         return Err(RunError::Types(
             outcome
                 .diagnostics
                 .iter()
-                .map(ToString::to_string)
+                // `file:line:col: message`, resolved against the file the form
+                // actually came from. A typed `Display` builds it, per ★★ TYPED
+                // EMISSION — `locate` returns the renderer, not a string.
+                .map(|d| program.locate(d.top_level, d.span, &d.message).to_string())
                 .collect(),
         ));
     }
 
     // ERASE, so the interpreter never sees a type.
-    let erased = erase_types(&forms);
+    //
+    // Spans are projected away here and stay away: a debugger frame from an
+    // imported package needs `erase_types` and `lower_to_spanned` to carry them
+    // through, which is a larger piece and is NOT built. What is fixed above is
+    // check-time positions.
+    let erased = erase_types(&program.sexps());
 
     // LOWER to what the evaluator eats. This used to print the tree and read
     // it back through `tatara_lisp::read_spanned` — a round trip through a

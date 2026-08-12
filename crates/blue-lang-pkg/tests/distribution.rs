@@ -34,7 +34,7 @@
 //! Without those, "0 packages, 0 tests, 0 failures" is a passing run.
 
 use blue_lang_pkg::load_path::LoadPath;
-use blue_lang_runtime::uses::{resolve_uses, Loader};
+use blue_lang_runtime::uses::{resolve_uses, Entry, Loader};
 use std::path::PathBuf;
 
 fn dist() -> PathBuf {
@@ -88,14 +88,18 @@ fn run_tests(name: &str) -> (usize, Vec<String>) {
         .collect::<Vec<_>>()
         .join("\n");
 
-    let forms = blue_lang_runtime::pipeline::parse(&src)
+    let forms = blue_lang_runtime::pipeline::parse_tree(&src)
         .unwrap_or_else(|e| panic!("{name} must parse: {e}"));
     // Through the real loader: a package's tests exercise its dependencies'
     // functions, so resolution has to happen or every test errors on `use`.
-    let forms =
-        resolve_uses(forms, &lp).unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
+    //
+    // The entry is the concatenation of the package's own `.b` files, which is
+    // not a file on disk — so it is named as what it is rather than as one of
+    // the files it was built from.
+    let program = resolve_uses(forms, Entry::anonymous(&src), &lp)
+        .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
 
-    let report = blue_lang_test::run(&forms);
+    let report = blue_lang_test::run(&program.sexps());
     (
         report.passed,
         report.failures.iter().map(ToString::to_string).collect(),

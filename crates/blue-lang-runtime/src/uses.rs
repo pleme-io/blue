@@ -40,10 +40,19 @@
 //! fleet's mockable-`Environment` seam, and it buys the usual thing: every
 //! test below drives the whole resolution pass against an in-memory loader,
 //! with no temp directories and no fixture files on disk.
+//!
+//! ## Why this module also owns file identity
+//!
+//! Splicing several files into one program is exactly the act that destroys a
+//! byte offset's meaning, so the record of where each form came from is kept by
+//! the pass that does the splicing rather than reconstructed downstream by
+//! something that no longer has the sources. [`ResolvedProgram`] is that
+//! record, and [`ResolvedProgram::locate`] spends it.
 
 use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 
-use tatara_lisp::{Atom, Sexp};
+use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 
 /// Supplies the source of a named bidama.
 ///
@@ -85,6 +94,239 @@ impl Loader for NoLoader {
     }
 }
 
+/// Identity of one source file inside a [`ResolvedProgram`].
+///
+/// Opaque on purpose. It means nothing outside the program that minted it, and
+/// the only way to spend it is [`ResolvedProgram::file`] — a caller that could
+/// compute a file index is a caller that can compute the *wrong* one, which is
+/// the failure this whole type exists to make impossible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FileId(usize);
+
+/// One file that contributed forms to a [`ResolvedProgram`].
+#[derive(Clone, Debug)]
+pub struct SourceFile {
+    /// Its handle in the program that owns it.
+    pub id: FileId,
+    /// Where it came from.
+    ///
+    /// `None` only for an entry program handed to the pipeline as bare text —
+    /// an embedder, a test, a WASM host. An imported file always has one,
+    /// because a [`Loader`] cannot name a package without naming a place.
+    pub path: Option<PathBuf>,
+    /// The file's text.
+    ///
+    /// Kept, not dropped after parsing, because a [`Span`] is a byte range and
+    /// nothing else: turning one into `line:col` needs the exact string it
+    /// indexes. Before this, `resolve_uses` read a package's source and let it
+    /// fall out of scope one line later, which is why an imported type error
+    /// had no position to report.
+    pub text: String,
+}
+
+/// The program the pipeline was handed, and what to call it.
+///
+/// The path travels *with* the text rather than beside it, so a caller cannot
+/// name one file and hand over another's source — the pairing is what every
+/// position in the entry file is resolved against.
+#[derive(Clone, Copy, Debug)]
+pub struct Entry<'a> {
+    /// The file the text was read from, if it was read from one.
+    pub path: Option<&'a Path>,
+    /// The source itself.
+    pub text: &'a str,
+}
+
+impl<'a> Entry<'a> {
+    /// An entry program with no file behind it.
+    #[must_use]
+    pub fn anonymous(text: &'a str) -> Self {
+        Self { path: None, text }
+    }
+}
+
+/// A program with its imports spliced in, and the file each top-level form
+/// came from.
+///
+/// ## Why file identity is per TOP-LEVEL FORM
+///
+/// [`resolve_uses`] splices whole files' worth of top-level forms: a `use` is
+/// replaced by every form of the package it names, in order. So a boundary
+/// between two files is always a boundary between two top-level forms, and
+/// every node beneath a top-level form came from exactly one file — the one
+/// that form came from. **A `FileId` per top-level form is therefore exactly as
+/// precise as a `FileId` per node**, at a fraction of the cost and with nothing
+/// upstream to change.
+///
+/// That last part is the point. `Span` lives in tatara-lisp and carries no file
+/// identity by a documented decision — "Spans are not portable across source
+/// inputs — they are meaningful only relative to the string that produced them,
+/// which the caller is responsible for holding onto." blue is the caller. This
+/// is blue holding onto them, beside the span rather than inside it.
+///
+/// ## Why the fields are private
+///
+/// `forms` and `owner` are parallel, and `files[i].id` is `FileId(i)`. Both
+/// invariants are maintained by `push` and `intern`, the only places either
+/// vector grows, and by [`retain`](Self::retain), the only place either
+/// shrinks. Public fields would make `program.forms.retain(...)` — the exact
+/// call `pipeline::run_in_surface` makes to drop `test` blocks — shift every
+/// form off its owner by one and report every subsequent diagnostic against the
+/// wrong file, silently.
+#[derive(Debug)]
+pub struct ResolvedProgram {
+    forms: Vec<Spanned>,
+    owner: Vec<FileId>,
+    files: Vec<SourceFile>,
+}
+
+impl ResolvedProgram {
+    /// The entry program's own file. Always present; always first.
+    pub const ENTRY: FileId = FileId(0);
+
+    fn new(entry: Entry<'_>) -> Self {
+        let mut program = Self {
+            forms: Vec::new(),
+            owner: Vec::new(),
+            files: Vec::new(),
+        };
+        let id = program.intern(entry.path.map(Path::to_path_buf), entry.text.to_owned());
+        debug_assert_eq!(id, Self::ENTRY);
+        program
+    }
+
+    /// Record a file's text and hand back its handle.
+    fn intern(&mut self, path: Option<PathBuf>, text: String) -> FileId {
+        let id = FileId(self.files.len());
+        self.files.push(SourceFile { id, path, text });
+        id
+    }
+
+    /// Append a top-level form together with the file it came from.
+    ///
+    /// The ONE place `forms` and `owner` grow, so they cannot grow apart.
+    fn push(&mut self, form: Spanned, owner: FileId) {
+        self.forms.push(form);
+        self.owner.push(owner);
+    }
+
+    /// Every top-level form, in evaluation order.
+    #[must_use]
+    pub fn forms(&self) -> &[Spanned] {
+        &self.forms
+    }
+
+    /// The same forms with their spans projected away, for the stages that do
+    /// not report positions — erasure, evaluation, the test harness.
+    #[must_use]
+    pub fn sexps(&self) -> Vec<Sexp> {
+        self.forms.iter().map(Spanned::to_sexp).collect()
+    }
+
+    /// Every file that contributed, entry first.
+    #[must_use]
+    pub fn files(&self) -> &[SourceFile] {
+        &self.files
+    }
+
+    /// Which file the `top_level`-th form came from.
+    #[must_use]
+    pub fn owner_of(&self, top_level: usize) -> Option<FileId> {
+        self.owner.get(top_level).copied()
+    }
+
+    /// A file by its handle.
+    #[must_use]
+    pub fn file(&self, id: FileId) -> Option<&SourceFile> {
+        self.files.get(id.0)
+    }
+
+    /// Drop the top-level forms `keep` rejects, taking their owners with them.
+    ///
+    /// The lockstep is the whole reason this method exists rather than a public
+    /// `forms` field: `Vec::retain` on one of two parallel vectors is a silent
+    /// mis-attribution, not a compile error.
+    pub fn retain(&mut self, keep: impl Fn(&Spanned) -> bool) {
+        // Zipped rather than two `Vec::retain` calls over the same predicate:
+        // this way the pairing is carried by the iterator instead of by two
+        // traversals agreeing, and there is no order assumption to be wrong
+        // about.
+        let paired = std::mem::take(&mut self.forms)
+            .into_iter()
+            .zip(std::mem::take(&mut self.owner));
+        for (form, owner) in paired {
+            if keep(&form) {
+                self.push(form, owner);
+            }
+        }
+    }
+
+    /// Resolve a diagnostic's position against the file it actually came from.
+    ///
+    /// `top_level` is `blue_lang_check::Diagnostic::top_level` — the join key.
+    /// An index with no owner (a diagnostic that escaped stamping) renders
+    /// without a position rather than borrowing the entry file's: a missing
+    /// position costs the reader a search, a wrong one sends them to innocent
+    /// code and is believed.
+    #[must_use]
+    pub fn locate<'a>(&'a self, top_level: usize, span: Span, message: &'a str) -> Located<'a> {
+        let Some(file) = self.owner_of(top_level).and_then(|id| self.file(id)) else {
+            return Located {
+                origin: Origin::Unresolved,
+                line_col: None,
+                message,
+            };
+        };
+        Located {
+            origin: file.path.as_deref().map_or(Origin::Anonymous, Origin::File),
+            // A synthetic span indexes nothing, so it resolves to no line —
+            // `Span::line_col` would happily answer for `usize::MAX` by walking
+            // off the end and returning the last position in the file.
+            line_col: (!span.is_synthetic()).then(|| Span::line_col(&file.text, span.start)),
+            message,
+        }
+    }
+}
+
+/// What a position is being reported against.
+#[derive(Clone, Copy, Debug)]
+enum Origin<'a> {
+    File(&'a Path),
+    /// Source handed over as text, with no file behind it.
+    Anonymous,
+    /// No owning file could be found. Distinct from [`Origin::Anonymous`] on
+    /// purpose: "you gave me unnamed text" and "I lost track of where this came
+    /// from" are different admissions, and collapsing them would hide the
+    /// second inside the first.
+    Unresolved,
+}
+
+/// A diagnostic rendered against the file it came from: `path:line:col: text`.
+///
+/// A typed `Display` rather than a `format!` at the call site, per ★★ TYPED
+/// EMISSION — the shape every editor and every `cc` already knows how to jump
+/// to, produced by exactly one `write!`.
+#[derive(Clone, Copy, Debug)]
+pub struct Located<'a> {
+    origin: Origin<'a>,
+    line_col: Option<(usize, usize)>,
+    message: &'a str,
+}
+
+impl std::fmt::Display for Located<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.origin {
+            Origin::File(p) => write!(f, "{}", p.display())?,
+            Origin::Anonymous => f.write_str("<anonymous>")?,
+            Origin::Unresolved => f.write_str("<unknown file>")?,
+        }
+        if let Some((line, col)) = self.line_col {
+            write!(f, ":{line}:{col}")?;
+        }
+        write!(f, ": {}", self.message)
+    }
+}
+
 /// Is this form a `use("name")` call? If so, the name.
 ///
 /// Matches the *call* form only. `use "kazu"` without parentheses parses as
@@ -92,15 +334,12 @@ impl Loader for NoLoader {
 /// would silently do nothing — so it is not treated as an import, and the
 /// bare symbol `use` then fails as an unbound name rather than being quietly
 /// ignored.
-fn use_target(form: &Sexp) -> Option<String> {
-    let Sexp::List(items) = form else {
+fn use_target(form: &Spanned) -> Option<String> {
+    let [head, arg] = form.as_list()? else {
         return None;
     };
-    let [head, arg] = items.as_slice() else {
-        return None;
-    };
-    match (head, arg) {
-        (Sexp::Atom(Atom::Symbol(s)), Sexp::Atom(Atom::Str(name))) if s == "use" => {
+    match (&head.form, &arg.form) {
+        (SpannedForm::Atom(Atom::Symbol(s)), SpannedForm::Atom(Atom::Str(name))) if s == "use" => {
             Some(name.clone())
         }
         _ => None,
@@ -116,11 +355,11 @@ fn use_target(form: &Sexp) -> Option<String> {
 /// declaration for the harness, not code to execute — without this,
 /// `blue run` on any file that contains its own tests dies on an unbound
 /// `deftest`, which is every package in this distribution).
-pub fn is_test_form(form: &Sexp) -> bool {
-    let Sexp::List(items) = form else {
+pub fn is_test_form(form: &Spanned) -> bool {
+    let Some(items) = form.as_list() else {
         return false;
     };
-    matches!(items.first(), Some(Sexp::Atom(Atom::Symbol(s))) if s == "deftest")
+    matches!(items.first().and_then(Spanned::as_symbol), Some("deftest"))
 }
 
 /// Replace every `use(...)` with the forms of the package it names.
@@ -136,25 +375,45 @@ pub fn is_test_form(form: &Sexp) -> bool {
 /// second visit is a no-op rather than infinite recursion, so a cyclic
 /// distribution loads and runs instead of hanging.
 ///
+/// The result carries **which file each top-level form came from** — see
+/// [`ResolvedProgram`] for why that is per top-level form and not per node.
+///
 /// # Errors
 ///
 /// Returns the loader's message, prefixed with the import chain that reached
 /// it, when a package cannot be loaded or its source cannot be parsed.
-pub fn resolve_uses(forms: Vec<Sexp>, loader: &dyn Loader) -> Result<Vec<Sexp>, String> {
+pub fn resolve_uses(
+    forms: Vec<Spanned>,
+    entry: Entry<'_>,
+    loader: &dyn Loader,
+) -> Result<ResolvedProgram, String> {
+    let mut out = ResolvedProgram::new(entry);
     let mut seen = BTreeSet::new();
-    expand(forms, loader, &mut seen, &[])
+    expand(
+        forms,
+        ResolvedProgram::ENTRY,
+        loader,
+        &mut out,
+        &mut seen,
+        &[],
+    )?;
+    Ok(out)
 }
 
 fn expand(
-    forms: Vec<Sexp>,
+    forms: Vec<Spanned>,
+    owner: FileId,
     loader: &dyn Loader,
+    out: &mut ResolvedProgram,
     seen: &mut BTreeSet<String>,
     chain: &[String],
-) -> Result<Vec<Sexp>, String> {
-    let mut out = Vec::with_capacity(forms.len());
+) -> Result<(), String> {
     for form in forms {
         let Some(name) = use_target(&form) else {
-            out.push(form);
+            // The file boundary is erased HERE — this is the append that used
+            // to make every form indistinguishable from every other. Each one
+            // now carries the file it came from, which is the whole fix.
+            out.push(form, owner);
             continue;
         };
         if !seen.insert(name.clone()) {
@@ -166,7 +425,11 @@ fn expand(
         inner_chain.push(name.clone());
 
         for (label, src) in sources {
-            let parsed = blue_lang_syntax::parse_program(&src)
+            // `parse_program_tree`, not `parse_program`. The spanless door
+            // discarded every imported position one line after the text
+            // arrived, so an imported type error had nothing to report but a
+            // message — see `ResolvedProgram`.
+            let parsed = blue_lang_syntax::parse_program_tree(&src)
                 .map_err(|e| describe(chain, &name, &format!("{label}: {e}")))?;
             // An imported package's TEST blocks do not come along.
             //
@@ -181,11 +444,15 @@ fn expand(
             // Dropping them here also makes the distribution gate honest for
             // free: `blue test kikagaku.b` now reports kikagaku's tests
             // rather than kikagaku's plus everything it transitively imports.
-            let parsed = parsed.into_iter().filter(|f| !is_test_form(f)).collect();
-            out.extend(expand(parsed, loader, seen, &inner_chain)?);
+            let parsed: Vec<Spanned> = parsed.into_iter().filter(|f| !is_test_form(f)).collect();
+            // Interned AFTER parsing, so a package that does not parse never
+            // becomes a file in the table — and BEFORE the recursion, because
+            // every form below belongs to this file, not to the importer's.
+            let id = out.intern(Some(PathBuf::from(label)), src);
+            expand(parsed, id, loader, out, seen, &inner_chain)?;
         }
     }
-    Ok(out)
+    Ok(())
 }
 
 /// Prefix a failure with the import chain that reached it.
@@ -217,24 +484,31 @@ mod tests {
         }
     }
 
-    fn parse(src: &str) -> Vec<Sexp> {
-        blue_lang_syntax::parse_program(src).expect("test source must parse")
+    fn parse(src: &str) -> Vec<Spanned> {
+        blue_lang_syntax::parse_program_tree(src).expect("test source must parse")
+    }
+
+    /// Resolve a program that came from nowhere in particular.
+    fn resolve(src: &str, loader: &dyn Loader) -> Result<ResolvedProgram, String> {
+        resolve_uses(parse(src), Entry::anonymous(src), loader)
     }
 
     #[test]
     fn a_use_is_replaced_by_the_packages_forms() {
         let loader = MemLoader(BTreeMap::from([("kazu", "def double(n)\n  n * 2\nend")]));
-        let out = resolve_uses(parse("use(\"kazu\")\ndouble(21)"), &loader).expect("resolves");
+        let out = resolve("use(\"kazu\")\ndouble(21)", &loader).expect("resolves");
         // The `use` itself is GONE — it is not a call that survives to the
         // evaluator, where `use` is not a defined function.
         assert!(
-            out.iter().all(|f| super::use_target(f).is_none()),
+            out.forms().iter().all(|f| super::use_target(f).is_none()),
             "a use form survived resolution and would reach the evaluator as \
-             an unbound function: {out:?}"
+             an unbound function: {:?}",
+            out.forms()
         );
         assert!(
-            out.len() > 1,
-            "the package's definitions must be spliced in, not dropped: {out:?}"
+            out.forms().len() > 1,
+            "the package's definitions must be spliced in, not dropped: {:?}",
+            out.forms()
         );
     }
 
@@ -244,24 +518,31 @@ mod tests {
             ("retsu", "use(\"kazu\")\ndef sum2(a, b)\n  a + b\nend"),
             ("kazu", "def double(n)\n  n * 2\nend"),
         ]));
-        let out = resolve_uses(parse("use(\"retsu\")"), &loader).expect("resolves");
+        let out = resolve("use(\"retsu\")", &loader).expect("resolves");
         // A consumer names retsu only; kazu arrives because retsu needs it.
         assert!(
-            out.len() >= 2,
-            "the transitive dependency did not arrive: {out:?}"
+            out.forms().len() >= 2,
+            "the transitive dependency did not arrive: {:?}",
+            out.forms()
         );
     }
 
     #[test]
     fn a_package_is_loaded_at_most_once() {
         let loader = MemLoader(BTreeMap::from([("kazu", "def double(n)\n  n * 2\nend")]));
-        let once = resolve_uses(parse("use(\"kazu\")"), &loader).expect("resolves");
-        let twice = resolve_uses(parse("use(\"kazu\")\nuse(\"kazu\")"), &loader).expect("resolves");
+        let once = resolve("use(\"kazu\")", &loader).expect("resolves");
+        let twice = resolve("use(\"kazu\")\nuse(\"kazu\")", &loader).expect("resolves");
         assert_eq!(
-            once.len(),
-            twice.len(),
+            once.forms().len(),
+            twice.forms().len(),
             "importing a package twice duplicated its definitions; two \
              importers of one package must share it"
+        );
+        assert_eq!(
+            once.files().len(),
+            twice.files().len(),
+            "importing a package twice interned its source twice; the file \
+             table must have one entry per file, not one per import"
         );
     }
 
@@ -272,14 +553,18 @@ mod tests {
             ("a", "use(\"b\")\ndef fa()\n  1\nend"),
             ("b", "use(\"a\")\ndef fb()\n  2\nend"),
         ]));
-        let out = resolve_uses(parse("use(\"a\")"), &loader).expect("a cycle must resolve");
-        assert!(!out.is_empty(), "a cycle resolved to nothing: {out:?}");
+        let out = resolve("use(\"a\")", &loader).expect("a cycle must resolve");
+        assert!(
+            !out.forms().is_empty(),
+            "a cycle resolved to nothing: {:?}",
+            out.forms()
+        );
     }
 
     #[test]
     fn a_missing_package_names_itself_and_the_chain() {
         let loader = MemLoader(BTreeMap::from([("retsu", "use(\"nowhere\")")]));
-        let err = resolve_uses(parse("use(\"retsu\")"), &loader).expect_err("must fail");
+        let err = resolve("use(\"retsu\")", &loader).expect_err("must fail");
         assert!(
             err.contains("nowhere"),
             "the error must name the missing package: {err}"
@@ -293,7 +578,7 @@ mod tests {
 
     #[test]
     fn the_default_loader_refuses_by_name() {
-        let err = resolve_uses(parse("use(\"kazu\")"), &NoLoader).expect_err("must fail");
+        let err = resolve("use(\"kazu\")", &NoLoader).expect_err("must fail");
         assert!(
             err.contains("kazu"),
             "NoLoader must name what was asked for: {err}"
@@ -315,16 +600,18 @@ mod tests {
             "kazu",
             "def double(n)\n  n * 2\nend\n\ntest \"doubles\"\n  assert double(2) == 4\nend",
         )]));
-        let out = resolve_uses(parse("use(\"kazu\")\ndouble(21)"), &loader).expect("resolves");
+        let out = resolve("use(\"kazu\")\ndouble(21)", &loader).expect("resolves");
         assert!(
-            out.iter().all(|f| !super::is_test_form(f)),
+            out.forms().iter().all(|f| !super::is_test_form(f)),
             "an imported test block survived and would reach the evaluator as \
-             an unbound `deftest`: {out:?}"
+             an unbound `deftest`: {:?}",
+            out.forms()
         );
         // The DEFINITIONS still arrive — dropping tests must not drop code.
         assert!(
-            out.len() >= 2,
-            "filtering tests also removed the package's definitions: {out:?}"
+            out.forms().len() >= 2,
+            "filtering tests also removed the package's definitions: {:?}",
+            out.forms()
         );
     }
 
@@ -333,18 +620,169 @@ mod tests {
     fn the_entry_programs_own_tests_survive() {
         let loader = MemLoader(BTreeMap::new());
         let src = "def f(n)\n  n\nend\n\ntest \"t\"\n  assert f(1) == 1\nend";
-        let out = resolve_uses(parse(src), &loader).expect("resolves");
+        let out = resolve(src, &loader).expect("resolves");
         assert!(
-            out.iter().any(|f| super::is_test_form(f)),
-            "the file's OWN tests were dropped; only imported ones should be: {out:?}"
+            out.forms().iter().any(super::is_test_form),
+            "the file's OWN tests were dropped; only imported ones should be: {:?}",
+            out.forms()
         );
     }
 
     #[test]
     fn a_program_without_imports_is_unchanged() {
         let loader = MemLoader(BTreeMap::new());
-        let src = parse("def f(n)\n  n + 1\nend\nf(1)");
-        let out = resolve_uses(src.clone(), &loader).expect("resolves");
-        assert_eq!(format!("{src:?}"), format!("{out:?}"));
+        let src = "def f(n)\n  n + 1\nend\nf(1)";
+        let before: Vec<Sexp> = parse(src).iter().map(Spanned::to_sexp).collect();
+        let out = resolve(src, &loader).expect("resolves");
+        assert_eq!(format!("{before:?}"), format!("{:?}", out.sexps()));
+    }
+
+    // ---- file identity ---------------------------------------------------
+
+    /// **Every form's span indexes ITS OWN file, and the text proves it.**
+    ///
+    /// The independent evidence is the source itself: slice each top-level
+    /// form's span out of the file its owner names and re-parse the slice. If
+    /// the owner is wrong the bytes are some other file's, and the re-parsed
+    /// tree does not match — checked against the tree, which the file table had
+    /// no hand in producing.
+    ///
+    /// This is the contract `Span`'s own docs put on the caller — spans "are
+    /// meaningful only relative to the string that produced them" — asserted
+    /// rather than assumed.
+    ///
+    /// **Red run** (2026-08-12), `expand` pushing `ResolvedProgram::ENTRY` as
+    /// every form's owner instead of `owner`:
+    /// ```text
+    /// form 0: its own source does not re-parse: expected an expression, found
+    /// Eof at 25..25
+    /// ```
+    /// It trips at the re-parse rather than the comparison, because kazu's
+    /// byte range cut against the entry file's text lands mid-token — which is
+    /// the mis-attribution stated in bytes.
+    ///
+    /// **Second red run**, the ORIGINAL spanless `parse_program` restored in
+    /// `expand` (the bug this change fixes):
+    /// ```text
+    /// form 0 has no position at all — its file was parsed through the
+    /// spanless door
+    /// ```
+    #[test]
+    fn every_forms_span_indexes_the_file_it_came_from() {
+        let loader = MemLoader(BTreeMap::from([
+            ("retsu", "use(\"kazu\")\ndef sum2(a, b)\n  a + b\nend"),
+            ("kazu", "def double(n)\n  n * 2\nend"),
+        ]));
+        let out = resolve("use(\"retsu\")\nsum2(double(1), 2)", &loader).expect("resolves");
+        assert_eq!(
+            out.files().len(),
+            3,
+            "expected the entry plus retsu plus kazu: {:?}",
+            out.files()
+        );
+        for (i, form) in out.forms().iter().enumerate() {
+            let file = out
+                .owner_of(i)
+                .and_then(|id| out.file(id))
+                .unwrap_or_else(|| panic!("form {i} has no owning file"));
+            assert!(
+                !form.span.is_synthetic(),
+                "form {i} has no position at all — its file was parsed through \
+                 the spanless door"
+            );
+            let slice = file
+                .text
+                .get(form.span.start..form.span.end)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "form {i}'s span {:?} is not a range in its owner ({} bytes)",
+                        form.span,
+                        file.text.len()
+                    )
+                });
+            let reparsed = blue_lang_syntax::parse_program_tree(slice)
+                .unwrap_or_else(|e| panic!("form {i}: its own source does not re-parse: {e}"));
+            assert_eq!(
+                reparsed.iter().map(Spanned::to_sexp).collect::<Vec<_>>(),
+                vec![form.to_sexp()],
+                "form {i} sliced out of its owner ({}) re-parses to a different \
+                 tree; slice was {slice:?}",
+                file.path
+                    .as_deref()
+                    .map_or_else(|| "<anonymous>".to_string(), |p| p.display().to_string())
+            );
+        }
+        // Anti-vacuity: an empty program passes the loop above.
+        assert!(out.forms().len() >= 3, "{:?}", out.forms());
+    }
+
+    /// Dropping a form takes its owner with it.
+    ///
+    /// The parallel-vector failure, asserted directly: after `retain` removes
+    /// the entry file's `test` block, every surviving form must still resolve
+    /// to the file it came from. Checked through the same slice-and-re-parse
+    /// evidence, because "the lengths still match" would pass on a program
+    /// where every owner shifted by one.
+    ///
+    /// **Red run** (2026-08-12), `retain` filtering `self.forms` only and
+    /// leaving `self.owner` whole:
+    /// ```text
+    /// after retain, form 0 does not belong to the file it is attributed to:
+    /// slice "test \"t\"\n  assert 1 == 1\n" of <anonymous>
+    ///   left: []
+    ///  right: [List([Atom(Symbol("define")), …double…])]
+    /// ```
+    /// The surviving forms kept the DROPPED form's owner, so kazu's `double`
+    /// was attributed to the entry file and sliced out of it.
+    #[test]
+    fn retain_drops_a_forms_owner_with_it() {
+        let loader = MemLoader(BTreeMap::from([("kazu", "def double(n)\n  n * 2\nend")]));
+        let src = "test \"t\"\n  assert 1 == 1\nend\nuse(\"kazu\")\ndouble(21)";
+        let mut out = resolve(src, &loader).expect("resolves");
+        assert!(
+            out.forms().iter().any(super::is_test_form),
+            "the fixture must contain the test block this drops"
+        );
+        out.retain(|f| !super::is_test_form(f));
+        assert!(!out.forms().iter().any(super::is_test_form));
+        for (i, form) in out.forms().iter().enumerate() {
+            let file = out
+                .owner_of(i)
+                .and_then(|id| out.file(id))
+                .unwrap_or_else(|| panic!("form {i} lost its owner"));
+            let slice = &file.text[form.span.start..form.span.end];
+            let reparsed = blue_lang_syntax::parse_program_tree(slice)
+                .map(|f| f.iter().map(Spanned::to_sexp).collect::<Vec<_>>())
+                .unwrap_or_default();
+            assert_eq!(
+                reparsed,
+                vec![form.to_sexp()],
+                "after retain, form {i} does not belong to the file it is \
+                 attributed to: slice {slice:?} of {}",
+                file.path
+                    .as_deref()
+                    .map_or_else(|| "<anonymous>".to_string(), |p| p.display().to_string())
+            );
+        }
+        assert_eq!(out.forms().len(), 2, "{:?}", out.forms());
+    }
+
+    /// An unresolvable index reports no position rather than the entry file's.
+    #[test]
+    fn an_unstamped_diagnostic_gets_no_position_rather_than_a_wrong_one() {
+        let loader = MemLoader(BTreeMap::new());
+        let out = resolve("def f(n)\n  n\nend", &loader).expect("resolves");
+        let rendered = out
+            .locate(
+                blue_lang_check::Diagnostic::UNSTAMPED,
+                tatara_lisp::Span::new(0, 1),
+                "something went wrong",
+            )
+            .to_string();
+        assert_eq!(rendered, "<unknown file>: something went wrong");
+        assert!(
+            !rendered.contains(":1:1"),
+            "an unowned diagnostic borrowed a position from somewhere: {rendered}"
+        );
     }
 }

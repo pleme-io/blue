@@ -125,6 +125,35 @@ pub struct Diagnostic {
     /// throughout, which is honest and useless — see [`check_program`] on which
     /// door a consumer should be using.
     pub span: Span,
+    /// Index of the TOP-LEVEL form this arose in, into the slice
+    /// [`check_program`] was given.
+    ///
+    /// **The join key for a program assembled from more than one file.** A
+    /// `Span` is a byte range and nothing else — its own upstream docs say
+    /// spans "are not portable across source inputs … meaningful only relative
+    /// to the string that produced them" — so in a program whose forms came
+    /// from several files, `span` alone cannot say *which* string. The caller
+    /// that concatenated the files knows, and it knows per top-level form,
+    /// which is exactly as fine-grained as it needs to be: every node under a
+    /// top-level form came from the file that top-level form came from.
+    /// `blue_lang_runtime::uses::ResolvedProgram` is the table that resolves it.
+    ///
+    /// A single-file consumer (the LSP, `blue check`) may ignore this — there
+    /// is one file and it is the one it just read.
+    pub top_level: usize,
+}
+
+impl Diagnostic {
+    /// `top_level` before the stamping loop in [`check_program`] assigns it.
+    ///
+    /// A sentinel rather than `0`, because `0` is a REAL index: a diagnostic
+    /// that escaped stamping would silently claim to come from the first
+    /// top-level form — in a multi-file program, from the entry file — which is
+    /// precisely the confident-wrong position this field exists to end. Out of
+    /// range resolves to no file at all, which renders as a position-free
+    /// message: less information, no lie. `no_diagnostic_escapes_unstamped`
+    /// gates it.
+    pub const UNSTAMPED: usize = usize::MAX;
 }
 
 /// A diagnostic renders itself. Per ★★ TYPED EMISSION the only sanctioned
@@ -215,7 +244,7 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
     //
     // This is the mechanical form of "zero analysis at rung 0": an
     // unannotated program never enters the loop body.
-    for form in forms {
+    for (top_level, form) in forms.iter().enumerate() {
         if let Some((name, _)) = read_typed_decl(form) {
             let Some(items) = form.as_list() else {
                 continue;
@@ -232,7 +261,19 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
                 }
             }
             let body = &items[3];
+            // Stamp the file-identity key ONCE, here, over whatever `infer`
+            // pushed while walking this declaration's body.
+            //
+            // The alternative was threading `top_level` through `infer` and its
+            // eight recursive call sites — eight chances to pass the wrong one,
+            // to buy a value that is constant for the whole walk. It is a
+            // property of WHICH top-level form is being walked, and only this
+            // loop knows that, so it is recorded where it is known.
+            let before = out.diagnostics.len();
             let body_ty = infer(body, &env, &sigs, &mut out);
+            for d in &mut out.diagnostics[before..] {
+                d.top_level = top_level;
+            }
             if !body_ty.accepts(&sig.ret) {
                 out.diagnostics.push(Diagnostic {
                     message: format!(
@@ -247,6 +288,7 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
                     // Pointing at the whole declaration would underline a
                     // twenty-line function to report one wrong line.
                     span: body.span,
+                    top_level,
                 });
             }
         }
@@ -355,6 +397,9 @@ fn infer(
                             // reader to work out which half is wrong, and in
                             // `a + b + c` it would underline all of it.
                             span: a.span,
+                            // Stamped by `check_program`'s pass-2 loop, which
+                            // is the only place the top-level index is known.
+                            top_level: Diagnostic::UNSTAMPED,
                         });
                     }
                 }
@@ -387,6 +432,7 @@ fn infer(
                                 got.name()
                             ),
                             span: a.span,
+                            top_level: Diagnostic::UNSTAMPED,
                         });
                     }
                 }
@@ -796,6 +842,69 @@ mod tests {
         // as 5, which is the kind of mistake `assert!(!is_empty())` hides.
         assert_eq!(diagnostics, 4, "the corpus stopped reporting diagnostics");
         assert_eq!(seams, 1, "the corpus stopped reporting seams");
+    }
+
+    /// **Every diagnostic leaves here knowing which top-level form it came
+    /// from.** In a program assembled from several files that index is the only
+    /// key to file identity, so one that escapes unstamped is a diagnostic whose
+    /// position cannot be resolved at all.
+    ///
+    /// The corpus deliberately puts the error in the SECOND declaration as well
+    /// as the first: a stamp that happened to be right only for index 0 is the
+    /// mistake this catches, and `UNSTAMPED` alone would not — `0` would look
+    /// correct half the time.
+    ///
+    /// **Red run** (2026-08-12), stamping loop deleted from `check_program`:
+    /// ```text
+    /// assertion `left != right` failed: diagnostic ``+` expects Int, got Str`
+    /// escaped check_program unstamped
+    /// ```
+    /// It fires on the operator diagnostic, which is the one `infer` pushes —
+    /// the return-mismatch arm builds its own `top_level` and would pass a
+    /// vacuous version of this gate on its own.
+    #[test]
+    fn no_diagnostic_escapes_unstamped() {
+        // Both arms that push a diagnostic, each at index 0 and at index 1: the
+        // operator misuse comes out of `infer` and is stamped by the loop, the
+        // return mismatch is built by the loop itself.
+        let corpus = [
+            ("def f(s: Str) -> Int\n  s + 1\nend", 0usize),
+            (
+                "def ok(a: Int) -> Int\n  a\nend\ndef f(s: Str) -> Int\n  s + 1\nend",
+                1usize,
+            ),
+            ("def g(a: Int) -> Str\n  a\nend", 0usize),
+            (
+                "def ok(a: Int) -> Int\n  a\nend\ndef g(a: Int) -> Str\n  a\nend",
+                1usize,
+            ),
+        ];
+        let mut seen = 0;
+        for (src, want) in corpus {
+            let o = check(src);
+            for d in &o.diagnostics {
+                assert_ne!(
+                    d.top_level,
+                    Diagnostic::UNSTAMPED,
+                    "diagnostic `{}` escaped check_program unstamped",
+                    d.message
+                );
+                assert_eq!(
+                    d.top_level, want,
+                    "{src:?}: `{}` was stamped with top-level form {} — the \
+                     declaration it came from is {want}",
+                    d.message, d.top_level
+                );
+                seen += 1;
+            }
+        }
+        // Anti-vacuity: an empty corpus passes the loop above trivially. One
+        // finding per entry — written as 8 first, on the assumption each entry
+        // reported both arms, and the count said 2. A `+` on a `Str` yields the
+        // operator's declared `Int` return, so the body still satisfies `-> Int`
+        // and the second arm never fires. Four entries were added to cover what
+        // the first two were assumed to.
+        assert_eq!(seen, 4, "the corpus stopped reporting diagnostics");
     }
 
     /// Correctness never moves: a program that runs must still run whether

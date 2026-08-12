@@ -250,8 +250,15 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // The SURFACE the program is written in: BLUE_LANG wins, else the
             // host locale. An explicit choice must beat a detected one.
             let surface = resolve_surface().map_err(CliError::Pkg)?;
+            // The entry file travels WITH its source. Without the path, every
+            // type error in the file the user named would report against
+            // `<anonymous>` while an imported package's reported its real path
+            // — the entry file being the one file the CLI always knows.
             let out = blue_lang_runtime::pipeline::run_in_surface(
-                &src,
+                blue_lang_runtime::uses::Entry {
+                    path: Some(&file),
+                    text: &src,
+                },
                 bind_inputs(&src, &inputs, &cfg)?,
                 &loader,
                 surface.as_ref(),
@@ -348,7 +355,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Test { file } => {
-            let forms = parse(&read(&file)?, &cfg)?;
+            let src = read(&file)?;
+            let forms = parse_tree(&src, &cfg)?;
             // Imports resolve here too, for the same reason they do in `run`.
             //
             // Wiring only `run` was a real gap and it failed loudly the first
@@ -358,12 +366,19 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // that cannot be tested with its dependencies is a package with no
             // tests, so this is not a convenience — a distribution where only
             // the leaf packages can be tested has no gate on the rest.
-            let forms = blue_lang_runtime::uses::resolve_uses(
+            let program = blue_lang_runtime::uses::resolve_uses(
                 forms,
+                blue_lang_runtime::uses::Entry {
+                    path: Some(&file),
+                    text: &src,
+                },
                 &blue_lang_pkg::load_path::LoadPath::from_env(),
             )
             .map_err(blue_lang_runtime::pipeline::RunError::Import)?;
-            let report = blue_lang_test::run(&forms);
+            // The harness reports a failing ASSERTION, not a position, so it
+            // takes the spanless projection. When it grows one it should take
+            // the program itself — the file table is already here.
+            let report = blue_lang_test::run(&program.sexps());
             // Failures to stderr, the tally to stdout, so a CI job can capture
             // one without the other.
             for failure in &report.failures {

@@ -449,6 +449,19 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             println!("  when:  {:?}", floor.when);
             println!("  where: {:?}", floor.place);
             println!("  reach: {}", describe_reach(&floor.reach));
+
+            // What the declaration actually BUYS, from the same derivation
+            // `blue morph` prints. A coordinate is not self-explanatory —
+            // `when: Preceding` says nothing to a reader about what they just
+            // gave up, and the whole point of the morphology is that the answer
+            // is computed rather than remembered.
+            let grants = blue_lang_bidama::qualities_at(floor);
+            let lost = blue_lang_bidama::forfeits_at(floor);
+            let names = |qs: &std::collections::BTreeSet<blue_lang_bidama::Quality>| {
+                qs.iter().map(|q| q.label()).collect::<Vec<_>>().join(", ")
+            };
+            println!("\n  grants:   {}", names(&grants));
+            println!("  forfeits: {}", names(&lost));
             Ok(ExitCode::SUCCESS)
         }
 
@@ -472,7 +485,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Morph => {
-            use blue_lang_bidama::{enforcement, exclusive_pairs, qualities_at, shapes, Quality};
+            use blue_lang_bidama::{
+                enforcement, exclusive_pairs, minimal_exclusive_groups, qualities_at, shapes,
+                Quality,
+            };
 
             println!("QUALITIES — where each is enforced\n");
             for q in Quality::ALL {
@@ -494,6 +510,29 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             println!(
                 "\n  Every exclusive pair shares an axis. Two qualities on DIFFERENT\n                   coordinates always have a posture granting both — which is what a\n                   per-package posture buys over one global choice."
             );
+
+            // Past two. A trilemma contains no exclusive pair — every pair has
+            // a witness and only the whole set does not — so the section above
+            // reports it as nothing at all, which looks like a checked absence.
+            let groups: Vec<Vec<Quality>> = minimal_exclusive_groups()
+                .into_iter()
+                .filter(|g| g.len() > 2)
+                .collect();
+            if !groups.is_empty() {
+                println!("\nPICK ANY TWO — minimal exclusive groups past a pair\n");
+                for g in &groups {
+                    let names: Vec<&str> = g.iter().map(|q| q.label()).collect();
+                    println!(
+                        "  {}  (all on the {:?} axis)",
+                        names.join("  +  "),
+                        g[0].axis()
+                    );
+                }
+                println!(
+                    "\n  No pair inside a group is exclusive — only the whole group is.\n  \
+                     Dropping any one member names a posture that grants the rest."
+                );
+            }
 
             println!("\nSHAPES — a language is a point; blue is the space\n");
             for s in shapes() {

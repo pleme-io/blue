@@ -26,8 +26,11 @@
 //!   at compile time, and it holds only while nothing rebinds the name.
 //! - [`Layer::Unenforced`] — the posture *describes* the quality and nothing
 //!   yet delivers it. Recorded so a reader can tell a shipped guarantee from a
-//!   design one; [`enforcement`] returns this for four of the nine, and saying
-//!   so is the difference between a model and a claim.
+//!   design one; [`enforcement`] returns this for **four of the thirteen**, and
+//!   saying so is the difference between a model and a claim. (This line said
+//!   "four of the nine" while the test beneath it asserted three; the count is
+//!   now pinned by `the_unenforced_qualities_are_named_as_such` in both
+//!   directions, so prose and ledger cannot drift again.)
 //!
 //! # Locking
 //!
@@ -72,9 +75,9 @@ impl Layer {
 
 /// Where a quality is enforced, and by what.
 ///
-/// **Tier-honest: four of the nine are `Unenforced`.** The posture describes
-/// them and nothing delivers them yet. Rounding those up to "blue has this"
-/// would make the whole morphology a claim rather than a model.
+/// **Tier-honest: four of the thirteen are `Unenforced`.** The posture
+/// describes them and nothing delivers them yet. Rounding those up to "blue has
+/// this" would make the whole morphology a claim rather than a model.
 #[must_use]
 pub fn enforcement(q: Quality) -> (Layer, &'static str) {
     match q {
@@ -106,6 +109,26 @@ pub fn enforcement(q: Quality) -> (Layer, &'static str) {
             "`eval` is a tatara-lisp special form; a sealed posture is the one that \
              does not bind it",
         ),
+        Quality::ExpansionTimeEvaluation => (
+            Layer::TataraLisp,
+            "`expand_macro_call` evaluates the macro body in the LIVE interpreter's \
+             globals, so an earlier top-level `define` is a binding it resolves; a \
+             sealed posture is the one that expands before anything is bound",
+        ),
+        Quality::ForwardDeclarationChecking => (
+            Layer::Rust,
+            "`check_program` collects every signature in pass 1 before pass 2 checks a \
+             body, and it is the crate's only entry point — there is no per-form door \
+             to drive it through, which is what makes the whole-program pass a \
+             guarantee rather than a habit",
+        ),
+        Quality::CheckBeforeEffect => (
+            Layer::Rust,
+            "`pipeline::run` returns `RunError::Types` before an interpreter is \
+             constructed, so a rejected program has done nothing; the weakest Rust \
+             grade in this catalog, because the stages are separately public and a \
+             caller that assembles its own order is outside it",
+        ),
         // ── the honest four ───────────────────────────────────────────
         Quality::MinimalArtifact => (
             Layer::Unenforced,
@@ -116,6 +139,12 @@ pub fn enforcement(q: Quality) -> (Layer, &'static str) {
             Layer::Unenforced,
             "the macro phase can compute, but nothing specializes on a closed world — \
              §V.21's partial evaluator is DESIGN",
+        ),
+        Quality::CheckedMacroOutput => (
+            Layer::Unenforced,
+            "expansion happens inside `run`, after the checker and after erasure, so \
+             nothing a macro emits is ever type-checked and a macro cannot emit an \
+             annotated declaration at all; the schedule that would buy it is DESIGN",
         ),
         Quality::ScopedReclamation => (
             Layer::Unenforced,
@@ -140,6 +169,22 @@ pub struct Shape {
 /// Approximations, and deliberately coarse: the claim is not "blue is Ruby" but
 /// "the coordinate Ruby occupies is one blue can be told to occupy". Each entry
 /// names its reasoning so the mapping is arguable rather than asserted.
+///
+/// **Read the checking qualities on an untyped row as vacuous, not measured.**
+/// `checked macro output`, `forward-declaration checking` and `check before
+/// effect` are questions about a static checker's schedule. Ruby and Elixir do
+/// not have one, so what the row reports is *"nothing in that language's
+/// schedule forbids it"* — which is the honest reading of a coordinate, and is
+/// weaker than "the language does this". The rows that are genuinely measured
+/// on those three are Rust's and blue's own.
+///
+/// **One coordinate, two schedules, and a language may split them.** blue's
+/// macro phase and its run phase share a `When` because expansion happens
+/// *inside* `run` — measured, `theory/SAKIDORI.md` §IX #1. Rust does not share
+/// them: its macros expand against nothing (`Sealed`) while `const fn`
+/// evaluates preceding definitions (`Preceding`). A single coordinate cannot
+/// hold both, and this catalog picks the macro phase's, because that is what
+/// the qualities on it ask about.
 #[must_use]
 pub fn shapes() -> Vec<Shape> {
     vec![
@@ -167,11 +212,23 @@ pub fn shapes() -> Vec<Shape> {
             name: "Rust",
             posture: Waku {
                 reach: Reach::Unrestricted,
-                when: When::Preceding,
+                when: When::Sealed,
                 place: Where::Arena,
             },
+            // **Corrected 2026-08-12, and the correction was previously
+            // invisible.** This said `When::Preceding`, and under the nine-quality
+            // catalog `Sealed` and `Preceding` granted *identical* sets — so the
+            // choice had no consequence and nothing could be wrong about it. The
+            // macro-phase qualities gave the coordinate its third distinguishable
+            // point, and at `Preceding` the row began asserting that Rust forfeits
+            // forward-declaration checking and check-before-effect, which is false
+            // twice. `Sealed` is right on all eight `When` qualities: a Rust macro
+            // evaluates nothing from the crate it is expanding, which is exactly
+            // why its expansions are type-checked.
             because: "a closed world at compile time and scope-bound reclamation, with \
-                      build scripts holding full authority",
+                      build scripts holding full authority; its macro phase evaluates \
+                      nothing from the crate being expanded, which is what buys it \
+                      checked macro output",
         },
         Shape {
             name: "sealed-embedded",
@@ -304,8 +361,8 @@ mod tests {
 
     // ---- enforcement, tier-honest --------------------------------------
 
-    /// **Four of the nine are UNENFORCED, and the catalog says so.** Rounding
-    /// them up would make the morphology a claim rather than a model.
+    /// **Four of the thirteen are UNENFORCED, and the catalog says so.**
+    /// Rounding them up would make the morphology a claim rather than a model.
     #[test]
     fn the_unenforced_qualities_are_named_as_such() {
         let unenforced: Vec<Quality> = Quality::ALL
@@ -318,6 +375,7 @@ mod tests {
             vec![
                 Quality::MinimalArtifact,
                 Quality::AheadOfTimeSpecialization,
+                Quality::CheckedMacroOutput,
                 Quality::ScopedReclamation,
             ],
             "the honest set changed — update the ledger deliberately, not by accident"
@@ -340,28 +398,51 @@ mod tests {
         }
     }
 
-    /// **The Rust layer is strictly stronger, and the split follows the axis.**
-    /// The `When`/`Reach` qualities are language-surface facts — a form or a
-    /// binding — so they land at the tatara-lisp boundary; the `Where` ones are
-    /// about how values are represented, which is a Rust type question.
+    /// **The Rust layer is strictly stronger, and the split follows the axis —
+    /// with one named class of exception.** The `When`/`Reach` qualities are
+    /// mostly language-surface facts — a form or a binding — so they land at
+    /// the tatara-lisp boundary; the `Where` ones are about how values are
+    /// represented, which is a Rust type question.
+    ///
+    /// The exceptions are all the same shape, which is why they are listed
+    /// rather than waived one at a time: **a `When` quality about the
+    /// evaluator's own machinery — the VM's frame stack, the checker's passes,
+    /// the pipeline's order — lives in Rust, because there is no form or
+    /// binding to withhold.** Nothing a program could write turns preemption
+    /// off; you would have to change `Vm::step`.
+    ///
+    /// This is a listed set and the list is the weakness: it is held honest by
+    /// `each_coordinate_decides_exactly_its_own_axis`, which independently
+    /// anchors `axis()` to the coordinate that actually decides each quality,
+    /// so an exception cannot be smuggled in by re-labelling an axis.
     #[test]
     fn the_enforcement_layer_follows_the_axis() {
+        const MACHINERY: [Quality; 3] = [
+            // parking a continuation is a property of the VM's frame stack
+            Quality::PreemptiveScheduling,
+            // whole-program pass 1, and no per-form entry point to bypass it
+            Quality::ForwardDeclarationChecking,
+            // `pipeline::run`'s order, which no program can reorder
+            Quality::CheckBeforeEffect,
+        ];
         for q in Quality::ALL {
             let (layer, _) = enforcement(q);
             if !layer.is_enforced() {
+                continue;
+            }
+            if MACHINERY.contains(&q) {
+                assert_eq!(
+                    (q.axis(), layer),
+                    (Axis::When, Layer::Rust),
+                    "{} is listed as machinery but is not a Rust-enforced When quality",
+                    q.label()
+                );
                 continue;
             }
             let expected = match q.axis() {
                 Axis::Where => Layer::Rust,
                 Axis::When | Axis::Reach => Layer::TataraLisp,
             };
-            // PreemptiveScheduling is the deliberate exception: it is a `When`
-            // quality enforced in Rust, because parking a continuation is a
-            // property of the VM's frame stack rather than of any form.
-            if q == Quality::PreemptiveScheduling {
-                assert_eq!(layer, Layer::Rust);
-                continue;
-            }
             assert_eq!(
                 layer,
                 expected,
@@ -373,12 +454,19 @@ mod tests {
 
     /// Anti-vacuity: some qualities really are enforced. A catalog that was all
     /// `Unenforced` would pass the honesty test above and mean nothing.
+    ///
+    /// The floor is a `>=` rather than an `==` on purpose — a quality moving
+    /// from design to shipped should not have to edit a test — but the exact
+    /// count is pinned too, because a quality moving the *other* way is exactly
+    /// the tier round-down this catalog exists to catch. Measured 2026-08-12:
+    /// nine of thirteen.
     #[test]
     fn the_enforced_set_is_not_empty() {
         let enforced = Quality::ALL
             .iter()
             .filter(|q| enforcement(**q).0.is_enforced())
             .count();
-        assert_eq!(enforced, 6, "six of nine are real guarantees today");
+        assert!(enforced >= 6, "the anti-vacuity floor: {enforced}");
+        assert_eq!(enforced, 9, "nine of thirteen are real guarantees today");
     }
 }

@@ -45,7 +45,8 @@ pub use beam::{
 };
 pub use morph::{enforcement, shape_of, shapes, Layer, Shape};
 pub use quality::{
-    all_postures, exclusive_pairs, forfeits_at, qualities_at, witness, Axis, Quality,
+    all_postures, exclusive_pairs, forfeits_at, minimal_exclusive_groups, qualities_at, witness,
+    witness_all, Axis, Quality,
 };
 
 use blue_lang_waku::{Waku, When};

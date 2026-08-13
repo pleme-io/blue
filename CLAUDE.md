@@ -211,6 +211,38 @@ Co-developing the two means publishing tatara-lisp first and bumping the
 version — the trunk-based order anyway. That is a real cost and it is the one
 being paid deliberately: the alternative costs publishability.
 
+**And the cost is NOT the release. It is the CONSUMPTION, which nothing
+automates.** Measured 2026-08-12: `Cargo.toml` asks for `"0.3"`, a caret
+requirement that accepts anything in the line — and `Cargo.lock` pinned
+`0.3.27` while tatara-lisp had shipped through **`0.3.44`**. Seventeen
+releases, available the whole time, never consumed.
+
+The tempting diagnosis is that publishing is expensive so nobody paid it.
+That is false and worth refuting, because it points at the wrong fix:
+tatara-lisp's `auto-release.yml` fires reliably — its log alternates
+`release: workspace v0.3.43`, `v0.3.44` with the feature commits that earned
+them. **Upstream cadence was never the problem. blue's lock was.**
+
+What that cost, concretely: a reclamation leak (~832 B per dead interpreter
+incarnation) sat unfixed across those releases; the `&[Value]` calling
+convention that makes `Arc::get_mut` unable to ever succeed went un-renegotiated;
+`Vm`'s private frames kept a debugger unbuildable. Every one of those reads at
+first glance as "an upstream problem we cannot reach" and is really "a version
+we did not take."
+
+**So: a stale `Cargo.lock` against a pleme-io-owned crate is the same defect
+class as a stale `flake.lock`** — the org's named cardinal sin, and the exact
+failure ★★ MAINTENANCE JUGGLING exists to prevent. Treat it as one. Before
+concluding that a limitation is upstream's, check what `cargo update` would
+take: the fix may already be published.
+
+**The ordering that must not be got wrong when you do update.** `gen build`
+rewrites `Cargo.gen.lock` from whatever `Cargo.lock` it finds, so regenerate
+the delta AFTER the lock work, never before — generating against a stale lock
+ties the delta to bytes about to change, and can quietly revert an in-flight
+`Cargo.lock` edit. Verify the tie afterwards by comparing
+`shasum -a 256 Cargo.lock` against the delta's `cargo_lock_sha256`.
+
 **Corrected 2026-08-12.** This section said "git deps pinned by rev" and had
 said so since before `ffbe667` (*deps: pleme-io dependencies to crates.io,
 never git*) made it false. Stale in the worst direction — it instructed the

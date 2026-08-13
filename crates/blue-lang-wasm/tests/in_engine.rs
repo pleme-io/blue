@@ -19,6 +19,9 @@ use std::process::Command;
 
 use blue_lang_waku::{imports_of, Capability, Reach, Waku, When, Where};
 
+mod harness;
+use harness::build_wasm;
+
 /// **The frame this crate's artifact is minted from.**
 ///
 /// `theory/BLUE-EXECUTION.md` M1: *"a module's import table is the lowering of
@@ -49,44 +52,6 @@ fn reported_imports(stdout: &str) -> usize {
         .trim()
         .parse()
         .expect("the import count is a number")
-}
-
-fn repo_root() -> PathBuf {
-    // CARGO_MANIFEST_DIR is .../crates/blue-lang-wasm
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(|p| p.parent())
-        .expect("repo root")
-        .to_path_buf()
-}
-
-/// Build the wasm module and return its path.
-fn build_wasm() -> PathBuf {
-    let root = repo_root();
-    let out = Command::new(env!("CARGO"))
-        .current_dir(&root)
-        .args([
-            "build",
-            "-p",
-            "blue-lang-wasm",
-            "--release",
-            "--target",
-            "wasm32-unknown-unknown",
-        ])
-        .output()
-        .expect("spawn cargo");
-    assert!(
-        out.status.success(),
-        "the wasm build must succeed:\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let path = root.join("target/wasm32-unknown-unknown/release/blue_lang_wasm.wasm");
-    assert!(
-        path.exists(),
-        "expected a wasm artifact at {}",
-        path.display()
-    );
-    path
 }
 
 /// **Blue runs in a WebAssembly engine, and imports nothing.**

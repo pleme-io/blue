@@ -691,11 +691,11 @@
         "rust-analyzer-src": "rust-analyzer-src"
       },
       "locked": {
-        "lastModified": 1780824777,
-        "narHash": "sha256-/D3gjEDezsoa//Kbd+rNQRERl4AS+HYOMChsdD1eus4=",
+        "lastModified": 1786005881,
+        "narHash": "sha256-Bj3VKIiwX1daO4vOIyAM507A65J0aaRSctc87kiT7H4=",
         "owner": "nix-community",
         "repo": "fenix",
-        "rev": "3a556b6fbd42412b6f3f0ea8d35959b1826f86ff",
+        "rev": "a7c3ef79859bf024cdc865a0ed8f14a4e3f31099",
         "type": "github"
       },
       "original": {
@@ -2605,11 +2605,11 @@
     "rust-analyzer-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1780758424,
-        "narHash": "sha256-OcXGwiq5ibERT8S9rx5V1bgleguAfwzSQzMePpf8yIE=",
+        "lastModified": 1785960076,
+        "narHash": "sha256-+Xej+akyhjZIFnsEIZLO3c6YNvlnKB3rFMzsprQCyDM=",
         "owner": "rust-lang",
         "repo": "rust-analyzer",
-        "rev": "a9a66c4077fedd375c0f1e61dc39a8f3243ce0ef",
+        "rev": "cf3b451f47c01d76989425d1ace3f1cba70f1fdb",
         "type": "github"
       },
       "original": {
@@ -2718,11 +2718,11 @@
         "tatara-lisp": "tatara-lisp"
       },
       "locked": {
-        "lastModified": 1785748049,
-        "narHash": "sha256-BkZRZPfRsvUFQxFOGz0yFsUIBbpnPp9yKoAFLtgwt2g=",
+        "lastModified": 1786609331,
+        "narHash": "sha256-qRIsG+fDd6WvzIa4MJRJsgC16CKU2atlZ1EKbimG7a8=",
         "owner": "pleme-io",
         "repo": "substrate",
-        "rev": "227b08510f778309e1e7439600d2a0f5727d0d0a",
+        "rev": "a5e0595d3d51baa1e72eb09ccee20264190d2338",
         "type": "github"
       },
       "original": {

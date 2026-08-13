@@ -61,7 +61,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use tatara_lisp::{Atom, Sexp};
+use tatara_lisp::{Atom, Sexp, Spanned};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{Interpreter, Value};
 
@@ -354,8 +354,21 @@ pub fn run(forms: &[Sexp]) -> Report {
     report
 }
 
+// `pending-run-positions:` blue-test. This runner is the last caller still on
+// the OLD shape, and knowingly so. `Test::body` is a spanless `Sexp` — the
+// harness has never held a position — so the lift below is the honest one:
+// there is no span to preserve, and stamping `Span::synthetic()` says exactly
+// that. What follows it is the print-then-reparse round trip
+// `lower_to_spanned` was written to delete and `pipeline` no longer does:
+// erased forms serialised to text and read back through `tatara_lisp`'s lexer,
+// which `blue_lang_runtime`'s own docs pin as a silent-miscompile path (the
+// printer and the reader are not inverses over symbols). Closing it means
+// carrying `Spanned` from the parser through `Test`, which also buys `blue
+// test` the `file:line:col` failure that `blue run` just gained — one piece of
+// work, not two, and deliberately not folded into this change.
 fn eval_all(interp: &mut Interpreter<()>, forms: &[Sexp]) -> Result<(), String> {
-    let erased = blue_lang_runtime::erase_types(forms);
+    let lifted: Vec<_> = forms.iter().map(Spanned::from_sexp_synthetic).collect();
+    let erased = blue_lang_runtime::to_sexps(&blue_lang_runtime::erase_types(&lifted));
     let text = erased
         .iter()
         .map(ToString::to_string)

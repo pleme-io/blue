@@ -36,7 +36,7 @@ pub mod stdlib;
 pub mod sys;
 pub mod uses;
 
-pub use erase::erase_types;
+pub use erase::{erase_types, to_sexps};
 pub use inputs::{declarations, install_input_primitives, Declaration, InputError, Inputs};
 pub use pipeline::{
     parse, parse_tree_with_depth, parse_with_depth, run, run_with_inputs, Run, RunError,
@@ -131,13 +131,21 @@ pub fn interpreter_hostless() -> Interpreter<()> {
     }
 }
 
-/// Lift blue's emitted forms into what the evaluator eats. **The one door.**
+/// Lift spanless forms into what the evaluator eats.
 ///
-/// `Interpreter::eval_program` takes `&[Spanned]`; blue's stages produce
+/// **No longer on the `blue run` path, and that is the point.**
+/// [`erase::erase_types`] now takes and returns `Spanned`, so
+/// `pipeline::run_in_surface` hands the evaluator the *parser's own* tree with
+/// the author's positions on it — there is nothing left to lift. This
+/// function survives for a caller that genuinely holds spanless `Sexp` and
+/// has no position to preserve, and as the subject of the two tests below
+/// that pin why the hop it replaced was unsafe.
+///
+/// `Interpreter::eval_program` takes `&[Spanned]`; blue's stages produced
 /// `Sexp`. Two callers bridged that gap by *printing the tree and reading it
 /// back* — `forms.map(ToString::to_string).join("\n")` into
-/// `tatara_lisp::read_spanned`. Both now call this instead, and the round trip
-/// is gone.
+/// `tatara_lisp::read_spanned`. Both stopped, and the round trip is gone from
+/// the pipeline.
 ///
 /// **Why it had to go.** Printing a tree we already hold and re-parsing it puts
 /// the reader's lexer between blue and its own output, for nothing — and the
@@ -154,9 +162,19 @@ pub fn interpreter_hostless() -> Interpreter<()> {
 /// **What is given up: spans.** The old path's spans pointed into the
 /// re-printed lisp text, a buffer no human ever wrote and no diagnostic could
 /// usefully cite — they were positions in blue's own output, not in the
-/// author's source. `Span::synthetic` says the same thing honestly. Carrying
-/// real blue-source spans through erasure is a separate piece of work and
-/// would start from `Spanned::from_sexp_at`, not from a printer.
+/// author's source. `Span::synthetic` says the same thing honestly.
+///
+/// **Carrying real blue-source spans through erasure was the separate piece of
+/// work, and it is done — but NOT the way this doc predicted.** It said the
+/// work "would start from `Spanned::from_sexp_at`". It did not, and could not:
+/// `from_sexp_at` is a *lift*, stamping ONE span across a whole subtree, so
+/// starting there would have replaced a tree of synthetic spans with a tree of
+/// identical wrong ones. The actual shape was to stop projecting in the first
+/// place — erasure walks `Spanned` and keeps each node's own span, because it
+/// only ever deletes (see [`erase`]). **A pointer at the nearest-looking API is
+/// how a reader is sent to the wrong starting point**; the note is corrected
+/// here rather than deleted, because the wrong lead was load-bearing enough to
+/// be worth naming.
 #[must_use]
 pub fn lower_to_spanned(forms: &[tatara_lisp::Sexp]) -> Vec<tatara_lisp::Spanned> {
     forms

@@ -156,8 +156,13 @@ type Shared = Arc<Mutex<Collected>>;
 
 /// Read a Bluefile from blue source.
 pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
-    let forms =
-        blue_lang_syntax::parse_program(src).map_err(|e| BluefileError::Parse(e.to_string()))?;
+    // The SPANNED door, because erasure runs on spans now. A manifest reports
+    // no positions of its own, so nothing here spends them — but taking the
+    // spanless door would mean lifting back to `Spanned` before evaluation,
+    // and that lift is the `Span::synthetic()` stamp the pipeline just stopped
+    // paying.
+    let forms = blue_lang_syntax::parse_program_tree(src)
+        .map_err(|e| BluefileError::Parse(e.to_string()))?;
     let collected: Shared = Arc::new(Mutex::new(Collected::default()));
 
     let erased = blue_lang_runtime::erase_types(&forms);
@@ -169,7 +174,11 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
     // — not that it runs until it reaches the bad call. `package("m","1.0.0")`
     // followed by an escaping call would otherwise have recorded the package
     // first.
-    let escapes = check_reach_program(&manifest_frame(), &erased);
+    //
+    // `check_reach_program` reads the spanless tree; the projection is the one
+    // place this function throws a position away, and it throws none the
+    // evaluation below needs.
+    let escapes = check_reach_program(&manifest_frame(), &blue_lang_runtime::to_sexps(&erased));
     if !escapes.is_empty() {
         return Err(BluefileError::Escapes {
             names: escapes.into_iter().map(|e| e.name).collect(),
@@ -180,7 +189,7 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
     install_manifest_primitives(&mut interp, &collected);
 
     interp
-        .eval_program(&blue_lang_runtime::lower_to_spanned(&erased), &mut ())
+        .eval_program(&erased, &mut ())
         .map_err(|e| BluefileError::Eval(e.to_string()))?;
 
     let c = collected.lock().expect("manifest lock");

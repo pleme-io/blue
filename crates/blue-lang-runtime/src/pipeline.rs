@@ -48,6 +48,28 @@ pub enum RunError {
     /// presence as evidence the pipeline can still fail this way.
     #[error("the emitted tatara-lisp could not be read back: {0}")]
     Lower(String),
+    /// The program ran and raised.
+    ///
+    /// Rendered `file:line:col: message` against the file the failing form's
+    /// top-level form came from — the same `uses::ResolvedProgram::locate`
+    /// machinery, the same file table and the same join key the type errors
+    /// above use. Until erasure learned to carry spans this was a bare
+    /// message, because the evaluator was handed a tree whose every node had
+    /// been stamped `Span::synthetic()` on the way in.
+    ///
+    /// **The honest limit, stated so nobody reads more into a position than is
+    /// there.** The index names the top-level form that was EXECUTING; the span
+    /// names where the failing text SITS. Those agree on the file whenever the
+    /// failing code is in the same file as the top-level form that reached it —
+    /// which is every single-file program, and an imported package whose own
+    /// top-level code raises. They can disagree when a top-level form in file A
+    /// calls a function defined in file B and the raise happens inside B: the
+    /// path reported is A's. `locate` refuses to print a `line:col` it cannot
+    /// justify (the span must be a real range in that file), so the usual shape
+    /// of that case is a file with no position rather than a precise-looking
+    /// wrong one — but a same-length pair of files can still put a plausible
+    /// number on the wrong file. Closing it needs per-frame file identity at
+    /// the evaluator, which is a call stack blue does not have.
     #[error("runtime error: {0}")]
     Eval(String),
     /// A `use("name")` could not be resolved.
@@ -226,26 +248,63 @@ pub fn run_in_surface(
         ));
     }
 
-    // ERASE, so the interpreter never sees a type.
+    // ERASE, so the interpreter never sees a type — **on the spanned tree,
+    // and back out as one.**
     //
-    // Spans are projected away here and stay away: a debugger frame from an
-    // imported package needs `erase_types` and `lower_to_spanned` to carry them
-    // through, which is a larger piece and is NOT built. What is fixed above is
-    // check-time positions.
-    let erased = erase_types(&program.sexps());
-
-    // LOWER to what the evaluator eats. This used to print the tree and read
-    // it back through `tatara_lisp::read_spanned` — a round trip through a
-    // lexer, over bytes blue had just written itself. See
-    // `crate::lower_to_spanned` for why that is a silent-miscompile path and
-    // not merely wasteful.
-    let spanned = crate::lower_to_spanned(&erased);
+    // This used to be `erase_types(&program.sexps())` followed by a
+    // `lower_to_spanned` that stamped `Span::synthetic()` over every node, and
+    // the comment here said carrying real positions through was "a larger
+    // piece and is NOT built". It was not larger: erasure only ever DELETES
+    // nodes — the single node it invents is the `define` replacing
+    // `define-typed` — so there was never anything for a synthetic span to
+    // stand in for. See `crate::erase`.
+    //
+    // No lowering step follows. The tree the evaluator receives IS the tree the
+    // parser built, minus annotations, with the author's byte offsets intact.
+    let erased = erase_types(program.forms());
 
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, inputs);
-    let value = interp
-        .eval_program(&spanned, &mut ())
-        .map_err(|e| RunError::Eval(e.to_string()))?;
+
+    // RUN, one top-level form at a time, **counting them**.
+    //
+    // This is literally the loop `Interpreter::eval_program` runs internally
+    // (tatara-lisp-eval `eval.rs`) — unrolled here for exactly one reason: the
+    // INDEX. `resolve_uses` flattens N files into one form list and a `Span` is
+    // a byte range with no file identity, so an offset alone is ambiguous
+    // across files — 66 means something in every one of them. The index is the
+    // join key back to `ResolvedProgram`'s file table, and `eval_program`
+    // consumes it internally and hands back only the error.
+    //
+    // The same key, the same renderer and the same file table the type errors
+    // above already use. A runtime error was the one diagnostic in this
+    // function still reporting a bare message.
+    let mut value = Value::Nil;
+    for (top_level, form) in erased.iter().enumerate() {
+        value = interp.eval_top_form(form, &mut ()).map_err(|e| {
+            // `span()` is `None` for the arms that genuinely have no position
+            // (`Reader`, `Halted`, `NotImplemented`). Synthetic is the honest
+            // stand-in — `locate` renders it as a file with no line rather
+            // than inventing one.
+            let at = e.span().unwrap_or_else(tatara_lisp::Span::synthetic);
+            // `short_message`, NOT `Display`. Upstream's `Display` ends every
+            // positioned arm with ` at {span}` — a raw byte range — and once
+            // blue prefixes a resolved `path:line:col` that suffix is the same
+            // fact told twice, the second time in a unit no reader can spend.
+            //
+            // Worse than redundant: a byte range is exactly the thing this
+            // whole file-identity apparatus exists to stop being reported on
+            // its own, because an offset means something different in every
+            // file. On the one case blue deliberately declines to place — a
+            // raise inside a callee from another file — `Display` would print
+            // the CALLEE's offsets beside the CALLER's path, re-creating the
+            // precise-looking wrong answer `locate`'s guard just refused.
+            // `short_message` is upstream's own "no source context" accessor,
+            // and blue supplies the context.
+            let message = e.short_message();
+            RunError::Eval(program.locate(top_level, at, &message).to_string())
+        })?;
+    }
 
     Ok(Run {
         value,
@@ -253,6 +312,251 @@ pub fn run_in_surface(
         typed_decls: outcome.stats.typed_decls,
         seams: outcome.seams.len(),
     })
+}
+
+/// **A runtime error names a place.** The gates for the last stage that
+/// reported a bare message.
+///
+/// Each fixture is sized so that resolving the failing span against ANY file
+/// but the right one lands somewhere else — a different path and a different
+/// line — so a green run here is evidence about the join and not about the
+/// renderer being called at all.
+#[cfg(test)]
+mod position_tests {
+    use super::*;
+    use crate::uses::{Entry, Loader};
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    struct MemLoader(BTreeMap<&'static str, &'static str>);
+
+    impl Loader for MemLoader {
+        fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+            self.0
+                .get(name)
+                .map(|s| vec![(format!("{name}.b"), (*s).to_owned())])
+                .ok_or_else(|| format!("no bidama named \"{name}\""))
+        }
+    }
+
+    /// A package whose OWN top-level code raises, deep inside a file that is
+    /// deliberately taller than either of the other two.
+    ///
+    /// Byte 66 — where `kore_wa_sonzai_shinai` starts — is past the end of the
+    /// entry file (30 bytes) and past the end of `kotae.b` (21 bytes). So the
+    /// only file this span can honestly resolve against is this one, and the
+    /// other two now refuse to answer rather than walking off their ends.
+    const BAKUHATSU: &str = "\
+def tsukawanai_a()
+  1
+end
+
+def tsukawanai_b()
+  2
+end
+
+def bakuhatsu()
+  kore_wa_sonzai_shinai()
+end
+
+bakuhatsu()";
+
+    const KOTAE: &str = "def kotae()\n  42\nend";
+
+    /// The same failing call, but only ever reached by a CALLER in another
+    /// file — the shape that exercises `RunError::Eval`'s stated limit.
+    const BAKUHATSU2: &str = "def yobu()\n  kore_wa_sonzai_shinai()\nend";
+
+    fn loader() -> MemLoader {
+        MemLoader(BTreeMap::from([
+            ("kotae", KOTAE),
+            ("bakuhatsu", BAKUHATSU),
+            ("bakuhatsu2", BAKUHATSU2),
+        ]))
+    }
+
+    fn run_named(path: &str, src: &str) -> RunError {
+        run_in_surface(
+            Entry {
+                path: Some(Path::new(path)),
+                text: src,
+            },
+            Inputs::new(),
+            &loader(),
+            None,
+        )
+        .expect_err("the fixture must raise")
+    }
+
+    /// **The load-bearing gate: a raise inside an IMPORTED package reports the
+    /// IMPORTED file's path and line.**
+    ///
+    /// Hand-computed. In `bakuhatsu.b` the failing call sits on line 10 at
+    /// column 3, and the whole point of the fixture's height is that no other
+    /// file in the program can produce that pair: the entry file has 2 lines
+    /// and `kotae.b` has 3, so *any* mis-attribution is visible as a different
+    /// path AND a different position, never as a coincidence.
+    ///
+    /// **Three red runs, one per edit this change makes** — each isolates a
+    /// different half of the mechanism, which is what stops the gate being a
+    /// tautology over "some renderer ran".
+    ///
+    /// 1. `eval_program` + `.map_err(|e| RunError::Eval(e.to_string()))`
+    ///    restored (the pre-change code):
+    ///    ```text
+    ///    left:  "runtime error: unbound symbol: kore_wa_sonzai_shinai at 74..95"
+    ///    right: "runtime error: bakuhatsu.b:10:3: unbound symbol `kore_wa_sonzai_shinai`"
+    ///    ```
+    ///    No place at all — the state this change is fixing — and the trailing
+    ///    `at 74..95` is upstream's `Display`, an offset with no file, which is
+    ///    why the loop renders `short_message` instead.
+    ///
+    /// 2. The loop kept, but `0` passed to `locate` in place of `top_level`:
+    ///    ```text
+    ///    left:  "runtime error: kotae.b: unbound symbol `kore_wa_sonzai_shinai`"
+    ///    right: "runtime error: bakuhatsu.b:10:3: unbound symbol `kore_wa_sonzai_shinai`"
+    ///    ```
+    ///    **This is the one that proves the INDEX is load-bearing** rather than
+    ///    the renderer: form 0 belongs to `kotae.b`, so the wrong file is named
+    ///    — and named without a position, because the guard in `locate` sees
+    ///    that byte 74 is not a range in a 21-byte file and declines to invent
+    ///    one. A fixture with one imported package could not tell these apart.
+    ///
+    /// 3. `crate::lower_to_spanned(&crate::to_sexps(&erased))` reinstated
+    ///    between erasure and the loop:
+    ///    ```text
+    ///    left:  "runtime error: bakuhatsu.b: unbound symbol `kore_wa_sonzai_shinai`"
+    ///    right: "runtime error: bakuhatsu.b:10:3: unbound symbol `kore_wa_sonzai_shinai`"
+    ///    ```
+    ///    The right FILE with no position — which is exactly the shape of the
+    ///    bug: the index survived the lift and every span did not.
+    #[test]
+    fn a_raise_inside_an_imported_package_names_that_package() {
+        let err = run_named("entry.b", "use(\"kotae\")\nuse(\"bakuhatsu\")\n");
+        assert_eq!(
+            err.to_string(),
+            "runtime error: bakuhatsu.b:10:3: unbound symbol `kore_wa_sonzai_shinai`"
+        );
+    }
+
+    /// Anti-vacuity for the fixture itself: the position asserted above is a
+    /// FACT ABOUT `bakuhatsu.b`, checked against the source text rather than
+    /// against the thing that produced it.
+    ///
+    /// Without this, `10:3` is just a number that happened to come out of the
+    /// code under test, and a change that moved every reported line by one
+    /// would move this assertion with it.
+    #[test]
+    fn line_10_column_3_of_the_fixture_is_the_failing_call() {
+        let line = BAKUHATSU.lines().nth(9).expect("line 10 exists");
+        assert_eq!(line, "  kore_wa_sonzai_shinai()");
+        assert_eq!(
+            &line[2..],
+            "kore_wa_sonzai_shinai()",
+            "column 3 (1-indexed) is where the call starts"
+        );
+        // And the other two files cannot reach that far, which is what makes a
+        // mis-attribution loud instead of plausible.
+        let offset = BAKUHATSU.find("kore_wa_sonzai_shinai").expect("in fixture");
+        assert!(
+            offset > KOTAE.len(),
+            "kotae.b could answer for byte {offset}"
+        );
+        assert!(
+            offset > "use(\"kotae\")\nuse(\"bakuhatsu\")\n".len(),
+            "the entry file could answer for byte {offset}"
+        );
+    }
+
+    /// **The `FileId(0)` path: a raise in the ENTRY file reports the entry
+    /// file.** The single-file case, which is every program that imports
+    /// nothing — and the one where the index and the span cannot disagree.
+    ///
+    /// **Red run** (2026-08-12), `eval_program` +
+    /// `.map_err(|e| RunError::Eval(e.to_string()))` restored:
+    /// ```text
+    /// left:  "runtime error: unbound symbol: nani_mo_nai at 17..28"
+    /// right: "runtime error: honmono.b:5:1: unbound symbol `nani_mo_nai`"
+    /// ```
+    ///
+    /// **Second red run**, `lower_to_spanned` reinstated after erasure — the
+    /// one that isolates the SPAN half from the index half, since a
+    /// single-file program cannot get its file wrong:
+    /// ```text
+    /// left:  "runtime error: honmono.b: unbound symbol `nani_mo_nai`"
+    /// right: "runtime error: honmono.b:5:1: unbound symbol `nani_mo_nai`"
+    /// ```
+    #[test]
+    fn a_raise_in_the_entry_file_names_the_entry_file() {
+        let err = run_named("honmono.b", "def f()\n  1\nend\n\nnani_mo_nai()\n");
+        assert_eq!(
+            err.to_string(),
+            "runtime error: honmono.b:5:1: unbound symbol `nani_mo_nai`"
+        );
+    }
+
+    /// A raise from a form that came through the SURFACE-level erasure still
+    /// reports a real position — the annotated path, where erasure rewrites
+    /// the node rather than passing it through.
+    ///
+    /// Separate from the two above because the erasure rewrite is the only
+    /// place a node is built rather than kept, and a synthetic span there
+    /// would be invisible to a fixture whose failing form is untouched.
+    ///
+    /// **Red run** (2026-08-12), `lower_to_spanned` reinstated after erasure:
+    /// ```text
+    /// left:  "runtime error: chuu.b: unbound symbol `mada_nai`"
+    /// right: "runtime error: chuu.b:2:3: unbound symbol `mada_nai`"
+    /// ```
+    #[test]
+    fn a_raise_inside_an_annotated_def_still_names_its_line() {
+        let err = run_named(
+            "chuu.b",
+            "def f(a: Int) -> Int\n  mada_nai(a)\nend\n\nf(1)\n",
+        );
+        assert_eq!(
+            err.to_string(),
+            "runtime error: chuu.b:2:3: unbound symbol `mada_nai`"
+        );
+    }
+
+    /// **The stated limit, pinned rather than left to be discovered.**
+    ///
+    /// A top-level form in the entry file calls a function defined in an
+    /// imported one, and the raise happens inside the callee. The index names
+    /// the executing form (the entry's), the span names the callee's bytes,
+    /// and the two disagree about the file. `locate`'s in-range guard is what
+    /// keeps that from rendering as a precise-looking `entry:line:col`: the
+    /// offset is not a range in the entry file, so no position is printed.
+    ///
+    /// This test asserts the CURRENT behaviour, including the part that is
+    /// wrong — the path is the caller's. It is here so the next author reads
+    /// the limit off a green suite instead of off a bug report. Closing it
+    /// needs per-frame file identity at the evaluator; see `RunError::Eval`.
+    ///
+    /// **Red run** (2026-08-12), the `span.end <= file.text.len()` guard
+    /// removed from `uses::ResolvedProgram::locate` — and it is the ONLY test
+    /// in the crate that moves, which is the same run's evidence that the
+    /// guard is a no-op on every check-time diagnostic:
+    /// ```text
+    /// left:  "runtime error: yobidashi.b:1:14: unbound symbol `kore_wa_sonzai_shinai`"
+    /// right: "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`"
+    /// ```
+    /// `1:14` lands in the middle of `use("bakuhatsu2")` — the callee's start
+    /// offset happens to be in range for the caller's file even though its end
+    /// is not, so a wrong file gets a precise number pointing at innocent
+    /// code. Exactly the failure this repo's file-identity work exists to
+    /// refuse, which is why the guard tests BOTH ends.
+    #[test]
+    fn a_raise_in_a_callee_from_another_file_reports_no_position_rather_than_a_wrong_one() {
+        let err = run_named("yobidashi.b", "use(\"bakuhatsu2\")\nyobu()\n");
+        assert_eq!(
+            err.to_string(),
+            "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`",
+            "the caller's file is named (the stated limit) but NOT with a \
+             position it cannot justify"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -351,7 +655,9 @@ mod tests {
             "1.5 + 2.25",
         ];
         for src in corpus {
-            let erased = erase_types(&parse(src).expect("parse"));
+            // Projected to `Sexp` because that is what the deleted hop
+            // operated on. Erasure itself no longer goes near it.
+            let erased = crate::to_sexps(&erase_types(&parse_tree(src).expect("parse")));
 
             let direct: Vec<Sexp> = crate::lower_to_spanned(&erased)
                 .iter()
@@ -453,6 +759,22 @@ mod macro_tests {
 
     /// **A runaway macro is a typed error, not a dead compiler.** This is the
     /// property that makes the metaprogramming surface safe to hand to a user.
+    ///
+    /// The assertion was `contains("expansion limit")` and now reads
+    /// `contains("expansion")`, because the pipeline renders `short_message`
+    /// rather than `Display`: upstream words the same fact as "exceeded 256
+    /// expansion steps" instead of "exceeded the expansion limit of 256
+    /// rewrites". The PROPERTY is unchanged and still asserted — the macro is
+    /// named, and the failure is attributed to expansion rather than to
+    /// evaluation. **This reword was the whole measured blast radius of that
+    /// switch**, one test in the workspace.
+    ///
+    /// The number is deliberately NOT pinned. It is upstream's constant, this
+    /// test owns none of it, and matching it would turn an upstream bump into
+    /// a red run here that proves nothing about blue.
+    ///
+    /// The third clause is new capability rather than repair: the message now
+    /// carries `<anonymous>:6:1`, so a runaway macro says WHERE it ran away.
     #[test]
     fn a_runaway_macro_fails_the_compilation_rather_than_the_process() {
         let err =
@@ -460,8 +782,12 @@ mod macro_tests {
                 .expect_err("a self-referential macro must be rejected");
         let msg = err.to_string();
         assert!(
-            msg.contains("forever") && msg.contains("expansion limit"),
-            "the error must name the macro and the limit: {msg}"
+            msg.contains("forever") && msg.contains("expansion"),
+            "the error must name the macro and the limit it hit: {msg}"
+        );
+        assert!(
+            msg.contains("<anonymous>:6:1"),
+            "and must place the call that ran away — line 6 is `forever(1)`: {msg}"
         );
     }
 }

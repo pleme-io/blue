@@ -308,8 +308,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Erase { file } => {
-            let forms = parse(&read(&file)?, &cfg)?;
-            for form in blue_lang_runtime::erase_types(&forms) {
+            // The SPANNED door — erasure runs on spans, so this is the tree it
+            // takes. Printed through `to_sexp`, which is the projection that
+            // throws the positions away: they are what the erased tree is FOR
+            // downstream, and `Spanned` has no `Display` precisely so a caller
+            // has to say out loud that it is dropping them.
+            let forms = parse_tree(&read(&file)?, &cfg)?;
+            for form in blue_lang_runtime::to_sexps(&blue_lang_runtime::erase_types(&forms)) {
                 println!("{form}");
             }
             Ok(ExitCode::SUCCESS)

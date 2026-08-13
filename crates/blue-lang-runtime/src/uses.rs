@@ -282,7 +282,26 @@ impl ResolvedProgram {
             // A synthetic span indexes nothing, so it resolves to no line —
             // `Span::line_col` would happily answer for `usize::MAX` by walking
             // off the end and returning the last position in the file.
-            line_col: (!span.is_synthetic()).then(|| Span::line_col(&file.text, span.start)),
+            //
+            // **And so would a span that is real but belongs to a DIFFERENT
+            // file**, which is the case a runtime error can reach and a check
+            // error cannot: a check diagnostic's span is a node inside the very
+            // top-level form it is stamped with, so it is in range by
+            // construction, while a raise inside a callee carries the callee's
+            // offsets and the executing top-level form may be someone else's.
+            // An out-of-range offset is proof the span is not this file's, and
+            // `line_col` answers it anyway with the file's last position — a
+            // fabricated `path:line:col` a reader has every reason to believe.
+            // Refuse instead, which is `EvalError::render`'s own rule
+            // (`span.end > src.len()` → no source context) applied at the one
+            // place blue owns the file table.
+            //
+            // In range is NECESSARY, not sufficient: two files long enough to
+            // share an offset can still trade a plausible number. That residue
+            // is `RunError::Eval`'s stated limit and wants a call stack, not a
+            // wider guard here.
+            line_col: (!span.is_synthetic() && span.end <= file.text.len())
+                .then(|| Span::line_col(&file.text, span.start)),
             message,
         }
     }

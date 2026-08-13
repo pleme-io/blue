@@ -1,55 +1,69 @@
-//! A dead interpreter that defined a closure never gives its memory back.
+//! A dead interpreter that defined a closure gives its memory back.
 //!
-//! This is a **characterization** gate, not a correctness one, and it is the
-//! same species of problem as `interpreter_cost.rs` next door: leaking is
-//! perfectly *correct* in the only sense the other 600 tests can measure.
-//! Every value the program computed is right, every error is raised, every
-//! process is supervised. Only a drop-sentinel can see that the memory behind
-//! it was never handed back — so this file exists beside the ones that check
+//! This is the same species of problem as `interpreter_cost.rs` next door:
+//! leaking is perfectly *correct* in the only sense the other 600 tests can
+//! measure. Every value the program computed is right, every error is raised,
+//! every process is supervised. Only a drop-sentinel can see whether the memory
+//! behind it was handed back — so this file exists beside the ones that check
 //! what the interpreter computes.
 //!
-//! ## What is leaked (measured 2026-08-12)
+//! ## What was leaked, and is not any more
 //!
-//! The whole top frame of any interpreter that evaluated a `define` of a
-//! function, plus everything bound in it. The diagnosis put that at **~832 B
-//! per dead incarnation**; this file does not re-derive the byte figure — it
-//! observes the *shape*, which is the part that has to hold for the number to
-//! mean anything. `Interpreter::fork` multiplies it: `blue-lang-proc` forks
-//! per spawned process and the test runner forks per test, so a supervisor
-//! restarting a child in a loop leaks once per restart, forever.
+//! Until `tatara-lisp-eval` 0.3.45 this file was a **characterization** gate: it
+//! asserted the leak rather than the guarantee, because blue cannot fix a cycle
+//! it does not own and a permanently-red test is noise nobody reads. Upstream
+//! landed the fix on 2026-08-13 and the inverted arm went red, which is exactly
+//! what it was built to do; it is now flipped and reads as the ordinary
+//! guarantee.
 //!
-//! ## Why (the cause is entirely upstream)
+//! What used to leak: the whole top frame of any interpreter that evaluated a
+//! `define` of a function, plus everything bound in it — **~832 B per dead
+//! incarnation**. This file never re-derived that byte figure; it observes the
+//! *shape*, which is the part that has to hold for the number to mean anything.
+//! `Interpreter::fork` multiplied it — `blue-lang-proc` forks per spawned
+//! process and the test runner forks per test, so a supervisor restarting a
+//! child in a loop leaked once per restart, forever.
 //!
-//! An unbreakable `Arc` cycle in `tatara-lisp-eval`, confirmed structurally in
-//! the pinned 0.3.27 source and byte-identical in the 0.3.44 development tree,
-//! so no fix has started:
+//! ## The cycle, and what breaks it
 //!
-//! | piece | where |
+//! The structure that made the cycle is unchanged, and is *supposed* to be —
+//! it is what makes a closure a closure:
+//!
+//! | piece | where (0.3.45) |
 //! |---|---|
-//! | `Frame { bindings: Mutex<HashMap<Arc<str>, Value>> }` | `env.rs:62-64` |
-//! | `Value::Closure(Arc<Closure>)` | `value.rs:33` |
-//! | `Closure { captured_env: Env }` | `value.rs:148` |
-//! | `Env { frames: Vec<Arc<Frame>> }` | `env.rs:84-108` |
-//! | `sf_define` builds `Closure { captured_env: env.clone() }` then defines it INTO that same env | `eval.rs:2051-2058` |
+//! | `Frame { bindings: Mutex<HashMap<Arc<str>, Value>> }` | `env.rs` |
+//! | `Value::Closure(Arc<Closure>)` | `value.rs` |
+//! | `Closure { captured_env: Env }` | `value.rs` |
+//! | `Env { frames: Vec<Arc<Frame>> }` | `env.rs` |
+//! | `sf_define` builds `Closure { captured_env: env.clone() }` then defines it INTO that same env | `eval.rs` |
 //!
-//! Frame → Value::Closure → Closure → Env → the same Arc<Frame>. The crate
-//! contains **zero `Weak` and zero `Drop` impls**, so there is nothing that
-//! could break the cycle at teardown even in principle. Every actual fix is
-//! upstream; blue's only leverage is this gate.
+//! Frame → Value::Closure → Closure → Env → the same `Arc<Frame>`, and refcounts
+//! alone can never reach zero on a ring. What changed is that teardown is no
+//! longer passive: `impl<H> Drop for Interpreter<H>` (`eval.rs:102`) calls
+//! `Env::release_own_frames` (`env.rs:289`), which clears the bindings the
+//! interpreter owns and drops the closures out of the ring by hand. 0.3.44
+//! contained **zero `Drop` impls**; 0.3.45 contains that one.
 //!
-//! ## The second assertion is deliberately INVERTED
+//! So the gate now guards a real upstream guarantee rather than recording a
+//! known defect. If it goes red again the cycle is back — see the failure
+//! message on the second arm.
 //!
-//! `a_closure_defined_into_its_own_environment_is_never_reclaimed` asserts the
-//! leak **as it currently is** — that the sentinel did *not* drop. That is why
-//! this file is green rather than red: a red test in the tree is noise nobody
-//! reads, and blue cannot fix a cycle it does not own.
+//! ## What the fix does NOT cover, which matters most to blue
 //!
-//! **When upstream breaks the cycle, THIS TEST WILL FAIL.** That is the point
-//! of it. The correct response is to **flip the assertion to `assert!(…)` and
-//! delete this paragraph** — turning the tripwire into the ordinary guarantee.
-//! The incorrect response is to weaken it: deleting the test, `#[ignore]`-ing
-//! it, or relaxing it to "either outcome is fine" throws away the only thing
-//! in the fleet that will notice the day the fix lands.
+//! `release_own_frames` walks only frames above the env's `write_floor`, and
+//! releases one **only when `frame_is_exclusively_ours` can prove** nothing
+//! outside this environment can still reach it. Clearing a frame a live closure
+//! or a deeper fork is still resolving names through would silently unbind it,
+//! which is worse than leaking — so the proof failing leaves the frame exactly
+//! as it was. Upstream names the two shapes that fail it: a fork of a fork
+//! holding an inherited frame below its own floor, and a closure returned to the
+//! embedder that outlives the interpreter.
+//!
+//! blue is the fleet's heaviest `fork` consumer — `blue-lang-proc` forks per
+//! spawned process, the test runner forks per test — so it sits closest to both.
+//! This file measures the un-forked case only, which is the one the fix fully
+//! covers. **A green run here is not evidence that a forked child reclaims**;
+//! nothing in blue measures that yet.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -128,19 +142,18 @@ fn a_dead_interpreter_reclaims_a_value_it_alone_holds() {
 /// environment, and `s` is collateral — it happens to live in the frame the
 /// cycle pins.
 ///
-/// **Inverted on purpose. See the module header before touching it.**
-///
 /// RED RUN (2026-08-12): the lambda removed, leaving the control's program →
 /// this test FAILED with the message below. So it is reading the closure's
 /// effect, not merely asserting a flag that is always false.
 #[test]
-fn a_closure_defined_into_its_own_environment_is_never_reclaimed() {
+fn a_closure_defined_into_its_own_environment_is_reclaimed() {
     assert!(
-        !sentinel_reclaimed_after("(define s (sentinel))\n(define (f n) n)"),
-        "the closure cycle appears to be broken — a frame holding a `define`d \
-         function was reclaimed. If tatara-lisp-eval landed the fix, this is \
-         GOOD NEWS: flip this to `assert!(…)`, drop the `!`, and delete the \
-         inverted-assertion paragraph from the module header. Do not delete or \
-         ignore the test."
+        sentinel_reclaimed_after("(define s (sentinel))\n(define (f n) n)"),
+        "a frame holding a `define`d function was NOT reclaimed — the closure \
+         cycle is back. `Interpreter`'s `Drop` calls `Env::release_own_frames` \
+         to break `Frame → Closure → Env → Frame` at teardown; if that impl \
+         was removed, weakened, or is no longer reached for this shape, the \
+         ~832 B-per-dead-incarnation leak has returned and `fork` multiplies \
+         it once per spawned process and once per test."
     );
 }

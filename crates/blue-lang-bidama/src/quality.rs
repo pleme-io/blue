@@ -285,28 +285,6 @@ impl Axis {
     }
 }
 
-/// The capability name whose presence decides the `Reach` qualities.
-///
-/// One name rather than a set: the question "may the macro phase touch the
-/// outside world" is binary at this granularity, and inventing a taxonomy
-/// before there are consumers for it would be a guess.
-///
-/// **This is the model's one measured incompleteness, named so it is not read
-/// as a closed enumeration.** `Reach` is a *powerset* coordinate — `Reach::Only`
-/// takes arbitrary strings — and the quality model collapses it to a single
-/// bit, so [`all_postures`] samples two points of an unbounded coordinate while
-/// `When` and `Where` are exhausted. A capability that is neither "io" nor
-/// nothing is invisible here: the lattice cannot derive an exclusion between
-/// two capabilities, because it cannot see two.
-///
-/// It is not fixable in this module. One quality per capability needs a
-/// **closed capability universe** to enumerate over, and blue has none —
-/// `blue_lang_pkg::bluefile` records the same gap from the other side, which is
-/// why its `posture` primitive accepts only the `when` coordinate. Inventing
-/// the universe here to make the enumeration look complete would be the tier
-/// round-up this crate exists to prevent.
-pub const IO_CAPABILITY: &str = "io";
-
 /// What a posture grants.
 #[must_use]
 pub fn qualities_at(w: &Waku) -> BTreeSet<Quality> {
@@ -391,7 +369,27 @@ pub fn qualities_at(w: &Waku) -> BTreeSet<Quality> {
     }
 
     // ── Reach ─────────────────────────────────────────────────────────
-    if w.reach.permits(IO_CAPABILITY) {
+    //
+    // **Asked of the closed capability universe, not of a magic string.** This
+    // read `w.reach.permits("io")` until 2026-08-13, and the `IO_CAPABILITY`
+    // const it read was documented here as *the model's one measured
+    // incompleteness*: `Reach::Only` took arbitrary strings, so "io" was a name
+    // no blue program binds and no frame in the workspace granted except by
+    // being `Unrestricted`. The doc said the fix needed a closed capability
+    // universe blue did not have — `theory/BLUE-EXECUTION.md` M0 built one, and
+    // `grants_any_host_effect` is a real question about it.
+    //
+    // **The collapse to one bit survives, deliberately.** The quality is
+    // binary — *may the macro phase touch the outside world* — so it stays one
+    // bit and [`all_postures`] still samples the coordinate at two points. What
+    // changed is that the bit is now derived from an enumerable set rather than
+    // probed with a string, so the remaining limit is a modelling choice
+    // (one quality for four host effects) and no longer an unbounded blind
+    // spot. Splitting it into one quality per host capability is available and
+    // is not done here: it needs consumers that can tell two host effects
+    // apart, and `BLUE-EXECUTION.md` §X unknown 3 records that granularity as
+    // untested.
+    if w.reach.grants_any_host_effect() {
         out.insert(Quality::AmbientBuildCapability);
     } else {
         out.insert(Quality::ReproducibleMacroPhase);
@@ -419,13 +417,15 @@ pub fn qualities_at(w: &Waku) -> BTreeSet<Quality> {
 /// quality purposes — permits IO or does not. Eighteen postures, which is what
 /// makes exclusivity derivable rather than declared.
 ///
-/// **Exhaustive on two coordinates, a sample on the third** — see
-/// [`IO_CAPABILITY`] for why, and for why that is a stated limit rather than a
-/// fixable oversight. The consequence to hold onto: a derived exclusion is
-/// sound (a pair reported exclusive really has no witness *in blue's model*),
-/// and completeness holds for `When` and `Where` only. A `Reach` exclusion
-/// between two named capabilities would not be found here because no posture in
-/// this list distinguishes them.
+/// **Exhaustive on two coordinates, a sample on the third** — see the comment
+/// on the `Reach` branch of [`qualities_at`] for why, and for why that is a
+/// stated limit rather than a fixable oversight. The consequence to hold onto:
+/// a derived exclusion is sound (a pair reported exclusive really has no
+/// witness *in blue's model*), and completeness holds for `When` and `Where`
+/// only. A `Reach` exclusion between two host capabilities would not be found
+/// here because no posture in this list distinguishes them — the *universe* is
+/// closed since M0, but this enumeration still samples it at its top and
+/// bottom rather than over its 2^10 subsets.
 ///
 /// All eighteen grant distinct quality sets, which
 /// `every_posture_is_distinguishable_from_every_other` holds — a coordinate

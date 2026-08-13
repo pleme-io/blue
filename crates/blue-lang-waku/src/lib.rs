@@ -39,29 +39,45 @@
 
 use std::collections::BTreeSet;
 
+pub mod capability;
+pub mod imports;
+
+pub use capability::{Capability, Import, HOST_MODULE};
+pub use imports::imports_of;
+
 /// What definitions a computation may **name**.
 ///
 /// A powerset coordinate, ordered by inclusion. `Unrestricted` is the top;
 /// a `Only(set)` is below it, and two `Only`s meet by intersection.
 ///
 /// **This is the capability surface.** A macro-phase frame whose `Reach`
-/// omits `read-file` cannot *name* it, and a name that does not resolve is
-/// not a policy decision made at call time — it is an absent binding.
+/// omits [`Capability::FileSystem`] cannot *name* `read_file`, and a name that
+/// does not resolve is not a policy decision made at call time — it is an
+/// absent binding.
+///
+/// ## The set is CLOSED, and it was not always
+///
+/// `theory/BLUE-EXECUTION.md` M0. This carried `BTreeSet<String>` until
+/// 2026-08-13, and both of that type's failures were real:
+/// `Reach::only(["read-flie"])` compiled and granted nothing while reading as a
+/// grant, and there was no closed set for an import table to be *total* over —
+/// so the lowering could only ever have been a hand-maintained list.
+/// [`Capability`] is closed, with no `Other(String)` arm, and
+/// [`imports_of`] is exhaustive over it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Reach {
     /// Every name is available. The top of this coordinate.
     Unrestricted,
-    /// Exactly these names, and no others.
-    Only(BTreeSet<String>),
+    /// Exactly these capabilities, and no others.
+    Only(BTreeSet<Capability>),
 }
 
 impl Reach {
-    pub fn only<I, S>(names: I) -> Self
+    pub fn only<I>(caps: I) -> Self
     where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
+        I: IntoIterator<Item = Capability>,
     {
-        Reach::Only(names.into_iter().map(Into::into).collect())
+        Reach::Only(caps.into_iter().collect())
     }
 
     /// The empty frame: nothing may be named. The bottom.
@@ -69,10 +85,15 @@ impl Reach {
         Reach::Only(BTreeSet::new())
     }
 
+    /// Does some granted capability grant the right to name `name`?
+    ///
+    /// Still a question about a **name**, because that is what `check_reach`
+    /// walks. Closing the type changed where the answer comes from, not what
+    /// the question is.
     pub fn permits(&self, name: &str) -> bool {
         match self {
             Reach::Unrestricted => true,
-            Reach::Only(s) => s.contains(name),
+            Reach::Only(caps) => caps.iter().any(|c| c.grants(name)),
         }
     }
 
@@ -219,11 +240,11 @@ impl Waku {
     /// §0 records that under the *shipped* `tatara-script` configuration a
     /// macro body reads the filesystem at expansion time, because expansion
     /// shares the run phase's registry — tier **ABSENT**. A frame whose
-    /// `Reach` omits those names makes the call unresolvable rather than
-    /// merely discouraged.
-    pub fn macro_phase(pure_names: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    /// `Reach` omits [`Capability::FileSystem`] makes the call unresolvable
+    /// rather than merely discouraged.
+    pub fn macro_phase(pure: impl IntoIterator<Item = Capability>) -> Self {
         Self {
-            reach: Reach::only(pure_names),
+            reach: Reach::only(pure),
             when: When::Preceding,
             place: Where::Process,
         }
@@ -512,14 +533,16 @@ mod tests {
         vec![
             Waku::top(),
             Waku::bottom(),
-            Waku::macro_phase(["+", "list"]),
+            Waku::macro_phase([Capability::Operators, Capability::Collections]),
+            // Two overlapping-but-distinct sets, so the powerset coordinate's
+            // meet and join are exercised on something other than ⊤ and ⊥.
             Waku {
-                reach: Reach::only(["a", "b"]),
+                reach: Reach::only([Capability::CoreForms, Capability::Operators]),
                 when: When::Preceding,
                 place: Where::Process,
             },
             Waku {
-                reach: Reach::only(["b", "c"]),
+                reach: Reach::only([Capability::Operators, Capability::Clock]),
                 when: When::Anytime,
                 place: Where::Arena,
             },
@@ -671,7 +694,7 @@ mod tests {
     #[test]
     fn narrowing_actually_narrows_something() {
         let a = Waku::top();
-        let b = Waku::macro_phase(["+"]);
+        let b = Waku::macro_phase([Capability::Operators]);
         assert_ne!(a.narrow(&b), a, "narrow was a no-op on the top frame");
         assert!(
             !a.leq(&a.narrow(&b)),
@@ -686,7 +709,7 @@ mod tests {
     #[test]
     fn only_anytime_needs_a_resident_evaluator() {
         assert!(Waku::top().needs_resident_evaluator());
-        assert!(!Waku::macro_phase(["+"]).needs_resident_evaluator());
+        assert!(!Waku::macro_phase([Capability::Operators]).needs_resident_evaluator());
         assert!(!Waku::bottom().needs_resident_evaluator());
     }
 
@@ -717,7 +740,7 @@ mod tests {
     /// does not name `read-file` makes the call unresolvable.
     #[test]
     fn a_macro_frame_refuses_an_io_name() {
-        let w = Waku::macro_phase(["list", "+"]);
+        let w = Waku::macro_phase([Capability::Operators, Capability::Collections]);
         let escapes = check_reach(&w, &parse("read_file(1)"));
         assert_eq!(
             escapes,
@@ -730,7 +753,7 @@ mod tests {
 
     #[test]
     fn a_macro_frame_permits_what_it_names() {
-        let w = Waku::macro_phase(["list", "+"]);
+        let w = Waku::macro_phase([Capability::Operators, Capability::Collections]);
         assert!(check_reach(&w, &parse("1 + 2")).is_empty());
         assert!(check_reach(&w, &parse("list(1, 2)")).is_empty());
     }
@@ -746,7 +769,7 @@ mod tests {
     /// identifiers, which the frame cannot know.
     #[test]
     fn restricted_reach_still_permits_arbitrary_computation() {
-        let w = Waku::macro_phase(["+", "*", "-", "<", "if", "define"]);
+        let w = Waku::macro_phase([Capability::Operators, Capability::CoreForms]);
         let src = "def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend";
         let forms = blue_lang_syntax::parse_program(src).expect("parse");
         let escapes = check_reach_program(&w, &forms);
@@ -763,7 +786,7 @@ mod tests {
     /// escape at its own use site.
     #[test]
     fn a_local_binding_is_not_an_escape() {
-        let w = Waku::macro_phase(["+", "*", "define", "begin"]);
+        let w = Waku::macro_phase([Capability::Operators, Capability::CoreForms]);
         let src = "def f(a, b)\n  c = a + b\n  c * 2\nend";
         let forms = blue_lang_syntax::parse_program(src).expect("parse");
         let escapes = check_reach_program(&w, &forms);
@@ -774,7 +797,7 @@ mod tests {
     /// is only visible to a program-level walk, and is why the gate uses one.
     #[test]
     fn a_definition_reaches_a_later_form() {
-        let w = Waku::macro_phase(["define"]);
+        let w = Waku::macro_phase([Capability::CoreForms]);
         let forms = blue_lang_syntax::parse_program("def g()\n  1\nend\ng()").expect("parse");
         assert!(
             check_reach_program(&w, &forms).is_empty(),
@@ -793,7 +816,7 @@ mod tests {
     /// `fact` is bound in, and only one of them escapes.
     #[test]
     fn a_free_name_inside_a_binder_still_escapes() {
-        let w = Waku::macro_phase(["+", "<", "if", "define"]);
+        let w = Waku::macro_phase([Capability::Operators, Capability::CoreForms]);
         let src = "def f(n)\n  read_file(n)\nend";
         let forms = blue_lang_syntax::parse_program(src).expect("parse");
         let names: Vec<String> = check_reach_program(&w, &forms)
@@ -822,7 +845,7 @@ mod tests {
     #[test]
     fn quoted_data_is_not_a_reference() {
         // A quoted symbol is data, not a binding it must be able to name.
-        let w = Waku::macro_phase(Vec::<String>::new());
+        let w = Waku::macro_phase(Vec::<Capability>::new());
         let quoted = tatara_lisp::Sexp::Quote(Box::new(parse("anything")));
         assert!(check_reach(&w, &quoted).is_empty());
     }

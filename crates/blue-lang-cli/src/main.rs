@@ -632,8 +632,16 @@ fn bind_inputs(
 fn describe_reach(r: &blue_lang_waku::Reach) -> String {
     match r {
         blue_lang_waku::Reach::Unrestricted => "unrestricted".to_string(),
-        blue_lang_waku::Reach::Only(names) => {
-            let list = names.iter().cloned().collect::<Vec<_>>().join(", ");
+        blue_lang_waku::Reach::Only(caps) => {
+            // Capability LABELS, not the names they grant. A frame's `Reach` is
+            // ten things at most; printing the ~66 identifiers behind them would
+            // bury the one fact an operator is reading for — whether the frame
+            // opens a host effect.
+            let list = caps
+                .iter()
+                .map(|c| c.label())
+                .collect::<Vec<_>>()
+                .join(", ");
             let mut out = String::with_capacity(list.len() + 6);
             out.push_str("only ");
             out.push_str(&list);

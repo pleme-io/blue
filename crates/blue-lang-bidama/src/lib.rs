@@ -240,13 +240,20 @@ fn explain(bidama: &[Bidama], ceiling: &Waku, joined: &Waku) -> Conflict {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blue_lang_waku::{Reach, Where};
+    use blue_lang_waku::{Capability, Reach, Where};
 
-    fn pure(name: &str, names: &[&str]) -> Bidama {
+    /// A package whose floor names exactly `caps`.
+    ///
+    /// Takes capabilities rather than strings since `theory/BLUE-EXECUTION.md`
+    /// M0 closed the universe. The pairs below are chosen to be DISTINCT
+    /// capabilities rather than two operators: under the closed type `+` and
+    /// `*` are one capability, so a test that used them to exercise the join
+    /// of two different floors would have been comparing a set with itself.
+    fn pure(name: &str, caps: &[Capability]) -> Bidama {
         Bidama::new(
             name,
             Waku {
-                reach: Reach::only(names.iter().copied()),
+                reach: Reach::only(caps.iter().copied()),
                 when: When::Preceding,
                 place: Where::Process,
             },
@@ -273,14 +280,17 @@ mod tests {
 
     #[test]
     fn compatible_packages_resolve_to_the_join_of_their_floors() {
-        let bs = [pure("a", &["+"]), pure("b", &["*"])];
+        let bs = [
+            pure("a", &[Capability::Operators]),
+            pure("b", &[Capability::Collections]),
+        ];
         let r = resolve(&bs, &Waku::top()).expect("resolves");
         assert!(
             r.posture.reach.permits("+"),
             "the join must include a's names"
         );
         assert!(
-            r.posture.reach.permits("*"),
+            r.posture.reach.permits("list"),
             "the join must include b's names"
         );
     }
@@ -289,14 +299,17 @@ mod tests {
     /// above every floor, and below anything else that is.
     #[test]
     fn the_resolved_posture_is_the_least_frame_satisfying_every_floor() {
-        let bs = [pure("a", &["+"]), pure("b", &["*"])];
+        let bs = [
+            pure("a", &[Capability::Operators]),
+            pure("b", &[Capability::Collections]),
+        ];
         let r = resolve(&bs, &Waku::top()).expect("resolves");
         for b in &bs {
             assert!(b.floor.leq(&r.posture), "{} floor not satisfied", b.name);
         }
         // Anything strictly smaller fails somebody.
         let smaller = Waku {
-            reach: Reach::only(["+"]),
+            reach: Reach::only([Capability::Operators]),
             ..r.posture.clone()
         };
         assert!(!bs[1].floor.leq(&smaller));
@@ -399,7 +412,11 @@ mod tests {
             ..Waku::top()
         };
         let err = resolve(
-            &[needs_eval("a"), pure("ok", &["+"]), needs_eval("b")],
+            &[
+                needs_eval("a"),
+                pure("ok", &[Capability::Operators]),
+                needs_eval("b"),
+            ],
             &ceiling,
         )
         .expect_err("must conflict");
@@ -414,18 +431,20 @@ mod tests {
         let open = resolve(&[needs_eval("s")], &Waku::top()).expect("resolves");
         assert!(open.needs_resident_evaluator);
 
-        let sealed = resolve(&[pure("p", &["+"])], &Waku::top()).expect("resolves");
+        let sealed =
+            resolve(&[pure("p", &[Capability::Operators])], &Waku::top()).expect("resolves");
         assert!(!sealed.needs_resident_evaluator);
     }
 
     #[test]
     fn a_capability_ceiling_is_enforced_and_explained() {
         let ceiling = Waku {
-            reach: Reach::only(["+", "*"]),
+            reach: Reach::only([Capability::Operators, Capability::Collections]),
             when: When::Preceding,
             place: Where::Shared,
         };
-        let err = resolve(&[pure("net", &["http_get"])], &ceiling).expect_err("must conflict");
+        let err = resolve(&[pure("net", &[Capability::FileSystem])], &ceiling)
+            .expect_err("must conflict");
         assert_eq!(err.culprits(), ["net"]);
         assert_eq!(err.coordinate(), "reach");
         assert!(err.to_string().contains("capability policy"), "{err}");
@@ -456,8 +475,8 @@ mod tests {
     /// short-circuited or mutated state could break it, so it is pinned.
     #[test]
     fn resolution_is_order_independent() {
-        let a = pure("a", &["+"]);
-        let b = pure("b", &["*"]);
+        let a = pure("a", &[Capability::Operators]);
+        let b = pure("b", &[Capability::Collections]);
         let c = needs_eval("c");
         let fwd = resolve(&[a.clone(), b.clone(), c.clone()], &Waku::top()).expect("ok");
         let rev = resolve(&[c, b, a], &Waku::top()).expect("ok");
@@ -471,7 +490,7 @@ mod tests {
     #[test]
     fn the_resolver_actually_rejects_something() {
         let ceiling = Waku::bottom();
-        assert!(resolve(&[pure("anything", &["+"])], &ceiling).is_err());
+        assert!(resolve(&[pure("anything", &[Capability::Operators])], &ceiling).is_err());
     }
 
     /// And it must be able to SUCCEED under a non-trivial ceiling — a
@@ -479,11 +498,22 @@ mod tests {
     #[test]
     fn the_resolver_actually_accepts_something_nontrivial() {
         let ceiling = Waku {
-            reach: Reach::only(["+", "*", "list"]),
+            reach: Reach::only([
+                Capability::Operators,
+                Capability::Collections,
+                Capability::CoreForms,
+            ]),
             when: When::Preceding,
             place: Where::Process,
         };
-        assert!(resolve(&[pure("a", &["+"]), pure("b", &["*"])], &ceiling).is_ok());
+        assert!(resolve(
+            &[
+                pure("a", &[Capability::Operators]),
+                pure("b", &[Capability::Collections])
+            ],
+            &ceiling
+        )
+        .is_ok());
     }
 
     /// A conflict message must be human-readable end to end.

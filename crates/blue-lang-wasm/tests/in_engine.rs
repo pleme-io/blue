@@ -17,6 +17,40 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use blue_lang_waku::{imports_of, Capability, Reach, Waku, When, Where};
+
+/// **The frame this crate's artifact is minted from.**
+///
+/// `theory/BLUE-EXECUTION.md` M1: *"a module's import table is the lowering of
+/// the `waku` it was minted from."* Until M2 wires an engine border there is no
+/// minting step to read a frame from, so this states the frame the build
+/// already realises — `blue-lang-wasm` compiles `blue-lang-runtime` with the
+/// `sys` feature OFF, so **no host capability is granted**, and every pure
+/// bundle is.
+///
+/// It is written as the pure half of the universe rather than as a literal
+/// `Reach::nothing()`, because the interesting claim is not "an empty frame
+/// opens nothing" — it is that a frame granting six real capabilities still
+/// opens nothing, since none of the six reaches the host.
+fn wasm_surface_frame() -> Waku {
+    Waku {
+        reach: Reach::only(Capability::ALL.into_iter().filter(|c| !c.is_host_effect())),
+        when: When::Anytime,
+        place: Where::Process,
+    }
+}
+
+/// The `imports: N` line `host/drive.mjs` prints, read back.
+fn reported_imports(stdout: &str) -> usize {
+    stdout
+        .lines()
+        .find_map(|l| l.strip_prefix("imports: "))
+        .expect("the driver must report an import count")
+        .trim()
+        .parse()
+        .expect("the import count is a number")
+}
+
 fn repo_root() -> PathBuf {
     // CARGO_MANIFEST_DIR is .../crates/blue-lang-wasm
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -86,4 +120,57 @@ fn blue_runs_inside_a_wasm_engine_with_zero_imports() {
         stdout.contains("ALL WASM CASES PASSED"),
         "every case must pass in the engine: {stdout}"
     );
+
+    // **The engine's count and the frame's lowering are the same number.**
+    //
+    // `theory/BLUE-EXECUTION.md` M1's gate. The line above pins the engine's
+    // observation; this pins that blue's derivation *agrees* with it, which is
+    // the only thing that makes the derivation about this artifact rather than
+    // about itself. If M2 ever mints a module from a frame, this comparison is
+    // already the assertion it has to satisfy.
+    assert_eq!(
+        reported_imports(&stdout),
+        imports_of(&wasm_surface_frame()).len(),
+        "the engine and the frame disagree about the import table: {stdout}"
+    );
+}
+
+/// **The derivation moves when the frame does** — the anti-vacuity half of the
+/// gate above, and the reason `imports: 0` matching `0` is evidence at all.
+///
+/// A lowering that returned an empty table for every frame would satisfy the
+/// engine comparison perfectly. This is the control: the same function, one
+/// capability added, a different answer.
+///
+/// It runs on the host with no wasm build, so it is a cheap gate that cannot be
+/// skipped when `node` or the `wasm32-unknown-unknown` target is missing.
+#[test]
+fn the_derived_table_follows_the_frame_and_the_wasm_frame_is_genuinely_closed() {
+    let closed = wasm_surface_frame();
+    assert!(
+        imports_of(&closed).is_empty(),
+        "the frame the wasm surface is minted from must open nothing"
+    );
+    assert!(
+        !closed.reach.grants(Capability::FileSystem),
+        "the wasm surface grants no host capability"
+    );
+
+    // Grant one host capability and the table gains exactly its import.
+    let opened = Waku {
+        reach: closed.reach.join(&Reach::only([Capability::FileSystem])),
+        ..closed.clone()
+    };
+    let table = imports_of(&opened);
+    assert_eq!(table.len(), 1, "{table:?}");
+    assert_eq!(
+        table[0],
+        Capability::FileSystem
+            .import()
+            .expect("filesystem is a host effect")
+    );
+
+    // And narrowing back closes it again — the property the whole design rests
+    // on, checked on the frame this crate actually ships.
+    assert!(imports_of(&opened.narrow(&closed)).is_empty());
 }

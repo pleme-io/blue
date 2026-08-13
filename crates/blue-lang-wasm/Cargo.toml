@@ -15,3 +15,15 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 blue-lang-runtime = { workspace = true }
 tatara-lisp-eval = { workspace = true }
+
+[dev-dependencies]
+# PATH ONLY — a sibling dev-dep never carries a version. See the rule in
+# `blue-lang-runtime`'s dev-dep block and the gate in `blue-lang-cli`'s
+# `tests/registry_graph.rs`.
+#
+# A DEV dep on purpose: the frame lowering is what `tests/in_engine.rs`
+# compares the engine's reported import count against, and the shipped cdylib
+# must not gain a dependency to be told it imports nothing. Cargo drops a
+# version-less dev-dependency from the published manifest entirely, and it is
+# not built for the `wasm32-unknown-unknown` target at all.
+blue-lang-waku = { path = "../blue-lang-waku" }

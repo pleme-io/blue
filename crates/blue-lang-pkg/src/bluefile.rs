@@ -33,14 +33,26 @@
 //! frame a manifest evaluates in, and [`read_bluefile`] checks the manifest's
 //! forms against it **before** the interpreter sees them.
 //!
-//! **What that buys, stated precisely.** Nothing dangerous is bound in the
-//! manifest interpreter today — it is [`blue_lang_runtime::interpreter_hostless`]
-//! plus three recording primitives — so the manifest was safe by *absence of a
-//! binding*. That safety was an accident of the current wiring and had no gate:
-//! one more `register_fn` in [`install_manifest_primitives`] would have handed
-//! every third-party manifest a capability, silently. With the frame, a name
-//! outside the declared vocabulary is refused, so installing a capability
-//! without naming it in the frame is a **failing test**, not a quiet grant.
+//! **What that buys, stated precisely — and the previous statement of it was
+//! measurably wrong.** This paragraph used to read: *"Nothing dangerous is
+//! bound in the manifest interpreter today — it is `interpreter_hostless` plus
+//! three recording primitives — so the manifest was safe by absence of a
+//! binding."* Measured 2026-08-13, the first clause is false.
+//! `interpreter_hostless` is a fork of a base built by `interpreter(&mut ())`,
+//! and `interpreter` installs the sys layer under `#[cfg(feature = "sys")]` —
+//! so **whenever that feature is on, "hostless" binds all 37 host primitives**,
+//! `read_file` and `rm_rf` among them. `blue-lang-cli` turns it on for itself,
+//! and cargo unifies features across a workspace build, so it is on for this
+//! crate's own `cargo test --workspace` run.
+//! `blue-lang-cli/tests/capability_surface.rs` pins that as a measurement.
+//!
+//! **The manifest is still safe, by the frame rather than by absence** — which
+//! is why this correction matters rather than merely being tidy. The old
+//! reading credited a property the build does not have and treated the frame as
+//! belt-and-braces; in fact the frame is the only thing standing between a
+//! third-party Bluefile and `rm_rf`. A name outside the declared vocabulary is
+//! refused before the interpreter is built, so installing a capability without
+//! naming it in the frame is a **failing test**, not a quiet grant.
 //!
 //! **Honest tier: parse-time-rejected at this boundary, and no further.** A
 //! [`Bluefile`] cannot be constructed from a manifest that escapes the frame,
@@ -51,15 +63,27 @@
 //! code path.
 //!
 //! **What is still missing, so nobody cites this as more than it is.** The
-//! frame is a constant blue fixes, not something a manifest declares. A
-//! *declared* `Reach` needs a closed capability universe to declare over, and
-//! blue has none — `Reach::Only` still takes arbitrary strings. `posture` still
-//! accepts only the `when` coordinate for exactly that reason.
+//! frame is a constant blue fixes, not something a manifest declares.
+//!
+//! **Half of the reason it could not be declared is gone as of 2026-08-13.**
+//! This paragraph said a declared `Reach` *"needs a closed capability universe
+//! to declare over, and blue has none — `Reach::Only` still takes arbitrary
+//! strings."* `theory/BLUE-EXECUTION.md` M0 built that universe:
+//! [`blue_lang_waku::Capability`] is closed, so `posture(reach: …)` now has an
+//! enumerable vocabulary to accept and a misspelling in it would be a parse
+//! failure rather than a silent grant of nothing.
+//!
+//! **`posture` still accepts only the `when` coordinate, and that is now a
+//! plain to-do rather than a blocked design.** Accepting a `reach` means
+//! deciding what a manifest keyword looks like and how a *dependency's*
+//! declaration composes with the root's ceiling, which is bīdama's question,
+//! not this module's. Recorded here so the next reader does not re-derive the
+//! old blocker and conclude it is still there.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use blue_lang_waku::{check_reach_program, Waku, When};
+use blue_lang_waku::{check_reach_program, Capability, Waku, When};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{Interpreter, Value};
 
@@ -106,30 +130,23 @@ pub enum BluefileError {
     Escapes { names: Vec<String> },
 }
 
-/// The manifest primitives — the three names a Bluefile is *for*.
-const MANIFEST_PRIMITIVES: &[&str] = &["package", "needs", "posture"];
-
-/// The heads `blue-lang-syntax` lowers control flow to.
-///
-/// These are `match` arms in tatara's evaluator rather than bindings, so
-/// omitting one would not actually withhold it — they are listed because
-/// `check_reach` reports a head like any other symbol and the frame has to
-/// answer. See `blue_lang_waku::walk_binder`'s note on why that question is
-/// left open there.
-const MANIFEST_FORMS: &[&str] = &[
-    "define", "defmacro", "lambda", "let", "begin", "if", "cond", "else", "not",
-];
-
 /// The frame a Bluefile is evaluated in.
 ///
 /// `When::Preceding` because a manifest is read top to bottom and nothing in it
 /// should need a resident evaluator; `Where::Process` because it computes in
-/// its own heap. The `Reach` is the manifest vocabulary: the three primitives,
-/// the control-flow heads, and **every operator callee in
-/// [`blue_lang_syntax::INFIX`], read from that table rather than copied out of
-/// it.** The repo's own rule is that `INFIX` is one table and both directions
-/// read it; a hand-copied operator list here would be the third copy that
-/// disagreed.
+/// its own heap. The `Reach` is the manifest vocabulary: **three capabilities,
+/// none of them a host effect**, so `imports_of(manifest_frame())` is empty and
+/// a manifest opens nothing.
+///
+/// **The three name lists this function used to own moved into
+/// [`blue_lang_waku::Capability`] when M0 closed the universe**, and the move is
+/// the point rather than tidying: a vocabulary spelled out here was a set of
+/// strings only this function could interpret, so nothing else could ask what a
+/// frame grants. `Capability::ManifestDeclaration` still means exactly
+/// `package`/`needs`/`posture`, `Capability::CoreForms` still means the nine
+/// control-flow heads, and `Capability::Operators` is still *read from*
+/// `blue_lang_syntax::INFIX` rather than copied out of it — the repo's rule that
+/// `INFIX` is one table and both directions read it, now one level up.
 ///
 /// Deliberately small. A manifest that wants `map` over a dependency list is
 /// refused, and that is the design: widening the vocabulary a third party's
@@ -137,11 +154,11 @@ const MANIFEST_FORMS: &[&str] = &[
 /// something any manifest can help itself to.
 #[must_use]
 pub fn manifest_frame() -> Waku {
-    let mut names: BTreeSet<String> = BTreeSet::new();
-    names.extend(MANIFEST_PRIMITIVES.iter().map(|s| (*s).to_string()));
-    names.extend(MANIFEST_FORMS.iter().map(|s| (*s).to_string()));
-    names.extend(blue_lang_syntax::INFIX.iter().map(|i| i.callee.to_string()));
-    Waku::macro_phase(names)
+    Waku::macro_phase([
+        Capability::ManifestDeclaration,
+        Capability::CoreForms,
+        Capability::Operators,
+    ])
 }
 
 /// What the primitives record while the manifest runs.
@@ -277,8 +294,57 @@ fn install_manifest_primitives(interp: &mut Interpreter<()>, collected: &Shared)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     const SIMPLE: &str = "package(\"myapp\", \"0.1.0\")\nneeds(\"gaming\", \"^1.2\")";
+
+    /// **The frame did not change when its representation did.**
+    ///
+    /// M0 replaced three hand-written name lists in this file with three
+    /// capabilities. The names are spelled out here — independently of the
+    /// capability definitions, and matching what this function granted before
+    /// the change — so a bundle that quietly grew or shrank moves the manifest
+    /// vocabulary and fails here rather than widening what a third party's
+    /// Bluefile may name.
+    #[test]
+    fn the_manifest_frame_grants_exactly_the_vocabulary_it_always_did() {
+        let f = manifest_frame();
+        let expected: BTreeSet<&str> = ["package", "needs", "posture"]
+            .into_iter()
+            .chain([
+                "define", "defmacro", "lambda", "let", "begin", "if", "cond", "else", "not",
+            ])
+            .chain(blue_lang_syntax::INFIX.iter().map(|i| i.callee))
+            .collect();
+
+        for name in &expected {
+            assert!(
+                f.reach.permits(name),
+                "the frame stopped permitting `{name}`"
+            );
+        }
+        // And nothing beyond it. Checked against the whole universe rather than
+        // a sample, so a fourth capability sneaking into the frame is caught.
+        let granted: BTreeSet<&str> = Capability::ALL
+            .into_iter()
+            .filter(|c| f.reach.grants(*c))
+            .flat_map(Capability::names)
+            .collect();
+        assert_eq!(granted, expected);
+
+        // The manifest opens nothing: no host effect, so no import.
+        assert!(blue_lang_waku::imports_of(&f).is_empty());
+    }
+
+    /// Anti-vacuity for the frame: it must actually REFUSE the host surface.
+    /// A frame that permitted everything would pass every test above.
+    #[test]
+    fn the_manifest_frame_refuses_the_host_surface() {
+        let f = manifest_frame();
+        for name in ["read_file", "rm_rf", "exec_capture", "getenv", "now"] {
+            assert!(!f.reach.permits(name), "the frame permits `{name}`");
+        }
+    }
 
     #[test]
     fn a_bluefile_declares_a_package_and_its_needs() {

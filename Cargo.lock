@@ -284,6 +284,7 @@ name = "blue-lang-wasm"
 version = "0.0.29"
 dependencies = [
  "blue-lang-runtime",
+ "blue-lang-waku",
  "tatara-lisp-eval",
 ]
 

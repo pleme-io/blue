@@ -67,7 +67,7 @@ checker.
 | lexer + Pratt parser → `Sexp`; the `INFIX` table | `blue-lang-syntax` |
 | the one formatting (Wadler/Oppen) | `blue-lang-fmt` |
 | sliding-scale typing; `Seam`; `Stats`; diagnostic spans | `blue-lang-check` |
-| REACH/WHEN/WHERE frame lattice | `blue-lang-waku` |
+| REACH/WHEN/WHERE frame lattice; the closed `Capability` set; `imports_of` | `blue-lang-waku` |
 | package posture floors + resolution | `blue-lang-bidama` |
 | processes, supervision, mailboxes, isolation | `blue-lang-proc` |
 | interpreter construction, erasure, pipeline | `blue-lang-runtime` |
@@ -172,6 +172,22 @@ Each of these is a defect that shipped, not a style preference.
   `textDocument/formatting` returned 707 bytes for 1010 and **deleted all six
   comments in the buffer**. Everything that shows a user their own file goes
   through `format_source_lossless`; `format_source` is for comparing trees.
+- **`interpreter_hostless` is not hostless when the `sys` feature is on.** It
+  forks a base built by `interpreter(&mut ())`, and `interpreter` installs the
+  host layer under `#[cfg(feature = "sys")]` — so in `blue-lang-cli`, and in
+  every `cargo test --workspace` run through cargo's feature unification, the
+  "hostless" interpreter binds all 37 host primitives including `rm_rf`.
+  `bluefile`'s module doc credited the opposite for months: it said a manifest
+  was *"safe by absence of a binding"*. It is safe by the `check_reach` frame,
+  and by nothing else — which makes the frame load-bearing rather than
+  belt-and-braces. **A name that reads like a guarantee is not one; ask an
+  interpreter.** Pinned by `blue-lang-cli/tests/capability_surface.rs`.
+- **A capability is a bundle of NAMES, not a host effect.** `Reach` governs
+  *what may be named*, and blue's real frames grant `+`, `define` and `package`
+  — so a closed universe of host effects alone could not express a single frame
+  blue mints. `Capability` closes the whole nameable vocabulary; the host-effect
+  subset is what `imports_of` lowers. **Adding a variant is `E0004` at four
+  sites**, which is what makes the import table derived rather than maintained.
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
   across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
   ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a
@@ -315,7 +331,11 @@ private environments and messages are deep-copied, but reclamation is `Arc`
 refcounting — no independent collection pause), **no registry client** (resolution
 is real; nothing fetches), **no self-hosting on the implementation axis**
 (`spec/*.b` is the specification axis only), **no comment attachment inside a
-form**, **no completion / go-to-definition** (each needs a resolved name table),
+form**, **no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
+derives the table from a frame — nothing puts an entry into a `.wasm`, and no
+engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
+not being on crates.io), **no completion / go-to-definition** (each needs a
+resolved name table),
 and no **`case`/`when` pattern matching** or **ranges** — the two remaining
 surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**

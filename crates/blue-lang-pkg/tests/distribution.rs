@@ -145,7 +145,7 @@ fn every_bidama_passes_its_own_tests() {
 fn every_bidama_passes_its_own_tests_inner() {
     let pkgs = packages();
     assert!(
-        pkgs.len() >= 21,
+        pkgs.len() >= 22,
         "found {} bidamas; this asserts a FLOOR because a gate that walks a \
          directory passes vacuously when the directory is empty: {pkgs:?}",
         pkgs.len()

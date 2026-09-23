@@ -301,6 +301,12 @@
     # mapAttrs over the systems substrate actually emitted, rather than a fresh
     # system list that could drift from it.
     let
+      # The repository's own build facts: blue's evaluation of ./Bluefile
+      # (`blue lock .`). Every generated file, and the catalogue path, is read
+      # from here, so the flake holds no second list of them.
+      repoLock = builtins.fromJSON (builtins.readFile ./Bluefile.lock);
+      generatedFiles = repoLock.manifest.generated or { };
+
       # The standard distribution as derivations, plus the blue that runs it,
       # for the catalogue and namespace gates below.
       distribution = system:
@@ -314,12 +320,34 @@
         };
     in
     base // {
+      # `nix run .#regen`: rewrite every generated file in place (gen/regen.b).
+      # Bluefile.lock files have their own command, `blue lock <dir>`.
+      apps = lib.mapAttrs (system: existing:
+        let d = distribution system; in
+        existing // {
+          regen = {
+            type = "app";
+            program = "${d.bl.mkBlueApp {
+              inherit (d) blue bidamas;
+              name = "regen";
+              program = ./gen/regen.b;
+            }}/bin/regen";
+          };
+        }
+      ) base.apps;
+
       packages = lib.mapAttrs (system: existing:
         let d = distribution system; in
         existing // {
           # `nix build .#bidama-catalog`, then copy the result over
           # bidamas/CATALOG.md when the freshness check says it is stale.
           bidama-catalog = d.bl.mkCatalog { inherit (d) blue bidamas; };
+        } // lib.mapAttrs' (name: g: lib.nameValuePair "generated-${name}"
+          (d.bl.mkGenerated {
+            inherit (d) blue bidamas;
+            name = "generated-${name}";
+            program = ./. + "/${g.program}";
+          })) generatedFiles // {
         }
       ) base.packages;
 
@@ -328,12 +356,25 @@
         existing // {
           bidama-catalog-fresh = d.bl.mkCatalogCheck {
             inherit (d) blue bidamas;
-            committed = ./bidamas/CATALOG.md;
+            committed = ./. + "/${repoLock.manifest.catalog}";
+          };
+          # ./Bluefile.lock must be blue's evaluation of ./Bluefile.
+          repository-lock-fresh = d.bl.mkBluefileCheck {
+            inherit (d) blue;
+            bluefile = ./Bluefile;
+            lock = ./Bluefile.lock;
           };
           bidama-collisions = d.bl.mkCollisionCheck { inherit (d) blue bidamas; };
           # Every bidama's Bluefile.lock is blue's evaluation of its Bluefile —
           # the lock is what `mkBidama` builds the graph from (BLUE-STRUCTURE P1).
           bidama-locks-fresh = d.bl.mkLockCheck { inherit (d) blue; root = ./bidamas; };
+        } // lib.mapAttrs' (name: g: lib.nameValuePair "generated-${name}-fresh"
+          (d.bl.mkFreshCheck {
+            name = "generated-${name}-fresh";
+            regenerate = "nix run .#regen";
+            committed = ./. + "/${g.output}";
+            generated = self.packages.${system}."generated-${name}";
+          })) generatedFiles // {
           module-surface = import ./nix/module-surface-check.nix {
             inherit lib;
             # blue's own overlay, because `programs.blue.package` defaults to

@@ -178,6 +178,7 @@ const ASSERTION_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
 /// and die unbound; a recorder with no name here could never be reached.
 const MANIFEST_NAMES: &[&str] = &[
     "package", "needs", "posture", "source", "packages", "run", "tool", "check", "app", "catalog",
+    "generate",
 ];
 
 /// `blue_lang_runtime::sys::install_process`, 2026-08-13.

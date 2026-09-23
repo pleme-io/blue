@@ -1,0 +1,24 @@
+# The blue repository's own build facts, stated in blue.
+#
+# "We write bluelang, we leverage nix": this file declares what the repository
+# generates and where its packages live; `blue lock .` evaluates it into
+# Bluefile.lock, and blue's flake reads that lock to derive, for every
+# `generate`:
+#
+#   packages.generated-<name>      the file, built by running its program
+#   checks.generated-<name>-fresh  fails when the committed copy is stale
+#   apps.regen                     rewrites every generated file in place
+#
+# plus the catalogue check for `catalog`. One declaration, no second list:
+# edit a word here, run `blue lock .`, and every consumer follows.
+#
+# The package identity is this declaration's, not the crates'. Cargo.toml
+# carries the crate versions, and the release job bumps those.
+package("blue-repository", "1.0.0")
+
+packages("bidamas")
+catalog("bidamas/CATALOG.md")
+
+# kigou's character tables: authored in blue, rendered into blue-lang-syntax's
+# Rust by the `sabi` bidama.
+generate("kigou-tables", "crates/blue-lang-syntax/src/kigou/tables.rs", "crates/blue-lang-syntax/gen/kigou.b")

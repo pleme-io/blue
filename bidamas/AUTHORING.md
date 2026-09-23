@@ -189,7 +189,9 @@ the sentence that says what a function is for right above it.
 
 ## Output, strings and control flow (measured)
 
-- **`if` is an expression**: `x = if c … else … end` works.
+- **`if` is an expression**: `x = if c … else … end` works, written across lines.
+  There is no one-line `if c then a else b end`: `then` is an unbound name
+  (measured 2026-09-23). Put a one-line choice in a small helper function.
 - **Interpolation works**, calls included: `"| #{name} | #{to_s(n)} |"`. It
   reads better than nested `concat`.
 - **`println` prints a string with its quotes and escapes visible.** A program

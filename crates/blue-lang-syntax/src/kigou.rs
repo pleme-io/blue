@@ -42,76 +42,12 @@ pub enum Class {
     Reject,
 }
 
-/// The typographic spellings of blue's operators.
-///
-/// Curated, not generated: every row is a symbol that mathematics or ordinary
-/// typography already uses for exactly this operator, so a reader needs no
-/// lookup. A symbol whose meaning would have to be *taught* belongs in an
-/// identifier instead, where the author names it.
-pub const OPERATOR_ALIASES: &[(char, &str, &str)] = &[
-    ('≠', "!=", "not equal"),
-    ('≤', "<=", "less than or equal"),
-    ('≥', ">=", "greater than or equal"),
-    ('×', "*", "multiplication"),
-    ('÷', "/", "division"),
-    ('−', "-", "minus sign (U+2212, not the ASCII hyphen)"),
-    ('∧', "&&", "logical and"),
-    ('∨', "||", "logical or"),
-    ('¬', "!", "logical not"),
-    ('≡', "==", "identical to"),
-];
-
-/// The symbols blue explicitly welcomes inside identifiers.
-///
-/// Not exhaustive — [`classify`] admits any alphabetic character and any
-/// symbol not on the operator list — but *named*, because a catalog a reader
-/// can scan is worth more than a rule they have to infer. These are the ones
-/// worth reaching for.
-pub const WELCOME: &[(char, &str)] = &[
-    (
-        'λ',
-        "lambda — the traditional name for an anonymous function",
-    ),
-    ('∀', "for all"),
-    ('∃', "there exists"),
-    ('∈', "element of"),
-    ('∉', "not an element of"),
-    ('∅', "the empty set"),
-    ('∪', "union"),
-    ('∩', "intersection"),
-    ('⊆', "subset of"),
-    ('∘', "function composition"),
-    ('∑', "sum"),
-    ('∏', "product"),
-    ('√', "square root"),
-    ('∞', "infinity"),
-    ('∂', "partial derivative"),
-    ('∇', "gradient / nabla"),
-    ('∫', "integral"),
-    ('→', "maps to / implies"),
-    ('←', "assigned from"),
-    ('↔', "if and only if"),
-    ('⇒', "implies"),
-    ('⊤', "top / true"),
-    ('⊥', "bottom / false"),
-    ('⊢', "proves / entails"),
-    ('π', "pi"),
-    ('α', "alpha"),
-    ('β', "beta"),
-    ('γ', "gamma"),
-    ('δ', "delta"),
-    ('ε', "epsilon"),
-    ('θ', "theta"),
-    ('μ', "mu"),
-    ('σ', "sigma"),
-    ('φ', "phi"),
-    ('ω', "omega"),
-    ('ℕ', "the naturals"),
-    ('ℤ', "the integers"),
-    ('ℚ', "the rationals"),
-    ('ℝ', "the reals"),
-    ('ℂ', "the complex numbers"),
-];
+/// The tables, authored in blue (`gen/kigou.b`) and rendered into Rust by the
+/// `sabi` bidama. Edit the blue file and regenerate; `kigou-tables-fresh` in
+/// blue's flake fails when this generated module is stale.
+#[rustfmt::skip]
+mod tables;
+pub use tables::{OPERATOR_ALIASES, WELCOME};
 
 /// The ASCII operator a character spells, if it spells one.
 #[must_use]

@@ -153,6 +153,23 @@ pub struct Project {
     pub apps: BTreeMap<String, Program>,
     /// `catalog(path)` — where the catalogue of `packages` is committed.
     pub catalog: Option<String>,
+    /// `generate(name, output, program)`: a committed file a blue program
+    /// writes. Skipped when empty, so the locks of packages that generate
+    /// nothing keep their bytes.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub generated: BTreeMap<String, Generated>,
+}
+
+/// A committed file that a blue program writes: the program writes to
+/// `$GEN_OUT`, nix gates the committed copy's freshness against a fresh run,
+/// and `nix run .#regen` rewrites it in place. One declaration, three uses.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Generated {
+    /// Where the file is committed, relative to the Bluefile.
+    pub output: String,
+    /// The blue program that writes it, relative to the Bluefile.
+    pub program: String,
 }
 
 /// A named external distribution root: where to fetch it, and which directory
@@ -432,6 +449,20 @@ const WORDS: &[Word] = &[
                 file: c.path(1, "file")?,
             };
             insert_once(&mut into.project.apps, c.word, name, program)
+        },
+    },
+    Word {
+        name: "generate",
+        signature: "generate(name, output, program)",
+        min: 3,
+        max: 3,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let generated = Generated {
+                output: c.path(1, "output")?,
+                program: c.path(2, "program")?,
+            };
+            insert_once(&mut into.project.generated, c.word, name, generated)
         },
     },
     Word {
@@ -772,6 +803,8 @@ mod tests {
             .chain([
                 "source", "packages", "run", "tool", "check", "app", "catalog",
             ])
+            // `generate`, 2026-09-23: committed files a blue program writes.
+            .chain(["generate"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([
@@ -1116,6 +1149,8 @@ mod tests {
             "check(\"c\", \"/etc/passwd\")",
             "run(\"r\", \"src/../../x.b\")",
             "catalog(\"\")",
+            "generate(\"g\", \"../out.rs\", \"gen/g.b\")",
+            "generate(\"g\", \"src/out.rs\", \"/tmp/g.b\")",
         ] {
             assert!(
                 matches!(
@@ -1136,6 +1171,10 @@ mod tests {
             ("tool(\"jq\")\ntool(\"jq\")", "tool"),
             ("run(\"r\", \"a.b\")\nrun(\"r\", \"b.b\")", "run"),
             ("app(\"a\", \"a.b\")\napp(\"a\", \"a.b\")", "app"),
+            (
+                "generate(\"t\", \"a.rs\", \"a.b\")\ngenerate(\"t\", \"b.rs\", \"b.b\")",
+                "generate",
+            ),
             ("posture(\"sealed\")\nposture(\"anytime\")", "posture"),
             ("package(\"q\", \"0.2.0\")", "package"),
         ] {
@@ -1146,6 +1185,33 @@ mod tests {
                 other => panic!("{body}: expected a duplicate, got {other}"),
             }
         }
+    }
+
+    /// `generate` records the committed file and the program that writes it,
+    /// keyed by the author's name: the name nix builds and gates it under.
+    #[test]
+    fn generate_records_a_committed_file_and_its_program() {
+        let b = read_bluefile(
+            "package(\"p\", \"0.1.0\")\n\
+             generate(\"kigou-tables\", \"crates/s/src/kigou/tables.rs\", \"crates/s/gen/kigou.b\")",
+        )
+        .expect("read");
+        assert_eq!(
+            b.project.generated["kigou-tables"],
+            Generated {
+                output: "crates/s/src/kigou/tables.rs".into(),
+                program: "crates/s/gen/kigou.b".into(),
+            }
+        );
+    }
+
+    /// A project that generates nothing serializes no `generated` key, so the
+    /// word's arrival changed no existing lock's bytes.
+    #[test]
+    fn an_empty_generated_map_is_absent_from_the_json() {
+        let b = read_bluefile("package(\"p\", \"0.1.0\")").expect("read");
+        let v = serde_json::to_value(&b.project).expect("json");
+        assert!(v.get("generated").is_none(), "{v}");
     }
 
     #[test]

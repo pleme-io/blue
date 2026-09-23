@@ -30,7 +30,7 @@
 #
 # ## Do not compute this list, however much you want to
 #
-# Twenty literal `needs` lines are exactly the shape that invites
+# Twenty-one literal `needs` lines are exactly the shape that invites
 # `map(fn(d) needs(d, "^0.1") end, siblings())` — and a Bluefile is blue code,
 # so that would *work*. It would also silently halve the package: `mk-bidama.nix`
 # reads the dependency graph by splitting the manifest text on `needs("`, so a
@@ -60,6 +60,7 @@ use("ongaku")
 use("ran")
 use("retsu")
 use("ronri")
+use("sabi")
 use("seimei")
 use("shinsuu")
 use("shisutemu")
@@ -89,6 +90,7 @@ test "every bidama in the distribution answers through this one import"
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert size([1, 2, 3]) == 3
   assert every(fn(v) v > 0 end, [1, 2, 3]) == true
+  assert rs_valid_ident?("OPERATOR_ALIASES") == true
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
   assert age_s(3600000) == "1h0m"

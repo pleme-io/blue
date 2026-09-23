@@ -883,6 +883,18 @@ fn bluefile_json_reads_back_catalog() {
     assert_eq!(v["catalog"], "bidamas/CATALOG.md");
 }
 
+#[test]
+fn bluefile_json_reads_back_generate() {
+    let v = manifest_json(
+        "generate",
+        "generate(\"tables\", \"src/tables.rs\", \"gen/tables.b\")",
+    );
+    assert_eq!(
+        v["generated"],
+        serde_json::json!({ "tables": { "output": "src/tables.rs", "program": "gen/tables.b" } })
+    );
+}
+
 /// A misspelled word never reaches JSON: the manifest is refused and the
 /// refusal names it.
 #[test]

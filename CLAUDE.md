@@ -196,6 +196,14 @@ Each of these is a defect that shipped, not a style preference.
   Bluefile, run `blue lock <dir>`, commit both.** A new manifest word is a row
   in `bluefile.rs`'s `WORDS` and a name in `MANIFEST_NAMES`; a gate fails if
   the two disagree.
+- **A generated file is declared once, in the root `Bluefile`, and refreshed by
+  its command.** `generate(name, output, program)` names the committed file and
+  the blue program that writes it; the flake reads `Bluefile.lock` and derives
+  `packages.generated-<name>` and `checks.generated-<name>-fresh`, and
+  `nix run .#regen` (`gen/regen.b`, reading the same lock) rewrites every such
+  file in place. Edit the program, run regen, commit both; never copy a store
+  path over a committed file. First instance: kigou's character tables
+  (`crates/blue-lang-syntax/gen/kigou.b`, rendered by the `sabi` bidama).
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
   across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
   ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a

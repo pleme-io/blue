@@ -197,6 +197,11 @@ the sentence that says what a function is for right above it.
 - **`if` is an expression**: `x = if c … else … end` works, written across lines.
   There is no one-line `if c then a else b end`: `then` is an unbound name
   (measured 2026-09-23). Put a one-line choice in a small helper function.
+- **`error(kind, msg)` builds an error VALUE; `throw(...)` raises it.** A check
+  written as `error(:x, "...")` returns a value and the program carries on
+  with exit 0 — a gate that can never fail. Fail a run with
+  `throw(error(:kind, "why"))` (exit 1, "uncaught: #<error :kind ...>").
+  `raise`, `panic`, `fail` and `exit` are unbound (measured 2026-09-23).
 - **There is no postfix indexing.** `xs[0]` is a parse error, and `f(x)[1]`
   can parse into something else and fail later as a type error (measured
   2026-09-23, twice). Use `nth(i, xs)`, `first` and `last`.

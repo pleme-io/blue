@@ -198,6 +198,21 @@ the sentence that says what a function is for right above it.
   root lists every file. Walk and filter with `ends_with?`, and give any scan
   a positive control so a silent zero is a failure.
 
+## Name the fields
+
+A function that returns a record as a list exports accessors (`pkg_name(r)`,
+`conduct_of(p)`), and one that returns a row exports its column names
+(`keishou.metric_names()`). Consumers then never write `nth(4, r)` or hard-code
+how many columns there are, so adding a field breaks nothing silently.
+
+## Run the real path once
+
+Pure tests over hand-made inputs are necessary and not sufficient. `mokuroku`'s
+ten tests passed over one record each while its real run failed: sorting two
+records by name raised "expected number, got string" (junjo's keyed sorts used
+`<=`, since fixed). Before committing, run the package once over real data with
+a scratch program that writes its output to a file, and read the output.
+
 ## Seeds and replication
 
 `next_float(seed)` is a pure function of the seed, and `next_seed` walks one

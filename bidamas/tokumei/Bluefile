@@ -1,0 +1,4 @@
+package("tokumei", "0.1.0")
+needs("ran", "^0.1")
+needs("toukei", "^0.1")
+needs("kazu", "^0.1")

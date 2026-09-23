@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:4b6c510cb96b3866ca69579ba25346fb5aec85184b642382ead347a270efbecb",
+  "manifest": {
+    "schema": 1,
+    "name": "tokumei",
+    "version": "0.1.0",
+    "needs": {
+      "kazu": "^0.1.0",
+      "ran": "^0.1.0",
+      "toukei": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

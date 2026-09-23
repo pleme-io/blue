@@ -122,7 +122,36 @@ end
 # offset is the 32-bit golden ratio, which lands the second stream far enough
 # along the cycle that the overlap is a coincidence rather than a structure.
 def split_seed(seed)
-  [next_seed(seed), next_seed(modulo(seed + 2654435769, 4294967296))]
+  [stream_seed(seed, 0), stream_seed(seed, 1)]
+end
+
+# ── independent streams ────────────────────────────────────────────────────
+#
+# A linear generator composed with itself is still affine. So seeds derived as
+# next_seed(base + i x offset) give first draws frac(alpha + i x beta): values
+# far apart and COMPLETELY dependent, stream to stream. `split_seed` used to be
+# built that way, and its test only checked that two streams never repeat each
+# other's values, which affine streams pass. Measured 2026-09-23 in a private
+# lab: a value drawn from stream 2i+1 averaged 3.29 when a flag drawn from
+# stream 2i came out true and 1.94 when it came out false; both should have
+# been 2.535.
+#
+# mix_seed breaks the affine relation. With no bitwise operators, the
+# non-linear steps are a product of the word's two 16-bit halves and a swap of
+# the halves, between multiplications. Every product stays below 2^63.
+
+def mix_seed(x)
+  a = modulo((modulo(x, 4294967296) * 747796405) + 2891336453, 4294967296)
+  b = modulo(a + ((floor(a / 65536) * modulo(a, 65536)) * 40503) + floor(a / 65536), 4294967296)
+  swapped = (modulo(b, 65536) * 65536) + floor(b / 65536)
+  c = modulo((swapped * 277803737) + 1013904223, 4294967296)
+  modulo(c + ((floor(c / 65536) * modulo(c, 65536)) * 22695477), 4294967296)
+end
+
+# The seed of stream i from one experiment seed. Streams for different i are
+# statistically independent, not merely distinct.
+def stream_seed(seed, i)
+  mix_seed(modulo(mix_seed(seed) + ((i + 1) * 2654435769), 4294967296))
 end
 
 # `choice` off the top of the word. Kept separate rather than folded into
@@ -309,6 +338,35 @@ test "split_seed gives two streams that do not replay each other"
   assert is_empty(intersection(take_ints(a, 1000000, 20), take_ints(next_seed(a), 1000000, 20))) == false
   assert split_seed(1) == split_seed(1)
   assert split_seed(1) != split_seed(2)
+end
+
+test "streams are independent, not merely distinct"
+  # The measured failure, as a test: a flag from stream 2i must say nothing
+  # about a value from stream 2i+1.
+  # 60 pairs: sized for cargo test's 2 MiB thread, where a larger list
+  # overflows the stack (measured). The affine control's gap is ~0.27, so 60
+  # pairs still separate the two cases clearly.
+  pairs = map(fn(i) [next_float(stream_seed(7, 2 * i)), next_float(stream_seed(7, (2 * i) + 1))] end, range(0, 60))
+  low = map(fn(p) last(p) end, filter(fn(p) first(p) < 0.44 end, pairs))
+  high = map(fn(p) last(p) end, filter(fn(p) first(p) >= 0.44 end, pairs))
+  assert abs((reduce(fn(a, v) a + v end, 0, low) / size(low)) - (reduce(fn(a, v) a + v end, 0, high) / size(high))) < 0.12
+end
+
+test "the affine derivation fails that test (positive control)"
+  affine = fn(i) next_seed(next_seed(modulo(7 + ((i + 1) * 2654435769), 4294967296))) end
+  pairs = map(fn(i) [next_float(affine(2 * i)), next_float(affine((2 * i) + 1))] end, range(0, 60))
+  low = map(fn(p) last(p) end, filter(fn(p) first(p) < 0.44 end, pairs))
+  high = map(fn(p) last(p) end, filter(fn(p) first(p) >= 0.44 end, pairs))
+  gap = abs((reduce(fn(a, v) a + v end, 0, low) / size(low)) - (reduce(fn(a, v) a + v end, 0, high) / size(high)))
+  assert gap > 0.1
+end
+
+test "mixed seeds stay 32-bit and draws are uniform"
+  xs = map(fn(i) mix_seed(i) end, range(0, 60))
+  assert every(fn(x) x >= 0 && x < 4294967296 end, xs) == true
+  m = reduce(fn(a, i) a + next_float(stream_seed(1, i)) end, 0, range(0, 60)) / 60
+  assert abs(m - 0.5) < 0.1
+  assert stream_seed(3, 4) == stream_seed(3, 4)
 end
 
 test "the generator is deterministic"

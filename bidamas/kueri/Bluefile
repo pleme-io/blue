@@ -1,0 +1,7 @@
+package("kueri", "0.1.0")
+needs("retsu", "^0.1")
+needs("moji", "^0.1")
+needs("shuugou", "^0.1")
+needs("shisutemu", "^0.1")
+needs("deeta", "^0.1")
+tool("duckdb")

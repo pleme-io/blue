@@ -202,6 +202,22 @@ the sentence that says what a function is for right above it.
   with exit 0 — a gate that can never fail. Fail a run with
   `throw(error(:kind, "why"))` (exit 1, "uncaught: #<error :kind ...>").
   `raise`, `panic`, `fail` and `exit` are unbound (measured 2026-09-23).
+- **A throw CAN be caught, and nothing about it can be read.** The reachable
+  spelling is `try(expr, catch(e(), handler))`: the binding is written as a
+  zero-argument call, because `catch` wants the one-element list `(e)` and
+  `[e]` lowers to a two-element one. Inside the handler, `error?(e)` works, but
+  `error-tag` and `error-message` are kebab-case (unreachable), `to_s(e)` is
+  `"error"`, and two identical errors are not `==`. So a package whose refusals
+  must be tested returns them as DATA too (`kueri`'s `q_refusals` gives
+  `[kind, why]`, `q_check` throws the same list), and its tests assert the
+  kinds on the data and `error?` on the throw (measured 2026-09-23).
+- **Maps compare by identity.** `{a: 1} == {a: 1}` is false, while lists
+  compare by value. Compare what a map renders to, or its fields. There is no
+  `map?`, and `keys` and `merge` are unbound; `assoc` works.
+- **`to_s` drops a float's point:** `to_s(1.0)` is `"1"`. Anything emitting a
+  typed literal must add it back (`kueri`'s `q_float_text`).
+- **`some` is a builtin; `any` and `every` are `ronri`'s.** Reaching them
+  through a transitive import works until the import changes.
 - **There is no postfix indexing.** `xs[0]` is a parse error, and `f(x)[1]`
   can parse into something else and fail later as a type error (measured
   2026-09-23, twice). Use `nth(i, xs)`, `first` and `last`.
@@ -254,6 +270,14 @@ aborts the process rather than failing a test. Prefer `map`, `filter` and
 `reduce` over hand-written recursion on long lists, and use `merge_sort` when a
 sort has to be deep. Keyed sorts (`sort_by`, `sort_stable_by`, `min_by`,
 `merge_sort`) go through `compare`, so they order strings as well as numbers.
+
+**A DEBUG build is deeper still, and CI's `cargo test` is a debug build.**
+Measured 2026-09-23 with `target/debug/blue test` (8 MiB main thread) over
+every package: `angou` and `tokumei` abort with a stack overflow while all 22
+others pass, and the same two abort `distribution.rs`'s gate (debug, 8 MiB),
+which then names no package. `cargo test --release` passes the gate. Run a new
+package's tests under the debug binary once before trusting a release-built
+`blue test`.
 
 ## Negative numbers
 

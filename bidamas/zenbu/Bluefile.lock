@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:a777b6016f88fd7b6f18b87da02e6b2e3cf93cf909b241be7f123c54330d0f49",
+  "bluefile_b3": "b3:7a4bc5aa5ba87d6d2ed9e77809f148f005194489b488c41e44d6be98fad0d09d",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -14,6 +14,7 @@
       "kansuu": "^0.1.0",
       "kazu": "^0.1.0",
       "kikagaku": "^0.1.0",
+      "kueri": "^0.1.0",
       "kumiawase": "^0.1.0",
       "moji": "^0.1.0",
       "mokuroku": "^0.1.0",
@@ -26,6 +27,7 @@
       "shinsuu": "^0.1.0",
       "shisutemu": "^0.1.0",
       "shuugou": "^0.1.0",
+      "tokumei": "^0.1.0",
       "toukei": "^0.1.0"
     },
     "when": "anytime",

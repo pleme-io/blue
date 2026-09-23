@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:0256d5a6e1ab7eb2e98c39f588f1c1924adaf4dad0c08cbc10f7e712f636e714",
+  "manifest": {
+    "schema": 1,
+    "name": "kueri",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [
+      "duckdb"
+    ],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

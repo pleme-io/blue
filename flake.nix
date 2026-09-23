@@ -181,7 +181,11 @@
       #
       # `devShellPackages` is dev-shell-only and distinct from
       # `nativeBuildInputs`: this is tooling the TESTS need, not the build.
-      devShellPackages = [ "lld" ];
+      #
+      # `duckdb` for the same reason: `bidamas/kueri`'s end-to-end test runs
+      # its rendered SQL through the `duckdb` binary, and the distribution
+      # gate (`cargo test`, in this shell on CI) runs every bidama's tests.
+      devShellPackages = [ "lld" "duckdb" ];
 
       # The module trio, deploying blue's two configurable BOUNDS as a shikumi
       # YAML at `~/.config/blue/blue.yaml` and pointing `BLUE_CONFIG` at it.

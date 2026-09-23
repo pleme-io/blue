@@ -70,7 +70,7 @@ checker.
 | REACH/WHEN/WHERE frame lattice; the closed `Capability` set; `imports_of` | `blue-lang-waku` |
 | package posture floors + resolution | `blue-lang-bidama` |
 | processes, supervision, mailboxes, isolation | `blue-lang-proc` |
-| interpreter construction, erasure, pipeline | `blue-lang-runtime` |
+| interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`) | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
 | Bluefile (the `WORDS` table) + version solver + `Bluefile.lock` | `blue-lang-pkg` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |

@@ -27,6 +27,7 @@
 //!    (characters, not bytes), which is why they are blue's and not the
 //!    substrate's.
 
+pub mod domain;
 pub mod erase;
 pub mod inputs;
 pub mod json;

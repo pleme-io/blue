@@ -178,6 +178,11 @@ an arity error inside shuugou, far from its cause.
   `mkCollisionCheck { owned = [ … ]; }`.
 - Before writing a name, look it up in [`CATALOG.md`](./CATALOG.md).
 
+
+The collision gate compares your names with **every** package in the distribution,
+including ones your program never imports: a private `status_of` collided with
+`shisutemu.status_of` (2026-09-23). It is right to fail: the next program that
+imports both breaks silently. Rename the newcomer.
 ## Finding what already exists
 
 [`CATALOG.md`](./CATALOG.md) lists every package, its gloss, and every definition
@@ -192,6 +197,9 @@ the sentence that says what a function is for right above it.
 - **`if` is an expression**: `x = if c … else … end` works, written across lines.
   There is no one-line `if c then a else b end`: `then` is an unbound name
   (measured 2026-09-23). Put a one-line choice in a small helper function.
+- **There is no postfix indexing.** `xs[0]` is a parse error, and `f(x)[1]`
+  can parse into something else and fail later as a type error (measured
+  2026-09-23, twice). Use `nth(i, xs)`, `first` and `last`.
 - **Interpolation works**, calls included: `"| #{name} | #{to_s(n)} |"`. It
   reads better than nested `concat`.
 - **`println` prints a string with its quotes and escapes visible.** A program
@@ -222,6 +230,16 @@ stream. Two streams taken one step apart replay each other, so derive
 independent streams with `split_seed` (a golden-ratio offset, in `ran`), never
 `seed + 1`. A simulation result from one seed is an anecdote: run replicates
 and report mean, spread, min and max.
+
+## Cost: compute a population's aggregate once
+
+A helper that recomputes an aggregate over everyone (a mean, a pool, a share)
+and is then called once per person inside a `map` is quadratic, and blue runs
+roughly 20k simple agent steps a second. Measured 2026-09-23: a disclosure game
+that recomputed the silent pool's mean per person ran for over ten minutes; the
+same game computing it once per round ran in 16 seconds. Compute the aggregate
+once, then pass it in. For "everyone meets someone" rounds, index by position
+(agent i meets agent (i + k) mod n) instead of searching or sorting.
 
 ## Depth
 

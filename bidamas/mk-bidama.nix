@@ -190,17 +190,39 @@ rec {
   # rather than a missing variable. A wrapper makes the working configuration
   # the only one that ships.
   #
-  # `--prefix`, not `--set`: a caller's own BLUE_PATH still wins, because the
-  # loader searches left to right and prefixing puts these roots first only
-  # relative to nothing. A local checkout stays overridable, which is the
-  # difference between a default and a cage.
+  # `--suffix`, not `--prefix` or `--set`: the loader searches BLUE_PATH left
+  # to right and the first match wins, so appending puts a caller's own roots
+  # FIRST and these pinned ones after. A local checkout stays overridable,
+  # which is the difference between a default and a cage. Until 2026-09-23
+  # this said `--prefix` and claimed the same thing; it was false — a prefixed
+  # distribution shadows every same-named package a caller supplies (measured:
+  # a checkout's newer `ran` resolved to the pinned older one). mkOverrideCheck
+  # below is the gate that caught it.
   mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas" }:
     assert lib.assertMsg (makeWrapper != null)
       "mkBlueWithBidamas needs makeWrapper; pass the full pkgs set";
     runCommand name { nativeBuildInputs = [ makeWrapper ]; } ''
       mkdir -p $out/bin
       makeWrapper ${blue}/bin/blue $out/bin/blue \
-        --prefix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"
+        --suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"
+    '';
+
+  # Proves the wrapper is a default and not a cage: a root on the caller's
+  # BLUE_PATH holding a package with the SAME name as one in the distribution
+  # must win. The program calls a marker only the caller's copy defines; the
+  # negative control runs it without BLUE_PATH and must fail, so a pass cannot
+  # come from a distribution that happens to define the marker too.
+  mkOverrideCheck = { blue, bidamas, name ? "blue-path-override" }:
+    let wrapped = mkBlueWithBidamas { inherit blue bidamas; }; in
+    runCommand name { } ''
+      mkdir -p override/retsu
+      printf 'def precedence_marker()\n  42\nend\n' > override/retsu/retsu.b
+      printf 'use("retsu")\nwrite_file(getenv("MARK", "mark"), to_s(precedence_marker()))\n' > prog.b
+      if MARK=$PWD/control ${wrapped}/bin/blue run prog.b > control.log 2>&1; then
+        echo "negative control passed: the distribution's retsu defines the marker"; exit 1
+      fi
+      BLUE_PATH=$PWD/override MARK=$out ${wrapped}/bin/blue run prog.b
+      test "$(cat $out)" = 42
     '';
 
   # The catalogue of a distribution: every package, its gloss, and every
@@ -266,7 +288,7 @@ rec {
     runCommand name { nativeBuildInputs = [ makeWrapper ]; } ''
       mkdir -p $out/bin
       makeWrapper ${blue}/bin/blue $out/bin/${name} \
-        --prefix BLUE_PATH : "${mkBluePath { inherit bidamas; }}" \
+        --suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}" \
         --prefix PATH : "${blue}/bin" \
         --add-flags "run ${program}"
     '';

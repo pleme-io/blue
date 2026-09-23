@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:8cdf642c0201d66b541cdb61933234132e88bc39706aa7fcb80a2a47b68762d2",
+  "manifest": {
+    "schema": 1,
+    "name": "toukei",
+    "version": "0.1.0",
+    "needs": {
+      "junjo": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

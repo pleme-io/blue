@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:45a73e5580e0d16f072b5948c0f8a839bfdd1a39da5538bfa037fdd0ccce43cc",
+  "manifest": {
+    "schema": 1,
+    "name": "kansuu",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

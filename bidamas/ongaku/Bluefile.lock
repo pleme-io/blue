@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:07a248e9e4d175ee272b9c1c70affeb9e46248bbf65e43d3e156f5ebe89c12d4",
+  "manifest": {
+    "schema": 1,
+    "name": "ongaku",
+    "version": "0.1.0",
+    "needs": {
+      "kazu": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -302,7 +302,7 @@ fn help_lists_every_subcommand() {
     let help = stdout(&o);
     for cmd in [
         "run", "fmt", "ast", "erase", "check", "test", "deps", "posture", "lsp", "banner", "shift",
-        "morph",
+        "morph", "bluefile", "lock",
     ] {
         assert!(help.contains(cmd), "--help must list `{cmd}`: {help}");
     }
@@ -784,4 +784,274 @@ fn a_program_without_declarations_still_runs() {
     let o = run(&["run", f.to_str().unwrap()]);
     assert!(o.status.success(), "stderr: {}", stderr(&o));
     assert_eq!(stdout(&o).trim(), "720");
+}
+
+// ---------------------------------------------------------------------------
+// bluefile / lock — `theory/BLUE-STRUCTURE.md` P1 + P1b
+//
+// Every word reads back through `blue bluefile --json`, the surface nix is
+// fed from. P1b's gate: remove a word from the frame and its test here goes
+// red — recorded on `a_misspelled_word_is_an_escape_naming_it` in
+// `blue_lang_pkg::bluefile`.
+// ---------------------------------------------------------------------------
+
+/// `blue bluefile --json` over a Bluefile whose body follows a fixed
+/// `package(...)` line, parsed.
+fn manifest_json(name: &str, body: &str) -> serde_json::Value {
+    let f = write_at(
+        &format!("json-{name}/Bluefile"),
+        &(String::from("package(\"proj\", \"0.3.0\")\n") + body),
+    );
+    let o = run(&["bluefile", "--json", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{body}: {}", stderr(&o));
+    serde_json::from_slice(&o.stdout).expect("--json prints JSON")
+}
+
+#[test]
+fn bluefile_json_reads_back_identity_needs_and_posture() {
+    let v = manifest_json("identity", "needs(\"kazu\", \"^0.1\")\nposture(:preceding)");
+    assert_eq!(v["schema"], 1);
+    assert_eq!(v["name"], "proj");
+    assert_eq!(v["version"], "0.3.0");
+    assert_eq!(v["needs"], serde_json::json!({ "kazu": "^0.1.0" }));
+    assert_eq!(v["when"], "preceding");
+}
+
+#[test]
+fn bluefile_json_reads_back_source() {
+    let v = manifest_json(
+        "source",
+        "source(\"blue\", \"github:pleme-io/blue\", \"bidamas\")",
+    );
+    assert_eq!(
+        v["sources"],
+        serde_json::json!({ "blue": { "url": "github:pleme-io/blue", "dir": "bidamas" } })
+    );
+}
+
+#[test]
+fn bluefile_json_reads_back_packages() {
+    let v = manifest_json("packages", "packages(\"bidamas\")");
+    assert_eq!(v["packages"], serde_json::json!(["bidamas"]));
+}
+
+#[test]
+fn bluefile_json_reads_back_run() {
+    let v = manifest_json(
+        "run",
+        "run(\"games\", \"src/games.b\")\nrun(\"report\", \"src/report.b\", [\"games\"])",
+    );
+    assert_eq!(
+        v["runs"],
+        serde_json::json!({
+            "games": { "file": "src/games.b", "reads": [] },
+            "report": { "file": "src/report.b", "reads": ["games"] }
+        })
+    );
+}
+
+#[test]
+fn bluefile_json_reads_back_tool() {
+    let v = manifest_json("tool", "tool(\"duckdb\")");
+    assert_eq!(v["tools"], serde_json::json!(["duckdb"]));
+}
+
+#[test]
+fn bluefile_json_reads_back_check() {
+    let v = manifest_json("check", "check(\"unit\", \"tests/unit.b\")");
+    assert_eq!(
+        v["checks"],
+        serde_json::json!({ "unit": { "file": "tests/unit.b" } })
+    );
+}
+
+#[test]
+fn bluefile_json_reads_back_app() {
+    let v = manifest_json("app", "app(\"report\", \"bin/report.b\")");
+    assert_eq!(
+        v["apps"],
+        serde_json::json!({ "report": { "file": "bin/report.b" } })
+    );
+}
+
+#[test]
+fn bluefile_json_reads_back_catalog() {
+    let v = manifest_json(
+        "catalog",
+        "packages(\"bidamas\")\ncatalog(\"bidamas/CATALOG.md\")",
+    );
+    assert_eq!(v["catalog"], "bidamas/CATALOG.md");
+}
+
+/// A misspelled word never reaches JSON: the manifest is refused and the
+/// refusal names it.
+#[test]
+fn bluefile_json_refuses_a_misspelled_word_naming_it() {
+    let f = write_at(
+        "json-typo/Bluefile",
+        "package(\"p\", \"0.1.0\")\ntoool(\"jq\")",
+    );
+    let o = run(&["bluefile", "--json", f.to_str().unwrap()]);
+    assert!(!o.status.success(), "a misspelled word must not exit 0");
+    assert!(stderr(&o).contains("toool"), "{}", stderr(&o));
+    assert!(
+        o.stdout.is_empty(),
+        "nothing may be printed for a refused manifest"
+    );
+}
+
+/// A malformed call is refused with the word named — the silent drop that
+/// `package` and `needs` used to perform on a non-string.
+#[test]
+fn bluefile_json_refuses_a_malformed_call() {
+    let f = write_at(
+        "json-malformed/Bluefile",
+        "package(\"p\", \"0.1.0\")\nneeds(\"a\", 1)",
+    );
+    let o = run(&["bluefile", "--json", f.to_str().unwrap()]);
+    assert!(!o.status.success());
+    assert!(
+        stderr(&o).contains("`needs`: `range` must be a string"),
+        "{}",
+        stderr(&o)
+    );
+}
+
+#[test]
+fn bluefile_needs_exactly_one_mode_and_json_one_file() {
+    let f = write_at("json-mode/Bluefile", "package(\"p\", \"0.1.0\")");
+    let path = f.to_str().unwrap();
+    assert!(!run(&["bluefile", path]).status.success(), "no mode");
+    assert!(
+        !run(&["bluefile", "--json", "--confirm", path])
+            .status
+            .success(),
+        "both modes"
+    );
+    let o = run(&["bluefile", "--json", path, path]);
+    assert!(!o.status.success(), "two files for --json");
+    assert!(stderr(&o).contains("one manifest"), "{}", stderr(&o));
+}
+
+/// A package directory for the lock tests, holding only a Bluefile.
+fn lockable(name: &str, src: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("blue-cli-test-lock-{name}"));
+    let _ = std::fs::remove_file(dir.join("Bluefile.lock"));
+    std::fs::create_dir_all(&dir).expect("create package dir");
+    std::fs::write(dir.join("Bluefile"), src).expect("write Bluefile");
+    dir
+}
+
+fn confirm(dir: &std::path::Path) -> Output {
+    run(&[
+        "bluefile",
+        "--confirm",
+        dir.join("Bluefile").to_str().unwrap(),
+    ])
+}
+
+const LOCKABLE: &str = "package(\"lockme\", \"1.0.0\")\nneeds(\"kazu\", \"^0.1\")\n";
+
+/// `blue lock` writes what `--confirm` accepts, and what it writes is the
+/// `--json` manifest plus the hash. No `source`, so nix is never started.
+#[test]
+fn lock_writes_a_lock_that_confirm_accepts() {
+    let dir = lockable("fresh", LOCKABLE);
+    let o = run(&["lock", dir.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+
+    let lock: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(dir.join("Bluefile.lock")).expect("the lock was written"),
+    )
+    .expect("the lock is JSON");
+    assert_eq!(lock["schema"], 1);
+    assert_eq!(lock["sources"], serde_json::json!({}));
+    assert!(lock["bluefile_b3"].as_str().unwrap().starts_with("b3:"));
+    let json = run(&["bluefile", "--json", dir.join("Bluefile").to_str().unwrap()]);
+    let manifest: serde_json::Value = serde_json::from_slice(&json.stdout).expect("json");
+    assert_eq!(
+        lock["manifest"], manifest,
+        "the lock's manifest IS --json's"
+    );
+
+    let c = confirm(&dir);
+    assert!(c.status.success(), "{}", stderr(&c));
+    assert!(
+        stdout(&c).contains("\"status\":\"fresh\""),
+        "{}",
+        stdout(&c)
+    );
+}
+
+/// **P1's second red run, at the CLI.** Zero the recorded hash by hand and
+/// `--confirm` exits non-zero, naming why.
+#[test]
+fn confirm_fails_on_a_zeroed_hash() {
+    let dir = lockable("zeroed", LOCKABLE);
+    assert!(run(&["lock", dir.to_str().unwrap()]).status.success());
+    let path = dir.join("Bluefile.lock");
+    let mut lock: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    lock["bluefile_b3"] = serde_json::Value::from(String::from("b3:") + &"0".repeat(64));
+    std::fs::write(&path, lock.to_string()).unwrap();
+
+    let c = confirm(&dir);
+    assert!(!c.status.success(), "a zeroed hash must not confirm");
+    let line: serde_json::Value = serde_json::from_slice(&c.stdout).expect("json line");
+    assert_eq!(line["status"], "stale");
+    assert_eq!(line["reason"]["kind"], "hash");
+    assert!(stderr(&c).contains("blue lock"), "{}", stderr(&c));
+}
+
+/// Edit the Bluefile without relocking: stale. Relock: fresh.
+#[test]
+fn confirm_fails_until_an_edited_bluefile_is_relocked() {
+    let dir = lockable("edited", LOCKABLE);
+    assert!(run(&["lock", dir.to_str().unwrap()]).status.success());
+    std::fs::write(
+        dir.join("Bluefile"),
+        String::from(LOCKABLE) + "tool(\"jq\")\n",
+    )
+    .unwrap();
+    assert!(
+        !confirm(&dir).status.success(),
+        "an edited Bluefile is stale"
+    );
+    assert!(run(&["lock", dir.to_str().unwrap()]).status.success());
+    assert!(confirm(&dir).status.success(), "relocked is fresh");
+}
+
+#[test]
+fn confirm_fails_when_there_is_no_lock() {
+    let dir = lockable("missing", LOCKABLE);
+    let c = confirm(&dir);
+    assert!(!c.status.success());
+    assert!(
+        stdout(&c).contains("\"kind\":\"missing\""),
+        "{}",
+        stdout(&c)
+    );
+}
+
+/// **Every committed bidama lock is fresh** — the same check the
+/// `bidama-locks-fresh` flake check runs, from `cargo test`, over the real
+/// distribution. Anti-vacuity: one `fresh` line per package, at least 21.
+#[test]
+fn every_bidama_lock_is_confirmed_fresh() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../bidamas");
+    let mut manifests: Vec<String> = std::fs::read_dir(&root)
+        .expect("bidamas/")
+        .filter_map(Result::ok)
+        .map(|e| e.path().join("Bluefile"))
+        .filter(|p| p.is_file())
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    manifests.sort();
+    let mut args = vec!["bluefile", "--confirm"];
+    args.extend(manifests.iter().map(String::as_str));
+    let o = run(&args);
+    assert!(o.status.success(), "stale bidama locks:\n{}", stderr(&o));
+    let fresh = stdout(&o).matches("\"status\":\"fresh\"").count();
+    assert_eq!(fresh, manifests.len());
+    assert!(fresh >= 21, "only {fresh} bidama locks were confirmed");
 }

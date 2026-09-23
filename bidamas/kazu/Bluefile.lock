@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:8795a19524ee5651d3e4526dca79da5a0e28c22be5cdb8d201f2badf327695e5",
+  "manifest": {
+    "schema": 1,
+    "name": "kazu",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

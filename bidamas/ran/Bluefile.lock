@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:f0c40d979868b09c9cc16aabd2e75769c3a76532ee9469bd20ffb84f7deedd77",
+  "manifest": {
+    "schema": 1,
+    "name": "ran",
+    "version": "0.1.0",
+    "needs": {
+      "junjo": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

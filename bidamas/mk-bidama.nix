@@ -26,63 +26,80 @@
 # `rust-tool-release-flake.nix`, `mkDarwinAppBundle`, `mkHelmChartPackages`):
 # one function, typed arguments, a complete derivation out.
 #
-# ## The honest limit on dependency extraction
+# ## Nix reads blue's evaluation; it does not re-derive it
 #
-# A `Bluefile` is *blue code* — `needs("kazu", "^0.1")` is a call, and in
-# general its arguments could be computed. Nix cannot evaluate blue, so this
-# reads the dependency edges with `builtins.match` over the source text.
+# A `Bluefile` is *blue code* — `needs("kazu", "^0.1")` is a call, and its
+# arguments can be computed. Nix cannot evaluate blue without
+# import-from-derivation, so it reads what blue already computed: each
+# package's committed `Bluefile.lock`, written by `blue lock` and parsed here
+# with `builtins.fromJSON` (`theory/BLUE-STRUCTURE.md` §5.1, phase P1).
 #
-# That is exact for the literal form every bidama uses today and **wrong for a
-# computed one**, which is a real ceiling rather than a hypothetical: the
-# manifest-is-code property is one of blue's genuine differentiators, so
-# computed dependency sets are a thing the language invites. The mitigation is
-# that a mismatch cannot go unnoticed — `blue-lang-pkg`'s `GitRegistry` reads
-# the same manifests by *evaluating* them, and
-# `crates/blue-lang-pkg/tests/git_registry.rs` asserts the edges it finds. If
-# nix's regex view and blue's evaluated view ever disagree, that test is the
-# thing that says so.
+# This replaced a `builtins.match`/`splitString` scrape of the manifest text,
+# which was wrong for a computed `needs` — measured on 2026-08-02 by rewriting
+# one `zenbu` entry as `computed = "moji"` / `needs(computed, "^0.1")`: blue
+# resolved 17 dependencies, the scrape saw 16, and the facade's closure shipped
+# one bidama short with nothing going red. The scrape is DELETED, not kept as a
+# fallback: a package with no lock is refused below, loudly.
 #
-# Tier: **only-mitigated** — ceiling is a computed `needs(...)` that the regex
-# cannot see. The fix is a `blue bluefile --deps --json` subcommand, so nix
-# consumes blue's own evaluation rather than re-deriving it. Named, not built.
-#
-# **The ceiling is measured, not hypothetical** (2026-08-02). Rewriting one of
-# `zenbu`'s seventeen entries as `computed = "moji"` / `needs(computed, "^0.1")`
-# left blue's resolver reporting 17 dependencies, this file's `depsOf` seeing 16,
-# and `nix build .#zenbu` producing a closure of 17 bidamas instead of 18 — with
-# no test anywhere going red. `granularity.rs::the_regex_and_evaluated_dependency_views_agree`
-# closes that: it compares this text split against `GitRegistry`'s EVALUATED
-# manifest for every package and fails when they disagree. Tier moves from
-# *undetected* to **CI-gate-caught**; the fix above is still unbuilt.
+# Tier: **eval- and CI-caught, not unrepresentable.** A stale lock can be
+# committed; `mkLockCheck` (the `bidama-locks-fresh` flake check) runs
+# `blue bluefile --confirm` over every package and fails on it, and
+# `granularity.rs::the_locked_and_evaluated_dependency_views_agree` compares
+# every lock against blue's resolver from `cargo test`.
 
 { lib, runCommand, symlinkJoin ? null, makeWrapper ? null }:
 
 let
-  # Dependency names declared by a Bluefile, as a list of strings.
-  #
-  # Splits on `needs("` and takes the identifier that follows, which is a
-  # deliberately dull approach: a cleverer regex over the whole file would be
-  # harder to read and no more correct, because the real limit is evaluation
-  # (above), not pattern power.
-  depsOf = manifestText:
-    let
-      parts = lib.drop 1 (lib.splitString ''needs("'' manifestText);
-      nameOf = part: lib.head (lib.splitString ''"'' part);
-    in
-    map nameOf parts;
+  # The lock layout this file reads. `blue_lang_pkg::lock::LOCK_SCHEMA`; a lock
+  # from another layout is refused rather than half-read.
+  lockSchema = 1;
 
-  # The version a Bluefile declares, or null.
-  #
-  # Read from `package(...)` rather than the directory name so identity is
-  # stated once, by the package, in blue. A directory called `kazu-0.1.0` would
-  # be a second place for the version to be wrong.
-  versionOf = manifestText:
-    let m = builtins.match ''.*package\("[^"]+", "([^"]+)"\).*'' manifestText;
-    in if m == null then null else lib.head m;
+  # A package's `Bluefile.lock`, parsed. Refuses a package with no lock, or one
+  # in a layout this file was not written against.
+  lockOf = { name, src }:
+    let path = src + "/Bluefile.lock";
+    in
+    if !builtins.pathExists path then
+      throw ''
+        bidama "${name}" has no Bluefile.lock. Nix reads blue's evaluation of
+        the Bluefile rather than guessing at it; write it with
+        `blue lock <dir>` and commit it.
+      ''
+    else
+      let lock = builtins.fromJSON (builtins.readFile path);
+      in
+      if lock.schema != lockSchema then
+        throw ''
+          bidama "${name}": Bluefile.lock has schema ${toString lock.schema}, and
+          mk-bidama.nix reads schema ${toString lockSchema}. Relock with the blue
+          this distribution pins.
+        ''
+      else if lock.manifest.name != name then
+        throw ''
+          bidama "${name}": its Bluefile declares package("${lock.manifest.name}", …).
+          The directory and the package must agree, or the registry resolves
+          the wrong thing.
+        ''
+      else lock;
+
+  # Dependency names, from the lock's evaluated `needs`.
+  depsOf = lock: builtins.attrNames lock.manifest.needs;
+
+  # The version `package(...)` declared — stated once, by the package, in blue.
+  # A directory called `kazu-0.1.0` would be a second place for it to be wrong.
+  versionOf = lock: lock.manifest.version;
+
+  # Every package directory under a distribution root: a directory holding a
+  # Bluefile. One definition, read by `mkDistribution` and `mkLockCheck`, so
+  # the packages built and the packages gated cannot differ.
+  packageDirs = root:
+    lib.filterAttrs
+      (n: t: t == "directory" && builtins.pathExists (root + "/${n}/Bluefile"))
+      (builtins.readDir root);
 
 in
 rec {
-  inherit depsOf versionOf;
+  inherit lockOf depsOf versionOf packageDirs;
 
   # Build ONE bidama.
   #
@@ -90,9 +107,9 @@ rec {
   # depend on its siblings — the knot `mkDistribution` ties below.
   mkBidama = { name, src, all ? { } }:
     let
-      manifestText = builtins.readFile (src + "/Bluefile");
-      version = versionOf manifestText;
-      deps = depsOf manifestText;
+      lock = lockOf { inherit name src; };
+      version = versionOf lock;
+      deps = depsOf lock;
       resolved = map
         (d:
           all.${d} or (throw ''
@@ -104,7 +121,7 @@ rec {
           ''))
         deps;
     in
-    runCommand "bidama-${name}${lib.optionalString (version != null) "-${version}"}"
+    runCommand "bidama-${name}-${version}"
       {
         inherit version;
         buildInputs = resolved;
@@ -251,16 +268,31 @@ rec {
   # rather than as a silently truncated graph — the loud failure is the correct
   # one, and blue's solver reports cycles too, so the two agree on rejection.
   mkDistribution = { root, pkgs }:
-    let
-      dirs = lib.filterAttrs
-        (n: t: t == "directory" && builtins.pathExists (root + "/${n}/Bluefile"))
-        (builtins.readDir root);
-    in
     lib.fix (all:
       lib.mapAttrs
         (name: _: mkBidama {
           inherit name all;
           src = root + "/${name}";
         })
-        dirs);
+        (packageDirs root));
+
+  # Fails when any package's committed `Bluefile.lock` is not blue's
+  # evaluation of the Bluefile beside it — edited without relocking, edited by
+  # hand, or written by a blue that evaluates differently.
+  #
+  # One `blue bluefile --confirm` over every package: blue reports each one and
+  # exits non-zero if any is stale, so this is a single command, not a loop.
+  #
+  # Red run, 2026-09-23: `needs("moji", "^0.1")` added to `bidamas/kazu/Bluefile`
+  # without relocking → `nix build .#checks.aarch64-darwin.bidama-locks-fresh`
+  # failed with `{"status":"stale","reason":{"kind":"hash",…}}` naming kazu and
+  # `run \`blue lock …/kazu\``; the other 20 packages reported fresh. Reverted.
+  mkLockCheck = { blue, root, name ? "bidama-locks-fresh" }:
+    let
+      manifests = map (n: "${root}/${n}/Bluefile") (lib.attrNames (packageDirs root));
+    in
+    runCommand name { } ''
+      ${blue}/bin/blue bluefile --confirm ${lib.escapeShellArgs manifests}
+      touch $out
+    '';
 }

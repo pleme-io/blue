@@ -38,12 +38,13 @@
 //! failing half, a green run proves the function exists, not that the import
 //! delivered it.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use blue_lang_pkg::git_registry::GitRegistry;
 use blue_lang_pkg::load_path::LoadPath;
-use blue_lang_pkg::{Manifest, Range, Registry, Solver};
+use blue_lang_pkg::lock::{confirm, Freshness, Lock, LOCK_FILE};
+use blue_lang_pkg::{Manifest, Range, Registry, Solver, MANIFEST_FILE};
 
 /// The facade bidama — one `needs`, the whole standard distribution.
 const FACADE: &str = "zenbu";
@@ -297,7 +298,7 @@ fn granularity_holds_at_the_import_plane_too() {
 #[test]
 fn the_facade_is_an_ordinary_bidama_with_many_needs() {
     let registry = GitRegistry::scan(dist()).expect("scan");
-    let declared = literal_needs_count(FACADE);
+    let declared = evaluated_needs(&registry, FACADE).len();
 
     assert_eq!(
         declared,
@@ -313,72 +314,110 @@ fn the_facade_is_an_ordinary_bidama_with_many_needs() {
     );
 }
 
-/// How many `needs("…")` STRING LITERALS a manifest contains.
-///
-/// Deliberately the same dull text split `bidamas/mk-bidama.nix`'s `depsOf`
-/// performs, because the point of the test below is to compare that view
-/// against a different one — not to be a better parser than it.
-fn literal_needs_count(name: &str) -> usize {
-    std::fs::read_to_string(dist().join(name).join("Bluefile"))
-        .unwrap_or_else(|e| panic!("{name}/Bluefile: {e}"))
-        .matches("needs(\"")
-        .count()
+/// A package's dependencies as blue's RESOLVER sees them: `GitRegistry`
+/// evaluating the Bluefile.
+fn evaluated_needs(registry: &GitRegistry, name: &str) -> BTreeMap<String, Range> {
+    let version = *registry
+        .versions(name)
+        .first()
+        .unwrap_or_else(|| panic!("{name} must have a version"));
+    registry
+        .manifest(name, version)
+        .unwrap_or_else(|| panic!("{name} must have a manifest"))
+        .needs
 }
 
-/// **Nix's regex view and blue's evaluated view must agree, package by package.**
+/// A package's dependencies as NIX sees them: the committed `Bluefile.lock`,
+/// which `mk-bidama.nix`'s `depsOf` reads with `builtins.fromJSON`.
+fn locked_needs(name: &str) -> BTreeMap<String, Range> {
+    let text = std::fs::read_to_string(dist().join(name).join(LOCK_FILE))
+        .unwrap_or_else(|e| panic!("{name}/{LOCK_FILE}: {e} — run `blue lock bidamas/{name}`"));
+    let lock: Lock = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
+    lock.manifest
+        .needs
+        .iter()
+        .map(|(dep, range)| {
+            let parsed = Range::parse(range).unwrap_or_else(|e| panic!("{name}: {e}"));
+            (dep.clone(), parsed)
+        })
+        .collect()
+}
+
+/// **Nix's view and blue's evaluated view are one view, package by package.**
 ///
-/// `mk-bidama.nix` extracts the dependency graph by splitting the manifest text
-/// on `needs("`, and states its own ceiling: a `needs` whose argument is
-/// *computed* is invisible to nix. A Bluefile is blue code, so that is a real
-/// limit rather than a hypothetical — and the facade is the single most likely
-/// place for someone to reach past it, because "every sibling in the
-/// distribution" is exactly the sort of list an author wants to compute rather
-/// than type seventeen times.
+/// This was `the_regex_and_evaluated_dependency_views_agree`, and the change is
+/// the point of `theory/BLUE-STRUCTURE.md` P1. `mk-bidama.nix` used to extract
+/// the graph by splitting each manifest's text on `needs("`, so a *computed*
+/// `needs` was invisible to it — measured on 2026-08-02 by rewriting one
+/// `zenbu` entry as `computed = "moji"` / `needs(computed, "^0.1")`: blue
+/// resolved 17 dependencies, nix saw 16, the facade's closure shipped one
+/// bidama short, and **nothing went red.** The earlier form of this test made
+/// that loud by COUNTING both views; the regex is now deleted, and nix reads
+/// the committed `Bluefile.lock` instead.
 ///
-/// The failure that would cause is one-sided and therefore quiet: blue's
-/// resolver EVALUATES the manifest, so `blue deps` and every test in this file
-/// would stay green while the nix closure silently shipped a facade with no
-/// dependencies in it — "recorded and not delivered", which `mk-bidama.nix`
-/// records as a bug that already happened once.
+/// So this compares the lock nix reads against the registry blue resolves with
+/// — the dependency map itself, ranges included, not a count — and confirms
+/// each lock against its Bluefile's bytes. Two independent reads: `GitRegistry`
+/// evaluates the manifest on its own path, and the lock is a file on disk.
 ///
-/// This makes the divergence loud instead. It is not a fix for the ceiling —
-/// **tier: CI-gate-caught, not unrepresentable.** The fix named in
-/// `mk-bidama.nix` is a `blue bluefile --deps --json` subcommand so nix consumes
-/// blue's own evaluation; until that exists, this at least refuses to let the
-/// two views drift apart unnoticed.
+/// **Red run, recorded 2026-09-23.** The 2026-08-02 mutation applied to
+/// `bidamas/zenbu/Bluefile` without relocking failed this test (1 of 7 red):
+///
+/// ```text
+/// these Bluefile.lock files are not blue's evaluation of the Bluefile beside
+/// them — run `blue lock bidamas/<name>`: [("zenbu", "the Bluefile hashes to
+/// b3:7b2a552f…a72d034, and the lock records b3:3deaf4c0…c89e4a9")]
+/// ```
+///
+/// On 2026-08-02 the same mutation produced 17-vs-16 with nothing failing. Relocked
+/// (`blue lock bidamas/zenbu`), the same mutation is GREEN — and
+/// `mk-bidama.nix`'s `depsOf`, evaluated with `nix-instantiate --eval`, read
+/// `{"count":20,"hasMoji":true}` from the lock: the computed `needs` the scrape
+/// could not see is in nix's graph. Reverted, and the relocked lock is
+/// byte-identical to the committed one (`b3:3deaf4c0…`).
+///
+/// **Tier: eval- and CI-caught, not unrepresentable** — a stale lock can be
+/// committed; it cannot pass this test or the `bidama-locks-fresh` flake check.
 #[test]
-fn the_regex_and_evaluated_dependency_views_agree() {
+fn the_locked_and_evaluated_dependency_views_agree() {
     let registry = GitRegistry::scan(dist()).expect("scan");
     let mut disagreed = Vec::new();
+    let mut stale = Vec::new();
 
     for name in every_bidama() {
-        let version = *registry
-            .versions(&name)
-            .first()
-            .unwrap_or_else(|| panic!("{name} must have a version"));
-        let evaluated = registry
-            .manifest(&name, version)
-            .unwrap_or_else(|| panic!("{name} must have a manifest"))
-            .needs
-            .len();
-        let by_regex = literal_needs_count(&name);
-        if evaluated != by_regex {
-            disagreed.push((name, by_regex, evaluated));
+        let evaluated = evaluated_needs(&registry, &name);
+        let locked = locked_needs(&name);
+        if evaluated != locked {
+            disagreed.push((name.clone(), locked.len(), evaluated.len()));
+        }
+
+        let dir = dist().join(&name);
+        let src = std::fs::read_to_string(dir.join(MANIFEST_FILE)).expect("Bluefile");
+        let lock_text = std::fs::read_to_string(dir.join(LOCK_FILE)).ok();
+        if let Freshness::Stale { reason } =
+            confirm(&src, lock_text.as_deref()).unwrap_or_else(|e| panic!("{name}: {e}"))
+        {
+            stale.push((name, reason.to_string()));
         }
     }
 
     assert!(
         disagreed.is_empty(),
-        "nix reads dependencies with a text split and blue reads them by \
-         EVALUATING the manifest; these packages have a `needs` the text split \
-         cannot see, so their nix closure will be missing dependencies that \
-         resolve fine in blue — (package, by-regex, evaluated): {disagreed:?}"
+        "nix reads each package's dependencies from its Bluefile.lock and blue \
+         resolves them by EVALUATING the Bluefile; these disagree, so their nix \
+         closure differs from blue's resolution — (package, locked, evaluated): \
+         {disagreed:?}"
+    );
+    assert!(
+        stale.is_empty(),
+        "these Bluefile.lock files are not blue's evaluation of the Bluefile \
+         beside them — run `blue lock bidamas/<name>`: {stale:?}"
     );
 
     // Anti-vacuity: a run where every package happens to declare nothing would
-    // pass the loop above having compared zeros.
+    // pass the loop above having compared empty maps.
     assert!(
-        literal_needs_count(FACADE) >= 17,
+        locked_needs(FACADE).len() >= 20,
         "the comparison above is only meaningful over manifests that actually \
          declare dependencies"
     );

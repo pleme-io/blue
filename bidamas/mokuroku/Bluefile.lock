@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:20d3b966ab6f656cb15f067a19fed4f109a90757eb846795422c734e9fefcdec",
+  "manifest": {
+    "schema": 1,
+    "name": "mokuroku",
+    "version": "0.1.0",
+    "needs": {
+      "junjo": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:3deaf4c06939db5b076475e3c55cce821b124aae22060dc8596388521c89e4a9",
+  "manifest": {
+    "schema": 1,
+    "name": "zenbu",
+    "version": "0.1.0",
+    "needs": {
+      "angou": "^0.1.0",
+      "deeta": "^0.1.0",
+      "gyouretsu": "^0.1.0",
+      "hizuke": "^0.1.0",
+      "junjo": "^0.1.0",
+      "kansuu": "^0.1.0",
+      "kazu": "^0.1.0",
+      "kikagaku": "^0.1.0",
+      "kumiawase": "^0.1.0",
+      "moji": "^0.1.0",
+      "mokuroku": "^0.1.0",
+      "ongaku": "^0.1.0",
+      "ran": "^0.1.0",
+      "retsu": "^0.1.0",
+      "ronri": "^0.1.0",
+      "seimei": "^0.1.0",
+      "shinsuu": "^0.1.0",
+      "shisutemu": "^0.1.0",
+      "shuugou": "^0.1.0",
+      "toukei": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

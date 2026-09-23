@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:c801f3d397ed2dc488fbcdb1ef4a69c10acef9ae0d204489a73a3b2c1cf31108",
+  "manifest": {
+    "schema": 1,
+    "name": "hizuke",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

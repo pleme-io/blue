@@ -72,7 +72,7 @@ checker.
 | processes, supervision, mailboxes, isolation | `blue-lang-proc` |
 | interpreter construction, erasure, pipeline | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
-| Bluefile + version solver | `blue-lang-pkg` |
+| Bluefile (the `WORDS` table) + version solver + `Bluefile.lock` | `blue-lang-pkg` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
 | LSP: transport-free core + stdio shim | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
@@ -188,6 +188,14 @@ Each of these is a defect that shipped, not a style preference.
   blue mints. `Capability` closes the whole nameable vocabulary; the host-effect
   subset is what `imports_of` lowers. **Adding a variant is `E0004` at four
   sites**, which is what makes the import table derived rather than maintained.
+- **Nix reads blue's evaluation of a Bluefile; it never re-derives it.**
+  `mk-bidama.nix` used to split each manifest's text on `needs("`, and a
+  computed `needs` was invisible to it — a facade closure one package short,
+  with nothing red. It now reads the committed `Bluefile.lock` (`blue lock`),
+  and `bidama-locks-fresh` + `granularity.rs` fail on a stale one. **Edit a
+  Bluefile, run `blue lock <dir>`, commit both.** A new manifest word is a row
+  in `bluefile.rs`'s `WORDS` and a name in `MANIFEST_NAMES`; a gate fails if
+  the two disagree.
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
   across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
   ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a

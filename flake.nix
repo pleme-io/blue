@@ -331,6 +331,9 @@
             committed = ./bidamas/CATALOG.md;
           };
           bidama-collisions = d.bl.mkCollisionCheck { inherit (d) blue bidamas; };
+          # Every bidama's Bluefile.lock is blue's evaluation of its Bluefile —
+          # the lock is what `mkBidama` builds the graph from (BLUE-STRUCTURE P1).
+          bidama-locks-fresh = d.bl.mkLockCheck { inherit (d) blue; root = ./bidamas; };
           module-surface = import ./nix/module-surface-check.nix {
             inherit lib;
             # blue's own overlay, because `programs.blue.package` defaults to

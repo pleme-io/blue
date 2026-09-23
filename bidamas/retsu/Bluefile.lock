@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:d29d4ca4982fe85143f66dcf32467b493fc0d029c9ce3d91ca8bd42555adbc9e",
+  "manifest": {
+    "schema": 1,
+    "name": "retsu",
+    "version": "0.1.0",
+    "needs": {
+      "kazu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

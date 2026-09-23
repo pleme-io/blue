@@ -46,7 +46,7 @@
 //! | [`Capability::Interpolation`] | `blue_lang_syntax::LOWERED_CONCAT` |
 //! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT` |
 //! | [`Capability::CoreForms`] | the heads `blue-lang-syntax` lowers control flow to |
-//! | [`Capability::ManifestDeclaration`] | the three Bluefile primitives |
+//! | [`Capability::ManifestDeclaration`] | the Bluefile vocabulary (`blue_lang_pkg::bluefile`'s word table) |
 //! | the four host bundles | `blue_lang_runtime::sys`'s four installers |
 //!
 //! The last row is the one that could rot, and it is gated rather than trusted:
@@ -96,7 +96,14 @@ pub enum Capability {
     /// gates. Granting it is granting the right to *name* it, which is a
     /// different question from who defines it.
     Assertion,
-    /// The three primitives a Bluefile is *for*.
+    /// The words a Bluefile is *for* — the project facts a manifest records.
+    ///
+    /// `package`/`needs`/`posture` since the Bluefile landed; `source`,
+    /// `packages`, `run`, `tool`, `check`, `app` and `catalog` since
+    /// `theory/BLUE-STRUCTURE.md` P1b (2026-09-23), so a project states every
+    /// fact its build needs without writing nix. Each name has exactly one
+    /// recorder in `blue_lang_pkg::bluefile`, and a gate there fails if the
+    /// two lists disagree in either direction.
     ManifestDeclaration,
 
     // ── host effects: each lowers to exactly one import ───────────────────
@@ -165,7 +172,13 @@ const CORE_FORM_NAMES: &[&str] = &[
 const COLLECTION_NAMES: &[&str] = &["list", blue_lang_syntax::LOWERED_MAP];
 const INTERPOLATION_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_CONCAT];
 const ASSERTION_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
-const MANIFEST_NAMES: &[&str] = &["package", "needs", "posture"];
+/// The Bluefile vocabulary. `blue_lang_pkg::bluefile`'s word table records
+/// each of these, and `the_word_table_is_the_manifest_capability` there fails
+/// when the two disagree — a name here with no recorder would pass the frame
+/// and die unbound; a recorder with no name here could never be reached.
+const MANIFEST_NAMES: &[&str] = &[
+    "package", "needs", "posture", "source", "packages", "run", "tool", "check", "app", "catalog",
+];
 
 /// `blue_lang_runtime::sys::install_process`, 2026-08-13.
 const PROCESS_NAMES: &[&str] = &[
@@ -469,9 +482,10 @@ mod tests {
                 }
             }
         }
-        // The floor: 66 distinct names on 2026-08-13.
+        // The floor: 73 distinct names on 2026-09-23 (66 on 2026-08-13, plus
+        // the seven Bluefile words P1b added).
         assert!(
-            owner.len() >= 66,
+            owner.len() >= 73,
             "the universe shrank to {} names",
             owner.len()
         );

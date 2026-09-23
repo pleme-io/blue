@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:0a6b762bd04253561bc674eba2377ca91ac510b87cfa5a1f6df0100eb9a471d3",
+  "manifest": {
+    "schema": 1,
+    "name": "gyouretsu",
+    "version": "0.1.0",
+    "needs": {
+      "kazu": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

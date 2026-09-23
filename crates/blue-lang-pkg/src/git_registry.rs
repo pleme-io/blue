@@ -84,7 +84,7 @@ impl GitRegistry {
             if !path.is_dir() {
                 continue;
             }
-            let manifest_path = path.join("Bluefile");
+            let manifest_path = path.join(bluefile::MANIFEST_FILE);
             let Ok(text) = std::fs::read_to_string(&manifest_path) else {
                 continue; // not a package; see the doc comment
             };

@@ -16,6 +16,8 @@ blue-lang-bidama = { workspace = true }
 tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 # PATH ONLY — a sibling dev-dep never carries a version. See the rule in

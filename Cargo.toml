@@ -25,6 +25,9 @@ blue-lang-lsp = { path = "crates/blue-lang-lsp", version = "0.0.33" }
 blue-lang-art = { path = "crates/blue-lang-art", version = "0.0.33" }
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
+# `Bluefile.lock` and `blue bluefile --json` — the evaluated manifest nix reads.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 # Registry deps, not path deps. A path dep pointing outside the repo cannot
 # resolve inside a Nix build sandbox, where the source is just this
 # repository — which is precisely why tatara-lisp was extracted from the

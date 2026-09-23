@@ -15,6 +15,9 @@
 //! blue test    FILE            run the file's `test` blocks
 //! blue deps    BLUEFILE        resolve the manifest's dependencies
 //! blue posture BLUEFILE        the posture the manifest's floors require
+//! blue bluefile --json BLUEFILE         the evaluated manifest, as JSON
+//! blue bluefile --confirm BLUEFILE...   exit 1 unless each Bluefile.lock is fresh
+//! blue lock    [DIR...]        evaluate, pin every source, write Bluefile.lock
 //! blue config  [TIER]          the bounds blue is running with
 //! blue lsp                     speak LSP over stdio
 //! blue banner                  the wordmark — the blueshift ramp
@@ -31,6 +34,12 @@
 //! `BLUE_PATH` (via `GitRegistry`) and installs nothing. With no distribution
 //! there, it says so rather than printing a hollow resolution.
 //!
+//! `blue bluefile` and `blue lock` are how nix reads blue without running it
+//! (`theory/BLUE-STRUCTURE.md` §5.1): `lock` commits the evaluation, and
+//! `--confirm` is the offline freshness gate the flake runs over every package.
+//! `lock` is the one subcommand that starts a process — `nix flake prefetch`,
+//! behind `blue_lang_pkg::lock::Prefetch` so no test reaches the network.
+//!
 //! Every subcommand runs under the bounds in `config` — resolved once, here,
 //! and threaded down.
 //!
@@ -39,10 +48,12 @@
 //! it is how a reader sees that annotations are consumed rather than carried.
 
 mod config;
+mod prefetch;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use blue_lang_pkg::lock::{Freshness, ManifestRecord, LOCK_FILE};
 use clap::{Parser, Subcommand};
 
 use config::BlueConfig;
@@ -93,6 +104,26 @@ enum Cmd {
     Deps { file: PathBuf },
     /// Report the posture a Bluefile's declared floor requires.
     Posture { file: PathBuf },
+    /// Print a Bluefile's evaluated manifest, or confirm its lock is fresh.
+    #[command(group(clap::ArgGroup::new("mode").required(true).args(["json", "confirm"])))]
+    Bluefile {
+        /// Print the evaluated manifest as JSON — what `Bluefile.lock` records
+        /// under `manifest`.
+        #[arg(long)]
+        json: bool,
+        /// Exit non-zero unless the `Bluefile.lock` beside every named
+        /// Bluefile is blue's evaluation of it. Offline.
+        #[arg(long)]
+        confirm: bool,
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+    },
+    /// Evaluate each directory's Bluefile, pin every `source(...)` with
+    /// `nix flake prefetch`, and write `Bluefile.lock` beside it.
+    Lock {
+        /// Directories holding a Bluefile. The current one when none is named.
+        dirs: Vec<PathBuf>,
+    },
     /// Run the language server, speaking LSP over stdin/stdout.
     Lsp,
     /// Print blue's wordmark.
@@ -144,6 +175,25 @@ enum CliError {
     Pkg(String),
     #[error("{0}")]
     Config(#[from] shikumi::cli::ConfigShowError),
+    #[error("{0}")]
+    Bluefile(#[from] blue_lang_pkg::BluefileError),
+    #[error("{0}")]
+    Lock(#[from] blue_lang_pkg::lock::LockError),
+    #[error("could not render JSON: {0}")]
+    Json(#[from] serde_json::Error),
+    /// `--json` prints ONE manifest; several would need a container shape, and
+    /// inventing one here would be a second schema beside the lock's.
+    #[error("`blue bluefile --json` prints one manifest, and {got} Bluefiles were named")]
+    JsonTakesOne { got: usize },
+}
+
+/// One line of `blue bluefile --confirm` output: which Bluefile, and its
+/// verdict (`{"status": "fresh"}` or `{"status": "stale", "reason": …}`).
+#[derive(serde::Serialize)]
+struct Confirmation<'a> {
+    bluefile: String,
+    #[serde(flatten)]
+    verdict: &'a Freshness,
 }
 
 fn read(path: &Path) -> Result<String, CliError> {
@@ -467,6 +517,94 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             };
             println!("\n  grants:   {}", names(&grants));
             println!("  forfeits: {}", names(&lost));
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Bluefile {
+            json,
+            confirm: _,
+            files,
+        } => {
+            if json {
+                let [file] = files.as_slice() else {
+                    return Err(CliError::JsonTakesOne { got: files.len() });
+                };
+                let bluefile = blue_lang_pkg::read_bluefile(&read(file)?)?;
+                print!(
+                    "{}",
+                    blue_lang_pkg::lock::render(&ManifestRecord::of(&bluefile))?
+                );
+                return Ok(ExitCode::SUCCESS);
+            }
+            // `--confirm`, the group's only other member. Every file is
+            // checked and reported before the exit code is decided, so one
+            // stale package does not hide the next.
+            let mut all_fresh = true;
+            for file in &files {
+                let src = read(file)?;
+                let lock_path = file.with_file_name(LOCK_FILE);
+                let lock_text = match std::fs::read_to_string(&lock_path) {
+                    Ok(text) => Some(text),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                    Err(source) => {
+                        return Err(CliError::Read {
+                            path: lock_path.display().to_string(),
+                            source,
+                        })
+                    }
+                };
+                let verdict = blue_lang_pkg::lock::confirm(&src, lock_text.as_deref())?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&Confirmation {
+                        bluefile: file.display().to_string(),
+                        verdict: &verdict,
+                    })?
+                );
+                if let Freshness::Stale { reason } = &verdict {
+                    let dir = file.parent().filter(|p| !p.as_os_str().is_empty());
+                    eprintln!(
+                        "blue: {}: {reason}; run `blue lock {}`",
+                        file.display(),
+                        dir.unwrap_or(Path::new(".")).display()
+                    );
+                    all_fresh = false;
+                }
+            }
+            Ok(if all_fresh {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            })
+        }
+
+        Cmd::Lock { dirs } => {
+            let dirs = if dirs.is_empty() {
+                vec![PathBuf::from(".")]
+            } else {
+                dirs
+            };
+            // Every lock is computed before any is written: a source that fails
+            // to pin must not leave half a directory tree relocked.
+            let mut locks = Vec::with_capacity(dirs.len());
+            for dir in &dirs {
+                let src = read(&dir.join(blue_lang_pkg::MANIFEST_FILE))?;
+                let lock = blue_lang_pkg::lock::lock(&src, &prefetch::NixPrefetch)?;
+                locks.push((dir.join(LOCK_FILE), lock));
+            }
+            for (path, lock) in &locks {
+                std::fs::write(path, blue_lang_pkg::lock::render(lock)?).map_err(|source| {
+                    CliError::Write {
+                        path: path.display().to_string(),
+                        source,
+                    }
+                })?;
+                println!(
+                    "{}: {} source(s) pinned",
+                    path.display(),
+                    lock.sources.len()
+                );
+            }
             Ok(ExitCode::SUCCESS)
         }
 

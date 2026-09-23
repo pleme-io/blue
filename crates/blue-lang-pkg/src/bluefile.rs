@@ -79,16 +79,44 @@
 //! declaration composes with the root's ceiling, which is bīdama's question,
 //! not this module's. Recorded here so the next reader does not re-derive the
 //! old blocker and conclude it is still there.
+//!
+//! ## The vocabulary is the whole build (`theory/BLUE-STRUCTURE.md` §5.5)
+//!
+//! A blue project writes no nix. Every fact a hand-written flake used to state
+//! is a word here, recorded into [`Project`] and printed by
+//! `blue bluefile --json`:
+//!
+//! | Word | Records |
+//! |---|---|
+//! | `source(name, url, dir)` | a named external distribution root |
+//! | `packages(dir)` | a local package root |
+//! | `run(name, file[, reads])` | a program run as its own cached derivation |
+//! | `tool(name)` | a nixpkgs attribute on PATH for runs, checks and apps |
+//! | `check(name, file)` | a test file run as a check |
+//! | `app(name, file)` | a program exposed as `nix run .#name` |
+//! | `catalog(path)` | the mokuroku catalogue of `packages`, gated fresh |
+//!
+//! The words are FACTS, never nix expressions (§5.3 stands): one engine lowers
+//! them. **The table is [`WORDS`], and it is the only place a word is defined**
+//! — its arity, its signature and what it records. Every call is checked
+//! against it before anything is recorded, so a malformed call is a typed
+//! [`Malformed`] rather than the silent drop `package` and `needs` used to
+//! perform on a non-string argument.
 
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use blue_lang_waku::{check_reach_program, Capability, Waku, When};
+use serde::{Deserialize, Serialize};
 use tatara_lisp_eval::ffi::Arity;
-use tatara_lisp_eval::{Interpreter, Value};
+use tatara_lisp_eval::{EvalError, Interpreter, Value};
 
 use crate::solve::Manifest;
 use crate::version::{Range, Version};
+
+/// The file a package's manifest lives in.
+pub const MANIFEST_FILE: &str = "Bluefile";
 
 /// What a Bluefile declared.
 #[derive(Clone, Debug, PartialEq)]
@@ -98,6 +126,60 @@ pub struct Bluefile {
     pub manifest: Manifest,
     /// The least frame this package needs — its bīdama floor.
     pub floor: Waku,
+    /// Every other fact the project states about its build — §5.5's words.
+    pub project: Project,
+}
+
+/// The project facts a Bluefile records beyond its identity, needs and floor.
+///
+/// **These field names ARE the JSON keys** `blue bluefile --json` prints and
+/// `Bluefile.lock` carries, so the nix side reads exactly what is declared
+/// here. Named things are maps keyed by the author's name — which is also the
+/// name `nix build .#<name>` will use — and a second declaration of one name is
+/// [`Malformed::Duplicate`], never a silent overwrite.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Project {
+    /// `source(name, url, dir)`.
+    pub sources: BTreeMap<String, Source>,
+    /// `packages(dir)`, in declaration order — the order a load path searches.
+    pub packages: Vec<String>,
+    /// `run(name, file[, reads])`.
+    pub runs: BTreeMap<String, Run>,
+    /// `tool(name)`, in declaration order.
+    pub tools: Vec<String>,
+    /// `check(name, file)`.
+    pub checks: BTreeMap<String, Program>,
+    /// `app(name, file)`.
+    pub apps: BTreeMap<String, Program>,
+    /// `catalog(path)` — where the catalogue of `packages` is committed.
+    pub catalog: Option<String>,
+}
+
+/// A named external distribution root: where to fetch it, and which directory
+/// inside it holds the packages. The pin lives in `Bluefile.lock`, not here —
+/// a Bluefile states intent, the lock states the revision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Source {
+    pub url: String,
+    pub dir: String,
+}
+
+/// A program run as its own cached derivation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Run {
+    pub file: String,
+    /// The runs whose outputs this one reads. Every name must be a declared
+    /// run, and the graph must be acyclic — both checked at read time.
+    pub reads: Vec<String>,
+}
+
+/// A program a check or an app runs.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Program {
+    pub file: String,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -128,15 +210,68 @@ pub enum BluefileError {
         .names.join(", ")
     )]
     Escapes { names: Vec<String> },
+    /// A word was called wrongly — see [`Malformed`].
+    #[error("{0}")]
+    Malformed(#[from] Malformed),
+    /// A `run` reads a run the Bluefile never declares. The engine would have
+    /// nothing to wire the edge to.
+    #[error("run `{run}` reads `{missing}`, which no `run(...)` in this Bluefile declares")]
+    UnknownRead { run: String, missing: String },
+    /// Runs that read each other in a cycle — no order can build them.
+    #[error("runs read each other in a cycle: {}", .cycle.join(" -> "))]
+    RunCycle { cycle: Vec<String> },
+    /// `catalog(...)` catalogues the `packages(...)` roots; with none there is
+    /// nothing to catalogue, and an empty catalogue would pass its own gate.
+    #[error(
+        "`catalog(...)` catalogues the `packages(...)` roots, and this Bluefile declares none"
+    )]
+    CatalogWithoutPackages,
+}
+
+/// A call to a manifest word that does not match the word's signature.
+///
+/// Each arm names the word, because a manifest error that says only "type
+/// mismatch" sends the author hunting through every call in the file.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum Malformed {
+    #[error("`{word}` is called as `{signature}`; this call passes {got} argument(s)")]
+    Arity {
+        word: &'static str,
+        signature: &'static str,
+        got: usize,
+    },
+    #[error("`{word}`: `{param}` must be {expected}, got {got}")]
+    Type {
+        word: &'static str,
+        param: &'static str,
+        expected: &'static str,
+        got: &'static str,
+    },
+    /// A path argument that is absolute or climbs out of the project. The
+    /// engine reads every path relative to the project root, and a path that
+    /// leaves it would make the build read what the project does not contain.
+    #[error("`{word}`: `{param}` must be a relative path inside the project, got `{got}`")]
+    Path {
+        word: &'static str,
+        param: &'static str,
+        got: String,
+    },
+    #[error("`{word}` declares `{name}` twice")]
+    Duplicate { word: &'static str, name: String },
 }
 
 /// The frame a Bluefile is evaluated in.
 ///
 /// `When::Preceding` because a manifest is read top to bottom and nothing in it
 /// should need a resident evaluator; `Where::Process` because it computes in
-/// its own heap. The `Reach` is the manifest vocabulary: **three capabilities,
+/// its own heap. The `Reach` is the manifest vocabulary: **four capabilities,
 /// none of them a host effect**, so `imports_of(manifest_frame())` is empty and
 /// a manifest opens nothing.
+///
+/// `Capability::Collections` joined on 2026-09-23 (P1b) for one reason:
+/// `run(name, file, reads)` takes a LIST of run names, and `["a", "b"]` lowers
+/// to `list`. It also grants the map constructor; both are pure, so the frame
+/// still derives no import.
 ///
 /// **The three name lists this function used to own moved into
 /// [`blue_lang_waku::Capability`] when M0 closed the universe**, and the move is
@@ -158,6 +293,7 @@ pub fn manifest_frame() -> Waku {
         Capability::ManifestDeclaration,
         Capability::CoreForms,
         Capability::Operators,
+        Capability::Collections,
     ])
 }
 
@@ -165,11 +301,280 @@ pub fn manifest_frame() -> Waku {
 #[derive(Default)]
 struct Collected {
     package: Option<(String, String)>,
-    needs: Vec<(String, String)>,
+    needs: BTreeMap<String, String>,
     when: Option<String>,
+    project: Project,
+    /// The first malformed call. Recorded here as well as raised, so the typed
+    /// error survives the trip through the evaluator's untyped `EvalError`.
+    malformed: Option<Malformed>,
 }
 
 type Shared = Arc<Mutex<Collected>>;
+
+/// One word of the manifest vocabulary.
+struct Word {
+    name: &'static str,
+    /// How an author calls it — quoted in every arity error.
+    signature: &'static str,
+    min: usize,
+    max: usize,
+    /// What the word records. Runs only after the arity is checked, and reads
+    /// its arguments through [`Call`], which types each one.
+    record: fn(&Call<'_>, &mut Collected) -> Result<(), Malformed>,
+}
+
+/// **The vocabulary — the one place a manifest word is defined.**
+///
+/// `the_word_table_is_the_manifest_capability` pins these names against
+/// `Capability::ManifestDeclaration` in both directions: a name the frame
+/// grants with no row here would pass the frame and die unbound, and a row the
+/// frame does not grant could never be called.
+const WORDS: &[Word] = &[
+    Word {
+        name: "package",
+        signature: "package(name, version)",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let version = c.text(1, "version")?;
+            set_once(&mut into.package, c.word, name.clone(), (name, version))
+        },
+    },
+    Word {
+        name: "needs",
+        signature: "needs(name, range)",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let range = c.text(1, "range")?;
+            insert_once(&mut into.needs, c.word, name, range)
+        },
+    },
+    Word {
+        name: "posture",
+        signature: "posture(when)",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let when = c.label(0, "when")?;
+            set_once(&mut into.when, c.word, when.clone(), when)
+        },
+    },
+    Word {
+        name: "source",
+        signature: "source(name, url, dir)",
+        min: 3,
+        max: 3,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let source = Source {
+                url: c.text(1, "url")?,
+                dir: c.path(2, "dir")?,
+            };
+            insert_once(&mut into.project.sources, c.word, name, source)
+        },
+    },
+    Word {
+        name: "packages",
+        signature: "packages(dir)",
+        min: 1,
+        max: 1,
+        record: |c, into| push_once(&mut into.project.packages, c.word, c.path(0, "dir")?),
+    },
+    Word {
+        name: "run",
+        signature: "run(name, file[, reads])",
+        min: 2,
+        max: 3,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let run = Run {
+                file: c.path(1, "file")?,
+                reads: if c.args.len() > 2 {
+                    c.names(2, "reads")?
+                } else {
+                    Vec::new()
+                },
+            };
+            insert_once(&mut into.project.runs, c.word, name, run)
+        },
+    },
+    Word {
+        name: "tool",
+        signature: "tool(name)",
+        min: 1,
+        max: 1,
+        record: |c, into| push_once(&mut into.project.tools, c.word, c.text(0, "name")?),
+    },
+    Word {
+        name: "check",
+        signature: "check(name, file)",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let program = Program {
+                file: c.path(1, "file")?,
+            };
+            insert_once(&mut into.project.checks, c.word, name, program)
+        },
+    },
+    Word {
+        name: "app",
+        signature: "app(name, file)",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let program = Program {
+                file: c.path(1, "file")?,
+            };
+            insert_once(&mut into.project.apps, c.word, name, program)
+        },
+    },
+    Word {
+        name: "catalog",
+        signature: "catalog(path)",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let path = c.path(0, "path")?;
+            set_once(&mut into.project.catalog, c.word, path.clone(), path)
+        },
+    },
+];
+
+/// One call to a word, with typed access to its arguments.
+struct Call<'a> {
+    word: &'static str,
+    args: &'a [Value],
+}
+
+impl Call<'_> {
+    fn type_error(&self, i: usize, param: &'static str, expected: &'static str) -> Malformed {
+        Malformed::Type {
+            word: self.word,
+            param,
+            expected,
+            got: self.args[i].type_name(),
+        }
+    }
+
+    /// A string argument.
+    fn text(&self, i: usize, param: &'static str) -> Result<String, Malformed> {
+        match &self.args[i] {
+            Value::Str(s) => Ok(s.to_string()),
+            _ => Err(self.type_error(i, param, "a string")),
+        }
+    }
+
+    /// A string or a keyword — `posture("sealed")` and `posture(:sealed)`.
+    fn label(&self, i: usize, param: &'static str) -> Result<String, Malformed> {
+        match &self.args[i] {
+            Value::Str(s) | Value::Keyword(s) => Ok(s.to_string()),
+            _ => Err(self.type_error(i, param, "a string or a keyword")),
+        }
+    }
+
+    /// A string naming a path relative to the project root.
+    fn path(&self, i: usize, param: &'static str) -> Result<String, Malformed> {
+        let text = self.text(i, param)?;
+        let p = std::path::Path::new(&text);
+        let inside = !text.is_empty()
+            && p.components().all(|c| {
+                matches!(
+                    c,
+                    std::path::Component::Normal(_) | std::path::Component::CurDir
+                )
+            });
+        if inside {
+            Ok(text)
+        } else {
+            Err(Malformed::Path {
+                word: self.word,
+                param,
+                got: text,
+            })
+        }
+    }
+
+    /// A list of strings.
+    fn names(&self, i: usize, param: &'static str) -> Result<Vec<String>, Malformed> {
+        let expected = "a list of strings";
+        let Value::List(items) = &self.args[i] else {
+            return Err(self.type_error(i, param, expected));
+        };
+        items
+            .iter()
+            .map(|v| match v {
+                Value::Str(s) => Ok(s.to_string()),
+                _ => Err(self.type_error(i, param, expected)),
+            })
+            .collect()
+    }
+}
+
+/// Record a single-valued fact, refusing a second declaration.
+fn set_once<T>(
+    slot: &mut Option<T>,
+    word: &'static str,
+    name: String,
+    value: T,
+) -> Result<(), Malformed> {
+    if slot.is_some() {
+        return Err(Malformed::Duplicate { word, name });
+    }
+    *slot = Some(value);
+    Ok(())
+}
+
+/// Record a named fact, refusing a second declaration of the name.
+fn insert_once<V>(
+    map: &mut BTreeMap<String, V>,
+    word: &'static str,
+    name: String,
+    value: V,
+) -> Result<(), Malformed> {
+    match map.entry(name) {
+        Entry::Vacant(e) => {
+            e.insert(value);
+            Ok(())
+        }
+        Entry::Occupied(e) => Err(Malformed::Duplicate {
+            word,
+            name: e.key().clone(),
+        }),
+    }
+}
+
+/// Record an ordered fact, refusing a repeat.
+fn push_once(list: &mut Vec<String>, word: &'static str, value: String) -> Result<(), Malformed> {
+    if list.contains(&value) {
+        return Err(Malformed::Duplicate { word, name: value });
+    }
+    list.push(value);
+    Ok(())
+}
+
+/// The `when` coordinate as a Bluefile spells it. Exhaustive, no wildcard —
+/// the parse below reads this function rather than a second spelling table, so
+/// a posture cannot be written one way and recorded another.
+#[must_use]
+pub fn when_label(when: When) -> &'static str {
+    match when {
+        When::Sealed => "sealed",
+        When::Preceding => "preceding",
+        When::Anytime => "anytime",
+    }
+}
+
+fn parse_when(text: &str) -> Option<When> {
+    [When::Sealed, When::Preceding, When::Anytime]
+        .into_iter()
+        .find(|w| when_label(*w) == text)
+}
 
 /// Read a Bluefile from blue source.
 pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
@@ -205,12 +610,16 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
     let mut interp = blue_lang_runtime::interpreter_hostless();
     install_manifest_primitives(&mut interp, &collected);
 
-    interp
-        .eval_program(&erased, &mut ())
-        .map_err(|e| BluefileError::Eval(e.to_string()))?;
+    let evaluated = interp.eval_program(&erased, &mut ());
+    let c = std::mem::take(&mut *collected.lock().expect("manifest lock"));
+    // The typed malformation first: it is the REASON evaluation stopped, and
+    // the `EvalError` it travelled as is the same fact with its type erased.
+    if let Some(m) = c.malformed {
+        return Err(m.into());
+    }
+    evaluated.map_err(|e| BluefileError::Eval(e.to_string()))?;
 
-    let c = collected.lock().expect("manifest lock");
-    let (name, version_text) = c.package.clone().ok_or(BluefileError::NoPackage)?;
+    let (name, version_text) = c.package.ok_or(BluefileError::NoPackage)?;
     let version = Version::parse(&version_text)?;
 
     let mut needs = BTreeMap::new();
@@ -223,72 +632,115 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
     // would make every unannotated package demand a sealed evaluator.
     let mut floor = Waku::top();
     if let Some(w) = &c.when {
-        floor.when = match w.as_str() {
-            "sealed" => When::Sealed,
-            "preceding" => When::Preceding,
-            "anytime" => When::Anytime,
-            other => return Err(BluefileError::BadWhen(other.to_string())),
-        };
+        floor.when = parse_when(w).ok_or_else(|| BluefileError::BadWhen(w.clone()))?;
     }
+
+    check_project(&c.project)?;
 
     Ok(Bluefile {
         name,
         version,
         manifest: Manifest { needs },
         floor,
+        project: c.project,
     })
 }
 
+/// The facts that span more than one call, checked once the whole manifest
+/// has run — a `run` may read one declared further down the file.
+fn check_project(project: &Project) -> Result<(), BluefileError> {
+    if project.catalog.is_some() && project.packages.is_empty() {
+        return Err(BluefileError::CatalogWithoutPackages);
+    }
+    for (name, run) in &project.runs {
+        if let Some(missing) = run.reads.iter().find(|r| !project.runs.contains_key(*r)) {
+            return Err(BluefileError::UnknownRead {
+                run: name.clone(),
+                missing: missing.clone(),
+            });
+        }
+    }
+    // Depth-first, three-coloured: `open` is the current path, so reaching an
+    // open run again IS the cycle, and the path from it is what gets reported.
+    fn visit<'a>(
+        name: &'a str,
+        runs: &'a BTreeMap<String, Run>,
+        done: &mut std::collections::BTreeSet<&'a str>,
+        open: &mut Vec<&'a str>,
+    ) -> Option<Vec<String>> {
+        if done.contains(name) {
+            return None;
+        }
+        if let Some(at) = open.iter().position(|n| *n == name) {
+            let mut cycle: Vec<String> = open[at..].iter().map(|n| (*n).to_string()).collect();
+            cycle.push(name.to_string());
+            return Some(cycle);
+        }
+        open.push(name);
+        let reads = runs
+            .get(name)
+            .map(|r| r.reads.as_slice())
+            .unwrap_or_default();
+        for read in reads {
+            if let Some(cycle) = visit(read, runs, done, open) {
+                return Some(cycle);
+            }
+        }
+        open.pop();
+        done.insert(name);
+        None
+    }
+    let mut done = std::collections::BTreeSet::new();
+    for name in project.runs.keys() {
+        if let Some(cycle) = visit(name, &project.runs, &mut done, &mut Vec::new()) {
+            return Err(BluefileError::RunCycle { cycle });
+        }
+    }
+    Ok(())
+}
+
+/// Bind every word in [`WORDS`] into the manifest interpreter.
+///
+/// Registered with `Arity::Any` and checked here instead, against the word's
+/// own `min`/`max`: tatara's arity refusal is an untyped `EvalError`, and the
+/// whole point of the table is that a malformed call comes back as a
+/// [`Malformed`] naming the word and its signature.
 fn install_manifest_primitives(interp: &mut Interpreter<()>, collected: &Shared) {
-    // package(name, version)
-    let slot = collected.clone();
-    interp.register_fn(
-        "package",
-        Arity::Exact(2),
-        move |args: &[Value], _h: &mut (), _s| {
-            if let (Value::Str(n), Value::Str(v)) = (&args[0], &args[1]) {
-                if let Ok(mut c) = slot.lock() {
-                    c.package = Some((n.to_string(), v.to_string()));
+    for word in WORDS {
+        let slot = collected.clone();
+        interp.register_fn(
+            word.name,
+            Arity::Any,
+            move |args: &[Value], _h: &mut (), span| {
+                let mut c = slot.lock().map_err(|_| {
+                    EvalError::native_fn(word.name, "the manifest recorder was poisoned", span)
+                })?;
+                let recorded = if (word.min..=word.max).contains(&args.len()) {
+                    (word.record)(
+                        &Call {
+                            word: word.name,
+                            args,
+                        },
+                        &mut c,
+                    )
+                } else {
+                    Err(Malformed::Arity {
+                        word: word.name,
+                        signature: word.signature,
+                        got: args.len(),
+                    })
+                };
+                match recorded {
+                    Ok(()) => Ok(Value::Nil),
+                    Err(m) => {
+                        let raised = EvalError::native_fn(word.name, m.to_string(), span);
+                        c.malformed.get_or_insert(m);
+                        Err(raised)
+                    }
                 }
-            }
-            Ok(Value::Nil)
-        },
-    );
-
-    // needs(name, range)
-    let slot = collected.clone();
-    interp.register_fn(
-        "needs",
-        Arity::Exact(2),
-        move |args: &[Value], _h: &mut (), _s| {
-            if let (Value::Str(n), Value::Str(r)) = (&args[0], &args[1]) {
-                if let Ok(mut c) = slot.lock() {
-                    c.needs.push((n.to_string(), r.to_string()));
-                }
-            }
-            Ok(Value::Nil)
-        },
-    );
-
-    // posture(when) — one coordinate for now. `Reach` and `Where` are declared
-    // but not yet accepted here, because a package's capability set needs the
-    // capability surface to be wired before a declaration can mean anything.
-    let slot = collected.clone();
-    interp.register_fn(
-        "posture",
-        Arity::Exact(1),
-        move |args: &[Value], _h: &mut (), _s| {
-            let w = match &args[0] {
-                Value::Str(s) => Some(s.to_string()),
-                Value::Keyword(k) => Some(k.to_string()),
-                _ => None,
-            };
-            if let (Some(w), Ok(mut c)) = (w, slot.lock()) {
-                c.when = Some(w);
-            }
-            Ok(Value::Nil)
-        },
-    );
+            },
+        );
+    }
 }
 
 #[cfg(test)]
@@ -298,19 +750,30 @@ mod tests {
 
     const SIMPLE: &str = "package(\"myapp\", \"0.1.0\")\nneeds(\"gaming\", \"^1.2\")";
 
-    /// **The frame did not change when its representation did.**
+    /// **The frame did not change when its representation did — and when it
+    /// grew, it grew by exactly these names.**
     ///
     /// M0 replaced three hand-written name lists in this file with three
     /// capabilities. The names are spelled out here — independently of the
-    /// capability definitions, and matching what this function granted before
-    /// the change — so a bundle that quietly grew or shrank moves the manifest
-    /// vocabulary and fails here rather than widening what a third party's
-    /// Bluefile may name.
+    /// capability definitions — so a bundle that quietly grew or shrank moves
+    /// the manifest vocabulary and fails here rather than widening what a third
+    /// party's Bluefile may name.
+    ///
+    /// **Widened deliberately on 2026-09-23 (`BLUE-STRUCTURE.md` P1b):** the
+    /// seven §5.5 words, and `list` plus the map constructor for
+    /// `run(name, file, reads)`'s list argument. Every addition is listed by
+    /// name below; nothing a host installs joined.
     #[test]
     fn the_manifest_frame_grants_exactly_the_vocabulary_it_always_did() {
         let f = manifest_frame();
         let expected: BTreeSet<&str> = ["package", "needs", "posture"]
             .into_iter()
+            // P1b's words, 2026-09-23.
+            .chain([
+                "source", "packages", "run", "tool", "check", "app", "catalog",
+            ])
+            // P1b's list argument, 2026-09-23 — `Capability::Collections`.
+            .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([
                 "define", "defmacro", "lambda", "let", "begin", "if", "cond", "else", "not",
             ])
@@ -452,13 +915,344 @@ mod tests {
     ///
     /// The program has to fail *inside the frame* to reach evaluation at all —
     /// this used to be `no_such_thing()`, which the frame now refuses before
-    /// the interpreter exists. Calling a permitted primitive wrongly is the
-    /// remaining way to get there, and it is the more honest test: it proves
-    /// the `Eval` arm is still reachable rather than dead behind the gate.
+    /// the interpreter exists. It then became `needs("a")`, which is now a
+    /// typed [`Malformed::Arity`] (below). Dividing by zero is an operator the
+    /// frame grants failing at run time, which keeps the `Eval` arm proven
+    /// reachable rather than dead behind two gates.
     #[test]
     fn a_runtime_error_in_a_bluefile_is_reported() {
-        let err = read_bluefile("package(\"m\", \"1.0.0\")\nneeds(\"a\")").expect_err("reject");
+        let err = read_bluefile("package(\"m\", \"1.0.0\")\nx = 1 / 0").expect_err("reject");
         assert!(matches!(err, BluefileError::Eval(_)), "got {err}");
+    }
+
+    // ── the §5.5 vocabulary: every word reads back ────────────────────────
+
+    fn project_of(body: &str) -> Project {
+        let src = String::from("package(\"p\", \"0.1.0\")\n") + body;
+        read_bluefile(&src)
+            .unwrap_or_else(|e| panic!("{body}: {e}"))
+            .project
+    }
+
+    fn refusal_of(body: &str) -> BluefileError {
+        let src = String::from("package(\"p\", \"0.1.0\")\n") + body;
+        read_bluefile(&src).expect_err(body)
+    }
+
+    #[test]
+    fn source_records_a_named_distribution_root() {
+        let p = project_of("source(\"blue\", \"github:pleme-io/blue\", \"bidamas\")");
+        assert_eq!(
+            p.sources["blue"],
+            Source {
+                url: "github:pleme-io/blue".into(),
+                dir: "bidamas".into()
+            }
+        );
+    }
+
+    #[test]
+    fn packages_records_local_roots_in_declaration_order() {
+        let p = project_of("packages(\"bidamas\")\npackages(\"vendor/extra\")");
+        assert_eq!(p.packages, vec!["bidamas", "vendor/extra"]);
+    }
+
+    #[test]
+    fn run_records_a_program_and_the_runs_it_reads() {
+        let p = project_of(
+            "run(\"games\", \"src/games.b\")\nrun(\"report\", \"src/report.b\", [\"games\"])",
+        );
+        assert_eq!(
+            p.runs["games"],
+            Run {
+                file: "src/games.b".into(),
+                reads: vec![]
+            }
+        );
+        assert_eq!(p.runs["report"].reads, vec!["games"]);
+    }
+
+    /// A run may read one declared further down: the graph is checked once the
+    /// whole manifest has run, not call by call.
+    #[test]
+    fn a_run_may_read_one_declared_later() {
+        let p = project_of("run(\"b\", \"b.b\", [\"a\"])\nrun(\"a\", \"a.b\")");
+        assert_eq!(p.runs["b"].reads, vec!["a"]);
+    }
+
+    #[test]
+    fn tool_records_a_nixpkgs_attribute() {
+        let p = project_of("tool(\"duckdb\")\ntool(\"jq\")");
+        assert_eq!(p.tools, vec!["duckdb", "jq"]);
+    }
+
+    #[test]
+    fn check_records_a_test_file() {
+        let p = project_of("check(\"unit\", \"tests/unit.b\")");
+        assert_eq!(p.checks["unit"].file, "tests/unit.b");
+    }
+
+    #[test]
+    fn app_records_a_program() {
+        let p = project_of("app(\"report\", \"bin/report.b\")");
+        assert_eq!(p.apps["report"].file, "bin/report.b");
+    }
+
+    #[test]
+    fn catalog_records_where_the_catalogue_is_committed() {
+        let p = project_of("packages(\"bidamas\")\ncatalog(\"bidamas/CATALOG.md\")");
+        assert_eq!(p.catalog.as_deref(), Some("bidamas/CATALOG.md"));
+    }
+
+    /// And a manifest that says none of it records none of it — the words are
+    /// additive, so every existing Bluefile reads exactly as before.
+    #[test]
+    fn a_bluefile_without_the_new_words_has_an_empty_project() {
+        assert_eq!(
+            read_bluefile(SIMPLE).expect("read").project,
+            Project::default()
+        );
+    }
+
+    // ── malformed calls are typed, never dropped ──────────────────────────
+
+    /// **The fix this work owed.** `package("m", 1)` used to be dropped in
+    /// silence, and the manifest then failed as `NoPackage` — an error about a
+    /// call the author DID write.
+    #[test]
+    fn a_non_string_package_argument_is_malformed_not_dropped() {
+        let err = read_bluefile("package(\"m\", 1)").expect_err("reject");
+        assert!(
+            matches!(
+                err,
+                BluefileError::Malformed(Malformed::Type {
+                    word: "package",
+                    param: "version",
+                    expected: "a string",
+                    got: "int"
+                })
+            ),
+            "got {err}"
+        );
+    }
+
+    /// `needs(1, "^1")` was the same silent drop: the package resolved with one
+    /// dependency fewer than its author wrote.
+    #[test]
+    fn a_non_string_needs_argument_is_malformed_not_dropped() {
+        let err = refusal_of("needs(1, \"^1\")");
+        assert!(
+            matches!(
+                err,
+                BluefileError::Malformed(Malformed::Type {
+                    word: "needs",
+                    param: "name",
+                    ..
+                })
+            ),
+            "got {err}"
+        );
+    }
+
+    #[test]
+    fn a_posture_that_is_neither_string_nor_keyword_is_malformed() {
+        let err = refusal_of("posture(3)");
+        assert!(
+            matches!(
+                err,
+                BluefileError::Malformed(Malformed::Type {
+                    word: "posture",
+                    ..
+                })
+            ),
+            "got {err}"
+        );
+    }
+
+    /// Wrong arity names the word AND how it is called.
+    #[test]
+    fn wrong_arity_is_malformed_and_quotes_the_signature() {
+        let err = refusal_of("needs(\"a\")");
+        assert_eq!(
+            err.to_string(),
+            "`needs` is called as `needs(name, range)`; this call passes 1 argument(s)"
+        );
+        for body in [
+            "run(\"a\")",
+            "run(\"a\", \"a.b\", [], \"x\")",
+            "source(\"a\", \"b\")",
+        ] {
+            assert!(
+                matches!(
+                    refusal_of(body),
+                    BluefileError::Malformed(Malformed::Arity { .. })
+                ),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn reads_must_be_a_list_of_strings() {
+        for body in ["run(\"a\", \"a.b\", \"b\")", "run(\"a\", \"a.b\", [1])"] {
+            assert!(
+                matches!(
+                    refusal_of(body),
+                    BluefileError::Malformed(Malformed::Type {
+                        word: "run",
+                        param: "reads",
+                        ..
+                    })
+                ),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_path_leaving_the_project_is_malformed() {
+        for body in [
+            "packages(\"../elsewhere\")",
+            "check(\"c\", \"/etc/passwd\")",
+            "run(\"r\", \"src/../../x.b\")",
+            "catalog(\"\")",
+        ] {
+            assert!(
+                matches!(
+                    refusal_of(body),
+                    BluefileError::Malformed(Malformed::Path { .. })
+                ),
+                "{body}"
+            );
+        }
+    }
+
+    /// A second declaration is refused, not a silent overwrite of the first —
+    /// including `needs`, which used to keep whichever range came last.
+    #[test]
+    fn a_second_declaration_of_one_name_is_refused() {
+        for (body, word) in [
+            ("needs(\"a\", \"^1\")\nneeds(\"a\", \"^2\")", "needs"),
+            ("tool(\"jq\")\ntool(\"jq\")", "tool"),
+            ("run(\"r\", \"a.b\")\nrun(\"r\", \"b.b\")", "run"),
+            ("app(\"a\", \"a.b\")\napp(\"a\", \"a.b\")", "app"),
+            ("posture(\"sealed\")\nposture(\"anytime\")", "posture"),
+            ("package(\"q\", \"0.2.0\")", "package"),
+        ] {
+            match refusal_of(body) {
+                BluefileError::Malformed(Malformed::Duplicate { word: w, .. }) => {
+                    assert_eq!(w, word, "{body}")
+                }
+                other => panic!("{body}: expected a duplicate, got {other}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_read_of_an_undeclared_run_is_refused() {
+        let err = refusal_of("run(\"report\", \"r.b\", [\"games\"])");
+        assert!(
+            matches!(err, BluefileError::UnknownRead { ref run, ref missing }
+                if run == "report" && missing == "games"),
+            "got {err}"
+        );
+    }
+
+    #[test]
+    fn runs_that_read_each_other_in_a_cycle_are_refused() {
+        let err = refusal_of("run(\"a\", \"a.b\", [\"b\"])\nrun(\"b\", \"b.b\", [\"a\"])");
+        match err {
+            BluefileError::RunCycle { cycle } => assert_eq!(cycle, vec!["a", "b", "a"]),
+            other => panic!("expected a cycle, got {other}"),
+        }
+        assert!(matches!(
+            refusal_of("run(\"a\", \"a.b\", [\"a\"])"),
+            BluefileError::RunCycle { .. }
+        ));
+    }
+
+    #[test]
+    fn a_catalog_with_no_packages_is_refused() {
+        let err = refusal_of("catalog(\"CATALOG.md\")");
+        assert!(
+            matches!(err, BluefileError::CatalogWithoutPackages),
+            "got {err}"
+        );
+    }
+
+    /// **A misspelled word is an `Escapes` refusal naming it** — P1b's gate.
+    ///
+    /// Red run, recorded 2026-09-23: deleting `"tool"` from
+    /// `blue_lang_waku`'s `MANIFEST_NAMES` failed 5 tests here —
+    /// `tool_records_a_nixpkgs_attribute` with ``this Bluefile names a name
+    /// outside the manifest frame: tool``, `the_word_table_is_the_manifest_capability`
+    /// with the difference `["tool"]`, `the_manifest_frame_grants_exactly_…` with
+    /// ``the frame stopped permitting `tool` ``, and two tests that call `tool`
+    /// incidentally — and 2 in `blue-lang-cli/tests/cli.rs`, among them
+    /// `bluefile_json_reads_back_tool`. Reverted.
+    #[test]
+    fn a_misspelled_word_is_an_escape_naming_it() {
+        match refusal_of("sourse(\"blue\", \"github:pleme-io/blue\", \"bidamas\")") {
+            BluefileError::Escapes { names } => assert_eq!(names, vec!["sourse"]),
+            other => panic!("expected an escape, got {other}"),
+        }
+    }
+
+    /// **The word table and the frame's vocabulary are one set.** A name the
+    /// frame grants with no recorder passes the frame and dies unbound; a
+    /// recorder the frame does not grant can never be called. Both directions,
+    /// against the capability rather than against this file.
+    #[test]
+    fn the_word_table_is_the_manifest_capability() {
+        let table: BTreeSet<&str> = WORDS.iter().map(|w| w.name).collect();
+        assert_eq!(table.len(), WORDS.len(), "a word is defined twice");
+        let granted: BTreeSet<&str> = Capability::ManifestDeclaration
+            .names()
+            .into_iter()
+            .collect();
+        assert_eq!(
+            table.symmetric_difference(&granted).collect::<Vec<_>>(),
+            Vec::<&&str>::new(),
+            "the word table and Capability::ManifestDeclaration disagree"
+        );
+        for w in WORDS {
+            assert!(w.min <= w.max && w.max > 0, "{}", w.name);
+        }
+    }
+
+    /// **Every word is a binding the manifest interpreter owns, and nothing
+    /// else claims it.** The `assert` lesson: a name tatara already binds as a
+    /// macro or special form beats a primitive, so a word shadowed that way
+    /// would record nothing and every read-back test would go red only by luck.
+    /// Asked of a real interpreter, across all three arbiters.
+    #[test]
+    fn every_word_is_unclaimed_by_the_runtime_and_bound_by_the_manifest() {
+        let bare = blue_lang_runtime::interpreter_hostless();
+        let mut manifest = blue_lang_runtime::interpreter_hostless();
+        install_manifest_primitives(&mut manifest, &Shared::default());
+        for w in WORDS {
+            assert_eq!(
+                bare.resolve_head(w.name),
+                None,
+                "the runtime already claims `{}`",
+                w.name
+            );
+            assert_eq!(
+                manifest.resolve_head(w.name),
+                Some(tatara_lisp_eval::HeadBinding::Value),
+                "`{}` is not an ordinary binding in the manifest interpreter",
+                w.name
+            );
+        }
+    }
+
+    /// The `when` spellings round-trip through the one function both
+    /// directions read.
+    #[test]
+    fn every_when_round_trips_through_its_label() {
+        for w in [When::Sealed, When::Preceding, When::Anytime] {
+            assert_eq!(parse_when(when_label(w)), Some(w));
+        }
     }
 
     // ── the manifest frame ────────────────────────────────────────────────

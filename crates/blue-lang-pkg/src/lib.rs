@@ -3,7 +3,9 @@
 //! ## The Bluefile is a blue program
 //!
 //! There is **no new syntax**. A `Bluefile` is a `.b` file whose top level
-//! calls three functions:
+//! calls the manifest words — `package`, `needs` and `posture` for identity,
+//! and the build words `theory/BLUE-STRUCTURE.md` §5.5 added (`source`,
+//! `packages`, `run`, `tool`, `check`, `app`, `catalog`; see [`bluefile`]):
 //!
 //! ```text
 //! package("myapp", "0.1.0")
@@ -11,7 +13,7 @@
 //! needs("audio", ">=0.4.0")
 //! ```
 //!
-//! blue *evaluates* it with those three installed as primitives and collects
+//! blue *evaluates* it with those words installed as primitives and collects
 //! what they declare. That is the "blue doubles as a configuration language"
 //! tenet doing real work rather than being asserted: the manifest reader is the
 //! interpreter, so a Bluefile can compute — a version can come from a variable,
@@ -33,10 +35,13 @@ pub mod bluefile;
 /// does NOT claim.
 pub mod git_registry;
 pub mod load_path;
+/// `Bluefile.lock` — the evaluated manifest, committed so nix reads blue's
+/// evaluation instead of re-deriving it. `theory/BLUE-STRUCTURE.md` §5.1.
+pub mod lock;
 pub mod solve;
 pub mod version;
 
-pub use bluefile::{read_bluefile, Bluefile, BluefileError};
+pub use bluefile::{read_bluefile, Bluefile, BluefileError, Malformed, Project, MANIFEST_FILE};
 pub use solve::{
     Conflict, Manifest, MapRegistry, Registry, Resolution, SolveError, Solver, DEFAULT_MAX_STEPS,
 };

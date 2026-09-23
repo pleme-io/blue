@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:23c1b1348f6db5f365cc14b496574b23f576ad2effc9dff921f614bf607e4614",
+  "manifest": {
+    "schema": 1,
+    "name": "deeta",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

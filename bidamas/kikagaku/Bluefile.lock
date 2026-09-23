@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:14c800e3668488576e090c110546643473d0e7d26408059114aa0177106e81fb",
+  "manifest": {
+    "schema": 1,
+    "name": "kikagaku",
+    "version": "0.1.0",
+    "needs": {
+      "kazu": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

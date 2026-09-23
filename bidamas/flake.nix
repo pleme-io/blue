@@ -55,7 +55,8 @@
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       # Every bidama as its OWN derivation, with needs(...) wired as real nix
-      # dependencies. See mk-bidama.nix for what that buys and its one ceiling.
+      # dependencies, read from each package's committed Bluefile.lock. See
+      # mk-bidama.nix for what that buys and why nix reads a lock.
       bidamaLib = pkgs: import ./mk-bidama.nix {
         inherit (pkgs) lib runCommand symlinkJoin makeWrapper;
       };

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:26524bb1cf6e893a872045ac81766d12ff418ecc206176efa43e609ebef166da",
+  "manifest": {
+    "schema": 1,
+    "name": "shisutemu",
+    "version": "0.1.0",
+    "needs": {
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

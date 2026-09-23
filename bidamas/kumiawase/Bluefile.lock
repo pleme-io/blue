@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:f2eb547cd6fef894452ec922f2783192dbb3b00048a95fd109ff68feacc7953b",
+  "manifest": {
+    "schema": 1,
+    "name": "kumiawase",
+    "version": "0.1.0",
+    "needs": {
+      "kazu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "4029043dff32a4476bce37baaa61c34effe961a2aa442d337c59f65a12eadc63",
+  "cargo_lock_sha256": "4916179aca0c5f30168f521fc86cc259212edae7594ff9ed68954e340d7b803f",
   "manifest_sha256": {
-    "Cargo.toml": "99a762bab9e30ddada8a58f755c4d42dda868ab498a2151bb5643b24c9bc0e60",
+    "Cargo.toml": "d04d5c66e0c60cc6f8c31e797228a438143c0c4b742739904a35b01d958aa247",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "ac9d171e6bf5d097e0704a89a1a2dc5b808b88230c40b25218acd43a45041f1c",
-    "crates/blue-lang-cli/Cargo.toml": "d1b7469ef3674ec1b8954d916b7c5664a43de55ce6e7f7311c9a849daba69be0",
+    "crates/blue-lang-cli/Cargo.toml": "cab16f37a8d5ad1b0ff840f2309e860de53ff0b23f18d6901d8d6b165a73520b",
     "crates/blue-lang-fmt/Cargo.toml": "5b971097d81f37433bfc4d04cc72a135fdaa1f5cc79327197597e5482eb629de",
     "crates/blue-lang-lsp/Cargo.toml": "7cea9b882efc3a0b1797a901b76d87156088ac2eb644e94cf7f37f87e3ff1d3a",
-    "crates/blue-lang-pkg/Cargo.toml": "7d335076faa688464af758940b7e4ee1cbe3cfd0d8bea4e551477626e75bef1e",
+    "crates/blue-lang-pkg/Cargo.toml": "bda65927e6085a2e782e1508e3a3cba9c0102af9e7ea577a2f9c9091e97273b2",
     "crates/blue-lang-proc/Cargo.toml": "f297f049a2eada7419858a3730f49f4477bd9f1156a137cfd5f48b3eee955267",
     "crates/blue-lang-runtime/Cargo.toml": "4a26cb21010a42a112a10bd1f924e6d886c76b2adafce747d0c4e92cee84c6a7",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
@@ -426,6 +426,16 @@
             "tree": "target"
           },
           {
+            "name": "serde_json",
+            "package_key": "serde_json-1.0.151",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "shikumi",
             "package_key": "shikumi-0.1.520",
             "kind": "normal",
@@ -600,6 +610,28 @@
           {
             "name": "blue_lang_waku",
             "package_key": "blue-lang-waku-0.0.33",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde_json",
+            "package_key": "serde_json-1.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,

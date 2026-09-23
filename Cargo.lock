@@ -219,6 +219,8 @@ dependencies = [
  "blue-lang-syntax",
  "blue-lang-test",
  "blue-lang-waku",
+ "serde",
+ "serde_json",
  "tatara-lisp",
  "tatara-lisp-eval",
  "thiserror",

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:dc02acfbcc3def4ffe81cc6ceee940fac7957a11c5ad3f5fd4deede9a4851db2",
+  "manifest": {
+    "schema": 1,
+    "name": "shuugou",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0",
+      "ronri": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

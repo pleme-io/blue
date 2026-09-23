@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:758111425eff7882fa2a6d5b451df5598a6aa8a491f89b49f586393213fa79a9",
+  "manifest": {
+    "schema": 1,
+    "name": "junjo",
+    "version": "0.1.0",
+    "needs": {
+      "ronri": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

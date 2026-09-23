@@ -25,6 +25,8 @@ diverge from what a general-purpose language would choose.
 | **Unison** | content-addressed codebase, names as metadata | by hash, no version conflicts | **Study, do not copy.** Unison *publicly retracted* its first codebase model as lacking "practical ergonomics". The idea is right; a decade of tooling rebuild (diff, review, search, IDE) is the price. |
 | **Deno** | URL imports | none — the URL is the version | **Refuse.** Deno itself walked this back (`deno.json`, JSR) after unpinned URLs proved unauditable. |
 | **npm** | registry + `package.json` | SemVer, nested resolution | **Refuse the shape.** Nested duplicate resolution is why `node_modules` is a punchline. Instructive as a counterexample. |
+| **Ruby / Bundler** | rubygems.org + `Gemfile`, or a git source (`gem "x", github: "org/repo"`) | resolver, `Gemfile.lock` records the git revision | **Take:** the proof that a gem server is optional. A Bundler git source resolves straight from a repository and the lock pins the commit, which is blue's `source` + `Bluefile.lock` (`theory/BLUE-STRUCTURE.md` §5.5). **Take also:** the manifest-is-Ruby DSL, which the Bluefile already goes past. |
+| **Zig** | `build.zig.zon`: a URL plus a content hash per dependency | none, the hash is the identity | **Take:** no registry, and a dependency is its hash. This is what `narHash` in `Bluefile.lock` gives blue for free. |
 
 **The decision this review supports:** blue's default is **git-based**, because
 the fleet is already git-and-content-addressed and a registry service would be a
@@ -32,6 +34,14 @@ second source of truth to keep in sync with the repository. **Nix is the
 delivery mechanism, not a second package manager** — a bidama distribution is a
 directory in a repo; a flake pins the *revision* of that repo. Those compose:
 git answers "what does this package need", nix answers "exactly which bytes".
+
+**And the project author writes no nix** (operator, 2026-09-23;
+`theory/BLUE-STRUCTURE.md` §5.5). Nix does the building, pinning and caching,
+but a blue project states all of it in its Bluefile, in blue. `blue lock` pins
+the sources, and one engine in this repository lowers the evaluated manifest to
+nix outputs. Cargo, Bundler and Mix each keep their build language and their
+manifest language the same; blue does too, with nix as the machinery
+underneath rather than a second language on top.
 
 **Stated ceiling:** blue's `GitRegistry` today resolves from a *working tree*.
 It does not fetch and does not pin revisions, so the Nix-flake half of the
@@ -112,6 +122,22 @@ rather than defaulted. Blue's actual differentiators are not "a faster map":
   without Unison's tooling debt, because the surrounding infrastructure exists.
 
 ---
+
+## 5. Discovery — "what do we already have?"
+
+| Language | How you find what exists | What blue takes |
+|---|---|---|
+| **Rust** | `cargo doc`; docs.rs builds every crate's docs from source | Docs generated from source, never written twice |
+| **Go** | `go doc`; pkg.go.dev indexes modules from their repositories | An index built from the repository, with no publishing step |
+| **Ruby** | `ri` / RDoc from comments above methods | The comment directly above a definition *is* its doc |
+| **Elixir** | `@doc` + ExDoc → hexdocs | Docs as part of the package, rendered in one place |
+
+**blue's answer:** `mokuroku` renders `bidamas/CATALOG.md` from the source:
+every package, its gloss, and every `def` with the comment directly above it.
+The copy is committed, so GitHub renders it and codesearch indexes it, and
+`nix flake check` fails when it is stale. That covers the docs.rs and
+pkg.go.dev role with no documentation server, the same way git plus nix covers
+the registry role with no package server.
 
 ## What this review changed
 

@@ -44,8 +44,8 @@ def sort_by(key, xs)
   else
     pivot = first(xs)
     tail = rest(xs)
-    smaller = filter(fn(y) key(y) <= key(pivot) end, tail)
-    larger = filter(fn(y) key(y) > key(pivot) end, tail)
+    smaller = filter(fn(y) compare(key(y), key(pivot)) <= 0 end, tail)
+    larger = filter(fn(y) compare(key(y), key(pivot)) > 0 end, tail)
     append(append(sort_by(key, smaller), [pivot]), sort_by(key, larger))
   end
 end
@@ -158,7 +158,7 @@ def merge_sorted(a, b)
     if is_empty(b)
       a
     else
-      if first(a) <= first(b)
+      if compare(first(a), first(b)) <= 0
         cons(first(a), merge_sorted(rest(a), b))
       else
         cons(first(b), merge_sorted(a, rest(b)))
@@ -174,7 +174,7 @@ def merge_sorted_by(key, a, b)
     if is_empty(b)
       a
     else
-      if key(first(a)) <= key(first(b))
+      if compare(key(first(a)), key(first(b))) <= 0
         cons(first(a), merge_sorted_by(key, rest(a), b))
       else
         cons(first(b), merge_sorted_by(key, a, rest(b)))
@@ -187,7 +187,7 @@ def is_sorted_by(key, xs)
   if size(xs) < 2
     true
   else
-    if key(first(xs)) <= key(nth(1, xs))
+    if compare(key(first(xs)), key(nth(1, xs))) <= 0
       is_sorted_by(key, rest(xs))
     else
       false
@@ -212,7 +212,7 @@ def insert_sorted_by(key, x, xs)
   if is_empty(xs)
     [x]
   else
-    if key(x) <= key(first(xs))
+    if compare(key(x), key(first(xs))) <= 0
       cons(x, xs)
     else
       cons(first(xs), insert_sorted_by(key, x, rest(xs)))
@@ -222,8 +222,8 @@ end
 
 # A STABLE sort by key — equal keys come out in input order.
 #
-# `sort_by` cannot promise this: it partitions on a pivot with `key(y) <=
-# key(pivot)`, so every later element that ties with the pivot is placed
+# `sort_by` cannot promise this: it partitions on a pivot with
+# `compare(key(y), key(pivot)) <= 0`, so every later element that ties with the pivot is placed
 # BEFORE it. That is fine when the key is the whole value, and wrong the moment
 # a record carries anything the key does not look at.
 def sort_stable_by(key, xs)
@@ -736,4 +736,20 @@ test "sort orders STRINGS, not only numbers"
   # And numbers still sort, which is what makes `compare` the right seam
   # rather than a string-only special case.
   assert sort([3, 1, 2]) == [1, 2, 3]
+end
+
+test "keyed sorts order by string keys as well as numbers"
+  # Every keyed comparison here goes through `compare`, like insert_ordered.
+  # They used `<=`, which is a type error on strings, so sorting records by
+  # NAME raised "expected number, got string" (measured 2026-09-23, when
+  # mokuroku sorted packages by name).
+  rows = [["kazu", 3], ["angou", 1], ["retsu", 2]]
+  assert map(fn(r) first(r) end, sort_by(fn(r) first(r) end, rows)) == ["angou", "kazu", "retsu"]
+  assert map(fn(r) first(r) end, sort_stable_by(fn(r) first(r) end, rows)) == ["angou", "kazu", "retsu"]
+  assert first(min_by(fn(r) first(r) end, rows)) == "angou"
+  assert is_sorted_by(fn(r) first(r) end, [["a", 1], ["b", 2]]) == true
+  # Numeric keys order exactly as before.
+  assert map(fn(r) last(r) end, sort_by(fn(r) last(r) end, rows)) == [1, 2, 3]
+  # merge_sort had the same `<=` and the same failure on words.
+  assert merge_sort(["kazu", "angou", "retsu"]) == ["angou", "kazu", "retsu"]
 end

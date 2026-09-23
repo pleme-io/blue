@@ -186,6 +186,63 @@ rec {
         --prefix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"
     '';
 
+  # The catalogue of a distribution: every package, its gloss, and every
+  # definition with its doc line, rendered by the `mokuroku` bidama.
+  #
+  # Discovery without a documentation server. The same markdown is committed
+  # beside the distribution (GitHub renders it, codesearch indexes it), and
+  # `mkCatalogCheck` below fails when the committed copy is stale. This is the
+  # docs.rs / pkg.go.dev role, filled by a derivation.
+  #
+  # `bidamas` must include `mokuroku` itself, which is what renders the page.
+  # A private distribution passes its own packages joined with the public ones,
+  # and gets one catalogue covering both.
+  mkCatalog = { blue, bidamas, name ? "bidama-catalog" }:
+    runCommand name { } ''
+      printf 'use("mokuroku")\nwrite_catalog(getenv("CATALOG_OUT", ""))\n' > gen.b
+      CATALOG_OUT=$out BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run gen.b
+    '';
+
+  # Fails when the committed catalogue differs from a fresh render.
+  mkCatalogCheck = { blue, bidamas, committed, name ? "bidama-catalog-fresh" }:
+    let generated = mkCatalog { inherit blue bidamas; };
+    in runCommand name { } ''
+      if ! cmp -s ${generated} ${committed}; then
+        echo "the committed catalogue is stale; copy ${generated} over it" >&2
+        diff ${committed} ${generated} | head -40 >&2
+        exit 1
+      fi
+      touch $out
+    '';
+
+  # Fails when two packages define the same name.
+  #
+  # blue's namespace is flat across imports, so such a pair breaks any program
+  # that imports both, and the error surfaces far from its cause (an arity
+  # mismatch inside someone else's code). `owned`, when given, limits the
+  # gate to collisions touching those packages: a private distribution checks
+  # itself against the public one without failing on the public one's choices.
+  mkCollisionCheck = { blue, bidamas, owned ? null, name ? "bidama-collisions" }:
+    let
+      query =
+        if owned == null
+        then "name_collisions(records)"
+        else "name_collisions_touching(records, [${lib.concatMapStringsSep ", " (o: ''"${o}"'') owned}])";
+    in runCommand name { } ''
+      cat > gate.b <<'EOF'
+      use("mokuroku")
+      test "no two packages define one name"
+        records = catalog_of(blue_path_roots(getenv("BLUE_PATH", "")))
+        assert size(records) > 0
+        found = ${query}
+        println(found)
+        assert is_empty(found) == true
+      end
+      EOF
+      BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue test gate.b
+      touch $out
+    '';
+
   # Build every bidama in a distribution directory, wiring the graph.
   #
   # `lib.fix` ties the knot: each package receives the finished attrset, so

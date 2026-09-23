@@ -163,6 +163,58 @@ replace it everywhere in the file.
 
 ---
 
+## The namespace is flat across packages
+
+A `def` in one bidama replaces a same-named function **everywhere** in a program
+that imports both, including inside the other package's own code. Measured
+2026-09-23 in a private distribution: a one-argument `member` in one package
+broke `shuugou.unique`, which calls the builtin `member`. The failure surfaced as
+an arity error inside shuugou, far from its cause.
+
+- Give package-level names that say whose they are (`md_cell`, `pkg_name`,
+  `name_collisions`), never bare nouns (`cell`, `owners`, `collisions`).
+- `nix flake check` runs `bidama-collisions`: two packages defining one name is
+  a red build. A private distribution gets the same gate from
+  `mkCollisionCheck { owned = [ … ]; }`.
+- Before writing a name, look it up in [`CATALOG.md`](./CATALOG.md).
+
+## Finding what already exists
+
+[`CATALOG.md`](./CATALOG.md) lists every package, its gloss, and every definition
+with the first line of its doc comment. The `mokuroku` bidama generates it.
+`nix flake check` fails when the committed copy is stale, and
+`nix build .#bidama-catalog` produces a fresh one. A doc comment is the `#`
+block **directly above** a `def`: a blank line in between detaches it, so put
+the sentence that says what a function is for right above it.
+
+## Output, strings and control flow (measured)
+
+- **`if` is an expression**: `x = if c … else … end` works.
+- **Interpolation works**, calls included: `"| #{name} | #{to_s(n)} |"`. It
+  reads better than nested `concat`.
+- **`println` prints a string with its quotes and escapes visible.** A program
+  whose output is data writes it with `write_file`.
+- **`glob` of an ABSOLUTE pattern returns `()`** while `walk_dir` of the same
+  root lists every file. Walk and filter with `ends_with?`, and give any scan
+  a positive control so a silent zero is a failure.
+
+## Seeds and replication
+
+`next_float(seed)` is a pure function of the seed, and `next_seed` walks one
+stream. Two streams taken one step apart replay each other, so derive
+independent streams with `split_seed` (a golden-ratio offset, in `ran`), never
+`seed + 1`. A simulation result from one seed is an anecdote: run replicates
+and report mean, spread, min and max.
+
+## Depth
+
+Recursion depth is bounded: `junjo.sort` overflows near 400 elements under
+`blue test` and near 100 under `cargo test`'s 2 MiB thread, and an overflow
+aborts the process rather than failing a test. Prefer `map`, `filter` and
+`reduce` over hand-written recursion on long lists, and use `merge_sort` when a
+sort has to be deep. Keyed sorts (`sort_by`, `sort_stable_by`, `min_by`,
+`merge_sort`) go through `compare`, so they order strings as well as numbers.
+
 ## Negative numbers
 
 There is a unary minus, but `0 - n` is what the existing packages use and what
@@ -214,7 +266,8 @@ one. Every one of these caught a real bug in this distribution:
 3. `Bluefile`: `package("name", "0.1.0")` plus a `needs(...)` per dependency —
    and every `needs` must have a matching `use(...)` in the source, which is
    also enforced.
-4. Raise the count floors in `flake.nix` and `distribution.rs`.
+4. Raise the count floors in `flake.nix` and `distribution.rs`, and regenerate
+   `CATALOG.md` (`nix build .#bidama-catalog`).
 5. Add the matching `needs(...)`/`use(...)` pair to **`zenbu`** — the facade
    bidama that declares every other one, so a consumer can take the whole
    distribution as a single dependency. It is an ordinary package with a long

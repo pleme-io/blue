@@ -300,9 +300,37 @@
     #
     # mapAttrs over the systems substrate actually emitted, rather than a fresh
     # system list that could drift from it.
+    let
+      # The standard distribution as derivations, plus the blue that runs it,
+      # for the catalogue and namespace gates below.
+      distribution = system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper; };
+        in {
+          inherit bl;
+          bidamas = bl.mkDistribution { root = ./bidamas; inherit pkgs; };
+          blue = base.packages.${system}.default;
+        };
+    in
     base // {
-      checks = lib.mapAttrs (system: existing:
+      packages = lib.mapAttrs (system: existing:
+        let d = distribution system; in
         existing // {
+          # `nix build .#bidama-catalog`, then copy the result over
+          # bidamas/CATALOG.md when the freshness check says it is stale.
+          bidama-catalog = d.bl.mkCatalog { inherit (d) blue bidamas; };
+        }
+      ) base.packages;
+
+      checks = lib.mapAttrs (system: existing:
+        let d = distribution system; in
+        existing // {
+          bidama-catalog-fresh = d.bl.mkCatalogCheck {
+            inherit (d) blue bidamas;
+            committed = ./bidamas/CATALOG.md;
+          };
+          bidama-collisions = d.bl.mkCollisionCheck { inherit (d) blue bidamas; };
           module-surface = import ./nix/module-surface-check.nix {
             inherit lib;
             # blue's own overlay, because `programs.blue.package` defaults to

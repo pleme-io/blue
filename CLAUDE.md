@@ -48,6 +48,14 @@ A general-purpose language: a Ruby/Elixir surface, a tatara-lisp AST, macros
 as term rewriting on that AST, and a Rust runtime. Crates are `blue-lang-*`
 (bare `blue` is squatted on crates.io); source extension is `.b`.
 
+## Grow blue pattern-first
+
+Before any capability is coded, fix its plan in writing: the reuse map (read from source; move,
+never copy), the shape (adopt what existing implementations agree on), the idioms, and the
+dependency order. **Blue bends to the pattern:** boilerplate in a blue program means blue is
+missing a word, so add the form, macro or primitive. The principle is `theory/BLUE.md` §I.1; the
+loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-development-cycle` skill.
+
 ## The pipeline is the architecture
 
 **parse → check → erase → run.** The order is load-bearing and lives in

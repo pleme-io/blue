@@ -66,6 +66,7 @@ use("sabi")
 use("seimei")
 use("shinsuu")
 use("shisutemu")
+use("shomei")
 use("shuugou")
 use("tokumei")
 use("toukei")
@@ -99,6 +100,7 @@ test "every bidama in the distribution answers through this one import"
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
   assert age_s(3600000) == "1h0m"
+  assert hash_message("") == "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
   assert contains([1, 2, 3], 2) == true
   assert suppress_small(3, 5) == nil
   assert near(mean([2, 4, 6]), 4) == true

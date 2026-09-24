@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:0c2e8a403cfa5d2070ff3aa2a22321a7e5d19f74bd5ee63fbd82716819d56002",
+  "manifest": {
+    "schema": 1,
+    "name": "shomei",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

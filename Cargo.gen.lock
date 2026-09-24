@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "25e3f5da7ac5d6ffe2936ae11eb8bebfd6b94cfebcbc4019eab0596fc978ea12",
+  "cargo_lock_sha256": "44641a293fc21a47f00c3c8edc4fa283ad378c6ff067294a11af031c12b7afde",
   "manifest_sha256": {
     "Cargo.toml": "6c75e637f0cf77cb7cdb75327928d31737e0e67afec5e439d3f33aaae7801dab",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
@@ -11,7 +11,7 @@
     "crates/blue-lang-lsp/Cargo.toml": "7cea9b882efc3a0b1797a901b76d87156088ac2eb644e94cf7f37f87e3ff1d3a",
     "crates/blue-lang-pkg/Cargo.toml": "bda65927e6085a2e782e1508e3a3cba9c0102af9e7ea577a2f9c9091e97273b2",
     "crates/blue-lang-proc/Cargo.toml": "f297f049a2eada7419858a3730f49f4477bd9f1156a137cfd5f48b3eee955267",
-    "crates/blue-lang-runtime/Cargo.toml": "4a26cb21010a42a112a10bd1f924e6d886c76b2adafce747d0c4e92cee84c6a7",
+    "crates/blue-lang-runtime/Cargo.toml": "cdd30de0ce77e0dca21c105aa0c9dcaec18b85c3f3c9d912e9c04064ea6e33f1",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "7d1debae4043dc3444dfa1496a823b12c05b9fb4d09ed80466e70e68a3235b52",
     "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
@@ -195,6 +195,13 @@
         "build_dependencies": [],
         "features": []
       },
+      "base64ct-1.8.3": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
+        ]
+      },
       "bit-set-0.8.0": {
         "runtime_dependencies": [
           {
@@ -228,6 +235,22 @@
         "features": [
           "std"
         ]
+      },
+      "block-buffer-0.10.4": {
+        "runtime_dependencies": [
+          {
+            "name": "generic_array",
+            "package_key": "generic-array-0.14.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "blue-lang-art-0.0.36": {
         "runtime_dependencies": [
@@ -705,8 +728,11 @@
             "name": "blake3",
             "package_key": "blake3-1.8.5",
             "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
+            "features": [
+              "pure",
+              "std"
+            ],
+            "uses_default_features": false,
             "optional": false,
             "target": null,
             "tree": "target"
@@ -727,6 +753,20 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "ed25519_dalek",
+            "package_key": "ed25519-dalek-2.2.0",
+            "kind": "normal",
+            "features": [
+              "fast",
+              "std",
+              "zeroize"
+            ],
+            "uses_default_features": false,
             "optional": false,
             "target": null,
             "tree": "target"
@@ -1134,11 +1174,191 @@
         "build_dependencies": [],
         "features": []
       },
+      "const-oid-0.9.6": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "constant_time_eq-0.4.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
           "std"
+        ]
+      },
+      "crypto-common-0.1.7": {
+        "runtime_dependencies": [
+          {
+            "name": "generic_array",
+            "package_key": "generic-array-0.14.7",
+            "kind": "normal",
+            "features": [
+              "more_lengths"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "typenum",
+            "package_key": "typenum-1.20.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "std"
+        ]
+      },
+      "der-0.7.10": {
+        "runtime_dependencies": [
+          {
+            "name": "const_oid",
+            "package_key": "const-oid-0.9.6",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "oid",
+          "std",
+          "zeroize"
+        ]
+      },
+      "digest-0.10.7": {
+        "runtime_dependencies": [
+          {
+            "name": "block_buffer",
+            "package_key": "block-buffer-0.10.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "crypto_common",
+            "package_key": "crypto-common-0.1.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "block-buffer",
+          "core-api",
+          "default",
+          "std"
+        ]
+      },
+      "ed25519-2.2.3": {
+        "runtime_dependencies": [
+          {
+            "name": "signature",
+            "package_key": "signature-2.2.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "std"
+        ]
+      },
+      "ed25519-dalek-2.2.0": {
+        "runtime_dependencies": [
+          {
+            "name": "curve25519_dalek",
+            "package_key": "curve25519-dalek-4.1.3",
+            "kind": "normal",
+            "features": [
+              "digest"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "ed25519",
+            "package_key": "ed25519-2.2.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "sha2",
+            "package_key": "sha2-0.10.9",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "subtle",
+            "package_key": "subtle-2.6.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "fast",
+          "std",
+          "zeroize"
         ]
       },
       "equivalent-1.0.2": {
@@ -1468,6 +1688,63 @@
         ],
         "build_dependencies": [],
         "features": []
+      },
+      "generic-array-0.14.7": {
+        "runtime_dependencies": [
+          {
+            "name": "typenum",
+            "package_key": "typenum-1.20.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [
+          {
+            "name": "version_check",
+            "package_key": "version_check-0.9.5",
+            "kind": "build",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          }
+        ],
+        "features": [
+          "more_lengths"
+        ]
+      },
+      "getrandom-0.2.17": {
+        "runtime_dependencies": [
+          {
+            "name": "cfg_if",
+            "package_key": "cfg-if-1.0.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "libc",
+            "package_key": "libc-0.2.189",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": "cfg(unix)",
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "std"
+        ]
       },
       "getrandom-0.3.4": {
         "runtime_dependencies": [
@@ -1933,6 +2210,37 @@
         "build_dependencies": [],
         "features": []
       },
+      "pkcs8-0.10.2": {
+        "runtime_dependencies": [
+          {
+            "name": "der",
+            "package_key": "der-0.7.10",
+            "kind": "normal",
+            "features": [
+              "oid"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "spki",
+            "package_key": "spki-0.7.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "std"
+        ]
+      },
       "ppv-lite86-0.2.21": {
         "runtime_dependencies": [
           {
@@ -2235,6 +2543,26 @@
           "std"
         ]
       },
+      "rand_core-0.6.4": {
+        "runtime_dependencies": [
+          {
+            "name": "getrandom",
+            "package_key": "getrandom-0.2.17",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "getrandom",
+          "std"
+        ]
+      },
       "rand_core-0.9.5": {
         "runtime_dependencies": [
           {
@@ -2285,6 +2613,22 @@
           "unicode-script",
           "unicode-segment"
         ]
+      },
+      "rustc_version-0.4.1": {
+        "runtime_dependencies": [
+          {
+            "name": "semver",
+            "package_key": "semver-1.0.28",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "rustversion-1.0.23": {
         "runtime_dependencies": [],
@@ -2350,6 +2694,14 @@
         "build_dependencies": [],
         "features": []
       },
+      "semver-1.0.28": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "std"
+        ]
+      },
       "serde-1.0.229": {
         "runtime_dependencies": [
           {
@@ -2377,6 +2729,7 @@
         ],
         "build_dependencies": [],
         "features": [
+          "alloc",
           "default",
           "derive",
           "serde_derive",
@@ -2387,6 +2740,7 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
+          "alloc",
           "result",
           "std"
         ]
@@ -2562,6 +2916,44 @@
         "build_dependencies": [],
         "features": []
       },
+      "sha2-0.10.9": {
+        "runtime_dependencies": [
+          {
+            "name": "cfg_if",
+            "package_key": "cfg-if-1.0.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "cpufeatures",
+            "package_key": "cpufeatures-0.2.17",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": "cfg(any(target_arch = \"aarch64\", target_arch = \"x86_64\", target_arch = \"x86\"))",
+            "tree": "target"
+          },
+          {
+            "name": "digest",
+            "package_key": "digest-0.10.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "std"
+        ]
+      },
       "shikumi-0.1.520": {
         "runtime_dependencies": [
           {
@@ -2719,7 +3111,41 @@
           "std"
         ]
       },
+      "signature-2.2.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "std"
+        ]
+      },
+      "spki-0.7.3": {
+        "runtime_dependencies": [
+          {
+            "name": "der",
+            "package_key": "der-0.7.10",
+            "kind": "normal",
+            "features": [
+              "oid"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "std"
+        ]
+      },
       "strsim-0.11.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "subtle-2.6.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -3393,6 +3819,11 @@
           "std"
         ]
       },
+      "typenum-1.20.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "unarray-0.1.4": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -3496,6 +3927,13 @@
           "simd"
         ]
       },
+      "zeroize-1.9.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
+        ]
+      },
       "zmij-1.0.23": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -3562,6 +4000,7 @@
             ],
             "features": [
               "default",
+              "pure",
               "std"
             ]
           },
@@ -3571,6 +4010,114 @@
             "features": [
               "default",
               "link"
+            ]
+          },
+          "cpufeatures-0.2.17": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "aarch64-linux-android",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"aarch64\", target_os = \"linux\"))",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"aarch64\", target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"loongarch64\", target_os = \"linux\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
+          "curve25519-dalek-4.1.3": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "digest",
+                "package_key": "digest-0.10.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "subtle",
+                "package_key": "subtle-2.6.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "zeroize",
+                "package_key": "zeroize-1.9.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "alloc",
+              "digest",
+              "precomputed-tables",
+              "zeroize"
             ]
           },
           "fsevent-sys-4.1.0": {
@@ -3808,7 +4355,116 @@
             ],
             "features": [
               "default",
+              "pure",
               "std"
+            ]
+          },
+          "cpufeatures-0.2.17": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "aarch64-linux-android",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"aarch64\", target_os = \"linux\"))",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"aarch64\", target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"loongarch64\", target_os = \"linux\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
+          "curve25519-dalek-4.1.3": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "digest",
+                "package_key": "digest-0.10.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "subtle",
+                "package_key": "subtle-2.6.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "zeroize",
+                "package_key": "zeroize-1.9.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "alloc",
+              "digest",
+              "precomputed-tables",
+              "zeroize"
             ]
           },
           "iana-time-zone-0.1.65": {
@@ -4159,7 +4815,116 @@
             ],
             "features": [
               "default",
+              "pure",
               "std"
+            ]
+          },
+          "cpufeatures-0.2.17": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "aarch64-linux-android",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"aarch64\", target_os = \"linux\"))",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"aarch64\", target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.189",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(target_arch = \"loongarch64\", target_os = \"linux\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
+          "curve25519-dalek-4.1.3": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "digest",
+                "package_key": "digest-0.10.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "subtle",
+                "package_key": "subtle-2.6.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "zeroize",
+                "package_key": "zeroize-1.9.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "alloc",
+              "digest",
+              "precomputed-tables",
+              "zeroize"
             ]
           },
           "iana-time-zone-0.1.65": {
@@ -4520,6 +5285,7 @@
             ],
             "features": [
               "default",
+              "pure",
               "std"
             ]
           },
@@ -4531,8 +5297,133 @@
               "link"
             ]
           },
+          "cpufeatures-0.2.17": {
+            "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
           "cpufeatures-0.3.0": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "curve25519-dalek-4.1.3": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_arch = \"x86_64\")",
+                "tree": "target"
+              },
+              {
+                "name": "curve25519_dalek_derive",
+                "package_key": "curve25519-dalek-derive-0.1.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(all(not(curve25519_dalek_backend = \"fiat\"), not(curve25519_dalek_backend = \"serial\"), target_arch = \"x86_64\"))",
+                "tree": "host"
+              },
+              {
+                "name": "digest",
+                "package_key": "digest-0.10.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "subtle",
+                "package_key": "subtle-2.6.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "zeroize",
+                "package_key": "zeroize-1.9.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "alloc",
+              "digest",
+              "precomputed-tables",
+              "zeroize"
+            ]
+          },
+          "curve25519-dalek-derive-0.1.1": {
+            "runtime_dependencies": [
+              {
+                "name": "proc_macro2",
+                "package_key": "proc-macro2-1.0.107",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "quote",
+                "package_key": "quote-1.0.47",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "syn",
+                "package_key": "syn-2.0.119",
+                "kind": "normal",
+                "features": [
+                  "full"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -4781,11 +5672,137 @@
             ],
             "features": [
               "default",
+              "pure",
               "std"
             ]
           },
+          "cpufeatures-0.2.17": {
+            "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
           "cpufeatures-0.3.0": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "curve25519-dalek-4.1.3": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_arch = \"x86_64\")",
+                "tree": "target"
+              },
+              {
+                "name": "curve25519_dalek_derive",
+                "package_key": "curve25519-dalek-derive-0.1.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(all(not(curve25519_dalek_backend = \"fiat\"), not(curve25519_dalek_backend = \"serial\"), target_arch = \"x86_64\"))",
+                "tree": "host"
+              },
+              {
+                "name": "digest",
+                "package_key": "digest-0.10.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "subtle",
+                "package_key": "subtle-2.6.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "zeroize",
+                "package_key": "zeroize-1.9.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "alloc",
+              "digest",
+              "precomputed-tables",
+              "zeroize"
+            ]
+          },
+          "curve25519-dalek-derive-0.1.1": {
+            "runtime_dependencies": [
+              {
+                "name": "proc_macro2",
+                "package_key": "proc-macro2-1.0.107",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "quote",
+                "package_key": "quote-1.0.47",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "syn",
+                "package_key": "syn-2.0.119",
+                "kind": "normal",
+                "features": [
+                  "full"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -5147,11 +6164,137 @@
             ],
             "features": [
               "default",
+              "pure",
               "std"
             ]
           },
+          "cpufeatures-0.2.17": {
+            "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
           "cpufeatures-0.3.0": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "curve25519-dalek-4.1.3": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_arch = \"x86_64\")",
+                "tree": "target"
+              },
+              {
+                "name": "curve25519_dalek_derive",
+                "package_key": "curve25519-dalek-derive-0.1.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(all(not(curve25519_dalek_backend = \"fiat\"), not(curve25519_dalek_backend = \"serial\"), target_arch = \"x86_64\"))",
+                "tree": "host"
+              },
+              {
+                "name": "digest",
+                "package_key": "digest-0.10.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "subtle",
+                "package_key": "subtle-2.6.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "zeroize",
+                "package_key": "zeroize-1.9.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "alloc",
+              "digest",
+              "precomputed-tables",
+              "zeroize"
+            ]
+          },
+          "curve25519-dalek-derive-0.1.1": {
+            "runtime_dependencies": [
+              {
+                "name": "proc_macro2",
+                "package_key": "proc-macro2-1.0.107",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "quote",
+                "package_key": "quote-1.0.47",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "syn",
+                "package_key": "syn-2.0.119",
+                "kind": "normal",
+                "features": [
+                  "full"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -5475,6 +6618,9 @@
     "autocfg-1.5.1": {
       "edition": "2015"
     },
+    "base64ct-1.8.3": {
+      "edition": "2024"
+    },
     "bit-set-0.8.0": {
       "edition": "2015"
     },
@@ -5487,6 +6633,9 @@
     "blake3-1.8.5": {
       "edition": "2024",
       "build_script": "build.rs"
+    },
+    "block-buffer-0.10.4": {
+      "edition": "2018"
     },
     "blue-lang-art-0.0.36": {
       "edition": "2021",
@@ -5612,14 +6761,43 @@
     "colorchoice-1.0.5": {
       "edition": "2021"
     },
+    "const-oid-0.9.6": {
+      "edition": "2021"
+    },
     "constant_time_eq-0.4.2": {
       "edition": "2024"
     },
     "core-foundation-sys-0.8.7": {
       "edition": "2018"
     },
+    "cpufeatures-0.2.17": {
+      "edition": "2018"
+    },
     "cpufeatures-0.3.0": {
       "edition": "2024"
+    },
+    "crypto-common-0.1.7": {
+      "edition": "2018"
+    },
+    "curve25519-dalek-4.1.3": {
+      "edition": "2021",
+      "build_script": "build.rs"
+    },
+    "curve25519-dalek-derive-0.1.1": {
+      "edition": "2021",
+      "proc_macro": true
+    },
+    "der-0.7.10": {
+      "edition": "2021"
+    },
+    "digest-0.10.7": {
+      "edition": "2018"
+    },
+    "ed25519-2.2.3": {
+      "edition": "2021"
+    },
+    "ed25519-dalek-2.2.0": {
+      "edition": "2021"
     },
     "equivalent-1.0.2": {
       "edition": "2015"
@@ -5656,6 +6834,13 @@
     },
     "gen-types-0.1.34": {
       "edition": "2024"
+    },
+    "generic-array-0.14.7": {
+      "edition": "2015",
+      "build_script": "build.rs"
+    },
+    "getrandom-0.2.17": {
+      "edition": "2018"
     },
     "getrandom-0.3.4": {
       "edition": "2021",
@@ -5744,6 +6929,9 @@
     "pin-project-lite-0.2.17": {
       "edition": "2018"
     },
+    "pkcs8-0.10.2": {
+      "edition": "2021"
+    },
     "ppv-lite86-0.2.21": {
       "edition": "2021"
     },
@@ -5771,6 +6959,9 @@
     "rand_chacha-0.9.0": {
       "edition": "2021"
     },
+    "rand_core-0.6.4": {
+      "edition": "2018"
+    },
     "rand_core-0.9.5": {
       "edition": "2021"
     },
@@ -5779,6 +6970,9 @@
     },
     "regex-syntax-0.8.11": {
       "edition": "2021"
+    },
+    "rustc_version-0.4.1": {
+      "edition": "2018"
     },
     "rustix-1.1.4": {
       "edition": "2021",
@@ -5797,6 +6991,9 @@
     },
     "same-file-1.0.6": {
       "edition": "2018"
+    },
+    "semver-1.0.28": {
+      "edition": "2021"
     },
     "serde-1.0.229": {
       "edition": "2021",
@@ -5820,14 +7017,26 @@
     "serde_yaml-0.9.34+deprecated": {
       "edition": "2021"
     },
+    "sha2-0.10.9": {
+      "edition": "2018"
+    },
     "shikumi-0.1.520": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
       "edition": "2018"
     },
+    "signature-2.2.0": {
+      "edition": "2021"
+    },
+    "spki-0.7.3": {
+      "edition": "2021"
+    },
     "strsim-0.11.1": {
       "edition": "2015"
+    },
+    "subtle-2.6.1": {
+      "edition": "2018"
     },
     "syn-2.0.119": {
       "edition": "2021"
@@ -5883,6 +7092,9 @@
       "proc_macro": true
     },
     "tracing-core-0.1.36": {
+      "edition": "2018"
+    },
+    "typenum-1.20.1": {
       "edition": "2018"
     },
     "unarray-0.1.4": {
@@ -5943,6 +7155,9 @@
     "zerocopy-0.8.55": {
       "edition": "2021",
       "build_script": "build.rs"
+    },
+    "zeroize-1.9.0": {
+      "edition": "2024"
     },
     "zmij-1.0.23": {
       "edition": "2021",

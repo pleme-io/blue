@@ -26,7 +26,12 @@
 //!    `length` or `upcase` is not usable, and the semantics are Ruby's
 //!    (characters, not bytes), which is why they are blue's and not the
 //!    substrate's.
+//! 4. **JSON** ([`json`]) and **cryptography** ([`crypto`]) — pure
+//!    computation, installed unconditionally, so the wasm consumer keeps them.
+//! 5. **The host layer** (`sys`, behind the `sys` feature) — every name in it
+//!    is a host import.
 
+pub mod crypto;
 pub mod domain;
 pub mod erase;
 pub mod inputs;
@@ -73,6 +78,11 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // `wasm32-unknown-unknown` consumer keeps it. See `json` for why objects
     // arrive as alists rather than Maps.
     json::install_json_stdlib(&mut interp);
+    // Layer 4b: cryptography — BLAKE3 and Ed25519. Pure for the same reason
+    // JSON is: a deterministic function of its arguments, with the keypair's
+    // seed supplied by the caller rather than drawn from an entropy source,
+    // so it lowers to no import and the wasm consumer keeps it. See `crypto`.
+    crypto::install_crypto_stdlib(&mut interp);
     // Layer 5: the host-side system surface — process, filesystem, env,
     // clock. Feature-gated: every sys primitive is a host import, so the
     // wasm consumer (which builds with `sys` OFF) keeps its zero-host-import
@@ -212,6 +222,8 @@ mod tests {
             eval(r#"(json_parse "{\"outcome\":\"ok\"}")"#),
             Value::List(_)
         ));
+        // Layer 4b: cryptography.
+        assert!(matches!(eval(r#"(blake3_hex "")"#), Value::Str(_)));
     }
 
     /// Anti-vacuity: a bare interpreter really does LACK layer 2, so the test

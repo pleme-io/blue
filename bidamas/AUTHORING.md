@@ -152,7 +152,9 @@ Reachable: `length` `nth` `car` `cdr` `cons` `append` `take` `drop` `reverse`
 `split` `join` `chars` `upcase` `downcase` `trim` `replace` `to_s` `compare`
 `some` `find` `remove` `partition` `apply` `print` `println` `to_int`
 `to_float`, and — since the lexer learned trailing `?`/`!` — `contains?`
-`starts_with?` `ends_with?` `to_int!`.
+`starts_with?` `ends_with?` `to_int!`. The crypto layer (2026-09-24) adds
+`blake3_hex` `ed25519_keypair` `ed25519_sign` `ed25519_verify`; reach them
+through `shomei` unless you need the algorithm by name.
 
 `compare` in particular is worth knowing before you need it: it is the only
 total ordering primitive, and its absence from this list once cost an author a

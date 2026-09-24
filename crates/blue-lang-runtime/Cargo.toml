@@ -14,7 +14,18 @@ tatara-lisp-eval = { workspace = true }
 blue-lang-syntax = { workspace = true }
 blue-lang-check = { workspace = true }
 thiserror = { workspace = true }
-blake3 = "1"
+# Cryptography with no C (`crypto`, and `inputs`' content addressing). Features
+# are pinned, not defaulted, so a default that compiles C cannot arrive on a
+# version bump (pleme-style, CONTAIN THE C).
+#
+# `pure` turns off BLAKE3's C and assembly SIMD builds: without it, `build.rs`
+# compiled NEON C intrinsics on aarch64 and linked assembly on x86_64. `cc`
+# stays in the tree as blake3's unconditional build-dependency; with `pure` it
+# builds nothing. `ed25519-dalek` is pure Rust over `curve25519-dalek`; `std`,
+# `fast` and `zeroize` are its defaults, stated. No `rand_core`: the seed is the
+# caller's, so nothing here reaches for an entropy source.
+blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "fast", "zeroize"] }
 serde_json = "1"
 
 [features]

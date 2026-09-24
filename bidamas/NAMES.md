@@ -99,3 +99,4 @@ primitives, so collisions here are the expected case, not the surprising one.
    a package the facade silently stops covering.
    `granularity.rs::the_facade_is_an_ordinary_bidama_with_many_needs` fails the
    build if you forget.
+| `ryouiki` | 領域 | region — scenario discovery by PRIM (Friedman & Fisher 1999; Bryant & Lempert 2010): which box of the inputs produces an outcome, traded as coverage against density | 2026-09-24 | KEEP | Clean with controls: `ryouiki`/`ryoiki`/`領域` 0 content hits, 0 repo dirs, 0 theory files (control `shikumi` = 1466 files, `caixa` = 138 dirs); nearest dirs `hibiki`, `teiki` share only a suffix. The test helper was renamed off `grid_points`, which the private makoto `jikken` defines. First consumer: makoto's atlas (reverse-engineering the conditions of mologs and golden paths). |

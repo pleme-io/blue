@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:7a4bc5aa5ba87d6d2ed9e77809f148f005194489b488c41e44d6be98fad0d09d",
+  "bluefile_b3": "b3:205b091de5b5e894dd6834c2e6657994c40444c39cee82b262f4893f9a32c056",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -22,6 +22,7 @@
       "ran": "^0.1.0",
       "retsu": "^0.1.0",
       "ronri": "^0.1.0",
+      "ryouiki": "^0.1.0",
       "sabi": "^0.1.0",
       "seimei": "^0.1.0",
       "shinsuu": "^0.1.0",

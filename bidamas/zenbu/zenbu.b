@@ -61,6 +61,7 @@ use("ongaku")
 use("ran")
 use("retsu")
 use("ronri")
+use("ryouiki")
 use("sabi")
 use("seimei")
 use("shinsuu")
@@ -93,6 +94,7 @@ test "every bidama in the distribution answers through this one import"
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert size([1, 2, 3]) == 3
   assert every(fn(v) v > 0 end, [1, 2, 3]) == true
+  assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]
   assert rs_valid_ident?("OPERATOR_ALIASES") == true
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"

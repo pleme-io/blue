@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:7525a5c90efc6b0789969e4852369328f1bc1581a0efac2b838d00a1ff8da986",
+  "manifest": {
+    "schema": 1,
+    "name": "raifusaikuru",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:fe88e8965ed0b54fe297e1c5b2672b42a75054925e4faba67f8109e0c99a6ad0",
+  "bluefile_b3": "b3:6c711387a146724967c3e5071f6af65b2e323f7bcb09710520dc7aa21a7f602b",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -19,6 +19,7 @@
       "moji": "^0.1.0",
       "mokuroku": "^0.1.0",
       "ongaku": "^0.1.0",
+      "raifusaikuru": "^0.1.0",
       "ran": "^0.1.0",
       "retsu": "^0.1.0",
       "ronri": "^0.1.0",

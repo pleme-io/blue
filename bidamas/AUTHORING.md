@@ -332,8 +332,8 @@ one. Every one of these caught a real bug in this distribution:
 3. `Bluefile`: `package("name", "0.1.0")` plus a `needs(...)` per dependency —
    and every `needs` must have a matching `use(...)` in the source, which is
    also enforced.
-4. Raise the count floors in `flake.nix` and `distribution.rs`, and regenerate
-   `CATALOG.md` (`nix build .#bidama-catalog`).
+4. Raise the package floor in `bidamas/flake.nix`, the package and test floors
+   in `distribution.rs`, and regenerate `CATALOG.md` with `nix run .#regen`.
 5. Add the matching `needs(...)`/`use(...)` pair to **`zenbu`** — the facade
    bidama that declares every other one, so a consumer can take the whole
    distribution as a single dependency. It is an ordinary package with a long

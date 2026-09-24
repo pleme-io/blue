@@ -58,6 +58,7 @@ use("kumiawase")
 use("moji")
 use("mokuroku")
 use("ongaku")
+use("raifusaikuru")
 use("ran")
 use("retsu")
 use("ronri")
@@ -92,6 +93,7 @@ test "every bidama in the distribution answers through this one import"
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
   assert major_triad(0) == [0, 4, 7]
+  assert lc_hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert size([1, 2, 3]) == 3
   assert every(fn(v) v > 0 end, [1, 2, 3]) == true

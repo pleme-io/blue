@@ -301,8 +301,22 @@ slow down with its own age. A map (`assoc`, `get`) is the index to reach for;
 a recursion that copied the tail at each step (664 ms to find the last of
 20,000). They are now the runtime's `member?` and `position`.
 
-## Three silent answers
+## Silent answers
 
+- **`concat_lists([], [])` is `nil`**, not `[]` (measured 2026-09-24): a
+  generator that returns "no models" from two empty lists answers `nil`, and
+  `== []` on it is false. Test the result with `is_empty`.
+- **In kueri, a string in an expression is a VALUE.** A keyword is a column
+  and a string is a literal (the HoneySQL rule), so a column name a program
+  computes as text (`"#{role}_seq"`) renders as `'item_seq'` inside a
+  comparison and compares a constant (measured 2026-09-24: two such bugs, in
+  a generated view, seen only by reading the SQL). Wrap a computed name in
+  `q_c(...)` wherever it is an operand; in `q_select`, keys and sort lists a
+  string is already a name.
+- **A string literal containing `#{` is always interpolated.** A program that
+  carries blue source as data (a mutation driver, a code generator) builds
+  the opener as `concat("#", "{")`, or the literal evaluates the code it was
+  meant to hold (measured 2026-09-24: "unbound symbol").
 - **`list?(nil)` is true.** Test `v == nil` before `list?(v)`, or `nil` takes
   the list branch (a JSON writer rendered it `[]`).
 - **`find_first` answers `nil` both for "absent" and for a found `nil`.** When

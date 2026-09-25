@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:d9024beebe12daf0d6a00fa262979fa228d63bf5f678a23afa6b8ceb21481265",
+  "manifest": {
+    "schema": 1,
+    "name": "anaritikusu",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kueri": "^0.1.0",
+      "nisshi": "^0.1.0",
+      "raifusaikuru": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [
+      "duckdb"
+    ],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

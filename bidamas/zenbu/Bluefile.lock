@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:e328920f90a0b1eeaa25f6f955d2d10eec838257703c52b007c745a30dd0ebb7",
+  "bluefile_b3": "b3:a13bbbba4c9aeceff8077b184e4ab89391b5b160608f7449920aad1c270e2469",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
     "version": "0.1.0",
     "needs": {
+      "anaritikusu": "^0.1.0",
       "angou": "^0.1.0",
       "deeta": "^0.1.0",
       "gyouretsu": "^0.1.0",

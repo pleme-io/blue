@@ -14,15 +14,19 @@ use("deeta")
 #
 # ## The model
 #
-#   relations    q_source(opts)  q_ref(x)  q_raw(opts)  q_model(opts)
-#   stages       q_select(+ q_as)  q_derive  q_filter  q_group(+ q_agg,
-#                q_agg_where)  q_join  q_left_join  q_sort(+ q_desc)  q_limit
+#   relations    q_source(opts: delimited or JSON Lines)  q_values(opts: literal
+#                rows)  q_ref(x)  q_raw(opts)  q_model(opts)
+#   stages       q_select(+ q_as)  q_derive  q_explode  q_filter  q_group(+
+#                q_agg, q_agg_where)  q_join  q_left_join  q_asof_left_join
+#                q_sort(+ q_desc)  q_limit
 #                — and q_then(model, stages) composes by appending data
 #   expressions  q_c  q_lit(q_int q_double q_str q_bool q_null)  q_add q_sub
 #                q_mul q_div  q_eq q_ne q_lt q_le q_gt q_ge  q_and q_or q_not
+#                q_is_null q_not_null  q_if  q_coalesce  q_get (a struct field)
 #                q_round  q_cast  q_min q_max q_sum q_avg q_count q_count_all
-#                q_filtered (FILTER-where)  q_string_agg  q_row_number
-#                q_ordered (an order for an order-sensitive aggregate)
+#                q_filtered (FILTER-where)  q_string_agg  q_row_number  q_lead
+#                q_lag  q_ordered (an order for an order-sensitive aggregate)
+#   types        q_types() (scalars)  q_struct_of(cols)  q_list_of(t)
 #
 # A keyword is a column and a string is a value — `q_eq(:enforcement, 0)` —
 # the HoneySQL rule. A pipeline is PRQL-shaped: each stage takes a relation to
@@ -91,14 +95,23 @@ use("deeta")
 # ## Around the query
 #
 # q_deps / q_closure walk ref nodes into the DAG, with no parsing.
-# q_render_load binds a source to a delimited file with its declared columns
-# (the sniffer never decides a contract). q_render_materialize writes a model
-# out. q_write_sql writes the rendered statement with a @generated header, for
-# a consumer to commit and gate fresh like blue's generate(...) files.
-# q_duckdb is the process seam to the `duckdb` binary (a program, not a linked
-# library, so there is no C to contain; the Bluefile declares it with
-# `tool("duckdb")`): a failure is [:error, stderr] and an empty result is
-# [:ok, []], never confused.
+# q_render_load binds a source to a delimited or JSON Lines file with its
+# declared columns (the sniffer never decides a contract), or loads literal
+# rows. q_render_materialize writes a model out (a file, a table or a view).
+# q_write_sql writes the rendered statement with a @generated header, for a
+# consumer to commit and gate fresh like blue's generate(...) files;
+# q_render_script renders a whole database (every load, then every model as a
+# view or table, upstream first). q_duckdb is the process seam to the `duckdb`
+# binary (a program, not a linked library, so there is no C to contain; the
+# Bluefile declares it with `tool("duckdb")`): a failure is [:error, stderr]
+# and an empty result is [:ok, []], never confused. q_duckdb_at runs against
+# a database file; q_rows / q_rows_at THROW :kueri_query on a failure, for
+# callers that must never read one as no rows.
+#
+# A DAG node is identified by its NAME: q_closure and q_render_script keep the
+# first node of each name, so two different relations given one name collapse
+# silently. A generator names its relations uniquely (and checks it); content
+# identity for nodes is not built.
 #
 # Design: the SQL-frameworks survey in the makoto lab (§5 sketch; this is its
 # M0). Near-misses, deliberately not merged: dialeto's relational sub-IR
@@ -158,22 +171,50 @@ end
 
 # ── types ──────────────────────────────────────────────────────────────────
 
-# The closed set of column types a contract or a source may declare.
+# The closed set of scalar column types a contract or a source may declare.
+# Composite types are built from them: q_struct_of and q_list_of.
 def q_types()
   [:bigint, :integer, :double, :varchar, :boolean, :date]
 end
 
 def q_type(t)
-  if contains(q_types(), t) == false
-    throw(error(:kueri_shape, "unknown column type #{to_s(t)}; a type is one of #{join(map(fn(x) to_s(x) end, q_types()), ", ")}"))
+  if keyword?(t) && contains(q_types(), t)
+    t
+  elsif keyword?(t) || (q_composite?(t) == false)
+    throw(error(:kueri_shape, "unknown column type #{to_s(t)}; a type is one of #{join(map(fn(x) to_s(x) end, q_types()), ", ")}, or q_struct_of / q_list_of over them"))
+  else
+    t
   end
-  t
+end
+
+# A composite type: a map built by q_struct_of or q_list_of.
+def q_composite?(t)
+  (t != nil) && (keyword?(t) == false) && (list?(t) == false) && (string?(t) == false) && (number?(t) == false) && (boolean?(t) == false) && contains([:struct, :list], get(t, :kind))
+end
+
+# A struct type: named fields, each declared with q_col. JSON objects load
+# into it; read a field with q_get. DuckDB only.
+def q_struct_of(cols)
+  fs = as_list(cols)
+  if is_empty(fs)
+    throw(error(:kueri_shape, "a struct type has at least one field"))
+  end
+  {kind: :struct, fields: fs}
+end
+
+# A list type: JSON arrays load into it; q_explode makes a row per element.
+# DuckDB only.
+def q_list_of(t)
+  {kind: :list, of: q_type(t)}
 end
 
 # A type's name in a dialect. DOUBLE is DuckDB's; the standard spells it
-# DOUBLE PRECISION, which DuckDB also reads.
+# DOUBLE PRECISION, which DuckDB also reads. Structs and lists are DuckDB's
+# alone.
 def q_type_sql(t, dialect)
-  if t == :double
+  if q_composite?(t)
+    q_composite_sql(t, dialect)
+  elsif t == :double
     if dialect == :duckdb
       "DOUBLE"
     else
@@ -181,6 +222,17 @@ def q_type_sql(t, dialect)
     end
   else
     upcase(to_s(t))
+  end
+end
+
+def q_composite_sql(t, dialect)
+  if dialect != :duckdb
+    throw(error(:kueri_dialect, "struct and list types have no core form; render with :duckdb"))
+  end
+  if get(t, :kind) == :list
+    "#{q_type_sql(get(t, :of), dialect)}[]"
+  else
+    "STRUCT(#{join(map(fn(c) "#{q_ident(get(c, :name))} #{q_type_sql(get(c, :type), dialect)}" end, get(t, :fields)), ", ")})"
   end
 end
 
@@ -331,6 +383,31 @@ def q_cast(x, t)
   {kind: :cast, type: q_type(t), args: [q_expr(x)]}
 end
 
+# The first of two values that is not NULL.
+def q_coalesce(a, b)
+  {kind: :fn, name: "coalesce", args: [q_expr(a), q_expr(b)]}
+end
+
+# The value is NULL: absent, never a comparison (x = NULL is never true).
+def q_is_null(a)
+  {kind: :postfix, op: "IS NULL", args: [q_expr(a)]}
+end
+
+def q_not_null(a)
+  {kind: :postfix, op: "IS NOT NULL", args: [q_expr(a)]}
+end
+
+# `a` where `cond` holds, else `b`: CASE WHEN … THEN … ELSE … END.
+def q_if(cond, a, b)
+  {kind: :case, args: [q_expr(cond), q_expr(a), q_expr(b)]}
+end
+
+# A field of a struct value (a JSON object loaded as q_struct_of). DuckDB
+# only.
+def q_get(x, field)
+  {kind: :field, name: q_name(field), args: [q_expr(x)]}
+end
+
 # ── aggregates and windows ─────────────────────────────────────────────────
 
 def q_agg_fn(f, args)
@@ -370,7 +447,29 @@ end
 
 # row_number() OVER (PARTITION BY … ORDER BY …).
 def q_row_number(partition, order)
-  {kind: :win, fn: "row_number", args: [], partition: map(fn(p) q_name(p) end, as_list(partition)), order: map(fn(k) q_key(k) end, as_list(order))}
+  q_window("row_number", [], partition, order)
+end
+
+# The value of `x` in the next row of its partition, in `order`; NULL on the
+# last. An order is required: without one the next row is arbitrary.
+def q_lead(x, partition, order)
+  q_ordered_window("lead", x, partition, order)
+end
+
+# The value of `x` in the previous row; NULL on the first.
+def q_lag(x, partition, order)
+  q_ordered_window("lag", x, partition, order)
+end
+
+def q_ordered_window(f, x, partition, order)
+  if is_empty(as_list(order))
+    throw(error(:kueri_shape, "#{f} needs an order; without one the neighbouring row is arbitrary"))
+  end
+  q_window(f, [q_expr(x)], partition, order)
+end
+
+def q_window(f, args, partition, order)
+  {kind: :win, fn: f, args: args, partition: map(fn(p) q_name(p) end, as_list(partition)), order: map(fn(k) q_key(k) end, as_list(order))}
 end
 
 # An aggregate over only the rows where `pred` holds: FILTER (WHERE …) in
@@ -392,7 +491,7 @@ end
 
 # Functions whose result depends on the order rows arrive in.
 def q_order_sensitive_fns()
-  ["string_agg", "row_number"]
+  ["string_agg", "row_number", "lead", "lag"]
 end
 
 # Functions with no core form.
@@ -420,13 +519,24 @@ end
 
 # ── relations ──────────────────────────────────────────────────────────────
 
-# A delimited input file with DECLARED columns, in file order: read_csv maps
-# them by position and never sniffs. opts: name, file, columns (q_col list),
-# delim (:tab, the default, or :comma).
+# An input file with DECLARED columns. opts: name, file, columns (q_col
+# list), format (:delimited, the default, or :jsonl), delim (:tab, the
+# default, or :comma; delimited only).
+#   :delimited  read_csv maps the columns by position and never sniffs.
+#   :jsonl      JSON Lines: read_json maps them by key, a missing key is NULL,
+#               and a value that is not of its column's type fails the load,
+#               never reads as NULL. Columns may be q_struct_of / q_list_of.
 def q_source(opts)
   cols = as_list(get(opts, :columns))
   if is_empty(cols)
     throw(error(:kueri_shape, "source #{q_name(get(opts, :name))} declares no columns; a source states its schema, the sniffer never does"))
+  end
+  format = get(opts, :format)
+  if format == nil
+    format = :delimited
+  end
+  if contains([:delimited, :jsonl], format) == false
+    throw(error(:kueri_shape, "a source's format is :delimited or :jsonl"))
   end
   delim = get(opts, :delim)
   if delim == nil
@@ -435,7 +545,29 @@ def q_source(opts)
   if contains([:tab, :comma], delim) == false
     throw(error(:kueri_shape, "a source's delim is :tab or :comma"))
   end
-  {kind: :source, name: q_name(get(opts, :name)), file: get(opts, :file), columns: cols, delim: delim}
+  {kind: :source, name: q_name(get(opts, :name)), file: get(opts, :file), columns: cols, delim: delim, format: format}
+end
+
+# A relation of literal rows with declared scalar columns: data a program
+# built (a definition's own tables, a lookup), loaded as a view in either
+# dialect — never hand-written SQL. opts: name, columns (q_col list), rows
+# (lists of numbers, strings, booleans or nil, one per column).
+def q_values(opts)
+  name = q_name(get(opts, :name))
+  cols = as_list(get(opts, :columns))
+  if is_empty(cols)
+    throw(error(:kueri_shape, "values #{name} declares no columns"))
+  end
+  if is_empty(filter(fn(c) q_composite?(get(c, :type)) end, cols)) == false
+    throw(error(:kueri_shape, "values #{name}: a literal row holds scalars; a list is one row per element"))
+  end
+  rows = as_list(get(opts, :rows))
+  n = size(cols)
+  bad = filter(fn(r) (list?(r) == false) || (size(r) != n) || (count_where(fn(v) q_value?(v) == false end, r) > 0) end, rows)
+  if is_empty(bad) == false
+    throw(error(:kueri_shape, "values #{name}: every row is #{to_s(n)} literals (numbers, strings, booleans or nil)"))
+  end
+  {kind: :source, name: name, file: nil, columns: cols, delim: nil, format: :values, rows: rows}
 end
 
 # The escape hatch: hand-written SQL, which must declare the columns it
@@ -533,11 +665,12 @@ end
 # ── models and stages ──────────────────────────────────────────────────────
 
 # A model is one SELECT with a name. opts: name, from, pipeline, posture,
-# contract (q_col list), materialize (:parquet, :csv or :table; optional).
+# contract (q_col list), materialize (:parquet, :csv, :table or :view;
+# optional).
 def q_model(opts)
   m = get(opts, :materialize)
-  if contains([nil, :parquet, :csv, :table], m) == false
-    throw(error(:kueri_shape, "materialize is :parquet, :csv or :table"))
+  if contains([nil, :parquet, :csv, :table, :view], m) == false
+    throw(error(:kueri_shape, "materialize is :parquet, :csv, :table or :view"))
   end
   if get(opts, :from) == nil
     throw(error(:kueri_shape, "model #{q_name(get(opts, :name))} reads from nothing"))
@@ -582,6 +715,13 @@ def q_derive(name, expr)
   {kind: :derive, name: q_name(name), expr: q_expr(expr)}
 end
 
+# One row per element of a list: each row repeats once per element of
+# `list_expr`, the element in the new column `name`, and a row whose list is
+# empty or NULL is dropped (unnest). DuckDB only.
+def q_explode(name, list_expr)
+  {kind: :explode, name: q_name(name), expr: q_expr(list_expr)}
+end
+
 # Keep the rows where `pred` holds.
 def q_filter(pred)
   {kind: :filter, pred: q_expr(pred)}
@@ -602,6 +742,14 @@ def q_left_join(rel, keys)
   {kind: :join, how: :left, rel: q_rel(rel), keys: map(fn(k) q_name(k) end, keys)}
 end
 
+# ASOF LEFT JOIN … USING (keys): the LAST key matches inexactly — each left
+# row takes the right row whose key is the greatest at or below its own (the
+# right side as of the left row's moment); the other keys match exactly. A
+# left row with no match keeps NULLs. DuckDB only.
+def q_asof_left_join(rel, keys)
+  {kind: :join, how: :asof_left, rel: q_rel(rel), keys: map(fn(k) q_name(k) end, keys)}
+end
+
 def q_sort(keys)
   {kind: :sort, keys: map(fn(k) q_key(k) end, keys)}
 end
@@ -617,7 +765,7 @@ def q_stage_exprs(stage)
   k = get(stage, :kind)
   if k == :filter
     [get(stage, :pred)]
-  elsif k == :derive
+  elsif (k == :derive) || (k == :explode)
     [get(stage, :expr)]
   elsif k == :select
     map(fn(i) get(i, :expr) end, get(stage, :items))
@@ -778,6 +926,14 @@ def q_stage_refusals(stage, cols, where, next_kind)
       []
     end
     concat_lists(dup, concat_lists(q_expr_refusals(e, where, false, true), q_unknown_refusals(q_refs(e), cols, where)))
+  elsif k == :explode
+    e = get(stage, :expr)
+    dup = if (cols != nil) && contains(cols, get(stage, :name))
+      [[:kueri_shape, "#{where}: #{get(stage, :name)} is already a column"]]
+    else
+      []
+    end
+    concat_lists(dup, concat_lists(q_expr_refusals(e, where, false, false), q_unknown_refusals(q_refs(e), cols, where)))
   elsif k == :select
     items = get(stage, :items)
     per = flat_map(fn(i) concat_lists(q_expr_refusals(get(i, :expr), where, false, false), q_unknown_refusals(q_refs(get(i, :expr)), cols, where)) end, items)
@@ -833,7 +989,7 @@ end
 # The columns a stage returns, or nil when its input's are unknown.
 def q_stage_output(stage, cols)
   k = get(stage, :kind)
-  if k == :derive
+  if (k == :derive) || (k == :explode)
     if cols == nil
       nil
     else
@@ -916,12 +1072,35 @@ end
 
 def q_stage_uses(stage, where)
   nodes = flat_map(fn(e) q_nodes(e) end, q_stage_exprs(stage))
-  only = filter(fn(n) (get(n, :kind) == :agg) && contains(q_duckdb_only_fns(), get(n, :fn)) end, nodes)
-  uses = map(fn(n) [get(n, :fn), where] end, only)
-  if get(stage, :kind) == :join
-    concat_lists(uses, q_rel_uses(get(stage, :rel), where))
+  only = filter(fn(n) q_duckdb_node?(n) end, nodes)
+  uses = map(fn(n) [q_node_label(n), where] end, only)
+  k = get(stage, :kind)
+  if k == :join
+    asof = if get(stage, :how) == :asof_left
+      [["an asof join", where]]
+    else
+      []
+    end
+    concat_lists(uses, concat_lists(asof, q_rel_uses(get(stage, :rel), where)))
+  elsif k == :explode
+    push(uses, ["unnest", where])
   else
     uses
+  end
+end
+
+# An expression node with no core form: a DuckDB-only aggregate, or a struct
+# field.
+def q_duckdb_node?(n)
+  k = get(n, :kind)
+  (k == :field) || ((k == :agg) && contains(q_duckdb_only_fns(), get(n, :fn)))
+end
+
+def q_node_label(n)
+  if get(n, :kind) == :field
+    "struct field #{get(n, :name)}"
+  else
+    get(n, :fn)
   end
 end
 
@@ -1031,10 +1210,14 @@ end
 # (the WHERE can only name the left side's columns, and a clash across the
 # join is refused), and a filter after row-wise derives that it does not read
 # (moving a filter before a scalar changes nothing; before a window it would,
-# so a block with a window never takes one).
+# so a block with a window never takes one). An explode's unnest joins only a
+# select list that has nothing in it yet, and a window never joins a select
+# list that unnests: which rows a window sees beside an unnest is DuckDB's
+# evaluation order, not a rule this renderer should lean on. A filter that
+# does not read the element still moves before the unnest, which is exact.
 
 def q_block(from)
-  {from: from, joins: [], where: [], grouped: false, keys: [], aggs: [], having: [], items: nil, derives: [], window: false, qualify: [], order: [], order_all: false, limit: nil, phase: 0}
+  {from: from, joins: [], where: [], grouped: false, keys: [], aggs: [], having: [], items: nil, derives: [], window: false, exploded: false, qualify: [], order: [], order_all: false, limit: nil, phase: 0}
 end
 
 def q_derived_names(b)
@@ -1060,8 +1243,10 @@ def q_fits?(b, stage, dialect)
     if p <= 2
       true
     else
-      (p == 5) && (get(b, :items) == nil) && is_empty(as_list(intersection(q_refs(get(stage, :expr)), q_derived_names(b))))
+      (p == 5) && (get(b, :items) == nil) && is_empty(as_list(intersection(q_refs(get(stage, :expr)), q_derived_names(b)))) && ((get(b, :exploded) && q_has?(get(stage, :expr), :win)) == false)
     end
+  elsif k == :explode
+    p <= 2
   elsif k == :select
     p <= 2
   elsif k == :sort
@@ -1119,6 +1304,9 @@ def q_into(b, stage, dialect)
   elsif k == :derive
     d = q_as(get(stage, :name), get(stage, :expr))
     q_set(assoc(b, :window, get(b, :window) || q_has?(get(stage, :expr), :win)), :derives, push(get(b, :derives), d), 5)
+  elsif k == :explode
+    d = q_as(get(stage, :name), {kind: :unnest, args: [get(stage, :expr)]})
+    q_set(assoc(b, :exploded, true), :derives, push(get(b, :derives), d), 5)
   elsif k == :select
     q_set(b, :items, get(stage, :items), 5)
   elsif k == :sort
@@ -1168,6 +1356,8 @@ def q_prec(e)
     get(e, :prec)
   elsif k == :not
     3
+  elsif k == :postfix
+    4
   else
     10
   end
@@ -1266,7 +1456,8 @@ def q_render_win(e, dialect)
   else
     ["ORDER BY #{join(map(fn(k) q_render_key(k) end, get(e, :order)), ", ")}"]
   end
-  "#{get(e, :fn)}() OVER (#{join(concat_lists(part, ord), " ")})"
+  args = join(map(fn(a) q_render_expr(a, dialect) end, as_list(get(e, :args))), ", ")
+  "#{get(e, :fn)}(#{args}) OVER (#{join(concat_lists(part, ord), " ")})"
 end
 
 # One expression, in one dialect. The only place an expression becomes text.
@@ -1290,8 +1481,27 @@ def q_render_expr(e, dialect)
     q_render_agg(e, dialect)
   elsif k == :win
     q_render_win(e, dialect)
+  elsif k == :postfix
+    "#{q_operand(first(get(e, :args)), 4, true, dialect)} #{get(e, :op)}"
+  elsif k == :case
+    args = get(e, :args)
+    "CASE WHEN #{q_render_expr(nth(0, args), dialect)} THEN #{q_render_expr(nth(1, args), dialect)} ELSE #{q_render_expr(nth(2, args), dialect)} END"
+  elsif k == :field
+    q_duckdb_floor(dialect, "a struct field")
+    "(#{q_render_expr(first(get(e, :args)), dialect)}).#{q_ident(get(e, :name))}"
+  elsif k == :unnest
+    q_duckdb_floor(dialect, "unnest")
+    "unnest(#{q_render_expr(first(get(e, :args)), dialect)})"
   else
     throw(error(:kueri_shape, "no renderer arm for a #{to_s(k)} node"))
+  end
+end
+
+# The renderer's own floor: a DuckDB-only construct never renders as core,
+# whichever door it came through.
+def q_duckdb_floor(dialect, what)
+  if dialect != :duckdb
+    throw(error(:kueri_dialect, "#{what} has no core form; render with :duckdb"))
   end
 end
 
@@ -1336,9 +1546,13 @@ def q_clause(word, preds, dialect)
   end
 end
 
-def q_join_line(j)
-  word = if get(j, :how) == :left
+def q_join_line(j, dialect)
+  how = get(j, :how)
+  word = if how == :left
     "LEFT JOIN"
+  elsif how == :asof_left
+    q_duckdb_floor(dialect, "an asof join")
+    "ASOF LEFT JOIN"
   else
     "JOIN"
   end
@@ -1353,7 +1567,7 @@ def q_block_lines(b, dialect)
   else
     cons("SELECT", q_list_lines(sel))
   end
-  from = cons("FROM #{q_ident(get(b, :from))}", map(fn(j) q_join_line(j) end, get(b, :joins)))
+  from = cons("FROM #{q_ident(get(b, :from))}", map(fn(j) q_join_line(j, dialect) end, get(b, :joins)))
   group = if get(b, :grouped) && (is_empty(get(b, :keys)) == false)
     ["GROUP BY #{join(map(fn(k) q_ident(k) end, get(b, :keys)), ", ")}"]
   else
@@ -1427,14 +1641,45 @@ def q_delim_sql(d)
   end
 end
 
-# A view that reads a source's file with its declared columns. DuckDB only:
-# read_csv has no core form.
+# A view that loads a source with its declared columns: a delimited file
+# (read_csv) or JSON Lines (read_json), DuckDB only; or literal rows
+# (q_values), in either dialect, where `path` is not read.
 def q_render_load(source, path, dialect)
-  if dialect != :duckdb
-    throw(error(:kueri_dialect, "read_csv has no core form; load source #{get(source, :name)} with :duckdb"))
+  f = get(source, :format)
+  if f == :values
+    q_render_values_load(source, dialect)
+  else
+    reader = if f == :jsonl
+      "read_json"
+    else
+      "read_csv"
+    end
+    if dialect != :duckdb
+      throw(error(:kueri_dialect, "#{reader} has no core form; load source #{get(source, :name)} with :duckdb"))
+    end
+    cols = join(map(fn(c) "#{q_quote_str(get(c, :name))}: #{q_quote_str(q_type_sql(get(c, :type), :duckdb))}" end, get(source, :columns)), ", ")
+    how = if f == :jsonl
+      "format = 'newline_delimited'"
+    else
+      "delim = #{q_delim_sql(get(source, :delim))}, header = true"
+    end
+    "CREATE OR REPLACE VIEW #{q_ident(get(source, :name))} AS\nSELECT * FROM #{reader}(#{q_quote_str(path)}, #{how}, columns = {#{cols}})"
   end
-  cols = join(map(fn(c) "#{q_quote_str(get(c, :name))}: #{q_quote_str(q_type_sql(get(c, :type), :duckdb))}" end, get(source, :columns)), ", ")
-  "CREATE OR REPLACE VIEW #{q_ident(get(source, :name))} AS\nSELECT * FROM read_csv(#{q_quote_str(path)}, delim = #{q_delim_sql(get(source, :delim))}, header = true, columns = {#{cols}})"
+end
+
+# Literal rows as a view, each column cast to its declared type (so a column
+# that is all NULL is still typed). No rows: the typed columns and no row.
+def q_render_values_load(source, dialect)
+  cols = get(source, :columns)
+  typed = join(map(fn(c) "CAST(#{q_ident(get(c, :name))} AS #{q_type_sql(get(c, :type), dialect)}) AS #{q_ident(get(c, :name))}" end, cols), ", ")
+  rows = get(source, :rows)
+  body = if is_empty(rows)
+    "SELECT #{join(map(fn(c) "CAST(NULL AS #{q_type_sql(get(c, :type), dialect)}) AS #{q_ident(get(c, :name))}" end, cols), ", ")} WHERE FALSE"
+  else
+    lines = map(fn(r) "(#{join(map(fn(v) q_render_lit(q_lit(v), dialect) end, r), ", ")})" end, rows)
+    "SELECT #{typed}\nFROM (VALUES\n  #{join(lines, ",\n  ")}\n) AS t(#{join(map(fn(c) q_ident(get(c, :name)) end, cols), ", ")})"
+  end
+  "CREATE OR REPLACE VIEW #{q_ident(get(source, :name))} AS\n#{body}"
 end
 
 # Where a model's materialization lands by default: <name>.parquet or .csv.
@@ -1450,12 +1695,15 @@ def q_materialize_target(model)
 end
 
 # The statement that writes a model out: COPY … TO a zstd Parquet or a headed
-# CSV (DuckDB), or CREATE TABLE … AS (both dialects).
+# CSV (DuckDB), or CREATE TABLE … AS / CREATE OR REPLACE VIEW … AS (both
+# dialects).
 def q_render_materialize(model, dialect, target)
   m = get(model, :materialize)
   sql = q_render(model, dialect)
   if m == :table
     "CREATE TABLE #{q_ident(get(model, :name))} AS\n#{sql}"
+  elsif m == :view
+    "CREATE OR REPLACE VIEW #{q_ident(get(model, :name))} AS\n#{sql}"
   elsif m == nil
     throw(error(:kueri_shape, "model #{get(model, :name)} declares no materialize"))
   elsif dialect != :duckdb
@@ -1484,6 +1732,23 @@ end
 def q_write_sql(path, model, dialect, source)
   write_file(path, q_render_file(model, dialect, source))
   path
+end
+
+# One script that builds a database: every source the models read, loaded
+# (each from its own :file, or its literal rows), then every model, upstream
+# before downstream, as its materialization; each once, by name. Every model
+# in it materializes as a :view or a :table, because what reads a model names
+# it. The same @generated header as q_render_file.
+def q_render_script(models, dialect, source)
+  nodes = unique_by(fn(n) get(n, :name) end, flat_map(fn(m) push(q_closure(m), m) end, as_list(models)))
+  sources = filter(fn(n) get(n, :kind) == :source end, nodes)
+  ms = filter(fn(n) get(n, :kind) == :model end, nodes)
+  loose = filter(fn(m) contains([:view, :table], get(m, :materialize)) == false end, ms)
+  if is_empty(loose) == false
+    throw(error(:kueri_shape, "a script builds relations, and #{join(map(fn(m) get(m, :name) end, loose), ", ")} materialize as neither :view nor :table"))
+  end
+  stmts = concat_lists(map(fn(s) q_render_load(s, get(s, :file), dialect) end, sources), map(fn(m) q_render_materialize(m, dialect, nil) end, ms))
+  "-- @generated by #{source} (kueri, #{to_s(dialect)}). Do not edit: regenerate from the blue model.\n#{join(stmts, ";\n")};\n"
 end
 
 # ── the DAG ────────────────────────────────────────────────────────────────
@@ -1525,7 +1790,16 @@ end
 # Rows are JSON documents (read fields with q_row_values or deeta). Only
 # statements that return rows print, so a script may load views first.
 def q_duckdb(sql)
-  cap = exec_capture("duckdb", "-json", "-c", sql)
+  q_duckdb_result(exec_capture("duckdb", "-json", "-c", sql))
+end
+
+# q_duckdb against a database file (created when absent), so what a script
+# builds persists: [:ok, rows] or [:error, stderr].
+def q_duckdb_at(db, sql)
+  q_duckdb_result(exec_capture("duckdb", db, "-json", "-c", sql))
+end
+
+def q_duckdb_result(cap)
   if status_of(cap) != 0
     [:error, stderr_of(cap)]
   elsif trim(stdout_of(cap)) == ""
@@ -1537,6 +1811,25 @@ end
 
 def q_duckdb_failed?(result)
   first(result) == :error
+end
+
+# The rows of a query, or a THROWN :kueri_query when it failed: a failed
+# query never reads as no rows (the guarantee makoto's bunseki.strict_rows
+# gives, here for the public distribution).
+def q_rows(sql)
+  q_rows_of(q_duckdb(sql), sql)
+end
+
+# q_rows against a database file.
+def q_rows_at(db, sql)
+  q_rows_of(q_duckdb_at(db, sql), sql)
+end
+
+def q_rows_of(result, sql)
+  if q_duckdb_failed?(result)
+    throw(error(:kueri_query, "#{trim(last(result))} -- in: #{sql}"))
+  end
+  last(result)
 end
 
 # The rows of a result as value lists, columns in `names` order; [] when it
@@ -1941,4 +2234,145 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
   assert q_row_values(q_duckdb("SELECT * FROM read_parquet(#{q_quote_str(pq)})"), lev_names) == lev_known
   map(fn(f) rm(path_join(dir, "kueri-e2e-#{first(f)}")) end, files)
   rm(pq)
+end
+
+# A small JSON Lines stream in an event log's shape (a refusal object, a list
+# of link objects, a payload object) and the source that declares it.
+def q_example_records_text()
+  join([
+    "{\"entity\":\"item-1\",\"links\":[],\"payload\":{\"value\":10},\"refusal\":null,\"seq\":0,\"time\":1000}",
+    "{\"entity\":\"item-1\",\"links\":[{\"id\":\"B-7\",\"kind\":\"batch\"}],\"payload\":{},\"refusal\":{\"detail\":[\"quality_ok\",\"uses_left\"],\"kind\":\"guard\"},\"seq\":1,\"time\":1100}",
+    "{\"entity\":\"item-2\",\"links\":[],\"payload\":{\"value\":10.5,\"note\":\"x\"},\"refusal\":null,\"seq\":0,\"time\":1200}", ""], "\n")
+end
+
+def q_example_records(path)
+  q_source({name: :recs, file: path, format: :jsonl, columns: [q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:time, :bigint), q_col(:refusal, q_struct_of([q_col(:kind, :varchar), q_col(:detail, q_list_of(:varchar))])), q_col(:links, q_list_of(q_struct_of([q_col(:id, :varchar), q_col(:kind, :varchar)]))), q_col(:payload, q_struct_of([q_col(:value, :double)]))]})
+end
+
+# Run a model over its loaded sources, in memory: its rows as value lists.
+def q_example_run(m, names)
+  loads = map(fn(s) q_render_load(s, get(s, :file), :duckdb) end, q_sources(m))
+  map(fn(row) map(fn(n) as_json(row, q_name(n)) end, names) end, q_rows(join(push(loads, q_render(m, :duckdb)), ";\n")))
+end
+
+test "JSON Lines and literal rows load with declared types, and struct fields and explode read them"
+  path = path_join(getenv("TMPDIR", "."), "kueri-records-#{to_s(now_ns())}.jsonl")
+  write_file(path, q_example_records_text())
+  recs = q_example_records(path)
+  assert q_render_load(recs, "r.jsonl", :duckdb) == "CREATE OR REPLACE VIEW recs AS\nSELECT * FROM read_json('r.jsonl', format = 'newline_delimited', columns = {'entity': 'VARCHAR', 'seq': 'BIGINT', 'time': 'BIGINT', 'refusal': 'STRUCT(kind VARCHAR, detail VARCHAR[])', 'links': 'STRUCT(id VARCHAR, kind VARCHAR)[]', 'payload': 'STRUCT(value DOUBLE)'})"
+  # One row per refusing rule: the refused record's two rules; the admitted
+  # records' refusal is NULL, so they explode into no rows.
+  rules = q_model({name: :rules, from: recs, pipeline: [q_explode(:rule, q_get(:refusal, :detail)), q_select([:entity, :seq, :rule])]})
+  assert q_render(rules, :duckdb) == "WITH step_1 AS (\n  SELECT\n    *,\n    unnest((refusal).detail) AS rule\n  FROM recs\n)\nSELECT\n  entity,\n  seq,\n  rule\nFROM step_1"
+  assert q_example_run(q_then(rules, [q_sort([:rule])]), [:entity, :seq, :rule]) == [["item-1", 1, "quality_ok"], ["item-1", 1, "uses_left"]]
+  # A link's fields; a payload key absent from a line is NULL, and 10 loads as
+  # the DOUBLE its column declares.
+  links = q_model({name: :ls, from: recs, pipeline: [q_explode(:link, :links), q_select([:entity, q_as(:link_id, q_get(:link, :id)), q_as(:link_kind, q_get(:link, :kind))])]})
+  assert q_example_run(links, [:entity, :link_id, :link_kind]) == [["item-1", "B-7", "batch"]]
+  values = q_model({name: :vs, from: recs, pipeline: [q_select([:entity, :seq, q_as(:value, q_get(:payload, :value))]), q_sort([:entity, :seq])]})
+  assert q_example_run(values, [:entity, :seq, :value]) == [["item-1", 0, 10.0], ["item-1", 1, nil], ["item-2", 0, 10.5]]
+  # Literal rows: typed, NULLs kept, and none at all still typed.
+  gates = q_values({name: :gates, columns: [q_col(:kind, :varchar), q_col(:weight, :bigint)], rows: [["guard", 2], ["no_edge", nil]]})
+  assert q_render_load(gates, nil, :core) == "CREATE OR REPLACE VIEW gates AS\nSELECT CAST(kind AS VARCHAR) AS kind, CAST(weight AS BIGINT) AS weight\nFROM (VALUES\n  ('guard', 2),\n  ('no_edge', NULL)\n) AS t(kind, weight)"
+  weighed = q_model({name: :w, from: recs, pipeline: [q_derive(:kind, q_get(:refusal, :kind)), q_join(gates, [:kind]), q_select([:entity, :kind, :weight])]})
+  assert q_example_run(weighed, [:entity, :kind, :weight]) == [["item-1", "guard", 2]]
+  none = q_values({name: :none, columns: [q_col(:kind, :varchar)], rows: []})
+  assert q_example_run(q_model({name: :n, from: none, pipeline: [q_group([], [q_agg(:n, q_count_all())])]}), [:n]) == [[0]]
+  # Controls: a value that is not its column's type fails the load, loudly,
+  # and q_rows throws rather than answer no rows; no door renders these
+  # constructs as core.
+  write_file(path, "{\"entity\":\"x\",\"payload\":{\"value\":\"high\"},\"seq\":0,\"time\":1}\n")
+  assert error?(try(q_example_run(values, [:entity]), catch(e(), e)))
+  rm(path)
+  assert error?(try(q_render_load(recs, "r.jsonl", :core), catch(e(), e)))
+  assert error?(try(q_render(links, :core), catch(e(), e)))
+  assert error?(try(q_render_query(links, :core), catch(e(), e)))
+  assert error?(try(q_render_query(q_model({name: :f, from: recs, pipeline: [q_select([q_as(:k, q_get(:refusal, :kind))])]}), :core), catch(e(), e)))
+  assert error?(try(q_type_sql(q_list_of(:varchar), :core), catch(e(), e)))
+  assert get(q_shift(links), :held_by) == ["unnest at stage 1 (explode)", "struct field id at stage 2 (select)", "struct field kind at stage 2 (select)"]
+  assert error?(try(q_values({name: :bad, columns: [q_col(:a, :varchar)], rows: [["a", "b"]]}), catch(e(), e)))
+  assert error?(try(q_struct_of([]), catch(e(), e)))
+end
+
+# Steps of two entities as literal rows: entity, seq, time, phase.
+def q_example_steps()
+  q_values({name: :steps, columns: [q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:time, :bigint), q_col(:phase, :varchar)], rows: [["e1", 0, 100, "a"], ["e1", 1, 250, "b"], ["e1", 2, 400, "c"], ["e2", 0, 120, "a"]]})
+end
+
+# Each step's interval: until the entity's next step, or `now` (1000) when it
+# is the last; the phase before it (or "start"); open or closed.
+def q_example_intervals()
+  q_model({name: :intervals, from: q_example_steps(), materialize: :view, pipeline: [
+    q_derive(:until, q_lead(:time, [:entity], [:seq])),
+    q_derive(:before, q_coalesce(q_lag(:phase, [:entity], [:seq]), "start")),
+    q_derive(:seconds, q_sub(q_coalesce(:until, 1000), :time)),
+    q_derive(:state, q_if(q_is_null(:until), "open", "closed")),
+    q_select([:entity, :seq, :before, :phase, :until, :seconds, :state])]})
+end
+
+test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered once and run"
+  m = q_example_intervals()
+  assert q_render(m, :duckdb) == join([
+    "WITH step_1 AS (",
+    "  SELECT",
+    "    *,",
+    "    lead(time) OVER (PARTITION BY entity ORDER BY seq) AS until,",
+    "    coalesce(lag(phase) OVER (PARTITION BY entity ORDER BY seq), 'start') AS before",
+    "  FROM steps",
+    "), step_2 AS (",
+    "  SELECT",
+    "    *,",
+    "    coalesce(until, 1000) - time AS seconds,",
+    "    CASE WHEN until IS NULL THEN 'open' ELSE 'closed' END AS state",
+    "  FROM step_1",
+    ")",
+    "SELECT",
+    "  entity,",
+    "  seq,",
+    "  before,",
+    "  phase,",
+    "  until,",
+    "  seconds,",
+    "  state",
+    "FROM step_2"], "\n")
+  # Lead, lag and CASE are core SQL: the same bytes in both dialects.
+  assert q_render(m, :core) == q_render(m, :duckdb)
+  # By hand: e1 steps at 100, 250, 400 -> intervals 150, 150, and 1000 - 400
+  # = 600 still open; e2 one step at 120 -> 880 open.
+  names = [:entity, :seq, :before, :phase, :until, :seconds, :state]
+  assert q_example_run(q_then(m, [q_sort([:entity, :seq])]), names) == [["e1", 0, "start", "a", 250, 150, "closed"], ["e1", 1, "a", "b", 400, 150, "closed"], ["e1", 2, "b", "c", nil, 600, "open"], ["e2", 0, "start", "a", nil, 880, "open"]]
+  # The asof join: each probe takes the latest reading at or before its time.
+  readings = q_values({name: :readings, columns: [q_col(:entity, :varchar), q_col(:time, :bigint), q_col(:q, :double)], rows: [["e1", 90, 1.0], ["e1", 240, 2.0]]})
+  probes = q_values({name: :probes, columns: [q_col(:entity, :varchar), q_col(:time, :bigint), q_col(:tag, :varchar)], rows: [["e1", 100, "a"], ["e1", 250, "b"], ["e1", 50, "early"], ["e3", 100, "none"]]})
+  asof = q_model({name: :asof, from: probes, pipeline: [q_asof_left_join(readings, [:entity, :time]), q_select([:tag, :q]), q_sort([:tag])]})
+  assert contains?(q_render(asof, :duckdb), "ASOF LEFT JOIN readings USING (entity, time)")
+  assert q_example_run(asof, [:tag, :q]) == [["a", 1.0], ["b", 2.0], ["early", nil], ["none", nil]]
+  # Controls: a lead with no order, and an asof join held at :portable or
+  # rendered as core.
+  assert error?(try(q_lead(:time, [:entity], []), catch(e(), e)))
+  assert q_refusal_kinds(assoc(asof, :posture, q_posture_of([:portable]))) == [:kueri_reach]
+  assert error?(try(q_render_query(asof, :core), catch(e(), e)))
+  assert q_render_expr(q_not(q_is_null(:x)), :core) == "NOT x IS NULL"
+end
+
+test "a script builds a database file of views, upstream first, and q_rows never reads a failure as no rows"
+  m = q_example_intervals()
+  script = q_render_script([m], :duckdb, "kueri test")
+  assert starts_with?(script, "-- @generated by kueri test (kueri, duckdb).")
+  # Two statements, the load before the view that reads it, then the end.
+  parts = split(script, ";\n")
+  assert size(parts) == 3
+  assert ends_with?(first(parts), q_render_load(q_example_steps(), nil, :duckdb))
+  assert starts_with?(nth(1, parts), "CREATE OR REPLACE VIEW intervals AS\nWITH step_1 AS (")
+  assert last(parts) == ""
+  db = path_join(getenv("TMPDIR", "."), "kueri-script-#{to_s(now_ns())}.duckdb")
+  assert q_duckdb_failed?(q_duckdb_at(db, script)) == false
+  # The views persist in the file: a second process reads them.
+  assert q_rows_at(db, "SELECT sum(seconds) AS s FROM intervals") == q_rows("SELECT 1780 AS s")
+  rm(db)
+  # The empty case and the control: no rows is [], a failure throws.
+  assert q_rows("SELECT 1 AS x WHERE false") == []
+  assert error?(try(q_rows("SELECT FROM nowhere"), catch(e(), e)))
+  # A model a script cannot name (no :view or :table) is refused.
+  assert error?(try(q_render_script([assoc(m, :materialize, nil)], :duckdb, "t"), catch(e(), e)))
 end

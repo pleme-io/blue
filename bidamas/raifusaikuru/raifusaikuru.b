@@ -22,7 +22,9 @@ use("shuugou")
 #           task specs to create
 #   permit  lc_permit_for(def, state, capability, now)
 #           the limits (not-after time, remaining counts) as data;
-#           lc_permit_payload(permit, subject) is the signing seam
+#           lc_permit_payload(permit, subject) is the signing seam;
+#           lc_permit_event(def, permit, subject) is the issuance as an event
+#           to log, when the definition declares lc_permit_log
 #
 # ## Clauses (a definition is a list of these, nested freely)
 #
@@ -32,6 +34,10 @@ use("shuugou")
 #   lc_gate(capability, rows)        the event USES the capability
 #   lc_guard(capability, rules, task)   rules: lc_rule / lc_rule_task
 #   lc_permit(capability, terms)     terms: lc_valid_for, lc_counted
+#   lc_permit_log(capability, event) an issued permit is logged as `event`, a
+#                                    no-op accepted in every non-terminal state
+#   lc_link(role, target)            records may carry links of kind `role`,
+#                                    each naming an entity of lifecycle `target`
 # effects   lc_set lc_put lc_add lc_add_from lc_stamp
 # predicates  lc_below lc_at_most lc_above lc_at_least lc_equals lc_present
 #             lc_fresh lc_in_phase lc_all lc_any lc_not
@@ -84,8 +90,9 @@ use("shuugou")
 # lc_any (a vacuous truth); a task with no evidence or no escalation; a permit
 # with no time bound, a counted field its guard does not bound, or a time or
 # count condition under lc_any / lc_not in a permitted guard, where the limits
-# would not be sound. `lc_problem_kinds()` is the closed list, and a test row
-# exercises every kind.
+# would not be sound; a permit log for a capability with no lc_permit, or two
+# for one capability; two links with one role. `lc_problem_kinds()` is the
+# closed list, and a test row exercises every kind.
 # RECORDED BY THE FOLD, never thrown: an event the definition does not know,
 # an event with no row from the current state, one missing a declared payload
 # key, or one whose counter or added amount is not a number is REFUSED. It is
@@ -110,6 +117,28 @@ use("shuugou")
 # the state's sequence number: a consumer re-derives on every event and revokes
 # when the guard refuses. Signing is NOT here: lc_permit_payload renders the
 # canonical text a signer signs, the seam for a crypto bidama.
+#
+# An issued permit is a fact an auditor asks about, and an event log records
+# only events. lc_permit_log(capability, event) makes issuance an event: the
+# definition gains `event`, whose payload keys are the permit's limits
+# (subject, not_after, basis, and `<field>_left` per counted field, named by
+# lc_permit_count_key), and a :stay row with no effects from every
+# non-terminal state. So logging a permit changes no field and no phase, only
+# the sequence, and a terminal entity cannot be issued one. lc_permit_event
+# renders an issued permit as that event.
+#
+# ## Links
+#
+# lc_link(role, target) declares that this lifecycle's records may link, with
+# link kind `role` (the kind an event log writes beside each link's id), to an
+# entity of lifecycle `target`. The shape is the one declared relations
+# already agree on: declared on the referring side, a role plus the target's
+# kind, with the id carried by the referring record (a Kubernetes
+# ownerReference's {kind, name}; Rails `belongs_to`; dbt's `relationships`
+# test). The engine folds no link: the declaration is for what reads the log
+# (joins generated across lifecycles). Only this definition is checked here
+# (names, one row per role); whether `target` exists is checked where the
+# lifecycles are read together.
 
 # ── names and time ─────────────────────────────────────────────────────────
 
@@ -360,6 +389,28 @@ def lc_permit(capability, terms)
   [:lc_permit, capability, as_list(terms)]
 end
 
+# An issued permit for `capability` is logged as `event`: the definition gains
+# the event (its keys are the permit's limits) and a no-op :stay row from every
+# non-terminal state. lc_permit_event renders a permit as the event.
+def lc_permit_log(capability, event)
+  [:lc_permit_log, capability, event]
+end
+
+# The payload key a logged permit carries a counted field's remaining uses
+# under: "<field>_left".
+def lc_permit_count_key(field)
+  "#{lc_text(field)}_left"
+end
+
+# ── links ──────────────────────────────────────────────────────────────────
+
+# This lifecycle's records may carry links of kind `role`, each naming an
+# entity of lifecycle `target`. Declared here, folded nowhere: it is for what
+# reads the log (joins across lifecycles).
+def lc_link(role, target)
+  [:lc_link, role, target]
+end
+
 # ── reading clauses ────────────────────────────────────────────────────────
 
 # A clause is a list headed by a keyword; anything else is a list of clauses
@@ -383,12 +434,15 @@ def lc_tagged(flat, tag)
 end
 
 def lc_known_tags()
-  [:lc_start, :lc_states, :lc_terminals, :lc_rests, :lc_field, :lc_event, :lc_edge, :lc_guard, :lc_permit]
+  [:lc_start, :lc_states, :lc_terminals, :lc_rests, :lc_field, :lc_event, :lc_edge, :lc_guard, :lc_permit, :lc_permit_log, :lc_link]
 end
 
 # The parsed form, which lc_define seals as the definition once it validates:
 # [tag, name, flat, states, starts, terminals, rests, fields, events, edges,
-# guards, permits]. fields are [name, initial]; events are [name, keys].
+# guards, permits, links, permit_logs]. fields are [name, initial]; events are
+# [name, keys]; links are [role, target]; permit_logs are [capability, event].
+# A permit log's event and rows are added to events and edges here, before
+# validation, so they are checked like any the author wrote.
 def lc_parse(name, clauses)
   flat = lc_flat(clauses)
   states = flat_map(fn(c) nth(1, c) end, lc_tagged(flat, :lc_states))
@@ -396,8 +450,25 @@ def lc_parse(name, clauses)
   terminals = flat_map(fn(c) nth(1, c) end, lc_tagged(flat, :lc_terminals))
   rests = flat_map(fn(c) nth(1, c) end, lc_tagged(flat, :lc_rests))
   fields = map(fn(c) [nth(1, c), nth(2, c)] end, lc_tagged(flat, :lc_field))
-  events = map(fn(c) [nth(1, c), nth(2, c)] end, lc_tagged(flat, :lc_event))
-  [:lc_parsed, name, flat, states, starts, terminals, rests, fields, events, lc_tagged(flat, :lc_edge), lc_tagged(flat, :lc_guard), lc_tagged(flat, :lc_permit)]
+  permits = lc_tagged(flat, :lc_permit)
+  logs = map(fn(c) [nth(1, c), nth(2, c)] end, lc_tagged(flat, :lc_permit_log))
+  open = filter(fn(s) contains(terminals, s) == false end, unique(states))
+  events = concat_lists(map(fn(c) [nth(1, c), nth(2, c)] end, lc_tagged(flat, :lc_event)), map(fn(l) [nth(1, l), lc_permit_log_keys(permits, first(l))] end, logs))
+  edges = concat_lists(lc_tagged(flat, :lc_edge), flat_map(fn(l) map(fn(s) [:lc_edge, s, nth(1, l), s, [], nil] end, open) end, logs))
+  links = map(fn(c) [nth(1, c), nth(2, c)] end, lc_tagged(flat, :lc_link))
+  [:lc_parsed, name, flat, states, starts, terminals, rests, fields, events, edges, lc_tagged(flat, :lc_guard), permits, links, logs]
+end
+
+# The payload keys of a logged permit for `capability`: subject, not_after,
+# basis, and one per counted field of its lc_permit (none when it has none).
+def lc_permit_log_keys(permits, capability)
+  pm = find_first(fn(p) nth(1, p) == capability end, permits)
+  counted = if pm == nil
+    []
+  else
+    map(fn(t) nth(1, t) end, filter(fn(t) list?(t) && (first(t) == :counted) end, as_list(nth(2, pm))))
+  end
+  concat_lists([:subject, :not_after, :basis], map(fn(f) lc_permit_count_key(f) end, counted))
 end
 
 def lc_d_name(d)
@@ -460,12 +531,22 @@ def lc_d_permits(d)
   nth(11, d)
 end
 
+# The declared links, [role, target], in declaration order.
+def lc_d_links(d)
+  nth(12, d)
+end
+
+# The permit logs, [capability, event], in declaration order.
+def lc_d_permit_logs(d)
+  nth(13, d)
+end
+
 # ── validation: every finding, as data ─────────────────────────────────────
 
 # Every kind of problem the builder reports. Closed: lc_problem refuses any
 # other, and a test row exercises each.
 def lc_problem_kinds()
-  [:bad_name, :bad_clause, :bad_gate, :no_states, :duplicate_state, :reserved_name, :duplicate_field, :duplicate_event, :duplicate_key, :no_start, :many_starts, :unknown_state, :unknown_event, :unknown_field, :unknown_payload, :bad_effect, :duplicate_edge, :unknown_capability, :terminal_has_exit, :trap, :unreachable, :no_end, :cannot_converge, :duplicate_guard, :empty_guard, :bad_rule, :duplicate_rule, :bad_predicate, :bad_task, :duplicate_permit, :bad_permit, :unbounded_permit, :unbounded_count, :permit_needs_conjunction]
+  [:bad_name, :bad_clause, :bad_gate, :no_states, :duplicate_state, :reserved_name, :duplicate_field, :duplicate_event, :duplicate_key, :no_start, :many_starts, :unknown_state, :unknown_event, :unknown_field, :unknown_payload, :bad_effect, :duplicate_edge, :unknown_capability, :terminal_has_exit, :trap, :unreachable, :no_end, :cannot_converge, :duplicate_guard, :empty_guard, :bad_rule, :duplicate_rule, :bad_predicate, :bad_task, :duplicate_permit, :bad_permit, :unbounded_permit, :unbounded_count, :permit_needs_conjunction, :duplicate_permit_log, :duplicate_link]
 end
 
 def lc_problem(kind, why)
@@ -505,7 +586,25 @@ def lc_problems(name, clauses)
 end
 
 def lc_check(p)
-  as_list(flatten1([lc_pb_shape(p), lc_pb_names(p), lc_pb_start(p), lc_pb_edges(p), lc_pb_graph(p), lc_pb_guards(p), lc_pb_permits(p)]))
+  as_list(flatten1([lc_pb_shape(p), lc_pb_names(p), lc_pb_start(p), lc_pb_edges(p), lc_pb_graph(p), lc_pb_guards(p), lc_pb_permits(p), lc_pb_permit_logs(p), lc_pb_links(p)]))
+end
+
+# A permit log names a capability that has an lc_permit, once.
+def lc_pb_permit_logs(p)
+  logs = lc_d_permit_logs(p)
+  caps = map(fn(pm) nth(1, pm) end, lc_d_permits(p))
+  bad = map(fn(l) lc_problem(:bad_name, "lc_permit_log(#{lc_show(first(l))}, #{lc_show(nth(1, l))}) takes a capability and an event, each a name") end, filter(fn(l) (lc_name?(first(l)) && lc_name?(nth(1, l))) == false end, logs))
+  unknown = map(fn(l) lc_problem(:unknown_capability, "lc_permit_log(#{lc_show(first(l))}, …): no lc_permit declares #{lc_show(first(l))}, and a logged permit's keys are its limits") end, filter(fn(l) lc_name?(first(l)) && (contains(caps, first(l)) == false) end, logs))
+  dup = map(fn(c) lc_problem(:duplicate_permit_log, "capability #{lc_show(c)} has more than one lc_permit_log") end, lc_dupes(map(fn(l) first(l) end, logs)))
+  flatten1([bad, unknown, dup])
+end
+
+# A link names a role and a target lifecycle, one row per role.
+def lc_pb_links(p)
+  links = lc_d_links(p)
+  bad = map(fn(l) lc_problem(:bad_name, "lc_link(#{lc_show(first(l))}, #{lc_show(nth(1, l))}) takes a role and a target lifecycle, each a name") end, filter(fn(l) (lc_name?(first(l)) && lc_name?(nth(1, l))) == false end, links))
+  dup = map(fn(r) lc_problem(:duplicate_link, "role #{lc_show(r)} is declared by more than one lc_link") end, lc_dupes(map(fn(l) first(l) end, links)))
+  concat_lists(bad, dup)
 end
 
 def lc_pb_shape(p)
@@ -1554,6 +1653,24 @@ def lc_permit_payload(p, subject)
   join(lines, "\n")
 end
 
+# The issuance of permit `p` to `subject` as the event the definition's
+# lc_permit_log declares: at the permit's issue time, with its limits as the
+# payload (subject as text, not_after, basis, and lc_permit_count_key(field)
+# per counted field). Throws :raifusaikuru_use when there is no permit or the
+# capability's issuance is not logged.
+def lc_permit_event(d, p, subject)
+  lc_require(d)
+  if lc_has_permit?(p) == false
+    throw(error(:raifusaikuru_use, "there is no permit to log: #{lc_show(nth(2, p))}"))
+  end
+  log = find_first(fn(l) first(l) == lc_permit_capability(p) end, lc_d_permit_logs(d))
+  if log == nil
+    throw(error(:raifusaikuru_use, "capability #{lc_show(lc_permit_capability(p))} declares no lc_permit_log, so its permits are not logged"))
+  end
+  counts = map(fn(c) [lc_permit_count_key(first(c)), nth(1, c)] end, lc_permit_counts(p))
+  lc_ev(nth(1, log), lc_permit_issued_at(p), concat_lists([[:subject, lc_text(subject)], [:not_after, lc_permit_not_after(p)], [:basis, lc_permit_basis(p)]], counts))
+end
+
 # ── a worked example: a consumable ─────────────────────────────────────────
 
 # A consumable, generic: sealed until opened, then used until spent or
@@ -1562,9 +1679,15 @@ end
 # so a use while refused is recorded as a breach. A device enforcing `use`
 # holds a permit of at most 2 h that counts uses. Time is in seconds.
 def lc_example_consumable()
+  lc_define(:consumable, lc_example_consumable_clauses())
+end
+
+# The example's clauses, before lc_define: a consumer extends the example by
+# adding clauses (a permit log, a link) rather than restating it.
+def lc_example_consumable_clauses()
   replace = lc_task(:replace, [:reading, :scan], lc_minutes(20))
   rules = [lc_rule_task(:is_open, lc_in_phase([:open]), lc_task(:open_one, [:scan], lc_minutes(20))), lc_rule_task(:reading_fresh, lc_fresh(:read_at, lc_hours(4)), lc_task(:take_reading, [:reading], lc_minutes(20))), lc_rule(:quality_ok, lc_below(:quality, 24)), lc_rule(:uses_left, lc_below(:uses, 40)), lc_rule(:not_too_old, lc_fresh(:opened_at, lc_hours(72)))]
-  lc_define(:consumable, [lc_states([:sealed, :open, :spent, :discarded]), lc_start(:sealed), lc_terminals([:spent, :discarded]), lc_field(:uses, 0), lc_field(:opened_at, nil), lc_field(:quality, nil), lc_field(:read_at, nil), lc_event(:open, []), lc_event(:use, []), lc_event(:reading, [:value]), lc_event(:finish, []), lc_event(:discard, []), lc_on(:sealed, :open, :open, [lc_stamp(:opened_at)]), lc_gate(:use, lc_on(:open, :use, :stay, [lc_add(:uses, 1)])), lc_on_each([:sealed, :open], :reading, :stay, [lc_set(:quality, :value), lc_stamp(:read_at)]), lc_on(:open, :finish, :spent, []), lc_on_each([:sealed, :open], :discard, :discarded, []), lc_guard(:use, rules, replace), lc_permit(:use, [lc_valid_for(lc_hours(2)), lc_counted(:uses)])])
+  [lc_states([:sealed, :open, :spent, :discarded]), lc_start(:sealed), lc_terminals([:spent, :discarded]), lc_field(:uses, 0), lc_field(:opened_at, nil), lc_field(:quality, nil), lc_field(:read_at, nil), lc_event(:open, []), lc_event(:use, []), lc_event(:reading, [:value]), lc_event(:finish, []), lc_event(:discard, []), lc_on(:sealed, :open, :open, [lc_stamp(:opened_at)]), lc_gate(:use, lc_on(:open, :use, :stay, [lc_add(:uses, 1)])), lc_on_each([:sealed, :open], :reading, :stay, [lc_set(:quality, :value), lc_stamp(:read_at)]), lc_on(:open, :finish, :spent, []), lc_on_each([:sealed, :open], :discard, :discarded, []), lc_guard(:use, rules, replace), lc_permit(:use, [lc_valid_for(lc_hours(2)), lc_counted(:uses)])]
 end
 
 # The example's log: a reading of 10 at 1000, opened at 2000, three uses.
@@ -1685,7 +1808,7 @@ def lc_example_base()
 end
 
 def lc_example_problem_rows()
-  [[[[:lc_frob, 1]], :bad_clause], [lc_gate(:g, lc_field(:z, 0)), :bad_gate], [lc_states([7]), :bad_name], [lc_states([:a]), :duplicate_state], [lc_states([:stay]), :reserved_name], [lc_field(:n, 1), :duplicate_field], [lc_event(:go, []), :duplicate_event], [lc_event(:e2, [:x, :x]), :duplicate_key], [lc_start(:b), :many_starts], [lc_on(:x, :go, :b, []), :unknown_state], [lc_on(:a, :fly, :b, []), :unknown_event], [lc_guard(:h, [lc_rule(:r, lc_below(:nope, 1))], nil), :unknown_field], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [lc_set(:n, :v)])], :unknown_payload], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [[:frob, :n]])], :bad_effect], [lc_on(:a, :go, :a, []), :duplicate_edge], [lc_permit(:nope, [lc_valid_for(60)]), :unknown_capability], [lc_on(:b, :go, :a, []), :terminal_has_exit], [[lc_states([:c]), lc_event(:hop, []), lc_on(:a, :hop, :c, [])], :trap], [[lc_states([:c]), lc_terminals([:c])], :unreachable], [[lc_states([:c, :d]), lc_event(:hop, []), lc_on(:a, :hop, :c, []), lc_on(:c, :hop, :d, []), lc_on(:d, :go, :c, [])], :cannot_converge], [lc_guard(:g, [lc_rule(:r, lc_present(:n))], nil), :duplicate_guard], [lc_guard(:h, [], nil), :empty_guard], [lc_guard(:h, [[:frob]], nil), :bad_rule], [lc_guard(:h, [lc_rule(:r, lc_present(:n)), lc_rule(:r, lc_present(:n))], nil), :duplicate_rule], [lc_guard(:h, [lc_rule(:r, lc_all([]))], nil), :bad_predicate], [lc_guard(:h, [lc_rule_task(:r, lc_present(:n), lc_task(:t, [], 60))], nil), :bad_task], [[lc_permit(:g, [lc_valid_for(60)]), lc_permit(:g, [lc_valid_for(60)])], :duplicate_permit], [lc_permit(:g, [lc_valid_for(0)]), :bad_permit], [lc_permit(:g, []), :unbounded_permit], [[lc_field(:m, 0), lc_permit(:g, [lc_valid_for(60), lc_counted(:m)])], :unbounded_count], [[lc_field(:t, nil), lc_guard(:h, [lc_rule(:r, lc_any([lc_fresh(:t, 60), lc_present(:t)]))], nil), lc_permit(:h, [lc_valid_for(60)])], :permit_needs_conjunction]]
+  [[[[:lc_frob, 1]], :bad_clause], [lc_gate(:g, lc_field(:z, 0)), :bad_gate], [lc_states([7]), :bad_name], [lc_states([:a]), :duplicate_state], [lc_states([:stay]), :reserved_name], [lc_field(:n, 1), :duplicate_field], [lc_event(:go, []), :duplicate_event], [lc_event(:e2, [:x, :x]), :duplicate_key], [lc_start(:b), :many_starts], [lc_on(:x, :go, :b, []), :unknown_state], [lc_on(:a, :fly, :b, []), :unknown_event], [lc_guard(:h, [lc_rule(:r, lc_below(:nope, 1))], nil), :unknown_field], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [lc_set(:n, :v)])], :unknown_payload], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [[:frob, :n]])], :bad_effect], [lc_on(:a, :go, :a, []), :duplicate_edge], [lc_permit(:nope, [lc_valid_for(60)]), :unknown_capability], [lc_on(:b, :go, :a, []), :terminal_has_exit], [[lc_states([:c]), lc_event(:hop, []), lc_on(:a, :hop, :c, [])], :trap], [[lc_states([:c]), lc_terminals([:c])], :unreachable], [[lc_states([:c, :d]), lc_event(:hop, []), lc_on(:a, :hop, :c, []), lc_on(:c, :hop, :d, []), lc_on(:d, :go, :c, [])], :cannot_converge], [lc_guard(:g, [lc_rule(:r, lc_present(:n))], nil), :duplicate_guard], [lc_guard(:h, [], nil), :empty_guard], [lc_guard(:h, [[:frob]], nil), :bad_rule], [lc_guard(:h, [lc_rule(:r, lc_present(:n)), lc_rule(:r, lc_present(:n))], nil), :duplicate_rule], [lc_guard(:h, [lc_rule(:r, lc_all([]))], nil), :bad_predicate], [lc_guard(:h, [lc_rule_task(:r, lc_present(:n), lc_task(:t, [], 60))], nil), :bad_task], [[lc_permit(:g, [lc_valid_for(60)]), lc_permit(:g, [lc_valid_for(60)])], :duplicate_permit], [lc_permit(:g, [lc_valid_for(0)]), :bad_permit], [lc_permit(:g, []), :unbounded_permit], [[lc_field(:m, 0), lc_permit(:g, [lc_valid_for(60), lc_counted(:m)])], :unbounded_count], [[lc_field(:t, nil), lc_guard(:h, [lc_rule(:r, lc_any([lc_fresh(:t, 60), lc_present(:t)]))], nil), lc_permit(:h, [lc_valid_for(60)])], :permit_needs_conjunction], [[lc_permit(:g, [lc_valid_for(60)]), lc_permit_log(:g, :issued), lc_permit_log(:g, :issued_again)], :duplicate_permit_log], [[lc_link(:peer, :other), lc_link(:peer, :another)], :duplicate_link]]
 end
 
 test "every kind of bad definition is refused when built, one row per kind"
@@ -1728,6 +1851,35 @@ test "lc_admit_step answers exactly as lc_admit and lc_step do, for admitted, re
   b = lc_admit_step(d, high, lc_ev(:use, 4100, []))
   assert lc_reject_kind(first(b)) == :guard
   assert size(lc_breaches(nth(1, b))) == 1
+end
+
+test "a logged permit is an event: a no-op in every non-terminal state, refused in a terminal one, rendered from the permit"
+  # The empty case: a definition that logs nothing and links nothing.
+  plain = lc_example_consumable()
+  assert lc_d_permit_logs(plain) == []
+  assert lc_d_links(plain) == []
+  d = lc_define(:consumable, push(push(lc_example_consumable_clauses(), lc_permit_log(:use, :permit)), lc_link(:batch, :lot)))
+  assert lc_d_permit_logs(d) == [[:use, :permit]]
+  assert lc_d_links(d) == [[:batch, :lot]]
+  # The generated event's keys are the permit's limits, and the rows are the
+  # two non-terminal states' self-loops.
+  assert lookup(lc_d_events(d), :permit) == [:subject, :not_after, :basis, "uses_left"]
+  assert map(fn(e) [nth(1, e), nth(3, e), nth(4, e), nth(5, e)] end, filter(fn(e) nth(2, e) == :permit end, lc_d_edges(d))) == [[:sealed, :sealed, [], nil], [:open, :open, [], nil]]
+  # A value checked by hand: the worked log's permit at 3000 (not_after 10200,
+  # 37 uses left, basis 5, as the worked-lifecycle test computes).
+  s = lc_state_of(d, lc_example_log())
+  ev = lc_permit_event(d, lc_permit_for(d, s, :use, 3000), "device-7")
+  assert ev == lc_ev(:permit, 3000, [[:subject, "device-7"], [:not_after, 10200], [:basis, 5], ["uses_left", 37]])
+  # The identity: logging it changes nothing but the sequence.
+  s2 = lc_step(d, s, ev)
+  assert [lc_phase(s2), lc_fields(s2), lc_refused(s2), lc_breaches(s2), lc_seq(s2)] == [lc_phase(s), lc_fields(s), lc_refused(s), lc_breaches(s), lc_seq(s) + 1]
+  # Controls: a terminal entity cannot be issued one; a definition that does
+  # not log the capability cannot render one; and a log needs a permit.
+  spent = lc_resume(d, s, [lc_ev(:finish, 3100, [])])
+  assert lc_refusal_kind(last(lc_refused(lc_step(d, spent, lc_ev(:permit, 3200, [[:subject, "d"], [:not_after, 1], [:basis, 1], ["uses_left", 1]]))))) == :no_edge
+  assert error?(try(lc_permit_event(plain, lc_permit_for(plain, s, :use, 3000), "device-7"), catch(e(), e)))
+  assert contains(map(fn(p) lc_problem_kind(p) end, lc_problems(:x, push(lc_example_consumable_clauses(), lc_permit_log(:fly, :flown)))), :unknown_capability)
+  assert contains(map(fn(p) lc_problem_kind(p) end, lc_problems(:x, push(push(lc_example_consumable_clauses(), lc_permit_log(:use, :permit)), lc_event(:permit, [])))), :duplicate_event)
 end
 
 test "a permit never outlives its guard, in time or in uses"

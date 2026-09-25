@@ -1,4 +1,5 @@
 package("zenbu", "0.1.0")
+needs("anaritikusu", "^0.1")
 needs("angou", "^0.1")
 needs("deeta", "^0.1")
 needs("gyouretsu", "^0.1")

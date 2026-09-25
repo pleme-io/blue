@@ -148,9 +148,10 @@ use("raifusaikuru")
 # ## What is deliberately absent
 #
 # No clock, no randomness, no key storage: time, labels and keys are the
-# caller's. No analytics: DuckDB reads the stream as it stands, and the
-# lifecycle-analytics step of the plan derives its models from the
-# definitions. No encryption: shomei hashes and signs, and so does this.
+# caller's. No analytics: `anaritikusu` loads the stream into DuckDB as it
+# stands, writes el_history's per-record states beside it, and generates its
+# models from the definitions. No encryption: shomei hashes and signs, and so
+# does this.
 #
 # ## The operations
 #
@@ -162,6 +163,7 @@ use("raifusaikuru")
 #   verify   el_verify(log, pub, expected_head)  [:el_intact, count, head] or
 #                                                [:el_broken, position, kind, why]
 #   state    el_state(log, entity), el_seq_of, el_states, el_entities
+#            el_history(log)                     [record, state after it], each record
 #   records  el_records(log), el_by_entity(records), el_rec_* accessors
 #   pure     el_canon(value), el_canon_object(pairs), el_genesis(label),
 #            el_texts / el_body_text / el_line_text (the record builders),
@@ -1259,6 +1261,33 @@ def el_break_why(rep)
   nth(3, rep)
 end
 
+# ── history: the state after every record ──────────────────────────────────
+
+# Every record with its entity's state after it, [record, state], in stream
+# order; bad lines are left out. The same fold as read (el_fold_record), so an
+# entity's last state here is el_state's, and a refused record's state is the
+# one before it. What a reader needs to see state change over time (an
+# analytics layer) without folding a second way. Reads el_records, so it takes
+# a value that was read, not one that was appended to.
+def el_history(log)
+  d = el_def(log)
+  records = filter(fn(x) el_record?(x) end, el_records(log))
+  last(reduce(fn(acc, r) el_history_step(d, acc, r) end, [{}, []], records))
+end
+
+# One record into the history: [states by entity, rows so far].
+def el_history_step(d, acc, r)
+  e = el_rec_entity(r)
+  have = get(first(acc), e)
+  before = if have == nil
+    lc_initial(d)
+  else
+    have
+  end
+  state = el_fold_record(d, before, r)
+  [assoc(first(acc), e, state), push(nth(1, acc), [r, state])]
+end
+
 # ── grouping ───────────────────────────────────────────────────────────────
 
 # The records grouped by entity: [[entity, records]] in the order entities
@@ -1560,6 +1589,34 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
   assert el_line_of(el_decode_line(d, 0, line)) == line
   assert lookup(el_rec_payload(el_last(l1)), :value) == 10
   assert lookup(el_rec_payload(el_last(l1)), "tags") == [["a", [1.25, false]], ["b", 2]]
+end
+
+test "history: the state after every record, from read's own fold"
+  d = lc_example_consumable()
+  # The empty case.
+  assert el_history(el_from_text("", nil, 0, "nisshi-test", d)) == []
+  # A value checked by hand: the doc stream is a reading (admitted), a use
+  # while sealed (refused) and an open (admitted), so the phases after each
+  # are sealed, sealed, open, and the refused use changes nothing.
+  p = el_test_path("history")
+  log = el_doc_stream(p)
+  back = el_read(p, "nisshi-doc", d)
+  rm(p)
+  h = el_history(back)
+  assert map(fn(x) [el_rec_seq(first(x)), lc_phase(nth(1, x))] end, h) == [[0, :sealed], [1, :sealed], [2, :open]]
+  assert nth(1, nth(1, h)) == nth(1, nth(0, h))
+  # The identity: the last row per entity is el_state's, and every row is
+  # raifusaikuru's own fold over that entity's admitted records so far.
+  q = el_test_path("history-many")
+  el_append_all(el_read(q, "nisshi-test", d), el_example_events(60, 3))
+  many = el_read(q, "nisshi-test", d)
+  rm(q)
+  rows = el_history(many)
+  assert size(rows) == 60
+  assert map(fn(e) [e, nth(1, last(filter(fn(x) el_rec_entity(first(x)) == e end, rows)))] end, el_entities(many)) == el_states(many)
+  assert count_where(fn(x) nth(1, x) != lc_state_of(d, map(fn(r) el_rec_event(r) end, filter(fn(r) (el_rec_entity(r) == el_rec_entity(first(x))) && (el_rec_seq(r) <= el_rec_seq(first(x))) && el_rec_admitted?(r) end, map(fn(y) first(y) end, rows)))) end, rows) == 0
+  # The control: a value that was appended to keeps no records to replay.
+  assert error?(try(el_history(log), catch(e(), e)))
 end
 
 test "grouping by entity keeps first-appearance order and stream order, and leaves bad lines out"

@@ -34,11 +34,14 @@ def regenerate(g)
   nth(1, g)
 end
 
+# The catalogue covers the project's own `packages` roots, not every root on
+# BLUE_PATH: a project composed over the public distribution catalogues only
+# its own packages (the flake renders the same roots; nix/project.nix).
 catalog = json_get(manifest(), "catalog")
 written = if catalog == nil
   []
 else
-  write_catalog(catalog)
+  write_file(catalog, render_markdown(catalog_of(json_get(manifest(), "packages"))))
   [catalog]
 end
 written = concat_lists(written, map(fn(g) regenerate(g) end, generated()))

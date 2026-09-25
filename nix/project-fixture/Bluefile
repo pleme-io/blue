@@ -1,0 +1,12 @@
+# The engine's fixture (nix/project.nix): a project stating the words blue's
+# own root Bluefile does not use — a root `needs`, a tool, two runs where one
+# reads the other, a check and an app. `checks.project-fixture` in blue's flake
+# lowers it with `lib.project`'s engine and reads every output back.
+package("project-fixture", "0.1.0")
+needs("shisutemu", "^0.1")
+packages("bidamas")
+tool("hello")
+run("first", "runs/first.b")
+run("second", "runs/second.b", ["first"])
+check("smoke", "checks/smoke.b")
+app("greet", "apps/greet.b")

@@ -198,13 +198,17 @@ rec {
   # distribution shadows every same-named package a caller supplies (measured:
   # a checkout's newer `ran` resolved to the pinned older one). mkOverrideCheck
   # below is the gate that caught it.
-  mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas" }:
+  #
+  # `bin` names the executable (a project's runner is its own name, so it can
+  # sit on a PATH beside `blue`), and `tools` are appended to PATH — appended,
+  # like BLUE_PATH, so a node's own copy of a tool wins over the pinned one.
+  mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas", bin ? "blue", tools ? [ ] }:
     assert lib.assertMsg (makeWrapper != null)
       "mkBlueWithBidamas needs makeWrapper; pass the full pkgs set";
-    runCommand name { nativeBuildInputs = [ makeWrapper ]; } ''
+    runCommand name { nativeBuildInputs = [ makeWrapper ]; meta.mainProgram = bin; } ''
       mkdir -p $out/bin
-      makeWrapper ${blue}/bin/blue $out/bin/blue \
-        --suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"
+      makeWrapper ${blue}/bin/blue $out/bin/${bin} \
+        --suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"${lib.optionalString (tools != [ ]) " \\\n        --suffix PATH : \"${lib.makeBinPath tools}\""}
     '';
 
   # Proves the wrapper is a default and not a cage: a root on the caller's
@@ -234,22 +238,27 @@ rec {
   # docs.rs / pkg.go.dev role, filled by a derivation.
   #
   # `bidamas` must include `mokuroku` itself, which is what renders the page.
-  # A private distribution passes its own packages joined with the public ones,
-  # and gets one catalogue covering both.
-  mkCatalog = { blue, bidamas, name ? "bidama-catalog" }:
-    mkGenerated {
-      inherit blue bidamas name;
+  # `root` is the one root to catalogue — a project's own packages, so a
+  # private distribution's catalogue does not go stale every time the public
+  # one changes (makoto's `tools/catalog.b` made the same choice). Without it,
+  # every root on BLUE_PATH is catalogued.
+  mkCatalog = { blue, bidamas, root ? null, name ? "bidama-catalog" }:
+    let
       program = builtins.toFile "catalog.b" ''
         use("mokuroku")
-        write_catalog(getenv("GEN_OUT", ""))
+        roots = blue_path_roots(getenv("CATALOG_ROOTS", getenv("BLUE_PATH", "")))
+        write_file(getenv("GEN_OUT", ""), render_markdown(catalog_of(roots)))
       '';
-    };
+    in
+    runCommand name { } ''
+      ${lib.optionalString (root != null) "CATALOG_ROOTS=${root} "}GEN_OUT=$out BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run ${program}
+    '';
 
   # Fails when the committed catalogue differs from a fresh render.
-  mkCatalogCheck = { blue, bidamas, committed, name ? "bidama-catalog-fresh" }:
+  mkCatalogCheck = { blue, bidamas, committed, root ? null, name ? "bidama-catalog-fresh" }:
     mkFreshCheck {
       inherit name committed;
-      generated = mkCatalog { inherit blue bidamas; };
+      generated = mkCatalog { inherit blue bidamas root; };
       regenerate = "nix run .#regen";
     };
 
@@ -259,9 +268,44 @@ rec {
   # catalogue, and Rust that blue writes for its own crates through the `sabi`
   # bidama (`crates/blue-lang-syntax/gen/kigou.b`). "We write bluelang, we
   # leverage nix": the program is blue, and nix runs it, caches it, and gates it.
-  mkGenerated = { blue, bidamas, program, name }:
-    runCommand name { } ''
+  mkGenerated = { blue, bidamas, program, name, tools ? [ ] }:
+    runCommand name { nativeBuildInputs = tools; } ''
       GEN_OUT=$out BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run ${program}
+    '';
+
+  # A blue program run as its own cached derivation — the Bluefile's
+  # `run(name, file[, reads])`. The program writes into the directory
+  # `$RUN_OUT`, and finds each run it reads at `$RUN_READS/<name>`.
+  #
+  # A run that writes nothing FAILS. An empty output is what a program that
+  # ignored `$RUN_OUT` produces, and it would otherwise be cached as a success
+  # and read downstream as "no results" rather than as the bug it is.
+  #
+  # `reads` is an attrset of run derivations keyed by run name; the farm holds
+  # one symlink per read, so a reader's inputs are exactly the runs it names
+  # and nothing else (makoto's `-- reads:` line, as a declaration).
+  mkRun = { blue, bidamas, program, name, reads ? { }, tools ? [ ] }:
+    let
+      farm = runCommand "${name}-reads" { } ''
+        mkdir -p $out
+        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (r: d: "ln -s ${d} $out/${r}") reads)}
+      '';
+    in
+    runCommand name { nativeBuildInputs = tools; passthru = { inherit reads; }; } ''
+      mkdir -p $out
+      RUN_OUT=$out RUN_READS=${farm} BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run ${program}
+      if [ -z "$(ls -A $out)" ]; then
+        echo "run ${name}: the program wrote nothing into \$RUN_OUT" >&2
+        exit 1
+      fi
+    '';
+
+  # A test file as a check: `blue test`, whose status is the check's. A file
+  # with no `test` blocks fails (`blue test` refuses it), so a check cannot
+  # pass over nothing. The tally is the output, for reading after the fact.
+  mkTestCheck = { blue, bidamas, file, name, tools ? [ ] }:
+    runCommand name { nativeBuildInputs = tools; } ''
+      BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue test ${file} > $out
     '';
 
   # Fails when a committed generated file differs from a fresh generation. The
@@ -281,15 +325,15 @@ rec {
   # A blue program as an executable: `blue run <program>` with the given
   # bidamas on BLUE_PATH, and `blue` itself on PATH so the program can run
   # other blue programs. The shape behind `nix run .#regen`, and behind the
-  # Bluefile's `app` word once the engine lands (BLUE-STRUCTURE §5.5 P6).
-  mkBlueApp = { blue, bidamas, program, name }:
+  # Bluefile's `app` word (`nix/project.nix`, BLUE-STRUCTURE §5.5 P6).
+  mkBlueApp = { blue, bidamas, program, name, tools ? [ ] }:
     assert lib.assertMsg (makeWrapper != null)
       "mkBlueApp needs makeWrapper; pass the full pkgs set";
-    runCommand name { nativeBuildInputs = [ makeWrapper ]; } ''
+    runCommand name { nativeBuildInputs = [ makeWrapper ]; meta.mainProgram = name; } ''
       mkdir -p $out/bin
       makeWrapper ${blue}/bin/blue $out/bin/${name} \
         --suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}" \
-        --prefix PATH : "${blue}/bin" \
+        --prefix PATH : "${blue}/bin" \${lib.optionalString (tools != [ ]) "\n        --suffix PATH : \"${lib.makeBinPath tools}\" \\"}
         --add-flags "run ${program}"
     '';
 
@@ -300,18 +344,29 @@ rec {
   # mismatch inside someone else's code). `owned`, when given, limits the
   # gate to collisions touching those packages: a private distribution checks
   # itself against the public one without failing on the public one's choices.
+  #
+  # With `owned`, the scan must also have READ every owned package (the
+  # positive control): a scan that missed them reports zero collisions for
+  # them and passes. Taken from makoto's `tools/collisions.b`. Red run,
+  # 2026-09-24: owned = [retsu, not-a-package] → red; [retsu, kazu] → green.
   mkCollisionCheck = { blue, bidamas, owned ? null, name ? "bidama-collisions" }:
     let
+      ownedList = "[${lib.concatMapStringsSep ", " (o: ''"${o}"'') owned}]";
       query =
         if owned == null
         then "name_collisions(records)"
-        else "name_collisions_touching(records, [${lib.concatMapStringsSep ", " (o: ''"${o}"'') owned}])";
+        else "name_collisions_touching(records, ${ownedList})";
+      seen = lib.optionalString (owned != null) ''
+          scanned = map(fn(r) pkg_name(r) end, records)
+          assert is_empty(filter(fn(o) contains(scanned, o) == false end, ${ownedList})) == true
+      '';
     in runCommand name { } ''
       cat > gate.b <<'EOF'
       use("mokuroku")
       test "no two packages define one name"
         records = catalog_of(blue_path_roots(getenv("BLUE_PATH", "")))
         assert size(records) > 0
+      ${seen}
         found = ${query}
         println(found)
         assert is_empty(found) == true
@@ -360,9 +415,12 @@ rec {
       touch $out
     '';
 
-  mkLockCheck = { blue, root, name ? "bidama-locks-fresh" }:
+  # `roots` for a project with several `packages(...)` roots; `root` for one.
+  mkLockCheck = { blue, root ? null, roots ? [ root ], name ? "bidama-locks-fresh" }:
     let
-      manifests = map (n: "${root}/${n}/Bluefile") (lib.attrNames (packageDirs root));
+      manifests = lib.concatMap
+        (r: map (n: "${r}/${n}/Bluefile") (lib.attrNames (packageDirs r)))
+        roots;
     in
     runCommand name { } ''
       ${blue}/bin/blue bluefile --confirm ${lib.escapeShellArgs manifests}

@@ -81,6 +81,7 @@ checker.
 | interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`); BLAKE3 + Ed25519, pure and C-free (`crypto`) | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
 | Bluefile (the `WORDS` table) + version solver + `Bluefile.lock` | `blue-lang-pkg` |
+| the project engine: a `Bluefile.lock` lowered to packages, checks and apps (`lib.project`; blue's own flake is its first caller) | `nix/project.nix`, over `bidamas/mk-bidama.nix` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
 | LSP: transport-free core + stdio shim | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
@@ -203,10 +204,13 @@ Each of these is a defect that shipped, not a style preference.
   and `bidama-locks-fresh` + `granularity.rs` fail on a stale one. **Edit a
   Bluefile, run `blue lock <dir>`, commit both.** A new manifest word is a row
   in `bluefile.rs`'s `WORDS` and a name in `MANIFEST_NAMES`; a gate fails if
-  the two disagree.
+  the two disagree. **It is also a row in `nix/project.nix`** (`known` plus its
+  lowering): the engine refuses every lock key it does not lower, so a new word
+  fails every project's evaluation until it has one, instead of being dropped.
 - **A generated file is declared once, in the root `Bluefile`, and refreshed by
   its command.** `generate(name, output, program)` names the committed file and
-  the blue program that writes it; the flake reads `Bluefile.lock` and derives
+  the blue program that writes it; the project engine (`nix/project.nix`, the
+  same one behind every project's `lib.project`) reads `Bluefile.lock` and derives
   `packages.generated-<name>` and `checks.generated-<name>-fresh`, and
   `nix run .#regen` (`gen/regen.b`, reading the same lock) rewrites every such
   file in place. Edit the program, run regen, commit both; never copy a store

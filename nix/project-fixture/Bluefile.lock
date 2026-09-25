@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:583871efd24105f9b6bde388839f72b37a1ddc6085050849a139a2c5f759a7b7",
+  "manifest": {
+    "schema": 1,
+    "name": "project-fixture",
+    "version": "0.1.0",
+    "needs": {
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [
+      "bidamas"
+    ],
+    "runs": {
+      "first": {
+        "file": "runs/first.b",
+        "reads": []
+      },
+      "second": {
+        "file": "runs/second.b",
+        "reads": [
+          "first"
+        ]
+      }
+    },
+    "tools": [
+      "hello"
+    ],
+    "checks": {
+      "smoke": {
+        "file": "checks/smoke.b"
+      }
+    },
+    "apps": {
+      "greet": {
+        "file": "apps/greet.b"
+      }
+    },
+    "catalog": null
+  },
+  "sources": {}
+}

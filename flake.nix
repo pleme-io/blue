@@ -305,82 +305,59 @@
     # mapAttrs over the systems substrate actually emitted, rather than a fresh
     # system list that could drift from it.
     let
-      # The repository's own build facts: blue's evaluation of ./Bluefile
-      # (`blue lock .`). Every generated file, and the catalogue path, is read
-      # from here, so the flake holds no second list of them.
-      repoLock = builtins.fromJSON (builtins.readFile ./Bluefile.lock);
-      generatedFiles = repoLock.manifest.generated or { };
+      # The project engine (`nix/project.nix`): a Bluefile.lock lowered to
+      # packages, checks and apps. Every blue project's flake is one call to
+      # it (`lib.project` below), and blue's own root Bluefile is lowered by
+      # the same function, so the repository holds no second lowering of any
+      # word — generate, catalog, packages, tool — to drift from the first.
+      engine = import ./nix/project.nix { inherit lib; };
+      systems = lib.attrNames base.packages;
+      pkgsFor = system: nixpkgs.legacyPackages.${system};
+      blueFor = system: base.packages.${system}.default;
 
-      # The standard distribution as derivations, plus the blue that runs it,
-      # for the catalogue and namespace gates below.
-      distribution = system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper; };
-        in {
-          inherit bl;
-          bidamas = bl.mkDistribution { root = ./bidamas; inherit pkgs; };
-          blue = base.packages.${system}.default;
-        };
+      # This repository as a blue project. `base = { }` because its packages
+      # ARE the public distribution every other project composes over.
+      repository = lib.genAttrs systems (system: engine.projectFor {
+        pkgs = pkgsFor system;
+        blue = blueFor system;
+        src = ./.;
+        base = { };
+      });
+
     in
     base // {
+      # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor; };
+
       # `nix run .#regen`: rewrite every generated file in place (gen/regen.b).
       # Bluefile.lock files have their own command, `blue lock <dir>`.
       apps = lib.mapAttrs (system: existing:
-        let d = distribution system; in
-        existing // {
-          regen = {
-            type = "app";
-            program = "${d.bl.mkBlueApp {
-              inherit (d) blue bidamas;
-              name = "regen";
-              program = ./gen/regen.b;
-            }}/bin/regen";
-          };
-        }
+        engine.disjoint "app" existing repository.${system}.apps
       ) base.apps;
 
+      # `bidama-catalog` and every `generated-<name>`, from ./Bluefile.
       packages = lib.mapAttrs (system: existing:
-        let d = distribution system; in
-        existing // {
-          # `nix build .#bidama-catalog`, then copy the result over
-          # bidamas/CATALOG.md when the freshness check says it is stale.
-          bidama-catalog = d.bl.mkCatalog { inherit (d) blue bidamas; };
-        } // lib.mapAttrs' (name: g: lib.nameValuePair "generated-${name}"
-          (d.bl.mkGenerated {
-            inherit (d) blue bidamas;
-            name = "generated-${name}";
-            program = ./. + "/${g.program}";
-          })) generatedFiles // {
-        }
+        engine.disjoint "package" existing repository.${system}.packages
       ) base.packages;
 
       checks = lib.mapAttrs (system: existing:
-        let d = distribution system; in
-        existing // {
-          bidama-catalog-fresh = d.bl.mkCatalogCheck {
-            inherit (d) blue bidamas;
-            committed = ./. + "/${repoLock.manifest.catalog}";
-          };
-          # ./Bluefile.lock must be blue's evaluation of ./Bluefile.
-          repository-lock-fresh = d.bl.mkBluefileCheck {
-            inherit (d) blue;
-            bluefile = ./Bluefile;
-            lock = ./Bluefile.lock;
-          };
-          bidama-collisions = d.bl.mkCollisionCheck { inherit (d) blue bidamas; };
+        let
+          pkgs = pkgsFor system;
+          blue = blueFor system;
+          bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper; };
+        in
+        engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) {
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
-          blue-path-override = d.bl.mkOverrideCheck { inherit (d) blue bidamas; };
-          # Every bidama's Bluefile.lock is blue's evaluation of its Bluefile —
-          # the lock is what `mkBidama` builds the graph from (BLUE-STRUCTURE P1).
-          bidama-locks-fresh = d.bl.mkLockCheck { inherit (d) blue; root = ./bidamas; };
-        } // lib.mapAttrs' (name: g: lib.nameValuePair "generated-${name}-fresh"
-          (d.bl.mkFreshCheck {
-            name = "generated-${name}-fresh";
-            regenerate = "nix run .#regen";
-            committed = ./. + "/${g.output}";
-            generated = self.packages.${system}."generated-${name}";
-          })) generatedFiles // {
+          blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
+
+          # Every word the engine lowers, read back from a built project: the
+          # fixture states the words this repository's own Bluefile does not
+          # (a root `needs`, a tool, runs reading runs, a check, an app).
+          project-fixture = import ./nix/project-fixture/check.nix {
+            inherit pkgs blue engine;
+            src = ./nix/project-fixture;
+          };
+
           module-surface = import ./nix/module-surface-check.nix {
             inherit lib;
             # blue's own overlay, because `programs.blue.package` defaults to

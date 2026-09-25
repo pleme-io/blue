@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:8ab07d53a4d5e8998f0644094a60c8c8751d4d234cf71dffe4ff6eec05e10440",
+  "bluefile_b3": "b3:f9832f0ada2d0e773e90e4f1232d8b076b277faa15f41e1f11859da656ee8c10",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -12,7 +12,9 @@
       "bidamas"
     ],
     "runs": {},
-    "tools": [],
+    "tools": [
+      "duckdb"
+    ],
     "checks": {},
     "apps": {},
     "catalog": "bidamas/CATALOG.md",

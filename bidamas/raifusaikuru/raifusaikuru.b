@@ -38,6 +38,9 @@ use("shuugou")
 #                                    no-op accepted in every non-terminal state
 #   lc_link(role, target)            records may carry links of kind `role`,
 #                                    each naming an entity of lifecycle `target`
+#   lc_span(name, from, to, limit)   a duration that matters: first entry into
+#                                    `from` to first entry into `to` after it,
+#                                    with its limit (or nil)
 # effects   lc_set lc_put lc_add lc_add_from lc_stamp
 # predicates  lc_below lc_at_most lc_above lc_at_least lc_equals lc_present
 #             lc_fresh lc_in_phase lc_all lc_any lc_not
@@ -91,8 +94,10 @@ use("shuugou")
 # with no time bound, a counted field its guard does not bound, or a time or
 # count condition under lc_any / lc_not in a permitted guard, where the limits
 # would not be sound; a permit log for a capability with no lc_permit, or two
-# for one capability; two links with one role. `lc_problem_kinds()` is the
-# closed list, and a test row exercises every kind.
+# for one capability; two links with one role; a span on an undeclared state,
+# from a state to itself, to a state no event reaches from its start, or with
+# a limit that is not a positive whole duration, and two spans with one name.
+# `lc_problem_kinds()` is the closed list, and a test row exercises every kind.
 # RECORDED BY THE FOLD, never thrown: an event the definition does not know,
 # an event with no row from the current state, one missing a declared payload
 # key, or one whose counter or added amount is not a number is REFUSED. It is
@@ -139,6 +144,18 @@ use("shuugou")
 # (joins generated across lifecycles). Only this definition is checked here
 # (names, one row per role); whether `target` exists is checked where the
 # lifecycles are read together.
+#
+# ## Spans
+#
+# lc_span(name, from, to, limit) declares a duration the lifecycle is
+# measured by: from an entity's first entry into `from` to its first entry
+# into `to` after that (an order's fryer-to-mouth: fried → delivered), and the
+# longest it should take. A recipe's timed record is part of the lifecycle's
+# definition, as a link is, so the definition stays the one source every
+# reader derives from; the engine folds nothing for it, and anaritikusu
+# generates a view per span. Added 2026-09-25 for NuPastel's measures (plan:
+# nupastel docs/plans/measures.md); red-run: a problem row per new kind, and
+# the span test red when the reachability check was dropped.
 
 # ── names and time ─────────────────────────────────────────────────────────
 
@@ -411,6 +428,34 @@ def lc_link(role, target)
   [:lc_link, role, target]
 end
 
+# ── spans ──────────────────────────────────────────────────────────────────
+
+# A span: the time from an entity's first entry into state `from` to its
+# first entry into state `to` after that, a duration that matters on its own
+# (an order's fryer-to-mouth). `limit` is the longest it should take, on the
+# caller's clock, or nil for none. Declared here, folded nowhere, like a link:
+# it is for what reads the log (anaritikusu generates a view per span).
+def lc_span(name, from, to, limit)
+  [:lc_span, name, from, to, limit]
+end
+
+# A declared span's parts, as lc_d_spans returns them: [name, from, to, limit].
+def lc_span_name(s)
+  nth(0, s)
+end
+
+def lc_span_from(s)
+  nth(1, s)
+end
+
+def lc_span_to(s)
+  nth(2, s)
+end
+
+def lc_span_limit(s)
+  nth(3, s)
+end
+
 # ── reading clauses ────────────────────────────────────────────────────────
 
 # A clause is a list headed by a keyword; anything else is a list of clauses
@@ -434,13 +479,14 @@ def lc_tagged(flat, tag)
 end
 
 def lc_known_tags()
-  [:lc_start, :lc_states, :lc_terminals, :lc_rests, :lc_field, :lc_event, :lc_edge, :lc_guard, :lc_permit, :lc_permit_log, :lc_link]
+  [:lc_start, :lc_states, :lc_terminals, :lc_rests, :lc_field, :lc_event, :lc_edge, :lc_guard, :lc_permit, :lc_permit_log, :lc_link, :lc_span]
 end
 
 # The parsed form, which lc_define seals as the definition once it validates:
 # [tag, name, flat, states, starts, terminals, rests, fields, events, edges,
-# guards, permits, links, permit_logs]. fields are [name, initial]; events are
-# [name, keys]; links are [role, target]; permit_logs are [capability, event].
+# guards, permits, links, permit_logs, spans]. fields are [name, initial];
+# events are [name, keys]; links are [role, target]; permit_logs are
+# [capability, event]; spans are [name, from, to, limit].
 # A permit log's event and rows are added to events and edges here, before
 # validation, so they are checked like any the author wrote.
 def lc_parse(name, clauses)
@@ -456,7 +502,8 @@ def lc_parse(name, clauses)
   events = concat_lists(map(fn(c) [nth(1, c), nth(2, c)] end, lc_tagged(flat, :lc_event)), map(fn(l) [nth(1, l), lc_permit_log_keys(permits, first(l))] end, logs))
   edges = concat_lists(lc_tagged(flat, :lc_edge), flat_map(fn(l) map(fn(s) [:lc_edge, s, nth(1, l), s, [], nil] end, open) end, logs))
   links = map(fn(c) [nth(1, c), nth(2, c)] end, lc_tagged(flat, :lc_link))
-  [:lc_parsed, name, flat, states, starts, terminals, rests, fields, events, edges, lc_tagged(flat, :lc_guard), permits, links, logs]
+  spans = map(fn(c) [nth(1, c), nth(2, c), nth(3, c), nth(4, c)] end, lc_tagged(flat, :lc_span))
+  [:lc_parsed, name, flat, states, starts, terminals, rests, fields, events, edges, lc_tagged(flat, :lc_guard), permits, links, logs, spans]
 end
 
 # The payload keys of a logged permit for `capability`: subject, not_after,
@@ -541,12 +588,17 @@ def lc_d_permit_logs(d)
   nth(13, d)
 end
 
+# The declared spans, [name, from, to, limit], in declaration order.
+def lc_d_spans(d)
+  nth(14, d)
+end
+
 # ── validation: every finding, as data ─────────────────────────────────────
 
 # Every kind of problem the builder reports. Closed: lc_problem refuses any
 # other, and a test row exercises each.
 def lc_problem_kinds()
-  [:bad_name, :bad_clause, :bad_gate, :no_states, :duplicate_state, :reserved_name, :duplicate_field, :duplicate_event, :duplicate_key, :no_start, :many_starts, :unknown_state, :unknown_event, :unknown_field, :unknown_payload, :bad_effect, :duplicate_edge, :unknown_capability, :terminal_has_exit, :trap, :unreachable, :no_end, :cannot_converge, :duplicate_guard, :empty_guard, :bad_rule, :duplicate_rule, :bad_predicate, :bad_task, :duplicate_permit, :bad_permit, :unbounded_permit, :unbounded_count, :permit_needs_conjunction, :duplicate_permit_log, :duplicate_link]
+  [:bad_name, :bad_clause, :bad_gate, :no_states, :duplicate_state, :reserved_name, :duplicate_field, :duplicate_event, :duplicate_key, :no_start, :many_starts, :unknown_state, :unknown_event, :unknown_field, :unknown_payload, :bad_effect, :duplicate_edge, :unknown_capability, :terminal_has_exit, :trap, :unreachable, :no_end, :cannot_converge, :duplicate_guard, :empty_guard, :bad_rule, :duplicate_rule, :bad_predicate, :bad_task, :duplicate_permit, :bad_permit, :unbounded_permit, :unbounded_count, :permit_needs_conjunction, :duplicate_permit_log, :duplicate_link, :duplicate_span, :bad_span]
 end
 
 def lc_problem(kind, why)
@@ -586,7 +638,43 @@ def lc_problems(name, clauses)
 end
 
 def lc_check(p)
-  as_list(flatten1([lc_pb_shape(p), lc_pb_names(p), lc_pb_start(p), lc_pb_edges(p), lc_pb_graph(p), lc_pb_guards(p), lc_pb_permits(p), lc_pb_permit_logs(p), lc_pb_links(p)]))
+  as_list(flatten1([lc_pb_shape(p), lc_pb_names(p), lc_pb_start(p), lc_pb_edges(p), lc_pb_graph(p), lc_pb_guards(p), lc_pb_permits(p), lc_pb_permit_logs(p), lc_pb_links(p), lc_pb_spans(p)]))
+end
+
+# A span names two declared states, `to` reachable from `from`, with a limit
+# that is a positive whole duration or nil; one row per name.
+def lc_pb_spans(p)
+  spans = lc_d_spans(p)
+  dup = map(fn(n) lc_problem(:duplicate_span, "span #{lc_show(n)} is declared more than once") end, lc_dupes(map(fn(s) lc_span_name(s) end, spans)))
+  concat_lists(flat_map(fn(s) lc_pb_span(p, s) end, spans), dup)
+end
+
+def lc_pb_span(p, s)
+  where = "span #{lc_show(lc_span_name(s))}"
+  states = lc_d_states(p)
+  from = lc_span_from(s)
+  to = lc_span_to(s)
+  named = if lc_name?(lc_span_name(s)) && lc_name?(from) && lc_name?(to)
+    []
+  else
+    [lc_problem(:bad_name, "lc_span(#{lc_show(lc_span_name(s))}, #{lc_show(from)}, #{lc_show(to)}, …) takes a name and two states, each a name")]
+  end
+  known = concat_lists(lc_pb_state(from, states, where), lc_pb_state(to, states, where))
+  limit = if (lc_span_limit(s) == nil) || lc_positive_int?(lc_span_limit(s))
+    []
+  else
+    [lc_problem(:bad_span, "#{where}: its limit is a positive whole duration or nil, not #{lc_show(lc_span_limit(s))}")]
+  end
+  shape = if is_empty(known) == false
+    []
+  elsif from == to
+    [lc_problem(:bad_span, "#{where} starts and ends in #{lc_show(from)}; a span runs between two states")]
+  elsif contains(lc_forward(map(fn(e) [nth(1, e), nth(3, e)] end, lc_d_edges(p)), [from], size(unique(states))), to) == false
+    [lc_problem(:bad_span, "#{where}: no events lead from #{lc_show(from)} to #{lc_show(to)}, so it could never end")]
+  else
+    []
+  end
+  flatten1([named, known, limit, shape])
 end
 
 # A permit log names a capability that has an lc_permit, once.
@@ -1808,7 +1896,7 @@ def lc_example_base()
 end
 
 def lc_example_problem_rows()
-  [[[[:lc_frob, 1]], :bad_clause], [lc_gate(:g, lc_field(:z, 0)), :bad_gate], [lc_states([7]), :bad_name], [lc_states([:a]), :duplicate_state], [lc_states([:stay]), :reserved_name], [lc_field(:n, 1), :duplicate_field], [lc_event(:go, []), :duplicate_event], [lc_event(:e2, [:x, :x]), :duplicate_key], [lc_start(:b), :many_starts], [lc_on(:x, :go, :b, []), :unknown_state], [lc_on(:a, :fly, :b, []), :unknown_event], [lc_guard(:h, [lc_rule(:r, lc_below(:nope, 1))], nil), :unknown_field], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [lc_set(:n, :v)])], :unknown_payload], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [[:frob, :n]])], :bad_effect], [lc_on(:a, :go, :a, []), :duplicate_edge], [lc_permit(:nope, [lc_valid_for(60)]), :unknown_capability], [lc_on(:b, :go, :a, []), :terminal_has_exit], [[lc_states([:c]), lc_event(:hop, []), lc_on(:a, :hop, :c, [])], :trap], [[lc_states([:c]), lc_terminals([:c])], :unreachable], [[lc_states([:c, :d]), lc_event(:hop, []), lc_on(:a, :hop, :c, []), lc_on(:c, :hop, :d, []), lc_on(:d, :go, :c, [])], :cannot_converge], [lc_guard(:g, [lc_rule(:r, lc_present(:n))], nil), :duplicate_guard], [lc_guard(:h, [], nil), :empty_guard], [lc_guard(:h, [[:frob]], nil), :bad_rule], [lc_guard(:h, [lc_rule(:r, lc_present(:n)), lc_rule(:r, lc_present(:n))], nil), :duplicate_rule], [lc_guard(:h, [lc_rule(:r, lc_all([]))], nil), :bad_predicate], [lc_guard(:h, [lc_rule_task(:r, lc_present(:n), lc_task(:t, [], 60))], nil), :bad_task], [[lc_permit(:g, [lc_valid_for(60)]), lc_permit(:g, [lc_valid_for(60)])], :duplicate_permit], [lc_permit(:g, [lc_valid_for(0)]), :bad_permit], [lc_permit(:g, []), :unbounded_permit], [[lc_field(:m, 0), lc_permit(:g, [lc_valid_for(60), lc_counted(:m)])], :unbounded_count], [[lc_field(:t, nil), lc_guard(:h, [lc_rule(:r, lc_any([lc_fresh(:t, 60), lc_present(:t)]))], nil), lc_permit(:h, [lc_valid_for(60)])], :permit_needs_conjunction], [[lc_permit(:g, [lc_valid_for(60)]), lc_permit_log(:g, :issued), lc_permit_log(:g, :issued_again)], :duplicate_permit_log], [[lc_link(:peer, :other), lc_link(:peer, :another)], :duplicate_link]]
+  [[[[:lc_frob, 1]], :bad_clause], [lc_gate(:g, lc_field(:z, 0)), :bad_gate], [lc_states([7]), :bad_name], [lc_states([:a]), :duplicate_state], [lc_states([:stay]), :reserved_name], [lc_field(:n, 1), :duplicate_field], [lc_event(:go, []), :duplicate_event], [lc_event(:e2, [:x, :x]), :duplicate_key], [lc_start(:b), :many_starts], [lc_on(:x, :go, :b, []), :unknown_state], [lc_on(:a, :fly, :b, []), :unknown_event], [lc_guard(:h, [lc_rule(:r, lc_below(:nope, 1))], nil), :unknown_field], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [lc_set(:n, :v)])], :unknown_payload], [[lc_event(:e2, []), lc_on(:a, :e2, :stay, [[:frob, :n]])], :bad_effect], [lc_on(:a, :go, :a, []), :duplicate_edge], [lc_permit(:nope, [lc_valid_for(60)]), :unknown_capability], [lc_on(:b, :go, :a, []), :terminal_has_exit], [[lc_states([:c]), lc_event(:hop, []), lc_on(:a, :hop, :c, [])], :trap], [[lc_states([:c]), lc_terminals([:c])], :unreachable], [[lc_states([:c, :d]), lc_event(:hop, []), lc_on(:a, :hop, :c, []), lc_on(:c, :hop, :d, []), lc_on(:d, :go, :c, [])], :cannot_converge], [lc_guard(:g, [lc_rule(:r, lc_present(:n))], nil), :duplicate_guard], [lc_guard(:h, [], nil), :empty_guard], [lc_guard(:h, [[:frob]], nil), :bad_rule], [lc_guard(:h, [lc_rule(:r, lc_present(:n)), lc_rule(:r, lc_present(:n))], nil), :duplicate_rule], [lc_guard(:h, [lc_rule(:r, lc_all([]))], nil), :bad_predicate], [lc_guard(:h, [lc_rule_task(:r, lc_present(:n), lc_task(:t, [], 60))], nil), :bad_task], [[lc_permit(:g, [lc_valid_for(60)]), lc_permit(:g, [lc_valid_for(60)])], :duplicate_permit], [lc_permit(:g, [lc_valid_for(0)]), :bad_permit], [lc_permit(:g, []), :unbounded_permit], [[lc_field(:m, 0), lc_permit(:g, [lc_valid_for(60), lc_counted(:m)])], :unbounded_count], [[lc_field(:t, nil), lc_guard(:h, [lc_rule(:r, lc_any([lc_fresh(:t, 60), lc_present(:t)]))], nil), lc_permit(:h, [lc_valid_for(60)])], :permit_needs_conjunction], [[lc_permit(:g, [lc_valid_for(60)]), lc_permit_log(:g, :issued), lc_permit_log(:g, :issued_again)], :duplicate_permit_log], [[lc_link(:peer, :other), lc_link(:peer, :another)], :duplicate_link], [[lc_span(:s, :a, :b, nil), lc_span(:s, :a, :b, 60)], :duplicate_span], [lc_span(:s, :b, :a, nil), :bad_span]]
 end
 
 test "every kind of bad definition is refused when built, one row per kind"
@@ -1897,4 +1985,27 @@ test "a permit never outlives its guard, in time or in uses"
   assert lc_breaches(spent) == []
   assert lc_refused_rules(lc_allowed(d, spent, :use, 3100)) == [:uses_left]
   assert size(lc_breaches(lc_resume(d, s, uses(left + 1)))) == 1
+end
+
+test "a span is declared, checked when built, read back, and folds nothing"
+  # The empty case: a definition that declares none.
+  assert lc_d_spans(lc_example_consumable()) == []
+  # The identity: a span changes no state; the same log folds the same.
+  d = lc_define(:consumable, push(push(lc_example_consumable_clauses(), lc_span(:open_to_done, :open, :spent, lc_hours(8))), lc_span(:shelf, :sealed, :open, nil)))
+  assert lc_state_of(d, lc_example_log()) == lc_state_of(lc_example_consumable(), lc_example_log())
+  # Read back in declaration order, through its accessors.
+  assert lc_d_spans(d) == [[:open_to_done, :open, :spent, 28800], [:shelf, :sealed, :open, nil]]
+  s = first(lc_d_spans(d))
+  assert [lc_span_name(s), lc_span_from(s), lc_span_to(s), lc_span_limit(s)] == [:open_to_done, :open, :spent, 28800]
+  # Controls, each refused when built with its kind: an undeclared state; one
+  # state at both ends; an end no event reaches from the start (spent is
+  # terminal, so nothing leads from it to open); a limit that is not a
+  # positive whole duration; a state that is not a name.
+  kinds = fn(extra) map(fn(p) lc_problem_kind(p) end, lc_problems(:x, push(lc_example_consumable_clauses(), extra))) end
+  assert kinds(lc_span(:s, :open, :gone, nil)) == [:unknown_state]
+  assert kinds(lc_span(:s, :open, :open, nil)) == [:bad_span]
+  assert kinds(lc_span(:s, :spent, :open, nil)) == [:bad_span]
+  assert kinds(lc_span(:s, :open, :spent, 0)) == [:bad_span]
+  assert kinds(lc_span(:s, 7, :spent, 60)) == [:bad_name, :unknown_state]
+  assert error?(try(lc_define(:x, push(lc_example_consumable_clauses(), lc_span(:s, :spent, :open, nil))), catch(e(), e)))
 end

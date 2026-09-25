@@ -675,12 +675,24 @@ def q_model(opts)
   if get(opts, :from) == nil
     throw(error(:kueri_shape, "model #{q_name(get(opts, :name))} reads from nothing"))
   end
-  {kind: :model, name: q_name(get(opts, :name)), from: q_rel(get(opts, :from)), pipeline: as_list(get(opts, :pipeline)), posture: q_posture_of(get(opts, :posture)), contract: as_list(get(opts, :contract)), materialize: m}
+  q_known({kind: :model, name: q_name(get(opts, :name)), from: q_rel(get(opts, :from)), pipeline: as_list(get(opts, :pipeline)), posture: q_posture_of(get(opts, :posture)), contract: as_list(get(opts, :contract)), materialize: m})
 end
 
 # Composition by data: the same model with more stages after its own.
 def q_then(model, stages)
-  assoc(model, :pipeline, concat_lists(get(model, :pipeline), stages))
+  q_known(assoc(model, :pipeline, concat_lists(get(model, :pipeline), stages)))
+end
+
+# A model with the columns its walk infers stored in it, as :known (nil when
+# an upstream's are unknown). A model is built only from relations that
+# already exist, and each upstream model carries its own, so the walk reads
+# them in one step instead of walking the graph again. Without it a view over
+# a shared upstream re-walked that upstream once per path to it (anaritikusu's
+# `steps` feeds some twenty views). Measured 2026-09-25 over NuPastel's 79
+# generated views: q_check of all of them 1147 → 104 ms, q_output 1162 →
+# 102 ms, and the whole script 2.85 s → 0.47 s with moji's includes fix.
+def q_known(m)
+  assoc(m, :known, get(q_walk(m), :cols))
 end
 
 # A named output: a select item or a group aggregate.
@@ -1043,10 +1055,12 @@ end
 # otherwise.
 def q_model_columns(model)
   cn = q_col_names(get(model, :contract))
-  if is_empty(cn)
-    q_output(model)
-  else
+  if is_empty(cn) == false
     cn
+  elsif get(model, :known) != nil
+    get(model, :known)
+  else
+    q_output(model)
   end
 end
 
@@ -2375,4 +2389,22 @@ test "a script builds a database file of views, upstream first, and q_rows never
   assert error?(try(q_rows("SELECT FROM nowhere"), catch(e(), e)))
   # A model a script cannot name (no :view or :table) is refused.
   assert error?(try(q_render_script([assoc(m, :materialize, nil)], :duckdb, "t"), catch(e(), e)))
+end
+
+test "a model carries its columns, so a model built on it (plain or composed) sees exactly them, without re-walking"
+  base = q_example_steps()
+  a = q_model({name: :ka, from: base, pipeline: [q_derive(:next_time, q_lead(:time, [:entity], [:seq]))], materialize: :view})
+  # The empty case: a model with no stages carries its relation's columns.
+  bare = q_model({name: :kbare, from: base, materialize: :view})
+  assert get(bare, :known) == ["entity", "seq", "time", "phase"]
+  # The identity: what it carries is what its walk infers.
+  assert get(a, :known) == q_output(a)
+  assert get(a, :known) == ["entity", "seq", "time", "phase", "next_time"]
+  # Composed: q_then carries the columns after the added stages, and a model
+  # built on the composed one reads them (and refuses a column it dropped).
+  c = q_then(a, [q_select([:entity, :next_time])])
+  assert get(c, :known) == ["entity", "next_time"]
+  over = q_model({name: :kc, from: c, pipeline: [q_select([:next_time])], materialize: :view})
+  assert q_output(over) == ["next_time"]
+  assert error?(try(q_check(q_model({name: :kd, from: c, pipeline: [q_select([:phase])], materialize: :view})), catch(e(), e)))
 end

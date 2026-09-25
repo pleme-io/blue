@@ -121,6 +121,17 @@ use("kueri")
 #                    each permit issued, the uses of c after it (before its
 #                    not_after and before the next permit), and uses past
 #                    not_after (an overrun)
+#   n_granted_<c> n_unpermitted_<c>
+#                    every use no permit covered, and why: none issued before
+#                    it (no_permit), its not_after passed (lapsed), or it broke
+#                    the guard inside the window (breach) — permit_use counts
+#                    by window alone
+#   n_span_<s> n_span_<s>_summary (with n_span_<s>_from, n_span_<s>_to), for
+#                    a declared lc_span s: per entity, the first entry into
+#                    `from`, the first entry into `to` after it, the seconds
+#                    between, the time elapsed to `now` while open, done / open
+#                    / abandoned (ended in a terminal without reaching `to`),
+#                    and whether it passed its limit; then one summary row
 #
 # and per declared link, A's role r to lifecycle B:
 #
@@ -175,6 +186,30 @@ use("kueri")
 # A20 is the reason the numbers are computed by hand: it corrupts the fold
 # both sides of the differential share, so the two still agree, and only the
 # hand-computed uses (4, not 5) go red.
+#
+# Added 2026-09-25 (spans and uses no permit covered, for NuPastel's measures,
+# nupastel docs/plans/measures.md), 7 of 7 mutations red:
+#
+#   the simulated day: spans by hand   A21 a span starting where it ends · A22
+#                                      an abandoned span read as open · A23 an
+#                                      open span's time ending at 0 · A24 the
+#                                      limit ignored · A26 (also below)
+#   observed breaches and uncovered    A25 a breach inside a window counted as
+#     uses, and the attempted control  covered · A26 the permit in force found by
+#                                      equal seq, not as of · A27 a use before
+#                                      any permit counted as covered
+#
+# Not covered, so not claimed: dropping the "after `from`" filter on a span's
+# end changes nothing in an acyclic lifecycle, and no example has a cycle.
+#
+# Fixed 2026-09-25, found by NuPastel's bench day (9 orders joined to their
+# oil's state before their own load, 132 pack links to a pack before its
+# takes): the one-hop link's as-of join matched on time alone, so with two
+# records of the linked entity in one second it took either. Now the state
+# after the LAST record in that second. Red: A28 the tie-break dropped, A29
+# the tie broken toward the earlier record; both turn the tie test red. The
+# chain view (a_r_s) can still meet two links of one record, which is
+# inherent in "B's latest s link" and left as it is.
 #
 # ## The benchmark (2026-09-24)
 #
@@ -243,6 +278,10 @@ use("kueri")
 #   mistyped value), would make it declared and checked.
 # - MOVE bunseki.strict_rows and run_sql to kueri's q_rows / q_duckdb (makoto,
 #   private): the public seam now gives the same guarantee.
+# - NESTED VALUES READ BACK TYPED: kueri's q_rows parses duckdb's -json
+#   output, which renders a LIST column as its text, so la_read returns the
+#   breach column of n_unpermitted_<c> as "[quality_ok]", a string (measured
+#   2026-09-25). Types for the load are declared; types for the read are not.
 
 # ── names ──────────────────────────────────────────────────────────────────
 
@@ -691,7 +730,77 @@ def la_permit_models(d, log, events, steps, gates)
   keys = concat_lists(concat_lists([:entity, :permit_seq, :issued_at, :not_after, :subject, :basis], counts), [:next_seq])
   out = concat_lists(concat_lists([:entity, :permit_seq, :subject, :issued_at, :not_after, :window_seconds, :basis], counts), concat_lists([:uses, :overrun, :last_use_at], map(fn(k) "#{k}_exceeded" end, counts)))
   used = la_view(d, "permit_use_#{c}", permits, concat_lists([q_left_join(uses, [:entity]), q_group(keys, [q_agg_where(:uses, q_count_all(), q_and(within, q_lt(:use_time, :not_after))), q_agg_where(:overrun, q_count_all(), q_and(within, q_ge(:use_time, :not_after))), q_agg_where(:last_use_at, q_max(:use_time), q_and(within, q_lt(:use_time, :not_after)))]), q_derive(:window_seconds, q_sub(:not_after, :issued_at))], push(exceeded, q_select(out))))
-  [permits, uses, used]
+  concat_lists([permits, uses, used], la_unpermitted_models(d, log, events, steps, gates))
+end
+
+# Every use of a logged capability that no permit covered, and why: the
+# permit in force at a use is the entity's latest permit before it (an as-of
+# join on seq); there is none (`no_permit`: a use before any was issued), its
+# not_after had passed (`lapsed`), or the use broke the guard (`breach`: a
+# permit derived from a guard cannot cover a use that guard refused, which is
+# a permit revoked by a later reading). permit_use counts a use by its window
+# only; this is where a use outside every window, and a breach inside one, are
+# seen. The first reason that applies, in that order.
+def la_unpermitted_models(d, log, events, steps, gates)
+  c = lc_text(first(log))
+  granted = la_view(d, "granted_#{c}", events, [q_filter(q_and(q_eq(:type, lc_text(nth(1, log))), q_eq(:status, "admitted"))), q_select([:entity, :seq, q_as(:permit_seq, :seq), :not_after])])
+  reason = q_if(q_is_null(:permit_seq), "no_permit", q_if(q_ge(:time, :not_after), "lapsed", q_if(q_not_null(:breach), "breach", q_null())))
+  unpermitted = la_view(d, "unpermitted_#{c}", steps, [
+    q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
+    q_select([:entity, :seq, :time, :type, :phase_before, :breach]),
+    q_join(gates, [:phase_before, :type]),
+    q_filter(q_eq(:capability, c)),
+    q_select([:entity, :seq, :time, :breach]),
+    q_asof_left_join(granted, [:entity, :seq]),
+    q_derive(:reason, reason),
+    q_filter(q_not_null(:reason)),
+    q_select([:entity, q_as(:use_seq, :seq), q_as(:use_time, :time), :permit_seq, :not_after, :breach, :reason])])
+  [granted, unpermitted]
+end
+
+# ── spans: a declared duration, per entity ─────────────────────────────────
+
+# The views of one lc_span of lifecycle `d`: where each entity's span starts
+# (its first record after which it is in `from`), where it ends (its first
+# record after that in `to`), the two joined, and a one-row summary. A span
+# is `done` when it reached `to`; `abandoned` when the entity is in a
+# terminal state it never reached `to` by (it never will); `open` otherwise,
+# and then its elapsed time runs to `now`, like an open task's. over_limit is
+# the elapsed time past the declared limit (NULL with no limit, or abandoned).
+def la_span_models(d, sp, steps, current, now)
+  s = lc_text(lc_span_name(sp))
+  limit = lc_span_limit(sp)
+  first_row = [q_derive(:la_first, q_row_number([:entity], [:seq])), q_filter(q_eq(:la_first, 1))]
+  starts = la_view(d, "span_#{s}_from", steps, flatten1([[q_filter(q_eq(:phase, lc_text(lc_span_from(sp))))], first_row, [q_select([:entity, q_as(:from_seq, :seq), q_as(:from_at, :time)])]]))
+  ends = la_view(d, "span_#{s}_to", steps, flatten1([[q_filter(q_eq(:phase, lc_text(lc_span_to(sp)))), q_join(starts, [:entity]), q_filter(q_gt(:seq, :from_seq))], first_row, [q_select([:entity, q_as(:to_seq, :seq), q_as(:to_at, :time)])]]))
+  # After the join with the current state, :phase is the entity's phase now.
+  ended = reduce(fn(acc, t) q_or(acc, q_eq(:phase, lc_text(t))) end, q_lit(false), lc_d_terminals(d))
+  state = q_if(q_not_null(:to_seq), "done", q_if(ended, "abandoned", "open"))
+  over = if limit == nil
+    q_cast(q_null(), :boolean)
+  else
+    q_gt(:elapsed, limit)
+  end
+  span = la_view(d, "span_#{s}", starts, [
+    q_left_join(ends, [:entity]),
+    q_join(current, [:entity]),
+    q_derive(:state, state),
+    q_derive(:seconds, q_sub(:to_at, :from_at)),
+    q_derive(:elapsed, q_if(q_eq(:state, "abandoned"), q_cast(q_null(), :bigint), q_sub(q_coalesce(:to_at, now), :from_at))),
+    q_derive(:limit_seconds, q_cast(q_lit(limit), :bigint)),
+    q_derive(:over_limit, over),
+    q_select([:entity, :state, :from_seq, :from_at, :to_seq, :to_at, :seconds, :elapsed, :limit_seconds, :over_limit])])
+  summary = la_view(d, "span_#{s}_summary", span, [q_group([], [
+    q_agg(:started, q_count_all()),
+    q_agg_where(:reached, q_count_all(), q_eq(:state, "done")),
+    q_agg_where(:still_open, q_count_all(), q_eq(:state, "open")),
+    q_agg_where(:abandoned, q_count_all(), q_eq(:state, "abandoned")),
+    q_agg_where(:over_limit, q_count_all(), :over_limit),
+    q_agg(:min_seconds, q_min(:seconds)),
+    q_agg(:avg_seconds, q_avg(:seconds)),
+    q_agg(:max_seconds, q_max(:seconds)),
+    q_agg(:limit_seconds, q_max(:limit_seconds))])])
+  [starts, ends, span, summary]
 end
 
 # Every model of one lifecycle, upstream first.
@@ -716,7 +825,9 @@ def la_lifecycle_models(b, now)
   closes = la_task_closes_model(d, asks, evidence_events)
   tasks = la_tasks_model(d, closes, now)
   permits = flat_map(fn(l) la_permit_models(d, l, events, steps, gates) end, lc_d_permit_logs(d))
-  concat_lists([events, states, steps, la_unreplayed_model(d, events, states), la_current_state_model(d, steps), intervals, la_time_in_state_model(d, intervals), la_refusals_model(d, events), gates, hits, counts, la_rule_hits_model(d, rules, counts), rule_tasks, asks, evidence_events, closes, tasks, la_task_summary_model(d, tasks)], permits)
+  current = la_current_state_model(d, steps)
+  spans = flat_map(fn(sp) la_span_models(d, sp, steps, current, now) end, lc_d_spans(d))
+  flatten1([[events, states, steps, la_unreplayed_model(d, events, states), current, intervals, la_time_in_state_model(d, intervals), la_refusals_model(d, events), gates, hits, counts, la_rule_hits_model(d, rules, counts), rule_tasks, asks, evidence_events, closes, tasks, la_task_summary_model(d, tasks)], permits, spans])
 end
 
 # ── links: joins generated from the declarations ───────────────────────────
@@ -747,11 +858,15 @@ def la_link_rows_model(ad, role, a_events)
 end
 
 # B's states keyed for an asof join on the role: the id in the role's column,
-# the state's columns prefixed with it.
+# the state's columns prefixed with it. One row per entity per second: the
+# state after its LAST record in that second, because an asof join matches on
+# time alone, and with two records in one second (a permit and the load it
+# covers) it would take either. Measured 2026-09-25: NuPastel's bench day had
+# 9 orders joined to the state before their own load.
 def la_link_state_model(ad, role, bd, b_steps)
   r = lc_text(role)
   fields = map(fn(f) q_as("#{r}_#{f}", q_c(f)) end, la_field_names(bd))
-  la_view(ad, "#{r}_state", b_steps, [q_select(concat_lists([q_as(r, :entity), :time, q_as("#{r}_seq", :seq), q_as("#{r}_phase", :phase)], fields))])
+  la_view(ad, "#{r}_state", b_steps, [q_derive(:la_last, q_row_number([:entity, :time], [q_desc(:seq)])), q_filter(q_eq(:la_last, 1)), q_select(concat_lists([q_as(r, :entity), :time, q_as("#{r}_seq", :seq), q_as("#{r}_phase", :phase)], fields))])
 end
 
 # The columns a one-hop link view returns, after A's own.
@@ -1007,7 +1122,7 @@ end
 
 # An order of portions: each add_portion links one.
 def la_example_order()
-  lc_define(:order, [lc_states([:new, :placed, :ready, :delivered, :cancelled]), lc_start(:new), lc_terminals([:delivered, :cancelled]), lc_field(:portions, 0), lc_field(:placed_at, nil), lc_field(:delivered_at, nil), lc_event(:place, []), lc_event(:add_portion, []), lc_event(:ready, []), lc_event(:deliver, []), lc_event(:cancel, []), lc_on(:new, :place, :placed, [lc_stamp(:placed_at)]), lc_on(:placed, :add_portion, :stay, [lc_add(:portions, 1)]), lc_on(:placed, :ready, :ready, []), lc_on(:ready, :deliver, :delivered, [lc_stamp(:delivered_at)]), lc_on_each([:placed, :ready], :cancel, :cancelled, []), lc_link(:portion, :portion)])
+  lc_define(:order, [lc_states([:new, :placed, :ready, :delivered, :cancelled]), lc_start(:new), lc_terminals([:delivered, :cancelled]), lc_field(:portions, 0), lc_field(:placed_at, nil), lc_field(:delivered_at, nil), lc_event(:place, []), lc_event(:add_portion, []), lc_event(:ready, []), lc_event(:deliver, []), lc_event(:cancel, []), lc_on(:new, :place, :placed, [lc_stamp(:placed_at)]), lc_on(:placed, :add_portion, :stay, [lc_add(:portions, 1)]), lc_on(:placed, :ready, :ready, []), lc_on(:ready, :deliver, :delivered, [lc_stamp(:delivered_at)]), lc_on_each([:placed, :ready], :cancel, :cancelled, []), lc_link(:portion, :portion), lc_span(:lead, :placed, :delivered, 2000), lc_span(:ready_to_door, :ready, :delivered, nil)])
 end
 
 # A simulated day, in time order: [lifecycle, entity, event, links]. An event
@@ -1257,7 +1372,76 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # The event table's payload column, read back typed.
   readings = q_model({name: :la_readings, from: la_find(ms, "consumable_events"), pipeline: [q_filter(q_eq(:type, "reading")), q_select([:entity, :seq, :value])]})
   assert la_norm_rows(la_read(db, readings)) == la_norm_rows([["item-1", 0, 10], ["item-1", 6, 26], ["item-1", 8, 12], ["item-2", 0, 10]])
+  # Spans, declared on the order. lead (placed -> delivered, limit 2000):
+  # o-1 placed 29100 [0], delivered 31500 [4]: 2400 s, over. o-2 was placed
+  # at 30000 and cancelled, a terminal it never reaches delivered from:
+  # abandoned, no elapsed time, not judged. o-3 placed 33100 and never
+  # delivered (its deliver was refused): open, 86400 - 33100 = 53300 s, over.
+  # ready_to_door (ready -> delivered, no limit): only o-1 was ready, at 31200
+  # [3], delivered 300 s later.
+  assert view("order_span_lead") == la_norm_rows([["o-1", "done", 0, 29100, 4, 31500, 2400, 2400, 2000, true], ["o-2", "abandoned", 0, 30000, nil, nil, nil, nil, 2000, nil], ["o-3", "open", 0, 33100, nil, nil, nil, 53300, 2000, true]])
+  assert view("order_span_lead_summary") == la_norm_rows([[3, 1, 1, 1, 2, 2400, 2400, 2400, 2000]])
+  assert view("order_span_ready_to_door") == la_norm_rows([["o-1", "done", 3, 31200, 4, 31500, 300, 300, nil, nil]])
+  assert view("order_span_ready_to_door_summary") == la_norm_rows([[1, 1, 0, 0, 0, 300, 300, 300, nil]])
+  # Uses no permit covered: item-2's use at 40000 [5] came after its permit's
+  # not_after (36750): lapsed. Every other admitted use sat inside a window.
+  assert view("consumable_unpermitted_use") == la_norm_rows([["item-2", 5, 40000, 2, 36750, nil, "lapsed"]])
   rm_rf(dir)
+end
+
+test "observed breaches and uses no permit covered: each found, with the reason, and asking for its task"
+  dir = la_test_dir("observed")
+  d = la_example_consumable()
+  s = la_stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-observed")
+  log0 = el_read(get(s, :path), get(s, :label), d)
+  # item-a, seq in brackets: [0] reading 10 at 1000, [1] open 1100, [2] a use
+  # OBSERVED at 1200 before any permit (the guard holds, so no breach),
+  # [3] a permit at 1300, [4] a use at 1400, [5] a reading of 26 at 1500,
+  # [6] a use OBSERVED at 1600 (quality_ok refuses: a breach), [7] a use
+  # ATTEMPTED at 9000 (refused), [8] a use OBSERVED at 9100 (a breach again).
+  l1 = el_append_all(log0, [["item-a", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-a", lc_ev(:open, 1100, []), []]])
+  l2 = el_observe(l1, "item-a", lc_ev(:use, 1200, []), [])
+  l3 = el_append(l2, "item-a", lc_permit_event(d, lc_permit_for(d, el_state(l2, "item-a"), :use, 1300), "dev"), [])
+  l4 = el_append_all(l3, [["item-a", lc_ev(:use, 1400, []), []], ["item-a", lc_ev(:reading, 1500, [[:value, 26]]), []]])
+  l5 = el_observe(l4, "item-a", lc_ev(:use, 1600, []), [])
+  l6 = el_append(l5, "item-a", lc_ev(:use, 9000, []), [])
+  el_observe(l6, "item-a", lc_ev(:use, 9100, []), [])
+  now = 20000
+  db = la_build(dir, [s], now)
+  ms = la_models(la_bindings(dir, [s]), now)
+  view = fn(name) la_norm_rows(la_read(db, la_find(ms, name))) end
+  # By hand. The permit at 1300: not_after = min(1000 + 14400, 1100 + 259200,
+  # 1300 + 7200) = 8500, 39 uses left (one use folded), basis 3. The use at
+  # 1200 had no permit before it; the one at 1600 broke the guard inside the
+  # window; the one at 9100 came after not_after (and broke the guard too:
+  # lapsed is reported first). The use at 1400 was covered. (The breach column
+  # is a VARCHAR[]; duckdb's -json output, which la_read parses, renders a
+  # list as its text, so it reads back as "[quality_ok]".)
+  assert view("consumable_unpermitted_use") == la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"], ["item-a", 6, 1600, 3, 8500, "[quality_ok]", "breach"], ["item-a", 8, 9100, 3, 8500, "[quality_ok]", "lapsed"]])
+  # The permit's window counts the uses at 1400 and 1600 (by window alone) and
+  # the overrun at 9100.
+  assert view("consumable_permit_use_use") == la_norm_rows([["item-a", 3, "dev", 1300, 8500, 7200, 3, 39, 2, 1, 1600, false]])
+  # quality_ok refused one attempt and was breached twice; the three asks are
+  # one `replace` task, opened at 1600, never closed (no later reading), open
+  # 20000 - 1600 = 18400 s against 1200: overdue.
+  assert filter(fn(r) nth(1, r) == "quality_ok" end, view("consumable_rule_hits")) == la_norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
+  assert view("consumable_tasks") == la_norm_rows([["item-a", "replace", "open", 6, 1600, nil, nil, 3, 18400, 1200, true]])
+  # The breaches were applied: four uses folded (1200, 1400, 1600, 9100).
+  assert view("consumable_current_state") == la_norm_rows([["item-a", "open", 4, 1100, 26, 1500, 8, 9100]])
+  # The control: with the observed uses appended as attempts instead, the
+  # guard refuses them, nothing is breached, and only the use before any
+  # permit is left uncovered.
+  dir2 = la_test_dir("attempted")
+  s2 = la_stream(d, path_join(dir2, "consumable.jsonl"), "anaritikusu-observed")
+  m1 = el_append_all(el_read(get(s2, :path), get(s2, :label), d), [["item-a", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-a", lc_ev(:open, 1100, []), []], ["item-a", lc_ev(:use, 1200, []), []]])
+  m2 = el_append(m1, "item-a", lc_permit_event(d, lc_permit_for(d, el_state(m1, "item-a"), :use, 1300), "dev"), [])
+  el_append_all(m2, [["item-a", lc_ev(:use, 1400, []), []], ["item-a", lc_ev(:reading, 1500, [[:value, 26]]), []], ["item-a", lc_ev(:use, 1600, []), []], ["item-a", lc_ev(:use, 9000, []), []], ["item-a", lc_ev(:use, 9100, []), []]])
+  db2 = la_build(dir2, [s2], now)
+  ms2 = la_models(la_bindings(dir2, [s2]), now)
+  assert la_norm_rows(la_read(db2, la_find(ms2, "consumable_unpermitted_use"))) == la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"]])
+  assert filter(fn(r) nth(1, r) == "quality_ok" end, la_norm_rows(la_read(db2, la_find(ms2, "consumable_rule_hits")))) == la_norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
+  rm_rf(dir)
+  rm_rf(dir2)
 end
 
 # nisshi's replay and the database agree on every entity's phase and fields.
@@ -1318,5 +1502,23 @@ test "the set is refused where it cannot be generated, and a broken stream is re
   path = get(first(streams), :path)
   write_file(path, replace(read_file(path), "\"time\":29300", "\"time\":29301"))
   assert error?(try(la_build(dir, streams, 86400), catch(e(), e)))
+  rm_rf(dir)
+end
+
+test "as of, with two records of the linked entity in one second: the state after the later one"
+  dir = la_test_dir("tie")
+  d = la_example_consumable()
+  p = la_example_portion()
+  sc = la_stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-tie")
+  sp = la_stream(p, path_join(dir, "portion.jsonl"), "anaritikusu-tie")
+  # item-t: [0] reading 10 at 1000, [1] open 1100, [2] and [3] two uses at
+  # 1200. p-t is made at 1200 and p-u at 1300, each linking item-t. By hand:
+  # both see item-t after [3], two uses, whichever order the database keeps
+  # the two 1200 records in.
+  el_append_all(el_read(get(sc, :path), get(sc, :label), d), [["item-t", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-t", lc_ev(:open, 1100, []), []], ["item-t", lc_ev(:use, 1200, []), []], ["item-t", lc_ev(:use, 1200, []), []]])
+  el_append_all(el_read(get(sp, :path), get(sp, :label), p), [["p-t", lc_ev(:make, 1200, [[:grams, 100]]), [[:item, "item-t"]]], ["p-u", lc_ev(:make, 1300, [[:grams, 90]]), [[:item, "item-t"]]]])
+  db = la_build(dir, [sc, sp], 5000)
+  ms = la_models(la_bindings(dir, [sc, sp]), 5000)
+  assert map(fn(r) [first(r), nth(6, r), nth(8, r)] end, la_norm_rows(la_read(db, la_find(ms, "portion_item")))) == la_norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
   rm_rf(dir)
 end

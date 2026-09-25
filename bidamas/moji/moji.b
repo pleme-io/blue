@@ -176,8 +176,14 @@ def last_char_index(s, sub)
   last_char_index_from(s, sub, length(s) - length(sub))
 end
 
+# Whether `sub` occurs in `s`: exactly what char_index(s, sub) >= 0 answers,
+# through the runtime's own substring search (contains?) rather than one blue
+# call per position. Measured 2026-09-25: made_of over an 18-character name
+# took 1.72 ms (about 95 µs per character against a 37-character set) and now
+# 15 µs; kueri's q_ident, which calls it per identifier, went from 1.86 ms to
+# 56 µs, and rendering NuPastel's 79 analytics views from 1.23 s to 0.09 s.
 def includes(s, sub)
-  char_index(s, sub) >= 0
+  contains?(s, sub)
 end
 
 # How many NON-OVERLAPPING copies of `sub` are in `s`.
@@ -746,6 +752,11 @@ test "includes agrees with char_index"
   # Every string includes the empty string, which is what char_index 0 means.
   assert includes("hello", "") == true
   assert char_index("hello", "") == 0
+  # The differential: the runtime's search and char_index agree on every case,
+  # the empty ones, a needle longer than the text, overlaps, punctuation and
+  # characters beyond ASCII.
+  cases = [["hello", "ell"], ["hello", "z"], ["", "a"], ["", ""], ["hello", ""], ["abc", "abcd"], ["aaa", "aa"], ["a.b", "."], ["ação", "ç"], ["ação", "ão"], ["pão", "a"], ["_x9", "_"]]
+  assert map(fn(c) includes(first(c), nth(1, c)) == (char_index(first(c), nth(1, c)) >= 0) end, cases) == repeat(true, size(cases))
 end
 
 test "occurrences counts non-overlapping copies"

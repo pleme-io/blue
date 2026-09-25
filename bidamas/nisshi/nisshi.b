@@ -86,6 +86,16 @@ use("raifusaikuru")
 # It is an attempt, not a fact of the lifecycle, so it is folded into no
 # state: replay steps only admitted records.
 #
+# **An observed event is a fact, not an attempt** (`el_observe`, 2026-09-25).
+# A load a fryer's current sensor saw while its controller reported locked
+# happened; refusing it would erase the one record that says the guard was
+# bypassed. So el_observe writes a gated event whose guard refuses as
+# admitted, and every replay applies it and keeps it in lc_breaches, which is
+# raifusaikuru's own rule for an event that happened anyway. What the fold
+# itself cannot take (no row, an unknown type, a missing key) stays refused.
+# The line is the same nisshi/1 record: a breach is a property of a record
+# under a definition, found by replay, as a stricter reader's breaches are.
+#
 # **One fold, shared.** `el_absorb_record` is how append advances its log
 # value and how read rebuilds one. read steps an entity with lc_step; append
 # with the state lc_admit_step returned, which is lc_step's by construction
@@ -159,12 +169,15 @@ use("raifusaikuru")
 #            el_open(path, label, def, pub)      read + verify, or refuse
 #            el_from_text(text, path, bytes, label, def)   the pure part of read
 #   write    el_append(log, entity, event, links)  the log advanced; el_last is the record
+#            el_observe(log, entity, event, links) the same for a fact a device saw:
+#                                                a guard refusal is written admitted
 #            el_signing(log, secret_hex)         appends through it are signed
 #   verify   el_verify(log, pub, expected_head)  [:el_intact, count, head] or
 #                                                [:el_broken, position, kind, why]
 #   state    el_state(log, entity), el_seq_of, el_states, el_entities
 #            el_history(log)                     [record, state after it], each record
-#   records  el_records(log), el_by_entity(records), el_rec_* accessors
+#            el_state_at(log, entity, time)      the state as of a time (the fold's
+#                                                twin of anaritikusu's as-of join)#   records  el_records(log), el_by_entity(records), el_rec_* accessors
 #   pure     el_canon(value), el_canon_object(pairs), el_genesis(label),
 #            el_texts / el_body_text / el_line_text (the record builders),
 #            el_decode_line(def, position, line), el_lines / el_unlines
@@ -195,6 +208,15 @@ use("raifusaikuru")
 #   canonical JSON, and serde agrees        R4 keys left unsorted (caught by append's own
 #                                            canonical guard) · R15 a key given twice
 #   grouping by entity                      R14
+#
+# Added 2026-09-25 (NuPastel's measures, nupastel docs/plans/measures.md), 5
+# of 5 mutations red through the same kind of driver:
+#
+#   an observed event is a fact             N1 a guard refusal written refused ·
+#                                            N2 every refusal admitted · N5 the
+#                                            state before the breach kept
+#   the state as of a time                  N3 the record at the time left out ·
+#                                            N4 refused records folded
 #
 # 18 of 18 mutations red, each applied by a driver that refuses a mutation
 # whose target text is absent. In the packages this one changed:
@@ -1020,6 +1042,26 @@ end
 # (:eventlog_value), the log value is stale (:eventlog_stale) or the stream is
 # broken (:eventlog_broken).
 def el_append(log, entity, event, links)
+  el_write(log, entity, event, links, false)
+end
+
+# Append an event a device OBSERVED: it happened, whatever the guard said. A
+# fryer's current sensor that sees a load while the controller reports locked
+# has not made an attempt the log may refuse; it has recorded a fact. So a
+# gated event whose guard refuses is written ADMITTED, and every replay
+# applies it and keeps it in lc_breaches, which is raifusaikuru's own rule for
+# an event that happened anyway (lc_step). Everything else is el_append's:
+# an event the lifecycle cannot take at all (no row from the current state, an
+# unknown type, a missing key) is written refused, as the fold would refuse
+# it on replay. el_last(log) is the record, as a later read returns it.
+def el_observe(log, entity, event, links)
+  el_write(log, entity, event, links, true)
+end
+
+# The one writer behind el_append (an attempt: a guard refusal is written
+# refused) and el_observe (a fact: a guard refusal is written admitted, and
+# the state after it carries the breach).
+def el_write(log, entity, event, links, observed)
   el_require_writable(log)
   el_require_entity(entity)
   el_require_event(event)
@@ -1033,7 +1075,7 @@ def el_append(log, entity, event, links)
   ev = el_normal_event(names, event)
   entry = el_entry(log, entity)
   judged = lc_admit_step(d, first(entry), ev)
-  refusal = el_refusal_of(first(judged))
+  refusal = el_refusal_as(first(judged), observed)
   texts = el_texts(entity, el_normal_links(links), lc_ev_payload(ev), refusal, nth(1, entry), el_status_for(refusal), lc_ev_time(ev), lc_ev_type(ev))
   prev = el_head(log)
   hash = chain_link(prev, el_body_text(texts))
@@ -1042,6 +1084,17 @@ def el_append(log, entity, event, links)
   el_require_round_trip(r, line, ev)
   append_file(path, "#{line}\n")
   el_absorb_record(update_at(update_at(log, 10, nil), 6, el_bytes_on_disk(path)), r, el_state_after(first(entry), judged, refusal))
+end
+
+# The refusal a record is written with: an attempt's is el_refusal_of's; an
+# observed event's guard refusal is none, because the event happened (the
+# step lc_admit_step took applied it and recorded the breach).
+def el_refusal_as(verdict, observed)
+  if observed && (lc_admitted?(verdict) == false) && (lc_reject_kind(verdict) == :guard)
+    nil
+  else
+    el_refusal_of(verdict)
+  end
 end
 
 # The entity's state after an append: the step's when admitted, unchanged
@@ -1286,6 +1339,25 @@ def el_history_step(d, acc, r)
   end
   state = el_fold_record(d, before, r)
   [assoc(first(acc), e, state), push(nth(1, acc), [r, state])]
+end
+
+# An entity's state AS OF `time`: its records at or before `time`, folded
+# the way read folds them (el_fold_record: admitted records step, refused ones
+# do not). What a reader needs to say what the log knew when something else
+# happened (the oil's state when an order was fried), and the fold's twin of
+# anaritikusu's as-of join, which answers the same question in SQL. An entity
+# with no record by then is at its lifecycle's start. Like that join, it
+# assumes an entity's times never decrease along its stream (neither checks
+# it). Reads el_records, so it takes a value that was read.
+#
+# One question, one fold: a reader asking about many entities or times reads
+# el_history once instead (the state after every record, folded once) and
+# looks states up. Measured 2026-09-25 on NuPastel's journey lines, 200
+# orders: re-folding per question 2.56 s, looking up in one history 0.27 s.
+def el_state_at(log, entity, time)
+  d = el_def(log)
+  records = filter(fn(x) el_record?(x) && (el_rec_entity(x) == entity) && (el_rec_time(x) <= time) end, el_records(log))
+  reduce(fn(s, r) el_fold_record(d, s, r) end, lc_initial(d), records)
 end
 
 # ── grouping ───────────────────────────────────────────────────────────────
@@ -1627,4 +1699,78 @@ test "grouping by entity keeps first-appearance order and stream order, and leav
   assert map(fn(r) el_position(r) end, nth(1, first(groups))) == [0, 1, 2, 3]
   assert map(fn(r) el_position(r) end, nth(1, nth(1, groups))) == [4]
   assert el_by_entity([]) == []
+end
+
+test "an observed event is a fact: a guard refusal is written admitted and replayed as a breach; what the fold refuses stays refused"
+  d = lc_example_consumable()
+  # The empty case: where the guard allows, observing and appending write the
+  # same record, byte for byte.
+  a = el_test_path("observe-a")
+  o = el_test_path("observe-o")
+  ok = [["item-1", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-1", lc_ev(:open, 1100, []), []], ["item-1", lc_ev(:use, 1200, []), []]]
+  el_append_all(el_read(a, "nisshi-test", d), ok)
+  reduce(fn(l, x) el_observe(l, first(x), nth(1, x), nth(2, x)) end, el_read(o, "nisshi-test", d), ok)
+  assert read_file(a) == read_file(o)
+  rm(a)
+  rm(o)
+  # A value checked by hand: read 26 at 1000, opened at 1100, a use observed
+  # at 1200. quality_ok refuses (26 is not below 24), but the use happened:
+  # admitted, no refusal, uses 1, and the replay keeps the breach at fold
+  # position 2 (the third admitted event), naming the rule.
+  p = el_test_path("observe")
+  base = el_append_all(el_read(p, "nisshi-test", d), [["item-1", lc_ev(:reading, 1000, [[:value, 26]]), []], ["item-1", lc_ev(:open, 1100, []), []]])
+  seen = el_observe(base, "item-1", lc_ev(:use, 1200, []), [[:batch, "B-1"]])
+  r = el_last(seen)
+  assert el_rec_status(r) == :admitted
+  assert el_rec_refusal(r) == nil
+  assert lc_value(el_state(seen, "item-1"), :uses) == 1
+  assert lc_breaches(el_state(seen, "item-1")) == [[2, :use, :use, [:quality_ok]]]
+  # The identity: a later read replays the same state, breach included, and
+  # it is raifusaikuru's own fold of the admitted events.
+  back = el_read(p, "nisshi-test", d)
+  assert el_states(back) == el_states(seen)
+  assert el_state(back, "item-1") == lc_state_of(d, [lc_ev(:reading, 1000, [[:value, 26]]), lc_ev(:open, 1100, []), lc_ev(:use, 1200, [])])
+  assert el_intact?(el_verify(back, nil, el_head(seen)))
+  # Controls: the same use as an attempt is refused by the guard; an observed
+  # event with no row, and an unknown one, are refused as the fold refuses them.
+  q = el_test_path("observe-attempt")
+  tried = el_append(el_append_all(el_read(q, "nisshi-test", d), [["item-1", lc_ev(:reading, 1000, [[:value, 26]]), []], ["item-1", lc_ev(:open, 1100, []), []]]), "item-1", lc_ev(:use, 1200, []), [])
+  assert el_rec_refusal(el_last(tried)) == [:guard, ["quality_ok"]]
+  assert lc_value(el_state(tried, "item-1"), :uses) == 0
+  rm(q)
+  sealed = el_observe(seen, "item-2", lc_ev(:use, 1300, []), [])
+  assert el_rec_refusal(el_last(sealed)) == [:no_edge, ["open", "reading", "discard"]]
+  assert el_state(sealed, "item-2") == lc_initial(d)
+  flown = el_observe(sealed, "item-1", lc_ev(:fly, 1400, []), [])
+  assert el_rec_refusal(el_last(flown)) == [:unknown_event, []]
+  rm(p)
+end
+
+test "the state as of a time: the records at or before it, folded as read folds them"
+  d = lc_example_consumable()
+  p = el_test_path("state-at")
+  el_doc_stream(p)
+  log = el_read(p, "nisshi-doc", d)
+  # The empty case: before the first record, and for an entity with none, the
+  # lifecycle's start.
+  assert el_state_at(log, "item-1", 999) == lc_initial(d)
+  assert el_state_at(log, "item-9", 5000) == lc_initial(d)
+  # By hand: the doc stream is a reading of 10 at 1000 (admitted), a use at
+  # 1100 while sealed (refused) and an open at 2000 (admitted). At 1000 the
+  # reading has folded; at 1500 the refused use has changed nothing; at 2000
+  # the item is open.
+  at1000 = el_state_at(log, "item-1", 1000)
+  assert [lc_phase(at1000), lc_value(at1000, :quality), lc_value(at1000, :read_at)] == [:sealed, 10, 1000]
+  assert el_state_at(log, "item-1", 1500) == at1000
+  assert lc_phase(el_state_at(log, "item-1", 2000)) == :open
+  # The identity: at the last record's time it is el_state; at each record's
+  # time it is el_history's state after that record.
+  assert el_state_at(log, "item-1", 2000) == el_state(log, "item-1")
+  assert map(fn(x) el_state_at(log, el_rec_entity(first(x)), el_rec_time(first(x))) end, el_history(log)) == map(fn(x) nth(1, x) end, el_history(log))
+  # The control: a value that was appended to keeps no records.
+  q = el_test_path("state-at-writer")
+  w = el_append(el_read(q, "nisshi-test", d), "item-1", lc_ev(:open, 10, []), [])
+  assert error?(try(el_state_at(w, "item-1", 10), catch(e(), e)))
+  rm(p)
+  rm(q)
 end

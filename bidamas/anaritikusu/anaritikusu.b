@@ -278,10 +278,9 @@ use("kueri")
 #   mistyped value), would make it declared and checked.
 # - MOVE bunseki.strict_rows and run_sql to kueri's q_rows / q_duckdb (makoto,
 #   private): the public seam now gives the same guarantee.
-# - NESTED VALUES READ BACK TYPED: kueri's q_rows parses duckdb's -json
-#   output, which renders a LIST column as its text, so la_read returns the
-#   breach column of n_unpermitted_<c> as "[quality_ok]", a string (measured
-#   2026-09-25). Types for the load are declared; types for the read are not.
+# (Closed 2026-09-25: NESTED VALUES READ BACK TYPED. kueri's q_rows now reads
+# through `to_json`, so a LIST column such as the breach column of
+# n_unpermitted_<c> comes back as a list, not as its text "[quality_ok]".)
 
 # ── names ──────────────────────────────────────────────────────────────────
 
@@ -1057,7 +1056,7 @@ def la_build(dir, streams, now)
   if path_exists(db)
     rm(db)
   end
-  q_rows_at(db, script)
+  q_run_at(db, script)
   db
 end
 
@@ -1415,9 +1414,8 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # 1200 had no permit before it; the one at 1600 broke the guard inside the
   # window; the one at 9100 came after not_after (and broke the guard too:
   # lapsed is reported first). The use at 1400 was covered. (The breach column
-  # is a VARCHAR[]; duckdb's -json output, which la_read parses, renders a
-  # list as its text, so it reads back as "[quality_ok]".)
-  assert view("consumable_unpermitted_use") == la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"], ["item-a", 6, 1600, 3, 8500, "[quality_ok]", "breach"], ["item-a", 8, 9100, 3, 8500, "[quality_ok]", "lapsed"]])
+  # is a VARCHAR[], and it reads back as a list.)
+  assert view("consumable_unpermitted_use") == la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"], ["item-a", 6, 1600, 3, 8500, ["quality_ok"], "breach"], ["item-a", 8, 9100, 3, 8500, ["quality_ok"], "lapsed"]])
   # The permit's window counts the uses at 1400 and 1600 (by window alone) and
   # the overrun at 9100.
   assert view("consumable_permit_use_use") == la_norm_rows([["item-a", 3, "dev", 1300, 8500, 7200, 3, 39, 2, 1, 1600, false]])

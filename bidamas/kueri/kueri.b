@@ -1802,7 +1802,10 @@ end
 
 # Run SQL through the `duckdb` binary on PATH: [:ok, rows] or [:error, stderr].
 # Rows are JSON documents (read fields with q_row_values or deeta). Only
-# statements that return rows print, so a script may load views first.
+# statements that return rows print, so a script may load views first. The
+# values are the CLI's DISPLAY rendering, whose types move with the DuckDB
+# version (see q_rows); read values through q_rows, q_rows_at or
+# q_script_rows, which convert with `to_json`.
 def q_duckdb(sql)
   q_duckdb_result(exec_capture("duckdb", "-json", "-c", sql))
 end
@@ -1827,19 +1830,58 @@ def q_duckdb_failed?(result)
   first(result) == :error
 end
 
-# The rows of a query, or a THROWN :kueri_query when it failed: a failed
+# The rows of ONE query, or a THROWN :kueri_query when it failed: a failed
 # query never reads as no rows (the guarantee makoto's bunseki.strict_rows
 # gives, here for the public distribution).
+#
+# Values are converted by DuckDB's `to_json`, never taken from the CLI's
+# `-json` rendering. That rendering is a display format: since DuckDB 1.5 it
+# prints HUGEINT, UHUGEINT and DECIMAL as strings, and `sum` over integers is a
+# HUGEINT, so one query read 1780 under 1.4.3 and "1780" under 1.5.2
+# (measured 2026-09-25). `to_json` is the conversion itself and gives the same
+# values on both.
 def q_rows(sql)
-  q_rows_of(q_duckdb(sql), sql)
+  q_rows_of(q_duckdb(q_json_rows(sql)), sql)
 end
 
 # q_rows against a database file.
 def q_rows_at(db, sql)
-  q_rows_of(q_duckdb_at(db, sql), sql)
+  q_rows_of(q_duckdb_at(db, q_json_rows(sql)), sql)
+end
+
+# Statements first (loads, views), then ONE query whose rows are read: one
+# process, so what the statements made in memory is still there.
+def q_script_rows(statements, query)
+  q_rows_of(q_duckdb(q_script_text(statements, query)), query)
+end
+
+# q_script_rows against a database file.
+def q_script_rows_at(db, statements, query)
+  q_rows_of(q_duckdb_at(db, q_script_text(statements, query)), query)
+end
+
+# A script run for what it builds in `db` (views, tables); throws
+# :kueri_query when it failed. Nothing it prints is read.
+def q_run_at(db, script)
+  q_checked(q_duckdb_at(db, script), script)
+  nil
+end
+
+def q_script_text(statements, query)
+  join(push(as_list(statements), q_json_rows(query)), ";\n")
+end
+
+# One query as one row per result row, each a JSON document of its columns.
+# The newline before `)` keeps a trailing `--` comment from swallowing it.
+def q_json_rows(sql)
+  "SELECT to_json(kueri_row) AS kueri_row FROM (\n#{strip_suffix(trim(sql), ";")}\n) AS kueri_row"
 end
 
 def q_rows_of(result, sql)
+  map(fn(row) as_json(row, "kueri_row") end, q_checked(result, sql))
+end
+
+def q_checked(result, sql)
   if q_duckdb_failed?(result)
     throw(error(:kueri_query, "#{trim(last(result))} -- in: #{sql}"))
   end
@@ -2266,7 +2308,7 @@ end
 # Run a model over its loaded sources, in memory: its rows as value lists.
 def q_example_run(m, names)
   loads = map(fn(s) q_render_load(s, get(s, :file), :duckdb) end, q_sources(m))
-  map(fn(row) map(fn(n) as_json(row, q_name(n)) end, names) end, q_rows(join(push(loads, q_render(m, :duckdb)), ";\n")))
+  map(fn(row) map(fn(n) as_json(row, q_name(n)) end, names) end, q_script_rows(loads, q_render(m, :duckdb)))
 end
 
 test "JSON Lines and literal rows load with declared types, and struct fields and explode read them"
@@ -2389,6 +2431,26 @@ test "a script builds a database file of views, upstream first, and q_rows never
   assert error?(try(q_rows("SELECT FROM nowhere"), catch(e(), e)))
   # A model a script cannot name (no :view or :table) is refused.
   assert error?(try(q_render_script([assoc(m, :materialize, nil)], :duckdb, "t"), catch(e(), e)))
+end
+
+test "q_rows reads values by conversion, so a DuckDB display change never changes a value's type"
+  # Each type DuckDB 1.5's `-json` display prints as a string (measured
+  # 2026-09-25): a sum over integers (HUGEINT), a DECIMAL, a UHUGEINT.
+  rows = q_rows("SELECT sum(x) AS s, 1.25::DECIMAL(10,2) AS d, 7::UHUGEINT AS u FROM (VALUES (1780)) t(x)")
+  row = first(rows)
+  assert [as_json(row, "s"), as_json(row, "d"), as_json(row, "u")] == [1780, 1.25, 7]
+  assert integer?(as_json(row, "s"))
+  # The identity: a trailing `;` or `--` comment is the same query.
+  assert q_rows("SELECT 1780 AS s;") == q_rows("SELECT 1780 AS s")
+  assert q_rows("SELECT 1780 AS s -- the total") == q_rows("SELECT 1780 AS s")
+  # A script's statements run first, then its one query is read.
+  assert q_script_rows(["CREATE TEMP TABLE k AS SELECT 2 AS n"], "SELECT sum(n) AS n FROM k") == q_rows("SELECT 2 AS n")
+  # The control: a script that fails throws, it never reads as done.
+  db = path_join(getenv("TMPDIR", "."), "kueri-run-#{to_s(now_ns())}.duckdb")
+  assert error?(try(q_run_at(db, "CREATE VIEW v AS SELECT * FROM nowhere"), catch(e(), e)))
+  assert q_run_at(db, "CREATE VIEW v AS SELECT 3 AS n") == nil
+  assert q_rows_at(db, "SELECT n FROM v") == q_rows("SELECT 3 AS n")
+  rm(db)
 end
 
 test "a model carries its columns, so a model built on it (plain or composed) sees exactly them, without re-walking"

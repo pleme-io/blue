@@ -259,6 +259,93 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             other => Err(EvalError::type_mismatch("a number", other.type_name(), s).into()),
         },
     );
+
+    // ── ranges ────────────────────────────────────────────────────────
+
+    // `range` is a LOOP here, not a recursion. tatara-lisp's stdlib defines it
+    // in Lisp (`lisp_stdlib.tlisp`, where `range-impl` conses one frame per
+    // element), so `range(0, 5000)` overflowed the 8 MiB main stack and
+    // aborted the process. Everything built on it inherited the ceiling:
+    // retsu's `indexes`, `zip_with` and `enumerate`, and shomei's
+    // `chain_first_break`, which could not verify a 5,000-entry chain
+    // (measured 2026-09-24: 4,000 elements fine, 5,000 aborted).
+    //
+    // Same arities and answers as the Lisp definition: (end), (start, end),
+    // (start, end, step), ascending for a positive step, descending for a
+    // negative one, and each next element is the previous plus the step under
+    // the ordinary number rules (Int + Int is Int; a Float anywhere makes the
+    // rest Float). Two refusals the Lisp version lacked: a zero step, which
+    // recursed forever, and a wrong arity, which printed a message and
+    // returned nil.
+    //
+    // The destination is upstream: when tatara-lisp's own `range` is a loop,
+    // this registration is deleted.
+    interp.register_fn(
+        "range",
+        Arity::Range(1, 3),
+        |a: &[Value], _h: &mut H, s| {
+            let (start, end, step) = match a.len() {
+                1 => (Value::Int(0), a[0].clone(), Value::Int(1)),
+                2 => (a[0].clone(), a[1].clone(), Value::Int(1)),
+                _ => (a[0].clone(), a[1].clone(), a[2].clone()),
+            };
+            range_list(start, &end, &step, s)
+        },
+    );
+}
+
+/// A number's value as a float, or a type error naming `range`.
+fn range_num(v: &Value, s: tatara_lisp::Span) -> Result<f64, EvalError> {
+    match v {
+        Value::Int(n) => Ok(*n as f64),
+        Value::Float(x) => Ok(*x),
+        other => Err(EvalError::native_fn(
+            "range",
+            "expected a number, got ".to_string() + other.type_name(),
+            s,
+        )),
+    }
+}
+
+/// `a + b` under the number rules the Lisp `range` used: Int + Int stays Int,
+/// anything with a Float is Float.
+fn range_add(a: &Value, b: &Value, s: tatara_lisp::Span) -> Result<Value, EvalError> {
+    match (a, b) {
+        (Value::Int(x), Value::Int(y)) => x.checked_add(*y).map(Value::Int).ok_or_else(|| {
+            EvalError::native_fn("range", "an element overflowed a 64-bit integer", s)
+        }),
+        _ => Ok(Value::Float(range_num(a, s)? + range_num(b, s)?)),
+    }
+}
+
+fn range_list(
+    start: Value,
+    end: &Value,
+    step: &Value,
+    s: tatara_lisp::Span,
+) -> Result<Value, EvalError> {
+    let end_f = range_num(end, s)?;
+    let step_f = range_num(step, s)?;
+    range_num(&start, s)?;
+    if step_f == 0.0 {
+        return Err(EvalError::native_fn(
+            "range",
+            "a step of zero never reaches the end",
+            s,
+        ));
+    }
+    let mut out = Vec::new();
+    let mut cur = start;
+    loop {
+        let c = range_num(&cur, s)?;
+        if (step_f > 0.0 && c >= end_f) || (step_f < 0.0 && c <= end_f) {
+            break;
+        }
+        let next = range_add(&cur, step, s)?;
+        out.push(cur);
+        cur = next;
+    }
+    Ok(list(out))
 }
 
 #[cfg(test)]
@@ -283,6 +370,60 @@ mod tests {
             Value::Int(v) => v,
             other => panic!("{src:?} produced {other:?}"),
         }
+    }
+
+    fn ints(src: &str) -> Vec<i64> {
+        match eval(src) {
+            Value::List(xs) => xs
+                .iter()
+                .map(|v| match v {
+                    Value::Int(n) => *n,
+                    other => panic!("{src:?} produced a non-Int element {other:?}"),
+                })
+                .collect(),
+            other => panic!("{src:?} produced {other:?}"),
+        }
+    }
+
+    /// **`range` gives the Lisp definition's answers**, arity by arity,
+    /// including the descending form and the empty cases.
+    #[test]
+    fn range_answers_as_the_lisp_definition_did() {
+        assert_eq!(ints("range(5)"), vec![0, 1, 2, 3, 4]);
+        assert_eq!(ints("range(2, 6)"), vec![2, 3, 4, 5]);
+        assert_eq!(ints("range(0, 10, 2)"), vec![0, 2, 4, 6, 8]);
+        assert_eq!(ints("range(10, 0, 0 - 2)"), vec![10, 8, 6, 4, 2]);
+        assert!(ints("range(5, 5)").is_empty());
+        assert!(ints("range(5, 2)").is_empty());
+        assert!(ints("range(0)").is_empty());
+        // A float step makes the elements after the first floats, as `+` did.
+        match eval("range(0, 1, 0.5)") {
+            Value::List(xs) => {
+                assert!(matches!(xs[0], Value::Int(0)), "{xs:?}");
+                assert!(matches!(xs[1], Value::Float(x) if x == 0.5), "{xs:?}");
+                assert_eq!(xs.len(), 2);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// **`range` is a loop, not a recursion.** The Lisp definition consed one
+    /// stack frame per element and aborted the process near 5,000 elements on
+    /// an 8 MiB stack. This runs on the test harness's 2 MiB thread, where the
+    /// Lisp one died sooner still. Red run, 2026-09-24: with the registration
+    /// removed, this test aborted the test binary with a stack overflow.
+    #[test]
+    fn range_builds_long_lists_without_recursing() {
+        assert_eq!(i("length(range(0, 200000))"), 200_000);
+        assert_eq!(i("nth(199999, range(0, 200000))"), 199_999);
+    }
+
+    /// A zero step never reaches the end: refused, where the Lisp definition
+    /// recursed until the stack gave out. A non-number is a named error.
+    #[test]
+    fn range_refuses_a_zero_step_and_a_non_number() {
+        assert!(crate::run("range(0, 5, 0)").is_err());
+        assert!(crate::run("range(0, \"x\")").is_err());
     }
 
     /// **`length` counts CHARACTERS, as Ruby does — not bytes.** A `length`

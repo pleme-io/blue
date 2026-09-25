@@ -97,9 +97,13 @@ def hash_message(data)
 end
 
 # True for exactly 64 lowercase hex characters: the shape `hash_message` returns.
+# Deletes each of the 16 digits with the runtime's `replace` and asks whether
+# anything is left: 16 native calls instead of a lambda per character. Every
+# chain_link runs this, and the per-character form was 97% of a link's cost
+# (31 of 32 µs; now 12 µs. Measured 2026-09-24 by nisshi's profile).
 def is_hash_hex(s)
   if string?(s)
-    length(s) == 64 && is_empty(filter(fn(c) not(contains?("0123456789abcdef", c)) end, chars(s)))
+    length(s) == 64 && reduce(fn(left, c) replace(left, c, "") end, s, ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]) == ""
   else
     false
   end

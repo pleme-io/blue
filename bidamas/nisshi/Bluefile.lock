@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:85655b6527b6fa94860944a925bf8a548392b163718d0b8ef5a44fc6a705244a",
+  "manifest": {
+    "schema": 1,
+    "name": "nisshi",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "junjo": "^0.1.0",
+      "raifusaikuru": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shomei": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

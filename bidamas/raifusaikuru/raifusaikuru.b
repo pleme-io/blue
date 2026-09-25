@@ -16,6 +16,7 @@ use("shuugou")
 #   fold    lc_state_of(def, events)     replay an entity's events, in order
 #           lc_resume(def, state, events), lc_step(def, state, event), lc_initial(def)
 #   admit   lc_admit(def, state, event)  would this event be accepted now?
+#           lc_admit_step(def, state, event)   [lc_admit, lc_step] from one judgement
 #   guard   lc_allowed(def, state, capability, now)
 #           allowed, or refused with the rules that refused, why, and the
 #           task specs to create
@@ -1100,7 +1101,12 @@ end
 # else, and every event advances the sequence.
 def lc_step(d, s, ev)
   lc_require(d)
-  j = lc_judge(d, s, ev)
+  lc_apply(d, s, ev, lc_judge(d, s, ev))
+end
+
+# The state after an event lc_judge has already decided: the second half of
+# lc_step, shared with lc_admit_step so a judgement is made once.
+def lc_apply(d, s, ev, j)
   pos = lc_seq(s)
   if first(j) == :refuse
     [:lc_state, lc_phase(s), lc_fields(s), pos + 1, lc_as_of(s), push(lc_refused(s), [pos, lc_ev_type(ev), nth(1, j), nth(2, j)]), lc_breaches(s)]
@@ -1133,7 +1139,11 @@ end
 # would record the same event as refused, or as a breach.
 def lc_admit(d, s, ev)
   lc_require(d)
-  j = lc_judge(d, s, ev)
+  lc_admission(lc_judge(d, s, ev))
+end
+
+# lc_judge's decision as lc_admit answers it.
+def lc_admission(j)
   if first(j) == :ok
     [:admit]
   elsif first(j) == :breach
@@ -1141,6 +1151,16 @@ def lc_admit(d, s, ev)
   else
     [:reject, nth(1, j), nth(2, j)]
   end
+end
+
+# lc_admit and lc_step from ONE judgement: [admission, state after]. An
+# appender that checks an event and then folds it needs both, and the
+# judgement is most of a step's cost (nisshi's profile, 2026-09-24: lc_admit
+# 181 µs and lc_step 202 µs on one event, each judging it).
+def lc_admit_step(d, s, ev)
+  lc_require(d)
+  j = lc_judge(d, s, ev)
+  [lc_admission(j), lc_apply(d, s, ev, j)]
 end
 
 def lc_admitted?(a)
@@ -1696,6 +1716,18 @@ test "the fold records what it refuses and never throws"
   assert lc_admit(d, s, lc_ev(:open, 2400, [])) == [:reject, :no_edge, [:use, :reading, :finish, :discard]]
   assert lc_admitted?(lc_admit(d, s, lc_ev(:use, 2400, [])))
   assert lc_legal_events(d, :discarded) == []
+end
+
+test "lc_admit_step answers exactly as lc_admit and lc_step do, for admitted, refused and breaching events"
+  d = lc_example_consumable()
+  s = lc_state_of(d, lc_example_log())
+  high = lc_state_of(d, push(lc_example_log(), lc_ev(:reading, 4000, [[:value, 26]])))
+  cases = [[s, lc_ev(:use, 2400, [])], [s, lc_ev(:open, 2400, [])], [s, lc_ev(:fly, 2400, [])], [s, lc_ev(:reading, 2400, [])], [high, lc_ev(:use, 4100, [])], [lc_initial(d), lc_ev(:reading, 10, [[:value, 3]])]]
+  assert map(fn(c) lc_admit_step(d, first(c), nth(1, c)) == [lc_admit(d, first(c), nth(1, c)), lc_step(d, first(c), nth(1, c))] end, cases) == repeat(true, size(cases))
+  # The breach case is in the list: rejected by admission, applied by the step.
+  b = lc_admit_step(d, high, lc_ev(:use, 4100, []))
+  assert lc_reject_kind(first(b)) == :guard
+  assert size(lc_breaches(nth(1, b))) == 1
 end
 
 test "a permit never outlives its guard, in time or in uses"

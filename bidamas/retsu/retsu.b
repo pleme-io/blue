@@ -216,8 +216,16 @@ end
 # The sentinel is negative rather than nil so a caller can compare it — `nil < 0`
 # is not a comparison this runtime will make. `contains` is the predicate to
 # reach for when the position itself is not wanted.
+#
+# Both are the runtime's `position` and `member?` (native iterations, `==` as
+# `equal?`), not index_of_from's recursion, which copied the tail at every
+# element and so was quadratic: measured 2026-09-24, finding the last of
+# 20,000 elements took 664 ms and of 100,000 took 15.3 s, now 5 ms and 27 ms;
+# a lookup among five names went from 14.7 µs to 3.7 µs. (The recursion is a
+# tail call and never overflowed; the cost was the copying.) Found by nisshi's
+# profile of raifusaikuru's judgement, which calls contains on every event.
 def index_of(xs, v)
-  index_of_from(xs, v, 0)
+  position(v, as_list(xs))
 end
 
 def index_of_from(xs, v, i)
@@ -233,7 +241,7 @@ def index_of_from(xs, v, i)
 end
 
 def contains(xs, v)
-  index_of(xs, v) >= 0
+  member?(v, as_list(xs))
 end
 
 def count_of(xs, v)
@@ -282,6 +290,21 @@ test "index_of reports absence as a number, not nil"
   assert index_of([5, 5], 5) == 0
   # The sentinel is comparable, which is the point of choosing it.
   assert index_of([1], 9) < 0
+end
+
+test "index_of and contains find the last of a long list, and read nil as empty"
+  # Semantics only: the move to `position` and `member?` was for speed, which
+  # a test here cannot pin without a clock. The recursive form also passes
+  # this, in 664 ms instead of 5.
+  xs = range(0, 20000)
+  assert index_of(xs, 19999) == 19999
+  assert contains(xs, 19999) == true
+  assert contains(xs, 20000) == false
+  assert index_of(nil, 1) == 0 - 1
+  assert contains(nil, 1) == false
+  # Equality is `==`: lists by value, and a float is not an int.
+  assert contains([[1, 2]], [1, 2]) == true
+  assert contains([1.0], 1) == false
 end
 
 test "contains, count_of and without"

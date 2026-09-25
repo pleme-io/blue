@@ -273,6 +273,12 @@ aborts the process rather than failing a test. Prefer `map`, `filter` and
 sort has to be deep. Keyed sorts (`sort_by`, `sort_stable_by`, `min_by`,
 `merge_sort`) go through `compare`, so they order strings as well as numbers.
 
+**`range` was a recursion too, until 2026-09-24.** tatara-lisp defines it in
+Lisp, one frame per element, so `range(0, 5000)` aborted the process, and so
+did everything built on it (`indexes`, `zip_with`, `enumerate`, shomei's
+`chain_first_break` over a 5,000-line chain). blue's runtime now registers a
+native `range`; a checkout older than that still has the ceiling.
+
 **A DEBUG build is deeper still, and CI's `cargo test` is a debug build.**
 Measured 2026-09-23 with `target/debug/blue test` (8 MiB main thread) over
 every package: `angou` and `tokumei` abort with a stack overflow while all 22
@@ -280,6 +286,30 @@ others pass, and the same two abort `distribution.rs`'s gate (debug, 8 MiB),
 which then names no package. `cargo test --release` passes the gate. Run a new
 package's tests under the debug binary once before trusting a release-built
 `blue test`.
+
+## Growing a list is quadratic
+
+**`push` and `cons` copy the whole list**, because a list is a vector
+underneath. Measured 2026-09-24: growing a list one element at a time took
+0.19 s for 10,000 elements and 2.9 s for 40,000. Build a long list in one pass
+(`map`, `filter`, `split`), and do not give a long-lived value a list that
+grows with every call: a log writer that kept every record it appended would
+slow down with its own age. A map (`assoc`, `get`) is the index to reach for;
+`get` costs ~1 µs, and `assoc` copies the map (~2 µs at 100 keys).
+
+`retsu`'s `contains` and `index_of` were the same shape until 2026-09-24:
+a recursion that copied the tail at each step (664 ms to find the last of
+20,000). They are now the runtime's `member?` and `position`.
+
+## Three silent answers
+
+- **`list?(nil)` is true.** Test `v == nil` before `list?(v)`, or `nil` takes
+  the list branch (a JSON writer rendered it `[]`).
+- **`find_first` answers `nil` both for "absent" and for a found `nil`.** When
+  an element may be nil, ask `count_where` or `filter` instead.
+- **A parameter or local named like a function shadows it** for the rest of
+  the def: `def f(xs, size) size(xs) end` raises. `size`, `count`, `first`,
+  `last` and `type` are the tempting ones.
 
 ## Negative numbers
 

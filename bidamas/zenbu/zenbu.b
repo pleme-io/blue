@@ -57,6 +57,7 @@ use("kueri")
 use("kumiawase")
 use("moji")
 use("mokuroku")
+use("nisshi")
 use("ongaku")
 use("raifusaikuru")
 use("ran")
@@ -92,6 +93,7 @@ test "every bidama in the distribution answers through this one import"
   assert combinations(52, 5) == 2598960
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
+  assert el_format() == "nisshi/1"
   assert major_triad(0) == [0, 4, 7]
   assert lc_hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)

@@ -36,7 +36,7 @@
 # | Word | Lowers to |
 # |---|---|
 # | `package(name, v)` | `packages.<name>` and `default`: `blue` as `<name>`, with the project's BLUE_PATH and tools |
-# | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `bidama-collisions` (touching the project's packages) and `bidama-locks-fresh` |
+# | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `bidama-collisions` (touching the project's packages), `bidama-locks-fresh` and `bidama-deps-resolve` (the version solver) |
 # | the root lock itself | `checks.repository-lock-fresh` |
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
 # | `tool(name)` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps |
@@ -227,6 +227,12 @@ let
           # to need it.
           bidama-collisions = bl.mkCollisionCheck { inherit blue bidamas; owned = ownNames; };
           bidama-locks-fresh = bl.mkLockCheck { inherit blue; roots = map (d: src + "/${d}") m.packages; };
+          # The version solver over every own package's needs, against the
+          # same graph the build uses (mk-bidama.nix, mkResolveCheck).
+          bidama-deps-resolve = bl.mkResolveCheck {
+            inherit blue bidamas;
+            manifests = map (p: p.root + "/${p.name}/Bluefile") found;
+          };
         } // lib.listToAttrs (map
           (n: lib.nameValuePair "bidama-test-${n}" (bl.mkTestCheck (common // {
             name = "bidama-test-${n}";

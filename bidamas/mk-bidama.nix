@@ -416,6 +416,20 @@ rec {
     '';
 
   # `roots` for a project with several `packages(...)` roots; `root` for one.
+  # Fails when a Bluefile's needs cannot be SOLVED against `bidamas`, the same
+  # package set the build composes. `mkLockCheck` proves a lock is blue's
+  # evaluation of its Bluefile, and `mkBidama` only that a needed package
+  # EXISTS; neither runs the version solver. So an unsatisfiable range passed
+  # every gate. Red run 2026-09-25: nupastel's `abura` with
+  # `needs("retsu", "^0.9")` against retsu 0.1.0 made `blue deps` exit 1
+  # while `nix flake check` stayed green; with this check it goes red.
+  mkResolveCheck = { blue, bidamas, manifests, name ? "bidama-deps-resolve" }:
+    runCommand name { } ''
+      for m in ${lib.escapeShellArgs manifests}; do
+        BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue deps "$m" >> $out || exit 1
+      done
+    '';
+
   mkLockCheck = { blue, root ? null, roots ? [ root ], name ? "bidama-locks-fresh" }:
     let
       manifests = lib.concatMap

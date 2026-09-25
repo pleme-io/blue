@@ -160,7 +160,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-art"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "irodori",
  "katsuji",
@@ -168,14 +168,14 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-bidama"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-waku",
 ]
 
 [[package]]
 name = "blue-lang-check"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-cli"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-art",
  "blue-lang-bidama",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-fmt"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -215,7 +215,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-lsp"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
@@ -227,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-pkg"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-bidama",
  "blue-lang-runtime",
@@ -243,7 +243,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-proc"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-bidama",
  "blue-lang-runtime",
@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-runtime"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-syntax"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-fmt",
  "blue-lang-runtime",
@@ -280,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-test"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-fmt",
  "blue-lang-runtime",
@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-waku"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-wasm"
-version = "0.0.37"
+version = "0.0.38"
 dependencies = [
  "blue-lang-runtime",
  "blue-lang-waku",

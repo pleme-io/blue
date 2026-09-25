@@ -363,16 +363,22 @@ fn test_failure_reports_the_expression_as_written() {
     );
 }
 
-/// A file with no tests is not a pass by default — the tally must say zero, so
-/// a mis-typed filename or an un-run suite cannot read as success.
+/// A file with no tests is not a pass — the tally says zero AND the exit status
+/// fails, so a mis-typed filename or an un-run suite cannot read as success in
+/// a gate that only reads the status (every `lib.project` check does).
 #[test]
-fn test_on_a_file_with_no_tests_reports_zero() {
+fn test_on_a_file_with_no_tests_reports_zero_and_fails() {
     let f = write("test-none", "def f(x)\n  x\nend");
     let o = run(&["test", f.to_str().unwrap()]);
     assert!(
         stdout(&o).contains("0 test(s)"),
         "an empty run must be visibly empty: {}",
         stdout(&o)
+    );
+    assert!(
+        !o.status.success(),
+        "a file with no tests must fail, or a gate over it is vacuous: {}",
+        stderr(&o)
     );
 }
 

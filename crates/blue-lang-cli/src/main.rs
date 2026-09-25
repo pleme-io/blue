@@ -445,6 +445,17 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 report.passed,
                 report.failures.len()
             );
+            // Zero tests is a failure, not a pass. Every gate that runs
+            // `blue test` (a project's `bidama-test-*` and `check` words,
+            // `lib.project`) would otherwise stay green over a file that tests
+            // nothing: a mistyped path, or a package that lost its tests.
+            if report.total() == 0 {
+                eprintln!(
+                    "{}: no `test` blocks, so nothing was tested",
+                    file.display()
+                );
+                return Ok(ExitCode::FAILURE);
+            }
             Ok(if report.ok() {
                 ExitCode::SUCCESS
             } else {

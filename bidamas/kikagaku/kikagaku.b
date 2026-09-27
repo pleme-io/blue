@@ -600,6 +600,144 @@ def interior_angles(pts)
   map(fn(i) angle_at(nth(i, pts), nth((i + n - 1) % n, pts), nth((i + 1) % n, pts)) end, range(0, n))
 end
 
+# ── shapes, edges and regions ──────────────────────────────────────
+#
+# Added 2026-09-27 for flat patterns (nupastel's design pipeline, step 3): a
+# sheet part's blank is an outline with holes, its round holes are tessellated
+# circles, and the shop's rules ("a hole at least 2T from the edge") are
+# distances to a polygon's boundary rather than to its vertices.
+
+# The axis-aligned rectangle with corner (x, y), counter-clockwise.
+def rect_polygon(x, y, w, h)
+  [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+end
+
+# n + 1 points along the arc from angle a0 to a1 (radians), both ends included.
+def arc_points(centre, r, a0, a1, n)
+  map(fn(i) [px(centre) + (r * cos(a0 + ((a1 - a0) * i / n))), py(centre) + (r * sin(a0 + ((a1 - a0) * i / n)))] end, range(0, n + 1))
+end
+
+# A circle as a regular n-gon, counter-clockwise from angle 0, the closing
+# point not repeated. Its area is (n / 2) r^2 sin(2 pi / n), slightly under
+# pi r^2: a tessellated hole removes less material than the round one, which
+# regular_polygon_area lets a caller account for exactly.
+def circle_polygon(centre, r, n)
+  all_but_last(arc_points(centre, r, 0, 2 * pi(), n))
+end
+
+def regular_polygon_area(r, n)
+  (n / 2.0) * r * r * sin(2 * pi() / n)
+end
+
+# The same polygon wound counter-clockwise, or clockwise.
+def ccw_polygon(pts)
+  if winding(pts) < 0
+    reverse(pts)
+  else
+    pts
+  end
+end
+
+def cw_polygon(pts)
+  if winding(pts) > 0
+    reverse(pts)
+  else
+    pts
+  end
+end
+
+# The edges of a closed polygon as [a, b] pairs, the closing edge included.
+def polygon_edges(pts)
+  n = size(pts)
+  map(fn(i) [nth(i, pts), nth((i + 1) % n, pts)] end, range(0, n))
+end
+
+# Distance from p to the polygon's BOUNDARY: 0 on an edge, and the same inside
+# or outside. nearest_point measures to vertices, which is wrong for a point
+# beside the middle of a long edge.
+def polygon_edge_distance(p, pts)
+  min_of(map(fn(e) point_segment_distance(p, nth(0, e), nth(1, e)) end, polygon_edges(pts)))
+end
+
+# Do two polygons' boundaries cross or touch?
+def boundaries_cross(a, b)
+  some(fn(ea) some(fn(eb) segments_intersect(nth(0, ea), nth(1, ea), nth(0, eb), nth(1, eb)) end, polygon_edges(b)) end, polygon_edges(a)) == true
+end
+
+# The least distance between two boundaries: 0 when they cross, otherwise the
+# least vertex-to-edge distance either way. It holds whether the polygons are
+# apart or one sits inside the other, which is what a hole's clearance to the
+# outline needs.
+def boundary_gap(a, b)
+  if boundaries_cross(a, b)
+    0
+  else
+    min(min_of(map(fn(p) polygon_edge_distance(p, b) end, a)), min_of(map(fn(p) polygon_edge_distance(p, a) end, b)))
+  end
+end
+
+# Do two polygons share any area: boundaries crossing, or one inside the other?
+def polygons_overlap(a, b)
+  boundaries_cross(a, b) || point_in_polygon(first(a), b) || point_in_polygon(first(b), a)
+end
+
+# The gap between two polygons: 0 when they overlap, otherwise the least
+# distance between them.
+def polygon_gap(a, b)
+  if polygons_overlap(a, b)
+    0
+  else
+    boundary_gap(a, b)
+  end
+end
+
+# Is `inner` strictly inside `outer`: no boundary contact, and inside?
+def polygon_inside(inner, outer)
+  boundary_gap(inner, outer) > 0 && point_in_polygon(first(inner), outer)
+end
+
+# A region: an outline with holes, each a polygon. Stored with the outline
+# counter-clockwise and every hole clockwise, the convention that makes the
+# signed areas add up and an extrusion's faces point outward.
+def region(outline, holes)
+  [ccw_polygon(outline), map(fn(h) cw_polygon(h) end, holes)]
+end
+
+def region_outline(r)
+  nth(0, r)
+end
+
+def region_holes(r)
+  nth(1, r)
+end
+
+def region_area(r)
+  polygon_area(region_outline(r)) - sum(map(fn(h) polygon_area(h) end, region_holes(r)))
+end
+
+# The area centroid: the outline's, less each hole's, weighted by area.
+def region_centroid(r)
+  parts = concat_lists([[polygon_area(region_outline(r)), centroid(region_outline(r))]], map(fn(h) [0 - polygon_area(h), centroid(h)] end, region_holes(r)))
+  a = sum(map(fn(p) nth(0, p) end, parts))
+  [sum(map(fn(p) nth(0, p) * px(nth(1, p)) end, parts)) / a, sum(map(fn(p) nth(0, p) * py(nth(1, p)) end, parts)) / a]
+end
+
+# Why a region is not a valid blank, as data: [kind, why]. Empty when valid.
+# A hole must lie strictly inside the outline, and no two holes may overlap.
+def region_refusals(r)
+  outline = region_outline(r)
+  holes = region_holes(r)
+  small = if size(outline) < 3
+    [[:kikagaku_region, "the outline has #{to_s(size(outline))} points; a polygon needs 3"]]
+  else
+    []
+  end
+  outside = map(fn(i) [:kikagaku_region, "hole #{to_s(i)} is not strictly inside the outline"] end, filter(fn(i) polygon_inside(nth(i, holes), outline) == false end, indexes(holes)))
+  pairs = filter(fn(ij) nth(0, ij) < nth(1, ij) end, flat_map(fn(i) map(fn(j) [i, j] end, indexes(holes)) end, indexes(holes)))
+  overlapping = map(fn(ij) [:kikagaku_region, "holes #{to_s(nth(0, ij))} and #{to_s(nth(1, ij))} overlap"] end, filter(fn(ij) polygons_overlap(nth(nth(0, ij), holes), nth(nth(1, ij), holes)) end, pairs))
+  concat_lists(small, concat_lists(outside, overlapping))
+end
+
 test "distance, including the 3-4-5 triangle"
   assert near(distance([0, 0], [3, 4]), 5) == true
   assert distance_squared([0, 0], [3, 4]) == 25
@@ -966,4 +1104,72 @@ test "interior angles sum to (n - 2) * pi on a convex polygon"
   assert near(sum(interior_angles(tri)), pi()) == true
   # A rectangle's corners are all right angles however long it is.
   assert near(sum(interior_angles([[0, 0], [9, 0], [9, 1], [0, 1]])), 2 * pi()) == true
+end
+
+test "regions: the empty-holes case, a drilled plate, and its centroid"
+  # The empty case: a region with no holes is its outline.
+  plain = region(rect_polygon(0, 0, 100, 50), [])
+  assert near(region_area(plain), 5000) == true
+  assert is_empty(region_refusals(plain)) == true
+  # Independently checkable: a 100 x 50 plate with a 64-gon hole of r = 10
+  # has area 5000 - 32 * 100 * sin(2 pi / 64), the regular polygon's area,
+  # computed here by the closed form rather than by the shoelace.
+  hole = circle_polygon([25, 25], 10, 64)
+  plate = region(rect_polygon(0, 0, 100, 50), [hole])
+  assert near(region_area(plate), 5000 - (32 * 100 * sin(2 * pi() / 64))) == true
+  assert near(regular_polygon_area(10, 64), polygon_area(hole)) == true
+  # Its centroid, by hand: (5000 * 50 - Ah * 25) / (5000 - Ah) in x, and 25 in
+  # y by symmetry.
+  ah = regular_polygon_area(10, 64)
+  c = region_centroid(plate)
+  assert near(px(c), ((5000 * 50) - (ah * 25)) / (5000 - ah)) == true
+  assert near(py(c), 25) == true
+  # The stored convention: outline counter-clockwise, holes clockwise.
+  assert winding(region_outline(plate)) == 1
+  assert winding(first(region_holes(plate))) == 0 - 1
+end
+
+test "edge distance and gaps measure to the boundary, not the vertices"
+  sq = rect_polygon(0, 0, 10, 10)
+  # Beside the middle of an edge: 2 from the boundary, far from every vertex.
+  assert near(polygon_edge_distance([5, 2], sq), 2) == true
+  assert near(polygon_edge_distance([5, -3], sq), 3) == true
+  # Two squares 4 apart.
+  assert near(polygon_gap(sq, rect_polygon(14, 0, 10, 10)), 4) == true
+  assert polygon_gap(sq, rect_polygon(5, 5, 10, 10)) == 0
+  assert polygons_overlap(sq, rect_polygon(2, 2, 3, 3)) == true
+  assert polygons_overlap(sq, rect_polygon(20, 20, 3, 3)) == false
+  # Nested: the case a gap that treats containment as overlap gets wrong. A
+  # 10 x 10 hole at (2, 2) in a 100 x 50 plate is 2 from the plate's edge.
+  plate = rect_polygon(0, 0, 100, 50)
+  inner = rect_polygon(2, 2, 10, 10)
+  assert near(boundary_gap(inner, plate), 2) == true
+  assert polygon_gap(inner, plate) == 0
+  assert polygon_inside(inner, plate) == true
+  assert polygon_inside(plate, inner) == false
+  assert polygon_inside(rect_polygon(0, 2, 10, 10), plate) == false
+end
+
+test "an arc has both ends, and a circle does not repeat its first point"
+  a = arc_points([0, 0], 1, 0, pi() / 2, 4)
+  assert size(a) == 5
+  assert near(px(first(a)), 1) == true
+  assert near(py(last(a)), 1) == true
+  assert size(circle_polygon([0, 0], 1, 12)) == 12
+end
+
+test "invalid regions are refused, naming the hole"
+  # The controls: a hole crossing the edge, a hole outside, two holes that
+  # overlap, and a two-point outline.
+  outline = rect_polygon(0, 0, 100, 50)
+  across = region(outline, [circle_polygon([98, 25], 5, 16)])
+  assert map(fn(r) nth(0, r) end, region_refusals(across)) == [:kikagaku_region]
+  away = region(outline, [circle_polygon([200, 25], 5, 16)])
+  assert size(region_refusals(away)) == 1
+  pair = region(outline, [circle_polygon([30, 25], 5, 16), circle_polygon([36, 25], 5, 16)])
+  assert size(region_refusals(pair)) == 1
+  assert size(region_refusals(region([[0, 0], [1, 1]], []))) == 1
+  # A hole touching nothing is valid, 2 from the edge.
+  ok = region(outline, [rect_polygon(2, 2, 10, 10)])
+  assert is_empty(region_refusals(ok)) == true
 end

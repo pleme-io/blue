@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:0c2cb77dbbb9114298b1756fded01a3c83cc7c0fcc1f6aecd7064613a5aaaea7",
+  "bluefile_b3": "b3:989a74c0c3ff8a45557074d1b421d6a14f6802027922ce09ce7e2e3d16f4f764",
   "manifest": {
     "schema": 1,
     "name": "kakou",
@@ -10,7 +10,8 @@
       "kazu": "^0.1.0",
       "kikagaku": "^0.1.0",
       "retsu": "^0.1.0",
-      "rittai": "^0.1.0"
+      "rittai": "^0.1.0",
+      "zumen": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

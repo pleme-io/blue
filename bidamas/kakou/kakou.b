@@ -3,6 +3,7 @@ use("kazu")
 use("gyouretsu")
 use("kikagaku")
 use("rittai")
+use("zumen")
 # kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 #
 # Three part families, the ones a shop with shears, a manual brake, a saw and
@@ -235,6 +236,29 @@ end
 # exactly for the flat and to within the neutral-axis shift at each bend.
 def kk_sheet_mass_g(part)
   region_area(get(kk_flat_pattern(part), :blank)) * get(part, :thickness) * kk_density(get(part, :material)) / 1000
+end
+
+# ── the shop's drawing of a blank ────────────────────────────────────
+# What the shear and the brake need: the blank's outline and holes, each
+# bend's centre line dashed with its direction, angle and inside radius
+# written on it, and the blank's two overall dimensions. Plain ASCII
+# ("DEG"), since an R12 reader may not have a degree sign.
+
+def kk_blank_entities(part, text_h)
+  fp = kk_flat_pattern(part)
+  blank = get(fp, :blank)
+  bends = flat_map(fn(b) kk_bend_entities(b, text_h) end, get(fp, :bends))
+  bb = bounding_box(region_outline(blank))
+  lo = nth(0, bb)
+  hi = nth(1, bb)
+  dims = concat_lists(zu_dim([px(lo), py(lo)], [px(hi), py(lo)], 0 - (3 * text_h), text_h), zu_dim([px(hi), py(lo)], [px(hi), py(hi)], 0 - (3 * text_h), text_h))
+  concat_lists(zu_region(blank), concat_lists(bends, dims))
+end
+
+def kk_bend_entities(b, text_h)
+  c = get(b, :centre)
+  label = "#{upcase(to_s(get(b, :direction)))} #{zu_num(get(b, :angle))} DEG R#{zu_num(get(b, :radius))}"
+  [zu_line(nth(0, c), nth(1, c), "BEND"), zu_text(vadd(midpoint(nth(0, c), nth(1, c)), [text_h * 0.5, text_h * 0.5]), text_h * 0.8, label, "BEND")]
 end
 
 # ── the folded solid ─────────────────────────────────────────────────
@@ -557,6 +581,19 @@ test "a flat pattern: the blank's outline, its bend lines, and its mass"
   # Each bend's zone is one bend allowance wide.
   bl = first(get(fp, :bends))
   assert near(vdistance(first(get(bl, :start)), first(get(bl, :finish))), kk_bend_allowance(90, 1.5, 1.5, 0.44)) == true
+end
+
+test "a blank's drawing: outline, holes, one labelled bend line per flange, two dimensions"
+  es = kk_blank_entities(kk_tray(), 3.5)
+  assert size(filter(fn(e) zu_layer(e) == "OUTLINE" end, es)) == 1
+  assert size(filter(fn(e) zu_layer(e) == "HOLES" end, es)) == 1
+  bend_lines = filter(fn(e) zu_layer(e) == "BEND" && zu_kind(e) == :line end, es)
+  assert size(bend_lines) == 4
+  assert contains(map(fn(e) get(e, :s) end, filter(fn(e) zu_kind(e) == :text end, es)), "UP 90 DEG R1.5") == true
+  # The dimensions read the blank's size, to one decimal.
+  s = kk_blank_size(kk_tray())
+  texts = map(fn(e) get(e, :s) end, filter(fn(e) zu_layer(e) == "DIM" && zu_kind(e) == :text end, es))
+  assert texts == [zu_num(round(px(s) * 10) / 10), zu_num(round(py(s) * 10) / 10)]
 end
 
 test "the shop's limits refuse, each naming its rule"

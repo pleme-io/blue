@@ -108,6 +108,32 @@ def zu_dim(a, b, offset, text_h)
   [zu_line(a, vadd(pa, scale(text_h * 0.3, nrm)), "DIM"), zu_line(b, vadd(pb, scale(text_h * 0.3, nrm)), "DIM"), zu_line(pa, pb, "DIM"), zu_line(vsub(pa, tick), vadd(pa, tick), "DIM"), zu_line(vsub(pb, tick), vadd(pb, tick), "DIM"), zu_text(mid, text_h, zu_num(round(len * 10) / 10), "DIM")]
 end
 
+# A table as text entities, one row per line from origin downward: the
+# header, then each row's cells in the given columns, each column width
+# wide. Rows are maps (a cut list, a bill of materials).
+def zu_table(rows, columns, widths, origin, h)
+  lines = concat_lists([map(fn(c) upcase(to_s(c)) end, columns)], map(fn(r) map(fn(c) zu_cell(get(r, c)) end, columns) end, rows))
+  flat_map(fn(i) zu_table_row(nth(i, lines), widths, [px(origin), py(origin) - (i * h * 1.8)], h) end, indexes(lines))
+end
+
+def zu_table_row(cells, widths, p, h)
+  map(fn(j) zu_text([px(p) + sum(take_n(widths, j)), py(p)], h, nth(j, cells), "TEXT") end, indexes(cells))
+end
+
+# A cell's text: numbers to one decimal (a cut list is read at a saw), nil
+# as empty, anything else as itself.
+def zu_cell(v)
+  if v == nil
+    ""
+  else
+    if number?(v)
+      zu_num(round(v * 10) / 10)
+    else
+      to_s(v)
+    end
+  end
+end
+
 # ── bounds ───────────────────────────────────────────────────────────
 
 def zu_entity_points(e)
@@ -449,6 +475,17 @@ test "a view of a box draws its twelve edges and no diagonals"
   assert every(fn(e) zu_layer(e) == "VIEW" end, v) == true
   bb = zu_bounds(v)
   assert vector_near(nth(1, bb), [20, 40]) == true
+end
+
+test "a table: a header, then one line per row, numbers to one decimal"
+  rows = [{name: "leg", length: 450.04, cut_a: 0}, {name: "rail", length: 380, cut_a: 45}]
+  t = zu_table(rows, [:name, :length, :cut_a], [30, 25, 20], [0, 0], 3)
+  assert size(t) == 9
+  assert map(fn(e) get(e, :s) end, take_n(t, 3)) == ["NAME", "LENGTH", "CUT_A"]
+  assert get(nth(4, t), :s) == "450"
+  assert near(px(get(nth(5, t), :p)), 55) == true
+  # The empty case: no rows is the header alone.
+  assert size(zu_table([], [:name], [30], [0, 0], 3)) == 1
 end
 
 test "a sheet adds a frame and one title line per field"

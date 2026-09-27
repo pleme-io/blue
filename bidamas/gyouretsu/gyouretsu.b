@@ -365,6 +365,64 @@ def solve2x2(m, b)
   solve_cramer(m, b)
 end
 
+# Gaussian elimination with partial pivoting for m * x = b. Returns [] when the
+# system has no unique solution, as solve_cramer does, but costs O(n^3) where
+# the Laplace expansion behind determinant costs O(n!): the one to reach for
+# past 3-by-3 (least squares, thermal networks). The pivot is the largest
+# remaining entry in its column, which keeps every multiplier at most 1 and is
+# what makes elimination stable in floating point.
+def solve_gauss(m, b)
+  n = size(b)
+  aug = map(fn(i) push(nth(i, m), nth(i, b)) end, range(0, n))
+  reduced = reduce(fn(a, k) gauss_eliminate(a, k, n) end, aug, range(0, n))
+  if is_empty(reduced)
+    []
+  else
+    gauss_back_substitute(reduced, n)
+  end
+end
+
+# The row, from k down, whose entry in column k is largest in size.
+def gauss_pivot_row(a, k, n)
+  reduce(fn(best, i) if abs(nth(k, nth(i, a))) > abs(nth(k, nth(best, a)))
+      i
+    else
+      best
+    end end, k, range(k, n))
+end
+
+# One column of elimination: pivot, then clear the entries below it. An empty
+# matrix in means an earlier column found no pivot, and is passed on.
+def gauss_eliminate(a, k, n)
+  if is_empty(a)
+    []
+  else
+    p = gauss_pivot_row(a, k, n)
+    if abs(nth(k, nth(p, a))) < 0.000000000001
+      []
+    else
+      swapped = update_at(update_at(a, k, nth(p, a)), p, nth(k, a))
+      pivot = nth(k, swapped)
+      map(fn(i) if i <= k
+          nth(i, swapped)
+        else
+          vsub(nth(i, swapped), scale(nth(k, nth(i, swapped)) / nth(k, pivot), pivot))
+        end end, range(0, n))
+    end
+  end
+end
+
+# Back substitution over an upper-triangular augmented matrix, last row first.
+def gauss_back_substitute(a, n)
+  reduce(fn(xs, i) push_front_solution(a, n, i, xs) end, [], reverse(range(0, n)))
+end
+
+def push_front_solution(a, n, i, xs)
+  row = nth(i, a)
+  known = reduce(fn(acc, t) acc + (nth(i + 1 + t, row) * nth(t, xs)) end, 0, indexes(xs))
+  concat_lists([(nth(n, row) - known) / nth(i, row)], xs)
+end
+
 test "dot product and magnitude"
   assert dot([1, 2, 3], [4, 5, 6]) == 32
   # A 3-4-5 triangle, so the magnitude is exact rather than approximate.
@@ -615,6 +673,24 @@ test "solve by Cramer's rule"
   assert vector_near(mvmul(a, x), rhs) == true
   # Singular: no unique solution, so no answer rather than a division by zero.
   assert size(solve2x2([[1, 2], [2, 4]], [3, 6])) == 0
+end
+
+test "solve by Gaussian elimination"
+  # The empty case: no equations, no unknowns.
+  assert solve_gauss([], []) == []
+  # An independently checkable value: 2x + y - z = 8, -3x - y + 2z = -11,
+  # -2x + y + 2z = -3 has the solution (2, 3, -1) (the textbook example).
+  x = solve_gauss([[2, 1, -1], [-3, -1, 2], [-2, 1, 2]], [8, -11, -3])
+  assert vector_near(x, [2, 3, -1]) == true
+  # A zero in the first pivot position: the case elimination without pivoting
+  # divides by zero on.
+  assert vector_near(solve_gauss([[0, 1], [1, 0]], [3, 4]), [4, 3]) == true
+  # An identity: it agrees with Cramer's rule wherever both apply.
+  m = [[4, -2, 1], [3, 6, -4], [2, 1, 8]]
+  b = [12, -25, 32]
+  assert vector_near(solve_gauss(m, b), solve_cramer(m, b)) == true
+  # The control: a singular system has no unique solution.
+  assert solve_gauss([[1, 2], [2, 4]], [3, 6]) == []
 end
 
 test "hadamard is not matmul"

@@ -54,6 +54,7 @@ use("junjo")
 use("kansuu")
 use("kazu")
 use("kikagaku")
+use("kinji")
 use("kueri")
 use("kumiawase")
 use("moji")
@@ -91,6 +92,7 @@ test "every bidama in the distribution answers through this one import"
   assert identity(7) == 7
   assert clamp(99, 1, 10) == 10
   assert manhattan([0, 0], [3, 4]) == 7
+  assert near(kj_trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert q_ident("order") == "\"order\""
   assert combinations(52, 5) == 2598960
   assert empty("") == true

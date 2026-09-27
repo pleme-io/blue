@@ -430,6 +430,23 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
+    // `rename_file(from, to)`: the POSIX rename, atomic on one filesystem. A
+    // reader of `to` sees the old file or the new one, never a half-written
+    // one, which is the whole point for a file another program polls (nix's
+    // `builders = @file`). write_file to a temporary beside `to`, then rename.
+    interp.register_fn(
+        "rename_file",
+        Arity::Exact(2),
+        |args: &[Value], _h: &mut H, span| {
+            let from = arg_str(&args[0], "rename_file", span)?;
+            let to = arg_str(&args[1], "rename_file", span)?;
+            std::fs::rename(&*from, &*to).map_err(|e| {
+                EvalError::native_fn("rename_file", format!("{from} -> {to}: {e}"), span)
+            })?;
+            Ok(Value::Nil)
+        },
+    );
+
     interp.register_fn(
         "rm_rf",
         Arity::Exact(1),
@@ -1017,6 +1034,35 @@ mod tests {
             run(&format!(r#"(read_file "{}")"#, s.0.display())),
             Value::Str(v) if &*v == "ab"
         ));
+    }
+
+    #[test]
+    fn rename_file_replaces_the_target_whole() {
+        let from = Scratch::new("rename-from");
+        let to = Scratch::new("rename-to");
+        run(&format!(r#"(write_file "{}" "old")"#, to.0.display()));
+        run(&format!(r#"(write_file "{}" "new")"#, from.0.display()));
+        run(&format!(r#"(rename_file "{}" "{}")"#, from.0.display(), to.0.display()));
+        assert!(matches!(
+            run(&format!(r#"(read_file "{}")"#, to.0.display())),
+            Value::Str(v) if &*v == "new"
+        ));
+        // The source is gone: a rename, not a copy.
+        assert!(matches!(
+            run(&format!(r#"(path_exists "{}")"#, from.0.display())),
+            Value::Bool(false)
+        ));
+        let _ = std::fs::remove_file(&to.0);
+    }
+
+    #[test]
+    fn rename_file_from_nowhere_is_a_named_error() {
+        let to = Scratch::new("rename-missing");
+        let err = run_err(&format!(
+            r#"(rename_file "/nonexistent-blue-rename" "{}")"#,
+            to.0.display()
+        ));
+        assert!(err.contains("rename_file"), "{err}");
     }
 
     #[test]

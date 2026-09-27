@@ -211,11 +211,10 @@ end
 
 # The inverse of cos, by bisection on cos, which is monotone across [0, pi].
 #
-# This runtime has sin, cos and tan and the inverse of NONE of them, so an angle
-# in radians has to be searched for rather than computed. Bisection rather than
-# Newton because Newton's step divides by sin, which is zero at both ends of
-# exactly the interval an angle lives in. 60 halvings take pi down past the
-# precision a float can hold, so the answer is as good as an intrinsic would be.
+# The runtime's `acos` (tatara-lisp 0.3.59) computes it; outside [-1, 1] this
+# saturates to 0 or pi, as it always has, where `acos` itself refuses.
+# arc_cosine_between, the bisection this used before `acos` existed, stays for
+# its callers.
 #
 # Spelled `arc_cosine` and not `arccos` on purpose: gyouretsu exports its own
 # `arccos`, and a program importing both would silently keep whichever package
@@ -227,7 +226,7 @@ def arc_cosine(v)
     if v <= 0 - 1
       pi()
     else
-      arc_cosine_between(v, 0, pi(), 60)
+      acos(v)
     end
   end
 end

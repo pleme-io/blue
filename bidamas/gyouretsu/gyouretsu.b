@@ -91,14 +91,14 @@ def projection(a, b)
   end
 end
 
-# Arc cosine by bisection, because this runtime has no `acos` — `sin`, `cos`,
-# `tan`, `log` and `exp` are the whole trigonometric surface.
-#
-# cos is strictly decreasing on [0, pi], so bisection converges without a
-# derivative, and it is total: an argument that has drifted just outside
-# [-1, 1] by float error lands on 0 or pi instead of producing NaN.
+# Arc cosine, total: an argument that has drifted just outside [-1, 1] by float
+# error (a dot product over its magnitudes, in angle_between) lands on 0 or pi
+# instead of being refused. The runtime's `acos` (tatara-lisp 0.3.59) refuses
+# such input by name, so the saturation that was the bisection's side effect is
+# stated here as a clamp. arccos_bisect stays for its callers; before `acos`
+# existed it was the only way to invert cos.
 def arccos(x)
-  arccos_bisect(x, 0, 3.141592653589793, 60)
+  acos(clamp(x, 0 - 1, 1))
 end
 
 def arccos_bisect(x, lo, hi, n)
@@ -497,6 +497,23 @@ test "projection lands on b and leaves an orthogonal residual"
   # Projecting a projection changes nothing.
   assert vector_near(projection(p, b), p) == true
   assert projection([1, 2], [0, 0]) == [0, 0]
+end
+
+test "arccos on acos agrees with the bisection it replaced"
+  # A differential test against the thing it replaces. Inside (-1, 1) the two
+  # agree to about 1e-16 (measured 2026-09-27).
+  xs = [-0.9, -0.5, -0.1, 0, 0.3, 0.5, 0.7071067811865476, 0.99]
+  assert reduce(fn(ok, x) ok && near_within(arccos(x), arccos_bisect(x, 0, 3.141592653589793, 60), 0.000000001) end, true, xs) == true
+  # At the ends they do not, and the bisection is the one that is wrong: cos
+  # is flat at 0 and pi, so bisecting on it stalls near sqrt of the float
+  # epsilon. Measured: arccos_bisect(-1) is off pi by 1.05e-8. The closed forms
+  # decide it.
+  assert arccos(0 - 1) == 3.141592653589793
+  assert arccos(1) == 0.0
+  assert near_within(arccos_bisect(0 - 1, 0, 3.141592653589793, 60), 3.141592653589793, 0.000000001) == false
+  # The saturation the bisection gave for free, now stated as a clamp.
+  assert near(arccos(1.0000000002), 0) == true
+  assert near(arccos(0 - 1.0000000002), 3.141592653589793) == true
 end
 
 test "arccos and angle_between"

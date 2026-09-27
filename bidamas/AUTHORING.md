@@ -148,7 +148,9 @@ were dead code in the runtime until then — registered and uncallable.
 
 Reachable: `length` `nth` `car` `cdr` `cons` `append` `take` `drop` `reverse`
 `list` `range` `min` `max` `abs` `gcd` `lcm` `modulo` `expt` `sqrt` `sin` `cos`
-`tan` `log` `exp` `floor` `ceiling` `round` `map` `filter` `reduce` `concat`
+`tan` `asin` `acos` `atan` `atan2` `hypot` (tatara-lisp 0.3.59, 2026-09-27;
+`asin` and `acos` refuse input outside [-1, 1] rather than return NaN, and
+`atan2` takes y first) `log` `exp` `floor` `ceiling` `round` `map` `filter` `reduce` `concat`
 `split` `join` `chars` `upcase` `downcase` `trim` `replace` `to_s` `compare`
 `some` `find` `remove` `partition` `apply` `print` `println` `to_int`
 `to_float`, and — since the lexer learned trailing `?`/`!` — `contains?`

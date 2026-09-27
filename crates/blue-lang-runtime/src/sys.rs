@@ -648,6 +648,25 @@ fn glob_match(pattern: &str, name: &str) -> bool {
 
 // ── environment ──────────────────────────────────────────────────────────
 
+/// The program's own arguments, when an embedder has named them.
+static PROGRAM_ARGS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+
+/// Name the running program's arguments for `argv` and `argv_get`. The CLI
+/// calls this with what follows `blue run <file>`, so a program sees its own
+/// arguments rather than `run` and its own path. Only the first call counts.
+pub fn set_program_args(args: Vec<String>) {
+    let _ = PROGRAM_ARGS.set(args);
+}
+
+/// The arguments `argv` answers with: those the embedder named, or else the
+/// process's own after argv[0], as before `set_program_args` existed.
+fn program_args() -> Vec<String> {
+    PROGRAM_ARGS
+        .get()
+        .cloned()
+        .unwrap_or_else(|| std::env::args().skip(1).collect())
+}
+
 fn install_env<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "getenv",
@@ -682,7 +701,7 @@ fn install_env<H: 'static>(interp: &mut Interpreter<H>) {
         "argv",
         Arity::Exact(0),
         |_args: &[Value], _h: &mut H, _span| {
-            let args = std::env::args().skip(1).collect::<Vec<_>>();
+            let args = program_args();
             Ok(Value::list(
                 args.into_iter()
                     .map(|s| Value::Str(Arc::from(s)))
@@ -703,7 +722,7 @@ fn install_env<H: 'static>(interp: &mut Interpreter<H>) {
                     span,
                 ));
             }
-            let all = std::env::args().skip(1).collect::<Vec<_>>();
+            let all = program_args();
             let idx = n as usize;
             if idx < all.len() {
                 Ok(Value::Str(Arc::from(all[idx].clone())))

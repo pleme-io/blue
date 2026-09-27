@@ -81,6 +81,24 @@ const PROGRAM: &str =
 // run
 // ---------------------------------------------------------------------------
 
+/// A program's own arguments reach `argv()`, flags included, and nothing of
+/// the CLI's own (`run`, the path) comes with them. Before 2026-09-27 `run`
+/// refused every trailing argument, so no blue program could take any.
+#[test]
+fn run_passes_the_programs_arguments_to_argv() {
+    let f = write("argv", "join(argv(), \"|\")");
+    let o = run(&["run", f.to_str().unwrap(), "rust", "--dry-run", "--min-age-hours", "6", "/x"]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "rust|--dry-run|--min-age-hours|6|/x");
+    // No arguments: an empty list, not the CLI's own.
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert_eq!(stdout(&o).trim(), "");
+    // `--` lets a program take an argument the CLI would otherwise read.
+    let o = run(&["run", f.to_str().unwrap(), "--", "--input"]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "--input");
+}
+
 #[test]
 fn run_executes_a_program_and_prints_its_value() {
     let f = write("run", PROGRAM);

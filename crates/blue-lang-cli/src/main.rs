@@ -81,6 +81,11 @@ enum Cmd {
         /// mismatch is refused — see `blue_lang_runtime::inputs`.
         #[arg(long = "input", value_name = "NAME=PATH")]
         inputs: Vec<String>,
+        /// The program's own arguments, after the file (use `--` before any
+        /// that start with a dash): what `argv()` returns. Before 2026-09-27
+        /// `run` refused any, so no blue program could take arguments.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
     /// Format a program. There is one formatting; this produces it.
     Fmt {
@@ -277,7 +282,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // bounds the pipeline runs under just as much.
     let cfg = config::resolve();
     match cli.cmd {
-        Cmd::Run { file, inputs } => {
+        Cmd::Run { file, inputs, args } => {
+            blue_lang_runtime::sys::set_program_args(args);
             let src = read(&file)?;
             // Always bind, even with no `--input` flags: a program that
             // DECLARES an input and gets no material must hear "you forgot the

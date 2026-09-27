@@ -218,6 +218,11 @@ the sentence that says what a function is for right above it.
 - **Maps compare by identity.** `{a: 1} == {a: 1}` is false, while lists
   compare by value. Compare what a map renders to, or its fields. There is no
   `map?`, and `keys` and `merge` are unbound; `assoc` works.
+- **`to_s` of ANY map is the word `"map"`**, so it must never be what you
+  hash, key on or compare: every map would collide. `json_stringify(m)` is the
+  canonical text, keys sorted, the same whichever order the map was built in
+  (measured 2026-09-27, when a part's release hash came out identical for every
+  part; nupastel's `fr_source_hash` carries the control test).
 - **`to_s` drops a float's point:** `to_s(1.0)` is `"1"`. Anything emitting a
   typed literal must add it back (`kueri`'s `q_float_text`).
 - **`some` is a builtin; `any` and `every` are `ronri`'s.** Reaching them
@@ -274,6 +279,13 @@ aborts the process rather than failing a test. Prefer `map`, `filter` and
 `reduce` over hand-written recursion on long lists, and use `merge_sort` when a
 sort has to be deep. Keyed sorts (`sort_by`, `sort_stable_by`, `min_by`,
 `merge_sort`) go through `compare`, so they order strings as well as numbers.
+
+**For a list that can be long, use `sort_keyed(key, xs)`** (2026-09-27): a
+native, stable, O(n log n) sort under `compare`'s rules, at any length (tested
+at 20,000 in blue and 100,000 upstream). It is tatara-lisp's `sort-by-key`
+(0.3.60), bound to a name blue can call; keys of different kinds, or a NaN,
+are refused. `merge_sort` still overflows near 600, because `merge_sorted`
+recurses once per element.
 
 **`range` was a recursion too, until 2026-09-24.** tatara-lisp defines it in
 Lisp, one frame per element, so `range(0, 5000)` aborted the process, and so
@@ -335,6 +347,13 @@ is proven across the corpus. `sign(0 - 7) == 0 - 1` reads oddly and works.
 ---
 
 ## Tests live in the package, in blue
+
+**A red run's mutated copy goes in a directory of its own.** `BLUE_PATH` puts
+the red directory first, so any package left there from an earlier red run
+shadows the real one: a mutation of `kakou` tested beside a leftover mutated
+`rittai` failed because of `rittai` (measured 2026-09-27; every affected run
+was redone). One fresh directory per mutation, holding only the mutated
+package.
 
 Every bidama carries its own `test` blocks. They are run by `blue test`, and by
 `cargo test` through `blue-lang-pkg/tests/distribution.rs`, which enforces that

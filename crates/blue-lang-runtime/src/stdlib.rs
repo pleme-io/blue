@@ -292,6 +292,31 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             range_list(start, &end, &step, s)
         },
     );
+
+    // `sort_keyed(key, xs)`: xs ordered by key(x), stably, in O(n log n),
+    // under `compare`'s rules. Every sort written in blue (junjo's) recurses
+    // per element and aborts the process near 600 elements; this is
+    // tatara-lisp's `sort-by-key` (0.3.60), which blue cannot name because
+    // it is kebab-case, bound to a name blue can. The engine is upstream,
+    // `hof::sort_keyed_values`; only the spelling lives here.
+    interp.register_higher_order_fn(
+        "sort_keyed",
+        Arity::Exact(2),
+        |a: &[Value], host: &mut H, caller: &tatara_lisp_eval::ffi::Caller<H>, s| {
+            let xs = match &a[1] {
+                Value::List(xs) => xs.as_ref().clone(),
+                Value::Nil => Vec::new(),
+                other => {
+                    return Err(EvalError::type_mismatch("a list", other.type_name(), s));
+                }
+            };
+            let mut keyed = Vec::with_capacity(xs.len());
+            for x in xs {
+                keyed.push((caller.apply_value(&a[0], vec![x.clone()], host, s)?, x));
+            }
+            Ok(list(tatara_lisp_eval::hof::sort_keyed_values(keyed, s)?))
+        },
+    );
 }
 
 /// A number's value as a float, or a type error naming `range`.
@@ -351,6 +376,24 @@ fn range_list(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sort_keyed_is_stable_keyed_and_deep() {
+        // Ties keep input order; the key is computed per element.
+        assert_eq!(
+            ints("map(fn(p) last(p) end, sort_keyed(fn(p) first(p) end, [[2, 1], [1, 2], [2, 3], [1, 4]]))"),
+            vec![2, 4, 1, 3]
+        );
+        // 20,000 in reverse: every blue-written sort aborts far below this.
+        assert_eq!(
+            i("first(sort_keyed(fn(x) x end, reverse(range(0, 20000))))"),
+            0
+        );
+        assert_eq!(i("last(sort_keyed(fn(x) 0 - x end, range(0, 20000)))"), 0);
+        // The empty case, and a refusal for keys that cannot be ordered.
+        assert_eq!(ints("sort_keyed(fn(x) x end, [])"), Vec::<i64>::new());
+        assert!(crate::run("sort_keyed(fn(x) x end, [1, \"a\"])").is_err());
+    }
 
     fn eval(src: &str) -> Value {
         crate::run(src)

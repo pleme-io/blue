@@ -237,6 +237,18 @@ the sentence that says what a function is for right above it.
 - **`glob` of an ABSOLUTE pattern returns `()`** while `walk_dir` of the same
   root lists every file. Walk and filter with `ends_with?`, and give any scan
   a positive control so a silent zero is a failure.
+- **`concat` takes exactly two arguments** (an arity error on three); use
+  interpolation. `each`, `len` and `map_indexed` are unbound: `map` (for its
+  effects too), `size` or `length`, and retsu's `enumerate` (`[[i, x], …]`)
+  (measured 2026-09-27, writing `heni`).
+- **A command's output is what it writes.** `write_stdout`/`write_stderr` write
+  text exactly; `blue run` also prints the program's final value, which
+  `blue run --quiet` suppresses. An installed command (`mkBlueApp`, `pkgs.blueApp`)
+  runs `blue run --quiet <file> --`, so it never ends with a stray `nil` and every
+  argument a user types reaches `argv()`, even one spelled like a CLI flag.
+- **A program that runs blue spawns `self_exe()`**, the interpreter running it,
+  not a PATH lookup: in a nix sandbox there is no `blue` on PATH (measured
+  2026-09-27: heni's control run found none and, correctly, stopped).
 
 ## Name the fields
 
@@ -353,7 +365,13 @@ the red directory first, so any package left there from an earlier red run
 shadows the real one: a mutation of `kakou` tested beside a leftover mutated
 `rittai` failed because of `rittai` (measured 2026-09-27; every affected run
 was redone). One fresh directory per mutation, holding only the mutated
-package.
+package. **`heni` does this for you** (`heni <PKG_DIR> <MUTATIONS.json>`, on
+every node's PATH): a control run first, then each literal find/replace
+(which must match exactly once) in its own copy, reported as caught / survived /
+refused / blind, exiting non-zero unless every mutation is caught. A red run by
+hand that rebuilds a binary leaves the mutant binary behind after the source is
+restored: rebuild before probing again (measured 2026-09-27, when a stale
+`target/debug/blue` made a working `--quiet` look broken).
 
 Every bidama carries its own `test` blocks. They are run by `blue test`, and by
 `cargo test` through `blue-lang-pkg/tests/distribution.rs`, which enforces that

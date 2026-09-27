@@ -76,6 +76,7 @@ use("shomei")
 use("shuugou")
 use("tokumei")
 use("toukei")
+use("zumen")
 
 test "every bidama in the distribution answers through this one import"
   # One probe per package, in the manifest's order. These are not behaviour
@@ -116,6 +117,7 @@ test "every bidama in the distribution answers through this one import"
   assert contains([1, 2, 3], 2) == true
   assert suppress_small(3, 5) == nil
   assert near(mean([2, 4, 6]), 4) == true
+  assert zu_num(1.5) == "1.5"
 end
 
 test "four packages compose without the consumer naming any of them"

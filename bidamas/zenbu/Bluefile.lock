@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:6926c5e82cca3085b53f10eea02b550cb07480e93adfef80a2ca28b7688c0f82",
+  "bluefile_b3": "b3:4f8fcb96114d936740fb06a3139ac5b53b9ab398ef365ce612fb4d3e2ae2fd00",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -36,7 +36,8 @@
       "shomei": "^0.1.0",
       "shuugou": "^0.1.0",
       "tokumei": "^0.1.0",
-      "toukei": "^0.1.0"
+      "toukei": "^0.1.0",
+      "zumen": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

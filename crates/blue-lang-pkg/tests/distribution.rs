@@ -26,8 +26,8 @@
 //!    import and would otherwise count as the importer's. It caught `moji`
 //!    shipping with zero, and the own-source refinement caught that `kikagaku`
 //!    could have done the same invisibly;
-//! 3. the total test count clears a floor (617 across 32 packages on
-//!    2026-09-27, summed from `CATALOG.md`'s tests column, floored at 608),
+//! 3. the total test count clears a floor (623 across 33 packages on
+//!    2026-09-27, summed from `CATALOG.md`'s tests column, floored at 614),
 //!    so a package silently losing its tests
 //!    cannot pass as "green".
 //!    The count is of each package's OWN tests: imported tests are stripped by
@@ -147,7 +147,7 @@ fn every_bidama_passes_its_own_tests() {
 fn every_bidama_passes_its_own_tests_inner() {
     let pkgs = packages();
     assert!(
-        pkgs.len() >= 32,
+        pkgs.len() >= 33,
         "found {} bidamas; this asserts a FLOOR because a gate that walks a \
          directory passes vacuously when the directory is empty: {pkgs:?}",
         pkgs.len()
@@ -177,7 +177,7 @@ fn every_bidama_passes_its_own_tests_inner() {
         broken.join("\n")
     );
     assert!(
-        total >= 608,
+        total >= 614,
         "only {total} bidama tests ran across {} packages; the distribution \
          lost tests without any of them failing",
         pkgs.len()

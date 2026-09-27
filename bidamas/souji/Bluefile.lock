@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:5ed190a00f675d7c4317f695be8a7326df812d4435f658a55161ffeae314d156",
+  "manifest": {
+    "schema": 1,
+    "name": "souji",
+    "version": "0.1.0",
+    "needs": {
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

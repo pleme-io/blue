@@ -99,6 +99,19 @@ fn run_passes_the_programs_arguments_to_argv() {
     assert_eq!(stdout(&o).trim(), "--input");
 }
 
+/// `write_stdout` writes the text exactly: no quotes (println's), no newline
+/// added. Before 2026-09-27 a blue command-line tool had no way to print
+/// plain text.
+#[test]
+fn write_stdout_prints_plain_text() {
+    let f = write("wstdout", "write_stdout(\"a b\\n\")\nwrite_stdout(\"c\")\nwrite_stderr(\"e\")\n0");
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    // The program's own output, then the CLI's printed final value.
+    assert_eq!(stdout(&o), "a b\nc0\n");
+    assert_eq!(stderr(&o), "e");
+}
+
 #[test]
 fn run_executes_a_program_and_prints_its_value() {
     let f = write("run", PROGRAM);

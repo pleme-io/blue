@@ -96,8 +96,8 @@
           # reporting coverage it never measured. Raise this when a package
           # lands; a rename is count-preserving and needs no change here.
           count=$(find $out -mindepth 2 -name Bluefile | wc -l)
-          if [ "$count" -lt 34 ]; then
-            echo "bidamas: only $count Bluefile(s) found, expected >=34; \
+          if [ "$count" -lt 35 ]; then
+            echo "bidamas: only $count Bluefile(s) found, expected >=35; \
 refusing to publish a thinned distribution" >&2
             exit 1
           fi

@@ -293,6 +293,31 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
+    // `write_stdout(s)` / `write_stderr(s)`: the text exactly, no quotes, no
+    // newline added. `print`, `println` and `display` all render a string
+    // with its quotes (a value printer, right for a REPL and wrong for a
+    // command's output), so until these a blue command-line tool could not
+    // print plain text. Output only, like `println`; anything else is not a
+    // string and is refused.
+    interp.register_fn("write_stdout", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
+        use std::io::Write;
+        let text = as_str(&a[0], s)?;
+        let mut out = std::io::stdout().lock();
+        out.write_all(text.as_bytes())
+            .and_then(|()| out.flush())
+            .map_err(|e| EvalError::native_fn("write_stdout", e.to_string(), s))?;
+        Ok(Value::Nil)
+    });
+    interp.register_fn("write_stderr", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
+        use std::io::Write;
+        let text = as_str(&a[0], s)?;
+        let mut err = std::io::stderr().lock();
+        err.write_all(text.as_bytes())
+            .and_then(|()| err.flush())
+            .map_err(|e| EvalError::native_fn("write_stderr", e.to_string(), s))?;
+        Ok(Value::Nil)
+    });
+
     // `sort_keyed(key, xs)`: xs ordered by key(x), stably, in O(n log n),
     // under `compare`'s rules. Every sort written in blue (junjo's) recurses
     // per element and aborts the process near 600 elements; this is

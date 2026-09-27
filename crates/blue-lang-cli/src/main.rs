@@ -81,6 +81,12 @@ enum Cmd {
         /// mismatch is refused — see `blue_lang_runtime::inputs`.
         #[arg(long = "input", value_name = "NAME=PATH")]
         inputs: Vec<String>,
+        /// Do not print the program's final value. An installed command's
+        /// output is what it writes (`write_stdout`), not the value its last
+        /// expression happens to leave; `mkBlueApp` passes this, so a blue
+        /// executable on PATH never ends its output with a stray `nil`.
+        #[arg(long, short = 'q')]
+        quiet: bool,
         /// The program's own arguments, after the file (use `--` before any
         /// that start with a dash): what `argv()` returns. Before 2026-09-27
         /// `run` refused any, so no blue program could take arguments.
@@ -282,7 +288,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // bounds the pipeline runs under just as much.
     let cfg = config::resolve();
     match cli.cmd {
-        Cmd::Run { file, inputs, args } => {
+        Cmd::Run { file, inputs, quiet, args } => {
             blue_lang_runtime::sys::set_program_args(args);
             let src = read(&file)?;
             // Always bind, even with no `--input` flags: a program that
@@ -319,7 +325,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 &loader,
                 surface.as_ref(),
             )?;
-            println!("{}", render(&out.value));
+            if !quiet {
+                println!("{}", render(&out.value));
+            }
             Ok(ExitCode::SUCCESS)
         }
 

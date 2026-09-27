@@ -47,9 +47,20 @@
 # `granularity.rs::the_locked_and_evaluated_dependency_views_agree` compares
 # every lock against blue's resolver from `cargo test`.
 
-{ lib, runCommand, symlinkJoin ? null, makeWrapper ? null }:
+{ lib, runCommand, symlinkJoin ? null, makeWrapper ? null, makeBinaryWrapper ? null }:
 
 let
+  # The wrapper every blue executable gets. makeBinaryWrapper when the caller
+  # passes it: a compiled exec wrapper, so no shell runs between the caller and
+  # blue. makeWrapper (a bash script) stays as the fallback for callers that
+  # pin the older argument set (makoto imports this file from a pinned blue).
+  wrapper =
+    if makeBinaryWrapper != null then { pkg = makeBinaryWrapper; fn = "makeBinaryWrapper"; }
+    else if makeWrapper != null then { pkg = makeWrapper; fn = "makeWrapper"; }
+    else null;
+  wrapperGiven = what: lib.assertMsg (wrapper != null)
+    "${what} needs makeBinaryWrapper (or makeWrapper); pass the full pkgs set";
+
   # The lock layout this file reads. `blue_lang_pkg::lock::LOCK_SCHEMA`; a lock
   # from another layout is refused rather than half-read.
   lockSchema = 1;
@@ -203,12 +214,13 @@ rec {
   # sit on a PATH beside `blue`), and `tools` are appended to PATH — appended,
   # like BLUE_PATH, so a node's own copy of a tool wins over the pinned one.
   mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas", bin ? "blue", tools ? [ ] }:
-    assert lib.assertMsg (makeWrapper != null)
-      "mkBlueWithBidamas needs makeWrapper; pass the full pkgs set";
-    runCommand name { nativeBuildInputs = [ makeWrapper ]; meta.mainProgram = bin; } ''
+    assert wrapperGiven "mkBlueWithBidamas";
+    runCommand name { nativeBuildInputs = [ wrapper.pkg ]; meta.mainProgram = bin; } ''
       mkdir -p $out/bin
-      makeWrapper ${blue}/bin/blue $out/bin/${bin} \
-        --suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"${lib.optionalString (tools != [ ]) " \\\n        --suffix PATH : \"${lib.makeBinPath tools}\""}
+      ${wrapper.fn} ${blue}/bin/blue $out/bin/${bin} ${lib.concatStringsSep " " (
+        [ ''--suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"'' ]
+        ++ lib.optional (tools != [ ]) ''--suffix PATH : "${lib.makeBinPath tools}"''
+      )}
     '';
 
   # Proves the wrapper is a default and not a cage: a root on the caller's
@@ -326,16 +338,37 @@ rec {
   # bidamas on BLUE_PATH, and `blue` itself on PATH so the program can run
   # other blue programs. The shape behind `nix run .#regen`, and behind the
   # Bluefile's `app` word (`nix/project.nix`, BLUE-STRUCTURE §5.5 P6).
-  mkBlueApp = { blue, bidamas, program, name, tools ? [ ] }:
-    assert lib.assertMsg (makeWrapper != null)
-      "mkBlueApp needs makeWrapper; pass the full pkgs set";
-    runCommand name { nativeBuildInputs = [ makeWrapper ]; meta.mainProgram = name; } ''
-      mkdir -p $out/bin
-      makeWrapper ${blue}/bin/blue $out/bin/${name} \
-        --suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}" \
-        --prefix PATH : "${blue}/bin" \${lib.optionalString (tools != [ ]) "\n        --suffix PATH : \"${lib.makeBinPath tools}\" \\"}
-        --add-flags "run ${program}"
-    '';
+  #
+  # The program is a `.b` file (`program`) or its text (`source`, written into
+  # the package as share/blue/<name>.b); exactly one. `env` is set on every run
+  # as a default, so the caller's own environment wins where it names the same
+  # variable. This is the one way a blue program becomes an installable
+  # executable: on PATH, behind a launchd agent or a systemd unit (substrate's
+  # `services.tehai` is a caller). substrate carried a copy of it,
+  # `mkBlueProgramPackage`, for one day (2026-09-27), before recon found this.
+  mkBlueApp = { blue, bidamas, name, program ? null, source ? null, tools ? [ ], env ? { } }:
+    assert wrapperGiven "mkBlueApp";
+    assert lib.assertMsg ((program == null) != (source == null))
+      "mkBlueApp ${name}: give exactly one of `program` (a .b file) or `source` (its text)";
+    let
+      file = if program != null then "${program}" else "$out/share/blue/${name}.b";
+      flags =
+        [
+          ''--suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"''
+          ''--prefix PATH : "${blue}/bin"''
+        ]
+        ++ lib.optional (tools != [ ]) ''--suffix PATH : "${lib.makeBinPath tools}"''
+        ++ lib.mapAttrsToList (k: v: "--set-default ${lib.escapeShellArg k} ${lib.escapeShellArg v}") env
+        ++ [ ''--add-flags "run --quiet ${file} --"'' ];
+    in
+    runCommand name
+      ({ nativeBuildInputs = [ wrapper.pkg ]; meta.mainProgram = name; }
+        // lib.optionalAttrs (source != null) { inherit source; passAsFile = [ "source" ]; })
+      ''
+        mkdir -p $out/bin
+        ${lib.optionalString (source != null) ''mkdir -p $out/share/blue && cp "$sourcePath" "${file}"''}
+        ${wrapper.fn} ${blue}/bin/blue $out/bin/${name} ${lib.concatStringsSep " " flags}
+      '';
 
   # Fails when two packages define the same name.
   #

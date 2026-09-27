@@ -323,10 +323,59 @@
         base = { };
       });
 
+      # The bidama library bound to a package set: every nix function blue has
+      # for bidamas and blue programs (mkBidama, mkDistribution, mkBluePath,
+      # mkBlueWithBidamas, mkBlueApp, and the gates). ONE implementation,
+      # `bidamas/mk-bidama.nix`; `lib.bidamas` and `overlays.bidamas` are its
+      # doors, and substrate composes over them rather than keeping a copy.
+      bidamaLibFor = pkgs: import ./bidamas/mk-bidama.nix {
+        inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper;
+      };
+
+      # The fleet's blue commands, each a bidama's entry function installed by
+      # mkBlueApp. This table is the only place a command is named; a new one
+      # is a row. `tools` are what the program execs (suffixed to PATH, so a
+      # node's own copy wins).
+      commands = {
+        souji = { entry = "sj_main"; tools = _: [ ]; }; # clean nix and Rust targets
+        # macOS keeps /usr/bin/ssh, which reads /etc/ssh/ssh_config as nix does.
+        tehai = { entry = "th_main"; tools = pkgs: lib.optional pkgs.stdenv.isLinux pkgs.openssh; }; # live nix builders
+      };
+
+      # Everything blue gives a package set, from one blue and one distribution.
+      blueSetFor = { pkgs, blue }:
+        let
+          bl = bidamaLibFor pkgs;
+          distribution = bl.mkDistribution { root = ./bidamas; inherit pkgs; };
+          blueApp = args: bl.mkBlueApp ({ inherit blue; bidamas = distribution; } // args);
+        in
+        {
+          blueLib = bl // { inherit distribution; };
+          blue-with-bidamas = bl.mkBlueWithBidamas { inherit blue; bidamas = distribution; };
+          inherit blueApp;
+        }
+        // lib.mapAttrs (name: c: blueApp {
+          inherit name;
+          source = "use(\"${name}\")\n${c.entry}()\n";
+          tools = c.tools pkgs;
+        }) commands;
+
+      bidamasOverlay = final: _prev: blueSetFor { pkgs = final; blue = final.blue; };
+
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
       lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor; };
+
+      # `blue.lib.bidamas pkgs` — the bidama library for any package set.
+      lib.bidamas = bidamaLibFor;
+
+      # `overlays.bidamas` adds pkgs.blueLib (the library, plus the standard
+      # distribution as `blueLib.distribution`), pkgs.blue-with-bidamas,
+      # pkgs.blueApp { name; program | source; tools; env; } and one package
+      # per command (souji, tehai). `default` is blue itself plus that.
+      overlays.bidamas = bidamasOverlay;
+      overlays.default = lib.composeExtensions base.overlays.default bidamasOverlay;
 
       # `nix run .#regen`: rewrite every generated file in place (gen/regen.b).
       # Bluefile.lock files have their own command, `blue lock <dir>`.
@@ -335,15 +384,20 @@
       ) base.apps;
 
       # `bidama-catalog` and every `generated-<name>`, from ./Bluefile.
+      # Plus each command, so `nix run github:pleme-io/blue#souji -- rust` works
+      # with no overlay.
       packages = lib.mapAttrs (system: existing:
-        engine.disjoint "package" existing repository.${system}.packages
+        engine.disjoint "package"
+          (engine.disjoint "package" existing repository.${system}.packages)
+          (lib.getAttrs (lib.attrNames commands)
+            (blueSetFor { pkgs = pkgsFor system; blue = blueFor system; }))
       ) base.packages;
 
       checks = lib.mapAttrs (system: existing:
         let
           pkgs = pkgsFor system;
           blue = blueFor system;
-          bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper; };
+          bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper; };
         in
         engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) {
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.

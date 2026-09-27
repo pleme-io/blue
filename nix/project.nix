@@ -162,7 +162,7 @@ let
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
       bl = import ../bidamas/mk-bidama.nix {
-        inherit (pkgs) lib runCommand symlinkJoin makeWrapper;
+        inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper;
       };
       lock = readLock src;
       m = lock.manifest;

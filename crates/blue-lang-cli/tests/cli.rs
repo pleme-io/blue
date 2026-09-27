@@ -112,6 +112,24 @@ fn write_stdout_prints_plain_text() {
     assert_eq!(stderr(&o), "e");
 }
 
+/// `--quiet` leaves only what the program wrote: no final value. The control
+/// is the same program without it, which prints the value. A program that
+/// takes `--quiet` itself receives it after `--`, which is why `mkBlueApp`
+/// wraps as `run --quiet <file> --`: every argument a user types then belongs
+/// to the program, never to the CLI.
+#[test]
+fn run_quiet_prints_only_what_the_program_writes() {
+    let f = write("quiet", "write_stdout(\"out\\n\")\nnil");
+    let o = run(&["run", "--quiet", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert_eq!(stdout(&o), "out\n");
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert_eq!(stdout(&o), "out\nnil\n");
+    let g = write("quiet-argv", "write_stdout(join(argv(), \"|\"))\nnil");
+    let o = run(&["run", "--quiet", g.to_str().unwrap(), "--", "--quiet", "rust"]);
+    assert_eq!(stdout(&o), "--quiet|rust");
+}
+
 #[test]
 fn run_executes_a_program_and_prints_its_value() {
     let f = write("run", PROGRAM);

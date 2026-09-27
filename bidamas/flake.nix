@@ -58,7 +58,7 @@
       # dependencies, read from each package's committed Bluefile.lock. See
       # mk-bidama.nix for what that buys and why nix reads a lock.
       bidamaLib = pkgs: import ./mk-bidama.nix {
-        inherit (pkgs) lib runCommand symlinkJoin makeWrapper;
+        inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper;
       };
       distributionFor = pkgs: (bidamaLib pkgs).mkDistribution { root = ./.; inherit pkgs; };
     in

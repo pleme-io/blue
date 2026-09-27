@@ -71,8 +71,10 @@ end
 
 # The ssh command that checks one machine: non-interactive, a short connect
 # timeout, a short keep-alive, and a trivial nix command on the far side, so
-# "up" means nix answers, not merely that port 22 is open.
-def th_probe_argv(m, timeout_s)
+# "up" means nix answers, not merely that port 22 is open. `ssh` is the binary
+# to run, by absolute path when the caller has one (services.tehai passes
+# /usr/bin/ssh on macOS, openssh on NixOS), so the state can name which ssh ran.
+def th_probe_argv(m, timeout_s, ssh)
   key = if get(m, :key) == nil
     []
   else
@@ -83,15 +85,15 @@ def th_probe_argv(m, timeout_s)
   else
     "#{get(m, :user)}@#{get(m, :host)}"
   end
-  concat_lists(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=#{to_s(timeout_s)}", "-o", "ServerAliveInterval=#{to_s(timeout_s)}", "-o", "ServerAliveCountMax=1"], concat_lists(key, [dest, "nix-store", "--version"]))
+  concat_lists([ssh, "-o", "BatchMode=yes", "-o", "ConnectTimeout=#{to_s(timeout_s)}", "-o", "ServerAliveInterval=#{to_s(timeout_s)}", "-o", "ServerAliveCountMax=1"], concat_lists(key, [dest, "nix-store", "--version"]))
 end
 
 # [up?, detail] for one machine. A failure to start ssh at all is a down
 # machine with the reason, never an uncaught error for the whole run.
-def th_probe(m, timeout_s)
-  cap = try(apply(exec_capture, th_probe_argv(m, timeout_s)), catch(e(), nil))
+def th_probe(m, timeout_s, ssh)
+  cap = try(apply(exec_capture, th_probe_argv(m, timeout_s, ssh)), catch(e(), nil))
   if cap == nil
-    [false, "ssh could not be started"]
+    [false, "ssh could not be started: #{ssh}"]
   else
     if status_of(cap) == 0 && starts_with?(trim(stdout_of(cap)), "nix-store")
       [true, trim(stdout_of(cap))]
@@ -164,16 +166,16 @@ end
 
 # Check every declared machine once; write the live file and the state.
 # Returns the state record.
-def th_run(declared_path, live_path, state_path, timeout_s)
+def th_run(declared_path, live_path, state_path, timeout_s, ssh)
   now = now_ms()
   machines = th_parse(read_or(declared_path, ""))
   good = filter(fn(m) get(m, :ok) end, machines)
   refused = map(fn(m) {line: get(m, :line), why: get(m, :why)} end, filter(fn(m) get(m, :ok) == false end, machines))
-  checked = map(fn(m) th_checked(m, th_probe(m, timeout_s)) end, good)
+  checked = map(fn(m) th_checked(m, th_probe(m, timeout_s, ssh)) end, good)
   states = th_states(checked, th_read_previous(state_path), now)
   mkdir_p(path_dirname(live_path))
   th_write_atomic(live_path, th_live_text(checked))
-  record = {checked_ms: now, declared: declared_path, live: live_path, machines: states, refused: refused}
+  record = {checked_ms: now, declared: declared_path, live: live_path, ssh: ssh, machines: states, refused: refused}
   mkdir_p(path_dirname(state_path))
   th_write_atomic(state_path, json_stringify(record))
   record
@@ -183,9 +185,10 @@ def th_checked(m, result)
   {line: get(m, :line), host: get(m, :host), up: nth(0, result), detail: nth(1, result)}
 end
 
-# The daemon's entry point: paths and timeout from the environment.
+# The daemon's entry point: paths, timeout and the ssh binary from the
+# environment. A bare "ssh" (PATH lookup) is the fallback, and the state says so.
 def th_main()
-  th_run(getenv("TEHAI_DECLARED", "/etc/nix/machines"), getenv("TEHAI_LIVE", "/var/run/tehai/machines"), getenv("TEHAI_STATE", "/var/run/tehai/state.json"), to_int(getenv("TEHAI_TIMEOUT_S", "2")))
+  th_run(getenv("TEHAI_DECLARED", "/etc/nix/machines"), getenv("TEHAI_LIVE", "/var/run/tehai/machines"), getenv("TEHAI_STATE", "/var/run/tehai/state.json"), to_int(getenv("TEHAI_TIMEOUT_S", "2")), getenv("TEHAI_SSH", "ssh"))
 end
 
 # ── tests ────────────────────────────────────────────────────────────
@@ -212,8 +215,8 @@ test "the machines format: comments and blanks skipped, fields read, a bad line 
 end
 
 test "the check is non-interactive, short, and asks nix, not just the port"
-  argv = th_probe_argv(first(th_parse(th_sample())), 2)
-  assert first(argv) == "ssh"
+  argv = th_probe_argv(first(th_parse(th_sample())), 2, "/usr/bin/ssh")
+  assert first(argv) == "/usr/bin/ssh"
   assert contains(argv, "BatchMode=yes") == true
   assert contains(argv, "ConnectTimeout=2") == true
   assert take_n(reverse(argv), 3) == ["--version", "nix-store", "builder@quero-builder-ssm"]
@@ -246,7 +249,7 @@ test "a run end to end, with a machine that cannot answer"
   declared = path_join(dir, "machines")
   # A port nothing listens on, on this host: a fast, certain "down".
   write_file(declared, "ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -\nbroken\n")
-  r = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1)
+  r = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1, "ssh")
   assert read_file(path_join(dir, "live")) == ""
   assert size(get(r, :machines)) == 1
   assert get(first(get(r, :machines)), :up) == false
@@ -254,7 +257,24 @@ test "a run end to end, with a machine that cannot answer"
   # The state file is JSON that reads back, and the next run keeps `since`:
   # still down, so the second run's since is the first run's.
   assert size(th_read_previous(path_join(dir, "state.json"))) == 1
-  r2 = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1)
+  r2 = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1, "ssh")
   assert get(first(get(r2, :machines)), :since_ms) == get(first(get(r, :machines)), :since_ms)
+  rm_rf(dir)
+end
+
+test "a missing ssh binary is named, and the state records which ssh ran"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-ssh-test-#{to_s(now_ms())}")
+  mkdir_p(dir)
+  declared = path_join(dir, "machines")
+  write_file(declared, "ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -\n")
+  r = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1, "/nonexistent/ssh")
+  m = first(get(r, :machines))
+  assert get(m, :up) == false
+  assert get(m, :detail) == "ssh could not be started: /nonexistent/ssh"
+  assert get(r, :ssh) == "/nonexistent/ssh"
+  assert contains?(read_file(path_join(dir, "state.json")), "\"ssh\":\"/nonexistent/ssh\"") == true
+  # Control: a real ssh reaches the machine, so its failure is a different one.
+  r2 = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1, "ssh")
+  assert get(first(get(r2, :machines)), :detail) != "ssh could not be started: ssh"
   rm_rf(dir)
 end

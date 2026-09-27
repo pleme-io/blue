@@ -83,26 +83,27 @@
         # Copied rather than generated: a bidama is authored blue source, and a
         # build step that rewrote it would put a second author between the file
         # a human reads and the file a program loads.
-        bidamas = pkgs.runCommand "bidamas" { } ''
-          mkdir -p $out
-          cp -r ${./.}/* $out/
-          # A distribution with no packages is a packaging bug that otherwise
-          # surfaces much later as "package not found", pointing the reader at
-          # a missing dependency instead of an empty directory.
-          # The floor tracks the REAL package count, not a token minimum.
-          #
-          # It was 3 while 17 packages shipped, which would have passed a
-          # distribution that had silently lost fourteen of them — a gate
-          # reporting coverage it never measured. Raise this when a package
-          # lands; a rename is count-preserving and needs no change here.
-          count=$(find $out -mindepth 2 -name Bluefile | wc -l)
-          if [ "$count" -lt 35 ]; then
-            echo "bidamas: only $count Bluefile(s) found, expected >=35; \
-refusing to publish a thinned distribution" >&2
-            exit 1
-          fi
-          echo "bidamas: packaged $count package(s)"
-        '';
+        #
+        # A distribution with no packages is a packaging bug that otherwise
+        # surfaces much later as "package not found", pointing the reader at a
+        # missing dependency instead of an empty directory. The floor tracks the
+        # REAL package count, not a token minimum: it was 3 while 17 packages
+        # shipped, which would have passed a distribution that had silently lost
+        # fourteen of them. Raise it when a package lands; a rename is
+        # count-preserving and needs no change here.
+        #
+        # Counted at evaluation from the same `packageDirs` the distribution is
+        # built from, so the gate and the thing it guards cannot disagree, and a
+        # thinned tree fails `nix eval` before anything builds. It was a
+        # `find | wc -l` inside the build until 2026-09-27.
+        bidamas =
+          let
+            floor = 35;
+            count = builtins.length (builtins.attrNames ((bidamaLib pkgs).packageDirs ./.));
+          in
+          assert pkgs.lib.assertMsg (count >= floor)
+            "bidamas: only ${toString count} package(s) found, expected >= ${toString floor}; refusing to publish a thinned distribution";
+          pkgs.runCommand "bidamas" { } "cp -r ${./.} $out";
       });
 
       checks = forAll (pkgs: {

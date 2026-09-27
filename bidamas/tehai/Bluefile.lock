@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:5c3d37a5ec60122ed990e13e2fa7418863742a65383f5751979f83ec8aac5387",
+  "manifest": {
+    "schema": 1,
+    "name": "tehai",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

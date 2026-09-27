@@ -306,17 +306,33 @@ fn the_depth_bound_is_taken_from_the_argument_not_the_constant() {
     );
 
     // Above the default, and accepted anyway. `MAX_EXPR_DEPTH` would refuse it.
-    let deep_n = blue_lang_syntax::MAX_EXPR_DEPTH + 32;
-    let deep = format!("{}1{}", "(".repeat(deep_n), ")".repeat(deep_n));
-    assert!(
-        blue_lang_syntax::parse_program(&deep).is_err(),
-        "precondition: the DEFAULT bound refuses depth MAX + 32"
-    );
-    assert!(
-        blue_lang_syntax::parse_program_with_depth(&deep, deep_n * 4).is_ok(),
-        "a caller-supplied bound above the constant must ADMIT what the \
-         constant refuses — otherwise the argument is ignored"
-    );
+    //
+    // This half runs on a thread with a stated stack. Admitting a depth past
+    // the default is exactly the case the default exists to stop, so the
+    // recursive parser needs stack in proportion, and a debug build's frames
+    // are large: on the 2 MiB test thread it overflowed and ABORTED the whole
+    // test binary, in CI (blue's auto-release test gate, 2026-09-27, every
+    // run that day) and locally, with no source change behind it. The need
+    // is the test's own, so the test states it rather than depending on
+    // RUST_MIN_STACK or the build profile.
+    std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(|| {
+            let deep_n = blue_lang_syntax::MAX_EXPR_DEPTH + 32;
+            let deep = format!("{}1{}", "(".repeat(deep_n), ")".repeat(deep_n));
+            assert!(
+                blue_lang_syntax::parse_program(&deep).is_err(),
+                "precondition: the DEFAULT bound refuses depth MAX + 32"
+            );
+            assert!(
+                blue_lang_syntax::parse_program_with_depth(&deep, deep_n * 4).is_ok(),
+                "a caller-supplied bound above the constant must ADMIT what the \
+                 constant refuses — otherwise the argument is ignored"
+            );
+        })
+        .expect("spawn the deep-parse thread")
+        .join()
+        .expect("the deep-parse assertions hold");
 }
 
 /// The defaulting entry points are the parameterized ones at `MAX_EXPR_DEPTH`.

@@ -1,0 +1,260 @@
+use("retsu")
+use("moji")
+use("shisutemu")
+use("deeta")
+# tehai (手配) — which nix remote builders can take work right now: every declared machine checked, and only the live ones written where nix reads them.
+#
+# nix reads its remote builders from a machines file (`builders = @<path>`).
+# Written by hand or by a system config, that file names machines whether
+# they are up or not, so a dead builder costs a TCP timeout on every
+# dispatch, and a builder switched off by hand ("offline") stays off after it
+# comes back. tehai separates the two facts: the DECLARED set (a machines
+# file, for example the one nix-darwin or NixOS renders to /etc/nix/machines)
+# is config; which of them are LIVE is measured, each time tehai runs.
+#
+# One run: parse the declared file; for each machine, ssh to it with a short
+# timeout and ask its nix for a version; write the live machines, unchanged,
+# to the output with an atomic rename, so nix never reads a half-written list;
+# write a state file saying which are up, since when, and why not. A timer
+# (launchd's StartInterval, a systemd timer) runs it every few seconds.
+#
+# A malformed line is refused alone, named in the state, and never takes its
+# valid siblings down with it.
+
+# ── the machines format ──────────────────────────────────────────────
+# One machine per line, fields separated by spaces: URI, systems, SSH key,
+# max jobs, speed factor, supported features, mandatory features, host key;
+# "-" for an empty field. Blank lines and # comments are skipped.
+
+def th_fields(line)
+  filter(fn(f) is_empty(f) == false end, split(replace(trim(line), "\t", " "), " "))
+end
+
+def th_meaningful?(line)
+  t = trim(line)
+  is_empty(t) == false && starts_with?(t, "#") == false
+end
+
+# A declared machine: its line as written, its URI, host and user, and its
+# key, or a refusal naming the line.
+def th_machine(line)
+  fs = th_fields(line)
+  uri = first(fs)
+  if (starts_with?(uri, "ssh://") || starts_with?(uri, "ssh-ng://")) == false
+    {line: line, ok: false, why: "not an ssh:// or ssh-ng:// URI: #{uri}"}
+  else
+    target = after_first(uri, "://")
+    user = if includes(target, "@")
+      before_first(target, "@")
+    else
+      nil
+    end
+    host = if includes(target, "@")
+      after_first(target, "@")
+    else
+      target
+    end
+    key = if size(fs) > 2 && nth(2, fs) != "-"
+      nth(2, fs)
+    else
+      nil
+    end
+    {line: trim(line), ok: true, uri: uri, host: host, user: user, key: key}
+  end
+end
+
+def th_parse(text)
+  map(fn(l) th_machine(l) end, filter(fn(l) th_meaningful?(l) end, split(text, "\n")))
+end
+
+# ── the check ────────────────────────────────────────────────────────
+
+# The ssh command that checks one machine: non-interactive, a short connect
+# timeout, a short keep-alive, and a trivial nix command on the far side, so
+# "up" means nix answers, not merely that port 22 is open.
+def th_probe_argv(m, timeout_s)
+  key = if get(m, :key) == nil
+    []
+  else
+    ["-i", get(m, :key)]
+  end
+  dest = if get(m, :user) == nil
+    get(m, :host)
+  else
+    "#{get(m, :user)}@#{get(m, :host)}"
+  end
+  concat_lists(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=#{to_s(timeout_s)}", "-o", "ServerAliveInterval=#{to_s(timeout_s)}", "-o", "ServerAliveCountMax=1"], concat_lists(key, [dest, "nix-store", "--version"]))
+end
+
+# [up?, detail] for one machine. A failure to start ssh at all is a down
+# machine with the reason, never an uncaught error for the whole run.
+def th_probe(m, timeout_s)
+  cap = try(apply(exec_capture, th_probe_argv(m, timeout_s)), catch(e(), nil))
+  if cap == nil
+    [false, "ssh could not be started"]
+  else
+    if status_of(cap) == 0 && starts_with?(trim(stdout_of(cap)), "nix-store")
+      [true, trim(stdout_of(cap))]
+    else
+      [false, last_nonempty_line(stderr_of(cap))]
+    end
+  end
+end
+
+# ── what gets written ────────────────────────────────────────────────
+
+# The live machines file: each live machine's declared line, unchanged.
+def th_live_text(checked)
+  join(map(fn(c) concat(get(c, :line), "\n") end, filter(fn(c) get(c, :up) end, checked)), "")
+end
+
+# Each machine's state, carrying `since` forward while up/down is unchanged.
+def th_states(checked, previous, now)
+  map(fn(c) th_state(c, th_previous_of(previous, get(c, :line)), now) end, checked)
+end
+
+def th_previous_of(previous, line)
+  find_first(fn(p) get(p, :line) == line end, previous)
+end
+
+def th_state(c, prev, now)
+  since = if prev != nil && get(prev, :up) == get(c, :up)
+    get(prev, :since_ms)
+  else
+    now
+  end
+  {line: get(c, :line), host: get(c, :host), up: get(c, :up), since_ms: since, checked_ms: now, detail: get(c, :detail)}
+end
+
+# A previous state file's machines, or [] when there is none or it is not
+# JSON: a missing history only resets `since`.
+def th_read_previous(path)
+  text = read_or(path, "")
+  if is_empty(text)
+    []
+  else
+    parsed = try(json_parse(text), catch(e(), nil))
+    if parsed == nil
+      []
+    else
+      th_or_empty(as_json(parsed, "machines"))
+    end
+  end
+end
+
+# A parsed JSON object is a key/value list, not a map, so its fields are read
+# through deeta (as_json, get_str, get_int), never `get`.
+def th_or_empty(xs)
+  if xs == nil
+    []
+  else
+    map(fn(p) {line: get_str(p, "line", ""), up: as_json(p, "up") == true, since_ms: get_int(p, "since_ms", 0)} end, xs)
+  end
+end
+
+# Write through a temporary beside the target, then rename: atomic on one
+# filesystem, so a reader sees the old file or the new one.
+def th_write_atomic(path, text)
+  tmp = "#{path}.tehai-tmp"
+  write_file(tmp, text)
+  rename_file(tmp, path)
+end
+
+# ── one run ──────────────────────────────────────────────────────────
+
+# Check every declared machine once; write the live file and the state.
+# Returns the state record.
+def th_run(declared_path, live_path, state_path, timeout_s)
+  now = now_ms()
+  machines = th_parse(read_or(declared_path, ""))
+  good = filter(fn(m) get(m, :ok) end, machines)
+  refused = map(fn(m) {line: get(m, :line), why: get(m, :why)} end, filter(fn(m) get(m, :ok) == false end, machines))
+  checked = map(fn(m) th_checked(m, th_probe(m, timeout_s)) end, good)
+  states = th_states(checked, th_read_previous(state_path), now)
+  mkdir_p(path_dirname(live_path))
+  th_write_atomic(live_path, th_live_text(checked))
+  record = {checked_ms: now, declared: declared_path, live: live_path, machines: states, refused: refused}
+  mkdir_p(path_dirname(state_path))
+  th_write_atomic(state_path, json_stringify(record))
+  record
+end
+
+def th_checked(m, result)
+  {line: get(m, :line), host: get(m, :host), up: nth(0, result), detail: nth(1, result)}
+end
+
+# The daemon's entry point: paths and timeout from the environment.
+def th_main()
+  th_run(getenv("TEHAI_DECLARED", "/etc/nix/machines"), getenv("TEHAI_LIVE", "/var/run/tehai/machines"), getenv("TEHAI_STATE", "/var/run/tehai/state.json"), to_int(getenv("TEHAI_TIMEOUT_S", "2")))
+end
+
+# ── tests ────────────────────────────────────────────────────────────
+
+def th_sample()
+  "# declared by nix-darwin\nssh-ng://builder@quero-builder-ssm aarch64-linux /Users/x/.ssh/key 8 1 kvm,big-parallel - -\n\nssh://root@plo x86_64-linux - 8 8 - - -\nnot-a-uri x86_64-linux\n"
+end
+
+test "the machines format: comments and blanks skipped, fields read, a bad line refused alone"
+  ms = th_parse(th_sample())
+  assert size(ms) == 3
+  q = nth(0, ms)
+  assert get(q, :host) == "quero-builder-ssm"
+  assert get(q, :user) == "builder"
+  assert get(q, :key) == "/Users/x/.ssh/key"
+  # "-" is an empty field: no key.
+  assert get(nth(1, ms), :key) == nil
+  assert get(nth(1, ms), :host) == "plo"
+  # The control: one malformed line is refused, and its siblings are not.
+  assert get(nth(2, ms), :ok) == false
+  assert size(filter(fn(m) get(m, :ok) end, ms)) == 2
+  # The empty case.
+  assert is_empty(th_parse("")) == true
+end
+
+test "the check is non-interactive, short, and asks nix, not just the port"
+  argv = th_probe_argv(first(th_parse(th_sample())), 2)
+  assert first(argv) == "ssh"
+  assert contains(argv, "BatchMode=yes") == true
+  assert contains(argv, "ConnectTimeout=2") == true
+  assert take_n(reverse(argv), 3) == ["--version", "nix-store", "builder@quero-builder-ssm"]
+  assert contains(argv, "/Users/x/.ssh/key") == true
+end
+
+test "only live machines are written, each line exactly as declared"
+  ms = filter(fn(m) get(m, :ok) end, th_parse(th_sample()))
+  checked = [th_checked(nth(0, ms), [false, "Connection timed out"]), th_checked(nth(1, ms), [true, "nix-store (Nix) 2.31.5"])]
+  assert th_live_text(checked) == "ssh://root@plo x86_64-linux - 8 8 - - -\n"
+  # None live: an empty file, so nix builds locally rather than timing out.
+  assert th_live_text([th_checked(nth(0, ms), [false, "down"])]) == ""
+end
+
+test "since carries forward while a machine's state holds, and resets when it flips"
+  ms = filter(fn(m) get(m, :ok) end, th_parse(th_sample()))
+  c = th_checked(nth(1, ms), [true, "ok"])
+  first_run = th_states([c], [], 1000)
+  assert get(first(first_run), :since_ms) == 1000
+  again = th_states([c], first_run, 2000)
+  assert get(first(again), :since_ms) == 1000
+  assert get(first(again), :checked_ms) == 2000
+  flipped = th_states([th_checked(nth(1, ms), [false, "gone"])], again, 3000)
+  assert get(first(flipped), :since_ms) == 3000
+end
+
+test "a run end to end, with a machine that cannot answer"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-test-#{to_s(now_ms())}")
+  mkdir_p(dir)
+  declared = path_join(dir, "machines")
+  # A port nothing listens on, on this host: a fast, certain "down".
+  write_file(declared, "ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -\nbroken\n")
+  r = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1)
+  assert read_file(path_join(dir, "live")) == ""
+  assert size(get(r, :machines)) == 1
+  assert get(first(get(r, :machines)), :up) == false
+  assert size(get(r, :refused)) == 1
+  # The state file is JSON that reads back, and the next run keeps `since`:
+  # still down, so the second run's since is the first run's.
+  assert size(th_read_previous(path_join(dir, "state.json"))) == 1
+  r2 = th_run(declared, path_join(dir, "live"), path_join(dir, "state.json"), 1)
+  assert get(first(get(r2, :machines)), :since_ms) == get(first(get(r, :machines)), :since_ms)
+  rm_rf(dir)
+end

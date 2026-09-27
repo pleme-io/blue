@@ -1,0 +1,6 @@
+package("rittai", "0.1.0")
+needs("retsu", "^0.1")
+needs("kazu", "^0.1")
+needs("gyouretsu", "^0.1")
+needs("kikagaku", "^0.1")
+needs("junjo", "^0.1")

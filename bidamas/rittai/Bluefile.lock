@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:206c923c51bbbe47f03aa79a6c89eed1467626507de1d961834107fc2dfdfccd",
+  "manifest": {
+    "schema": 1,
+    "name": "rittai",
+    "version": "0.1.0",
+    "needs": {
+      "gyouretsu": "^0.1.0",
+      "junjo": "^0.1.0",
+      "kazu": "^0.1.0",
+      "kikagaku": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

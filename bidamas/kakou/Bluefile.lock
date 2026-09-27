@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:0c2cb77dbbb9114298b1756fded01a3c83cc7c0fcc1f6aecd7064613a5aaaea7",
+  "manifest": {
+    "schema": 1,
+    "name": "kakou",
+    "version": "0.1.0",
+    "needs": {
+      "gyouretsu": "^0.1.0",
+      "kazu": "^0.1.0",
+      "kikagaku": "^0.1.0",
+      "retsu": "^0.1.0",
+      "rittai": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

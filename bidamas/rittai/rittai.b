@@ -249,7 +249,10 @@ def rt_mesh_refusals(m)
     if is_empty(bad_index) == false
       [[:rittai_mesh, "#{to_s(size(bad_index))} face(s) name a vertex that does not exist"]]
     else
-      rt_closed_refusals(m)
+      # Judged by POSITION, as every reader of an STL judges it: two parts
+      # that touch share no vertex indices, so by index each looks closed,
+      # while by position their touching faces sit inside one another.
+      rt_closed_refusals(rt_weld(m))
     end
   end
 end
@@ -258,9 +261,15 @@ def rt_closed_refusals(m)
   degenerate = size(filter(fn(f) rt_face_area(m, f) <= 0.0000000001 end, rt_faces(m)))
   directed = rt_directed_edges(m)
   seen = rt_count_keys(directed)
+  present = rt_key_set(seen)
   doubled = size(filter(fn(kv) nth(1, kv) > 1 end, seen))
-  unmatched = size(filter(fn(kv) get(rt_key_set(seen), rt_reverse_key(nth(0, kv))) == nil end, seen))
-  out = concat_lists(if degenerate > 0
+  unmatched = size(filter(fn(kv) get(present, rt_reverse_key(nth(0, kv))) == nil end, seen))
+  crowded = size(filter(fn(kv) nth(1, kv) > 2 end, rt_count_keys(map(fn(k) rt_undirected_key(k) end, directed))))
+  out = concat_lists(if crowded > 0
+      [[:rittai_mesh, "#{to_s(crowded)} edge(s) are shared by more than two faces: not one solid (parts touching without being fused)"]]
+    else
+      []
+    end, concat_lists(if degenerate > 0
       [[:rittai_mesh, "#{to_s(degenerate)} degenerate face(s)"]]
     else
       []
@@ -272,7 +281,7 @@ def rt_closed_refusals(m)
       [[:rittai_mesh, "#{to_s(unmatched)} edge(s) have no face on the other side: the mesh is open"]]
     else
       []
-    end))
+    end)))
   if is_empty(out) && rt_volume(m) <= 0
     [[:rittai_mesh, "the volume is not positive: the faces are wound inward"]]
   else
@@ -283,6 +292,58 @@ end
 def rt_reverse_key(k)
   parts = split(k, ">")
   "#{nth(1, parts)}>#{nth(0, parts)}"
+end
+
+# The edge regardless of direction: its two indices, lower first.
+def rt_undirected_key(k)
+  parts = map(fn(s) to_int(s) end, split(k, ">"))
+  "#{to_s(min(nth(0, parts), nth(1, parts)))}-#{to_s(max(nth(0, parts), nth(1, parts)))}"
+end
+
+# ── welding and fusing ───────────────────────────────────────────────
+
+# A position as a key, to a millionth of the unit: two vertices closer than
+# that are one vertex.
+def rt_position_key(p)
+  "#{to_s(round(rt_x(p) * 1000000))},#{to_s(round(rt_y(p) * 1000000))},#{to_s(round(rt_z(p) * 1000000))}"
+end
+
+# Vertices at the same position merged into one, faces re-indexed. An
+# assembly of parts that touch has a duplicate vertex at every seam; welded,
+# a seam either closes (the parts were fused properly) or shows as an edge
+# shared by more than two faces (they only touch).
+def rt_weld(m)
+  vs = rt_vertices(m)
+  fin = reduce(fn(acc, p) rt_weld_step(acc, p) end, {index: {}, kept: [], count: 0, remap: []}, vs)
+  remap = reverse(get(fin, :remap))
+  rt_mesh(reverse(get(fin, :kept)), map(fn(f) map(fn(i) nth(i, remap) end, f) end, rt_faces(m)))
+end
+
+def rt_weld_step(acc, p)
+  k = rt_position_key(p)
+  at = get(get(acc, :index), k)
+  if at == nil
+    n = get(acc, :count)
+    {index: assoc(get(acc, :index), k, n), kept: concat_lists([p], get(acc, :kept)), count: n + 1, remap: concat_lists([n], get(acc, :remap))}
+  else
+    {index: get(acc, :index), kept: get(acc, :kept), count: get(acc, :count), remap: concat_lists([at], get(acc, :remap))}
+  end
+end
+
+# The mesh without the faces at the given positions in its face list.
+def rt_drop_faces(m, drop)
+  rt_mesh(rt_vertices(m), map(fn(i) nth(i, rt_faces(m)) end, filter(fn(i) contains(drop, i) == false end, indexes(rt_faces(m)))))
+end
+
+# rt_extrude's face order is a contract: the side walls come first, two
+# triangles per loop edge, loop by loop (the outline, then each hole) and
+# edge by edge from each loop's first point; then the top cap, then the
+# bottom. These are the two wall faces of edge e of loop l, the edge from
+# point e to point e + 1, for a caller fusing a part onto that wall.
+def rt_extrude_wall_faces(r, l, e)
+  sizes = concat_lists([size(region_outline(r))], map(fn(h) size(h) end, region_holes(r)))
+  before = sum(take_n(sizes, l))
+  [2 * (before + e), (2 * (before + e)) + 1]
 end
 
 # [key, count] for each distinct key.
@@ -665,6 +726,24 @@ test "broken meshes are refused, each for its own reason"
   assert map(fn(r) nth(1, r) end, rt_mesh_refusals(inward)) == ["the volume is not positive: the faces are wound inward"]
   assert size(rt_mesh_refusals(rt_mesh(rt_vertices(b), [[0, 1, 99]]))) == 1
   assert size(rt_mesh_refusals(rt_empty_mesh())) == 1
+end
+
+test "parts that only touch are refused; fused, they are one solid"
+  # Two unit boxes side by side. Merged, each is closed by its own indices,
+  # and the check still refuses them: by position, the shared face at x = 1
+  # is inside the solid. This is how a folded sheet part first failed a
+  # second reader (trimesh) while passing an index-only check.
+  r = region(rect_polygon(0, 0, 1, 1), [])
+  a = rt_extrude(r, 1)
+  b = rt_translate(rt_extrude(r, 1), [1, 0, 0])
+  touching = rt_merge([a, b])
+  assert is_empty(rt_mesh_refusals(touching)) == false
+  # Fused: drop a's east wall (edge 1) and b's west wall (edge 3), then weld.
+  fused = rt_weld(rt_merge([rt_drop_faces(a, rt_extrude_wall_faces(r, 0, 1)), rt_drop_faces(b, rt_extrude_wall_faces(r, 0, 3))]))
+  assert is_empty(rt_mesh_refusals(fused)) == true
+  assert near(rt_volume(fused), 2) == true
+  # Welding merges only what coincides: a box welded is the same box.
+  assert size(rt_vertices(rt_weld(a))) == 8
 end
 
 test "STL: one facet per face, with outward normals"

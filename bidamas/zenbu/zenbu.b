@@ -53,6 +53,7 @@ use("hizuke")
 use("junjo")
 use("kansuu")
 use("kazu")
+use("kakou")
 use("kikagaku")
 use("kinji")
 use("kueri")
@@ -92,6 +93,7 @@ test "every bidama in the distribution answers through this one import"
   assert sort([3, 1, 2]) == [1, 2, 3]
   assert identity(7) == 7
   assert clamp(99, 1, 10) == 10
+  assert near(kk_outside_setback(90, 1, 1), 2) == true
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kj_trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert q_ident("order") == "\"order\""

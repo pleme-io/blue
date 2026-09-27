@@ -215,7 +215,7 @@ const FILESYSTEM_NAMES: &[&str] = &[
     "cwd",
 ];
 /// `blue_lang_runtime::sys::install_env`, 2026-08-13.
-const ENVIRONMENT_NAMES: &[&str] = &["getenv", "env_required", "argv", "argv_get"];
+const ENVIRONMENT_NAMES: &[&str] = &["getenv", "env_required", "argv", "argv_get", "self_exe"];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",

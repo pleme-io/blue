@@ -710,6 +710,20 @@ fn install_env<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
+    // The running interpreter's own executable, absolute. A blue program that
+    // runs blue (heni's mutation runs, a test harness) spawns THIS binary
+    // rather than whatever `blue` a PATH lookup finds, which in a nix sandbox
+    // is none. A process fact only the runtime knows, so it is Rust (2026-09-27).
+    interp.register_fn(
+        "self_exe",
+        Arity::Exact(0),
+        |_args: &[Value], _h: &mut H, span| {
+            let p = std::env::current_exe()
+                .map_err(|e| EvalError::native_fn("self_exe", e.to_string(), span))?;
+            Ok(Value::Str(Arc::from(p.to_string_lossy().into_owned())))
+        },
+    );
+
     interp.register_fn(
         "argv_get",
         Arity::Range(1, 2),

@@ -8,6 +8,13 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# The standard distribution (`bidamas/`) compiled into the crate, served by
+# `embedded::Standard`, for a host that runs blue with no BLUE_PATH (arnes).
+# Only a git checkout carries `bidamas/`; a registry build of this crate
+# has none, and the set is then empty (`embedded::Standard::is_empty`).
+embedded = []
+
 [dependencies]
 blue-lang-runtime = { workspace = true }
 blue-lang-syntax = { workspace = true }

@@ -1,4 +1,5 @@
 use("retsu")
+
 # sabi (錆): Rust source from blue data. Build the items as values, render once.
 #
 # Blue generates Rust the way the fleet's typed-emission rule asks: a program
@@ -95,7 +96,15 @@ end
 # A Rust string literal's body: backslash first, so the escapes added after it
 # are not themselves escaped.
 def rs_escape_str(s)
-  replace(replace(replace(replace(replace(s, "\\", "\\\\"), "\"", "\\\""), "\n", "\\n"), "\t", "\\t"), "\r", "\\r")
+  replace(
+    replace(
+      replace(replace(replace(s, "\\", "\\\\"), "\"", "\\\""), "\n", "\\n"),
+      "\t",
+      "\\t"
+    ),
+    "\r",
+    "\\r"
+  )
 end
 
 def rs_escape_char(c)
@@ -136,10 +145,18 @@ def rs_render_expr(e, level)
   elsif k == :path
     join(get(e, :segments), "::")
   elsif k == :slice
-    rows = map(fn(i) "#{rs_pad(level + 1)}#{rs_render_expr(i, level + 1)}," end, get(e, :items))
+    rows = map(
+      fn(i) "#{rs_pad(level + 1)}#{rs_render_expr(i, level + 1)}," end,
+      get(e, :items)
+    )
     "&[\n#{join(rows, "\n")}\n#{rs_pad(level)}]"
   else
-    arms = map(fn(a) "#{rs_pad(level + 1)}#{rs_render_expr(get(a, :pattern), level + 1)} => #{rs_render_expr(get(a, :expr), level + 1)}," end, get(e, :arms))
+    arms = map(
+      fn(a)
+        "#{rs_pad(level + 1)}#{rs_render_expr(get(a, :pattern), level + 1)} => #{rs_render_expr(get(a, :expr), level + 1)},"
+      end,
+      get(e, :arms)
+    )
     "match #{rs_render_expr(get(e, :scrutinee), level)} {\n#{join(arms, "\n")}\n#{rs_pad(level)}}"
   end
 end
@@ -214,23 +231,77 @@ end
 def rs_render_fn(f, level)
   sig = "#{rs_pad(level)}pub fn #{get(f, :name)}(#{join(map(fn(p) rs_render_param(p) end, get(f, :params)), ", ")}) -> #{rs_render_ty(get(f, :ret))} {"
   body = "#{rs_pad(level + 1)}#{rs_render_expr(get(f, :body), level + 1)}"
-  join(concat_lists(rs_doc_lines(get(f, :doc), level, "///"), [sig, body, "#{rs_pad(level)}}"]), "\n")
+  join(
+    concat_lists(
+      rs_doc_lines(get(f, :doc), level, "///"),
+      [sig, body, "#{rs_pad(level)}}"]
+    ),
+    "\n"
+  )
 end
 
 def rs_render_item(item)
   k = get(item, :kind)
   doc = rs_doc_lines(get_or_empty(item, :doc), 0, "///")
   if k == :const
-    join(concat_lists(doc, ["pub const #{get(item, :name)}: #{rs_render_ty(get(item, :ty))} = #{rs_render_expr(get(item, :value), 0)};"]), "\n")
+    join(
+      concat_lists(
+        doc,
+        [
+          "pub const #{get(item, :name)}: #{rs_render_ty(get(item, :ty))} = #{rs_render_expr(get(item, :value), 0)};"
+        ]
+      ),
+      "\n"
+    )
   elsif k == :enum
-    variants = flat_map(fn(v) concat_lists(rs_doc_lines(get(v, :doc), 1, "///"), ["    #{get(v, :name)},"]) end, get(item, :variants))
-    join(concat_lists(concat_lists(doc, rs_derive_line(get(item, :derives), 0)), concat_lists(["pub enum #{get(item, :name)} {"], concat_lists(variants, ["}"]))), "\n")
+    variants = flat_map(
+      fn(v)
+        concat_lists(
+          rs_doc_lines(get(v, :doc), 1, "///"),
+          ["    #{get(v, :name)},"]
+        )
+      end,
+      get(item, :variants)
+    )
+    join(
+      concat_lists(
+        concat_lists(doc, rs_derive_line(get(item, :derives), 0)),
+        concat_lists(
+          ["pub enum #{get(item, :name)} {"],
+          concat_lists(variants, ["}"])
+        )
+      ),
+      "\n"
+    )
   elsif k == :struct
-    fields = flat_map(fn(f) concat_lists(rs_doc_lines(get(f, :doc), 1, "///"), ["    pub #{get(f, :name)}: #{rs_render_ty(get(f, :ty))},"]) end, get(item, :fields))
-    join(concat_lists(concat_lists(doc, rs_derive_line(get(item, :derives), 0)), concat_lists(["pub struct #{get(item, :name)} {"], concat_lists(fields, ["}"]))), "\n")
+    fields = flat_map(
+      fn(f)
+        concat_lists(
+          rs_doc_lines(get(f, :doc), 1, "///"),
+          ["    pub #{get(f, :name)}: #{rs_render_ty(get(f, :ty))},"]
+        )
+      end,
+      get(item, :fields)
+    )
+    join(
+      concat_lists(
+        concat_lists(doc, rs_derive_line(get(item, :derives), 0)),
+        concat_lists(
+          ["pub struct #{get(item, :name)} {"],
+          concat_lists(fields, ["}"])
+        )
+      ),
+      "\n"
+    )
   else
     fns = map(fn(f) rs_render_fn(f, 1) end, get(item, :fns))
-    join(concat_lists(["impl #{get(item, :name)} {"], concat_lists([join(fns, "\n\n")], ["}"])), "\n")
+    join(
+      concat_lists(
+        ["impl #{get(item, :name)} {"],
+        concat_lists([join(fns, "\n\n")], ["}"])
+      ),
+      "\n"
+    )
   end
 end
 
@@ -246,7 +317,46 @@ end
 # ── identifiers ────────────────────────────────────────────────────────────
 
 def rs_keywords()
-  ["as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while"]
+  [
+    "as",
+    "async",
+    "await",
+    "break",
+    "const",
+    "continue",
+    "crate",
+    "dyn",
+    "else",
+    "enum",
+    "extern",
+    "false",
+    "fn",
+    "for",
+    "if",
+    "impl",
+    "in",
+    "let",
+    "loop",
+    "match",
+    "mod",
+    "move",
+    "mut",
+    "pub",
+    "ref",
+    "return",
+    "self",
+    "Self",
+    "static",
+    "struct",
+    "super",
+    "trait",
+    "true",
+    "type",
+    "unsafe",
+    "use",
+    "where",
+    "while"
+  ]
 end
 
 def rs_ident_start_chars()
@@ -287,7 +397,10 @@ end
 
 # The names in a file that are not valid Rust identifiers. Empty when clean.
 def rs_invalid_names(file)
-  filter(fn(n) rs_valid_ident?(n) == false end, flat_map(fn(i) rs_item_names(i) end, get(file, :items)))
+  filter(
+    fn(n) rs_valid_ident?(n) == false end,
+    flat_map(fn(i) rs_item_names(i) end, get(file, :items))
+  )
 end
 
 # ── files ──────────────────────────────────────────────────────────────────
@@ -305,8 +418,20 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "a table constant renders one row per line"
-  t = rs_ty_ref(rs_ty_slice(rs_ty_tuple([rs_ty("char"), rs_ty_ref(rs_ty("str"))])))
-  c = rs_const("PAIRS", t, rs_slice([rs_tuple([rs_char("≠"), rs_str("!=")]), rs_tuple([rs_char("×"), rs_str("*")])]), ["Pairs."])
+  t = rs_ty_ref(
+    rs_ty_slice(rs_ty_tuple([rs_ty("char"), rs_ty_ref(rs_ty("str"))]))
+  )
+  c = rs_const(
+    "PAIRS",
+    t,
+    rs_slice(
+      [
+        rs_tuple([rs_char("≠"), rs_str("!=")]),
+        rs_tuple([rs_char("×"), rs_str("*")])
+      ]
+    ),
+    ["Pairs."]
+  )
   expected = "/// Pairs.\npub const PAIRS: &[(char, &str)] = &[\n    ('≠', \"!=\"),\n    ('×', \"*\"),\n];"
   assert rs_render_item(c) == expected
 end
@@ -318,18 +443,54 @@ test "strings and chars are escaped, backslash first"
 end
 
 test "an enum with an impl renders a derive, variants and a match"
-  e = rs_enum("Mood", ["Debug", "Clone", "Copy"], [rs_variant("Calm", ["Quiet."]), rs_variant("Loud", [])], ["A mood."])
-  body = rs_match(rs_path(["self"]), [rs_arm(rs_path(["Mood", "Calm"]), rs_str("calm")), rs_arm(rs_path(["Mood", "Loud"]), rs_str("loud"))])
-  i = rs_impl("Mood", [rs_fn("as_str", [rs_self_param()], rs_ty_ref(rs_ty("'static str")), body, ["Its name."])])
+  e = rs_enum(
+    "Mood",
+    ["Debug", "Clone", "Copy"],
+    [rs_variant("Calm", ["Quiet."]), rs_variant("Loud", [])],
+    ["A mood."]
+  )
+  body = rs_match(
+    rs_path(["self"]),
+    [
+      rs_arm(rs_path(["Mood", "Calm"]), rs_str("calm")),
+      rs_arm(rs_path(["Mood", "Loud"]), rs_str("loud"))
+    ]
+  )
+  i = rs_impl(
+    "Mood",
+    [
+      rs_fn(
+        "as_str",
+        [rs_self_param()],
+        rs_ty_ref(rs_ty("'static str")),
+        body,
+        ["Its name."]
+      )
+    ]
+  )
   out = render_rust(rs_file("test.b", [e, i]))
-  assert contains?(out, "#[derive(Debug, Clone, Copy)]\npub enum Mood {\n    /// Quiet.\n    Calm,\n    Loud,\n}") == true
-  assert contains?(out, "    pub fn as_str(&self) -> &'static str {\n        match self {\n            Mood::Calm => \"calm\",\n            Mood::Loud => \"loud\",\n        }\n    }") == true
+  assert contains?(
+    out,
+    "#[derive(Debug, Clone, Copy)]\npub enum Mood {\n    /// Quiet.\n    Calm,\n    Loud,\n}"
+  ) ==
+    true
+  assert contains?(
+    out,
+    "    pub fn as_str(&self) -> &'static str {\n        match self {\n            Mood::Calm => \"calm\",\n            Mood::Loud => \"loud\",\n        }\n    }"
+  ) ==
+    true
   assert starts_with?(out, "// @generated by test.b (sabi).") == true
 end
 
 test "a struct renders its fields"
-  s = rs_struct("Point", ["Debug"], [rs_field("x", rs_ty("i64"), ["Across."]), rs_field("y", rs_ty("i64"), [])], [])
-  assert rs_render_item(s) == "#[derive(Debug)]\npub struct Point {\n    /// Across.\n    pub x: i64,\n    pub y: i64,\n}"
+  s = rs_struct(
+    "Point",
+    ["Debug"],
+    [rs_field("x", rs_ty("i64"), ["Across."]), rs_field("y", rs_ty("i64"), [])],
+    []
+  )
+  assert rs_render_item(s) ==
+    "#[derive(Debug)]\npub struct Point {\n    /// Across.\n    pub x: i64,\n    pub y: i64,\n}"
 end
 
 test "identifiers are checked: a keyword, a leading digit and a hyphen are refused"
@@ -339,11 +500,18 @@ test "identifiers are checked: a keyword, a leading digit and a hyphen are refus
   assert rs_valid_ident?("9lives") == false
   assert rs_valid_ident?("max-replicas") == false
   assert rs_valid_ident?("") == false
-  bad = rs_file("t.b", [rs_const("fn", rs_ty("i64"), rs_int(1), []), rs_const("OK", rs_ty("i64"), rs_int(2), [])])
+  bad = rs_file(
+    "t.b",
+    [
+      rs_const("fn", rs_ty("i64"), rs_int(1), []),
+      rs_const("OK", rs_ty("i64"), rs_int(2), [])
+    ]
+  )
   assert rs_invalid_names(bad) == ["fn"]
 end
 
 test "an empty doc emits no doc lines, and an empty doc line keeps the marker"
-  assert rs_render_item(rs_const("N", rs_ty("i64"), rs_int(3), [])) == "pub const N: i64 = 3;"
+  assert rs_render_item(rs_const("N", rs_ty("i64"), rs_int(3), [])) ==
+    "pub const N: i64 = 3;"
   assert rs_doc_lines(["a", "", "b"], 0, "///") == ["/// a", "///", "/// b"]
 end

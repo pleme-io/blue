@@ -1,4 +1,5 @@
 use("ronri")
+
 # junjo (順序) — ordering: sorting, searching, selection.
 #
 # Sorting lives in blue rather than being borrowed, because the interpreter's
@@ -57,29 +58,25 @@ end
 def is_sorted(xs)
   if size(xs) < 2
     true
+  elsif compare(first(xs), nth(1, xs)) <= 0
+    is_sorted(rest(xs))
   else
-    if compare(first(xs), nth(1, xs)) <= 0
-      is_sorted(rest(xs))
-    else
-      false
-    end
+    false
   end
 end
 
 def bsearch(xs, target, lo, hi)
   if lo > hi
-    0 - 1
+    -1
   else
     mid = floor((lo + hi) / 2)
     v = nth(mid, xs)
     if v == target
       mid
+    elsif v < target
+      bsearch(xs, target, mid + 1, hi)
     else
-      if v < target
-        bsearch(xs, target, mid + 1, hi)
-      else
-        bsearch(xs, target, lo, mid - 1)
-      end
+      bsearch(xs, target, lo, mid - 1)
     end
   end
 end
@@ -112,13 +109,11 @@ end
 # to order anything else supplies a key function that lands on one.
 def compare_values(a, b)
   if a < b
-    0 - 1
+    -1
+  elsif b < a
+    1
   else
-    if b < a
-      1
-    else
-      0
-    end
+    0
   end
 end
 
@@ -132,18 +127,16 @@ def compare_lists(a, b)
     if is_empty(b)
       0
     else
-      0 - 1
+      -1
     end
+  elsif is_empty(b)
+    1
   else
-    if is_empty(b)
-      1
+    c = compare_values(first(a), first(b))
+    if c == 0
+      compare_lists(rest(a), rest(b))
     else
-      c = compare_values(first(a), first(b))
-      if c == 0
-        compare_lists(rest(a), rest(b))
-      else
-        c
-      end
+      c
     end
   end
 end
@@ -154,44 +147,34 @@ end
 def merge_sorted(a, b)
   if is_empty(a)
     b
+  elsif is_empty(b)
+    a
+  elsif compare(first(a), first(b)) <= 0
+    cons(first(a), merge_sorted(rest(a), b))
   else
-    if is_empty(b)
-      a
-    else
-      if compare(first(a), first(b)) <= 0
-        cons(first(a), merge_sorted(rest(a), b))
-      else
-        cons(first(b), merge_sorted(a, rest(b)))
-      end
-    end
+    cons(first(b), merge_sorted(a, rest(b)))
   end
 end
 
 def merge_sorted_by(key, a, b)
   if is_empty(a)
     b
+  elsif is_empty(b)
+    a
+  elsif compare(key(first(a)), key(first(b))) <= 0
+    cons(first(a), merge_sorted_by(key, rest(a), b))
   else
-    if is_empty(b)
-      a
-    else
-      if compare(key(first(a)), key(first(b))) <= 0
-        cons(first(a), merge_sorted_by(key, rest(a), b))
-      else
-        cons(first(b), merge_sorted_by(key, a, rest(b)))
-      end
-    end
+    cons(first(b), merge_sorted_by(key, a, rest(b)))
   end
 end
 
 def is_sorted_by(key, xs)
   if size(xs) < 2
     true
+  elsif compare(key(first(xs)), key(nth(1, xs))) <= 0
+    is_sorted_by(key, rest(xs))
   else
-    if compare(key(first(xs)), key(nth(1, xs))) <= 0
-      is_sorted_by(key, rest(xs))
-    else
-      false
-    end
+    false
   end
 end
 
@@ -211,12 +194,10 @@ end
 def insert_sorted_by(key, x, xs)
   if is_empty(xs)
     [x]
+  elsif compare(key(x), key(first(xs))) <= 0
+    cons(x, xs)
   else
-    if compare(key(x), key(first(xs))) <= 0
-      cons(x, xs)
-    else
-      cons(first(xs), insert_sorted_by(key, x, rest(xs)))
-    end
+    cons(first(xs), insert_sorted_by(key, x, rest(xs)))
   end
 end
 
@@ -270,16 +251,12 @@ end
 def dedupe_sorted(xs)
   if is_empty(xs)
     []
+  elsif size(xs) < 2
+    [first(xs)]
+  elsif first(xs) == nth(1, xs)
+    dedupe_sorted(rest(xs))
   else
-    if size(xs) < 2
-      [first(xs)]
-    else
-      if first(xs) == nth(1, xs)
-        dedupe_sorted(rest(xs))
-      else
-        cons(first(xs), dedupe_sorted(rest(xs)))
-      end
-    end
+    cons(first(xs), dedupe_sorted(rest(xs)))
   end
 end
 
@@ -347,7 +324,7 @@ end
 # POSITIONAL, not distinct: nth_smallest(1, [5, 5, 1]) is 5, because the second
 # smallest of three values is the second one, duplicate or not.
 def nth_smallest(n, xs)
-  if (n < 0) || (n >= size(xs))
+  if n < 0 || n >= size(xs)
     nil
   else
     nth(n, sort(xs))
@@ -355,7 +332,7 @@ def nth_smallest(n, xs)
 end
 
 def nth_largest(n, xs)
-  if (n < 0) || (n >= size(xs))
+  if n < 0 || n >= size(xs)
     nil
   else
     nth(n, sort_desc(xs))
@@ -394,13 +371,21 @@ end
 # third" is a different function and is not this one.
 def rank(xs)
   ids = indexes(xs)
-  map(fn(i) count_if(fn(j) (nth(j, xs) < nth(i, xs)) || ((nth(j, xs) == nth(i, xs)) && (j < i)) end, ids) end, ids)
+  map(
+    fn(i)
+      count_if(
+        fn(j) nth(j, xs) < nth(i, xs) || nth(j, xs) == nth(i, xs) && j < i end,
+        ids
+      )
+    end,
+    ids
+  )
 end
 
 # Sorted AND without duplicates. `is_sorted` says yes to [1, 1]; this does not,
 # which is the difference between an order and a strict one.
 def is_strictly_sorted(xs)
-  is_sorted(xs) && (size(dedupe_sorted(xs)) == size(xs))
+  is_sorted(xs) && size(dedupe_sorted(xs)) == size(xs)
 end
 
 # k-way merge: fold the pairwise merge over a list of sorted lists.
@@ -411,12 +396,10 @@ end
 def insert_lex(x, xss)
   if is_empty(xss)
     [x]
+  elsif compare_lists(x, first(xss)) <= 0
+    cons(x, xss)
   else
-    if compare_lists(x, first(xss)) <= 0
-      cons(x, xss)
-    else
-      cons(first(xss), insert_lex(x, rest(xss)))
-    end
+    cons(first(xss), insert_lex(x, rest(xss)))
   end
 end
 
@@ -449,7 +432,7 @@ test "is_sorted agrees with sort"
 end
 
 test "sort_by uses the key, sort_desc reverses"
-  assert sort_by(fn(x) 0 - x end, [1, 3, 2]) == [3, 2, 1]
+  assert sort_by(fn(x) -x end, [1, 3, 2]) == [3, 2, 1]
   assert sort_desc([1, 3, 2]) == [3, 2, 1]
 end
 
@@ -458,8 +441,8 @@ test "binary search finds, and reports absence as -1"
   assert index_of_sorted(xs, 1) == 0
   assert index_of_sorted(xs, 9) == 4
   assert index_of_sorted(xs, 5) == 2
-  assert index_of_sorted(xs, 4) == 0 - 1
-  assert index_of_sorted([], 1) == 0 - 1
+  assert index_of_sorted(xs, 4) == -1
+  assert index_of_sorted([], 1) == -1
 end
 
 test "min_by and max_by"
@@ -474,23 +457,23 @@ test "min_by and max_by"
 end
 
 test "compare_values answers all three cases, including the equal one"
-  assert compare_values(1, 2) == 0 - 1
+  assert compare_values(1, 2) == -1
   assert compare_values(2, 1) == 1
   # The case a two-branch comparison gets wrong: equal is its own answer.
   assert compare_values(2, 2) == 0
-  assert compare_values(0 - 3, 0 - 1) == 0 - 1
+  assert compare_values(-3, -1) == -1
 end
 
 test "compare_lists is lexicographic, not by length"
   # A prefix sorts before what extends it.
-  assert compare_lists([1, 2], [1, 2, 3]) == 0 - 1
+  assert compare_lists([1, 2], [1, 2, 3]) == -1
   assert compare_lists([1, 2, 3], [1, 2]) == 1
   # The first difference decides even when the shorter list wins.
   assert compare_lists([2], [1, 9, 9]) == 1
-  assert compare_lists([1, 9, 9], [2]) == 0 - 1
+  assert compare_lists([1, 9, 9], [2]) == -1
   assert compare_lists([1, 2], [1, 2]) == 0
   assert compare_lists([], []) == 0
-  assert compare_lists([], [0]) == 0 - 1
+  assert compare_lists([], [0]) == -1
 end
 
 test "merge_sorted merges without re-sorting"
@@ -514,12 +497,13 @@ test "merge_sorted_by merges on the key"
   assert merge_sorted_by(key, a, b) == [[1, "a"], [2, "b"], [3, "c"], [4, "d"]]
   assert merge_sorted_by(key, [], b) == b
   # A tie takes from the LEFT list, which is what makes a merge sort stable.
-  assert merge_sorted_by(key, [[1, "left"]], [[1, "right"]]) == [[1, "left"], [1, "right"]]
+  assert merge_sorted_by(key, [[1, "left"]], [[1, "right"]]) ==
+    [[1, "left"], [1, "right"]]
 end
 
 test "is_sorted_by, is_sorted_desc"
-  assert is_sorted_by(fn(x) 0 - x end, [3, 2, 1]) == true
-  assert is_sorted_by(fn(x) 0 - x end, [1, 2, 3]) == false
+  assert is_sorted_by(fn(x) -x end, [3, 2, 1]) == true
+  assert is_sorted_by(fn(x) -x end, [1, 2, 3]) == false
   assert is_sorted_by(fn(x) x end, []) == true
   assert is_sorted_desc([3, 2, 2, 1]) == true
   assert is_sorted_desc([1, 2]) == false
@@ -530,13 +514,15 @@ end
 
 test "sort_desc_by orders by key, descending"
   assert sort_desc_by(fn(x) x end, [1, 3, 2]) == [3, 2, 1]
-  assert sort_desc_by(fn(p) nth(1, p) end, [["a", 1], ["b", 9]]) == [["b", 9], ["a", 1]]
+  assert sort_desc_by(fn(p) nth(1, p) end, [["a", 1], ["b", 9]]) ==
+    [["b", 9], ["a", 1]]
 end
 
 test "insert_sorted_by puts a tie in FRONT of the ties already there"
   key = fn(p) nth(0, p) end
   ins = fn(x, xs) insert_sorted_by(key, x, xs) end
-  assert ins([2, "new"], [[1, "a"], [3, "c"]]) == [[1, "a"], [2, "new"], [3, "c"]]
+  assert ins([2, "new"], [[1, "a"], [3, "c"]]) ==
+    [[1, "a"], [2, "new"], [3, "c"]]
   # The stability-carrying case: the arriving [2, "new"] lands before the
   # [2, "old"] already present.
   assert ins([2, "new"], [[2, "old"]]) == [[2, "new"], [2, "old"]]
@@ -550,7 +536,8 @@ test "sort_stable_by keeps equal keys in input order"
   # stability cannot be seen.
   key = fn(p) nth(0, p) end
   rs = [[2, "b1"], [1, "a1"], [2, "b2"], [1, "a2"], [2, "b3"]]
-  assert sort_stable_by(key, rs) == [[1, "a1"], [1, "a2"], [2, "b1"], [2, "b2"], [2, "b3"]]
+  assert sort_stable_by(key, rs) ==
+    [[1, "a1"], [1, "a2"], [2, "b1"], [2, "b2"], [2, "b3"]]
   # On distinct keys it agrees with sort_by, so stability is the ONLY thing
   # that separates the two sorts.
   ds = [[3, "c"], [1, "a"], [2, "b"]]
@@ -607,7 +594,13 @@ test "lower_bound and upper_bound bracket a run of duplicates"
   assert lower_bound([], 1) == 0
   assert count_sorted([], 1) == 0
   # The identity that defines an insertion point: inserting there keeps order.
-  assert is_sorted(append(append(take(lower_bound(xs, 4), xs), [4]), drop(lower_bound(xs, 4), xs))) == true
+  assert is_sorted(
+    append(
+      append(take(lower_bound(xs, 4), xs), [4]),
+      drop(lower_bound(xs, 4), xs)
+    )
+  ) ==
+    true
 end
 
 test "contains_sorted"
@@ -646,7 +639,7 @@ test "nth_smallest and nth_largest are positional, and total"
   assert nth_largest(1, [5, 5, 1]) == 5
   # Out of range answers nil rather than erroring, in both directions.
   assert nth_smallest(3, xs) == nil
-  assert nth_smallest(0 - 1, xs) == nil
+  assert nth_smallest(-1, xs) == nil
   assert nth_largest(9, xs) == nil
   assert nth_smallest(0, []) == nil
 end
@@ -744,8 +737,10 @@ test "keyed sorts order by string keys as well as numbers"
   # NAME raised "expected number, got string" (measured 2026-09-23, when
   # mokuroku sorted packages by name).
   rows = [["kazu", 3], ["angou", 1], ["retsu", 2]]
-  assert map(fn(r) first(r) end, sort_by(fn(r) first(r) end, rows)) == ["angou", "kazu", "retsu"]
-  assert map(fn(r) first(r) end, sort_stable_by(fn(r) first(r) end, rows)) == ["angou", "kazu", "retsu"]
+  assert map(fn(r) first(r) end, sort_by(fn(r) first(r) end, rows)) ==
+    ["angou", "kazu", "retsu"]
+  assert map(fn(r) first(r) end, sort_stable_by(fn(r) first(r) end, rows)) ==
+    ["angou", "kazu", "retsu"]
   assert first(min_by(fn(r) first(r) end, rows)) == "angou"
   assert is_sorted_by(fn(r) first(r) end, [["a", 1], ["b", 2]]) == true
   # Numeric keys order exactly as before.

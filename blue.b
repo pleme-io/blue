@@ -35,7 +35,4 @@
 # pathological input is refused. That is the entire argument for why these two
 # knobs are configurable and blue's formatter width and posture ceiling are not
 # — see `crates/blue-lang-cli/src/config.rs`.
-{
-  solver_max_steps: 100000,
-  max_expr_depth: 256
-}
+{solver_max_steps: 100000, max_expr_depth: 256}

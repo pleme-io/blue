@@ -56,7 +56,7 @@
 # doc. (An empty OBJECT parses to a Map, which is not a list at all; it has no
 # fields, so reading it as not-a-doc and answering the default is correct.)
 def is_doc(v)
-  list?(v) && not(null?(v))
+  list?(v) && !null?(v)
 end
 
 # The raw value at `key`, or nil when there is none to give.
@@ -126,7 +126,9 @@ test "is_doc is true for a parsed object and false for every other shape"
 end
 
 test "get_str reads a string and answers the default for every other shape"
-  doc = json_parse("{\"outcome\":\"ok\",\"phase\":\"idle\",\"head_rev\":null,\"count\":3}")
+  doc = json_parse(
+    "{\"outcome\":\"ok\",\"phase\":\"idle\",\"head_rev\":null,\"count\":3}"
+  )
   assert get_str(doc, "outcome", "—") == "ok"
   assert get_str(doc, "phase", "—") == "idle"
   # Missing key and present null both answer the default.

@@ -1,5 +1,6 @@
 use("kazu")
 use("retsu")
+
 # kikagaku (幾何学) — plane geometry on [x, y] points.
 #
 # A point is a two-element list, for the same reason a set is a list: no new
@@ -17,7 +18,7 @@ end
 def distance_squared(a, b)
   dx = px(a) - px(b)
   dy = py(a) - py(b)
-  (dx * dx) + (dy * dy)
+  dx * dx + dy * dy
 end
 
 def distance(a, b)
@@ -34,21 +35,31 @@ end
 
 # Twice the signed area — positive for counter-clockwise winding.
 def cross(o, a, b)
-  ((px(a) - px(o)) * (py(b) - py(o))) - ((py(a) - py(o)) * (px(b) - px(o)))
+  (px(a) - px(o)) * (py(b) - py(o)) - (py(a) - py(o)) * (px(b) - px(o))
 end
 
 # Shoelace formula: works for any simple polygon, convex or not.
 def polygon_area(pts)
   n = size(pts)
-  s = reduce(fn(acc, i) acc + ((px(nth(i, pts)) * py(nth((i + 1) % n, pts))) -
-                              (px(nth((i + 1) % n, pts)) * py(nth(i, pts)))) end,
-             0, range(0, n))
+  s = reduce(
+    fn(acc, i)
+      acc +
+        (px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
+          px(nth((i + 1) % n, pts)) * py(nth(i, pts)))
+    end,
+    0,
+    range(0, n)
+  )
   abs(s) / 2
 end
 
 def perimeter(pts)
   n = size(pts)
-  reduce(fn(acc, i) acc + distance(nth(i, pts), nth((i + 1) % n, pts)) end, 0, range(0, n))
+  reduce(
+    fn(acc, i) acc + distance(nth(i, pts), nth((i + 1) % n, pts)) end,
+    0,
+    range(0, n)
+  )
 end
 
 def triangle_area(a, b, c)
@@ -79,7 +90,7 @@ end
 # importing both packages silently keeps whichever it named last — so a plain
 # `dot` here would break at the call site on arity, far from the cause.
 def dot_at(o, a, b)
-  ((px(a) - px(o)) * (px(b) - px(o))) + ((py(a) - py(o)) * (py(b) - py(o)))
+  (px(a) - px(o)) * (px(b) - px(o)) + (py(a) - py(o)) * (py(b) - py(o))
 end
 
 # 1 counter-clockwise, -1 clockwise, 0 collinear. The sign of `cross` and
@@ -92,9 +103,15 @@ end
 # carries is exactly what centroid and is_convex need, so it is kept here.
 def signed_area(pts)
   n = size(pts)
-  s = reduce(fn(acc, i) acc + ((px(nth(i, pts)) * py(nth((i + 1) % n, pts))) -
-                              (px(nth((i + 1) % n, pts)) * py(nth(i, pts)))) end,
-             0, range(0, n))
+  s = reduce(
+    fn(acc, i)
+      acc +
+        (px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
+          px(nth((i + 1) % n, pts)) * py(nth(i, pts)))
+    end,
+    0,
+    range(0, n)
+  )
   s / 2
 end
 
@@ -121,12 +138,12 @@ end
 # representation here, and because no division happens, so integer input gives
 # an exact integer line.
 def line_through(a, b)
-  [py(b) - py(a), px(a) - px(b), (px(b) * py(a)) - (px(a) * py(b))]
+  [py(b) - py(a), px(a) - px(b), px(b) * py(a) - px(a) * py(b)]
 end
 
 # Ax + By + C at p: zero on the line, and its sign tells which side p is on.
 def line_value(line, p)
-  (nth(0, line) * px(p)) + (nth(1, line) * py(p)) + nth(2, line)
+  nth(0, line) * px(p) + nth(1, line) * py(p) + nth(2, line)
 end
 
 def on_line(line, p)
@@ -153,7 +170,7 @@ def closest_point_on_segment(p, a, b)
     a
   else
     t = clamp(dot_at(a, b, p) / d2, 0, 1)
-    [px(a) + (t * (px(b) - px(a))), py(a) + (t * (py(b) - py(a)))]
+    [px(a) + t * (px(b) - px(a)), py(a) + t * (py(b) - py(a))]
   end
 end
 
@@ -222,12 +239,10 @@ end
 def arc_cosine(v)
   if v >= 1
     0
+  elsif v <= -1
+    pi()
   else
-    if v <= 0 - 1
-      pi()
-    else
-      acos(v)
-    end
+    acos(v)
   end
 end
 
@@ -254,7 +269,7 @@ def angle_at(o, a, b)
   if near(da, 0) || near(db, 0)
     0
   else
-    arc_cosine(clamp(dot_at(o, a, b) / (da * db), 0 - 1, 1))
+    arc_cosine(clamp(dot_at(o, a, b) / (da * db), -1, 1))
   end
 end
 
@@ -288,12 +303,10 @@ def triangle_kind(a, b, c)
     d3 = distance_squared(c, a)
     if near(d1, d2) && near(d2, d3)
       "equilateral"
+    elsif near(d1, d2) || near(d2, d3) || near(d1, d3)
+      "isosceles"
     else
-      if near(d1, d2) || near(d2, d3) || near(d1, d3)
-        "isosceles"
-      else
-        "scalene"
-      end
+      "scalene"
     end
   end
 end
@@ -313,7 +326,7 @@ end
 def shoelace_term(pts, i)
   p = nth(i, pts)
   q = nth((i + 1) % size(pts), pts)
-  (px(p) * py(q)) - (px(q) * py(p))
+  px(p) * py(q) - px(q) * py(p)
 end
 
 # The AREA centroid — the balance point of the enclosed region.
@@ -329,8 +342,22 @@ def centroid(pts)
     vertex_centroid(pts)
   else
     n = size(pts)
-    cx = reduce(fn(acc, i) acc + ((px(nth(i, pts)) + px(nth((i + 1) % n, pts))) * shoelace_term(pts, i)) end, 0, range(0, n))
-    cy = reduce(fn(acc, i) acc + ((py(nth(i, pts)) + py(nth((i + 1) % n, pts))) * shoelace_term(pts, i)) end, 0, range(0, n))
+    cx = reduce(
+      fn(acc, i)
+        acc +
+          (px(nth(i, pts)) + px(nth((i + 1) % n, pts))) * shoelace_term(pts, i)
+      end,
+      0,
+      range(0, n)
+    )
+    cy = reduce(
+      fn(acc, i)
+        acc +
+          (py(nth(i, pts)) + py(nth((i + 1) % n, pts))) * shoelace_term(pts, i)
+      end,
+      0,
+      range(0, n)
+    )
     [cx / (6 * a), cy / (6 * a)]
   end
 end
@@ -344,9 +371,15 @@ def is_convex(pts)
   if n < 3
     false
   else
-    turns = filter(fn(s) s != 0 end,
-                   map(fn(i) orientation(nth(i, pts), nth((i + 1) % n, pts), nth((i + 2) % n, pts)) end,
-                       range(0, n)))
+    turns = filter(
+      fn(s) s != 0 end,
+      map(
+        fn(i)
+          orientation(nth(i, pts), nth((i + 1) % n, pts), nth((i + 2) % n, pts))
+        end,
+        range(0, n)
+      )
+    )
     if is_empty(turns)
       false
     else
@@ -359,22 +392,20 @@ end
 # it is what makes the division safe: the two endpoints are on opposite sides of
 # p's row, so their y values cannot be equal.
 def crosses_ray(p, a, b)
-  if (py(a) > py(p)) == (py(b) > py(p))
+  if py(a) > py(p) == (py(b) > py(p))
     false
   else
-    px(p) < px(a) + ((py(p) - py(a)) * (px(b) - px(a)) / (py(b) - py(a)))
+    px(p) < px(a) + (py(p) - py(a)) * (px(b) - px(a)) / (py(b) - py(a))
   end
 end
 
 def crossings_from(p, pts, i, n, inside)
   if i >= n
     inside
+  elsif crosses_ray(p, nth(i, pts), nth((i + 1) % n, pts))
+    crossings_from(p, pts, i + 1, n, !inside)
   else
-    if crosses_ray(p, nth(i, pts), nth((i + 1) % n, pts))
-      crossings_from(p, pts, i + 1, n, !inside)
-    else
-      crossings_from(p, pts, i + 1, n, inside)
-    end
+    crossings_from(p, pts, i + 1, n, inside)
   end
 end
 
@@ -393,13 +424,21 @@ def point_on_polygon(p, pts)
   if n < 2
     false
   else
-    hits = filter(fn(i) near(point_segment_distance(p, nth(i, pts), nth((i + 1) % n, pts)), 0) end, range(0, n))
+    hits = filter(
+      fn(i)
+        near(point_segment_distance(p, nth(i, pts), nth((i + 1) % n, pts)), 0)
+      end,
+      range(0, n)
+    )
     size(hits) > 0
   end
 end
 
 def rotate_point(p, theta)
-  [(px(p) * cos(theta)) - (py(p) * sin(theta)), (px(p) * sin(theta)) + (py(p) * cos(theta))]
+  [
+    px(p) * cos(theta) - py(p) * sin(theta),
+    px(p) * sin(theta) + py(p) * cos(theta)
+  ]
 end
 
 # Rotation about an arbitrary centre, expressed as translate-rotate-translate
@@ -425,7 +464,15 @@ def scale_polygon(pts, k)
 end
 
 def scale_polygon_about(pts, centre, k)
-  map(fn(p) [px(centre) + ((px(p) - px(centre)) * k), py(centre) + ((py(p) - py(centre)) * k)] end, pts)
+  map(
+    fn(p)
+      [
+        px(centre) + (px(p) - px(centre)) * k,
+        py(centre) + (py(p) - py(centre)) * k
+      ]
+    end,
+    pts
+  )
 end
 
 def rotate_polygon(pts, theta)
@@ -435,13 +482,17 @@ end
 # The lowest point, ties broken leftmost. It is provably on the hull, which is
 # what lets the wrap below start somewhere and be sure of getting back there.
 def hull_start(pts)
-  reduce(fn(best, p)
-    if (py(p) < py(best)) || ((py(p) == py(best)) && (px(p) < px(best)))
-      p
-    else
-      best
-    end
-  end, first(pts), pts)
+  reduce(
+    fn(best, p)
+      if py(p) < py(best) || py(p) == py(best) && px(p) < px(best)
+        p
+      else
+        best
+      end
+    end,
+    first(pts),
+    pts
+  )
 end
 
 # The next hull vertex after p: the one that leaves every other point on its
@@ -453,18 +504,20 @@ end
 # nothing is farther from p than p. That removes the "pick any point that is not
 # p" special case entirely.
 def hull_next(p, pts)
-  reduce(fn(q, r)
-    o = orientation(p, q, r)
-    if o < 0
-      r
-    else
-      if o == 0 && distance_squared(p, r) > distance_squared(p, q)
+  reduce(
+    fn(q, r)
+      o = orientation(p, q, r)
+      if o < 0
+        r
+      elsif o == 0 && distance_squared(p, r) > distance_squared(p, q)
         r
       else
         q
       end
-    end
-  end, p, pts)
+    end,
+    p,
+    pts
+  )
 end
 
 def hull_walk(pts, p, acc, fuel)
@@ -512,7 +565,7 @@ def segments_intersect(p1, p2, p3, p4)
   o2 = orientation(p1, p2, p4)
   o3 = orientation(p3, p4, p1)
   o4 = orientation(p3, p4, p2)
-  crossing = (o1 != o2) && (o3 != o4)
+  crossing = o1 != o2 && o3 != o4
   t1 = near(point_segment_distance(p3, p1, p2), 0)
   t2 = near(point_segment_distance(p4, p1, p2), 0)
   t3 = near(point_segment_distance(p1, p3, p4), 0)
@@ -529,17 +582,17 @@ end
 def segment_intersection(p1, p2, p3, p4)
   r = [px(p2) - px(p1), py(p2) - py(p1)]
   s = [px(p4) - px(p3), py(p4) - py(p3)]
-  den = (px(r) * py(s)) - (py(r) * px(s))
+  den = px(r) * py(s) - py(r) * px(s)
   if near(den, 0)
     nil
   else
     qp = [px(p3) - px(p1), py(p3) - py(p1)]
-    t = ((px(qp) * py(s)) - (py(qp) * px(s))) / den
-    u = ((px(qp) * py(r)) - (py(qp) * px(r))) / den
+    t = (px(qp) * py(s) - py(qp) * px(s)) / den
+    u = (px(qp) * py(r) - py(qp) * px(r)) / den
     if t < 0 || t > 1 || u < 0 || u > 1
       nil
     else
-      [px(p1) + (t * px(r)), py(p1) + (t * py(r))]
+      [px(p1) + t * px(r), py(p1) + t * py(r)]
     end
   end
 end
@@ -552,12 +605,17 @@ def circumcenter(a, b, c)
   if collinear(a, b, c)
     nil
   else
-    d = 2 * ((px(a) * (py(b) - py(c))) + (px(b) * (py(c) - py(a))) + (px(c) * (py(a) - py(b))))
-    sa = (px(a) * px(a)) + (py(a) * py(a))
-    sb = (px(b) * px(b)) + (py(b) * py(b))
-    sc = (px(c) * px(c)) + (py(c) * py(c))
-    ux = ((sa * (py(b) - py(c))) + (sb * (py(c) - py(a))) + (sc * (py(a) - py(b)))) / d
-    uy = ((sa * (px(c) - px(b))) + (sb * (px(a) - px(c))) + (sc * (px(b) - px(a)))) / d
+    d = 2 *
+      (px(a) * (py(b) - py(c)) +
+        px(b) * (py(c) - py(a)) +
+        px(c) * (py(a) - py(b)))
+    sa = px(a) * px(a) + py(a) * py(a)
+    sb = px(b) * px(b) + py(b) * py(b)
+    sc = px(c) * px(c) + py(c) * py(c)
+    ux = (sa * (py(b) - py(c)) + sb * (py(c) - py(a)) + sc * (py(a) - py(b))) /
+      d
+    uy = (sa * (px(c) - px(b)) + sb * (px(a) - px(c)) + sc * (px(b) - px(a))) /
+      d
     [ux, uy]
   end
 end
@@ -575,17 +633,19 @@ end
 # that no point can be mistaken for the sentinel, and compared on SQUARED
 # distance because the ordering is the same and the square roots are not free.
 def nearest_point(p, pts)
-  reduce(fn(best, q)
-    if best == nil
-      q
-    else
-      if distance_squared(p, q) < distance_squared(p, best)
+  reduce(
+    fn(best, q)
+      if best == nil
+        q
+      elsif distance_squared(p, q) < distance_squared(p, best)
         q
       else
         best
       end
-    end
-  end, nil, pts)
+    end,
+    nil,
+    pts
+  )
 end
 
 # The interior angle at each vertex, in order, in radians.
@@ -597,7 +657,12 @@ end
 # are still the right answer to a different question on a concave shape.
 def interior_angles(pts)
   n = size(pts)
-  map(fn(i) angle_at(nth(i, pts), nth((i + n - 1) % n, pts), nth((i + 1) % n, pts)) end, range(0, n))
+  map(
+    fn(i)
+      angle_at(nth(i, pts), nth((i + n - 1) % n, pts), nth((i + 1) % n, pts))
+    end,
+    range(0, n)
+  )
 end
 
 # ── shapes, edges and regions ──────────────────────────────────────
@@ -614,7 +679,15 @@ end
 
 # n + 1 points along the arc from angle a0 to a1 (radians), both ends included.
 def arc_points(centre, r, a0, a1, n)
-  map(fn(i) [px(centre) + (r * cos(a0 + ((a1 - a0) * i / n))), py(centre) + (r * sin(a0 + ((a1 - a0) * i / n)))] end, range(0, n + 1))
+  map(
+    fn(i)
+      [
+        px(centre) + r * cos(a0 + (a1 - a0) * i / n),
+        py(centre) + r * sin(a0 + (a1 - a0) * i / n)
+      ]
+    end,
+    range(0, n + 1)
+  )
 end
 
 # A circle as a regular n-gon, counter-clockwise from angle 0, the closing
@@ -626,7 +699,7 @@ def circle_polygon(centre, r, n)
 end
 
 def regular_polygon_area(r, n)
-  (n / 2.0) * r * r * sin(2 * pi() / n)
+  n / 2.0 * r * r * sin(2 * pi() / n)
 end
 
 # The same polygon wound counter-clockwise, or clockwise.
@@ -656,12 +729,28 @@ end
 # or outside. nearest_point measures to vertices, which is wrong for a point
 # beside the middle of a long edge.
 def polygon_edge_distance(p, pts)
-  min_of(map(fn(e) point_segment_distance(p, nth(0, e), nth(1, e)) end, polygon_edges(pts)))
+  min_of(
+    map(
+      fn(e) point_segment_distance(p, nth(0, e), nth(1, e)) end,
+      polygon_edges(pts)
+    )
+  )
 end
 
 # Do two polygons' boundaries cross or touch?
 def boundaries_cross(a, b)
-  some(fn(ea) some(fn(eb) segments_intersect(nth(0, ea), nth(1, ea), nth(0, eb), nth(1, eb)) end, polygon_edges(b)) end, polygon_edges(a)) == true
+  some(
+    fn(ea)
+      some(
+        fn(eb)
+          segments_intersect(nth(0, ea), nth(1, ea), nth(0, eb), nth(1, eb))
+        end,
+        polygon_edges(b)
+      )
+    end,
+    polygon_edges(a)
+  ) ==
+    true
 end
 
 # The least distance between two boundaries: 0 when they cross, otherwise the
@@ -672,13 +761,18 @@ def boundary_gap(a, b)
   if boundaries_cross(a, b)
     0
   else
-    min(min_of(map(fn(p) polygon_edge_distance(p, b) end, a)), min_of(map(fn(p) polygon_edge_distance(p, a) end, b)))
+    min(
+      min_of(map(fn(p) polygon_edge_distance(p, b) end, a)),
+      min_of(map(fn(p) polygon_edge_distance(p, a) end, b))
+    )
   end
 end
 
 # Do two polygons share any area: boundaries crossing, or one inside the other?
 def polygons_overlap(a, b)
-  boundaries_cross(a, b) || point_in_polygon(first(a), b) || point_in_polygon(first(b), a)
+  boundaries_cross(a, b) ||
+    point_in_polygon(first(a), b) ||
+    point_in_polygon(first(b), a)
 end
 
 # The gap between two polygons: 0 when they overlap, otherwise the least
@@ -712,14 +806,21 @@ def region_holes(r)
 end
 
 def region_area(r)
-  polygon_area(region_outline(r)) - sum(map(fn(h) polygon_area(h) end, region_holes(r)))
+  polygon_area(region_outline(r)) -
+    sum(map(fn(h) polygon_area(h) end, region_holes(r)))
 end
 
 # The area centroid: the outline's, less each hole's, weighted by area.
 def region_centroid(r)
-  parts = concat_lists([[polygon_area(region_outline(r)), centroid(region_outline(r))]], map(fn(h) [0 - polygon_area(h), centroid(h)] end, region_holes(r)))
+  parts = concat_lists(
+    [[polygon_area(region_outline(r)), centroid(region_outline(r))]],
+    map(fn(h) [-polygon_area(h), centroid(h)] end, region_holes(r))
+  )
   a = sum(map(fn(p) nth(0, p) end, parts))
-  [sum(map(fn(p) nth(0, p) * px(nth(1, p)) end, parts)) / a, sum(map(fn(p) nth(0, p) * py(nth(1, p)) end, parts)) / a]
+  [
+    sum(map(fn(p) nth(0, p) * px(nth(1, p)) end, parts)) / a,
+    sum(map(fn(p) nth(0, p) * py(nth(1, p)) end, parts)) / a
+  ]
 end
 
 # Why a region is not a valid blank, as data: [kind, why]. Empty when valid.
@@ -728,13 +829,42 @@ def region_refusals(r)
   outline = region_outline(r)
   holes = region_holes(r)
   small = if size(outline) < 3
-    [[:kikagaku_region, "the outline has #{to_s(size(outline))} points; a polygon needs 3"]]
+    [
+      [
+        :kikagaku_region,
+        "the outline has #{to_s(size(outline))} points; a polygon needs 3"
+      ]
+    ]
   else
     []
   end
-  outside = map(fn(i) [:kikagaku_region, "hole #{to_s(i)} is not strictly inside the outline"] end, filter(fn(i) polygon_inside(nth(i, holes), outline) == false end, indexes(holes)))
-  pairs = filter(fn(ij) nth(0, ij) < nth(1, ij) end, flat_map(fn(i) map(fn(j) [i, j] end, indexes(holes)) end, indexes(holes)))
-  overlapping = map(fn(ij) [:kikagaku_region, "holes #{to_s(nth(0, ij))} and #{to_s(nth(1, ij))} overlap"] end, filter(fn(ij) polygons_overlap(nth(nth(0, ij), holes), nth(nth(1, ij), holes)) end, pairs))
+  outside = map(
+    fn(i)
+      [:kikagaku_region, "hole #{to_s(i)} is not strictly inside the outline"]
+    end,
+    filter(
+      fn(i) polygon_inside(nth(i, holes), outline) == false end,
+      indexes(holes)
+    )
+  )
+  pairs = filter(
+    fn(ij) nth(0, ij) < nth(1, ij) end,
+    flat_map(fn(i) map(fn(j) [i, j] end, indexes(holes)) end, indexes(holes))
+  )
+  overlapping = map(
+    fn(ij)
+      [
+        :kikagaku_region,
+        "holes #{to_s(nth(0, ij))} and #{to_s(nth(1, ij))} overlap"
+      ]
+    end,
+    filter(
+      fn(ij)
+        polygons_overlap(nth(nth(0, ij), holes), nth(nth(1, ij), holes))
+      end,
+      pairs
+    )
+  )
   concat_lists(small, concat_lists(outside, overlapping))
 end
 
@@ -780,14 +910,14 @@ test "orientation and signed area carry winding, which polygon_area discards"
   ccw = [[0, 0], [1, 0], [1, 1], [0, 1]]
   cw = [[0, 0], [0, 1], [1, 1], [1, 0]]
   assert signed_area(ccw) == 1
-  assert signed_area(cw) == 0 - 1
+  assert signed_area(cw) == -1
   assert polygon_area(cw) == polygon_area(ccw)
   assert winding(ccw) == 1
-  assert winding(cw) == 0 - 1
+  assert winding(cw) == -1
   # A degenerate "polygon" winds neither way.
   assert winding([[0, 0], [1, 1], [2, 2]]) == 0
   assert orientation([0, 0], [1, 0], [1, 1]) == 1
-  assert orientation([0, 0], [1, 1], [1, 0]) == 0 - 1
+  assert orientation([0, 0], [1, 1], [1, 0]) == -1
   assert orientation([0, 0], [1, 1], [2, 2]) == 0
 end
 
@@ -797,7 +927,7 @@ test "dot_at sign classifies a corner without any trigonometry"
   # Acute: both arms on the same side.
   assert dot_at([0, 0], [1, 0], [1, 1]) > 0
   # Obtuse: the arms point away from each other.
-  assert dot_at([0, 0], [1, 0], [0 - 1, 1]) < 0
+  assert dot_at([0, 0], [1, 0], [-1, 1]) < 0
 end
 
 test "slope, and the vertical line that has none"
@@ -817,7 +947,7 @@ test "line_through represents the vertical line slope cannot"
   diag = line_through([0, 0], [1, 1])
   assert on_line(diag, [7, 7]) == true
   # The sign of line_value separates the two half-planes.
-  assert sign(line_value(diag, [0, 1])) == 0 - sign(line_value(diag, [1, 0]))
+  assert sign(line_value(diag, [0, 1])) == -sign(line_value(diag, [1, 0]))
 end
 
 test "distance to a line versus distance to a segment"
@@ -834,15 +964,15 @@ test "distance to a line versus distance to a segment"
 end
 
 test "bounding box and rectangle containment"
-  pts = [[1, 5], [0 - 2, 3], [4, 0 - 1]]
-  assert bounding_box(pts) == [[0 - 2, 0 - 1], [4, 5]]
+  pts = [[1, 5], [-2, 3], [4, -1]]
+  assert bounding_box(pts) == [[-2, -1], [4, 5]]
   # No points, no box — nil rather than a fabricated one.
   assert bounding_box([]) == nil
   box = bounding_box(pts)
   assert point_in_rect([0, 0], box) == true
   assert point_in_rect([9, 9], box) == false
   # Every generating point is inside its own box, boundary included.
-  assert point_in_rect([4, 0 - 1], box) == true
+  assert point_in_rect([4, -1], box) == true
   # Corners given the wrong way round still describe the same rectangle.
   assert point_in_rect([1, 1], [[2, 2], [0, 0]]) == true
 end
@@ -866,21 +996,21 @@ end
 test "arc_cosine inverts cos, which this runtime cannot do for us"
   assert near(arc_cosine(1), 0) == true
   assert near(arc_cosine(0), pi() / 2) == true
-  assert near(arc_cosine(0 - 1), pi()) == true
+  assert near(arc_cosine(-1), pi()) == true
   assert near(arc_cosine(0.5), pi() / 3) == true
   # The round trip is the real check: a bisection that searched the wrong
   # direction still lands on plausible-looking endpoints.
   assert near(arc_cosine(cos(1.2345)), 1.2345) == true
   # Out of domain is clamped rather than left to produce a non-number.
   assert arc_cosine(2) == 0
-  assert near(arc_cosine(0 - 2), pi()) == true
+  assert near(arc_cosine(-2), pi()) == true
 end
 
 test "angles at a vertex, and the sum that must come out to pi"
   assert near(angle_at([0, 0], [1, 0], [0, 1]), pi() / 2) == true
   assert near(angle_at([0, 0], [1, 0], [1, 1]), pi() / 4) == true
   # A straight arm pair is pi, not a rounding failure past the arc cosine domain.
-  assert near(angle_at([0, 0], [1, 0], [0 - 1, 0]), pi()) == true
+  assert near(angle_at([0, 0], [1, 0], [-1, 0]), pi()) == true
   # The three interior angles of any triangle sum to pi — the identity a
   # wrong-but-plausible formula (say, missing a normalisation) breaks.
   a = [0, 0]
@@ -950,7 +1080,7 @@ test "point in polygon by ray casting, on a shape convexity tests get wrong"
   assert point_in_polygon([2, 2], square) == true
   assert point_in_polygon([5, 2], square) == false
   # Left of the polygon: the ray still crosses two edges, so parity says out.
-  assert point_in_polygon([0 - 1, 2], square) == false
+  assert point_in_polygon([-1, 2], square) == false
   ell = [[0, 0], [4, 0], [4, 1], [1, 1], [1, 4], [0, 4]]
   assert point_in_polygon([0.5, 0.5], ell) == true
   # The notch of the L is inside the bounding box and outside the polygon —
@@ -969,7 +1099,13 @@ test "transforms preserve what they must"
   assert near(py(rotate_point([1, 0], pi() / 2)), 1) == true
   # Four quarter turns is the identity — the check a sign slip in the matrix
   # survives when only one turn is tested.
-  back = rotate_point(rotate_point(rotate_point(rotate_point([3, 5], pi() / 2), pi() / 2), pi() / 2), pi() / 2)
+  back = rotate_point(
+    rotate_point(
+      rotate_point(rotate_point([3, 5], pi() / 2), pi() / 2),
+      pi() / 2
+    ),
+    pi() / 2
+  )
   assert near(px(back), 3) == true
   assert near(py(back), 5) == true
   # Rotation about a point leaves that point alone.
@@ -977,14 +1113,14 @@ test "transforms preserve what they must"
   # Rotation and translation preserve area and perimeter; scaling squares it.
   assert near(polygon_area(rotate_polygon(square, 0.7)), 4) == true
   assert near(perimeter(rotate_polygon(square, 0.7)), 8) == true
-  assert polygon_area(translate_polygon(square, 10, 0 - 5)) == 4
+  assert polygon_area(translate_polygon(square, 10, -5)) == 4
   assert polygon_area(scale_polygon(square, 3)) == 36
   assert polygon_area(scale_polygon_about(square, [1, 1], 3)) == 36
   # scale_polygon moves the shape away from the origin; scale_polygon_about does not.
   assert near(px(centroid(scale_polygon(square, 3))), 3) == true
   assert near(px(centroid(scale_polygon_about(square, [1, 1], 3))), 1) == true
   # Translation moves the centroid by exactly the offset.
-  assert centroid(translate_polygon(square, 10, 0 - 5)) == [11, 0 - 4]
+  assert centroid(translate_polygon(square, 10, -5)) == [11, -4]
 end
 
 test "convex hull of a square with an interior point"
@@ -1023,7 +1159,7 @@ test "hull edge cases: too few points, duplicates, a straight line"
 end
 
 test "the hull contains every input point"
-  pts = [[0, 0], [5, 1], [3, 4], [1, 5], [0 - 2, 3], [1, 2], [2, 2]]
+  pts = [[0, 0], [5, 1], [3, 4], [1, 5], [-2, 3], [1, 2], [2, 2]]
   hull = convex_hull(pts)
   assert is_convex(hull) == true
   # Interior points are excluded from the hull but still inside it.
@@ -1033,7 +1169,10 @@ test "the hull contains every input point"
   # And the hull's area is at least the area of the polygon through the points.
   assert polygon_area(hull) >= polygon_area(pts)
   # Every original point is inside or on the hull.
-  outside = filter(fn(p) !(point_in_polygon(p, hull) || point_on_polygon(p, hull)) end, pts)
+  outside = filter(
+    fn(p) !(point_in_polygon(p, hull) || point_on_polygon(p, hull)) end,
+    pts
+  )
   assert is_empty(outside) == true
 end
 
@@ -1046,8 +1185,8 @@ test "segments: crossing, touching, parallel and merely collinear"
   assert near(px(x), 2) == true
   assert near(py(x), 2) == true
   # Same infinite lines, but the segments stop short of each other.
-  assert segments_intersect([0, 0], [1, 1], [3, 0], [4, 0 - 1]) == false
-  assert segment_intersection([0, 0], [1, 1], [3, 0], [4, 0 - 1]) == nil
+  assert segments_intersect([0, 0], [1, 1], [3, 0], [4, -1]) == false
+  assert segment_intersection([0, 0], [1, 1], [3, 0], [4, -1]) == nil
   # Touching at an endpoint counts as intersecting; the orientation test alone
   # would say no.
   assert segments_intersect([0, 0], [2, 0], [2, 0], [2, 2]) == true
@@ -1103,7 +1242,11 @@ test "interior angles sum to (n - 2) * pi on a convex polygon"
   tri = [[0, 0], [4, 0], [1, 3]]
   assert near(sum(interior_angles(tri)), pi()) == true
   # A rectangle's corners are all right angles however long it is.
-  assert near(sum(interior_angles([[0, 0], [9, 0], [9, 1], [0, 1]])), 2 * pi()) == true
+  assert near(
+    sum(interior_angles([[0, 0], [9, 0], [9, 1], [0, 1]])),
+    2 * pi()
+  ) ==
+    true
 end
 
 test "regions: the empty-holes case, a drilled plate, and its centroid"
@@ -1116,17 +1259,17 @@ test "regions: the empty-holes case, a drilled plate, and its centroid"
   # computed here by the closed form rather than by the shoelace.
   hole = circle_polygon([25, 25], 10, 64)
   plate = region(rect_polygon(0, 0, 100, 50), [hole])
-  assert near(region_area(plate), 5000 - (32 * 100 * sin(2 * pi() / 64))) == true
+  assert near(region_area(plate), 5000 - 32 * 100 * sin(2 * pi() / 64)) == true
   assert near(regular_polygon_area(10, 64), polygon_area(hole)) == true
   # Its centroid, by hand: (5000 * 50 - Ah * 25) / (5000 - Ah) in x, and 25 in
   # y by symmetry.
   ah = regular_polygon_area(10, 64)
   c = region_centroid(plate)
-  assert near(px(c), ((5000 * 50) - (ah * 25)) / (5000 - ah)) == true
+  assert near(px(c), (5000 * 50 - ah * 25) / (5000 - ah)) == true
   assert near(py(c), 25) == true
   # The stored convention: outline counter-clockwise, holes clockwise.
   assert winding(region_outline(plate)) == 1
-  assert winding(first(region_holes(plate))) == 0 - 1
+  assert winding(first(region_holes(plate))) == -1
 end
 
 test "edge distance and gaps measure to the boundary, not the vertices"
@@ -1166,7 +1309,10 @@ test "invalid regions are refused, naming the hole"
   assert map(fn(r) nth(0, r) end, region_refusals(across)) == [:kikagaku_region]
   away = region(outline, [circle_polygon([200, 25], 5, 16)])
   assert size(region_refusals(away)) == 1
-  pair = region(outline, [circle_polygon([30, 25], 5, 16), circle_polygon([36, 25], 5, 16)])
+  pair = region(
+    outline,
+    [circle_polygon([30, 25], 5, 16), circle_polygon([36, 25], 5, 16)]
+  )
   assert size(region_refusals(pair)) == 1
   assert size(region_refusals(region([[0, 0], [1, 1]], []))) == 1
   # A hole touching nothing is valid, 2 from the edge.

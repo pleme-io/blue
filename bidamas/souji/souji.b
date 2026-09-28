@@ -1,6 +1,7 @@
 use("retsu")
 use("moji")
 use("shisutemu")
+
 # souji (掃除) — cleaning a node: Rust target/ directories nobody is building in, and nix store paths nothing refers to, with a dry run first.
 #
 # The two things that fill a developer node's disk (measured 2026-09-27: 29 GB
@@ -31,7 +32,17 @@ def sj_parse(args)
     if contains(["rust", "nix", "all"], cmd) == false
       {error: "unknown command #{cmd}: rust, nix or all"}
     else
-      sj_parse_flags(rest(args), {command: cmd, dry_run: false, hours: 6, days: 14, roots: [], error: nil})
+      sj_parse_flags(
+        rest(args),
+        {
+          command: cmd,
+          dry_run: false,
+          hours: 6,
+          days: 14,
+          roots: [],
+          error: nil
+        }
+      )
     end
   end
 end
@@ -43,30 +54,26 @@ def sj_parse_flags(args, acc)
     a = first(args)
     if a == "--dry-run"
       sj_parse_flags(rest(args), assoc(acc, :dry_run, true))
-    else
-      if a == "--min-age-hours" || a == "--older-than-days"
-        v = if size(args) > 1
-          to_int(nth(1, args))
-        else
-          nil
-        end
-        if v == nil || v < 0
-          assoc(acc, :error, "#{a} needs a whole number of 0 or more")
-        else
-          key = if a == "--min-age-hours"
-            :hours
-          else
-            :days
-          end
-          sj_parse_flags(drop_n(args, 2), assoc(acc, key, v))
-        end
+    elsif a == "--min-age-hours" || a == "--older-than-days"
+      v = if size(args) > 1
+        to_int(nth(1, args))
       else
-        if starts_with?(a, "--")
-          assoc(acc, :error, "unknown flag #{a}")
-        else
-          sj_parse_flags(rest(args), assoc(acc, :roots, push(get(acc, :roots), a)))
-        end
+        nil
       end
+      if v == nil || v < 0
+        assoc(acc, :error, "#{a} needs a whole number of 0 or more")
+      else
+        key = if a == "--min-age-hours"
+          :hours
+        else
+          :days
+        end
+        sj_parse_flags(drop_n(args, 2), assoc(acc, key, v))
+      end
+    elsif starts_with?(a, "--")
+      assoc(acc, :error, "unknown flag #{a}")
+    else
+      sj_parse_flags(rest(args), assoc(acc, :roots, push(get(acc, :roots), a)))
     end
   end
 end
@@ -84,8 +91,21 @@ end
 # target/ directories under root, at most depth levels down, each beside a
 # Cargo.toml. find prunes at each target/ so it never walks inside one.
 def sj_targets(root, depth)
-  cap = exec_capture("find", root, "-maxdepth", to_s(depth), "-type", "d", "-name", "target", "-prune")
-  filter(fn(d) path_exists(path_join(path_dirname(d), "Cargo.toml")) end, filter(fn(l) is_empty(trim(l)) == false end, split(stdout_of(cap), "\n")))
+  cap = exec_capture(
+    "find",
+    root,
+    "-maxdepth",
+    to_s(depth),
+    "-type",
+    "d",
+    "-name",
+    "target",
+    "-prune"
+  )
+  filter(
+    fn(d) path_exists(path_join(path_dirname(d), "Cargo.toml")) end,
+    filter(fn(l) is_empty(trim(l)) == false end, split(stdout_of(cap), "\n"))
+  )
 end
 
 # Kibibytes under dir, from du; 0 when du could not read it.
@@ -105,14 +125,24 @@ def sj_active?(dir, hours)
   if hours == 0
     false
   else
-    cap = exec_capture("find", dir, "-mmin", "-#{to_s(hours * 60)}", "-print", "-quit")
+    cap = exec_capture(
+      "find",
+      dir,
+      "-mmin",
+      "-#{to_s(hours * 60)}",
+      "-print",
+      "-quit"
+    )
     is_empty(trim(stdout_of(cap))) == false
   end
 end
 
 # One row per target/: {path, kib, active}.
 def sj_rust_survey(roots, hours)
-  map(fn(d) {path: d, kib: sj_size_kib(d), active: sj_active?(d, hours)} end, flat_map(fn(r) sj_targets(r, 4) end, roots))
+  map(
+    fn(d) {path: d, kib: sj_size_kib(d), active: sj_active?(d, hours)} end,
+    flat_map(fn(r) sj_targets(r, 4) end, roots)
+  )
 end
 
 def sj_rust(opts)
@@ -131,11 +161,18 @@ end
 # ── nix ──────────────────────────────────────────────────────────────
 
 def sj_nix_argv(opts)
-  concat_lists(["nix-collect-garbage", "--delete-older-than", "#{to_s(get(opts, :days))}d"], if get(opts, :dry_run)
+  concat_lists(
+    [
+      "nix-collect-garbage",
+      "--delete-older-than",
+      "#{to_s(get(opts, :days))}d"
+    ],
+    if get(opts, :dry_run)
       ["--dry-run"]
     else
       []
-    end)
+    end
+  )
 end
 
 def sj_nix(opts)
@@ -160,8 +197,21 @@ def sj_rust_report(r, dry)
   else
     "removed"
   end
-  lines = map(fn(row) "  #{sj_verdict(row, verb)}  #{sj_gib(get(row, :kib))}  #{get(row, :path)}" end, get(r, :rows))
-  join(concat_lists(lines, ["rust: #{verb} #{to_s(size(get(r, :removed)))} of #{to_s(size(get(r, :rows)))} target/ dirs, #{sj_gib(get(r, :kib))}"]), "\n")
+  lines = map(
+    fn(row)
+      "  #{sj_verdict(row, verb)}  #{sj_gib(get(row, :kib))}  #{get(row, :path)}"
+    end,
+    get(r, :rows)
+  )
+  join(
+    concat_lists(
+      lines,
+      [
+        "rust: #{verb} #{to_s(size(get(r, :removed)))} of #{to_s(size(get(r, :rows)))} target/ dirs, #{sj_gib(get(r, :kib))}"
+      ]
+    ),
+    "\n"
+  )
 end
 
 def sj_verdict(row, verb)
@@ -178,12 +228,16 @@ end
 def sj_main()
   opts = sj_parse(argv())
   if get(opts, :error) != nil
-    write_stderr("souji: #{get(opts, :error)}\nusage: souji rust|nix|all [--dry-run] [--min-age-hours N] [--older-than-days N] [ROOT...]\n")
+    write_stderr(
+      "souji: #{get(opts, :error)}\nusage: souji rust|nix|all [--dry-run] [--min-age-hours N] [--older-than-days N] [ROOT...]\n"
+    )
     throw(error(:souji_usage, get(opts, :error)))
   else
     cmd = get(opts, :command)
     if cmd == "rust" || cmd == "all"
-      write_stdout(concat(sj_rust_report(sj_rust(opts), get(opts, :dry_run)), "\n"))
+      write_stdout(
+        concat(sj_rust_report(sj_rust(opts), get(opts, :dry_run)), "\n")
+      )
     end
     if cmd == "nix" || cmd == "all"
       n = sj_nix(opts)
@@ -213,8 +267,10 @@ test "arguments: commands, flags, roots, and refusals"
 end
 
 test "the nix command line: generations older than N days, dry-run passed through"
-  assert sj_nix_argv({days: 7, dry_run: true}) == ["nix-collect-garbage", "--delete-older-than", "7d", "--dry-run"]
-  assert sj_nix_argv({days: 14, dry_run: false}) == ["nix-collect-garbage", "--delete-older-than", "14d"]
+  assert sj_nix_argv({days: 7, dry_run: true}) ==
+    ["nix-collect-garbage", "--delete-older-than", "7d", "--dry-run"]
+  assert sj_nix_argv({days: 14, dry_run: false}) ==
+    ["nix-collect-garbage", "--delete-older-than", "14d"]
 end
 
 test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes nothing"

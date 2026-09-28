@@ -16,13 +16,16 @@ def describe(n)
     "many"
   end
 end
+
 test "a matching arm wins"
   assert describe(1) == "one"
   assert describe(2) == "two"
 end
+
 test "else catches the rest"
   assert describe(99) == "many"
 end
+
 test "no match and no else is nil, as in Ruby"
   result = case 9
   when 1
@@ -30,17 +33,21 @@ test "no match and no else is nil, as in Ruby"
   end
   assert result == nil
 end
+
 test "matching is structural, not numeric"
   assert case "b"
   when "a"
     1
   when "b"
     2
-  end == 2
+  end ==
+    2
 end
+
 test "a list matches by value"
   assert case [1, 2]
   when [1, 2]
     "matched"
-  end == "matched"
+  end ==
+    "matched"
 end

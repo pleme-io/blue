@@ -1,4 +1,5 @@
 use("retsu")
+
 # moji (文字) — strings.
 #
 # Layered on blue's own `.length`, which the runtime installs because
@@ -51,18 +52,18 @@ use("retsu")
 # ones this package imports.
 
 def empty(s)
-  s.length == 0
+  length(s) == 0
 end
 
 def present(s)
-  s.length > 0
+  length(s) > 0
 end
 
 # Longer of two strings, ties going to the first. Ties must resolve
 # DETERMINISTICALLY or callers see different answers on different runs for
 # equal-length input.
 def longer(a, b)
-  if b.length > a.length
+  if length(b) > length(a)
     b
   else
     a
@@ -98,12 +99,10 @@ end
 def drop_chars(s, n)
   if n < 1
     s
+  elsif n >= length(s)
+    ""
   else
-    if n >= length(s)
-      ""
-    else
-      join(drop(n, chars(s)), "")
-    end
+    join(drop(n, chars(s)), "")
   end
 end
 
@@ -143,16 +142,12 @@ end
 def char_index_from(s, sub, from)
   if from < 0
     char_index_from(s, sub, 0)
+  elsif from + length(sub) > length(s)
+    -1
+  elsif starts_with(drop_chars(s, from), sub)
+    from
   else
-    if from + length(sub) > length(s)
-      0 - 1
-    else
-      if starts_with(drop_chars(s, from), sub)
-        from
-      else
-        char_index_from(s, sub, from + 1)
-      end
-    end
+    char_index_from(s, sub, from + 1)
   end
 end
 
@@ -162,13 +157,11 @@ end
 
 def last_char_index_from(s, sub, from)
   if from < 0
-    0 - 1
+    -1
+  elsif starts_with(drop_chars(s, from), sub)
+    from
   else
-    if starts_with(drop_chars(s, from), sub)
-      from
-    else
-      last_char_index_from(s, sub, from - 1)
-    end
+    last_char_index_from(s, sub, from - 1)
   end
 end
 
@@ -260,12 +253,10 @@ end
 def common_prefix_from(a, b, i)
   if i >= min(length(a), length(b))
     i
+  elsif char_at(a, i) == char_at(b, i)
+    common_prefix_from(a, b, i + 1)
   else
-    if char_at(a, i) == char_at(b, i)
-      common_prefix_from(a, b, i + 1)
-    else
-      i
-    end
+    i
   end
 end
 
@@ -392,12 +383,10 @@ end
 def ellipsize(s, width)
   if length(s) <= width
     s
+  elsif width < 4
+    take_chars(s, width)
   else
-    if width < 4
-      take_chars(s, width)
-    else
-      concat(take_chars(s, width - 3), "...")
-    end
+    concat(take_chars(s, width - 3), "...")
   end
 end
 
@@ -439,16 +428,14 @@ def split_words(cs, cur, acc)
     else
       append(acc, [cur])
     end
-  else
-    if is_space(first(cs))
-      if length(cur) == 0
-        split_words(rest(cs), "", acc)
-      else
-        split_words(rest(cs), "", append(acc, [cur]))
-      end
+  elsif is_space(first(cs))
+    if length(cur) == 0
+      split_words(rest(cs), "", acc)
     else
-      split_words(rest(cs), concat(cur, first(cs)), acc)
+      split_words(rest(cs), "", append(acc, [cur]))
     end
+  else
+    split_words(rest(cs), concat(cur, first(cs)), acc)
   end
 end
 
@@ -489,16 +476,12 @@ def wrap_from(ws, cur, acc, width)
     else
       append(acc, [cur])
     end
+  elsif length(cur) == 0
+    wrap_from(rest(ws), first(ws), acc, width)
+  elsif length(cur) + 1 + length(first(ws)) <= width
+    wrap_from(rest(ws), concat(concat(cur, " "), first(ws)), acc, width)
   else
-    if length(cur) == 0
-      wrap_from(rest(ws), first(ws), acc, width)
-    else
-      if length(cur) + 1 + length(first(ws)) <= width
-        wrap_from(rest(ws), concat(concat(cur, " "), first(ws)), acc, width)
-      else
-        wrap_from(rest(ws), first(ws), append(acc, [cur]), width)
-      end
-    end
+    wrap_from(rest(ws), first(ws), append(acc, [cur]), width)
   end
 end
 
@@ -612,12 +595,10 @@ end
 def insert_text(x, xs)
   if is_empty(xs)
     [x]
+  elsif compare(x, first(xs)) <= 0
+    cons(x, xs)
   else
-    if compare(x, first(xs)) <= 0
-      cons(x, xs)
-    else
-      cons(first(xs), insert_text(x, rest(xs)))
-    end
+    cons(first(xs), insert_text(x, rest(xs)))
   end
 end
 
@@ -673,7 +654,7 @@ test "char_at is total at both ends"
   assert char_at("abc", 2) == "c"
   # The three ways to fall off, none of which may raise.
   assert char_at("abc", 3) == ""
-  assert char_at("abc", 0 - 1) == ""
+  assert char_at("abc", -1) == ""
   assert char_at("", 0) == ""
 end
 
@@ -684,7 +665,7 @@ test "take_chars and drop_chars partition the string"
   assert take_chars("hi", 99) == "hi"
   assert drop_chars("hi", 99) == ""
   assert take_chars("hi", 0) == ""
-  assert take_chars("hi", 0 - 5) == ""
+  assert take_chars("hi", -5) == ""
   # And the two halves always rejoin into the original, for any n.
   assert concat(take_chars("hello", 3), drop_chars("hello", 3)) == "hello"
   assert concat(take_chars("hello", 0), drop_chars("hello", 0)) == "hello"
@@ -731,18 +712,18 @@ test "char_index finds the FIRST and last_char_index the LAST"
   assert char_index("abcabc", "b") == 1
   assert last_char_index("abcabc", "b") == 4
   # A miss is -1, never an error and never nil.
-  assert char_index("abc", "z") == 0 - 1
-  assert last_char_index("abc", "z") == 0 - 1
-  assert char_index("", "a") == 0 - 1
+  assert char_index("abc", "z") == -1
+  assert last_char_index("abc", "z") == -1
+  assert char_index("", "a") == -1
   # A needle longer than the haystack cannot match.
-  assert char_index("ab", "abc") == 0 - 1
+  assert char_index("ab", "abc") == -1
 end
 
 test "char_index_from resumes a scan without re-finding the same hit"
   assert char_index_from("abcabc", "abc", 1) == 3
-  assert char_index_from("abcabc", "abc", 4) == 0 - 1
+  assert char_index_from("abcabc", "abc", 4) == -1
   # A negative start is clamped rather than reading backwards.
-  assert char_index_from("abcabc", "b", 0 - 3) == 1
+  assert char_index_from("abcabc", "b", -3) == 1
 end
 
 test "includes agrees with char_index"
@@ -755,8 +736,27 @@ test "includes agrees with char_index"
   # The differential: the runtime's search and char_index agree on every case,
   # the empty ones, a needle longer than the text, overlaps, punctuation and
   # characters beyond ASCII.
-  cases = [["hello", "ell"], ["hello", "z"], ["", "a"], ["", ""], ["hello", ""], ["abc", "abcd"], ["aaa", "aa"], ["a.b", "."], ["ação", "ç"], ["ação", "ão"], ["pão", "a"], ["_x9", "_"]]
-  assert map(fn(c) includes(first(c), nth(1, c)) == (char_index(first(c), nth(1, c)) >= 0) end, cases) == repeat(true, size(cases))
+  cases = [
+    ["hello", "ell"],
+    ["hello", "z"],
+    ["", "a"],
+    ["", ""],
+    ["hello", ""],
+    ["abc", "abcd"],
+    ["aaa", "aa"],
+    ["a.b", "."],
+    ["ação", "ç"],
+    ["ação", "ão"],
+    ["pão", "a"],
+    ["_x9", "_"]
+  ]
+  assert map(
+    fn(c)
+      includes(first(c), nth(1, c)) == (char_index(first(c), nth(1, c)) >= 0)
+    end,
+    cases
+  ) ==
+    repeat(true, size(cases))
 end
 
 test "occurrences counts non-overlapping copies"
@@ -777,7 +777,7 @@ test "repeated builds a string, not a list"
   assert repeated("ab", 1) == "ab"
   # The two edges, both of which must be the empty STRING.
   assert repeated("ab", 0) == ""
-  assert repeated("ab", 0 - 2) == ""
+  assert repeated("ab", -2) == ""
   assert repeated("", 5) == ""
   # Length is exactly n copies — a fencepost error here shows as n+1 or n-1.
   assert length(repeated("xyz", 4)) == 12
@@ -786,7 +786,7 @@ end
 test "fill_to produces EXACTLY n characters, cutting a multi-char pad"
   assert fill_to(3, "-") == "---"
   assert fill_to(0, "-") == ""
-  assert fill_to(0 - 1, "-") == ""
+  assert fill_to(-1, "-") == ""
   # The case a naive `repeated(pad, n)` gets wrong: the pad is 2 wide, so 5
   # columns means two and a half copies, not five copies.
   assert fill_to(5, "-=") == "-=-=-"
@@ -1004,7 +1004,7 @@ end
 
 test "same_text ignores case where == does not"
   assert same_text("Hello", "hello") == true
-  assert ("Hello" == "hello") == false
+  assert "Hello" == "hello" == false
   assert same_text("HELLO", "hello") == true
   assert same_text("hello", "world") == false
   assert same_text("", "") == true
@@ -1090,7 +1090,7 @@ test "chunk_chars cuts into fixed widths with a short tail"
   assert chunk_chars("", 3) == []
   # Zero width would loop forever; it answers [] instead.
   assert chunk_chars("abc", 0) == []
-  assert chunk_chars("abc", 0 - 1) == []
+  assert chunk_chars("abc", -1) == []
   # Nothing is lost or duplicated: the chunks rejoin into the original.
   assert join(chunk_chars("abcdefg", 3), "") == "abcdefg"
 end

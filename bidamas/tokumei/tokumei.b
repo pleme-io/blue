@@ -1,6 +1,7 @@
 use("ran")
 use("toukei")
 use("kazu")
+
 # tokumei (匿名) — anonymity: learn what a group is without exposing anyone in it.
 #
 # Four instruments, each with the number that says how private it is:
@@ -36,7 +37,7 @@ end
 # The share of true "yes" recovered from the share of "yes" answers:
 # P(yes) = p x share + (1 - p) / 2, solved for share and kept in [0, 1].
 def forced_response_estimate(yes_share, p)
-  clamp((yes_share - ((1 - p) / 2)) / p, 0, 1)
+  clamp((yes_share - (1 - p) / 2) / p, 0, 1)
 end
 
 # The privacy of one forced-response answer: epsilon = ln((1 + p) / (1 - p)).
@@ -54,7 +55,9 @@ end
 def forced_response_exposure(prevalence, p)
   yes_if_true = (1 + p) / 2
   yes_if_false = (1 - p) / 2
-  (prevalence * yes_if_true) / ((prevalence * yes_if_true) + ((1 - prevalence) * yes_if_false))
+  prevalence *
+    yes_if_true /
+    (prevalence * yes_if_true + (1 - prevalence) * yes_if_false)
 end
 
 # ── Laplace noise ──────────────────────────────────────────────────────────
@@ -62,11 +65,11 @@ end
 # A draw from Laplace(0, scale), by the inverse CDF.
 def laplace_draw(scale, seed)
   u = next_float(seed) - 0.5
-  tail = max(1 - (2 * abs(u)), 0.000000001)
+  tail = max(1 - 2 * abs(u), 0.000000001)
   if u < 0
     scale * log(tail)
   else
-    0 - (scale * log(tail))
+    -(scale * log(tail))
   end
 end
 
@@ -95,7 +98,7 @@ end
 # falls uniformly into `cells` attribute combinations: (1 - 1/cells)^(size - 1).
 # Two yes/no traits make 4 cells; in a household of 4, 42% of people are unique.
 def unique_share(group_size, cells)
-  expt(1 - (1 / cells), group_size - 1)
+  expt(1 - 1 / cells, group_size - 1)
 end
 
 # ── seeds ──────────────────────────────────────────────────────────────────
@@ -110,7 +113,10 @@ end
 
 test "forced response recovers the true share from answers that each mean nothing"
   truths = map(fn(i) i < 180 end, range(0, 600))
-  answers = map(fn(i) forced_response(nth(i, truths), 0.5, stream_seed(11, i)) end, range(0, 600))
+  answers = map(
+    fn(i) forced_response(nth(i, truths), 0.5, stream_seed(11, i)) end,
+    range(0, 600)
+  )
   yes = size(filter(fn(a) a end, answers)) / 600
   assert abs(forced_response_estimate(yes, 0.5) - 0.3) < 0.08
 end

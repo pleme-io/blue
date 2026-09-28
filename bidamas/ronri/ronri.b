@@ -1,5 +1,6 @@
 use("retsu")
 use("kansuu")
+
 # ronri (論理) — predicates, and the algebra over them.
 #
 # A predicate is a function to a boolean, and predicates compose the way
@@ -9,24 +10,20 @@ use("kansuu")
 def every(p, xs)
   if is_empty(xs)
     true
+  elsif p(first(xs))
+    every(p, rest(xs))
   else
-    if p(first(xs))
-      every(p, rest(xs))
-    else
-      false
-    end
+    false
   end
 end
 
 def any(p, xs)
   if is_empty(xs)
     false
+  elsif p(first(xs))
+    true
   else
-    if p(first(xs))
-      true
-    else
-      any(p, rest(xs))
-    end
+    any(p, rest(xs))
   end
 end
 
@@ -152,12 +149,10 @@ end
 def prefix_len(p, xs)
   if is_empty(xs)
     0
+  elsif p(first(xs))
+    1 + prefix_len(p, rest(xs))
   else
-    if p(first(xs))
-      1 + prefix_len(p, rest(xs))
-    else
-      0
-    end
+    0
   end
 end
 
@@ -216,13 +211,11 @@ end
 # arithmetic silently, whereas 0 - 1 is out of range for every list.
 def find_index_from(p, xs, i)
   if is_empty(xs)
-    0 - 1
+    -1
+  elsif p(first(xs))
+    i
   else
-    if p(first(xs))
-      i
-    else
-      find_index_from(p, rest(xs), i + 1)
-    end
+    find_index_from(p, rest(xs), i + 1)
   end
 end
 
@@ -235,12 +228,10 @@ end
 def find_by(p, xs)
   if is_empty(xs)
     nil
+  elsif p(first(xs))
+    first(xs)
   else
-    if p(first(xs))
-      first(xs)
-    else
-      find_by(p, rest(xs))
-    end
+    find_by(p, rest(xs))
   end
 end
 
@@ -260,8 +251,8 @@ test "every, any, none"
   pos = fn(x) x > 0 end
   assert every(pos, [1, 2, 3]) == true
   assert every(pos, [1, 0, 3]) == false
-  assert any(pos, [0 - 1, 2]) == true
-  assert none(pos, [0 - 1, 0 - 2]) == true
+  assert any(pos, [-1, 2]) == true
+  assert none(pos, [-1, -2]) == true
 end
 
 test "count_if"
@@ -273,8 +264,8 @@ test "predicate algebra"
   even_p = fn(x) x % 2 == 0 end
   assert both(pos, even_p)(4) == true
   assert both(pos, even_p)(3) == false
-  assert either(pos, even_p)(0 - 2) == true
-  assert complement(pos)(0 - 1) == true
+  assert either(pos, even_p)(-2) == true
+  assert complement(pos)(-1) == true
 end
 
 test "xor is exclusive where either is not"
@@ -284,8 +275,8 @@ test "xor is exclusive where either is not"
   assert xor(pos, even_p)(4) == false
   assert either(pos, even_p)(4) == true
   assert xor(pos, even_p)(3) == true
-  assert xor(pos, even_p)(0 - 2) == true
-  assert xor(pos, even_p)(0 - 3) == false
+  assert xor(pos, even_p)(-2) == true
+  assert xor(pos, even_p)(-3) == false
 end
 
 test "implies is true whenever the antecedent is false"
@@ -293,8 +284,8 @@ test "implies is true whenever the antecedent is false"
   even_p = fn(x) x % 2 == 0 end
   # Vacuously true, twice: -3 is not positive, so the implication holds
   # regardless of the consequent. A `p(x) && q(x)` mistake fails right here.
-  assert implies(pos, even_p)(0 - 3) == true
-  assert implies(pos, even_p)(0 - 4) == true
+  assert implies(pos, even_p)(-3) == true
+  assert implies(pos, even_p)(-4) == true
   assert implies(pos, even_p)(4) == true
   assert implies(pos, even_p)(3) == false
 end
@@ -306,11 +297,12 @@ test "nand and nor obey De Morgan"
   # of the truth table: a swapped &&/|| in either one shows up as a mismatch.
   demorgan_nand = either(complement(pos), complement(even_p))
   demorgan_nor = both(complement(pos), complement(even_p))
-  probes = [4, 3, 0 - 2, 0 - 3]
-  assert every(fn(x) nand(pos, even_p)(x) == demorgan_nand(x) end, probes) == true
+  probes = [4, 3, -2, -3]
+  assert every(fn(x) nand(pos, even_p)(x) == demorgan_nand(x) end, probes) ==
+    true
   assert every(fn(x) nor(pos, even_p)(x) == demorgan_nor(x) end, probes) == true
   assert nand(pos, even_p)(4) == false
-  assert nor(pos, even_p)(0 - 3) == true
+  assert nor(pos, even_p)(-3) == true
 end
 
 test "all_of, any_of and none_of over an EMPTY predicate list"
@@ -328,11 +320,15 @@ test "all_of, any_of and none_of over a list of predicates"
   small = fn(x) x < 10 end
   assert all_of([pos, even_p, small])(4) == true
   assert all_of([pos, even_p, small])(12) == false
-  assert any_of([pos, even_p, small])(0 - 3) == true
-  assert none_of([pos, even_p])(0 - 3) == true
+  assert any_of([pos, even_p, small])(-3) == true
+  assert none_of([pos, even_p])(-3) == true
   # none_of is the complement of any_of by construction; assert it stays so.
-  probes = [4, 3, 0 - 2, 0 - 3]
-  assert every(fn(x) none_of([pos, even_p])(x) == !any_of([pos, even_p])(x) end, probes) == true
+  probes = [4, 3, -2, -3]
+  assert every(
+    fn(x) none_of([pos, even_p])(x) == !any_of([pos, even_p])(x) end,
+    probes
+  ) ==
+    true
 end
 
 test "all_of, any_of and none_of stop at the first decisive predicate"
@@ -380,9 +376,21 @@ test "at_least_n and at_most_n recover any and every at the boundaries"
   probes = [[], [1], [2], [1, 2], [2, 4], [1, 3, 5]]
   # An independent definition of the same two functions. at_least_n(1) IS any;
   # at_most_n(0) IS none. If either bound is off by one this fails on [2].
-  assert every(fn(xs) at_least_n(1, even_p, xs) == any(even_p, xs) end, probes) == true
-  assert every(fn(xs) at_most_n(0, even_p, xs) == none(even_p, xs) end, probes) == true
-  assert every(fn(xs) exactly_n(size(xs), even_p, xs) == every(even_p, xs) end, probes) == true
+  assert every(
+    fn(xs) at_least_n(1, even_p, xs) == any(even_p, xs) end,
+    probes
+  ) ==
+    true
+  assert every(
+    fn(xs) at_most_n(0, even_p, xs) == none(even_p, xs) end,
+    probes
+  ) ==
+    true
+  assert every(
+    fn(xs) exactly_n(size(xs), even_p, xs) == every(even_p, xs) end,
+    probes
+  ) ==
+    true
 end
 
 test "majority needs strictly more than half"
@@ -440,11 +448,21 @@ test "take_while_pred and drop_while_pred split a list in two"
   # reached from a second direction — it is append that is partial here, not
   # anything in this file. The empty case is asserted below with is_empty.
   probes = [[1], [9], [1, 2, 3, 4, 1], [9, 9], [1, 9, 1]]
-  assert every(fn(xs) append(take_while_pred(small, xs), drop_while_pred(small, xs)) == xs end, probes) == true
+  assert every(
+    fn(xs)
+      append(take_while_pred(small, xs), drop_while_pred(small, xs)) == xs
+    end,
+    probes
+  ) ==
+    true
   assert is_empty(take_while_pred(small, [])) == true
   assert is_empty(drop_while_pred(small, [])) == true
   # take_until is take_while_pred of the complement, on the same probes plus [].
-  assert every(fn(xs) take_until(small, xs) == take_while_pred(complement(small), xs) end, probes) == true
+  assert every(
+    fn(xs) take_until(small, xs) == take_while_pred(complement(small), xs) end,
+    probes
+  ) ==
+    true
   assert take_until(small, []) == take_while_pred(complement(small), [])
   assert prefix_len(small, [1, 2, 9, 1]) == 2
   assert prefix_len(small, []) == 0
@@ -456,8 +474,8 @@ test "find_index_by reports the first hit, or 0 - 1"
   assert find_index_by(even_p, [1, 2, 3, 4]) == 1
   assert find_index_by(even_p, [2, 4]) == 0
   # A miss is 0 - 1, which no list can index — nil would flow into arithmetic.
-  assert find_index_by(even_p, [1, 3, 5]) == 0 - 1
-  assert find_index_by(even_p, []) == 0 - 1
+  assert find_index_by(even_p, [1, 3, 5]) == -1
+  assert find_index_by(even_p, []) == -1
   # Whatever index comes back really does satisfy the predicate.
   xs = [1, 3, 8, 5]
   assert even_p(nth(find_index_by(even_p, xs), xs)) == true
@@ -470,7 +488,11 @@ test "find_by returns the element, and nil for a miss"
   assert find_by(even_p, []) == nil
   # find_by and find_index_by agree about whether there IS a hit.
   probes = [[], [1], [2], [1, 2, 3], [1, 3]]
-  assert every(fn(xs) (find_by(even_p, xs) == nil) == (find_index_by(even_p, xs) == 0 - 1) end, probes) == true
+  assert every(
+    fn(xs) find_by(even_p, xs) == nil == (find_index_by(even_p, xs) == -1) end,
+    probes
+  ) ==
+    true
 end
 
 test "indexes_where agrees with count_if and starts at find_index_by"
@@ -479,8 +501,13 @@ test "indexes_where agrees with count_if and starts at find_index_by"
   assert indexes_where(even_p, []) == []
   assert indexes_where(even_p, [1, 3]) == []
   probes = [[], [1], [2], [1, 2, 3, 4], [2, 2, 2]]
-  assert every(fn(xs) size(indexes_where(even_p, xs)) == count_if(even_p, xs) end, probes) == true
-  assert first(indexes_where(even_p, [1, 2, 4])) == find_index_by(even_p, [1, 2, 4])
+  assert every(
+    fn(xs) size(indexes_where(even_p, xs)) == count_if(even_p, xs) end,
+    probes
+  ) ==
+    true
+  assert first(indexes_where(even_p, [1, 2, 4])) ==
+    find_index_by(even_p, [1, 2, 4])
 end
 
 test "span_by stops where partition_by keeps scanning"
@@ -513,11 +540,11 @@ test "via asks the predicate about a derived value"
   # The cross-package call: via is kansuu's compose, in the order that puts f
   # first. Both signs count, which is only true if abs really ran before the
   # comparison.
-  assert count_if(via(abs, equals(2)), [2, 0 - 2, 3]) == 2
+  assert count_if(via(abs, equals(2)), [2, -2, 3]) == 2
   # The case that fails if the composition order is flipped: -5 is not > 1, but
   # abs(-5) is.
-  assert via(abs, fn(x) x > 1 end)(0 - 5) == true
-  assert every(via(abs, fn(x) x > 1 end), [0 - 5, 5]) == true
+  assert via(abs, fn(x) x > 1 end)(-5) == true
+  assert every(via(abs, fn(x) x > 1 end), [-5, 5]) == true
   # via over a list-shaped value, where the derived thing is a size.
   assert count_if(via(size, equals(0)), [[], [1], []]) == 2
   assert every(via(size, equals(0)), []) == true

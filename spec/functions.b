@@ -6,6 +6,7 @@
 def add(a, b)
   a + b
 end
+
 def fact(n: Int) -> Int
   if n < 2
     1
@@ -13,6 +14,7 @@ def fact(n: Int) -> Int
     n * fact(n - 1)
   end
 end
+
 def sum(n, acc)
   if n == 0
     acc
@@ -20,15 +22,19 @@ def sum(n, acc)
     sum(n - 1, acc + n)
   end
 end
+
 test "an untyped function"
   assert add(2, 3) == 5
 end
+
 test "an annotated function computes the same thing"
   assert fact(6) == 720
 end
+
 test "recursion with an accumulator"
   assert sum(10, 0) == 55
 end
+
 def classify(n)
   if n < 0
     -1
@@ -36,14 +42,17 @@ def classify(n)
     1
   end
 end
+
 test "a branch returns the taken arm"
   assert classify(5) == 1
   assert classify(-5) == -1
 end
+
 test "unless is a negated if"
   assert if !(1 > 2)
     7
   else
     8
-  end == 7
+  end ==
+    7
 end

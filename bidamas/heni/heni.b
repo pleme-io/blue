@@ -2,6 +2,7 @@ use("retsu")
 use("moji")
 use("shisutemu")
 use("deeta")
+
 # heni (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
 #
 # A mutation the tests survive is a behaviour nothing checks. This is the red
@@ -35,12 +36,10 @@ def hn_apply(text, find, replace)
   n = occurrences(text, find)
   if length(find) == 0
     {error: "an empty find matches everywhere"}
+  elsif n == 1
+    {text: replace_first(text, find, replace)}
   else
-    if n == 1
-      {text: replace_first(text, find, replace)}
-    else
-      {error: "find occurs #{to_s(n)} times, not once"}
-    end
+    {error: "find occurs #{to_s(n)} times, not once"}
   end
 end
 
@@ -50,16 +49,12 @@ end
 def hn_verdict(applied, status)
   if get(applied, :error) != nil
     :refused
+  elsif status == nil
+    :blind
+  elsif status == 0
+    :survived
   else
-    if status == nil
-      :blind
-    else
-      if status == 0
-        :survived
-      else
-        :caught
-      end
-    end
+    :caught
   end
 end
 
@@ -70,13 +65,23 @@ def hn_mutations(parsed)
   if parsed == nil
     []
   else
-    map(fn(m) {name: get_str(m, "name", "?"), file: get_str(m, "file", ""), find: get_str(m, "find", ""), replace: get_str(m, "replace", "")} end, parsed)
+    map(
+      fn(m)
+        {
+          name: get_str(m, "name", "?"),
+          file: get_str(m, "file", ""),
+          find: get_str(m, "find", ""),
+          replace: get_str(m, "replace", "")
+        }
+      end,
+      parsed
+    )
   end
 end
 
 # The package's name: the last segment of its directory.
 def hn_package_name(dir)
-  last(filter(fn(s) not(is_empty(s)) end, split(dir, "/")))
+  last(filter(fn(s) !is_empty(s) end, split(dir, "/")))
 end
 
 # ── the fresh copy ───────────────────────────────────────────────────
@@ -88,11 +93,14 @@ def hn_copy(src, dest)
   else
     concat(src, "/")
   end
-  map(fn(f)
-    target = path_join(dest, strip_prefix(f, base))
-    mkdir_p(path_dirname(target))
-    write_file(target, read_file(f))
-  end, walk_dir(src))
+  map(
+    fn(f)
+      target = path_join(dest, strip_prefix(f, base))
+      mkdir_p(path_dirname(target))
+      write_file(target, read_file(f))
+    end,
+    walk_dir(src)
+  )
   dest
 end
 
@@ -106,7 +114,15 @@ end
 # Run the copy's tests with the fresh root first on BLUE_PATH. The capture.
 def hn_test(blue, root, name, test_file)
   path = "#{root}:#{getenv("BLUE_PATH", "")}"
-  try(exec_with_env([["BLUE_PATH", path]], blue, "test", path_join(path_join(root, name), test_file)), catch(e(), nil))
+  try(
+    exec_with_env(
+      [["BLUE_PATH", path]],
+      blue,
+      "test",
+      path_join(path_join(root, name), test_file)
+    ),
+    catch(e(), nil)
+  )
 end
 
 def hn_status(cap)
@@ -134,10 +150,27 @@ def hn_run(spec)
   control = hn_status(hn_test(blue, control_root, name, test_file))
   rm_rf(control_root)
   if control != 0
-    {control: control, results: [], caught: 0, survived: 0, refused: 0, blind: 0}
+    {
+      control: control,
+      results: [],
+      caught: 0,
+      survived: 0,
+      refused: 0,
+      blind: 0
+    }
   else
-    results = map(fn(p) hn_one(spec, name, test_file, nth(0, p), nth(1, p)) end, enumerate(get(spec, :mutations)))
-    {control: 0, results: results, caught: count_where(fn(r) get(r, :verdict) == :caught end, results), survived: count_where(fn(r) get(r, :verdict) == :survived end, results), refused: count_where(fn(r) get(r, :verdict) == :refused end, results), blind: count_where(fn(r) get(r, :verdict) == :blind end, results)}
+    results = map(
+      fn(p) hn_one(spec, name, test_file, nth(0, p), nth(1, p)) end,
+      enumerate(get(spec, :mutations))
+    )
+    {
+      control: 0,
+      results: results,
+      caught: count_where(fn(r) get(r, :verdict) == :caught end, results),
+      survived: count_where(fn(r) get(r, :verdict) == :survived end, results),
+      refused: count_where(fn(r) get(r, :verdict) == :refused end, results),
+      blind: count_where(fn(r) get(r, :verdict) == :blind end, results)
+    }
   end
 end
 
@@ -152,7 +185,11 @@ def hn_one(spec, name, test_file, i, m)
     nil
   end
   rm_rf(root)
-  {name: get(m, :name), verdict: hn_verdict(applied, status), detail: get(applied, :error)}
+  {
+    name: get(m, :name),
+    verdict: hn_verdict(applied, status),
+    detail: get(applied, :error)
+  }
 end
 
 # ── the command ──────────────────────────────────────────────────────
@@ -161,8 +198,19 @@ def hn_report_text(r)
   if get(r, :control) != 0
     "control FAILED: the unmutated tests exit #{to_s(get(r, :control))}; no mutation was run\n"
   else
-    rows = join(map(fn(x) "#{to_s(get(x, :verdict))}  #{get(x, :name)}#{hn_detail(x)}\n" end, get(r, :results)), "")
-    concat(rows, "#{to_s(get(r, :caught))} caught, #{to_s(get(r, :survived))} survived, #{to_s(get(r, :refused))} refused, #{to_s(get(r, :blind))} blind\n")
+    rows = join(
+      map(
+        fn(x)
+          "#{to_s(get(x, :verdict))}  #{get(x, :name)}#{hn_detail(x)}\n"
+        end,
+        get(r, :results)
+      ),
+      ""
+    )
+    concat(
+      rows,
+      "#{to_s(get(r, :caught))} caught, #{to_s(get(r, :survived))} survived, #{to_s(get(r, :refused))} refused, #{to_s(get(r, :blind))} blind\n"
+    )
   end
 end
 
@@ -175,7 +223,10 @@ def hn_detail(x)
 end
 
 def hn_ok?(r)
-  get(r, :control) == 0 && get(r, :survived) == 0 && get(r, :refused) == 0 && get(r, :blind) == 0
+  get(r, :control) == 0 &&
+    get(r, :survived) == 0 &&
+    get(r, :refused) == 0 &&
+    get(r, :blind) == 0
 end
 
 # {package, mutations_file, blue, test} from argv, or {error}.
@@ -183,7 +234,16 @@ def hn_parse(args)
   if size(args) < 2
     {error: "usage: heni PACKAGE_DIR MUTATIONS.json [--blue BIN] [--test FILE]"}
   else
-    hn_parse_flags(drop(2, args), {package: nth(0, args), mutations_file: nth(1, args), blue: self_exe(), test: nil, error: nil})
+    hn_parse_flags(
+      drop(2, args),
+      {
+        package: nth(0, args),
+        mutations_file: nth(1, args),
+        blue: self_exe(),
+        test: nil,
+        error: nil
+      }
+    )
   end
 end
 
@@ -211,10 +271,23 @@ def hn_main()
     write_stderr("#{get(a, :error)}\n")
     throw(error(:heni_usage, get(a, :error)))
   end
-  r = hn_run({package: get(a, :package), mutations: hn_mutations(json_parse(read_file(get(a, :mutations_file)))), blue: get(a, :blue), test: get(a, :test), tmp: getenv("TMPDIR", "/tmp")})
+  r = hn_run(
+    {
+      package: get(a, :package),
+      mutations: hn_mutations(json_parse(read_file(get(a, :mutations_file)))),
+      blue: get(a, :blue),
+      test: get(a, :test),
+      tmp: getenv("TMPDIR", "/tmp")
+    }
+  )
   write_stdout(hn_report_text(r))
   if hn_ok?(r) == false
-    throw(error(:heni_failed, "a mutation survived or was refused, or the control failed"))
+    throw(
+      error(
+        :heni_failed,
+        "a mutation survived or was refused, or the control failed"
+      )
+    )
   end
   r
 end
@@ -223,9 +296,12 @@ end
 
 test "a mutation applies exactly once or is refused"
   assert get(hn_apply("a == 1", "== 1", "== 2"), :text) == "a == 2"
-  assert get(hn_apply("x x", "x", "y"), :error) == "find occurs 2 times, not once"
-  assert get(hn_apply("abc", "z", "y"), :error) == "find occurs 0 times, not once"
-  assert get(hn_apply("abc", "", "y"), :error) == "an empty find matches everywhere"
+  assert get(hn_apply("x x", "x", "y"), :error) ==
+    "find occurs 2 times, not once"
+  assert get(hn_apply("abc", "z", "y"), :error) ==
+    "find occurs 0 times, not once"
+  assert get(hn_apply("abc", "", "y"), :error) ==
+    "an empty find matches everywhere"
 end
 
 test "the verdicts: refused, survived, caught"
@@ -245,7 +321,8 @@ test "arguments"
   assert get(a, :blue) == "/bin/blue"
   assert get(a, :test) == nil
   assert get(hn_parse(["/p"]), :error) != nil
-  assert get(hn_parse(["/p", "m", "--nope"]), :error) == "unknown argument --nope"
+  assert get(hn_parse(["/p", "m", "--nope"]), :error) ==
+    "unknown argument --nope"
   assert hn_package_name("/a/b/kazu/") == "kazu"
 end
 
@@ -254,16 +331,45 @@ test "a run end to end: a caught mutation, a survivor, a refusal"
   pkg = path_join(tmp, "hnprobe")
   mkdir_p(pkg)
   write_file(path_join(pkg, "Bluefile"), "package(\"hnprobe\", \"0.1.0\")\n")
-  write_file(path_join(pkg, "hnprobe.b"), "def hp_double(x)\n  x * 2\nend\n\ndef hp_unused()\n  7\nend\n\ntest \"double\"\n  assert hp_double(3) == 6\nend\n")
-  muts = [{name: "double becomes triple", file: "hnprobe.b", find: "x * 2", replace: "x * 3"}, {name: "an unchecked constant", file: "hnprobe.b", find: "  7\n", replace: "  8\n"}, {name: "not there", file: "hnprobe.b", find: "nowhere", replace: "x"}]
-  r = hn_run({package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp})
+  write_file(
+    path_join(pkg, "hnprobe.b"),
+    "def hp_double(x)\n  x * 2\nend\n\ndef hp_unused()\n  7\nend\n\ntest \"double\"\n  assert hp_double(3) == 6\nend\n"
+  )
+  muts = [
+    {
+      name: "double becomes triple",
+      file: "hnprobe.b",
+      find: "x * 2",
+      replace: "x * 3"
+    },
+    {
+      name: "an unchecked constant",
+      file: "hnprobe.b",
+      find: "  7\n",
+      replace: "  8\n"
+    },
+    {name: "not there", file: "hnprobe.b", find: "nowhere", replace: "x"}
+  ]
+  r = hn_run(
+    {package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp}
+  )
   assert get(r, :control) == 0
-  assert map(fn(x) get(x, :verdict) end, get(r, :results)) == [:caught, :survived, :refused]
+  assert map(fn(x) get(x, :verdict) end, get(r, :results)) ==
+    [:caught, :survived, :refused]
   assert hn_ok?(r) == false
-  assert contains?(hn_report_text(r), "1 caught, 1 survived, 1 refused, 0 blind") == true
+  assert contains?(
+    hn_report_text(r),
+    "1 caught, 1 survived, 1 refused, 0 blind"
+  ) ==
+    true
   # Control: a package whose own tests fail stops the run before any mutation.
-  write_file(path_join(pkg, "hnprobe.b"), "test \"broken\"\n  assert 1 == 2\nend\n")
-  bad = hn_run({package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp})
+  write_file(
+    path_join(pkg, "hnprobe.b"),
+    "test \"broken\"\n  assert 1 == 2\nend\n"
+  )
+  bad = hn_run(
+    {package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp}
+  )
   assert get(bad, :control) != 0
   assert is_empty(get(bad, :results)) == true
   rm_rf(tmp)

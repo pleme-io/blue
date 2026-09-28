@@ -1,5 +1,6 @@
 use("ronri")
 use("retsu")
+
 # shuugou (集合) — sets, over plain lists.
 #
 # No new data structure: a set is a list with no duplicates, so every list
@@ -20,11 +21,17 @@ end
 # first-seen-order expects, and the difference is invisible until a test names
 # an ordered expectation. This one did.
 def unique(xs)
-  reduce(fn(acc, x) if member(acc, x)
-    acc
-  else
-    push(acc, x)
-  end end, [], xs)
+  reduce(
+    fn(acc, x)
+      if member(acc, x)
+        acc
+      else
+        push(acc, x)
+      end
+    end,
+    [],
+    xs
+  )
 end
 
 def union(a, b)
@@ -128,11 +135,17 @@ end
 # the same reason: the tail-recursive shape keeps the last one instead, and
 # nothing but an ordered expectation notices.
 def unique_by(key, xs)
-  reduce(fn(acc, x) if member(map(key, acc), key(x))
-    acc
-  else
-    push(acc, x)
-  end end, [], xs)
+  reduce(
+    fn(acc, x)
+      if member(map(key, acc), key(x))
+        acc
+      else
+        push(acc, x)
+      end
+    end,
+    [],
+    xs
+  )
 end
 
 # Returns [key, members] PAIRS rather than a map, in first-seen key order.
@@ -178,11 +191,20 @@ def most_common(xs)
   if is_empty(fs)
     nil
   else
-    nth(0, reduce(fn(best, p) if nth(1, p) > nth(1, best)
-      p
-    else
-      best
-    end end, first(fs), rest(fs)))
+    nth(
+      0,
+      reduce(
+        fn(best, p)
+          if nth(1, p) > nth(1, best)
+            p
+          else
+            best
+          end
+        end,
+        first(fs),
+        rest(fs)
+      )
+    )
   end
 end
 
@@ -234,7 +256,18 @@ end
 # reversals and the self-pairs.
 def pairs(xs)
   s = unique(xs)
-  as_set(reduce(fn(acc, i) append(acc, map(fn(j) [nth(i, s), nth(j, s)] end, range(i + 1, size(s)))) end, [], range(0, size(s))))
+  as_set(
+    reduce(
+      fn(acc, i)
+        append(
+          acc,
+          map(fn(j) [nth(i, s), nth(j, s)] end, range(i + 1, size(s)))
+        )
+      end,
+      [],
+      range(0, size(s))
+    )
+  )
 end
 
 def union_all(xss)

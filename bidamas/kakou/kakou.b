@@ -4,6 +4,7 @@ use("gyouretsu")
 use("kikagaku")
 use("rittai")
 use("zumen")
+
 # kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 #
 # Three part families, the ones a shop with shears, a manual brake, a saw and
@@ -33,7 +34,7 @@ def kk_rad(deg)
 end
 
 def kk_bend_allowance(angle_deg, r, t, k)
-  kk_rad(angle_deg) * (r + (k * t))
+  kk_rad(angle_deg) * (r + k * t)
 end
 
 def kk_outside_setback(angle_deg, r, t)
@@ -41,26 +42,32 @@ def kk_outside_setback(angle_deg, r, t)
 end
 
 def kk_bend_deduction(angle_deg, r, t, k)
-  (2 * kk_outside_setback(angle_deg, r, t)) - kk_bend_allowance(angle_deg, r, t, k)
+  2 * kk_outside_setback(angle_deg, r, t) -
+    kk_bend_allowance(angle_deg, r, t, k)
 end
 
 # K from a test bend: a coupon cut to flat_length, bent once to angle_deg on
 # the shop's brake, its two outside legs measured. The legs overshoot the
 # flat length by exactly one bend deduction.
 def kk_k_from_test_bend(flat_length, leg1, leg2, angle_deg, r, t)
-  bd = (leg1 + leg2) - flat_length
-  ba = (2 * kk_outside_setback(angle_deg, r, t)) - bd
-  ((ba / kk_rad(angle_deg)) - r) / t
+  bd = leg1 + leg2 - flat_length
+  ba = 2 * kk_outside_setback(angle_deg, r, t) - bd
+  (ba / kk_rad(angle_deg) - r) / t
 end
 
 # ── materials ────────────────────────────────────────────────────────
 
 # Density in g/cm^3.
 def kk_density(material)
-  table = {ss316l: 7.99, ss304: 7.93, al6061: 2.70, steel: 7.85}
+  table = {ss316l: 7.99, ss304: 7.93, al6061: 2.7, steel: 7.85}
   d = get(table, material)
   if d == nil
-    throw(error(:kakou_material, "no density for #{to_s(material)}; known: ss316l, ss304, al6061, steel"))
+    throw(
+      error(
+        :kakou_material,
+        "no density for #{to_s(material)}; known: ss316l, ss304, al6061, steel"
+      )
+    )
   end
   d
 end
@@ -71,7 +78,14 @@ end
 # limits; every one is named in the refusal it produces.
 
 def kk_default_rules()
-  {min_radius_t: 1.0, min_flange_t: 4.0, hole_bend_t: 2.5, hole_edge_t: 2.0, sheets: [[1250, 2000], [1250, 3000]], nest_gap: 5}
+  {
+    min_radius_t: 1.0,
+    min_flange_t: 4.0,
+    hole_bend_t: 2.5,
+    hole_edge_t: 2.0,
+    sheets: [[1250, 2000], [1250, 3000]],
+    nest_gap: 5
+  }
 end
 
 def kk_rule(rules, key)
@@ -98,7 +112,17 @@ def kk_flange(side, length, angle_deg, inside_radius)
 end
 
 def kk_sheet_part(spec)
-  {name: get(spec, :name), material: kk_opt(spec, :material, :ss316l), thickness: get(spec, :thickness), width: get(spec, :width), depth: get(spec, :depth), flanges: kk_opt(spec, :flanges, []), holes: kk_opt(spec, :holes, []), k: kk_opt(spec, :k, 0.44), arc_segments: kk_opt(spec, :arc_segments, 12)}
+  {
+    name: get(spec, :name),
+    material: kk_opt(spec, :material, :ss316l),
+    thickness: get(spec, :thickness),
+    width: get(spec, :width),
+    depth: get(spec, :depth),
+    flanges: kk_opt(spec, :flanges, []),
+    holes: kk_opt(spec, :holes, []),
+    k: kk_opt(spec, :k, 0.44),
+    arc_segments: kk_opt(spec, :arc_segments, 12)
+  }
 end
 
 def kk_opt(m, key, default)
@@ -135,19 +159,31 @@ def kk_side_extension(part, side)
   if f == nil
     0
   else
-    kk_bend_allowance(get(f, :angle), get(f, :radius), get(part, :thickness), get(part, :k)) + kk_flange_run(part, f)
+    kk_bend_allowance(
+      get(f, :angle),
+      get(f, :radius),
+      get(part, :thickness),
+      get(part, :k)
+    ) +
+      kk_flange_run(part, f)
   end
 end
 
 # The flange's straight run past its bend.
 def kk_flange_run(part, f)
-  get(f, :length) - kk_outside_setback(get(f, :angle), get(f, :radius), get(part, :thickness))
+  get(f, :length) -
+    kk_outside_setback(get(f, :angle), get(f, :radius), get(part, :thickness))
 end
 
 # The flat base: the outside rectangle less each flanged side's setback,
 # as [x0, y0, x1, y1].
 def kk_flat_base(part)
-  [kk_side_setback(part, :west), kk_side_setback(part, :south), get(part, :width) - kk_side_setback(part, :east), get(part, :depth) - kk_side_setback(part, :north)]
+  [
+    kk_side_setback(part, :west),
+    kk_side_setback(part, :south),
+    get(part, :width) - kk_side_setback(part, :east),
+    get(part, :depth) - kk_side_setback(part, :north)
+  ]
 end
 
 # The flat blank's outline, counter-clockwise: the base with each flange's
@@ -162,7 +198,16 @@ def kk_blank_outline(part)
   ee = kk_side_extension(part, :east)
   en = kk_side_extension(part, :north)
   ew = kk_side_extension(part, :west)
-  pts = concat_lists(kk_strip([x0, y0], [x0, y0 - es], [x1, y0 - es], es), concat_lists(kk_strip([x1, y0], [x1 + ee, y0], [x1 + ee, y1], ee), concat_lists(kk_strip([x1, y1], [x1, y1 + en], [x0, y1 + en], en), kk_strip([x0, y1], [x0 - ew, y1], [x0 - ew, y0], ew))))
+  pts = concat_lists(
+    kk_strip([x0, y0], [x0, y0 - es], [x1, y0 - es], es),
+    concat_lists(
+      kk_strip([x1, y0], [x1 + ee, y0], [x1 + ee, y1], ee),
+      concat_lists(
+        kk_strip([x1, y1], [x1, y1 + en], [x0, y1 + en], en),
+        kk_strip([x0, y1], [x0 - ew, y1], [x0 - ew, y0], ew)
+      )
+    )
+  )
   pts
 end
 
@@ -178,16 +223,33 @@ end
 # bend lines, each with the side, where the bend zone starts and ends, the
 # centre line, the angle, the radius and the direction.
 def kk_flat_pattern(part)
-  {blank: region(kk_blank_outline(part), get(part, :holes)), bends: map(fn(f) kk_bend_line(part, f) end, get(part, :flanges))}
+  {
+    blank: region(kk_blank_outline(part), get(part, :holes)),
+    bends: map(fn(f) kk_bend_line(part, f) end, get(part, :flanges))
+  }
 end
 
 def kk_bend_line(part, f)
   b = kk_flat_base(part)
-  ba = kk_bend_allowance(get(f, :angle), get(f, :radius), get(part, :thickness), get(part, :k))
+  ba = kk_bend_allowance(
+    get(f, :angle),
+    get(f, :radius),
+    get(part, :thickness),
+    get(part, :k)
+  )
   side = get(f, :side)
   seg = kk_base_edge(b, side)
   out = kk_side_out(side)
-  {side: side, start: seg, finish: map(fn(p) vadd(p, scale(ba, out)) end, seg), centre: map(fn(p) vadd(p, scale(ba / 2, out)) end, seg), angle: get(f, :angle), radius: get(f, :radius), direction: :up, allowance: ba}
+  {
+    side: side,
+    start: seg,
+    finish: map(fn(p) vadd(p, scale(ba, out)) end, seg),
+    centre: map(fn(p) vadd(p, scale(ba / 2, out)) end, seg),
+    angle: get(f, :angle),
+    radius: get(f, :radius),
+    direction: :up,
+    allowance: ba
+  }
 end
 
 # A side's edge of the flat base, as two 2-D points, and its outward normal.
@@ -198,32 +260,24 @@ def kk_base_edge(b, side)
   y1 = nth(3, b)
   if side == :south
     [[x0, y0], [x1, y0]]
+  elsif side == :east
+    [[x1, y0], [x1, y1]]
+  elsif side == :north
+    [[x0, y1], [x1, y1]]
   else
-    if side == :east
-      [[x1, y0], [x1, y1]]
-    else
-      if side == :north
-        [[x0, y1], [x1, y1]]
-      else
-        [[x0, y0], [x0, y1]]
-      end
-    end
+    [[x0, y0], [x0, y1]]
   end
 end
 
 def kk_side_out(side)
   if side == :south
     [0, -1]
+  elsif side == :east
+    [1, 0]
+  elsif side == :north
+    [0, 1]
   else
-    if side == :east
-      [1, 0]
-    else
-      if side == :north
-        [0, 1]
-      else
-        [-1, 0]
-      end
-    end
+    [-1, 0]
   end
 end
 
@@ -235,7 +289,10 @@ end
 # Mass from the blank: its area times the thickness is the part's volume,
 # exactly for the flat and to within the neutral-axis shift at each bend.
 def kk_sheet_mass_g(part)
-  region_area(get(kk_flat_pattern(part), :blank)) * get(part, :thickness) * kk_density(get(part, :material)) / 1000
+  region_area(get(kk_flat_pattern(part), :blank)) *
+    get(part, :thickness) *
+    kk_density(get(part, :material)) /
+    1000
 end
 
 # ── the shop's drawing of a blank ────────────────────────────────────
@@ -251,14 +308,25 @@ def kk_blank_entities(part, text_h)
   bb = bounding_box(region_outline(blank))
   lo = nth(0, bb)
   hi = nth(1, bb)
-  dims = concat_lists(zu_dim([px(lo), py(lo)], [px(hi), py(lo)], 0 - (3 * text_h), text_h), zu_dim([px(hi), py(lo)], [px(hi), py(hi)], 0 - (3 * text_h), text_h))
+  dims = concat_lists(
+    zu_dim([px(lo), py(lo)], [px(hi), py(lo)], -(3 * text_h), text_h),
+    zu_dim([px(hi), py(lo)], [px(hi), py(hi)], -(3 * text_h), text_h)
+  )
   concat_lists(zu_region(blank), concat_lists(bends, dims))
 end
 
 def kk_bend_entities(b, text_h)
   c = get(b, :centre)
   label = "#{upcase(to_s(get(b, :direction)))} #{zu_num(get(b, :angle))} DEG R#{zu_num(get(b, :radius))}"
-  [zu_line(nth(0, c), nth(1, c), "BEND"), zu_text(vadd(midpoint(nth(0, c), nth(1, c)), [text_h * 0.5, text_h * 0.5]), text_h * 0.8, label, "BEND")]
+  [
+    zu_line(nth(0, c), nth(1, c), "BEND"),
+    zu_text(
+      vadd(midpoint(nth(0, c), nth(1, c)), [text_h * 0.5, text_h * 0.5]),
+      text_h * 0.8,
+      label,
+      "BEND"
+    )
+  ]
 end
 
 # ── the folded solid ─────────────────────────────────────────────────
@@ -277,21 +345,41 @@ end
 def kk_folded_mesh(part)
   b = kk_flat_base(part)
   t = get(part, :thickness)
-  base_region = region(rect_polygon(nth(0, b), nth(1, b), nth(2, b) - nth(0, b), nth(3, b) - nth(1, b)), get(part, :holes))
-  walls = flat_map(fn(f) rt_extrude_wall_faces(base_region, 0, index_of(kk_sides(), get(f, :side))) end, get(part, :flanges))
+  base_region = region(
+    rect_polygon(
+      nth(0, b),
+      nth(1, b),
+      nth(2, b) - nth(0, b),
+      nth(3, b) - nth(1, b)
+    ),
+    get(part, :holes)
+  )
+  walls = flat_map(
+    fn(f)
+      rt_extrude_wall_faces(base_region, 0, index_of(kk_sides(), get(f, :side)))
+    end,
+    get(part, :flanges)
+  )
   base = rt_drop_faces(rt_extrude(base_region, t), walls)
-  rt_weld(rt_merge(concat_lists([base], map(fn(f) kk_flange_mesh(part, b, f) end, get(part, :flanges)))))
+  rt_weld(
+    rt_merge(
+      concat_lists(
+        [base],
+        map(fn(f) kk_flange_mesh(part, b, f) end, get(part, :flanges))
+      )
+    )
+  )
 end
 
 def kk_flange_section(part, f)
   t = get(part, :thickness)
   r = get(f, :radius)
   n = get(part, :arc_segments)
-  a_end = kk_rad(get(f, :angle)) - (pi() / 2)
-  inner = arc_points([0, t + r], r, 0 - (pi() / 2), a_end, n)
-  outer = arc_points([0, t + r], r + t, 0 - (pi() / 2), a_end, n)
+  a_end = kk_rad(get(f, :angle)) - pi() / 2
+  inner = arc_points([0, t + r], r, -(pi() / 2), a_end, n)
+  outer = arc_points([0, t + r], r + t, -(pi() / 2), a_end, n)
   run = kk_flange_run(part, f)
-  dir = [0 - sin(a_end), cos(a_end)]
+  dir = [-sin(a_end), cos(a_end)]
   tip_in = vadd(last(inner), scale(run, dir))
   tip_out = vadd(last(outer), scale(run, dir))
   concat_lists(inner, concat_lists([tip_in, tip_out], reverse(outer)))
@@ -304,7 +392,11 @@ def kk_flange_mesh(part, b, f)
   out = [px(out2), py(out2), 0]
   up = [0, 0, 1]
   along = cross_product(out, up)
-  start = if dot(along, [px(nth(1, seg)) - px(nth(0, seg)), py(nth(1, seg)) - py(nth(0, seg)), 0]) > 0
+  start = if dot(
+    along,
+    [px(nth(1, seg)) - px(nth(0, seg)), py(nth(1, seg)) - py(nth(0, seg)), 0]
+  ) >
+    0
     nth(0, seg)
   else
     nth(1, seg)
@@ -312,7 +404,13 @@ def kk_flange_mesh(part, b, f)
   len = distance(nth(0, seg), nth(1, seg))
   rot = transpose([out, up, along])
   section = region(kk_flange_section(part, f), [])
-  rt_transform(rt_pose(rot, [px(start), py(start), 0]), rt_drop_faces(rt_extrude(section, len), rt_extrude_wall_faces(section, 0, kk_seam_edge(section))))
+  rt_transform(
+    rt_pose(rot, [px(start), py(start), 0]),
+    rt_drop_faces(
+      rt_extrude(section, len),
+      rt_extrude_wall_faces(section, 0, kk_seam_edge(section))
+    )
+  )
 end
 
 # The section's edge on the base's side, a = 0 at both ends: where the
@@ -320,7 +418,15 @@ end
 def kk_seam_edge(section)
   pts = region_outline(section)
   n = size(pts)
-  first(filter(fn(e) abs(px(nth(e, pts))) < 0.000001 && abs(px(nth((e + 1) % n, pts))) < 0.000001 end, range(0, n)))
+  first(
+    filter(
+      fn(e)
+        abs(px(nth(e, pts))) < 0.000001 &&
+          abs(px(nth((e + 1) % n, pts))) < 0.000001
+      end,
+      range(0, n)
+    )
+  )
 end
 
 # ── what a shop cannot make ──────────────────────────────────────────
@@ -332,9 +438,42 @@ def kk_sheet_refusals(part, rules)
   if is_empty(shape) == false
     shape
   else
-    radius = map(fn(f) [:kakou_radius, "#{to_s(get(part, :name))} #{to_s(get(f, :side))}: inside radius #{to_s(get(f, :radius))} is under #{to_s(kk_rule(rules, :min_radius_t))} T = #{to_s(kk_rule(rules, :min_radius_t) * t)}"] end, filter(fn(f) get(f, :radius) < (kk_rule(rules, :min_radius_t) * t) - 0.000001 end, fl))
-    flange = map(fn(f) [:kakou_flange, "#{to_s(get(part, :name))} #{to_s(get(f, :side))}: the straight run #{to_s(kk_flange_run(part, f))} is under #{to_s(kk_rule(rules, :min_flange_t))} T = #{to_s(kk_rule(rules, :min_flange_t) * t)}, too short to hold in the brake"] end, filter(fn(f) kk_flange_run(part, f) < kk_rule(rules, :min_flange_t) * t end, fl))
-    concat_lists(radius, concat_lists(flange, concat_lists(kk_hole_refusals(part, rules), kk_sheet_size_refusals(part, rules))))
+    radius = map(
+      fn(f)
+        [
+          :kakou_radius,
+          "#{to_s(get(part, :name))} #{to_s(get(f, :side))}: inside radius #{to_s(get(f, :radius))} is under #{to_s(kk_rule(rules, :min_radius_t))} T = #{to_s(kk_rule(rules, :min_radius_t) * t)}"
+        ]
+      end,
+      filter(
+        fn(f)
+          get(f, :radius) < kk_rule(rules, :min_radius_t) * t - 0.000001
+        end,
+        fl
+      )
+    )
+    flange = map(
+      fn(f)
+        [
+          :kakou_flange,
+          "#{to_s(get(part, :name))} #{to_s(get(f, :side))}: the straight run #{to_s(kk_flange_run(part, f))} is under #{to_s(kk_rule(rules, :min_flange_t))} T = #{to_s(kk_rule(rules, :min_flange_t) * t)}, too short to hold in the brake"
+        ]
+      end,
+      filter(
+        fn(f) kk_flange_run(part, f) < kk_rule(rules, :min_flange_t) * t end,
+        fl
+      )
+    )
+    concat_lists(
+      radius,
+      concat_lists(
+        flange,
+        concat_lists(
+          kk_hole_refusals(part, rules),
+          kk_sheet_size_refusals(part, rules)
+        )
+      )
+    )
   end
 end
 
@@ -344,7 +483,37 @@ def kk_shape_refusals(part)
   unknown = filter(fn(s) contains(kk_sides(), s) == false end, sides)
   twice = filter(fn(s) count_of(sides, s) > 1 end, kk_sides())
   angles = filter(fn(f) get(f, :angle) <= 0 || get(f, :angle) >= 180 end, fl)
-  concat_lists(map(fn(s) [:kakou_unsupported, "side #{to_s(s)} is not one of south, east, north, west"] end, unknown), concat_lists(map(fn(s) [:kakou_unsupported, "two flanges on #{to_s(s)}; a flange on a flange is not supported yet"] end, twice), map(fn(f) [:kakou_unsupported, "a #{to_s(get(f, :angle))} degree bend on #{to_s(get(f, :side))}: only 0 < angle < 180 is supported; hems are not yet"] end, angles)))
+  concat_lists(
+    map(
+      fn(s)
+        [
+          :kakou_unsupported,
+          "side #{to_s(s)} is not one of south, east, north, west"
+        ]
+      end,
+      unknown
+    ),
+    concat_lists(
+      map(
+        fn(s)
+          [
+            :kakou_unsupported,
+            "two flanges on #{to_s(s)}; a flange on a flange is not supported yet"
+          ]
+        end,
+        twice
+      ),
+      map(
+        fn(f)
+          [
+            :kakou_unsupported,
+            "a #{to_s(get(f, :angle))} degree bend on #{to_s(get(f, :side))}: only 0 < angle < 180 is supported; hems are not yet"
+          ]
+        end,
+        angles
+      )
+    )
+  )
 end
 
 # Holes must sit inside the flat base, clear of each bend by hole_bend_t T
@@ -352,16 +521,34 @@ end
 def kk_hole_refusals(part, rules)
   t = get(part, :thickness)
   b = kk_flat_base(part)
-  base = rect_polygon(nth(0, b), nth(1, b), nth(2, b) - nth(0, b), nth(3, b) - nth(1, b))
-  flat_map(fn(i) kk_one_hole_refusals(part, rules, b, base, i, nth(i, get(part, :holes))) end, indexes(get(part, :holes)))
+  base = rect_polygon(
+    nth(0, b),
+    nth(1, b),
+    nth(2, b) - nth(0, b),
+    nth(3, b) - nth(1, b)
+  )
+  flat_map(
+    fn(i)
+      kk_one_hole_refusals(part, rules, b, base, i, nth(i, get(part, :holes)))
+    end,
+    indexes(get(part, :holes))
+  )
 end
 
 def kk_one_hole_refusals(part, rules, b, base, i, hole)
   t = get(part, :thickness)
   if polygon_inside(hole, base) == false
-    [[:kakou_hole, "#{to_s(get(part, :name))} hole #{to_s(i)} is not inside the flat base"]]
+    [
+      [
+        :kakou_hole,
+        "#{to_s(get(part, :name))} hole #{to_s(i)} is not inside the flat base"
+      ]
+    ]
   else
-    flat_map(fn(side) kk_hole_side_refusals(part, rules, b, i, hole, side) end, kk_sides())
+    flat_map(
+      fn(side) kk_hole_side_refusals(part, rules, b, i, hole, side) end,
+      kk_sides()
+    )
   end
 end
 
@@ -372,14 +559,24 @@ def kk_hole_side_refusals(part, rules, b, i, hole, side)
   if f == nil
     need = kk_rule(rules, :hole_edge_t) * t
     if gap < need
-      [[:kakou_hole_edge, "#{to_s(get(part, :name))} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} edge; the least is #{to_s(need)}"]]
+      [
+        [
+          :kakou_hole_edge,
+          "#{to_s(get(part, :name))} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} edge; the least is #{to_s(need)}"
+        ]
+      ]
     else
       []
     end
   else
-    need = (kk_rule(rules, :hole_bend_t) * t) + get(f, :radius)
+    need = kk_rule(rules, :hole_bend_t) * t + get(f, :radius)
     if gap < need
-      [[:kakou_hole_bend, "#{to_s(get(part, :name))} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} bend; the least is #{to_s(need)}, or the hole distorts"]]
+      [
+        [
+          :kakou_hole_bend,
+          "#{to_s(get(part, :name))} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} bend; the least is #{to_s(need)}, or the hole distorts"
+        ]
+      ]
     else
       []
     end
@@ -392,18 +589,27 @@ def kk_sheet_size_refusals(part, rules)
   if fits
     []
   else
-    [[:kakou_sheet, "#{to_s(get(part, :name))}: the blank #{to_s(px(s))} x #{to_s(py(s))} fits none of the sheets"]]
+    [
+      [
+        :kakou_sheet,
+        "#{to_s(get(part, :name))}: the blank #{to_s(px(s))} x #{to_s(py(s))} fits none of the sheets"
+      ]
+    ]
   end
 end
 
 def kk_fits(s, sheet)
-  (px(s) <= px(sheet) && py(s) <= py(sheet)) || (py(s) <= px(sheet) && px(s) <= py(sheet))
+  px(s) <= px(sheet) && py(s) <= py(sheet) ||
+    py(s) <= px(sheet) && px(s) <= py(sheet)
 end
 
 # How many blanks of size s come from one sheet, in rows and columns with a
 # gap between them, taking the better of the two orientations.
 def kk_nest_count(s, sheet, gap)
-  max(kk_grid(px(s), py(s), px(sheet), py(sheet), gap), kk_grid(py(s), px(s), px(sheet), py(sheet), gap))
+  max(
+    kk_grid(px(s), py(s), px(sheet), py(sheet), gap),
+    kk_grid(py(s), px(s), px(sheet), py(sheet), gap)
+  )
 end
 
 def kk_grid(w, h, sw, sh, gap)
@@ -432,12 +638,10 @@ def kk_stock_name(stock)
   k = get(stock, :kind)
   if k == :square_tube
     "tube #{to_s(get(stock, :side))}x#{to_s(get(stock, :side))}x#{to_s(get(stock, :wall))}"
+  elsif k == :round_tube
+    "tube OD#{to_s(get(stock, :od))}x#{to_s(get(stock, :wall))}"
   else
-    if k == :round_tube
-      "tube OD#{to_s(get(stock, :od))}x#{to_s(get(stock, :wall))}"
-    else
-      "bar D#{to_s(get(stock, :od))}"
-    end
+    "bar D#{to_s(get(stock, :od))}"
   end
 end
 
@@ -447,18 +651,30 @@ def kk_section(stock, n)
   if k == :square_tube
     s = get(stock, :side)
     w = get(stock, :wall)
-    region(rect_polygon(0 - (s / 2), 0 - (s / 2), s, s), [rect_polygon(w - (s / 2), w - (s / 2), s - (2 * w), s - (2 * w))])
+    region(
+      rect_polygon(-(s / 2), -(s / 2), s, s),
+      [rect_polygon(w - s / 2, w - s / 2, s - 2 * w, s - 2 * w)]
+    )
+  elsif k == :round_tube
+    region(
+      circle_polygon([0, 0], get(stock, :od) / 2, n),
+      [circle_polygon([0, 0], get(stock, :od) / 2 - get(stock, :wall), n)]
+    )
   else
-    if k == :round_tube
-      region(circle_polygon([0, 0], get(stock, :od) / 2, n), [circle_polygon([0, 0], (get(stock, :od) / 2) - get(stock, :wall), n)])
-    else
-      region(circle_polygon([0, 0], get(stock, :od) / 2, n), [])
-    end
+    region(circle_polygon([0, 0], get(stock, :od) / 2, n), [])
   end
 end
 
 def kk_tube_member(name, stock, a, b, cut_a_deg, cut_b_deg)
-  {name: name, stock: stock, from: a, to: b, cut_a: cut_a_deg, cut_b: cut_b_deg, material: :ss316l}
+  {
+    name: name,
+    stock: stock,
+    from: a,
+    to: b,
+    cut_a: cut_a_deg,
+    cut_b: cut_b_deg,
+    material: :ss316l
+  }
 end
 
 def kk_member_length(m)
@@ -466,18 +682,35 @@ def kk_member_length(m)
 end
 
 def kk_member_mesh(m, n)
-  rt_transform(rt_pose_along(get(m, :from), get(m, :to)), rt_extrude(kk_section(get(m, :stock), n), kk_member_length(m)))
+  rt_transform(
+    rt_pose_along(get(m, :from), get(m, :to)),
+    rt_extrude(kk_section(get(m, :stock), n), kk_member_length(m))
+  )
 end
 
 # The section's area is exact for the square tube; a round tube's is its
 # tessellation's, so its mass comes out a hair under the true one.
 def kk_member_mass_g(m, n)
-  region_area(kk_section(get(m, :stock), n)) * kk_member_length(m) * kk_density(get(m, :material)) / 1000
+  region_area(kk_section(get(m, :stock), n)) *
+    kk_member_length(m) *
+    kk_density(get(m, :material)) /
+    1000
 end
 
 # One cut-list row per member.
 def kk_cut_list(members)
-  map(fn(m) {name: get(m, :name), stock: kk_stock_name(get(m, :stock)), length: kk_member_length(m), cut_a: get(m, :cut_a), cut_b: get(m, :cut_b)} end, members)
+  map(
+    fn(m)
+      {
+        name: get(m, :name),
+        stock: kk_stock_name(get(m, :stock)),
+        length: kk_member_length(m),
+        cut_a: get(m, :cut_a),
+        cut_b: get(m, :cut_b)
+      }
+    end,
+    members
+  )
 end
 
 # ── wire ─────────────────────────────────────────────────────────────
@@ -491,15 +724,23 @@ def kk_wire(name, d, path, bend_radius)
 end
 
 def kk_turn(path, i)
-  angle_between(vsub(nth(i, path), nth(i - 1, path)), vsub(nth(i + 1, path), nth(i, path)))
+  angle_between(
+    vsub(nth(i, path), nth(i - 1, path)),
+    vsub(nth(i + 1, path), nth(i, path))
+  )
 end
 
 def kk_wire_length(w)
   path = get(w, :path)
   r = get(w, :radius)
-  straight = sum(map(fn(i) vdistance(nth(i, path), nth(i + 1, path)) end, range(0, size(path) - 1)))
+  straight = sum(
+    map(
+      fn(i) vdistance(nth(i, path), nth(i + 1, path)) end,
+      range(0, size(path) - 1)
+    )
+  )
   corners = map(fn(i) kk_turn(path, i) end, range(1, size(path) - 1))
-  straight - sum(map(fn(th) (2 * r * tan(th / 2)) - (r * th) end, corners))
+  straight - sum(map(fn(th) 2 * r * tan(th / 2) - r * th end, corners))
 end
 
 def kk_wire_mesh(w, n)
@@ -508,7 +749,12 @@ end
 
 def kk_wire_refusals(w)
   if get(w, :radius) < get(w, :d)
-    [[:kakou_radius, "#{to_s(get(w, :name))}: a bend radius #{to_s(get(w, :radius))} under the wire's diameter #{to_s(get(w, :d))} cracks or kinks it"]]
+    [
+      [
+        :kakou_radius,
+        "#{to_s(get(w, :name))}: a bend radius #{to_s(get(w, :radius))} under the wire's diameter #{to_s(get(w, :d))} cracks or kinks it"
+      ]
+    ]
   else
     []
   end
@@ -517,7 +763,20 @@ end
 # ── tests ────────────────────────────────────────────────────────────
 
 def kk_tray()
-  kk_sheet_part({name: "tray", thickness: 1.5, width: 300, depth: 200, flanges: map(fn(s) kk_flange(s, 40, 90, 1.5) end, [:south, :east, :north, :west]), holes: [circle_polygon([150, 100], 10, 24)], k: 0.44})
+  kk_sheet_part(
+    {
+      name: "tray",
+      thickness: 1.5,
+      width: 300,
+      depth: 200,
+      flanges: map(
+        fn(s) kk_flange(s, 40, 90, 1.5) end,
+        [:south, :east, :north, :west]
+      ),
+      holes: [circle_polygon([150, 100], 10, 24)],
+      k: 0.44
+    }
+  )
 end
 
 test "the bend relations, checked by hand"
@@ -534,17 +793,30 @@ end
 
 test "a test bend gives back the K that made it"
   # An identity: bend a 100 mm coupon at K = 0.40; its legs sum to 100 + BD.
-  bd = kk_bend_deduction(90, 1.5, 1.5, 0.40)
-  assert near(kk_k_from_test_bend(100, 50 + (bd / 2), 50 + (bd / 2), 90, 1.5, 1.5), 0.40) == true
+  bd = kk_bend_deduction(90, 1.5, 1.5, 0.4)
+  assert near(
+    kk_k_from_test_bend(100, 50 + bd / 2, 50 + bd / 2, 90, 1.5, 1.5),
+    0.4
+  ) ==
+    true
 end
 
 test "a U channel's flat length is the sum of its outside legs less two bend deductions"
   # Hand-computed: a 100 x 40 base (outside) with 30 mm flanges on south and
   # north is 30 + 40 + 30 - 2 BD across, and 100 along.
-  u = kk_sheet_part({name: "u", thickness: 1.5, width: 100, depth: 40, flanges: [kk_flange(:south, 30, 90, 1.5), kk_flange(:north, 30, 90, 1.5)], k: 0.44})
+  u = kk_sheet_part(
+    {
+      name: "u",
+      thickness: 1.5,
+      width: 100,
+      depth: 40,
+      flanges: [kk_flange(:south, 30, 90, 1.5), kk_flange(:north, 30, 90, 1.5)],
+      k: 0.44
+    }
+  )
   s = kk_blank_size(u)
   assert near(px(s), 100) == true
-  assert near(py(s), 100 - (2 * kk_bend_deduction(90, 1.5, 1.5, 0.44))) == true
+  assert near(py(s), 100 - 2 * kk_bend_deduction(90, 1.5, 1.5, 0.44)) == true
   # No flanges: the blank is the part.
   flat = kk_sheet_part({name: "flat", thickness: 1.5, width: 100, depth: 40})
   assert vector_near(kk_blank_size(flat), [100, 40]) == true
@@ -560,10 +832,10 @@ test "a tray's folded solid is closed, and its volume adds up by parts"
   b = kk_flat_base(tray)
   bw = nth(2, b) - nth(0, b)
   bd = nth(3, b) - nth(1, b)
-  base_v = ((bw * bd) - regular_polygon_area(10, 24)) * 1.5
-  sector = (12 / 2.0) * sin((pi() / 2) / 12) * (square(3.0) - square(1.5))
+  base_v = (bw * bd - regular_polygon_area(10, 24)) * 1.5
+  sector = 12 / 2.0 * sin(pi() / 2 / 12) * (square(3.0) - square(1.5))
   run = 40 - 3
-  flange_v = (2 * bw * (sector + (run * 1.5))) + (2 * bd * (sector + (run * 1.5)))
+  flange_v = 2 * bw * (sector + run * 1.5) + 2 * bd * (sector + run * 1.5)
   assert near_within(rt_volume(m), base_v + flange_v, 0.001) == true
   # The folded part stands 40 high and 300 x 200 outside: its bounding box
   # is the outside dimensions.
@@ -577,40 +849,106 @@ test "a flat pattern: the blank's outline, its bend lines, and its mass"
   assert size(get(fp, :bends)) == 4
   assert is_empty(region_refusals(get(fp, :blank))) == true
   # 316L at 7.99 g/cm^3: the blank's area times 1.5 mm.
-  assert near(kk_sheet_mass_g(tray), region_area(get(fp, :blank)) * 1.5 * 7.99 / 1000) == true
+  assert near(
+    kk_sheet_mass_g(tray),
+    region_area(get(fp, :blank)) * 1.5 * 7.99 / 1000
+  ) ==
+    true
   # Each bend's zone is one bend allowance wide.
   bl = first(get(fp, :bends))
-  assert near(vdistance(first(get(bl, :start)), first(get(bl, :finish))), kk_bend_allowance(90, 1.5, 1.5, 0.44)) == true
+  assert near(
+    vdistance(first(get(bl, :start)), first(get(bl, :finish))),
+    kk_bend_allowance(90, 1.5, 1.5, 0.44)
+  ) ==
+    true
 end
 
 test "a blank's drawing: outline, holes, one labelled bend line per flange, two dimensions"
   es = kk_blank_entities(kk_tray(), 3.5)
   assert size(filter(fn(e) zu_layer(e) == "OUTLINE" end, es)) == 1
   assert size(filter(fn(e) zu_layer(e) == "HOLES" end, es)) == 1
-  bend_lines = filter(fn(e) zu_layer(e) == "BEND" && zu_kind(e) == :line end, es)
+  bend_lines = filter(
+    fn(e) zu_layer(e) == "BEND" && zu_kind(e) == :line end,
+    es
+  )
   assert size(bend_lines) == 4
-  assert contains(map(fn(e) get(e, :s) end, filter(fn(e) zu_kind(e) == :text end, es)), "UP 90 DEG R1.5") == true
+  assert contains(
+    map(fn(e) get(e, :s) end, filter(fn(e) zu_kind(e) == :text end, es)),
+    "UP 90 DEG R1.5"
+  ) ==
+    true
   # The dimensions read the blank's size, to one decimal.
   s = kk_blank_size(kk_tray())
-  texts = map(fn(e) get(e, :s) end, filter(fn(e) zu_layer(e) == "DIM" && zu_kind(e) == :text end, es))
-  assert texts == [zu_num(round(px(s) * 10) / 10), zu_num(round(py(s) * 10) / 10)]
+  texts = map(
+    fn(e) get(e, :s) end,
+    filter(fn(e) zu_layer(e) == "DIM" && zu_kind(e) == :text end, es)
+  )
+  assert texts ==
+    [zu_num(round(px(s) * 10) / 10), zu_num(round(py(s) * 10) / 10)]
 end
 
 test "the shop's limits refuse, each naming its rule"
   rules = kk_default_rules()
   assert is_empty(kk_sheet_refusals(kk_tray(), rules)) == true
-  tight = kk_sheet_part({name: "tight", thickness: 1.5, width: 100, depth: 100, flanges: [kk_flange(:south, 40, 90, 0.5)]})
-  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(tight, rules)) == [:kakou_radius]
-  stub = kk_sheet_part({name: "stub", thickness: 1.5, width: 100, depth: 100, flanges: [kk_flange(:south, 6, 90, 1.5)]})
-  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(stub, rules)) == [:kakou_flange]
-  near_bend = kk_sheet_part({name: "nb", thickness: 1.5, width: 100, depth: 100, flanges: [kk_flange(:south, 40, 90, 1.5)], holes: [circle_polygon([50, 8], 3, 16)]})
-  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(near_bend, rules)) == [:kakou_hole_bend]
-  near_edge = kk_sheet_part({name: "ne", thickness: 1.5, width: 100, depth: 100, holes: [circle_polygon([50, 4], 3, 16)]})
-  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(near_edge, rules)) == [:kakou_hole_edge]
+  tight = kk_sheet_part(
+    {
+      name: "tight",
+      thickness: 1.5,
+      width: 100,
+      depth: 100,
+      flanges: [kk_flange(:south, 40, 90, 0.5)]
+    }
+  )
+  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(tight, rules)) ==
+    [:kakou_radius]
+  stub = kk_sheet_part(
+    {
+      name: "stub",
+      thickness: 1.5,
+      width: 100,
+      depth: 100,
+      flanges: [kk_flange(:south, 6, 90, 1.5)]
+    }
+  )
+  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(stub, rules)) ==
+    [:kakou_flange]
+  near_bend = kk_sheet_part(
+    {
+      name: "nb",
+      thickness: 1.5,
+      width: 100,
+      depth: 100,
+      flanges: [kk_flange(:south, 40, 90, 1.5)],
+      holes: [circle_polygon([50, 8], 3, 16)]
+    }
+  )
+  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(near_bend, rules)) ==
+    [:kakou_hole_bend]
+  near_edge = kk_sheet_part(
+    {
+      name: "ne",
+      thickness: 1.5,
+      width: 100,
+      depth: 100,
+      holes: [circle_polygon([50, 4], 3, 16)]
+    }
+  )
+  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(near_edge, rules)) ==
+    [:kakou_hole_edge]
   huge = kk_sheet_part({name: "huge", thickness: 1.5, width: 1400, depth: 2500})
-  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(huge, rules)) == [:kakou_sheet]
-  hem = kk_sheet_part({name: "hem", thickness: 1.0, width: 100, depth: 100, flanges: [kk_flange(:north, 10, 180, 1.0)]})
-  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(hem, rules)) == [:kakou_unsupported]
+  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(huge, rules)) ==
+    [:kakou_sheet]
+  hem = kk_sheet_part(
+    {
+      name: "hem",
+      thickness: 1.0,
+      width: 100,
+      depth: 100,
+      flanges: [kk_flange(:north, 10, 180, 1.0)]
+    }
+  )
+  assert map(fn(r) nth(0, r) end, kk_sheet_refusals(hem, rules)) ==
+    [:kakou_unsupported]
 end
 
 test "nesting counts blanks per sheet in the better orientation"
@@ -634,9 +972,19 @@ end
 test "a bent wire: its developed length by hand, and a refused radius"
   # An L of legs 100 and 100 bent at r = 5: 200 - 2(5)tan(45) + 5(pi/2).
   w = kk_wire("hook", 3, [[0, 0, 0], [0, 0, 100], [100, 0, 100]], 5)
-  assert near(kk_wire_length(w), 200 - 10 + (5 * pi() / 2)) == true
+  assert near(kk_wire_length(w), 200 - 10 + 5 * pi() / 2) == true
   # The empty case: a straight wire's developed length is its length.
-  assert near(kk_wire_length(kk_wire("rod", 3, [[0, 0, 0], [0, 0, 80]], 5)), 80) == true
+  assert near(
+    kk_wire_length(kk_wire("rod", 3, [[0, 0, 0], [0, 0, 80]], 5)),
+    80
+  ) ==
+    true
   assert is_empty(rt_mesh_refusals(kk_wire_mesh(w, 12))) == true
-  assert map(fn(r) nth(0, r) end, kk_wire_refusals(kk_wire("kink", 3, [[0, 0, 0], [0, 0, 10], [10, 0, 10]], 1))) == [:kakou_radius]
+  assert map(
+    fn(r) nth(0, r) end,
+    kk_wire_refusals(
+      kk_wire("kink", 3, [[0, 0, 0], [0, 0, 10], [10, 0, 10]], 1)
+    )
+  ) ==
+    [:kakou_radius]
 end

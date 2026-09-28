@@ -4,6 +4,7 @@ use("deeta")
 use("raifusaikuru")
 use("nisshi")
 use("kueri")
+
 # anaritikusu (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 #
 # Give it raifusaikuru definitions and the nisshi streams they were logged to,
@@ -291,13 +292,38 @@ end
 
 # The record columns an event log writes, as the events view names them.
 def la_record_names()
-  ["entity", "seq", "time", "type", "status", "refusal_kind", "refusal_detail", "links", "prev", "hash", "sig"]
+  [
+    "entity",
+    "seq",
+    "time",
+    "type",
+    "status",
+    "refusal_kind",
+    "refusal_detail",
+    "links",
+    "prev",
+    "hash",
+    "sig"
+  ]
 end
 
 # The columns a state row carries besides the fields, and the ones the steps
 # view adds: no field may take one of these names.
 def la_state_names()
-  ["entity", "seq", "time", "type", "status", "refusal_kind", "refusal_detail", "phase", "phase_before", "breach", "breach_capability", "replay_refusal"]
+  [
+    "entity",
+    "seq",
+    "time",
+    "type",
+    "status",
+    "refusal_kind",
+    "refusal_detail",
+    "phase",
+    "phase_before",
+    "breach",
+    "breach_capability",
+    "replay_refusal"
+  ]
 end
 
 # ── types, derived from the definition ─────────────────────────────────────
@@ -318,7 +344,7 @@ def la_lit_type(v)
 end
 
 def la_numeric?(t)
-  (t == :bigint) || (t == :double)
+  t == :bigint || t == :double
 end
 
 # One type from several, nil for none: numbers widen to DOUBLE, and anything
@@ -332,7 +358,12 @@ def la_merge(ts, what)
   elsif count_where(fn(t) la_numeric?(t) == false end, known) == 0
     :double
   else
-    throw(error(:anaritikusu_schema, "#{what} holds values of types #{join(map(fn(t) to_s(t) end, known), " and ")}; a column has one type"))
+    throw(
+      error(
+        :anaritikusu_schema,
+        "#{what} holds values of types #{join(map(fn(t) to_s(t) end, known), " and ")}; a column has one type"
+      )
+    )
   end
 end
 
@@ -344,19 +375,28 @@ end
 
 # Every atomic predicate of every rule of every guard.
 def la_atoms(d)
-  flat_map(fn(g) flat_map(fn(r) lc_atoms(nth(2, r)) end, nth(2, g)) end, lc_d_guards(d))
+  flat_map(
+    fn(g) flat_map(fn(r) lc_atoms(nth(2, r)) end, nth(2, g)) end,
+    lc_d_guards(d)
+  )
 end
 
 # The types the definition's constants and clocks give field `f`.
 def la_field_evidence(d, f)
-  effects = map(fn(x) la_effect_type(x) end, filter(fn(x) nth(1, x) == f end, la_effects(d)))
-  atoms = map(fn(a) la_atom_type(a) end, filter(fn(a) (first(a) != :in) && (nth(1, a) == f) end, la_atoms(d)))
+  effects = map(
+    fn(x) la_effect_type(x) end,
+    filter(fn(x) nth(1, x) == f end, la_effects(d))
+  )
+  atoms = map(
+    fn(a) la_atom_type(a) end,
+    filter(fn(a) first(a) != :in && nth(1, a) == f end, la_atoms(d))
+  )
   cons(la_lit_type(lookup(lc_d_fields(d), f)), concat_lists(effects, atoms))
 end
 
 def la_effect_type(x)
   op = first(x)
-  if (op == :put) || (op == :add)
+  if op == :put || op == :add
     la_lit_type(nth(2, x))
   elsif op == :stamp
     :bigint
@@ -378,21 +418,40 @@ end
 
 # Field `f` holds a number: compared, counted, or given a numeric constant.
 def la_needs_number?(d, f)
-  compared = count_where(fn(a) contains([:lt, :le, :gt, :ge], first(a)) && (nth(1, a) == f) end, la_atoms(d)) > 0
-  counted = count_where(fn(x) contains([:add, :add_key], first(x)) && (nth(1, x) == f) end, la_effects(d)) > 0
-  compared || counted || la_numeric?(la_merge(la_field_evidence(d, f), "field #{lc_show(f)}"))
+  compared = count_where(
+    fn(a) contains([:lt, :le, :gt, :ge], first(a)) && nth(1, a) == f end,
+    la_atoms(d)
+  ) >
+    0
+  counted = count_where(
+    fn(x) contains([:add, :add_key], first(x)) && nth(1, x) == f end,
+    la_effects(d)
+  ) >
+    0
+  compared ||
+    counted ||
+    la_numeric?(la_merge(la_field_evidence(d, f), "field #{lc_show(f)}"))
 end
 
 # The effects that carry payload key `k` (by its text) into a field.
 def la_flows_of_key(d, k)
-  filter(fn(x) ((first(x) == :set) || (first(x) == :add_key)) && (lc_text(nth(2, x)) == lc_text(k)) end, la_effects(d))
+  filter(
+    fn(x)
+      (first(x) == :set || first(x) == :add_key) &&
+        lc_text(nth(2, x)) == lc_text(k)
+    end,
+    la_effects(d)
+  )
 end
 
 # A logged permit's key types by text: subject is text, the limits are whole
 # numbers.
 def la_permit_key_types(d)
   logged = map(fn(l) nth(1, l) end, lc_d_permit_logs(d))
-  keys = flat_map(fn(e) as_list(nth(1, e)) end, filter(fn(e) contains(logged, first(e)) end, lc_d_events(d)))
+  keys = flat_map(
+    fn(e) as_list(nth(1, e)) end,
+    filter(fn(e) contains(logged, first(e)) end, lc_d_events(d))
+  )
   map(fn(k) [lc_text(k), la_permit_key_type(k)] end, keys)
 end
 
@@ -412,11 +471,15 @@ def la_key_type(d, k)
   else
     flows = la_flows_of_key(d, k)
     targets = unique(map(fn(x) nth(1, x) end, flows))
-    numeric = (count_where(fn(x) first(x) == :add_key end, flows) > 0) || (count_where(fn(f) la_needs_number?(d, f) end, targets) > 0)
+    numeric = count_where(fn(x) first(x) == :add_key end, flows) > 0 ||
+      count_where(fn(f) la_needs_number?(d, f) end, targets) > 0
     if numeric
       :double
     else
-      t = la_merge(flat_map(fn(f) la_field_evidence(d, f) end, targets), "payload key #{lc_show(k)}")
+      t = la_merge(
+        flat_map(fn(f) la_field_evidence(d, f) end, targets),
+        "payload key #{lc_show(k)}"
+      )
       if t == nil
         :varchar
       else
@@ -428,8 +491,17 @@ end
 
 # A field's column type (see "Types, derived").
 def la_field_type(d, f)
-  keys = map(fn(x) la_key_type(d, nth(2, x)) end, filter(fn(x) ((first(x) == :set) || (first(x) == :add_key)) && (nth(1, x) == f) end, la_effects(d)))
-  t = la_merge(concat_lists(la_field_evidence(d, f), keys), "field #{lc_show(f)} of #{lc_show(lc_name(d))}")
+  keys = map(
+    fn(x) la_key_type(d, nth(2, x)) end,
+    filter(
+      fn(x) (first(x) == :set || first(x) == :add_key) && nth(1, x) == f end,
+      la_effects(d)
+    )
+  )
+  t = la_merge(
+    concat_lists(la_field_evidence(d, f), keys),
+    "field #{lc_show(f)} of #{lc_show(lc_name(d))}"
+  )
   if t != nil
     t
   elsif la_needs_number?(d, f)
@@ -442,7 +514,10 @@ end
 # Every payload key any event declares, once by its text, first-declared
 # first: the event table's columns after the record's.
 def la_keys(d)
-  unique_by(fn(k) lc_text(k) end, flat_map(fn(e) as_list(nth(1, e)) end, lc_d_events(d)))
+  unique_by(
+    fn(k) lc_text(k) end,
+    flat_map(fn(e) as_list(nth(1, e)) end, lc_d_events(d))
+  )
 end
 
 # [name, type] for every payload key, the name as text.
@@ -465,7 +540,22 @@ end
 def la_event_columns(d)
   la_check_names(d)
   keys = map(fn(kt) q_col(first(kt), nth(1, kt)) end, la_key_types(d))
-  concat_lists(concat_lists([q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:time, :bigint), q_col(:type, :varchar), q_col(:status, :varchar), q_col(:refusal_kind, :varchar), q_col(:refusal_detail, q_list_of(:varchar)), q_col(:links, q_list_of(la_link_type()))], keys), [q_col(:prev, :varchar), q_col(:hash, :varchar), q_col(:sig, :varchar)])
+  concat_lists(
+    concat_lists(
+      [
+        q_col(:entity, :varchar),
+        q_col(:seq, :bigint),
+        q_col(:time, :bigint),
+        q_col(:type, :varchar),
+        q_col(:status, :varchar),
+        q_col(:refusal_kind, :varchar),
+        q_col(:refusal_detail, q_list_of(:varchar)),
+        q_col(:links, q_list_of(la_link_type()))
+      ],
+      keys
+    ),
+    [q_col(:prev, :varchar), q_col(:hash, :varchar), q_col(:sig, :varchar)]
+  )
 end
 
 # The state table's columns, as q_col: which record, the phase, every field,
@@ -473,7 +563,17 @@ end
 def la_state_columns(d)
   la_check_names(d)
   fields = map(fn(ft) q_col(first(ft), nth(1, ft)) end, la_field_types(d))
-  concat_lists(concat_lists([q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:phase, :varchar)], fields), [q_col(:breach, q_list_of(:varchar)), q_col(:breach_capability, :varchar), q_col(:replay_refusal, :varchar)])
+  concat_lists(
+    concat_lists(
+      [q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:phase, :varchar)],
+      fields
+    ),
+    [
+      q_col(:breach, q_list_of(:varchar)),
+      q_col(:breach_capability, :varchar),
+      q_col(:replay_refusal, :varchar)
+    ]
+  )
 end
 
 # [column, type] pairs of a q_col list, types as SQL: what a reader checks.
@@ -490,13 +590,28 @@ def la_check_names(d)
   taken_fields = filter(fn(f) contains(la_state_names(), f) end, fields)
   dupes = unique(filter(fn(f) count_of(fields, f) > 1 end, fields))
   if is_empty(taken_keys) == false
-    throw(error(:anaritikusu_schema, "#{lc_show(lc_name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(la_record_names(), ", ")}); rename the key"))
+    throw(
+      error(
+        :anaritikusu_schema,
+        "#{lc_show(lc_name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(la_record_names(), ", ")}); rename the key"
+      )
+    )
   end
   if is_empty(taken_fields) == false
-    throw(error(:anaritikusu_schema, "#{lc_show(lc_name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(la_state_names(), ", ")}); rename the field"))
+    throw(
+      error(
+        :anaritikusu_schema,
+        "#{lc_show(lc_name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(la_state_names(), ", ")}); rename the field"
+      )
+    )
   end
   if is_empty(dupes) == false
-    throw(error(:anaritikusu_schema, "#{lc_show(lc_name(d))}: two fields are named #{join(dupes, ", ")} as text"))
+    throw(
+      error(
+        :anaritikusu_schema,
+        "#{lc_show(lc_name(d))}: two fields are named #{join(dupes, ", ")} as text"
+      )
+    )
   end
   d
 end
@@ -523,11 +638,34 @@ def la_records_source(d, path)
   payload = if is_empty(keys)
     []
   else
-    [q_col(:payload, q_struct_of(map(fn(kt) q_col(first(kt), nth(1, kt)) end, keys)))]
+    [
+      q_col(
+        :payload,
+        q_struct_of(map(fn(kt) q_col(first(kt), nth(1, kt)) end, keys))
+      )
+    ]
   end
-  refusal = q_struct_of([q_col(:kind, :varchar), q_col(:detail, q_list_of(:varchar))])
-  cols = concat_lists(concat_lists([q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:time, :bigint), q_col(:type, :varchar), q_col(:status, :varchar), q_col(:refusal, refusal), q_col(:links, q_list_of(la_link_type()))], payload), [q_col(:prev, :varchar), q_col(:hash, :varchar), q_col(:sig, :varchar)])
-  q_source({name: la_n(d, "records"), file: path, format: :jsonl, columns: cols})
+  refusal = q_struct_of(
+    [q_col(:kind, :varchar), q_col(:detail, q_list_of(:varchar))]
+  )
+  cols = concat_lists(
+    concat_lists(
+      [
+        q_col(:entity, :varchar),
+        q_col(:seq, :bigint),
+        q_col(:time, :bigint),
+        q_col(:type, :varchar),
+        q_col(:status, :varchar),
+        q_col(:refusal, refusal),
+        q_col(:links, q_list_of(la_link_type()))
+      ],
+      payload
+    ),
+    [q_col(:prev, :varchar), q_col(:hash, :varchar), q_col(:sig, :varchar)]
+  )
+  q_source(
+    {name: la_n(d, "records"), file: path, format: :jsonl, columns: cols}
+  )
 end
 
 # The history la_write_history writes: the state after each record.
@@ -536,10 +674,27 @@ def la_history_source(d, path)
   struct = if is_empty(fields)
     []
   else
-    [q_col(:fields, q_struct_of(map(fn(ft) q_col(first(ft), nth(1, ft)) end, fields)))]
+    [
+      q_col(
+        :fields,
+        q_struct_of(map(fn(ft) q_col(first(ft), nth(1, ft)) end, fields))
+      )
+    ]
   end
-  cols = concat_lists(concat_lists([q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:phase, :varchar)], struct), [q_col(:breach, q_list_of(:varchar)), q_col(:breach_capability, :varchar), q_col(:replay_refusal, :varchar)])
-  q_source({name: la_n(d, "history"), file: path, format: :jsonl, columns: cols})
+  cols = concat_lists(
+    concat_lists(
+      [q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:phase, :varchar)],
+      struct
+    ),
+    [
+      q_col(:breach, q_list_of(:varchar)),
+      q_col(:breach_capability, :varchar),
+      q_col(:replay_refusal, :varchar)
+    ]
+  )
+  q_source(
+    {name: la_n(d, "history"), file: path, format: :jsonl, columns: cols}
+  )
 end
 
 # ── the definition, as rows ────────────────────────────────────────────────
@@ -555,16 +710,52 @@ end
 # Every row: the phase it leaves, the event, the phase it enters, and the
 # capability that gates it (NULL when none).
 def la_edges_rel(d)
-  rows = map(fn(e) [lc_text(nth(1, e)), lc_text(nth(2, e)), lc_text(nth(3, e)), la_text_or_nil(nth(5, e))] end, lc_d_edges(d))
-  q_values({name: la_n(d, "edges"), columns: [q_col(:phase_before, :varchar), q_col(:type, :varchar), q_col(:phase, :varchar), q_col(:capability, :varchar)], rows: rows})
+  rows = map(
+    fn(e)
+      [
+        lc_text(nth(1, e)),
+        lc_text(nth(2, e)),
+        lc_text(nth(3, e)),
+        la_text_or_nil(nth(5, e))
+      ]
+    end,
+    lc_d_edges(d)
+  )
+  q_values(
+    {
+      name: la_n(d, "edges"),
+      columns: [
+        q_col(:phase_before, :varchar),
+        q_col(:type, :varchar),
+        q_col(:phase, :varchar),
+        q_col(:capability, :varchar)
+      ],
+      rows: rows
+    }
+  )
 end
 
 # Every rule of every guard: what it needs, in the engine's own words, and
 # the task it asks for when it refuses (its own, else its guard's; NULL when
 # neither names one).
 def la_rules_rel(d)
-  rows = flat_map(fn(g) map(fn(r) la_rule_row(g, r) end, nth(2, g)) end, lc_d_guards(d))
-  q_values({name: la_n(d, "rules"), columns: [q_col(:capability, :varchar), q_col(:rule, :varchar), q_col(:needs, :varchar), q_col(:task, :varchar), q_col(:escalate_after, :bigint)], rows: rows})
+  rows = flat_map(
+    fn(g) map(fn(r) la_rule_row(g, r) end, nth(2, g)) end,
+    lc_d_guards(d)
+  )
+  q_values(
+    {
+      name: la_n(d, "rules"),
+      columns: [
+        q_col(:capability, :varchar),
+        q_col(:rule, :varchar),
+        q_col(:needs, :varchar),
+        q_col(:task, :varchar),
+        q_col(:escalate_after, :bigint)
+      ],
+      rows: rows
+    }
+  )
 end
 
 def la_rule_row(g, r)
@@ -574,20 +765,49 @@ def la_rule_row(g, r)
   else
     [lc_text(lc_task_name(t)), lc_task_escalate_after(t)]
   end
-  concat_lists([lc_text(nth(1, g)), lc_text(nth(1, r)), lc_pred_text(nth(2, r))], task)
+  concat_lists(
+    [lc_text(nth(1, g)), lc_text(nth(1, r)), lc_pred_text(nth(2, r))],
+    task
+  )
 end
 
 # Every task any rule may ask for, one row per evidence kind that closes it.
 def la_task_evidence_rel(d)
-  tasks = flat_map(fn(g) filter(fn(t) t != nil end, cons(nth(3, g), map(fn(r) nth(3, r) end, nth(2, g)))) end, lc_d_guards(d))
-  rows = unique(flat_map(fn(t) map(fn(k) [lc_text(lc_task_name(t)), lc_text(k)] end, lc_task_evidence(t)) end, tasks))
-  q_values({name: la_n(d, "task_evidence"), columns: [q_col(:task, :varchar), q_col(:evidence, :varchar)], rows: rows})
+  tasks = flat_map(
+    fn(g)
+      filter(
+        fn(t) t != nil end,
+        cons(nth(3, g), map(fn(r) nth(3, r) end, nth(2, g)))
+      )
+    end,
+    lc_d_guards(d)
+  )
+  rows = unique(
+    flat_map(
+      fn(t)
+        map(
+          fn(k) [lc_text(lc_task_name(t)), lc_text(k)] end,
+          lc_task_evidence(t)
+        )
+      end,
+      tasks
+    )
+  )
+  q_values(
+    {
+      name: la_n(d, "task_evidence"),
+      columns: [q_col(:task, :varchar), q_col(:evidence, :varchar)],
+      rows: rows
+    }
+  )
 end
 
 # ── the models of one lifecycle ────────────────────────────────────────────
 
 def la_view(d, suffix, from, pipeline)
-  q_model({name: la_n(d, suffix), from: from, pipeline: pipeline, materialize: :view})
+  q_model(
+    {name: la_n(d, suffix), from: from, pipeline: pipeline, materialize: :view}
+  )
 end
 
 def la_field_names(d)
@@ -596,56 +816,151 @@ end
 
 # The event table: one row per record, the payload's keys as columns.
 def la_events_model(d, records)
-  keys = map(fn(kt) q_as(first(kt), q_get(:payload, first(kt))) end, la_key_types(d))
-  items = concat_lists(concat_lists([:entity, :seq, :time, :type, :status, q_as(:refusal_kind, q_get(:refusal, :kind)), q_as(:refusal_detail, q_get(:refusal, :detail)), :links], keys), [:prev, :hash, :sig])
+  keys = map(
+    fn(kt) q_as(first(kt), q_get(:payload, first(kt))) end,
+    la_key_types(d)
+  )
+  items = concat_lists(
+    concat_lists(
+      [
+        :entity,
+        :seq,
+        :time,
+        :type,
+        :status,
+        q_as(:refusal_kind, q_get(:refusal, :kind)),
+        q_as(:refusal_detail, q_get(:refusal, :detail)),
+        :links
+      ],
+      keys
+    ),
+    [:prev, :hash, :sig]
+  )
   la_view(d, "events", records, [q_select(items)])
 end
 
 # The state table: one row per record, the fields as columns.
 def la_states_model(d, history)
   fields = map(fn(f) q_as(f, q_get(:fields, f)) end, la_field_names(d))
-  items = concat_lists(concat_lists([:entity, :seq, :phase], fields), [:breach, :breach_capability, :replay_refusal])
+  items = concat_lists(
+    concat_lists([:entity, :seq, :phase], fields),
+    [:breach, :breach_capability, :replay_refusal]
+  )
   la_view(d, "states", history, [q_select(items)])
 end
 
 # Records and states joined, with the phase each record found its entity in.
 def la_steps_model(d, events, states)
   start = lc_text(lc_phase(lc_initial(d)))
-  la_view(d, "steps", events, [q_select([:entity, :seq, :time, :type, :status, :refusal_kind, :refusal_detail]), q_join(states, [:entity, :seq]), q_derive(:phase_before, q_coalesce(q_lag(:phase, [:entity], [:seq]), start))])
+  la_view(
+    d,
+    "steps",
+    events,
+    [
+      q_select(
+        [:entity, :seq, :time, :type, :status, :refusal_kind, :refusal_detail]
+      ),
+      q_join(states, [:entity, :seq]),
+      q_derive(
+        :phase_before,
+        q_coalesce(q_lag(:phase, [:entity], [:seq]), start)
+      )
+    ]
+  )
 end
 
 # Records the history has no state for: 0 when it was written from this
 # stream.
 def la_unreplayed_model(d, events, states)
-  la_view(d, "unreplayed", events, [q_select([:entity, :seq]), q_left_join(states, [:entity, :seq]), q_filter(q_is_null(:phase)), q_group([], [q_agg(:records, q_count_all())])])
+  la_view(
+    d,
+    "unreplayed",
+    events,
+    [
+      q_select([:entity, :seq]),
+      q_left_join(states, [:entity, :seq]),
+      q_filter(q_is_null(:phase)),
+      q_group([], [q_agg(:records, q_count_all())])
+    ]
+  )
 end
 
 # One row per entity: its phase and fields after its last record.
 def la_current_state_model(d, steps)
-  items = concat_lists(concat_lists([:entity, :phase], la_field_names(d)), [q_as(:last_seq, :seq), q_as(:last_time, :time)])
-  la_view(d, "current_state", steps, [q_derive(:la_newest, q_row_number([:entity], [q_desc(:seq)])), q_filter(q_eq(:la_newest, 1)), q_select(items)])
+  items = concat_lists(
+    concat_lists([:entity, :phase], la_field_names(d)),
+    [q_as(:last_seq, :seq), q_as(:last_time, :time)]
+  )
+  la_view(
+    d,
+    "current_state",
+    steps,
+    [
+      q_derive(:la_newest, q_row_number([:entity], [q_desc(:seq)])),
+      q_filter(q_eq(:la_newest, 1)),
+      q_select(items)
+    ]
+  )
 end
 
 # Each record's phase held from its time until the entity's next record, or
 # until `now` for the last.
 def la_intervals_model(d, steps, now)
-  la_view(d, "state_intervals", steps, [q_derive(:until, q_lead(:time, [:entity], [:seq])), q_derive(:seconds, q_sub(q_coalesce(:until, now), :time)), q_select([:entity, :seq, :phase, q_as(:since, :time), :until, :seconds])])
+  la_view(
+    d,
+    "state_intervals",
+    steps,
+    [
+      q_derive(:until, q_lead(:time, [:entity], [:seq])),
+      q_derive(:seconds, q_sub(q_coalesce(:until, now), :time)),
+      q_select([:entity, :seq, :phase, q_as(:since, :time), :until, :seconds])
+    ]
+  )
 end
 
 # Seconds per entity in each phase it has been in; ongoing is 1 for the
 # phase it is in now.
 def la_time_in_state_model(d, intervals)
-  la_view(d, "time_in_state", intervals, [q_group([:entity, :phase], [q_agg(:seconds, q_sum(:seconds)), q_agg_where(:ongoing, q_count_all(), q_is_null(:until))])])
+  la_view(
+    d,
+    "time_in_state",
+    intervals,
+    [
+      q_group(
+        [:entity, :phase],
+        [
+          q_agg(:seconds, q_sum(:seconds)),
+          q_agg_where(:ongoing, q_count_all(), q_is_null(:until))
+        ]
+      )
+    ]
+  )
 end
 
 # Refused records by event type and refusal kind.
 def la_refusals_model(d, events)
-  la_view(d, "refusals", events, [q_filter(q_eq(:status, "refused")), q_group([:type, :refusal_kind], [q_agg(:records, q_count_all())])])
+  la_view(
+    d,
+    "refusals",
+    events,
+    [
+      q_filter(q_eq(:status, "refused")),
+      q_group([:type, :refusal_kind], [q_agg(:records, q_count_all())])
+    ]
+  )
 end
 
 # The gated rows: which capability an event in a phase uses.
 def la_gates_model(d, edges)
-  la_view(d, "gates", edges, [q_filter(q_not_null(:capability)), q_select([:phase_before, :type, :capability])])
+  la_view(
+    d,
+    "gates",
+    edges,
+    [
+      q_filter(q_not_null(:capability)),
+      q_select([:phase_before, :type, :capability])
+    ]
+  )
 end
 
 # One row per rule a guard applied against a record: refused (the log
@@ -653,67 +968,222 @@ end
 # refused, which happens when the definition read is stricter than the one
 # that wrote).
 def la_guard_hits_model(d, steps, gates)
-  la_view(d, "guard_hits", steps, [
-    q_select([:entity, :seq, :time, :type, :phase_before, :refusal_kind, :refusal_detail, :breach, :breach_capability]),
-    q_left_join(gates, [:phase_before, :type]),
-    q_filter(q_or(q_eq(:refusal_kind, "guard"), q_not_null(:breach))),
-    q_derive(:la_capability, q_coalesce(:breach_capability, :capability)),
-    q_derive(:la_rules, q_coalesce(:breach, :refusal_detail)),
-    q_derive(:outcome, q_if(q_not_null(:breach), "breach", "refused")),
-    q_explode(:rule, :la_rules),
-    q_select([:entity, :seq, :time, :type, q_as(:capability, :la_capability), :rule, :outcome])])
+  la_view(
+    d,
+    "guard_hits",
+    steps,
+    [
+      q_select(
+        [
+          :entity,
+          :seq,
+          :time,
+          :type,
+          :phase_before,
+          :refusal_kind,
+          :refusal_detail,
+          :breach,
+          :breach_capability
+        ]
+      ),
+      q_left_join(gates, [:phase_before, :type]),
+      q_filter(q_or(q_eq(:refusal_kind, "guard"), q_not_null(:breach))),
+      q_derive(:la_capability, q_coalesce(:breach_capability, :capability)),
+      q_derive(:la_rules, q_coalesce(:breach, :refusal_detail)),
+      q_derive(:outcome, q_if(q_not_null(:breach), "breach", "refused")),
+      q_explode(:rule, :la_rules),
+      q_select(
+        [
+          :entity,
+          :seq,
+          :time,
+          :type,
+          q_as(:capability, :la_capability),
+          :rule,
+          :outcome
+        ]
+      )
+    ]
+  )
 end
 
 def la_rule_hit_counts_model(d, hits)
-  la_view(d, "rule_hit_counts", hits, [q_group([:capability, :rule], [q_agg_where(:refused, q_count_all(), q_eq(:outcome, "refused")), q_agg_where(:breached, q_count_all(), q_eq(:outcome, "breach"))])])
+  la_view(
+    d,
+    "rule_hit_counts",
+    hits,
+    [
+      q_group(
+        [:capability, :rule],
+        [
+          q_agg_where(:refused, q_count_all(), q_eq(:outcome, "refused")),
+          q_agg_where(:breached, q_count_all(), q_eq(:outcome, "breach"))
+        ]
+      )
+    ]
+  )
 end
 
 # Every declared rule, with how often it refused and was breached (0 when
 # never: a rule that never fired is information too).
 def la_rule_hits_model(d, rules, counts)
-  la_view(d, "rule_hits", rules, [q_select([:capability, :rule, :needs]), q_left_join(counts, [:capability, :rule]), q_select([:capability, :rule, :needs, q_as(:refused, q_coalesce(:refused, 0)), q_as(:breached, q_coalesce(:breached, 0))])])
+  la_view(
+    d,
+    "rule_hits",
+    rules,
+    [
+      q_select([:capability, :rule, :needs]),
+      q_left_join(counts, [:capability, :rule]),
+      q_select(
+        [
+          :capability,
+          :rule,
+          :needs,
+          q_as(:refused, q_coalesce(:refused, 0)),
+          q_as(:breached, q_coalesce(:breached, 0))
+        ]
+      )
+    ]
+  )
 end
 
 def la_rule_tasks_model(d, rules)
-  la_view(d, "rule_tasks", rules, [q_filter(q_not_null(:task)), q_select([:capability, :rule, :task, :escalate_after])])
+  la_view(
+    d,
+    "rule_tasks",
+    rules,
+    [
+      q_filter(q_not_null(:task)),
+      q_select([:capability, :rule, :task, :escalate_after])
+    ]
+  )
 end
 
 # Each record's asks: one row per task a refusal or breach asked for.
 def la_task_asks_model(d, hits, rule_tasks)
-  la_view(d, "task_asks", hits, [q_join(rule_tasks, [:capability, :rule]), q_group([:entity, :seq, :time, :task, :escalate_after], [q_agg(:asked_by, q_count_all())])])
+  la_view(
+    d,
+    "task_asks",
+    hits,
+    [
+      q_join(rule_tasks, [:capability, :rule]),
+      q_group(
+        [:entity, :seq, :time, :task, :escalate_after],
+        [q_agg(:asked_by, q_count_all())]
+      )
+    ]
+  )
 end
 
 # Admitted events that are evidence for a task.
 def la_task_evidence_events_model(d, steps, evidence)
-  la_view(d, "task_evidence_events", steps, [q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))), q_select([:entity, q_as(:evidence_seq, :seq), q_as(:evidence_time, :time), q_as(:evidence, :type)]), q_join(evidence, [:evidence]), q_select([:entity, :task, :evidence_seq, :evidence_time])])
+  la_view(
+    d,
+    "task_evidence_events",
+    steps,
+    [
+      q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
+      q_select(
+        [
+          :entity,
+          q_as(:evidence_seq, :seq),
+          q_as(:evidence_time, :time),
+          q_as(:evidence, :type)
+        ]
+      ),
+      q_join(evidence, [:evidence]),
+      q_select([:entity, :task, :evidence_seq, :evidence_time])
+    ]
+  )
 end
 
 # Each ask with the first later evidence of its task on its entity.
 def la_task_closes_model(d, asks, evidence_events)
   later = q_gt(:evidence_seq, :seq)
-  la_view(d, "task_closes", asks, [q_left_join(evidence_events, [:entity, :task]), q_group([:entity, :seq, :time, :task, :escalate_after], [q_agg_where(:closed_seq, q_min(:evidence_seq), later), q_agg_where(:closed_at, q_min(:evidence_time), later)])])
+  la_view(
+    d,
+    "task_closes",
+    asks,
+    [
+      q_left_join(evidence_events, [:entity, :task]),
+      q_group(
+        [:entity, :seq, :time, :task, :escalate_after],
+        [
+          q_agg_where(:closed_seq, q_min(:evidence_seq), later),
+          q_agg_where(:closed_at, q_min(:evidence_time), later)
+        ]
+      )
+    ]
+  )
 end
 
 # One row per task: the asks one evidence closes are one task, opened at the
 # first; still open (no evidence yet) until `now`; overdue when it stayed
 # open longer than its escalate_after.
 def la_tasks_model(d, closes, now)
-  la_view(d, "tasks", closes, [
-    q_group([:entity, :task, :closed_seq], [q_agg(:opened_seq, q_min(:seq)), q_agg(:opened_at, q_min(:time)), q_agg(:asks, q_count_all()), q_agg(:closed_at, q_max(:closed_at)), q_agg(:escalate_after, q_max(:escalate_after))]),
-    q_derive(:open_for, q_sub(q_coalesce(:closed_at, now), :opened_at)),
-    q_derive(:overdue, q_gt(:open_for, :escalate_after)),
-    q_derive(:state, q_if(q_is_null(:closed_seq), "open", "closed")),
-    q_select([:entity, :task, :state, :opened_seq, :opened_at, :closed_seq, :closed_at, :asks, :open_for, :escalate_after, :overdue])])
+  la_view(
+    d,
+    "tasks",
+    closes,
+    [
+      q_group(
+        [:entity, :task, :closed_seq],
+        [
+          q_agg(:opened_seq, q_min(:seq)),
+          q_agg(:opened_at, q_min(:time)),
+          q_agg(:asks, q_count_all()),
+          q_agg(:closed_at, q_max(:closed_at)),
+          q_agg(:escalate_after, q_max(:escalate_after))
+        ]
+      ),
+      q_derive(:open_for, q_sub(q_coalesce(:closed_at, now), :opened_at)),
+      q_derive(:overdue, q_gt(:open_for, :escalate_after)),
+      q_derive(:state, q_if(q_is_null(:closed_seq), "open", "closed")),
+      q_select(
+        [
+          :entity,
+          :task,
+          :state,
+          :opened_seq,
+          :opened_at,
+          :closed_seq,
+          :closed_at,
+          :asks,
+          :open_for,
+          :escalate_after,
+          :overdue
+        ]
+      )
+    ]
+  )
 end
 
 def la_task_summary_model(d, tasks)
-  la_view(d, "task_summary", tasks, [q_group([:task], [q_agg(:opened, q_count_all()), q_agg_where(:still_open, q_count_all(), q_eq(:state, "open")), q_agg_where(:closed, q_count_all(), q_eq(:state, "closed")), q_agg_where(:overdue, q_count_all(), :overdue)])])
+  la_view(
+    d,
+    "task_summary",
+    tasks,
+    [
+      q_group(
+        [:task],
+        [
+          q_agg(:opened, q_count_all()),
+          q_agg_where(:still_open, q_count_all(), q_eq(:state, "open")),
+          q_agg_where(:closed, q_count_all(), q_eq(:state, "closed")),
+          q_agg_where(:overdue, q_count_all(), :overdue)
+        ]
+      )
+    ]
+  )
 end
 
 # The counted fields of a capability's permit, as their log keys.
 def la_count_keys(d, capability)
   pm = find_first(fn(p) nth(1, p) == capability end, lc_d_permits(d))
-  map(fn(t) lc_permit_count_key(nth(1, t)) end, filter(fn(t) first(t) == :counted end, as_list(nth(2, pm))))
+  map(
+    fn(t) lc_permit_count_key(nth(1, t)) end,
+    filter(fn(t) first(t) == :counted end, as_list(nth(2, pm)))
+  )
 end
 
 # The permit models of one logged capability: issued, used, and the two
@@ -722,14 +1192,114 @@ def la_permit_models(d, log, events, steps, gates)
   cap = first(log)
   c = lc_text(cap)
   counts = la_count_keys(d, cap)
-  permits = la_view(d, "permits_#{c}", events, [q_filter(q_and(q_eq(:type, lc_text(nth(1, log))), q_eq(:status, "admitted"))), q_derive(:next_seq, q_lead(:seq, [:entity], [:seq])), q_select(concat_lists(concat_lists([:entity, q_as(:permit_seq, :seq), q_as(:issued_at, :time), :subject, :not_after, :basis], counts), [:next_seq]))])
-  uses = la_view(d, "uses_#{c}", steps, [q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))), q_select([:entity, :seq, :time, :type, :phase_before]), q_join(gates, [:phase_before, :type]), q_filter(q_eq(:capability, c)), q_select([:entity, q_as(:use_seq, :seq), q_as(:use_time, :time)])])
-  within = q_and(q_gt(:use_seq, :permit_seq), q_or(q_is_null(:next_seq), q_lt(:use_seq, :next_seq)))
-  exceeded = map(fn(k) q_derive("#{k}_exceeded", q_gt(:uses, q_c(k))) end, counts)
-  keys = concat_lists(concat_lists([:entity, :permit_seq, :issued_at, :not_after, :subject, :basis], counts), [:next_seq])
-  out = concat_lists(concat_lists([:entity, :permit_seq, :subject, :issued_at, :not_after, :window_seconds, :basis], counts), concat_lists([:uses, :overrun, :last_use_at], map(fn(k) "#{k}_exceeded" end, counts)))
-  used = la_view(d, "permit_use_#{c}", permits, concat_lists([q_left_join(uses, [:entity]), q_group(keys, [q_agg_where(:uses, q_count_all(), q_and(within, q_lt(:use_time, :not_after))), q_agg_where(:overrun, q_count_all(), q_and(within, q_ge(:use_time, :not_after))), q_agg_where(:last_use_at, q_max(:use_time), q_and(within, q_lt(:use_time, :not_after)))]), q_derive(:window_seconds, q_sub(:not_after, :issued_at))], push(exceeded, q_select(out))))
-  concat_lists([permits, uses, used], la_unpermitted_models(d, log, events, steps, gates))
+  permits = la_view(
+    d,
+    "permits_#{c}",
+    events,
+    [
+      q_filter(
+        q_and(q_eq(:type, lc_text(nth(1, log))), q_eq(:status, "admitted"))
+      ),
+      q_derive(:next_seq, q_lead(:seq, [:entity], [:seq])),
+      q_select(
+        concat_lists(
+          concat_lists(
+            [
+              :entity,
+              q_as(:permit_seq, :seq),
+              q_as(:issued_at, :time),
+              :subject,
+              :not_after,
+              :basis
+            ],
+            counts
+          ),
+          [:next_seq]
+        )
+      )
+    ]
+  )
+  uses = la_view(
+    d,
+    "uses_#{c}",
+    steps,
+    [
+      q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
+      q_select([:entity, :seq, :time, :type, :phase_before]),
+      q_join(gates, [:phase_before, :type]),
+      q_filter(q_eq(:capability, c)),
+      q_select([:entity, q_as(:use_seq, :seq), q_as(:use_time, :time)])
+    ]
+  )
+  within = q_and(
+    q_gt(:use_seq, :permit_seq),
+    q_or(q_is_null(:next_seq), q_lt(:use_seq, :next_seq))
+  )
+  exceeded = map(
+    fn(k) q_derive("#{k}_exceeded", q_gt(:uses, q_c(k))) end,
+    counts
+  )
+  keys = concat_lists(
+    concat_lists(
+      [:entity, :permit_seq, :issued_at, :not_after, :subject, :basis],
+      counts
+    ),
+    [:next_seq]
+  )
+  out = concat_lists(
+    concat_lists(
+      [
+        :entity,
+        :permit_seq,
+        :subject,
+        :issued_at,
+        :not_after,
+        :window_seconds,
+        :basis
+      ],
+      counts
+    ),
+    concat_lists(
+      [:uses, :overrun, :last_use_at],
+      map(fn(k) "#{k}_exceeded" end, counts)
+    )
+  )
+  used = la_view(
+    d,
+    "permit_use_#{c}",
+    permits,
+    concat_lists(
+      [
+        q_left_join(uses, [:entity]),
+        q_group(
+          keys,
+          [
+            q_agg_where(
+              :uses,
+              q_count_all(),
+              q_and(within, q_lt(:use_time, :not_after))
+            ),
+            q_agg_where(
+              :overrun,
+              q_count_all(),
+              q_and(within, q_ge(:use_time, :not_after))
+            ),
+            q_agg_where(
+              :last_use_at,
+              q_max(:use_time),
+              q_and(within, q_lt(:use_time, :not_after))
+            )
+          ]
+        ),
+        q_derive(:window_seconds, q_sub(:not_after, :issued_at))
+      ],
+      push(exceeded, q_select(out))
+    )
+  )
+  concat_lists(
+    [permits, uses, used],
+    la_unpermitted_models(d, log, events, steps, gates)
+  )
 end
 
 # Every use of a logged capability that no permit covered, and why: the
@@ -742,18 +1312,52 @@ end
 # seen. The first reason that applies, in that order.
 def la_unpermitted_models(d, log, events, steps, gates)
   c = lc_text(first(log))
-  granted = la_view(d, "granted_#{c}", events, [q_filter(q_and(q_eq(:type, lc_text(nth(1, log))), q_eq(:status, "admitted"))), q_select([:entity, :seq, q_as(:permit_seq, :seq), :not_after])])
-  reason = q_if(q_is_null(:permit_seq), "no_permit", q_if(q_ge(:time, :not_after), "lapsed", q_if(q_not_null(:breach), "breach", q_null())))
-  unpermitted = la_view(d, "unpermitted_#{c}", steps, [
-    q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
-    q_select([:entity, :seq, :time, :type, :phase_before, :breach]),
-    q_join(gates, [:phase_before, :type]),
-    q_filter(q_eq(:capability, c)),
-    q_select([:entity, :seq, :time, :breach]),
-    q_asof_left_join(granted, [:entity, :seq]),
-    q_derive(:reason, reason),
-    q_filter(q_not_null(:reason)),
-    q_select([:entity, q_as(:use_seq, :seq), q_as(:use_time, :time), :permit_seq, :not_after, :breach, :reason])])
+  granted = la_view(
+    d,
+    "granted_#{c}",
+    events,
+    [
+      q_filter(
+        q_and(q_eq(:type, lc_text(nth(1, log))), q_eq(:status, "admitted"))
+      ),
+      q_select([:entity, :seq, q_as(:permit_seq, :seq), :not_after])
+    ]
+  )
+  reason = q_if(
+    q_is_null(:permit_seq),
+    "no_permit",
+    q_if(
+      q_ge(:time, :not_after),
+      "lapsed",
+      q_if(q_not_null(:breach), "breach", q_null())
+    )
+  )
+  unpermitted = la_view(
+    d,
+    "unpermitted_#{c}",
+    steps,
+    [
+      q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
+      q_select([:entity, :seq, :time, :type, :phase_before, :breach]),
+      q_join(gates, [:phase_before, :type]),
+      q_filter(q_eq(:capability, c)),
+      q_select([:entity, :seq, :time, :breach]),
+      q_asof_left_join(granted, [:entity, :seq]),
+      q_derive(:reason, reason),
+      q_filter(q_not_null(:reason)),
+      q_select(
+        [
+          :entity,
+          q_as(:use_seq, :seq),
+          q_as(:use_time, :time),
+          :permit_seq,
+          :not_after,
+          :breach,
+          :reason
+        ]
+      )
+    ]
+  )
   [granted, unpermitted]
 end
 
@@ -769,36 +1373,106 @@ end
 def la_span_models(d, sp, steps, current, now)
   s = lc_text(lc_span_name(sp))
   limit = lc_span_limit(sp)
-  first_row = [q_derive(:la_first, q_row_number([:entity], [:seq])), q_filter(q_eq(:la_first, 1))]
-  starts = la_view(d, "span_#{s}_from", steps, flatten1([[q_filter(q_eq(:phase, lc_text(lc_span_from(sp))))], first_row, [q_select([:entity, q_as(:from_seq, :seq), q_as(:from_at, :time)])]]))
-  ends = la_view(d, "span_#{s}_to", steps, flatten1([[q_filter(q_eq(:phase, lc_text(lc_span_to(sp)))), q_join(starts, [:entity]), q_filter(q_gt(:seq, :from_seq))], first_row, [q_select([:entity, q_as(:to_seq, :seq), q_as(:to_at, :time)])]]))
+  first_row = [
+    q_derive(:la_first, q_row_number([:entity], [:seq])),
+    q_filter(q_eq(:la_first, 1))
+  ]
+  starts = la_view(
+    d,
+    "span_#{s}_from",
+    steps,
+    flatten1(
+      [
+        [q_filter(q_eq(:phase, lc_text(lc_span_from(sp))))],
+        first_row,
+        [q_select([:entity, q_as(:from_seq, :seq), q_as(:from_at, :time)])]
+      ]
+    )
+  )
+  ends = la_view(
+    d,
+    "span_#{s}_to",
+    steps,
+    flatten1(
+      [
+        [
+          q_filter(q_eq(:phase, lc_text(lc_span_to(sp)))),
+          q_join(starts, [:entity]),
+          q_filter(q_gt(:seq, :from_seq))
+        ],
+        first_row,
+        [q_select([:entity, q_as(:to_seq, :seq), q_as(:to_at, :time)])]
+      ]
+    )
+  )
   # After the join with the current state, :phase is the entity's phase now.
-  ended = reduce(fn(acc, t) q_or(acc, q_eq(:phase, lc_text(t))) end, q_lit(false), lc_d_terminals(d))
+  ended = reduce(
+    fn(acc, t) q_or(acc, q_eq(:phase, lc_text(t))) end,
+    q_lit(false),
+    lc_d_terminals(d)
+  )
   state = q_if(q_not_null(:to_seq), "done", q_if(ended, "abandoned", "open"))
   over = if limit == nil
     q_cast(q_null(), :boolean)
   else
     q_gt(:elapsed, limit)
   end
-  span = la_view(d, "span_#{s}", starts, [
-    q_left_join(ends, [:entity]),
-    q_join(current, [:entity]),
-    q_derive(:state, state),
-    q_derive(:seconds, q_sub(:to_at, :from_at)),
-    q_derive(:elapsed, q_if(q_eq(:state, "abandoned"), q_cast(q_null(), :bigint), q_sub(q_coalesce(:to_at, now), :from_at))),
-    q_derive(:limit_seconds, q_cast(q_lit(limit), :bigint)),
-    q_derive(:over_limit, over),
-    q_select([:entity, :state, :from_seq, :from_at, :to_seq, :to_at, :seconds, :elapsed, :limit_seconds, :over_limit])])
-  summary = la_view(d, "span_#{s}_summary", span, [q_group([], [
-    q_agg(:started, q_count_all()),
-    q_agg_where(:reached, q_count_all(), q_eq(:state, "done")),
-    q_agg_where(:still_open, q_count_all(), q_eq(:state, "open")),
-    q_agg_where(:abandoned, q_count_all(), q_eq(:state, "abandoned")),
-    q_agg_where(:over_limit, q_count_all(), :over_limit),
-    q_agg(:min_seconds, q_min(:seconds)),
-    q_agg(:avg_seconds, q_avg(:seconds)),
-    q_agg(:max_seconds, q_max(:seconds)),
-    q_agg(:limit_seconds, q_max(:limit_seconds))])])
+  span = la_view(
+    d,
+    "span_#{s}",
+    starts,
+    [
+      q_left_join(ends, [:entity]),
+      q_join(current, [:entity]),
+      q_derive(:state, state),
+      q_derive(:seconds, q_sub(:to_at, :from_at)),
+      q_derive(
+        :elapsed,
+        q_if(
+          q_eq(:state, "abandoned"),
+          q_cast(q_null(), :bigint),
+          q_sub(q_coalesce(:to_at, now), :from_at)
+        )
+      ),
+      q_derive(:limit_seconds, q_cast(q_lit(limit), :bigint)),
+      q_derive(:over_limit, over),
+      q_select(
+        [
+          :entity,
+          :state,
+          :from_seq,
+          :from_at,
+          :to_seq,
+          :to_at,
+          :seconds,
+          :elapsed,
+          :limit_seconds,
+          :over_limit
+        ]
+      )
+    ]
+  )
+  summary = la_view(
+    d,
+    "span_#{s}_summary",
+    span,
+    [
+      q_group(
+        [],
+        [
+          q_agg(:started, q_count_all()),
+          q_agg_where(:reached, q_count_all(), q_eq(:state, "done")),
+          q_agg_where(:still_open, q_count_all(), q_eq(:state, "open")),
+          q_agg_where(:abandoned, q_count_all(), q_eq(:state, "abandoned")),
+          q_agg_where(:over_limit, q_count_all(), :over_limit),
+          q_agg(:min_seconds, q_min(:seconds)),
+          q_agg(:avg_seconds, q_avg(:seconds)),
+          q_agg(:max_seconds, q_max(:seconds)),
+          q_agg(:limit_seconds, q_max(:limit_seconds))
+        ]
+      )
+    ]
+  )
   [starts, ends, span, summary]
 end
 
@@ -823,19 +1497,58 @@ def la_lifecycle_models(b, now)
   evidence_events = la_task_evidence_events_model(d, steps, evidence)
   closes = la_task_closes_model(d, asks, evidence_events)
   tasks = la_tasks_model(d, closes, now)
-  permits = flat_map(fn(l) la_permit_models(d, l, events, steps, gates) end, lc_d_permit_logs(d))
+  permits = flat_map(
+    fn(l) la_permit_models(d, l, events, steps, gates) end,
+    lc_d_permit_logs(d)
+  )
   current = la_current_state_model(d, steps)
-  spans = flat_map(fn(sp) la_span_models(d, sp, steps, current, now) end, lc_d_spans(d))
-  flatten1([[events, states, steps, la_unreplayed_model(d, events, states), current, intervals, la_time_in_state_model(d, intervals), la_refusals_model(d, events), gates, hits, counts, la_rule_hits_model(d, rules, counts), rule_tasks, asks, evidence_events, closes, tasks, la_task_summary_model(d, tasks)], permits, spans])
+  spans = flat_map(
+    fn(sp) la_span_models(d, sp, steps, current, now) end,
+    lc_d_spans(d)
+  )
+  flatten1(
+    [
+      [
+        events,
+        states,
+        steps,
+        la_unreplayed_model(d, events, states),
+        current,
+        intervals,
+        la_time_in_state_model(d, intervals),
+        la_refusals_model(d, events),
+        gates,
+        hits,
+        counts,
+        la_rule_hits_model(d, rules, counts),
+        rule_tasks,
+        asks,
+        evidence_events,
+        closes,
+        tasks,
+        la_task_summary_model(d, tasks)
+      ],
+      permits,
+      spans
+    ]
+  )
 end
 
 # ── links: joins generated from the declarations ───────────────────────────
 
 # The binding whose lifecycle is named `target`, or a refusal naming the link.
 def la_target(bindings, a, role, target)
-  hit = find_first(fn(b) lc_text(lc_name(la_def(b))) == lc_text(target) end, bindings)
+  hit = find_first(
+    fn(b) lc_text(lc_name(la_def(b))) == lc_text(target) end,
+    bindings
+  )
   if hit == nil
-    throw(error(:anaritikusu_schema, "#{lc_show(lc_name(la_def(a)))} links #{lc_show(role)} to lifecycle #{lc_show(target)}, which is not among the lifecycles given (#{join(map(fn(b) lc_text(lc_name(la_def(b))) end, bindings), ", ")})"))
+    throw(
+      error(
+        :anaritikusu_schema,
+        "#{lc_show(lc_name(la_def(a)))} links #{lc_show(role)} to lifecycle #{lc_show(target)}, which is not among the lifecycles given (#{join(map(fn(b) lc_text(lc_name(la_def(b))) end, bindings), ", ")})"
+      )
+    )
   end
   hit
 end
@@ -853,7 +1566,19 @@ end
 # id in the column named for the role.
 def la_link_rows_model(ad, role, a_events)
   r = lc_text(role)
-  la_view(ad, "#{r}_links", a_events, [q_select([:entity, :seq, :time, :type, :status, :links]), q_explode(:la_link, :links), q_filter(q_eq(q_get(:la_link, :kind), r)), q_select([:entity, :seq, :time, :type, :status, q_as(r, q_get(:la_link, :id))])])
+  la_view(
+    ad,
+    "#{r}_links",
+    a_events,
+    [
+      q_select([:entity, :seq, :time, :type, :status, :links]),
+      q_explode(:la_link, :links),
+      q_filter(q_eq(q_get(:la_link, :kind), r)),
+      q_select(
+        [:entity, :seq, :time, :type, :status, q_as(r, q_get(:la_link, :id))]
+      )
+    ]
+  )
 end
 
 # B's states keyed for an asof join on the role: the id in the role's column,
@@ -865,24 +1590,72 @@ end
 def la_link_state_model(ad, role, bd, b_steps)
   r = lc_text(role)
   fields = map(fn(f) q_as("#{r}_#{f}", q_c(f)) end, la_field_names(bd))
-  la_view(ad, "#{r}_state", b_steps, [q_derive(:la_last, q_row_number([:entity, :time], [q_desc(:seq)])), q_filter(q_eq(:la_last, 1)), q_select(concat_lists([q_as(r, :entity), :time, q_as("#{r}_seq", :seq), q_as("#{r}_phase", :phase)], fields))])
+  la_view(
+    ad,
+    "#{r}_state",
+    b_steps,
+    [
+      q_derive(:la_last, q_row_number([:entity, :time], [q_desc(:seq)])),
+      q_filter(q_eq(:la_last, 1)),
+      q_select(
+        concat_lists(
+          [
+            q_as(r, :entity),
+            :time,
+            q_as("#{r}_seq", :seq),
+            q_as("#{r}_phase", :phase)
+          ],
+          fields
+        )
+      )
+    ]
+  )
 end
 
 # The columns a one-hop link view returns, after A's own.
 def la_link_state_names(role, bd)
   r = lc_text(role)
-  concat_lists(["#{r}_seq", "#{r}_phase"], map(fn(f) "#{r}_#{f}" end, la_field_names(bd)))
+  concat_lists(
+    ["#{r}_seq", "#{r}_phase"],
+    map(fn(f) "#{r}_#{f}" end, la_field_names(bd))
+  )
 end
 
 # Each link with the linked entity's state as of the record's time.
 def la_link_model(ad, role, bd, rows, state)
   r = lc_text(role)
-  la_view(ad, r, rows, [q_asof_left_join(state, [r, :time]), q_select(concat_lists([:entity, :seq, :time, :type, :status, r], la_link_state_names(role, bd)))])
+  la_view(
+    ad,
+    r,
+    rows,
+    [
+      q_asof_left_join(state, [r, :time]),
+      q_select(
+        concat_lists(
+          [:entity, :seq, :time, :type, :status, r],
+          la_link_state_names(role, bd)
+        )
+      )
+    ]
+  )
 end
 
 def la_link_coverage_model(ad, role, link)
   r = lc_text(role)
-  la_view(ad, "#{r}_coverage", link, [q_group([], [q_agg(:links, q_count_all()), q_agg_where(:unresolved, q_count_all(), q_is_null(q_c("#{r}_seq")))])])
+  la_view(
+    ad,
+    "#{r}_coverage",
+    link,
+    [
+      q_group(
+        [],
+        [
+          q_agg(:links, q_count_all()),
+          q_agg_where(:unresolved, q_count_all(), q_is_null(q_c("#{r}_seq")))
+        ]
+      )
+    ]
+  )
 end
 
 # The four models of one declared link of A.
@@ -902,13 +1675,61 @@ end
 def la_chain_models(bindings, models, a, l1, l2)
   ad = la_def(a)
   bd = la_def(la_target(bindings, a, first(l1), nth(1, l1)))
-  cd = la_def(la_target(bindings, la_target(bindings, a, first(l1), nth(1, l1)), first(l2), nth(1, l2)))
+  cd = la_def(
+    la_target(
+      bindings,
+      la_target(bindings, a, first(l1), nth(1, l1)),
+      first(l2),
+      nth(1, l2)
+    )
+  )
   r1 = lc_text(first(l1))
   r2 = lc_text(first(l2))
   b_link = la_find(models, la_n(bd, r2))
   c_cols = concat_lists([r2], la_link_state_names(first(l2), cd))
-  via = la_view(ad, "#{r1}_#{r2}_via", b_link, [q_select(concat_lists([q_as(r1, :entity), :time, q_as("#{r1}_time", :time), q_as("#{r1}_event_seq", :seq), q_as("#{r1}_type", :type)], c_cols))])
-  chain = la_view(ad, "#{r1}_#{r2}", la_find(models, la_n(ad, "#{r1}_links")), [q_asof_left_join(via, [r1, :time]), q_select(concat_lists([:entity, :seq, :time, :type, :status, r1, "#{r1}_event_seq", "#{r1}_time", "#{r1}_type"], c_cols))])
+  via = la_view(
+    ad,
+    "#{r1}_#{r2}_via",
+    b_link,
+    [
+      q_select(
+        concat_lists(
+          [
+            q_as(r1, :entity),
+            :time,
+            q_as("#{r1}_time", :time),
+            q_as("#{r1}_event_seq", :seq),
+            q_as("#{r1}_type", :type)
+          ],
+          c_cols
+        )
+      )
+    ]
+  )
+  chain = la_view(
+    ad,
+    "#{r1}_#{r2}",
+    la_find(models, la_n(ad, "#{r1}_links")),
+    [
+      q_asof_left_join(via, [r1, :time]),
+      q_select(
+        concat_lists(
+          [
+            :entity,
+            :seq,
+            :time,
+            :type,
+            :status,
+            r1,
+            "#{r1}_event_seq",
+            "#{r1}_time",
+            "#{r1}_type"
+          ],
+          c_cols
+        )
+      )
+    ]
+  )
   [via, chain]
 end
 
@@ -923,15 +1744,35 @@ def la_models(bindings, now)
   names = map(fn(b) lc_text(lc_name(la_def(b))) end, bs)
   dup = unique(filter(fn(n) count_of(names, n) > 1 end, names))
   if is_empty(dup) == false
-    throw(error(:anaritikusu_schema, "two lifecycles are named #{join(dup, ", ")}"))
+    throw(
+      error(:anaritikusu_schema, "two lifecycles are named #{join(dup, ", ")}")
+    )
   end
   if integer?(now) == false
-    throw(error(:anaritikusu_schema, "now is a whole-number time on the lifecycles' clock, not #{lc_show(now)}"))
+    throw(
+      error(
+        :anaritikusu_schema,
+        "now is a whole-number time on the lifecycles' clock, not #{lc_show(now)}"
+      )
+    )
   end
   own = flat_map(fn(b) la_lifecycle_models(b, now) end, bs)
-  links = flat_map(fn(b) flat_map(fn(l) la_link_models(bs, own, b, l) end, lc_d_links(la_def(b))) end, bs)
+  links = flat_map(
+    fn(b)
+      flat_map(fn(l) la_link_models(bs, own, b, l) end, lc_d_links(la_def(b)))
+    end,
+    bs
+  )
   both = concat_lists(own, links)
-  chains = flat_map(fn(b) flat_map(fn(l1) la_chains_from(bs, both, b, l1) end, lc_d_links(la_def(b))) end, bs)
+  chains = flat_map(
+    fn(b)
+      flat_map(
+        fn(l1) la_chains_from(bs, both, b, l1) end,
+        lc_d_links(la_def(b))
+      )
+    end,
+    bs
+  )
   all = concat_lists(both, chains)
   la_check_unique(all, flat_map(fn(b) la_source_names(la_def(b)) end, bs))
   all
@@ -939,12 +1780,18 @@ end
 
 # The relations a lifecycle loads rather than derives.
 def la_source_names(d)
-  map(fn(x) la_n(d, x) end, ["records", "history", "edges", "rules", "task_evidence"])
+  map(
+    fn(x) la_n(d, x) end,
+    ["records", "history", "edges", "rules", "task_evidence"]
+  )
 end
 
 def la_chains_from(bindings, models, a, l1)
   bd = la_def(la_target(bindings, a, first(l1), nth(1, l1)))
-  flat_map(fn(l2) la_chain_models(bindings, models, a, l1, l2) end, lc_d_links(bd))
+  flat_map(
+    fn(l2) la_chain_models(bindings, models, a, l1, l2) end,
+    lc_d_links(bd)
+  )
 end
 
 # Every generated relation (the models and the loaded sources) by name: two
@@ -954,7 +1801,12 @@ def la_check_unique(models, sources)
   names = concat_lists(map(fn(m) get(m, :name) end, models), sources)
   dup = unique(filter(fn(n) count_of(names, n) > 1 end, names))
   if is_empty(dup) == false
-    throw(error(:anaritikusu_schema, "two generated relations are named #{join(dup, ", ")}; rename a lifecycle, role or field"))
+    throw(
+      error(
+        :anaritikusu_schema,
+        "two generated relations are named #{join(dup, ", ")}; rename a lifecycle, role or field"
+      )
+    )
   end
   models
 end
@@ -987,12 +1839,12 @@ def la_history_line(r, s)
   folded = el_rec_admitted?(r)
   b = last(lc_breaches(s))
   rf = last(lc_refused(s))
-  breach = if folded && (b != nil) && (lc_breach_position(b) == pos)
+  breach = if folded && b != nil && lc_breach_position(b) == pos
     b
   else
     nil
   end
-  refusal = if folded && (rf != nil) && (lc_refusal_position(rf) == pos)
+  refusal = if folded && rf != nil && lc_refusal_position(rf) == pos
     lc_text(lc_refusal_kind(rf))
   else
     nil
@@ -1020,7 +1872,9 @@ end
 
 # The history of a log value that was read: one line per record. Pure.
 def la_history_text(log)
-  el_unlines(map(fn(x) la_history_line(first(x), nth(1, x)) end, el_history(log)))
+  el_unlines(
+    map(fn(x) la_history_line(first(x), nth(1, x)) end, el_history(log))
+  )
 end
 
 # Write a log's history to `path`; returns the path.
@@ -1040,7 +1894,16 @@ end
 
 # The bindings la_build uses: each stream's history under `dir`.
 def la_bindings(dir, streams)
-  map(fn(s) la_binding(get(s, :def), get(s, :path), path_join(dir, "#{lc_text(lc_name(get(s, :def)))}.history.jsonl")) end, as_list(streams))
+  map(
+    fn(s)
+      la_binding(
+        get(s, :def),
+        get(s, :path),
+        path_join(dir, "#{lc_text(lc_name(get(s, :def)))}.history.jsonl")
+      )
+    end,
+    as_list(streams)
+  )
 end
 
 # Build the database under `dir`: read and verify every stream (a broken
@@ -1065,7 +1928,12 @@ def la_build_history(dir, s)
   log = el_read(get(s, :path), get(s, :label), d)
   rep = el_verify(log, nil, nil)
   if el_intact?(rep) == false
-    throw(error(:anaritikusu_broken, "#{get(s, :path)}: position #{to_s(el_break_position(rep))}, #{to_s(el_break_kind(rep))}: #{el_break_why(rep)}"))
+    throw(
+      error(
+        :anaritikusu_broken,
+        "#{get(s, :path)}: position #{to_s(el_break_position(rep))}, #{to_s(el_break_kind(rep))}: #{el_break_why(rep)}"
+      )
+    )
   end
   la_write_history(log, path_join(dir, "#{lc_text(lc_name(d))}.history.jsonl"))
 end
@@ -1081,26 +1949,40 @@ def la_read(db, model)
   else
     q_then(model, [q_sort(cols)])
   end
-  map(fn(row) map(fn(c) as_json(row, c) end, cols) end, q_rows_at(db, q_render(query, :duckdb)))
+  map(
+    fn(row) map(fn(c) as_json(row, c) end, cols) end,
+    q_rows_at(db, q_render(query, :duckdb))
+  )
 end
 
 # ── worked examples: three lifecycles and a day ────────────────────────────
 
 # raifusaikuru's example consumable, with its permits logged as `permit`.
 def la_example_consumable()
-  lc_define(:consumable, push(lc_example_consumable_clauses(), lc_permit_log(:use, :permit)))
+  lc_define(
+    :consumable,
+    push(lc_example_consumable_clauses(), lc_permit_log(:use, :permit))
+  )
 end
 
 # The same consumable read by a stricter definition: fewer than 3 uses. Built
 # from the example's clauses with the one rule replaced, as data.
 def la_example_consumable_strict()
-  clauses = map(fn(c) la_example_tighten(c) end, push(lc_example_consumable_clauses(), lc_permit_log(:use, :permit)))
+  clauses = map(
+    fn(c) la_example_tighten(c) end,
+    push(lc_example_consumable_clauses(), lc_permit_log(:use, :permit))
+  )
   lc_define(:consumable, clauses)
 end
 
 def la_example_tighten(c)
-  if list?(c) && (is_empty(c) == false) && (first(c) == :lc_guard)
-    [:lc_guard, nth(1, c), map(fn(r) la_example_tighten_rule(r) end, nth(2, c)), nth(3, c)]
+  if list?(c) && is_empty(c) == false && first(c) == :lc_guard
+    [
+      :lc_guard,
+      nth(1, c),
+      map(fn(r) la_example_tighten_rule(r) end, nth(2, c)),
+      nth(3, c)
+    ]
   else
     c
   end
@@ -1116,65 +1998,146 @@ end
 
 # A portion made with a consumable: its make event links the item.
 def la_example_portion()
-  lc_define(:portion, [lc_states([:new, :made, :served, :wasted]), lc_start(:new), lc_terminals([:served, :wasted]), lc_field(:grams, 0), lc_field(:made_at, nil), lc_field(:served_at, nil), lc_event(:make, [:grams]), lc_event(:serve, []), lc_event(:waste, []), lc_on(:new, :make, :made, [lc_set(:grams, :grams), lc_stamp(:made_at)]), lc_on(:made, :serve, :served, [lc_stamp(:served_at)]), lc_on(:made, :waste, :wasted, []), lc_link(:item, :consumable)])
+  lc_define(
+    :portion,
+    [
+      lc_states([:new, :made, :served, :wasted]),
+      lc_start(:new),
+      lc_terminals([:served, :wasted]),
+      lc_field(:grams, 0),
+      lc_field(:made_at, nil),
+      lc_field(:served_at, nil),
+      lc_event(:make, [:grams]),
+      lc_event(:serve, []),
+      lc_event(:waste, []),
+      lc_on(:new, :make, :made, [lc_set(:grams, :grams), lc_stamp(:made_at)]),
+      lc_on(:made, :serve, :served, [lc_stamp(:served_at)]),
+      lc_on(:made, :waste, :wasted, []),
+      lc_link(:item, :consumable)
+    ]
+  )
 end
 
 # An order of portions: each add_portion links one.
 def la_example_order()
-  lc_define(:order, [lc_states([:new, :placed, :ready, :delivered, :cancelled]), lc_start(:new), lc_terminals([:delivered, :cancelled]), lc_field(:portions, 0), lc_field(:placed_at, nil), lc_field(:delivered_at, nil), lc_event(:place, []), lc_event(:add_portion, []), lc_event(:ready, []), lc_event(:deliver, []), lc_event(:cancel, []), lc_on(:new, :place, :placed, [lc_stamp(:placed_at)]), lc_on(:placed, :add_portion, :stay, [lc_add(:portions, 1)]), lc_on(:placed, :ready, :ready, []), lc_on(:ready, :deliver, :delivered, [lc_stamp(:delivered_at)]), lc_on_each([:placed, :ready], :cancel, :cancelled, []), lc_link(:portion, :portion), lc_span(:lead, :placed, :delivered, 2000), lc_span(:ready_to_door, :ready, :delivered, nil)])
+  lc_define(
+    :order,
+    [
+      lc_states([:new, :placed, :ready, :delivered, :cancelled]),
+      lc_start(:new),
+      lc_terminals([:delivered, :cancelled]),
+      lc_field(:portions, 0),
+      lc_field(:placed_at, nil),
+      lc_field(:delivered_at, nil),
+      lc_event(:place, []),
+      lc_event(:add_portion, []),
+      lc_event(:ready, []),
+      lc_event(:deliver, []),
+      lc_event(:cancel, []),
+      lc_on(:new, :place, :placed, [lc_stamp(:placed_at)]),
+      lc_on(:placed, :add_portion, :stay, [lc_add(:portions, 1)]),
+      lc_on(:placed, :ready, :ready, []),
+      lc_on(:ready, :deliver, :delivered, [lc_stamp(:delivered_at)]),
+      lc_on_each([:placed, :ready], :cancel, :cancelled, []),
+      lc_link(:portion, :portion),
+      lc_span(:lead, :placed, :delivered, 2000),
+      lc_span(:ready_to_door, :ready, :delivered, nil)
+    ]
+  )
 end
 
 # A simulated day, in time order: [lifecycle, entity, event, links]. An event
 # [:la_permit, time, subject] is a permit the engine issues at that moment
 # (lc_permit_for on the entity's state) and logs (lc_permit_event).
 def la_example_day()
-  [[:consumable, "item-1", lc_ev(:reading, 28800, [[:value, 10]]), []],
-   [:consumable, "item-2", lc_ev(:reading, 28900, [[:value, 10]]), []],
-   [:consumable, "item-1", lc_ev(:open, 29000, []), []],
-   [:consumable, "item-1", [:la_permit, 29100, "device-1"], []],
-   [:order, "o-1", lc_ev(:place, 29100, []), []],
-   [:consumable, "item-1", lc_ev(:use, 29200, []), []],
-   [:portion, "p-1", lc_ev(:make, 29250, [[:grams, 120]]), [[:item, "item-1"], [:lot, "L-7"]]],
-   [:consumable, "item-1", lc_ev(:use, 29300, []), []],
-   [:consumable, "item-1", lc_ev(:use, 29400, []), []],
-   [:portion, "p-1", lc_ev(:serve, 29400, []), []],
-   [:order, "o-1", lc_ev(:add_portion, 29450, []), [[:portion, "p-1"]]],
-   [:consumable, "item-2", lc_ev(:open, 29500, []), []],
-   [:consumable, "item-2", [:la_permit, 29550, "device-2"], []],
-   [:consumable, "item-2", lc_ev(:use, 29600, []), []],
-   [:portion, "p-3", lc_ev(:make, 29650, [[:grams, 130]]), [[:item, "item-2"]]],
-   [:consumable, "item-2", lc_ev(:open, 29700, []), []],
-   [:consumable, "item-1", lc_ev(:reading, 30000, [[:value, 26]]), []],
-   [:consumable, "item-3", lc_ev(:discard, 30000, []), []],
-   [:order, "o-2", lc_ev(:place, 30000, []), []],
-   [:portion, "p-2", lc_ev(:make, 30050, [[:grams, 110]]), [[:item, "item-1"]]],
-   [:consumable, "item-1", lc_ev(:use, 30100, []), []],
-   [:consumable, "item-3", lc_ev(:polish, 30100, []), []],
-   [:order, "o-2", lc_ev(:add_portion, 30100, []), [[:portion, "p-2"]]],
-   [:portion, "p-2", lc_ev(:waste, 30500, []), []],
-   [:order, "o-2", lc_ev(:cancel, 30600, []), []],
-   [:consumable, "item-1", lc_ev(:reading, 31000, [[:value, 12]]), []],
-   [:portion, "p-3", lc_ev(:serve, 31000, []), []],
-   [:order, "o-1", lc_ev(:add_portion, 31050, []), [[:portion, "p-3"]]],
-   [:consumable, "item-1", lc_ev(:use, 31100, []), []],
-   [:order, "o-1", lc_ev(:ready, 31200, []), []],
-   [:order, "o-1", lc_ev(:deliver, 31500, []), []],
-   [:consumable, "item-1", lc_ev(:finish, 32000, []), []],
-   [:portion, "p-4", lc_ev(:make, 33000, [[:grams, 100]]), [[:item, "item-9"]]],
-   [:order, "o-3", lc_ev(:place, 33100, []), []],
-   [:portion, "p-4", lc_ev(:serve, 33500, []), []],
-   [:order, "o-3", lc_ev(:add_portion, 33600, []), [[:portion, "p-4"]]],
-   [:order, "o-3", lc_ev(:deliver, 33700, []), []],
-   [:consumable, "item-2", lc_ev(:use, 40000, []), []],
-   [:consumable, "item-2", lc_ev(:use, 44000, []), []]]
+  [
+    [:consumable, "item-1", lc_ev(:reading, 28800, [[:value, 10]]), []],
+    [:consumable, "item-2", lc_ev(:reading, 28900, [[:value, 10]]), []],
+    [:consumable, "item-1", lc_ev(:open, 29000, []), []],
+    [:consumable, "item-1", [:la_permit, 29100, "device-1"], []],
+    [:order, "o-1", lc_ev(:place, 29100, []), []],
+    [:consumable, "item-1", lc_ev(:use, 29200, []), []],
+    [
+      :portion,
+      "p-1",
+      lc_ev(:make, 29250, [[:grams, 120]]),
+      [[:item, "item-1"], [:lot, "L-7"]]
+    ],
+    [:consumable, "item-1", lc_ev(:use, 29300, []), []],
+    [:consumable, "item-1", lc_ev(:use, 29400, []), []],
+    [:portion, "p-1", lc_ev(:serve, 29400, []), []],
+    [:order, "o-1", lc_ev(:add_portion, 29450, []), [[:portion, "p-1"]]],
+    [:consumable, "item-2", lc_ev(:open, 29500, []), []],
+    [:consumable, "item-2", [:la_permit, 29550, "device-2"], []],
+    [:consumable, "item-2", lc_ev(:use, 29600, []), []],
+    [
+      :portion,
+      "p-3",
+      lc_ev(:make, 29650, [[:grams, 130]]),
+      [[:item, "item-2"]]
+    ],
+    [:consumable, "item-2", lc_ev(:open, 29700, []), []],
+    [:consumable, "item-1", lc_ev(:reading, 30000, [[:value, 26]]), []],
+    [:consumable, "item-3", lc_ev(:discard, 30000, []), []],
+    [:order, "o-2", lc_ev(:place, 30000, []), []],
+    [
+      :portion,
+      "p-2",
+      lc_ev(:make, 30050, [[:grams, 110]]),
+      [[:item, "item-1"]]
+    ],
+    [:consumable, "item-1", lc_ev(:use, 30100, []), []],
+    [:consumable, "item-3", lc_ev(:polish, 30100, []), []],
+    [:order, "o-2", lc_ev(:add_portion, 30100, []), [[:portion, "p-2"]]],
+    [:portion, "p-2", lc_ev(:waste, 30500, []), []],
+    [:order, "o-2", lc_ev(:cancel, 30600, []), []],
+    [:consumable, "item-1", lc_ev(:reading, 31000, [[:value, 12]]), []],
+    [:portion, "p-3", lc_ev(:serve, 31000, []), []],
+    [:order, "o-1", lc_ev(:add_portion, 31050, []), [[:portion, "p-3"]]],
+    [:consumable, "item-1", lc_ev(:use, 31100, []), []],
+    [:order, "o-1", lc_ev(:ready, 31200, []), []],
+    [:order, "o-1", lc_ev(:deliver, 31500, []), []],
+    [:consumable, "item-1", lc_ev(:finish, 32000, []), []],
+    [
+      :portion,
+      "p-4",
+      lc_ev(:make, 33000, [[:grams, 100]]),
+      [[:item, "item-9"]]
+    ],
+    [:order, "o-3", lc_ev(:place, 33100, []), []],
+    [:portion, "p-4", lc_ev(:serve, 33500, []), []],
+    [:order, "o-3", lc_ev(:add_portion, 33600, []), [[:portion, "p-4"]]],
+    [:order, "o-3", lc_ev(:deliver, 33700, []), []],
+    [:consumable, "item-2", lc_ev(:use, 40000, []), []],
+    [:consumable, "item-2", lc_ev(:use, 44000, []), []]
+  ]
 end
 
 # The day's three streams under `dir`: [la_stream …], after appending every
 # event to its lifecycle's stream through nisshi.
 def la_example_streams(dir)
   defs = [la_example_consumable(), la_example_portion(), la_example_order()]
-  streams = map(fn(d) la_stream(d, path_join(dir, "#{lc_text(lc_name(d))}.jsonl"), "anaritikusu-example/#{lc_text(lc_name(d))}") end, defs)
-  logs = reduce(fn(m, s) assoc(m, lc_text(lc_name(get(s, :def))), el_read(get(s, :path), get(s, :label), get(s, :def))) end, {}, streams)
+  streams = map(
+    fn(d)
+      la_stream(
+        d,
+        path_join(dir, "#{lc_text(lc_name(d))}.jsonl"),
+        "anaritikusu-example/#{lc_text(lc_name(d))}"
+      )
+    end,
+    defs
+  )
+  logs = reduce(
+    fn(m, s)
+      assoc(
+        m,
+        lc_text(lc_name(get(s, :def))),
+        el_read(get(s, :path), get(s, :label), get(s, :def))
+      )
+    end,
+    {},
+    streams
+  )
   reduce(fn(m, x) la_example_append(m, x) end, logs, la_example_day())
   streams
 end
@@ -1189,7 +2152,11 @@ end
 def la_example_event(log, entity, ev)
   if first(ev) == :la_permit
     d = el_def(log)
-    lc_permit_event(d, lc_permit_for(d, el_state(log, entity), :use, nth(1, ev)), nth(2, ev))
+    lc_permit_event(
+      d,
+      lc_permit_for(d, el_state(log, entity), :use, nth(1, ev)),
+      nth(2, ev)
+    )
   else
     ev
   end
@@ -1197,7 +2164,10 @@ end
 
 # A fresh directory under TMPDIR for a test.
 def la_test_dir(name)
-  dir = path_join(getenv("TMPDIR", "/tmp"), "anaritikusu-#{name}-#{to_s(now_ns())}")
+  dir = path_join(
+    getenv("TMPDIR", "/tmp"),
+    "anaritikusu-#{name}-#{to_s(now_ns())}"
+  )
   mkdir_p(dir)
   dir
 end
@@ -1224,26 +2194,106 @@ test "the telemetry schema is derived from the definition: the record's columns,
   # DOUBLE; uses counts from 0 by 1 (BIGINT); opened_at and read_at are
   # stamped (BIGINT); the permit log's keys are subject text and whole-number
   # limits.
-  assert la_columns_text(la_event_columns(d)) == [["entity", "VARCHAR"], ["seq", "BIGINT"], ["time", "BIGINT"], ["type", "VARCHAR"], ["status", "VARCHAR"], ["refusal_kind", "VARCHAR"], ["refusal_detail", "VARCHAR[]"], ["links", "STRUCT(id VARCHAR, kind VARCHAR)[]"], ["value", "DOUBLE"], ["subject", "VARCHAR"], ["not_after", "BIGINT"], ["basis", "BIGINT"], ["uses_left", "BIGINT"], ["prev", "VARCHAR"], ["hash", "VARCHAR"], ["sig", "VARCHAR"]]
-  assert la_columns_text(la_state_columns(d)) == [["entity", "VARCHAR"], ["seq", "BIGINT"], ["phase", "VARCHAR"], ["uses", "BIGINT"], ["opened_at", "BIGINT"], ["quality", "DOUBLE"], ["read_at", "BIGINT"], ["breach", "VARCHAR[]"], ["breach_capability", "VARCHAR"], ["replay_refusal", "VARCHAR"]]
+  assert la_columns_text(la_event_columns(d)) ==
+    [
+      ["entity", "VARCHAR"],
+      ["seq", "BIGINT"],
+      ["time", "BIGINT"],
+      ["type", "VARCHAR"],
+      ["status", "VARCHAR"],
+      ["refusal_kind", "VARCHAR"],
+      ["refusal_detail", "VARCHAR[]"],
+      ["links", "STRUCT(id VARCHAR, kind VARCHAR)[]"],
+      ["value", "DOUBLE"],
+      ["subject", "VARCHAR"],
+      ["not_after", "BIGINT"],
+      ["basis", "BIGINT"],
+      ["uses_left", "BIGINT"],
+      ["prev", "VARCHAR"],
+      ["hash", "VARCHAR"],
+      ["sig", "VARCHAR"]
+    ]
+  assert la_columns_text(la_state_columns(d)) ==
+    [
+      ["entity", "VARCHAR"],
+      ["seq", "BIGINT"],
+      ["phase", "VARCHAR"],
+      ["uses", "BIGINT"],
+      ["opened_at", "BIGINT"],
+      ["quality", "DOUBLE"],
+      ["read_at", "BIGINT"],
+      ["breach", "VARCHAR[]"],
+      ["breach_capability", "VARCHAR"],
+      ["replay_refusal", "VARCHAR"]
+    ]
   # grams is set from a key into a field that starts at 0: numbers, widened
   # to DOUBLE because the key comes from outside.
-  assert la_field_types(la_example_portion()) == [["grams", :double], ["made_at", :bigint], ["served_at", :bigint]]
+  assert la_field_types(la_example_portion()) ==
+    [["grams", :double], ["made_at", :bigint], ["served_at", :bigint]]
   # The empty case: a lifecycle with no fields and no payload keys has the
   # record's columns and nothing else.
-  bare = lc_define(:bare, [lc_states([:a, :b]), lc_start(:a), lc_terminals([:b]), lc_event(:go, []), lc_on(:a, :go, :b, [])])
+  bare = lc_define(
+    :bare,
+    [
+      lc_states([:a, :b]),
+      lc_start(:a),
+      lc_terminals([:b]),
+      lc_event(:go, []),
+      lc_on(:a, :go, :b, [])
+    ]
+  )
   assert size(la_event_columns(bare)) == 11
-  assert map(fn(c) get(c, :name) end, la_state_columns(bare)) == ["entity", "seq", "phase", "breach", "breach_capability", "replay_refusal"]
+  assert map(fn(c) get(c, :name) end, la_state_columns(bare)) ==
+    ["entity", "seq", "phase", "breach", "breach_capability", "replay_refusal"]
   # Unconstrained is text, never a guess.
-  noted = lc_define(:noted, [lc_states([:a, :b]), lc_start(:a), lc_terminals([:b]), lc_field(:note, nil), lc_event(:go, [:note]), lc_on(:a, :go, :b, [lc_set(:note, :note)])])
+  noted = lc_define(
+    :noted,
+    [
+      lc_states([:a, :b]),
+      lc_start(:a),
+      lc_terminals([:b]),
+      lc_field(:note, nil),
+      lc_event(:go, [:note]),
+      lc_on(:a, :go, :b, [lc_set(:note, :note)])
+    ]
+  )
   assert la_key_types(noted) == [["note", :varchar]]
   # Controls: a key named like a record column, a field named like a state
   # column, and a field whose constants disagree are refused.
-  clash = lc_define(:clash, [lc_states([:a, :b]), lc_start(:a), lc_terminals([:b]), lc_event(:go, [:time]), lc_on(:a, :go, :b, [])])
+  clash = lc_define(
+    :clash,
+    [
+      lc_states([:a, :b]),
+      lc_start(:a),
+      lc_terminals([:b]),
+      lc_event(:go, [:time]),
+      lc_on(:a, :go, :b, [])
+    ]
+  )
   assert error?(try(la_event_columns(clash), catch(e(), e)))
-  phased = lc_define(:phased, [lc_states([:a, :b]), lc_start(:a), lc_terminals([:b]), lc_field(:phase, nil), lc_event(:go, []), lc_on(:a, :go, :b, [])])
+  phased = lc_define(
+    :phased,
+    [
+      lc_states([:a, :b]),
+      lc_start(:a),
+      lc_terminals([:b]),
+      lc_field(:phase, nil),
+      lc_event(:go, []),
+      lc_on(:a, :go, :b, [])
+    ]
+  )
   assert error?(try(la_state_columns(phased), catch(e(), e)))
-  mixed = lc_define(:mixed, [lc_states([:a, :b]), lc_start(:a), lc_terminals([:b]), lc_field(:x, 0), lc_event(:go, []), lc_on(:a, :go, :b, [lc_put(:x, "high")])])
+  mixed = lc_define(
+    :mixed,
+    [
+      lc_states([:a, :b]),
+      lc_start(:a),
+      lc_terminals([:b]),
+      lc_field(:x, 0),
+      lc_event(:go, []),
+      lc_on(:a, :go, :b, [lc_put(:x, "high")])
+    ]
+  )
   assert error?(try(la_field_types(mixed), catch(e(), e)))
 end
 
@@ -1253,20 +2303,40 @@ test "the history is the fold's state after every record, and names what the rep
   p = path_join(dir, "c.jsonl")
   # The empty case: no stream, no history.
   assert la_history_text(el_read(p, "t", d)) == ""
-  el_append_all(el_read(p, "t", d), [["item-1", lc_ev(:open, 1000, []), []], ["item-1", lc_ev(:reading, 1100, [[:value, 26]]), []], ["item-1", lc_ev(:use, 1200, []), []], ["item-1", lc_ev(:use, 1300, []), []]])
+  el_append_all(
+    el_read(p, "t", d),
+    [
+      ["item-1", lc_ev(:open, 1000, []), []],
+      ["item-1", lc_ev(:reading, 1100, [[:value, 26]]), []],
+      ["item-1", lc_ev(:use, 1200, []), []],
+      ["item-1", lc_ev(:use, 1300, []), []]
+    ]
+  )
   log = el_read(p, "t", d)
   lines = el_lines(la_history_text(log))
   # By hand: open, a reading of 26, then two uses the guard refuses
   # (quality_ok), written refused: the state after each use is the state
   # before it, and nothing is a breach.
   assert size(lines) == 4
-  assert nth(2, lines) == "{\"breach\":null,\"breach_capability\":null,\"entity\":\"item-1\",\"fields\":{\"opened_at\":1000,\"quality\":26,\"read_at\":1100,\"uses\":0},\"phase\":\"open\",\"replay_refusal\":null,\"seq\":2}"
+  assert nth(2, lines) ==
+    "{\"breach\":null,\"breach_capability\":null,\"entity\":\"item-1\",\"fields\":{\"opened_at\":1000,\"quality\":26,\"read_at\":1100,\"uses\":0},\"phase\":\"open\",\"replay_refusal\":null,\"seq\":2}"
   assert nth(3, lines) == replace(nth(2, lines), "\"seq\":2", "\"seq\":3")
   # Read by a definition with no quality rule, the same stream's admitted
   # records fold the same; read by one where `use` has no row at all, an
   # admitted use would be refused on replay and says so. Here: a stream whose
   # admitted open the strict reader cannot accept.
-  closed = lc_define(:consumable, [lc_states([:sealed, :gone]), lc_start(:sealed), lc_terminals([:gone]), lc_event(:open, []), lc_event(:reading, [:value]), lc_event(:use, []), lc_on(:sealed, :reading, :gone, [])])
+  closed = lc_define(
+    :consumable,
+    [
+      lc_states([:sealed, :gone]),
+      lc_start(:sealed),
+      lc_terminals([:gone]),
+      lc_event(:open, []),
+      lc_event(:reading, [:value]),
+      lc_event(:use, []),
+      lc_on(:sealed, :reading, :gone, [])
+    ]
+  )
   first_line = first(el_lines(la_history_text(el_read(p, "t", closed))))
   assert contains?(first_line, "\"replay_refusal\":\"no_edge\"")
   assert contains?(first_line, "\"phase\":\"sealed\"")
@@ -1274,9 +2344,27 @@ test "the history is the fold's state after every record, and names what the rep
   # (the strict example allows 3 uses; this stream has none admitted, so a
   # stream with four admitted uses is written first).
   q = path_join(dir, "s.jsonl")
-  el_append_all(el_read(q, "t", d), [["item-1", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-1", lc_ev(:open, 1100, []), []], ["item-1", lc_ev(:use, 1200, []), []], ["item-1", lc_ev(:use, 1300, []), []], ["item-1", lc_ev(:use, 1400, []), []], ["item-1", lc_ev(:use, 1500, []), []]])
-  strict = el_lines(la_history_text(el_read(q, "t", la_example_consumable_strict())))
-  assert map(fn(l) contains?(l, "\"breach\":[\"uses_left\"],\"breach_capability\":\"use\"") end, strict) == [false, false, false, false, false, true]
+  el_append_all(
+    el_read(q, "t", d),
+    [
+      ["item-1", lc_ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-1", lc_ev(:open, 1100, []), []],
+      ["item-1", lc_ev(:use, 1200, []), []],
+      ["item-1", lc_ev(:use, 1300, []), []],
+      ["item-1", lc_ev(:use, 1400, []), []],
+      ["item-1", lc_ev(:use, 1500, []), []]
+    ]
+  )
+  strict = el_lines(
+    la_history_text(el_read(q, "t", la_example_consumable_strict()))
+  )
+  assert map(
+    fn(l)
+      contains?(l, "\"breach\":[\"uses_left\"],\"breach_capability\":\"use\"")
+    end,
+    strict
+  ) ==
+    [false, false, false, false, false, true]
   rm_rf(dir)
 end
 
@@ -1314,63 +2402,384 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   #   o-3 [0] 33100 place  [1] 33600 add p-4  [2] 33700 deliver REFUSED no_edge
   #
   # Every record has its state: nothing unreplayed.
-  assert map(fn(n) view("#{n}_unreplayed") end, ["consumable", "portion", "order"]) == [[[0.0]], [[0.0]], [[0.0]]]
+  assert map(
+    fn(n) view("#{n}_unreplayed") end,
+    ["consumable", "portion", "order"]
+  ) ==
+    [[[0.0]], [[0.0]], [[0.0]]]
   # Current state. item-1: four admitted uses (the refused one at 30100 is
   # not folded), quality 12 from the last reading, read at 31000. item-2:
   # two admitted uses; the refused open changed nothing (opened_at 29500).
   # item-3 was discarded sealed; its refused polish is its last record.
-  assert view("consumable_current_state") == la_norm_rows([["item-1", "spent", 4, 29000, 12, 31000, 10, 32000], ["item-2", "open", 2, 29500, 10, 28900, 6, 44000], ["item-3", "discarded", 0, nil, nil, nil, 1, 30100]])
-  assert view("portion_current_state") == la_norm_rows([["p-1", "served", 120, 29250, 29400, 1, 29400], ["p-2", "wasted", 110, 30050, nil, 1, 30500], ["p-3", "served", 130, 29650, 31000, 1, 31000], ["p-4", "served", 100, 33000, 33500, 1, 33500]])
-  assert view("order_current_state") == la_norm_rows([["o-1", "delivered", 2, 29100, 31500, 4, 31500], ["o-2", "cancelled", 1, 30000, nil, 2, 30600], ["o-3", "placed", 1, 33100, nil, 2, 33700]])
+  assert view("consumable_current_state") ==
+    la_norm_rows(
+      [
+        ["item-1", "spent", 4, 29000, 12, 31000, 10, 32000],
+        ["item-2", "open", 2, 29500, 10, 28900, 6, 44000],
+        ["item-3", "discarded", 0, nil, nil, nil, 1, 30100]
+      ]
+    )
+  assert view("portion_current_state") ==
+    la_norm_rows(
+      [
+        ["p-1", "served", 120, 29250, 29400, 1, 29400],
+        ["p-2", "wasted", 110, 30050, nil, 1, 30500],
+        ["p-3", "served", 130, 29650, 31000, 1, 31000],
+        ["p-4", "served", 100, 33000, 33500, 1, 33500]
+      ]
+    )
+  assert view("order_current_state") ==
+    la_norm_rows(
+      [
+        ["o-1", "delivered", 2, 29100, 31500, 4, 31500],
+        ["o-2", "cancelled", 1, 30000, nil, 2, 30600],
+        ["o-3", "placed", 1, 33100, nil, 2, 33700]
+      ]
+    )
   # The differential: the same phases and fields as nisshi's own replay.
   map(fn(s) la_example_differential(db, ms, s) end, streams)
   # Time in each state, to 86400. item-1: sealed 28800-29000 = 200, open
   # 29000-32000 = 3000, spent 32000-86400 = 54400 (now). item-2: sealed
   # 28900-29500 = 600, open 29500-86400 = 56900 (now). item-3: discarded
   # 30000-86400 = 56400 (now).
-  assert view("consumable_time_in_state") == la_norm_rows([["item-1", "open", 3000, 0], ["item-1", "sealed", 200, 0], ["item-1", "spent", 54400, 1], ["item-2", "open", 56900, 1], ["item-2", "sealed", 600, 0], ["item-3", "discarded", 56400, 1]])
+  assert view("consumable_time_in_state") ==
+    la_norm_rows(
+      [
+        ["item-1", "open", 3000, 0],
+        ["item-1", "sealed", 200, 0],
+        ["item-1", "spent", 54400, 1],
+        ["item-2", "open", 56900, 1],
+        ["item-2", "sealed", 600, 0],
+        ["item-3", "discarded", 56400, 1]
+      ]
+    )
   # o-1: placed 29100-31200 = 2100, ready 31200-31500 = 300, delivered
   # 31500-86400 = 54900. o-2: placed 600, cancelled 55800. o-3: placed
   # 33100-86400 = 53300 (its refused deliver left it placed).
-  assert view("order_time_in_state") == la_norm_rows([["o-1", "delivered", 54900, 1], ["o-1", "placed", 2100, 0], ["o-1", "ready", 300, 0], ["o-2", "cancelled", 55800, 1], ["o-2", "placed", 600, 0], ["o-3", "placed", 53300, 1]])
+  assert view("order_time_in_state") ==
+    la_norm_rows(
+      [
+        ["o-1", "delivered", 54900, 1],
+        ["o-1", "placed", 2100, 0],
+        ["o-1", "ready", 300, 0],
+        ["o-2", "cancelled", 55800, 1],
+        ["o-2", "placed", 600, 0],
+        ["o-3", "placed", 53300, 1]
+      ]
+    )
   # Refusals by type and kind.
-  assert view("consumable_refusals") == la_norm_rows([["open", "no_edge", 1], ["polish", "unknown_event", 1], ["use", "guard", 2]])
+  assert view("consumable_refusals") ==
+    la_norm_rows(
+      [
+        ["open", "no_edge", 1],
+        ["polish", "unknown_event", 1],
+        ["use", "guard", 2]
+      ]
+    )
   assert view("portion_refusals") == []
   assert view("order_refusals") == la_norm_rows([["deliver", "no_edge", 1]])
   # Every declared rule: quality_ok refused item-1's use at 30100,
   # reading_fresh item-2's at 44000; no breaches (nisshi refuses at append).
-  assert view("consumable_rule_hits") == la_norm_rows([["use", "is_open", "phase in [:open]", 0, 0], ["use", "not_too_old", "opened_at less than 259200 old", 0, 0], ["use", "quality_ok", "quality below 24", 1, 0], ["use", "reading_fresh", "read_at less than 14400 old", 1, 0], ["use", "uses_left", "uses below 40", 0, 0]])
+  assert view("consumable_rule_hits") ==
+    la_norm_rows(
+      [
+        ["use", "is_open", "phase in [:open]", 0, 0],
+        ["use", "not_too_old", "opened_at less than 259200 old", 0, 0],
+        ["use", "quality_ok", "quality below 24", 1, 0],
+        ["use", "reading_fresh", "read_at less than 14400 old", 1, 0],
+        ["use", "uses_left", "uses below 40", 0, 0]
+      ]
+    )
   # Tasks. quality_ok names no task, so its guard's `replace` (evidence
   # reading or scan, 1200 s) opens at 30100 and item-1's reading at 31000
   # closes it: open 900 s, not overdue. reading_fresh asks take_reading
   # (evidence reading, 1200 s) at 44000, and no reading follows: open
   # 86400 - 44000 = 42400 s, overdue.
-  assert view("consumable_tasks") == la_norm_rows([["item-1", "replace", "closed", 7, 30100, 8, 31000, 1, 900, 1200, false], ["item-2", "take_reading", "open", 6, 44000, nil, nil, 1, 42400, 1200, true]])
-  assert view("consumable_task_summary") == la_norm_rows([["replace", 1, 0, 1, 0], ["take_reading", 1, 1, 0, 1]])
+  assert view("consumable_tasks") ==
+    la_norm_rows(
+      [
+        [
+          "item-1",
+          "replace",
+          "closed",
+          7,
+          30100,
+          8,
+          31000,
+          1,
+          900,
+          1200,
+          false
+        ],
+        [
+          "item-2",
+          "take_reading",
+          "open",
+          6,
+          44000,
+          nil,
+          nil,
+          1,
+          42400,
+          1200,
+          true
+        ]
+      ]
+    )
+  assert view("consumable_task_summary") ==
+    la_norm_rows([["replace", 1, 0, 1, 0], ["take_reading", 1, 1, 0, 1]])
   # Permits. item-1's at 29100: not_after = min(28800 + 14400, 29000 +
   # 259200, 29100 + 7200) = 36300, 40 uses left, basis 2 (two events folded);
   # used by the four admitted uses after it, all before 36300, the last at
   # 31100. item-2's at 29550: not_after = min(43300, 288700, 36750) = 36750;
   # one use at 29600 inside it, and the use at 40000 after not_after, an
   # overrun (the guard still held, the permit had lapsed).
-  assert view("consumable_permit_use_use") == la_norm_rows([["item-1", 2, "device-1", 29100, 36300, 7200, 2, 40, 4, 0, 31100, false], ["item-2", 2, "device-2", 29550, 36750, 7200, 2, 40, 1, 1, 29600, false]])
+  assert view("consumable_permit_use_use") ==
+    la_norm_rows(
+      [
+        [
+          "item-1",
+          2,
+          "device-1",
+          29100,
+          36300,
+          7200,
+          2,
+          40,
+          4,
+          0,
+          31100,
+          false
+        ],
+        ["item-2", 2, "device-2", 29550, 36750, 7200, 2, 40, 1, 1, 29600, false]
+      ]
+    )
   # Links: each portion's consumable as it was when the portion was made (its
   # latest record at or before the make). p-1 at 29250: item-1 after [3]
   # (1 use, quality 10). p-2 at 30050: item-1 after [6], the reading of 26,
   # out of spec. p-3 at 29650: item-2 after [3]. p-4 names item-9, which has
   # no records: the row stays, unresolved.
-  assert view("portion_item") == la_norm_rows([["p-1", 0, 29250, "make", "admitted", "item-1", 3, "open", 1, 29000, 10, 28800], ["p-2", 0, 30050, "make", "admitted", "item-1", 6, "open", 3, 29000, 26, 30000], ["p-3", 0, 29650, "make", "admitted", "item-2", 3, "open", 1, 29500, 10, 28900], ["p-4", 0, 33000, "make", "admitted", "item-9", nil, nil, nil, nil, nil, nil]])
+  assert view("portion_item") ==
+    la_norm_rows(
+      [
+        [
+          "p-1",
+          0,
+          29250,
+          "make",
+          "admitted",
+          "item-1",
+          3,
+          "open",
+          1,
+          29000,
+          10,
+          28800
+        ],
+        [
+          "p-2",
+          0,
+          30050,
+          "make",
+          "admitted",
+          "item-1",
+          6,
+          "open",
+          3,
+          29000,
+          26,
+          30000
+        ],
+        [
+          "p-3",
+          0,
+          29650,
+          "make",
+          "admitted",
+          "item-2",
+          3,
+          "open",
+          1,
+          29500,
+          10,
+          28900
+        ],
+        [
+          "p-4",
+          0,
+          33000,
+          "make",
+          "admitted",
+          "item-9",
+          nil,
+          nil,
+          nil,
+          nil,
+          nil,
+          nil
+        ]
+      ]
+    )
   assert view("portion_item_coverage") == [[4.0, 1.0]]
   # Each order's portion as it was when it was added.
-  assert view("order_portion") == la_norm_rows([["o-1", 1, 29450, "add_portion", "admitted", "p-1", 1, "served", 120, 29250, 29400], ["o-1", 2, 31050, "add_portion", "admitted", "p-3", 1, "served", 130, 29650, 31000], ["o-2", 1, 30100, "add_portion", "admitted", "p-2", 0, "made", 110, 30050, nil], ["o-3", 1, 33600, "add_portion", "admitted", "p-4", 1, "served", 100, 33000, 33500]])
+  assert view("order_portion") ==
+    la_norm_rows(
+      [
+        [
+          "o-1",
+          1,
+          29450,
+          "add_portion",
+          "admitted",
+          "p-1",
+          1,
+          "served",
+          120,
+          29250,
+          29400
+        ],
+        [
+          "o-1",
+          2,
+          31050,
+          "add_portion",
+          "admitted",
+          "p-3",
+          1,
+          "served",
+          130,
+          29650,
+          31000
+        ],
+        [
+          "o-2",
+          1,
+          30100,
+          "add_portion",
+          "admitted",
+          "p-2",
+          0,
+          "made",
+          110,
+          30050,
+          nil
+        ],
+        [
+          "o-3",
+          1,
+          33600,
+          "add_portion",
+          "admitted",
+          "p-4",
+          1,
+          "served",
+          100,
+          33000,
+          33500
+        ]
+      ]
+    )
   assert view("order_portion_coverage") == [[4.0, 0.0]]
   # The chain, generated from the two declarations: each order's portion, the
   # consumable that portion was made with, and that consumable's state at the
   # make. o-2's portion p-2 was made with item-1 while its quality read 26.
-  assert view("order_portion_item") == la_norm_rows([["o-1", 1, 29450, "add_portion", "admitted", "p-1", 0, 29250, "make", "item-1", 3, "open", 1, 29000, 10, 28800], ["o-1", 2, 31050, "add_portion", "admitted", "p-3", 0, 29650, "make", "item-2", 3, "open", 1, 29500, 10, 28900], ["o-2", 1, 30100, "add_portion", "admitted", "p-2", 0, 30050, "make", "item-1", 6, "open", 3, 29000, 26, 30000], ["o-3", 1, 33600, "add_portion", "admitted", "p-4", 0, 33000, "make", "item-9", nil, nil, nil, nil, nil, nil]])
+  assert view("order_portion_item") ==
+    la_norm_rows(
+      [
+        [
+          "o-1",
+          1,
+          29450,
+          "add_portion",
+          "admitted",
+          "p-1",
+          0,
+          29250,
+          "make",
+          "item-1",
+          3,
+          "open",
+          1,
+          29000,
+          10,
+          28800
+        ],
+        [
+          "o-1",
+          2,
+          31050,
+          "add_portion",
+          "admitted",
+          "p-3",
+          0,
+          29650,
+          "make",
+          "item-2",
+          3,
+          "open",
+          1,
+          29500,
+          10,
+          28900
+        ],
+        [
+          "o-2",
+          1,
+          30100,
+          "add_portion",
+          "admitted",
+          "p-2",
+          0,
+          30050,
+          "make",
+          "item-1",
+          6,
+          "open",
+          3,
+          29000,
+          26,
+          30000
+        ],
+        [
+          "o-3",
+          1,
+          33600,
+          "add_portion",
+          "admitted",
+          "p-4",
+          0,
+          33000,
+          "make",
+          "item-9",
+          nil,
+          nil,
+          nil,
+          nil,
+          nil,
+          nil
+        ]
+      ]
+    )
   # The event table's payload column, read back typed.
-  readings = q_model({name: :la_readings, from: la_find(ms, "consumable_events"), pipeline: [q_filter(q_eq(:type, "reading")), q_select([:entity, :seq, :value])]})
-  assert la_norm_rows(la_read(db, readings)) == la_norm_rows([["item-1", 0, 10], ["item-1", 6, 26], ["item-1", 8, 12], ["item-2", 0, 10]])
+  readings = q_model(
+    {
+      name: :la_readings,
+      from: la_find(ms, "consumable_events"),
+      pipeline: [
+        q_filter(q_eq(:type, "reading")),
+        q_select([:entity, :seq, :value])
+      ]
+    }
+  )
+  assert la_norm_rows(la_read(db, readings)) ==
+    la_norm_rows(
+      [
+        ["item-1", 0, 10],
+        ["item-1", 6, 26],
+        ["item-1", 8, 12],
+        ["item-2", 0, 10]
+      ]
+    )
   # Spans, declared on the order. lead (placed -> delivered, limit 2000):
   # o-1 placed 29100 [0], delivered 31500 [4]: 2400 s, over. o-2 was placed
   # at 30000 and cancelled, a terminal it never reaches delivered from:
@@ -1378,13 +2787,24 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # delivered (its deliver was refused): open, 86400 - 33100 = 53300 s, over.
   # ready_to_door (ready -> delivered, no limit): only o-1 was ready, at 31200
   # [3], delivered 300 s later.
-  assert view("order_span_lead") == la_norm_rows([["o-1", "done", 0, 29100, 4, 31500, 2400, 2400, 2000, true], ["o-2", "abandoned", 0, 30000, nil, nil, nil, nil, 2000, nil], ["o-3", "open", 0, 33100, nil, nil, nil, 53300, 2000, true]])
-  assert view("order_span_lead_summary") == la_norm_rows([[3, 1, 1, 1, 2, 2400, 2400, 2400, 2000]])
-  assert view("order_span_ready_to_door") == la_norm_rows([["o-1", "done", 3, 31200, 4, 31500, 300, 300, nil, nil]])
-  assert view("order_span_ready_to_door_summary") == la_norm_rows([[1, 1, 0, 0, 0, 300, 300, 300, nil]])
+  assert view("order_span_lead") ==
+    la_norm_rows(
+      [
+        ["o-1", "done", 0, 29100, 4, 31500, 2400, 2400, 2000, true],
+        ["o-2", "abandoned", 0, 30000, nil, nil, nil, nil, 2000, nil],
+        ["o-3", "open", 0, 33100, nil, nil, nil, 53300, 2000, true]
+      ]
+    )
+  assert view("order_span_lead_summary") ==
+    la_norm_rows([[3, 1, 1, 1, 2, 2400, 2400, 2400, 2000]])
+  assert view("order_span_ready_to_door") ==
+    la_norm_rows([["o-1", "done", 3, 31200, 4, 31500, 300, 300, nil, nil]])
+  assert view("order_span_ready_to_door_summary") ==
+    la_norm_rows([[1, 1, 0, 0, 0, 300, 300, 300, nil]])
   # Uses no permit covered: item-2's use at 40000 [5] came after its permit's
   # not_after (36750): lapsed. Every other admitted use sat inside a window.
-  assert view("consumable_unpermitted_use") == la_norm_rows([["item-2", 5, 40000, 2, 36750, nil, "lapsed"]])
+  assert view("consumable_unpermitted_use") ==
+    la_norm_rows([["item-2", 5, 40000, 2, 36750, nil, "lapsed"]])
   rm_rf(dir)
 end
 
@@ -1398,10 +2818,31 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # [3] a permit at 1300, [4] a use at 1400, [5] a reading of 26 at 1500,
   # [6] a use OBSERVED at 1600 (quality_ok refuses: a breach), [7] a use
   # ATTEMPTED at 9000 (refused), [8] a use OBSERVED at 9100 (a breach again).
-  l1 = el_append_all(log0, [["item-a", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-a", lc_ev(:open, 1100, []), []]])
+  l1 = el_append_all(
+    log0,
+    [
+      ["item-a", lc_ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-a", lc_ev(:open, 1100, []), []]
+    ]
+  )
   l2 = el_observe(l1, "item-a", lc_ev(:use, 1200, []), [])
-  l3 = el_append(l2, "item-a", lc_permit_event(d, lc_permit_for(d, el_state(l2, "item-a"), :use, 1300), "dev"), [])
-  l4 = el_append_all(l3, [["item-a", lc_ev(:use, 1400, []), []], ["item-a", lc_ev(:reading, 1500, [[:value, 26]]), []]])
+  l3 = el_append(
+    l2,
+    "item-a",
+    lc_permit_event(
+      d,
+      lc_permit_for(d, el_state(l2, "item-a"), :use, 1300),
+      "dev"
+    ),
+    []
+  )
+  l4 = el_append_all(
+    l3,
+    [
+      ["item-a", lc_ev(:use, 1400, []), []],
+      ["item-a", lc_ev(:reading, 1500, [[:value, 26]]), []]
+    ]
+  )
   l5 = el_observe(l4, "item-a", lc_ev(:use, 1600, []), [])
   l6 = el_append(l5, "item-a", lc_ev(:use, 9000, []), [])
   el_observe(l6, "item-a", lc_ev(:use, 9100, []), [])
@@ -1415,29 +2856,79 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # window; the one at 9100 came after not_after (and broke the guard too:
   # lapsed is reported first). The use at 1400 was covered. (The breach column
   # is a VARCHAR[], and it reads back as a list.)
-  assert view("consumable_unpermitted_use") == la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"], ["item-a", 6, 1600, 3, 8500, ["quality_ok"], "breach"], ["item-a", 8, 9100, 3, 8500, ["quality_ok"], "lapsed"]])
+  assert view("consumable_unpermitted_use") ==
+    la_norm_rows(
+      [
+        ["item-a", 2, 1200, nil, nil, nil, "no_permit"],
+        ["item-a", 6, 1600, 3, 8500, ["quality_ok"], "breach"],
+        ["item-a", 8, 9100, 3, 8500, ["quality_ok"], "lapsed"]
+      ]
+    )
   # The permit's window counts the uses at 1400 and 1600 (by window alone) and
   # the overrun at 9100.
-  assert view("consumable_permit_use_use") == la_norm_rows([["item-a", 3, "dev", 1300, 8500, 7200, 3, 39, 2, 1, 1600, false]])
+  assert view("consumable_permit_use_use") ==
+    la_norm_rows(
+      [["item-a", 3, "dev", 1300, 8500, 7200, 3, 39, 2, 1, 1600, false]]
+    )
   # quality_ok refused one attempt and was breached twice; the three asks are
   # one `replace` task, opened at 1600, never closed (no later reading), open
   # 20000 - 1600 = 18400 s against 1200: overdue.
-  assert filter(fn(r) nth(1, r) == "quality_ok" end, view("consumable_rule_hits")) == la_norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
-  assert view("consumable_tasks") == la_norm_rows([["item-a", "replace", "open", 6, 1600, nil, nil, 3, 18400, 1200, true]])
+  assert filter(
+    fn(r) nth(1, r) == "quality_ok" end,
+    view("consumable_rule_hits")
+  ) ==
+    la_norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
+  assert view("consumable_tasks") ==
+    la_norm_rows(
+      [["item-a", "replace", "open", 6, 1600, nil, nil, 3, 18400, 1200, true]]
+    )
   # The breaches were applied: four uses folded (1200, 1400, 1600, 9100).
-  assert view("consumable_current_state") == la_norm_rows([["item-a", "open", 4, 1100, 26, 1500, 8, 9100]])
+  assert view("consumable_current_state") ==
+    la_norm_rows([["item-a", "open", 4, 1100, 26, 1500, 8, 9100]])
   # The control: with the observed uses appended as attempts instead, the
   # guard refuses them, nothing is breached, and only the use before any
   # permit is left uncovered.
   dir2 = la_test_dir("attempted")
   s2 = la_stream(d, path_join(dir2, "consumable.jsonl"), "anaritikusu-observed")
-  m1 = el_append_all(el_read(get(s2, :path), get(s2, :label), d), [["item-a", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-a", lc_ev(:open, 1100, []), []], ["item-a", lc_ev(:use, 1200, []), []]])
-  m2 = el_append(m1, "item-a", lc_permit_event(d, lc_permit_for(d, el_state(m1, "item-a"), :use, 1300), "dev"), [])
-  el_append_all(m2, [["item-a", lc_ev(:use, 1400, []), []], ["item-a", lc_ev(:reading, 1500, [[:value, 26]]), []], ["item-a", lc_ev(:use, 1600, []), []], ["item-a", lc_ev(:use, 9000, []), []], ["item-a", lc_ev(:use, 9100, []), []]])
+  m1 = el_append_all(
+    el_read(get(s2, :path), get(s2, :label), d),
+    [
+      ["item-a", lc_ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-a", lc_ev(:open, 1100, []), []],
+      ["item-a", lc_ev(:use, 1200, []), []]
+    ]
+  )
+  m2 = el_append(
+    m1,
+    "item-a",
+    lc_permit_event(
+      d,
+      lc_permit_for(d, el_state(m1, "item-a"), :use, 1300),
+      "dev"
+    ),
+    []
+  )
+  el_append_all(
+    m2,
+    [
+      ["item-a", lc_ev(:use, 1400, []), []],
+      ["item-a", lc_ev(:reading, 1500, [[:value, 26]]), []],
+      ["item-a", lc_ev(:use, 1600, []), []],
+      ["item-a", lc_ev(:use, 9000, []), []],
+      ["item-a", lc_ev(:use, 9100, []), []]
+    ]
+  )
   db2 = la_build(dir2, [s2], now)
   ms2 = la_models(la_bindings(dir2, [s2]), now)
-  assert la_norm_rows(la_read(db2, la_find(ms2, "consumable_unpermitted_use"))) == la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"]])
-  assert filter(fn(r) nth(1, r) == "quality_ok" end, la_norm_rows(la_read(db2, la_find(ms2, "consumable_rule_hits")))) == la_norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
+  assert la_norm_rows(
+    la_read(db2, la_find(ms2, "consumable_unpermitted_use"))
+  ) ==
+    la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"]])
+  assert filter(
+    fn(r) nth(1, r) == "quality_ok" end,
+    la_norm_rows(la_read(db2, la_find(ms2, "consumable_rule_hits")))
+  ) ==
+    la_norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
   rm_rf(dir)
   rm_rf(dir2)
 end
@@ -1446,10 +2937,33 @@ end
 def la_example_differential(db, ms, s)
   d = get(s, :def)
   nf = size(lc_d_field_names(d))
-  fold = map(fn(es) la_norm_rows([cons(first(es), cons(lc_text(lc_phase(nth(1, es))), map(fn(kv) nth(1, kv) end, lc_fields(nth(1, es)))))]) end, el_states(el_read(get(s, :path), get(s, :label), d)))
-  sql = map(fn(r) take_n(r, 2 + nf) end, la_norm_rows(la_read(db, la_find(ms, la_n(d, "current_state")))))
+  fold = map(
+    fn(es)
+      la_norm_rows(
+        [
+          cons(
+            first(es),
+            cons(
+              lc_text(lc_phase(nth(1, es))),
+              map(fn(kv) nth(1, kv) end, lc_fields(nth(1, es)))
+            )
+          )
+        ]
+      )
+    end,
+    el_states(el_read(get(s, :path), get(s, :label), d))
+  )
+  sql = map(
+    fn(r) take_n(r, 2 + nf) end,
+    la_norm_rows(la_read(db, la_find(ms, la_n(d, "current_state"))))
+  )
   if set_equal(map(fn(x) first(x) end, fold), sql) == false
-    throw(error(:anaritikusu_test, "#{lc_text(lc_name(d))}: the database's current state differs from nisshi's replay"))
+    throw(
+      error(
+        :anaritikusu_test,
+        "#{lc_text(lc_name(d))}: the database's current state differs from nisshi's replay"
+      )
+    )
   end
   size(sql)
 end
@@ -1465,10 +2979,21 @@ test "a stricter reader: an applied event becomes a breach, and asks for its tas
   # was applied while uses_left refused: one breach. Its task is the guard's
   # `replace`, and nothing after [9] is evidence: open 86400 - 31100 = 55300,
   # overdue. The use at 30100 still reads as refused by the log.
-  assert view("consumable_rule_hits") == la_norm_rows([["use", "is_open", "phase in [:open]", 0, 0], ["use", "not_too_old", "opened_at less than 259200 old", 0, 0], ["use", "quality_ok", "quality below 24", 1, 0], ["use", "reading_fresh", "read_at less than 14400 old", 1, 0], ["use", "uses_left", "uses below 3", 0, 1]])
-  assert view("consumable_task_summary") == la_norm_rows([["replace", 2, 1, 1, 1], ["take_reading", 1, 1, 0, 1]])
+  assert view("consumable_rule_hits") ==
+    la_norm_rows(
+      [
+        ["use", "is_open", "phase in [:open]", 0, 0],
+        ["use", "not_too_old", "opened_at less than 259200 old", 0, 0],
+        ["use", "quality_ok", "quality below 24", 1, 0],
+        ["use", "reading_fresh", "read_at less than 14400 old", 1, 0],
+        ["use", "uses_left", "uses below 3", 0, 1]
+      ]
+    )
+  assert view("consumable_task_summary") ==
+    la_norm_rows([["replace", 2, 1, 1, 1], ["take_reading", 1, 1, 0, 1]])
   # A breach is applied: item-1 still ends with four uses.
-  assert first(view("consumable_current_state")) == first(la_norm_rows([["item-1", "spent", 4, 29000, 12, 31000, 10, 32000]]))
+  assert first(view("consumable_current_state")) ==
+    first(la_norm_rows([["item-1", "spent", 4, 29000, 12, 31000, 10, 32000]]))
   rm_rf(dir)
 end
 
@@ -1482,8 +3007,16 @@ end
 
 test "the set is refused where it cannot be generated, and a broken stream is refused where it is built"
   dir = la_test_dir("refused")
-  portion = la_binding(la_example_portion(), path_join(dir, "p.jsonl"), path_join(dir, "p.h"))
-  consumable = la_binding(la_example_consumable(), path_join(dir, "c.jsonl"), path_join(dir, "c.h"))
+  portion = la_binding(
+    la_example_portion(),
+    path_join(dir, "p.jsonl"),
+    path_join(dir, "p.h")
+  )
+  consumable = la_binding(
+    la_example_consumable(),
+    path_join(dir, "c.jsonl"),
+    path_join(dir, "c.h")
+  )
   # The empty case: no lifecycles, no models.
   assert is_empty(la_models([], 0))
   # A link to a lifecycle not given; the same set with it holds.
@@ -1492,8 +3025,23 @@ test "the set is refused where it cannot be generated, and a broken stream is re
   # Two lifecycles with one name; a role whose generated name collides with a
   # standard view (a role named `events`); `now` that is not a time.
   assert error?(try(la_models([consumable, consumable], 0), catch(e(), e)))
-  evented = lc_define(:portion, [lc_states([:a, :b]), lc_start(:a), lc_terminals([:b]), lc_event(:go, []), lc_on(:a, :go, :b, []), lc_link(:events, :consumable)])
-  assert error?(try(la_models([la_binding(evented, "x", "y"), consumable], 0), catch(e(), e)))
+  evented = lc_define(
+    :portion,
+    [
+      lc_states([:a, :b]),
+      lc_start(:a),
+      lc_terminals([:b]),
+      lc_event(:go, []),
+      lc_on(:a, :go, :b, []),
+      lc_link(:events, :consumable)
+    ]
+  )
+  assert error?(
+    try(
+      la_models([la_binding(evented, "x", "y"), consumable], 0),
+      catch(e(), e)
+    )
+  )
   assert error?(try(la_models([consumable], 1.5), catch(e(), e)))
   # A stream with a changed line is not built on.
   streams = la_example_streams(dir)
@@ -1513,10 +3061,28 @@ test "as of, with two records of the linked entity in one second: the state afte
   # 1200. p-t is made at 1200 and p-u at 1300, each linking item-t. By hand:
   # both see item-t after [3], two uses, whichever order the database keeps
   # the two 1200 records in.
-  el_append_all(el_read(get(sc, :path), get(sc, :label), d), [["item-t", lc_ev(:reading, 1000, [[:value, 10]]), []], ["item-t", lc_ev(:open, 1100, []), []], ["item-t", lc_ev(:use, 1200, []), []], ["item-t", lc_ev(:use, 1200, []), []]])
-  el_append_all(el_read(get(sp, :path), get(sp, :label), p), [["p-t", lc_ev(:make, 1200, [[:grams, 100]]), [[:item, "item-t"]]], ["p-u", lc_ev(:make, 1300, [[:grams, 90]]), [[:item, "item-t"]]]])
+  el_append_all(
+    el_read(get(sc, :path), get(sc, :label), d),
+    [
+      ["item-t", lc_ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-t", lc_ev(:open, 1100, []), []],
+      ["item-t", lc_ev(:use, 1200, []), []],
+      ["item-t", lc_ev(:use, 1200, []), []]
+    ]
+  )
+  el_append_all(
+    el_read(get(sp, :path), get(sp, :label), p),
+    [
+      ["p-t", lc_ev(:make, 1200, [[:grams, 100]]), [[:item, "item-t"]]],
+      ["p-u", lc_ev(:make, 1300, [[:grams, 90]]), [[:item, "item-t"]]]
+    ]
+  )
   db = la_build(dir, [sc, sp], 5000)
   ms = la_models(la_bindings(dir, [sc, sp]), 5000)
-  assert map(fn(r) [first(r), nth(6, r), nth(8, r)] end, la_norm_rows(la_read(db, la_find(ms, "portion_item")))) == la_norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
+  assert map(
+    fn(r) [first(r), nth(6, r), nth(8, r)] end,
+    la_norm_rows(la_read(db, la_find(ms, "portion_item")))
+  ) ==
+    la_norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
   rm_rf(dir)
 end

@@ -7,7 +7,7 @@
 
 def abs(n)
   if n < 0
-    0 - n
+    -n
   else
     n
   end
@@ -15,13 +15,11 @@ end
 
 def sign(n)
   if n < 0
-    0 - 1
+    -1
+  elsif n > 0
+    1
   else
-    if n > 0
-      1
-    else
-      0
-    end
+    0
   end
 end
 
@@ -57,7 +55,7 @@ def pow(base, exp)
 end
 
 def even(n)
-  n - (n / 2) * 2 == 0
+  n - n / 2 * 2 == 0
 end
 
 # Approximate equality, for the float results `sqrt` and friends return.
@@ -76,7 +74,7 @@ end
 def near_within(a, b, eps)
   d = a - b
   if d < 0
-    (0 - d) <= eps
+    -d <= eps
   else
     d <= eps
   end
@@ -185,12 +183,10 @@ end
 def int_sqrt_fix(n, r)
   if r * r > n
     int_sqrt_fix(n, r - 1)
+  elsif (r + 1) * (r + 1) <= n
+    int_sqrt_fix(n, r + 1)
   else
-    if (r + 1) * (r + 1) <= n
-      int_sqrt_fix(n, r + 1)
-    else
-      r
-    end
+    r
   end
 end
 
@@ -228,23 +224,31 @@ end
 # with a large number instead makes min_of([]) report that number as the
 # minimum of nothing; here the empty list answers nil, which a caller can test.
 def min_of(xs)
-  reduce(fn(acc, x)
-    if acc == nil
-      x
-    else
-      min(acc, x)
-    end
-  end, nil, xs)
+  reduce(
+    fn(acc, x)
+      if acc == nil
+        x
+      else
+        min(acc, x)
+      end
+    end,
+    nil,
+    xs
+  )
 end
 
 def max_of(xs)
-  reduce(fn(acc, x)
-    if acc == nil
-      x
-    else
-      max(acc, x)
-    end
-  end, nil, xs)
+  reduce(
+    fn(acc, x)
+      if acc == nil
+        x
+      else
+        max(acc, x)
+      end
+    end,
+    nil,
+    xs
+  )
 end
 
 # The identity elements are the whole reason these read the way they do:
@@ -292,10 +296,10 @@ def percent_change(from, to)
 end
 
 test "abs, sign, and the zero case sign implementations drop"
-  assert abs(0 - 5) == 5
+  assert abs(-5) == 5
   assert abs(5) == 5
   assert abs(0) == 0
-  assert sign(0 - 7) == 0 - 1
+  assert sign(-7) == -1
   assert sign(7) == 1
   # A two-branch sign() reports zero as positive. This is that test.
   assert sign(0) == 0
@@ -305,7 +309,7 @@ test "max, min, clamp"
   assert max(3, 7) == 7
   assert min(3, 7) == 3
   assert clamp(99, 1, 10) == 10
-  assert clamp(0 - 5, 1, 10) == 1
+  assert clamp(-5, 1, 10) == 1
   assert clamp(5, 1, 10) == 5
 end
 
@@ -332,25 +336,25 @@ test "odd agrees with even, including where the two implementations differ"
   assert odd(0) == false
   # The negatives are the point: `odd` asks the remainder, `even` subtracts.
   # If either drifts this is where it shows.
-  assert odd(0 - 3) == true
-  assert odd(0 - 4) == false
-  assert odd(0 - 3) == !even(0 - 3)
-  assert odd(0 - 4) == !even(0 - 4)
+  assert odd(-3) == true
+  assert odd(-4) == false
+  assert odd(-3) == !even(-3)
+  assert odd(-4) == !even(-4)
 end
 
 test "is_zero sees a float zero that == does not"
   assert is_zero(0) == true
   assert is_zero(1) == false
-  assert is_zero(0 - 1) == false
+  assert is_zero(-1) == false
   # The whole reason is_zero is not `n == 0`: this runtime says otherwise.
-  assert (sqrt(0) == 0) == false
+  assert sqrt(0) == 0 == false
   assert is_zero(sqrt(0)) == true
   assert is_zero(0.0) == true
 end
 
 test "is_positive and is_negative both reject zero"
   assert is_positive(3) == true
-  assert is_negative(0 - 3) == true
+  assert is_negative(-3) == true
   # A sign predicate written as `!is_negative` calls zero positive. Neither does.
   assert is_positive(0) == false
   assert is_negative(0) == false
@@ -364,7 +368,7 @@ test "in_range is inclusive, and clamp always lands inside it"
   assert in_range(11, 1, 10) == false
   # The property that ties the two together, on both sides and in the middle.
   assert in_range(clamp(99, 1, 10), 1, 10) == true
-  assert in_range(clamp(0 - 99, 1, 10), 1, 10) == true
+  assert in_range(clamp(-99, 1, 10), 1, 10) == true
   assert in_range(clamp(5, 1, 10), 1, 10) == true
 end
 
@@ -376,21 +380,21 @@ test "divides answers for zero instead of erroring on it"
   assert divides(3, 0) == true
   assert divides(0, 5) == false
   assert divides(0, 0) == false
-  assert divides(3, 0 - 12) == true
+  assert divides(3, -12) == true
 end
 
 test "floor_div rounds down, which is not truncation"
   assert floor_div(7, 2) == 3
   assert floor_div(6, 3) == 2
   # Truncation toward zero would say 0 - 3 here. This is the whole function.
-  assert floor_div(0 - 7, 2) == 0 - 4
-  assert floor_div(0 - 6, 3) == 0 - 2
+  assert floor_div(-7, 2) == -4
+  assert floor_div(-6, 3) == -2
 end
 
 test "ceil_div rounds up, exact division stays put"
   assert ceil_div(7, 2) == 4
   assert ceil_div(6, 3) == 2
-  assert ceil_div(0 - 7, 2) == 0 - 3
+  assert ceil_div(-7, 2) == -3
   # The pairing every "how many pages" calculation wants.
   assert ceil_div(10, 3) == 4
   assert floor_div(10, 3) == 3
@@ -398,25 +402,25 @@ end
 
 test "mod_positive never returns a negative, and blue's % already agrees"
   assert mod_positive(7, 3) == 1
-  assert mod_positive(0 - 7, 3) == 2
+  assert mod_positive(-7, 3) == 2
   assert mod_positive(0, 5) == 0
   # Clock arithmetic: one hour before midnight is 11, not 0 - 1.
-  assert mod_positive(0 - 1, 12) == 11
+  assert mod_positive(-1, 12) == 11
   # A negative modulus still yields a non-negative remainder.
-  assert mod_positive(7, 0 - 3) == 1
-  assert mod_positive(0 - 7, 0 - 3) == 2
+  assert mod_positive(7, -3) == 1
+  assert mod_positive(-7, -3) == 2
   # Measured, and counter to C/Rust/JS: blue's own % is Euclidean already.
   # Pinned so a runtime change surfaces here and not in a caller.
-  assert (0 - 7) % 3 == 2
-  assert 7 % (0 - 3) == 1
+  assert -7 % 3 == 2
+  assert 7 % -3 == 1
 end
 
 test "the division identity holds across signs"
   # floor_div and mod_positive are one decomposition, not two functions:
   # a == floor_div(a, b) * b + mod_positive(a, b) for positive b.
-  assert floor_div(0 - 7, 3) * 3 + mod_positive(0 - 7, 3) == 0 - 7
+  assert floor_div(-7, 3) * 3 + mod_positive(-7, 3) == -7
   assert floor_div(7, 3) * 3 + mod_positive(7, 3) == 7
-  assert floor_div(0 - 9, 3) * 3 + mod_positive(0 - 9, 3) == 0 - 9
+  assert floor_div(-9, 3) * 3 + mod_positive(-9, 3) == -9
 end
 
 test "square and cube, where sign tells them apart"
@@ -425,8 +429,8 @@ test "square and cube, where sign tells them apart"
   assert square(0) == 0
   # square discards the sign, cube keeps it. An abs-based cube passes the
   # positive cases and fails this one.
-  assert square(0 - 4) == 16
-  assert cube(0 - 2) == 0 - 8
+  assert square(-4) == 16
+  assert cube(-2) == -8
 end
 
 test "int_sqrt is exact on and around perfect squares"
@@ -440,7 +444,7 @@ test "int_sqrt is exact on and around perfect squares"
   assert int_sqrt(1000000) == 1000
   assert int_sqrt(999999) == 999
   # Negative has no integer root; it must not spin or error.
-  assert int_sqrt(0 - 5) == 0
+  assert int_sqrt(-5) == 0
 end
 
 test "digit_count counts zero as one digit"
@@ -451,13 +455,13 @@ test "digit_count counts zero as one digit"
   assert digit_count(100) == 3
   assert digit_count(123456) == 6
   # The sign is not a digit.
-  assert digit_count(0 - 1234) == 4
+  assert digit_count(-1234) == 4
 end
 
 test "sum and product carry the right empty"
   assert sum([1, 2, 3, 4]) == 10
   assert product([1, 2, 3, 4]) == 24
-  assert sum([0 - 1, 1]) == 0
+  assert sum([-1, 1]) == 0
   # The empty cases are the ones a seed gets wrong: an empty sum is 0 and an
   # empty product is 1. A product seeded with 0 passes every other assertion
   # here and fails this one.
@@ -473,7 +477,7 @@ test "min_of and max_of report nothing for nothing"
   assert max_of([3, 7, 1]) == 7
   assert min_of([5]) == 5
   assert max_of([5]) == 5
-  assert min_of([3, 0 - 7, 2]) == 0 - 7
+  assert min_of([3, -7, 2]) == -7
   # A fold seeded with a big/small sentinel answers that sentinel here.
   assert min_of([]) == nil
   assert max_of([]) == nil
@@ -507,7 +511,7 @@ test "lerp hits both endpoints exactly and extrapolates past them"
   assert near(lerp(0, 10, 0.25), 2.5) == true
   # t outside [0,1] extrapolates. A lerp that clamps returns 10 here.
   assert near(lerp(0, 10, 2), 20) == true
-  assert near(lerp(0, 10, 0 - 1), 0 - 10) == true
+  assert near(lerp(0, 10, -1), -10) == true
 end
 
 test "round_to keeps the places asked for"
@@ -530,7 +534,7 @@ test "percent and percent_change, where the denominator is the trap"
   # because the denominator is where you started. A formula dividing by `to`
   # gives 20 and -25 here, which is the classic reversal.
   assert percent_change(200, 250) == 25
-  assert percent_change(250, 200) == 0 - 20
+  assert percent_change(250, 200) == -20
   assert percent_change(100, 100) == 0
   assert percent_change(100, 200) == 100
 end

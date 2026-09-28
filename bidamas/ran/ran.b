@@ -1,6 +1,7 @@
 use("retsu")
 use("shuugou")
 use("junjo")
+
 # ran (乱) — deterministic pseudo-randomness.
 #
 # Every function takes a seed and returns the next seed alongside its value,
@@ -14,7 +15,7 @@ use("junjo")
 # repeatable", never "secure".
 
 def next_seed(seed)
-  ((1664525 * seed) + 1013904223) % 4294967296
+  (1664525 * seed + 1013904223) % 4294967296
 end
 
 def next_int(seed, bound)
@@ -26,7 +27,7 @@ def next_float(seed)
 end
 
 def next_range(seed, lo, hi)
-  lo + (next_seed(seed) % (hi - lo))
+  lo + next_seed(seed) % (hi - lo)
 end
 
 # A list of n values, threading the seed through so the sequence advances.
@@ -141,17 +142,20 @@ end
 # the halves, between multiplications. Every product stays below 2^63.
 
 def mix_seed(x)
-  a = modulo((modulo(x, 4294967296) * 747796405) + 2891336453, 4294967296)
-  b = modulo(a + ((floor(a / 65536) * modulo(a, 65536)) * 40503) + floor(a / 65536), 4294967296)
-  swapped = (modulo(b, 65536) * 65536) + floor(b / 65536)
-  c = modulo((swapped * 277803737) + 1013904223, 4294967296)
-  modulo(c + ((floor(c / 65536) * modulo(c, 65536)) * 22695477), 4294967296)
+  a = modulo(modulo(x, 4294967296) * 747796405 + 2891336453, 4294967296)
+  b = modulo(
+    a + floor(a / 65536) * modulo(a, 65536) * 40503 + floor(a / 65536),
+    4294967296
+  )
+  swapped = modulo(b, 65536) * 65536 + floor(b / 65536)
+  c = modulo(swapped * 277803737 + 1013904223, 4294967296)
+  modulo(c + floor(c / 65536) * modulo(c, 65536) * 22695477, 4294967296)
 end
 
 # The seed of stream i from one experiment seed. Streams for different i are
 # statistically independent, not merely distinct.
 def stream_seed(seed, i)
-  mix_seed(modulo(mix_seed(seed) + ((i + 1) * 2654435769), 4294967296))
+  mix_seed(modulo(mix_seed(seed) + (i + 1) * 2654435769, 4294967296))
 end
 
 # `choice` off the top of the word. Kept separate rather than folded into
@@ -202,12 +206,10 @@ end
 def weight_walk(xs, ws, r)
   if is_empty(rest(ws))
     first(xs)
+  elsif r < first(ws)
+    first(xs)
   else
-    if r < first(ws)
-      first(xs)
-    else
-      weight_walk(rest(xs), rest(ws), r - first(ws))
-    end
+    weight_walk(rest(xs), rest(ws), r - first(ws))
   end
 end
 
@@ -230,11 +232,11 @@ def next_gaussian(seed)
   s2 = next_seed(s1)
   u1 = (s1 + 1) / 4294967297
   u2 = s2 / 4294967296
-  sqrt(0 - (2 * log(u1))) * cos(6.283185307179586 * u2)
+  sqrt(-(2 * log(u1))) * cos(6.283185307179586 * u2)
 end
 
 def next_normal(seed, mean, sd)
-  mean + (sd * next_gaussian(seed))
+  mean + sd * next_gaussian(seed)
 end
 
 def take_gaussians(seed, n)
@@ -249,7 +251,7 @@ def next_step(seed)
   if next_bool(seed)
     1
   else
-    0 - 1
+    -1
   end
 end
 
@@ -324,8 +326,10 @@ test "roll_sum adds the dice rather than picking one of them"
 end
 
 test "advantage of one die is that die"
-  assert every(fn(s) roll_best(s, 1, 20) == roll(s, 20) end, seeds(31, 15)) == true
-  assert every(fn(s) roll_worst(s, 1, 20) == roll(s, 20) end, seeds(31, 15)) == true
+  assert every(fn(s) roll_best(s, 1, 20) == roll(s, 20) end, seeds(31, 15)) ==
+    true
+  assert every(fn(s) roll_worst(s, 1, 20) == roll(s, 20) end, seeds(31, 15)) ==
+    true
   assert roll_best(5, 3, 6) >= roll_worst(5, 3, 6)
 end
 
@@ -334,8 +338,17 @@ test "split_seed gives two streams that do not replay each other"
   a = first(p)
   b = last(p)
   # The failure this catches: b = next_seed(a), which shares 19 of these 20.
-  assert is_empty(intersection(take_ints(a, 1000000, 20), take_ints(b, 1000000, 20))) == true
-  assert is_empty(intersection(take_ints(a, 1000000, 20), take_ints(next_seed(a), 1000000, 20))) == false
+  assert is_empty(
+    intersection(take_ints(a, 1000000, 20), take_ints(b, 1000000, 20))
+  ) ==
+    true
+  assert is_empty(
+    intersection(
+      take_ints(a, 1000000, 20),
+      take_ints(next_seed(a), 1000000, 20)
+    )
+  ) ==
+    false
   assert split_seed(1) == split_seed(1)
   assert split_seed(1) != split_seed(2)
 end
@@ -346,25 +359,43 @@ test "streams are independent, not merely distinct"
   # 60 pairs: sized for cargo test's 2 MiB thread, where a larger list
   # overflows the stack (measured). The affine control's gap is ~0.27, so 60
   # pairs still separate the two cases clearly.
-  pairs = map(fn(i) [next_float(stream_seed(7, 2 * i)), next_float(stream_seed(7, (2 * i) + 1))] end, range(0, 60))
+  pairs = map(
+    fn(i)
+      [next_float(stream_seed(7, 2 * i)), next_float(stream_seed(7, 2 * i + 1))]
+    end,
+    range(0, 60)
+  )
   low = map(fn(p) last(p) end, filter(fn(p) first(p) < 0.44 end, pairs))
   high = map(fn(p) last(p) end, filter(fn(p) first(p) >= 0.44 end, pairs))
-  assert abs((reduce(fn(a, v) a + v end, 0, low) / size(low)) - (reduce(fn(a, v) a + v end, 0, high) / size(high))) < 0.12
+  assert abs(
+    reduce(fn(a, v) a + v end, 0, low) / size(low) -
+      reduce(fn(a, v) a + v end, 0, high) / size(high)
+  ) <
+    0.12
 end
 
 test "the affine derivation fails that test (positive control)"
-  affine = fn(i) next_seed(next_seed(modulo(7 + ((i + 1) * 2654435769), 4294967296))) end
-  pairs = map(fn(i) [next_float(affine(2 * i)), next_float(affine((2 * i) + 1))] end, range(0, 60))
+  affine = fn(i)
+    next_seed(next_seed(modulo(7 + (i + 1) * 2654435769, 4294967296)))
+  end
+  pairs = map(
+    fn(i) [next_float(affine(2 * i)), next_float(affine(2 * i + 1))] end,
+    range(0, 60)
+  )
   low = map(fn(p) last(p) end, filter(fn(p) first(p) < 0.44 end, pairs))
   high = map(fn(p) last(p) end, filter(fn(p) first(p) >= 0.44 end, pairs))
-  gap = abs((reduce(fn(a, v) a + v end, 0, low) / size(low)) - (reduce(fn(a, v) a + v end, 0, high) / size(high)))
+  gap = abs(
+    reduce(fn(a, v) a + v end, 0, low) / size(low) -
+      reduce(fn(a, v) a + v end, 0, high) / size(high)
+  )
   assert gap > 0.1
 end
 
 test "mixed seeds stay 32-bit and draws are uniform"
   xs = map(fn(i) mix_seed(i) end, range(0, 60))
   assert every(fn(x) x >= 0 && x < 4294967296 end, xs) == true
-  m = reduce(fn(a, i) a + next_float(stream_seed(1, i)) end, 0, range(0, 60)) / 60
+  m = reduce(fn(a, i) a + next_float(stream_seed(1, i)) end, 0, range(0, 60)) /
+    60
   assert abs(m - 0.5) < 0.1
   assert stream_seed(3, 4) == stream_seed(3, 4)
 end
@@ -455,7 +486,11 @@ test "choices draws WITH replacement"
 end
 
 test "pick is a member, and is not stuck on the low bits"
-  assert every(fn(s) contains([1, 2, 3], pick(s, [1, 2, 3])) end, seeds(4, 30)) == true
+  assert every(
+    fn(s) contains([1, 2, 3], pick(s, [1, 2, 3])) end,
+    seeds(4, 30)
+  ) ==
+    true
   ps = map(fn(s) pick(s, [1, 2]) end, seeds(1, 12))
   assert any(fn(p) first(p) == last(p) end, zip(ps, rest(ps))) == true
 end
@@ -463,18 +498,35 @@ end
 test "a weight of zero is never chosen"
   # The case a plausible `<=` walk gets wrong, and the reason weighted_choice
   # is worth having at all.
-  assert every(fn(s) weighted_choice(s, ["a", "b"], [1, 0]) == "a" end, seeds(2, 40)) == true
-  assert every(fn(s) weighted_choice(s, ["a", "b"], [0, 1]) == "b" end, seeds(2, 40)) == true
-  assert every(fn(s) weighted_choice(s, ["a", "b", "c"], [0, 1, 0]) == "b" end, seeds(9, 40)) == true
+  assert every(
+    fn(s) weighted_choice(s, ["a", "b"], [1, 0]) == "a" end,
+    seeds(2, 40)
+  ) ==
+    true
+  assert every(
+    fn(s) weighted_choice(s, ["a", "b"], [0, 1]) == "b" end,
+    seeds(2, 40)
+  ) ==
+    true
+  assert every(
+    fn(s) weighted_choice(s, ["a", "b", "c"], [0, 1, 0]) == "b" end,
+    seeds(9, 40)
+  ) ==
+    true
 end
 
 test "weighted_choice follows the weights it was given"
   picks = map(fn(s) weighted_choice(s, ["a", "b"], [9, 1]) end, seeds(101, 200))
   # Equal treatment would give roughly 100 each; 9:1 must be lopsided.
-  assert count_of(picks, "a") > (3 * count_of(picks, "b"))
+  assert count_of(picks, "a") > 3 * count_of(picks, "b")
   assert count_of(picks, "b") > 0
   # Equal weights must reach every option, including the last.
-  assert size(unique(map(fn(s) weighted_choice(s, [1, 2, 3], [1, 1, 1]) end, seeds(5, 100)))) == 3
+  assert size(
+    unique(
+      map(fn(s) weighted_choice(s, [1, 2, 3], [1, 1, 1]) end, seeds(5, 100))
+    )
+  ) ==
+    3
   assert weighted_choice(4, ["only"], [1]) == "only"
 end
 
@@ -492,7 +544,7 @@ test "gaussians have the right centre AND the right spread"
   assert near_within(m, 0, 0.15) == true
   # The mean alone passes for any symmetric formula. The second moment is what
   # catches a dropped factor of 2 in sqrt(-2 log u), which would give 0.5.
-  v = reduce(fn(a, b) a + (b * b) end, 0, gs) / 400
+  v = reduce(fn(a, b) a + b * b end, 0, gs) / 400
   assert near_within(v, 1, 0.2) == true
   assert any(fn(g) g < 0 end, gs) == true
   assert any(fn(g) g > 0 end, gs) == true
@@ -501,8 +553,16 @@ end
 
 test "next_normal is next_gaussian shifted and scaled"
   # The identity a wrong scaling cannot satisfy.
-  assert every(fn(s) next_normal(s, 0, 1) == next_gaussian(s) end, seeds(6, 20)) == true
-  assert every(fn(s) near(next_normal(s, 10, 2), 10 + (2 * next_gaussian(s))) end, seeds(6, 20)) == true
+  assert every(
+    fn(s) next_normal(s, 0, 1) == next_gaussian(s) end,
+    seeds(6, 20)
+  ) ==
+    true
+  assert every(
+    fn(s) near(next_normal(s, 10, 2), 10 + 2 * next_gaussian(s)) end,
+    seeds(6, 20)
+  ) ==
+    true
   # Shifting by 100 must move the whole cloud, not widen it.
   ns = map(fn(s) next_normal(s, 100, 1) end, seeds(17, 200))
   assert every(fn(n) n > 94 && n < 106 end, ns) == true
@@ -512,7 +572,7 @@ test "a random walk steps by exactly one, every time"
   w = random_walk(23, 60)
   assert size(w) == 60
   assert random_walk(23, 0) == []
-  assert contains([1, 0 - 1], first(w)) == true
+  assert contains([1, -1], first(w)) == true
   # The property that separates a walk from a list of draws: successive
   # positions are adjacent. A walk built from raw draws fails here.
   assert every(fn(p) abs(last(p) - first(p)) == 1 end, zip(w, rest(w))) == true

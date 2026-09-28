@@ -1,4 +1,5 @@
 use("retsu")
+
 # shinsuu (進数) — base conversion and checksums.
 #
 # Encoding is where a library's edge cases live: zero, the empty input, and
@@ -6,8 +7,24 @@ use("retsu")
 # implementation looks right and is wrong for exactly one input.
 
 def digits()
-  ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-   "a", "b", "c", "d", "e", "f"]
+  [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f"
+  ]
 end
 
 def to_base(n, base)
@@ -44,18 +61,16 @@ end
 
 def value_index(xs, v, i)
   if i >= size(xs)
-    0 - 1
+    -1
+  elsif nth(i, xs) == v
+    i
   else
-    if nth(i, xs) == v
-      i
-    else
-      value_index(xs, v, i + 1)
-    end
+    value_index(xs, v, i + 1)
   end
 end
 
 def from_base(text, base)
-  reduce(fn(acc, ch) (acc * base) + digit_value(ch) end, 0, chars(text))
+  reduce(fn(acc, ch) acc * base + digit_value(ch) end, 0, chars(text))
 end
 
 # Digits of a number in base 10, most significant first.
@@ -74,7 +89,11 @@ end
 # The Luhn checksum, which every credit-card number satisfies.
 def luhn_valid(n)
   ds = reverse(digits_of(n))
-  total = reduce(fn(acc, i) acc + luhn_digit(nth(i, ds), i) end, 0, range(0, size(ds)))
+  total = reduce(
+    fn(acc, i) acc + luhn_digit(nth(i, ds), i) end,
+    0,
+    range(0, size(ds))
+  )
   total % 10 == 0
 end
 
@@ -143,7 +162,7 @@ end
 # The empty list answers 0 rather than erroring, which is what makes it safe to
 # feed the result of a filter or a `rest` straight back in.
 def from_digits(ds, base)
-  reduce(fn(acc, d) (acc * base) + d end, 0, ds)
+  reduce(fn(acc, d) acc * base + d end, 0, ds)
 end
 
 # Left-pad a digit list to a fixed width with zeros.
@@ -260,12 +279,10 @@ end
 def next_power_of_two(n)
   if n < 1
     1
+  elsif is_power_of_two(n)
+    n
   else
-    if is_power_of_two(n)
-      n
-    else
-      expt(2, bit_length(n))
-    end
+    expt(2, bit_length(n))
   end
 end
 
@@ -279,7 +296,8 @@ test "digit lists round-trip through any base"
   assert from_digits([1, 2, 3], 10) == 123
   assert from_digits(base_digits(48879, 16), 16) == 48879
   # And it agrees with the character-level pair already in this package.
-  assert from_digits(base_digits(1234, 10), 10) == from_base(to_base(1234, 10), 10)
+  assert from_digits(base_digits(1234, 10), 10) ==
+    from_base(to_base(1234, 10), 10)
 end
 
 test "padding a digit list is what makes two of them comparable"
@@ -349,7 +367,7 @@ test "popcount, bit_length and the powers of two"
   assert is_power_of_two(1) == true
   assert is_power_of_two(1024) == true
   assert is_power_of_two(6) == false
-  assert is_power_of_two(0 - 4) == false
+  assert is_power_of_two(-4) == false
 
   # An exact power answers itself; only a strictly larger n rounds up.
   assert next_power_of_two(8) == 8
@@ -513,9 +531,18 @@ test "Gray code is a bijection whose successive values differ by one bit"
   # Decoding undoes encoding for every n — the fold, not a second XOR. A
   # `gray_decode = gray_encode` implementation passes for 0, 1, 2 and 3 and
   # first disagrees at 4.
-  assert size(filter(fn(n) !(gray_decode(gray_encode(n)) == n) end, range(0, 128))) == 0
+  assert size(
+    filter(fn(n) !(gray_decode(gray_encode(n)) == n) end, range(0, 128))
+  ) ==
+    0
   # And the defining property: one bit changes per step, for every step.
-  assert size(filter(fn(n) !(popcount(bit_xor(gray_encode(n), gray_encode(n + 1))) == 1) end, range(0, 128))) == 0
+  assert size(
+    filter(
+      fn(n) !(popcount(bit_xor(gray_encode(n), gray_encode(n + 1))) == 1) end,
+      range(0, 128)
+    )
+  ) ==
+    0
 end
 
 # ---------------------------------------------------------------------------
@@ -572,32 +599,20 @@ end
 def roman_value_of(c)
   if c == "M"
     1000
+  elsif c == "D"
+    500
+  elsif c == "C"
+    100
+  elsif c == "L"
+    50
+  elsif c == "X"
+    10
+  elsif c == "V"
+    5
+  elsif c == "I"
+    1
   else
-    if c == "D"
-      500
-    else
-      if c == "C"
-        100
-      else
-        if c == "L"
-          50
-        else
-          if c == "X"
-            10
-          else
-            if c == "V"
-              5
-            else
-              if c == "I"
-                1
-              else
-                0
-              end
-            end
-          end
-        end
-      end
-    end
+    0
   end
 end
 
@@ -656,7 +671,7 @@ test "writing Roman numerals, including every subtractive pair"
   assert to_roman(3999) == "MMMCMXCIX"
   # There is no Roman zero, and no negative numeral either.
   assert to_roman(0) == ""
-  assert to_roman(0 - 5) == ""
+  assert to_roman(-5) == ""
   # 99 is XCIX, never IC — the case a subtract-if-smaller encoder gets wrong.
   assert to_roman(99) == "XCIX"
   assert to_roman(999) == "CMXCIX"
@@ -685,7 +700,20 @@ test "every numeral from 1 to 3999 survives the round trip"
   # overflows the process stack somewhere between 400 and 800 elements —
   # `range(1, 4000)` aborts before a single numeral is built. The chunk width is
   # a runtime limit, not anything about Roman numerals.
-  assert reduce(fn(acc, s) acc + size(filter(fn(n) !(from_roman(to_roman(n)) == n) end, range(s, min(s + 400, 4000)))) end, 0, [1, 401, 801, 1201, 1601, 2001, 2401, 2801, 3201, 3601]) == 0
+  assert reduce(
+    fn(acc, s)
+      acc +
+        size(
+          filter(
+            fn(n) !(from_roman(to_roman(n)) == n) end,
+            range(s, min(s + 400, 4000))
+          )
+        )
+    end,
+    0,
+    [1, 401, 801, 1201, 1601, 2001, 2401, 2801, 3201, 3601]
+  ) ==
+    0
 end
 
 test "canonical spelling is stricter than parseable spelling"
@@ -708,10 +736,44 @@ end
 # asserted below rather than assumed.
 
 def digits36()
-  ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-   "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
-   "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
-   "u", "v", "w", "x", "y", "z"]
+  [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z"
+  ]
 end
 
 def digit_value36(ch)
@@ -739,7 +801,9 @@ def to_base36(n)
 end
 
 def all_digits_in_base(cs, base)
-  is_empty(filter(fn(c) digit_value36(c) < 0 || digit_value36(c) >= base end, cs))
+  is_empty(
+    filter(fn(c) digit_value36(c) < 0 || digit_value36(c) >= base end, cs)
+  )
 end
 
 # Is every character of `text` a digit of `base`?
@@ -765,20 +829,18 @@ def parse_int(text, base)
   cs = chars(downcase(trim(text)))
   if is_empty(cs)
     nil
+  elsif first(cs) == "-"
+    parse_signed(rest(cs), base, -1)
   else
-    if first(cs) == "-"
-      parse_signed(rest(cs), base, 0 - 1)
-    else
-      parse_signed(cs, base, 1)
-    end
+    parse_signed(cs, base, 1)
   end
 end
 
 def parse_signed(cs, base, sign)
-  if is_empty(cs) || !(all_digits_in_base(cs, base))
+  if is_empty(cs) || !all_digits_in_base(cs, base)
     nil
   else
-    sign * reduce(fn(acc, c) (acc * base) + digit_value36(c) end, 0, cs)
+    sign * reduce(fn(acc, c) acc * base + digit_value36(c) end, 0, cs)
   end
 end
 
@@ -811,7 +873,7 @@ test "parse_int refuses what from_base would have swallowed"
   assert parse_int("FF", 16) == 255
   assert parse_int("  ff  ", 16) == 255
   assert parse_int("0", 10) == 0
-  assert parse_int("-ff", 16) == 0 - 255
+  assert parse_int("-ff", 16) == -255
   # A digit outside the base is nil rather than a plausible number — the
   # distinguishing case, since from_base("zz", 16) returns a number here.
   assert parse_int("zz", 16) == nil
@@ -837,7 +899,7 @@ test "validity is decided before parsing, and empty is not valid"
   # A sign is not a digit, so the validity check and parse_int disagree on
   # "-5" on purpose: one asks about digits, the other about numerals.
   assert is_valid_in_base("-5", 10) == false
-  assert parse_int("-5", 10) == 0 - 5
+  assert parse_int("-5", 10) == -5
 end
 
 # ---------------------------------------------------------------------------
@@ -873,8 +935,12 @@ end
 # produce a check digit that fails the checker it was computed for.
 def luhn_check_digit(n)
   ds = reverse(digits_of(n))
-  total = reduce(fn(acc, i) acc + luhn_digit(nth(i, ds), i + 1) end, 0, range(0, size(ds)))
-  (10 - (total % 10)) % 10
+  total = reduce(
+    fn(acc, i) acc + luhn_digit(nth(i, ds), i + 1) end,
+    0,
+    range(0, size(ds))
+  )
+  (10 - total % 10) % 10
 end
 
 # Luhn over a digit LIST rather than a number, so a card number with leading
@@ -885,7 +951,13 @@ def luhn_valid_digits(ds)
     false
   else
     rs = reverse(ds)
-    reduce(fn(acc, i) acc + luhn_digit(nth(i, rs), i) end, 0, range(0, size(rs))) % 10 == 0
+    reduce(
+      fn(acc, i) acc + luhn_digit(nth(i, rs), i) end,
+      0,
+      range(0, size(rs))
+    ) %
+      10 ==
+      0
   end
 end
 
@@ -894,7 +966,9 @@ end
 # character, since silently ignoring a stray letter would validate a typo.
 def luhn_valid_text(text)
   cs = chars(replace(replace(trim(text), " ", ""), "-", ""))
-  size(cs) > 0 && all_digits_in_base(cs, 10) && luhn_valid_digits(map(fn(c) digit_value36(c) end, cs))
+  size(cs) > 0 &&
+    all_digits_in_base(cs, 10) &&
+    luhn_valid_digits(map(fn(c) digit_value36(c) end, cs))
 end
 
 # ---------------------------------------------------------------------------
@@ -925,18 +999,22 @@ def isbn10_char_ok(ch, i)
 end
 
 def isbn10_ok_chars(cs)
-  is_empty(filter(fn(i) !(isbn10_char_ok(nth(i, cs), i)) end, range(0, size(cs))))
+  is_empty(filter(fn(i) !isbn10_char_ok(nth(i, cs), i) end, range(0, size(cs))))
 end
 
 # Weights run 10, 9, 8 … down to 1, so this is also the partial sum over a
 # nine-character prefix — which is what isbn10_check_char needs.
 def isbn10_weighted(cs)
-  reduce(fn(acc, i) acc + ((10 - i) * isbn10_char_value(nth(i, cs))) end, 0, range(0, size(cs)))
+  reduce(
+    fn(acc, i) acc + (10 - i) * isbn10_char_value(nth(i, cs)) end,
+    0,
+    range(0, size(cs))
+  )
 end
 
 def isbn10_valid(text)
   cs = isbn10_chars(text)
-  size(cs) == 10 && isbn10_ok_chars(cs) && (isbn10_weighted(cs) % 11 == 0)
+  size(cs) == 10 && isbn10_ok_chars(cs) && isbn10_weighted(cs) % 11 == 0
 end
 
 def isbn10_digit_char(v)
@@ -949,10 +1027,10 @@ end
 
 def isbn10_check_char(first9)
   cs = isbn10_chars(first9)
-  if !(size(cs) == 9) || !(isbn10_ok_chars(cs))
+  if !(size(cs) == 9) || !isbn10_ok_chars(cs)
     nil
   else
-    isbn10_digit_char((11 - (isbn10_weighted(cs) % 11)) % 11)
+    isbn10_digit_char((11 - isbn10_weighted(cs) % 11) % 11)
   end
 end
 
@@ -977,8 +1055,20 @@ test "the mod-N checksum and its check digit are inverses"
   # The identity: appending the check digit makes the number check out. This is
   # what a swapped sign or a missing outer modulo fails, and no single
   # hand-picked pair would.
-  assert size(filter(fn(n) !(mod_check_valid((n * 10) + mod_check_digit(n, 7), 7)) end, range(1, 256))) == 0
-  assert size(filter(fn(n) !(mod_check_valid((n * 10) + mod_check_digit(n, 9), 9)) end, range(1, 256))) == 0
+  assert size(
+    filter(
+      fn(n) !mod_check_valid(n * 10 + mod_check_digit(n, 7), 7) end,
+      range(1, 256)
+    )
+  ) ==
+    0
+  assert size(
+    filter(
+      fn(n) !mod_check_valid(n * 10 + mod_check_digit(n, 9), 9) end,
+      range(1, 256)
+    )
+  ) ==
+    0
 end
 
 test "the Luhn check digit is the one the Luhn checker wants"
@@ -987,7 +1077,10 @@ test "the Luhn check digit is the one the Luhn checker wants"
   assert luhn_check_digit(7992739871) == 3
   # And the identity over a range, which the off-by-one in the doubling
   # position fails on roughly half of all inputs.
-  assert size(filter(fn(n) !(luhn_valid((n * 10) + luhn_check_digit(n))) end, range(1, 256))) == 0
+  assert size(
+    filter(fn(n) !luhn_valid(n * 10 + luhn_check_digit(n)) end, range(1, 256))
+  ) ==
+    0
 end
 
 test "Luhn over digit lists and over written text"
@@ -1047,5 +1140,11 @@ test "the ISBN-10 check character, including the X case"
   # implementation renders as "10" and fails on. 000000006 is the smallest such
   # prefix: its weighted sum is 2 x 6 = 12, and 12 is 1 mod 11.
   assert isbn10_check_char("000000006") == "X"
-  assert size(filter(fn(n) !(isbn10_valid(isbn10_complete(to_base_width(n, 10, 9)))) end, range(1, 128))) == 0
+  assert size(
+    filter(
+      fn(n) !isbn10_valid(isbn10_complete(to_base_width(n, 10, 9))) end,
+      range(1, 128)
+    )
+  ) ==
+    0
 end

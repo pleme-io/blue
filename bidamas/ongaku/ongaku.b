@@ -1,5 +1,6 @@
 use("kazu")
 use("retsu")
+
 # ongaku (音楽) — twelve-tone music theory, as arithmetic on semitones.
 #
 # Western harmony is modular arithmetic mod 12 with names attached, which
@@ -11,7 +12,7 @@ def note_names()
 end
 
 def note_name(pc)
-  nth(((pc % 12) + 12) % 12, note_names())
+  nth((pc % 12 + 12) % 12, note_names())
 end
 
 def transpose_note(pc, semitones)
@@ -44,10 +45,23 @@ def dominant_seventh(root)
 end
 
 def interval_name(semitones)
-  nth(((semitones % 12) + 12) % 12,
-      ["unison", "minor second", "major second", "minor third",
-       "major third", "perfect fourth", "tritone", "perfect fifth",
-       "minor sixth", "major sixth", "minor seventh", "major seventh"])
+  nth(
+    (semitones % 12 + 12) % 12,
+    [
+      "unison",
+      "minor second",
+      "major second",
+      "minor third",
+      "major third",
+      "perfect fourth",
+      "tritone",
+      "perfect fifth",
+      "minor sixth",
+      "major sixth",
+      "minor seventh",
+      "major seventh"
+    ]
+  )
 end
 
 # MIDI note number to frequency in Hz. 69 is A4 = 440.
@@ -62,7 +76,7 @@ end
 # than load-bearing; it is kept because the three functions written before this
 # one already spell it out and disagreeing with them would be worse.
 def pitch_class(n)
-  ((n % 12) + 12) % 12
+  (n % 12 + 12) % 12
 end
 
 # The same fold for a list of length n rather than for the twelve pitches:
@@ -72,7 +86,7 @@ def wrap_index(i, n)
   if n < 1
     0
   else
-    ((i % n) + n) % n
+    (i % n + n) % n
   end
 end
 
@@ -132,7 +146,7 @@ def pitch_class_of_crossing(name)
   if i >= 0
     nth(i, [5, 4, 0, 11])
   else
-    0 - 1
+    -1
   end
 end
 
@@ -250,22 +264,45 @@ def triad_quality_names()
 end
 
 def triad_quality(notes)
-  quality_of_shape(chord_intervals(notes), triad_shapes(), triad_quality_names())
+  quality_of_shape(
+    chord_intervals(notes),
+    triad_shapes(),
+    triad_quality_names()
+  )
 end
 
 def seventh_shapes()
-  [[0, 4, 7, 11], [0, 4, 7, 10], [0, 3, 7, 10], [0, 3, 6, 10],
-   [0, 3, 6, 9], [0, 3, 7, 11], [0, 4, 8, 11], [0, 4, 8, 10]]
+  [
+    [0, 4, 7, 11],
+    [0, 4, 7, 10],
+    [0, 3, 7, 10],
+    [0, 3, 6, 10],
+    [0, 3, 6, 9],
+    [0, 3, 7, 11],
+    [0, 4, 8, 11],
+    [0, 4, 8, 10]
+  ]
 end
 
 def seventh_quality_names()
-  ["major seventh", "dominant seventh", "minor seventh",
-   "half-diminished seventh", "diminished seventh", "minor-major seventh",
-   "augmented major seventh", "augmented seventh"]
+  [
+    "major seventh",
+    "dominant seventh",
+    "minor seventh",
+    "half-diminished seventh",
+    "diminished seventh",
+    "minor-major seventh",
+    "augmented major seventh",
+    "augmented seventh"
+  ]
 end
 
 def seventh_quality(notes)
-  quality_of_shape(chord_intervals(notes), seventh_shapes(), seventh_quality_names())
+  quality_of_shape(
+    chord_intervals(notes),
+    seventh_shapes(),
+    seventh_quality_names()
+  )
 end
 
 # Dispatches on how many notes there are, since a three-note shape and a
@@ -275,12 +312,10 @@ def chord_quality(notes)
   n = size(notes)
   if n == 3
     triad_quality(notes)
+  elsif n == 4
+    seventh_quality(notes)
   else
-    if n == 4
-      seventh_quality(notes)
-    else
-      "unknown"
-    end
+    "unknown"
   end
 end
 
@@ -343,7 +378,7 @@ end
 # The test pins them against each other, which is the only way either one is
 # checked by something other than itself.
 def mode_of_major(root, degree)
-  d = ((degree % 7) + 7) % 7
+  d = (degree % 7 + 7) % 7
   mode_scale(nth(d, major_scale(root)), nth(d, mode_names()))
 end
 
@@ -434,9 +469,11 @@ def scale_triad(scale, degree)
   if is_empty(scale_tones(scale))
     []
   else
-    [scale_note(scale, degree),
-     scale_note(scale, degree + 2),
-     scale_note(scale, degree + 4)]
+    [
+      scale_note(scale, degree),
+      scale_note(scale, degree + 2),
+      scale_note(scale, degree + 4)
+    ]
   end
 end
 
@@ -452,13 +489,17 @@ end
 # The quality of every degree's triad, in order — the "I ii iii IV V vi vii°"
 # of a key, derived rather than recited.
 def scale_triad_qualities(scale)
-  map(fn(d) triad_quality(scale_triad(scale, d)) end,
-      range(0, size(scale_tones(scale))))
+  map(
+    fn(d) triad_quality(scale_triad(scale, d)) end,
+    range(0, size(scale_tones(scale)))
+  )
 end
 
 def scale_seventh_qualities(scale)
-  map(fn(d) seventh_quality(scale_seventh(scale, d)) end,
-      range(0, size(scale_tones(scale))))
+  map(
+    fn(d) seventh_quality(scale_seventh(scale, d)) end,
+    range(0, size(scale_tones(scale)))
+  )
 end
 
 # --- keys, and the circle of fifths -------------------------------------------
@@ -468,7 +509,7 @@ def fifth_up(pc)
 end
 
 def fifth_down(pc)
-  transpose_note(pc, 0 - 7)
+  transpose_note(pc, -7)
 end
 
 # Stepping by fifths visits all twelve pitches before repeating, because 7 and
@@ -499,7 +540,7 @@ def sharp_count(pc)
 end
 
 def flat_count(pc)
-  max(0 - key_signature(pc), 0)
+  max(-key_signature(pc), 0)
 end
 
 def key_uses_flats(pc)
@@ -583,7 +624,7 @@ def interval_class(a, b)
 end
 
 def invert_interval(semitones)
-  pitch_class(0 - semitones)
+  pitch_class(-semitones)
 end
 
 # Consonance in the common-practice sense: unison, both thirds, both sixths,
@@ -603,7 +644,7 @@ end
 test "note naming wraps in both directions"
   assert note_name(0) == "C"
   assert note_name(12) == "C"
-  assert note_name(0 - 1) == "B"
+  assert note_name(-1) == "B"
   assert note_name(7) == "G"
 end
 
@@ -649,8 +690,10 @@ test "the two spelling tables name the same twelve pitches"
   # The check that matters: every flat name round-trips to the pitch class it
   # was taken from. A table with a typo, or one note out of order, fails here
   # and nowhere else — naming C# and Db both "correct" hides a shifted table.
-  assert map(fn(pc) pitch_class_of(note_name_flat(pc)) end, range(0, 12)) == range(0, 12)
-  assert map(fn(pc) pitch_class_of(note_name(pc)) end, range(0, 12)) == range(0, 12)
+  assert map(fn(pc) pitch_class_of(note_name_flat(pc)) end, range(0, 12)) ==
+    range(0, 12)
+  assert map(fn(pc) pitch_class_of(note_name(pc)) end, range(0, 12)) ==
+    range(0, 12)
   assert note_name_flat(1) == "Db"
   assert note_name(1) == "C#"
   assert note_name_in(6, true) == "Gb"
@@ -672,7 +715,7 @@ test "letter-crossing spellings resolve, unknown names do not"
   assert pitch_class_of("E#") == 5
   assert pitch_class_of("Cb") == 11
   assert pitch_class_of("B#") == 0
-  assert pitch_class_of("H") == 0 - 1
+  assert pitch_class_of("H") == -1
   assert is_enharmonic("E#", "F") == true
   assert is_enharmonic("E", "F") == false
   # Two unknown names are not "both nothing, therefore equal".
@@ -696,7 +739,8 @@ test "interval inversion is an involution with the tritone fixed"
   assert invert_interval(5) == 7
   assert invert_interval(0) == 0
   assert invert_interval(6) == 6
-  assert map(fn(s) invert_interval(invert_interval(s)) end, range(0, 12)) == range(0, 12)
+  assert map(fn(s) invert_interval(invert_interval(s)) end, range(0, 12)) ==
+    range(0, 12)
 end
 
 test "consonance splits the octave seven to five"
@@ -709,7 +753,11 @@ test "consonance splits the octave seven to five"
   # An inversion of a consonance is a consonance — true of this set and false
   # of most hand-typed near-misses.
   assert count_where(fn(s) is_consonant(s) end, range(0, 12)) == 7
-  assert count_where(fn(s) is_consonant(invert_interval(s)) end, range(0, 12)) == 7
+  assert count_where(
+    fn(s) is_consonant(invert_interval(s)) end,
+    range(0, 12)
+  ) ==
+    7
   assert is_dissonant(6) == true
 end
 
@@ -738,7 +786,11 @@ test "the two definitions of a mode agree"
   assert mode_of_major(0, 1) == mode_scale(2, "dorian")
   assert mode_of_major(0, 5) == mode_scale(9, "aeolian")
   # All seven modes of C major use only the white notes.
-  assert map(fn(d) contains(major_scale(0), first(mode_of_major(0, d))) end, range(0, 7)) == repeat(true, 7)
+  assert map(
+    fn(d) contains(major_scale(0), first(mode_of_major(0, d))) end,
+    range(0, 7)
+  ) ==
+    repeat(true, 7)
 end
 
 test "harmonic and melodic minor differ from natural minor at named degrees"
@@ -752,7 +804,8 @@ test "harmonic and melodic minor differ from natural minor at named degrees"
   assert nth(5, melodic_minor_scale(9)) == 6
   assert nth(6, melodic_minor_scale(9)) == 8
   # A harmonic minor is A B C D E F G#: the raised seventh is the only accidental.
-  assert note_names_of(scale_tones(harmonic_minor_scale(9))) == ["A", "B", "C", "D", "E", "F", "G#"]
+  assert note_names_of(scale_tones(harmonic_minor_scale(9))) ==
+    ["A", "B", "C", "D", "E", "F", "G#"]
 end
 
 test "pentatonics and the blues scale"
@@ -762,7 +815,11 @@ test "pentatonics and the blues scale"
   assert size(scale_tones(major_pentatonic_scale(0))) == 5
   assert size(scale_tones(blues_scale(9))) == 6
   # A minor pentatonic is a subset of A minor, and the blues note is not.
-  assert count_where(fn(pc) is_in_scale(pc, minor_scale(9)) end, scale_tones(minor_pentatonic_scale(9))) == 5
+  assert count_where(
+    fn(pc) is_in_scale(pc, minor_scale(9)) end,
+    scale_tones(minor_pentatonic_scale(9))
+  ) ==
+    5
   assert is_in_scale(3, blues_scale(9)) == true
   assert is_in_scale(3, minor_pentatonic_scale(9)) == false
 end
@@ -773,15 +830,24 @@ test "chromatic and whole-tone scales"
   assert scale_tones(whole_tone_scale(0)) == [0, 2, 4, 6, 8, 10]
   # The whole-tone scale maps onto itself under transposition by a whole step —
   # true of it and of almost nothing else, so it is a real check on the steps.
-  assert transpose_all(scale_tones(whole_tone_scale(0)), 2) == [2, 4, 6, 8, 10, 0]
-  assert count_where(fn(pc) is_in_scale(pc, whole_tone_scale(0)) end, transpose_all(scale_tones(whole_tone_scale(0)), 2)) == 6
-  assert count_where(fn(pc) is_in_scale(pc, whole_tone_scale(0)) end, transpose_all(scale_tones(whole_tone_scale(0)), 1)) == 0
+  assert transpose_all(scale_tones(whole_tone_scale(0)), 2) ==
+    [2, 4, 6, 8, 10, 0]
+  assert count_where(
+    fn(pc) is_in_scale(pc, whole_tone_scale(0)) end,
+    transpose_all(scale_tones(whole_tone_scale(0)), 2)
+  ) ==
+    6
+  assert count_where(
+    fn(pc) is_in_scale(pc, whole_tone_scale(0)) end,
+    transpose_all(scale_tones(whole_tone_scale(0)), 1)
+  ) ==
+    0
 end
 
 test "scale membership and degree"
   assert scale_degree_of(7, major_scale(0)) == 4
   assert scale_degree_of(0, major_scale(0)) == 0
-  assert scale_degree_of(1, major_scale(0)) == 0 - 1
+  assert scale_degree_of(1, major_scale(0)) == -1
   # The octave restatement must not be counted as an eighth degree.
   assert size(scale_tones(major_scale(0))) == 7
   assert scale_degree_of(12, major_scale(0)) == 0
@@ -789,7 +855,7 @@ end
 
 test "transposition is additive and reversible"
   assert transpose_all(major_triad(0), 7) == major_triad(7)
-  assert transpose_all(transpose_all(major_scale(3), 5), 0 - 5) == major_scale(3)
+  assert transpose_all(transpose_all(major_scale(3), 5), -5) == major_scale(3)
   assert transpose_all(major_scale(0), 12) == major_scale(0)
   assert note_names_of([0, 4, 7]) == ["C", "E", "G"]
 end
@@ -810,10 +876,16 @@ test "the four triad qualities are exactly the four ways to stack two thirds"
 end
 
 test "every seventh quality classifies back to itself"
-  built = [major_seventh(0), dominant_seventh(0), minor_seventh(0),
-           half_diminished_seventh(0), diminished_seventh(0),
-           minor_major_seventh(0), augmented_major_seventh(0),
-           augmented_seventh(0)]
+  built = [
+    major_seventh(0),
+    dominant_seventh(0),
+    minor_seventh(0),
+    half_diminished_seventh(0),
+    diminished_seventh(0),
+    minor_major_seventh(0),
+    augmented_major_seventh(0),
+    augmented_seventh(0)
+  ]
   assert map(fn(c) seventh_quality(c) end, built) == seventh_quality_names()
   # The three that are one semitone apart in exactly one voice, spelled out so
   # a transposed table or an off-by-one interval cannot pass.
@@ -821,7 +893,8 @@ test "every seventh quality classifies back to itself"
   assert half_diminished_seventh(0) == [0, 3, 6, 10]
   assert diminished_seventh(0) == [0, 3, 6, 9]
   # A diminished seventh is symmetric: rotating it gives another one.
-  assert seventh_quality(invert_chord(diminished_seventh(0), 2)) == "diminished seventh"
+  assert seventh_quality(invert_chord(diminished_seventh(0), 2)) ==
+    "diminished seventh"
   assert diminished_seventh(3) == invert_chord(diminished_seventh(0), 1)
 end
 
@@ -843,7 +916,7 @@ test "inverting a chord as many times as it has notes returns it"
   assert invert_chord(major_triad(0), 3) == major_triad(0)
   assert invert_chord(major_triad(0), 1) == [4, 7, 0]
   assert invert_chord(major_seventh(0), 4) == major_seventh(0)
-  assert invert_chord(major_triad(0), 0 - 1) == invert_chord(major_triad(0), 2)
+  assert invert_chord(major_triad(0), -1) == invert_chord(major_triad(0), 2)
   assert invert_chord([], 2) == []
 end
 
@@ -854,11 +927,22 @@ test "the qualities of a major key are not chosen, they fall out"
   assert scale_triad_qualities(major_scale(0)) ==
     ["major", "minor", "minor", "major", "major", "minor", "diminished"]
   assert scale_seventh_qualities(major_scale(0)) ==
-    ["major seventh", "minor seventh", "minor seventh", "major seventh",
-     "dominant seventh", "minor seventh", "half-diminished seventh"]
+    [
+      "major seventh",
+      "minor seventh",
+      "minor seventh",
+      "major seventh",
+      "dominant seventh",
+      "minor seventh",
+      "half-diminished seventh"
+    ]
   # Exactly one dominant seventh in a major key — that uniqueness is what makes
   # it able to name the key.
-  assert count_of(scale_seventh_qualities(major_scale(0)), "dominant seventh") == 1
+  assert count_of(
+    scale_seventh_qualities(major_scale(0)),
+    "dominant seventh"
+  ) ==
+    1
 end
 
 test "chords on scale degrees are real chords in the scale"
@@ -869,7 +953,11 @@ test "chords on scale degrees are real chords in the scale"
   assert scale_seventh(major_scale(0), 4) == dominant_seventh(7)
   # Every note of a scale chord is in the scale — the invariant the wrapping
   # index exists to preserve.
-  assert count_where(fn(pc) is_in_scale(pc, major_scale(3)) end, scale_seventh(major_scale(3), 5)) == 4
+  assert count_where(
+    fn(pc) is_in_scale(pc, major_scale(3)) end,
+    scale_seventh(major_scale(3), 5)
+  ) ==
+    4
   assert scale_triad([], 0) == []
   assert scale_seventh([], 0) == []
 end
@@ -879,14 +967,18 @@ test "harmonic minor is what puts a dominant seventh under a minor tonic"
   # harmonic minor's is a dominant seventh. That swap is the whole reason the
   # raised seventh exists, and it is the payoff test for both scales.
   assert nth(4, scale_seventh_qualities(minor_scale(9))) == "minor seventh"
-  assert nth(4, scale_seventh_qualities(harmonic_minor_scale(9))) == "dominant seventh"
+  assert nth(4, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+    "dominant seventh"
   # Natural minor does own one dominant seventh — on the subtonic VII, which
   # points at the relative major and not at the tonic. Asserting "none" here
   # would be the plausible-sounding wrong claim.
   assert nth(6, scale_seventh_qualities(minor_scale(9))) == "dominant seventh"
-  assert nth(0, scale_seventh_qualities(harmonic_minor_scale(9))) == "minor-major seventh"
-  assert nth(6, scale_seventh_qualities(harmonic_minor_scale(9))) == "diminished seventh"
-  assert nth(2, scale_seventh_qualities(harmonic_minor_scale(9))) == "augmented major seventh"
+  assert nth(0, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+    "minor-major seventh"
+  assert nth(6, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+    "diminished seventh"
+  assert nth(2, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+    "augmented major seventh"
 end
 
 test "stepping by fifths visits every pitch exactly once"
@@ -907,16 +999,17 @@ test "key signatures, against the ones everybody can check"
   assert key_signature(7) == 1
   assert key_signature(2) == 2
   assert key_signature(11) == 5
-  assert key_signature(5) == 0 - 1
-  assert key_signature(10) == 0 - 2
-  assert key_signature(1) == 0 - 5
+  assert key_signature(5) == -1
+  assert key_signature(10) == -2
+  assert key_signature(1) == -5
   assert sharp_count(2) == 2
   assert flat_count(2) == 0
   assert flat_count(10) == 2
   assert key_uses_flats(10) == true
   assert key_uses_flats(2) == false
   # Each step round the circle adds one sharp, all the way to six.
-  assert map(fn(i) key_signature(transpose_note(0, 7 * i)) end, range(0, 7)) == range(0, 7)
+  assert map(fn(i) key_signature(transpose_note(0, 7 * i)) end, range(0, 7)) ==
+    range(0, 7)
 end
 
 test "the accidental count is derivable from the notes, not just from the table"
@@ -924,12 +1017,24 @@ test "the accidental count is derivable from the notes, not just from the table"
   # must equal the signature for every key with five or fewer accidentals.
   agree = filter(fn(k) abs(key_signature(k)) < 6 end, range(0, 12))
   assert size(agree) == 11
-  assert map(fn(k) count_where(fn(pc) !is_in_scale(pc, major_scale(0)) end, scale_tones(major_scale(k))) end, agree) ==
-         map(fn(k) abs(key_signature(k)) end, agree)
+  assert map(
+    fn(k)
+      count_where(
+        fn(pc) !is_in_scale(pc, major_scale(0)) end,
+        scale_tones(major_scale(k))
+      )
+    end,
+    agree
+  ) ==
+    map(fn(k) abs(key_signature(k)) end, agree)
   # F# major is the one key where they part company, because its sixth sharp is
   # E# — a sharp on a white key. Pinned so the boundary is documented, not lost.
   assert abs(key_signature(6)) == 6
-  assert count_where(fn(pc) !is_in_scale(pc, major_scale(0)) end, scale_tones(major_scale(6))) == 5
+  assert count_where(
+    fn(pc) !is_in_scale(pc, major_scale(0)) end,
+    scale_tones(major_scale(6))
+  ) ==
+    5
 end
 
 test "accidentals come in a fixed order, and flats reverse the sharps"
@@ -953,15 +1058,19 @@ end
 test "relative keys share a signature; parallel keys do not"
   assert relative_minor(0) == 9
   assert relative_major(9) == 0
-  assert map(fn(pc) relative_major(relative_minor(pc)) end, range(0, 12)) == range(0, 12)
+  assert map(fn(pc) relative_major(relative_minor(pc)) end, range(0, 12)) ==
+    range(0, 12)
   # The defining property, checked for all twelve rather than for C alone.
-  assert map(fn(pc) minor_key_signature(relative_minor(pc)) end, range(0, 12)) ==
-         map(fn(pc) key_signature(pc) end, range(0, 12))
+  assert map(
+    fn(pc) minor_key_signature(relative_minor(pc)) end,
+    range(0, 12)
+  ) ==
+    map(fn(pc) key_signature(pc) end, range(0, 12))
   assert minor_key_signature(9) == 0
   assert minor_key_signature(4) == 1
   # C major and C minor are parallel, not relative: same tonic, different
   # signature. Confusing the two is the classic error and this catches it.
-  assert minor_key_signature(0) == 0 - 3
+  assert minor_key_signature(0) == -3
   assert key_signature(0) == 0
 end
 
@@ -971,7 +1080,8 @@ test "spelling follows the key"
   assert note_name_for_key(0, 5) == "C"
   # Same pitch, two keys, two correct answers — which is the whole reason
   # note_name alone is not enough.
-  assert is_enharmonic(note_name_for_key(3, 10), note_name_for_key(3, 11)) == true
+  assert is_enharmonic(note_name_for_key(3, 10), note_name_for_key(3, 11)) ==
+    true
 end
 
 # --- MIDI numbers, frequency, and tuning --------------------------------------
@@ -1043,8 +1153,20 @@ end
 # several defensible choices (7/5 and 64/45 are others) and it is the one that
 # stays inside the same 5-limit lattice as its neighbours.
 def just_ratio_table()
-  [[1, 1], [16, 15], [9, 8], [6, 5], [5, 4], [4, 3],
-   [45, 32], [3, 2], [8, 5], [5, 3], [16, 9], [15, 8]]
+  [
+    [1, 1],
+    [16, 15],
+    [9, 8],
+    [6, 5],
+    [5, 4],
+    [4, 3],
+    [45, 32],
+    [3, 2],
+    [8, 5],
+    [5, 3],
+    [16, 9],
+    [15, 8]
+  ]
 end
 
 # Ratio as exact numerator and denominator, octave-extended: an interval wider
@@ -1057,7 +1179,7 @@ def just_ratio_parts(semitones)
   if octaves >= 0
     reduce_ratio(nth(0, base) * expt(2, octaves), nth(1, base))
   else
-    reduce_ratio(nth(0, base), nth(1, base) * expt(2, 0 - octaves))
+    reduce_ratio(nth(0, base), nth(1, base) * expt(2, -octaves))
   end
 end
 
@@ -1085,12 +1207,16 @@ end
 test "MIDI numbers and octave names round-trip"
   assert note_to_midi(0, 4) == 60
   assert note_to_midi(9, 4) == 69
-  assert note_to_midi(0, 0 - 1) == 0
+  assert note_to_midi(0, -1) == 0
   # Every note number rebuilds from the pitch class and octave it decomposes
   # into. A truncating divide would break this below MIDI 0, and an off-by-one
   # octave base would break it everywhere.
-  assert map(fn(n) note_to_midi(midi_pitch_class(n), midi_octave(n)) end, range(0, 128)) == range(0, 128)
-  assert midi_octave(0 - 1) == 0 - 2
+  assert map(
+    fn(n) note_to_midi(midi_pitch_class(n), midi_octave(n)) end,
+    range(0, 128)
+  ) ==
+    range(0, 128)
+  assert midi_octave(-1) == -2
   assert midi_note_name(60) == "C4"
   assert midi_note_name(69) == "A4"
   assert midi_note_name(0) == "C-1"
@@ -1102,8 +1228,17 @@ test "hz_to_midi inverts midi_to_hz"
   assert near(hz_to_midi(880), 81) == true
   assert near(hz_to_midi(220), 57) == true
   # The round trip over the whole keyboard, both ways.
-  assert count_where(fn(n) near(hz_to_midi(midi_to_hz(n)), n) end, range(21, 109)) == 88
-  assert near_within(midi_to_hz(hz_to_midi(261.6255653)), 261.6255653, 0.000001) == true
+  assert count_where(
+    fn(n) near(hz_to_midi(midi_to_hz(n)), n) end,
+    range(21, 109)
+  ) ==
+    88
+  assert near_within(
+    midi_to_hz(hz_to_midi(261.6255653)),
+    261.6255653,
+    0.000001
+  ) ==
+    true
   # Middle C, a number anyone can look up.
   assert near_within(midi_to_hz(60), 261.6255653, 0.000001) == true
   assert near_within(note_to_hz(0, 4), 261.6255653, 0.000001) == true
@@ -1128,7 +1263,12 @@ test "cents are logarithmic, so intervals add"
   # Antisymmetry — the check a formula with the arguments swapped fails.
   assert near(cents_between(440, 660) + cents_between(660, 440), 0) == true
   # Two fifths up and an octave down is a major second, added in cents.
-  assert near_within(cents_of_ratio(1.5) + cents_of_ratio(1.5) - 1200, cents_of_ratio(1.5 * 1.5 / 2), 0.000001) == true
+  assert near_within(
+    cents_of_ratio(1.5) + cents_of_ratio(1.5) - 1200,
+    cents_of_ratio(1.5 * 1.5 / 2),
+    0.000001
+  ) ==
+    true
 end
 
 test "just ratios are exact small integers, and extend past the octave"
@@ -1140,7 +1280,7 @@ test "just ratios are exact small integers, and extend past the octave"
   assert just_ratio_parts(12) == [2, 1]
   assert just_ratio_parts(19) == [3, 1]
   assert just_ratio_parts(24) == [4, 1]
-  assert just_ratio_parts(0 - 12) == [1, 2]
+  assert just_ratio_parts(-12) == [1, 2]
   assert near(just_ratio(7), 1.5) == true
   assert near(just_hz(440, 7), 660) == true
   # A fifth times a fourth is an octave, exactly, which only holds if both
@@ -1155,8 +1295,8 @@ test "equal temperament is wrong everywhere, by known amounts"
   # The two numbers every tuning argument is about: the tempered fifth is two
   # cents narrow, the tempered major third fourteen cents wide. Opposite signs,
   # so an implementation that lost the direction fails here.
-  assert near_within(temperament_error_cents(7), 1.9550, 0.001) == true
-  assert near_within(temperament_error_cents(4), 0 - 13.6863, 0.001) == true
+  assert near_within(temperament_error_cents(7), 1.955, 0.001) == true
+  assert near_within(temperament_error_cents(4), -13.6863, 0.001) == true
   assert temperament_error_cents(7) > 0
   assert temperament_error_cents(4) < 0
   assert near(temperament_error_cents(0), 0) == true
@@ -1167,7 +1307,12 @@ test "the commas — why twelve pure fifths cannot close the circle"
   # Stack twelve just fifths and you land nearly a quarter-semitone above seven
   # octaves. That gap, the Pythagorean comma, is the reason equal temperament
   # exists at all, and 23.46 cents is a number from any textbook.
-  assert near_within(cents_of_ratio(expt(1.5, 12) / expt(2, 7)), 23.4600, 0.001) == true
+  assert near_within(
+    cents_of_ratio(expt(1.5, 12) / expt(2, 7)),
+    23.46,
+    0.001
+  ) ==
+    true
   # The syntonic comma, the other famous one: four just fifths against a just
   # major third.
   assert near_within(cents_of_ratio(81 / 80), 21.5063, 0.001) == true

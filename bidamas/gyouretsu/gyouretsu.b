@@ -1,5 +1,6 @@
 use("kazu")
 use("retsu")
+
 # gyouretsu (行列) — vectors and matrices as nested lists.
 #
 # A matrix is a list of rows. No new type, for the same reason shuugou uses
@@ -8,7 +9,7 @@ use("retsu")
 # already has.
 
 def dot(a, b)
-  reduce(fn(acc, i) acc + (nth(i, a) * nth(i, b)) end, 0, range(0, length(a)))
+  reduce(fn(acc, i) acc + nth(i, a) * nth(i, b) end, 0, range(0, length(a)))
 end
 
 def scale(k, v)
@@ -75,9 +76,11 @@ end
 # takes 3-vectors and nothing else; passing anything shorter reads past the end
 # of the list rather than silently answering.
 def cross_product(a, b)
-  [(nth(1, a) * nth(2, b)) - (nth(2, a) * nth(1, b)),
-   (nth(2, a) * nth(0, b)) - (nth(0, a) * nth(2, b)),
-   (nth(0, a) * nth(1, b)) - (nth(1, a) * nth(0, b))]
+  [
+    nth(1, a) * nth(2, b) - nth(2, a) * nth(1, b),
+    nth(2, a) * nth(0, b) - nth(0, a) * nth(2, b),
+    nth(0, a) * nth(1, b) - nth(1, a) * nth(0, b)
+  ]
 end
 
 # Vector projection of a onto b. The denominator is dot(b, b) — using dot(a, a)
@@ -98,19 +101,17 @@ end
 # stated here as a clamp. arccos_bisect stays for its callers; before `acos`
 # existed it was the only way to invert cos.
 def arccos(x)
-  acos(clamp(x, 0 - 1, 1))
+  acos(clamp(x, -1, 1))
 end
 
 def arccos_bisect(x, lo, hi, n)
   mid = (lo + hi) / 2
   if n < 1
     mid
+  elsif cos(mid) > x
+    arccos_bisect(x, mid, hi, n - 1)
   else
-    if cos(mid) > x
-      arccos_bisect(x, mid, hi, n - 1)
-    else
-      arccos_bisect(x, lo, mid, n - 1)
-    end
+    arccos_bisect(x, lo, mid, n - 1)
   end
 end
 
@@ -146,11 +147,21 @@ def matmul(a, b)
 end
 
 def identity_matrix(n)
-  map(fn(i) map(fn(j) if i == j
-    1
-  else
-    0
-  end end, range(0, n)) end, range(0, n))
+  map(
+    fn(i)
+      map(
+        fn(j)
+          if i == j
+            1
+          else
+            0
+          end
+        end,
+        range(0, n)
+      )
+    end,
+    range(0, n)
+  )
 end
 
 # --- matrix shape ------------------------------------------------------------
@@ -183,10 +194,18 @@ end
 # by shape and index makes both empties the same empty.
 def matrix_equal(a, b)
   if shape(a) == shape(b)
-    reduce(fn(acc, i)
-      acc && reduce(fn(inner, j) inner && (nth(j, row(a, i)) == nth(j, row(b, i))) end,
-                    true, indexes(row(a, i)))
-    end, true, indexes(a))
+    reduce(
+      fn(acc, i)
+        acc &&
+          reduce(
+            fn(inner, j) inner && nth(j, row(a, i)) == nth(j, row(b, i)) end,
+            true,
+            indexes(row(a, i))
+          )
+      end,
+      true,
+      indexes(a)
+    )
   else
     false
   end
@@ -195,7 +214,11 @@ end
 # The one to reach for after a divide, a root or a solve — see vector_near.
 def matrix_near(a, b)
   if shape(a) == shape(b)
-    reduce(fn(acc, i) acc && vector_near(row(a, i), row(b, i)) end, true, indexes(a))
+    reduce(
+      fn(acc, i) acc && vector_near(row(a, i), row(b, i)) end,
+      true,
+      indexes(a)
+    )
   else
     false
   end
@@ -259,7 +282,12 @@ end
 # and `matmul` to linear algebra, and a package that offered only one of them
 # would let the wrong one be reached for silently.
 def hadamard(a, b)
-  map(fn(i) map(fn(j) nth(j, row(a, i)) * nth(j, row(b, i)) end, indexes(row(a, i))) end, indexes(a))
+  map(
+    fn(i)
+      map(fn(j) nth(j, row(a, i)) * nth(j, row(b, i)) end, indexes(row(a, i)))
+    end,
+    indexes(a)
+  )
 end
 
 # A matrix whose transpose is its inverse — rotations and reflections. Tested
@@ -289,7 +317,7 @@ def cofactor_sign(i, j)
   if even(i + j)
     1
   else
-    0 - 1
+    -1
   end
 end
 
@@ -302,9 +330,16 @@ def determinant(m)
   if size(m) < 1
     1
   else
-    sum(map(fn(j)
-      cofactor_sign(0, j) * nth(j, first(m)) * determinant(submatrix(m, 0, j))
-    end, indexes(first(m))))
+    sum(
+      map(
+        fn(j)
+          cofactor_sign(0, j) *
+            nth(j, first(m)) *
+            determinant(submatrix(m, 0, j))
+        end,
+        indexes(first(m))
+      )
+    )
   end
 end
 
@@ -320,7 +355,12 @@ end
 # that gets dropped and leaves an "inverse" that is right only for symmetric
 # matrices.
 def adjugate(m)
-  transpose(map(fn(i) map(fn(j) cofactor(m, i, j) end, indexes(row(m, i))) end, indexes(m)))
+  transpose(
+    map(
+      fn(i) map(fn(j) cofactor(m, i, j) end, indexes(row(m, i))) end,
+      indexes(m)
+    )
+  )
 end
 
 # The empty list means "no inverse", not "the empty matrix": a singular matrix
@@ -384,11 +424,17 @@ end
 
 # The row, from k down, whose entry in column k is largest in size.
 def gauss_pivot_row(a, k, n)
-  reduce(fn(best, i) if abs(nth(k, nth(i, a))) > abs(nth(k, nth(best, a)))
-      i
-    else
-      best
-    end end, k, range(k, n))
+  reduce(
+    fn(best, i)
+      if abs(nth(k, nth(i, a))) > abs(nth(k, nth(best, a)))
+        i
+      else
+        best
+      end
+    end,
+    k,
+    range(k, n)
+  )
 end
 
 # One column of elimination: pivot, then clear the entries below it. An empty
@@ -403,23 +449,39 @@ def gauss_eliminate(a, k, n)
     else
       swapped = update_at(update_at(a, k, nth(p, a)), p, nth(k, a))
       pivot = nth(k, swapped)
-      map(fn(i) if i <= k
-          nth(i, swapped)
-        else
-          vsub(nth(i, swapped), scale(nth(k, nth(i, swapped)) / nth(k, pivot), pivot))
-        end end, range(0, n))
+      map(
+        fn(i)
+          if i <= k
+            nth(i, swapped)
+          else
+            vsub(
+              nth(i, swapped),
+              scale(nth(k, nth(i, swapped)) / nth(k, pivot), pivot)
+            )
+          end
+        end,
+        range(0, n)
+      )
     end
   end
 end
 
 # Back substitution over an upper-triangular augmented matrix, last row first.
 def gauss_back_substitute(a, n)
-  reduce(fn(xs, i) push_front_solution(a, n, i, xs) end, [], reverse(range(0, n)))
+  reduce(
+    fn(xs, i) push_front_solution(a, n, i, xs) end,
+    [],
+    reverse(range(0, n))
+  )
 end
 
 def push_front_solution(a, n, i, xs)
   row = nth(i, a)
-  known = reduce(fn(acc, t) acc + (nth(i + 1 + t, row) * nth(t, xs)) end, 0, indexes(xs))
+  known = reduce(
+    fn(acc, t) acc + nth(i + 1 + t, row) * nth(t, xs) end,
+    0,
+    indexes(xs)
+  )
   concat_lists([(nth(n, row) - known) / nth(i, row)], xs)
 end
 
@@ -461,7 +523,7 @@ test "vector_near is not vector equality"
   # the float path — but `sqrt` always does. Scaling by a root therefore makes
   # `==` against the integer literal false while the vectors are the same
   # vector, which is the whole reason vector_near exists.
-  assert (scale(sqrt(4), [1, 2]) == [2, 4]) == false
+  assert scale(sqrt(4), [1, 2]) == [2, 4] == false
   assert vector_near(scale(sqrt(4), [1, 2]), [2, 4]) == true
   assert vector_near([1, 2], [1, 2, 3]) == false
   assert vector_near([], []) == true
@@ -481,7 +543,7 @@ test "cross product is orthogonal and anticommutative"
   # The property a wrong sign or a transposed term still fails.
   assert dot(a, c) == 0
   assert dot(b, c) == 0
-  assert cross_product(b, a) == scale(0 - 1, c)
+  assert cross_product(b, a) == scale(-1, c)
   # A vector crossed with itself is the zero vector.
   assert cross_product(a, a) == [0, 0, 0]
 end
@@ -503,28 +565,45 @@ test "arccos on acos agrees with the bisection it replaced"
   # A differential test against the thing it replaces. Inside (-1, 1) the two
   # agree to about 1e-16 (measured 2026-09-27).
   xs = [-0.9, -0.5, -0.1, 0, 0.3, 0.5, 0.7071067811865476, 0.99]
-  assert reduce(fn(ok, x) ok && near_within(arccos(x), arccos_bisect(x, 0, 3.141592653589793, 60), 0.000000001) end, true, xs) == true
+  assert reduce(
+    fn(ok, x)
+      ok &&
+        near_within(
+          arccos(x),
+          arccos_bisect(x, 0, 3.141592653589793, 60),
+          0.000000001
+        )
+    end,
+    true,
+    xs
+  ) ==
+    true
   # At the ends they do not, and the bisection is the one that is wrong: cos
   # is flat at 0 and pi, so bisecting on it stalls near sqrt of the float
   # epsilon. Measured: arccos_bisect(-1) is off pi by 1.05e-8. The closed forms
   # decide it.
-  assert arccos(0 - 1) == 3.141592653589793
+  assert arccos(-1) == 3.141592653589793
   assert arccos(1) == 0.0
-  assert near_within(arccos_bisect(0 - 1, 0, 3.141592653589793, 60), 3.141592653589793, 0.000000001) == false
+  assert near_within(
+    arccos_bisect(-1, 0, 3.141592653589793, 60),
+    3.141592653589793,
+    0.000000001
+  ) ==
+    false
   # The saturation the bisection gave for free, now stated as a clamp.
   assert near(arccos(1.0000000002), 0) == true
-  assert near(arccos(0 - 1.0000000002), 3.141592653589793) == true
+  assert near(arccos(-1.0000000002), 3.141592653589793) == true
 end
 
 test "arccos and angle_between"
   assert near(arccos(1), 0) == true
   assert near(arccos(0), 1.5707963267948966) == true
-  assert near(arccos(0 - 1), 3.141592653589793) == true
+  assert near(arccos(-1), 3.141592653589793) == true
   assert near(angle_between([1, 0], [0, 1]), 1.5707963267948966) == true
   assert near(angle_between([1, 0], [3, 0]), 0) == true
   # The antiparallel case, which a bisection that never reaches its top end
   # gets wrong while every other case still passes.
-  assert near(angle_between([1, 0], [0 - 1, 0]), 3.141592653589793) == true
+  assert near(angle_between([1, 0], [-1, 0]), 3.141592653589793) == true
   assert angle_between([0, 0], [1, 0]) == 0
 end
 
@@ -543,7 +622,7 @@ test "matrix_equal identifies the two empties that == keeps apart"
   # whose rows have all been walked off is therefore not `==` to the empty
   # matrix even though both hold no rows.
   e = cdr([[1, 2]])
-  assert (e == []) == false
+  assert e == [] == false
   assert matrix_equal(e, []) == true
   assert matrix_equal([[1, 2]], [[1, 2]]) == true
   assert matrix_equal([[1, 2]], [[1, 3]]) == false
@@ -577,7 +656,7 @@ test "matrix addition, subtraction and scaling"
   assert mscale(2, a) == [[2, 4], [6, 8]]
   # A matrix plus its negation is the zero matrix, and zeros is the identity of
   # madd — both fail if mscale multiplies rows instead of entries.
-  assert madd(a, mscale(0 - 1, a)) == zeros(2, 2)
+  assert madd(a, mscale(-1, a)) == zeros(2, 2)
   assert madd(a, zeros(2, 2)) == a
   assert filled(2, 3, 7) == [[7, 7, 7], [7, 7, 7]]
 end
@@ -593,7 +672,8 @@ end
 
 test "outer product is the transpose of the swapped outer product"
   assert outer_product([1, 2], [3, 4]) == [[3, 4], [6, 8]]
-  assert outer_product([1, 2, 3], [4, 5]) == transpose(outer_product([4, 5], [1, 2, 3]))
+  assert outer_product([1, 2, 3], [4, 5]) ==
+    transpose(outer_product([4, 5], [1, 2, 3]))
   # Rank one: the trace of an outer product is the dot product.
   assert trace(outer_product([1, 2, 3], [4, 5, 6])) == dot([1, 2, 3], [4, 5, 6])
 end
@@ -616,9 +696,9 @@ test "submatrix and minor are different things"
   assert submatrix(m, 0, 0) == [[5, 6], [8, 9]]
   assert submatrix(m, 1, 1) == [[1, 3], [7, 9]]
   # minor is the determinant of that submatrix: 5*9 - 6*8.
-  assert minor(m, 0, 0) == 0 - 3
+  assert minor(m, 0, 0) == -3
   # cofactor(0,1) carries the minus sign; minor(0,1) does not.
-  assert minor(m, 0, 1) == 0 - 6
+  assert minor(m, 0, 1) == -6
   assert cofactor(m, 0, 1) == 6
   assert cofactor(m, 0, 0) == minor(m, 0, 0)
   # Striking a row and column out of a 1-by-1 leaves nothing at all.
@@ -627,18 +707,21 @@ end
 
 test "determinant at 1x1, 2x2, 3x3 and 4x4"
   assert determinant([[7]]) == 7
-  assert determinant([[1, 2], [3, 4]]) == 0 - 2
+  assert determinant([[1, 2], [3, 4]]) == -2
   # A worked 3-by-3 anyone can check: 1(45-48) - 2(36-42) + 3(32-35).
-  assert determinant([[1, 2, 3], [4, 5, 6], [7, 8, 10]]) == 0 - 3
+  assert determinant([[1, 2, 3], [4, 5, 6], [7, 8, 10]]) == -3
   # A singular matrix: the second row is twice the first.
   assert determinant([[1, 2], [2, 4]]) == 0
   assert determinant(identity_matrix(4)) == 1
   # Odd order catches a reversed cofactor sign, which every even order hides.
-  assert determinant(mscale(0 - 1, identity_matrix(3))) == 0 - 1
-  assert determinant(mscale(0 - 1, identity_matrix(4))) == 1
+  assert determinant(mscale(-1, identity_matrix(3))) == -1
+  assert determinant(mscale(-1, identity_matrix(4))) == 1
   # Upper triangular: the determinant is the product of the diagonal, so a sign
   # error anywhere in the expansion shows up here.
-  assert determinant([[2, 9, 9, 9], [0, 3, 9, 9], [0, 0, 4, 9], [0, 0, 0, 5]]) == 120
+  assert determinant(
+    [[2, 9, 9, 9], [0, 3, 9, 9], [0, 0, 4, 9], [0, 0, 0, 5]]
+  ) ==
+    120
 end
 
 test "determinant is multiplicative and transpose-invariant"
@@ -647,13 +730,13 @@ test "determinant is multiplicative and transpose-invariant"
   assert determinant(matmul(a, b)) == determinant(a) * determinant(b)
   assert determinant(transpose(a)) == determinant(a)
   # Swapping two rows negates the determinant.
-  assert determinant([[0, 1, 4], [1, 2, 3], [5, 6, 0]]) == 0 - determinant(a)
+  assert determinant([[0, 1, 4], [1, 2, 3], [5, 6, 0]]) == -determinant(a)
 end
 
 test "inverse, and the singular matrix that has none"
   m = [[4, 7], [2, 6]]
   inv = inverse(m)
-  assert matrix_near(inv, [[0.6, 0 - 0.7], [0 - 0.2, 0.4]]) == true
+  assert matrix_near(inv, [[0.6, -0.7], [-0.2, 0.4]]) == true
   # The property, not the numbers: a matrix times its inverse is the identity.
   assert matrix_near(matmul(m, inv), identity_matrix(2)) == true
   assert matrix_near(matmul(inv, m), identity_matrix(2)) == true
@@ -672,7 +755,8 @@ test "matrix_power"
   # The Fibonacci matrix: the n-th power holds F(n+1), F(n), F(n), F(n-1).
   assert matrix_power(m, 6) == [[13, 8], [8, 5]]
   # det(m^n) == det(m)^n, which a power that multiplied entrywise fails.
-  assert determinant(matrix_power([[1, 2], [3, 4]], 3)) == pow(determinant([[1, 2], [3, 4]]), 3)
+  assert determinant(matrix_power([[1, 2], [3, 4]], 3)) ==
+    pow(determinant([[1, 2], [3, 4]]), 3)
 end
 
 test "solve by Cramer's rule"
@@ -683,10 +767,10 @@ test "solve by Cramer's rule"
   # a symmetric right-hand side would let through.
   assert vector_near(mvmul([[2, 1], [1, 3]], s), [5, 10]) == true
   # A 3x3 system, to prove the general rule and not just the 2-by-2 shortcut.
-  a = [[2, 1, 0 - 1], [0 - 3, 0 - 1, 2], [0 - 2, 1, 2]]
-  rhs = [8, 0 - 11, 0 - 3]
+  a = [[2, 1, -1], [-3, -1, 2], [-2, 1, 2]]
+  rhs = [8, -11, -3]
   x = solve_cramer(a, rhs)
-  assert vector_near(x, [2, 3, 0 - 1]) == true
+  assert vector_near(x, [2, 3, -1]) == true
   assert vector_near(mvmul(a, x), rhs) == true
   # Singular: no unique solution, so no answer rather than a division by zero.
   assert size(solve2x2([[1, 2], [2, 4]], [3, 6])) == 0
@@ -725,7 +809,7 @@ test "orthogonal matrices"
   # A rotation by a third of a turn: orthogonal, and not symmetric, so it also
   # catches an is_orthogonal that only compared m against its transpose.
   t = 2.0943951023931953
-  r = [[cos(t), 0 - sin(t)], [sin(t), cos(t)]]
+  r = [[cos(t), -sin(t)], [sin(t), cos(t)]]
   assert is_orthogonal(r) == true
   assert is_symmetric(r) == false
   # A permutation matrix is orthogonal with exact integers.

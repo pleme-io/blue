@@ -3,6 +3,7 @@ use("kazu")
 use("gyouretsu")
 use("kikagaku")
 use("junjo")
+
 # rittai (立体) — solids: poses, triangle meshes built by extrusion and sweep, their validity, volume and centroid, and STL.
 #
 # A point is [x, y, z]. A mesh is [vertices, faces]: each face is [i, j, k],
@@ -40,15 +41,15 @@ end
 # translation]: it maps a point p to R p + t.
 
 def rt_rot_x(theta)
-  [[1, 0, 0], [0, cos(theta), 0 - sin(theta)], [0, sin(theta), cos(theta)]]
+  [[1, 0, 0], [0, cos(theta), -sin(theta)], [0, sin(theta), cos(theta)]]
 end
 
 def rt_rot_y(theta)
-  [[cos(theta), 0, sin(theta)], [0, 1, 0], [0 - sin(theta), 0, cos(theta)]]
+  [[cos(theta), 0, sin(theta)], [0, 1, 0], [-sin(theta), 0, cos(theta)]]
 end
 
 def rt_rot_z(theta)
-  [[cos(theta), 0 - sin(theta), 0], [sin(theta), cos(theta), 0], [0, 0, 1]]
+  [[cos(theta), -sin(theta), 0], [sin(theta), cos(theta), 0], [0, 0, 1]]
 end
 
 # Rotation by theta about a unit axis (Rodrigues' formula).
@@ -57,8 +58,11 @@ def rt_rot_axis(axis, theta)
   kx = rt_x(k)
   ky = rt_y(k)
   kz = rt_z(k)
-  kmat = [[0, 0 - kz, ky], [kz, 0, 0 - kx], [0 - ky, kx, 0]]
-  madd(madd(identity_matrix(3), mscale(sin(theta), kmat)), mscale(1 - cos(theta), matmul(kmat, kmat)))
+  kmat = [[0, -kz, ky], [kz, 0, -kx], [-ky, kx, 0]]
+  madd(
+    madd(identity_matrix(3), mscale(sin(theta), kmat)),
+    mscale(1 - cos(theta), matmul(kmat, kmat))
+  )
 end
 
 # The rotation taking unit direction a onto unit direction b by the shortest
@@ -70,12 +74,10 @@ def rt_rot_between(a, b)
   c = dot(ua, ub)
   if c > 0.999999999999
     identity_matrix(3)
+  elsif c < -0.999999999999
+    rt_rot_axis(rt_perpendicular(ua), pi())
   else
-    if c < -0.999999999999
-      rt_rot_axis(rt_perpendicular(ua), pi())
-    else
-      rt_rot_axis(cross_product(ua, ub), acos(clamp(c, 0 - 1, 1)))
-    end
+    rt_rot_axis(cross_product(ua, ub), acos(clamp(c, -1, 1)))
   end
 end
 
@@ -115,7 +117,10 @@ end
 
 # First b, then a: rt_apply(rt_compose(a, b), p) == rt_apply(a, rt_apply(b, p)).
 def rt_compose(a, b)
-  rt_pose(matmul(rt_pose_rotation(a), rt_pose_rotation(b)), rt_apply(a, rt_pose_translation(b)))
+  rt_pose(
+    matmul(rt_pose_rotation(a), rt_pose_rotation(b)),
+    rt_apply(a, rt_pose_translation(b))
+  )
 end
 
 # The inverse pose. A rotation's inverse is its transpose.
@@ -155,7 +160,13 @@ end
 
 def rt_merge_two(a, b)
   off = size(rt_vertices(a))
-  rt_mesh(concat_lists(rt_vertices(a), rt_vertices(b)), concat_lists(rt_faces(a), map(fn(f) map(fn(i) i + off end, f) end, rt_faces(b))))
+  rt_mesh(
+    concat_lists(rt_vertices(a), rt_vertices(b)),
+    concat_lists(
+      rt_faces(a),
+      map(fn(f) map(fn(i) i + off end, f) end, rt_faces(b))
+    )
+  )
 end
 
 def rt_transform(pose, m)
@@ -173,7 +184,10 @@ end
 # The face's outward normal, unit length; zero for a degenerate face.
 def rt_face_normal(m, f)
   pts = rt_face_points(m, f)
-  n = cross_product(vsub(nth(1, pts), nth(0, pts)), vsub(nth(2, pts), nth(0, pts)))
+  n = cross_product(
+    vsub(nth(1, pts), nth(0, pts)),
+    vsub(nth(2, pts), nth(0, pts))
+  )
   if is_zero_vector(n)
     [0, 0, 0]
   else
@@ -183,7 +197,13 @@ end
 
 def rt_face_area(m, f)
   pts = rt_face_points(m, f)
-  magnitude(cross_product(vsub(nth(1, pts), nth(0, pts)), vsub(nth(2, pts), nth(0, pts)))) / 2
+  magnitude(
+    cross_product(
+      vsub(nth(1, pts), nth(0, pts)),
+      vsub(nth(2, pts), nth(0, pts))
+    )
+  ) /
+    2
 end
 
 def rt_surface_area(m)
@@ -205,14 +225,24 @@ end
 
 def rt_centroid(m)
   v = rt_volume(m)
-  moment = reduce(fn(acc, f) rt_centroid_term(acc, rt_face_points(m, f)) end, [0, 0, 0], rt_faces(m))
+  moment = reduce(
+    fn(acc, f) rt_centroid_term(acc, rt_face_points(m, f)) end,
+    [0, 0, 0],
+    rt_faces(m)
+  )
   scale(1.0 / v, moment)
 end
 
 def rt_centroid_term(acc, pts)
   # A tetrahedron's centroid is the mean of its four corners, one of them the
   # origin: (a + b + c) / 4.
-  vadd(acc, scale(rt_tet_volume(pts) / 4, vadd(vadd(nth(0, pts), nth(1, pts)), nth(2, pts))))
+  vadd(
+    acc,
+    scale(
+      rt_tet_volume(pts) / 4,
+      vadd(vadd(nth(0, pts), nth(1, pts)), nth(2, pts))
+    )
+  )
 end
 
 # Mass from volume and density. With lengths in mm and density in g/cm^3
@@ -223,7 +253,18 @@ end
 
 def rt_bounds(m)
   vs = rt_vertices(m)
-  [[min_of(map(fn(p) rt_x(p) end, vs)), min_of(map(fn(p) rt_y(p) end, vs)), min_of(map(fn(p) rt_z(p) end, vs))], [max_of(map(fn(p) rt_x(p) end, vs)), max_of(map(fn(p) rt_y(p) end, vs)), max_of(map(fn(p) rt_z(p) end, vs))]]
+  [
+    [
+      min_of(map(fn(p) rt_x(p) end, vs)),
+      min_of(map(fn(p) rt_y(p) end, vs)),
+      min_of(map(fn(p) rt_z(p) end, vs))
+    ],
+    [
+      max_of(map(fn(p) rt_x(p) end, vs)),
+      max_of(map(fn(p) rt_y(p) end, vs)),
+      max_of(map(fn(p) rt_z(p) end, vs))
+    ]
+  ]
 end
 
 # ── validity ─────────────────────────────────────────────────────────
@@ -236,7 +277,16 @@ def rt_edge_key(a, b)
 end
 
 def rt_directed_edges(m)
-  flat_map(fn(f) [rt_edge_key(nth(0, f), nth(1, f)), rt_edge_key(nth(1, f), nth(2, f)), rt_edge_key(nth(2, f), nth(0, f))] end, rt_faces(m))
+  flat_map(
+    fn(f)
+      [
+        rt_edge_key(nth(0, f), nth(1, f)),
+        rt_edge_key(nth(1, f), nth(2, f)),
+        rt_edge_key(nth(2, f), nth(0, f))
+      ]
+    end,
+    rt_faces(m)
+  )
 end
 
 def rt_mesh_refusals(m)
@@ -245,9 +295,17 @@ def rt_mesh_refusals(m)
   if is_empty(faces)
     [[:rittai_mesh, "the mesh has no faces"]]
   else
-    bad_index = filter(fn(f) some(fn(i) i < 0 || i >= n end, f) == true end, faces)
+    bad_index = filter(
+      fn(f) some(fn(i) i < 0 || i >= n end, f) == true end,
+      faces
+    )
     if is_empty(bad_index) == false
-      [[:rittai_mesh, "#{to_s(size(bad_index))} face(s) name a vertex that does not exist"]]
+      [
+        [
+          :rittai_mesh,
+          "#{to_s(size(bad_index))} face(s) name a vertex that does not exist"
+        ]
+      ]
     else
       # Judged by POSITION, as every reader of an STL judges it: two parts
       # that touch share no vertex indices, so by index each looks closed,
@@ -258,30 +316,63 @@ def rt_mesh_refusals(m)
 end
 
 def rt_closed_refusals(m)
-  degenerate = size(filter(fn(f) rt_face_area(m, f) <= 0.0000000001 end, rt_faces(m)))
+  degenerate = size(
+    filter(fn(f) rt_face_area(m, f) <= 0.0000000001 end, rt_faces(m))
+  )
   directed = rt_directed_edges(m)
   seen = rt_count_keys(directed)
   present = rt_key_set(seen)
   doubled = size(filter(fn(kv) nth(1, kv) > 1 end, seen))
-  unmatched = size(filter(fn(kv) get(present, rt_reverse_key(nth(0, kv))) == nil end, seen))
-  crowded = size(filter(fn(kv) nth(1, kv) > 2 end, rt_count_keys(map(fn(k) rt_undirected_key(k) end, directed))))
-  out = concat_lists(if crowded > 0
-      [[:rittai_mesh, "#{to_s(crowded)} edge(s) are shared by more than two faces: not one solid (parts touching without being fused)"]]
+  unmatched = size(
+    filter(fn(kv) get(present, rt_reverse_key(nth(0, kv))) == nil end, seen)
+  )
+  crowded = size(
+    filter(
+      fn(kv) nth(1, kv) > 2 end,
+      rt_count_keys(map(fn(k) rt_undirected_key(k) end, directed))
+    )
+  )
+  out = concat_lists(
+    if crowded > 0
+      [
+        [
+          :rittai_mesh,
+          "#{to_s(crowded)} edge(s) are shared by more than two faces: not one solid (parts touching without being fused)"
+        ]
+      ]
     else
       []
-    end, concat_lists(if degenerate > 0
-      [[:rittai_mesh, "#{to_s(degenerate)} degenerate face(s)"]]
-    else
-      []
-    end, concat_lists(if doubled > 0
-      [[:rittai_mesh, "#{to_s(doubled)} edge(s) run the same way twice: faces wound inconsistently"]]
-    else
-      []
-    end, if unmatched > 0
-      [[:rittai_mesh, "#{to_s(unmatched)} edge(s) have no face on the other side: the mesh is open"]]
-    else
-      []
-    end)))
+    end,
+    concat_lists(
+      if degenerate > 0
+        [[:rittai_mesh, "#{to_s(degenerate)} degenerate face(s)"]]
+      else
+        []
+      end,
+      concat_lists(
+        if doubled > 0
+          [
+            [
+              :rittai_mesh,
+              "#{to_s(doubled)} edge(s) run the same way twice: faces wound inconsistently"
+            ]
+          ]
+        else
+          []
+        end,
+        if unmatched > 0
+          [
+            [
+              :rittai_mesh,
+              "#{to_s(unmatched)} edge(s) have no face on the other side: the mesh is open"
+            ]
+          ]
+        else
+          []
+        end
+      )
+    )
+  )
   if is_empty(out) && rt_volume(m) <= 0
     [[:rittai_mesh, "the volume is not positive: the faces are wound inward"]]
   else
@@ -314,9 +405,16 @@ end
 # shared by more than two faces (they only touch).
 def rt_weld(m)
   vs = rt_vertices(m)
-  fin = reduce(fn(acc, p) rt_weld_step(acc, p) end, {index: {}, kept: [], count: 0, remap: []}, vs)
+  fin = reduce(
+    fn(acc, p) rt_weld_step(acc, p) end,
+    {index: {}, kept: [], count: 0, remap: []},
+    vs
+  )
   remap = reverse(get(fin, :remap))
-  rt_mesh(reverse(get(fin, :kept)), map(fn(f) map(fn(i) nth(i, remap) end, f) end, rt_faces(m)))
+  rt_mesh(
+    reverse(get(fin, :kept)),
+    map(fn(f) map(fn(i) nth(i, remap) end, f) end, rt_faces(m))
+  )
 end
 
 def rt_weld_step(acc, p)
@@ -324,15 +422,31 @@ def rt_weld_step(acc, p)
   at = get(get(acc, :index), k)
   if at == nil
     n = get(acc, :count)
-    {index: assoc(get(acc, :index), k, n), kept: concat_lists([p], get(acc, :kept)), count: n + 1, remap: concat_lists([n], get(acc, :remap))}
+    {
+      index: assoc(get(acc, :index), k, n),
+      kept: concat_lists([p], get(acc, :kept)),
+      count: n + 1,
+      remap: concat_lists([n], get(acc, :remap))
+    }
   else
-    {index: get(acc, :index), kept: get(acc, :kept), count: get(acc, :count), remap: concat_lists([at], get(acc, :remap))}
+    {
+      index: get(acc, :index),
+      kept: get(acc, :kept),
+      count: get(acc, :count),
+      remap: concat_lists([at], get(acc, :remap))
+    }
   end
 end
 
 # The mesh without the faces at the given positions in its face list.
 def rt_drop_faces(m, drop)
-  rt_mesh(rt_vertices(m), map(fn(i) nth(i, rt_faces(m)) end, filter(fn(i) contains(drop, i) == false end, indexes(rt_faces(m)))))
+  rt_mesh(
+    rt_vertices(m),
+    map(
+      fn(i) nth(i, rt_faces(m)) end,
+      filter(fn(i) contains(drop, i) == false end, indexes(rt_faces(m)))
+    )
+  )
 end
 
 # rt_extrude's face order is a contract: the side walls come first, two
@@ -341,14 +455,21 @@ end
 # bottom. These are the two wall faces of edge e of loop l, the edge from
 # point e to point e + 1, for a caller fusing a part onto that wall.
 def rt_extrude_wall_faces(r, l, e)
-  sizes = concat_lists([size(region_outline(r))], map(fn(h) size(h) end, region_holes(r)))
+  sizes = concat_lists(
+    [size(region_outline(r))],
+    map(fn(h) size(h) end, region_holes(r))
+  )
   before = sum(take_n(sizes, l))
-  [2 * (before + e), (2 * (before + e)) + 1]
+  [2 * (before + e), 2 * (before + e) + 1]
 end
 
 # [key, count] for each distinct key.
 def rt_count_keys(keys)
-  table = reduce(fn(acc, k) assoc(acc, k, rt_count_of(acc, k) + 1) end, {}, keys)
+  table = reduce(
+    fn(acc, k) assoc(acc, k, rt_count_of(acc, k) + 1) end,
+    {},
+    keys
+  )
   map(fn(k) [k, get(table, k)] end, rt_distinct(keys, table))
 end
 
@@ -362,12 +483,24 @@ def rt_count_of(table, k)
 end
 
 def rt_distinct(keys, table)
-  reverse(get(reduce(fn(acc, k) rt_distinct_step(acc, k) end, {seen: {}, out: []}, keys), :out))
+  reverse(
+    get(
+      reduce(
+        fn(acc, k) rt_distinct_step(acc, k) end,
+        {seen: {}, out: []},
+        keys
+      ),
+      :out
+    )
+  )
 end
 
 def rt_distinct_step(acc, k)
   if get(get(acc, :seen), k) == nil
-    {seen: assoc(get(acc, :seen), k, true), out: concat_lists([k], get(acc, :out))}
+    {
+      seen: assoc(get(acc, :seen), k, true),
+      out: concat_lists([k], get(acc, :out))
+    }
   else
     acc
   end
@@ -390,17 +523,44 @@ def rt_region_points(r)
 end
 
 def rt_region_loops(r)
-  sizes = concat_lists([size(region_outline(r))], map(fn(h) size(h) end, region_holes(r)))
-  starts = reverse(get(reduce(fn(acc, s) {next: get(acc, :next) + s, out: concat_lists([get(acc, :next)], get(acc, :out))} end, {next: 0, out: []}, sizes), :out))
-  map(fn(i) range(nth(i, starts), nth(i, starts) + nth(i, sizes)) end, indexes(sizes))
+  sizes = concat_lists(
+    [size(region_outline(r))],
+    map(fn(h) size(h) end, region_holes(r))
+  )
+  starts = reverse(
+    get(
+      reduce(
+        fn(acc, s)
+          {
+            next: get(acc, :next) + s,
+            out: concat_lists([get(acc, :next)], get(acc, :out))
+          }
+        end,
+        {next: 0, out: []},
+        sizes
+      ),
+      :out
+    )
+  )
+  map(
+    fn(i) range(nth(i, starts), nth(i, starts) + nth(i, sizes)) end,
+    indexes(sizes)
+  )
 end
 
 # Triangles for a region, or a refusal. Each triangle is counter-clockwise.
 def rt_triangulate(r)
   pts = rt_region_points(r)
   loops = rt_region_loops(r)
-  holes = sort_by(fn(l) 0 - max_of(map(fn(i) px(nth(i, pts)) end, l)) end, rest(loops))
-  merged = reduce(fn(poly, h) rt_bridge(pts, poly, h, holes) end, first(loops), holes)
+  holes = sort_by(
+    fn(l) -max_of(map(fn(i) px(nth(i, pts)) end, l)) end,
+    rest(loops)
+  )
+  merged = reduce(
+    fn(poly, h) rt_bridge(pts, poly, h, holes) end,
+    first(loops),
+    holes
+  )
   rt_ear_clip(pts, merged)
 end
 
@@ -410,20 +570,32 @@ end
 def rt_bridge(pts, poly, h, holes)
   m = rt_rightmost(pts, h)
   cands = sort_by(fn(i) distance_squared(nth(i, pts), nth(m, pts)) end, poly)
-  edges = concat_lists(rt_index_edges(poly), flat_map(fn(l) rt_index_edges(l) end, holes))
+  edges = concat_lists(
+    rt_index_edges(poly),
+    flat_map(fn(l) rt_index_edges(l) end, holes)
+  )
   p = find_first(fn(i) rt_visible(pts, m, i, edges) end, cands)
   at = index_of(poly, p)
   k = index_of(h, m)
   around = concat_lists(drop_n(h, k), take_n(h, k))
-  concat_lists(take_n(poly, at + 1), concat_lists(around, concat_lists([m, p], drop_n(poly, at + 1))))
+  concat_lists(
+    take_n(poly, at + 1),
+    concat_lists(around, concat_lists([m, p], drop_n(poly, at + 1)))
+  )
 end
 
 def rt_rightmost(pts, loop)
-  reduce(fn(best, i) if px(nth(i, pts)) > px(nth(best, pts))
-      i
-    else
-      best
-    end end, first(loop), loop)
+  reduce(
+    fn(best, i)
+      if px(nth(i, pts)) > px(nth(best, pts))
+        i
+      else
+        best
+      end
+    end,
+    first(loop),
+    loop
+  )
 end
 
 def rt_index_edges(loop)
@@ -450,9 +622,21 @@ end
 
 def rt_ear_clip(pts, poly)
   n = size(poly)
-  fin = reduce(fn(acc, step) rt_clip_step(pts, acc) end, {poly: poly, tris: [], stuck: false}, range(0, n))
+  fin = reduce(
+    fn(acc, step) rt_clip_step(pts, acc) end,
+    {poly: poly, tris: [], stuck: false},
+    range(0, n)
+  )
   if get(fin, :stuck) || size(get(fin, :poly)) > 0
-    {triangles: reverse(get(fin, :tris)), refusals: [[:rittai_triangulation, "no ear left with #{to_s(size(get(fin, :poly)))} vertices remaining; the region is not simple"]]}
+    {
+      triangles: reverse(get(fin, :tris)),
+      refusals: [
+        [
+          :rittai_triangulation,
+          "no ear left with #{to_s(size(get(fin, :poly)))} vertices remaining; the region is not simple"
+        ]
+      ]
+    }
   else
     {triangles: reverse(get(fin, :tris)), refusals: []}
   end
@@ -462,24 +646,30 @@ def rt_clip_step(pts, acc)
   poly = get(acc, :poly)
   if get(acc, :stuck) || size(poly) == 0
     acc
+  elsif size(poly) == 3
+    {poly: [], tris: concat_lists([poly], get(acc, :tris)), stuck: false}
   else
-    if size(poly) == 3
-      {poly: [], tris: concat_lists([poly], get(acc, :tris)), stuck: false}
-    else
-      ears = filter(fn(k) rt_is_ear(pts, poly, k) end, indexes(poly))
-      if is_empty(ears)
-        flat = filter(fn(k) rt_turn(pts, poly, k) == 0 end, indexes(poly))
-        if is_empty(flat)
-          {poly: poly, tris: get(acc, :tris), stuck: true}
-        else
-          {poly: remove_at(poly, first(flat)), tris: get(acc, :tris), stuck: false}
-        end
+    ears = filter(fn(k) rt_is_ear(pts, poly, k) end, indexes(poly))
+    if is_empty(ears)
+      flat = filter(fn(k) rt_turn(pts, poly, k) == 0 end, indexes(poly))
+      if is_empty(flat)
+        {poly: poly, tris: get(acc, :tris), stuck: true}
       else
-        k = first(ears)
-        n = size(poly)
-        tri = [nth((k + n - 1) % n, poly), nth(k, poly), nth((k + 1) % n, poly)]
-        {poly: remove_at(poly, k), tris: concat_lists([tri], get(acc, :tris)), stuck: false}
+        {
+          poly: remove_at(poly, first(flat)),
+          tris: get(acc, :tris),
+          stuck: false
+        }
       end
+    else
+      k = first(ears)
+      n = size(poly)
+      tri = [nth((k + n - 1) % n, poly), nth(k, poly), nth((k + 1) % n, poly)]
+      {
+        poly: remove_at(poly, k),
+        tris: concat_lists([tri], get(acc, :tris)),
+        stuck: false
+      }
     end
   end
 end
@@ -488,15 +678,17 @@ end
 # reflex, 0 straight.
 def rt_turn(pts, poly, k)
   n = size(poly)
-  c = cross(nth(nth((k + n - 1) % n, poly), pts), nth(nth(k, poly), pts), nth(nth((k + 1) % n, poly), pts))
+  c = cross(
+    nth(nth((k + n - 1) % n, poly), pts),
+    nth(nth(k, poly), pts),
+    nth(nth((k + 1) % n, poly), pts)
+  )
   if c > 0.0000000001
     1
+  elsif c < -0.0000000001
+    -1
   else
-    if c < -0.0000000001
-      -1
-    else
-      0
-    end
+    0
   end
 end
 
@@ -517,7 +709,9 @@ end
 
 def rt_blocks_ear(pts, poly, j, a, b, c)
   q = nth(nth(j, poly), pts)
-  if near(distance_squared(q, a), 0) || near(distance_squared(q, b), 0) || near(distance_squared(q, c), 0)
+  if near(distance_squared(q, a), 0) ||
+    near(distance_squared(q, b), 0) ||
+    near(distance_squared(q, c), 0)
     false
   else
     cross(a, b, q) >= 0 && cross(b, c, q) >= 0 && cross(c, a, q) >= 0
@@ -540,7 +734,10 @@ def rt_extrude(r, h)
   sides = flat_map(fn(l) rt_loop_sides(l, n) end, rt_region_loops(r))
   caps_top = map(fn(t) map(fn(i) i + n end, t) end, get(tri, :triangles))
   caps_bottom = map(fn(t) reverse(t) end, get(tri, :triangles))
-  rt_mesh(concat_lists(bottom, top), concat_lists(sides, concat_lists(caps_top, caps_bottom)))
+  rt_mesh(
+    concat_lists(bottom, top),
+    concat_lists(sides, concat_lists(caps_top, caps_bottom))
+  )
 end
 
 def rt_why_of(refusals)
@@ -550,7 +747,15 @@ end
 # The two side triangles of each edge a -> b of a loop, facing out: bottom
 # a, bottom b, top b, then bottom a, top b, top a.
 def rt_loop_sides(loop, n)
-  flat_map(fn(e) [[nth(0, e), nth(1, e), nth(1, e) + n], [nth(0, e), nth(1, e) + n, nth(0, e) + n]] end, rt_index_edges(loop))
+  flat_map(
+    fn(e)
+      [
+        [nth(0, e), nth(1, e), nth(1, e) + n],
+        [nth(0, e), nth(1, e) + n, nth(0, e) + n]
+      ]
+    end,
+    rt_index_edges(loop)
+  )
 end
 
 def rt_box(w, d, h)
@@ -590,7 +795,13 @@ def rt_sweep_frames(path)
   t0 = rt_segment_dir(path, 0)
   n0 = rt_perpendicular(t0)
   first_frame = [n0, cross_product(t0, n0)]
-  reverse(reduce(fn(acc, i) rt_transport(path, acc, i) end, [first_frame], range(1, size(path) - 1)))
+  reverse(
+    reduce(
+      fn(acc, i) rt_transport(path, acc, i) end,
+      [first_frame],
+      range(1, size(path) - 1)
+    )
+  )
 end
 
 def rt_transport(path, acc, i)
@@ -607,13 +818,31 @@ def rt_ring(prof, path, frames, i)
   seg = min(i, last_seg)
   frame = nth(seg, frames)
   if i == 0 || i == size(path) - 1
-    map(fn(q) vadd(nth(i, path), vadd(scale(px(q), nth(0, frame)), scale(py(q), nth(1, frame)))) end, prof)
+    map(
+      fn(q)
+        vadd(
+          nth(i, path),
+          vadd(scale(px(q), nth(0, frame)), scale(py(q), nth(1, frame)))
+        )
+      end,
+      prof
+    )
   else
     tin = rt_segment_dir(path, i - 1)
     tout = rt_segment_dir(path, i)
     mitre = normalize(vadd(tin, tout))
     fin = nth(i - 1, frames)
-    map(fn(q) rt_onto_mitre(nth(i, path), vadd(scale(px(q), nth(0, fin)), scale(py(q), nth(1, fin))), tin, mitre) end, prof)
+    map(
+      fn(q)
+        rt_onto_mitre(
+          nth(i, path),
+          vadd(scale(px(q), nth(0, fin)), scale(py(q), nth(1, fin))),
+          tin,
+          mitre
+        )
+      end,
+      prof
+    )
   end
 end
 
@@ -624,7 +853,15 @@ end
 def rt_ring_walls(s, np)
   a0 = s * np
   b0 = (s + 1) * np
-  flat_map(fn(k) [[a0 + k, a0 + ((k + 1) % np), b0 + ((k + 1) % np)], [a0 + k, b0 + ((k + 1) % np), b0 + k]] end, range(0, np))
+  flat_map(
+    fn(k)
+      [
+        [a0 + k, a0 + (k + 1) % np, b0 + (k + 1) % np],
+        [a0 + k, b0 + (k + 1) % np, b0 + k]
+      ]
+    end,
+    range(0, np)
+  )
 end
 
 # ── STL ──────────────────────────────────────────────────────────────
@@ -650,14 +887,17 @@ test "a box: closed, outward, its volume, surface and centroid"
   b = rt_box(20, 30, 40)
   assert is_empty(rt_mesh_refusals(b)) == true
   assert near(rt_volume(b), 24000) == true
-  assert near(rt_surface_area(b), 2 * ((20 * 30) + (20 * 40) + (30 * 40))) == true
+  assert near(rt_surface_area(b), 2 * (20 * 30 + 20 * 40 + 30 * 40)) == true
   assert vector_near(rt_centroid(b), [10, 15, 20]) == true
   assert size(rt_faces(b)) == 12
 end
 
 test "a drilled plate extrudes to its region's area times its thickness"
   hole = circle_polygon([25, 25], 10, 32)
-  plate = region(rect_polygon(0, 0, 100, 50), [hole, circle_polygon([75, 25], 8, 24)])
+  plate = region(
+    rect_polygon(0, 0, 100, 50),
+    [hole, circle_polygon([75, 25], 8, 24)]
+  )
   m = rt_extrude(plate, 1.5)
   assert is_empty(rt_mesh_refusals(m)) == true
   # Independently checkable: region_area uses the shoelace; the volume is
@@ -665,10 +905,26 @@ test "a drilled plate extrudes to its region's area times its thickness"
   assert near_within(rt_volume(m), region_area(plate) * 1.5, 0.0001) == true
   # Ear clipping gives n + 2h - 2 triangles for n points and h holes.
   tri = rt_triangulate(plate)
-  assert size(get(tri, :triangles)) == (4 + 32 + 24) + (2 * 2) - 2
+  assert size(get(tri, :triangles)) == 4 + 32 + 24 + 2 * 2 - 2
   # The triangles tile the region exactly.
   pts = rt_region_points(plate)
-  assert near_within(sum(map(fn(t) triangle_area(nth(nth(0, t), pts), nth(nth(1, t), pts), nth(nth(2, t), pts)) end, get(tri, :triangles))), region_area(plate), 0.0001) == true
+  assert near_within(
+    sum(
+      map(
+        fn(t)
+          triangle_area(
+            nth(nth(0, t), pts),
+            nth(nth(1, t), pts),
+            nth(nth(2, t), pts)
+          )
+        end,
+        get(tri, :triangles)
+      )
+    ),
+    region_area(plate),
+    0.0001
+  ) ==
+    true
 end
 
 test "a non-convex outline triangulates and extrudes"
@@ -691,11 +947,19 @@ test "poses: rotation, composition, inverse, and standing a part on a segment"
   assert vector_near(rt_apply(p, [1, 0, 0]), [10, 1, 0]) == true
   assert vector_near(rt_apply(rt_inverse(p), rt_apply(p, q)), q) == true
   assert vector_near(rt_apply(rt_compose(p, rt_inverse(p)), q), q) == true
-  assert vector_near(mvmul(rt_rot_axis([0, 0, 1], pi() / 2), [1, 0, 0]), [0, 1, 0]) == true
+  assert vector_near(
+    mvmul(rt_rot_axis([0, 0, 1], pi() / 2), [1, 0, 0]),
+    [0, 1, 0]
+  ) ==
+    true
   assert is_orthogonal(rt_rot_axis([1, 2, 3], 0.7)) == true
   along = rt_pose_along([0, 0, 0], [0, 100, 0])
   assert vector_near(rt_apply(along, [0, 0, 100]), [0, 100, 0]) == true
-  assert vector_near(mvmul(rt_rot_between([0, 0, 1], [0, 0, -1]), [0, 0, 1]), [0, 0, -1]) == true
+  assert vector_near(
+    mvmul(rt_rot_between([0, 0, 1], [0, 0, -1]), [0, 0, 1]),
+    [0, 0, -1]
+  ) ==
+    true
   # A transformed solid keeps its volume and moves its centroid.
   b = rt_transform(p, rt_box(2, 2, 2))
   assert near(rt_volume(b), 8) == true
@@ -709,9 +973,17 @@ test "a swept wire: straight, then mitred round a corner"
   assert near(rt_volume(straight), 4 * 50) == true
   # Round a right angle with a mitred joint, the volume is the profile area
   # times the centreline length: the two wedges of the mitre cancel.
-  ell = rt_sweep(circle_polygon([0, 0], 1, 16), [[0, 0, 0], [0, 0, 40], [30, 0, 40]])
+  ell = rt_sweep(
+    circle_polygon([0, 0], 1, 16),
+    [[0, 0, 0], [0, 0, 40], [30, 0, 40]]
+  )
   assert is_empty(rt_mesh_refusals(ell)) == true
-  assert near_within(rt_volume(ell), regular_polygon_area(1, 16) * 70, 0.000001) == true
+  assert near_within(
+    rt_volume(ell),
+    regular_polygon_area(1, 16) * 70,
+    0.000001
+  ) ==
+    true
 end
 
 test "broken meshes are refused, each for its own reason"
@@ -720,10 +992,14 @@ test "broken meshes are refused, each for its own reason"
   # every face flipped (inward), an index out of range, and no faces at all.
   open = rt_mesh(rt_vertices(b), rest(rt_faces(b)))
   assert size(rt_mesh_refusals(open)) >= 1
-  flipped = rt_mesh(rt_vertices(b), concat_lists([reverse(first(rt_faces(b)))], rest(rt_faces(b))))
+  flipped = rt_mesh(
+    rt_vertices(b),
+    concat_lists([reverse(first(rt_faces(b)))], rest(rt_faces(b)))
+  )
   assert size(rt_mesh_refusals(flipped)) >= 1
   inward = rt_mesh(rt_vertices(b), map(fn(f) reverse(f) end, rt_faces(b)))
-  assert map(fn(r) nth(1, r) end, rt_mesh_refusals(inward)) == ["the volume is not positive: the faces are wound inward"]
+  assert map(fn(r) nth(1, r) end, rt_mesh_refusals(inward)) ==
+    ["the volume is not positive: the faces are wound inward"]
   assert size(rt_mesh_refusals(rt_mesh(rt_vertices(b), [[0, 1, 99]]))) == 1
   assert size(rt_mesh_refusals(rt_empty_mesh())) == 1
 end
@@ -739,7 +1015,14 @@ test "parts that only touch are refused; fused, they are one solid"
   touching = rt_merge([a, b])
   assert is_empty(rt_mesh_refusals(touching)) == false
   # Fused: drop a's east wall (edge 1) and b's west wall (edge 3), then weld.
-  fused = rt_weld(rt_merge([rt_drop_faces(a, rt_extrude_wall_faces(r, 0, 1)), rt_drop_faces(b, rt_extrude_wall_faces(r, 0, 3))]))
+  fused = rt_weld(
+    rt_merge(
+      [
+        rt_drop_faces(a, rt_extrude_wall_faces(r, 0, 1)),
+        rt_drop_faces(b, rt_extrude_wall_faces(r, 0, 3))
+      ]
+    )
+  )
   assert is_empty(rt_mesh_refusals(fused)) == true
   assert near(rt_volume(fused), 2) == true
   # Welding merges only what coincides: a box welded is the same box.
@@ -750,5 +1033,8 @@ test "STL: one facet per face, with outward normals"
   s = rt_stl(rt_box(1, 1, 1), "cube")
   assert starts_with?(s, "solid cube\n") == true
   assert ends_with?(s, "endsolid cube\n") == true
-  assert size(filter(fn(l) starts_with?(l, "facet normal") end, split(s, "\n"))) == 12
+  assert size(
+    filter(fn(l) starts_with?(l, "facet normal") end, split(s, "\n"))
+  ) ==
+    12
 end

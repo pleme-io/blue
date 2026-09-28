@@ -1,4 +1,5 @@
 use("kazu")
+
 # kumiawase (組み合わせ) — counting without enumerating.
 #
 # `combinations(52, 5)` is 2598960, and computing it by building the hands
@@ -18,12 +19,10 @@ end
 def permutations(n, k)
   if k < 1
     1
+  elsif k > n
+    0
   else
-    if k > n
-      0
-    else
-      n * permutations(n - 1, k - 1)
-    end
+    n * permutations(n - 1, k - 1)
   end
 end
 
@@ -31,12 +30,10 @@ end
 def combinations(n, k)
   if k < 0
     0
+  elsif k > n
+    0
   else
-    if k > n
-      0
-    else
-      permutations(n, k) / factorial(k)
-    end
+    permutations(n, k) / factorial(k)
   end
 end
 
@@ -108,9 +105,16 @@ end
 # the answer while the binomial chain never exceeds it. MISSISSIPPI is
 # multinomial([1, 4, 4, 2]) == 34650. The empty multiset has one ordering.
 def multinomial(ks)
-  nth(1, reduce(fn(acc, k)
-    [nth(0, acc) + k, nth(1, acc) * combinations(nth(0, acc) + k, k)]
-  end, [0, 1], ks))
+  nth(
+    1,
+    reduce(
+      fn(acc, k)
+        [nth(0, acc) + k, nth(1, acc) * combinations(nth(0, acc) + k, k)]
+      end,
+      [0, 1],
+      ks
+    )
+  )
 end
 
 # Choose k from n with repetition allowed and order ignored — "n multichoose k",
@@ -251,22 +255,18 @@ end
 def stirling2(n, k)
   if n < 0 || k < 0
     0
-  else
-    if k > n
-      0
+  elsif k > n
+    0
+  elsif k < 1
+    # One way to partition nothing (into no blocks); no way to cover a
+    # non-empty set with zero blocks.
+    if n < 1
+      1
     else
-      if k < 1
-        # One way to partition nothing (into no blocks); no way to cover a
-        # non-empty set with zero blocks.
-        if n < 1
-          1
-        else
-          0
-        end
-      else
-        stirling2_terms(n, k, 0) / factorial(k)
-      end
+      0
     end
+  else
+    stirling2_terms(n, k, 0) / factorial(k)
   end
 end
 
@@ -274,7 +274,7 @@ def stirling2_terms(n, k, j)
   if j > k
     0
   else
-    expt(0 - 1, j) * combinations(k, j) * expt(k - j, n) +
+    expt(-1, j) * combinations(k, j) * expt(k - j, n) +
       stirling2_terms(n, k, j + 1)
   end
 end
@@ -307,16 +307,12 @@ end
 def partitions_with_max(n, m)
   if n < 0
     0
+  elsif n < 1
+    1
+  elsif m < 1
+    0
   else
-    if n < 1
-      1
-    else
-      if m < 1
-        0
-      else
-        partitions_with_max(n, m - 1) + partitions_with_max(n - m, m)
-      end
-    end
+    partitions_with_max(n, m - 1) + partitions_with_max(n - m, m)
   end
 end
 
@@ -338,20 +334,16 @@ end
 def partitions_into(n, k)
   if n < 0 || k < 0
     0
-  else
-    if k < 1
-      if n < 1
-        1
-      else
-        0
-      end
+  elsif k < 1
+    if n < 1
+      1
     else
-      if n < k
-        0
-      else
-        partitions_into(n - 1, k - 1) + partitions_into(n - k, k)
-      end
+      0
     end
+  elsif n < k
+    0
+  else
+    partitions_into(n - 1, k - 1) + partitions_into(n - k, k)
   end
 end
 
@@ -369,12 +361,10 @@ def compositions(n, k)
     else
       0
     end
+  elsif k < 1
+    0
   else
-    if k < 1
-      0
-    else
-      combinations(n - 1, k - 1)
-    end
+    combinations(n - 1, k - 1)
   end
 end
 
@@ -414,7 +404,7 @@ end
 # assignment inside the caller's else-branch would bury the guard above it.
 def simplify_by_gcd(n, d, g)
   if d < 0
-    [(0 - n) / g, (0 - d) / g]
+    [-n / g, -d / g]
   else
     [n / g, d / g]
   end
@@ -472,7 +462,7 @@ test "double factorial skips a term, which is what tells it from factorial"
   assert double_factorial(7) == 105
   # Both empty products, and the base case each chain lands on.
   assert double_factorial(0) == 1
-  assert double_factorial(0 - 1) == 1
+  assert double_factorial(-1) == 1
   assert double_factorial(1) == 1
   assert double_factorial(2) == 2
   # The identity that catches an off-by-one in the step: (2n)!! == 2^n * n!.
@@ -553,8 +543,8 @@ test "binomial row sum agrees with the row it summarises"
   # The alternating sum is the companion identity: every row past the first
   # cancels to nothing. A row that is off by one entry fails this and not the
   # sum above.
-  assert sum(map(fn(k) expt(0 - 1, k) * combinations(7, k) end, range(0, 8))) == 0
-  assert sum(map(fn(k) expt(0 - 1, k) * combinations(0, k) end, range(0, 1))) == 1
+  assert sum(map(fn(k) expt(-1, k) * combinations(7, k) end, range(0, 8))) == 0
+  assert sum(map(fn(k) expt(-1, k) * combinations(0, k) end, range(0, 1))) == 1
 end
 
 test "figurate numbers, each against a value you can count by hand"
@@ -569,8 +559,8 @@ test "figurate numbers, each against a value you can count by hand"
   # pentagonal numbers for negative indices — 1, 2, 5, 7, 12 interleaved — so
   # Euler's partition recurrence can walk k = 1, -1, 2, -2 through this one
   # function without a second definition.
-  assert pentagonal(0 - 1) == 2
-  assert pentagonal(0 - 2) == 7
+  assert pentagonal(-1) == 2
+  assert pentagonal(-2) == 7
   assert pentagonal(0) == 0
   assert hexagonal(1) == 1
   assert hexagonal(4) == 28
@@ -623,8 +613,10 @@ test "derangements, where the two seeds are the whole difficulty"
   # Every permutation fixes some subset and deranges the rest, so the
   # binomial convolution must rebuild n! exactly. A shifted recurrence still
   # produces plausible-looking numbers and fails here.
-  assert sum(map(fn(k) combinations(5, k) * derangements(5 - k) end,
-    range(0, 6))) == factorial(5)
+  assert sum(
+    map(fn(k) combinations(5, k) * derangements(5 - k) end, range(0, 6))
+  ) ==
+    factorial(5)
 end
 
 test "stirling numbers of the second kind"
@@ -640,7 +632,7 @@ test "stirling numbers of the second kind"
   assert stirling2(3, 0) == 0
   assert stirling2(0, 2) == 0
   assert stirling2(2, 5) == 0
-  assert stirling2(0 - 1, 1) == 0
+  assert stirling2(-1, 1) == 0
 end
 
 test "surjections count the onto maps, not all of them"
@@ -656,8 +648,10 @@ test "surjections count the onto maps, not all of them"
   # Every map is a surjection onto its image, so classifying all k^n maps by
   # image size must give them all back. This is the identity that catches a
   # missing k! as well as a wrong stirling row.
-  assert sum(map(fn(k) combinations(3, k) * surjections(4, k) end,
-    range(0, 4))) == permutations_with_repetition(3, 4)
+  assert sum(
+    map(fn(k) combinations(3, k) * surjections(4, k) end, range(0, 4))
+  ) ==
+    permutations_with_repetition(3, 4)
 end
 
 test "lattice paths across a grid"
@@ -680,7 +674,8 @@ test "bell numbers are the stirling row summed"
   assert bell(5) == 52
   # The independent recurrence B(n+1) == sum C(n,k) * B(k). If either bell or
   # stirling2 drifts, this is the line that notices.
-  assert bell(6) == sum(map(fn(k) combinations(5, k) * bell(k) end, range(0, 6)))
+  assert bell(6) ==
+    sum(map(fn(k) combinations(5, k) * bell(k) end, range(0, 6)))
 end
 
 test "partitions of an integer, counted rather than listed"
@@ -692,7 +687,7 @@ test "partitions of an integer, counted rather than listed"
   # Far enough that enumerating the partitions would be the slow way round.
   assert partitions(20) == 627
   # Negative has no partitions; the guard keeps the recurrence from running off.
-  assert partitions(0 - 3) == 0
+  assert partitions(-3) == 0
   # Bounding the part size is a real restriction: 4 = 3+1 = 2+2 = 2+1+1 = 1*4
   # once no part may exceed 3, which drops 4 itself.
   assert partitions_with_max(4, 3) == 4
@@ -710,7 +705,8 @@ test "partitions into exactly k parts sum back to partitions"
   assert partitions_into(3, 0) == 0
   assert partitions_into(3, 4) == 0
   # The identity that ties the two counts together across every k at once.
-  assert sum(map(fn(k) partitions_into(9, k) end, range(0, 10))) == partitions(9)
+  assert sum(map(fn(k) partitions_into(9, k) end, range(0, 10))) ==
+    partitions(9)
 end
 
 test "compositions are ordered where partitions are not"
@@ -724,12 +720,12 @@ test "compositions are ordered where partitions are not"
   assert compositions(3, 0) == 0
   # And the row must sum to the closed form, at zero as well as above it.
   assert compositions_total(4) == 8
-  assert sum(map(fn(k) compositions(4, k) end,
-    range(0, 5))) == compositions_total(4)
+  assert sum(map(fn(k) compositions(4, k) end, range(0, 5))) ==
+    compositions_total(4)
   assert compositions_total(1) == 1
   assert compositions_total(0) == 1
-  assert sum(map(fn(k) compositions(0, k) end,
-    range(0, 1))) == compositions_total(0)
+  assert sum(map(fn(k) compositions(0, k) end, range(0, 1))) ==
+    compositions_total(0)
 end
 
 test "simplify_ratio reduces, normalises the sign, and survives a zero"
@@ -738,9 +734,9 @@ test "simplify_ratio reduces, normalises the sign, and survives a zero"
   # Already lowest terms comes back unchanged rather than scaled.
   assert simplify_ratio(3, 7) == [3, 7]
   # Sign lives on the numerator, so a value has exactly one reduced form.
-  assert simplify_ratio(3, 0 - 6) == [0 - 1, 2]
-  assert simplify_ratio(0 - 3, 6) == [0 - 1, 2]
-  assert simplify_ratio(0 - 3, 0 - 6) == [1, 2]
+  assert simplify_ratio(3, -6) == [-1, 2]
+  assert simplify_ratio(-3, 6) == [-1, 2]
+  assert simplify_ratio(-3, -6) == [1, 2]
   # Zero over anything is 0/1; anything over zero is undefined and is returned
   # untouched instead of erroring on a gcd of nothing.
   assert simplify_ratio(0, 5) == [0, 1]
@@ -753,15 +749,18 @@ end
 test "coprime, including the two cases people argue about"
   assert coprime(8, 15) == true
   assert coprime(8, 12) == false
-  assert coprime(0 - 8, 15) == true
+  assert coprime(-8, 15) == true
   # 1 is coprime to everything, zero included; 0 is coprime to nothing but 1.
   assert coprime(1, 0) == true
   assert coprime(0, 5) == false
   assert coprime(0, 0) == false
   # A reduced ratio is by definition a coprime pair — the two functions agree
   # or one of them is wrong.
-  assert coprime(nth(0, simplify_ratio(24, 36)),
-    nth(1, simplify_ratio(24, 36))) == true
+  assert coprime(
+    nth(0, simplify_ratio(24, 36)),
+    nth(1, simplify_ratio(24, 36))
+  ) ==
+    true
 end
 
 test "pascal triangle rows, and the recurrence between them"

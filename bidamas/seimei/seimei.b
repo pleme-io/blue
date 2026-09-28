@@ -1,4 +1,5 @@
 use("retsu")
+
 # seimei (生命) — cellular automata: elementary rules, and Life.
 #
 # The most compute per line of code in the distribution. Rule 110 is
@@ -8,7 +9,7 @@ use("retsu")
 # One cell's next state under an elementary rule, from its three-cell
 # neighbourhood read as a binary index.
 def elementary_step_cell(rule, l, c, r)
-  idx = (l * 4) + (c * 2) + r
+  idx = l * 4 + c * 2 + r
   bit_of(rule, idx)
 end
 
@@ -20,11 +21,17 @@ end
 # the ends have neighbours rather than a special case.
 def elementary_step(rule, row)
   n = size(row)
-  map(fn(i) elementary_step_cell(rule,
+  map(
+    fn(i)
+      elementary_step_cell(
+        rule,
         nth(((i - 1) % n + n) % n, row),
         nth(i, row),
-        nth((i + 1) % n, row)) end,
-      range(0, n))
+        nth((i + 1) % n, row)
+      )
+    end,
+    range(0, n)
+  )
 end
 
 def elementary_run(rule, row, gens)
@@ -39,19 +46,22 @@ end
 def cell_at(grid, r, c)
   if r < 0 || c < 0
     0
+  elsif r >= size(grid) || c >= size(first(grid))
+    0
   else
-    if r >= size(grid) || c >= size(first(grid))
-      0
-    else
-      nth(c, nth(r, grid))
-    end
+    nth(c, nth(r, grid))
   end
 end
 
 def neighbours(grid, r, c)
-  cell_at(grid, r - 1, c - 1) + cell_at(grid, r - 1, c) + cell_at(grid, r - 1, c + 1) +
-  cell_at(grid, r, c - 1) + cell_at(grid, r, c + 1) +
-  cell_at(grid, r + 1, c - 1) + cell_at(grid, r + 1, c) + cell_at(grid, r + 1, c + 1)
+  cell_at(grid, r - 1, c - 1) +
+    cell_at(grid, r - 1, c) +
+    cell_at(grid, r - 1, c + 1) +
+    cell_at(grid, r, c - 1) +
+    cell_at(grid, r, c + 1) +
+    cell_at(grid, r + 1, c - 1) +
+    cell_at(grid, r + 1, c) +
+    cell_at(grid, r + 1, c + 1)
 end
 
 def life_cell(grid, r, c)
@@ -62,18 +72,18 @@ def life_cell(grid, r, c)
     else
       0
     end
+  elsif n == 3
+    1
   else
-    if n == 3
-      1
-    else
-      0
-    end
+    0
   end
 end
 
 def life_step(grid)
-  map(fn(r) map(fn(c) life_cell(grid, r, c) end, range(0, size(first(grid)))) end,
-      range(0, size(grid)))
+  map(
+    fn(r) map(fn(c) life_cell(grid, r, c) end, range(0, size(first(grid)))) end,
+    range(0, size(grid))
+  )
 end
 
 def population(grid)
@@ -114,7 +124,13 @@ test "a Life block is still life"
 end
 
 test "a Life blinker oscillates with period two"
-  blinker = [[0, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 0, 0]]
+  blinker = [
+    [0, 0, 0, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0]
+  ]
   once = life_step(blinker)
   assert once != blinker
   assert life_step(once) == blinker
@@ -152,12 +168,21 @@ end
 # Coordinates outside the grid are silently dropped rather than erroring, so a
 # pattern can be placed on a canvas too small for it without a special case.
 def life_from_coords(rows, cols, coords)
-  map(fn(r) map(fn(c) if contains(coords, [r, c])
-        1
-      else
-        0
-      end end, range(0, cols)) end,
-      range(0, rows))
+  map(
+    fn(r)
+      map(
+        fn(c)
+          if contains(coords, [r, c])
+            1
+          else
+            0
+          end
+        end,
+        range(0, cols)
+      )
+    end,
+    range(0, rows)
+  )
 end
 
 # The live coordinates of a grid — the inverse of life_from_coords, so the two
@@ -166,22 +191,39 @@ end
 # as_list because a dead grid folds `append([], [])`, which hands back nil: the
 # caller would otherwise get the OTHER empty from an all-dead universe.
 def live_coords(grid)
-  as_list(flatten1(map(fn(r)
-      filter(fn(rc) nth(1, rc) >= 0 end,
-        map(fn(c) if cell_at(grid, r, c) == 1
-            [r, c]
-          else
-            [0 - 1, 0 - 1]
-          end end, range(0, grid_cols(grid)))) end,
-    range(0, grid_rows(grid)))))
+  as_list(
+    flatten1(
+      map(
+        fn(r)
+          filter(
+            fn(rc) nth(1, rc) >= 0 end,
+            map(
+              fn(c)
+                if cell_at(grid, r, c) == 1
+                  [r, c]
+                else
+                  [-1, -1]
+                end
+              end,
+              range(0, grid_cols(grid))
+            )
+          )
+        end,
+        range(0, grid_rows(grid))
+      )
+    )
+  )
 end
 
 # Shift the contents by (dr, dc), keeping the frame the same size. Whatever
 # falls off the edge is gone: this is a view of the same universe, not a torus.
 def translate(grid, dr, dc)
-  map(fn(r) map(fn(c) cell_at(grid, r - dr, c - dc) end,
-        range(0, grid_cols(grid))) end,
-      range(0, grid_rows(grid)))
+  map(
+    fn(r)
+      map(fn(c) cell_at(grid, r - dr, c - dc) end, range(0, grid_cols(grid)))
+    end,
+    range(0, grid_rows(grid))
+  )
 end
 
 # The canonical glider, top-left, in phase 0:
@@ -245,12 +287,10 @@ end
 def period_scan(f, start, now, p, max_period)
   if p > max_period
     0
+  elsif now == start
+    p
   else
-    if now == start
-      p
-    else
-      period_scan(f, start, f(now), p + 1, max_period)
-    end
+    period_scan(f, start, f(now), p + 1, max_period)
   end
 end
 
@@ -342,8 +382,7 @@ def pad_toroidal(grid)
 end
 
 def crop_border(grid)
-  map(fn(row) slice(row, 1, size(row) - 2) end,
-      slice(grid, 1, size(grid) - 2))
+  map(fn(row) slice(row, 1, size(row) - 2) end, slice(grid, 1, size(grid) - 2))
 end
 
 # The interior of the padded grid sees exactly the toroidal neighbourhood, so
@@ -389,7 +428,8 @@ test "a blinker straddling the edge only survives on a torus"
   # Vertical blinker at column 2, rows 4-0-1, i.e. wrapped over the top edge.
   b = life_from_coords(5, 5, [[0, 2], [1, 2], [4, 2]])
   # On the torus it turns, like any blinker.
-  assert life_step_toroidal(b) == life_from_coords(5, 5, [[0, 1], [0, 2], [0, 3]])
+  assert life_step_toroidal(b) ==
+    life_from_coords(5, 5, [[0, 1], [0, 2], [0, 3]])
   assert is_oscillator_toroidal(b, 4) == 2
   # Bounded, the same three cells are three isolated cells, and all three die.
   assert population(life_step(b)) == 0
@@ -417,11 +457,16 @@ end
 # picture starts here, so the seed is a function rather than a literal a reader
 # has to count the zeros in.
 def seed_row(width)
-  map(fn(i) if i == floor(width / 2)
-      1
-    else
-      0
-    end end, range(0, width))
+  map(
+    fn(i)
+      if i == floor(width / 2)
+        1
+      else
+        0
+      end
+    end,
+    range(0, width)
+  )
 end
 
 def elementary_from_seed(rule, width, gens)
@@ -431,8 +476,16 @@ end
 # The elementary rules with an established character. The catalog is data, not
 # a chain of ifs, so a caller can also enumerate it.
 def rule_catalog()
-  [[0, "extinction"], [30, "chaos"], [90, "sierpinski"], [110, "universal"],
-   [150, "parity"], [184, "traffic"], [204, "identity"], [255, "saturation"]]
+  [
+    [0, "extinction"],
+    [30, "chaos"],
+    [90, "sierpinski"],
+    [110, "universal"],
+    [150, "parity"],
+    [184, "traffic"],
+    [204, "identity"],
+    [255, "saturation"]
+  ]
 end
 
 def rule_name(rule)
@@ -502,12 +555,21 @@ end
 # render all work on it unchanged, instead of needing a diff-shaped sibling of
 # each. Cells outside `a` read as dead, so grids of different sizes still diff.
 def diff_grid(a, b)
-  map(fn(r) map(fn(c) if cell_at(a, r, c) == cell_at(b, r, c)
-        0
-      else
-        1
-      end end, range(0, grid_cols(a))) end,
-      range(0, grid_rows(a)))
+  map(
+    fn(r)
+      map(
+        fn(c)
+          if cell_at(a, r, c) == cell_at(b, r, c)
+            0
+          else
+            1
+          end
+        end,
+        range(0, grid_cols(a))
+      )
+    end,
+    range(0, grid_rows(a))
+  )
 end
 
 def generation_diff(a, b)
@@ -528,11 +590,18 @@ end
 
 test "a diff counts changes, not survivors"
   block = [[0, 0, 0, 0], [0, 1, 1, 0], [0, 1, 1, 0], [0, 0, 0, 0]]
-  blinker = [[0, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 0, 0]]
+  blinker = [
+    [0, 0, 0, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0]
+  ]
   # Four cells move: two die at the ends, two are born at the sides. The three
   # that survive — and the centre that never changes — must not be counted.
   assert generation_diff(blinker, life_step(blinker)) == 4
-  assert changed_coords(blinker, life_step(blinker)) == [[1, 2], [2, 1], [2, 3], [3, 2]]
+  assert changed_coords(blinker, life_step(blinker)) ==
+    [[1, 2], [2, 1], [2, 3], [3, 2]]
   assert generation_diff(block, life_step(block)) == 0
   # Stability is exactly a zero diff, which is what makes both worth having.
   assert is_stable(block) == (generation_diff(block, life_step(block)) == 0)
@@ -544,12 +613,10 @@ end
 def render_cell(v)
   if v == 1
     "#"
+  elsif v == 2
+    "+"
   else
-    if v == 2
-      "+"
-    else
-      "."
-    end
+    "."
   end
 end
 
@@ -565,7 +632,8 @@ test "an elementary history renders as the triangle it is"
   # An elementary run is a list of rows, which is exactly the shape of a Life
   # grid — so the same renderer draws both, and the Sierpinski triangle can be
   # read off the page rather than trusted.
-  assert render_grid(elementary_from_seed(90, 7, 2)) == ["...#...", "..#.#..", ".#...#."]
+  assert render_grid(elementary_from_seed(90, 7, 2)) ==
+    ["...#...", "..#.#..", ".#...#."]
 end
 
 test "a rendered glider is recognisable on the page"
@@ -588,38 +656,42 @@ end
 # sums; a rule with more than two states has to ask WHICH neighbours, so the
 # count is folded over the offsets instead.
 def neighbour_offsets()
-  [[0 - 1, 0 - 1], [0 - 1, 0], [0 - 1, 1],
-   [0, 0 - 1], [0, 1],
-   [1, 0 - 1], [1, 0], [1, 1]]
+  [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
 end
 
 # Neighbours in state v. Outside the frame reads as 0, so asking for v == 0
 # counts the void as dead cells — right for a bounded universe, and the reason
 # this is not the way to ask "how many are not alive".
 def neighbours_equal(grid, r, c, v)
-  reduce(fn(a, d) if cell_at(grid, r + nth(0, d), c + nth(1, d)) == v
-      a + 1
-    else
-      a
-    end end, 0, neighbour_offsets())
+  reduce(
+    fn(a, d)
+      if cell_at(grid, r + nth(0, d), c + nth(1, d)) == v
+        a + 1
+      else
+        a
+      end
+    end,
+    0,
+    neighbour_offsets()
+  )
 end
 
 # Seeds — B2/S: born on exactly two neighbours, and NOTHING ever survives.
 def seeds_cell(grid, r, c)
   if cell_at(grid, r, c) == 1
     0
+  elsif neighbours(grid, r, c) == 2
+    1
   else
-    if neighbours(grid, r, c) == 2
-      1
-    else
-      0
-    end
+    0
   end
 end
 
 def seeds_step(grid)
-  map(fn(r) map(fn(c) seeds_cell(grid, r, c) end, range(0, grid_cols(grid))) end,
-      range(0, grid_rows(grid)))
+  map(
+    fn(r) map(fn(c) seeds_cell(grid, r, c) end, range(0, grid_cols(grid))) end,
+    range(0, grid_rows(grid))
+  )
 end
 
 # Brian's Brain — three states: 0 off, 1 firing, 2 refractory. A firing cell
@@ -630,22 +702,20 @@ end
 def brain_cell(grid, r, c)
   if cell_at(grid, r, c) == 1
     2
+  elsif cell_at(grid, r, c) == 2
+    0
+  elsif neighbours_equal(grid, r, c, 1) == 2
+    1
   else
-    if cell_at(grid, r, c) == 2
-      0
-    else
-      if neighbours_equal(grid, r, c, 1) == 2
-        1
-      else
-        0
-      end
-    end
+    0
   end
 end
 
 def brain_step(grid)
-  map(fn(r) map(fn(c) brain_cell(grid, r, c) end, range(0, grid_cols(grid))) end,
-      range(0, grid_rows(grid)))
+  map(
+    fn(r) map(fn(c) brain_cell(grid, r, c) end, range(0, grid_cols(grid))) end,
+    range(0, grid_rows(grid))
+  )
 end
 
 test "neighbours and neighbours_equal agree on a live/dead grid"

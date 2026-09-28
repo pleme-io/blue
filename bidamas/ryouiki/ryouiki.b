@@ -2,6 +2,7 @@ use("retsu")
 use("junjo")
 use("toukei")
 use("ran")
+
 # ryouiki (領域) — region: which region of the inputs produces an outcome.
 #
 # Scenario discovery by PRIM, the Patient Rule Induction Method (Friedman &
@@ -29,15 +30,24 @@ def box_around(points)
   if is_empty(points)
     []
   else
-    map(fn(j)
-      xs = map(fn(p) nth(j, p) end, points)
-      [smallest(xs), largest(xs)]
-    end, range(0, size(first(points))))
+    map(
+      fn(j)
+        xs = map(fn(p) nth(j, p) end, points)
+        [smallest(xs), largest(xs)]
+      end,
+      range(0, size(first(points)))
+    )
   end
 end
 
 def in_box?(box, p)
-  size(filter(fn(j) (nth(j, p) < first(nth(j, box))) || (nth(j, p) > last(nth(j, box))) end, range(0, size(box)))) == 0
+  size(
+    filter(
+      fn(j) nth(j, p) < first(nth(j, box)) || nth(j, p) > last(nth(j, box)) end,
+      range(0, size(box))
+    )
+  ) ==
+    0
 end
 
 def inside_of(box, points)
@@ -78,31 +88,40 @@ end
 
 # Every candidate peel from `box`: [box', inside', density'].
 def peel_candidates(box, ids, points, ys, alpha)
-  flat_map(fn(j)
-    values = map(fn(i) nth(j, nth(i, points)) end, ids)
-    flat_map(fn(side)
-      edge = peeled_edge(values, side, alpha)
-      if edge == nil
-        []
-      else
-        narrowed = map(fn(k)
-          if k != j
-            nth(k, box)
-          elsif side == :lo
-            [edge, last(nth(k, box))]
+  flat_map(
+    fn(j)
+      values = map(fn(i) nth(j, nth(i, points)) end, ids)
+      flat_map(
+        fn(side)
+          edge = peeled_edge(values, side, alpha)
+          if edge == nil
+            []
           else
-            [first(nth(k, box)), edge]
+            narrowed = map(
+              fn(k)
+                if k != j
+                  nth(k, box)
+                elsif side == :lo
+                  [edge, last(nth(k, box))]
+                else
+                  [first(nth(k, box)), edge]
+                end
+              end,
+              range(0, size(box))
+            )
+            kept = filter(fn(i) in_box?(narrowed, nth(i, points)) end, ids)
+            if is_empty(kept) || size(kept) == size(ids)
+              []
+            else
+              [[narrowed, kept, mean_target(kept, ys)]]
+            end
           end
-        end, range(0, size(box)))
-        kept = filter(fn(i) in_box?(narrowed, nth(i, points)) end, ids)
-        if is_empty(kept) || (size(kept) == size(ids))
-          []
-        else
-          [[narrowed, kept, mean_target(kept, ys)]]
-        end
-      end
-    end, [:lo, :hi])
-  end, range(0, size(box)))
+        end,
+        [:lo, :hi]
+      )
+    end,
+    range(0, size(box))
+  )
 end
 
 # The peeling trajectory. alpha: the share peeled per step (0.05 is PRIM's
@@ -113,19 +132,38 @@ def prim(points, ys, alpha, min_support)
     []
   else
     total = sum(ys)
-    row = fn(step, box, ids) [step, size(ids) / n, if_zero_total(total, sum(map(fn(i) nth(i, ys) end, ids)) / max(total, 0.000000001)), mean_target(ids, ys), box] end
+    row = fn(step, box, ids)
+      [
+        step,
+        size(ids) / n,
+        if_zero_total(
+          total,
+          sum(map(fn(i) nth(i, ys) end, ids)) / max(total, 0.000000001)
+        ),
+        mean_target(ids, ys),
+        box
+      ]
+    end
     start = box_around(points)
     start_ids = range(0, n)
     walk = fn(self, step, box, ids, acc)
       cands = peel_candidates(box, ids, points, ys, alpha)
-      if is_empty(cands) || ((size(ids) / n) <= min_support)
+      if is_empty(cands) || size(ids) / n <= min_support
         acc
       else
-        best = first(sort_by(fn(c) (0 - nth(2, c)) + (size(nth(1, c)) * 0.000000001) end, cands))
-        if (size(nth(1, best)) / n) < min_support
+        best = first(
+          sort_by(fn(c) -nth(2, c) + size(nth(1, c)) * 0.000000001 end, cands)
+        )
+        if size(nth(1, best)) / n < min_support
           acc
         else
-          self(self, step + 1, first(best), nth(1, best), concat_lists(acc, [row(step + 1, first(best), nth(1, best))]))
+          self(
+            self,
+            step + 1,
+            first(best),
+            nth(1, best),
+            concat_lists(acc, [row(step + 1, first(best), nth(1, best))])
+          )
         end
       end
     end
@@ -148,20 +186,31 @@ def prim_box(trajectory, density)
   if is_empty(ok)
     nil
   else
-    first(sort_by(fn(r) (0 - nth(2, r)) + (nth(0, r) * 0.000000001) end, ok))
+    first(sort_by(fn(r) -nth(2, r) + nth(0, r) * 0.000000001 end, ok))
   end
 end
 
 # A box as text over named inputs: "x in [5, 9], y in [0, 3]" — only the
 # inputs the box actually restricts relative to `full`.
 def box_text(names, box, full)
-  parts = flat_map(fn(j)
-    if nth(j, box) == nth(j, full)
-      []
-    else
-      [concat(concat(concat(concat(nth(j, names), " in ["), to_s(first(nth(j, box)))), concat(", ", to_s(last(nth(j, box))))), "]")]
-    end
-  end, range(0, size(box)))
+  parts = flat_map(
+    fn(j)
+      if nth(j, box) == nth(j, full)
+        []
+      else
+        [
+          concat(
+            concat(
+              concat(concat(nth(j, names), " in ["), to_s(first(nth(j, box)))),
+              concat(", ", to_s(last(nth(j, box))))
+            ),
+            "]"
+          )
+        ]
+      end
+    end,
+    range(0, size(box))
+  )
   if is_empty(parts)
     "everywhere"
   else
@@ -190,28 +239,35 @@ end
 
 test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
   pts = ryouiki_grid(10)
-  ys = map(fn(p)
-    if (first(p) >= 5) && (last(p) <= 3)
-      1
-    else
-      0
-    end
-  end, pts)
+  ys = map(
+    fn(p)
+      if first(p) >= 5 && last(p) <= 3
+        1
+      else
+        0
+      end
+    end,
+    pts
+  )
   b = prim_box(prim(pts, ys, 0.05, 0.02), 1)
   assert nth(4, b) == [[5, 9], [0, 3]]
   assert nth(2, b) == 1
-  assert box_text(["x", "y"], nth(4, b), box_around(pts)) == "x in [5, 9], y in [0, 3]"
+  assert box_text(["x", "y"], nth(4, b), box_around(pts)) ==
+    "x in [5, 9], y in [0, 3]"
 end
 
 test "a control: a target with no structure finds no dense box with real coverage"
   pts = ryouiki_grid(10)
-  ys = map(fn(i)
-    if next_float(stream_seed(7, i)) < 0.2
-      1
-    else
-      0
-    end
-  end, range(0, size(pts)))
+  ys = map(
+    fn(i)
+      if next_float(stream_seed(7, i)) < 0.2
+        1
+      else
+        0
+      end
+    end,
+    range(0, size(pts))
+  )
   b = prim_box(prim(pts, ys, 0.05, 0.1), 0.9)
-  assert (b == nil) || (nth(2, b) < 0.25)
+  assert b == nil || nth(2, b) < 0.25
 end

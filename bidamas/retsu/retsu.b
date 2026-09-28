@@ -1,4 +1,5 @@
 use("kazu")
+
 # retsu (列) — lists, made TOTAL.
 #
 # This package exists because the underlying primitives are not total, and a
@@ -192,12 +193,10 @@ end
 def drop_n(xs, n)
   if is_empty(xs)
     []
+  elsif n < 1
+    xs
   else
-    if n < 1
-      xs
-    else
-      drop(n, xs)
-    end
+    drop(n, xs)
   end
 end
 
@@ -230,13 +229,11 @@ end
 
 def index_of_from(xs, v, i)
   if is_empty(xs)
-    0 - 1
+    -1
+  elsif first(xs) == v
+    i
   else
-    if first(xs) == v
-      i
-    else
-      index_of_from(rest(xs), v, i + 1)
-    end
+    index_of_from(rest(xs), v, i + 1)
   end
 end
 
@@ -257,9 +254,9 @@ test "take_n and drop_n are total where take and drop are ordered the other way"
   assert drop_n([1, 2, 3], 2) == [3]
   # The three edges that make these wrappers worth having.
   assert take_n([1, 2], 9) == [1, 2]
-  assert take_n([1, 2], 0 - 1) == []
+  assert take_n([1, 2], -1) == []
   assert drop_n([1, 2], 9) == []
-  assert drop_n([1, 2], 0 - 1) == [1, 2]
+  assert drop_n([1, 2], -1) == [1, 2]
   # nil is the other empty, and it must not reach the builtin.
   assert take_n(cdr([1]), 1) == []
   assert drop_n(cdr([1]), 1) == []
@@ -284,8 +281,8 @@ end
 
 test "index_of reports absence as a number, not nil"
   assert index_of([7, 8, 9], 8) == 1
-  assert index_of([7, 8, 9], 5) == 0 - 1
-  assert index_of([], 5) == 0 - 1
+  assert index_of([7, 8, 9], 5) == -1
+  assert index_of([], 5) == -1
   # FIRST occurrence, not any occurrence.
   assert index_of([5, 5], 5) == 0
   # The sentinel is comparable, which is the point of choosing it.
@@ -300,7 +297,7 @@ test "index_of and contains find the last of a long list, and read nil as empty"
   assert index_of(xs, 19999) == 19999
   assert contains(xs, 19999) == true
   assert contains(xs, 20000) == false
-  assert index_of(nil, 1) == 0 - 1
+  assert index_of(nil, 1) == -1
   assert contains(nil, 1) == false
   # Equality is `==`: lists by value, and a float is not an int.
   assert contains([[1, 2]], [1, 2]) == true
@@ -353,11 +350,16 @@ end
 # Replace, rather than remove-and-insert, so size is preserved and an
 # out-of-range index changes nothing.
 def update_at(xs, i, v)
-  map(fn(j) if j == i
+  map(
+    fn(j)
+      if j == i
         v
       else
         nth(j, xs)
-      end end, indexes(xs))
+      end
+    end,
+    indexes(xs)
+  )
 end
 
 def partition_at(xs, i)
@@ -413,7 +415,7 @@ test "insert_at and remove_at, at the ends and past them"
   assert remove_at([1, 2, 3], 1) == [1, 3]
   assert remove_at([1], 0) == []
   assert remove_at([1, 2], 9) == [1, 2]
-  assert remove_at([1, 2], 0 - 1) == [1, 2]
+  assert remove_at([1, 2], -1) == [1, 2]
   # They are inverses at any in-range index, which no off-by-one survives.
   assert remove_at(insert_at([1, 2, 3], 2, 99), 2) == [1, 2, 3]
 end
@@ -461,7 +463,7 @@ test "rotate wraps in both directions"
   assert rotate([1, 2, 3, 4], 1) == [2, 3, 4, 1]
   # Negative rotates the other way, which is the branch a truncating modulo
   # would get wrong.
-  assert rotate([1, 2, 3, 4], 0 - 1) == [4, 1, 2, 3]
+  assert rotate([1, 2, 3, 4], -1) == [4, 1, 2, 3]
   # A full turn, and more than a full turn, are identities on the count.
   assert rotate([1, 2, 3], 3) == [1, 2, 3]
   assert rotate([1, 2, 3], 4) == rotate([1, 2, 3], 1)
@@ -486,12 +488,10 @@ end
 def find_first(f, xs)
   if is_empty(xs)
     nil
+  elsif f(first(xs))
+    first(xs)
   else
-    if f(first(xs))
-      first(xs)
-    else
-      find_first(f, rest(xs))
-    end
+    find_first(f, rest(xs))
   end
 end
 
@@ -513,24 +513,20 @@ end
 def take_while(f, xs)
   if is_empty(xs)
     []
+  elsif f(first(xs))
+    cons(first(xs), take_while(f, rest(xs)))
   else
-    if f(first(xs))
-      cons(first(xs), take_while(f, rest(xs)))
-    else
-      []
-    end
+    []
   end
 end
 
 def drop_while(f, xs)
   if is_empty(xs)
     []
+  elsif f(first(xs))
+    drop_while(f, rest(xs))
   else
-    if f(first(xs))
-      drop_while(f, rest(xs))
-    else
-      xs
-    end
+    xs
   end
 end
 
@@ -585,7 +581,9 @@ test "reject, count_where and partition"
   assert count_where(fn(x) x > 1 end, []) == 0
   assert partition(fn(x) x > 2 end, [1, 3, 2, 4]) == [[3, 4], [1, 2]]
   # The two halves account for every element exactly once, whatever the predicate.
-  assert count_where(fn(x) x > 2 end, [1, 3, 2, 4]) + size(reject(fn(x) x > 2 end, [1, 3, 2, 4])) == 4
+  assert count_where(fn(x) x > 2 end, [1, 3, 2, 4]) +
+    size(reject(fn(x) x > 2 end, [1, 3, 2, 4])) ==
+    4
   assert partition(fn(x) true end, []) == [[], []]
 end
 
@@ -599,7 +597,11 @@ test "take_while and drop_while stop at the first failure"
   assert take_while(fn(x) true end, []) == []
   assert drop_while(fn(x) true end, []) == []
   # Together they rebuild the input, at any split point.
-  assert append(take_while(fn(x) x < 3 end, [1, 2, 3, 1]), drop_while(fn(x) x < 3 end, [1, 2, 3, 1])) == [1, 2, 3, 1]
+  assert append(
+    take_while(fn(x) x < 3 end, [1, 2, 3, 1]),
+    drop_while(fn(x) x < 3 end, [1, 2, 3, 1])
+  ) ==
+    [1, 2, 3, 1]
 end
 
 test "scan keeps every intermediate accumulator"
@@ -609,7 +611,8 @@ test "scan keeps every intermediate accumulator"
   assert scan(fn(a, b) a + b end, 7, []) == [7]
   assert size(scan(fn(a, b) a + b end, 0, [1, 2, 3])) == 4
   # The last accumulator is exactly what reduce would have returned.
-  assert last(scan(fn(a, b) a + b end, 0, [1, 2, 3, 4])) == reduce(fn(a, b) a + b end, 0, [1, 2, 3, 4])
+  assert last(scan(fn(a, b) a + b end, 0, [1, 2, 3, 4])) ==
+    reduce(fn(a, b) a + b end, 0, [1, 2, 3, 4])
   # It is not sum-specific.
   assert scan(fn(a, b) a * b end, 1, [2, 3, 4]) == [1, 2, 6, 24]
 end
@@ -619,7 +622,7 @@ test "running_sum has no leading seed"
   assert running_sum([]) == []
   assert size(running_sum([1, 2, 3, 4])) == 4
   # Negative steps go down again, so this is a running total and not a maximum.
-  assert running_sum([5, 0 - 3]) == [5, 2]
+  assert running_sum([5, -3]) == [5, 2]
 end
 
 test "enumerate, flat_map and unzip"
@@ -647,12 +650,10 @@ end
 def equal_lists(a, b)
   if is_empty(a) || is_empty(b)
     is_empty(a) && is_empty(b)
+  elsif first(a) == first(b)
+    equal_lists(rest(a), rest(b))
   else
-    if first(a) == first(b)
-      equal_lists(rest(a), rest(b))
-    else
-      false
-    end
+    false
   end
 end
 
@@ -686,7 +687,7 @@ end
 
 test "equal_lists equates the two empties, which == does not"
   # The whole reason this is not just `==`.
-  assert (cdr([1]) == []) == false
+  assert cdr([1]) == [] == false
   assert equal_lists(cdr([1]), []) == true
   assert equal_lists([], []) == true
   assert equal_lists([1, 2], [1, 2]) == true

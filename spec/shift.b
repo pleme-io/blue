@@ -10,13 +10,16 @@
 def shifted(n: Int) -> Int
   n * 2
 end
+
 def loose(n)
   n * 3
 end
+
 test "both rungs run the same way"
   assert shifted(2) == 4
   assert loose(2) == 6
 end
+
 test "annotating does not change the answer"
   assert shifted(5) == loose(5) - 5
 end

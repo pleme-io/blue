@@ -1,4 +1,5 @@
 use("retsu")
+
 # angou (暗号) — number theory and the classical ciphers built on it.
 #
 # Classical, and labelled as such: nothing here is secure, and the point of
@@ -16,28 +17,22 @@ use("retsu")
 def is_prime(n)
   if n < 2
     false
+  elsif n < 4
+    true
+  elsif n % 2 == 0
+    false
   else
-    if n < 4
-      true
-    else
-      if n % 2 == 0
-        false
-      else
-        no_factor_from(n, 3)
-      end
-    end
+    no_factor_from(n, 3)
   end
 end
 
 def no_factor_from(n, k)
   if k * k > n
     true
+  elsif n % k == 0
+    false
   else
-    if n % k == 0
-      false
-    else
-      no_factor_from(n, k + 2)
-    end
+    no_factor_from(n, k + 2)
   end
 end
 
@@ -52,16 +47,12 @@ end
 def factor_from(n, k)
   if n < 2
     []
+  elsif k * k > n
+    [n]
+  elsif n % k == 0
+    cons(k, factor_from(floor(n / k), k))
   else
-    if k * k > n
-      [n]
-    else
-      if n % k == 0
-        cons(k, factor_from(floor(n / k), k))
-      else
-        factor_from(n, k + 1)
-      end
-    end
+    factor_from(n, k + 1)
   end
 end
 
@@ -74,9 +65,9 @@ def mod_pow(base, e, m)
     1
   else
     half = mod_pow(base, floor(e / 2), m)
-    sq = (half * half) % m
+    sq = half * half % m
     if e % 2 == 1
-      (sq * base) % m
+      sq * base % m
     else
       sq
     end
@@ -122,7 +113,7 @@ end
 # 1-indexed, because "the first prime" is 2 and nobody means the zeroth.
 def nth_prime(k)
   if k < 1
-    0 - 1
+    -1
   else
     nth_prime_from(k, 2)
   end
@@ -183,11 +174,11 @@ end
 # plausible-looking wrong one.
 def mod_inverse(a, m)
   if m < 1
-    0 - 1
+    -1
   else
     r = extended_gcd(a % m, m)
     if nth(0, r) != 1
-      0 - 1
+      -1
     else
       nth(1, r) % m
     end
@@ -205,11 +196,11 @@ def crt2(a1, n1, a2, n2)
   g = gcd(n1, n2)
   diff = a2 - a1
   if diff % g != 0
-    0 - 1
+    -1
   else
     n1g = floor(n1 / g)
     n2g = floor(n2 / g)
-    t = ((floor(diff / g) % n2g) * mod_inverse(n1g % n2g, n2g)) % n2g
+    t = floor(diff / g) % n2g * mod_inverse(n1g % n2g, n2g) % n2g
     (a1 + n1 * t) % (n1 * n2g)
   end
 end
@@ -257,12 +248,10 @@ end
 def multiplicative_order(a, n)
   if n < 2
     1
+  elsif is_coprime(a, n) == false
+    -1
   else
-    if is_coprime(a, n) == false
-      0 - 1
-    else
-      order_from(a % n, n, 1, a % n)
-    end
+    order_from(a % n, n, 1, a % n)
   end
 end
 
@@ -270,7 +259,7 @@ def order_from(a, n, m, cur)
   if cur == 1
     m
   else
-    order_from(a, n, m + 1, (cur * a) % n)
+    order_from(a, n, m + 1, cur * a % n)
   end
 end
 
@@ -284,8 +273,11 @@ def carmichael_lambda(n)
   if n < 2
     1
   else
-    reduce(fn(acc, a) lcm(acc, multiplicative_order(a, n)) end, 1,
-           filter(fn(a) is_coprime(a, n) end, range(1, n)))
+    reduce(
+      fn(acc, a) lcm(acc, multiplicative_order(a, n)) end,
+      1,
+      filter(fn(a) is_coprime(a, n) end, range(1, n))
+    )
   end
 end
 
@@ -305,13 +297,16 @@ end
 def is_carmichael(n)
   if n < 2
     false
+  elsif is_prime(n)
+    false
   else
-    if is_prime(n)
-      false
-    else
-      size(filter(fn(a) is_coprime(a, n) && fermat_probable_prime(n, a) == false end,
-                  range(2, n))) == 0
-    end
+    size(
+      filter(
+        fn(a) is_coprime(a, n) && fermat_probable_prime(n, a) == false end,
+        range(2, n)
+      )
+    ) ==
+      0
   end
 end
 
@@ -320,19 +315,43 @@ end
 # a composite modulus may have no primitive root at all (8 does not).
 def primitive_root(p)
   if is_prime(p) == false
-    0 - 1
+    -1
+  elsif p == 2
+    1
   else
-    if p == 2
-      1
-    else
-      first(filter(fn(g) multiplicative_order(g, p) == p - 1 end, range(2, p)))
-    end
+    first(filter(fn(g) multiplicative_order(g, p) == p - 1 end, range(2, p)))
   end
 end
 
 def alphabet()
-  ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-   "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
+  [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z"
+  ]
 end
 
 def letter_index(ch)
@@ -341,13 +360,11 @@ end
 
 def find_index_of(xs, v, i)
   if i >= size(xs)
-    0 - 1
+    -1
+  elsif nth(i, xs) == v
+    i
   else
-    if nth(i, xs) == v
-      i
-    else
-      find_index_of(xs, v, i + 1)
-    end
+    find_index_of(xs, v, i + 1)
   end
 end
 
@@ -382,7 +399,7 @@ def vigenere(text, key)
 end
 
 def vigenere_decrypt(text, key)
-  vigenere_with(text, key, 0 - 1)
+  vigenere_with(text, key, -1)
 end
 
 def vigenere_with(text, key, dir)
@@ -397,7 +414,10 @@ end
 # Non-letters in the KEY are dropped rather than treated as shift zero, so
 # "lemon" and "l e m o n" are the same key.
 def key_shifts(key)
-  filter(fn(i) i >= 0 end, map(fn(ch) letter_index(ch) end, chars(downcase(key))))
+  filter(
+    fn(i) i >= 0 end,
+    map(fn(ch) letter_index(ch) end, chars(downcase(key)))
+  )
 end
 
 def vigenere_chars(cs, ks, ki, dir)
@@ -408,8 +428,10 @@ def vigenere_chars(cs, ks, ki, dir)
     if letter_index(ch) < 0
       cons(ch, vigenere_chars(rest(cs), ks, ki, dir))
     else
-      cons(shift_char(ch, nth(ki % size(ks), ks) * dir),
-           vigenere_chars(rest(cs), ks, ki + 1, dir))
+      cons(
+        shift_char(ch, nth(ki % size(ks), ks) * dir),
+        vigenere_chars(rest(cs), ks, ki + 1, dir)
+      )
     end
   end
 end
@@ -437,7 +459,10 @@ def rail_fence(text, rails)
   if rails < 2
     text
   else
-    join(map(fn(i) nth(i, chars(text)) end, rail_order(size(chars(text)), rails)), "")
+    join(
+      map(fn(i) nth(i, chars(text)) end, rail_order(size(chars(text)), rails)),
+      ""
+    )
   end
 end
 
@@ -458,8 +483,10 @@ end
 # The positions of the original text, grouped by rail — i.e. cipher position
 # j holds original character rail_order[j].
 def rail_order(n, rails)
-  flat_map(fn(r) filter(fn(i) rail_of(i, rails) == r end, range(0, n)) end,
-           range(0, rails))
+  flat_map(
+    fn(r) filter(fn(i) rail_of(i, rails) == r end, range(0, n)) end,
+    range(0, rails)
+  )
 end
 
 # The zigzag has period 2*rails-2: down to the bottom rail and back up,
@@ -478,8 +505,10 @@ end
 # not a letter. A plain 26-list rather than a map so it lines up with
 # `alphabet()` by index — the shape a frequency attack actually consumes.
 def letter_counts(text)
-  ls = filter(fn(i) i >= 0 end,
-              map(fn(ch) letter_index(ch) end, chars(downcase(text))))
+  ls = filter(
+    fn(i) i >= 0 end,
+    map(fn(ch) letter_index(ch) end, chars(downcase(text)))
+  )
   map(fn(i) count_of(ls, i) end, indexes(alphabet()))
 end
 
@@ -536,8 +565,13 @@ def invert_key(key)
     ""
   else
     ks = chars(downcase(key))
-    join(map(fn(i) nth(index_of(ks, nth(i, alphabet())), alphabet()) end,
-             indexes(alphabet())), "")
+    join(
+      map(
+        fn(i) nth(index_of(ks, nth(i, alphabet())), alphabet()) end,
+        indexes(alphabet())
+      ),
+      ""
+    )
   end
 end
 
@@ -551,7 +585,10 @@ end
 # alphabet in order. "zebras" gives the textbook zebrascdfghijklmnopqtuvwxy.
 def keyword_key(word)
   ws = dedupe_letters(chars(downcase(word)), [])
-  join(concat_lists(ws, filter(fn(c) contains(ws, c) == false end, alphabet())), "")
+  join(
+    concat_lists(ws, filter(fn(c) contains(ws, c) == false end, alphabet())),
+    ""
+  )
 end
 
 def dedupe_letters(cs, seen)
@@ -571,7 +608,7 @@ end
 # candidate 0 is the input itself. Twenty-six is a keyspace you can exhaust
 # by eye, which is the first half of why caesar is not a cipher.
 def caesar_candidates(text)
-  map(fn(n) caesar(text, 0 - n) end, range(0, 26))
+  map(fn(n) caesar(text, -n) end, range(0, 26))
 end
 
 # The second half: you do not even have to look. Scoring each candidate
@@ -579,22 +616,51 @@ end
 # guesswork, and this is the same attack that breaks the substitution cipher
 # above once you let it work per-letter instead of per-shift.
 def crack_caesar(text)
-  scores = map(fn(n) english_score(caesar(text, 0 - n)) end, range(0, 26))
+  scores = map(fn(n) english_score(caesar(text, -n)) end, range(0, 26))
   index_of(scores, reduce(fn(a, b) max(a, b) end, 0, scores))
 end
 
 def english_score(text)
   cnt = letter_counts(text)
-  reduce(fn(a, b) a + b end, 0,
-         map(fn(i) nth(i, cnt) * nth(i, english_weights()) end, indexes(alphabet())))
+  reduce(
+    fn(a, b) a + b end,
+    0,
+    map(fn(i) nth(i, cnt) * nth(i, english_weights()) end, indexes(alphabet()))
+  )
 end
 
 # English letter frequencies per 1000 characters, a..z, rounded to whole
 # numbers so the score stays in integer arithmetic and never has to be
 # compared with `near`.
 def english_weights()
-  [82, 15, 28, 43, 127, 22, 20, 61, 70, 2, 8, 40, 24,
-   67, 75, 19, 1, 60, 63, 91, 28, 10, 24, 2, 20, 1]
+  [
+    82,
+    15,
+    28,
+    43,
+    127,
+    22,
+    20,
+    61,
+    70,
+    2,
+    8,
+    40,
+    24,
+    67,
+    75,
+    19,
+    1,
+    60,
+    63,
+    91,
+    28,
+    10,
+    24,
+    2,
+    20,
+    1
+  ]
 end
 
 test "primality, including the classic off-by-one cases"
@@ -629,7 +695,7 @@ end
 
 test "caesar round-trips and rot13 is its own inverse"
   assert caesar("abc", 1) == "bcd"
-  assert caesar(caesar("hello world", 5), 0 - 5) == "hello world"
+  assert caesar(caesar("hello world", 5), -5) == "hello world"
   assert rot13(rot13("attack at dawn")) == "attack at dawn"
   # Non-letters pass through rather than being mangled.
   assert caesar("a b", 1) == "b c"
@@ -648,7 +714,7 @@ test "nth_prime and next_prime"
   assert nth_prime(1) == 2
   assert nth_prime(6) == 13
   assert nth_prime(25) == 97
-  assert nth_prime(0) == 0 - 1
+  assert nth_prime(0) == -1
   # Strictly greater: a prime input must move on, not sit still.
   assert next_prime(7) == 11
   assert next_prime(0) == 2
@@ -680,11 +746,11 @@ end
 
 test "modular inverse, and the honest failure when there is none"
   assert mod_inverse(3, 7) == 5
-  assert (3 * mod_inverse(3, 7)) % 7 == 1
+  assert 3 * mod_inverse(3, 7) % 7 == 1
   assert mod_inverse(17, 3120) == 2753
   # 6 and 8 share a factor, so no inverse exists — the failure must be
   # reported, not approximated.
-  assert mod_inverse(6, 8) == 0 - 1
+  assert mod_inverse(6, 8) == -1
   assert mod_inverse(4, 1) == 0
 end
 
@@ -700,7 +766,7 @@ test "chinese remainder for two congruences"
   assert y % 6 == 3
   # Non-coprime and incompatible: there is no such x, and saying 0 would be
   # a plausible-looking lie.
-  assert crt2(0, 2, 1, 4) == 0 - 1
+  assert crt2(0, 2, 1, 4) == -1
 end
 
 test "divisors, sigma, and the perfect numbers"
@@ -728,7 +794,7 @@ test "multiplicative order and Carmichael's lambda"
   assert multiplicative_order(2, 7) == 3
   assert multiplicative_order(1, 7) == 1
   # No order without an inverse.
-  assert multiplicative_order(6, 8) == 0 - 1
+  assert multiplicative_order(6, 8) == -1
   assert carmichael_lambda(1) == 1
   # The separating case: lambda(8) is 2 while totient(8) is 4.
   assert carmichael_lambda(8) == 2
@@ -758,7 +824,7 @@ test "primitive roots"
   assert primitive_root(11) == 2
   assert primitive_root(2) == 1
   # Defined here for primes only; 8 has no primitive root at all.
-  assert primitive_root(8) == 0 - 1
+  assert primitive_root(8) == -1
   # A generator's powers must cover every unit.
   assert multiplicative_order(primitive_root(11), 11) == 10
 end
@@ -771,7 +837,8 @@ test "vigenere, including the key-advance trap at a non-letter"
   # unspaced one with the space put back in the same place.
   assert vigenere("at tack", "lemon") == "lx fopv"
   # Round trip survives punctuation only if both sides agree about that.
-  assert vigenere_decrypt(vigenere("attack at dawn!", "lemon"), "lemon") == "attack at dawn!"
+  assert vigenere_decrypt(vigenere("attack at dawn!", "lemon"), "lemon") ==
+    "attack at dawn!"
   # A one-letter key is exactly a caesar.
   assert vigenere("hello", "b") == caesar("hello", 1)
   # Non-letters in the key are dropped, not read as shift zero.
@@ -793,8 +860,10 @@ end
 
 test "rail fence transposes and comes back"
   # The textbook example, three rails.
-  assert rail_fence("wearediscoveredfleeatonce", 3) == "wecrlteerdsoeefeaocaivden"
-  assert rail_fence_decrypt("wecrlteerdsoeefeaocaivden", 3) == "wearediscoveredfleeatonce"
+  assert rail_fence("wearediscoveredfleeatonce", 3) ==
+    "wecrlteerdsoeefeaocaivden"
+  assert rail_fence_decrypt("wecrlteerdsoeefeaocaivden", 3) ==
+    "wearediscoveredfleeatonce"
   # A ragged last rail is where hand-rolled decoders break; 7 is not a
   # multiple of the period 4.
   assert rail_fence_decrypt(rail_fence("abcdefg", 3), 3) == "abcdefg"
@@ -803,7 +872,8 @@ test "rail fence transposes and comes back"
   assert rail_fence("abc", 1) == "abc"
   assert rail_fence("", 3) == ""
   # It is a transposition: the letters are unchanged, only their order.
-  assert letter_counts(rail_fence("wearediscoveredfleeatonce", 4)) == letter_counts("wearediscoveredfleeatonce")
+  assert letter_counts(rail_fence("wearediscoveredfleeatonce", 4)) ==
+    letter_counts("wearediscoveredfleeatonce")
 end
 
 test "letter frequency"
@@ -831,7 +901,8 @@ test "substitution cipher and its key"
   assert is_substitution_key(key) == true
   # 'a' maps to the key's first letter, 'b' to its second.
   assert substitution("ab", key) == "ze"
-  assert substitution_decrypt(substitution("flee at once", key), key) == "flee at once"
+  assert substitution_decrypt(substitution("flee at once", key), key) ==
+    "flee at once"
   # Repeats in the keyword are dropped, so it stays a permutation.
   assert is_substitution_key(keyword_key("mississippi")) == true
   assert keyword_key("") == join(alphabet(), "")
@@ -861,7 +932,7 @@ test "caesar falls to a frequency attack with no key at all"
   assert crack_caesar(caesar(plain, 7)) == 7
   assert crack_caesar(caesar(plain, 0)) == 0
   assert crack_caesar(rot13(plain)) == 13
-  assert caesar(caesar(plain, 7), 0 - crack_caesar(caesar(plain, 7))) == plain
+  assert caesar(caesar(plain, 7), -crack_caesar(caesar(plain, 7))) == plain
   # The exhaustive list is the other half of the argument: 26 candidates,
   # and candidate 0 is the untouched input.
   assert size(caesar_candidates("abc")) == 26

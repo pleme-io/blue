@@ -1,6 +1,7 @@
 use("retsu")
 use("junjo")
 use("shuugou")
+
 # mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
 #
 # Before anyone writes blue, the first question is "what do we already have?".
@@ -47,7 +48,10 @@ end
 # [name, version, needs] from a Bluefile's text.
 def parse_manifest(text)
   pkg = quoted_after(text, "package(\"")
-  needs = map(fn(part) first(split(part, "\"")) end, rest(split(text, "needs(\"")))
+  needs = map(
+    fn(part) first(split(part, "\"")) end,
+    rest(split(text, "needs(\""))
+  )
   if is_empty(pkg)
     ["", "", needs]
   else
@@ -74,17 +78,27 @@ end
 # A comment block documents a def only when it sits directly above it; a blank
 # line or any code in between resets it, so section banners attach to nothing.
 def entries_of_text(text)
-  state = reduce(fn(acc, line)
-    pending = first(acc)
-    found = last(acc)
-    if starts_with?(line, "#")
-      [push(pending, comment_text(line)), found]
-    elsif starts_with?(line, "def ")
-      [[], push(found, [defined_name(line), join(drop(4, chars(line)), ""), pending])]
-    else
-      [[], found]
-    end
-  end, [[], []], split(text, "\n"))
+  state = reduce(
+    fn(acc, line)
+      pending = first(acc)
+      found = last(acc)
+      if starts_with?(line, "#")
+        [push(pending, comment_text(line)), found]
+      elsif starts_with?(line, "def ")
+        [
+          [],
+          push(
+            found,
+            [defined_name(line), join(drop(4, chars(line)), ""), pending]
+          )
+        ]
+      else
+        [[], found]
+      end
+    end,
+    [[], []],
+    split(text, "\n")
+  )
   last(state)
 end
 
@@ -110,27 +124,50 @@ end
 
 # Package directories under a root: any directory holding a Bluefile.
 def package_dirs(root)
-  map(fn(p) path_dirname(p) end, filter(fn(p) ends_with?(p, "/Bluefile") end, walk_dir(root)))
+  map(
+    fn(p) path_dirname(p) end,
+    filter(fn(p) ends_with?(p, "/Bluefile") end, walk_dir(root))
+  )
 end
 
 def package_record(dir)
   manifest = parse_manifest(read_file(concat(dir, "/Bluefile")))
-  texts = map(fn(p) read_file(p) end, filter(fn(p) ends_with?(p, ".b") && path_dirname(p) == dir end, walk_dir(dir)))
+  texts = map(
+    fn(p) read_file(p) end,
+    filter(
+      fn(p) ends_with?(p, ".b") && path_dirname(p) == dir end,
+      walk_dir(dir)
+    )
+  )
   all_text = join(texts, "\n")
-  [nth(0, manifest), nth(1, manifest), nth(2, manifest), gloss_of_text(all_text), entries_of_text(all_text), tests_in_text(all_text)]
+  [
+    nth(0, manifest),
+    nth(1, manifest),
+    nth(2, manifest),
+    gloss_of_text(all_text),
+    entries_of_text(all_text),
+    tests_in_text(all_text)
+  ]
 end
 
 # Every package under the roots, sorted by name. When two roots hold the same
 # package, the earlier root wins, as it does for the loader.
 def catalog_of(roots)
-  records = flat_map(fn(root) map(fn(d) package_record(d) end, package_dirs(root)) end, roots)
-  firsts = reduce(fn(acc, r)
-    if contains(map(fn(x) first(x) end, acc), first(r))
-      acc
-    else
-      push(acc, r)
-    end
-  end, [], records)
+  records = flat_map(
+    fn(root) map(fn(d) package_record(d) end, package_dirs(root)) end,
+    roots
+  )
+  firsts = reduce(
+    fn(acc, r)
+      if contains(map(fn(x) first(x) end, acc), first(r))
+        acc
+      else
+        push(acc, r)
+      end
+    end,
+    [],
+    records
+  )
   sort_by(fn(r) first(r) end, firsts)
 end
 
@@ -166,21 +203,37 @@ end
 
 # [def_name, owner] for every definition, once per package.
 def definition_owners(records)
-  flat_map(fn(r) map(fn(n) [n, pkg_name(r)] end, unique(map(fn(e) first(e) end, pkg_entries(r)))) end, records)
+  flat_map(
+    fn(r)
+      map(
+        fn(n) [n, pkg_name(r)] end,
+        unique(map(fn(e) first(e) end, pkg_entries(r)))
+      )
+    end,
+    records
+  )
 end
 
 # [def_name, [packages…]] for every name more than one package defines.
 def name_collisions(records)
   pairs = definition_owners(records)
   names = unique(map(fn(p) first(p) end, pairs))
-  groups = map(fn(n) [n, map(fn(p) last(p) end, filter(fn(p) first(p) == n end, pairs))] end, names)
+  groups = map(
+    fn(n)
+      [n, map(fn(p) last(p) end, filter(fn(p) first(p) == n end, pairs))]
+    end,
+    names
+  )
   filter(fn(g) size(last(g)) > 1 end, groups)
 end
 
 # The collisions that involve at least one of `owned` (a private distribution
 # checking itself against everything it composes with).
 def name_collisions_touching(records, owned)
-  filter(fn(g) some(fn(pkg) contains(owned, pkg) end, last(g)) end, name_collisions(records))
+  filter(
+    fn(g) some(fn(pkg) contains(owned, pkg) end, last(g)) end,
+    name_collisions(records)
+  )
 end
 
 # [def_name, package] for every definition that reuses one of `names`.
@@ -221,7 +274,22 @@ end
 
 def package_section(r)
   rows = map(fn(e) def_row(e) end, pkg_entries(r))
-  join(concat_lists(["## #{pkg_name(r)}", "", "`#{pkg_name(r)}` #{pkg_version(r)} · needs: #{pkg_needs_text(r)}", "", md_cell(pkg_gloss(r)), "", "| definition | what it does |", "|---|---|"], rows), "\n")
+  join(
+    concat_lists(
+      [
+        "## #{pkg_name(r)}",
+        "",
+        "`#{pkg_name(r)}` #{pkg_version(r)} · needs: #{pkg_needs_text(r)}",
+        "",
+        md_cell(pkg_gloss(r)),
+        "",
+        "| definition | what it does |",
+        "|---|---|"
+      ],
+      rows
+    ),
+    "\n"
+  )
 end
 
 def render_markdown(records)
@@ -239,13 +307,18 @@ end
 
 # Write the catalogue of every root on BLUE_PATH to `path`.
 def write_catalog(path)
-  write_file(path, render_markdown(catalog_of(blue_path_roots(getenv("BLUE_PATH", "")))))
+  write_file(
+    path,
+    render_markdown(catalog_of(blue_path_roots(getenv("BLUE_PATH", ""))))
+  )
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "a manifest yields its name, version and needs"
-  m = parse_manifest("package(\"kazu\", \"0.1.0\")\nneeds(\"retsu\", \"^0.1\")\nneeds(\"moji\", \"^0.1\")\n")
+  m = parse_manifest(
+    "package(\"kazu\", \"0.1.0\")\nneeds(\"retsu\", \"^0.1\")\nneeds(\"moji\", \"^0.1\")\n"
+  )
   assert m == ["kazu", "0.1.0", ["retsu", "moji"]]
 end
 
@@ -264,16 +337,25 @@ test "a comment documents a def only when it sits directly above it"
 end
 
 test "the gloss is the first comment line"
-  assert gloss_of_text("use(\"retsu\")\n# kazu (数): numbers.\n# more\n") == "kazu (数): numbers."
+  assert gloss_of_text("use(\"retsu\")\n# kazu (数): numbers.\n# more\n") ==
+    "kazu (数): numbers."
   assert gloss_of_text("def f()\n  1\nend\n") == ""
 end
 
 test "tests are counted by their opening line"
-  assert tests_in_text("test \"a\"\n  assert 1 == 1\nend\ntest \"b\"\nend\n") == 2
+  assert tests_in_text("test \"a\"\n  assert 1 == 1\nend\ntest \"b\"\nend\n") ==
+    2
 end
 
 test "two packages defining one name is a collision; distinct names are not"
-  a = ["a", "0.1.0", [], "", [["size", "size(xs)", []], ["only_a", "only_a()", []]], 0]
+  a = [
+    "a",
+    "0.1.0",
+    [],
+    "",
+    [["size", "size(xs)", []], ["only_a", "only_a()", []]],
+    0
+  ]
   b = ["b", "0.1.0", [], "", [["size", "size(xs)", []]], 0]
   c = ["c", "0.1.0", [], "", [["only_c", "only_c()", []]], 0]
   assert name_collisions([a, b, c]) == [["size", ["a", "b"]]]
@@ -288,7 +370,14 @@ test "a package that defines one name twice does not collide with itself"
 end
 
 test "shadows reports definitions that reuse a listed name"
-  a = ["a", "0.1.0", [], "", [["member", "member(x)", []], ["fine", "fine()", []]], 0]
+  a = [
+    "a",
+    "0.1.0",
+    [],
+    "",
+    [["member", "member(x)", []], ["fine", "fine()", []]],
+    0
+  ]
   assert names_shadowing([a], ["member", "get"]) == [["member", "a"]]
 end
 
@@ -297,7 +386,14 @@ test "a pipe inside a table cell is escaped"
 end
 
 test "the rendered catalogue names every package and counts its definitions"
-  a = ["alpha", "0.2.0", ["retsu"], "alpha: first.", [["f", "f(x)", ["Does f."]]], 1]
+  a = [
+    "alpha",
+    "0.2.0",
+    ["retsu"],
+    "alpha: first.",
+    [["f", "f(x)", ["Does f."]]],
+    1
+  ]
   md = render_markdown([a])
   assert contains?(md, "1 packages and 1 definitions") == true
   assert contains?(md, "## alpha") == true

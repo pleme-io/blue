@@ -198,12 +198,10 @@ end
 def converges(f, x, max_steps)
   if is_fixed_point(f, x)
     true
+  elsif max_steps < 1
+    false
   else
-    if max_steps < 1
-      false
-    else
-      converges(f, f(x), max_steps - 1)
-    end
+    converges(f, f(x), max_steps - 1)
   end
 end
 
@@ -212,12 +210,10 @@ end
 def stable_steps(f, x, max_steps)
   if is_fixed_point(f, x)
     0
+  elsif max_steps < 1
+    0
   else
-    if max_steps < 1
-      0
-    else
-      1 + stable_steps(f, f(x), max_steps - 1)
-    end
+    1 + stable_steps(f, f(x), max_steps - 1)
   end
 end
 
@@ -247,11 +243,11 @@ end
 test "compose3 and pipe3 are each other read backwards"
   inc = fn(n) n + 1 end
   dbl = fn(n) n * 2 end
-  neg = fn(n) 0 - n end
+  neg = fn(n) -n end
   # inc LAST: neg(1) = -1, dbl = -2, inc = -1
-  assert compose3(inc, dbl, neg)(1) == 0 - 1
+  assert compose3(inc, dbl, neg)(1) == -1
   # inc FIRST: 1+1 = 2, dbl = 4, neg = -4
-  assert pipe3(inc, dbl, neg)(1) == 0 - 4
+  assert pipe3(inc, dbl, neg)(1) == -4
   # the two orders agree once the arguments are reversed - which is the whole
   # claim, and it only holds because the operations do NOT commute
   assert compose3(inc, dbl, neg)(3) == pipe3(neg, dbl, inc)(3)
@@ -322,12 +318,12 @@ test "juxt fans one value across many functions"
 end
 
 test "both_results is the two-function juxt"
-  neg = fn(n) 0 - n end
+  neg = fn(n) -n end
   sq = fn(n) n * n end
-  assert both_results(neg, sq)(3) == [0 - 3, 9]
+  assert both_results(neg, sq)(3) == [-3, 9]
   assert both_results(neg, sq)(3) == juxt([neg, sq])(3)
   # order is preserved, so the two entries are not interchangeable
-  assert both_results(sq, neg)(3) == [9, 0 - 3]
+  assert both_results(sq, neg)(3) == [9, -3]
 end
 
 test "fork combines what both_results would have paired"
@@ -419,8 +415,8 @@ test "the combinators compose with each other"
   assert pipe_all([inc, dbl, juxt([inc, dbl])])(1) == [5, 8]
   # on + flip + curry2: subtract magnitudes, arguments the other way round
   by_abs = on(fn(a, b) a - b end, abs)
-  assert flip(by_abs)(0 - 2, 5) == 3
-  assert curry2(by_abs)(0 - 7)(3) == 4
+  assert flip(by_abs)(-2, 5) == 3
+  assert curry2(by_abs)(-7)(3) == 4
   # a pipeline assembled from data, including the empty one
   stages = [inc, dbl, inc]
   assert pipe_all(stages)(0) == 3
@@ -435,7 +431,7 @@ test "on applies the key function before the operator"
   assert on(sub, sq)(3, 2) == 5
   # by-magnitude comparison: the key is what is compared, not the input
   by_size = on(fn(a, b) max(a, b) end, abs)
-  assert by_size(0 - 7, 3) == 7
+  assert by_size(-7, 3) == 7
   # key = identity degenerates to the bare operator
   assert on(sub, identity)(10, 4) == sub(10, 4)
 end

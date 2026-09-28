@@ -1,4 +1,5 @@
 use("retsu")
+
 # hizuke (日付) — the proleptic Gregorian calendar, as arithmetic.
 #
 # No clock. Every function here is a pure function of numbers, which is what
@@ -9,12 +10,10 @@ use("retsu")
 def is_leap(y)
   if y % 400 == 0
     true
+  elsif y % 100 == 0
+    false
   else
-    if y % 100 == 0
-      false
-    else
-      y % 4 == 0
-    end
+    y % 4 == 0
   end
 end
 
@@ -25,12 +24,10 @@ def days_in_month(y, m)
     else
       28
     end
+  elsif m == 4 || m == 6 || m == 9 || m == 11
+    30
   else
-    if m == 4 || m == 6 || m == 9 || m == 11
-      30
-    else
-      31
-    end
+    31
   end
 end
 
@@ -66,7 +63,8 @@ def day_of_week(y, m, d)
   end
   k = yy % 100
   j = floor(yy / 100)
-  h = (d + floor((13 * (mm + 1)) / 5) + k + floor(k / 4) + floor(j / 4) + (5 * j)) % 7
+  h = (d + floor(13 * (mm + 1) / 5) + k + floor(k / 4) + floor(j / 4) + 5 * j) %
+    7
   # Zeller yields 0 = Saturday; shift so 0 = Sunday, which is what callers
   # expect from a `day_of_week`.
   (h + 6) % 7
@@ -78,7 +76,18 @@ def is_weekend(y, m, d)
 end
 
 def day_name(w)
-  nth(w, ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"])
+  nth(
+    w,
+    [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ]
+  )
 end
 
 # A serial day number: 0001-01-01 is day 1, counting proleptic Gregorian days
@@ -117,7 +126,9 @@ def from_day_number(n)
   z = n + 305
   era = floor(z / 146097)
   doe = z - era * 146097
-  yoe = floor((doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146096)) / 365)
+  yoe = floor(
+    (doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146096)) / 365
+  )
   ys = yoe + era * 400
   doy = doe - (365 * yoe + floor(yoe / 4) - floor(yoe / 100))
   mp = floor((5 * doy + 2) / 153)
@@ -163,7 +174,7 @@ def next_day(y, m, d)
 end
 
 def prev_day(y, m, d)
-  add_days(y, m, d, 0 - 1)
+  add_days(y, m, d, -1)
 end
 
 # add_days for a date that is already a list — the form that chains, because
@@ -175,7 +186,23 @@ end
 # Months are 1-based, matching every other function in this file, so the list
 # index is m - 1. Defined for 1..12.
 def month_name(m)
-  nth(m - 1, ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+  nth(
+    m - 1,
+    [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ]
+  )
 end
 
 def day_of_week_name(y, m, d)
@@ -244,7 +271,7 @@ end
 # this year AND 31 December's does too.
 def iso_weeks_in_year(y)
   j = iso_weekday(y, 1, 1)
-  if j == 4 || (is_leap(y) && j == 3)
+  if j == 4 || is_leap(y) && j == 3
     53
   else
     52
@@ -264,12 +291,10 @@ def iso_week(y, m, d)
   w = iso_week_raw(y, m, d)
   if w < 1
     iso_weeks_in_year(y - 1)
+  elsif w > iso_weeks_in_year(y)
+    1
   else
-    if w > iso_weeks_in_year(y)
-      1
-    else
-      w
-    end
+    w
   end
 end
 
@@ -279,12 +304,10 @@ def iso_week_year(y, m, d)
   w = iso_week_raw(y, m, d)
   if w < 1
     y - 1
+  elsif w > iso_weeks_in_year(y)
+    y + 1
   else
-    if w > iso_weeks_in_year(y)
-      y + 1
-    else
-      y
-    end
+    y
   end
 end
 
@@ -294,7 +317,7 @@ end
 # on 29 February is 0 years older on 28 February of a non-leap year.
 def age_in_years(by, bm, bd, y, m, d)
   n = y - by
-  if m < bm || (m == bm && d < bd)
+  if m < bm || m == bm && d < bd
     n - 1
   else
     n
@@ -309,7 +332,7 @@ end
 def add_months(y, m, d, n)
   t = y * 12 + (m - 1) + n
   ny = floor(t / 12)
-  nm = (t % 12) + 1
+  nm = t % 12 + 1
   [ny, nm, min(d, days_in_month(ny, nm))]
 end
 
@@ -323,13 +346,11 @@ end
 def compare_dates(y1, m1, d1, y2, m2, d2)
   n = days_between(y1, m1, d1, y2, m2, d2)
   if n > 0
-    0 - 1
+    -1
+  elsif n < 0
+    1
   else
-    if n < 0
-      1
-    else
-      0
-    end
+    0
   end
 end
 
@@ -337,7 +358,12 @@ end
 # rather than converting each day back into a calendar date — over a year that
 # is one subtraction per day instead of 365 full from_day_number inversions.
 def business_days_in_span(a, b)
-  size(filter(fn(n) weekday_of_day_number(n) > 0 && weekday_of_day_number(n) < 6 end, range(a, b)))
+  size(
+    filter(
+      fn(n) weekday_of_day_number(n) > 0 && weekday_of_day_number(n) < 6 end,
+      range(a, b)
+    )
+  )
 end
 
 # Business days in the HALF-OPEN span [start, end) — start counted, end
@@ -351,7 +377,7 @@ def business_days_between(y1, m1, d1, y2, m2, d2)
   a = to_day_number(y1, m1, d1)
   b = to_day_number(y2, m2, d2)
   if b < a
-    0 - business_days_in_span(b, a)
+    -business_days_in_span(b, a)
   else
     business_days_in_span(a, b)
   end
@@ -379,7 +405,7 @@ def easter(y)
   l = (32 + 2 * e + 2 * i - h - k) % 7
   p = floor((a + 11 * h + 22 * l) / 451)
   n = h + l - 7 * p + 114
-  [y, floor(n / 31), (n % 31) + 1]
+  [y, floor(n / 31), n % 31 + 1]
 end
 
 # The inverse of ordinal_day. Day 60 is 29 February in 2024 and 1 March in
@@ -405,7 +431,7 @@ end
 # four, so counting from the END is the only rule that is stable year to year.
 def last_weekday_of_month(y, m, w)
   ld = days_in_month(y, m)
-  [y, m, ld - ((day_of_week(y, m, ld) - w) % 7)]
+  [y, m, ld - (day_of_week(y, m, ld) - w) % 7]
 end
 
 # Left-pads with zeros to a fixed width, returning the number unchanged if it
@@ -513,7 +539,7 @@ test "days between two dates"
   assert days_between(2024, 2, 28, 2024, 3, 1) == 2
   assert days_between(2023, 2, 28, 2023, 3, 1) == 1
   # Reversing the arguments negates the answer.
-  assert days_between(2000, 1, 1, 1970, 1, 1) == 0 - 10957
+  assert days_between(2000, 1, 1, 1970, 1, 1) == -10957
   assert days_between(2023, 12, 31, 2024, 1, 1) == 1
 end
 
@@ -523,9 +549,9 @@ test "add_days, and its inverse"
   assert add_days(2000, 1, 1, 366) == [2001, 1, 1]
   assert add_days(1900, 1, 1, 365) == [1901, 1, 1]
   # Going forward then back is the identity, including across a leap day.
-  assert shift_days(shift_days([2024, 2, 27], 40), 0 - 40) == [2024, 2, 27]
+  assert shift_days(shift_days([2024, 2, 27], 40), -40) == [2024, 2, 27]
   assert shift_days([2024, 2, 27], 40) == [2024, 4, 7]
-  assert add_days(2024, 3, 1, 0 - 1) == [2024, 2, 29]
+  assert add_days(2024, 3, 1, -1) == [2024, 2, 29]
 end
 
 test "next_day and prev_day step over the month and year seams"
@@ -656,8 +682,34 @@ end
 
 test "every ISO week number is in range, all year"
   # 366 days of 2024, none of which may produce a week 0 or a week 54.
-  assert size(filter(fn(n) iso_week(year_of(from_day_number(n)), month_of(from_day_number(n)), day_of(from_day_number(n))) > 0 end, range(to_day_number(2024, 1, 1), to_day_number(2025, 1, 1)))) == 366
-  assert size(filter(fn(n) iso_week(year_of(from_day_number(n)), month_of(from_day_number(n)), day_of(from_day_number(n))) < 54 end, range(to_day_number(2024, 1, 1), to_day_number(2025, 1, 1)))) == 366
+  assert size(
+    filter(
+      fn(n)
+        iso_week(
+          year_of(from_day_number(n)),
+          month_of(from_day_number(n)),
+          day_of(from_day_number(n))
+        ) >
+          0
+      end,
+      range(to_day_number(2024, 1, 1), to_day_number(2025, 1, 1))
+    )
+  ) ==
+    366
+  assert size(
+    filter(
+      fn(n)
+        iso_week(
+          year_of(from_day_number(n)),
+          month_of(from_day_number(n)),
+          day_of(from_day_number(n))
+        ) <
+          54
+      end,
+      range(to_day_number(2024, 1, 1), to_day_number(2025, 1, 1))
+    )
+  ) ==
+    366
 end
 
 test "age counts completed years only"
@@ -676,33 +728,33 @@ end
 test "add_months clamps into short months"
   assert add_months(2024, 1, 31, 1) == [2024, 2, 29]
   assert add_months(2023, 1, 31, 1) == [2023, 2, 28]
-  assert add_months(2024, 3, 31, 0 - 1) == [2024, 2, 29]
+  assert add_months(2024, 3, 31, -1) == [2024, 2, 29]
   # Rolling over the year boundary in both directions.
   assert add_months(2024, 12, 31, 1) == [2025, 1, 31]
-  assert add_months(2024, 1, 15, 0 - 1) == [2023, 12, 15]
+  assert add_months(2024, 1, 15, -1) == [2023, 12, 15]
   assert add_months(2024, 5, 15, 0) == [2024, 5, 15]
   # 12 months is a year, and a day that exists in both months survives it.
   assert add_months(2024, 5, 15, 12) == [2025, 5, 15]
   # The clamp is LOSSY: out and back does not return 31 January.
-  assert add_months(2024, 2, 29, 0 - 1) == [2024, 1, 29]
+  assert add_months(2024, 2, 29, -1) == [2024, 1, 29]
 end
 
 test "add_years clamps the leap day"
   assert add_years(2024, 2, 29, 1) == [2025, 2, 28]
   assert add_years(2024, 2, 29, 4) == [2028, 2, 29]
-  assert add_years(2024, 6, 15, 0 - 10) == [2014, 6, 15]
+  assert add_years(2024, 6, 15, -10) == [2014, 6, 15]
   # 1900 is not a leap year, so the century rule reaches this too.
   assert add_years(1896, 2, 29, 4) == [1900, 2, 28]
 end
 
 test "comparing dates"
-  assert compare_dates(2024, 1, 1, 2024, 1, 2) == 0 - 1
+  assert compare_dates(2024, 1, 1, 2024, 1, 2) == -1
   assert compare_dates(2024, 1, 2, 2024, 1, 1) == 1
   assert compare_dates(2024, 1, 1, 2024, 1, 1) == 0
   # Same day number, different sides of a year boundary.
-  assert compare_dates(2023, 12, 31, 2024, 1, 1) == 0 - 1
+  assert compare_dates(2023, 12, 31, 2024, 1, 1) == -1
   # A day-only difference a year-then-month comparison could drop.
-  assert compare_dates(2024, 3, 9, 2024, 3, 10) == 0 - 1
+  assert compare_dates(2024, 3, 9, 2024, 3, 10) == -1
 end
 
 test "counting business days"
@@ -711,14 +763,16 @@ test "counting business days"
   assert business_days_between(2024, 1, 1, 2024, 1, 8) == 5
   # Half-open means a zero-length span is zero, and adjacent spans add up.
   assert business_days_between(2024, 1, 1, 2024, 1, 1) == 0
-  assert business_days_between(2024, 1, 1, 2024, 1, 4) + business_days_between(2024, 1, 4, 2024, 1, 8) == 5
+  assert business_days_between(2024, 1, 1, 2024, 1, 4) +
+    business_days_between(2024, 1, 4, 2024, 1, 8) ==
+    5
   # Saturday to Sunday contains one day, and it is not a business day.
   assert business_days_between(2024, 1, 6, 2024, 1, 7) == 0
   # 2024 had 262 weekdays: 52 whole weeks plus the Monday and Tuesday that
   # 366 days leaves over.
   assert business_days_between(2024, 1, 1, 2025, 1, 1) == 262
   # Reversing the span negates the count.
-  assert business_days_between(2024, 1, 8, 2024, 1, 1) == 0 - 5
+  assert business_days_between(2024, 1, 8, 2024, 1, 1) == -5
 end
 
 test "Easter against published dates"
@@ -735,9 +789,33 @@ end
 test "Easter obeys its own invariants for two centuries"
   # 200 consecutive years, each cross-checked against Zeller: if the lunar
   # correction table were wrong anywhere, some year would land off a Sunday.
-  assert size(filter(fn(yy) day_of_week(yy, month_of(easter(yy)), day_of(easter(yy))) == 0 end, range(1900, 2100))) == 200
+  assert size(
+    filter(
+      fn(yy) day_of_week(yy, month_of(easter(yy)), day_of(easter(yy))) == 0 end,
+      range(1900, 2100)
+    )
+  ) ==
+    200
   # And every one of them falls inside the 22 March .. 25 April window.
-  assert size(filter(fn(yy) compare_dates(yy, 3, 22, yy, month_of(easter(yy)), day_of(easter(yy))) < 1 && compare_dates(yy, month_of(easter(yy)), day_of(easter(yy)), yy, 4, 25) < 1 end, range(1900, 2100))) == 200
+  assert size(
+    filter(
+      fn(yy)
+        compare_dates(yy, 3, 22, yy, month_of(easter(yy)), day_of(easter(yy))) <
+          1 &&
+          compare_dates(
+            yy,
+            month_of(easter(yy)),
+            day_of(easter(yy)),
+            yy,
+            4,
+            25
+          ) <
+            1
+      end,
+      range(1900, 2100)
+    )
+  ) ==
+    200
 end
 
 test "ordinal day round-trips through its own year"
@@ -748,7 +826,12 @@ test "ordinal day round-trips through its own year"
   assert date_from_ordinal(2024, 366) == [2024, 12, 31]
   assert date_from_ordinal(2023, 365) == [2023, 12, 31]
   # And it really is ordinal_day's inverse, not merely close to it.
-  assert ordinal_day(2024, month_of(date_from_ordinal(2024, 200)), day_of(date_from_ordinal(2024, 200))) == 200
+  assert ordinal_day(
+    2024,
+    month_of(date_from_ordinal(2024, 200)),
+    day_of(date_from_ordinal(2024, 200))
+  ) ==
+    200
 end
 
 test "the nth weekday of a month"
@@ -760,11 +843,18 @@ test "the nth weekday of a month"
   # US Labor Day, the first Monday of September 2024.
   assert nth_weekday_of_month(2024, 9, 1, 1) == [2024, 9, 2]
   # Whatever comes back really is that weekday.
-  assert day_of_week(2024, 11, day_of(nth_weekday_of_month(2024, 11, 4, 4))) == 4
+  assert day_of_week(2024, 11, day_of(nth_weekday_of_month(2024, 11, 4, 4))) ==
+    4
   # A fifth Thursday November 2024 does not have: the result overflows the
   # month, and is_valid_date is what catches it.
-  assert is_valid_date(2024, 11, day_of(nth_weekday_of_month(2024, 11, 4, 5))) == false
-  assert is_valid_date(2024, 8, day_of(nth_weekday_of_month(2024, 8, 4, 5))) == true
+  assert is_valid_date(
+    2024,
+    11,
+    day_of(nth_weekday_of_month(2024, 11, 4, 5))
+  ) ==
+    false
+  assert is_valid_date(2024, 8, day_of(nth_weekday_of_month(2024, 8, 4, 5))) ==
+    true
 end
 
 test "the last weekday of a month"

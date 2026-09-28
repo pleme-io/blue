@@ -1,5 +1,6 @@
 use("retsu")
 use("mokuroku")
+
 # regen: rewrite every file blue generates for this repository, in place.
 #
 #   nix run .#regen        (from the repository root)
@@ -20,7 +21,16 @@ def generated()
   if g == nil
     []
   else
-    map(fn(entry) [first(entry), json_get(last(entry), "output"), json_get(last(entry), "program")] end, g)
+    map(
+      fn(entry)
+        [
+          first(entry),
+          json_get(last(entry), "output"),
+          json_get(last(entry), "program")
+        ]
+      end,
+      g
+    )
   end
 end
 
@@ -29,7 +39,13 @@ end
 def regenerate(g)
   status = exec_check("env", "GEN_OUT=#{nth(1, g)}", "blue", "run", nth(2, g))
   if status != 0
-    throw(error(:regen, "#{nth(2, g)} exited #{to_s(status)}; #{nth(1, g)} was not rewritten", []))
+    throw(
+      error(
+        :regen,
+        "#{nth(2, g)} exited #{to_s(status)}; #{nth(1, g)} was not rewritten",
+        []
+      )
+    )
   end
   nth(1, g)
 end
@@ -38,11 +54,16 @@ end
 # BLUE_PATH: a project composed over the public distribution catalogues only
 # its own packages (the flake renders the same roots; nix/project.nix).
 catalog = json_get(manifest(), "catalog")
+
 written = if catalog == nil
   []
 else
-  write_file(catalog, render_markdown(catalog_of(json_get(manifest(), "packages"))))
+  write_file(
+    catalog,
+    render_markdown(catalog_of(json_get(manifest(), "packages")))
+  )
   [catalog]
 end
+
 written = concat_lists(written, map(fn(g) regenerate(g) end, generated()))
 write_file("/dev/stderr", "regen: rewrote #{join(written, ", ")}\n")

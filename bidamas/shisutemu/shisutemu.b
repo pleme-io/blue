@@ -1,5 +1,6 @@
 use("retsu")
 use("moji")
+
 # shisutemu (システム) — the system.
 #
 # Layered on the runtime's host-side sys surface (blue-lang-runtime's `sys`
@@ -52,7 +53,7 @@ use("moji")
 # between the value and the error.
 def status_of(cap)
   v = nil
-  if not(null?(cap)) && list?(cap)
+  if !null?(cap) && list?(cap)
     v = json_get(cap, :status)
   end
   if integer?(v)
@@ -65,7 +66,7 @@ end
 # The captured stdout; "" when absent or not a capture.
 def stdout_of(cap)
   v = nil
-  if not(null?(cap)) && list?(cap)
+  if !null?(cap) && list?(cap)
     v = json_get(cap, :stdout)
   end
   if string?(v)
@@ -78,7 +79,7 @@ end
 # The captured stderr; "" when absent or not a capture.
 def stderr_of(cap)
   v = nil
-  if not(null?(cap)) && list?(cap)
+  if !null?(cap) && list?(cap)
     v = json_get(cap, :stderr)
   end
   if string?(v)
@@ -126,7 +127,7 @@ end
 # "\r\n" endings and trailing newlines are handled before this sees them. A
 # log whose final line is a blank or a spinner echo answers the line before.
 def last_nonempty_line(text)
-  ls = filter(fn(l) not(is_blank(l)) end, lines(text))
+  ls = filter(fn(l) !is_blank(l) end, lines(text))
   if is_empty(ls)
     ""
   else
@@ -136,7 +137,7 @@ end
 
 # The ESC character, spelled once. Blue strings accept `\u{1b}`.
 def esc_char()
-  "\u{1b}"
+  ""
 end
 
 # True when `c` is the final byte of an ANSI escape sequence: any ASCII letter.
@@ -165,20 +166,16 @@ def strip_ansi_from(cs, state, acc)
       else
         strip_ansi_from(rest(cs), 2, acc)
       end
-    else
-      if state == 1
-        if c == "["
-          strip_ansi_from(rest(cs), 2, acc)
-        else
-          strip_ansi_from(rest(cs), 0, acc)
-        end
+    elsif state == 1
+      if c == "["
+        strip_ansi_from(rest(cs), 2, acc)
       else
-        if c == esc_char()
-          strip_ansi_from(rest(cs), 1, acc)
-        else
-          strip_ansi_from(rest(cs), 0, concat(acc, c))
-        end
+        strip_ansi_from(rest(cs), 0, acc)
       end
+    elsif c == esc_char()
+      strip_ansi_from(rest(cs), 1, acc)
+    else
+      strip_ansi_from(rest(cs), 0, concat(acc, c))
     end
   end
 end
@@ -199,12 +196,10 @@ end
 def age_s(ms)
   if ms < 60000
     "#{floor(ms / 1000)}s"
+  elsif ms < 3600000
+    "#{floor(ms / 60000)}m"
   else
-    if ms < 3600000
-      "#{floor(ms / 60000)}m"
-    else
-      "#{floor(ms / 3600000)}h#{floor((ms % 3600000) / 60000)}m"
-    end
+    "#{floor(ms / 3600000)}h#{floor(ms % 3600000 / 60000)}m"
   end
 end
 
@@ -280,15 +275,15 @@ test "last_nonempty_line ignores trailing blank lines and invents none"
 end
 
 test "strip_ansi removes CSI sequences and leaves plain text alone"
-  assert strip_ansi("\u{1b}[31mred\u{1b}[0m") == "red"
-  assert strip_ansi("\u{1b}[1;32mgreen") == "green"
-  assert strip_ansi("\u{1b}[2Jclear") == "clear"
+  assert strip_ansi("[31mred[0m") == "red"
+  assert strip_ansi("[1;32mgreen") == "green"
+  assert strip_ansi("[2Jclear") == "clear"
   assert strip_ansi("plain") == "plain"
   assert strip_ansi("") == ""
   # A non-CSI escape is still a two-character escape and is dropped whole.
-  assert strip_ansi("a\u{1b}7b") == "ab"
+  assert strip_ansi("a7b") == "ab"
   # An ESC alone at the end cannot be a sequence; it must not leak.
-  assert strip_ansi("x\u{1b}") == "x"
+  assert strip_ansi("x") == "x"
 end
 
 test "age_s mirrors the sentinela display exactly"

@@ -1,4 +1,5 @@
 use("sabi")
+
 # The character tables of blue-lang-syntax's `kigou` module, authored in blue.
 #
 # This file is the source of truth for OPERATOR_ALIASES and WELCOME. Running it
@@ -83,39 +84,65 @@ def str_ref()
 end
 
 def tables()
-  rs_file("crates/blue-lang-syntax/gen/kigou.b", [
-    rs_const(
-      "OPERATOR_ALIASES",
-      rs_ty_ref(rs_ty_slice(rs_ty_tuple([rs_ty("char"), str_ref(), str_ref()]))),
-      rs_slice(map(fn(r) rs_tuple([rs_char(nth(0, r)), rs_str(nth(1, r)), rs_str(nth(2, r))]) end, operator_aliases())),
-      [
-        "The typographic spellings of blue's operators.",
-        "",
-        "Curated in `gen/kigou.b`, not inferred: every row is a symbol that mathematics",
-        "or ordinary typography already uses for exactly this operator, so a reader",
-        "needs no lookup. A symbol whose meaning would have to be *taught* belongs in an",
-        "identifier instead, where the author names it."
-      ]
-    ),
-    rs_const(
-      "WELCOME",
-      rs_ty_ref(rs_ty_slice(rs_ty_tuple([rs_ty("char"), str_ref()]))),
-      rs_slice(map(fn(r) rs_tuple([rs_char(nth(0, r)), rs_str(nth(1, r))]) end, welcome())),
-      [
-        "The symbols blue explicitly welcomes inside identifiers.",
-        "",
-        "Not exhaustive — [`super::classify`] admits any alphabetic character and any",
-        "symbol not on the operator list — but *named*, because a catalog a reader",
-        "can scan is worth more than a rule they have to infer. These are the ones",
-        "worth reaching for."
-      ]
-    )
-  ])
+  rs_file(
+    "crates/blue-lang-syntax/gen/kigou.b",
+    [
+      rs_const(
+        "OPERATOR_ALIASES",
+        rs_ty_ref(
+          rs_ty_slice(rs_ty_tuple([rs_ty("char"), str_ref(), str_ref()]))
+        ),
+        rs_slice(
+          map(
+            fn(r)
+              rs_tuple(
+                [rs_char(nth(0, r)), rs_str(nth(1, r)), rs_str(nth(2, r))]
+              )
+            end,
+            operator_aliases()
+          )
+        ),
+        [
+          "The typographic spellings of blue's operators.",
+          "",
+          "Curated in `gen/kigou.b`, not inferred: every row is a symbol that mathematics",
+          "or ordinary typography already uses for exactly this operator, so a reader",
+          "needs no lookup. A symbol whose meaning would have to be *taught* belongs in an",
+          "identifier instead, where the author names it."
+        ]
+      ),
+      rs_const(
+        "WELCOME",
+        rs_ty_ref(rs_ty_slice(rs_ty_tuple([rs_ty("char"), str_ref()]))),
+        rs_slice(
+          map(
+            fn(r) rs_tuple([rs_char(nth(0, r)), rs_str(nth(1, r))]) end,
+            welcome()
+          )
+        ),
+        [
+          "The symbols blue explicitly welcomes inside identifiers.",
+          "",
+          "Not exhaustive — [`super::classify`] admits any alphabetic character and any",
+          "symbol not on the operator list — but *named*, because a catalog a reader",
+          "can scan is worth more than a rule they have to infer. These are the ones",
+          "worth reaching for."
+        ]
+      )
+    ]
+  )
 end
 
 bad = rs_invalid_names(tables())
+
 if is_empty(bad)
-  write_file(getenv("GEN_OUT", "crates/blue-lang-syntax/src/kigou/tables.rs"), render_rust(tables()))
+  write_file(
+    getenv("GEN_OUT", "crates/blue-lang-syntax/src/kigou/tables.rs"),
+    render_rust(tables())
+  )
 else
-  write_file(getenv("GEN_OUT", "crates/blue-lang-syntax/src/kigou/tables.rs"), "compile_error!(\"invalid Rust identifiers in gen/kigou.b\");\n")
+  write_file(
+    getenv("GEN_OUT", "crates/blue-lang-syntax/src/kigou/tables.rs"),
+    "compile_error!(\"invalid Rust identifiers in gen/kigou.b\");\n"
+  )
 end

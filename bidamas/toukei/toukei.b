@@ -1,5 +1,6 @@
 use("junjo")
 use("shuugou")
+
 # toukei (統計) — descriptive statistics.
 #
 # Integer-mean is the trap this avoids: `/` is float division in blue, so
@@ -274,7 +275,7 @@ def outliers(xs)
   f = fences(xs)
   lo = nth(0, f)
   hi = nth(1, f)
-  filter(fn(x) (x < lo) || (x > hi) end, xs)
+  filter(fn(x) x < lo || x > hi end, xs)
 end
 
 # The inverse of `percentile`: what fraction of the data is at or below x.
@@ -372,12 +373,10 @@ end
 def moving_average(xs, w)
   if w < 1
     []
+  elsif size(xs) < w
+    []
   else
-    if size(xs) < w
-      []
-    else
-      map(fn(i) mean(take(w, drop(i, xs))) end, range(0, size(xs) - w + 1))
-    end
+    map(fn(i) mean(take(w, drop(i, xs))) end, range(0, size(xs) - w + 1))
   end
 end
 
@@ -446,11 +445,17 @@ def mode(xs)
   if is_empty(xs)
     nil
   else
-    reduce(fn(best, v) if tally(v, xs) > tally(best, xs)
-      v
-    else
-      best
-    end end, smallest(xs), unique(sort(xs)))
+    reduce(
+      fn(best, v)
+        if tally(v, xs) > tally(best, xs)
+          v
+        else
+          best
+        end
+      end,
+      smallest(xs),
+      unique(sort(xs))
+    )
   end
 end
 
@@ -597,7 +602,7 @@ test "coefficient_of_variation is unitless"
   assert near(coefficient_of_variation(map(fn(x) x * 2 end, xs)), 0.4) == true
   assert near(coefficient_of_variation([5, 5, 5]), 0) == true
   # Total: a mean of zero has no scale to divide by, and neither has nothing.
-  assert coefficient_of_variation([0 - 2, 2]) == 0
+  assert coefficient_of_variation([-2, 2]) == 0
   assert coefficient_of_variation([]) == 0
 end
 
@@ -624,7 +629,7 @@ end
 test "iqr ignores the tails that spread does not"
   # Same middle, wildly different extremes: iqr holds, spread explodes.
   a = [1, 2, 3, 4, 5, 6, 7, 8]
-  b = [0 - 1000, 2, 3, 4, 5, 6, 7, 1000]
+  b = [-1000, 2, 3, 4, 5, 6, 7, 1000]
   # `near`, not `==`: both quartiles are half-way values, so the width is
   # Float(4.0) and Float(4.0) == Int(4) is false here.
   assert near(iqr(a), 4) == true
@@ -638,14 +643,14 @@ test "outliers by the 1.5 IQR fences"
   xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 100]
   assert q1(xs) == 3
   assert q3(xs) == 8
-  assert fences(xs) == [0 - 4.5, 15.5]
+  assert fences(xs) == [-4.5, 15.5]
   assert outliers(xs) == [100]
   # Well-behaved data has none — the case a too-tight threshold fails.
   assert outliers([1, 2, 3, 4, 5]) == []
   assert outliers([5, 5, 5, 5]) == []
   assert outliers([]) == []
   # Both tails, and the result keeps input order rather than sorted order.
-  assert outliers([50, 1, 2, 3, 4, 5, 6, 7, 8, 0 - 50]) == [50, 0 - 50]
+  assert outliers([50, 1, 2, 3, 4, 5, 6, 7, 8, -50]) == [50, -50]
 end
 
 test "percentile_rank inverts percentile"
@@ -662,7 +667,7 @@ test "covariance of a series with ITSELF is its variance"
   # The identity that catches a dropped deviation or a wrong denominator.
   assert near(covariance([1, 2, 3], [1, 2, 3]), variance([1, 2, 3])) == true
   # Reversed: same magnitude, opposite sign.
-  assert near(covariance([1, 2, 3], [3, 2, 1]), 0 - variance([1, 2, 3])) == true
+  assert near(covariance([1, 2, 3], [3, 2, 1]), -variance([1, 2, 3])) == true
   # Nothing co-varies with a constant.
   assert covariance([1, 2, 3], [5, 5, 5]) == 0
   assert covariance([], []) == 0
@@ -677,7 +682,7 @@ test "correlation lands in [-1, 1] and is unitless"
   # Perfectly linear, different scales: r is 1 either way.
   assert near(correlation([1, 2, 3], [2, 4, 6]), 1) == true
   assert near(correlation([1, 2, 3], [100, 200, 300]), 1) == true
-  assert near(correlation([1, 2, 3], [3, 2, 1]), 0 - 1) == true
+  assert near(correlation([1, 2, 3], [3, 2, 1]), -1) == true
   # A hand-checkable middle: cov 1, both stddevs sqrt(1.25) -> 1/1.25 = 0.8.
   assert near(correlation([1, 2, 3, 4], [1, 3, 2, 4]), 0.8) == true
   # Constant series: undefined, reported as 0 rather than an infinity.
@@ -694,7 +699,7 @@ test "z_scores have mean 0 and stddev 1"
   # mean 5, stddev 2, so these are checkable by hand.
   assert near(z_score(5, xs), 0) == true
   assert near(z_score(9, xs), 2) == true
-  assert near(z_score(2, xs), 0 - 1.5) == true
+  assert near(z_score(2, xs), -1.5) == true
   # No spread means every point is the mean.
   assert z_score(5, [5, 5, 5]) == 0
 end
@@ -717,7 +722,7 @@ test "cumulative_sum ends at the total"
   assert cumulative_sum([]) == []
   assert cumulative_sum([5]) == [5]
   # The identity: last entry is the whole sum, and length is preserved.
-  xs = [4, 0 - 2, 9, 1]
+  xs = [4, -2, 9, 1]
   assert last(cumulative_sum(xs)) == total(xs)
   assert size(cumulative_sum(xs)) == size(xs)
 end
@@ -743,14 +748,14 @@ test "skewness signs the long tail"
   assert skewness([1, 10, 10, 10]) < 0
   # Mirroring the data must mirror the answer.
   xs = [1, 2, 2, 3, 9]
-  assert near(skewness(map(fn(x) 0 - x end, xs)), 0 - skewness(xs)) == true
+  assert near(skewness(map(fn(x) -x end, xs)), -skewness(xs)) == true
   assert skewness([5, 5, 5]) == 0
   assert skewness([]) == 0
 end
 
 test "excess_kurtosis is on the normal-is-zero scale"
   # [1..5]: m2 = 2, m4 = 6.8, ratio 1.7, minus 3 -> -1.3. All by hand.
-  assert near(excess_kurtosis([1, 2, 3, 4, 5]), 0 - 1.3) == true
+  assert near(excess_kurtosis([1, 2, 3, 4, 5]), -1.3) == true
   # Uniform-ish data is flatter than normal; a spike with outliers is not.
   assert excess_kurtosis([1, 2, 3, 4, 5]) < 0
   assert excess_kurtosis([1, 5, 5, 5, 5, 5, 9]) > 0

@@ -163,6 +163,7 @@ let
     let
       bl = import ../bidamas/mk-bidama.nix {
         inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper;
+        inherit blue;
       };
       lock = readLock src;
       m = lock.manifest;

@@ -330,6 +330,9 @@
       # doors, and substrate composes over them rather than keeping a copy.
       bidamaLibFor = pkgs: import ./bidamas/mk-bidama.nix {
         inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper;
+        # The formatter mkBidama holds every package canonical with: this
+        # flake's own blue for the package set's system.
+        blue = base.packages.${pkgs.stdenv.hostPlatform.system}.default or null;
       };
 
       # The fleet's blue commands, each a bidama's entry function installed by
@@ -398,9 +401,14 @@
         let
           pkgs = pkgsFor system;
           blue = blueFor system;
-          bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper; };
+          bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper; inherit blue; };
         in
         engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) {
+          # Every .b file in the repository is in the one layout; each file
+          # that is not is named. `mkBidama` holds each package the same way,
+          # so this is the rest of the tree: specs, generators, fixtures.
+          blue-fmt = bl.mkFmtCheck { inherit blue; root = ./.; };
+
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
           blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
 

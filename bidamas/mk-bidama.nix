@@ -47,9 +47,34 @@
 # `granularity.rs::the_locked_and_evaluated_dependency_views_agree` compares
 # every lock against blue's resolver from `cargo test`.
 
-{ lib, runCommand, symlinkJoin ? null, makeWrapper ? null, makeBinaryWrapper ? null }:
+#
+# ## A bidama is built only from canonical source
+#
+# blue compiles only canonical source (`blue_lang_pkg::canonical`), and a store
+# path is read-only, so a non-canonical file in a built bidama could never be
+# compiled by anyone who loads it. `mkBidama` therefore REFUSES a package whose
+# `.b` files are not `blue fmt` canonical, naming each file — it does not
+# format a copy, which would put a second author between the file a human
+# reads and the file a program loads. So every bidama in the store is canonical
+# by construction, private distributions included, and the loader's check on it
+# always passes. That needs a `blue` to say what canonical is: pass it here
+# (`blue.lib.bidamas`, `overlays.bidamas` and `lib.project` all do) or per call.
+# Red run, 2026-09-27: a misformatted def appended to angou.b → the angou
+# derivation failed with `angou.b: not formatted; run blue fmt --write angou.b`;
+# restored, it built.
+
+{ lib, runCommand, symlinkJoin ? null, makeWrapper ? null, makeBinaryWrapper ? null, blue ? null }:
 
 let
+  topBlue = blue;
+  blueFor = what: given:
+    if given != null then given
+    else throw ''
+      ${what} needs `blue`: a bidama is built only from canonical source, and
+      blue's formatter is what says what canonical is. Pass `blue` to
+      mk-bidama.nix (blue.lib.bidamas, overlays.bidamas and lib.project do).
+    '';
+
   # The wrapper every blue executable gets. makeBinaryWrapper when the caller
   # passes it: a compiled exec wrapper, so no shell runs between the caller and
   # blue. makeWrapper (a bash script) stays as the fallback for callers that
@@ -116,8 +141,9 @@ rec {
   #
   # `all` is the attrset of every built bidama, passed in so a package can
   # depend on its siblings — the knot `mkDistribution` ties below.
-  mkBidama = { name, src, all ? { } }:
+  mkBidama = { name, src, all ? { }, blue ? topBlue }:
     let
+      fmt = "${blueFor "mkBidama ${name}" blue}/bin/blue";
       lock = lockOf { inherit name src; };
       version = versionOf lock;
       deps = depsOf lock;
@@ -139,6 +165,14 @@ rec {
         passthru = { bidamaDeps = deps; bidamaName = name; };
         meta.description = "blue bidama: ${name}";
       } ''
+      # Canonical, or refused: `blue fmt --check` names every file that is not
+      # (`<file>: not formatted; run blue fmt --write <file>`), in one command.
+      # The package's own top-level `.b` files are the ones the loader reads.
+      if ! (cd ${src} && ${fmt} fmt --check *.b); then
+        echo "bidama ${name}: blue compiles only canonical source, and the file(s) above are not; run blue fmt --write on each and commit" >&2
+        exit 1
+      fi
+
       mkdir -p $out/${name}
       cp -r ${src}/* $out/${name}/
 
@@ -416,11 +450,11 @@ rec {
   # A dependency CYCLE therefore surfaces as nix's own infinite-recursion error
   # rather than as a silently truncated graph — the loud failure is the correct
   # one, and blue's solver reports cycles too, so the two agree on rejection.
-  mkDistribution = { root, pkgs }:
+  mkDistribution = { root, pkgs, blue ? topBlue }:
     lib.fix (all:
       lib.mapAttrs
         (name: _: mkBidama {
-          inherit name all;
+          inherit name all blue;
           src = root + "/${name}";
         })
         (packageDirs root));
@@ -461,6 +495,22 @@ rec {
       for m in ${lib.escapeShellArgs manifests}; do
         BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue deps "$m" >> $out || exit 1
       done
+    '';
+
+  # Fails when any `.b` file under `root` is not `blue fmt` canonical, naming
+  # each one. blue's own repository holds its whole tree to the one layout this
+  # way (the `blue-fmt` flake check); a package is held by `mkBidama` itself.
+  # One command over every file, not a loop: `blue fmt --check` takes several.
+  # Red run, 2026-09-27: one bad line in spec/arithmetic.b and one in
+  # bidamas/angou/angou.b → red, naming both files; restored → green.
+  mkFmtCheck = { blue, root, name ? "blue-fmt" }:
+    runCommand name { } ''
+      cd ${root}
+      if ! find . -name '*.b' -exec ${blue}/bin/blue fmt --check {} +; then
+        echo "${name}: the file(s) above are not canonical; run blue fmt --write on each" >&2
+        exit 1
+      fi
+      touch $out
     '';
 
   mkLockCheck = { blue, root ? null, roots ? [ root ], name ? "bidama-locks-fresh" }:

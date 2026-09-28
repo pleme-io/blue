@@ -231,6 +231,7 @@ name = "blue-lang-pkg"
 version = "0.0.45"
 dependencies = [
  "blue-lang-bidama",
+ "blue-lang-fmt",
  "blue-lang-runtime",
  "blue-lang-syntax",
  "blue-lang-test",

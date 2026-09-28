@@ -1138,3 +1138,111 @@ fn every_bidama_lock_is_confirmed_fresh() {
     assert_eq!(fresh, manifests.len());
     assert!(fresh >= 21, "only {fresh} bidama locks were confirmed");
 }
+
+// ---------------------------------------------------------------------------
+// blue compiles only canonical source (2026-09-27)
+//
+// "I want bluelang to not compile anything not formatted correctly", kept
+// transparent: a file blue can write is formatted in place and compiled; one it
+// cannot is refused. `blue_lang_pkg::canonical` holds the rule.
+// ---------------------------------------------------------------------------
+
+fn fresh(name: &str, src: &str) -> PathBuf {
+    let mut p = std::env::temp_dir();
+    p.push(format!("blue-cli-test-{name}.b"));
+    // A previous run may have left it read-only; a directory entry can still
+    // be removed.
+    let _ = std::fs::remove_file(&p);
+    std::fs::write(&p, src).expect("write fixture");
+    p
+}
+
+#[test]
+fn run_formats_a_messy_writable_file_in_place_and_runs_it() {
+    let f = fresh("canon-run-messy", "x   =   1+2\nx   *   2\n");
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "6");
+    assert!(
+        stderr(&o).contains(&format!("blue: formatted {}", f.display())),
+        "one line saying so: {}",
+        stderr(&o)
+    );
+    assert_eq!(
+        std::fs::read_to_string(&f).expect("read back"),
+        "x = 1 + 2\nx * 2\n"
+    );
+    // And a canonical file is compiled without a word.
+    let again = run(&["run", f.to_str().unwrap()]);
+    assert!(!stderr(&again).contains("formatted"), "{}", stderr(&again));
+}
+
+#[test]
+fn test_formats_the_file_under_test() {
+    let f = fresh("canon-test-messy", "test   \"adds\"\n  assert 1+1 == 2\nend\n");
+    let o = run(&["test", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(
+        std::fs::read_to_string(&f).expect("read back"),
+        "test \"adds\"\n  assert 1 + 1 == 2\nend\n"
+    );
+}
+
+#[test]
+fn run_refuses_a_read_only_messy_file_and_leaves_it_alone() {
+    let messy = "x   =   1+2\nx\n";
+    let f = fresh("canon-run-readonly", messy);
+    let mut perm = std::fs::metadata(&f).expect("meta").permissions();
+    perm.set_readonly(true);
+    std::fs::set_permissions(&f, perm).expect("chmod");
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(!o.status.success(), "a read-only messy file must not compile");
+    assert!(
+        stderr(&o).contains(&format!(
+            "{} is not formatted; run blue fmt --write {}",
+            f.display(),
+            f.display()
+        )),
+        "{}",
+        stderr(&o)
+    );
+    assert!(stdout(&o).is_empty(), "nothing ran: {}", stdout(&o));
+    assert_eq!(std::fs::read_to_string(&f).expect("read back"), messy);
+}
+
+#[test]
+fn a_messy_writable_package_loaded_by_use_is_formatted() {
+    let root = std::env::temp_dir().join("blue-cli-test-canon-dist");
+    let pkg = root.join("canonpkg");
+    std::fs::create_dir_all(&pkg).expect("mkdir");
+    let file = pkg.join("canonpkg.b");
+    std::fs::write(&file, "def twice(x)\n        x*2\nend\n").expect("write pkg");
+    let entry = fresh("canon-pkg-entry", "use(\"canonpkg\")\ntwice(21)\n");
+    let o = run_env(
+        &["run", entry.to_str().unwrap()],
+        &[("BLUE_PATH", root.to_str().unwrap())],
+    );
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "42");
+    assert!(
+        stderr(&o).contains(&format!("blue: formatted {}", file.display())),
+        "{}",
+        stderr(&o)
+    );
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("read back"),
+        "def twice(x)\n  x * 2\nend\n"
+    );
+}
+
+#[test]
+fn a_file_the_formatter_refuses_is_a_compile_error_naming_the_line() {
+    let src = "y = 1\nx = # a comment with no line of its own\n  5\nx\n";
+    let f = fresh("canon-unplaceable", src);
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(!o.status.success(), "it must not compile");
+    assert!(stderr(&o).contains("cannot be formatted"), "{}", stderr(&o));
+    assert!(stderr(&o).contains("line(s) 2"), "{}", stderr(&o));
+    assert!(stdout(&o).is_empty(), "nothing ran: {}", stdout(&o));
+    assert_eq!(std::fs::read_to_string(&f).expect("read back"), src);
+}

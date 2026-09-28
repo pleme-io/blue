@@ -94,8 +94,14 @@ enum Cmd {
         args: Vec<String>,
     },
     /// Format a program. There is one formatting; this produces it.
+    ///
+    /// Several files may be named with `--check` or `--write`: each is
+    /// reported, and the exit is non-zero if any drifted or was refused. That
+    /// is what lets a gate hold a whole tree canonical in ONE command
+    /// (`mkFmtCheck`, and `mkBidama`'s own build) rather than in a loop.
     Fmt {
-        file: PathBuf,
+        #[arg(required = true)]
+        file: Vec<PathBuf>,
         /// Report drift and exit non-zero instead of rewriting.
         #[arg(long)]
         check: bool,
@@ -184,6 +190,9 @@ enum CliError {
     Fmt(String),
     #[error("{0}")]
     Pkg(String),
+    /// blue compiles only canonical source; `blue_lang_pkg::canonical`.
+    #[error("{0}")]
+    Refused(#[from] blue_lang_pkg::canonical::Refusal),
     #[error("{0}")]
     Config(#[from] shikumi::cli::ConfigShowError),
     #[error("{0}")]
@@ -205,6 +214,14 @@ struct Confirmation<'a> {
     bluefile: String,
     #[serde(flatten)]
     verdict: &'a Freshness,
+}
+
+/// The source of a file blue is about to COMPILE: canonical, or formatted in
+/// place first, or refused (`blue_lang_pkg::canonical`). Every door that
+/// compiles its entry file reads it here; the ones that only look at a file
+/// (`fmt`, `ast`, `erase`) read it with [`read`].
+fn read_compiled(path: &Path) -> Result<String, CliError> {
+    Ok(blue_lang_pkg::canonical::read_source(path)?)
 }
 
 fn read(path: &Path) -> Result<String, CliError> {
@@ -290,7 +307,28 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.cmd {
         Cmd::Run { file, inputs, quiet, args } => {
             blue_lang_runtime::sys::set_program_args(args);
-            let src = read(&file)?;
+            // The SURFACE the program is written in: BLUE_LANG wins, else the
+            // host locale. An explicit choice must beat a detected one.
+            let surface = resolve_surface().map_err(CliError::Pkg)?;
+            // blue compiles only canonical source. The formatter speaks the
+            // English surface, so a program that USES a `yakugo` surface's
+            // words is compiled as written rather than translated by its
+            // formatting. One that parses to the same tree either way is
+            // English — the common case under a pt or de locale — and is held
+            // to the rule like any other.
+            let src = match &surface {
+                None => read_compiled(&file)?,
+                Some(pack) => {
+                    let text = read(&file)?;
+                    let english = blue_lang_syntax::parse_program(&text).ok();
+                    let spoken = blue_lang_syntax::parse_program_in(&text, pack).ok();
+                    if english.is_some() && english == spoken {
+                        blue_lang_pkg::canonical::admit(&file, text)?
+                    } else {
+                        text
+                    }
+                }
+            };
             // Always bind, even with no `--input` flags: a program that
             // DECLARES an input and gets no material must hear "you forgot the
             // flag", not the macro-level "no input named …" from deep inside
@@ -309,9 +347,6 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // BLUE_PATH, so a wrapped `blue` resolves the distribution with no
             // argument, and an unwrapped one still honours a checkout.
             let loader = blue_lang_pkg::load_path::LoadPath::from_env();
-            // The SURFACE the program is written in: BLUE_LANG wins, else the
-            // host locale. An explicit choice must beat a detected one.
-            let surface = resolve_surface().map_err(CliError::Pkg)?;
             // The entry file travels WITH its source. Without the path, every
             // type error in the file the user named would report against
             // `<anonymous>` while an imported package's reported its real path
@@ -332,36 +367,55 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Fmt { file, check, write } => {
-            let src = read(&file)?;
-            // The LOSSLESS rendering is the canonical form of a file that has
-            // comments, so `--check` must compare against it. Comparing against
-            // the comment-stripped rendering made every commented file report
-            // "not formatted" forever — a --check that can never be satisfied.
-            let formatted = blue_lang_fmt::format_source_lossless(&src)
-                .map_err(|e| CliError::Fmt(e.to_string()))?;
-            if check {
-                // Compare trimmed: a trailing newline is not drift.
-                if formatted.trim_end() == src.trim_end() {
-                    return Ok(ExitCode::SUCCESS);
+            if !check && !write && file.len() != 1 {
+                return Err(CliError::Fmt(
+                    "`blue fmt` prints ONE file; name several with --check or --write".into(),
+                ));
+            }
+            let mut failed = false;
+            for file in &file {
+                let src = read(file)?;
+                // The LOSSLESS rendering is the canonical form of a file that
+                // has comments, so `--check` must compare against it. Comparing
+                // against the comment-stripped rendering made every commented
+                // file report "not formatted" forever — a --check that can
+                // never be satisfied.
+                let formatted = match blue_lang_fmt::format_source_lossless(&src) {
+                    Ok(f) => f,
+                    Err(e) if check || write => {
+                        eprintln!("blue: {}: {e}", file.display());
+                        failed = true;
+                        continue;
+                    }
+                    Err(e) => return Err(CliError::Fmt(e.to_string())),
+                };
+                if check {
+                    // Compare trimmed: a trailing newline is not drift.
+                    if formatted.trim_end() != src.trim_end() {
+                        eprintln!(
+                            "{}: not formatted; run blue fmt --write {}",
+                            file.display(),
+                            file.display()
+                        );
+                        failed = true;
+                    }
+                } else if write {
+                    // The LOSSLESS path, because this overwrites the file.
+                    // `--write` used to delete every comment silently; a
+                    // comment the formatter cannot place is refused above.
+                    std::fs::write(file, &formatted).map_err(|source| CliError::Write {
+                        path: file.display().to_string(),
+                        source,
+                    })?;
+                } else {
+                    print!("{formatted}");
                 }
-                eprintln!("{}: not formatted", file.display());
-                return Ok(ExitCode::FAILURE);
             }
-            if write {
-                // The LOSSLESS path, because this overwrites the file. blue's
-                // formatter drops comments, and `--write` used to delete every
-                // one silently. Refusing is strictly better than losing the one
-                // part of a program a machine cannot reconstruct.
-                let formatted = blue_lang_fmt::format_source_lossless(&src)
-                    .map_err(|e| CliError::Fmt(e.to_string()))?;
-                std::fs::write(&file, &formatted).map_err(|source| CliError::Write {
-                    path: file.display().to_string(),
-                    source,
-                })?;
+            Ok(if failed {
+                ExitCode::FAILURE
             } else {
-                print!("{formatted}");
-            }
-            Ok(ExitCode::SUCCESS)
+                ExitCode::SUCCESS
+            })
         }
 
         Cmd::Ast { file } => {
@@ -385,7 +439,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Check { file } => {
-            let src = read(&file)?;
+            let src = read_compiled(&file)?;
             let forms = parse_tree(&src, &cfg)?;
             let outcome = blue_lang_check::check_program(&forms);
             // Report the analysis performed, not just pass/fail. §0's rule is
@@ -424,7 +478,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Test { file } => {
-            let src = read(&file)?;
+            let src = read_compiled(&file)?;
             let forms = parse_tree(&src, &cfg)?;
             // Imports resolve here too, for the same reason they do in `run`.
             //

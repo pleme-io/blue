@@ -122,6 +122,10 @@ fn read_sources(dir: &Path) -> Result<Vec<(String, String)>, String> {
         }
         let src = std::fs::read_to_string(&path)
             .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        // blue compiles only canonical source: a writable package file is
+        // formatted in place first, a read-only one that is not canonical is
+        // refused. `crate::canonical` holds the rule; this is the loader's door.
+        let src = crate::canonical::admit(&path, src).map_err(|e| e.to_string())?;
         out.push((path.display().to_string(), src));
     }
     out.sort();

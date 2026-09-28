@@ -9,7 +9,7 @@
     "crates/blue-lang-cli/Cargo.toml": "cab16f37a8d5ad1b0ff840f2309e860de53ff0b23f18d6901d8d6b165a73520b",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-lsp/Cargo.toml": "7cea9b882efc3a0b1797a901b76d87156088ac2eb644e94cf7f37f87e3ff1d3a",
-    "crates/blue-lang-pkg/Cargo.toml": "e3b778f9df35cc39de5f2a996d0aa4a276681138c03ff7f77911805de9c12dec",
+    "crates/blue-lang-pkg/Cargo.toml": "09b4a1af4488384286044c634e2d2788c0b18473ab9e10c722279f4ef7c3f8d4",
     "crates/blue-lang-proc/Cargo.toml": "f297f049a2eada7419858a3730f49f4477bd9f1156a137cfd5f48b3eee955267",
     "crates/blue-lang-runtime/Cargo.toml": "cdd30de0ce77e0dca21c105aa0c9dcaec18b85c3f3c9d912e9c04064ea6e33f1",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
@@ -6693,6 +6693,7 @@
     },
     "blue-lang-pkg-0.0.47": {
       "edition": "2021",
+      "build_script": "build.rs",
       "lib_target": {
         "name": "blue_lang_pkg",
         "path": "src/lib.rs"

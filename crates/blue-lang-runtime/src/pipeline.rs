@@ -188,6 +188,36 @@ pub fn run_in_surface(
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
 ) -> Result<Run, RunError> {
+    let prepared = prepare(entry, loader, surface)?;
+    let mut interp = crate::interpreter_hostless();
+    crate::inputs::install_input_primitives(&mut interp, inputs);
+    let value = eval_prepared(&mut interp, &prepared, &mut ())?;
+    Ok(Run {
+        value,
+        visited: prepared.visited,
+        typed_decls: prepared.typed_decls,
+        seams: prepared.seams,
+    })
+}
+
+/// A program past every stage before evaluation: parsed, its imports
+/// resolved, type-checked and erased. What [`run_in_surface`] and
+/// [`crate::hosted::load_hosted`] both evaluate, so the stage order this
+/// module exists to own is written once for both.
+pub(crate) struct Prepared {
+    program: crate::uses::ResolvedProgram,
+    erased: Vec<tatara_lisp::Spanned>,
+    visited: usize,
+    typed_decls: usize,
+    seams: usize,
+}
+
+/// Parse, resolve, check and erase, in that order.
+pub(crate) fn prepare(
+    entry: Entry<'_>,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+) -> Result<Prepared, RunError> {
     let forms = match surface {
         Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
             .map_err(|e| RunError::Parse(e.to_string()))?,
@@ -263,8 +293,24 @@ pub fn run_in_surface(
     // parser built, minus annotations, with the author's byte offsets intact.
     let erased = erase_types(program.forms());
 
-    let mut interp = crate::interpreter_hostless();
-    crate::inputs::install_input_primitives(&mut interp, inputs);
+    Ok(Prepared {
+        program,
+        erased,
+        visited: outcome.stats.visited,
+        typed_decls: outcome.stats.typed_decls,
+        seams: outcome.seams.len(),
+    })
+}
+
+/// Evaluate a prepared program's top-level forms into `interp`, with `host`.
+pub(crate) fn eval_prepared<H: 'static>(
+    interp: &mut tatara_lisp_eval::Interpreter<H>,
+    prepared: &Prepared,
+    host: &mut H,
+) -> Result<Value, RunError> {
+    let Prepared {
+        program, erased, ..
+    } = prepared;
 
     // RUN, one top-level form at a time, **counting them**.
     //
@@ -281,7 +327,7 @@ pub fn run_in_surface(
     // function still reporting a bare message.
     let mut value = Value::Nil;
     for (top_level, form) in erased.iter().enumerate() {
-        value = interp.eval_top_form(form, &mut ()).map_err(|e| {
+        value = interp.eval_top_form(form, host).map_err(|e| {
             // `span()` is `None` for the arms that genuinely have no position
             // (`Reader`, `Halted`, `NotImplemented`). Synthetic is the honest
             // stand-in — `locate` renders it as a file with no line rather
@@ -305,13 +351,7 @@ pub fn run_in_surface(
             RunError::Eval(program.locate(top_level, at, &message).to_string())
         })?;
     }
-
-    Ok(Run {
-        value,
-        visited: outcome.stats.visited,
-        typed_decls: outcome.stats.typed_decls,
-        seams: outcome.seams.len(),
-    })
+    Ok(value)
 }
 
 /// **A runtime error names a place.** The gates for the last stage that

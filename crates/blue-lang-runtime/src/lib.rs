@@ -34,6 +34,7 @@
 pub mod crypto;
 pub mod domain;
 pub mod erase;
+pub mod hosted;
 pub mod inputs;
 pub mod json;
 pub mod pipeline;

@@ -54,19 +54,21 @@ def pow(base, exp)
   end
 end
 
+# By the remainder, like `odd`. It was `n - n / 2 * 2 == 0`, which is right only
+# while `/` truncates: `/` is float division (okite D0008), so for 3 that is
+# `3 - 1.5 * 2`, `0.0`, and it read as odd ONLY because `0.0 == 0` was false.
+# Value equality (D0001) made even(3) true, and every determinant's cofactor
+# signs with it (gyouretsu, 2026-09-27).
 def even(n)
-  n - n / 2 * 2 == 0
+  n % 2 == 0
 end
 
-# Approximate equality, for the float results `sqrt` and friends return.
+# Approximate equality, for results that carry rounding error (0.1 + 0.2).
 #
-# Needed because this runtime does not equate across numeric kinds:
-#
-#   sqrt(25) == 5     => false      -- Float(5.0) vs Int(5)
-#
-# So an exact `==` against an integer literal fails for every root, mean or
-# ratio, and a caller who writes the obvious assertion gets a false negative.
-# Comparing by distance is the standard answer and the honest one.
+# Numbers compare by value across kinds (okite D0001), so `sqrt(25) == 5` holds
+# and `near` is not needed for that; until 2026-09-27 it was, which is why this
+# was written. Comparing by distance stays the answer where the float math
+# itself is inexact.
 def near(a, b)
   near_within(a, b, 0.000001)
 end
@@ -82,21 +84,15 @@ end
 
 # --- predicates -------------------------------------------------------------
 
-# Odd via the remainder rather than `!even(n)`, because blue's `%` is Euclidean
-# (see mod_positive) and so `n % 2` is 1 for a negative odd number too. The
-# subtraction `even` uses happens to agree; the tests below pin that agreement
-# so a change to either is caught rather than assumed.
+# Odd via the remainder: blue's `%` is Euclidean (see mod_positive), so `n % 2`
+# is 1 for a negative odd number too, and `even` asks the same remainder. The
+# tests pin that the two agree.
 def odd(n)
   n % 2 == 1
 end
 
-# Zero by ordering, NOT by `n == 0`.
-#
-# This runtime does not equate across numeric kinds, so `sqrt(0) == 0` is false
-# — Float(0.0) against Int(0). Every value that reached here through a `sqrt`,
-# a division or a mean would therefore be reported non-zero while being zero.
-# `<` and `>` DO compare across kinds, so asking "neither below nor above" is
-# the kind-blind question and the one a caller means.
+# Zero by ordering. Since okite D0001 `n == 0` is the same question (a float
+# zero equals an int zero); this stays, as vocabulary, and agrees with it.
 def is_zero(n)
   !(n < 0) && !(n > 0)
 end
@@ -321,7 +317,7 @@ test "pow and even"
   assert even(0) == true
 end
 
-test "near bridges the int/float divide that == does not"
+test "near: equality within rounding error"
   assert near(sqrt(25), 5) == true
   assert near(sqrt(16), 4) == true
   assert near(1, 2) == false
@@ -342,12 +338,12 @@ test "odd agrees with even, including where the two implementations differ"
   assert odd(-4) == !even(-4)
 end
 
-test "is_zero sees a float zero that == does not"
+test "is_zero agrees with == 0, float zeros included"
   assert is_zero(0) == true
   assert is_zero(1) == false
   assert is_zero(-1) == false
-  # The whole reason is_zero is not `n == 0`: this runtime says otherwise.
-  assert sqrt(0) == 0 == false
+  assert sqrt(0) == 0
+  assert is_zero(sqrt(0)) == (sqrt(0) == 0)
   assert is_zero(sqrt(0)) == true
   assert is_zero(0.0) == true
 end

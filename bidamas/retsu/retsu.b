@@ -299,9 +299,10 @@ test "index_of and contains find the last of a long list, and read nil as empty"
   assert contains(xs, 20000) == false
   assert index_of(nil, 1) == -1
   assert contains(nil, 1) == false
-  # Equality is `==`: lists by value, and a float is not an int.
+  # Equality is `==` (okite D0001, D0003): lists by value, numbers by value.
   assert contains([[1, 2]], [1, 2]) == true
-  assert contains([1.0], 1) == false
+  assert contains([1.0], 1) == true
+  assert contains([{a: 1}], {a: 1}) == true
 end
 
 test "contains, count_of and without"
@@ -641,12 +642,9 @@ end
 # ---------------------------------------------------------------------------
 # Comparison.
 
-# Element-wise equality that treats the two empties as one.
-#
-# `==` on lists is structural and works, so this is not a reimplementation of
-# it — it exists because `cdr([1]) == []` is FALSE, so any comparison against a
-# computed tail is wrong at exactly the recursion's base case. Anything built
-# out of `rest`/`take_n`/`drop_n` should be compared with this, not with `==`.
+# Element-wise equality. Written when `cdr([1]) == []` was false (a computed
+# tail was nil); since okite D0011 the empty list is always [], so this agrees
+# with `==` everywhere and stays as vocabulary. Prefer `==`.
 def equal_lists(a, b)
   if is_empty(a) || is_empty(b)
     is_empty(a) && is_empty(b)
@@ -685,9 +683,10 @@ def flatten_n(xss, depth)
   end
 end
 
-test "equal_lists equates the two empties, which == does not"
-  # The whole reason this is not just `==`.
-  assert cdr([1]) == [] == false
+test "equal_lists agrees with ==, the empty lists included"
+  # Since okite D0011 `cdr([1])` is [] rather than nil, so == already equates
+  # them; equal_lists stays, as vocabulary, and agrees.
+  assert cdr([1]) == []
   assert equal_lists(cdr([1]), []) == true
   assert equal_lists([], []) == true
   assert equal_lists([1, 2], [1, 2]) == true

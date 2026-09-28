@@ -658,6 +658,16 @@ pub fn set_program_args(args: Vec<String>) {
     let _ = PROGRAM_ARGS.set(args);
 }
 
+/// The blue CLI's own executable, when a program runs under it.
+static BLUE_EXE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Record the blue CLI's path for `self_exe`. The CLI calls this once at
+/// startup; an embedder that is not the CLI (a test harness, a host linking the
+/// runtime) never does, and `self_exe` is then nil. Only the first call counts.
+pub fn set_blue_exe(path: String) {
+    let _ = BLUE_EXE.set(path);
+}
+
 /// The arguments `argv` answers with: those the embedder named, or else the
 /// process's own after argv[0], as before `set_program_args` existed.
 fn program_args() -> Vec<String> {
@@ -710,17 +720,21 @@ fn install_env<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
-    // The running interpreter's own executable, absolute. A blue program that
-    // runs blue (heni's mutation runs, a test harness) spawns THIS binary
-    // rather than whatever `blue` a PATH lookup finds, which in a nix sandbox
-    // is none. A process fact only the runtime knows, so it is Rust (2026-09-27).
+    // The blue CLI running this program, absolute, or nil when the program is
+    // not running under the CLI. A blue program that runs blue (heni's mutation
+    // runs) spawns THIS binary rather than whatever `blue` a PATH lookup finds,
+    // which in a nix sandbox is none. It was `current_exe()` for a day: under
+    // cargo's test harness that is the TEST BINARY, so heni's own test spawned
+    // `<harness> test <file>`, which re-ran the whole distribution suite inside
+    // itself and hung (eight processes at 0% CPU, 2026-09-27). The CLI now
+    // names itself (`set_blue_exe`); nil is the typed absence everywhere else.
     interp.register_fn(
         "self_exe",
         Arity::Exact(0),
-        |_args: &[Value], _h: &mut H, span| {
-            let p = std::env::current_exe()
-                .map_err(|e| EvalError::native_fn("self_exe", e.to_string(), span))?;
-            Ok(Value::Str(Arc::from(p.to_string_lossy().into_owned())))
+        |_args: &[Value], _h: &mut H, _span| {
+            Ok(BLUE_EXE
+                .get()
+                .map_or(Value::Nil, |p| Value::Str(Arc::from(p.as_str()))))
         },
     );
 

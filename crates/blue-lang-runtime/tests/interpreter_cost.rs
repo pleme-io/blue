@@ -51,19 +51,34 @@ fn interpreter_hostless_forks_rather_than_rebuilding() {
     // Untimed warm pass so neither arm pays first-touch cost.
     let _ = blue_lang_runtime::interpreter_hostless();
 
+    // Each arm is the MINIMUM over several rounds of n: load (another build,
+    // another test binary) only ever adds time, so the minimum is the cost the
+    // code itself has. A single round flaked under a busy machine on 2026-09-27
+    // (one red in three) while the ratio it measures was unchanged.
     let n = 20;
-    let t = Instant::now();
-    for _ in 0..n {
-        let _ = blue_lang_runtime::interpreter_hostless();
-    }
-    let forked = t.elapsed() / n;
+    let rounds = 5;
+    let forked = (0..rounds)
+        .map(|_| {
+            let t = Instant::now();
+            for _ in 0..n {
+                let _ = blue_lang_runtime::interpreter_hostless();
+            }
+            t.elapsed() / n
+        })
+        .min()
+        .expect("rounds > 0");
 
-    let t = Instant::now();
-    for _ in 0..n {
-        let mut i: Interpreter<()> = Interpreter::new();
-        install_full_stdlib_with(&mut i, &mut ());
-    }
-    let rebuilt = t.elapsed() / n;
+    let rebuilt = (0..rounds)
+        .map(|_| {
+            let t = Instant::now();
+            for _ in 0..n {
+                let mut i: Interpreter<()> = Interpreter::new();
+                install_full_stdlib_with(&mut i, &mut ());
+            }
+            t.elapsed() / n
+        })
+        .min()
+        .expect("rounds > 0");
 
     assert!(
         forked * 20 < rebuilt,

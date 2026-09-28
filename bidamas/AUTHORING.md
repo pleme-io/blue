@@ -7,6 +7,11 @@ instead of once per package.
 
 Run anything you doubt: `BLUE_PATH=$PWD blue run file.b`.
 
+**Read [`okite/RULES.md`](./okite/RULES.md) first.** It is the whole of blue's
+behaviour beyond "values act like Ruby's", one line per rule, and every line is
+enforced by laws in okite, so it cannot go stale. This file is what is left:
+traps not yet decided. Each one fixed becomes a rule there and leaves here.
+
 ---
 
 ## The one that breaks structural recursion
@@ -79,31 +84,16 @@ split("a-b", "-")                        => ["a","b"] # STRING first
 
 ## Numbers
 
-**`/` is float division, and a float never equals an int.**
+**`/` is float division (okite D0008), and numbers compare by value (D0001).**
 
 ```
 7 / 2               => 3.5
-sqrt(25) == 5       => false      # Float(5.0) vs Int(5)
-near(sqrt(25), 5)   => true       # kazu
+sqrt(25) == 5       => true       # 5.0 == 5 (until 2026-09-27: false)
+4 == 4.0            => true
 ```
 
-Use `kazu`'s `near(a, b)` for anything that has been through `sqrt`. Use
-`floor(n / 2)` where you want integer division.
-
-**But the rule above is only half true, and the false half is the dangerous
-one.** Division NORMALISES to `Int` when it divides exactly, while `sqrt` never
-does:
-
-```
-6 / 3 == 2          => true       # exact division comes back Int
-(0 - 6) / 3 == 0-2  => true
-sqrt(16) == 4       => FALSE      # sqrt always returns Float
-sqrt(0) == 0        => FALSE      # so even zero fails the obvious check
-```
-
-`sqrt(0) == 0` being false is a live trap: it breaks `n == 0` for any value that
-came through a root. Comparison operators (`<`, `>`) DO work across numeric
-kinds, which is the escape hatch.
+Use `floor(n / 2)` where you want integer division, and `kazu`'s `near(a, b)`
+only where rounding error is real (0.1 + 0.2), not to compare an Int with a Float.
 
 **`%` and `modulo` are EUCLIDEAN, not truncating** — the result is never
 negative, which is the opposite of C, Rust, JS and Ruby:
@@ -215,16 +205,12 @@ the sentence that says what a function is for right above it.
   must be tested returns them as DATA too (`kueri`'s `q_refusals` gives
   `[kind, why]`, `q_check` throws the same list), and its tests assert the
   kinds on the data and `error?` on the throw (measured 2026-09-23).
-- **Maps compare by identity.** `{a: 1} == {a: 1}` is false, while lists
-  compare by value. Compare what a map renders to, or its fields. There is no
-  `map?`, and `keys` and `merge` are unbound; `assoc` works.
-- **`to_s` of ANY map is the word `"map"`**, so it must never be what you
-  hash, key on or compare: every map would collide. `json_stringify(m)` is the
-  canonical text, keys sorted, the same whichever order the map was built in
-  (measured 2026-09-27, when a part's release hash came out identical for every
-  part; nupastel's `fr_source_hash` carries the control test).
-- **`to_s` drops a float's point:** `to_s(1.0)` is `"1"`. Anything emitting a
-  typed literal must add it back (`kueri`'s `q_float_text`).
+- **Maps compare by value** (okite D0001): `{a: 1} == {a: 1}`, whatever order
+  the entries were added in. Until 2026-09-27 they compared by identity.
+- **`to_s` of a list or map is its blue literal** (D0006): `[1, "a"]`,
+  `{a: 1}`, keys sorted, so equal maps render equally and hashing
+  `json_stringify(m)` or `to_s(m)` both work. It was the word `"map"`.
+- **`to_s` keeps a float's point** (D0005): `to_s(1.0)` is `"1.0"`.
 - **`some` is a builtin; `any` and `every` are `ronri`'s.** Reaching them
   through a transitive import works until the import changes.
 - **There is no postfix indexing.** `xs[0]` is a parse error, and `f(x)[1]`
@@ -237,8 +223,7 @@ the sentence that says what a function is for right above it.
 - **`glob` of an ABSOLUTE pattern returns `()`** while `walk_dir` of the same
   root lists every file. Walk and filter with `ends_with?`, and give any scan
   a positive control so a silent zero is a failure.
-- **`concat` takes exactly two arguments** (an arity error on three); use
-  interpolation. `each`, `len` and `map_indexed` are unbound: `map` (for its
+- **`concat` takes any number of arguments** (D0007). `each`, `len` and `map_indexed` are unbound: `map` (for its
   effects too), `size` or `length`, and retsu's `enumerate` (`[[i, x], …]`)
   (measured 2026-09-27, writing `heni`).
 - **A command's output is what it writes.** `write_stdout`/`write_stderr` write

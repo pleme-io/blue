@@ -145,6 +145,14 @@ def hn_run(spec)
     get(spec, :test)
   end
   blue = get(spec, :blue)
+  if blue == nil
+    throw(
+      error(
+        :heni_no_blue,
+        "heni runs each mutation's tests with the blue CLI, and none is running this program (self_exe() is nil); run heni through blue, or pass --blue"
+      )
+    )
+  end
   tmp = get(spec, :tmp)
   control_root = hn_fresh(pkg, tmp, "control")
   control = hn_status(hn_test(blue, control_root, name, test_file))
@@ -326,7 +334,32 @@ test "arguments"
   assert hn_package_name("/a/b/kazu/") == "kazu"
 end
 
+test "without a blue CLI, heni refuses rather than spawning its host"
+  refused = try(
+    hn_run(
+      {
+        package: "/nonexistent",
+        mutations: [],
+        blue: nil,
+        test: nil,
+        tmp: "/tmp"
+      }
+    ),
+    catch(e(), :refused)
+  )
+  assert refused == :refused
+end
+
+# Under the blue CLI (`blue test`, the nix bidama gate) this runs for real.
+# Embedded in another host (cargo's harness), self_exe() is nil and the test
+# above covers the refusal instead: spawning the host would re-run it.
 test "a run end to end: a caught mutation, a survivor, a refusal"
+  if self_exe() != nil
+    hn_end_to_end()
+  end
+end
+
+def hn_end_to_end()
   tmp = path_join(getenv("TMPDIR", "/tmp"), "heni-self-#{to_s(now_ms())}")
   pkg = path_join(tmp, "hnprobe")
   mkdir_p(pkg)
@@ -373,4 +406,5 @@ test "a run end to end: a caught mutation, a survivor, a refusal"
   assert get(bad, :control) != 0
   assert is_empty(get(bad, :results)) == true
   rm_rf(tmp)
+  true
 end

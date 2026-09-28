@@ -49,17 +49,119 @@ fn as_str(v: &Value, span: tatara_lisp::Span) -> Result<String, EvalError> {
     }
 }
 
-/// Render any value as text — blue's `to_s`.
+/// blue's one equality — what `==`, `!=`, `contains`, `index_of`, `count_of`
+/// and `distinct` all mean (okite D0001–D0003).
+///
+/// Ruby's answer: numbers compare by value across Int and Float (`4 == 4.0`),
+/// strings, symbols and keywords by text (each only with its own kind), lists
+/// element by element, maps by their entries whatever order they were built in,
+/// nil only with nil (not with `[]`, D0004), functions by identity. Until
+/// 2026-09-27 `==` was tatara's Scheme `equal?`, under which `4 == 4.0` was
+/// false and two equal maps were unequal unless they were the same object.
+/// tatara keeps Scheme's `equal?` for its own programs; blue redefines the
+/// name in its interpreter, and tatara's own `member?`, `position` and
+/// `distinct` call `equal?` by name, so they follow.
+pub fn blue_equal(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Nil, Value::Nil) => true,
+        (Value::Bool(x), Value::Bool(y)) => x == y,
+        (Value::Int(x), Value::Int(y)) => x == y,
+        (Value::Float(x), Value::Float(y)) => x == y,
+        (Value::Int(x), Value::Float(y)) | (Value::Float(y), Value::Int(x)) => (*x as f64) == *y,
+        (Value::Str(x), Value::Str(y))
+        | (Value::Symbol(x), Value::Symbol(y))
+        | (Value::Keyword(x), Value::Keyword(y)) => x == y,
+        (Value::List(x), Value::List(y)) => {
+            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| blue_equal(p, q))
+        }
+        (Value::Map(x), Value::Map(y)) => {
+            x.len() == y.len()
+                && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| blue_equal(v, w)))
+        }
+        (Value::Closure(x), Value::Closure(y)) => std::sync::Arc::ptr_eq(x, y),
+        (Value::NativeFn(x), Value::NativeFn(y)) => x.name == y.name,
+        (Value::Sexp(x, _), Value::Sexp(y, _)) => x == y,
+        _ => false,
+    }
+}
+
+/// `to_s` (okite D0005, D0006): text for a person. A string, symbol or keyword
+/// is its own text and nil is empty, as in Ruby; every other value is its blue
+/// literal. Until 2026-09-27 a map rendered as the word `map`, a list lost its
+/// brackets (`[1, {a: 2}]` came out `1 map`) and `1.0` came out `1`.
 fn render(v: &Value) -> String {
     match v {
         Value::Nil => String::new(),
+        Value::Str(s) | Value::Symbol(s) | Value::Keyword(s) => s.to_string(),
+        other => literal(other),
+    }
+}
+
+/// A value as blue source writes it: `[1, "a", nil]`, `{a: 1, b: 2.0}`.
+/// Map entries are sorted by key, since a map has no order of its own and the
+/// text must be the same for equal maps (D0006).
+fn literal(v: &Value) -> String {
+    match v {
+        Value::Nil => "nil".into(),
         Value::Bool(b) => b.to_string(),
         Value::Int(n) => n.to_string(),
-        Value::Float(x) => x.to_string(),
-        Value::Str(s) | Value::Symbol(s) | Value::Keyword(s) => s.to_string(),
-        Value::List(items) => items.iter().map(render).collect::<Vec<_>>().join(" "),
+        Value::Float(x) => float_text(*x),
+        Value::Str(s) => quoted(s),
+        Value::Symbol(s) => s.to_string(),
+        Value::Keyword(s) => format!(":{s}"),
+        Value::List(items) => {
+            let parts: Vec<String> = items.iter().map(literal).collect();
+            format!("[{}]", parts.join(", "))
+        }
+        Value::Map(m) => {
+            let mut entries: Vec<String> = m
+                .iter()
+                .map(|(k, v)| format!("{} {}", key_text(k), literal(v)))
+                .collect();
+            entries.sort();
+            format!("{{{}}}", entries.join(", "))
+        }
         other => other.type_name().to_string(),
     }
+}
+
+/// A map key as it is written before its value: `a:` for a keyword or symbol,
+/// `"a" =>` / `1 =>` for anything else.
+fn key_text(k: &tatara_lisp_eval::value::MapKey) -> String {
+    use tatara_lisp_eval::value::MapKey;
+    match k {
+        MapKey::Keyword(s) | MapKey::Symbol(s) => format!("{s}:"),
+        MapKey::Str(s) => format!("{} =>", quoted(s)),
+        MapKey::Int(n) => format!("{n} =>"),
+        MapKey::Float(bits) => format!("{} =>", float_text(f64::from_bits(*bits))),
+        MapKey::Bool(b) => format!("{b} =>"),
+        MapKey::Nil => "nil =>".into(),
+    }
+}
+
+/// A float keeps its point, as in Ruby: `1.0`, `2.5`.
+fn float_text(x: f64) -> String {
+    if x.is_finite() && x.fract() == 0.0 && x.abs() < 1e16 {
+        format!("{x:.1}")
+    } else {
+        format!("{x}")
+    }
+}
+
+fn quoted(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 fn list(items: Vec<Value>) -> Value {
@@ -97,14 +199,73 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         Ok(Value::Str(as_str(&a[0], s)?.trim().into()))
     });
 
-    // `concat(a, b)` — two-arg so it composes; `+` stays arithmetic. Ruby
-    // overloads `+` on String, but blue's `+` lowers to tatara's numeric `+`,
-    // and silently making it polymorphic would make a type error at a seam
-    // disappear into a string.
-    interp.register_fn("concat", Arity::Exact(2), |a: &[Value], _h: &mut H, _s| {
-        let mut out = render(&a[0]);
-        out.push_str(&render(&a[1]));
-        Ok(Value::Str(out.into()))
+    // `concat(a, …)` joins the text of one or more arguments, left to right
+    // (okite D0007; Ruby's String#concat takes many). Two-only until
+    // 2026-09-27, which made `concat(a, b, c)` an arity error. `+` stays
+    // arithmetic: Ruby overloads `+` on String, but blue's `+` lowers to
+    // tatara's numeric `+`, and making it polymorphic would make a type error
+    // at a seam disappear into a string.
+    interp.register_fn("concat", Arity::AtLeast(1), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Str(a.iter().map(render).collect::<String>().into()))
+    });
+
+    // ── equality and kinds (okite D0001–D0004, D0010) ─────────────────────
+    //
+    // `==` lowers to `equal?` and `!=` to `not=`; both are redefined here so
+    // blue's interpreter has one equality. See `blue_equal`.
+    interp.register_fn("equal?", Arity::Exact(2), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Bool(blue_equal(&a[0], &a[1])))
+    });
+    interp.register_fn("not=", Arity::Exact(2), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Bool(!blue_equal(&a[0], &a[1])))
+    });
+
+    // One predicate per kind, and exactly one holds of any value (D0010).
+    // tatara's `nil?` is its Scheme alias for `null?`, true of `[]` as well,
+    // and its `list?` is true of nil; blue's nil is absent and `[]` is an empty
+    // list (D0004), so blue redefines both. tatara's own library ends its
+    // recursion with `null?`, which is untouched.
+    interp.register_fn("nil?", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Bool(matches!(a[0], Value::Nil)))
+    });
+    interp.register_fn("list?", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Bool(matches!(a[0], Value::List(_))))
+    });
+    interp.register_fn("map?", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Bool(matches!(a[0], Value::Map(_))))
+    });
+    interp.register_fn("float?", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Bool(matches!(a[0], Value::Float(_))))
+    });
+    interp.register_fn("bool?", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
+        Ok(Value::Bool(matches!(a[0], Value::Bool(_))))
+    });
+
+    // The empty list is always `[]`, never nil (D0011). tatara's `cdr` (and so
+    // `rest`, which is `cdr`) and `append` returned nil for an empty result,
+    // Scheme's convention, which under D0004 made `rest([1]) == []` false.
+    // Same contracts otherwise: `cdr` of an empty list is still an error.
+    interp.register_fn("cdr", Arity::Exact(1), |a: &[Value], _h: &mut H, span| {
+        match &a[0] {
+            Value::List(xs) if !xs.is_empty() => Ok(list(xs[1..].to_vec())),
+            Value::Nil | Value::List(_) => Err(EvalError::native_fn(
+                std::sync::Arc::<str>::from("cdr"),
+                "cdr of empty list",
+                span,
+            )),
+            other => Err(EvalError::type_mismatch("pair", other.type_name(), span)),
+        }
+    });
+    interp.register_fn("append", Arity::Any, |a: &[Value], _h: &mut H, span| {
+        let mut out = Vec::new();
+        for v in a {
+            match v {
+                Value::Nil => {}
+                Value::List(xs) => out.extend(xs.iter().cloned()),
+                other => return Err(EvalError::type_mismatch("list", other.type_name(), span)),
+            }
+        }
+        Ok(list(out))
     });
 
     interp.register_fn("split", Arity::Exact(2), |a: &[Value], _h: &mut H, s| {
@@ -113,6 +274,11 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         // An empty separator splits into characters, as Ruby's `split("")`
         // does. Rust's `split("")` yields leading/trailing empties instead,
         // which is the wrong answer here.
+        // Every field is kept: n separators give n + 1 fields, so `join` undoes
+        // `split` exactly (okite D0012). A deliberate deviation from Ruby, which
+        // drops trailing empty fields: tried on 2026-09-27, it broke nisshi's
+        // hash chain, kueri's scripts and moji's `lines`, because a parser whose
+        // split loses a field loses data and still reports success.
         let parts: Vec<Value> = if sep.is_empty() {
             text.chars()
                 .map(|c| Value::Str(c.to_string().into()))

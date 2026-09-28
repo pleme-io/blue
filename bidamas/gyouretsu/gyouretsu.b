@@ -188,10 +188,8 @@ end
 
 # --- matrix comparison -------------------------------------------------------
 
-# `==` already compares nested lists structurally, so this is not a re-spelling
-# of it: `map` over an empty `range` yields nil, `[] == nil` is false, and two
-# 0-by-0 matrices built by different routes therefore compare unequal. Comparing
-# by shape and index makes both empties the same empty.
+# Since okite D0001 and D0011 this agrees with `==` on every matrix (the empty
+# matrix is always []); it stays, as vocabulary, comparing by shape and index.
 def matrix_equal(a, b)
   if shape(a) == shape(b)
     reduce(
@@ -518,12 +516,12 @@ test "normalize gives a unit vector, and leaves the zero vector alone"
   assert is_zero_vector([0, 0, 0]) == true
 end
 
-test "vector_near is not vector equality"
-  # Measured: `6 / 2` comes back as Int(3), so an exact division does NOT force
-  # the float path — but `sqrt` always does. Scaling by a root therefore makes
-  # `==` against the integer literal false while the vectors are the same
-  # vector, which is the whole reason vector_near exists.
-  assert scale(sqrt(4), [1, 2]) == [2, 4] == false
+test "vector_near: vectors equal within rounding error"
+  # Since okite D0001 an exact root compares equal to the integer literal, so
+  # vector_near is for inexact float math, not for crossing numeric kinds.
+  assert scale(sqrt(4), [1, 2]) == [2, 4]
+  assert vector_near([0.1 + 0.2], [0.3]) == true
+  assert [0.1 + 0.2] == [0.3] == false
   assert vector_near(scale(sqrt(4), [1, 2]), [2, 4]) == true
   assert vector_near([1, 2], [1, 2, 3]) == false
   assert vector_near([], []) == true
@@ -617,21 +615,22 @@ test "shape and squareness survive the empty matrix"
   assert row([[1, 2], [3, 4]], 1) == [3, 4]
 end
 
-test "matrix_equal identifies the two empties that == keeps apart"
-  # Measured: `cdr` and `range(0, 0)` produce nil, `map` produces []. A matrix
-  # whose rows have all been walked off is therefore not `==` to the empty
-  # matrix even though both hold no rows.
+test "matrix_equal agrees with == on every matrix, the empty ones included"
+  # Since okite D0011 no list operation yields nil for an empty result, so the
+  # two empties this test once kept apart are one value.
   e = cdr([[1, 2]])
-  assert e == [] == false
+  assert e == []
   assert matrix_equal(e, []) == true
   assert matrix_equal([[1, 2]], [[1, 2]]) == true
   assert matrix_equal([[1, 2]], [[1, 3]]) == false
   assert matrix_equal([[1, 2]], [[1, 2], [3, 4]]) == false
 end
 
-test "matrix_near tolerates the float path matrix_equal rejects"
+test "matrix_near tolerates rounding error that matrix_equal does not"
   m = mscale(sqrt(4), [[1, 2], [3, 4]])
-  assert matrix_equal(m, [[2, 4], [6, 8]]) == false
+  assert matrix_equal(m, [[2, 4], [6, 8]])
+  assert matrix_equal([[0.1 + 0.2]], [[0.3]]) == false
+  assert matrix_near([[0.1 + 0.2]], [[0.3]]) == true
   assert matrix_near(m, [[2, 4], [6, 8]]) == true
   assert matrix_near([[1]], [[1, 2]]) == false
 end

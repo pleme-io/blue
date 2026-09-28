@@ -304,6 +304,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // and the pipeline's own lesson (one place owns the order) applies to the
     // bounds the pipeline runs under just as much.
     let cfg = config::resolve();
+    // `self_exe` answers with THIS binary only because it is the blue CLI;
+    // any other embedder leaves it nil (blue_lang_runtime::sys::set_blue_exe).
+    if let Ok(me) = std::env::current_exe() {
+        blue_lang_runtime::sys::set_blue_exe(me.to_string_lossy().into_owned());
+    }
     match cli.cmd {
         Cmd::Run { file, inputs, quiet, args } => {
             blue_lang_runtime::sys::set_program_args(args);

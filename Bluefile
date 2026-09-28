@@ -29,3 +29,5 @@ tool("duckdb")
 # kigou's character tables: authored in blue, rendered into blue-lang-syntax's
 # Rust by the `sabi` bidama.
 generate("kigou-tables", "crates/blue-lang-syntax/src/kigou/tables.rs", "crates/blue-lang-syntax/gen/kigou.b")
+generate("okite-rules", "bidamas/okite/RULES.md", "gen/okite-rules.b")
+check("okite-laws", "gen/okite-laws.b")

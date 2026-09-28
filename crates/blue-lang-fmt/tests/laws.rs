@@ -196,10 +196,11 @@ fn every_corpus_entry_parses() {
 
 /// There is no configuration surface. This is a compile-time fact — the
 /// crate exposes no config type — and this test records the intent so a
-/// future addition has to delete it deliberately.
+/// future addition has to delete it deliberately. 80 since 2026-09-27; it was
+/// 90, and 44 formatted lines in the repository ran past 80.
 #[test]
 fn width_is_a_constant_not_a_parameter() {
-    assert_eq!(blue_lang_fmt::WIDTH, 90);
+    assert_eq!(blue_lang_fmt::WIDTH, 80);
 }
 
 /// **The inverse lowering must be a function.** The formatter maps a callee
@@ -420,12 +421,20 @@ fn no_comment_is_lost() {
     }
 }
 
-/// **A comment inside a form is REFUSED, not dropped.** Those lines have been
-/// re-laid out and there is no line left to attach it to. Naming the line is
-/// what makes the refusal actionable.
+/// **A comment inside a body is PLACED.** It used to be refused — every
+/// comment inside a `def` — which refused 31 of the repository's 52 files on
+/// 2026-09-27. The spanned tree says where it sat, so it goes back there.
 #[test]
-fn a_comment_inside_a_form_is_refused_with_its_line() {
+fn a_comment_inside_a_body_is_placed_where_it_sat() {
     let src = "def f(x)\n  # inside the body\n  x\nend\n";
+    assert_eq!(format_source_lossless(src).expect("placed"), src);
+}
+
+/// **A comment with no line of its own is REFUSED, not dropped**, and the
+/// refusal names its line so the author can find it.
+#[test]
+fn a_comment_with_no_line_is_refused_with_its_line() {
+    let src = "y = 1\nx = # no line once re-laid out\n  5\n";
     let err = format_source_lossless(src).expect_err("must refuse");
     match err {
         FormatError::UnplaceableComments { count, ref lines } => {
@@ -549,4 +558,136 @@ fn interpolation_renders_as_interpolation() {
 fn a_hand_written_concat_stays_a_call() {
     let out = format_source("concat(\"a\", \"b\")").expect("fmt");
     assert!(out.contains("concat("), "got {out}");
+}
+
+// ---------------------------------------------------------------------------
+// The layout laws over GENERATED programs
+//
+// The snippets above are short, and the repository corpus (tests/corpus.rs) is
+// what people happened to write. Neither reaches the widths where layout goes
+// wrong: a call nested four deep with 17-letter names, a lambda inside a map
+// inside a list. These generate them — valid programs with random nesting,
+// name lengths and comments — and hold every law over each.
+// ---------------------------------------------------------------------------
+
+mod common;
+
+use proptest::prelude::*;
+
+fn ident() -> impl Strategy<Value = String> {
+    "[a-z][a-z_]{0,17}".prop_filter("not a reserved word", |s| {
+        !blue_lang_syntax::is_reserved_word(s)
+    })
+}
+
+/// A random valid expression, as source.
+fn expr_src() -> impl Strategy<Value = String> {
+    let leaf = prop_oneof![
+        ident(),
+        (0i64..100_000).prop_map(|n| n.to_string()),
+        "[a-z ]{0,30}".prop_map(|s| format!("\"{s}\"")),
+    ];
+    leaf.prop_recursive(4, 48, 6, |inner| {
+        prop_oneof![
+            (ident(), prop::collection::vec(inner.clone(), 0..6))
+                .prop_map(|(f, args)| format!("{f}({})", args.join(", "))),
+            prop::collection::vec(inner.clone(), 0..6)
+                .prop_map(|xs| format!("[{}]", xs.join(", "))),
+            prop::collection::vec((ident(), inner.clone()), 1..5).prop_map(|kvs| {
+                let kvs: Vec<String> = kvs.into_iter().map(|(k, v)| format!("{k}: {v}")).collect();
+                format!("{{{}}}", kvs.join(", "))
+            }),
+            (
+                inner.clone(),
+                prop::sample::select(vec!["+", "-", "*", "&&", "||", "==", "<"]),
+                inner.clone()
+            )
+                .prop_map(|(a, op, b)| format!("({a} {op} {b})")),
+            (ident(), inner.clone()).prop_map(|(x, b)| format!("fn({x}) {b} end")),
+        ]
+    })
+}
+
+/// A program: a def whose body binds and returns generated expressions,
+/// with comments dropped onto random lines — trailing, or on their own line.
+fn program_src() -> impl Strategy<Value = (String, Vec<(usize, bool)>)> {
+    (
+        ident(),
+        prop::collection::vec((ident(), expr_src()), 1..4),
+        expr_src(),
+        prop::collection::vec((0usize..64, any::<bool>()), 0..4),
+    )
+        .prop_map(|(name, binds, last, notes)| {
+            let mut src = format!("def {name}(a, b)\n");
+            for (x, e) in binds {
+                src.push_str(&format!("  {x} = {e}\n"));
+            }
+            src.push_str(&format!("  {last}\nend\n"));
+            (src, notes)
+        })
+}
+
+/// Put comments into already-formatted text: a trailing `# nK` at the end of
+/// line K, or an own-line `# nK` above it. Only between lines, so the result
+/// still parses to the same tree.
+fn with_comments(src: &str, notes: &[(usize, bool)]) -> String {
+    let mut lines: Vec<String> = src.lines().map(str::to_string).collect();
+    for (k, (at, trailing)) in notes.iter().enumerate() {
+        let i = at % lines.len().max(1);
+        if *trailing {
+            lines[i].push_str(&format!(" # n{k}"));
+        } else {
+            let indent: String = lines[i].chars().take_while(|c| *c == ' ').collect();
+            lines.insert(i, format!("{indent}# n{k}"));
+        }
+    }
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+    /// Width, idempotence and round-trip over generated programs.
+    #[test]
+    fn generated_programs_obey_every_layout_law((src, _) in program_src()) {
+        let before = parse_program(&src).expect("the generator emits valid blue");
+        let once = format_source(&src).expect("format");
+        prop_assert_eq!(&parse_program(&once).expect("output parses"), &before);
+        prop_assert_eq!(&format_source(&once).expect("reformat"), &once);
+        for line in once.lines() {
+            prop_assert!(
+                line.chars().count() <= common::WIDTH || common::lawful_overflow(line),
+                "line past the width with a break available:\n{}\n--- in ---\n{}",
+                line,
+                once
+            );
+        }
+    }
+
+    /// Comments dropped between any two lines the formatter emitted survive,
+    /// in order, and the result is idempotent. Every such line is a line of a
+    /// laid-out sequence, so none may be refused.
+    #[test]
+    fn generated_comments_are_kept_in_order((src, notes) in program_src()) {
+        let base = format_source(&src).expect("format");
+        let commented = with_comments(&base, &notes);
+        let texts = |s: &str| -> Vec<String> {
+            blue_lang_syntax::comments(s).into_iter().map(|c| c.text).collect()
+        };
+        match format_source_lossless(&commented) {
+            Ok(once) => {
+                prop_assert_eq!(texts(&once), texts(&commented));
+                prop_assert_eq!(
+                    parse_program(&once).expect("output parses"),
+                    parse_program(&commented).expect("input parses")
+                );
+                prop_assert_eq!(format_source_lossless(&once).expect("reformat"), once);
+            }
+            // Every line the formatter itself emits is a line a comment can
+            // sit on, so here a refusal is a placement bug, not a limit.
+            Err(e) => prop_assert!(false, "refused {commented:?}: {e}"),
+        }
+    }
 }

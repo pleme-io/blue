@@ -12,3 +12,9 @@ repository.workspace = true
 thiserror = { workspace = true }
 blue-lang-syntax = { workspace = true }
 tatara-lisp = { workspace = true }
+
+[dev-dependencies]
+# The layout laws over GENERATED programs (tests/laws.rs): random nesting and
+# name lengths reach widths no hand-written corpus does. Already in the lock via
+# blue-lang-syntax; dev-only, so no consumer carries it.
+proptest = "1"

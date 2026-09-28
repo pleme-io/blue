@@ -702,11 +702,14 @@ fn fmt_check_settles_on_a_commented_file() {
     );
 }
 
-/// A comment *inside* a form is still refused, because those lines are re-laid
-/// out and there is nowhere to put it back. Refusing names the line.
+/// A comment with no line of its own once the code is re-laid out — here,
+/// between a binding's `=` and its value — is still refused, and the file is
+/// left as it was. (A comment inside a body used to be refused too; since
+/// 2026-09-27 it is placed, and `fmt_write_places_a_comment_inside_a_body`
+/// holds that.)
 #[test]
 fn fmt_write_refuses_a_comment_it_cannot_place() {
-    let original = "def f(x)\n  # inside\n  x\nend\n";
+    let original = "x = # no line for this\n  5\n";
     let f = write("fmt-inner-comment", original);
     let o = run(&["fmt", "--write", f.to_str().unwrap()]);
     assert!(!o.status.success(), "it must refuse");
@@ -719,6 +722,19 @@ fn fmt_write_refuses_a_comment_it_cannot_place() {
         std::fs::read_to_string(&f).expect("read back"),
         original,
         "the file must be untouched"
+    );
+}
+
+/// A comment inside a `def` body is written back where it sat.
+#[test]
+fn fmt_write_places_a_comment_inside_a_body() {
+    let messy = "def f(x)\n    # inside\n    x   +   1\nend\n";
+    let f = write("fmt-body-comment", messy);
+    let o = run(&["fmt", "--write", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(
+        std::fs::read_to_string(&f).expect("read back"),
+        "def f(x)\n  # inside\n  x + 1\nend\n"
     );
 }
 

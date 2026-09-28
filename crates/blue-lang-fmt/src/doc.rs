@@ -23,6 +23,21 @@
 //! tree to be in bijection, and two renderings of one tree would collapse
 //! it.
 
+//! Three additions, each forced by a measured defect (2026-09-27):
+//!
+//! - `hardline` — a newline in every mode, which makes every group around it
+//!   break. Block bodies used to be pre-rendered to a string with `\n` inside
+//!   one `text`, and the printer cannot indent a newline it cannot see: a
+//!   lambda inside a broken call lost its indentation (`fn(x)` and its body in
+//!   one column, `end` two columns left of both), and `fits` counted the whole
+//!   multi-line string as one line's width, so it broke a lambda that fit.
+//! - `break_parent` — zero width, and the group around it cannot be flat. A
+//!   trailing comment uses it: whatever follows a `# note` has to start a new
+//!   line.
+//! - `comment` — text that `fits` measures as zero wide. A comment's length
+//!   must never change how the code beside it is laid out; otherwise a longer
+//!   note would break a call that fits.
+
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
@@ -34,6 +49,12 @@ pub enum Doc {
     Line {
         flat: &'static str,
     },
+    /// A newline in every mode. Any group containing one breaks.
+    HardLine,
+    /// Nothing, but the group containing it cannot render flat.
+    BreakParent,
+    /// Printed like `Text`, measured by `fits` as zero wide.
+    Comment(Rc<str>),
     Concat(Rc<Doc>, Rc<Doc>),
     Nest(isize, Rc<Doc>),
     Group(Rc<Doc>),
@@ -56,6 +77,21 @@ impl Doc {
     /// Nothing when flat; a newline when broken.
     pub fn softline() -> Self {
         Doc::Line { flat: "" }
+    }
+
+    /// A newline, always; forces every enclosing group to break.
+    pub fn hardline() -> Self {
+        Doc::HardLine
+    }
+
+    /// Forces the enclosing group to break, and prints nothing.
+    pub fn break_parent() -> Self {
+        Doc::BreakParent
+    }
+
+    /// A comment's text: printed verbatim, invisible to the width decision.
+    pub fn comment(s: impl Into<Rc<str>>) -> Self {
+        Doc::Comment(s.into())
     }
 
     pub fn concat(self, other: Doc) -> Self {
@@ -99,6 +135,10 @@ enum Mode {
 ///
 /// Linear in the size of the document: `fits` scans only far enough to
 /// decide the current group, and never re-walks a decided one.
+///
+/// No line ends in whitespace: a newline first trims the spaces the line
+/// ended with, so a blank line (two hard lines in a row) is empty rather than
+/// carrying the indentation of the line after it.
 pub fn pretty(doc: &Doc, width: usize) -> String {
     let mut out = String::new();
     // Work stack of (indent, mode, doc).
@@ -108,24 +148,26 @@ pub fn pretty(doc: &Doc, width: usize) -> String {
     while let Some((indent, mode, d)) = stack.pop() {
         match d {
             Doc::Nil => {}
-            Doc::Text(s) => {
+            Doc::Text(s) | Doc::Comment(s) => {
                 out.push_str(&s);
                 col += s.chars().count();
             }
-            Doc::Line { flat } => match mode {
-                Mode::Flat => {
-                    out.push_str(flat);
-                    col += flat.chars().count();
+            Doc::BreakParent => {}
+            Doc::Line { flat } if mode == Mode::Flat => {
+                out.push_str(flat);
+                col += flat.chars().count();
+            }
+            Doc::Line { .. } | Doc::HardLine => {
+                while out.ends_with(' ') {
+                    out.pop();
                 }
-                Mode::Break => {
-                    out.push('\n');
-                    let pad = indent.max(0) as usize;
-                    for _ in 0..pad {
-                        out.push(' ');
-                    }
-                    col = pad;
+                out.push('\n');
+                let pad = indent.max(0) as usize;
+                for _ in 0..pad {
+                    out.push(' ');
                 }
-            },
+                col = pad;
+            }
             Doc::Concat(a, b) => {
                 stack.push((indent, mode, (*b).clone()));
                 stack.push((indent, mode, (*a).clone()));
@@ -134,8 +176,10 @@ pub fn pretty(doc: &Doc, width: usize) -> String {
                 stack.push((indent + n, mode, (*inner).clone()));
             }
             Doc::Group(inner) => {
-                // The single decision: does this group fit flat?
-                let m = if fits(width.saturating_sub(col), &inner, &stack) {
+                // The single decision: does this group fit flat? A group
+                // inside a flat group is flat already — its parent fit, and
+                // it is part of its parent.
+                let m = if mode == Mode::Flat || fits(width.saturating_sub(col), &inner, &stack) {
                     Mode::Flat
                 } else {
                     Mode::Break
@@ -174,8 +218,16 @@ fn fits(space: usize, doc: &Doc, rest: &[(isize, Mode, Doc)]) -> bool {
             return false;
         }
         match d {
-            Doc::Nil => {}
+            Doc::Nil | Doc::Comment(_) => {}
             Doc::Text(s) => remaining -= s.chars().count() as isize,
+            // A forced break cannot be flat; in a broken context it ends the
+            // line like any other break.
+            Doc::HardLine => return mode == Mode::Break && remaining >= 0,
+            Doc::BreakParent => {
+                if mode == Mode::Flat {
+                    return false;
+                }
+            }
             Doc::Line { flat } => match mode {
                 // A break in the trailing context ends the line, so
                 // everything up to here fits — provided it actually did.
@@ -247,6 +299,58 @@ mod tests {
         let inner = tight("b").concat(Doc::line()).concat(tight("c")).group();
         let d = tight("aaaaaaaa").concat(Doc::line()).concat(inner).group();
         assert_eq!(pretty(&d, 10), "aaaaaaaa\nb c");
+    }
+
+    /// A hard line breaks the group around it even when the text is short,
+    /// and the lines it opens take the nest's indentation — the defect where a
+    /// lambda body pre-rendered as one string sat in the wrong column.
+    #[test]
+    fn a_hard_line_breaks_its_group_and_is_indented() {
+        let d = tight("f(")
+            .concat(
+                Doc::softline()
+                    .concat(tight("a"))
+                    .concat(Doc::hardline())
+                    .concat(tight("b"))
+                    .nest(2),
+            )
+            .concat(Doc::softline())
+            .concat(tight(")"))
+            .group();
+        assert_eq!(pretty(&d, 80), "f(\n  a\n  b\n)");
+    }
+
+    /// A comment never changes the layout of the code beside it.
+    #[test]
+    fn a_comment_is_zero_wide_to_the_width_decision() {
+        let d = tight("a")
+            .concat(Doc::line())
+            .concat(tight("b"))
+            .group()
+            .concat(Doc::comment(" # a note far longer than the width"));
+        assert_eq!(pretty(&d, 5), "a b # a note far longer than the width");
+    }
+
+    #[test]
+    fn a_break_parent_breaks_only_its_own_group() {
+        let inner = tight("x").concat(Doc::line()).concat(tight("y")).group();
+        let d = inner
+            .concat(Doc::line())
+            .concat(tight("z"))
+            .concat(Doc::break_parent())
+            .group();
+        assert_eq!(pretty(&d, 80), "x y\nz");
+    }
+
+    #[test]
+    fn no_line_ends_in_whitespace() {
+        let d = tight("a").concat(
+            Doc::hardline()
+                .concat(Doc::hardline())
+                .concat(tight("b"))
+                .nest(4),
+        );
+        assert_eq!(pretty(&d, 80), "a\n\n    b");
     }
 
     /// Determinism is the load-bearing property: one document plus one

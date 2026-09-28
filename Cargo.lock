@@ -209,6 +209,7 @@ name = "blue-lang-fmt"
 version = "0.0.45"
 dependencies = [
  "blue-lang-syntax",
+ "proptest",
  "tatara-lisp",
  "thiserror",
 ]

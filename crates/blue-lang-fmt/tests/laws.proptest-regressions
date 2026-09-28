@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3fd0023fdf8d9af59c789ac3d8b91c4eee3764db5ed11d76c03080cdf192bf34 # shrinks to (src, notes) = ("def a(a, b)\n  a = a\n  a\nend\n", [(4, true)])
+cc 39dce5f89fbbcc599bc0c200f714c9c40634a753ad3409e42f3889a44cd65196 # shrinks to (src, _) = ("def a(a, b)\n  a = {a: a}\n  ({aaa_a_a__aa__: a_, a___: a____, aaaa_a_a_a__a___a: 10000} && a__aaa_a_aa__aaaa)\nend\n", [])

@@ -97,9 +97,39 @@ def entries_of_text(text)
       end
     end,
     [[], []],
-    split(text, "\n")
+    joined_header_lines(split(text, "\n"))
   )
   last(state)
+end
+
+# The lines of a source, with each def header the formatter broke over several
+# lines (a parameter list too long for 80 columns: `def f(` / `  a,` / `  b` /
+# `)`) joined back onto one, so a signature reads as it would have been
+# written on one line. Without this the catalogue listed `el_record(`.
+def joined_header_lines(lines)
+  state = reduce(
+    fn(acc, line)
+      out = first(acc)
+      open = last(acc)
+      t = trim(line)
+      if open != nil
+        if starts_with?(t, ")")
+          [push(out, concat(open, t)), nil]
+        elsif ends_with?(open, "(")
+          [out, concat(open, t)]
+        else
+          [out, concat(open, concat(" ", t))]
+        end
+      elsif starts_with?(line, "def ") && ends_with?(line, "(")
+        [out, line]
+      else
+        [push(out, line), nil]
+      end
+    end,
+    [[], nil],
+    lines
+  )
+  first(state)
 end
 
 # The package's gloss: the first comment line of its source.
@@ -314,6 +344,12 @@ def write_catalog(path)
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────
+
+test "a def header broken over lines is catalogued as one signature"
+  src = "# Does it.\ndef long_one(\n  alpha,\n  beta\n) -> Int\n  1\nend\n"
+  assert entries_of_text(src) ==
+    [["long_one", "long_one(alpha, beta) -> Int", ["Does it."]]]
+end
 
 test "a manifest yields its name, version and needs"
   m = parse_manifest(

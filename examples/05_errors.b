@@ -5,8 +5,8 @@
 # raise, with throw(error(kind, why)); error(...) alone raises nothing. A
 # caught error cannot be read (its kind and message are not reachable), which
 # is why the refusals are data first. This is kueri's q_refusals / q_check.
-use("retsu")
 use("moji")
+use("retsu", [:first, :is_empty, :last])
 
 def port_refusals(text)
   n = to_int(text)

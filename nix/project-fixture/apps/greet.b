@@ -1,5 +1,5 @@
-use("fixture")
-use("shisutemu")
+use("fixture", [:fixture_double])
+use("shisutemu", [:stdout_of])
 
 # An app: run from the caller's directory, with the project's packages and tools.
 write_file(

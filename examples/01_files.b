@@ -3,9 +3,9 @@
 # write_file replaces a file, append_file adds to it, read_file reads it whole.
 # Paths are built with path_join, and a scratch directory is removed with rm_rf.
 # read_file raises on a missing file; shisutemu's read_or answers a default.
-use("retsu")
-use("moji")
-use("shisutemu")
+use("moji", [:lines])
+use("retsu", [:size])
+use("shisutemu", [:read_or])
 
 def scratch_dir(name)
   dir = path_join(getenv("TMPDIR", "/tmp"), "blue-example-#{name}")

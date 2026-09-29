@@ -4,10 +4,10 @@
 # Its definitions join one flat namespace with every other package a program
 # imports, so each name carries the package's prefix (kz_). Its tests live in
 # the same file; `use` strips them, so importing a package never runs them.
-use("retsu")
-use("moji")
-use("junjo")
-use("shuugou")
+use("junjo", [:sort_stable_by])
+use("moji", [:is_alnum, :words])
+use("retsu", [:drop_while, :last, :size])
+use("shuugou", [:unique])
 
 # Whether a token counts as a word: it holds at least one letter or digit.
 def kz_word?(token)

@@ -11,9 +11,9 @@ write_file replaces a file, append_file adds to it, read_file reads it whole. Pa
 `examples/01_files.b`:
 
 ```blue
-use("retsu")
-use("moji")
-use("shisutemu")
+use("moji", [:lines])
+use("retsu", [:size])
+use("shisutemu", [:read_or])
 
 def scratch_dir(name)
   dir = path_join(getenv("TMPDIR", "/tmp"), "blue-example-#{name}")
@@ -57,10 +57,10 @@ Text becomes records, records become answers. A record is a map with label keys;
 `examples/02_data.b`:
 
 ```blue
-use("retsu")
-use("moji")
-use("kazu")
-use("deeta")
+use("deeta", [:get_int, :get_str])
+use("kazu", [:sum])
+use("moji", [:is_blank, :lines])
+use("retsu", [:first, :rest, :size])
 
 def order_of(line)
   fields = split(line, ",")
@@ -124,9 +124,9 @@ Lists are values: every operation returns a new list. retsu's words are total (s
 `examples/03_lists_and_maps.b`:
 
 ```blue
-use("retsu")
-use("shuugou")
-use("junjo")
+use("junjo", [:sort_by])
+use("retsu", [:first, :is_empty, :rest, :size])
+use("shuugou", [:frequencies, :group_by, :lookup])
 
 def squares_of_evens(xs)
   map(fn(x) x * x end, filter(fn(x) x % 2 == 0 end, xs))
@@ -186,8 +186,8 @@ Interpolation renders any value with to_s, so it needs no conversion calls. join
 `examples/04_strings.b`:
 
 ```blue
-use("retsu")
-use("moji")
+use("moji", [:capitalize, :pad_left, :pad_right, :words])
+use("retsu", [:concat_lists, :first, :last])
 
 def row(name, n)
   "#{pad_right(name, 8, " ")}#{pad_left(to_s(n), 4, " ")}"
@@ -236,8 +236,8 @@ Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the inp
 `examples/05_errors.b`:
 
 ```blue
-use("retsu")
 use("moji")
+use("retsu", [:first, :is_empty, :last])
 
 def port_refusals(text)
   n = to_int(text)
@@ -297,8 +297,8 @@ end
 `examples/06_testing.b`:
 
 ```blue
-use("retsu")
-use("kazu")
+use("kazu", [:sum])
+use("retsu", [:is_empty, :size])
 
 def mean(xs)
   if is_empty(xs)
@@ -347,9 +347,24 @@ BLAKE3 and Ed25519 are Rust, bound into the runtime as blake3_hex and the ed2551
 `examples/07_rust_primitive.b`:
 
 ```blue
+use("moji", [:repeated])
 use("retsu")
-use("moji")
-use("shomei")
+
+use(
+  "shomei",
+  [
+    :chain_genesis,
+    :chain_head,
+    :chain_verify,
+    :hash_message,
+    :is_hash_hex,
+    :keypair_public,
+    :keypair_secret,
+    :sign_message,
+    :signing_keypair,
+    :verify_message
+  ]
+)
 
 seed = repeated("07", 32)
 
@@ -427,9 +442,9 @@ exec_capture runs a command with no shell and answers its status, stdout and std
 `examples/09_processes.b`:
 
 ```blue
+use("moji", [:is_blank])
 use("retsu")
-use("moji")
-use("shisutemu")
+use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def blue_version()
   cap = exec_capture(self_exe(), "--version")
@@ -477,10 +492,10 @@ needs("shuugou", "^0.1")
 # Its definitions join one flat namespace with every other package a program
 # imports, so each name carries the package's prefix (kz_). Its tests live in
 # the same file; `use` strips them, so importing a package never runs them.
-use("retsu")
-use("moji")
-use("junjo")
-use("shuugou")
+use("junjo", [:sort_stable_by])
+use("moji", [:is_alnum, :words])
+use("retsu", [:drop_while, :last, :size])
+use("shuugou", [:unique])
 
 # Whether a token counts as a word: it holds at least one letter or digit.
 def kz_word?(token)
@@ -533,8 +548,8 @@ use("kazoe") finds the package on BLUE_PATH and brings in its definitions. In th
 `examples/10_using_a_bidama.b`:
 
 ```blue
-use("retsu")
-use("kazoe")
+use("kazoe", [:kz_counts])
+use("retsu", [:first])
 
 def top_word(text)
   first(first(kz_counts(text)))

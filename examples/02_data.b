@@ -4,10 +4,10 @@
 # keys; to_int answers nil for a field that is not a number, so a bad row is
 # found rather than read as zero. JSON objects parse into [key, value] pairs,
 # not maps: read their fields with deeta.
-use("retsu")
-use("moji")
-use("kazu")
-use("deeta")
+use("deeta", [:get_int, :get_str])
+use("kazu", [:sum])
+use("moji", [:is_blank, :lines])
+use("retsu", [:first, :rest, :size])
 
 def order_of(line)
   fields = split(line, ",")

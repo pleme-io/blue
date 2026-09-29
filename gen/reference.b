@@ -1,6 +1,6 @@
-use("retsu")
-use("shisutemu")
-use("mokuroku")
+use("mokuroku", [:catalog_of, :md_cell, :names_shadowing])
+use("retsu", [:concat_lists, :find_first, :first, :is_empty, :last, :size])
+use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 # Writes docs/REFERENCE.md from `blue reference`, the JSON the implementation
 # prints from its own tables (crates/blue-lang-cli/src/reference.rs). Declared

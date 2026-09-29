@@ -5,9 +5,9 @@
 # them to length, car and cdr. A map is read with get and extended with assoc;
 # grouping and counting return [key, value] pairs, because blue cannot list
 # a map's keys.
-use("retsu")
-use("shuugou")
-use("junjo")
+use("junjo", [:sort_by])
+use("retsu", [:first, :is_empty, :rest, :size])
+use("shuugou", [:frequencies, :group_by, :lookup])
 
 def squares_of_evens(xs)
   map(fn(x) x * x end, filter(fn(x) x % 2 == 0 end, xs))

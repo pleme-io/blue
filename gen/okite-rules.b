@@ -1,4 +1,4 @@
-use("okite")
+use("okite", [:ok_card])
 # Writes bidamas/okite/RULES.md, the rule card, from the ledger (`ok_card` in
 # okite.b). Declared in the root Bluefile with generate(); a generator lives here,
 # never inside a package, because a package loads every .b file it holds.

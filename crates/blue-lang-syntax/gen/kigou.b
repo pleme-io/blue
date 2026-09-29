@@ -1,4 +1,22 @@
-use("sabi")
+use("retsu", [:is_empty])
+
+use(
+  "sabi",
+  [
+    :render_rust,
+    :rs_char,
+    :rs_const,
+    :rs_file,
+    :rs_invalid_names,
+    :rs_slice,
+    :rs_str,
+    :rs_tuple,
+    :rs_ty,
+    :rs_ty_ref,
+    :rs_ty_slice,
+    :rs_ty_tuple
+  ]
+)
 
 # The character tables of blue-lang-syntax's `kigou` module, authored in blue.
 #

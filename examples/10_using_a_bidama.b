@@ -5,8 +5,8 @@
 # builds kazoe, runs its tests, gates its names against the whole public
 # distribution, and puts it on BLUE_PATH for this file. A standalone run:
 #   BLUE_PATH=examples/bidamas:bidamas blue test examples/10_using_a_bidama.b
-use("retsu")
-use("kazoe")
+use("kazoe", [:kz_counts])
+use("retsu", [:first])
 
 def top_word(text)
   first(first(kz_counts(text)))

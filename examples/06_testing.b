@@ -5,8 +5,8 @@
 # function. Assert the cases that tell a correct implementation from a
 # plausible one: the empty input, an identity that must survive, a value
 # anyone can check by hand, and the case a wrong formula still passes.
-use("retsu")
-use("kazu")
+use("kazu", [:sum])
+use("retsu", [:is_empty, :size])
 
 def mean(xs)
   if is_empty(xs)

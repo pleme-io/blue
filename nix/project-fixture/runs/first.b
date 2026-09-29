@@ -1,5 +1,5 @@
-use("fixture")
-use("shisutemu")
+use("fixture", [:fixture_double])
+use("shisutemu", [:stdout_of])
 # A run: a value from the project's own package, and what the declared tool
 # printed, written into $RUN_OUT.
 out = getenv("RUN_OUT", "")

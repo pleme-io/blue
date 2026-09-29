@@ -1,4 +1,5 @@
-use("okite")
+use("okite", [:ok_decisions, :ok_failures])
+use("retsu", [:size])
 
 # The second enforcer of blue's decisions, independent of okite's own test
 # block: a flake check (the root Bluefile's check()), so weakening either one

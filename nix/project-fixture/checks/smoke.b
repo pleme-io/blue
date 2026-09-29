@@ -1,5 +1,5 @@
-use("fixture")
-use("shisutemu")
+use("fixture", [:fixture_double])
+use("shisutemu", [:status_of])
 
 test "a check sees the project's package"
   assert fixture_double(2) == 4

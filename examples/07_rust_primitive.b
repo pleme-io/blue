@@ -4,9 +4,24 @@
 # ed25519_* names. A program reaches them through shomei, the bidama that
 # wraps them with names that say what they are for and checks their inputs.
 # There is no entropy source: a keypair comes from a seed the caller supplies.
+use("moji", [:repeated])
 use("retsu")
-use("moji")
-use("shomei")
+
+use(
+  "shomei",
+  [
+    :chain_genesis,
+    :chain_head,
+    :chain_verify,
+    :hash_message,
+    :is_hash_hex,
+    :keypair_public,
+    :keypair_secret,
+    :sign_message,
+    :signing_keypair,
+    :verify_message
+  ]
+)
 
 seed = repeated("07", 32)
 

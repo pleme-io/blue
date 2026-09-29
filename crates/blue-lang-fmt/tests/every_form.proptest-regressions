@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 68541d31b832d20375f34d069d450cccc76426a8b2bd3d1af49a1c0bbcf20983 # shrinks to src = "a = test \"\"\nif a\n\"#\\u{7b}\"\nelse\na\nend\nend"
+cc 41f5da14126f87dee5c543c3b6e2dc6beb06ff35b9747b3bb17145d6ccb69d22 # shrinks to src = "{a: case a\nwhen a\na |> a() != :a\nend}"
+cc a32c6c4b3cbef6f0010f7f26053ff15c8a5f42889788beb4b7f6cc4006c609b2 # shrinks to src = "or(assert a, a)()"
+cc f148c5b205985183a044fa74191a297c165a656eb9084b33d721f534d50d6a98 # shrinks to src = "a = {a => a |> case a\nwhen a\na\nend}"

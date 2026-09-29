@@ -31,6 +31,9 @@ const CORPUS: &[&str] = &[
     "fn(a, b)\n  a + b\nend",
     "x = 5",
     "total = 1 + 2",
+    // A binding's tree inside an expression is a call, not a binding.
+    "q = define(zz, 5)",
+    "a |> (b != c)",
     // Tests and assertions.
     "test \"adds\"\n  assert 1 + 1 == 2\nend",
     "test \"two asserts\"\n  assert true\n  assert 1 < 2\nend",
@@ -525,6 +528,44 @@ fn a_binding_renders_as_an_assignment() {
         !format_source("x = 5").expect("fmt").contains("define("),
         "must not print the lowered call form"
     );
+}
+
+/// A binding is a STATEMENT. Nested in an expression, the same tree is the
+/// call it was written as: `q = define(zz, 5)` printed `q = zz = 5`, which does
+/// not parse (2026-09-29). Read the output, not only the tree.
+#[test]
+fn a_binding_inside_an_expression_stays_a_call() {
+    for (src, want) in [
+        ("q = define(zz, 5)", "q = define(zz, 5)"),
+        ("f(define(x, 1))", "f(define(x, 1))"),
+        ("define(x, 5)", "x = 5"),
+        ("def f()\n  define(x, 5)\nend", "def f()\n  x = 5\nend"),
+    ] {
+        assert_eq!(format_source(src).expect("fmt").trim(), want, "{src:?}");
+    }
+}
+
+/// The unary operators and `assert` under a tighter context, and the
+/// pipeline's trees that no call can spell — each printed text that did not
+/// parse, or parsed to another tree, until 2026-09-29.
+#[test]
+fn every_printed_form_keeps_its_own_binding() {
+    for (src, want) in [
+        ("not(not(a))", "!(!a)"),
+        ("-(-a)", "-(-a)"),
+        ("(!f)(x)", "(!f)(x)"),
+        ("(assert a) || b", "(assert a) || b"),
+        ("a |> (b != c)", "a |> (b != c)"),
+        ("x |> {a: 1}", "x |> ({a: 1})"),
+        ("\"#\\u{7b}\"", "\"#\\u{7b}\""),
+    ] {
+        let out = format_source(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        assert_eq!(out.trim(), want, "{src:?}");
+        assert_eq!(
+            parse_program(&out).expect("re-parses"),
+            parse_program(src).expect("parses")
+        );
+    }
 }
 
 /// And a `def` still renders as a `def` — the two share the `define` head, so

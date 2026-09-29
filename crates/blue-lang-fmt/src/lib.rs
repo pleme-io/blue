@@ -24,6 +24,13 @@
 //! 2026-09-27 while this formatter refused 31 of blue's 52 files and changed
 //! the tree of two more.
 //!
+//! `tests/every_form.rs` holds the round-trip law over GENERATED programs
+//! whose call names are drawn from what the parser lowers to — `define`,
+//! `lambda`, `not`, `concat` — and whose forms appear in every position. Both
+//! corpora above spell only what someone thought to write, and the printer
+//! dispatches on a tree's head; that is how `q = define(zz, 5)` printed
+//! `q = zz = 5` with every law green.
+//!
 //! **The rendering law** (§V.13): *spelling is not semantics*. Where two
 //! spellings parse to the same tree, the minimal one is rendered. Where
 //! they parse to different trees they are different programs and both
@@ -460,7 +467,7 @@ impl<'s> Renderer<'s> {
             .map(|unit| match unit.kind {
                 UnitKind::Comment(c) => (self.comment_text(c), false),
                 UnitKind::Item(k) => {
-                    let body = pretty(&self.expr(&forms[k], 0), WIDTH);
+                    let body = pretty(&self.stmt(&forms[k]), WIDTH);
                     let multi = body.contains('\n');
                     let text = match unit.trailing {
                         Some(c) => {
@@ -547,7 +554,7 @@ impl<'s> Renderer<'s> {
             stmts.iter().map(|s| s.span).collect()
         };
         let u = self.units(lo, hi, &spans);
-        let docs: Vec<Doc> = stmts.iter().map(|s| self.expr(s, 0)).collect();
+        let docs: Vec<Doc> = stmts.iter().map(|s| self.stmt(s)).collect();
         let mut head = Doc::nil();
         if let Some(c) = u.head_trailing {
             head = self.trailing(c);
@@ -635,6 +642,33 @@ impl<'s> Renderer<'s> {
         self.seq(open, close, &u, docs)
     }
 
+    // ---- statements -----------------------------------------------------
+
+    /// Render `s` where the parser reads a STATEMENT: a program's top level
+    /// and a block body. The one form that exists only here is the binding.
+    ///
+    /// `(define x 5)` renders `x = 5` at statement position. Without that arm
+    /// it printed `define(x, 5)` — which re-parses to the same tree, so every
+    /// round-trip law passed while `fmt --write` rewrote every binding in the
+    /// spec files. Anywhere else it must stay the call, because `x = 5` is not
+    /// an expression: the two positions are two renderers, not one with a
+    /// guess.
+    fn stmt(&self, s: &Spanned) -> Doc {
+        if let SpannedForm::List(items) = &s.form {
+            if items.len() == 3
+                && items[0].as_symbol() == Some("define")
+                && items[1]
+                    .as_symbol()
+                    .is_some_and(|n| !blue_lang_syntax::is_reserved_word(n))
+            {
+                return Doc::text(items[1].as_symbol().unwrap_or("_").to_string())
+                    .concat(Doc::text(" = "))
+                    .concat(self.expr(&items[2], 0));
+            }
+        }
+        self.expr(s, 0)
+    }
+
     // ---- expressions ----------------------------------------------------
 
     /// Render `s`, parenthesizing if its precedence is below `min_prec`.
@@ -676,20 +710,15 @@ impl<'s> Renderer<'s> {
                     .concat(Doc::text("end"))
             }
             // (define (name params...) body)
-            Some("define") if items.len() == 3 && items[1].is_list() => return self.def_form(s),
-            // (define name value) — a BINDING, rendered `name = value`.
-            //
-            // Without this arm it fell through to the plain-call path and
-            // printed `define(x, 5)`. That re-parses to the same tree, so
-            // every round-trip law passed — and `fmt --write` silently
-            // rewrote every binding in the spec files. Third time a green
-            // law has coexisted with unreadable output; the tree is not the
-            // thing being checked here.
-            Some("define") if items.len() == 3 && items[1].as_symbol().is_some() => {
-                return Doc::text(items[1].as_symbol().unwrap_or("_").to_string())
-                    .concat(Doc::text(" = "))
-                    .concat(self.expr(&items[2], 0))
+            Some("define") if items.len() == 3 && is_signature(&items[1]) => {
+                return self.def_form(s)
             }
+            // (define name value) is a BINDING only at statement position,
+            // and rendered `name = value` there by `stmt`. Here — inside an
+            // expression — it falls through to the call form, `define(x, 5)`,
+            // because the parser reads `x = …` only as a statement: rendered
+            // as a binding, `q = define(zz, 5)` printed `q = zz = 5`, which
+            // does not parse (2026-09-29).
             // (deftest "name" body)
             Some("deftest") if items.len() == 3 && items[1].as_string().is_some() => {
                 let mut head = String::from("test ");
@@ -701,8 +730,13 @@ impl<'s> Renderer<'s> {
             // The lowering carries it twice (as data and as value) so a
             // failure can name itself. Printing both would be a second
             // rendering of one thing, and would not re-parse.
+            //
+            // `assert` takes a whole expression, so as an operand it is
+            // parenthesized: `(assert a) + b`, not `assert a + b`, which is
+            // `assert (a + b)` — a different tree (2026-09-29).
             Some(n) if n == blue_lang_syntax::LOWERED_ASSERT && items.len() == 3 => {
-                return Doc::text("assert ").concat(self.expr(&items[2], 0))
+                let d = Doc::text("assert ").concat(self.expr(&items[2], 0));
+                return parenthesize_below(d, min_prec, 0);
             }
             // (let ((case-subject S)) (cond …)) — a lowered `case`.
             Some("let") if is_case(&s.to_sexp()) => return self.case_form(s),
@@ -722,7 +756,7 @@ impl<'s> Renderer<'s> {
                 // stays a call.
             }
             // (lambda (params) body)
-            Some("lambda") if items.len() == 3 && items[1].is_list() => {
+            Some("lambda") if items.len() == 3 && is_params(&items[1]) => {
                 return self.lambda_form(s, items)
             }
             // (defmacro name (params) body)
@@ -731,7 +765,7 @@ impl<'s> Renderer<'s> {
             // symbol at index 1 and the params are a list at index 2,
             // because that is tatara-lisp's own `defmacro` shape and blue
             // registers into the SAME expander rather than a parallel one.
-            Some("defmacro") if items.len() == 4 && items[2].is_list() => {
+            Some("defmacro") if items.len() == 4 && is_name(&items[1]) && is_params(&items[2]) => {
                 let mut head = String::from("defmacro ");
                 head.push_str(items[1].as_symbol().unwrap_or("_"));
                 let params = items[2].as_list().unwrap_or(&[]);
@@ -743,20 +777,22 @@ impl<'s> Renderer<'s> {
             // formatter cannot print is a tree the round-trip law cannot
             // hold for: an annotated def previously printed as a method
             // send and did not re-parse at all.
-            Some("define-typed") if items.len() == 4 && items[1].is_list() => {
+            Some("define-typed")
+                if items.len() == 4 && is_typed_signature(&items[1], &items[2]) =>
+            {
                 return self.typed_def_form(s, items)
             }
             Some("list") => {
                 let (lo, hi) = self.inside(s, b'[', b']');
                 return self.seq_of("[", "]", &items[1..], lo, hi);
             }
-            Some(n) if n == blue_lang_syntax::LOWERED_MAP => return self.map_form(s, &items[1..]),
-            Some("not") if items.len() == 2 => {
-                return Doc::text("!").concat(self.expr(&items[1], 11))
+            Some(n) if n == blue_lang_syntax::LOWERED_MAP && items.len() % 2 == 1 => {
+                return self.map_form(s, &items[1..])
             }
+            Some("not") if items.len() == 2 => return self.unary("!", &items[1], min_prec),
             // (- 0 x) is unary minus — the shape the parser emits.
             Some("-") if items.len() == 3 && is_zero(&items[1]) => {
-                return Doc::text("-").concat(self.expr(&items[2], 11))
+                return self.unary("-", &items[2], min_prec)
             }
             _ => {}
         }
@@ -771,6 +807,27 @@ impl<'s> Renderer<'s> {
                     chain
                 };
             }
+        }
+
+        // A head no call can spell — `not=`, `hash-map`, `if` — on a list no
+        // arm above claims. The parser builds such a list in exactly one way:
+        // a pipeline, which inserts its left side as the FIRST argument of
+        // whatever is on its right, including an operator or a block:
+        // `a |> (b != c)` is `(not= a b c)`. So that is how it prints. The
+        // call form printed `not=(a, b, c)`, which does not parse
+        // (2026-09-29, the tree generator in `tests/every_form.rs`).
+        if let Some(h) = head {
+            if items.len() >= 2 && !blue_lang_syntax::is_callable_name(h) {
+                return self.piped(items, min_prec);
+            }
+        }
+        // The same, for the two blocks whose lowering holds a piece no call
+        // argument can spell: a `case` (its `case-subject` and `else`) and a
+        // `fn()` (its empty parameter list, `()`). Piped into, each keeps a
+        // callable head — `let`, `lambda` — so the rule above does not see it,
+        // and the call form printed `let(a, …case-subject…)`.
+        if items.len() >= 3 && is_unspellable_as_call(items) {
+            return self.piped(items, min_prec);
         }
 
         // Call form: (f a b) renders `f(a, b)`.
@@ -810,6 +867,38 @@ impl<'s> Renderer<'s> {
             (0, 0)
         };
         callee.concat(self.seq_of("(", ")", &items[1..], lo, hi))
+    }
+
+    /// `first |> (rest)` for a list the pipeline built: `items[1]` is what was
+    /// piped in, and the list without it is what it was piped into.
+    fn piped(&self, items: &[Spanned], min_prec: u8) -> Doc {
+        let mut rest = vec![items[0].clone()];
+        rest.extend(items[2..].iter().cloned());
+        let into = Spanned::new(Span::synthetic(), SpannedForm::List(rest));
+        let d = self
+            .expr(&items[1], 0)
+            .concat(Doc::text(" |> ("))
+            .concat(self.expr(&into, 0))
+            .concat(Doc::text(")"));
+        parenthesize_below(d, min_prec, 0)
+    }
+
+    /// `!x` / `-x`. The parser reads the operand at binding power 11, so the
+    /// operand is rendered at 11, and the whole is parenthesized where 11 is
+    /// not tight enough — as a callee, `(!f)(x)`, since `!f(x)` is `!(f(x))`.
+    ///
+    /// **An operand that itself begins with an operator is parenthesized**:
+    /// the lexer reads a run of operator characters as ONE token, so `!!a`
+    /// and `--a` are the unknown operators `!!` and `--`, not two unaries.
+    fn unary(&self, op: &str, operand: &Spanned, min_prec: u8) -> Doc {
+        let inner = if is_unary(operand) {
+            Doc::text("(")
+                .concat(self.expr(operand, 0))
+                .concat(Doc::text(")"))
+        } else {
+            self.expr(operand, 11)
+        };
+        parenthesize_below(Doc::text(op.to_string()).concat(inner), min_prec, 11)
     }
 
     /// A left-leaning chain of one precedence level, `a + b - c`, broken after
@@ -1125,6 +1214,75 @@ fn is_link(s: &Spanned, prec: u8) -> bool {
     infix_render(head).is_some_and(|(_, p)| p == prec)
 }
 
+/// Is `items` a `case` or a `fn()` with one argument piped in at index 1?
+fn is_unspellable_as_call(items: &[Spanned]) -> bool {
+    let mut rest: Vec<Sexp> = vec![items[0].to_sexp()];
+    rest.extend(items[2..].iter().map(Spanned::to_sexp));
+    let rest = Sexp::List(rest);
+    match &rest {
+        Sexp::List(r) if sym_name(&r[0]) == Some("lambda") => {
+            r.len() == 3 && matches!(&r[1], Sexp::List(p) if p.is_empty())
+        }
+        _ => is_case(&rest),
+    }
+}
+
+/// A symbol a surface name can spell.
+fn is_name(s: &Spanned) -> bool {
+    s.as_symbol()
+        .is_some_and(blue_lang_syntax::is_callable_name)
+}
+
+/// `(a b …)` — a parameter list: only names, as `fn(a, b)` writes them.
+fn is_params(s: &Spanned) -> bool {
+    s.as_list().is_some_and(|ps| ps.iter().all(is_name))
+}
+
+/// `(name a b …)` — an untyped `def` signature.
+fn is_signature(s: &Spanned) -> bool {
+    s.as_list()
+        .is_some_and(|sig| !sig.is_empty() && sig.iter().all(is_name))
+}
+
+/// `(name (a T) …)` and a return type: the shape an annotated `def` lowers to,
+/// every parameter a `(name type)` pair.
+fn is_typed_signature(sig: &Spanned, ret: &Spanned) -> bool {
+    sig.as_list().is_some_and(|sig| {
+        sig.first().is_some_and(is_name)
+            && sig[1..].iter().all(|p| {
+                p.as_list()
+                    .is_some_and(|pair| pair.len() == 2 && is_name(&pair[0]) && is_type(&pair[1]))
+            })
+    }) && is_type(ret)
+}
+
+/// A type the surface can write: `T`, or `C(T)`.
+fn is_type(t: &Spanned) -> bool {
+    is_name(t)
+        || t.as_list()
+            .is_some_and(|c| c.len() == 2 && is_name(&c[0]) && is_type(&c[1]))
+}
+
+/// `doc`, parenthesized when the context demands a tighter binding than the
+/// form's own.
+fn parenthesize_below(doc: Doc, min_prec: u8, prec: u8) -> Doc {
+    if min_prec > prec {
+        Doc::text("(").concat(doc).concat(Doc::text(")"))
+    } else {
+        doc
+    }
+}
+
+/// Is `s` one of the two unary shapes, `(not x)` or `(- 0 x)`?
+fn is_unary(s: &Spanned) -> bool {
+    s.as_list()
+        .is_some_and(|items| match items.first().and_then(Spanned::as_symbol) {
+            Some("not") => items.len() == 2,
+            Some("-") => items.len() == 3 && is_zero(&items[1]),
+            _ => false,
+        })
+}
+
 fn is_if(s: &Spanned) -> bool {
     s.as_list().is_some_and(|items| {
         (items.len() == 3 || items.len() == 4) && items[0].as_symbol() == Some("if")
@@ -1175,8 +1333,14 @@ fn atom(a: &Atom) -> Doc {
 fn render_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
+    let mut after_hash = false;
     for c in s.chars() {
         match c {
+            // A string whose VALUE holds `#{` (written `"#\u{7b}"`) printed
+            // as `"#{"`, which the lexer reads as an interpolation opener
+            // (2026-09-29, the tree generator). blue has no `\{` escape, so
+            // the brace after a `#` is written by codepoint.
+            '{' if after_hash => out.push_str("\\u{7b}"),
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
             '\n' => out.push_str("\\n"),
@@ -1184,6 +1348,7 @@ fn render_string(s: &str) -> String {
             '\r' => out.push_str("\\r"),
             c => out.push(c),
         }
+        after_hash = c == '#';
     }
     out.push('"');
     out

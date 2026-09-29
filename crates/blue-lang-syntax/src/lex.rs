@@ -492,6 +492,15 @@ impl<'a> Lexer<'a> {
             while matches!(self.peek(), Some(c) if is_ident_continue(c)) {
                 self.pos += 1;
             }
+            // A trailing `?` or `!` is part of the name, as in an identifier,
+            // so `:pair?` names `pair?` — the one way an import list
+            // (`use("nisshi", [:pair?])`) can list such a definition. `!=`
+            // keeps its `!`, as `lex_ident` does.
+            if matches!(self.peek(), Some(b'?'))
+                || (matches!(self.peek(), Some(b'!')) && !matches!(self.peek_at(1), Some(b'=')))
+            {
+                self.pos += 1;
+            }
             let name = self.src[s..self.pos].to_string();
             self.push(TokenKind::Sym(name), start);
         } else {

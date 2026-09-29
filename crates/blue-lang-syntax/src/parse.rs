@@ -2156,6 +2156,17 @@ mod tests {
         assert!(is_callable_name("kueri/if"));
     }
 
+    /// `:pair?` is the symbol `pair?`: an import list can name a predicate.
+    ///
+    /// Red run (2026-09-29), before: `unexpected character `?``, found by
+    /// `blue migrate` listing nisshi's `pair?`.
+    #[test]
+    fn a_symbol_may_end_in_a_question_or_bang() {
+        assert_eq!(q("[:pair?, :set!]"), "(list :pair? :set!)");
+        assert_eq!(q("use(\"n\", [:empty?])"), "(use \"n\" (list :empty?))");
+        assert_eq!(q(":a != :b"), "(not= :a :b)");
+    }
+
     // ---- errors a person can read -------------------------------------
 
     /// `line:col` and blue's words, never `at 10..11` and `Ident("y")`.

@@ -1,13 +1,15 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f0c40d979868b09c9cc16aabd2e75769c3a76532ee9469bd20ffb84f7deedd77",
+  "bluefile_b3": "b3:334ca6bb008a9f5bbba8e2747bd8fe27abdf6547892f5b9ddcb218edf7e2b843",
   "manifest": {
     "schema": 1,
     "name": "ran",
     "version": "0.1.0",
     "needs": {
       "junjo": "^0.1.0",
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0",
+      "ronri": "^0.1.0",
       "shuugou": "^0.1.0"
     },
     "when": "anytime",

@@ -351,7 +351,7 @@ is checked against the interpreter's own names.",
         witness: "use(\"kagi_a\")\n\nkagi()\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
         waivable: false,
-        ratchet: 2458,
+        ratchet: 2323,
         explanation: "\
 Today every definition of every loaded bidama lands in one global
 environment, so a bare `first` reaches retsu's `first` from any file that
@@ -416,7 +416,7 @@ spelling with `legacy_names`, so callers keep working while they move.",
             ("kagi_a", "def kagi()\n  1\nend\n"),
             ("kagi_b", "def kagi()\n  2\nend\n"),
         ],
-        ratchet: 39,
+        ratchet: 38,
         explanation: "\
 Once names are qualified or listed, where a `use` sits in a file no longer
 changes what the file means, so there is one way to write the imports: every
@@ -435,7 +435,7 @@ which packages load can decide which of two same-named definitions wins.",
         law: "every `use` is reached by something in the file, and every name it lists is read",
         witness: "use(\"kagi_a\")\n\n1\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
-        ratchet: 36,
+        ratchet: 44,
         explanation: "\
 A `use` nothing in the file reaches, or a listed name the file never reads,
 is a dependency the program does not have. Remove it. Inside a bidama,

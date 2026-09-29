@@ -1,6 +1,25 @@
-use("retsu")
-use("shuugou")
-use("junjo")
+use("junjo", [:sort])
+use("kazu", [:abs, :max_of, :min_of, :near, :near_within])
+
+use(
+  "retsu",
+  [
+    :contains,
+    :count_of,
+    :first,
+    :is_empty,
+    :last,
+    :remove_at,
+    :rest,
+    :running_sum,
+    :size,
+    :take_n,
+    :zip
+  ]
+)
+
+use("ronri", [:any, :every])
+use("shuugou", [:intersection, :subset, :unique])
 
 # ran (乱) — deterministic pseudo-randomness.
 #

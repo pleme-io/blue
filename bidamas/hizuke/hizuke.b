@@ -1,4 +1,5 @@
-use("retsu")
+use("kazu", [:min])
+use("retsu", [:size])
 
 # hizuke (日付) — the proleptic Gregorian calendar, as arithmetic.
 #

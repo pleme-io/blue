@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c801f3d397ed2dc488fbcdb1ef4a69c10acef9ae0d204489a73a3b2c1cf31108",
+  "bluefile_b3": "b3:8f694321bd16c3471d416397b6c66b886e9a97418e0143fcd2a677ba9977b475",
   "manifest": {
     "schema": 1,
     "name": "hizuke",
     "version": "0.1.0",
     "needs": {
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

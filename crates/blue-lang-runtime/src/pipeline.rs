@@ -369,6 +369,13 @@ fn check_stage(
         outcome.diagnostics.extend(malformed);
     }
     outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
+    // A rule whose census has not reached zero is computed, and counted, but
+    // not enforced: its findings move to `census` (see `RULES`' `ratchet`).
+    let (enforced, census): (Vec<_>, Vec<_>) = std::mem::take(&mut outcome.diagnostics)
+        .into_iter()
+        .partition(|d| d.code.rule().active());
+    outcome.diagnostics = enforced;
+    outcome.census = census;
     outcome
         .diagnostics
         .sort_by_key(|d| (d.top_level, d.span.start, d.code));
@@ -443,6 +450,7 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
             .add(&import.package, import.names.iter().map(|(n, _)| n.clone()));
     }
     table.attach_files(form_file, imports);
+    table.attach_needs(program.needs().clone());
     table
 }
 
@@ -608,6 +616,13 @@ pub struct Checked {
 }
 
 impl Checked {
+    /// The forms an evaluator runs: [`lower`]ed, then erased — the tree
+    /// `run` evaluates, for a door that brings its own evaluator (the VM).
+    #[must_use]
+    pub fn erased(&self) -> Vec<tatara_lisp::Spanned> {
+        erase_types(&lower(&self.program))
+    }
+
     /// What `blue test` hands the harness: the program [`lower`]ed, spans
     /// projected away.
     #[must_use]

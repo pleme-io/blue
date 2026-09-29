@@ -1,0 +1,2 @@
+# sp_loose needs nothing, on purpose: its source uses sp_mod (B0019).
+package("sp_loose", "0.1.0")

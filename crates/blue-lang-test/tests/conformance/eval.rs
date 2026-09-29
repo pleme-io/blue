@@ -253,10 +253,9 @@ pub fn vm(env: &mut Env, row: &Row) -> Obs {
             .collect();
         return failed(&RunError::Types(rendered));
     }
-    // `lower` then erase, the order `pipeline::prepare` runs them in: `use`
-    // declarations inert, qualified names lowered. The pipeline has no VM
-    // door, so this is the one place the stages are named outside it.
-    let erased = blue_lang_runtime::erase_types(&blue_lang_runtime::pipeline::lower(&checked.program));
+    // The pipeline's own tree: lowered (every `use` declaration inert, every
+    // qualified name at its key) and erased.
+    let erased = checked.erased();
     let mut interp = blue_lang_runtime::interpreter_hostless();
     blue_lang_runtime::install_input_primitives(&mut interp, Inputs::new());
     match interp.eval_program_vm(&erased, &mut ()) {

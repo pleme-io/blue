@@ -1,4 +1,4 @@
-# The check stage: one row per rule in blue_lang_check::RULES (B0001-B0009),
+# The check stage: one row per rule in blue_lang_check::RULES (B0001-B0020),
 # observed by `blue check` and in-process, plus the run door refusing an
 # error-severity finding before anything runs, and the one escape hatch.
 
@@ -76,6 +76,74 @@ row(
   fails(:check, "B0009"),
   covers("rule:B0009"),
   pending("G16", "wasm")
+)
+
+row(
+  "check.B0012",
+  "use(\"sp_mod\")\nsp_twice(1)",
+  diagnoses(["B0012"]),
+  covers("rule:B0012"),
+  pending("ratchet")
+)
+
+row(
+  "check.B0013",
+  "use(\"sp_pre\")\nsp_pre::sp_pre_x()",
+  diagnoses(["B0013"]),
+  covers("rule:B0013"),
+  pending("ratchet")
+)
+
+row(
+  "check.B0014",
+  "use(\"sp_mg\")\nsp_mg::sp_a()",
+  diagnoses(["B0014"]),
+  covers("rule:B0014"),
+  pending("ratchet")
+)
+
+row(
+  "check.B0015",
+  "use(\"sp_over\")\nuse(\"sp_mod\")\n\nsp_mod::sp_twice(1)\nsp_over::first([1])",
+  diagnoses(["B0015"]),
+  covers("rule:B0015"),
+  pending("ratchet")
+)
+
+row(
+  "check.B0016",
+  "use(\"sp_mod\")\n1",
+  diagnoses(["B0016"]),
+  covers("rule:B0016"),
+  pending("ratchet")
+)
+
+row(
+  "check.B0017",
+  "def sp_f()\n  1\nend\n\ndef sp_f()\n  2\nend",
+  diagnoses(["B0017"]),
+  covers("rule:B0017")
+)
+
+row(
+  "check.B0018",
+  "blue::length([1])",
+  diagnoses(["B0018"]),
+  covers("rule:B0018")
+)
+
+row(
+  "check.B0019",
+  "use(\"sp_loose\")\nsp_loose::sp_l()",
+  diagnoses(["B0019"]),
+  covers("rule:B0019")
+)
+
+row(
+  "check.B0020",
+  "use(\"sp_mod\")\nsp_mod::sp_twice(1) + sp_mod / 2",
+  diagnoses(["B0020"]),
+  covers("rule:B0020")
 )
 
 row(

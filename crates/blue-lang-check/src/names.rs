@@ -246,6 +246,8 @@ pub struct NameTable {
     /// The file each top-level form came from, and what each file imports.
     form_file: Vec<usize>,
     imports: BTreeMap<usize, FileImports>,
+    /// Each bidama's declared `needs`, where its Bluefile was read.
+    needs: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// What one file declares with `use`: every package it `use`s (so
@@ -344,6 +346,24 @@ impl NameTable {
     pub fn attach_files(&mut self, form_file: Vec<usize>, imports: BTreeMap<usize, FileImports>) {
         self.form_file = form_file;
         self.imports = imports;
+    }
+
+    /// Record each bidama's Bluefile `needs`.
+    pub fn attach_needs(&mut self, needs: BTreeMap<String, BTreeSet<String>>) {
+        self.needs = needs;
+    }
+
+    /// Bidama `pkg`'s declared `needs`, if its Bluefile was read.
+    #[must_use]
+    pub fn needs_of(&self, pkg: &str) -> Option<&BTreeSet<String>> {
+        self.needs.get(pkg)
+    }
+
+    /// The file top-level form `top_level` came from (`usize::MAX` when no
+    /// file table was attached: one file).
+    #[must_use]
+    pub fn file_of(&self, top_level: usize) -> usize {
+        self.form_file.get(top_level).copied().unwrap_or(usize::MAX)
     }
 
     /// What the file of top-level form `top_level` imports.
@@ -808,6 +828,8 @@ pub fn check_names(
         // A top-level form's own defines are globals, already in `table`.
         scope::walk_top(form, &mut w);
     }
+    let file_rules = crate::namespace_rules::check(forms, table, namespace_of, &w.references);
+    w.diagnostics.extend(file_rules);
     (w.diagnostics, w.resolved)
 }
 
@@ -871,13 +893,57 @@ impl<'t> Walker<'t> {
 
     /// Record a non-local reference under both rules.
     fn record(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        let flat = self.table.flat_target(name);
+        let ns = self.table.ns_target(name, &self.own, self.top_level);
+        // B0012: another bidama's definition, reached bare only because the
+        // one global environment holds it.
+        if let Target::Def(Namespace::Bidama(owner), n) = &flat {
+            let foreign = &Namespace::Bidama(owner.clone()) != &self.own;
+            if foreign
+                && blue_lang_syntax::qualified(name).is_none()
+                && matches!(ns, Target::Builtin(_) | Target::Unbound)
+            {
+                let uses = self
+                    .table
+                    .imports_of(self.top_level)
+                    .is_some_and(|i| i.uses.contains(owner));
+                let mut d = Diagnostic::new(
+                    Code::B0012,
+                    format!(
+                        "`{n}` is bidama `{owner}`'s, and this file reaches it only because something loaded `{owner}`"
+                    ),
+                    node.span,
+                )
+                .at_top_level(self.top_level)
+                .with_help(format!(
+                    "list it, `use(\"{owner}\", [:{n}])`, or write `{owner}::{n}`{}",
+                    if uses {
+                        String::new()
+                    } else {
+                        format!("; the file must `use(\"{owner}\")` (and, in a bidama, `needs` it)")
+                    }
+                ));
+                if uses {
+                    d = d.with_fix(Fix {
+                        message: format!("write `{owner}::{n}`"),
+                        edits: vec![Edit {
+                            span: node.span,
+                            original: name.to_string(),
+                            replacement: format!("{owner}::{n}"),
+                        }],
+                        applicability: Applicability::MachineApplicable,
+                    });
+                }
+                self.diagnostics.push(d);
+            }
+        }
         self.references.push(Reference {
             top_level: self.top_level,
             span: node.span,
             written: name.to_string(),
             opaque,
-            flat: self.table.flat_target(name),
-            ns: self.table.ns_target(name, &self.own, self.top_level),
+            flat,
+            ns,
             node: std::ptr::from_ref(node) as usize,
         });
     }
@@ -942,6 +1008,19 @@ impl<'t> Walker<'t> {
         if name.contains('/') || opaque {
             return;
         }
+        if self.table.bidama(name).is_some() {
+            let d = Diagnostic::new(
+                Code::B0020,
+                format!("`{name}` is a bidama, not a value"),
+                span,
+            )
+            .at_top_level(self.top_level)
+            .with_help(format!(
+                "blue qualifies with `::`: `{name}.f(x)` and `{name}/f` are calls on a value named `{name}`; write `{name}::f(x)`"
+            ));
+            self.diagnostics.push(d);
+            return;
+        }
         let locals = self.locals_in_scope();
         let candidates = self.table.candidates(name, &locals, 3);
         let mut d = Diagnostic::new(Code::B0001, format!("unbound name `{name}`"), span)
@@ -982,6 +1061,9 @@ impl Walker<'_> {
         if pkg == BUILTIN_QUALIFIER {
             if self.table.builtin(n) {
                 self.resolved += 1;
+                if self.table.ns_target(n, &self.own, self.top_level) == Target::Builtin(n.to_string()) {
+                    self.redundant(span, pkg, n, "the bare name is the builtin here");
+                }
                 return;
             }
             let d = Diagnostic::new(Code::B0011, format!("`blue::{n}` names no builtin"), span)
@@ -1011,9 +1093,39 @@ impl Walker<'_> {
         }
         if self.table.bidama(pkg).is_some_and(|s| s.get(n).is_some()) {
             self.resolved += 1;
+            if self.own == Namespace::Bidama(pkg.to_string()) {
+                self.redundant(span, pkg, n, "it is this bidama's own definition");
+            } else if self
+                .table
+                .imports_of(self.top_level)
+                .and_then(|i| i.names.get(n))
+                .is_some_and(|ps| ps.len() == 1 && ps[0] == pkg)
+            {
+                self.redundant(span, pkg, n, "the file lists it from that bidama");
+            }
             return;
         }
         let d = self.no_such_definition(span, pkg, n, true);
+        self.diagnostics.push(d);
+    }
+
+    /// B0018: a qualifier that changes nothing.
+    fn redundant(&mut self, span: Span, pkg: &str, n: &str, why: &str) {
+        let d = Diagnostic::new(
+            Code::B0018,
+            format!("`{pkg}::{n}` needs no qualifier: {why}"),
+            span,
+        )
+        .at_top_level(self.top_level)
+        .with_fix(Fix {
+            message: format!("write `{n}`"),
+            edits: vec![Edit {
+                span,
+                original: format!("{pkg}::{n}"),
+                replacement: n.to_string(),
+            }],
+            applicability: Applicability::MachineApplicable,
+        });
         self.diagnostics.push(d);
     }
 

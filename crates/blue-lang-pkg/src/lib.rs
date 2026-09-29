@@ -31,6 +31,7 @@
 
 pub mod bluefile;
 pub mod canonical;
+pub mod corpus;
 /// The standard distribution compiled in (feature `embedded`).
 #[cfg(feature = "embedded")]
 pub mod embedded;

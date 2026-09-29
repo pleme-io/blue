@@ -34,6 +34,7 @@ use std::collections::BTreeMap;
 use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 
 pub mod names;
+pub mod namespace_rules;
 pub mod rules;
 pub mod suggest;
 pub mod waiver;
@@ -336,6 +337,9 @@ pub struct Outcome {
     /// Diagnostics an in-source waiver suppressed, with the waiver that did
     /// it. Reported, never silently dropped: see [`waiver`].
     pub waived: Vec<waiver::Waived>,
+    /// Findings of rules whose census has not reached zero: computed,
+    /// counted by `blue census`, and not enforced. See [`Rule::active`].
+    pub census: Vec<Diagnostic>,
 }
 
 impl Outcome {

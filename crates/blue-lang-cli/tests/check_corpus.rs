@@ -39,57 +39,19 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
-/// Every `.b` file under the repository root, `target/` and dot-directories
-/// skipped, sorted so a failure report is stable. The same walk as
-/// `blue-lang-fmt`'s formatter corpus.
+/// Every `.b` file of the corpus: `blue_lang_pkg::corpus`, the walk
+/// `blue census` counts over too.
 fn corpus() -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    walk(&root(), &mut out);
-    out.sort();
-    out
-}
-
-fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for e in entries.flatten() {
-        let p = e.path();
-        let name = e.file_name().to_string_lossy().into_owned();
-        let Ok(meta) = std::fs::symlink_metadata(&p) else {
-            continue;
-        };
-        if meta.is_dir() {
-            if name == "target" || name.starts_with('.') {
-                continue;
-            }
-            walk(&p, out);
-        } else if meta.is_file() && p.extension().is_some_and(|x| x == "b") {
-            out.push(p);
-        }
-    }
+    blue_lang_pkg::corpus::files(&root())
 }
 
 #[test]
 fn the_check_stage_reports_no_error_on_the_corpus() {
-    let root = root();
     // Every distribution in the tree — blue's own `bidamas/`, and each
     // project's (`nix/project-fixture/bidamas`, `examples/bidamas`) — found
     // by the walk, not listed, so a new project is covered when it lands.
     let files = corpus();
-    let mut roots: Vec<PathBuf> = files
-        .iter()
-        .filter_map(|f| {
-            f.ancestors()
-                .find(|a| a.file_name().is_some_and(|n| n == "bidamas"))
-                .map(Path::to_path_buf)
-        })
-        .collect();
-    roots.sort();
-    roots.dedup();
-    // blue's own distribution first: it is the one every project builds on.
-    roots.sort_by_key(|r| r != &root.join("bidamas"));
-    let loader = blue_lang_pkg::load_path::LoadPath::new(roots);
+    let loader = distribution_loader(&files);
     let mut errors = Vec::new();
     let mut resolved = 0usize;
     for path in &files {
@@ -330,17 +292,5 @@ fn template_symbols(forms: &[blue_lang_syntax::Spanned]) -> std::collections::BT
 
 /// A load path over every distribution in the tree, blue's own first.
 fn distribution_loader(files: &[PathBuf]) -> blue_lang_pkg::load_path::LoadPath {
-    let root = root();
-    let mut roots: Vec<PathBuf> = files
-        .iter()
-        .filter_map(|f| {
-            f.ancestors()
-                .find(|a| a.file_name().is_some_and(|n| n == "bidamas"))
-                .map(Path::to_path_buf)
-        })
-        .collect();
-    roots.sort();
-    roots.dedup();
-    roots.sort_by_key(|r| r != &root.join("bidamas"));
-    blue_lang_pkg::load_path::LoadPath::new(roots)
+    blue_lang_pkg::corpus::load_path(&root(), files)
 }

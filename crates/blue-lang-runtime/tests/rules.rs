@@ -31,6 +31,16 @@ impl Loader for Imports {
             .map(|(n, src)| vec![(format!("{n}.b"), (*src).to_string())])
             .ok_or_else(|| format!("no bidama named \"{name}\""))
     }
+
+    /// Every witness bidama is a bidama with no `needs`, so one that `use`s
+    /// another is B0019's witness and no other row's.
+    fn needs(
+        &self,
+        _package: &str,
+        _entry_dir: Option<&std::path::Path>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        Some(std::collections::BTreeSet::new())
+    }
 }
 
 fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Vec<Code> {
@@ -44,7 +54,15 @@ fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Ve
         Checking::WithTests,
     )
     .unwrap_or_else(|e| panic!("{src:?}: {e}"));
-    checked.outcome.diagnostics.iter().map(|d| d.code).collect()
+    // A rule still being ratcheted in is computed and not enforced: its
+    // witness fires into `census`.
+    checked
+        .outcome
+        .diagnostics
+        .iter()
+        .chain(&checked.outcome.census)
+        .map(|d| d.code)
+        .collect()
 }
 
 fn codes_of(src: &str) -> Vec<Code> {

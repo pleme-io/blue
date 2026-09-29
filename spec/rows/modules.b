@@ -47,7 +47,12 @@ row(
   pending("G16", "wasm")
 )
 
-row("modules.ns.builtin_qualified", "blue::first([1, 2])", value("1"))
+row(
+  "modules.ns.builtin_qualified",
+  "use(\"sp_over\", [:first])\nblue::first([1, 2])",
+  value("1"),
+  pending("namespaces")
+)
 
 row(
   "modules.ns.import_list",
@@ -73,6 +78,6 @@ row(
 row(
   "modules.ns.transitive_invisible",
   "use(\"sp_uses\")\nsp_twice(1)",
-  fails(:check, "N0003"),
+  fails(:check, "B0012"),
   pending("namespaces")
 )

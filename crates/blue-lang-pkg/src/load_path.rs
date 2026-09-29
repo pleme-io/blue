@@ -170,6 +170,20 @@ impl Loader for LoadPath {
     /// is a bidama's — one identifier, as every package a `use` can name is.
     /// A project manifest's name (`blue-repository`) is not, and a file
     /// beside one is in the root namespace.
+    fn needs(
+        &self,
+        package: &str,
+        entry_dir: Option<&Path>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        let dir = match entry_dir {
+            Some(d) => d.to_path_buf(),
+            None => self.resolve(package)?,
+        };
+        let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
+        let bf = crate::bluefile::read_bluefile(&text).ok()?;
+        Some(bf.manifest.needs.keys().cloned().collect())
+    }
+
     fn entry_package(&self, path: &Path) -> Option<String> {
         let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
         let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;

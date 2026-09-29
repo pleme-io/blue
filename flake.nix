@@ -429,6 +429,13 @@
               };
             };
 
+          # Every rule being ratcheted in (`blue_lang_check::RULES`'
+          # `ratchet`) measures EXACTLY its row's count over the repository:
+          # a new violation, or progress the row has not recorded, is red.
+          namespace-census = pkgs.runCommand "namespace-census" { } ''
+            ${blue}/bin/blue census ${./.} > $out
+          '';
+
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
           blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
 

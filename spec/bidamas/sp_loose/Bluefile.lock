@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:ac9bafc239d3359a1867235f632f95c000b2cb5e65bc652024e5c5767d0253d1",
+  "manifest": {
+    "schema": 1,
+    "name": "sp_loose",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

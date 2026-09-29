@@ -79,7 +79,8 @@ fn a_qualifier_the_file_does_not_use_is_an_error() {
 
 #[test]
 fn blue_qualifies_only_builtins() {
-    assert!(codes("blue::length([1])\n").is_empty());
+    // Bare `length` is the builtin already: the qualifier is B0018.
+    assert_eq!(codes("blue::length([1])\n")[0].0, Code::B0018);
     let c = codes("blue::lenght([1])\n");
     assert_eq!(c, vec![(Code::B0011, "`blue::lenght` names no builtin".into())]);
 }
@@ -123,7 +124,9 @@ fn a_listed_name_is_what_the_namespaced_rule_binds() {
 /// key. Pinned as the divergence the namespace flip closes.
 #[test]
 fn blue_first_lowers_to_the_flat_key_today() {
-    let src = "use(\"retsu\")\n\nblue::first([1])\n";
+    // The file lists retsu's `first`, so `blue::` is what says "the
+    // builtin" — and under flat semantics it cannot.
+    let src = "use(\"retsu\", [:first])\n\nblue::first([1])\n";
     assert!(codes(src).is_empty(), "{:?}", codes(src));
     let v = run_in_surface(Entry::anonymous(src), Inputs::new(), &Mem(DIST), None)
         .expect("run")

@@ -20,6 +20,14 @@
 //! | `witness` | a blue program that violates the rule, and nothing else |
 //! | `imports` | bidamas the witness `use`s, as `(name, source)`, when the rule needs more than one file |
 //! | `fix` | whether the rule offers a machine-applicable fix |
+//! | `waivable` | whether `# waive CODE:` may silence it. Only a rule whose violating program still has exactly one meaning is waivable: a waiver silences a check and must never change what a program means |
+//! | `ratchet` | `None` for a rule that has always held. `Some(n)` for a rule the corpus is being brought to: it is computed on every program, and reported (so enforced) only once `n` is 0; until then the census (`blue census`, `checks.namespace-census`) fails unless the corpus measures exactly `n` |
+//!
+//! **The ratchet is how a rule becomes an error without a switch.** A rule
+//! enters the pipeline in the commit where its measured count reaches zero
+//! and its row becomes `Some(0)`; nothing else activates it. Every change to
+//! the count is a reviewed edit of the number. That it only goes down is
+//! review-caught, not unrepresentable.
 //!
 //! **The witness is the red run, kept.** `every_rule_fires_on_its_witness`
 //! (in `blue-lang-runtime`, where the whole check stage exists) runs each
@@ -81,6 +89,40 @@ pub struct Rule {
     pub witness: &'static str,
     pub imports: &'static [(&'static str, &'static str)],
     pub fix: FixKind,
+    pub waivable: bool,
+    pub ratchet: Option<u32>,
+}
+
+impl Rule {
+    /// Is the rule enforced — reported by the check stage, so a violation
+    /// cannot run or build? Always, once its census has reached zero.
+    #[must_use]
+    pub const fn active(&self) -> bool {
+        match self.ratchet {
+            None | Some(0) => true,
+            Some(_) => false,
+        }
+    }
+}
+
+/// A row's `waivable`, `true` when unstated: the pre-namespace rules are.
+macro_rules! waivable {
+    () => {
+        true
+    };
+    ($w:literal) => {
+        $w
+    };
+}
+
+/// A row's `ratchet`, `None` when unstated.
+macro_rules! ratchet {
+    () => {
+        None
+    };
+    ($r:expr) => {
+        Some($r)
+    };
 }
 
 /// Build [`Code`], `Code::ALL` and [`RULES`] from one list of rows.
@@ -93,6 +135,8 @@ macro_rules! rules {
             law: $law:literal,
             witness: $witness:literal,
             $(imports: [$(($pkg:literal, $src:literal)),* $(,)?],)?
+            $(waivable: $waivable:literal,)?
+            $(ratchet: $ratchet:expr,)?
             explanation: $expl:literal $(,)?
         }
     )*) => {
@@ -122,6 +166,8 @@ macro_rules! rules {
                 witness: $witness,
                 imports: &[$($(($pkg, $src)),*)?],
                 fix: FixKind::$fix,
+                waivable: waivable!($($waivable)?),
+                ratchet: ratchet!($($ratchet)?),
             }
         ),*];
     };
@@ -250,7 +296,7 @@ stale waiver would silently cover the next real violation of that rule.",
         severity: Error,
         fix: None,
         law: "a name resolves to one definition: no two namespaces in the same resolution tier define it",
-        witness: "use(\"kagi_a\")\nuse(\"kagi_b\")\n\nkagi()\n",
+        witness: "use(\"kagi_a\", [:kagi])\nuse(\"kagi_b\", [:kagi])\n\nkagi()\n",
         imports: [
             ("kagi_a", "def kagi()\n  1\nend\n"),
             ("kagi_b", "def kagi()\n  2\nend\n"),
@@ -296,6 +342,166 @@ the qualifier is exact, and nothing else is consulted. The same holds for
 The help names the bidama that does define it, if one is loaded, and the
 nearest names the qualified bidama has. `blue::name` names a builtin, and
 is checked against the interpreter's own names.",
+    }
+    B0012 {
+        slug: "implicit-reference",
+        severity: Error,
+        fix: Machine,
+        law: "a bare name that is another bidama's definition is one the file lists: `use(\"retsu\", [:first])`, or written `retsu::first`",
+        witness: "use(\"kagi_a\")\n\nkagi()\n",
+        imports: [("kagi_a", "def kagi()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 4021,
+        explanation: "\
+Today every definition of every loaded bidama lands in one global
+environment, so a bare `first` reaches retsu's `first` from any file that
+something loaded retsu into, including through a dependency's dependency.
+Per-bidama namespaces bind a bare name to the file's own definitions, then
+the names its `use` forms list, then builtins, so that same `first` would
+quietly become the builtin. This rule finds every such reference before
+that can happen.
+
+The fix writes `retsu::first` when the file already `use`s retsu. Otherwise
+add `use(\"retsu\", [:first])` (and, inside a bidama, `needs(\"retsu\", …)`
+to its Bluefile). `blue migrate` makes every reference in a file explicit at
+once, and proves the program's meaning unchanged.",
+    }
+    B0013 {
+        slug: "prefixed-definition",
+        severity: Error,
+        fix: None,
+        law: "a bidama's definition does not spell its bidama: `def parse` in `moji`, never `def moji_parse`",
+        witness: "use(\"kagi\")\n\nkagi::kagi_x()\n",
+        imports: [("kagi", "def kagi_x()\n  1\nend\n")],
+        ratchet: 2,
+        explanation: "\
+The bidama is the namespace: callers write `moji::parse`, so `moji_parse`
+says the package twice. The prefix was how blue's single namespace kept two
+packages from colliding; with per-bidama namespaces it only makes names
+longer.
+
+To comply, strip the prefix and rewrite every caller (`blue migrate`). A
+name that cannot lose its prefix (the stripped name is a reserved word or a
+builtin the package itself uses) keeps it under a waiver saying so.",
+    }
+    B0014 {
+        slug: "mangled-namespace",
+        severity: Error,
+        fix: None,
+        law: "a bidama does not prefix nine in ten of its definitions with one short `x_`",
+        witness: "use(\"mangled\")\n\nmangled::mg_a()\n",
+        imports: [(
+            "mangled",
+            "def mg_a()\n  1\nend\n\ndef mg_b()\n  1\nend\n\ndef mg_c()\n  1\nend\n\ndef mg_d()\n  1\nend\n\ndef mg_e()\n  1\nend\n\ndef mg_f()\n  1\nend\n\ndef mg_g()\n  1\nend\n\ndef mg_h()\n  1\nend\n"
+        )],
+        ratchet: 13,
+        explanation: "\
+A bidama whose definitions are nearly all `q_…`, `lc_…` or `kj_…` has
+built a namespace by hand, which per-bidama namespaces make unnecessary:
+`kueri::join` rather than `q_join`. The threshold (eight or more
+definitions, 90% sharing one prefix of one to four letters) is calibrated on
+blue's own distribution, where it finds exactly the 13 hand-prefixed
+bidamas; the next highest share is 60%.
+
+To comply, strip the prefix with `blue migrate` and declare the old
+spelling with `legacy_names`, so callers keep working while they move.",
+    }
+    B0015 {
+        slug: "non-canonical-import",
+        severity: Error,
+        fix: Machine,
+        law: "a file's `use` forms come first, one per package, sorted by package, each list sorted",
+        witness: "use(\"kagi_b\")\nuse(\"kagi_a\")\n\nkagi_a::kagi()\nkagi_b::kagi()\n",
+        imports: [
+            ("kagi_a", "def kagi()\n  1\nend\n"),
+            ("kagi_b", "def kagi()\n  2\nend\n"),
+        ],
+        ratchet: 50,
+        explanation: "\
+Once names are qualified or listed, where a `use` sits in a file no longer
+changes what the file means, so there is one way to write the imports: every
+`use` before the first other form, at most one per package, sorted by
+package, and each list of names sorted without repeats. `use(\"x\", [])`
+lists nothing and is written `use(\"x\")`.
+
+Sorting a list is a machine-applicable fix. Moving a `use` is left to the
+author: while one global environment holds every definition, the order in
+which packages load can decide which of two same-named definitions wins.",
+    }
+    B0016 {
+        slug: "unused-import",
+        severity: Error,
+        fix: None,
+        law: "every `use` is reached by something in the file, and every name it lists is read",
+        witness: "use(\"kagi_a\")\n\n1\n",
+        imports: [("kagi_a", "def kagi()\n  1\nend\n")],
+        ratchet: 14,
+        explanation: "\
+A `use` nothing in the file reaches, or a listed name the file never reads,
+is a dependency the program does not have. Remove it. Inside a bidama,
+remove the matching `needs` from its Bluefile too (B0019 says so).
+
+A facade that exists to depend on other packages says so with a waiver.",
+    }
+    B0017 {
+        slug: "duplicate-definition",
+        severity: Error,
+        fix: None,
+        law: "a namespace defines a function or macro once",
+        witness: "def f()\n  1\nend\n\ndef f()\n  2\nend\n",
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+Two `def f` in one namespace: the one evaluated last silently replaces the
+other, so the program means whichever the author did not look at. Rename
+one. A value may be rebound at the top level (`total = total + 1` in a
+script); a function is defined once.",
+    }
+    B0018 {
+        slug: "redundant-qualifier",
+        severity: Error,
+        fix: Machine,
+        law: "a qualifier changes what its name means: not a bidama's own definition, not a listed name, not a builtin already reached bare",
+        witness: "blue::length([1])\n",
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+`moji::split` inside moji, `retsu::first` in a file that lists `first` from
+retsu, and `blue::length` where nothing else defines `length` all mean
+exactly their bare name. One way to write a thing: the fix strips the
+qualifier.",
+    }
+    B0019 {
+        slug: "needs-mismatch",
+        severity: Error,
+        fix: None,
+        law: "the bidamas a bidama `use`s are exactly the ones its Bluefile `needs`",
+        witness: "use(\"kagi_b\")\n\nkagi_b::kagi()\n",
+        imports: [
+            ("kagi_a", "def kagi()\n  1\nend\n"),
+            ("kagi_b", "use(\"kagi_a\")\n\ndef kagi()\n  kagi_a::kagi()\nend\n"),
+        ],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+`needs` is what nix builds a bidama against; `use` is what its code reaches.
+A `use` with no `needs` compiles here and fails in the sandbox, where the
+package is absent; a `needs` with no `use` is a dependency nothing uses.
+Edit the Bluefile, then run `blue lock <dir>`.",
+    }
+    B0020 {
+        slug: "package-as-value",
+        severity: Error,
+        fix: None,
+        law: "a bidama's name is written as a qualifier, `retsu::first(xs)`, never as a value",
+        witness: "use(\"kagi_a\")\n\nkagi_a::kagi() + kagi_a / 2\n",
+        imports: [("kagi_a", "def kagi()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+`retsu.first(xs)` is a send to a value named `retsu`, and `retsu/first` is a
+division; neither names retsu's `first`. blue qualifies with `::`:
+`retsu::first(xs)`.",
     }
 }
 

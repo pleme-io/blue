@@ -49,6 +49,7 @@
 //! between them *is* the sliding scale, and being able to print both sides of
 //! it is how a reader sees that annotations are consumed rather than carried.
 
+mod census;
 mod config;
 mod diagnostics;
 mod prefetch;
@@ -149,6 +150,15 @@ enum Cmd {
         /// check again. Suggestions marked maybe-incorrect are never applied.
         #[arg(long)]
         fix: bool,
+    },
+    /// Count, over every `.b` file under ROOT, each finding of every rule
+    /// still being ratcheted in, and fail unless each count equals its
+    /// registry row's `ratchet`. `--findings` lists them.
+    Census {
+        #[arg(default_value = ".")]
+        root: PathBuf,
+        #[arg(long)]
+        findings: bool,
     },
     /// Explain a diagnostic code (`blue explain B0001`), or list them all.
     #[command(group(clap::ArgGroup::new("which").required(true).args(["code", "list"])))]
@@ -532,6 +542,36 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Check { file, format, fix } => check(&file, format, fix),
+
+        Cmd::Census { root, findings } => {
+            let c = census::take(&root).map_err(CliError::Pkg)?;
+            println!("{} file(s)", c.files);
+            for r in blue_lang_check::RULES.iter().filter(|r| r.ratchet.is_some()) {
+                let measured = c.findings.get(&r.code).map_or(0, std::collections::BTreeSet::len);
+                println!(
+                    "{} {:<24} measured {measured:>5}  ratchet {:>5}",
+                    r.code,
+                    r.slug,
+                    r.ratchet.unwrap_or(0)
+                );
+                if findings {
+                    for f in c.findings.get(&r.code).into_iter().flatten() {
+                        println!("    {}", f.lines().next().unwrap_or(""));
+                    }
+                }
+            }
+            let bad = c.mismatches();
+            for (code, measured, ratchet) in &bad {
+                eprintln!(
+                    "blue census: {code} measured {measured}, ratchet {ratchet}: edit the row's ratchet to {measured} if the change is the intended one"
+                );
+            }
+            Ok(if bad.is_empty() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            })
+        }
 
         Cmd::Explain { code, list } => {
             if list {

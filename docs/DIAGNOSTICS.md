@@ -24,8 +24,28 @@ it; `blue explain --list` lists them.
 | B0009 | ambiguous-name | error | no two namespaces in one resolution tier define a name |
 | B0010 | qualifier-not-imported | error | a qualified name's package is one the file `use`s |
 | B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that package |
+| B0012 | implicit-reference | error | a bare name that is another bidama's definition is one the file lists, or is written qualified |
+| B0013 | prefixed-definition | error | a bidama's definition does not spell its bidama |
+| B0014 | mangled-namespace | error | a bidama does not prefix nine in ten of its definitions with one short `x_` |
+| B0015 | non-canonical-import | error | a file's `use` forms come first, one per package, sorted, each list sorted |
+| B0016 | unused-import | error | every `use` is reached, and every name it lists is read |
+| B0017 | duplicate-definition | error | a namespace defines a function or macro once |
+| B0018 | redundant-qualifier | error | a qualifier changes what its name means |
+| B0019 | needs-mismatch | error | the bidamas a bidama `use`s are exactly the ones its Bluefile `needs` |
+| B0020 | package-as-value | error | a bidama's name is written as a qualifier, never as a value |
 
 The registry is the source of truth; a test fails if a code is missing here.
+
+## Ratchets: how a rule becomes an error
+
+A rule the corpus does not yet satisfy is registered with `ratchet: Some(n)`:
+it is computed on every program and its findings are counted, not enforced.
+`blue census [ROOT]` counts them over every `.b` file under ROOT, and
+`checks.namespace-census` fails unless each count equals its row's ratchet
+exactly, so every change to a count is a reviewed edit of the number. The
+commit that brings a count to zero sets the row to `Some(0)`, and from then
+on the rule is an error on every door. `blue census --findings` lists each
+finding.
 
 ## Name resolution order
 

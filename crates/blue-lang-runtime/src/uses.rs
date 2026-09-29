@@ -85,6 +85,16 @@ pub trait Loader {
     fn entry_package(&self, _path: &Path) -> Option<String> {
         None
     }
+
+    /// The bidamas `package`'s Bluefile `needs`, when the loader can read it.
+    /// `None` when it cannot, and the check stage then has nothing to compare
+    /// the package's `use` forms against (B0019).
+    ///
+    /// `entry_dir` is the directory of the entry file, for the entry's own
+    /// bidama, which a loader may not find under its roots.
+    fn needs(&self, _package: &str, _entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
+        None
+    }
 }
 
 /// A loader that resolves nothing, and says so.
@@ -205,6 +215,7 @@ pub struct ResolvedProgram {
     owner: Vec<FileId>,
     files: Vec<SourceFile>,
     imports: Vec<(FileId, Import)>,
+    needs: std::collections::BTreeMap<String, BTreeSet<String>>,
 }
 
 
@@ -218,6 +229,7 @@ impl ResolvedProgram {
             owner: Vec::new(),
             files: Vec::new(),
             imports: Vec::new(),
+            needs: std::collections::BTreeMap::new(),
         };
         let id = program.intern(
             entry.path.map(Path::to_path_buf),
@@ -270,6 +282,12 @@ impl ResolvedProgram {
                 }
             })
             .collect()
+    }
+
+    /// Each loaded bidama's Bluefile `needs`, where the loader read one.
+    #[must_use]
+    pub fn needs(&self) -> &std::collections::BTreeMap<String, BTreeSet<String>> {
+        &self.needs
     }
 
     /// Every `use` form, with the file that wrote it.
@@ -451,7 +469,12 @@ pub fn resolve_uses(
     if let Some(p) = &package {
         seen.insert(p.clone());
     }
-    let mut out = ResolvedProgram::new(entry, package);
+    let mut out = ResolvedProgram::new(entry, package.clone());
+    if let Some(p) = &package {
+        if let Some(n) = loader.needs(p, entry.path.and_then(Path::parent)) {
+            out.needs.insert(p.clone(), n);
+        }
+    }
     expand(
         forms,
         ResolvedProgram::ENTRY,
@@ -488,6 +511,9 @@ fn expand(
         }
 
         let sources = loader.load(&name).map_err(|e| describe(chain, &name, &e))?;
+        if let Some(n) = loader.needs(&name, None) {
+            out.needs.insert(name.clone(), n);
+        }
         let mut inner_chain = chain.to_vec();
         inner_chain.push(name.clone());
 

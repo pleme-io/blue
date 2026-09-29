@@ -30,6 +30,7 @@ pub fn check(
     table: &NameTable,
     namespace_of: &dyn Fn(usize) -> Namespace,
     references: &[Reference],
+    whole_file: &dyn Fn(usize) -> bool,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     let mut files: BTreeMap<usize, FileUses> = BTreeMap::new();
@@ -46,7 +47,17 @@ pub fn check(
     }
     for (file, fu) in &files {
         canonical_imports(fu, &mut out);
-        unused_imports(*file, fu, table, references, &mut out);
+        // Only a file checked whole — its test blocks included, which an
+        // imported bidama's are not — can say a listed name is never read.
+        let whole = fu
+            .uses
+            .first()
+            .map(|(i, _)| *i)
+            .or(fu.others.first().copied())
+            .is_some_and(whole_file);
+        if whole {
+            unused_imports(*file, fu, table, references, &mut out);
+        }
     }
     needs_agree(&files, table, namespace_of, &mut out);
     definitions(forms, namespace_of, &mut out);

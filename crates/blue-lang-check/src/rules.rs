@@ -435,7 +435,7 @@ which packages load can decide which of two same-named definitions wins.",
         law: "every `use` is reached by something in the file, and every name it lists is read",
         witness: "use(\"kagi_a\")\n\n1\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
-        ratchet: 94,
+        ratchet: 8,
         explanation: "\
 A `use` nothing in the file reaches, or a listed name the file never reads,
 is a dependency the program does not have. Remove it. Inside a bidama,

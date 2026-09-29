@@ -828,7 +828,8 @@ pub fn check_names(
         // A top-level form's own defines are globals, already in `table`.
         scope::walk_top(form, &mut w);
     }
-    let file_rules = crate::namespace_rules::check(forms, table, namespace_of, &w.references);
+    let file_rules =
+        crate::namespace_rules::check(forms, table, namespace_of, &w.references, report_unused);
     w.diagnostics.extend(file_rules);
     (w.diagnostics, w.resolved)
 }

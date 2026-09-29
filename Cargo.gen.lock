@@ -5,7 +5,7 @@
     "Cargo.toml": "58cb7ddb1999f84ca59134a9561c12549521e7d47b79abcfec15ac0d7fd14737",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
-    "crates/blue-lang-check/Cargo.toml": "ac9d171e6bf5d097e0704a89a1a2dc5b808b88230c40b25218acd43a45041f1c",
+    "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
     "crates/blue-lang-cli/Cargo.toml": "cab16f37a8d5ad1b0ff840f2309e860de53ff0b23f18d6901d8d6b165a73520b",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-lsp/Cargo.toml": "7cea9b882efc3a0b1797a901b76d87156088ac2eb644e94cf7f37f87e3ff1d3a",
@@ -296,6 +296,16 @@
       },
       "blue-lang-check-0.0.49": {
         "runtime_dependencies": [
+          {
+            "name": "blue_lang_syntax",
+            "package_key": "blue-lang-syntax-0.0.49",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
           {
             "name": "tatara_lisp",
             "package_key": "tatara-lisp-0.3.60",

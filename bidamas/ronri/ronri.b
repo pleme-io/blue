@@ -1,5 +1,6 @@
-use("retsu")
-use("kansuu")
+use("kansuu", [:compose])
+use("kazu", [:abs])
+use("retsu", [:first, :indexes, :is_empty, :rest, :size])
 
 # ronri (論理) — predicates, and the algebra over them.
 #

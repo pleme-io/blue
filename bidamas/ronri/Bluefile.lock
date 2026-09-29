@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:bfb5f23fd425c3e25cfa79bfa49d835c686e5526b0b9ba9ecae41703879d89c6",
+  "bluefile_b3": "b3:b009609bd9e97851f3929a92051215646e8e2a531826f82eeb2806924a64e3e0",
   "manifest": {
     "schema": 1,
     "name": "ronri",
     "version": "0.1.0",
     "needs": {
       "kansuu": "^0.1.0",
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

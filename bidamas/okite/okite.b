@@ -1,6 +1,7 @@
-use("retsu")
-use("moji")
-use("ran")
+use("junjo", [:sort])
+use("moji", [:lines])
+use("ran", [:next_bool, :next_seed, :next_uniform, :pick])
+use("retsu", [:contains, :flat_map, :index_of, :is_empty, :rest, :size])
 
 # okite (掟) — blue's decisions, each enforced by laws written in blue.
 #

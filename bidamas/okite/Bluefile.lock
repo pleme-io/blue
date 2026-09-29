@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:9c2395255efd3f32f58c6b983c8058d515313e69ebf7e9cbd3131c1cce531a23",
+  "bluefile_b3": "b3:1ab69ba0e7671ee2eb9613bad4a13e7f61facb7e73ea99b1580d95fb65513eb8",
   "manifest": {
     "schema": 1,
     "name": "okite",
     "version": "0.1.0",
     "needs": {
+      "junjo": "^0.1.0",
       "moji": "^0.1.0",
       "ran": "^0.1.0",
       "retsu": "^0.1.0"

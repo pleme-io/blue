@@ -1,4 +1,5 @@
-use("retsu")
+use("kazu", [:max])
+use("retsu", [:first, :is_empty, :size])
 
 # shomei (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
 #

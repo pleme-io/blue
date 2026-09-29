@@ -1,7 +1,37 @@
-use("retsu")
-use("kazu")
-use("gyouretsu")
-use("junjo")
+use(
+  "gyouretsu",
+  [
+    :dot,
+    :matmul,
+    :mvmul,
+    :scale,
+    :solve_gauss,
+    :transpose,
+    :vadd,
+    :vdistance,
+    :vector_near,
+    :vsub
+  ]
+)
+
+use("junjo", [:is_strictly_sorted, :sort_stable_by, :upper_bound])
+use("kazu", [:abs, :clamp, :lerp, :max, :min, :near, :near_within, :square])
+
+use(
+  "retsu",
+  [
+    :all_but_last,
+    :concat_lists,
+    :first,
+    :indexes,
+    :is_empty,
+    :last,
+    :push,
+    :rest,
+    :size,
+    :update_at
+  ]
+)
 
 # kinji (近似) — approximation: numerical methods: ODEs, roots, minimisation, least squares, interpolation and quadrature.
 #

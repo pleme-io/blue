@@ -1,9 +1,77 @@
-use("retsu")
-use("shuugou")
-use("junjo")
-use("deeta")
-use("shomei")
-use("raifusaikuru")
+use("deeta", [:as_json, :get_int, :get_str, :is_doc])
+use("junjo", [:sort_stable_by])
+
+use(
+  "raifusaikuru",
+  [
+    :lc_admit_step,
+    :lc_admitted?,
+    :lc_breaches,
+    :lc_d_events,
+    :lc_define,
+    :lc_ev,
+    :lc_ev_payload,
+    :lc_ev_time,
+    :lc_ev_type,
+    :lc_event,
+    :lc_example_consumable,
+    :lc_initial,
+    :lc_name,
+    :lc_name?,
+    :lc_on,
+    :lc_phase,
+    :lc_refused,
+    :lc_refused_rules,
+    :lc_reject_detail,
+    :lc_reject_kind,
+    :lc_show,
+    :lc_start,
+    :lc_state_of,
+    :lc_states,
+    :lc_step,
+    :lc_terminals,
+    :lc_text,
+    :lc_value
+  ]
+)
+
+use(
+  "retsu",
+  [
+    :all_but_last,
+    :as_list,
+    :concat_lists,
+    :contains,
+    :count_where,
+    :find_first,
+    :first,
+    :is_empty,
+    :last,
+    :push,
+    :remove_at,
+    :repeat,
+    :size,
+    :take_n,
+    :update_at
+  ]
+)
+
+use(
+  "shomei",
+  [
+    :chain_first_break,
+    :chain_genesis,
+    :chain_link,
+    :is_hash_hex,
+    :keypair_public,
+    :keypair_secret,
+    :sign_message,
+    :signing_keypair,
+    :verify_message
+  ]
+)
+
+use("shuugou", [:lookup, :set_equal, :unique])
 
 # nisshi (日誌) — an event log: append-only JSON Lines, hash-chained, optionally signed, replayed into lifecycle states.
 #

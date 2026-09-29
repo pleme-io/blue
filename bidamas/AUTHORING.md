@@ -16,19 +16,21 @@ traps not yet decided. Each one fixed becomes a rule there and leaves here.
 
 ## The one that breaks structural recursion
 
-**`cdr` of a one-element list returns `nil`, not `[]`, and `length(nil)`
-ERRORS.**
+**`length(nil)` ERRORS, and `nil` is not `[]`.** The list operations never
+hand you that `nil` any more (okite D0011: `cdr([1])` is `[]`, measured
+2026-09-29), but a function that receives `nil` — an absent map key, a
+`find_first` that found nothing — still reaches it:
 
 ```
-cdr([1])            => nil
-nil == []           => false      # two DIFFERENT empties
-length(cdr([1]))    => runtime error: expected a string, got nil
+cdr([1])            => []
+nil == []           => false      # two DIFFERENT empties (D0004)
+length(nil)         => runtime error: expected a string, got nil
 ```
 
-So the obvious shape crashes at the last element of **every** list:
+So a recursion guarded by `length` dies on the first `nil` it is given:
 
 ```blue
-# WRONG — dies on the base case, on every input
+# WRONG — dies when xs is nil
 def walk(xs)
   if length(xs) < 1
     0
@@ -38,7 +40,7 @@ def walk(xs)
 end
 ```
 
-Use `retsu`'s total replacements, which exist for exactly this:
+Use `retsu`'s total replacements, which are true of both empties:
 
 ```blue
 use("retsu")
@@ -99,9 +101,9 @@ only where rounding error is real (0.1 + 0.2), not to compare an Int with a Floa
 negative, which is the opposite of C, Rust, JS and Ruby:
 
 ```
-(0 - 7) % 3   => 2        # NOT -1
-7 % (0 - 3)   => 1
-5 % 0         => runtime error, not a typed one
+-7 % 3        => 2        # NOT -1
+7 % -3        => 1
+5 % 0         => runtime error ("division by zero"), not a typed one
 ```
 
 Any modulo idiom ported from another language will silently compute something
@@ -118,7 +120,7 @@ The reachable `compare(a, b)` builtin is total and returns -1/0/1 — that is wh
 ```blue
 fn(x) x * 2 end                    # works
 map(fn(x) x * 2 end, xs)           # works
-[1,2,3].map { |x| x * 2 }          # PARSE ERROR — no brace blocks
+[1,2,3].map { |x| x * 2 }          # PARSE ERROR — "blue has no brace blocks"
 ```
 
 Assignment works (`x = 5`); there is no `let`. Nested lambdas and closures work.
@@ -189,8 +191,15 @@ the sentence that says what a function is for right above it.
 ## Output, strings and control flow (measured)
 
 - **`if` is an expression**: `x = if c … else … end` works, written across lines.
-  There is no one-line `if c then a else b end`: `then` is an unbound name
-  (measured 2026-09-23). Put a one-line choice in a small helper function.
+  There is no `then`: `if c then a else b end` is a parse error ("blue's `if`
+  has no `then`"). Until 2026-09-29 it parsed, with `then` as a statement of
+  its own, and failed at run time as an unbound name. The formatter writes an
+  `if` across lines; put a one-line choice in a small helper function.
+- **One statement per line.** A statement ends at the end of its line, or at
+  the `end`/`else`/`when` that closes its block, so `fn(x) x + 1 end` is one
+  line. Anything else after a statement is a parse error: there is no `;`, and
+  `a = f x` is refused with "a call needs parentheses: write `f(x)`". Until
+  2026-09-29 the parser started a second statement there instead, silently.
 - **`error(kind, msg)` builds an error VALUE; `throw(...)` raises it.** A check
   written as `error(:x, "...")` returns a value and the program carries on
   with exit 0 — a gate that can never fail. Fail a run with
@@ -213,14 +222,15 @@ the sentence that says what a function is for right above it.
 - **`to_s` keeps a float's point** (D0005): `to_s(1.0)` is `"1.0"`.
 - **`some` is a builtin; `any` and `every` are `ronri`'s.** Reaching them
   through a transitive import works until the import changes.
-- **There is no postfix indexing.** `xs[0]` is a parse error, and `f(x)[1]`
-  can parse into something else and fail later as a type error (measured
-  2026-09-23, twice). Use `nth(i, xs)`, `first` and `last`.
+- **There is no postfix indexing.** `xs[0]` is a parse error that names the
+  fix: "write `nth(0, xs)` (or `first(xs)`, `last(xs)`)", and so is `f(x)[1]`.
+  Until 2026-09-29 `y = xs[0]` parsed as two statements, `y = xs` and the list
+  `[0]`, and bound `y` to the whole list. Use `nth(i, xs)`, `first` and `last`.
 - **Interpolation works**, calls included: `"| #{name} | #{to_s(n)} |"`. It
   reads better than nested `concat`.
 - **`println` prints a string with its quotes and escapes visible.** A program
   whose output is data writes it with `write_file`.
-- **`glob` of an ABSOLUTE pattern returns `()`** while `walk_dir` of the same
+- **`glob` of an ABSOLUTE pattern returns `[]`** while `walk_dir` of the same
   root lists every file. Walk and filter with `ends_with?`, and give any scan
   a positive control so a silent zero is a failure.
 - **`concat` takes any number of arguments** (D0007). `each`, `len` and `map_indexed` are unbound: `map` (for its
@@ -314,9 +324,6 @@ a recursion that copied the tail at each step (664 ms to find the last of
 
 ## Silent answers
 
-- **`concat_lists([], [])` is `nil`**, not `[]` (measured 2026-09-24): a
-  generator that returns "no models" from two empty lists answers `nil`, and
-  `== []` on it is false. Test the result with `is_empty`.
 - **In kueri, a string in an expression is a VALUE.** A keyword is a column
   and a string is a literal (the HoneySQL rule), so a column name a program
   computes as text (`"#{role}_seq"`) renders as `'item_seq'` inside a
@@ -325,9 +332,10 @@ a recursion that copied the tail at each step (664 ms to find the last of
   `q_c(...)` wherever it is an operand; in `q_select`, keys and sort lists a
   string is already a name.
 - **A string literal containing `#{` is always interpolated.** A program that
-  carries blue source as data (a mutation driver, a code generator) builds
-  the opener as `concat("#", "{")`, or the literal evaluates the code it was
-  meant to hold (measured 2026-09-24: "unbound symbol").
+  carries blue source as data (a mutation driver, a code generator) writes the
+  brace by codepoint, `"#\u{7b}"`, which is also how the formatter prints a
+  string whose value holds `#{`. Written plainly, the literal evaluates the
+  code it was meant to hold (measured 2026-09-24: "unbound symbol").
 - **`list?(nil)` is true.** Test `v == nil` before `list?(v)`, or `nil` takes
   the list branch (a JSON writer rendered it `[]`).
 - **`find_first` answers `nil` both for "absent" and for a found `nil`.** When
@@ -338,8 +346,9 @@ a recursion that copied the tail at each step (664 ms to find the last of
 
 ## Negative numbers
 
-There is a unary minus, but `0 - n` is what the existing packages use and what
-is proven across the corpus. `sign(0 - 7) == 0 - 1` reads oddly and works.
+Write `-n`. `0 - n` is the same tree, and the formatter rewrites it to `-n`
+(measured 2026-09-29: no `0 - x` survives in the corpus). `-x * y` is
+`(-x) * y`: the unary minus binds tighter than any infix operator.
 
 ---
 
@@ -350,8 +359,9 @@ the red directory first, so any package left there from an earlier red run
 shadows the real one: a mutation of `kakou` tested beside a leftover mutated
 `rittai` failed because of `rittai` (measured 2026-09-27; every affected run
 was redone). One fresh directory per mutation, holding only the mutated
-package. **`heni` does this for you** (`heni <PKG_DIR> <MUTATIONS.json>`, on
-every node's PATH): a control run first, then each literal find/replace
+package. **`heni` does this for you** (`heni <PKG_DIR> <MUTATIONS.json>`; `nix run
+.#heni --` from blue, and on PATH only where a node installs blue's commands —
+it was not on this workstation's PATH on 2026-09-29): a control run first, then each literal find/replace
 (which must match exactly once) in its own copy, reported as caught / survived /
 refused / blind, exiting non-zero unless every mutation is caught. A red run by
 hand that rebuilds a binary leaves the mutant binary behind after the source is
@@ -366,7 +376,7 @@ resolve, so a dependency's tests never count as yours.
 ```blue
 test "what the behaviour is, not what the function is called"
   assert clamp(99, 1, 10) == 10
-  assert clamp(0 - 5, 1, 10) == 1
+  assert clamp(-5, 1, 10) == 1
   assert clamp(5, 1, 10) == 5
 end
 ```
@@ -399,7 +409,8 @@ one. Every one of these caught a real bug in this distribution:
 2. Add the `NAMES.md` row in the same commit, or the build goes red.
 3. `Bluefile`: `package("name", "0.1.0")` plus a `needs(...)` per dependency —
    and every `needs` must have a matching `use(...)` in the source, which is
-   also enforced.
+   also enforced. Then `blue lock <dir>` and commit the `Bluefile.lock` with
+   it: nix reads the lock, and `bidama-locks-fresh` fails on a stale one.
 4. Raise the package floor in `bidamas/flake.nix`, the package and test floors
    in `distribution.rs`, and regenerate `CATALOG.md` with `nix run .#regen`.
 5. Add the matching `needs(...)`/`use(...)` pair to **`zenbu`** — the facade
@@ -409,8 +420,10 @@ one. Every one of these caught a real bug in this distribution:
    you: `granularity.rs::the_facade_is_an_ordinary_bidama_with_many_needs`
    turns the omission into a red build.
 
-   **Do not compute that list.** A Bluefile is blue code, so
-   `needs(some_variable, …)` works — and `mk-bidama.nix` reads the graph by
-   splitting the text on `needs("`, so nix would not see it. Measured: one
-   computed entry left blue resolving 17 dependencies, nix seeing 16, and the
-   built closure one bidama short, with nothing red.
+   **Write the list out anyway.** A Bluefile is blue code, so
+   `needs(some_variable, …)` works. `mk-bidama.nix` used to read the graph by
+   splitting the text on `needs("`, and one computed entry left blue resolving
+   17 dependencies, nix seeing 16, and the built closure one bidama short, with
+   nothing red. It now reads the committed `Bluefile.lock`, which is blue's own
+   evaluation, so a computed entry is seen; a literal list is still the one a
+   reader can check against the `use(...)` lines.

@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b84dc9d51dee35354547236d80afc9451ff861ac9f68c8065d406f789d98ef3e",
+  "bluefile_b3": "b3:bec437a4db3727d147dc8e1dee36c640e601a37be15cebfca1830e8ca786cfd8",
   "manifest": {
     "schema": 1,
     "name": "ryouiki",
     "version": "0.1.0",
     "needs": {
       "junjo": "^0.1.0",
+      "kazu": "^0.1.0",
       "ran": "^0.1.0",
       "retsu": "^0.1.0",
       "toukei": "^0.1.0"

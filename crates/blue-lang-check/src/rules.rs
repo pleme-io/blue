@@ -351,7 +351,7 @@ is checked against the interpreter's own names.",
         witness: "use(\"kagi_a\")\n\nkagi()\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
         waivable: false,
-        ratchet: 1534,
+        ratchet: 1474,
         explanation: "\
 Today every definition of every loaded bidama lands in one global
 environment, so a bare `first` reaches retsu's `first` from any file that
@@ -416,7 +416,7 @@ spelling with `legacy_names`, so callers keep working while they move.",
             ("kagi_a", "def kagi()\n  1\nend\n"),
             ("kagi_b", "def kagi()\n  2\nend\n"),
         ],
-        ratchet: 28,
+        ratchet: 26,
         explanation: "\
 Once names are qualified or listed, where a `use` sits in a file no longer
 changes what the file means, so there is one way to write the imports: every

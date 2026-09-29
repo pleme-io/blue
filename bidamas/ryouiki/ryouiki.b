@@ -1,7 +1,8 @@
-use("retsu")
-use("junjo")
-use("toukei")
-use("ran")
+use("junjo", [:sort, :sort_by])
+use("kazu", [:max, :sum])
+use("ran", [:next_float, :stream_seed])
+use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :last, :size])
+use("toukei", [:largest, :mean, :percentile, :smallest])
 
 # ryouiki (領域) — region: which region of the inputs produces an outcome.
 #

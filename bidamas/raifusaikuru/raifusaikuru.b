@@ -1,5 +1,28 @@
-use("retsu")
-use("shuugou")
+use("kazu", [:min])
+
+use(
+  "retsu",
+  [
+    :as_list,
+    :concat_lists,
+    :contains,
+    :count_of,
+    :drop_n,
+    :find_first,
+    :first,
+    :flat_map,
+    :flatten1,
+    :is_empty,
+    :last,
+    :push,
+    :repeat,
+    :rest,
+    :size,
+    :take_n
+  ]
+)
+
+use("shuugou", [:lookup, :set_equal, :union, :unique, :unique_by])
 
 # raifusaikuru (ライフサイクル) — lifecycles: event-sourced states, guards that name the rule and the task, and permit limits.
 #

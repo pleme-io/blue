@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:7525a5c90efc6b0789969e4852369328f1bc1581a0efac2b838d00a1ff8da986",
+  "bluefile_b3": "b3:7984071468ab846dd8db88c71ae080ed5e881b4e181fe92161e9b9ce2da9c787",
   "manifest": {
     "schema": 1,
     "name": "raifusaikuru",
     "version": "0.1.0",
     "needs": {
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0",
       "shuugou": "^0.1.0"
     },

@@ -1,5 +1,5 @@
-use("retsu")
-use("moji")
+use("moji", [:is_alpha, :is_blank, :lines, :take_chars])
+use("retsu", [:first, :is_empty, :last, :rest])
 
 # shisutemu (システム) — the system.
 #

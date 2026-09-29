@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:29d3b2627b7df927216eb82acfa24b3be91eb503d47a153affedaacd5001e52e",
+  "bluefile_b3": "b3:670b0388b6dac55d71f25e67f6a23c526da69012ad900fdf8447e27c74349f8c",
   "manifest": {
     "schema": 1,
     "name": "moji",
     "version": "0.1.0",
     "needs": {
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

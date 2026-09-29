@@ -1,4 +1,5 @@
-use("retsu")
+use("kazu", [:min])
+use("retsu", [:first, :is_empty, :repeat, :rest, :size])
 
 # moji (文字) — strings.
 #

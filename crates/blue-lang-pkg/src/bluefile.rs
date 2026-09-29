@@ -86,15 +86,11 @@
 //! is a word here, recorded into [`Project`] and printed by
 //! `blue bluefile --json`:
 //!
-//! | Word | Records |
-//! |---|---|
-//! | `source(name, url, dir)` | a named external distribution root |
-//! | `packages(dir)` | a local package root |
-//! | `run(name, file[, reads])` | a program run as its own cached derivation |
-//! | `tool(name)` | a nixpkgs attribute on PATH for runs, checks and apps |
-//! | `check(name, file)` | a test file run as a check |
-//! | `app(name, file)` | a program exposed as `nix run .#name` |
-//! | `catalog(path)` | the mokuroku catalogue of `packages`, gated fresh |
+//! The words, each with its signature and one line on what it records, are
+//! printed by `blue reference` and rendered into `docs/REFERENCE.md` from
+//! [`words`]. That list replaced a table here that had already fallen one word
+//! behind (`generate` was missing), which is the drift a generated reference
+//! exists to end.
 //!
 //! The words are FACTS, never nix expressions (§5.3 stands): one engine lowers
 //! them. **The table is [`WORDS`], and it is the only place a word is defined**
@@ -170,6 +166,17 @@ pub struct Generated {
     pub output: String,
     /// The blue program that writes it, relative to the Bluefile.
     pub program: String,
+    /// The project paths the program reads, relative to the Bluefile.
+    ///
+    /// A generator runs alone in the store, so it can read nothing of the
+    /// project unless it is named here; the engine puts exactly these paths
+    /// under `$GEN_ROOT`, and `regen` runs with `$GEN_ROOT` at the project
+    /// root. Named rather than implied so a derivation depends on what the
+    /// program reads and nothing else, and so the freshness check turns red
+    /// when an input changes without the file being regenerated. Omitted from
+    /// the lock when empty, so every lock written before the field is unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<String>,
 }
 
 /// A named external distribution root: where to fetch it, and which directory
@@ -333,6 +340,9 @@ struct Word {
     name: &'static str,
     /// How an author calls it — quoted in every arity error.
     signature: &'static str,
+    /// One line for a reader: what the word declares. `blue reference` prints
+    /// it; `every_word_is_described` makes an empty one a red build.
+    doc: &'static str,
     min: usize,
     max: usize,
     /// What the word records. Runs only after the arity is checked, and reads
@@ -350,6 +360,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "package",
         signature: "package(name, version)",
+        doc: "The project's or package's name and version; exactly once per Bluefile.",
         min: 2,
         max: 2,
         record: |c, into| {
@@ -361,6 +372,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "needs",
         signature: "needs(name, range)",
+        doc: "A dependency on a package and a version range (\"^0.1\"); a package's source must use() every package it needs.",
         min: 2,
         max: 2,
         record: |c, into| {
@@ -372,6 +384,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "posture",
         signature: "posture(when)",
+        doc: "The posture floor a package requires: \"sealed\", \"preceding\" or \"anytime\".",
         min: 1,
         max: 1,
         record: |c, into| {
@@ -382,6 +395,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "source",
         signature: "source(name, url, dir)",
+        doc: "A named external distribution root, fetched from a flake URL and pinned in Bluefile.lock by `blue lock`.",
         min: 3,
         max: 3,
         record: |c, into| {
@@ -396,6 +410,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "packages",
         signature: "packages(dir)",
+        doc: "A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions.",
         min: 1,
         max: 1,
         record: |c, into| push_once(&mut into.project.packages, c.word, c.path(0, "dir")?),
@@ -403,6 +418,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "run",
         signature: "run(name, file[, reads])",
+        doc: "A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads.",
         min: 2,
         max: 3,
         record: |c, into| {
@@ -421,6 +437,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "tool",
         signature: "tool(name)",
+        doc: "A nixpkgs attribute put on PATH for the project's runs, checks, apps and generators.",
         min: 1,
         max: 1,
         record: |c, into| push_once(&mut into.project.tools, c.word, c.text(0, "name")?),
@@ -428,6 +445,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "check",
         signature: "check(name, file)",
+        doc: "A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails.",
         min: 2,
         max: 2,
         record: |c, into| {
@@ -441,6 +459,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "app",
         signature: "app(name, file)",
+        doc: "A program exposed as `nix run .#<name>`.",
         min: 2,
         max: 2,
         record: |c, into| {
@@ -453,14 +472,20 @@ const WORDS: &[Word] = &[
     },
     Word {
         name: "generate",
-        signature: "generate(name, output, program)",
+        signature: "generate(name, output, program[, inputs])",
+        doc: "A committed file and the program that writes it (to $GEN_OUT): `packages.generated-<name>` and a freshness check. `inputs` lists the project paths the program reads, found under $GEN_ROOT.",
         min: 3,
-        max: 3,
+        max: 4,
         record: |c, into| {
             let name = c.text(0, "name")?;
             let generated = Generated {
                 output: c.path(1, "output")?,
                 program: c.path(2, "program")?,
+                inputs: if c.args.len() > 3 {
+                    c.paths(3, "inputs")?
+                } else {
+                    Vec::new()
+                },
             };
             insert_once(&mut into.project.generated, c.word, name, generated)
         },
@@ -468,6 +493,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "catalog",
         signature: "catalog(path)",
+        doc: "Where the mokuroku catalogue of the `packages` roots is committed; gated fresh.",
         min: 1,
         max: 1,
         record: |c, into| {
@@ -476,6 +502,24 @@ const WORDS: &[Word] = &[
         },
     },
 ];
+
+/// One manifest word as a reader sees it: its name, how it is called, and
+/// what it declares. What `blue reference` prints for the Bluefile.
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct WordDoc {
+    pub name: &'static str,
+    pub signature: &'static str,
+    pub doc: &'static str,
+}
+
+/// Every manifest word, in [`WORDS`] order, read from the table itself.
+pub fn words() -> impl Iterator<Item = WordDoc> {
+    WORDS.iter().map(|w| WordDoc {
+        name: w.name,
+        signature: w.signature,
+        doc: w.doc,
+    })
+}
 
 /// One call to a word, with typed access to its arguments.
 struct Call<'a> {
@@ -529,6 +573,25 @@ impl Call<'_> {
                 got: text,
             })
         }
+    }
+
+    /// A list of strings, each a path inside the project ([`Self::path`]'s rule).
+    fn paths(&self, i: usize, param: &'static str) -> Result<Vec<String>, Malformed> {
+        let expected = "a list of project paths";
+        let Value::List(items) = &self.args[i] else {
+            return Err(self.type_error(i, param, expected));
+        };
+        items
+            .iter()
+            .map(|v| match v {
+                Value::Str(_) => Call {
+                    word: self.word,
+                    args: std::slice::from_ref(v),
+                }
+                .path(0, param),
+                _ => Err(self.type_error(i, param, expected)),
+            })
+            .collect()
     }
 
     /// A list of strings.
@@ -1201,8 +1264,57 @@ mod tests {
             Generated {
                 output: "crates/s/src/kigou/tables.rs".into(),
                 program: "crates/s/gen/kigou.b".into(),
+                inputs: Vec::new(),
             }
         );
+    }
+
+    /// `generate`'s fourth argument names the project paths its program
+    /// reads, each held to the same inside-the-project rule as every path.
+    #[test]
+    fn generate_records_the_inputs_its_program_reads() {
+        let b = read_bluefile(
+            "package(\"p\", \"0.1.0\")\n\
+             generate(\"examples\", \"docs/EXAMPLES.md\", \"gen/examples.b\", [\"examples\"])",
+        )
+        .expect("read");
+        assert_eq!(
+            b.project.generated["examples"].inputs,
+            vec!["examples".to_string()]
+        );
+        let err = refusal_of(
+            "package(\"p\", \"0.1.0\")\n\
+             generate(\"x\", \"x.md\", \"x.b\", [\"../outside\"])",
+        );
+        assert!(matches!(err, BluefileError::Malformed(_)), "got {err}");
+    }
+
+    /// No inputs, no `inputs` key: every lock written before the argument
+    /// existed reads back byte-identical.
+    #[test]
+    fn a_generator_without_inputs_serializes_as_before() {
+        let b = read_bluefile(
+            "package(\"p\", \"0.1.0\")\n\
+             generate(\"t\", \"t.rs\", \"t.b\")",
+        )
+        .expect("read");
+        let v = serde_json::to_value(&b.project.generated["t"]).expect("json");
+        assert!(v.get("inputs").is_none(), "{v}");
+    }
+
+    /// Red run, 2026-09-29: emptying `catalog`'s doc failed with
+    /// "the word `catalog` has no doc".
+    #[test]
+    fn every_word_is_described() {
+        for w in words() {
+            assert!(!w.doc.trim().is_empty(), "the word `{}` has no doc", w.name);
+            assert!(
+                w.signature.starts_with(&format!("{}(", w.name)),
+                "{}",
+                w.signature
+            );
+        }
+        assert_eq!(words().count(), WORDS.len());
     }
 
     /// A project that generates nothing serializes no `generated` key, so the

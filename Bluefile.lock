@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:7525e0ebfcd6ebd4c8ccf05da4dcb7a78ff78f85ae326f76b2f75d4328de0dca",
+  "bluefile_b3": "b3:6371194dcf6ff697a2048411b83ab0a1ced78c859c96fda0182797d0217b7474",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -23,6 +23,13 @@
     "apps": {},
     "catalog": "bidamas/CATALOG.md",
     "generated": {
+      "examples": {
+        "output": "docs/EXAMPLES.md",
+        "program": "gen/examples.b",
+        "inputs": [
+          "examples"
+        ]
+      },
       "kigou-tables": {
         "output": "crates/blue-lang-syntax/src/kigou/tables.rs",
         "program": "crates/blue-lang-syntax/gen/kigou.b"
@@ -30,6 +37,13 @@
       "okite-rules": {
         "output": "bidamas/okite/RULES.md",
         "program": "gen/okite-rules.b"
+      },
+      "reference": {
+        "output": "docs/REFERENCE.md",
+        "program": "gen/reference.b",
+        "inputs": [
+          "bidamas"
+        ]
       }
     }
   },

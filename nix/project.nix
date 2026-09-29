@@ -43,7 +43,7 @@
 # | `run(name, file[, reads])` | `packages.<name>`: `blue run file` with `RUN_OUT=$out` and `RUN_READS/<read>` holding each read run's output |
 # | `check(name, file)` | `checks.<name>`: `blue test file` |
 # | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory |
-# | `generate(name, output, program)` | `packages.generated-<name>`, `checks.generated-<name>-fresh` |
+# | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
 # | `generate` or `catalog` | `apps.regen` |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
@@ -59,7 +59,9 @@
 # - **Each program alone in the store**, so editing one program rebuilds only
 #   its own derivation (makoto measured the whole-directory version rebuilding
 #   every game on every doc edit). A program sees itself, the bidamas, its
-#   tools and its reads; project data reaches it through a `run`.
+#   tools and its reads; project data reaches it through a `run`, or, for a
+#   generator, through the `inputs` it names (exactly those paths, and no
+#   others, under `$GEN_ROOT`).
 # - **No vacuous gate.** A test file with no tests fails (`blue test`, since
 #   this change); a run that writes nothing fails; the collision scan must see
 #   every package it gates.
@@ -212,10 +214,24 @@ let
         };
       };
 
+      # A generator's declared inputs, each at its project-relative path in one
+      # directory, so the program reads `$GEN_ROOT/<path>` in the sandbox and
+      # `./<path>` under `nix run .#regen`. Each path is its own store object,
+      # so the generator rebuilds when a path it reads changes, and not when
+      # anything else in the project does.
+      inputsRoot = g: ins: pkgs.runCommand "generated-${g}-inputs" { } (lib.concatMapStrings
+        (d: ''
+          mkdir -p "$out/${dirOf d}"
+          ln -s ${builtins.path { path = src + "/${d}"; name = baseNameOf d; }} "$out/${d}"
+        '')
+        ins);
+
       generatedPackages = lib.mapAttrs'
         (g: spec: lib.nameValuePair "generated-${g}" (bl.mkGenerated (common // {
           name = "generated-${g}";
           program = programFile spec.program;
+        } // lib.optionalAttrs ((spec.inputs or [ ]) != [ ]) {
+          root = inputsRoot g spec.inputs;
         })))
         generated;
 

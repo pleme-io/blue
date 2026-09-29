@@ -1,0 +1,19 @@
+# blue
+
+> blue is a general-purpose language with a Ruby/Elixir surface that parses to a tatara-lisp tree, run by a Rust runtime. It has one formatting and no configuration; most of its vocabulary lives in packages called bidamas.
+
+Start with AGENTS.md, then copy the closest program in docs/EXAMPLES.md. REFERENCE.md and CATALOG.md are generated from the implementation and gated fresh, so they match the compiler.
+
+## Docs
+
+- [AGENTS.md](AGENTS.md): how to write blue, the commands, and the traps that cost agents most
+- [docs/EXAMPLES.md](docs/EXAMPLES.md): one tested program per common task, ready to paste as examples
+- [docs/REFERENCE.md](docs/REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
+- [bidamas/CATALOG.md](bidamas/CATALOG.md): every bidama and each of its definitions
+- [bidamas/okite/RULES.md](bidamas/okite/RULES.md): where blue's semantics differ from Ruby's, each rule enforced by laws
+
+## Optional
+
+- [bidamas/AUTHORING.md](bidamas/AUTHORING.md): writing, testing and publishing a bidama
+- [bidamas/NAMES.md](bidamas/NAMES.md): how packages are named
+- [CLAUDE.md](CLAUDE.md): for people changing blue itself

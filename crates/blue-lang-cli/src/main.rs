@@ -22,6 +22,7 @@
 //! blue lsp                     speak LSP over stdio
 //! blue banner                  the wordmark — the blueshift ramp
 //! blue shift   FILE            how far this is shifted, and what is shifting it
+//! blue reference               the language, from its own tables, as JSON
 //! ```
 //!
 //! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
@@ -49,6 +50,7 @@
 
 mod config;
 mod prefetch;
+mod reference;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -151,6 +153,10 @@ enum Cmd {
     /// The morphology: what each posture grants, what it forfeits, which pairs
     /// are genuinely exclusive, and which language each shape corresponds to.
     Morph,
+    /// Print the language reference as JSON: operators, keywords, surface
+    /// forms, Bluefile words and every bound name, each read from the table
+    /// the implementation runs on. `docs/REFERENCE.md` is rendered from it.
+    Reference,
     /// Show the bounds `blue` is running with, at any tier.
     ///
     /// The fleet-uniform `config-show` surface, supplied by shikumi rather
@@ -711,6 +717,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
+        Cmd::Reference => {
+            println!("{}", serde_json::to_string_pretty(&reference::reference())?);
+            Ok(ExitCode::SUCCESS)
+        }
         Cmd::Morph => {
             use blue_lang_bidama::{
                 enforcement, exclusive_pairs, minimal_exclusive_groups, qualities_at, shapes,

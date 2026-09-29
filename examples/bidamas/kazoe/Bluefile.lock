@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:c56707f1d112e34ddf3620927c13a5f99b0b3967c97e1ac0f26ade0dbd65f4da",
+  "manifest": {
+    "schema": 1,
+    "name": "kazoe",
+    "version": "0.1.0",
+    "needs": {
+      "junjo": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

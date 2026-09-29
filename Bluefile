@@ -30,4 +30,12 @@ tool("duckdb")
 # Rust by the `sabi` bidama.
 generate("kigou-tables", "crates/blue-lang-syntax/src/kigou/tables.rs", "crates/blue-lang-syntax/gen/kigou.b")
 generate("okite-rules", "bidamas/okite/RULES.md", "gen/okite-rules.b")
+
+# The language reference, from `blue reference` (the tables the implementation
+# runs on) and, to say which built-in names a bidama redefines, the bidamas.
+generate("reference", "docs/REFERENCE.md", "gen/reference.b", ["bidamas"])
+
+# The golden corpus as one file of examples, from examples/ (a blue project of
+# its own, run by `checks.examples`).
+generate("examples", "docs/EXAMPLES.md", "gen/examples.b", ["examples"])
 check("okite-laws", "gen/okite-laws.b")

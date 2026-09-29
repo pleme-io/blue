@@ -47,6 +47,11 @@ seams:              0
 
 ## Try it
 
+Writing blue? Start at [`AGENTS.md`](AGENTS.md): the commands, the traps, and
+[`docs/EXAMPLES.md`](docs/EXAMPLES.md), one tested program per common task.
+[`docs/REFERENCE.md`](docs/REFERENCE.md) is the language as its implementation
+states it, generated and gated fresh.
+
 ```
 nix run github:pleme-io/blue -- run example.b
 ```
@@ -59,6 +64,7 @@ nix run github:pleme-io/blue -- run example.b
 | `blue check FILE` | what the type checker did |
 | `blue ast FILE` / `blue erase FILE` | the tree with and without annotations — the sliding scale, visible |
 | `blue deps FILE` / `blue posture FILE` | read a `Bluefile` |
+| `blue reference` | the language reference, as JSON |
 | `blue lsp` | language server over stdio |
 | `blue banner` | the wordmark |
 

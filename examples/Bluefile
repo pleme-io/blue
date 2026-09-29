@@ -1,0 +1,23 @@
+# The golden corpus: one blessed program per common task, each a test file.
+#
+# This directory is a blue project of its own. `checks.examples` in blue's
+# flake lowers it with the same engine every project uses (`lib.project`), so
+# every example below runs as a check, the example bidama is built, tested and
+# gated for name collisions against the public distribution, and both locks
+# are gated fresh. An example that stops working turns the build red.
+# docs/EXAMPLES.md is rendered from these files (the root Bluefile's
+# generate("examples", …)).
+package("blue-examples", "1.0.0")
+
+packages("bidamas")
+
+check("files", "01_files.b")
+check("data", "02_data.b")
+check("lists-and-maps", "03_lists_and_maps.b")
+check("strings", "04_strings.b")
+check("errors", "05_errors.b")
+check("testing", "06_testing.b")
+check("rust-primitive", "07_rust_primitive.b")
+check("tatara-forms", "08_tatara_forms.b")
+check("processes", "09_processes.b")
+check("using-a-bidama", "10_using_a_bidama.b")

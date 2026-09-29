@@ -48,6 +48,9 @@ A general-purpose language: a Ruby/Elixir surface, a tatara-lisp AST, macros
 as term rewriting on that AST, and a Rust runtime. Crates are `blue-lang-*`
 (bare `blue` is squatted on crates.io); source extension is `.b`.
 
+**Writing blue programs rather than changing blue?** Read
+[`AGENTS.md`](AGENTS.md). This file is for implementers.
+
 ## Grow blue pattern-first
 
 Before any capability is coded, fix its plan in writing: the reuse map (read from source; move,
@@ -216,6 +219,18 @@ Each of these is a defect that shipped, not a style preference.
   file in place. Edit the program, run regen, commit both; never copy a store
   path over a committed file. First instance: kigou's character tables
   (`crates/blue-lang-syntax/gen/kigou.b`, rendered by the `sabi` bidama).
+  A generator runs alone in the store, so it reads project files only through
+  `generate`'s fourth argument: `inputs` names the paths, the engine puts
+  exactly those under `$GEN_ROOT` (regen: the project root), and the fresh
+  check goes red when one changes. `docs/REFERENCE.md` (from `blue
+  reference`) and `docs/EXAMPLES.md` (from `examples/`) are the first two.
+- **A description lives beside the table it describes, and a gate makes the
+  omission red.** `INFIX` rows carry `doc`, `keyword_doc` covers every
+  reserved word, `FORMS` rows are parsed by their own gate, `WORDS` rows carry
+  `doc`, and `blue_lang_runtime::docs::NAMES` is compared with a live
+  interpreter in both directions (a bound name with no row, a row naming
+  nothing, a signature disagreeing with the arity). A new operator, keyword,
+  word or primitive arrives with its line, and `docs/REFERENCE.md` follows.
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
   across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
   ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a

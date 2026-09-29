@@ -420,6 +420,17 @@
             src = ./nix/project-fixture;
           };
 
+          # The golden corpus: examples/ is a blue project of its own, lowered
+          # by the same engine every project uses. Its checks are this check's
+          # inputs, so each example's tests, the example bidama's tests, its
+          # collision gate against the public distribution and both lock gates
+          # must pass. An example that stops working is a red build.
+          examples =
+            let ex = engine.projectFor { inherit pkgs blue; src = ./examples; };
+            in pkgs.runCommand "examples" { } ''
+              ${lib.concatMapStrings (c: "echo ${c} >> $out\n") (lib.attrValues ex.checks)}
+            '';
+
           module-surface = import ./nix/module-surface-check.nix {
             inherit lib;
             # blue's own overlay, because `programs.blue.package` defaults to

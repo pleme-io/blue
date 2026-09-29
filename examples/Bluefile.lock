@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:0318f59d432d993130f6525c373fbb896b039ac690f592945926f040f31d23ed",
+  "manifest": {
+    "schema": 1,
+    "name": "blue-examples",
+    "version": "1.0.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [
+      "bidamas"
+    ],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "data": {
+        "file": "02_data.b"
+      },
+      "errors": {
+        "file": "05_errors.b"
+      },
+      "files": {
+        "file": "01_files.b"
+      },
+      "lists-and-maps": {
+        "file": "03_lists_and_maps.b"
+      },
+      "processes": {
+        "file": "09_processes.b"
+      },
+      "rust-primitive": {
+        "file": "07_rust_primitive.b"
+      },
+      "strings": {
+        "file": "04_strings.b"
+      },
+      "tatara-forms": {
+        "file": "08_tatara_forms.b"
+      },
+      "testing": {
+        "file": "06_testing.b"
+      },
+      "using-a-bidama": {
+        "file": "10_using_a_bidama.b"
+      }
+    },
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

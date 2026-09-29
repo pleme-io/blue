@@ -314,9 +314,12 @@ rec {
   # catalogue, and Rust that blue writes for its own crates through the `sabi`
   # bidama (`crates/blue-lang-syntax/gen/kigou.b`). "We write bluelang, we
   # leverage nix": the program is blue, and nix runs it, caches it, and gates it.
-  mkGenerated = { blue, bidamas, program, name, tools ? [ ] }:
+  # `root`, when given, is a directory of the project paths the program
+  # declared it reads (the Bluefile's `generate(…, inputs)`), exported as
+  # $GEN_ROOT; without it the derivation is exactly what it was before.
+  mkGenerated = { blue, bidamas, program, name, tools ? [ ], root ? null }:
     runCommand name { nativeBuildInputs = tools; } ''
-      GEN_OUT=$out BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run ${program}
+      ${lib.optionalString (root != null) "GEN_ROOT=${root} "}GEN_OUT=$out BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run ${program}
     '';
 
   # A blue program run as its own cached derivation — the Bluefile's

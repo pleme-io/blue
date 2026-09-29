@@ -7,6 +7,9 @@ instead of once per package.
 
 Run anything you doubt: `BLUE_PATH=$PWD blue run file.b`.
 
+Writing a program rather than a package? Start at [`../AGENTS.md`](../AGENTS.md)
+and [`../docs/EXAMPLES.md`](../docs/EXAMPLES.md).
+
 **Read [`okite/RULES.md`](./okite/RULES.md) first.** It is the whole of blue's
 behaviour beyond "values act like Ruby's", one line per rule, and every line is
 enforced by laws in okite, so it cannot go stale. This file is what is left:
@@ -138,21 +141,13 @@ A trailing `?` or `!` IS now part of an identifier (fixed 2026-08-02), so
 `contains?`, `starts_with?`, `ends_with?` and `to_int!` are reachable. They
 were dead code in the runtime until then — registered and uncallable.
 
-Reachable: `length` `nth` `car` `cdr` `cons` `append` `take` `drop` `reverse`
-`list` `range` `min` `max` `abs` `gcd` `lcm` `modulo` `expt` `sqrt` `sin` `cos`
-`tan` `asin` `acos` `atan` `atan2` `hypot` (tatara-lisp 0.3.59, 2026-09-27;
-`asin` and `acos` refuse input outside [-1, 1] rather than return NaN, and
-`atan2` takes y first) `log` `exp` `floor` `ceiling` `round` `map` `filter` `reduce` `concat`
-`split` `join` `chars` `upcase` `downcase` `trim` `replace` `to_s` `compare`
-`some` `find` `remove` `partition` `apply` `print` `println` `to_int`
-`to_float`, and — since the lexer learned trailing `?`/`!` — `contains?`
-`starts_with?` `ends_with?` `to_int!`. The crypto layer (2026-09-24) adds
-`blake3_hex` `ed25519_keypair` `ed25519_sign` `ed25519_verify`; reach them
-through `shomei` unless you need the algorithm by name.
-
-`compare` in particular is worth knowing before you need it: it is the only
-total ordering primitive, and its absence from this list once cost an author a
-hand-rolled character-ordinal table.
+Every reachable built-in is listed in [`../docs/REFERENCE.md`](../docs/REFERENCE.md),
+generated from the running interpreter with a one-line description, its
+arity, and which bidama redefines it; a list kept here by hand had already
+fallen behind (`get`, `assoc`, `write_file` were missing). The one to know
+before you need it is `compare(a, b)`: the only total ordering primitive,
+whose absence from the old list once cost an author a hand-rolled
+character-ordinal table.
 
 **Do not shadow a reachable name** with a `def` of your own unless you mean to
 replace it everywhere in the file.

@@ -32,6 +32,7 @@
 //!    is a host import.
 
 pub mod crypto;
+pub mod docs;
 pub mod domain;
 pub mod erase;
 pub mod hosted;

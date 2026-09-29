@@ -306,6 +306,10 @@ pub struct Infix {
     pub power: (u8, u8),
     /// The tatara-lisp callee this lowers to.
     pub callee: &'static str,
+    /// One line for a reader: what the operator computes, and the trap in it
+    /// when there is one. `blue reference` prints it; a row without one fails
+    /// `every_operator_and_keyword_is_described`.
+    pub doc: &'static str,
 }
 
 /// The complete infix table. Precedence follows Ruby's where Ruby has an
@@ -316,11 +320,13 @@ pub const INFIX: &[Infix] = &[
         op: "||",
         power: (1, 2),
         callee: "or",
+        doc: "Logical or: the left value if truthy, otherwise the right; the right is evaluated only when needed.",
     },
     Infix {
         op: "&&",
         power: (3, 4),
         callee: "and",
+        doc: "Logical and: the right value if the left is truthy, otherwise the left; short-circuits.",
     },
     // `==` is STRUCTURAL equality, so it lowers to `equal?` and not to `=`.
     //
@@ -336,56 +342,67 @@ pub const INFIX: &[Infix] = &[
         op: "==",
         power: (5, 6),
         callee: "equal?",
+        doc: "Structural equality over every value (okite D0001): 4 == 4.0, lists and maps by content, nil only equals nil.",
     },
     Infix {
         op: "!=",
         power: (5, 6),
         callee: "not=",
+        doc: "Exactly not(a == b) (okite D0002).",
     },
     Infix {
         op: "<",
         power: (5, 6),
         callee: "<",
+        doc: "Numeric less-than. A string operand is a type error: order text with compare(a, b).",
     },
     Infix {
         op: "<=",
         power: (5, 6),
         callee: "<=",
+        doc: "Numeric less-than-or-equal. Numbers only, like <.",
     },
     Infix {
         op: ">",
         power: (5, 6),
         callee: ">",
+        doc: "Numeric greater-than. Numbers only, like <.",
     },
     Infix {
         op: ">=",
         power: (5, 6),
         callee: ">=",
+        doc: "Numeric greater-than-or-equal. Numbers only, like <.",
     },
     Infix {
         op: "+",
         power: (7, 8),
         callee: "+",
+        doc: "Numeric addition; an Int and a Float give a Float. Not string concatenation: interpolate instead.",
     },
     Infix {
         op: "-",
         power: (7, 8),
         callee: "-",
+        doc: "Numeric subtraction. Written before an operand with nothing on its left, it is unary minus: -n.",
     },
     Infix {
         op: "*",
         power: (9, 10),
         callee: "*",
+        doc: "Numeric multiplication.",
     },
     Infix {
         op: "/",
         power: (9, 10),
         callee: "/",
+        doc: "Division that never truncates (okite D0008): 7 / 2 is 3.5, while 6 / 2 stays the Int 3. Integer division is floor(a / b).",
     },
     Infix {
         op: "%",
         power: (9, 10),
         callee: "mod",
+        doc: "Euclidean remainder: never negative, so (0 - 7) % 3 is 2, not -1. A zero divisor is a runtime error.",
     },
 ];
 
@@ -480,6 +497,38 @@ pub fn is_callable_name(name: &str) -> bool {
             Ok([t, e]) if matches!(&t.kind, TokenKind::Ident(n) if n == name)
                 && e.kind == TokenKind::Eof
         )
+}
+
+/// One line for a reader on each reserved word: what it writes, and the shape.
+///
+/// Beside the two tables rather than inside them, because both are `&[&str]`
+/// read by the formatter's corpus gate and by highlighters outside this repo;
+/// changing their type would break every one of those readers.
+/// `every_operator_and_keyword_is_described` makes a word without a line here a
+/// red build, so the omission cannot ship. `blue reference` prints these.
+#[must_use]
+pub fn keyword_doc(word: &str) -> &'static str {
+    match word {
+        "if" => "`if c … elsif d … else … end`: an expression; its value is the branch taken, nil when none is.",
+        "unless" => "`unless c … end`: `if !c`. The formatter writes it as `if !c`.",
+        "def" => "`def name(a, b) … end`: a named function; its value is the last expression. Parameters may be typed: `def f(n: Int) -> Int`.",
+        "defmacro" => "`defmacro name(x) quote … unquote(x) … end end`: a macro, a rewrite of the unevaluated form.",
+        "quote" => "`quote … end`: the form itself as data, not its value. Used inside `defmacro`.",
+        "unquote" => "`unquote(x)`: inside `quote`, splice in the value of `x`.",
+        "unquote_splice" => "`unquote_splice(xs)`: inside `quote`, splice the items of the form `xs` in place, not the form itself.",
+        "test" => "`test \"what must hold\" … end`: a test block, run by `blue test` and ignored by `blue run`.",
+        "assert" => "`assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression.",
+        "fn" => "`fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks.",
+        "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; it does not destructure.",
+        "do" => "Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead.",
+        "end" => "Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`.",
+        "else" => "The branch of `if` or `case` taken when nothing before it matched.",
+        "elsif" => "A further condition in an `if` chain; the formatter writes nested `else if` as `elsif`.",
+        "true" => "The boolean true.",
+        "false" => "The boolean false. Only `false` and `nil` are falsy; 0, \"\" and [] are truthy.",
+        "nil" => "The absent value. It is not `[]` (okite D0004), and only `nil == nil`.",
+        _ => "",
+    }
 }
 
 fn infix(op: &str) -> Option<&'static Infix> {

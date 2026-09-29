@@ -1,6 +1,24 @@
-use("retsu")
-use("junjo")
-use("shuugou")
+use("junjo", [:sort_by])
+
+use(
+  "retsu",
+  [
+    :concat_lists,
+    :contains,
+    :count_where,
+    :find_first,
+    :first,
+    :flat_map,
+    :is_empty,
+    :last,
+    :push,
+    :rest,
+    :size,
+    :take_while
+  ]
+)
+
+use("shuugou", [:unique])
 
 # mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
 #

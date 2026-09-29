@@ -1,4 +1,5 @@
-use("retsu")
+use("kazu", [:max, :min])
+use("retsu", [:first, :is_empty, :push, :repeat, :rest, :size])
 
 # shinsuu (進数) — base conversion and checksums.
 #

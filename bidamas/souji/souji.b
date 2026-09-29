@@ -1,6 +1,21 @@
-use("retsu")
 use("moji")
-use("shisutemu")
+
+use(
+  "retsu",
+  [
+    :concat_lists,
+    :contains,
+    :drop_n,
+    :first,
+    :flat_map,
+    :is_empty,
+    :push,
+    :rest,
+    :size
+  ]
+)
+
+use("shisutemu", [:last_nonempty_line, :status_of, :stderr_of, :stdout_of])
 
 # souji (掃除) — cleaning a node: Rust target/ directories nobody is building in, and nix store paths nothing refers to, with a dry run first.
 #

@@ -23,3 +23,22 @@ tatara-lisp-eval = { workspace = true }
 # `blue-lang-runtime`'s dev-dep block and the gate in `blue-lang-cli`'s
 # `tests/registry_graph.rs`.
 blue-lang-fmt = { path = "../blue-lang-fmt" }
+# The conformance runner (`tests/conformance/`) drives every evaluator blue has
+# and every static stage a row can observe: the check stage's registry, the
+# blueshift reading, the WASM surface's ABI and the package loader. Each is a
+# dev-dependency so the published harness gains nothing to run a spec row.
+blue-lang-check = { path = "../blue-lang-check" }
+blue-lang-lsp = { path = "../blue-lang-lsp" }
+blue-lang-pkg = { path = "../blue-lang-pkg" }
+blue-lang-wasm = { path = "../blue-lang-wasm" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# The executable specification: every row in `spec/rows/*.b` on every
+# evaluator, plus the missing-row gate. Its own `main`, so the report is a
+# table per evaluator rather than one opaque test result. `spec/README.md`
+# holds the row format.
+[[test]]
+name = "conformance"
+path = "tests/conformance/main.rs"
+harness = false

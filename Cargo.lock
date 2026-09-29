@@ -284,9 +284,15 @@ dependencies = [
 name = "blue-lang-test"
 version = "0.0.51"
 dependencies = [
+ "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-lsp",
+ "blue-lang-pkg",
  "blue-lang-runtime",
  "blue-lang-syntax",
+ "blue-lang-wasm",
+ "serde",
+ "serde_json",
  "tatara-lisp",
  "tatara-lisp-eval",
 ]

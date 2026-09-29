@@ -1,5 +1,22 @@
-use("kazu")
-use("retsu")
+use("kazu", [:abs, :floor_div, :max, :min, :near, :near_within, :sum])
+
+use(
+  "retsu",
+  [
+    :all_but_last,
+    :contains,
+    :count_of,
+    :count_where,
+    :first,
+    :index_of,
+    :is_empty,
+    :last,
+    :push,
+    :repeat,
+    :rotate,
+    :size
+  ]
+)
 
 # ongaku (音楽) — twelve-tone music theory, as arithmetic on semitones.
 #

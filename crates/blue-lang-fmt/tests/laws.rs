@@ -34,6 +34,16 @@ const CORPUS: &[&str] = &[
     // A binding's tree inside an expression is a call, not a binding.
     "q = define(zz, 5)",
     "a |> (b != c)",
+    // Qualified names. The tree is ONE symbol, `retsu/first`; printed as
+    // the tree spells it, it re-parses as a division. Red run (2026-09-29),
+    // the atom arm printing the symbol verbatim: `every_form.rs` found
+    // `define(a, a::a)` printing `a = a/a`, whose tree is `(/ a a)`.
+    "retsu::first(xs)",
+    "retsu::first",
+    "xs |> retsu::first",
+    "kueri::if(a, b)",
+    "blue::length(xs) + retsu::size(ys)",
+    "f(retsu::first, xs)",
     // Tests and assertions.
     "test \"adds\"\n  assert 1 + 1 == 2\nend",
     "test \"two asserts\"\n  assert true\n  assert 1 < 2\nend",

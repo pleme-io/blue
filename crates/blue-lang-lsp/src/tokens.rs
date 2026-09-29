@@ -72,6 +72,8 @@ pub enum SemanticTokenType {
     Function = 6,
     Property = 7,
     EnumMember = 8,
+    /// The package in `retsu::first`.
+    Namespace = 9,
 }
 
 impl SemanticTokenType {
@@ -86,6 +88,7 @@ impl SemanticTokenType {
         SemanticTokenType::Function,
         SemanticTokenType::Property,
         SemanticTokenType::EnumMember,
+        SemanticTokenType::Namespace,
     ];
 
     /// The LSP spelling. Total over the enum — no wildcard arm — so adding a
@@ -101,6 +104,7 @@ impl SemanticTokenType {
             SemanticTokenType::Function => "function",
             SemanticTokenType::Property => "property",
             SemanticTokenType::EnumMember => "enumMember",
+            SemanticTokenType::Namespace => "namespace",
         }
     }
 
@@ -216,6 +220,18 @@ fn classify(tokens: &[Token], i: usize) -> Option<(SemanticTokenType, u32)> {
         // different lexical class.
         TokenKind::True | TokenKind::False | TokenKind::Nil => T::Keyword,
 
+        TokenKind::Ident(_) if next_is_path_sep(tokens, i) => T::Namespace,
+        // After `::` a reserved word is a name (`kueri::if`), so the check
+        // for a keyword comes after this one.
+        TokenKind::Ident(_)
+            if matches!(prev_significant(tokens, i).map(|t| &t.kind), Some(TokenKind::PathSep)) =>
+        {
+            if is_call_head(tokens, i) {
+                T::Function
+            } else {
+                T::Variable
+            }
+        }
         TokenKind::Ident(name) => {
             if is_reserved_word(name) {
                 T::Keyword
@@ -244,7 +260,8 @@ fn classify(tokens: &[Token], i: usize) -> Option<(SemanticTokenType, u32)> {
         | TokenKind::RBrace
         | TokenKind::Comma
         | TokenKind::Dot
-        | TokenKind::Colon => return None,
+        | TokenKind::Colon
+        | TokenKind::PathSep => return None,
 
         TokenKind::Comment(_) => T::Comment,
         TokenKind::Newline | TokenKind::Eof => return None,
@@ -274,6 +291,14 @@ fn is_call_head(tokens: &[Token], i: usize) -> bool {
         tokens.get(i + 1),
         Some(Token { kind: TokenKind::LParen, span }) if span.start == end
     )
+}
+
+/// Is the token after `i` the `::` of a qualified name?
+fn next_is_path_sep(tokens: &[Token], i: usize) -> bool {
+    tokens[i + 1..]
+        .iter()
+        .find(|t| !t.is_trivia())
+        .is_some_and(|t| t.kind == TokenKind::PathSep)
 }
 
 /// The previous token that is not trivia.
@@ -449,6 +474,16 @@ mod tests {
 
         // Parameters are not resolved, so they are variables, not parameters.
         assert_eq!(types_of(src, "a"), vec![SemanticTokenType::Variable; 2]);
+    }
+
+    /// `retsu::first(xs)`: the package paints as a namespace, the name as
+    /// what it is — a reserved word after `::` included (`kueri::if`).
+    #[test]
+    fn a_qualified_name_paints_its_package_as_a_namespace() {
+        let src = "retsu::first(xs)\nkueri::if\n";
+        assert_eq!(types_of(src, "retsu"), vec![SemanticTokenType::Namespace]);
+        assert_eq!(types_of(src, "first"), vec![SemanticTokenType::Function]);
+        assert_eq!(types_of(src, "if"), vec![SemanticTokenType::Variable]);
     }
 
     #[test]

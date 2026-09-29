@@ -491,12 +491,46 @@ pub fn is_reserved_word(name: &str) -> bool {
 /// `if` — which a tree can carry and a call cannot spell — must get a
 /// different rendering or none.
 pub fn is_callable_name(name: &str) -> bool {
+    // `retsu/first` is written `retsu::first(…)`.
+    if qualified(name).is_some() {
+        return true;
+    }
     !is_reserved_word(name)
         && matches!(
             lex(name).as_deref(),
             Ok([t, e]) if matches!(&t.kind, TokenKind::Ident(n) if n == name)
                 && e.kind == TokenKind::Eof
         )
+}
+
+/// The character a qualified name's AST symbol joins its two halves with:
+/// `retsu::first` is the symbol `retsu/first`. The surface never writes it
+/// (`/` is division, and no identifier can contain it), which is what makes
+/// a symbol with text on both sides of one `/` unambiguously qualified.
+pub const QUALIFIER: char = '/';
+
+/// The AST symbol for `pkg::name`.
+#[must_use]
+pub fn qualify(pkg: &str, name: &str) -> String {
+    format!("{pkg}{QUALIFIER}{name}")
+}
+
+/// `retsu/first` → `Some(("retsu", "first"))`: the package and the name of a
+/// qualified symbol. `None` for every other symbol, `/` (division) included.
+///
+/// The ONE reader of the shape, so the formatter, the name table and the
+/// runtime's renderer cannot disagree about what counts as qualified.
+#[must_use]
+pub fn qualified(sym: &str) -> Option<(&str, &str)> {
+    let (pkg, name) = sym.split_once(QUALIFIER)?;
+    let ident = |s: &str| {
+        matches!(
+            lex(s).as_deref(),
+            Ok([t, e]) if matches!(&t.kind, TokenKind::Ident(n) if n == s) && e.kind == TokenKind::Eof
+        )
+    };
+    let named = |s: &str| ident(s) || matches!(s, "true" | "false" | "nil");
+    (ident(pkg) && !is_reserved_word(pkg) && named(name)).then_some((pkg, name))
 }
 
 /// One line for a reader on each reserved word: what it writes, and the shape.
@@ -995,6 +1029,13 @@ impl Parser {
             TokenKind::LBracket => self.list_literal(span),
             TokenKind::LBrace => self.map_literal(span),
 
+            TokenKind::Ident(name) if self.at(&TokenKind::PathSep) => {
+                self.qualified_name(span, &name)
+            }
+            TokenKind::PathSep => Err(fail(
+                "a qualified name is `package::name`, with the package written before `::`",
+                span,
+            )),
             TokenKind::Ident(name) => match name.as_str() {
                 "if" => self.if_form(span, false),
                 "unless" => self.if_form(span, true),
@@ -1021,6 +1062,45 @@ impl Parser {
 
             other => Err(fail(format!("expected an expression, found {other}"), span)),
         }
+    }
+
+    /// After `package`, at `::`: `retsu::first` lowers to the ONE symbol
+    /// `retsu/first` — tatara's `require` shape, so a qualified name means the
+    /// same thing in both lisps.
+    ///
+    /// After `::` any identifier is a name, reserved words included:
+    /// `kueri::if` names kueri's definition, never the `if` form, because a
+    /// reserved word is reserved only where it could start a form. The
+    /// package side is never a reserved word, and a name has exactly one
+    /// qualifier (`a::b::c` is refused), since a package is one level deep.
+    fn qualified_name(&mut self, pkg_span: Span, pkg: &str) -> Result<Spanned, Fail> {
+        if is_reserved_word(pkg) {
+            return Err(fail(
+                format!("`{pkg}` is a reserved word and cannot name a package"),
+                pkg_span,
+            ));
+        }
+        self.bump(); // ::
+        let name_span = self.peek_span();
+        let name = match self.bump() {
+            TokenKind::Ident(n) => n,
+            // `true`, `false` and `nil` lex as their own tokens.
+            TokenKind::True => "true".to_string(),
+            TokenKind::False => "false".to_string(),
+            TokenKind::Nil => "nil".to_string(),
+            other => {
+                return Err(fail(
+                    format!("expected a name after `{pkg}::`, found {other}"),
+                    name_span,
+                ))
+            }
+        };
+        if self.at(&TokenKind::PathSep) {
+            return Err(self.error(format!(
+                "a qualified name has one qualifier: `package::name`, and `{pkg}::{name}::…` has two"
+            )));
+        }
+        Ok(sym_at(self.span_since(pkg_span.start), &qualify(pkg, &name)))
     }
 
     /// After a `.`: `recv.name` or `recv.name(args)`.
@@ -2019,6 +2099,61 @@ mod tests {
     fn a_brace_block_is_refused_naming_fn() {
         let e = parse_program("xs.map { |x| x }").expect_err("no brace blocks");
         assert!(e.message.contains("fn(x)"), "{}", e.message);
+    }
+
+    // ---- qualified names ------------------------------------------------
+
+    /// `retsu::first(xs)` is one symbol, tatara's `require` shape.
+    ///
+    /// Red run (2026-09-29), before the `::` token: `expected an expression,
+    /// found `:``.
+    #[test]
+    fn a_qualified_name_is_one_symbol() {
+        assert_eq!(q("retsu::first(xs)"), "(retsu/first xs)");
+        assert_eq!(q("retsu::first"), "retsu/first");
+        assert_eq!(q("xs |> retsu::first"), "(retsu/first xs)");
+        assert_eq!(q("blue::length(xs)"), "(blue/length xs)");
+    }
+
+    /// Whitespace around `::` is layout, not meaning.
+    #[test]
+    fn whitespace_around_the_qualifier_is_accepted() {
+        assert_eq!(q("retsu :: first(xs)"), "(retsu/first xs)");
+    }
+
+    /// After `::` a reserved word is a name: `kueri::if` is kueri's
+    /// definition, not the `if` form.
+    #[test]
+    fn a_reserved_word_after_the_qualifier_is_a_name() {
+        assert_eq!(q("kueri::if(a, b)"), "(kueri/if a b)");
+        assert_eq!(q("heni::test(x)"), "(heni/test x)");
+        assert_eq!(q("sabi::fn"), "sabi/fn");
+    }
+
+    #[test]
+    fn a_qualified_name_has_exactly_one_qualifier() {
+        for (src, says) in [
+            ("::first(xs)", "`package::name`"),
+            ("a::b::c", "one qualifier"),
+            ("if::x", "reserved word"),
+            ("retsu::1", "expected a name after `retsu::`"),
+        ] {
+            let e = parse_program(src).expect_err(src);
+            assert!(e.message.contains(says), "{src}: {}", e.message);
+        }
+    }
+
+    /// The one reader of the shape: division is not qualified, and neither
+    /// is anything the surface could not have written.
+    #[test]
+    fn qualified_reads_only_the_package_name_shape() {
+        assert_eq!(qualified("retsu/first"), Some(("retsu", "first")));
+        assert_eq!(qualified("kueri/if"), Some(("kueri", "if")));
+        assert_eq!(qualified("nisshi/pair?"), Some(("nisshi", "pair?")));
+        for not in ["/", "a/", "/a", "a/b/c", "if/x", "hash-map", "a"] {
+            assert_eq!(qualified(not), None, "{not}");
+        }
+        assert!(is_callable_name("kueri/if"));
     }
 
     // ---- errors a person can read -------------------------------------

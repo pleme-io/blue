@@ -659,7 +659,10 @@ impl<'s> Renderer<'s> {
                 && items[0].as_symbol() == Some("define")
                 && items[1]
                     .as_symbol()
-                    .is_some_and(|n| !blue_lang_syntax::is_reserved_word(n))
+                    .is_some_and(|n| {
+                        !blue_lang_syntax::is_reserved_word(n)
+                            && blue_lang_syntax::qualified(n).is_none()
+                    })
             {
                 return Doc::text(items[1].as_symbol().unwrap_or("_").to_string())
                     .concat(Doc::text(" = "))
@@ -1229,8 +1232,11 @@ fn is_unspellable_as_call(items: &[Spanned]) -> bool {
 
 /// A symbol a surface name can spell.
 fn is_name(s: &Spanned) -> bool {
-    s.as_symbol()
-        .is_some_and(blue_lang_syntax::is_callable_name)
+    // A binder is a plain name: `retsu::first` can be called and referenced,
+    // never bound, so a parameter list holding one has no surface spelling.
+    s.as_symbol().is_some_and(|n| {
+        blue_lang_syntax::is_callable_name(n) && blue_lang_syntax::qualified(n).is_none()
+    })
 }
 
 /// `(a b …)` — a parameter list: only names, as `fn(a, b)` writes them.
@@ -1321,7 +1327,12 @@ fn sym_name(s: &Sexp) -> Option<&str> {
 
 fn atom(a: &Atom) -> Doc {
     match a {
-        Atom::Symbol(s) => Doc::text(s.clone()),
+        // `retsu/first` is the tree of `retsu::first`. Printed as the tree
+        // spells it, it would re-parse as a division, `(/ retsu first)`.
+        Atom::Symbol(s) => match blue_lang_syntax::qualified(s) {
+            Some((pkg, name)) => Doc::text(format!("{pkg}::{name}")),
+            None => Doc::text(s.clone()),
+        },
         Atom::Keyword(k) => Doc::text(format!(":{k}")),
         Atom::Str(s) => Doc::text(render_string(s)),
         Atom::Int(i) => Doc::text(i.to_string()),

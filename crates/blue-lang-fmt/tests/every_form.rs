@@ -110,10 +110,21 @@ fn ident() -> impl Strategy<Value = String> {
     "[a-z][a-z_]{0,6}".prop_filter("not reserved", |s| !is_reserved_word(s))
 }
 
+/// `pkg::name`: the qualifier in every position a name can take. The name
+/// side may be a reserved word (`kueri::if`), which is a name only there.
+fn qualified() -> impl Strategy<Value = String> {
+    (
+        ident(),
+        prop_oneof![ident(), Just("if".to_string()), Just("def".to_string())],
+    )
+        .prop_map(|(p, n)| format!("{p}::{n}"))
+}
+
 fn head() -> impl Strategy<Value = String> {
     prop_oneof![
         3 => prop::sample::select(vocabulary().clone()),
         1 => ident(),
+        1 => qualified(),
     ]
 }
 
@@ -140,6 +151,7 @@ fn string() -> impl Strategy<Value = String> {
 fn leaf() -> impl Strategy<Value = String> {
     prop_oneof![
         ident(),
+        qualified(),
         (0i64..1000).prop_map(|n| n.to_string()),
         (0u32..100, 0u32..100).prop_map(|(a, b)| format!("{a}.{b}")),
         string(),

@@ -79,6 +79,10 @@ pub enum TokenKind {
     /// `:` in a hash literal (`foo: 1`) is folded into `Label`; a bare
     /// colon is retained for anything else.
     Colon,
+    /// `::` — the qualifier in `retsu::first`, package on the left and one of
+    /// its definitions on the right. One token, so a qualified name never
+    /// depends on how two colons happened to lex.
+    PathSep,
     /// `foo:` — a hash-literal label. Lexing this as one token is what
     /// makes `{foo: 1}` and `{:foo => 1}` distinguishable at the parser
     /// without lookahead games.
@@ -126,6 +130,7 @@ impl fmt::Display for TokenKind {
             Self::Comma => f.write_str("`,`"),
             Self::Dot => f.write_str("`.`"),
             Self::Colon => f.write_str("`:`"),
+            Self::PathSep => f.write_str("`::`"),
             Self::Label(n) => write!(f, "the label `{n}:`"),
             Self::Rocket => f.write_str("`=>`"),
             Self::Pipe => f.write_str("`|>`"),
@@ -475,8 +480,13 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_colon(&mut self, start: usize) {
-        // `:name` is a symbol; a bare `:` is punctuation.
-        if matches!(self.peek_at(1), Some(c) if is_ident_start(c)) {
+        // `::` qualifies a name (`retsu::first`); `:name` is a symbol; a bare
+        // `:` is punctuation. `::` is checked first, so `::first` is never a
+        // colon followed by the symbol `:first`.
+        if self.peek_at(1) == Some(b':') {
+            self.pos += 2;
+            self.push(TokenKind::PathSep, start);
+        } else if matches!(self.peek_at(1), Some(c) if is_ident_start(c)) {
             self.pos += 1;
             let s = self.pos;
             while matches!(self.peek(), Some(c) if is_ident_continue(c)) {

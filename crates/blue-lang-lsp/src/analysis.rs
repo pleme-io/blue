@@ -47,6 +47,45 @@ pub struct Diagnostic {
     /// Which analysis produced it, so a reader can tell a parse failure from a
     /// type error without parsing the message.
     pub source: &'static str,
+    /// The registry code (`B0001`), when the check stage produced it. `None`
+    /// only for an import failure, which is not a rule.
+    pub code: Option<&'static str>,
+    /// The diagnostic's help line, appended to the message by the shim.
+    pub help: Option<String>,
+    /// Repairs, offered as code actions.
+    pub fixes: Vec<QuickFix>,
+}
+
+/// One suggested repair, as the editor applies it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuickFix {
+    pub title: String,
+    pub edits: Vec<TextEdit>,
+    /// A machine-applicable fix: the editor may apply it on "fix all".
+    pub preferred: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextEdit {
+    pub range: Range,
+    pub new_text: String,
+}
+
+/// A name the editor may complete, with where it comes from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Completion {
+    pub label: String,
+    /// The namespace: `this file`, `bidama \`retsu\``, `builtin`, …
+    pub detail: String,
+    pub kind: CompletionKind,
+}
+
+/// In LSP's numbering.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompletionKind {
+    Function = 3,
+    Variable = 6,
+    Keyword = 14,
 }
 
 /// Byte offsets ↔ LSP positions.
@@ -183,6 +222,10 @@ pub struct Analysis {
     pub formatted: Option<String>,
     /// Typed declarations found, for hover and for the status line.
     pub declarations: Vec<Declaration>,
+    /// Every name in scope at top level — the check stage's own name table,
+    /// so a completion never offers a name the checker would call unbound.
+    /// Empty when the document does not parse or its imports do not load.
+    pub completions: Vec<Completion>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -193,7 +236,13 @@ pub struct Declaration {
     pub range: Range,
 }
 
-/// Analyse one document.
+/// Analyse one document with no bidamas available: [`analyse_with`] and
+/// [`blue_lang_runtime::uses::NoLoader`].
+pub fn analyse(src: &str) -> Analysis {
+    analyse_with(src, &blue_lang_runtime::uses::NoLoader)
+}
+
+/// Analyse one document, resolving its `use(...)` imports through `loader`.
 ///
 /// **Parse failures suppress the later stages rather than compounding.** A file
 /// mid-edit is unparseable most of the time, and a type checker run on a
@@ -207,7 +256,15 @@ pub struct Declaration {
 /// is not a matter of deleting the early return here; it needs the parser to
 /// synthesize error nodes and keep going, which it does not do. Stated so the
 /// next reader does not go looking for the `if` to remove.
-pub fn analyse(src: &str) -> Analysis {
+///
+/// **The check stage is the pipeline's**, `blue_lang_runtime::pipeline::
+/// check_entry` — the same rules, names and waivers `blue check` reports, not
+/// a second checker. Only diagnostics in THIS buffer are shown; an imported
+/// bidama's own findings are its file's, not this one's.
+pub fn analyse_with(src: &str, loader: &dyn blue_lang_runtime::uses::Loader) -> Analysis {
+    use blue_lang_runtime::pipeline::{check_entry, Checking};
+    use blue_lang_runtime::uses::{Entry, ResolvedProgram};
+
     let index = LineIndex::new(src);
     let mut out = Analysis::default();
 
@@ -227,18 +284,41 @@ pub fn analyse(src: &str) -> Analysis {
                 severity: Severity::Error,
                 message: e.message.clone(),
                 source: "parse",
+                code: Some(blue_lang_check::Code::B0006.as_str()),
+                help: None,
+                fixes: Vec::new(),
             });
             return out;
         }
     };
 
-    for d in blue_lang_check::check_program(&forms).diagnostics {
-        out.diagnostics.push(Diagnostic {
-            range: index.range(d.span),
-            severity: Severity::Error,
-            message: d.message,
-            source: "types",
-        });
+    match check_entry(Entry::anonymous(src), loader, None, Checking::WithTests) {
+        Ok(checked) => {
+            for d in &checked.outcome.diagnostics {
+                if checked.program.owner_of(d.top_level) != Some(ResolvedProgram::ENTRY) {
+                    continue;
+                }
+                out.diagnostics.push(lsp_diagnostic(d, &index));
+            }
+            out.completions = completions_of(&checked.names);
+        }
+        // Imports that do not load leave no program to resolve names in: say
+        // so once, and still run the typing rules on this buffer alone, which
+        // need nothing imported.
+        Err(e) => {
+            out.diagnostics.push(Diagnostic {
+                range: index.whole_document(),
+                severity: Severity::Error,
+                message: e.to_string(),
+                source: "import",
+                code: None,
+                help: None,
+                fixes: Vec::new(),
+            });
+            for d in blue_lang_check::check_program(&forms).diagnostics {
+                out.diagnostics.push(lsp_diagnostic(&d, &index));
+            }
+        }
     }
 
     // `format_source_lossless`, not `format_forms`. Comments are not in the
@@ -257,6 +337,111 @@ pub fn analyse(src: &str) -> Analysis {
     out.formatted = blue_lang_fmt::format_source_lossless(src).ok();
     out.declarations = declarations(&forms, &index);
     out
+}
+
+/// A check-stage diagnostic in editor coordinates.
+fn lsp_diagnostic(d: &blue_lang_check::Diagnostic, index: &LineIndex) -> Diagnostic {
+    use blue_lang_check::{Applicability, Code};
+    let source = match d.code {
+        Code::B0003 | Code::B0004 | Code::B0005 => "types",
+        Code::B0007 | Code::B0008 => "waivers",
+        _ => "names",
+    };
+    Diagnostic {
+        range: index.range(d.span),
+        severity: if d.is_error() {
+            Severity::Error
+        } else {
+            Severity::Warning
+        },
+        message: d.message.clone(),
+        source,
+        code: Some(d.code.as_str()),
+        help: d.help.clone(),
+        fixes: d
+            .fixes
+            .iter()
+            .map(|f| QuickFix {
+                title: f.message.clone(),
+                edits: f
+                    .edits
+                    .iter()
+                    .map(|e| TextEdit {
+                        range: index.range(e.span),
+                        new_text: e.replacement.clone(),
+                    })
+                    .collect(),
+                preferred: f.applicability == Applicability::MachineApplicable,
+            })
+            .collect(),
+    }
+}
+
+/// Every spellable name in the table, labelled with its namespace.
+fn completions_of(table: &blue_lang_check::NameTable) -> Vec<Completion> {
+    use blue_lang_check::{Namespace, ScopeKind};
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = Vec::new();
+    for (ns, b) in table.all() {
+        let spellable = b
+            .name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && !b.name.contains('-');
+        if !spellable || !seen.insert(b.name.clone()) {
+            continue;
+        }
+        out.push(Completion {
+            label: b.name.clone(),
+            detail: ns.to_string(),
+            kind: match (ns, b.kind) {
+                (_, ScopeKind::SpecialForm | ScopeKind::Macro) => CompletionKind::Keyword,
+                (Namespace::Builtin, _) => CompletionKind::Function,
+                _ => CompletionKind::Variable,
+            },
+        });
+    }
+    out
+}
+
+/// The completions for the word being typed at `pos`: every in-scope
+/// top-level name that starts with it.
+///
+/// **Top-level names only.** Locals — parameters, a function's own bindings —
+/// are not offered: that needs the walker to report the frame at a position,
+/// which it does not yet. Every name offered does exist; what is missing is a
+/// class of names, not a guess.
+pub fn complete(
+    src: &str,
+    pos: Position,
+    loader: &dyn blue_lang_runtime::uses::Loader,
+) -> Vec<Completion> {
+    let index = LineIndex::new(src);
+    let offset = index.offset(pos);
+    let prefix: String = src[..offset.min(src.len())]
+        .chars()
+        .rev()
+        .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '?' || *c == '!')
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    let mut all = analyse_with(src, loader).completions;
+    // A buffer mid-edit often does not parse (`foo(le` has no closing paren),
+    // and then there is no program table. The builtins need no program, so
+    // they are still offered.
+    if all.is_empty() {
+        let mut interp = blue_lang_runtime::interpreter_hostless();
+        blue_lang_runtime::inputs::install_input_primitives(
+            &mut interp,
+            blue_lang_runtime::Inputs::new(),
+        );
+        all = completions_of(&blue_lang_runtime::pipeline::builtin_names(&interp));
+    }
+    all.into_iter()
+        .filter(|c| c.label.starts_with(&prefix))
+        .collect()
 }
 
 fn declarations(forms: &[blue_lang_syntax::Spanned], index: &LineIndex) -> Vec<Declaration> {

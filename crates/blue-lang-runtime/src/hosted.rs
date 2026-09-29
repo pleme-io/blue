@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use tatara_lisp_eval::{Interpreter, Value};
 
-use crate::pipeline::{eval_prepared, prepare, RunError};
+use crate::pipeline::{builtin_names, eval_prepared, prepare, RunError};
 use crate::uses::{Entry, Loader};
 
 /// A loaded blue program whose definitions a host can call.
@@ -40,9 +40,12 @@ pub fn load_hosted<H: 'static>(
     host: &mut H,
     install: impl FnOnce(&mut Interpreter<H>),
 ) -> Result<Hosted<H>, RunError> {
-    let prepared = prepare(entry, loader, None)?;
+    // The host's primitives are installed BEFORE the check stage, so names
+    // the host binds resolve: the stage reads its name table off this
+    // interpreter. Installing is not evaluation; the stage order holds.
     let mut interp = crate::interpreter(host);
     install(&mut interp);
+    let prepared = prepare(entry, loader, None, &builtin_names(&interp))?;
     eval_prepared(&mut interp, &prepared, host)?;
     Ok(Hosted { interp })
 }
@@ -169,7 +172,7 @@ mod tests {
         let mut host = Notes::default();
         let src = "note(\"top level ran\")\ndef f(x: Int) -> Int\n  \"no\"\nend\n";
         let err = load(src, &mut host).err().expect("refused").to_string();
-        assert!(err.contains("type error"), "{err}");
+        assert!(err.contains("error[B0003]"), "{err}");
         assert!(
             host.0.is_empty(),
             "no top-level form may run before the check passes"
@@ -179,7 +182,7 @@ mod tests {
     #[test]
     fn a_raise_and_a_non_function_are_typed_errors_naming_the_function() {
         let mut host = Notes::default();
-        let src = "LIMIT = 3\ndef boom()\n  raise(\"bad\")\nend\n";
+        let src = "LIMIT = 3\ndef boom()\n  throw(error(\"bad\"))\nend\n";
         let mut p = load(src, &mut host).unwrap();
         let raised = p.call("boom", vec![], &mut host).unwrap_err().to_string();
         assert!(raised.contains("boom"), "{raised}");

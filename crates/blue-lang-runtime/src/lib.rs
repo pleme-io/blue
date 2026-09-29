@@ -38,6 +38,7 @@ pub mod erase;
 pub mod hosted;
 pub mod inputs;
 pub mod json;
+pub mod messages;
 pub mod pipeline;
 pub mod stdlib;
 #[cfg(feature = "sys")]

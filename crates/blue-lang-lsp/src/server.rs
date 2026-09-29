@@ -21,7 +21,7 @@ use std::io::{BufRead, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::analysis::{analyse, hover, Position};
+use crate::analysis::{analyse_with, complete, hover, Position};
 use crate::tokens;
 
 /// What the server produced for one incoming message.
@@ -43,11 +43,34 @@ pub enum Response {
 }
 
 /// Open documents, keyed by URI.
-#[derive(Debug, Default)]
 pub struct Server {
     documents: HashMap<String, String>,
     /// Set by `shutdown`, so `serve` can stop cleanly rather than on EOF alone.
     shutting_down: bool,
+    /// Where a document's `use(...)` imports resolve. [`NoLoader`] unless the
+    /// host supplies one — `blue lsp` passes `BLUE_PATH`'s.
+    ///
+    /// [`NoLoader`]: blue_lang_runtime::uses::NoLoader
+    loader: Box<dyn blue_lang_runtime::uses::Loader>,
+}
+
+impl Default for Server {
+    fn default() -> Self {
+        Self {
+            documents: HashMap::new(),
+            shutting_down: false,
+            loader: Box::new(blue_lang_runtime::uses::NoLoader),
+        }
+    }
+}
+
+impl std::fmt::Debug for Server {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Server")
+            .field("documents", &self.documents)
+            .field("shutting_down", &self.shutting_down)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Deserialize)]
@@ -68,6 +91,15 @@ struct Error<'a> {
 impl Server {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// A server whose documents resolve `use(...)` through `loader`.
+    #[must_use]
+    pub fn with_loader(loader: Box<dyn blue_lang_runtime::uses::Loader>) -> Self {
+        Self {
+            loader,
+            ..Self::default()
+        }
     }
 
     pub fn is_shutting_down(&self) -> bool {
@@ -102,7 +134,7 @@ impl Server {
                 let text = str_at(&req.params, &["textDocument", "text"]).unwrap_or_default();
                 self.documents.insert(uri.clone(), text.clone());
                 Response::Messages(vec![
-                    diagnostics_notification(&uri, &text),
+                    self.diagnostics_notification(&uri, &text),
                     shift_notification(&uri, &text),
                 ])
             }
@@ -127,7 +159,7 @@ impl Server {
                 // The reading is pushed on EVERY edit, so it tracks the author
                 // as they type rather than when they remember to ask.
                 Response::Messages(vec![
-                    diagnostics_notification(&uri, &text),
+                    self.diagnostics_notification(&uri, &text),
                     shift_notification(&uri, &text),
                 ])
             }
@@ -147,7 +179,7 @@ impl Server {
                 let Some(text) = self.documents.get(&uri).cloned() else {
                     return reply(&id, Value::Null);
                 };
-                let a = analyse(&text);
+                let a = analyse_with(&text, self.loader.as_ref());
                 match a.formatted {
                     // `null`, not an empty edit list: an unformattable document
                     // must not look like one that was already canonical.
@@ -220,6 +252,61 @@ impl Server {
                 }
             }
 
+            // Quick fixes: the check stage's own suggested repairs for every
+            // diagnostic touching the requested range. A machine-applicable fix
+            // is marked preferred, so "fix all" applies exactly what
+            // `blue check --fix` would.
+            "textDocument/codeAction" => {
+                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
+                let Some(text) = self.documents.get(&uri).cloned() else {
+                    return reply(&id, json!([]));
+                };
+                let at = |k: &str| Position {
+                    line: u32_at(&req.params, &["range", k, "line"]).unwrap_or(0),
+                    character: u32_at(&req.params, &["range", k, "character"]).unwrap_or(0),
+                };
+                let (start, end) = (at("start"), at("end"));
+                let mut actions = Vec::new();
+                for d in analyse_with(&text, self.loader.as_ref()).diagnostics {
+                    if d.range.end < start || end < d.range.start {
+                        continue;
+                    }
+                    for fix in &d.fixes {
+                        let edits: Vec<Value> = fix
+                            .edits
+                            .iter()
+                            .map(|e| json!({ "range": range_json(e.range), "newText": e.new_text }))
+                            .collect();
+                        actions.push(json!({
+                            "title": fix.title,
+                            "kind": "quickfix",
+                            "isPreferred": fix.preferred,
+                            "diagnostics": [diagnostic_json(&d)],
+                            "edit": { "changes": { uri.clone(): edits } },
+                        }));
+                    }
+                }
+                reply(&id, Value::Array(actions))
+            }
+
+            // Completion from the check stage's name table: every top-level
+            // name in scope, with its namespace. Locals are not offered yet.
+            "textDocument/completion" => {
+                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
+                let Some(text) = self.documents.get(&uri).cloned() else {
+                    return reply(&id, Value::Null);
+                };
+                let pos = Position {
+                    line: u32_at(&req.params, &["position", "line"]).unwrap_or(0),
+                    character: u32_at(&req.params, &["position", "character"]).unwrap_or(0),
+                };
+                let items: Vec<Value> = complete(&text, pos, self.loader.as_ref())
+                    .into_iter()
+                    .map(|c| json!({ "label": c.label, "detail": c.detail, "kind": c.kind as i64 }))
+                    .collect();
+                reply(&id, json!({ "isIncomplete": false, "items": items }))
+            }
+
             // `blue/shift` — the reading. A custom method because LSP has no
             // standard "where am I on this language's own continuum", which is
             // the point: no other language has one to report.
@@ -284,6 +371,10 @@ fn capabilities() -> Value {
             "textDocumentSync": 1,
             "documentFormattingProvider": true,
             "hoverProvider": true,
+            "codeActionProvider": { "codeActionKinds": ["quickfix"] },
+            // From the check stage's name table; `.` is not a trigger, since
+            // a send's method name is any function in scope anyway.
+            "completionProvider": { "resolveProvider": false },
             // Colour. The legend is derived from `tokens::SemanticTokenType`,
             // never written out here — the enum's order IS the wire format,
             // and a second spelling of it is a way to repaint every buffer
@@ -321,22 +412,35 @@ fn error_reply(id: &Value, code: i64, message: &str) -> Value {
     })
 }
 
-fn diagnostics_notification(uri: &str, text: &str) -> Value {
-    let index = crate::LineIndex::new(text);
-    let _ = &index;
-    let diags = analyse(text)
-        .diagnostics
-        .into_iter()
-        .map(|d| {
-            json!({
-                "range": range_json(d.range),
-                "severity": d.severity as i64,
-                "source": d.source,
-                "message": d.message,
-            })
-        })
-        .collect();
-    publish(uri, diags)
+impl Server {
+    fn diagnostics_notification(&self, uri: &str, text: &str) -> Value {
+        let diags = analyse_with(text, self.loader.as_ref())
+            .diagnostics
+            .iter()
+            .map(diagnostic_json)
+            .collect();
+        publish(uri, diags)
+    }
+}
+
+/// A diagnostic as LSP JSON: the registry code in `code`, the help line
+/// appended to the message.
+fn diagnostic_json(d: &crate::Diagnostic) -> Value {
+    let mut message = d.message.clone();
+    if let Some(help) = &d.help {
+        message.push_str("\nhelp: ");
+        message.push_str(help);
+    }
+    let mut v = json!({
+        "range": range_json(d.range),
+        "severity": d.severity as i64,
+        "source": d.source,
+        "message": message,
+    });
+    if let (Some(code), Some(obj)) = (d.code, v.as_object_mut()) {
+        obj.insert("code".to_string(), json!(code));
+    }
+    v
 }
 
 fn publish(uri: &str, diagnostics: Vec<Value>) -> Value {
@@ -489,12 +593,111 @@ mod tests {
         let caps = &r["result"]["capabilities"];
         assert_eq!(caps["documentFormattingProvider"], json!(true));
         assert_eq!(caps["hoverProvider"], json!(true));
+        // Implemented, so advertised: both read the check stage.
+        assert!(caps.get("completionProvider").is_some());
+        assert_eq!(
+            caps["codeActionProvider"]["codeActionKinds"],
+            json!(["quickfix"])
+        );
         // Not advertised, because not implemented. A capability claimed and not
         // delivered is worse than one absent: the client stops offering its own
         // fallback.
-        assert!(caps.get("completionProvider").is_none());
         assert!(caps.get("definitionProvider").is_none());
         assert!(caps.get("renameProvider").is_none());
+    }
+
+    const TYPO: &str = "def f(xs)\n  lenght(xs)\nend\n\ndef g(x, y)\n  x\nend\n";
+
+    /// **A published diagnostic carries its registry code**, and its help
+    /// line. Red run (2026-09-29): `diagnostic_json` without the `code`
+    /// insert — `left: Null, right: String("B0001")`.
+    #[test]
+    fn diagnostics_carry_their_code() {
+        let mut s = Server::new();
+        let r = open(&mut s, "file:///t.b", TYPO);
+        let d = diagnostics_of(&r);
+        let items = d["params"]["diagnostics"].as_array().expect("array");
+        assert_eq!(items.len(), 2, "{items:?}");
+        assert_eq!(items[0]["code"], json!("B0001"));
+        assert_eq!(items[0]["severity"], json!(1));
+        assert!(
+            items[0]["message"]
+                .as_str()
+                .is_some_and(|m| m.contains("help: did you mean `length` (builtin)?")),
+            "{}",
+            items[0]["message"]
+        );
+        assert_eq!(items[1]["code"], json!("B0002"));
+        assert_eq!(items[1]["severity"], json!(2), "unused is a warning");
+    }
+
+    /// **A code action applies the check stage's fix.** The suggestion is
+    /// offered and not preferred; the machine-applicable rename is preferred.
+    /// Red run (2026-09-29): the `codeAction` arm removed — the request falls
+    /// to `method not found`, and `r["result"]` is `Null`.
+    #[test]
+    fn code_actions_offer_the_fixes() {
+        let mut s = Server::new();
+        open(&mut s, "file:///t.b", TYPO);
+        let whole =
+            json!({ "start": { "line": 0, "character": 0 }, "end": { "line": 9, "character": 0 } });
+        let Response::Reply(r) = s.handle_value(&req(
+            7,
+            "textDocument/codeAction",
+            json!({ "textDocument": { "uri": "file:///t.b" }, "range": whole, "context": { "diagnostics": [] } }),
+        )) else {
+            panic!("expected a reply");
+        };
+        let actions = r["result"].as_array().expect("an array of actions");
+        let titles: Vec<(&str, bool)> = actions
+            .iter()
+            .map(|a| {
+                (
+                    a["title"].as_str().unwrap_or(""),
+                    a["isPreferred"] == json!(true),
+                )
+            })
+            .collect();
+        assert_eq!(
+            titles,
+            vec![
+                ("replace with `length` (builtin)", false),
+                ("rename to `_y`", true)
+            ]
+        );
+        let edit = &actions[0]["edit"]["changes"]["file:///t.b"][0];
+        assert_eq!(edit["newText"], json!("length"));
+        assert_eq!(edit["range"]["start"], json!({ "line": 1, "character": 2 }));
+        assert_eq!(edit["range"]["end"], json!({ "line": 1, "character": 8 }));
+    }
+
+    /// **Completion is the check stage's name table**, prefix-filtered, each
+    /// item naming its namespace.
+    #[test]
+    fn completion_offers_names_in_scope() {
+        let mut s = Server::new();
+        let text = "def lengthy(x)\n  x\nend\n\nlen\n";
+        open(&mut s, "file:///c.b", text);
+        let Response::Reply(r) = s.handle_value(&req(
+            8,
+            "textDocument/completion",
+            json!({ "textDocument": { "uri": "file:///c.b" }, "position": { "line": 4, "character": 3 } }),
+        )) else {
+            panic!("expected a reply");
+        };
+        let items = r["result"]["items"].as_array().expect("items");
+        let got: Vec<(&str, &str)> = items
+            .iter()
+            .map(|i| {
+                (
+                    i["label"].as_str().unwrap_or(""),
+                    i["detail"].as_str().unwrap_or(""),
+                )
+            })
+            .collect();
+        assert!(got.contains(&("lengthy", "this file")), "{got:?}");
+        assert!(got.contains(&("length", "builtin")), "{got:?}");
+        assert!(got.iter().all(|(l, _)| l.starts_with("len")), "{got:?}");
     }
 
     #[test]

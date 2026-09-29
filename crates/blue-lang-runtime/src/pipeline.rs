@@ -16,6 +16,8 @@
 use tatara_lisp::Sexp;
 use tatara_lisp_eval::Value;
 
+use blue_lang_check::{NameTable, Namespace};
+
 use crate::erase::erase_types;
 use crate::inputs::Inputs;
 use crate::uses::Entry;
@@ -25,15 +27,18 @@ use crate::uses::Entry;
 pub enum RunError {
     #[error("parse error: {0}")]
     Parse(String),
-    /// The type checker rejected the program. Carries every diagnostic, not
-    /// just the first: a caller fixing one error wants to see the rest.
+    /// The check stage rejected the program — a type error, an unbound name,
+    /// or any other error-severity rule in `blue_lang_check::RULES`. Carries
+    /// every error, not just the first: a caller fixing one wants to see the
+    /// rest. (The variant keeps its first name because it is public API on a
+    /// released crate.)
     ///
     /// Each one is already rendered `file:line:col: message` against the file
     /// the offending form came from — which, in a program with imports, is
     /// frequently not the file the user named. The rendering happens here
     /// rather than at the consumer because here is where the file table exists;
     /// see `uses::ResolvedProgram::locate`.
-    #[error("{} type error(s):\n{}", .0.len(), .0.join("\n"))]
+    #[error("{} error(s) in the check stage:\n{}", .0.len(), .0.join("\n"))]
     Types(Vec<String>),
     /// **No longer reachable, and that is the point.** This reported "blue
     /// emitted a tree the reader could not read back" — a failure only a
@@ -188,9 +193,13 @@ pub fn run_in_surface(
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
 ) -> Result<Run, RunError> {
-    let prepared = prepare(entry, loader, surface)?;
+    // The interpreter is built BEFORE the check stage, because it is the check
+    // stage's name oracle: every builtin, macro and special form a program may
+    // name is read off the interpreter that will run it, never off a list.
+    // Building it is not a stage; nothing is evaluated until `eval_prepared`.
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, inputs);
+    let prepared = prepare(entry, loader, surface, &builtin_names(&interp))?;
     let value = eval_prepared(&mut interp, &prepared, &mut ())?;
     Ok(Run {
         value,
@@ -213,28 +222,17 @@ pub(crate) struct Prepared {
 }
 
 /// Parse, resolve, check and erase, in that order.
+///
+/// `builtins` is the name table of the interpreter that will evaluate the
+/// result ([`builtin_names`]); the check stage resolves the program's names
+/// against it.
 pub(crate) fn prepare(
     entry: Entry<'_>,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    builtins: &NameTable,
 ) -> Result<Prepared, RunError> {
-    let forms = match surface {
-        Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
-            .map_err(|e| RunError::Parse(e.to_string()))?,
-        None => parse_tree(entry.text)?,
-    };
-
-    // RESOLVE imports first, so everything below sees ONE program.
-    //
-    // Before the check on purpose: imported code is type-checked at the point
-    // its consumer imports it, rather than at whatever later moment its code
-    // first runs. A package that does not typecheck should break its importer's
-    // build, not their production run.
-    //
-    // One program, but not one FILE: the result records which file each
-    // top-level form came from, which is what lets a diagnostic below name a
-    // place instead of only a problem.
-    let mut program = crate::uses::resolve_uses(forms, entry, loader).map_err(RunError::Import)?;
+    let mut program = parse_and_resolve(entry, loader, surface)?;
 
     // `test` blocks are declarations for the harness, not code to run.
     //
@@ -264,16 +262,14 @@ pub(crate) fn prepare(
     // the string that produced them, which the caller is responsible for
     // holding onto"). blue holds onto it BESIDE the span, per top-level form —
     // see `uses::ResolvedProgram`.
-    let outcome = blue_lang_check::check_program(program.forms());
+    let (outcome, _) = check_stage(&program, builtins);
     if !outcome.ok() {
         return Err(RunError::Types(
             outcome
-                .diagnostics
-                .iter()
-                // `file:line:col: message`, resolved against the file the form
-                // actually came from. A typed `Display` builds it, per ★★ TYPED
-                // EMISSION — `locate` returns the renderer, not a string.
-                .map(|d| program.locate(d.top_level, d.span, &d.message).to_string())
+                .errors()
+                // `file:line:col: error[CODE]: message`, resolved against the
+                // file the form actually came from, then its help line.
+                .map(|d| render(&program, d))
                 .collect(),
         ));
     }
@@ -300,6 +296,264 @@ pub(crate) fn prepare(
         typed_decls: outcome.stats.typed_decls,
         seams: outcome.seams.len(),
     })
+}
+
+/// Parse the entry (in `surface`, if one is given) and splice in its imports.
+fn parse_and_resolve(
+    entry: Entry<'_>,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+) -> Result<crate::uses::ResolvedProgram, RunError> {
+    let forms = match surface {
+        Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
+            .map_err(|e| RunError::Parse(e.to_string()))?,
+        None => parse_tree(entry.text)?,
+    };
+
+    // RESOLVE imports first, so everything below sees ONE program.
+    //
+    // Before the check on purpose: imported code is type-checked at the point
+    // its consumer imports it, rather than at whatever later moment its code
+    // first runs. A package that does not typecheck should break its importer's
+    // build, not their production run.
+    //
+    // One program, but not one FILE: the result records which file each
+    // top-level form came from, which is what lets a diagnostic below name a
+    // place instead of only a problem.
+    crate::uses::resolve_uses(forms, entry, loader).map_err(RunError::Import)
+}
+
+/// **The check stage**: every rule in `blue_lang_check::RULES`, over a
+/// resolved program, with waivers applied.
+///
+/// One function, called by every door — `run`, the hosted loader, `blue test`
+/// and `blue check` — so a rule added to the registry is enforced by all of
+/// them at once. That is what makes an architecture rule a pipeline error
+/// rather than an optional report: there is no door that skips it.
+///
+/// Warnings (unused bindings, unused waivers) are reported for the ENTRY
+/// file only; an imported package's warnings belong to its author. Errors
+/// are reported for every file, because an imported package with one is
+/// broken for its importer.
+fn check_stage(
+    program: &crate::uses::ResolvedProgram,
+    builtins: &NameTable,
+) -> (blue_lang_check::Outcome, NameTable) {
+    use crate::uses::ResolvedProgram;
+    let forms = program.forms();
+    let is_entry = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
+
+    // Rules B0003–B0005: the typing ladder.
+    let mut outcome = blue_lang_check::check_program(forms);
+
+    // Rules B0001–B0002: names. The program's own scopes come first (the
+    // entry file, then each bidama in import order), then the interpreter's.
+    let table = program_names(program, builtins);
+    let (names, resolved) =
+        blue_lang_check::check_names(forms, &table, &|i| namespace_of(program, i), &is_entry);
+    outcome.diagnostics.extend(names);
+    outcome.stats.names_resolved = resolved;
+
+    // Waivers, per file: B0007 for a malformed one, B0008 for one that
+    // suppresses nothing.
+    let mut waivers = Vec::new();
+    for file in program.files() {
+        let spans: Vec<(usize, tatara_lisp::Span)> = forms
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| program.owner_of(*i) == Some(file.id))
+            .map(|(i, f)| (i, f.span))
+            .collect();
+        let (found, malformed) = blue_lang_check::waiver::collect(&file.text, &spans);
+        waivers.extend(found);
+        outcome.diagnostics.extend(malformed);
+    }
+    outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
+    outcome
+        .diagnostics
+        .sort_by_key(|d| (d.top_level, d.span.start, d.code));
+    (outcome, table)
+}
+
+/// The whole name table the check stage resolves against: the program's
+/// own scopes (each file and bidama, by namespace) followed by `builtins`.
+#[must_use]
+pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTable) -> NameTable {
+    let mut table = NameTable::new();
+    table.add_program(program.forms(), |i| namespace_of(program, i));
+    for scope in builtins.scopes() {
+        table.push(scope.clone());
+    }
+    table
+}
+
+/// The namespace top-level form `i` of `program` defines into.
+#[must_use]
+pub fn namespace_of(program: &crate::uses::ResolvedProgram, i: usize) -> Namespace {
+    let file = program.owner_of(i).and_then(|id| program.file(id));
+    match file {
+        Some(f) => match &f.package {
+            Some(p) => Namespace::Bidama(p.clone()),
+            None => Namespace::File(
+                f.path
+                    .as_ref()
+                    .map_or_else(|| "<anonymous>".to_string(), |p| p.display().to_string()),
+            ),
+        },
+        None => Namespace::File("<unknown file>".to_string()),
+    }
+}
+
+/// Names only the test harness binds.
+///
+/// In scope for EVERY check, not only for test blocks. A bidama may carry a
+/// test helper — a plain `def` that asserts, called only from its `test`
+/// blocks (`heni`'s `hn_end_to_end` is one) — and every program importing that
+/// bidama would otherwise be refused for a function it never calls. The
+/// refusal would be scoped to the importer's whole program, not to the fault.
+/// The cost, stated: an `assert` outside any test that `blue run` actually
+/// reaches is caught at runtime (`blue-assert` is unbound there), not here.
+///
+/// `blue-lang-test` registers these on its own interpreter, and this crate
+/// cannot depend on it (it depends on this one), so the list lives beside the
+/// only name in it: the lowered `assert`, which `blue-lang-syntax` owns.
+pub const HARNESS_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
+
+/// The check stage's builtin scopes, read off the interpreter that will run
+/// the program: the test harness's names ([`HARNESS_NAMES`]), then its special
+/// forms, its macros, and every value it binds — the last three in the order
+/// the evaluator consults for a head.
+///
+/// Read from a live interpreter rather than a list, for the reason
+/// `Interpreter::resolve_head` gives: a list is a second copy of the truth and
+/// goes stale on the next installer that lands. An embedder's own
+/// primitives are in scope here because the embedder installs them first.
+#[must_use]
+pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> NameTable {
+    use blue_lang_check::{Binding, Scope, ScopeKind};
+    use tatara_lisp_eval::HeadBinding;
+    let mut special = Scope::new(Namespace::SpecialForm);
+    let mut macros = Scope::new(Namespace::Macro);
+    let mut values = Scope::new(Namespace::Builtin);
+    // `reserved_head_names` reads the ROOT frame only, so a name installed on
+    // a fork (the input primitives, on every `run`) is invisible to it; those
+    // are asked about by name instead, which `resolve_head` answers through
+    // every frame.
+    let mut names: Vec<std::sync::Arc<str>> = interp.reserved_head_names().into_iter().collect();
+    names.extend(
+        crate::inputs::INPUT_PRIMITIVES
+            .iter()
+            .filter(|n| interp.resolve_head(n).is_some())
+            .map(|n| std::sync::Arc::from(*n)),
+    );
+    for name in names {
+        let (scope, kind) = match interp.resolve_head(&name) {
+            Some(HeadBinding::SpecialForm) => (&mut special, ScopeKind::SpecialForm),
+            Some(HeadBinding::Macro) => (&mut macros, ScopeKind::Macro),
+            _ => (&mut values, ScopeKind::Value),
+        };
+        scope.bind(Binding {
+            name: name.to_string(),
+            kind,
+            span: None,
+            top_level: None,
+        });
+    }
+    let mut table = NameTable::new();
+    let mut harness = Scope::new(Namespace::Harness);
+    for n in HARNESS_NAMES {
+        harness.bind(Binding {
+            name: (*n).to_string(),
+            kind: ScopeKind::Value,
+            span: None,
+            top_level: None,
+        });
+    }
+    table.push(harness);
+    table.push(special);
+    table.push(macros);
+    table.push(values);
+    table
+}
+
+/// A diagnostic as a person reads it: `file:line:col: error[B0001]: message`,
+/// then an indented `help:` line when it has one.
+#[must_use]
+pub fn render(program: &crate::uses::ResolvedProgram, d: &blue_lang_check::Diagnostic) -> String {
+    let head = d.to_string();
+    let mut out = program.locate(d.top_level, d.span, &head).to_string();
+    if let Some(help) = &d.help {
+        out.push_str("\n  help: ");
+        out.push_str(help);
+    }
+    out
+}
+
+/// What [`check_entry`] checks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Checking {
+    /// The program `blue run` would evaluate: test blocks dropped.
+    Program,
+    /// The program plus the entry file's test blocks, as `blue test` and
+    /// `blue check` see it.
+    WithTests,
+}
+
+/// A program through the check stage, with everything the stage found.
+pub struct Checked {
+    pub program: crate::uses::ResolvedProgram,
+    pub outcome: blue_lang_check::Outcome,
+    /// The name table the stage resolved against: every program scope, then
+    /// the builtins. What an editor completes from.
+    pub names: NameTable,
+}
+
+/// Parse, resolve and CHECK, without running: the door for `blue check`,
+/// `blue test` and the language server.
+///
+/// Returns every diagnostic, errors and warnings alike, rather than failing on
+/// the first error: a reader fixing a file wants the whole list, and an agent
+/// repairing one wants it in one pass. Whether errors stop anything is the
+/// caller's decision — `blue test` refuses to run tests over a program with
+/// one, exactly as `run` refuses to evaluate it.
+///
+/// The name oracle is the interpreter `blue run` would build: hostless plus
+/// input primitives.
+///
+/// # Errors
+///
+/// A parse or import error, which leaves no program to check.
+pub fn check_entry(
+    entry: Entry<'_>,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    checking: Checking,
+) -> Result<Checked, RunError> {
+    let mut program = parse_and_resolve(entry, loader, surface)?;
+    if checking == Checking::Program {
+        program.retain(|f| !crate::uses::is_test_form(f));
+    }
+    let mut interp = crate::interpreter_hostless();
+    crate::inputs::install_input_primitives(&mut interp, Inputs::new());
+    let builtins = builtin_names(&interp);
+    let (outcome, names) = check_stage(&program, &builtins);
+    Ok(Checked {
+        program,
+        outcome,
+        names,
+    })
+}
+
+/// A syntax error in `text` as a [`B0006`](blue_lang_check::Code::B0006)
+/// diagnostic, so a tool reading `--format json` gets a parse failure in the
+/// same shape as every other finding. `None` when `text` parses.
+#[must_use]
+pub fn syntax_diagnostic(text: &str) -> Option<blue_lang_check::Diagnostic> {
+    let e = blue_lang_syntax::parse_program_tree(text).err()?;
+    Some(
+        blue_lang_check::Diagnostic::new(blue_lang_check::Code::B0006, e.message, e.span)
+            .at_top_level(0),
+    )
 }
 
 /// Evaluate a prepared program's top-level forms into `interp`, with `host`.
@@ -347,7 +601,12 @@ pub(crate) fn eval_prepared<H: 'static>(
             // precise-looking wrong answer `locate`'s guard just refused.
             // `short_message` is upstream's own "no source context" accessor,
             // and blue supplies the context.
-            let message = e.short_message();
+            //
+            // Through `messages::describe`, which is `short_message` except
+            // where blue can say more: a wrong argument count names the
+            // function the author called, read off the call in this tree,
+            // instead of upstream's `<closure>` and a Rust `Debug` arity.
+            let message = crate::messages::describe(&e, erased);
             RunError::Eval(program.locate(top_level, at, &message).to_string())
         })?;
     }
@@ -361,6 +620,14 @@ pub(crate) fn eval_prepared<H: 'static>(
 /// but the right one lands somewhere else — a different path and a different
 /// line — so a green run here is evidence about the join and not about the
 /// renderer being called at all.
+///
+/// **Each raise is an unbound name, WAIVED.** Since the check stage resolves
+/// names (B0001), an unbound call no longer reaches the evaluator; these
+/// fixtures need exactly that runtime raise, so each carries
+/// `# waive B0001: …` above the definition holding it — the one escape hatch,
+/// used for what it is for. The waiver adds a line above each failing call,
+/// which is why the positions below are one line later than their red runs
+/// (recorded against the unwaived fixtures) show.
 #[cfg(test)]
 mod position_tests {
     use super::*;
@@ -395,6 +662,7 @@ def tsukawanai_b()
   2
 end
 
+# waive B0001: the fixture needs a raise at runtime
 def bakuhatsu()
   kore_wa_sonzai_shinai()
 end
@@ -405,7 +673,8 @@ bakuhatsu()";
 
     /// The same failing call, but only ever reached by a CALLER in another
     /// file — the shape that exercises `RunError::Eval`'s stated limit.
-    const BAKUHATSU2: &str = "def yobu()\n  kore_wa_sonzai_shinai()\nend";
+    const BAKUHATSU2: &str =
+        "# waive B0001: a raise at runtime\ndef yobu()\n  kore_wa_sonzai_shinai()\nend";
 
     fn loader() -> MemLoader {
         MemLoader(BTreeMap::from([
@@ -431,7 +700,7 @@ bakuhatsu()";
     /// **The load-bearing gate: a raise inside an IMPORTED package reports the
     /// IMPORTED file's path and line.**
     ///
-    /// Hand-computed. In `bakuhatsu.b` the failing call sits on line 10 at
+    /// Hand-computed. In `bakuhatsu.b` the failing call sits on line 11 at
     /// column 3, and the whole point of the fixture's height is that no other
     /// file in the program can produce that pair: the entry file has 2 lines
     /// and `kotae.b` has 3, so *any* mis-attribution is visible as a different
@@ -475,7 +744,7 @@ bakuhatsu()";
         let err = run_named("entry.b", "use(\"kotae\")\nuse(\"bakuhatsu\")\n");
         assert_eq!(
             err.to_string(),
-            "runtime error: bakuhatsu.b:10:3: unbound symbol `kore_wa_sonzai_shinai`"
+            "runtime error: bakuhatsu.b:11:3: unbound symbol `kore_wa_sonzai_shinai`"
         );
     }
 
@@ -483,12 +752,12 @@ bakuhatsu()";
     /// FACT ABOUT `bakuhatsu.b`, checked against the source text rather than
     /// against the thing that produced it.
     ///
-    /// Without this, `10:3` is just a number that happened to come out of the
+    /// Without this, `11:3` is just a number that happened to come out of the
     /// code under test, and a change that moved every reported line by one
     /// would move this assertion with it.
     #[test]
-    fn line_10_column_3_of_the_fixture_is_the_failing_call() {
-        let line = BAKUHATSU.lines().nth(9).expect("line 10 exists");
+    fn line_11_column_3_of_the_fixture_is_the_failing_call() {
+        let line = BAKUHATSU.lines().nth(10).expect("line 11 exists");
         assert_eq!(line, "  kore_wa_sonzai_shinai()");
         assert_eq!(
             &line[2..],
@@ -528,10 +797,13 @@ bakuhatsu()";
     /// ```
     #[test]
     fn a_raise_in_the_entry_file_names_the_entry_file() {
-        let err = run_named("honmono.b", "def f()\n  1\nend\n\nnani_mo_nai()\n");
+        let err = run_named(
+            "honmono.b",
+            "def f()\n  1\nend\n\n# waive B0001: a raise at runtime\nnani_mo_nai()\n",
+        );
         assert_eq!(
             err.to_string(),
-            "runtime error: honmono.b:5:1: unbound symbol `nani_mo_nai`"
+            "runtime error: honmono.b:6:1: unbound symbol `nani_mo_nai`"
         );
     }
 
@@ -552,11 +824,11 @@ bakuhatsu()";
     fn a_raise_inside_an_annotated_def_still_names_its_line() {
         let err = run_named(
             "chuu.b",
-            "def f(a: Int) -> Int\n  mada_nai(a)\nend\n\nf(1)\n",
+            "# waive B0001: a raise at runtime\ndef f(a: Int) -> Int\n  mada_nai(a)\nend\n\nf(1)\n",
         );
         assert_eq!(
             err.to_string(),
-            "runtime error: chuu.b:2:3: unbound symbol `mada_nai`"
+            "runtime error: chuu.b:3:3: unbound symbol `mada_nai`"
         );
     }
 
@@ -587,9 +859,25 @@ bakuhatsu()";
     /// is not, so a wrong file gets a precise number pointing at innocent
     /// code. Exactly the failure this repo's file-identity work exists to
     /// refuse, which is why the guard tests BOTH ends.
+    ///
+    /// **Re-run 2026-09-29**, after the fixtures gained their waiver lines:
+    /// the guard's END check replaced by a start check (`span.start <= len`),
+    /// with the caller padded so the callee's start (byte 47) is in range and
+    /// its end (byte 70) is not:
+    /// ```text
+    /// left:  "runtime error: yobidashi.b:3:1: unbound symbol `kore_wa_sonzai_shinai`"
+    /// right: "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`"
+    /// ```
     #[test]
     fn a_raise_in_a_callee_from_another_file_reports_no_position_rather_than_a_wrong_one() {
-        let err = run_named("yobidashi.b", "use(\"bakuhatsu2\")\nyobu()\n");
+        // The comment is padding, and load-bearing: `bakuhatsu2.b`'s failing
+        // call starts at byte 47 (after its waiver line) and ends at 70, and
+        // this file is 54 bytes, so the start is in range here and the end is
+        // not — the half-in-range case the guard's END check exists for.
+        let err = run_named(
+            "yobidashi.b",
+            "use(\"bakuhatsu2\")\n# pad so byte 47 is in range\nyobu()\n",
+        );
         assert_eq!(
             err.to_string(),
             "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`",
@@ -660,7 +948,7 @@ mod tests {
     /// stage failed rather than surfacing as a generic error.
     #[test]
     fn a_runtime_error_is_reported_as_one() {
-        let err = run("no_such_function(1)").expect_err("unbound");
+        let err = run("throw(error(\"boom\"))").expect_err("a raise");
         assert!(matches!(err, RunError::Eval(_)), "got {err}");
     }
 

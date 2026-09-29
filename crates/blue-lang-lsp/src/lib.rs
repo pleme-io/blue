@@ -27,12 +27,16 @@
 //! syntax, so the editor reads the same lexer the compiler does. An editor
 //! needs no per-language configuration to consume them.
 //!
-//! **Not** completion, go-to-definition, rename, or references: each needs a
-//! resolved name table blue does not build yet, and a completion list
-//! assembled from a token scan is worse than no completion — it suggests names
-//! that do not exist. Semantic tokens are not an exception to that rule; they
-//! classify only what the token stream states outright, and [`tokens`] lists
-//! what it therefore declines to guess.
+//! **Diagnostics, quick fixes and completion come from the pipeline's check
+//! stage** — the same rules, codes, waivers and name table as `blue check`.
+//! Completion offers every top-level name in scope with its namespace; it does
+//! not yet offer locals (that needs the walker to report the frame at a
+//! position). **Not** go-to-definition, rename, or references: the name table
+//! records where each top-level name is defined, but no request is wired to
+//! it yet. A completion list assembled from a token scan would be worse than
+//! none — it suggests names that do not exist — which is why this one reads
+//! the checker's table. Semantic tokens classify only what the token stream
+//! states outright, and [`tokens`] lists what it therefore declines to guess.
 
 pub mod analysis;
 pub mod server;
@@ -40,7 +44,8 @@ pub mod shift;
 pub mod tokens;
 
 pub use analysis::{
-    analyse, hover, Analysis, Declaration, Diagnostic, LineIndex, Position, Range, Severity,
+    analyse, analyse_with, complete, hover, Analysis, Completion, CompletionKind, Declaration,
+    Diagnostic, LineIndex, Position, QuickFix, Range, Severity, TextEdit,
 };
 pub use server::{handle, Response, Server};
 pub use shift::{shift_of, Factor, FactorKind, Rung, Shift};

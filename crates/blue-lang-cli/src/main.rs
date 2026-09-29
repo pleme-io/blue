@@ -11,8 +11,9 @@
 //! blue fmt     FILE [--check]  the one formatting; --check exits 1 on drift
 //! blue ast     FILE            the tatara-lisp form — homoiconicity, visible
 //! blue erase   FILE            the tatara-lisp form after type erasure
-//! blue check   FILE            the sliding-scale report: analysis and seams
-//! blue test    FILE            run the file's `test` blocks
+//! blue check   FILE [--format json] [--fix]   every rule, the typing report
+//! blue explain CODE | --list   what a diagnostic code means
+//! blue test    FILE            check, then run the file's `test` blocks
 //! blue deps    BLUEFILE        resolve the manifest's dependencies
 //! blue posture BLUEFILE        the posture the manifest's floors require
 //! blue bluefile --json BLUEFILE         the evaluated manifest, as JSON
@@ -49,6 +50,7 @@
 //! it is how a reader sees that annotations are consumed rather than carried.
 
 mod config;
+mod diagnostics;
 mod prefetch;
 mod reference;
 
@@ -115,9 +117,36 @@ enum Cmd {
     Ast { file: PathBuf },
     /// Print the tatara-lisp form after type erasure — what actually runs.
     Erase { file: PathBuf },
-    /// Report what the type checker did: analysis performed, seams found.
-    Check { file: PathBuf },
-    /// Run the file's `test` blocks.
+    /// Check a program against every rule in the registry — unbound names,
+    /// unused bindings, types, waivers — and report the typing analysis.
+    ///
+    /// Like `run` and `test`, this compiles only canonical source: a writable
+    /// file that is not canonically formatted is REWRITTEN IN PLACE first
+    /// (`blue: formatted <path>` on stderr), and a read-only one is refused.
+    ///
+    /// Exits non-zero when any error-severity diagnostic remains. Test blocks
+    /// are checked too. `blue explain CODE` says what a code means.
+    Check {
+        file: PathBuf,
+        /// `text` for people; `json` prints one JSON object per diagnostic
+        /// per line on stdout (JSON Lines). The fields are documented in
+        /// docs/DIAGNOSTICS.md and are stable.
+        #[arg(long, value_enum, default_value_t = Format::Text)]
+        format: Format,
+        /// Apply every machine-applicable fix to the file, re-format it, and
+        /// check again. Suggestions marked maybe-incorrect are never applied.
+        #[arg(long)]
+        fix: bool,
+    },
+    /// Explain a diagnostic code (`blue explain B0001`), or list them all.
+    #[command(group(clap::ArgGroup::new("which").required(true).args(["code", "list"])))]
+    Explain {
+        code: Option<String>,
+        /// List every code with its severity and one-line law.
+        #[arg(long)]
+        list: bool,
+    },
+    /// Check the file (as `blue check` does), then run its `test` blocks.
     Test { file: PathBuf },
     /// Resolve a Bluefile's dependencies. Does not fetch.
     Deps { file: PathBuf },
@@ -175,6 +204,13 @@ fn main() -> ExitCode {
     }
 }
 
+/// `blue check`'s output shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum Format {
+    Text,
+    Json,
+}
+
 /// One error type for the CLI's own failures, so every exit path is typed.
 #[derive(Debug, thiserror::Error)]
 enum CliError {
@@ -207,6 +243,8 @@ enum CliError {
     Lock(#[from] blue_lang_pkg::lock::LockError),
     #[error("could not render JSON: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("no diagnostic code `{0}`; `blue explain --list` lists them")]
+    UnknownCode(String),
     /// `--json` prints ONE manifest; several would need a container shape, and
     /// inventing one here would be a second schema beside the lock's.
     #[error("`blue bluefile --json` prints one manifest, and {got} Bluefiles were named")]
@@ -449,66 +487,64 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Check { file } => {
-            let src = read_compiled(&file)?;
-            let forms = parse_tree(&src, &cfg)?;
-            let outcome = blue_lang_check::check_program(&forms);
-            // Report the analysis performed, not just pass/fail. §0's rule is
-            // that an invisible cost is the one unacceptable outcome, and the
-            // cost of typing is analysis — so it is printed.
-            println!("typed declarations: {}", outcome.stats.typed_decls);
-            println!("nodes analysed:     {}", outcome.stats.visited);
-            println!("seams:              {}", outcome.seams.len());
-            // `file:line:col`, the shape every editor and every `cc` already
-            // knows how to jump to. The position is the diagnostic's own span,
-            // so a reader is never told to go looking for the error.
-            let at = |span: blue_lang_syntax::Span| {
-                let (line, col) = blue_lang_syntax::Span::line_col(&src, span.start);
-                Located {
-                    file: file.display().to_string(),
-                    line,
-                    col,
+        Cmd::Check { file, format, fix } => check(&file, format, fix),
+
+        Cmd::Explain { code, list } => {
+            if list {
+                for r in blue_lang_check::RULES {
+                    println!(
+                        "{} {:<8} {:<22} {}",
+                        r.code,
+                        r.severity.label(),
+                        r.slug,
+                        r.law
+                    );
                 }
-            };
-            for seam in &outcome.seams {
-                println!(
-                    "  {} seam at {} expects {:?}",
-                    at(seam.span),
-                    seam.at,
-                    seam.expected
-                );
+                return Ok(ExitCode::SUCCESS);
             }
-            for d in &outcome.diagnostics {
-                eprintln!("{} error: {d}", at(d.span));
-            }
-            Ok(if outcome.ok() {
-                ExitCode::SUCCESS
-            } else {
-                ExitCode::FAILURE
-            })
+            let code = code.unwrap_or_default();
+            let c = blue_lang_check::Code::parse(&code).ok_or(CliError::UnknownCode(code))?;
+            print!("{}", blue_lang_check::Explain(c.rule()));
+            Ok(ExitCode::SUCCESS)
         }
 
         Cmd::Test { file } => {
             let src = read_compiled(&file)?;
-            let forms = parse_tree(&src, &cfg)?;
-            // Imports resolve here too, for the same reason they do in `run`.
+            // The CHECK STAGE first, through the pipeline, with the file's test
+            // blocks included: a typo in a test body, or in a function only a
+            // test calls, is an error here exactly as it would be for `run`.
             //
-            // Wiring only `run` was a real gap and it failed loudly the first
-            // time a bidama with a dependency was tested: EVERY test in the
-            // file errored with `unbound symbol: use`, because the import never
-            // expanded and `use` reached the evaluator as a call. A package
-            // that cannot be tested with its dependencies is a package with no
-            // tests, so this is not a convenience — a distribution where only
-            // the leaf packages can be tested has no gate on the rest.
-            let program = blue_lang_runtime::uses::resolve_uses(
-                forms,
+            // This door used to call `resolve_uses` itself and hand the result
+            // straight to the harness, so `blue test` ran no check at all — a
+            // type error the pipeline would refuse ran green under test.
+            // Imports resolve through BLUE_PATH, for the same reason they do in
+            // `run`: a package that cannot be tested with its dependencies is a
+            // package with no tests.
+            let checked = blue_lang_runtime::pipeline::check_entry(
                 blue_lang_runtime::uses::Entry {
                     path: Some(&file),
                     text: &src,
                 },
                 &blue_lang_pkg::load_path::LoadPath::from_env(),
-            )
-            .map_err(blue_lang_runtime::pipeline::RunError::Import)?;
+                None,
+                blue_lang_runtime::pipeline::Checking::WithTests,
+            )?;
+            // Every finding, errors and warnings, in one pass; then no test
+            // runs over a program with an error, as `run` would not evaluate it.
+            for d in &checked.outcome.diagnostics {
+                eprintln!(
+                    "{}",
+                    blue_lang_runtime::pipeline::render(&checked.program, d)
+                );
+            }
+            if !checked.outcome.ok() {
+                eprintln!(
+                    "blue: {}: the check stage rejected the file, so no test ran",
+                    file.display()
+                );
+                return Ok(ExitCode::FAILURE);
+            }
+            let program = checked.program;
             // The harness reports a failing ASSERTION, not a position, so it
             // takes the spanless projection. When it grows one it should take
             // the program itself — the file table is already here.
@@ -798,15 +834,120 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Lsp => {
             let stdin = std::io::stdin();
             let stdout = std::io::stdout();
-            blue_lang_lsp::Server::new()
-                .serve(stdin.lock(), stdout.lock())
-                .map_err(|source| CliError::Write {
-                    path: "<stdio>".to_string(),
-                    source,
-                })?;
+            // The editor sees the distribution `blue check` does: BLUE_PATH.
+            blue_lang_lsp::Server::with_loader(Box::new(
+                blue_lang_pkg::load_path::LoadPath::from_env(),
+            ))
+            .serve(stdin.lock(), stdout.lock())
+            .map_err(|source| CliError::Write {
+                path: "<stdio>".to_string(),
+                source,
+            })?;
             Ok(ExitCode::SUCCESS)
         }
     }
+}
+
+/// `blue check`: the pipeline's check stage over the file and its imports.
+fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
+    use blue_lang_runtime::pipeline::{check_entry, render, syntax_diagnostic, Checking};
+    // A file that does not parse has no tree to check, and the compile door
+    // below would refuse it with the formatter's message. Report it here as
+    // B0006 instead, so a syntax error arrives in the same shape — code,
+    // line:col, JSON — as every other finding.
+    let raw = read(file)?;
+    if let Some(d) = syntax_diagnostic(&raw) {
+        match format {
+            Format::Json => print!("{}", diagnostics::syntax_json(file, &raw, &d)?),
+            Format::Text => {
+                let (line, col) = blue_lang_syntax::Span::line_col(&raw, d.span.start);
+                eprintln!(
+                    "{} {d}",
+                    Located {
+                        file: file.display().to_string(),
+                        line,
+                        col,
+                    }
+                );
+            }
+        }
+        return Ok(ExitCode::FAILURE);
+    }
+    let loader = blue_lang_pkg::load_path::LoadPath::from_env();
+    let mut src = read_compiled(file)?;
+    fn entry<'a>(file: &'a Path, text: &'a str) -> blue_lang_runtime::uses::Entry<'a> {
+        blue_lang_runtime::uses::Entry {
+            path: Some(file),
+            text,
+        }
+    }
+    let mut checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+    if fix {
+        let (fixed, applied) =
+            diagnostics::apply_machine_fixes(&checked.program, &checked.outcome, &src);
+        if applied > 0 {
+            std::fs::write(file, &fixed).map_err(|source| CliError::Write {
+                path: file.display().to_string(),
+                source,
+            })?;
+            eprintln!("blue: applied {applied} fix(es) to {}", file.display());
+            // Re-format (the compile door rewrites a non-canonical file) and
+            // re-check what is now on disk.
+            src = read_compiled(file)?;
+            checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+        }
+    }
+    let outcome = &checked.outcome;
+    match format {
+        Format::Json => print!("{}", diagnostics::json_lines(&checked.program, outcome)?),
+        Format::Text => {
+            // Report the analysis performed, not just pass/fail. §0's rule is
+            // that an invisible cost is the one unacceptable outcome, and the
+            // cost of typing is analysis — so it is printed.
+            println!("typed declarations: {}", outcome.stats.typed_decls);
+            println!("nodes analysed:     {}", outcome.stats.visited);
+            println!("seams:              {}", outcome.seams.len());
+            println!("names resolved:     {}", outcome.stats.names_resolved);
+            println!("waived:             {}", outcome.waived.len());
+            // `file:line:col`, the shape every editor and every `cc` already
+            // knows how to jump to.
+            for seam in &outcome.seams {
+                let (line, col) = blue_lang_syntax::Span::line_col(&src, seam.span.start);
+                println!(
+                    "  {} seam at {} expects {:?}",
+                    Located {
+                        file: file.display().to_string(),
+                        line,
+                        col,
+                    },
+                    seam.at,
+                    seam.expected
+                );
+            }
+            for w in &outcome.waived {
+                println!(
+                    "  {}",
+                    render(
+                        &checked.program,
+                        &blue_lang_check::Diagnostic::new(
+                            w.diagnostic.code,
+                            format!("waived: {} ({})", w.diagnostic.message, w.waiver.reason),
+                            w.diagnostic.span,
+                        )
+                        .at_top_level(w.diagnostic.top_level)
+                    )
+                );
+            }
+            for d in &outcome.diagnostics {
+                eprintln!("{}", render(&checked.program, d));
+            }
+        }
+    }
+    Ok(if outcome.ok() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
 }
 
 /// Bind `--input name=path` pairs against the program's own `definput`

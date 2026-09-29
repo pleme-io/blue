@@ -71,6 +71,25 @@ fails loudly; both produce a green run on a program that should be rejected.
 caller that re-implements the order is one reordering away from disabling the
 checker.
 
+## Architecture rules are pipeline errors; lint is a view over them
+
+**Every rule blue enforces is a row in one registry, `blue_lang_check::RULES`,
+and runs in the check stage** — so `blue run`, `blue test`, `blue check`, the
+LSP and every bidama build enforce it, and an error-severity violation cannot
+run or build. A row is a code (`B0001`), a severity, a one-line law, an
+explanation (`blue explain CODE`), a witness program (the kept red run:
+`every_rule_fires_on_its_witness_and_only_it` fails unless it produces exactly
+that code) and an optional fix. **A new rule is a new row, never a separate
+checker**: a future `blue lint` lists and fixes over these rows. Refusal is
+scoped: every diagnostic in a file is reported in one pass, naming the
+offending definition. The one escape hatch is `# waive CODE: reason` directly
+above the offending top-level definition; it is counted and reported, never
+silent, and there is no global switch. Names resolve by an explicit tier list
+(`names::RESOLUTION_ORDER`: local, own, imported, builtin), and the runtime's
+last-define-wins order differs from it in two measured places —
+`blue-lang-runtime/tests/resolution_order.rs` pins both. Full shape:
+`docs/DIAGNOSTICS.md`.
+
 ## Where to look
 
 | Intent | Crate |
@@ -379,8 +398,9 @@ signs and verifies; a keypair comes from a seed the caller supplies),
 **no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
 derives the table from a frame — nothing puts an entry into a `.wasm`, and no
 engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
-not being on crates.io), **no completion / go-to-definition** (each needs a
-resolved name table),
+not being on crates.io), **no go-to-definition, and no completion of locals** (the
+name table exists and the LSP completes top-level names from it; wiring a
+position to a frame and a definition request to the table is not done),
 and no **`case`/`when` pattern matching** or **ranges** — the two remaining
 surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**

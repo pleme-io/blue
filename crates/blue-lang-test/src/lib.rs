@@ -79,10 +79,26 @@ pub struct Test {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Failure {
     /// An `assert` evaluated to something falsy. Carries the expression as
-    /// canonical blue source.
-    Assertion { test: String, expression: String },
+    /// canonical blue source, and — when the expression was a comparison —
+    /// the value each side produced.
+    Assertion {
+        test: String,
+        expression: String,
+        operands: Option<Operands>,
+    },
     /// The test raised before or instead of asserting.
     Errored { test: String, error: String },
+}
+
+/// The two sides of a failed comparison, as canonical blue source.
+///
+/// `assert size(xs) == 3` failing says only that the sizes differ; showing
+/// `left: 2` is the difference between reading the failure and re-running
+/// the test with a print in it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Operands {
+    pub left: String,
+    pub right: String,
 }
 
 impl Failure {
@@ -96,8 +112,16 @@ impl Failure {
 impl std::fmt::Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Failure::Assertion { test, expression } => {
-                write!(f, "FAIL {test}\n  assert {expression}")
+            Failure::Assertion {
+                test,
+                expression,
+                operands,
+            } => {
+                write!(f, "FAIL {test}\n  assert {expression}")?;
+                if let Some(Operands { left, right }) = operands {
+                    write!(f, "\n  left:  {left}\n  right: {right}")?;
+                }
+                Ok(())
             }
             Failure::Errored { test, error } => write!(f, "ERROR {test}\n  {error}"),
         }
@@ -185,12 +209,109 @@ fn as_test(form: &Sexp) -> Option<Test> {
 struct Recorder {
     failed: Arc<AtomicBool>,
     expression: Arc<std::sync::Mutex<Option<String>>>,
+    operands: Arc<std::sync::Mutex<Option<Operands>>>,
+}
+
+/// The harness's comparison assertion: `(blue-assert-compare 'e lhs rhs
+/// result)`. Never written by the parser — [`compare_asserts`] rewrites a
+/// comparison `assert` into it inside the harness, so the name is the
+/// harness's own, like [`blue_lang_syntax::LOWERED_ASSERT`].
+pub const ASSERT_COMPARE: &str = "blue-assert-compare";
+
+/// The surface comparison operators whose failing `assert` reports both
+/// sides. Their callees are read from `INFIX`, the one table.
+const COMPARISON_OPS: &[&str] = &["==", "!=", "<", "<=", ">", ">="];
+
+fn comparison_callee(name: &str) -> bool {
+    blue_lang_syntax::INFIX
+        .iter()
+        .any(|i| i.callee == name && COMPARISON_OPS.contains(&i.op))
+}
+
+/// Rewrite every `(blue-assert 'e (op a b))` whose `op` is a comparison into
+///
+/// ```text
+/// (let ((blue-assert-lhs a) (blue-assert-rhs b))
+///   (blue-assert-compare 'e blue-assert-lhs blue-assert-rhs
+///                        (op blue-assert-lhs blue-assert-rhs)))
+/// ```
+///
+/// so the harness sees each side's value. Each side is evaluated once, in
+/// the order it was before, in the scope it was before (`let`'s inits see
+/// the outer scope); the bound names are unspellable in blue, so no user
+/// name is captured. Quoted data is left alone.
+#[must_use]
+pub fn compare_asserts(form: &Sexp) -> Sexp {
+    let sym = |s: &str| Sexp::Atom(Atom::Symbol(s.to_string()));
+    match form {
+        Sexp::List(items) => {
+            let is_assert = matches!(
+                items.first(),
+                Some(Sexp::Atom(Atom::Symbol(h))) if h.as_str() == blue_lang_syntax::LOWERED_ASSERT
+            );
+            if is_assert && items.len() == 3 {
+                if let Sexp::List(cmp) = &items[2] {
+                    if let [Sexp::Atom(Atom::Symbol(op)), a, b] = cmp.as_slice() {
+                        if comparison_callee(op) {
+                            let (l, r) = ("blue-assert-lhs", "blue-assert-rhs");
+                            return Sexp::List(vec![
+                                sym("let"),
+                                Sexp::List(vec![
+                                    Sexp::List(vec![sym(l), compare_asserts(a)]),
+                                    Sexp::List(vec![sym(r), compare_asserts(b)]),
+                                ]),
+                                Sexp::List(vec![
+                                    sym(ASSERT_COMPARE),
+                                    items[1].clone(),
+                                    sym(l),
+                                    sym(r),
+                                    Sexp::List(vec![sym(op), sym(l), sym(r)]),
+                                ]),
+                            ]);
+                        }
+                    }
+                }
+            }
+            Sexp::List(items.iter().map(compare_asserts).collect())
+        }
+        Sexp::Quote(_) => form.clone(),
+        Sexp::Quasiquote(inner) => Sexp::Quasiquote(Box::new(compare_asserts(inner))),
+        Sexp::Unquote(inner) => Sexp::Unquote(Box::new(compare_asserts(inner))),
+        Sexp::UnquoteSplice(inner) => Sexp::UnquoteSplice(Box::new(compare_asserts(inner))),
+        _ => form.clone(),
+    }
 }
 
 /// Install the assertion primitive, recording failures into `rec`.
 fn install_assert(interp: &mut Interpreter<()>, rec: &Recorder) {
     let failed = rec.failed.clone();
     let expression = rec.expression.clone();
+    {
+        let failed = rec.failed.clone();
+        let expression = rec.expression.clone();
+        let operands = rec.operands.clone();
+        interp.register_fn(
+            ASSERT_COMPARE,
+            Arity::Exact(4),
+            move |args: &[Value], _host: &mut (), _span| {
+                if truthy(&args[3]) {
+                    return Ok(Value::Bool(true));
+                }
+                if !failed.swap(true, Ordering::SeqCst) {
+                    if let Ok(mut slot) = expression.lock() {
+                        *slot = Some(render_form(&args[0]));
+                    }
+                    if let Ok(mut slot) = operands.lock() {
+                        *slot = Some(Operands {
+                            left: render_value(&args[1]),
+                            right: render_value(&args[2]),
+                        });
+                    }
+                }
+                Ok(Value::Bool(false))
+            },
+        );
+    }
     interp.register_fn(
         blue_lang_syntax::LOWERED_ASSERT,
         Arity::Exact(2),
@@ -239,6 +360,51 @@ fn render_form(v: &Value) -> String {
         .to_string()
 }
 
+/// A runtime value as canonical blue source: `[1, 2]`, `"a"`, `{a: 1}`.
+fn render_value(v: &Value) -> String {
+    match value_literal(v) {
+        // A symbol value is data; rendered bare it reads as a name, which is
+        // what the value is.
+        Some(Sexp::Atom(Atom::Symbol(s))) => s,
+        Some(sexp) => blue_lang_fmt::format_forms(std::slice::from_ref(&sexp))
+            .trim_end()
+            .to_string(),
+        None => "<a value with no literal form>".to_string(),
+    }
+}
+
+/// The literal that evaluates to `v`: a list is `(list …)`, which the
+/// formatter renders `[…]`, and a map is `(hash-map k v …)`, rendered
+/// `{k: v}`, keys sorted so the text does not depend on hash order. Unlike
+/// [`value_to_sexp`], which lifts a QUOTED form back to the code it was.
+fn value_literal(v: &Value) -> Option<Sexp> {
+    Some(match v {
+        Value::List(items) => {
+            let mut out = vec![Sexp::Atom(Atom::Symbol("list".to_string()))];
+            for i in items.iter() {
+                out.push(value_literal(i)?);
+            }
+            Sexp::List(out)
+        }
+        Value::Map(m) => {
+            let mut pairs: Vec<(Sexp, Sexp)> = m
+                .iter()
+                .map(|(k, v)| Some((key_to_sexp(k), value_literal(v)?)))
+                .collect::<Option<Vec<_>>>()?;
+            pairs.sort_by_key(|(k, _)| k.to_string());
+            let mut items = vec![Sexp::Atom(Atom::Symbol(
+                blue_lang_syntax::LOWERED_MAP.to_string(),
+            ))];
+            for (k, v) in pairs {
+                items.push(k);
+                items.push(v);
+            }
+            Sexp::List(items)
+        }
+        other => value_to_sexp(other)?,
+    })
+}
+
 /// Lift an evaluated quoted form back into the syntax tree it came from.
 ///
 /// Total over the shapes a quoted form can produce; `None` for values that were
@@ -261,6 +427,19 @@ fn value_to_sexp(v: &Value) -> Option<Sexp> {
         ),
         _ => return None,
     })
+}
+
+fn key_to_sexp(k: &tatara_lisp_eval::value::MapKey) -> Sexp {
+    use tatara_lisp_eval::value::MapKey;
+    match k {
+        MapKey::Nil => Sexp::Nil,
+        MapKey::Bool(b) => Sexp::Atom(Atom::Bool(*b)),
+        MapKey::Int(n) => Sexp::Atom(Atom::Int(*n)),
+        MapKey::Float(bits) => Sexp::Atom(Atom::Float(f64::from_bits(*bits))),
+        MapKey::Str(s) => Sexp::Atom(Atom::Str(s.to_string())),
+        MapKey::Symbol(s) => Sexp::Atom(Atom::Symbol(s.to_string())),
+        MapKey::Keyword(s) => Sexp::Atom(Atom::Keyword(s.to_string())),
+    }
 }
 
 fn truthy(v: &Value) -> bool {
@@ -340,9 +519,11 @@ pub fn run(forms: &[Sexp]) -> Report {
                         .ok()
                         .and_then(|s| s.clone())
                         .unwrap_or_else(|| "<expression unavailable>".to_string());
+                    let operands = rec.operands.lock().ok().and_then(|s| s.clone());
                     report.failures.push(Failure::Assertion {
                         test: test.name.clone(),
                         expression,
+                        operands,
                     });
                 } else {
                     report.passed += 1;
@@ -367,7 +548,10 @@ pub fn run(forms: &[Sexp]) -> Report {
 // test` the `file:line:col` failure that `blue run` just gained — one piece of
 // work, not two, and deliberately not folded into this change.
 fn eval_all(interp: &mut Interpreter<()>, forms: &[Sexp]) -> Result<(), String> {
-    let lifted: Vec<_> = forms.iter().map(Spanned::from_sexp_synthetic).collect();
+    let lifted: Vec<_> = forms
+        .iter()
+        .map(|f| Spanned::from_sexp_synthetic(&compare_asserts(f)))
+        .collect();
     let erased = blue_lang_runtime::to_sexps(&blue_lang_runtime::erase_types(&lifted));
     let text = erased
         .iter()
@@ -375,10 +559,14 @@ fn eval_all(interp: &mut Interpreter<()>, forms: &[Sexp]) -> Result<(), String> 
         .collect::<Vec<_>>()
         .join("\n");
     let spanned = tatara_lisp::read_spanned(&text).map_err(|e| format!("{e:?}"))?;
+    // `describe`, not `Display`: the spans here index the re-printed lisp
+    // text above, which no author has seen, so upstream's ` at 41..48` suffix
+    // is noise — but they DO index `spanned`, so a wrong argument count can
+    // still be matched to its call and name the function.
     interp
         .eval_program(&spanned, &mut ())
         .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| blue_lang_runtime::messages::describe(&e, &spanned))
 }
 
 #[cfg(test)]
@@ -391,6 +579,71 @@ mod tests {
     }
 
     const PREAMBLE: &str = "def add(a, b)\n  a + b\nend\n";
+
+    /// **A failing comparison shows both sides.**
+    ///
+    /// Red run (2026-09-29): `eval_all` lifting the forms without
+    /// `compare_asserts` — the assertion still fails, with no values:
+    /// `left: None`, `right: Some(Operands { left: "3", right: "4" })`.
+    #[test]
+    fn a_failing_comparison_reports_both_values() {
+        let r = report(&format!(
+            "{PREAMBLE}test \"adds\"\n  xs = [1, 2]\n  assert add(1, 2) == size_of(xs) + 2\nend\n\
+             def size_of(xs)\n  2\nend\n"
+        ));
+        match &r.failures[..] {
+            [Failure::Assertion {
+                expression,
+                operands,
+                ..
+            }] => {
+                assert_eq!(expression, "add(1, 2) == size_of(xs) + 2");
+                assert_eq!(
+                    operands.clone(),
+                    Some(Operands {
+                        left: "3".into(),
+                        right: "4".into()
+                    })
+                );
+            }
+            other => panic!("expected one assertion failure: {other:?}"),
+        }
+        assert_eq!(
+            r.failures[0].to_string(),
+            "FAIL adds\n  assert add(1, 2) == size_of(xs) + 2\n  left:  3\n  right: 4"
+        );
+    }
+
+    /// Values render as blue literals: a list, a string, a map.
+    #[test]
+    fn operands_render_as_blue_literals() {
+        let r = report("test \"t\"\n  assert [1, \"a\", {k: :v}] != [1, \"a\", {k: :v}]\nend\n");
+        match &r.failures[..] {
+            [Failure::Assertion {
+                operands: Some(o), ..
+            }] => {
+                assert_eq!(o.left, "[1, \"a\", {k: :v}]");
+                assert_eq!(o.right, o.left);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// A passing comparison still passes, and a non-comparison assert carries
+    /// no operands: the rewrite changes what is REPORTED, never what passes.
+    #[test]
+    fn the_rewrite_changes_no_verdict() {
+        let r = report(&format!(
+            "{PREAMBLE}test \"a\"\n  assert add(1, 2) == 3\nend\n\
+             test \"b\"\n  assert add(1, 2) < 1 == false\nend\n\
+             test \"c\"\n  assert false\nend\n"
+        ));
+        assert_eq!(r.passed, 2, "{r}");
+        match &r.failures[..] {
+            [Failure::Assertion { operands, .. }] => assert_eq!(operands, &None),
+            other => panic!("{other:?}"),
+        }
+    }
 
     #[test]
     fn a_passing_test_passes() {
@@ -411,7 +664,9 @@ mod tests {
         ));
         assert!(!r.ok());
         match &r.failures[0] {
-            Failure::Assertion { test, expression } => {
+            Failure::Assertion {
+                test, expression, ..
+            } => {
                 assert_eq!(test, "adds");
                 assert_eq!(
                     expression, "add(1, 2) == 4",
@@ -580,7 +835,15 @@ mod shadowing {
         // being bound is required, and `every_delegated_name_resolves` asserts
         // the opposite. Conflating the two made this gate flag a correct
         // delegation as a bug.
-        const LOWERED: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
+        // `ASSERT_COMPARE` and its two bound names are the harness's own
+        // rewrite of a comparison `assert`, so they belong here too: a runtime
+        // macro named `blue-assert-compare` would swallow every comparison.
+        const LOWERED: &[&str] = &[
+            blue_lang_syntax::LOWERED_ASSERT,
+            super::ASSERT_COMPARE,
+            "blue-assert-lhs",
+            "blue-assert-rhs",
+        ];
 
         // A bare blue runtime — primitives + the Lisp stdlib, no blue
         // additions. If a name resolves here, blue's definition is the loser.

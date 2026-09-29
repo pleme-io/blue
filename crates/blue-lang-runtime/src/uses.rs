@@ -114,6 +114,10 @@ pub struct SourceFile {
     /// an embedder, a test, a WASM host. An imported file always has one,
     /// because a [`Loader`] cannot name a package without naming a place.
     pub path: Option<PathBuf>,
+    /// The bidama this file belongs to — the name `use` was given — or `None`
+    /// for the entry file. The namespace its definitions are resolved under
+    /// (`blue_lang_check::Namespace::Bidama`).
+    pub package: Option<String>,
     /// The file's text.
     ///
     /// Kept, not dropped after parsing, because a [`Span`] is a byte range and
@@ -190,15 +194,24 @@ impl ResolvedProgram {
             owner: Vec::new(),
             files: Vec::new(),
         };
-        let id = program.intern(entry.path.map(Path::to_path_buf), entry.text.to_owned());
+        let id = program.intern(
+            entry.path.map(Path::to_path_buf),
+            None,
+            entry.text.to_owned(),
+        );
         debug_assert_eq!(id, Self::ENTRY);
         program
     }
 
     /// Record a file's text and hand back its handle.
-    fn intern(&mut self, path: Option<PathBuf>, text: String) -> FileId {
+    fn intern(&mut self, path: Option<PathBuf>, package: Option<String>, text: String) -> FileId {
         let id = FileId(self.files.len());
-        self.files.push(SourceFile { id, path, text });
+        self.files.push(SourceFile {
+            id,
+            path,
+            package,
+            text,
+        });
         id
     }
 
@@ -467,7 +480,7 @@ fn expand(
             // Interned AFTER parsing, so a package that does not parse never
             // becomes a file in the table — and BEFORE the recursion, because
             // every form below belongs to this file, not to the importer's.
-            let id = out.intern(Some(PathBuf::from(label)), src);
+            let id = out.intern(Some(PathBuf::from(label)), Some(name.clone()), src);
             expand(parsed, id, loader, out, seen, &inner_chain)?;
         }
     }

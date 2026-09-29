@@ -185,12 +185,18 @@ fn as_declaration(form: &Sexp) -> Option<Declaration> {
 ///
 /// There is deliberately no `inputs()`, no `input_path()`, and no
 /// `read_file()`. Each would hand back the ambient authority this removes.
+/// The names [`install_input_primitives`] binds. Named once, so the check
+/// stage can ask an interpreter about them: installed on a FORK they live in
+/// the fork's private frame, which `Interpreter::reserved_head_names` does
+/// not enumerate (it reads the root frame only).
+pub const INPUT_PRIMITIVES: [&str; 2] = ["input", "definput"];
+
 pub fn install_input_primitives<H: 'static>(interp: &mut Interpreter<H>, inputs: Inputs) {
     let table = std::sync::Arc::new(inputs);
 
     let read = table.clone();
     interp.register_fn(
-        "input",
+        INPUT_PRIMITIVES[0],
         Arity::Exact(1),
         move |args: &[Value], _h: &mut H, span| {
             let name = match &args[0] {
@@ -226,7 +232,7 @@ pub fn install_input_primitives<H: 'static>(interp: &mut Interpreter<H>, inputs:
     );
 
     interp.register_fn(
-        "definput",
+        INPUT_PRIMITIVES[1],
         Arity::Exact(2),
         move |args: &[Value], _h: &mut H, _span| Ok(args[0].clone()),
     );

@@ -33,6 +33,14 @@ use std::collections::BTreeMap;
 
 use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 
+pub mod names;
+pub mod rules;
+pub mod suggest;
+pub mod waiver;
+
+pub use names::{check_names, Binding, NameTable, Namespace, Scope, ScopeKind};
+pub use rules::{Code, Explain, FixKind, Rule, Severity, RULES};
+
 /// A blue type at rung 1.
 ///
 /// `Dyn` is the top and the default. Every rule below is written so that
@@ -107,9 +115,20 @@ impl Ty {
     }
 }
 
-/// A reported problem. Always a diagnostic, never a refusal to run.
+/// A reported problem: a registry [`Code`], a severity, a primary span, and
+/// what a reader (or an agent) needs to act on it without guessing — related
+/// places, a help line, and zero or more suggested fixes.
+///
+/// The shape is rustc's, deliberately: a stable code with a long explanation
+/// behind `blue explain`, and fixes carrying an [`Applicability`] so a tool can
+/// apply the safe ones unattended and must show the rest to someone.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostic {
+    /// Which rule this is. Its row in [`RULES`] is the explanation.
+    pub code: Code,
+    /// Copied from the code's row when built through [`Diagnostic::new`];
+    /// a field rather than a lookup so a consumer never needs the registry.
+    pub severity: Severity,
     pub message: String,
     /// The byte range in the source that caused it.
     ///
@@ -138,9 +157,68 @@ pub struct Diagnostic {
     /// top-level form came from the file that top-level form came from.
     /// `blue_lang_runtime::uses::ResolvedProgram` is the table that resolves it.
     ///
+    /// Every span in [`Self::related`] and [`Self::fixes`] is in the same file
+    /// as [`Self::span`]: the same top-level form, so the same join key.
+    ///
     /// A single-file consumer (the LSP, `blue check`) may ignore this — there
     /// is one file and it is the one it just read.
     pub top_level: usize,
+    /// Other places that explain this one ("defined here").
+    pub related: Vec<Related>,
+    /// One line on what to do.
+    pub help: Option<String>,
+    /// Edits that would resolve it, best first.
+    pub fixes: Vec<Fix>,
+}
+
+/// A secondary location attached to a [`Diagnostic`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct Related {
+    pub span: Span,
+    pub message: String,
+}
+
+/// How safe a [`Fix`] is to apply without a person reading it.
+///
+/// rustc's two ends of its scale: a fix is either known to preserve meaning, or
+/// it is a guess. `blue check --fix` applies only the first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Applicability {
+    MachineApplicable,
+    MaybeIncorrect,
+}
+
+impl Applicability {
+    /// The kebab-case word `--format json` uses.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Applicability::MachineApplicable => "machine-applicable",
+            Applicability::MaybeIncorrect => "maybe-incorrect",
+        }
+    }
+}
+
+/// A suggested repair: one or more byte-range replacements, applied together.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Fix {
+    /// What the fix does, e.g. "replace with `length`".
+    pub message: String,
+    pub edits: Vec<Edit>,
+    pub applicability: Applicability,
+}
+
+/// Replace the bytes at `span` with `replacement`.
+///
+/// `original` is what the span must contain for the edit to apply. An applier
+/// compares it before writing, so an edit computed against one version of a
+/// file cannot land on another (an editor buffer that moved on, a file
+/// reformatted since) and corrupt it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Edit {
+    pub span: Span,
+    pub original: String,
+    pub replacement: String,
 }
 
 impl Diagnostic {
@@ -154,6 +232,55 @@ impl Diagnostic {
     /// message: less information, no lie. `no_diagnostic_escapes_unstamped`
     /// gates it.
     pub const UNSTAMPED: usize = usize::MAX;
+
+    /// A diagnostic with `code`'s registry severity, unstamped, with no
+    /// related spans, help or fixes.
+    #[must_use]
+    pub fn new(code: Code, message: impl Into<String>, span: Span) -> Self {
+        Self {
+            code,
+            severity: code.severity(),
+            message: message.into(),
+            span,
+            top_level: Self::UNSTAMPED,
+            related: Vec::new(),
+            help: None,
+            fixes: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn at_top_level(mut self, top_level: usize) -> Self {
+        self.top_level = top_level;
+        self
+    }
+
+    #[must_use]
+    pub fn with_help(mut self, help: impl Into<String>) -> Self {
+        self.help = Some(help.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_fix(mut self, fix: Fix) -> Self {
+        self.fixes.push(fix);
+        self
+    }
+
+    #[must_use]
+    pub fn with_related(mut self, span: Span, message: impl Into<String>) -> Self {
+        self.related.push(Related {
+            span,
+            message: message.into(),
+        });
+        self
+    }
+
+    /// Does this diagnostic stop the pipeline?
+    #[must_use]
+    pub fn is_error(&self) -> bool {
+        self.severity == Severity::Error
+    }
 }
 
 /// A diagnostic renders itself. Per ★★ TYPED EMISSION the only sanctioned
@@ -162,7 +289,7 @@ impl Diagnostic {
 /// was a missing `Display`, not a licence to `format!` at the call site.
 impl std::fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
+        write!(f, "{}[{}]: {}", self.severity, self.code, self.message)
     }
 }
 
@@ -196,6 +323,9 @@ pub struct Stats {
     pub visited: usize,
     /// Declarations that carried an annotation.
     pub typed_decls: usize,
+    /// Name references resolved by [`check_names`]. Zero until that pass runs;
+    /// a corpus gate reads it to prove the pass looked at something.
+    pub names_resolved: usize,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -203,11 +333,20 @@ pub struct Outcome {
     pub diagnostics: Vec<Diagnostic>,
     pub seams: Vec<Seam>,
     pub stats: Stats,
+    /// Diagnostics an in-source waiver suppressed, with the waiver that did
+    /// it. Reported, never silently dropped: see [`waiver`].
+    pub waived: Vec<waiver::Waived>,
 }
 
 impl Outcome {
+    /// No ERROR-severity diagnostic. Warnings do not stop a program.
     pub fn ok(&self) -> bool {
-        self.diagnostics.is_empty()
+        !self.diagnostics.iter().any(Diagnostic::is_error)
+    }
+
+    /// The error-severity diagnostics, the ones that stop the pipeline.
+    pub fn errors(&self) -> impl Iterator<Item = &Diagnostic> {
+        self.diagnostics.iter().filter(|d| d.is_error())
     }
 }
 
@@ -275,21 +414,28 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
                 d.top_level = top_level;
             }
             if !body_ty.accepts(&sig.ret) {
-                out.diagnostics.push(Diagnostic {
-                    message: format!(
-                        "`{name}` declares it returns {}, but its body produces {}",
-                        sig.ret.name(),
-                        body_ty.name()
-                    ),
-                    // The BODY, not the return annotation and not the whole
-                    // `def`. The annotation is a statement of intent the author
-                    // meant; the body is the thing that disagrees with it, and
-                    // rustc points at the tail expression for the same reason.
-                    // Pointing at the whole declaration would underline a
-                    // twenty-line function to report one wrong line.
-                    span: body.span,
-                    top_level,
-                });
+                out.diagnostics.push(
+                    Diagnostic::new(
+                        Code::B0003,
+                        format!(
+                            "`{name}` declares it returns {}, but its body produces {}",
+                            sig.ret.name(),
+                            body_ty.name()
+                        ),
+                        // The BODY, not the return annotation and not the whole
+                        // `def`. The annotation is a statement of intent the author
+                        // meant; the body is the thing that disagrees with it, and
+                        // rustc points at the tail expression for the same reason.
+                        // Pointing at the whole declaration would underline a
+                        // twenty-line function to report one wrong line.
+                        body.span,
+                    )
+                    .at_top_level(top_level)
+                    .with_help(format!(
+                        "change the body to produce {}, or change the declared return type",
+                        sig.ret.name()
+                    )),
+                );
             }
         }
     }
@@ -389,18 +535,19 @@ fn infer(
                 for a in &items[1..] {
                     let got = infer(a, env, sigs, out);
                     if !got.accepts(&arg) {
-                        out.diagnostics.push(Diagnostic {
-                            message: format!("`{head}` expects {}, got {}", arg.name(), got.name()),
+                        out.diagnostics.push(Diagnostic::new(
+                            Code::B0004,
+                            format!("`{head}` expects {}, got {}", arg.name(), got.name()),
                             // The OFFENDING OPERAND, not the whole operator
                             // expression. `s + 1` where `s: Str` is a complaint
                             // about `s`; underlining `s + 1` would leave the
                             // reader to work out which half is wrong, and in
                             // `a + b + c` it would underline all of it.
-                            span: a.span,
-                            // Stamped by `check_program`'s pass-2 loop, which
-                            // is the only place the top-level index is known.
-                            top_level: Diagnostic::UNSTAMPED,
-                        });
+                            //
+                            // Unstamped: `check_program`'s pass-2 loop is the
+                            // only place the top-level index is known.
+                            a.span,
+                        ));
                     }
                 }
                 return ret;
@@ -424,16 +571,16 @@ fn infer(
                             span: a.span,
                         });
                     } else if !got.accepts(want) {
-                        out.diagnostics.push(Diagnostic {
-                            message: format!(
+                        out.diagnostics.push(Diagnostic::new(
+                            Code::B0005,
+                            format!(
                                 "`{head}` argument {} expects {}, got {}",
                                 i + 1,
                                 want.name(),
                                 got.name()
                             ),
-                            span: a.span,
-                            top_level: Diagnostic::UNSTAMPED,
-                        });
+                            a.span,
+                        ));
                     }
                 }
                 return sig.ret.clone();

@@ -83,4 +83,7 @@ file, named for the behaviour, with the empty input among the cases.
 - [`bidamas/AUTHORING.md`](bidamas/AUTHORING.md): writing and testing a
   bidama, and the measured traps not yet made rules.
 - [`bidamas/NAMES.md`](bidamas/NAMES.md): how packages are named.
+- [`spec/README.md`](spec/README.md): the conformance suite, one row per
+  observable behaviour run on every evaluator; a row's program and expected
+  result is the most exact statement of what blue does.
 - [`llms.txt`](llms.txt): these files as an index.

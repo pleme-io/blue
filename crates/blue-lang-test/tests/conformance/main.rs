@@ -24,7 +24,8 @@
 //! - `BLUE_CONFORMANCE_JSON` — also write every verdict as JSON lines there,
 //!   one object per (row, evaluator), for DuckDB.
 //! - `BLUE_CONFORMANCE_PROBE=1` — print every observation, not only failures.
-//! - a first argument filters rows by id substring (coverage is then skipped).
+//! - a first argument filters rows by id substring (coverage is then skipped);
+//!   `--coverage-only` runs the missing-row gate and the controls alone.
 
 mod coverage;
 mod eval;
@@ -330,8 +331,11 @@ fn main() {
     let mut env = Env::new(roots, blue_bin(&repo), scratch.clone());
 
     let (all_rows, refusals) = rows::load(&repo.join("spec/rows"));
+    // `--coverage-only`: the missing-row gate and the controls, no rows run.
+    let coverage_only = args.iter().any(|a| a == "--coverage-only");
     let rows: Vec<&Row> = all_rows
         .iter()
+        .filter(|_| !coverage_only)
         .filter(|r| filter.as_ref().is_none_or(|f| r.id.contains(f.as_str())))
         .collect();
 

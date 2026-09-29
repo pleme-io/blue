@@ -102,6 +102,7 @@ last-define-wins order differs from it in two measured places —
 | processes, supervision, mailboxes, isolation | `blue-lang-proc` |
 | interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`); BLAKE3 + Ed25519, pure and C-free (`crypto`) | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
+| the conformance suite: `spec/rows/*.b` on every evaluator, and the missing-row gate (`checks.conformance`; format and pending mechanism in `spec/README.md`) | `blue-lang-test/tests/conformance/` |
 | Bluefile (the `WORDS` table) + version solver + `Bluefile.lock` | `blue-lang-pkg` |
 | the project engine: a `Bluefile.lock` lowered to packages, checks and apps (`lib.project`; blue's own flake is its first caller) | `nix/project.nix`, over `bidamas/mk-bidama.nix` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
@@ -258,6 +259,15 @@ Each of these is a defect that shipped, not a style preference.
   docs warn "read as fuzz at cell size". **Quoting a warning and arguing past it
   is not clearing it.** Theme colours are `irodori` lookups; blue carries no hex,
   and a test enforces it.
+
+## Every behaviour is a spec row
+
+A new builtin (`docs::NAMES`), form (`FORMS`), keyword, operator (`INFIX`),
+rule code (`RULES`) or okite decision is red in `checks.conformance` until a
+row in `spec/rows/` covers it. A row states what blue PROMISES; where the
+implementation falls short it is `pending("<gap>")`, and it fails the run the
+moment the gap closes, until the mark is removed. Evaluators must agree with
+the tree-walker on every row. `spec/README.md` has the format.
 
 ## Testing discipline
 

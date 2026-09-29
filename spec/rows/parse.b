@@ -50,6 +50,6 @@ row(
 row(
   "parse.qualified_name",
   "sp_mod::sp_twice",
-  fails(:check, "B0001"),
-  pending("namespaces")
+  fails(:check, "B0010"),
+  covers("rule:B0010")
 )

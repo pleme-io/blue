@@ -409,6 +409,26 @@
           # so this is the rest of the tree: specs, generators, fixtures.
           blue-fmt = bl.mkFmtCheck { inherit blue; root = ./.; };
 
+          # The executable specification: every row in spec/rows/ on every
+          # evaluator (walker, vm, wasm ABI, the shipped binary, the front
+          # end), and the missing-row gate over RULES, FORMS, INFIX, the
+          # keywords, docs::NAMES and okite's card. `cargo test` over the
+          # Cargo.lock-vendored workspace, through substrate's runner, since
+          # the lockfile build path runs no tests. STRICT makes a blind `cli`
+          # column red, so the gate cannot pass without the binary it names.
+          conformance =
+            (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs {
+              src = ./.;
+              name = "blue-conformance";
+              config = {
+                runs = [ { args = [ "-p" "blue-lang-test" "--test" "conformance" ]; } ];
+                env = {
+                  BLUE_BIN = "${blue}/bin/blue";
+                  BLUE_CONFORMANCE_STRICT = "1";
+                };
+              };
+            };
+
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
           blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
 

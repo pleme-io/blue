@@ -44,21 +44,16 @@ row(
   "modules.ns.qualified",
   "use(\"sp_mod\")\nsp_mod::sp_twice(2)",
   value("4"),
-  pending("namespaces")
+  pending("G16", "wasm")
 )
 
-row(
-  "modules.ns.builtin_qualified",
-  "blue::first([1, 2])",
-  value("1"),
-  pending("namespaces")
-)
+row("modules.ns.builtin_qualified", "blue::first([1, 2])", value("1"))
 
 row(
   "modules.ns.import_list",
   "use(\"sp_mod\", [:sp_twice])\nsp_twice(3)",
   value("6"),
-  pending("namespaces")
+  pending("G16", "wasm")
 )
 
 row(

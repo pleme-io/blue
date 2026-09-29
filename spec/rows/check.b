@@ -109,3 +109,17 @@ row(
   "test \"t\"\n  assert nope() == 1\nend",
   diagnoses(["B0001"])
 )
+
+row(
+  "check.B0010",
+  "def f(xs)\n  sp_mod::sp_twice(xs)\nend",
+  diagnoses(["B0010"]),
+  covers("rule:B0010")
+)
+
+row(
+  "check.B0011",
+  "use(\"sp_mod\")\n\nsp_mod::sp_twicf(1)",
+  diagnoses(["B0011"]),
+  covers("rule:B0011")
+)

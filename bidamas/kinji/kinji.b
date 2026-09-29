@@ -108,7 +108,7 @@ end
 # being finite ends the run with :kinji_diverged.
 def kj_rk4(f, t0, y0, h, n)
   start = {t: t0, y: y0, back: [[t0, y0]], refusals: []}
-  fin = reduce(fn(acc, i) kj_rk4_tick(f, h, acc) end, start, range(0, n))
+  fin = reduce(fn(acc, _i) kj_rk4_tick(f, h, acc) end, start, range(0, n))
   {samples: reverse(get(fin, :back)), refusals: get(fin, :refusals)}
 end
 
@@ -248,7 +248,7 @@ def kj_ode(f, t0, y0, t1, opts)
       refusals: []
     }
     fin = reduce(
-      fn(acc, i) kj_ode_tick(f, t1, rtol, atol, hmin, acc) end,
+      fn(acc, _i) kj_ode_tick(f, t1, rtol, atol, hmin, acc) end,
       start,
       range(0, kj_opt(opts, :max_steps, 100000))
     )
@@ -381,7 +381,7 @@ def kj_bisect(f, lo, hi, tol, max_iter)
     {root: nil, iterations: 0, refusals: bad}
   else
     fin = reduce(
-      fn(acc, i) kj_bisect_tick(f, tol, acc) end,
+      fn(acc, _i) kj_bisect_tick(f, tol, acc) end,
       {lo: lo, hi: hi, flo: flo, n: 0, done: false},
       range(0, max_iter)
     )
@@ -451,7 +451,7 @@ def kj_brent(f, lo, hi, tol, max_iter)
       }
     )
     fin = reduce(
-      fn(acc, i) kj_brent_tick(f, tol, acc) end,
+      fn(acc, _i) kj_brent_tick(f, tol, acc) end,
       start,
       range(0, max_iter)
     )
@@ -603,7 +603,7 @@ def kj_nelder_mead(f, x0, step, opts)
   corners = map(fn(i) update_at(x0, i, nth(i, x0) + step) end, indexes(x0))
   simplex = map(fn(x) kj_nm_vertex(x, f(x)) end, concat_lists([x0], corners))
   fin = reduce(
-    fn(acc, i) kj_nm_tick(f, ftol, xtol, acc) end,
+    fn(acc, _i) kj_nm_tick(f, ftol, xtol, acc) end,
     {simplex: kj_nm_sort(simplex), n: 0, done: false},
     range(0, max_iter)
   )
@@ -885,15 +885,15 @@ end
 
 # ── tests ────────────────────────────────────────────────────────────
 
-def kj_decay(t, y)
+def kj_decay(_t, y)
   scale(-1, y)
 end
 
-def kj_oscillator(t, y)
+def kj_oscillator(_t, y)
   [nth(1, y), -nth(0, y)]
 end
 
-def kj_blowup(t, y)
+def kj_blowup(_t, y)
   [square(nth(0, y))]
 end
 
@@ -1026,7 +1026,7 @@ test "kj_fit recovers a decay constant, with its error and point count"
   assert vector_near(kj_value(r, :params), [80.0, 0.3]) == true
   assert get(r, :n) == 6
   assert get(r, :rmse) < 0.0001
-  assert kj_refusal_kinds(kj_fit(fn(p, t) t end, [1.0], [1, 2], [1], {})) ==
+  assert kj_refusal_kinds(kj_fit(fn(_p, t) t end, [1.0], [1, 2], [1], {})) ==
     [:kinji_data]
 end
 

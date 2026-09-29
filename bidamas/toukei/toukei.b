@@ -350,7 +350,7 @@ def rescale(xs)
     lo = smallest(xs)
     w = largest(xs) - lo
     if near(w, 0)
-      map(fn(x) 0 end, xs)
+      map(fn(_x) 0 end, xs)
     else
       map(fn(x) (x - lo) / w end, xs)
     end

@@ -799,7 +799,7 @@ end
 # el_decode_line with the definition's names already indexed (el_names), as
 # read and append hold them.
 def el_decode_named(names, position, line)
-  doc = try(json_parse(line), catch(e(), :el_unreadable))
+  doc = try(json_parse(line), catch(_e(), :el_unreadable))
   if doc == :el_unreadable
     el_bad(position, line, "not JSON")
   elsif is_doc(doc) == false
@@ -1631,7 +1631,7 @@ def el_sig_ok?(r, public_hex)
   if string?(el_rec_sig(r))
     try(
       verify_message(public_hex, el_rec_hash(r), el_rec_sig(r)),
-      catch(e(), false)
+      catch(_e(), false)
     ) ==
       true
   else

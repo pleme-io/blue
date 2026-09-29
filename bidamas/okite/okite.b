@@ -239,7 +239,7 @@ def ok_law_empty_list_is_brackets()
     cdr([1]),
     append([], []),
     append(),
-    filter(fn(x) false end, [1]),
+    filter(fn(_x) false end, [1]),
     map(fn(x) x end, []),
     reverse([]),
     take(0, [1]),
@@ -248,7 +248,7 @@ def ok_law_empty_list_is_brackets()
     split("", ""),
     sort([]),
     distinct([]),
-    flat_map(fn(x) [] end, [1])
+    flat_map(fn(_x) [] end, [1])
   ]
   ok_all(fn(r) r == [] && !nil?(r) end, results)
 end
@@ -384,7 +384,7 @@ end
 # A law holds when it returns true. One that throws does not hold: it is
 # reported by its decision like any other failure, never aborting the check.
 def ok_holds(law)
-  try(apply(law, []) == true, catch(e(), false))
+  try(apply(law, []) == true, catch(_e(), false))
 end
 
 # Every law that does not hold, as "id: law", and every decision with no law.

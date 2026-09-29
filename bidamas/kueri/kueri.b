@@ -1755,7 +1755,7 @@ def q_subst(e, items)
   end
 end
 
-def q_into(b, stage, dialect)
+def q_into(b, stage, _dialect)
   k = get(stage, :kind)
   p = get(b, :phase)
   if k == :join

@@ -121,7 +121,7 @@ def hn_test(blue, root, name, test_file)
       "test",
       path_join(path_join(root, name), test_file)
     ),
-    catch(e(), nil)
+    catch(_e(), nil)
   )
 end
 
@@ -345,7 +345,7 @@ test "without a blue CLI, heni refuses rather than spawning its host"
         tmp: "/tmp"
       }
     ),
-    catch(e(), :refused)
+    catch(_e(), :refused)
   )
   assert refused == :refused
 end

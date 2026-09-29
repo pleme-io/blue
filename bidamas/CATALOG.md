@@ -712,9 +712,9 @@ kinji (近似) — approximation: numerical methods: ODEs, roots, minimisation, 
 | `kj_trapezoid(f, a, b, n)` | The trapezoid rule over n equal panels. |
 | `kj_simpson(f, a, b, n)` | Simpson's rule over n equal panels, n even: exact for cubics. |
 | `kj_trapz(xs, ys)` | The trapezoid rule over samples (xs ascending), for a measured curve. |
-| `kj_decay(t, y)` |  |
-| `kj_oscillator(t, y)` |  |
-| `kj_blowup(t, y)` |  |
+| `kj_decay(_t, y)` |  |
+| `kj_oscillator(_t, y)` |  |
+| `kj_blowup(_t, y)` |  |
 
 ## kueri
 
@@ -863,7 +863,7 @@ kueri (クエリ) — queries: analysis is authored in blue, and SQL is only the
 | `q_set(b, key, value, phase)` |  |
 | `q_pushable?(b, stage)` | A filter that can join the WHERE of a block whose select list holds only |
 | `q_subst(e, items)` | A filter after a group reads the aggregates by name; HAVING needs them |
-| `q_into(b, stage, dialect)` |  |
+| `q_into(b, stage, _dialect)` |  |
 | `q_lower_stage(acc, stage, dialect)` |  |
 | `q_lower(model, dialect)` | The pipeline as closed CTE blocks ([name, block] pairs) and a final block. |
 | `q_lock_order(model, b, dialect)` | A locked model's output order is made total: its own keys, then every other |
@@ -1556,7 +1556,7 @@ raifusaikuru (ライフサイクル) — lifecycles: event-sourced states, guard
 | `lc_put_pair(kv, f, v)` |  |
 | `lc_effect(fs, eff, ev)` |  |
 | `lc_step(d, s, ev)` | One event, folded. Total: a refused event is recorded and changes nothing |
-| `lc_apply(d, s, ev, j)` | The state after an event lc_judge has already decided: the second half of |
+| `lc_apply(_d, s, ev, j)` | The state after an event lc_judge has already decided: the second half of |
 | `lc_resume(d, s, events)` | Continue a fold from a state. |
 | `lc_state_of(d, events)` | Replay an entity's events, in order, into its state. |
 | `lc_admit(d, s, ev)` | Would `ev` be accepted in `s`? [:admit], or [:reject, kind, detail] with the |
@@ -1765,7 +1765,7 @@ rittai (立体) — solids: poses, triangle meshes built by extrusion and sweep,
 | `rt_extrude_wall_faces(r, l, e)` | rt_extrude's face order is a contract: the side walls come first, two |
 | `rt_count_keys(keys)` | [key, count] for each distinct key. |
 | `rt_count_of(table, k)` |  |
-| `rt_distinct(keys, table)` |  |
+| `rt_distinct(keys, _table)` |  |
 | `rt_distinct_step(acc, k)` |  |
 | `rt_key_set(pairs)` |  |
 | `rt_region_points(r)` | All of a region's points, outline first, and each loop's index range. |

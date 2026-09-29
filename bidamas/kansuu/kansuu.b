@@ -11,7 +11,7 @@ end
 
 # The constant function. Useful wherever a callback is required and ignored.
 def constantly(x)
-  fn(ignored) x end
+  fn(_ignored) x end
 end
 
 # compose(f, g) applies g FIRST, then f — the mathematical order.

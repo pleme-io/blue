@@ -176,7 +176,7 @@ def sj_nix_argv(opts)
 end
 
 def sj_nix(opts)
-  cap = try(apply(exec_capture, sj_nix_argv(opts)), catch(e(), nil))
+  cap = try(apply(exec_capture, sj_nix_argv(opts)), catch(_e(), nil))
   if cap == nil
     {ok: false, summary: "nix-collect-garbage could not be started"}
   else
@@ -291,7 +291,7 @@ test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes 
   assert size(get(dry, :removed)) == 1
   assert path_exists(path_join(crate, "target")) == true
   # For real.
-  wet = sj_rust({roots: [base], hours: 0, dry_run: false})
+  _wet = sj_rust({roots: [base], hours: 0, dry_run: false})
   assert path_exists(path_join(crate, "target")) == false
   assert path_exists(path_join(base, "other/target")) == true
   rm_rf(base)

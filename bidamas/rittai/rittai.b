@@ -482,7 +482,7 @@ def rt_count_of(table, k)
   end
 end
 
-def rt_distinct(keys, table)
+def rt_distinct(keys, _table)
   reverse(
     get(
       reduce(
@@ -623,7 +623,7 @@ end
 def rt_ear_clip(pts, poly)
   n = size(poly)
   fin = reduce(
-    fn(acc, step) rt_clip_step(pts, acc) end,
+    fn(acc, _step) rt_clip_step(pts, acc) end,
     {poly: poly, tris: [], stuck: false},
     range(0, n)
   )

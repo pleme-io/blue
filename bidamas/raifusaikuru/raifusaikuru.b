@@ -942,7 +942,7 @@ def lc_pb_names(p)
     )
   )
   reserved = map(
-    fn(x)
+    fn(_x)
       lc_problem(
         :reserved_name,
         ":stay means a self-loop in lc_on and cannot name a state"
@@ -1040,7 +1040,7 @@ def lc_edge_where(e)
 end
 
 def lc_pb_edges(p)
-  states = lc_d_states(p)
+  _states = lc_d_states(p)
   edges = lc_d_edges(p)
   keys = map(fn(e) [nth(1, e), nth(2, e)] end, edges)
   dup = map(
@@ -1166,7 +1166,7 @@ end
 # States reachable from `seeds` along `pairs` ([from, to]), within n rounds.
 def lc_forward(pairs, seeds, n)
   reduce(
-    fn(acc, i)
+    fn(acc, _i)
       union(
         acc,
         map(
@@ -1183,7 +1183,7 @@ end
 # States that can reach `goals` along `pairs`, within n rounds.
 def lc_backward(pairs, goals, n)
   reduce(
-    fn(acc, i)
+    fn(acc, _i)
       union(
         acc,
         map(
@@ -1885,7 +1885,7 @@ end
 
 # The state after an event lc_judge has already decided: the second half of
 # lc_step, shared with lc_admit_step so a judgement is made once.
-def lc_apply(d, s, ev, j)
+def lc_apply(_d, s, ev, j)
   pos = lc_seq(s)
   if first(j) == :refuse
     [

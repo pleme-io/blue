@@ -233,7 +233,7 @@ end
 # --- matrix construction and arithmetic --------------------------------------
 
 def filled(r, c, v)
-  map(fn(i) map(fn(j) v end, range(0, c)) end, range(0, r))
+  map(fn(_i) map(fn(_j) v end, range(0, c)) end, range(0, r))
 end
 
 def zeros(r, c)

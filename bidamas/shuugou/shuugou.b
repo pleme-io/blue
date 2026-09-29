@@ -372,7 +372,7 @@ test "unique_by keeps the first element per key, not the last"
   assert unique_by(fn(x) x end, [1, 2, 1]) == unique([1, 2, 1])
   assert unique_by(fn(x) x end, []) == []
   # A constant key collapses everything to one element.
-  assert unique_by(fn(x) 0 end, [5, 6, 7]) == [5]
+  assert unique_by(fn(_x) 0 end, [5, 6, 7]) == [5]
 end
 
 test "group_by partitions, in first-seen key order"

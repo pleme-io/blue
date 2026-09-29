@@ -231,7 +231,7 @@ end
 
 test "an identity: when every point is the outcome, the first box is dense and full"
   pts = ryouiki_grid(5)
-  traj = prim(pts, map(fn(p) 1 end, pts), 0.05, 0.05)
+  traj = prim(pts, map(fn(_p) 1 end, pts), 0.05, 0.05)
   assert nth(3, first(traj)) == 1
   assert nth(2, first(traj)) == 1
   assert nth(4, prim_box(traj, 1)) == box_around(pts)

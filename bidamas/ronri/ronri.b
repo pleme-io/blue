@@ -337,10 +337,10 @@ test "all_of, any_of and none_of stop at the first decisive predicate"
   # only complete at all if the bomb is never reached. That makes the
   # short-circuit a proven property rather than a comment: a reduce-based
   # implementation, which calls every predicate, turns each line into an ERROR.
-  bomb = fn(x) length(nil) end
-  assert any_of([fn(x) true end, bomb])(0) == true
-  assert all_of([fn(x) false end, bomb])(0) == false
-  assert none_of([fn(x) true end, bomb])(0) == false
+  bomb = fn(_x) length(nil) end
+  assert any_of([fn(_x) true end, bomb])(0) == true
+  assert all_of([fn(_x) false end, bomb])(0) == false
+  assert none_of([fn(_x) true end, bomb])(0) == false
 end
 
 test "the emptiness predicates pass by name"

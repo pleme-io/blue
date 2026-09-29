@@ -89,7 +89,7 @@ def zip(a, b)
 end
 
 def repeat(v, n)
-  map(fn(i) v end, range(0, n))
+  map(fn(_i) v end, range(0, n))
 end
 
 def sum_to(n)
@@ -571,13 +571,13 @@ test "find_first returns the element, not its position"
   assert find_first(fn(x) x > 9 end, [1, 2]) == nil
   # Nothing satisfies anything in an empty list — including a predicate that is
   # true of everything, which is where a vacuous implementation shows up.
-  assert find_first(fn(x) true end, []) == nil
+  assert find_first(fn(_x) true end, []) == nil
 end
 
 test "reject, count_where and partition"
   assert reject(fn(x) x > 2 end, [1, 2, 3, 4]) == [1, 2]
-  assert reject(fn(x) true end, [1, 2]) == []
-  assert reject(fn(x) false end, [1, 2]) == [1, 2]
+  assert reject(fn(_x) true end, [1, 2]) == []
+  assert reject(fn(_x) false end, [1, 2]) == [1, 2]
   assert count_where(fn(x) x > 1 end, [1, 2, 3]) == 2
   assert count_where(fn(x) x > 1 end, []) == 0
   assert partition(fn(x) x > 2 end, [1, 3, 2, 4]) == [[3, 4], [1, 2]]
@@ -585,7 +585,7 @@ test "reject, count_where and partition"
   assert count_where(fn(x) x > 2 end, [1, 3, 2, 4]) +
     size(reject(fn(x) x > 2 end, [1, 3, 2, 4])) ==
     4
-  assert partition(fn(x) true end, []) == [[], []]
+  assert partition(fn(_x) true end, []) == [[], []]
 end
 
 test "take_while and drop_while stop at the first failure"
@@ -593,10 +593,10 @@ test "take_while and drop_while stop at the first failure"
   # The trailing 1 passes the predicate and is still dropped — this is what
   # separates take_while from filter, and filter would answer [1, 2, 1].
   assert drop_while(fn(x) x < 3 end, [1, 2, 3, 1]) == [3, 1]
-  assert take_while(fn(x) false end, [1, 2]) == []
-  assert drop_while(fn(x) true end, [1, 2]) == []
-  assert take_while(fn(x) true end, []) == []
-  assert drop_while(fn(x) true end, []) == []
+  assert take_while(fn(_x) false end, [1, 2]) == []
+  assert drop_while(fn(_x) true end, [1, 2]) == []
+  assert take_while(fn(_x) true end, []) == []
+  assert drop_while(fn(_x) true end, []) == []
   # Together they rebuild the input, at any split point.
   assert append(
     take_while(fn(x) x < 3 end, [1, 2, 3, 1]),
@@ -631,7 +631,7 @@ test "enumerate, flat_map and unzip"
   assert enumerate([]) == []
   assert flat_map(fn(x) [x, x] end, [1, 2]) == [1, 1, 2, 2]
   # A function returning an empty list contributes nothing rather than a hole.
-  assert flat_map(fn(x) [] end, [1, 2]) == []
+  assert flat_map(fn(_x) [] end, [1, 2]) == []
   assert flat_map(fn(x) [x] end, []) == []
   assert unzip([[1, 3], [2, 4]]) == [[1, 2], [3, 4]]
   assert unzip([]) == [[], []]

@@ -113,7 +113,7 @@ end
 def th_probe(m, timeout_s, ssh)
   cap = try(
     apply(exec_capture, th_probe_argv(m, timeout_s, ssh)),
-    catch(e(), nil)
+    catch(_e(), nil)
   )
   if cap == nil
     [false, "ssh could not be started: #{ssh}"]
@@ -172,7 +172,7 @@ def th_read_previous(path)
   if is_empty(text)
     []
   else
-    parsed = try(json_parse(text), catch(e(), nil))
+    parsed = try(json_parse(text), catch(_e(), nil))
     if parsed == nil
       []
     else

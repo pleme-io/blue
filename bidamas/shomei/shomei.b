@@ -306,12 +306,12 @@ end
 
 test "malformed input raises instead of answering false"
   pub = "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
-  assert try(verify_message("abcd", "m", "00"), catch(e(), :raised)) == :raised
-  assert try(verify_message(pub, "m", "not hex"), catch(e(), :raised)) ==
+  assert try(verify_message("abcd", "m", "00"), catch(_e(), :raised)) == :raised
+  assert try(verify_message(pub, "m", "not hex"), catch(_e(), :raised)) ==
     :raised
-  assert try(sign_message("00", "m"), catch(e(), :raised)) == :raised
-  assert try(hash_message(nil), catch(e(), :raised)) == :raised
-  assert try(hash_message([256]), catch(e(), :raised)) == :raised
+  assert try(sign_message("00", "m"), catch(_e(), :raised)) == :raised
+  assert try(hash_message(nil), catch(_e(), :raised)) == :raised
+  assert try(hash_message([256]), catch(_e(), :raised)) == :raised
   assert error?(try(signing_keypair(42), catch(e(), e)))
 end
 
@@ -369,9 +369,9 @@ end
 
 test "a link refuses a previous hash or payload it cannot place"
   g = chain_genesis("test-log")
-  assert try(chain_link("abc", "x"), catch(e(), :raised)) == :raised
-  assert try(chain_link(upcase(g), "x"), catch(e(), :raised)) == :raised
-  assert try(chain_link(g, 42), catch(e(), :raised)) == :raised
-  assert try(chain_verify(g, [], "not a head"), catch(e(), :raised)) == :raised
-  assert try(chain_genesis(nil), catch(e(), :raised)) == :raised
+  assert try(chain_link("abc", "x"), catch(_e(), :raised)) == :raised
+  assert try(chain_link(upcase(g), "x"), catch(_e(), :raised)) == :raised
+  assert try(chain_link(g, 42), catch(_e(), :raised)) == :raised
+  assert try(chain_verify(g, [], "not a head"), catch(_e(), :raised)) == :raised
+  assert try(chain_genesis(nil), catch(_e(), :raised)) == :raised
 end

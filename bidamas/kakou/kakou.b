@@ -519,7 +519,7 @@ end
 # Holes must sit inside the flat base, clear of each bend by hole_bend_t T
 # plus the radius, and clear of each plain edge by hole_edge_t T.
 def kk_hole_refusals(part, rules)
-  t = get(part, :thickness)
+  _t = get(part, :thickness)
   b = kk_flat_base(part)
   base = rect_polygon(
     nth(0, b),
@@ -536,7 +536,7 @@ def kk_hole_refusals(part, rules)
 end
 
 def kk_one_hole_refusals(part, rules, b, base, i, hole)
-  t = get(part, :thickness)
+  _t = get(part, :thickness)
   if polygon_inside(hole, base) == false
     [
       [

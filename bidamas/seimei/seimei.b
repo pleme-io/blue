@@ -160,7 +160,7 @@ def grid_cols(grid)
 end
 
 def blank_grid(rows, cols)
-  map(fn(r) map(fn(c) 0 end, range(0, cols)) end, range(0, rows))
+  map(fn(_r) map(fn(_c) 0 end, range(0, cols)) end, range(0, rows))
 end
 
 # A grid from a sparse [[row, col], ...] list — how patterns are actually

@@ -1,7 +1,15 @@
-use("retsu")
-use("moji")
-use("shisutemu")
-use("deeta")
+use("deeta", [:as_json, :get_int, :get_str])
+use("moji", [:after_first, :before_first, :includes])
+
+use(
+  "retsu",
+  [:concat_lists, :contains, :find_first, :first, :is_empty, :size, :take_n]
+)
+
+use(
+  "shisutemu",
+  [:last_nonempty_line, :read_or, :status_of, :stderr_of, :stdout_of]
+)
 
 # tehai (手配) — which nix remote builders can take work right now: every declared machine checked, and only the live ones written where nix reads them.
 #

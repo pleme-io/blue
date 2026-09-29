@@ -1,4 +1,4 @@
-use("kazu")
+use("kazu", [:clamp, :min])
 
 # retsu (列) — lists, made TOTAL.
 #

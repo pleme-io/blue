@@ -1,12 +1,14 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:8cdf642c0201d66b541cdb61933234132e88bc39706aa7fcb80a2a47b68762d2",
+  "bluefile_b3": "b3:70ab6125cb029af870344fc4cf3d18c1649fa5a13b600907a762d6fcaa1f76ba",
   "manifest": {
     "schema": 1,
     "name": "toukei",
     "version": "0.1.0",
     "needs": {
       "junjo": "^0.1.0",
+      "kazu": "^0.1.0",
+      "retsu": "^0.1.0",
       "shuugou": "^0.1.0"
     },
     "when": "anytime",

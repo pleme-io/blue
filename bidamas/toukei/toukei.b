@@ -1,5 +1,7 @@
-use("junjo")
-use("shuugou")
+use("junjo", [:sort])
+use("kazu", [:abs, :min, :near, :pow])
+use("retsu", [:contains, :first, :indexes, :is_empty, :last, :size, :zip_with])
+use("shuugou", [:unique])
 
 # toukei (統計) — descriptive statistics.
 #

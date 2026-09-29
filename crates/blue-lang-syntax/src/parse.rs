@@ -46,19 +46,55 @@ use tatara_lisp::{Atom, Sexp, Spanned, SpannedForm};
 
 use crate::lex::{lex, Span, Token, TokenKind};
 
+/// Why a source did not parse, and where.
+///
+/// **Structured, and located at the boundary.** `message` says what was
+/// expected and what was found, in blue's own words; `span` is the byte range
+/// of the offending text; `line` and `col` are that range's start, 1-based,
+/// with the column counted in characters. Every public entry point fills
+/// `line`/`col` from the source it was given, so `Display` reads
+/// `3:7: expected `)`, found `]`` and never a byte offset.
+///
+/// The byte offsets used to BE the display (`… at 10..11`), and a Rust
+/// `Debug` rendering named the token (`found Ident("y")`). Both are facts
+/// about the implementation; neither is something an author can act on.
+/// The span stays, as data, for any consumer that needs to point into the
+/// buffer — an editor squiggle, a diagnostic code attached downstream.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParseError {
     pub message: String,
     pub span: Span,
+    /// 1-based line of `span.start`.
+    pub line: usize,
+    /// 1-based column of `span.start`, in characters.
+    pub col: usize,
+}
+
+impl ParseError {
+    /// An error at `span`, not yet located: the parser sees tokens, not text,
+    /// so the line and column are filled by [`Self::located`] at the entry
+    /// point that holds the source.
+    fn new(message: impl Into<String>, span: Span) -> Self {
+        Self {
+            message: message.into(),
+            span,
+            line: 0,
+            col: 0,
+        }
+    }
+
+    /// Resolve `line`/`col` against the source this error's span indexes.
+    fn located(mut self, src: &str) -> Self {
+        let (line, col) = Span::line_col(src, self.span.start.min(src.len()));
+        self.line = line;
+        self.col = col;
+        self
+    }
 }
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} at {}..{}",
-            self.message, self.span.start, self.span.end
-        )
+        write!(f, "{}:{}: {}", self.line, self.col, self.message)
     }
 }
 
@@ -66,10 +102,7 @@ impl std::error::Error for ParseError {}
 
 impl From<crate::lex::LexError> for ParseError {
     fn from(e: crate::lex::LexError) -> Self {
-        Self {
-            message: e.message,
-            span: e.span,
-        }
+        Self::new(e.message, e.span)
     }
 }
 
@@ -94,7 +127,8 @@ pub fn parse_program_tree_with_depth(
     src: &str,
     max_depth: usize,
 ) -> Result<Vec<Spanned>, ParseError> {
-    let toks: Vec<Token> = lex(src)?
+    let toks: Vec<Token> = lex(src)
+        .map_err(|e| ParseError::from(e).located(src))?
         .into_iter()
         .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
         .collect();
@@ -104,7 +138,7 @@ pub fn parse_program_tree_with_depth(
         depth: 0,
         max_depth,
     };
-    p.program()
+    p.program().map_err(|e| e.located(src))
 }
 
 /// Parse a program written in a [`Yakugo`](crate::yakugo::Yakugo) surface.
@@ -145,7 +179,8 @@ pub fn parse_program_tree_in(
     src: &str,
     pack: &crate::yakugo::Yakugo,
 ) -> Result<Vec<Spanned>, ParseError> {
-    let toks: Vec<Token> = crate::yakugo::canonical_tokens(src, pack)?
+    let toks: Vec<Token> = crate::yakugo::canonical_tokens(src, pack)
+        .map_err(|e| ParseError::from(e).located(src))?
         .into_iter()
         .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
         .collect();
@@ -155,7 +190,7 @@ pub fn parse_program_tree_in(
         depth: 0,
         max_depth: MAX_EXPR_DEPTH,
     };
-    p.program()
+    p.program().map_err(|e| e.located(src))
 }
 
 /// [`parse_program`] with the nesting bound supplied by the caller.
@@ -246,10 +281,11 @@ pub fn parse_expr(src: &str) -> Result<Sexp, ParseError> {
     let forms = parse_program(src)?;
     match forms.len() {
         1 => Ok(forms.into_iter().next().expect("checked len")),
-        n => Err(ParseError {
-            message: format!("expected exactly one expression, found {n}"),
-            span: Span::new(0, src.len()),
-        }),
+        n => Err(ParseError::new(
+            format!("expected exactly one expression, found {n}"),
+            Span::new(0, src.len()),
+        )
+        .located(src)),
     }
 }
 
@@ -429,6 +465,23 @@ pub fn is_reserved_word(name: &str) -> bool {
     SURFACE_KEYWORDS.contains(&name) || BLOCK_KEYWORDS.contains(&name)
 }
 
+/// Can `name` be written as the head of a call — `name(…)`?
+///
+/// True exactly when the lexer reads `name` as one identifier and it is not
+/// reserved. Answered BY the lexer rather than by a character class copied
+/// from it, so the two cannot disagree: the formatter asks this before
+/// printing a tree as `name(args)`, and a head such as `hash-map`, `not=` or
+/// `if` — which a tree can carry and a call cannot spell — must get a
+/// different rendering or none.
+pub fn is_callable_name(name: &str) -> bool {
+    !is_reserved_word(name)
+        && matches!(
+            lex(name).as_deref(),
+            Ok([t, e]) if matches!(&t.kind, TokenKind::Ident(n) if n == name)
+                && e.kind == TokenKind::Eof
+        )
+}
+
 fn infix(op: &str) -> Option<&'static Infix> {
     INFIX.iter().find(|i| i.op == op)
 }
@@ -463,6 +516,23 @@ struct Parser {
 /// merely *near* the crash point is not a safety bound; it is a race.
 pub const MAX_EXPR_DEPTH: usize = 256;
 
+/// The parser's internal error: a [`ParseError`] behind a pointer.
+///
+/// Every production returns a `Result`, and a debug build keeps several per
+/// frame down the recursion, so the error's size is paid at every level of
+/// nesting whether or not anything fails. Measured 2026-09-29 on a 2 MiB
+/// debug thread, parsing `(((…1…)))` with no bound: the unboxed 40-byte error
+/// overflowed between 255 and 260 levels, barely past [`MAX_EXPR_DEPTH`];
+/// adding `line`/`col` unboxed moved it to 240–250, under the bound, and
+/// `depth_beyond_the_limit_is_an_err_not_an_abort` aborted. Boxed, the
+/// overflow is between 300 and 310. The error path is cold; the pointer is
+/// what keeps the bound a bound.
+type Fail = Box<ParseError>;
+
+fn fail(message: impl Into<String>, span: Span) -> Fail {
+    Box::new(ParseError::new(message, span))
+}
+
 impl Parser {
     fn peek(&self) -> &TokenKind {
         &self.toks[self.pos.min(self.toks.len() - 1)].kind
@@ -493,19 +563,16 @@ impl Parser {
         }
     }
 
-    fn expect(&mut self, k: &TokenKind, what: &str) -> Result<(), ParseError> {
+    fn expect(&mut self, k: &TokenKind, what: &str) -> Result<(), Fail> {
         if self.eat(k) {
             Ok(())
         } else {
-            Err(self.error(format!("expected {what}, found {:?}", self.peek())))
+            Err(self.error(format!("expected {what}, found {}", self.peek())))
         }
     }
 
-    fn error(&self, message: impl Into<String>) -> ParseError {
-        ParseError {
-            message: message.into(),
-            span: self.peek_span(),
-        }
+    fn error(&self, message: impl Into<String>) -> Fail {
+        fail(message, self.peek_span())
     }
 
     /// Skip statement separators (newlines and semicolon-free layout).
@@ -538,7 +605,7 @@ impl Parser {
         Span::new(start, end.max(start))
     }
 
-    fn program(&mut self) -> Result<Vec<Spanned>, ParseError> {
+    fn program(&mut self) -> Result<Vec<Spanned>, Fail> {
         let mut out = Vec::new();
         loop {
             self.skip_newlines();
@@ -546,8 +613,87 @@ impl Parser {
                 break;
             }
             out.push(self.statement()?);
+            self.end_of_statement(&[])?;
         }
         Ok(out)
+    }
+
+    /// **A statement ends at the end of its line.** Refuse anything else.
+    ///
+    /// The lexer has always said newlines "are statement separators", and the
+    /// parser never asked for one: `program` and `body` looped over
+    /// `statement()` and started the next one wherever the last stopped. So a
+    /// form blue does not have became two forms it does, silently —
+    /// `y = xs[0]` parsed as `y = xs` then the list `[0]`, and Ruby's
+    /// `a = f x` as `a = f` then `x`. Both ran; both bound the wrong value.
+    ///
+    /// **Refused rather than given a meaning**, because each would be a second
+    /// spelling of a tree blue already spells one way (§0's FORM axis):
+    /// indexing is the call `nth(i, xs)`, and a call has parentheses. `;` is
+    /// refused by the lexer for the same reason — one separator, the newline.
+    ///
+    /// What may follow a statement: a newline, the end of the file, or — in a
+    /// body — the keyword that closes it, which is what keeps
+    /// `fn(x) x + 1 end` a one-line lambda.
+    fn end_of_statement(&self, terminators: &[&str]) -> Result<(), Fail> {
+        let next = self.peek();
+        if matches!(next, TokenKind::Newline | TokenKind::Eof)
+            || terminators.iter().any(|t| self.at_ident(t))
+        {
+            return Ok(());
+        }
+        let prev = self.toks.get(self.pos.wrapping_sub(1)).map(|t| &t.kind);
+        let prev_name = match prev {
+            Some(TokenKind::Ident(n)) => Some(n.as_str()),
+            _ => None,
+        };
+        let callee = prev_name.unwrap_or("f");
+        let why = match (prev, next) {
+            (Some(TokenKind::Ident(t)), _) if t == "then" => {
+                "blue's `if` has no `then`: put the branch on the next line".to_string()
+            }
+            (_, TokenKind::Ident(d)) if d == "do" => "blue has no `do` blocks: pass a function \
+                 as an argument, `f(xs, fn(x) … end)`"
+                .to_string(),
+            (_, TokenKind::LBracket) => {
+                let index = match (self.toks.get(self.pos + 1), self.toks.get(self.pos + 2)) {
+                    (Some(i), Some(close)) if close.kind == TokenKind::RBracket => match &i.kind {
+                        TokenKind::Int(n) => n.to_string(),
+                        TokenKind::Ident(n) => n.clone(),
+                        _ => "i".to_string(),
+                    },
+                    _ => "i".to_string(),
+                };
+                let list = prev_name.unwrap_or("xs");
+                format!(
+                    "blue has no `xs[i]` indexing: write `nth({index}, {list})` \
+                     (or `first({list})`, `last({list})`)"
+                )
+            }
+            (_, TokenKind::LBrace) => "blue has no brace blocks: pass a function as an \
+                 argument, `map(xs, fn(x) … end)`"
+                .to_string(),
+            (
+                Some(TokenKind::Ident(_)),
+                TokenKind::Ident(_)
+                | TokenKind::Int(_)
+                | TokenKind::Float(_)
+                | TokenKind::Str(_)
+                | TokenKind::InterpolatedStr { .. }
+                | TokenKind::Sym(_)
+                | TokenKind::True
+                | TokenKind::False
+                | TokenKind::Nil,
+            ) => {
+                let arg = match next {
+                    TokenKind::Ident(a) => a.clone(),
+                    _ => "x".to_string(),
+                };
+                format!("a call needs parentheses: write `{callee}({arg})`")
+            }
+            _ => "put each statement on its own line".to_string(),
+        };
+        Err(self.error(format!("expected the end of the line, found {next}: {why}")))
     }
 
     /// A statement: either a binding or an expression.
@@ -562,7 +708,7 @@ impl Parser {
     /// expression and it is a well-known footgun — `if x = 1` where `==` was
     /// meant. Blue declines it, and the cost is only that a walrus-style idiom
     /// has to be two lines.
-    fn statement(&mut self) -> Result<Spanned, ParseError> {
+    fn statement(&mut self) -> Result<Spanned, Fail> {
         // The SECOND recursion cycle, and it needs the same guard as `expr`.
         //
         // Guarding `expr` alone was not enough — measured 2026-08-01: with the
@@ -589,7 +735,7 @@ impl Parser {
         r
     }
 
-    fn statement_inner(&mut self) -> Result<Spanned, ParseError> {
+    fn statement_inner(&mut self) -> Result<Spanned, Fail> {
         if let TokenKind::Ident(name) = self.peek().clone() {
             if self.peek_at(1) == "=" && !is_reserved_word(&name) {
                 let name_span = self.peek_span();
@@ -619,7 +765,7 @@ impl Parser {
     }
 
     /// Pratt loop.
-    fn expr(&mut self, min_bp: u8) -> Result<Spanned, ParseError> {
+    fn expr(&mut self, min_bp: u8) -> Result<Spanned, Fail> {
         // Depth guard at the single recursion cycle (`expr` -> `prefix` ->
         // `expr`). Returning an Err here converts an UNRECOVERABLE abort into
         // an ordinary parse failure a caller can render — the difference
@@ -642,7 +788,7 @@ impl Parser {
         r
     }
 
-    fn expr_inner(&mut self, min_bp: u8) -> Result<Spanned, ParseError> {
+    fn expr_inner(&mut self, min_bp: u8) -> Result<Spanned, Fail> {
         let start = self.mark();
         let mut lhs = self.prefix()?;
 
@@ -716,7 +862,7 @@ impl Parser {
         Ok(lhs)
     }
 
-    fn prefix(&mut self) -> Result<Spanned, ParseError> {
+    fn prefix(&mut self) -> Result<Spanned, Fail> {
         let span = self.peek_span();
         match self.bump() {
             TokenKind::Int(v) => Ok(atom_at(span, Atom::Int(v))),
@@ -745,9 +891,11 @@ impl Parser {
                 // literal is the most precise honest answer available.
                 let mut acc = atom_at(span, Atom::Str(parts[0].clone()));
                 for (i, raw) in exprs.iter().enumerate() {
-                    let inner = parse_expr(raw).map_err(|e| ParseError {
-                        message: format!("in interpolation `#{{{raw}}}`: {}", e.message),
-                        span,
+                    let inner = parse_expr(raw).map_err(|e| {
+                        fail(
+                            format!("in interpolation `#{{{raw}}}`: {}", e.message),
+                            span,
+                        )
                     })?;
                     let inner = Spanned::from_sexp_at(&inner, span);
                     acc = list_at(span, vec![sym_at(span, LOWERED_CONCAT), acc, inner]);
@@ -810,21 +958,19 @@ impl Parser {
                 "quote" => self.quote_form(span),
                 "unquote" => self.unquote_form(span, false),
                 "unquote_splice" => self.unquote_form(span, true),
-                "do" => Err(ParseError {
-                    message: "`do` without a preceding call".into(),
+                "do" => Err(fail(
+                    "blue has no `do` blocks: pass a function as an argument, \
+                     `f(xs, fn(x) … end)`",
                     span,
-                }),
-                "end" => Err(ParseError {
-                    message: "unexpected `end`".into(),
+                )),
+                "end" => Err(fail(
+                    "unexpected `end`: nothing open here for it to close",
                     span,
-                }),
+                )),
                 _ => Ok(sym_at(span, &name)),
             },
 
-            other => Err(ParseError {
-                message: format!("expected an expression, found {other:?}"),
-                span,
-            }),
+            other => Err(fail(format!("expected an expression, found {other}"), span)),
         }
     }
 
@@ -834,7 +980,7 @@ impl Parser {
     /// the uniform access principle here: a structure exposes no public
     /// fields, so a field can later become a computed method without
     /// breaking a caller.
-    fn finish_send(&mut self, start: usize, recv: Spanned) -> Result<Spanned, ParseError> {
+    fn finish_send(&mut self, start: usize, recv: Spanned) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
             // A RESERVED WORD is not a method name.
@@ -858,7 +1004,10 @@ impl Parser {
             }
             TokenKind::Ident(n) => n,
             other => {
-                return Err(self.error(format!("expected a method name after `.`, found {other:?}")))
+                return Err(fail(
+                    format!("expected a method name after `.`, found {other}"),
+                    name_span,
+                ))
             }
         };
         let mut list = vec![sym_at(name_span, &name), recv];
@@ -868,7 +1017,7 @@ impl Parser {
         Ok(list_at(self.span_since(start), list))
     }
 
-    fn paren_args(&mut self) -> Result<Vec<Spanned>, ParseError> {
+    fn paren_args(&mut self) -> Result<Vec<Spanned>, Fail> {
         self.expect(&TokenKind::LParen, "`(`")?;
         let mut args = Vec::new();
         self.skip_newlines();
@@ -888,7 +1037,7 @@ impl Parser {
         Ok(args)
     }
 
-    fn list_literal(&mut self, open: Span) -> Result<Spanned, ParseError> {
+    fn list_literal(&mut self, open: Span) -> Result<Spanned, Fail> {
         let mut items = vec![sym_at(open, "list")];
         self.skip_newlines();
         if self.eat(&TokenKind::RBracket) {
@@ -913,7 +1062,7 @@ impl Parser {
     /// produce the *same* s-expression, which is precisely why the
     /// formatter may always choose the shorthand. The rocket survives only
     /// where the key is not a plain symbol.
-    fn map_literal(&mut self, open: Span) -> Result<Spanned, ParseError> {
+    fn map_literal(&mut self, open: Span) -> Result<Spanned, Fail> {
         let mut items = vec![sym_at(open, LOWERED_MAP)];
         self.skip_newlines();
         if self.eat(&TokenKind::RBrace) {
@@ -957,7 +1106,7 @@ impl Parser {
     ///
     /// `if / elsif / elsif / else / end` is one `end` for the whole chain, so
     /// every arm but the first must leave it for its parent.
-    fn if_chain(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn if_chain(&mut self, head: Span) -> Result<Spanned, Fail> {
         let cond = self.expr(0)?;
         let then = self.body(&["elsif", "else", "end"])?;
         let els = if self.at_ident("elsif") {
@@ -980,7 +1129,7 @@ impl Parser {
         Ok(list_at(self.span_since(head.start), out))
     }
 
-    fn if_form(&mut self, head: Span, negate: bool) -> Result<Spanned, ParseError> {
+    fn if_form(&mut self, head: Span, negate: bool) -> Result<Spanned, Fail> {
         let cond = self.expr(0)?;
         let cond = if negate {
             // `unless c` lowers to `(if (not c) …)`. The synthesized `not` takes
@@ -1050,7 +1199,7 @@ impl Parser {
     /// The subject is evaluated ONCE, into a binding, so `case expensive()` does
     /// not re-run per arm. That is a correctness property, not an optimisation:
     /// a subject with a side effect would fire once per `when`.
-    fn case_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn case_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let subject = self.expr(0)?;
         self.skip_newlines();
 
@@ -1077,7 +1226,7 @@ impl Parser {
             let when = self.peek_span();
             if !self.eat_ident("when") {
                 return Err(self.error(format!(
-                    "expected `when`, `else` or `end` in a case, found {:?}",
+                    "expected `when`, `else` or `end` in a case, found {}",
                     self.peek()
                 )));
             }
@@ -1143,7 +1292,7 @@ impl Parser {
     /// `fn` rather than Ruby's `->` or `lambda`: `->` collides with the return-
     /// type arrow the typed `def` already uses, and reusing one glyph for two
     /// unrelated things is the ambiguity the FORM axis exists to prevent.
-    fn lambda_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn lambda_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let mut params: Vec<Spanned> = Vec::new();
         if self.at(&TokenKind::LParen) {
             self.bump();
@@ -1155,9 +1304,10 @@ impl Parser {
                     match self.bump() {
                         TokenKind::Ident(p) => params.push(sym_at(p_span, &p)),
                         other => {
-                            return Err(
-                                self.error(format!("expected a parameter name, found {other:?}"))
-                            )
+                            return Err(fail(
+                                format!("expected a parameter name, found {other}"),
+                                p_span,
+                            ))
                         }
                     }
                     self.skip_newlines();
@@ -1183,14 +1333,15 @@ impl Parser {
     /// A string, not an identifier: a test name is prose for a human report,
     /// and forcing it into an identifier is how test names become
     /// `test_adds_two_numbers_correctly`.
-    fn test_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn test_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Str(s) => s,
             other => {
-                return Err(self.error(format!(
-                    "expected a string name after `test`, found {other:?}"
-                )))
+                return Err(fail(
+                    format!("expected a string name after `test`, found {other}"),
+                    name_span,
+                ))
             }
         };
         let body = self.body(&["end"])?;
@@ -1228,7 +1379,7 @@ impl Parser {
     ///
     /// This is homoiconicity paying for itself: the capture needs no source
     /// map, no macro hygiene, and no string of the original text.
-    fn assert_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn assert_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let e = self.expr(0)?;
         let quoted = Spanned::new(e.span, SpannedForm::Quote(Box::new(e.clone())));
         Ok(list_at(
@@ -1245,12 +1396,15 @@ impl Parser {
     /// parameters are not on it. Annotating one is rejected rather than
     /// silently ignored — an ignored annotation is how an author comes to
     /// believe a check is running.
-    fn defmacro_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn defmacro_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
             other => {
-                return Err(self.error(format!("expected a name after `defmacro`, found {other:?}")))
+                return Err(fail(
+                    format!("expected a name after `defmacro`, found {other}"),
+                    name_span,
+                ))
             }
         };
         let mut params: Vec<Spanned> = Vec::new();
@@ -1270,9 +1424,10 @@ impl Parser {
                             )))
                         }
                         other => {
-                            return Err(
-                                self.error(format!("expected a parameter name, found {other:?}"))
-                            )
+                            return Err(fail(
+                                format!("expected a parameter name, found {other}"),
+                                p_span,
+                            ))
                         }
                     }
                     self.skip_newlines();
@@ -1312,7 +1467,7 @@ impl Parser {
     /// Quasiquote rather than plain quote, because a macro body that could not
     /// splice its arguments in would be useless — this is Elixir's `quote do`,
     /// which is likewise a template and not inert data.
-    fn quote_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn quote_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
         // `Sexp::Quasiquote`, NOT `(quasiquote body)` as a list.
@@ -1330,7 +1485,7 @@ impl Parser {
     }
 
     /// `unquote(expr)` => `,expr`; `unquote_splice(expr)` => `,@expr`.
-    fn unquote_form(&mut self, head: Span, splice: bool) -> Result<Spanned, ParseError> {
+    fn unquote_form(&mut self, head: Span, splice: bool) -> Result<Spanned, Fail> {
         self.expect(&TokenKind::LParen, "`(` after unquote")?;
         self.skip_newlines();
         let inner = self.expr(0)?;
@@ -1347,12 +1502,15 @@ impl Parser {
         ))
     }
 
-    fn def_form(&mut self, head: Span) -> Result<Spanned, ParseError> {
+    fn def_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
             other => {
-                return Err(self.error(format!("expected a name after `def`, found {other:?}")))
+                return Err(fail(
+                    format!("expected a name after `def`, found {other}"),
+                    name_span,
+                ))
             }
         };
         let mut params: Vec<(String, Span, Option<Spanned>)> = Vec::new();
@@ -1373,9 +1531,10 @@ impl Parser {
                             params.push((p, p_span, Some(ty)));
                         }
                         other => {
-                            return Err(
-                                self.error(format!("expected a parameter name, found {other:?}"))
-                            )
+                            return Err(fail(
+                                format!("expected a parameter name, found {other}"),
+                                p_span,
+                            ))
                         }
                     }
                     self.skip_newlines();
@@ -1438,11 +1597,16 @@ impl Parser {
 
     /// A type expression. Currently a bare name (`Int`, `Str`, `dyn`) or a
     /// one-argument constructor (`List(Int)`).
-    fn type_expr(&mut self) -> Result<Spanned, ParseError> {
+    fn type_expr(&mut self) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
             TokenKind::Ident(n) => n,
-            other => return Err(self.error(format!("expected a type name, found {other:?}"))),
+            other => {
+                return Err(fail(
+                    format!("expected a type name, found {other}"),
+                    name_span,
+                ))
+            }
         };
         if self.at(&TokenKind::LParen) {
             let args = self.paren_args()?;
@@ -1463,18 +1627,18 @@ impl Parser {
         }
     }
 
-    fn expect_ident(&mut self, name: &str) -> Result<(), ParseError> {
+    fn expect_ident(&mut self, name: &str) -> Result<(), Fail> {
         if self.at_ident(name) {
             self.bump();
             Ok(())
         } else {
-            Err(self.error(format!("expected `{name}`, found {:?}", self.peek())))
+            Err(self.error(format!("expected `{name}`, found {}", self.peek())))
         }
     }
 
     /// A sequence of expressions up to one of `terminators`, wrapped in
     /// `(begin ...)` when there is more than one.
-    fn body(&mut self, terminators: &[&str]) -> Result<Spanned, ParseError> {
+    fn body(&mut self, terminators: &[&str]) -> Result<Spanned, Fail> {
         // Anchored BEFORE the leading newlines are skipped, so an empty body's
         // span sits where the body would have started.
         let start = self.mark();
@@ -1483,13 +1647,15 @@ impl Parser {
             self.skip_newlines();
             if matches!(self.peek(), TokenKind::Eof) {
                 return Err(self.error(format!(
-                    "unterminated block: expected one of {terminators:?}"
+                    "unterminated block: expected {} before the end of the file",
+                    one_of(terminators)
                 )));
             }
             if terminators.iter().any(|t| self.at_ident(t)) {
                 break;
             }
             forms.push(self.statement()?);
+            self.end_of_statement(terminators)?;
         }
         Ok(match forms.len() {
             0 => Spanned::new(Span::new(start, start), SpannedForm::Nil),
@@ -1512,6 +1678,17 @@ impl Parser {
                 list_at(span, list)
             }
         })
+    }
+}
+
+/// `` `a` ``, `` `a` or `b` ``, `` `a`, `b` or `c` `` — a list of keywords as
+/// a sentence says it.
+fn one_of(words: &[&str]) -> String {
+    let quoted: Vec<String> = words.iter().map(|w| format!("`{w}`")).collect();
+    match quoted.split_last() {
+        None => String::new(),
+        Some((last, [])) => last.clone(),
+        Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
     }
 }
 
@@ -1722,6 +1899,121 @@ mod tests {
         let src = "1 + )";
         let e = parse_program(src).expect_err("must fail");
         assert!(e.span.start < src.len(), "span {:?} outside source", e.span);
+    }
+
+    // ---- one statement per line -------------------------------------
+
+    /// `y = xs[0]` was TWO statements, `(define y xs)` and `(list 0)`: nothing
+    /// required a separator between statements, so the parser finished `xs`,
+    /// saw a list literal and started a new statement on the same line. The
+    /// program ran and `y` was the whole list. Found by the 2026-09-29 audit.
+    #[test]
+    fn postfix_indexing_is_refused_naming_nth() {
+        let e = parse_program("y = xs[0]").expect_err("must not split into two statements");
+        assert!(e.message.contains("`nth(0, xs)`"), "{}", e.message);
+        assert_eq!((e.line, e.col), (1, 7), "{e}");
+    }
+
+    /// `a = f x` — Ruby's command call — parsed as `a = f` and then `x`.
+    #[test]
+    fn a_call_without_parentheses_is_refused_naming_the_call() {
+        let e = parse_program("a = f x").expect_err("must not split into two statements");
+        assert!(e.message.contains("`f(x)`"), "{}", e.message);
+        assert_eq!((e.line, e.col), (1, 7), "{e}");
+    }
+
+    /// The same rule inside a block body, and in every body shape.
+    #[test]
+    fn two_statements_on_one_line_are_refused_in_a_body() {
+        for src in [
+            "def f(xs)\n  xs[0]\nend",
+            "if a\n  f x\nend",
+            "fn(x) x 1 end",
+            "test \"t\"\n  assert a b\nend",
+            "1 2",
+        ] {
+            assert!(parse_program(src).is_err(), "{src:?} must not parse");
+        }
+    }
+
+    /// The controls: every place a statement legitimately ends on its line.
+    /// A block keyword closing the body on the same line is one of them, which
+    /// is what keeps a one-line lambda one line.
+    #[test]
+    fn a_statement_may_end_at_a_newline_the_end_or_a_closing_keyword() {
+        for src in [
+            "fn(x) x + 1 end",
+            "map(fn(x) x end, xs)",
+            "if a\n  1\nelse\n  2\nend",
+            "if a 1 else 2 end",
+            "case x\nwhen 1 :a\nwhen 2 :b\nelse :c\nend",
+            "x = 1\ny = 2",
+            "x = 1",
+        ] {
+            assert!(
+                parse_program(src).is_ok(),
+                "{src:?}: {:?}",
+                parse_program(src)
+            );
+        }
+    }
+
+    /// `if c then a else b end` read `then` as a statement and `a` as another.
+    #[test]
+    fn then_is_refused_by_name() {
+        let e = parse_program("x = if c then 1 else 2 end").expect_err("then is not a keyword");
+        assert!(e.message.contains("`then`"), "{}", e.message);
+    }
+
+    /// A brace block after a send is not a map literal the author meant.
+    #[test]
+    fn a_brace_block_is_refused_naming_fn() {
+        let e = parse_program("xs.map { |x| x }").expect_err("no brace blocks");
+        assert!(e.message.contains("fn(x)"), "{}", e.message);
+    }
+
+    // ---- errors a person can read -------------------------------------
+
+    /// `line:col` and blue's words, never `at 10..11` and `Ident("y")`.
+    #[test]
+    fn a_parse_error_displays_line_col_and_the_source_text() {
+        let e = parse_program("x = 1\ny = [1, 2 y]").expect_err("must fail");
+        assert_eq!(e.to_string(), "2:11: expected `,` or `]`, found `y`");
+        assert_eq!(e.span, Span::new(16, 17), "the span stays, as data");
+    }
+
+    /// Every token kind renders without Rust's `Debug` shape.
+    #[test]
+    fn no_error_message_names_a_rust_variant() {
+        for src in [
+            "f(1 2)",
+            "{a: 1 b}",
+            "def 1\nend",
+            "x.1",
+            "if a\n",
+            "fn(1) 2 end",
+            "[1 :b]",
+            "1 +",
+            "(1",
+        ] {
+            let e = parse_program(src).expect_err(src);
+            let shown = e.to_string();
+            for tell in [
+                "Ident(", "Int(", "Op(", "Label(", "Sym(", "Str(", "LParen", "RBracket", "Eof",
+                "Newline", "..",
+            ] {
+                assert!(!shown.contains(tell), "{src:?} -> {shown}");
+            }
+            assert!(e.line >= 1 && e.col >= 1, "{src:?} not located: {shown}");
+        }
+    }
+
+    /// A lex error reaches the author through the same door, located.
+    #[test]
+    fn a_lex_error_is_located_too() {
+        let e = parse_program("x = 1\ny = 2; z = 3").expect_err("no semicolons");
+        assert_eq!((e.line, e.col), (2, 6), "{e}");
+        assert!(e.message.contains("new line"), "{e}");
     }
 
     /// Anti-vacuity: `q` must be able to FAIL. If every input parsed, the

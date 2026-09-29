@@ -98,6 +98,45 @@ pub enum TokenKind {
     Eof,
 }
 
+/// A token as an error message names it: its blue spelling in backticks, or,
+/// for the tokens that have no spelling, what it is in words.
+///
+/// **This is what a parse error says it found.** Errors used to format the
+/// token with `{:?}`, so an author who wrote `[1, 2 y]` read
+/// `found Ident("y")` — the name of a Rust enum variant, in a language whose
+/// surface has no such thing. A message is read by the person who wrote the
+/// source, so it speaks the source's vocabulary.
+impl fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int(v) => write!(f, "the number `{v}`"),
+            Self::Float(v) => write!(f, "the number `{v}`"),
+            Self::Str(_) | Self::InterpolatedStr { .. } => f.write_str("a string"),
+            Self::Sym(s) => write!(f, "the symbol `:{s}`"),
+            Self::True => f.write_str("`true`"),
+            Self::False => f.write_str("`false`"),
+            Self::Nil => f.write_str("`nil`"),
+            Self::Ident(n) => write!(f, "`{n}`"),
+            Self::LParen => f.write_str("`(`"),
+            Self::RParen => f.write_str("`)`"),
+            Self::LBracket => f.write_str("`[`"),
+            Self::RBracket => f.write_str("`]`"),
+            Self::LBrace => f.write_str("`{`"),
+            Self::RBrace => f.write_str("`}`"),
+            Self::Comma => f.write_str("`,`"),
+            Self::Dot => f.write_str("`.`"),
+            Self::Colon => f.write_str("`:`"),
+            Self::Label(n) => write!(f, "the label `{n}:`"),
+            Self::Rocket => f.write_str("`=>`"),
+            Self::Pipe => f.write_str("`|>`"),
+            Self::Op(o) => write!(f, "`{o}`"),
+            Self::Comment(_) => f.write_str("a comment"),
+            Self::Newline => f.write_str("the end of the line"),
+            Self::Eof => f.write_str("the end of the file"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
@@ -257,9 +296,20 @@ impl<'a> Lexer<'a> {
                 }
                 c if is_ident_start(c) => self.lex_ident(start),
                 c if OP_CHARS.as_bytes().contains(&c) => self.lex_op(start),
+                // `;` is refused by name: blue has exactly one statement
+                // separator, the new line, so a `;` is a habit from another
+                // language rather than a character blue could mean.
+                b';' => {
+                    self.pos += 1;
+                    return Err(self.err(
+                        "unexpected `;`: blue ends a statement at the end of the line, \
+                         so put the next statement on a new line",
+                        start,
+                    ));
+                }
                 _ => {
                     self.pos += 1;
-                    return Err(self.err(format!("unexpected character {:?}", c as char), start));
+                    return Err(self.err(format!("unexpected character `{}`", c as char), start));
                 }
             }
         }

@@ -103,8 +103,19 @@ mod tests {
     fn an_alias_lexes_to_the_same_program_as_its_ascii_spelling() {
         // The property that makes an alias safe: not "equivalent", identical.
         for (ch, ascii, why) in OPERATOR_ALIASES {
-            let fancy = crate::parse_program(&format!("def f(a, b)\n  a {ch} b\nend"));
-            let plain = crate::parse_program(&format!("def f(a, b)\n  a {ascii} b\nend"));
+            // `!` is prefix-only. Written infix, `a ! b` used to parse as TWO
+            // statements, `a` and `!b`, on both sides alike — so this test
+            // compared two identical misparses and passed. Statements now end
+            // at the end of the line, which is what exposed it.
+            let shape = |op: &str| {
+                if *ascii == "!" {
+                    format!("def f(a, b)\n  a && {op}b\nend")
+                } else {
+                    format!("def f(a, b)\n  a {op} b\nend")
+                }
+            };
+            let fancy = crate::parse_program(&shape(&ch.to_string()));
+            let plain = crate::parse_program(&shape(ascii));
             let plain = plain.unwrap_or_else(|e| panic!("ascii `{ascii}` must parse: {e}"));
             let fancy = fancy.unwrap_or_else(|e| panic!("`{ch}` ({why}) must parse: {e}"));
             assert_eq!(

@@ -4,7 +4,6 @@
 # stderr as pairs; shisutemu reads them. exec_check answers only the status.
 # To run blue itself, spawn self_exe(): a nix sandbox has no blue on PATH.
 use("moji", [:is_blank])
-use("retsu")
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def blue_version()

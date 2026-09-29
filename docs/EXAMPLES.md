@@ -236,7 +236,6 @@ Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the inp
 `examples/05_errors.b`:
 
 ```blue
-use("moji")
 use("retsu", [:first, :is_empty, :last])
 
 def port_refusals(text)
@@ -348,7 +347,6 @@ BLAKE3 and Ed25519 are Rust, bound into the runtime as blake3_hex and the ed2551
 
 ```blue
 use("moji", [:repeated])
-use("retsu")
 
 use(
   "shomei",
@@ -401,8 +399,6 @@ A blue program IS a tatara-lisp program, so tatara's (def…) forms are callable
 `examples/08_tatara_forms.b`:
 
 ```blue
-use("retsu")
-
 defflow(slug, trim, downcase)
 
 defsm(
@@ -443,7 +439,6 @@ exec_capture runs a command with no shell and answers its status, stdout and std
 
 ```blue
 use("moji", [:is_blank])
-use("retsu")
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def blue_version()

@@ -6,7 +6,6 @@
 # rewrites the unevaluated argument, so a macro may use it twice. A Lisp form
 # whose arguments are binding lists (let, cond, dolist) has no blue spelling;
 # docs/REFERENCE.md lists which is which.
-use("retsu")
 
 defflow(slug, trim, downcase)
 

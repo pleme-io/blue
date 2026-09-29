@@ -5,7 +5,6 @@
 # wraps them with names that say what they are for and checks their inputs.
 # There is no entropy source: a keypair comes from a seed the caller supplies.
 use("moji", [:repeated])
-use("retsu")
 
 use(
   "shomei",

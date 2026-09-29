@@ -1,5 +1,3 @@
-use("moji")
-
 use(
   "retsu",
   [

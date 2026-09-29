@@ -1,10 +1,54 @@
-use("retsu")
-use("kazu")
-use("moji")
-use("gyouretsu")
-use("kikagaku")
-use("rittai")
-use("ronri")
+use("gyouretsu", [:dot, :magnitude, :scale, :vadd, :vector_near, :vsub])
+use("kazu", [:abs, :max, :min, :mod_positive, :near, :sum])
+
+use(
+  "kikagaku",
+  [
+    :bounding_box,
+    :circle_polygon,
+    :midpoint,
+    :px,
+    :py,
+    :radians,
+    :rect_polygon,
+    :region,
+    :region_holes,
+    :region_outline
+  ]
+)
+
+use("moji", [:includes, :pad_left, :take_chars])
+
+use(
+  "retsu",
+  [
+    :concat_lists,
+    :contains,
+    :first,
+    :flat_map,
+    :indexes,
+    :is_empty,
+    :last,
+    :size,
+    :take_n
+  ]
+)
+
+use(
+  "rittai",
+  [
+    :rt_box,
+    :rt_face_normal,
+    :rt_faces,
+    :rt_vertices,
+    :rt_weld,
+    :rt_x,
+    :rt_y,
+    :rt_z
+  ]
+)
+
+use("ronri", [:every])
 
 # zumen (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.
 #

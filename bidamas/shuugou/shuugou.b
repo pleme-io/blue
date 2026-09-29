@@ -1,5 +1,5 @@
-use("ronri")
-use("retsu")
+use("retsu", [:first, :is_empty, :push, :rest, :size])
+use("ronri", [:any, :count_if, :every])
 
 # shuugou (集合) — sets, over plain lists.
 #

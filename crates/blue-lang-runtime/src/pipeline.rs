@@ -378,9 +378,55 @@ fn check_stage(
 /// The whole name table the check stage resolves against: the program's
 /// own scopes (each file and bidama, by namespace) followed by `builtins`.
 #[must_use]
+///
+/// **A top-level call to a builtin macro can define names**: `defflow(slug,
+/// trim, downcase)` expands to `(define slug …)`, and nothing in the source
+/// spells `define`. Such a call is expanded here, on a hostless fork, and what
+/// its expansion defines is bound in the calling file's namespace. Only
+/// BUILTIN macros are expanded: their bodies are the runtime's own
+/// templates. A program's own `defmacro` is not run at check time — checking a
+/// file (and an editor checking on every keystroke) must not execute the code
+/// it checks — so names a program macro generates are not seen; none of the
+/// corpus's macros generates one (measured 2026-09-29).
+#[must_use]
 pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTable) -> NameTable {
+    use blue_lang_check::Binding;
     let mut table = NameTable::new();
     table.add_program(program.forms(), |i| namespace_of(program, i));
+    let builtin_macro = |head: &str| {
+        builtins
+            .scopes()
+            .iter()
+            .any(|s| s.namespace == Namespace::Macro && s.get(head).is_some())
+    };
+    let mut expander: Option<tatara_lisp_eval::Interpreter<()>> = None;
+    for (i, form) in program.forms().iter().enumerate() {
+        let Some(head) = form
+            .as_list()
+            .and_then(|items| items.first())
+            .and_then(tatara_lisp::Spanned::as_symbol)
+        else {
+            continue;
+        };
+        if !builtin_macro(head) {
+            continue;
+        }
+        let interp = expander.get_or_insert_with(crate::interpreter_hostless);
+        // A failed expansion defines nothing here; the evaluator will report
+        // it, with its position, when the form runs.
+        let Ok(expanded) = interp.fully_expand(form, &mut ()) else {
+            continue;
+        };
+        let scope = table.scope_mut(namespace_of(program, i));
+        for (name, span, kind) in blue_lang_check::names::definitions_of(&expanded) {
+            scope.bind(Binding {
+                name,
+                kind,
+                span: Some(span),
+                top_level: Some(i),
+            });
+        }
+    }
     for scope in builtins.scopes() {
         table.push(scope.clone());
     }

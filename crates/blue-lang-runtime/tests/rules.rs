@@ -110,3 +110,17 @@ fn every_diagnostic_is_reported_in_one_pass() {
     let got = codes_of(src);
     assert_eq!(got, vec![Code::B0001, Code::B0001, Code::B0003], "{got:?}");
 }
+
+/// **A name a builtin macro defines is bound.** `defflow(slug, …)` expands to
+/// `(define slug …)`; the check stage expands top-level builtin macro calls to
+/// see it. Found by the examples corpus (`examples/08_tatara_forms.b`, five
+/// false positives) the day it landed.
+///
+/// Red run (2026-09-29): the expansion loop in `pipeline::program_names`
+/// skipped — `left: [B0001, B0001]`.
+#[test]
+fn a_name_a_builtin_macro_defines_is_bound() {
+    let src = "defflow(slug, trim, downcase)\n\nslug(\" A \")\n\n\
+               defsm(door, :initial, :closed, :transitions, [[:closed, :open, :opened]])\n\ndoor(:current)\n";
+    assert_eq!(codes_of(src), Vec::<Code>::new());
+}

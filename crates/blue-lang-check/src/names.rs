@@ -403,6 +403,18 @@ fn spellable(name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '?' || c == '!' || !c.is_ascii())
 }
 
+/// The names `form` defines into the frame it is evaluated in, with the
+/// span of each name and whether it is a value or a macro. What
+/// [`NameTable::add_program`] reads from each top-level form; public so a
+/// caller that EXPANDS a form first (a top-level call to `defflow`, whose
+/// expansion is a `define`) can bind what the expansion defines.
+#[must_use]
+pub fn definitions_of(form: &Spanned) -> Vec<(String, Span, ScopeKind)> {
+    let mut out = Vec::new();
+    definitions_in(form, &mut out);
+    out
+}
+
 /// The names a form defines into the frame it is evaluated in.
 ///
 /// A `define` binds in the environment it is EVALUATED in, and every part of

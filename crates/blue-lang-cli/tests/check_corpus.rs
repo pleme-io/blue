@@ -5,7 +5,7 @@
 //! also stop correct programs from running at all.
 //!
 //! Measured on the introduction of static name resolution (2026-09-29): 55
-//! files. The first pass reported 12 unbound names, every one a false
+//! files at first. The first pass reported 12 unbound names, every one a false
 //! positive, from two gaps in the walker, both fixed in the walker rather
 //! than waived:
 //!
@@ -16,6 +16,11 @@
 //!   `converge = if … else home = … end` — binds in the enclosing function's
 //!   frame, and the hoister only looked through `if`/`begin`/`cond`
 //!   (4 findings, one site in `raifusaikuru.b` seen from four importers).
+//!
+//! Then the examples corpus landed (68 files) and brought a third: a
+//! top-level call to a builtin macro that DEFINES a name — `defflow(slug, …)`,
+//! `defsm(door, …)` — 5 findings in `examples/08_tatara_forms.b`. Fixed by
+//! expanding such calls in `pipeline::program_names`, not by waiving them.
 //!
 //! Anti-vacuity is counted, not asserted non-empty: at least 40 files, and a
 //! resolved-name total in the tens of thousands, so a pass that silently
@@ -68,13 +73,23 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn the_check_stage_reports_no_error_on_the_corpus() {
     let root = root();
-    // The two distributions in the tree: blue's own, and the project fixture's
-    // (whose programs `use("fixture")`).
-    let loader = blue_lang_pkg::load_path::LoadPath::new([
-        root.join("bidamas"),
-        root.join("nix/project-fixture/bidamas"),
-    ]);
+    // Every distribution in the tree — blue's own `bidamas/`, and each
+    // project's (`nix/project-fixture/bidamas`, `examples/bidamas`) — found
+    // by the walk, not listed, so a new project is covered when it lands.
     let files = corpus();
+    let mut roots: Vec<PathBuf> = files
+        .iter()
+        .filter_map(|f| {
+            f.ancestors()
+                .find(|a| a.file_name().is_some_and(|n| n == "bidamas"))
+                .map(Path::to_path_buf)
+        })
+        .collect();
+    roots.sort();
+    roots.dedup();
+    // blue's own distribution first: it is the one every project builds on.
+    roots.sort_by_key(|r| r != &root.join("bidamas"));
+    let loader = blue_lang_pkg::load_path::LoadPath::new(roots);
     let mut errors = Vec::new();
     let mut resolved = 0usize;
     for path in &files {

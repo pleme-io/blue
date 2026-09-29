@@ -1,4 +1,15 @@
-use("retsu")
+use(
+  "retsu",
+  [
+    :concat_lists,
+    :contains,
+    :count_where,
+    :first,
+    :flat_map,
+    :is_empty,
+    :repeat
+  ]
+)
 
 # sabi (錆): Rust source from blue data. Build the items as values, render once.
 #

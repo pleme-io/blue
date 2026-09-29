@@ -1,11 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:758111425eff7882fa2a6d5b451df5598a6aa8a491f89b49f586393213fa79a9",
+  "bluefile_b3": "b3:74b4393abed26493e600d35646f24b5006011eb2531cad85bf7835295968071d",
   "manifest": {
     "schema": 1,
     "name": "junjo",
     "version": "0.1.0",
     "needs": {
+      "kazu": "^0.1.0",
+      "retsu": "^0.1.0",
       "ronri": "^0.1.0"
     },
     "when": "anytime",

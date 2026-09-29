@@ -1,4 +1,6 @@
-use("ronri")
+use("kazu", [:max, :min])
+use("retsu", [:first, :indexes, :is_empty, :last, :rest, :size])
+use("ronri", [:count_if])
 
 # junjo (順序) — ordering: sorting, searching, selection.
 #

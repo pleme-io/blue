@@ -1,5 +1,20 @@
-use("kazu")
-use("retsu")
+use("kazu", [:abs, :clamp, :max, :max_of, :min, :min_of, :near, :sign, :sum])
+
+use(
+  "retsu",
+  [
+    :all_but_last,
+    :concat_lists,
+    :contains,
+    :first,
+    :flat_map,
+    :indexes,
+    :is_empty,
+    :last,
+    :push,
+    :size
+  ]
+)
 
 # kikagaku (幾何学) — plane geometry on [x, y] points.
 #

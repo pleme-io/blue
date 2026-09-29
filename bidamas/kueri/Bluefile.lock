@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:0256d5a6e1ab7eb2e98c39f588f1c1924adaf4dad0c08cbc10f7e712f636e714",
+  "bluefile_b3": "b3:968520e119f1f4c041270e26a09ea022556c96d9698fcdd30f46097bc037983a",
   "manifest": {
     "schema": 1,
     "name": "kueri",
     "version": "0.1.0",
     "needs": {
       "deeta": "^0.1.0",
+      "kazu": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
       "shisutemu": "^0.1.0",

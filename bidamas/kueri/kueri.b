@@ -1,8 +1,29 @@
-use("retsu")
-use("moji")
-use("shuugou")
-use("shisutemu")
-use("deeta")
+use("deeta", [:as_json])
+use("kazu", [:max])
+use("moji", [:char_at, :made_of, :strip_suffix])
+
+use(
+  "retsu",
+  [
+    :as_list,
+    :concat_lists,
+    :contains,
+    :count_where,
+    :enumerate,
+    :equal_lists,
+    :find_first,
+    :first,
+    :flat_map,
+    :is_empty,
+    :last,
+    :push,
+    :rest,
+    :size
+  ]
+)
+
+use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("shuugou", [:difference, :intersection, :unique, :unique_by])
 
 # kueri (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 #

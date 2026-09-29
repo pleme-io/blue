@@ -1,9 +1,170 @@
-use("retsu")
-use("shuugou")
-use("deeta")
-use("raifusaikuru")
-use("nisshi")
-use("kueri")
+use("deeta", [:as_json])
+
+use(
+  "kueri",
+  [
+    :q_agg,
+    :q_agg_where,
+    :q_and,
+    :q_as,
+    :q_asof_left_join,
+    :q_avg,
+    :q_c,
+    :q_cast,
+    :q_coalesce,
+    :q_col,
+    :q_count_all,
+    :q_derive,
+    :q_desc,
+    :q_eq,
+    :q_explode,
+    :q_filter,
+    :q_ge,
+    :q_get,
+    :q_group,
+    :q_gt,
+    :q_if,
+    :q_is_null,
+    :q_join,
+    :q_lag,
+    :q_lead,
+    :q_left_join,
+    :q_list_of,
+    :q_lit,
+    :q_lt,
+    :q_max,
+    :q_min,
+    :q_model,
+    :q_not_null,
+    :q_null,
+    :q_or,
+    :q_output,
+    :q_render,
+    :q_render_script,
+    :q_row_number,
+    :q_rows_at,
+    :q_run_at,
+    :q_select,
+    :q_sort,
+    :q_source,
+    :q_struct_of,
+    :q_sub,
+    :q_sum,
+    :q_then,
+    :q_type_sql,
+    :q_values
+  ]
+)
+
+use(
+  "nisshi",
+  [
+    :el_append,
+    :el_append_all,
+    :el_break_kind,
+    :el_break_position,
+    :el_break_why,
+    :el_canon,
+    :el_canon_object,
+    :el_def,
+    :el_history,
+    :el_intact?,
+    :el_lines,
+    :el_observe,
+    :el_read,
+    :el_rec_admitted?,
+    :el_rec_entity,
+    :el_rec_seq,
+    :el_state,
+    :el_states,
+    :el_unlines,
+    :el_verify
+  ]
+)
+
+use(
+  "raifusaikuru",
+  [
+    :lc_add,
+    :lc_atoms,
+    :lc_below,
+    :lc_breach_capability,
+    :lc_breach_position,
+    :lc_breach_rules,
+    :lc_breaches,
+    :lc_d_edges,
+    :lc_d_events,
+    :lc_d_field_names,
+    :lc_d_fields,
+    :lc_d_guards,
+    :lc_d_links,
+    :lc_d_permit_logs,
+    :lc_d_permits,
+    :lc_d_spans,
+    :lc_d_terminals,
+    :lc_define,
+    :lc_ev,
+    :lc_event,
+    :lc_example_consumable_clauses,
+    :lc_field,
+    :lc_fields,
+    :lc_initial,
+    :lc_link,
+    :lc_name,
+    :lc_on,
+    :lc_on_each,
+    :lc_permit_count_key,
+    :lc_permit_event,
+    :lc_permit_for,
+    :lc_permit_log,
+    :lc_phase,
+    :lc_pred_text,
+    :lc_put,
+    :lc_refusal_kind,
+    :lc_refusal_position,
+    :lc_refused,
+    :lc_rule,
+    :lc_seq,
+    :lc_set,
+    :lc_show,
+    :lc_span,
+    :lc_span_from,
+    :lc_span_limit,
+    :lc_span_name,
+    :lc_span_to,
+    :lc_stamp,
+    :lc_start,
+    :lc_states,
+    :lc_task_escalate_after,
+    :lc_task_evidence,
+    :lc_task_name,
+    :lc_task_or,
+    :lc_terminals,
+    :lc_text
+  ]
+)
+
+use(
+  "retsu",
+  [
+    :as_list,
+    :concat_lists,
+    :contains,
+    :count_of,
+    :count_where,
+    :find_first,
+    :first,
+    :flat_map,
+    :flatten1,
+    :is_empty,
+    :last,
+    :push,
+    :size,
+    :take_n
+  ]
+)
+
+use("shuugou", [:lookup, :set_equal, :unique, :unique_by])
 
 # anaritikusu (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 #

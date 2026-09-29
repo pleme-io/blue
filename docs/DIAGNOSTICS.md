@@ -22,6 +22,8 @@ it; `blue explain --list` lists them.
 | B0007 | malformed-waiver | error | a waiver names a known code and gives a reason |
 | B0008 | unused-waiver | warning | a waiver suppresses at least one diagnostic |
 | B0009 | ambiguous-name | error | no two namespaces in one resolution tier define a name |
+| B0010 | qualifier-not-imported | error | a qualified name's package is one the file `use`s |
+| B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that package |
 
 The registry is the source of truth; a test fails if a code is missing here.
 
@@ -121,7 +123,7 @@ A binding (`flat`, `ns`) has:
 
 | field | meaning |
 |---|---|
-| `kind` | `def` (a program definition), `builtin`, `local` or `unbound` |
+| `kind` | `def` (a program definition), `builtin`, `local`, `ambiguous` (two imports list it) or `unbound` |
 | `namespace` | the defining bidama for a `def`; `null` otherwise, and for the root namespace |
 | `name` | the definition's or builtin's name |
 | `key` | the symbol the resolved tree writes, or `null` when it keeps the written one |

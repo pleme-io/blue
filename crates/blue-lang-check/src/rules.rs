@@ -265,6 +265,38 @@ which is meant, and today the one loaded last would silently win.
 To comply, rename one of the definitions. (The bidama distribution's
 collision gate already forbids this among its own packages.)",
     }
+    B0010 {
+        slug: "qualifier-not-imported",
+        severity: Error,
+        fix: None,
+        law: "a qualified name's package is one the file `use`s: `retsu::first` needs `use(\"retsu\")`",
+        witness: "def f(xs)\n  retsu::first(xs)\nend\n",
+        explanation: "\
+`retsu::first` names the definition `first` of the bidama `retsu`, exactly.
+The qualifier must be a bidama the file declares with `use(\"retsu\")`
+(and, inside a bidama, `needs(\"retsu\", …)` in its Bluefile): a file
+reaches only what it says it depends on, so no reference can work by the
+accident of some other file having loaded the package.
+
+To comply, add the `use` — or, if a builtin was meant, write `blue::first`.",
+    }
+    B0011 {
+        slug: "no-such-definition",
+        severity: Error,
+        fix: Suggested,
+        law: "a qualified name, or a name a `use` lists, is a definition of that package",
+        witness: "use(\"kagi_a\")\n\nkagi_a::kagj()\n",
+        imports: [("kagi_a", "def kagi()\n  1\nend\n")],
+        explanation: "\
+`kazu::first(xs)` says the definition is kazu's. When kazu defines no
+`first`, that is a mistake in the program, not something to fall back from:
+the qualifier is exact, and nothing else is consulted. The same holds for
+`use(\"kazu\", [:first])`, which lists `first` as kazu's.
+
+The help names the bidama that does define it, if one is loaded, and the
+nearest names the qualified bidama has. `blue::name` names a builtin, and
+is checked against the interpreter's own names.",
+    }
 }
 
 impl Code {

@@ -243,6 +243,31 @@ pub struct NameTable {
     /// For each program-defined name, the namespace of the definition that
     /// is evaluated LAST — the one today's single global environment binds.
     last_definer: BTreeMap<String, (usize, Namespace)>,
+    /// The file each top-level form came from, and what each file imports.
+    form_file: Vec<usize>,
+    imports: BTreeMap<usize, FileImports>,
+}
+
+/// What one file declares with `use`: every package it `use`s (so
+/// `pkg::name` may be written), and the names it lists for bare use.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FileImports {
+    pub uses: BTreeSet<String>,
+    /// A listed name, and every package that lists it.
+    pub names: BTreeMap<String, Vec<String>>,
+}
+
+impl FileImports {
+    /// Record one `use` declaration.
+    pub fn add(&mut self, package: &str, names: impl IntoIterator<Item = String>) {
+        self.uses.insert(package.to_string());
+        for n in names {
+            let pkgs = self.names.entry(n).or_default();
+            if !pkgs.iter().any(|p| p == package) {
+                pkgs.push(package.to_string());
+            }
+        }
+    }
 }
 
 /// A "did you mean" candidate: a name, the namespace it lives in, and how far
@@ -314,8 +339,32 @@ impl NameTable {
         self.scope_mut(ns).bind(binding);
     }
 
+    /// Say which file each top-level form came from (`form_file[i]`) and
+    /// what each file imports. Without it, no file imports anything.
+    pub fn attach_files(&mut self, form_file: Vec<usize>, imports: BTreeMap<usize, FileImports>) {
+        self.form_file = form_file;
+        self.imports = imports;
+    }
+
+    /// What the file of top-level form `top_level` imports.
+    #[must_use]
+    pub fn imports_of(&self, top_level: usize) -> Option<&FileImports> {
+        self.form_file
+            .get(top_level)
+            .and_then(|f| self.imports.get(f))
+    }
+
+    /// The program scope of bidama `pkg`, if it is loaded.
+    #[must_use]
+    pub fn bidama(&self, pkg: &str) -> Option<&Scope> {
+        self.scopes
+            .iter()
+            .find(|s| matches!(&s.namespace, Namespace::Bidama(p) if p == pkg))
+    }
+
     /// Is `name` bound by the interpreter itself?
-    fn builtin(&self, name: &str) -> bool {
+    #[must_use]
+    pub fn builtin(&self, name: &str) -> bool {
         self.scopes.iter().any(|s| {
             matches!(
                 s.namespace,
@@ -343,7 +392,7 @@ impl NameTable {
     /// `own`: [`RESOLUTION_ORDER`] over `own`'s definitions, the file's
     /// explicit imports, then builtins; a qualified name exactly.
     #[must_use]
-    pub fn ns_target(&self, name: &str, own: &Namespace) -> Target {
+    pub fn ns_target(&self, name: &str, own: &Namespace, top_level: usize) -> Target {
         if let Some((pkg, n)) = blue_lang_syntax::qualified(name) {
             if pkg == BUILTIN_QUALIFIER {
                 return if self.builtin(n) {
@@ -361,6 +410,18 @@ impl NameTable {
         if let Some(s) = self.scopes.iter().find(|s| &s.namespace == own) {
             if s.get(name).is_some() {
                 return Target::Def(own.clone(), name.to_string());
+            }
+        }
+        if let Some(pkgs) = self.imports_of(top_level).and_then(|i| i.names.get(name)) {
+            let found: Vec<Namespace> = pkgs
+                .iter()
+                .filter(|p| self.bidama(p).is_some_and(|s| s.get(name).is_some()))
+                .map(|p| Namespace::Bidama(p.clone()))
+                .collect();
+            match found.as_slice() {
+                [] => {}
+                [one] => return Target::Def(one.clone(), name.to_string()),
+                _ => return Target::Ambiguous(found),
             }
         }
         if self.builtin(name) {
@@ -535,6 +596,8 @@ pub enum Target {
     Def(Namespace, String),
     /// A name the interpreter binds before the program runs.
     Builtin(String),
+    /// Two namespaces in the tier that holds it.
+    Ambiguous(Vec<Namespace>),
     /// Nothing binds it.
     Unbound,
 }
@@ -548,7 +611,7 @@ impl Target {
         match self {
             Target::Def(ns, name) => Some(key(ns, name)),
             Target::Builtin(name) => Some(name.clone()),
-            Target::Local | Target::Unbound => None,
+            Target::Local | Target::Ambiguous(_) | Target::Unbound => None,
         }
     }
 }
@@ -559,6 +622,11 @@ impl std::fmt::Display for Target {
             Target::Local => f.write_str("local"),
             Target::Def(ns, name) => write!(f, "{name} ({ns})"),
             Target::Builtin(name) => write!(f, "{name} (builtin)"),
+            Target::Ambiguous(nss) => write!(
+                f,
+                "ambiguous ({})",
+                nss.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+            ),
             Target::Unbound => f.write_str("unbound"),
         }
     }
@@ -736,6 +804,7 @@ pub fn check_names(
     let mut w = Walker::new(table, report_unused);
     for (i, form) in forms.iter().enumerate() {
         w.enter(i, namespace_of(i), form);
+        w.check_import_list(form);
         // A top-level form's own defines are globals, already in `table`.
         scope::walk_top(form, &mut w);
     }
@@ -808,7 +877,7 @@ impl<'t> Walker<'t> {
             written: name.to_string(),
             opaque,
             flat: self.table.flat_target(name),
-            ns: self.table.ns_target(name, &self.own),
+            ns: self.table.ns_target(name, &self.own, self.top_level),
             node: std::ptr::from_ref(node) as usize,
         });
     }
@@ -822,6 +891,10 @@ impl<'t> Walker<'t> {
             return;
         }
         self.record(node, name, opaque);
+        if let Some((pkg, n)) = blue_lang_syntax::qualified(name) {
+            self.qualified_reference(span, pkg, n);
+            return;
+        }
         match self.table.resolve_from(name, &self.own) {
             Resolution::Found { .. } => {
                 self.resolved += 1;
@@ -901,6 +974,119 @@ impl<'t> Walker<'t> {
     }
 }
 
+impl Walker<'_> {
+    /// `pkg::n`: exact, and checked to be what it says. The package must be
+    /// one this file `use`s (B0010) and must define `n` (B0011); `blue::n`
+    /// must name a builtin.
+    fn qualified_reference(&mut self, span: Span, pkg: &str, n: &str) {
+        if pkg == BUILTIN_QUALIFIER {
+            if self.table.builtin(n) {
+                self.resolved += 1;
+                return;
+            }
+            let d = Diagnostic::new(Code::B0011, format!("`blue::{n}` names no builtin"), span)
+                .at_top_level(self.top_level)
+                .with_help(
+                    "`blue::` qualifies the interpreter's own names; drop the qualifier to name a program definition",
+                );
+            self.diagnostics.push(d);
+            return;
+        }
+        let uses = self
+            .table
+            .imports_of(self.top_level)
+            .is_some_and(|i| i.uses.contains(pkg));
+        if !uses {
+            let d = Diagnostic::new(
+                Code::B0010,
+                format!("`{pkg}::{n}` is qualified by `{pkg}`, which this file does not `use`"),
+                span,
+            )
+            .at_top_level(self.top_level)
+            .with_help(format!(
+                "add `use(\"{pkg}\")` to the file's imports (and `needs(\"{pkg}\", …)` to its Bluefile, inside a bidama)"
+            ));
+            self.diagnostics.push(d);
+            return;
+        }
+        if self.table.bidama(pkg).is_some_and(|s| s.get(n).is_some()) {
+            self.resolved += 1;
+            return;
+        }
+        let d = self.no_such_definition(span, pkg, n, true);
+        self.diagnostics.push(d);
+    }
+
+    /// B0011: `pkg` defines no `n`. Suggests the package that does, and the
+    /// nearest names `pkg` has.
+    fn no_such_definition(&self, span: Span, pkg: &str, n: &str, qualified: bool) -> Diagnostic {
+        let owners: Vec<&str> = self
+            .table
+            .scopes()
+            .iter()
+            .filter_map(|s| match &s.namespace {
+                Namespace::Bidama(p) if p != pkg && s.get(n).is_some() => Some(p.as_str()),
+                _ => None,
+            })
+            .collect();
+        let mut near: Vec<(usize, String)> = self
+            .table
+            .bidama(pkg)
+            .map(|s| {
+                s.bindings()
+                    .filter_map(|b| suggest::closeness(n, &b.name).map(|d| (d, b.name.clone())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        near.sort();
+        near.truncate(3);
+        let mut d = Diagnostic::new(Code::B0011, format!("bidama `{pkg}` defines no `{n}`"), span)
+            .at_top_level(self.top_level);
+        let mut offers: Vec<String> = owners.iter().map(|o| format!("{o}::{n}")).collect();
+        offers.extend(near.iter().map(|(_, c)| format!("{pkg}::{c}")));
+        d = match (owners.as_slice(), offers.as_slice()) {
+            ([owner, ..], _) => d.with_help(format!("`{n}` is defined in bidama `{owner}`")),
+            (_, []) => d.with_help(format!("nothing in `{pkg}` is close to `{n}`")),
+            (_, many) => d.with_help(format!(
+                "did you mean {}?",
+                many.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")
+            )),
+        };
+        if qualified {
+            for offer in offers {
+                d = d.with_fix(Fix {
+                    message: format!("replace with `{offer}`"),
+                    edits: vec![Edit {
+                        span,
+                        original: format!("{pkg}::{n}"),
+                        replacement: offer,
+                    }],
+                    applicability: Applicability::MaybeIncorrect,
+                });
+            }
+        }
+        d
+    }
+
+    /// The names a `use` lists must be the package's.
+    fn check_import_list(&mut self, form: &Spanned) {
+        let Some(import) = scope::use_target(form) else {
+            return;
+        };
+        for (n, span) in &import.names {
+            if self
+                .table
+                .bidama(&import.package)
+                .is_some_and(|s| s.get(n).is_some())
+            {
+                continue;
+            }
+            let d = self.no_such_definition(*span, &import.package, n, false);
+            self.diagnostics.push(d);
+        }
+    }
+}
+
 impl Scopes for Walker<'_> {
     fn head_kind(&self, name: &str) -> Option<HeadKind> {
         self.table.head_kind(name)
@@ -975,7 +1161,9 @@ impl Scopes for Walker<'_> {
                     self.record(node, name, false);
                 }
             }
-            HeadKind::SpecialForm if !matches!(name, "define" | "define-typed" | "defmacro") => {
+            HeadKind::SpecialForm
+                if !matches!(name, "define" | "define-typed" | "defmacro" | "use") =>
+            {
                 self.resolved += 1;
             }
             _ => {}

@@ -44,6 +44,73 @@ pub enum BinderKind {
     Catch,
 }
 
+/// One `use` form, as the file that wrote it declared it.
+///
+/// `use("moji")` makes `moji::split` reachable; `use("retsu", [:first,
+/// :size])` also makes `first` and `size` reachable bare. The form stays in
+/// the program (after the package's spliced forms) so the check stage can
+/// point at it, and evaluates to nothing (`blue_lang_runtime::uses::ResolvedProgram::sexps`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Import {
+    pub package: String,
+    /// The names listed for bare use, each with its `:name` span. Empty for
+    /// `use("moji")`.
+    pub names: Vec<(String, Span)>,
+    /// Whether a list was written at all: `use("x", [])` lists nothing.
+    pub listed: bool,
+    /// The whole `use(...)` form.
+    pub span: Span,
+    /// The span of the package-name string.
+    pub package_span: Span,
+}
+
+
+/// Is this form a `use` declaration? If so, what it declares.
+///
+/// `use("name")` or `use("name", [:a, :b])`, the call form only. `use "kazu"`
+/// without parentheses parses as two unrelated top-level atoms (blue has no
+/// paren-less call syntax), which would silently do nothing — so it is not
+/// treated as an import, and the bare symbol `use` then fails as an unbound
+/// name rather than being quietly ignored. A list that holds anything but
+/// `:name` symbols is not a declaration either, for the same reason.
+#[must_use]
+pub fn use_target(form: &Spanned) -> Option<Import> {
+    let items = form.as_list()?;
+    let (head, arg, list) = match items {
+        [head, arg] => (head, arg, None),
+        [head, arg, list] => (head, arg, Some(list)),
+        _ => return None,
+    };
+    let (SpannedForm::Atom(Atom::Symbol(s)), SpannedForm::Atom(Atom::Str(name))) =
+        (&head.form, &arg.form)
+    else {
+        return None;
+    };
+    if s != "use" {
+        return None;
+    }
+    let mut names = Vec::new();
+    if let Some(list) = list {
+        let parts = list.as_list()?;
+        if parts.first().and_then(Spanned::as_symbol) != Some("list") {
+            return None;
+        }
+        for p in &parts[1..] {
+            match &p.form {
+                SpannedForm::Atom(Atom::Keyword(k)) => names.push((k.clone(), p.span)),
+                _ => return None,
+            }
+        }
+    }
+    Some(Import {
+        package: name.clone(),
+        names,
+        listed: list.is_some(),
+        span: form.span,
+        package_span: arg.span,
+    })
+}
+
 /// The special forms whose SHAPE the walker knows — the heads a pass without
 /// an interpreter to ask (the reach walk) answers [`HeadKind::SpecialForm`]
 /// for, so their binders bind. Every other special form is walked as an
@@ -296,6 +363,12 @@ impl Walker<'_> {
             if let Some(body) = items.get(2) {
                 self.body(&[], std::slice::from_ref(body), opaque);
             }
+            return;
+        }
+        // `use("x", [:a])` at the top level is a declaration the resolver
+        // consumed, not a call: nothing in it is a reference.
+        if head == "use" && self.depth == 0 {
+            self.pass.head(&items[0], head, HeadKind::SpecialForm);
             return;
         }
         // `define-typed` is erased before evaluation; its shape is `define`'s

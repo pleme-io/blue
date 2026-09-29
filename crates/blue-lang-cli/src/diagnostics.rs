@@ -299,6 +299,7 @@ fn target_json(t: &blue_lang_check::names::Target) -> TargetJson {
             key,
         },
         Target::Builtin(n) => TargetJson { kind: "builtin", namespace: None, name: Some(n.clone()), key },
+        Target::Ambiguous(_) => TargetJson { kind: "ambiguous", namespace: None, name: None, key },
         Target::Unbound => TargetJson { kind: "unbound", namespace: None, name: None, key },
     }
 }

@@ -52,7 +52,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
+use tatara_lisp::{Sexp, Span, Spanned};
 
 /// Supplies the source of a named bidama.
 ///
@@ -114,6 +114,15 @@ impl Loader for NoLoader {
 /// the failure this whole type exists to make impossible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileId(usize);
+
+impl FileId {
+    /// The file's position in its program's file table: a key, never an
+    /// index a caller may compute.
+    #[must_use]
+    pub fn index(self) -> usize {
+        self.0
+    }
+}
 
 /// One file that contributed forms to a [`ResolvedProgram`].
 #[derive(Clone, Debug)]
@@ -195,7 +204,9 @@ pub struct ResolvedProgram {
     forms: Vec<Spanned>,
     owner: Vec<FileId>,
     files: Vec<SourceFile>,
+    imports: Vec<(FileId, Import)>,
 }
+
 
 impl ResolvedProgram {
     /// The entry program's own file. Always present; always first.
@@ -206,6 +217,7 @@ impl ResolvedProgram {
             forms: Vec::new(),
             owner: Vec::new(),
             files: Vec::new(),
+            imports: Vec::new(),
         };
         let id = program.intern(
             entry.path.map(Path::to_path_buf),
@@ -243,10 +255,27 @@ impl ResolvedProgram {
     }
 
     /// The same forms with their spans projected away, for the stages that do
-    /// not report positions — erasure, evaluation, the test harness.
+    /// not report positions — erasure, evaluation, the test harness. A `use`
+    /// form is a declaration the resolver consumed, and projects to `nil`, so
+    /// every index still names its top-level form.
     #[must_use]
     pub fn sexps(&self) -> Vec<Sexp> {
-        self.forms.iter().map(Spanned::to_sexp).collect()
+        self.forms
+            .iter()
+            .map(|f| {
+                if use_target(f).is_some() {
+                    Sexp::Nil
+                } else {
+                    f.to_sexp()
+                }
+            })
+            .collect()
+    }
+
+    /// Every `use` form, with the file that wrote it.
+    #[must_use]
+    pub fn imports(&self) -> &[(FileId, Import)] {
+        &self.imports
     }
 
     /// Every file that contributed, entry first.
@@ -372,24 +401,7 @@ impl std::fmt::Display for Located<'_> {
     }
 }
 
-/// Is this form a `use("name")` call? If so, the name.
-///
-/// Matches the *call* form only. `use "kazu"` without parentheses parses as
-/// two unrelated top-level atoms (blue has no paren-less call syntax), which
-/// would silently do nothing — so it is not treated as an import, and the
-/// bare symbol `use` then fails as an unbound name rather than being quietly
-/// ignored.
-fn use_target(form: &Spanned) -> Option<String> {
-    let [head, arg] = form.as_list()? else {
-        return None;
-    };
-    match (&head.form, &arg.form) {
-        (SpannedForm::Atom(Atom::Symbol(s)), SpannedForm::Atom(Atom::Str(name))) if s == "use" => {
-            Some(name.clone())
-        }
-        _ => None,
-    }
-}
+pub use blue_lang_syntax::scope::{use_target, Import};
 
 /// Is this form a lowered `test` block?
 ///
@@ -460,14 +472,18 @@ fn expand(
     chain: &[String],
 ) -> Result<(), String> {
     for form in forms {
-        let Some(name) = use_target(&form) else {
+        let Some(import) = use_target(&form) else {
             // The file boundary is erased HERE — this is the append that used
             // to make every form indistinguishable from every other. Each one
             // now carries the file it came from, which is the whole fix.
             out.push(form, owner);
             continue;
         };
+        let name = import.package.clone();
+        out.imports.push((owner, import));
         if !seen.insert(name.clone()) {
+            // Loaded already: the declaration stays, for the check stage.
+            out.push(form, owner);
             continue;
         }
 
@@ -502,6 +518,8 @@ fn expand(
             let id = out.intern(Some(PathBuf::from(label)), Some(name.clone()), src);
             expand(parsed, id, loader, out, seen, &inner_chain)?;
         }
+        // The declaration itself, after the forms it brought in.
+        out.push(form, owner);
     }
     Ok(())
 }
@@ -548,13 +566,17 @@ mod tests {
     fn a_use_is_replaced_by_the_packages_forms() {
         let loader = MemLoader(BTreeMap::from([("kazu", "def double(n)\n  n * 2\nend")]));
         let out = resolve("use(\"kazu\")\ndouble(21)", &loader).expect("resolves");
-        // The `use` itself is GONE — it is not a call that survives to the
-        // evaluator, where `use` is not a defined function.
+        // The `use` itself stays, for the check stage to point at, and never
+        // reaches the evaluator, where `use` is not a defined function: the
+        // evaluated projection has it as `nil`.
+        assert_eq!(
+            out.forms().iter().filter(|f| super::use_target(f).is_some()).count(),
+            1
+        );
         assert!(
-            out.forms().iter().all(|f| super::use_target(f).is_none()),
-            "a use form survived resolution and would reach the evaluator as \
-             an unbound function: {:?}",
-            out.forms()
+            !out.sexps().iter().any(|f| f.to_string().contains("use")),
+            "a use form would reach the evaluator as an unbound function: {:?}",
+            out.sexps()
         );
         assert!(
             out.forms().len() > 1,
@@ -583,9 +605,15 @@ mod tests {
         let loader = MemLoader(BTreeMap::from([("kazu", "def double(n)\n  n * 2\nend")]));
         let once = resolve("use(\"kazu\")", &loader).expect("resolves");
         let twice = resolve("use(\"kazu\")\nuse(\"kazu\")", &loader).expect("resolves");
+        let definitions = |p: &ResolvedProgram| {
+            p.forms()
+                .iter()
+                .filter(|f| super::use_target(f).is_none())
+                .count()
+        };
         assert_eq!(
-            once.forms().len(),
-            twice.forms().len(),
+            definitions(&once),
+            definitions(&twice),
             "importing a package twice duplicated its definitions; two \
              importers of one package must share it"
         );
@@ -815,7 +843,8 @@ mod tests {
                     .map_or_else(|| "<anonymous>".to_string(), |p| p.display().to_string())
             );
         }
-        assert_eq!(out.forms().len(), 2, "{:?}", out.forms());
+        // `double`, the `use` declaration, and the call.
+        assert_eq!(out.forms().len(), 3, "{:?}", out.forms());
     }
 
     /// An unresolvable index reports no position rather than the entry file's.

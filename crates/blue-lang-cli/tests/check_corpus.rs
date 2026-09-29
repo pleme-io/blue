@@ -259,11 +259,12 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
             })
             .flat_map(|s| s.bindings().map(|b| b.name.clone()))
             .collect();
-        // `defmacro` and `define-typed` are heads the pipeline consumes
-        // before evaluation (the expander, erasure), so no interpreter
-        // scope binds them; the reach walk reports every head.
+        // `defmacro`, `define-typed` and a top-level `use` are heads the
+        // pipeline consumes before evaluation (the expander, erasure, the
+        // resolver), so no interpreter scope binds them; the reach walk
+        // reports every head.
         let builtin = |n: &str| {
-            matches!(n, "defmacro" | "define-typed")
+            matches!(n, "defmacro" | "define-typed" | "use")
                 || table.scopes().iter().any(|s| {
                 !matches!(
                     s.namespace,

@@ -588,11 +588,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 );
                 return Ok(ExitCode::FAILURE);
             }
-            let program = checked.program;
             // The harness reports a failing ASSERTION, not a position, so it
             // takes the spanless projection. When it grows one it should take
             // the program itself — the file table is already here.
-            let report = blue_lang_test::run(&program.sexps());
+            let report = blue_lang_test::run(&checked.evaluable());
             // Failures to stderr, the tally to stdout, so a CI job can capture
             // one without the other.
             for failure in &report.failures {

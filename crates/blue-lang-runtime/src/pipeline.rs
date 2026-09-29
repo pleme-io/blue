@@ -287,7 +287,7 @@ pub(crate) fn prepare(
     //
     // No lowering step follows. The tree the evaluator receives IS the tree the
     // parser built, minus annotations, with the author's byte offsets intact.
-    let erased = erase_types(program.forms());
+    let erased = erase_types(&lower(&program));
 
     Ok(Prepared {
         program,
@@ -377,7 +377,6 @@ fn check_stage(
 
 /// The whole name table the check stage resolves against: the program's
 /// own scopes (each file and bidama, by namespace) followed by `builtins`.
-#[must_use]
 ///
 /// **A top-level call to a builtin macro can define names**: `defflow(slug,
 /// trim, downcase)` expands to `(define slug …)`, and nothing in the source
@@ -432,7 +431,59 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     for scope in builtins.scopes() {
         table.push(scope.clone());
     }
+    let form_file: Vec<usize> = (0..program.forms().len())
+        .map(|i| program.owner_of(i).map_or(usize::MAX, |f| f.index()))
+        .collect();
+    let mut imports: std::collections::BTreeMap<usize, blue_lang_check::names::FileImports> =
+        std::collections::BTreeMap::new();
+    for (file, import) in program.imports() {
+        imports
+            .entry(file.index())
+            .or_default()
+            .add(&import.package, import.names.iter().map(|(n, _)| n.clone()));
+    }
+    table.attach_files(form_file, imports);
     table
+}
+
+/// The forms the evaluator runs, from a checked program: every `use`
+/// declaration inert (`nil`, so each index still names its top-level form)
+/// and every qualified name lowered to the key it runs under.
+///
+/// **Flat semantics hold here**, so a qualified name lowers to its bare name:
+/// the check stage has already proven `retsu::first` is retsu's, and the
+/// single global environment binds `first` to retsu's definition. When
+/// namespaces resolve at run time, this is where the resolved tree is built.
+#[must_use]
+pub fn lower(program: &crate::uses::ResolvedProgram) -> Vec<tatara_lisp::Spanned> {
+    program
+        .forms()
+        .iter()
+        .map(|f| {
+            if crate::uses::use_target(f).is_some() {
+                tatara_lisp::Spanned::new(f.span, tatara_lisp::SpannedForm::Nil)
+            } else {
+                strip_qualifiers(f)
+            }
+        })
+        .collect()
+}
+
+fn strip_qualifiers(form: &tatara_lisp::Spanned) -> tatara_lisp::Spanned {
+    use tatara_lisp::{Atom, Spanned, SpannedForm};
+    let inner = match &form.form {
+        SpannedForm::Atom(Atom::Symbol(s)) => match blue_lang_syntax::qualified(s) {
+            Some((_, n)) => SpannedForm::Atom(Atom::Symbol(n.to_string())),
+            None => return form.clone(),
+        },
+        SpannedForm::List(items) => SpannedForm::List(items.iter().map(strip_qualifiers).collect()),
+        SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(strip_qualifiers(i))),
+        SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(strip_qualifiers(i))),
+        SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(strip_qualifiers(i))),
+        SpannedForm::UnquoteSplice(i) => SpannedForm::UnquoteSplice(Box::new(strip_qualifiers(i))),
+        other => other.clone(),
+    };
+    Spanned::new(form.span, inner)
 }
 
 /// The namespace top-level form `i` of `program` defines into.
@@ -557,6 +608,13 @@ pub struct Checked {
 }
 
 impl Checked {
+    /// What `blue test` hands the harness: the program [`lower`]ed, spans
+    /// projected away.
+    #[must_use]
+    pub fn evaluable(&self) -> Vec<tatara_lisp::Sexp> {
+        lower(&self.program).iter().map(tatara_lisp::Spanned::to_sexp).collect()
+    }
+
     /// Every non-local reference, resolved under both rules — today's flat
     /// one and per-bidama namespaces — and the resolved trees built from them
     /// (`blue ast --resolved`).

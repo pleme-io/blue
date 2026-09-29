@@ -226,9 +226,16 @@ def migrate(file)
         relock(path_dirname(file))
       end
     end
-    after = resolved(file)
-    same = forms_under(after, "ns") == forms_under(before, "flat")
-    left = wanted(after)
+    # A rewrite that does not even resolve is refused like one that changes
+    # the tree: restored, and named.
+    after = try(resolved(file), catch(_e(), nil))
+    same = after != nil &&
+      forms_under(after, "ns") == forms_under(before, "flat")
+    left = if after == nil
+      []
+    else
+      wanted(after)
+    end
     if same && empty?(left)
       "migrated #{file}: #{length(want)} name(s) made explicit"
     else
@@ -237,7 +244,9 @@ def migrate(file)
         write_file(bluefile, old_bluefile)
         relock(path_dirname(file))
       end
-      why = if same
+      why = if after == nil
+        "the rewritten file does not resolve"
+      elsif same
         "#{length(left)} reference(s) still implicit"
       else
         "its resolved tree changed"

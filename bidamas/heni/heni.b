@@ -1,7 +1,12 @@
-use("retsu")
-use("moji")
-use("shisutemu")
-use("deeta")
+use("deeta", [:get_str])
+use("moji", [:occurrences, :replace_first, :strip_prefix])
+
+use(
+  "retsu",
+  [:contains, :count_where, :enumerate, :first, :is_empty, :last, :size]
+)
+
+use("shisutemu", [:read_or, :status_of])
 
 # heni (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
 #

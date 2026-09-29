@@ -1,6 +1,7 @@
-use("ran")
-use("toukei")
-use("kazu")
+use("kazu", [:abs, :clamp, :max])
+use("ran", [:next_float, :stream_seed])
+use("retsu", [:size])
+use("toukei", [:mean])
 
 # tokumei (匿名) — anonymity: learn what a group is without exposing anyone in it.
 #

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:4b6c510cb96b3866ca69579ba25346fb5aec85184b642382ead347a270efbecb",
+  "bluefile_b3": "b3:d06ef63ce8c481403734d1846b81cf1b8953acfa4b4801851fae8f4e99fdb686",
   "manifest": {
     "schema": 1,
     "name": "tokumei",
@@ -8,6 +8,7 @@
     "needs": {
       "kazu": "^0.1.0",
       "ran": "^0.1.0",
+      "retsu": "^0.1.0",
       "toukei": "^0.1.0"
     },
     "when": "anytime",

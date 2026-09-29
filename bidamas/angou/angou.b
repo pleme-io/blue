@@ -1,4 +1,21 @@
-use("retsu")
+use("kazu", [:max])
+
+use(
+  "retsu",
+  [
+    :concat_lists,
+    :contains,
+    :count_of,
+    :first,
+    :flat_map,
+    :index_of,
+    :indexes,
+    :is_empty,
+    :push,
+    :rest,
+    :size
+  ]
+)
 
 # angou (暗号) — number theory and the classical ciphers built on it.
 #

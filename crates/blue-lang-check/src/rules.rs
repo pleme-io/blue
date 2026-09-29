@@ -351,7 +351,7 @@ is checked against the interpreter's own names.",
         witness: "use(\"kagi_a\")\n\nkagi()\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
         waivable: false,
-        ratchet: 4001,
+        ratchet: 3957,
         explanation: "\
 Today every definition of every loaded bidama lands in one global
 environment, so a bare `first` reaches retsu's `first` from any file that

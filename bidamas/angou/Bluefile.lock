@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:49fb8b7d67288bcbcd2348d48cc1a21be02e1b55cec612e5b9ee29660660e51e",
+  "bluefile_b3": "b3:b325274b7fc228a30e6d9583cb07d965f2922bc3f35369724d37497f6c007199",
   "manifest": {
     "schema": 1,
     "name": "angou",
     "version": "0.1.0",
     "needs": {
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

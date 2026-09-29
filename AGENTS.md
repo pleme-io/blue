@@ -20,8 +20,9 @@ definition). Both are generated from the implementation and gated fresh.
 | | |
 |---|---|
 | `blue run file.b` | run a program; `--quiet` drops the final value, `-- a b` passes arguments |
-| `blue test file.b` | run its `test` blocks |
-| `blue check file.b` | the type checker's report |
+| `blue test file.b` | check it, then run its `test` blocks |
+| `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
+| `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue fmt file.b` | print the one formatting; `--write` rewrites, `--check` fails on drift |
 | `blue reference` | the language reference as JSON |
 

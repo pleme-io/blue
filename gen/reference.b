@@ -42,7 +42,7 @@ def rf_code(s)
 end
 
 def rf_table(head, rows)
-  rule = join(map(fn(h) "---" end, head), "|")
+  rule = join(map(fn(_h) "---" end, head), "|")
   lines = concat_lists(
     ["| #{join(head, " | ")} |", "|#{rule}|"],
     map(fn(cells) "| #{join(cells, " | ")} |" end, rows)

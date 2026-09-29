@@ -51,7 +51,7 @@ end
 test "the boundary raises, and a caller can catch it"
   caught = try(port_of("http"), catch(e(), e))
   assert error?(caught)
-  assert try(port_of("22"), catch(e(), :failed)) == 22
+  assert try(port_of("22"), catch(_e(), :failed)) == 22
 end
 
 test "error() alone is a value, not a raise"

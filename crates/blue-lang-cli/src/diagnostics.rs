@@ -267,3 +267,104 @@ pub fn apply_machine_fixes(
     }
     (out, applied)
 }
+
+// ---- `blue ast --resolved --json` -------------------------------------------
+
+/// What one reference binds to, as `ast --resolved --json` prints it.
+#[derive(Serialize)]
+struct TargetJson {
+    /// `local`, `def`, `builtin` or `unbound`.
+    kind: &'static str,
+    /// The defining bidama for a `def`; `null` for the root namespace and
+    /// every other kind.
+    namespace: Option<String>,
+    name: Option<String>,
+    /// The symbol the resolved tree writes: `retsu/first`, `count`.
+    key: Option<String>,
+}
+
+fn target_json(t: &blue_lang_check::names::Target) -> TargetJson {
+    use blue_lang_check::names::Target;
+    use blue_lang_check::Namespace;
+    let key = t.resolved_symbol();
+    match t {
+        Target::Local => TargetJson { kind: "local", namespace: None, name: None, key },
+        Target::Def(ns, n) => TargetJson {
+            kind: "def",
+            namespace: match ns {
+                Namespace::Bidama(p) => Some(p.clone()),
+                _ => None,
+            },
+            name: Some(n.clone()),
+            key,
+        },
+        Target::Builtin(n) => TargetJson { kind: "builtin", namespace: None, name: Some(n.clone()), key },
+        Target::Unbound => TargetJson { kind: "unbound", namespace: None, name: None, key },
+    }
+}
+
+#[derive(Serialize)]
+struct ReferenceJson {
+    #[serde(flatten)]
+    at: Location,
+    top_level: usize,
+    written: String,
+    opaque: bool,
+    flat: TargetJson,
+    ns: TargetJson,
+}
+
+#[derive(Serialize)]
+struct ResolvedJson {
+    /// The entry file's bidama, or `null` for the root namespace.
+    namespace: Option<String>,
+    /// The entry file's top-level forms, resolved under the flat rule.
+    flat: Vec<String>,
+    /// The same forms under per-bidama namespaces.
+    ns: Vec<String>,
+    /// Every non-local reference in the entry file.
+    references: Vec<ReferenceJson>,
+}
+
+/// The entry file's resolution, as one JSON object.
+///
+/// # Errors
+///
+/// Serialization only.
+pub fn resolved_json(
+    checked: &blue_lang_runtime::pipeline::Checked,
+    resolved: &blue_lang_check::names::Resolved,
+) -> Result<String, serde_json::Error> {
+    use blue_lang_check::names::Rule;
+    let program = &checked.program;
+    let entry = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
+    let tree = |rule| -> Vec<String> {
+        resolved
+            .resolved_tree(program.forms(), rule)
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| entry(*i))
+            .map(|(_, f)| f.to_sexp().to_string())
+            .collect()
+    };
+    let file = program.file(ResolvedProgram::ENTRY);
+    let out = ResolvedJson {
+        namespace: file.and_then(|f| f.package.clone()),
+        flat: tree(Rule::Flat),
+        ns: tree(Rule::Namespaced),
+        references: resolved
+            .references
+            .iter()
+            .filter(|r| entry(r.top_level))
+            .map(|r| ReferenceJson {
+                at: Location::of(file, r.span),
+                top_level: r.top_level,
+                written: r.written.clone(),
+                opaque: r.opaque,
+                flat: target_json(&r.flat),
+                ns: target_json(&r.ns),
+            })
+            .collect(),
+    };
+    serde_json::to_string(&out)
+}

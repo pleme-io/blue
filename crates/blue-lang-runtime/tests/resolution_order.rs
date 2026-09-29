@@ -128,3 +128,51 @@ fn a_macro_beats_a_definition_for_a_head() {
         .expect_err("a def named like a stdlib macro cannot be made");
     assert!(err.to_string().contains("bad `lambda`"), "{err}");
 }
+
+/// **Both rules, per reference, for the migration to be proven on.** junjo
+/// calls retsu's `first` and never `use`s retsu: retsu arrives through ronri.
+/// Today's flat rule binds that `first` to retsu's, because retsu's
+/// definition is in the one global environment; per-bidama namespaces bind
+/// it to the builtin, because junjo neither defines nor imports `first`. That
+/// disagreement is exactly what the explicit-reference migration closes.
+///
+/// Red run (2026-09-29): `NameTable::flat_target` made to skip program
+/// definitions: `left: Builtin("first") right: Def(Bidama("retsu"), "first")`.
+#[test]
+fn a_transitive_definition_is_the_flat_binding_and_not_the_namespaced_one() {
+    use blue_lang_check::names::Target;
+    const P: &[(&str, &str)] = &[
+        ("retsu", "def first(xs)\n  nil\nend\n"),
+        ("ronri", "use(\"retsu\")\n\ndef both(a, b)\n  a && b\nend\n"),
+    ];
+    let src = "use(\"ronri\")\n\ndef head(xs)\n  first(xs)\nend\n";
+    let checked =
+        check_entry(Entry::anonymous(src), &Mem(P), None, Checking::Program).expect("check");
+    let resolved = checked.resolve();
+    let first: Vec<_> = resolved
+        .references
+        .iter()
+        .filter(|r| r.written == "first")
+        .collect();
+    assert_eq!(first.len(), 1, "{first:?}");
+    assert_eq!(
+        first[0].flat,
+        Target::Def(Namespace::Bidama("retsu".into()), "first".into())
+    );
+    assert_eq!(first[0].ns, Target::Builtin("first".into()));
+    // The resolved trees say the same, as symbols.
+    use blue_lang_check::names::Rule;
+    let entry_form = |rule| {
+        resolved
+            .resolved_tree(checked.program.forms(), rule)
+            .last()
+            .expect("the entry's def")
+            .to_sexp()
+            .to_string()
+    };
+    assert_eq!(
+        entry_form(Rule::Flat),
+        "(define (%root/head xs) (retsu/first xs))"
+    );
+    assert_eq!(entry_form(Rule::Namespaced), "(define (%root/head xs) (first xs))");
+}

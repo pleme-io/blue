@@ -73,6 +73,18 @@ pub trait Loader {
     /// must name what was looked for, because "package not found" without a
     /// name sends the reader grepping a distribution to find which one.
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String>;
+
+    /// The bidama an ENTRY file at `path` belongs to, if it belongs to one:
+    /// the `package(name, …)` of the Bluefile beside it. `blue test
+    /// bidamas/retsu/retsu.b` checks and runs retsu's own definitions, under
+    /// retsu's namespace, exactly as an importer sees them.
+    ///
+    /// A file with no bidama around it (a script, `spec/*.b`) is in the root
+    /// namespace, and so is every entry a loader without a filesystem is
+    /// handed, which is this default.
+    fn entry_package(&self, _path: &Path) -> Option<String> {
+        None
+    }
 }
 
 /// A loader that resolves nothing, and says so.
@@ -114,8 +126,9 @@ pub struct SourceFile {
     /// an embedder, a test, a WASM host. An imported file always has one,
     /// because a [`Loader`] cannot name a package without naming a place.
     pub path: Option<PathBuf>,
-    /// The bidama this file belongs to — the name `use` was given — or `None`
-    /// for the entry file. The namespace its definitions are resolved under
+    /// The bidama this file belongs to — the name `use` was given, or for the
+    /// entry file its [`Loader::entry_package`] — or `None` for a file in the
+    /// root namespace. The namespace its definitions are resolved under
     /// (`blue_lang_check::Namespace::Bidama`).
     pub package: Option<String>,
     /// The file's text.
@@ -188,7 +201,7 @@ impl ResolvedProgram {
     /// The entry program's own file. Always present; always first.
     pub const ENTRY: FileId = FileId(0);
 
-    fn new(entry: Entry<'_>) -> Self {
+    fn new(entry: Entry<'_>, package: Option<String>) -> Self {
         let mut program = Self {
             forms: Vec::new(),
             owner: Vec::new(),
@@ -196,7 +209,7 @@ impl ResolvedProgram {
         };
         let id = program.intern(
             entry.path.map(Path::to_path_buf),
-            None,
+            package,
             entry.text.to_owned(),
         );
         debug_assert_eq!(id, Self::ENTRY);
@@ -419,8 +432,14 @@ pub fn resolve_uses(
     entry: Entry<'_>,
     loader: &dyn Loader,
 ) -> Result<ResolvedProgram, String> {
-    let mut out = ResolvedProgram::new(entry);
+    let package = entry.path.and_then(|p| loader.entry_package(p));
     let mut seen = BTreeSet::new();
+    // The entry's own bidama is already loaded: it IS the entry. A cycle back
+    // to it must not splice a second copy of its definitions in.
+    if let Some(p) = &package {
+        seen.insert(p.clone());
+    }
+    let mut out = ResolvedProgram::new(entry, package);
     expand(
         forms,
         ResolvedProgram::ENTRY,

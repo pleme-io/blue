@@ -89,3 +89,39 @@ Applies every machine-applicable fix whose edits land in the named file and
 still match their `original`, skips overlapping ones, then re-formats and
 re-checks the file and reports what remains. Suggestions marked
 `maybe-incorrect` are never applied.
+
+## `blue ast --resolved --json`
+
+How every name in a file resolves, under both rules: today's **flat** rule
+(one global environment; the definition evaluated last wins, a builtin only
+when no program form defines the name) and **per-bidama namespaces** (locals,
+then the file's own package, then its explicit imports, then builtins; a
+qualified name exactly). One JSON object on stdout.
+`crates/blue-lang-cli/tests/ast_resolved.rs` pins the exact output and fails
+if a field here is undocumented. A migration is proven on it: a program whose
+`flat` and `ns` trees are equal means the same thing under either rule.
+
+| field | meaning |
+|---|---|
+| `namespace` | the entry file's bidama (from the Bluefile beside it), or `null` for the root namespace |
+| `flat` | the entry file's top-level forms, resolved under the flat rule: each definition renamed to its runtime key (`retsu/first`; `%root/f` for a script) and each reference to what the rule binds it to (a builtin stays bare) |
+| `ns` | the same forms under per-bidama namespaces |
+| `references` | every non-local reference in the entry file |
+
+Each entry of `references` carries the location fields of `blue check` and:
+
+| field | meaning |
+|---|---|
+| `top_level` | the index of the top-level form it is in |
+| `written` | the symbol as the tree has it: `first`, or `retsu/first` for `retsu::first` |
+| `opaque` | inside a macro call's arguments |
+| `flat`, `ns` | what each rule binds it to |
+
+A binding (`flat`, `ns`) has:
+
+| field | meaning |
+|---|---|
+| `kind` | `def` (a program definition), `builtin`, `local` or `unbound` |
+| `namespace` | the defining bidama for a `def`; `null` otherwise, and for the root namespace |
+| `name` | the definition's or builtin's name |
+| `key` | the symbol the resolved tree writes, or `null` when it keeps the written one |

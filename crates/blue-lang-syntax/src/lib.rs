@@ -20,6 +20,7 @@ pub mod forms;
 pub mod kigou;
 pub mod lex;
 pub mod parse;
+pub mod scope;
 pub mod yakugo;
 
 pub use forms::{Form, FORMS};

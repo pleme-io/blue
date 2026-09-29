@@ -114,7 +114,19 @@ enum Cmd {
         write: bool,
     },
     /// Print the tatara-lisp form, annotations intact.
-    Ast { file: PathBuf },
+    ///
+    /// `--resolved` prints the RESOLVED tree instead: every definition renamed
+    /// to its runtime key (`retsu/first`, `%root/f` for a script) and every
+    /// reference to what per-bidama namespaces bind it to (a builtin stays
+    /// bare). `--json` adds, per reference, what today's flat rule and the
+    /// namespace rule each bind it to — the data a migration is proven on.
+    Ast {
+        file: PathBuf,
+        #[arg(long)]
+        resolved: bool,
+        #[arg(long, requires = "resolved")]
+        json: bool,
+    },
     /// Print the tatara-lisp form after type erasure — what actually runs.
     Erase { file: PathBuf },
     /// Check a program against every rule in the registry — unbound names,
@@ -467,9 +479,41 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             })
         }
 
-        Cmd::Ast { file } => {
+        Cmd::Ast {
+            file,
+            resolved: false,
+            ..
+        } => {
             for form in parse(&read(&file)?, &cfg)? {
                 println!("{form}");
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Ast { file, json, .. } => {
+            use blue_lang_runtime::pipeline::{check_entry, Checking};
+            let loader = blue_lang_pkg::load_path::LoadPath::from_env();
+            let src = read_compiled(&file)?;
+            let checked = check_entry(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(&file),
+                    text: &src,
+                },
+                &loader,
+                None,
+                Checking::WithTests,
+            )?;
+            let resolved = checked.resolve();
+            if json {
+                println!("{}", diagnostics::resolved_json(&checked, &resolved)?);
+            } else {
+                let tree =
+                    resolved.resolved_tree(checked.program.forms(), blue_lang_check::names::Rule::Namespaced);
+                for (i, form) in tree.iter().enumerate() {
+                    if checked.program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY) {
+                        println!("{}", form.to_sexp());
+                    }
+                }
             }
             Ok(ExitCode::SUCCESS)
         }

@@ -417,14 +417,16 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
         let Ok(expanded) = interp.fully_expand(form, &mut ()) else {
             continue;
         };
-        let scope = table.scope_mut(namespace_of(program, i));
         for (name, span, kind) in blue_lang_check::names::definitions_of(&expanded) {
-            scope.bind(Binding {
-                name,
-                kind,
-                span: Some(span),
-                top_level: Some(i),
-            });
+            table.define(
+                namespace_of(program, i),
+                Binding {
+                    name,
+                    kind,
+                    span: Some(span),
+                    top_level: Some(i),
+                },
+            );
         }
     }
     for scope in builtins.scopes() {
@@ -552,6 +554,18 @@ pub struct Checked {
     /// The name table the stage resolved against: every program scope, then
     /// the builtins. What an editor completes from.
     pub names: NameTable,
+}
+
+impl Checked {
+    /// Every non-local reference, resolved under both rules — today's flat
+    /// one and per-bidama namespaces — and the resolved trees built from them
+    /// (`blue ast --resolved`).
+    #[must_use]
+    pub fn resolve(&self) -> blue_lang_check::names::Resolved {
+        blue_lang_check::names::resolve_program(self.program.forms(), &self.names, &|i| {
+            namespace_of(&self.program, i)
+        })
+    }
 }
 
 /// Parse, resolve and CHECK, without running: the door for `blue check`,

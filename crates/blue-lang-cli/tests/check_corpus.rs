@@ -214,3 +214,132 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
          update this list deliberately"
     );
 }
+
+/// **One binder grammar: the reach walk and the name table agree on which
+/// names are free, over every file.** `blue_lang_waku::free_names` and the
+/// check stage's table both drive `blue_lang_syntax::scope`; this is the gate
+/// that they are wired to the same answer. A name is free for the reach walk
+/// when no program form binds it and it is not a builtin; for the table, a
+/// reference whose flat target is `Unbound`. The reach walk also counts the
+/// symbols of a quasiquoted template (data at expansion, code after it),
+/// which the table does not resolve, so those are added to the table's side.
+///
+/// Red run (2026-09-29), waku's own binder walk restored behind the same
+/// `free_names` signature: 60 files disagree — a `catch` variable (`e`,
+/// `_e`) and the `catch` clause head reported free, and the `deftest` head
+/// of every file with tests.
+#[test]
+fn the_reach_walk_and_the_name_table_agree_on_free_names() {
+    use std::collections::BTreeSet;
+    let files = corpus();
+    let loader = distribution_loader(&files);
+    let mut disagreements = Vec::new();
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("read");
+        let checked = check_entry(
+            Entry {
+                path: Some(path),
+                text: &text,
+            },
+            &loader,
+            None,
+            Checking::WithTests,
+        )
+        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let forms = checked.program.forms();
+        let table = &checked.names;
+        let program_defined: BTreeSet<String> = table
+            .scopes()
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s.namespace,
+                    blue_lang_check::Namespace::File(_) | blue_lang_check::Namespace::Bidama(_)
+                )
+            })
+            .flat_map(|s| s.bindings().map(|b| b.name.clone()))
+            .collect();
+        // `defmacro` and `define-typed` are heads the pipeline consumes
+        // before evaluation (the expander, erasure), so no interpreter
+        // scope binds them; the reach walk reports every head.
+        let builtin = |n: &str| {
+            matches!(n, "defmacro" | "define-typed")
+                || table.scopes().iter().any(|s| {
+                !matches!(
+                    s.namespace,
+                    blue_lang_check::Namespace::File(_) | blue_lang_check::Namespace::Bidama(_)
+                ) && s.get(n).is_some()
+            })
+        };
+        let reach: BTreeSet<String> = blue_lang_waku::free_names(forms, &|n| {
+            builtin(n) || program_defined.contains(n)
+        });
+        let mut table_free: BTreeSet<String> = checked
+            .resolve()
+            .references
+            .iter()
+            .filter(|r| r.flat == blue_lang_check::names::Target::Unbound)
+            .map(|r| r.written.clone())
+            .collect();
+        table_free.extend(template_symbols(forms).into_iter().filter(|n| {
+            !builtin(n) && !program_defined.contains(n)
+        }));
+        // A template symbol can also be a local of the macro that holds it;
+        // the reach walk binds it, the template scan cannot see frames.
+        let only_reach: Vec<_> = reach.difference(&table_free).cloned().collect();
+        let only_table: Vec<_> = table_free
+            .difference(&reach)
+            .filter(|n| !template_symbols(forms).contains(*n))
+            .cloned()
+            .collect();
+        if !only_reach.is_empty() || !only_table.is_empty() {
+            disagreements.push(format!(
+                "{}: reach only {only_reach:?}, table only {only_table:?}",
+                path.display()
+            ));
+        }
+    }
+    assert!(
+        disagreements.is_empty(),
+        "the two walks disagree:\n{}",
+        disagreements.join("\n")
+    );
+}
+
+/// Every symbol of every quasiquoted template, outside its `unquote`s.
+fn template_symbols(forms: &[blue_lang_syntax::Spanned]) -> std::collections::BTreeSet<String> {
+    use blue_lang_syntax::{Atom, SpannedForm};
+    fn inside(f: &blue_lang_syntax::Spanned, quoted: bool, out: &mut std::collections::BTreeSet<String>) {
+        match &f.form {
+            SpannedForm::Atom(Atom::Symbol(s)) if quoted => {
+                out.insert(s.clone());
+            }
+            SpannedForm::List(items) => items.iter().for_each(|i| inside(i, quoted, out)),
+            SpannedForm::Quasiquote(i) => inside(i, true, out),
+            SpannedForm::Unquote(i) | SpannedForm::UnquoteSplice(i) => inside(i, false, out),
+            _ => {}
+        }
+    }
+    let mut out = std::collections::BTreeSet::new();
+    for f in forms {
+        inside(f, false, &mut out);
+    }
+    out
+}
+
+/// A load path over every distribution in the tree, blue's own first.
+fn distribution_loader(files: &[PathBuf]) -> blue_lang_pkg::load_path::LoadPath {
+    let root = root();
+    let mut roots: Vec<PathBuf> = files
+        .iter()
+        .filter_map(|f| {
+            f.ancestors()
+                .find(|a| a.file_name().is_some_and(|n| n == "bidamas"))
+                .map(Path::to_path_buf)
+        })
+        .collect();
+    roots.sort();
+    roots.dedup();
+    roots.sort_by_key(|r| r != &root.join("bidamas"));
+    blue_lang_pkg::load_path::LoadPath::new(roots)
+}

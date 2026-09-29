@@ -86,6 +86,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use blue_lang_syntax::scope::{self, BinderKind, HeadKind, Scopes};
 use tatara_lisp::{Atom, Span, Spanned, SpannedForm};
 
 use crate::rules::Code;
@@ -110,7 +111,11 @@ pub enum Tier {
 /// re-points this list and [`Namespace::tier`], not the walker.
 pub const RESOLUTION_ORDER: [Tier; 4] = [Tier::Local, Tier::Own, Tier::Imported, Tier::Builtin];
 
-/// Where a name lives. The unit a future qualified name will select.
+/// The qualifier that names a builtin: `blue::count` is the interpreter's
+/// `count`, whatever a program defines.
+pub const BUILTIN_QUALIFIER: &str = "blue";
+
+/// Where a name lives. The unit a qualified name selects.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Namespace {
     /// A parameter or binding of an enclosing function, `let`, or `catch`.
@@ -174,13 +179,9 @@ pub enum Resolution<'t> {
     Unbound,
 }
 
-/// Which of the evaluator's three arbiters a name is bound by.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ScopeKind {
-    SpecialForm,
-    Macro,
-    Value,
-}
+/// Which of the evaluator's three arbiters a name is bound by: the binder
+/// grammar's own [`HeadKind`], so the walker and the table cannot disagree.
+pub use blue_lang_syntax::scope::HeadKind as ScopeKind;
 
 /// One bound name.
 #[derive(Clone, Debug, PartialEq)]
@@ -239,6 +240,9 @@ impl Scope {
 #[derive(Clone, Debug, Default)]
 pub struct NameTable {
     scopes: Vec<Scope>,
+    /// For each program-defined name, the namespace of the definition that
+    /// is evaluated LAST — the one today's single global environment binds.
+    last_definer: BTreeMap<String, (usize, Namespace)>,
 }
 
 /// A "did you mean" candidate: a name, the namespace it lives in, and how far
@@ -280,18 +284,89 @@ impl NameTable {
     pub fn add_program(&mut self, forms: &[Spanned], namespace_of: impl Fn(usize) -> Namespace) {
         for (i, form) in forms.iter().enumerate() {
             let ns = namespace_of(i);
-            let mut found = Vec::new();
-            definitions_in(form, &mut found);
-            let scope = self.scope_mut(ns);
-            for (name, span, kind) in found {
-                scope.bind(Binding {
-                    name,
-                    kind,
-                    span: Some(span),
-                    top_level: Some(i),
-                });
+            for (name, span, kind) in scope::definitions_of(form) {
+                self.define(
+                    ns.clone(),
+                    Binding {
+                        name,
+                        kind,
+                        span: Some(span),
+                        top_level: Some(i),
+                    },
+                );
             }
         }
+    }
+
+    /// Bind a program definition in `ns`, and note it for the flat rule if it
+    /// is evaluated after every earlier definition of its name.
+    pub fn define(&mut self, ns: Namespace, binding: Binding) {
+        if let Some(i) = binding.top_level {
+            let later = self
+                .last_definer
+                .get(&binding.name)
+                .is_none_or(|(prev, _)| i >= *prev);
+            if later {
+                self.last_definer
+                    .insert(binding.name.clone(), (i, ns.clone()));
+            }
+        }
+        self.scope_mut(ns).bind(binding);
+    }
+
+    /// Is `name` bound by the interpreter itself?
+    fn builtin(&self, name: &str) -> bool {
+        self.scopes.iter().any(|s| {
+            matches!(
+                s.namespace,
+                Namespace::Harness | Namespace::SpecialForm | Namespace::Macro | Namespace::Builtin
+            ) && s.get(name).is_some()
+        })
+    }
+
+    /// What today's runtime binds a non-local `name` to: the program
+    /// definition evaluated last, else the builtin. A qualified name is
+    /// lowered to its bare name first, as the flat runtime would see it.
+    #[must_use]
+    pub fn flat_target(&self, name: &str) -> Target {
+        let bare = blue_lang_syntax::qualified(name).map_or(name, |(_, n)| n);
+        if let Some((_, ns)) = self.last_definer.get(bare) {
+            return Target::Def(ns.clone(), bare.to_string());
+        }
+        if self.builtin(bare) {
+            return Target::Builtin(bare.to_string());
+        }
+        Target::Unbound
+    }
+
+    /// What per-bidama namespaces bind a non-local `name` to, referenced from
+    /// `own`: [`RESOLUTION_ORDER`] over `own`'s definitions, the file's
+    /// explicit imports, then builtins; a qualified name exactly.
+    #[must_use]
+    pub fn ns_target(&self, name: &str, own: &Namespace) -> Target {
+        if let Some((pkg, n)) = blue_lang_syntax::qualified(name) {
+            if pkg == BUILTIN_QUALIFIER {
+                return if self.builtin(n) {
+                    Target::Builtin(n.to_string())
+                } else {
+                    Target::Unbound
+                };
+            }
+            let ns = Namespace::Bidama(pkg.to_string());
+            return match self.scopes.iter().find(|s| s.namespace == ns) {
+                Some(s) if s.get(n).is_some() => Target::Def(ns, n.to_string()),
+                _ => Target::Unbound,
+            };
+        }
+        if let Some(s) = self.scopes.iter().find(|s| &s.namespace == own) {
+            if s.get(name).is_some() {
+                return Target::Def(own.clone(), name.to_string());
+            }
+        }
+        if self.builtin(name) {
+            return Target::Builtin(name.to_string());
+        }
+        Target::Unbound
     }
 
     /// Resolve `name` for a reference made from namespace `own`, by
@@ -404,106 +479,23 @@ fn spellable(name: &str) -> bool {
 }
 
 /// The names `form` defines into the frame it is evaluated in, with the
-/// span of each name and whether it is a value or a macro. What
+/// span of each name and whether it is a value or a macro — the binder
+/// grammar's answer (`blue_lang_syntax::scope::definitions_of`). What
 /// [`NameTable::add_program`] reads from each top-level form; public so a
 /// caller that EXPANDS a form first (a top-level call to `defflow`, whose
 /// expansion is a `define`) can bind what the expansion defines.
 #[must_use]
 pub fn definitions_of(form: &Spanned) -> Vec<(String, Span, ScopeKind)> {
-    let mut out = Vec::new();
-    definitions_in(form, &mut out);
-    out
+    scope::definitions_of(form)
 }
 
-/// The names a form defines into the frame it is evaluated in.
-///
-/// A `define` binds in the environment it is EVALUATED in, and every part of
-/// a form is evaluated in the enclosing environment except the parts of a
-/// frame-opening form (`lambda`, a function `define`, `let`, a `catch`
-/// clause, a test body) and quoted data. So this descends into every
-/// sub-form but those: `x = if c … else y = 1 … end` binds `y` in the
-/// function's frame, which is where a later `fn(s) … y … end` reads it.
-fn definitions_in(form: &Spanned, out: &mut Vec<(String, Span, ScopeKind)>) {
-    let Some(items) = form.as_list() else { return };
-    let head = items.first().and_then(Spanned::as_symbol);
-    match head {
-        Some("defmacro") => {
-            if let Some(n) = items.get(1).filter(|n| n.as_symbol().is_some()) {
-                out.push((
-                    n.as_symbol().expect("filtered").to_string(),
-                    n.span,
-                    ScopeKind::Macro,
-                ));
-            }
-        }
-        Some("define" | "define-typed") => {
-            if let Some((name, span)) = defined_name(items) {
-                out.push((name, span, ScopeKind::Value));
-            }
-            // `(define x e)`: `e` is evaluated right here, so its defines are
-            // this frame's too. A function define opens a frame; stop.
-            if items.get(1).is_some_and(|t| t.as_symbol().is_some()) {
-                for item in &items[2..] {
-                    definitions_in(item, out);
-                }
-            }
-        }
-        Some("lambda" | "let" | "let*" | "letrec" | "deftest" | "quote" | "quasiquote") => {}
-        Some("try") => {
-            // The body shares the frame; a `catch` clause opens its own.
-            for item in &items[1..] {
-                let is_clause = item
-                    .as_list()
-                    .and_then(|c| c.first())
-                    .and_then(Spanned::as_symbol)
-                    .is_some_and(|h| h == "catch" || h == "finally");
-                if !is_clause {
-                    definitions_in(item, out);
-                }
-            }
-        }
-        _ => {
-            for item in items {
-                definitions_in(item, out);
-            }
-        }
-    }
-}
-
-/// The name a `define`/`define-typed` form binds, and the span of the name.
-fn defined_name(items: &[Spanned]) -> Option<(String, Span)> {
-    let head = items.first()?.as_symbol()?;
-    if head != "define" && head != "define-typed" {
-        return None;
-    }
-    let target = items.get(1)?;
-    if let Some(n) = target.as_symbol() {
-        return Some((n.to_string(), target.span));
-    }
-    let sig = target.as_list()?;
-    let name = sig.first()?;
-    Some((name.as_symbol()?.to_string(), name.span))
-}
-
-/// What a local was introduced by — for the unused-binding message.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LocalKind {
-    Parameter,
-    Assignment,
-    Function,
-    Let,
-    Catch,
-}
-
-impl LocalKind {
-    fn noun(self) -> &'static str {
-        match self {
-            LocalKind::Parameter => "parameter",
-            LocalKind::Assignment => "binding",
-            LocalKind::Function => "local function",
-            LocalKind::Let => "binding",
-            LocalKind::Catch => "caught error",
-        }
+/// The unused-binding message's noun for what introduced a local.
+fn noun(kind: BinderKind) -> &'static str {
+    match kind {
+        BinderKind::Parameter => "parameter",
+        BinderKind::Assignment | BinderKind::Let => "binding",
+        BinderKind::Function => "local function",
+        BinderKind::Catch => "caught error",
     }
 }
 
@@ -511,9 +503,195 @@ impl LocalKind {
 struct Local {
     name: String,
     span: Span,
-    kind: LocalKind,
+    kind: BinderKind,
     used: bool,
 }
+
+// ---- what a reference is bound to --------------------------------------
+
+/// The qualifier a ROOT namespace's definitions are keyed under at run time:
+/// a script's `def f` is the binding `%root/f`. Not a package name the
+/// surface can spell (`%` starts no identifier), so no package can own it,
+/// and a script's definition can never replace a builtin or a bidama's.
+pub const ROOT_QUALIFIER: &str = "%root";
+
+/// The runtime key of definition `name` in namespace `ns`: `retsu/first`,
+/// or `%root/f` for a script. The one function that says how a definition
+/// is keyed, so the resolved tree and every reader of it agree.
+#[must_use]
+pub fn key(ns: &Namespace, name: &str) -> String {
+    match ns {
+        Namespace::Bidama(p) => blue_lang_syntax::qualify(p, name),
+        _ => format!("{ROOT_QUALIFIER}{}{name}", blue_lang_syntax::QUALIFIER),
+    }
+}
+
+/// What one reference is bound to, under one resolution rule.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Target {
+    /// A parameter or local binding.
+    Local,
+    /// A program definition: the namespace that defines it, and its name.
+    Def(Namespace, String),
+    /// A name the interpreter binds before the program runs.
+    Builtin(String),
+    /// Nothing binds it.
+    Unbound,
+}
+
+impl Target {
+    /// The symbol this reference is written as in the RESOLVED tree: a
+    /// definition's [`key`], a builtin's bare name. `None` leaves the symbol
+    /// as written (a local, or nothing).
+    #[must_use]
+    pub fn resolved_symbol(&self) -> Option<String> {
+        match self {
+            Target::Def(ns, name) => Some(key(ns, name)),
+            Target::Builtin(name) => Some(name.clone()),
+            Target::Local | Target::Unbound => None,
+        }
+    }
+}
+
+impl std::fmt::Display for Target {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Target::Local => f.write_str("local"),
+            Target::Def(ns, name) => write!(f, "{name} ({ns})"),
+            Target::Builtin(name) => write!(f, "{name} (builtin)"),
+            Target::Unbound => f.write_str("unbound"),
+        }
+    }
+}
+
+/// One non-local reference in a program, and what it binds to under both
+/// resolution rules.
+///
+/// **Both rules, side by side, is what the migration is proven on.** `flat`
+/// is what the runtime does today: one global environment, the definition
+/// evaluated last wins, a builtin only when no program form defines the
+/// name. `ns` is per-bidama namespaces: [`RESOLUTION_ORDER`] over this file's
+/// own namespace and its explicit imports, with a qualified name exact. A
+/// program whose every reference has `flat == ns` means the same thing under
+/// either rule.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Reference {
+    /// The top-level form it is in.
+    pub top_level: usize,
+    pub span: Span,
+    /// The symbol as the tree has it: `first`, or `retsu/first` for
+    /// `retsu::first`.
+    pub written: String,
+    /// Inside a macro call's arguments.
+    pub opaque: bool,
+    pub flat: Target,
+    pub ns: Target,
+    /// The node's address in the forms it was resolved over: the join key
+    /// [`resolved_tree`] rewrites by, since spans are not unique (every node
+    /// of an interpolation carries the string's span).
+    node: usize,
+}
+
+/// A top-level definition's name node, keyed.
+#[derive(Clone, Debug)]
+struct DefSite {
+    node: usize,
+    key: String,
+}
+
+/// Every non-local reference in `forms`, resolved both ways, and every
+/// top-level definition site. `namespace_of(i)` is top-level form `i`'s
+/// namespace, as for [`check_names`].
+#[must_use]
+pub fn resolve_program(
+    forms: &[Spanned],
+    table: &NameTable,
+    namespace_of: &dyn Fn(usize) -> Namespace,
+) -> Resolved {
+    let mut w = Walker::new(table, &|_| false);
+    let mut defs = Vec::new();
+    for (i, form) in forms.iter().enumerate() {
+        let ns = namespace_of(i);
+        w.enter(i, ns.clone(), form);
+        scope::walk_top(form, &mut w);
+        scope::definition_nodes(form, &mut |node, _| {
+            if let Some(n) = node.as_symbol() {
+                defs.push(DefSite {
+                    node: std::ptr::from_ref(node) as usize,
+                    key: key(&ns, n),
+                });
+            }
+        });
+    }
+    Resolved {
+        references: w.references,
+        defs,
+    }
+}
+
+/// [`resolve_program`]'s result.
+#[derive(Clone, Debug)]
+pub struct Resolved {
+    pub references: Vec<Reference>,
+    defs: Vec<DefSite>,
+}
+
+/// Which resolution rule a resolved tree is built under.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rule {
+    /// Today's runtime: last definition wins.
+    Flat,
+    /// Per-bidama namespaces.
+    Namespaced,
+}
+
+impl Resolved {
+    /// The references whose two rules disagree: the program means something
+    /// different once namespaces resolve it.
+    pub fn divergent(&self) -> impl Iterator<Item = &Reference> {
+        self.references.iter().filter(|r| r.flat != r.ns)
+    }
+
+    /// `forms` with every definition renamed to its [`key`] and every
+    /// reference to what `rule` binds it to. **Must be given the same forms
+    /// [`resolve_program`] walked**: the rewrite joins on node identity.
+    #[must_use]
+    pub fn resolved_tree(&self, forms: &[Spanned], rule: Rule) -> Vec<Spanned> {
+        let mut map: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
+        for d in &self.defs {
+            map.insert(d.node, d.key.clone());
+        }
+        for r in &self.references {
+            let target = match rule {
+                Rule::Flat => &r.flat,
+                Rule::Namespaced => &r.ns,
+            };
+            if let Some(sym) = target.resolved_symbol() {
+                map.insert(r.node, sym);
+            }
+        }
+        forms.iter().map(|f| rewrite(f, &map)).collect()
+    }
+}
+
+fn rewrite(form: &Spanned, map: &std::collections::HashMap<usize, String>) -> Spanned {
+    let at = std::ptr::from_ref(form) as usize;
+    let inner = match &form.form {
+        SpannedForm::Atom(Atom::Symbol(s)) => {
+            let s = map.get(&at).cloned().unwrap_or_else(|| s.clone());
+            SpannedForm::Atom(Atom::Symbol(s))
+        }
+        SpannedForm::List(items) => SpannedForm::List(items.iter().map(|i| rewrite(i, map)).collect()),
+        SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(rewrite(i, map))),
+        SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(rewrite(i, map))),
+        SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(rewrite(i, map))),
+        SpannedForm::UnquoteSplice(i) => SpannedForm::UnquoteSplice(Box::new(rewrite(i, map))),
+        other => other.clone(),
+    };
+    Spanned::new(form.span, inner)
+}
+
+// ---- the walker ----------------------------------------------------------
 
 /// What the walker reports into.
 struct Walker<'t> {
@@ -523,12 +701,14 @@ struct Walker<'t> {
     frames: Vec<Vec<Local>>,
     top_level: usize,
     report_unused: bool,
+    unused_for: &'t dyn Fn(usize) -> bool,
     /// Every symbol written in the current top-level form, so a rename fix
     /// can prove its new name is not already in use there.
     symbols: BTreeSet<String>,
     diagnostics: Vec<Diagnostic>,
     /// Names resolved, for the report.
     resolved: usize,
+    references: Vec<Reference>,
 }
 
 /// Names the parser synthesizes. Never reported unused: the author did not
@@ -553,24 +733,11 @@ pub fn check_names(
     namespace_of: &dyn Fn(usize) -> Namespace,
     report_unused: &dyn Fn(usize) -> bool,
 ) -> (Vec<Diagnostic>, usize) {
-    let mut w = Walker {
-        table,
-        own: Namespace::Local,
-        frames: Vec::new(),
-        top_level: 0,
-        report_unused: false,
-        symbols: BTreeSet::new(),
-        diagnostics: Vec::new(),
-        resolved: 0,
-    };
+    let mut w = Walker::new(table, report_unused);
     for (i, form) in forms.iter().enumerate() {
-        w.top_level = i;
-        w.own = namespace_of(i);
-        w.report_unused = report_unused(i);
-        w.symbols.clear();
-        collect_symbols(form, &mut w.symbols);
+        w.enter(i, namespace_of(i), form);
         // A top-level form's own defines are globals, already in `table`.
-        w.walk(form, false);
+        scope::walk_top(form, &mut w);
     }
     (w.diagnostics, w.resolved)
 }
@@ -589,7 +756,31 @@ fn collect_symbols(form: &Spanned, out: &mut BTreeSet<String>) {
     }
 }
 
-impl Walker<'_> {
+impl<'t> Walker<'t> {
+    fn new(table: &'t NameTable, unused_for: &'t dyn Fn(usize) -> bool) -> Self {
+        Walker {
+            table,
+            own: Namespace::Local,
+            frames: Vec::new(),
+            top_level: 0,
+            report_unused: false,
+            unused_for,
+            symbols: BTreeSet::new(),
+            diagnostics: Vec::new(),
+            resolved: 0,
+            references: Vec::new(),
+        }
+    }
+
+    /// Start top-level form `i`.
+    fn enter(&mut self, i: usize, own: Namespace, form: &Spanned) {
+        self.top_level = i;
+        self.own = own;
+        self.report_unused = (self.unused_for)(i);
+        self.symbols.clear();
+        collect_symbols(form, &mut self.symbols);
+    }
+
     fn locals_in_scope(&self) -> Vec<&str> {
         self.frames
             .iter()
@@ -609,13 +800,28 @@ impl Walker<'_> {
         false
     }
 
+    /// Record a non-local reference under both rules.
+    fn record(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        self.references.push(Reference {
+            top_level: self.top_level,
+            span: node.span,
+            written: name.to_string(),
+            opaque,
+            flat: self.table.flat_target(name),
+            ns: self.table.ns_target(name, &self.own),
+            node: std::ptr::from_ref(node) as usize,
+        });
+    }
+
     /// A reference to `name` at `span`. `opaque`: inside a macro's arguments,
     /// where an unresolved name is not reported.
-    fn reference(&mut self, name: &str, span: Span, opaque: bool) {
+    fn reference_at(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        let span = node.span;
         if self.read_local(name) {
             self.resolved += 1;
             return;
         }
+        self.record(node, name, opaque);
         match self.table.resolve_from(name, &self.own) {
             Resolution::Found { .. } => {
                 self.resolved += 1;
@@ -693,12 +899,18 @@ impl Walker<'_> {
         }
         self.diagnostics.push(d);
     }
+}
 
-    fn push_frame(&mut self) {
+impl Scopes for Walker<'_> {
+    fn head_kind(&self, name: &str) -> Option<HeadKind> {
+        self.table.head_kind(name)
+    }
+
+    fn open(&mut self) {
         self.frames.push(Vec::new());
     }
 
-    fn bind(&mut self, name: &str, span: Span, kind: LocalKind) {
+    fn bind(&mut self, name: &str, span: Span, kind: BinderKind) {
         let frame = self.frames.last_mut().expect("bind with a frame open");
         // A second `define` of a name already in THIS frame (`x = x + 1`) is a
         // write to the same binding, not a new one.
@@ -713,8 +925,8 @@ impl Walker<'_> {
         });
     }
 
-    fn pop_frame(&mut self) {
-        let frame = self.frames.pop().expect("pop with a frame open");
+    fn close(&mut self) {
+        let frame = self.frames.pop().expect("close with a frame open");
         if !self.report_unused {
             return;
         }
@@ -725,7 +937,7 @@ impl Walker<'_> {
             let renamed = format!("_{}", l.name);
             let mut d = Diagnostic::new(
                 Code::B0002,
-                format!("{} `{}` is never read", l.kind.noun(), l.name),
+                format!("{} `{}` is never read", noun(l.kind), l.name),
                 l.span,
             )
             .at_top_level(self.top_level)
@@ -749,314 +961,27 @@ impl Walker<'_> {
         }
     }
 
-    /// Bind, in the current frame, every `define` a body reaches without
-    /// crossing a frame boundary — so a body can read a local defined later in
-    /// it, as a closure over the frame can at runtime.
-    fn hoist(&mut self, body: &[Spanned]) {
-        let mut found = Vec::new();
-        for f in body {
-            definitions_in(f, &mut found);
-        }
-        for (name, span, kind) in found {
-            let lk = match kind {
-                ScopeKind::Value => LocalKind::Assignment,
-                _ => LocalKind::Function,
-            };
-            self.bind(&name, span, lk);
-        }
-        // A `(define (f …) …)` is a local FUNCTION, which reads better in the
-        // warning than "binding".
-        for f in body {
-            if let Some(items) = f.as_list() {
-                if items.first().and_then(Spanned::as_symbol) == Some("define")
-                    && items.get(1).is_some_and(|t| t.as_list().is_some())
-                {
-                    if let Some((name, _)) = defined_name(items) {
-                        if let Some(l) = self
-                            .frames
-                            .last_mut()
-                            .and_then(|fr| fr.iter_mut().find(|l| l.name == name))
-                        {
-                            l.kind = LocalKind::Function;
-                        }
-                    }
-                }
-            }
-        }
+    fn reference(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        self.reference_at(node, name, opaque);
     }
 
-    /// Walk a body: a new frame, its defines hoisted, each form walked.
-    fn body(&mut self, params: &[(String, Span)], forms: &[Spanned], opaque: bool) {
-        self.push_frame();
-        for (p, s) in params {
-            self.bind(p, *s, LocalKind::Parameter);
-        }
-        self.hoist(forms);
-        for f in forms {
-            self.walk(f, opaque);
-        }
-        self.pop_frame();
-    }
-
-    fn walk(&mut self, form: &Spanned, opaque: bool) {
-        match &form.form {
-            SpannedForm::Atom(Atom::Symbol(n)) => self.reference(n, form.span, opaque),
-            SpannedForm::Quote(_) => {}
-            SpannedForm::Quasiquote(inner) => self.walk_template(inner, opaque),
-            SpannedForm::Unquote(inner) | SpannedForm::UnquoteSplice(inner) => {
-                self.walk(inner, opaque);
-            }
-            SpannedForm::List(items) if !items.is_empty() => self.walk_list(form, items, opaque),
-            _ => {}
-        }
-    }
-
-    /// Inside a quasiquote only the unquoted parts are code.
-    fn walk_template(&mut self, form: &Spanned, opaque: bool) {
-        match &form.form {
-            SpannedForm::Unquote(inner) | SpannedForm::UnquoteSplice(inner) => {
-                self.walk(inner, opaque);
-            }
-            SpannedForm::List(items) => {
-                for i in items {
-                    self.walk_template(i, opaque);
-                }
-            }
-            SpannedForm::Quasiquote(inner) => self.walk_template(inner, opaque),
-            _ => {}
-        }
-    }
-
-    fn walk_all(&mut self, items: &[Spanned], opaque: bool) {
-        for i in items {
-            self.walk(i, opaque);
-        }
-    }
-
-    #[allow(clippy::too_many_lines)]
-    fn walk_list(&mut self, form: &Spanned, items: &[Spanned], opaque: bool) {
-        let Some(head) = items[0].as_symbol() else {
-            self.walk_all(items, opaque);
-            return;
-        };
-        let _ = form;
-        // `deftest` is the test harness's declaration, not a special form: a
-        // body, run in a frame of its own.
-        if head == "deftest" && self.frames.is_empty() {
-            if let Some(body) = items.get(2) {
-                self.body(&[], std::slice::from_ref(body), opaque);
-            }
-            return;
-        }
-        // `define-typed` is erased before evaluation; its shape is `define`'s
-        // with each parameter written `(name Type)`.
-        if head == "define" || head == "define-typed" {
-            self.walk_define(head, items, opaque);
-            return;
-        }
-        // `defmacro` is registered by the expander before evaluation, not
-        // dispatched as a special form, so no arbiter claims it as a head.
-        // `(defmacro name (params) body…)`.
-        if head == "defmacro" && self.frames.is_empty() {
-            let params = items.get(2).map(params_of).unwrap_or_default();
-            self.body(&params, items.get(3..).unwrap_or(&[]), opaque);
-            return;
-        }
-        match self.table.head_kind(head) {
-            Some(ScopeKind::SpecialForm) => self.walk_special(head, items, opaque),
-            Some(ScopeKind::Macro) => {
-                // Opaque: a macro's arguments are syntax. See the module docs.
+    fn head(&mut self, node: &Spanned, name: &str, kind: HeadKind) {
+        match kind {
+            // A macro head is a reference to the macro: a program's own
+            // `defmacro` is keyed like any definition.
+            HeadKind::Macro => {
                 self.resolved += 1;
-                for i in &items[1..] {
-                    self.walk(i, true);
+                if !self.frames.iter().any(|f| f.iter().any(|l| l.name == name)) {
+                    self.record(node, name, false);
                 }
             }
-            Some(ScopeKind::Value) | None => {
-                self.walk(&items[0], opaque);
-                self.walk_all(&items[1..], opaque);
+            HeadKind::SpecialForm if !matches!(name, "define" | "define-typed" | "defmacro") => {
+                self.resolved += 1;
             }
+            _ => {}
         }
-    }
-
-    fn walk_define(&mut self, head: &str, items: &[Spanned], opaque: bool) {
-        let Some(target) = items.get(1) else { return };
-        if target.as_symbol().is_some() {
-            // `(define x e)`: `x` is already bound (hoisted, or a global).
-            self.walk_all(&items[2..], opaque);
-            return;
-        }
-        let Some(sig) = target.as_list() else {
-            self.walk_all(&items[1..], opaque);
-            return;
-        };
-        let params: Vec<(String, Span)> = sig
-            .iter()
-            .skip(1)
-            .filter_map(|p| {
-                if head == "define-typed" {
-                    let pair = p.as_list()?;
-                    let n = pair.first()?;
-                    Some((n.as_symbol()?.to_string(), n.span))
-                } else {
-                    param(p)
-                }
-            })
-            .collect();
-        // `(define-typed sig R body)`: the return type is not code.
-        let body_from = if head == "define-typed" { 3 } else { 2 };
-        self.body(&params, items.get(body_from..).unwrap_or(&[]), opaque);
-    }
-
-    #[allow(clippy::too_many_lines)]
-    fn walk_special(&mut self, head: &str, items: &[Spanned], opaque: bool) {
-        self.resolved += 1;
-        let args = &items[1..];
-        match head {
-            "quote" | "provide" | "require" => {}
-            "quasiquote" => {
-                for a in args {
-                    self.walk_template(a, opaque);
-                }
-            }
-            "lambda" => {
-                let params = args.first().map(params_of).unwrap_or_default();
-                self.body(&params, args.get(1..).unwrap_or(&[]), opaque);
-            }
-            "cond" => {
-                for clause in args {
-                    match clause.as_list() {
-                        Some(parts) => {
-                            let rest = match parts.first().and_then(Spanned::as_symbol) {
-                                Some("else") => &parts[1..],
-                                _ => parts,
-                            };
-                            for p in rest {
-                                if p.as_symbol() != Some("=>") {
-                                    self.walk(p, opaque);
-                                }
-                            }
-                        }
-                        None => self.walk(clause, opaque),
-                    }
-                }
-            }
-            "let" | "let*" | "letrec" => self.walk_let(head, args, opaque),
-            "try" => {
-                for a in args {
-                    let clause = a.as_list();
-                    match clause.and_then(|c| c.first()).and_then(Spanned::as_symbol) {
-                        Some("catch") => {
-                            let c = clause.expect("matched");
-                            let var = c.get(1).and_then(|v| {
-                                v.as_list()
-                                    .and_then(|l| l.first())
-                                    .and_then(|s| s.as_symbol().map(|n| (n.to_string(), s.span)))
-                                    .or_else(|| v.as_symbol().map(|n| (n.to_string(), v.span)))
-                            });
-                            self.push_frame();
-                            if let Some((n, s)) = var {
-                                self.bind(&n, s, LocalKind::Catch);
-                            }
-                            self.walk_all(c.get(2..).unwrap_or(&[]), opaque);
-                            self.pop_frame();
-                        }
-                        Some("finally") => {
-                            let c = clause.expect("matched");
-                            self.walk_all(&c[1..], opaque);
-                        }
-                        _ => self.walk(a, opaque),
-                    }
-                }
-            }
-            // if, when, unless, and, or, not, begin, set!, delay, eval,
-            // macroexpand, macroexpand-1: every part is an expression.
-            _ => self.walk_all(args, opaque),
-        }
-    }
-
-    fn walk_let(&mut self, head: &str, args: &[Spanned], opaque: bool) {
-        // Named let: `(let name ((a e) …) body…)`.
-        let (name, rest) = match args.first() {
-            Some(n) if n.as_symbol().is_some() && head == "let" => (Some(n), &args[1..]),
-            _ => (None, args),
-        };
-        let Some(bindings) = rest.first().and_then(Spanned::as_list) else {
-            self.walk_all(rest, opaque);
-            return;
-        };
-        let pairs: Vec<(String, Span, Option<&Spanned>)> = bindings
-            .iter()
-            .filter_map(|b| match b.as_list() {
-                Some(pair) => {
-                    let n = pair.first()?;
-                    Some((n.as_symbol()?.to_string(), n.span, pair.get(1)))
-                }
-                None => b.as_symbol().map(|n| (n.to_string(), b.span, None)),
-            })
-            .collect();
-        let body = rest.get(1..).unwrap_or(&[]);
-        if head == "let" {
-            // Inits see the OUTER scope: walk them before the frame opens.
-            for (_, _, init) in &pairs {
-                if let Some(e) = init {
-                    self.walk(e, opaque);
-                }
-            }
-        }
-        self.push_frame();
-        match head {
-            "let" => {
-                if let Some(n) = name {
-                    self.bind(n.as_symbol().expect("matched"), n.span, LocalKind::Function);
-                }
-                for (n, s, _) in &pairs {
-                    self.bind(n, *s, LocalKind::Let);
-                }
-            }
-            "let*" => {
-                for (n, s, init) in &pairs {
-                    if let Some(e) = init {
-                        self.walk(e, opaque);
-                    }
-                    self.bind(n, *s, LocalKind::Let);
-                }
-            }
-            _ => {
-                for (n, s, _) in &pairs {
-                    self.bind(n, *s, LocalKind::Let);
-                }
-                for (_, _, init) in &pairs {
-                    if let Some(e) = init {
-                        self.walk(e, opaque);
-                    }
-                }
-            }
-        }
-        self.hoist(body);
-        self.walk_all(body, opaque);
-        self.pop_frame();
     }
 }
-
-/// A lambda parameter list: symbols, skipping `&rest`/`&optional`/`.`
-/// markers; a bare symbol is a variadic parameter.
-fn params_of(list: &Spanned) -> Vec<(String, Span)> {
-    if let Some(n) = list.as_symbol() {
-        return vec![(n.to_string(), list.span)];
-    }
-    list.as_list()
-        .map(|ps| ps.iter().filter_map(param).collect())
-        .unwrap_or_default()
-}
-
-fn param(p: &Spanned) -> Option<(String, Span)> {
-    let n = p.as_symbol()?;
-    if n.starts_with('&') || n == "." {
-        return None;
-    }
-    Some((n.to_string(), p.span))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

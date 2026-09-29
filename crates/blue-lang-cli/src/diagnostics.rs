@@ -316,6 +316,15 @@ struct ReferenceJson {
 }
 
 #[derive(Serialize)]
+struct ImportJson {
+    #[serde(flatten)]
+    at: Location,
+    package: String,
+    /// The names listed for bare use; empty for a whole-package `use`.
+    names: Vec<String>,
+}
+
+#[derive(Serialize)]
 struct ResolvedJson {
     /// The entry file's bidama, or `null` for the root namespace.
     namespace: Option<String>,
@@ -325,6 +334,11 @@ struct ResolvedJson {
     ns: Vec<String>,
     /// Every non-local reference in the entry file.
     references: Vec<ReferenceJson>,
+    /// The entry file's `use` declarations.
+    imports: Vec<ImportJson>,
+    /// The first line of the entry file's first top-level form, `null` for
+    /// a file with none: where a first `use` goes.
+    first_line: Option<usize>,
 }
 
 /// The entry file's resolution, as one JSON object.
@@ -366,6 +380,22 @@ pub fn resolved_json(
                 ns: target_json(&r.ns),
             })
             .collect(),
+        imports: program
+            .imports()
+            .iter()
+            .filter(|(f, _)| *f == ResolvedProgram::ENTRY)
+            .map(|(_, u)| ImportJson {
+                at: Location::of(file, u.span),
+                package: u.package.clone(),
+                names: u.names.iter().map(|(n, _)| n.clone()).collect(),
+            })
+            .collect(),
+        first_line: program
+            .forms()
+            .iter()
+            .enumerate()
+            .find(|(i, _)| entry(*i))
+            .and_then(|(_, f)| Location::of(file, f.span).line),
     };
     serde_json::to_string(&out)
 }

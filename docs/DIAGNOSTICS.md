@@ -129,6 +129,8 @@ if a field here is undocumented. A migration is proven on it: a program whose
 | `flat` | the entry file's top-level forms, resolved under the flat rule: each definition renamed to its runtime key (`retsu/first`; `%root/f` for a script) and each reference to what the rule binds it to (a builtin stays bare) |
 | `ns` | the same forms under per-bidama namespaces |
 | `references` | every non-local reference in the entry file |
+| `imports` | the entry file's `use` declarations: the location fields, `package`, and `names` (the list, empty for a whole-package `use`) |
+| `first_line` | the first line of the entry file's first top-level form, or `null` |
 
 Each entry of `references` carries the location fields of `blue check` and:
 

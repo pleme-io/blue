@@ -50,6 +50,9 @@
 //! it is how a reader sees that annotations are consumed rather than carried.
 
 mod census;
+
+/// `blue migrate`'s program: blue, over builtins only.
+const MIGRATE: &str = include_str!("../blue/migrate.b");
 mod config;
 mod diagnostics;
 mod prefetch;
@@ -150,6 +153,15 @@ enum Cmd {
         /// check again. Suggestions marked maybe-incorrect are never applied.
         #[arg(long)]
         fix: bool,
+    },
+    /// Make every reference each FILE makes to another bidama's definition
+    /// explicit (`use("retsu", [:first])`, and the bidama's `needs`), keeping
+    /// a file only when its resolved tree is proven unchanged. The tool is
+    /// the blue program `crates/blue-lang-cli/blue/migrate.b`, compiled into
+    /// this binary.
+    Migrate {
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
     },
     /// Count, over every `.b` file under ROOT, each finding of every rule
     /// still being ratcheted in, and fail unless each count equals its
@@ -545,6 +557,22 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Check { file, format, fix } => check(&file, format, fix),
+
+        Cmd::Migrate { files } => {
+            blue_lang_runtime::sys::set_program_args(
+                files.iter().map(|f| f.display().to_string()).collect(),
+            );
+            blue_lang_runtime::pipeline::run_in_surface(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(Path::new("crates/blue-lang-cli/blue/migrate.b")),
+                    text: MIGRATE,
+                },
+                blue_lang_runtime::inputs::Inputs::new(),
+                &blue_lang_runtime::uses::NoLoader,
+                None,
+            )?;
+            Ok(ExitCode::SUCCESS)
+        }
 
         Cmd::Census { root, findings } => {
             let c = census::take(&root).map_err(CliError::Pkg)?;

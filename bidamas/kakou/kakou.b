@@ -1,9 +1,81 @@
-use("retsu")
-use("kazu")
-use("gyouretsu")
-use("kikagaku")
-use("rittai")
-use("zumen")
+use(
+  "gyouretsu",
+  [
+    :angle_between,
+    :cross_product,
+    :dot,
+    :scale,
+    :transpose,
+    :vadd,
+    :vdistance,
+    :vector_near,
+    :vsub
+  ]
+)
+
+use("kazu", [:abs, :max, :near, :near_within, :square, :sum])
+
+use(
+  "kikagaku",
+  [
+    :arc_points,
+    :boundary_gap,
+    :bounding_box,
+    :circle_polygon,
+    :distance,
+    :midpoint,
+    :pi,
+    :polygon_inside,
+    :px,
+    :py,
+    :rect_polygon,
+    :region,
+    :region_area,
+    :region_outline,
+    :region_refusals,
+    :regular_polygon_area
+  ]
+)
+
+use(
+  "retsu",
+  [
+    :concat_lists,
+    :contains,
+    :count_of,
+    :find_first,
+    :first,
+    :flat_map,
+    :index_of,
+    :indexes,
+    :is_empty,
+    :last,
+    :size
+  ]
+)
+
+use(
+  "rittai",
+  [
+    :rt_bounds,
+    :rt_drop_faces,
+    :rt_extrude,
+    :rt_extrude_wall_faces,
+    :rt_merge,
+    :rt_mesh_refusals,
+    :rt_pose,
+    :rt_pose_along,
+    :rt_sweep,
+    :rt_transform,
+    :rt_volume,
+    :rt_weld
+  ]
+)
+
+use(
+  "zumen",
+  [:zu_dim, :zu_kind, :zu_layer, :zu_line, :zu_num, :zu_region, :zu_text]
+)
 
 # kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 #

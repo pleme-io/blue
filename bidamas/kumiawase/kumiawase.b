@@ -1,4 +1,4 @@
-use("kazu")
+use("kazu", [:abs, :is_zero, :max_of, :sum])
 
 # kumiawase (組み合わせ) — counting without enumerating.
 #

@@ -113,7 +113,7 @@ def rf_note(redefined, name)
   if hit == nil || is_empty(last(hit))
     ""
   else
-    " Redefined by #{join(map(fn(p) "`#{p}`" end, last(hit)), ", ")} when imported."
+    " Also defined by #{join(map(fn(p) "`#{p}` (`#{p}::#{name}`)" end, last(hit)), ", ")}: a file that lists it gets that one."
   end
 end
 

@@ -96,7 +96,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `abs` | `abs(x)` | 1 | Absolute value, keeping Int or Float. Redefined by `kazu` when imported. |
+| `abs` | `abs(x)` | 1 | Absolute value, keeping Int or Float. Also defined by `kazu` (`kazu::abs`): a file that lists it gets that one. |
 | `acos` | `acos(x)` | 1 | Arccosine; refuses x outside [-1, 1] rather than returning NaN. |
 | `asin` | `asin(x)` | 1 | Arcsine; refuses x outside [-1, 1] rather than returning NaN. |
 | `atan` | `atan(x)` | 1 | Arctangent in radians. |
@@ -113,8 +113,8 @@ Higher binding power binds tighter.
 | `inc` | `inc(x)` | 1 | x + 1. |
 | `lcm` | `lcm(xs...)` | 0+ | Least common multiple of the arguments. |
 | `log` | `log(x[, base])` | 1..2 | Natural logarithm, or log to base: log(100, 10) is 2.0. |
-| `max` | `max(x, more...)` | 1+ | The largest argument. Takes numbers, not a list: apply(max, xs). Redefined by `kazu` when imported. |
-| `min` | `min(x, more...)` | 1+ | The smallest argument. Takes numbers, not a list: apply(min, xs). Redefined by `kazu` when imported. |
+| `max` | `max(x, more...)` | 1+ | The largest argument. Takes numbers, not a list: apply(max, xs). Also defined by `kazu` (`kazu::max`): a file that lists it gets that one. |
+| `min` | `min(x, more...)` | 1+ | The smallest argument. Takes numbers, not a list: apply(min, xs). Also defined by `kazu` (`kazu::min`): a file that lists it gets that one. |
 | `mod` | `mod(a, b)` | 2 | Euclidean remainder, never negative; what % lowers to. |
 | `modulo` | `modulo(a, b)` | 2 | The same as mod. |
 | `rem` | `rem(a, b)` | 2 | The same as mod here: mod(-7, 3), modulo and rem are all 2. |
@@ -157,30 +157,30 @@ Higher binding power binds tighter.
 | `count` | `count(xs)` | 1 | The number of elements; 0 for nil. |
 | `distinct` | `distinct(xs)` | 1 | The elements with repeats removed, first occurrence kept, compared with ==. |
 | `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. |
-| `first` | `first(xs)` | 1 | The first element; raises on []. retsu's first answers nil. Redefined by `retsu` when imported. |
+| `first` | `first(xs)` | 1 | The first element; raises on []. retsu's first answers nil. Also defined by `retsu` (`retsu::first`): a file that lists it gets that one. |
 | `flatten` | `flatten(xs)` | 1 | Every nested list spliced in, to any depth. |
 | `fourth` | `fourth(xs)` | 1 | The fourth element; raises when there is none. |
-| `frequencies` | `frequencies(xs)` | 1 | A map from each element to how many times it occurs. Redefined by `shuugou` when imported. |
-| `interleave` | `interleave(xs, ys)` | 2 | [x1, y1, x2, y2, …], as long as the shorter list allows. Redefined by `retsu` when imported. |
+| `frequencies` | `frequencies(xs)` | 1 | A map from each element to how many times it occurs. Also defined by `shuugou` (`shuugou::frequencies`): a file that lists it gets that one. |
+| `interleave` | `interleave(xs, ys)` | 2 | [x1, y1, x2, y2, …], as long as the shorter list allows. Also defined by `retsu` (`retsu::interleave`): a file that lists it gets that one. |
 | `intersperse` | `intersperse(sep, xs)` | 2 | xs with sep between each pair. The SEPARATOR comes first. |
 | `iterate` | `iterate(f, x, n)` | 3 | [x, f(x), f(f(x)), …], n elements. |
-| `last` | `last(xs)` | 1 | The last element; raises on []. retsu's last answers nil. Redefined by `retsu` when imported. |
+| `last` | `last(xs)` | 1 | The last element; raises on []. retsu's last answers nil. Also defined by `retsu` (`retsu::last`): a file that lists it gets that one. |
 | `length` | `length(xs)` | 1 | The length of a list or string. Raises on nil: retsu's size(xs) is total. |
 | `list` | `list(xs...)` | any | A list of the arguments. Written [a, b]. |
 | `member?` | `member?(x, xs)` | 2 | Whether some element == x. The ELEMENT comes first. |
 | `next` | `next(xs)` | 1 | All but the first; raises on []. |
 | `nth` | `nth(i, xs)` | 2 | The element at index i, from 0; nil past either end. The INDEX comes first. |
-| `partition` | `partition(f, xs)` | 2 | [kept, rejected]: the elements f accepts, then the rest. Redefined by `retsu` when imported. |
+| `partition` | `partition(f, xs)` | 2 | [kept, rejected]: the elements f accepts, then the rest. Also defined by `retsu` (`retsu::partition`): a file that lists it gets that one. |
 | `position` | `position(x, xs)` | 2 | The index of the first element == x, or -1. |
 | `range` | `range(a[, b][, step])` | 1..3 | Ints from a up to but not including b by step; range(n) is 0 to n - 1. Native, so any length is safe. |
 | `repeatedly` | `repeatedly(f, n)` | 2 | A list of n calls to the zero-argument function f. The FUNCTION comes first. |
-| `rest` | `rest(xs)` | 1 | All but the first; raises on []. retsu's rest answers []. Redefined by `retsu` when imported. |
+| `rest` | `rest(xs)` | 1 | All but the first; raises on []. retsu's rest answers []. Also defined by `retsu` (`retsu::rest`): a file that lists it gets that one. |
 | `reverse` | `reverse(xs)` | 1 | The list or string backwards. Raises on nil. |
 | `second` | `second(xs)` | 1 | The second element; raises when there is none. |
 | `sort_keyed` | `sort_keyed(key, xs)` | 2 | A stable sort by key(x), under compare's rules; native, so safe at any length. Mixed key kinds raise. |
 | `take` | `take(n, xs)` | 2 | The first n elements, or all of them. The COUNT comes first. |
 | `third` | `third(xs)` | 1 | The third element; raises when there is none. |
-| `zip` | `zip(xs, ys)` | 2 | [[x1, y1], [x2, y2], …], as long as the shorter list. Redefined by `retsu` when imported. |
+| `zip` | `zip(xs, ys)` | 2 | [[x1, y1], [x2, y2], …], as long as the shorter list. Also defined by `retsu` (`retsu::zip`): a file that lists it gets that one. |
 
 ### Maps
 
@@ -198,25 +198,25 @@ Higher binding power binds tighter.
 | `any?` | `any?(f, xs)` | 2 | Whether f accepts some element; false for []. |
 | `apply` | `apply(f, args..., xs)` | 2+ | Call f with the elements of the last list as its arguments: apply(max, [3, 1]). |
 | `comp` | `comp(f, g)` | 2 | The function x -> f(g(x)). |
-| `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Redefined by `kansuu` when imported. |
+| `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `kansuu` (`kansuu::compose`): a file that lists it gets that one. |
 | `const` | `const(x)` | 1 | A function that ignores its argument and returns x. |
 | `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
 | `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
 | `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. |
 | `find` | `find(f, xs)` | 2 | The first element f accepts, or nil. |
-| `flip` | `flip(f)` | 1 | f with its two arguments swapped. Redefined by `kansuu` when imported. |
+| `flip` | `flip(f)` | 1 | f with its two arguments swapped. Also defined by `kansuu` (`kansuu::flip`): a file that lists it gets that one. |
 | `foldl` | `foldl(f, init, xs)` | 3 | reduce with an init: f(acc, x) from the left. |
 | `foldr` | `foldr(f, init, xs)` | 3 | Fold from the right: f(x, acc). |
-| `identity` | `identity(x)` | 1 | x. Redefined by `kansuu` when imported. |
-| `juxt` | `juxt(fs...)` | 0+ | The function x -> [f(x), g(x), …]. Redefined by `kansuu` when imported. |
+| `identity` | `identity(x)` | 1 | x. Also defined by `kansuu` (`kansuu::identity`): a file that lists it gets that one. |
+| `juxt` | `juxt(fs...)` | 0+ | The function x -> [f(x), g(x), …]. Also defined by `kansuu` (`kansuu::juxt`): a file that lists it gets that one. |
 | `map` | `map(f, xs, more...)` | 2+ | f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to []. |
 | `memoize` | `memoize(f)` | 1 | f, remembering each argument's answer. |
 | `partial` | `partial(f, args...)` | 1+ | f with its first arguments fixed: partial(f, 1)(2) is f(1, 2). |
-| `pipe` | `pipe(fs...)` | 0+ | Left to right: pipe(f, g)(x) is g(f(x)). Redefined by `kansuu` when imported. |
+| `pipe` | `pipe(fs...)` | 0+ | Left to right: pipe(f, g)(x) is g(f(x)). Also defined by `kansuu` (`kansuu::pipe`): a file that lists it gets that one. |
 | `reduce` | `reduce(f, [init, ]xs)` | 2..3 | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |
-| `remove` | `remove(f, xs)` | 2 | The elements f rejects. Redefined by `shuugou` when imported. |
+| `remove` | `remove(f, xs)` | 2 | The elements f rejects. Also defined by `shuugou` (`shuugou::remove`): a file that lists it gets that one. |
 | `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). |
-| `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Redefined by `kansuu` when imported. |
+| `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
 | `visit` | `visit(f, x)` | 2 | f(x). |
 
 ### Predicates

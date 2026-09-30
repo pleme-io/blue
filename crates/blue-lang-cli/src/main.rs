@@ -1077,10 +1077,15 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
         }
     }
     let mut checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
-    if fix {
+    // A fix can expose the next one (a moved name's fix leaves the old
+    // package's `use` unreached), so fix until nothing applies, bounded.
+    for _ in 0..if fix { 4 } else { 0 } {
         let (fixed, applied) =
             diagnostics::apply_machine_fixes(&checked.program, &checked.outcome, &src);
-        if applied > 0 {
+        if applied == 0 {
+            break;
+        }
+        {
             std::fs::write(file, &fixed).map_err(|source| CliError::Write {
                 path: file.display().to_string(),
                 source,

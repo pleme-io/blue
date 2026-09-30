@@ -197,7 +197,16 @@ fn unused_imports(
                 .with_help(format!(
                     "list the names it uses (`use(\"{0}\", [:name])`) or qualify them (`{0}::name`); remove the `use` if it is not needed",
                     u.package
-                )),
+                ))
+                .with_fix(Fix {
+                    message: format!("remove `use(\"{}\")`", u.package),
+                    edits: vec![Edit {
+                        span: u.span,
+                        original: written_use(u),
+                        replacement: String::new(),
+                    }],
+                    applicability: Applicability::MachineApplicable,
+                }),
             );
             continue;
         }
@@ -214,6 +223,17 @@ fn unused_imports(
                 );
             }
         }
+    }
+}
+
+/// A `use` as the formatter writes it: what a fix removing it expects to
+/// find at its span (and, finding anything else, leaves alone).
+fn written_use(u: &Import) -> String {
+    if u.listed {
+        let names: Vec<String> = u.names.iter().map(|(n, _)| format!(":{n}")).collect();
+        format!("use(\"{}\", [{}])", u.package, names.join(", "))
+    } else {
+        format!("use(\"{}\")", u.package)
     }
 }
 

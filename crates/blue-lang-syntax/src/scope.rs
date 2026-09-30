@@ -113,45 +113,96 @@ pub fn use_target(form: &Spanned) -> Option<Import> {
 /// The head of the rename-ledger declaration: `legacy_names("0.1.1", "lc")`.
 pub const LEGACY_NAMES: &str = "legacy_names";
 
-/// A bidama's rename ledger, declared at its top level:
-/// `legacy_names(since, prefix)`.
+/// A bidama's rename ledger, declared at its top level. Two forms:
 ///
-/// The bidama's definitions were once all named `prefix_x`. From version
-/// `since`, every definition `x` is also reachable as `prefix_x` — a BRIDGE
-/// for callers still on the old spelling, open while the bidama's version
-/// is at least `since` and below the next minor — and a definition that
-/// must keep its prefix (the stripped name is a reserved word or a builtin
-/// the bidama uses bare) is also reachable by its stripped name, for good.
+/// - `legacy_names(since, prefix)`: the bidama's definitions were once all
+///   named `prefix_x`. From version `since`, every definition `x` is also
+///   reachable as `prefix_x` — a BRIDGE for callers still on the old
+///   spelling, open while the bidama's version is at least `since` and below
+///   the next minor — and a definition that must keep its prefix (the
+///   stripped name is a reserved word or a builtin the bidama uses bare) is
+///   also reachable by its stripped name, for good.
+/// - `legacy_names(since, [["old", "home::new"], …])`: definitions the
+///   bidama MOVED to another bidama. `old` stays a bridge to `home::new`
+///   over the same window, so a twin is moved, not copied.
+///
 /// Like `use`, it is consumed by the resolver and evaluates to nothing; an
 /// expired ledger stays in the source, and powers the fix for a late caller.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Legacy {
     pub since: String,
-    pub prefix: String,
+    pub kind: LegacyKind,
     pub span: Span,
 }
 
-/// Is this form a `legacy_names(since, prefix)` declaration? Two string
-/// literals, or it is not one (and `legacy_names` is then an unbound call).
+/// What a `legacy_names` declaration records.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LegacyKind {
+    /// The prefix every definition once carried.
+    Prefix(String),
+    /// Definitions moved out of the bidama, in source order.
+    Moved(Vec<Moved>),
+}
+
+/// One moved definition: `old` in the declaring bidama is `home::new` now.
+/// `home` is empty when the target was not written `home::new`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Moved {
+    pub old: String,
+    pub home: String,
+    pub new: String,
+}
+
+/// Is this form a `legacy_names` declaration? A version string, then a
+/// prefix string or a list of `[old, "home::new"]` string pairs, or it is not
+/// one (and `legacy_names` is then an unbound call).
 #[must_use]
 pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
     let items = form.as_list()?;
-    let [head, since, prefix] = items else {
+    let [head, since, what] = items else {
         return None;
     };
     if head.as_symbol() != Some(LEGACY_NAMES) {
         return None;
     }
-    let (SpannedForm::Atom(Atom::Str(since)), SpannedForm::Atom(Atom::Str(prefix))) =
-        (&since.form, &prefix.form)
-    else {
+    let SpannedForm::Atom(Atom::Str(since)) = &since.form else {
         return None;
+    };
+    let str_of = |s: &Spanned| match &s.form {
+        SpannedForm::Atom(Atom::Str(x)) => Some(x.clone()),
+        _ => None,
+    };
+    let kind = if let Some(prefix) = str_of(what) {
+        LegacyKind::Prefix(prefix)
+    } else {
+        let moves = list_items(what)?
+            .iter()
+            .map(|pair| {
+                let [old, target] = list_items(pair)? else {
+                    return None;
+                };
+                let (old, target) = (str_of(old)?, str_of(target)?);
+                let (home, new) = target
+                    .split_once("::")
+                    .map_or((String::new(), target.clone()), |(h, n)| {
+                        (h.to_string(), n.to_string())
+                    });
+                Some(Moved { old, home, new })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        LegacyKind::Moved(moves)
     };
     Some(Legacy {
         since: since.clone(),
-        prefix: prefix.clone(),
+        kind,
         span: form.span,
     })
+}
+
+/// The elements of a list literal `[a, b]`, which parses to `(list a b)`.
+fn list_items(form: &Spanned) -> Option<&[Spanned]> {
+    let items = form.as_list()?;
+    (items.first()?.as_symbol() == Some("list")).then(|| &items[1..])
 }
 
 /// The special forms whose SHAPE the walker knows — the heads a pass without

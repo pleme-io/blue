@@ -513,7 +513,7 @@ division; neither names retsu's `first`. blue qualifies with `::`:
         slug: "legacy-name",
         severity: Error,
         fix: Machine,
-        law: "a renamed definition is called by its new name; the old, prefixed name is a bridge that closes at the next minor version",
+        law: "a renamed or moved definition is called by its new name; the old name is a bridge that closes at the next minor version",
         witness: "use(\"lg\")\n\nlg::lg_hours()\n",
         imports: [("lg", "legacy_names(\"0.1.1\", \"lg\")\n\ndef hours()\n  1\nend\n")],
         waivable: false,
@@ -530,13 +530,20 @@ configured: an ERROR inside the distribution the bidama ships in (the
 bidama's own repository can never depend on its bridge), a WARNING for any
 other caller while the window is open. Once the window closes the old name
 resolves to nothing, and the unbound-name diagnostic carries the same
-machine-applicable fix, read from the ledger the declaration keeps.",
+machine-applicable fix, read from the ledger the declaration keeps.
+
+A definition MOVED to another bidama — a twin given one home rather than
+copied — is declared the same way, by the bidama it left:
+`legacy_names(\"0.1.2\", [[\"opt\", \"deeta::get_or\"]])`. `kinji::opt`
+then resolves to `deeta::get_or` over the same window and under the same
+severity, and the fix writes the new home qualified, adding the `use` the
+file lacks.",
     }
     B0022 {
         slug: "legacy-misuse",
         severity: Error,
         fix: None,
-        law: "a `legacy_names(since, prefix)` declaration is one per bidama, dates from a version the bidama has reached, and names no name twice",
+        law: "a `legacy_names` declaration is one of each form per bidama, dates from a version the bidama has reached, names no name twice, and moves a name only to a definition a loaded bidama holds",
         witness: "use(\"lg\")\n\nlg::hours()\n",
         imports: [("lg", "legacy_names(\"9.0.0\", \"lg\")\n\ndef hours()\n  1\nend\n")],
         waivable: false,
@@ -548,7 +555,9 @@ stripped name. It must sit in a bidama, once; `since` must be a version the
 bidama's Bluefile has reached (dating a rename in the future would open no
 window, and re-dating it to reopen one is a one-line change a reviewer
 sees); and an old or stripped name must not also be defined, which would
-give two definitions one name.",
+give two definitions one name. A moves declaration names each old name
+once, the old name is no longer defined, and each new home is a bidama the
+declaring one needs and a name that home defines.",
     }
 }
 

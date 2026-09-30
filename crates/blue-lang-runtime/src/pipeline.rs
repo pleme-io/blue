@@ -470,10 +470,10 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     let mut imports: std::collections::BTreeMap<usize, blue_lang_check::names::FileImports> =
         std::collections::BTreeMap::new();
     for (file, import) in program.imports() {
-        imports
-            .entry(file.index())
-            .or_default()
-            .add(&import.package, import.names.iter().map(|(n, _)| n.clone()));
+        let entry = imports.entry(file.index()).or_default();
+        entry.add(&import.package, import.names.iter().map(|(n, _)| n.clone()));
+        let at = import.span.start;
+        entry.use_at = Some(entry.use_at.map_or(at, |a| a.min(at)));
     }
     // A FACADE — a bidama that defines nothing and `use`s others (zenbu) —
     // exists so a consumer can depend on "everything": `use("zenbu")` makes

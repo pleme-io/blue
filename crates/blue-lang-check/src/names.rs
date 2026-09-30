@@ -193,6 +193,8 @@ pub struct Scope {
     bindings: BTreeMap<String, Binding>,
     /// Second names for definitions, from the bidama's `legacy_names`.
     aliases: BTreeMap<String, Alias>,
+    /// What each moved name's alias names: the definition in its new home.
+    moved: BTreeMap<String, Binding>,
 }
 
 /// A second name for one definition (`legacy_names`).
@@ -210,6 +212,21 @@ pub struct Alias {
     pub open: bool,
     /// The `legacy_names` version it dates from.
     pub since: String,
+    /// The bidama the definition moved to, when it moved: `canonical` is
+    /// that bidama's name, and this one no longer defines it.
+    pub home: Option<String>,
+}
+
+impl Alias {
+    /// How a caller spells what this alias names, from bidama `pkg`'s side.
+    #[must_use]
+    pub fn spelled(&self, pkg: &str) -> String {
+        format!(
+            "{}::{}",
+            self.home.as_deref().unwrap_or(pkg),
+            self.canonical
+        )
+    }
 }
 
 impl Scope {
@@ -219,12 +236,32 @@ impl Scope {
             namespace,
             bindings: BTreeMap::new(),
             aliases: BTreeMap::new(),
+            moved: BTreeMap::new(),
         }
     }
 
     /// Give a definition a second name.
     pub fn alias(&mut self, name: String, alias: Alias) {
         self.aliases.entry(name).or_insert(alias);
+    }
+
+    /// Keep `name` as an alias of a definition another bidama now holds:
+    /// `binding` is that definition, as its home scope binds it.
+    pub fn alias_moved(&mut self, name: String, alias: Alias, binding: Binding) {
+        if !self.aliases.contains_key(&name) {
+            self.moved.insert(name.clone(), binding);
+            self.aliases.insert(name, alias);
+        }
+    }
+
+    /// The namespace `name`, looked up here, lands in: this one, or the home
+    /// of a moved definition.
+    #[must_use]
+    pub fn namespace_of_name(&self, name: &str) -> Namespace {
+        match self.aliases.get(name).and_then(|a| a.home.as_ref()) {
+            Some(home) if !self.bindings.contains_key(name) => Namespace::Bidama(home.clone()),
+            _ => self.namespace.clone(),
+        }
     }
 
     /// The alias `name` is, open or not.
@@ -247,7 +284,10 @@ impl Scope {
             self.aliases
                 .get(name)
                 .filter(|a| a.open)
-                .and_then(|a| self.bindings.get(&a.canonical))
+                .and_then(|a| match a.home {
+                    Some(_) => self.moved.get(name),
+                    None => self.bindings.get(&a.canonical),
+                })
         })
     }
 
@@ -307,6 +347,8 @@ pub struct FileImports {
     /// A bidama reachable only through a facade the file uses, and that
     /// facade: `use("zenbu")` makes `toukei::` reachable.
     pub via: BTreeMap<String, String>,
+    /// Where the file's first `use` starts: where a fix adds another.
+    pub use_at: Option<usize>,
 }
 
 impl FileImports {
@@ -427,12 +469,15 @@ impl NameTable {
         self.legacy_prefix.get(pkg).map(String::as_str)
     }
 
-    /// Read every `legacy_names(since, prefix)` declaration in `forms` into
-    /// aliases: a bridge `prefix_x` for each definition `x` (open while the
-    /// bidama's version is at least `since` and below the next minor), and
-    /// the stripped name `y` for each definition that keeps its prefix
-    /// (`prefix_y`), for good. Returns B0022 for each declaration that cannot
-    /// mean one thing. `version_of` is a bidama's Bluefile version.
+    /// Read every `legacy_names` declaration in `forms` into aliases. A
+    /// prefix declaration gives a bridge `prefix_x` for each definition `x`
+    /// (open while the bidama's version is at least `since` and below the
+    /// next minor), and the stripped name `y` for each definition that keeps
+    /// its prefix (`prefix_y`), for good. A moves declaration gives each
+    /// moved name a bridge to its new home over the same window; moves are
+    /// read first, so `prefix_old` reaches the new home too. Returns B0022
+    /// for each declaration that cannot mean one thing. `version_of` is a
+    /// bidama's Bluefile version.
     pub fn apply_legacy(
         &mut self,
         forms: &[Spanned],
@@ -440,19 +485,20 @@ impl NameTable {
         version_of: &dyn Fn(&str) -> Option<String>,
     ) -> Vec<Diagnostic> {
         let mut out = Vec::new();
-        for (i, form) in forms.iter().enumerate() {
-            let Some(decl) = scope::legacy_target(form) else {
-                continue;
-            };
+        let mut decls: Vec<(usize, scope::Legacy)> = forms
+            .iter()
+            .enumerate()
+            .filter_map(|(i, f)| scope::legacy_target(f).map(|d| (i, d)))
+            .collect();
+        // Moves first: a prefix bridge may name a moved definition.
+        decls.sort_by_key(|(_, d)| matches!(d.kind, scope::LegacyKind::Prefix(_)));
+        let mut moved_by: BTreeSet<String> = BTreeSet::new();
+        for (i, decl) in decls {
             let bad = |msg: String| Diagnostic::new(Code::B0022, msg, decl.span).at_top_level(i);
             let Namespace::Bidama(pkg) = namespace_of(i) else {
                 out.push(bad("`legacy_names` declares a bidama's old names, and this file is not in a bidama".into()));
                 continue;
             };
-            if self.legacy_prefix.contains_key(&pkg) {
-                out.push(bad(format!("bidama `{pkg}` declares `legacy_names` twice")));
-                continue;
-            }
             let (Some(since), Some(now)) = (
                 version(&decl.since),
                 version_of(&pkg).as_deref().and_then(version),
@@ -470,46 +516,137 @@ impl NameTable {
                 )));
                 continue;
             }
-            if decl.prefix.is_empty() || decl.prefix.contains('_') {
-                out.push(bad("the legacy prefix is the letters before the `_`: `legacy_names(\"0.1.1\", \"lc\")`".into()));
-                continue;
-            }
             let open = now < (since.0, since.1 + 1, 0);
-            self.legacy_prefix.insert(pkg.clone(), decl.prefix.clone());
-            let Some(scope) = self.bidama(&pkg) else {
-                continue;
-            };
-            let names: Vec<String> = scope.bindings().map(|b| b.name.clone()).collect();
-            let prefix = format!("{}_", decl.prefix);
-            let mut aliases = Vec::new();
-            for name in &names {
-                let (alias, bridge) = match name.strip_prefix(&prefix) {
-                    Some(stripped) if !stripped.is_empty() => (stripped.to_string(), false),
-                    _ => (format!("{prefix}{name}"), true),
-                };
-                if names.contains(&alias) {
-                    out.push(bad(format!(
-                        "`{alias}` and `{name}` are both defined in `{pkg}`, so `{alias}` cannot also be a second name of `{name}`"
-                    )));
-                    continue;
+            match &decl.kind {
+                scope::LegacyKind::Moved(moves) => {
+                    if !moved_by.insert(pkg.clone()) {
+                        out.push(bad(format!(
+                            "bidama `{pkg}` declares its moved names twice"
+                        )));
+                        continue;
+                    }
+                    for m in moves {
+                        match self.moved_binding(&pkg, m) {
+                            Ok(binding) => {
+                                let alias = Alias {
+                                    canonical: m.new.clone(),
+                                    bridge: true,
+                                    open,
+                                    since: decl.since.clone(),
+                                    home: Some(m.home.clone()),
+                                };
+                                self.scope_mut(Namespace::Bidama(pkg.clone())).alias_moved(
+                                    m.old.clone(),
+                                    alias,
+                                    binding,
+                                );
+                            }
+                            Err(msg) => out.push(bad(msg)),
+                        }
+                    }
                 }
-                aliases.push((
-                    alias,
-                    Alias {
-                        canonical: name.clone(),
-                        bridge,
-                        open: open || !bridge,
-                        since: decl.since.clone(),
-                    },
-                ));
-            }
-            let scope = self.scope_mut(Namespace::Bidama(pkg));
-            for (a, al) in aliases {
-                scope.alias(a, al);
+                scope::LegacyKind::Prefix(prefix) => {
+                    if self.legacy_prefix.contains_key(&pkg) {
+                        out.push(bad(format!("bidama `{pkg}` declares `legacy_names` twice")));
+                        continue;
+                    }
+                    if prefix.is_empty() || prefix.contains('_') {
+                        out.push(bad("the legacy prefix is the letters before the `_`: `legacy_names(\"0.1.1\", \"lc\")`".into()));
+                        continue;
+                    }
+                    self.legacy_prefix.insert(pkg.clone(), prefix.clone());
+                    let Some(scope) = self.bidama(&pkg) else {
+                        continue;
+                    };
+                    let names: Vec<String> = scope.bindings().map(|b| b.name.clone()).collect();
+                    let moved: Vec<(String, Alias, Binding)> = scope
+                        .moved
+                        .iter()
+                        .filter_map(|(old, b)| {
+                            Some((old.clone(), scope.aliases.get(old)?.clone(), b.clone()))
+                        })
+                        .collect();
+                    let prefix = format!("{prefix}_");
+                    let mut aliases = Vec::new();
+                    for name in &names {
+                        let (alias, bridge) = match name.strip_prefix(&prefix) {
+                            Some(stripped) if !stripped.is_empty() => (stripped.to_string(), false),
+                            _ => (format!("{prefix}{name}"), true),
+                        };
+                        if names.contains(&alias) {
+                            out.push(bad(format!(
+                                "`{alias}` and `{name}` are both defined in `{pkg}`, so `{alias}` cannot also be a second name of `{name}`"
+                            )));
+                            continue;
+                        }
+                        aliases.push((
+                            alias,
+                            Alias {
+                                canonical: name.clone(),
+                                bridge,
+                                open: open || !bridge,
+                                since: decl.since.clone(),
+                                home: None,
+                            },
+                        ));
+                    }
+                    let scope = self.scope_mut(Namespace::Bidama(pkg));
+                    for (a, al) in aliases {
+                        scope.alias(a, al);
+                    }
+                    // `prefix_old` of a moved `old` bridges to its new home,
+                    // over the rename's window.
+                    for (old, al, b) in moved {
+                        let al = Alias {
+                            open: open && al.open,
+                            ..al
+                        };
+                        scope.alias_moved(format!("{prefix}{old}"), al, b);
+                    }
+                }
             }
         }
         self.legacy_findings.clone_from(&out);
         out
+    }
+
+    /// The definition moved name `m` of bidama `pkg` now names, or why the
+    /// move cannot mean one thing.
+    fn moved_binding(&self, pkg: &str, m: &scope::Moved) -> Result<Binding, String> {
+        if m.home.is_empty() || m.new.is_empty() {
+            return Err(format!(
+                "`{}` moved to `{}`: write the new home `bidama::name`",
+                m.old, m.new
+            ));
+        }
+        if m.home == pkg {
+            return Err(format!(
+                "`{}` moved within `{pkg}` is a rename: declare the prefix, or rename its callers",
+                m.old
+            ));
+        }
+        let own = self.bidama(pkg);
+        if own.is_some_and(|s| s.bindings.contains_key(&m.old)) {
+            return Err(format!(
+                "`{}` is still defined in `{pkg}`, so it cannot also have moved to `{}::{}`",
+                m.old, m.home, m.new
+            ));
+        }
+        if own.is_some_and(|s| s.moved.contains_key(&m.old)) {
+            return Err(format!("`{}` is moved twice in `{pkg}`", m.old));
+        }
+        let Some(home) = self.bidama(&m.home) else {
+            return Err(format!(
+                "`{}` moved to bidama `{}`, which is not loaded: `{pkg}`'s Bluefile must need it",
+                m.old, m.home
+            ));
+        };
+        home.bindings.get(&m.new).cloned().ok_or_else(|| {
+            format!(
+                "`{}` moved to `{}::{}`, and bidama `{}` defines no `{}`",
+                m.old, m.home, m.new, m.home, m.new
+            )
+        })
     }
 
     /// Record which bidamas each bidama `use`s.
@@ -596,7 +733,7 @@ impl NameTable {
         for s in &self.scopes {
             let bridged = s.alias_of(bare).is_some_and(|a| a.bridge);
             if let (Namespace::Bidama(_), true, Some(b)) = (&s.namespace, bridged, s.get(bare)) {
-                return Target::Def(s.namespace.clone(), b.name.clone());
+                return Target::Def(s.namespace_of_name(bare), b.name.clone());
             }
         }
         if self.builtin(bare) {
@@ -619,13 +756,9 @@ impl NameTable {
                 };
             }
             let ns = Namespace::Bidama(pkg.to_string());
-            return match self
-                .scopes
-                .iter()
-                .find(|s| s.namespace == ns)
-                .and_then(|s| s.get(n))
-            {
-                Some(b) => Target::Def(ns, b.name.clone()),
+            let scope = self.scopes.iter().find(|s| s.namespace == ns);
+            return match scope.and_then(|s| s.get(n).map(|b| (s, b))) {
+                Some((s, b)) => Target::Def(s.namespace_of_name(n), b.name.clone()),
                 None => Target::Unbound,
             };
         }
@@ -635,7 +768,7 @@ impl NameTable {
                 ..
             } => Target::Builtin(name.to_string()),
             Resolution::Found { scope, binding, .. } => {
-                Target::Def(scope.namespace.clone(), binding.name.clone())
+                Target::Def(scope.namespace_of_name(name), binding.name.clone())
             }
             Resolution::Ambiguous { namespaces, .. } => {
                 Target::Ambiguous(namespaces.into_iter().cloned().collect())
@@ -1256,63 +1389,90 @@ impl<'t> Walker<'t> {
             Some((p, n)) => (Some(p), n),
             None => (None, name),
         };
-        let Target::Def(Namespace::Bidama(pkg), canonical) = ns else {
+        let Target::Def(target @ Namespace::Bidama(_), canonical) = ns else {
             return;
         };
-        if canonical == part {
-            return;
-        }
-        let Some(alias) = self.table.bidama(pkg).and_then(|s| s.alias_of(part)) else {
+        // The bidama the old name was spelled against: the qualifier's, or
+        // for a bare name the bidama whose alias lands where it resolved.
+        let found = self.table.scopes.iter().find_map(|s| match &s.namespace {
+            Namespace::Bidama(p) if qualifier.is_none_or(|q| q == p) => s
+                .alias_of(part)
+                .filter(|a| {
+                    a.bridge && &a.canonical == canonical && &s.namespace_of_name(part) == target
+                })
+                .map(|a| (p.clone(), a.clone())),
+            _ => None,
+        });
+        let Some((pkg, alias)) = found else {
             return;
         };
-        if !alias.bridge {
-            return;
-        }
-        let (original, replacement) = match qualifier {
-            Some(q) => (format!("{q}::{part}"), format!("{q}::{canonical}")),
-            None => (part.to_string(), canonical.clone()),
+        let replacement = match (&alias.home, qualifier) {
+            (Some(_), _) | (None, Some(_)) => alias.spelled(&pkg),
+            (None, None) => canonical.clone(),
         };
-        let d = self.legacy_diagnostic(
-            span,
-            pkg,
-            part,
-            canonical,
-            &alias.since,
-            original,
-            replacement,
-        );
+        let original = qualifier.map_or_else(|| part.to_string(), |q| format!("{q}::{part}"));
+        let d = self.legacy_diagnostic(span, &pkg, part, &alias, original, replacement);
+        let d = self.using_home(d, &alias);
         self.diagnostics.push(d);
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// A moved name's fix spells its new home qualified, so the file must
+    /// `use` that home: every fix of `d` also adds the `use` it lacks.
+    fn using_home(&self, mut d: Diagnostic, alias: &Alias) -> Diagnostic {
+        let Some(home) = &alias.home else {
+            return d;
+        };
+        let imports = self.table.imports_of(self.top_level);
+        let used = self.own == Namespace::Bidama(home.clone())
+            || imports.is_some_and(|i| i.uses.contains(home));
+        if used {
+            return d;
+        }
+        let at = imports.and_then(|i| i.use_at);
+        let line = format!("use(\"{home}\")\n{}", if at.is_some() { "" } else { "\n" });
+        let at = at.unwrap_or(0);
+        for fix in &mut d.fixes {
+            fix.edits.push(Edit {
+                span: Span::new(at, at),
+                original: String::new(),
+                replacement: line.clone(),
+            });
+        }
+        d
+    }
+
     fn legacy_diagnostic(
         &self,
         span: Span,
         pkg: &str,
         old: &str,
-        new: &str,
-        since: &str,
+        alias: &Alias,
         original: String,
         replacement: String,
     ) -> Diagnostic {
-        let mut d = Diagnostic::new(
-            Code::B0021,
-            format!("`{old}` is the old name of bidama `{pkg}`'s `{new}` (renamed in {since})"),
-            span,
-        )
-        .at_top_level(self.top_level)
-        .with_help(format!(
-            "write `{replacement}`; the old name resolves only until `{pkg}`'s next minor version"
-        ))
-        .with_fix(Fix {
-            message: format!("write `{replacement}`"),
-            edits: vec![Edit {
-                span,
-                original,
-                replacement,
-            }],
-            applicability: Applicability::MachineApplicable,
-        });
+        let (new, since) = (&alias.canonical, &alias.since);
+        let message = match &alias.home {
+            Some(home) => format!(
+                "`{old}` is the old name of `{home}::{new}`, moved out of bidama `{pkg}` in {since}"
+            ),
+            None => {
+                format!("`{old}` is the old name of bidama `{pkg}`'s `{new}` (renamed in {since})")
+            }
+        };
+        let mut d = Diagnostic::new(Code::B0021, message, span)
+            .at_top_level(self.top_level)
+            .with_help(format!(
+                "write `{replacement}`; the old name resolves only until `{pkg}`'s next minor version"
+            ))
+            .with_fix(Fix {
+                message: format!("write `{replacement}`"),
+                edits: vec![Edit {
+                    span,
+                    original,
+                    replacement,
+                }],
+                applicability: Applicability::MachineApplicable,
+            });
         if !self.table.inside_distribution(self.top_level, pkg) {
             d.severity = crate::Severity::Warning;
         }
@@ -1416,21 +1576,21 @@ impl<'t> Walker<'t> {
             self.diagnostics.push(d);
             return;
         }
-        let renamed: Vec<(String, String, String)> = self
+        let renamed: Vec<(String, Alias)> = self
             .table
             .use_closure(self.top_level)
             .iter()
             .filter_map(|p| {
                 let a = self.table.bidama(p)?.alias_of(name)?;
-                Some((p.clone(), a.canonical.clone(), a.since.clone()))
+                Some((p.clone(), a.clone()))
             })
             .collect();
-        if let [(pkg, canonical, since)] = renamed.as_slice() {
-            let replacement = format!("{pkg}::{canonical}");
+        if let [(pkg, alias)] = renamed.as_slice() {
+            let (replacement, since) = (alias.spelled(pkg), &alias.since);
             let d = Diagnostic::new(Code::B0001, format!("unbound name `{name}`"), span)
                 .at_top_level(self.top_level)
                 .with_help(format!(
-                    "`{name}` was bidama `{pkg}`'s, renamed `{canonical}` in {since}, and the bridge has closed"
+                    "`{name}` was bidama `{pkg}`'s, `{replacement}` since {since}, and the bridge has closed"
                 ))
                 .with_fix(Fix {
                     message: format!("write `{replacement}`"),
@@ -1441,6 +1601,7 @@ impl<'t> Walker<'t> {
                     }],
                     applicability: Applicability::MachineApplicable,
                 });
+            let d = self.using_home(d, alias);
             self.diagnostics.push(d);
             return;
         }
@@ -1593,25 +1754,27 @@ impl Walker<'_> {
         .at_top_level(self.top_level);
         // A closed bridge: the ledger still says what it was renamed to.
         if let Some(a) = self.table.bidama(pkg).and_then(|s| s.alias_of(n)) {
-            let (original, replacement) = if qualified {
-                (format!("{pkg}::{n}"), format!("{pkg}::{}", a.canonical))
-            } else {
-                (format!(":{n}"), format!(":{}", a.canonical))
+            let d = d.with_help(format!(
+                "`{n}` is `{}` since {} (`legacy_names`), and the bridge has closed",
+                a.spelled(pkg),
+                a.since
+            ));
+            let (original, replacement) = match (qualified, &a.home) {
+                (true, _) => (format!("{pkg}::{n}"), a.spelled(pkg)),
+                (false, None) => (format!(":{n}"), format!(":{}", a.canonical)),
+                // A moved name leaves the import list: its home is another `use`.
+                (false, Some(_)) => return d,
             };
-            return d
-                .with_help(format!(
-                    "`{n}` was renamed `{}` in {} (`legacy_names`), and the bridge has closed",
-                    a.canonical, a.since
-                ))
-                .with_fix(Fix {
-                    message: format!("write `{replacement}`"),
-                    edits: vec![Edit {
-                        span,
-                        original,
-                        replacement,
-                    }],
-                    applicability: Applicability::MachineApplicable,
-                });
+            let d = d.with_fix(Fix {
+                message: format!("write `{replacement}`"),
+                edits: vec![Edit {
+                    span,
+                    original,
+                    replacement,
+                }],
+                applicability: Applicability::MachineApplicable,
+            });
+            return self.using_home(d, a);
         }
         let mut offers: Vec<String> = owners.iter().map(|o| format!("{o}::{n}")).collect();
         offers.extend(near.iter().map(|(_, c)| format!("{pkg}::{c}")));
@@ -1648,22 +1811,25 @@ impl Walker<'_> {
             return;
         };
         for (n, span) in &import.names {
-            if let Some(b) = self.table.bidama(&import.package).and_then(|s| s.get(n)) {
-                let alias = self
-                    .table
-                    .bidama(&import.package)
-                    .and_then(|s| s.alias_of(n))
-                    .filter(|a| a.bridge && &b.name != n);
+            if let Some(scope) = self
+                .table
+                .bidama(&import.package)
+                .filter(|s| s.get(n).is_some())
+            {
+                let alias = scope.alias_of(n).filter(|a| a.bridge).cloned();
                 if let Some(a) = alias {
-                    let d = self.legacy_diagnostic(
+                    let mut d = self.legacy_diagnostic(
                         *span,
                         &import.package,
                         n,
-                        &b.name,
-                        &a.since,
+                        &a,
                         format!(":{n}"),
-                        format!(":{}", b.name),
+                        format!(":{}", a.canonical),
                     );
+                    // A moved name leaves the list: its home is another `use`.
+                    if a.home.is_some() {
+                        d.fixes.clear();
+                    }
                     self.diagnostics.push(d);
                 }
                 continue;

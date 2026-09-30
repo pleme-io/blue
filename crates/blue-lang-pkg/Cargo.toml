@@ -35,3 +35,4 @@ serde_json = { workspace = true }
 # `tests/registry_graph.rs`. blue-lang-test depends on blue-lang-runtime,
 # which this crate depends on, so a versioned edge back is a registry cycle.
 blue-lang-test = { path = "../blue-lang-test" }
+blue-lang-check = { path = "../blue-lang-check" }

@@ -412,7 +412,11 @@ fn every_legacy_prefix_is_in_the_ledger() {
     for name in packages() {
         let src =
             std::fs::read_to_string(dist().join(&name).join(format!("{name}.b"))).expect("source");
-        for line in src.lines().filter(|l| l.starts_with("legacy_names(")) {
+        // The prefix form: `legacy_names("0.1.1", "lc")`, two strings.
+        for line in src
+            .lines()
+            .filter(|l| l.starts_with("legacy_names(") && l.split('"').count() == 5)
+        {
             let parts: Vec<&str> = line.split('"').collect();
             let (since, prefix) = (parts[1], parts[3]);
             let row = format!("| `{name}` | `{prefix}_` | {since} |");
@@ -427,5 +431,115 @@ fn every_legacy_prefix_is_in_the_ledger() {
     assert!(
         !packages().iter().any(|p| p == "blue"),
         "no bidama may be named blue"
+    );
+}
+
+/// Exact-duplicate SHAPES: two definitions whose bodies are the same tree once
+/// their parameters are numbered and their own package's qualifier is read as
+/// `self`. Measured on the resolved tree, so `join` and `blue::join` are one
+/// word and `kinji::refusal_kind` and `kueri::refusal_kind` are each `self`'s.
+/// A group is a shape two or more definitions share.
+///
+/// The count is pinned: moving a twin to one home lowers it, and a new copy
+/// raises it and fails here. Lower the pin when a move lands; never raise it.
+const SHAPE_GROUPS: usize = 21;
+
+fn shape(pkg: &str, params: &[String], body: &tatara_lisp::Sexp) -> String {
+    use tatara_lisp::ast::{Atom, Sexp};
+    fn walk(pkg: &str, params: &[String], s: &Sexp) -> Sexp {
+        match s {
+            Sexp::Atom(Atom::Symbol(n)) => {
+                if let Some(i) = params.iter().position(|p| p == n) {
+                    Sexp::Atom(Atom::Symbol(format!("%p{i}")))
+                } else if let Some(rest) = n.strip_prefix(&format!("{pkg}/")) {
+                    Sexp::Atom(Atom::Symbol(format!("self/{rest}")))
+                } else {
+                    s.clone()
+                }
+            }
+            Sexp::List(xs) => Sexp::List(xs.iter().map(|x| walk(pkg, params, x)).collect()),
+            Sexp::Quote(x) => Sexp::Quote(Box::new(walk(pkg, params, x))),
+            Sexp::Quasiquote(x) => Sexp::Quasiquote(Box::new(walk(pkg, params, x))),
+            Sexp::Unquote(x) => Sexp::Unquote(Box::new(walk(pkg, params, x))),
+            Sexp::UnquoteSplice(x) => Sexp::UnquoteSplice(Box::new(walk(pkg, params, x))),
+            other => other.clone(),
+        }
+    }
+    format!("{}/{}", params.len(), walk(pkg, params, body))
+}
+
+/// Every package's definitions, keyed `pkg/name`, to their shape.
+fn shapes() -> std::collections::BTreeMap<String, String> {
+    use blue_lang_check::names::Rule;
+    let lp = LoadPath::new([dist()]);
+    let mut out = std::collections::BTreeMap::new();
+    for name in packages() {
+        let path = dist().join(&name).join(format!("{name}.b"));
+        let src = std::fs::read_to_string(&path).expect("source");
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            Entry {
+                path: Some(&path),
+                text: &src,
+            },
+            &lp,
+            None,
+            blue_lang_runtime::pipeline::Checking::Program,
+        )
+        .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
+        let forms = checked.program.forms();
+        let tree = checked.resolve().resolved_tree(forms, Rule::Namespaced);
+        let own = format!("{name}/");
+        for form in &tree {
+            let sexp = form.to_sexp();
+            let tatara_lisp::Sexp::List(items) = &sexp else {
+                continue;
+            };
+            let (Some(head), Some(tatara_lisp::Sexp::List(sig))) = (items.first(), items.get(1))
+            else {
+                continue;
+            };
+            if head.as_symbol() != Some("define") {
+                continue;
+            }
+            let Some(key) = sig.first().and_then(|s| s.as_symbol()) else {
+                continue;
+            };
+            if !key.starts_with(&own) {
+                continue;
+            }
+            let params: Vec<String> = sig[1..]
+                .iter()
+                .filter_map(|p| p.as_symbol().map(str::to_owned))
+                .collect();
+            let body = tatara_lisp::Sexp::List(items[2..].to_vec());
+            out.insert(key.to_owned(), shape(&name, &params, &body));
+        }
+    }
+    out
+}
+
+#[test]
+fn exact_duplicate_shapes_only_fall() {
+    let shapes = shapes();
+    assert!(
+        shapes.len() >= 1500,
+        "only {} definitions measured; the scan is not seeing the distribution",
+        shapes.len()
+    );
+    let mut groups: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
+    for (key, s) in &shapes {
+        groups.entry(s).or_default().push(key);
+    }
+    let shared: Vec<&Vec<&str>> = groups.values().filter(|g| g.len() > 1).collect();
+    let listing = shared
+        .iter()
+        .map(|g| g.join(" "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        shared.len(),
+        SHAPE_GROUPS,
+        "exact-duplicate shape groups moved from {SHAPE_GROUPS} to {}:\n{listing}",
+        shared.len()
     );
 }

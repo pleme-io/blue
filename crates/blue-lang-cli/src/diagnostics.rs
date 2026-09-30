@@ -245,16 +245,28 @@ pub fn apply_machine_fixes(
             .iter()
             .filter(|f| f.applicability == Applicability::MachineApplicable)
         {
+            // An edit another fix already queued, exactly (two moved names
+            // adding the same `use`), is shared rather than a conflict.
+            let queued = |e: &blue_lang_check::Edit, edits: &[(Span, &str)]| {
+                edits
+                    .iter()
+                    .any(|(s, r)| *s == e.span && *r == e.replacement.as_str())
+            };
             let fits = fix.edits.iter().all(|e| {
-                text.get(e.span.start..e.span.end) == Some(e.original.as_str())
-                    && !edits
-                        .iter()
-                        .any(|(s, _)| e.span.start < s.end && s.start < e.span.end)
+                queued(e, &edits)
+                    || (text.get(e.span.start..e.span.end) == Some(e.original.as_str())
+                        && !edits
+                            .iter()
+                            .any(|(s, _)| e.span.start < s.end && s.start < e.span.end))
             });
             if !fits {
                 continue;
             }
-            edits.extend(fix.edits.iter().map(|e| (e.span, e.replacement.as_str())));
+            for e in &fix.edits {
+                if !queued(e, &edits) {
+                    edits.push((e.span, e.replacement.as_str()));
+                }
+            }
             applied += 1;
             // One fix per diagnostic: the best one.
             break;

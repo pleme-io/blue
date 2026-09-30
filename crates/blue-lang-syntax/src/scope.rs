@@ -111,6 +111,50 @@ pub fn use_target(form: &Spanned) -> Option<Import> {
     })
 }
 
+/// The head of the rename-ledger declaration: `legacy_names("0.1.1", "lc")`.
+pub const LEGACY_NAMES: &str = "legacy_names";
+
+/// A bidama's rename ledger, declared at its top level:
+/// `legacy_names(since, prefix)`.
+///
+/// The bidama's definitions were once all named `prefix_x`. From version
+/// `since`, every definition `x` is also reachable as `prefix_x` — a BRIDGE
+/// for callers still on the old spelling, open while the bidama's version
+/// is at least `since` and below the next minor — and a definition that
+/// must keep its prefix (the stripped name is a reserved word or a builtin
+/// the bidama uses bare) is also reachable by its stripped name, for good.
+/// Like `use`, it is consumed by the resolver and evaluates to nothing; an
+/// expired ledger stays in the source, and powers the fix for a late caller.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Legacy {
+    pub since: String,
+    pub prefix: String,
+    pub span: Span,
+}
+
+/// Is this form a `legacy_names(since, prefix)` declaration? Two string
+/// literals, or it is not one (and `legacy_names` is then an unbound call).
+#[must_use]
+pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
+    let items = form.as_list()?;
+    let [head, since, prefix] = items else {
+        return None;
+    };
+    if head.as_symbol() != Some(LEGACY_NAMES) {
+        return None;
+    }
+    let (SpannedForm::Atom(Atom::Str(since)), SpannedForm::Atom(Atom::Str(prefix))) =
+        (&since.form, &prefix.form)
+    else {
+        return None;
+    };
+    Some(Legacy {
+        since: since.clone(),
+        prefix: prefix.clone(),
+        span: form.span,
+    })
+}
+
 /// The special forms whose SHAPE the walker knows — the heads a pass without
 /// an interpreter to ask (the reach walk) answers [`HeadKind::SpecialForm`]
 /// for, so their binders bind. Every other special form is walked as an
@@ -367,7 +411,7 @@ impl Walker<'_> {
         }
         // `use("x", [:a])` at the top level is a declaration the resolver
         // consumed, not a call: nothing in it is a reference.
-        if head == "use" && self.depth == 0 {
+        if (head == "use" || head == LEGACY_NAMES) && self.depth == 0 {
             self.pass.head(&items[0], head, HeadKind::SpecialForm);
             return;
         }

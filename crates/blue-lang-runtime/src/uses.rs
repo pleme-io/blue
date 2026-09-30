@@ -95,6 +95,12 @@ pub trait Loader {
     fn needs(&self, _package: &str, _entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
         None
     }
+
+    /// Bidama `package`'s Bluefile version, when the loader can read it —
+    /// what a `legacy_names` window is measured against.
+    fn version(&self, _package: &str, _entry_dir: Option<&Path>) -> Option<String> {
+        None
+    }
 }
 
 /// A loader that resolves nothing, and says so.
@@ -216,6 +222,7 @@ pub struct ResolvedProgram {
     files: Vec<SourceFile>,
     imports: Vec<(FileId, Import)>,
     needs: std::collections::BTreeMap<String, BTreeSet<String>>,
+    versions: std::collections::BTreeMap<String, String>,
 }
 
 
@@ -230,6 +237,7 @@ impl ResolvedProgram {
             files: Vec::new(),
             imports: Vec::new(),
             needs: std::collections::BTreeMap::new(),
+            versions: std::collections::BTreeMap::new(),
         };
         let id = program.intern(
             entry.path.map(Path::to_path_buf),
@@ -275,7 +283,7 @@ impl ResolvedProgram {
         self.forms
             .iter()
             .map(|f| {
-                if use_target(f).is_some() {
+                if use_target(f).is_some() || blue_lang_syntax::scope::legacy_target(f).is_some() {
                     Sexp::Nil
                 } else {
                     f.to_sexp()
@@ -288,6 +296,12 @@ impl ResolvedProgram {
     #[must_use]
     pub fn needs(&self) -> &std::collections::BTreeMap<String, BTreeSet<String>> {
         &self.needs
+    }
+
+    /// Each loaded bidama's Bluefile version, where the loader read one.
+    #[must_use]
+    pub fn versions(&self) -> &std::collections::BTreeMap<String, String> {
+        &self.versions
     }
 
     /// Every `use` form, with the file that wrote it.
@@ -474,6 +488,9 @@ pub fn resolve_uses(
         if let Some(n) = loader.needs(p, entry.path.and_then(Path::parent)) {
             out.needs.insert(p.clone(), n);
         }
+        if let Some(v) = loader.version(p, entry.path.and_then(Path::parent)) {
+            out.versions.insert(p.clone(), v);
+        }
     }
     expand(
         forms,
@@ -513,6 +530,9 @@ fn expand(
         let sources = loader.load(&name).map_err(|e| describe(chain, &name, &e))?;
         if let Some(n) = loader.needs(&name, None) {
             out.needs.insert(name.clone(), n);
+        }
+        if let Some(v) = loader.version(&name, None) {
+            out.versions.insert(name.clone(), v);
         }
         let mut inner_chain = chain.to_vec();
         inner_chain.push(name.clone());

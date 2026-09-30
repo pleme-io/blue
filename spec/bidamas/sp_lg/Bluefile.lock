@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:f65e2cad773915785a3fea54b8b8899f5665f308a59c596c8fd47398f99583fe",
+  "manifest": {
+    "schema": 1,
+    "name": "sp_lg",
+    "version": "0.1.1",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

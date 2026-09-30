@@ -184,6 +184,15 @@ impl Loader for LoadPath {
         Some(bf.manifest.needs.keys().cloned().collect())
     }
 
+    fn version(&self, package: &str, entry_dir: Option<&Path>) -> Option<String> {
+        let dir = match entry_dir {
+            Some(d) => d.to_path_buf(),
+            None => self.resolve(package)?,
+        };
+        let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
+        Some(crate::bluefile::read_bluefile(&text).ok()?.version.to_string())
+    }
+
     fn entry_package(&self, path: &Path) -> Option<String> {
         let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
         let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;

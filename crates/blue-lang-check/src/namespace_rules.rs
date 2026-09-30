@@ -60,7 +60,7 @@ pub fn check(
         }
     }
     needs_agree(&files, table, namespace_of, &mut out);
-    definitions(forms, namespace_of, &mut out);
+    definitions(forms, table, namespace_of, &mut out);
     out
 }
 
@@ -274,6 +274,7 @@ fn needs_agree(
 /// B0013, B0014, B0017: how a bidama names its definitions.
 fn definitions(
     forms: &[Spanned],
+    table: &NameTable,
     namespace_of: &dyn Fn(usize) -> Namespace,
     out: &mut Vec<Diagnostic>,
 ) {
@@ -331,6 +332,28 @@ fn definitions(
                         &name[own_prefix.len()..]
                     )),
                 );
+            }
+        }
+        // B0013, the other spelling: a definition that still carries the
+        // legacy prefix its bidama declared stripped. Waivable, for a name
+        // whose stripped form is a reserved word or a builtin the bidama
+        // uses bare — it keeps both spellings (`legacy_names`).
+        if let Some(legacy) = table.legacy_prefix(pkg) {
+            let prefix = format!("{legacy}_");
+            for (name, span, i, _) in list {
+                if let Some(stripped) = name.strip_prefix(&prefix).filter(|s| !s.is_empty()) {
+                    out.push(
+                        Diagnostic::new(
+                            Code::B0013,
+                            format!("`{name}` still carries `{pkg}`'s legacy prefix `{prefix}`"),
+                            *span,
+                        )
+                        .at_top_level(*i)
+                        .with_help(format!(
+                            "name it `{stripped}` (callers write `{pkg}::{stripped}`); if `{stripped}` is a reserved word or a builtin `{pkg}` uses bare, keep the prefix and waive B0013 saying so — `{pkg}::{stripped}` still reaches it"
+                        )),
+                    );
+                }
             }
         }
         // B0014: a hand-mangled namespace.

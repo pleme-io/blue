@@ -162,3 +162,61 @@ fn a_facade_makes_its_members_qualifiers_reachable() {
         .collect();
     assert!(d.is_empty(), "{d:?}");
 }
+
+/// A bidama at 0.1.1, for the `legacy_names` rows.
+struct Versioned(&'static [(&'static str, &'static str)]);
+
+impl Loader for Versioned {
+    fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+        Mem(self.0).load(name)
+    }
+    fn version(&self, _: &str, _: Option<&std::path::Path>) -> Option<String> {
+        Some("0.1.1".into())
+    }
+}
+
+/// **A definition that keeps its prefix has two names, one definition**
+/// (operator decision 2). kk's `kk_count` keeps its prefix, waived, and
+/// `kk::count` names it too. Both spellings resolve to the same entry, and
+/// the second name cannot be defined separately. Inside kk a bare `count` is
+/// now kk's own (tier 2 over the builtin, decision 4), so kk reaches the
+/// list builtin as `blue::count` — written bare, this recursed forever.
+///
+/// Red run (2026-09-29), the permanent alias skipped in `apply_legacy`: the
+/// check refuses — with no second name, kk's `blue::count` is redundant
+/// (B0018) and `kk::count` names nothing.
+#[test]
+fn a_kept_prefix_gives_one_definition_two_names() {
+    use blue_lang_check::names::Target;
+    const KK: &[(&str, &str)] = &[(
+        "kk",
+        "legacy_names(\"0.1.1\", \"kk\")\n\n# waive B0013: count is the list builtin, which kk also uses\ndef kk_count(xs)\n  blue::count(xs) + 100\nend\n",
+    )];
+    let src = "use(\"kk\")\n\n[kk::count([1]), kk::kk_count([1])]\n";
+    let checked =
+        check_entry(Entry::anonymous(src), &Versioned(KK), None, Checking::Program).expect("check");
+    assert!(checked.outcome.diagnostics.is_empty(), "{:?}", checked.outcome.diagnostics);
+    let r = checked.resolve();
+    let targets: Vec<_> = r
+        .references
+        .iter()
+        .filter(|r| r.written.starts_with("kk/"))
+        .map(|r| r.ns.clone())
+        .collect();
+    let one = Target::Def(Namespace::Bidama("kk".into()), "kk_count".into());
+    assert_eq!(targets, vec![one.clone(), one]);
+    let v = run_in_surface(Entry::anonymous(src), Inputs::new(), &Versioned(KK), None)
+        .expect("run")
+        .value;
+    assert_eq!(format!("{v:?}"), "[Int(101), Int(101)]");
+
+    // The second name cannot also be a definition.
+    const TWICE: &[(&str, &str)] = &[(
+        "kk",
+        "legacy_names(\"0.1.1\", \"kk\")\n\n# waive B0013: count is the list builtin\ndef kk_count(xs)\n  1\nend\n\ndef count(xs)\n  2\nend\n",
+    )];
+    let checked = check_entry(Entry::anonymous("use(\"kk\")\n\nkk::count([1])\n"), &Versioned(TWICE), None, Checking::Program)
+        .expect("check");
+    let codes: Vec<Code> = checked.outcome.diagnostics.iter().map(|d| d.code).collect();
+    assert!(codes.contains(&Code::B0022), "{codes:?}");
+}

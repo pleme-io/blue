@@ -33,6 +33,8 @@ it; `blue explain --list` lists them.
 | B0018 | redundant-qualifier | error | a qualifier changes what its name means |
 | B0019 | needs-mismatch | error | the bidamas a bidama `use`s are exactly the ones its Bluefile `needs` |
 | B0020 | package-as-value | error | a bidama's name is written as a qualifier, never as a value |
+| B0021 | legacy-name | error | a renamed definition is called by its new name; the old one is a bridge that closes at the next minor version |
+| B0022 | legacy-misuse | error | a `legacy_names` declaration is one per bidama, dated from a version it has reached, and names no name twice |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

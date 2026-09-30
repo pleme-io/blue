@@ -41,6 +41,12 @@ impl Loader for Imports {
     ) -> Option<std::collections::BTreeSet<String>> {
         Some(std::collections::BTreeSet::new())
     }
+
+    /// Every witness bidama is at 0.1.1: B0021's `legacy_names("0.1.1", …)`
+    /// is in its window, and B0022's `legacy_names("9.0.0", …)` is not.
+    fn version(&self, _package: &str, _entry_dir: Option<&std::path::Path>) -> Option<String> {
+        Some("0.1.1".to_string())
+    }
 }
 
 fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Vec<Code> {

@@ -503,6 +503,47 @@ Edit the Bluefile, then run `blue lock <dir>`.",
 division; neither names retsu's `first`. blue qualifies with `::`:
 `retsu::first(xs)`.",
     }
+    B0021 {
+        slug: "legacy-name",
+        severity: Error,
+        fix: Machine,
+        law: "a renamed definition is called by its new name; the old, prefixed name is a bridge that closes at the next minor version",
+        witness: "use(\"lg\")\n\nlg::lg_hours()\n",
+        imports: [("lg", "legacy_names(\"0.1.1\", \"lg\")\n\ndef hours()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+A bidama that stripped its hand-made prefix (`lc_hours` became `hours`)
+declares the old spelling with `legacy_names(\"0.1.1\", \"lc\")`, so a caller
+written against the old name still resolves — to the same definition, the
+one `raifusaikuru::hours` names — while the bridge is open: from `since` to
+the next minor version.
+
+A reference through the bridge is this rule. Its severity is derived, never
+configured: an ERROR inside the distribution the bidama ships in (the
+bidama's own repository can never depend on its bridge), a WARNING for any
+other caller while the window is open. Once the window closes the old name
+resolves to nothing, and the unbound-name diagnostic carries the same
+machine-applicable fix, read from the ledger the declaration keeps.",
+    }
+    B0022 {
+        slug: "legacy-misuse",
+        severity: Error,
+        fix: None,
+        law: "a `legacy_names(since, prefix)` declaration is one per bidama, dates from a version the bidama has reached, and names no name twice",
+        witness: "use(\"lg\")\n\nlg::hours()\n",
+        imports: [("lg", "legacy_names(\"9.0.0\", \"lg\")\n\ndef hours()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+`legacy_names` is the rename ledger: from version `since` every definition
+`x` is also `prefix_x`, and a definition that kept its prefix is also its
+stripped name. It must sit in a bidama, once; `since` must be a version the
+bidama's Bluefile has reached (dating a rename in the future would open no
+window, and re-dating it to reopen one is a one-line change a reviewer
+sees); and an old or stripped name must not also be defined, which would
+give two definitions one name.",
+    }
 }
 
 impl Code {

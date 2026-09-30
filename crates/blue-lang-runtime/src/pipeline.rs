@@ -522,6 +522,30 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     table.attach_files(form_file, imports);
     table.attach_package_uses(pkg_uses);
     table.attach_needs(program.needs().clone());
+    // Where each file lives and which distribution each bidama ships in: a
+    // bridge reference (B0021) is an error inside the bidama's own
+    // distribution and a warning outside it.
+    let canonical = |p: &std::path::Path| {
+        std::fs::canonicalize(p)
+            .unwrap_or_else(|_| p.to_path_buf())
+            .display()
+            .to_string()
+    };
+    let mut file_paths = std::collections::BTreeMap::new();
+    let mut pkg_roots = std::collections::BTreeMap::new();
+    for f in program.files() {
+        if let Some(path) = &f.path {
+            file_paths.insert(f.id.index(), canonical(path));
+            if let (Some(pkg), Some(root)) = (&f.package, path.parent().and_then(std::path::Path::parent)) {
+                pkg_roots.entry(pkg.clone()).or_insert_with(|| canonical(root));
+            }
+        }
+    }
+    table.attach_paths(file_paths, pkg_roots);
+    let versions = program.versions().clone();
+    table.apply_legacy(program.forms(), &|i| namespace_of(program, i), &|p| {
+        versions.get(p).cloned()
+    });
     table
 }
 
@@ -546,7 +570,9 @@ pub fn lower(program: &crate::uses::ResolvedProgram, names: &NameTable) -> Vec<t
         .into_iter()
         .zip(program.forms())
         .map(|(resolved, written)| {
-            if crate::uses::use_target(written).is_some() {
+            if crate::uses::use_target(written).is_some()
+                || blue_lang_syntax::scope::legacy_target(written).is_some()
+            {
                 tatara_lisp::Spanned::new(written.span, tatara_lisp::SpannedForm::Nil)
             } else {
                 resolved

@@ -144,6 +144,20 @@ row(
 )
 
 row(
+  "check.B0021",
+  "use(\"sp_lg\")\nsp_lg::lg_sp_hours()",
+  diagnoses(["B0021"]),
+  covers("rule:B0021")
+)
+
+row(
+  "check.B0022",
+  "use(\"sp_lg2\")\nsp_lg2::sp_hours()",
+  diagnoses(["B0022"]),
+  covers("rule:B0022")
+)
+
+row(
   "check.waiver",
   "# waive B0001: the fixture needs a raise at runtime\ndef f()\n  nope()\nend",
   diagnoses([])

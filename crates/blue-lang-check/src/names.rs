@@ -193,6 +193,25 @@ pub struct Binding {
 pub struct Scope {
     pub namespace: Namespace,
     bindings: BTreeMap<String, Binding>,
+    /// Second names for definitions, from the bidama's `legacy_names`.
+    aliases: BTreeMap<String, Alias>,
+}
+
+/// A second name for one definition (`legacy_names`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Alias {
+    /// The definition it names.
+    pub canonical: String,
+    /// A bridge for callers still on the old, prefixed spelling (`lc_hours`
+    /// for `hours`): open only inside its window, and reported (B0021) while
+    /// it is. Otherwise the stripped name of a definition that keeps its
+    /// prefix (`count` for `q_count`), valid for good.
+    pub bridge: bool,
+    /// Whether it resolves: a bridge outside its window does not, and is kept
+    /// only as the ledger a late caller's fix is read from.
+    pub open: bool,
+    /// The `legacy_names` version it dates from.
+    pub since: String,
 }
 
 impl Scope {
@@ -201,7 +220,19 @@ impl Scope {
         Self {
             namespace,
             bindings: BTreeMap::new(),
+            aliases: BTreeMap::new(),
         }
+    }
+
+    /// Give a definition a second name.
+    pub fn alias(&mut self, name: String, alias: Alias) {
+        self.aliases.entry(name).or_insert(alias);
+    }
+
+    /// The alias `name` is, open or not.
+    #[must_use]
+    pub fn alias_of(&self, name: &str) -> Option<&Alias> {
+        self.aliases.get(name)
     }
 
     /// Bind a name. A second binding of the same name keeps the first: that
@@ -210,9 +241,16 @@ impl Scope {
         self.bindings.entry(binding.name.clone()).or_insert(binding);
     }
 
+    /// The binding `name` names: a definition, or the definition an open
+    /// alias names (one definition, two names).
     #[must_use]
     pub fn get(&self, name: &str) -> Option<&Binding> {
-        self.bindings.get(name)
+        self.bindings.get(name).or_else(|| {
+            self.aliases
+                .get(name)
+                .filter(|a| a.open)
+                .and_then(|a| self.bindings.get(&a.canonical))
+        })
     }
 
     pub fn bindings(&self) -> impl Iterator<Item = &Binding> {
@@ -244,6 +282,21 @@ pub struct NameTable {
     needs: BTreeMap<String, BTreeSet<String>>,
     /// The bidamas each bidama's files `use`.
     pkg_uses: BTreeMap<String, BTreeSet<String>>,
+    /// Each bidama's declared legacy prefix (`legacy_names`).
+    legacy_prefix: BTreeMap<String, String>,
+    /// Each file's path, and each bidama's distribution root: whether a
+    /// reference is inside the distribution a bidama ships in (B0021).
+    file_paths: BTreeMap<usize, String>,
+    pkg_roots: BTreeMap<String, String>,
+    /// B0022 findings from [`NameTable::apply_legacy`], reported by the check.
+    legacy_findings: Vec<Diagnostic>,
+}
+
+/// `a.b.c` as numbers; `None` for anything else.
+fn version(v: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = v.split('.').map(|p| p.parse::<u64>().ok());
+    let t = (parts.next()??, parts.next()??, parts.next()??);
+    parts.next().is_none().then_some(t)
 }
 
 /// What one file declares with `use`: every package it `use`s (so
@@ -347,6 +400,113 @@ impl NameTable {
         self.imports = imports;
     }
 
+    /// Record each file's path and each bidama's distribution root.
+    pub fn attach_paths(&mut self, file_paths: BTreeMap<usize, String>, pkg_roots: BTreeMap<String, String>) {
+        self.file_paths = file_paths;
+        self.pkg_roots = pkg_roots;
+    }
+
+    /// Is the file of form `top_level` inside the distribution bidama `pkg`
+    /// ships in? Unknown paths count as inside: the error is the safe side.
+    #[must_use]
+    pub fn inside_distribution(&self, top_level: usize, pkg: &str) -> bool {
+        match (self.file_paths.get(&self.file_of(top_level)), self.pkg_roots.get(pkg)) {
+            (Some(file), Some(root)) => file.starts_with(root.as_str()),
+            _ => true,
+        }
+    }
+
+    /// Bidama `pkg`'s declared legacy prefix.
+    #[must_use]
+    pub fn legacy_prefix(&self, pkg: &str) -> Option<&str> {
+        self.legacy_prefix.get(pkg).map(String::as_str)
+    }
+
+    /// Read every `legacy_names(since, prefix)` declaration in `forms` into
+    /// aliases: a bridge `prefix_x` for each definition `x` (open while the
+    /// bidama's version is at least `since` and below the next minor), and
+    /// the stripped name `y` for each definition that keeps its prefix
+    /// (`prefix_y`), for good. Returns B0022 for each declaration that cannot
+    /// mean one thing. `version_of` is a bidama's Bluefile version.
+    pub fn apply_legacy(
+        &mut self,
+        forms: &[Spanned],
+        namespace_of: &dyn Fn(usize) -> Namespace,
+        version_of: &dyn Fn(&str) -> Option<String>,
+    ) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for (i, form) in forms.iter().enumerate() {
+            let Some(decl) = scope::legacy_target(form) else {
+                continue;
+            };
+            let bad = |msg: String| {
+                Diagnostic::new(Code::B0022, msg, decl.span).at_top_level(i)
+            };
+            let Namespace::Bidama(pkg) = namespace_of(i) else {
+                out.push(bad("`legacy_names` declares a bidama's old names, and this file is not in a bidama".into()));
+                continue;
+            };
+            if self.legacy_prefix.contains_key(&pkg) {
+                out.push(bad(format!("bidama `{pkg}` declares `legacy_names` twice")));
+                continue;
+            }
+            let (Some(since), Some(now)) = (
+                version(&decl.since),
+                version_of(&pkg).as_deref().and_then(version),
+            ) else {
+                out.push(bad(format!(
+                    "`legacy_names(\"{}\", …)`: `since` must be a version `a.b.c`, and {pkg}'s Bluefile must state one",
+                    decl.since
+                )));
+                continue;
+            };
+            if since > now {
+                out.push(bad(format!(
+                    "`legacy_names` dates the rename from {}, and bidama `{pkg}` is at {}.{}.{}",
+                    decl.since, now.0, now.1, now.2
+                )));
+                continue;
+            }
+            if decl.prefix.is_empty() || decl.prefix.contains('_') {
+                out.push(bad("the legacy prefix is the letters before the `_`: `legacy_names(\"0.1.1\", \"lc\")`".into()));
+                continue;
+            }
+            let open = now < (since.0, since.1 + 1, 0);
+            self.legacy_prefix.insert(pkg.clone(), decl.prefix.clone());
+            let Some(scope) = self.bidama(&pkg) else { continue };
+            let names: Vec<String> = scope.bindings().map(|b| b.name.clone()).collect();
+            let prefix = format!("{}_", decl.prefix);
+            let mut aliases = Vec::new();
+            for name in &names {
+                let (alias, bridge) = match name.strip_prefix(&prefix) {
+                    Some(stripped) if !stripped.is_empty() => (stripped.to_string(), false),
+                    _ => (format!("{prefix}{name}"), true),
+                };
+                if names.contains(&alias) {
+                    out.push(bad(format!(
+                        "`{alias}` and `{name}` are both defined in `{pkg}`, so `{alias}` cannot also be a second name of `{name}`"
+                    )));
+                    continue;
+                }
+                aliases.push((
+                    alias,
+                    Alias {
+                        canonical: name.clone(),
+                        bridge,
+                        open: open || !bridge,
+                        since: decl.since.clone(),
+                    },
+                ));
+            }
+            let scope = self.scope_mut(Namespace::Bidama(pkg));
+            for (a, al) in aliases {
+                scope.alias(a, al);
+            }
+        }
+        self.legacy_findings.clone_from(&out);
+        out
+    }
+
     /// Record which bidamas each bidama `use`s.
     pub fn attach_package_uses(&mut self, uses: BTreeMap<String, BTreeSet<String>>) {
         self.pkg_uses = uses;
@@ -424,6 +584,12 @@ impl NameTable {
         if let Some((_, ns)) = self.last_definer.get(bare) {
             return Target::Def(ns.clone(), bare.to_string());
         }
+        // An open alias is a second name of a definition the program has.
+        for s in &self.scopes {
+            if let (Namespace::Bidama(_), Some(b)) = (&s.namespace, s.get(bare)) {
+                return Target::Def(s.namespace.clone(), b.name.clone());
+            }
+        }
         if self.builtin(bare) {
             return Target::Builtin(bare.to_string());
         }
@@ -444,14 +610,16 @@ impl NameTable {
                 };
             }
             let ns = Namespace::Bidama(pkg.to_string());
-            return match self.scopes.iter().find(|s| s.namespace == ns) {
-                Some(s) if s.get(n).is_some() => Target::Def(ns, n.to_string()),
-                _ => Target::Unbound,
+            return match self.scopes.iter().find(|s| s.namespace == ns).and_then(|s| s.get(n)) {
+                Some(b) => Target::Def(ns, b.name.clone()),
+                None => Target::Unbound,
             };
         }
         match self.resolve_from(name, own, top_level) {
             Resolution::Found { tier: Tier::Builtin, .. } => Target::Builtin(name.to_string()),
-            Resolution::Found { scope, .. } => Target::Def(scope.namespace.clone(), name.to_string()),
+            Resolution::Found { scope, binding, .. } => {
+                Target::Def(scope.namespace.clone(), binding.name.clone())
+            }
             Resolution::Ambiguous { namespaces, .. } => {
                 Target::Ambiguous(namespaces.into_iter().cloned().collect())
             }
@@ -920,6 +1088,7 @@ pub fn check_names_whole(
     let file_rules =
         crate::namespace_rules::check(forms, table, namespace_of, &w.references, whole_file);
     w.diagnostics.extend(file_rules);
+    w.diagnostics.extend(table.legacy_findings.iter().cloned());
     (w.diagnostics, w.resolved)
 }
 
@@ -1031,6 +1200,7 @@ impl<'t> Walker<'t> {
                 self.diagnostics.push(d);
             }
         }
+        self.legacy_reference(node.span, name, &ns);
         self.references.push(Reference {
             top_level: self.top_level,
             span: node.span,
@@ -1041,6 +1211,69 @@ impl<'t> Walker<'t> {
             ns,
             node: std::ptr::from_ref(node) as usize,
         });
+    }
+
+    /// B0021: a reference through a bridge alias — an old, prefixed name of a
+    /// renamed definition. Its severity is derived: an error inside the
+    /// distribution the bidama ships in, a warning for any other caller.
+    fn legacy_reference(&mut self, span: Span, name: &str, ns: &Target) {
+        let (qualifier, part) = match blue_lang_syntax::qualified(name) {
+            Some((p, n)) => (Some(p), n),
+            None => (None, name),
+        };
+        let Target::Def(Namespace::Bidama(pkg), canonical) = ns else {
+            return;
+        };
+        if canonical == part {
+            return;
+        }
+        let Some(alias) = self.table.bidama(pkg).and_then(|s| s.alias_of(part)) else {
+            return;
+        };
+        if !alias.bridge {
+            return;
+        }
+        let (original, replacement) = match qualifier {
+            Some(q) => (format!("{q}::{part}"), format!("{q}::{canonical}")),
+            None => (part.to_string(), canonical.clone()),
+        };
+        let d = self.legacy_diagnostic(span, pkg, part, canonical, &alias.since, original, replacement);
+        self.diagnostics.push(d);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn legacy_diagnostic(
+        &self,
+        span: Span,
+        pkg: &str,
+        old: &str,
+        new: &str,
+        since: &str,
+        original: String,
+        replacement: String,
+    ) -> Diagnostic {
+        let mut d = Diagnostic::new(
+            Code::B0021,
+            format!("`{old}` is the old name of bidama `{pkg}`'s `{new}` (renamed in {since})"),
+            span,
+        )
+        .at_top_level(self.top_level)
+        .with_help(format!(
+            "write `{replacement}`; the old name resolves only until `{pkg}`'s next minor version"
+        ))
+        .with_fix(Fix {
+            message: format!("write `{replacement}`"),
+            edits: vec![Edit {
+                span,
+                original,
+                replacement,
+            }],
+            applicability: Applicability::MachineApplicable,
+        });
+        if !self.table.inside_distribution(self.top_level, pkg) {
+            d.severity = crate::Severity::Warning;
+        }
+        d
     }
 
     /// The candidates `ns` won over, for a bare name.
@@ -1135,6 +1368,34 @@ impl<'t> Walker<'t> {
             .with_help(format!(
                 "blue qualifies with `::`: `{name}.f(x)` and `{name}/f` are calls on a value named `{name}`; write `{name}::f(x)`"
             ));
+            self.diagnostics.push(d);
+            return;
+        }
+        let renamed: Vec<(String, String, String)> = self
+            .table
+            .use_closure(self.top_level)
+            .iter()
+            .filter_map(|p| {
+                let a = self.table.bidama(p)?.alias_of(name)?;
+                Some((p.clone(), a.canonical.clone(), a.since.clone()))
+            })
+            .collect();
+        if let [(pkg, canonical, since)] = renamed.as_slice() {
+            let replacement = format!("{pkg}::{canonical}");
+            let d = Diagnostic::new(Code::B0001, format!("unbound name `{name}`"), span)
+                .at_top_level(self.top_level)
+                .with_help(format!(
+                    "`{name}` was bidama `{pkg}`'s, renamed `{canonical}` in {since}, and the bridge has closed"
+                ))
+                .with_fix(Fix {
+                    message: format!("write `{replacement}`"),
+                    edits: vec![Edit {
+                        span,
+                        original: name.to_string(),
+                        replacement,
+                    }],
+                    applicability: Applicability::MachineApplicable,
+                });
             self.diagnostics.push(d);
             return;
         }
@@ -1274,6 +1535,28 @@ impl Walker<'_> {
         near.truncate(3);
         let mut d = Diagnostic::new(Code::B0011, format!("bidama `{pkg}` defines no `{n}`"), span)
             .at_top_level(self.top_level);
+        // A closed bridge: the ledger still says what it was renamed to.
+        if let Some(a) = self.table.bidama(pkg).and_then(|s| s.alias_of(n)) {
+            let (original, replacement) = if qualified {
+                (format!("{pkg}::{n}"), format!("{pkg}::{}", a.canonical))
+            } else {
+                (format!(":{n}"), format!(":{}", a.canonical))
+            };
+            return d
+                .with_help(format!(
+                    "`{n}` was renamed `{}` in {} (`legacy_names`), and the bridge has closed",
+                    a.canonical, a.since
+                ))
+                .with_fix(Fix {
+                    message: format!("write `{replacement}`"),
+                    edits: vec![Edit {
+                        span,
+                        original,
+                        replacement,
+                    }],
+                    applicability: Applicability::MachineApplicable,
+                });
+        }
         let mut offers: Vec<String> = owners.iter().map(|o| format!("{o}::{n}")).collect();
         offers.extend(near.iter().map(|(_, c)| format!("{pkg}::{c}")));
         d = match (owners.as_slice(), offers.as_slice()) {
@@ -1306,11 +1589,24 @@ impl Walker<'_> {
             return;
         };
         for (n, span) in &import.names {
-            if self
-                .table
-                .bidama(&import.package)
-                .is_some_and(|s| s.get(n).is_some())
-            {
+            if let Some(b) = self.table.bidama(&import.package).and_then(|s| s.get(n)) {
+                let alias = self
+                    .table
+                    .bidama(&import.package)
+                    .and_then(|s| s.alias_of(n))
+                    .filter(|a| a.bridge && &b.name != n);
+                if let Some(a) = alias {
+                    let d = self.legacy_diagnostic(
+                        *span,
+                        &import.package,
+                        n,
+                        &b.name,
+                        &a.since,
+                        format!(":{n}"),
+                        format!(":{}", b.name),
+                    );
+                    self.diagnostics.push(d);
+                }
                 continue;
             }
             let d = self.no_such_definition(*span, &import.package, n, false);
@@ -1432,7 +1728,10 @@ impl Scopes for Walker<'_> {
                 }
             }
             HeadKind::SpecialForm
-                if !matches!(name, "define" | "define-typed" | "defmacro" | "use") =>
+                if !matches!(
+                    name,
+                    "define" | "define-typed" | "defmacro" | "use" | "legacy_names"
+                ) =>
             {
                 self.resolved += 1;
             }

@@ -284,6 +284,25 @@ def name_collisions_touching(records, owned)
   )
 end
 
+# [package, def_name] for every name a package defines more than once: the
+# collision gate under per-bidama namespaces, where two packages may share a
+# name and one package may not.
+def namespace_duplicates(records)
+  flat_map(
+    fn(r)
+      names = map(fn(e) first(e) end, pkg_entries(r))
+      map(
+        fn(n) [pkg_name(r), n] end,
+        filter(
+          fn(n) size(filter(fn(m) m == n end, names)) > 1 end,
+          unique(names)
+        )
+      )
+    end,
+    records
+  )
+end
+
 # [def_name, package] for every definition that reuses one of `names`.
 def names_shadowing(records, names)
   filter(fn(p) contains(names, first(p)) end, definition_owners(records))

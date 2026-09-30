@@ -399,3 +399,103 @@ pub fn resolved_json(
     };
     serde_json::to_string(&out)
 }
+
+// ---- cross-tier overrides ----------------------------------------------------
+
+fn tier_word(t: blue_lang_check::names::Tier) -> &'static str {
+    use blue_lang_check::names::Tier;
+    match t {
+        Tier::Local => "local",
+        Tier::Own => "own",
+        Tier::Imported => "imported",
+        Tier::Builtin => "builtin",
+    }
+}
+
+fn namespace_word(n: &blue_lang_check::Namespace) -> String {
+    use blue_lang_check::Namespace;
+    match n {
+        Namespace::Bidama(p) => p.clone(),
+        Namespace::File(_) => "this file".to_string(),
+        other => other.to_string(),
+    }
+}
+
+#[derive(Serialize)]
+struct ShadowedJson {
+    tier: &'static str,
+    namespace: String,
+}
+
+#[derive(Serialize)]
+struct OverrideJson {
+    kind: &'static str,
+    name: String,
+    #[serde(flatten)]
+    at: Location,
+    tier: &'static str,
+    namespace: String,
+    shadowed: Vec<ShadowedJson>,
+}
+
+/// One JSON line per cross-tier override in the entry file: a bare name the
+/// resolution order bound in a higher tier while a lower tier also had it.
+/// Not a diagnostic — each tier is something the author wrote — and recorded
+/// so a tool can see every place the order decided.
+///
+/// # Errors
+///
+/// Serialization only.
+pub fn overrides_json(
+    checked: &blue_lang_runtime::pipeline::Checked,
+    resolved: &blue_lang_check::names::Resolved,
+) -> Result<String, serde_json::Error> {
+    use blue_lang_check::names::Target;
+    let program = &checked.program;
+    let file = program.file(ResolvedProgram::ENTRY);
+    let mut out = String::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for r in &resolved.references {
+        if r.shadowed.is_empty() || program.owner_of(r.top_level) != Some(ResolvedProgram::ENTRY) {
+            continue;
+        }
+        if !seen.insert((r.span.start, r.span.end, r.written.clone())) {
+            continue;
+        }
+        let Target::Def(ns, _) = &r.ns else { continue };
+        let (tier, namespace) = (tier_of_winner(checked, r), namespace_word(ns));
+        let line = OverrideJson {
+            kind: "override",
+            name: r.written.clone(),
+            at: Location::of(file, r.span),
+            tier,
+            namespace,
+            shadowed: r
+                .shadowed
+                .iter()
+                .map(|(t, n)| ShadowedJson {
+                    tier: tier_word(*t),
+                    namespace: namespace_word(n),
+                })
+                .collect(),
+        };
+        out.push_str(&serde_json::to_string(&line)?);
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// The tier a reference's namespaced binding came from: the first non-empty
+/// tier of its resolution path.
+fn tier_of_winner(
+    checked: &blue_lang_runtime::pipeline::Checked,
+    r: &blue_lang_check::names::Reference,
+) -> &'static str {
+    let own = blue_lang_runtime::pipeline::namespace_of(&checked.program, r.top_level);
+    checked
+        .names
+        .tiers_of(&r.written, &own, r.top_level)
+        .into_iter()
+        .find(|(_, nss)| !nss.is_empty())
+        .map_or("builtin", |(t, _)| tier_word(t))
+}

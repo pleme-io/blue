@@ -221,6 +221,25 @@ pub(crate) struct Prepared {
     seams: usize,
 }
 
+impl Prepared {
+    /// The entry file's namespace.
+    pub(crate) fn entry_namespace(&self) -> Namespace {
+        let first = (0..self.program.forms().len())
+            .find(|i| self.program.owner_of(*i) == Some(crate::uses::ResolvedProgram::ENTRY));
+        match first {
+            Some(i) => namespace_of(&self.program, i),
+            None => match self
+                .program
+                .file(crate::uses::ResolvedProgram::ENTRY)
+                .and_then(|f| f.package.clone())
+            {
+                Some(p) => Namespace::Bidama(p),
+                None => Namespace::File(String::new()),
+            },
+        }
+    }
+}
+
 /// Parse, resolve, check and erase, in that order.
 ///
 /// `builtins` is the name table of the interpreter that will evaluate the
@@ -262,7 +281,7 @@ pub(crate) fn prepare(
     // the string that produced them, which the caller is responsible for
     // holding onto"). blue holds onto it BESIDE the span, per top-level form —
     // see `uses::ResolvedProgram`.
-    let (outcome, _) = check_stage(&program, builtins, false);
+    let (outcome, names) = check_stage(&program, builtins, false);
     if !outcome.ok() {
         return Err(RunError::Types(
             outcome
@@ -287,7 +306,7 @@ pub(crate) fn prepare(
     //
     // No lowering step follows. The tree the evaluator receives IS the tree the
     // parser built, minus annotations, with the author's byte offsets intact.
-    let erased = erase_types(&lower(&program));
+    let erased = erase_types(&lower(&program, &names));
 
     Ok(Prepared {
         program,
@@ -493,49 +512,47 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
             break;
         }
     }
+    let mut pkg_uses: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+        std::collections::BTreeMap::new();
+    for (file, import) in program.imports() {
+        if let Some(p) = program.file(*file).and_then(|f| f.package.clone()) {
+            pkg_uses.entry(p).or_default().insert(import.package.clone());
+        }
+    }
     table.attach_files(form_file, imports);
+    table.attach_package_uses(pkg_uses);
     table.attach_needs(program.needs().clone());
     table
 }
 
 /// The forms the evaluator runs, from a checked program: every `use`
 /// declaration inert (`nil`, so each index still names its top-level form)
-/// and every qualified name lowered to the key it runs under.
+/// and every name at the key it runs under — the RESOLVED tree under
+/// per-bidama namespaces (`blue_lang_check::names::Resolved::resolved_tree`).
 ///
-/// **Flat semantics hold here**, so a qualified name lowers to its bare name:
-/// the check stage has already proven `retsu::first` is retsu's, and the
-/// single global environment binds `first` to retsu's definition. When
-/// namespaces resolve at run time, this is where the resolved tree is built.
+/// A definition runs as `retsu/first` (a script's as `%root/f`), a
+/// reference to it as the same key, and a builtin as its bare name. Keys
+/// cannot collide across namespaces, so a bidama's `first` no longer
+/// replaces the builtin for anyone who did not import it, and an importer's
+/// `helper` no longer replaces a bidama's own: the runtime binds exactly what
+/// the check stage resolved.
 #[must_use]
-pub fn lower(program: &crate::uses::ResolvedProgram) -> Vec<tatara_lisp::Spanned> {
-    program
-        .forms()
-        .iter()
-        .map(|f| {
-            if crate::uses::use_target(f).is_some() {
-                tatara_lisp::Spanned::new(f.span, tatara_lisp::SpannedForm::Nil)
+pub fn lower(program: &crate::uses::ResolvedProgram, names: &NameTable) -> Vec<tatara_lisp::Spanned> {
+    let resolved = blue_lang_check::names::resolve_program(program.forms(), names, &|i| {
+        namespace_of(program, i)
+    });
+    resolved
+        .resolved_tree(program.forms(), blue_lang_check::names::Rule::Namespaced)
+        .into_iter()
+        .zip(program.forms())
+        .map(|(resolved, written)| {
+            if crate::uses::use_target(written).is_some() {
+                tatara_lisp::Spanned::new(written.span, tatara_lisp::SpannedForm::Nil)
             } else {
-                strip_qualifiers(f)
+                resolved
             }
         })
         .collect()
-}
-
-fn strip_qualifiers(form: &tatara_lisp::Spanned) -> tatara_lisp::Spanned {
-    use tatara_lisp::{Atom, Spanned, SpannedForm};
-    let inner = match &form.form {
-        SpannedForm::Atom(Atom::Symbol(s)) => match blue_lang_syntax::qualified(s) {
-            Some((_, n)) => SpannedForm::Atom(Atom::Symbol(n.to_string())),
-            None => return form.clone(),
-        },
-        SpannedForm::List(items) => SpannedForm::List(items.iter().map(strip_qualifiers).collect()),
-        SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(strip_qualifiers(i))),
-        SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(strip_qualifiers(i))),
-        SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(strip_qualifiers(i))),
-        SpannedForm::UnquoteSplice(i) => SpannedForm::UnquoteSplice(Box::new(strip_qualifiers(i))),
-        other => other.clone(),
-    };
-    Spanned::new(form.span, inner)
 }
 
 /// The namespace top-level form `i` of `program` defines into.
@@ -664,14 +681,17 @@ impl Checked {
     /// `run` evaluates, for a door that brings its own evaluator (the VM).
     #[must_use]
     pub fn erased(&self) -> Vec<tatara_lisp::Spanned> {
-        erase_types(&lower(&self.program))
+        erase_types(&lower(&self.program, &self.names))
     }
 
     /// What `blue test` hands the harness: the program [`lower`]ed, spans
     /// projected away.
     #[must_use]
     pub fn evaluable(&self) -> Vec<tatara_lisp::Sexp> {
-        lower(&self.program).iter().map(tatara_lisp::Spanned::to_sexp).collect()
+        lower(&self.program, &self.names)
+            .iter()
+            .map(tatara_lisp::Spanned::to_sexp)
+            .collect()
     }
 
     /// Every non-local reference, resolved under both rules — today's flat
@@ -733,6 +753,35 @@ pub fn syntax_diagnostic(text: &str) -> Option<blue_lang_check::Diagnostic> {
     )
 }
 
+/// A runtime message as the author wrote the names in it: a definition runs
+/// under its key (`retsu/first`, `%root/f`), and a message naming one in
+/// backticks names it `retsu::first`, or `f` for the author's own script.
+#[must_use]
+pub fn display_keys(message: &str) -> String {
+    let root = format!("{}{}", blue_lang_check::names::ROOT_QUALIFIER, blue_lang_syntax::QUALIFIER);
+    let mut out = String::with_capacity(message.len());
+    let mut parts = message.split('`');
+    if let Some(first) = parts.next() {
+        out.push_str(first);
+    }
+    for (i, part) in parts.enumerate() {
+        out.push('`');
+        // Odd pieces (0-based here) are inside backticks.
+        if i % 2 == 0 {
+            if let Some(rest) = part.strip_prefix(&root) {
+                out.push_str(rest);
+            } else if let Some((pkg, name)) = blue_lang_syntax::qualified(part) {
+                out.push_str(&format!("{pkg}::{name}"));
+            } else {
+                out.push_str(part);
+            }
+        } else {
+            out.push_str(part);
+        }
+    }
+    out
+}
+
 /// Evaluate a prepared program's top-level forms into `interp`, with `host`.
 pub(crate) fn eval_prepared<H: 'static>(
     interp: &mut tatara_lisp_eval::Interpreter<H>,
@@ -783,7 +832,7 @@ pub(crate) fn eval_prepared<H: 'static>(
             // where blue can say more: a wrong argument count names the
             // function the author called, read off the call in this tree,
             // instead of upstream's `<closure>` and a Rust `Debug` arity.
-            let message = crate::messages::describe(&e, erased);
+            let message = display_keys(&crate::messages::describe(&e, erased));
             RunError::Eval(program.locate(top_level, at, &message).to_string())
         })?;
     }

@@ -49,13 +49,39 @@ finding.
 
 ## Name resolution order
 
-A name resolves by tier, first match wins
-(`blue_lang_check::names::RESOLUTION_ORDER`): locals innermost first, then the
-referencing file's or bidama's own definitions, then every other imported
-definition, then builtins (harness names, special forms, macros, values). Two
-namespaces in the tier that holds the name is B0009. For the head of a call the
-evaluator's own order applies first: a special form, then a macro, beats any
-definition.
+A bare name resolves by tier, first match wins, deterministically
+(`blue_lang_check::names::RESOLUTION_ORDER`): locals innermost first, then
+the referencing file's own bidama (or, for a script, the file), then the
+names the file lists in its `use` forms (`use("retsu", [:first])`), then
+builtins (harness names, special forms, macros, values). A `use("x")` with no
+list makes `x::name` reachable and no bare name; a bidama the file does not
+`use` is not visible. Two namespaces in the tier that holds the name is B0009
+(two lists naming it). A qualified name — `retsu::first`, or `blue::first`
+for the builtin — bypasses the tiers and is exact.
+
+The runtime evaluates the tree resolution produced: every definition keyed
+`pkg/name` (`%root/name` for a script), every reference to it as that key, a
+builtin bare. So the runtime binds exactly what the check resolved.
+
+## Overrides, and `blue explain-name`
+
+When a bare name is bound in one tier while a lower tier also holds it — a
+bidama's own `count` over the builtin, a listed `first` over the builtin — the
+higher tier wins; that is the order, not an error, since each tier is
+something the author wrote. `blue check --format json` records each one in
+the entry file as a line after the diagnostics:
+
+| field | meaning |
+|---|---|
+| `kind` | `override` |
+| `name` | the name as written |
+| location fields | where the reference is |
+| `tier` | the tier that won: `own` or `imported` |
+| `namespace` | the winning namespace: a bidama's name, or `this file` |
+| `shadowed` | each lower-tier candidate, as `{tier, namespace}` |
+
+`blue explain-name NAME FILE:LINE` prints the whole path for one name at one
+place: each tier, what it holds, and which wins.
 
 ## Waivers
 

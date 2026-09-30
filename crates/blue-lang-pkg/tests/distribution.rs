@@ -306,22 +306,27 @@ fn every_bidama_has_a_name_ledger_row() {
     );
 }
 
-/// No two packages may define the same name.
+/// Which duplicates the name gate refuses.
 ///
-/// `use()` inlines a package's forms into ONE FLAT namespace, so two packages
-/// defining the same name shadow each other with no error, no warning and no
-/// failing test. Whichever import lands second wins.
-///
-/// This is not hypothetical and it is not rare — it happened DURING the session
-/// that wrote this distribution. `retsu` gained `slice(xs, start, count)` and
-/// `index_of(xs, v)` while `moji` was independently writing string functions of
-/// the same names, at the SAME ARITY. Same arity is what makes it dangerous: a
-/// mismatched arity fails loudly, whereas these would have silently answered a
-/// string question with a list function.
-///
-/// The class dies here. A duplicate is a red build naming both packages, which
-/// is the whole reason to have a distribution gate rather than trusting each
-/// package's own green suite.
+/// `Distribution` is the rule blue's single global environment needed: no
+/// two packages define one name, because under a flat `use()` the second
+/// silently shadowed the first (retsu and moji independently gaining
+/// `slice` and `index_of` at the same arity, during the session that wrote
+/// this distribution). `Namespace` is the rule per-bidama namespaces need:
+/// a name is defined once WITHIN a package. Across packages a duplicate is
+/// legal now — `retsu::slice` and `moji::slice` are two keys the runtime
+/// cannot confuse — so the class the first rule policed is unrepresentable
+/// rather than gated. The first stays, configured off, for a distribution
+/// built with a blue from before namespaces.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Scope {
+    #[allow(dead_code)]
+    Distribution,
+    Namespace,
+}
+
+const SCOPE: Scope = Scope::Namespace;
+
 #[test]
 fn no_two_packages_define_the_same_name() {
     let mut owner: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
@@ -340,13 +345,22 @@ fn no_two_packages_define_the_same_name() {
             if fname.is_empty() {
                 continue;
             }
-            match owner.get(fname) {
-                Some(first) if first != &name => clashes.push(format!(
-                    "`{fname}` is defined by BOTH {first} and {name} — under \
-                     use() the second silently shadows the first"
-                )),
+            let key = match SCOPE {
+                Scope::Distribution => fname.to_owned(),
+                Scope::Namespace => format!("{name}::{fname}"),
+            };
+            match owner.get(&key) {
+                Some(first) if SCOPE == Scope::Distribution && first != &name => {
+                    clashes.push(format!(
+                        "`{fname}` is defined by BOTH {first} and {name} — under \
+                         use() the second silently shadows the first"
+                    ));
+                }
+                Some(_) if SCOPE == Scope::Namespace => {
+                    clashes.push(format!("`{fname}` is defined twice in {name}"));
+                }
                 _ => {
-                    owner.insert(fname.to_owned(), name.clone());
+                    owner.insert(key, name.clone());
                 }
             }
         }
@@ -354,7 +368,7 @@ fn no_two_packages_define_the_same_name() {
 
     assert!(
         clashes.is_empty(),
-        "{} cross-package name collision(s):\n{}",
+        "{} name collision(s):\n{}",
         clashes.len(),
         clashes.join("\n")
     );

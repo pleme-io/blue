@@ -87,9 +87,12 @@ scoped: every diagnostic in a file is reported in one pass, naming the
 offending definition. The one escape hatch is `# waive CODE: reason` directly
 above the offending top-level definition; it is counted and reported, never
 silent, and there is no global switch. Names resolve by an explicit tier list
-(`names::RESOLUTION_ORDER`: local, own, imported, builtin), and the runtime's
-last-define-wins order differs from it in two measured places —
-`blue-lang-runtime/tests/resolution_order.rs` pins both. Full shape:
+(`names::RESOLUTION_ORDER`: local, own bidama, the names the file's `use`
+forms list, builtin; `pkg::name` is exact), and the runtime evaluates the
+tree that resolution produced — every definition keyed `pkg/name` — so the
+two cannot disagree; `blue-lang-runtime/tests/resolution_order.rs` pins the
+agreement. A namespace rule the corpus is still being brought to carries a
+`ratchet` and is counted by `blue census` until it reaches zero. Full shape:
 `docs/DIAGNOSTICS.md`.
 
 ## Where to look

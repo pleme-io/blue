@@ -24,6 +24,9 @@ use crate::uses::{Entry, Loader};
 /// A loaded blue program whose definitions a host can call.
 pub struct Hosted<H: 'static> {
     interp: Interpreter<H>,
+    /// The entry file's namespace: its definitions run under this
+    /// namespace's keys (`%root/f` for a script), and a host names them bare.
+    entry: blue_lang_check::Namespace,
 }
 
 /// Parse, check and erase `entry`, build a blue interpreter over `H`, let
@@ -47,15 +50,24 @@ pub fn load_hosted<H: 'static>(
     install(&mut interp);
     let prepared = prepare(entry, loader, None, &builtin_names(&interp))?;
     eval_prepared(&mut interp, &prepared, host)?;
-    Ok(Hosted { interp })
+    let entry = prepared.entry_namespace();
+    Ok(Hosted { interp, entry })
 }
 
 impl<H: 'static> Hosted<H> {
+    /// What `name` is bound to: the entry's definition of it (under its
+    /// runtime key), else a global of that name (a host primitive, a builtin).
+    fn lookup(&self, name: &str) -> Option<Value> {
+        self.interp
+            .lookup_global(&blue_lang_check::names::key(&self.entry, name))
+            .or_else(|| self.interp.lookup_global(name))
+    }
+
     /// Whether the program defines a callable named `name`.
     #[must_use]
     pub fn defines(&self, name: &str) -> bool {
         matches!(
-            self.interp.lookup_global(name),
+            self.lookup(name),
             Some(Value::Closure(_) | Value::NativeFn(_))
         )
     }
@@ -67,7 +79,7 @@ impl<H: 'static> Hosted<H> {
     /// [`RunError::Eval`] naming the function when it is not defined or is not
     /// callable, or with the message it raised.
     pub fn call(&mut self, name: &str, args: Vec<Value>, host: &mut H) -> Result<Value, RunError> {
-        let callee = match self.interp.lookup_global(name) {
+        let callee = match self.lookup(name) {
             Some(v @ (Value::Closure(_) | Value::NativeFn(_))) => v,
             Some(other) => {
                 return Err(RunError::Eval(format!(

@@ -163,6 +163,13 @@ enum Cmd {
         #[arg(required = true)]
         files: Vec<PathBuf>,
     },
+    /// How a bare NAME resolves at FILE:LINE: every tier of the resolution
+    /// order, what each holds, and which wins.
+    ExplainName {
+        name: String,
+        /// `path/to/file.b:LINE`.
+        at: String,
+    },
     /// Count, over every `.b` file under ROOT, each finding of every rule
     /// still being ratcheted in, and fail unless each count equals its
     /// registry row's `ratchet`. `--findings` lists them.
@@ -571,6 +578,58 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 &blue_lang_runtime::uses::NoLoader,
                 None,
             )?;
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::ExplainName { name, at } => {
+            let (path, line) = at
+                .rsplit_once(':')
+                .and_then(|(p, l)| l.parse::<usize>().ok().map(|l| (PathBuf::from(p), l)))
+                .ok_or_else(|| CliError::Pkg(format!("expected FILE:LINE, got `{at}`")))?;
+            let src = read_compiled(&path)?;
+            let checked = blue_lang_runtime::pipeline::check_entry(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(&path),
+                    text: &src,
+                },
+                &blue_lang_pkg::load_path::LoadPath::from_env(),
+                None,
+                blue_lang_runtime::pipeline::Checking::WithTests,
+            )?;
+            let program = &checked.program;
+            let entry = |i: usize| program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY);
+            let form = (0..program.forms().len())
+                .filter(|i| entry(*i))
+                .filter(|i| {
+                    blue_lang_syntax::Span::line_col(&src, program.forms()[*i].span.start).0 <= line
+                })
+                .last()
+                .ok_or_else(|| CliError::Pkg(format!("no top-level form at or before line {line}")))?;
+            let own = blue_lang_runtime::pipeline::namespace_of(program, form);
+            println!("`{name}` at {}:{line}, in {own}:", path.display());
+            println!("  local     a parameter or local of that name in scope at the line wins over everything below");
+            let mut won = false;
+            for (tier, nss) in checked.names.tiers_of(&name, &own, form) {
+                let word = format!("{tier:?}").to_lowercase();
+                let held = if nss.is_empty() {
+                    "-".to_string()
+                } else {
+                    nss.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+                };
+                let verdict = match (nss.len(), won) {
+                    (0, _) => "",
+                    (1, false) => "  <- wins",
+                    (_, false) => "  <- ambiguous (B0009)",
+                    (_, true) => "  (shadowed)",
+                };
+                if !nss.is_empty() {
+                    won = true;
+                }
+                println!("  {word:<9} {held}{verdict}");
+            }
+            if !won {
+                println!("  unbound (B0001, or B0012 when a used bidama defines it)");
+            }
             Ok(ExitCode::SUCCESS)
         }
 
@@ -1013,7 +1072,10 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
     }
     let outcome = &checked.outcome;
     match format {
-        Format::Json => print!("{}", diagnostics::json_lines(&checked.program, outcome)?),
+        Format::Json => {
+            print!("{}", diagnostics::json_lines(&checked.program, outcome)?);
+            print!("{}", diagnostics::overrides_json(&checked, &checked.resolve())?);
+        }
         Format::Text => {
             // Report the analysis performed, not just pass/fail. §0's rule is
             // that an invisible cost is the one unacceptable outcome, and the

@@ -242,7 +242,7 @@ let
           # Collisions touching the project's packages — with the public
           # distribution as much as with each other, so one package is enough
           # to need it.
-          bidama-collisions = bl.mkCollisionCheck { inherit blue bidamas; owned = ownNames; };
+          bidama-collisions = bl.mkCollisionCheck { inherit blue bidamas; owned = ownNames; scope = "namespace"; };
           bidama-locks-fresh = bl.mkLockCheck { inherit blue; roots = map (d: src + "/${d}") m.packages; };
           # The version solver over every own package's needs, against the
           # same graph the build uses (mk-bidama.nix, mkResolveCheck).

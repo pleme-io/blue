@@ -262,7 +262,9 @@ pub fn vm(env: &mut Env, row: &Row) -> Obs {
         Ok(v) => Obs::Value(env.literal(&v)),
         Err(e) => Obs::Failed {
             stage: Stage::Eval,
-            message: blue_lang_runtime::messages::describe(&e, &erased),
+            message: blue_lang_runtime::pipeline::display_keys(
+                &blue_lang_runtime::messages::describe(&e, &erased),
+            ),
         },
     }
 }

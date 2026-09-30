@@ -51,7 +51,7 @@ row(
   "modules.ns.builtin_qualified",
   "use(\"sp_over\", [:first])\nblue::first([1, 2])",
   value("1"),
-  pending("namespaces")
+  pending("G16", "wasm")
 )
 
 row(
@@ -63,16 +63,18 @@ row(
 
 row(
   "modules.ns.own_beats_importer",
-  "use(\"sp_own\")\n\ndef sp_helper()\n  :entry\nend\n\nsp_call_helper()",
+  "use(\"sp_own\", [:sp_call_helper])\n\ndef sp_helper()\n  :entry\nend\n\nsp_call_helper()",
   value(":bidama"),
-  pending("namespaces")
+  pending("G16", "wasm")
 )
 
 row(
   "modules.ns.builtin_not_replaced",
   "use(\"sp_over\")\nfirst([1, 2])",
   value("1"),
-  pending("namespaces")
+  # B0012 refuses a bare name a used bidama defines while callers migrate
+  # from flat visibility; the destination is the builtin, once that closes.
+  pending("legacy-window")
 )
 
 row(

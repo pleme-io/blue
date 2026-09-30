@@ -419,18 +419,28 @@ rec {
   # positive control): a scan that missed them reports zero collisions for
   # them and passes. Taken from makoto's `tools/collisions.b`. Red run,
   # 2026-09-24: owned = [retsu, not-a-package] → red; [retsu, kazu] → green.
-  mkCollisionCheck = { blue, bidamas, owned ? null, name ? "bidama-collisions" }:
+  # `scope`: "distribution" refuses a name two packages define (what blue's
+  # single global environment needed); "namespace" refuses a name one package
+  # defines twice, and allows the rest, since per-bidama namespaces key every
+  # definition by its package. The default is the old rule, so a project on a
+  # blue from before namespaces keeps its gate unchanged.
+  mkCollisionCheck = { blue, bidamas, owned ? null, name ? "bidama-collisions", scope ? "distribution" }:
     let
       ownedList = "[${lib.concatMapStringsSep ", " (o: ''"${o}"'') owned}]";
+      mine = if owned == null then "records" else "filter(fn(r) contains(${ownedList}, pkg_name(r)) end, records)";
       query =
-        if owned == null
+        if scope == "namespace"
+        then "namespace_duplicates(${mine})"
+        else if owned == null
         then "name_collisions(records)"
         else "name_collisions_touching(records, ${ownedList})";
       # What the gate program lists from each bidama: exactly what it reads,
       # which depends on `owned` (an unread listed name is B0016).
       mokurokuNames =
         [ "blue_path_roots" "catalog_of" ]
-        ++ (if owned == null then [ "name_collisions" ] else [ "name_collisions_touching" "pkg_name" ]);
+        ++ (if scope == "namespace" then [ "namespace_duplicates" ]
+            else if owned == null then [ "name_collisions" ] else [ "name_collisions_touching" ])
+        ++ lib.optional (owned != null) "pkg_name";
       retsuNames = (lib.optional (owned != null) "contains") ++ [ "is_empty" "size" ];
       list = names: lib.concatMapStringsSep ", " (n: ":" + n) names;
       seen = lib.optionalString (owned != null) ''

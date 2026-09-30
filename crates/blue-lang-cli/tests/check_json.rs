@@ -149,3 +149,30 @@ fn fix_applies_only_machine_applicable_fixes() {
     );
     assert_eq!(out.status.code(), Some(1));
 }
+
+/// **A cross-tier override is recorded**, after the diagnostics: an own
+/// `count` over the builtin's. Every field it uses is documented.
+///
+/// Red run (2026-09-29), `overrides_json` not printed: no `override` line.
+#[test]
+fn an_override_is_recorded_after_the_diagnostics() {
+    let p = fixture("override", "def count(_xs)\n  0\nend\n\ncount([1])\n");
+    let out = blue()
+        .args(["check", "--format", "json", p.to_str().expect("utf-8")])
+        .output()
+        .expect("spawn");
+    let got = String::from_utf8(out.stdout)
+        .expect("utf-8")
+        .replace(p.to_str().expect("utf-8"), "F");
+    assert_eq!(
+        got,
+        "{\"kind\":\"override\",\"name\":\"count\",\"file\":\"F\",\"line\":5,\"column\":1,\"end_line\":5,\"end_column\":6,\"byte_start\":24,\"byte_end\":29,\"tier\":\"own\",\"namespace\":\"this file\",\"shadowed\":[{\"tier\":\"builtin\",\"namespace\":\"builtin\"}]}\n"
+    );
+    let doc = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/DIAGNOSTICS.md"),
+    )
+    .expect("docs");
+    for field in ["kind", "name", "tier", "namespace", "shadowed"] {
+        assert!(doc.contains(&format!("`{field}`")), "`{field}` undocumented");
+    }
+}

@@ -119,19 +119,19 @@ fn a_listed_name_is_what_the_namespaced_rule_binds() {
     );
 }
 
-/// **Under flat semantics `blue::first` still runs retsu's `first`** when
-/// retsu is loaded: the qualifier is checked, then lowered to the one global
-/// key. Pinned as the divergence the namespace flip closes.
+/// **`blue::first` is the builtin, whatever the file lists.** The file lists
+/// retsu's `first`, so bare `first` is retsu's; the qualifier reaches past it.
+///
+/// Red run (2026-09-29), before per-namespace keys: the qualifier was lowered
+/// to the one global `first`, retsu's, and this returned `:retsu_first`.
 #[test]
-fn blue_first_lowers_to_the_flat_key_today() {
-    // The file lists retsu's `first`, so `blue::` is what says "the
-    // builtin" — and under flat semantics it cannot.
-    let src = "use(\"retsu\", [:first])\n\nblue::first([1])\n";
+fn blue_first_is_the_builtin_whatever_the_file_lists() {
+    let src = "use(\"retsu\", [:first])\n\n[first([1]), blue::first([1])]\n";
     assert!(codes(src).is_empty(), "{:?}", codes(src));
     let v = run_in_surface(Entry::anonymous(src), Inputs::new(), &Mem(DIST), None)
         .expect("run")
         .value;
-    assert!(matches!(&v, Value::Keyword(k) if &**k == "retsu_first"), "{v:?}");
+    assert_eq!(format!("{v:?}"), "[Keyword(:retsu_first), Int(1)]");
 }
 
 /// **A facade makes its members' qualifiers reachable, and no bare name.**

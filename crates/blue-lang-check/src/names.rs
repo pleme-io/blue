@@ -24,42 +24,36 @@
 //! |---|---|---|
 //! | [`Tier::Local`] | parameters and local bindings, innermost first | its enclosing frames |
 //! | [`Tier::Own`] | definitions in the same file (entry) or bidama | its own namespace |
-//! | [`Tier::Imported`] | every other file's and bidama's definitions | all other program namespaces |
+//! | [`Tier::Imported`] | the names the file lists in its `use` forms (`use("retsu", [:first])`) | its own file's imports |
 //! | [`Tier::Builtin`] | harness names, special forms, macros, runtime values | the interpreter |
 //!
-//! The first tier holding the name wins. **Two namespaces in the SAME tier
-//! holding it is [`B0009`](crate::Code::B0009)**, an error: nothing in the
-//! program says which was meant. No tier holding it is
+//! The first tier holding the name wins, deterministically: an own definition
+//! beats a listed one, a listed one beats a builtin. **Two namespaces in the
+//! SAME tier holding it is [`B0009`](crate::Code::B0009)**, an error: two `use`
+//! forms listing one name. No tier holding it is
 //! [`B0001`](crate::Code::B0001), with did-you-mean candidates that each name
-//! their namespace. Per-bidama namespaces will change which scopes a tier
-//! contains and add qualified names that pick one; they re-point this list,
-//! not the walker.
+//! their namespace — or [`B0012`](crate::Code::B0012) when a bidama the file's
+//! imports loaded defines it. A qualified name (`retsu::first`, `blue::first`)
+//! bypasses the tiers and is exact. A `use("x")` with no list makes only
+//! `x::name` reachable; a transitive bidama is not visible at all.
 //!
-//! ## What the RUNTIME does today, measured (2026-09-29)
+//! ## The runtime binds what the table resolved
 //!
-//! The list above is the check's contract, and it agrees with the runtime on
-//! every program the check accepts — but the runtime does not implement it as
-//! a list. `resolve_uses` splices every file into one program whose top-level
-//! `define`s all land in ONE global environment, so at runtime the binding a
-//! name has is whichever `define` of it ran LAST. Three consequences, each
-//! pinned by a test in `blue-lang-runtime/tests/resolution_order.rs`:
+//! `pipeline::lower` evaluates the RESOLVED tree ([`Resolved::resolved_tree`]
+//! under [`Rule::Namespaced`]): every definition runs under its [`key`]
+//! (`retsu/first`, `%root/f`) and every reference to it as that key, and a
+//! builtin stays bare. Keys cannot collide across namespaces, so a bidama's
+//! `first` no longer replaces the builtin for files that did not list it, and
+//! an importer's `helper` no longer replaces a bidama's own
+//! (`blue-lang-runtime/tests/resolution_order.rs` pins both agreements; until
+//! 2026-09-29 it pinned them as divergences of one global environment).
 //!
-//! - **A bidama's definition replaces a builtin program-wide.** A bidama that
-//!   defines `first` rebinds `first` for every file, the entry file and the
-//!   builtins' other callers included. The check agrees for the importer
-//!   (Imported beats Builtin). Measured over the whole distribution: 17 such
-//!   definitions in 5 bidamas, pinned by name in `blue-lang-cli`'s
-//!   `tests/check_corpus.rs`.
-//! - **An importer's definition replaces a bidama's for the bidama too.** The
-//!   entry file's `use` runs first, so an entry `def foo` evaluated after it
-//!   overwrites the bidama's `foo`, and the bidama's OWN calls to `foo` then
-//!   reach the importer's. The check says the bidama's reference resolves to
-//!   its own `foo` (Own beats Imported). The check reports no diagnostic in
-//!   either reading (both are bound), so no program's verdict changes; the
-//!   divergence is in which definition runs, and it is the namespace track's
-//!   to close.
-//! - **A macro or special form beats every definition, for a head.** See
-//!   below. A program `def while(…)` is never called by `while(…)`.//! ## Which arbiter a HEAD answers to
+//! ## Which arbiter a HEAD answers to
+//!
+//! A special form is in no tier and wins. A program definition the tiers reach
+//! beats a builtin macro of the same name (it is keyed apart from it now, so it
+//! can exist beside it); otherwise a macro beats a value, as the evaluator
+//! consults them.
 //!
 //! For the head of a call, the evaluator does not consult scopes in order: a
 //! special form wins over everything, then a macro wins over any binding of the
@@ -248,6 +242,8 @@ pub struct NameTable {
     imports: BTreeMap<usize, FileImports>,
     /// Each bidama's declared `needs`, where its Bluefile was read.
     needs: BTreeMap<String, BTreeSet<String>>,
+    /// The bidamas each bidama's files `use`.
+    pkg_uses: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// What one file declares with `use`: every package it `use`s (so
@@ -351,6 +347,29 @@ impl NameTable {
         self.imports = imports;
     }
 
+    /// Record which bidamas each bidama `use`s.
+    pub fn attach_package_uses(&mut self, uses: BTreeMap<String, BTreeSet<String>>) {
+        self.pkg_uses = uses;
+    }
+
+    /// Every bidama the file of form `top_level` reaches through its `use`
+    /// forms, transitively: what its imports loaded, and nothing any other
+    /// file of the program did.
+    #[must_use]
+    pub fn use_closure(&self, top_level: usize) -> BTreeSet<String> {
+        let mut out = BTreeSet::new();
+        let mut todo: Vec<String> = self
+            .imports_of(top_level)
+            .map(|i| i.uses.iter().cloned().collect())
+            .unwrap_or_default();
+        while let Some(p) = todo.pop() {
+            if out.insert(p.clone()) {
+                todo.extend(self.pkg_uses.get(&p).into_iter().flatten().cloned());
+            }
+        }
+        out
+    }
+
     /// Record each bidama's Bluefile `needs`.
     pub fn attach_needs(&mut self, needs: BTreeMap<String, BTreeSet<String>>) {
         self.needs = needs;
@@ -430,41 +449,88 @@ impl NameTable {
                 _ => Target::Unbound,
             };
         }
-        if let Some(s) = self.scopes.iter().find(|s| &s.namespace == own) {
-            if s.get(name).is_some() {
-                return Target::Def(own.clone(), name.to_string());
+        match self.resolve_from(name, own, top_level) {
+            Resolution::Found { tier: Tier::Builtin, .. } => Target::Builtin(name.to_string()),
+            Resolution::Found { scope, .. } => Target::Def(scope.namespace.clone(), name.to_string()),
+            Resolution::Ambiguous { namespaces, .. } => {
+                Target::Ambiguous(namespaces.into_iter().cloned().collect())
             }
+            Resolution::Unbound => Target::Unbound,
         }
-        if let Some(pkgs) = self.imports_of(top_level).and_then(|i| i.names.get(name)) {
-            let found: Vec<Namespace> = pkgs
-                .iter()
-                .filter(|p| self.bidama(p).is_some_and(|s| s.get(name).is_some()))
-                .map(|p| Namespace::Bidama(p.clone()))
-                .collect();
-            match found.as_slice() {
-                [] => {}
-                [one] => return Target::Def(one.clone(), name.to_string()),
-                _ => return Target::Ambiguous(found),
-            }
-        }
-        if self.builtin(name) {
-            return Target::Builtin(name.to_string());
-        }
-        Target::Unbound
     }
 
-    /// Resolve `name` for a reference made from namespace `own`, by
-    /// [`RESOLUTION_ORDER`]. Locals are the walker's; this starts at
-    /// [`Tier::Own`].
+    /// Every non-local tier's candidates for bare `name`, in
+    /// [`RESOLUTION_ORDER`]: the path `blue explain-name` prints, and the data
+    /// an override is recorded from.
     #[must_use]
-    pub fn resolve_from(&self, name: &str, own: &Namespace) -> Resolution<'_> {
+    pub fn tiers_of(&self, name: &str, own: &Namespace, top_level: usize) -> Vec<(Tier, Vec<Namespace>)> {
+        let mut out = Vec::new();
         for tier in RESOLUTION_ORDER {
-            let hits: Vec<(&Scope, &Binding)> = self
-                .scopes
-                .iter()
-                .filter(|s| s.namespace.tier(own) == tier)
-                .filter_map(|s| s.get(name).map(|b| (s, b)))
-                .collect();
+            let nss: Vec<Namespace> = match tier {
+                Tier::Local => continue,
+                Tier::Own => self
+                    .scopes
+                    .iter()
+                    .filter(|s| &s.namespace == own && s.get(name).is_some())
+                    .map(|s| s.namespace.clone())
+                    .collect(),
+                Tier::Imported => self
+                    .imports_of(top_level)
+                    .and_then(|i| i.names.get(name))
+                    .map(|pkgs| {
+                        pkgs.iter()
+                            .filter(|p| self.bidama(p).is_some_and(|s| s.get(name).is_some()))
+                            .map(|p| Namespace::Bidama(p.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                Tier::Builtin => {
+                    if self.builtin(name) {
+                        vec![Namespace::Builtin]
+                    } else {
+                        vec![]
+                    }
+                }
+            };
+            out.push((tier, nss));
+        }
+        out
+    }
+
+    /// Resolve a bare `name` referenced from top-level form `top_level` in
+    /// namespace `own`, by [`RESOLUTION_ORDER`]: `own`'s definitions, then
+    /// the names that form's file lists in its `use` forms, then builtins.
+    /// Locals are the walker's; this starts at [`Tier::Own`]. The first tier
+    /// holding the name wins, deterministically; two namespaces in one tier
+    /// is [`Resolution::Ambiguous`].
+    #[must_use]
+    pub fn resolve_from(&self, name: &str, own: &Namespace, top_level: usize) -> Resolution<'_> {
+        for tier in RESOLUTION_ORDER {
+            let hits: Vec<(&Scope, &Binding)> = match tier {
+                Tier::Local => continue,
+                Tier::Own => self
+                    .scopes
+                    .iter()
+                    .filter(|s| &s.namespace == own)
+                    .filter_map(|s| s.get(name).map(|b| (s, b)))
+                    .collect(),
+                Tier::Imported => self
+                    .imports_of(top_level)
+                    .and_then(|i| i.names.get(name))
+                    .map(|pkgs| {
+                        pkgs.iter()
+                            .filter_map(|p| self.bidama(p))
+                            .filter_map(|s| s.get(name).map(|b| (s, b)))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                Tier::Builtin => self
+                    .scopes
+                    .iter()
+                    .filter(|s| s.namespace.tier(own) == Tier::Builtin)
+                    .filter_map(|s| s.get(name).map(|b| (s, b)))
+                    .collect(),
+            };
             match hits.as_slice() {
                 [] => {}
                 [(scope, binding)] => {
@@ -677,6 +743,11 @@ pub struct Reference {
     pub opaque: bool,
     pub flat: Target,
     pub ns: Target,
+    /// For a bare name the namespaced rule bound, every candidate in a
+    /// LOWER tier it won over: a cross-tier override (an own `count` over the
+    /// builtin, a listed `first` over the builtin). Recorded, never an error:
+    /// each tier is something the author wrote.
+    pub shadowed: Vec<(Tier, Namespace)>,
     /// The node's address in the forms it was resolved over: the join key
     /// [`resolved_tree`] rewrites by, since spans are not unique (every node
     /// of an interpolation carries the string's span).
@@ -917,7 +988,11 @@ impl<'t> Walker<'t> {
         // B0012: another bidama's definition, reached bare only because the
         // one global environment holds it.
         if let Target::Def(Namespace::Bidama(owner), n) = &flat {
-            let foreign = &Namespace::Bidama(owner.clone()) != &self.own;
+            // Only a bidama this file's own imports loaded: a definition some
+            // OTHER file of the program brought in says nothing about what
+            // this file meant, and must not make its builtin call an error.
+            let foreign = &Namespace::Bidama(owner.clone()) != &self.own
+                && self.table.use_closure(self.top_level).contains(owner);
             if foreign
                 && blue_lang_syntax::qualified(name).is_none()
                 && matches!(ns, Target::Builtin(_) | Target::Unbound)
@@ -961,10 +1036,26 @@ impl<'t> Walker<'t> {
             span: node.span,
             written: name.to_string(),
             opaque,
+            shadowed: self.shadowed(name, &ns),
             flat,
             ns,
             node: std::ptr::from_ref(node) as usize,
         });
+    }
+
+    /// The candidates `ns` won over, for a bare name.
+    fn shadowed(&self, name: &str, ns: &Target) -> Vec<(Tier, Namespace)> {
+        if blue_lang_syntax::qualified(name).is_some() || !matches!(ns, Target::Def(..) | Target::Builtin(_)) {
+            return Vec::new();
+        }
+        let tiers = self.table.tiers_of(name, &self.own, self.top_level);
+        let Some(win) = tiers.iter().position(|(_, nss)| !nss.is_empty()) else {
+            return Vec::new();
+        };
+        tiers[win + 1..]
+            .iter()
+            .flat_map(|(t, nss)| nss.iter().map(move |n| (*t, n.clone())))
+            .collect()
     }
 
     /// A reference to `name` at `span`. `opaque`: inside a macro's arguments,
@@ -980,7 +1071,7 @@ impl<'t> Walker<'t> {
             self.qualified_reference(span, pkg, n);
             return;
         }
-        match self.table.resolve_from(name, &self.own) {
+        match self.table.resolve_from(name, &self.own, self.top_level) {
             Resolution::Found { .. } => {
                 self.resolved += 1;
                 return;
@@ -1026,6 +1117,13 @@ impl<'t> Walker<'t> {
         // from `require`) are the module system's, not this pass's.
         if name.contains('/') || opaque {
             return;
+        }
+        // Another bidama defines it, and the file neither lists nor
+        // qualifies it: that is B0012's, reported with its fix in `record`.
+        if let Target::Def(Namespace::Bidama(owner), _) = self.table.flat_target(name) {
+            if self.table.use_closure(self.top_level).contains(&owner) {
+                return;
+            }
         }
         if self.table.bidama(name).is_some() {
             let d = Diagnostic::new(
@@ -1080,7 +1178,10 @@ impl Walker<'_> {
         if pkg == BUILTIN_QUALIFIER {
             if self.table.builtin(n) {
                 self.resolved += 1;
-                if self.table.ns_target(n, &self.own, self.top_level) == Target::Builtin(n.to_string()) {
+                let builtin = Target::Builtin(n.to_string());
+                if self.table.ns_target(n, &self.own, self.top_level) == builtin
+                    && self.table.flat_target(n) == builtin
+                {
                     self.redundant(span, pkg, n, "the bare name is the builtin here");
                 }
                 return;
@@ -1219,8 +1320,21 @@ impl Walker<'_> {
 }
 
 impl Scopes for Walker<'_> {
+    /// A special form is in no tier and wins. Otherwise a program definition
+    /// the tier order reaches (own, or listed) beats a builtin macro of the
+    /// same name, for a head as for any reference: keyed per namespace, the
+    /// definition can exist beside the macro, and the runtime calls it.
     fn head_kind(&self, name: &str) -> Option<HeadKind> {
-        self.table.head_kind(name)
+        let kind = self.table.head_kind(name);
+        if kind == Some(HeadKind::Macro)
+            && matches!(
+                self.table.ns_target(name, &self.own, self.top_level),
+                Target::Def(..)
+            )
+        {
+            return Some(HeadKind::Value);
+        }
+        kind
     }
 
     fn open(&mut self) {
@@ -1280,6 +1394,31 @@ impl Scopes for Walker<'_> {
 
     fn reference(&mut self, node: &Spanned, name: &str, opaque: bool) {
         self.reference_at(node, name, opaque);
+    }
+
+    /// A free symbol of a macro's template is qualified to the DEFINER's
+    /// namespace (Clojure's syntax-quote rule), so the expansion means the
+    /// same thing in every caller: a template naming its own bidama's `helper`
+    /// expands to `pkg/helper` wherever it is used. Anything the definer's
+    /// namespace does not bind stays as written — a builtin, or a name the
+    /// expansion itself binds.
+    fn template_symbol(&mut self, node: &Spanned, name: &str) {
+        if self.frames.iter().any(|f| f.iter().any(|l| l.name == name)) {
+            return;
+        }
+        let ns = self.table.ns_target(name, &self.own, self.top_level);
+        if matches!(ns, Target::Def(..)) {
+            self.references.push(Reference {
+                top_level: self.top_level,
+                span: node.span,
+                written: name.to_string(),
+                opaque: true,
+                flat: self.table.flat_target(name),
+                ns,
+                shadowed: Vec::new(),
+                node: std::ptr::from_ref(node) as usize,
+            });
+        }
     }
 
     fn head(&mut self, node: &Spanned, name: &str, kind: HeadKind) {
@@ -1511,11 +1650,16 @@ mod tests {
         ));
         t.push(bound(Namespace::Bidama("b".into()), &["twice"]));
         t.push(bound(Namespace::Builtin, &["first", "size"]));
+        // main.b (form 0) lists `first` from a and `twice` from a and b.
+        let mut main = FileImports::default();
+        main.add("a", ["first".to_string(), "twice".to_string()]);
+        main.add("b", ["twice".to_string()]);
+        t.attach_files(vec![0], BTreeMap::from([(0, main)]));
         t
     }
 
     fn tier_of(t: &NameTable, name: &str, own: &Namespace) -> Option<(Tier, String)> {
-        match t.resolve_from(name, own) {
+        match t.resolve_from(name, own, 0) {
             Resolution::Found { tier, scope, .. } => Some((tier, scope.namespace.to_string())),
             _ => None,
         }
@@ -1582,7 +1726,7 @@ mod tests {
     fn two_namespaces_in_one_tier_are_ambiguous() {
         let t = tiered();
         let main = Namespace::File("main.b".into());
-        match t.resolve_from("twice", &main) {
+        match t.resolve_from("twice", &main, 0) {
             Resolution::Ambiguous { tier, namespaces } => {
                 assert_eq!(tier, Tier::Imported);
                 assert_eq!(namespaces.len(), 2);
@@ -1600,7 +1744,7 @@ mod tests {
     fn unbound_is_no_tier_at_all() {
         let t = tiered();
         assert!(matches!(
-            t.resolve_from("nowhere", &Namespace::File("main.b".into())),
+            t.resolve_from("nowhere", &Namespace::File("main.b".into()), 0),
             Resolution::Unbound
         ));
     }

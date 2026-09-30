@@ -66,7 +66,7 @@ use("nisshi", [:el_format])
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
 use("okite")
 use("ongaku", [:major_triad])
-use("raifusaikuru", [:lc_hours])
+use("raifusaikuru")
 use("ran", [:take_ints])
 use("retsu", [:contains, :size])
 use("rittai", [:rt_z])
@@ -110,7 +110,7 @@ test "every bidama in the distribution answers through this one import"
   assert md_cell("a|b") == "a\\|b"
   assert el_format() == "nisshi/1"
   assert major_triad(0) == [0, 4, 7]
-  assert lc_hours(2) == 7200
+  assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert rt_z([1, 2, 3]) == 3
   assert size([1, 2, 3]) == 3

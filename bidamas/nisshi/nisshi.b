@@ -1,39 +1,7 @@
 use("deeta", [:as_json, :get_int, :get_str, :is_doc])
 use("junjo", [:sort_stable_by])
 
-use(
-  "raifusaikuru",
-  [
-    :lc_admit_step,
-    :lc_admitted?,
-    :lc_breaches,
-    :lc_d_events,
-    :lc_define,
-    :lc_ev,
-    :lc_ev_payload,
-    :lc_ev_time,
-    :lc_ev_type,
-    :lc_event,
-    :lc_example_consumable,
-    :lc_initial,
-    :lc_name,
-    :lc_name?,
-    :lc_on,
-    :lc_phase,
-    :lc_refused,
-    :lc_refused_rules,
-    :lc_reject_detail,
-    :lc_reject_kind,
-    :lc_show,
-    :lc_start,
-    :lc_state_of,
-    :lc_states,
-    :lc_step,
-    :lc_terminals,
-    :lc_text,
-    :lc_value
-  ]
-)
+use("raifusaikuru", [:lc_define])
 
 use(
   "retsu",
@@ -350,7 +318,10 @@ end
 def el_genesis(label)
   if string?(label) == false
     throw(
-      error(:eventlog_use, "a stream label is a string, not #{lc_show(label)}")
+      error(
+        :eventlog_use,
+        "a stream label is a string, not #{raifusaikuru::show(label)}"
+      )
     )
   end
   chain_genesis("#{el_format()}\n#{label}")
@@ -388,7 +359,7 @@ def el_key_text(k)
     throw(
       error(
         :eventlog_value,
-        "an object key is a name (a string or a keyword), not #{lc_show(k)}"
+        "an object key is a name (a string or a keyword), not #{raifusaikuru::show(k)}"
       )
     )
   end
@@ -430,14 +401,14 @@ def el_canon(v)
     throw(
       error(
         :eventlog_value,
-        "#{lc_show(v)} is a keyword, which JSON gives back as the string \"#{to_s(v)}\"; write the string"
+        "#{raifusaikuru::show(v)} is a keyword, which JSON gives back as the string \"#{to_s(v)}\"; write the string"
       )
     )
   else
     throw(
       error(
         :eventlog_value,
-        "#{lc_show(v)} is not JSON data; write an object as a list of [key, value] pairs"
+        "#{raifusaikuru::show(v)} is not JSON data; write an object as a list of [key, value] pairs"
       )
     )
   end
@@ -490,7 +461,7 @@ def el_require_pair(p)
     throw(
       error(
         :eventlog_value,
-        "an object is a list of [key, value] pairs, and #{lc_show(p)} is not one"
+        "an object is a list of [key, value] pairs, and #{raifusaikuru::show(p)} is not one"
       )
     )
   end
@@ -514,11 +485,18 @@ end
 # Raises :eventlog_use when two events, or two keys of one event, share a
 # text: the log writes names as text and could not tell them apart.
 def el_names(d)
-  events = lc_d_events(d)
-  el_require_distinct(map(fn(e) lc_text(first(e)) end, events), "event")
+  events = raifusaikuru::d_events(d)
+  el_require_distinct(
+    map(fn(e) raifusaikuru::text(first(e)) end, events),
+    "event"
+  )
   reduce(
     fn(m, e)
-      assoc(m, lc_text(first(e)), [first(e), el_key_index(nth(1, e))])
+      assoc(
+        m,
+        raifusaikuru::text(first(e)),
+        [first(e), el_key_index(nth(1, e))]
+      )
     end,
     {},
     events
@@ -526,8 +504,11 @@ def el_names(d)
 end
 
 def el_key_index(keys)
-  el_require_distinct(map(fn(k) lc_text(k) end, as_list(keys)), "payload key")
-  reduce(fn(m, k) assoc(m, lc_text(k), k) end, {}, as_list(keys))
+  el_require_distinct(
+    map(fn(k) raifusaikuru::text(k) end, as_list(keys)),
+    "payload key"
+  )
+  reduce(fn(m, k) assoc(m, raifusaikuru::text(k), k) end, {}, as_list(keys))
 end
 
 def el_require_distinct(texts, what)
@@ -535,7 +516,7 @@ def el_require_distinct(texts, what)
     throw(
       error(
         :eventlog_use,
-        "the definition has two of one #{what} name as text among #{lc_show(texts)}; a log writes names as text and could not tell them apart"
+        "the definition has two of one #{what} name as text among #{raifusaikuru::show(texts)}; a log writes names as text and could not tell them apart"
       )
     )
   end
@@ -554,7 +535,7 @@ end
 # The payload key named by text `k` for type `ty`: the key the definition
 # declares, or the text itself.
 def el_key_named(names, ty, k)
-  hit = get(names, lc_text(ty))
+  hit = get(names, raifusaikuru::text(ty))
   key = if hit == nil
     nil
   else
@@ -570,7 +551,7 @@ end
 # The event as the log holds it: its type and payload keys as the definition
 # names them (text where it names none), and every object in key order.
 def el_normal_event(names, ev)
-  ty = el_type_named(names, lc_text(lc_ev_type(ev)))
+  ty = el_type_named(names, raifusaikuru::text(raifusaikuru::ev_type(ev)))
   payload = map(
     fn(p)
       [
@@ -578,9 +559,9 @@ def el_normal_event(names, ev)
         el_normal_value(nth(1, p))
       ]
     end,
-    el_sorted_pairs(lc_ev_payload(ev))
+    el_sorted_pairs(raifusaikuru::ev_payload(ev))
   )
-  lc_ev(ty, lc_ev_time(ev), payload)
+  raifusaikuru::ev(ty, raifusaikuru::ev_time(ev), payload)
 end
 
 # A value with every object in it put in key order, which is all canonical
@@ -604,25 +585,28 @@ end
 # [kind, detail], the detail as text (the legal events, the missing keys, the
 # offending key or field, or the refusing rules).
 def el_refusal_of(verdict)
-  if lc_admitted?(verdict)
+  if raifusaikuru::admitted?(verdict)
     nil
   else
     [
-      lc_reject_kind(verdict),
-      el_detail_texts(lc_reject_kind(verdict), lc_reject_detail(verdict))
+      raifusaikuru::reject_kind(verdict),
+      el_detail_texts(
+        raifusaikuru::reject_kind(verdict),
+        raifusaikuru::reject_detail(verdict)
+      )
     ]
   end
 end
 
 def el_detail_texts(kind, detail)
   if kind == :guard
-    map(fn(r) lc_text(r) end, lc_refused_rules(detail))
+    map(fn(r) raifusaikuru::text(r) end, raifusaikuru::refused_rules(detail))
   elsif detail == nil
     []
   elsif list?(detail)
-    map(fn(x) lc_text(x) end, detail)
+    map(fn(x) raifusaikuru::text(x) end, detail)
   else
-    [lc_text(detail)]
+    [raifusaikuru::text(detail)]
   end
 end
 
@@ -640,7 +624,7 @@ def el_refusal_text(rf)
   if rf == nil
     "null"
   else
-    "{\"detail\":#{el_canon(nth(1, rf))},\"kind\":#{json_stringify(lc_text(first(rf)))}}"
+    "{\"detail\":#{el_canon(nth(1, rf))},\"kind\":#{json_stringify(raifusaikuru::text(first(rf)))}}"
   end
 end
 
@@ -650,13 +634,16 @@ def el_normal_links(links)
 end
 
 def el_normal_link(l)
-  if list?(l) && size(l) == 2 && lc_name?(first(l)) && string?(nth(1, l))
-    [lc_text(first(l)), nth(1, l)]
+  if list?(l) &&
+    size(l) == 2 &&
+    raifusaikuru::name?(first(l)) &&
+    string?(nth(1, l))
+    [raifusaikuru::text(first(l)), nth(1, l)]
   else
     throw(
       error(
         :eventlog_value,
-        "a link is [kind, id]: a name and a string, not #{lc_show(l)}"
+        "a link is [kind, id]: a name and a string, not #{raifusaikuru::show(l)}"
       )
     )
   end
@@ -683,7 +670,7 @@ def el_texts(entity, links, payload, refusal, seq, status, at, ty)
     to_s(seq),
     json_stringify(to_s(status)),
     to_s(at),
-    json_stringify(lc_text(ty))
+    json_stringify(raifusaikuru::text(ty))
   ]
 end
 
@@ -821,7 +808,7 @@ end
 
 # The event a record holds, as raifusaikuru folds it.
 def el_rec_event(r)
-  lc_ev(el_rec_type(r), el_rec_time(r), el_rec_payload(r))
+  raifusaikuru::ev(el_rec_type(r), el_rec_time(r), el_rec_payload(r))
 end
 
 def el_texts_of(r)
@@ -953,7 +940,7 @@ def el_refusal_from(v)
   else
     [
       find_first(
-        fn(k) lc_text(k) == get_str(v, "kind", "") end,
+        fn(k) raifusaikuru::text(k) == get_str(v, "kind", "") end,
         el_refusal_kinds()
       ),
       as_list(as_json(v, "detail"))
@@ -1032,7 +1019,7 @@ def el_refusal_shape?(status, v)
   else
     el_object?(v) &&
       contains(
-        map(fn(k) lc_text(k) end, el_refusal_kinds()),
+        map(fn(k) raifusaikuru::text(k) end, el_refusal_kinds()),
         get_str(v, "kind", nil)
       ) &&
       el_texts_list?(as_json(v, "detail"))
@@ -1151,7 +1138,7 @@ end
 def el_entry(log, entity)
   have = get(el_index(log), entity)
   if have == nil
-    [lc_initial(el_def(log)), 0]
+    [raifusaikuru::initial(el_def(log)), 0]
   else
     have
   end
@@ -1257,7 +1244,7 @@ end
 
 def el_fold_record(d, state, r)
   if el_rec_admitted?(r)
-    lc_step(d, state, el_rec_event(r))
+    raifusaikuru::step(d, state, el_rec_event(r))
   else
     state
   end
@@ -1269,7 +1256,7 @@ end
 # every record into its entity's state. It verifies nothing; el_verify says
 # whether to trust what was read.
 def el_read(path, label, d)
-  lc_name(d)
+  raifusaikuru::name(d)
   if path_exists(path)
     el_from_text(read_file(path), path, file_size(path), label, d)
   else
@@ -1384,17 +1371,17 @@ def el_write(log, entity, event, links, observed)
   names = el_names_of(log)
   ev = el_normal_event(names, event)
   entry = el_entry(log, entity)
-  judged = lc_admit_step(d, first(entry), ev)
+  judged = raifusaikuru::admit_step(d, first(entry), ev)
   refusal = el_refusal_as(first(judged), observed)
   texts = el_texts(
     entity,
     el_normal_links(links),
-    lc_ev_payload(ev),
+    raifusaikuru::ev_payload(ev),
     refusal,
     nth(1, entry),
     el_status_for(refusal),
-    lc_ev_time(ev),
-    lc_ev_type(ev)
+    raifusaikuru::ev_time(ev),
+    raifusaikuru::ev_type(ev)
   )
   prev = el_head(log)
   hash = chain_link(prev, el_body_text(texts))
@@ -1414,8 +1401,8 @@ end
 # step lc_admit_step took applied it and recorded the breach).
 def el_refusal_as(verdict, observed)
   if observed &&
-    lc_admitted?(verdict) == false &&
-    lc_reject_kind(verdict) == :guard
+    raifusaikuru::admitted?(verdict) == false &&
+    raifusaikuru::reject_kind(verdict) == :guard
     nil
   else
     el_refusal_of(verdict)
@@ -1473,7 +1460,7 @@ def el_require_entity(entity)
     throw(
       error(
         :eventlog_value,
-        "an entity id is a non-empty string, not #{lc_show(entity)}"
+        "an entity id is a non-empty string, not #{raifusaikuru::show(entity)}"
       )
     )
   end
@@ -1482,14 +1469,14 @@ end
 def el_require_event(ev)
   if (list?(ev) &&
     size(ev) == 3 &&
-    lc_name?(lc_ev_type(ev)) &&
-    integer?(lc_ev_time(ev)) &&
+    raifusaikuru::name?(raifusaikuru::ev_type(ev)) &&
+    integer?(raifusaikuru::ev_time(ev)) &&
     list?(nth(2, ev))) ==
     false
     throw(
       error(
         :eventlog_value,
-        "an event is lc_ev(type, time, payload): a name, a whole-number time and [key, value] pairs, not #{lc_show(ev)}"
+        "an event is lc_ev(type, time, payload): a name, a whole-number time and [key, value] pairs, not #{raifusaikuru::show(ev)}"
       )
     )
   end
@@ -1744,7 +1731,7 @@ def el_history_step(d, acc, r)
   e = el_rec_entity(r)
   have = get(first(acc), e)
   before = if have == nil
-    lc_initial(d)
+    raifusaikuru::initial(d)
   else
     have
   end
@@ -1773,7 +1760,11 @@ def el_state_at(log, entity, time)
     end,
     el_records(log)
   )
-  reduce(fn(s, r) el_fold_record(d, s, r) end, lc_initial(d), records)
+  reduce(
+    fn(s, r) el_fold_record(d, s, r) end,
+    raifusaikuru::initial(d),
+    records
+  )
 end
 
 # ── grouping ───────────────────────────────────────────────────────────────
@@ -1821,13 +1812,13 @@ end
 
 def el_example_step(step, at)
   if step == 0
-    lc_ev(:reading, at, [[:value, 10]])
+    raifusaikuru::ev(:reading, at, [[:value, 10]])
   elsif step == 1
-    lc_ev(:open, at, [])
+    raifusaikuru::ev(:open, at, [])
   elsif step % 25 == 0
-    lc_ev(:reading, at, [[:value, 10 + step % 7]])
+    raifusaikuru::ev(:reading, at, [[:value, 10 + step % 7]])
   else
-    lc_ev(:use, at, [])
+    raifusaikuru::ev(:use, at, [])
   end
 end
 
@@ -1852,7 +1843,7 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "the empty stream: no file, an empty file and empty text all read as no records at the genesis, intact"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   g = el_genesis("nisshi-test")
   p = el_test_path("empty")
   log = el_read(p, "nisshi-test", d)
@@ -1861,7 +1852,7 @@ test "the empty stream: no file, an empty file and empty text all read as no rec
   assert el_records(log) == []
   assert el_entities(log) == []
   assert el_last(log) == nil
-  assert el_state(log, "item-1") == lc_initial(d)
+  assert el_state(log, "item-1") == raifusaikuru::initial(d)
   assert el_seq_of(log, "item-1") == 0
   assert el_verify(log, nil, nil) == [:el_intact, 0, g]
   assert el_verify(log, nil, g) == [:el_intact, 0, g]
@@ -1874,13 +1865,13 @@ test "the empty stream: no file, an empty file and empty text all read as no rec
 end
 
 test "an identity: append then read gives back every record and every state, and reading twice is the same"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   p = el_test_path("identity")
   items = concat_lists(
     el_example_events(60, 3),
     [
-      ["item-z", lc_ev(:use, 5000, []), []],
-      ["item-0", lc_ev(:fly, 5010, []), []]
+      ["item-z", raifusaikuru::ev(:use, 5000, []), []],
+      ["item-0", raifusaikuru::ev(:fly, 5010, []), []]
     ]
   )
   steps = reduce(
@@ -1905,7 +1896,7 @@ test "an identity: append then read gives back every record and every state, and
     fn(grp)
       [
         first(grp),
-        lc_state_of(
+        raifusaikuru::state_of(
           d,
           map(
             fn(r) el_rec_event(r) end,
@@ -1926,33 +1917,33 @@ def el_identity_step(acc, x)
 end
 
 test "a refused event is written, marked with its reason, counted in seq, and folded into nothing"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   p = el_test_path("refused")
   l1 = el_append(
     el_read(p, "nisshi-test", d),
     "item-1",
-    lc_ev(:use, 1000, []),
+    raifusaikuru::ev(:use, 1000, []),
     []
   )
   r = el_last(l1)
   assert el_rec_status(r) == :refused
   assert el_rec_refusal(r) == [:no_edge, ["open", "reading", "discard"]]
-  assert el_state(l1, "item-1") == lc_initial(d)
+  assert el_state(l1, "item-1") == raifusaikuru::initial(d)
   assert el_seq_of(l1, "item-1") == 1
   assert el_count(l1) == 1
   l2 = el_append_all(
     l1,
     [
-      ["item-1", lc_ev(:reading, 1100, [[:value, 26]]), []],
-      ["item-1", lc_ev(:open, 1200, []), []],
-      ["item-1", lc_ev(:use, 1300, []), []]
+      ["item-1", raifusaikuru::ev(:reading, 1100, [[:value, 26]]), []],
+      ["item-1", raifusaikuru::ev(:open, 1200, []), []],
+      ["item-1", raifusaikuru::ev(:use, 1300, []), []]
     ]
   )
   assert el_rec_refusal(el_last(l2)) == [:guard, ["quality_ok"]]
-  assert lc_value(el_state(l2, "item-1"), :uses) == 0
-  assert lc_breaches(el_state(l2, "item-1")) == []
-  assert lc_refused(el_state(l2, "item-1")) == []
-  l3 = el_append(l2, "item-1", lc_ev(:fly, 1400, []), [])
+  assert raifusaikuru::value(el_state(l2, "item-1"), :uses) == 0
+  assert raifusaikuru::breaches(el_state(l2, "item-1")) == []
+  assert raifusaikuru::refused(el_state(l2, "item-1")) == []
+  l3 = el_append(l2, "item-1", raifusaikuru::ev(:fly, 1400, []), [])
   assert el_rec_refusal(el_last(l3)) == [:unknown_event, []]
   assert el_rec_type(el_last(l3)) == "fly"
   back = el_records(el_read(p, "nisshi-test", d))
@@ -1966,7 +1957,7 @@ end
 # The stream the b3sum test pins: three events for one item, signed with RFC
 # 8032 TEST 1's key.
 def el_doc_stream(p)
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   log = el_signing(
     el_read(p, "nisshi-doc", d),
     "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
@@ -1974,9 +1965,9 @@ def el_doc_stream(p)
   el_append_all(
     log,
     [
-      ["item-1", lc_ev(:reading, 1000, [[:value, 10]]), []],
-      ["item-1", lc_ev(:use, 1100, []), []],
-      ["item-1", lc_ev(:open, 2000, []), [[:batch, "B-7"]]]
+      ["item-1", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-1", raifusaikuru::ev(:use, 1100, []), []],
+      ["item-1", raifusaikuru::ev(:open, 2000, []), [[:batch, "B-7"]]]
     ]
   )
 end
@@ -1990,7 +1981,7 @@ test "values checked independently: the genesis and every hash by b3sum, the sig
   # -sign -rawin` (OpenSSL 3.6.2) with RFC 8032 TEST 1's seed.
   p = el_test_path("doc")
   log = el_doc_stream(p)
-  read_back = el_read(p, "nisshi-doc", lc_example_consumable())
+  read_back = el_read(p, "nisshi-doc", raifusaikuru::example_consumable())
   back = el_records(read_back)
   rm(p)
   assert el_genesis("nisshi-doc") ==
@@ -2022,13 +2013,16 @@ end
 # A signed stream of five records over two items, as its lines: the base the
 # controls below damage one way each.
 def el_control_lines(p, secret)
-  log = el_signing(el_read(p, "nisshi-test", lc_example_consumable()), secret)
+  log = el_signing(
+    el_read(p, "nisshi-test", raifusaikuru::example_consumable()),
+    secret
+  )
   items = [
-    ["item-1", lc_ev(:reading, 1000, [[:value, 10]]), []],
-    ["item-1", lc_ev(:open, 1100, []), []],
-    ["item-1", lc_ev(:use, 1200, []), []],
-    ["item-1", lc_ev(:use, 1300, []), []],
-    ["item-2", lc_ev(:reading, 1400, [[:value, 11]]), []]
+    ["item-1", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+    ["item-1", raifusaikuru::ev(:open, 1100, []), []],
+    ["item-1", raifusaikuru::ev(:use, 1200, []), []],
+    ["item-1", raifusaikuru::ev(:use, 1300, []), []],
+    ["item-2", raifusaikuru::ev(:reading, 1400, [[:value, 11]]), []]
   ]
   done = el_append_all(log, items)
   lines = el_lines(read_file(p))
@@ -2042,7 +2036,7 @@ def el_control_rows(lines, head, k, other)
   pub = keypair_public(k)
   line2 = nth(2, lines)
   line3 = nth(3, lines)
-  r3 = el_decode_line(lc_example_consumable(), 3, line3)
+  r3 = el_decode_line(raifusaikuru::example_consumable(), 3, line3)
   forged = replace(
     line3,
     el_rec_sig(r3),
@@ -2099,7 +2093,7 @@ end
 # The stream with its last record rewritten to claim seq 1 for item-2's first
 # record, re-hashed and re-signed: a writer's bug the chain alone accepts.
 def el_wrong_seq_lines(lines, secret)
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   r = el_decode_line(d, 4, nth(4, lines))
   texts = el_texts(
     el_rec_entity(r),
@@ -2121,7 +2115,13 @@ end
 
 def el_control_verdict(row)
   rep = el_verify(
-    el_from_text(nth(1, row), nil, 0, "nisshi-test", lc_example_consumable()),
+    el_from_text(
+      nth(1, row),
+      nil,
+      0,
+      "nisshi-test",
+      raifusaikuru::example_consumable()
+    ),
     nth(2, row),
     nth(3, row)
   )
@@ -2144,7 +2144,7 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
       nil,
       0,
       "nisshi-test",
-      lc_example_consumable()
+      raifusaikuru::example_consumable()
     ),
     keypair_public(k),
     head
@@ -2161,7 +2161,7 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
         nil,
         0,
         "nisshi-test",
-        lc_example_consumable()
+        raifusaikuru::example_consumable()
       ),
       keypair_public(k),
       nil
@@ -2172,18 +2172,15 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
 end
 
 test "append raises before writing on what JSON cannot hold, and on a malformed call"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   p = el_test_path("values")
   l0 = el_read(p, "nisshi-test", d)
   bad_calls = [
     fn()
-      el_append(l0, "item-1", lc_ev(:reading, 1000, [[:value, :high]]), [])
-    end,
-    fn()
       el_append(
         l0,
         "item-1",
-        lc_ev(:reading, 1000, [[:value, [[:grade, 1]]]]),
+        raifusaikuru::ev(:reading, 1000, [[:value, :high]]),
         []
       )
     end,
@@ -2191,7 +2188,7 @@ test "append raises before writing on what JSON cannot hold, and on a malformed 
       el_append(
         l0,
         "item-1",
-        lc_ev(:reading, 1000, [[:value, 1], [:value, 2]]),
+        raifusaikuru::ev(:reading, 1000, [[:value, [[:grade, 1]]]]),
         []
       )
     end,
@@ -2199,50 +2196,85 @@ test "append raises before writing on what JSON cannot hold, and on a malformed 
       el_append(
         l0,
         "item-1",
-        lc_ev(:reading, 1000, [[:value, expt(10.0, 300) * expt(10.0, 300)]]),
+        raifusaikuru::ev(:reading, 1000, [[:value, 1], [:value, 2]]),
         []
       )
     end,
     fn()
-      el_append(l0, "item-1", lc_ev(:reading, 1000.5, [[:value, 1]]), [])
+      el_append(
+        l0,
+        "item-1",
+        raifusaikuru::ev(
+          :reading,
+          1000,
+          [[:value, expt(10.0, 300) * expt(10.0, 300)]]
+        ),
+        []
+      )
     end,
-    fn() el_append(l0, "", lc_ev(:open, 1000, []), []) end,
-    fn() el_append(l0, "item-1", lc_ev(:open, 1000, []), [[:batch, 7]]) end,
+    fn()
+      el_append(
+        l0,
+        "item-1",
+        raifusaikuru::ev(:reading, 1000.5, [[:value, 1]]),
+        []
+      )
+    end,
+    fn() el_append(l0, "", raifusaikuru::ev(:open, 1000, []), []) end,
+    fn()
+      el_append(l0, "item-1", raifusaikuru::ev(:open, 1000, []), [[:batch, 7]])
+    end,
     fn() el_append(l0, "item-1", [:open], []) end
   ]
   assert map(fn(call) error?(try(call(), catch(e(), e))) end, bad_calls) ==
     repeat(true, size(bad_calls))
   assert path_exists(p) == false
   # The control: the same call with a JSON value goes through.
-  l1 = el_append(l0, "item-1", lc_ev(:reading, 1000, [[:value, "high"]]), [])
-  assert lc_value(el_state(l1, "item-1"), :quality) == "high"
+  l1 = el_append(
+    l0,
+    "item-1",
+    raifusaikuru::ev(:reading, 1000, [[:value, "high"]]),
+    []
+  )
+  assert raifusaikuru::value(el_state(l1, "item-1"), :quality) == "high"
   rm(p)
 end
 
 test "a stale log value cannot write, a written-through value keeps no records, and a broken stream cannot grow"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   p = el_test_path("writers")
   l0 = el_read(p, "nisshi-test", d)
-  l1 = el_append(l0, "item-1", lc_ev(:open, 1000, []), [])
+  l1 = el_append(l0, "item-1", raifusaikuru::ev(:open, 1000, []), [])
   assert error?(
-    try(el_append(l0, "item-1", lc_ev(:open, 1100, []), []), catch(e(), e))
+    try(
+      el_append(l0, "item-1", raifusaikuru::ev(:open, 1100, []), []),
+      catch(e(), e)
+    )
   )
   assert el_count(el_read(p, "nisshi-test", d)) == 1
   assert error?(try(el_records(l1), catch(e(), e)))
-  l2 = el_append(l1, "item-1", lc_ev(:use, 1100, []), [])
+  l2 = el_append(l1, "item-1", raifusaikuru::ev(:use, 1100, []), [])
   assert el_count(l2) == 2
   append_file(p, "not a record\n")
   broken = el_read(p, "nisshi-test", d)
   assert el_fault(broken) == 2
   assert error?(
-    try(el_append(broken, "item-1", lc_ev(:use, 1200, []), []), catch(e(), e))
+    try(
+      el_append(broken, "item-1", raifusaikuru::ev(:use, 1200, []), []),
+      catch(e(), e)
+    )
   )
   assert error?(try(el_open(p, "nisshi-test", d, nil), catch(e(), e)))
   assert el_count(el_read(p, "nisshi-test", d)) == 3
   rm(p)
   # The control: el_open on an intact stream opens it.
   p2 = el_test_path("writers-ok")
-  el_append(el_read(p2, "nisshi-test", d), "item-1", lc_ev(:open, 1000, []), [])
+  el_append(
+    el_read(p2, "nisshi-test", d),
+    "item-1",
+    raifusaikuru::ev(:open, 1000, []),
+    []
+  )
   assert el_count(el_open(p2, "nisshi-test", d, nil)) == 1
   rm(p2)
   # A definition naming two events :go and "go" is sound to raifusaikuru and
@@ -2250,25 +2282,25 @@ test "a stale log value cannot write, a written-through value keeps no records, 
   two = lc_define(
     :two,
     [
-      lc_states([:a, :b]),
-      lc_start(:a),
-      lc_terminals([:b]),
-      lc_event(:go, []),
-      lc_event("go", []),
-      lc_on(:a, :go, :b, []),
-      lc_on(:a, "go", :b, [])
+      raifusaikuru::states([:a, :b]),
+      raifusaikuru::start(:a),
+      raifusaikuru::terminals([:b]),
+      raifusaikuru::event(:go, []),
+      raifusaikuru::event("go", []),
+      raifusaikuru::on(:a, :go, :b, []),
+      raifusaikuru::on(:a, "go", :b, [])
     ]
   )
   assert error?(try(el_read(p2, "nisshi-test", two), catch(e(), e)))
 end
 
 test "links are carried faithfully: kinds as text, ids, order and duplicates, in the hash"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   p = el_test_path("links")
   l1 = el_append(
     el_read(p, "nisshi-test", d),
     "order-1",
-    lc_ev(:reading, 1000, [[:value, 1]]),
+    raifusaikuru::ev(:reading, 1000, [[:value, 1]]),
     [[:pack, "P-17"], [:pack, "P-18"], ["oil", "O-3"], [:pack, "P-17"]]
   )
   want = [["pack", "P-17"], ["pack", "P-18"], ["oil", "O-3"], ["pack", "P-17"]]
@@ -2302,12 +2334,12 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
   assert el_canon([nil]) == "[null]"
   assert error?(try(el_canon(:k), catch(e(), e)))
   assert error?(try(el_canon([["a", 1], ["a", 2]]), catch(e(), e)))
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   p = el_test_path("canon")
   l1 = el_append(
     el_read(p, "nisshi-test", d),
     "item-é",
-    lc_ev(
+    raifusaikuru::ev(
       :reading,
       1000,
       [
@@ -2330,7 +2362,7 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
 end
 
 test "history: the state after every record, from read's own fold"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   # The empty case.
   assert el_history(el_from_text("", nil, 0, "nisshi-test", d)) == []
   # A value checked by hand: the doc stream is a reading (admitted), a use
@@ -2341,7 +2373,10 @@ test "history: the state after every record, from read's own fold"
   back = el_read(p, "nisshi-doc", d)
   rm(p)
   h = el_history(back)
-  assert map(fn(x) [el_rec_seq(first(x)), lc_phase(nth(1, x))] end, h) ==
+  assert map(
+    fn(x) [el_rec_seq(first(x)), raifusaikuru::phase(nth(1, x))] end,
+    h
+  ) ==
     [[0, :sealed], [1, :sealed], [2, :open]]
   assert nth(1, nth(1, h)) == nth(1, nth(0, h))
   # The identity: the last row per entity is el_state's, and every row is
@@ -2362,7 +2397,7 @@ test "history: the state after every record, from read's own fold"
   assert count_where(
     fn(x)
       nth(1, x) !=
-        lc_state_of(
+        raifusaikuru::state_of(
           d,
           map(
             fn(r) el_rec_event(r) end,
@@ -2385,7 +2420,7 @@ test "history: the state after every record, from read's own fold"
 end
 
 test "grouping by entity keeps first-appearance order and stream order, and leaves bad lines out"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   recs = el_records(
     el_from_text(
       el_unlines(
@@ -2410,15 +2445,15 @@ test "grouping by entity keeps first-appearance order and stream order, and leav
 end
 
 test "an observed event is a fact: a guard refusal is written admitted and replayed as a breach; what the fold refuses stays refused"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   # The empty case: where the guard allows, observing and appending write the
   # same record, byte for byte.
   a = el_test_path("observe-a")
   o = el_test_path("observe-o")
   ok = [
-    ["item-1", lc_ev(:reading, 1000, [[:value, 10]]), []],
-    ["item-1", lc_ev(:open, 1100, []), []],
-    ["item-1", lc_ev(:use, 1200, []), []]
+    ["item-1", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+    ["item-1", raifusaikuru::ev(:open, 1100, []), []],
+    ["item-1", raifusaikuru::ev(:use, 1200, []), []]
   ]
   el_append_all(el_read(a, "nisshi-test", d), ok)
   reduce(
@@ -2437,28 +2472,33 @@ test "an observed event is a fact: a guard refusal is written admitted and repla
   base = el_append_all(
     el_read(p, "nisshi-test", d),
     [
-      ["item-1", lc_ev(:reading, 1000, [[:value, 26]]), []],
-      ["item-1", lc_ev(:open, 1100, []), []]
+      ["item-1", raifusaikuru::ev(:reading, 1000, [[:value, 26]]), []],
+      ["item-1", raifusaikuru::ev(:open, 1100, []), []]
     ]
   )
-  seen = el_observe(base, "item-1", lc_ev(:use, 1200, []), [[:batch, "B-1"]])
+  seen = el_observe(
+    base,
+    "item-1",
+    raifusaikuru::ev(:use, 1200, []),
+    [[:batch, "B-1"]]
+  )
   r = el_last(seen)
   assert el_rec_status(r) == :admitted
   assert el_rec_refusal(r) == nil
-  assert lc_value(el_state(seen, "item-1"), :uses) == 1
-  assert lc_breaches(el_state(seen, "item-1")) ==
+  assert raifusaikuru::value(el_state(seen, "item-1"), :uses) == 1
+  assert raifusaikuru::breaches(el_state(seen, "item-1")) ==
     [[2, :use, :use, [:quality_ok]]]
   # The identity: a later read replays the same state, breach included, and
   # it is raifusaikuru's own fold of the admitted events.
   back = el_read(p, "nisshi-test", d)
   assert el_states(back) == el_states(seen)
   assert el_state(back, "item-1") ==
-    lc_state_of(
+    raifusaikuru::state_of(
       d,
       [
-        lc_ev(:reading, 1000, [[:value, 26]]),
-        lc_ev(:open, 1100, []),
-        lc_ev(:use, 1200, [])
+        raifusaikuru::ev(:reading, 1000, [[:value, 26]]),
+        raifusaikuru::ev(:open, 1100, []),
+        raifusaikuru::ev(:use, 1200, [])
       ]
     )
   assert el_intact?(el_verify(back, nil, el_head(seen)))
@@ -2469,48 +2509,48 @@ test "an observed event is a fact: a guard refusal is written admitted and repla
     el_append_all(
       el_read(q, "nisshi-test", d),
       [
-        ["item-1", lc_ev(:reading, 1000, [[:value, 26]]), []],
-        ["item-1", lc_ev(:open, 1100, []), []]
+        ["item-1", raifusaikuru::ev(:reading, 1000, [[:value, 26]]), []],
+        ["item-1", raifusaikuru::ev(:open, 1100, []), []]
       ]
     ),
     "item-1",
-    lc_ev(:use, 1200, []),
+    raifusaikuru::ev(:use, 1200, []),
     []
   )
   assert el_rec_refusal(el_last(tried)) == [:guard, ["quality_ok"]]
-  assert lc_value(el_state(tried, "item-1"), :uses) == 0
+  assert raifusaikuru::value(el_state(tried, "item-1"), :uses) == 0
   rm(q)
-  sealed = el_observe(seen, "item-2", lc_ev(:use, 1300, []), [])
+  sealed = el_observe(seen, "item-2", raifusaikuru::ev(:use, 1300, []), [])
   assert el_rec_refusal(el_last(sealed)) ==
     [:no_edge, ["open", "reading", "discard"]]
-  assert el_state(sealed, "item-2") == lc_initial(d)
-  flown = el_observe(sealed, "item-1", lc_ev(:fly, 1400, []), [])
+  assert el_state(sealed, "item-2") == raifusaikuru::initial(d)
+  flown = el_observe(sealed, "item-1", raifusaikuru::ev(:fly, 1400, []), [])
   assert el_rec_refusal(el_last(flown)) == [:unknown_event, []]
   rm(p)
 end
 
 test "the state as of a time: the records at or before it, folded as read folds them"
-  d = lc_example_consumable()
+  d = raifusaikuru::example_consumable()
   p = el_test_path("state-at")
   el_doc_stream(p)
   log = el_read(p, "nisshi-doc", d)
   # The empty case: before the first record, and for an entity with none, the
   # lifecycle's start.
-  assert el_state_at(log, "item-1", 999) == lc_initial(d)
-  assert el_state_at(log, "item-9", 5000) == lc_initial(d)
+  assert el_state_at(log, "item-1", 999) == raifusaikuru::initial(d)
+  assert el_state_at(log, "item-9", 5000) == raifusaikuru::initial(d)
   # By hand: the doc stream is a reading of 10 at 1000 (admitted), a use at
   # 1100 while sealed (refused) and an open at 2000 (admitted). At 1000 the
   # reading has folded; at 1500 the refused use has changed nothing; at 2000
   # the item is open.
   at1000 = el_state_at(log, "item-1", 1000)
   assert [
-    lc_phase(at1000),
-    lc_value(at1000, :quality),
-    lc_value(at1000, :read_at)
+    raifusaikuru::phase(at1000),
+    raifusaikuru::value(at1000, :quality),
+    raifusaikuru::value(at1000, :read_at)
   ] ==
     [:sealed, 10, 1000]
   assert el_state_at(log, "item-1", 1500) == at1000
-  assert lc_phase(el_state_at(log, "item-1", 2000)) == :open
+  assert raifusaikuru::phase(el_state_at(log, "item-1", 2000)) == :open
   # The identity: at the last record's time it is el_state; at each record's
   # time it is el_history's state after that record.
   assert el_state_at(log, "item-1", 2000) == el_state(log, "item-1")
@@ -2524,7 +2564,7 @@ test "the state as of a time: the records at or before it, folded as read folds 
   w = el_append(
     el_read(q, "nisshi-test", d),
     "item-1",
-    lc_ev(:open, 10, []),
+    raifusaikuru::ev(:open, 10, []),
     []
   )
   assert error?(try(el_state_at(w, "item-1", 10), catch(e(), e)))

@@ -116,7 +116,14 @@ let
   nixos = evalWith systemBase nixosModule { services.blue.enable = true; };
   darwin = evalWith systemBase darwinModule { services.blue.enable = true; };
 
-  shipped = { solver_max_steps = 100000; max_expr_depth = 256; };
+  # Every bound `flake.nix` declares, at its shipped default. `max_steps` is
+  # null: unbounded is the default, so a run that worked keeps working.
+  shipped = {
+    solver_max_steps = 100000;
+    max_expr_depth = 256;
+    max_call_depth = 100000;
+    max_steps = null;
+  };
 
   evaluates = [
     (expect "the HM module deploys the shipped bounds as the shikumi settings"
@@ -188,6 +195,18 @@ let
     (expect "a nesting bound past the stack-overflow guard is refused"
       (rejects hmBase homeManagerModule {
         programs.blue = { enable = true; maxExprDepth = 99999; };
+      }))
+    (expect "a zero call-depth bound is refused"
+      (rejects hmBase homeManagerModule {
+        programs.blue = { enable = true; maxCallDepth = 0; };
+      }))
+    (expect "a call-depth bound above the ceiling is refused"
+      (rejects hmBase homeManagerModule {
+        programs.blue = { enable = true; maxCallDepth = 10000001; };
+      }))
+    (expect "a zero step bound is refused (null, not 0, is unbounded)"
+      (rejects hmBase homeManagerModule {
+        programs.blue = { enable = true; maxSteps = 0; };
       }))
     (expect "a tier outside the enum is refused"
       (rejects hmBase homeManagerModule {

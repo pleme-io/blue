@@ -131,13 +131,23 @@ fn repeated_runs_do_not_each_pay_for_a_stdlib() {
     let src = "def config\n  1\nend\nconfig";
     let _ = blue_lang_runtime::pipeline::run(src);
 
+    // The MINIMUM over several rounds, as in the fork test above: load only
+    // ever adds time. One round read 3.13 ms on a shared CI runner under the
+    // full parallel suite (blue auto-release run 36690836145) while the same
+    // build measures ~0.3 ms alone — a rebuild would be over the bound in
+    // every round, noise is not.
     let n = 20;
-    let t = Instant::now();
-    for _ in 0..n {
-        let r = blue_lang_runtime::pipeline::run(src);
-        assert!(r.is_ok(), "config-shaped program must run: {r:?}");
-    }
-    let per = t.elapsed() / n;
+    let per = (0..5)
+        .map(|_| {
+            let t = Instant::now();
+            for _ in 0..n {
+                let r = blue_lang_runtime::pipeline::run(src);
+                assert!(r.is_ok(), "config-shaped program must run: {r:?}");
+            }
+            t.elapsed() / n
+        })
+        .min()
+        .expect("rounds > 0");
 
     assert!(
         per < std::time::Duration::from_millis(3),

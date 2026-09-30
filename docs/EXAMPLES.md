@@ -231,7 +231,7 @@ end
 
 ## Errors and refusals
 
-Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the input is good. Tests read the kinds. Only at the boundary does the program raise, with throw(error(kind, why)); error(...) alone raises nothing. A caught error cannot be read (its kind and message are not reachable), which is why the refusals are data first. This is kueri's q_refusals / q_check.
+Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the input is good. Tests read the kinds. Only at the boundary does the program raise, with throw(error(kind, why)); error(...) alone raises nothing. A caught error cannot be read (its kind and message are not reachable), which is why the refusals are data first. This is kueri's refusals / check.
 
 `examples/05_errors.b`:
 

@@ -76,7 +76,8 @@ pub fn blue_equal(a: &Value, b: &Value) -> bool {
         }
         (Value::Map(x), Value::Map(y)) => {
             x.len() == y.len()
-                && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| blue_equal(v, w)))
+                && x.iter()
+                    .all(|(k, v)| y.get(k).is_some_and(|w| blue_equal(v, w)))
         }
         (Value::Closure(x), Value::Closure(y)) => std::sync::Arc::ptr_eq(x, y),
         (Value::NativeFn(x), Value::NativeFn(y)) => x.name == y.name,
@@ -205,9 +206,13 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     // arithmetic: Ruby overloads `+` on String, but blue's `+` lowers to
     // tatara's numeric `+`, and making it polymorphic would make a type error
     // at a seam disappear into a string.
-    interp.register_fn("concat", Arity::AtLeast(1), |a: &[Value], _h: &mut H, _s| {
-        Ok(Value::Str(a.iter().map(render).collect::<String>().into()))
-    });
+    interp.register_fn(
+        "concat",
+        Arity::AtLeast(1),
+        |a: &[Value], _h: &mut H, _s| {
+            Ok(Value::Str(a.iter().map(render).collect::<String>().into()))
+        },
+    );
 
     // ── equality and kinds (okite D0001–D0004, D0010) ─────────────────────
     //
@@ -393,7 +398,10 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             Value::Int(n) => Ok(Value::Int(*n)),
             Value::Float(x) => float_to_int(*x)
                 .map(Value::Int)
-                .ok_or(EvalError::IntegerOverflow { op: "to_int!", at: s }),
+                .ok_or(EvalError::IntegerOverflow {
+                    op: "to_int!",
+                    at: s,
+                }),
             other => {
                 let text = as_str(other, s)?;
                 text.trim().parse::<i64>().map(Value::Int).map_err(|_| {
@@ -456,18 +464,14 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     //
     // The destination is upstream: when tatara-lisp's own `range` is a loop,
     // this registration is deleted.
-    interp.register_fn(
-        "range",
-        Arity::Range(1, 3),
-        |a: &[Value], _h: &mut H, s| {
-            let (start, end, step) = match a.len() {
-                1 => (Value::Int(0), a[0].clone(), Value::Int(1)),
-                2 => (a[0].clone(), a[1].clone(), Value::Int(1)),
-                _ => (a[0].clone(), a[1].clone(), a[2].clone()),
-            };
-            range_list(start, &end, &step, s)
-        },
-    );
+    interp.register_fn("range", Arity::Range(1, 3), |a: &[Value], _h: &mut H, s| {
+        let (start, end, step) = match a.len() {
+            1 => (Value::Int(0), a[0].clone(), Value::Int(1)),
+            2 => (a[0].clone(), a[1].clone(), Value::Int(1)),
+            _ => (a[0].clone(), a[1].clone(), a[2].clone()),
+        };
+        range_list(start, &end, &step, s)
+    });
 
     // `write_stdout(s)` / `write_stderr(s)`: the text exactly, no quotes, no
     // newline added. `print`, `println` and `display` all render a string
@@ -475,24 +479,32 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     // command's output), so until these a blue command-line tool could not
     // print plain text. Output only, like `println`; anything else is not a
     // string and is refused.
-    interp.register_fn("write_stdout", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        use std::io::Write;
-        let text = as_str(&a[0], s)?;
-        let mut out = std::io::stdout().lock();
-        out.write_all(text.as_bytes())
-            .and_then(|()| out.flush())
-            .map_err(|e| EvalError::native_fn("write_stdout", e.to_string(), s))?;
-        Ok(Value::Nil)
-    });
-    interp.register_fn("write_stderr", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        use std::io::Write;
-        let text = as_str(&a[0], s)?;
-        let mut err = std::io::stderr().lock();
-        err.write_all(text.as_bytes())
-            .and_then(|()| err.flush())
-            .map_err(|e| EvalError::native_fn("write_stderr", e.to_string(), s))?;
-        Ok(Value::Nil)
-    });
+    interp.register_fn(
+        "write_stdout",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| {
+            use std::io::Write;
+            let text = as_str(&a[0], s)?;
+            let mut out = std::io::stdout().lock();
+            out.write_all(text.as_bytes())
+                .and_then(|()| out.flush())
+                .map_err(|e| EvalError::native_fn("write_stdout", e.to_string(), s))?;
+            Ok(Value::Nil)
+        },
+    );
+    interp.register_fn(
+        "write_stderr",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| {
+            use std::io::Write;
+            let text = as_str(&a[0], s)?;
+            let mut err = std::io::stderr().lock();
+            err.write_all(text.as_bytes())
+                .and_then(|()| err.flush())
+                .map_err(|e| EvalError::native_fn("write_stderr", e.to_string(), s))?;
+            Ok(Value::Nil)
+        },
+    );
 
     // `sort_keyed(key, xs)`: xs ordered by key(x), stably, in O(n log n),
     // under `compare`'s rules. Every sort written in blue (junjo's) recurses

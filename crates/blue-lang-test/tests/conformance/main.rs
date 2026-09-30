@@ -53,8 +53,8 @@ fn blue_bin(repo: &Path) -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("BLUE_BIN") {
         return Some(PathBuf::from(p));
     }
-    let target = std::env::var_os("CARGO_TARGET_DIR")
-        .map_or_else(|| repo.join("target"), PathBuf::from);
+    let target =
+        std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| repo.join("target"), PathBuf::from);
     ["debug", "release"]
         .iter()
         .map(|p| target.join(p).join("blue"))
@@ -87,7 +87,10 @@ fn observe_in_process(env: &mut Env, row: &Row, ev: Ev, n: usize) -> Obs {
         Ev::Static => eval::statics(row, &env.roots),
     }));
     run.unwrap_or_else(|_| {
-        Obs::Crashed(format!("panic: {}", LAST_PANIC.with(|p| p.borrow().clone())))
+        Obs::Crashed(format!(
+            "panic: {}",
+            LAST_PANIC.with(|p| p.borrow().clone())
+        ))
     })
 }
 
@@ -105,7 +108,10 @@ fn observe_isolated(row: &Row, ev: Ev) -> Obs {
     let stdout = String::from_utf8_lossy(&out.stdout);
     match stdout.lines().last().map(serde_json::from_str::<Obs>) {
         Some(Ok(o)) if out.status.success() => o,
-        _ => Obs::Crashed(format!("the process exited {} without an observation", out.status)),
+        _ => Obs::Crashed(format!(
+            "the process exited {} without an observation",
+            out.status
+        )),
     }
 }
 
@@ -184,7 +190,12 @@ fn controls(env: &mut Env) -> Vec<String> {
         isolate: false,
     };
 
-    let wrong = control("control.wrong-value", "1 + 1", Expect::Value("3".into()), vec![]);
+    let wrong = control(
+        "control.wrong-value",
+        "1 + 1",
+        Expect::Value("3".into()),
+        vec![],
+    );
     let out = run_row(env, &wrong, usize::MAX);
     for ev in [Ev::Walker, Ev::Vm, Ev::Wasm] {
         if !out.verdicts[&ev].is_fail() {
@@ -326,11 +337,32 @@ fn main() {
         let mut env = Env::new(roots, None, scratch.clone());
         let o = observe_in_process(&mut env, row, ev, 0);
         let _ = std::fs::remove_dir_all(&scratch);
-        println!("{}", serde_json::to_string(&o).expect("an observation serializes"));
+        println!(
+            "{}",
+            serde_json::to_string(&o).expect("an observation serializes")
+        );
         return;
     }
 
-    let filter: Option<String> = args.get(1).filter(|a| !a.starts_with('-')).cloned();
+    // The libtest listing protocol, so `cargo nextest` (the release gate) can
+    // run this `harness = false` binary: it asks `--list --format terse` and
+    // expects `name: test` lines, then runs `conformance --exact`. Without it
+    // the listing call ran the whole suite and nextest refused the output as
+    // "creating test list failed" (blue auto-release, every run since the
+    // suite landed).
+    if args.iter().any(|a| a == "--list") {
+        if !args.iter().any(|a| a == "--ignored") {
+            println!("conformance: test");
+        }
+        return;
+    }
+    let exact_self = args.iter().any(|a| a == "--exact");
+    let filter: Option<String> = args
+        .iter()
+        .skip(1)
+        .find(|a| !a.starts_with('-'))
+        .filter(|a| !(exact_self && a.as_str() == "conformance"))
+        .cloned();
     let probe = std::env::var_os("BLUE_CONFORMANCE_PROBE").is_some();
     let scratch = std::env::temp_dir().join(format!("blue-conformance-{}", std::process::id()));
     let roots = vec![repo.join("spec/bidamas"), repo.join("bidamas")];
@@ -354,7 +386,9 @@ fn main() {
         "  cli column: {}",
         env.cli
             .as_ref()
-            .map_or("BLIND (no binary; set BLUE_BIN)".to_string(), |p| p.display().to_string())
+            .map_or("BLIND (no binary; set BLUE_BIN)".to_string(), |p| p
+                .display()
+                .to_string())
     )
     .ok();
 
@@ -393,11 +427,26 @@ fn main() {
         for ev in Ev::ALL {
             match &o.verdicts[&ev] {
                 Verdict::Fail(why) => {
-                    writeln!(out, "FAIL {} [{}] on {}: {why}", o.row.id, o.row.file, ev.name()).ok();
+                    writeln!(
+                        out,
+                        "FAIL {} [{}] on {}: {why}",
+                        o.row.id,
+                        o.row.file,
+                        ev.name()
+                    )
+                    .ok();
                     red = true;
                 }
                 v if probe => {
-                    writeln!(out, "     {} on {}: {:?} — {}", o.row.id, ev.name(), v, o.obs[&ev]).ok();
+                    writeln!(
+                        out,
+                        "     {} on {}: {:?} — {}",
+                        o.row.id,
+                        ev.name(),
+                        v,
+                        o.obs[&ev]
+                    )
+                    .ok();
                 }
                 _ => {}
             }
@@ -438,7 +487,11 @@ fn main() {
     }
 
     // Per blueshift position, per evaluator.
-    writeln!(out, "\nper blueshift position (measured rung of each row's program):").ok();
+    writeln!(
+        out,
+        "\nper blueshift position (measured rung of each row's program):"
+    )
+    .ok();
     for rung in ["none", "dynamic", "annotated", "checked", "restricted"] {
         let at: Vec<&Outcome> = outcomes.iter().filter(|o| o.rung == rung).collect();
         writeln!(out, "  {rung} ({} rows)", at.len()).ok();
@@ -465,7 +518,11 @@ fn main() {
             }
         }
     }
-    writeln!(out, "\ndivergences while pending (evaluators missing a destination differently):").ok();
+    writeln!(
+        out,
+        "\ndivergences while pending (evaluators missing a destination differently):"
+    )
+    .ok();
     for o in &outcomes {
         for d in &o.divergences {
             writeln!(out, "  {}: {d}", o.row.id).ok();
@@ -486,7 +543,11 @@ fn main() {
     writeln!(
         out,
         "\ncontrols: {}",
-        if control_failures.is_empty() { "4 of 4 judged as expected" } else { "RED" }
+        if control_failures.is_empty() {
+            "4 of 4 judged as expected"
+        } else {
+            "RED"
+        }
     )
     .ok();
 
@@ -494,9 +555,20 @@ fn main() {
     if filter.is_none() {
         let reg = coverage::registry(&repo);
         // Anti-vacuity: an empty registry would cover itself.
-        for (kind, min) in [("rule", 9), ("form", 10), ("builtin", 200), ("op", 10), ("okite", 12)] {
+        for (kind, min) in [
+            ("rule", 9),
+            ("form", 10),
+            ("builtin", 200),
+            ("op", 10),
+            ("okite", 12),
+        ] {
             if reg[kind].len() < min {
-                writeln!(out, "FAIL coverage: the {kind} registry has {} entries, expected ≥{min}", reg[kind].len()).ok();
+                writeln!(
+                    out,
+                    "FAIL coverage: the {kind} registry has {} entries, expected ≥{min}",
+                    reg[kind].len()
+                )
+                .ok();
                 red = true;
             }
         }

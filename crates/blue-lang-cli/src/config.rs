@@ -256,7 +256,10 @@ mod tests {
             blue_lang_runtime::ExecutionBounds::DEFAULT
         );
         assert_eq!(d.max_call_depth, tatara_lisp_eval::vm::DEFAULT_MAX_DEPTH);
-        assert_eq!(d.max_steps, None, "a default step bound would end runs that work today");
+        assert_eq!(
+            d.max_steps, None,
+            "a default step bound would end runs that work today"
+        );
         assert_eq!(d.solver_max_steps, 100_000, "the shipped value, pinned");
         assert_eq!(d.max_expr_depth, 256, "the shipped value, pinned");
         assert_eq!(d.max_call_depth, 100_000, "the shipped value, pinned");

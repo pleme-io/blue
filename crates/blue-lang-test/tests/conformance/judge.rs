@@ -25,9 +25,7 @@ impl Verdict {
 fn meets(expect: &Expect, obs: &Obs) -> Result<(), String> {
     let ok = match (expect, obs) {
         (Expect::Value(want), Obs::Value(got)) => want == got,
-        (Expect::Value(want), Obs::Abi(got)) => {
-            project(&Obs::Value(want.clone())) == Some(*got)
-        }
+        (Expect::Value(want), Obs::Abi(got)) => project(&Obs::Value(want.clone())) == Some(*got),
         (Expect::Fails(stage, needle), Obs::Failed { stage: s, message }) => {
             stage == s && message.contains(needle.as_str())
         }
@@ -35,9 +33,13 @@ fn meets(expect: &Expect, obs: &Obs) -> Result<(), String> {
         (Expect::Prints(want), Obs::Printed { stdout, ok }) => *ok && want == stdout,
         (Expect::Diagnoses(want), Obs::Codes(got)) => want == got,
         (Expect::Formats(want), Obs::Text(got)) => want.trim_end() == got.trim_end(),
-        (Expect::Shifts(rung, holding), Obs::Shift { rung: r, holding: h }) => {
-            rung == r && holding == h
-        }
+        (
+            Expect::Shifts(rung, holding),
+            Obs::Shift {
+                rung: r,
+                holding: h,
+            },
+        ) => rung == r && holding == h,
         _ => false,
     };
     if ok {

@@ -169,7 +169,10 @@ pub fn gate(
                 continue;
             }
             if !keys.contains(key) {
-                refused.push(format!("{}: `{claim}` names nothing in the {kind} registry", row.id));
+                refused.push(format!(
+                    "{}: `{claim}` names nothing in the {kind} registry",
+                    row.id
+                ));
                 continue;
             }
             let verified = match kind {
@@ -186,7 +189,11 @@ pub fn gate(
                 refused.push(format!(
                     "{}: claims `{claim}`, but the row's {} does not contain it",
                     row.id,
-                    if kind == "rule" { "expectation" } else { "program" }
+                    if kind == "rule" {
+                        "expectation"
+                    } else {
+                        "program"
+                    }
                 ));
                 continue;
             }

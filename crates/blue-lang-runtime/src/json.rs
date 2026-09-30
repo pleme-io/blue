@@ -110,8 +110,9 @@ fn as_str(v: &Value, fname: &'static str, span: tatara_lisp::Span) -> Result<Str
         // A symbol/keyword is text the author wrote; `json_get` names a field
         // with `"outcome"` today, but `:outcome` should not surprise.
         Value::Symbol(s) | Value::Keyword(s) => Ok(s.to_string()),
-        other => Err(EvalError::type_mismatch("a string", other.type_name(), span)
-            .into_native(fname)),
+        other => {
+            Err(EvalError::type_mismatch("a string", other.type_name(), span).into_native(fname))
+        }
     }
 }
 
@@ -124,11 +125,9 @@ trait NameError {
 impl NameError for EvalError {
     fn into_native(self, fname: &'static str) -> EvalError {
         match self {
-            EvalError::TypeMismatch { expected, got, at } => EvalError::native_fn(
-                fname,
-                format!("expected {expected}, got {got}"),
-                at,
-            ),
+            EvalError::TypeMismatch { expected, got, at } => {
+                EvalError::native_fn(fname, format!("expected {expected}, got {got}"), at)
+            }
             other => other,
         }
     }
@@ -180,7 +179,10 @@ pub fn value_to_json(v: &Value) -> JsonValue {
                 && xs.iter().all(|entry| {
                     if let Value::List(pair) = entry {
                         pair.len() == 2
-                            && matches!(pair[0], Value::Str(_) | Value::Symbol(_) | Value::Keyword(_))
+                            && matches!(
+                                pair[0],
+                                Value::Str(_) | Value::Symbol(_) | Value::Keyword(_)
+                            )
                     } else {
                         false
                     }
@@ -231,7 +233,9 @@ fn map_key_to_json_key(k: &MapKey) -> String {
 fn json_lookup(doc: &Value, key: &str) -> Option<Value> {
     match doc {
         Value::List(entries) => entries.iter().find_map(|entry| {
-            let Value::List(pair) = entry else { return None };
+            let Value::List(pair) = entry else {
+                return None;
+            };
             if pair.len() != 2 {
                 return None;
             }
@@ -278,10 +282,7 @@ mod tests {
     #[test]
     fn parse_and_get_an_object_field() {
         let v = eval(r#"json_get(json_parse("{\"outcome\":\"ok\"}"), "outcome")"#);
-        assert!(
-            matches!(v, Value::Str(ref x) if &**x == "ok"),
-            "got {v:?}"
-        );
+        assert!(matches!(v, Value::Str(ref x) if &**x == "ok"), "got {v:?}");
     }
 
     #[test]
@@ -354,13 +355,19 @@ mod tests {
     #[test]
     fn non_empty_objects_parse_to_alists() {
         let v = eval(r#"json_parse("{\"a\":1}")"#);
-        assert!(matches!(v, Value::List(_)), "non-empty object must be an alist");
+        assert!(
+            matches!(v, Value::List(_)),
+            "non-empty object must be an alist"
+        );
     }
 
     #[test]
     fn a_parsed_empty_object_is_a_map_and_reads_as_nil() {
         let v = eval(r#"json_parse("{}")"#);
-        assert!(matches!(v, Value::Map(_)), "an empty object must be a Map so it round-trips");
+        assert!(
+            matches!(v, Value::Map(_)),
+            "an empty object must be a Map so it round-trips"
+        );
         assert!(
             matches!(
                 eval(r#"json_get(json_parse("{}"), "anything")"#),

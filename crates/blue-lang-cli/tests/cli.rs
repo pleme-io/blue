@@ -87,7 +87,15 @@ const PROGRAM: &str =
 #[test]
 fn run_passes_the_programs_arguments_to_argv() {
     let f = write("argv", "join(argv(), \"|\")");
-    let o = run(&["run", f.to_str().unwrap(), "rust", "--dry-run", "--min-age-hours", "6", "/x"]);
+    let o = run(&[
+        "run",
+        f.to_str().unwrap(),
+        "rust",
+        "--dry-run",
+        "--min-age-hours",
+        "6",
+        "/x",
+    ]);
     assert!(o.status.success(), "stderr: {}", stderr(&o));
     assert_eq!(stdout(&o).trim(), "rust|--dry-run|--min-age-hours|6|/x");
     // No arguments: an empty list, not the CLI's own.
@@ -104,7 +112,10 @@ fn run_passes_the_programs_arguments_to_argv() {
 /// plain text.
 #[test]
 fn write_stdout_prints_plain_text() {
-    let f = write("wstdout", "write_stdout(\"a b\\n\")\nwrite_stdout(\"c\")\nwrite_stderr(\"e\")\n0");
+    let f = write(
+        "wstdout",
+        "write_stdout(\"a b\\n\")\nwrite_stdout(\"c\")\nwrite_stderr(\"e\")\n0",
+    );
     let o = run(&["run", f.to_str().unwrap()]);
     assert!(o.status.success(), "stderr: {}", stderr(&o));
     // The program's own output, then the CLI's printed final value.
@@ -126,7 +137,14 @@ fn run_quiet_prints_only_what_the_program_writes() {
     let o = run(&["run", f.to_str().unwrap()]);
     assert_eq!(stdout(&o), "out\nnil\n");
     let g = write("quiet-argv", "write_stdout(join(argv(), \"|\"))\nnil");
-    let o = run(&["run", "--quiet", g.to_str().unwrap(), "--", "--quiet", "rust"]);
+    let o = run(&[
+        "run",
+        "--quiet",
+        g.to_str().unwrap(),
+        "--",
+        "--quiet",
+        "rust",
+    ]);
     assert_eq!(stdout(&o), "--quiet|rust");
 }
 
@@ -1179,7 +1197,10 @@ fn run_formats_a_messy_writable_file_in_place_and_runs_it() {
 
 #[test]
 fn test_formats_the_file_under_test() {
-    let f = fresh("canon-test-messy", "test   \"adds\"\n  assert 1+1 == 2\nend\n");
+    let f = fresh(
+        "canon-test-messy",
+        "test   \"adds\"\n  assert 1+1 == 2\nend\n",
+    );
     let o = run(&["test", f.to_str().unwrap()]);
     assert!(o.status.success(), "{}", stderr(&o));
     assert_eq!(
@@ -1196,7 +1217,10 @@ fn run_refuses_a_read_only_messy_file_and_leaves_it_alone() {
     perm.set_readonly(true);
     std::fs::set_permissions(&f, perm).expect("chmod");
     let o = run(&["run", f.to_str().unwrap()]);
-    assert!(!o.status.success(), "a read-only messy file must not compile");
+    assert!(
+        !o.status.success(),
+        "a read-only messy file must not compile"
+    );
     assert!(
         stderr(&o).contains(&format!(
             "{} is not formatted; run blue fmt --write {}",
@@ -1217,7 +1241,10 @@ fn a_messy_writable_package_loaded_by_use_is_formatted() {
     std::fs::create_dir_all(&pkg).expect("mkdir");
     let file = pkg.join("canonpkg.b");
     std::fs::write(&file, "def twice(x)\n        x*2\nend\n").expect("write pkg");
-    let entry = fresh("canon-pkg-entry", "use(\"canonpkg\", [:twice])\ntwice(21)\n");
+    let entry = fresh(
+        "canon-pkg-entry",
+        "use(\"canonpkg\", [:twice])\ntwice(21)\n",
+    );
     let o = run_env(
         &["run", entry.to_str().unwrap()],
         &[("BLUE_PATH", root.to_str().unwrap())],
@@ -1286,7 +1313,11 @@ fn max_call_depth_is_read_from_the_deployed_yaml() {
         &["run", f.to_str().unwrap()],
         &[("BLUE_CONFIG", cfg.to_str().unwrap())],
     );
-    assert!(!o.status.success(), "depth 500 under a bound of 100: {}", stdout(&o));
+    assert!(
+        !o.status.success(),
+        "depth 500 under a bound of 100: {}",
+        stdout(&o)
+    );
     assert!(
         stderr(&o).contains("call depth budget of 100 exceeded in `f`"),
         "the error must name the configured bound and the function: {}",

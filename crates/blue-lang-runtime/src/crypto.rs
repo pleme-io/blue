@@ -276,7 +276,10 @@ pub fn install_crypto_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         |a: &[Value], _h: &mut H, span| {
             let seed: [u8; KEY_BYTES] =
                 hex_array(&a[0], "seed").map_err(refuse("ed25519_keypair", span))?;
-            Ok(Value::list([hex_value(&seed), hex_value(&ed25519_public(&seed))]))
+            Ok(Value::list([
+                hex_value(&seed),
+                hex_value(&ed25519_public(&seed)),
+            ]))
         },
     );
 

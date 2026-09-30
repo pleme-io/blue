@@ -159,16 +159,19 @@ pub struct Row {
 impl Row {
     /// The pending mark that applies to `ev`, if any.
     pub fn pending_on(&self, ev: Ev) -> Option<&Pending> {
-        self.pending
-            .iter()
-            .find(|p| p.on.is_none_or(|on| on == ev))
+        self.pending.iter().find(|p| p.on.is_none_or(|on| on == ev))
     }
 }
 
 /// Every row file, sorted, so a report is reproducible.
 pub fn row_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("{} must exist: it is the specification ({e})", dir.display()))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{} must exist: it is the specification ({e})",
+                dir.display()
+            )
+        })
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e == "b"))
@@ -283,7 +286,9 @@ const RUNGS: [&str; 4] = ["dynamic", "annotated", "checked", "restricted"];
 fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
     let (head, args) = head_of(form).ok_or("a row file holds only row(…) calls")?;
     if head != "row" {
-        return Err(format!("`{head}(…)` is not a row; a row file holds only row(…) calls"));
+        return Err(format!(
+            "`{head}(…)` is not a row; a row file holds only row(…) calls"
+        ));
     }
     let [id, src, expect, options @ ..] = args else {
         return Err("row(ID, SRC, EXPECTATION, OPTION...) needs at least three arguments".into());
@@ -320,7 +325,8 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
                 let on = match on {
                     None => None,
                     Some(e) => {
-                        let e = str_of(e).ok_or_else(|| label("the evaluator is a string".into()))?;
+                        let e =
+                            str_of(e).ok_or_else(|| label("the evaluator is a string".into()))?;
                         Some(Ev::parse(e).ok_or_else(|| {
                             label(format!(
                                 "`{e}` is not an evaluator: walker, vm, wasm, cli, static"

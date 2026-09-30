@@ -46,7 +46,10 @@ pub enum DomainError {
     /// field, a missing required one, a wrong type. The message is the
     /// domain's own, which names the field.
     #[error("the domain `{keyword}` refused the form: {message}")]
-    Refused { keyword: &'static str, message: String },
+    Refused {
+        keyword: &'static str,
+        message: String,
+    },
 }
 
 /// Compile blue source into a Rust domain type.
@@ -95,7 +98,9 @@ pub fn compile_value<T: TataraDomain>(value: &Value) -> Result<T, DomainError> {
 /// [`DomainError::Unrepresentable`].
 pub fn domain_form(keyword: &str, value: &Value) -> Result<Sexp, DomainError> {
     let Value::Map(map) = value else {
-        return Err(DomainError::NotAMap { found: kind_of(value) });
+        return Err(DomainError::NotAMap {
+            found: kind_of(value),
+        });
     };
     let mut form = vec![Sexp::Atom(Atom::Symbol(keyword.to_string()))];
     form.extend(keyword_args(map)?);
@@ -103,9 +108,7 @@ pub fn domain_form(keyword: &str, value: &Value) -> Result<Sexp, DomainError> {
 }
 
 /// `:kebab-key v` pairs for a map, keys sorted so one map yields one form.
-fn keyword_args(
-    map: &tatara_lisp_eval::Map,
-) -> Result<Vec<Sexp>, DomainError> {
+fn keyword_args(map: &tatara_lisp_eval::Map) -> Result<Vec<Sexp>, DomainError> {
     let mut pairs: Vec<(String, &Value)> = map
         .iter()
         .map(|(k, v)| label_of(k).map(|label| (label, v)))
@@ -128,7 +131,9 @@ fn label_of(key: &MapKey) -> Result<String, DomainError> {
     match key {
         MapKey::Keyword(k) | MapKey::Symbol(k) => Ok(k.to_string()),
         MapKey::Str(_) => Err(DomainError::KeyNotALabel { found: "a string" }),
-        MapKey::Int(_) => Err(DomainError::KeyNotALabel { found: "an integer" }),
+        MapKey::Int(_) => Err(DomainError::KeyNotALabel {
+            found: "an integer",
+        }),
         MapKey::Float(_) => Err(DomainError::KeyNotALabel { found: "a float" }),
         MapKey::Bool(_) => Err(DomainError::KeyNotALabel { found: "a boolean" }),
         MapKey::Nil => Err(DomainError::KeyNotALabel { found: "nil" }),

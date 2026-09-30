@@ -467,7 +467,9 @@ impl<'a> Lexer<'a> {
         // from a following name.
         let exponent_digits_at = match (self.peek(), self.peek_at(1)) {
             (Some(b'e' | b'E'), Some(b'0'..=b'9')) => Some(1),
-            (Some(b'e' | b'E'), Some(b'+' | b'-')) if matches!(self.peek_at(2), Some(b'0'..=b'9')) => {
+            (Some(b'e' | b'E'), Some(b'+' | b'-'))
+                if matches!(self.peek_at(2), Some(b'0'..=b'9')) =>
+            {
                 Some(2)
             }
             _ => None,
@@ -654,7 +656,11 @@ mod tests {
         );
         assert_eq!(
             kinds("1.e"),
-            vec![TokenKind::Int(1), TokenKind::Dot, TokenKind::Ident("e".into())]
+            vec![
+                TokenKind::Int(1),
+                TokenKind::Dot,
+                TokenKind::Ident("e".into())
+            ]
         );
     }
 

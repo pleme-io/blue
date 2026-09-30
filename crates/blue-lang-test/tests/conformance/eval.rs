@@ -113,10 +113,12 @@ impl Env {
     /// `to_s("a")` is `a`), and `"1"` and `1` must not read the same.
     pub fn literal(&mut self, v: &Value) -> String {
         let wrapped = Value::list([v.clone()]);
-        match self
-            .renderer
-            .apply_external_value(&self.to_s, vec![wrapped], &mut (), tatara_lisp::Span::synthetic())
-        {
+        match self.renderer.apply_external_value(
+            &self.to_s,
+            vec![wrapped],
+            &mut (),
+            tatara_lisp::Span::synthetic(),
+        ) {
             Ok(Value::Str(s)) => s
                 .strip_prefix('[')
                 .and_then(|s| s.strip_suffix(']'))
@@ -218,7 +220,10 @@ fn runs(row: &Row) -> bool {
 
 pub fn walker(env: &mut Env, row: &Row) -> Obs {
     if !runs(row) {
-        return Obs::Blind(format!("a {} row is observed by the front end", row.expect.kind()));
+        return Obs::Blind(format!(
+            "a {} row is observed by the front end",
+            row.expect.kind()
+        ));
     }
     let loader = env.loader();
     let entry = Entry {
@@ -233,7 +238,10 @@ pub fn walker(env: &mut Env, row: &Row) -> Obs {
 
 pub fn vm(env: &mut Env, row: &Row) -> Obs {
     if !runs(row) {
-        return Obs::Blind(format!("a {} row is observed by the front end", row.expect.kind()));
+        return Obs::Blind(format!(
+            "a {} row is observed by the front end",
+            row.expect.kind()
+        ));
     }
     let loader = env.loader();
     let entry = Entry {
@@ -271,7 +279,10 @@ pub fn vm(env: &mut Env, row: &Row) -> Obs {
 
 pub fn wasm(_env: &mut Env, row: &Row) -> Obs {
     if !runs(row) {
-        return Obs::Blind(format!("a {} row is observed by the front end", row.expect.kind()));
+        return Obs::Blind(format!(
+            "a {} row is observed by the front end",
+            row.expect.kind()
+        ));
     }
     if row.host {
         // In a cargo test the runtime is built with `sys` on (the workspace
@@ -323,7 +334,10 @@ pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
                 holding: s.holding_back().iter().map(|f| f.subject.clone()).collect(),
             }
         }
-        _ => Obs::Blind(format!("a {} row runs on the evaluators", row.expect.kind())),
+        _ => Obs::Blind(format!(
+            "a {} row runs on the evaluators",
+            row.expect.kind()
+        )),
     }
 }
 

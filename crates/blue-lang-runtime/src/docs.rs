@@ -305,6 +305,7 @@ pub const NAMES: &[NameDoc] = names! {
     Error: "throw" "throw(err)" "Raise err. Uncaught, the run fails with its kind and message.";
     Error: "error?" "error?(x)" "Whether x is an error value; true inside a catch handler.";
     Error: "gensym" "gensym([prefix])" "A fresh unique symbol, for macros that need a private name.";
+    Lisp: "builtin_names" "builtin_names()" "Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name.";
     // ── JSON ──────────────────────────────────────────────────────────────
     Json: "json_parse" "json_parse(text)" "Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil.";
     Json: "json_stringify" "json_stringify(v)" "Compact JSON text, a map's keys sorted, a keyword as its name.";

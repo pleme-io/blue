@@ -92,32 +92,66 @@ def defined_name(line)
   join(take_while(fn(c) c != "(" && c != " " end, drop(4, chars(line))), "")
 end
 
-# [def_name, signature, doc_lines] for every top-level def in a source text.
-# A comment block documents a def only when it sits directly above it; a blank
-# line or any code in between resets it, so section banners attach to nothing.
+# The code a `# waive CODE: reason` comment names, or nil for any other line.
+def waived_code(line)
+  body = comment_text(line)
+  if starts_with?(body, "waive ")
+    trim(first(split(join(drop(6, chars(body)), ""), ":")))
+  else
+    nil
+  end
+end
+
+# [def_name, signature, doc_lines, waived_codes] for every top-level def in a
+# source text. A comment block documents a def only when it sits directly
+# above it; a blank line or any code in between resets it, so section banners
+# attach to nothing. A `# waive CODE:` line in that block is not
+# documentation: its code is recorded as the definition's waiver.
 def entries_of_text(text)
   state = reduce(
     fn(acc, line)
       pending = first(acc)
+      waivers = nth(1, acc)
       found = last(acc)
-      if starts_with?(line, "#")
-        [push(pending, comment_text(line)), found]
+      if starts_with?(line, "#") && waived_code(line) != nil
+        [pending, push(waivers, waived_code(line)), found]
+      elsif starts_with?(line, "#")
+        [push(pending, comment_text(line)), waivers, found]
       elsif starts_with?(line, "def ")
         [
           [],
+          [],
           push(
             found,
-            [defined_name(line), join(drop(4, chars(line)), ""), pending]
+            [
+              defined_name(line),
+              join(drop(4, chars(line)), ""),
+              pending,
+              waivers
+            ]
           )
         ]
       else
-        [[], found]
+        [[], [], found]
       end
     end,
-    [[], []],
+    [[], [], []],
     joined_header_lines(split(text, "\n"))
   )
   last(state)
+end
+
+# The prefix a `legacy_names(since, prefix)` declaration names, or nil.
+def legacy_prefix_of_text(text)
+  line = find_first(
+    fn(l) starts_with?(l, "legacy_names(") end,
+    split(text, "\n")
+  )
+  if line == nil
+    nil
+  else
+    nth(3, split(line, "\""))
+  end
 end
 
 # The lines of a source, with each def header the formatter broke over several
@@ -194,7 +228,8 @@ def package_record(dir)
     nth(2, manifest),
     gloss_of_text(all_text),
     entries_of_text(all_text),
-    tests_in_text(all_text)
+    tests_in_text(all_text),
+    legacy_prefix_of_text(all_text)
   ]
 end
 
@@ -241,6 +276,15 @@ end
 
 def pkg_tests(r)
   nth(5, r)
+end
+
+# The prefix the package's definitions once carried (`legacy_names`), or nil.
+def pkg_legacy_prefix(r)
+  if size(r) > 6
+    nth(6, r)
+  else
+    nil
+  end
 end
 
 def catalog_def_count(records)
@@ -335,12 +379,50 @@ def pkg_summary_row(r)
   "| [`#{pkg_name(r)}`](##{pkg_name(r)}) | #{pkg_version(r)} | #{md_cell(pkg_needs_text(r))} | #{to_s(pkg_tests(r))} | #{to_s(size(pkg_entries(r)))} | #{md_cell(pkg_gloss(r))} |"
 end
 
-def def_row(e)
-  "| `#{md_cell(nth(1, e))}` | #{md_cell(first_line_or_blank(last(e)))} |"
+# The definition's other name, from the package's `legacy_names`: the old,
+# prefixed spelling of a renamed definition (a bridge), or the stripped name
+# of one that kept its prefix (a second name, for good).
+def other_name(r, e)
+  prefix = pkg_legacy_prefix(r)
+  name = first(e)
+  if prefix == nil
+    ""
+  else
+    p = "#{prefix}_"
+    if starts_with?(name, p)
+      "`#{pkg_name(r)}::#{join(drop(size(chars(p)), chars(name)), "")}`"
+    else
+      "`#{p}#{name}` (old)"
+    end
+  end
+end
+
+def entry_waivers(e)
+  if size(e) > 3
+    join(map(fn(c) "`#{c}`" end, nth(3, e)), " ")
+  else
+    ""
+  end
+end
+
+def def_row(r, builtins, e)
+  prefix = pkg_legacy_prefix(r)
+  second = if prefix != nil && starts_with?(first(e), "#{prefix}_")
+    join(drop(size(chars(prefix)) + 1, chars(first(e))), "")
+  else
+    first(e)
+  end
+  shares = if contains(builtins, first(e)) || contains(builtins, second)
+    "yes"
+  else
+    ""
+  end
+  "| `#{pkg_name(r)}::#{md_cell(nth(1, e))}` | #{other_name(r, e)} | #{shares} | #{entry_waivers(e)} | #{md_cell(first_line_or_blank(nth(2, e)))} |"
 end
 
 def package_section(r)
-  rows = map(fn(e) def_row(e) end, pkg_entries(r))
+  builtins = builtin_names()
+  rows = map(fn(e) def_row(r, builtins, e) end, pkg_entries(r))
   join(
     concat_lists(
       [
@@ -350,8 +432,8 @@ def package_section(r)
         "",
         md_cell(pkg_gloss(r)),
         "",
-        "| definition | what it does |",
-        "|---|---|"
+        "| definition | other name | shares a builtin's name | waived | what it does |",
+        "|---|---|---|---|---|"
       ],
       rows
     ),
@@ -369,7 +451,31 @@ def render_markdown(records)
     "|---|---|---|---|---|---|"
   ]
   body = map(fn(r) package_section(r) end, records)
-  "#{join(concat_lists(header, map(fn(r) pkg_summary_row(r) end, records)), "\n")}\n\n#{join(body, "\n\n")}\n"
+  "#{join(concat_lists(header, map(fn(r) pkg_summary_row(r) end, records)), "\n")}\n\n#{join(body, "\n\n")}\n\n#{shared_names_section(records)}\n"
+end
+
+# The names several packages define: legal, since each is reached qualified
+# (`retsu::first`, `kueri::count`), and listed so an author finds the one
+# they mean.
+def shared_names_section(records)
+  rows = map(
+    fn(g)
+      "| `#{md_cell(first(g))}` | #{join(map(fn(p) "`#{p}::#{first(g)}`" end, last(g)), ", ")} |"
+    end,
+    name_collisions(records)
+  )
+  join(
+    concat_lists(
+      [
+        "## Names several bidamas define",
+        "",
+        "| name | defined as |",
+        "|---|---|"
+      ],
+      rows
+    ),
+    "\n"
+  )
 end
 
 # Write the catalogue of every root on BLUE_PATH to `path`.
@@ -385,7 +491,7 @@ end
 test "a def header broken over lines is catalogued as one signature"
   src = "# Does it.\ndef long_one(\n  alpha,\n  beta\n) -> Int\n  1\nend\n"
   assert entries_of_text(src) ==
-    [["long_one", "long_one(alpha, beta) -> Int", ["Does it."]]]
+    [["long_one", "long_one(alpha, beta) -> Int", ["Does it."], []]]
 end
 
 test "a manifest yields its name, version and needs"
@@ -405,7 +511,7 @@ test "a comment documents a def only when it sits directly above it"
   text = "# ── section ──\n\n# Adds one.\n# Twice as useful.\ndef inc(x)\n  x + 1\nend\n\ndef bare(y)\n  y\nend\n"
   es = entries_of_text(text)
   assert size(es) == 2
-  assert first(es) == ["inc", "inc(x)", ["Adds one.", "Twice as useful."]]
+  assert first(es) == ["inc", "inc(x)", ["Adds one.", "Twice as useful."], []]
   assert is_empty(last(last(es))) == true
 end
 
@@ -470,5 +576,15 @@ test "the rendered catalogue names every package and counts its definitions"
   md = render_markdown([a])
   assert contains?(md, "1 packages and 1 definitions") == true
   assert contains?(md, "## alpha") == true
-  assert contains?(md, "| `f(x)` | Does f. |") == true
+  assert contains?(md, "| `alpha::f(x)` |  |  |  | Does f. |") == true
+end
+
+test "a waiver is recorded, not documented; a legacy prefix names the other spelling"
+  text = "legacy_names(\"0.1.1\", \"q\")\n\n# Counts.\n# waive B0013: count is a builtin\ndef q_count(xs)\n  0\nend\n\n# Joins.\ndef join_all(xs)\n  xs\nend\n"
+  es = entries_of_text(text)
+  assert first(es) == ["q_count", "q_count(xs)", ["Counts."], ["B0013"]]
+  assert legacy_prefix_of_text(text) == "q"
+  r = ["kueri", "0.1.1", [], "", es, 0, "q"]
+  assert other_name(r, first(es)) == "`kueri::count`"
+  assert other_name(r, last(es)) == "`q_join_all` (old)"
 end

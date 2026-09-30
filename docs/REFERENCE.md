@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-228 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+229 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -373,6 +373,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
+| `builtin_names` | `builtin_names()` | 0 | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
 | `cond` | `(cond (test expr) …)` | — | Lisp multi-way conditional; its clauses have no blue spelling. In blue, use if … elsif … end. |
 | `defactor` | `defactor(name, initial, behaviour)` | — | A single-threaded actor with a mailbox. Its step message is :step!, which blue cannot spell, so from blue it can only be told, never stepped. |
 | `defcommand` | `defcommand(bus, name, params, body)` | — | Register a command on a tatara-lisp command bus; params is a Lisp list. |

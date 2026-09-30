@@ -95,6 +95,17 @@ agreement. A namespace rule the corpus is still being brought to carries a
 `ratchet` and is counted by `blue census` until it reaches zero. Full shape:
 `docs/DIAGNOSTICS.md`.
 
+**Each bidama is a namespace** (`theory/BLUE-NAMESPACES.md`). A file reaches
+another bidama's definition only qualified (`kueri::join`) or listed
+(`use("retsu", [:first])`); a name reached because something else loaded it
+is B0012. Prefixing a bidama's definitions (`q_join`) is B0013/B0014, with
+`blue migrate --strip` as the fix; `blue migrate FILE` makes a file's
+references explicit. Both are blue (`crates/blue-lang-cli/blue/migrate.b`),
+and both keep a file only when its resolved tree proves unchanged (`blue ast
+--resolved --json`) — a text replace cannot see a local that would capture a
+renamed call, and the proof did. `mkBidama` runs the check stage, so a
+bidama that does not check does not build.
+
 ## Where to look
 
 | Intent | Crate |

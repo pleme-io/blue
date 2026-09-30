@@ -46,7 +46,7 @@ end
 Use `retsu`'s total replacements, which are true of both empties:
 
 ```blue
-use("retsu")
+use("retsu", [:is_empty, :rest])
 
 # RIGHT
 def walk(xs)
@@ -149,31 +149,50 @@ before you need it is `compare(a, b)`: the only total ordering primitive,
 whose absence from the old list once cost an author a hand-rolled
 character-ordinal table.
 
-**Do not shadow a reachable name** with a `def` of your own unless you mean to
-replace it everywhere in the file.
+**A `def` named like a builtin is your package's**, inside your package: an
+own definition beats a builtin (the tier order below). Inside the package
+write `blue::count` for the builtin; everywhere else `count` stays the
+builtin unless a file lists yours.
 
 ---
 
-## The namespace is flat across packages
+## Each bidama is a namespace
 
-A `def` in one bidama replaces a same-named function **everywhere** in a program
-that imports both, including inside the other package's own code. Measured
-2026-09-23 in a private distribution: a one-argument `member` in one package
-broke `shuugou.unique`, which calls the builtin `member`. The failure surfaced as
-an arity error inside shuugou, far from its cause.
+Every definition lives in its bidama's namespace, and is keyed by it at run
+time (`kueri/join`), so two bidamas may define one name and neither replaces
+the other, or a builtin, for anyone else.
 
-- Give package-level names that say whose they are (`md_cell`, `pkg_name`,
-  `name_collisions`), never bare nouns (`cell`, `owners`, `collisions`).
-- `nix flake check` runs `bidama-collisions`: two packages defining one name is
-  a red build. A private distribution gets the same gate from
-  `mkCollisionCheck { owned = [ … ]; }`.
-- Before writing a name, look it up in [`CATALOG.md`](./CATALOG.md).
+- **Reach another bidama's name one of two ways**, and nothing else:
+  qualified, `kueri::join(a, b)`, after `use("kueri")`; or listed,
+  `use("retsu", [:first, :size])`, then bare `first(xs)`. A bidama your file
+  does not `use` is not visible, even when something else loaded it: a bare
+  name another bidama defines, reached only because it was loaded, is B0012,
+  and `blue migrate FILE` writes the lists for you.
+- **A bare name resolves by tier**, the first that has it winning: a local,
+  then your own bidama's definitions, then the names your `use` forms list,
+  then builtins. Two lists naming one name is B0009. `blue explain-name NAME
+  FILE:LINE` prints the path; `blue check --format json` records every place
+  a higher tier won.
+- **`use` forms come first, one per bidama, sorted, each list sorted**
+  (B0015); every `use` must be reached and every listed name read (B0016);
+  inside a bidama the `use`s are exactly its Bluefile's `needs` (B0019).
+- **Do not prefix your definitions** with your bidama's name or a short tag
+  (`kueri_join`, `q_join`): the namespace already says whose it is, and
+  callers write `kueri::join`. B0013 and B0014 refuse it; `blue migrate
+  --strip PREFIX BIDAMA CALLER...` strips an existing prefix, rewrites the
+  callers, and keeps the old spelling as a bridge with
+  `legacy_names("0.1.1", "q")` until the next minor version (B0021 reports a
+  caller still on it). A name whose stripped form is a reserved word or a
+  builtin your bidama uses keeps its prefix, waived, and gains the stripped
+  name too (`kueri::count` and `kueri::q_count` are one definition).
+- `blue::name` names a builtin, and is needed only where a same-named
+  definition would otherwise win (B0018 refuses a qualifier that changes
+  nothing).
+- `nix flake check` runs `bidama-collisions` in `namespace` scope: one
+  bidama defining a name twice is red (B0017 refuses it at check).
+- Before writing a name, look it up in [`CATALOG.md`](./CATALOG.md): its
+  closing section lists the names several bidamas define.
 
-
-The collision gate compares your names with **every** package in the distribution,
-including ones your program never imports: a private `status_of` collided with
-`shisutemu.status_of` (2026-09-23). It is right to fail: the next program that
-imports both breaks silently. Rename the newcomer.
 ## Finding what already exists
 
 [`CATALOG.md`](./CATALOG.md) lists every package, its gloss, and every definition
@@ -403,8 +422,9 @@ one. Every one of these caught a real bug in this distribution:
    near-homophones and **its gloss** against the fleet. See `NAMES.md`.
 2. Add the `NAMES.md` row in the same commit, or the build goes red.
 3. `Bluefile`: `package("name", "0.1.0")` plus a `needs(...)` per dependency —
-   and every `needs` must have a matching `use(...)` in the source, which is
-   also enforced. Then `blue lock <dir>` and commit the `Bluefile.lock` with
+   and every `needs` must have a matching `use(...)` in the source, and the
+   other way round: B0019 refuses a mismatch, and `mkBidama` runs the check
+   stage, so a package that does not check does not build. Then `blue lock <dir>` and commit the `Bluefile.lock` with
    it: nix reads the lock, and `bidama-locks-fresh` fails on a stale one.
 4. Raise the package floor in `bidamas/flake.nix`, the package and test floors
    in `distribution.rs`, and regenerate `CATALOG.md` with `nix run .#regen`.

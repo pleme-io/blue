@@ -133,3 +133,32 @@ fn blue_first_lowers_to_the_flat_key_today() {
         .value;
     assert!(matches!(&v, Value::Keyword(k) if &**k == "retsu_first"), "{v:?}");
 }
+
+/// **A facade makes its members' qualifiers reachable, and no bare name.**
+/// `use("fz")`, where fz defines nothing and uses retsu, lets the file write
+/// `retsu::first`; bare `first` is still the builtin's (and B0012's).
+///
+/// Red run (2026-09-29), the facade fixpoint in `program_names` skipped:
+/// B0010 (`retsu::first` is qualified by `retsu`, which this file does not
+/// `use`) and B0016 (nothing reaches `fz`).
+#[test]
+fn a_facade_makes_its_members_qualifiers_reachable() {
+    const WITH_FACADE: &[(&str, &str)] = &[
+        ("retsu", "def first(xs)\n  :retsu_first\nend\n"),
+        ("fz", "use(\"retsu\")\n"),
+    ];
+    let checked = check_entry(
+        Entry::anonymous("use(\"fz\")\n\nretsu::first([1])\n"),
+        &Mem(WITH_FACADE),
+        None,
+        Checking::WithTests,
+    )
+    .expect("check");
+    let d: Vec<_> = checked
+        .outcome
+        .diagnostics
+        .iter()
+        .map(|d| (d.code, d.message.clone()))
+        .collect();
+    assert!(d.is_empty(), "{d:?}");
+}

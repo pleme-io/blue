@@ -61,7 +61,7 @@ fn checked_tier(src: &str, loader: &dyn Loader, name: &str, own: &Namespace) -> 
 #[test]
 fn a_bidama_definition_replaces_a_builtin() {
     const P: &[(&str, &str)] = &[("mine", "def first(xs)\n  :mine\nend\n")];
-    let src = "use(\"mine\")\nfirst([1, 2])\n";
+    let src = "use(\"mine\", [:first])\nfirst([1, 2])\n";
     assert_eq!(keyword(&value(src, &Mem(P))), "mine");
     let own = Namespace::File("<anonymous>".into());
     assert_eq!(
@@ -80,7 +80,7 @@ fn an_importer_definition_replaces_the_bidamas_own() {
         "kotei",
         "def helper()\n  :bidama\nend\n\ndef call_helper()\n  helper()\nend\n",
     )];
-    let src = "use(\"kotei\")\n\ndef helper()\n  :entry\nend\n\ncall_helper()\n";
+    let src = "use(\"kotei\", [:call_helper])\n\ndef helper()\n  :entry\nend\n\ncall_helper()\n";
     // The runtime: the entry's `helper`, evaluated last, answers the bidama's call.
     assert_eq!(keyword(&value(src, &Mem(P))), "entry");
     // The check: from inside the bidama, `helper` is Own.

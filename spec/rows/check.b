@@ -65,14 +65,14 @@ row(
 
 row(
   "check.B0009",
-  "use(\"sp_amb_a\")\nuse(\"sp_amb_b\")\n\nsp_amb()",
+  "use(\"sp_amb_a\", [:sp_amb])\nuse(\"sp_amb_b\", [:sp_amb])\n\nsp_amb()",
   diagnoses(["B0009"]),
   covers("rule:B0009")
 )
 
 row(
   "check.B0009.run_refuses",
-  "use(\"sp_amb_a\")\nuse(\"sp_amb_b\")\n\nsp_amb()",
+  "use(\"sp_amb_a\", [:sp_amb])\nuse(\"sp_amb_b\", [:sp_amb])\n\nsp_amb()",
   fails(:check, "B0009"),
   covers("rule:B0009"),
   pending("G16", "wasm")
@@ -82,8 +82,7 @@ row(
   "check.B0012",
   "use(\"sp_mod\")\nsp_twice(1)",
   diagnoses(["B0012"]),
-  covers("rule:B0012"),
-  pending("ratchet")
+  covers("rule:B0012")
 )
 
 row(
@@ -106,16 +105,14 @@ row(
   "check.B0015",
   "use(\"sp_over\")\nuse(\"sp_mod\")\n\nsp_mod::sp_twice(1)\nsp_over::first([1])",
   diagnoses(["B0015"]),
-  covers("rule:B0015"),
-  pending("ratchet")
+  covers("rule:B0015")
 )
 
 row(
   "check.B0016",
   "use(\"sp_mod\")\n1",
   diagnoses(["B0016"]),
-  covers("rule:B0016"),
-  pending("ratchet")
+  covers("rule:B0016")
 )
 
 row(

@@ -264,7 +264,7 @@ fn eval(src: &str) -> Result<String, String> {
 fn granularity_holds_at_the_import_plane_too() {
     // In closure: kumiawase's own function.
     assert_eq!(
-        eval("use(\"kumiawase\")\nfactorial(5)").expect("kumiawase must import"),
+        eval("use(\"kumiawase\", [:factorial])\nfactorial(5)").expect("kumiawase must import"),
         "Int(120)"
     );
 
@@ -283,7 +283,9 @@ fn granularity_holds_at_the_import_plane_too() {
 
     // And the facade delivers exactly what the fine-grained import withheld.
     assert_eq!(
-        eval("use(\"zenbu\")\nmedian([1, 2, 3])").expect("the facade must import toukei"),
+        // Through the facade's qualifier: `use("zenbu")` makes every member
+        // bidama's qualifier reachable, and lists no bare names.
+        eval("use(\"zenbu\")\ntoukei::median([1, 2, 3])").expect("the facade must import toukei"),
         "Int(2)"
     );
 }

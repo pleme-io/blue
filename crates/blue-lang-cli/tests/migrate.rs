@@ -49,7 +49,12 @@ fn a_transitive_reference_is_listed_needed_and_proven() {
     let _ = std::fs::remove_dir_all(&root);
     let dist = root.join("bidamas");
     package(&dist, "mk_a", &[], "def one()\n  1\nend\n");
-    package(&dist, "mk_b", &["mk_a"], "use(\"mk_a\")\n\ndef two()\n  one() + one()\nend\n");
+    package(
+        &dist,
+        "mk_b",
+        &["mk_a"],
+        "use(\"mk_a\", [:one])\n\ndef two()\n  one() + one()\nend\n",
+    );
     let c = package(
         &dist,
         "mk_c",

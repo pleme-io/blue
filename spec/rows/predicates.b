@@ -124,5 +124,7 @@ row(
 row("pred.symbol", "symbol?(:k)", value("false"), covers("builtin:symbol?"))
 row("pred.the", "the(:int, 3)", value("3"), covers("builtin:the"))
 row("pred.zero", "zero?(0)", value("true"), covers("builtin:zero?"))
-row("pred.keyword_bang_refused", ":done!", fails(:parse, "found `!`"))
+# A symbol may end in `?` or `!`, as a name may, so an import list can name
+# a predicate: `use("nisshi", [:pair?])`.
+row("pred.keyword_bang", "[:done!, :pair?]", value("[:done!, :pair?]"))
 row("pred.type_of", "type_of(1)", value(":int"), pending("G12"))

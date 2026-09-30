@@ -5,7 +5,7 @@
 
 row(
   "modules.use",
-  "use(\"sp_mod\")\nsp_twice(4)",
+  "use(\"sp_mod\", [:sp_twice])\nsp_twice(4)",
   value("8"),
   covers("form:use(\"retsu\")"),
   pending("G16", "wasm")
@@ -13,7 +13,7 @@ row(
 
 row(
   "modules.use.real_bidama",
-  "use(\"retsu\")\n[size(nil), size([1, 2]), is_empty(nil), is_empty([])]",
+  "use(\"retsu\", [:is_empty, :size])\n[size(nil), size([1, 2]), is_empty(nil), is_empty([])]",
   value("[0, 2, true, true]"),
   pending("G16", "wasm")
 )
@@ -26,7 +26,7 @@ row(
 
 row(
   "modules.use.twice_is_once",
-  "use(\"sp_mod\")\nuse(\"sp_mod\")\nsp_twice(1)",
+  "use(\"sp_mod\", [:sp_twice])\n# waive B0015: the row loads it twice on purpose\nuse(\"sp_mod\")\nsp_twice(1)",
   value("2"),
   pending("G16", "wasm")
 )
@@ -35,7 +35,7 @@ row("modules.use.unbound_without", "sp_twice(4)", fails(:check, "B0001"))
 
 row(
   "modules.use.transitive",
-  "use(\"sp_uses\")\nsp_quad(1)",
+  "use(\"sp_uses\", [:sp_quad])\nsp_quad(1)",
   value("4"),
   pending("G16", "wasm")
 )
@@ -78,6 +78,5 @@ row(
 row(
   "modules.ns.transitive_invisible",
   "use(\"sp_uses\")\nsp_twice(1)",
-  fails(:check, "B0012"),
-  pending("namespaces")
+  fails(:check, "B0012")
 )

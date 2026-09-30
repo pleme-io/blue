@@ -176,7 +176,10 @@ fn unused_imports(
         }
     }
     for (i, u) in &fu.uses {
-        let any = reached.iter().any(|(p, _)| *p == u.package);
+        let via = table.imports_of(*i).map(|fi| &fi.via);
+        let any = reached.iter().any(|(p, _)| {
+            *p == u.package || via.is_some_and(|v| v.get(p) == Some(&u.package))
+        });
         if !any {
             out.push(
                 Diagnostic::new(

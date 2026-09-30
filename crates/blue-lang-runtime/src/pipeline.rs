@@ -262,7 +262,7 @@ pub(crate) fn prepare(
     // the string that produced them, which the caller is responsible for
     // holding onto"). blue holds onto it BESIDE the span, per top-level form —
     // see `uses::ResolvedProgram`.
-    let (outcome, _) = check_stage(&program, builtins);
+    let (outcome, _) = check_stage(&program, builtins, false);
     if !outcome.ok() {
         return Err(RunError::Types(
             outcome
@@ -338,6 +338,7 @@ fn parse_and_resolve(
 fn check_stage(
     program: &crate::uses::ResolvedProgram,
     builtins: &NameTable,
+    with_tests: bool,
 ) -> (blue_lang_check::Outcome, NameTable) {
     use crate::uses::ResolvedProgram;
     let forms = program.forms();
@@ -349,8 +350,14 @@ fn check_stage(
     // Rules B0001–B0002: names. The program's own scopes come first (the
     // entry file, then each bidama in import order), then the interpreter's.
     let table = program_names(program, builtins);
-    let (names, resolved) =
-        blue_lang_check::check_names(forms, &table, &|i| namespace_of(program, i), &is_entry);
+    let whole = |i: usize| with_tests && is_entry(i);
+    let (names, resolved) = blue_lang_check::names::check_names_whole(
+        forms,
+        &table,
+        &|i| namespace_of(program, i),
+        &is_entry,
+        &whole,
+    );
     outcome.diagnostics.extend(names);
     outcome.stats.names_resolved = resolved;
 
@@ -448,6 +455,43 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
             .entry(file.index())
             .or_default()
             .add(&import.package, import.names.iter().map(|(n, _)| n.clone()));
+    }
+    // A FACADE — a bidama that defines nothing and `use`s others (zenbu) —
+    // exists so a consumer can depend on "everything": `use("zenbu")` makes
+    // every member's QUALIFIER reachable (`toukei::median`), never a bare
+    // name. Followed to a fixpoint, so a facade of facades works too.
+    let facade_uses = |pkg: &str, imports: &std::collections::BTreeMap<usize, blue_lang_check::names::FileImports>| {
+        let defines = table.bidama(pkg).is_some_and(|s| !s.is_empty());
+        if defines {
+            return std::collections::BTreeSet::new();
+        }
+        program
+            .files()
+            .iter()
+            .filter(|f| f.package.as_deref() == Some(pkg))
+            .filter_map(|f| imports.get(&f.id.index()))
+            .flat_map(|i| i.uses.iter().cloned())
+            .collect::<std::collections::BTreeSet<String>>()
+    };
+    loop {
+        let mut grew = false;
+        let files: Vec<usize> = imports.keys().copied().collect();
+        for f in files {
+            let used: Vec<String> = imports[&f].uses.iter().cloned().collect();
+            for p in used {
+                for member in facade_uses(&p, &imports) {
+                    if let Some(i) = imports.get_mut(&f) {
+                        if i.uses.insert(member.clone()) {
+                            i.via.insert(member, p.clone());
+                            grew = true;
+                        }
+                    }
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
     }
     table.attach_files(form_file, imports);
     table.attach_needs(program.needs().clone());
@@ -669,7 +713,7 @@ pub fn check_entry(
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, Inputs::new());
     let builtins = builtin_names(&interp);
-    let (outcome, names) = check_stage(&program, &builtins);
+    let (outcome, names) = check_stage(&program, &builtins, checking == Checking::WithTests);
     Ok(Checked {
         program,
         outcome,
@@ -872,9 +916,13 @@ bakuhatsu()";
     ///    ```
     ///    The right FILE with no position — which is exactly the shape of the
     ///    bug: the index survived the lift and every span did not.
+    /// kotae loads first so bakuhatsu's forms do not start at index 0: the
+    /// order is the fixture, and the waiver says so (B0015 wants them sorted).
+    const TWO_IMPORTS: &str = "use(\"kotae\")\n# waive B0015: kotae loads first on purpose\nuse(\"bakuhatsu\")\n";
+
     #[test]
     fn a_raise_inside_an_imported_package_names_that_package() {
-        let err = run_named("entry.b", "use(\"kotae\")\nuse(\"bakuhatsu\")\n");
+        let err = run_named("entry.b", TWO_IMPORTS);
         assert_eq!(
             err.to_string(),
             "runtime error: bakuhatsu.b:11:3: unbound symbol `kore_wa_sonzai_shinai`"
@@ -905,7 +953,7 @@ bakuhatsu()";
             "kotae.b could answer for byte {offset}"
         );
         assert!(
-            offset > "use(\"kotae\")\nuse(\"bakuhatsu\")\n".len(),
+            offset > TWO_IMPORTS.len(),
             "the entry file could answer for byte {offset}"
         );
     }
@@ -1005,11 +1053,11 @@ bakuhatsu()";
     fn a_raise_in_a_callee_from_another_file_reports_no_position_rather_than_a_wrong_one() {
         // The comment is padding, and load-bearing: `bakuhatsu2.b`'s failing
         // call starts at byte 47 (after its waiver line) and ends at 70, and
-        // this file is 54 bytes, so the start is in range here and the end is
+        // this file is 57 bytes, so the start is in range here and the end is
         // not — the half-in-range case the guard's END check exists for.
         let err = run_named(
             "yobidashi.b",
-            "use(\"bakuhatsu2\")\n# pad so byte 47 is in range\nyobu()\n",
+            "use(\"bakuhatsu2\")\n# pad: 47 in range\nbakuhatsu2::yobu()\n",
         );
         assert_eq!(
             err.to_string(),

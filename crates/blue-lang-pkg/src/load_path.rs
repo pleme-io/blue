@@ -270,7 +270,7 @@ mod tests {
     fn an_imported_function_is_actually_callable() {
         let lp = LoadPath::new([dist()]);
         let run = blue_lang_runtime::pipeline::run_with_loader(
-            "use(\"kazu\")\nclamp(99, 1, 10)",
+            "use(\"kazu\", [:clamp])\nclamp(99, 1, 10)",
             blue_lang_runtime::inputs::Inputs::new(),
             &lp,
         )

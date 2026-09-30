@@ -1217,7 +1217,7 @@ fn a_messy_writable_package_loaded_by_use_is_formatted() {
     std::fs::create_dir_all(&pkg).expect("mkdir");
     let file = pkg.join("canonpkg.b");
     std::fs::write(&file, "def twice(x)\n        x*2\nend\n").expect("write pkg");
-    let entry = fresh("canon-pkg-entry", "use(\"canonpkg\")\ntwice(21)\n");
+    let entry = fresh("canon-pkg-entry", "use(\"canonpkg\", [:twice])\ntwice(21)\n");
     let o = run_env(
         &["run", entry.to_str().unwrap()],
         &[("BLUE_PATH", root.to_str().unwrap())],

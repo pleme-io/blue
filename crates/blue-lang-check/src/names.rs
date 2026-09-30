@@ -257,6 +257,9 @@ pub struct FileImports {
     pub uses: BTreeSet<String>,
     /// A listed name, and every package that lists it.
     pub names: BTreeMap<String, Vec<String>>,
+    /// A bidama reachable only through a facade the file uses, and that
+    /// facade: `use("zenbu")` makes `toukei::` reachable.
+    pub via: BTreeMap<String, String>,
 }
 
 impl FileImports {
@@ -821,6 +824,21 @@ pub fn check_names(
     namespace_of: &dyn Fn(usize) -> Namespace,
     report_unused: &dyn Fn(usize) -> bool,
 ) -> (Vec<Diagnostic>, usize) {
+    check_names_whole(forms, table, namespace_of, report_unused, report_unused)
+}
+
+/// [`check_names`], saying separately which forms belong to a file checked
+/// WHOLE — its test blocks included — which is the only kind of file that can
+/// say a name it lists is never read (B0016). `blue run` drops the entry's
+/// tests before checking; `blue check` and `blue test` keep them.
+#[must_use]
+pub fn check_names_whole(
+    forms: &[Spanned],
+    table: &NameTable,
+    namespace_of: &dyn Fn(usize) -> Namespace,
+    report_unused: &dyn Fn(usize) -> bool,
+    whole_file: &dyn Fn(usize) -> bool,
+) -> (Vec<Diagnostic>, usize) {
     let mut w = Walker::new(table, report_unused);
     for (i, form) in forms.iter().enumerate() {
         w.enter(i, namespace_of(i), form);
@@ -829,7 +847,7 @@ pub fn check_names(
         scope::walk_top(form, &mut w);
     }
     let file_rules =
-        crate::namespace_rules::check(forms, table, namespace_of, &w.references, report_unused);
+        crate::namespace_rules::check(forms, table, namespace_of, &w.references, whole_file);
     w.diagnostics.extend(file_rules);
     (w.diagnostics, w.resolved)
 }

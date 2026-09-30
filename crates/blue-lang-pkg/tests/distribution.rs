@@ -236,7 +236,11 @@ fn every_declared_dependency_is_actually_imported() {
         for chunk in manifest.split("needs(\"").skip(1) {
             let dep = chunk.split('"').next().unwrap_or_default();
             assert!(
-                source.contains(&format!("use(\"{dep}\")")),
+                // `use("dep")` or `use("dep", [:names])`, however it wraps.
+                source
+                    .split_whitespace()
+                    .collect::<String>()
+                    .contains(&format!("use(\"{dep}\"")),
                 "{name} declares needs(\"{dep}\") but never writes use(\"{dep}\") — \
                  the manifest claims a dependency the code does not have"
             );

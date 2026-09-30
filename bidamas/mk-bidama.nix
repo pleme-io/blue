@@ -267,7 +267,7 @@ rec {
     runCommand name { } ''
       mkdir -p override/retsu
       printf 'def precedence_marker()\n  42\nend\n' > override/retsu/retsu.b
-      printf 'use("retsu")\nwrite_file(getenv("MARK", "mark"), to_s(precedence_marker()))\n' > prog.b
+      printf 'use("retsu", [:precedence_marker])\nwrite_file(getenv("MARK", "mark"), to_s(precedence_marker()))\n' > prog.b
       if MARK=$PWD/control ${wrapped}/bin/blue run prog.b > control.log 2>&1; then
         echo "negative control passed: the distribution's retsu defines the marker"; exit 1
       fi
@@ -291,7 +291,7 @@ rec {
   mkCatalog = { blue, bidamas, root ? null, name ? "bidama-catalog" }:
     let
       program = builtins.toFile "catalog.b" ''
-        use("mokuroku")
+        use("mokuroku", [:blue_path_roots, :catalog_of, :render_markdown])
         roots = blue_path_roots(getenv("CATALOG_ROOTS", getenv("BLUE_PATH", "")))
         write_file(getenv("GEN_OUT", ""), render_markdown(catalog_of(roots)))
       '';
@@ -426,13 +426,21 @@ rec {
         if owned == null
         then "name_collisions(records)"
         else "name_collisions_touching(records, ${ownedList})";
+      # What the gate program lists from each bidama: exactly what it reads,
+      # which depends on `owned` (an unread listed name is B0016).
+      mokurokuNames =
+        [ "blue_path_roots" "catalog_of" ]
+        ++ (if owned == null then [ "name_collisions" ] else [ "name_collisions_touching" "pkg_name" ]);
+      retsuNames = (lib.optional (owned != null) "contains") ++ [ "is_empty" "size" ];
+      list = names: lib.concatMapStringsSep ", " (n: ":" + n) names;
       seen = lib.optionalString (owned != null) ''
           scanned = map(fn(r) pkg_name(r) end, records)
           assert is_empty(filter(fn(o) contains(scanned, o) == false end, ${ownedList})) == true
       '';
     in runCommand name { } ''
       cat > gate.b <<'EOF'
-      use("mokuroku")
+      use("mokuroku", [${list mokurokuNames}])
+      use("retsu", [${list retsuNames}])
       test "no two packages define one name"
         records = catalog_of(blue_path_roots(getenv("BLUE_PATH", "")))
         assert size(records) > 0

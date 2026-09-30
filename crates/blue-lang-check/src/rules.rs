@@ -256,6 +256,7 @@ not an error: it becomes a seam, a runtime check at that point, which
         fix: None,
         law: "a file parses",
         witness: "def f(\n",
+        waivable: false,
         explanation: "\
 The parser could not read the file. The position is where it stopped, which is
 at or after the mistake. Blue has no postfix index (`xs[0]`; use `nth(0, xs)`),
@@ -266,8 +267,9 @@ and no keyword arguments.",
         slug: "malformed-waiver",
         severity: Error,
         fix: None,
-        law: "a waiver names a known code and gives a reason: `# waive B0001: <reason>`",
+        law: "a waiver names a known, waivable code and gives a reason: `# waive B0002: <reason>`",
         witness: "# waive B0001\ndef f()\n  1\nend\n",
+        waivable: false,
         explanation: "\
 A waiver is a comment on its own line directly above a top-level definition:
 
@@ -283,13 +285,14 @@ exception.",
     }
     B0008 {
         slug: "unused-waiver",
-        severity: Warning,
+        severity: Error,
         fix: None,
         law: "a waiver suppresses at least one diagnostic",
         witness: "# waive B0001: nothing here is unbound\ndef f()\n  1\nend\n",
         explanation: "\
 A waiver whose definition no longer produces the waived code. Delete it: a
-stale waiver would silently cover the next real violation of that rule.",
+stale waiver would silently cover the next real violation of that rule, so
+it is an error, not a note.",
     }
     B0009 {
         slug: "ambiguous-name",
@@ -301,6 +304,7 @@ stale waiver would silently cover the next real violation of that rule.",
             ("kagi_a", "def kagi()\n  1\nend\n"),
             ("kagi_b", "def kagi()\n  2\nend\n"),
         ],
+        waivable: false,
         explanation: "\
 Names resolve by tier: locals, then the referencing file's (or bidama's) own
 definitions, then every other imported definition, then builtins. The first
@@ -317,6 +321,7 @@ collision gate already forbids this among its own packages.)",
         fix: None,
         law: "a qualified name's package is one the file `use`s: `retsu::first` needs `use(\"retsu\")`",
         witness: "def f(xs)\n  retsu::first(xs)\nend\n",
+        waivable: false,
         explanation: "\
 `retsu::first` names the definition `first` of the bidama `retsu`, exactly.
 The qualifier must be a bidama the file declares with `use(\"retsu\")`
@@ -333,6 +338,7 @@ To comply, add the `use` — or, if a builtin was meant, write `blue::first`.",
         law: "a qualified name, or a name a `use` lists, is a definition of that package",
         witness: "use(\"kagi_a\")\n\nkagi_a::kagj()\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
+        waivable: false,
         explanation: "\
 `kazu::first(xs)` says the definition is kazu's. When kazu defines no
 `first`, that is a mistake in the program, not something to fall back from:

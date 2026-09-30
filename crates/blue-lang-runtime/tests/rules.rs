@@ -148,3 +148,28 @@ fn a_name_a_builtin_macro_defines_is_bound() {
                defsm(door, :initial, :closed, :transitions, [[:closed, :open, :opened]])\n\ndoor(:current)\n";
     assert_eq!(codes_of(src), Vec::<Code>::new());
 }
+
+/// **A waiver cannot silence a rule that guards meaning, and a waiver that
+/// silences nothing is refused.** B0009 (two imports listing one name) is
+/// not waivable: the program would have no one meaning. An unused waiver is
+/// B0008, an error, and stops the run.
+///
+/// Red run (2026-09-29), `waivable` ignored in `waiver::collect`: the B0009
+/// waiver is accepted and the check reports nothing (`[]`).
+#[test]
+fn a_waiver_on_an_unwaivable_rule_or_on_nothing_is_refused() {
+    const P: &[(&str, &str)] = &[
+        ("kagi_a", "def kagi()\n  1\nend\n"),
+        ("kagi_b", "def kagi()\n  2\nend\n"),
+    ];
+    let src = "use(\"kagi_a\", [:kagi])\nuse(\"kagi_b\", [:kagi])\n\n# waive B0009: pick either\ndef f()\n  kagi()\nend\n";
+    let got = codes_with(src, P);
+    assert!(
+        got.contains(&Code::B0007) && got.contains(&Code::B0009),
+        "{got:?}"
+    );
+
+    let unused = "# waive B0002: nothing here is unused\ndef f(x)\n  x\nend\n\nf(1)\n";
+    assert_eq!(codes_of(unused), vec![Code::B0008]);
+    assert!(run(unused).is_err(), "an unused waiver stops the run");
+}

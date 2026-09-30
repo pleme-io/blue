@@ -19,8 +19,8 @@ it; `blue explain --list` lists them.
 | B0004 | operand-type-mismatch | error | an operator in a typed definition gets operands of its type |
 | B0005 | argument-type-mismatch | error | a call to a typed definition passes the declared types |
 | B0006 | syntax-error | error | a file parses |
-| B0007 | malformed-waiver | error | a waiver names a known code and gives a reason |
-| B0008 | unused-waiver | warning | a waiver suppresses at least one diagnostic |
+| B0007 | malformed-waiver | error | a waiver names a known, waivable code and gives a reason |
+| B0008 | unused-waiver | error | a waiver suppresses at least one diagnostic |
 | B0009 | ambiguous-name | error | no two namespaces in one resolution tier define a name |
 | B0010 | qualifier-not-imported | error | a qualified name's package is one the file `use`s |
 | B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that package |

@@ -289,13 +289,21 @@ fn resolution_does_not_depend_on_import_order() {
     ];
     let mut seen = std::collections::BTreeSet::new();
     for o in orders {
+        // Waive B0015 exactly where it fires (a use sorting before the one
+        // above it): an unused waiver is itself an error.
+        let names = ["q_a", "q_b", "q_c"];
         let waived: Vec<String> = o
             .iter()
-            .map(|i| {
-                format!(
-                    "# waive B0015: the order is what this test varies\n{}",
-                    uses[*i]
-                )
+            .enumerate()
+            .map(|(k, i)| {
+                if k > 0 && names[o[k - 1]] > names[*i] {
+                    format!(
+                        "# waive B0015: the order is what this test varies\n{}",
+                        uses[*i]
+                    )
+                } else {
+                    uses[*i].to_string()
+                }
             })
             .collect();
         let src = format!(

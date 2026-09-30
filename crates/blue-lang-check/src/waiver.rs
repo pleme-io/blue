@@ -17,8 +17,11 @@
 //! [`crate::Outcome::waived`] with its waiver, so `blue check` counts it and
 //! `--format json` lists it. A waiver that names no known code or gives no
 //! reason is [`B0007`](crate::Code::B0007), an error; one that suppresses
-//! nothing is [`B0008`](crate::Code::B0008), a warning, because a stale waiver
-//! would silently cover the next real violation.
+//! nothing is [`B0008`](crate::Code::B0008), an error, because a stale waiver
+//! would silently cover the next real violation. A rule that guards what a
+//! program means (an ambiguous or unresolvable qualified name, a duplicate
+//! definition) is not waivable at all: its registry row says so, and a waiver
+//! naming it is B0007.
 //!
 //! Comments are not in the tree (the parser drops them to keep the tree
 //! canonical), so waivers are read from the file's text, and attached to a
@@ -47,10 +50,6 @@ pub struct Waived {
     pub diagnostic: Diagnostic,
     pub waiver: Waiver,
 }
-
-/// The codes no waiver may name: there is no tree to waive a syntax error in,
-/// and waiving a malformed waiver would be a waiver nobody can read.
-const UNWAIVABLE: &[Code] = &[Code::B0006, Code::B0007];
 
 /// Read the waivers in one file.
 ///
@@ -108,11 +107,18 @@ pub fn collect(text: &str, forms: &[(usize, Span)]) -> (Vec<Waiver>, Vec<Diagnos
             );
             continue;
         };
-        if UNWAIVABLE.contains(&code) {
+        // The registry says which: a rule is waivable only when a program
+        // violating it still has exactly one meaning, since a waiver silences
+        // a check and must never change what a program means. A syntax error
+        // has no tree to waive in, a malformed waiver nobody can read, and an
+        // ambiguous or unresolvable name no meaning to keep.
+        if !code.rule().waivable {
             malformed.push(
                 bad(format!("{code} cannot be waived"))
                     .at_top_level(top_level)
-                    .with_help("fix the file instead"),
+                    .with_help(format!(
+                        "{code} guards what the program means, so no waiver may silence it; fix the file instead"
+                    )),
             );
             continue;
         }

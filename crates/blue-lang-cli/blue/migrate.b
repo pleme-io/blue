@@ -278,9 +278,8 @@ def ident_char?(c)
   )
 end
 
-# `s` with every whole-identifier `old` replaced by `new`: inside a string's
-# interpolations, where the parser gives every name the string's span.
-def replace_ident(s, old, new)
+# `s` with every whole-identifier `old` replaced by `new`.
+def replace_word(s, old, new)
   pieces = split(s, old)
   numbered = zip(range(0, length(pieces)), pieces)
   foldl(
@@ -290,8 +289,16 @@ def replace_ident(s, old, new)
       if i == 0
         piece
       else
-        before = last(chars(acc))
-        after = first(chars(piece))
+        before = if acc == ""
+          nil
+        else
+          last(chars(acc))
+        end
+        after = if piece == ""
+          nil
+        else
+          first(chars(piece))
+        end
         whole = (before == nil || !ident_char?(before)) &&
           (after == nil || !ident_char?(after))
         if whole
@@ -303,6 +310,47 @@ def replace_ident(s, old, new)
     end,
     "",
     numbered
+  )
+end
+
+# A string literal's source with `old` replaced by `new` inside its
+# interpolations only: the parser gives every name in them the string's
+# span, and the literal text around them is text. Interpolations nest (a
+# string inside `#{…}` has its own), so the scan counts braces: depth 0 is
+# text, anything deeper is code.
+def replace_ident(s, old, new)
+  # [segments, current, depth, previous char]; a segment is [code?, text].
+  step = fn(st, c)
+    segs = first(st)
+    cur = nth(1, st)
+    depth = nth(2, st)
+    prev = nth(3, st)
+    if depth == 0 && prev == "#" && c == "{"
+      [append(segs, [[false, cur]]), c, 1, c]
+    elsif depth > 0 && c == "{"
+      [segs, "#{cur}#{c}", depth + 1, c]
+    elsif depth == 1 && c == "}"
+      [append(segs, [[true, cur]]), c, 0, c]
+    elsif depth > 1 && c == "}"
+      [segs, "#{cur}#{c}", depth - 1, c]
+    else
+      [segs, "#{cur}#{c}", depth, c]
+    end
+  end
+  st = foldl(step, [[], "", 0, ""], chars(s))
+  segs = append(first(st), [[nth(2, st) > 0, nth(1, st)]])
+  join(
+    map(
+      fn(seg)
+        if first(seg)
+          replace_word(nth(1, seg), old, new)
+        else
+          nth(1, seg)
+        end
+      end,
+      segs
+    ),
+    ""
   )
 end
 
@@ -404,6 +452,52 @@ def key_rewrite(tree, pkg, renames, bare_prefix)
   )
 end
 
+# A resolved form with every quoted datum elided: `assert e` lowers to
+# `(blue-assert 'e e)`, and the datum is the source an assertion quotes in
+# its failure message. The rename rewrites that source with the code, and
+# may qualify it (`blue::get`), so the proof compares what RUNS: the datum
+# is text, the evaluated copy beside it is checked like all code.
+def unquoted(t)
+  # [out chars (reversed), depth inside a datum, in string?, escaped?, prev]
+  step = fn(st, c)
+    out = first(st)
+    depth = nth(1, st)
+    str = nth(2, st)
+    esc = nth(3, st)
+    prev = nth(4, st)
+    if depth == 0
+      if prev == "'" && c == "("
+        [cons("…", out), 1, false, false, c]
+      else
+        [cons(c, out), 0, false, false, c]
+      end
+    elsif str
+      if esc
+        [out, depth, true, false, c]
+      elsif c == "\\"
+        [out, depth, true, true, c]
+      elsif c == "\""
+        [out, depth, false, false, c]
+      else
+        [out, depth, true, false, c]
+      end
+    elsif c == "\""
+      [out, depth, true, false, c]
+    elsif c == "("
+      [out, depth + 1, false, false, c]
+    elsif c == ")"
+      if depth == 1
+        [cons(")", out), 0, false, false, c]
+      else
+        [out, depth - 1, false, false, c]
+      end
+    else
+      [out, depth, false, false, c]
+    end
+  end
+  join(reverse(first(foldl(step, [[], 0, false, false, ""], chars(t)))), "")
+end
+
 def settled_forms(doc, rule)
   filter(fn(f) !starts_with?(f, "(legacy_names ") end, forms_under(doc, rule))
 end
@@ -489,6 +583,27 @@ def strip_bidama(prefix, file)
       refs
     )
   )
+  # A name another bidama lends it that a kept name's second name now
+  # shadows (tier 2 over 3): written qualified, and dropped from the list.
+  lent = filter(
+    fn(r)
+      ns = json_get(r, "ns")
+      json_get(ns, "kind") == "def" &&
+        json_get(ns, "namespace") != pkg &&
+        json_get(ns, "namespace") != nil &&
+        member?(json_get(r, "written"), kept)
+    end,
+    refs
+  )
+  lent_edits = map(
+    fn(r)
+      ref_edit(
+        r,
+        "#{json_get(json_get(r, "ns"), "namespace")}::#{json_get(r, "written")}"
+      )
+    end,
+    lent
+  )
   builtin_edits = map(
     fn(r) ref_edit(r, "blue::#{json_get(r, "written")}") end,
     filter(
@@ -500,7 +615,10 @@ def strip_bidama(prefix, file)
     )
   )
   text = read_file(file)
-  renamed = apply_edits(text, append(def_edits, ref_edits, builtin_edits))
+  renamed = apply_edits(
+    text,
+    append(def_edits, ref_edits, builtin_edits, lent_edits)
+  )
   # Waivers above each kept definition, bottom up so line numbers hold.
   kept_defs = sort_keyed(
     fn(d) -json_get(d, "line") end,
@@ -536,7 +654,16 @@ def strip_bidama(prefix, file)
   else
     ["", "legacy_names(\"0.1.1\", \"#{prefix}\")"]
   end
-  [pkg, renames, text, insert_lines(waived, at, ledger), length(kept)]
+  ledgered = insert_lines(waived, at, ledger)
+  lenders = distinct(
+    map(fn(r) json_get(json_get(r, "ns"), "namespace") end, lent)
+  )
+  relisted = foldl(
+    fn(t, lender) relist(t, doc, lender, kept) end,
+    ledgered,
+    lenders
+  )
+  [pkg, renames, text, relisted, length(kept)]
 end
 
 # A caller's references to renamed definitions, qualified; the old names off
@@ -557,19 +684,24 @@ def strip_caller(pkg, renames, file)
     fn(r) ref_edit(r, "#{pkg}::#{json_get(json_get(r, "ns"), "name")}") end,
     bridged
   )
-  text = read_file(file)
-  renamed = apply_edits(text, edits)
+  relist(apply_edits(read_file(file), edits), doc, pkg, old_names)
+end
+
+# `text` with the `use` of `package` (as `doc` found it) listing no name in
+# `dropped`: the names a rewrite made qualified. Its lines must still be
+# where `doc` saw them.
+def relist(text, doc, package, dropped)
   mine = filter(
-    fn(u) json_get(u, "package") == pkg end,
+    fn(u) json_get(u, "package") == package end,
     json_get(doc, "imports")
   )
   if empty?(mine)
-    renamed
+    text
   else
     u = first(mine)
-    left = filter(fn(n) !member?(n, old_names) end, json_get(u, "names"))
+    left = filter(fn(n) !member?(n, dropped) end, json_get(u, "names"))
     line = json_get(u, "line")
-    lines = split(renamed, "\n")
+    lines = split(text, "\n")
     numbered = zip(range(1, length(lines) + 1), lines)
     kept = filter(
       fn(nl) first(nl) < line || first(nl) > json_get(u, "end_line") end,
@@ -580,7 +712,7 @@ def strip_caller(pkg, renames, file)
     join(
       append(
         map(fn(nl) nth(1, nl) end, before),
-        [render_use([pkg, left])],
+        [render_use([package, left])],
         map(fn(nl) nth(1, nl) end, after)
       ),
       "\n"
@@ -630,10 +762,10 @@ def strip(prefix, file, callers)
       "#{f}: does not resolve"
     else
       want = map(
-        fn(t) key_rewrite(t, pkg, renames, bare) end,
+        fn(t) unquoted(key_rewrite(t, pkg, renames, bare)) end,
         settled_forms(old_doc, "ns")
       )
-      got = settled_forms(now, "ns")
+      got = map(fn(t) unquoted(t) end, settled_forms(now, "ns"))
       if got != want
         pairs = filter(fn(p) first(p) != nth(1, p) end, zip(want, got))
         if empty?(pairs)

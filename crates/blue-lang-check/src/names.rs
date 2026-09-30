@@ -591,9 +591,13 @@ impl NameTable {
         if let Some((_, ns)) = self.last_definer.get(bare) {
             return Target::Def(ns.clone(), bare.to_string());
         }
-        // An open alias is a second name of a definition the program has.
+        // An open BRIDGE is the old name of a definition the program has:
+        // under one global environment, that old name was the definition.
+        // (A kept prefix's second name is new: the flat world never had it,
+        // and a bare `filter` there was the builtin.)
         for s in &self.scopes {
-            if let (Namespace::Bidama(_), Some(b)) = (&s.namespace, s.get(bare)) {
+            let bridged = s.alias_of(bare).is_some_and(|a| a.bridge);
+            if let (Namespace::Bidama(_), true, Some(b)) = (&s.namespace, bridged, s.get(bare)) {
                 return Target::Def(s.namespace.clone(), b.name.clone());
             }
         }

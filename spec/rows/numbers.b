@@ -24,14 +24,15 @@ row("numbers.div.by_zero", "1 / 0", fails(:eval, "division by zero"))
 row("numbers.mod", "7 % 3", value("1"), covers("op:%"))
 row("numbers.mod.euclidean", "-7 % 3", value("2"))
 
-row(
-  "numbers.overflow.mul",
-  "9223372036854775807 * 2",
-  fails(:eval, "overflow")
-)
+row("numbers.overflow.mul", "9223372036854775807 * 2", fails(:eval, "overflow"))
 
 row("numbers.to_int.out_of_range", "to_int(1e300)", value("nil"))
-row("numbers.to_int_bang.out_of_range", "to_int!(1e300)", fails(:eval, "overflow"))
+
+row(
+  "numbers.to_int_bang.out_of_range",
+  "to_int!(1e300)",
+  fails(:eval, "overflow")
+)
 
 row(
   "numbers.overflow.catchable",
@@ -39,11 +40,7 @@ row(
   value(":caught")
 )
 
-row(
-  "numbers.overflow.add",
-  "9223372036854775807 + 1",
-  fails(:eval, "overflow")
-)
+row("numbers.overflow.add", "9223372036854775807 + 1", fails(:eval, "overflow"))
 
 row(
   "numbers.overflow.sub",

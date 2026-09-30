@@ -416,35 +416,22 @@ def insert_lines(text, at, new_lines)
   join(append(take(at - 1, lines), new_lines, drop(at - 1, lines)), "\n")
 end
 
-# The rename map over a resolved tree: every key `pkg/old` becomes `pkg/new`,
-# and so does the bare `old` in quoted data — an assertion carries its own
-# source as a datum (`blue-assert '(equal? (old x) 1) …`), which the rename
-# rewrote with the code: to `new` inside the bidama, and to `pkg/new` in a
-# caller, whose references are qualified. Only in head position, `(old …`:
-# the same word in a string (an error message naming the function) is text,
-# which the rename leaves alone.
-def key_rewrite(tree, pkg, renames, bare_prefix)
+# The rename map over a resolved tree: every key `pkg/old` becomes
+# `pkg/new`. Quoted data (the source an assertion quotes) is elided before
+# the comparison, and strings are text the rename leaves alone.
+def key_rewrite(tree, pkg, renames)
   foldl(
     fn(t, r)
-      old = first(r)
-      new = nth(1, r)
-      keyed = foldl(
+      foldl(
         fn(acc, end_char)
-          replace(acc, "#{pkg}/#{old}#{end_char}", "#{pkg}/#{new}#{end_char}")
+          replace(
+            acc,
+            "#{pkg}/#{first(r)}#{end_char}",
+            "#{pkg}/#{nth(1, r)}#{end_char}"
+          )
         end,
         t,
         [" ", ")"]
-      )
-      foldl(
-        fn(acc, pair)
-          replace(
-            acc,
-            "#{first(pair)}#{old}#{nth(1, pair)}",
-            "#{first(pair)}#{bare_prefix}#{new}#{nth(1, pair)}"
-          )
-        end,
-        keyed,
-        [["(", " "], ["(", ")"]]
       )
     end,
     tree,
@@ -753,16 +740,11 @@ def strip(prefix, file, callers)
   # nil when `f` proves out; otherwise why, with the first difference.
   proof = fn(f, old_doc)
     now = try(resolved(f), catch(_e(), nil))
-    bare = if f == file
-      ""
-    else
-      "#{pkg}/"
-    end
     if now == nil
       "#{f}: does not resolve"
     else
       want = map(
-        fn(t) unquoted(key_rewrite(t, pkg, renames, bare)) end,
+        fn(t) unquoted(key_rewrite(t, pkg, renames)) end,
         settled_forms(old_doc, "ns")
       )
       got = map(fn(t) unquoted(t) end, settled_forms(now, "ns"))

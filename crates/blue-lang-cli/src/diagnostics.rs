@@ -359,6 +359,19 @@ struct ResolvedJson {
     /// The first line of the entry file's first top-level form, `null` for
     /// a file with none: where a first `use` goes.
     first_line: Option<usize>,
+    /// The entry file's top-level definitions: name and where the name is.
+    definitions: Vec<DefinitionJson>,
+    /// Every name the interpreter binds, sorted: what a bare name falls to.
+    builtins: Vec<String>,
+    /// The reserved words, which no definition can be named.
+    reserved: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+struct DefinitionJson {
+    #[serde(flatten)]
+    at: Location,
+    name: String,
 }
 
 /// The entry file's resolution, as one JSON object.
@@ -416,6 +429,39 @@ pub fn resolved_json(
             .enumerate()
             .find(|(i, _)| entry(*i))
             .and_then(|(_, f)| Location::of(file, f.span).line),
+        definitions: program
+            .forms()
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| entry(*i))
+            .flat_map(|(_, f)| blue_lang_check::names::definitions_of(f))
+            .map(|(name, span, _)| DefinitionJson {
+                at: Location::of(file, span),
+                name,
+            })
+            .collect(),
+        builtins: {
+            let mut b: Vec<String> = checked
+                .names
+                .scopes()
+                .iter()
+                .filter(|s| {
+                    !matches!(
+                        s.namespace,
+                        blue_lang_check::Namespace::File(_) | blue_lang_check::Namespace::Bidama(_)
+                    )
+                })
+                .flat_map(|s| s.bindings().map(|b| b.name.clone()))
+                .collect();
+            b.sort();
+            b.dedup();
+            b
+        },
+        reserved: blue_lang_syntax::SURFACE_KEYWORDS
+            .iter()
+            .chain(blue_lang_syntax::BLOCK_KEYWORDS)
+            .copied()
+            .collect(),
     };
     serde_json::to_string(&out)
 }

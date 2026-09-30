@@ -31,7 +31,7 @@ def g()
 end
 ";
 
-const EXPECTED: &str = r#"{"namespace":null,"flat":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"ns":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"references":[{"file":"F","line":2,"column":5,"end_line":2,"end_column":6,"byte_start":17,"byte_end":18,"top_level":0,"written":"+","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"+","key":"+"},"ns":{"kind":"builtin","namespace":null,"name":"+","key":"+"}},{"file":"F","line":5,"column":1,"end_line":5,"end_column":6,"byte_start":26,"byte_end":31,"top_level":1,"written":"twice","opaque":false,"flat":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"},"ns":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"}},{"file":"F","line":5,"column":7,"end_line":5,"end_column":11,"byte_start":32,"byte_end":36,"top_level":1,"written":"size","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null}},{"file":"F","line":5,"column":12,"end_line":5,"end_column":13,"byte_start":37,"byte_end":38,"top_level":1,"written":"list","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"list","key":"list"},"ns":{"kind":"builtin","namespace":null,"name":"list","key":"list"}},{"file":"F","line":9,"column":3,"end_line":9,"end_column":7,"byte_start":108,"byte_end":112,"top_level":2,"written":"nope","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null}}],"imports":[],"first_line":1}
+const EXPECTED: &str = r#"{"namespace":null,"flat":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"ns":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"references":[{"file":"F","line":2,"column":5,"end_line":2,"end_column":6,"byte_start":17,"byte_end":18,"top_level":0,"written":"+","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"+","key":"+"},"ns":{"kind":"builtin","namespace":null,"name":"+","key":"+"}},{"file":"F","line":5,"column":1,"end_line":5,"end_column":6,"byte_start":26,"byte_end":31,"top_level":1,"written":"twice","opaque":false,"flat":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"},"ns":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"}},{"file":"F","line":5,"column":7,"end_line":5,"end_column":11,"byte_start":32,"byte_end":36,"top_level":1,"written":"size","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null}},{"file":"F","line":5,"column":12,"end_line":5,"end_column":13,"byte_start":37,"byte_end":38,"top_level":1,"written":"list","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"list","key":"list"},"ns":{"kind":"builtin","namespace":null,"name":"list","key":"list"}},{"file":"F","line":9,"column":3,"end_line":9,"end_column":7,"byte_start":108,"byte_end":112,"top_level":2,"written":"nope","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null}}],"imports":[],"first_line":1,"definitions":[{"file":"F","line":1,"column":5,"end_line":1,"end_column":10,"byte_start":4,"byte_end":9,"name":"twice"},{"file":"F","line":8,"column":5,"end_line":8,"end_column":6,"byte_start":102,"byte_end":103,"name":"g"}]}
 "#;
 
 #[test]
@@ -52,7 +52,19 @@ fn the_resolved_json_is_stable() {
     let got = String::from_utf8(out.stdout)
         .expect("utf-8")
         .replace(p.to_str().expect("utf-8"), "F");
-    assert_eq!(got, EXPECTED, "the JSON output changed");
+    // `builtins` is the interpreter's whole vocabulary: checked for shape
+    // here, and left out of the pinned bytes so a new builtin is not a
+    // change to this interface.
+    let (head, tail) = got.split_once(",\"builtins\":[").expect("builtins last");
+    let (builtins, _reserved) = tail.split_once("],\"reserved\":").expect("then reserved");
+    let names: Vec<String> =
+        serde_json::from_str(&format!("[{builtins}]")).expect("a list of names");
+    assert!(
+        names.len() > 200 && names.windows(2).all(|w| w[0] < w[1]),
+        "sorted, and all of them"
+    );
+    assert!(names.contains(&"length".to_string()));
+    assert_eq!(format!("{head}}}\n"), EXPECTED, "the JSON output changed");
 }
 
 #[test]
@@ -80,6 +92,9 @@ fn every_resolved_json_field_is_documented() {
         "package",
         "names",
         "first_line",
+        "definitions",
+        "builtins",
+        "reserved",
     ] {
         assert!(
             section.contains(&format!("`{field}`")),

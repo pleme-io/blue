@@ -256,5 +256,395 @@ def migrate(file)
   end
 end
 
+# ── the prefix strip: blue migrate --strip PREFIX BIDAMA CALLER... ──────────
+#
+# A bidama whose definitions are hand-prefixed (`lc_hours`) loses the prefix:
+# each `lc_x` becomes `x`, and `legacy_names("0.1.1", "lc")` keeps the old
+# spelling as a bridge. A definition whose stripped name is a reserved word or
+# a builtin keeps its prefix, waived, and gains the stripped name as a second
+# name; the bidama's own bare uses of that builtin become `blue::x`, since the
+# second name now wins inside it. Each caller's references to a renamed
+# definition are written `pkg::x`, and its import list drops the old names.
+# The version goes to 0.1.1, the window's start.
+#
+# The proof, per file: its forms resolved under namespaces after equal its
+# forms before with every renamed key rewritten (`lc/lc_x` to `lc/x`), and
+# `blue check` passes. Otherwise every file is restored.
+
+def ident_char?(c)
+  contains?(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_?!",
+    c
+  )
+end
+
+# `s` with every whole-identifier `old` replaced by `new`: inside a string's
+# interpolations, where the parser gives every name the string's span.
+def replace_ident(s, old, new)
+  pieces = split(s, old)
+  numbered = zip(range(0, length(pieces)), pieces)
+  foldl(
+    fn(acc, np)
+      i = first(np)
+      piece = nth(1, np)
+      if i == 0
+        piece
+      else
+        before = last(chars(acc))
+        after = first(chars(piece))
+        whole = (before == nil || !ident_char?(before)) &&
+          (after == nil || !ident_char?(after))
+        if whole
+          "#{acc}#{new}#{piece}"
+        else
+          "#{acc}#{old}#{piece}"
+        end
+      end
+    end,
+    "",
+    numbered
+  )
+end
+
+# Rewrite the span [col, end_col) of `line` by `renames` ([[old, new], …]):
+# the span is exactly one old name, or a string literal whose
+# interpolations the parser gave every name inside it the string's span.
+def edit_at(line, col, end_col, renames)
+  cs = chars(line)
+  written = join(take(end_col - col, drop(col - 1, cs)), "")
+  exact = filter(fn(r) first(r) == written end, renames)
+  replacement = if !empty?(exact)
+    nth(1, first(exact))
+  elsif contains?(written, "#\u{7b}")
+    foldl(fn(w, r) replace_ident(w, first(r), nth(1, r)) end, written, renames)
+  else
+    throw(
+      error(
+        :migrate,
+        "expected `#{first(first(renames))}` at column #{col}, found `#{written}`"
+      )
+    )
+  end
+  join(append(take(col - 1, cs), [replacement], drop(end_col - 1, cs)), "")
+end
+
+# Apply [[line, col, end_col, old, new], …] to `text`: one rewrite per span,
+# right to left within a line, so earlier columns stay valid.
+def apply_edits(text, edits)
+  lines = split(text, "\n")
+  numbered = zip(range(1, length(lines) + 1), lines)
+  out = map(
+    fn(nl)
+      here = filter(fn(e) first(e) == first(nl) end, edits)
+      spans = sort_keyed(
+        fn(sp) -first(sp) end,
+        distinct(map(fn(e) [nth(1, e), nth(2, e)] end, here))
+      )
+      foldl(
+        fn(l, sp)
+          renames = distinct(
+            map(
+              fn(e) [nth(3, e), nth(4, e)] end,
+              filter(
+                fn(e) nth(1, e) == first(sp) && nth(2, e) == nth(1, sp) end,
+                here
+              )
+            )
+          )
+          edit_at(l, first(sp), nth(1, sp), renames)
+        end,
+        nth(1, nl),
+        spans
+      )
+    end,
+    numbered
+  )
+  join(out, "\n")
+end
+
+# Insert `new_lines` before line `at` (1-based).
+def insert_lines(text, at, new_lines)
+  lines = split(text, "\n")
+  join(append(take(at - 1, lines), new_lines, drop(at - 1, lines)), "\n")
+end
+
+# The rename map over a resolved tree: every key `pkg/old` becomes `pkg/new`,
+# and so does the bare `old` in quoted data — an assertion carries its own
+# source as a datum (`blue-assert '(equal? (old x) 1) …`), which the rename
+# rewrote with the code: to `new` inside the bidama, and to `pkg/new` in a
+# caller, whose references are qualified.
+def key_rewrite(tree, pkg, renames, bare_prefix)
+  foldl(
+    fn(t, r)
+      old = first(r)
+      new = nth(1, r)
+      keyed = foldl(
+        fn(acc, end_char)
+          replace(acc, "#{pkg}/#{old}#{end_char}", "#{pkg}/#{new}#{end_char}")
+        end,
+        t,
+        [" ", ")"]
+      )
+      foldl(
+        fn(acc, pair)
+          replace(
+            acc,
+            "#{first(pair)}#{old}#{nth(1, pair)}",
+            "#{first(pair)}#{bare_prefix}#{new}#{nth(1, pair)}"
+          )
+        end,
+        keyed,
+        [["(", " "], ["(", ")"], [" ", " "], [" ", ")"]]
+      )
+    end,
+    tree,
+    renames
+  )
+end
+
+def settled_forms(doc, rule)
+  filter(fn(f) !starts_with?(f, "(legacy_names ") end, forms_under(doc, rule))
+end
+
+# The source spelling of a reference: `pkg::x` for a qualified one.
+def surface(written)
+  if contains?(written, "/")
+    parts = split(written, "/")
+    "#{first(parts)}::#{nth(1, parts)}"
+  else
+    written
+  end
+end
+
+def ref_edit(r, new)
+  [
+    json_get(r, "line"),
+    json_get(r, "column"),
+    json_get(r, "end_column"),
+    surface(json_get(r, "written")),
+    new
+  ]
+end
+
+def check_ok?(file)
+  status_of(run_blue(["check", file])) == 0
+end
+
+def strip_bidama(prefix, file)
+  doc = resolved(file)
+  pkg = json_get(doc, "namespace")
+  builtins = json_get(doc, "builtins")
+  reserved = json_get(doc, "reserved")
+  p = "#{prefix}_"
+  defs = filter(
+    fn(d) starts_with?(json_get(d, "name"), p) end,
+    json_get(doc, "definitions")
+  )
+  stripped = fn(n) join(drop(length(chars(p)), chars(n)), "") end
+  keep? = fn(n)
+    member?(stripped(n), builtins) || member?(stripped(n), reserved)
+  end
+  renames = map(
+    fn(d) [json_get(d, "name"), stripped(json_get(d, "name"))] end,
+    filter(fn(d) !keep?(json_get(d, "name")) end, defs)
+  )
+  kept = map(
+    fn(d) stripped(json_get(d, "name")) end,
+    filter(fn(d) keep?(json_get(d, "name")) end, defs)
+  )
+  old_names = map(fn(r) first(r) end, renames)
+  new_of = fn(n) nth(1, first(filter(fn(r) first(r) == n end, renames))) end
+  def_edits = map(
+    fn(d)
+      [
+        json_get(d, "line"),
+        json_get(d, "column"),
+        json_get(d, "end_column"),
+        json_get(d, "name"),
+        new_of(json_get(d, "name"))
+      ]
+    end,
+    filter(fn(d) member?(json_get(d, "name"), old_names) end, defs)
+  )
+  refs = json_get(doc, "references")
+  ref_edits = map(
+    fn(r) ref_edit(r, new_of(json_get(r, "written"))) end,
+    filter(
+      fn(r)
+        ns = json_get(r, "ns")
+        member?(json_get(r, "written"), old_names) &&
+          json_get(ns, "kind") == "def" &&
+          json_get(ns, "namespace") == pkg
+      end,
+      refs
+    )
+  )
+  builtin_edits = map(
+    fn(r) ref_edit(r, "blue::#{json_get(r, "written")}") end,
+    filter(
+      fn(r)
+        json_get(json_get(r, "ns"), "kind") == "builtin" &&
+          member?(json_get(r, "written"), kept)
+      end,
+      refs
+    )
+  )
+  text = read_file(file)
+  renamed = apply_edits(text, append(def_edits, ref_edits, builtin_edits))
+  # Waivers above each kept definition, bottom up so line numbers hold.
+  kept_defs = sort_keyed(
+    fn(d) -json_get(d, "line") end,
+    filter(fn(d) keep?(json_get(d, "name")) end, defs)
+  )
+  waived = foldl(
+    fn(t, d)
+      n = stripped(json_get(d, "name"))
+      why = if member?(n, reserved)
+        "a reserved word"
+      else
+        "a builtin #{pkg} also uses"
+      end
+      insert_lines(
+        t,
+        json_get(d, "line"),
+        [
+          "# waive B0013: `#{n}` is #{why}, so the prefix stays; #{pkg}::#{n} names it too"
+        ]
+      )
+    end,
+    renamed,
+    kept_defs
+  )
+  imports = json_get(doc, "imports")
+  at = if empty?(imports)
+    json_get_or(doc, "first_line", 1)
+  else
+    json_get(last(imports), "end_line") + 1
+  end
+  ledger = if empty?(imports)
+    ["legacy_names(\"0.1.1\", \"#{prefix}\")", ""]
+  else
+    ["", "legacy_names(\"0.1.1\", \"#{prefix}\")"]
+  end
+  [pkg, renames, text, insert_lines(waived, at, ledger), length(kept)]
+end
+
+# A caller's references to renamed definitions, qualified; the old names off
+# its import list.
+def strip_caller(pkg, renames, file)
+  doc = resolved(file)
+  old_names = map(fn(r) first(r) end, renames)
+  bridged = filter(
+    fn(r)
+      ns = json_get(r, "ns")
+      json_get(ns, "kind") == "def" &&
+        json_get(ns, "namespace") == pkg &&
+        json_get(ns, "name") != last(split(json_get(r, "written"), "/"))
+    end,
+    json_get(doc, "references")
+  )
+  edits = map(
+    fn(r) ref_edit(r, "#{pkg}::#{json_get(json_get(r, "ns"), "name")}") end,
+    bridged
+  )
+  text = read_file(file)
+  renamed = apply_edits(text, edits)
+  mine = filter(
+    fn(u) json_get(u, "package") == pkg end,
+    json_get(doc, "imports")
+  )
+  if empty?(mine)
+    renamed
+  else
+    u = first(mine)
+    left = filter(fn(n) !member?(n, old_names) end, json_get(u, "names"))
+    line = json_get(u, "line")
+    lines = split(renamed, "\n")
+    numbered = zip(range(1, length(lines) + 1), lines)
+    kept = filter(
+      fn(nl) first(nl) < line || first(nl) > json_get(u, "end_line") end,
+      numbered
+    )
+    before = filter(fn(nl) first(nl) < line end, kept)
+    after = filter(fn(nl) first(nl) > line end, kept)
+    join(
+      append(
+        map(fn(nl) nth(1, nl) end, before),
+        [render_use([pkg, left])],
+        map(fn(nl) nth(1, nl) end, after)
+      ),
+      "\n"
+    )
+  end
+end
+
+def bump_version(bluefile)
+  write_file(bluefile, replace(read_file(bluefile), "\"0.1.0\")", "\"0.1.1\")"))
+end
+
+def strip(prefix, file, callers)
+  before = resolved(file)
+  pkg = json_get(before, "namespace")
+  befores = map(fn(c) [c, read_file(c), resolved(c)] end, callers)
+  plan = strip_bidama(prefix, file)
+  renames = nth(1, plan)
+  dir = path_dirname(file)
+  bluefile = path_join(dir, "Bluefile")
+  old_bluefile = read_file(bluefile)
+  restore = fn()
+    write_file(file, nth(2, plan))
+    write_file(bluefile, old_bluefile)
+    relock(dir)
+    map(fn(b) write_file(first(b), nth(1, b)) end, befores)
+  end
+  write_file(file, nth(3, plan))
+  bump_version(bluefile)
+  relock(dir)
+  run_blue(["fmt", "--write", file])
+  map(
+    fn(b)
+      write_file(first(b), strip_caller(pkg, renames, first(b)))
+      run_blue(["fmt", "--write", first(b)])
+    end,
+    befores
+  )
+  proof = fn(f, old_doc)
+    now = try(resolved(f), catch(_e(), nil))
+    bare = if f == file
+      ""
+    else
+      "#{pkg}/"
+    end
+    now != nil &&
+      settled_forms(now, "ns") ==
+        map(
+          fn(t) key_rewrite(t, pkg, renames, bare) end,
+          settled_forms(old_doc, "ns")
+        ) &&
+      check_ok?(f)
+  end
+  bad = filter(
+    fn(fd) !proof(first(fd), nth(1, fd)) end,
+    cons([file, before], map(fn(b) [first(b), nth(2, b)] end, befores))
+  )
+  if empty?(bad)
+    "stripped #{pkg}: #{length(renames)} renamed, #{nth(4, plan)} kept with a second name, #{length(callers)} caller(s) rewritten"
+  else
+    restore()
+    throw(
+      error(
+        :migrate,
+        "refused the strip of #{pkg}: #{join(map(fn(b) first(b) end, bad), ", ")} did not prove out; restored"
+      )
+    )
+  end
+end
+
 # `write_stdout`, not `println`: the report is text for a person, unquoted.
-map(fn(f) write_stdout("#{migrate(f)}\n") end, argv())
+args = argv()
+
+if !empty?(args) && first(args) == "--strip"
+  write_stdout("#{strip(nth(1, args), nth(2, args), drop(3, args))}\n")
+else
+  map(fn(f) write_stdout("#{migrate(f)}\n") end, args)
+end

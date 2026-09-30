@@ -159,6 +159,9 @@ if a field here is undocumented. A migration is proven on it: a program whose
 | `references` | every non-local reference in the entry file |
 | `imports` | the entry file's `use` declarations: the location fields, `package`, and `names` (the list, empty for a whole-package `use`) |
 | `first_line` | the first line of the entry file's first top-level form, or `null` |
+| `definitions` | the entry file's top-level definitions: the location fields and `name` |
+| `builtins` | every name the interpreter binds, sorted |
+| `reserved` | the reserved words, which no definition can be named |
 
 Each entry of `references` carries the location fields of `blue check` and:
 

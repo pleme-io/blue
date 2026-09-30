@@ -160,8 +160,10 @@ enum Cmd {
     /// the blue program `crates/blue-lang-cli/blue/migrate.b`, compiled into
     /// this binary.
     Migrate {
-        #[arg(required = true)]
-        files: Vec<PathBuf>,
+        /// FILE... to make explicit, or `--strip PREFIX BIDAMA CALLER...` to
+        /// strip a bidama's hand-made prefix and rewrite its callers.
+        #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+        files: Vec<String>,
     },
     /// How a bare NAME resolves at FILE:LINE: every tier of the resolution
     /// order, what each holds, and which wins.
@@ -575,9 +577,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Check { file, format, fix } => check(&file, format, fix),
 
         Cmd::Migrate { files } => {
-            blue_lang_runtime::sys::set_program_args(
-                files.iter().map(|f| f.display().to_string()).collect(),
-            );
+            blue_lang_runtime::sys::set_program_args(files);
             blue_lang_runtime::pipeline::run_in_surface(
                 blue_lang_runtime::uses::Entry {
                     path: Some(Path::new("crates/blue-lang-cli/blue/migrate.b")),

@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:104e4d00603c1332fde5f76487c55ec8c2af72f7ff4a90cd5103307efecc7c53",
+  "bluefile_b3": "b3:89fc3dbdd923151f72ffcc71563522b1e7c635a983295614659af586429c3210",
   "manifest": {
     "schema": 1,
     "name": "kinji",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "gyouretsu": "^0.1.0",
       "junjo": "^0.1.0",

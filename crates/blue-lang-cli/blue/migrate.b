@@ -570,15 +570,17 @@ def strip_bidama(prefix, file)
       refs
     )
   )
-  # A name another bidama lends it that a kept name's second name now
-  # shadows (tier 2 over 3): written qualified, and dropped from the list.
+  # A name another bidama lends it that a new name or a kept name's second
+  # name now shadows (tier 2 over 3; zumen's zu_region becoming region over
+  # kikagaku's): written qualified, and dropped from the list.
+  shadowing = append(kept, map(fn(r) nth(1, r) end, renames))
   lent = filter(
     fn(r)
       ns = json_get(r, "ns")
       json_get(ns, "kind") == "def" &&
         json_get(ns, "namespace") != pkg &&
         json_get(ns, "namespace") != nil &&
-        member?(json_get(r, "written"), kept)
+        member?(json_get(r, "written"), shadowing)
     end,
     refs
   )
@@ -646,7 +648,7 @@ def strip_bidama(prefix, file)
     map(fn(r) json_get(json_get(r, "ns"), "namespace") end, lent)
   )
   relisted = foldl(
-    fn(t, lender) relist(t, doc, lender, kept) end,
+    fn(t, lender) relist(t, doc, lender, shadowing) end,
     ledgered,
     lenders
   )

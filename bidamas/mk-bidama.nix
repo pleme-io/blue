@@ -539,9 +539,20 @@ rec {
   # every gate. Red run 2026-09-25: nupastel's `abura` with
   # `needs("retsu", "^0.9")` against retsu 0.1.0 made `blue deps` exit 1
   # while `nix flake check` stayed green; with this check it goes red.
+  #
+  # A manifest given as a PATH is interpolated through its directory, so the
+  # package is copied into the store and becomes an input of the check.
+  # `escapeShellArgs` alone calls `toString`, which yields the path's text with
+  # no context: the check then named a file its sandbox could not see, and
+  # `native-bidama-deps-resolve` failed on Linux CI with `Bluefile: No such
+  # file or directory` (it passed on a machine whose store already held it).
+  # mkLockCheck interpolates its roots the same way.
   mkResolveCheck = { blue, bidamas, manifests, name ? "bidama-deps-resolve" }:
+    let
+      inStore = m: if builtins.isPath m then "${dirOf m}/${baseNameOf m}" else m;
+    in
     runCommand name { } ''
-      for m in ${lib.escapeShellArgs manifests}; do
+      for m in ${lib.escapeShellArgs (map inStore manifests)}; do
         BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue deps "$m" >> $out || exit 1
       done
     '';

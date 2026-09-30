@@ -296,7 +296,10 @@ fn every_bidama_has_a_name_ledger_row() {
     // And the reverse: a row whose package is gone means a rename or deletion
     // left the ledger describing a distribution that no longer exists.
     let mut orphaned = Vec::new();
-    for line in ledger.lines() {
+    // Only the ledger table's rows are packages; the reserved-name and
+    // legacy-prefix tables above it name other things.
+    let table = ledger.split("## The ledger").nth(1).unwrap_or(&ledger);
+    for line in table.lines() {
         let Some(rest) = line.strip_prefix("| `") else {
             continue;
         };

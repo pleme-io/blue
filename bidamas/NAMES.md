@@ -53,6 +53,42 @@ wrong crate.
 It draws from exactly the same well the fleet mines for its own Japanese
 primitives, so collisions here are the expected case, not the surprising one.
 
+## Names that are not a bidama's
+
+| name | reserved for |
+|---|---|
+| `blue` | the builtins' qualifier: `blue::first` is the interpreter's `first`. No package may be named `blue` (the loader refuses it). |
+
+A bidama's name is now written at its call sites (`kueri::join`), so Law 2 (a
+transparent gloss) and its length cost at every call; a DEFINITION's name no
+longer needs a fleet sweep, because it is always qualified outside its
+package. The package name remains what this ledger adjudicates.
+
+## Legacy prefixes
+
+The prefix each bidama's definitions carried when blue had one namespace,
+before per-bidama namespaces made it redundant. The bidama's own
+`legacy_names(since, prefix)` declaration is the source (it keeps the old
+spelling resolving as a bridge until the next minor version); this table
+records it, and `every_legacy_prefix_is_in_the_ledger` fails when the two
+disagree.
+
+| bidama | prefix | since |
+|---|---|---|
+| `anaritikusu` | `la_` | 0.1.1 |
+| `heni` | `hn_` | 0.1.1 |
+| `kakou` | `kk_` | 0.1.1 |
+| `kinji` | `kj_` | 0.1.1 |
+| `kueri` | `q_` | 0.1.1 |
+| `nisshi` | `el_` | 0.1.1 |
+| `okite` | `ok_` | 0.1.1 |
+| `raifusaikuru` | `lc_` | 0.1.1 |
+| `rittai` | `rt_` | 0.1.1 |
+| `sabi` | `rs_` | 0.1.1 |
+| `souji` | `sj_` | 0.1.1 |
+| `tehai` | `th_` | 0.1.1 |
+| `zumen` | `zu_` | 0.1.1 |
+
 ## The ledger
 
 | name | kanji | gloss | swept | verdict | note |

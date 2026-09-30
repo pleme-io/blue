@@ -509,6 +509,10 @@ pub fn is_callable_name(name: &str) -> bool {
 /// a symbol with text on both sides of one `/` unambiguously qualified.
 pub const QUALIFIER: char = '/';
 
+/// The qualifier that names a builtin: `blue::count` is the interpreter's
+/// `count`, whatever a program defines. No package may be named it.
+pub const BUILTIN_QUALIFIER: &str = "blue";
+
 /// The AST symbol for `pkg::name`.
 #[must_use]
 pub fn qualify(pkg: &str, name: &str) -> String {

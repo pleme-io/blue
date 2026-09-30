@@ -186,13 +186,17 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
 
     // The documented builtins, for a program that reasons about names (the
     // catalogue's "shares a builtin's name" column).
-    interp.register_fn("builtin_names", Arity::Exact(0), |_a: &[Value], _h: &mut H, _s| {
-        Ok(Value::list(
-            crate::docs::NAMES
-                .iter()
-                .map(|n| Value::Str(std::sync::Arc::from(n.name))),
-        ))
-    });
+    interp.register_fn(
+        "builtin_names",
+        Arity::Exact(0),
+        |_a: &[Value], _h: &mut H, _s| {
+            Ok(Value::list(
+                crate::docs::NAMES
+                    .iter()
+                    .map(|n| Value::Str(std::sync::Arc::from(n.name))),
+            ))
+        },
+    );
     interp.register_fn("to_s", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
         Ok(Value::Str(render(&a[0]).into()))
     });

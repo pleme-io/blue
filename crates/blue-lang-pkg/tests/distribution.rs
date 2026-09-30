@@ -392,3 +392,37 @@ fn no_two_packages_define_the_same_name() {
         owner.len()
     );
 }
+
+/// **The ledger records every bidama's legacy prefix**, as its own
+/// `legacy_names(since, prefix)` declares it, and reserves `blue`.
+///
+/// Red run (2026-09-29): kueri's row removed from the legacy table —
+/// `kueri declares legacy_names("0.1.1", "q") and NAMES.md has no row`.
+#[test]
+fn every_legacy_prefix_is_in_the_ledger() {
+    let ledger = std::fs::read_to_string(dist().join("NAMES.md")).expect("NAMES.md");
+    assert!(
+        ledger.contains("| `blue` | the builtins' qualifier"),
+        "`blue` must be reserved"
+    );
+    let mut problems = Vec::new();
+    for name in packages() {
+        let src =
+            std::fs::read_to_string(dist().join(&name).join(format!("{name}.b"))).expect("source");
+        for line in src.lines().filter(|l| l.starts_with("legacy_names(")) {
+            let parts: Vec<&str> = line.split('"').collect();
+            let (since, prefix) = (parts[1], parts[3]);
+            let row = format!("| `{name}` | `{prefix}_` | {since} |");
+            if !ledger.contains(&row) {
+                problems.push(format!(
+                    "{name} declares legacy_names(\"{since}\", \"{prefix}\") and NAMES.md has no row `{row}`"
+                ));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+    assert!(
+        !packages().iter().any(|p| p == "blue"),
+        "no bidama may be named blue"
+    );
+}

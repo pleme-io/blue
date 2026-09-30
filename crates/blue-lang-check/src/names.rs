@@ -105,9 +105,7 @@ pub enum Tier {
 /// re-points this list and [`Namespace::tier`], not the walker.
 pub const RESOLUTION_ORDER: [Tier; 4] = [Tier::Local, Tier::Own, Tier::Imported, Tier::Builtin];
 
-/// The qualifier that names a builtin: `blue::count` is the interpreter's
-/// `count`, whatever a program defines.
-pub const BUILTIN_QUALIFIER: &str = "blue";
+pub use blue_lang_syntax::BUILTIN_QUALIFIER;
 
 /// Where a name lives. The unit a qualified name selects.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

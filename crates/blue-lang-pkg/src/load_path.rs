@@ -153,6 +153,25 @@ impl Loader for LoadPath {
             return Err(format!("no bidama named \"{name}\" ({where_looked})"));
         };
 
+        // A package is what its Bluefile says it is: `use("x")` loading a
+        // directory whose Bluefile declares `package("y")` would put y's
+        // definitions under x's name. And `blue` names the builtins.
+        if name == blue_lang_syntax::BUILTIN_QUALIFIER {
+            return Err(format!(
+                "no bidama may be named \"{name}\": `{name}::` names the builtins"
+            ));
+        }
+        if let Ok(text) = std::fs::read_to_string(dir.join("Bluefile")) {
+            if let Ok(bf) = crate::bluefile::read_bluefile(&text) {
+                if bf.name != name {
+                    return Err(format!(
+                        "bidama \"{name}\" at {} declares package(\"{}\"): a package's directory and its Bluefile name it the same",
+                        dir.display(),
+                        bf.name
+                    ));
+                }
+            }
+        }
         let sources = read_sources(&dir)?;
         if sources.is_empty() {
             // A directory with no `.b` files resolves happily and contributes
@@ -317,5 +336,34 @@ mod tests {
              above proves nothing about loading",
         );
         let _ = err;
+    }
+
+    /// **A package is what its Bluefile names**, and none is named `blue`.
+    ///
+    /// Red run (2026-09-29), before the identity check: `use("mislabel")`
+    /// loaded a directory declaring `package("other")` under mislabel's name.
+    #[test]
+    fn a_package_is_what_its_bluefile_names_and_none_is_blue() {
+        let root = std::env::temp_dir().join(format!("blue-identity-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for (dir, pkg) in [("mislabel", "other"), ("blue", "blue")] {
+            std::fs::create_dir_all(root.join(dir)).expect("mkdir");
+            std::fs::write(
+                root.join(dir).join("Bluefile"),
+                format!("package(\"{pkg}\", \"0.1.0\")\n"),
+            )
+            .expect("write");
+            std::fs::write(
+                root.join(dir).join(format!("{dir}.b")),
+                "def f()\n  1\nend\n",
+            )
+            .expect("write");
+        }
+        let lp = LoadPath::new([root.clone()]);
+        let e = lp.load("mislabel").expect_err("a mislabelled package");
+        assert!(e.contains("declares package(\"other\")"), "{e}");
+        let e = lp.load("blue").expect_err("blue is reserved");
+        assert!(e.contains("no bidama may be named"), "{e}");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

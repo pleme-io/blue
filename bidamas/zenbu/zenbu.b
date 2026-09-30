@@ -58,7 +58,7 @@ use("kansuu", [:identity])
 use("kazu", [:clamp, :near])
 use("kikagaku", [:manhattan])
 use("kinji")
-use("kueri", [:q_ident])
+use("kueri")
 use("kumiawase", [:combinations])
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
@@ -104,7 +104,7 @@ test "every bidama in the distribution answers through this one import"
   assert near(kk_outside_setback(90, 1, 1), 2) == true
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
-  assert q_ident("order") == "\"order\""
+  assert kueri::ident("order") == "\"order\""
   assert combinations(52, 5) == 2598960
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"

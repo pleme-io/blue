@@ -2,58 +2,7 @@ use("deeta", [:as_json])
 
 use(
   "kueri",
-  [
-    :q_agg,
-    :q_agg_where,
-    :q_and,
-    :q_as,
-    :q_asof_left_join,
-    :q_avg,
-    :q_c,
-    :q_cast,
-    :q_coalesce,
-    :q_col,
-    :q_count_all,
-    :q_derive,
-    :q_desc,
-    :q_eq,
-    :q_explode,
-    :q_filter,
-    :q_ge,
-    :q_get,
-    :q_group,
-    :q_gt,
-    :q_if,
-    :q_is_null,
-    :q_join,
-    :q_lag,
-    :q_lead,
-    :q_left_join,
-    :q_list_of,
-    :q_lit,
-    :q_lt,
-    :q_max,
-    :q_min,
-    :q_model,
-    :q_not_null,
-    :q_null,
-    :q_or,
-    :q_output,
-    :q_render,
-    :q_render_script,
-    :q_row_number,
-    :q_rows_at,
-    :q_run_at,
-    :q_select,
-    :q_sort,
-    :q_source,
-    :q_struct_of,
-    :q_sub,
-    :q_sum,
-    :q_then,
-    :q_type_sql,
-    :q_values
-  ]
+  [:q_and, :q_cast, :q_filter, :q_get, :q_if, :q_join, :q_max, :q_min, :q_or]
 )
 
 use(
@@ -694,28 +643,32 @@ end
 # ── the telemetry schema ───────────────────────────────────────────────────
 
 def la_link_type()
-  q_struct_of([q_col(:id, :varchar), q_col(:kind, :varchar)])
+  kueri::struct_of([kueri::col(:id, :varchar), kueri::col(:kind, :varchar)])
 end
 
 # The event table's columns, as q_col: the record's, then every payload key.
 def la_event_columns(d)
   la_check_names(d)
-  keys = map(fn(kt) q_col(first(kt), nth(1, kt)) end, la_key_types(d))
+  keys = map(fn(kt) kueri::col(first(kt), nth(1, kt)) end, la_key_types(d))
   concat_lists(
     concat_lists(
       [
-        q_col(:entity, :varchar),
-        q_col(:seq, :bigint),
-        q_col(:time, :bigint),
-        q_col(:type, :varchar),
-        q_col(:status, :varchar),
-        q_col(:refusal_kind, :varchar),
-        q_col(:refusal_detail, q_list_of(:varchar)),
-        q_col(:links, q_list_of(la_link_type()))
+        kueri::col(:entity, :varchar),
+        kueri::col(:seq, :bigint),
+        kueri::col(:time, :bigint),
+        kueri::col(:type, :varchar),
+        kueri::col(:status, :varchar),
+        kueri::col(:refusal_kind, :varchar),
+        kueri::col(:refusal_detail, kueri::list_of(:varchar)),
+        kueri::col(:links, kueri::list_of(la_link_type()))
       ],
       keys
     ),
-    [q_col(:prev, :varchar), q_col(:hash, :varchar), q_col(:sig, :varchar)]
+    [
+      kueri::col(:prev, :varchar),
+      kueri::col(:hash, :varchar),
+      kueri::col(:sig, :varchar)
+    ]
   )
 end
 
@@ -723,23 +676,27 @@ end
 # and what the replay found (a breach, or a refusal of an admitted record).
 def la_state_columns(d)
   la_check_names(d)
-  fields = map(fn(ft) q_col(first(ft), nth(1, ft)) end, la_field_types(d))
+  fields = map(fn(ft) kueri::col(first(ft), nth(1, ft)) end, la_field_types(d))
   concat_lists(
     concat_lists(
-      [q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:phase, :varchar)],
+      [
+        kueri::col(:entity, :varchar),
+        kueri::col(:seq, :bigint),
+        kueri::col(:phase, :varchar)
+      ],
       fields
     ),
     [
-      q_col(:breach, q_list_of(:varchar)),
-      q_col(:breach_capability, :varchar),
-      q_col(:replay_refusal, :varchar)
+      kueri::col(:breach, kueri::list_of(:varchar)),
+      kueri::col(:breach_capability, :varchar),
+      kueri::col(:replay_refusal, :varchar)
     ]
   )
 end
 
 # [column, type] pairs of a q_col list, types as SQL: what a reader checks.
 def la_columns_text(cols)
-  map(fn(c) [get(c, :name), q_type_sql(get(c, :type), :duckdb)] end, cols)
+  map(fn(c) [get(c, :name), kueri::type_sql(get(c, :type), :duckdb)] end, cols)
 end
 
 # Refuse a definition whose keys or fields would take a generated column's
@@ -800,31 +757,37 @@ def la_records_source(d, path)
     []
   else
     [
-      q_col(
+      kueri::col(
         :payload,
-        q_struct_of(map(fn(kt) q_col(first(kt), nth(1, kt)) end, keys))
+        kueri::struct_of(
+          map(fn(kt) kueri::col(first(kt), nth(1, kt)) end, keys)
+        )
       )
     ]
   end
-  refusal = q_struct_of(
-    [q_col(:kind, :varchar), q_col(:detail, q_list_of(:varchar))]
+  refusal = kueri::struct_of(
+    [kueri::col(:kind, :varchar), kueri::col(:detail, kueri::list_of(:varchar))]
   )
   cols = concat_lists(
     concat_lists(
       [
-        q_col(:entity, :varchar),
-        q_col(:seq, :bigint),
-        q_col(:time, :bigint),
-        q_col(:type, :varchar),
-        q_col(:status, :varchar),
-        q_col(:refusal, refusal),
-        q_col(:links, q_list_of(la_link_type()))
+        kueri::col(:entity, :varchar),
+        kueri::col(:seq, :bigint),
+        kueri::col(:time, :bigint),
+        kueri::col(:type, :varchar),
+        kueri::col(:status, :varchar),
+        kueri::col(:refusal, refusal),
+        kueri::col(:links, kueri::list_of(la_link_type()))
       ],
       payload
     ),
-    [q_col(:prev, :varchar), q_col(:hash, :varchar), q_col(:sig, :varchar)]
+    [
+      kueri::col(:prev, :varchar),
+      kueri::col(:hash, :varchar),
+      kueri::col(:sig, :varchar)
+    ]
   )
-  q_source(
+  kueri::source(
     {name: la_n(d, "records"), file: path, format: :jsonl, columns: cols}
   )
 end
@@ -836,24 +799,30 @@ def la_history_source(d, path)
     []
   else
     [
-      q_col(
+      kueri::col(
         :fields,
-        q_struct_of(map(fn(ft) q_col(first(ft), nth(1, ft)) end, fields))
+        kueri::struct_of(
+          map(fn(ft) kueri::col(first(ft), nth(1, ft)) end, fields)
+        )
       )
     ]
   end
   cols = concat_lists(
     concat_lists(
-      [q_col(:entity, :varchar), q_col(:seq, :bigint), q_col(:phase, :varchar)],
+      [
+        kueri::col(:entity, :varchar),
+        kueri::col(:seq, :bigint),
+        kueri::col(:phase, :varchar)
+      ],
       struct
     ),
     [
-      q_col(:breach, q_list_of(:varchar)),
-      q_col(:breach_capability, :varchar),
-      q_col(:replay_refusal, :varchar)
+      kueri::col(:breach, kueri::list_of(:varchar)),
+      kueri::col(:breach_capability, :varchar),
+      kueri::col(:replay_refusal, :varchar)
     ]
   )
-  q_source(
+  kueri::source(
     {name: la_n(d, "history"), file: path, format: :jsonl, columns: cols}
   )
 end
@@ -882,14 +851,14 @@ def la_edges_rel(d)
     end,
     lc_d_edges(d)
   )
-  q_values(
+  kueri::values(
     {
       name: la_n(d, "edges"),
       columns: [
-        q_col(:phase_before, :varchar),
-        q_col(:type, :varchar),
-        q_col(:phase, :varchar),
-        q_col(:capability, :varchar)
+        kueri::col(:phase_before, :varchar),
+        kueri::col(:type, :varchar),
+        kueri::col(:phase, :varchar),
+        kueri::col(:capability, :varchar)
       ],
       rows: rows
     }
@@ -904,15 +873,15 @@ def la_rules_rel(d)
     fn(g) map(fn(r) la_rule_row(g, r) end, nth(2, g)) end,
     lc_d_guards(d)
   )
-  q_values(
+  kueri::values(
     {
       name: la_n(d, "rules"),
       columns: [
-        q_col(:capability, :varchar),
-        q_col(:rule, :varchar),
-        q_col(:needs, :varchar),
-        q_col(:task, :varchar),
-        q_col(:escalate_after, :bigint)
+        kueri::col(:capability, :varchar),
+        kueri::col(:rule, :varchar),
+        kueri::col(:needs, :varchar),
+        kueri::col(:task, :varchar),
+        kueri::col(:escalate_after, :bigint)
       ],
       rows: rows
     }
@@ -954,10 +923,10 @@ def la_task_evidence_rel(d)
       tasks
     )
   )
-  q_values(
+  kueri::values(
     {
       name: la_n(d, "task_evidence"),
-      columns: [q_col(:task, :varchar), q_col(:evidence, :varchar)],
+      columns: [kueri::col(:task, :varchar), kueri::col(:evidence, :varchar)],
       rows: rows
     }
   )
@@ -966,7 +935,7 @@ end
 # ── the models of one lifecycle ────────────────────────────────────────────
 
 def la_view(d, suffix, from, pipeline)
-  q_model(
+  kueri::model(
     {name: la_n(d, suffix), from: from, pipeline: pipeline, materialize: :view}
   )
 end
@@ -978,7 +947,7 @@ end
 # The event table: one row per record, the payload's keys as columns.
 def la_events_model(d, records)
   keys = map(
-    fn(kt) q_as(first(kt), q_get(:payload, first(kt))) end,
+    fn(kt) kueri::as(first(kt), q_get(:payload, first(kt))) end,
     la_key_types(d)
   )
   items = concat_lists(
@@ -989,25 +958,25 @@ def la_events_model(d, records)
         :time,
         :type,
         :status,
-        q_as(:refusal_kind, q_get(:refusal, :kind)),
-        q_as(:refusal_detail, q_get(:refusal, :detail)),
+        kueri::as(:refusal_kind, q_get(:refusal, :kind)),
+        kueri::as(:refusal_detail, q_get(:refusal, :detail)),
         :links
       ],
       keys
     ),
     [:prev, :hash, :sig]
   )
-  la_view(d, "events", records, [q_select(items)])
+  la_view(d, "events", records, [kueri::select(items)])
 end
 
 # The state table: one row per record, the fields as columns.
 def la_states_model(d, history)
-  fields = map(fn(f) q_as(f, q_get(:fields, f)) end, la_field_names(d))
+  fields = map(fn(f) kueri::as(f, q_get(:fields, f)) end, la_field_names(d))
   items = concat_lists(
     concat_lists([:entity, :seq, :phase], fields),
     [:breach, :breach_capability, :replay_refusal]
   )
-  la_view(d, "states", history, [q_select(items)])
+  la_view(d, "states", history, [kueri::select(items)])
 end
 
 # Records and states joined, with the phase each record found its entity in.
@@ -1018,13 +987,13 @@ def la_steps_model(d, events, states)
     "steps",
     events,
     [
-      q_select(
+      kueri::select(
         [:entity, :seq, :time, :type, :status, :refusal_kind, :refusal_detail]
       ),
       q_join(states, [:entity, :seq]),
-      q_derive(
+      kueri::derive(
         :phase_before,
-        q_coalesce(q_lag(:phase, [:entity], [:seq]), start)
+        kueri::coalesce(kueri::lag(:phase, [:entity], [:seq]), start)
       )
     ]
   )
@@ -1038,10 +1007,10 @@ def la_unreplayed_model(d, events, states)
     "unreplayed",
     events,
     [
-      q_select([:entity, :seq]),
-      q_left_join(states, [:entity, :seq]),
-      q_filter(q_is_null(:phase)),
-      q_group([], [q_agg(:records, q_count_all())])
+      kueri::select([:entity, :seq]),
+      kueri::left_join(states, [:entity, :seq]),
+      q_filter(kueri::is_null(:phase)),
+      kueri::group([], [kueri::agg(:records, kueri::count_all())])
     ]
   )
 end
@@ -1050,16 +1019,19 @@ end
 def la_current_state_model(d, steps)
   items = concat_lists(
     concat_lists([:entity, :phase], la_field_names(d)),
-    [q_as(:last_seq, :seq), q_as(:last_time, :time)]
+    [kueri::as(:last_seq, :seq), kueri::as(:last_time, :time)]
   )
   la_view(
     d,
     "current_state",
     steps,
     [
-      q_derive(:la_newest, q_row_number([:entity], [q_desc(:seq)])),
-      q_filter(q_eq(:la_newest, 1)),
-      q_select(items)
+      kueri::derive(
+        :la_newest,
+        kueri::row_number([:entity], [kueri::desc(:seq)])
+      ),
+      q_filter(kueri::eq(:la_newest, 1)),
+      kueri::select(items)
     ]
   )
 end
@@ -1072,9 +1044,11 @@ def la_intervals_model(d, steps, now)
     "state_intervals",
     steps,
     [
-      q_derive(:until, q_lead(:time, [:entity], [:seq])),
-      q_derive(:seconds, q_sub(q_coalesce(:until, now), :time)),
-      q_select([:entity, :seq, :phase, q_as(:since, :time), :until, :seconds])
+      kueri::derive(:until, kueri::lead(:time, [:entity], [:seq])),
+      kueri::derive(:seconds, kueri::sub(kueri::coalesce(:until, now), :time)),
+      kueri::select(
+        [:entity, :seq, :phase, kueri::as(:since, :time), :until, :seconds]
+      )
     ]
   )
 end
@@ -1087,11 +1061,11 @@ def la_time_in_state_model(d, intervals)
     "time_in_state",
     intervals,
     [
-      q_group(
+      kueri::group(
         [:entity, :phase],
         [
-          q_agg(:seconds, q_sum(:seconds)),
-          q_agg_where(:ongoing, q_count_all(), q_is_null(:until))
+          kueri::agg(:seconds, kueri::sum(:seconds)),
+          kueri::agg_where(:ongoing, kueri::count_all(), kueri::is_null(:until))
         ]
       )
     ]
@@ -1105,8 +1079,11 @@ def la_refusals_model(d, events)
     "refusals",
     events,
     [
-      q_filter(q_eq(:status, "refused")),
-      q_group([:type, :refusal_kind], [q_agg(:records, q_count_all())])
+      q_filter(kueri::eq(:status, "refused")),
+      kueri::group(
+        [:type, :refusal_kind],
+        [kueri::agg(:records, kueri::count_all())]
+      )
     ]
   )
 end
@@ -1118,8 +1095,8 @@ def la_gates_model(d, edges)
     "gates",
     edges,
     [
-      q_filter(q_not_null(:capability)),
-      q_select([:phase_before, :type, :capability])
+      q_filter(kueri::not_null(:capability)),
+      kueri::select([:phase_before, :type, :capability])
     ]
   )
 end
@@ -1134,7 +1111,7 @@ def la_guard_hits_model(d, steps, gates)
     "guard_hits",
     steps,
     [
-      q_select(
+      kueri::select(
         [
           :entity,
           :seq,
@@ -1147,19 +1124,27 @@ def la_guard_hits_model(d, steps, gates)
           :breach_capability
         ]
       ),
-      q_left_join(gates, [:phase_before, :type]),
-      q_filter(q_or(q_eq(:refusal_kind, "guard"), q_not_null(:breach))),
-      q_derive(:la_capability, q_coalesce(:breach_capability, :capability)),
-      q_derive(:la_rules, q_coalesce(:breach, :refusal_detail)),
-      q_derive(:outcome, q_if(q_not_null(:breach), "breach", "refused")),
-      q_explode(:rule, :la_rules),
-      q_select(
+      kueri::left_join(gates, [:phase_before, :type]),
+      q_filter(
+        q_or(kueri::eq(:refusal_kind, "guard"), kueri::not_null(:breach))
+      ),
+      kueri::derive(
+        :la_capability,
+        kueri::coalesce(:breach_capability, :capability)
+      ),
+      kueri::derive(:la_rules, kueri::coalesce(:breach, :refusal_detail)),
+      kueri::derive(
+        :outcome,
+        q_if(kueri::not_null(:breach), "breach", "refused")
+      ),
+      kueri::explode(:rule, :la_rules),
+      kueri::select(
         [
           :entity,
           :seq,
           :time,
           :type,
-          q_as(:capability, :la_capability),
+          kueri::as(:capability, :la_capability),
           :rule,
           :outcome
         ]
@@ -1174,11 +1159,19 @@ def la_rule_hit_counts_model(d, hits)
     "rule_hit_counts",
     hits,
     [
-      q_group(
+      kueri::group(
         [:capability, :rule],
         [
-          q_agg_where(:refused, q_count_all(), q_eq(:outcome, "refused")),
-          q_agg_where(:breached, q_count_all(), q_eq(:outcome, "breach"))
+          kueri::agg_where(
+            :refused,
+            kueri::count_all(),
+            kueri::eq(:outcome, "refused")
+          ),
+          kueri::agg_where(
+            :breached,
+            kueri::count_all(),
+            kueri::eq(:outcome, "breach")
+          )
         ]
       )
     ]
@@ -1193,15 +1186,15 @@ def la_rule_hits_model(d, rules, counts)
     "rule_hits",
     rules,
     [
-      q_select([:capability, :rule, :needs]),
-      q_left_join(counts, [:capability, :rule]),
-      q_select(
+      kueri::select([:capability, :rule, :needs]),
+      kueri::left_join(counts, [:capability, :rule]),
+      kueri::select(
         [
           :capability,
           :rule,
           :needs,
-          q_as(:refused, q_coalesce(:refused, 0)),
-          q_as(:breached, q_coalesce(:breached, 0))
+          kueri::as(:refused, kueri::coalesce(:refused, 0)),
+          kueri::as(:breached, kueri::coalesce(:breached, 0))
         ]
       )
     ]
@@ -1214,8 +1207,8 @@ def la_rule_tasks_model(d, rules)
     "rule_tasks",
     rules,
     [
-      q_filter(q_not_null(:task)),
-      q_select([:capability, :rule, :task, :escalate_after])
+      q_filter(kueri::not_null(:task)),
+      kueri::select([:capability, :rule, :task, :escalate_after])
     ]
   )
 end
@@ -1228,9 +1221,9 @@ def la_task_asks_model(d, hits, rule_tasks)
     hits,
     [
       q_join(rule_tasks, [:capability, :rule]),
-      q_group(
+      kueri::group(
         [:entity, :seq, :time, :task, :escalate_after],
-        [q_agg(:asked_by, q_count_all())]
+        [kueri::agg(:asked_by, kueri::count_all())]
       )
     ]
   )
@@ -1243,35 +1236,37 @@ def la_task_evidence_events_model(d, steps, evidence)
     "task_evidence_events",
     steps,
     [
-      q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
-      q_select(
+      q_filter(
+        q_and(kueri::eq(:status, "admitted"), kueri::is_null(:replay_refusal))
+      ),
+      kueri::select(
         [
           :entity,
-          q_as(:evidence_seq, :seq),
-          q_as(:evidence_time, :time),
-          q_as(:evidence, :type)
+          kueri::as(:evidence_seq, :seq),
+          kueri::as(:evidence_time, :time),
+          kueri::as(:evidence, :type)
         ]
       ),
       q_join(evidence, [:evidence]),
-      q_select([:entity, :task, :evidence_seq, :evidence_time])
+      kueri::select([:entity, :task, :evidence_seq, :evidence_time])
     ]
   )
 end
 
 # Each ask with the first later evidence of its task on its entity.
 def la_task_closes_model(d, asks, evidence_events)
-  later = q_gt(:evidence_seq, :seq)
+  later = kueri::gt(:evidence_seq, :seq)
   la_view(
     d,
     "task_closes",
     asks,
     [
-      q_left_join(evidence_events, [:entity, :task]),
-      q_group(
+      kueri::left_join(evidence_events, [:entity, :task]),
+      kueri::group(
         [:entity, :seq, :time, :task, :escalate_after],
         [
-          q_agg_where(:closed_seq, q_min(:evidence_seq), later),
-          q_agg_where(:closed_at, q_min(:evidence_time), later)
+          kueri::agg_where(:closed_seq, q_min(:evidence_seq), later),
+          kueri::agg_where(:closed_at, q_min(:evidence_time), later)
         ]
       )
     ]
@@ -1287,20 +1282,26 @@ def la_tasks_model(d, closes, now)
     "tasks",
     closes,
     [
-      q_group(
+      kueri::group(
         [:entity, :task, :closed_seq],
         [
-          q_agg(:opened_seq, q_min(:seq)),
-          q_agg(:opened_at, q_min(:time)),
-          q_agg(:asks, q_count_all()),
-          q_agg(:closed_at, q_max(:closed_at)),
-          q_agg(:escalate_after, q_max(:escalate_after))
+          kueri::agg(:opened_seq, q_min(:seq)),
+          kueri::agg(:opened_at, q_min(:time)),
+          kueri::agg(:asks, kueri::count_all()),
+          kueri::agg(:closed_at, q_max(:closed_at)),
+          kueri::agg(:escalate_after, q_max(:escalate_after))
         ]
       ),
-      q_derive(:open_for, q_sub(q_coalesce(:closed_at, now), :opened_at)),
-      q_derive(:overdue, q_gt(:open_for, :escalate_after)),
-      q_derive(:state, q_if(q_is_null(:closed_seq), "open", "closed")),
-      q_select(
+      kueri::derive(
+        :open_for,
+        kueri::sub(kueri::coalesce(:closed_at, now), :opened_at)
+      ),
+      kueri::derive(:overdue, kueri::gt(:open_for, :escalate_after)),
+      kueri::derive(
+        :state,
+        q_if(kueri::is_null(:closed_seq), "open", "closed")
+      ),
+      kueri::select(
         [
           :entity,
           :task,
@@ -1325,13 +1326,21 @@ def la_task_summary_model(d, tasks)
     "task_summary",
     tasks,
     [
-      q_group(
+      kueri::group(
         [:task],
         [
-          q_agg(:opened, q_count_all()),
-          q_agg_where(:still_open, q_count_all(), q_eq(:state, "open")),
-          q_agg_where(:closed, q_count_all(), q_eq(:state, "closed")),
-          q_agg_where(:overdue, q_count_all(), :overdue)
+          kueri::agg(:opened, kueri::count_all()),
+          kueri::agg_where(
+            :still_open,
+            kueri::count_all(),
+            kueri::eq(:state, "open")
+          ),
+          kueri::agg_where(
+            :closed,
+            kueri::count_all(),
+            kueri::eq(:state, "closed")
+          ),
+          kueri::agg_where(:overdue, kueri::count_all(), :overdue)
         ]
       )
     ]
@@ -1359,16 +1368,19 @@ def la_permit_models(d, log, events, steps, gates)
     events,
     [
       q_filter(
-        q_and(q_eq(:type, lc_text(nth(1, log))), q_eq(:status, "admitted"))
+        q_and(
+          kueri::eq(:type, lc_text(nth(1, log))),
+          kueri::eq(:status, "admitted")
+        )
       ),
-      q_derive(:next_seq, q_lead(:seq, [:entity], [:seq])),
-      q_select(
+      kueri::derive(:next_seq, kueri::lead(:seq, [:entity], [:seq])),
+      kueri::select(
         concat_lists(
           concat_lists(
             [
               :entity,
-              q_as(:permit_seq, :seq),
-              q_as(:issued_at, :time),
+              kueri::as(:permit_seq, :seq),
+              kueri::as(:issued_at, :time),
               :subject,
               :not_after,
               :basis
@@ -1385,19 +1397,23 @@ def la_permit_models(d, log, events, steps, gates)
     "uses_#{c}",
     steps,
     [
-      q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
-      q_select([:entity, :seq, :time, :type, :phase_before]),
+      q_filter(
+        q_and(kueri::eq(:status, "admitted"), kueri::is_null(:replay_refusal))
+      ),
+      kueri::select([:entity, :seq, :time, :type, :phase_before]),
       q_join(gates, [:phase_before, :type]),
-      q_filter(q_eq(:capability, c)),
-      q_select([:entity, q_as(:use_seq, :seq), q_as(:use_time, :time)])
+      q_filter(kueri::eq(:capability, c)),
+      kueri::select(
+        [:entity, kueri::as(:use_seq, :seq), kueri::as(:use_time, :time)]
+      )
     ]
   )
   within = q_and(
-    q_gt(:use_seq, :permit_seq),
-    q_or(q_is_null(:next_seq), q_lt(:use_seq, :next_seq))
+    kueri::gt(:use_seq, :permit_seq),
+    q_or(kueri::is_null(:next_seq), kueri::lt(:use_seq, :next_seq))
   )
   exceeded = map(
-    fn(k) q_derive("#{k}_exceeded", q_gt(:uses, q_c(k))) end,
+    fn(k) kueri::derive("#{k}_exceeded", kueri::gt(:uses, kueri::c(k))) end,
     counts
   )
   keys = concat_lists(
@@ -1431,30 +1447,30 @@ def la_permit_models(d, log, events, steps, gates)
     permits,
     concat_lists(
       [
-        q_left_join(uses, [:entity]),
-        q_group(
+        kueri::left_join(uses, [:entity]),
+        kueri::group(
           keys,
           [
-            q_agg_where(
+            kueri::agg_where(
               :uses,
-              q_count_all(),
-              q_and(within, q_lt(:use_time, :not_after))
+              kueri::count_all(),
+              q_and(within, kueri::lt(:use_time, :not_after))
             ),
-            q_agg_where(
+            kueri::agg_where(
               :overrun,
-              q_count_all(),
-              q_and(within, q_ge(:use_time, :not_after))
+              kueri::count_all(),
+              q_and(within, kueri::ge(:use_time, :not_after))
             ),
-            q_agg_where(
+            kueri::agg_where(
               :last_use_at,
               q_max(:use_time),
-              q_and(within, q_lt(:use_time, :not_after))
+              q_and(within, kueri::lt(:use_time, :not_after))
             )
           ]
         ),
-        q_derive(:window_seconds, q_sub(:not_after, :issued_at))
+        kueri::derive(:window_seconds, kueri::sub(:not_after, :issued_at))
       ],
-      push(exceeded, q_select(out))
+      push(exceeded, kueri::select(out))
     )
   )
   concat_lists(
@@ -1479,18 +1495,21 @@ def la_unpermitted_models(d, log, events, steps, gates)
     events,
     [
       q_filter(
-        q_and(q_eq(:type, lc_text(nth(1, log))), q_eq(:status, "admitted"))
+        q_and(
+          kueri::eq(:type, lc_text(nth(1, log))),
+          kueri::eq(:status, "admitted")
+        )
       ),
-      q_select([:entity, :seq, q_as(:permit_seq, :seq), :not_after])
+      kueri::select([:entity, :seq, kueri::as(:permit_seq, :seq), :not_after])
     ]
   )
   reason = q_if(
-    q_is_null(:permit_seq),
+    kueri::is_null(:permit_seq),
     "no_permit",
     q_if(
-      q_ge(:time, :not_after),
+      kueri::ge(:time, :not_after),
       "lapsed",
-      q_if(q_not_null(:breach), "breach", q_null())
+      q_if(kueri::not_null(:breach), "breach", kueri::null())
     )
   )
   unpermitted = la_view(
@@ -1498,19 +1517,21 @@ def la_unpermitted_models(d, log, events, steps, gates)
     "unpermitted_#{c}",
     steps,
     [
-      q_filter(q_and(q_eq(:status, "admitted"), q_is_null(:replay_refusal))),
-      q_select([:entity, :seq, :time, :type, :phase_before, :breach]),
+      q_filter(
+        q_and(kueri::eq(:status, "admitted"), kueri::is_null(:replay_refusal))
+      ),
+      kueri::select([:entity, :seq, :time, :type, :phase_before, :breach]),
       q_join(gates, [:phase_before, :type]),
-      q_filter(q_eq(:capability, c)),
-      q_select([:entity, :seq, :time, :breach]),
-      q_asof_left_join(granted, [:entity, :seq]),
-      q_derive(:reason, reason),
-      q_filter(q_not_null(:reason)),
-      q_select(
+      q_filter(kueri::eq(:capability, c)),
+      kueri::select([:entity, :seq, :time, :breach]),
+      kueri::asof_left_join(granted, [:entity, :seq]),
+      kueri::derive(:reason, reason),
+      q_filter(kueri::not_null(:reason)),
+      kueri::select(
         [
           :entity,
-          q_as(:use_seq, :seq),
-          q_as(:use_time, :time),
+          kueri::as(:use_seq, :seq),
+          kueri::as(:use_time, :time),
           :permit_seq,
           :not_after,
           :breach,
@@ -1535,8 +1556,8 @@ def la_span_models(d, sp, steps, current, now)
   s = lc_text(lc_span_name(sp))
   limit = lc_span_limit(sp)
   first_row = [
-    q_derive(:la_first, q_row_number([:entity], [:seq])),
-    q_filter(q_eq(:la_first, 1))
+    kueri::derive(:la_first, kueri::row_number([:entity], [:seq])),
+    q_filter(kueri::eq(:la_first, 1))
   ]
   starts = la_view(
     d,
@@ -1544,9 +1565,13 @@ def la_span_models(d, sp, steps, current, now)
     steps,
     flatten1(
       [
-        [q_filter(q_eq(:phase, lc_text(lc_span_from(sp))))],
+        [q_filter(kueri::eq(:phase, lc_text(lc_span_from(sp))))],
         first_row,
-        [q_select([:entity, q_as(:from_seq, :seq), q_as(:from_at, :time)])]
+        [
+          kueri::select(
+            [:entity, kueri::as(:from_seq, :seq), kueri::as(:from_at, :time)]
+          )
+        ]
       ]
     )
   )
@@ -1557,47 +1582,55 @@ def la_span_models(d, sp, steps, current, now)
     flatten1(
       [
         [
-          q_filter(q_eq(:phase, lc_text(lc_span_to(sp)))),
+          q_filter(kueri::eq(:phase, lc_text(lc_span_to(sp)))),
           q_join(starts, [:entity]),
-          q_filter(q_gt(:seq, :from_seq))
+          q_filter(kueri::gt(:seq, :from_seq))
         ],
         first_row,
-        [q_select([:entity, q_as(:to_seq, :seq), q_as(:to_at, :time)])]
+        [
+          kueri::select(
+            [:entity, kueri::as(:to_seq, :seq), kueri::as(:to_at, :time)]
+          )
+        ]
       ]
     )
   )
   # After the join with the current state, :phase is the entity's phase now.
   ended = reduce(
-    fn(acc, t) q_or(acc, q_eq(:phase, lc_text(t))) end,
-    q_lit(false),
+    fn(acc, t) q_or(acc, kueri::eq(:phase, lc_text(t))) end,
+    kueri::lit(false),
     lc_d_terminals(d)
   )
-  state = q_if(q_not_null(:to_seq), "done", q_if(ended, "abandoned", "open"))
+  state = q_if(
+    kueri::not_null(:to_seq),
+    "done",
+    q_if(ended, "abandoned", "open")
+  )
   over = if limit == nil
-    q_cast(q_null(), :boolean)
+    q_cast(kueri::null(), :boolean)
   else
-    q_gt(:elapsed, limit)
+    kueri::gt(:elapsed, limit)
   end
   span = la_view(
     d,
     "span_#{s}",
     starts,
     [
-      q_left_join(ends, [:entity]),
+      kueri::left_join(ends, [:entity]),
       q_join(current, [:entity]),
-      q_derive(:state, state),
-      q_derive(:seconds, q_sub(:to_at, :from_at)),
-      q_derive(
+      kueri::derive(:state, state),
+      kueri::derive(:seconds, kueri::sub(:to_at, :from_at)),
+      kueri::derive(
         :elapsed,
         q_if(
-          q_eq(:state, "abandoned"),
-          q_cast(q_null(), :bigint),
-          q_sub(q_coalesce(:to_at, now), :from_at)
+          kueri::eq(:state, "abandoned"),
+          q_cast(kueri::null(), :bigint),
+          kueri::sub(kueri::coalesce(:to_at, now), :from_at)
         )
       ),
-      q_derive(:limit_seconds, q_cast(q_lit(limit), :bigint)),
-      q_derive(:over_limit, over),
-      q_select(
+      kueri::derive(:limit_seconds, q_cast(kueri::lit(limit), :bigint)),
+      kueri::derive(:over_limit, over),
+      kueri::select(
         [
           :entity,
           :state,
@@ -1618,18 +1651,30 @@ def la_span_models(d, sp, steps, current, now)
     "span_#{s}_summary",
     span,
     [
-      q_group(
+      kueri::group(
         [],
         [
-          q_agg(:started, q_count_all()),
-          q_agg_where(:reached, q_count_all(), q_eq(:state, "done")),
-          q_agg_where(:still_open, q_count_all(), q_eq(:state, "open")),
-          q_agg_where(:abandoned, q_count_all(), q_eq(:state, "abandoned")),
-          q_agg_where(:over_limit, q_count_all(), :over_limit),
-          q_agg(:min_seconds, q_min(:seconds)),
-          q_agg(:avg_seconds, q_avg(:seconds)),
-          q_agg(:max_seconds, q_max(:seconds)),
-          q_agg(:limit_seconds, q_max(:limit_seconds))
+          kueri::agg(:started, kueri::count_all()),
+          kueri::agg_where(
+            :reached,
+            kueri::count_all(),
+            kueri::eq(:state, "done")
+          ),
+          kueri::agg_where(
+            :still_open,
+            kueri::count_all(),
+            kueri::eq(:state, "open")
+          ),
+          kueri::agg_where(
+            :abandoned,
+            kueri::count_all(),
+            kueri::eq(:state, "abandoned")
+          ),
+          kueri::agg_where(:over_limit, kueri::count_all(), :over_limit),
+          kueri::agg(:min_seconds, q_min(:seconds)),
+          kueri::agg(:avg_seconds, kueri::avg(:seconds)),
+          kueri::agg(:max_seconds, q_max(:seconds)),
+          kueri::agg(:limit_seconds, q_max(:limit_seconds))
         ]
       )
     ]
@@ -1732,11 +1777,18 @@ def la_link_rows_model(ad, role, a_events)
     "#{r}_links",
     a_events,
     [
-      q_select([:entity, :seq, :time, :type, :status, :links]),
-      q_explode(:la_link, :links),
-      q_filter(q_eq(q_get(:la_link, :kind), r)),
-      q_select(
-        [:entity, :seq, :time, :type, :status, q_as(r, q_get(:la_link, :id))]
+      kueri::select([:entity, :seq, :time, :type, :status, :links]),
+      kueri::explode(:la_link, :links),
+      q_filter(kueri::eq(q_get(:la_link, :kind), r)),
+      kueri::select(
+        [
+          :entity,
+          :seq,
+          :time,
+          :type,
+          :status,
+          kueri::as(r, q_get(:la_link, :id))
+        ]
       )
     ]
   )
@@ -1750,21 +1802,27 @@ end
 # 9 orders joined to the state before their own load.
 def la_link_state_model(ad, role, bd, b_steps)
   r = lc_text(role)
-  fields = map(fn(f) q_as("#{r}_#{f}", q_c(f)) end, la_field_names(bd))
+  fields = map(
+    fn(f) kueri::as("#{r}_#{f}", kueri::c(f)) end,
+    la_field_names(bd)
+  )
   la_view(
     ad,
     "#{r}_state",
     b_steps,
     [
-      q_derive(:la_last, q_row_number([:entity, :time], [q_desc(:seq)])),
-      q_filter(q_eq(:la_last, 1)),
-      q_select(
+      kueri::derive(
+        :la_last,
+        kueri::row_number([:entity, :time], [kueri::desc(:seq)])
+      ),
+      q_filter(kueri::eq(:la_last, 1)),
+      kueri::select(
         concat_lists(
           [
-            q_as(r, :entity),
+            kueri::as(r, :entity),
             :time,
-            q_as("#{r}_seq", :seq),
-            q_as("#{r}_phase", :phase)
+            kueri::as("#{r}_seq", :seq),
+            kueri::as("#{r}_phase", :phase)
           ],
           fields
         )
@@ -1790,8 +1848,8 @@ def la_link_model(ad, role, bd, rows, state)
     r,
     rows,
     [
-      q_asof_left_join(state, [r, :time]),
-      q_select(
+      kueri::asof_left_join(state, [r, :time]),
+      kueri::select(
         concat_lists(
           [:entity, :seq, :time, :type, :status, r],
           la_link_state_names(role, bd)
@@ -1808,11 +1866,15 @@ def la_link_coverage_model(ad, role, link)
     "#{r}_coverage",
     link,
     [
-      q_group(
+      kueri::group(
         [],
         [
-          q_agg(:links, q_count_all()),
-          q_agg_where(:unresolved, q_count_all(), q_is_null(q_c("#{r}_seq")))
+          kueri::agg(:links, kueri::count_all()),
+          kueri::agg_where(
+            :unresolved,
+            kueri::count_all(),
+            kueri::is_null(kueri::c("#{r}_seq"))
+          )
         ]
       )
     ]
@@ -1853,14 +1915,14 @@ def la_chain_models(bindings, models, a, l1, l2)
     "#{r1}_#{r2}_via",
     b_link,
     [
-      q_select(
+      kueri::select(
         concat_lists(
           [
-            q_as(r1, :entity),
+            kueri::as(r1, :entity),
             :time,
-            q_as("#{r1}_time", :time),
-            q_as("#{r1}_event_seq", :seq),
-            q_as("#{r1}_type", :type)
+            kueri::as("#{r1}_time", :time),
+            kueri::as("#{r1}_event_seq", :seq),
+            kueri::as("#{r1}_type", :type)
           ],
           c_cols
         )
@@ -1872,8 +1934,8 @@ def la_chain_models(bindings, models, a, l1, l2)
     "#{r1}_#{r2}",
     la_find(models, la_n(ad, "#{r1}_links")),
     [
-      q_asof_left_join(via, [r1, :time]),
-      q_select(
+      kueri::asof_left_join(via, [r1, :time]),
+      kueri::select(
         concat_lists(
           [
             :entity,
@@ -1974,7 +2036,7 @@ end
 
 # The script that builds the database: every load, then every view.
 def la_script(bindings, now)
-  q_render_script(la_models(bindings, now), :duckdb, "anaritikusu")
+  kueri::render_script(la_models(bindings, now), :duckdb, "anaritikusu")
 end
 
 # ── the history: the state after every record ──────────────────────────────
@@ -2080,7 +2142,7 @@ def la_build(dir, streams, now)
   if path_exists(db)
     rm(db)
   end
-  q_run_at(db, script)
+  kueri::run_at(db, script)
   db
 end
 
@@ -2104,15 +2166,15 @@ end
 # generated view is read from the database; any other model over them (a
 # question of its own) runs its query there.
 def la_read(db, model)
-  cols = q_output(model)
+  cols = kueri::output(model)
   query = if get(model, :materialize) == :view
-    q_model({name: "la_read", from: model, pipeline: [q_sort(cols)]})
+    kueri::model({name: "la_read", from: model, pipeline: [kueri::sort(cols)]})
   else
-    q_then(model, [q_sort(cols)])
+    kueri::then(model, [kueri::sort(cols)])
   end
   map(
     fn(row) map(fn(c) as_json(row, c) end, cols) end,
-    q_rows_at(db, q_render(query, :duckdb))
+    kueri::rows_at(db, kueri::render(query, :duckdb))
   )
 end
 
@@ -2922,13 +2984,13 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     )
   # The event table's payload column, read back typed.
-  readings = q_model(
+  readings = kueri::model(
     {
       name: :la_readings,
       from: la_find(ms, "consumable_events"),
       pipeline: [
-        q_filter(q_eq(:type, "reading")),
-        q_select([:entity, :seq, :value])
+        q_filter(kueri::eq(:type, "reading")),
+        kueri::select([:entity, :seq, :value])
       ]
     }
   )

@@ -1,5 +1,5 @@
 use("deeta", [:as_json])
-use("kazu", [:max])
+use("kazu")
 use("moji", [:char_at, :made_of, :strip_suffix])
 
 use(
@@ -24,6 +24,8 @@ use(
 
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 use("shuugou", [:difference, :intersection, :unique, :unique_by])
+
+legacy_names("0.1.1", "q")
 
 # kueri (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 #
@@ -143,7 +145,7 @@ use("shuugou", [:difference, :intersection, :unique, :unique_by])
 # ── names and literals ─────────────────────────────────────────────────────
 
 # A name as text: a keyword's name, or the string itself.
-def q_name(x)
+def name(x)
   if keyword?(x)
     to_s(x)
   else
@@ -153,7 +155,7 @@ end
 
 # Words an engine will not read as a bare identifier: SQL's reserved words and
 # DuckDB's own (qualify, pivot, asof, …). A name among them is quoted.
-def q_reserved_words()
+def reserved_words()
   [
     "all",
     "analyse",
@@ -268,17 +270,17 @@ end
 # Lower-case ASCII, digits and underscore, not starting with a digit, and not
 # reserved. Anything else is quoted, because engines fold unquoted case
 # differently and a quoted name means the same thing everywhere.
-def q_bare_ident?(s)
+def bare_ident?(s)
   made_of(s, "abcdefghijklmnopqrstuvwxyz_0123456789") &&
     made_of(char_at(s, 0), "abcdefghijklmnopqrstuvwxyz_") &&
-    contains(q_reserved_words(), s) == false
+    contains(reserved_words(), s) == false
 end
 
 # An identifier as SQL: bare when safe, otherwise double-quoted with any
 # embedded quote doubled.
-def q_ident(name)
-  s = q_name(name)
-  if q_bare_ident?(s)
+def ident(name)
+  s = kueri::name(name)
+  if bare_ident?(s)
     s
   else
     "\"#{replace(s, "\"", "\"\"")}\""
@@ -286,13 +288,13 @@ def q_ident(name)
 end
 
 # A string value as a SQL literal: single quotes, embedded quotes doubled.
-def q_quote_str(s)
+def quote_str(s)
   "'#{replace(s, "'", "''")}'"
 end
 
 # A float's digits, always with a decimal point: to_s(1.0) is "1", which an
 # engine would read as an INTEGER.
-def q_float_text(x)
+def float_text(x)
   s = to_s(x)
   if contains?(s, ".") || contains?(s, "e") || contains?(s, "E")
     s
@@ -305,18 +307,18 @@ end
 
 # The closed set of scalar column types a contract or a source may declare.
 # Composite types are built from them: q_struct_of and q_list_of.
-def q_types()
+def types()
   [:bigint, :integer, :double, :varchar, :boolean, :date]
 end
 
-def q_type(t)
-  if keyword?(t) && contains(q_types(), t)
+def type(t)
+  if keyword?(t) && contains(types(), t)
     t
-  elsif keyword?(t) || q_composite?(t) == false
+  elsif keyword?(t) || composite?(t) == false
     throw(
       error(
         :kueri_shape,
-        "unknown column type #{to_s(t)}; a type is one of #{join(map(fn(x) to_s(x) end, q_types()), ", ")}, or q_struct_of / q_list_of over them"
+        "unknown column type #{to_s(t)}; a type is one of #{blue::join(map(fn(x) to_s(x) end, types()), ", ")}, or q_struct_of / q_list_of over them"
       )
     )
   else
@@ -325,19 +327,19 @@ def q_type(t)
 end
 
 # A composite type: a map built by q_struct_of or q_list_of.
-def q_composite?(t)
+def composite?(t)
   t != nil &&
     keyword?(t) == false &&
     list?(t) == false &&
     string?(t) == false &&
     number?(t) == false &&
     boolean?(t) == false &&
-    contains([:struct, :list], get(t, :kind))
+    contains([:struct, :list], blue::get(t, :kind))
 end
 
 # A struct type: named fields, each declared with q_col. JSON objects load
 # into it; read a field with q_get. DuckDB only.
-def q_struct_of(cols)
+def struct_of(cols)
   fs = as_list(cols)
   if is_empty(fs)
     throw(error(:kueri_shape, "a struct type has at least one field"))
@@ -347,16 +349,16 @@ end
 
 # A list type: JSON arrays load into it; q_explode makes a row per element.
 # DuckDB only.
-def q_list_of(t)
-  {kind: :list, of: q_type(t)}
+def list_of(t)
+  {kind: :list, of: type(t)}
 end
 
 # A type's name in a dialect. DOUBLE is DuckDB's; the standard spells it
 # DOUBLE PRECISION, which DuckDB also reads. Structs and lists are DuckDB's
 # alone.
-def q_type_sql(t, dialect)
-  if q_composite?(t)
-    q_composite_sql(t, dialect)
+def type_sql(t, dialect)
+  if composite?(t)
+    composite_sql(t, dialect)
   elsif t == :double
     if dialect == :duckdb
       "DOUBLE"
@@ -368,7 +370,7 @@ def q_type_sql(t, dialect)
   end
 end
 
-def q_composite_sql(t, dialect)
+def composite_sql(t, dialect)
   if dialect != :duckdb
     throw(
       error(
@@ -377,30 +379,30 @@ def q_composite_sql(t, dialect)
       )
     )
   end
-  if get(t, :kind) == :list
-    "#{q_type_sql(get(t, :of), dialect)}[]"
+  if blue::get(t, :kind) == :list
+    "#{type_sql(blue::get(t, :of), dialect)}[]"
   else
-    "STRUCT(#{join(map(fn(c) "#{q_ident(get(c, :name))} #{q_type_sql(get(c, :type), dialect)}" end, get(t, :fields)), ", ")})"
+    "STRUCT(#{blue::join(map(fn(c) "#{ident(blue::get(c, :name))} #{type_sql(blue::get(c, :type), dialect)}" end, blue::get(t, :fields)), ", ")})"
   end
 end
 
 # A declared column: a source's input or a model's contract.
-def q_col(name, t)
-  {kind: :coldef, name: q_name(name), type: q_type(t)}
+def col(name, t)
+  {kind: :coldef, name: kueri::name(name), type: type(t)}
 end
 
-def q_col_names(cols)
-  map(fn(c) get(c, :name) end, as_list(cols))
+def col_names(cols)
+  map(fn(c) blue::get(c, :name) end, as_list(cols))
 end
 
 # ── expressions ────────────────────────────────────────────────────────────
 
 # A column reference.
-def q_c(name)
-  {kind: :col, name: q_name(name)}
+def c(name)
+  {kind: :col, name: kueri::name(name)}
 end
 
-def q_int(n)
+def int(n)
   if integer?(n) == false
     throw(error(:kueri_shape, "q_int takes an integer"))
   end
@@ -408,7 +410,7 @@ def q_int(n)
 end
 
 # A DOUBLE literal, typed on purpose: DuckDB reads a bare 1.0 as DECIMAL(2,1).
-def q_double(x)
+def double(x)
   if number?(x) == false
     throw(error(:kueri_shape, "q_double takes a number"))
   end
@@ -419,35 +421,35 @@ def q_double(x)
   {kind: :lit, type: :double, value: x}
 end
 
-def q_str(s)
+def str(s)
   {kind: :lit, type: :str, value: s}
 end
 
-def q_bool(b)
+def bool(b)
   {kind: :lit, type: :bool, value: b}
 end
 
-def q_null()
+def null()
   {kind: :lit, type: :null, value: nil}
 end
 
-def q_value?(x)
+def value?(x)
   number?(x) || string?(x) || boolean?(x) || null?(x)
 end
 
 # A blue value as a literal, typed by what it is: an int stays an INTEGER and a
 # float becomes a DOUBLE, never the DECIMAL an untyped 1.0 would be.
-def q_lit(v)
+def lit(v)
   if integer?(v)
-    q_int(v)
+    int(v)
   elsif number?(v)
-    q_double(v)
+    double(v)
   elsif string?(v)
-    q_str(v)
+    str(v)
   elsif boolean?(v)
-    q_bool(v)
+    bool(v)
   elsif null?(v)
-    q_null()
+    null()
   else
     throw(error(:kueri_shape, "q_lit takes a number, string, boolean or nil"))
   end
@@ -455,11 +457,11 @@ end
 
 # Anything in expression position: a keyword is a column, a value is a
 # literal, and a node is itself.
-def q_expr(x)
+def expr(x)
   if keyword?(x)
-    q_c(x)
-  elsif q_value?(x)
-    q_lit(x)
+    c(x)
+  elsif value?(x)
+    lit(x)
   else
     x
   end
@@ -467,149 +469,159 @@ end
 
 # A binary operator. `prec` orders them for the renderer's parentheses:
 # OR 1, AND 2, NOT 3, comparisons 4, + - 5, * / 6.
-def q_op(op, prec, a, b)
-  {kind: :op, op: op, prec: prec, args: [q_expr(a), q_expr(b)]}
+def op(op, prec, a, b)
+  {kind: :op, op: op, prec: prec, args: [expr(a), expr(b)]}
 end
 
-def q_add(a, b)
-  q_op("+", 5, a, b)
+def add(a, b)
+  op("+", 5, a, b)
 end
 
-def q_sub(a, b)
-  q_op("-", 5, a, b)
+def sub(a, b)
+  op("-", 5, a, b)
 end
 
-def q_mul(a, b)
-  q_op("*", 6, a, b)
+def mul(a, b)
+  op("*", 6, a, b)
 end
 
-def q_div(a, b)
-  q_op("/", 6, a, b)
+def div(a, b)
+  op("/", 6, a, b)
 end
 
-def q_eq(a, b)
-  q_op("=", 4, a, b)
+def eq(a, b)
+  op("=", 4, a, b)
 end
 
-def q_ne(a, b)
-  q_op("<>", 4, a, b)
+def ne(a, b)
+  op("<>", 4, a, b)
 end
 
-def q_lt(a, b)
-  q_op("<", 4, a, b)
+def lt(a, b)
+  op("<", 4, a, b)
 end
 
-def q_le(a, b)
-  q_op("<=", 4, a, b)
+def le(a, b)
+  op("<=", 4, a, b)
 end
 
-def q_gt(a, b)
-  q_op(">", 4, a, b)
+def gt(a, b)
+  op(">", 4, a, b)
 end
 
-def q_ge(a, b)
-  q_op(">=", 4, a, b)
+def ge(a, b)
+  op(">=", 4, a, b)
 end
 
+# waive B0013: `and` is a builtin kueri also uses, so the prefix stays; kueri::and names it too
 def q_and(a, b)
-  q_op("AND", 2, a, b)
+  op("AND", 2, a, b)
 end
 
+# waive B0013: `or` is a builtin kueri also uses, so the prefix stays; kueri::or names it too
 def q_or(a, b)
-  q_op("OR", 1, a, b)
+  op("OR", 1, a, b)
 end
 
+# waive B0013: `not` is a builtin kueri also uses, so the prefix stays; kueri::not names it too
 def q_not(a)
-  {kind: :not, args: [q_expr(a)]}
+  {kind: :not, args: [expr(a)]}
 end
 
+# waive B0013: `round` is a builtin kueri also uses, so the prefix stays; kueri::round names it too
 def q_round(x, digits)
-  {kind: :fn, name: "round", args: [q_expr(x), q_int(digits)]}
+  {kind: :fn, name: "round", args: [expr(x), int(digits)]}
 end
 
+# waive B0013: `cast` is a builtin kueri also uses, so the prefix stays; kueri::cast names it too
 def q_cast(x, t)
-  {kind: :cast, type: q_type(t), args: [q_expr(x)]}
+  {kind: :cast, type: type(t), args: [expr(x)]}
 end
 
 # The first of two values that is not NULL.
-def q_coalesce(a, b)
-  {kind: :fn, name: "coalesce", args: [q_expr(a), q_expr(b)]}
+def coalesce(a, b)
+  {kind: :fn, name: "coalesce", args: [expr(a), expr(b)]}
 end
 
 # The value is NULL: absent, never a comparison (x = NULL is never true).
-def q_is_null(a)
-  {kind: :postfix, op: "IS NULL", args: [q_expr(a)]}
+def is_null(a)
+  {kind: :postfix, op: "IS NULL", args: [expr(a)]}
 end
 
-def q_not_null(a)
-  {kind: :postfix, op: "IS NOT NULL", args: [q_expr(a)]}
+def not_null(a)
+  {kind: :postfix, op: "IS NOT NULL", args: [expr(a)]}
 end
 
 # `a` where `cond` holds, else `b`: CASE WHEN … THEN … ELSE … END.
+# waive B0013: `if` is a reserved word, so the prefix stays; kueri::if names it too
 def q_if(cond, a, b)
-  {kind: :case, args: [q_expr(cond), q_expr(a), q_expr(b)]}
+  {kind: :case, args: [expr(cond), expr(a), expr(b)]}
 end
 
 # A field of a struct value (a JSON object loaded as q_struct_of). DuckDB
 # only.
+# waive B0013: `get` is a builtin kueri also uses, so the prefix stays; kueri::get names it too
 def q_get(x, field)
-  {kind: :field, name: q_name(field), args: [q_expr(x)]}
+  {kind: :field, name: name(field), args: [expr(x)]}
 end
 
 # ── aggregates and windows ─────────────────────────────────────────────────
 
-def q_agg_fn(f, args)
+def agg_fn(f, args)
   {kind: :agg, fn: f, args: args, where: nil, order: []}
 end
 
+# waive B0013: `min` is a builtin kueri also uses, so the prefix stays; kueri::min names it too
 def q_min(x)
-  q_agg_fn("min", [q_expr(x)])
+  agg_fn("min", [expr(x)])
 end
 
+# waive B0013: `max` is a builtin kueri also uses, so the prefix stays; kueri::max names it too
 def q_max(x)
-  q_agg_fn("max", [q_expr(x)])
+  agg_fn("max", [expr(x)])
 end
 
-def q_sum(x)
-  q_agg_fn("sum", [q_expr(x)])
+def sum(x)
+  agg_fn("sum", [expr(x)])
 end
 
-def q_avg(x)
-  q_agg_fn("avg", [q_expr(x)])
+def avg(x)
+  agg_fn("avg", [expr(x)])
 end
 
+# waive B0013: `count` is a builtin kueri also uses, so the prefix stays; kueri::count names it too
 def q_count(x)
-  q_agg_fn("count", [q_expr(x)])
+  agg_fn("count", [expr(x)])
 end
 
 # count(*).
-def q_count_all()
-  q_agg_fn("count", [])
+def count_all()
+  agg_fn("count", [])
 end
 
 # Joins the values with `sep`. Order-sensitive, and with no core form: MySQL,
 # SQL Server and Snowflake each spell it differently.
-def q_string_agg(x, sep)
-  q_agg_fn("string_agg", [q_expr(x), q_str(sep)])
+def string_agg(x, sep)
+  agg_fn("string_agg", [expr(x), str(sep)])
 end
 
 # row_number() OVER (PARTITION BY … ORDER BY …).
-def q_row_number(partition, order)
-  q_window("row_number", [], partition, order)
+def row_number(partition, order)
+  window("row_number", [], partition, order)
 end
 
 # The value of `x` in the next row of its partition, in `order`; NULL on the
 # last. An order is required: without one the next row is arbitrary.
-def q_lead(x, partition, order)
-  q_ordered_window("lead", x, partition, order)
+def lead(x, partition, order)
+  ordered_window("lead", x, partition, order)
 end
 
 # The value of `x` in the previous row; NULL on the first.
-def q_lag(x, partition, order)
-  q_ordered_window("lag", x, partition, order)
+def lag(x, partition, order)
+  ordered_window("lag", x, partition, order)
 end
 
-def q_ordered_window(f, x, partition, order)
+def ordered_window(f, x, partition, order)
   if is_empty(as_list(order))
     throw(
       error(
@@ -618,62 +630,62 @@ def q_ordered_window(f, x, partition, order)
       )
     )
   end
-  q_window(f, [q_expr(x)], partition, order)
+  window(f, [expr(x)], partition, order)
 end
 
-def q_window(f, args, partition, order)
+def window(f, args, partition, order)
   {
     kind: :win,
     fn: f,
     args: args,
-    partition: map(fn(p) q_name(p) end, as_list(partition)),
-    order: map(fn(k) q_key(k) end, as_list(order))
+    partition: map(fn(p) name(p) end, as_list(partition)),
+    order: map(fn(k) key(k) end, as_list(order))
   }
 end
 
 # An aggregate over only the rows where `pred` holds: FILTER (WHERE …) in
 # DuckDB, CASE WHEN inside the aggregate in core.
-def q_filtered(agg, pred)
-  if get(agg, :kind) != :agg
+def filtered(agg, pred)
+  if blue::get(agg, :kind) != :agg
     throw(error(:kueri_shape, "q_filtered takes an aggregate"))
   end
-  assoc(agg, :where, q_expr(pred))
+  assoc(agg, :where, expr(pred))
 end
 
 # An order for an order-sensitive aggregate or window.
-def q_ordered(node, keys)
-  if get(node, :kind) != :agg && get(node, :kind) != :win
+def ordered(node, keys)
+  if blue::get(node, :kind) != :agg && blue::get(node, :kind) != :win
     throw(error(:kueri_shape, "q_ordered takes an aggregate or a window"))
   end
-  assoc(node, :order, map(fn(k) q_key(k) end, keys))
+  assoc(node, :order, map(fn(k) key(k) end, keys))
 end
 
 # Functions whose result depends on the order rows arrive in.
-def q_order_sensitive_fns()
+def order_sensitive_fns()
   ["string_agg", "row_number", "lead", "lag"]
 end
 
 # Functions with no core form.
-def q_duckdb_only_fns()
+def duckdb_only_fns()
   ["string_agg"]
 end
 
 # ── sort keys ──────────────────────────────────────────────────────────────
 
-def q_key(k)
+def key(k)
   if keyword?(k) || string?(k)
-    {kind: :key, name: q_name(k), desc: false}
+    {kind: :key, name: name(k), desc: false}
   else
     k
   end
 end
 
-def q_desc(name)
-  {kind: :key, name: q_name(name), desc: true}
+def desc(name)
+  {kind: :key, name: kueri::name(name), desc: true}
 end
 
-def q_key_names(keys)
-  map(fn(k) get(k, :name) end, as_list(keys))
+def key_names(keys)
+  map(fn(k) blue::get(k, :name) end, as_list(keys))
 end
 
 # ── relations ──────────────────────────────────────────────────────────────
@@ -685,24 +697,24 @@ end
 #   :jsonl      JSON Lines: read_json maps them by key, a missing key is NULL,
 #               and a value that is not of its column's type fails the load,
 #               never reads as NULL. Columns may be q_struct_of / q_list_of.
-def q_source(opts)
-  cols = as_list(get(opts, :columns))
+def source(opts)
+  cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
     throw(
       error(
         :kueri_shape,
-        "source #{q_name(get(opts, :name))} declares no columns; a source states its schema, the sniffer never does"
+        "source #{name(blue::get(opts, :name))} declares no columns; a source states its schema, the sniffer never does"
       )
     )
   end
-  format = get(opts, :format)
+  format = blue::get(opts, :format)
   if format == nil
     format = :delimited
   end
   if contains([:delimited, :jsonl], format) == false
     throw(error(:kueri_shape, "a source's format is :delimited or :jsonl"))
   end
-  delim = get(opts, :delim)
+  delim = blue::get(opts, :delim)
   if delim == nil
     delim = :tab
   end
@@ -711,8 +723,8 @@ def q_source(opts)
   end
   {
     kind: :source,
-    name: q_name(get(opts, :name)),
-    file: get(opts, :file),
+    name: name(blue::get(opts, :name)),
+    file: blue::get(opts, :file),
     columns: cols,
     delim: delim,
     format: format
@@ -723,13 +735,14 @@ end
 # built (a definition's own tables, a lookup), loaded as a view in either
 # dialect — never hand-written SQL. opts: name, columns (q_col list), rows
 # (lists of numbers, strings, booleans or nil, one per column).
-def q_values(opts)
-  name = q_name(get(opts, :name))
-  cols = as_list(get(opts, :columns))
+def values(opts)
+  name = kueri::name(blue::get(opts, :name))
+  cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
     throw(error(:kueri_shape, "values #{name} declares no columns"))
   end
-  if is_empty(filter(fn(c) q_composite?(get(c, :type)) end, cols)) == false
+  if is_empty(blue::filter(fn(c) composite?(blue::get(c, :type)) end, cols)) ==
+    false
     throw(
       error(
         :kueri_shape,
@@ -737,13 +750,13 @@ def q_values(opts)
       )
     )
   end
-  rows = as_list(get(opts, :rows))
+  rows = as_list(blue::get(opts, :rows))
   n = size(cols)
-  bad = filter(
+  bad = blue::filter(
     fn(r)
       list?(r) == false ||
         size(r) != n ||
-        count_where(fn(v) q_value?(v) == false end, r) > 0
+        count_where(fn(v) value?(v) == false end, r) > 0
     end,
     rows
   )
@@ -770,17 +783,17 @@ end
 # returns. Its dialect is :duckdb unless the author vouches `dialect: :core` —
 # kueri cannot read it, so it cannot prove it portable. opts: name, sql,
 # columns (q_col list), dialect.
-def q_raw(opts)
-  cols = as_list(get(opts, :columns))
+def raw(opts)
+  cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
     throw(
       error(
         :kueri_shape,
-        "raw node #{q_name(get(opts, :name))} declares no columns; the escape hatch must say what it returns"
+        "raw node #{name(blue::get(opts, :name))} declares no columns; the escape hatch must say what it returns"
       )
     )
   end
-  d = get(opts, :dialect)
+  d = blue::get(opts, :dialect)
   if d == nil
     d = :duckdb
   end
@@ -789,16 +802,16 @@ def q_raw(opts)
   end
   {
     kind: :raw,
-    name: q_name(get(opts, :name)),
-    sql: get(opts, :sql),
+    name: name(blue::get(opts, :name)),
+    sql: blue::get(opts, :sql),
     columns: cols,
     dialect: d
   }
 end
 
 # A reference to an upstream source or model. The DAG is these nodes.
-def q_ref(x)
-  k = get(x, :kind)
+def ref(x)
+  k = blue::get(x, :kind)
   if k != :source && k != :model
     throw(error(:kueri_shape, "q_ref takes a source or a model"))
   end
@@ -807,10 +820,10 @@ end
 
 # A relation in from/join position: a source or model is referenced, a ref or
 # raw node is itself.
-def q_rel(x)
-  k = get(x, :kind)
+def rel(x)
+  k = blue::get(x, :kind)
   if k == :source || k == :model
-    q_ref(x)
+    ref(x)
   elsif k == :ref || k == :raw
     x
   else
@@ -818,31 +831,31 @@ def q_rel(x)
   end
 end
 
-def q_rel_name(rel)
-  if get(rel, :kind) == :raw
-    get(rel, :name)
+def rel_name(rel)
+  if blue::get(rel, :kind) == :raw
+    blue::get(rel, :name)
   else
-    get(get(rel, :target), :name)
+    blue::get(blue::get(rel, :target), :name)
   end
 end
 
 # ── posture ────────────────────────────────────────────────────────────────
 
-def q_reach_words()
+def reach_words()
   [:portable, :duckdb]
 end
 
-def q_rigor_words()
+def rigor_words()
   [:loose, :locked]
 end
 
 # The posture a model declares, as {reach, rigor}. Unknown words and two words
 # on one axis are refused where the model is built.
-def q_posture_of(words)
+def posture_of(words)
   ws = as_list(words)
-  bad = filter(
+  bad = blue::filter(
     fn(w)
-      (contains(q_reach_words(), w) || contains(q_rigor_words(), w)) == false
+      (contains(reach_words(), w) || contains(rigor_words(), w)) == false
     end,
     ws
   )
@@ -854,8 +867,8 @@ def q_posture_of(words)
       )
     )
   end
-  reach = filter(fn(w) contains(q_reach_words(), w) end, ws)
-  rigor = filter(fn(w) contains(q_rigor_words(), w) end, ws)
+  reach = blue::filter(fn(w) contains(reach_words(), w) end, ws)
+  rigor = blue::filter(fn(w) contains(rigor_words(), w) end, ws)
   if size(reach) > 1 || size(rigor) > 1
     throw(error(:kueri_shape, "a posture names one reach and one rigor"))
   end
@@ -871,7 +884,7 @@ def q_posture_of(words)
 end
 
 # The dialect a reach allows: :portable holds a model to :core.
-def q_reach_dialect(reach)
+def reach_dialect(reach)
   if reach == :portable
     :core
   else
@@ -884,35 +897,37 @@ end
 # A model is one SELECT with a name. opts: name, from, pipeline, posture,
 # contract (q_col list), materialize (:parquet, :csv, :table or :view;
 # optional).
-def q_model(opts)
-  m = get(opts, :materialize)
+def model(opts)
+  m = blue::get(opts, :materialize)
   if contains([nil, :parquet, :csv, :table, :view], m) == false
     throw(error(:kueri_shape, "materialize is :parquet, :csv, :table or :view"))
   end
-  if get(opts, :from) == nil
+  if blue::get(opts, :from) == nil
     throw(
       error(
         :kueri_shape,
-        "model #{q_name(get(opts, :name))} reads from nothing"
+        "model #{name(blue::get(opts, :name))} reads from nothing"
       )
     )
   end
-  q_known(
+  known(
     {
       kind: :model,
-      name: q_name(get(opts, :name)),
-      from: q_rel(get(opts, :from)),
-      pipeline: as_list(get(opts, :pipeline)),
-      posture: q_posture_of(get(opts, :posture)),
-      contract: as_list(get(opts, :contract)),
+      name: name(blue::get(opts, :name)),
+      from: rel(blue::get(opts, :from)),
+      pipeline: as_list(blue::get(opts, :pipeline)),
+      posture: posture_of(blue::get(opts, :posture)),
+      contract: as_list(blue::get(opts, :contract)),
       materialize: m
     }
   )
 end
 
 # Composition by data: the same model with more stages after its own.
-def q_then(model, stages)
-  q_known(assoc(model, :pipeline, concat_lists(get(model, :pipeline), stages)))
+def then(model, stages)
+  known(
+    assoc(model, :pipeline, concat_lists(blue::get(model, :pipeline), stages))
+  )
 end
 
 # A model with the columns its walk infers stored in it, as :known (nil when
@@ -923,80 +938,82 @@ end
 # `steps` feeds some twenty views). Measured 2026-09-25 over NuPastel's 79
 # generated views: q_check of all of them 1147 → 104 ms, q_output 1162 →
 # 102 ms, and the whole script 2.85 s → 0.47 s with moji's includes fix.
-def q_known(m)
-  assoc(m, :known, get(q_walk(m), :cols))
+def known(m)
+  assoc(m, :known, blue::get(walk(m), :cols))
 end
 
 # A named output: a select item or a group aggregate.
-def q_as(name, expr)
-  {kind: :as, name: q_name(name), expr: q_expr(expr)}
+def as(name, expr)
+  {kind: :as, name: kueri::name(name), expr: kueri::expr(expr)}
 end
 
-def q_agg(name, expr)
-  q_as(name, expr)
+def agg(name, expr)
+  as(name, expr)
 end
 
 # An aggregate over only the rows where `pred` holds, named.
-def q_agg_where(name, agg, pred)
-  q_as(name, q_filtered(agg, pred))
+def agg_where(name, agg, pred)
+  as(name, filtered(agg, pred))
 end
 
-def q_item(i)
+def item(i)
   if keyword?(i) || string?(i)
-    q_as(i, q_c(i))
+    as(i, c(i))
   else
     i
   end
 end
 
 # Keep these columns (keywords) and computed ones (q_as), in this order.
-def q_select(items)
-  {kind: :select, items: map(fn(i) q_item(i) end, items)}
+def select(items)
+  {kind: :select, items: map(fn(i) item(i) end, items)}
 end
 
 # Add one computed column; every row stays.
-def q_derive(name, expr)
-  {kind: :derive, name: q_name(name), expr: q_expr(expr)}
+def derive(name, expr)
+  {kind: :derive, name: kueri::name(name), expr: kueri::expr(expr)}
 end
 
 # One row per element of a list: each row repeats once per element of
 # `list_expr`, the element in the new column `name`, and a row whose list is
 # empty or NULL is dropped (unnest). DuckDB only.
-def q_explode(name, list_expr)
-  {kind: :explode, name: q_name(name), expr: q_expr(list_expr)}
+def explode(name, list_expr)
+  {kind: :explode, name: kueri::name(name), expr: expr(list_expr)}
 end
 
 # Keep the rows where `pred` holds.
+# waive B0013: `filter` is a builtin kueri also uses, so the prefix stays; kueri::filter names it too
 def q_filter(pred)
-  {kind: :filter, pred: q_expr(pred)}
+  {kind: :filter, pred: expr(pred)}
 end
 
 # One row per distinct key; `aggs` are q_agg / q_agg_where outputs.
-def q_group(keys, aggs)
+def group(keys, aggs)
   {
     kind: :group,
-    keys: map(fn(k) q_name(k) end, as_list(keys)),
+    keys: map(fn(k) name(k) end, as_list(keys)),
     aggs: as_list(aggs)
   }
 end
 
 # JOIN … USING (keys): the keys appear once, then the left's other columns,
 # then the right's.
+# waive B0013: `join` is a builtin kueri also uses, so the prefix stays; kueri::join names it too
 def q_join(rel, keys)
   {
     kind: :join,
     how: :inner,
-    rel: q_rel(rel),
-    keys: map(fn(k) q_name(k) end, keys)
+    rel: kueri::rel(rel),
+    keys: map(fn(k) name(k) end, keys)
   }
 end
 
-def q_left_join(rel, keys)
+def left_join(rel, keys)
   {
     kind: :join,
     how: :left,
-    rel: q_rel(rel),
-    keys: map(fn(k) q_name(k) end, keys)
+    rel: kueri::rel(rel),
+    keys: map(fn(k) name(k) end, keys)
   }
 end
 
@@ -1004,106 +1021,106 @@ end
 # row takes the right row whose key is the greatest at or below its own (the
 # right side as of the left row's moment); the other keys match exactly. A
 # left row with no match keeps NULLs. DuckDB only.
-def q_asof_left_join(rel, keys)
+def asof_left_join(rel, keys)
   {
     kind: :join,
     how: :asof_left,
-    rel: q_rel(rel),
-    keys: map(fn(k) q_name(k) end, keys)
+    rel: kueri::rel(rel),
+    keys: map(fn(k) name(k) end, keys)
   }
 end
 
-def q_sort(keys)
-  {kind: :sort, keys: map(fn(k) q_key(k) end, keys)}
+def sort(keys)
+  {kind: :sort, keys: map(fn(k) key(k) end, keys)}
 end
 
-def q_limit(n)
+def limit(n)
   if integer?(n) == false || n < 0
     throw(error(:kueri_shape, "q_limit takes a count of zero or more"))
   end
   {kind: :limit, n: n}
 end
 
-def q_stage_exprs(stage)
-  k = get(stage, :kind)
+def stage_exprs(stage)
+  k = blue::get(stage, :kind)
   if k == :filter
-    [get(stage, :pred)]
+    [blue::get(stage, :pred)]
   elsif k == :derive || k == :explode
-    [get(stage, :expr)]
+    [blue::get(stage, :expr)]
   elsif k == :select
-    map(fn(i) get(i, :expr) end, get(stage, :items))
+    map(fn(i) blue::get(i, :expr) end, blue::get(stage, :items))
   elsif k == :group
-    map(fn(a) get(a, :expr) end, get(stage, :aggs))
+    map(fn(a) blue::get(a, :expr) end, blue::get(stage, :aggs))
   else
     []
   end
 end
 
-def q_label(i, stage)
-  "stage #{to_s(i + 1)} (#{to_s(get(stage, :kind))})"
+def label(i, stage)
+  "stage #{to_s(i + 1)} (#{to_s(blue::get(stage, :kind))})"
 end
 
 # ── walking expressions ────────────────────────────────────────────────────
 
-def q_kids(e)
-  if get(e, :kind) == :agg && get(e, :where) != nil
-    push(as_list(get(e, :args)), get(e, :where))
+def kids(e)
+  if blue::get(e, :kind) == :agg && blue::get(e, :where) != nil
+    push(as_list(blue::get(e, :args)), blue::get(e, :where))
   else
-    as_list(get(e, :args))
+    as_list(blue::get(e, :args))
   end
 end
 
 # Every node of an expression, the root first.
-def q_nodes(e)
-  cons(e, flat_map(fn(c) q_nodes(c) end, q_kids(e)))
+def nodes(e)
+  cons(e, flat_map(fn(c) nodes(c) end, kids(e)))
 end
 
-def q_nodes_of(e, kind)
-  filter(fn(n) get(n, :kind) == kind end, q_nodes(e))
+def nodes_of(e, kind)
+  blue::filter(fn(n) blue::get(n, :kind) == kind end, nodes(e))
 end
 
-def q_node_refs(n)
-  k = get(n, :kind)
+def node_refs(n)
+  k = blue::get(n, :kind)
   if k == :col
-    [get(n, :name)]
+    [blue::get(n, :name)]
   elsif k == :agg
-    q_key_names(get(n, :order))
+    key_names(blue::get(n, :order))
   elsif k == :win
-    concat_lists(get(n, :partition), q_key_names(get(n, :order)))
+    concat_lists(blue::get(n, :partition), key_names(blue::get(n, :order)))
   else
     []
   end
 end
 
 # The column names an expression reads.
-def q_refs(e)
-  unique(flat_map(fn(n) q_node_refs(n) end, q_nodes(e)))
+def refs(e)
+  unique(flat_map(fn(n) node_refs(n) end, nodes(e)))
 end
 
-def q_outside_aggs(e)
-  if get(e, :kind) == :agg
+def outside_aggs(e)
+  if blue::get(e, :kind) == :agg
     []
   else
-    cons(e, flat_map(fn(c) q_outside_aggs(c) end, q_kids(e)))
+    cons(e, flat_map(fn(c) outside_aggs(c) end, kids(e)))
   end
 end
 
 # The column names read OUTSIDE any aggregate — in a group, each must be a key.
-def q_bare_refs(e)
-  unique(flat_map(fn(n) q_node_refs(n) end, q_outside_aggs(e)))
+def bare_refs(e)
+  unique(flat_map(fn(n) node_refs(n) end, outside_aggs(e)))
 end
 
-def q_has?(e, kind)
-  is_empty(q_nodes_of(e, kind)) == false
+def has?(e, kind)
+  is_empty(nodes_of(e, kind)) == false
 end
 
-def q_nested_agg?(e)
+def nested_agg?(e)
   is_empty(
-    filter(
+    blue::filter(
       fn(a)
-        is_empty(flat_map(fn(c) q_nodes_of(c, :agg) end, q_kids(a))) == false
+        is_empty(flat_map(fn(c) nodes_of(c, :agg) end, kids(a))) == false
       end,
-      q_nodes_of(e, :agg)
+      nodes_of(e, :agg)
     )
   ) ==
     false
@@ -1111,19 +1128,19 @@ end
 
 # ── refusals ───────────────────────────────────────────────────────────────
 
-def q_refusal_kind(r)
+def refusal_kind(r)
   first(r)
 end
 
-def q_refusal_why(r)
+def refusal_why(r)
   last(r)
 end
 
-def q_refusal_kinds(model)
-  map(fn(r) q_refusal_kind(r) end, q_refusals(model))
+def refusal_kinds(model)
+  map(fn(r) refusal_kind(r) end, refusals(model))
 end
 
-def q_unknown_refusals(names, cols, where)
+def unknown_refusals(names, cols, where)
   if cols == nil
     []
   else
@@ -1134,21 +1151,21 @@ def q_unknown_refusals(names, cols, where)
       [
         [
           :kueri_shape,
-          "#{where}: unknown column #{join(missing, ", ")}; the input has #{join(cols, ", ")}"
+          "#{where}: unknown column #{blue::join(missing, ", ")}; the input has #{blue::join(cols, ", ")}"
         ]
       ]
     end
   end
 end
 
-def q_dup_refusals(names, where)
+def dup_refusals(names, where)
   if size(unique(names)) == size(names)
     []
   else
     [
       [
         :kueri_shape,
-        "#{where}: an output name repeats among #{join(names, ", ")}"
+        "#{where}: an output name repeats among #{blue::join(names, ", ")}"
       ]
     ]
   end
@@ -1156,8 +1173,8 @@ end
 
 # What no expression may hold outside a group: an aggregate. And the order
 # rules every stage shares.
-def q_expr_refusals(e, where, aggs_allowed, windows_allowed)
-  a = if aggs_allowed == false && q_has?(e, :agg)
+def expr_refusals(e, where, aggs_allowed, windows_allowed)
+  a = if aggs_allowed == false && has?(e, :agg)
     [
       [
         :kueri_shape,
@@ -1167,7 +1184,7 @@ def q_expr_refusals(e, where, aggs_allowed, windows_allowed)
   else
     []
   end
-  w = if windows_allowed == false && q_has?(e, :win)
+  w = if windows_allowed == false && has?(e, :win)
     [
       [
         :kueri_shape,
@@ -1177,18 +1194,18 @@ def q_expr_refusals(e, where, aggs_allowed, windows_allowed)
   else
     []
   end
-  wasted = filter(
+  wasted = blue::filter(
     fn(n)
-      is_empty(get(n, :order)) == false &&
-        contains(q_order_sensitive_fns(), get(n, :fn)) == false
+      is_empty(blue::get(n, :order)) == false &&
+        contains(order_sensitive_fns(), blue::get(n, :fn)) == false
     end,
-    concat_lists(q_nodes_of(e, :agg), q_nodes_of(e, :win))
+    concat_lists(nodes_of(e, :agg), nodes_of(e, :win))
   )
   o = map(
     fn(n)
       [
         :kueri_shape,
-        "#{where}: an order on #{get(n, :fn)} changes nothing; only #{join(q_order_sensitive_fns(), " and ")} read one"
+        "#{where}: an order on #{blue::get(n, :fn)} changes nothing; only #{blue::join(order_sensitive_fns(), " and ")} read one"
       ]
     end,
     wasted
@@ -1196,10 +1213,10 @@ def q_expr_refusals(e, where, aggs_allowed, windows_allowed)
   concat_lists(a, concat_lists(w, o))
 end
 
-def q_group_item_refusals(item, keys, where)
-  e = get(item, :expr)
-  n = get(item, :name)
-  none = if q_has?(e, :agg)
+def group_item_refusals(item, keys, where)
+  e = blue::get(item, :expr)
+  n = blue::get(item, :name)
+  none = if has?(e, :agg)
     []
   else
     [
@@ -1209,19 +1226,19 @@ def q_group_item_refusals(item, keys, where)
       ]
     ]
   end
-  nested = if q_nested_agg?(e)
+  nested = if nested_agg?(e)
     [[:kueri_shape, "#{where}: #{n} nests an aggregate inside an aggregate"]]
   else
     []
   end
-  loose = as_list(difference(q_bare_refs(e), keys))
+  loose = as_list(difference(bare_refs(e), keys))
   outside = if is_empty(loose)
     []
   else
     [
       [
         :kueri_shape,
-        "#{where}: #{n} reads #{join(loose, ", ")} outside an aggregate, and it is not a key"
+        "#{where}: #{n} reads #{blue::join(loose, ", ")} outside an aggregate, and it is not a key"
       ]
     ]
   end
@@ -1229,79 +1246,92 @@ def q_group_item_refusals(item, keys, where)
     none,
     concat_lists(
       nested,
-      concat_lists(outside, q_expr_refusals(e, where, true, false))
+      concat_lists(outside, expr_refusals(e, where, true, false))
     )
   )
 end
 
-def q_stage_refusals(stage, cols, where, next_kind)
-  k = get(stage, :kind)
+def stage_refusals(stage, cols, where, next_kind)
+  k = blue::get(stage, :kind)
   if k == :filter
-    e = get(stage, :pred)
+    e = blue::get(stage, :pred)
     concat_lists(
-      q_expr_refusals(e, where, false, false),
-      q_unknown_refusals(q_refs(e), cols, where)
+      expr_refusals(e, where, false, false),
+      unknown_refusals(refs(e), cols, where)
     )
   elsif k == :derive
-    e = get(stage, :expr)
-    dup = if cols != nil && contains(cols, get(stage, :name))
-      [[:kueri_shape, "#{where}: #{get(stage, :name)} is already a column"]]
+    e = blue::get(stage, :expr)
+    dup = if cols != nil && contains(cols, blue::get(stage, :name))
+      [
+        [
+          :kueri_shape,
+          "#{where}: #{blue::get(stage, :name)} is already a column"
+        ]
+      ]
     else
       []
     end
     concat_lists(
       dup,
       concat_lists(
-        q_expr_refusals(e, where, false, true),
-        q_unknown_refusals(q_refs(e), cols, where)
+        expr_refusals(e, where, false, true),
+        unknown_refusals(refs(e), cols, where)
       )
     )
   elsif k == :explode
-    e = get(stage, :expr)
-    dup = if cols != nil && contains(cols, get(stage, :name))
-      [[:kueri_shape, "#{where}: #{get(stage, :name)} is already a column"]]
+    e = blue::get(stage, :expr)
+    dup = if cols != nil && contains(cols, blue::get(stage, :name))
+      [
+        [
+          :kueri_shape,
+          "#{where}: #{blue::get(stage, :name)} is already a column"
+        ]
+      ]
     else
       []
     end
     concat_lists(
       dup,
       concat_lists(
-        q_expr_refusals(e, where, false, false),
-        q_unknown_refusals(q_refs(e), cols, where)
+        expr_refusals(e, where, false, false),
+        unknown_refusals(refs(e), cols, where)
       )
     )
   elsif k == :select
-    items = get(stage, :items)
+    items = blue::get(stage, :items)
     per = flat_map(
       fn(i)
         concat_lists(
-          q_expr_refusals(get(i, :expr), where, false, false),
-          q_unknown_refusals(q_refs(get(i, :expr)), cols, where)
+          expr_refusals(blue::get(i, :expr), where, false, false),
+          unknown_refusals(refs(blue::get(i, :expr)), cols, where)
         )
       end,
       items
     )
     concat_lists(
       per,
-      q_dup_refusals(map(fn(i) get(i, :name) end, items), where)
+      dup_refusals(map(fn(i) blue::get(i, :name) end, items), where)
     )
   elsif k == :group
-    keys = get(stage, :keys)
-    aggs = get(stage, :aggs)
+    keys = blue::get(stage, :keys)
+    aggs = blue::get(stage, :aggs)
     empty = if is_empty(keys) && is_empty(aggs)
       [[:kueri_shape, "#{where}: a group with no keys and no aggregates"]]
     else
       []
     end
-    reads = concat_lists(keys, flat_map(fn(a) q_refs(get(a, :expr)) end, aggs))
-    per = flat_map(fn(a) q_group_item_refusals(a, keys, where) end, aggs)
+    reads = concat_lists(
+      keys,
+      flat_map(fn(a) refs(blue::get(a, :expr)) end, aggs)
+    )
+    per = flat_map(fn(a) group_item_refusals(a, keys, where) end, aggs)
     concat_lists(
       empty,
       concat_lists(
-        q_unknown_refusals(reads, cols, where),
+        unknown_refusals(reads, cols, where),
         concat_lists(
-          q_dup_refusals(
-            concat_lists(keys, map(fn(a) get(a, :name) end, aggs)),
+          dup_refusals(
+            concat_lists(keys, map(fn(a) blue::get(a, :name) end, aggs)),
             where
           ),
           per
@@ -1309,7 +1339,7 @@ def q_stage_refusals(stage, cols, where, next_kind)
       )
     )
   elsif k == :join
-    q_join_refusals(stage, cols, where)
+    join_refusals(stage, cols, where)
   elsif k == :sort
     discarded = if next_kind != nil && next_kind != :limit
       [
@@ -1323,23 +1353,23 @@ def q_stage_refusals(stage, cols, where, next_kind)
     end
     concat_lists(
       discarded,
-      q_unknown_refusals(q_key_names(get(stage, :keys)), cols, where)
+      unknown_refusals(key_names(blue::get(stage, :keys)), cols, where)
     )
   else
     []
   end
 end
 
-def q_join_refusals(stage, cols, where)
-  keys = get(stage, :keys)
-  rc = q_rel_columns(get(stage, :rel))
+def join_refusals(stage, cols, where)
+  keys = blue::get(stage, :keys)
+  rc = rel_columns(blue::get(stage, :rel))
   none = if is_empty(keys)
     [[:kueri_shape, "#{where}: a join needs at least one USING key"]]
   else
     []
   end
-  left = q_unknown_refusals(keys, cols, where)
-  right = q_unknown_refusals(keys, rc, "#{where} (right side)")
+  left = unknown_refusals(keys, cols, where)
+  right = unknown_refusals(keys, rc, "#{where} (right side)")
   both = if cols == nil || rc == nil
     []
   else
@@ -1351,7 +1381,7 @@ def q_join_refusals(stage, cols, where)
     [
       [
         :kueri_shape,
-        "#{where}: #{join(both, ", ")} on both sides of the join; rename it or make it a key"
+        "#{where}: #{blue::join(both, ", ")} on both sides of the join; rename it or make it a key"
       ]
     ]
   end
@@ -1359,27 +1389,27 @@ def q_join_refusals(stage, cols, where)
 end
 
 # The columns a stage returns, or nil when its input's are unknown.
-def q_stage_output(stage, cols)
-  k = get(stage, :kind)
+def stage_output(stage, cols)
+  k = blue::get(stage, :kind)
   if k == :derive || k == :explode
     if cols == nil
       nil
     else
-      push(cols, get(stage, :name))
+      push(cols, blue::get(stage, :name))
     end
   elsif k == :select
-    map(fn(i) get(i, :name) end, get(stage, :items))
+    map(fn(i) blue::get(i, :name) end, blue::get(stage, :items))
   elsif k == :group
     concat_lists(
-      get(stage, :keys),
-      map(fn(a) get(a, :name) end, get(stage, :aggs))
+      blue::get(stage, :keys),
+      map(fn(a) blue::get(a, :name) end, blue::get(stage, :aggs))
     )
   elsif k == :join
-    rc = q_rel_columns(get(stage, :rel))
+    rc = rel_columns(blue::get(stage, :rel))
     if cols == nil || rc == nil
       nil
     else
-      keys = get(stage, :keys)
+      keys = blue::get(stage, :keys)
       concat_lists(
         keys,
         concat_lists(
@@ -1393,90 +1423,93 @@ def q_stage_output(stage, cols)
   end
 end
 
-def q_next_kind(stages, i)
+def next_kind(stages, i)
   if i + 1 < size(stages)
-    get(nth(i + 1, stages), :kind)
+    blue::get(nth(i + 1, stages), :kind)
   else
     nil
   end
 end
 
 # Thread the schema through the pipeline: {cols, refusals}.
-def q_walk(model)
-  stages = get(model, :pipeline)
-  start = {cols: q_rel_columns(get(model, :from)), refusals: []}
+def walk(model)
+  stages = blue::get(model, :pipeline)
+  start = {cols: rel_columns(blue::get(model, :from)), refusals: []}
   reduce(
     fn(acc, ix)
-      q_walk_stage(acc, first(ix), last(ix), q_next_kind(stages, first(ix)))
+      walk_stage(acc, first(ix), last(ix), next_kind(stages, first(ix)))
     end,
     start,
     enumerate(stages)
   )
 end
 
-def q_walk_stage(acc, i, stage, next_kind)
-  cols = get(acc, :cols)
-  found = q_stage_refusals(stage, cols, q_label(i, stage), next_kind)
+def walk_stage(acc, i, stage, next_kind)
+  cols = blue::get(acc, :cols)
+  found = stage_refusals(stage, cols, label(i, stage), next_kind)
   {
-    cols: q_stage_output(stage, cols),
-    refusals: concat_lists(get(acc, :refusals), found)
+    cols: stage_output(stage, cols),
+    refusals: concat_lists(blue::get(acc, :refusals), found)
   }
 end
 
 # The column names a model returns, inferred through its pipeline; nil when an
 # upstream's columns are unknown.
-def q_output(model)
-  get(q_walk(model), :cols)
+def output(model)
+  blue::get(walk(model), :cols)
 end
 
 # What a downstream model sees: the contract when declared, the inference
 # otherwise.
-def q_model_columns(model)
-  cn = q_col_names(get(model, :contract))
+def model_columns(model)
+  cn = col_names(blue::get(model, :contract))
   if is_empty(cn) == false
     cn
-  elsif get(model, :known) != nil
-    get(model, :known)
+  elsif blue::get(model, :known) != nil
+    blue::get(model, :known)
   else
-    q_output(model)
+    output(model)
   end
 end
 
-def q_rel_columns(rel)
-  if get(rel, :kind) == :raw
-    q_col_names(get(rel, :columns))
+def rel_columns(rel)
+  if blue::get(rel, :kind) == :raw
+    col_names(blue::get(rel, :columns))
   else
-    t = get(rel, :target)
-    if get(t, :kind) == :source
-      q_col_names(get(t, :columns))
+    t = blue::get(rel, :target)
+    if blue::get(t, :kind) == :source
+      col_names(blue::get(t, :columns))
     else
-      q_model_columns(t)
+      model_columns(t)
     end
   end
 end
 
 # Constructs with no core form, as [what, where].
-def q_duckdb_uses(model)
-  from_uses = q_rel_uses(get(model, :from), "the from relation")
+def duckdb_uses(model)
+  from_uses = rel_uses(blue::get(model, :from), "the from relation")
   stage_uses = flat_map(
-    fn(ix) q_stage_uses(last(ix), q_label(first(ix), last(ix))) end,
-    enumerate(get(model, :pipeline))
+    fn(ix) kueri::stage_uses(last(ix), label(first(ix), last(ix))) end,
+    enumerate(blue::get(model, :pipeline))
   )
   concat_lists(from_uses, stage_uses)
 end
 
-def q_stage_uses(stage, where)
-  nodes = flat_map(fn(e) q_nodes(e) end, q_stage_exprs(stage))
-  only = filter(fn(n) q_duckdb_node?(n) end, nodes)
-  uses = map(fn(n) [q_node_label(n), where] end, only)
-  k = get(stage, :kind)
+def stage_uses(stage, where)
+  nodes = flat_map(fn(e) kueri::nodes(e) end, stage_exprs(stage))
+  only = blue::filter(fn(n) duckdb_node?(n) end, nodes)
+  uses = map(fn(n) [node_label(n), where] end, only)
+  k = blue::get(stage, :kind)
   if k == :join
-    asof = if get(stage, :how) == :asof_left
+    asof = if blue::get(stage, :how) == :asof_left
       [["an asof join", where]]
     else
       []
     end
-    concat_lists(uses, concat_lists(asof, q_rel_uses(get(stage, :rel), where)))
+    concat_lists(
+      uses,
+      concat_lists(asof, rel_uses(blue::get(stage, :rel), where))
+    )
   elsif k == :explode
     push(uses, ["unnest", where])
   else
@@ -1486,62 +1519,62 @@ end
 
 # An expression node with no core form: a DuckDB-only aggregate, or a struct
 # field.
-def q_duckdb_node?(n)
-  k = get(n, :kind)
-  k == :field || k == :agg && contains(q_duckdb_only_fns(), get(n, :fn))
+def duckdb_node?(n)
+  k = blue::get(n, :kind)
+  k == :field || k == :agg && contains(duckdb_only_fns(), blue::get(n, :fn))
 end
 
-def q_node_label(n)
-  if get(n, :kind) == :field
-    "struct field #{get(n, :name)}"
+def node_label(n)
+  if blue::get(n, :kind) == :field
+    "struct field #{blue::get(n, :name)}"
   else
-    get(n, :fn)
+    blue::get(n, :fn)
   end
 end
 
-def q_rel_uses(rel, where)
-  if get(rel, :kind) == :raw && get(rel, :dialect) == :duckdb
-    [["raw node #{get(rel, :name)}", where]]
+def rel_uses(rel, where)
+  if blue::get(rel, :kind) == :raw && blue::get(rel, :dialect) == :duckdb
+    [["raw node #{blue::get(rel, :name)}", where]]
   else
     []
   end
 end
 
-def q_reach_refusals(model)
-  reach = get(get(model, :posture), :reach)
-  if q_reach_dialect(reach) == :duckdb
+def reach_refusals(model)
+  reach = blue::get(blue::get(model, :posture), :reach)
+  if reach_dialect(reach) == :duckdb
     []
   else
     map(
       fn(u)
         [
           :kueri_reach,
-          "model #{get(model, :name)} is held at :#{to_s(reach)}, but #{first(u)} at #{last(u)} has no core form (its floor is :duckdb)"
+          "model #{blue::get(model, :name)} is held at :#{to_s(reach)}, but #{first(u)} at #{last(u)} has no core form (its floor is :duckdb)"
         ]
       end,
-      q_duckdb_uses(model)
+      duckdb_uses(model)
     )
   end
 end
 
-def q_contract_refusals(model, out)
-  cn = q_col_names(get(model, :contract))
+def contract_refusals(model, out)
+  cn = col_names(blue::get(model, :contract))
   if is_empty(cn) || out == nil || equal_lists(cn, out)
     []
   else
     [
       [
         :kueri_contract,
-        "model #{get(model, :name)} declares #{join(cn, ", ")} but returns #{join(out, ", ")}"
+        "model #{blue::get(model, :name)} declares #{blue::join(cn, ", ")} but returns #{blue::join(out, ", ")}"
       ]
     ]
   end
 end
 
-def q_locked_refusals(model, out)
-  name = get(model, :name)
-  stages = get(model, :pipeline)
-  contract = if is_empty(get(model, :contract))
+def locked_refusals(model, out)
+  name = blue::get(model, :name)
+  stages = blue::get(model, :pipeline)
+  contract = if is_empty(blue::get(model, :contract))
     [
       [
         :kueri_locked,
@@ -1564,66 +1597,66 @@ def q_locked_refusals(model, out)
         fn(n)
           [
             :kueri_locked,
-            "#{q_label(first(ix), last(ix))}: #{get(n, :fn)} with no order is not deterministic; give it one with q_ordered"
+            "#{label(first(ix), last(ix))}: #{blue::get(n, :fn)} with no order is not deterministic; give it one with q_ordered"
           ]
         end,
-        filter(
+        blue::filter(
           fn(n)
-            contains(q_order_sensitive_fns(), get(n, :fn)) &&
-              is_empty(get(n, :order))
+            contains(order_sensitive_fns(), blue::get(n, :fn)) &&
+              is_empty(blue::get(n, :order))
           end,
-          flat_map(fn(e) q_nodes(e) end, q_stage_exprs(last(ix)))
+          flat_map(fn(e) nodes(e) end, stage_exprs(last(ix)))
         )
       )
     end,
     enumerate(stages)
   )
   limits = flat_map(
-    fn(ix) q_locked_limit(stages, first(ix), last(ix)) end,
+    fn(ix) locked_limit(stages, first(ix), last(ix)) end,
     enumerate(stages)
   )
   concat_lists(contract, concat_lists(unordered, limits))
 end
 
-def q_locked_limit(stages, i, stage)
-  if get(stage, :kind) != :limit
+def locked_limit(stages, i, stage)
+  if blue::get(stage, :kind) != :limit
     []
-  elsif i > 0 && get(nth(i - 1, stages), :kind) == :sort
+  elsif i > 0 && blue::get(nth(i - 1, stages), :kind) == :sort
     []
   else
     [
       [
         :kueri_locked,
-        "#{q_label(i, stage)}: a limit with no sort right before it keeps arbitrary rows"
+        "#{label(i, stage)}: a limit with no sort right before it keeps arbitrary rows"
       ]
     ]
   end
 end
 
 # Every violation, as data: [kind, why]. Empty when the model holds.
-def q_refusals(model)
-  walked = q_walk(model)
-  out = get(walked, :cols)
-  rigor = if get(get(model, :posture), :rigor) == :locked
-    q_locked_refusals(model, out)
+def refusals(model)
+  walked = walk(model)
+  out = blue::get(walked, :cols)
+  rigor = if blue::get(blue::get(model, :posture), :rigor) == :locked
+    locked_refusals(model, out)
   else
     []
   end
   concat_lists(
-    get(walked, :refusals),
+    blue::get(walked, :refusals),
     concat_lists(
-      q_reach_refusals(model),
-      concat_lists(q_contract_refusals(model, out), rigor)
+      reach_refusals(model),
+      concat_lists(contract_refusals(model, out), rigor)
     )
   )
 end
 
-def q_refuse(refusals)
+def refuse(refusals)
   if is_empty(refusals) == false
     throw(
       error(
-        q_refusal_kind(first(refusals)),
-        join(map(fn(r) q_refusal_why(r) end, refusals), "; ")
+        refusal_kind(first(refusals)),
+        blue::join(map(fn(r) refusal_why(r) end, refusals), "; ")
       )
     )
   end
@@ -1631,12 +1664,12 @@ def q_refuse(refusals)
 end
 
 # The model, or a thrown error naming every violation (its kind is the first's).
-def q_check(model)
-  q_refuse(q_refusals(model))
+def check(model)
+  refuse(refusals(model))
   model
 end
 
-def q_dialect_refusals(model, dialect)
+def dialect_refusals(model, dialect)
   if dialect == :duckdb
     []
   else
@@ -1644,18 +1677,18 @@ def q_dialect_refusals(model, dialect)
       fn(u)
         [
           :kueri_dialect,
-          "#{first(u)} at #{last(u)} has no core form; render model #{get(model, :name)} with :duckdb"
+          "#{first(u)} at #{last(u)} has no core form; render model #{blue::get(model, :name)} with :duckdb"
         ]
       end,
-      q_duckdb_uses(model)
+      duckdb_uses(model)
     )
   end
 end
 
 # blue shift's two questions for a model: the lowest reach that holds it, and
 # what holds it there.
-def q_shift(model)
-  uses = q_duckdb_uses(model)
+def shift(model)
+  uses = duckdb_uses(model)
   needs = if is_empty(uses)
     :portable
   else
@@ -1680,7 +1713,7 @@ end
 # evaluation order, not a rule this renderer should lean on. A filter that
 # does not read the element still moves before the unnest, which is exact.
 
-def q_block(from)
+def block(from)
   {
     from: from,
     joins: [],
@@ -1701,22 +1734,22 @@ def q_block(from)
   }
 end
 
-def q_derived_names(b)
-  map(fn(d) get(d, :name) end, get(b, :derives))
+def derived_names(b)
+  map(fn(d) blue::get(d, :name) end, blue::get(b, :derives))
 end
 
-def q_fits?(b, stage, dialect)
-  k = get(stage, :kind)
-  p = get(b, :phase)
+def fits?(b, stage, dialect)
+  k = blue::get(stage, :kind)
+  p = blue::get(b, :phase)
   if k == :join
     p <= 2
   elsif k == :filter
     if p <= 4
       true
-    elsif q_pushable?(b, stage)
+    elsif pushable?(b, stage)
       true
     else
-      p <= 6 && get(b, :window) && dialect == :duckdb
+      p <= 6 && blue::get(b, :window) && dialect == :duckdb
     end
   elsif k == :group
     p <= 2
@@ -1725,11 +1758,12 @@ def q_fits?(b, stage, dialect)
       true
     else
       p == 5 &&
-        get(b, :items) == nil &&
+        blue::get(b, :items) == nil &&
         is_empty(
-          as_list(intersection(q_refs(get(stage, :expr)), q_derived_names(b)))
+          as_list(intersection(refs(blue::get(stage, :expr)), derived_names(b)))
         ) &&
-        (get(b, :exploded) && q_has?(get(stage, :expr), :win)) == false
+        (blue::get(b, :exploded) && has?(blue::get(stage, :expr), :win)) ==
+          false
     end
   elsif k == :explode
     p <= 2
@@ -1742,144 +1776,157 @@ def q_fits?(b, stage, dialect)
   end
 end
 
-def q_set(b, key, value, phase)
+def set(b, key, value, phase)
   assoc(assoc(b, key, value), :phase, phase)
 end
 
 # A filter that can join the WHERE of a block whose select list holds only
 # row-wise derives it does not read.
-def q_pushable?(b, stage)
-  get(b, :phase) == 5 &&
-    get(b, :items) == nil &&
-    get(b, :grouped) == false &&
-    get(b, :window) == false &&
+def pushable?(b, stage)
+  blue::get(b, :phase) == 5 &&
+    blue::get(b, :items) == nil &&
+    blue::get(b, :grouped) == false &&
+    blue::get(b, :window) == false &&
     is_empty(
-      as_list(intersection(q_refs(get(stage, :pred)), q_derived_names(b)))
+      as_list(intersection(refs(blue::get(stage, :pred)), derived_names(b)))
     )
 end
 
 # A filter after a group reads the aggregates by name; HAVING needs them
 # spelled out.
-def q_subst(e, items)
-  k = get(e, :kind)
+def subst(e, items)
+  k = blue::get(e, :kind)
   if k == :col
-    hit = find_first(fn(i) get(i, :name) == get(e, :name) end, items)
+    hit = find_first(
+      fn(i) blue::get(i, :name) == blue::get(e, :name) end,
+      items
+    )
     if hit == nil
       e
     else
-      get(hit, :expr)
+      blue::get(hit, :expr)
     end
   elsif k == :agg || k == :win || k == :lit
     e
   else
-    assoc(e, :args, map(fn(a) q_subst(a, items) end, get(e, :args)))
+    assoc(e, :args, map(fn(a) subst(a, items) end, blue::get(e, :args)))
   end
 end
 
-def q_into(b, stage, _dialect)
-  k = get(stage, :kind)
-  p = get(b, :phase)
+def into(b, stage, _dialect)
+  k = blue::get(stage, :kind)
+  p = blue::get(b, :phase)
   if k == :join
-    q_set(b, :joins, push(get(b, :joins), stage), max(p, 1))
+    set(b, :joins, push(blue::get(b, :joins), stage), kazu::max(p, 1))
   elsif k == :filter
     if p <= 2
-      q_set(b, :where, push(get(b, :where), get(stage, :pred)), 2)
-    elsif q_pushable?(b, stage)
-      assoc(b, :where, push(get(b, :where), get(stage, :pred)))
+      set(b, :where, push(blue::get(b, :where), blue::get(stage, :pred)), 2)
+    elsif pushable?(b, stage)
+      assoc(b, :where, push(blue::get(b, :where), blue::get(stage, :pred)))
     elsif p <= 4
-      q_set(
+      set(
         b,
         :having,
-        push(get(b, :having), q_subst(get(stage, :pred), get(b, :aggs))),
+        push(
+          blue::get(b, :having),
+          subst(blue::get(stage, :pred), blue::get(b, :aggs))
+        ),
         4
       )
     else
-      q_set(b, :qualify, push(get(b, :qualify), get(stage, :pred)), 6)
+      set(b, :qualify, push(blue::get(b, :qualify), blue::get(stage, :pred)), 6)
     end
   elsif k == :group
-    q_set(
-      assoc(assoc(b, :grouped, true), :keys, get(stage, :keys)),
+    set(
+      assoc(assoc(b, :grouped, true), :keys, blue::get(stage, :keys)),
       :aggs,
-      get(stage, :aggs),
+      blue::get(stage, :aggs),
       3
     )
   elsif k == :derive
-    d = q_as(get(stage, :name), get(stage, :expr))
-    q_set(
-      assoc(b, :window, get(b, :window) || q_has?(get(stage, :expr), :win)),
+    d = as(blue::get(stage, :name), blue::get(stage, :expr))
+    set(
+      assoc(
+        b,
+        :window,
+        blue::get(b, :window) || has?(blue::get(stage, :expr), :win)
+      ),
       :derives,
-      push(get(b, :derives), d),
+      push(blue::get(b, :derives), d),
       5
     )
   elsif k == :explode
-    d = q_as(get(stage, :name), {kind: :unnest, args: [get(stage, :expr)]})
-    q_set(assoc(b, :exploded, true), :derives, push(get(b, :derives), d), 5)
+    d = as(
+      blue::get(stage, :name),
+      {kind: :unnest, args: [blue::get(stage, :expr)]}
+    )
+    set(assoc(b, :exploded, true), :derives, push(blue::get(b, :derives), d), 5)
   elsif k == :select
-    q_set(b, :items, get(stage, :items), 5)
+    set(b, :items, blue::get(stage, :items), 5)
   elsif k == :sort
-    q_set(b, :order, get(stage, :keys), 7)
+    set(b, :order, blue::get(stage, :keys), 7)
   else
-    q_set(b, :limit, get(stage, :n), 8)
+    set(b, :limit, blue::get(stage, :n), 8)
   end
 end
 
-def q_lower_stage(acc, stage, dialect)
-  b = get(acc, :cur)
-  if q_fits?(b, stage, dialect)
-    assoc(acc, :cur, q_into(b, stage, dialect))
+def lower_stage(acc, stage, dialect)
+  b = blue::get(acc, :cur)
+  if fits?(b, stage, dialect)
+    assoc(acc, :cur, into(b, stage, dialect))
   else
-    name = "step_#{to_s(size(get(acc, :done)) + 1)}"
+    name = "step_#{to_s(size(blue::get(acc, :done)) + 1)}"
     {
-      done: push(get(acc, :done), [name, b]),
-      cur: q_into(q_block(name), stage, dialect)
+      done: push(blue::get(acc, :done), [name, b]),
+      cur: into(block(name), stage, dialect)
     }
   end
 end
 
 # The pipeline as closed CTE blocks ([name, block] pairs) and a final block.
-def q_lower(model, dialect)
-  start = {done: [], cur: q_block(q_rel_name(get(model, :from)))}
+def lower(model, dialect)
+  start = {done: [], cur: block(rel_name(blue::get(model, :from)))}
   reduce(
-    fn(acc, s) q_lower_stage(acc, s, dialect) end,
+    fn(acc, s) lower_stage(acc, s, dialect) end,
     start,
-    get(model, :pipeline)
+    blue::get(model, :pipeline)
   )
 end
 
 # A locked model's output order is made total: its own keys, then every other
 # contract column. In DuckDB, when that is exactly the column order, it is
 # ORDER BY ALL.
-def q_lock_order(model, b, dialect)
-  if get(get(model, :posture), :rigor) != :locked
+def lock_order(model, b, dialect)
+  if blue::get(blue::get(model, :posture), :rigor) != :locked
     b
   else
-    keys = get(b, :order)
-    have = q_key_names(keys)
+    keys = blue::get(b, :order)
+    have = key_names(keys)
     extra = map(
-      fn(n) q_key(n) end,
-      filter(
+      fn(n) key(n) end,
+      blue::filter(
         fn(n) contains(have, n) == false end,
-        q_col_names(get(model, :contract))
+        col_names(blue::get(model, :contract))
       )
     )
     total = concat_lists(keys, extra)
-    all_asc = is_empty(filter(fn(k) get(k, :desc) end, total))
+    all_asc = is_empty(blue::filter(fn(k) blue::get(k, :desc) end, total))
     assoc(
       assoc(b, :order, total),
       :order_all,
       dialect == :duckdb &&
         all_asc &&
-        equal_lists(q_key_names(total), q_col_names(get(model, :contract)))
+        equal_lists(key_names(total), col_names(blue::get(model, :contract)))
     )
   end
 end
 
 # ── rendering ──────────────────────────────────────────────────────────────
 
-def q_prec(e)
-  k = get(e, :kind)
+def prec(e)
+  k = blue::get(e, :kind)
   if k == :op
-    get(e, :prec)
+    blue::get(e, :prec)
   elsif k == :not
     3
   elsif k == :postfix
@@ -1892,9 +1939,9 @@ end
 # A child in operator position. Lower precedence is parenthesized; so is equal
 # precedence on the right (the tree's grouping is kept exactly, which matters
 # for float arithmetic) and on either side of a comparison.
-def q_operand(child, parent_prec, tie_wraps, dialect)
-  s = q_render_expr(child, dialect)
-  cp = q_prec(child)
+def operand(child, parent_prec, tie_wraps, dialect)
+  s = render_expr(child, dialect)
+  cp = prec(child)
   if cp < parent_prec || tie_wraps && cp == parent_prec
     "(#{s})"
   else
@@ -1902,19 +1949,19 @@ def q_operand(child, parent_prec, tie_wraps, dialect)
   end
 end
 
-def q_render_lit(e, dialect)
-  t = get(e, :type)
-  v = get(e, :value)
+def render_lit(e, dialect)
+  t = blue::get(e, :type)
+  v = blue::get(e, :value)
   if t == :int
     to_s(v)
   elsif t == :double
     if dialect == :duckdb
-      "#{q_float_text(v)}::DOUBLE"
+      "#{float_text(v)}::DOUBLE"
     else
-      "CAST(#{q_float_text(v)} AS DOUBLE PRECISION)"
+      "CAST(#{float_text(v)} AS DOUBLE PRECISION)"
     end
   elsif t == :str
-    q_quote_str(v)
+    quote_str(v)
   elsif t == :bool
     if v
       "TRUE"
@@ -1926,105 +1973,107 @@ def q_render_lit(e, dialect)
   end
 end
 
-def q_render_key(k)
-  if get(k, :desc)
-    "#{q_ident(get(k, :name))} DESC"
+def render_key(k)
+  if blue::get(k, :desc)
+    "#{ident(blue::get(k, :name))} DESC"
   else
-    q_ident(get(k, :name))
+    ident(blue::get(k, :name))
   end
 end
 
-def q_order_suffix(keys)
+def order_suffix(keys)
   if is_empty(keys)
     ""
   else
-    " ORDER BY #{join(map(fn(k) q_render_key(k) end, keys), ", ")}"
+    " ORDER BY #{blue::join(map(fn(k) render_key(k) end, keys), ", ")}"
   end
 end
 
 # An aggregate. The FILTER-where form is DuckDB's; core moves the predicate
 # into a CASE inside the aggregate, which every mainstream engine reads.
-def q_render_agg(e, dialect)
-  f = get(e, :fn)
-  if contains(q_duckdb_only_fns(), f) && dialect != :duckdb
+def render_agg(e, dialect)
+  f = blue::get(e, :fn)
+  if contains(duckdb_only_fns(), f) && dialect != :duckdb
     throw(
       error(:kueri_dialect, "#{f} has no core form; render it with :duckdb")
     )
   end
-  args = get(e, :args)
-  pred = get(e, :where)
-  order = q_order_suffix(get(e, :order))
+  args = blue::get(e, :args)
+  pred = blue::get(e, :where)
+  order = order_suffix(blue::get(e, :order))
   shown = if is_empty(args)
     "*"
   else
-    join(map(fn(a) q_render_expr(a, dialect) end, args), ", ")
+    blue::join(map(fn(a) render_expr(a, dialect) end, args), ", ")
   end
   if pred == nil
     "#{f}(#{shown}#{order})"
   elsif dialect == :duckdb
-    "#{f}(#{shown}#{order}) FILTER (WHERE #{q_render_expr(pred, dialect)})"
+    "#{f}(#{shown}#{order}) FILTER (WHERE #{render_expr(pred, dialect)})"
   else
     inner = if is_empty(args)
       "1"
     else
-      q_render_expr(first(args), dialect)
+      render_expr(first(args), dialect)
     end
-    "#{f}(CASE WHEN #{q_render_expr(pred, dialect)} THEN #{inner} END#{order})"
+    "#{f}(CASE WHEN #{render_expr(pred, dialect)} THEN #{inner} END#{order})"
   end
 end
 
-def q_render_win(e, dialect)
-  part = if is_empty(get(e, :partition))
+def render_win(e, dialect)
+  part = if is_empty(blue::get(e, :partition))
     []
   else
     [
-      "PARTITION BY #{join(map(fn(p) q_ident(p) end, get(e, :partition)), ", ")}"
+      "PARTITION BY #{blue::join(map(fn(p) ident(p) end, blue::get(e, :partition)), ", ")}"
     ]
   end
-  ord = if is_empty(get(e, :order))
+  ord = if is_empty(blue::get(e, :order))
     []
   else
-    ["ORDER BY #{join(map(fn(k) q_render_key(k) end, get(e, :order)), ", ")}"]
+    [
+      "ORDER BY #{blue::join(map(fn(k) render_key(k) end, blue::get(e, :order)), ", ")}"
+    ]
   end
-  args = join(
-    map(fn(a) q_render_expr(a, dialect) end, as_list(get(e, :args))),
+  args = blue::join(
+    map(fn(a) render_expr(a, dialect) end, as_list(blue::get(e, :args))),
     ", "
   )
-  "#{get(e, :fn)}(#{args}) OVER (#{join(concat_lists(part, ord), " ")})"
+  "#{blue::get(e, :fn)}(#{args}) OVER (#{blue::join(concat_lists(part, ord), " ")})"
 end
 
 # One expression, in one dialect. The only place an expression becomes text.
-def q_render_expr(e, dialect)
-  k = get(e, :kind)
+def render_expr(e, dialect)
+  k = blue::get(e, :kind)
   if k == :col
-    q_ident(get(e, :name))
+    ident(blue::get(e, :name))
   elsif k == :lit
-    q_render_lit(e, dialect)
+    render_lit(e, dialect)
   elsif k == :op
-    p = get(e, :prec)
-    args = get(e, :args)
-    "#{q_operand(first(args), p, p == 4, dialect)} #{get(e, :op)} #{q_operand(last(args), p, true, dialect)}"
+    p = blue::get(e, :prec)
+    args = blue::get(e, :args)
+    "#{operand(first(args), p, p == 4, dialect)} #{blue::get(e, :op)} #{operand(last(args), p, true, dialect)}"
   elsif k == :not
-    "NOT #{q_operand(first(get(e, :args)), 3, false, dialect)}"
+    "NOT #{operand(first(blue::get(e, :args)), 3, false, dialect)}"
   elsif k == :fn
-    "#{get(e, :name)}(#{join(map(fn(a) q_render_expr(a, dialect) end, get(e, :args)), ", ")})"
+    "#{blue::get(e, :name)}(#{blue::join(map(fn(a) render_expr(a, dialect) end, blue::get(e, :args)), ", ")})"
   elsif k == :cast
-    "CAST(#{q_render_expr(first(get(e, :args)), dialect)} AS #{q_type_sql(get(e, :type), dialect)})"
+    "CAST(#{render_expr(first(blue::get(e, :args)), dialect)} AS #{type_sql(blue::get(e, :type), dialect)})"
   elsif k == :agg
-    q_render_agg(e, dialect)
+    render_agg(e, dialect)
   elsif k == :win
-    q_render_win(e, dialect)
+    render_win(e, dialect)
   elsif k == :postfix
-    "#{q_operand(first(get(e, :args)), 4, true, dialect)} #{get(e, :op)}"
+    "#{operand(first(blue::get(e, :args)), 4, true, dialect)} #{blue::get(e, :op)}"
   elsif k == :case
-    args = get(e, :args)
-    "CASE WHEN #{q_render_expr(nth(0, args), dialect)} THEN #{q_render_expr(nth(1, args), dialect)} ELSE #{q_render_expr(nth(2, args), dialect)} END"
+    args = blue::get(e, :args)
+    "CASE WHEN #{render_expr(nth(0, args), dialect)} THEN #{render_expr(nth(1, args), dialect)} ELSE #{render_expr(nth(2, args), dialect)} END"
   elsif k == :field
-    q_duckdb_floor(dialect, "a struct field")
-    "(#{q_render_expr(first(get(e, :args)), dialect)}).#{q_ident(get(e, :name))}"
+    duckdb_floor(dialect, "a struct field")
+    "(#{render_expr(first(blue::get(e, :args)), dialect)}).#{ident(blue::get(e, :name))}"
   elsif k == :unnest
-    q_duckdb_floor(dialect, "unnest")
-    "unnest(#{q_render_expr(first(get(e, :args)), dialect)})"
+    duckdb_floor(dialect, "unnest")
+    "unnest(#{render_expr(first(blue::get(e, :args)), dialect)})"
   else
     throw(error(:kueri_shape, "no renderer arm for a #{to_s(k)} node"))
   end
@@ -2032,7 +2081,7 @@ end
 
 # The renderer's own floor: a DuckDB-only construct never renders as core,
 # whichever door it came through.
-def q_duckdb_floor(dialect, what)
+def duckdb_floor(dialect, what)
   if dialect != :duckdb
     throw(
       error(:kueri_dialect, "#{what} has no core form; render with :duckdb")
@@ -2040,37 +2089,38 @@ def q_duckdb_floor(dialect, what)
   end
 end
 
-def q_render_item(item, dialect)
-  e = get(item, :expr)
-  if get(e, :kind) == :col && get(e, :name) == get(item, :name)
-    q_ident(get(item, :name))
+def render_item(item, dialect)
+  e = blue::get(item, :expr)
+  if blue::get(e, :kind) == :col &&
+    blue::get(e, :name) == blue::get(item, :name)
+    ident(blue::get(item, :name))
   else
-    "#{q_render_expr(e, dialect)} AS #{q_ident(get(item, :name))}"
+    "#{render_expr(e, dialect)} AS #{ident(blue::get(item, :name))}"
   end
 end
 
-def q_render_conj(preds, dialect)
-  q_render_expr(
+def render_conj(preds, dialect)
+  render_expr(
     reduce(fn(a, p) q_and(a, p) end, first(preds), rest(preds)),
     dialect
   )
 end
 
-def q_select_texts(b, dialect)
-  if get(b, :grouped)
+def select_texts(b, dialect)
+  if blue::get(b, :grouped)
     concat_lists(
-      map(fn(k) q_ident(k) end, get(b, :keys)),
-      map(fn(a) q_render_item(a, dialect) end, get(b, :aggs))
+      map(fn(k) ident(k) end, blue::get(b, :keys)),
+      map(fn(a) render_item(a, dialect) end, blue::get(b, :aggs))
     )
-  elsif get(b, :items) != nil
-    map(fn(i) q_render_item(i, dialect) end, get(b, :items))
+  elsif blue::get(b, :items) != nil
+    map(fn(i) render_item(i, dialect) end, blue::get(b, :items))
   else
-    cons("*", map(fn(d) q_render_item(d, dialect) end, get(b, :derives)))
+    cons("*", map(fn(d) render_item(d, dialect) end, blue::get(b, :derives)))
   end
 end
 
 # `  item,` per line, the last without its comma.
-def q_list_lines(items)
+def list_lines(items)
   n = size(items)
   map(
     fn(ix)
@@ -2084,64 +2134,68 @@ def q_list_lines(items)
   )
 end
 
-def q_clause(word, preds, dialect)
+def clause(word, preds, dialect)
   if is_empty(preds)
     []
   else
-    ["#{word} #{q_render_conj(preds, dialect)}"]
+    ["#{word} #{render_conj(preds, dialect)}"]
   end
 end
 
-def q_join_line(j, dialect)
-  how = get(j, :how)
+def join_line(j, dialect)
+  how = blue::get(j, :how)
   word = if how == :left
     "LEFT JOIN"
   elsif how == :asof_left
-    q_duckdb_floor(dialect, "an asof join")
+    duckdb_floor(dialect, "an asof join")
     "ASOF LEFT JOIN"
   else
     "JOIN"
   end
-  "#{word} #{q_ident(q_rel_name(get(j, :rel)))} USING (#{join(map(fn(k) q_ident(k) end, get(j, :keys)), ", ")})"
+  "#{word} #{ident(rel_name(blue::get(j, :rel)))} USING (#{blue::join(map(fn(k) ident(k) end, blue::get(j, :keys)), ", ")})"
 end
 
 # One SELECT, as lines, clauses in SQL's order.
-def q_block_lines(b, dialect)
-  sel = q_select_texts(b, dialect)
+def block_lines(b, dialect)
+  sel = select_texts(b, dialect)
   head = if size(sel) == 1
     ["SELECT #{first(sel)}"]
   else
-    cons("SELECT", q_list_lines(sel))
+    cons("SELECT", list_lines(sel))
   end
   from = cons(
-    "FROM #{q_ident(get(b, :from))}",
-    map(fn(j) q_join_line(j, dialect) end, get(b, :joins))
+    "FROM #{ident(blue::get(b, :from))}",
+    map(fn(j) join_line(j, dialect) end, blue::get(b, :joins))
   )
-  group = if get(b, :grouped) && is_empty(get(b, :keys)) == false
-    ["GROUP BY #{join(map(fn(k) q_ident(k) end, get(b, :keys)), ", ")}"]
+  group = if blue::get(b, :grouped) && is_empty(blue::get(b, :keys)) == false
+    [
+      "GROUP BY #{blue::join(map(fn(k) ident(k) end, blue::get(b, :keys)), ", ")}"
+    ]
   else
     []
   end
-  order = if get(b, :order_all)
+  order = if blue::get(b, :order_all)
     ["ORDER BY ALL"]
-  elsif is_empty(get(b, :order))
+  elsif is_empty(blue::get(b, :order))
     []
   else
-    ["ORDER BY #{join(map(fn(k) q_render_key(k) end, get(b, :order)), ", ")}"]
+    [
+      "ORDER BY #{blue::join(map(fn(k) render_key(k) end, blue::get(b, :order)), ", ")}"
+    ]
   end
-  limit = if get(b, :limit) == nil
+  limit = if blue::get(b, :limit) == nil
     []
   else
-    ["LIMIT #{to_s(get(b, :limit))}"]
+    ["LIMIT #{to_s(blue::get(b, :limit))}"]
   end
   tail = concat_lists(
-    q_clause("WHERE", get(b, :where), dialect),
+    clause("WHERE", blue::get(b, :where), dialect),
     concat_lists(
       group,
       concat_lists(
-        q_clause("HAVING", get(b, :having), dialect),
+        clause("HAVING", blue::get(b, :having), dialect),
         concat_lists(
-          q_clause("QUALIFY", get(b, :qualify), dialect),
+          clause("QUALIFY", blue::get(b, :qualify), dialect),
           concat_lists(order, limit)
         )
       )
@@ -2150,70 +2204,73 @@ def q_block_lines(b, dialect)
   concat_lists(head, concat_lists(from, tail))
 end
 
-def q_indent(lines)
+def indent(lines)
   map(fn(l) "  #{l}" end, lines)
 end
 
-def q_raws(model)
+def raws(model)
   rels = cons(
-    get(model, :from),
+    blue::get(model, :from),
     map(
-      fn(s) get(s, :rel) end,
-      filter(fn(s) get(s, :kind) == :join end, get(model, :pipeline))
+      fn(s) blue::get(s, :rel) end,
+      blue::filter(
+        fn(s) blue::get(s, :kind) == :join end,
+        blue::get(model, :pipeline)
+      )
     )
   )
   unique_by(
-    fn(r) get(r, :name) end,
-    filter(fn(r) get(r, :kind) == :raw end, rels)
+    fn(r) blue::get(r, :name) end,
+    blue::filter(fn(r) blue::get(r, :kind) == :raw end, rels)
   )
 end
 
-def q_render_raw(r, dialect)
-  if get(r, :dialect) == :duckdb && dialect != :duckdb
+def render_raw(r, dialect)
+  if blue::get(r, :dialect) == :duckdb && dialect != :duckdb
     throw(
       error(
         :kueri_dialect,
-        "raw node #{get(r, :name)} is not vouched portable; render it with :duckdb"
+        "raw node #{blue::get(r, :name)} is not vouched portable; render it with :duckdb"
       )
     )
   end
-  "#{q_ident(get(r, :name))} AS (\n#{get(r, :sql)}\n)"
+  "#{ident(blue::get(r, :name))} AS (\n#{blue::get(r, :sql)}\n)"
 end
 
 # The query text, unchecked: q_render is the door that checks first.
-def q_render_query(model, dialect)
-  low = q_lower(model, dialect)
-  final = q_lock_order(model, get(low, :cur), dialect)
-  raw_ctes = map(fn(r) q_render_raw(r, dialect) end, q_raws(model))
+def render_query(model, dialect)
+  low = lower(model, dialect)
+  final = lock_order(model, blue::get(low, :cur), dialect)
+  raw_ctes = map(fn(r) render_raw(r, dialect) end, raws(model))
   step_ctes = map(
     fn(c)
-      "#{first(c)} AS (\n#{join(q_indent(q_block_lines(last(c), dialect)), "\n")}\n)"
+      "#{first(c)} AS (\n#{blue::join(indent(block_lines(last(c), dialect)), "\n")}\n)"
     end,
-    get(low, :done)
+    blue::get(low, :done)
   )
   ctes = concat_lists(raw_ctes, step_ctes)
-  body = join(q_block_lines(final, dialect), "\n")
+  body = blue::join(block_lines(final, dialect), "\n")
   if is_empty(ctes)
     body
   else
-    "WITH #{join(ctes, ", ")}\n#{body}"
+    "WITH #{blue::join(ctes, ", ")}\n#{body}"
   end
 end
 
 # A model as one SQL query in `dialect` (:core or :duckdb), with no trailing
 # semicolon. Checks first, then the dialect floor: it throws, never degrades.
-def q_render(model, dialect)
+def render(model, dialect)
   if contains([:core, :duckdb], dialect) == false
     throw(error(:kueri_shape, "a dialect is :core or :duckdb"))
   end
-  q_check(model)
-  q_refuse(q_dialect_refusals(model, dialect))
-  q_render_query(model, dialect)
+  check(model)
+  refuse(dialect_refusals(model, dialect))
+  render_query(model, dialect)
 end
 
 # ── around the query: loading, materializing, files ────────────────────────
 
-def q_delim_sql(d)
+def delim_sql(d)
   if d == :comma
     "','"
   else
@@ -2224,10 +2281,10 @@ end
 # A view that loads a source with its declared columns: a delimited file
 # (read_csv) or JSON Lines (read_json), DuckDB only; or literal rows
 # (q_values), in either dialect, where `path` is not read.
-def q_render_load(source, path, dialect)
-  f = get(source, :format)
+def render_load(source, path, dialect)
+  f = blue::get(source, :format)
   if f == :values
-    q_render_values_load(source, dialect)
+    render_values_load(source, dialect)
   else
     reader = if f == :jsonl
       "read_json"
@@ -2238,63 +2295,63 @@ def q_render_load(source, path, dialect)
       throw(
         error(
           :kueri_dialect,
-          "#{reader} has no core form; load source #{get(source, :name)} with :duckdb"
+          "#{reader} has no core form; load source #{blue::get(source, :name)} with :duckdb"
         )
       )
     end
-    cols = join(
+    cols = blue::join(
       map(
         fn(c)
-          "#{q_quote_str(get(c, :name))}: #{q_quote_str(q_type_sql(get(c, :type), :duckdb))}"
+          "#{quote_str(blue::get(c, :name))}: #{quote_str(type_sql(blue::get(c, :type), :duckdb))}"
         end,
-        get(source, :columns)
+        blue::get(source, :columns)
       ),
       ", "
     )
     how = if f == :jsonl
       "format = 'newline_delimited'"
     else
-      "delim = #{q_delim_sql(get(source, :delim))}, header = true"
+      "delim = #{delim_sql(blue::get(source, :delim))}, header = true"
     end
-    "CREATE OR REPLACE VIEW #{q_ident(get(source, :name))} AS\nSELECT * FROM #{reader}(#{q_quote_str(path)}, #{how}, columns = {#{cols}})"
+    "CREATE OR REPLACE VIEW #{ident(blue::get(source, :name))} AS\nSELECT * FROM #{reader}(#{quote_str(path)}, #{how}, columns = {#{cols}})"
   end
 end
 
 # Literal rows as a view, each column cast to its declared type (so a column
 # that is all NULL is still typed). No rows: the typed columns and no row.
-def q_render_values_load(source, dialect)
-  cols = get(source, :columns)
-  typed = join(
+def render_values_load(source, dialect)
+  cols = blue::get(source, :columns)
+  typed = blue::join(
     map(
       fn(c)
-        "CAST(#{q_ident(get(c, :name))} AS #{q_type_sql(get(c, :type), dialect)}) AS #{q_ident(get(c, :name))}"
+        "CAST(#{ident(blue::get(c, :name))} AS #{type_sql(blue::get(c, :type), dialect)}) AS #{ident(blue::get(c, :name))}"
       end,
       cols
     ),
     ", "
   )
-  rows = get(source, :rows)
+  rows = blue::get(source, :rows)
   body = if is_empty(rows)
-    "SELECT #{join(map(fn(c) "CAST(NULL AS #{q_type_sql(get(c, :type), dialect)}) AS #{q_ident(get(c, :name))}" end, cols), ", ")} WHERE FALSE"
+    "SELECT #{blue::join(map(fn(c) "CAST(NULL AS #{type_sql(blue::get(c, :type), dialect)}) AS #{ident(blue::get(c, :name))}" end, cols), ", ")} WHERE FALSE"
   else
     lines = map(
       fn(r)
-        "(#{join(map(fn(v) q_render_lit(q_lit(v), dialect) end, r), ", ")})"
+        "(#{blue::join(map(fn(v) render_lit(lit(v), dialect) end, r), ", ")})"
       end,
       rows
     )
-    "SELECT #{typed}\nFROM (VALUES\n  #{join(lines, ",\n  ")}\n) AS t(#{join(map(fn(c) q_ident(get(c, :name)) end, cols), ", ")})"
+    "SELECT #{typed}\nFROM (VALUES\n  #{blue::join(lines, ",\n  ")}\n) AS t(#{blue::join(map(fn(c) ident(blue::get(c, :name)) end, cols), ", ")})"
   end
-  "CREATE OR REPLACE VIEW #{q_ident(get(source, :name))} AS\n#{body}"
+  "CREATE OR REPLACE VIEW #{ident(blue::get(source, :name))} AS\n#{body}"
 end
 
 # Where a model's materialization lands by default: <name>.parquet or .csv.
-def q_materialize_target(model)
-  m = get(model, :materialize)
+def materialize_target(model)
+  m = blue::get(model, :materialize)
   if m == :parquet
-    "#{get(model, :name)}.parquet"
+    "#{blue::get(model, :name)}.parquet"
   elsif m == :csv
-    "#{get(model, :name)}.csv"
+    "#{blue::get(model, :name)}.csv"
   else
     nil
   end
@@ -2303,47 +2360,50 @@ end
 # The statement that writes a model out: COPY … TO a zstd Parquet or a headed
 # CSV (DuckDB), or CREATE TABLE … AS / CREATE OR REPLACE VIEW … AS (both
 # dialects).
-def q_render_materialize(model, dialect, target)
-  m = get(model, :materialize)
-  sql = q_render(model, dialect)
+def render_materialize(model, dialect, target)
+  m = blue::get(model, :materialize)
+  sql = render(model, dialect)
   if m == :table
-    "CREATE TABLE #{q_ident(get(model, :name))} AS\n#{sql}"
+    "CREATE TABLE #{ident(blue::get(model, :name))} AS\n#{sql}"
   elsif m == :view
-    "CREATE OR REPLACE VIEW #{q_ident(get(model, :name))} AS\n#{sql}"
+    "CREATE OR REPLACE VIEW #{ident(blue::get(model, :name))} AS\n#{sql}"
   elsif m == nil
     throw(
-      error(:kueri_shape, "model #{get(model, :name)} declares no materialize")
+      error(
+        :kueri_shape,
+        "model #{blue::get(model, :name)} declares no materialize"
+      )
     )
   elsif dialect != :duckdb
     throw(
       error(
         :kueri_dialect,
-        "COPY to a file has no core form; model #{get(model, :name)} materializes as :#{to_s(m)}, so render it with :duckdb or materialize :table"
+        "COPY to a file has no core form; model #{blue::get(model, :name)} materializes as :#{to_s(m)}, so render it with :duckdb or materialize :table"
       )
     )
   elsif m == :parquet
-    "COPY (\n#{sql}\n) TO #{q_quote_str(target)} (FORMAT parquet, COMPRESSION zstd)"
+    "COPY (\n#{sql}\n) TO #{quote_str(target)} (FORMAT parquet, COMPRESSION zstd)"
   else
-    "COPY (\n#{sql}\n) TO #{q_quote_str(target)} (FORMAT csv, HEADER)"
+    "COPY (\n#{sql}\n) TO #{quote_str(target)} (FORMAT csv, HEADER)"
   end
 end
 
 # The file a consumer commits: a @generated header naming the blue program,
 # then the model's statement — its materialization when it declares one, the
 # query otherwise.
-def q_render_file(model, dialect, source)
+def render_file(model, dialect, source)
   header = "-- @generated by #{source} (kueri, #{to_s(dialect)}). Do not edit: regenerate from the blue model."
-  stmt = if get(model, :materialize) == nil
-    q_render(model, dialect)
+  stmt = if blue::get(model, :materialize) == nil
+    render(model, dialect)
   else
-    q_render_materialize(model, dialect, q_materialize_target(model))
+    render_materialize(model, dialect, materialize_target(model))
   end
   "#{header}\n#{stmt};\n"
 end
 
 # Write the rendered file; returns the path.
-def q_write_sql(path, model, dialect, source)
-  write_file(path, q_render_file(model, dialect, source))
+def write_sql(path, model, dialect, source)
+  write_file(path, render_file(model, dialect, source))
   path
 end
 
@@ -2352,75 +2412,78 @@ end
 # before downstream, as its materialization; each once, by name. Every model
 # in it materializes as a :view or a :table, because what reads a model names
 # it. The same @generated header as q_render_file.
-def q_render_script(models, dialect, source)
+def render_script(models, dialect, source)
   nodes = unique_by(
-    fn(n) get(n, :name) end,
-    flat_map(fn(m) push(q_closure(m), m) end, as_list(models))
+    fn(n) blue::get(n, :name) end,
+    flat_map(fn(m) push(closure(m), m) end, as_list(models))
   )
-  sources = filter(fn(n) get(n, :kind) == :source end, nodes)
-  ms = filter(fn(n) get(n, :kind) == :model end, nodes)
-  loose = filter(
-    fn(m) contains([:view, :table], get(m, :materialize)) == false end,
+  sources = blue::filter(fn(n) blue::get(n, :kind) == :source end, nodes)
+  ms = blue::filter(fn(n) blue::get(n, :kind) == :model end, nodes)
+  loose = blue::filter(
+    fn(m) contains([:view, :table], blue::get(m, :materialize)) == false end,
     ms
   )
   if is_empty(loose) == false
     throw(
       error(
         :kueri_shape,
-        "a script builds relations, and #{join(map(fn(m) get(m, :name) end, loose), ", ")} materialize as neither :view nor :table"
+        "a script builds relations, and #{blue::join(map(fn(m) blue::get(m, :name) end, loose), ", ")} materialize as neither :view nor :table"
       )
     )
   end
   stmts = concat_lists(
-    map(fn(s) q_render_load(s, get(s, :file), dialect) end, sources),
-    map(fn(m) q_render_materialize(m, dialect, nil) end, ms)
+    map(fn(s) render_load(s, blue::get(s, :file), dialect) end, sources),
+    map(fn(m) render_materialize(m, dialect, nil) end, ms)
   )
-  "-- @generated by #{source} (kueri, #{to_s(dialect)}). Do not edit: regenerate from the blue model.\n#{join(stmts, ";\n")};\n"
+  "-- @generated by #{source} (kueri, #{to_s(dialect)}). Do not edit: regenerate from the blue model.\n#{blue::join(stmts, ";\n")};\n"
 end
 
 # ── the DAG ────────────────────────────────────────────────────────────────
 
-def q_rels(model)
+def rels(model)
   cons(
-    get(model, :from),
+    blue::get(model, :from),
     map(
-      fn(s) get(s, :rel) end,
-      filter(fn(s) get(s, :kind) == :join end, get(model, :pipeline))
+      fn(s) blue::get(s, :rel) end,
+      blue::filter(
+        fn(s) blue::get(s, :kind) == :join end,
+        blue::get(model, :pipeline)
+      )
     )
   )
 end
 
-def q_targets(model)
+def targets(model)
   map(
-    fn(r) get(r, :target) end,
-    filter(fn(r) get(r, :kind) == :ref end, q_rels(model))
+    fn(r) blue::get(r, :target) end,
+    blue::filter(fn(r) blue::get(r, :kind) == :ref end, rels(model))
   )
 end
 
 # The names a model reads directly, first-seen order. Raw nodes are opaque and
 # contribute none.
-def q_deps(model)
-  unique(map(fn(t) get(t, :name) end, q_targets(model)))
+def deps(model)
+  unique(map(fn(t) blue::get(t, :name) end, targets(model)))
 end
 
 # Every upstream source and model, each before anything that reads it.
-def q_closure(model)
+def closure(model)
   unique_by(
-    fn(n) get(n, :name) end,
-    flat_map(fn(t) q_closure_of(t) end, q_targets(model))
+    fn(n) blue::get(n, :name) end,
+    flat_map(fn(t) closure_of(t) end, targets(model))
   )
 end
 
-def q_closure_of(t)
-  if get(t, :kind) == :source
+def closure_of(t)
+  if blue::get(t, :kind) == :source
     [t]
   else
-    push(q_closure(t), t)
+    push(closure(t), t)
   end
 end
 
-def q_sources(model)
-  filter(fn(n) get(n, :kind) == :source end, q_closure(model))
+def sources(model)
+  blue::filter(fn(n) blue::get(n, :kind) == :source end, closure(model))
 end
 
 # ── the DuckDB seam ────────────────────────────────────────────────────────
@@ -2431,17 +2494,17 @@ end
 # values are the CLI's DISPLAY rendering, whose types move with the DuckDB
 # version (see q_rows); read values through q_rows, q_rows_at or
 # q_script_rows, which convert with `to_json`.
-def q_duckdb(sql)
-  q_duckdb_result(exec_capture("duckdb", "-json", "-c", sql))
+def duckdb(sql)
+  duckdb_result(exec_capture("duckdb", "-json", "-c", sql))
 end
 
 # q_duckdb against a database file (created when absent), so what a script
 # builds persists: [:ok, rows] or [:error, stderr].
-def q_duckdb_at(db, sql)
-  q_duckdb_result(exec_capture("duckdb", db, "-json", "-c", sql))
+def duckdb_at(db, sql)
+  duckdb_result(exec_capture("duckdb", db, "-json", "-c", sql))
 end
 
-def q_duckdb_result(cap)
+def duckdb_result(cap)
   if status_of(cap) != 0
     [:error, stderr_of(cap)]
   elsif trim(stdout_of(cap)) == ""
@@ -2451,7 +2514,7 @@ def q_duckdb_result(cap)
   end
 end
 
-def q_duckdb_failed?(result)
+def duckdb_failed?(result)
   first(result) == :error
 end
 
@@ -2465,49 +2528,49 @@ end
 # HUGEINT, so one query read 1780 under 1.4.3 and "1780" under 1.5.2
 # (measured 2026-09-25). `to_json` is the conversion itself and gives the same
 # values on both.
-def q_rows(sql)
-  q_rows_of(q_duckdb(q_json_rows(sql)), sql)
+def rows(sql)
+  rows_of(duckdb(json_rows(sql)), sql)
 end
 
 # q_rows against a database file.
-def q_rows_at(db, sql)
-  q_rows_of(q_duckdb_at(db, q_json_rows(sql)), sql)
+def rows_at(db, sql)
+  rows_of(duckdb_at(db, json_rows(sql)), sql)
 end
 
 # Statements first (loads, views), then ONE query whose rows are read: one
 # process, so what the statements made in memory is still there.
-def q_script_rows(statements, query)
-  q_rows_of(q_duckdb(q_script_text(statements, query)), query)
+def script_rows(statements, query)
+  rows_of(duckdb(script_text(statements, query)), query)
 end
 
 # q_script_rows against a database file.
-def q_script_rows_at(db, statements, query)
-  q_rows_of(q_duckdb_at(db, q_script_text(statements, query)), query)
+def script_rows_at(db, statements, query)
+  rows_of(duckdb_at(db, script_text(statements, query)), query)
 end
 
 # A script run for what it builds in `db` (views, tables); throws
 # :kueri_query when it failed. Nothing it prints is read.
-def q_run_at(db, script)
-  q_checked(q_duckdb_at(db, script), script)
+def run_at(db, script)
+  checked(duckdb_at(db, script), script)
   nil
 end
 
-def q_script_text(statements, query)
-  join(push(as_list(statements), q_json_rows(query)), ";\n")
+def script_text(statements, query)
+  blue::join(push(as_list(statements), json_rows(query)), ";\n")
 end
 
 # One query as one row per result row, each a JSON document of its columns.
 # The newline before `)` keeps a trailing `--` comment from swallowing it.
-def q_json_rows(sql)
+def json_rows(sql)
   "SELECT to_json(kueri_row) AS kueri_row FROM (\n#{strip_suffix(trim(sql), ";")}\n) AS kueri_row"
 end
 
-def q_rows_of(result, sql)
-  map(fn(row) as_json(row, "kueri_row") end, q_checked(result, sql))
+def rows_of(result, sql)
+  map(fn(row) as_json(row, "kueri_row") end, checked(result, sql))
 end
 
-def q_checked(result, sql)
-  if q_duckdb_failed?(result)
+def checked(result, sql)
+  if duckdb_failed?(result)
     throw(error(:kueri_query, "#{trim(last(result))} -- in: #{sql}"))
   end
   last(result)
@@ -2515,11 +2578,11 @@ end
 
 # The rows of a result as value lists, columns in `names` order; [] when it
 # failed (ask q_duckdb_failed? first when a failure must not read as empty).
-def q_row_values(result, names)
-  if q_duckdb_failed?(result)
+def row_values(result, names)
+  if duckdb_failed?(result)
     []
   else
-    map(fn(row) map(fn(n) as_json(row, q_name(n)) end, names) end, last(result))
+    map(fn(row) map(fn(n) as_json(row, name(n)) end, names) end, last(result))
   end
 end
 
@@ -2530,16 +2593,16 @@ end
 
 # Worked example: per relationship length, the promise-keeping rate with and
 # without enforcement (a flat table of replicate means and spreads).
-def q_example_horizons()
-  q_source(
+def example_horizons()
+  source(
     {
       name: :horizons,
       file: "horizons.tsv",
       columns: [
-        q_col(:rounds_together, :bigint),
-        q_col(:enforcement, :double),
-        q_col(:keep_mean, :double),
-        q_col(:keep_sd, :double)
+        col(:rounds_together, :bigint),
+        col(:enforcement, :double),
+        col(:keep_mean, :double),
+        col(:keep_sd, :double)
       ]
     }
   )
@@ -2548,64 +2611,64 @@ end
 # Worked example: how much full enforcement lifts keeping, per length. Every
 # aggregate is a FILTER-where aggregate, so the whole model is ONE SELECT, and
 # it holds at [:portable, :locked].
-def q_example_leverage()
-  without = q_filtered(q_max(:keep_mean), q_eq(:enforcement, 0))
-  full = q_filtered(q_max(:keep_mean), q_eq(:enforcement, 1))
-  q_model(
+def example_leverage()
+  without = filtered(q_max(:keep_mean), eq(:enforcement, 0))
+  full = filtered(q_max(:keep_mean), eq(:enforcement, 1))
+  model(
     {
       name: :leverage,
-      from: q_example_horizons(),
+      from: example_horizons(),
       posture: [:portable, :locked],
       materialize: :parquet,
       pipeline: [
-        q_group(
+        group(
           [:rounds_together],
           [
-            q_agg(:keep_without_enforcement, q_round(without, 3)),
-            q_agg(:keep_with_full_enforcement, q_round(full, 3)),
-            q_agg(:leverage, q_round(q_sub(full, without), 3)),
-            q_agg(:widest_spread, q_round(q_max(:keep_sd), 3))
+            agg(:keep_without_enforcement, q_round(without, 3)),
+            agg(:keep_with_full_enforcement, q_round(full, 3)),
+            agg(:leverage, q_round(sub(full, without), 3)),
+            agg(:widest_spread, q_round(q_max(:keep_sd), 3))
           ]
         ),
-        q_sort([:rounds_together])
+        sort([:rounds_together])
       ],
       contract: [
-        q_col(:rounds_together, :bigint),
-        q_col(:keep_without_enforcement, :double),
-        q_col(:keep_with_full_enforcement, :double),
-        q_col(:leverage, :double),
-        q_col(:widest_spread, :double)
+        col(:rounds_together, :bigint),
+        col(:keep_without_enforcement, :double),
+        col(:keep_with_full_enforcement, :double),
+        col(:leverage, :double),
+        col(:widest_spread, :double)
       ]
     }
   )
 end
 
 # Worked example: which cell ran at which horizon and enforcement.
-def q_example_curve_cells()
-  q_source(
+def example_curve_cells()
+  source(
     {
       name: :curve_cells,
       file: "curve_cells.tsv",
       columns: [
-        q_col(:cell, :bigint),
-        q_col(:rounds, :bigint),
-        q_col(:enforcement, :double)
+        col(:cell, :bigint),
+        col(:rounds, :bigint),
+        col(:enforcement, :double)
       ]
     }
   )
 end
 
 # Worked example: each cell's replicate mean, min and max of keeping.
-def q_example_curve_keep()
-  q_source(
+def example_curve_keep()
+  source(
     {
       name: :curve_keep,
       file: "curve_keep.tsv",
       columns: [
-        q_col(:cell, :bigint),
-        q_col(:mean, :double),
-        q_col(:min, :double),
-        q_col(:max, :double)
+        col(:cell, :bigint),
+        col(:mean, :double),
+        col(:min, :double),
+        col(:max, :double)
       ]
     }
   )
@@ -2614,35 +2677,31 @@ end
 # Worked example: the lowest enforcement at which a horizon keeps at least 90%
 # (rounded to 3 places, as reported), and how many enforcement levels are
 # bimodal (replicates more than 0.5 apart).
-def q_example_tipping()
-  q_model(
+def example_tipping()
+  model(
     {
       name: :tipping,
-      from: q_example_curve_keep(),
+      from: example_curve_keep(),
       posture: [:portable, :locked],
       pipeline: [
-        q_join(q_example_curve_cells(), [:cell]),
-        q_group(
+        q_join(example_curve_cells(), [:cell]),
+        group(
           [:rounds],
           [
-            q_agg_where(
+            agg_where(
               :tipping_enforcement,
               q_min(:enforcement),
-              q_ge(q_round(:mean, 3), 0.9)
+              ge(q_round(:mean, 3), 0.9)
             ),
-            q_agg_where(
-              :bimodal_levels,
-              q_count_all(),
-              q_gt(q_sub(:max, :min), 0.5)
-            )
+            agg_where(:bimodal_levels, count_all(), gt(sub(:max, :min), 0.5))
           ]
         ),
-        q_sort([:rounds])
+        sort([:rounds])
       ],
       contract: [
-        q_col(:rounds, :bigint),
-        q_col(:tipping_enforcement, :double),
-        q_col(:bimodal_levels, :bigint)
+        col(:rounds, :bigint),
+        col(:tipping_enforcement, :double),
+        col(:bimodal_levels, :bigint)
       ]
     }
   )
@@ -2651,53 +2710,51 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "an empty pipeline is SELECT * from its relation, in both dialects, and holds"
-  m = q_model({name: :everything, from: q_example_horizons()})
-  assert q_render(m, :duckdb) == "SELECT *\nFROM horizons"
-  assert q_render(m, :core) == "SELECT *\nFROM horizons"
-  assert is_empty(q_refusals(m)) == true
-  assert q_output(m) ==
-    ["rounds_together", "enforcement", "keep_mean", "keep_sd"]
-  assert get(q_shift(m), :needs) == :portable
-  assert is_empty(get(q_shift(m), :held_by)) == true
+  m = model({name: :everything, from: example_horizons()})
+  assert render(m, :duckdb) == "SELECT *\nFROM horizons"
+  assert render(m, :core) == "SELECT *\nFROM horizons"
+  assert is_empty(refusals(m)) == true
+  assert output(m) == ["rounds_together", "enforcement", "keep_mean", "keep_sd"]
+  assert blue::get(shift(m), :needs) == :portable
+  assert is_empty(blue::get(shift(m), :held_by)) == true
   # A raw node is opaque to the DAG: a model over one reads nothing it can name.
-  raw = q_raw(
-    {name: :one, sql: "SELECT 1 AS x", columns: [q_col(:x, :integer)]}
+  raw = kueri::raw(
+    {name: :one, sql: "SELECT 1 AS x", columns: [col(:x, :integer)]}
   )
-  assert is_empty(q_deps(q_model({name: :r, from: raw}))) == true
-  assert is_empty(q_closure(q_model({name: :r, from: raw}))) == true
+  assert is_empty(deps(model({name: :r, from: raw}))) == true
+  assert is_empty(closure(model({name: :r, from: raw}))) == true
 end
 
 test "the dialects differ only where a construct does: a neutral model renders the same bytes"
-  m = q_model(
+  m = model(
     {
       name: :recent,
-      from: q_example_horizons(),
+      from: example_horizons(),
       pipeline: [
-        q_filter(q_gt(:rounds_together, 5)),
-        q_derive(:gap, q_sub(:keep_mean, :keep_sd)),
-        q_select([:rounds_together, :gap]),
-        q_sort([q_desc(:gap)]),
-        q_limit(3)
+        q_filter(gt(:rounds_together, 5)),
+        derive(:gap, sub(:keep_mean, :keep_sd)),
+        select([:rounds_together, :gap]),
+        sort([desc(:gap)]),
+        limit(3)
       ]
     }
   )
-  assert q_render(m, :core) == q_render(m, :duckdb)
+  assert render(m, :core) == render(m, :duckdb)
   # Composition is data: appending stages in two steps is appending them in one.
   a = [
-    q_filter(q_gt(:rounds_together, 5)),
-    q_derive(:gap, q_sub(:keep_mean, :keep_sd))
+    q_filter(gt(:rounds_together, 5)),
+    derive(:gap, sub(:keep_mean, :keep_sd))
   ]
-  b = [q_select([:rounds_together, :gap]), q_sort([q_desc(:gap)]), q_limit(3)]
-  base = q_model({name: :recent, from: q_example_horizons()})
-  assert q_render(q_then(q_then(base, a), b), :duckdb) ==
-    q_render(q_then(base, concat_lists(a, b)), :duckdb)
-  assert q_render(q_then(base, concat_lists(a, b)), :duckdb) ==
-    q_render(m, :duckdb)
+  b = [select([:rounds_together, :gap]), sort([desc(:gap)]), limit(3)]
+  base = model({name: :recent, from: example_horizons()})
+  assert render(then(then(base, a), b), :duckdb) ==
+    render(then(base, concat_lists(a, b)), :duckdb)
+  assert render(then(base, concat_lists(a, b)), :duckdb) == render(m, :duckdb)
 end
 
 test "leverage renders to one SELECT: FILTER in DuckDB, CASE in core, and a locked total order"
-  m = q_example_leverage()
-  duck = join(
+  m = example_leverage()
+  duck = blue::join(
     [
       "SELECT",
       "  rounds_together,",
@@ -2711,7 +2768,7 @@ test "leverage renders to one SELECT: FILTER in DuckDB, CASE in core, and a lock
     ],
     "\n"
   )
-  core = join(
+  core = blue::join(
     [
       "SELECT",
       "  rounds_together,",
@@ -2725,15 +2782,15 @@ test "leverage renders to one SELECT: FILTER in DuckDB, CASE in core, and a lock
     ],
     "\n"
   )
-  assert q_render(m, :duckdb) == duck
-  assert q_render(m, :core) == core
+  assert render(m, :duckdb) == duck
+  assert render(m, :core) == core
   # FILTER has a core form, so the model is portable, and nothing holds it.
-  assert get(q_shift(m), :needs) == :portable
+  assert blue::get(shift(m), :needs) == :portable
 end
 
 test "tipping renders a join, count(*) FILTER against a CASE that counts a 1, and typed floats"
-  m = q_example_tipping()
-  duck = join(
+  m = example_tipping()
+  duck = blue::join(
     [
       "SELECT",
       "  rounds,",
@@ -2746,7 +2803,7 @@ test "tipping renders a join, count(*) FILTER against a CASE that counts a 1, an
     ],
     "\n"
   )
-  core = join(
+  core = blue::join(
     [
       "SELECT",
       "  rounds,",
@@ -2759,31 +2816,28 @@ test "tipping renders a join, count(*) FILTER against a CASE that counts a 1, an
     ],
     "\n"
   )
-  assert q_render(m, :duckdb) == duck
-  assert q_render(m, :core) == core
-  assert q_output(m) == ["rounds", "tipping_enforcement", "bimodal_levels"]
+  assert render(m, :duckdb) == duck
+  assert render(m, :core) == core
+  assert output(m) == ["rounds", "tipping_enforcement", "bimodal_levels"]
 end
 
 test "a long pipeline folds into the fewest SELECTs: QUALIFY saves DuckDB a pass that core spends as a WHERE"
-  m = q_model(
+  m = model(
     {
       name: :widest,
-      from: q_example_curve_keep(),
+      from: example_curve_keep(),
       pipeline: [
-        q_filter(q_gt(:mean, 0.1)),
-        q_join(q_example_curve_cells(), [:cell]),
-        q_derive(:spread, q_sub(:max, :min)),
-        q_filter(q_lt(:enforcement, 0.75)),
-        q_filter(q_gt(:spread, 0.3)),
-        q_derive(:rank, q_row_number([:rounds], [q_desc(:mean)])),
-        q_filter(q_eq(:rank, 1)),
-        q_group(
-          [:rounds],
-          [q_agg(:n, q_count_all()), q_agg(:widest, q_max(:spread))]
-        ),
-        q_filter(q_ge(:n, 1)),
-        q_sort([q_desc(:widest)]),
-        q_limit(10)
+        q_filter(gt(:mean, 0.1)),
+        q_join(example_curve_cells(), [:cell]),
+        derive(:spread, sub(:max, :min)),
+        q_filter(lt(:enforcement, 0.75)),
+        q_filter(gt(:spread, 0.3)),
+        derive(:rank, row_number([:rounds], [desc(:mean)])),
+        q_filter(eq(:rank, 1)),
+        group([:rounds], [agg(:n, count_all()), agg(:widest, q_max(:spread))]),
+        q_filter(ge(:n, 1)),
+        sort([desc(:widest)]),
+        limit(10)
       ]
     }
   )
@@ -2795,7 +2849,7 @@ test "a long pipeline folds into the fewest SELECTs: QUALIFY saves DuckDB a pass
     "  FROM curve_keep",
     "  JOIN curve_cells USING (cell)"
   ]
-  duck = join(
+  duck = blue::join(
     concat_lists(
       step_1,
       [
@@ -2821,7 +2875,7 @@ test "a long pipeline folds into the fewest SELECTs: QUALIFY saves DuckDB a pass
     ),
     "\n"
   )
-  core = join(
+  core = blue::join(
     concat_lists(
       step_1,
       [
@@ -2847,235 +2901,233 @@ test "a long pipeline folds into the fewest SELECTs: QUALIFY saves DuckDB a pass
     ),
     "\n"
   )
-  assert q_render(m, :duckdb) == duck
-  assert q_render(m, :core) == core
+  assert render(m, :duckdb) == duck
+  assert render(m, :core) == core
   # Eleven stages, two CTEs: the WHERE went past the join, the second filter
   # past the scalar derive, and the post-group filter became HAVING.
-  assert size(get(q_lower(m, :duckdb), :done)) == 2
+  assert size(blue::get(lower(m, :duckdb), :done)) == 2
 end
 
 test "literals are typed on purpose and identifiers are quoted only when they must be"
-  assert q_render_expr(q_lit(1), :duckdb) == "1"
+  assert render_expr(lit(1), :duckdb) == "1"
   # to_s(1.0) is "1": without the typing this would be an INTEGER, and a bare
   # 1.0 would be DuckDB's DECIMAL(2,1).
-  assert q_render_expr(q_lit(1.0), :duckdb) == "1.0::DOUBLE"
-  assert q_render_expr(q_lit(1.0), :core) == "CAST(1.0 AS DOUBLE PRECISION)"
-  assert q_render_expr(q_lit(-0.5), :duckdb) == "-0.5::DOUBLE"
-  assert q_render_expr(q_lit("it's"), :core) == "'it''s'"
-  assert q_render_expr(q_lit(true), :core) == "TRUE"
-  assert q_render_expr(q_lit(nil), :core) == "NULL"
-  assert q_render_expr(q_cast(:x, :double), :core) ==
+  assert render_expr(lit(1.0), :duckdb) == "1.0::DOUBLE"
+  assert render_expr(lit(1.0), :core) == "CAST(1.0 AS DOUBLE PRECISION)"
+  assert render_expr(lit(-0.5), :duckdb) == "-0.5::DOUBLE"
+  assert render_expr(lit("it's"), :core) == "'it''s'"
+  assert render_expr(lit(true), :core) == "TRUE"
+  assert render_expr(lit(nil), :core) == "NULL"
+  assert render_expr(q_cast(:x, :double), :core) ==
     "CAST(x AS DOUBLE PRECISION)"
-  assert q_render_expr(q_cast(:x, :bigint), :duckdb) == "CAST(x AS BIGINT)"
-  assert q_ident(:keep_mean) == "keep_mean"
-  assert q_ident("order") == "\"order\""
-  assert q_ident("Mean") == "\"Mean\""
-  assert q_ident("9lives") == "\"9lives\""
-  assert q_ident("a\"b") == "\"a\"\"b\""
+  assert render_expr(q_cast(:x, :bigint), :duckdb) == "CAST(x AS BIGINT)"
+  assert ident(:keep_mean) == "keep_mean"
+  assert ident("order") == "\"order\""
+  assert ident("Mean") == "\"Mean\""
+  assert ident("9lives") == "\"9lives\""
+  assert ident("a\"b") == "\"a\"\"b\""
   # The tree's grouping survives: a - (b - c) keeps its parentheses, and
   # (a - b) - c needs none.
-  assert q_render_expr(q_sub(:a, q_sub(:b, :c)), :core) == "a - (b - c)"
-  assert q_render_expr(q_sub(q_sub(:a, :b), :c), :core) == "a - b - c"
-  assert q_render_expr(q_mul(q_add(:a, :b), :c), :core) == "(a + b) * c"
-  assert q_render_expr(q_not(q_or(q_eq(:a, 1), q_eq(:b, 2))), :core) ==
+  assert render_expr(sub(:a, sub(:b, :c)), :core) == "a - (b - c)"
+  assert render_expr(sub(sub(:a, :b), :c), :core) == "a - b - c"
+  assert render_expr(mul(add(:a, :b), :c), :core) == "(a + b) * c"
+  assert render_expr(q_not(q_or(eq(:a, 1), eq(:b, 2))), :core) ==
     "NOT (a = 1 OR b = 2)"
 end
 
 test "a duckdb-only construct in a :portable model is refused, and q_check throws it"
-  plays = q_source(
+  plays = source(
     {
       name: :plays,
       file: "plays.tsv",
       columns: [
-        q_col(:rounds, :bigint),
-        q_col(:game, :varchar),
-        q_col(:score, :double)
+        col(:rounds, :bigint),
+        col(:game, :varchar),
+        col(:score, :double)
       ]
     }
   )
-  names = q_filtered(q_string_agg(:game, ","), q_gt(:score, 0.5))
-  stages = [q_group([:rounds], [q_agg(:games, q_ordered(names, [:game]))])]
-  held = q_model(
+  names = filtered(string_agg(:game, ","), gt(:score, 0.5))
+  stages = [group([:rounds], [agg(:games, ordered(names, [:game]))])]
+  held = model(
     {name: :names, from: plays, posture: [:portable], pipeline: stages}
   )
-  assert q_refusal_kinds(held) == [:kueri_reach]
-  assert error?(try(q_check(held), catch(e(), e))) == true
-  assert error?(try(q_render(held, :duckdb), catch(e(), e))) == true
+  assert refusal_kinds(held) == [:kueri_reach]
+  assert error?(try(check(held), catch(e(), e))) == true
+  assert error?(try(render(held, :duckdb), catch(e(), e))) == true
   # The control: the same stages at :duckdb reach hold, so the posture was the
   # whole of the refusal.
-  free = q_model(
+  free = model(
     {name: :names, from: plays, posture: [:duckdb], pipeline: stages}
   )
-  assert is_empty(q_refusals(free)) == true
-  assert q_render(free, :duckdb) ==
+  assert is_empty(refusals(free)) == true
+  assert render(free, :duckdb) ==
     "SELECT\n  rounds,\n  string_agg(game, ',' ORDER BY game) FILTER (WHERE score > 0.5::DOUBLE) AS games\nFROM plays\nGROUP BY rounds"
   # And q_shift names what holds it there.
-  assert get(q_shift(free), :needs) == :duckdb
-  assert get(q_shift(free), :held_by) == ["string_agg at stage 1 (group)"]
+  assert blue::get(shift(free), :needs) == :duckdb
+  assert blue::get(shift(free), :held_by) == ["string_agg at stage 1 (group)"]
 end
 
 test "a locked model refuses what would make its output depend on luck"
-  src = q_source(
+  src = source(
     {
       name: :plays,
       file: "plays.tsv",
-      columns: [q_col(:game, :varchar), q_col(:score, :double)]
+      columns: [col(:game, :varchar), col(:score, :double)]
     }
   )
-  unordered = q_model(
+  unordered = model(
     {
       name: :names,
       from: src,
       posture: [:duckdb, :locked],
-      pipeline: [q_group([], [q_agg(:games, q_string_agg(:game, ","))])],
-      contract: [q_col(:games, :varchar)]
+      pipeline: [group([], [agg(:games, string_agg(:game, ","))])],
+      contract: [col(:games, :varchar)]
     }
   )
-  assert q_refusal_kinds(unordered) == [:kueri_locked]
-  ordered = q_model(
+  assert refusal_kinds(unordered) == [:kueri_locked]
+  ordered = model(
     {
       name: :names,
       from: src,
       posture: [:duckdb, :locked],
       pipeline: [
-        q_group(
+        group(
           [],
-          [q_agg(:games, q_ordered(q_string_agg(:game, ","), [:game]))]
+          [agg(:games, kueri::ordered(string_agg(:game, ","), [:game]))]
         )
       ],
-      contract: [q_col(:games, :varchar)]
+      contract: [col(:games, :varchar)]
     }
   )
-  assert is_empty(q_refusals(ordered)) == true
-  assert q_render(ordered, :duckdb) ==
+  assert is_empty(refusals(ordered)) == true
+  assert render(ordered, :duckdb) ==
     "SELECT string_agg(game, ',' ORDER BY game) AS games\nFROM plays\nORDER BY ALL"
-  no_contract = q_model(
+  no_contract = model(
     {
       name: :top,
       from: src,
       posture: [:locked],
-      pipeline: [q_sort([q_desc(:score)]), q_limit(1)]
+      pipeline: [sort([desc(:score)]), limit(1)]
     }
   )
-  assert q_refusal_kinds(no_contract) == [:kueri_locked]
-  lucky = q_model(
+  assert refusal_kinds(no_contract) == [:kueri_locked]
+  lucky = model(
     {
       name: :top,
       from: src,
       posture: [:locked],
-      pipeline: [q_limit(1)],
-      contract: [q_col(:game, :varchar), q_col(:score, :double)]
+      pipeline: [limit(1)],
+      contract: [col(:game, :varchar), col(:score, :double)]
     }
   )
-  assert q_refusal_kinds(lucky) == [:kueri_locked]
-  assert error?(try(q_check(lucky), catch(e(), e))) == true
+  assert refusal_kinds(lucky) == [:kueri_locked]
+  assert error?(try(check(lucky), catch(e(), e))) == true
   # The control: a sort right before the limit, and the order is completed
   # with the rest of the contract so ties cannot fall either way.
-  top = q_model(
+  top = model(
     {
       name: :top,
       from: src,
       posture: [:locked],
-      pipeline: [q_sort([q_desc(:score)]), q_limit(1)],
-      contract: [q_col(:game, :varchar), q_col(:score, :double)]
+      pipeline: [sort([desc(:score)]), limit(1)],
+      contract: [col(:game, :varchar), col(:score, :double)]
     }
   )
-  assert error?(try(q_check(top), catch(e(), e))) == false
-  assert q_render(top, :duckdb) ==
+  assert error?(try(check(top), catch(e(), e))) == false
+  assert render(top, :duckdb) ==
     "SELECT *\nFROM plays\nORDER BY score DESC, game\nLIMIT 1"
   # :loose asks for none of it.
   assert is_empty(
-    q_refusals(q_model({name: :top, from: src, pipeline: [q_limit(1)]}))
+    refusals(model({name: :top, from: src, pipeline: [limit(1)]}))
   ) ==
     true
 end
 
 test "a declared contract is checked at any rigor, and a wrong one throws"
-  wrong = q_model(
+  wrong = model(
     {
       name: :w,
-      from: q_example_horizons(),
-      pipeline: [q_select([:rounds_together, :keep_mean])],
-      contract: [q_col(:rounds_together, :bigint), q_col(:keep_sd, :double)]
+      from: example_horizons(),
+      pipeline: [select([:rounds_together, :keep_mean])],
+      contract: [col(:rounds_together, :bigint), col(:keep_sd, :double)]
     }
   )
-  assert q_refusal_kinds(wrong) == [:kueri_contract]
-  assert error?(try(q_render(wrong, :core), catch(e(), e))) == true
-  right = q_model(
+  assert refusal_kinds(wrong) == [:kueri_contract]
+  assert error?(try(render(wrong, :core), catch(e(), e))) == true
+  right = model(
     {
       name: :w,
-      from: q_example_horizons(),
-      pipeline: [q_select([:rounds_together, :keep_mean])],
-      contract: [q_col(:rounds_together, :bigint), q_col(:keep_mean, :double)]
+      from: example_horizons(),
+      pipeline: [select([:rounds_together, :keep_mean])],
+      contract: [col(:rounds_together, :bigint), col(:keep_mean, :double)]
     }
   )
-  assert is_empty(q_refusals(right)) == true
+  assert is_empty(refusals(right)) == true
   # A model downstream sees the contract as its input schema.
-  down = q_model(
-    {name: :d, from: right, pipeline: [q_filter(q_gt(:keep_sd, 0))]}
-  )
-  assert q_refusal_kinds(down) == [:kueri_shape]
+  down = model({name: :d, from: right, pipeline: [q_filter(gt(:keep_sd, 0))]})
+  assert refusal_kinds(down) == [:kueri_shape]
 end
 
 test "shape: unknown columns, a stray aggregate, a plain column in a group, and a discarded sort"
-  h = q_example_horizons()
-  assert q_refusal_kinds(
-    q_model({name: :a, from: h, pipeline: [q_filter(q_gt(:nope, 1))]})
+  h = example_horizons()
+  assert refusal_kinds(
+    model({name: :a, from: h, pipeline: [q_filter(gt(:nope, 1))]})
   ) ==
     [:kueri_shape]
-  assert q_refusal_kinds(
-    q_model({name: :b, from: h, pipeline: [q_derive(:m, q_max(:keep_mean))]})
+  assert refusal_kinds(
+    model({name: :b, from: h, pipeline: [derive(:m, q_max(:keep_mean))]})
   ) ==
     [:kueri_shape]
-  assert q_refusal_kinds(
-    q_model(
+  assert refusal_kinds(
+    model(
       {
         name: :c,
         from: h,
         pipeline: [
-          q_group(
+          group(
             [:rounds_together],
-            [q_agg(:e, q_add(:enforcement, q_max(:keep_mean)))]
+            [agg(:e, add(:enforcement, q_max(:keep_mean)))]
           )
         ]
       }
     )
   ) ==
     [:kueri_shape]
-  assert q_refusal_kinds(
-    q_model(
+  assert refusal_kinds(
+    model(
       {
         name: :d,
         from: h,
-        pipeline: [q_sort([:keep_mean]), q_filter(q_gt(:keep_mean, 0))]
+        pipeline: [sort([:keep_mean]), q_filter(gt(:keep_mean, 0))]
       }
     )
   ) ==
     [:kueri_shape]
-  assert q_refusal_kinds(
-    q_model(
+  assert refusal_kinds(
+    model(
       {
         name: :e,
         from: h,
         pipeline: [
-          q_group([:rounds_together], [q_agg(:m, q_max(q_max(:keep_mean)))])
+          group([:rounds_together], [agg(:m, q_max(q_max(:keep_mean)))])
         ]
       }
     )
   ) ==
     [:kueri_shape]
-  assert q_refusal_kinds(
-    q_model({name: :f, from: h, pipeline: [q_join(h, [:rounds_together])]})
+  assert refusal_kinds(
+    model({name: :f, from: h, pipeline: [q_join(h, [:rounds_together])]})
   ) ==
     [:kueri_shape]
   # The control: the same stages, well formed, hold.
   assert is_empty(
-    q_refusals(
-      q_model(
+    refusals(
+      model(
         {
           name: :g,
           from: h,
-          pipeline: [q_filter(q_gt(:keep_mean, 0)), q_sort([:keep_mean])]
+          pipeline: [q_filter(gt(:keep_mean, 0)), sort([:keep_mean])]
         }
       )
     )
@@ -3084,152 +3136,150 @@ test "shape: unknown columns, a stray aggregate, a plain column in a group, and 
 end
 
 test "the renderer holds the floor on its own: no door leads a duckdb form into core"
-  m = q_model(
+  m = model(
     {
       name: :names,
-      from: q_example_horizons(),
+      from: example_horizons(),
       posture: [:duckdb],
       pipeline: [
-        q_group(
+        group(
           [:rounds_together],
           [
-            q_agg(
+            agg(
               :games,
-              q_ordered(q_string_agg(:rounds_together, ","), [:rounds_together])
+              ordered(string_agg(:rounds_together, ","), [:rounds_together])
             )
           ]
         )
       ]
     }
   )
-  assert is_empty(q_refusals(m)) == true
-  assert error?(try(q_render(m, :core), catch(e(), e))) == true
-  assert error?(
-    try(q_render_expr(q_string_agg(:x, ","), :core), catch(e(), e))
-  ) ==
+  assert is_empty(refusals(m)) == true
+  assert error?(try(render(m, :core), catch(e(), e))) == true
+  assert error?(try(render_expr(string_agg(:x, ","), :core), catch(e(), e))) ==
     true
-  assert error?(try(q_render_query(m, :core), catch(e(), e))) == true
-  raw = q_model(
+  assert error?(try(render_query(m, :core), catch(e(), e))) == true
+  raw = model(
     {
       name: :r,
-      from: q_raw(
-        {name: :one, sql: "SELECT 1 AS x", columns: [q_col(:x, :integer)]}
+      from: kueri::raw(
+        {name: :one, sql: "SELECT 1 AS x", columns: [col(:x, :integer)]}
       )
     }
   )
-  assert error?(try(q_render_query(raw, :core), catch(e(), e))) == true
-  assert error?(try(q_render(m, :duckdb), catch(e(), e))) == false
+  assert error?(try(render_query(raw, :core), catch(e(), e))) == true
+  assert error?(try(render(m, :duckdb), catch(e(), e))) == false
   assert error?(
-    try(q_render_load(q_example_horizons(), "h.tsv", :core), catch(e(), e))
+    try(render_load(example_horizons(), "h.tsv", :core), catch(e(), e))
   ) ==
     true
-  assert error?(try(q_render(m, :postgres), catch(e(), e))) == true
+  assert error?(try(render(m, :postgres), catch(e(), e))) == true
 end
 
 test "malformed nodes are refused where they are built"
-  assert error?(try(q_source({name: :s, file: "s.tsv"}), catch(e(), e))) == true
-  assert error?(try(q_raw({name: :r, sql: "SELECT 1"}), catch(e(), e))) == true
-  assert error?(try(q_col(:x, :float), catch(e(), e))) == true
+  assert error?(try(source({name: :s, file: "s.tsv"}), catch(e(), e))) == true
+  assert error?(try(raw({name: :r, sql: "SELECT 1"}), catch(e(), e))) == true
+  assert error?(try(col(:x, :float), catch(e(), e))) == true
   assert error?(
     try(
-      q_model({name: :m, from: q_example_horizons(), posture: [:strict]}),
+      model({name: :m, from: example_horizons(), posture: [:strict]}),
       catch(e(), e)
     )
   ) ==
     true
   assert error?(
     try(
-      q_model(
-        {name: :m, from: q_example_horizons(), posture: [:portable, :duckdb]}
+      model(
+        {name: :m, from: example_horizons(), posture: [:portable, :duckdb]}
       ),
       catch(e(), e)
     )
   ) ==
     true
-  assert error?(try(q_limit(-1), catch(e(), e))) == true
-  assert error?(try(q_filtered(q_c(:x), q_gt(:x, 1)), catch(e(), e))) == true
+  assert error?(try(limit(-1), catch(e(), e))) == true
+  assert error?(try(filtered(c(:x), gt(:x, 1)), catch(e(), e))) == true
   # The control: a well-formed source is not an error.
-  assert error?(try(q_example_horizons(), catch(e(), e))) == false
+  assert error?(try(example_horizons(), catch(e(), e))) == false
 end
 
 test "refs are the DAG: direct deps, and a closure with every upstream before its readers"
-  assert q_deps(q_example_leverage()) == ["horizons"]
-  assert q_deps(q_example_tipping()) == ["curve_keep", "curve_cells"]
-  summary = q_model(
+  assert deps(example_leverage()) == ["horizons"]
+  assert deps(example_tipping()) == ["curve_keep", "curve_cells"]
+  summary = model(
     {
       name: :summary,
-      from: q_example_tipping(),
-      pipeline: [q_join(q_example_leverage(), [:rounds])]
+      from: example_tipping(),
+      pipeline: [q_join(example_leverage(), [:rounds])]
     }
   )
-  assert q_deps(summary) == ["tipping", "leverage"]
-  assert map(fn(n) get(n, :name) end, q_closure(summary)) ==
+  assert deps(summary) == ["tipping", "leverage"]
+  assert map(fn(n) blue::get(n, :name) end, closure(summary)) ==
     ["curve_keep", "curve_cells", "tipping", "horizons", "leverage"]
-  assert map(fn(n) get(n, :name) end, q_sources(summary)) ==
+  assert map(fn(n) blue::get(n, :name) end, sources(summary)) ==
     ["curve_keep", "curve_cells", "horizons"]
 end
 
 test "a raw node is the escape hatch: its own CTE, its declared columns, and :duckdb unless vouched"
-  raw = q_raw(
+  raw = kueri::raw(
     {
       name: :seeds,
       sql: "SELECT range AS seed FROM range(3)",
-      columns: [q_col(:seed, :bigint)]
+      columns: [col(:seed, :bigint)]
     }
   )
-  m = q_model(
+  m = model(
     {
       name: :evens,
       from: raw,
-      pipeline: [q_filter(q_eq(q_sub(:seed, q_mul(q_div(:seed, 2), 2)), 0))]
+      pipeline: [q_filter(eq(sub(:seed, mul(div(:seed, 2), 2)), 0))]
     }
   )
-  assert q_output(m) == ["seed"]
-  assert q_render(m, :duckdb) ==
+  assert output(m) == ["seed"]
+  assert render(m, :duckdb) ==
     "WITH seeds AS (\nSELECT range AS seed FROM range(3)\n)\nSELECT *\nFROM seeds\nWHERE seed - seed / 2 * 2 = 0"
-  assert q_refusal_kinds(assoc(m, :posture, q_posture_of([:portable]))) ==
+  assert refusal_kinds(assoc(m, :posture, posture_of([:portable]))) ==
     [:kueri_reach]
-  vouched = q_raw(
+  vouched = kueri::raw(
     {
       name: :one,
       sql: "SELECT 1 AS x",
-      columns: [q_col(:x, :integer)],
+      columns: [col(:x, :integer)],
       dialect: :core
     }
   )
   assert is_empty(
-    q_refusals(q_model({name: :v, from: vouched, posture: [:portable]}))
+    refusals(model({name: :v, from: vouched, posture: [:portable]}))
   ) ==
     true
 end
 
 test "materialize: COPY to a file in DuckDB, CREATE TABLE AS in both, and no file COPY in core"
-  m = q_example_leverage()
-  sql = q_render(m, :duckdb)
-  assert q_render_materialize(m, :duckdb, "out/leverage.parquet") ==
+  m = example_leverage()
+  sql = render(m, :duckdb)
+  assert render_materialize(m, :duckdb, "out/leverage.parquet") ==
     "COPY (\n#{sql}\n) TO 'out/leverage.parquet' (FORMAT parquet, COMPRESSION zstd)"
   assert error?(
-    try(q_render_materialize(m, :core, "x.parquet"), catch(e(), e))
+    try(render_materialize(m, :core, "x.parquet"), catch(e(), e))
   ) ==
     true
   as_table = assoc(m, :materialize, :table)
-  assert q_render_materialize(as_table, :core, nil) ==
-    "CREATE TABLE leverage AS\n#{q_render(m, :core)}"
+  assert render_materialize(as_table, :core, nil) ==
+    "CREATE TABLE leverage AS\n#{render(m, :core)}"
   as_csv = assoc(m, :materialize, :csv)
-  assert q_render_materialize(as_csv, :duckdb, "l.csv") ==
+  assert render_materialize(as_csv, :duckdb, "l.csv") ==
     "COPY (\n#{sql}\n) TO 'l.csv' (FORMAT csv, HEADER)"
 end
 
 test "q_write_sql writes the @generated file a consumer commits and gates fresh"
   path = path_join(getenv("TMPDIR", "."), "kueri-write-test.sql")
-  m = q_example_tipping()
-  assert q_write_sql(path, m, :duckdb, "analysis/tipping.b") == path
+  m = example_tipping()
+  assert write_sql(path, m, :duckdb, "analysis/tipping.b") == path
   written = read_file(path)
   assert written ==
-    "-- @generated by analysis/tipping.b (kueri, duckdb). Do not edit: regenerate from the blue model.\n#{q_render(m, :duckdb)};\n"
+    "-- @generated by analysis/tipping.b (kueri, duckdb). Do not edit: regenerate from the blue model.\n#{render(m, :duckdb)};\n"
   # A model that materializes writes its COPY, to <name>.parquet beside it.
   assert contains?(
-    q_render_file(q_example_leverage(), :duckdb, "l.b"),
+    render_file(example_leverage(), :duckdb, "l.b"),
     ") TO 'leverage.parquet' (FORMAT parquet, COMPRESSION zstd);\n"
   ) ==
     true
@@ -3237,15 +3287,15 @@ test "q_write_sql writes the @generated file a consumer commits and gates fresh"
 end
 
 test "the DuckDB seam: an empty result is not a failure, a broken query is not empty, and 1.0 needs its type"
-  r = q_duckdb("SELECT 1 AS x WHERE false")
-  assert q_duckdb_failed?(r) == false
-  assert is_empty(q_row_values(r, [:x])) == true
-  assert q_duckdb_failed?(q_duckdb("SELECT FROM nowhere")) == true
+  r = duckdb("SELECT 1 AS x WHERE false")
+  assert duckdb_failed?(r) == false
+  assert is_empty(row_values(r, [:x])) == true
+  assert duckdb_failed?(duckdb("SELECT FROM nowhere")) == true
   # The trap the literal typing exists for, measured on the engine itself.
-  t = q_duckdb(
-    "SELECT typeof(1.0) AS bare, typeof(#{q_render_expr(q_lit(1.0), :duckdb)}) AS typed, typeof(#{q_render_expr(q_lit(1.0), :core)}) AS core"
+  t = duckdb(
+    "SELECT typeof(1.0) AS bare, typeof(#{render_expr(lit(1.0), :duckdb)}) AS typed, typeof(#{render_expr(lit(1.0), :core)}) AS core"
   )
-  assert q_row_values(t, [:bare, :typed, :core]) ==
+  assert row_values(t, [:bare, :typed, :core]) ==
     [["DECIMAL(2,1)", "DOUBLE", "DOUBLE"]]
 end
 
@@ -3272,14 +3322,18 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
   loads = fn(m)
     map(
       fn(s)
-        q_render_load(s, path_join(dir, "kueri-e2e-#{get(s, :file)}"), :duckdb)
+        render_load(
+          s,
+          path_join(dir, "kueri-e2e-#{blue::get(s, :file)}"),
+          :duckdb
+        )
       end,
-      q_sources(m)
+      sources(m)
     )
   end
-  run = fn(m, d) q_duckdb(join(push(loads(m), q_render(m, d)), ";\n")) end
-  lev = q_example_leverage()
-  lev_names = q_col_names(get(lev, :contract))
+  run = fn(m, d) duckdb(blue::join(push(loads(m), render(m, d)), ";\n")) end
+  lev = example_leverage()
+  lev_names = col_names(blue::get(lev, :contract))
   # Per length: max keep without and with enforcement, their rounded
   # difference, the widest spread. 1000 has no unenforced row: NULL, not 0.
   lev_known = [
@@ -3288,24 +3342,24 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
     [100, 0.95, 0.95, 0.0, 0.2],
     [1000, nil, 0.7, nil, 0.3]
   ]
-  assert q_duckdb_failed?(run(lev, :duckdb)) == false
-  assert q_row_values(run(lev, :duckdb), lev_names) == lev_known
-  assert q_row_values(run(lev, :core), lev_names) == lev_known
-  tip = q_example_tipping()
-  tip_names = q_col_names(get(tip, :contract))
+  assert duckdb_failed?(run(lev, :duckdb)) == false
+  assert row_values(run(lev, :duckdb), lev_names) == lev_known
+  assert row_values(run(lev, :core), lev_names) == lev_known
+  tip = example_tipping()
+  tip_names = col_names(blue::get(tip, :contract))
   # Cell 2's mean 0.8996 rounds to 0.9 and counts; cell 5's 0.89 does not.
   # Horizon 500 never reaches 90%: NULL tipping, zero bimodal levels.
   tip_known = [[5, 0.5, 1], [50, 1.0, 2], [500, nil, 0]]
-  assert q_row_values(run(tip, :duckdb), tip_names) == tip_known
-  assert q_row_values(run(tip, :core), tip_names) == tip_known
+  assert row_values(run(tip, :duckdb), tip_names) == tip_known
+  assert row_values(run(tip, :core), tip_names) == tip_known
   # The materialization runs too: COPY to Parquet, read back identical.
   pq = path_join(dir, "kueri-e2e-leverage.parquet")
-  copied = q_duckdb(
-    join(push(loads(lev), q_render_materialize(lev, :duckdb, pq)), ";\n")
+  copied = duckdb(
+    blue::join(push(loads(lev), render_materialize(lev, :duckdb, pq)), ";\n")
   )
-  assert q_duckdb_failed?(copied) == false
-  assert q_row_values(
-    q_duckdb("SELECT * FROM read_parquet(#{q_quote_str(pq)})"),
+  assert duckdb_failed?(copied) == false
+  assert row_values(
+    duckdb("SELECT * FROM read_parquet(#{quote_str(pq)})"),
     lev_names
   ) ==
     lev_known
@@ -3315,8 +3369,8 @@ end
 
 # A small JSON Lines stream in an event log's shape (a refusal object, a list
 # of link objects, a payload object) and the source that declares it.
-def q_example_records_text()
-  join(
+def example_records_text()
+  blue::join(
     [
       "{\"entity\":\"item-1\",\"links\":[],\"payload\":{\"value\":10},\"refusal\":null,\"seq\":0,\"time\":1000}",
       "{\"entity\":\"item-1\",\"links\":[{\"id\":\"B-7\",\"kind\":\"batch\"}],\"payload\":{},\"refusal\":{\"detail\":[\"quality_ok\",\"uses_left\"],\"kind\":\"guard\"},\"seq\":1,\"time\":1100}",
@@ -3327,38 +3381,39 @@ def q_example_records_text()
   )
 end
 
-def q_example_records(path)
-  q_source(
+def example_records(path)
+  source(
     {
       name: :recs,
       file: path,
       format: :jsonl,
       columns: [
-        q_col(:entity, :varchar),
-        q_col(:seq, :bigint),
-        q_col(:time, :bigint),
-        q_col(
+        col(:entity, :varchar),
+        col(:seq, :bigint),
+        col(:time, :bigint),
+        col(
           :refusal,
-          q_struct_of(
-            [q_col(:kind, :varchar), q_col(:detail, q_list_of(:varchar))]
-          )
+          struct_of([col(:kind, :varchar), col(:detail, list_of(:varchar))])
         ),
-        q_col(
+        col(
           :links,
-          q_list_of(q_struct_of([q_col(:id, :varchar), q_col(:kind, :varchar)]))
+          list_of(struct_of([col(:id, :varchar), col(:kind, :varchar)]))
         ),
-        q_col(:payload, q_struct_of([q_col(:value, :double)]))
+        col(:payload, struct_of([col(:value, :double)]))
       ]
     }
   )
 end
 
 # Run a model over its loaded sources, in memory: its rows as value lists.
-def q_example_run(m, names)
-  loads = map(fn(s) q_render_load(s, get(s, :file), :duckdb) end, q_sources(m))
+def example_run(m, names)
+  loads = map(
+    fn(s) render_load(s, blue::get(s, :file), :duckdb) end,
+    sources(m)
+  )
   map(
-    fn(row) map(fn(n) as_json(row, q_name(n)) end, names) end,
-    q_script_rows(loads, q_render(m, :duckdb))
+    fn(row) map(fn(n) as_json(row, name(n)) end, names) end,
+    script_rows(loads, render(m, :duckdb))
   )
 end
 
@@ -3367,92 +3422,85 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
     getenv("TMPDIR", "."),
     "kueri-records-#{to_s(now_ns())}.jsonl"
   )
-  write_file(path, q_example_records_text())
-  recs = q_example_records(path)
-  assert q_render_load(recs, "r.jsonl", :duckdb) ==
+  write_file(path, example_records_text())
+  recs = example_records(path)
+  assert render_load(recs, "r.jsonl", :duckdb) ==
     "CREATE OR REPLACE VIEW recs AS\nSELECT * FROM read_json('r.jsonl', format = 'newline_delimited', columns = {'entity': 'VARCHAR', 'seq': 'BIGINT', 'time': 'BIGINT', 'refusal': 'STRUCT(kind VARCHAR, detail VARCHAR[])', 'links': 'STRUCT(id VARCHAR, kind VARCHAR)[]', 'payload': 'STRUCT(value DOUBLE)'})"
   # One row per refusing rule: the refused record's two rules; the admitted
   # records' refusal is NULL, so they explode into no rows.
-  rules = q_model(
+  rules = model(
     {
       name: :rules,
       from: recs,
       pipeline: [
-        q_explode(:rule, q_get(:refusal, :detail)),
-        q_select([:entity, :seq, :rule])
+        explode(:rule, q_get(:refusal, :detail)),
+        select([:entity, :seq, :rule])
       ]
     }
   )
-  assert q_render(rules, :duckdb) ==
+  assert render(rules, :duckdb) ==
     "WITH step_1 AS (\n  SELECT\n    *,\n    unnest((refusal).detail) AS rule\n  FROM recs\n)\nSELECT\n  entity,\n  seq,\n  rule\nFROM step_1"
-  assert q_example_run(
-    q_then(rules, [q_sort([:rule])]),
-    [:entity, :seq, :rule]
-  ) ==
+  assert example_run(then(rules, [sort([:rule])]), [:entity, :seq, :rule]) ==
     [["item-1", 1, "quality_ok"], ["item-1", 1, "uses_left"]]
   # A link's fields; a payload key absent from a line is NULL, and 10 loads as
   # the DOUBLE its column declares.
-  links = q_model(
+  links = model(
     {
       name: :ls,
       from: recs,
       pipeline: [
-        q_explode(:link, :links),
-        q_select(
+        explode(:link, :links),
+        select(
           [
             :entity,
-            q_as(:link_id, q_get(:link, :id)),
-            q_as(:link_kind, q_get(:link, :kind))
+            as(:link_id, q_get(:link, :id)),
+            as(:link_kind, q_get(:link, :kind))
           ]
         )
       ]
     }
   )
-  assert q_example_run(links, [:entity, :link_id, :link_kind]) ==
+  assert example_run(links, [:entity, :link_id, :link_kind]) ==
     [["item-1", "B-7", "batch"]]
-  values = q_model(
+  values = model(
     {
       name: :vs,
       from: recs,
       pipeline: [
-        q_select([:entity, :seq, q_as(:value, q_get(:payload, :value))]),
-        q_sort([:entity, :seq])
+        select([:entity, :seq, as(:value, q_get(:payload, :value))]),
+        sort([:entity, :seq])
       ]
     }
   )
-  assert q_example_run(values, [:entity, :seq, :value]) ==
+  assert example_run(values, [:entity, :seq, :value]) ==
     [["item-1", 0, 10.0], ["item-1", 1, nil], ["item-2", 0, 10.5]]
   # Literal rows: typed, NULLs kept, and none at all still typed.
-  gates = q_values(
+  gates = kueri::values(
     {
       name: :gates,
-      columns: [q_col(:kind, :varchar), q_col(:weight, :bigint)],
+      columns: [col(:kind, :varchar), col(:weight, :bigint)],
       rows: [["guard", 2], ["no_edge", nil]]
     }
   )
-  assert q_render_load(gates, nil, :core) ==
+  assert render_load(gates, nil, :core) ==
     "CREATE OR REPLACE VIEW gates AS\nSELECT CAST(kind AS VARCHAR) AS kind, CAST(weight AS BIGINT) AS weight\nFROM (VALUES\n  ('guard', 2),\n  ('no_edge', NULL)\n) AS t(kind, weight)"
-  weighed = q_model(
+  weighed = model(
     {
       name: :w,
       from: recs,
       pipeline: [
-        q_derive(:kind, q_get(:refusal, :kind)),
+        derive(:kind, q_get(:refusal, :kind)),
         q_join(gates, [:kind]),
-        q_select([:entity, :kind, :weight])
+        select([:entity, :kind, :weight])
       ]
     }
   )
-  assert q_example_run(weighed, [:entity, :kind, :weight]) ==
+  assert example_run(weighed, [:entity, :kind, :weight]) ==
     [["item-1", "guard", 2]]
-  none = q_values({name: :none, columns: [q_col(:kind, :varchar)], rows: []})
-  assert q_example_run(
-    q_model(
-      {
-        name: :n,
-        from: none,
-        pipeline: [q_group([], [q_agg(:n, q_count_all())])]
-      }
+  none = kueri::values({name: :none, columns: [col(:kind, :varchar)], rows: []})
+  assert example_run(
+    model(
+      {name: :n, from: none, pipeline: [group([], [agg(:n, count_all())])]}
     ),
     [:n]
   ) ==
@@ -3464,19 +3512,19 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
     path,
     "{\"entity\":\"x\",\"payload\":{\"value\":\"high\"},\"seq\":0,\"time\":1}\n"
   )
-  assert error?(try(q_example_run(values, [:entity]), catch(e(), e)))
+  assert error?(try(example_run(values, [:entity]), catch(e(), e)))
   rm(path)
-  assert error?(try(q_render_load(recs, "r.jsonl", :core), catch(e(), e)))
-  assert error?(try(q_render(links, :core), catch(e(), e)))
-  assert error?(try(q_render_query(links, :core), catch(e(), e)))
+  assert error?(try(render_load(recs, "r.jsonl", :core), catch(e(), e)))
+  assert error?(try(render(links, :core), catch(e(), e)))
+  assert error?(try(render_query(links, :core), catch(e(), e)))
   assert error?(
     try(
-      q_render_query(
-        q_model(
+      render_query(
+        model(
           {
             name: :f,
             from: recs,
-            pipeline: [q_select([q_as(:k, q_get(:refusal, :kind))])]
+            pipeline: [select([as(:k, q_get(:refusal, :kind))])]
           }
         ),
         :core
@@ -3484,8 +3532,8 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
       catch(e(), e)
     )
   )
-  assert error?(try(q_type_sql(q_list_of(:varchar), :core), catch(e(), e)))
-  assert get(q_shift(links), :held_by) ==
+  assert error?(try(type_sql(list_of(:varchar), :core), catch(e(), e)))
+  assert blue::get(shift(links), :held_by) ==
     [
       "unnest at stage 1 (explode)",
       "struct field id at stage 2 (select)",
@@ -3493,25 +3541,25 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
     ]
   assert error?(
     try(
-      q_values(
-        {name: :bad, columns: [q_col(:a, :varchar)], rows: [["a", "b"]]}
+      kueri::values(
+        {name: :bad, columns: [col(:a, :varchar)], rows: [["a", "b"]]}
       ),
       catch(e(), e)
     )
   )
-  assert error?(try(q_struct_of([]), catch(e(), e)))
+  assert error?(try(struct_of([]), catch(e(), e)))
 end
 
 # Steps of two entities as literal rows: entity, seq, time, phase.
-def q_example_steps()
-  q_values(
+def example_steps()
+  values(
     {
       name: :steps,
       columns: [
-        q_col(:entity, :varchar),
-        q_col(:seq, :bigint),
-        q_col(:time, :bigint),
-        q_col(:phase, :varchar)
+        col(:entity, :varchar),
+        col(:seq, :bigint),
+        col(:time, :bigint),
+        col(:phase, :varchar)
       ],
       rows: [
         ["e1", 0, 100, "a"],
@@ -3525,30 +3573,27 @@ end
 
 # Each step's interval: until the entity's next step, or `now` (1000) when it
 # is the last; the phase before it (or "start"); open or closed.
-def q_example_intervals()
-  q_model(
+def example_intervals()
+  model(
     {
       name: :intervals,
-      from: q_example_steps(),
+      from: example_steps(),
       materialize: :view,
       pipeline: [
-        q_derive(:until, q_lead(:time, [:entity], [:seq])),
-        q_derive(
-          :before,
-          q_coalesce(q_lag(:phase, [:entity], [:seq]), "start")
-        ),
-        q_derive(:seconds, q_sub(q_coalesce(:until, 1000), :time)),
-        q_derive(:state, q_if(q_is_null(:until), "open", "closed")),
-        q_select([:entity, :seq, :before, :phase, :until, :seconds, :state])
+        derive(:until, lead(:time, [:entity], [:seq])),
+        derive(:before, coalesce(lag(:phase, [:entity], [:seq]), "start")),
+        derive(:seconds, sub(coalesce(:until, 1000), :time)),
+        derive(:state, q_if(is_null(:until), "open", "closed")),
+        select([:entity, :seq, :before, :phase, :until, :seconds, :state])
       ]
     }
   )
 end
 
 test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered once and run"
-  m = q_example_intervals()
-  assert q_render(m, :duckdb) ==
-    join(
+  m = example_intervals()
+  assert render(m, :duckdb) ==
+    blue::join(
       [
         "WITH step_1 AS (",
         "  SELECT",
@@ -3576,11 +3621,11 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
       "\n"
     )
   # Lead, lag and CASE are core SQL: the same bytes in both dialects.
-  assert q_render(m, :core) == q_render(m, :duckdb)
+  assert render(m, :core) == render(m, :duckdb)
   # By hand: e1 steps at 100, 250, 400 -> intervals 150, 150, and 1000 - 400
   # = 600 still open; e2 one step at 120 -> 880 open.
   names = [:entity, :seq, :before, :phase, :until, :seconds, :state]
-  assert q_example_run(q_then(m, [q_sort([:entity, :seq])]), names) ==
+  assert example_run(then(m, [sort([:entity, :seq])]), names) ==
     [
       ["e1", 0, "start", "a", 250, 150, "closed"],
       ["e1", 1, "a", "b", 400, 150, "closed"],
@@ -3588,24 +3633,20 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
       ["e2", 0, "start", "a", nil, 880, "open"]
     ]
   # The asof join: each probe takes the latest reading at or before its time.
-  readings = q_values(
+  readings = values(
     {
       name: :readings,
-      columns: [
-        q_col(:entity, :varchar),
-        q_col(:time, :bigint),
-        q_col(:q, :double)
-      ],
+      columns: [col(:entity, :varchar), col(:time, :bigint), col(:q, :double)],
       rows: [["e1", 90, 1.0], ["e1", 240, 2.0]]
     }
   )
-  probes = q_values(
+  probes = values(
     {
       name: :probes,
       columns: [
-        q_col(:entity, :varchar),
-        q_col(:time, :bigint),
-        q_col(:tag, :varchar)
+        col(:entity, :varchar),
+        col(:time, :bigint),
+        col(:tag, :varchar)
       ],
       rows: [
         ["e1", 100, "a"],
@@ -3615,61 +3656,58 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
       ]
     }
   )
-  asof = q_model(
+  asof = model(
     {
       name: :asof,
       from: probes,
       pipeline: [
-        q_asof_left_join(readings, [:entity, :time]),
-        q_select([:tag, :q]),
-        q_sort([:tag])
+        asof_left_join(readings, [:entity, :time]),
+        select([:tag, :q]),
+        sort([:tag])
       ]
     }
   )
   assert contains?(
-    q_render(asof, :duckdb),
+    render(asof, :duckdb),
     "ASOF LEFT JOIN readings USING (entity, time)"
   )
-  assert q_example_run(asof, [:tag, :q]) ==
+  assert example_run(asof, [:tag, :q]) ==
     [["a", 1.0], ["b", 2.0], ["early", nil], ["none", nil]]
   # Controls: a lead with no order, and an asof join held at :portable or
   # rendered as core.
-  assert error?(try(q_lead(:time, [:entity], []), catch(e(), e)))
-  assert q_refusal_kinds(assoc(asof, :posture, q_posture_of([:portable]))) ==
+  assert error?(try(lead(:time, [:entity], []), catch(e(), e)))
+  assert refusal_kinds(assoc(asof, :posture, posture_of([:portable]))) ==
     [:kueri_reach]
-  assert error?(try(q_render_query(asof, :core), catch(e(), e)))
-  assert q_render_expr(q_not(q_is_null(:x)), :core) == "NOT x IS NULL"
+  assert error?(try(render_query(asof, :core), catch(e(), e)))
+  assert render_expr(q_not(is_null(:x)), :core) == "NOT x IS NULL"
 end
 
 test "a script builds a database file of views, upstream first, and q_rows never reads a failure as no rows"
-  m = q_example_intervals()
-  script = q_render_script([m], :duckdb, "kueri test")
+  m = example_intervals()
+  script = render_script([m], :duckdb, "kueri test")
   assert starts_with?(script, "-- @generated by kueri test (kueri, duckdb).")
   # Two statements, the load before the view that reads it, then the end.
   parts = split(script, ";\n")
   assert size(parts) == 3
-  assert ends_with?(
-    first(parts),
-    q_render_load(q_example_steps(), nil, :duckdb)
-  )
+  assert ends_with?(first(parts), render_load(example_steps(), nil, :duckdb))
   assert starts_with?(
     nth(1, parts),
     "CREATE OR REPLACE VIEW intervals AS\nWITH step_1 AS ("
   )
   assert last(parts) == ""
   db = path_join(getenv("TMPDIR", "."), "kueri-script-#{to_s(now_ns())}.duckdb")
-  assert q_duckdb_failed?(q_duckdb_at(db, script)) == false
+  assert duckdb_failed?(duckdb_at(db, script)) == false
   # The views persist in the file: a second process reads them.
-  assert q_rows_at(db, "SELECT sum(seconds) AS s FROM intervals") ==
-    q_rows("SELECT 1780 AS s")
+  assert rows_at(db, "SELECT sum(seconds) AS s FROM intervals") ==
+    rows("SELECT 1780 AS s")
   rm(db)
   # The empty case and the control: no rows is [], a failure throws.
-  assert q_rows("SELECT 1 AS x WHERE false") == []
-  assert error?(try(q_rows("SELECT FROM nowhere"), catch(e(), e)))
+  assert rows("SELECT 1 AS x WHERE false") == []
+  assert error?(try(rows("SELECT FROM nowhere"), catch(e(), e)))
   # A model a script cannot name (no :view or :table) is refused.
   assert error?(
     try(
-      q_render_script([assoc(m, :materialize, nil)], :duckdb, "t"),
+      render_script([assoc(m, :materialize, nil)], :duckdb, "t"),
       catch(e(), e)
     )
   )
@@ -3678,7 +3716,7 @@ end
 test "q_rows reads values by conversion, so a DuckDB display change never changes a value's type"
   # Each type DuckDB 1.5's `-json` display prints as a string (measured
   # 2026-09-25): a sum over integers (HUGEINT), a DECIMAL, a UHUGEINT.
-  rows = q_rows(
+  rows = kueri::rows(
     "SELECT sum(x) AS s, 1.25::DECIMAL(10,2) AS d, 7::UHUGEINT AS u FROM (VALUES (1780)) t(x)"
   )
   row = first(rows)
@@ -3686,58 +3724,54 @@ test "q_rows reads values by conversion, so a DuckDB display change never change
     [1780, 1.25, 7]
   assert integer?(as_json(row, "s"))
   # The identity: a trailing `;` or `--` comment is the same query.
-  assert q_rows("SELECT 1780 AS s;") == q_rows("SELECT 1780 AS s")
-  assert q_rows("SELECT 1780 AS s -- the total") == q_rows("SELECT 1780 AS s")
+  assert kueri::rows("SELECT 1780 AS s;") == kueri::rows("SELECT 1780 AS s")
+  assert kueri::rows("SELECT 1780 AS s -- the total") ==
+    kueri::rows("SELECT 1780 AS s")
   # A script's statements run first, then its one query is read.
-  assert q_script_rows(
+  assert script_rows(
     ["CREATE TEMP TABLE k AS SELECT 2 AS n"],
     "SELECT sum(n) AS n FROM k"
   ) ==
-    q_rows("SELECT 2 AS n")
+    kueri::rows("SELECT 2 AS n")
   # The control: a script that fails throws, it never reads as done.
   db = path_join(getenv("TMPDIR", "."), "kueri-run-#{to_s(now_ns())}.duckdb")
   assert error?(
-    try(q_run_at(db, "CREATE VIEW v AS SELECT * FROM nowhere"), catch(e(), e))
+    try(run_at(db, "CREATE VIEW v AS SELECT * FROM nowhere"), catch(e(), e))
   )
-  assert q_run_at(db, "CREATE VIEW v AS SELECT 3 AS n") == nil
-  assert q_rows_at(db, "SELECT n FROM v") == q_rows("SELECT 3 AS n")
+  assert run_at(db, "CREATE VIEW v AS SELECT 3 AS n") == nil
+  assert rows_at(db, "SELECT n FROM v") == kueri::rows("SELECT 3 AS n")
   rm(db)
 end
 
 test "a model carries its columns, so a model built on it (plain or composed) sees exactly them, without re-walking"
-  base = q_example_steps()
-  a = q_model(
+  base = example_steps()
+  a = model(
     {
       name: :ka,
       from: base,
-      pipeline: [q_derive(:next_time, q_lead(:time, [:entity], [:seq]))],
+      pipeline: [derive(:next_time, lead(:time, [:entity], [:seq]))],
       materialize: :view
     }
   )
   # The empty case: a model with no stages carries its relation's columns.
-  bare = q_model({name: :kbare, from: base, materialize: :view})
-  assert get(bare, :known) == ["entity", "seq", "time", "phase"]
+  bare = model({name: :kbare, from: base, materialize: :view})
+  assert blue::get(bare, :known) == ["entity", "seq", "time", "phase"]
   # The identity: what it carries is what its walk infers.
-  assert get(a, :known) == q_output(a)
-  assert get(a, :known) == ["entity", "seq", "time", "phase", "next_time"]
+  assert blue::get(a, :known) == output(a)
+  assert blue::get(a, :known) == ["entity", "seq", "time", "phase", "next_time"]
   # Composed: q_then carries the columns after the added stages, and a model
   # built on the composed one reads them (and refuses a column it dropped).
-  c = q_then(a, [q_select([:entity, :next_time])])
-  assert get(c, :known) == ["entity", "next_time"]
-  over = q_model(
-    {name: :kc, from: c, pipeline: [q_select([:next_time])], materialize: :view}
+  c = then(a, [select([:entity, :next_time])])
+  assert blue::get(c, :known) == ["entity", "next_time"]
+  over = model(
+    {name: :kc, from: c, pipeline: [select([:next_time])], materialize: :view}
   )
-  assert q_output(over) == ["next_time"]
+  assert output(over) == ["next_time"]
   assert error?(
     try(
-      q_check(
-        q_model(
-          {
-            name: :kd,
-            from: c,
-            pipeline: [q_select([:phase])],
-            materialize: :view
-          }
+      check(
+        model(
+          {name: :kd, from: c, pipeline: [select([:phase])], materialize: :view}
         )
       ),
       catch(e(), e)

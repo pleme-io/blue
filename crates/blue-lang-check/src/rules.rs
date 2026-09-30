@@ -394,7 +394,7 @@ builtin the package itself uses) keeps it under a waiver saying so.",
             "mangled",
             "def mg_a()\n  1\nend\n\ndef mg_b()\n  1\nend\n\ndef mg_c()\n  1\nend\n\ndef mg_d()\n  1\nend\n\ndef mg_e()\n  1\nend\n\ndef mg_f()\n  1\nend\n\ndef mg_g()\n  1\nend\n\ndef mg_h()\n  1\nend\n"
         )],
-        ratchet: 12,
+        ratchet: 11,
         explanation: "\
 A bidama whose definitions are nearly all `q_…`, `lc_…` or `kj_…` has
 built a namespace by hand, which per-bidama namespaces make unnecessary:

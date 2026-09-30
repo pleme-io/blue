@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:26ae72b783a8ff8311aaa25ceb957fa43e0b2ebf93cc008494689e4ca13652c5",
+  "bluefile_b3": "b3:d17e3e0d329be3aded86ffb5bc840919d04ea7df5f8595616aa38aaf0457e35a",
   "manifest": {
     "schema": 1,
     "name": "heni",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "deeta": "^0.1.0",
       "moji": "^0.1.0",

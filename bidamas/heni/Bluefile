@@ -1,4 +1,4 @@
-package("heni", "0.1.0")
+package("heni", "0.1.1")
 needs("retsu", "^0.1")
 needs("moji", "^0.1")
 needs("shisutemu", "^0.1")

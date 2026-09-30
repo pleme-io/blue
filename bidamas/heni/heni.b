@@ -8,6 +8,8 @@ use(
 
 use("shisutemu", [:read_or, :status_of])
 
+legacy_names("0.1.1", "hn")
+
 # heni (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
 #
 # A mutation the tests survive is a behaviour nothing checks. This is the red
@@ -37,6 +39,7 @@ use("shisutemu", [:read_or, :status_of])
 # ── one mutation, pure ───────────────────────────────────────────────
 
 # {text} with `find` replaced, or {error} when it does not occur exactly once.
+# waive B0013: `apply` is a builtin heni also uses, so the prefix stays; heni::apply names it too
 def hn_apply(text, find, replace)
   n = occurrences(text, find)
   if length(find) == 0
@@ -51,7 +54,7 @@ end
 # The verdict for one mutation from its test run's status. nil means the
 # tests could not be started at all: `blind`, never `caught`, because a run
 # that did not happen caught nothing.
-def hn_verdict(applied, status)
+def verdict(applied, status)
   if get(applied, :error) != nil
     :refused
   elsif status == nil
@@ -66,7 +69,7 @@ end
 # ── the spec ─────────────────────────────────────────────────────────
 
 # Mutations from parsed JSON: [{name, file, find, replace}].
-def hn_mutations(parsed)
+def mutations(parsed)
   if parsed == nil
     []
   else
@@ -85,14 +88,14 @@ def hn_mutations(parsed)
 end
 
 # The package's name: the last segment of its directory.
-def hn_package_name(dir)
+def package_name(dir)
   last(filter(fn(s) !is_empty(s) end, split(dir, "/")))
 end
 
 # ── the fresh copy ───────────────────────────────────────────────────
 
 # Copy every file under `src` to `dest`, keeping relative paths.
-def hn_copy(src, dest)
+def copy(src, dest)
   base = if ends_with?(src, "/")
     src
   else
@@ -110,13 +113,14 @@ def hn_copy(src, dest)
 end
 
 # A fresh root holding one copy of the package: <tmp>/heni-<now>-<tag>/<name>.
-def hn_fresh(pkg_dir, tmp, tag)
+def fresh(pkg_dir, tmp, tag)
   root = path_join(tmp, "heni-#{to_s(now_ms())}-#{tag}")
-  hn_copy(pkg_dir, path_join(root, hn_package_name(pkg_dir)))
+  copy(pkg_dir, path_join(root, package_name(pkg_dir)))
   root
 end
 
 # Run the copy's tests with the fresh root first on BLUE_PATH. The capture.
+# waive B0013: `test` is a reserved word, so the prefix stays; heni::test names it too
 def hn_test(blue, root, name, test_file)
   path = "#{root}:#{getenv("BLUE_PATH", "")}"
   try(
@@ -130,7 +134,7 @@ def hn_test(blue, root, name, test_file)
   )
 end
 
-def hn_status(cap)
+def status(cap)
   if cap == nil
     nil
   else
@@ -141,9 +145,9 @@ end
 # ── a whole run ──────────────────────────────────────────────────────
 
 # spec: {package, mutations, blue, test, tmp}. Returns the report.
-def hn_run(spec)
+def run(spec)
   pkg = get(spec, :package)
-  name = hn_package_name(pkg)
+  name = package_name(pkg)
   test_file = if get(spec, :test) == nil
     "#{name}.b"
   else
@@ -159,8 +163,8 @@ def hn_run(spec)
     )
   end
   tmp = get(spec, :tmp)
-  control_root = hn_fresh(pkg, tmp, "control")
-  control = hn_status(hn_test(blue, control_root, name, test_file))
+  control_root = fresh(pkg, tmp, "control")
+  control = status(hn_test(blue, control_root, name, test_file))
   rm_rf(control_root)
   if control != 0
     {
@@ -173,7 +177,7 @@ def hn_run(spec)
     }
   else
     results = map(
-      fn(p) hn_one(spec, name, test_file, nth(0, p), nth(1, p)) end,
+      fn(p) one(spec, name, test_file, nth(0, p), nth(1, p)) end,
       enumerate(get(spec, :mutations))
     )
     {
@@ -187,35 +191,33 @@ def hn_run(spec)
   end
 end
 
-def hn_one(spec, name, test_file, i, m)
-  root = hn_fresh(get(spec, :package), get(spec, :tmp), to_s(i))
+def one(spec, name, test_file, i, m)
+  root = fresh(get(spec, :package), get(spec, :tmp), to_s(i))
   file = path_join(path_join(root, name), get(m, :file))
   applied = hn_apply(read_or(file, ""), get(m, :find), get(m, :replace))
   status = if get(applied, :error) == nil
     write_file(file, get(applied, :text))
-    hn_status(hn_test(get(spec, :blue), root, name, test_file))
+    heni::status(hn_test(get(spec, :blue), root, name, test_file))
   else
     nil
   end
   rm_rf(root)
   {
     name: get(m, :name),
-    verdict: hn_verdict(applied, status),
+    verdict: verdict(applied, status),
     detail: get(applied, :error)
   }
 end
 
 # ── the command ──────────────────────────────────────────────────────
 
-def hn_report_text(r)
+def report_text(r)
   if get(r, :control) != 0
     "control FAILED: the unmutated tests exit #{to_s(get(r, :control))}; no mutation was run\n"
   else
     rows = join(
       map(
-        fn(x)
-          "#{to_s(get(x, :verdict))}  #{get(x, :name)}#{hn_detail(x)}\n"
-        end,
+        fn(x) "#{to_s(get(x, :verdict))}  #{get(x, :name)}#{detail(x)}\n" end,
         get(r, :results)
       ),
       ""
@@ -227,7 +229,7 @@ def hn_report_text(r)
   end
 end
 
-def hn_detail(x)
+def detail(x)
   if get(x, :detail) == nil
     ""
   else
@@ -235,7 +237,7 @@ def hn_detail(x)
   end
 end
 
-def hn_ok?(r)
+def ok?(r)
   get(r, :control) == 0 &&
     get(r, :survived) == 0 &&
     get(r, :refused) == 0 &&
@@ -243,11 +245,11 @@ def hn_ok?(r)
 end
 
 # {package, mutations_file, blue, test} from argv, or {error}.
-def hn_parse(args)
+def parse(args)
   if size(args) < 2
     {error: "usage: heni PACKAGE_DIR MUTATIONS.json [--blue BIN] [--test FILE]"}
   else
-    hn_parse_flags(
+    parse_flags(
       drop(2, args),
       {
         package: nth(0, args),
@@ -260,7 +262,7 @@ def hn_parse(args)
   end
 end
 
-def hn_parse_flags(args, acc)
+def parse_flags(args, acc)
   if is_empty(args) || get(acc, :error) != nil
     acc
   else
@@ -271,30 +273,30 @@ def hn_parse_flags(args, acc)
       else
         :test
       end
-      hn_parse_flags(drop(2, args), assoc(acc, key, nth(1, args)))
+      parse_flags(drop(2, args), assoc(acc, key, nth(1, args)))
     else
       assoc(acc, :error, "unknown argument #{flag}")
     end
   end
 end
 
-def hn_main()
-  a = hn_parse(argv())
+def main()
+  a = parse(argv())
   if get(a, :error) != nil
     write_stderr("#{get(a, :error)}\n")
     throw(error(:heni_usage, get(a, :error)))
   end
-  r = hn_run(
+  r = run(
     {
       package: get(a, :package),
-      mutations: hn_mutations(json_parse(read_file(get(a, :mutations_file)))),
+      mutations: mutations(json_parse(read_file(get(a, :mutations_file)))),
       blue: get(a, :blue),
       test: get(a, :test),
       tmp: getenv("TMPDIR", "/tmp")
     }
   )
-  write_stdout(hn_report_text(r))
-  if hn_ok?(r) == false
+  write_stdout(report_text(r))
+  if ok?(r) == false
     throw(
       error(
         :heni_failed,
@@ -318,30 +320,29 @@ test "a mutation applies exactly once or is refused"
 end
 
 test "the verdicts: refused, survived, caught"
-  assert hn_verdict({error: "no"}, nil) == :refused
-  assert hn_verdict({text: "t"}, 0) == :survived
-  assert hn_verdict({text: "t"}, 1) == :caught
+  assert verdict({error: "no"}, nil) == :refused
+  assert verdict({text: "t"}, 0) == :survived
+  assert verdict({text: "t"}, 1) == :caught
   # The tests could not be started: blind, not caught.
-  assert hn_verdict({text: "t"}, nil) == :blind
+  assert verdict({text: "t"}, nil) == :blind
   # Any blind mutation fails the run, as a survivor does.
-  assert hn_ok?({control: 0, survived: 0, refused: 0, blind: 1}) == false
-  assert hn_ok?({control: 0, survived: 0, refused: 0, blind: 0}) == true
+  assert ok?({control: 0, survived: 0, refused: 0, blind: 1}) == false
+  assert ok?({control: 0, survived: 0, refused: 0, blind: 0}) == true
 end
 
 test "arguments"
-  a = hn_parse(["/p/kazu", "m.json", "--blue", "/bin/blue"])
+  a = parse(["/p/kazu", "m.json", "--blue", "/bin/blue"])
   assert get(a, :package) == "/p/kazu"
   assert get(a, :blue) == "/bin/blue"
   assert get(a, :test) == nil
-  assert get(hn_parse(["/p"]), :error) != nil
-  assert get(hn_parse(["/p", "m", "--nope"]), :error) ==
-    "unknown argument --nope"
-  assert hn_package_name("/a/b/kazu/") == "kazu"
+  assert get(parse(["/p"]), :error) != nil
+  assert get(parse(["/p", "m", "--nope"]), :error) == "unknown argument --nope"
+  assert package_name("/a/b/kazu/") == "kazu"
 end
 
 test "without a blue CLI, heni refuses rather than spawning its host"
   refused = try(
-    hn_run(
+    run(
       {
         package: "/nonexistent",
         mutations: [],
@@ -360,11 +361,11 @@ end
 # above covers the refusal instead: spawning the host would re-run it.
 test "a run end to end: a caught mutation, a survivor, a refusal"
   if self_exe() != nil
-    hn_end_to_end()
+    end_to_end()
   end
 end
 
-def hn_end_to_end()
+def end_to_end()
   tmp = path_join(getenv("TMPDIR", "/tmp"), "heni-self-#{to_s(now_ms())}")
   pkg = path_join(tmp, "hnprobe")
   mkdir_p(pkg)
@@ -388,15 +389,15 @@ def hn_end_to_end()
     },
     {name: "not there", file: "hnprobe.b", find: "nowhere", replace: "x"}
   ]
-  r = hn_run(
+  r = run(
     {package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp}
   )
   assert get(r, :control) == 0
   assert map(fn(x) get(x, :verdict) end, get(r, :results)) ==
     [:caught, :survived, :refused]
-  assert hn_ok?(r) == false
+  assert ok?(r) == false
   assert contains?(
-    hn_report_text(r),
+    report_text(r),
     "1 caught, 1 survived, 1 refused, 0 blind"
   ) ==
     true
@@ -405,7 +406,7 @@ def hn_end_to_end()
     path_join(pkg, "hnprobe.b"),
     "test \"broken\"\n  assert 1 == 2\nend\n"
   )
-  bad = hn_run(
+  bad = run(
     {package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp}
   )
   assert get(bad, :control) != 0

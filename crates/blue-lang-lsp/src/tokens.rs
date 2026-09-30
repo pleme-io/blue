@@ -224,7 +224,10 @@ fn classify(tokens: &[Token], i: usize) -> Option<(SemanticTokenType, u32)> {
         // After `::` a reserved word is a name (`kueri::if`), so the check
         // for a keyword comes after this one.
         TokenKind::Ident(_)
-            if matches!(prev_significant(tokens, i).map(|t| &t.kind), Some(TokenKind::PathSep)) =>
+            if matches!(
+                prev_significant(tokens, i).map(|t| &t.kind),
+                Some(TokenKind::PathSep)
+            ) =>
         {
             if is_call_head(tokens, i) {
                 T::Function

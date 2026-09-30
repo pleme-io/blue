@@ -63,7 +63,9 @@ fn blue_spelling_meets_lisp_spelling_in_one_canonical_form() {
         .expect("runs")
         .value;
     let form = domain_form("defreplica", &value).expect("form");
-    let Sexp::List(items) = form else { panic!("a list") };
+    let Sexp::List(items) = form else {
+        panic!("a list")
+    };
     assert_eq!(items[0], Sexp::Atom(Atom::Symbol("defreplica".into())));
     assert_eq!(items[1], Sexp::Atom(Atom::Keyword("max-replicas".into())));
     assert_eq!(items[2], Sexp::Atom(Atom::Int(3)));
@@ -99,7 +101,10 @@ fn an_unknown_field_is_refused_by_the_domain_naming_it() {
         panic!("expected Refused, got {err:?}")
     };
     assert_eq!(keyword, "defreplica");
-    assert!(message.contains("colour"), "the refusal names the field: {message}");
+    assert!(
+        message.contains("colour"),
+        "the refusal names the field: {message}"
+    );
 }
 
 #[test]
@@ -111,7 +116,10 @@ fn a_missing_required_field_is_refused() {
 #[test]
 fn only_a_map_can_author_a_domain() {
     let err = compile::<Replica>("[1, 2, 3]").expect_err("a list is not a domain");
-    assert!(matches!(err, DomainError::NotAMap { found: "a list" }), "{err:?}");
+    assert!(
+        matches!(err, DomainError::NotAMap { found: "a list" }),
+        "{err:?}"
+    );
 }
 
 #[test]

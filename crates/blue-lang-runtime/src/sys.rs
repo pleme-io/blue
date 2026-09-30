@@ -187,7 +187,9 @@ fn split_cmd(
         fname,
         span,
     )?;
-    let rest = it.map(|v| arg_str(v, fname, span)).collect::<Result<Vec<_>, _>>()?;
+    let rest = it
+        .map(|v| arg_str(v, fname, span))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok((cmd, rest))
 }
 
@@ -376,24 +378,20 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
-    interp.register_fn(
-        "ls",
-        Arity::Exact(1),
-        |args: &[Value], _h: &mut H, span| {
-            let dir = arg_str(&args[0], "ls", span)?;
-            let mut entries: Vec<PathBuf> = std::fs::read_dir(&*dir)
-                .map_err(|e| EvalError::native_fn("ls", format!("{dir}: {e}"), span))?
-                .filter_map(|r| r.ok().map(|e| e.path()))
-                .collect();
-            entries.sort();
-            Ok(Value::list(
-                entries
-                    .into_iter()
-                    .map(|p| Value::Str(Arc::from(p.to_string_lossy().into_owned())))
-                    .collect::<Vec<_>>(),
-            ))
-        },
-    );
+    interp.register_fn("ls", Arity::Exact(1), |args: &[Value], _h: &mut H, span| {
+        let dir = arg_str(&args[0], "ls", span)?;
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(&*dir)
+            .map_err(|e| EvalError::native_fn("ls", format!("{dir}: {e}"), span))?
+            .filter_map(|r| r.ok().map(|e| e.path()))
+            .collect();
+        entries.sort();
+        Ok(Value::list(
+            entries
+                .into_iter()
+                .map(|p| Value::Str(Arc::from(p.to_string_lossy().into_owned())))
+                .collect::<Vec<_>>(),
+        ))
+    });
 
     interp.register_fn(
         "mkdir",
@@ -419,16 +417,12 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
-    interp.register_fn(
-        "rm",
-        Arity::Exact(1),
-        |args: &[Value], _h: &mut H, span| {
-            let path = arg_str(&args[0], "rm", span)?;
-            std::fs::remove_file(&*path)
-                .map_err(|e| EvalError::native_fn("rm", format!("{path}: {e}"), span))?;
-            Ok(Value::Nil)
-        },
-    );
+    interp.register_fn("rm", Arity::Exact(1), |args: &[Value], _h: &mut H, span| {
+        let path = arg_str(&args[0], "rm", span)?;
+        std::fs::remove_file(&*path)
+            .map_err(|e| EvalError::native_fn("rm", format!("{path}: {e}"), span))?;
+        Ok(Value::Nil)
+    });
 
     // `rename_file(from, to)`: the POSIX rename, atomic on one filesystem. A
     // reader of `to` sees the old file or the new one, never a half-written
@@ -887,11 +881,7 @@ fn days_to_ymd(days: i64) -> (i64, u32, u32) {
 
 // ── shared argument coercion ─────────────────────────────────────────────
 
-fn arg_str(
-    v: &Value,
-    fname: &'static str,
-    span: tatara_lisp::Span,
-) -> Result<Arc<str>, EvalError> {
+fn arg_str(v: &Value, fname: &'static str, span: tatara_lisp::Span) -> Result<Arc<str>, EvalError> {
     match v {
         Value::Str(s) => Ok(s.clone()),
         other => Err(EvalError::native_fn(
@@ -967,10 +957,10 @@ mod tests {
         let stdout = entries
             .iter()
             .find_map(|entry| {
-                let Value::List(pair) = entry else { return None };
-                if pair.len() == 2
-                    && matches!(&pair[0], Value::Keyword(k) if &**k == "stdout")
-                {
+                let Value::List(pair) = entry else {
+                    return None;
+                };
+                if pair.len() == 2 && matches!(&pair[0], Value::Keyword(k) if &**k == "stdout") {
                     Some(pair[1].clone())
                 } else {
                     None
@@ -993,10 +983,10 @@ mod tests {
             panic!("expected an alist, got {v:?}");
         };
         let stdout = entries.iter().find_map(|entry| {
-            let Value::List(pair) = entry else { return None };
-            if pair.len() == 2
-                && matches!(&pair[0], Value::Keyword(k) if &**k == "stdout")
-            {
+            let Value::List(pair) = entry else {
+                return None;
+            };
+            if pair.len() == 2 && matches!(&pair[0], Value::Keyword(k) if &**k == "stdout") {
                 Some(pair[1].clone())
             } else {
                 None
@@ -1014,7 +1004,9 @@ mod tests {
             panic!("expected an alist, got {v:?}");
         };
         let stdout = entries.iter().find_map(|entry| {
-            let Value::List(pair) = entry else { return None };
+            let Value::List(pair) = entry else {
+                return None;
+            };
             if pair.len() == 2 && matches!(&pair[0], Value::Keyword(k) if &**k == "stdout") {
                 Some(pair[1].clone())
             } else {
@@ -1026,14 +1018,14 @@ mod tests {
 
     #[test]
     fn exec_with_stdin_feeds_the_child() {
-        let v = run(
-            r#"(exec_with_stdin "payload" "sh" "-c" "cat")"#,
-        );
+        let v = run(r#"(exec_with_stdin "payload" "sh" "-c" "cat")"#);
         let Value::List(entries) = v else {
             panic!("expected an alist, got {v:?}");
         };
         let stdout = entries.iter().find_map(|entry| {
-            let Value::List(pair) = entry else { return None };
+            let Value::List(pair) = entry else {
+                return None;
+            };
             if pair.len() == 2 && matches!(&pair[0], Value::Keyword(k) if &**k == "stdout") {
                 Some(pair[1].clone())
             } else {
@@ -1046,7 +1038,10 @@ mod tests {
     #[test]
     fn a_missing_binary_is_a_named_error() {
         let err = run_err(r#"(exec_capture "definitely-not-a-real-binary-xyz")"#);
-        assert!(err.contains("exec_capture"), "must name the primitive: {err}");
+        assert!(
+            err.contains("exec_capture"),
+            "must name the primitive: {err}"
+        );
     }
 
     // ---- filesystem -----------------------------------------------------
@@ -1089,7 +1084,11 @@ mod tests {
         let to = Scratch::new("rename-to");
         run(&format!(r#"(write_file "{}" "old")"#, to.0.display()));
         run(&format!(r#"(write_file "{}" "new")"#, from.0.display()));
-        run(&format!(r#"(rename_file "{}" "{}")"#, from.0.display(), to.0.display()));
+        run(&format!(
+            r#"(rename_file "{}" "{}")"#,
+            from.0.display(),
+            to.0.display()
+        ));
         assert!(matches!(
             run(&format!(r#"(read_file "{}")"#, to.0.display())),
             Value::Str(v) if &*v == "new"
@@ -1115,11 +1114,17 @@ mod tests {
     #[test]
     fn predicates_distinguish_dirs_and_files() {
         assert!(matches!(
-            run(&format!(r#"(is_dir? "{}")"#, std::env::temp_dir().display())),
+            run(&format!(
+                r#"(is_dir? "{}")"#,
+                std::env::temp_dir().display()
+            )),
             Value::Bool(true)
         ));
         assert!(matches!(
-            run(&format!(r#"(is_file? "{}")"#, std::env::temp_dir().display())),
+            run(&format!(
+                r#"(is_file? "{}")"#,
+                std::env::temp_dir().display()
+            )),
             Value::Bool(false)
         ));
         assert!(matches!(
@@ -1181,7 +1186,10 @@ mod tests {
             run(r#"(getenv "BLUE_SYS_TEST_ENV")"#),
             Value::Str(v) if &*v == "present"
         ));
-        assert!(matches!(run(r#"(getenv "BLUE_SYS_TEST_MISSING")"#), Value::Nil));
+        assert!(matches!(
+            run(r#"(getenv "BLUE_SYS_TEST_MISSING")"#),
+            Value::Nil
+        ));
         assert!(matches!(
             run(r#"(getenv "BLUE_SYS_TEST_MISSING" "fallback")"#),
             Value::Str(v) if &*v == "fallback"

@@ -52,8 +52,16 @@ fn lk(dist: &Path, version: &str) {
         &dist.join("lk/lk.b"),
         "legacy_names(\"0.1.1\", \"lk\")\n\ndef hours()\n  1\nend\n",
     );
-    let out = blue(dist).arg("lock").arg(dist.join("lk")).output().expect("lock");
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let out = blue(dist)
+        .arg("lock")
+        .arg(dist.join("lk"))
+        .output()
+        .expect("lock");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]
@@ -70,20 +78,33 @@ fn the_bridge_warns_outside_refuses_inside_and_closes_at_the_next_minor() {
 
     let (code, json) = check(&dist, &outside, &[]);
     assert_eq!(code, 0, "{json}");
-    assert!(json.contains("\"code\":\"B0021\"") && json.contains("\"severity\":\"warning\""), "{json}");
+    assert!(
+        json.contains("\"code\":\"B0021\"") && json.contains("\"severity\":\"warning\""),
+        "{json}"
+    );
     let run = blue(&dist).arg("run").arg(&outside).output().expect("run");
-    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
 
     let (code, json) = check(&dist, &inside, &[]);
     assert_eq!(code, 1, "{json}");
-    assert!(json.contains("\"code\":\"B0021\"") && json.contains("\"severity\":\"error\""), "{json}");
+    assert!(
+        json.contains("\"code\":\"B0021\"") && json.contains("\"severity\":\"error\""),
+        "{json}"
+    );
 
     // 0.2.0: the window is closed; the ledger still says what the name is.
     lk(&dist, "0.2.0");
     let (code, json) = check(&dist, &outside, &[]);
     assert_eq!(code, 1, "{json}");
     assert!(json.contains("\"code\":\"B0011\""), "{json}");
-    assert!(json.contains("\"applicability\":\"machine-applicable\""), "{json}");
+    assert!(
+        json.contains("\"applicability\":\"machine-applicable\""),
+        "{json}"
+    );
     let (code, _) = check(&dist, &outside, &["--fix"]);
     assert_eq!(code, 0);
     assert_eq!(

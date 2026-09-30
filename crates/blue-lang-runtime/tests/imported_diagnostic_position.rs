@@ -147,7 +147,8 @@ fn a_type_error_in_the_entry_file_names_the_entry_file() {
 /// satisfy both.
 #[test]
 fn two_files_two_positions() {
-    let src = "use(\"kazu\", [:double])\ndef also_bad(n: Int) -> Str\n  n + 1\nend\nalso_bad(double(1))";
+    let src =
+        "use(\"kazu\", [:double])\ndef also_bad(n: Int) -> Str\n  n + 1\nend\nalso_bad(double(1))";
     let diagnostics = type_errors(
         Entry {
             path: Some(std::path::Path::new("/work/main.b")),

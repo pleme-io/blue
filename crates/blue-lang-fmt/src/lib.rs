@@ -657,12 +657,10 @@ impl<'s> Renderer<'s> {
         if let SpannedForm::List(items) = &s.form {
             if items.len() == 3
                 && items[0].as_symbol() == Some("define")
-                && items[1]
-                    .as_symbol()
-                    .is_some_and(|n| {
-                        !blue_lang_syntax::is_reserved_word(n)
-                            && blue_lang_syntax::qualified(n).is_none()
-                    })
+                && items[1].as_symbol().is_some_and(|n| {
+                    !blue_lang_syntax::is_reserved_word(n)
+                        && blue_lang_syntax::qualified(n).is_none()
+                })
             {
                 return Doc::text(items[1].as_symbol().unwrap_or("_").to_string())
                     .concat(Doc::text(" = "))

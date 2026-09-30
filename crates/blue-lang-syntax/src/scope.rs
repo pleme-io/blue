@@ -64,7 +64,6 @@ pub struct Import {
     pub package_span: Span,
 }
 
-
 /// Is this form a `use` declaration? If so, what it declares.
 ///
 /// `use("name")` or `use("name", [:a, :b])`, the call form only. `use "kazu"`
@@ -577,8 +576,11 @@ impl Walker<'_> {
         match head {
             "let" => {
                 if let Some(n) = name {
-                    self.pass
-                        .bind(n.as_symbol().expect("matched"), n.span, BinderKind::Function);
+                    self.pass.bind(
+                        n.as_symbol().expect("matched"),
+                        n.span,
+                        BinderKind::Function,
+                    );
                 }
                 for (n, s, _) in &pairs {
                     self.pass.bind(n, *s, BinderKind::Let);

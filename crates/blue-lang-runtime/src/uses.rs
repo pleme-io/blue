@@ -225,7 +225,6 @@ pub struct ResolvedProgram {
     versions: std::collections::BTreeMap<String, String>,
 }
 
-
 impl ResolvedProgram {
     /// The entry program's own file. Always present; always first.
     pub const ENTRY: FileId = FileId(0);
@@ -616,7 +615,10 @@ mod tests {
         // reaches the evaluator, where `use` is not a defined function: the
         // evaluated projection has it as `nil`.
         assert_eq!(
-            out.forms().iter().filter(|f| super::use_target(f).is_some()).count(),
+            out.forms()
+                .iter()
+                .filter(|f| super::use_target(f).is_some())
+                .count(),
             1
         );
         assert!(

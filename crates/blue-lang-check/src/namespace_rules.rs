@@ -91,8 +91,11 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
         }
         if first_other.is_some_and(|o| o < *i) {
             out.push(
-                at(format!("`use(\"{}\")` comes after the file's definitions", u.package))
-                    .with_help("move every `use` to the top of the file, before any other form"),
+                at(format!(
+                    "`use(\"{}\")` comes after the file's definitions",
+                    u.package
+                ))
+                .with_help("move every `use` to the top of the file, before any other form"),
             );
         } else if previous.is_some_and(|p| p > u.package.as_str()) {
             out.push(
@@ -155,7 +158,10 @@ fn unused_imports(
     // global environment (B0012 reports those). A qualified reference
     // reaches its qualifier's package whatever it names.
     let mut reached: BTreeSet<(String, String)> = BTreeSet::new();
-    for r in references.iter().filter(|r| table.file_of(r.top_level) == file) {
+    for r in references
+        .iter()
+        .filter(|r| table.file_of(r.top_level) == file)
+    {
         let mut add = |t: &Target| match t {
             Target::Def(Namespace::Bidama(p), n) => {
                 reached.insert((p.clone(), n.clone()));
@@ -177,9 +183,9 @@ fn unused_imports(
     }
     for (i, u) in &fu.uses {
         let via = table.imports_of(*i).map(|fi| &fi.via);
-        let any = reached.iter().any(|(p, _)| {
-            *p == u.package || via.is_some_and(|v| v.get(p) == Some(&u.package))
-        });
+        let any = reached
+            .iter()
+            .any(|(p, _)| *p == u.package || via.is_some_and(|v| v.get(p) == Some(&u.package)));
         if !any {
             out.push(
                 Diagnostic::new(
@@ -223,7 +229,11 @@ fn needs_agree(
     // a `needs` with no `use` at.
     let mut per: BTreeMap<String, (Vec<(usize, &Import)>, usize)> = BTreeMap::new();
     for fu in files.values() {
-        let any = fu.uses.first().map(|(i, _)| *i).or(fu.others.first().copied());
+        let any = fu
+            .uses
+            .first()
+            .map(|(i, _)| *i)
+            .or(fu.others.first().copied());
         let Some(any) = any else { continue };
         let Namespace::Bidama(pkg) = namespace_of(any) else {
             continue;
@@ -308,7 +318,9 @@ fn definitions(
                         *span,
                     )
                     .at_top_level(*i)
-                    .with_help("rename one; the one evaluated last would silently replace the other"),
+                    .with_help(
+                        "rename one; the one evaluated last would silently replace the other",
+                    ),
                 );
             } else {
                 first.insert(name, *i);
@@ -322,7 +334,9 @@ fn definitions(
                 out.push(
                     Diagnostic::new(
                         Code::B0013,
-                        format!("`{name}` spells its own bidama's name; the namespace already says it"),
+                        format!(
+                            "`{name}` spells its own bidama's name; the namespace already says it"
+                        ),
                         *span,
                     )
                     .at_top_level(*i)
@@ -379,13 +393,12 @@ fn definitions(
 
 /// `(define (f …) …)` or a macro.
 fn is_function_def(form: &Spanned) -> bool {
-    form.as_list().is_some_and(|items| {
-        match items.first().and_then(Spanned::as_symbol) {
+    form.as_list()
+        .is_some_and(|items| match items.first().and_then(Spanned::as_symbol) {
             Some("define" | "define-typed") => items.get(1).is_some_and(|t| t.as_list().is_some()),
             Some("defmacro") => true,
             _ => false,
-        }
-    })
+        })
 }
 
 /// The one `x_` prefix (one to four letters) that at least 90% of eight or
@@ -401,7 +414,9 @@ pub fn mangling_prefix<'a>(names: impl Iterator<Item = &'a str>) -> Option<Strin
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for n in &names {
         if let Some((p, rest)) = n.split_once('_') {
-            if (1..=4).contains(&p.len()) && p.chars().all(|c| c.is_ascii_lowercase()) && !rest.is_empty()
+            if (1..=4).contains(&p.len())
+                && p.chars().all(|c| c.is_ascii_lowercase())
+                && !rest.is_empty()
             {
                 *counts.entry(format!("{p}_")).or_default() += 1;
             }

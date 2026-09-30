@@ -173,6 +173,9 @@ fn an_override_is_recorded_after_the_diagnostics() {
     )
     .expect("docs");
     for field in ["kind", "name", "tier", "namespace", "shadowed"] {
-        assert!(doc.contains(&format!("`{field}`")), "`{field}` undocumented");
+        assert!(
+            doc.contains(&format!("`{field}`")),
+            "`{field}` undocumented"
+        );
     }
 }

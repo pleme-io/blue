@@ -288,7 +288,12 @@ fn target_json(t: &blue_lang_check::names::Target) -> TargetJson {
     use blue_lang_check::Namespace;
     let key = t.resolved_symbol();
     match t {
-        Target::Local => TargetJson { kind: "local", namespace: None, name: None, key },
+        Target::Local => TargetJson {
+            kind: "local",
+            namespace: None,
+            name: None,
+            key,
+        },
         Target::Def(ns, n) => TargetJson {
             kind: "def",
             namespace: match ns {
@@ -298,9 +303,24 @@ fn target_json(t: &blue_lang_check::names::Target) -> TargetJson {
             name: Some(n.clone()),
             key,
         },
-        Target::Builtin(n) => TargetJson { kind: "builtin", namespace: None, name: Some(n.clone()), key },
-        Target::Ambiguous(_) => TargetJson { kind: "ambiguous", namespace: None, name: None, key },
-        Target::Unbound => TargetJson { kind: "unbound", namespace: None, name: None, key },
+        Target::Builtin(n) => TargetJson {
+            kind: "builtin",
+            namespace: None,
+            name: Some(n.clone()),
+            key,
+        },
+        Target::Ambiguous(_) => TargetJson {
+            kind: "ambiguous",
+            namespace: None,
+            name: None,
+            key,
+        },
+        Target::Unbound => TargetJson {
+            kind: "unbound",
+            namespace: None,
+            name: None,
+            key,
+        },
     }
 }
 

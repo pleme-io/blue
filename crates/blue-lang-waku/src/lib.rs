@@ -349,7 +349,10 @@ pub fn check_reach_program(waku: &Waku, forms: &[tatara_lisp::Sexp]) -> Vec<Esca
 /// quasiquoted template: data at expansion, code once the expansion runs, so
 /// a reach check that skipped them would admit a macro that writes `rm_rf`.
 #[must_use]
-pub fn free_names(forms: &[tatara_lisp::Spanned], permits: &dyn Fn(&str) -> bool) -> BTreeSet<String> {
+pub fn free_names(
+    forms: &[tatara_lisp::Spanned],
+    permits: &dyn Fn(&str) -> bool,
+) -> BTreeSet<String> {
     let mut globals = BTreeSet::new();
     for f in forms {
         for (name, _, _) in blue_lang_syntax::scope::definitions_of(f) {

@@ -26,7 +26,10 @@ impl Loader for Mem {
 }
 
 const DIST: &[(&str, &str)] = &[
-    ("retsu", "def first(xs)\n  :retsu_first\nend\n\ndef size(xs)\n  length(xs)\nend\n"),
+    (
+        "retsu",
+        "def first(xs)\n  :retsu_first\nend\n\ndef size(xs)\n  length(xs)\nend\n",
+    ),
     ("kazu", "def abs(n)\n  n\nend\n"),
 ];
 
@@ -56,7 +59,10 @@ fn a_qualifier_that_does_not_own_the_name_is_an_error_naming_the_owner() {
     assert_eq!(d.len(), 1, "{d:?}");
     assert_eq!(d[0].code, Code::B0011);
     assert_eq!(d[0].message, "bidama `kazu` defines no `first`");
-    assert_eq!(d[0].help.as_deref(), Some("`first` is defined in bidama `retsu`"));
+    assert_eq!(
+        d[0].help.as_deref(),
+        Some("`first` is defined in bidama `retsu`")
+    );
     assert_eq!(d[0].fixes[0].edits[0].replacement, "retsu::first");
 }
 
@@ -82,14 +88,20 @@ fn blue_qualifies_only_builtins() {
     // Bare `length` is the builtin already: the qualifier is B0018.
     assert_eq!(codes("blue::length([1])\n")[0].0, Code::B0018);
     let c = codes("blue::lenght([1])\n");
-    assert_eq!(c, vec![(Code::B0011, "`blue::lenght` names no builtin".into())]);
+    assert_eq!(
+        c,
+        vec![(Code::B0011, "`blue::lenght` names no builtin".into())]
+    );
 }
 
 #[test]
 fn a_listed_name_must_be_the_packages() {
     let c = codes("use(\"retsu\", [:frist])\n");
     assert_eq!(c.len(), 1, "{c:?}");
-    assert_eq!(c[0], (Code::B0011, "bidama `retsu` defines no `frist`".into()));
+    assert_eq!(
+        c[0],
+        (Code::B0011, "bidama `retsu` defines no `frist`".into())
+    );
 }
 
 /// A listed name is the namespaced rule's import tier; a whole-package `use`
@@ -97,8 +109,8 @@ fn a_listed_name_must_be_the_packages() {
 #[test]
 fn a_listed_name_is_what_the_namespaced_rule_binds() {
     let target = |src: &str| {
-        let checked = check_entry(Entry::anonymous(src), &Mem(DIST), None, Checking::Program)
-            .expect("check");
+        let checked =
+            check_entry(Entry::anonymous(src), &Mem(DIST), None, Checking::Program).expect("check");
         let r = checked.resolve();
         let first = r
             .references
@@ -193,9 +205,18 @@ fn a_kept_prefix_gives_one_definition_two_names() {
         "legacy_names(\"0.1.1\", \"kk\")\n\n# waive B0013: count is the list builtin, which kk also uses\ndef kk_count(xs)\n  blue::count(xs) + 100\nend\n",
     )];
     let src = "use(\"kk\")\n\n[kk::count([1]), kk::kk_count([1])]\n";
-    let checked =
-        check_entry(Entry::anonymous(src), &Versioned(KK), None, Checking::Program).expect("check");
-    assert!(checked.outcome.diagnostics.is_empty(), "{:?}", checked.outcome.diagnostics);
+    let checked = check_entry(
+        Entry::anonymous(src),
+        &Versioned(KK),
+        None,
+        Checking::Program,
+    )
+    .expect("check");
+    assert!(
+        checked.outcome.diagnostics.is_empty(),
+        "{:?}",
+        checked.outcome.diagnostics
+    );
     let r = checked.resolve();
     let targets: Vec<_> = r
         .references
@@ -215,8 +236,13 @@ fn a_kept_prefix_gives_one_definition_two_names() {
         "kk",
         "legacy_names(\"0.1.1\", \"kk\")\n\n# waive B0013: count is the list builtin\ndef kk_count(xs)\n  1\nend\n\ndef count(xs)\n  2\nend\n",
     )];
-    let checked = check_entry(Entry::anonymous("use(\"kk\")\n\nkk::count([1])\n"), &Versioned(TWICE), None, Checking::Program)
-        .expect("check");
+    let checked = check_entry(
+        Entry::anonymous("use(\"kk\")\n\nkk::count([1])\n"),
+        &Versioned(TWICE),
+        None,
+        Checking::Program,
+    )
+    .expect("check");
     let codes: Vec<Code> = checked.outcome.diagnostics.iter().map(|d| d.code).collect();
     assert!(codes.contains(&Code::B0022), "{codes:?}");
 }

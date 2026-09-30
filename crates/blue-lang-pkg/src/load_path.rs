@@ -190,11 +190,19 @@ impl Loader for LoadPath {
             None => self.resolve(package)?,
         };
         let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
-        Some(crate::bluefile::read_bluefile(&text).ok()?.version.to_string())
+        Some(
+            crate::bluefile::read_bluefile(&text)
+                .ok()?
+                .version
+                .to_string(),
+        )
     }
 
     fn entry_package(&self, path: &Path) -> Option<String> {
-        let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
+        let dir = path
+            .parent()
+            .filter(|d| !d.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
         let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
         let name = crate::bluefile::read_bluefile(&text).ok()?.name;
         blue_lang_syntax::qualified(&blue_lang_syntax::qualify(&name, "x")).map(|_| name.clone())

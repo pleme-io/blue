@@ -398,7 +398,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         blue_lang_runtime::sys::set_blue_exe(me.to_string_lossy().into_owned());
     }
     match cli.cmd {
-        Cmd::Run { file, inputs, quiet, args } => {
+        Cmd::Run {
+            file,
+            inputs,
+            quiet,
+            args,
+        } => {
             blue_lang_runtime::sys::set_program_args(args);
             // The SURFACE the program is written in: BLUE_LANG wins, else the
             // host locale. An explicit choice must beat a detected one.
@@ -539,10 +544,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             if json {
                 println!("{}", diagnostics::resolved_json(&checked, &resolved)?);
             } else {
-                let tree =
-                    resolved.resolved_tree(checked.program.forms(), blue_lang_check::names::Rule::Namespaced);
+                let tree = resolved.resolved_tree(
+                    checked.program.forms(),
+                    blue_lang_check::names::Rule::Namespaced,
+                );
                 for (i, form) in tree.iter().enumerate() {
-                    if checked.program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY) {
+                    if checked.program.owner_of(i)
+                        == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+                    {
                         println!("{}", form.to_sexp());
                     }
                 }
@@ -597,14 +606,18 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 blue_lang_runtime::pipeline::Checking::WithTests,
             )?;
             let program = &checked.program;
-            let entry = |i: usize| program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY);
+            let entry = |i: usize| {
+                program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+            };
             let form = (0..program.forms().len())
                 .filter(|i| entry(*i))
                 .filter(|i| {
                     blue_lang_syntax::Span::line_col(&src, program.forms()[*i].span.start).0 <= line
                 })
                 .last()
-                .ok_or_else(|| CliError::Pkg(format!("no top-level form at or before line {line}")))?;
+                .ok_or_else(|| {
+                    CliError::Pkg(format!("no top-level form at or before line {line}"))
+                })?;
             let own = blue_lang_runtime::pipeline::namespace_of(program, form);
             println!("`{name}` at {}:{line}, in {own}:", path.display());
             println!("  local     a parameter or local of that name in scope at the line wins over everything below");
@@ -614,7 +627,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 let held = if nss.is_empty() {
                     "-".to_string()
                 } else {
-                    nss.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+                    nss.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 };
                 let verdict = match (nss.len(), won) {
                     (0, _) => "",
@@ -636,8 +652,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Census { root, findings } => {
             let c = census::take(&root).map_err(CliError::Pkg)?;
             println!("{} file(s)", c.files);
-            for r in blue_lang_check::RULES.iter().filter(|r| r.ratchet.is_some()) {
-                let measured = c.findings.get(&r.code).map_or(0, std::collections::BTreeSet::len);
+            for r in blue_lang_check::RULES
+                .iter()
+                .filter(|r| r.ratchet.is_some())
+            {
+                let measured = c
+                    .findings
+                    .get(&r.code)
+                    .map_or(0, std::collections::BTreeSet::len);
                 println!(
                     "{} {:<24} measured {measured:>5}  ratchet {:>5}",
                     r.code,
@@ -1074,7 +1096,10 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
     match format {
         Format::Json => {
             print!("{}", diagnostics::json_lines(&checked.program, outcome)?);
-            print!("{}", diagnostics::overrides_json(&checked, &checked.resolve())?);
+            print!(
+                "{}",
+                diagnostics::overrides_json(&checked, &checked.resolve())?
+            );
         }
         Format::Text => {
             // Report the analysis performed, not just pass/fail. §0's rule is

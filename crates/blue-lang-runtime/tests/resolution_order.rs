@@ -72,7 +72,10 @@ fn an_imported_definition_beats_a_builtin_for_its_importer() {
     );
     // Qualified, both are reachable at once.
     let both = "use(\"mine\")\n[mine::first([1, 2]), blue::first([1, 2])]\n";
-    assert_eq!(format!("{:?}", value(both, &Mem(P))), "[Keyword(:mine), Int(1)]");
+    assert_eq!(
+        format!("{:?}", value(both, &Mem(P))),
+        "[Keyword(:mine), Int(1)]"
+    );
 }
 
 /// **A bidama's own calls reach its own definition, whatever its importer
@@ -119,7 +122,10 @@ fn a_definition_does_not_replace_the_builtin_another_bidama_calls() {
         ("b", "def firsts(xs)\n  first(xs)\nend\n"),
     ];
     let src = "use(\"a\", [:first])\nuse(\"b\", [:firsts])\n[first([1]), firsts([1])]\n";
-    assert_eq!(format!("{:?}", value(src, &Mem(P))), "[Keyword(:a), Int(1)]");
+    assert_eq!(
+        format!("{:?}", value(src, &Mem(P))),
+        "[Keyword(:a), Int(1)]"
+    );
 }
 
 /// **Two bidamas may define one name**; each is reachable qualified. Before
@@ -179,7 +185,12 @@ fn an_own_definition_beats_a_builtin_macro_for_a_head() {
     let src = "def while(c, body)\n  :mine\nend\n\nwhile(false, 1)\n";
     assert_eq!(keyword(&value(src, &Mem(&[]))), "mine");
     assert_eq!(
-        checked_tier(src, &Mem(&[]), "while", &Namespace::File("<anonymous>".into())),
+        checked_tier(
+            src,
+            &Mem(&[]),
+            "while",
+            &Namespace::File("<anonymous>".into())
+        ),
         (Tier::Own, "this file".to_string())
     );
 }
@@ -229,7 +240,10 @@ fn a_transitive_definition_is_the_flat_binding_and_not_the_namespaced_one() {
         entry_form(Rule::Flat),
         "(define (%root/head xs) (retsu/first xs))"
     );
-    assert_eq!(entry_form(Rule::Namespaced), "(define (%root/head xs) (first xs))");
+    assert_eq!(
+        entry_form(Rule::Namespaced),
+        "(define (%root/head xs) (first xs))"
+    );
 }
 
 /// **Own beats builtin**, the third tier boundary: a file's own `count` is
@@ -239,7 +253,12 @@ fn an_own_definition_beats_a_builtin() {
     let src = "def count(_xs)\n  :mine\nend\n\ncount([1])\n";
     assert_eq!(keyword(&value(src, &Mem(&[]))), "mine");
     assert_eq!(
-        checked_tier(src, &Mem(&[]), "count", &Namespace::File("<anonymous>".into())),
+        checked_tier(
+            src,
+            &Mem(&[]),
+            "count",
+            &Namespace::File("<anonymous>".into())
+        ),
         (Tier::Own, "this file".to_string())
     );
 }
@@ -259,19 +278,30 @@ fn resolution_does_not_depend_on_import_order() {
         ("q_b", "def pick()\n  :b\nend\n"),
         ("q_c", "def pick()\n  :c\nend\n"),
     ];
-    let uses = [
-        "use(\"q_a\")",
-        "use(\"q_b\", [:pick])",
-        "use(\"q_c\")",
+    let uses = ["use(\"q_a\")", "use(\"q_b\", [:pick])", "use(\"q_c\")"];
+    let orders = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
     ];
-    let orders = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
     let mut seen = std::collections::BTreeSet::new();
     for o in orders {
         let waived: Vec<String> = o
             .iter()
-            .map(|i| format!("# waive B0015: the order is what this test varies\n{}", uses[*i]))
+            .map(|i| {
+                format!(
+                    "# waive B0015: the order is what this test varies\n{}",
+                    uses[*i]
+                )
+            })
             .collect();
-        let src = format!("{}\n\n[pick(), q_a::pick(), q_c::pick()]\n", waived.join("\n"));
+        let src = format!(
+            "{}\n\n[pick(), q_a::pick(), q_c::pick()]\n",
+            waived.join("\n")
+        );
         seen.insert(format!("{:?}", value(&src, &Mem(P))));
     }
     assert_eq!(

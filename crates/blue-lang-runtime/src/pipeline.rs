@@ -479,19 +479,21 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     // exists so a consumer can depend on "everything": `use("zenbu")` makes
     // every member's QUALIFIER reachable (`toukei::median`), never a bare
     // name. Followed to a fixpoint, so a facade of facades works too.
-    let facade_uses = |pkg: &str, imports: &std::collections::BTreeMap<usize, blue_lang_check::names::FileImports>| {
-        let defines = table.bidama(pkg).is_some_and(|s| !s.is_empty());
-        if defines {
-            return std::collections::BTreeSet::new();
-        }
-        program
-            .files()
-            .iter()
-            .filter(|f| f.package.as_deref() == Some(pkg))
-            .filter_map(|f| imports.get(&f.id.index()))
-            .flat_map(|i| i.uses.iter().cloned())
-            .collect::<std::collections::BTreeSet<String>>()
-    };
+    let facade_uses =
+        |pkg: &str,
+         imports: &std::collections::BTreeMap<usize, blue_lang_check::names::FileImports>| {
+            let defines = table.bidama(pkg).is_some_and(|s| !s.is_empty());
+            if defines {
+                return std::collections::BTreeSet::new();
+            }
+            program
+                .files()
+                .iter()
+                .filter(|f| f.package.as_deref() == Some(pkg))
+                .filter_map(|f| imports.get(&f.id.index()))
+                .flat_map(|i| i.uses.iter().cloned())
+                .collect::<std::collections::BTreeSet<String>>()
+        };
     loop {
         let mut grew = false;
         let files: Vec<usize> = imports.keys().copied().collect();
@@ -516,7 +518,10 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
         std::collections::BTreeMap::new();
     for (file, import) in program.imports() {
         if let Some(p) = program.file(*file).and_then(|f| f.package.clone()) {
-            pkg_uses.entry(p).or_default().insert(import.package.clone());
+            pkg_uses
+                .entry(p)
+                .or_default()
+                .insert(import.package.clone());
         }
     }
     table.attach_files(form_file, imports);
@@ -536,8 +541,12 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     for f in program.files() {
         if let Some(path) = &f.path {
             file_paths.insert(f.id.index(), canonical(path));
-            if let (Some(pkg), Some(root)) = (&f.package, path.parent().and_then(std::path::Path::parent)) {
-                pkg_roots.entry(pkg.clone()).or_insert_with(|| canonical(root));
+            if let (Some(pkg), Some(root)) =
+                (&f.package, path.parent().and_then(std::path::Path::parent))
+            {
+                pkg_roots
+                    .entry(pkg.clone())
+                    .or_insert_with(|| canonical(root));
             }
         }
     }
@@ -561,7 +570,10 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
 /// `helper` no longer replaces a bidama's own: the runtime binds exactly what
 /// the check stage resolved.
 #[must_use]
-pub fn lower(program: &crate::uses::ResolvedProgram, names: &NameTable) -> Vec<tatara_lisp::Spanned> {
+pub fn lower(
+    program: &crate::uses::ResolvedProgram,
+    names: &NameTable,
+) -> Vec<tatara_lisp::Spanned> {
     let resolved = blue_lang_check::names::resolve_program(program.forms(), names, &|i| {
         namespace_of(program, i)
     });
@@ -784,7 +796,11 @@ pub fn syntax_diagnostic(text: &str) -> Option<blue_lang_check::Diagnostic> {
 /// backticks names it `retsu::first`, or `f` for the author's own script.
 #[must_use]
 pub fn display_keys(message: &str) -> String {
-    let root = format!("{}{}", blue_lang_check::names::ROOT_QUALIFIER, blue_lang_syntax::QUALIFIER);
+    let root = format!(
+        "{}{}",
+        blue_lang_check::names::ROOT_QUALIFIER,
+        blue_lang_syntax::QUALIFIER
+    );
     let mut out = String::with_capacity(message.len());
     let mut parts = message.split('`');
     if let Some(first) = parts.next() {
@@ -993,7 +1009,8 @@ bakuhatsu()";
     ///    bug: the index survived the lift and every span did not.
     /// kotae loads first so bakuhatsu's forms do not start at index 0: the
     /// order is the fixture, and the waiver says so (B0015 wants them sorted).
-    const TWO_IMPORTS: &str = "use(\"kotae\")\n# waive B0015: kotae loads first on purpose\nuse(\"bakuhatsu\")\n";
+    const TWO_IMPORTS: &str =
+        "use(\"kotae\")\n# waive B0015: kotae loads first on purpose\nuse(\"bakuhatsu\")\n";
 
     #[test]
     fn a_raise_inside_an_imported_package_names_that_package() {

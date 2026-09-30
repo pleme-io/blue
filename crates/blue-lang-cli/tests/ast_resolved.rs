@@ -44,7 +44,11 @@ fn the_resolved_json_is_stable() {
         .args(["ast", "--resolved", "--json", p.to_str().expect("utf-8")])
         .output()
         .expect("spawn");
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let got = String::from_utf8(out.stdout)
         .expect("utf-8")
         .replace(p.to_str().expect("utf-8"), "F");
@@ -62,8 +66,20 @@ fn every_resolved_json_field_is_documented() {
         .nth(1)
         .expect("DIAGNOSTICS.md has a `blue ast --resolved --json` section");
     for field in [
-        "namespace", "flat", "ns", "references", "top_level", "written", "opaque", "kind", "name",
-        "key", "imports", "package", "names", "first_line",
+        "namespace",
+        "flat",
+        "ns",
+        "references",
+        "top_level",
+        "written",
+        "opaque",
+        "kind",
+        "name",
+        "key",
+        "imports",
+        "package",
+        "names",
+        "first_line",
     ] {
         assert!(
             section.contains(&format!("`{field}`")),

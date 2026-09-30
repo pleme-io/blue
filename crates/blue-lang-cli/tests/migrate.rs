@@ -76,11 +76,9 @@ fn a_transitive_reference_is_listed_needed_and_proven() {
     );
     let bf = std::fs::read_to_string(dist.join("mk_c/Bluefile")).expect("read");
     assert!(bf.contains("needs(\"mk_a\", \"^0.1\")"), "{bf}");
-    let (fresh, _, err) = run(
-        blue(&dist)
-            .args(["bluefile", "--confirm"])
-            .arg(dist.join("mk_c/Bluefile")),
-    );
+    let (fresh, _, err) = run(blue(&dist)
+        .args(["bluefile", "--confirm"])
+        .arg(dist.join("mk_c/Bluefile")));
     assert!(fresh, "the lock must follow the Bluefile: {err}");
 
     // Nothing is implicit any more, and the package still passes its tests.

@@ -1100,7 +1100,10 @@ impl Parser {
                 "a qualified name has one qualifier: `package::name`, and `{pkg}::{name}::…` has two"
             )));
         }
-        Ok(sym_at(self.span_since(pkg_span.start), &qualify(pkg, &name)))
+        Ok(sym_at(
+            self.span_since(pkg_span.start),
+            &qualify(pkg, &name),
+        ))
     }
 
     /// After a `.`: `recv.name` or `recv.name(args)`.

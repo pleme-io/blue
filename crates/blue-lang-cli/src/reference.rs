@@ -326,5 +326,4 @@ mod tests {
         assert!(!agrees("2", (1, 0, false)));
         assert!(!agrees("2", (2, 0, true)));
     }
-
 }

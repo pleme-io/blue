@@ -34,8 +34,17 @@ impl Loader for Standard {
         PACKAGES
             .iter()
             .find(|(n, _)| *n == name)
-            .map(|(_, files)| files.iter().map(|(l, t)| ((*l).to_owned(), (*t).to_owned())).collect())
-            .ok_or_else(|| format!("cannot load bidama \"{name}\": not in the compiled-in standard distribution"))
+            .map(|(_, files)| {
+                files
+                    .iter()
+                    .map(|(l, t)| ((*l).to_owned(), (*t).to_owned()))
+                    .collect()
+            })
+            .ok_or_else(|| {
+                format!(
+                    "cannot load bidama \"{name}\": not in the compiled-in standard distribution"
+                )
+            })
     }
 }
 
@@ -47,10 +56,18 @@ mod tests {
     fn the_standard_distribution_is_compiled_in_and_serves_by_name() {
         assert!(!Standard.is_empty());
         let names = Standard.names();
-        assert!(names.contains(&"retsu") && names.contains(&"ronri"), "{names:?}");
+        assert!(
+            names.contains(&"retsu") && names.contains(&"ronri"),
+            "{names:?}"
+        );
         assert!(names.windows(2).all(|w| w[0] < w[1]));
         let retsu = Standard.load("retsu").unwrap();
-        assert!(retsu.iter().any(|(l, t)| l == "retsu/retsu.b" && t.contains("def ")));
-        assert!(Standard.load("no-such-bidama").unwrap_err().contains("no-such-bidama"));
+        assert!(retsu
+            .iter()
+            .any(|(l, t)| l == "retsu/retsu.b" && t.contains("def ")));
+        assert!(Standard
+            .load("no-such-bidama")
+            .unwrap_err()
+            .contains("no-such-bidama"));
     }
 }

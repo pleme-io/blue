@@ -228,15 +228,14 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
         let builtin = |n: &str| {
             matches!(n, "defmacro" | "define-typed" | "use")
                 || table.scopes().iter().any(|s| {
-                !matches!(
-                    s.namespace,
-                    blue_lang_check::Namespace::File(_) | blue_lang_check::Namespace::Bidama(_)
-                ) && s.get(n).is_some()
-            })
+                    !matches!(
+                        s.namespace,
+                        blue_lang_check::Namespace::File(_) | blue_lang_check::Namespace::Bidama(_)
+                    ) && s.get(n).is_some()
+                })
         };
-        let reach: BTreeSet<String> = blue_lang_waku::free_names(forms, &|n| {
-            builtin(n) || program_defined.contains(n)
-        });
+        let reach: BTreeSet<String> =
+            blue_lang_waku::free_names(forms, &|n| builtin(n) || program_defined.contains(n));
         let mut table_free: BTreeSet<String> = checked
             .resolve()
             .references
@@ -244,9 +243,11 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
             .filter(|r| r.flat == blue_lang_check::names::Target::Unbound)
             .map(|r| r.written.clone())
             .collect();
-        table_free.extend(template_symbols(forms).into_iter().filter(|n| {
-            !builtin(n) && !program_defined.contains(n)
-        }));
+        table_free.extend(
+            template_symbols(forms)
+                .into_iter()
+                .filter(|n| !builtin(n) && !program_defined.contains(n)),
+        );
         // A template symbol can also be a local of the macro that holds it;
         // the reach walk binds it, the template scan cannot see frames.
         let only_reach: Vec<_> = reach.difference(&table_free).cloned().collect();
@@ -272,7 +273,11 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
 /// Every symbol of every quasiquoted template, outside its `unquote`s.
 fn template_symbols(forms: &[blue_lang_syntax::Spanned]) -> std::collections::BTreeSet<String> {
     use blue_lang_syntax::{Atom, SpannedForm};
-    fn inside(f: &blue_lang_syntax::Spanned, quoted: bool, out: &mut std::collections::BTreeSet<String>) {
+    fn inside(
+        f: &blue_lang_syntax::Spanned,
+        quoted: bool,
+        out: &mut std::collections::BTreeSet<String>,
+    ) {
         match &f.form {
             SpannedForm::Atom(Atom::Symbol(s)) if quoted => {
                 out.insert(s.clone());

@@ -401,7 +401,11 @@ impl NameTable {
     }
 
     /// Record each file's path and each bidama's distribution root.
-    pub fn attach_paths(&mut self, file_paths: BTreeMap<usize, String>, pkg_roots: BTreeMap<String, String>) {
+    pub fn attach_paths(
+        &mut self,
+        file_paths: BTreeMap<usize, String>,
+        pkg_roots: BTreeMap<String, String>,
+    ) {
         self.file_paths = file_paths;
         self.pkg_roots = pkg_roots;
     }
@@ -410,7 +414,10 @@ impl NameTable {
     /// ships in? Unknown paths count as inside: the error is the safe side.
     #[must_use]
     pub fn inside_distribution(&self, top_level: usize, pkg: &str) -> bool {
-        match (self.file_paths.get(&self.file_of(top_level)), self.pkg_roots.get(pkg)) {
+        match (
+            self.file_paths.get(&self.file_of(top_level)),
+            self.pkg_roots.get(pkg),
+        ) {
             (Some(file), Some(root)) => file.starts_with(root.as_str()),
             _ => true,
         }
@@ -439,9 +446,7 @@ impl NameTable {
             let Some(decl) = scope::legacy_target(form) else {
                 continue;
             };
-            let bad = |msg: String| {
-                Diagnostic::new(Code::B0022, msg, decl.span).at_top_level(i)
-            };
+            let bad = |msg: String| Diagnostic::new(Code::B0022, msg, decl.span).at_top_level(i);
             let Namespace::Bidama(pkg) = namespace_of(i) else {
                 out.push(bad("`legacy_names` declares a bidama's old names, and this file is not in a bidama".into()));
                 continue;
@@ -473,7 +478,9 @@ impl NameTable {
             }
             let open = now < (since.0, since.1 + 1, 0);
             self.legacy_prefix.insert(pkg.clone(), decl.prefix.clone());
-            let Some(scope) = self.bidama(&pkg) else { continue };
+            let Some(scope) = self.bidama(&pkg) else {
+                continue;
+            };
             let names: Vec<String> = scope.bindings().map(|b| b.name.clone()).collect();
             let prefix = format!("{}_", decl.prefix);
             let mut aliases = Vec::new();
@@ -610,13 +617,21 @@ impl NameTable {
                 };
             }
             let ns = Namespace::Bidama(pkg.to_string());
-            return match self.scopes.iter().find(|s| s.namespace == ns).and_then(|s| s.get(n)) {
+            return match self
+                .scopes
+                .iter()
+                .find(|s| s.namespace == ns)
+                .and_then(|s| s.get(n))
+            {
                 Some(b) => Target::Def(ns, b.name.clone()),
                 None => Target::Unbound,
             };
         }
         match self.resolve_from(name, own, top_level) {
-            Resolution::Found { tier: Tier::Builtin, .. } => Target::Builtin(name.to_string()),
+            Resolution::Found {
+                tier: Tier::Builtin,
+                ..
+            } => Target::Builtin(name.to_string()),
             Resolution::Found { scope, binding, .. } => {
                 Target::Def(scope.namespace.clone(), binding.name.clone())
             }
@@ -631,7 +646,12 @@ impl NameTable {
     /// [`RESOLUTION_ORDER`]: the path `blue explain-name` prints, and the data
     /// an override is recorded from.
     #[must_use]
-    pub fn tiers_of(&self, name: &str, own: &Namespace, top_level: usize) -> Vec<(Tier, Vec<Namespace>)> {
+    pub fn tiers_of(
+        &self,
+        name: &str,
+        own: &Namespace,
+        top_level: usize,
+    ) -> Vec<(Tier, Vec<Namespace>)> {
         let mut out = Vec::new();
         for tier in RESOLUTION_ORDER {
             let nss: Vec<Namespace> = match tier {
@@ -882,7 +902,10 @@ impl std::fmt::Display for Target {
             Target::Ambiguous(nss) => write!(
                 f,
                 "ambiguous ({})",
-                nss.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+                nss.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
             Target::Unbound => f.write_str("unbound"),
         }
@@ -1011,7 +1034,9 @@ fn rewrite(form: &Spanned, map: &std::collections::HashMap<usize, String>) -> Sp
             let s = map.get(&at).cloned().unwrap_or_else(|| s.clone());
             SpannedForm::Atom(Atom::Symbol(s))
         }
-        SpannedForm::List(items) => SpannedForm::List(items.iter().map(|i| rewrite(i, map)).collect()),
+        SpannedForm::List(items) => {
+            SpannedForm::List(items.iter().map(|i| rewrite(i, map)).collect())
+        }
         SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(rewrite(i, map))),
         SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(rewrite(i, map))),
         SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(rewrite(i, map))),
@@ -1237,7 +1262,15 @@ impl<'t> Walker<'t> {
             Some(q) => (format!("{q}::{part}"), format!("{q}::{canonical}")),
             None => (part.to_string(), canonical.clone()),
         };
-        let d = self.legacy_diagnostic(span, pkg, part, canonical, &alias.since, original, replacement);
+        let d = self.legacy_diagnostic(
+            span,
+            pkg,
+            part,
+            canonical,
+            &alias.since,
+            original,
+            replacement,
+        );
         self.diagnostics.push(d);
     }
 
@@ -1278,7 +1311,9 @@ impl<'t> Walker<'t> {
 
     /// The candidates `ns` won over, for a bare name.
     fn shadowed(&self, name: &str, ns: &Target) -> Vec<(Tier, Namespace)> {
-        if blue_lang_syntax::qualified(name).is_some() || !matches!(ns, Target::Def(..) | Target::Builtin(_)) {
+        if blue_lang_syntax::qualified(name).is_some()
+            || !matches!(ns, Target::Def(..) | Target::Builtin(_))
+        {
             return Vec::new();
         }
         let tiers = self.table.tiers_of(name, &self.own, self.top_level);
@@ -1533,8 +1568,12 @@ impl Walker<'_> {
             .unwrap_or_default();
         near.sort();
         near.truncate(3);
-        let mut d = Diagnostic::new(Code::B0011, format!("bidama `{pkg}` defines no `{n}`"), span)
-            .at_top_level(self.top_level);
+        let mut d = Diagnostic::new(
+            Code::B0011,
+            format!("bidama `{pkg}` defines no `{n}`"),
+            span,
+        )
+        .at_top_level(self.top_level);
         // A closed bridge: the ledger still says what it was renamed to.
         if let Some(a) = self.table.bidama(pkg).and_then(|s| s.alias_of(n)) {
             let (original, replacement) = if qualified {
@@ -1564,7 +1603,10 @@ impl Walker<'_> {
             (_, []) => d.with_help(format!("nothing in `{pkg}` is close to `{n}`")),
             (_, many) => d.with_help(format!(
                 "did you mean {}?",
-                many.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")
+                many.iter()
+                    .map(|c| format!("`{c}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )),
         };
         if qualified {

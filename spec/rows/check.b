@@ -89,16 +89,14 @@ row(
   "check.B0013",
   "use(\"sp_pre\")\nsp_pre::sp_pre_x()",
   diagnoses(["B0013"]),
-  covers("rule:B0013"),
-  pending("ratchet")
+  covers("rule:B0013")
 )
 
 row(
   "check.B0014",
   "use(\"sp_mg\")\nsp_mg::sp_a()",
   diagnoses(["B0014"]),
-  covers("rule:B0014"),
-  pending("ratchet")
+  covers("rule:B0014")
 )
 
 row(

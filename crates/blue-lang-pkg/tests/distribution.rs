@@ -36,7 +36,7 @@
 //! Without those, "0 packages, 0 tests, 0 failures" is a passing run.
 
 use blue_lang_pkg::load_path::LoadPath;
-use blue_lang_runtime::uses::{resolve_uses, Entry, Loader};
+use blue_lang_runtime::uses::{Entry, Loader};
 use std::path::PathBuf;
 
 fn dist() -> PathBuf {
@@ -90,18 +90,31 @@ fn run_tests(name: &str) -> (usize, Vec<String>) {
         .collect::<Vec<_>>()
         .join("\n");
 
-    let forms = blue_lang_runtime::pipeline::parse_tree(&src)
-        .unwrap_or_else(|e| panic!("{name} must parse: {e}"));
-    // Through the real loader: a package's tests exercise its dependencies'
-    // functions, so resolution has to happen or every test errors on `use`.
-    //
-    // The entry is the concatenation of the package's own `.b` files, which is
-    // not a file on disk — so it is named as what it is rather than as one of
-    // the files it was built from.
-    let program = resolve_uses(forms, Entry::anonymous(&src), &lp)
-        .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
-
-    let report = blue_lang_test::run(&program.sexps());
+    // Through the pipeline's check door and the real loader, as `blue test`
+    // runs a package: its tests exercise its dependencies' functions, and
+    // what runs is the resolved tree, every definition at its namespaced key.
+    // The entry is the package's own file, so it is checked as the bidama.
+    let path = dist().join(name).join(format!("{name}.b"));
+    let checked = blue_lang_runtime::pipeline::check_entry(
+        Entry {
+            path: Some(&path),
+            text: &src,
+        },
+        &lp,
+        None,
+        blue_lang_runtime::pipeline::Checking::WithTests,
+    )
+    .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
+    assert!(
+        checked.outcome.ok(),
+        "{name} does not check: {:?}",
+        checked
+            .outcome
+            .errors()
+            .map(|d| d.message.clone())
+            .collect::<Vec<_>>()
+    );
+    let report = blue_lang_test::run(&checked.evaluable());
     (
         report.passed,
         report.failures.iter().map(ToString::to_string).collect(),

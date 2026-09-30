@@ -1,11 +1,13 @@
 # blue — Claude Orientation
 
-pending-shikumi: M2 — execution budget has no default constant; will type when
-one lands. Everything else is closed: `BlueConfig`
+No `pending-shikumi:` — M2 closed 2026-09-29. `BlueConfig`
 (`crates/blue-lang-cli/src/config.rs`) implements `shikumi::TieredConfig` with
-the two bounds that *do* have shipped overridable defaults, `flake.nix` carries
-the module trio that deploys them, and `blue config <tier>` is the operator
-surface.
+four bounds, each with a shipped overridable default: `solver_max_steps`,
+`max_expr_depth`, and the execution budget as `max_call_depth` and
+`max_steps` (tatara-lisp-eval's `DEFAULT_MAX_DEPTH` / `DEFAULT_FUEL`, applied to
+every interpreter through `blue_lang_runtime::set_execution_bounds`).
+`flake.nix` carries the module trio that deploys them, and `blue config <tier>`
+is the operator surface.
 
 The M1 waiver this replaces claimed three knobs were "blocked on an unsettled
 design". Measured 2026-08-01, two of the three were not blocked — they were
@@ -21,10 +23,9 @@ worth correcting rather than carrying:
   a Bluefile input; `blue_lang_waku::Waku` deliberately carries none and
   `blue_lang_bidama::resolve(bidama, ceiling)` takes it as an argument. A
   daemon knob would rebuild the anti-pattern §V.24 removed.
-- **Execution budget** — genuinely open, for a concrete reason rather than a
-  philosophical one: **no default constant exists in blue to expose**. `Budget`
-  matches zero lines in `blue-lang-runtime`, `-test` and `-cli`. This is the
-  whole of M2.
+- **Execution budget** — was open because no default constant existed to
+  expose. tatara-lisp-eval 0.3.63 gave both executors one budget and made
+  exceeding it a catchable error rather than a stack overflow, which closed M2.
 
 **The admission rule, which is what makes the surface safe to have shipped:** a
 knob may live in `BlueConfig` only if it is a **BOUND, never a preference**.

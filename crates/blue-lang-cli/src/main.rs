@@ -370,6 +370,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // and the pipeline's own lesson (one place owns the order) applies to the
     // bounds the pipeline runs under just as much.
     let cfg = config::resolve();
+    // Before any interpreter is built, so every evaluating door — run, test,
+    // the LSP, a Bluefile — runs under the configured bounds.
+    blue_lang_runtime::set_execution_bounds(cfg.execution_bounds());
     // `self_exe` answers with THIS binary only because it is the blue CLI;
     // any other embedder leaves it nil (blue_lang_runtime::sys::set_blue_exe).
     if let Ok(me) = std::env::current_exe() {

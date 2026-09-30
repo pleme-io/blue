@@ -29,7 +29,7 @@
     # fields — stated here, once, instead of relied on implicitly by spelling
     # the two names the same.
     #
-    # Both are BOUNDS, never preferences: raising or lowering either changes no
+    # All are BOUNDS, never preferences: raising or lowering one changes no
     # program's meaning, only whether a pathological input is refused. That rule
     # is what decides admission here, and it is argued in full in
     # `blue-lang-cli/src/config.rs`. Do not add a third knob without reading it.
@@ -66,6 +66,33 @@
           Expression/statement nesting the parser accepts before refusing.
           Raising it never changes what a program means; it moves the line
           between a typed error and a stack overflow.
+        '';
+      };
+      maxCallDepth = {
+        yaml = "max_call_depth";
+        # tatara-lisp-eval's `vm::DEFAULT_MAX_DEPTH`, named on the Rust side by
+        # `ExecutionBounds::DEFAULT`.
+        default = 100000;
+        # The evaluator grows its stack on demand, so this bounds memory rather
+        # than a thread's stack: about 3 KB a frame, measured at 100k frames
+        # (310 MB resident). The ceiling keeps a typo from asking for tens of GB.
+        type = types.ints.between 1 10000000;
+        description = ''
+          Nested (non-tail) calls a program may have alive at once. Past it the
+          call is refused with a catchable `depth-exceeded` error naming the
+          function. Tail calls do not count.
+        '';
+      };
+      maxSteps = {
+        yaml = "max_steps";
+        # tatara-lisp-eval's `vm::DEFAULT_FUEL`, the VM's own runaway guard,
+        # so both executors refuse the same runaway alike.
+        default = 50000000;
+        type = types.nullOr types.ints.positive;
+        description = ''
+          Evaluation steps a run may take, or null for unbounded. Past it the
+          run ends in a `fuel-exhausted` error naming the function; a `try`
+          observes it but cannot spend past it. A long simulation raises it.
         '';
       };
     };
@@ -186,10 +213,10 @@
       # gate (`cargo test`, in this shell on CI) runs every bidama's tests.
       devShellPackages = [ "lld" "duckdb" ];
 
-      # The module trio, deploying blue's two configurable BOUNDS as a shikumi
+      # The module trio, deploying blue's configurable BOUNDS as a shikumi
       # YAML at `~/.config/blue/blue.yaml` and pointing `BLUE_CONFIG` at it.
       #
-      # ── WHY TWO KEYS AND NOT THE THREE THE OLD WAIVER NAMED ──────────────
+      # ── WHY THESE KEYS AND NOT THE THREE THE OLD WAIVER NAMED ────────────
       #
       # This block previously said blue had "no configuration surface to
       # deploy" and named three blocked knobs. Measured 2026-08-01, two of the
@@ -206,10 +233,11 @@
       #     `blue_lang_bidama::resolve(bidama, ceiling)` takes it as an
       #     argument. A daemon knob would re-create the anti-pattern §V.24
       #     removed.
-      #   - execution budget — genuinely unsettled, for a concrete reason: no
-      #     default constant exists in blue to expose. `pending-shikumi: M2`.
+      #   - execution budget — was unsettled because no default constant
+      #     existed; tatara-lisp-eval 0.3.63 gave both executors one, so it is
+      #     now two bounds (`max_call_depth`, `max_steps`).
       #
-      # What is left are two BOUNDS, each with a shipped overridable default in
+      # What is left are four BOUNDS, each with a shipped overridable default in
       # code. Raising either changes no program's meaning — only whether a
       # pathological input is refused — so exposing them cannot freeze a design
       # guess as a public interface, which was the whole objection.

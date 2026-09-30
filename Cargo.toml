@@ -37,3 +37,25 @@ serde_json = "1"
 # and a crate carrying one cannot be published at all.
 tatara-lisp = "0.3"
 tatara-lisp-eval = "0.3"
+
+# The evaluator is optimized even in a debug or test build. Every in-process
+# door — the conformance suite's walker, vm and wasm columns, `cargo test` of a
+# bidama — runs blue programs on it, and `fn.runaway_is_bounded` spends the
+# whole default 50M-step budget: 8.3 s in a plain debug build, past the suite's
+# 45 s isolation limit under nix's parallel load, against 3.7 s with these.
+# `blue-lang-runtime` is here too, not only the dependency, because the
+# evaluator is generic over the host: `eval_in::<()>` is monomorphized, and so
+# compiled, in the crate that instantiates it (measured with `sample`: the hot
+# frames were tatara_lisp_eval symbols inside blue_lang_runtime).
+[profile.dev.package.tatara-lisp-eval]
+opt-level = 3
+
+[profile.dev.package.tatara-lisp]
+opt-level = 3
+
+[profile.dev.package.blue-lang-runtime]
+opt-level = 3
+
+# The conformance runner instantiates the VM (`eval_program_vm::<()>`) itself.
+[profile.dev.package.blue-lang-test]
+opt-level = 3

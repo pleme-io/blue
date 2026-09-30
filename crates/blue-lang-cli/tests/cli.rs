@@ -1246,3 +1246,76 @@ fn a_file_the_formatter_refuses_is_a_compile_error_naming_the_line() {
     assert!(stdout(&o).is_empty(), "nothing ran: {}", stdout(&o));
     assert_eq!(std::fs::read_to_string(&f).expect("read back"), src);
 }
+
+// ---------------------------------------------------------------------------
+// Execution bounds: `max_call_depth` and `max_steps`.
+//
+// Measured at blue 0.0.49 (theory/BLUE-GAPS.md G6): a non-tail recursion 6,000
+// deep aborted the process — `fatal runtime error: stack overflow`, rc 134 —
+// and `try` could not catch it; a loop with no exit ran until killed.
+
+const DEEP: &str = "def f(n)\n  if n == 0\n    0\n  else\n    1 + f(n - 1)\n  end\nend\n";
+
+/// Ten times the depth that used to abort, on the shipped bounds.
+#[test]
+fn a_deep_recursion_completes_on_the_default_bounds() {
+    let f = write("deep-default", &format!("{DEEP}f(60000)"));
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "60000");
+}
+
+/// **`max_call_depth` is read from the deployed YAML, end to end**, and the
+/// refusal names the configured bound and the function.
+///
+/// Red run: with the `set_execution_bounds` call removed from `dispatch`, the
+/// run used the 100k default and printed `500` with exit 0, failing the status
+/// assertion. Restored.
+#[test]
+fn max_call_depth_is_read_from_the_deployed_yaml() {
+    let f = write("deep-bounded", &format!("{DEEP}f(500)"));
+    assert!(
+        run(&["run", f.to_str().unwrap()]).status.success(),
+        "precondition: the DEFAULT bound runs this program"
+    );
+    // Only the key under test: the other bounds come from the prescribed tier
+    // the file is overlaid on, so a YAML deployed before a key existed keeps
+    // working.
+    let cfg = write_at("cfg-call-depth.yaml", "max_call_depth: 100\n");
+    let o = run_env(
+        &["run", f.to_str().unwrap()],
+        &[("BLUE_CONFIG", cfg.to_str().unwrap())],
+    );
+    assert!(!o.status.success(), "depth 500 under a bound of 100: {}", stdout(&o));
+    assert!(
+        stderr(&o).contains("call depth budget of 100 exceeded in `f`"),
+        "the error must name the configured bound and the function: {}",
+        stderr(&o)
+    );
+}
+
+/// **`max_steps` is read from the deployed YAML**: a loop with no exit ends in
+/// a typed error naming the function, at the configured bound rather than the
+/// shipped one.
+#[test]
+fn max_steps_is_read_from_the_deployed_yaml() {
+    let f = write("spin-bounded", "def spin(n)\n  spin(n + 1)\nend\nspin(0)");
+    let cfg = write_at("cfg-steps.yaml", "max_steps: 100000\n");
+    let o = run_env(
+        &["run", f.to_str().unwrap()],
+        &[("BLUE_CONFIG", cfg.to_str().unwrap())],
+    );
+    assert!(!o.status.success());
+    assert!(
+        stderr(&o).contains("fuel budget of 100000 exceeded in `spin`"),
+        "{}",
+        stderr(&o)
+    );
+}
+
+#[test]
+fn config_show_prints_the_execution_bounds() {
+    let out = stdout(&run(&["config", "default"]));
+    assert!(out.contains("max_call_depth: 100000"), "{out}");
+    assert!(out.contains("max_steps: 50000000"), "{out}");
+}

@@ -72,9 +72,6 @@ row(
   "fn.deep_recursion",
   "def depth(n)\n  if n == 0\n    0\n  else\n    1 + depth(n - 1)\n  end\nend\n\ndepth(100000)",
   fails(:eval, "depth"),
-  pending("G6", "walker"),
-  pending("G6", "wasm"),
-  pending("G6", "cli"),
   isolate()
 )
 
@@ -82,10 +79,6 @@ row(
   "fn.deep_recursion.catchable",
   "def depth(n)\n  if n == 0\n    0\n  else\n    1 + depth(n - 1)\n  end\nend\n\ntry(depth(100000), catch(_e(), :caught))",
   value(":caught"),
-  pending("G6", "walker"),
-  pending("G6", "wasm"),
-  pending("G6", "cli"),
-  pending("G6", "vm"),
   isolate()
 )
 
@@ -93,9 +86,6 @@ row(
   "fn.runaway_is_bounded",
   "def spin(n)\n  spin(n + 1)\nend\n\nspin(0)",
   fails(:eval, "budget"),
-  pending("G6", "walker"),
-  pending("G6", "wasm"),
-  pending("G6", "cli"),
   isolate()
 )
 

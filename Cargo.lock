@@ -62,6 +62,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ar_archive_writer"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73cd58deff2140a0a8eae87e417bd01db68a33e148aa93d1e8cd837e55e312b6"
+dependencies = [
+ "object",
+]
+
+[[package]]
 name = "arc-swap"
 version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -871,9 +880,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.3.60"
+version = "0.3.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7984b9a784195a719a35fd6134452932a31307811f019745aacb5ff9ef7df75b"
+checksum = "bd52f0861ecf2ac90a0cbdcfd932f1464a67b8987b0f0e82028abcd79f39be5a"
 
 [[package]]
 name = "notify"
@@ -909,6 +918,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "object"
+version = "0.39.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -1010,6 +1028,16 @@ dependencies = [
  "rusty-fork",
  "tempfile",
  "unarray",
+]
+
+[[package]]
+name = "psm"
+version = "0.1.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dcd034599e63b970727f70d79e02d62390a4a84f7c6b827c27c46d5ac3fa622"
+dependencies = [
+ "ar_archive_writer",
+ "cc",
 ]
 
 [[package]]
@@ -1281,6 +1309,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "stacker"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "707f49d46706bacf8a2b00d51dace3f9de527c13eec3778f570c411f89e69967"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "psm",
+ "windows-sys 0.60.2",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1316,18 +1357,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.3.60"
+version = "0.3.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a3e5da2baa94bc4804ebb05998ba824b52b37c8ba3891f41e5eca273d5dc6d0"
+checksum = "b7092f43534c8de80212d74a37a2115ac97e07402533de74e2b718fc0a883608"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.3.60"
+version = "0.3.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6787e168d1854f9f70c86bdbaf100865df053ec2e1f0fc801345f38845ebc3c5"
+checksum = "837670a2b54ce556cba5c0353ba91ee91afbdab8db293fea45779b90b6a6ca90"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1336,9 +1377,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.3.60"
+version = "0.3.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3655316ed3ebd672ac8cdcee6c9dae487a431628d563812b13ad6cff3da0a2f5"
+checksum = "09b312966424dc51d7f7aa1e7c9efdd11003b640eddacd3dbe013626ebf925ae"
 dependencies = [
  "blake3",
  "serde",
@@ -1350,9 +1391,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.3.60"
+version = "0.3.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f17fa04dfac259fa17e2c83672058d858e0c6e7e00af1cd6aecb8bcb888bda79"
+checksum = "b3328bb163ff8cc6dbae3be810aee42d2f1b697f0bdbd7fd958ca1a1743dd61d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1361,11 +1402,12 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.3.60"
+version = "0.3.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d29e75d9f8d752cfe7c86978f3b5f2d2cc3fc35bab8aab54a72a57f6313ee3c2"
+checksum = "b7bc7b280ba198d7de3f5897a2850f33f0d08fe1082df1799faa84bf9195af51"
 dependencies = [
  "monosashi",
+ "stacker",
  "tatara-closed-set",
  "tatara-lisp",
  "thiserror",

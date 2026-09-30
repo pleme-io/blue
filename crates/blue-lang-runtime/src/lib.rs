@@ -92,7 +92,67 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // surface by construction. Only the CLI turns it on.
     #[cfg(feature = "sys")]
     sys::install_sys_stdlib(&mut interp);
+    // Last, so installing the stdlib is not metered against the program.
+    apply_execution_bounds(&mut interp);
     interp
+}
+
+/// The execution bounds every interpreter this crate builds runs under.
+static EXECUTION_BOUNDS: std::sync::OnceLock<ExecutionBounds> = std::sync::OnceLock::new();
+
+/// How much a blue program may do before it is refused: nested calls and
+/// evaluation steps.
+///
+/// Both are BOUNDS in the sense `blue-lang-cli`'s `config` module admits: a
+/// terminating program under bounds above its cost returns the same value, and
+/// one that exceeds either is refused with a catchable `depth-exceeded` or
+/// `fuel-exhausted` error naming the limit and the function — never a process
+/// abort, which is what exceeding the host stack was before tatara-lisp-eval
+/// 0.3.63. The walker and the VM run under the same bounds and refuse with the
+/// same message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionBounds {
+    /// Nested (non-tail) calls alive at once. Tail calls do not count.
+    pub max_call_depth: usize,
+    /// Evaluation steps per run; `None` is unbounded.
+    pub max_steps: Option<usize>,
+}
+
+impl ExecutionBounds {
+    /// tatara-lisp-eval's VM defaults, by name, for both executors: depth at
+    /// `DEFAULT_MAX_DEPTH`, steps at `DEFAULT_FUEL`. A run that needs more
+    /// says so through `BlueConfig`; `max_steps: nil` lifts the step bound.
+    pub const DEFAULT: Self = Self {
+        max_call_depth: tatara_lisp_eval::vm::DEFAULT_MAX_DEPTH,
+        max_steps: Some(tatara_lisp_eval::vm::DEFAULT_FUEL),
+    };
+}
+
+/// Name the bounds for this process. The CLI calls this once with the resolved
+/// `BlueConfig`, before any interpreter is built; an embedder that never calls
+/// it runs under [`ExecutionBounds::DEFAULT`]. Only the first call counts,
+/// like `sys::set_program_args`.
+pub fn set_execution_bounds(bounds: ExecutionBounds) {
+    let _ = EXECUTION_BOUNDS.set(bounds);
+}
+
+/// The bounds interpreters are built with.
+#[must_use]
+pub fn execution_bounds() -> ExecutionBounds {
+    EXECUTION_BOUNDS
+        .get()
+        .copied()
+        .unwrap_or(ExecutionBounds::DEFAULT)
+}
+
+fn apply_execution_bounds<H: 'static>(interp: &mut Interpreter<H>) {
+    let b = execution_bounds();
+    // No quantum, so the tree-walker refuses nothing of this budget.
+    let _ = interp.set_budget(tatara_lisp_eval::vm::Budget {
+        fuel: b.max_steps,
+        max_depth: Some(b.max_call_depth),
+        quantum: None,
+    });
 }
 
 /// The prebuilt hostless substrate, built once per process.
@@ -139,10 +199,14 @@ static HOSTLESS_BASE: std::sync::LazyLock<std::sync::Mutex<Interpreter<()>>> =
 /// panicked mid-fork, and answering a correct-but-slow interpreter beats
 /// propagating someone else's panic into an unrelated caller.
 pub fn interpreter_hostless() -> Interpreter<()> {
-    match HOSTLESS_BASE.lock() {
+    let mut interp = match HOSTLESS_BASE.lock() {
         Ok(base) => base.fork(),
         Err(_) => interpreter(&mut ()),
-    }
+    };
+    // Again after the fork: the base may have been built before the bounds
+    // were named, and a fork inherits whatever its base had.
+    apply_execution_bounds(&mut interp);
+    interp
 }
 
 /// Lift spanless forms into what the evaluator eats.

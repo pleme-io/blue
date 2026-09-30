@@ -31,8 +31,9 @@
 #
 # ── THE VALUES ARE THE SHIPPED DEFAULTS ──────────────────────────────────────
 #
-# Both are BOUNDS: raising either changes no program's meaning, only whether a
-# pathological input is refused. That is the entire argument for why these two
+# All four are BOUNDS: raising any changes no program's meaning, only whether a
+# pathological input is refused. That is the entire argument for why these
 # knobs are configurable and blue's formatter width and posture ceiling are not
-# — see `crates/blue-lang-cli/src/config.rs`.
-{solver_max_steps: 100000, max_expr_depth: 256}
+# — see `crates/blue-lang-cli/src/config.rs`. `max_steps: nil` would lift the
+# step bound (nil lowers to `Sexp::Nil`, which shikumi maps to absent).
+{solver_max_steps: 100000, max_expr_depth: 256, max_call_depth: 100000, max_steps: 50000000}

@@ -2602,7 +2602,8 @@
           "substrate",
           "nixpkgs"
         ],
-        "substrate": "substrate"
+        "substrate": "substrate",
+        "tatara-rust-ast": "tatara-rust-ast"
       }
     },
     "rust-analyzer-src": {
@@ -2872,6 +2873,40 @@
       "original": {
         "owner": "pleme-io",
         "repo": "tatara-lisp",
+        "type": "github"
+      }
+    },
+    "tatara-rust-ast": {
+      "inputs": {
+        "crate2nix": [
+          "crate2nix"
+        ],
+        "fenix": [
+          "tatara-rust-ast",
+          "substrate",
+          "fenix"
+        ],
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "substrate": [
+          "substrate"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790737270,
+        "narHash": "sha256-tA1QAjXjirPLzBBlUeZiToJc7EaLCIYZ+ZWRvjJPjWQ=",
+        "owner": "pleme-io",
+        "repo": "tatara-rust-ast",
+        "rev": "1d0425464447f7ee7d52e93ff765248952844263",
+        "type": "github"
+      },
+      "original": {
+        "owner": "pleme-io",
+        "repo": "tatara-rust-ast",
         "type": "github"
       }
     },

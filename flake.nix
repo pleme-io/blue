@@ -8,6 +8,15 @@
     substrate = {
       url = "github:pleme-io/substrate";
     };
+    # blue native's emitter: a typed Rust AST as JSON in, Rust out
+    # (nix/native.nix).
+    tatara-rust-ast = {
+      url = "github:pleme-io/tatara-rust-ast";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.substrate.follows = "substrate";
+      inputs.crate2nix.follows = "crate2nix";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs = {
@@ -16,6 +25,7 @@
     crate2nix,
     flake-utils,
     substrate,
+    tatara-rust-ast,
   }: let
     inherit (nixpkgs) lib;
     inherit (lib) mkOption types;
@@ -395,6 +405,16 @@
 
       bidamasOverlay = final: _prev: blueSetFor { pkgs = final; blue = final.blue; };
 
+      # blue native (theory/BLUE-NATIVE.md): native/ as a project, plus each
+      # image and its QEMU check (nix/native.nix).
+      native = lib.genAttrs systems (system: import ./nix/native.nix {
+        inherit lib engine;
+        pkgs = pkgsFor system;
+        blue = blueFor system;
+        inherit (substrate.inputs) fenix;
+        emitter = tatara-rust-ast.packages.${system}.default;
+      });
+
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
@@ -422,8 +442,10 @@
       packages = lib.mapAttrs (system: existing:
         engine.disjoint "package"
           (engine.disjoint "package" existing repository.${system}.packages)
-          (lib.getAttrs (lib.attrNames commands)
-            (blueSetFor { pkgs = pkgsFor system; blue = blueFor system; }))
+          (engine.disjoint "package"
+            (lib.getAttrs (lib.attrNames commands)
+              (blueSetFor { pkgs = pkgsFor system; blue = blueFor system; }))
+            native.${system}.packages)
       ) base.packages;
 
       checks = lib.mapAttrs (system: existing:
@@ -432,7 +454,7 @@
           blue = blueFor system;
           bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper; inherit blue; };
         in
-        engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) {
+        engine.disjoint "check" (engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) native.${system}.checks) {
           # Every .b file in the repository is in the one layout; each file
           # that is not is named. `mkBidama` holds each package the same way,
           # so this is the rest of the tree: specs, generators, fixtures.

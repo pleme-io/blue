@@ -226,7 +226,7 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
         // resolver), so no interpreter scope binds them; the reach walk
         // reports every head.
         let builtin = |n: &str| {
-            matches!(n, "defmacro" | "define-typed" | "use")
+            matches!(n, "defmacro" | "define-typed" | "use" | "legacy_names")
                 || table.scopes().iter().any(|s| {
                     !matches!(
                         s.namespace,
@@ -234,8 +234,15 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
                     ) && s.get(n).is_some()
                 })
         };
-        let reach: BTreeSet<String> =
-            blue_lang_waku::free_names(forms, &|n| builtin(n) || program_defined.contains(n));
+        // A qualified name is bound when its package (or `blue`) has it.
+        let qualified_bound = |n: &str| {
+            blue_lang_syntax::qualified(n).is_some_and(|(p, x)| {
+                (p == "blue" && builtin(x)) || table.bidama(p).is_some_and(|s| s.get(x).is_some())
+            })
+        };
+        let reach: BTreeSet<String> = blue_lang_waku::free_names(forms, &|n| {
+            builtin(n) || program_defined.contains(n) || qualified_bound(n)
+        });
         let mut table_free: BTreeSet<String> = checked
             .resolve()
             .references

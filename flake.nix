@@ -379,10 +379,10 @@
       # is a row. `tools` are what the program execs (suffixed to PATH, so a
       # node's own copy wins).
       commands = {
-        souji = { entry = "sj_main"; tools = _: [ ]; }; # clean nix and Rust targets
-        heni = { entry = "hn_main"; tools = _: [ ]; }; # mutation testing for a blue package
+        souji = { entry = "main"; tools = _: [ ]; }; # clean nix and Rust targets
+        heni = { entry = "main"; tools = _: [ ]; }; # mutation testing for a blue package
         # macOS keeps /usr/bin/ssh, which reads /etc/ssh/ssh_config as nix does.
-        tehai = { entry = "th_main"; tools = pkgs: lib.optional pkgs.stdenv.isLinux pkgs.openssh; }; # live nix builders
+        tehai = { entry = "main"; tools = pkgs: lib.optional pkgs.stdenv.isLinux pkgs.openssh; }; # live nix builders
       };
 
       # Everything blue gives a package set, from one blue and one distribution.

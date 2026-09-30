@@ -373,7 +373,7 @@ once, and proves the program's meaning unchanged.",
         law: "a bidama's definition does not spell its bidama: `def parse` in `moji`, never `def moji_parse`",
         witness: "use(\"kagi\")\n\nkagi::kagi_x()\n",
         imports: [("kagi", "def kagi_x()\n  1\nend\n")],
-        ratchet: 2,
+        ratchet: 0,
         explanation: "\
 The bidama is the namespace: callers write `moji::parse`, so `moji_parse`
 says the package twice. The prefix was how blue's single namespace kept two

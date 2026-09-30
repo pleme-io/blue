@@ -4,7 +4,7 @@
 # input is good. Tests read the kinds. Only at the boundary does the program
 # raise, with throw(error(kind, why)); error(...) alone raises nothing. A
 # caught error cannot be read (its kind and message are not reachable), which
-# is why the refusals are data first. This is kueri's q_refusals / q_check.
+# is why the refusals are data first. This is kueri's refusals / check.
 use("retsu", [:first, :is_empty, :last])
 
 def port_refusals(text)

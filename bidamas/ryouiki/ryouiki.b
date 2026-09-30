@@ -221,7 +221,7 @@ end
 
 # ── tests ──────────────────────────────────────────────────────────────────
 
-def ryouiki_grid(k)
+def grid(k)
   flat_map(fn(x) map(fn(y) [x, y] end, range(0, k)) end, range(0, k))
 end
 
@@ -231,7 +231,7 @@ test "the empty case: no points, no trajectory"
 end
 
 test "an identity: when every point is the outcome, the first box is dense and full"
-  pts = ryouiki_grid(5)
+  pts = grid(5)
   traj = prim(pts, map(fn(_p) 1 end, pts), 0.05, 0.05)
   assert nth(3, first(traj)) == 1
   assert nth(2, first(traj)) == 1
@@ -239,7 +239,7 @@ test "an identity: when every point is the outcome, the first box is dense and f
 end
 
 test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
-  pts = ryouiki_grid(10)
+  pts = grid(10)
   ys = map(
     fn(p)
       if first(p) >= 5 && last(p) <= 3
@@ -258,7 +258,7 @@ test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
 end
 
 test "a control: a target with no structure finds no dense box with real coverage"
-  pts = ryouiki_grid(10)
+  pts = grid(10)
   ys = map(
     fn(i)
       if next_float(stream_seed(7, i)) < 0.2

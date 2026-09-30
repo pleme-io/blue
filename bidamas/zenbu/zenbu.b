@@ -79,7 +79,7 @@ use("shisutemu", [:age_s])
 use("shomei", [:hash_message])
 # waive B0016: zenbu is the facade, and depending on it means depending on shuugou
 use("shuugou")
-use("souji", [:sj_parse])
+use("souji")
 use("tehai", [:th_machine])
 use("tokumei", [:suppress_small])
 use("toukei", [:mean, :median])
@@ -128,7 +128,7 @@ test "every bidama in the distribution answers through this one import"
   assert zu_num(1.5) == "1.5"
   assert get(th_machine("ssh://root@plo x86_64-linux - 8 8 - - -"), :host) ==
     "plo"
-  assert get(sj_parse(["nix"]), :days) == 14
+  assert get(souji::parse(["nix"]), :days) == 14
 end
 
 test "four packages compose without the consumer naming any of them"

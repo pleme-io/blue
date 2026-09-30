@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f44b64594093f85107105dbb9eff538fc3e28792b164b718d743672436765c96",
+  "bluefile_b3": "b3:fcb8ab9b684368e3358768302c8094413d9733f77dc8424d6d9578cc38004d89",
   "manifest": {
     "schema": 1,
     "name": "souji",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "retsu": "^0.1.0",
       "shisutemu": "^0.1.0"

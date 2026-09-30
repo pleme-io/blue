@@ -372,7 +372,9 @@ end
 # and so does the bare `old` in quoted data — an assertion carries its own
 # source as a datum (`blue-assert '(equal? (old x) 1) …`), which the rename
 # rewrote with the code: to `new` inside the bidama, and to `pkg/new` in a
-# caller, whose references are qualified.
+# caller, whose references are qualified. Only in head position, `(old …`:
+# the same word in a string (an error message naming the function) is text,
+# which the rename leaves alone.
 def key_rewrite(tree, pkg, renames, bare_prefix)
   foldl(
     fn(t, r)
@@ -394,7 +396,7 @@ def key_rewrite(tree, pkg, renames, bare_prefix)
           )
         end,
         keyed,
-        [["(", " "], ["(", ")"], [" ", " "], [" ", ")"]]
+        [["(", " "], ["(", ")"]]
       )
     end,
     tree,

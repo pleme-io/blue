@@ -194,8 +194,8 @@ fn the_cost_of_isolation_is_counted() {
 /// A copied list must not share its allocation with the original.
 #[test]
 fn a_copied_list_shares_no_allocation_with_the_original() {
-    let inner = Value::List(Arc::new(vec![Value::Int(1), Value::Int(2)]));
-    let original = Value::List(Arc::new(vec![inner, Value::Int(3)]));
+    let inner = Value::list([Value::Int(1), Value::Int(2)]);
+    let original = Value::list([inner, Value::Int(3)]);
     let copy = deep_copy(&original);
 
     let (Value::List(a), Value::List(b)) = (&original, &copy) else {
@@ -218,12 +218,12 @@ fn a_copied_list_shares_no_allocation_with_the_original() {
 /// be worse than sharing.
 #[test]
 fn a_deep_copy_preserves_the_value() {
-    let v = Value::List(Arc::new(vec![
+    let v = Value::list([
         Value::Int(7),
         Value::Str("hi".into()),
         Value::Bool(true),
-        Value::List(Arc::new(vec![Value::Int(8)])),
-    ]));
+        Value::list([Value::Int(8)]),
+    ]);
     let copy = deep_copy(&v);
     // Compared by rendering, since `Value` has no PartialEq.
     assert_eq!(format!("{copy:?}"), format!("{v:?}"));

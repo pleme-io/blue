@@ -165,7 +165,7 @@ fn quoted(s: &str) -> String {
 }
 
 fn list(items: Vec<Value>) -> Value {
-    Value::List(std::sync::Arc::new(items))
+    Value::list(items)
 }
 
 /// Install blue's string and number core.
@@ -247,7 +247,8 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     // Same contracts otherwise: `cdr` of an empty list is still an error.
     interp.register_fn("cdr", Arity::Exact(1), |a: &[Value], _h: &mut H, span| {
         match &a[0] {
-            Value::List(xs) if !xs.is_empty() => Ok(list(xs[1..].to_vec())),
+            // Shares the tail's structure: O(log n), not a copy of it.
+            Value::List(xs) if !xs.is_empty() => Ok(Value::List(std::sync::Arc::new(xs.skip(1)))),
             Value::Nil | Value::List(_) => Err(EvalError::native_fn(
                 std::sync::Arc::<str>::from("cdr"),
                 "cdr of empty list",
@@ -257,15 +258,18 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         }
     });
     interp.register_fn("append", Arity::Any, |a: &[Value], _h: &mut H, span| {
-        let mut out = Vec::new();
+        // Persistent concatenation: each operand's structure is shared, so
+        // building a list by `append(acc, [x])` is linear overall, not
+        // quadratic (G7).
+        let mut out = tatara_lisp_eval::List::new();
         for v in a {
             match v {
                 Value::Nil => {}
-                Value::List(xs) => out.extend(xs.iter().cloned()),
+                Value::List(xs) => out.append(tatara_lisp_eval::List::clone(xs)),
                 other => return Err(EvalError::type_mismatch("list", other.type_name(), span)),
             }
         }
-        Ok(list(out))
+        Ok(Value::List(std::sync::Arc::new(out)))
     });
 
     interp.register_fn("split", Arity::Exact(2), |a: &[Value], _h: &mut H, s| {
@@ -342,11 +346,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
 
     interp.register_fn("reverse", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
         match &a[0] {
-            Value::List(items) => {
-                let mut v = items.as_ref().clone();
-                v.reverse();
-                Ok(list(v))
-            }
+            Value::List(items) => Ok(Value::list(items.iter().rev().cloned())),
             // Reversed by CHARACTER, so a multi-byte character survives. A
             // byte-wise reverse produces invalid UTF-8.
             other => Ok(Value::Str(
@@ -505,7 +505,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(2),
         |a: &[Value], host: &mut H, caller: &tatara_lisp_eval::ffi::Caller<H>, s| {
             let xs = match &a[1] {
-                Value::List(xs) => xs.as_ref().clone(),
+                Value::List(xs) => xs.to_vec(),
                 Value::Nil => Vec::new(),
                 other => {
                     return Err(EvalError::type_mismatch("a list", other.type_name(), s));

@@ -35,8 +35,8 @@ serde_json = "1"
 # source and a registry source are DISTINCT to cargo even at an identical
 # version, so a git dep silently doubles the crate in every consumer graph —
 # and a crate carrying one cannot be published at all.
-tatara-lisp = "0.3"
-tatara-lisp-eval = "0.3"
+tatara-lisp = "0.4"
+tatara-lisp-eval = "0.4"
 
 # The evaluator is optimized even in a debug or test build. Every in-process
 # door — the conformance suite's walker, vm and wasm columns, `cargo test` of a

@@ -104,7 +104,7 @@ pub fn domain_form(keyword: &str, value: &Value) -> Result<Sexp, DomainError> {
 
 /// `:kebab-key v` pairs for a map, keys sorted so one map yields one form.
 fn keyword_args(
-    map: &std::collections::HashMap<MapKey, Value>,
+    map: &tatara_lisp_eval::Map,
 ) -> Result<Vec<Sexp>, DomainError> {
     let mut pairs: Vec<(String, &Value)> = map
         .iter()

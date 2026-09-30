@@ -112,7 +112,7 @@ impl Env {
     /// brackets. A top-level string would otherwise come back unquoted (D0005:
     /// `to_s("a")` is `a`), and `"1"` and `1` must not read the same.
     pub fn literal(&mut self, v: &Value) -> String {
-        let wrapped = Value::List(std::sync::Arc::new(vec![v.clone()]));
+        let wrapped = Value::list([v.clone()]);
         match self
             .renderer
             .apply_external_value(&self.to_s, vec![wrapped], &mut (), tatara_lisp::Span::synthetic())

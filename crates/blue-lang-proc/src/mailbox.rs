@@ -140,9 +140,7 @@ pub fn deep_copy(v: &Value) -> Value {
         | Value::Str(_)
         | Value::Symbol(_)
         | Value::Keyword(_) => v.clone(),
-        Value::List(items) => Value::List(std::sync::Arc::new(
-            items.iter().map(deep_copy).collect::<Vec<_>>(),
-        )),
+        Value::List(items) => Value::list(items.iter().map(deep_copy)),
         Value::Sexp(s, span) => Value::Sexp(s.clone(), *span),
         // A closure, a promise, a foreign handle, an error object: each either
         // captures an environment or wraps host state. Not copyable, and not

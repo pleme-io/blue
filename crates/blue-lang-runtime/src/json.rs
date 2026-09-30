@@ -149,15 +149,12 @@ pub fn json_to_value(j: &JsonValue) -> Value {
             }
         }
         JsonValue::String(s) => Value::Str(Arc::from(s.as_str())),
-        JsonValue::Array(xs) => Value::List(Arc::new(xs.iter().map(json_to_value).collect())),
-        JsonValue::Object(m) if m.is_empty() => Value::Map(Arc::new(HashMap::new())),
-        JsonValue::Object(m) => Value::List(Arc::new(
+        JsonValue::Array(xs) => Value::list(xs.iter().map(json_to_value)),
+        JsonValue::Object(m) if m.is_empty() => Value::map([]),
+        JsonValue::Object(m) => Value::list(
             m.iter()
-                .map(|(k, v)| {
-                    Value::List(Arc::new(vec![Value::Str(Arc::from(k.as_str())), json_to_value(v)]))
-                })
-                .collect(),
-        )),
+                .map(|(k, v)| Value::list([Value::Str(Arc::from(k.as_str())), json_to_value(v)])),
+        ),
     }
 }
 

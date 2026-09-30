@@ -1,5 +1,6 @@
 use("deeta", [:as_json, :get_int, :get_str, :is_doc])
 use("junjo", [:sort_stable_by])
+use("kyohi")
 
 use("raifusaikuru", [:lc_define])
 
@@ -41,6 +42,11 @@ use(
 use("shuugou", [:lookup, :set_equal, :unique])
 
 legacy_names("0.1.1", "el")
+
+legacy_names(
+  "0.1.2",
+  [["refusal_detail", "kyohi::why"], ["refusal_kind", "kyohi::kind"]]
+)
 
 # nisshi (日誌) — an event log: append-only JSON Lines, hash-chained, optionally signed, replayed into lifecycle states.
 #
@@ -600,16 +606,6 @@ def detail_texts(kind, detail)
   else
     [raifusaikuru::text(detail)]
   end
-end
-
-# A refusal's kind, one of el_refusal_kinds().
-def refusal_kind(rf)
-  first(rf)
-end
-
-# A refusal's detail, as text.
-def refusal_detail(rf)
-  nth(1, rf)
 end
 
 def refusal_text(rf)

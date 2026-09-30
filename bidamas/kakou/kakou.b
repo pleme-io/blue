@@ -1,3 +1,5 @@
+use("deeta", [:get_or])
+
 use(
   "gyouretsu",
   [
@@ -59,6 +61,8 @@ use("rittai")
 use("zumen")
 
 legacy_names("0.1.1", "kk")
+
+legacy_names("0.1.2", [["opt", "deeta::get_or"]])
 
 # kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 #
@@ -168,24 +172,15 @@ end
 def sheet_part(spec)
   {
     name: get(spec, :name),
-    material: opt(spec, :material, :ss316l),
+    material: get_or(spec, :material, :ss316l),
     thickness: get(spec, :thickness),
     width: get(spec, :width),
     depth: get(spec, :depth),
-    flanges: opt(spec, :flanges, []),
-    holes: opt(spec, :holes, []),
-    k: opt(spec, :k, 0.44),
-    arc_segments: opt(spec, :arc_segments, 12)
+    flanges: get_or(spec, :flanges, []),
+    holes: get_or(spec, :holes, []),
+    k: get_or(spec, :k, 0.44),
+    arc_segments: get_or(spec, :arc_segments, 12)
   }
-end
-
-def opt(m, key, default)
-  v = get(m, key)
-  if v == nil
-    default
-  else
-    v
-  end
 end
 
 def sides()

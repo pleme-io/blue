@@ -60,6 +60,7 @@ use("kikagaku", [:manhattan])
 use("kinji")
 use("kueri")
 use("kumiawase", [:combinations])
+use("kyohi")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
 use("nisshi")
@@ -105,6 +106,7 @@ test "every bidama in the distribution answers through this one import"
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kueri::ident("order") == "\"order\""
+  assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2598960
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"

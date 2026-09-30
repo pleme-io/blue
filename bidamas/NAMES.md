@@ -89,6 +89,29 @@ disagree.
 | `tehai` | `th_` | 0.1.1 |
 | `zumen` | `zu_` | 0.1.1 |
 
+## Moved names
+
+Definitions moved to one home instead of being copied: each moved-from
+bidama's `legacy_names(since, [[old, "home::new"], …])` is the source, and
+keeps the old name resolving as a bridge until its next minor version;
+`every_moved_name_is_in_the_ledger` fails when this table and the declarations
+disagree.
+
+| bidama | old | new | since |
+|---|---|---|---|
+| `kakou` | `opt` | `deeta::get_or` | 0.1.2 |
+| `kinji` | `opt` | `deeta::get_or` | 0.1.2 |
+| `kinji` | `refusal` | `kyohi::refusal` | 0.1.2 |
+| `kinji` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
+| `kinji` | `refusal_why` | `kyohi::why` | 0.1.2 |
+| `kinji` | `refuse` | `kyohi::refuse` | 0.1.2 |
+| `kueri` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
+| `kueri` | `refusal_why` | `kyohi::why` | 0.1.2 |
+| `kueri` | `refuse` | `kyohi::refuse` | 0.1.2 |
+| `nisshi` | `refusal_detail` | `kyohi::why` | 0.1.2 |
+| `nisshi` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
+| `zumen` | `opt_lines` | `shuugou::as_set` | 0.1.2 |
+
 ## The ledger
 
 | name | kanji | gloss | swept | verdict | note |
@@ -130,6 +153,7 @@ disagree.
 | `souji` | 掃除 | cleaning — a node's disk, by hand: Rust target/ directories beside a Cargo.toml that nothing has touched in N hours, and nix generations older than N days with every store path left unreferenced; dry run first | 2026-09-27 | KEEP_WITH_NOTE | The plain word for the job (掃除 = cleaning, sweeping up). Swept with working controls (repo names by `/bin/ls`, 1,048 dirs, `kaiseki` fires): `souji` 0 repo names, 0 theory, 0 blue, 0 nix, 0 nupastel, 0 makoto, 0 index hits across 1,193 repos; 掃除 0. **Sibling by contrast:** `seibi` (整備, maintenance) is the Rust daemon that sweeps on disk pressure; souji is the command a person runs, in blue. Neither replaces the other. Prefix `sj_`, 0 `^def sj_` before it. First consumer: every fleet node's PATH. |
 | `heni` | 変異 | mutation — mutation testing for a blue package: each literal find/replace (exactly once) runs in its own fresh copy, first on BLUE_PATH, after an unmutated control; caught / survived / refused / blind, non-zero unless every mutation is caught | 2026-09-27 | KEEP_WITH_NOTE | 変異 is the mutation in 突然変異 (mutation testing borrows it). Swept with working controls (repo names by `/bin/ls`, `kaiseki` fires with 23 index hits): `heni`, `henni`, `hen-i` 0 repo names, 0 NAMES rows, 0 index hits across 1,193 repos. Replaces the bash `redrun()` loop hand-written seven times on 2026-09-27; its first run caught all four of that day's tehai mutations. Prefix `hn_`, 0 `^def hn_` before it. `blind` exists because a test run that could not start caught nothing. |
 | `okite` | 掟 | the rules one lives by, strictly kept: blue's decision ledger. Every decision is a record (id, date, one-line rule, why) carrying the blue laws that enforce it, generative over seeded values; the build fails when a decision has no law or a law fails. RULES.md, the card a person or a model reads to learn blue, is generated from it | 2026-09-27 | KEEP_WITH_NOTE | 掟 is a strict rule, a code to be kept, which is what the ledger is. Swept with working controls (repo names by `/bin/ls`, `kaiseki` fires on every surface): `okite` 0 repo names, 0 NAMES rows, 0 theory files, 0 index hits across 1,193 repos (`okit` matches only inside "toolkit"). Prefix `ok_`, 0 `^def ok_` before it. First decisions D0001-D0012, from the traps measured writing heni. |
+| `kyohi` | 拒否 | refusals as data — a refusal is [kind, why]; refusal, kind, why, kinds, and refuse, which throws the first kind with every why joined | 2026-09-30 | KEEP | The plain noun for the subject (拒否 = refusal, rejection). Clean with controls (`shikumi` = 1483 files, `caixa` = 138 dirs): 0 repo dirs, 0 theory files, 0 `keywords.tlisp` or `org.yaml` rows, 0 hits in blue before this package; the only content hits are vendored Japanese locale strings (`ansible-ui`, `awx`, faker `lorem.yml`) and base64 inside a vendored `*.caixa.lisp`, not claims. Near words swept the same day and also clean: `kyakka` (却下, dismissal — a legal ruling, so it would teach a court's verdict) and `kyozetsu` (拒絶, a harder rejection); `kyohi` is the everyday word for refusing a request. **Adjacent SENSE, recorded:** raifusaikuru's refusals are a four-field record ([position, type, kind, detail]) and stay its own; kyohi holds the two-field refusal that kueri, kinji and nisshi each wrote. First consumers: kueri, kinji, nisshi (their names are bridges here until 0.2.0). |
 
 ## Adding a package
 

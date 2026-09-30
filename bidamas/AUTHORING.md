@@ -185,6 +185,13 @@ the other, or a builtin, for anyone else.
   caller still on it). A name whose stripped form is a reserved word or a
   builtin your bidama uses keeps its prefix, waived, and gains the stripped
   name too (`kueri::count` and `kueri::q_count` are one definition).
+- **Move a twin, never copy it.** When two bidamas hold the same definition,
+  give it one home and have the others `use` it; each bidama it left declares
+  `legacy_names("0.1.2", [["opt", "deeta::get_or"]])`, so `kinji::opt` still
+  resolves to `deeta::get_or` until kinji's next minor version (B0021, fixed by
+  `blue check --fix`, which also adds the `use`). Record each move in
+  `NAMES.md`'s moved-names table. `exact_duplicate_shapes_only_fall` pins the
+  distribution's exact-duplicate count: a move lowers it, a copy fails it.
 - `blue::name` names a builtin, and is needed only where a same-named
   definition would otherwise win (B0018 refuses a qualifier that changes
   nothing).

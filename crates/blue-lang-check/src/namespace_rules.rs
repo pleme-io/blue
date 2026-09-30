@@ -56,7 +56,7 @@ pub fn check(
             .or(fu.others.first().copied())
             .is_some_and(whole_file);
         if whole {
-            unused_imports(*file, fu, table, references, &mut out);
+            unused_imports(*file, fu, forms, table, references, &mut out);
         }
     }
     needs_agree(&files, table, namespace_of, &mut out);
@@ -148,6 +148,7 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
 fn unused_imports(
     file: usize,
     fu: &FileUses,
+    forms: &[Spanned],
     table: &NameTable,
     references: &[Reference],
     out: &mut Vec<Diagnostic>,
@@ -158,6 +159,17 @@ fn unused_imports(
     // global environment (B0012 reports those). A qualified reference
     // reaches its qualifier's package whatever it names.
     let mut reached: BTreeSet<(String, String)> = BTreeSet::new();
+    // A moved name's bridge reaches its new home: the `use` that loads the
+    // home is what keeps the old name resolving.
+    for i in &fu.others {
+        if let Some(scope::Legacy {
+            kind: scope::LegacyKind::Moved(moves),
+            ..
+        }) = forms.get(*i).and_then(scope::legacy_target)
+        {
+            reached.extend(moves.into_iter().map(|m| (m.home, m.new)));
+        }
+    }
     for r in references
         .iter()
         .filter(|r| table.file_of(r.top_level) == file)
@@ -202,7 +214,10 @@ fn unused_imports(
                     message: format!("remove `use(\"{}\")`", u.package),
                     edits: vec![Edit {
                         span: u.span,
-                        original: written_use(u),
+                        original: render_use(
+                            u,
+                            &u.names.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(),
+                        ),
                         replacement: String::new(),
                     }],
                     applicability: Applicability::MachineApplicable,
@@ -223,17 +238,6 @@ fn unused_imports(
                 );
             }
         }
-    }
-}
-
-/// A `use` as the formatter writes it: what a fix removing it expects to
-/// find at its span (and, finding anything else, leaves alone).
-fn written_use(u: &Import) -> String {
-    if u.listed {
-        let names: Vec<String> = u.names.iter().map(|(n, _)| format!(":{n}")).collect();
-        format!("use(\"{}\", [{}])", u.package, names.join(", "))
-    } else {
-        format!("use(\"{}\")", u.package)
     }
 }
 

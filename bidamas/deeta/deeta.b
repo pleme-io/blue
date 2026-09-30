@@ -42,7 +42,8 @@
 #
 # **No error handling, because blue has none.** `json_get` raises only on a
 # non-document, and `is_doc` is checked before every call, so the raising path
-# is unreachable from this package — the guards are what remove it.
+# is unreachable from the document accessors — the guards are what remove it.
+# `get_or`, the Map reader, is `get` with a default and raises where `get` does.
 #
 # **`get_bool` is not here.** Nothing the fleet's widgets read emits a boolean
 # field; the heartbeat carries a string, an int, and a number. Add it when a
@@ -111,6 +112,29 @@ def get_number(doc, key, default)
   else
     default
   end
+end
+
+# The value of a blue Map (`{max_iter: 3}`) at `key`, or `default` when the
+# key is missing or nil: the one reader here of a Map rather than a document,
+# for option maps. It is `get` with a default, so like `get` it refuses a value
+# that is not a Map; it does not share the documents' totality.
+#
+# kinji's and kakou's `opt` were this definition, twice; both are bridges to it
+# (`legacy_names`) until their 0.2.0.
+def get_or(m, key, default)
+  v = get(m, key)
+  if v == nil
+    default
+  else
+    v
+  end
+end
+
+test "get_or reads a Map, and its default answers a missing or nil key"
+  assert get_or({a: 1}, :a, 9) == 1
+  assert get_or({a: 1}, :b, 9) == 9
+  assert get_or({a: nil}, :a, 9) == 9
+  assert get_or({a: false}, :a, 9) == false
 end
 
 test "is_doc is true for a parsed object and false for every other shape"

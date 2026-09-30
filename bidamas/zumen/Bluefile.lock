@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c1b83ef4c63eb092a3417dce90f0abd130a1c79e111780dfd890087b0cf7c951",
+  "bluefile_b3": "b3:a9ea3d3d15036043d826243a5dbc9cfc5d875b87c43da4c088813672d6f7f8c3",
   "manifest": {
     "schema": 1,
     "name": "zumen",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "needs": {
       "gyouretsu": "^0.1.0",
       "kazu": "^0.1.0",
@@ -12,7 +12,8 @@
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
       "rittai": "^0.1.0",
-      "ronri": "^0.1.0"
+      "ronri": "^0.1.0",
+      "shuugou": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

@@ -1,16 +1,11 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:30d647e2d346cab7ec3fd582300e4d0c50c1d02adc821287a7459c7b5e1e89e2",
+  "bluefile_b3": "b3:0d26d8a63f24209384b664b78b27972c2d5476c2dd755eb5a35885f6f62531c0",
   "manifest": {
     "schema": 1,
-    "name": "kinji",
-    "version": "0.1.2",
+    "name": "kyohi",
+    "version": "0.1.0",
     "needs": {
-      "deeta": "^0.1.0",
-      "gyouretsu": "^0.1.0",
-      "junjo": "^0.1.0",
-      "kazu": "^0.1.0",
-      "kyohi": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

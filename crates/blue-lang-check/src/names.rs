@@ -1406,6 +1406,18 @@ impl<'t> Walker<'t> {
         let Some((pkg, alias)) = found else {
             return;
         };
+        // A bare name the file imports from the new home IS the new name,
+        // even where the moved-from bidama's own alias also spells it.
+        if let (None, Some(home)) = (qualifier, &alias.home) {
+            let imported = self
+                .table
+                .imports_of(self.top_level)
+                .and_then(|i| i.names.get(part))
+                .is_some_and(|ps| ps.contains(home));
+            if imported && &alias.canonical == part {
+                return;
+            }
+        }
         let replacement = match (&alias.home, qualifier) {
             (Some(_), _) | (None, Some(_)) => alias.spelled(&pkg),
             (None, None) => canonical.clone(),

@@ -1,3 +1,5 @@
+use("deeta", [:get_or])
+
 use(
   "gyouretsu",
   [
@@ -17,6 +19,8 @@ use(
 use("junjo", [:is_strictly_sorted, :sort_stable_by, :upper_bound])
 use("kazu", [:abs, :clamp, :lerp, :max, :min, :near, :near_within, :square])
 
+use("kyohi", [:refusal, :refuse])
+
 use(
   "retsu",
   [
@@ -35,6 +39,17 @@ use(
 
 legacy_names("0.1.1", "kj")
 
+legacy_names(
+  "0.1.2",
+  [
+    ["opt", "deeta::get_or"],
+    ["refusal", "kyohi::refusal"],
+    ["refusal_kind", "kyohi::kind"],
+    ["refusal_why", "kyohi::why"],
+    ["refuse", "kyohi::refuse"]
+  ]
+)
+
 # kinji (近似) — approximation: numerical methods: ODEs, roots, minimisation, least squares, interpolation and quadrature.
 #
 # A state is a list of numbers, so a scalar problem is a one-element list and
@@ -51,32 +66,8 @@ legacy_names("0.1.1", "kj")
 
 # ── refusals ─────────────────────────────────────────────────────────
 
-def refusal(kind, why)
-  [kind, why]
-end
-
-def refusal_kind(r)
-  nth(0, r)
-end
-
-def refusal_why(r)
-  nth(1, r)
-end
-
 def refusal_kinds(result)
-  map(fn(r) refusal_kind(r) end, get(result, :refusals))
-end
-
-def refuse(refusals)
-  if is_empty(refusals) == false
-    throw(
-      error(
-        refusal_kind(first(refusals)),
-        join(map(fn(r) refusal_why(r) end, refusals), "; ")
-      )
-    )
-  end
-  nil
+  map(fn(r) kyohi::kind(r) end, get(result, :refusals))
 end
 
 # A result's value, or a thrown error naming its refusals.
@@ -104,16 +95,6 @@ def combo(ks, ws)
     scale(0.0, first(ks)),
     indexes(ks)
   )
-end
-
-# An option from a map, or its default when absent.
-def opt(opts, key, default)
-  v = get(opts, key)
-  if v == nil
-    default
-  else
-    v
-  end
 end
 
 # ── ODEs ─────────────────────────────────────────────────────────────
@@ -263,13 +244,13 @@ def ode(f, t0, y0, t1, opts)
   if span <= 0
     {samples: [[t0, y0]], steps: 0, rejected: 0, refusals: []}
   else
-    rtol = opt(opts, :rtol, 0.000001)
-    atol = opt(opts, :atol, 0.000000001)
-    hmin = opt(opts, :hmin, span * 0.000000000001)
+    rtol = get_or(opts, :rtol, 0.000001)
+    atol = get_or(opts, :atol, 0.000000001)
+    hmin = get_or(opts, :hmin, span * 0.000000000001)
     start = {
       t: t0,
       y: y0,
-      h: opt(opts, :h0, span / 100),
+      h: get_or(opts, :h0, span / 100),
       back: [[t0, y0]],
       steps: 0,
       rejected: 0,
@@ -279,7 +260,7 @@ def ode(f, t0, y0, t1, opts)
     fin = reduce(
       fn(acc, _i) ode_tick(f, t1, rtol, atol, hmin, acc) end,
       start,
-      range(0, opt(opts, :max_steps, 100000))
+      range(0, get_or(opts, :max_steps, 100000))
     )
     late = if get(fin, :done)
       []
@@ -626,9 +607,9 @@ def nm_f(v)
 end
 
 def nelder_mead(f, x0, step, opts)
-  ftol = opt(opts, :ftol, 0.000000001)
-  xtol = opt(opts, :xtol, 0.000000001)
-  max_iter = opt(opts, :max_iter, 2000)
+  ftol = get_or(opts, :ftol, 0.000000001)
+  xtol = get_or(opts, :xtol, 0.000000001)
+  max_iter = get_or(opts, :max_iter, 2000)
   corners = map(fn(i) update_at(x0, i, nth(i, x0) + step) end, indexes(x0))
   simplex = map(fn(x) nm_vertex(x, f(x)) end, concat_lists([x0], corners))
   fin = reduce(
@@ -797,7 +778,7 @@ def fit(model, p0, xs, ys, opts)
     r = nelder_mead(
       fn(p) sse(model, p, xs, ys) end,
       p0,
-      opt(opts, :step, 0.1),
+      get_or(opts, :step, 0.1),
       opts
     )
     {
@@ -1044,8 +1025,8 @@ test "interpolation: at nodes, between them, and refused outside"
   assert near(interp(xs, ys, 5), 125) == true
   assert near(interp(xs, ys, 20), 130) == true
   assert error?(try(interp(xs, ys, 25), catch(e(), e))) == true
-  assert refusal_kind(first(interp_refusals(xs, ys, -1))) == :kinji_out_of_range
-  assert refusal_kind(first(interp_refusals([0, 0, 1], ys, 0))) == :kinji_data
+  assert kyohi::kind(first(interp_refusals(xs, ys, -1))) == :kinji_out_of_range
+  assert kyohi::kind(first(interp_refusals([0, 0, 1], ys, 0))) == :kinji_data
   assert near(interp_clamped(xs, ys, 25), 130) == true
 end
 

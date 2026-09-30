@@ -141,10 +141,12 @@ def entries_of_text(text)
   last(state)
 end
 
-# The prefix a `legacy_names(since, prefix)` declaration names, or nil.
+# The prefix a `legacy_names(since, prefix)` declaration names, or nil. A
+# moves declaration (`legacy_names(since, [[old, "home::new"], …])`) names no
+# prefix: its line is not two strings.
 def legacy_prefix_of_text(text)
   line = find_first(
-    fn(l) starts_with?(l, "legacy_names(") end,
+    fn(l) starts_with?(l, "legacy_names(") && size(split(l, "\"")) == 5 end,
     split(text, "\n")
   )
   if line == nil

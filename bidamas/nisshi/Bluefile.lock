@@ -1,13 +1,14 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:76248187d4c574db8a6635754e024210be1a551cf7202e737ed51ec93291b6a5",
+  "bluefile_b3": "b3:5be936ae85fcfecc42c95cf4142ba7e734f342b5b0b817b8399a07177f3a71aa",
   "manifest": {
     "schema": 1,
     "name": "nisshi",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "needs": {
       "deeta": "^0.1.0",
       "junjo": "^0.1.0",
+      "kyohi": "^0.1.0",
       "raifusaikuru": "^0.1.0",
       "retsu": "^0.1.0",
       "shomei": "^0.1.0",

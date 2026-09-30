@@ -1,5 +1,7 @@
-package("kinji", "0.1.1")
+package("kinji", "0.1.2")
 needs("retsu", "^0.1")
 needs("kazu", "^0.1")
 needs("gyouretsu", "^0.1")
 needs("junjo", "^0.1")
+needs("deeta", "^0.1")
+needs("kyohi", "^0.1")

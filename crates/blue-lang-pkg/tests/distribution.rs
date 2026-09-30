@@ -160,7 +160,7 @@ fn every_bidama_passes_its_own_tests() {
 fn every_bidama_passes_its_own_tests_inner() {
     let pkgs = packages();
     assert!(
-        pkgs.len() >= 37,
+        pkgs.len() >= 38,
         "found {} bidamas; this asserts a FLOOR because a gate that walks a \
          directory passes vacuously when the directory is empty: {pkgs:?}",
         pkgs.len()
@@ -442,7 +442,7 @@ fn every_legacy_prefix_is_in_the_ledger() {
 ///
 /// The count is pinned: moving a twin to one home lowers it, and a new copy
 /// raises it and fails here. Lower the pin when a move lands; never raise it.
-const SHAPE_GROUPS: usize = 21;
+const SHAPE_GROUPS: usize = 18;
 
 fn shape(pkg: &str, params: &[String], body: &tatara_lisp::Sexp) -> String {
     use tatara_lisp::ast::{Atom, Sexp};
@@ -541,5 +541,55 @@ fn exact_duplicate_shapes_only_fall() {
         SHAPE_GROUPS,
         "exact-duplicate shape groups moved from {SHAPE_GROUPS} to {}:\n{listing}",
         shared.len()
+    );
+}
+
+/// **The ledger records every moved name**, as each bidama's moves
+/// declaration (`legacy_names(since, [[old, "home::new"], …])`) states it.
+///
+/// Red run (2026-09-30): kinji's `refuse` row removed —
+/// `kinji moves refuse to kyohi::refuse in 0.1.2 and NAMES.md has no row`.
+#[test]
+fn every_moved_name_is_in_the_ledger() {
+    use blue_lang_syntax::scope::{legacy_target, LegacyKind};
+    let ledger = std::fs::read_to_string(dist().join("NAMES.md")).expect("NAMES.md");
+    let mut declared = Vec::new();
+    for name in packages() {
+        let src =
+            std::fs::read_to_string(dist().join(&name).join(format!("{name}.b"))).expect("source");
+        let forms = blue_lang_syntax::parse::parse_program_tree(&src).expect("parses");
+        for decl in forms.iter().filter_map(legacy_target) {
+            if let LegacyKind::Moved(moves) = decl.kind {
+                for m in moves {
+                    declared.push(format!(
+                        "| `{name}` | `{}` | `{}::{}` | {} |",
+                        m.old, m.home, m.new, decl.since
+                    ));
+                }
+            }
+        }
+    }
+    let rows: Vec<&str> = ledger
+        .lines()
+        .skip_while(|l| !l.starts_with("## Moved names"))
+        .skip(1)
+        .take_while(|l| !l.starts_with("## "))
+        .filter(|l| l.starts_with("| `"))
+        .collect();
+    let missing: Vec<&String> = declared
+        .iter()
+        .filter(|d| !rows.contains(&d.as_str()))
+        .collect();
+    let stale: Vec<&&str> = rows
+        .iter()
+        .filter(|r| !declared.iter().any(|d| d == **r))
+        .collect();
+    assert!(
+        missing.is_empty() && stale.is_empty(),
+        "moved names without a ledger row: {missing:?}\nledger rows no declaration makes: {stale:?}"
+    );
+    assert!(
+        !declared.is_empty(),
+        "no moves declaration found; the scan read nothing"
     );
 }

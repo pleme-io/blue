@@ -98,7 +98,7 @@
         # `find | wc -l` inside the build until 2026-09-27.
         bidamas =
           let
-            floor = 37;
+            floor = 38;
             count = builtins.length (builtins.attrNames ((bidamaLib pkgs).packageDirs ./.));
           in
           assert pkgs.lib.assertMsg (count >= floor)

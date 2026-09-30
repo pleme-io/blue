@@ -36,8 +36,11 @@ use(
 use("rittai")
 
 use("ronri", [:every])
+use("shuugou", [:as_set])
 
 legacy_names("0.1.1", "zu")
+
+legacy_names("0.1.2", [["opt_lines", "shuugou::as_set"]])
 
 # zumen (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.
 #
@@ -242,16 +245,8 @@ def title_rows(title)
       fn(k) "#{upcase(to_s(k))}: #{to_s(get(title, k))}" end,
       filter(fn(k) get(title, k) != nil end, keys)
     ),
-    opt_lines(get(title, :notes))
+    as_set(get(title, :notes))
   )
-end
-
-def opt_lines(xs)
-  if xs == nil
-    []
-  else
-    xs
-  end
 end
 
 # Every entity of the sheet, the frame and title block included.

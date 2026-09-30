@@ -1,5 +1,6 @@
 use("deeta", [:as_json])
 use("kazu")
+use("kyohi", [:refuse])
 use("moji", [:char_at, :made_of, :strip_suffix])
 
 use(
@@ -26,6 +27,15 @@ use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 use("shuugou", [:difference, :intersection, :unique, :unique_by])
 
 legacy_names("0.1.1", "q")
+
+legacy_names(
+  "0.1.2",
+  [
+    ["refusal_kind", "kyohi::kind"],
+    ["refusal_why", "kyohi::why"],
+    ["refuse", "kyohi::refuse"]
+  ]
+)
 
 # kueri (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 #
@@ -113,8 +123,8 @@ legacy_names("0.1.1", "q")
 # DuckDB with DESCRIBE rather than re-deriving DuckDB's type rules), a float
 # SUM's order sensitivity (it needs types, then fsum), and whether a raw node's
 # SQL returns the columns it declares or is deterministic: raw is trusted.
-# `q_refusals` returns violations as data ([kind, why], read with
-# q_refusal_kind / q_refusal_why); `q_check` throws them.
+# `refusals` returns violations as data ([kind, why], read with kyohi::kind
+# and kyohi::why); `check` throws them.
 #
 # ## Around the query
 #
@@ -1128,16 +1138,8 @@ end
 
 # ── refusals ───────────────────────────────────────────────────────────────
 
-def refusal_kind(r)
-  first(r)
-end
-
-def refusal_why(r)
-  last(r)
-end
-
 def refusal_kinds(model)
-  map(fn(r) refusal_kind(r) end, refusals(model))
+  map(fn(r) kyohi::kind(r) end, refusals(model))
 end
 
 def unknown_refusals(names, cols, where)
@@ -1649,18 +1651,6 @@ def refusals(model)
       concat_lists(contract_refusals(model, out), rigor)
     )
   )
-end
-
-def refuse(refusals)
-  if is_empty(refusals) == false
-    throw(
-      error(
-        refusal_kind(first(refusals)),
-        blue::join(map(fn(r) refusal_why(r) end, refusals), "; ")
-      )
-    )
-  end
-  nil
 end
 
 # The model, or a thrown error naming every violation (its kind is the first's).

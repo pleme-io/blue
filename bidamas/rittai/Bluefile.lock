@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:206c923c51bbbe47f03aa79a6c89eed1467626507de1d961834107fc2dfdfccd",
+  "bluefile_b3": "b3:5d02e72f4d3a33374159986a4127ded340a127195a29662700130681eae4c389",
   "manifest": {
     "schema": 1,
     "name": "rittai",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "gyouretsu": "^0.1.0",
       "junjo": "^0.1.0",

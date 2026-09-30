@@ -54,23 +54,7 @@ use(
   ]
 )
 
-use(
-  "rittai",
-  [
-    :rt_bounds,
-    :rt_drop_faces,
-    :rt_extrude,
-    :rt_extrude_wall_faces,
-    :rt_merge,
-    :rt_mesh_refusals,
-    :rt_pose,
-    :rt_pose_along,
-    :rt_sweep,
-    :rt_transform,
-    :rt_volume,
-    :rt_weld
-  ]
-)
+use("rittai")
 
 use(
   "zumen",
@@ -428,13 +412,17 @@ def kk_folded_mesh(part)
   )
   walls = flat_map(
     fn(f)
-      rt_extrude_wall_faces(base_region, 0, index_of(kk_sides(), get(f, :side)))
+      rittai::extrude_wall_faces(
+        base_region,
+        0,
+        index_of(kk_sides(), get(f, :side))
+      )
     end,
     get(part, :flanges)
   )
-  base = rt_drop_faces(rt_extrude(base_region, t), walls)
-  rt_weld(
-    rt_merge(
+  base = rittai::drop_faces(rittai::extrude(base_region, t), walls)
+  rittai::weld(
+    rittai::merge(
       concat_lists(
         [base],
         map(fn(f) kk_flange_mesh(part, b, f) end, get(part, :flanges))
@@ -476,11 +464,11 @@ def kk_flange_mesh(part, b, f)
   len = distance(nth(0, seg), nth(1, seg))
   rot = transpose([out, up, along])
   section = region(kk_flange_section(part, f), [])
-  rt_transform(
-    rt_pose(rot, [px(start), py(start), 0]),
-    rt_drop_faces(
-      rt_extrude(section, len),
-      rt_extrude_wall_faces(section, 0, kk_seam_edge(section))
+  rittai::transform(
+    rittai::pose(rot, [px(start), py(start), 0]),
+    rittai::drop_faces(
+      rittai::extrude(section, len),
+      rittai::extrude_wall_faces(section, 0, kk_seam_edge(section))
     )
   )
 end
@@ -754,9 +742,9 @@ def kk_member_length(m)
 end
 
 def kk_member_mesh(m, n)
-  rt_transform(
-    rt_pose_along(get(m, :from), get(m, :to)),
-    rt_extrude(kk_section(get(m, :stock), n), kk_member_length(m))
+  rittai::transform(
+    rittai::pose_along(get(m, :from), get(m, :to)),
+    rittai::extrude(kk_section(get(m, :stock), n), kk_member_length(m))
   )
 end
 
@@ -816,7 +804,7 @@ def kk_wire_length(w)
 end
 
 def kk_wire_mesh(w, n)
-  rt_sweep(circle_polygon([0, 0], get(w, :d) / 2, n), get(w, :path))
+  rittai::sweep(circle_polygon([0, 0], get(w, :d) / 2, n), get(w, :path))
 end
 
 def kk_wire_refusals(w)
@@ -897,7 +885,7 @@ end
 test "a tray's folded solid is closed, and its volume adds up by parts"
   tray = kk_tray()
   m = kk_folded_mesh(tray)
-  assert is_empty(rt_mesh_refusals(m)) == true
+  assert is_empty(rittai::mesh_refusals(m)) == true
   # Independently: the base plate is its flat area times T; each flange is
   # the polygonal annular sector (n/2) sin(A/n) ((R+T)^2 - R^2) plus its
   # straight run times T, over the bend line's length.
@@ -908,10 +896,10 @@ test "a tray's folded solid is closed, and its volume adds up by parts"
   sector = 12 / 2.0 * sin(pi() / 2 / 12) * (square(3.0) - square(1.5))
   run = 40 - 3
   flange_v = 2 * bw * (sector + run * 1.5) + 2 * bd * (sector + run * 1.5)
-  assert near_within(rt_volume(m), base_v + flange_v, 0.001) == true
+  assert near_within(rittai::volume(m), base_v + flange_v, 0.001) == true
   # The folded part stands 40 high and 300 x 200 outside: its bounding box
   # is the outside dimensions.
-  bb = rt_bounds(m)
+  bb = rittai::bounds(m)
   assert vector_near(vsub(nth(1, bb), nth(0, bb)), [300, 200, 40]) == true
 end
 
@@ -1035,9 +1023,9 @@ test "a tube member: its cut list, its solid, its mass"
   assert get(row, :stock) == "tube 30x30x1.2"
   assert near(get(row, :length), 600) == true
   mesh = kk_member_mesh(m, 16)
-  assert is_empty(rt_mesh_refusals(mesh)) == true
+  assert is_empty(rittai::mesh_refusals(mesh)) == true
   # Section 30^2 - 27.6^2 = 138.24 mm^2, times 600, is 82944 mm^3.
-  assert near(rt_volume(mesh), 82944) == true
+  assert near(rittai::volume(mesh), 82944) == true
   assert near(kk_member_mass_g(m, 16), 82944 * 7.99 / 1000) == true
 end
 
@@ -1051,7 +1039,7 @@ test "a bent wire: its developed length by hand, and a refused radius"
     80
   ) ==
     true
-  assert is_empty(rt_mesh_refusals(kk_wire_mesh(w, 12))) == true
+  assert is_empty(rittai::mesh_refusals(kk_wire_mesh(w, 12))) == true
   assert map(
     fn(r) nth(0, r) end,
     kk_wire_refusals(

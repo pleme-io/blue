@@ -69,7 +69,7 @@ use("ongaku", [:major_triad])
 use("raifusaikuru")
 use("ran", [:take_ints])
 use("retsu", [:contains, :size])
-use("rittai", [:rt_z])
+use("rittai")
 use("ronri", [:every])
 use("ryouiki", [:box_around])
 use("sabi")
@@ -112,7 +112,7 @@ test "every bidama in the distribution answers through this one import"
   assert major_triad(0) == [0, 4, 7]
   assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
-  assert rt_z([1, 2, 3]) == 3
+  assert rittai::z([1, 2, 3]) == 3
   assert size([1, 2, 3]) == 3
   assert every(fn(v) v > 0 end, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]

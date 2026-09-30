@@ -34,19 +34,7 @@ use(
   ]
 )
 
-use(
-  "rittai",
-  [
-    :rt_box,
-    :rt_face_normal,
-    :rt_faces,
-    :rt_vertices,
-    :rt_weld,
-    :rt_x,
-    :rt_y,
-    :rt_z
-  ]
-)
+use("rittai")
 
 use("ronri", [:every])
 
@@ -302,19 +290,19 @@ end
 
 def zu_project(p, view)
   if view == :top
-    [rt_x(p), rt_y(p)]
+    [rittai::x(p), rittai::y(p)]
   elsif view == :front
-    [rt_x(p), rt_z(p)]
+    [rittai::x(p), rittai::z(p)]
   else
-    [rt_y(p), rt_z(p)]
+    [rittai::y(p), rittai::z(p)]
   end
 end
 
 def zu_view(mesh, view)
-  m = rt_weld(mesh)
-  vs = rt_vertices(m)
-  faces = rt_faces(m)
-  normals = map(fn(f) rt_face_normal(m, f) end, faces)
+  m = rittai::weld(mesh)
+  vs = rittai::vertices(m)
+  faces = rittai::faces(m)
+  normals = map(fn(f) rittai::face_normal(m, f) end, faces)
   table = reduce(
     fn(acc, i) zu_edge_faces(acc, nth(i, faces), i) end,
     {},
@@ -701,7 +689,7 @@ test "SVG: y is flipped, the scale is 1:1 in mm, text is escaped"
 end
 
 test "a view of a box draws its twelve edges and no diagonals"
-  v = zu_view(rt_box(20, 30, 40), :front)
+  v = zu_view(rittai::box(20, 30, 40), :front)
   assert size(v) == 12
   assert every(fn(e) zu_layer(e) == "VIEW" end, v) == true
   bb = zu_bounds(v)

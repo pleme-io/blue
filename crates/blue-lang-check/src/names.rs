@@ -939,6 +939,9 @@ pub struct Reference {
     /// builtin, a listed `first` over the builtin). Recorded, never an error:
     /// each tier is something the author wrote.
     pub shadowed: Vec<(Tier, Namespace)>,
+    /// The locals in scope where it is written, innermost first: a rename
+    /// that would make it one of these must write it qualified.
+    pub locals: Vec<String>,
     /// The node's address in the forms it was resolved over: the join key
     /// [`resolved_tree`] rewrites by, since spans are not unique (every node
     /// of an interpolation carries the string's span).
@@ -1232,6 +1235,11 @@ impl<'t> Walker<'t> {
             written: name.to_string(),
             opaque,
             shadowed: self.shadowed(name, &ns),
+            locals: self
+                .locals_in_scope()
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
             flat,
             ns,
             node: std::ptr::from_ref(node) as usize,
@@ -1490,10 +1498,13 @@ impl Walker<'_> {
             self.diagnostics.push(d);
             return;
         }
-        let uses = self
-            .table
-            .imports_of(self.top_level)
-            .is_some_and(|i| i.uses.contains(pkg));
+        // A bidama may always name itself: `heni::status` inside heni, where
+        // a local `status` hides the bare name.
+        let uses = self.own == Namespace::Bidama(pkg.to_string())
+            || self
+                .table
+                .imports_of(self.top_level)
+                .is_some_and(|i| i.uses.contains(pkg));
         if !uses {
             let d = Diagnostic::new(
                 Code::B0010,
@@ -1509,7 +1520,11 @@ impl Walker<'_> {
         }
         if self.table.bidama(pkg).is_some_and(|s| s.get(n).is_some()) {
             self.resolved += 1;
-            if self.own == Namespace::Bidama(pkg.to_string()) {
+            let shadowed_by_local = self.locals_in_scope().contains(&n);
+            if shadowed_by_local {
+                // Bare, it would be the local: the qualifier is the only way
+                // to reach the definition here.
+            } else if self.own == Namespace::Bidama(pkg.to_string()) {
                 self.redundant(span, pkg, n, "it is this bidama's own definition");
             } else if self
                 .table
@@ -1754,6 +1769,7 @@ impl Scopes for Walker<'_> {
                 flat: self.table.flat_target(name),
                 ns,
                 shadowed: Vec::new(),
+                locals: Vec::new(),
                 node: std::ptr::from_ref(node) as usize,
             });
         }

@@ -171,6 +171,7 @@ Each entry of `references` carries the location fields of `blue check` and:
 | `written` | the symbol as the tree has it: `first`, or `retsu/first` for `retsu::first` |
 | `opaque` | inside a macro call's arguments |
 | `flat`, `ns` | what each rule binds it to |
+| `locals` | the locals in scope where it is written, innermost first |
 
 A binding (`flat`, `ns`) has:
 

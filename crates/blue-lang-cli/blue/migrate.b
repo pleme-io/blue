@@ -467,8 +467,16 @@ def strip_bidama(prefix, file)
     filter(fn(d) member?(json_get(d, "name"), old_names) end, defs)
   )
   refs = json_get(doc, "references")
+  # A new name a local of the same name would capture is written qualified.
   ref_edits = map(
-    fn(r) ref_edit(r, new_of(json_get(r, "written"))) end,
+    fn(r)
+      new = new_of(json_get(r, "written"))
+      if member?(new, json_get(r, "locals"))
+        ref_edit(r, "#{pkg}::#{new}")
+      else
+        ref_edit(r, new)
+      end
+    end,
     filter(
       fn(r)
         ns = json_get(r, "ns")
@@ -608,6 +616,7 @@ def strip(prefix, file, callers)
     end,
     befores
   )
+  # nil when `f` proves out; otherwise why, with the first difference.
   proof = fn(f, old_doc)
     now = try(resolved(f), catch(_e(), nil))
     bare = if f == file
@@ -615,17 +624,37 @@ def strip(prefix, file, callers)
     else
       "#{pkg}/"
     end
-    now != nil &&
-      settled_forms(now, "ns") ==
-        map(
-          fn(t) key_rewrite(t, pkg, renames, bare) end,
-          settled_forms(old_doc, "ns")
-        ) &&
-      check_ok?(f)
+    if now == nil
+      "#{f}: does not resolve"
+    else
+      want = map(
+        fn(t) key_rewrite(t, pkg, renames, bare) end,
+        settled_forms(old_doc, "ns")
+      )
+      got = settled_forms(now, "ns")
+      if got != want
+        pairs = filter(fn(p) first(p) != nth(1, p) end, zip(want, got))
+        if empty?(pairs)
+          "#{f}: #{length(want)} forms expected, #{length(got)} found"
+        else
+          "#{f}: expected #{first(first(pairs))}, found #{nth(1, first(pairs))}"
+        end
+      else
+        c = run_blue(["check", f])
+        if status_of(c) != 0
+          "#{f}: does not check: #{stderr_of(c)}"
+        else
+          nil
+        end
+      end
+    end
   end
   bad = filter(
-    fn(fd) !proof(first(fd), nth(1, fd)) end,
-    cons([file, before], map(fn(b) [first(b), nth(2, b)] end, befores))
+    fn(why) why != nil end,
+    map(
+      fn(fd) proof(first(fd), nth(1, fd)) end,
+      cons([file, before], map(fn(b) [first(b), nth(2, b)] end, befores))
+    )
   )
   if empty?(bad)
     "stripped #{pkg}: #{length(renames)} renamed, #{nth(4, plan)} kept with a second name, #{length(callers)} caller(s) rewritten"
@@ -634,7 +663,7 @@ def strip(prefix, file, callers)
     throw(
       error(
         :migrate,
-        "refused the strip of #{pkg}: #{join(map(fn(b) first(b) end, bad), ", ")} did not prove out; restored"
+        "refused the strip of #{pkg}, restored: #{join(bad, "\n")}"
       )
     )
   end

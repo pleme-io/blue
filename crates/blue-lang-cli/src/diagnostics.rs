@@ -333,6 +333,8 @@ struct ReferenceJson {
     opaque: bool,
     flat: TargetJson,
     ns: TargetJson,
+    /// The locals in scope where it is written, innermost first.
+    locals: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -411,6 +413,7 @@ pub fn resolved_json(
                 opaque: r.opaque,
                 flat: target_json(&r.flat),
                 ns: target_json(&r.ns),
+                locals: r.locals.clone(),
             })
             .collect(),
         imports: program

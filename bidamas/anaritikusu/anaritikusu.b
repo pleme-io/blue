@@ -5,31 +5,7 @@ use(
   [:q_and, :q_cast, :q_filter, :q_get, :q_if, :q_join, :q_max, :q_min, :q_or]
 )
 
-use(
-  "nisshi",
-  [
-    :el_append,
-    :el_append_all,
-    :el_break_kind,
-    :el_break_position,
-    :el_break_why,
-    :el_canon,
-    :el_canon_object,
-    :el_def,
-    :el_history,
-    :el_intact?,
-    :el_lines,
-    :el_observe,
-    :el_read,
-    :el_rec_admitted?,
-    :el_rec_entity,
-    :el_rec_seq,
-    :el_state,
-    :el_states,
-    :el_unlines,
-    :el_verify
-  ]
-)
+use("nisshi", [:el_append, :el_def])
 
 use("raifusaikuru", [:lc_define])
 
@@ -2031,7 +2007,7 @@ end
 # refusal of an admitted record. Canonical JSON, keys in code-point order.
 def la_history_line(r, s)
   pos = raifusaikuru::seq(s) - 1
-  folded = el_rec_admitted?(r)
+  folded = nisshi::rec_admitted?(r)
   b = last(raifusaikuru::breaches(s))
   rf = last(raifusaikuru::refused(s))
   breach = if folded && b != nil && raifusaikuru::breach_position(b) == pos
@@ -2057,18 +2033,18 @@ def la_history_line(r, s)
   fields = if is_empty(raifusaikuru::fields(s))
     ""
   else
-    ",\"fields\":#{el_canon_object(map(fn(kv) [raifusaikuru::text(first(kv)), la_json_value(nth(1, kv))] end, raifusaikuru::fields(s)))}"
+    ",\"fields\":#{nisshi::canon_object(map(fn(kv) [raifusaikuru::text(first(kv)), la_json_value(nth(1, kv))] end, raifusaikuru::fields(s)))}"
   end
   # The keys are fixed, so they are written in code-point order here rather
   # than sorted per line (the benchmark's hot path; el_canon_object still
   # orders the fields, whose names are the definition's).
-  "{\"breach\":#{el_canon(rules)},\"breach_capability\":#{el_canon(capability)},\"entity\":#{json_stringify(el_rec_entity(r))}#{fields},\"phase\":#{json_stringify(raifusaikuru::text(raifusaikuru::phase(s)))},\"replay_refusal\":#{el_canon(refusal)},\"seq\":#{to_s(el_rec_seq(r))}}"
+  "{\"breach\":#{nisshi::canon(rules)},\"breach_capability\":#{nisshi::canon(capability)},\"entity\":#{json_stringify(nisshi::rec_entity(r))}#{fields},\"phase\":#{json_stringify(raifusaikuru::text(raifusaikuru::phase(s)))},\"replay_refusal\":#{nisshi::canon(refusal)},\"seq\":#{to_s(nisshi::rec_seq(r))}}"
 end
 
 # The history of a log value that was read: one line per record. Pure.
 def la_history_text(log)
-  el_unlines(
-    map(fn(x) la_history_line(first(x), nth(1, x)) end, el_history(log))
+  nisshi::unlines(
+    map(fn(x) la_history_line(first(x), nth(1, x)) end, nisshi::history(log))
   )
 end
 
@@ -2123,13 +2099,13 @@ end
 
 def la_build_history(dir, s)
   d = get(s, :def)
-  log = el_read(get(s, :path), get(s, :label), d)
-  rep = el_verify(log, nil, nil)
-  if el_intact?(rep) == false
+  log = nisshi::read(get(s, :path), get(s, :label), d)
+  rep = nisshi::verify(log, nil, nil)
+  if nisshi::intact?(rep) == false
     throw(
       error(
         :anaritikusu_broken,
-        "#{get(s, :path)}: position #{to_s(el_break_position(rep))}, #{to_s(el_break_kind(rep))}: #{el_break_why(rep)}"
+        "#{get(s, :path)}: position #{to_s(nisshi::break_position(rep))}, #{to_s(nisshi::break_kind(rep))}: #{nisshi::break_why(rep)}"
       )
     )
   end
@@ -2404,7 +2380,7 @@ def la_example_streams(dir)
       assoc(
         m,
         raifusaikuru::text(raifusaikuru::name(get(s, :def))),
-        el_read(get(s, :path), get(s, :label), get(s, :def))
+        nisshi::read(get(s, :path), get(s, :label), get(s, :def))
       )
     end,
     {},
@@ -2426,7 +2402,7 @@ def la_example_event(log, entity, ev)
     d = el_def(log)
     raifusaikuru::permit_event(
       d,
-      raifusaikuru::permit_for(d, el_state(log, entity), :use, nth(1, ev)),
+      raifusaikuru::permit_for(d, nisshi::state(log, entity), :use, nth(1, ev)),
       nth(2, ev)
     )
   else
@@ -2574,9 +2550,9 @@ test "the history is the fold's state after every record, and names what the rep
   dir = la_test_dir("history")
   p = path_join(dir, "c.jsonl")
   # The empty case: no stream, no history.
-  assert la_history_text(el_read(p, "t", d)) == ""
-  el_append_all(
-    el_read(p, "t", d),
+  assert la_history_text(nisshi::read(p, "t", d)) == ""
+  nisshi::append_all(
+    nisshi::read(p, "t", d),
     [
       ["item-1", raifusaikuru::ev(:open, 1000, []), []],
       ["item-1", raifusaikuru::ev(:reading, 1100, [[:value, 26]]), []],
@@ -2584,8 +2560,8 @@ test "the history is the fold's state after every record, and names what the rep
       ["item-1", raifusaikuru::ev(:use, 1300, []), []]
     ]
   )
-  log = el_read(p, "t", d)
-  lines = el_lines(la_history_text(log))
+  log = nisshi::read(p, "t", d)
+  lines = nisshi::lines(la_history_text(log))
   # By hand: open, a reading of 26, then two uses the guard refuses
   # (quality_ok), written refused: the state after each use is the state
   # before it, and nothing is a breach.
@@ -2609,15 +2585,17 @@ test "the history is the fold's state after every record, and names what the rep
       raifusaikuru::on(:sealed, :reading, :gone, [])
     ]
   )
-  first_line = first(el_lines(la_history_text(el_read(p, "t", closed))))
+  first_line = first(
+    nisshi::lines(la_history_text(nisshi::read(p, "t", closed)))
+  )
   assert contains?(first_line, "\"replay_refusal\":\"no_edge\"")
   assert contains?(first_line, "\"phase\":\"sealed\"")
   # The control: the tightened guard turns an applied event into a breach
   # (the strict example allows 3 uses; this stream has none admitted, so a
   # stream with four admitted uses is written first).
   q = path_join(dir, "s.jsonl")
-  el_append_all(
-    el_read(q, "t", d),
+  nisshi::append_all(
+    nisshi::read(q, "t", d),
     [
       ["item-1", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
       ["item-1", raifusaikuru::ev(:open, 1100, []), []],
@@ -2627,8 +2605,8 @@ test "the history is the fold's state after every record, and names what the rep
       ["item-1", raifusaikuru::ev(:use, 1500, []), []]
     ]
   )
-  strict = el_lines(
-    la_history_text(el_read(q, "t", la_example_consumable_strict()))
+  strict = nisshi::lines(
+    la_history_text(nisshi::read(q, "t", la_example_consumable_strict()))
   )
   assert map(
     fn(l)
@@ -3084,40 +3062,40 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   dir = la_test_dir("observed")
   d = la_example_consumable()
   s = la_stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-observed")
-  log0 = el_read(get(s, :path), get(s, :label), d)
+  log0 = nisshi::read(get(s, :path), get(s, :label), d)
   # item-a, seq in brackets: [0] reading 10 at 1000, [1] open 1100, [2] a use
   # OBSERVED at 1200 before any permit (the guard holds, so no breach),
   # [3] a permit at 1300, [4] a use at 1400, [5] a reading of 26 at 1500,
   # [6] a use OBSERVED at 1600 (quality_ok refuses: a breach), [7] a use
   # ATTEMPTED at 9000 (refused), [8] a use OBSERVED at 9100 (a breach again).
-  l1 = el_append_all(
+  l1 = nisshi::append_all(
     log0,
     [
       ["item-a", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
       ["item-a", raifusaikuru::ev(:open, 1100, []), []]
     ]
   )
-  l2 = el_observe(l1, "item-a", raifusaikuru::ev(:use, 1200, []), [])
+  l2 = nisshi::observe(l1, "item-a", raifusaikuru::ev(:use, 1200, []), [])
   l3 = el_append(
     l2,
     "item-a",
     raifusaikuru::permit_event(
       d,
-      raifusaikuru::permit_for(d, el_state(l2, "item-a"), :use, 1300),
+      raifusaikuru::permit_for(d, nisshi::state(l2, "item-a"), :use, 1300),
       "dev"
     ),
     []
   )
-  l4 = el_append_all(
+  l4 = nisshi::append_all(
     l3,
     [
       ["item-a", raifusaikuru::ev(:use, 1400, []), []],
       ["item-a", raifusaikuru::ev(:reading, 1500, [[:value, 26]]), []]
     ]
   )
-  l5 = el_observe(l4, "item-a", raifusaikuru::ev(:use, 1600, []), [])
+  l5 = nisshi::observe(l4, "item-a", raifusaikuru::ev(:use, 1600, []), [])
   l6 = el_append(l5, "item-a", raifusaikuru::ev(:use, 9000, []), [])
-  el_observe(l6, "item-a", raifusaikuru::ev(:use, 9100, []), [])
+  nisshi::observe(l6, "item-a", raifusaikuru::ev(:use, 9100, []), [])
   now = 20000
   db = la_build(dir, [s], now)
   ms = la_models(la_bindings(dir, [s]), now)
@@ -3162,8 +3140,8 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # permit is left uncovered.
   dir2 = la_test_dir("attempted")
   s2 = la_stream(d, path_join(dir2, "consumable.jsonl"), "anaritikusu-observed")
-  m1 = el_append_all(
-    el_read(get(s2, :path), get(s2, :label), d),
+  m1 = nisshi::append_all(
+    nisshi::read(get(s2, :path), get(s2, :label), d),
     [
       ["item-a", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
       ["item-a", raifusaikuru::ev(:open, 1100, []), []],
@@ -3175,12 +3153,12 @@ test "observed breaches and uses no permit covered: each found, with the reason,
     "item-a",
     raifusaikuru::permit_event(
       d,
-      raifusaikuru::permit_for(d, el_state(m1, "item-a"), :use, 1300),
+      raifusaikuru::permit_for(d, nisshi::state(m1, "item-a"), :use, 1300),
       "dev"
     ),
     []
   )
-  el_append_all(
+  nisshi::append_all(
     m2,
     [
       ["item-a", raifusaikuru::ev(:use, 1400, []), []],
@@ -3223,7 +3201,7 @@ def la_example_differential(db, ms, s)
         ]
       )
     end,
-    el_states(el_read(get(s, :path), get(s, :label), d))
+    nisshi::states(nisshi::read(get(s, :path), get(s, :label), d))
   )
   sql = map(
     fn(r) take_n(r, 2 + nf) end,
@@ -3333,8 +3311,8 @@ test "as of, with two records of the linked entity in one second: the state afte
   # 1200. p-t is made at 1200 and p-u at 1300, each linking item-t. By hand:
   # both see item-t after [3], two uses, whichever order the database keeps
   # the two 1200 records in.
-  el_append_all(
-    el_read(get(sc, :path), get(sc, :label), d),
+  nisshi::append_all(
+    nisshi::read(get(sc, :path), get(sc, :label), d),
     [
       ["item-t", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
       ["item-t", raifusaikuru::ev(:open, 1100, []), []],
@@ -3342,8 +3320,8 @@ test "as of, with two records of the linked entity in one second: the state afte
       ["item-t", raifusaikuru::ev(:use, 1200, []), []]
     ]
   )
-  el_append_all(
-    el_read(get(sp, :path), get(sp, :label), p),
+  nisshi::append_all(
+    nisshi::read(get(sp, :path), get(sp, :label), p),
     [
       [
         "p-t",

@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:85655b6527b6fa94860944a925bf8a548392b163718d0b8ef5a44fc6a705244a",
+  "bluefile_b3": "b3:76248187d4c574db8a6635754e024210be1a551cf7202e737ed51ec93291b6a5",
   "manifest": {
     "schema": 1,
     "name": "nisshi",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "deeta": "^0.1.0",
       "junjo": "^0.1.0",

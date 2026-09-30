@@ -62,7 +62,7 @@ use("kueri")
 use("kumiawase", [:combinations])
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
-use("nisshi", [:el_format])
+use("nisshi")
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
 use("okite")
 use("ongaku", [:major_triad])
@@ -108,7 +108,7 @@ test "every bidama in the distribution answers through this one import"
   assert combinations(52, 5) == 2598960
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
-  assert el_format() == "nisshi/1"
+  assert nisshi::format() == "nisshi/1"
   assert major_triad(0) == [0, 4, 7]
   assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)

@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:4ab67b142306c767a0e2a7b5c98b01dbe341e639e7ccd3f19cf85982ef962599",
+  "manifest": {
+    "schema": 1,
+    "name": "blue-native",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [
+      "bidamas"
+    ],
+    "runs": {},
+    "tools": [
+      "tatara-rust-emit"
+    ],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "generated": {
+      "hello-virt32": {
+        "output": "images/hello-virt32.rs",
+        "program": "build/hello_virt32.b",
+        "inputs": [
+          "programs/hello.b"
+        ]
+      }
+    }
+  },
+  "sources": {}
+}

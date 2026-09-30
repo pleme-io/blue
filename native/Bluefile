@@ -1,0 +1,29 @@
+# blue native (theory/BLUE-NATIVE.md): blue programs compiled to board images
+# with no evaluator and no collector in them.
+#
+# A blue project of its own, lowered by the same engine as every project
+# (nix/project.nix), from blue's flake (nix/native.nix, which adds the image
+# and the QEMU check the Bluefile has no word for yet: `firmware` and `board`
+# are milestone N1).
+#
+#   bidamas/kiban     board specs, and the host's model of a board's words
+#   bidamas/chuuzou   the backend: a checked program to a typed Rust AST,
+#                     emitted through tatara-rust-emit, linked, measured
+#   seam/             the hand-written seam: kiban_io (safe) and one unsafe
+#                     crate per board
+#   programs/         the programs; images/ holds their emitted Rust
+package("blue-native", "0.1.0")
+
+packages("bidamas")
+
+# The emitter chuuzou hands its typed Rust AST to (tatara-rust-ast's CLI).
+tool("tatara-rust-emit")
+
+# N0: "hi" on QEMU riscv32 virt. The emitted Rust is committed and gated
+# fresh, so a change to the backend shows up as a diff to review.
+generate(
+  "hello-virt32",
+  "images/hello-virt32.rs",
+  "build/hello_virt32.b",
+  ["programs/hello.b"]
+)

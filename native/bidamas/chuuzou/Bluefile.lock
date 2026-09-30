@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:85e30c3fe4a62a3566cbdf5d4776cc506b2eddffd7f7c3772e8f5e2212b92ba6",
+  "manifest": {
+    "schema": 1,
+    "name": "chuuzou",
+    "version": "0.1.0",
+    "needs": {
+      "kiban": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -1,0 +1,2 @@
+package("chuuzou", "0.1.0")
+needs("kiban", "^0.1")

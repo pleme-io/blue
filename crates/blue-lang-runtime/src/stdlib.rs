@@ -375,7 +375,10 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(1),
         |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::Int(n) => Ok(Value::Int(*n)),
-            Value::Float(x) => Ok(Value::Int(*x as i64)),
+            // A float with no Int (non-finite, or past i64) is nil like any
+            // other unconvertible input; `as i64` saturated it to a plausible
+            // wrong number.
+            Value::Float(x) => Ok(float_to_int(*x).map_or(Value::Nil, Value::Int)),
             other => Ok(as_str(other, s)?
                 .trim()
                 .parse::<i64>()
@@ -388,7 +391,9 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(1),
         |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::Int(n) => Ok(Value::Int(*n)),
-            Value::Float(x) => Ok(Value::Int(*x as i64)),
+            Value::Float(x) => float_to_int(*x)
+                .map(Value::Int)
+                .ok_or(EvalError::IntegerOverflow { op: "to_int!", at: s }),
             other => {
                 let text = as_str(other, s)?;
                 text.trim().parse::<i64>().map(Value::Int).map_err(|_| {
@@ -420,7 +425,12 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         "abs",
         Arity::Exact(1),
         |a: &[Value], _h: &mut H, s| match &a[0] {
-            Value::Int(n) => Ok(Value::Int(n.abs())),
+            // Checked, as tatara's `abs` is (G5): |i64::MIN| does not fit, and
+            // `n.abs()` wrapped in release and panicked in debug.
+            Value::Int(n) => n
+                .checked_abs()
+                .map(Value::Int)
+                .ok_or(EvalError::IntegerOverflow { op: "abs", at: s }),
             Value::Float(x) => Ok(Value::Float(x.abs())),
             other => Err(EvalError::type_mismatch("a number", other.type_name(), s).into()),
         },
@@ -521,6 +531,15 @@ fn range_num(v: &Value, s: tatara_lisp::Span) -> Result<f64, EvalError> {
             s,
         )),
     }
+}
+
+/// A float's integer part as an `i64`, or `None` when it is not finite or
+/// does not fit. `as i64` saturates instead.
+fn float_to_int(x: f64) -> Option<i64> {
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    let t = x.trunc();
+    #[allow(clippy::cast_possible_truncation)]
+    (t.is_finite() && (-LIMIT..LIMIT).contains(&t)).then(|| t as i64)
 }
 
 /// `a + b` under the number rules the Lisp `range` used: Int + Int stays Int,

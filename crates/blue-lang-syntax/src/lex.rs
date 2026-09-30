@@ -454,9 +454,27 @@ impl<'a> Lexer<'a> {
         // A `.` is a decimal point only when a digit follows; otherwise it
         // is the method-call dot and belongs to the next token. This is why
         // `1.foo` sends `foo` to `1` rather than failing to lex.
-        let is_float = self.peek() == Some(b'.') && matches!(self.peek_at(1), Some(b'0'..=b'9'));
+        let mut is_float =
+            self.peek() == Some(b'.') && matches!(self.peek_at(1), Some(b'0'..=b'9'));
         if is_float {
             self.pos += 1;
+            while matches!(self.peek(), Some(b'0'..=b'9' | b'_')) {
+                self.pos += 1;
+            }
+        }
+        // An exponent — `1e300`, `2.5E-3` — makes the literal a float. Only
+        // when digits follow (after an optional sign), so `e` is never taken
+        // from a following name.
+        let exponent_digits_at = match (self.peek(), self.peek_at(1)) {
+            (Some(b'e' | b'E'), Some(b'0'..=b'9')) => Some(1),
+            (Some(b'e' | b'E'), Some(b'+' | b'-')) if matches!(self.peek_at(2), Some(b'0'..=b'9')) => {
+                Some(2)
+            }
+            _ => None,
+        };
+        if let Some(skip) = exponent_digits_at {
+            is_float = true;
+            self.pos += skip;
             while matches!(self.peek(), Some(b'0'..=b'9' | b'_')) {
                 self.pos += 1;
             }
@@ -618,6 +636,25 @@ mod tests {
                 TokenKind::Float(2.5),
                 TokenKind::Int(1000),
             ]
+        );
+    }
+
+    /// An exponent makes a float; `e` not followed by digits is not one.
+    /// Red run: without the exponent arm `1e300` lexed as `Int(1)` then
+    /// `Ident("e300")`, which is how the G5 probe failed to parse.
+    #[test]
+    fn lexes_float_exponents() {
+        assert_eq!(
+            kinds("1e300 2.5E-3 7e+2"),
+            vec![
+                TokenKind::Float(1e300),
+                TokenKind::Float(2.5e-3),
+                TokenKind::Float(700.0),
+            ]
+        );
+        assert_eq!(
+            kinds("1.e"),
+            vec![TokenKind::Int(1), TokenKind::Dot, TokenKind::Ident("e".into())]
         );
     }
 

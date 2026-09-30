@@ -880,9 +880,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.3.63"
+version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd52f0861ecf2ac90a0cbdcfd932f1464a67b8987b0f0e82028abcd79f39be5a"
+checksum = "51f1aeac65396d27ee32f344e2d5a469f7074312f6794b414c02729c91ef0f93"
 
 [[package]]
 name = "notify"
@@ -1318,7 +1318,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1357,18 +1357,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.3.63"
+version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7092f43534c8de80212d74a37a2115ac97e07402533de74e2b718fc0a883608"
+checksum = "ab5957a85fdf3bbabe58332b59b4d1eae91c6d8e12d6aebfcad85d044fb01fd7"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.3.63"
+version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "837670a2b54ce556cba5c0353ba91ee91afbdab8db293fea45779b90b6a6ca90"
+checksum = "553e05104250924bb943f4427051e4f52ca6eac63218a0e0a0c18651edd1c2d3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1377,9 +1377,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.3.63"
+version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09b312966424dc51d7f7aa1e7c9efdd11003b640eddacd3dbe013626ebf925ae"
+checksum = "e3c1ccb522ac57a35a9dbfdf3b7f2bca57391c807f95d4d4b2942d64bcecf18c"
 dependencies = [
  "blake3",
  "serde",
@@ -1391,9 +1391,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.3.63"
+version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3328bb163ff8cc6dbae3be810aee42d2f1b697f0bdbd7fd958ca1a1743dd61d"
+checksum = "e41fe8cff169dbab6425e042c9a9293e0e2a828fe433be527eb7d1d72e113cfe"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1402,9 +1402,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.3.63"
+version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7bc7b280ba198d7de3f5897a2850f33f0d08fe1082df1799faa84bf9195af51"
+checksum = "ceb00d290931af0b020345db156c5f9f4cf16262c91f15ed6643c2a5ef74e002"
 dependencies = [
  "monosashi",
  "stacker",

@@ -1,13 +1,15 @@
 # Numbers: literals, the arithmetic operators, the numeric built-ins, and the
-# okite decisions about them. Rows for overflow and exponent literals state the
-# destination (G5) and are pending until it lands.
+# okite decisions about them. Integer overflow is an error on every evaluator
+# and in every build profile (G5, tatara-lisp-eval 0.3.64); it used to wrap in
+# a release build and panic in a debug one.
 
 row("numbers.int.literal", "42", value("42"), covers("form:42"))
 row("numbers.int.underscores", "1_000_000", value("1000000"))
 row("numbers.int.negative", "-7", value("-7"), covers("form:-x"))
 row("numbers.float.literal", "3.5", value("3.5"), covers("form:3.5"))
 row("numbers.float.keeps_point", "2.0", value("2.0"))
-row("numbers.float.exponent", "1e3", value("1000.0"), pending("G5"))
+row("numbers.float.exponent", "1e3", value("1000.0"))
+row("numbers.float.exponent.signed", "2.5e-3", value("0.0025"))
 row("numbers.add", "1 + 2", value("3"), covers("op:+"))
 row("numbers.add.mixed", "1 + 0.5", value("1.5"))
 row("numbers.sub", "10 - 4", value("6"), covers("op:-"))
@@ -25,29 +27,34 @@ row("numbers.mod.euclidean", "-7 % 3", value("2"))
 row(
   "numbers.overflow.mul",
   "9223372036854775807 * 2",
-  fails(:eval, "overflow"),
-  pending("G5")
+  fails(:eval, "overflow")
+)
+
+row("numbers.to_int.out_of_range", "to_int(1e300)", value("nil"))
+row("numbers.to_int_bang.out_of_range", "to_int!(1e300)", fails(:eval, "overflow"))
+
+row(
+  "numbers.overflow.catchable",
+  "try(9223372036854775807 * 2, catch(_e(), :caught))",
+  value(":caught")
 )
 
 row(
   "numbers.overflow.add",
   "9223372036854775807 + 1",
-  fails(:eval, "overflow"),
-  pending("G5")
+  fails(:eval, "overflow")
 )
 
 row(
   "numbers.overflow.sub",
   "0 - 9223372036854775807 - 2",
-  fails(:eval, "overflow"),
-  pending("G5")
+  fails(:eval, "overflow")
 )
 
 row(
   "numbers.overflow.abs",
   "abs(0 - 9223372036854775807 - 1)",
   fails(:eval, "overflow"),
-  pending("G5"),
   covers("builtin:abs")
 )
 

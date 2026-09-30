@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:a2344c553a64a70db1949d6b8aabb724b6ec856913cbe2ccfbcd9256916d7db9",
+  "manifest": {
+    "schema": 1,
+    "name": "kiban",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

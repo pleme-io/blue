@@ -72,7 +72,7 @@ use("retsu", [:contains, :size])
 use("rittai", [:rt_z])
 use("ronri", [:every])
 use("ryouiki", [:box_around])
-use("sabi", [:rs_valid_ident?])
+use("sabi")
 use("seimei", [:life_step])
 use("shinsuu", [:to_hex])
 use("shisutemu", [:age_s])
@@ -116,7 +116,7 @@ test "every bidama in the distribution answers through this one import"
   assert size([1, 2, 3]) == 3
   assert every(fn(v) v > 0 end, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]
-  assert rs_valid_ident?("OPERATOR_ALIASES") == true
+  assert sabi::valid_ident?("OPERATOR_ALIASES") == true
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
   assert age_s(3600000) == "1h0m"

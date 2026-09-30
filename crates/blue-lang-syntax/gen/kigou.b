@@ -1,22 +1,6 @@
 use("retsu", [:is_empty])
 
-use(
-  "sabi",
-  [
-    :render_rust,
-    :rs_char,
-    :rs_const,
-    :rs_file,
-    :rs_invalid_names,
-    :rs_slice,
-    :rs_str,
-    :rs_tuple,
-    :rs_ty,
-    :rs_ty_ref,
-    :rs_ty_slice,
-    :rs_ty_tuple
-  ]
-)
+use("sabi", [:render_rust, :rs_const])
 
 # The character tables of blue-lang-syntax's `kigou` module, authored in blue.
 #
@@ -98,23 +82,29 @@ def welcome()
 end
 
 def str_ref()
-  rs_ty_ref(rs_ty("str"))
+  sabi::ty_ref(sabi::ty("str"))
 end
 
 def tables()
-  rs_file(
+  sabi::file(
     "crates/blue-lang-syntax/gen/kigou.b",
     [
       rs_const(
         "OPERATOR_ALIASES",
-        rs_ty_ref(
-          rs_ty_slice(rs_ty_tuple([rs_ty("char"), str_ref(), str_ref()]))
+        sabi::ty_ref(
+          sabi::ty_slice(
+            sabi::ty_tuple([sabi::ty("char"), str_ref(), str_ref()])
+          )
         ),
-        rs_slice(
+        sabi::slice(
           map(
             fn(r)
-              rs_tuple(
-                [rs_char(nth(0, r)), rs_str(nth(1, r)), rs_str(nth(2, r))]
+              sabi::tuple(
+                [
+                  sabi::char(nth(0, r)),
+                  sabi::str(nth(1, r)),
+                  sabi::str(nth(2, r))
+                ]
               )
             end,
             operator_aliases()
@@ -131,10 +121,14 @@ def tables()
       ),
       rs_const(
         "WELCOME",
-        rs_ty_ref(rs_ty_slice(rs_ty_tuple([rs_ty("char"), str_ref()]))),
-        rs_slice(
+        sabi::ty_ref(
+          sabi::ty_slice(sabi::ty_tuple([sabi::ty("char"), str_ref()]))
+        ),
+        sabi::slice(
           map(
-            fn(r) rs_tuple([rs_char(nth(0, r)), rs_str(nth(1, r))]) end,
+            fn(r)
+              sabi::tuple([sabi::char(nth(0, r)), sabi::str(nth(1, r))])
+            end,
             welcome()
           )
         ),
@@ -151,7 +145,7 @@ def tables()
   )
 end
 
-bad = rs_invalid_names(tables())
+bad = sabi::invalid_names(tables())
 
 if is_empty(bad)
   write_file(

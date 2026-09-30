@@ -25,6 +25,9 @@ catalog("bidamas/CATALOG.md")
 # kueri's end-to-end tests run their rendered SQL through the `duckdb` binary,
 # so every bidama's `bidama-test-*` check has it on PATH.
 tool("duckdb")
+# tehai's test starts a real ssh as its control (a missing binary must fail
+# differently from a reachable one); a Linux sandbox has no ssh unless named.
+tool("openssh")
 
 # kigou's character tables: authored in blue, rendered into blue-lang-syntax's
 # Rust by the `sabi` bidama.

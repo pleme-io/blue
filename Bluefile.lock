@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:6371194dcf6ff697a2048411b83ab0a1ced78c859c96fda0182797d0217b7474",
+  "bluefile_b3": "b3:b4a2b3e1f2a5c3e4b213282e2197560b1ada78c489d5505d8ac5393352ea7d55",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -13,7 +13,8 @@
     ],
     "runs": {},
     "tools": [
-      "duckdb"
+      "duckdb",
+      "openssh"
     ],
     "checks": {
       "okite-laws": {

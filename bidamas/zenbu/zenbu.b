@@ -80,7 +80,7 @@ use("shomei", [:hash_message])
 # waive B0016: zenbu is the facade, and depending on it means depending on shuugou
 use("shuugou")
 use("souji")
-use("tehai", [:th_machine])
+use("tehai")
 use("tokumei", [:suppress_small])
 use("toukei", [:mean, :median])
 use("zumen", [:zu_num])
@@ -126,7 +126,10 @@ test "every bidama in the distribution answers through this one import"
   assert suppress_small(3, 5) == nil
   assert near(mean([2, 4, 6]), 4) == true
   assert zu_num(1.5) == "1.5"
-  assert get(th_machine("ssh://root@plo x86_64-linux - 8 8 - - -"), :host) ==
+  assert get(
+    tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
+    :host
+  ) ==
     "plo"
   assert get(souji::parse(["nix"]), :days) == 14
 end

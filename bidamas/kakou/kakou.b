@@ -56,10 +56,7 @@ use(
 
 use("rittai")
 
-use(
-  "zumen",
-  [:zu_dim, :zu_kind, :zu_layer, :zu_line, :zu_num, :zu_region, :zu_text]
-)
+use("zumen")
 
 # kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 #
@@ -365,18 +362,18 @@ def kk_blank_entities(part, text_h)
   lo = nth(0, bb)
   hi = nth(1, bb)
   dims = concat_lists(
-    zu_dim([px(lo), py(lo)], [px(hi), py(lo)], -(3 * text_h), text_h),
-    zu_dim([px(hi), py(lo)], [px(hi), py(hi)], -(3 * text_h), text_h)
+    zumen::dim([px(lo), py(lo)], [px(hi), py(lo)], -(3 * text_h), text_h),
+    zumen::dim([px(hi), py(lo)], [px(hi), py(hi)], -(3 * text_h), text_h)
   )
-  concat_lists(zu_region(blank), concat_lists(bends, dims))
+  concat_lists(zumen::region(blank), concat_lists(bends, dims))
 end
 
 def kk_bend_entities(b, text_h)
   c = get(b, :centre)
-  label = "#{upcase(to_s(get(b, :direction)))} #{zu_num(get(b, :angle))} DEG R#{zu_num(get(b, :radius))}"
+  label = "#{upcase(to_s(get(b, :direction)))} #{zumen::num(get(b, :angle))} DEG R#{zumen::num(get(b, :radius))}"
   [
-    zu_line(nth(0, c), nth(1, c), "BEND"),
-    zu_text(
+    zumen::line(nth(0, c), nth(1, c), "BEND"),
+    zumen::text(
       vadd(midpoint(nth(0, c), nth(1, c)), [text_h * 0.5, text_h * 0.5]),
       text_h * 0.8,
       label,
@@ -925,15 +922,15 @@ end
 
 test "a blank's drawing: outline, holes, one labelled bend line per flange, two dimensions"
   es = kk_blank_entities(kk_tray(), 3.5)
-  assert size(filter(fn(e) zu_layer(e) == "OUTLINE" end, es)) == 1
-  assert size(filter(fn(e) zu_layer(e) == "HOLES" end, es)) == 1
+  assert size(filter(fn(e) zumen::layer(e) == "OUTLINE" end, es)) == 1
+  assert size(filter(fn(e) zumen::layer(e) == "HOLES" end, es)) == 1
   bend_lines = filter(
-    fn(e) zu_layer(e) == "BEND" && zu_kind(e) == :line end,
+    fn(e) zumen::layer(e) == "BEND" && zumen::kind(e) == :line end,
     es
   )
   assert size(bend_lines) == 4
   assert contains(
-    map(fn(e) get(e, :s) end, filter(fn(e) zu_kind(e) == :text end, es)),
+    map(fn(e) get(e, :s) end, filter(fn(e) zumen::kind(e) == :text end, es)),
     "UP 90 DEG R1.5"
   ) ==
     true
@@ -941,10 +938,10 @@ test "a blank's drawing: outline, holes, one labelled bend line per flange, two 
   s = kk_blank_size(kk_tray())
   texts = map(
     fn(e) get(e, :s) end,
-    filter(fn(e) zu_layer(e) == "DIM" && zu_kind(e) == :text end, es)
+    filter(fn(e) zumen::layer(e) == "DIM" && zumen::kind(e) == :text end, es)
   )
   assert texts ==
-    [zu_num(round(px(s) * 10) / 10), zu_num(round(py(s) * 10) / 10)]
+    [zumen::num(round(px(s) * 10) / 10), zumen::num(round(py(s) * 10) / 10)]
 end
 
 test "the shop's limits refuse, each naming its rule"

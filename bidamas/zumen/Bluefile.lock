@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:1d5d57b7194257e9f69884e258f91bffd128187e26078f273d62adfa27395e57",
+  "bluefile_b3": "b3:c1b83ef4c63eb092a3417dce90f0abd130a1c79e111780dfd890087b0cf7c951",
   "manifest": {
     "schema": 1,
     "name": "zumen",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "gyouretsu": "^0.1.0",
       "kazu": "^0.1.0",

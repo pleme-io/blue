@@ -232,6 +232,13 @@
       # gate (`cargo test`, in this shell on CI) runs every bidama's tests.
       devShellPackages = [ "lld" "duckdb" ];
 
+      # The same test needs the wasm32 standard library in the shell's
+      # toolchain. nixpkgs' rustc carried it implicitly; the fenix toolchain
+      # this flake now passes (so the static-musl build stops compiling LLVM)
+      # carries only the host, and CI's wasm tests failed with `can't find
+      # crate for core` until the target was stated here.
+      devShellTargets = [ "wasm32-unknown-unknown" ];
+
       # The module trio, deploying blue's configurable BOUNDS as a shikumi
       # YAML at `~/.config/blue/blue.yaml` and pointing `BLUE_CONFIG` at it.
       #

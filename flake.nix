@@ -195,8 +195,16 @@
       };
       assertions = [ (tierAssertion cfg) ];
     };
+    # fenix is passed explicitly, as tatara-lisp does: the builder takes it as
+    # `fenix ? null`, and without it the static-musl Linux package has no
+    # prebuilt rust-std, so nixpkgs builds rustc and LLVM from source for the
+    # musl target, and llvm-static-x86_64-unknown-linux-musl fails to link
+    # (substrate lib/build/rust/overlay.nix documents the class). That was the
+    # 52-minute red on every blue `ci` run: the Linux `blue` every check runs
+    # never built.
     base = (import "${substrate}/lib/rust-workspace-release-flake.nix" {
       inherit nixpkgs crate2nix flake-utils;
+      inherit (substrate.inputs) fenix;
     }) {
       toolName = "blue";
       packageName = "blue-lang-cli";

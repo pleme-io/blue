@@ -487,6 +487,9 @@
             ${blue}/bin/blue census ${./.} > $out
           '';
 
+          # A bidama whose code does not check does not build.
+          bidama-check-refuses = bl.mkCheckRefusalCheck { inherit blue; };
+
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
           blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
 

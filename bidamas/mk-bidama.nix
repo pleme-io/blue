@@ -141,6 +141,21 @@ rec {
   #
   # `all` is the attrset of every built bidama, passed in so a package can
   # depend on its siblings — the knot `mkDistribution` ties below.
+  # The check stage over a bidama's source, against its dependency closure:
+  # every rule in blue's registry (unbound and implicit names, types,
+  # imports and needs), so a package whose code does not check does not
+  # BUILD, not only fail a separate test. One fragment, so the gate that
+  # proves it refuses (`mkCheckRefusalCheck`) runs exactly what mkBidama runs.
+  checkStep = { blue, name, src, bluePath }: ''
+      for f in ${src}/*.b; do
+        if ! BLUE_PATH=${bluePath} ${blue} check "$f" > check.log 2>&1; then
+          cat check.log >&2
+          echo "bidama ${name}: the check stage refuses $f (above); a bidama that does not check does not build" >&2
+          exit 1
+        fi
+      done
+  '';
+
   mkBidama = { name, src, all ? { }, blue ? topBlue }:
     let
       fmt = "${blueFor "mkBidama ${name}" blue}/bin/blue";
@@ -157,6 +172,17 @@ rec {
             reason a bidama is a derivation.
           ''))
         deps;
+      # Every bidama the package reaches, for BLUE_PATH: its needs, and
+      # theirs, as each dependency's derivation recorded them.
+      closure =
+        let
+          go = acc: ds: lib.foldl'
+            (seen: d: if lib.elem d seen then seen else go (seen ++ [ d ]) (all.${d}.bidamaDeps or [ ]))
+            acc
+            ds;
+        in
+        go [ ] deps;
+      bluePath = lib.concatMapStringsSep ":" (d: "${all.${d}}") closure;
     in
     runCommand "bidama-${name}-${version}"
       {
@@ -172,6 +198,8 @@ rec {
         echo "bidama ${name}: blue compiles only canonical source, and the file(s) above are not; run blue fmt --write on each and commit" >&2
         exit 1
       fi
+
+      ${checkStep { blue = fmt; inherit name src bluePath; }}
 
       mkdir -p $out/${name}
       cp -r ${src}/* $out/${name}/
@@ -516,6 +544,39 @@ rec {
       for m in ${lib.escapeShellArgs manifests}; do
         BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue deps "$m" >> $out || exit 1
       done
+    '';
+
+  # Proves mkBidama's check step refuses: a bidama that reaches its
+  # dependency's `one` only through flat visibility (B0012) must not build.
+  # The fixture is written here, not committed, so the repository's own
+  # corpus stays free of errors. The positive control is the dependency,
+  # built by mkBidama itself.
+  mkCheckRefusalCheck = { blue, name ? "bidama-check-refuses" }:
+    let
+      bin = "${blue}/bin/blue";
+      dep = mkBidama {
+        name = "refusal_dep";
+        inherit blue;
+        src = runCommand "refusal-dep-src" { } ''
+          mkdir -p $out
+          printf 'def one()\n  1\nend\n' > $out/refusal_dep.b
+          printf 'package("refusal_dep", "0.1.0")\n' > $out/Bluefile
+          cd $out && ${bin} lock . > /dev/null
+        '';
+      };
+      bad = runCommand "refusal-bad-src" { } ''
+        mkdir -p $out
+        printf 'use("refusal_dep")\n\ndef two()\n  one() + one()\nend\n' > $out/refusal_bad.b
+        printf 'package("refusal_bad", "0.1.0")\nneeds("refusal_dep", "^0.1")\n' > $out/Bluefile
+      '';
+    in
+    runCommand name { } ''
+      if (${checkStep { blue = bin; name = "refusal_bad"; src = bad; bluePath = "${dep}"; }}) 2> refused.log; then
+        echo "${name}: mkBidama's check step built a bidama with a B0012 in it" >&2
+        exit 1
+      fi
+      grep -q 'B0012' refused.log
+      cp refused.log $out
     '';
 
   # Fails when any `.b` file under `root` is not `blue fmt` canonical, naming

@@ -45,7 +45,7 @@
 # fix is the `blue bluefile --deps --json` subcommand `mk-bidama.nix` names, so
 # nix consumes blue's own evaluation instead of re-deriving it.
 
-use("anaritikusu", [:la_lit_type])
+use("anaritikusu")
 use("angou", [:is_prime])
 use("deeta", [:get_str])
 use("gyouretsu", [:dot])
@@ -93,7 +93,7 @@ test "every bidama in the distribution answers through this one import"
   #
   # The distinguishing case for a facade is a MISSING ARM, so the value of this
   # block is that it has as many lines as the Bluefile has `needs`.
-  assert la_lit_type(1) == :bigint
+  assert anaritikusu::lit_type(1) == :bigint
   assert is_prime(97) == true
   assert get_str(json_parse("{\"a\":\"x\"}"), "a", "d") == "x"
   assert dot([1, 2, 3], [4, 5, 6]) == 32

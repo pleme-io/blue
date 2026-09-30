@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:d9024beebe12daf0d6a00fa262979fa228d63bf5f678a23afa6b8ceb21481265",
+  "bluefile_b3": "b3:e061642b39e3d02d445e1d0afa700d2c008f71403f9db69a6a11609ed2e0565c",
   "manifest": {
     "schema": 1,
     "name": "anaritikusu",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "deeta": "^0.1.0",
       "kueri": "^0.1.0",

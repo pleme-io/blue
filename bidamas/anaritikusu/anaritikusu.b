@@ -31,6 +31,8 @@ use(
 
 use("shuugou", [:lookup, :set_equal, :unique, :unique_by])
 
+legacy_names("0.1.1", "la")
+
 # anaritikusu (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 #
 # Give it raifusaikuru definitions and the nisshi streams they were logged to,
@@ -312,12 +314,12 @@ use("shuugou", [:lookup, :set_equal, :unique, :unique_by])
 # ── names ──────────────────────────────────────────────────────────────────
 
 # A generated relation's name: the lifecycle's name, then `suffix`.
-def la_n(d, suffix)
+def n(d, suffix)
   "#{raifusaikuru::text(raifusaikuru::name(d))}_#{suffix}"
 end
 
 # The record columns an event log writes, as the events view names them.
-def la_record_names()
+def record_names()
   [
     "entity",
     "seq",
@@ -335,7 +337,7 @@ end
 
 # The columns a state row carries besides the fields, and the ones the steps
 # view adds: no field may take one of these names.
-def la_state_names()
+def state_names()
   [
     "entity",
     "seq",
@@ -355,7 +357,7 @@ end
 # ── types, derived from the definition ─────────────────────────────────────
 
 # A constant's column type, or nil for nil. A keyword is written as its text.
-def la_lit_type(v)
+def lit_type(v)
   if v == nil
     nil
   elsif boolean?(v)
@@ -369,19 +371,19 @@ def la_lit_type(v)
   end
 end
 
-def la_numeric?(t)
+def numeric?(t)
   t == :bigint || t == :double
 end
 
 # One type from several, nil for none: numbers widen to DOUBLE, and anything
 # else must agree.
-def la_merge(ts, what)
+def merge(ts, what)
   known = unique(filter(fn(t) t != nil end, ts))
   if is_empty(known)
     nil
   elsif size(known) == 1
     first(known)
-  elsif count_where(fn(t) la_numeric?(t) == false end, known) == 0
+  elsif count_where(fn(t) numeric?(t) == false end, known) == 0
     :double
   else
     throw(
@@ -395,12 +397,12 @@ end
 
 # Every effect of every row: [:set f k], [:put f v], [:add f n], [:add_key f
 # k], [:stamp f].
-def la_effects(d)
+def effects(d)
   flat_map(fn(e) nth(4, e) end, raifusaikuru::d_edges(d))
 end
 
 # Every atomic predicate of every rule of every guard.
-def la_atoms(d)
+def atoms(d)
   flat_map(
     fn(g) flat_map(fn(r) raifusaikuru::atoms(nth(2, r)) end, nth(2, g)) end,
     raifusaikuru::d_guards(d)
@@ -408,25 +410,25 @@ def la_atoms(d)
 end
 
 # The types the definition's constants and clocks give field `f`.
-def la_field_evidence(d, f)
+def field_evidence(d, f)
   effects = map(
-    fn(x) la_effect_type(x) end,
-    filter(fn(x) nth(1, x) == f end, la_effects(d))
+    fn(x) effect_type(x) end,
+    filter(fn(x) nth(1, x) == f end, anaritikusu::effects(d))
   )
   atoms = map(
-    fn(a) la_atom_type(a) end,
-    filter(fn(a) first(a) != :in && nth(1, a) == f end, la_atoms(d))
+    fn(a) atom_type(a) end,
+    filter(fn(a) first(a) != :in && nth(1, a) == f end, anaritikusu::atoms(d))
   )
   cons(
-    la_lit_type(lookup(raifusaikuru::d_fields(d), f)),
+    lit_type(lookup(raifusaikuru::d_fields(d), f)),
     concat_lists(effects, atoms)
   )
 end
 
-def la_effect_type(x)
+def effect_type(x)
   op = first(x)
   if op == :put || op == :add
-    la_lit_type(nth(2, x))
+    lit_type(nth(2, x))
   elsif op == :stamp
     :bigint
   else
@@ -434,10 +436,10 @@ def la_effect_type(x)
   end
 end
 
-def la_atom_type(a)
+def atom_type(a)
   op = first(a)
   if op == :eq
-    la_lit_type(nth(2, a))
+    lit_type(nth(2, a))
   elsif op == :age_lt
     :bigint
   else
@@ -446,47 +448,45 @@ def la_atom_type(a)
 end
 
 # Field `f` holds a number: compared, counted, or given a numeric constant.
-def la_needs_number?(d, f)
+def needs_number?(d, f)
   compared = count_where(
     fn(a) contains([:lt, :le, :gt, :ge], first(a)) && nth(1, a) == f end,
-    la_atoms(d)
+    atoms(d)
   ) >
     0
   counted = count_where(
     fn(x) contains([:add, :add_key], first(x)) && nth(1, x) == f end,
-    la_effects(d)
+    effects(d)
   ) >
     0
   compared ||
     counted ||
-    la_numeric?(
-      la_merge(la_field_evidence(d, f), "field #{raifusaikuru::show(f)}")
-    )
+    numeric?(merge(field_evidence(d, f), "field #{raifusaikuru::show(f)}"))
 end
 
 # The effects that carry payload key `k` (by its text) into a field.
-def la_flows_of_key(d, k)
+def flows_of_key(d, k)
   filter(
     fn(x)
       (first(x) == :set || first(x) == :add_key) &&
         raifusaikuru::text(nth(2, x)) == raifusaikuru::text(k)
     end,
-    la_effects(d)
+    effects(d)
   )
 end
 
 # A logged permit's key types by text: subject is text, the limits are whole
 # numbers.
-def la_permit_key_types(d)
+def permit_key_types(d)
   logged = map(fn(l) nth(1, l) end, raifusaikuru::d_permit_logs(d))
   keys = flat_map(
     fn(e) as_list(nth(1, e)) end,
     filter(fn(e) contains(logged, first(e)) end, raifusaikuru::d_events(d))
   )
-  map(fn(k) [raifusaikuru::text(k), la_permit_key_type(k)] end, keys)
+  map(fn(k) [raifusaikuru::text(k), permit_key_type(k)] end, keys)
 end
 
-def la_permit_key_type(k)
+def permit_key_type(k)
   if raifusaikuru::text(k) == "subject"
     :varchar
   else
@@ -495,20 +495,20 @@ def la_permit_key_type(k)
 end
 
 # A payload key's column type (see "Types, derived").
-def la_key_type(d, k)
-  fixed = lookup(la_permit_key_types(d), raifusaikuru::text(k))
+def key_type(d, k)
+  fixed = lookup(permit_key_types(d), raifusaikuru::text(k))
   if fixed != nil
     fixed
   else
-    flows = la_flows_of_key(d, k)
+    flows = flows_of_key(d, k)
     targets = unique(map(fn(x) nth(1, x) end, flows))
     numeric = count_where(fn(x) first(x) == :add_key end, flows) > 0 ||
-      count_where(fn(f) la_needs_number?(d, f) end, targets) > 0
+      count_where(fn(f) needs_number?(d, f) end, targets) > 0
     if numeric
       :double
     else
-      t = la_merge(
-        flat_map(fn(f) la_field_evidence(d, f) end, targets),
+      t = merge(
+        flat_map(fn(f) field_evidence(d, f) end, targets),
         "payload key #{raifusaikuru::show(k)}"
       )
       if t == nil
@@ -521,21 +521,21 @@ def la_key_type(d, k)
 end
 
 # A field's column type (see "Types, derived").
-def la_field_type(d, f)
+def field_type(d, f)
   keys = map(
-    fn(x) la_key_type(d, nth(2, x)) end,
+    fn(x) key_type(d, nth(2, x)) end,
     filter(
       fn(x) (first(x) == :set || first(x) == :add_key) && nth(1, x) == f end,
-      la_effects(d)
+      effects(d)
     )
   )
-  t = la_merge(
-    concat_lists(la_field_evidence(d, f), keys),
+  t = merge(
+    concat_lists(field_evidence(d, f), keys),
     "field #{raifusaikuru::show(f)} of #{raifusaikuru::show(raifusaikuru::name(d))}"
   )
   if t != nil
     t
-  elsif la_needs_number?(d, f)
+  elsif needs_number?(d, f)
     :double
   else
     :varchar
@@ -544,7 +544,7 @@ end
 
 # Every payload key any event declares, once by its text, first-declared
 # first: the event table's columns after the record's.
-def la_keys(d)
+def keys(d)
   unique_by(
     fn(k) raifusaikuru::text(k) end,
     flat_map(fn(e) as_list(nth(1, e)) end, raifusaikuru::d_events(d))
@@ -552,28 +552,28 @@ def la_keys(d)
 end
 
 # [name, type] for every payload key, the name as text.
-def la_key_types(d)
-  map(fn(k) [raifusaikuru::text(k), la_key_type(d, k)] end, la_keys(d))
+def key_types(d)
+  map(fn(k) [raifusaikuru::text(k), key_type(d, k)] end, keys(d))
 end
 
 # [name, type] for every field, in declaration order, the name as text.
-def la_field_types(d)
+def field_types(d)
   map(
-    fn(f) [raifusaikuru::text(f), la_field_type(d, f)] end,
+    fn(f) [raifusaikuru::text(f), field_type(d, f)] end,
     raifusaikuru::d_field_names(d)
   )
 end
 
 # ── the telemetry schema ───────────────────────────────────────────────────
 
-def la_link_type()
+def link_type()
   kueri::struct_of([kueri::col(:id, :varchar), kueri::col(:kind, :varchar)])
 end
 
 # The event table's columns, as q_col: the record's, then every payload key.
-def la_event_columns(d)
-  la_check_names(d)
-  keys = map(fn(kt) kueri::col(first(kt), nth(1, kt)) end, la_key_types(d))
+def event_columns(d)
+  check_names(d)
+  keys = map(fn(kt) kueri::col(first(kt), nth(1, kt)) end, key_types(d))
   concat_lists(
     concat_lists(
       [
@@ -584,7 +584,7 @@ def la_event_columns(d)
         kueri::col(:status, :varchar),
         kueri::col(:refusal_kind, :varchar),
         kueri::col(:refusal_detail, kueri::list_of(:varchar)),
-        kueri::col(:links, kueri::list_of(la_link_type()))
+        kueri::col(:links, kueri::list_of(link_type()))
       ],
       keys
     ),
@@ -598,9 +598,9 @@ end
 
 # The state table's columns, as q_col: which record, the phase, every field,
 # and what the replay found (a breach, or a refusal of an admitted record).
-def la_state_columns(d)
-  la_check_names(d)
-  fields = map(fn(ft) kueri::col(first(ft), nth(1, ft)) end, la_field_types(d))
+def state_columns(d)
+  check_names(d)
+  fields = map(fn(ft) kueri::col(first(ft), nth(1, ft)) end, field_types(d))
   concat_lists(
     concat_lists(
       [
@@ -619,23 +619,23 @@ def la_state_columns(d)
 end
 
 # [column, type] pairs of a q_col list, types as SQL: what a reader checks.
-def la_columns_text(cols)
+def columns_text(cols)
   map(fn(c) [get(c, :name), kueri::type_sql(get(c, :type), :duckdb)] end, cols)
 end
 
 # Refuse a definition whose keys or fields would take a generated column's
 # name, or share a text with each other.
-def la_check_names(d)
-  keys = map(fn(k) raifusaikuru::text(k) end, la_keys(d))
+def check_names(d)
+  keys = map(fn(k) raifusaikuru::text(k) end, anaritikusu::keys(d))
   fields = map(fn(f) raifusaikuru::text(f) end, raifusaikuru::d_field_names(d))
-  taken_keys = filter(fn(k) contains(la_record_names(), k) end, keys)
-  taken_fields = filter(fn(f) contains(la_state_names(), f) end, fields)
+  taken_keys = filter(fn(k) contains(record_names(), k) end, keys)
+  taken_fields = filter(fn(f) contains(state_names(), f) end, fields)
   dupes = unique(filter(fn(f) count_of(fields, f) > 1 end, fields))
   if is_empty(taken_keys) == false
     throw(
       error(
         :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(la_record_names(), ", ")}); rename the key"
+        "#{raifusaikuru::show(raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(record_names(), ", ")}); rename the key"
       )
     )
   end
@@ -643,7 +643,7 @@ def la_check_names(d)
     throw(
       error(
         :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(la_state_names(), ", ")}); rename the field"
+        "#{raifusaikuru::show(raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(state_names(), ", ")}); rename the field"
       )
     )
   end
@@ -662,11 +662,12 @@ end
 
 # One lifecycle to analyse: its definition, the path of its nisshi stream,
 # and the path its history (the state after every record) is written to.
-def la_binding(d, stream, history)
+def binding(d, stream, history)
   raifusaikuru::name(d)
   {def: d, stream: stream, history: history}
 end
 
+# waive B0013: `def` is a reserved word, so the prefix stays; anaritikusu::def names it too
 def la_def(b)
   get(b, :def)
 end
@@ -675,8 +676,8 @@ end
 
 # The stream as nisshi writes it, every column declared (the payload as a
 # struct of the derived key types; no payload column when no event has keys).
-def la_records_source(d, path)
-  keys = la_key_types(d)
+def records_source(d, path)
+  keys = key_types(d)
   payload = if is_empty(keys)
     []
   else
@@ -701,7 +702,7 @@ def la_records_source(d, path)
         kueri::col(:type, :varchar),
         kueri::col(:status, :varchar),
         kueri::col(:refusal, refusal),
-        kueri::col(:links, kueri::list_of(la_link_type()))
+        kueri::col(:links, kueri::list_of(link_type()))
       ],
       payload
     ),
@@ -712,13 +713,13 @@ def la_records_source(d, path)
     ]
   )
   kueri::source(
-    {name: la_n(d, "records"), file: path, format: :jsonl, columns: cols}
+    {name: n(d, "records"), file: path, format: :jsonl, columns: cols}
   )
 end
 
 # The history la_write_history writes: the state after each record.
-def la_history_source(d, path)
-  fields = la_field_types(d)
+def history_source(d, path)
+  fields = field_types(d)
   struct = if is_empty(fields)
     []
   else
@@ -747,13 +748,13 @@ def la_history_source(d, path)
     ]
   )
   kueri::source(
-    {name: la_n(d, "history"), file: path, format: :jsonl, columns: cols}
+    {name: n(d, "history"), file: path, format: :jsonl, columns: cols}
   )
 end
 
 # ── the definition, as rows ────────────────────────────────────────────────
 
-def la_text_or_nil(x)
+def text_or_nil(x)
   if x == nil
     nil
   else
@@ -763,21 +764,21 @@ end
 
 # Every row: the phase it leaves, the event, the phase it enters, and the
 # capability that gates it (NULL when none).
-def la_edges_rel(d)
+def edges_rel(d)
   rows = map(
     fn(e)
       [
         raifusaikuru::text(nth(1, e)),
         raifusaikuru::text(nth(2, e)),
         raifusaikuru::text(nth(3, e)),
-        la_text_or_nil(nth(5, e))
+        text_or_nil(nth(5, e))
       ]
     end,
     raifusaikuru::d_edges(d)
   )
   kueri::values(
     {
-      name: la_n(d, "edges"),
+      name: n(d, "edges"),
       columns: [
         kueri::col(:phase_before, :varchar),
         kueri::col(:type, :varchar),
@@ -792,14 +793,14 @@ end
 # Every rule of every guard: what it needs, in the engine's own words, and
 # the task it asks for when it refuses (its own, else its guard's; NULL when
 # neither names one).
-def la_rules_rel(d)
+def rules_rel(d)
   rows = flat_map(
-    fn(g) map(fn(r) la_rule_row(g, r) end, nth(2, g)) end,
+    fn(g) map(fn(r) rule_row(g, r) end, nth(2, g)) end,
     raifusaikuru::d_guards(d)
   )
   kueri::values(
     {
-      name: la_n(d, "rules"),
+      name: n(d, "rules"),
       columns: [
         kueri::col(:capability, :varchar),
         kueri::col(:rule, :varchar),
@@ -812,7 +813,7 @@ def la_rules_rel(d)
   )
 end
 
-def la_rule_row(g, r)
+def rule_row(g, r)
   t = raifusaikuru::task_or(r, nth(3, g))
   task = if t == nil
     [nil, nil]
@@ -833,7 +834,7 @@ def la_rule_row(g, r)
 end
 
 # Every task any rule may ask for, one row per evidence kind that closes it.
-def la_task_evidence_rel(d)
+def task_evidence_rel(d)
   tasks = flat_map(
     fn(g)
       filter(
@@ -861,7 +862,7 @@ def la_task_evidence_rel(d)
   )
   kueri::values(
     {
-      name: la_n(d, "task_evidence"),
+      name: n(d, "task_evidence"),
       columns: [kueri::col(:task, :varchar), kueri::col(:evidence, :varchar)],
       rows: rows
     }
@@ -870,21 +871,21 @@ end
 
 # ── the models of one lifecycle ────────────────────────────────────────────
 
-def la_view(d, suffix, from, pipeline)
+def view(d, suffix, from, pipeline)
   kueri::model(
-    {name: la_n(d, suffix), from: from, pipeline: pipeline, materialize: :view}
+    {name: n(d, suffix), from: from, pipeline: pipeline, materialize: :view}
   )
 end
 
-def la_field_names(d)
-  map(fn(ft) first(ft) end, la_field_types(d))
+def field_names(d)
+  map(fn(ft) first(ft) end, field_types(d))
 end
 
 # The event table: one row per record, the payload's keys as columns.
-def la_events_model(d, records)
+def events_model(d, records)
   keys = map(
     fn(kt) kueri::as(first(kt), q_get(:payload, first(kt))) end,
-    la_key_types(d)
+    key_types(d)
   )
   items = concat_lists(
     concat_lists(
@@ -902,23 +903,23 @@ def la_events_model(d, records)
     ),
     [:prev, :hash, :sig]
   )
-  la_view(d, "events", records, [kueri::select(items)])
+  view(d, "events", records, [kueri::select(items)])
 end
 
 # The state table: one row per record, the fields as columns.
-def la_states_model(d, history)
-  fields = map(fn(f) kueri::as(f, q_get(:fields, f)) end, la_field_names(d))
+def states_model(d, history)
+  fields = map(fn(f) kueri::as(f, q_get(:fields, f)) end, field_names(d))
   items = concat_lists(
     concat_lists([:entity, :seq, :phase], fields),
     [:breach, :breach_capability, :replay_refusal]
   )
-  la_view(d, "states", history, [kueri::select(items)])
+  view(d, "states", history, [kueri::select(items)])
 end
 
 # Records and states joined, with the phase each record found its entity in.
-def la_steps_model(d, events, states)
+def steps_model(d, events, states)
   start = raifusaikuru::text(raifusaikuru::phase(raifusaikuru::initial(d)))
-  la_view(
+  view(
     d,
     "steps",
     events,
@@ -937,8 +938,8 @@ end
 
 # Records the history has no state for: 0 when it was written from this
 # stream.
-def la_unreplayed_model(d, events, states)
-  la_view(
+def unreplayed_model(d, events, states)
+  view(
     d,
     "unreplayed",
     events,
@@ -952,12 +953,12 @@ def la_unreplayed_model(d, events, states)
 end
 
 # One row per entity: its phase and fields after its last record.
-def la_current_state_model(d, steps)
+def current_state_model(d, steps)
   items = concat_lists(
-    concat_lists([:entity, :phase], la_field_names(d)),
+    concat_lists([:entity, :phase], field_names(d)),
     [kueri::as(:last_seq, :seq), kueri::as(:last_time, :time)]
   )
-  la_view(
+  view(
     d,
     "current_state",
     steps,
@@ -974,8 +975,8 @@ end
 
 # Each record's phase held from its time until the entity's next record, or
 # until `now` for the last.
-def la_intervals_model(d, steps, now)
-  la_view(
+def intervals_model(d, steps, now)
+  view(
     d,
     "state_intervals",
     steps,
@@ -991,8 +992,8 @@ end
 
 # Seconds per entity in each phase it has been in; ongoing is 1 for the
 # phase it is in now.
-def la_time_in_state_model(d, intervals)
-  la_view(
+def time_in_state_model(d, intervals)
+  view(
     d,
     "time_in_state",
     intervals,
@@ -1009,8 +1010,8 @@ def la_time_in_state_model(d, intervals)
 end
 
 # Refused records by event type and refusal kind.
-def la_refusals_model(d, events)
-  la_view(
+def refusals_model(d, events)
+  view(
     d,
     "refusals",
     events,
@@ -1025,8 +1026,8 @@ def la_refusals_model(d, events)
 end
 
 # The gated rows: which capability an event in a phase uses.
-def la_gates_model(d, edges)
-  la_view(
+def gates_model(d, edges)
+  view(
     d,
     "gates",
     edges,
@@ -1041,8 +1042,8 @@ end
 # refused the event) or breach (the replay applied it while the guard
 # refused, which happens when the definition read is stricter than the one
 # that wrote).
-def la_guard_hits_model(d, steps, gates)
-  la_view(
+def guard_hits_model(d, steps, gates)
+  view(
     d,
     "guard_hits",
     steps,
@@ -1089,8 +1090,8 @@ def la_guard_hits_model(d, steps, gates)
   )
 end
 
-def la_rule_hit_counts_model(d, hits)
-  la_view(
+def rule_hit_counts_model(d, hits)
+  view(
     d,
     "rule_hit_counts",
     hits,
@@ -1116,8 +1117,8 @@ end
 
 # Every declared rule, with how often it refused and was breached (0 when
 # never: a rule that never fired is information too).
-def la_rule_hits_model(d, rules, counts)
-  la_view(
+def rule_hits_model(d, rules, counts)
+  view(
     d,
     "rule_hits",
     rules,
@@ -1137,8 +1138,8 @@ def la_rule_hits_model(d, rules, counts)
   )
 end
 
-def la_rule_tasks_model(d, rules)
-  la_view(
+def rule_tasks_model(d, rules)
+  view(
     d,
     "rule_tasks",
     rules,
@@ -1150,8 +1151,8 @@ def la_rule_tasks_model(d, rules)
 end
 
 # Each record's asks: one row per task a refusal or breach asked for.
-def la_task_asks_model(d, hits, rule_tasks)
-  la_view(
+def task_asks_model(d, hits, rule_tasks)
+  view(
     d,
     "task_asks",
     hits,
@@ -1166,8 +1167,8 @@ def la_task_asks_model(d, hits, rule_tasks)
 end
 
 # Admitted events that are evidence for a task.
-def la_task_evidence_events_model(d, steps, evidence)
-  la_view(
+def task_evidence_events_model(d, steps, evidence)
+  view(
     d,
     "task_evidence_events",
     steps,
@@ -1190,9 +1191,9 @@ def la_task_evidence_events_model(d, steps, evidence)
 end
 
 # Each ask with the first later evidence of its task on its entity.
-def la_task_closes_model(d, asks, evidence_events)
+def task_closes_model(d, asks, evidence_events)
   later = kueri::gt(:evidence_seq, :seq)
-  la_view(
+  view(
     d,
     "task_closes",
     asks,
@@ -1212,8 +1213,8 @@ end
 # One row per task: the asks one evidence closes are one task, opened at the
 # first; still open (no evidence yet) until `now`; overdue when it stayed
 # open longer than its escalate_after.
-def la_tasks_model(d, closes, now)
-  la_view(
+def tasks_model(d, closes, now)
+  view(
     d,
     "tasks",
     closes,
@@ -1256,8 +1257,8 @@ def la_tasks_model(d, closes, now)
   )
 end
 
-def la_task_summary_model(d, tasks)
-  la_view(
+def task_summary_model(d, tasks)
+  view(
     d,
     "task_summary",
     tasks,
@@ -1284,7 +1285,7 @@ def la_task_summary_model(d, tasks)
 end
 
 # The counted fields of a capability's permit, as their log keys.
-def la_count_keys(d, capability)
+def count_keys(d, capability)
   pm = find_first(fn(p) nth(1, p) == capability end, raifusaikuru::d_permits(d))
   map(
     fn(t) raifusaikuru::permit_count_key(nth(1, t)) end,
@@ -1294,11 +1295,11 @@ end
 
 # The permit models of one logged capability: issued, used, and the two
 # joined.
-def la_permit_models(d, log, events, steps, gates)
+def permit_models(d, log, events, steps, gates)
   cap = first(log)
   c = raifusaikuru::text(cap)
-  counts = la_count_keys(d, cap)
-  permits = la_view(
+  counts = count_keys(d, cap)
+  permits = view(
     d,
     "permits_#{c}",
     events,
@@ -1328,7 +1329,7 @@ def la_permit_models(d, log, events, steps, gates)
       )
     ]
   )
-  uses = la_view(
+  uses = view(
     d,
     "uses_#{c}",
     steps,
@@ -1377,7 +1378,7 @@ def la_permit_models(d, log, events, steps, gates)
       map(fn(k) "#{k}_exceeded" end, counts)
     )
   )
-  used = la_view(
+  used = view(
     d,
     "permit_use_#{c}",
     permits,
@@ -1411,7 +1412,7 @@ def la_permit_models(d, log, events, steps, gates)
   )
   concat_lists(
     [permits, uses, used],
-    la_unpermitted_models(d, log, events, steps, gates)
+    unpermitted_models(d, log, events, steps, gates)
   )
 end
 
@@ -1423,9 +1424,9 @@ end
 # a permit revoked by a later reading). permit_use counts a use by its window
 # only; this is where a use outside every window, and a breach inside one, are
 # seen. The first reason that applies, in that order.
-def la_unpermitted_models(d, log, events, steps, gates)
+def unpermitted_models(d, log, events, steps, gates)
   c = raifusaikuru::text(first(log))
-  granted = la_view(
+  granted = view(
     d,
     "granted_#{c}",
     events,
@@ -1448,7 +1449,7 @@ def la_unpermitted_models(d, log, events, steps, gates)
       q_if(kueri::not_null(:breach), "breach", kueri::null())
     )
   )
-  unpermitted = la_view(
+  unpermitted = view(
     d,
     "unpermitted_#{c}",
     steps,
@@ -1488,14 +1489,14 @@ end
 # terminal state it never reached `to` by (it never will); `open` otherwise,
 # and then its elapsed time runs to `now`, like an open task's. over_limit is
 # the elapsed time past the declared limit (NULL with no limit, or abandoned).
-def la_span_models(d, sp, steps, current, now)
+def span_models(d, sp, steps, current, now)
   s = raifusaikuru::text(raifusaikuru::span_name(sp))
   limit = raifusaikuru::span_limit(sp)
   first_row = [
     kueri::derive(:la_first, kueri::row_number([:entity], [:seq])),
     q_filter(kueri::eq(:la_first, 1))
   ]
-  starts = la_view(
+  starts = view(
     d,
     "span_#{s}_from",
     steps,
@@ -1515,7 +1516,7 @@ def la_span_models(d, sp, steps, current, now)
       ]
     )
   )
-  ends = la_view(
+  ends = view(
     d,
     "span_#{s}_to",
     steps,
@@ -1553,7 +1554,7 @@ def la_span_models(d, sp, steps, current, now)
   else
     kueri::gt(:elapsed, limit)
   end
-  span = la_view(
+  span = view(
     d,
     "span_#{s}",
     starts,
@@ -1588,7 +1589,7 @@ def la_span_models(d, sp, steps, current, now)
       )
     ]
   )
-  summary = la_view(
+  summary = view(
     d,
     "span_#{s}_summary",
     span,
@@ -1625,33 +1626,33 @@ def la_span_models(d, sp, steps, current, now)
 end
 
 # Every model of one lifecycle, upstream first.
-def la_lifecycle_models(b, now)
+def lifecycle_models(b, now)
   d = la_def(b)
-  la_check_names(d)
-  records = la_records_source(d, get(b, :stream))
-  history = la_history_source(d, get(b, :history))
-  edges = la_edges_rel(d)
-  rules = la_rules_rel(d)
-  evidence = la_task_evidence_rel(d)
-  events = la_events_model(d, records)
-  states = la_states_model(d, history)
-  steps = la_steps_model(d, events, states)
-  intervals = la_intervals_model(d, steps, now)
-  gates = la_gates_model(d, edges)
-  hits = la_guard_hits_model(d, steps, gates)
-  counts = la_rule_hit_counts_model(d, hits)
-  rule_tasks = la_rule_tasks_model(d, rules)
-  asks = la_task_asks_model(d, hits, rule_tasks)
-  evidence_events = la_task_evidence_events_model(d, steps, evidence)
-  closes = la_task_closes_model(d, asks, evidence_events)
-  tasks = la_tasks_model(d, closes, now)
+  check_names(d)
+  records = records_source(d, get(b, :stream))
+  history = history_source(d, get(b, :history))
+  edges = edges_rel(d)
+  rules = rules_rel(d)
+  evidence = task_evidence_rel(d)
+  events = events_model(d, records)
+  states = states_model(d, history)
+  steps = steps_model(d, events, states)
+  intervals = intervals_model(d, steps, now)
+  gates = gates_model(d, edges)
+  hits = guard_hits_model(d, steps, gates)
+  counts = rule_hit_counts_model(d, hits)
+  rule_tasks = rule_tasks_model(d, rules)
+  asks = task_asks_model(d, hits, rule_tasks)
+  evidence_events = task_evidence_events_model(d, steps, evidence)
+  closes = task_closes_model(d, asks, evidence_events)
+  tasks = tasks_model(d, closes, now)
   permits = flat_map(
-    fn(l) la_permit_models(d, l, events, steps, gates) end,
+    fn(l) permit_models(d, l, events, steps, gates) end,
     raifusaikuru::d_permit_logs(d)
   )
-  current = la_current_state_model(d, steps)
+  current = current_state_model(d, steps)
   spans = flat_map(
-    fn(sp) la_span_models(d, sp, steps, current, now) end,
+    fn(sp) span_models(d, sp, steps, current, now) end,
     raifusaikuru::d_spans(d)
   )
   flatten1(
@@ -1660,21 +1661,21 @@ def la_lifecycle_models(b, now)
         events,
         states,
         steps,
-        la_unreplayed_model(d, events, states),
+        unreplayed_model(d, events, states),
         current,
         intervals,
-        la_time_in_state_model(d, intervals),
-        la_refusals_model(d, events),
+        time_in_state_model(d, intervals),
+        refusals_model(d, events),
         gates,
         hits,
         counts,
-        la_rule_hits_model(d, rules, counts),
+        rule_hits_model(d, rules, counts),
         rule_tasks,
         asks,
         evidence_events,
         closes,
         tasks,
-        la_task_summary_model(d, tasks)
+        task_summary_model(d, tasks)
       ],
       permits,
       spans
@@ -1685,7 +1686,7 @@ end
 # ── links: joins generated from the declarations ───────────────────────────
 
 # The binding whose lifecycle is named `target`, or a refusal naming the link.
-def la_target(bindings, a, role, target)
+def target(bindings, a, role, target)
   hit = find_first(
     fn(b)
       raifusaikuru::text(raifusaikuru::name(la_def(b))) ==
@@ -1705,6 +1706,7 @@ def la_target(bindings, a, role, target)
 end
 
 # A model of this set, by name.
+# waive B0013: `find` is a builtin anaritikusu also uses, so the prefix stays; anaritikusu::find names it too
 def la_find(models, name)
   hit = find_first(fn(m) get(m, :name) == name end, models)
   if hit == nil
@@ -1715,9 +1717,9 @@ end
 
 # A's records carrying a link of kind `role`: one row per link, the linked
 # id in the column named for the role.
-def la_link_rows_model(ad, role, a_events)
+def link_rows_model(ad, role, a_events)
   r = raifusaikuru::text(role)
-  la_view(
+  view(
     ad,
     "#{r}_links",
     a_events,
@@ -1745,13 +1747,10 @@ end
 # time alone, and with two records in one second (a permit and the load it
 # covers) it would take either. Measured 2026-09-25: NuPastel's bench day had
 # 9 orders joined to the state before their own load.
-def la_link_state_model(ad, role, bd, b_steps)
+def link_state_model(ad, role, bd, b_steps)
   r = raifusaikuru::text(role)
-  fields = map(
-    fn(f) kueri::as("#{r}_#{f}", kueri::c(f)) end,
-    la_field_names(bd)
-  )
-  la_view(
+  fields = map(fn(f) kueri::as("#{r}_#{f}", kueri::c(f)) end, field_names(bd))
+  view(
     ad,
     "#{r}_state",
     b_steps,
@@ -1777,18 +1776,18 @@ def la_link_state_model(ad, role, bd, b_steps)
 end
 
 # The columns a one-hop link view returns, after A's own.
-def la_link_state_names(role, bd)
+def link_state_names(role, bd)
   r = raifusaikuru::text(role)
   concat_lists(
     ["#{r}_seq", "#{r}_phase"],
-    map(fn(f) "#{r}_#{f}" end, la_field_names(bd))
+    map(fn(f) "#{r}_#{f}" end, field_names(bd))
   )
 end
 
 # Each link with the linked entity's state as of the record's time.
-def la_link_model(ad, role, bd, rows, state)
+def link_model(ad, role, bd, rows, state)
   r = raifusaikuru::text(role)
-  la_view(
+  view(
     ad,
     r,
     rows,
@@ -1797,16 +1796,16 @@ def la_link_model(ad, role, bd, rows, state)
       kueri::select(
         concat_lists(
           [:entity, :seq, :time, :type, :status, r],
-          la_link_state_names(role, bd)
+          link_state_names(role, bd)
         )
       )
     ]
   )
 end
 
-def la_link_coverage_model(ad, role, link)
+def link_coverage_model(ad, role, link)
   r = raifusaikuru::text(role)
-  la_view(
+  view(
     ad,
     "#{r}_coverage",
     link,
@@ -1827,35 +1826,35 @@ def la_link_coverage_model(ad, role, link)
 end
 
 # The four models of one declared link of A.
-def la_link_models(bindings, models, a, link)
+def link_models(bindings, models, a, link)
   ad = la_def(a)
   role = first(link)
-  b = la_target(bindings, a, role, nth(1, link))
+  b = target(bindings, a, role, nth(1, link))
   bd = la_def(b)
-  rows = la_link_rows_model(ad, role, la_find(models, la_n(ad, "events")))
-  state = la_link_state_model(ad, role, bd, la_find(models, la_n(bd, "steps")))
-  joined = la_link_model(ad, role, bd, rows, state)
-  [rows, state, joined, la_link_coverage_model(ad, role, joined)]
+  rows = link_rows_model(ad, role, la_find(models, n(ad, "events")))
+  state = link_state_model(ad, role, bd, la_find(models, n(bd, "steps")))
+  joined = link_model(ad, role, bd, rows, state)
+  [rows, state, joined, link_coverage_model(ad, role, joined)]
 end
 
 # A chain A –r1→ B –r2→ C: each A link with B's latest r2 link at or before
 # the A record's time, and C's state as of that B record.
-def la_chain_models(bindings, models, a, l1, l2)
+def chain_models(bindings, models, a, l1, l2)
   ad = la_def(a)
-  bd = la_def(la_target(bindings, a, first(l1), nth(1, l1)))
+  bd = la_def(target(bindings, a, first(l1), nth(1, l1)))
   cd = la_def(
-    la_target(
+    target(
       bindings,
-      la_target(bindings, a, first(l1), nth(1, l1)),
+      target(bindings, a, first(l1), nth(1, l1)),
       first(l2),
       nth(1, l2)
     )
   )
   r1 = raifusaikuru::text(first(l1))
   r2 = raifusaikuru::text(first(l2))
-  b_link = la_find(models, la_n(bd, r2))
-  c_cols = concat_lists([r2], la_link_state_names(first(l2), cd))
-  via = la_view(
+  b_link = la_find(models, n(bd, r2))
+  c_cols = concat_lists([r2], link_state_names(first(l2), cd))
+  via = view(
     ad,
     "#{r1}_#{r2}_via",
     b_link,
@@ -1874,10 +1873,10 @@ def la_chain_models(bindings, models, a, l1, l2)
       )
     ]
   )
-  chain = la_view(
+  chain = view(
     ad,
     "#{r1}_#{r2}",
-    la_find(models, la_n(ad, "#{r1}_links")),
+    la_find(models, n(ad, "#{r1}_links")),
     [
       kueri::asof_left_join(via, [r1, :time]),
       kueri::select(
@@ -1907,7 +1906,7 @@ end
 # join per declared link, then a chain per pair of links end to start.
 # Refuses (:anaritikusu_schema) two lifecycles with one name, a link to a
 # lifecycle not given, and any two generated relations with one name.
-def la_models(bindings, now)
+def models(bindings, now)
   bs = as_list(bindings)
   names = map(fn(b) raifusaikuru::text(raifusaikuru::name(la_def(b))) end, bs)
   dup = unique(filter(fn(n) count_of(names, n) > 1 end, names))
@@ -1924,11 +1923,11 @@ def la_models(bindings, now)
       )
     )
   end
-  own = flat_map(fn(b) la_lifecycle_models(b, now) end, bs)
+  own = flat_map(fn(b) lifecycle_models(b, now) end, bs)
   links = flat_map(
     fn(b)
       flat_map(
-        fn(l) la_link_models(bs, own, b, l) end,
+        fn(l) link_models(bs, own, b, l) end,
         raifusaikuru::d_links(la_def(b))
       )
     end,
@@ -1938,29 +1937,29 @@ def la_models(bindings, now)
   chains = flat_map(
     fn(b)
       flat_map(
-        fn(l1) la_chains_from(bs, both, b, l1) end,
+        fn(l1) chains_from(bs, both, b, l1) end,
         raifusaikuru::d_links(la_def(b))
       )
     end,
     bs
   )
   all = concat_lists(both, chains)
-  la_check_unique(all, flat_map(fn(b) la_source_names(la_def(b)) end, bs))
+  check_unique(all, flat_map(fn(b) source_names(la_def(b)) end, bs))
   all
 end
 
 # The relations a lifecycle loads rather than derives.
-def la_source_names(d)
+def source_names(d)
   map(
-    fn(x) la_n(d, x) end,
+    fn(x) n(d, x) end,
     ["records", "history", "edges", "rules", "task_evidence"]
   )
 end
 
-def la_chains_from(bindings, models, a, l1)
-  bd = la_def(la_target(bindings, a, first(l1), nth(1, l1)))
+def chains_from(bindings, models, a, l1)
+  bd = la_def(target(bindings, a, first(l1), nth(1, l1)))
   flat_map(
-    fn(l2) la_chain_models(bindings, models, a, l1, l2) end,
+    fn(l2) chain_models(bindings, models, a, l1, l2) end,
     raifusaikuru::d_links(bd)
   )
 end
@@ -1968,7 +1967,7 @@ end
 # Every generated relation (the models and the loaded sources) by name: two
 # with one name would collapse into one in the database, since kueri
 # identifies a node by its name.
-def la_check_unique(models, sources)
+def check_unique(models, sources)
   names = concat_lists(map(fn(m) get(m, :name) end, models), sources)
   dup = unique(filter(fn(n) count_of(names, n) > 1 end, names))
   if is_empty(dup) == false
@@ -1983,20 +1982,20 @@ def la_check_unique(models, sources)
 end
 
 # The script that builds the database: every load, then every view.
-def la_script(bindings, now)
-  kueri::render_script(la_models(bindings, now), :duckdb, "anaritikusu")
+def script(bindings, now)
+  kueri::render_script(models(bindings, now), :duckdb, "anaritikusu")
 end
 
 # ── the history: the state after every record ──────────────────────────────
 
 # A value as JSON data: a keyword becomes its text, everywhere inside.
-def la_json_value(v)
+def json_value(v)
   if v == nil
     nil
   elsif keyword?(v)
     raifusaikuru::text(v)
   elsif list?(v)
-    map(fn(x) la_json_value(x) end, v)
+    map(fn(x) json_value(x) end, v)
   else
     v
   end
@@ -2005,7 +2004,7 @@ end
 # One history line: the record, the state after it, and what the replay
 # found on it — a breach (the guard refused an event it applied) or a
 # refusal of an admitted record. Canonical JSON, keys in code-point order.
-def la_history_line(r, s)
+def history_line(r, s)
   pos = raifusaikuru::seq(s) - 1
   folded = nisshi::rec_admitted?(r)
   b = last(raifusaikuru::breaches(s))
@@ -2033,7 +2032,7 @@ def la_history_line(r, s)
   fields = if is_empty(raifusaikuru::fields(s))
     ""
   else
-    ",\"fields\":#{nisshi::canon_object(map(fn(kv) [raifusaikuru::text(first(kv)), la_json_value(nth(1, kv))] end, raifusaikuru::fields(s)))}"
+    ",\"fields\":#{nisshi::canon_object(map(fn(kv) [raifusaikuru::text(first(kv)), json_value(nth(1, kv))] end, raifusaikuru::fields(s)))}"
   end
   # The keys are fixed, so they are written in code-point order here rather
   # than sorted per line (the benchmark's hot path; el_canon_object still
@@ -2042,15 +2041,15 @@ def la_history_line(r, s)
 end
 
 # The history of a log value that was read: one line per record. Pure.
-def la_history_text(log)
+def history_text(log)
   nisshi::unlines(
-    map(fn(x) la_history_line(first(x), nth(1, x)) end, nisshi::history(log))
+    map(fn(x) history_line(first(x), nth(1, x)) end, nisshi::history(log))
   )
 end
 
 # Write a log's history to `path`; returns the path.
-def la_write_history(log, path)
-  write_file(path, la_history_text(log))
+def write_history(log, path)
+  write_file(path, history_text(log))
   path
 end
 
@@ -2058,16 +2057,16 @@ end
 
 # A stream to analyse: its definition, its path and its label (the genesis
 # nisshi hashes it under).
-def la_stream(d, path, label)
+def stream(d, path, label)
   raifusaikuru::name(d)
   {def: d, path: path, label: label}
 end
 
 # The bindings la_build uses: each stream's history under `dir`.
-def la_bindings(dir, streams)
+def bindings(dir, streams)
   map(
     fn(s)
-      la_binding(
+      binding(
         get(s, :def),
         get(s, :path),
         path_join(
@@ -2084,10 +2083,10 @@ end
 # chain throws :anaritikusu_broken), write each history, write the script
 # (lifecycles.sql, for a reader or a nix build), and run it into a fresh
 # lifecycles.duckdb. Returns the database's path.
-def la_build(dir, streams, now)
-  bindings = la_bindings(dir, streams)
-  script = la_script(bindings, now)
-  map(fn(s) la_build_history(dir, s) end, as_list(streams))
+def build(dir, streams, now)
+  bindings = anaritikusu::bindings(dir, streams)
+  script = anaritikusu::script(bindings, now)
+  map(fn(s) build_history(dir, s) end, as_list(streams))
   write_file(path_join(dir, "lifecycles.sql"), script)
   db = path_join(dir, "lifecycles.duckdb")
   if path_exists(db)
@@ -2097,7 +2096,7 @@ def la_build(dir, streams, now)
   db
 end
 
-def la_build_history(dir, s)
+def build_history(dir, s)
   d = get(s, :def)
   log = nisshi::read(get(s, :path), get(s, :label), d)
   rep = nisshi::verify(log, nil, nil)
@@ -2109,7 +2108,7 @@ def la_build_history(dir, s)
       )
     )
   end
-  la_write_history(
+  write_history(
     log,
     path_join(dir, "#{raifusaikuru::text(raifusaikuru::name(d))}.history.jsonl")
   )
@@ -2119,7 +2118,7 @@ end
 # order, sorted by every column; a failed query throws (:kueri_query). A
 # generated view is read from the database; any other model over them (a
 # question of its own) runs its query there.
-def la_read(db, model)
+def read(db, model)
   cols = kueri::output(model)
   query = if get(model, :materialize) == :view
     kueri::model({name: "la_read", from: model, pipeline: [kueri::sort(cols)]})
@@ -2135,7 +2134,7 @@ end
 # ── worked examples: three lifecycles and a day ────────────────────────────
 
 # raifusaikuru's example consumable, with its permits logged as `permit`.
-def la_example_consumable()
+def example_consumable()
   lc_define(
     :consumable,
     push(
@@ -2147,9 +2146,9 @@ end
 
 # The same consumable read by a stricter definition: fewer than 3 uses. Built
 # from the example's clauses with the one rule replaced, as data.
-def la_example_consumable_strict()
+def example_consumable_strict()
   clauses = map(
-    fn(c) la_example_tighten(c) end,
+    fn(c) example_tighten(c) end,
     push(
       raifusaikuru::example_consumable_clauses(),
       raifusaikuru::permit_log(:use, :permit)
@@ -2158,12 +2157,12 @@ def la_example_consumable_strict()
   lc_define(:consumable, clauses)
 end
 
-def la_example_tighten(c)
+def example_tighten(c)
   if list?(c) && is_empty(c) == false && first(c) == :lc_guard
     [
       :lc_guard,
       nth(1, c),
-      map(fn(r) la_example_tighten_rule(r) end, nth(2, c)),
+      map(fn(r) example_tighten_rule(r) end, nth(2, c)),
       nth(3, c)
     ]
   else
@@ -2171,7 +2170,7 @@ def la_example_tighten(c)
   end
 end
 
-def la_example_tighten_rule(r)
+def example_tighten_rule(r)
   if nth(1, r) == :uses_left
     raifusaikuru::rule(:uses_left, raifusaikuru::below(:uses, 3))
   else
@@ -2180,7 +2179,7 @@ def la_example_tighten_rule(r)
 end
 
 # A portion made with a consumable: its make event links the item.
-def la_example_portion()
+def example_portion()
   lc_define(
     :portion,
     [
@@ -2212,7 +2211,7 @@ def la_example_portion()
 end
 
 # An order of portions: each add_portion links one.
-def la_example_order()
+def example_order()
   lc_define(
     :order,
     [
@@ -2257,7 +2256,7 @@ end
 # A simulated day, in time order: [lifecycle, entity, event, links]. An event
 # [:la_permit, time, subject] is a permit the engine issues at that moment
 # (lc_permit_for on the entity's state) and logs (lc_permit_event).
-def la_example_day()
+def example_day()
   [
     [
       :consumable,
@@ -2363,11 +2362,11 @@ end
 
 # The day's three streams under `dir`: [la_stream …], after appending every
 # event to its lifecycle's stream through nisshi.
-def la_example_streams(dir)
-  defs = [la_example_consumable(), la_example_portion(), la_example_order()]
+def example_streams(dir)
+  defs = [example_consumable(), example_portion(), example_order()]
   streams = map(
     fn(d)
-      la_stream(
+      stream(
         d,
         path_join(dir, "#{raifusaikuru::text(raifusaikuru::name(d))}.jsonl"),
         "anaritikusu-example/#{raifusaikuru::text(raifusaikuru::name(d))}"
@@ -2386,18 +2385,18 @@ def la_example_streams(dir)
     {},
     streams
   )
-  reduce(fn(m, x) la_example_append(m, x) end, logs, la_example_day())
+  reduce(fn(m, x) example_append(m, x) end, logs, example_day())
   streams
 end
 
-def la_example_append(logs, x)
+def example_append(logs, x)
   kind = raifusaikuru::text(first(x))
   log = get(logs, kind)
-  ev = la_example_event(log, nth(1, x), nth(2, x))
+  ev = example_event(log, nth(1, x), nth(2, x))
   assoc(logs, kind, el_append(log, nth(1, x), ev, nth(3, x)))
 end
 
-def la_example_event(log, entity, ev)
+def example_event(log, entity, ev)
   if first(ev) == :la_permit
     d = el_def(log)
     raifusaikuru::permit_event(
@@ -2411,7 +2410,7 @@ def la_example_event(log, entity, ev)
 end
 
 # A fresh directory under TMPDIR for a test.
-def la_test_dir(name)
+def test_dir(name)
   dir = path_join(
     getenv("TMPDIR", "/tmp"),
     "anaritikusu-#{name}-#{to_s(now_ns())}"
@@ -2422,7 +2421,7 @@ end
 
 # A value as the tests compare it: numbers as floats (DuckDB answers 12.0
 # where the fold holds 12).
-def la_norm(v)
+def norm(v)
   if number?(v)
     to_float(v)
   else
@@ -2430,19 +2429,19 @@ def la_norm(v)
   end
 end
 
-def la_norm_rows(rows)
-  map(fn(r) map(fn(v) la_norm(v) end, r) end, rows)
+def norm_rows(rows)
+  map(fn(r) map(fn(v) norm(v) end, r) end, rows)
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "the telemetry schema is derived from the definition: the record's columns, then the typed keys and fields"
-  d = la_example_consumable()
+  d = example_consumable()
   # By hand: value flows into quality, which lc_below compares, so both are
   # DOUBLE; uses counts from 0 by 1 (BIGINT); opened_at and read_at are
   # stamped (BIGINT); the permit log's keys are subject text and whole-number
   # limits.
-  assert la_columns_text(la_event_columns(d)) ==
+  assert columns_text(event_columns(d)) ==
     [
       ["entity", "VARCHAR"],
       ["seq", "BIGINT"],
@@ -2461,7 +2460,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
       ["hash", "VARCHAR"],
       ["sig", "VARCHAR"]
     ]
-  assert la_columns_text(la_state_columns(d)) ==
+  assert columns_text(state_columns(d)) ==
     [
       ["entity", "VARCHAR"],
       ["seq", "BIGINT"],
@@ -2476,7 +2475,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
     ]
   # grams is set from a key into a field that starts at 0: numbers, widened
   # to DOUBLE because the key comes from outside.
-  assert la_field_types(la_example_portion()) ==
+  assert field_types(example_portion()) ==
     [["grams", :double], ["made_at", :bigint], ["served_at", :bigint]]
   # The empty case: a lifecycle with no fields and no payload keys has the
   # record's columns and nothing else.
@@ -2490,8 +2489,8 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [])
     ]
   )
-  assert size(la_event_columns(bare)) == 11
-  assert map(fn(c) get(c, :name) end, la_state_columns(bare)) ==
+  assert size(event_columns(bare)) == 11
+  assert map(fn(c) get(c, :name) end, state_columns(bare)) ==
     ["entity", "seq", "phase", "breach", "breach_capability", "replay_refusal"]
   # Unconstrained is text, never a guess.
   noted = lc_define(
@@ -2505,7 +2504,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [raifusaikuru::set(:note, :note)])
     ]
   )
-  assert la_key_types(noted) == [["note", :varchar]]
+  assert key_types(noted) == [["note", :varchar]]
   # Controls: a key named like a record column, a field named like a state
   # column, and a field whose constants disagree are refused.
   clash = lc_define(
@@ -2518,7 +2517,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [])
     ]
   )
-  assert error?(try(la_event_columns(clash), catch(e(), e)))
+  assert error?(try(event_columns(clash), catch(e(), e)))
   phased = lc_define(
     :phased,
     [
@@ -2530,7 +2529,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [])
     ]
   )
-  assert error?(try(la_state_columns(phased), catch(e(), e)))
+  assert error?(try(state_columns(phased), catch(e(), e)))
   mixed = lc_define(
     :mixed,
     [
@@ -2542,15 +2541,15 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [raifusaikuru::put(:x, "high")])
     ]
   )
-  assert error?(try(la_field_types(mixed), catch(e(), e)))
+  assert error?(try(field_types(mixed), catch(e(), e)))
 end
 
 test "the history is the fold's state after every record, and names what the replay found"
-  d = la_example_consumable()
-  dir = la_test_dir("history")
+  d = example_consumable()
+  dir = test_dir("history")
   p = path_join(dir, "c.jsonl")
   # The empty case: no stream, no history.
-  assert la_history_text(nisshi::read(p, "t", d)) == ""
+  assert history_text(nisshi::read(p, "t", d)) == ""
   nisshi::append_all(
     nisshi::read(p, "t", d),
     [
@@ -2561,7 +2560,7 @@ test "the history is the fold's state after every record, and names what the rep
     ]
   )
   log = nisshi::read(p, "t", d)
-  lines = nisshi::lines(la_history_text(log))
+  lines = nisshi::lines(history_text(log))
   # By hand: open, a reading of 26, then two uses the guard refuses
   # (quality_ok), written refused: the state after each use is the state
   # before it, and nothing is a breach.
@@ -2585,9 +2584,7 @@ test "the history is the fold's state after every record, and names what the rep
       raifusaikuru::on(:sealed, :reading, :gone, [])
     ]
   )
-  first_line = first(
-    nisshi::lines(la_history_text(nisshi::read(p, "t", closed)))
-  )
+  first_line = first(nisshi::lines(history_text(nisshi::read(p, "t", closed))))
   assert contains?(first_line, "\"replay_refusal\":\"no_edge\"")
   assert contains?(first_line, "\"phase\":\"sealed\"")
   # The control: the tightened guard turns an applied event into a breach
@@ -2606,7 +2603,7 @@ test "the history is the fold's state after every record, and names what the rep
     ]
   )
   strict = nisshi::lines(
-    la_history_text(nisshi::read(q, "t", la_example_consumable_strict()))
+    history_text(nisshi::read(q, "t", example_consumable_strict()))
   )
   assert map(
     fn(l)
@@ -2619,12 +2616,12 @@ test "the history is the fold's state after every record, and names what the rep
 end
 
 test "the database for a simulated day: every view's numbers, checked by hand, and the fold as the differential"
-  dir = la_test_dir("day")
-  streams = la_example_streams(dir)
+  dir = test_dir("day")
+  streams = example_streams(dir)
   now = 86400
-  db = la_build(dir, streams, now)
-  ms = la_models(la_bindings(dir, streams), now)
-  view = fn(name) la_norm_rows(la_read(db, la_find(ms, name))) end
+  db = build(dir, streams, now)
+  ms = models(bindings(dir, streams), now)
+  view = fn(name) norm_rows(read(db, la_find(ms, name))) end
   # The day, per stream (seq in brackets; time in seconds, 08:00 is 28800,
   # `now` is the end of the day, 86400). consumable, raifusaikuru's example
   # (a use needs: open; a reading under 4 h old and below 24; fewer than 40
@@ -2662,7 +2659,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # two admitted uses; the refused open changed nothing (opened_at 29500).
   # item-3 was discarded sealed; its refused polish is its last record.
   assert view("consumable_current_state") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["item-1", "spent", 4, 29000, 12, 31000, 10, 32000],
         ["item-2", "open", 2, 29500, 10, 28900, 6, 44000],
@@ -2670,7 +2667,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     )
   assert view("portion_current_state") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["p-1", "served", 120, 29250, 29400, 1, 29400],
         ["p-2", "wasted", 110, 30050, nil, 1, 30500],
@@ -2679,7 +2676,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     )
   assert view("order_current_state") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["o-1", "delivered", 2, 29100, 31500, 4, 31500],
         ["o-2", "cancelled", 1, 30000, nil, 2, 30600],
@@ -2687,13 +2684,13 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     )
   # The differential: the same phases and fields as nisshi's own replay.
-  map(fn(s) la_example_differential(db, ms, s) end, streams)
+  map(fn(s) example_differential(db, ms, s) end, streams)
   # Time in each state, to 86400. item-1: sealed 28800-29000 = 200, open
   # 29000-32000 = 3000, spent 32000-86400 = 54400 (now). item-2: sealed
   # 28900-29500 = 600, open 29500-86400 = 56900 (now). item-3: discarded
   # 30000-86400 = 56400 (now).
   assert view("consumable_time_in_state") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["item-1", "open", 3000, 0],
         ["item-1", "sealed", 200, 0],
@@ -2707,7 +2704,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # 31500-86400 = 54900. o-2: placed 600, cancelled 55800. o-3: placed
   # 33100-86400 = 53300 (its refused deliver left it placed).
   assert view("order_time_in_state") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["o-1", "delivered", 54900, 1],
         ["o-1", "placed", 2100, 0],
@@ -2719,7 +2716,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
     )
   # Refusals by type and kind.
   assert view("consumable_refusals") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["open", "no_edge", 1],
         ["polish", "unknown_event", 1],
@@ -2727,11 +2724,11 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     )
   assert view("portion_refusals") == []
-  assert view("order_refusals") == la_norm_rows([["deliver", "no_edge", 1]])
+  assert view("order_refusals") == norm_rows([["deliver", "no_edge", 1]])
   # Every declared rule: quality_ok refused item-1's use at 30100,
   # reading_fresh item-2's at 44000; no breaches (nisshi refuses at append).
   assert view("consumable_rule_hits") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["use", "is_open", "phase in [:open]", 0, 0],
         ["use", "not_too_old", "opened_at less than 259200 old", 0, 0],
@@ -2746,7 +2743,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # (evidence reading, 1200 s) at 44000, and no reading follows: open
   # 86400 - 44000 = 42400 s, overdue.
   assert view("consumable_tasks") ==
-    la_norm_rows(
+    norm_rows(
       [
         [
           "item-1",
@@ -2777,7 +2774,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     )
   assert view("consumable_task_summary") ==
-    la_norm_rows([["replace", 1, 0, 1, 0], ["take_reading", 1, 1, 0, 1]])
+    norm_rows([["replace", 1, 0, 1, 0], ["take_reading", 1, 1, 0, 1]])
   # Permits. item-1's at 29100: not_after = min(28800 + 14400, 29000 +
   # 259200, 29100 + 7200) = 36300, 40 uses left, basis 2 (two events folded);
   # used by the four admitted uses after it, all before 36300, the last at
@@ -2785,7 +2782,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # one use at 29600 inside it, and the use at 40000 after not_after, an
   # overrun (the guard still held, the permit had lapsed).
   assert view("consumable_permit_use_use") ==
-    la_norm_rows(
+    norm_rows(
       [
         [
           "item-1",
@@ -2810,7 +2807,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # out of spec. p-3 at 29650: item-2 after [3]. p-4 names item-9, which has
   # no records: the row stays, unresolved.
   assert view("portion_item") ==
-    la_norm_rows(
+    norm_rows(
       [
         [
           "p-1",
@@ -2873,7 +2870,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   assert view("portion_item_coverage") == [[4.0, 1.0]]
   # Each order's portion as it was when it was added.
   assert view("order_portion") ==
-    la_norm_rows(
+    norm_rows(
       [
         [
           "o-1",
@@ -2934,7 +2931,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # consumable that portion was made with, and that consumable's state at the
   # make. o-2's portion p-2 was made with item-1 while its quality read 26.
   assert view("order_portion_item") ==
-    la_norm_rows(
+    norm_rows(
       [
         [
           "o-1",
@@ -3021,8 +3018,8 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     }
   )
-  assert la_norm_rows(la_read(db, readings)) ==
-    la_norm_rows(
+  assert norm_rows(read(db, readings)) ==
+    norm_rows(
       [
         ["item-1", 0, 10],
         ["item-1", 6, 26],
@@ -3038,7 +3035,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   # ready_to_door (ready -> delivered, no limit): only o-1 was ready, at 31200
   # [3], delivered 300 s later.
   assert view("order_span_lead") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["o-1", "done", 0, 29100, 4, 31500, 2400, 2400, 2000, true],
         ["o-2", "abandoned", 0, 30000, nil, nil, nil, nil, 2000, nil],
@@ -3046,22 +3043,22 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       ]
     )
   assert view("order_span_lead_summary") ==
-    la_norm_rows([[3, 1, 1, 1, 2, 2400, 2400, 2400, 2000]])
+    norm_rows([[3, 1, 1, 1, 2, 2400, 2400, 2400, 2000]])
   assert view("order_span_ready_to_door") ==
-    la_norm_rows([["o-1", "done", 3, 31200, 4, 31500, 300, 300, nil, nil]])
+    norm_rows([["o-1", "done", 3, 31200, 4, 31500, 300, 300, nil, nil]])
   assert view("order_span_ready_to_door_summary") ==
-    la_norm_rows([[1, 1, 0, 0, 0, 300, 300, 300, nil]])
+    norm_rows([[1, 1, 0, 0, 0, 300, 300, 300, nil]])
   # Uses no permit covered: item-2's use at 40000 [5] came after its permit's
   # not_after (36750): lapsed. Every other admitted use sat inside a window.
   assert view("consumable_unpermitted_use") ==
-    la_norm_rows([["item-2", 5, 40000, 2, 36750, nil, "lapsed"]])
+    norm_rows([["item-2", 5, 40000, 2, 36750, nil, "lapsed"]])
   rm_rf(dir)
 end
 
 test "observed breaches and uses no permit covered: each found, with the reason, and asking for its task"
-  dir = la_test_dir("observed")
-  d = la_example_consumable()
-  s = la_stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-observed")
+  dir = test_dir("observed")
+  d = example_consumable()
+  s = stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-observed")
   log0 = nisshi::read(get(s, :path), get(s, :label), d)
   # item-a, seq in brackets: [0] reading 10 at 1000, [1] open 1100, [2] a use
   # OBSERVED at 1200 before any permit (the guard holds, so no breach),
@@ -3097,9 +3094,9 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   l6 = el_append(l5, "item-a", raifusaikuru::ev(:use, 9000, []), [])
   nisshi::observe(l6, "item-a", raifusaikuru::ev(:use, 9100, []), [])
   now = 20000
-  db = la_build(dir, [s], now)
-  ms = la_models(la_bindings(dir, [s]), now)
-  view = fn(name) la_norm_rows(la_read(db, la_find(ms, name))) end
+  db = build(dir, [s], now)
+  ms = models(bindings(dir, [s]), now)
+  view = fn(name) norm_rows(read(db, la_find(ms, name))) end
   # By hand. The permit at 1300: not_after = min(1000 + 14400, 1100 + 259200,
   # 1300 + 7200) = 8500, 39 uses left (one use folded), basis 3. The use at
   # 1200 had no permit before it; the one at 1600 broke the guard inside the
@@ -3107,7 +3104,7 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # lapsed is reported first). The use at 1400 was covered. (The breach column
   # is a VARCHAR[], and it reads back as a list.)
   assert view("consumable_unpermitted_use") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["item-a", 2, 1200, nil, nil, nil, "no_permit"],
         ["item-a", 6, 1600, 3, 8500, ["quality_ok"], "breach"],
@@ -3117,7 +3114,7 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # The permit's window counts the uses at 1400 and 1600 (by window alone) and
   # the overrun at 9100.
   assert view("consumable_permit_use_use") ==
-    la_norm_rows(
+    norm_rows(
       [["item-a", 3, "dev", 1300, 8500, 7200, 3, 39, 2, 1, 1600, false]]
     )
   # quality_ok refused one attempt and was breached twice; the three asks are
@@ -3127,19 +3124,19 @@ test "observed breaches and uses no permit covered: each found, with the reason,
     fn(r) nth(1, r) == "quality_ok" end,
     view("consumable_rule_hits")
   ) ==
-    la_norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
+    norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
   assert view("consumable_tasks") ==
-    la_norm_rows(
+    norm_rows(
       [["item-a", "replace", "open", 6, 1600, nil, nil, 3, 18400, 1200, true]]
     )
   # The breaches were applied: four uses folded (1200, 1400, 1600, 9100).
   assert view("consumable_current_state") ==
-    la_norm_rows([["item-a", "open", 4, 1100, 26, 1500, 8, 9100]])
+    norm_rows([["item-a", "open", 4, 1100, 26, 1500, 8, 9100]])
   # The control: with the observed uses appended as attempts instead, the
   # guard refuses them, nothing is breached, and only the use before any
   # permit is left uncovered.
-  dir2 = la_test_dir("attempted")
-  s2 = la_stream(d, path_join(dir2, "consumable.jsonl"), "anaritikusu-observed")
+  dir2 = test_dir("attempted")
+  s2 = stream(d, path_join(dir2, "consumable.jsonl"), "anaritikusu-observed")
   m1 = nisshi::append_all(
     nisshi::read(get(s2, :path), get(s2, :label), d),
     [
@@ -3168,28 +3165,26 @@ test "observed breaches and uses no permit covered: each found, with the reason,
       ["item-a", raifusaikuru::ev(:use, 9100, []), []]
     ]
   )
-  db2 = la_build(dir2, [s2], now)
-  ms2 = la_models(la_bindings(dir2, [s2]), now)
-  assert la_norm_rows(
-    la_read(db2, la_find(ms2, "consumable_unpermitted_use"))
-  ) ==
-    la_norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"]])
+  db2 = build(dir2, [s2], now)
+  ms2 = models(bindings(dir2, [s2]), now)
+  assert norm_rows(read(db2, la_find(ms2, "consumable_unpermitted_use"))) ==
+    norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"]])
   assert filter(
     fn(r) nth(1, r) == "quality_ok" end,
-    la_norm_rows(la_read(db2, la_find(ms2, "consumable_rule_hits")))
+    norm_rows(read(db2, la_find(ms2, "consumable_rule_hits")))
   ) ==
-    la_norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
+    norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
   rm_rf(dir)
   rm_rf(dir2)
 end
 
 # nisshi's replay and the database agree on every entity's phase and fields.
-def la_example_differential(db, ms, s)
+def example_differential(db, ms, s)
   d = get(s, :def)
   nf = size(raifusaikuru::d_field_names(d))
   fold = map(
     fn(es)
-      la_norm_rows(
+      norm_rows(
         [
           cons(
             first(es),
@@ -3205,7 +3200,7 @@ def la_example_differential(db, ms, s)
   )
   sql = map(
     fn(r) take_n(r, 2 + nf) end,
-    la_norm_rows(la_read(db, la_find(ms, la_n(d, "current_state"))))
+    norm_rows(read(db, la_find(ms, n(d, "current_state"))))
   )
   if set_equal(map(fn(x) first(x) end, fold), sql) == false
     throw(
@@ -3219,18 +3214,18 @@ def la_example_differential(db, ms, s)
 end
 
 test "a stricter reader: an applied event becomes a breach, and asks for its task"
-  dir = la_test_dir("strict")
-  streams = la_example_streams(dir)
-  strict = map(fn(s) la_example_restrict(s) end, streams)
-  db = la_build(dir, strict, 86400)
-  ms = la_models(la_bindings(dir, strict), 86400)
-  view = fn(name) la_norm_rows(la_read(db, la_find(ms, name))) end
+  dir = test_dir("strict")
+  streams = example_streams(dir)
+  strict = map(fn(s) example_restrict(s) end, streams)
+  db = build(dir, strict, 86400)
+  ms = models(bindings(dir, strict), 86400)
+  view = fn(name) norm_rows(read(db, la_find(ms, name))) end
   # Read with fewer than 3 uses allowed, item-1's use at 31100 [9] (its 4th)
   # was applied while uses_left refused: one breach. Its task is the guard's
   # `replace`, and nothing after [9] is evidence: open 86400 - 31100 = 55300,
   # overdue. The use at 30100 still reads as refused by the log.
   assert view("consumable_rule_hits") ==
-    la_norm_rows(
+    norm_rows(
       [
         ["use", "is_open", "phase in [:open]", 0, 0],
         ["use", "not_too_old", "opened_at less than 259200 old", 0, 0],
@@ -3240,41 +3235,41 @@ test "a stricter reader: an applied event becomes a breach, and asks for its tas
       ]
     )
   assert view("consumable_task_summary") ==
-    la_norm_rows([["replace", 2, 1, 1, 1], ["take_reading", 1, 1, 0, 1]])
+    norm_rows([["replace", 2, 1, 1, 1], ["take_reading", 1, 1, 0, 1]])
   # A breach is applied: item-1 still ends with four uses.
   assert first(view("consumable_current_state")) ==
-    first(la_norm_rows([["item-1", "spent", 4, 29000, 12, 31000, 10, 32000]]))
+    first(norm_rows([["item-1", "spent", 4, 29000, 12, 31000, 10, 32000]]))
   rm_rf(dir)
 end
 
-def la_example_restrict(s)
+def example_restrict(s)
   if raifusaikuru::text(raifusaikuru::name(get(s, :def))) == "consumable"
-    la_stream(la_example_consumable_strict(), get(s, :path), get(s, :label))
+    stream(example_consumable_strict(), get(s, :path), get(s, :label))
   else
     s
   end
 end
 
 test "the set is refused where it cannot be generated, and a broken stream is refused where it is built"
-  dir = la_test_dir("refused")
-  portion = la_binding(
-    la_example_portion(),
+  dir = test_dir("refused")
+  portion = binding(
+    example_portion(),
     path_join(dir, "p.jsonl"),
     path_join(dir, "p.h")
   )
-  consumable = la_binding(
-    la_example_consumable(),
+  consumable = binding(
+    example_consumable(),
     path_join(dir, "c.jsonl"),
     path_join(dir, "c.h")
   )
   # The empty case: no lifecycles, no models.
-  assert is_empty(la_models([], 0))
+  assert is_empty(models([], 0))
   # A link to a lifecycle not given; the same set with it holds.
-  assert error?(try(la_models([portion], 0), catch(e(), e)))
-  assert size(la_models([portion, consumable], 0)) > 0
+  assert error?(try(models([portion], 0), catch(e(), e)))
+  assert size(models([portion, consumable], 0)) > 0
   # Two lifecycles with one name; a role whose generated name collides with a
   # standard view (a role named `events`); `now` that is not a time.
-  assert error?(try(la_models([consumable, consumable], 0), catch(e(), e)))
+  assert error?(try(models([consumable, consumable], 0), catch(e(), e)))
   evented = lc_define(
     :portion,
     [
@@ -3287,26 +3282,23 @@ test "the set is refused where it cannot be generated, and a broken stream is re
     ]
   )
   assert error?(
-    try(
-      la_models([la_binding(evented, "x", "y"), consumable], 0),
-      catch(e(), e)
-    )
+    try(models([binding(evented, "x", "y"), consumable], 0), catch(e(), e))
   )
-  assert error?(try(la_models([consumable], 1.5), catch(e(), e)))
+  assert error?(try(models([consumable], 1.5), catch(e(), e)))
   # A stream with a changed line is not built on.
-  streams = la_example_streams(dir)
+  streams = example_streams(dir)
   path = get(first(streams), :path)
   write_file(path, replace(read_file(path), "\"time\":29300", "\"time\":29301"))
-  assert error?(try(la_build(dir, streams, 86400), catch(e(), e)))
+  assert error?(try(build(dir, streams, 86400), catch(e(), e)))
   rm_rf(dir)
 end
 
 test "as of, with two records of the linked entity in one second: the state after the later one"
-  dir = la_test_dir("tie")
-  d = la_example_consumable()
-  p = la_example_portion()
-  sc = la_stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-tie")
-  sp = la_stream(p, path_join(dir, "portion.jsonl"), "anaritikusu-tie")
+  dir = test_dir("tie")
+  d = example_consumable()
+  p = example_portion()
+  sc = stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-tie")
+  sp = stream(p, path_join(dir, "portion.jsonl"), "anaritikusu-tie")
   # item-t: [0] reading 10 at 1000, [1] open 1100, [2] and [3] two uses at
   # 1200. p-t is made at 1200 and p-u at 1300, each linking item-t. By hand:
   # both see item-t after [3], two uses, whichever order the database keeps
@@ -3335,12 +3327,12 @@ test "as of, with two records of the linked entity in one second: the state afte
       ]
     ]
   )
-  db = la_build(dir, [sc, sp], 5000)
-  ms = la_models(la_bindings(dir, [sc, sp]), 5000)
+  db = build(dir, [sc, sp], 5000)
+  ms = models(bindings(dir, [sc, sp]), 5000)
   assert map(
     fn(r) [first(r), nth(6, r), nth(8, r)] end,
-    la_norm_rows(la_read(db, la_find(ms, "portion_item")))
+    norm_rows(read(db, la_find(ms, "portion_item")))
   ) ==
-    la_norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
+    norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
   rm_rf(dir)
 end

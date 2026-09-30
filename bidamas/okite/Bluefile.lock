@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:1ab69ba0e7671ee2eb9613bad4a13e7f61facb7e73ea99b1580d95fb65513eb8",
+  "bluefile_b3": "b3:c86c5a1697d722786240df6c4582ebc512d53a7b3beeae15843c650e505a9593",
   "manifest": {
     "schema": 1,
     "name": "okite",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "junjo": "^0.1.0",
       "moji": "^0.1.0",

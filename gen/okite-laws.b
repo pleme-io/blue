@@ -1,4 +1,4 @@
-use("okite", [:ok_decisions, :ok_failures])
+use("okite")
 use("retsu", [:size])
 
 # The second enforcer of blue's decisions, independent of okite's own test
@@ -7,6 +7,6 @@ use("retsu", [:size])
 # okite's enforcement assertion into `assert true` survived.
 
 test "every blue decision has a law, and every law holds"
-  assert ok_failures() == []
-  assert size(ok_decisions()) >= 12
+  assert okite::failures() == []
+  assert size(okite::decisions()) >= 12
 end

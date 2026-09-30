@@ -4,8 +4,9 @@ No `pending-shikumi:` — M2 closed 2026-09-29. `BlueConfig`
 (`crates/blue-lang-cli/src/config.rs`) implements `shikumi::TieredConfig` with
 four bounds, each with a shipped overridable default: `solver_max_steps`,
 `max_expr_depth`, and the execution budget as `max_call_depth` and
-`max_steps` (tatara-lisp-eval's `DEFAULT_MAX_DEPTH` / `DEFAULT_FUEL`, applied to
-every interpreter through `blue_lang_runtime::set_execution_bounds`).
+`max_steps` (depth defaults to tatara-lisp-eval's `DEFAULT_MAX_DEPTH`, steps to
+unbounded, since a default step bound would end runs that work today; applied
+to every interpreter through `blue_lang_runtime::set_execution_bounds`).
 `flake.nix` carries the module trio that deploys them, and `blue config <tier>`
 is the operator surface.
 

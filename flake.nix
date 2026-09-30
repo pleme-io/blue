@@ -85,9 +85,10 @@
       };
       maxSteps = {
         yaml = "max_steps";
-        # tatara-lisp-eval's `vm::DEFAULT_FUEL`, the VM's own runaway guard,
-        # so both executors refuse the same runaway alike.
-        default = 50000000;
+        # Unbounded: a run longer than any finite count worked before this
+        # bound existed (simulations, tools on nodes), and a default must not
+        # take that away. A host running untrusted code sets one.
+        default = null;
         type = types.nullOr types.ints.positive;
         description = ''
           Evaluation steps a run may take, or null for unbounded. Past it the

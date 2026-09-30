@@ -82,6 +82,8 @@ row(
   isolate()
 )
 
+# Under a declared step budget: blue's default is unbounded (long runs are
+# behaviour), and the suite runs every column under `ROW_STEPS` (the VM's 50M).
 row(
   "fn.runaway_is_bounded",
   "def spin(n)\n  spin(n + 1)\nend\n\nspin(0)",

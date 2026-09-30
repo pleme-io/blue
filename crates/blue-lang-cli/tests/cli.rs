@@ -1317,5 +1317,35 @@ fn max_steps_is_read_from_the_deployed_yaml() {
 fn config_show_prints_the_execution_bounds() {
     let out = stdout(&run(&["config", "default"]));
     assert!(out.contains("max_call_depth: 100000"), "{out}");
-    assert!(out.contains("max_steps: 50000000"), "{out}");
+    assert!(out.contains("max_steps: null"), "{out}");
+}
+
+/// **A run longer than 50M steps completes under the default config.**
+///
+/// Long runs are behaviour blue has always had (simulations, tools on nodes),
+/// so the step bound must not be on by default. The same program is first
+/// shown to exceed 50M steps — refused under `max_steps: 50000000` — so the
+/// default passing is evidence about the default, not about a short program.
+///
+/// Red run, recorded 2026-09-30: against the 50M default shipped in `345f922`
+/// the default run failed with ``fuel budget of 50000000 exceeded in `count` ``.
+#[test]
+fn a_run_past_fifty_million_steps_completes_under_the_default_config() {
+    let f = write(
+        "long-run",
+        "def count(n)\n  if n == 0\n    :done\n  else\n    count(n - 1)\n  end\nend\ncount(8000000)",
+    );
+    let cfg = write_at("cfg-50m.yaml", "max_steps: 50000000\n");
+    let bounded = run_env(
+        &["run", f.to_str().unwrap()],
+        &[("BLUE_CONFIG", cfg.to_str().unwrap())],
+    );
+    assert!(
+        stderr(&bounded).contains("fuel budget of 50000000 exceeded in `count`"),
+        "precondition: the program runs past 50M steps: {}",
+        stderr(&bounded)
+    );
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), ":done");
 }

@@ -289,6 +289,12 @@ fn json_line(o: &Outcome, ev: Ev) -> String {
 }
 
 fn main() {
+    // Before any interpreter exists: every in-process column, and every
+    // isolated child (this same binary), runs rows under the suite's budget.
+    blue_lang_runtime::set_execution_bounds(blue_lang_runtime::ExecutionBounds {
+        max_steps: Some(eval::ROW_STEPS),
+        ..blue_lang_runtime::ExecutionBounds::DEFAULT
+    });
     std::panic::set_hook(Box::new(|info| {
         let msg = info
             .payload()

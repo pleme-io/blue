@@ -370,10 +370,14 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         return Obs::Blind(format!("cannot write {}: {e}", file.display()));
     }
     let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
+    let bounds = env.scratch.join("bounds.yaml");
+    if let Err(e) = std::fs::write(&bounds, format!("max_steps: {ROW_STEPS}\n")) {
+        return Obs::Blind(format!("cannot write {}: {e}", bounds.display()));
+    }
     let mut cmd = Command::new(&bin);
     cmd.env("BLUE_PATH", &blue_path)
         .env("RUST_BACKTRACE", "0")
-        .env_remove("BLUE_CONFIG")
+        .env("BLUE_CONFIG", &bounds)
         .env_remove("BLUE_TIER");
     match &row.expect {
         Expect::Fails(..) | Expect::Prints(_) => {
@@ -463,6 +467,16 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
 /// How long any child process may run before it counts as a runaway. Long
 /// enough for the VM to spend its whole default fuel budget in a debug build
 /// (measured ~15 s), so a bounded runaway is reported as bounded.
+/// The step budget every column runs rows under: the VM's own runaway guard.
+///
+/// blue's default is unbounded (a default bound would end long runs that
+/// work), so a row whose program never ends — `fn.runaway_is_bounded` — only
+/// ends because the suite declares a budget, as any host running code it did
+/// not write should. In-process columns get it through
+/// `blue_lang_runtime::set_execution_bounds` (see `main`), the `cli` column
+/// through a `BLUE_CONFIG` file, so all four refuse at the same count.
+pub const ROW_STEPS: usize = tatara_lisp_eval::vm::DEFAULT_FUEL;
+
 pub const CHILD_LIMIT: std::time::Duration = std::time::Duration::from_secs(45);
 
 /// Run `cmd` to completion within [`CHILD_LIMIT`], with its output captured.

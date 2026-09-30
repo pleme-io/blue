@@ -119,12 +119,19 @@ pub struct ExecutionBounds {
 }
 
 impl ExecutionBounds {
-    /// tatara-lisp-eval's VM defaults, by name, for both executors: depth at
-    /// `DEFAULT_MAX_DEPTH`, steps at `DEFAULT_FUEL`. A run that needs more
-    /// says so through `BlueConfig`; `max_steps: nil` lifts the step bound.
+    /// Depth at tatara-lisp-eval's `DEFAULT_MAX_DEPTH`, steps unbounded.
+    ///
+    /// The two defaults differ for one reason: whether a program that works
+    /// today keeps working. A recursion past 100k frames never worked — it
+    /// aborted the process — so bounding depth removes no behaviour. A run
+    /// longer than any finite step count did work (simulations, tools on
+    /// nodes), so a default step bound would remove it; for a few hours of
+    /// 2026-09-29 blue shipped 50M (~3 s) and did exactly that. A host that
+    /// runs code it did not write, or a test that must see a runaway end,
+    /// sets `max_steps` itself.
     pub const DEFAULT: Self = Self {
         max_call_depth: tatara_lisp_eval::vm::DEFAULT_MAX_DEPTH,
-        max_steps: Some(tatara_lisp_eval::vm::DEFAULT_FUEL),
+        max_steps: None,
     };
 }
 

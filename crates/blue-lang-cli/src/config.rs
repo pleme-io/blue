@@ -46,11 +46,13 @@
 //!
 //! * **Execution budget** — was unsettled for a concrete reason: no default
 //!   constant existed to expose. tatara-lisp-eval 0.3.63 gave both executors
-//!   one budget (depth `DEFAULT_MAX_DEPTH`, fuel `DEFAULT_FUEL`) and made
-//!   exceeding it a catchable error instead of a stack overflow, so it is now
-//!   two bounds here — `max_call_depth` and `max_steps`. Both pass the
+//!   one budget and made exceeding it a catchable error instead of a stack
+//!   overflow, so it is now two bounds here — `max_call_depth` (default
+//!   `DEFAULT_MAX_DEPTH`) and `max_steps` (default unbounded). Both pass the
 //!   admission rule: raising either changes no terminating program's value,
-//!   only whether a runaway is refused.
+//!   only whether a runaway is refused — and neither DEFAULT may change what a
+//!   program does today, which is why depth (past which blue used to abort)
+//!   is bounded by default and steps (past which programs ran fine) are not.
 //!
 //! # Tier honesty
 //!
@@ -116,10 +118,10 @@ pub struct BlueConfig {
 
     /// Evaluation steps a run may take; `null` (`nil` in `blue.b`) lifts it.
     ///
-    /// A loop with no exit ends in a `fuel-exhausted` error naming the
+    /// Set, a loop with no exit ends in a `fuel-exhausted` error naming the
     /// function instead of running until killed; a `try` observes that error
-    /// but cannot spend past it. The default is the VM's, so the two executors
-    /// refuse the same runaway alike. A long simulation raises it.
+    /// but cannot spend past it. Unbounded by default, because long runs are
+    /// behaviour blue has always had: a host running untrusted code sets it.
     pub max_steps: Option<usize>,
 }
 
@@ -254,11 +256,11 @@ mod tests {
             blue_lang_runtime::ExecutionBounds::DEFAULT
         );
         assert_eq!(d.max_call_depth, tatara_lisp_eval::vm::DEFAULT_MAX_DEPTH);
-        assert_eq!(d.max_steps, Some(tatara_lisp_eval::vm::DEFAULT_FUEL));
+        assert_eq!(d.max_steps, None, "a default step bound would end runs that work today");
         assert_eq!(d.solver_max_steps, 100_000, "the shipped value, pinned");
         assert_eq!(d.max_expr_depth, 256, "the shipped value, pinned");
         assert_eq!(d.max_call_depth, 100_000, "the shipped value, pinned");
-        assert_eq!(d.max_steps, Some(50_000_000), "the shipped value, pinned");
+        assert_eq!(d.max_steps, None, "the shipped value, pinned");
     }
 
     #[test]
@@ -407,25 +409,27 @@ mod tests {
         );
 
         // And the values are the prescribed bounds, so the file documents the
-        // shipped defaults rather than drifting from them.
-        let ints: Vec<i64> = rest
+        // shipped defaults rather than drifting from them. `nil` is an absent
+        // bound (shikumi maps `Sexp::Nil` to none): how an unbounded `Option`
+        // field is stated.
+        let bounds: Vec<Option<i64>> = rest
             .iter()
             .skip(1)
             .step_by(2)
             .map(|s| match s {
-                blue_lang_syntax::Sexp::Atom(blue_lang_syntax::Atom::Int(n)) => *n,
-                other => panic!("a bound must be an integer, got {other:?}"),
+                blue_lang_syntax::Sexp::Atom(blue_lang_syntax::Atom::Int(n)) => Some(*n),
+                blue_lang_syntax::Sexp::Nil => None,
+                other => panic!("a bound must be an integer or nil, got {other:?}"),
             })
             .collect();
         let d = BlueConfig::prescribed_default();
-        let steps = d.max_steps.expect("the shipped step bound is finite");
         assert_eq!(
-            ints,
+            bounds,
             vec![
-                d.solver_max_steps as i64,
-                d.max_expr_depth as i64,
-                d.max_call_depth as i64,
-                steps as i64
+                Some(d.solver_max_steps as i64),
+                Some(d.max_expr_depth as i64),
+                Some(d.max_call_depth as i64),
+                d.max_steps.map(|n| n as i64)
             ],
             "blue.b must state the shipped defaults"
         );

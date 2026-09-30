@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:989a74c0c3ff8a45557074d1b421d6a14f6802027922ce09ce7e2e3d16f4f764",
+  "bluefile_b3": "b3:bb6ada9d9f6c1ca18d347e519db05e37ba2882139d8aefb70af14b73c833136f",
   "manifest": {
     "schema": 1,
     "name": "kakou",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "gyouretsu": "^0.1.0",
       "kazu": "^0.1.0",

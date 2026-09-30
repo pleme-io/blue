@@ -53,7 +53,7 @@ use("gyouretsu", [:dot])
 use("heni")
 use("hizuke", [:is_leap])
 use("junjo", [:is_sorted, :sort])
-use("kakou", [:kk_outside_setback])
+use("kakou")
 use("kansuu", [:identity])
 use("kazu", [:clamp, :near])
 use("kikagaku", [:manhattan])
@@ -101,7 +101,7 @@ test "every bidama in the distribution answers through this one import"
   assert sort([3, 1, 2]) == [1, 2, 3]
   assert identity(7) == 7
   assert clamp(99, 1, 10) == 10
-  assert near(kk_outside_setback(90, 1, 1), 2) == true
+  assert near(kakou::outside_setback(90, 1, 1), 2) == true
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kueri::ident("order") == "\"order\""

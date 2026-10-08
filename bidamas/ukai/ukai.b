@@ -1199,12 +1199,15 @@ test "nixos is policy routing: a table route and a rule per host"
 end
 
 test "dry-run plans and runs nothing; a real capture keeps status and stdout apart"
-  rs = act([["/bin/echo", "x"]], true)
+  rs = act([[self_exe(), "--version"]], true)
   assert get(first(rs), :stderr) == "dry-run"
-  c = capture(["/bin/echo", "hi"])
+  c = capture([self_exe(), "--version"])
   assert get(c, :status) == 0
-  assert get(c, :stdout) == "hi\n"
+  assert starts_with?(get(c, :stdout), "blue ") == true
   assert get(capture(["/nonexistent/ukai-tool"]), :started) == false
-  assert get(from_capture(capture(["/usr/bin/false"]), parse_netstat), :ok) ==
+  assert get(
+    from_capture(capture([self_exe(), "no-such-subcommand"]), parse_netstat),
+    :ok
+  ) ==
     false
 end

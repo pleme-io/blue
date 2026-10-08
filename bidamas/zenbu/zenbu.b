@@ -47,6 +47,7 @@
 
 use("anaritikusu")
 use("angou", [:is_prime])
+use("chokkan")
 use("deeta", [:get_str])
 use("gyouretsu", [:dot])
 use("hadome")
@@ -138,6 +139,7 @@ test "every bidama in the distribution answers through this one import"
   assert get(souji::parse(["nix"]), :days) == 14
   assert get(decide({corp: :absent}), :kind) == :noop
   assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
+  assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
 end
 
 test "four packages compose without the consumer naming any of them"

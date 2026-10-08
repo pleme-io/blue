@@ -582,12 +582,12 @@ fn describe(chain: &[String], name: &str, reason: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
     /// An in-memory distribution — the whole pass runs with no filesystem.
-    struct MemLoader(BTreeMap<&'static str, &'static str>);
+    pub(crate) struct MemLoader(pub(crate) BTreeMap<&'static str, &'static str>);
 
     impl Loader for MemLoader {
         fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {

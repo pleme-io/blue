@@ -57,10 +57,20 @@ pub fn load_hosted<H: 'static>(
 impl<H: 'static> Hosted<H> {
     /// What `name` is bound to: the entry's definition of it (under its
     /// runtime key), else a global of that name (a host primitive, a builtin).
+    /// A qualified `pkg::name` is bidama `pkg`'s definition, exactly as a
+    /// program writes it, and `blue::name` is the builtin.
     fn lookup(&self, name: &str) -> Option<Value> {
-        self.interp
-            .lookup_global(&blue_lang_check::names::key(&self.entry, name))
-            .or_else(|| self.interp.lookup_global(name))
+        match name.split_once("::") {
+            Some((blue_lang_syntax::BUILTIN_QUALIFIER, bare)) => self.interp.lookup_global(bare),
+            Some((pkg, bare)) => self.interp.lookup_global(&blue_lang_check::names::key(
+                &blue_lang_check::Namespace::Bidama(pkg.to_owned()),
+                bare,
+            )),
+            None => self
+                .interp
+                .lookup_global(&blue_lang_check::names::key(&self.entry, name))
+                .or_else(|| self.interp.lookup_global(name)),
+        }
     }
 
     /// Whether the program defines a callable named `name`.
@@ -189,6 +199,34 @@ mod tests {
             host.0.is_empty(),
             "no top-level form may run before the check passes"
         );
+    }
+
+    #[test]
+    fn a_qualified_name_calls_a_bidamas_definition_and_a_bare_one_does_not() {
+        let mut host = Notes::default();
+        let loader = crate::uses::tests::MemLoader(
+            [("tama", "def exports()\n  \"tama rows\"\nend\n")]
+                .into_iter()
+                .collect(),
+        );
+        let mut p = load_hosted(
+            Entry::anonymous("use(\"tama\")\n"),
+            &loader,
+            &mut host,
+            install,
+        )
+        .unwrap();
+        assert!(p.defines("tama::exports"));
+        let v = p.call("tama::exports", vec![], &mut host).unwrap();
+        assert_eq!(as_text(&v), "tama rows");
+        assert!(!p.defines("exports"));
+        assert!(!p.defines("other::exports"));
+        assert!(p.defines("blue::length"));
+        let err = p
+            .call("tama::absent", vec![], &mut host)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("no function named tama::absent"), "{err}");
     }
 
     #[test]

@@ -30,7 +30,6 @@
 //! split is where a future migration lands if the map reader becomes
 //! reachable.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde_json::Value as JsonValue;

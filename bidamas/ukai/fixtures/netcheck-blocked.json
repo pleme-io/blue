@@ -1,0 +1,23 @@
+{
+	"Now": "2026-10-08T13:29:54.93736Z",
+	"UDP": false,
+	"IPv6": false,
+	"IPv4": false,
+	"IPv6CanSend": false,
+	"IPv4CanSend": true,
+	"OSHasIPv6": true,
+	"ICMPv4": false,
+	"MappingVariesByDestIP": null,
+	"UPnP": false,
+	"PMP": false,
+	"PCP": false,
+	"PreferredDERP": 0,
+	"RegionLatency": {},
+	"RegionV4Latency": {},
+	"RegionV6Latency": {},
+	"GlobalV4Counters": null,
+	"GlobalV6Counters": null,
+	"GlobalV4": "",
+	"GlobalV6": "",
+	"CaptivePortal": false
+}

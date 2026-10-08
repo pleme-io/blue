@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:6dff6894d602f15772239dc497cade5dbbeb23d1c429394ca2d5d7e04da18f67",
+  "manifest": {
+    "schema": 1,
+    "name": "ukai",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

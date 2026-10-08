@@ -84,6 +84,7 @@ use("souji")
 use("tehai")
 use("tokumei", [:suppress_small])
 use("toukei", [:mean, :median])
+use("ukai", [:decide])
 use("zumen")
 
 test "every bidama in the distribution answers through this one import"
@@ -134,6 +135,7 @@ test "every bidama in the distribution answers through this one import"
   ) ==
     "plo"
   assert get(souji::parse(["nix"]), :days) == 14
+  assert get(decide({corp: :absent}), :kind) == :noop
 end
 
 test "four packages compose without the consumer naming any of them"

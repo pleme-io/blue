@@ -1,0 +1,20 @@
+name: controlplane.tailscale.com
+ipv6_address: 2606:b740:49::106
+ipv6_address: 2606:b740:49::111
+ipv6_address: 2606:b740:49::105
+ipv6_address: 2606:b740:49::108
+ipv6_address: 2606:b740:49::104
+ipv6_address: 2606:b740:49::102
+ipv6_address: 2606:b740:49::113
+ipv6_address: 2606:b740:49::110
+
+name: controlplane.tailscale.com
+ip_address: 192.200.0.110
+ip_address: 192.200.0.103
+ip_address: 192.200.0.105
+ip_address: 192.200.0.111
+ip_address: 192.200.0.116
+ip_address: 192.200.0.106
+ip_address: 192.200.0.115
+ip_address: 192.200.0.108
+

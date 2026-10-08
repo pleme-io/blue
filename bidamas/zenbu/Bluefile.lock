@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:fda44f1a1b46976ae2c7ac28c0f3f6e8d94a7cd5bad3df0b5bb40cbb3c9291bd",
+  "bluefile_b3": "b3:4f6f8658e037c04e588191b0145019f5b697139f1f156a18555cc6d85689a567",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -10,6 +10,7 @@
       "angou": "^0.1.0",
       "deeta": "^0.1.0",
       "gyouretsu": "^0.1.0",
+      "hadome": "^0.1.0",
       "heni": "^0.1.0",
       "hizuke": "^0.1.0",
       "junjo": "^0.1.0",

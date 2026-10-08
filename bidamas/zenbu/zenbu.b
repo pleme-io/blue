@@ -49,6 +49,7 @@ use("anaritikusu")
 use("angou", [:is_prime])
 use("deeta", [:get_str])
 use("gyouretsu", [:dot])
+use("hadome")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
 use("hizuke", [:is_leap])
@@ -136,6 +137,7 @@ test "every bidama in the distribution answers through this one import"
     "plo"
   assert get(souji::parse(["nix"]), :days) == 14
   assert get(decide({corp: :absent}), :kind) == :noop
+  assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
 end
 
 test "four packages compose without the consumer naming any of them"

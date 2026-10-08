@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:ffc33069113f32a4b294f93398889a9cc23f2dd375ade07f65ffc4d319769285",
+  "manifest": {
+    "schema": 1,
+    "name": "hadome",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

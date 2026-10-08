@@ -1,7 +1,7 @@
 use("deeta", [:as_json, :get_str])
 use("retsu", [:first, :is_empty, :last, :rest, :size])
 use("shisutemu", [:read_or, :status_of, :stderr_of, :stdout_of])
-use("shuugou", [:difference, :unique])
+use("shuugou", [:as_set, :difference, :unique])
 
 # ukai (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
 def axes()
@@ -97,7 +97,7 @@ def decide(s)
 end
 
 def route_set(s)
-  hosts = sorted(unique(or_list(get(s, :hosts))))
+  hosts = sorted(unique(as_set(get(s, :hosts))))
   {
     backend: get(s, :platform),
     gateway: get(s, :gateway_addr),
@@ -105,16 +105,8 @@ def route_set(s)
     table: get(s, :table),
     priority: get(s, :priority),
     hosts: hosts,
-    add: sorted(difference(hosts, or_list(get(s, :routed))))
+    add: sorted(difference(hosts, as_set(get(s, :routed))))
   }
-end
-
-def or_list(xs)
-  if xs == nil
-    []
-  else
-    xs
-  end
 end
 
 def sorted(xs)
@@ -687,7 +679,7 @@ def assemble(cfg, obs)
     []
   end
   routed = if get(cfg, :platform) == :nixos
-    or_list(get(get(obs, :rules), :value))
+    as_set(get(get(obs, :rules), :value))
   else
     routed_via(routes, gw_addr)
   end
@@ -891,7 +883,10 @@ def main()
 end
 
 def fixture(name)
-  roots = split(getenv("BLUE_PATH", ""), ":")
+  roots = append(
+    split(getenv("BLUE_PATH", ""), ":"),
+    [path_join(cwd(), "bidamas"), path_join(cwd(), "../../bidamas")]
+  )
   hits = filter(
     fn(p) is_file?(p) end,
     map(fn(r) path_join(r, "ukai/fixtures/#{name}") end, roots)

@@ -174,6 +174,14 @@ row(
 )
 
 row(
+  "host.exec_into.unstartable",
+  "exec_into([[\"BLUE_SPEC_X\", \"v\"]], \"blue-spec-surely-absent-command\")",
+  fails(:eval, "exec_into"),
+  covers("builtin:exec_into"),
+  host()
+)
+
+row(
   "host.exec_with_stdin",
   "exec_with_stdin(\"abc\", \"cat\")",
   value("[[:status, 0], [:stdout, \"abc\"], [:stderr, \"\"]]"),

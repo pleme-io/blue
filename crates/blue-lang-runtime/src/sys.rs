@@ -15,6 +15,7 @@
 //! exec_capture(cmd, arg…)    → ((:status N) (:stdout "…") (:stderr "…"))
 //! exec_check(cmd, arg…)      → exit code (streams to parent)
 //! exec_ok?(cmd, arg…)        → bool; true iff exit code is 0
+//! exec_into(env, cmd, arg…)  → replaces this process; returns only on failure
 //! sh_exec(script)            → capture form; script through `sh -c`
 //! exec_with_stdin(payload, cmd, arg…) → capture form
 //! exec_with_env(pairs, cmd, arg…)    → capture form
@@ -156,6 +157,27 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
                 .output()
                 .map_err(|e| EvalError::native_fn("exec_with_env", e.to_string(), span))?;
             Ok(capture_result(&out))
+        },
+    );
+
+    interp.register_fn(
+        "exec_into",
+        Arity::AtLeast(2),
+        |args: &[Value], _h: &mut H, span| {
+            use std::os::unix::process::CommandExt;
+            let pairs = env_pairs(&args[0], "exec_into", span)?;
+            let (cmd, rest) = split_cmd(&args[1..], "exec_into", span)?;
+            let mut c = Command::new(&*cmd);
+            c.args(rest.iter().map(|s| s.as_ref()));
+            for (k, v) in &pairs {
+                c.env(k.as_ref(), v.as_ref());
+            }
+            let e = c.exec();
+            Err(EvalError::native_fn(
+                "exec_into",
+                format!("{cmd}: {e}"),
+                span,
+            ))
         },
     );
 

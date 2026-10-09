@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:c78be1332012645848b31216a9020ff96d2d38bc617f023e04dee5571eaae341",
+  "manifest": {
+    "schema": 1,
+    "name": "keiyu",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

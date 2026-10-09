@@ -398,6 +398,7 @@
         heni = { entry = "main"; tools = _: [ ]; }; # mutation testing for a blue package
         # macOS keeps /usr/bin/ssh, which reads /etc/ssh/ssh_config as nix does.
         tehai = { entry = "main"; tools = pkgs: lib.optional pkgs.stdenv.isLinux pkgs.openssh; }; # live nix builders
+        keiyu = { entry = "main"; tools = _: [ ]; };
         ukai = { entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.iproute2 pkgs.tailscale ]; };
       };
 

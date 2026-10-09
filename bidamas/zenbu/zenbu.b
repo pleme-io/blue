@@ -58,6 +58,7 @@ use("junjo", [:is_sorted, :sort])
 use("kakou")
 use("kansuu", [:identity])
 use("kazu", [:clamp, :near])
+use("keiyu", [:relay_env])
 use("kikagaku", [:manhattan])
 use("kinji")
 use("kueri")
@@ -138,6 +139,7 @@ test "every bidama in the distribution answers through this one import"
     "plo"
   assert get(souji::parse(["nix"]), :days) == 14
   assert get(decide({corp: :absent}), :kind) == :noop
+  assert size(relay_env("socks5h://r:1")) == 6
   assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
 end

@@ -367,6 +367,10 @@
       systems = lib.attrNames base.packages;
       pkgsFor = system: nixpkgs.legacyPackages.${system};
       blueFor = system: base.packages.${system}.default;
+      # substrate's image builders (mkPackageImage, mkDistrolessImage,
+      # hardenedBases) for a Linux system: what a Bluefile `image(...)` lowers
+      # through. Images are Linux; elsewhere there is none to give.
+      ociFor = system: if lib.hasSuffix "-linux" system then substrate.lib.${system} else null;
 
       # This repository as a blue project. `base = { }` because its packages
       # ARE the public distribution every other project composes over.
@@ -375,6 +379,7 @@
         blue = blueFor system;
         src = ./.;
         base = { };
+        oci = ociFor system;
       });
 
       # The bidama library bound to a package set: every nix function blue has
@@ -435,7 +440,7 @@
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
-      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor; };
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor; };
 
       # `blue.lib.bidamas pkgs` — the bidama library for any package set.
       lib.bidamas = bidamaLibFor;
@@ -471,7 +476,7 @@
           blue = blueFor system;
           bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper; inherit blue; };
         in
-        engine.disjoint "check" (engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) native.${system}.checks) {
+        engine.disjoint "check" (engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) native.${system}.checks) ({
           # Every .b file in the repository is in the one layout; each file
           # that is not is named. `mkBidama` holds each package the same way,
           # so this is the rest of the tree: specs, generators, fixtures.
@@ -554,6 +559,39 @@
               ${lib.concatMapStrings (c: "echo ${c} >> $out\n") (lib.attrValues ex.checks)}
             '';
 
+          # The worked image-and-workload project (examples/service): its
+          # workload file gated fresh everywhere and, on Linux, its image
+          # built through substrate and gated distroless. The packages are
+          # inputs too, so the image tarball itself is built, not only its
+          # closure scanned.
+          example-service =
+            let ex = engine.projectFor { inherit pkgs blue; src = ./examples/service; oci = ociFor system; };
+            in pkgs.runCommand "example-service" { } ''
+              ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
+            '';
+        } // lib.optionalAttrs (ociFor system != null) {
+          # The distroless gate's positive control: an image built with a
+          # shell must be refused as distroless-static, naming the shell, or
+          # the gate above could be passing over a closure it cannot read.
+          image-gate-refuses =
+            let
+              oci = ociFor system;
+              ex = engine.projectFor { inherit pkgs blue oci; src = ./examples/service; };
+            in
+            ex.imageGate {
+              name = "image-gate-refuses";
+              tier = "distroless-static";
+              refuses = true;
+              image = oci.mkDistrolessImage {
+                service = "image-gate-control";
+                package = blue;
+                publishName = "localhost/image-gate-control";
+                publishTag = "0";
+                entrypoint = [ "${blue}/bin/blue" ];
+                shell = true;
+              };
+            };
+        } // {
           module-surface = import ./nix/module-surface-check.nix {
             inherit lib;
             # blue's own overlay, because `programs.blue.package` defaults to
@@ -567,7 +605,7 @@
             nixosModule = base.nixosModules.default;
             darwinModule = base.darwinModules.default;
           };
-        }
+        })
       ) base.checks;
     };
 }

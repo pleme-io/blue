@@ -45,7 +45,9 @@
 # | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
-# | `generate` or `catalog` | `apps.regen` |
+# | `generate`, `catalog` or `workload` | `apps.regen` |
+# | `image(name, spec)` | Linux only: `packages.image-<name>` (substrate's `mkPackageImage` on `hardenedBases.distroless-static`, or `mkDistrolessImage` for a declared shell or tools), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
+# | `workload(name, spec)` | `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
 # | `posture(when)` | nothing: a runtime floor, not a build fact |
 #
@@ -95,6 +97,7 @@ let
   known = [
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
+    "images" "workloads"
   ];
 
   readLock = src:
@@ -159,7 +162,10 @@ let
   #   src    the project root, a path (`./.` in the project's flake)
   #   base   the distribution the project composes over; blue's public one by
   #          default, `{ }` for blue itself (its packages ARE that distribution)
-  projectFor = { pkgs, blue, src, base ? null }:
+  #   oci    substrate's image builders for the system (`substrate.lib.<system>`:
+  #          mkPackageImage, mkDistrolessImage, hardenedBases); null where the
+  #          caller has none, and an `image(...)` is then refused by name
+  projectFor = { pkgs, blue, src, base ? null, oci ? null }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -235,7 +241,127 @@ let
         })))
         generated;
 
-      packages = disjoint "package" runs (catalogue // generatedPackages);
+      images = m.images or { };
+      workloads = m.workloads or { };
+
+      # The project's bidamas as one BLUE_PATH root, for the image's runtime
+      # and for the gate.
+      bluePath = bl.mkBluePath { inherit bidamas; name = "${name}-blue-path"; };
+
+      # `image(name, spec)`: blue, the program, its assets and its bidamas on
+      # one of substrate's hardened bases. blue's Linux build is static musl,
+      # so the default tier is distroless-static; a declared shell or tools
+      # move it to `mkDistrolessImage` (distroless-glibc plus exactly those).
+      # Everything the program reaches is under /app, its working directory,
+      # in one derivation, so the image's closure (and the gate's) holds it.
+      imageOf = iname: spec:
+        let
+          deviation = spec.deviation or null;
+          program = programFile spec.program;
+          app = pkgs.runCommand "image-${iname}-app" { } (''
+            mkdir -p $out/app $out/share/blue
+            ln -s ${program} $out/app/${baseNameOf spec.program}
+            ln -s ${bluePath} $out/share/blue/bidamas
+          '' + lib.concatMapStrings
+            (a: ''
+              mkdir -p "$out/app/${dirOf a}"
+              ln -s ${builtins.path { path = src + "/${a}"; name = baseNameOf a; }} "$out/app/${a}"
+            '')
+            (spec.assets or [ ]));
+          common = {
+            service = iname;
+            package = blue;
+            publishName = spec.repository;
+            publishTag = m.version;
+            entrypoint = [ "${blue}/bin/blue" "run" "--quiet" "${program}" ]
+              ++ lib.optionals ((spec.args or [ ]) != [ ]) ([ "--" ] ++ spec.args);
+            env = [ "BLUE_PATH=${bluePath}" ];
+            exposedPorts = lib.listToAttrs (map (p: lib.nameValuePair "${toString p}/tcp" { }) (spec.ports or [ ]));
+            workdir = "/app";
+            extraContents = [ app ];
+            labels = {
+              "io.pleme.blue.project" = name;
+              "io.pleme.blue.image" = iname;
+            };
+          };
+          image =
+            if deviation == null then
+              oci.mkPackageImage (common // { base = oci.hardenedBases.distroless-static; })
+            else
+              oci.mkDistrolessImage (common // {
+                shell = deviation.shell or false;
+                entrypointTools = map
+                  (t: lib.attrByPath (lib.splitString "." t)
+                    (throw "lib.project: image(\"${iname}\") tools names `${t}`, no attribute in nixpkgs")
+                    pkgs)
+                  (deviation.tools or [ ]);
+              });
+          tier =
+            if deviation == null then "distroless-static"
+            else if deviation.shell or false then "shell"
+            else "distroless-glibc";
+        in
+        { inherit image tier; };
+
+      builtImages =
+        if images == { } || !pkgs.stdenv.isLinux then { }
+        else if oci == null then
+          throw "lib.project: the Bluefile declares image ${lib.concatStringsSep ", " (attrNames images)}, and this engine was given no image builder (`oci`, substrate.lib.<system>)"
+        else lib.mapAttrs imageOf images;
+
+      # The archive's manifest.json: its layers, read by `blue image build`.
+      imagePackages = lib.concatMapAttrs
+        (iname: built: {
+          "image-${iname}" = built.image;
+          "image-${iname}-manifest" = pkgs.runCommand "image-${iname}-manifest" { } ''
+            tar -xzOf ${built.image} manifest.json > $out
+          '';
+        })
+        builtImages;
+
+      # `image-gate.b` over the image's closure (substrate's closureInfo
+      # passthru: base contents plus the image's own), against the tier the
+      # entry declared. `refuses = true` is the positive control: the check
+      # passes only when the gate refuses the image, naming a shell.
+      imageGate = { name, image, tier, refuses ? false }:
+        let gate = "BLUE_PATH=${bluePath} ${blue}/bin/blue run --quiet ${./image-gate.b} -- ${image.closureInfo}/store-paths ${tier}"; in
+        pkgs.runCommand name { } (if refuses then ''
+          if ${gate} > passed.log 2> refused.log; then
+            echo "${name}: the gate passed an image with a shell as ${tier}" >&2
+            exit 1
+          fi
+          grep -q 'a shell, and the image declares none' refused.log
+          cp refused.log $out
+        '' else ''
+          ${gate} > $out
+        '');
+
+      imageChecks = lib.mapAttrs'
+        (iname: built: lib.nameValuePair "image-${iname}-distroless"
+          (imageGate { name = "image-${iname}-distroless"; inherit (built) image tier; }))
+        builtImages;
+
+      lockFile = builtins.path { path = src + "/Bluefile.lock"; name = "Bluefile.lock"; };
+
+      # `workload(name, spec)`: the objects `blue workload render` writes from
+      # the lock, the bytes the committed `output` must equal.
+      workloadPackages = lib.mapAttrs'
+        (w: _: lib.nameValuePair "workload-${w}" (pkgs.runCommand "workload-${w}.yaml" { } ''
+          ${blue}/bin/blue workload render ${w} --lock ${lockFile} > $out
+        ''))
+        workloads;
+
+      workloadChecks = lib.mapAttrs'
+        (w: spec: lib.nameValuePair "workload-${w}-fresh" (bl.mkFreshCheck {
+          name = "workload-${w}-fresh";
+          regenerate = "blue workload render --write (or nix run .#regen)";
+          committed = src + "/${spec.output}";
+          generated = workloadPackages."workload-${w}";
+        }))
+        workloads;
+
+      packages = disjoint "package" runs
+        (disjoint "package" (catalogue // generatedPackages) (imagePackages // workloadPackages));
 
       gates =
         lib.optionalAttrs (ownNames != [ ]) ({
@@ -279,7 +405,9 @@ let
             committed = src + "/${spec.output}";
             generated = generatedPackages."generated-${g}";
           }))
-          generated;
+          generated
+        // imageChecks
+        // workloadChecks;
 
       checkWords = lib.mapAttrs
         (cn: c: bl.mkTestCheck (common // { name = cn; file = programFile c.file; }))
@@ -292,7 +420,7 @@ let
 
       apps = disjoint "app"
         (lib.mapAttrs (an: a: app an (programFile a.file)) m.apps)
-        (lib.optionalAttrs (m.catalog != null || generated != { }) {
+        (lib.optionalAttrs (m.catalog != null || generated != { } || workloads != { }) {
           # gen/regen.b reads the project's Bluefile.lock from the directory
           # it is run in: `nix run .#regen` from the project root.
           regen = app "regen" ../gen/regen.b;
@@ -301,8 +429,7 @@ let
     if missingNeeds != [ ] then
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
     else {
-      inherit name runner bidamas packages apps;
-      bluePath = bl.mkBluePath { inherit bidamas; name = "${name}-blue-path"; };
+      inherit name runner bidamas packages apps bluePath imageGate;
       checks = disjoint "check" gates checkWords;
     };
 in
@@ -316,12 +443,14 @@ in
   #   systems   the systems to emit (blue's own)
   #   blueFor   system -> the `blue` executable
   #   pkgsFor   system -> nixpkgs
-  mkProjectOutputs = { systems, blueFor, pkgsFor }: { src }:
+  #   ociFor    system -> substrate's image builders, or null
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null) }: { src }:
     let
       per = lib.genAttrs systems (system: projectFor {
         inherit src;
         pkgs = pkgsFor system;
         blue = blueFor system;
+        oci = ociFor system;
       });
     in
     {

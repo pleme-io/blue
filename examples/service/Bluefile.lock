@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:64d8b874c8232e89742e20c276d5c1d66671cf2154647c913b4c33b4c33c56ef",
+  "manifest": {
+    "schema": 1,
+    "name": "blue-hello",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "hello": {
+        "file": "hello.b"
+      }
+    },
+    "apps": {},
+    "catalog": null,
+    "images": {
+      "hello": {
+        "program": "hello.b",
+        "repository": "ghcr.io/pleme-io/blue-hello",
+        "assets": [
+          "greeting.txt"
+        ]
+      }
+    },
+    "workloads": {
+      "hello": {
+        "image": "hello",
+        "namespace": "blue-hello",
+        "replicas": 2,
+        "resources": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "memory_limit": "64Mi"
+        },
+        "env": {
+          "HELLO_SUBJECT": "hello.*"
+        },
+        "secrets": {
+          "NATS_URL": {
+            "secret": "blue-hello-nats",
+            "key": "url"
+          }
+        },
+        "output": "deploy/hello.yaml"
+      }
+    }
+  },
+  "sources": {}
+}

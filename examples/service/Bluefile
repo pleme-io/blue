@@ -1,0 +1,46 @@
+# A blue service as an OCI image and a Kubernetes workload: the worked example
+# for the Bluefile's deploy words (theory/BLUE-TOOLING.md T-J).
+#
+# The words state facts; nix and the fleet's tools do the work. A project's
+# flake.nix is one line, and this project needs nothing more:
+#
+#   outputs = { blue, ... }: blue.lib.project { src = ./.; };
+#
+# `image` lowers to packages.image-hello through substrate's hardened
+# builders, on distroless-static (blue is a static binary): no shell, no libc,
+# and checks.image-hello-distroless proves it over the image's closure.
+# `blue image build` builds it and prints the tarball, its size and layers.
+#
+# `workload` renders deploy/hello.yaml, the objects a Flux Kustomization
+# applies, gated fresh against this lock by checks.workload-hello-fresh;
+# `blue workload render --write` rewrites it. `blue diff --context CTX`
+# compares it with a cluster, read-only. Nothing here applies anything.
+#
+# hello serves NATS, not HTTP: blue has no listener yet, so the workload
+# declares no port and no probe rather than a probe nothing answers.
+package("blue-hello", "0.1.0")
+
+image(
+  "hello",
+  {
+    program: "hello.b",
+    repository: "ghcr.io/pleme-io/blue-hello",
+    assets: ["greeting.txt"]
+  }
+)
+
+workload(
+  "hello",
+  {
+    image: "hello",
+    namespace: "blue-hello",
+    replicas: 2,
+    cpu: "10m",
+    memory: "32Mi",
+    memory_limit: "64Mi",
+    env: {"HELLO_SUBJECT" => "hello.*"},
+    secrets: {"NATS_URL" => "blue-hello-nats/url"}
+  }
+)
+
+check("hello", "hello.b")

@@ -66,4 +66,17 @@ else
 end
 
 written = concat_lists(written, map(fn(g) regenerate(g) end, generated()))
+
+# Every `workload` file, rendered from the same lock by blue itself.
+workloads = json_get(manifest(), "workloads")
+
+written = if workloads == nil
+  written
+else
+  if exec_check("blue", "workload", "render", "--write") != 0
+    throw(error(:regen, "blue workload render --write failed", []))
+  end
+  concat_lists(written, map(fn(w) json_get(last(w), "output") end, workloads))
+end
+
 write_file("/dev/stderr", "regen: rewrote #{join(written, ", ")}\n")

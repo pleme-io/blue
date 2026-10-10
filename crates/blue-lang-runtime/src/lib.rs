@@ -30,6 +30,9 @@
 //!    computation, installed unconditionally, so the wasm consumer keeps them.
 //! 5. **The host layer** (`sys`, behind the `sys` feature) — every name in it
 //!    is a host import.
+//! 6. **Processes** ([`attach_node`]) — `spawn`, `send`, `receive` and the
+//!    rest of `blue_lang_proc::node`'s words, bound to a node of the
+//!    interpreter's own, so the program is that node's root process.
 
 pub mod crypto;
 pub mod docs;
@@ -97,7 +100,83 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // surface by construction. Only the CLI turns it on.
     #[cfg(feature = "sys")]
     sys::install_sys_stdlib(&mut interp);
+    // Layer 6: processes. Bound here so every name oracle built from this
+    // interpreter (the check stage, the LSP, `blue reference`) knows them.
+    attach_node(&mut interp);
     // Last, so installing the stdlib is not metered against the program.
+    apply_execution_bounds(&mut interp);
+    interp
+}
+
+/// Give `interp` a process node of its own: its program becomes the node's
+/// root, and `spawn` starts processes in this node and no other.
+///
+/// [`interpreter_hostless`] calls it on every fork, so two programs never
+/// share processes. A door that forks an interpreter per unit of work (a test
+/// per fork) calls it on each fork for the same reason.
+pub fn attach_node<H: 'static>(interp: &mut Interpreter<H>) {
+    blue_lang_proc::install(interp, blue_lang_proc::Node::new(node_config()));
+}
+
+/// [`attach_node`] for a program that runs under `frame`: every process it
+/// starts is held to the same frame, so a host name the program may not call
+/// is refused in its children too. Without this a spawned child would run on
+/// the full runtime and a frame would be one `spawn` away from meaningless.
+pub fn attach_node_in_frame<H: 'static>(interp: &mut Interpreter<H>, frame: &blue_lang_waku::Waku) {
+    let mut config = node_config();
+    let refused: Vec<(&'static str, &'static str)> = blue_lang_waku::Capability::host_effects()
+        .into_iter()
+        .filter(|cap| !frame.reach.grants(*cap))
+        .flat_map(|cap| cap.names().into_iter().map(move |n| (n, cap.label())))
+        .collect();
+    config.child = std::sync::Arc::new(move || {
+        let mut child = child_interpreter();
+        for (name, label) in &refused {
+            if child.lookup_global(name).is_none() {
+                continue;
+            }
+            let name: &'static str = name;
+            let label: &'static str = label;
+            child.register_fn(name, tatara_lisp_eval::ffi::Arity::Any, move |_: &[tatara_lisp_eval::Value], _: &mut (), span| {
+                Err(tatara_lisp_eval::EvalError::native_fn(
+                    name,
+                    format!("refused: `{name}` reaches the host ({label}), which this process's frame does not grant"),
+                    span,
+                ))
+            });
+        }
+        child
+    });
+    blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
+}
+
+/// The node every interpreter's processes run under: the execution bounds
+/// per incarnation, a scheduling quantum, and the host's clock when there is
+/// a host (a node with no host has a virtual clock: time passes only when
+/// every process waits).
+fn node_config() -> blue_lang_proc::NodeConfig {
+    let b = execution_bounds();
+    let mut config = blue_lang_proc::NodeConfig::new(std::sync::Arc::new(child_interpreter));
+    config.budget = tatara_lisp_eval::vm::Budget {
+        fuel: b.max_steps,
+        max_depth: Some(b.max_call_depth),
+        quantum: Some(blue_lang_proc::node::DEFAULT_QUANTUM),
+    };
+    config.clock = if cfg!(feature = "sys") {
+        blue_lang_proc::ClockKind::Real
+    } else {
+        blue_lang_proc::ClockKind::Virtual
+    };
+    config
+}
+
+/// A fresh interpreter for a child process: the hostless base, forked. The
+/// node adds its child words to it.
+fn child_interpreter() -> Interpreter<()> {
+    let mut interp = match HOSTLESS_BASE.lock() {
+        Ok(base) => base.fork(),
+        Err(_) => interpreter(&mut ()),
+    };
     apply_execution_bounds(&mut interp);
     interp
 }
@@ -218,6 +297,8 @@ pub fn interpreter_hostless() -> Interpreter<()> {
     // Again after the fork: the base may have been built before the bounds
     // were named, and a fork inherits whatever its base had.
     apply_execution_bounds(&mut interp);
+    // A node per fork: the base's own node would be shared by every program.
+    attach_node(&mut interp);
     interp
 }
 

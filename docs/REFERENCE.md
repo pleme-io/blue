@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-238 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+254 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -382,6 +382,27 @@ Higher binding power binds tighter.
 | `close!` | `close!(ch)` | 1 | Close a channel. |
 | `drain!` | `drain!(ch)` | 1 | Every value waiting in a channel, as a list. |
 | `go` | `go(f)` | 1 | A pending fiber for a zero-argument function. Running it (go-run) has no blue spelling. |
+
+### Blue processes and supervision
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `alive?` | `alive?(pid)` | 1 | true while pid is running or waiting. |
+| `children` | `children(sup)` | 1 | The pids a supervisor started, in order. |
+| `defmigrate` | `defmigrate(target, new_fn[, transform])` | 2..3 | Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …]. |
+| `demonitor` | `demonitor(ref)` | 1 | Stop a monitor; true. |
+| `exit` | `exit(pid, reason)` | 2 | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self(), r) raises. |
+| `link` | `link(pid)` | 1 | Link to pid: an abnormal exit of either ends the other. false when pid is not alive. Also defined by `raifusaikuru` (`raifusaikuru::link`): a file that lists it gets that one. |
+| `monitor` | `monitor(pid)` | 1 | Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone). |
+| `receive` | `receive([pattern][, timeout_ms][, on_timeout])` | 0..3 | The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock. |
+| `self` | `self()` | 0 | This process's pid. The program itself is 0. |
+| `send` | `send(pid, msg)` | 2 | Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped. |
+| `spawn` | `spawn(f[, args])` | 1..2 | Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does. |
+| `spawn_link` | `spawn_link(f[, args])` | 1..2 | spawn, linked to the caller: an abnormal exit of either ends the other, unless it traps exits. |
+| `spawn_server` | `spawn_server(handler, state)` | 2 | A process that answers each message m with state = handler(m, state). Its state is what defmigrate transforms. |
+| `supervisor` | `supervisor(strategy, children[, max_restarts])` | 2..3 | Start children (functions, [f, args] pairs, or [:server, handler, state]) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. Each crash writes a trace for blue replay. |
+| `trap_exit` | `trap_exit(flag)` | 1 | While true, exit signals arrive as [:exit, pid, reason] messages instead of ending this process. Returns the previous flag. |
+| `unlink` | `unlink(pid)` | 1 | Remove a link; true. |
 
 ### tatara-lisp forms
 

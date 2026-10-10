@@ -115,7 +115,7 @@ bidama that does not check does not build.
 | sliding-scale typing; `Seam`; `Stats`; diagnostic spans | `blue-lang-check` |
 | REACH/WHEN/WHERE frame lattice; the closed `Capability` set; `imports_of` | `blue-lang-waku` |
 | package posture floors + resolution | `blue-lang-bidama` |
-| processes, supervision, mailboxes, isolation | `blue-lang-proc` |
+| processes, supervision, mailboxes, isolation; the blue-level words (`node`), crash traces and `blue replay` (`trace`), `defmigrate` | `blue-lang-proc` |
 | interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`); BLAKE3 + Ed25519, pure and C-free (`crypto`); NATS and HTTP spoken over std TCP (`net`, host-gated as `Capability::Network`) | `blue-lang-runtime` |
 | one evaluation session — contexts, live redefinition, pure frame, budget, interrupt, expansion (`session`); its JSON-lines protocol (`session::protocol`, `blue serve`); values as blue text (`literal`) | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
@@ -147,6 +147,19 @@ Each of these is a defect that shipped, not a style preference.
   `register_awaitable_fn`, whose readiness phase holds `&System` — so
   take-then-park does not typecheck. Do not move it back to a one-phase
   primitive to "simplify" it; the compile error is the feature.
+- **A spawned function is turned back into code, never shared.** `spawn`
+  walks the function's free names: functions come along as definitions
+  recompiled for the VM in the child, data comes along as deep copies, and a
+  host handle is refused by name. Sharing the closure would share its
+  environment, which is the coupling isolation exists to remove
+  (`blue_lang_proc::code`). Every child's host reads go through a recorder, so
+  a crash trace replays without the host; a new host name needs no edit here,
+  because the recorder reads `Capability::host_effects()`.
+- **A VM closure carries its chunk.** Before tatara-lisp-eval 0.4.x a closure
+  compiled by one program and called from another read the caller's constant
+  pool: a wrong constant or a panic. `defmigrate` compiles new code into a
+  running process's interpreter, so it depends on that fix; so does any REPL
+  on the VM.
 - **A restart empties the mailbox.** In-flight messages were addressed to the
   incarnation that died. Replaying them is how a poison message kills a
   process forever.

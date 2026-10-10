@@ -15,6 +15,9 @@ blue-lang-syntax = { workspace = true }
 blue-lang-check = { workspace = true }
 blue-lang-fmt = { workspace = true }
 blue-lang-waku = { workspace = true }
+# Processes: every interpreter this crate builds runs its program against a
+# node, so `spawn`, `send` and `receive` are reachable from every door.
+blue-lang-proc = { workspace = true }
 thiserror = { workspace = true }
 # Cryptography with no C (`crypto`, and `inputs`' content addressing). Features
 # are pinned, not defaulted, so a default that compiles C cannot arrive on a

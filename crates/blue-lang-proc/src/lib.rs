@@ -54,8 +54,14 @@ use std::sync::Arc;
 use tatara_lisp_eval::vm::{Budget, Chunk, Progress, Vm, VmError};
 use tatara_lisp_eval::{Interpreter, Value};
 
+pub mod code;
 pub mod mailbox;
-pub use mailbox::{deep_copy, install_process_primitives, System};
+pub mod node;
+pub mod pattern;
+pub mod trace;
+pub use mailbox::{copy_data, deep_copy, install_process_primitives, System};
+pub use node::{install, ClockKind, Node, NodeConfig, PROCESS_WORDS, ROOT};
+pub use trace::{replay, Replayed, Trace};
 
 /// A process identifier.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -72,6 +78,10 @@ pub enum ExitReason {
     /// was previously an OS-process abort**, and it is the reason
     /// supervision is possible at all.
     Runaway(String),
+    /// Ended from outside: an exit signal from a linked process, `exit(pid,
+    /// reason)`, or a supervisor shutting its children down. Carries the
+    /// rendered reason.
+    Killed(String),
 }
 
 impl ExitReason {
@@ -144,7 +154,7 @@ pub struct Proc<H> {
 }
 
 impl<H> Proc<H> {
-    fn new(
+    pub(crate) fn new(
         pid: Pid,
         chunk: Arc<Chunk>,
         budget: Budget,
@@ -167,7 +177,7 @@ impl<H> Proc<H> {
     ///
     /// A fresh `Vm` is the whole restart: there is nothing to unwind,
     /// because the crashed process's stack was never shared.
-    fn restart(&mut self) {
+    pub(crate) fn restart(&mut self) {
         self.vm = Vm::with_budget(self.budget);
         // A FRESH interpreter, not a saved copy. The whole point of
         // let-it-crash is that the restarted process cannot inherit the state
@@ -180,6 +190,42 @@ impl<H> Proc<H> {
     fn is_runnable(&self) -> bool {
         self.state.is_runnable()
     }
+
+    /// Give this process one quantum and record what it did.
+    ///
+    /// The one place a VM step becomes a process state, so the Rust-level
+    /// [`Supervisor`] and the blue-level [`Node`] cannot disagree about what a
+    /// slice means.
+    pub(crate) fn slice(&mut self, host: &mut H) -> Slice
+    where
+        H: 'static,
+    {
+        let chunk = self.chunk.clone();
+        match self.vm.step(chunk, &mut self.interp, host) {
+            Ok(Progress::Yielded) => Slice::Yielded,
+            Ok(Progress::Blocked) => {
+                self.state = ProcState::Blocked;
+                Slice::Blocked
+            }
+            Ok(Progress::Done(v)) => {
+                self.state = ProcState::Done(v.clone());
+                Slice::Done(v)
+            }
+            Err(e) => {
+                let reason = classify(&e);
+                self.state = ProcState::Exited(reason.clone());
+                Slice::Exited(reason)
+            }
+        }
+    }
+}
+
+/// What one scheduling slice did.
+pub(crate) enum Slice {
+    Yielded,
+    Blocked,
+    Done(Value),
+    Exited(ExitReason),
 }
 
 /// What the scheduler needs to know about the host, and nothing more.
@@ -233,6 +279,31 @@ pub enum Strategy {
     OneForAll,
     /// Restart the exited child and every child declared after it.
     RestForOne,
+}
+
+impl Strategy {
+    /// The positions a strategy restarts when the child at `exited` of `len`
+    /// exits abnormally. Shared by [`Supervisor`] and the blue-level
+    /// supervisors in [`node`], so the three strategies mean one thing.
+    #[must_use]
+    pub fn targets(self, exited: usize, len: usize) -> std::ops::Range<usize> {
+        match self {
+            Strategy::OneForOne => exited..exited + 1,
+            Strategy::OneForAll => 0..len,
+            Strategy::RestForOne => exited..len,
+        }
+    }
+
+    /// The blue spelling: `:one_for_one`, `:one_for_all`, `:rest_for_one`.
+    #[must_use]
+    pub fn from_keyword(word: &str) -> Option<Self> {
+        match word {
+            "one_for_one" => Some(Strategy::OneForOne),
+            "one_for_all" => Some(Strategy::OneForAll),
+            "rest_for_one" => Some(Strategy::RestForOne),
+            _ => None,
+        }
+    }
 }
 
 /// A record of what the supervisor did, so a caller can assert on
@@ -429,33 +500,18 @@ impl<H: 'static> Supervisor<H> {
             if !self.procs[idx].is_runnable() {
                 continue;
             }
-            let chunk = self.procs[idx].chunk.clone();
             // Tell the host whose slice this is, so `receive` and `self`
             // resolve to the right process.
             host.set_current(self.procs[idx].pid);
-            // Destructure so the VM and this process's OWN interpreter can be
-            // borrowed at once.
-            let proc = &mut self.procs[idx];
-            let (vm, interp) = (&mut proc.vm, &mut proc.interp);
-            match vm.step(chunk, interp, host) {
-                Ok(Progress::Yielded) => {}
-                Ok(Progress::Blocked) => {
-                    self.procs[idx].state = ProcState::Blocked;
-                    let pid = self.procs[idx].pid;
-                    self.events.push(Event::Blocked { pid });
-                }
-                Ok(Progress::Done(v)) => {
-                    self.procs[idx].state = ProcState::Done(v);
-                    let pid = self.procs[idx].pid;
-                    self.events.push(Event::Exited {
-                        pid,
-                        reason: ExitReason::Normal,
-                    });
-                }
-                Err(e) => {
-                    let reason = classify(&e);
-                    self.procs[idx].state = ProcState::Exited(reason.clone());
-                    let pid = self.procs[idx].pid;
+            let pid = self.procs[idx].pid;
+            match self.procs[idx].slice(host) {
+                Slice::Yielded => {}
+                Slice::Blocked => self.events.push(Event::Blocked { pid }),
+                Slice::Done(_) => self.events.push(Event::Exited {
+                    pid,
+                    reason: ExitReason::Normal,
+                }),
+                Slice::Exited(reason) => {
                     self.events.push(Event::Exited {
                         pid,
                         reason: reason.clone(),
@@ -499,11 +555,7 @@ impl<H: 'static> Supervisor<H> {
     where
         H: Readiness,
     {
-        let targets: Vec<usize> = match self.strategy {
-            Strategy::OneForOne => vec![exited_idx],
-            Strategy::OneForAll => (0..self.procs.len()).collect(),
-            Strategy::RestForOne => (exited_idx..self.procs.len()).collect(),
-        };
+        let targets = self.strategy.targets(exited_idx, self.procs.len());
 
         // Intensity is checked on the CHILD THAT EXITED, not on the
         // siblings a strategy sweeps up: a sibling restarted as collateral
@@ -529,7 +581,7 @@ impl<H: 'static> Supervisor<H> {
     }
 }
 
-fn classify(e: &VmError) -> ExitReason {
+pub(crate) fn classify(e: &VmError) -> ExitReason {
     match e {
         VmError::BudgetExhausted { .. } => ExitReason::Runaway(e.to_string()),
         other => ExitReason::Crashed(other.to_string()),

@@ -151,6 +151,8 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
     // Measured 2026-09-29: 17 definitions in 5 bidamas. retsu's are what
     // AUTHORING.md calls its "total replacements" (`retsu.first` is nil on an
     // empty list) — deliberate, and deliberately program-wide today.
+    // `raifusaikuru.link` since 2026-10-10: the bidama's link predates the
+    // process word `link(pid)`, and a file that lists it gets the bidama's.
     assert_eq!(
         replaces_value,
         [
@@ -163,6 +165,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "kazu.abs",
             "kazu.max",
             "kazu.min",
+            "raifusaikuru.link",
             "retsu.first",
             "retsu.interleave",
             "retsu.last",

@@ -11,6 +11,11 @@ repository.workspace = true
 [dependencies]
 tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
+# The host names a child's recorder rebinds, read off the closed capability
+# universe rather than listed again here.
+blue-lang-waku = { workspace = true }
+# Crash traces are JSON (`trace.rs`), readable by blue's own `json_parse`.
+serde_json = { workspace = true }
 
 [dev-dependencies]
 # The replay suite pins `Model::BLUE_TODAY.interleaving` against what it
@@ -20,5 +25,7 @@ tatara-lisp-eval = { workspace = true }
 # `blue-lang-runtime`'s dev-dep block and the gate in `blue-lang-cli`'s
 # `tests/registry_graph.rs`.
 blue-lang-bidama = { path = "../blue-lang-bidama" }
-blue-lang-runtime = { path = "../blue-lang-runtime" }
+# `sys` so the node tests can show a child's host reads landing on its tape.
+blue-lang-runtime = { path = "../blue-lang-runtime", features = ["sys"] }
 blue-lang-syntax = { path = "../blue-lang-syntax" }
+serde_json = { workspace = true }

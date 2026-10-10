@@ -56,6 +56,8 @@ pub enum Topic {
     Lazy,
     /// tatara-lisp's channels and fibers.
     Concurrency,
+    /// blue's own processes: spawn, mailboxes, links, supervision.
+    Actor,
     /// Printing to the terminal.
     Output,
 }
@@ -81,6 +83,7 @@ impl Topic {
         Topic::Output,
         Topic::Lazy,
         Topic::Concurrency,
+        Topic::Actor,
         Topic::Lisp,
     ];
 
@@ -106,6 +109,7 @@ impl Topic {
             Topic::Crypto => "Hashing and signatures",
             Topic::Lazy => "Delayed values",
             Topic::Concurrency => "Channels and fibers",
+            Topic::Actor => "Blue processes and supervision",
             Topic::Output => "Terminal output",
         }
     }
@@ -389,6 +393,23 @@ pub const NAMES: &[NameDoc] = names! {
     Concurrency: "close!" "close!(ch)" "Close a channel.";
     Concurrency: "drain!" "drain!(ch)" "Every value waiting in a channel, as a list.";
     Concurrency: "go" "go(f)" "A pending fiber for a zero-argument function. Running it (go-run) has no blue spelling.";
+    // ── blue processes ────────────────────────────────────────────────────
+    Actor: "spawn" "spawn(f[, args])" "Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does.";
+    Actor: "spawn_link" "spawn_link(f[, args])" "spawn, linked to the caller: an abnormal exit of either ends the other, unless it traps exits.";
+    Actor: "spawn_server" "spawn_server(handler, state)" "A process that answers each message m with state = handler(m, state). Its state is what defmigrate transforms.";
+    Actor: "send" "send(pid, msg)" "Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped.";
+    Actor: "receive" "receive([pattern][, timeout_ms][, on_timeout])" "The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock.";
+    Actor: "self" "self()" "This process's pid. The program itself is 0.";
+    Actor: "alive?" "alive?(pid)" "true while pid is running or waiting.";
+    Actor: "link" "link(pid)" "Link to pid: an abnormal exit of either ends the other. false when pid is not alive.";
+    Actor: "unlink" "unlink(pid)" "Remove a link; true.";
+    Actor: "monitor" "monitor(pid)" "Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone).";
+    Actor: "demonitor" "demonitor(ref)" "Stop a monitor; true.";
+    Actor: "exit" "exit(pid, reason)" "Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self(), r) raises.";
+    Actor: "trap_exit" "trap_exit(flag)" "While true, exit signals arrive as [:exit, pid, reason] messages instead of ending this process. Returns the previous flag.";
+    Actor: "supervisor" "supervisor(strategy, children[, max_restarts])" "Start children (functions, [f, args] pairs, or [:server, handler, state]) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. Each crash writes a trace for blue replay.";
+    Actor: "children" "children(sup)" "The pids a supervisor started, in order.";
+    Actor: "defmigrate" "defmigrate(target, new_fn[, transform])" "Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …].";
 };
 
 /// The row for a name, if blue describes it.

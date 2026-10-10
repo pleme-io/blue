@@ -71,6 +71,7 @@ mod observe;
 mod prefetch;
 mod reference;
 mod repl;
+mod replay;
 mod scaffold;
 mod script;
 mod watch;
@@ -302,6 +303,10 @@ enum Cmd {
     /// forms, Bluefile words and every bound name, each read from the table
     /// the implementation runs on. `docs/REFERENCE.md` is rendered from it.
     Reference,
+    /// Run a crashed process again from the trace its crash wrote, and say
+    /// whether it crashed the same way. `blue run` writes traces to
+    /// `BLUE_TRACE_DIR` (default: `blue-traces` in the temporary directory).
+    Replay { trace: PathBuf },
     /// Show the bounds `blue` is running with, at any tier.
     ///
     /// The fleet-uniform `config-show` surface, supplied by shikumi rather
@@ -504,12 +509,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // Before any interpreter is built, so every evaluating door — run, test,
     // the LSP, a Bluefile — runs under the configured bounds.
     blue_lang_runtime::set_execution_bounds(cfg.execution_bounds());
+    blue_lang_proc::node::set_trace_dir(replay::trace_dir());
     // `self_exe` answers with THIS binary only because it is the blue CLI;
     // any other embedder leaves it nil (blue_lang_runtime::sys::set_blue_exe).
     if let Ok(me) = std::env::current_exe() {
         blue_lang_runtime::sys::set_blue_exe(me.to_string_lossy().into_owned());
     }
     match cli.cmd {
+        Cmd::Replay { trace } => replay::run(&trace).map_err(CliError::Fmt),
         Cmd::Run {
             file,
             inputs,

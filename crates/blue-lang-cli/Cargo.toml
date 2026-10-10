@@ -26,6 +26,7 @@ blue-lang-art = { workspace = true }
 katsuji = "0.1"
 blue-lang-waku = { workspace = true }
 blue-lang-bidama = { workspace = true }
+blue-lang-proc = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 clap = { workspace = true }
 thiserror = { workspace = true }

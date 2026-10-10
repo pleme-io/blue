@@ -409,6 +409,9 @@ pub fn run(forms: &[Sexp]) -> Report {
         let rec = Recorder::default();
         let mut interp = prototype.fork();
         install_assert(&mut interp, &rec);
+        // A process node per test, so one test's processes and mailbox are
+        // not the next test's: the fork shares the prototype's node otherwise.
+        blue_lang_runtime::attach_node(&mut interp);
 
         // Only the body: the preamble is already in the frames this fork
         // inherits. It still goes through the same erase-then-read path the

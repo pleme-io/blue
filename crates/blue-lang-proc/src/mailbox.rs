@@ -31,9 +31,10 @@
 //! removes the possibility before the feature that would have hit it.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 use tatara_lisp_eval::ffi::Arity;
-use tatara_lisp_eval::{Interpreter, Value};
+use tatara_lisp_eval::{ErrorObj, Interpreter, Value};
 
 use crate::Pid;
 
@@ -130,7 +131,8 @@ impl System {
 /// closure captures its defining environment, so sending one would hand a
 /// second process a live reference into the first's globals — the exact leak
 /// this function exists to prevent. Refusing yields `Nil` at the boundary
-/// rather than silently sharing.
+/// rather than silently sharing; [`copy_data`] is the strict form that names
+/// the refusal instead.
 pub fn deep_copy(v: &Value) -> Value {
     match v {
         Value::Nil
@@ -141,11 +143,71 @@ pub fn deep_copy(v: &Value) -> Value {
         | Value::Symbol(_)
         | Value::Keyword(_) => v.clone(),
         Value::List(items) => Value::list(items.iter().map(deep_copy)),
+        // Maps and error objects are data. Before tatara-lisp 0.4 gave blue a
+        // persistent `Map`, this arm did not exist and a sent `{a: 1}` arrived
+        // as nil.
+        Value::Map(m) => Value::Map(Arc::new(
+            m.iter().map(|(k, v)| (k.clone(), deep_copy(v))).collect(),
+        )),
+        Value::Error(e) => Value::Error(Arc::new(ErrorObj {
+            tag: e.tag.clone(),
+            message: e.message.clone(),
+            data: e.data.iter().map(|(k, v)| (deep_copy(k), deep_copy(v))).collect(),
+        })),
         Value::Sexp(s, span) => Value::Sexp(s.clone(), *span),
-        // A closure, a promise, a foreign handle, an error object: each either
-        // captures an environment or wraps host state. Not copyable, and not
-        // safe to share.
+        // A closure, a promise, a foreign handle: each either captures an
+        // environment or wraps host state. Not copyable, and not safe to share.
         _ => Value::Nil,
+    }
+}
+
+/// [`deep_copy`] that refuses non-data instead of turning it into nil.
+///
+/// What the blue-level words use: a `send` or `spawn` that silently delivered
+/// nil in place of a function would move the failure to the receiver, far from
+/// the line that caused it. The error names the kind of value refused.
+///
+/// # Errors
+///
+/// The type name of the first value that is not data.
+pub fn copy_data(v: &Value) -> Result<Value, &'static str> {
+    Ok(match v {
+        Value::Nil
+        | Value::Bool(_)
+        | Value::Int(_)
+        | Value::Float(_)
+        | Value::Str(_)
+        | Value::Symbol(_)
+        | Value::Keyword(_) => v.clone(),
+        Value::List(items) => Value::list(items.iter().map(copy_data).collect::<Result<Vec<_>, _>>()?),
+        Value::Map(m) => Value::Map(Arc::new(
+            m.iter()
+                .map(|(k, v)| copy_data(v).map(|v| (k.clone(), v)))
+                .collect::<Result<_, _>>()?,
+        )),
+        Value::Error(e) => Value::Error(Arc::new(ErrorObj {
+            tag: e.tag.clone(),
+            message: e.message.clone(),
+            data: e
+                .data
+                .iter()
+                .map(|(k, v)| Ok((copy_data(k)?, copy_data(v)?)))
+                .collect::<Result<_, &'static str>>()?,
+        })),
+        Value::Sexp(s, span) => Value::Sexp(s.clone(), *span),
+        other => return Err(kind_of(other)),
+    })
+}
+
+/// What a non-data value is, in words a refusal can use. A function is a
+/// function whichever executor made it: the VM's closures are `Foreign`
+/// values, and naming them "foreign" would make one refusal read two ways.
+fn kind_of(v: &Value) -> &'static str {
+    match v {
+        Value::Closure(_) | Value::NativeFn(_) => "function",
+        Value::Foreign(any) if any.is::<tatara_lisp_eval::vm::run::CompiledClosure>() => "function",
+        Value::Foreign(_) => "host handle",
+        other => other.type_name(),
     }
 }
 

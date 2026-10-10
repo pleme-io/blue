@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:3212d5efe36791f12e509929e8aa150c239663b381a4db1fc8696c0f39e9d237",
+  "manifest": {
+    "schema": 1,
+    "name": "jitaku",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

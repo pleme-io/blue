@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:db4fe9634e6970948b1a3940d2aab233693b12e30b8a5e15fc922483e6f4b202",
+  "bluefile_b3": "b3:8dbda9447415542a52fe622eb14d2e3193e010df35c53ba8e450a0b1fb20c3db",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -14,6 +14,7 @@
       "hadome": "^0.1.0",
       "heni": "^0.1.0",
       "hizuke": "^0.1.0",
+      "jitaku": "^0.1.0",
       "junjo": "^0.1.0",
       "kakou": "^0.1.0",
       "kansuu": "^0.1.0",

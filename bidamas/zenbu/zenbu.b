@@ -54,6 +54,7 @@ use("hadome")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
 use("hizuke", [:is_leap])
+use("jitaku")
 use("junjo", [:is_sorted, :sort])
 use("kakou")
 use("kansuu", [:identity])
@@ -142,6 +143,7 @@ test "every bidama in the distribution answers through this one import"
   assert size(relay_env("socks5h://r:1")) == 6
   assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
+  assert jitaku::to_json([]) == "{\"enable\":true}"
 end
 
 test "four packages compose without the consumer naming any of them"

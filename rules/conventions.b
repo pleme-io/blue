@@ -6,10 +6,12 @@
 # Over builtins only, so the rules load with no BLUE_PATH.
 
 # Every [path, node] in a tree, the tree itself first. A path is the child
-# indices from the root.
+# indices from the root. A quoted form is data, not code: it is a node, and
+# nothing inside it is. `blue check` on this file is the test: its own tests
+# quote nil? as input, and without this it reported them.
 def nodes(tree, path)
   here = [[path, tree]]
-  if tree == nil || !list?(tree)
+  if tree == nil || !list?(tree) || quoted?(tree)
     here
   else
     children = map(
@@ -18,6 +20,10 @@ def nodes(tree, path)
     )
     apply(append, cons(here, children))
   end
+end
+
+def quoted?(node)
+  call?(node, "quote", 1) || call?(node, "quasiquote", 1)
 end
 
 # Is `node` a call to `name` with `arity` arguments?

@@ -39,6 +39,8 @@ pub mod hosted;
 pub mod inputs;
 pub mod json;
 pub mod messages;
+#[cfg(feature = "sys")]
+pub mod net;
 pub mod pipeline;
 pub mod stdlib;
 #[cfg(feature = "sys")]
@@ -87,7 +89,7 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // so it lowers to no import and the wasm consumer keeps it. See `crypto`.
     crypto::install_crypto_stdlib(&mut interp);
     // Layer 5: the host-side system surface — process, filesystem, env,
-    // clock. Feature-gated: every sys primitive is a host import, so the
+    // clock, network. Feature-gated: every sys primitive is a host import, so the
     // wasm consumer (which builds with `sys` OFF) keeps its zero-host-import
     // surface by construction. Only the CLI turns it on.
     #[cfg(feature = "sys")]

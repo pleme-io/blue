@@ -3,9 +3,9 @@
 //!
 //! # Why this test lives here and not in `blue-lang-waku`
 //!
-//! `Capability`'s four host bundles claim to be exactly what
-//! `blue_lang_runtime::sys` installs. A test inside `blue-lang-waku` could only
-//! compare that claim against itself — the repo's named trap: *"a gate derived
+//! `Capability`'s host bundles (five since 2026-10-10, with `net`'s) claim to
+//! be exactly what `blue_lang_runtime::sys` installs. A test inside
+//! `blue-lang-waku` could only compare that claim against itself — the repo's named trap: *"a gate derived
 //! from the thing it checks is a tautology."* So the evidence is taken from a
 //! **real interpreter**: install the sys layer into a bare one, diff the
 //! reserved head names before and after, and compare the difference against the
@@ -52,6 +52,13 @@
 //!    ``clock grants `monotonic_now`, which the sys layer does not install``
 //!    — the direction red run 6 cannot reach, recorded separately because one
 //!    mutation proving one direction says nothing about the other.
+//! 10. **A network name with no capability.** Performed 2026-10-10: deleting
+//!     `"http_request"` from `NETWORK_NAMES` failed
+//!     `every_sys_name_is_claimed_by_exactly_one_host_capability` with
+//!     `sys installs names no capability grants: ["http_request"]`, and the
+//!     measured shape in
+//!     `each_host_capability_carries_a_real_bundle_and_a_real_import`
+//!     (2 tests red). Reverted.
 
 use std::collections::BTreeSet;
 
@@ -176,7 +183,7 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
         .into_iter()
         .map(|c| (c.label(), c.names().len()))
         .collect();
-    assert_eq!(counts.len(), 4, "the floor, 2026-08-13: {counts:?}");
+    assert_eq!(counts.len(), 5, "the floor, 2026-10-10: {counts:?}");
     for (label, n) in &counts {
         assert!(*n > 0, "{label} grants no names");
     }
@@ -195,7 +202,11 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             // 5 since 2026-09-27: self_exe, the blue CLI running this program
             // (nil when embedded), so a program that runs blue spawns THIS one.
             ("environment", 5),
-            ("clock", 7)
+            ("clock", 7),
+            // Since 2026-10-10: NATS (connect, publish, request, subscribe,
+            // next_message, unsubscribe, close) and http_request, so a blue
+            // daemon drives a message bus and calls an HTTP API.
+            ("network", 8)
         ]
     );
 }

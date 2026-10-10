@@ -116,7 +116,7 @@ bidama that does not check does not build.
 | REACH/WHEN/WHERE frame lattice; the closed `Capability` set; `imports_of` | `blue-lang-waku` |
 | package posture floors + resolution | `blue-lang-bidama` |
 | processes, supervision, mailboxes, isolation | `blue-lang-proc` |
-| interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`); BLAKE3 + Ed25519, pure and C-free (`crypto`) | `blue-lang-runtime` |
+| interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`); BLAKE3 + Ed25519, pure and C-free (`crypto`); NATS and HTTP spoken over std TCP (`net`, host-gated as `Capability::Network`) | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
 | the conformance suite: `spec/rows/*.b` on every evaluator, and the missing-row gate (`checks.conformance`; format and pending mechanism in `spec/README.md`) | `blue-lang-test/tests/conformance/` |
 | Bluefile (the `WORDS` table) + version solver + `Bluefile.lock` | `blue-lang-pkg` |
@@ -421,6 +421,8 @@ is real; nothing fetches), **no self-hosting on the implementation axis**
 (`spec/*.b` is the specification axis only), **no comment attachment inside a
 form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
 signs and verifies; a keypair comes from a seed the caller supplies),
+**no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
+NATS server requiring TLS are refused by name),
 **no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
 derives the table from a frame — nothing puts an entry into a `.wasm`, and no
 engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`

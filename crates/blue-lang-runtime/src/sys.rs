@@ -45,6 +45,8 @@
 //! sleep(secs) / sleep_ms(ms) → nil, blocks
 //! elapsed_since(start_ns)    → ns since start (from `now_ns`)
 //! ```
+//!
+//! NATS and HTTP are installed here too, from [`crate::net`].
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -61,6 +63,7 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     install_fs(interp);
     install_env(interp);
     install_clock(interp);
+    crate::net::install_net(interp);
 }
 
 // ── process ──────────────────────────────────────────────────────────────
@@ -903,7 +906,11 @@ fn days_to_ymd(days: i64) -> (i64, u32, u32) {
 
 // ── shared argument coercion ─────────────────────────────────────────────
 
-fn arg_str(v: &Value, fname: &'static str, span: tatara_lisp::Span) -> Result<Arc<str>, EvalError> {
+pub(crate) fn arg_str(
+    v: &Value,
+    fname: &'static str,
+    span: tatara_lisp::Span,
+) -> Result<Arc<str>, EvalError> {
     match v {
         Value::Str(s) => Ok(s.clone()),
         other => Err(EvalError::native_fn(
@@ -914,7 +921,11 @@ fn arg_str(v: &Value, fname: &'static str, span: tatara_lisp::Span) -> Result<Ar
     }
 }
 
-fn arg_int(v: &Value, fname: &'static str, span: tatara_lisp::Span) -> Result<i64, EvalError> {
+pub(crate) fn arg_int(
+    v: &Value,
+    fname: &'static str,
+    span: tatara_lisp::Span,
+) -> Result<i64, EvalError> {
     match v {
         Value::Int(n) => Ok(*n),
         other => Err(EvalError::native_fn(

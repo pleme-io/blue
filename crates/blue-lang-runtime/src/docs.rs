@@ -49,6 +49,8 @@ pub enum Topic {
     Process,
     Environment,
     Clock,
+    /// NATS and HTTP over TCP.
+    Network,
     Crypto,
     /// Delayed values.
     Lazy,
@@ -74,6 +76,7 @@ impl Topic {
         Topic::Process,
         Topic::Environment,
         Topic::Clock,
+        Topic::Network,
         Topic::Crypto,
         Topic::Output,
         Topic::Lazy,
@@ -99,6 +102,7 @@ impl Topic {
             Topic::Process => "Processes",
             Topic::Environment => "Environment and arguments",
             Topic::Clock => "Time",
+            Topic::Network => "Network",
             Topic::Crypto => "Hashing and signatures",
             Topic::Lazy => "Delayed values",
             Topic::Concurrency => "Channels and fibers",
@@ -355,6 +359,15 @@ pub const NAMES: &[NameDoc] = names! {
     Clock: "elapsed_since" "elapsed_since(start_ns)" "Nanoseconds since start_ns, a value of now_ns().";
     Clock: "sleep" "sleep(seconds)" "Pause for whole seconds.";
     Clock: "sleep_ms" "sleep_ms(ms)" "Pause for milliseconds.";
+    // ── network ───────────────────────────────────────────────────────────
+    Network: "nats_connect" "nats_connect(url[, timeout_ms])" "A NATS connection to nats://[user:pass@|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect.";
+    Network: "nats_publish" "nats_publish(conn, subject, payload)" "Publish a string to one subject (no wildcards); nil. Also answers the server's pings, so a publish-only loop stays connected.";
+    Network: "nats_request" "nats_request(conn, subject, payload, timeout_ms)" "Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders).";
+    Network: "nats_subscribe" "nats_subscribe(conn, subject[, queue])" "A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message.";
+    Network: "nats_next_message" "nats_next_message(sub, timeout_ms)" "{subject:, payload:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. reply is nil unless the sender wants an answer: publish to it.";
+    Network: "nats_unsubscribe" "nats_unsubscribe(sub)" "Stop a subscription; messages already queued for it are dropped. nil.";
+    Network: "nats_close" "nats_close(conn)" "Close the connection; every later call on it raises. nil.";
+    Network: "http_request" "http_request(method, url, headers, body, timeout_ms)" "One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises.";
     // ── crypto ────────────────────────────────────────────────────────────
     Crypto: "blake3_hex" "blake3_hex(data)" "The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it.";
     Crypto: "ed25519_keypair" "ed25519_keypair(seed_hex)" "[secret, public] in hex for a 32-byte seed. There is no entropy source: the caller supplies the seed.";

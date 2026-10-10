@@ -497,6 +497,23 @@
               };
             };
 
+          # The network primitives against real peers: a nats-server child
+          # and a std TCP listener (`blue-lang-runtime/tests/net.rs`).
+          # REQUIRE makes a missing nats-server red rather than a skip.
+          network =
+            (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs {
+              src = ./.;
+              name = "blue-network";
+              config = {
+                runs = [ { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "net" ]; } ];
+                nativeBuildInputs = [ "nats-server" ];
+                env = {
+                  BLUE_NATS_SERVER = "${pkgs.nats-server}/bin/nats-server";
+                  BLUE_REQUIRE_NATS_SERVER = "1";
+                };
+              };
+            };
+
           # Every rule being ratcheted in (`blue_lang_check::RULES`'
           # `ratchet`) measures EXACTLY its row's count over the repository:
           # a new violation, or progress the row has not recorded, is red.

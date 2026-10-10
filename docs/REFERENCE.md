@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-230 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+238 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -332,6 +332,19 @@ Higher binding power binds tighter.
 | `now_rfc3339` | `now_rfc3339()` | 0 | The current UTC time as RFC 3339 text. |
 | `sleep` | `sleep(seconds)` | 1 | Pause for whole seconds. |
 | `sleep_ms` | `sleep_ms(ms)` | 1 | Pause for milliseconds. |
+
+### Network
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `http_request` | `http_request(method, url, headers, body, timeout_ms)` | 5 | One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. |
+| `nats_close` | `nats_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
+| `nats_connect` | `nats_connect(url[, timeout_ms])` | 1..2 | A NATS connection to nats://[user:pass@\|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect. |
+| `nats_next_message` | `nats_next_message(sub, timeout_ms)` | 2 | {subject:, payload:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. reply is nil unless the sender wants an answer: publish to it. |
+| `nats_publish` | `nats_publish(conn, subject, payload)` | 3 | Publish a string to one subject (no wildcards); nil. Also answers the server's pings, so a publish-only loop stays connected. |
+| `nats_request` | `nats_request(conn, subject, payload, timeout_ms)` | 4 | Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders). |
+| `nats_subscribe` | `nats_subscribe(conn, subject[, queue])` | 2..3 | A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message. |
+| `nats_unsubscribe` | `nats_unsubscribe(sub)` | 1 | Stop a subscription; messages already queued for it are dropped. nil. |
 
 ### Hashing and signatures
 

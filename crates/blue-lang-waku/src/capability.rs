@@ -47,7 +47,7 @@
 //! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT` |
 //! | [`Capability::CoreForms`] | the heads `blue-lang-syntax` lowers control flow to |
 //! | [`Capability::ManifestDeclaration`] | the Bluefile vocabulary (`blue_lang_pkg::bluefile`'s word table) |
-//! | the four host bundles | `blue_lang_runtime::sys`'s four installers |
+//! | the five host bundles | `blue_lang_runtime::sys`'s four installers and `net`'s |
 //!
 //! The last row is the one that could rot, and it is gated rather than trusted:
 //! `blue-lang-cli`'s `tests/capability_surface.rs` installs the sys layer into a
@@ -127,6 +127,13 @@ pub enum Capability {
     Environment,
     /// Time and sleeping. `…::install_clock`.
     Clock,
+    /// Sockets: NATS and HTTP over TCP. `blue_lang_runtime::net::install_net`,
+    /// called from the sys installer.
+    ///
+    /// Distinct from [`Capability::Process`] and [`Capability::FileSystem`]
+    /// because a frame that may read files has not thereby been allowed to
+    /// reach another machine.
+    Network,
 }
 
 /// The wasm import module every host capability lowers into.
@@ -217,6 +224,17 @@ const FILESYSTEM_NAMES: &[&str] = &[
 ];
 /// `blue_lang_runtime::sys::install_env`, 2026-08-13.
 const ENVIRONMENT_NAMES: &[&str] = &["getenv", "env_required", "argv", "argv_get", "self_exe"];
+/// `blue_lang_runtime::net::install_net`, 2026-10-10.
+const NETWORK_NAMES: &[&str] = &[
+    "nats_connect",
+    "nats_publish",
+    "nats_request",
+    "nats_subscribe",
+    "nats_next_message",
+    "nats_unsubscribe",
+    "nats_close",
+    "http_request",
+];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",
@@ -229,11 +247,11 @@ const CLOCK_NAMES: &[&str] = &[
 ];
 
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: ten as of
-    /// 2026-08-13, six pure and four host-effect. Stated so a count gate cannot
+    /// How many capabilities exist. A **floor with a date**: eleven as of
+    /// 2026-10-10, six pure and five host-effect (ten until `Network`). Stated so a count gate cannot
     /// pass over an empty set — `ALL.len() == 0` would satisfy every
     /// "for every capability…" test in this file.
-    pub const COUNT: usize = 10;
+    pub const COUNT: usize = 11;
 
     const FIRST: Self = Capability::CoreForms;
 
@@ -257,7 +275,8 @@ impl Capability {
             Capability::Process => Some(Capability::FileSystem),
             Capability::FileSystem => Some(Capability::Environment),
             Capability::Environment => Some(Capability::Clock),
-            Capability::Clock => None,
+            Capability::Clock => Some(Capability::Network),
+            Capability::Network => None,
         }
     }
 
@@ -296,6 +315,7 @@ impl Capability {
             Capability::FileSystem => "filesystem",
             Capability::Environment => "environment",
             Capability::Clock => "clock",
+            Capability::Network => "network",
         }
     }
 
@@ -313,6 +333,7 @@ impl Capability {
             Capability::FileSystem => Names::Fixed(FILESYSTEM_NAMES),
             Capability::Environment => Names::Fixed(ENVIRONMENT_NAMES),
             Capability::Clock => Names::Fixed(CLOCK_NAMES),
+            Capability::Network => Names::Fixed(NETWORK_NAMES),
         }
     }
 
@@ -366,6 +387,10 @@ impl Capability {
             Capability::Clock => Some(Import {
                 module: HOST_MODULE,
                 field: "clock",
+            }),
+            Capability::Network => Some(Import {
+                module: HOST_MODULE,
+                field: "net",
             }),
         }
     }
@@ -423,8 +448,8 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
-    /// **The floor, with the date.** Ten capabilities on 2026-08-13, six pure
-    /// and four host-effect.
+    /// **The floor, with the date.** Eleven capabilities on 2026-10-10, six
+    /// pure and five host-effect (four until `Network`).
     ///
     /// Anti-vacuity for every "for every capability…" test below: each of them
     /// passes trivially over an empty `ALL`, and `ALL` is *derived* from the
@@ -433,11 +458,11 @@ mod tests {
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 10, "the floor, measured 2026-08-13");
+        assert_eq!(Capability::COUNT, 11, "the floor, measured 2026-10-10");
         assert_eq!(
             Capability::host_effects().len(),
-            4,
-            "process, filesystem, environment, clock"
+            5,
+            "process, filesystem, environment, clock, network"
         );
         assert_eq!(
             Capability::ALL

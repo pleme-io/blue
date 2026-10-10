@@ -1,0 +1,2 @@
+package("rule-fixture-reads", "0.1.0")
+rule("FX0005", "rules.b", "peek")

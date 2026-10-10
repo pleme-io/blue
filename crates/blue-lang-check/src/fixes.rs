@@ -2,7 +2,7 @@
 //! one file's text. One function, so the CLI's `--fix` and an editor's "fix
 //! all" rewrite a file identically.
 
-use crate::{Applicability, Diagnostic, Edit};
+use crate::{Applicability, Diagnostic, Edit, Fix};
 use tatara_lisp::Span;
 
 /// Apply every machine-applicable fix of `diagnostics` whose diagnostic
@@ -17,14 +17,30 @@ pub fn apply_machine_fixes(
     in_file: &dyn Fn(usize) -> bool,
     text: &str,
 ) -> (String, usize) {
+    apply_fixes(
+        diagnostics
+            .iter()
+            .map(|d| (d.top_level, d.fixes.as_slice())),
+        in_file,
+        text,
+    )
+}
+
+/// [`apply_machine_fixes`] over any reported fixes, each with the top-level
+/// form it arose in: a registry diagnostic's, or a project rule's finding's.
+#[must_use]
+pub fn apply_fixes<'a>(
+    reported: impl IntoIterator<Item = (usize, &'a [Fix])>,
+    in_file: &dyn Fn(usize) -> bool,
+    text: &str,
+) -> (String, usize) {
     let mut edits: Vec<(Span, &str)> = Vec::new();
     let mut applied = 0;
-    for d in diagnostics {
-        if !in_file(d.top_level) {
+    for (top_level, fixes) in reported {
+        if !in_file(top_level) {
             continue;
         }
-        for fix in d
-            .fixes
+        for fix in fixes
             .iter()
             .filter(|f| f.applicability == Applicability::MachineApplicable)
         {

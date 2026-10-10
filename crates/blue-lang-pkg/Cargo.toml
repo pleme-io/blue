@@ -17,6 +17,8 @@ embedded = []
 
 [dependencies]
 blue-lang-runtime = { workspace = true }
+# A project rule's code is validated where the registry's codes live.
+blue-lang-check = { workspace = true }
 blue-lang-syntax = { workspace = true }
 # blue compiles only canonical source (`canonical`): the loader formats a
 # writable package file before compiling it and refuses a read-only one.
@@ -35,4 +37,3 @@ serde_json = { workspace = true }
 # `tests/registry_graph.rs`. blue-lang-test depends on blue-lang-runtime,
 # which this crate depends on, so a versioned edge back is a registry cycle.
 blue-lang-test = { path = "../blue-lang-test" }
-blue-lang-check = { path = "../blue-lang-check" }

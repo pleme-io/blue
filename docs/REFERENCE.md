@@ -442,6 +442,7 @@ A Bluefile is a blue program that may call only these words.
 | `check(name, file)` | A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. |
 | `app(name, file)` | A program exposed as `nix run .#<name>`. |
 | `generate(name, output, program[, inputs])` | A committed file and the program that writes it (to $GEN_OUT): `packages.generated-<name>` and a freshness check. `inputs` lists the project paths the program reads, found under $GEN_ROOT. |
+| `rule(code, file, def[, severity])` | A project check rule: `blue check` calls the blue definition `def` in `file` on each top-level form of every file under the project, under a pure frame, and reports its findings under `code` (letters then four digits, never B); severity "error" (default) or "warning". |
 | `catalog(path)` | Where the mokuroku catalogue of the `packages` roots is committed; gated fresh. |
 | `image(name, spec)` | An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`. |
 | `workload(name, spec)` | A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster. |

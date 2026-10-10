@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b4a2b3e1f2a5c3e4b213282e2197560b1ada78c489d5505d8ac5393352ea7d55",
+  "bluefile_b3": "b3:f059561d2747f265de5bfb246aeb5370753f5e4163f6afafeeaeb71dc39dcd61",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -19,6 +19,9 @@
     "checks": {
       "okite-laws": {
         "file": "gen/okite-laws.b"
+      },
+      "project-rules": {
+        "file": "rules/conventions.b"
       }
     },
     "apps": {},
@@ -45,6 +48,13 @@
         "inputs": [
           "bidamas"
         ]
+      }
+    },
+    "rules": {
+      "R0001": {
+        "file": "rules/conventions.b",
+        "def": "nil_predicate",
+        "severity": "error"
       }
     }
   },

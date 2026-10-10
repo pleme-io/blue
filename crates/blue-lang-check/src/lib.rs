@@ -36,6 +36,7 @@ use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 pub mod fixes;
 pub mod names;
 pub mod namespace_rules;
+pub mod project;
 pub mod rules;
 pub mod suggest;
 pub mod waiver;

@@ -20,7 +20,9 @@
 
 use std::path::Path;
 
-use blue_lang_check::{Applicability, Diagnostic, Outcome};
+use blue_lang_check::project::Finding;
+use blue_lang_check::{Diagnostic, Fix, Outcome};
+use blue_lang_pkg::project_rules::{Failure, Outcome as ProjectOutcome};
 use blue_lang_runtime::uses::{ResolvedProgram, SourceFile};
 use blue_lang_syntax::Span;
 use serde::Serialize;
@@ -104,8 +106,8 @@ pub struct JsonWaiver {
 /// One line of `blue check --format json`.
 #[derive(Serialize)]
 pub struct JsonDiagnostic {
-    pub code: &'static str,
-    pub slug: &'static str,
+    pub code: String,
+    pub slug: String,
     pub severity: &'static str,
     pub message: String,
     #[serde(flatten)]
@@ -131,8 +133,8 @@ pub fn to_json(
     let file = file_of(program, d.top_level);
     let rule = d.code.rule();
     JsonDiagnostic {
-        code: d.code.as_str(),
-        slug: rule.slug,
+        code: d.code.as_str().to_string(),
+        slug: rule.slug.to_string(),
         severity: d.severity.label(),
         message: d.message.clone(),
         at: Location::of(file, d.span),
@@ -145,24 +147,150 @@ pub fn to_json(
                 message: r.message.clone(),
             })
             .collect(),
-        fixes: d
-            .fixes
-            .iter()
-            .map(|f| JsonFix {
-                message: f.message.clone(),
-                applicability: f.applicability.label(),
-                edits: f
-                    .edits
-                    .iter()
-                    .map(|e| JsonEdit {
-                        at: Location::of(file, e.span),
-                        original: e.original.clone(),
-                        replacement: e.replacement.clone(),
-                    })
-                    .collect(),
-            })
-            .collect(),
+        fixes: json_fixes(file, &d.fixes),
         waiver,
+    }
+}
+
+fn json_fixes(file: Option<&SourceFile>, fixes: &[Fix]) -> Vec<JsonFix> {
+    fixes
+        .iter()
+        .map(|f| JsonFix {
+            message: f.message.clone(),
+            applicability: f.applicability.label(),
+            edits: f
+                .edits
+                .iter()
+                .map(|e| JsonEdit {
+                    at: Location::of(file, e.span),
+                    original: e.original.clone(),
+                    replacement: e.replacement.clone(),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// A project rule's finding as its JSON object: the registry's shape, with
+/// the project code and the rule's definition as its slug.
+#[must_use]
+pub fn finding_json(
+    program: &ResolvedProgram,
+    f: &Finding,
+    waiver: Option<JsonWaiver>,
+) -> JsonDiagnostic {
+    let file = file_of(program, f.top_level);
+    JsonDiagnostic {
+        code: f.code.to_string(),
+        slug: f.slug(),
+        severity: f.severity.label(),
+        message: f.message.clone(),
+        at: Location::of(file, f.span),
+        help: f.help.clone(),
+        related: Vec::new(),
+        fixes: json_fixes(file, &f.fixes),
+        waiver,
+    }
+}
+
+/// What a failed project rule reports: an error under the rule's code, slug
+/// `rule-failure`, at the form it failed on, or with no position when its
+/// program never loaded.
+#[must_use]
+pub fn failure_message(f: &Failure) -> String {
+    format!(
+        "project rule `{}` ({}) failed: {}",
+        f.rule,
+        f.source.display(),
+        f.failure
+    )
+}
+
+fn failure_json(program: &ResolvedProgram, f: &Failure) -> JsonDiagnostic {
+    let (file, span) = match f.top_level {
+        Some(i) => (
+            file_of(program, i),
+            program
+                .forms()
+                .get(i)
+                .map_or(Span::synthetic(), |form| form.span),
+        ),
+        None => (None, Span::synthetic()),
+    };
+    JsonDiagnostic {
+        code: f.code.to_string(),
+        slug: "rule-failure".to_string(),
+        severity: "error",
+        message: failure_message(f),
+        at: Location::of(file, span),
+        help: None,
+        related: Vec::new(),
+        fixes: Vec::new(),
+        waiver: None,
+    }
+}
+
+/// The project pass as JSON Lines: findings, waived findings, waiver
+/// diagnostics, then failures.
+///
+/// # Errors
+///
+/// As [`json_lines`].
+pub fn project_json_lines(
+    program: &ResolvedProgram,
+    project: &ProjectOutcome,
+) -> serde_json::Result<String> {
+    let mut out = String::new();
+    let mut line = |j: JsonDiagnostic| -> serde_json::Result<()> {
+        out.push_str(&serde_json::to_string(&j)?);
+        out.push('\n');
+        Ok(())
+    };
+    for f in &project.findings {
+        line(finding_json(program, f, None))?;
+    }
+    for w in &project.waived {
+        let file = file_of(program, w.waiver.top_level);
+        let waiver = JsonWaiver {
+            reason: w.waiver.reason.clone(),
+            line: file.map(|f| Span::line_col(&f.text, w.waiver.span.start).0),
+        };
+        line(finding_json(program, &w.finding, Some(waiver)))?;
+    }
+    for d in &project.diagnostics {
+        line(to_json(program, d, None))?;
+    }
+    for f in &project.failures {
+        line(failure_json(program, f))?;
+    }
+    Ok(out)
+}
+
+/// A project finding as a person reads it, in a registry diagnostic's shape.
+#[must_use]
+pub fn render_finding(program: &ResolvedProgram, f: &Finding) -> String {
+    let head = f.to_string();
+    let mut out = program.locate(f.top_level, f.span, &head).to_string();
+    if let Some(help) = &f.help {
+        out.push_str("\n  help: ");
+        out.push_str(help);
+    }
+    out
+}
+
+/// A failed project rule as a person reads it.
+#[must_use]
+pub fn render_failure(program: &ResolvedProgram, f: &Failure) -> String {
+    let head = format!("error[{}]: {}", f.code, failure_message(f));
+    match f.top_level {
+        Some(i) => {
+            let span = program
+                .forms()
+                .get(i)
+                .map_or(Span::synthetic(), |form| form.span);
+            program.locate(i, span, &head).to_string()
+        }
+        None => head,
     }
 }
 
@@ -208,8 +336,8 @@ pub fn syntax_json(path: &Path, text: &str, d: &Diagnostic) -> serde_json::Resul
     };
     let rule = d.code.rule();
     let j = JsonDiagnostic {
-        code: d.code.as_str(),
-        slug: rule.slug,
+        code: d.code.as_str().to_string(),
+        slug: rule.slug.to_string(),
         severity: d.severity.label(),
         message: d.message.clone(),
         at: Location::of(Some(&file), d.span),
@@ -223,17 +351,27 @@ pub fn syntax_json(path: &Path, text: &str, d: &Diagnostic) -> serde_json::Resul
     Ok(s)
 }
 
-/// Apply every MACHINE-APPLICABLE fix whose edits land in the entry file:
-/// [`blue_lang_check::fixes::apply_machine_fixes`], the one rewrite an
-/// editor's "fix all" applies too.
+/// Apply every MACHINE-APPLICABLE fix whose edits land in the entry file,
+/// the registry's and the project rules': [`blue_lang_check::fixes`], the one
+/// rewrite an editor's "fix all" applies too.
 #[must_use]
 pub fn apply_machine_fixes(
     program: &ResolvedProgram,
     outcome: &Outcome,
+    project: &ProjectOutcome,
     text: &str,
 ) -> (String, usize) {
-    blue_lang_check::fixes::apply_machine_fixes(
-        &outcome.diagnostics,
+    blue_lang_check::fixes::apply_fixes(
+        outcome
+            .diagnostics
+            .iter()
+            .map(|d| (d.top_level, d.fixes.as_slice()))
+            .chain(
+                project
+                    .findings
+                    .iter()
+                    .map(|f| (f.top_level, f.fixes.as_slice())),
+            ),
         &|i| program.owner_of(i) == Some(ResolvedProgram::ENTRY),
         text,
     )

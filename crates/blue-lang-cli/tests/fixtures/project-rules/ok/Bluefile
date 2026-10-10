@@ -1,0 +1,3 @@
+package("rule-fixture", "0.1.0")
+rule("FX0001", "rules.b", "loud_call")
+rule("FX0002", "rules.b", "todo_call", "warning")

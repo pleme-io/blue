@@ -42,3 +42,9 @@ generate("reference", "docs/REFERENCE.md", "gen/reference.b", ["bidamas"])
 # its own, run by `checks.examples`).
 generate("examples", "docs/EXAMPLES.md", "gen/examples.b", ["examples"])
 check("okite-laws", "gen/okite-laws.b")
+
+# The repository's own check rules, written in blue: `blue check` runs each
+# on every file under this directory, under a pure frame
+# (docs/DIAGNOSTICS.md, "Project rules"). The check runs the rules' tests.
+rule("R0001", "rules/conventions.b", "nil_predicate")
+check("project-rules", "rules/conventions.b")

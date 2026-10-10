@@ -1,0 +1,3 @@
+package("rule-fixture-runaway", "0.1.0")
+rule("FX0003", "rules.b", "spin_forever")
+rule("FX0004", "rules.b", "every_form")

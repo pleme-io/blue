@@ -108,6 +108,134 @@ impl<H: 'static> Hosted<H> {
     }
 }
 
+/// Why a framed load ([`load_hosted_in_frame`]) refused a program.
+#[derive(Debug, thiserror::Error)]
+pub enum FramedError {
+    /// A stage of the pipeline refused it, or its top-level forms raised.
+    #[error("{0}")]
+    Run(#[from] RunError),
+    /// It names what its frame does not permit. Every name, not the first.
+    #[error("it names {} outside its frame: {}", if .names.len() == 1 { "a name" } else { "names" }, .names.join(", "))]
+    Escapes { names: Vec<String> },
+}
+
+/// Why a budgeted call ([`Hosted::call_budgeted`]) stopped short.
+#[derive(Debug, thiserror::Error)]
+pub enum CallError {
+    #[error("no function named {0}")]
+    Undefined(String),
+    #[error("{name} is not a function (it is {kind})")]
+    NotAFunction { name: String, kind: &'static str },
+    /// The call ran past its step or depth budget.
+    #[error("{name}: {message}")]
+    Exhausted { name: String, message: String },
+    /// The call raised.
+    #[error("{name}: {message}")]
+    Raised { name: String, message: String },
+}
+
+/// [`load_hosted`], refusing a program that names anything `permits` does
+/// not admit, and running its top-level forms under `budget`.
+///
+/// The frame is checked over the whole resolved program, every imported
+/// bidama's forms included, after the check stage and before any form runs
+/// (`blue_lang_waku::free_names`, the reach check a Bluefile is read under).
+/// A name the frame refuses that the interpreter binds is also rebound to a
+/// refusal, so a name the tree cannot show, one built at run time and
+/// applied, is refused when it is called rather than run.
+///
+/// # Errors
+///
+/// [`FramedError::Run`] for every [`RunError`] [`load_hosted`] has,
+/// [`FramedError::Escapes`] naming every refused name.
+pub fn load_hosted_in_frame<H: 'static>(
+    entry: Entry<'_>,
+    loader: &dyn Loader,
+    host: &mut H,
+    install: impl FnOnce(&mut Interpreter<H>),
+    permits: &dyn Fn(&str) -> bool,
+    budget: tatara_lisp_eval::vm::Budget,
+) -> Result<Hosted<H>, FramedError> {
+    let mut interp = crate::interpreter(host);
+    install(&mut interp);
+    let prepared = prepare(entry, loader, None, &builtin_names(&interp))?;
+    let escapes = blue_lang_waku::free_names(prepared.erased(), permits);
+    if !escapes.is_empty() {
+        return Err(FramedError::Escapes {
+            names: escapes.into_iter().collect(),
+        });
+    }
+    for name in interp.reserved_head_names() {
+        if !permits(&name) && interp.lookup_global(&name).is_some() {
+            let refused = name.clone();
+            interp.register_fn(
+                name,
+                tatara_lisp_eval::Arity::Any,
+                move |_: &[Value], _: &mut H, span| {
+                    Err(tatara_lisp_eval::EvalError::native_fn(
+                        refused.to_string(),
+                        "outside this program's frame",
+                        span,
+                    ))
+                },
+            );
+        }
+    }
+    interp
+        .set_budget(budget)
+        .map_err(|e| RunError::Eval(Box::new(e.to_string().into())))?;
+    eval_prepared(&mut interp, &prepared, host)?;
+    let entry = prepared.entry_namespace();
+    Ok(Hosted { interp, entry })
+}
+
+impl<H: 'static> Hosted<H> {
+    /// Call the definition `name` with `args` under `budget`, which starts
+    /// unspent for this call. Running past it is [`CallError::Exhausted`],
+    /// told apart from a raise.
+    ///
+    /// # Errors
+    ///
+    /// [`CallError`]: the name is not a function, or the call ran out or
+    /// raised.
+    pub fn call_budgeted(
+        &mut self,
+        name: &str,
+        args: Vec<Value>,
+        host: &mut H,
+        budget: tatara_lisp_eval::vm::Budget,
+    ) -> Result<Value, CallError> {
+        let callee = match self.lookup(name) {
+            Some(v @ (Value::Closure(_) | Value::NativeFn(_))) => v,
+            Some(other) => {
+                return Err(CallError::NotAFunction {
+                    name: name.to_string(),
+                    kind: kind(&other),
+                })
+            }
+            None => return Err(CallError::Undefined(name.to_string())),
+        };
+        if let Err(e) = self.interp.set_budget(budget) {
+            return Err(CallError::Raised {
+                name: name.to_string(),
+                message: e.to_string(),
+            });
+        }
+        self.interp
+            .apply_external_value(&callee, args, host, tatara_lisp::Span::synthetic())
+            .map_err(|e| match e {
+                tatara_lisp_eval::EvalError::BudgetExceeded { .. } => CallError::Exhausted {
+                    name: name.to_string(),
+                    message: e.short_message(),
+                },
+                other => CallError::Raised {
+                    name: name.to_string(),
+                    message: other.short_message(),
+                },
+            })
+    }
+}
+
 /// A string argument, the common case for a host passing text in.
 #[must_use]
 pub fn text(s: &str) -> Value {

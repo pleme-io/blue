@@ -255,6 +255,11 @@ pub(crate) struct Prepared {
 }
 
 impl Prepared {
+    /// The forms the evaluator will run: every file's, resolved and erased.
+    pub(crate) fn erased(&self) -> &[tatara_lisp::Spanned] {
+        &self.erased
+    }
+
     /// The entry file's namespace.
     pub(crate) fn entry_namespace(&self) -> Namespace {
         let first = (0..self.program.forms().len())

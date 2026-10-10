@@ -1177,12 +1177,25 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             text,
         }
     }
+    // The project's own rules, written in blue and named by the Bluefiles
+    // above the file (`blue_lang_pkg::project_rules`).
+    let rules =
+        blue_lang_pkg::project_rules::discover(file).map_err(|e| CliError::Pkg(e.to_string()))?;
+    let project_pass = |checked: &blue_lang_runtime::pipeline::Checked| {
+        blue_lang_pkg::project_rules::check(
+            &checked.program,
+            &rules,
+            &loader,
+            blue_lang_runtime::project_rules::RULE_STEPS,
+        )
+    };
     let mut checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+    let mut project = project_pass(&checked);
     // A fix can expose the next one (a moved name's fix leaves the old
     // package's `use` unreached), so fix until nothing applies, bounded.
     for _ in 0..if fix { 4 } else { 0 } {
         let (fixed, applied) =
-            diagnostics::apply_machine_fixes(&checked.program, &checked.outcome, &src);
+            diagnostics::apply_machine_fixes(&checked.program, &checked.outcome, &project, &src);
         if applied == 0 {
             break;
         }
@@ -1196,6 +1209,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             // re-check what is now on disk.
             src = read_compiled(file)?;
             checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+            project = project_pass(&checked);
         }
     }
     let outcome = &checked.outcome;
@@ -1206,6 +1220,10 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
                 "{}",
                 diagnostics::overrides_json(&checked, &checked.resolve())?
             );
+            print!(
+                "{}",
+                diagnostics::project_json_lines(&checked.program, &project)?
+            );
         }
         Format::Text => {
             // Report the analysis performed, not just pass/fail. §0's rule is
@@ -1215,7 +1233,13 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             println!("nodes analysed:     {}", outcome.stats.visited);
             println!("seams:              {}", outcome.seams.len());
             println!("names resolved:     {}", outcome.stats.names_resolved);
-            println!("waived:             {}", outcome.waived.len());
+            println!(
+                "waived:             {}",
+                outcome.waived.len() + project.waived.len()
+            );
+            if !rules.is_empty() {
+                println!("project rules:      {}", rules.len());
+            }
             // `file:line:col`, the shape every editor and every `cc` already
             // knows how to jump to.
             for seam in &outcome.seams {
@@ -1245,12 +1269,27 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
                     )
                 );
             }
-            for d in &outcome.diagnostics {
+            for w in &project.waived {
+                let mut shown = w.finding.clone();
+                shown.message = format!("waived: {} ({})", shown.message, w.waiver.reason);
+                shown.help = None;
+                println!(
+                    "  {}",
+                    diagnostics::render_finding(&checked.program, &shown)
+                );
+            }
+            for d in outcome.diagnostics.iter().chain(&project.diagnostics) {
                 eprintln!("{}", render(&checked.program, d));
+            }
+            for f in &project.findings {
+                eprintln!("{}", diagnostics::render_finding(&checked.program, f));
+            }
+            for f in &project.failures {
+                eprintln!("{}", diagnostics::render_failure(&checked.program, f));
             }
         }
     }
-    Ok(if outcome.ok() {
+    Ok(if outcome.ok() && project.ok() {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE

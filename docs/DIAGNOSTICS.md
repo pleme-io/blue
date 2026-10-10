@@ -152,6 +152,86 @@ still match their `original`, skips overlapping ones, then re-formats and
 re-checks the file and reports what remains. Suggestions marked
 `maybe-incorrect` are never applied.
 
+## Project rules
+
+A project adds its own check rules, written in blue, by naming them in its
+Bluefile:
+
+```
+rule("R0001", "rules/conventions.b", "nil_predicate")
+rule("R0002", "rules/conventions.b", "loud_call", "warning")
+```
+
+`rule(code, file, def[, severity])` names a definition in a blue file (relative
+to the Bluefile). `blue check FILE` gathers the rules of every Bluefile in
+FILE's directory and its ancestors, up to the directory holding `.git`, and
+calls each one on every top-level form of FILE, beside the registry. A code
+declared by two Bluefiles is refused.
+
+**Codes.** A project code is one to four capital letters, never `B` alone,
+then four digits (`R0001`, `KZ0003`). `B` + four digits is blue's registry, so
+the two never meet. Severity is `error` (the default) or `warning`.
+
+**The ABI.** The definition takes one argument, a top-level form as data (the
+tree the parser wrote, as a macro sees its arguments: symbols, lists, `quote`
+as `(quote x)`), and returns a list of findings. A finding is a map:
+
+| key | | meaning |
+|---|---|---|
+| `at` | required | the path to the node, one child index per level; `[]` is the form itself |
+| `message` | required | a string |
+| `help` | optional | a string |
+| `fix` | optional | a tree that replaces the node at `at`, usually built with `quote … unquote(x) … end` |
+
+```
+def nil_predicate(form)
+  hits = filter(fn(p) call?(last(p), "nil?", 1) end, nodes(form, []))
+  map(
+    fn(p)
+      arg = nth(1, last(p))
+      {at: first(p), message: "write `x == nil`", fix: quote
+        unquote(arg) == nil
+      end}
+    end,
+    hits
+  )
+end
+```
+
+The code and severity are the Bluefile row's. A path, not a byte offset: the
+rule sees only data, and `blue check` resolves the path against the form it
+gave the rule, so the rule needs no access to the source (and can later run as
+a wasm module, `theory/BLUE-EXECUTION.md` §I.2). A fix is rendered by the
+formatter and proved before `--fix` will apply it: the edited file is parsed
+and must hold exactly the rule's tree at that path (the rendering is retried in
+parentheses when an operator binds differently in place); otherwise it is
+offered as `maybe-incorrect`.
+
+**The frame.** A rule program, imported bidamas included, may name every
+builtin except the host effects (process, filesystem, environment, clock,
+network), printing, and `eval`, `require` and `provide`. A rule that names one
+is refused before it runs. Each call runs under a step budget
+(`blue_lang_runtime::project_rules::RULE_STEPS`).
+
+**Failures.** A rule that does not load, reaches outside its frame, raises,
+runs past its budget, or returns anything but a list of findings is reported
+once, as an error under its code with the slug `rule-failure`, and is not run
+on the file's remaining forms. The other rules still report.
+
+**Waivers** use the one grammar: `# waive R0001: reason` above the definition.
+The check stage that `blue run`, `blue test` and every build run does not run
+project rules, so it leaves a project-code waiver alone; `blue check` reports
+one that names no declared rule (B0007) or suppresses nothing (B0008).
+
+**Output.** Findings are diagnostics in every format above: `file:line:col:
+error[R0001]: message`, the same JSON object (the slug is the definition's
+name, kebab-cased), the same `fixes`. `blue check` prints `project rules: N`
+when any apply.
+
+**In nix**, a project whose Bluefile declares rules gets
+`checks.project-rules-hold`: `blue check` on every `.b` file of its packages and
+every run, check and app program.
+
 ## `blue ast --resolved --json`
 
 How every name in a file resolves, under both rules: today's **flat** rule

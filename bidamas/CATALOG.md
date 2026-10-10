@@ -1506,9 +1506,9 @@ okite (掟) — blue's decisions, each enforced by laws written in blue.
 | `okite::law_to_s_equal_maps_render_equally()` | `ok_law_to_s_equal_maps_render_equally` (old) |  |  |  |
 | `okite::law_concat_any_arity()` | `ok_law_concat_any_arity` (old) |  |  |  |
 | `okite::law_division_is_float()` | `ok_law_division_is_float` (old) |  |  |  |
-| `okite::kinds(v)` | `ok_kinds` (old) |  |  |  |
-| `okite::law_one_kind_each()` | `ok_law_one_kind_each` (old) |  |  |  |
-| `okite::law_empty_list_is_brackets()` | `ok_law_empty_list_is_brackets` (old) |  |  |  |
+| `okite::kinds(v)` | `ok_kinds` (old) |  | `R0001` |  |
+| `okite::law_one_kind_each()` | `ok_law_one_kind_each` (old) |  | `R0001` |  |
+| `okite::law_empty_list_is_brackets()` | `ok_law_empty_list_is_brackets` (old) |  | `R0001` |  |
 | `okite::law_split_keeps_every_field()` | `ok_law_split_keeps_every_field` (old) |  |  |  |
 | `okite::law_map_keys_are_exact()` | `ok_law_map_keys_are_exact` (old) |  |  |  |
 | `okite::decisions()` | `ok_decisions` (old) |  |  |  |

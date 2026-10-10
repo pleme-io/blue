@@ -30,6 +30,7 @@
 
 use tatara_lisp::Span;
 
+use crate::project::{ProjectCode, ProjectWaiver};
 use crate::rules::Code;
 use crate::Diagnostic;
 
@@ -51,15 +52,67 @@ pub struct Waived {
     pub waiver: Waiver,
 }
 
-/// Read the waivers in one file.
+/// Read the registry waivers in one file.
 ///
 /// `text` is the file; `forms` are `(top_level index, span)` for every
 /// top-level form that came from it, in source order. Returns the waivers and
-/// a [`B0007`](Code::B0007) for each malformed or misplaced one.
+/// a [`B0007`](Code::B0007) for each malformed or misplaced one. A waiver
+/// naming a project code ([`crate::project::ProjectCode`]) is not this
+/// stage's to judge: [`collect_project`] reads it, for the door that runs
+/// project rules.
 #[must_use]
 pub fn collect(text: &str, forms: &[(usize, Span)]) -> (Vec<Waiver>, Vec<Diagnostic>) {
     let mut waivers = Vec::new();
     let mut malformed = Vec::new();
+    for scanned in scan(text, forms) {
+        match scanned {
+            Scanned::Registry(w) => waivers.push(w),
+            Scanned::Malformed {
+                project: false,
+                diagnostic,
+            } => malformed.push(diagnostic),
+            Scanned::Project(_) | Scanned::Malformed { project: true, .. } => {}
+        }
+    }
+    (waivers, malformed)
+}
+
+/// Read the waivers in one file that name a project code, and a
+/// [`B0007`](Code::B0007) for each of those that gives no reason.
+#[must_use]
+pub fn collect_project(
+    text: &str,
+    forms: &[(usize, Span)],
+) -> (Vec<ProjectWaiver>, Vec<Diagnostic>) {
+    let mut waivers = Vec::new();
+    let mut malformed = Vec::new();
+    for scanned in scan(text, forms) {
+        match scanned {
+            Scanned::Project(w) => waivers.push(w),
+            Scanned::Malformed {
+                project: true,
+                diagnostic,
+            } => malformed.push(diagnostic),
+            Scanned::Registry(_) | Scanned::Malformed { project: false, .. } => {}
+        }
+    }
+    (waivers, malformed)
+}
+
+/// One `# waive` comment, read.
+enum Scanned {
+    Registry(Waiver),
+    Project(ProjectWaiver),
+    /// `project` when the comment names a well-formed project code, so only
+    /// the project door reports it.
+    Malformed {
+        project: bool,
+        diagnostic: Diagnostic,
+    },
+}
+
+fn scan(text: &str, forms: &[(usize, Span)]) -> Vec<Scanned> {
+    let mut out = Vec::new();
     for c in blue_lang_syntax::comments(text) {
         let body = c.text.trim_start_matches('#').trim();
         let Some(rest) = body.strip_prefix("waive") else {
@@ -85,11 +138,12 @@ pub fn collect(text: &str, forms: &[(usize, Span)]) -> (Vec<Waiver>, Vec<Diagnos
                 .rev()
                 .find(|(_, s)| s.start <= c.span.start)
                 .map_or(0, |(i, _)| *i);
-            malformed.push(
-                bad("a waiver must sit directly above a top-level definition".into())
+            out.push(Scanned::Malformed {
+                project: false,
+                diagnostic: bad("a waiver must sit directly above a top-level definition".into())
                     .at_top_level(within)
                     .with_help("move it to the line above the `def` it waives"),
-            );
+            });
             continue;
         };
         let rest = rest.trim();
@@ -97,14 +151,35 @@ pub fn collect(text: &str, forms: &[(usize, Span)]) -> (Vec<Waiver>, Vec<Diagnos
             Some((code, reason)) => (code.trim(), reason.trim()),
             None => (rest.split_whitespace().next().unwrap_or(""), ""),
         };
+        if let Ok(code) = ProjectCode::parse(code_text) {
+            if reason.is_empty() {
+                out.push(Scanned::Malformed {
+                    project: true,
+                    diagnostic: bad(format!("the waiver of {code} gives no reason"))
+                        .at_top_level(top_level)
+                        .with_help(format!(
+                            "write `# waive {code}: <why this is correct here>`"
+                        )),
+                });
+            } else {
+                out.push(Scanned::Project(ProjectWaiver {
+                    code,
+                    reason: reason.to_string(),
+                    span: c.span,
+                    top_level,
+                }));
+            }
+            continue;
+        }
         let Some(code) = Code::parse(code_text) else {
-            malformed.push(
-                bad(format!("`{code_text}` is not a diagnostic code"))
+            out.push(Scanned::Malformed {
+                project: false,
+                diagnostic: bad(format!("`{code_text}` is not a diagnostic code"))
                     .at_top_level(top_level)
                     .with_help(
                         "write `# waive B0001: <reason>`; `blue explain --list` lists the codes",
                     ),
-            );
+            });
             continue;
         };
         // The registry says which: a rule is waivable only when a program
@@ -113,33 +188,35 @@ pub fn collect(text: &str, forms: &[(usize, Span)]) -> (Vec<Waiver>, Vec<Diagnos
         // has no tree to waive in, a malformed waiver nobody can read, and an
         // ambiguous or unresolvable name no meaning to keep.
         if !code.rule().waivable {
-            malformed.push(
-                bad(format!("{code} cannot be waived"))
+            out.push(Scanned::Malformed {
+                project: false,
+                diagnostic: bad(format!("{code} cannot be waived"))
                     .at_top_level(top_level)
                     .with_help(format!(
                         "{code} guards what the program means, so no waiver may silence it; fix the file instead"
                     )),
-            );
+            });
             continue;
         }
         if reason.is_empty() {
-            malformed.push(
-                bad(format!("the waiver of {code} gives no reason"))
+            out.push(Scanned::Malformed {
+                project: false,
+                diagnostic: bad(format!("the waiver of {code} gives no reason"))
                     .at_top_level(top_level)
                     .with_help(format!(
                         "write `# waive {code}: <why this is correct here>`"
                     )),
-            );
+            });
             continue;
         }
-        waivers.push(Waiver {
+        out.push(Scanned::Registry(Waiver {
             code,
             reason: reason.to_string(),
             span: c.span,
             top_level,
-        });
+        }));
     }
-    (waivers, malformed)
+    out
 }
 
 fn only_trivia(between: &str) -> bool {
@@ -230,6 +307,28 @@ mod tests {
             assert_eq!(bad.len(), 1, "{src:?}");
             assert_eq!(bad[0].code, Code::B0007);
         }
+    }
+
+    /// A project code is the project door's: the check stage, which runs no
+    /// project rule, neither reports it malformed nor collects it.
+    ///
+    /// Red run (2026-10-10): the `ProjectCode::parse` arm in `scan` deleted:
+    /// `collect` reported `` `R0001` is not a diagnostic code `` (B0007).
+    #[test]
+    fn a_project_waiver_is_left_to_the_project_door() {
+        let src = "# waive R0001: the law tests the predicate\ndef a()\n  1\nend\n\n# waive R0002\ndef b()\n  1\nend\n";
+        let (w, bad) = collect(src, &forms_of(src));
+        assert!(w.is_empty() && bad.is_empty(), "{w:?} {bad:?}");
+        let (pw, pbad) = collect_project(src, &forms_of(src));
+        assert_eq!(pw.len(), 1);
+        assert_eq!(pw[0].code.as_str(), "R0001");
+        assert_eq!(pw[0].top_level, 0);
+        assert_eq!(pbad.len(), 1, "{pbad:?}");
+        assert!(
+            pbad[0].message.contains("R0002 gives no reason"),
+            "{}",
+            pbad[0].message
+        );
     }
 
     #[test]

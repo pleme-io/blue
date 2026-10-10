@@ -162,7 +162,27 @@ pub struct Project {
     /// freshness-gated file ([`crate::deploy::render`]).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub workloads: BTreeMap<String, crate::deploy::Workload>,
+    /// `rule(code, file, def[, severity])`: the project's own check rules,
+    /// keyed by code. Skipped when empty, as `generated` is.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub rules: BTreeMap<String, Rule>,
 }
+
+/// A project check rule: a blue definition `blue check` calls on every
+/// top-level form of a file under the project, under a pure frame.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rule {
+    /// The blue file that defines it, relative to the Bluefile.
+    pub file: String,
+    /// The definition's name in that file.
+    pub def: String,
+    /// `error` (the default) or `warning`.
+    pub severity: String,
+}
+
+/// The severities a `rule` may name, as the Bluefile spells them.
+pub const RULE_SEVERITIES: &[&str] = &["error", "warning"];
 
 /// A committed file that a blue program writes: the program writes to
 /// `$GEN_OUT`, nix gates the committed copy's freshness against a fresh run,
@@ -300,6 +320,27 @@ pub enum Malformed {
     },
     #[error("`{word}` declares `{name}` twice")]
     Duplicate { word: &'static str, name: String },
+    /// A `rule` code that is not a project code.
+    #[error("`{word}`: {error}")]
+    Code {
+        word: &'static str,
+        error: blue_lang_check::project::ProjectCodeError,
+    },
+    /// A string that cannot name a blue definition.
+    #[error("`{word}`: `{param}` must be a blue definition's name, got `{got}`")]
+    Name {
+        word: &'static str,
+        param: &'static str,
+        got: String,
+    },
+    /// An argument outside the values the word accepts.
+    #[error("`{word}`: `{param}` must be one of {}, got `{got}`", .expected.join(", "))]
+    Choice {
+        word: &'static str,
+        param: &'static str,
+        expected: &'static [&'static str],
+        got: String,
+    },
 }
 
 /// The frame a Bluefile is evaluated in.
@@ -509,6 +550,49 @@ const WORDS: &[Word] = &[
                 },
             };
             insert_once(&mut into.project.generated, c.word, name, generated)
+        },
+    },
+    Word {
+        name: "rule",
+        signature: "rule(code, file, def[, severity])",
+        doc: "A project check rule: `blue check` calls the blue definition `def` in `file` on each top-level form of every file under the project, under a pure frame, and reports its findings under `code` (letters then four digits, never B); severity \"error\" (default) or \"warning\".",
+        min: 3,
+        max: 4,
+        record: |c, into| {
+            let code = c.text(0, "code")?;
+            blue_lang_check::project::ProjectCode::parse(&code).map_err(|error| {
+                Malformed::Code {
+                    word: c.word,
+                    error,
+                }
+            })?;
+            let def = c.text(2, "def")?;
+            if !blue_lang_syntax::is_callable_name(&def) || def.contains("::") {
+                return Err(Malformed::Name {
+                    word: c.word,
+                    param: "def",
+                    got: def,
+                });
+            }
+            let severity = if c.args.len() > 3 {
+                c.label(3, "severity")?
+            } else {
+                "error".to_string()
+            };
+            if !RULE_SEVERITIES.contains(&severity.as_str()) {
+                return Err(Malformed::Choice {
+                    word: c.word,
+                    param: "severity",
+                    expected: RULE_SEVERITIES,
+                    got: severity,
+                });
+            }
+            let rule = Rule {
+                file: c.path(1, "file")?,
+                def,
+                severity,
+            };
+            insert_once(&mut into.project.rules, c.word, code, rule)
         },
     },
     Word {
@@ -952,6 +1036,8 @@ mod tests {
             .chain(["generate"])
             // T-J, 2026-10-10: images and workloads (`crate::deploy`).
             .chain(["image", "workload"])
+            // `rule`, 2026-10-10: a project's own check rules, written in blue.
+            .chain(["rule"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([
@@ -1322,6 +1408,10 @@ mod tests {
                 "generate(\"t\", \"a.rs\", \"a.b\")\ngenerate(\"t\", \"b.rs\", \"b.b\")",
                 "generate",
             ),
+            (
+                "rule(\"R0001\", \"r.b\", \"a\")\nrule(\"R0001\", \"r.b\", \"b\")",
+                "rule",
+            ),
             ("posture(\"sealed\")\nposture(\"anytime\")", "posture"),
             ("package(\"q\", \"0.2.0\")", "package"),
         ] {
@@ -1408,6 +1498,51 @@ mod tests {
         let b = read_bluefile("package(\"p\", \"0.1.0\")").expect("read");
         let v = serde_json::to_value(&b.project).expect("json");
         assert!(v.get("generated").is_none(), "{v}");
+        assert!(v.get("rules").is_none(), "{v}");
+    }
+
+    /// `rule` records the definition and its file under the project code,
+    /// `error` unless the fourth argument says `warning`.
+    #[test]
+    fn rule_records_a_definition_under_its_code() {
+        let p = project_of(
+            "rule(\"R0001\", \"rules/okite.b\", \"nil_predicate\")\n\
+             rule(\"R0002\", \"rules/okite.b\", \"loud\", \"warning\")",
+        );
+        assert_eq!(
+            p.rules["R0001"],
+            Rule {
+                file: "rules/okite.b".into(),
+                def: "nil_predicate".into(),
+                severity: "error".into(),
+            }
+        );
+        assert_eq!(p.rules["R0002"].severity, "warning");
+    }
+
+    /// The code is a project code, the definition a name, the severity one of
+    /// two words and the file inside the project; each refusal names its
+    /// argument.
+    ///
+    /// Red run (2026-10-10): the `ProjectCode::parse` call in `rule`'s
+    /// recorder removed: `rule("B0001", …)` was recorded, and the first case
+    /// panicked with `rule("B0001", …)` read back.
+    #[test]
+    fn a_malformed_rule_is_refused_naming_its_argument() {
+        for (body, param) in [
+            ("rule(\"B0001\", \"r.b\", \"f\")", "B0001"),
+            ("rule(\"r1\", \"r.b\", \"f\")", "r1"),
+            ("rule(\"R0001\", \"r.b\", \"not a name\")", "def"),
+            ("rule(\"R0001\", \"r.b\", \"pkg::f\")", "def"),
+            ("rule(\"R0001\", \"r.b\", \"f\", \"fatal\")", "severity"),
+            ("rule(\"R0001\", \"../r.b\", \"f\")", "file"),
+        ] {
+            let err = refusal_of(body);
+            assert!(
+                matches!(err, BluefileError::Malformed(_)) && err.to_string().contains(param),
+                "{body}: {err}"
+            );
+        }
     }
 
     #[test]

@@ -45,6 +45,7 @@
 # | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
+# | `rule(code, file, def[, severity])` | `checks.project-rules-hold`: `blue check` on every `.b` of the project's packages and every run, check and app program, which runs the project rules beside the registry |
 # | `generate`, `catalog` or `workload` | `apps.regen` |
 # | `image(name, spec)` | Linux only: `packages.image-<name>` (substrate's `mkPackageImage` on `hardenedBases.distroless-static`, or `mkDistrolessImage` for a declared shell or tools), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
 # | `workload(name, spec)` | `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
@@ -97,7 +98,7 @@ let
   known = [
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
-    "images" "workloads"
+    "images" "workloads" "rules"
   ];
 
   readLock = src:
@@ -409,6 +410,38 @@ let
         // imageChecks
         // workloadChecks;
 
+      # `rule`: the project's rules hold over its own code. `blue check` finds
+      # the rules from the Bluefiles above each file, so the files are checked
+      # in a copy of the project (a `.git` marker stops the search at its
+      # root); a project whose rules have nothing to check is refused, since
+      # the gate would pass over nothing.
+      rules = m.rules or { };
+      ruleTargets =
+        lib.concatMap
+          (d: lib.concatMap
+            (pkg: map (f: "${d}/${pkg}/${f}")
+              (lib.filter (lib.hasSuffix ".b") (attrNames (builtins.readDir (src + "/${d}/${pkg}")))))
+            (attrNames (bl.packageDirs (src + "/${d}"))))
+          m.packages
+        ++ map (r: r.file) (lib.attrValues m.runs ++ lib.attrValues m.checks ++ lib.attrValues m.apps);
+      ruleGate = lib.optionalAttrs (rules != { }) {
+        project-rules-hold =
+          if ruleTargets == [ ] then
+            throw "lib.project: the Bluefile declares rules (${lib.concatStringsSep ", " (attrNames rules)}) and has no package, run, check or app for them to check"
+          else
+            pkgs.runCommand "project-rules-hold" { nativeBuildInputs = tools; } ''
+              work=$TMPDIR/project
+              cp -r ${src} $work
+              chmod -R u+w $work
+              mkdir -p $work/.git
+              export BLUE_PATH=${bl.mkBluePath { inherit bidamas; }}
+              for f in ${lib.concatMapStringsSep " " lib.escapeShellArg ruleTargets}; do
+                ${blue}/bin/blue check "$work/$f" > /dev/null
+              done
+              touch $out
+            '';
+      };
+
       checkWords = lib.mapAttrs
         (cn: c: bl.mkTestCheck (common // { name = cn; file = programFile c.file; }))
         m.checks;
@@ -430,7 +463,7 @@ let
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
     else {
       inherit name runner bidamas packages apps bluePath imageGate;
-      checks = disjoint "check" gates checkWords;
+      checks = disjoint "check" (disjoint "check" gates ruleGate) checkWords;
     };
 in
 {

@@ -154,6 +154,14 @@ pub struct Project {
     /// nothing keep their bytes.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub generated: BTreeMap<String, Generated>,
+    /// `image(name, spec)`: an OCI image of one of the project's programs
+    /// ([`crate::deploy`]). Skipped when empty, like `generated`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub images: BTreeMap<String, crate::deploy::Image>,
+    /// `workload(name, spec)`: Kubernetes objects rendered to a committed,
+    /// freshness-gated file ([`crate::deploy::render`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub workloads: BTreeMap<String, crate::deploy::Workload>,
 }
 
 /// A committed file that a blue program writes: the program writes to
@@ -250,6 +258,16 @@ pub enum BluefileError {
         "`catalog(...)` catalogues the `packages(...)` roots, and this Bluefile declares none"
     )]
     CatalogWithoutPackages,
+    /// Image or workload entries that break a rule, every one of them, each
+    /// naming its entry ([`crate::deploy`]).
+    #[error(
+        "this Bluefile declares {} blue refuses:\n{}",
+        if .refusals.len() == 1 { "an entry" } else { "entries" },
+        .refusals.iter().map(|r| ["  ", &r.to_string()].concat()).collect::<Vec<_>>().join("\n")
+    )]
+    Refused {
+        refusals: Vec<crate::deploy::Refusal>,
+    },
 }
 
 /// A call to a manifest word that does not match the word's signature.
@@ -331,6 +349,9 @@ struct Collected {
     /// The first malformed call. Recorded here as well as raised, so the typed
     /// error survives the trip through the evaluator's untyped `EvalError`.
     malformed: Option<Malformed>,
+    /// Image and workload entries refused by their spec. Recorded without
+    /// raising, so evaluation goes on and every refused entry is reported.
+    refused: Vec<crate::deploy::Refusal>,
 }
 
 type Shared = Arc<Mutex<Collected>>;
@@ -501,7 +522,51 @@ const WORDS: &[Word] = &[
             set_once(&mut into.project.catalog, c.word, path.clone(), path)
         },
     },
+    Word {
+        name: "image",
+        signature: "image(name, spec)",
+        doc: "An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            match crate::deploy::image_of(&name, &c.args[1]) {
+                Ok(image) => insert_once(&mut into.project.images, c.word, name, image),
+                Err(error) => refuse(into, c.word, name, error),
+            }
+        },
+    },
+    Word {
+        name: "workload",
+        signature: "workload(name, spec)",
+        doc: "A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            match crate::deploy::workload_of(&name, &c.args[1]) {
+                Ok(workload) => insert_once(&mut into.project.workloads, c.word, name, workload),
+                Err(error) => refuse(into, c.word, name, error),
+            }
+        },
+    },
 ];
+
+/// Record a refused entry and let the manifest go on, so the next refused
+/// entry is reported too. A second entry of a refused name is still a
+/// duplicate.
+fn refuse(
+    into: &mut Collected,
+    word: &'static str,
+    name: String,
+    error: crate::deploy::SpecError,
+) -> Result<(), Malformed> {
+    if into.refused.iter().any(|r| r.word == word && r.name == name) {
+        return Err(Malformed::Duplicate { word, name });
+    }
+    into.refused.push(crate::deploy::Refusal { word, name, error });
+    Ok(())
+}
 
 /// One manifest word as a reader sees it: its name, how it is called, and
 /// what it declares. What `blue reference` prints for the Bluefile.
@@ -731,6 +796,18 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
 
     check_project(&c.project)?;
 
+    let refused_images = c
+        .refused
+        .iter()
+        .filter(|r| r.word == "image")
+        .map(|r| r.name.clone())
+        .collect();
+    let mut refusals = c.refused;
+    refusals.extend(crate::deploy::check_entries(&c.project, &refused_images));
+    if !refusals.is_empty() {
+        return Err(BluefileError::Refused { refusals });
+    }
+
     Ok(Bluefile {
         name,
         version,
@@ -868,6 +945,8 @@ mod tests {
             ])
             // `generate`, 2026-09-23: committed files a blue program writes.
             .chain(["generate"])
+            // T-J, 2026-10-10: images and workloads (`crate::deploy`).
+            .chain(["image", "workload"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

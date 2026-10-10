@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "ecb736f50b696a312e9c073247ecee206f34f52e317721cf852ac3a0cde41ca0",
+  "cargo_lock_sha256": "4cab46d2ed02c5ef1f030076f051a1275aba092548c507802a254ab556d9ba99",
   "manifest_sha256": {
     "Cargo.toml": "2f555e41d86ac74c861b9c9796d2eb3a57e0bffe1112f74a1faba15f697bfdcd",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",

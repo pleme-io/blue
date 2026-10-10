@@ -351,7 +351,12 @@ impl Loader for LoadPath {
             }
         }
         if self.standard {
-            out.extend(crate::embedded::Standard.names().into_iter().map(str::to_string));
+            out.extend(
+                crate::embedded::Standard
+                    .names()
+                    .into_iter()
+                    .map(str::to_string),
+            );
         }
         out.into_iter().collect()
     }

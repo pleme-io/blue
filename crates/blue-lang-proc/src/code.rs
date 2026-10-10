@@ -26,8 +26,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use tatara_lisp::{Atom, Span, Spanned, SpannedForm};
-use tatara_lisp_eval::vm::run::CompiledClosure;
 use tatara_lisp_eval::value::Closure;
+use tatara_lisp_eval::vm::run::CompiledClosure;
 use tatara_lisp_eval::Value;
 
 use crate::mailbox::copy_data;
@@ -88,23 +88,19 @@ fn function_of(v: &Value) -> Option<Function> {
     match v {
         Value::Closure(c) => Some(Function::Source(c.clone())),
         Value::NativeFn(n) => Some(Function::Builtin(n.name.clone())),
-        Value::Foreign(any) => any
-            .clone()
-            .downcast::<CompiledClosure>()
-            .ok()
-            .map(|cc| {
-                // A VM closure keeps its source body; lifting gives it the same
-                // shape a tree-walker closure has, captures included.
-                let lifted = cc.lift_to_closure();
-                Function::Source(Arc::new(Closure {
-                    params: lifted.params.clone(),
-                    rest: lifted.rest.clone(),
-                    body: lifted.body.clone(),
-                    captured_env: lifted.captured_env.clone(),
-                    source: lifted.source,
-                    name: cc.body.name.clone(),
-                }))
-            }),
+        Value::Foreign(any) => any.clone().downcast::<CompiledClosure>().ok().map(|cc| {
+            // A VM closure keeps its source body; lifting gives it the same
+            // shape a tree-walker closure has, captures included.
+            let lifted = cc.lift_to_closure();
+            Function::Source(Arc::new(Closure {
+                params: lifted.params.clone(),
+                rest: lifted.rest.clone(),
+                body: lifted.body.clone(),
+                captured_env: lifted.captured_env.clone(),
+                source: lifted.source,
+                name: cc.body.name.clone(),
+            }))
+        }),
         _ => None,
     }
 }
@@ -126,7 +122,10 @@ pub fn is_function(v: &Value) -> bool {
 }
 
 fn sym(name: &str) -> Spanned {
-    Spanned::new(Span::synthetic(), SpannedForm::Atom(Atom::Symbol(name.to_string())))
+    Spanned::new(
+        Span::synthetic(),
+        SpannedForm::Atom(Atom::Symbol(name.to_string())),
+    )
 }
 
 fn list(items: Vec<Spanned>) -> Spanned {
@@ -263,15 +262,17 @@ impl Walk {
 ///
 /// When `f` is not a function, or reaches a value that cannot be copied.
 pub fn spawn_code(f: &Value, args: &[Value]) -> Result<(Code, Entry), String> {
-    let function = function_of(f).ok_or_else(|| {
-        format!("spawn takes a function, got {}", f.type_name())
-    })?;
+    let function =
+        function_of(f).ok_or_else(|| format!("spawn takes a function, got {}", f.type_name()))?;
     let mut walk = Walk::new();
     let mut arg_names = Vec::with_capacity(args.len());
     for (i, a) in args.iter().enumerate() {
         let name = format!("%a{i}");
         let copy = copy_data(a).map_err(|kind| {
-            format!("spawn copies its arguments, and argument {} is a {kind}, which is not data", i + 1)
+            format!(
+                "spawn copies its arguments, and argument {} is a {kind}, which is not data",
+                i + 1
+            )
         })?;
         walk.bindings.push((Arc::from(name.as_str()), copy));
         arg_names.push(name);
@@ -289,7 +290,10 @@ pub fn spawn_code(f: &Value, args: &[Value]) -> Result<(Code, Entry), String> {
             });
             match named {
                 Some(n) => {
-                    let global = c.captured_env.lookup(n).unwrap_or(Value::Closure(c.clone()));
+                    let global = c
+                        .captured_env
+                        .lookup(n)
+                        .unwrap_or(Value::Closure(c.clone()));
                     walk.bring(n, &global)?;
                     (Entry::Named(n.to_string()), call(sym(n), &names))
                 }
@@ -318,7 +322,8 @@ pub fn spawn_code(f: &Value, args: &[Value]) -> Result<(Code, Entry), String> {
 ///
 /// As [`spawn_code`].
 pub fn function_code(f: &Value, as_name: &str) -> Result<Code, String> {
-    let function = function_of(f).ok_or_else(|| format!("expected a function, got {}", f.type_name()))?;
+    let function =
+        function_of(f).ok_or_else(|| format!("expected a function, got {}", f.type_name()))?;
     let mut walk = Walk::new();
     match function {
         Function::Builtin(n) => {
@@ -332,7 +337,10 @@ pub fn function_code(f: &Value, as_name: &str) -> Result<Code, String> {
             });
             match named {
                 Some(n) => {
-                    let global = c.captured_env.lookup(n).unwrap_or(Value::Closure(c.clone()));
+                    let global = c
+                        .captured_env
+                        .lookup(n)
+                        .unwrap_or(Value::Closure(c.clone()));
                     walk.bring(n, &global)?;
                     if n != as_name {
                         walk.defs.push(define_value(as_name, sym(n)));

@@ -152,7 +152,11 @@ pub fn deep_copy(v: &Value) -> Value {
         Value::Error(e) => Value::Error(Arc::new(ErrorObj {
             tag: e.tag.clone(),
             message: e.message.clone(),
-            data: e.data.iter().map(|(k, v)| (deep_copy(k), deep_copy(v))).collect(),
+            data: e
+                .data
+                .iter()
+                .map(|(k, v)| (deep_copy(k), deep_copy(v)))
+                .collect(),
         })),
         Value::Sexp(s, span) => Value::Sexp(s.clone(), *span),
         // A closure, a promise, a foreign handle: each either captures an
@@ -179,7 +183,9 @@ pub fn copy_data(v: &Value) -> Result<Value, &'static str> {
         | Value::Str(_)
         | Value::Symbol(_)
         | Value::Keyword(_) => v.clone(),
-        Value::List(items) => Value::list(items.iter().map(copy_data).collect::<Result<Vec<_>, _>>()?),
+        Value::List(items) => {
+            Value::list(items.iter().map(copy_data).collect::<Result<Vec<_>, _>>()?)
+        }
         Value::Map(m) => Value::Map(Arc::new(
             m.iter()
                 .map(|(k, v)| copy_data(v).map(|v| (k.clone(), v)))

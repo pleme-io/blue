@@ -40,7 +40,8 @@ pub fn run(root: &mut Interpreter<()>, src: &str) -> Result<Value, String> {
         .collect::<Vec<_>>()
         .join("\n");
     let spanned = tatara_lisp::read_spanned(&text).map_err(|e| e.to_string())?;
-    root.eval_program(&spanned, &mut ()).map_err(|e| e.to_string())
+    root.eval_program(&spanned, &mut ())
+        .map_err(|e| e.to_string())
 }
 
 /// [`run`], rendered.

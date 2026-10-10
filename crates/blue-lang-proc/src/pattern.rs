@@ -99,8 +99,14 @@ mod tests {
     #[test]
     fn a_list_pattern_matches_by_position_and_length() {
         let p = list(vec![kw("reply"), Value::Int(7), kw("_")]);
-        assert!(matches(&p, &list(vec![kw("reply"), Value::Int(7), Value::Int(1)])));
-        assert!(!matches(&p, &list(vec![kw("reply"), Value::Int(8), Value::Int(1)])));
+        assert!(matches(
+            &p,
+            &list(vec![kw("reply"), Value::Int(7), Value::Int(1)])
+        ));
+        assert!(!matches(
+            &p,
+            &list(vec![kw("reply"), Value::Int(8), Value::Int(1)])
+        ));
         assert!(!matches(&p, &list(vec![kw("reply"), Value::Int(7)])));
     }
 

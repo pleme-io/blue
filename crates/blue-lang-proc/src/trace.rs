@@ -131,7 +131,8 @@ fn one(kind: &str, v: Json) -> Json {
 }
 
 fn float_json(x: f64) -> Json {
-    serde_json::Number::from_f64(x).map_or_else(|| one("float_bits", json!(x.to_bits())), Json::Number)
+    serde_json::Number::from_f64(x)
+        .map_or_else(|| one("float_bits", json!(x.to_bits())), Json::Number)
 }
 
 /// A value as trace JSON.
@@ -145,7 +146,10 @@ pub fn value_to_json(v: &Value) -> Json {
         Value::Str(s) => one("str", json!(&**s)),
         Value::Symbol(s) => one("sym", json!(&**s)),
         Value::Keyword(s) => one("kw", json!(&**s)),
-        Value::List(items) => one("list", Json::Array(items.iter().map(value_to_json).collect())),
+        Value::List(items) => one(
+            "list",
+            Json::Array(items.iter().map(value_to_json).collect()),
+        ),
         Value::Map(m) => one(
             "map",
             Json::Array(
@@ -163,9 +167,10 @@ pub fn value_to_json(v: &Value) -> Json {
             }),
         ),
         Value::Sexp(s, span) => one("form", form_to_json(&Spanned::from_sexp_at(s, *span))),
-        Value::Foreign(any) if any.is::<Opaque>() => {
-            one("opaque", json!(any.downcast_ref::<Opaque>().map_or("", |o| o.0.as_str())))
-        }
+        Value::Foreign(any) if any.is::<Opaque>() => one(
+            "opaque",
+            json!(any.downcast_ref::<Opaque>().map_or("", |o| o.0.as_str())),
+        ),
         other => one("opaque", json!(other.type_name())),
     }
 }
@@ -217,10 +222,21 @@ pub fn value_from_json(j: &Json) -> Result<Value, String> {
             Value::map(entries)
         }
         "error" => {
-            let tag = v.get("tag").and_then(Json::as_str).ok_or_else(|| bad("error"))?;
-            let message = v.get("message").and_then(Json::as_str).ok_or_else(|| bad("error"))?;
+            let tag = v
+                .get("tag")
+                .and_then(Json::as_str)
+                .ok_or_else(|| bad("error"))?;
+            let message = v
+                .get("message")
+                .and_then(Json::as_str)
+                .ok_or_else(|| bad("error"))?;
             let mut data = Vec::new();
-            for pair in v.get("data").and_then(Json::as_array).cloned().unwrap_or_default() {
+            for pair in v
+                .get("data")
+                .and_then(Json::as_array)
+                .cloned()
+                .unwrap_or_default()
+            {
                 let [k, v] = pair.as_array().map(Vec::as_slice).unwrap_or_default() else {
                     return Err(bad("error data"));
                 };
@@ -263,7 +279,10 @@ pub fn form_to_json(f: &Spanned) -> Json {
         SpannedForm::Atom(Atom::Int(n)) => ("int", json!(n)),
         SpannedForm::Atom(Atom::Float(x)) => ("float", float_json(*x)),
         SpannedForm::Atom(Atom::Bool(b)) => ("bool", json!(b)),
-        SpannedForm::List(items) => ("list", Json::Array(items.iter().map(form_to_json).collect())),
+        SpannedForm::List(items) => (
+            "list",
+            Json::Array(items.iter().map(form_to_json).collect()),
+        ),
         SpannedForm::Quote(x) => ("quote", form_to_json(x)),
         SpannedForm::Quasiquote(x) => ("quasiquote", form_to_json(x)),
         SpannedForm::Unquote(x) => ("unquote", form_to_json(x)),
@@ -299,7 +318,9 @@ pub fn form_from_json(j: &Json) -> Result<Spanned, String> {
         "str" => SpannedForm::Atom(Atom::Str(text()?)),
         "int" => SpannedForm::Atom(Atom::Int(v.as_i64().ok_or_else(|| bad("form"))?)),
         "float" => SpannedForm::Atom(Atom::Float(match v {
-            Json::Object(_) => f64::from_bits(single(v, "float")?.1.as_u64().ok_or_else(|| bad("float"))?),
+            Json::Object(_) => {
+                f64::from_bits(single(v, "float")?.1.as_u64().ok_or_else(|| bad("float"))?)
+            }
             _ => v.as_f64().ok_or_else(|| bad("float"))?,
         })),
         "bool" => SpannedForm::Atom(Atom::Bool(v.as_bool().ok_or_else(|| bad("form"))?)),
@@ -326,7 +347,8 @@ fn opt(n: Option<usize>) -> Json {
 }
 
 fn opt_from(j: Option<&Json>) -> Option<usize> {
-    j.and_then(Json::as_u64).and_then(|n| usize::try_from(n).ok())
+    j.and_then(Json::as_u64)
+        .and_then(|n| usize::try_from(n).ok())
 }
 
 impl Trace {
@@ -368,20 +390,36 @@ impl Trace {
         }
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
         if version != VERSION {
-            return Err(format!("{FORMAT} version {version}; this blue reads version {VERSION}"));
+            return Err(format!(
+                "{FORMAT} version {version}; this blue reads version {VERSION}"
+            ));
         }
         let field = |k: &str| j.get(k).ok_or_else(|| format!("{FORMAT}: missing `{k}`"));
         let exit = field("exit")?;
         let budget = field("budget")?;
         let code = field("code")?;
         let mut bindings = Vec::new();
-        for b in code.get("bindings").and_then(Json::as_array).cloned().unwrap_or_default() {
-            let name = b.get("name").and_then(Json::as_str).ok_or_else(|| bad("binding"))?;
-            bindings.push((Arc::from(name), value_from_json(b.get("value").unwrap_or(&Json::Null))?));
+        for b in code
+            .get("bindings")
+            .and_then(Json::as_array)
+            .cloned()
+            .unwrap_or_default()
+        {
+            let name = b
+                .get("name")
+                .and_then(Json::as_str)
+                .ok_or_else(|| bad("binding"))?;
+            bindings.push((
+                Arc::from(name),
+                value_from_json(b.get("value").unwrap_or(&Json::Null))?,
+            ));
         }
         let mut tape = Vec::new();
         for e in field("tape")?.as_array().ok_or_else(|| bad("tape"))? {
-            let call = e.get("call").and_then(Json::as_str).ok_or_else(|| bad("tape entry"))?;
+            let call = e
+                .get("call")
+                .and_then(Json::as_str)
+                .ok_or_else(|| bad("tape entry"))?;
             let outcome = match e.get("raised").and_then(Json::as_str) {
                 Some(m) => Err(m.to_string()),
                 None => Ok(value_from_json(e.get("value").unwrap_or(&Json::Null))?),
@@ -399,17 +437,32 @@ impl Trace {
             .iter()
             .map(|s| SliceRecord {
                 pid: s.get("pid").and_then(Json::as_u64).unwrap_or(0),
-                outcome: s.get("outcome").and_then(Json::as_str).unwrap_or("").to_string(),
+                outcome: s
+                    .get("outcome")
+                    .and_then(Json::as_str)
+                    .unwrap_or("")
+                    .to_string(),
                 burned: opt_from(s.get("burned")).unwrap_or(0),
             })
             .collect();
         Ok(Self {
             pid: field("pid")?.as_u64().ok_or_else(|| bad("pid"))?,
             incarnation: opt_from(j.get("incarnation")).unwrap_or(0),
-            definition: j.get("definition").and_then(Json::as_str).map(str::to_string),
+            definition: j
+                .get("definition")
+                .and_then(Json::as_str)
+                .map(str::to_string),
             reason: value_from_json(exit.get("reason").unwrap_or(&Json::Null))?,
-            reason_text: exit.get("text").and_then(Json::as_str).unwrap_or("").to_string(),
-            reason_kind: exit.get("kind").and_then(Json::as_str).unwrap_or("").to_string(),
+            reason_text: exit
+                .get("text")
+                .and_then(Json::as_str)
+                .unwrap_or("")
+                .to_string(),
+            reason_kind: exit
+                .get("kind")
+                .and_then(Json::as_str)
+                .unwrap_or("")
+                .to_string(),
             budget: Budget {
                 fuel: opt_from(budget.get("fuel")),
                 max_depth: opt_from(budget.get("max_depth")),
@@ -496,27 +549,33 @@ struct Cursor {
 fn reader(interp: &mut Interpreter<()>, name: &str, cursor: &Arc<Mutex<Cursor>>) {
     let cursor = cursor.clone();
     let word: Arc<str> = Arc::from(name);
-    interp.register_fn(name.to_string(), Arity::Any, move |_args: &[Value], _h: &mut (), span| {
-        let mut c = cursor.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let pos = c.pos;
-        let Some(entry) = c.tape.get(pos).cloned() else {
-            let why = format!("the process called `{word}` after its tape ended ({pos} calls)");
-            c.diverged.get_or_insert(why.clone());
-            return Err(EvalError::native_fn(word.clone(), why, span));
-        };
-        if entry.call != *word {
-            let why = format!(
-                "at tape entry {pos} the process called `{word}` where the trace recorded `{}`",
-                entry.call
-            );
-            c.diverged.get_or_insert(why.clone());
-            return Err(EvalError::native_fn(word.clone(), why, span));
-        }
-        c.pos += 1;
-        entry
-            .outcome
-            .map_err(|m| EvalError::native_fn(word.clone(), m, span))
-    });
+    interp.register_fn(
+        name.to_string(),
+        Arity::Any,
+        move |_args: &[Value], _h: &mut (), span| {
+            let mut c = cursor
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let pos = c.pos;
+            let Some(entry) = c.tape.get(pos).cloned() else {
+                let why = format!("the process called `{word}` after its tape ended ({pos} calls)");
+                c.diverged.get_or_insert(why.clone());
+                return Err(EvalError::native_fn(word.clone(), why, span));
+            };
+            if entry.call != *word {
+                let why = format!(
+                    "at tape entry {pos} the process called `{word}` where the trace recorded `{}`",
+                    entry.call
+                );
+                c.diverged.get_or_insert(why.clone());
+                return Err(EvalError::native_fn(word.clone(), why, span));
+            }
+            c.pos += 1;
+            entry
+                .outcome
+                .map_err(|m| EvalError::native_fn(word.clone(), m, span))
+        },
+    );
 }
 
 /// Run `trace`'s incarnation again in `interp`, from its tape alone.
@@ -532,7 +591,11 @@ pub fn replay(trace: &Trace, mut interp: Interpreter<()>) -> Replayed {
         diverged: None,
     }));
     let host = host_names();
-    for name in PROCESS_WORDS.iter().chain([&SERVER_NEXT]).chain(host.iter()) {
+    for name in PROCESS_WORDS
+        .iter()
+        .chain([&SERVER_NEXT])
+        .chain(host.iter())
+    {
         reader(&mut interp, name, &cursor);
     }
     for (n, v) in &trace.code.bindings {
@@ -545,16 +608,20 @@ pub fn replay(trace: &Trace, mut interp: Interpreter<()>) -> Replayed {
                 quantum: None,
                 ..trace.budget
             });
-            vm.run(&chunk, &mut interp, &mut ()).map_err(|e| classify(&e))
+            vm.run(&chunk, &mut interp, &mut ())
+                .map_err(|e| classify(&e))
         });
-    let c = cursor.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let c = cursor
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (kind, text) = match &ran {
         Ok(_) => ("normal".to_string(), "normal".to_string()),
         Err(r) => (reason_kind(r).to_string(), reason_text(r)),
     };
     // A process killed from outside did not crash itself: its replay runs the
     // tape to the end and stops where the signal arrived.
-    let killed_at_tape_end = trace.reason_kind == "killed" && c.pos == c.tape.len() && c.diverged.is_some();
+    let killed_at_tape_end =
+        trace.reason_kind == "killed" && c.pos == c.tape.len() && c.diverged.is_some();
     let reproduced = !trace.truncated
         && (killed_at_tape_end
             || (c.diverged.is_none() && kind == trace.reason_kind && text == trace.reason_text));
@@ -564,6 +631,10 @@ pub fn replay(trace: &Trace, mut interp: Interpreter<()>) -> Replayed {
         text,
         consumed: c.pos,
         tape_len: c.tape.len(),
-        diverged: if killed_at_tape_end { None } else { c.diverged.clone() },
+        diverged: if killed_at_tape_end {
+            None
+        } else {
+            c.diverged.clone()
+        },
     }
 }

@@ -179,10 +179,13 @@ impl Clock {
 
     fn now(&mut self) -> u64 {
         match self.kind {
-            ClockKind::Real => {
-                u64::try_from(self.origin.get_or_insert_with(Instant::now).elapsed().as_millis())
-                    .unwrap_or(u64::MAX)
-            }
+            ClockKind::Real => u64::try_from(
+                self.origin
+                    .get_or_insert_with(Instant::now)
+                    .elapsed()
+                    .as_millis(),
+            )
+            .unwrap_or(u64::MAX),
             ClockKind::Virtual => self.virtual_ms,
         }
     }
@@ -460,7 +463,11 @@ fn refuse(word: &str, msg: impl Into<String>, span: Span) -> EvalError {
 fn pid_arg(v: &Value, word: &str, span: Span) -> Result<Pid, EvalError> {
     match v {
         Value::Int(n) if *n >= 0 => Ok(Pid(n.unsigned_abs())),
-        other => Err(refuse(word, format!("expected a pid, got {}", other.type_name()), span)),
+        other => Err(refuse(
+            word,
+            format!("expected a pid, got {}", other.type_name()),
+            span,
+        )),
     }
 }
 
@@ -469,7 +476,11 @@ fn compile(forms: &[Spanned]) -> Result<Chunk, String> {
 }
 
 /// Run `forms` to completion against `interp`, bounded.
-fn run_in(interp: &mut Interpreter<()>, forms: &[Spanned], depth: Option<usize>) -> Result<Value, String> {
+fn run_in(
+    interp: &mut Interpreter<()>,
+    forms: &[Spanned],
+    depth: Option<usize>,
+) -> Result<Value, String> {
     let chunk = compile(forms)?;
     let mut vm = Vm::with_budget(Budget {
         fuel: Some(MIGRATION_FUEL),
@@ -488,14 +499,20 @@ fn bind_all(interp: &mut Interpreter<()>, bindings: &[(Arc<str>, Value)]) {
 /// `receive`'s arguments: a pattern (default `:_`), a timeout in ms (default
 /// forever, `nil` too), and the value to answer on timeout (default nil).
 fn receive_args(args: &[Value], span: Span) -> Result<(Value, Option<u64>, Value), EvalError> {
-    let pattern = args.first().cloned().unwrap_or_else(|| kw(pattern::WILDCARD));
+    let pattern = args
+        .first()
+        .cloned()
+        .unwrap_or_else(|| kw(pattern::WILDCARD));
     let timeout = match args.get(1) {
         None | Some(Value::Nil) => None,
         Some(Value::Int(n)) if *n >= 0 => Some(n.unsigned_abs()),
         Some(other) => {
             return Err(refuse(
                 "receive",
-                format!("the timeout is milliseconds (an Int >= 0) or nil, got {}", other.type_name()),
+                format!(
+                    "the timeout is milliseconds (an Int >= 0) or nil, got {}",
+                    other.type_name()
+                ),
                 span,
             ))
         }
@@ -583,7 +600,13 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>, node: Arc<Node>) {
     );
 }
 
-fn register<H: 'static>(interp: &mut Interpreter<H>, side: &Side, name: &'static str, arity: Arity, word: Word) {
+fn register<H: 'static>(
+    interp: &mut Interpreter<H>,
+    side: &Side,
+    name: &'static str,
+    arity: Arity,
+    word: Word,
+) {
     let side = side.clone();
     interp.register_fn(name, arity, move |args: &[Value], _h: &mut H, span| {
         let node = side.node(name, span)?;
@@ -623,7 +646,11 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>) {
             };
             let mut st = node.st();
             let pid = st.current;
-            if st.boxes.get(&pid).is_some_and(|b| pattern::first_match(b, &pattern).is_some()) {
+            if st
+                .boxes
+                .get(&pid)
+                .is_some_and(|b| pattern::first_match(b, &pattern).is_some())
+            {
                 return true;
             }
             let now = st.clock.now();
@@ -675,7 +702,11 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>) {
             let mut st = node.st();
             let pid = st.current;
             st.waits.remove(&pid);
-            let msg = st.boxes.get_mut(&pid).and_then(VecDeque::pop_front).unwrap_or(Value::Nil);
+            let msg = st
+                .boxes
+                .get_mut(&pid)
+                .and_then(VecDeque::pop_front)
+                .unwrap_or(Value::Nil);
             // A boundary: the tape restarts here, from this state, so a
             // long-lived server's trace is its last message, not its life.
             if let Some(info) = st.info.get_mut(&pid) {
@@ -697,7 +728,9 @@ fn record_host_names(proto: &mut Interpreter<()>, me: &Weak<Node>) {
         let Some(original @ Value::NativeFn(_)) = proto.lookup_global(name) else {
             continue;
         };
-        let Value::NativeFn(nf) = &original else { continue };
+        let Value::NativeFn(nf) = &original else {
+            continue;
+        };
         let arity = nf.arity;
         let wrapper = format!("%host:{name}");
         let me = me.clone();
@@ -770,7 +803,10 @@ impl Node {
             .clone()
     }
 
-    fn builder(&self, bindings: &[(Arc<str>, Value)]) -> Arc<dyn Fn() -> Interpreter<()> + Send + Sync> {
+    fn builder(
+        &self,
+        bindings: &[(Arc<str>, Value)],
+    ) -> Arc<dyn Fn() -> Interpreter<()> + Send + Sync> {
         let proto = self.proto();
         let bindings = bindings.to_vec();
         Arc::new(move || {
@@ -783,7 +819,9 @@ impl Node {
     fn record(&self, pid: Pid, call: &str, out: &Result<Value, EvalError>) {
         let max = self.config.max_tape;
         let mut st = self.st();
-        let Some(tape) = st.tapes.get_mut(&pid) else { return };
+        let Some(tape) = st.tapes.get_mut(&pid) else {
+            return;
+        };
         if tape.truncated {
             return;
         }
@@ -801,7 +839,13 @@ impl Node {
     }
 
     /// Compile `code` and queue a process running it.
-    fn start(&self, code: Code, kind: Kind, def_name: Option<String>, sup: Option<Pid>) -> Result<Pid, String> {
+    fn start(
+        &self,
+        code: Code,
+        kind: Kind,
+        def_name: Option<String>,
+        sup: Option<Pid>,
+    ) -> Result<Pid, String> {
         let chunk = Arc::new(compile(&code.program())?);
         let build = self.builder(&code.bindings);
         let initial = match kind {
@@ -883,7 +927,9 @@ impl Node {
                 });
             }
             match out {
-                Slice::Done(v) => self.on_exit(sched, pid, &ExitReason::Normal, kw("normal"), Some(v)),
+                Slice::Done(v) => {
+                    self.on_exit(sched, pid, &ExitReason::Normal, kw("normal"), Some(v))
+                }
                 Slice::Exited(r) => {
                     let rv = reason_value(&r);
                     self.on_exit(sched, pid, &r, rv, None);
@@ -901,14 +947,18 @@ impl Node {
     fn reap(&self, sched: &mut Vec<Proc<()>>) {
         let st = self.st();
         sched.retain(|p| {
-            p.is_runnable() || p.state.is_blocked() || st.info.get(&p.pid).is_some_and(|i| i.sup.is_some())
+            p.is_runnable()
+                || p.state.is_blocked()
+                || st.info.get(&p.pid).is_some_and(|i| i.sup.is_some())
         });
     }
 
     fn process_signals(&self, sched: &mut Vec<Proc<()>>) {
         loop {
             let next = self.st().signals.pop_front();
-            let Some((from, to, reason)) = next else { break };
+            let Some((from, to, reason)) = next else {
+                break;
+            };
             self.signal(sched, from, to, reason);
         }
     }
@@ -958,12 +1008,21 @@ impl Node {
 
     /// A process ended: write its trace, tell its monitors and links, and let
     /// its supervisor decide.
-    fn on_exit(&self, sched: &mut Vec<Proc<()>>, pid: Pid, reason: &ExitReason, value: Value, _result: Option<Value>) {
+    fn on_exit(
+        &self,
+        sched: &mut Vec<Proc<()>>,
+        pid: Pid,
+        reason: &ExitReason,
+        value: Value,
+        _result: Option<Value>,
+    ) {
         let mut st = self.st();
         if !st.info.contains_key(&pid) {
             return;
         }
-        let trace = reason.is_abnormal().then(|| self.trace_of(&mut st, pid, reason, &value));
+        let trace = reason
+            .is_abnormal()
+            .then(|| self.trace_of(&mut st, pid, reason, &value));
         let (links, monitors, sup) = {
             let info = st.info.get_mut(&pid).expect("checked above");
             (
@@ -978,16 +1037,20 @@ impl Node {
             }
         }
         for (r, watcher) in monitors {
-            st.deliver(watcher, Value::list([kw("down"), int(r), int(pid.0), value.clone()]));
+            st.deliver(
+                watcher,
+                Value::list([kw("down"), int(r), int(pid.0), value.clone()]),
+            );
         }
         st.waits.remove(&pid);
         if let Some(m) = st.migrations.remove(&pid) {
-            st.outcomes
-                .entry(m.request)
-                .or_default()
-                .push((pid, Err("the process exited before it reached a boundary".into())));
+            st.outcomes.entry(m.request).or_default().push((
+                pid,
+                Err("the process exited before it reached a boundary".into()),
+            ));
         }
-        let supervised = sup.filter(|s| matches!(st.info.get(s).map(|i| &i.kind), Some(Kind::Supervisor(_))));
+        let supervised =
+            sup.filter(|s| matches!(st.info.get(s).map(|i| &i.kind), Some(Kind::Supervisor(_))));
         if supervised.is_none() {
             st.forget(pid);
         } else if let Some(info) = st.info.get_mut(&pid) {
@@ -1024,7 +1087,9 @@ impl Node {
             self.shutdown_sup(sched, sup, Value::list([kw("gave_up"), int(child.0)]));
             return;
         }
-        let Some(pos) = spec.children.iter().position(|c| *c == child) else { return };
+        let Some(pos) = spec.children.iter().position(|c| *c == child) else {
+            return;
+        };
         for t in spec.strategy.targets(pos, spec.children.len()) {
             self.restart(sched, spec.children[t]);
         }
@@ -1033,7 +1098,9 @@ impl Node {
     /// A fresh incarnation under the same pid: new VM, new interpreter from
     /// the current code, an empty mailbox and an empty tape.
     fn restart(&self, sched: &mut [Proc<()>], pid: Pid) {
-        let Some(p) = sched.iter_mut().find(|p| p.pid == pid) else { return };
+        let Some(p) = sched.iter_mut().find(|p| p.pid == pid) else {
+            return;
+        };
         let chunk = {
             let mut st = self.st();
             // The messages in flight were addressed to the incarnation that
@@ -1062,7 +1129,9 @@ impl Node {
     fn shutdown_sup(&self, sched: &mut Vec<Proc<()>>, sup: Pid, reason: Value) {
         let (children, links, monitors) = {
             let mut st = self.st();
-            let Some(info) = st.info.remove(&sup) else { return };
+            let Some(info) = st.info.remove(&sup) else {
+                return;
+            };
             st.boxes.remove(&sup);
             let children = match info.kind {
                 Kind::Supervisor(s) => s.children,
@@ -1086,7 +1155,9 @@ impl Node {
             // kill; it is simply forgotten.
             let mut st = self.st();
             if st.info.get(&c).is_some_and(|i| i.sup.is_none())
-                && !sched.iter().any(|p| p.pid == c && (p.is_runnable() || p.state.is_blocked()))
+                && !sched
+                    .iter()
+                    .any(|p| p.pid == c && (p.is_runnable() || p.state.is_blocked()))
             {
                 st.forget(c);
             }
@@ -1094,7 +1165,10 @@ impl Node {
         {
             let mut st = self.st();
             for (r, watcher) in monitors {
-                st.deliver(watcher, Value::list([kw("down"), int(r), int(sup.0), reason.clone()]));
+                st.deliver(
+                    watcher,
+                    Value::list([kw("down"), int(r), int(sup.0), reason.clone()]),
+                );
             }
         }
         for l in links {
@@ -1111,10 +1185,14 @@ impl Node {
         let pending: Vec<Pid> = self.st().migrations.keys().copied().collect();
         let mut applied = false;
         for pid in pending {
-            let Some(idx) = sched.iter().position(|p| p.pid == pid) else { continue };
+            let Some(idx) = sched.iter().position(|p| p.pid == pid) else {
+                continue;
+            };
             let (ready, m, kind) = {
                 let st = self.st();
-                let Some(info) = st.info.get(&pid) else { continue };
+                let Some(info) = st.info.get(&pid) else {
+                    continue;
+                };
                 let p = &sched[idx];
                 let ready = match info.kind {
                     Kind::Server => {
@@ -1125,13 +1203,18 @@ impl Node {
                 };
                 (ready, st.migrations.get(&pid).cloned(), info.kind.clone())
             };
-            let (true, Some(m)) = (ready, m) else { continue };
+            let (true, Some(m)) = (ready, m) else {
+                continue;
+            };
             self.st().current = pid;
             let result = self.migrate(&mut sched[idx], &kind, &m);
             let mut st = self.st();
             st.current = ROOT;
             st.migrations.remove(&pid);
-            st.outcomes.entry(m.request).or_default().push((pid, result));
+            st.outcomes
+                .entry(m.request)
+                .or_default()
+                .push((pid, result));
             applied = true;
         }
         applied
@@ -1150,9 +1233,11 @@ impl Node {
         };
         let server = matches!(kind, Kind::Server);
         if !server && m.transform.is_some() {
-            return Err("a plain process keeps its state in its own frames, so there is no state to \
+            return Err(
+                "a plain process keeps its state in its own frames, so there is no state to \
                         transform; run it with spawn_server to migrate state"
-                .into());
+                    .into(),
+            );
         }
 
         let mut scratch = p.interp.fork();
@@ -1166,7 +1251,11 @@ impl Node {
                     run_in(&mut scratch, &t.defs, depth)?;
                     let apply = |scratch: &mut Interpreter<()>, v: Value| {
                         scratch.define_global("%old", v);
-                        run_in(scratch, &[code::call(code::symbol("%transform"), &["%old"])], depth)
+                        run_in(
+                            scratch,
+                            &[code::call(code::symbol("%transform"), &["%old"])],
+                            depth,
+                        )
                     };
                     let state = apply(&mut scratch, old)?;
                     let initial = match initial {
@@ -1189,7 +1278,11 @@ impl Node {
             .interp
             .lookup_global(&m.new_name)
             .ok_or_else(|| format!("the migration did not define `{}`", m.new_name))?;
-        let alias = if server { "%handler".to_string() } else { old_name.clone().unwrap_or_default() };
+        let alias = if server {
+            "%handler".to_string()
+        } else {
+            old_name.clone().unwrap_or_default()
+        };
         if !alias.is_empty() && alias != m.new_name {
             p.interp.define_global(alias.as_str(), new_fn);
         }
@@ -1270,7 +1363,10 @@ impl Node {
                     trace.reason_text,
                     path.display()
                 ),
-                Err(e) => eprintln!("blue: process {} exited; its trace could not be written: {e}", trace.pid),
+                Err(e) => eprintln!(
+                    "blue: process {} exited; its trace could not be written: {e}",
+                    trace.pid
+                ),
             }
         }
         let mut st = self.st();
@@ -1392,7 +1488,11 @@ impl Node {
                 "receive",
                 format!(
                     "would wait forever: no process can send (deadlock; waiting: {})",
-                    blocked.iter().map(|p| p.0.to_string()).collect::<Vec<_>>().join(", ")
+                    blocked
+                        .iter()
+                        .map(|p| p.0.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 ),
                 span,
             )),
@@ -1416,7 +1516,11 @@ impl Node {
     /// The mailbox of `pid`, oldest first. For hosts and tests.
     #[must_use]
     pub fn mailbox(&self, pid: Pid) -> Vec<Value> {
-        self.st().boxes.get(&pid).map(|b| b.iter().cloned().collect()).unwrap_or_default()
+        self.st()
+            .boxes
+            .get(&pid)
+            .map(|b| b.iter().cloned().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -1434,7 +1538,14 @@ fn spawn_args(args: &[Value], word: &str, span: Span) -> Result<Vec<Value>, Eval
     }
 }
 
-fn spawn_one(node: &Node, f: &Value, args: &[Value], sup: Option<Pid>, word: &str, span: Span) -> Result<Pid, EvalError> {
+fn spawn_one(
+    node: &Node,
+    f: &Value,
+    args: &[Value],
+    sup: Option<Pid>,
+    word: &str,
+    span: Span,
+) -> Result<Pid, EvalError> {
     let (code, entry) = code::spawn_code(f, args).map_err(|m| refuse(word, m, span))?;
     let def_name = match entry {
         Entry::Named(n) | Entry::Builtin(n) => Some(n),
@@ -1464,10 +1575,25 @@ fn w_spawn_link(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Val
 }
 
 fn w_spawn_server(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
-    Ok(int(server(node, &args[0], &args[1], None, "spawn_server", span)?.0))
+    Ok(int(server(
+        node,
+        &args[0],
+        &args[1],
+        None,
+        "spawn_server",
+        span,
+    )?
+    .0))
 }
 
-fn server(node: &Node, handler: &Value, state: &Value, sup: Option<Pid>, word: &str, span: Span) -> Result<Pid, EvalError> {
+fn server(
+    node: &Node,
+    handler: &Value,
+    state: &Value,
+    sup: Option<Pid>,
+    word: &str,
+    span: Span,
+) -> Result<Pid, EvalError> {
     let mut code = code::function_code(handler, "%handler").map_err(|m| refuse(word, m, span))?;
     code.defs.extend(SERVER_LOOP.iter().cloned());
     code.start = Some(code::call(code::symbol("%serve"), &[]));
@@ -1504,7 +1630,9 @@ fn w_self(_node: &Node, who: Who, _args: &[Value], _span: Span) -> Result<Value,
 
 fn w_alive(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let pid = pid_arg(&args[0], "alive?", span)?;
-    Ok(Value::Bool(node.st().info.get(&pid).is_some_and(|i| i.live)))
+    Ok(Value::Bool(
+        node.st().info.get(&pid).is_some_and(|i| i.live),
+    ))
 }
 
 fn w_link(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
@@ -1544,14 +1672,21 @@ fn w_monitor(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value,
     st.next_ref += 1;
     match st.info.get_mut(&target) {
         Some(i) => i.monitors.push((r, me)),
-        None => st.deliver(me, Value::list([kw("down"), int(r), int(target.0), kw("noproc")])),
+        None => st.deliver(
+            me,
+            Value::list([kw("down"), int(r), int(target.0), kw("noproc")]),
+        ),
     }
     Ok(int(r))
 }
 
 fn w_demonitor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let Value::Int(r) = args[0] else {
-        return Err(refuse("demonitor", "expected a monitor reference (an Int)", span));
+        return Err(refuse(
+            "demonitor",
+            "expected a monitor reference (an Int)",
+            span,
+        ));
     };
     let mut st = node.st();
     for i in st.info.values_mut() {
@@ -1562,10 +1697,15 @@ fn w_demonitor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Val
 
 fn w_exit(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let to = pid_arg(&args[0], "exit", span)?;
-    let reason = copy_data(&args[1]).map_err(|kind| refuse("exit", format!("a reason is data, not a {kind}"), span))?;
+    let reason = copy_data(&args[1])
+        .map_err(|kind| refuse("exit", format!("a reason is data, not a {kind}"), span))?;
     let me = who.pid();
     if to == me {
-        return Err(refuse("exit", format!("process {} exits: {}", me.0, render(&reason)), span));
+        return Err(refuse(
+            "exit",
+            format!("process {} exits: {}", me.0, render(&reason)),
+            span,
+        ));
     }
     node.st().signals.push_back((me, to, reason));
     if who == Who::Root {
@@ -1584,7 +1724,9 @@ fn truthy(v: &Value) -> bool {
 
 fn w_trap_exit(node: &Node, who: Who, args: &[Value], _span: Span) -> Result<Value, EvalError> {
     let mut st = node.st();
-    let Some(i) = st.info.get_mut(&who.pid()) else { return Ok(Value::Bool(false)) };
+    let Some(i) = st.info.get_mut(&who.pid()) else {
+        return Ok(Value::Bool(false));
+    };
     let previous = i.trap_exit;
     i.trap_exit = truthy(&args[0]);
     Ok(Value::Bool(previous))
@@ -1603,7 +1745,11 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
         )
     })?;
     let Value::List(specs) = &args[1] else {
-        return Err(refuse("supervisor", "the children are a list of functions or [f, args] pairs", span));
+        return Err(refuse(
+            "supervisor",
+            "the children are a list of functions or [f, args] pairs",
+            span,
+        ));
     };
     let max_restarts = match args.get(2) {
         None | Some(Value::Nil) => DEFAULT_MAX_RESTARTS,
@@ -1639,14 +1785,22 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
             }
             Value::List(pair) if pair.len() == 2 && code::is_function(&pair[0]) => {
                 let Value::List(a) = &pair[1] else {
-                    return Err(refuse("supervisor", "a child [f, args] takes its args as a list", span));
+                    return Err(refuse(
+                        "supervisor",
+                        "a child [f, args] takes its args as a list",
+                        span,
+                    ));
                 };
                 let a: Vec<Value> = a.iter().cloned().collect();
                 spawn_one(node, &pair[0], &a, Some(sup), "supervisor", span)?
             }
             f => spawn_one(node, f, &[], Some(sup), "supervisor", span)?,
         };
-        if let Some(Info { kind: Kind::Supervisor(s), .. }) = node.st().info.get_mut(&sup) {
+        if let Some(Info {
+            kind: Kind::Supervisor(s),
+            ..
+        }) = node.st().info.get_mut(&sup)
+        {
             s.children.push(pid);
         }
     }
@@ -1667,19 +1821,29 @@ fn w_defmigrate(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Val
         Value::Int(_) => vec![pid_arg(&args[0], "defmigrate", span)?],
         f if code::is_function(f) => {
             let Some(name) = code::name_of(f) else {
-                return Err(refuse("defmigrate", "the target function has no name to match processes by", span));
+                return Err(refuse(
+                    "defmigrate",
+                    "the target function has no name to match processes by",
+                    span,
+                ));
             };
             let st = node.st();
             st.info
                 .iter()
-                .filter(|(_, i)| matches!(i.kind, Kind::Plain | Kind::Server) && i.def_name.as_deref() == Some(&name))
+                .filter(|(_, i)| {
+                    matches!(i.kind, Kind::Plain | Kind::Server)
+                        && i.def_name.as_deref() == Some(&name)
+                })
                 .map(|(p, _)| *p)
                 .collect()
         }
         other => {
             return Err(refuse(
                 "defmigrate",
-                format!("the target is a pid or the function processes run, got {}", other.type_name()),
+                format!(
+                    "the target is a pid or the function processes run, got {}",
+                    other.type_name()
+                ),
                 span,
             ))
         }
@@ -1691,10 +1855,13 @@ fn w_defmigrate(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Val
         r
     };
     let new_name = code::name_of(&args[1]).unwrap_or_else(|| format!("%migration{request}"));
-    let new_code = code::function_code(&args[1], &new_name).map_err(|m| refuse("defmigrate", m, span))?;
+    let new_code =
+        code::function_code(&args[1], &new_name).map_err(|m| refuse("defmigrate", m, span))?;
     let transform = match args.get(2) {
         None | Some(Value::Nil) => None,
-        Some(t) => Some(code::function_code(t, "%transform").map_err(|m| refuse("defmigrate", m, span))?),
+        Some(t) => {
+            Some(code::function_code(t, "%transform").map_err(|m| refuse("defmigrate", m, span))?)
+        }
     };
     let mut answers: Vec<(Pid, Result<(), String>)> = Vec::new();
     let mut queued = Vec::new();
@@ -1721,7 +1888,9 @@ fn w_defmigrate(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Val
     if who != Who::Root {
         // A child cannot wait for other processes inside its slice; the
         // migration is applied at the target's next boundary.
-        return Ok(Value::list(queued.iter().map(|p| Value::list([int(p.0), kw("queued")]))));
+        return Ok(Value::list(
+            queued.iter().map(|p| Value::list([int(p.0), kw("queued")])),
+        ));
     }
     if !queued.is_empty() {
         let want = queued.len();

@@ -28,14 +28,21 @@ pub fn run(path: &Path) -> Result<ExitCode, String> {
     println!(
         "process {}{} incarnation {}: {} tape entries{}",
         trace.pid,
-        trace.definition.as_deref().map(|d| format!(" ({d})")).unwrap_or_default(),
+        trace
+            .definition
+            .as_deref()
+            .map(|d| format!(" ({d})"))
+            .unwrap_or_default(),
         trace.incarnation,
         trace.tape.len(),
         if trace.truncated { ", truncated" } else { "" },
     );
     println!("recorded: {} {}", trace.reason_kind, trace.reason_text);
     let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
-    println!("replayed: {} {} ({} of {} tape entries)", r.kind, r.text, r.consumed, r.tape_len);
+    println!(
+        "replayed: {} {} ({} of {} tape entries)",
+        r.kind, r.text, r.consumed, r.tape_len
+    );
     if let Some(d) = &r.diverged {
         println!("diverged: {d}");
     }

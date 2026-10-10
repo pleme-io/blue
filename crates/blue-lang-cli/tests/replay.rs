@@ -49,9 +49,16 @@ fn crash_trace(name: &str) -> (PathBuf, PathBuf) {
         .arg(&program)
         .output()
         .expect("blue run");
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("trace:"), "the crash names its trace: {stderr}");
+    assert!(
+        stderr.contains("trace:"),
+        "the crash names its trace: {stderr}"
+    );
     let files: Vec<PathBuf> = std::fs::read_dir(&traces)
         .expect("trace dir")
         .map(|e| e.expect("entry").path())
@@ -64,10 +71,17 @@ fn crash_trace(name: &str) -> (PathBuf, PathBuf) {
 #[test]
 fn replay_reproduces_the_crash_from_the_trace_alone() {
     let (dir, trace) = crash_trace("ok");
-    let out = blue().arg("replay").arg(&trace).output().expect("blue replay");
+    let out = blue()
+        .arg("replay")
+        .arg(&trace)
+        .output()
+        .expect("blue replay");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success(), "{stdout}");
-    assert!(stdout.contains("job 3 is poison") && stdout.ends_with("reproduced\n"), "{stdout}");
+    assert!(
+        stdout.contains("job 3 is poison") && stdout.ends_with("reproduced\n"),
+        "{stdout}"
+    );
     // receive, send, receive, send, receive: three jobs and two answers.
     assert!(stdout.contains("5 of 5 tape entries"), "{stdout}");
     let _ = std::fs::remove_dir_all(dir);
@@ -83,10 +97,17 @@ fn a_tampered_trace_is_not_reported_as_reproduced() {
     assert_eq!(j["tape"][4]["call"], "receive");
     j["tape"][4]["value"] = serde_json::json!({ "int": 4 });
     std::fs::write(&trace, serde_json::to_string(&j).expect("json")).expect("write");
-    let out = blue().arg("replay").arg(&trace).output().expect("blue replay");
+    let out = blue()
+        .arg("replay")
+        .arg(&trace)
+        .output()
+        .expect("blue replay");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(!out.status.success(), "{stdout}");
-    assert!(stdout.contains("diverged") && stdout.ends_with("not reproduced\n"), "{stdout}");
+    assert!(
+        stdout.contains("diverged") && stdout.ends_with("not reproduced\n"),
+        "{stdout}"
+    );
     let _ = std::fs::remove_dir_all(dir);
 }
 

@@ -58,8 +58,14 @@ fn a_migration_that_raises_leaves_the_old_code_and_state_running() {
              [r, receive()]"
         ),
     );
-    assert!(out.contains("(1 (:error") && out.contains("no migration today"), "{out}");
-    assert!(out.ends_with("(:v1 6))"), "old code, old state, the message handled: {out}");
+    assert!(
+        out.contains("(1 (:error") && out.contains("no migration today"),
+        "{out}"
+    );
+    assert!(
+        out.ends_with("(:v1 6))"),
+        "old code, old state, the message handled: {out}"
+    );
 }
 
 #[test]

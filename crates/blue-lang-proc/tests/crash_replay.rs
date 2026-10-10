@@ -59,14 +59,25 @@ fn replay_reproduces_a_crash_that_only_one_interleaving_produces() {
     // A fine quantum: `b` sends while `a` is still spinning. Crash.
     let (mut root, fine) = node(5);
     let out = show(&mut root, ORDER_SENSITIVE);
-    assert!(out.contains("gave_up"), "the fine schedule must crash: {out}");
+    assert!(
+        out.contains("gave_up"),
+        "the fine schedule must crash: {out}"
+    );
     let traces = fine.traces();
     assert_eq!(traces.len(), 1);
     let trace = trace_round_trip(&traces[0]);
     assert_eq!(trace.reason_kind, "crashed");
     assert!(trace.reason_text.contains("b arrived before a"));
-    assert_eq!(trace.tape.len(), 1, "the consumer received one message: {:?}", trace.tape);
-    assert!(!trace.schedule.is_empty(), "the interleaving record rides along");
+    assert_eq!(
+        trace.tape.len(),
+        1,
+        "the consumer received one message: {:?}",
+        trace.tape
+    );
+    assert!(
+        !trace.schedule.is_empty(),
+        "the interleaving record rides along"
+    );
 
     // The replay runs the consumer alone: no producers, no scheduler.
     let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
@@ -79,7 +90,10 @@ fn replay_reproduces_a_crash_that_only_one_interleaving_produces() {
     swapped.tape[0].outcome = Ok(tatara_lisp_eval::Value::Keyword(Arc::from("a")));
     let r = replay(&swapped, blue_lang_runtime::interpreter_hostless());
     assert!(!r.reproduced, "{r:?}");
-    assert!(r.diverged.is_some(), "it asks for a second message the tape does not hold: {r:?}");
+    assert!(
+        r.diverged.is_some(),
+        "it asks for a second message the tape does not hold: {r:?}"
+    );
 }
 
 #[test]
@@ -99,15 +113,25 @@ fn host_reads_are_recorded_and_the_replay_never_reaches_the_host() {
     let _ = show(&mut root, &src);
     let trace = trace_round_trip(&node.traces()[0]);
     let calls: Vec<&str> = trace.tape.iter().map(|e| e.call.as_str()).collect();
-    assert_eq!(calls, ["now_ms", "write_file", "getenv"], "every host read, in order");
+    assert_eq!(
+        calls,
+        ["now_ms", "write_file", "getenv"],
+        "every host read, in order"
+    );
     assert!(marker.exists(), "the live run did write");
 
     std::fs::remove_file(&marker).expect("rm");
     unsafe { std::env::set_var("BLUE_REPLAY_PROBE", "changed since") };
     let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
-    assert!(r.reproduced, "the replay saw the recorded environment, not today's: {r:?}");
+    assert!(
+        r.reproduced,
+        "the replay saw the recorded environment, not today's: {r:?}"
+    );
     assert!(r.text.contains("probe=recorded"), "{r:?}");
-    assert!(!marker.exists(), "the replay wrote nothing: write_file read its result off the tape");
+    assert!(
+        !marker.exists(),
+        "the replay wrote nothing: write_file read its result off the tape"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -125,7 +149,12 @@ fn a_server_crash_replays_from_its_last_boundary() {
     let trace = trace_round_trip(&node.traces()[0]);
     // The tape starts at the boundary before the fatal message: the state is
     // 40 there, and the one entry is the 50 that overdrew it.
-    let state = trace.code.bindings.iter().find(|(n, _)| &**n == "%state").map(|(_, v)| v.to_string());
+    let state = trace
+        .code
+        .bindings
+        .iter()
+        .find(|(n, _)| &**n == "%state")
+        .map(|(_, v)| v.to_string());
     assert_eq!(state.as_deref(), Some("40"));
     assert_eq!(trace.tape.len(), 1);
     let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
@@ -186,8 +215,21 @@ fn values_and_forms_survive_the_trace_format() {
     );
     assert_eq!(back.code.defs, original.code.defs, "forms, spans included");
     assert_eq!(
-        format!("{:?}", back.tape.iter().map(|e| e.outcome.clone()).collect::<Vec<_>>()),
-        format!("{:?}", original.tape.iter().map(|e| e.outcome.clone()).collect::<Vec<_>>())
+        format!(
+            "{:?}",
+            back.tape
+                .iter()
+                .map(|e| e.outcome.clone())
+                .collect::<Vec<_>>()
+        ),
+        format!(
+            "{:?}",
+            original
+                .tape
+                .iter()
+                .map(|e| e.outcome.clone())
+                .collect::<Vec<_>>()
+        )
     );
     let mut wrong = original.to_json();
     wrong["version"] = serde_json::json!(99);

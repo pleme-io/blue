@@ -757,6 +757,8 @@ fn build(frame: &Waku, interrupt: &Arc<AtomicBool>, host: &mut Host) -> Interpre
             });
         }
     }
+    // Processes the session's programs spawn are held to the same frame.
+    crate::attach_node_in_frame(&mut interp, frame);
     interp.set_interrupt(Arc::clone(interrupt));
     interp
 }

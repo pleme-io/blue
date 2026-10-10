@@ -388,3 +388,25 @@ fn https_and_unreachable_hosts_raise() {
         "{err}"
     );
 }
+
+/// A subscriber is a process: it opens its own connection, forwards each
+/// message to the program by `send`, and the program waits in `receive`
+/// instead of polling the bus itself (BLUE-GAPS G11's NATS evidence).
+#[test]
+fn a_subscriber_process_forwards_the_bus_to_the_program() {
+    let Some(server) = start_server("process", "") else {
+        return;
+    };
+    let v = run(&format!(
+        "def forward(parent, sub, n)\n  if n == 0\n    :done\n  else\n    m = nats_next_message(sub, 50)\n    if m == nil\n      forward(parent, sub, n)\n    else\n      send(parent, get(m, :payload))\n      forward(parent, sub, n - 1)\n    end\n  end\nend\n\
+         def subscriber(parent, url, n)\n  sub = nats_subscribe(nats_connect(url, 2000), \"home.>\")\n  send(parent, :subscribed)\n  forward(parent, sub, n)\nend\n\
+         spawn(subscriber, [self(), {url}, 2])\n\
+         receive(:subscribed, 5000)\n\
+         c = nats_connect({url})\n\
+         nats_publish(c, \"home.light.kitchen\", \"on\")\n\
+         nats_publish(c, \"home.door.front\", \"open\")\n\
+         [receive(:_, 5000), receive(:_, 5000)]",
+        url = s(&server.url())
+    ));
+    assert_eq!(strs(&v), ["on", "open"]);
+}

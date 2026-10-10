@@ -101,7 +101,8 @@ impl Engine {
         let good = self.last_good(id);
         let mut out = Vec::new();
         if let Some(q) = qualifier {
-            self.qualified(&current, good.as_deref(), &q, &mut |c| {
+            let base = edit_base(&current, good.as_deref());
+            self.qualified(&current, good.as_deref(), base, &q, &mut |c| {
                 if c.label.starts_with(&prefix) {
                     out.push(c);
                 }
@@ -135,8 +136,9 @@ impl Engine {
                 out.push(c);
             }
         }
-        if !prefix.is_empty() {
-            for c in self.reachable(source, &prefix) {
+        let base = edit_base(&current, good.as_deref()).filter(|_| !prefix.is_empty());
+        if let Some(base) = base {
+            for c in self.reachable(base, &prefix) {
                 if !shadowing.contains(&c.label) {
                     out.push(c);
                 }
@@ -294,6 +296,7 @@ impl Engine {
         &self,
         current: &Analysis,
         good: Option<&Analysis>,
+        base: Option<&Analysis>,
         pkg: &str,
         push: &mut dyn FnMut(Completion),
     ) {
@@ -311,10 +314,13 @@ impl Engine {
         let Ok(package) = self.package(pkg) else {
             return;
         };
-        let a = good.unwrap_or(current);
+        let a = base.or(good).unwrap_or(current);
         let imports = a.imports();
         let used = imports.iter().any(|i| i.package == pkg)
             || a.own_namespace() == Namespace::Bidama(pkg.to_string());
+        if !used && base.is_none() {
+            return;
+        }
         for (_, text) in &package.files {
             for item in self.memo.items(text).iter().cloned() {
                 if !matches!(
@@ -364,6 +370,18 @@ impl Engine {
         };
         self.memo.items(&text).iter().find(|i| inside(i)).cloned()
     }
+}
+
+/// The analysis whose text a completion's extra edit may be computed
+/// against: the current one when it parses, else the newest one that did,
+/// as long as everything up to its last `use` is unchanged since.
+fn edit_base<'a>(current: &'a Analysis, good: Option<&'a Analysis>) -> Option<&'a Analysis> {
+    if current.parsed.is_ok() {
+        return Some(current);
+    }
+    let good = good?;
+    let header = good.imports().last().map_or(0, |i| i.span.end);
+    (current.text.get(..header) == good.text.get(..header)).then_some(good)
 }
 
 fn kind_of(kind: ScopeKind, signature: Option<&str>) -> CompletionKind {

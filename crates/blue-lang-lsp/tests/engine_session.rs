@@ -315,6 +315,45 @@ fn a_name_one_use_away_carries_its_use() {
     assert!(d.is_empty(), "{d:?}");
 }
 
+/// **Mid-edit, completion answers from the newest revision that parsed**:
+/// `size(xs) + cl(` does not parse, and the file's listed `size`, its own
+/// `f` and kazu's `clamp` (with its `use`, placed against text that has not
+/// changed since) are still offered.
+///
+/// Red run (2026-10-10): completion reading only the current revision, and
+/// computing no edit against an older one — kazu's `clamp` was not offered,
+/// the `expect("clamp")` panicked.
+#[test]
+fn completion_mid_edit_answers_from_the_last_revision_that_parsed() {
+    let mut s = server();
+    let uri = "file:///midedit.b";
+    let good = "use(\"retsu\", [:size])\n\ndef f(xs)\n  size(xs)\nend\n";
+    open(&mut s, uri, good);
+    let typing = "use(\"retsu\", [:size])\n\ndef f(xs)\n  size(xs) + cl(\nend\n";
+    change(&mut s, uri, typing);
+    let r = request(
+        &mut s,
+        "textDocument/completion",
+        at(uri, typing, typing.find("cl(").expect("cl") + 2),
+    );
+    let items = completion_items(&r);
+    let clamp = find(&items, "clamp").expect("clamp");
+    assert_eq!(
+        clamp["additionalTextEdits"][0]["range"]["start"],
+        json!({ "line": 0, "character": 0 })
+    );
+    let r = request(
+        &mut s,
+        "textDocument/completion",
+        at(uri, typing, typing.find("size(xs)").expect("s") + 2),
+    );
+    let items = completion_items(&r);
+    assert_eq!(
+        find(&items, "size").map(|i| i["detail"].clone()),
+        Some(json!("bidama `retsu`"))
+    );
+}
+
 /// **Go to definition reaches into a bidama**, and to a local's binding and
 /// an own definition in the file.
 ///

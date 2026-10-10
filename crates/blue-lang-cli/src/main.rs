@@ -7,6 +7,7 @@
 //! `blue_lang_runtime::pipeline`.
 //!
 //! ```text
+//! blue FILE [ARGS]             run FILE quietly, as a script (`script`)
 //! blue run     FILE            parse, check, erase, execute
 //! blue fmt     FILE [--check]  the one formatting; --check exits 1 on drift
 //! blue ast     FILE            the tatara-lisp form — homoiconicity, visible
@@ -24,6 +25,8 @@
 //! blue banner                  the wordmark — the blueshift ramp
 //! blue shift   FILE            how far this is shifted, and what is shifting it
 //! blue reference               the language, from its own tables, as JSON
+//! blue new     NAME            a program, `--bidama` or `--script` (`scaffold`)
+//! blue watch   [CMD] PATH...   rerun check, test or run on save (`watch`)
 //! ```
 //!
 //! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
@@ -57,12 +60,15 @@ mod config;
 mod diagnostics;
 mod prefetch;
 mod reference;
+mod scaffold;
+mod script;
+mod watch;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use blue_lang_pkg::lock::{Freshness, ManifestRecord, LOCK_FILE};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 use config::BlueConfig;
 
@@ -235,10 +241,31 @@ enum Cmd {
     /// than hand-rolled here — see `config` for what may live in it and why
     /// the surface is two fields.
     Config(shikumi::cli::ConfigShowCommand),
+    /// Start a program (a project with its own bidama), a `--bidama`, or a
+    /// `--script`, each passing `blue test` as written.
+    New {
+        /// The directory to create, or with `--script` the file.
+        name: PathBuf,
+        #[arg(long, conflicts_with = "script")]
+        bidama: bool,
+        #[arg(long)]
+        script: bool,
+    },
+    /// Rerun `check` (the default), `test` or `run` over each PATH whenever a
+    /// watched file changes: `blue watch test lib.b`.
+    Watch {
+        #[arg(required = true, value_name = "[CMD] PATH")]
+        targets: Vec<String>,
+        /// The program's arguments, for `run`, after `--`.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
 }
 
 fn main() -> ExitCode {
-    match dispatch(Cli::parse()) {
+    // `blue FILE [ARGS]` is `blue run --quiet FILE -- ARGS` (`script`).
+    let argv = script::route(std::env::args_os().collect(), &Cli::command());
+    match dispatch(Cli::parse_from(argv)) {
         Ok(code) => code,
         Err(e) => {
             eprintln!("blue: {e}");
@@ -1026,6 +1053,25 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Config(cmd) => {
             cmd.run::<BlueConfig>(config::TIER_ENV)?;
             Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::New {
+            name,
+            bidama,
+            script,
+        } => {
+            let shape = match (bidama, script) {
+                (true, _) => scaffold::Shape::Bidama,
+                (_, true) => scaffold::Shape::Script,
+                _ => scaffold::Shape::Program,
+            };
+            println!("{}", scaffold::new(&name, shape).map_err(CliError::Pkg)?);
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Watch { targets, args } => {
+            let (verb, paths) = watch::parse(&targets).map_err(CliError::Pkg)?;
+            watch::watch(verb, &paths, &args).map_err(CliError::Pkg)
         }
 
         Cmd::Lsp => {

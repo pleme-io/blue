@@ -14,7 +14,9 @@
 //! blue erase   FILE            the tatara-lisp form after type erasure
 //! blue check   FILE [--format json] [--fix]   every rule, the typing report
 //! blue explain CODE | --list   what a diagnostic code means
-//! blue test    FILE            check, then run the file's `test` blocks
+//! blue test    FILE|DIR [--filter P] [--coverage [--json]]   check, then run `test` blocks
+//! blue profile FILE [--top N]  calls and time per function
+//! blue trace   DEF FILE        every call of DEF, its arguments and its value
 //! blue deps    BLUEFILE        resolve the manifest's dependencies
 //! blue posture BLUEFILE        the posture the manifest's floors require
 //! blue bluefile --json BLUEFILE         the evaluated manifest, as JSON
@@ -61,6 +63,7 @@ mod census;
 const MIGRATE: &str = include_str!("../blue/migrate.b");
 mod config;
 mod diagnostics;
+mod observe;
 mod prefetch;
 mod reference;
 mod repl;
@@ -105,6 +108,10 @@ enum Cmd {
         /// executable on PATH never ends its output with a stray `nil`.
         #[arg(long, short = 'q')]
         quiet: bool,
+        /// `json` prints a runtime error as one JSON object on stdout, with
+        /// its position and blue call stack.
+        #[arg(long, value_enum, default_value_t = Format::Text)]
+        format: Format,
         /// The program's own arguments, after the file (use `--` before any
         /// that start with a dash): what `argv()` returns. Before 2026-09-27
         /// `run` refused any, so no blue program could take arguments.
@@ -199,8 +206,48 @@ enum Cmd {
         #[arg(long)]
         list: bool,
     },
-    /// Check the file (as `blue check` does), then run its `test` blocks.
-    Test { file: PathBuf },
+    /// Check the file (as `blue check` does), then run its `test` blocks. A
+    /// directory runs every `.b` file under it holding a `test` block, in
+    /// parallel, and ends with one summary line.
+    Test {
+        file: PathBuf,
+        /// Run only the tests whose name contains PATTERN.
+        #[arg(long, value_name = "PATTERN")]
+        filter: Option<String>,
+        /// Count each definition's calls across the tests and list the
+        /// definitions no test reached.
+        #[arg(long)]
+        coverage: bool,
+        /// Print coverage as one JSON object per file.
+        #[arg(long, requires = "coverage")]
+        json: bool,
+    },
+    /// Run a program and report every function it called: calls, inclusive
+    /// and exclusive time, most exclusive time first.
+    Profile {
+        file: PathBuf,
+        /// How many functions to list.
+        #[arg(long, default_value_t = 20)]
+        top: usize,
+        #[arg(long)]
+        json: bool,
+        /// The program's own arguments, after the file.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Run a program and print each call of DEF with its arguments, and each
+    /// exit with its value, to stderr.
+    Trace {
+        /// The definition, as the program writes it: `f` or `retsu::first`.
+        def: String,
+        file: PathBuf,
+        /// Stop printing after this many lines (the count still runs).
+        #[arg(long, default_value_t = 200)]
+        limit: usize,
+        /// The program's own arguments, after the file.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Resolve a Bluefile's dependencies. Does not fetch.
     Deps { file: PathBuf },
     /// Report the posture a Bluefile's declared floor requires.
@@ -447,6 +494,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             file,
             inputs,
             quiet,
+            format,
             args,
         } => {
             blue_lang_runtime::sys::set_program_args(args);
@@ -496,7 +544,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // type error in the file the user named would report against
             // `<anonymous>` while an imported package's reported its real path
             // — the entry file being the one file the CLI always knows.
-            let out = blue_lang_runtime::pipeline::run_in_surface(
+            let out = match blue_lang_runtime::pipeline::run_in_surface(
                 blue_lang_runtime::uses::Entry {
                     path: Some(&file),
                     text: &src,
@@ -504,7 +552,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 bind_inputs(&src, &inputs, &cfg)?,
                 &loader,
                 surface.as_ref(),
-            )?;
+            ) {
+                Err(e) if format == Format::Json => {
+                    println!("{}", serde_json::to_string(&observe::error_json(&e))?);
+                    return Ok(ExitCode::FAILURE);
+                }
+                out => out?,
+            };
             if !quiet {
                 println!("{}", render(&out.value));
             }
@@ -749,74 +803,24 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Test { file } => {
-            let src = read_compiled(&file)?;
-            // The CHECK STAGE first, through the pipeline, with the file's test
-            // blocks included: a typo in a test body, or in a function only a
-            // test calls, is an error here exactly as it would be for `run`.
-            //
-            // This door used to call `resolve_uses` itself and hand the result
-            // straight to the harness, so `blue test` ran no check at all — a
-            // type error the pipeline would refuse ran green under test.
-            // Imports resolve through BLUE_PATH, for the same reason they do in
-            // `run`: a package that cannot be tested with its dependencies is a
-            // package with no tests.
-            let checked = blue_lang_runtime::pipeline::check_entry(
-                blue_lang_runtime::uses::Entry {
-                    path: Some(&file),
-                    text: &src,
-                },
-                &blue_lang_pkg::load_path::LoadPath::for_entry(&file),
-                None,
-                blue_lang_runtime::pipeline::Checking::WithTests,
-            )?;
-            // Every finding, errors and warnings, in one pass; then no test
-            // runs over a program with an error, as `run` would not evaluate it.
-            for d in &checked.outcome.diagnostics {
-                eprintln!(
-                    "{}",
-                    blue_lang_runtime::pipeline::render(&checked.program, d)
-                );
-            }
-            if !checked.outcome.ok() {
-                eprintln!(
-                    "blue: {}: the check stage rejected the file, so no test ran",
-                    file.display()
-                );
-                return Ok(ExitCode::FAILURE);
-            }
-            // The harness reports a failing ASSERTION, not a position, so it
-            // takes the spanless projection. When it grows one it should take
-            // the program itself — the file table is already here.
-            let report = blue_lang_test::run(&checked.evaluable());
-            // Failures to stderr, the tally to stdout, so a CI job can capture
-            // one without the other.
-            for failure in &report.failures {
-                eprintln!("{failure}");
-            }
-            println!(
-                "{} test(s): {} passed, {} failed",
-                report.total(),
-                report.passed,
-                report.failures.len()
-            );
-            // Zero tests is a failure, not a pass. Every gate that runs
-            // `blue test` (a project's `bidama-test-*` and `check` words,
-            // `lib.project`) would otherwise stay green over a file that tests
-            // nothing: a mistyped path, or a package that lost its tests.
-            if report.total() == 0 {
-                eprintln!(
-                    "{}: no `test` blocks, so nothing was tested",
-                    file.display()
-                );
-                return Ok(ExitCode::FAILURE);
-            }
-            Ok(if report.ok() {
-                ExitCode::SUCCESS
-            } else {
-                ExitCode::FAILURE
-            })
-        }
+        Cmd::Test {
+            file,
+            filter,
+            coverage,
+            json,
+        } => observe::test(&file, filter.as_deref(), coverage, json),
+        Cmd::Profile {
+            file,
+            top,
+            json,
+            args,
+        } => observe::profile(&file, top, json, args, &cfg),
+        Cmd::Trace {
+            def,
+            file,
+            limit,
+            args,
+        } => observe::trace(&def, &file, limit, args, &cfg),
 
         Cmd::Deps { file } => {
             let manifest = blue_lang_pkg::read_bluefile(&read(&file)?)

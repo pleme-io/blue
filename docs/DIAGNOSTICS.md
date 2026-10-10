@@ -133,6 +133,18 @@ Each entry of `fixes`:
 A location is `null` throughout when it cannot be placed honestly (for
 example, a span that is not a range in the named file).
 
+## `blue run --format json`
+
+A runtime error as one JSON object on stdout, the same error `blue run` prints
+as text: `stage` (`eval`), `severity`, `message` (names as the author writes
+them), `file`, `line`, `column` (each `null` when it cannot be justified), and
+`stack`, the blue call stack innermost first, each frame `function`, `file`,
+`line`, `column`, or `builtin: true` for a builtin the runtime defines in
+tatara-lisp. The last frame is `<top level>` when the whole stack was
+recorded; `stack_depth` counts every frame unwound, recorded or not (a trace
+keeps 256). Any other stage's error is `stage` (`parse`, `check`, `import`)
+and `message`. `crates/blue-lang-cli/tests/observe.rs` pins the shape.
+
 ## `blue check --fix`
 
 Applies every machine-applicable fix whose edits land in the named file and

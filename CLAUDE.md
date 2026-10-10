@@ -93,7 +93,10 @@ tree that resolution produced — every definition keyed `pkg/name` — so the
 two cannot disagree; `blue-lang-runtime/tests/resolution_order.rs` pins the
 agreement. A namespace rule the corpus is still being brought to carries a
 `ratchet` and is counted by `blue census` until it reaches zero. Full shape:
-`docs/DIAGNOSTICS.md`.
+`docs/DIAGNOSTICS.md`. **A project's own rules are not rows**: they are blue
+definitions its Bluefile names (`rule`), run by `blue check` under a pure
+frame with codes outside `B`, and the check stage leaves their waivers to
+that door (`docs/DIAGNOSTICS.md`, "Project rules").
 
 **Each bidama is a namespace** (`theory/BLUE-NAMESPACES.md`). A file reaches
 another bidama's definition only qualified (`kueri::join`) or listed
@@ -128,6 +131,8 @@ bidama that does not check does not build.
 | LSP: transport-free core + stdio shim, every answer from `mondou` | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
 | every subcommand; `BlueConfig` (the two typed bounds) | `blue-lang-cli` |
+| project check rules written in blue: the Bluefile's `rule` word, the ABI and frame (`project_rules` in `blue-lang-runtime`), the pass `blue check` runs (`project_rules` in `blue-lang-pkg`), codes and waivers (`blue-lang-check::project`) | `blue-lang-check`, `-runtime`, `-pkg` |
+| `blue doc`: a blue program (`blue-lang-cli/blue/doc.b`) over mokuroku | `blue-lang-cli` |
 
 ## Rules this repo has learned the hard way
 
@@ -444,6 +449,8 @@ derives the table from a frame — nothing puts an entry into a `.wasm`, and no
 engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
 not being on crates.io), **no editor answer inside a broken buffer** (the
 LSP answers from the newest revision that parsed until the parser recovers,
-`BLUE-ENGINE.md` E6), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
+`BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
+runs them in-process under the rule frame; the LSP does not run them, and the
+ABI is shaped for a wasm module that nothing builds yet), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
 surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**

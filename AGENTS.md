@@ -51,6 +51,7 @@ declares them), then the distribution compiled into `blue`. First match wins.
 | `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
+| `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
 | `blue fmt file.b` | print the one formatting; `--write` rewrites, `--check` fails on drift |
 | `blue reference` | the language reference as JSON |
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
@@ -64,6 +65,14 @@ Sessions (`eval`, `repl`, `serve`) are pure: code that reaches the host
 (`read_file`, `now_ms`, `exec_capture`, …) is refused as volatile unless the
 session was started with `--allow host` (or `--allow filesystem`, and so on);
 `--budget STEPS` bounds each evaluation.
+
+A project adds its own check rules, written in blue: `rule("R0001",
+"rules/x.b", "def_name")` in its Bluefile names a definition that receives each
+top-level form as data and returns findings (`{at: path, message: "…", fix:
+tree}`); `blue check` runs it under a pure frame and a step budget, and the
+usual `# waive R0001: reason` applies. The shape, the frame and a worked rule:
+[`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md), "Project rules"; blue's own are
+in [`rules/`](rules/).
 
 `run`, `test` and `check` rewrite a non-canonical file in place before they
 compile it, and say `blue: formatted <file>`. A checkout's bidamas override

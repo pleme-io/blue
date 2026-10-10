@@ -22,6 +22,9 @@
 //! blue lock    [DIR...]        evaluate, pin every source, write Bluefile.lock
 //! blue config  [TIER]          the bounds blue is running with
 //! blue lsp                     speak LSP over stdio
+//! blue serve                   one evaluation session as JSON lines on stdio
+//! blue repl                    the same session at a terminal
+//! blue eval    EXPR | FILE:L:C evaluate once, purely unless --allow names the host
 //! blue banner                  the wordmark — the blueshift ramp
 //! blue shift   FILE            how far this is shifted, and what is shifting it
 //! blue reference               the language, from its own tables, as JSON
@@ -60,6 +63,7 @@ mod config;
 mod diagnostics;
 mod prefetch;
 mod reference;
+mod repl;
 mod scaffold;
 mod script;
 mod watch;
@@ -223,6 +227,18 @@ enum Cmd {
     },
     /// Run the language server, speaking LSP over stdin/stdout.
     Lsp,
+    /// Serve one evaluation session as JSON lines on stdin/stdout
+    /// (`theory/BLUE-TOOLING.md` §4): the door an editor drives.
+    Serve(repl::SessionArgs),
+    /// An evaluation session at the terminal.
+    Repl(repl::SessionArgs),
+    /// Evaluate EXPR, or the top-level form at FILE:LINE:COL in that file's
+    /// context, and print its value.
+    Eval {
+        target: String,
+        #[command(flatten)]
+        session: repl::SessionArgs,
+    },
     /// Print blue's wordmark.
     Banner,
     /// Report the blueshift: how far this program is shifted, and what is
@@ -1074,6 +1090,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             watch::watch(verb, &paths, &args).map_err(CliError::Pkg)
         }
 
+        Cmd::Serve(session) => repl::serve(&session).map_err(CliError::Pkg),
+        Cmd::Repl(session) => repl::repl(&session).map_err(CliError::Pkg),
+        Cmd::Eval { target, session } => repl::eval(&target, &session).map_err(CliError::Pkg),
         Cmd::Lsp => {
             let stdin = std::io::stdin();
             let stdout = std::io::stdout();

@@ -212,6 +212,7 @@ dependencies = [
  "blue-lang-waku",
  "clap",
  "katsuji",
+ "libc",
  "serde",
  "serde_json",
  "shikumi",

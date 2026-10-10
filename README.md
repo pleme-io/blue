@@ -66,6 +66,8 @@ nix run github:pleme-io/blue -- run example.b
 | `blue deps FILE` / `blue posture FILE` | read a `Bluefile` |
 | `blue reference` | the language reference, as JSON |
 | `blue lsp` | language server over stdio |
+| `blue repl` / `blue eval EXPR` | an evaluation session at the terminal, or once |
+| `blue serve` | the same session as JSON lines over stdio, for editors |
 | `blue banner` | the wordmark |
 
 ## What is here

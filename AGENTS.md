@@ -51,6 +51,14 @@ declares them), then the distribution compiled into `blue`. First match wins.
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue fmt file.b` | print the one formatting; `--write` rewrites, `--check` fails on drift |
 | `blue reference` | the language reference as JSON |
+| `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
+| `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
+| `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
+
+Sessions (`eval`, `repl`, `serve`) are pure: code that reaches the host
+(`read_file`, `now_ms`, `exec_capture`, …) is refused as volatile unless the
+session was started with `--allow host` (or `--allow filesystem`, and so on);
+`--budget STEPS` bounds each evaluation.
 
 `run`, `test` and `check` rewrite a non-canonical file in place before they
 compile it, and say `blue: formatted <file>`. A checkout's bidamas override

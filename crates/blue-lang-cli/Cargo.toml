@@ -42,3 +42,9 @@ serde_json = { workspace = true }
 # blue ships nor the one it tests. See `blue.b` for the round-trip result.
 shikumi = { version = "0.1", features = ["cli"] }
 
+# `blue repl` turns ctrl-c into an interrupt of the running evaluation: one
+# `signal` call, the crate's only unsafe (`repl.rs`, `sigint`). Already in the
+# lock through the toolchain's other dependents.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+

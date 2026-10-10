@@ -1,12 +1,12 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "96ec0beaed0d798066d1d6a184c1808e6373c32b9abf69894cba50833a1f2144",
+  "cargo_lock_sha256": "fd2be54e90df8662a244070d60f7b0a0b971afe116f73f24c6d7291f5842cb16",
   "manifest_sha256": {
     "Cargo.toml": "7cfcfa6afe3b1fbffb397884d204f0f54b92d52f243a1fc66bfe0872c328fcea",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "ea48ed02f5768c6fdb79ee43d5e497c87fba96a3629354f4aa057aa9ce30c0e6",
+    "crates/blue-lang-cli/Cargo.toml": "d84cb9af97aec61089e934d514b21aeaeb5b2ac8b91209ffb907a8e74769d8f8",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-lsp/Cargo.toml": "7cea9b882efc3a0b1797a901b76d87156088ac2eb644e94cf7f37f87e3ff1d3a",
     "crates/blue-lang-pkg/Cargo.toml": "5b30f5432a1097812fd5f010ecbd8e6c172a2ce02f87c447f269f0591c81f825",
@@ -470,6 +470,16 @@
             "uses_default_features": true,
             "optional": false,
             "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "libc",
+            "package_key": "libc-0.2.189",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": "cfg(unix)",
             "tree": "target"
           },
           {

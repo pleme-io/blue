@@ -443,10 +443,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // them reachable from `blue run`.
             //
             // Reading the environment rather than taking a flag because that is
-            // what makes the nix wrapper work: `mkBlueWithBidamas` prefixes
+            // what makes the nix wrapper work: `mkBlueWithBidamas` suffixes
             // BLUE_PATH, so a wrapped `blue` resolves the distribution with no
-            // argument, and an unwrapped one still honours a checkout.
-            let loader = blue_lang_pkg::load_path::LoadPath::from_env();
+            // argument, and an unwrapped one still honours a checkout. After
+            // BLUE_PATH come the project around the file and the distribution
+            // compiled in (`LoadPath::for_entry` states the order).
+            let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
             // The entry file travels WITH its source. Without the path, every
             // type error in the file the user named would report against
             // `<anonymous>` while an imported package's reported its real path
@@ -531,7 +533,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 
         Cmd::Ast { file, json, .. } => {
             use blue_lang_runtime::pipeline::{check_entry, Checking};
-            let loader = blue_lang_pkg::load_path::LoadPath::from_env();
+            let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
             let src = read_compiled(&file)?;
             let checked = check_entry(
                 blue_lang_runtime::uses::Entry {
@@ -601,7 +603,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     path: Some(&path),
                     text: &src,
                 },
-                &blue_lang_pkg::load_path::LoadPath::from_env(),
+                &blue_lang_pkg::load_path::LoadPath::for_entry(&path),
                 None,
                 blue_lang_runtime::pipeline::Checking::WithTests,
             )?;
@@ -721,7 +723,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     path: Some(&file),
                     text: &src,
                 },
-                &blue_lang_pkg::load_path::LoadPath::from_env(),
+                &blue_lang_pkg::load_path::LoadPath::for_entry(&file),
                 None,
                 blue_lang_runtime::pipeline::Checking::WithTests,
             )?;
@@ -1031,7 +1033,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             let stdout = std::io::stdout();
             // The editor sees the distribution `blue check` does: BLUE_PATH.
             blue_lang_lsp::Server::with_loader(Box::new(
-                blue_lang_pkg::load_path::LoadPath::from_env(),
+                blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),
             ))
             .serve(stdin.lock(), stdout.lock())
             .map_err(|source| CliError::Write {
@@ -1068,7 +1070,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
         }
         return Ok(ExitCode::FAILURE);
     }
-    let loader = blue_lang_pkg::load_path::LoadPath::from_env();
+    let loader = blue_lang_pkg::load_path::LoadPath::for_entry(file);
     let mut src = read_compiled(file)?;
     fn entry<'a>(file: &'a Path, text: &'a str) -> blue_lang_runtime::uses::Entry<'a> {
         blue_lang_runtime::uses::Entry {

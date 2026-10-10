@@ -18,7 +18,9 @@ blue-lang-syntax = { workspace = true }
 blue-lang-fmt = { workspace = true }
 blue-lang-check = { workspace = true }
 blue-lang-test = { workspace = true }
-blue-lang-pkg = { workspace = true }
+# `embedded`: the standard distribution compiled in, the last root of every
+# load path, so a script with no Bluefile and no BLUE_PATH can use retsu.
+blue-lang-pkg = { workspace = true, features = ["embedded"] }
 blue-lang-lsp = { workspace = true }
 blue-lang-art = { workspace = true }
 katsuji = "0.1"

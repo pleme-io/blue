@@ -30,6 +30,25 @@
 //! content-addressed store path in a build, so what runs in CI is what ran on
 //! the laptop.
 //!
+//! ## Where a program looks, in order
+//!
+//! [`LoadPath::for_entry`] is the load path of every door that runs or checks
+//! a file (`blue FILE`, `run`, `test`, `check`, `ast`, `explain-name`):
+//!
+//! 1. **`BLUE_PATH`**, left to right: the caller's choice, and where the
+//!    fleet's wrapper appends the pinned distribution.
+//! 2. **The project the file sits in**: walking up from the file, the first
+//!    Bluefile that is a project's contributes its `packages(dir)` roots; a
+//!    bidama's own Bluefile on the way contributes the directory that holds
+//!    it (its distribution) and the walk goes on.
+//! 3. **The standard distribution compiled into the binary**
+//!    ([`crate::embedded`], feature `embedded`, which the `blue` CLI turns
+//!    on), so a bare script with no Bluefile and no `BLUE_PATH` can
+//!    `use("retsu")`.
+//!
+//! First match wins, so a checkout on `BLUE_PATH` still overrides a project's
+//! package, and either overrides the compiled-in copy.
+//!
 //! ## What this deliberately does NOT do
 //!
 //! It does not resolve versions. A root holds one directory per name, so the
@@ -50,6 +69,8 @@ pub const BLUE_PATH: &str = "BLUE_PATH";
 #[derive(Debug, Clone, Default)]
 pub struct LoadPath {
     roots: Vec<PathBuf>,
+    /// Whether the compiled-in standard distribution answers after `roots`.
+    standard: bool,
 }
 
 impl LoadPath {
@@ -58,7 +79,27 @@ impl LoadPath {
     pub fn new(roots: impl IntoIterator<Item = PathBuf>) -> Self {
         Self {
             roots: roots.into_iter().collect(),
+            standard: false,
         }
+    }
+
+    /// The load path of a program at `entry`: `BLUE_PATH`, then the roots of
+    /// the project around it ([`project_roots`]), then the standard
+    /// distribution compiled into the binary. The module docs state the order.
+    #[must_use]
+    pub fn for_entry(entry: &Path) -> Self {
+        let mut lp = Self::from_env();
+        lp.roots.extend(project_roots(entry));
+        lp.with_standard()
+    }
+
+    /// This load path, falling back to the standard distribution compiled into
+    /// the binary when no root holds a package. Without the `embedded` feature
+    /// nothing is compiled in and the fallback finds nothing.
+    #[must_use]
+    pub fn with_standard(mut self) -> Self {
+        self.standard = true;
+        self
     }
 
     /// The load path `BLUE_PATH` describes, or an empty one if it is unset.
@@ -103,6 +144,68 @@ impl LoadPath {
     pub fn resolve(&self, name: &str) -> Option<PathBuf> {
         self.roots.iter().map(|r| r.join(name)).find(|p| p.is_dir())
     }
+
+    /// The compiled-in standard distribution, when this path falls back to it
+    /// and no root holds `name`.
+    fn standard_for(&self, name: &str) -> Option<crate::embedded::Standard> {
+        let s = crate::embedded::Standard;
+        (self.standard && self.resolve(name).is_none() && s.has(name)).then_some(s)
+    }
+}
+
+/// The bidama a Bluefile declares, if it declares one: its name is one
+/// identifier (so `name::x` is a qualified name; a project's, like
+/// `blue-repository`, is not) and it holds no `packages` roots, which only a
+/// project does. A project may be named like a bidama (`nupastel`); its
+/// `packages` still say it is the project.
+fn bidama_of(bf: &crate::Bluefile) -> Option<&str> {
+    let one_identifier =
+        blue_lang_syntax::qualified(&blue_lang_syntax::qualify(&bf.name, "x")).is_some();
+    (one_identifier && bf.project.packages.is_empty()).then_some(bf.name.as_str())
+}
+
+/// The package roots of the project a file at `entry` belongs to.
+///
+/// Walking up from the file's directory, each `Bluefile` is read:
+///
+/// - a bidama's ([`bidama_of`]) adds the directory holding the bidama, the
+///   distribution it sits in, and the walk goes on, since a package inside a
+///   project resolves its siblings through the project;
+/// - a project's adds its `packages(dir)` roots, relative to it, in
+///   declaration order, and ends the walk. A project without `packages` ends
+///   it too: the nearest project owns the file, never one further out.
+///
+/// A Bluefile that does not evaluate ends the walk adding nothing; `blue
+/// bluefile --json` reports why. `source(...)` roots are not here: they are
+/// fetched by nix, and reach a run through the project's runner or
+/// `BLUE_PATH`.
+#[must_use]
+pub fn project_roots(entry: &Path) -> Vec<PathBuf> {
+    let dir = entry
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for at in dir.ancestors() {
+        let Ok(text) = std::fs::read_to_string(at.join(crate::MANIFEST_FILE)) else {
+            continue;
+        };
+        let Ok(bf) = crate::bluefile::read_bluefile(&text) else {
+            break;
+        };
+        if bidama_of(&bf).is_some() {
+            if let Some(parent) = at.parent() {
+                roots.push(parent.to_path_buf());
+            }
+            continue;
+        }
+        roots.extend(bf.project.packages.iter().map(|p| at.join(p)));
+        break;
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    roots.retain(|r| seen.insert(r.canonicalize().unwrap_or_else(|_| r.clone())));
+    roots
 }
 
 /// Read every `.b` file in a package directory, sorted by filename.
@@ -134,11 +237,14 @@ fn read_sources(dir: &Path) -> Result<Vec<(String, String)>, String> {
 
 impl Loader for LoadPath {
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+        if let Some(s) = self.standard_for(name) {
+            return s.load(name);
+        }
         let Some(dir) = self.resolve(name) else {
             // Name the roots that were searched. "package not found" alone
             // leaves the reader unable to tell an empty BLUE_PATH from a
             // misspelled package — two problems with opposite fixes.
-            let where_looked = if self.roots.is_empty() {
+            let mut where_looked = if self.roots.is_empty() {
                 format!("{BLUE_PATH} is empty or unset")
             } else {
                 format!(
@@ -150,6 +256,9 @@ impl Loader for LoadPath {
                         .join(", ")
                 )
             };
+            if self.standard {
+                where_looked.push_str(", then the standard distribution compiled into blue");
+            }
             return Err(format!("no bidama named \"{name}\" ({where_looked})"));
         };
 
@@ -185,15 +294,16 @@ impl Loader for LoadPath {
         Ok(sources)
     }
 
-    /// The `package(name, …)` of the Bluefile beside `path`, when that name
-    /// is a bidama's — one identifier, as every package a `use` can name is.
-    /// A project manifest's name (`blue-repository`) is not, and a file
-    /// beside one is in the root namespace.
     fn needs(
         &self,
         package: &str,
         entry_dir: Option<&Path>,
     ) -> Option<std::collections::BTreeSet<String>> {
+        if entry_dir.is_none() {
+            if let Some(s) = self.standard_for(package) {
+                return s.needs(package, None);
+            }
+        }
         let dir = match entry_dir {
             Some(d) => d.to_path_buf(),
             None => self.resolve(package)?,
@@ -204,6 +314,11 @@ impl Loader for LoadPath {
     }
 
     fn version(&self, package: &str, entry_dir: Option<&Path>) -> Option<String> {
+        if entry_dir.is_none() {
+            if let Some(s) = self.standard_for(package) {
+                return s.version(package, None);
+            }
+        }
         let dir = match entry_dir {
             Some(d) => d.to_path_buf(),
             None => self.resolve(package)?,
@@ -217,14 +332,17 @@ impl Loader for LoadPath {
         )
     }
 
+    /// The `package(name, …)` of the Bluefile beside `path`, when it
+    /// declares a bidama ([`bidama_of`]). A file beside a project's Bluefile
+    /// is in the root namespace.
     fn entry_package(&self, path: &Path) -> Option<String> {
         let dir = path
             .parent()
             .filter(|d| !d.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
         let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
-        let name = crate::bluefile::read_bluefile(&text).ok()?.name;
-        blue_lang_syntax::qualified(&blue_lang_syntax::qualify(&name, "x")).map(|_| name.clone())
+        let bf = crate::bluefile::read_bluefile(&text).ok()?;
+        bidama_of(&bf).map(str::to_string)
     }
 }
 
@@ -336,6 +454,101 @@ mod tests {
              above proves nothing about loading",
         );
         let _ = err;
+    }
+
+    /// A scratch tree of files, removed and recreated per test name.
+    fn tree(name: &str, files: &[(&str, &str)]) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("blue-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for (rel, text) in files {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).expect("mkdir");
+            std::fs::write(p, text).expect("write");
+        }
+        root.canonicalize().expect("canonical root")
+    }
+
+    /// The project around a file supplies its `packages` roots: from a script
+    /// beside the Bluefile, from a subdirectory, and from inside one of its
+    /// own packages (whose distribution is the same root, listed once).
+    #[test]
+    fn a_file_in_a_project_finds_the_projects_package_roots() {
+        let root = tree(
+            "project-roots",
+            &[
+                (
+                    "proj/Bluefile",
+                    "package(\"my-proj\", \"0.1.0\")\npackages(\"pkgs\")\n",
+                ),
+                ("proj/pkgs/foo/Bluefile", "package(\"foo\", \"0.1.0\")\n"),
+                ("proj/pkgs/foo/foo.b", "def f()\n  1\nend\n"),
+            ],
+        );
+        let pkgs = vec![root.join("proj/pkgs")];
+        assert_eq!(project_roots(&root.join("proj/main.b")), pkgs);
+        assert_eq!(project_roots(&root.join("proj/deep/er/x.b")), pkgs);
+        assert_eq!(project_roots(&root.join("proj/pkgs/foo/foo.b")), pkgs);
+        assert!(project_roots(&root.join("elsewhere.b")).is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The nearest project owns a file: an outer project's packages are not
+    /// reached through an inner project that declares none.
+    #[test]
+    fn the_nearest_project_owns_the_file() {
+        let root = tree(
+            "nearest-project",
+            &[
+                (
+                    "outer/Bluefile",
+                    "package(\"outer-proj\", \"0.1.0\")\npackages(\"pkgs\")\n",
+                ),
+                (
+                    "outer/inner/Bluefile",
+                    "package(\"inner-proj\", \"0.1.0\")\n",
+                ),
+            ],
+        );
+        assert!(project_roots(&root.join("outer/inner/s.b")).is_empty());
+        assert_eq!(
+            project_roots(&root.join("outer/s.b")),
+            vec![root.join("outer/pkgs")]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// With the standard distribution compiled in, a load path with no roots
+    /// still serves retsu; without the fallback it does not (the control).
+    #[cfg(feature = "embedded")]
+    #[test]
+    fn the_standard_distribution_answers_after_every_root() {
+        assert!(LoadPath::default().load("retsu").is_err());
+        let lp = LoadPath::default().with_standard();
+        let retsu = lp
+            .load("retsu")
+            .expect("retsu from the compiled-in distribution");
+        assert!(retsu.iter().any(|(l, _)| l == "retsu/retsu.b"));
+        assert_eq!(lp.version("kazu", None), Some("0.1.0".to_string()));
+        let err = lp.load("definitely-not-a-bidama").expect_err("absent");
+        assert!(err.contains("standard distribution"), "{err}");
+    }
+
+    /// A root holding a package beats the compiled-in copy of it.
+    #[cfg(feature = "embedded")]
+    #[test]
+    fn a_root_overrides_the_compiled_in_package() {
+        let root = tree(
+            "override-standard",
+            &[
+                ("retsu/Bluefile", "package(\"retsu\", \"9.9.9\")\n"),
+                ("retsu/retsu.b", "def precedence_marker()\n  42\nend\n"),
+            ],
+        );
+        let lp = LoadPath::new([root.clone()]).with_standard();
+        let src = lp.load("retsu").expect("the root's retsu");
+        assert!(src.iter().any(|(_, t)| t.contains("precedence_marker")));
+        assert_eq!(lp.version("retsu", None), Some("9.9.9".to_string()));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// **A package is what its Bluefile names**, and none is named `blue`.

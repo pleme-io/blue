@@ -32,8 +32,8 @@
 pub mod bluefile;
 pub mod canonical;
 pub mod corpus;
-/// The standard distribution compiled in (feature `embedded`).
-#[cfg(feature = "embedded")]
+/// The standard distribution compiled in (feature `embedded`; empty without
+/// it).
 pub mod embedded;
 /// Git-backed resolution — a distribution is a directory of bidamas in a
 /// checkout, not a package server. See the module docs for what it does and

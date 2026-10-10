@@ -562,9 +562,12 @@ fn cli_failure(stderr: &str) -> Obs {
         };
     }
     if let Some(rest) = body.strip_prefix("runtime error: ") {
+        // The first line is the error; the lines under it are the call stack
+        // (`  at f (row.b:2:3)`), which the in-process columns observe as a
+        // separate `Fault` field and a row does not state.
         return Obs::Failed {
             stage: Stage::Eval,
-            message: unlocate(rest),
+            message: unlocate(rest.lines().next().unwrap_or(rest)),
         };
     }
     if let Some(rest) = body.strip_prefix("import error: ") {

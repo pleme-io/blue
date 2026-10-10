@@ -14,6 +14,7 @@
 //! blue erase   FILE            the tatara-lisp form after type erasure
 //! blue check   FILE [--format json] [--fix]   every rule, the typing report
 //! blue explain CODE | --list   what a diagnostic code means
+//! blue doc     NAME | PKG      signature, doc line, namespace, tier, example
 //! blue test    FILE|DIR [--filter P] [--coverage [--json]]   check, then run `test` blocks
 //! blue profile FILE [--top N]  calls and time per function
 //! blue trace   DEF FILE        every call of DEF, its arguments and its value
@@ -67,6 +68,7 @@ const MIGRATE: &str = include_str!("../blue/migrate.b");
 mod config;
 mod deploy;
 mod diagnostics;
+mod doc;
 mod observe;
 mod prefetch;
 mod reference;
@@ -186,6 +188,26 @@ enum Cmd {
         /// strip a bidama's hand-made prefix and rewrite its callers.
         #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
         files: Vec<String>,
+    },
+    /// What NAME is: its signature, doc line, namespace, tier and an example,
+    /// for a builtin, `pkg::name`, or a bare name across the builtins and
+    /// every bidama on BLUE_PATH; a bidama's name lists the package. The
+    /// tool is the blue program `crates/blue-lang-cli/blue/doc.b`, compiled
+    /// into this binary.
+    Doc {
+        #[arg(required_unless_present = "rows")]
+        name: Option<String>,
+        /// Look NAME up as this file reaches it: its own definitions first,
+        /// and each answer's tier is how the file reaches it.
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// One JSON object per answer.
+        #[arg(long)]
+        json: bool,
+        /// The conformance rows compiled into this binary, as JSON; what
+        /// `doc.b` reads a builtin's example from.
+        #[arg(long, hide = true)]
+        rows: bool,
     },
     /// How a bare NAME resolves at FILE:LINE: every tier of the resolution
     /// order, what each holds, and which wins.
@@ -714,6 +736,43 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 None,
             )?;
             Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Doc {
+            name,
+            file,
+            json,
+            rows,
+        } => {
+            if rows {
+                println!("{}", doc::rows_json()?);
+                return Ok(ExitCode::SUCCESS);
+            }
+            let mut args: Vec<String> = name.into_iter().collect();
+            if let Some(f) = file {
+                args.push("--file".into());
+                args.push(f.display().to_string());
+            }
+            if json {
+                args.push("--json".into());
+            }
+            blue_lang_runtime::sys::set_program_args(args);
+            let out = blue_lang_runtime::pipeline::run_in_surface(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(Path::new("crates/blue-lang-cli/blue/doc.b")),
+                    text: doc::PROGRAM,
+                },
+                blue_lang_runtime::inputs::Inputs::new(),
+                &blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),
+                None,
+            )?;
+            Ok(
+                if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
+                    ExitCode::FAILURE
+                } else {
+                    ExitCode::SUCCESS
+                },
+            )
         }
 
         Cmd::ExplainName { name, at } => {

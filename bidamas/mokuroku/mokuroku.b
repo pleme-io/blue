@@ -196,6 +196,29 @@ def gloss_of_text(text)
   end
 end
 
+# [title, body_lines] for every top-level `test` block in a source text: a
+# block runs from its `test "…"` line to the first `end` at column 0.
+def test_blocks_of_text(text)
+  state = reduce(
+    fn(acc, line)
+      open = first(acc)
+      found = last(acc)
+      if open == nil && starts_with?(line, "test \"")
+        [[nth(1, split(line, "\"")), []], found]
+      elsif open != nil && line == "end"
+        [nil, push(found, open)]
+      elsif open != nil
+        [[first(open), push(last(open), line)], found]
+      else
+        acc
+      end
+    end,
+    [nil, []],
+    split(text, "\n")
+  )
+  last(state)
+end
+
 def tests_in_text(text)
   count_where(fn(l) starts_with?(l, "test \"") end, split(text, "\n"))
 end
@@ -214,16 +237,23 @@ def package_dirs(root)
   )
 end
 
+# The text of every `.b` file directly in a package directory, joined.
+def package_text(dir)
+  join(
+    map(
+      fn(p) read_file(p) end,
+      filter(
+        fn(p) ends_with?(p, ".b") && path_dirname(p) == dir end,
+        walk_dir(dir)
+      )
+    ),
+    "\n"
+  )
+end
+
 def package_record(dir)
   manifest = parse_manifest(read_file(concat(dir, "/Bluefile")))
-  texts = map(
-    fn(p) read_file(p) end,
-    filter(
-      fn(p) ends_with?(p, ".b") && path_dirname(p) == dir end,
-      walk_dir(dir)
-    )
-  )
-  all_text = join(texts, "\n")
+  all_text = package_text(dir)
   [
     nth(0, manifest),
     nth(1, manifest),
@@ -231,7 +261,8 @@ def package_record(dir)
     gloss_of_text(all_text),
     entries_of_text(all_text),
     tests_in_text(all_text),
-    legacy_prefix_of_text(all_text)
+    legacy_prefix_of_text(all_text),
+    dir
   ]
 end
 
@@ -284,6 +315,15 @@ end
 def pkg_legacy_prefix(r)
   if size(r) > 6
     nth(6, r)
+  else
+    nil
+  end
+end
+
+# The directory the package was read from, or nil for a record built by hand.
+def pkg_dir(r)
+  if size(r) > 7
+    nth(7, r)
   else
     nil
   end
@@ -589,4 +629,14 @@ test "a waiver is recorded, not documented; a legacy prefix names the other spel
   r = ["kueri", "0.1.1", [], "", es, 0, "q"]
   assert other_name(r, first(es)) == "`kueri::count`"
   assert other_name(r, last(es)) == "`q_join_all` (old)"
+end
+
+test "test blocks are read with their titles and bodies; other lines are not"
+  text = "def f(x)\n  x\nend\n\ntest \"f is identity\"\n  assert f(1) == 1\n  assert f(2) == 2\nend\n\ntest \"empty\"\nend\n"
+  assert test_blocks_of_text(text) ==
+    [
+      ["f is identity", ["  assert f(1) == 1", "  assert f(2) == 2"]],
+      ["empty", []]
+    ]
+  assert test_blocks_of_text("") == []
 end

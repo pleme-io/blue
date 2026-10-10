@@ -332,6 +332,30 @@ impl Loader for LoadPath {
         )
     }
 
+    /// Every bidama a root holds (a directory with a Bluefile), then, when
+    /// the standard distribution answers after the roots, every one of its.
+    fn available(&self) -> Vec<String> {
+        let mut out = std::collections::BTreeSet::new();
+        for root in &self.roots {
+            let Ok(entries) = std::fs::read_dir(root) else {
+                continue;
+            };
+            for entry in entries.filter_map(Result::ok) {
+                let dir = entry.path();
+                let Some(name) = dir.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+                if dir.join("Bluefile").is_file() && name != blue_lang_syntax::BUILTIN_QUALIFIER {
+                    out.insert(name.to_string());
+                }
+            }
+        }
+        if self.standard {
+            out.extend(crate::embedded::Standard.names().into_iter().map(str::to_string));
+        }
+        out.into_iter().collect()
+    }
+
     /// The `package(name, …)` of the Bluefile beside `path`, when it
     /// declares a bidama ([`bidama_of`]). A file beside a project's Bluefile
     /// is in the root namespace.
@@ -403,6 +427,27 @@ mod tests {
             "a non-matching first root ended the search; overriding by \
              prepending a root would be impossible"
         );
+    }
+
+    /// Every directory of the distribution with a Bluefile is a bidama the
+    /// path can offer, counted against the directory itself, and a root that
+    /// does not exist offers nothing rather than failing.
+    #[test]
+    fn available_lists_every_bidama_on_the_path() {
+        let lp = LoadPath::new([PathBuf::from("/nonexistent-root"), dist()]);
+        let listed = lp.available();
+        let on_disk: Vec<String> = std::fs::read_dir(dist())
+            .expect("bidamas/")
+            .filter_map(Result::ok)
+            .filter(|e| e.path().join("Bluefile").is_file())
+            .filter_map(|e| e.file_name().to_str().map(str::to_string))
+            .collect();
+        assert!(on_disk.len() > 10, "{on_disk:?}");
+        assert_eq!(listed.len(), on_disk.len(), "{listed:?}");
+        for name in ["kazu", "retsu", "junjo"] {
+            assert!(listed.iter().any(|n| n == name), "{name}: {listed:?}");
+        }
+        assert!(LoadPath::default().available().is_empty());
     }
 
     #[test]

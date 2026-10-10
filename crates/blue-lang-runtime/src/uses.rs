@@ -101,6 +101,23 @@ pub trait Loader {
     fn version(&self, _package: &str, _entry_dir: Option<&Path>) -> Option<String> {
         None
     }
+
+    /// The spanned tree of one source this loader handed out, or of the entry.
+    /// Resolution parses through here, so a loader that has seen a text
+    /// before (an editor's session) can answer without parsing it again.
+    ///
+    /// # Errors
+    ///
+    /// The parser's, unchanged.
+    fn parse(&self, src: &str) -> Result<Vec<Spanned>, blue_lang_syntax::ParseError> {
+        blue_lang_syntax::parse_program_tree(src)
+    }
+
+    /// Every bidama this loader could load, by name, when it can enumerate
+    /// them: what an editor offers behind a `use` the file does not have yet.
+    fn available(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// A loader that resolves nothing, and says so.
@@ -541,7 +558,8 @@ fn expand(
             // discarded every imported position one line after the text
             // arrived, so an imported type error had nothing to report but a
             // message — see `ResolvedProgram`.
-            let parsed = blue_lang_syntax::parse_program_tree(&src)
+            let parsed = loader
+                .parse(&src)
                 .map_err(|e| describe(chain, &name, &format!("{label}: {e}")))?;
             // An imported package's TEST blocks do not come along.
             //

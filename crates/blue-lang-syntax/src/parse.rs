@@ -106,6 +106,18 @@ impl From<crate::lex::LexError> for ParseError {
     }
 }
 
+thread_local! {
+    static PARSES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many programs this thread has parsed: an independent count for a
+/// caller that promises to parse a text once, read off the parser itself
+/// rather than off the caller's own bookkeeping.
+#[must_use]
+pub fn parses_on_this_thread() -> u64 {
+    PARSES.with(std::cell::Cell::get)
+}
+
 /// Parse a blue program into a sequence of tatara-lisp forms.
 pub fn parse_program(src: &str) -> Result<Vec<Sexp>, ParseError> {
     parse_program_with_depth(src, MAX_EXPR_DEPTH)
@@ -127,6 +139,7 @@ pub fn parse_program_tree_with_depth(
     src: &str,
     max_depth: usize,
 ) -> Result<Vec<Spanned>, ParseError> {
+    PARSES.with(|n| n.set(n.get() + 1));
     let toks: Vec<Token> = lex(src)
         .map_err(|e| ParseError::from(e).located(src))?
         .into_iter()
@@ -179,6 +192,7 @@ pub fn parse_program_tree_in(
     src: &str,
     pack: &crate::yakugo::Yakugo,
 ) -> Result<Vec<Spanned>, ParseError> {
+    PARSES.with(|n| n.set(n.get() + 1));
     let toks: Vec<Token> = crate::yakugo::canonical_tokens(src, pack)
         .map_err(|e| ParseError::from(e).located(src))?
         .into_iter()

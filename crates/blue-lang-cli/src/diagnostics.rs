@@ -223,61 +223,20 @@ pub fn syntax_json(path: &Path, text: &str, d: &Diagnostic) -> serde_json::Resul
     Ok(s)
 }
 
-/// Apply every MACHINE-APPLICABLE fix whose edits land in the entry file.
-///
-/// An edit applies only when its span still holds `original`, and only when it
-/// overlaps no edit already taken; the rest are skipped, never forced. Returns
-/// the rewritten text and the number of fixes applied.
+/// Apply every MACHINE-APPLICABLE fix whose edits land in the entry file:
+/// [`blue_lang_check::fixes::apply_machine_fixes`], the one rewrite an
+/// editor's "fix all" applies too.
 #[must_use]
 pub fn apply_machine_fixes(
     program: &ResolvedProgram,
     outcome: &Outcome,
     text: &str,
 ) -> (String, usize) {
-    let mut edits: Vec<(Span, &str)> = Vec::new();
-    let mut applied = 0;
-    for d in &outcome.diagnostics {
-        if program.owner_of(d.top_level) != Some(ResolvedProgram::ENTRY) {
-            continue;
-        }
-        for fix in d
-            .fixes
-            .iter()
-            .filter(|f| f.applicability == Applicability::MachineApplicable)
-        {
-            // An edit another fix already queued, exactly (two moved names
-            // adding the same `use`), is shared rather than a conflict.
-            let queued = |e: &blue_lang_check::Edit, edits: &[(Span, &str)]| {
-                edits
-                    .iter()
-                    .any(|(s, r)| *s == e.span && *r == e.replacement.as_str())
-            };
-            let fits = fix.edits.iter().all(|e| {
-                queued(e, &edits)
-                    || (text.get(e.span.start..e.span.end) == Some(e.original.as_str())
-                        && !edits
-                            .iter()
-                            .any(|(s, _)| e.span.start < s.end && s.start < e.span.end))
-            });
-            if !fits {
-                continue;
-            }
-            for e in &fix.edits {
-                if !queued(e, &edits) {
-                    edits.push((e.span, e.replacement.as_str()));
-                }
-            }
-            applied += 1;
-            // One fix per diagnostic: the best one.
-            break;
-        }
-    }
-    edits.sort_by_key(|(s, _)| std::cmp::Reverse(s.start));
-    let mut out = text.to_string();
-    for (span, replacement) in edits {
-        out.replace_range(span.start..span.end, replacement);
-    }
-    (out, applied)
+    blue_lang_check::fixes::apply_machine_fixes(
+        &outcome.diagnostics,
+        &|i| program.owner_of(i) == Some(ResolvedProgram::ENTRY),
+        text,
+    )
 }
 
 // ---- `blue ast --resolved --json` -------------------------------------------

@@ -326,7 +326,9 @@ pub(crate) fn parse_and_resolve(
     let forms = match surface {
         Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
             .map_err(|e| RunError::Parse(e.to_string()))?,
-        None => parse_tree(entry.text)?,
+        None => loader
+            .parse(entry.text)
+            .map_err(|e| RunError::Parse(e.to_string()))?,
     };
 
     // RESOLVE imports first, so everything below sees ONE program.

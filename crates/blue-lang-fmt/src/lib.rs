@@ -152,8 +152,15 @@ only part of a program a machine cannot reconstruct."
 /// 52 files on 2026-09-27.
 pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
     let tree = blue_lang_syntax::parse_program_tree(src)?;
+    format_tree_lossless(src, &tree)
+}
+
+/// [`format_source_lossless`] for a caller that already holds `src`'s tree,
+/// so a text parsed once is formatted without parsing it again. `tree` must
+/// be the parse of `src`: comments are placed by its spans.
+pub fn format_tree_lossless(src: &str, tree: &[Spanned]) -> Result<String, FormatError> {
     let r = Renderer::lossless(src)?;
-    let out = r.program(&tree);
+    let out = r.program(tree);
     let unplaced = r.unplaced();
     if unplaced.is_empty() {
         return Ok(out);

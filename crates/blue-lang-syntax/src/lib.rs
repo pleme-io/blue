@@ -30,9 +30,10 @@ pub use lex::{lex, LexError, Span, Token, TokenKind};
 pub use parse::{
     comments, is_callable_name, is_reserved_word, keyword_doc, parse_expr, parse_program,
     parse_program_in, parse_program_spanned, parse_program_spanned_with_depth, parse_program_tree,
-    parse_program_tree_in, parse_program_tree_with_depth, parse_program_with_depth, qualified,
-    qualify, Comment, Infix, ParseError, BLOCK_KEYWORDS, BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT,
-    LOWERED_CONCAT, LOWERED_MAP, MAX_EXPR_DEPTH, QUALIFIER, SURFACE_KEYWORDS,
+    parse_program_tree_in, parse_program_tree_with_depth, parse_program_with_depth,
+    parses_on_this_thread, qualified, qualify, Comment, Infix, ParseError, BLOCK_KEYWORDS,
+    BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_MAP, MAX_EXPR_DEPTH,
+    QUALIFIER, SURFACE_KEYWORDS,
 };
 // `Spanned`/`SpannedForm` alongside `Sexp` for the same reason `Sexp` is here:
 // the parser's real output is the spanned tree, and a consumer that wants a

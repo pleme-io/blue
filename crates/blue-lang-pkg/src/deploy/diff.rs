@@ -131,7 +131,8 @@ mod tests {
     #[test]
     fn fields_only_the_cluster_holds_are_not_changes() {
         let desired = json!({"spec": {"replicas": 2}});
-        let live = json!({"spec": {"replicas": 2, "strategy": {"type": "RollingUpdate"}}, "status": {}});
+        let live =
+            json!({"spec": {"replicas": 2, "strategy": {"type": "RollingUpdate"}}, "status": {}});
         assert_eq!(diff(&desired, &live), vec![]);
     }
 

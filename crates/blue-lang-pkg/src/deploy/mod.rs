@@ -193,13 +193,17 @@ pub enum SpecError {
     Repository { got: String },
     #[error("`{field}`: {got} is not a TCP port (1 to 65535)")]
     Port { field: &'static str, got: i64 },
-    #[error("`{got}` is not a port name (lowercase letters, digits and `-`, at most 15, with a letter)")]
+    #[error(
+        "`{got}` is not a port name (lowercase letters, digits and `-`, at most 15, with a letter)"
+    )]
     PortName { got: String },
     #[error("port {port} is declared twice")]
     DuplicatePort { port: u16 },
     #[error("`{deviation}` leaves distroless, and only a `reason` says why; add one")]
     DeviationWithoutReason { deviation: &'static str },
-    #[error("`reason` explains a deviation, and this image declares none (no `shell`, no `tools`)")]
+    #[error(
+        "`reason` explains a deviation, and this image declares none (no `shell`, no `tools`)"
+    )]
     ReasonWithoutDeviation,
     #[error("`reason` is empty")]
     EmptyReason,
@@ -294,7 +298,10 @@ impl<'a> Spec<'a> {
     }
 
     fn get(&self, field: &str) -> Option<&'a Value> {
-        self.fields.get(field).copied().filter(|v| !matches!(v, Value::Nil))
+        self.fields
+            .get(field)
+            .copied()
+            .filter(|v| !matches!(v, Value::Nil))
     }
 
     fn required(&self, field: &'static str) -> Result<&'a Value, SpecError> {
@@ -468,7 +475,9 @@ fn is_repository(s: &str) -> bool {
         && !s.starts_with('/')
         && !s.ends_with('/')
         && s.bytes().all(|b| {
-            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'/' | b'.' | b'-' | b'_' | b':')
+            b.is_ascii_lowercase()
+                || b.is_ascii_digit()
+                || matches!(b, b'/' | b'.' | b'-' | b'_' | b':')
         })
 }
 
@@ -679,8 +688,7 @@ pub fn workload_of(name: &str, spec: &Value) -> Result<Workload, SpecError> {
 fn is_secret_key(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 253
-        && s
-            .bytes()
+        && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
 }
 
@@ -700,8 +708,7 @@ pub fn check_entries(project: &Project, refused_images: &BTreeSet<String>) -> Ve
         outputs.insert(catalog.as_str(), "catalog(…)".to_string());
     }
     for (name, w) in &project.workloads {
-        let declared =
-            project.images.contains_key(&w.image) || refused_images.contains(&w.image);
+        let declared = project.images.contains_key(&w.image) || refused_images.contains(&w.image);
         if !declared && !is_pinned_ref(&w.image) {
             refusals.push(Refusal {
                 word: "workload",
@@ -883,7 +890,8 @@ mod tests {
 
     #[test]
     fn a_misspelled_field_is_refused_naming_it() {
-        let e = only_refusal("image(\"h\", {progam: \"h.b\", repository: \"ghcr.io/pleme-io/h\"})\n");
+        let e =
+            only_refusal("image(\"h\", {progam: \"h.b\", repository: \"ghcr.io/pleme-io/h\"})\n");
         assert!(
             matches!(e, SpecError::UnknownField { ref field, .. } if field == "progam"),
             "{e}"
@@ -983,8 +991,13 @@ mod tests {
     #[test]
     fn workload_combinations_are_refused_by_rule() {
         let w = |fields: &str| {
-            [IMAGE, "workload(\"w\", {image: \"hello\", namespace: \"blue\", ", fields, "})\n"]
-                .concat()
+            [
+                IMAGE,
+                "workload(\"w\", {image: \"hello\", namespace: \"blue\", ",
+                fields,
+                "})\n",
+            ]
+            .concat()
         };
         for (fields, want) in [
             ("probe: \"/healthz\"", SpecError::ProbeWithoutPort),
@@ -1004,11 +1017,11 @@ mod tests {
                     got: "healthz".into(),
                 },
             ),
-            ("ports: {a: 1}, probe_port: \"a\"", SpecError::ProbePortWithoutProbe),
             (
-                "ports: {a: 1, b: 1}",
-                SpecError::DuplicatePort { port: 1 },
+                "ports: {a: 1}, probe_port: \"a\"",
+                SpecError::ProbePortWithoutProbe,
             ),
+            ("ports: {a: 1, b: 1}", SpecError::DuplicatePort { port: 1 }),
             ("replicas: -1", SpecError::Replicas { got: -1 }),
             (
                 "cpu: \"lots\"",
@@ -1043,7 +1056,13 @@ mod tests {
             assert_eq!(only_refusal(&w(fields)), want, "{fields}");
         }
         assert_eq!(
-            only_refusal(&[IMAGE, "workload(\"w\", {image: \"hello\", namespace: \"Blue\"})\n"].concat()),
+            only_refusal(
+                &[
+                    IMAGE,
+                    "workload(\"w\", {image: \"hello\", namespace: \"Blue\"})\n"
+                ]
+                .concat()
+            ),
             SpecError::Name { got: "Blue".into() }
         );
     }
@@ -1055,7 +1074,12 @@ mod tests {
         let ok = project_of("workload(\"w\", {image: \"ghcr.io/x/y:1.2.3\", namespace: \"n\"})\n");
         assert_eq!(ok.workloads["w"].image, "ghcr.io/x/y:1.2.3");
         for image in ["nope", "ghcr.io/x/y", "ghcr.io/x/y:latest"] {
-            let body = ["workload(\"w\", {image: \"", image, "\", namespace: \"n\"})\n"].concat();
+            let body = [
+                "workload(\"w\", {image: \"",
+                image,
+                "\", namespace: \"n\"})\n",
+            ]
+            .concat();
             assert_eq!(
                 only_refusal(&body),
                 SpecError::ImageRef { got: image.into() },
@@ -1083,7 +1107,11 @@ mod tests {
                     "bad".to_string(),
                     SpecError::DeviationWithoutReason { deviation: "shell" }
                 ),
-                ("workload", "broken".to_string(), SpecError::Replicas { got: -2 }),
+                (
+                    "workload",
+                    "broken".to_string(),
+                    SpecError::Replicas { got: -2 }
+                ),
             ]
         );
         let src = ["package(\"p\", \"0.3.0\")\n", body].concat();
@@ -1112,7 +1140,10 @@ mod tests {
     #[test]
     fn a_project_without_images_or_workloads_has_neither_key() {
         let v = serde_json::to_value(project_of("tool(\"jq\")\n")).expect("json");
-        assert!(v.get("images").is_none() && v.get("workloads").is_none(), "{v}");
+        assert!(
+            v.get("images").is_none() && v.get("workloads").is_none(),
+            "{v}"
+        );
     }
 
     #[test]

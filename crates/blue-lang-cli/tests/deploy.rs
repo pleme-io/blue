@@ -21,7 +21,11 @@ fn project(test: &str, bluefile: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("mkdir");
     std::fs::write(dir.join("Bluefile"), bluefile).expect("write Bluefile");
     let out = blue(&["lock", dir.to_str().expect("utf-8")]);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     dir
 }
 
@@ -49,7 +53,10 @@ fn render_write_writes_what_render_prints() {
     let file = std::fs::read(dir.join("deploy/svc.yaml")).expect("written");
     assert_eq!(file, printed.stdout);
     let v: serde_json::Value = serde_json::from_slice(&file).expect("JSON");
-    assert_eq!(v["items"][0]["spec"]["template"]["spec"]["containers"][0]["image"], "ghcr.io/pleme-io/svc:0.2.0");
+    assert_eq!(
+        v["items"][0]["spec"]["template"]["spec"]["containers"][0]["image"],
+        "ghcr.io/pleme-io/svc:0.2.0"
+    );
 }
 
 /// **`blue diff` names its cluster or does nothing.** Without `--context` it
@@ -67,8 +74,22 @@ fn diff_without_a_context_is_refused_before_touching_anything() {
     assert!(render.status.success(), "{}", stderr(&render));
     let missing = "/nonexistent/kubectl";
     for args in [
-        vec!["diff", "--lock", "/nonexistent/Bluefile.lock", "--kubectl", missing],
-        vec!["diff", "--context", " ", "--lock", "/nonexistent/Bluefile.lock", "--kubectl", missing],
+        vec![
+            "diff",
+            "--lock",
+            "/nonexistent/Bluefile.lock",
+            "--kubectl",
+            missing,
+        ],
+        vec![
+            "diff",
+            "--context",
+            " ",
+            "--lock",
+            "/nonexistent/Bluefile.lock",
+            "--kubectl",
+            missing,
+        ],
     ] {
         let out = blue(&args);
         assert_eq!(out.status.code(), Some(2), "{args:?}");
@@ -77,9 +98,21 @@ fn diff_without_a_context_is_refused_before_touching_anything() {
         assert!(!err.contains("could not start"), "{err}");
     }
     let lock = lock_of(&dir);
-    let out = blue(&["diff", "--context", "dev", "--lock", &lock, "--kubectl", missing]);
+    let out = blue(&[
+        "diff",
+        "--context",
+        "dev",
+        "--lock",
+        &lock,
+        "--kubectl",
+        missing,
+    ]);
     assert_eq!(out.status.code(), Some(2));
-    assert!(stderr(&out).contains("could not start `/nonexistent/kubectl`"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("could not start `/nonexistent/kubectl`"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 /// A refused Bluefile does not lock, and every refused entry is named.
@@ -98,7 +131,10 @@ fn lock_refuses_every_bad_entry_by_name() {
     let out = blue(&["lock", dir.to_str().expect("utf-8")]);
     assert!(!out.status.success());
     let err = stderr(&out);
-    assert!(err.contains("`image(\"a\", …)`: `tools` leaves distroless"), "{err}");
+    assert!(
+        err.contains("`image(\"a\", …)`: `tools` leaves distroless"),
+        "{err}"
+    );
     assert!(err.contains("`workload(\"b\", …)`"), "{err}");
     assert!(!dir.join("Bluefile.lock").exists());
 }
@@ -108,7 +144,17 @@ fn lock_refuses_every_bad_entry_by_name() {
 #[test]
 fn image_build_refuses_an_undeclared_image_before_nix() {
     let dir = project("image", SERVICE);
-    let out = blue(&["image", "build", "nope", "--dir", dir.to_str().expect("utf-8")]);
+    let out = blue(&[
+        "image",
+        "build",
+        "nope",
+        "--dir",
+        dir.to_str().expect("utf-8"),
+    ]);
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("no image `nope`; the Bluefile declares svc"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("no image `nope`; the Bluefile declares svc"),
+        "{}",
+        stderr(&out)
+    );
 }

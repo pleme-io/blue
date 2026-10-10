@@ -309,7 +309,12 @@ impl std::fmt::Display for ImageRef<'_> {
 /// Every workload a lock declares, by name.
 #[must_use]
 pub fn workloads(manifest: &ManifestRecord) -> Vec<&str> {
-    manifest.project.workloads.keys().map(String::as_str).collect()
+    manifest
+        .project
+        .workloads
+        .keys()
+        .map(String::as_str)
+        .collect()
 }
 
 /// Render one workload of a lock to its objects.
@@ -533,7 +538,10 @@ mod tests {
         assert_eq!(pod["securityContext"]["runAsUser"], NONROOT_UID);
         let c = &pod["containers"][0];
         assert_eq!(c["image"], "ghcr.io/pleme-io/blue-hello:0.3.0");
-        assert_eq!(c["livenessProbe"]["httpGet"], json!({"path": "/healthz", "port": "http"}));
+        assert_eq!(
+            c["livenessProbe"]["httpGet"],
+            json!({"path": "/healthz", "port": "http"})
+        );
         assert_eq!(c["resources"], json!({"requests": {"memory": "64Mi"}}));
         assert_eq!(
             c["env"],
@@ -569,13 +577,19 @@ mod tests {
         assert_eq!(pod["securityContext"].get("runAsUser"), None);
         assert_eq!(pod["containers"][0]["image"], "ghcr.io/x/y:1.2.3");
         assert_eq!(pod["containers"][0].get("livenessProbe"), None);
-        assert_eq!(items[0]["metadata"]["labels"].get("app.kubernetes.io/version"), None);
+        assert_eq!(
+            items[0]["metadata"]["labels"].get("app.kubernetes.io/version"),
+            None
+        );
     }
 
     #[test]
     fn rendering_an_undeclared_workload_names_the_declared_ones() {
         let err = render(&manifest(DECLARED), "nope").expect_err("unknown");
-        assert_eq!(err.to_string(), "no workload `nope`; this lock declares hello");
+        assert_eq!(
+            err.to_string(),
+            "no workload `nope`; this lock declares hello"
+        );
     }
 
     /// The bytes are a pure function of the lock: the freshness gate compares

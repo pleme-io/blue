@@ -237,8 +237,7 @@ pub fn image(cmd: ImageCmd) -> Result<ExitCode, DeployError> {
             })?
             .len();
         let docker_manifest = Path::new(docker_manifest);
-        let entries: Vec<serde_json::Value> =
-            json(docker_manifest, &read(docker_manifest)?)?;
+        let entries: Vec<serde_json::Value> = json(docker_manifest, &read(docker_manifest)?)?;
         let layers = entries
             .first()
             .and_then(|e| e.get("Layers"))
@@ -292,7 +291,12 @@ pub fn workload(cmd: WorkloadCmd) -> Result<ExitCode, DeployError> {
 
 /// The one cluster call `blue diff` makes. `get`, by construction: this is
 /// the only place an argument list for kubectl is built.
-fn kubectl_get<'a>(context: &'a str, resource: &'a str, name: &'a str, namespace: &'a str) -> [&'a str; 11] {
+fn kubectl_get<'a>(
+    context: &'a str,
+    resource: &'a str,
+    name: &'a str,
+    namespace: &'a str,
+) -> [&'a str; 11] {
     [
         "--context",
         context,
@@ -485,11 +489,17 @@ mod tests {
             select("w", Some("c"), vec!["a"]),
             Err(DeployError::Unknown { .. })
         ));
-        assert!(matches!(select("w", None, vec![]), Err(DeployError::None { .. })));
+        assert!(matches!(
+            select("w", None, vec![]),
+            Err(DeployError::None { .. })
+        ));
     }
 
     #[test]
     fn a_size_reads_in_mebibytes_and_bytes() {
-        assert_eq!(Size(3 * 1024 * 1024 + 512 * 1024).to_string(), "3.5 MiB (3670016 bytes)");
+        assert_eq!(
+            Size(3 * 1024 * 1024 + 512 * 1024).to_string(),
+            "3.5 MiB (3670016 bytes)"
+        );
     }
 }

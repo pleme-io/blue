@@ -561,10 +561,15 @@ fn refuse(
     name: String,
     error: crate::deploy::SpecError,
 ) -> Result<(), Malformed> {
-    if into.refused.iter().any(|r| r.word == word && r.name == name) {
+    if into
+        .refused
+        .iter()
+        .any(|r| r.word == word && r.name == name)
+    {
         return Err(Malformed::Duplicate { word, name });
     }
-    into.refused.push(crate::deploy::Refusal { word, name, error });
+    into.refused
+        .push(crate::deploy::Refusal { word, name, error });
     Ok(())
 }
 

@@ -192,19 +192,25 @@ impl Shift {
 
 /// Compute the reading for a document.
 pub fn shift_of(src: &str) -> Shift {
-    let index = crate::analysis::LineIndex::new(src);
-    let mut out = Shift::default();
-
     // The SPANNED tree: a `Factor` carries a range an editor draws, so a factor
     // built from a spanless tree can only point at the whole file — which is
     // what every one of them did.
-    let Ok(forms) = blue_lang_syntax::parse_program_tree(src) else {
+    let parsed = blue_lang_syntax::parse_program_tree(src);
+    shift_of_tree(src, parsed.as_deref().ok())
+}
+
+/// [`shift_of`] over a tree already parsed from `src`, or `None` when `src`
+/// does not parse.
+pub fn shift_of_tree(src: &str, forms: Option<&[blue_lang_syntax::Spanned]>) -> Shift {
+    let index = crate::analysis::LineIndex::new(src);
+    let mut out = Shift::default();
+    let Some(forms) = forms else {
         // An unparseable document has no reading. Reporting `Dynamic` would be
         // a lie about a file that has no meaning yet.
         return out;
     };
 
-    let outcome = blue_lang_check::check_program(&forms);
+    let outcome = blue_lang_check::check_program(forms);
     out.analysed_nodes = outcome.stats.visited;
     out.typed_declarations = outcome.stats.typed_decls;
 
@@ -232,7 +238,7 @@ pub fn shift_of(src: &str) -> Shift {
         });
     }
 
-    for form in &forms {
+    for form in forms {
         let Some((name, typed)) = declaration_of(form) else {
             continue;
         };

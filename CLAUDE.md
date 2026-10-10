@@ -123,7 +123,8 @@ bidama that does not check does not build.
 | Bluefile (the `WORDS` table) + version solver + `Bluefile.lock` | `blue-lang-pkg` |
 | the project engine: a `Bluefile.lock` lowered to packages, checks and apps (`lib.project`; blue's own flake is its first caller) | `nix/project.nix`, over `bidamas/mk-bidama.nix` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
-| LSP: transport-free core + stdio shim | `blue-lang-lsp` |
+| the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; completion, definition, references, rename, symbols, signatures | `blue-lang-mondou` |
+| LSP: transport-free core + stdio shim, every answer from `mondou` | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
 | every subcommand; `BlueConfig` (the two typed bounds) | `blue-lang-cli` |
 
@@ -427,9 +428,8 @@ NATS server requiring TLS are refused by name),
 **no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
 derives the table from a frame — nothing puts an entry into a `.wasm`, and no
 engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
-not being on crates.io), **no go-to-definition, and no completion of locals** (the
-name table exists and the LSP completes top-level names from it; wiring a
-position to a frame and a definition request to the table is not done),
-and no **`case`/`when` pattern matching** or **ranges** — the two remaining
+not being on crates.io), **no editor answer inside a broken buffer** (the
+LSP answers from the newest revision that parsed until the parser recovers,
+`BLUE-ENGINE.md` E6), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
 surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**

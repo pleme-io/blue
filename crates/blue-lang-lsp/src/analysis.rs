@@ -15,6 +15,7 @@
 //! it — a per-call conversion is how an editor ends up underlining the wrong
 //! characters in a file with any non-ASCII in it.
 
+use blue_lang_mondou::{Engine, Tier};
 use blue_lang_syntax::Span;
 
 /// Severity, in LSP's numbering so the shim does not have to translate.
@@ -239,10 +240,42 @@ pub struct Declaration {
 /// Analyse one document with no bidamas available: [`analyse_with`] and
 /// [`blue_lang_runtime::uses::NoLoader`].
 pub fn analyse(src: &str) -> Analysis {
-    analyse_with(src, &blue_lang_runtime::uses::NoLoader)
+    analyse_with(src, Box::new(blue_lang_runtime::uses::NoLoader))
 }
 
-/// Analyse one document, resolving its `use(...)` imports through `loader`.
+/// The id a one-document engine holds its buffer under.
+const BUFFER: &str = "buffer";
+
+fn engine_of(src: &str, loader: Box<dyn blue_lang_runtime::uses::Loader>) -> Engine {
+    let mut engine = Engine::new(loader);
+    engine.set_document(BUFFER, None, src);
+    engine
+}
+
+/// Analyse one document, resolving its `use(...)` imports through `loader`,
+/// through a one-document [`Engine`]: the analysis the server shows for an
+/// open buffer, as plain values.
+pub fn analyse_with(src: &str, loader: Box<dyn blue_lang_runtime::uses::Loader>) -> Analysis {
+    let engine = engine_of(src, loader);
+    let mut out = Analysis {
+        diagnostics: diagnostics(&engine, BUFFER),
+        formatted: engine.formatted(BUFFER),
+        ..Analysis::default()
+    };
+    let index = LineIndex::new(src);
+    if let Some(a) = engine.analysis(BUFFER) {
+        out.declarations = declarations(&a, &index);
+    }
+    out.completions = engine
+        .completions(BUFFER, 0)
+        .into_iter()
+        .filter(|c| c.tier != Tier::Local && c.tier != Tier::Reachable)
+        .map(Completion::from)
+        .collect();
+    out
+}
+
+/// The diagnostics of document `id`, in editor coordinates.
 ///
 /// **Parse failures suppress the later stages rather than compounding.** A file
 /// mid-edit is unparseable most of the time, and a type checker run on a
@@ -257,29 +290,20 @@ pub fn analyse(src: &str) -> Analysis {
 /// synthesize error nodes and keep going, which it does not do. Stated so the
 /// next reader does not go looking for the `if` to remove.
 ///
-/// **The check stage is the pipeline's**, `blue_lang_runtime::pipeline::
-/// check_entry` — the same rules, names and waivers `blue check` reports, not
-/// a second checker. Only diagnostics in THIS buffer are shown; an imported
-/// bidama's own findings are its file's, not this one's.
-pub fn analyse_with(src: &str, loader: &dyn blue_lang_runtime::uses::Loader) -> Analysis {
-    use blue_lang_runtime::pipeline::{check_entry, Checking};
-    use blue_lang_runtime::uses::{Entry, ResolvedProgram};
-
-    let index = LineIndex::new(src);
-    let mut out = Analysis::default();
-
-    // `parse_program_tree`, NOT `parse_program`.
-    //
-    // The tree carries a span on every node, and the spanless parse does not.
-    // While the checker walked `Sexp`, a type diagnostic arrived here with no
-    // position at all and was attached to `Range::default()` — line 0, column 0
-    // — so an error on line 200 of a file underlined its first character while
-    // the parse error beside it pointed at the right byte. Reaching for
-    // `parse_program` here is how that comes back.
-    let forms = match blue_lang_syntax::parse_program_tree(src) {
-        Ok(f) => f,
+/// **The check stage is the pipeline's**, reached through the engine — the
+/// same rules, names and waivers `blue check` reports, not a second checker.
+/// Only diagnostics in THIS buffer are shown; an imported bidama's own
+/// findings are its file's, not this one's.
+pub fn diagnostics(engine: &Engine, id: &str) -> Vec<Diagnostic> {
+    use blue_lang_runtime::uses::ResolvedProgram;
+    let Some(a) = engine.analysis(id) else {
+        return Vec::new();
+    };
+    let index = LineIndex::new(&a.text);
+    let forms = match a.parsed.as_ref() {
+        Ok(forms) => forms,
         Err(e) => {
-            out.diagnostics.push(Diagnostic {
+            return vec![Diagnostic {
                 range: index.range(e.span),
                 severity: Severity::Error,
                 message: e.message.clone(),
@@ -287,56 +311,37 @@ pub fn analyse_with(src: &str, loader: &dyn blue_lang_runtime::uses::Loader) -> 
                 code: Some(blue_lang_check::Code::B0006.as_str()),
                 help: None,
                 fixes: Vec::new(),
-            });
-            return out;
+            }]
         }
     };
-
-    match check_entry(Entry::anonymous(src), loader, None, Checking::WithTests) {
-        Ok(checked) => {
-            for d in &checked.outcome.diagnostics {
-                if checked.program.owner_of(d.top_level) != Some(ResolvedProgram::ENTRY) {
-                    continue;
-                }
-                out.diagnostics.push(lsp_diagnostic(d, &index));
-            }
-            out.completions = completions_of(&checked.names);
-        }
+    match &a.checked {
+        Some(Ok(checked)) => checked
+            .outcome
+            .diagnostics
+            .iter()
+            .filter(|d| checked.program.owner_of(d.top_level) == Some(ResolvedProgram::ENTRY))
+            .map(|d| lsp_diagnostic(d, &index))
+            .collect(),
         // Imports that do not load leave no program to resolve names in: say
         // so once, and still run the typing rules on this buffer alone, which
         // need nothing imported.
-        Err(e) => {
-            out.diagnostics.push(Diagnostic {
+        Some(Err(e)) => {
+            let mut out = vec![Diagnostic {
                 range: index.whole_document(),
                 severity: Severity::Error,
-                message: e.to_string(),
+                message: e.clone(),
                 source: "import",
                 code: None,
                 help: None,
                 fixes: Vec::new(),
-            });
-            for d in blue_lang_check::check_program(&forms).diagnostics {
-                out.diagnostics.push(lsp_diagnostic(&d, &index));
+            }];
+            for d in blue_lang_check::check_program(forms).diagnostics {
+                out.push(lsp_diagnostic(&d, &index));
             }
+            out
         }
+        None => Vec::new(),
     }
-
-    // `format_source_lossless`, not `format_forms`. Comments are not in the
-    // tree, so a formatter that starts from parsed forms cannot emit them —
-    // `format_forms` on `spec/bindings.b` returned 707 bytes for 1010 in and
-    // **deleted all six comments**. Measured, not inferred.
-    //
-    // This is the same defect `fmt --write` had, fixed there and not here,
-    // because the two paths reached the formatter through different doors. An
-    // editor is the worse place for it: `textDocument/formatting` replaces the
-    // whole buffer with this string, so every comment in the file vanished on
-    // format, in a tool whose whole promise is that it is safe to run.
-    //
-    // Falling back to the lossy render on error would reintroduce exactly that,
-    // so a document that cannot be losslessly formatted offers no formatting.
-    out.formatted = blue_lang_fmt::format_source_lossless(src).ok();
-    out.declarations = declarations(&forms, &index);
-    out
 }
 
 /// A check-stage diagnostic in editor coordinates.
@@ -377,148 +382,108 @@ fn lsp_diagnostic(d: &blue_lang_check::Diagnostic, index: &LineIndex) -> Diagnos
     }
 }
 
-/// Every spellable name in the table, labelled with its namespace.
-fn completions_of(table: &blue_lang_check::NameTable) -> Vec<Completion> {
-    use blue_lang_check::{Namespace, ScopeKind};
-    let mut seen = std::collections::BTreeSet::new();
-    let mut out = Vec::new();
-    for (ns, b) in table.all() {
-        let spellable = b
-            .name
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-            && !b.name.contains('-');
-        if !spellable || !seen.insert(b.name.clone()) {
-            continue;
-        }
-        out.push(Completion {
-            label: b.name.clone(),
-            detail: ns.to_string(),
-            kind: match (ns, b.kind) {
-                (_, ScopeKind::SpecialForm | ScopeKind::Macro) => CompletionKind::Keyword,
-                (Namespace::Builtin, _) => CompletionKind::Function,
-                _ => CompletionKind::Variable,
+impl From<blue_lang_mondou::Completion> for Completion {
+    fn from(c: blue_lang_mondou::Completion) -> Self {
+        Completion {
+            kind: match c.kind {
+                blue_lang_mondou::CompletionKind::Keyword => CompletionKind::Keyword,
+                blue_lang_mondou::CompletionKind::Function => CompletionKind::Function,
+                blue_lang_mondou::CompletionKind::Value => CompletionKind::Variable,
             },
-        });
+            label: c.label,
+            detail: c.namespace,
+        }
     }
-    out
 }
 
-/// The completions for the word being typed at `pos`: every in-scope
-/// top-level name that starts with it.
-///
-/// **Top-level names only.** Locals — parameters, a function's own bindings —
-/// are not offered: that needs the walker to report the frame at a position,
-/// which it does not yet. Every name offered does exist; what is missing is a
-/// class of names, not a guess.
+/// The completions for the word being typed at `pos`: the engine's, ranked
+/// by the resolution tiers (`blue_lang_mondou::Tier`).
 pub fn complete(
     src: &str,
     pos: Position,
-    loader: &dyn blue_lang_runtime::uses::Loader,
+    loader: Box<dyn blue_lang_runtime::uses::Loader>,
 ) -> Vec<Completion> {
-    let index = LineIndex::new(src);
-    let offset = index.offset(pos);
-    let prefix: String = src[..offset.min(src.len())]
-        .chars()
-        .rev()
-        .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '?' || *c == '!')
-        .collect::<Vec<_>>()
+    let engine = engine_of(src, loader);
+    let offset = LineIndex::new(src).offset(pos);
+    engine
+        .completions(BUFFER, offset)
         .into_iter()
-        .rev()
-        .collect();
-    let mut all = analyse_with(src, loader).completions;
-    // A buffer mid-edit often does not parse (`foo(le` has no closing paren),
-    // and then there is no program table. The builtins need no program, so
-    // they are still offered.
-    if all.is_empty() {
-        let mut interp = blue_lang_runtime::interpreter_hostless();
-        blue_lang_runtime::inputs::install_input_primitives(
-            &mut interp,
-            blue_lang_runtime::Inputs::new(),
-        );
-        all = completions_of(&blue_lang_runtime::pipeline::builtin_names(&interp));
-    }
-    all.into_iter()
-        .filter(|c| c.label.starts_with(&prefix))
+        .map(Completion::from)
         .collect()
 }
 
-fn declarations(forms: &[blue_lang_syntax::Spanned], index: &LineIndex) -> Vec<Declaration> {
-    let mut out = Vec::new();
-    for form in forms {
-        let Some(items) = form.as_list() else {
-            continue;
-        };
-        let Some(head) = items.first().and_then(|h| h.as_symbol()) else {
-            continue;
-        };
-        let name = match (head, items.get(1)) {
-            ("define" | "define-typed", Some(sig)) => {
-                match sig.as_list().and_then(|s| s.first()?.as_symbol()) {
-                    Some(n) => n.to_string(),
-                    None => continue,
-                }
-            }
-            ("defmacro", Some(n)) => match n.as_symbol() {
-                Some(n) => n.to_string(),
-                None => continue,
-            },
-            _ => continue,
-        };
-        // The signature is the FORMATTER's first line. Reusing it means hover
-        // and the file cannot disagree about how a signature is spelled — the
-        // same reason the test framework renders assertions through it.
-        let rendered = blue_lang_fmt::format_forms(std::slice::from_ref(&form.to_sexp()));
-        let signature = rendered.lines().next().unwrap_or_default().to_string();
-        out.push(Declaration {
-            name,
-            signature,
-            // The declaration's OWN range, not `whole_document()`.
-            //
-            // It was the whole document, for the same reason type diagnostics
-            // were at line 0: nothing downstream had a span to offer. A
-            // document-wide range is what makes a symbol list unusable —
-            // "go to definition" lands on byte 0 for every name in the file.
-            range: index.range(form.span),
-        });
-    }
-    out
+/// The document's functions and macros, each with its own range.
+fn declarations(a: &blue_lang_mondou::Analysis, index: &LineIndex) -> Vec<Declaration> {
+    use blue_lang_mondou::ItemKind;
+    a.items()
+        .iter()
+        .filter(|i| matches!(i.kind, ItemKind::Function | ItemKind::Macro))
+        .map(|i| Declaration {
+            name: i.name.clone(),
+            signature: i.signature.clone(),
+            // The declaration's OWN range, not `whole_document()`: a
+            // document-wide range makes "go to definition" land on byte 0
+            // for every name in the file.
+            range: index.range(i.span),
+        })
+        .collect()
 }
 
-/// The declaration whose name appears at `pos`, for hover.
+/// The signature of the definition the name at `pos` resolves to, for hover.
 pub fn hover(src: &str, pos: Position) -> Option<String> {
-    let index = LineIndex::new(src);
-    let offset = index.offset(pos);
-    let word = word_at(src, offset)?;
-    analyse(src)
-        .declarations
-        .into_iter()
-        .find(|d| d.name == word)
-        .map(|d| d.signature)
+    let engine = engine_of(src, Box::new(blue_lang_runtime::uses::NoLoader));
+    let offset = LineIndex::new(src).offset(pos);
+    hover_of(&engine, BUFFER, offset)
+        .filter(|h| h.namespace != "local")
+        .map(|h| h.signature)
 }
 
-fn word_at(src: &str, offset: usize) -> Option<String> {
-    let is_word = |c: char| c.is_alphanumeric() || c == '_' || c == '-' || c == '?' || c == '!';
-    if offset > src.len() {
-        return None;
-    }
-    let start = src[..offset]
-        .char_indices()
-        .rev()
-        .take_while(|(_, c)| is_word(*c))
-        .last()
-        .map_or(offset, |(i, _)| i);
-    let end = src[offset..]
-        .char_indices()
-        .take_while(|(_, c)| is_word(*c))
-        .last()
-        .map_or(offset, |(i, c)| offset + i + c.len_utf8());
-    let word = &src[start..end];
-    if word.is_empty() {
-        None
-    } else {
-        Some(word.to_string())
+/// What hover says about a name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Hover {
+    /// The signature, as blue source.
+    pub signature: String,
+    /// Where it lives and how it resolved: `bidama \`retsu\``, `local`.
+    pub namespace: String,
+    pub doc: Option<String>,
+}
+
+/// Hover for the name at byte `offset` of document `id`.
+pub fn hover_of(engine: &Engine, id: &str, offset: usize) -> Option<Hover> {
+    use blue_lang_mondou::Symbol;
+    let a = engine.analysis(id)?;
+    let (symbol, _) = a.symbol_at(engine, offset)?;
+    match symbol {
+        Symbol::Def(ns, name) => {
+            let at = a.definition_of(engine, &ns, &name)?;
+            let item = engine.item_at(&a, &at)?;
+            Some(Hover {
+                signature: item.signature,
+                namespace: ns.to_string(),
+                doc: item.doc,
+            })
+        }
+        Symbol::Builtin(name) => {
+            let d = blue_lang_runtime::docs::doc_of(&name)?;
+            Some(Hover {
+                signature: d.signature.to_string(),
+                namespace: "builtin".to_string(),
+                doc: Some(d.doc.to_string()),
+            })
+        }
+        Symbol::Local(b) => {
+            let binding = &a.locals(engine).bindings[b];
+            Some(Hover {
+                signature: binding.name.clone(),
+                namespace: "local".to_string(),
+                doc: None,
+            })
+        }
+        Symbol::Package(p) => Some(Hover {
+            signature: format!("use(\"{p}\")"),
+            namespace: format!("bidama `{p}`"),
+            doc: None,
+        }),
     }
 }
 

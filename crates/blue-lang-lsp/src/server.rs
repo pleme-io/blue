@@ -1,10 +1,11 @@
 //! The JSON-RPC shim.
 //!
-//! Thin by construction: decode, call [`crate::analysis`], encode. Every
-//! decision worth testing lives in the analysis core, so this file's tests are
-//! about the *protocol* — that a reply carries the request's id, that an
-//! unknown method is an error rather than silence, that a notification gets no
-//! reply.
+//! Thin by construction: decode, ask the engine ([`blue_lang_mondou`]) or
+//! [`crate::analysis`], encode. Every decision worth testing lives below the
+//! shim, so this file's tests are about the *protocol* — that a reply carries
+//! the request's id, that an unknown method is an error rather than silence,
+//! that a notification gets no reply — and about each request reaching the
+//! engine query it names.
 //!
 //! ## `handle` is a pure function
 //!
@@ -14,14 +15,21 @@
 //!
 //! [`Server::serve`] wraps it in the actual stdio loop, and is the only part
 //! that touches I/O.
+//!
+//! ## One analysis per revision
+//!
+//! The server holds one [`Engine`] for the session. A document is parsed and
+//! checked once per revision, whatever is asked of it, and the bidamas its
+//! imports name are loaded once per session.
 
-use std::collections::HashMap;
 use std::io::{BufRead, Write};
+use std::path::PathBuf;
 
+use blue_lang_mondou::{Engine, FileRef, Located};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::analysis::{analyse_with, complete, hover, Position};
+use crate::analysis::{diagnostics, hover_of, LineIndex, Position};
 use crate::tokens;
 
 /// What the server produced for one incoming message.
@@ -42,32 +50,23 @@ pub enum Response {
     Messages(Vec<Value>),
 }
 
-/// Open documents, keyed by URI.
+/// The session: the engine, holding every open document.
 pub struct Server {
-    documents: HashMap<String, String>,
+    engine: Engine,
     /// Set by `shutdown`, so `serve` can stop cleanly rather than on EOF alone.
     shutting_down: bool,
-    /// Where a document's `use(...)` imports resolve. [`NoLoader`] unless the
-    /// host supplies one — `blue lsp` passes `BLUE_PATH`'s.
-    ///
-    /// [`NoLoader`]: blue_lang_runtime::uses::NoLoader
-    loader: Box<dyn blue_lang_runtime::uses::Loader>,
 }
 
 impl Default for Server {
     fn default() -> Self {
-        Self {
-            documents: HashMap::new(),
-            shutting_down: false,
-            loader: Box::new(blue_lang_runtime::uses::NoLoader),
-        }
+        Self::with_loader(Box::new(blue_lang_runtime::uses::NoLoader))
     }
 }
 
 impl std::fmt::Debug for Server {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Server")
-            .field("documents", &self.documents)
+            .field("documents", &self.engine.document_ids())
             .field("shutting_down", &self.shutting_down)
             .finish_non_exhaustive()
     }
@@ -88,6 +87,10 @@ struct Error<'a> {
     message: &'a str,
 }
 
+/// JSON-RPC's code for a request the server understood and could not carry
+/// out (LSP `RequestFailed`).
+const REQUEST_FAILED: i64 = -32803;
+
 impl Server {
     pub fn new() -> Self {
         Self::default()
@@ -97,8 +100,8 @@ impl Server {
     #[must_use]
     pub fn with_loader(loader: Box<dyn blue_lang_runtime::uses::Loader>) -> Self {
         Self {
-            loader,
-            ..Self::default()
+            engine: Engine::new(loader),
+            shutting_down: false,
         }
     }
 
@@ -106,8 +109,14 @@ impl Server {
         self.shutting_down
     }
 
-    pub fn document(&self, uri: &str) -> Option<&str> {
-        self.documents.get(uri).map(String::as_str)
+    pub fn document(&self, uri: &str) -> Option<String> {
+        self.engine.document_text(uri).map(|t| t.to_string())
+    }
+
+    /// The engine, for a test or a host that asks it directly.
+    #[must_use]
+    pub fn engine(&self) -> &Engine {
+        &self.engine
     }
 
     /// Handle one decoded message.
@@ -116,6 +125,7 @@ impl Server {
             return Response::Reply(error_reply(&Value::Null, -32700, "malformed message"));
         };
         let id = req.id.clone();
+        let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
 
         match req.method.as_str() {
             "initialize" => reply(&id, capabilities()),
@@ -130,17 +140,15 @@ impl Server {
             "exit" => Response::None,
 
             "textDocument/didOpen" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
                 let text = str_at(&req.params, &["textDocument", "text"]).unwrap_or_default();
-                self.documents.insert(uri.clone(), text.clone());
+                self.engine.set_document(&uri, path_of(&uri), &text);
                 Response::Messages(vec![
-                    self.diagnostics_notification(&uri, &text),
-                    shift_notification(&uri, &text),
+                    self.diagnostics_notification(&uri),
+                    self.shift_notification(&uri),
                 ])
             }
 
             "textDocument/didChange" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
                 // Full-document sync only — `capabilities()` advertises
                 // TextDocumentSyncKind::Full (1), so a client never sends
                 // incremental edits. Advertising incremental and then applying
@@ -155,18 +163,18 @@ impl Server {
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                self.documents.insert(uri.clone(), text.clone());
+                self.engine.set_document(&uri, path_of(&uri), &text);
                 // The reading is pushed on EVERY edit, so it tracks the author
                 // as they type rather than when they remember to ask.
                 Response::Messages(vec![
-                    self.diagnostics_notification(&uri, &text),
-                    shift_notification(&uri, &text),
+                    self.diagnostics_notification(&uri),
+                    self.shift_notification(&uri),
                 ])
             }
 
             "textDocument/didClose" => {
-                if let Some(uri) = str_at(&req.params, &["textDocument", "uri"]) {
-                    self.documents.remove(&uri);
+                if self.engine.document_text(&uri).is_some() {
+                    self.engine.close_document(&uri);
                     // Clear the client's squiggles; a closed file's diagnostics
                     // otherwise persist in the problems panel forever.
                     return Response::Notify(publish(&uri, Vec::new()));
@@ -174,37 +182,47 @@ impl Server {
                 Response::None
             }
 
+            // A file changed on disk: a bidama holding it is loaded again on
+            // its next use.
+            "workspace/didChangeWatchedFiles" => {
+                let changes = req
+                    .params
+                    .get("changes")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                for c in changes {
+                    if let Some(p) = c.get("uri").and_then(Value::as_str).and_then(path_of) {
+                        self.engine.invalidate_path(&p);
+                    }
+                }
+                Response::None
+            }
+
             "textDocument/formatting" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
-                let Some(text) = self.documents.get(&uri).cloned() else {
+                let Some(text) = self.engine.document_text(&uri) else {
                     return reply(&id, Value::Null);
                 };
-                let a = analyse_with(&text, self.loader.as_ref());
-                match a.formatted {
+                match self.engine.formatted(&uri) {
                     // `null`, not an empty edit list: an unformattable document
                     // must not look like one that was already canonical.
                     None => reply(&id, Value::Null),
                     Some(formatted) => {
-                        let index = crate::LineIndex::new(&text);
-                        let whole = index.whole_document();
+                        let whole = LineIndex::new(&text).whole_document();
                         reply(
                             &id,
-                            json!([{
-                                "range": range_json(whole),
-                                "newText": formatted,
-                            }]),
+                            json!([{ "range": range_json(whole), "newText": formatted }]),
                         )
                     }
                 }
             }
 
             "textDocument/semanticTokens/full" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
                 // An unknown document replies null, not an empty token list.
                 // Empty `data` is a positive claim — "this buffer has no
                 // colour" — and a client caches it; null says "no answer",
                 // which is the truth when the document was never opened.
-                let Some(text) = self.documents.get(&uri).cloned() else {
+                let Some(text) = self.engine.document_text(&uri) else {
                     return reply(&id, Value::Null);
                 };
                 let data = tokens::encode(&tokens::semantic_tokens(&text));
@@ -212,111 +230,243 @@ impl Server {
             }
 
             "textDocument/hover" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
-                let Some(text) = self.documents.get(&uri).cloned() else {
+                let Some(offset) = self.offset_of(&uri, &req.params) else {
                     return reply(&id, Value::Null);
                 };
-                let pos = Position {
-                    line: u32_at(&req.params, &["position", "line"]).unwrap_or(0),
-                    character: u32_at(&req.params, &["position", "character"]).unwrap_or(0),
-                };
-                // Every hover carries the document's reading underneath the
-                // signature. A custom request only helps a client that knows to
-                // ask; hover works in every editor today, which is what makes
-                // the shift *always visible* rather than opt-in.
-                let reading = crate::shift_of(&text);
-                match hover(&text, pos) {
+                match hover_of(&self.engine, &uri, offset) {
                     None => reply(&id, Value::Null),
-                    Some(sig) => {
-                        let mut md = format_code(&sig);
-                        md.push_str("\n\n---\n\n");
-                        md.push_str(&reading.summary());
-                        if let Some(rung) = reading.rung {
-                            md.push_str("\n\n");
-                            md.push_str(rung.meaning());
-                        }
-                        // Name what is holding it back — the actionable half.
-                        let held = reading.holding_back();
-                        if !held.is_empty() {
-                            md.push_str("\n\nshifting further:");
-                            for f in held.iter().take(3) {
-                                md.push_str("\n- ");
-                                md.push_str(&f.detail);
-                            }
-                        }
-                        reply(
-                            &id,
-                            json!({ "contents": { "kind": "markdown", "value": md } }),
-                        )
-                    }
+                    Some(h) => reply(
+                        &id,
+                        json!({ "contents": { "kind": "markdown", "value": self.hover_markdown(&uri, &h) } }),
+                    ),
                 }
             }
 
             // Quick fixes: the check stage's own suggested repairs for every
-            // diagnostic touching the requested range. A machine-applicable fix
-            // is marked preferred, so "fix all" applies exactly what
-            // `blue check --fix` would.
+            // diagnostic touching the requested range, and `source.fixAll`,
+            // which applies exactly what `blue check --fix` would.
             "textDocument/codeAction" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
-                let Some(text) = self.documents.get(&uri).cloned() else {
+                if self.engine.document_text(&uri).is_none() {
                     return reply(&id, json!([]));
-                };
+                }
                 let at = |k: &str| Position {
                     line: u32_at(&req.params, &["range", k, "line"]).unwrap_or(0),
                     character: u32_at(&req.params, &["range", k, "character"]).unwrap_or(0),
                 };
                 let (start, end) = (at("start"), at("end"));
-                let mut actions = Vec::new();
-                for d in analyse_with(&text, self.loader.as_ref()).diagnostics {
-                    if d.range.end < start || end < d.range.start {
-                        continue;
-                    }
-                    for fix in &d.fixes {
-                        let edits: Vec<Value> = fix
-                            .edits
+                let only: Vec<String> = req
+                    .params
+                    .get("context")
+                    .and_then(|c| c.get("only"))
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let wants = |kind: &str| {
+                    only.is_empty()
+                        || only
                             .iter()
-                            .map(|e| json!({ "range": range_json(e.range), "newText": e.new_text }))
-                            .collect();
+                            .any(|o| kind == o || kind.starts_with(&format!("{o}.")))
+                };
+                let mut actions = Vec::new();
+                if wants("quickfix") {
+                    for d in diagnostics(&self.engine, &uri) {
+                        if d.range.end < start || end < d.range.start {
+                            continue;
+                        }
+                        for fix in &d.fixes {
+                            let edits: Vec<Value> = fix
+                                .edits
+                                .iter()
+                                .map(|e| json!({ "range": range_json(e.range), "newText": e.new_text }))
+                                .collect();
+                            actions.push(json!({
+                                "title": fix.title,
+                                "kind": "quickfix",
+                                "isPreferred": fix.preferred,
+                                "diagnostics": [diagnostic_json(&d)],
+                                "edit": { "changes": { uri.clone(): edits } },
+                            }));
+                        }
+                    }
+                }
+                if wants("source.fixAll") {
+                    if let (Some(fixed), Some(text)) =
+                        (self.engine.fix_all(&uri), self.engine.document_text(&uri))
+                    {
+                        let whole = LineIndex::new(&text).whole_document();
                         actions.push(json!({
-                            "title": fix.title,
-                            "kind": "quickfix",
-                            "isPreferred": fix.preferred,
-                            "diagnostics": [diagnostic_json(&d)],
-                            "edit": { "changes": { uri.clone(): edits } },
+                            "title": "apply every machine-applicable fix (blue check --fix)",
+                            "kind": "source.fixAll",
+                            "edit": { "changes": { uri.clone(): [{ "range": range_json(whole), "newText": fixed }] } },
                         }));
                     }
                 }
                 reply(&id, Value::Array(actions))
             }
 
-            // Completion from the check stage's name table: every top-level
-            // name in scope, with its namespace. Locals are not offered yet.
+            // Ranked by the resolution tiers: locals, this file, its `use`
+            // lists, builtins — then names one `use` away, each with the edit
+            // that adds it.
             "textDocument/completion" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
-                let Some(text) = self.documents.get(&uri).cloned() else {
+                let Some(offset) = self.offset_of(&uri, &req.params) else {
                     return reply(&id, Value::Null);
                 };
-                let pos = Position {
-                    line: u32_at(&req.params, &["position", "line"]).unwrap_or(0),
-                    character: u32_at(&req.params, &["position", "character"]).unwrap_or(0),
-                };
-                let items: Vec<Value> = complete(&text, pos, self.loader.as_ref())
+                let text = self.engine.document_text(&uri).unwrap_or_default();
+                let index = LineIndex::new(&text);
+                let items: Vec<Value> = self
+                    .engine
+                    .completions(&uri, offset)
                     .into_iter()
-                    .map(|c| json!({ "label": c.label, "detail": c.detail, "kind": c.kind as i64 }))
+                    .enumerate()
+                    .map(|(rank, c)| completion_json(rank, c, &index))
                     .collect();
                 reply(&id, json!({ "isIncomplete": false, "items": items }))
+            }
+
+            "textDocument/definition" => {
+                let Some(offset) = self.offset_of(&uri, &req.params) else {
+                    return reply(&id, Value::Null);
+                };
+                let Some(a) = self.engine.analysis(&uri) else {
+                    return reply(&id, Value::Null);
+                };
+                let found = a.definition(&self.engine, offset);
+                let locations: Vec<Value> = found
+                    .iter()
+                    .filter_map(|l| self.location_json(&uri, l))
+                    .collect();
+                reply(&id, Value::Array(locations))
+            }
+
+            "textDocument/references" => {
+                let Some(offset) = self.offset_of(&uri, &req.params) else {
+                    return reply(&id, Value::Null);
+                };
+                let declarations = req
+                    .params
+                    .get("context")
+                    .and_then(|c| c.get("includeDeclaration"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
+                let locations: Vec<Value> = self
+                    .engine
+                    .references(&uri, offset, declarations)
+                    .iter()
+                    .filter_map(|l| self.location_json(&uri, l))
+                    .collect();
+                reply(&id, Value::Array(locations))
+            }
+
+            "textDocument/prepareRename" => {
+                let Some(offset) = self.offset_of(&uri, &req.params) else {
+                    return reply(&id, Value::Null);
+                };
+                let text = self.engine.document_text(&uri).unwrap_or_default();
+                match self.engine.prepare_rename(&uri, offset) {
+                    Ok((span, placeholder)) => reply(
+                        &id,
+                        json!({ "range": range_json(LineIndex::new(&text).range(span)), "placeholder": placeholder }),
+                    ),
+                    Err(refusal) => failed(&id, &refusal.to_string()),
+                }
+            }
+
+            // Refused, with the reason, when the new name would change what
+            // any reference means.
+            "textDocument/rename" => {
+                let Some(offset) = self.offset_of(&uri, &req.params) else {
+                    return reply(&id, Value::Null);
+                };
+                let new_name = str_at(&req.params, &["newName"]).unwrap_or_default();
+                match self.engine.rename(&uri, offset, &new_name) {
+                    Ok(per_document) => {
+                        let mut changes = serde_json::Map::new();
+                        for (doc, edits) in per_document {
+                            let text = self.engine.document_text(&doc).unwrap_or_default();
+                            let index = LineIndex::new(&text);
+                            let list: Vec<Value> = edits
+                                .iter()
+                                .map(|(s, t)| json!({ "range": range_json(index.range(*s)), "newText": t }))
+                                .collect();
+                            changes.insert(doc, Value::Array(list));
+                        }
+                        reply(&id, json!({ "changes": changes }))
+                    }
+                    Err(refusal) => failed(&id, &refusal.to_string()),
+                }
+            }
+
+            "textDocument/documentSymbol" => {
+                let Some(a) = self.engine.analysis(&uri) else {
+                    return reply(&id, Value::Null);
+                };
+                let index = LineIndex::new(&a.text);
+                let symbols: Vec<Value> = a
+                    .items()
+                    .iter()
+                    .map(|i| {
+                        json!({
+                            "name": i.name,
+                            "detail": i.signature,
+                            "kind": symbol_kind(i.kind),
+                            "range": range_json(index.range(i.span)),
+                            "selectionRange": range_json(index.range(i.name_span)),
+                        })
+                    })
+                    .collect();
+                reply(&id, Value::Array(symbols))
+            }
+
+            "workspace/symbol" => {
+                let query = str_at(&req.params, &["query"]).unwrap_or_default();
+                let mut out = Vec::new();
+                for s in self.engine.workspace_symbols(&query) {
+                    let Some(location) = self.location_json("", &s.at) else {
+                        continue;
+                    };
+                    out.push(json!({
+                        "name": s.item.name,
+                        "kind": symbol_kind(s.item.kind),
+                        "containerName": s.container,
+                        "location": location,
+                    }));
+                }
+                reply(&id, Value::Array(out))
+            }
+
+            "textDocument/signatureHelp" => {
+                let Some(offset) = self.offset_of(&uri, &req.params) else {
+                    return reply(&id, Value::Null);
+                };
+                match self.engine.signature_at(&uri, offset) {
+                    None => reply(&id, Value::Null),
+                    Some(s) => reply(
+                        &id,
+                        json!({
+                            "signatures": [{
+                                "label": s.label,
+                                "documentation": s.doc,
+                                "parameters": s.parameters.iter().map(|p| json!({ "label": p })).collect::<Vec<_>>(),
+                            }],
+                            "activeSignature": 0,
+                            "activeParameter": s.active,
+                        }),
+                    ),
+                }
             }
 
             // `blue/shift` — the reading. A custom method because LSP has no
             // standard "where am I on this language's own continuum", which is
             // the point: no other language has one to report.
-            "blue/shift" => {
-                let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
-                let Some(text) = self.documents.get(&uri).cloned() else {
-                    return reply(&id, Value::Null);
-                };
-                reply(&id, shift_json(&crate::shift_of(&text)))
-            }
+            "blue/shift" => match self.shift(&uri) {
+                Some(s) => reply(&id, shift_json(&s)),
+                None => reply(&id, Value::Null),
+            },
 
             // An unknown METHOD with an id is an error reply; an unknown
             // NOTIFICATION is silence, per the JSON-RPC spec. Replying to a
@@ -354,6 +504,89 @@ impl Server {
         }
         Ok(())
     }
+
+    /// The byte offset a request's `position` names in its document.
+    fn offset_of(&self, uri: &str, params: &Value) -> Option<usize> {
+        let text = self.engine.document_text(uri)?;
+        let pos = Position {
+            line: u32_at(params, &["position", "line"]).unwrap_or(0),
+            character: u32_at(params, &["position", "character"]).unwrap_or(0),
+        };
+        Some(LineIndex::new(&text).offset(pos))
+    }
+
+    fn diagnostics_notification(&self, uri: &str) -> Value {
+        let diags = diagnostics(&self.engine, uri)
+            .iter()
+            .map(diagnostic_json)
+            .collect();
+        publish(uri, diags)
+    }
+
+    /// The reading, from the tree the engine parsed this revision into.
+    fn shift(&self, uri: &str) -> Option<crate::Shift> {
+        let a = self.engine.analysis(uri)?;
+        let forms = a.parsed.as_ref().as_ref().ok().map(Vec::as_slice);
+        Some(crate::shift::shift_of_tree(&a.text, forms))
+    }
+
+    /// A `blue/shift` notification, pushed on open and on every change.
+    fn shift_notification(&self, uri: &str) -> Value {
+        let mut params = self.shift(uri).map_or(Value::Null, |s| shift_json(&s));
+        if let Some(obj) = params.as_object_mut() {
+            obj.insert("uri".to_string(), json!(uri));
+        }
+        json!({ "jsonrpc": "2.0", "method": "blue/shift", "params": params })
+    }
+
+    /// Hover: the signature, where it resolved, its doc line, and under it
+    /// the document's shift reading. A custom request only helps a client
+    /// that knows to ask; hover works in every editor today, which is what
+    /// makes the shift *always visible* rather than opt-in.
+    fn hover_markdown(&self, uri: &str, h: &crate::analysis::Hover) -> String {
+        let mut md = format_code(&h.signature);
+        md.push_str("\n\n");
+        md.push_str(&h.namespace);
+        if let Some(doc) = &h.doc {
+            md.push_str("\n\n");
+            md.push_str(doc);
+        }
+        if let Some(reading) = self.shift(uri) {
+            md.push_str("\n\n---\n\n");
+            md.push_str(&reading.summary());
+            if let Some(rung) = reading.rung {
+                md.push_str("\n\n");
+                md.push_str(rung.meaning());
+            }
+            // Name what is holding it back — the actionable half.
+            let held = reading.holding_back();
+            if !held.is_empty() {
+                md.push_str("\n\nshifting further:");
+                for f in held.iter().take(3) {
+                    md.push_str("\n- ");
+                    md.push_str(&f.detail);
+                }
+            }
+        }
+        md
+    }
+
+    /// A located span as an LSP `Location`: an open document by its uri,
+    /// any other file by a `file://` uri of its path.
+    fn location_json(&self, from: &str, l: &Located) -> Option<Value> {
+        let (uri, text) = match &l.file {
+            FileRef::Document(doc) => (doc.clone(), self.engine.document_text(doc)?.to_string()),
+            FileRef::Path(p) => {
+                let text = match self.engine.analysis(from) {
+                    Some(a) => a.file_text(&l.file).map(str::to_string),
+                    None => None,
+                }
+                .or_else(|| std::fs::read_to_string(p).ok())?;
+                (uri_of(p), text)
+            }
+        };
+        Some(json!({ "uri": uri, "range": range_json(LineIndex::new(&text).range(l.span)) }))
+    }
 }
 
 /// Handle one message against a fresh server. For callers that do not need
@@ -371,10 +604,16 @@ fn capabilities() -> Value {
             "textDocumentSync": 1,
             "documentFormattingProvider": true,
             "hoverProvider": true,
-            "codeActionProvider": { "codeActionKinds": ["quickfix"] },
-            // From the check stage's name table; `.` is not a trigger, since
-            // a send's method name is any function in scope anyway.
-            "completionProvider": { "resolveProvider": false },
+            "codeActionProvider": { "codeActionKinds": ["quickfix", "source.fixAll"] },
+            // `:` completes after a qualifier (`kueri::`); a send's method
+            // name is any function in scope anyway, so `.` is not one.
+            "completionProvider": { "resolveProvider": false, "triggerCharacters": [":"] },
+            "definitionProvider": true,
+            "referencesProvider": true,
+            "renameProvider": { "prepareProvider": true },
+            "documentSymbolProvider": true,
+            "workspaceSymbolProvider": true,
+            "signatureHelpProvider": { "triggerCharacters": ["(", ","] },
             // Colour. The legend is derived from `tokens::SemanticTokenType`,
             // never written out here — the enum's order IS the wire format,
             // and a second spelling of it is a way to repaint every buffer
@@ -404,6 +643,14 @@ fn reply(id: &Option<Value>, result: Value) -> Response {
     }
 }
 
+/// A request understood and refused, with the reason a person reads.
+fn failed(id: &Option<Value>, message: &str) -> Response {
+    match id {
+        Some(id) => Response::Reply(error_reply(id, REQUEST_FAILED, message)),
+        None => Response::None,
+    }
+}
+
 fn error_reply(id: &Value, code: i64, message: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -412,14 +659,57 @@ fn error_reply(id: &Value, code: i64, message: &str) -> Value {
     })
 }
 
-impl Server {
-    fn diagnostics_notification(&self, uri: &str, text: &str) -> Value {
-        let diags = analyse_with(text, self.loader.as_ref())
-            .diagnostics
-            .iter()
-            .map(diagnostic_json)
-            .collect();
-        publish(uri, diags)
+/// A completion as LSP JSON: ranked by tier through `sortText`, its
+/// namespace and tier in `labelDetails`, and the `use` it needs, if any, as
+/// an additional edit.
+fn completion_json(rank: usize, c: blue_lang_mondou::Completion, index: &LineIndex) -> Value {
+    let kind = match c.kind {
+        blue_lang_mondou::CompletionKind::Function => 3,
+        blue_lang_mondou::CompletionKind::Value => 6,
+        blue_lang_mondou::CompletionKind::Keyword => 14,
+    };
+    let mut v = json!({
+        "label": c.label,
+        "kind": kind,
+        "detail": c.namespace,
+        "labelDetails": { "description": c.tier.label() },
+        "sortText": format!("{}{rank:05}", c.tier as u8),
+    });
+    let Some(obj) = v.as_object_mut() else {
+        return v;
+    };
+    if let Some(insert) = c.insert {
+        obj.insert("insertText".to_string(), json!(insert));
+    }
+    let documentation = match (c.signature, c.doc) {
+        (Some(s), Some(d)) => Some(format!("{}\n\n{d}", format_code(&s))),
+        (Some(s), None) => Some(format_code(&s)),
+        (None, Some(d)) => Some(d),
+        (None, None) => None,
+    };
+    if let Some(d) = documentation {
+        obj.insert(
+            "documentation".to_string(),
+            json!({ "kind": "markdown", "value": d }),
+        );
+    }
+    if let Some((span, text)) = c.edit {
+        obj.insert(
+            "additionalTextEdits".to_string(),
+            json!([{ "range": range_json(index.range(span)), "newText": text }]),
+        );
+    }
+    v
+}
+
+/// LSP `SymbolKind`.
+fn symbol_kind(kind: blue_lang_mondou::ItemKind) -> i64 {
+    use blue_lang_mondou::ItemKind;
+    match kind {
+        ItemKind::Function | ItemKind::Macro => 12,
+        ItemKind::Value => 13,
+        ItemKind::Test => 24,
+        ItemKind::Use => 2,
     }
 }
 
@@ -471,15 +761,6 @@ fn shift_json(s: &crate::Shift) -> Value {
     })
 }
 
-/// A `blue/shift` notification, pushed on open and on every change.
-fn shift_notification(uri: &str, text: &str) -> Value {
-    let mut params = shift_json(&crate::shift_of(text));
-    if let Some(obj) = params.as_object_mut() {
-        obj.insert("uri".to_string(), json!(uri));
-    }
-    json!({ "jsonrpc": "2.0", "method": "blue/shift", "params": params })
-}
-
 fn range_json(r: crate::Range) -> Value {
     json!({
         "start": { "line": r.start.line, "character": r.start.character },
@@ -494,6 +775,40 @@ fn format_code(sig: &str) -> String {
     out.push_str("```blue\n");
     out.push_str(sig);
     out.push_str("\n```");
+    out
+}
+
+/// The file a `file://` uri names; `None` for any other scheme.
+fn path_of(uri: &str) -> Option<PathBuf> {
+    let rest = uri.strip_prefix("file://")?;
+    let bytes = rest.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(b) = u8::from_str_radix(&rest[i + 1..i + 3], 16) {
+                out.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).ok().map(PathBuf::from)
+}
+
+/// A `file://` uri for `path`, escaping what a uri cannot hold.
+fn uri_of(path: &std::path::Path) -> String {
+    let mut out = String::from("file://");
+    for b in path.display().to_string().bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
     out
 }
 
@@ -585,25 +900,114 @@ mod tests {
         json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })
     }
 
+    /// Each advertised provider and the request it promises an answer to.
+    const ADVERTISED: &[(&str, &str)] = &[
+        ("documentFormattingProvider", "textDocument/formatting"),
+        ("hoverProvider", "textDocument/hover"),
+        ("codeActionProvider", "textDocument/codeAction"),
+        ("completionProvider", "textDocument/completion"),
+        ("definitionProvider", "textDocument/definition"),
+        ("referencesProvider", "textDocument/references"),
+        ("renameProvider", "textDocument/rename"),
+        ("documentSymbolProvider", "textDocument/documentSymbol"),
+        ("workspaceSymbolProvider", "workspace/symbol"),
+        ("signatureHelpProvider", "textDocument/signatureHelp"),
+        ("semanticTokensProvider", "textDocument/semanticTokens/full"),
+    ];
+
+    /// Requests a client may send that this server does not answer, so it
+    /// must not claim them.
+    const NOT_IMPLEMENTED: &[(&str, &str)] = &[
+        ("typeDefinitionProvider", "textDocument/typeDefinition"),
+        ("implementationProvider", "textDocument/implementation"),
+        ("declarationProvider", "textDocument/declaration"),
+        (
+            "documentHighlightProvider",
+            "textDocument/documentHighlight",
+        ),
+        (
+            "documentRangeFormattingProvider",
+            "textDocument/rangeFormatting",
+        ),
+        (
+            "documentOnTypeFormattingProvider",
+            "textDocument/onTypeFormatting",
+        ),
+        ("foldingRangeProvider", "textDocument/foldingRange"),
+        ("selectionRangeProvider", "textDocument/selectionRange"),
+        ("inlayHintProvider", "textDocument/inlayHint"),
+        ("codeLensProvider", "textDocument/codeLens"),
+        ("documentLinkProvider", "textDocument/documentLink"),
+        ("callHierarchyProvider", "textDocument/prepareCallHierarchy"),
+    ];
+
+    /// **`initialize` advertises exactly what is implemented**, in both
+    /// directions: every capability it lists has a request arm that answers
+    /// (not `method not found`), every capability key is one this test knows,
+    /// and every request it does not answer is absent. A capability claimed
+    /// and not delivered is worse than one absent: the client stops offering
+    /// its own fallback.
+    ///
+    /// Red run (2026-10-10): `definitionProvider` advertised with the
+    /// `textDocument/definition` arm removed — `definitionProvider is
+    /// advertised and textDocument/definition answers method not found`.
     #[test]
     fn initialize_advertises_only_what_is_implemented() {
         let Response::Reply(r) = handle(&req(1, "initialize", json!({}))) else {
             panic!("expected a reply");
         };
-        let caps = &r["result"]["capabilities"];
-        assert_eq!(caps["documentFormattingProvider"], json!(true));
-        assert_eq!(caps["hoverProvider"], json!(true));
-        // Implemented, so advertised: both read the check stage.
-        assert!(caps.get("completionProvider").is_some());
+        let caps = r["result"]["capabilities"]
+            .as_object()
+            .expect("capabilities");
+        let mut known: Vec<&str> = ADVERTISED.iter().map(|(c, _)| *c).collect();
+        known.push("textDocumentSync");
+        for key in caps.keys() {
+            assert!(
+                known.contains(&key.as_str()),
+                "`{key}` is advertised and nothing here says it is implemented"
+            );
+        }
+        let answers = |method: &str| {
+            let mut s = Server::new();
+            open(&mut s, "file:///caps.b", PROGRAM);
+            let params = json!({
+                "textDocument": { "uri": "file:///caps.b" },
+                "position": { "line": 0, "character": 5 },
+                "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 0, "character": 0 } },
+                "context": { "includeDeclaration": true, "diagnostics": [] },
+                "newName": "plus",
+                "query": "",
+            });
+            match s.handle_value(&req(2, method, params)) {
+                Response::Reply(r) => r["error"]["code"] != json!(-32601),
+                _ => false,
+            }
+        };
+        for (cap, method) in ADVERTISED {
+            assert!(
+                caps.contains_key(*cap),
+                "`{cap}` is implemented and not advertised"
+            );
+            assert!(
+                answers(method),
+                "{cap} is advertised and {method} answers method not found"
+            );
+        }
+        for (cap, method) in NOT_IMPLEMENTED {
+            assert!(
+                !caps.contains_key(*cap),
+                "`{cap}` is advertised and not implemented"
+            );
+            assert!(
+                !answers(method),
+                "{method} answers and `{cap}` is not advertised"
+            );
+        }
         assert_eq!(
             caps["codeActionProvider"]["codeActionKinds"],
-            json!(["quickfix"])
+            json!(["quickfix", "source.fixAll"])
         );
-        // Not advertised, because not implemented. A capability claimed and not
-        // delivered is worse than one absent: the client stops offering its own
-        // fallback.
-        assert!(caps.get("definitionProvider").is_none());
-        assert!(caps.get("renameProvider").is_none());
+        assert_eq!(caps["renameProvider"]["prepareProvider"], json!(true));
     }
 
     const TYPO: &str = "def f(xs)\n  lenght(xs)\nend\n\ndef g(x, y)\n  x\nend\n";
@@ -644,7 +1048,7 @@ mod tests {
         let Response::Reply(r) = s.handle_value(&req(
             7,
             "textDocument/codeAction",
-            json!({ "textDocument": { "uri": "file:///t.b" }, "range": whole, "context": { "diagnostics": [] } }),
+            json!({ "textDocument": { "uri": "file:///t.b" }, "range": whole, "context": { "diagnostics": [], "only": ["quickfix"] } }),
         )) else {
             panic!("expected a reply");
         };
@@ -871,7 +1275,7 @@ mod tests {
             json!([]),
             "the fixed document must clear its errors"
         );
-        assert_eq!(s.document("file:///a.b"), Some(PROGRAM));
+        assert_eq!(s.document("file:///a.b").as_deref(), Some(PROGRAM));
     }
 
     #[test]
@@ -950,7 +1354,7 @@ mod tests {
     /// fatal.
     #[test]
     fn an_unknown_request_errors_and_an_unknown_notification_is_silent() {
-        let Response::Reply(r) = handle(&req(11, "textDocument/rename", json!({}))) else {
+        let Response::Reply(r) = handle(&req(11, "textDocument/typeDefinition", json!({}))) else {
             panic!("a request must get an error reply")
         };
         assert_eq!(r["error"]["code"], json!(-32601));

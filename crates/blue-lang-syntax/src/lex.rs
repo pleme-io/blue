@@ -551,10 +551,6 @@ impl<'a> Lexer<'a> {
         {
             self.pos += 1;
         }
-        // Ruby's trailing `?` and `!` are part of the name.
-        if matches!(self.peek(), Some(b'?') | Some(b'!')) {
-            self.pos += 1;
-        }
         let name = self.src[start..self.pos].to_string();
 
         // `foo:` is a hash label — one token, so `{foo: 1}` needs no
@@ -691,6 +687,33 @@ mod tests {
             vec![
                 TokenKind::Ident("empty?".into()),
                 TokenKind::Ident("save!".into()),
+            ]
+        );
+    }
+
+    /// A name takes ONE trailing `?` or `!`, and never the `!` of `!=`.
+    ///
+    /// A second, unconditional suffix step used to follow the guarded one, so
+    /// `x!=3` lexed as `x!` then `=`: a statement became the binding
+    /// `(define x! 3)` and the comparison vanished without an error. The
+    /// kiwari grammar spec, which states the identifier rule once, is what
+    /// put the two steps side by side.
+    #[test]
+    fn a_bang_before_equals_is_the_operator_not_the_name() {
+        assert_eq!(
+            kinds("x!=3"),
+            vec![
+                TokenKind::Ident("x".into()),
+                TokenKind::Op("!=".into()),
+                TokenKind::Int(3),
+            ]
+        );
+        assert_eq!(
+            kinds("ok?! x"),
+            vec![
+                TokenKind::Ident("ok?".into()),
+                TokenKind::Op("!".into()),
+                TokenKind::Ident("x".into()),
             ]
         );
     }

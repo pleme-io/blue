@@ -86,7 +86,10 @@ fn eval_answers_a_value_and_what_the_code_wrote() {
     let r = s.ask(json!({"id": "two", "op": "eval", "code": "nope()"}));
     assert_eq!(r["status"], "error", "{r}");
     assert_eq!(r["error"]["code"], "B0001");
-    assert!(r["error"]["message"].as_str().unwrap().starts_with("<eval>:1:1:"));
+    assert!(r["error"]["message"]
+        .as_str()
+        .unwrap()
+        .starts_with("<eval>:1:1:"));
 }
 
 #[test]
@@ -94,9 +97,15 @@ fn a_function_redefined_in_the_session_changes_every_caller() {
     let mut s = Server::start(&[]);
     s.ask(json!({"id": 1, "op": "eval", "code": "def rate()\n  1\nend\n"}));
     s.ask(json!({"id": 2, "op": "eval", "code": "def total(n)\n  n * rate()\nend\n"}));
-    assert_eq!(s.ask(json!({"id": 3, "op": "eval", "code": "total(5)"}))["value"], "5");
+    assert_eq!(
+        s.ask(json!({"id": 3, "op": "eval", "code": "total(5)"}))["value"],
+        "5"
+    );
     s.ask(json!({"id": 4, "op": "eval", "code": "def rate()\n  3\nend\n"}));
-    assert_eq!(s.ask(json!({"id": 5, "op": "eval", "code": "total(5)"}))["value"], "15");
+    assert_eq!(
+        s.ask(json!({"id": 5, "op": "eval", "code": "total(5)"}))["value"],
+        "15"
+    );
 }
 
 #[test]
@@ -141,12 +150,18 @@ fn interrupt_halts_an_infinite_loop_while_it_runs() {
         replies.insert(r["id"].as_i64().unwrap(), r);
     }
     assert_eq!(replies[&2]["status"], "interrupted", "{}", replies[&2]);
-    assert_eq!(replies[&3]["status"], "interrupted", "a queued request is cancelled");
+    assert_eq!(
+        replies[&3]["status"], "interrupted",
+        "a queued request is cancelled"
+    );
     assert_eq!(replies[&4]["status"], "ok");
     assert_eq!(replies[&5]["status"], "ok");
     let r = s.ask(json!({"id": 6, "op": "interrupt", "target": 2}));
     assert_eq!(r["error"]["code"], "no-such-request", "{r}");
-    assert_eq!(s.ask(json!({"id": 7, "op": "eval", "code": "2"}))["value"], "2");
+    assert_eq!(
+        s.ask(json!({"id": 7, "op": "eval", "code": "2"}))["value"],
+        "2"
+    );
 }
 
 #[test]
@@ -192,7 +207,10 @@ fn expand_answers_the_form_one_step_or_fully() {
     assert_eq!(r["status"], "ok", "{r}");
     assert_eq!(r["form"], "[length(\"ab\"), length(\"ab\")]");
     let r = s.ask(json!({"id": 3, "op": "expand", "code": "1 + 2", "step": "all"}));
-    assert_eq!(r["form"], "1 + 2", "a form with no macro is its own expansion");
+    assert_eq!(
+        r["form"], "1 + 2",
+        "a form with no macro is its own expansion"
+    );
 }
 
 #[test]
@@ -227,7 +245,12 @@ fn the_repl_reads_multi_line_input_and_its_commands_from_a_pipe() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
     let out = child.wait_with_output().unwrap();
     assert!(out.status.success());
     let text = String::from_utf8(out.stdout).unwrap();
@@ -236,15 +259,24 @@ fn the_repl_reads_multi_line_input_and_its_commands_from_a_pipe() {
         path.display()
     );
     assert!(text.starts_with(&expected), "{text}");
-    assert!(text.contains("volatile: `read_file` reaches the host (filesystem)"), "{text}");
+    assert!(
+        text.contains("volatile: `read_file` reaches the host (filesystem)"),
+        "{text}"
+    );
     assert!(!text.contains("=> 1\n"), "nothing after :quit runs: {text}");
     let history = std::fs::read_to_string(state.join("blue/history")).unwrap();
-    assert!(history.starts_with("def f(x)\n  x + 10\nend\nf(1)\n"), "{history}");
+    assert!(
+        history.starts_with("def f(x)\n  x + 10\nend\nf(1)\n"),
+        "{history}"
+    );
 }
 
 #[test]
 fn eval_once_prints_the_value_or_says_why_not() {
-    let out = blue().args(["eval", "[1, 2] |> length()"]).output().unwrap();
+    let out = blue()
+        .args(["eval", "[1, 2] |> length()"])
+        .output()
+        .unwrap();
     assert!(out.status.success());
     assert_eq!(String::from_utf8_lossy(&out.stdout), "2\n");
     let out = blue().args(["eval", "now_ms()"]).output().unwrap();

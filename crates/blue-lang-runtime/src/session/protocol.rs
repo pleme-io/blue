@@ -104,7 +104,10 @@ pub fn serve<W: Write + Send + 'static>(
 
 fn interrupt(queue: &Mutex<Queue>, flag: &AtomicBool, target: Option<&Json>) -> Map<String, Json> {
     let Some(target) = target else {
-        return failure("bad-request", "`interrupt` needs a `target`: the id to halt");
+        return failure(
+            "bad-request",
+            "`interrupt` needs a `target`: the id to halt",
+        );
     };
     let mut q = lock(queue);
     if q.running.as_ref() == Some(target) {
@@ -136,7 +139,11 @@ fn handle(session: &mut Session, request: &Map<String, Json>) -> Map<String, Jso
             reply(session.eval(code, file, budget), "value", Json::from)
         }
         Some("load") => match file {
-            Some(f) => reply(session.load(f, text("code"), Load::Whole), "defined", Json::from),
+            Some(f) => reply(
+                session.load(f, text("code"), Load::Whole),
+                "defined",
+                Json::from,
+            ),
             None => failure("bad-request", "`load` needs `file`"),
         },
         Some("expand") => {
@@ -184,7 +191,9 @@ fn handle(session: &mut Session, request: &Map<String, Json>) -> Map<String, Jso
         }
         Some(other) => failure(
             "unknown-op",
-            format!("no op `{other}`; the ops are eval, load, expand, complete, doc, interrupt, reset"),
+            format!(
+                "no op `{other}`; the ops are eval, load, expand, complete, doc, interrupt, reset"
+            ),
         ),
         None => failure("bad-request", "a request needs `op`"),
     }
@@ -257,4 +266,3 @@ fn write<W: Write>(out: &Mutex<W>, id: &Json, fields: Map<String, Json>) {
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
-

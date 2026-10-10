@@ -132,7 +132,10 @@ fn reaching_the_host_is_volatile_under_the_pure_frame_directly_or_through_a_call
         reach: Capability::FileSystem,
         name: "read_file".to_string(),
     };
-    assert_eq!(stop(s.eval("read_file(\"/etc/hosts\")", None, None)), refused);
+    assert_eq!(
+        stop(s.eval("read_file(\"/etc/hosts\")", None, None)),
+        refused
+    );
     value(s.eval("def peek()\n  read_file(\"/etc/hosts\")\nend\n", None, None));
     assert_eq!(stop(s.eval("peek()", None, None)), refused);
     assert_eq!(
@@ -183,7 +186,10 @@ fn a_loaded_file_is_a_context_its_definitions_resolve_in() {
 
 #[test]
 fn evaluating_in_an_unloaded_file_loads_its_definitions_only() {
-    let path = file("defs.b", "def three()\n  3\nend\n\nwrite_stdout(\"main\")\n");
+    let path = file(
+        "defs.b",
+        "def three()\n  3\nend\n\nwrite_stdout(\"main\")\n",
+    );
     let mut s = session();
     let o = s.eval("three()", Some(&path), None);
     assert_eq!(o.out, "", "the file's program did not run");
@@ -251,5 +257,8 @@ fn incomplete_input_is_told_from_a_wrong_one() {
     for done in ["1 + 2", "def f(x)\n  x\nend", ""] {
         assert!(!incomplete(done), "{done:?}");
     }
-    assert!(!incomplete("1 + + )"), "a wrong token mid-line is an error, not more to read");
+    assert!(
+        !incomplete("1 + + )"),
+        "a wrong token mid-line is an error, not more to read"
+    );
 }

@@ -75,11 +75,10 @@ pub fn eval(target: &str, args: &SessionArgs) -> Result<ExitCode, String> {
     let mut session = Session::new(args.config()?);
     let outcome = match at_point(target) {
         Some((file, line, col)) => {
-            let text = std::fs::read_to_string(&file)
-                .map_err(|e| format!("{}: {e}", file.display()))?;
-            let form = form_at(&text, line, col).ok_or_else(|| {
-                format!("{target}: no top-level form at that point")
-            })?;
+            let text =
+                std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+            let form = form_at(&text, line, col)
+                .ok_or_else(|| format!("{target}: no top-level form at that point"))?;
             session.eval(&text[form], Some(&file), None)
         }
         None => session.eval(target, None, None),
@@ -188,7 +187,14 @@ pub fn repl(args: &SessionArgs) -> Result<ExitCode, String> {
     let mut lines = stdin.lock();
     loop {
         if interactive {
-            print!("{}", if buffer.is_empty() { "blue> " } else { "   .. " });
+            print!(
+                "{}",
+                if buffer.is_empty() {
+                    "blue> "
+                } else {
+                    "   .. "
+                }
+            );
             let _ = std::io::stdout().flush();
         }
         let mut line = String::new();
@@ -217,7 +223,9 @@ pub fn repl(args: &SessionArgs) -> Result<ExitCode, String> {
         flag.store(false, Ordering::SeqCst);
         WROTE.store(0, Ordering::SeqCst);
         if let Some(command) = entry.strip_prefix(':') {
-            let (name, rest) = command.split_once(char::is_whitespace).unwrap_or((command, ""));
+            let (name, rest) = command
+                .split_once(char::is_whitespace)
+                .unwrap_or((command, ""));
             let rest = rest.trim();
             match name {
                 "quit" | "q" => break,
@@ -238,12 +246,20 @@ pub fn repl(args: &SessionArgs) -> Result<ExitCode, String> {
                     }
                 }
                 "expand" | "expand1" => {
-                    let step = if name == "expand" { Step::All } else { Step::One };
+                    let step = if name == "expand" {
+                        Step::All
+                    } else {
+                        Step::One
+                    };
                     show(session.expand(rest, context.as_deref(), step));
                 }
                 "doc" => match session.doc(rest, context.as_deref()) {
                     Some(item) => {
-                        println!("{}  ({})", item.signature.unwrap_or(item.name), item.namespace);
+                        println!(
+                            "{}  ({})",
+                            item.signature.unwrap_or(item.name),
+                            item.namespace
+                        );
                         if let Some(doc) = item.doc {
                             println!("  {doc}");
                         }

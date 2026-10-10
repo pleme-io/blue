@@ -141,14 +141,19 @@ mod tests {
 
     #[test]
     fn values_render_as_the_literal_that_produces_them() {
-        let list = Value::List(Arc::new(vec![
-            Value::Int(1),
-            Value::Str(Arc::from("a")),
-            Value::Keyword(Arc::from("k")),
-        ]
-        .into()));
+        let list = Value::List(Arc::new(
+            vec![
+                Value::Int(1),
+                Value::Str(Arc::from("a")),
+                Value::Keyword(Arc::from("k")),
+            ]
+            .into(),
+        ));
         assert_eq!(render_value(&list), r#"[1, "a", :k]"#);
         assert_eq!(render_value(&Value::Nil), "nil");
-        assert_eq!(render_value(&Value::List(Arc::new(Vec::new().into()))), "[]");
+        assert_eq!(
+            render_value(&Value::List(Arc::new(Vec::new().into()))),
+            "[]"
+        );
     }
 }

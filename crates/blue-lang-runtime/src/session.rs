@@ -100,9 +100,14 @@ impl Config {
 pub enum Stop {
     Error(Failure),
     /// The code reached a host capability the frame does not grant.
-    Volatile { reach: Capability, name: String },
+    Volatile {
+        reach: Capability,
+        name: String,
+    },
     /// The step budget ran out.
-    Exhausted { limit: usize },
+    Exhausted {
+        limit: usize,
+    },
     Interrupted,
 }
 
@@ -233,7 +238,6 @@ struct Context {
     names: Option<NameTable>,
 }
 
-
 /// One evaluation session.
 pub struct Session {
     interp: Interpreter<Host>,
@@ -308,7 +312,12 @@ impl Session {
     /// Evaluate `code` in `file`'s context (loading its definitions first if
     /// it is not loaded), or the session's own when `file` is `None`. Answers
     /// the value of the last form as canonical blue text.
-    pub fn eval(&mut self, code: &str, file: Option<&Path>, budget: Option<usize>) -> Outcome<String> {
+    pub fn eval(
+        &mut self,
+        code: &str,
+        file: Option<&Path>,
+        budget: Option<usize>,
+    ) -> Outcome<String> {
         let result = self
             .context_key(file)
             .and_then(|key| self.run_code(&key, code, budget, Action::Evaluate))
@@ -425,17 +434,24 @@ impl Session {
         Ok(key)
     }
 
-    fn load_inner(&mut self, file: &Path, text: Option<&str>, how: Load) -> Result<Vec<String>, Stop> {
+    fn load_inner(
+        &mut self,
+        file: &Path,
+        text: Option<&str>,
+        how: Load,
+    ) -> Result<Vec<String>, Stop> {
         let path = canonical(file);
         let text = match text {
             Some(t) => t.to_string(),
             None => std::fs::read_to_string(&path).map_err(|e| {
-                Stop::Error(Failure::new("not-found", format!("{}: {e}", file.display())))
+                Stop::Error(Failure::new(
+                    "not-found",
+                    format!("{}: {e}", file.display()),
+                ))
             })?,
         };
-        let mut forms = split(&text).map_err(|e| {
-            Stop::Error(Failure::new("parse", format!("{}:{e}", file.display())))
-        })?;
+        let mut forms = split(&text)
+            .map_err(|e| Stop::Error(Failure::new("parse", format!("{}:{e}", file.display()))))?;
         for (order, f) in forms.iter_mut().enumerate() {
             if how == Load::Whole || f.persists() {
                 f.fresh = Some((order, None));
@@ -461,9 +477,8 @@ impl Session {
         budget: Option<usize>,
         action: Action,
     ) -> Result<Value, Stop> {
-        let new = split(code).map_err(|e| {
-            Stop::Error(Failure::new("parse", format!("{CODE_LABEL}:{e}")))
-        })?;
+        let new = split(code)
+            .map_err(|e| Stop::Error(Failure::new("parse", format!("{CODE_LABEL}:{e}"))))?;
         let mut ctx = self.contexts.remove(key).unwrap_or_default();
         let mut forms = ctx.forms.clone();
         let mut code_at = 0;
@@ -571,7 +586,9 @@ impl Session {
         }
         asked.sort_unstable();
 
-        let limit = budget.or(self.budget).or(crate::execution_bounds().max_steps);
+        let limit = budget
+            .or(self.budget)
+            .or(crate::execution_bounds().max_steps);
         let _ = self.interp.set_budget(tatara_lisp_eval::vm::Budget {
             fuel: limit,
             max_depth: Some(crate::execution_bounds().max_call_depth),
@@ -658,8 +675,7 @@ impl Session {
             } => Stop::Exhausted { limit: *limit },
             other => {
                 let at = other.span().unwrap_or_else(Span::synthetic);
-                let message =
-                    pipeline::display_keys(&crate::messages::describe(other, erased));
+                let message = pipeline::display_keys(&crate::messages::describe(other, erased));
                 Stop::Error(Failure::new("runtime", place(at, &message)))
             }
         }
@@ -697,7 +713,10 @@ fn expand_form(
     };
     let call = Sexp::List(vec![
         Sexp::Atom(Atom::Symbol(head.to_string())),
-        Sexp::List(vec![Sexp::Atom(Atom::Symbol("quote".to_string())), form.to_sexp()]),
+        Sexp::List(vec![
+            Sexp::Atom(Atom::Symbol("quote".to_string())),
+            form.to_sexp(),
+        ]),
     ]);
     interp.eval_spanned(&Spanned::from_sexp_synthetic(&call), host)
 }
@@ -745,29 +764,43 @@ fn build(frame: &Waku, interrupt: &Arc<AtomicBool>, host: &mut Host) -> Interpre
 /// Rebind every primitive that writes to stdout so the session receives what
 /// it writes. Each keeps its formatting.
 fn capture_output(interp: &mut Interpreter<Host>) {
-    interp.register_fn("write_stdout", Arity::Exact(1), |a: &[Value], h: &mut Host, s| {
-        match &a[0] {
+    interp.register_fn(
+        "write_stdout",
+        Arity::Exact(1),
+        |a: &[Value], h: &mut Host, s| match &a[0] {
             Value::Str(t) => {
                 h.write(t);
                 Ok(Value::Nil)
             }
             other => Err(EvalError::type_mismatch("string", other.type_name(), s)),
-        }
-    });
-    interp.register_fn("display", Arity::Exact(1), |a: &[Value], h: &mut Host, _| {
-        h.write(&a[0].to_string());
-        Ok(Value::Nil)
-    });
+        },
+    );
+    interp.register_fn(
+        "display",
+        Arity::Exact(1),
+        |a: &[Value], h: &mut Host, _| {
+            h.write(&a[0].to_string());
+            Ok(Value::Nil)
+        },
+    );
     interp.register_fn("print", Arity::Exact(1), |a: &[Value], h: &mut Host, _| {
         h.write(&format!("{}\n", a[0]));
         Ok(Value::Nil)
     });
-    interp.register_fn("newline", Arity::Exact(0), |_: &[Value], h: &mut Host, _| {
-        h.write("\n");
-        Ok(Value::Nil)
-    });
+    interp.register_fn(
+        "newline",
+        Arity::Exact(0),
+        |_: &[Value], h: &mut Host, _| {
+            h.write("\n");
+            Ok(Value::Nil)
+        },
+    );
     interp.register_fn("println", Arity::Any, |a: &[Value], h: &mut Host, _| {
-        let line = a.iter().map(ToString::to_string).collect::<Vec<_>>().join(" ");
+        let line = a
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" ");
         h.write(&format!("{line}\n"));
         Ok(Value::Nil)
     });
@@ -803,9 +836,7 @@ fn split(text: &str) -> Result<Vec<Form>, blue_lang_syntax::ParseError> {
 pub fn incomplete(code: &str) -> bool {
     match blue_lang_syntax::parse_program_tree(code) {
         Ok(_) => false,
-        Err(e) => {
-            e.span.end >= code.trim_end().len() || e.message.starts_with("unterminated")
-        }
+        Err(e) => e.span.end >= code.trim_end().len() || e.message.starts_with("unterminated"),
     }
 }
 

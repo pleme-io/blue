@@ -13,6 +13,8 @@ tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 blue-lang-syntax = { workspace = true }
 blue-lang-check = { workspace = true }
+blue-lang-fmt = { workspace = true }
+blue-lang-waku = { workspace = true }
 thiserror = { workspace = true }
 # Cryptography with no C (`crypto`, and `inputs`' content addressing). Features
 # are pinned, not defaulted, so a default that compiles C cannot arrive on a

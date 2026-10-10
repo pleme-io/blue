@@ -318,7 +318,7 @@ pub(crate) fn prepare(
 }
 
 /// Parse the entry (in `surface`, if one is given) and splice in its imports.
-fn parse_and_resolve(
+pub(crate) fn parse_and_resolve(
     entry: Entry<'_>,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
@@ -354,7 +354,7 @@ fn parse_and_resolve(
 /// file only; an imported package's warnings belong to its author. Errors
 /// are reported for every file, because an imported package with one is
 /// broken for its importer.
-fn check_stage(
+pub(crate) fn check_stage(
     program: &crate::uses::ResolvedProgram,
     builtins: &NameTable,
     with_tests: bool,

@@ -38,10 +38,12 @@ pub mod erase;
 pub mod hosted;
 pub mod inputs;
 pub mod json;
+pub mod literal;
 pub mod messages;
 #[cfg(feature = "sys")]
 pub mod net;
 pub mod pipeline;
+pub mod session;
 pub mod stdlib;
 #[cfg(feature = "sys")]
 pub mod sys;

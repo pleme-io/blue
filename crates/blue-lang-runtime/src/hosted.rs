@@ -92,16 +92,19 @@ impl<H: 'static> Hosted<H> {
         let callee = match self.lookup(name) {
             Some(v @ (Value::Closure(_) | Value::NativeFn(_))) => v,
             Some(other) => {
-                return Err(RunError::Eval(format!(
-                    "{name} is not a function (it is {})",
-                    kind(&other)
+                return Err(RunError::Eval(Box::new(crate::observe::Fault::from(
+                    format!("{name} is not a function (it is {})", kind(&other)),
+                ))))
+            }
+            None => {
+                return Err(RunError::Eval(Box::new(
+                    format!("no function named {name}").into(),
                 )))
             }
-            None => return Err(RunError::Eval(format!("no function named {name}"))),
         };
         self.interp
             .apply_external_value(&callee, args, host, tatara_lisp::Span::synthetic())
-            .map_err(|e| RunError::Eval(format!("{name}: {}", e.short_message())))
+            .map_err(|e| RunError::Eval(Box::new(format!("{name}: {}", e.short_message()).into())))
     }
 }
 

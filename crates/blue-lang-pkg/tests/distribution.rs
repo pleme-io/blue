@@ -114,7 +114,7 @@ fn run_tests(name: &str) -> (usize, Vec<String>) {
             .map(|d| d.message.clone())
             .collect::<Vec<_>>()
     );
-    let report = blue_lang_test::run(&checked.evaluable());
+    let report = blue_lang_test::run_checked(&checked, None, None);
     (
         report.passed,
         report.failures.iter().map(ToString::to_string).collect(),

@@ -42,6 +42,7 @@ pub mod literal;
 pub mod messages;
 #[cfg(feature = "sys")]
 pub mod net;
+pub mod observe;
 pub mod pipeline;
 pub mod session;
 pub mod stdlib;

@@ -244,42 +244,60 @@ fn comparison_callee(name: &str) -> bool {
 /// name is captured. Quoted data is left alone.
 #[must_use]
 pub fn compare_asserts(form: &Sexp) -> Sexp {
-    let sym = |s: &str| Sexp::Atom(Atom::Symbol(s.to_string()));
-    match form {
-        Sexp::List(items) => {
-            let is_assert = matches!(
-                items.first(),
-                Some(Sexp::Atom(Atom::Symbol(h))) if h.as_str() == blue_lang_syntax::LOWERED_ASSERT
-            );
+    compare_asserts_spanned(&Spanned::from_sexp_synthetic(form)).to_sexp()
+}
+
+/// [`compare_asserts`] on the spanned tree: every node it keeps keeps its
+/// span, and the nodes it builds carry the `assert`'s.
+#[must_use]
+pub fn compare_asserts_spanned(form: &Spanned) -> Spanned {
+    use tatara_lisp::SpannedForm;
+    let at = form.span;
+    let node = |f: SpannedForm| Spanned::new(at, f);
+    let sym = |s: &str| node(SpannedForm::Atom(Atom::Symbol(s.to_string())));
+    let list = |items: Vec<Spanned>| node(SpannedForm::List(items));
+    match &form.form {
+        SpannedForm::List(items) => {
+            let is_assert = items.first().and_then(Spanned::as_symbol)
+                == Some(blue_lang_syntax::LOWERED_ASSERT);
             if is_assert && items.len() == 3 {
-                if let Sexp::List(cmp) = &items[2] {
-                    if let [Sexp::Atom(Atom::Symbol(op)), a, b] = cmp.as_slice() {
-                        if comparison_callee(op) {
-                            let (l, r) = ("blue-assert-lhs", "blue-assert-rhs");
-                            return Sexp::List(vec![
-                                sym("let"),
-                                Sexp::List(vec![
-                                    Sexp::List(vec![sym(l), compare_asserts(a)]),
-                                    Sexp::List(vec![sym(r), compare_asserts(b)]),
-                                ]),
-                                Sexp::List(vec![
-                                    sym(ASSERT_COMPARE),
-                                    items[1].clone(),
-                                    sym(l),
-                                    sym(r),
-                                    Sexp::List(vec![sym(op), sym(l), sym(r)]),
-                                ]),
-                            ]);
-                        }
+                if let Some([op, a, b]) = items[2].as_list() {
+                    if op.as_symbol().is_some_and(comparison_callee) {
+                        let (l, r) = ("blue-assert-lhs", "blue-assert-rhs");
+                        return list(vec![
+                            sym("let"),
+                            list(vec![
+                                list(vec![sym(l), compare_asserts_spanned(a)]),
+                                list(vec![sym(r), compare_asserts_spanned(b)]),
+                            ]),
+                            list(vec![
+                                sym(ASSERT_COMPARE),
+                                items[1].clone(),
+                                sym(l),
+                                sym(r),
+                                list(vec![op.clone(), sym(l), sym(r)]),
+                            ]),
+                        ]);
                     }
                 }
             }
-            Sexp::List(items.iter().map(compare_asserts).collect())
+            Spanned::new(
+                at,
+                SpannedForm::List(items.iter().map(compare_asserts_spanned).collect()),
+            )
         }
-        Sexp::Quote(_) => form.clone(),
-        Sexp::Quasiquote(inner) => Sexp::Quasiquote(Box::new(compare_asserts(inner))),
-        Sexp::Unquote(inner) => Sexp::Unquote(Box::new(compare_asserts(inner))),
-        Sexp::UnquoteSplice(inner) => Sexp::UnquoteSplice(Box::new(compare_asserts(inner))),
+        SpannedForm::Quasiquote(inner) => Spanned::new(
+            at,
+            SpannedForm::Quasiquote(Box::new(compare_asserts_spanned(inner))),
+        ),
+        SpannedForm::Unquote(inner) => Spanned::new(
+            at,
+            SpannedForm::Unquote(Box::new(compare_asserts_spanned(inner))),
+        ),
+        SpannedForm::UnquoteSplice(inner) => Spanned::new(
+            at,
+            SpannedForm::UnquoteSplice(Box::new(compare_asserts_spanned(inner))),
+        ),
         _ => form.clone(),
     }
 }
@@ -402,42 +420,128 @@ pub fn run(forms: &[Sexp]) -> Report {
                 test: test.name.clone(),
                 error,
             }),
-            Ok(()) => {
-                if rec.failed.load(Ordering::SeqCst) {
-                    let expression = rec
-                        .expression
-                        .lock()
-                        .ok()
-                        .and_then(|s| s.clone())
-                        .unwrap_or_else(|| "<expression unavailable>".to_string());
-                    let operands = rec.operands.lock().ok().and_then(|s| s.clone());
-                    report.failures.push(Failure::Assertion {
-                        test: test.name.clone(),
-                        expression,
-                        operands,
-                    });
-                } else {
-                    report.passed += 1;
-                }
-            }
+            Ok(()) => record_verdict(&mut report, &test.name, &rec),
         }
     }
 
     report
 }
 
-// `pending-run-positions:` blue-test. This runner is the last caller still on
-// the OLD shape, and knowingly so. `Test::body` is a spanless `Sexp` — the
-// harness has never held a position — so the lift below is the honest one:
-// there is no span to preserve, and stamping `Span::synthetic()` says exactly
-// that. What follows it is the print-then-reparse round trip
-// `lower_to_spanned` was written to delete and `pipeline` no longer does:
-// erased forms serialised to text and read back through `tatara_lisp`'s lexer,
-// which `blue_lang_runtime`'s own docs pin as a silent-miscompile path (the
-// printer and the reader are not inverses over symbols). Closing it means
-// carrying `Spanned` from the parser through `Test`, which also buys `blue
-// test` the `file:line:col` failure that `blue run` just gained — one piece of
-// work, not two, and deliberately not folded into this change.
+/// One `test` block of a checked program: its name, its body, and the
+/// top-level form it is.
+struct Block<'a> {
+    name: String,
+    body: &'a Spanned,
+    top_level: usize,
+}
+
+/// Run the test blocks of a checked program whose name contains `filter`,
+/// on the tree `blue run` evaluates.
+///
+/// The spanned path, so an error in a test or in anything it calls reads
+/// `file:line:col: message` with the blue call stack under it
+/// (`blue_lang_runtime::observe::Fault`). `observer`, when given, watches the
+/// preamble and every test (each test's fork inherits it): `blue test
+/// --coverage` passes a `Recorder`.
+#[must_use]
+pub fn run_checked(
+    checked: &blue_lang_runtime::pipeline::Checked,
+    filter: Option<&str>,
+    observer: Option<Arc<dyn blue_lang_runtime::observe::CallObserver>>,
+) -> Report {
+    use blue_lang_runtime::observe::Fault;
+    let erased = checked.erased();
+    let program = &checked.program;
+    let mut blocks = Vec::new();
+    let mut preamble = Vec::new();
+    for (i, form) in erased.iter().enumerate() {
+        let test = form.as_list().and_then(|items| match items {
+            [head, name, body] if head.as_symbol() == Some("deftest") => {
+                name.as_string().map(|n| (n.to_string(), body))
+            }
+            _ => None,
+        });
+        match test {
+            Some((name, body)) => blocks.push(Block {
+                name,
+                body,
+                top_level: i,
+            }),
+            None => preamble.push((i, form)),
+        }
+    }
+    blocks.retain(|b| filter.is_none_or(|f| b.name.contains(f)));
+
+    let mut report = Report::default();
+    let mut prototype = blue_lang_runtime::interpreter_hostless();
+    prototype.set_call_observer(observer);
+    let preamble_rec = Recorder::default();
+    install_assert(&mut prototype, &preamble_rec);
+    let fault = |interp: &Interpreter<()>, i: usize, e: &tatara_lisp_eval::EvalError| {
+        Fault::of(program, &erased, i, e, &interp.take_trace()).to_string()
+    };
+    let mut preamble_error = None;
+    for (i, form) in preamble {
+        if let Err(e) = prototype.eval_top_form(&compare_asserts_spanned(form), &mut ()) {
+            preamble_error = Some(fault(&prototype, i, &e));
+            break;
+        }
+    }
+    if preamble_error.is_none() && preamble_rec.failed.load(Ordering::SeqCst) {
+        preamble_error = Some("an assertion in the file's preamble failed".to_string());
+    }
+    report.preamble_evaluations = 1;
+    if let Some(error) = preamble_error {
+        for block in &blocks {
+            report.failures.push(Failure::Errored {
+                test: block.name.clone(),
+                error: error.clone(),
+            });
+        }
+        return report;
+    }
+
+    for block in &blocks {
+        let rec = Recorder::default();
+        let mut interp = prototype.fork();
+        install_assert(&mut interp, &rec);
+        match interp.eval_top_form(&compare_asserts_spanned(block.body), &mut ()) {
+            Err(e) => report.failures.push(Failure::Errored {
+                test: block.name.clone(),
+                error: fault(&interp, block.top_level, &e),
+            }),
+            Ok(_) => record_verdict(&mut report, &block.name, &rec),
+        }
+    }
+    report
+}
+
+/// A finished test's verdict: its first failed assertion, or a pass.
+fn record_verdict(report: &mut Report, test: &str, rec: &Recorder) {
+    if rec.failed.load(Ordering::SeqCst) {
+        let expression = rec
+            .expression
+            .lock()
+            .ok()
+            .and_then(|s| s.clone())
+            .unwrap_or_else(|| "<expression unavailable>".to_string());
+        let operands = rec.operands.lock().ok().and_then(|s| s.clone());
+        report.failures.push(Failure::Assertion {
+            test: test.to_string(),
+            expression,
+            operands,
+        });
+    } else {
+        report.passed += 1;
+    }
+}
+
+// The spanless path, kept for a caller holding only parsed `Sexp` (the spec
+// runner). It lifts with `Span::synthetic()` and then round-trips the erased
+// forms through text, the print-then-reparse hop `blue_lang_runtime` pins as a
+// silent-miscompile path; a caller with a checked program uses
+// [`run_checked`], which evaluates the real tree and reports positions and
+// the call stack.
 fn eval_all(interp: &mut Interpreter<()>, forms: &[Sexp]) -> Result<(), String> {
     let lifted: Vec<_> = forms
         .iter()

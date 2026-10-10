@@ -55,28 +55,14 @@ pub enum RunError {
     Lower(String),
     /// The program ran and raised.
     ///
-    /// Rendered `file:line:col: message` against the file the failing form's
-    /// top-level form came from — the same `uses::ResolvedProgram::locate`
-    /// machinery, the same file table and the same join key the type errors
-    /// above use. Until erasure learned to carry spans this was a bare
-    /// message, because the evaluator was handed a tree whose every node had
-    /// been stamped `Span::synthetic()` on the way in.
-    ///
-    /// **The honest limit, stated so nobody reads more into a position than is
-    /// there.** The index names the top-level form that was EXECUTING; the span
-    /// names where the failing text SITS. Those agree on the file whenever the
-    /// failing code is in the same file as the top-level form that reached it —
-    /// which is every single-file program, and an imported package whose own
-    /// top-level code raises. They can disagree when a top-level form in file A
-    /// calls a function defined in file B and the raise happens inside B: the
-    /// path reported is A's. `locate` refuses to print a `line:col` it cannot
-    /// justify (the span must be a real range in that file), so the usual shape
-    /// of that case is a file with no position rather than a precise-looking
-    /// wrong one — but a same-length pair of files can still put a plausible
-    /// number on the wrong file. Closing it needs per-frame file identity at
-    /// the evaluator, which is a call stack blue does not have.
+    /// Rendered `file:line:col: message`, then the blue call stack the error
+    /// unwound through, innermost first (`crate::observe::Fault`). The
+    /// position is resolved against the file of the innermost frame's
+    /// definition, so a raise inside a callee from another file names the
+    /// callee's file and line; before the stack existed that case could only
+    /// name the caller's file, with no position.
     #[error("runtime error: {0}")]
-    Eval(String),
+    Eval(Box<crate::observe::Fault>),
     /// A `use("name")` could not be resolved.
     ///
     /// Its own variant rather than folded into `Parse`, because the reader's
@@ -206,6 +192,53 @@ pub fn run_in_surface(
         visited: prepared.visited,
         typed_decls: prepared.typed_decls,
         seams: prepared.seams,
+    })
+}
+
+/// A run watched by a call observer, and the definitions the observer was
+/// built over.
+pub struct Observed {
+    pub definitions: std::sync::Arc<crate::observe::Definitions>,
+    /// The run itself: its value, or the error it stopped on.
+    pub outcome: Result<Run, RunError>,
+}
+
+/// [`run_in_surface`] with a call observer installed for the evaluation.
+/// `watch` builds the observer from the program's definitions once every stage
+/// before evaluation has passed; the profiler, the tracer and coverage are
+/// all built this way (`crate::observe::Recorder`).
+///
+/// # Errors
+///
+/// A parse, import or check error, which leaves nothing to run. A runtime
+/// error is the [`Observed::outcome`], so what ran before it is still read.
+pub fn run_observed(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    watch: impl FnOnce(
+        &std::sync::Arc<crate::observe::Definitions>,
+    ) -> std::sync::Arc<dyn crate::observe::CallObserver>,
+) -> Result<Observed, RunError> {
+    let mut interp = crate::interpreter_hostless();
+    crate::inputs::install_input_primitives(&mut interp, inputs);
+    let prepared = prepare(entry, loader, surface, &builtin_names(&interp))?;
+    let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
+        &prepared.program,
+        &prepared.erased,
+    ));
+    interp.set_call_observer(Some(watch(&definitions)));
+    let outcome = eval_prepared(&mut interp, &prepared, &mut ()).map(|value| Run {
+        value,
+        visited: prepared.visited,
+        typed_decls: prepared.typed_decls,
+        seams: prepared.seams,
+    });
+    interp.set_call_observer(None);
+    Ok(Observed {
+        definitions,
+        outcome,
     })
 }
 
@@ -798,11 +831,6 @@ pub fn syntax_diagnostic(text: &str) -> Option<blue_lang_check::Diagnostic> {
 /// backticks names it `retsu::first`, or `f` for the author's own script.
 #[must_use]
 pub fn display_keys(message: &str) -> String {
-    let root = format!(
-        "{}{}",
-        blue_lang_check::names::ROOT_QUALIFIER,
-        blue_lang_syntax::QUALIFIER
-    );
     let mut out = String::with_capacity(message.len());
     let mut parts = message.split('`');
     if let Some(first) = parts.next() {
@@ -812,13 +840,7 @@ pub fn display_keys(message: &str) -> String {
         out.push('`');
         // Odd pieces (0-based here) are inside backticks.
         if i % 2 == 0 {
-            if let Some(rest) = part.strip_prefix(&root) {
-                out.push_str(rest);
-            } else if let Some((pkg, name)) = blue_lang_syntax::qualified(part) {
-                out.push_str(&format!("{pkg}::{name}"));
-            } else {
-                out.push_str(part);
-            }
+            out.push_str(&crate::observe::display_key(part));
         } else {
             out.push_str(part);
         }
@@ -852,32 +874,19 @@ pub(crate) fn eval_prepared<H: 'static>(
     let mut value = Value::Nil;
     for (top_level, form) in erased.iter().enumerate() {
         value = interp.eval_top_form(form, host).map_err(|e| {
-            // `span()` is `None` for the arms that genuinely have no position
-            // (`Reader`, `Halted`, `NotImplemented`). Synthetic is the honest
-            // stand-in — `locate` renders it as a file with no line rather
-            // than inventing one.
-            let at = e.span().unwrap_or_else(tatara_lisp::Span::synthetic);
-            // `short_message`, NOT `Display`. Upstream's `Display` ends every
-            // positioned arm with ` at {span}` — a raw byte range — and once
-            // blue prefixes a resolved `path:line:col` that suffix is the same
-            // fact told twice, the second time in a unit no reader can spend.
-            //
-            // Worse than redundant: a byte range is exactly the thing this
-            // whole file-identity apparatus exists to stop being reported on
-            // its own, because an offset means something different in every
-            // file. On the one case blue deliberately declines to place — a
-            // raise inside a callee from another file — `Display` would print
-            // the CALLEE's offsets beside the CALLER's path, re-creating the
-            // precise-looking wrong answer `locate`'s guard just refused.
-            // `short_message` is upstream's own "no source context" accessor,
-            // and blue supplies the context.
-            //
-            // Through `messages::describe`, which is `short_message` except
-            // where blue can say more: a wrong argument count names the
-            // function the author called, read off the call in this tree,
-            // instead of upstream's `<closure>` and a Rust `Debug` arity.
-            let message = display_keys(&crate::messages::describe(&e, erased));
-            RunError::Eval(program.locate(top_level, at, &message).to_string())
+            // The message, its position and the blue call stack, read off the
+            // frames the error unwound through (`observe::Fault`). The message
+            // is `short_message` rather than upstream's `Display`, whose
+            // trailing ` at {span}` is a bare byte range with no file, through
+            // `messages::describe`, which names the function a wrong argument
+            // count was called on.
+            RunError::Eval(Box::new(crate::observe::Fault::of(
+                program,
+                erased,
+                top_level,
+                &e,
+                &interp.take_trace(),
+            )))
         })?;
     }
     Ok(value)
@@ -942,7 +951,7 @@ bakuhatsu()";
     const KOTAE: &str = "def kotae()\n  42\nend";
 
     /// The same failing call, but only ever reached by a CALLER in another
-    /// file — the shape that exercises `RunError::Eval`'s stated limit.
+    /// file — the shape the call stack resolved (the last position test).
     const BAKUHATSU2: &str =
         "# waive B0001: a raise at runtime\ndef yobu()\n  kore_wa_sonzai_shinai()\nend";
 
@@ -1019,7 +1028,9 @@ bakuhatsu()";
         let err = run_named("entry.b", TWO_IMPORTS);
         assert_eq!(
             err.to_string(),
-            "runtime error: bakuhatsu.b:11:3: unbound symbol `kore_wa_sonzai_shinai`"
+            "runtime error: bakuhatsu.b:11:3: unbound symbol `kore_wa_sonzai_shinai`\n  \
+             at bakuhatsu::bakuhatsu (bakuhatsu.b:11:3)\n  \
+             at <top level> (bakuhatsu.b:14:1)"
         );
     }
 
@@ -1103,61 +1114,44 @@ bakuhatsu()";
         );
         assert_eq!(
             err.to_string(),
-            "runtime error: chuu.b:3:3: unbound symbol `mada_nai`"
+            "runtime error: chuu.b:3:3: unbound symbol `mada_nai`\n  \
+             at f (chuu.b:3:3)\n  \
+             at <top level> (chuu.b:6:1)"
         );
     }
 
-    /// **The stated limit, pinned rather than left to be discovered.**
+    /// **The limit this module used to state, closed by the call stack.**
     ///
     /// A top-level form in the entry file calls a function defined in an
-    /// imported one, and the raise happens inside the callee. The index names
-    /// the executing form (the entry's), the span names the callee's bytes,
-    /// and the two disagree about the file. `locate`'s in-range guard is what
-    /// keeps that from rendering as a precise-looking `entry:line:col`: the
-    /// offset is not a range in the entry file, so no position is printed.
+    /// imported one, and the raise happens inside the callee. The executing
+    /// form is the entry's and the span is the callee's bytes, so until the
+    /// evaluator reported the frames an error unwound through, the best blue
+    /// could do was name the caller's file with no position (the guard in
+    /// `uses::ResolvedProgram::locate` refusing an offset it could not
+    /// justify). The innermost frame's definition now names the file the
+    /// offsets belong to, and the stack shows the call that led there.
     ///
-    /// This test asserts the CURRENT behaviour, including the part that is
-    /// wrong — the path is the caller's. It is here so the next author reads
-    /// the limit off a green suite instead of off a bug report. Closing it
-    /// needs per-frame file identity at the evaluator; see `RunError::Eval`.
-    ///
-    /// **Red run** (2026-08-12), the `span.end <= file.text.len()` guard
-    /// removed from `uses::ResolvedProgram::locate` — and it is the ONLY test
-    /// in the crate that moves, which is the same run's evidence that the
-    /// guard is a no-op on every check-time diagnostic:
+    /// **Red run** (2026-10-10): `Fault::of` locating against the executing
+    /// top-level form instead of the innermost frame's definition:
     /// ```text
-    /// left:  "runtime error: yobidashi.b:1:14: unbound symbol `kore_wa_sonzai_shinai`"
-    /// right: "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`"
+    /// left:  "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`\n  at bakuhatsu2::yobu (bakuhatsu2.b:3:3)\n  at <top level> (yobidashi.b:3:1)"
     /// ```
-    /// `1:14` lands in the middle of `use("bakuhatsu2")` — the callee's start
-    /// offset happens to be in range for the caller's file even though its end
-    /// is not, so a wrong file gets a precise number pointing at innocent
-    /// code. Exactly the failure this repo's file-identity work exists to
-    /// refuse, which is why the guard tests BOTH ends.
-    ///
-    /// **Re-run 2026-09-29**, after the fixtures gained their waiver lines:
-    /// the guard's END check replaced by a start check (`span.start <= len`),
-    /// with the caller padded so the callee's start (byte 47) is in range and
-    /// its end (byte 70) is not:
-    /// ```text
-    /// left:  "runtime error: yobidashi.b:3:1: unbound symbol `kore_wa_sonzai_shinai`"
-    /// right: "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`"
-    /// ```
+    /// The old answer, kept by the guard: the caller's file and no position.
     #[test]
-    fn a_raise_in_a_callee_from_another_file_reports_no_position_rather_than_a_wrong_one() {
+    fn a_raise_in_a_callee_from_another_file_names_the_callees_file() {
         // The comment is padding, and load-bearing: `bakuhatsu2.b`'s failing
         // call starts at byte 47 (after its waiver line) and ends at 70, and
         // this file is 57 bytes, so the start is in range here and the end is
-        // not — the half-in-range case the guard's END check exists for.
+        // not — a mis-attribution would still be refused rather than placed.
         let err = run_named(
             "yobidashi.b",
             "use(\"bakuhatsu2\")\n# pad: 47 in range\nbakuhatsu2::yobu()\n",
         );
         assert_eq!(
             err.to_string(),
-            "runtime error: yobidashi.b: unbound symbol `kore_wa_sonzai_shinai`",
-            "the caller's file is named (the stated limit) but NOT with a \
-             position it cannot justify"
+            "runtime error: bakuhatsu2.b:3:3: unbound symbol `kore_wa_sonzai_shinai`\n  \
+             at bakuhatsu2::yobu (bakuhatsu2.b:3:3)\n  \
+             at <top level> (yobidashi.b:3:1)"
         );
     }
 }

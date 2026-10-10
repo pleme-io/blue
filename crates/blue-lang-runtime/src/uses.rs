@@ -400,9 +400,10 @@ impl ResolvedProgram {
             // place blue owns the file table.
             //
             // In range is NECESSARY, not sufficient: two files long enough to
-            // share an offset can still trade a plausible number. That residue
-            // is `RunError::Eval`'s stated limit and wants a call stack, not a
-            // wider guard here.
+            // share an offset can still trade a plausible number. A runtime
+            // error now avoids that by locating against the innermost frame's
+            // definition (`observe::Fault`), so the residue is a frame with no
+            // named definition, not a wider guard here.
             line_col: (!span.is_synthetic() && span.end <= file.text.len())
                 .then(|| Span::line_col(&file.text, span.start)),
             message,
@@ -433,6 +434,25 @@ pub struct Located<'a> {
     origin: Origin<'a>,
     line_col: Option<(usize, usize)>,
     message: &'a str,
+}
+
+impl Located<'_> {
+    /// The file it names, as [`std::fmt::Display`] prints it: a path,
+    /// `<anonymous>`, or `None` when no owning file could be found.
+    #[must_use]
+    pub fn file_name(&self) -> Option<String> {
+        match self.origin {
+            Origin::File(p) => Some(p.display().to_string()),
+            Origin::Anonymous => Some("<anonymous>".to_string()),
+            Origin::Unresolved => None,
+        }
+    }
+
+    /// The 1-based line and column, when the span is a real range in that file.
+    #[must_use]
+    pub fn line_col(&self) -> Option<(usize, usize)> {
+        self.line_col
+    }
 }
 
 impl std::fmt::Display for Located<'_> {

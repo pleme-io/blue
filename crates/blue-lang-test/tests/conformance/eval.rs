@@ -194,7 +194,7 @@ fn failed(e: &RunError) -> Obs {
         },
         RunError::Eval(m) => Obs::Failed {
             stage: Stage::Eval,
-            message: unlocate(m),
+            message: unlocate(&m.located),
         },
         RunError::Lower(m) => Obs::Failed {
             stage: Stage::Eval,

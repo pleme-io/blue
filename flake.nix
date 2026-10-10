@@ -527,6 +527,14 @@
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
           blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
 
+          # The binary nix builds runs a bare script with no Bluefile and no
+          # BLUE_PATH, and the script's `use("retsu")` reaches the standard
+          # distribution compiled into it (`blue_lang_pkg::embedded`).
+          script-standard = pkgs.runCommand "script-standard" { } ''
+            ${blue}/bin/blue ${./examples/00_script.b} standard > $out
+            grep -qx STANDARD $out
+          '';
+
           # Every word the engine lowers, read back from a built project: the
           # fixture states the words this repository's own Bluefile does not
           # (a root `needs`, a tool, runs reading runs, a check, an app).

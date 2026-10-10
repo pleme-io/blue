@@ -15,11 +15,37 @@ names in [`docs/REFERENCE.md`](docs/REFERENCE.md) (built-ins, operators,
 syntax) and [`bidamas/CATALOG.md`](bidamas/CATALOG.md) (every bidama
 definition). Both are generated from the implementation and gated fresh.
 
+## A file is a program; a project is one command away
+
+A script needs no structure. `blue new --script tool.b` writes one that opens
+with `#!/usr/bin/env blue` and is executable, so both of these run it:
+
+```text
+blue tool.b a b        ./tool.b a b
+```
+
+It can `use` every standard bidama with no Bluefile and no `BLUE_PATH`: they
+are compiled into `blue`. Run this way a script prints only what it writes, and
+every argument after the file reaches `argv()` as given. A subcommand wins over
+a file of the same name; `blue ./test` runs the file.
+
+When a script outgrows one file, `blue new NAME` starts a project: a Bluefile
+with `packages("bidamas")`, its lock, the stub `flake.nix`, the code and tests
+in `bidamas/NAME/NAME.b`, and `main.b` calling it. `blue new --bidama NAME`
+writes a package alone, inside a distribution's directory.
+
+`use("pkg")` looks in order: the roots on `BLUE_PATH`, then the `packages`
+roots of the project the file sits in (the nearest Bluefile above it that
+declares them), then the distribution compiled into `blue`. First match wins.
+
 ## Commands
 
 | | |
 |---|---|
-| `blue run file.b` | run a program; `--quiet` drops the final value, `-- a b` passes arguments |
+| `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv()` |
+| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments |
+| `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
+| `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
 | `blue test file.b` | check it, then run its `test` blocks |
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
@@ -27,7 +53,8 @@ definition). Both are generated from the implementation and gated fresh.
 | `blue reference` | the language reference as JSON |
 
 `run`, `test` and `check` rewrite a non-canonical file in place before they
-compile it, and say `blue: formatted <file>`. Bidamas are found on `BLUE_PATH`:
+compile it, and say `blue: formatted <file>`. A checkout's bidamas override
+the compiled-in ones from `BLUE_PATH`:
 `BLUE_PATH=path/to/blue/bidamas blue test file.b`.
 
 ## The traps that cost the most

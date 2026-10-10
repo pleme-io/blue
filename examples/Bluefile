@@ -11,6 +11,7 @@ package("blue-examples", "1.0.0")
 
 packages("bidamas")
 
+check("script", "00_script.b")
 check("files", "01_files.b")
 check("data", "02_data.b")
 check("lists-and-maps", "03_lists_and_maps.b")

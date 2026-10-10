@@ -27,18 +27,21 @@ def ex_uncomment(line)
   strip_prefix(strip_prefix(line, "#"), " ")
 end
 
-# [title, prose lines, code] for one example's text.
+# [title, prose lines, code] for one example's text. A script's shebang line
+# is not its title: it stays at the top of the code.
 def ex_parts(text)
   all = lines(text)
-  head = take_while(fn(l) ex_comment?(l) end, all)
+  bang = filter(fn(l) starts_with?(l, "#!") end, take(1, all))
+  body = drop(length(bang), all)
+  head = take_while(fn(l) ex_comment?(l) end, body)
   code = drop_while(
     fn(l) l == "" end,
-    drop_while(fn(l) ex_comment?(l) end, all)
+    drop_while(fn(l) ex_comment?(l) end, body)
   )
   [
     ex_uncomment(first(head)),
     map(fn(l) ex_uncomment(l) end, rest(head)),
-    join(code, "\n")
+    join(concat_lists(bang, code), "\n")
   ]
 end
 

@@ -1,14 +1,15 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "fd2be54e90df8662a244070d60f7b0a0b971afe116f73f24c6d7291f5842cb16",
+  "cargo_lock_sha256": "33680bf6d726bbd151cbee86a810e32bc6ec0f8fcdf0e58a453ecb15524aa2bb",
   "manifest_sha256": {
-    "Cargo.toml": "7cfcfa6afe3b1fbffb397884d204f0f54b92d52f243a1fc66bfe0872c328fcea",
+    "Cargo.toml": "78b75fd67420a91c436dc4851b8e96ba512f5dad4fa3a0c1262872992a573f03",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
     "crates/blue-lang-cli/Cargo.toml": "d84cb9af97aec61089e934d514b21aeaeb5b2ac8b91209ffb907a8e74769d8f8",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
-    "crates/blue-lang-lsp/Cargo.toml": "7cea9b882efc3a0b1797a901b76d87156088ac2eb644e94cf7f37f87e3ff1d3a",
+    "crates/blue-lang-lsp/Cargo.toml": "30bf68843371f73f426bb85bf8b183394cadce53bd42261dd46c4001a0b287b5",
+    "crates/blue-lang-mondou/Cargo.toml": "251be8068c701f9236ae881e0ab6fe42f9614057b8af3f5c0ead7ba919e8b95d",
     "crates/blue-lang-pkg/Cargo.toml": "5b30f5432a1097812fd5f010ecbd8e6c172a2ce02f87c447f269f0591c81f825",
     "crates/blue-lang-proc/Cargo.toml": "f297f049a2eada7419858a3730f49f4477bd9f1156a137cfd5f48b3eee955267",
     "crates/blue-lang-runtime/Cargo.toml": "a7c2299d2e88676dccc6c5c41f17e93bd7a00c2feae079664dcc14a3c2b0bc25",
@@ -599,6 +600,16 @@
             "tree": "target"
           },
           {
+            "name": "blue_lang_mondou",
+            "package_key": "blue-lang-mondou-0.0.64",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "blue_lang_runtime",
             "package_key": "blue-lang-runtime-0.0.64",
             "kind": "normal",
@@ -633,6 +644,52 @@
           {
             "name": "serde_json",
             "package_key": "serde_json-1.0.151",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "blue-lang-mondou-0.0.64": {
+        "runtime_dependencies": [
+          {
+            "name": "blue_lang_check",
+            "package_key": "blue-lang-check-0.0.64",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_fmt",
+            "package_key": "blue-lang-fmt-0.0.64",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_runtime",
+            "package_key": "blue-lang-runtime-0.0.64",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_syntax",
+            "package_key": "blue-lang-syntax-0.0.64",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7037,6 +7094,13 @@
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_lsp",
+        "path": "src/lib.rs"
+      }
+    },
+    "blue-lang-mondou-0.0.64": {
+      "edition": "2021",
+      "lib_target": {
+        "name": "blue_lang_mondou",
         "path": "src/lib.rs"
       }
     },

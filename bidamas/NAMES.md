@@ -58,6 +58,7 @@ primitives, so collisions here are the expected case, not the surprising one.
 | name | reserved for |
 |---|---|
 | `blue` | the builtins' qualifier: `blue::first` is the interpreter's `first`. No package may be named `blue` (the loader refuses it). |
+| `mondou` | 問答, *question and answer*: blue's query engine (`blue-lang-mondou`), which every tool asks and which computes each answer once. Swept 2026-10-10: no claim in the fleet; the one hit is `theory/TACHIAI.md` listing `mondou` as a passed-over alternative for a witness primitive, a different sense; `mondo` hits are English test strings. |
 
 A bidama's name is now written at its call sites (`kueri::join`), so Law 2 (a
 transparent gloss) and its length cost at every call; a DEFINITION's name no

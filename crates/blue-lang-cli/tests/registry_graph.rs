@@ -1,6 +1,6 @@
 //! The gate on blue's **registry** dependency graph.
 //!
-//! blue is thirteen crates that publish as thirteen separate packages, in
+//! blue is fourteen crates that publish as fourteen separate packages, in
 //! topological order, one registry at a time. That order only exists if the
 //! graph cargo will see *on crates.io* is acyclic — and that graph is not the
 //! graph `cargo build` sees.
@@ -234,7 +234,7 @@ fn the_registry_dependency_graph_is_acyclic() {
     let graph = registry_graph();
     assert_eq!(
         graph.len(),
-        13,
+        14,
         "every workspace member must be in the graph; if this count is wrong \
          the rest of this test is measuring the wrong thing"
     );

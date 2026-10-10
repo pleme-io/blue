@@ -32,6 +32,9 @@
 //! blue reference               the language, from its own tables, as JSON
 //! blue new     NAME            a program, `--bidama` or `--script` (`scaffold`)
 //! blue watch   [CMD] PATH...   rerun check, test or run on save (`watch`)
+//! blue image build [NAME]      build a Bluefile image through nix: tarball, size, layers
+//! blue workload render [NAME]  a workload's rendered objects; --write rewrites the files
+//! blue diff --context CTX      the committed workloads against a cluster, read-only
 //! ```
 //!
 //! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
@@ -62,6 +65,7 @@ mod census;
 /// `blue migrate`'s program: blue, over builtins only.
 const MIGRATE: &str = include_str!("../blue/migrate.b");
 mod config;
+mod deploy;
 mod diagnostics;
 mod observe;
 mod prefetch;
@@ -323,6 +327,20 @@ enum Cmd {
         #[arg(last = true)]
         args: Vec<String>,
     },
+    /// The Bluefile's `image(...)` entries, built through nix.
+    Image {
+        #[command(subcommand)]
+        cmd: deploy::ImageCmd,
+    },
+    /// The Bluefile's `workload(...)` entries, rendered for GitOps.
+    Workload {
+        #[command(subcommand)]
+        cmd: deploy::WorkloadCmd,
+    },
+    /// Compare the committed workload files with a cluster, read-only: exit 0
+    /// when they agree, 1 when they differ, 2 when the comparison failed.
+    /// There is no `blue apply`; a GitOps reconciler applies the commit.
+    Diff(deploy::DiffArgs),
 }
 
 fn main() -> ExitCode {
@@ -376,6 +394,8 @@ enum CliError {
     Lock(#[from] blue_lang_pkg::lock::LockError),
     #[error("could not render JSON: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("{0}")]
+    Deploy(#[from] deploy::DeployError),
     #[error("no diagnostic code `{0}`; `blue explain --list` lists them")]
     UnknownCode(String),
     /// `--json` prints ONE manifest; several would need a container shape, and
@@ -997,6 +1017,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
+        Cmd::Image { cmd } => Ok(deploy::image(cmd)?),
+        Cmd::Workload { cmd } => Ok(deploy::workload(cmd)?),
+        Cmd::Diff(args) => Ok(deploy::diff(args)),
         Cmd::Reference => {
             println!("{}", serde_json::to_string_pretty(&reference::reference())?);
             Ok(ExitCode::SUCCESS)

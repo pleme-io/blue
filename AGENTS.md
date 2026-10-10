@@ -56,6 +56,9 @@ declares them), then the distribution compiled into `blue`. First match wins.
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
 | `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
 | `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
+| `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
+| `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
+| `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |
 
 Sessions (`eval`, `repl`, `serve`) are pure: code that reaches the host
 (`read_file`, `now_ms`, `exec_capture`, …) is refused as volatile unless the

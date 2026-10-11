@@ -47,7 +47,7 @@ declares them), then the distribution compiled into `blue`. First match wins.
 | `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
 | `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones |
-| `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time |
+| `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
 | `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |

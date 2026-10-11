@@ -7,8 +7,8 @@
 //! tail calls included. Its unwind arm is always on and costs nothing until an
 //! error, so every runtime error carries the frames it left ([`Fault`]). Its
 //! observer arm is installed only when a tool asks, and [`Recorder`] is the one
-//! observer here: counts, inclusive and exclusive time, and the trace of one
-//! definition. The hook's `enter` may also answer a call without running its
+//! observer here: counts, inclusive and exclusive time and allocations
+//! ([`crate::alloc`]), and the trace of one definition. The hook's `enter` may also answer a call without running its
 //! body, which is where a memo table keyed on a definition and its arguments
 //! plugs in (`theory/BLUE-TOOLING.md` T-M) without a second hook.
 //!
@@ -28,6 +28,7 @@ use tatara_lisp_eval::{EvalError, Value};
 
 pub use tatara_lisp_eval::observe::{Call, CallObserver, Exit, Trace, TraceFrame};
 
+use crate::alloc::Allocations;
 use crate::uses::ResolvedProgram;
 
 /// A function the program defines at the top level, under its runtime key.
@@ -461,6 +462,12 @@ pub struct Counts {
     pub inclusive: Duration,
     /// Time inside it alone.
     pub exclusive: Duration,
+    /// Allocations made inside it and everything it called, counted once
+    /// across recursion. Zero when the binary does not count allocations;
+    /// [`Recorder::counts_allocations`] says which.
+    pub allocated: Allocations,
+    /// Allocations made inside it alone.
+    pub allocated_exclusive: Allocations,
 }
 
 /// A recorded function: a definition, or a lambda no top-level name binds.
@@ -481,6 +488,10 @@ struct Active {
     slot: Slot,
     start: Option<Instant>,
     children: Duration,
+    /// This thread's allocation totals when the activation entered, read
+    /// after the recorder's own bookkeeping for the entry.
+    allocated_at: Option<Allocations>,
+    allocated_children: Allocations,
     /// The arguments of a traced activation, kept for its exit line.
     traced: Option<Vec<Value>>,
 }
@@ -612,6 +623,14 @@ impl Recorder {
     pub fn definitions(&self) -> &Definitions {
         &self.defs
     }
+
+    /// Whether the allocation columns of [`Counts`] were measured: true only
+    /// in a binary that installs [`crate::alloc::Counting`]. Elsewhere they
+    /// read zero, which means unmeasured, never "allocated nothing".
+    #[must_use]
+    pub fn counts_allocations(&self) -> bool {
+        crate::alloc::allocations().is_some()
+    }
 }
 
 /// One row of [`Recorder::report`].
@@ -648,27 +667,43 @@ impl CallObserver for Recorder {
             slot,
             start: self.timed.then(Instant::now),
             children: Duration::ZERO,
+            allocated_at: None,
+            allocated_children: Allocations::default(),
             traced,
         });
+        // Last, so the entry's own map and stack growth falls outside the
+        // window the activation is charged for.
+        if let Some(active) = state.stack.last_mut() {
+            active.allocated_at = crate::alloc::allocations();
+        }
         None
     }
 
     fn leave(&self, _call: &Call<'_>, exit: Exit<'_>) {
+        // First, for the same reason `enter` reads it last.
+        let allocated_now = crate::alloc::allocations();
         let mut state = self.state();
         let Some(active) = state.stack.pop() else {
             return;
         };
         let elapsed = active.start.map_or(Duration::ZERO, |s| s.elapsed());
+        let allocated = match (allocated_now, active.allocated_at) {
+            (Some(now), Some(at)) => now.since(at),
+            _ => Allocations::default(),
+        };
         if let Some(parent) = state.stack.last_mut() {
             parent.children += elapsed;
+            parent.allocated_children += allocated;
         }
         let live = state.live.entry(active.slot.clone()).or_default();
         *live = live.saturating_sub(1);
         let outermost = *live == 0;
         let counts = state.counts.entry(active.slot.clone()).or_default();
         counts.exclusive += elapsed.saturating_sub(active.children);
+        counts.allocated_exclusive += allocated.since(active.allocated_children);
         if outermost {
             counts.inclusive += elapsed;
+            counts.allocated += allocated;
         }
         if let (Some(t), Some(args)) = (&self.tracer, &active.traced) {
             state.trace_depth = state.trace_depth.saturating_sub(1);

@@ -34,6 +34,7 @@
 //!    rest of `blue_lang_proc::node`'s words, bound to a node of the
 //!    interpreter's own, so the program is that node's root process.
 
+pub mod alloc;
 pub mod crypto;
 pub mod docs;
 pub mod domain;

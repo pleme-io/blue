@@ -307,7 +307,8 @@ fn ms(d: Duration) -> f64 {
 }
 
 /// `blue profile FILE [--top N] [--json]`: run FILE, then every function it
-/// called with its call count and inclusive and exclusive time, most
+/// called with its call count, inclusive and exclusive time, and what it
+/// allocated (this binary installs `blue_lang_runtime::alloc::Counting`), most
 /// exclusive time first.
 pub(crate) fn profile(
     file: &Path,
@@ -324,6 +325,7 @@ pub(crate) fn profile(
         r
     })?;
     let total = started.elapsed();
+    let counted = recorder.as_ref().is_some_and(|r| r.counts_allocations());
     let mut rows: Vec<Measured> = recorder
         .map(|r| r.report())
         .unwrap_or_default()
@@ -348,6 +350,10 @@ pub(crate) fn profile(
                 "calls": m.counts.calls,
                 "inclusive_ms": ms(m.counts.inclusive),
                 "exclusive_ms": ms(m.counts.exclusive),
+                "inclusive_allocations": counted.then_some(m.counts.allocated.count),
+                "inclusive_bytes": counted.then_some(m.counts.allocated.bytes),
+                "exclusive_allocations": counted.then_some(m.counts.allocated_exclusive.count),
+                "exclusive_bytes": counted.then_some(m.counts.allocated_exclusive.bytes),
             })).collect::<Vec<_>>(),
         });
         println!("{}", serde_json::to_string(&line)?);
@@ -359,18 +365,32 @@ pub(crate) fn profile(
             rows.len()
         );
         println!(
-            "  {:>10}  {:>10}  {:>10}  {:>6}  {:<32}  defined at",
-            "calls", "incl ms", "excl ms", "excl%", "function"
+            "  {:>10}  {:>10}  {:>10}  {:>6}  {:>10}  {:>10}  {:<32}  defined at",
+            "calls", "incl ms", "excl ms", "excl%", "excl alloc", "excl KiB", "function"
         );
         for m in rows.iter().take(top) {
             #[allow(clippy::cast_precision_loss)]
             let share = ms(m.counts.exclusive) * 100.0 / ms(total).max(f64::MIN_POSITIVE);
+            // Unmeasured reads as a dash, never as a zero that claims nothing
+            // was allocated.
+            let (allocs, kib) = if counted {
+                #[allow(clippy::cast_precision_loss)]
+                let kib = m.counts.allocated_exclusive.bytes as f64 / 1024.0;
+                (
+                    m.counts.allocated_exclusive.count.to_string(),
+                    format!("{kib:.1}"),
+                )
+            } else {
+                ("-".to_string(), "-".to_string())
+            };
             println!(
-                "  {:>10}  {:>10.2}  {:>10.2}  {:>5.1}%  {:<32}  {}",
+                "  {:>10}  {:>10.2}  {:>10.2}  {:>5.1}%  {:>10}  {:>10}  {:<32}  {}",
                 m.counts.calls,
                 ms(m.counts.inclusive),
                 ms(m.counts.exclusive),
                 share,
+                allocs,
+                kib,
                 m.name,
                 m.place
             );

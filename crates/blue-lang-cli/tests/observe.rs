@@ -281,3 +281,53 @@ fn trace_prints_each_call_and_its_value() {
     assert!(!missing.status.success());
     assert!(err(&missing).contains("no definition named `nope`"));
 }
+
+/// `blue profile` charges each definition what it allocated, apart from what
+/// its callees allocated: `build` makes a 5000-element list, `twice` only
+/// calls it, and `small` adds two numbers.
+///
+/// Red runs, recorded 2026-10-11: with `Recorder::enter` never snapshotting
+/// the counter, every allocation column is 0 and the `build` arm fails; with
+/// the exclusive figure left inclusive (children not subtracted), `twice`
+/// is charged `build`'s list and the `twice` arm fails.
+#[test]
+fn profile_charges_each_definition_its_own_allocations() {
+    let d = dir("profile-alloc");
+    let f = write(
+        &d,
+        "p.b",
+        "def build(n)\n  range(0, n)\nend\n\ndef twice()\n  length(build(5000)) + length(build(5000))\nend\n\n\
+         def small(x)\n  x + 1\nend\n\ntwice() + small(1)\n",
+    );
+    let o = run(&["profile", "--json", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", err(&o));
+    let v: serde_json::Value = serde_json::from_str(out(&o).trim()).expect("JSON");
+    let field = |name: &str, key: &str| {
+        v["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == name)
+            .and_then(|f| f[key].as_u64())
+            .unwrap_or_else(|| panic!("{name}.{key} in {v}"))
+    };
+    let build = field("build", "exclusive_bytes");
+    let twice = field("twice", "exclusive_bytes");
+    let twice_incl = field("twice", "inclusive_bytes");
+    let small = field("small", "exclusive_bytes");
+    assert!(build >= 2 * 5000 * 48, "two 5000-element lists: {build} B");
+    assert!(
+        twice * 10 < build,
+        "`twice` built nothing itself: {twice} B vs {build} B"
+    );
+    assert!(
+        twice_incl >= build,
+        "inclusive covers its callees: {twice_incl} B"
+    );
+    assert!(
+        small * 100 < build,
+        "`small` allocates almost nothing: {small} B"
+    );
+    let text = run(&["profile", f.to_str().unwrap()]);
+    assert!(out(&text).contains("excl KiB"), "{}", out(&text));
+}

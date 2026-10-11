@@ -16,7 +16,7 @@
 //! blue explain CODE | --list   what a diagnostic code means
 //! blue doc     NAME | PKG      signature, doc line, namespace, tier, example
 //! blue test    FILE|DIR [--filter P] [--coverage [--json]]   check, then run `test` blocks
-//! blue profile FILE [--top N]  calls and time per function
+//! blue profile FILE [--top N]  calls, time and allocations per function
 //! blue trace   DEF FILE        every call of DEF, its arguments and its value
 //! blue deps    BLUEFILE        resolve the manifest's dependencies
 //! blue posture BLUEFILE        the posture the manifest's floors require
@@ -85,6 +85,11 @@ use blue_lang_pkg::lock::{Freshness, ManifestRecord, LOCK_FILE};
 use clap::{CommandFactory, Parser, Subcommand};
 
 use config::BlueConfig;
+
+/// Counts allocations per thread so `blue profile` can say what each
+/// definition allocated; two thread-local additions per allocation.
+#[global_allocator]
+static ALLOC: blue_lang_runtime::alloc::Counting = blue_lang_runtime::alloc::Counting;
 
 #[derive(Parser)]
 #[command(
@@ -250,7 +255,7 @@ enum Cmd {
         json: bool,
     },
     /// Run a program and report every function it called: calls, inclusive
-    /// and exclusive time, most exclusive time first.
+    /// and exclusive time, and what it allocated, most exclusive time first.
     Profile {
         file: PathBuf,
         /// How many functions to list.

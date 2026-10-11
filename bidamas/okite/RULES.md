@@ -18,3 +18,4 @@ the build.
 - **D0010** Every value has exactly one kind, each with one predicate: nil?, bool?, integer?, float?, string?, keyword?, list?, map?.
 - **D0011** The empty list is always []: no list operation returns nil for an empty result.
 - **D0012** `split` keeps every field: n separators give n + 1 fields, and join undoes split. Deviation from Ruby.
+- **D0013** A string and a keyword are different values ("a" != :a); a name is written as a keyword, and json_get and error read either as its text.

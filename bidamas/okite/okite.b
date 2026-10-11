@@ -285,6 +285,20 @@ def law_map_keys_are_exact()
   get(m, 1) == :int && get(m, 1.0) == nil
 end
 
+# waive B0023: the law is that a string key is not a keyword key
+def law_string_is_not_keyword()
+  "a" != :a && {"a" => 1} != {a: 1} && get({a: 1}, "a") == nil
+end
+
+# The string goes through a binding: B0023 respells a LITERAL string argument
+# of these calls, and the law needs the string to stay a string.
+def law_text_names_take_either()
+  doc = json_parse("{\"a\": 1}")
+  key = "a"
+  json_get(doc, key) == json_get(doc, :a) &&
+    json_get_or(doc, key, 0) == json_get_or(doc, :a, 0)
+end
+
 # ── the ledger ─────────────────────────────────────────────────────────────
 
 def decisions()
@@ -380,6 +394,16 @@ def decisions()
       rule: "`split` keeps every field: n separators give n + 1 fields, and join undoes split. Deviation from Ruby.",
       why: "Ruby drops trailing empty fields; tried, it broke nisshi, kueri and moji: a parser that loses a field loses data.",
       laws: [["join undoes split", law_split_keeps_every_field]]
+    },
+    {
+      id: "D0013",
+      date: "2026-10-10",
+      rule: "A string and a keyword are different values (\"a\" != :a); a name is written as a keyword, and json_get and error read either as its text.",
+      why: "The operator: symbols where possible, a character shorter and immutable; B0023 respells only where a builtin reads the two alike.",
+      laws: [
+        ["a string is not a keyword", law_string_is_not_keyword],
+        ["text names take either", law_text_names_take_either]
+      ]
     }
   ]
 end

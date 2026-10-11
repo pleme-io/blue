@@ -2,7 +2,7 @@
 //! one file's text. One function, so the CLI's `--fix` and an editor's "fix
 //! all" rewrite a file identically.
 
-use crate::{Applicability, Diagnostic, Edit, Fix};
+use crate::{Applicability, Diagnostic, Edit, Fix, FixKind};
 use tatara_lisp::Span;
 
 /// Apply every machine-applicable fix of `diagnostics` whose diagnostic
@@ -34,9 +34,46 @@ pub fn apply_fixes<'a>(
     in_file: &dyn Fn(usize) -> bool,
     text: &str,
 ) -> (String, usize) {
+    let (out, applied) = apply_indexed(reported, in_file, text);
+    (out, applied.len())
+}
+
+/// [`apply_machine_fixes`] for the rules whose fixes only respell the program
+/// ([`FixKind::Canonical`]): what `blue run`, `check` and `test` apply before
+/// compiling a file, as they apply the formatter. Returns the rewritten text
+/// and the index of every diagnostic whose fix was applied, so the door can
+/// still report what it fixed.
+#[must_use]
+pub fn apply_canonical_fixes(
+    diagnostics: &[Diagnostic],
+    in_file: &dyn Fn(usize) -> bool,
+    text: &str,
+) -> (String, Vec<usize>) {
+    let canonical: Vec<usize> = diagnostics
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.code.rule().fix == FixKind::Canonical)
+        .map(|(i, _)| i)
+        .collect();
+    let (out, applied) = apply_indexed(
+        canonical
+            .iter()
+            .map(|i| (diagnostics[*i].top_level, diagnostics[*i].fixes.as_slice())),
+        in_file,
+        text,
+    );
+    (out, applied.into_iter().map(|k| canonical[k]).collect())
+}
+
+/// The one applier: the position, in `reported`, of every fix it applied.
+fn apply_indexed<'a>(
+    reported: impl IntoIterator<Item = (usize, &'a [Fix])>,
+    in_file: &dyn Fn(usize) -> bool,
+    text: &str,
+) -> (String, Vec<usize>) {
     let mut edits: Vec<(Span, &str)> = Vec::new();
-    let mut applied = 0;
-    for (top_level, fixes) in reported {
+    let mut applied = Vec::new();
+    for (k, (top_level, fixes)) in reported.into_iter().enumerate() {
         if !in_file(top_level) {
             continue;
         }
@@ -66,7 +103,7 @@ pub fn apply_fixes<'a>(
                     edits.push((e.span, e.replacement.as_str()));
                 }
             }
-            applied += 1;
+            applied.push(k);
             // One fix per diagnostic: the best one.
             break;
         }

@@ -35,6 +35,7 @@ it; `blue explain --list` lists them.
 | B0020 | package-as-value | error | a bidama's name is written as a qualifier, never as a value |
 | B0021 | legacy-name | error | a renamed or moved definition is called by its new name; the old one is a bridge that closes at the next minor version |
 | B0022 | legacy-misuse | error | a `legacy_names` declaration is one of each form per bidama, dated from a version it has reached, names no name twice, and moves a name only to a definition a loaded bidama holds |
+| B0023 | name-as-string | warning | a name is a keyword, not a string: `error(:kind, …)`, `json_get(doc, :field)`, `{field: v}` |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

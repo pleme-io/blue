@@ -1080,7 +1080,7 @@ pub struct Reference {
     /// The node's address in the forms it was resolved over: the join key
     /// [`resolved_tree`] rewrites by, since spans are not unique (every node
     /// of an interpolation carries the string's span).
-    node: usize,
+    pub(crate) node: usize,
 }
 
 /// A top-level definition's name node, keyed.
@@ -1251,6 +1251,11 @@ pub fn check_names_whole(
     let file_rules =
         crate::namespace_rules::check(forms, table, namespace_of, &w.references, whole_file);
     w.diagnostics.extend(file_rules);
+    w.diagnostics.extend(crate::keyword_rules::check(
+        forms,
+        &w.references,
+        report_unused,
+    ));
     w.diagnostics.extend(table.legacy_findings.iter().cloned());
     (w.diagnostics, w.resolved)
 }

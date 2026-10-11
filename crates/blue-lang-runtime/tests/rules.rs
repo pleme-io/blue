@@ -173,3 +173,68 @@ fn a_waiver_on_an_unwaivable_rule_or_on_nothing_is_refused() {
     assert_eq!(codes_of(unused), vec![Code::B0008]);
     assert!(run(unused).is_err(), "an unused waiver stops the run");
 }
+
+/// B0023's two fix kinds, through the pipeline: machine-applicable where the
+/// builtin the head resolves to reads a string and a keyword alike (and the
+/// rewrite is applied by `apply_canonical_fixes`), maybe-incorrect for a map
+/// key, and nothing for the same call when the head is the program's own.
+///
+/// Red run (2026-10-10): `TEXT_NAMES` given `("get", 2)` made `get(m, "k")`
+/// a fourth finding, machine-applicable: `left: 4, right: 3`.
+#[test]
+fn b0023_fixes_by_kind() {
+    use blue_lang_check::{fixes::apply_canonical_fixes, Applicability};
+    let src =
+        "m = {\"k\" => 1}\n[error(\"bad\", \"why\"), json_get_or(1, \"f\", 0), get(m, \"k\")]\n";
+    let checked = check_entry(
+        Entry::anonymous(src),
+        &Imports(&[]),
+        None,
+        Checking::WithTests,
+    )
+    .expect("checks");
+    let found: Vec<(String, Applicability)> = checked
+        .outcome
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == Code::B0023)
+        .map(|d| (d.message.clone(), d.fixes[0].applicability))
+        .collect();
+    assert_eq!(found.len(), 3, "{found:?}");
+    assert_eq!(
+        found
+            .iter()
+            .filter(|(_, a)| *a == Applicability::MachineApplicable)
+            .count(),
+        2,
+        "{found:?}"
+    );
+    let (fixed, applied) = apply_canonical_fixes(&checked.outcome.diagnostics, &|_| true, src);
+    assert_eq!(applied.len(), 2);
+    assert_eq!(
+        fixed,
+        "m = {\"k\" => 1}\n[error(:bad, \"why\"), json_get_or(1, :f, 0), get(m, \"k\")]\n"
+    );
+
+    let own = "def error(k, m)\n  [k, m]\nend\n\nerror(\"bad\", \"why\")\n";
+    assert_eq!(codes_of(own), Vec::<Code>::new());
+}
+
+/// Only the rules whose fixes respell a program are applied before compiling;
+/// B0002's `_name` (an intent) and B0021's move to another bidama (a new
+/// dependency) stay `--fix`'s.
+#[test]
+fn the_canonical_rules_are_the_respellings() {
+    use blue_lang_check::FixKind;
+    let canonical: Vec<Code> = RULES
+        .iter()
+        .filter(|r| r.fix == FixKind::Canonical)
+        .map(|r| r.code)
+        .collect();
+    assert_eq!(
+        canonical,
+        [Code::B0012, Code::B0015, Code::B0018, Code::B0023]
+    );
+    assert_eq!(Code::B0002.rule().fix, FixKind::Machine);
+    assert_eq!(Code::B0021.rule().fix, FixKind::Machine);
+}

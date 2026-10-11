@@ -76,6 +76,24 @@ pub enum FixKind {
     Suggested,
     /// A fix that preserves meaning, which `blue check --fix` applies.
     Machine,
+    /// A machine fix that only RESPELLS the program — the same tree, resolved
+    /// the same, written the one way — so it is part of what canonical source
+    /// is: `blue run`, `blue check` and `blue test` apply it before they
+    /// compile, as they apply the formatter. A fix that records an intent the
+    /// tool cannot know is `Machine`, never this: B0002's `_name` says "unused
+    /// on purpose", which a file mid-edit usually is not. So is one that
+    /// crosses a dependency: B0021 moves a call to another bidama, which can
+    /// leave the old `use` unreached (an error) and, in a bidama, asks for a
+    /// Bluefile `needs` no fix writes.
+    Canonical,
+}
+
+impl FixKind {
+    /// Does `blue check --fix` apply this rule's machine-applicable fixes?
+    #[must_use]
+    pub const fn machine(self) -> bool {
+        matches!(self, FixKind::Machine | FixKind::Canonical)
+    }
 }
 
 /// One row of the registry.
@@ -352,7 +370,7 @@ is checked against the interpreter's own names.",
     B0012 {
         slug: "implicit-reference",
         severity: Error,
-        fix: Machine,
+        fix: Canonical,
         law: "a bare name that is another bidama's definition is one the file lists: `use(\"retsu\", [:first])`, or written `retsu::first`",
         witness: "use(\"kagi_a\")\n\nkagi()\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
@@ -415,7 +433,7 @@ spelling with `legacy_names`, so callers keep working while they move.",
     B0015 {
         slug: "non-canonical-import",
         severity: Error,
-        fix: Machine,
+        fix: Canonical,
         law: "a file's `use` forms come first, one per package, sorted by package, each list sorted",
         witness: "use(\"kagi_b\")\nuse(\"kagi_a\")\n\nkagi_a::kagi()\nkagi_b::kagi()\n",
         imports: [
@@ -466,7 +484,7 @@ script); a function is defined once.",
     B0018 {
         slug: "redundant-qualifier",
         severity: Error,
-        fix: Machine,
+        fix: Canonical,
         law: "a qualifier changes what its name means: not a bidama's own definition, not a listed name, not a builtin already reached bare",
         witness: "blue::length([1])\n",
         waivable: false,
@@ -558,6 +576,37 @@ sees); and an old or stripped name must not also be defined, which would
 give two definitions one name. A moves declaration names each old name
 once, the old name is no longer defined, and each new home is a bidama the
 declaring one needs and a name that home defines.",
+    }
+    B0023 {
+        slug: "name-as-string",
+        severity: Warning,
+        fix: Canonical,
+        law: "a name is a keyword, not a string: `error(:kind, …)`, `json_get(doc, :field)`, `{field: v}`",
+        witness: "error(\"bad\", \"why\")\n",
+        explanation: "\
+A keyword is a name as a value: one character shorter than the string, and
+interned, so every evaluation of `:kind` shares one allocation while every
+evaluation of `\"kind\"` makes a new string. Where a builtin reads its argument
+as text, the two are the same value to it, and the keyword is the one way to
+write it.
+
+The fix is machine-applicable, and applied before every compile like the
+formatter, exactly where the runtime reads the string and the keyword alike,
+each proven by a conformance row:
+
+    error(\"kind\", m)        the kind is stored as text either way
+    json_get(doc, \"f\")      the field is looked up by its text
+    json_get_or(doc, \"f\", d)
+
+and only when the name the call reaches is that builtin (not a local, or a
+definition of the same name), and only for a string `:name` can spell.
+
+Everywhere else a string and a keyword are different values: `\"a\" == :a` is
+false and `{\"a\" => 1}` has a different key from `{a: 1}`. So a string key in
+a map literal is reported with a suggestion only (maybe-incorrect): every
+`get`, `assoc` and `dissoc` of that key, and every map it is compared with,
+must change with it. Strings that are text — messages, paths, output — are
+not reported at all.",
     }
 }
 

@@ -157,3 +157,49 @@ fn a_closure_defined_into_its_own_environment_is_reclaimed() {
          it once per spawned process and once per test."
     );
 }
+
+/// A blue function that binds a local `fn` frees its frame on every call,
+/// while the interpreter is still running.
+///
+/// `add = fn(x) x + i end` lowers to `(define add (lambda …))` in the call's
+/// own frame, which builds the same ring once per CALL rather than once per
+/// interpreter, so `Interpreter`'s `Drop` is far too late: measured with
+/// `blue run` before tatara-lisp-eval released scope frames, a loop over such
+/// a function held 116 MB at 100k calls and 1.69 GB at 1.6M (about 1 KB a
+/// call); after, 11.2 MB at every size. The program goes through blue's own
+/// parser and erasure, so a change in how blue lowers a local binding is
+/// measured too.
+///
+/// RED RUN (2026-10-10, against tatara-lisp-eval 0.4.0): `left: 0, right: 3`,
+/// with the interpreter-teardown arms above green.
+#[test]
+fn a_function_binding_a_local_fn_frees_each_calls_frame() {
+    use std::sync::atomic::AtomicUsize;
+
+    struct Counted(Arc<AtomicUsize>);
+    impl Drop for Counted {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    let freed = Arc::new(AtomicUsize::new(0));
+    let mut interp = blue_lang_runtime::interpreter_hostless();
+    let f = Arc::clone(&freed);
+    interp.register_fn(
+        "sentinel",
+        Arity::Exact(0),
+        move |_: &[Value], _: &mut (), _| Ok(Value::Foreign(Arc::new(Counted(Arc::clone(&f))))),
+    );
+    let src = "def step(i)\n  s = sentinel()\n  add = fn(x) x + i end\n  add(1)\nend\n\
+               step(1)\nstep(2)\nstep(3)\n";
+    let tree = blue_lang_runtime::pipeline::parse_tree(src).expect("parses");
+    let forms = blue_lang_runtime::erase_types(&tree);
+    interp.eval_program(&forms, &mut ()).expect("runs");
+    assert_eq!(
+        freed.load(Ordering::SeqCst),
+        3,
+        "each call's frame held a lambda that captured it; every one must be freed \
+         when its call returns, not when the interpreter dies"
+    );
+}

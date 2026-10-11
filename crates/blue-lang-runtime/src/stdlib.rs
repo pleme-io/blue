@@ -275,19 +275,35 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             other => Err(EvalError::type_mismatch("pair", other.type_name(), span)),
         }
     });
-    interp.register_fn("append", Arity::Any, |a: &[Value], _h: &mut H, span| {
+    interp.register_owned_fn("append", Arity::Any, |a: Vec<Value>, _h: &mut H, span| {
         // Persistent concatenation: each operand's structure is shared, so
         // building a list by `append(acc, [x])` is linear overall, not
-        // quadratic (G7).
-        let mut out = tatara_lisp_eval::List::new();
+        // quadratic (G7). The arguments arrive by value, so an accumulator
+        // the caller holds alone (tatara-lisp-eval runs a tail call to an
+        // owned primitive after releasing the caller's frame) is extended in
+        // its own allocation by `Arc::make_mut` instead of copied at the tail.
+        let mut lists = Vec::with_capacity(a.len());
         for v in a {
             match v {
                 Value::Nil => {}
-                Value::List(xs) => out.append(tatara_lisp_eval::List::clone(xs)),
+                Value::List(xs) => lists.push(xs),
                 other => return Err(EvalError::type_mismatch("list", other.type_name(), span)),
             }
         }
-        Ok(Value::List(std::sync::Arc::new(out)))
+        let mut lists = lists.into_iter();
+        let Some(mut out) = lists.next() else {
+            return Ok(Value::List(std::sync::Arc::new(
+                tatara_lisp_eval::List::new(),
+            )));
+        };
+        let acc = std::sync::Arc::make_mut(&mut out);
+        for xs in lists {
+            acc.append(
+                std::sync::Arc::try_unwrap(xs)
+                    .unwrap_or_else(|shared| tatara_lisp_eval::List::clone(&shared)),
+            );
+        }
+        Ok(Value::List(out))
     });
 
     interp.register_fn("split", Arity::Exact(2), |a: &[Value], _h: &mut H, s| {

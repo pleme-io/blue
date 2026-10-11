@@ -59,6 +59,12 @@ pub enum TokenKind {
     },
     /// `:name` — a Ruby symbol, which lowers to a tatara-lisp keyword.
     Sym(String),
+    /// `%w[a b]` or `%i[a b]` — a list of strings or keywords, each word with
+    /// its own span (`crate::words`).
+    Words {
+        flavor: crate::words::Flavor,
+        words: Vec<(String, Span)>,
+    },
     True,
     False,
     Nil,
@@ -117,6 +123,7 @@ impl fmt::Display for TokenKind {
             Self::Float(v) => write!(f, "the number `{v}`"),
             Self::Str(_) | Self::InterpolatedStr { .. } => f.write_str("a string"),
             Self::Sym(s) => write!(f, "the symbol `:{s}`"),
+            Self::Words { flavor, .. } => write!(f, "the word list `{}[…]`", flavor.sigil()),
             Self::True => f.write_str("`true`"),
             Self::False => f.write_str("`false`"),
             Self::Nil => f.write_str("`nil`"),
@@ -300,6 +307,11 @@ impl<'a> Lexer<'a> {
                     }
                 }
                 c if is_ident_start(c) => self.lex_ident(start),
+                b'%' if matches!(self.peek_at(1), Some(b'w' | b'i'))
+                    && self.peek_at(2) == Some(b'[') =>
+                {
+                    self.lex_words(start)?;
+                }
                 c if OP_CHARS.as_bytes().contains(&c) => self.lex_op(start),
                 // `;` is refused by name: blue has exactly one statement
                 // separator, the new line, so a `;` is a habit from another
@@ -444,6 +456,58 @@ impl<'a> Lexer<'a> {
             parts.push(buf);
             self.push(TokenKind::InterpolatedStr { parts, exprs }, start);
         }
+        Ok(())
+    }
+
+    /// `%w[a b]` / `%i[a b]`. Words are separated by any white space, new
+    /// lines included, and each must be one `crate::words` allows: a word that
+    /// is not is refused here, naming the fix, rather than read as something
+    /// the author did not mean (`%w[a, b]` holding `"a,"`).
+    fn lex_words(&mut self, start: usize) -> Result<(), LexError> {
+        use crate::words::Flavor;
+        let flavor = if self.peek_at(1) == Some(b'w') {
+            Flavor::Strings
+        } else {
+            Flavor::Keywords
+        };
+        self.pos += 3;
+        let mut words = Vec::new();
+        loop {
+            while matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n')) {
+                self.pos += 1;
+            }
+            match self.peek() {
+                None => {
+                    return Err(self.err(
+                        format!("unterminated `{}[` word list", flavor.sigil()),
+                        start,
+                    ))
+                }
+                Some(b']') => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(_) => {}
+            }
+            let w = self.pos;
+            // Only ASCII white space separates: any other is refused inside
+            // the word, as it is everywhere outside a string.
+            while let Some((ch, width)) = self.decode_char() {
+                if matches!(ch, ']' | ' ' | '\t' | '\r' | '\n') {
+                    break;
+                }
+                self.pos += width;
+            }
+            let word = &self.src[w..self.pos];
+            if let Some(why) = crate::words::refusal(flavor, word) {
+                return Err(LexError {
+                    message: why,
+                    span: Span::new(w, self.pos),
+                });
+            }
+            words.push((word.to_string(), Span::new(w, self.pos)));
+        }
+        self.push(TokenKind::Words { flavor, words }, start);
         Ok(())
     }
 
@@ -736,6 +800,76 @@ mod tests {
             .find(|t| matches!(t.kind, TokenKind::Int(_)))
             .expect("an int token");
         assert_eq!(&src[last_int.span.start..last_int.span.end], "1");
+    }
+
+    /// `%w[…]` and `%i[…]` are one token each, every word with its own span,
+    /// new lines allowed between words.
+    ///
+    /// Red run (2026-10-10): without the `%` arm, `%w[a, b]` lexed as `%`,
+    /// `w`, `[`, … and this failed on its first token.
+    #[test]
+    fn lexes_word_lists() {
+        use crate::words::Flavor;
+        let src = "%w[a --force\n  x/y] %i[pair? b]";
+        let toks = lex(src).expect("lex");
+        let TokenKind::Words { flavor, words } = &toks[0].kind else {
+            panic!("{toks:?}");
+        };
+        assert_eq!(*flavor, Flavor::Strings);
+        let spelled: Vec<&str> = words.iter().map(|(_, at)| &src[at.start..at.end]).collect();
+        assert_eq!(spelled, ["a", "--force", "x/y"]);
+        assert_eq!(
+            words.iter().map(|(w, _)| w.as_str()).collect::<Vec<_>>(),
+            spelled
+        );
+        assert_eq!(
+            &src[toks[0].span.start..toks[0].span.end],
+            "%w[a --force\n  x/y]"
+        );
+        assert!(
+            matches!(&toks[1].kind, TokenKind::Words { flavor: Flavor::Keywords, words } if words.len() == 2)
+        );
+        assert_eq!(
+            kinds("%w[]"),
+            vec![TokenKind::Words {
+                flavor: Flavor::Strings,
+                words: vec![]
+            }]
+        );
+    }
+
+    /// `%w(` and `%i(` were valid programs before word lists, and still are.
+    #[test]
+    fn a_percent_is_still_modulo_unless_w_or_i_and_a_bracket_follow() {
+        assert_eq!(
+            kinds("a %w(b)"),
+            vec![
+                TokenKind::Ident("a".into()),
+                TokenKind::Op("%".into()),
+                TokenKind::Ident("w".into()),
+                TokenKind::LParen,
+                TokenKind::Ident("b".into()),
+                TokenKind::RParen,
+            ]
+        );
+        assert_eq!(kinds("x%i")[1], TokenKind::Op("%".into()));
+    }
+
+    /// The mistakes Ruby keeps silently are refused, naming the fix.
+    #[test]
+    fn a_word_list_refuses_commas_quotes_colons_and_an_open_end() {
+        for (src, says) in [
+            ("%w[a, b]", "not commas"),
+            ("%w[\"a\" b]", "without quotes"),
+            ("%i[:a b]", "without its colon"),
+            ("%i[a-b]", "not a name"),
+            ("%w[a # b]", "cannot be part of a word"),
+            ("%w[a b", "unterminated"),
+            ("%w[a\u{a0}b]", "cannot be part of a word"),
+        ] {
+            let e = lex(src).expect_err(src);
+            assert!(e.message.contains(says), "{src}: {}", e.message);
+        }
     }
 
     #[test]

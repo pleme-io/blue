@@ -56,6 +56,16 @@ pub const FORMS: &[Form] = &[
         doc: "A list. Indexing is nth(i, xs); blue has no xs[i].",
     },
     Form {
+        example: "%w[a b]",
+        lowers_to: "(list \"a\" \"b\")",
+        doc: "A list of strings, one per word, separated by spaces. The formatter writes any literal list of two or more such strings this way. Only [ ] delimits it, and a word holds no , \" ' # \\ [ ].",
+    },
+    Form {
+        example: "%i[a b]",
+        lowers_to: "(list :a :b)",
+        doc: "A list of keywords, one per name: [:a, :b], written this way from two names on.",
+    },
+    Form {
         example: "{a: 1, \"k\" => 2}",
         lowers_to: "(hash-map :a 1 \"k\" 2)",
         doc: "A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v).",

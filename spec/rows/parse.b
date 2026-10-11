@@ -53,3 +53,26 @@ row(
   fails(:check, "B0010"),
   covers("rule:B0010")
 )
+
+row(
+  "parse.words.comma",
+  "%w[a, b]",
+  fails(:parse, "separated by spaces, not commas")
+)
+
+row(
+  "parse.words.quotes",
+  "%w[\"a\" b]",
+  fails(:parse, "written without quotes")
+)
+
+row("parse.words.colon", "%i[:a b]", fails(:parse, "without its colon"))
+
+row("parse.words.not_a_name", "%i[a-b]", fails(:parse, "not a name"))
+row("parse.words.unterminated", "%w[a b", fails(:parse, "unterminated"))
+
+row(
+  "parse.words.percent_is_modulo",
+  "def w(x)\n  x\nend\n\n7 %w(4)",
+  value("3")
+)

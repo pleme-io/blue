@@ -124,7 +124,7 @@ bidama that does not check does not build.
 | `image` and `workload`: specs and per-entry refusals, the rendered objects, the structural diff (`deploy`); the CLI doors in `blue-lang-cli/src/deploy.rs`; the lowering and the distroless gate in `nix/project.nix`, `nix/image-gate.b` | `blue-lang-pkg` |
 | the project engine: a `Bluefile.lock` lowered to packages, checks and apps (`lib.project`; blue's own flake is its first caller) | `nix/project.nix`, over `bidamas/mk-bidama.nix` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
-| the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; completion, definition, references, rename, symbols, signatures | `blue-lang-mondou` |
+| the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; `def_hash` (a definition's identity, its resolved tree with each callee replaced by its hash); completion, definition, references, rename, symbols, signatures | `blue-lang-mondou` |
 | LSP: transport-free core + stdio shim, every answer from `mondou` | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
 | every subcommand; `BlueConfig` (the two typed bounds) | `blue-lang-cli` |

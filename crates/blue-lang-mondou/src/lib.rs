@@ -11,6 +11,7 @@
 //! | [`Engine::package`] | the bidama's name | loaded once per session: a bidama is durable until a document overlaying one of its files changes |
 //! | [`items`] | a parse | per analysis |
 //! | scope and resolve ([`Analysis`]) | a document revision | one per revision, shared by every request against it |
+//! | [`def_hash`] ([`Analysis::def_hashes`]) | the resolved tree | one per revision |
 //!
 //! The check stage is the pipeline's (`blue_lang_runtime::pipeline::
 //! check_entry`), handed a [`Loader`] that answers from these memos, so the
@@ -22,6 +23,7 @@
 //! offsets ([`Span`]); a transport converts positions.
 
 mod complete;
+pub mod def_hash;
 mod items;
 mod locals;
 mod memo;
@@ -40,6 +42,7 @@ use blue_lang_runtime::uses::{Entry, Loader, ResolvedProgram};
 use blue_lang_syntax::{ParseError, Span, Spanned};
 
 pub use complete::{Completion, CompletionKind, Tier};
+pub use def_hash::{DefHash, DefHashes, DefKind, HashedDef};
 pub use items::{Item, ItemKind};
 pub use locals::{LocalBinding, Locals};
 pub use memo::Stats;
@@ -287,6 +290,7 @@ impl Engine {
             resolved: OnceCell::new(),
             locals: OnceCell::new(),
             items: OnceCell::new(),
+            def_hashes: OnceCell::new(),
         }
     }
 
@@ -372,6 +376,7 @@ pub struct Analysis {
     resolved: OnceCell<Option<Resolved>>,
     locals: OnceCell<Locals>,
     items: OnceCell<Vec<Item>>,
+    def_hashes: OnceCell<Option<DefHashes>>,
 }
 
 impl Analysis {
@@ -392,6 +397,21 @@ impl Analysis {
     pub fn resolved(&self) -> Option<&Resolved> {
         self.resolved
             .get_or_init(|| self.checked().map(Checked::resolve))
+            .as_ref()
+    }
+
+    /// Every definition of the program, the document's and its imports',
+    /// hashed by its resolved tree ([`def_hash`]).
+    #[must_use]
+    pub fn def_hashes(&self) -> Option<&DefHashes> {
+        self.def_hashes
+            .get_or_init(|| {
+                self.checked().map(|c| {
+                    def_hash::hash_program(&blue_lang_runtime::pipeline::lower(
+                        &c.program, &c.names,
+                    ))
+                })
+            })
             .as_ref()
     }
 

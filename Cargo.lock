@@ -249,6 +249,7 @@ dependencies = [
 name = "blue-lang-mondou"
 version = "0.0.66"
 dependencies = [
+ "blake3",
  "blue-lang-check",
  "blue-lang-fmt",
  "blue-lang-runtime",

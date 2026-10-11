@@ -1,22 +1,22 @@
 use(
   "mokuroku",
-  [
-    :blue_path_roots,
-    :catalog_of,
-    :entries_of_text,
-    :package_text,
-    :pkg_dir,
-    :pkg_entries,
-    :pkg_gloss,
-    :pkg_name,
-    :pkg_needs,
-    :pkg_tests,
-    :pkg_version,
-    :test_blocks_of_text
+  %i[
+    blue_path_roots
+    catalog_of
+    entries_of_text
+    package_text
+    pkg_dir
+    pkg_entries
+    pkg_gloss
+    pkg_name
+    pkg_needs
+    pkg_tests
+    pkg_version
+    test_blocks_of_text
   ]
 )
 
-use("retsu", [:first, :flat_map, :last])
+use("retsu", %i[first flat_map last])
 
 # blue doc: what a name is, where it lives and how it is called.
 #
@@ -61,19 +61,19 @@ end
 # ── what is documented ─────────────────────────────────────────────────────
 
 def builtins()
-  json_get(json_parse(captured(["reference"])), "names")
+  json_get(json_parse(captured(["reference"])), :names)
 end
 
 # [id, program, expectation] for every conformance row covering the builtin.
 def rows_for(name)
   filter(
-    fn(r) member?("builtin:#{name}", json_get(r, "covers")) end,
-    json_parse(captured(["doc", "--rows"]))
+    fn(r) member?("builtin:#{name}", json_get(r, :covers)) end,
+    json_parse(captured(%w[doc --rows]))
   )
 end
 
 def builtin_entry(b, tier)
-  name = json_get(b, "name")
+  name = json_get(b, :name)
   rows = rows_for(name)
   example = if empty?(rows)
     nil
@@ -81,17 +81,17 @@ def builtin_entry(b, tier)
     row = first(rows)
     {
       from: "spec row #{json_get(row, "id")}",
-      code: [json_get(row, "src"), "=> #{json_get(row, "expect")}"]
+      code: [json_get(row, :src), "=> #{json_get(row, "expect")}"]
     }
   end
   {
     name: name,
     namespace: "blue",
     tier: tier,
-    kind: json_get(b, "arbiter"),
-    topic: json_get(b, "topic"),
-    signature: json_get(b, "signature"),
-    doc: [json_get(b, "doc")],
+    kind: json_get(b, :arbiter),
+    topic: json_get(b, :topic),
+    signature: json_get(b, :signature),
+    doc: [json_get(b, :doc)],
     example: example
   }
 end
@@ -164,16 +164,16 @@ end
 def tier_in(ctx, pkg, name)
   if ctx == nil
     "qualified"
-  elsif json_get(ctx, "namespace") == pkg
+  elsif json_get(ctx, :namespace) == pkg
     "own"
   else
     uses = filter(
-      fn(u) json_get(u, "package") == pkg end,
-      json_get(ctx, "imports")
+      fn(u) json_get(u, :package) == pkg end,
+      json_get(ctx, :imports)
     )
     if empty?(uses)
       "not-imported"
-    elsif any?(fn(u) member?(name, json_get(u, "names")) end, uses)
+    elsif any?(fn(u) member?(name, json_get(u, :names)) end, uses)
       "imported"
     else
       "qualified"
@@ -196,7 +196,7 @@ def lookup(name, file, records)
     nil
   end
   bare = last(parts)
-  own = if file == nil || json_get(ctx, "namespace") != nil
+  own = if file == nil || json_get(ctx, :namespace) != nil
     []
   else
     text = read_file(file)
@@ -218,7 +218,7 @@ def lookup(name, file, records)
   from_builtins = if qualifier == nil || qualifier == "blue"
     map(
       fn(b) builtin_entry(b, "builtin") end,
-      filter(fn(b) json_get(b, "name") == bare end, builtins())
+      filter(fn(b) json_get(b, :name) == bare end, builtins())
     )
   else
     []

@@ -58,25 +58,25 @@ end
 # Is `r` a bare reference to another bidama's definition that per-bidama
 # namespaces would not bind to it?
 def implicit?(r, own)
-  flat = json_get(r, "flat")
-  kind = json_get(json_get(r, "ns"), "kind")
-  owner = json_get(flat, "namespace")
-  json_get(flat, "kind") == "def" &&
+  flat = json_get(r, :flat)
+  kind = json_get(json_get(r, :ns), :kind)
+  owner = json_get(flat, :namespace)
+  json_get(flat, :kind) == "def" &&
     owner != nil &&
     owner != own &&
     (kind == "builtin" || kind == "unbound") &&
-    !contains?(json_get(r, "written"), "/")
+    !contains?(json_get(r, :written), "/")
 end
 
 # [[package, name], ...] the file must list.
 def wanted(doc)
-  own = json_get(doc, "namespace")
-  hits = filter(fn(r) implicit?(r, own) end, json_get(doc, "references"))
+  own = json_get(doc, :namespace)
+  hits = filter(fn(r) implicit?(r, own) end, json_get(doc, :references))
   distinct(
     map(
       fn(r)
-        flat = json_get(r, "flat")
-        [json_get(flat, "namespace"), json_get(flat, "name")]
+        flat = json_get(r, :flat)
+        [json_get(flat, :namespace), json_get(flat, :name)]
       end,
       hits
     )
@@ -85,10 +85,10 @@ end
 
 # [package, [names]] for every `use` the file will have, sorted.
 def uses_after(doc, want)
-  existing = json_get(doc, "imports")
+  existing = json_get(doc, :imports)
   packages = sorted(
     append(
-      map(fn(u) json_get(u, "package") end, existing),
+      map(fn(u) json_get(u, :package) end, existing),
       map(fn(w) first(w) end, want)
     )
   )
@@ -98,8 +98,8 @@ def uses_after(doc, want)
         apply(
           append,
           map(
-            fn(u) json_get(u, "names") end,
-            filter(fn(u) json_get(u, "package") == p end, existing)
+            fn(u) json_get(u, :names) end,
+            filter(fn(u) json_get(u, :package) == p end, existing)
           )
         ),
         map(fn(w) nth(1, w) end, filter(fn(w) first(w) == p end, want))
@@ -132,18 +132,18 @@ end
 # first `use` was (or above the first form, with a blank line after).
 def rewrite(text, doc, block)
   lines = split(text, "\n")
-  existing = json_get(doc, "imports")
+  existing = json_get(doc, :imports)
   dropped = apply(
     append,
     map(
-      fn(u) range(json_get(u, "line"), json_get(u, "end_line") + 1) end,
+      fn(u) range(json_get(u, :line), json_get(u, :end_line) + 1) end,
       existing
     )
   )
   at = if empty?(existing)
-    json_get_or(doc, "first_line", 1)
+    json_get_or(doc, :first_line, 1)
   else
-    json_get(first(existing), "line")
+    json_get(first(existing), :line)
   end
   inserted = if empty?(existing)
     append(block, [""])
@@ -175,7 +175,7 @@ def needs_of(bluefile)
   if status_of(r) != 0
     throw(error(:migrate, "blue bluefile #{bluefile}: #{stderr_of(r)}"))
   end
-  needs = json_get(json_parse(stdout_of(r)), "needs")
+  needs = json_get(json_parse(stdout_of(r)), :needs)
   if needs == nil
     []
   else
@@ -216,7 +216,7 @@ def migrate(file)
     text = read_file(file)
     uses = uses_after(before, want)
     write_file(file, rewrite(text, before, map(fn(u) render_use(u) end, uses)))
-    own = json_get(before, "namespace")
+    own = json_get(before, :namespace)
     bluefile = path_join(path_dirname(file), "Bluefile")
     bidama = own != nil && path_exists(bluefile)
     old_bluefile = if bidama
@@ -510,10 +510,10 @@ end
 
 def ref_edit(r, new)
   [
-    json_get(r, "line"),
-    json_get(r, "column"),
-    json_get(r, "end_column"),
-    surface(json_get(r, "written")),
+    json_get(r, :line),
+    json_get(r, :column),
+    json_get(r, :end_column),
+    surface(json_get(r, :written)),
     new
   ]
 end
@@ -524,46 +524,46 @@ end
 
 def strip_bidama(prefix, file)
   doc = resolved(file)
-  pkg = json_get(doc, "namespace")
-  builtins = json_get(doc, "builtins")
-  reserved = json_get(doc, "reserved")
+  pkg = json_get(doc, :namespace)
+  builtins = json_get(doc, :builtins)
+  reserved = json_get(doc, :reserved)
   p = "#{prefix}_"
   defs = filter(
-    fn(d) starts_with?(json_get(d, "name"), p) end,
-    json_get(doc, "definitions")
+    fn(d) starts_with?(json_get(d, :name), p) end,
+    json_get(doc, :definitions)
   )
   stripped = fn(n) join(drop(length(chars(p)), chars(n)), "") end
   keep? = fn(n)
     member?(stripped(n), builtins) || member?(stripped(n), reserved)
   end
   renames = map(
-    fn(d) [json_get(d, "name"), stripped(json_get(d, "name"))] end,
-    filter(fn(d) !keep?(json_get(d, "name")) end, defs)
+    fn(d) [json_get(d, :name), stripped(json_get(d, :name))] end,
+    filter(fn(d) !keep?(json_get(d, :name)) end, defs)
   )
   kept = map(
-    fn(d) stripped(json_get(d, "name")) end,
-    filter(fn(d) keep?(json_get(d, "name")) end, defs)
+    fn(d) stripped(json_get(d, :name)) end,
+    filter(fn(d) keep?(json_get(d, :name)) end, defs)
   )
   old_names = map(fn(r) first(r) end, renames)
   new_of = fn(n) nth(1, first(filter(fn(r) first(r) == n end, renames))) end
   def_edits = map(
     fn(d)
       [
-        json_get(d, "line"),
-        json_get(d, "column"),
-        json_get(d, "end_column"),
-        json_get(d, "name"),
-        new_of(json_get(d, "name"))
+        json_get(d, :line),
+        json_get(d, :column),
+        json_get(d, :end_column),
+        json_get(d, :name),
+        new_of(json_get(d, :name))
       ]
     end,
-    filter(fn(d) member?(json_get(d, "name"), old_names) end, defs)
+    filter(fn(d) member?(json_get(d, :name), old_names) end, defs)
   )
-  refs = json_get(doc, "references")
+  refs = json_get(doc, :references)
   # A new name a local of the same name would capture is written qualified.
   ref_edits = map(
     fn(r)
-      new = new_of(json_get(r, "written"))
-      if member?(new, json_get(r, "locals"))
+      new = new_of(json_get(r, :written))
+      if member?(new, json_get(r, :locals))
         ref_edit(r, "#{pkg}::#{new}")
       else
         ref_edit(r, new)
@@ -571,10 +571,10 @@ def strip_bidama(prefix, file)
     end,
     filter(
       fn(r)
-        ns = json_get(r, "ns")
-        member?(json_get(r, "written"), old_names) &&
-          json_get(ns, "kind") == "def" &&
-          json_get(ns, "namespace") == pkg
+        ns = json_get(r, :ns)
+        member?(json_get(r, :written), old_names) &&
+          json_get(ns, :kind) == "def" &&
+          json_get(ns, :namespace) == pkg
       end,
       refs
     )
@@ -585,11 +585,11 @@ def strip_bidama(prefix, file)
   shadowing = append(kept, map(fn(r) nth(1, r) end, renames))
   lent = filter(
     fn(r)
-      ns = json_get(r, "ns")
-      json_get(ns, "kind") == "def" &&
-        json_get(ns, "namespace") != pkg &&
-        json_get(ns, "namespace") != nil &&
-        member?(json_get(r, "written"), shadowing)
+      ns = json_get(r, :ns)
+      json_get(ns, :kind) == "def" &&
+        json_get(ns, :namespace) != pkg &&
+        json_get(ns, :namespace) != nil &&
+        member?(json_get(r, :written), shadowing)
     end,
     refs
   )
@@ -606,8 +606,8 @@ def strip_bidama(prefix, file)
     fn(r) ref_edit(r, "blue::#{json_get(r, "written")}") end,
     filter(
       fn(r)
-        json_get(json_get(r, "ns"), "kind") == "builtin" &&
-          member?(json_get(r, "written"), kept)
+        json_get(json_get(r, :ns), :kind) == "builtin" &&
+          member?(json_get(r, :written), kept)
       end,
       refs
     )
@@ -619,12 +619,12 @@ def strip_bidama(prefix, file)
   )
   # Waivers above each kept definition, bottom up so line numbers hold.
   kept_defs = sort_keyed(
-    fn(d) -json_get(d, "line") end,
-    filter(fn(d) keep?(json_get(d, "name")) end, defs)
+    fn(d) -json_get(d, :line) end,
+    filter(fn(d) keep?(json_get(d, :name)) end, defs)
   )
   waived = foldl(
     fn(t, d)
-      n = stripped(json_get(d, "name"))
+      n = stripped(json_get(d, :name))
       why = if member?(n, reserved)
         "a reserved word"
       else
@@ -632,7 +632,7 @@ def strip_bidama(prefix, file)
       end
       insert_lines(
         t,
-        json_get(d, "line"),
+        json_get(d, :line),
         [
           "# waive B0013: `#{n}` is #{why}, so the prefix stays; #{pkg}::#{n} names it too"
         ]
@@ -641,11 +641,11 @@ def strip_bidama(prefix, file)
     renamed,
     kept_defs
   )
-  imports = json_get(doc, "imports")
+  imports = json_get(doc, :imports)
   at = if empty?(imports)
-    json_get_or(doc, "first_line", 1)
+    json_get_or(doc, :first_line, 1)
   else
-    json_get(last(imports), "end_line") + 1
+    json_get(last(imports), :end_line) + 1
   end
   ledger = if empty?(imports)
     ["legacy_names(\"0.1.1\", \"#{prefix}\")", ""]
@@ -654,7 +654,7 @@ def strip_bidama(prefix, file)
   end
   ledgered = insert_lines(waived, at, ledger)
   lenders = distinct(
-    map(fn(r) json_get(json_get(r, "ns"), "namespace") end, lent)
+    map(fn(r) json_get(json_get(r, :ns), :namespace) end, lent)
   )
   relisted = foldl(
     fn(t, lender) relist(t, doc, lender, shadowing) end,
@@ -671,12 +671,12 @@ def strip_caller(pkg, renames, file)
   old_names = map(fn(r) first(r) end, renames)
   bridged = filter(
     fn(r)
-      ns = json_get(r, "ns")
-      json_get(ns, "kind") == "def" &&
-        json_get(ns, "namespace") == pkg &&
-        json_get(ns, "name") != last(split(json_get(r, "written"), "/"))
+      ns = json_get(r, :ns)
+      json_get(ns, :kind) == "def" &&
+        json_get(ns, :namespace) == pkg &&
+        json_get(ns, :name) != last(split(json_get(r, :written), "/"))
     end,
-    json_get(doc, "references")
+    json_get(doc, :references)
   )
   edits = map(
     fn(r) ref_edit(r, "#{pkg}::#{json_get(json_get(r, "ns"), "name")}") end,
@@ -690,19 +690,19 @@ end
 # where `doc` saw them.
 def relist(text, doc, package, dropped)
   mine = filter(
-    fn(u) json_get(u, "package") == package end,
-    json_get(doc, "imports")
+    fn(u) json_get(u, :package) == package end,
+    json_get(doc, :imports)
   )
   if empty?(mine)
     text
   else
     u = first(mine)
-    left = filter(fn(n) !member?(n, dropped) end, json_get(u, "names"))
-    line = json_get(u, "line")
+    left = filter(fn(n) !member?(n, dropped) end, json_get(u, :names))
+    line = json_get(u, :line)
     lines = split(text, "\n")
     numbered = zip(range(1, length(lines) + 1), lines)
     kept = filter(
-      fn(nl) first(nl) < line || first(nl) > json_get(u, "end_line") end,
+      fn(nl) first(nl) < line || first(nl) > json_get(u, :end_line) end,
       numbered
     )
     before = filter(fn(nl) first(nl) < line end, kept)
@@ -724,7 +724,7 @@ end
 
 def strip(prefix, file, callers)
   before = resolved(file)
-  pkg = json_get(before, "namespace")
+  pkg = json_get(before, :namespace)
   befores = map(fn(c) [c, read_file(c), resolved(c)] end, callers)
   plan = strip_bidama(prefix, file)
   renames = nth(1, plan)

@@ -367,6 +367,7 @@ def device_render(rows)
   reduce(fn(acc, r) assoc(acc, first(r), device_of(r)) end, {}, rows)
 end
 
+# waive B0023: the keys are the JSON fields nix reads, merged with string keys from the entries
 def device_of(r)
   if size(r) == 3
     {"host" => nth(1, r), "port" => last(r)}
@@ -390,6 +391,7 @@ def camera_row()
   end
 end
 
+# waive B0023: the keys are the JSON fields nix reads, merged with string keys from the entries
 def camera_render(rows)
   reduce(fn(acc, r) assoc(acc, first(r), {"stream" => last(r)}) end, {}, rows)
 end
@@ -1234,6 +1236,7 @@ end
 
 # The attribute set pleme.lareira takes, from the entries that stand:
 # `pleme.lareira = lib.importJSON ./home.json`.
+# waive B0023: the keys are the JSON fields nix reads, merged with string keys from the entries
 def lareira(entries)
   es = accepted(entries)
   out = filled(
@@ -1316,10 +1319,7 @@ def home_doc(entries)
 end
 
 def mood_doc(entries, name)
-  json_get(
-    json_get(json_get(home_doc(entries), "homeAssistant"), "moods"),
-    name
-  )
+  json_get(json_get(json_get(home_doc(entries), :homeAssistant), :moods), name)
 end
 
 test "an empty home is on, and refused only for the site it lacks"
@@ -1379,9 +1379,9 @@ end
 
 test "a role-addressed mood takes the role's lights, and hands over by name"
   glow = mood_doc(example_home(), "glow")
-  assert json_get(json_get(glow, "lights"), "only") == ["light.hallway"]
-  assert json_get(first(json_get(glow, "then")), "afterMinutes") == 5
-  assert json_get(json_get(glow, "lights"), "role") == nil
+  assert json_get(json_get(glow, :lights), :only) == ["light.hallway"]
+  assert json_get(first(json_get(glow, :then)), :afterMinutes) == 5
+  assert json_get(json_get(glow, :lights), :role) == nil
 end
 
 test "a bad entry is refused alone, and what names it falls with it"
@@ -1420,24 +1420,21 @@ test "a bad entry is refused alone, and what names it falls with it"
   )
   assert kinds(refusals(h)) ==
     %i[invalid invalid duplicate needs_radio invalid unknown_tone unknown_mood]
-  moods = json_get(json_get(home_doc(h), "homeAssistant"), "moods")
-  assert json_get(moods, "warm") != nil
-  assert json_get(moods, "hot") == nil
-  assert json_get(moods, "rumble") == nil
-  assert json_get(moods, "after") == nil
-  assert json_get(moods, "relax") != nil
+  moods = json_get(json_get(home_doc(h), :homeAssistant), :moods)
+  assert json_get(moods, :warm) != nil
+  assert json_get(moods, :hot) == nil
+  assert json_get(moods, :rumble) == nil
+  assert json_get(moods, :after) == nil
+  assert json_get(moods, :relax) != nil
   assert json_get(
-    json_get(
-      json_get(json_get(home_doc(h), "homeAssistant"), "tones"),
-      "hz432"
-    ),
-    "frequency"
+    json_get(json_get(json_get(home_doc(h), :homeAssistant), :tones), :hz432),
+    :frequency
   ) ==
     432
-  assert json_get(json_get(home_doc(h), "components"), "zigbee2mqtt") == nil
+  assert json_get(json_get(home_doc(h), :components), :zigbee2mqtt) == nil
   assert json_get(
-    json_get(json_get(home_doc(h), "components"), "mosquitto"),
-    "enable"
+    json_get(json_get(home_doc(h), :components), :mosquitto),
+    :enable
   ) ==
     true
 end
@@ -1451,8 +1448,8 @@ test "a tune configures a set's mood off without forking the set"
     ]
   )
   assert kinds(refusals(h)) == [:unknown_entry]
-  assert json_get(mood_doc(h, "relax"), "enable") == false
-  assert json_get(mood_doc(h, "relax"), "label") == "Relax"
+  assert json_get(mood_doc(h, "relax"), :enable) == false
+  assert json_get(mood_doc(h, "relax"), :label) == "Relax"
   assert kinds(
     refusals(
       append(

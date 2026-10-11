@@ -57,8 +57,8 @@ test "a service call is a POST with a bearer token and a JSON body"
   )
   assert nth(0, req) == "POST"
   assert nth(1, req) == "http://127.0.0.1:8123/api/services/light/turn_on"
-  assert json_get(nth(2, req), "Authorization") == "Bearer t0k"
-  assert json_get(json_parse(nth(3, req)), "entity_id") == "light.kitchen"
+  assert json_get(nth(2, req), :Authorization) == "Bearer t0k"
+  assert json_get(json_parse(nth(3, req)), :entity_id) == "light.kitchen"
 end
 
 test "a bus message names its command"

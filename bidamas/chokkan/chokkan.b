@@ -256,13 +256,13 @@ end
 
 test "a request carries every question's name, type and criteria"
   doc = json_parse(request("jev-latest", "state", example_questions()))
-  qs = json_get(doc, "questions")
-  assert json_get(doc, "model") == "jev-latest"
-  assert json_get(doc, "state") == "state"
-  assert json_get(json_get(qs, "is_refund"), "type") == "noul"
-  assert json_get(json_get(qs, "is_refund"), "criteria") == nil
-  assert json_get(json_get(json_get(qs, "route"), "criteria"), "opus") == "deep"
-  assert json_get(json_get(qs, "difficulty"), "criteria") ==
+  qs = json_get(doc, :questions)
+  assert json_get(doc, :model) == "jev-latest"
+  assert json_get(doc, :state) == "state"
+  assert json_get(json_get(qs, :is_refund), :type) == "noul"
+  assert json_get(json_get(qs, :is_refund), :criteria) == nil
+  assert json_get(json_get(json_get(qs, :route), :criteria), :opus) == "deep"
+  assert json_get(json_get(qs, :difficulty), :criteria) ==
     %w[easy middling hard]
 end
 

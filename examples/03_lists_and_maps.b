@@ -40,7 +40,7 @@ test "a map built up and read back"
   m = tally(%w[a b a])
   assert get(m, "a") == 2
   assert get(m, "z") == nil
-  assert dissoc(m, "b") == {"a" => 2}
+  assert dissoc(m, "b") == tally(%w[a a])
   assert {a: 1, b: 2} == {b: 2, a: 1}
 end
 

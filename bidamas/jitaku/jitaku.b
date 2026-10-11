@@ -119,10 +119,11 @@ end
 def base_url()
   fn(v)
     verdict(
-      string?(v) &&
-        host_of(v) != v &&
-        length(host_of(v)) > 0 &&
-        !contains(chars(host_of(v)), "/"),
+      v == :host ||
+        string?(v) &&
+          host_of(v) != v &&
+          length(host_of(v)) > 0 &&
+          !contains(chars(host_of(v)), "/"),
       "#{v} is not http(s)://host[:port]"
     )
   end
@@ -548,6 +549,12 @@ end
 # The address the speakers fetch tones from.
 def media_base_url(url)
   entry(:media_base_url, "media_base_url", url)
+end
+
+# The address is the host's to supply (nix renders it from its own topology):
+# moods may play, and the projection leaves the field for the module to fill.
+def media_base_url_from_host()
+  entry(:media_base_url, "media_base_url", :host)
 end
 
 # A component with its settings: component(:whisper, {enable: true, language: "pt"}).
@@ -1168,7 +1175,20 @@ def slot_into(acc, s, hits)
   if is_empty(hits)
     acc
   else
-    assoc(acc, first(s), applied(last(s), hits))
+    rendered = applied(last(s), hits)
+    if rendered == nil
+      acc
+    else
+      assoc(acc, first(s), rendered)
+    end
+  end
+end
+
+def unless_host(v)
+  if v == :host
+    nil
+  else
+    v
   end
 end
 
@@ -1186,7 +1206,11 @@ def home_assistant(es)
     es,
     [
       slot("recorder", :recorder, single(fn(e) value_of(e) end)),
-      slot("mediaBaseUrl", :media_base_url, single(fn(e) value_of(e) end)),
+      slot(
+        "mediaBaseUrl",
+        :media_base_url,
+        single(fn(e) unless_host(value_of(e)) end)
+      ),
       slot(
         "integrations",
         :integration,
@@ -1471,6 +1495,13 @@ test "a mood plays only where a base url and speakers stand"
     )
   ) ==
     []
+  hosted = append(
+    bare,
+    [media_base_url_from_host(), speaker("k", "media_player.k")]
+  )
+  assert kinds(refusals(hosted)) == []
+  assert get(get(lareira(hosted), "homeAssistant"), "mediaBaseUrl") == nil
+  assert get(get(get(lareira(hosted), "homeAssistant"), "moods"), "m") != nil
 end
 
 test "a field the table does not know is refused, never dropped"

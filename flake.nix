@@ -427,6 +427,16 @@
 
       bidamasOverlay = final: _prev: blueSetFor { pkgs = final; blue = final.blue; };
 
+      # blue's tree-sitter grammar, built from the grammar.js that kiwari emits
+      # (bidamas/kiwari, gen/kiwari/); its version is the one the emitted
+      # tree-sitter.json states, so the two cannot disagree.
+      treeSitterBlueFor = pkgs: pkgs.tree-sitter.buildGrammar {
+        language = "blue";
+        version = (lib.importJSON ./tree-sitter-blue/tree-sitter.json).metadata.version;
+        src = ./tree-sitter-blue;
+        generate = true;
+      };
+
       # blue native (theory/BLUE-NATIVE.md): native/ as a project, plus each
       # image and its QEMU check (nix/native.nix).
       native = lib.genAttrs systems (system: import ./nix/native.nix {
@@ -467,7 +477,9 @@
           (engine.disjoint "package"
             (lib.getAttrs (lib.attrNames commands)
               (blueSetFor { pkgs = pkgsFor system; blue = blueFor system; }))
-            native.${system}.packages)
+            (engine.disjoint "package" native.${system}.packages {
+              tree-sitter-blue = treeSitterBlueFor (pkgsFor system);
+            }))
       ) base.packages;
 
       checks = lib.mapAttrs (system: existing:
@@ -515,6 +527,30 @@
                 env = {
                   BLUE_NATS_SERVER = "${pkgs.nats-server}/bin/nats-server";
                   BLUE_REQUIRE_NATS_SERVER = "1";
+                };
+              };
+            };
+
+          # kiwari's differential: the parser built from the emitted grammar
+          # against blue's own, over every corpus file and every prefix of one
+          # (`blue-lang-kiwari/src/agree.rs` defines agreement), plus the spec's
+          # tables against parse.rs's. REQUIRE makes a missing parser red
+          # rather than a skip.
+          kiwari =
+            (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs {
+              src = ./.;
+              name = "blue-kiwari";
+              config = {
+                runs = [
+                  {
+                    args = [ "--release" "-p" "blue-lang-kiwari" ];
+                    harnessArgs = [ "--nocapture" ];
+                  }
+                ];
+                env = {
+                  KIWARI_RUNTIME = "${pkgs.tree-sitter}/lib/libtree-sitter${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}";
+                  KIWARI_PARSER = "${treeSitterBlueFor pkgs}/parser";
+                  KIWARI_REQUIRE = "1";
                 };
               };
             };

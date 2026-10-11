@@ -232,6 +232,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-kiwari"
+version = "0.0.67"
+dependencies = [
+ "blue-lang-syntax",
+ "libc",
+ "serde",
+ "serde_json",
+ "tatara-lisp",
+ "thiserror",
+]
+
+[[package]]
 name = "blue-lang-lsp"
 version = "0.0.67"
 dependencies = [

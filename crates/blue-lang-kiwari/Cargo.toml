@@ -1,0 +1,19 @@
+[package]
+name = "blue-lang-kiwari"
+description = "kiwari, blue's one grammar spec: the spec-driven lowering of a concrete syntax tree to blue's tatara-lisp tree, and the differential that holds the emitted tree-sitter grammar to blue's parser."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+blue-lang-syntax = { workspace = true }
+tatara-lisp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+# `dlopen`/`dlsym` for the one seam over the tree-sitter runtime. Already in
+# the graph; nothing here compiles or links C at build time.
+libc = "0.2"

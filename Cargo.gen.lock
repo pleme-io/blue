@@ -1,13 +1,14 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "daab4e6956df7213eb498bfc8422386e47bf70ed8737e1175aa4e5ad5684c57a",
+  "cargo_lock_sha256": "b616d69f572bfd33f50f60b6a403f40509f4138a8a9eedbe47472fcf3cff244e",
   "manifest_sha256": {
-    "Cargo.toml": "250daf7fa83c2dd3cd3caa00dae4ca66e0ed7003be66bcc360cb22c07586cbd7",
+    "Cargo.toml": "198665e1df7758880d11174619cb78a79d736a377fe50291ee4ce0f6c0467a05",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
     "crates/blue-lang-cli/Cargo.toml": "e5ec2e0d527343aacfd6ea3cf2e861016eb2dd6f253b1d23d10679345c2be969",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
+    "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
     "crates/blue-lang-lsp/Cargo.toml": "30bf68843371f73f426bb85bf8b183394cadce53bd42261dd46c4001a0b287b5",
     "crates/blue-lang-mondou/Cargo.toml": "21bcf1305dd95a070e7b8940be3cbfb17477d8bd7cdc05d6c17d17bdf55c4614",
     "crates/blue-lang-pkg/Cargo.toml": "6633ee54ee63519caff4173db913dc893dbc6e9982183ffb1f4f4c2bac0e66c3",
@@ -556,6 +557,74 @@
           {
             "name": "blue_lang_syntax",
             "package_key": "blue-lang-syntax-0.0.67",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tatara_lisp",
+            "package_key": "tatara-lisp-0.4.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "blue-lang-kiwari-0.0.67": {
+        "runtime_dependencies": [
+          {
+            "name": "blue_lang_syntax",
+            "package_key": "blue-lang-syntax-0.0.67",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "libc",
+            "package_key": "libc-0.2.189",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde_json",
+            "package_key": "serde_json-1.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7151,6 +7220,13 @@
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_fmt",
+        "path": "src/lib.rs"
+      }
+    },
+    "blue-lang-kiwari-0.0.67": {
+      "edition": "2021",
+      "lib_target": {
+        "name": "blue_lang_kiwari",
         "path": "src/lib.rs"
       }
     },

@@ -1,5 +1,5 @@
-use("mokuroku", [:catalog_of, :render_markdown])
-use("retsu", [:concat_lists, :first, :last])
+use("mokuroku", %i[catalog_of render_markdown])
+use("retsu", %i[concat_lists first last])
 
 # regen: rewrite every file blue generates for this repository, in place.
 #

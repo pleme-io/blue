@@ -1,5 +1,5 @@
 use("kazu", [:min])
-use("retsu", [:first, :is_empty, :repeat, :rest, :size])
+use("retsu", %i[first is_empty repeat rest size])
 
 # moji (文字) — strings.
 #
@@ -633,9 +633,9 @@ test "the string primitives blue exposes"
   assert downcase("ABC") == "abc"
   assert trim("  a  ") == "a"
   assert concat("a", "b") == "ab"
-  assert chars("abc") == ["a", "b", "c"]
-  assert join(["a", "b"], "-") == "a-b"
-  assert split("a-b", "-") == ["a", "b"]
+  assert chars("abc") == %w[a b c]
+  assert join(%w[a b], "-") == "a-b"
+  assert split("a-b", "-") == %w[a b]
 end
 
 test "split and join round-trip"
@@ -738,18 +738,18 @@ test "includes agrees with char_index"
   # the empty ones, a needle longer than the text, overlaps, punctuation and
   # characters beyond ASCII.
   cases = [
-    ["hello", "ell"],
-    ["hello", "z"],
+    %w[hello ell],
+    %w[hello z],
     ["", "a"],
     ["", ""],
     ["hello", ""],
-    ["abc", "abcd"],
-    ["aaa", "aa"],
-    ["a.b", "."],
-    ["ação", "ç"],
-    ["ação", "ão"],
-    ["pão", "a"],
-    ["_x9", "_"]
+    %w[abc abcd],
+    %w[aaa aa],
+    %w[a.b .],
+    %w[ação ç],
+    %w[ação ão],
+    %w[pão a],
+    %w[_x9 _]
   ]
   assert map(
     fn(c)
@@ -881,12 +881,12 @@ test "is_blank covers the empty string that is_space deliberately does not"
 end
 
 test "words splits on RUNS of any whitespace"
-  assert words("a b c") == ["a", "b", "c"]
+  assert words("a b c") == %w[a b c]
   # THE case split(s, " ") gets wrong: a double space would yield a phantom "".
-  assert words("a  b") == ["a", "b"]
-  assert words("  a  b  ") == ["a", "b"]
+  assert words("a  b") == %w[a b]
+  assert words("  a  b  ") == %w[a b]
   # A tab is not a literal space, so a split on " " would not separate here.
-  assert words("a\tb\nc") == ["a", "b", "c"]
+  assert words("a\tb\nc") == %w[a b c]
   assert words("") == []
   assert words("   ") == []
   assert words("word") == ["word"]
@@ -902,13 +902,13 @@ test "squish is words put back together"
 end
 
 test "lines invents no trailing line and eats no \\r"
-  assert lines("a\nb") == ["a", "b"]
+  assert lines("a\nb") == %w[a b]
   # THE case: split("a\n", "\n") is ["a", ""] — a line nobody wrote.
   assert lines("a\n") == ["a"]
-  assert lines("a\nb\n") == ["a", "b"]
+  assert lines("a\nb\n") == %w[a b]
   # Windows endings must not leave a "\r" glued to each line.
-  assert lines("a\r\nb") == ["a", "b"]
-  assert lines("a\r\nb\r\n") == ["a", "b"]
+  assert lines("a\r\nb") == %w[a b]
+  assert lines("a\r\nb\r\n") == %w[a b]
   # A genuinely blank line is real and must survive.
   assert lines("a\n\nb") == ["a", "", "b"]
   assert lines("\n") == [""]
@@ -924,7 +924,7 @@ test "wrap_text fills each line without exceeding the width"
   assert wrap_text("", 10) == []
   # A word longer than the width gets its own line rather than being cut in
   # half — a broken URL is worse than a ragged margin.
-  assert wrap_text("hi enormousword ok", 4) == ["hi", "enormousword", "ok"]
+  assert wrap_text("hi enormousword ok", 4) == %w[hi enormousword ok]
   # Every line either fits, or is a single unbreakable word.
   assert size(wrap_text("a b c d e f", 3)) == 3
 end
@@ -1024,17 +1024,17 @@ test "sorts_before goes through compare, because < raises on strings"
 end
 
 test "sort_strings sorts what junjo.sort cannot"
-  assert sort_strings(["c", "a", "b"]) == ["a", "b", "c"]
+  assert sort_strings(%w[c a b]) == %w[a b c]
   assert sort_strings([]) == []
   assert sort_strings(["only"]) == ["only"]
   # Duplicates survive — a set-like sort would silently drop one.
-  assert sort_strings(["b", "a", "b"]) == ["a", "b", "b"]
+  assert sort_strings(%w[b a b]) == %w[a b b]
   # Already sorted stays put, and sorting twice changes nothing.
-  assert sort_strings(sort_strings(["c", "a"])) == sort_strings(["c", "a"])
+  assert sort_strings(sort_strings(%w[c a])) == sort_strings(%w[c a])
   # nil is the other empty, and it must not reach the recursion.
   assert sort_strings(cdr(["x"])) == []
   # Capitals first, consistent with sorts_before.
-  assert sort_strings(["b", "A"]) == ["A", "b"]
+  assert sort_strings(%w[b A]) == %w[A b]
 end
 
 test "before_first and after_first keep the rest of the value intact"
@@ -1084,9 +1084,9 @@ test "common_prefix"
 end
 
 test "chunk_chars cuts into fixed widths with a short tail"
-  assert chunk_chars("abcdefg", 3) == ["abc", "def", "g"]
+  assert chunk_chars("abcdefg", 3) == %w[abc def g]
   # An exact multiple leaves no empty final chunk.
-  assert chunk_chars("abcdef", 3) == ["abc", "def"]
+  assert chunk_chars("abcdef", 3) == %w[abc def]
   assert chunk_chars("ab", 5) == ["ab"]
   assert chunk_chars("", 3) == []
   # Zero width would loop forever; it answers [] instead.

@@ -69,8 +69,12 @@ fn render_use(import: &Import, names: &[String]) -> String {
     if names.is_empty() {
         format!("use(\"{}\")", import.package)
     } else {
-        let list: Vec<String> = names.iter().map(|n| format!(":{n}")).collect();
-        format!("use(\"{}\", [{}])", import.package, list.join(", "))
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        format!(
+            "use(\"{}\", {})",
+            import.package,
+            blue_lang_syntax::words::render_keywords(&names)
+        )
     }
 }
 

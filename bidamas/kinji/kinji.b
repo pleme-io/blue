@@ -2,38 +2,38 @@ use("deeta", [:get_or])
 
 use(
   "gyouretsu",
-  [
-    :dot,
-    :matmul,
-    :mvmul,
-    :scale,
-    :solve_gauss,
-    :transpose,
-    :vadd,
-    :vdistance,
-    :vector_near,
-    :vsub
+  %i[
+    dot
+    matmul
+    mvmul
+    scale
+    solve_gauss
+    transpose
+    vadd
+    vdistance
+    vector_near
+    vsub
   ]
 )
 
-use("junjo", [:is_strictly_sorted, :sort_stable_by, :upper_bound])
-use("kazu", [:abs, :clamp, :lerp, :max, :min, :near, :near_within, :square])
+use("junjo", %i[is_strictly_sorted sort_stable_by upper_bound])
+use("kazu", %i[abs clamp lerp max min near near_within square])
 
-use("kyohi", [:refusal, :refuse])
+use("kyohi", %i[refusal refuse])
 
 use(
   "retsu",
-  [
-    :all_but_last,
-    :concat_lists,
-    :first,
-    :indexes,
-    :is_empty,
-    :last,
-    :push,
-    :rest,
-    :size,
-    :update_at
+  %i[
+    all_but_last
+    concat_lists
+    first
+    indexes
+    is_empty
+    last
+    push
+    rest
+    size
+    update_at
   ]
 )
 
@@ -42,11 +42,11 @@ legacy_names("0.1.1", "kj")
 legacy_names(
   "0.1.2",
   [
-    ["opt", "deeta::get_or"],
-    ["refusal", "kyohi::refusal"],
-    ["refusal_kind", "kyohi::kind"],
-    ["refusal_why", "kyohi::why"],
-    ["refuse", "kyohi::refuse"]
+    %w[opt deeta::get_or],
+    %w[refusal kyohi::refusal],
+    %w[refusal_kind kyohi::kind],
+    %w[refusal_why kyohi::why],
+    %w[refuse kyohi::refuse]
   ]
 )
 

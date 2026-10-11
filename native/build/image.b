@@ -5,7 +5,7 @@
 #   IMAGE_BOARD  the board's name in kiban
 #   IMAGE_SEAM   the seam sources (native/seam)
 #   IMAGE_NAME   the image's name
-use("chuuzou", [:cz_link, :cz_measure, :cz_size_tsv])
+use("chuuzou", %i[cz_link cz_measure cz_size_tsv])
 
 out = env_required("IMAGE_OUT")
 board = env_required("IMAGE_BOARD")

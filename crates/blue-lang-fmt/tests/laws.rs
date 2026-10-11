@@ -13,6 +13,13 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    // Word lists: `%w[…]`/`%i[…]` and the bracket lists they print from.
+    "%w[a --force x/y]",
+    "%i[a pair? b]",
+    "[\"a\", \"b\"]",
+    "[:a, :b]",
+    "[\"a b\", \"c\"]",
+    "f(%w[\n  a\n  b\n])",
     // case/when.
     "case x\nwhen 1\n  \"one\"\nend",
     "case x\nwhen 1\n  \"one\"\nwhen 2\n  \"two\"\nend",
@@ -164,6 +171,8 @@ fn equal_trees_format_to_equal_text() {
         ("user.name", "user . name"),
         ("[1,2]", "[ 1 , 2 ]"),
         ("if a\n1\nend", "if a\n  1\nend"),
+        ("[\"a\", \"b\"]", "%w[a b]"),
+        ("[:a, :b]", "%i[\n a\n b ]"),
     ];
     for (a, b) in pairs {
         let pa = parse_program(a).expect("parse a");

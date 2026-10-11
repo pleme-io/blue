@@ -2,57 +2,57 @@ use("deeta", [:get_or])
 
 use(
   "gyouretsu",
-  [
-    :angle_between,
-    :cross_product,
-    :dot,
-    :scale,
-    :transpose,
-    :vadd,
-    :vdistance,
-    :vector_near,
-    :vsub
+  %i[
+    angle_between
+    cross_product
+    dot
+    scale
+    transpose
+    vadd
+    vdistance
+    vector_near
+    vsub
   ]
 )
 
-use("kazu", [:abs, :max, :near, :near_within, :square, :sum])
+use("kazu", %i[abs max near near_within square sum])
 
 use(
   "kikagaku",
-  [
-    :arc_points,
-    :boundary_gap,
-    :bounding_box,
-    :circle_polygon,
-    :distance,
-    :midpoint,
-    :pi,
-    :polygon_inside,
-    :px,
-    :py,
-    :rect_polygon,
-    :region,
-    :region_area,
-    :region_outline,
-    :region_refusals,
-    :regular_polygon_area
+  %i[
+    arc_points
+    boundary_gap
+    bounding_box
+    circle_polygon
+    distance
+    midpoint
+    pi
+    polygon_inside
+    px
+    py
+    rect_polygon
+    region
+    region_area
+    region_outline
+    region_refusals
+    regular_polygon_area
   ]
 )
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :count_of,
-    :find_first,
-    :first,
-    :flat_map,
-    :index_of,
-    :indexes,
-    :is_empty,
-    :last,
-    :size
+  %i[
+    concat_lists
+    contains
+    count_of
+    find_first
+    first
+    flat_map
+    index_of
+    indexes
+    is_empty
+    last
+    size
   ]
 )
 
@@ -62,7 +62,7 @@ use("zumen")
 
 legacy_names("0.1.1", "kk")
 
-legacy_names("0.1.2", [["opt", "deeta::get_or"]])
+legacy_names("0.1.2", [%w[opt deeta::get_or]])
 
 # kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 #
@@ -184,7 +184,7 @@ def sheet_part(spec)
 end
 
 def sides()
-  [:south, :east, :north, :west]
+  %i[south east north west]
 end
 
 def flange_on(part, side)
@@ -817,10 +817,7 @@ def tray()
       thickness: 1.5,
       width: 300,
       depth: 200,
-      flanges: map(
-        fn(s) flange(s, 40, 90, 1.5) end,
-        [:south, :east, :north, :west]
-      ),
+      flanges: map(fn(s) flange(s, 40, 90, 1.5) end, %i[south east north west]),
       holes: [circle_polygon([150, 100], 10, 24)],
       k: 0.44
     }

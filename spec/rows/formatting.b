@@ -57,3 +57,29 @@ row(
   "use(\"sp_mod\")\nsp_mod::sp_twice(2)",
   formats("use(\"sp_mod\")\nsp_mod::sp_twice(2)\n")
 )
+
+row("fmt.words.strings", "[\"a\", \"b\"]", formats("%w[a b]\n"))
+row("fmt.words.keywords", "[:a, :b?]", formats("%i[a b?]\n"))
+row("fmt.words.one_stays", "[\"a\"]", formats("[\"a\"]\n"))
+row("fmt.words.not_words", "[\"a b\", \"c\"]", formats("[\"a b\", \"c\"]\n"))
+row("fmt.words.mixed", "[\"a\", :b]", formats("[\"a\", :b]\n"))
+
+row(
+  "fmt.words.import",
+  "use(\"sp_mod\", [:sp_twice, :sp_x])",
+  formats("use(\"sp_mod\", %i[sp_twice sp_x])\n")
+)
+
+row(
+  "fmt.words.comment_keeps_brackets",
+  "x = [\n  # why\n  \"a\",\n  \"b\"\n]",
+  formats("x = [\n  # why\n  \"a\",\n  \"b\"\n]\n")
+)
+
+row(
+  "fmt.words.long_breaks",
+  "[\"aaaaaaaaaaaaaaaaaaaa\", \"bbbbbbbbbbbbbbbbbbbbbbbbb\", \"cccccccccccccccccccccc\", \"dddddddddddddddddd\"]",
+  formats(
+    "%w[\n  aaaaaaaaaaaaaaaaaaaa\n  bbbbbbbbbbbbbbbbbbbbbbbbb\n  cccccccccccccccccccccc\n  dddddddddddddddddd\n]\n"
+  )
+)

@@ -1,69 +1,66 @@
 use(
   "gyouretsu",
-  [
-    :cross_product,
-    :dot,
-    :identity_matrix,
-    :is_orthogonal,
-    :is_zero_vector,
-    :madd,
-    :magnitude,
-    :matmul,
-    :mscale,
-    :mvmul,
-    :normalize,
-    :scale,
-    :transpose,
-    :vadd,
-    :vector_near,
-    :vsub
+  %i[
+    cross_product
+    dot
+    identity_matrix
+    is_orthogonal
+    is_zero_vector
+    madd
+    magnitude
+    matmul
+    mscale
+    mvmul
+    normalize
+    scale
+    transpose
+    vadd
+    vector_near
+    vsub
   ]
 )
 
 use("junjo", [:sort_by])
 
-use(
-  "kazu",
-  [:abs, :clamp, :max, :max_of, :min, :min_of, :near, :near_within, :sum]
-)
+use("kazu", %i[abs clamp max max_of min min_of near near_within sum])
 
 use(
   "kikagaku",
-  [
-    :ccw_polygon,
-    :circle_polygon,
-    :cross,
-    :distance_squared,
-    :pi,
-    :px,
-    :py,
-    :rect_polygon,
-    :region,
-    :region_area,
-    :region_holes,
-    :region_outline,
-    :regular_polygon_area,
-    :segments_intersect,
-    :triangle_area
+  %i[
+    ccw_polygon
+    circle_polygon
+    cross
+    distance_squared
+    pi
+    px
+    py
+    rect_polygon
+    region
+    region_area
+    region_holes
+    region_outline
+    regular_polygon_area
+    segments_intersect
+    triangle_area
   ]
 )
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :drop_n,
-    :find_first,
-    :first,
-    :flat_map,
-    :index_of,
-    :indexes,
-    :is_empty,
-    :remove_at,
-    :rest,
-    :size,
-    :take_n
+  %i[
+    concat_lists
+    contains
+    drop_n
+    find_first
+    first
+    flat_map
+    index_of
+    indexes
+    is_empty
+    remove_at
+    rest
+    size
+    take_n
   ]
 )
 

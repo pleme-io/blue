@@ -1,7 +1,7 @@
 use("junjo", [:sort])
 use("moji", [:lines])
-use("ran", [:next_bool, :next_seed, :next_uniform, :pick])
-use("retsu", [:contains, :flat_map, :index_of, :is_empty, :rest, :size])
+use("ran", %i[next_bool next_seed next_uniform pick])
+use("retsu", %i[contains flat_map index_of is_empty rest size])
 
 legacy_names("0.1.1", "ok")
 
@@ -90,7 +90,7 @@ def gen_map(s, n, depth, acc)
     [acc, s]
   else
     g = gen(next_seed(s), depth)
-    key = pick(s, [:a, :b, :c, :d])
+    key = pick(s, %i[a b c d])
     gen_map(nth(1, g), n - 1, depth, assoc(acc, key, nth(0, g)))
   end
 end

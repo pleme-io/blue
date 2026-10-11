@@ -6,8 +6,8 @@
 # grouping and counting return [key, value] pairs, because blue cannot list
 # a map's keys.
 use("junjo", [:sort_by])
-use("retsu", [:first, :is_empty, :rest, :size])
-use("shuugou", [:frequencies, :group_by, :lookup])
+use("retsu", %i[first is_empty rest size])
+use("shuugou", %i[frequencies group_by lookup])
 
 def squares_of_evens(xs)
   map(fn(x) x * x end, filter(fn(x) x % 2 == 0 end, xs))
@@ -32,12 +32,12 @@ test "the total list words accept the empty list"
 end
 
 test "nth takes the index first, and answers nil past the end"
-  assert nth(1, [:a, :b, :c]) == :b
+  assert nth(1, %i[a b c]) == :b
   assert nth(9, [:a]) == nil
 end
 
 test "a map built up and read back"
-  m = tally(["a", "b", "a"])
+  m = tally(%w[a b a])
   assert get(m, "a") == 2
   assert get(m, "z") == nil
   assert dissoc(m, "b") == {"a" => 2}
@@ -45,9 +45,9 @@ test "a map built up and read back"
 end
 
 test "grouping and counting return pairs"
-  assert frequencies([:x, :y, :x]) == [[:x, 2], [:y, 1]]
+  assert frequencies(%i[x y x]) == [[:x, 2], [:y, 1]]
   assert group_by(fn(n) n % 2 end, [1, 2, 3]) == [[1, [1, 3]], [0, [2]]]
-  assert lookup(frequencies([:x, :y, :x]), :x) == 2
+  assert lookup(frequencies(%i[x y x]), :x) == 2
 end
 
 test "sorting by a key"
@@ -56,5 +56,5 @@ test "sorting by a key"
     fn(p) get(p, :name) end,
     sort_by(fn(p) get(p, :age) end, people)
   ) ==
-    ["bo", "ana"]
+    %w[bo ana]
 end

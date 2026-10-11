@@ -1,35 +1,32 @@
 use("deeta", [:as_json])
 
-use(
-  "kueri",
-  [:q_and, :q_cast, :q_filter, :q_get, :q_if, :q_join, :q_max, :q_min, :q_or]
-)
+use("kueri", %i[q_and q_cast q_filter q_get q_if q_join q_max q_min q_or])
 
-use("nisshi", [:el_append, :el_def])
+use("nisshi", %i[el_append el_def])
 
 use("raifusaikuru", [:lc_define])
 
 use(
   "retsu",
-  [
-    :as_list,
-    :concat_lists,
-    :contains,
-    :count_of,
-    :count_where,
-    :find_first,
-    :first,
-    :flat_map,
-    :flatten1,
-    :is_empty,
-    :last,
-    :push,
-    :size,
-    :take_n
+  %i[
+    as_list
+    concat_lists
+    contains
+    count_of
+    count_where
+    find_first
+    first
+    flat_map
+    flatten1
+    is_empty
+    last
+    push
+    size
+    take_n
   ]
 )
 
-use("shuugou", [:lookup, :set_equal, :unique, :unique_by])
+use("shuugou", %i[lookup set_equal unique unique_by])
 
 legacy_names("0.1.1", "la")
 
@@ -320,37 +317,37 @@ end
 
 # The record columns an event log writes, as the events view names them.
 def record_names()
-  [
-    "entity",
-    "seq",
-    "time",
-    "type",
-    "status",
-    "refusal_kind",
-    "refusal_detail",
-    "links",
-    "prev",
-    "hash",
-    "sig"
+  %w[
+    entity
+    seq
+    time
+    type
+    status
+    refusal_kind
+    refusal_detail
+    links
+    prev
+    hash
+    sig
   ]
 end
 
 # The columns a state row carries besides the fields, and the ones the steps
 # view adds: no field may take one of these names.
 def state_names()
-  [
-    "entity",
-    "seq",
-    "time",
-    "type",
-    "status",
-    "refusal_kind",
-    "refusal_detail",
-    "phase",
-    "phase_before",
-    "breach",
-    "breach_capability",
-    "replay_refusal"
+  %w[
+    entity
+    seq
+    time
+    type
+    status
+    refusal_kind
+    refusal_detail
+    phase
+    phase_before
+    breach
+    breach_capability
+    replay_refusal
   ]
 end
 
@@ -450,12 +447,12 @@ end
 # Field `f` holds a number: compared, counted, or given a numeric constant.
 def needs_number?(d, f)
   compared = count_where(
-    fn(a) contains([:lt, :le, :gt, :ge], first(a)) && nth(1, a) == f end,
+    fn(a) contains(%i[lt le gt ge], first(a)) && nth(1, a) == f end,
     atoms(d)
   ) >
     0
   counted = count_where(
-    fn(x) contains([:add, :add_key], first(x)) && nth(1, x) == f end,
+    fn(x) contains(%i[add add_key], first(x)) && nth(1, x) == f end,
     effects(d)
   ) >
     0
@@ -901,7 +898,7 @@ def events_model(d, records)
       ],
       keys
     ),
-    [:prev, :hash, :sig]
+    %i[prev hash sig]
   )
   view(d, "events", records, [kueri::select(items)])
 end
@@ -910,8 +907,8 @@ end
 def states_model(d, history)
   fields = map(fn(f) kueri::as(f, q_get(:fields, f)) end, field_names(d))
   items = concat_lists(
-    concat_lists([:entity, :seq, :phase], fields),
-    [:breach, :breach_capability, :replay_refusal]
+    concat_lists(%i[entity seq phase], fields),
+    %i[breach breach_capability replay_refusal]
   )
   view(d, "states", history, [kueri::select(items)])
 end
@@ -925,9 +922,9 @@ def steps_model(d, events, states)
     events,
     [
       kueri::select(
-        [:entity, :seq, :time, :type, :status, :refusal_kind, :refusal_detail]
+        %i[entity seq time type status refusal_kind refusal_detail]
       ),
-      q_join(states, [:entity, :seq]),
+      q_join(states, %i[entity seq]),
       kueri::derive(
         :phase_before,
         kueri::coalesce(kueri::lag(:phase, [:entity], [:seq]), start)
@@ -944,8 +941,8 @@ def unreplayed_model(d, events, states)
     "unreplayed",
     events,
     [
-      kueri::select([:entity, :seq]),
-      kueri::left_join(states, [:entity, :seq]),
+      kueri::select(%i[entity seq]),
+      kueri::left_join(states, %i[entity seq]),
       q_filter(kueri::is_null(:phase)),
       kueri::group([], [kueri::agg(:records, kueri::count_all())])
     ]
@@ -955,7 +952,7 @@ end
 # One row per entity: its phase and fields after its last record.
 def current_state_model(d, steps)
   items = concat_lists(
-    concat_lists([:entity, :phase], field_names(d)),
+    concat_lists(%i[entity phase], field_names(d)),
     [kueri::as(:last_seq, :seq), kueri::as(:last_time, :time)]
   )
   view(
@@ -999,7 +996,7 @@ def time_in_state_model(d, intervals)
     intervals,
     [
       kueri::group(
-        [:entity, :phase],
+        %i[entity phase],
         [
           kueri::agg(:seconds, kueri::sum(:seconds)),
           kueri::agg_where(:ongoing, kueri::count_all(), kueri::is_null(:until))
@@ -1018,7 +1015,7 @@ def refusals_model(d, events)
     [
       q_filter(kueri::eq(:status, "refused")),
       kueri::group(
-        [:type, :refusal_kind],
+        %i[type refusal_kind],
         [kueri::agg(:records, kueri::count_all())]
       )
     ]
@@ -1033,7 +1030,7 @@ def gates_model(d, edges)
     edges,
     [
       q_filter(kueri::not_null(:capability)),
-      kueri::select([:phase_before, :type, :capability])
+      kueri::select(%i[phase_before type capability])
     ]
   )
 end
@@ -1049,19 +1046,19 @@ def guard_hits_model(d, steps, gates)
     steps,
     [
       kueri::select(
-        [
-          :entity,
-          :seq,
-          :time,
-          :type,
-          :phase_before,
-          :refusal_kind,
-          :refusal_detail,
-          :breach,
-          :breach_capability
+        %i[
+          entity
+          seq
+          time
+          type
+          phase_before
+          refusal_kind
+          refusal_detail
+          breach
+          breach_capability
         ]
       ),
-      kueri::left_join(gates, [:phase_before, :type]),
+      kueri::left_join(gates, %i[phase_before type]),
       q_filter(
         q_or(kueri::eq(:refusal_kind, "guard"), kueri::not_null(:breach))
       ),
@@ -1097,7 +1094,7 @@ def rule_hit_counts_model(d, hits)
     hits,
     [
       kueri::group(
-        [:capability, :rule],
+        %i[capability rule],
         [
           kueri::agg_where(
             :refused,
@@ -1123,8 +1120,8 @@ def rule_hits_model(d, rules, counts)
     "rule_hits",
     rules,
     [
-      kueri::select([:capability, :rule, :needs]),
-      kueri::left_join(counts, [:capability, :rule]),
+      kueri::select(%i[capability rule needs]),
+      kueri::left_join(counts, %i[capability rule]),
       kueri::select(
         [
           :capability,
@@ -1145,7 +1142,7 @@ def rule_tasks_model(d, rules)
     rules,
     [
       q_filter(kueri::not_null(:task)),
-      kueri::select([:capability, :rule, :task, :escalate_after])
+      kueri::select(%i[capability rule task escalate_after])
     ]
   )
 end
@@ -1157,9 +1154,9 @@ def task_asks_model(d, hits, rule_tasks)
     "task_asks",
     hits,
     [
-      q_join(rule_tasks, [:capability, :rule]),
+      q_join(rule_tasks, %i[capability rule]),
       kueri::group(
-        [:entity, :seq, :time, :task, :escalate_after],
+        %i[entity seq time task escalate_after],
         [kueri::agg(:asked_by, kueri::count_all())]
       )
     ]
@@ -1185,7 +1182,7 @@ def task_evidence_events_model(d, steps, evidence)
         ]
       ),
       q_join(evidence, [:evidence]),
-      kueri::select([:entity, :task, :evidence_seq, :evidence_time])
+      kueri::select(%i[entity task evidence_seq evidence_time])
     ]
   )
 end
@@ -1198,9 +1195,9 @@ def task_closes_model(d, asks, evidence_events)
     "task_closes",
     asks,
     [
-      kueri::left_join(evidence_events, [:entity, :task]),
+      kueri::left_join(evidence_events, %i[entity task]),
       kueri::group(
-        [:entity, :seq, :time, :task, :escalate_after],
+        %i[entity seq time task escalate_after],
         [
           kueri::agg_where(:closed_seq, q_min(:evidence_seq), later),
           kueri::agg_where(:closed_at, q_min(:evidence_time), later)
@@ -1220,7 +1217,7 @@ def tasks_model(d, closes, now)
     closes,
     [
       kueri::group(
-        [:entity, :task, :closed_seq],
+        %i[entity task closed_seq],
         [
           kueri::agg(:opened_seq, q_min(:seq)),
           kueri::agg(:opened_at, q_min(:time)),
@@ -1239,18 +1236,18 @@ def tasks_model(d, closes, now)
         q_if(kueri::is_null(:closed_seq), "open", "closed")
       ),
       kueri::select(
-        [
-          :entity,
-          :task,
-          :state,
-          :opened_seq,
-          :opened_at,
-          :closed_seq,
-          :closed_at,
-          :asks,
-          :open_for,
-          :escalate_after,
-          :overdue
+        %i[
+          entity
+          task
+          state
+          opened_seq
+          opened_at
+          closed_seq
+          closed_at
+          asks
+          open_for
+          escalate_after
+          overdue
         ]
       )
     ]
@@ -1337,8 +1334,8 @@ def permit_models(d, log, events, steps, gates)
       q_filter(
         q_and(kueri::eq(:status, "admitted"), kueri::is_null(:replay_refusal))
       ),
-      kueri::select([:entity, :seq, :time, :type, :phase_before]),
-      q_join(gates, [:phase_before, :type]),
+      kueri::select(%i[entity seq time type phase_before]),
+      q_join(gates, %i[phase_before type]),
       q_filter(kueri::eq(:capability, c)),
       kueri::select(
         [:entity, kueri::as(:use_seq, :seq), kueri::as(:use_time, :time)]
@@ -1355,26 +1352,18 @@ def permit_models(d, log, events, steps, gates)
   )
   keys = concat_lists(
     concat_lists(
-      [:entity, :permit_seq, :issued_at, :not_after, :subject, :basis],
+      %i[entity permit_seq issued_at not_after subject basis],
       counts
     ),
     [:next_seq]
   )
   out = concat_lists(
     concat_lists(
-      [
-        :entity,
-        :permit_seq,
-        :subject,
-        :issued_at,
-        :not_after,
-        :window_seconds,
-        :basis
-      ],
+      %i[entity permit_seq subject issued_at not_after window_seconds basis],
       counts
     ),
     concat_lists(
-      [:uses, :overrun, :last_use_at],
+      %i[uses overrun last_use_at],
       map(fn(k) "#{k}_exceeded" end, counts)
     )
   )
@@ -1457,11 +1446,11 @@ def unpermitted_models(d, log, events, steps, gates)
       q_filter(
         q_and(kueri::eq(:status, "admitted"), kueri::is_null(:replay_refusal))
       ),
-      kueri::select([:entity, :seq, :time, :type, :phase_before, :breach]),
-      q_join(gates, [:phase_before, :type]),
+      kueri::select(%i[entity seq time type phase_before breach]),
+      q_join(gates, %i[phase_before type]),
       q_filter(kueri::eq(:capability, c)),
-      kueri::select([:entity, :seq, :time, :breach]),
-      kueri::asof_left_join(granted, [:entity, :seq]),
+      kueri::select(%i[entity seq time breach]),
+      kueri::asof_left_join(granted, %i[entity seq]),
       kueri::derive(:reason, reason),
       q_filter(kueri::not_null(:reason)),
       kueri::select(
@@ -1574,17 +1563,17 @@ def span_models(d, sp, steps, current, now)
       kueri::derive(:limit_seconds, q_cast(kueri::lit(limit), :bigint)),
       kueri::derive(:over_limit, over),
       kueri::select(
-        [
-          :entity,
-          :state,
-          :from_seq,
-          :from_at,
-          :to_seq,
-          :to_at,
-          :seconds,
-          :elapsed,
-          :limit_seconds,
-          :over_limit
+        %i[
+          entity
+          state
+          from_seq
+          from_at
+          to_seq
+          to_at
+          seconds
+          elapsed
+          limit_seconds
+          over_limit
         ]
       )
     ]
@@ -1724,7 +1713,7 @@ def link_rows_model(ad, role, a_events)
     "#{r}_links",
     a_events,
     [
-      kueri::select([:entity, :seq, :time, :type, :status, :links]),
+      kueri::select(%i[entity seq time type status links]),
       kueri::explode(:la_link, :links),
       q_filter(kueri::eq(q_get(:la_link, :kind), r)),
       kueri::select(
@@ -1757,7 +1746,7 @@ def link_state_model(ad, role, bd, b_steps)
     [
       kueri::derive(
         :la_last,
-        kueri::row_number([:entity, :time], [kueri::desc(:seq)])
+        kueri::row_number(%i[entity time], [kueri::desc(:seq)])
       ),
       q_filter(kueri::eq(:la_last, 1)),
       kueri::select(
@@ -1950,10 +1939,7 @@ end
 
 # The relations a lifecycle loads rather than derives.
 def source_names(d)
-  map(
-    fn(x) n(d, x) end,
-    ["records", "history", "edges", "rules", "task_evidence"]
-  )
+  map(fn(x) n(d, x) end, %w[records history edges rules task_evidence])
 end
 
 def chains_from(bindings, models, a, l1)
@@ -2183,9 +2169,9 @@ def example_portion()
   lc_define(
     :portion,
     [
-      raifusaikuru::states([:new, :made, :served, :wasted]),
+      raifusaikuru::states(%i[new made served wasted]),
       raifusaikuru::start(:new),
-      raifusaikuru::terminals([:served, :wasted]),
+      raifusaikuru::terminals(%i[served wasted]),
       raifusaikuru::field(:grams, 0),
       raifusaikuru::field(:made_at, nil),
       raifusaikuru::field(:served_at, nil),
@@ -2215,9 +2201,9 @@ def example_order()
   lc_define(
     :order,
     [
-      raifusaikuru::states([:new, :placed, :ready, :delivered, :cancelled]),
+      raifusaikuru::states(%i[new placed ready delivered cancelled]),
       raifusaikuru::start(:new),
-      raifusaikuru::terminals([:delivered, :cancelled]),
+      raifusaikuru::terminals(%i[delivered cancelled]),
       raifusaikuru::field(:portions, 0),
       raifusaikuru::field(:placed_at, nil),
       raifusaikuru::field(:delivered_at, nil),
@@ -2245,7 +2231,7 @@ def example_order()
         :delivered,
         [raifusaikuru::stamp(:delivered_at)]
       ),
-      raifusaikuru::on_each([:placed, :ready], :cancel, :cancelled, []),
+      raifusaikuru::on_each(%i[placed ready], :cancel, :cancelled, []),
       raifusaikuru::link(:portion, :portion),
       raifusaikuru::span(:lead, :placed, :delivered, 2000),
       raifusaikuru::span(:ready_to_door, :ready, :delivered, nil)
@@ -2443,35 +2429,35 @@ test "the telemetry schema is derived from the definition: the record's columns,
   # limits.
   assert columns_text(event_columns(d)) ==
     [
-      ["entity", "VARCHAR"],
-      ["seq", "BIGINT"],
-      ["time", "BIGINT"],
-      ["type", "VARCHAR"],
-      ["status", "VARCHAR"],
-      ["refusal_kind", "VARCHAR"],
+      %w[entity VARCHAR],
+      %w[seq BIGINT],
+      %w[time BIGINT],
+      %w[type VARCHAR],
+      %w[status VARCHAR],
+      %w[refusal_kind VARCHAR],
       ["refusal_detail", "VARCHAR[]"],
       ["links", "STRUCT(id VARCHAR, kind VARCHAR)[]"],
-      ["value", "DOUBLE"],
-      ["subject", "VARCHAR"],
-      ["not_after", "BIGINT"],
-      ["basis", "BIGINT"],
-      ["uses_left", "BIGINT"],
-      ["prev", "VARCHAR"],
-      ["hash", "VARCHAR"],
-      ["sig", "VARCHAR"]
+      %w[value DOUBLE],
+      %w[subject VARCHAR],
+      %w[not_after BIGINT],
+      %w[basis BIGINT],
+      %w[uses_left BIGINT],
+      %w[prev VARCHAR],
+      %w[hash VARCHAR],
+      %w[sig VARCHAR]
     ]
   assert columns_text(state_columns(d)) ==
     [
-      ["entity", "VARCHAR"],
-      ["seq", "BIGINT"],
-      ["phase", "VARCHAR"],
-      ["uses", "BIGINT"],
-      ["opened_at", "BIGINT"],
-      ["quality", "DOUBLE"],
-      ["read_at", "BIGINT"],
+      %w[entity VARCHAR],
+      %w[seq BIGINT],
+      %w[phase VARCHAR],
+      %w[uses BIGINT],
+      %w[opened_at BIGINT],
+      %w[quality DOUBLE],
+      %w[read_at BIGINT],
       ["breach", "VARCHAR[]"],
-      ["breach_capability", "VARCHAR"],
-      ["replay_refusal", "VARCHAR"]
+      %w[breach_capability VARCHAR],
+      %w[replay_refusal VARCHAR]
     ]
   # grams is set from a key into a field that starts at 0: numbers, widened
   # to DOUBLE because the key comes from outside.
@@ -2482,7 +2468,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
   bare = lc_define(
     :bare,
     [
-      raifusaikuru::states([:a, :b]),
+      raifusaikuru::states(%i[a b]),
       raifusaikuru::start(:a),
       raifusaikuru::terminals([:b]),
       raifusaikuru::event(:go, []),
@@ -2491,12 +2477,12 @@ test "the telemetry schema is derived from the definition: the record's columns,
   )
   assert size(event_columns(bare)) == 11
   assert map(fn(c) get(c, :name) end, state_columns(bare)) ==
-    ["entity", "seq", "phase", "breach", "breach_capability", "replay_refusal"]
+    %w[entity seq phase breach breach_capability replay_refusal]
   # Unconstrained is text, never a guess.
   noted = lc_define(
     :noted,
     [
-      raifusaikuru::states([:a, :b]),
+      raifusaikuru::states(%i[a b]),
       raifusaikuru::start(:a),
       raifusaikuru::terminals([:b]),
       raifusaikuru::field(:note, nil),
@@ -2510,7 +2496,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
   clash = lc_define(
     :clash,
     [
-      raifusaikuru::states([:a, :b]),
+      raifusaikuru::states(%i[a b]),
       raifusaikuru::start(:a),
       raifusaikuru::terminals([:b]),
       raifusaikuru::event(:go, [:time]),
@@ -2521,7 +2507,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
   phased = lc_define(
     :phased,
     [
-      raifusaikuru::states([:a, :b]),
+      raifusaikuru::states(%i[a b]),
       raifusaikuru::start(:a),
       raifusaikuru::terminals([:b]),
       raifusaikuru::field(:phase, nil),
@@ -2533,7 +2519,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
   mixed = lc_define(
     :mixed,
     [
-      raifusaikuru::states([:a, :b]),
+      raifusaikuru::states(%i[a b]),
       raifusaikuru::start(:a),
       raifusaikuru::terminals([:b]),
       raifusaikuru::field(:x, 0),
@@ -2575,7 +2561,7 @@ test "the history is the fold's state after every record, and names what the rep
   closed = lc_define(
     :consumable,
     [
-      raifusaikuru::states([:sealed, :gone]),
+      raifusaikuru::states(%i[sealed gone]),
       raifusaikuru::start(:sealed),
       raifusaikuru::terminals([:gone]),
       raifusaikuru::event(:open, []),
@@ -2649,10 +2635,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   #   o-3 [0] 33100 place  [1] 33600 add p-4  [2] 33700 deliver REFUSED no_edge
   #
   # Every record has its state: nothing unreplayed.
-  assert map(
-    fn(n) view("#{n}_unreplayed") end,
-    ["consumable", "portion", "order"]
-  ) ==
+  assert map(fn(n) view("#{n}_unreplayed") end, %w[consumable portion order]) ==
     [[[0.0]], [[0.0]], [[0.0]]]
   # Current state. item-1: four admitted uses (the refused one at 30100 is
   # not folded), quality 12 from the last reading, read at 31000. item-2:
@@ -3014,7 +2997,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
       from: la_find(ms, "consumable_events"),
       pipeline: [
         q_filter(kueri::eq(:type, "reading")),
-        kueri::select([:entity, :seq, :value])
+        kueri::select(%i[entity seq value])
       ]
     }
   )
@@ -3273,7 +3256,7 @@ test "the set is refused where it cannot be generated, and a broken stream is re
   evented = lc_define(
     :portion,
     [
-      raifusaikuru::states([:a, :b]),
+      raifusaikuru::states(%i[a b]),
       raifusaikuru::start(:a),
       raifusaikuru::terminals([:b]),
       raifusaikuru::event(:go, []),

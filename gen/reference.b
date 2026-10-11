@@ -1,6 +1,6 @@
-use("mokuroku", [:catalog_of, :md_cell, :names_shadowing])
-use("retsu", [:concat_lists, :find_first, :first, :is_empty, :last, :size])
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("mokuroku", %i[catalog_of md_cell names_shadowing])
+use("retsu", %i[concat_lists find_first first is_empty last size])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 # Writes docs/REFERENCE.md from `blue reference`, the JSON the implementation
 # prints from its own tables (crates/blue-lang-cli/src/reference.rs). Declared
@@ -84,7 +84,7 @@ def rf_keywords(data)
     fn(k) [rf_code(rf_text(k, "word")), md_cell(rf_text(k, "doc"))] end,
     rf_field(data, "keywords")
   )
-  rf_table(["word", "meaning"], rows)
+  rf_table(%w[word meaning], rows)
 end
 
 def rf_words(data)
@@ -92,7 +92,7 @@ def rf_words(data)
     fn(w) [rf_code(rf_text(w, "signature")), md_cell(rf_text(w, "doc"))] end,
     rf_field(data, "bluefile")
   )
-  rf_table(["word", "declares"], rows)
+  rf_table(%w[word declares], rows)
 end
 
 # [name, [package…]] for each built-in name a bidama also defines. Inside a
@@ -140,7 +140,7 @@ def rf_topic_section(topic, names, redefined)
     end,
     mine
   )
-  "### #{rf_text(topic, "title")}\n\n#{rf_table(["name", "call", "arity", "meaning"], rows)}"
+  "### #{rf_text(topic, "title")}\n\n#{rf_table(%w[name call arity meaning], rows)}"
 end
 
 def rf_names(data)

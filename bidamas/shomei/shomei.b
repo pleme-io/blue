@@ -1,5 +1,5 @@
 use("kazu", [:max])
-use("retsu", [:first, :is_empty, :size])
+use("retsu", %i[first is_empty size])
 
 # shomei (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
 #
@@ -109,24 +109,7 @@ def is_hash_hex(s)
       reduce(
         fn(left, c) replace(left, c, "") end,
         s,
-        [
-          "0",
-          "1",
-          "2",
-          "3",
-          "4",
-          "5",
-          "6",
-          "7",
-          "8",
-          "9",
-          "a",
-          "b",
-          "c",
-          "d",
-          "e",
-          "f"
-        ]
+        %w[0 1 2 3 4 5 6 7 8 9 a b c d e f]
       ) ==
         ""
   else
@@ -332,9 +315,9 @@ test "chain values match b3sum over the two documented lines"
     "340a67af6036a998f2720cbe2a5ac48cd15562e4020913ed157722ef05e27eaa"
   assert chain_link(l1, "event-2") ==
     "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"
-  assert chain_hashes(g, ["event-1", "event-2"]) ==
+  assert chain_hashes(g, %w[event-1 event-2]) ==
     [l1, "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"]
-  assert chain_head(g, ["event-1", "event-2"]) ==
+  assert chain_head(g, %w[event-1 event-2]) ==
     "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"
 end
 
@@ -350,22 +333,18 @@ end
 
 test "a changed, dropped, added or reordered payload breaks the chain"
   g = chain_genesis("test-log")
-  events = ["event-1", "event-2", "event-3"]
+  events = %w[event-1 event-2 event-3]
   head_hash = chain_head(g, events)
   stored = chain_hashes(g, events)
   assert chain_verify(g, events, head_hash)
   assert chain_first_break(g, events, stored) == nil
-  assert !chain_verify(g, ["event-1", "event-X", "event-3"], head_hash)
-  assert !chain_verify(g, ["event-1", "event-3"], head_hash)
-  assert !chain_verify(
-    g,
-    ["event-1", "event-2", "event-3", "event-4"],
-    head_hash
-  )
-  assert !chain_verify(g, ["event-2", "event-1", "event-3"], head_hash)
-  assert chain_first_break(g, ["event-1", "event-X", "event-3"], stored) == 1
-  assert chain_first_break(g, ["event-1", "event-2"], stored) == 2
-  assert chain_first_break(g, ["event-9", "event-2", "event-3"], stored) == 0
+  assert !chain_verify(g, %w[event-1 event-X event-3], head_hash)
+  assert !chain_verify(g, %w[event-1 event-3], head_hash)
+  assert !chain_verify(g, %w[event-1 event-2 event-3 event-4], head_hash)
+  assert !chain_verify(g, %w[event-2 event-1 event-3], head_hash)
+  assert chain_first_break(g, %w[event-1 event-X event-3], stored) == 1
+  assert chain_first_break(g, %w[event-1 event-2], stored) == 2
+  assert chain_first_break(g, %w[event-9 event-2 event-3], stored) == 0
 end
 
 test "a link refuses a previous hash or payload it cannot place"

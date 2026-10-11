@@ -1,5 +1,5 @@
-use("kazu", [:max, :min])
-use("retsu", [:first, :is_empty, :push, :repeat, :rest, :size])
+use("kazu", %i[max min])
+use("retsu", %i[first is_empty push repeat rest size])
 
 # shinsuu (進数) — base conversion and checksums.
 #
@@ -8,24 +8,7 @@ use("retsu", [:first, :is_empty, :push, :repeat, :rest, :size])
 # implementation looks right and is wrong for exactly one input.
 
 def digits()
-  [
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "a",
-    "b",
-    "c",
-    "d",
-    "e",
-    "f"
-  ]
+  %w[0 1 2 3 4 5 6 7 8 9 a b c d e f]
 end
 
 def to_base(n, base)
@@ -564,7 +547,7 @@ def roman_values()
 end
 
 def roman_symbols()
-  ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"]
+  %w[M CM D CD C XC L XL X IX V IV I]
 end
 
 # Zero and anything below it render as the empty string.
@@ -737,44 +720,7 @@ end
 # asserted below rather than assumed.
 
 def digits36()
-  [
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "a",
-    "b",
-    "c",
-    "d",
-    "e",
-    "f",
-    "g",
-    "h",
-    "i",
-    "j",
-    "k",
-    "l",
-    "m",
-    "n",
-    "o",
-    "p",
-    "q",
-    "r",
-    "s",
-    "t",
-    "u",
-    "v",
-    "w",
-    "x",
-    "y",
-    "z"
-  ]
+  %w[0 1 2 3 4 5 6 7 8 9 a b c d e f g h i j k l m n o p q r s t u v w x y z]
 end
 
 def digit_value36(ch)

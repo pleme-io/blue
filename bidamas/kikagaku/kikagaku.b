@@ -1,18 +1,18 @@
-use("kazu", [:abs, :clamp, :max, :max_of, :min, :min_of, :near, :sign, :sum])
+use("kazu", %i[abs clamp max max_of min min_of near sign sum])
 
 use(
   "retsu",
-  [
-    :all_but_last,
-    :concat_lists,
-    :contains,
-    :first,
-    :flat_map,
-    :indexes,
-    :is_empty,
-    :last,
-    :push,
-    :size
+  %i[
+    all_but_last
+    concat_lists
+    contains
+    first
+    flat_map
+    indexes
+    is_empty
+    last
+    push
+    size
   ]
 )
 

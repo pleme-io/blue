@@ -1,12 +1,9 @@
 use("deeta", [:get_str])
-use("moji", [:occurrences, :replace_first, :strip_prefix])
+use("moji", %i[occurrences replace_first strip_prefix])
 
-use(
-  "retsu",
-  [:contains, :count_where, :enumerate, :first, :is_empty, :last, :size]
-)
+use("retsu", %i[contains count_where enumerate first is_empty last size])
 
-use("shisutemu", [:read_or, :status_of])
+use("shisutemu", %i[read_or status_of])
 
 legacy_names("0.1.1", "hn")
 
@@ -267,7 +264,7 @@ def parse_flags(args, acc)
     acc
   else
     flag = first(args)
-    if contains(["--blue", "--test"], flag) && size(args) >= 2
+    if contains(%w[--blue --test], flag) && size(args) >= 2
       key = if flag == "--blue"
         :blue
       else
@@ -331,12 +328,12 @@ test "the verdicts: refused, survived, caught"
 end
 
 test "arguments"
-  a = parse(["/p/kazu", "m.json", "--blue", "/bin/blue"])
+  a = parse(%w[/p/kazu m.json --blue /bin/blue])
   assert get(a, :package) == "/p/kazu"
   assert get(a, :blue) == "/bin/blue"
   assert get(a, :test) == nil
   assert get(parse(["/p"]), :error) != nil
-  assert get(parse(["/p", "m", "--nope"]), :error) == "unknown argument --nope"
+  assert get(parse(%w[/p m --nope]), :error) == "unknown argument --nope"
   assert package_name("/a/b/kazu/") == "kazu"
 end
 
@@ -394,7 +391,7 @@ def end_to_end()
   )
   assert get(r, :control) == 0
   assert map(fn(x) get(x, :verdict) end, get(r, :results)) ==
-    [:caught, :survived, :refused]
+    %i[caught survived refused]
   assert ok?(r) == false
   assert contains?(
     report_text(r),

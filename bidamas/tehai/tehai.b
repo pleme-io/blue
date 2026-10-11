@@ -1,15 +1,9 @@
-use("deeta", [:as_json, :get_int, :get_str])
-use("moji", [:after_first, :before_first, :includes])
+use("deeta", %i[as_json get_int get_str])
+use("moji", %i[after_first before_first includes])
 
-use(
-  "retsu",
-  [:concat_lists, :contains, :find_first, :first, :is_empty, :size, :take_n]
-)
+use("retsu", %i[concat_lists contains find_first first is_empty size take_n])
 
-use(
-  "shisutemu",
-  [:last_nonempty_line, :read_or, :status_of, :stderr_of, :stdout_of]
-)
+use("shisutemu", %i[last_nonempty_line read_or status_of stderr_of stdout_of])
 
 legacy_names("0.1.1", "th")
 
@@ -291,7 +285,7 @@ test "the check is non-interactive, short, and asks nix, not just the port"
   assert contains(argv, "BatchMode=yes") == true
   assert contains(argv, "ConnectTimeout=2") == true
   assert take_n(reverse(argv), 3) ==
-    ["--version", "nix-store", "builder@quero-builder-ssm"]
+    %w[--version nix-store builder@quero-builder-ssm]
   assert contains(argv, "/Users/x/.ssh/key") == true
 end
 

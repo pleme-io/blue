@@ -2,19 +2,19 @@ use("junjo", [:sort_by])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :count_where,
-    :find_first,
-    :first,
-    :flat_map,
-    :is_empty,
-    :last,
-    :push,
-    :rest,
-    :size,
-    :take_while
+  %i[
+    concat_lists
+    contains
+    count_where
+    find_first
+    first
+    flat_map
+    is_empty
+    last
+    push
+    rest
+    size
+    take_while
   ]
 )
 
@@ -540,7 +540,7 @@ test "a manifest yields its name, version and needs"
   m = parse_manifest(
     "package(\"kazu\", \"0.1.0\")\nneeds(\"retsu\", \"^0.1\")\nneeds(\"moji\", \"^0.1\")\n"
   )
-  assert m == ["kazu", "0.1.0", ["retsu", "moji"]]
+  assert m == ["kazu", "0.1.0", %w[retsu moji]]
 end
 
 test "a manifest with no needs has an empty needs list"
@@ -579,7 +579,7 @@ test "two packages defining one name is a collision; distinct names are not"
   ]
   b = ["b", "0.1.0", [], "", [["size", "size(xs)", []]], 0]
   c = ["c", "0.1.0", [], "", [["only_c", "only_c()", []]], 0]
-  assert name_collisions([a, b, c]) == [["size", ["a", "b"]]]
+  assert name_collisions([a, b, c]) == [["size", %w[a b]]]
   assert is_empty(name_collisions([a, c])) == true
   assert size(name_collisions_touching([a, b, c], ["c"])) == 0
   assert size(name_collisions_touching([a, b, c], ["b"])) == 1
@@ -599,7 +599,7 @@ test "shadows reports definitions that reuse a listed name"
     [["member", "member(x)", []], ["fine", "fine()", []]],
     0
   ]
-  assert names_shadowing([a], ["member", "get"]) == [["member", "a"]]
+  assert names_shadowing([a], %w[member get]) == [%w[member a]]
 end
 
 test "a pipe inside a table cell is escaped"

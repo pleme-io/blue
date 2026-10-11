@@ -642,6 +642,49 @@ impl<'s> Renderer<'s> {
             .group()
     }
 
+    /// `%w[a b]` / `%i[a b]` for a list of two or more literal strings, or
+    /// keywords, that can each be one word (`blue_lang_syntax::words`). It is
+    /// the same tree as `["a", "b"]`, so this is the rendering law choosing the
+    /// shorter spelling, and the choice reads the tree alone — except that a
+    /// list carrying comments keeps its brackets, the one spelling with a line
+    /// to put them on. Broken, it puts one word per line, as a list does.
+    fn word_list(&self, s: &Spanned, items: &[Spanned]) -> Option<Doc> {
+        use blue_lang_syntax::words::{writable, Flavor};
+        let flavor = match items.first().map(|i| &i.form) {
+            Some(SpannedForm::Atom(Atom::Str(_))) => Flavor::Strings,
+            Some(SpannedForm::Atom(Atom::Keyword(_))) => Flavor::Keywords,
+            _ => return None,
+        };
+        let texts: Vec<&str> = items
+            .iter()
+            .map(|i| match (&i.form, flavor) {
+                (SpannedForm::Atom(Atom::Str(t)), Flavor::Strings)
+                | (SpannedForm::Atom(Atom::Keyword(t)), Flavor::Keywords) => Some(t.as_str()),
+                _ => None,
+            })
+            .collect::<Option<_>>()?;
+        let words = writable(flavor, &texts)?;
+        if self.real(s.span) && self.has_comments(s.span.start, s.span.end) {
+            return None;
+        }
+        let mut inner = Doc::nil();
+        for (k, w) in words.iter().enumerate() {
+            if k > 0 {
+                inner = inner.concat(Doc::line());
+            }
+            inner = inner.concat(Doc::text((*w).to_string()));
+        }
+        let mut open = String::from(flavor.sigil());
+        open.push('[');
+        Some(
+            Doc::text(open)
+                .concat(Doc::softline().concat(inner).nest(2))
+                .concat(Doc::softline())
+                .concat(Doc::text("]"))
+                .group(),
+        )
+    }
+
     fn seq_of(&self, open: &str, close: &str, items: &[Spanned], lo: usize, hi: usize) -> Doc {
         let spans: Vec<Span> = items.iter().map(|i| i.span).collect();
         let u = self.units(lo, hi, &spans);
@@ -791,6 +834,9 @@ impl<'s> Renderer<'s> {
                 return self.typed_def_form(s, items)
             }
             Some("list") => {
+                if let Some(d) = self.word_list(s, &items[1..]) {
+                    return d;
+                }
                 let (lo, hi) = self.inside(s, b'[', b']');
                 return self.seq_of("[", "]", &items[1..], lo, hi);
             }

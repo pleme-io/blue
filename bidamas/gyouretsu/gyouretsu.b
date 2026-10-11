@@ -1,17 +1,8 @@
-use("kazu", [:abs, :clamp, :even, :min, :near, :near_within, :pow, :sum])
+use("kazu", %i[abs clamp even min near near_within pow sum])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :first,
-    :indexes,
-    :is_empty,
-    :push,
-    :remove_at,
-    :size,
-    :update_at
-  ]
+  %i[concat_lists first indexes is_empty push remove_at size update_at]
 )
 
 # gyouretsu (行列) — vectors and matrices as nested lists.

@@ -1,5 +1,5 @@
-use("retsu", [:first, :is_empty, :push, :rest, :size])
-use("ronri", [:any, :count_if, :every])
+use("retsu", %i[first is_empty push rest size])
+use("ronri", %i[any count_if every])
 
 # shuugou (集合) — sets, over plain lists.
 #
@@ -411,7 +411,7 @@ test "most_common, including the tie and the empty input"
   # And a later value still wins when it is a strict majority, which catches
   # a fold that never replaces at all.
   assert most_common([3, 3, 1, 1, 1]) == 1
-  assert most_common(["a", "b", "a"]) == "a"
+  assert most_common(%w[a b a]) == "a"
 end
 
 test "is_set is the precondition the other functions assume"

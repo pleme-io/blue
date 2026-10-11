@@ -14,7 +14,7 @@ defsm(
   :initial,
   :closed,
   :transitions,
-  [[:closed, :open, :opened], [:opened, :close, :closed]]
+  [%i[closed open opened], %i[opened close closed]]
 )
 
 defmacro twice(e)

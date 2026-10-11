@@ -171,7 +171,7 @@ row(
 row(
   "check.every_error_in_one_pass",
   "def f()\n  a1()\nend\n\ndef g()\n  a2()\nend",
-  diagnoses(["B0001", "B0001"])
+  diagnoses(%w[B0001 B0001])
 )
 
 row(

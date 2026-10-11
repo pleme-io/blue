@@ -2,27 +2,27 @@ use("kazu", [:min])
 
 use(
   "retsu",
-  [
-    :as_list,
-    :concat_lists,
-    :contains,
-    :count_of,
-    :drop_n,
-    :find_first,
-    :first,
-    :flat_map,
-    :flatten1,
-    :is_empty,
-    :last,
-    :push,
-    :repeat,
-    :rest,
-    :size,
-    :take_n
+  %i[
+    as_list
+    concat_lists
+    contains
+    count_of
+    drop_n
+    find_first
+    first
+    flat_map
+    flatten1
+    is_empty
+    last
+    push
+    repeat
+    rest
+    size
+    take_n
   ]
 )
 
-use("shuugou", [:lookup, :set_equal, :union, :unique, :unique_by])
+use("shuugou", %i[lookup set_equal union unique unique_by])
 
 legacy_names("0.1.1", "lc")
 
@@ -506,19 +506,19 @@ def tagged(flat, tag)
 end
 
 def known_tags()
-  [
-    :lc_start,
-    :lc_states,
-    :lc_terminals,
-    :lc_rests,
-    :lc_field,
-    :lc_event,
-    :lc_edge,
-    :lc_guard,
-    :lc_permit,
-    :lc_permit_log,
-    :lc_link,
-    :lc_span
+  %i[
+    lc_start
+    lc_states
+    lc_terminals
+    lc_rests
+    lc_field
+    lc_event
+    lc_edge
+    lc_guard
+    lc_permit
+    lc_permit_log
+    lc_link
+    lc_span
   ]
 end
 
@@ -587,7 +587,7 @@ def permit_log_keys(permits, capability)
     )
   end
   concat_lists(
-    [:subject, :not_after, :basis],
+    %i[subject not_after basis],
     map(fn(f) permit_count_key(f) end, counted)
   )
 end
@@ -672,45 +672,45 @@ end
 # Every kind of problem the builder reports. Closed: lc_problem refuses any
 # other, and a test row exercises each.
 def problem_kinds()
-  [
-    :bad_name,
-    :bad_clause,
-    :bad_gate,
-    :no_states,
-    :duplicate_state,
-    :reserved_name,
-    :duplicate_field,
-    :duplicate_event,
-    :duplicate_key,
-    :no_start,
-    :many_starts,
-    :unknown_state,
-    :unknown_event,
-    :unknown_field,
-    :unknown_payload,
-    :bad_effect,
-    :duplicate_edge,
-    :unknown_capability,
-    :terminal_has_exit,
-    :trap,
-    :unreachable,
-    :no_end,
-    :cannot_converge,
-    :duplicate_guard,
-    :empty_guard,
-    :bad_rule,
-    :duplicate_rule,
-    :bad_predicate,
-    :bad_task,
-    :duplicate_permit,
-    :bad_permit,
-    :unbounded_permit,
-    :unbounded_count,
-    :permit_needs_conjunction,
-    :duplicate_permit_log,
-    :duplicate_link,
-    :duplicate_span,
-    :bad_span
+  %i[
+    bad_name
+    bad_clause
+    bad_gate
+    no_states
+    duplicate_state
+    reserved_name
+    duplicate_field
+    duplicate_event
+    duplicate_key
+    no_start
+    many_starts
+    unknown_state
+    unknown_event
+    unknown_field
+    unknown_payload
+    bad_effect
+    duplicate_edge
+    unknown_capability
+    terminal_has_exit
+    trap
+    unreachable
+    no_end
+    cannot_converge
+    duplicate_guard
+    empty_guard
+    bad_rule
+    duplicate_rule
+    bad_predicate
+    bad_task
+    duplicate_permit
+    bad_permit
+    unbounded_permit
+    unbounded_count
+    permit_needs_conjunction
+    duplicate_permit_log
+    duplicate_link
+    duplicate_span
+    bad_span
   ]
 end
 
@@ -1105,7 +1105,7 @@ end
 def pb_effect(p, eff, keys, where)
   if list?(eff) == false ||
     size(eff) != 3 && size(eff) != 2 ||
-    contains([:set, :put, :add, :add_key, :stamp], first(eff)) == false
+    contains(%i[set put add add_key stamp], first(eff)) == false
     [
       problem(
         :bad_effect,
@@ -1272,7 +1272,7 @@ def pb_pred(pr, fields, states, where)
     ]
   else
     op = first(pr)
-    if contains([:lt, :le, :gt, :ge], op)
+    if contains(%i[lt le gt ge], op)
       if number?(nth(2, pr))
         pb_field(nth(1, pr), fields, where)
       else
@@ -1489,8 +1489,7 @@ end
 # comparison over a counted field (uses accumulate).
 def drifts?(atom, counted)
   first(atom) == :age_lt ||
-    contains([:lt, :le, :gt, :ge, :eq], first(atom)) &&
-      contains(counted, nth(1, atom))
+    contains(%i[lt le gt ge eq], first(atom)) && contains(counted, nth(1, atom))
 end
 
 def pb_permits(p)
@@ -1567,7 +1566,7 @@ def pb_permit_terms(p, pm, g, where)
       fn(f)
         is_empty(
           filter(
-            fn(a) contains([:lt, :le, :eq], first(a)) && nth(1, a) == f end,
+            fn(a) contains(%i[lt le eq], first(a)) && nth(1, a) == f end,
             conj
           )
         )
@@ -2004,7 +2003,7 @@ end
 # waive B0013: `eval` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::eval names it too
 def lc_eval(pr, s, now)
   op = first(pr)
-  if contains([:lt, :le, :gt, :ge], op)
+  if contains(%i[lt le gt ge], op)
     v = value(s, nth(1, pr))
     if number?(v)
       k(lc_compare(op, v, nth(2, pr)))
@@ -2240,7 +2239,7 @@ end
 def count_bound(g, s, field)
   v = value(s, field)
   atoms = filter(
-    fn(a) contains([:lt, :le, :eq], first(a)) && nth(1, a) == field end,
+    fn(a) contains(%i[lt le eq], first(a)) && nth(1, a) == field end,
     conjuncts(guard_pred(g))
   )
   min_known(map(fn(a) uses_left(first(a), v, nth(2, a)) end, atoms))
@@ -2434,7 +2433,7 @@ end
 # The example's clauses, before lc_define: a consumer extends the example by
 # adding clauses (a permit log, a link) rather than restating it.
 def example_consumable_clauses()
-  replace = task(:replace, [:reading, :scan], minutes(20))
+  replace = task(:replace, %i[reading scan], minutes(20))
   rules = [
     rule_task(
       :is_open,
@@ -2451,9 +2450,9 @@ def example_consumable_clauses()
     rule(:not_too_old, fresh(:opened_at, hours(72)))
   ]
   [
-    states([:sealed, :open, :spent, :discarded]),
+    states(%i[sealed open spent discarded]),
     start(:sealed),
-    terminals([:spent, :discarded]),
+    terminals(%i[spent discarded]),
     field(:uses, 0),
     field(:opened_at, nil),
     field(:quality, nil),
@@ -2466,13 +2465,13 @@ def example_consumable_clauses()
     on(:sealed, :open, :open, [stamp(:opened_at)]),
     gate(:use, on(:open, :use, :stay, [add(:uses, 1)])),
     on_each(
-      [:sealed, :open],
+      %i[sealed open],
       :reading,
       :stay,
       [set(:quality, :value), stamp(:read_at)]
     ),
     on(:open, :finish, :spent, []),
-    on_each([:sealed, :open], :discard, :discarded, []),
+    on_each(%i[sealed open], :discard, :discarded, []),
     guard(:use, rules, replace),
     permit(:use, [valid_for(hours(2)), counted(:uses)])
   ]
@@ -2505,12 +2504,10 @@ test "the empty case: no events give the initial state, which may not be used"
   # Sealed, never read, never opened: every rule but the counter refuses, and
   # the three whose fields are absent are UNKNOWN, not passed.
   v = allowed(d, s, :use, 0)
-  assert refused_rules(v) ==
-    [:is_open, :reading_fresh, :quality_ok, :not_too_old]
-  assert map(fn(r) nth(1, r) end, nth(2, v)) ==
-    [:no, :unknown, :unknown, :unknown]
+  assert refused_rules(v) == %i[is_open reading_fresh quality_ok not_too_old]
+  assert map(fn(r) nth(1, r) end, nth(2, v)) == %i[no unknown unknown unknown]
   assert map(fn(t) task_name(t) end, verdict_tasks(v)) ==
-    [:open_one, :take_reading, :replace]
+    %i[open_one take_reading replace]
   assert no_permit_why(permit_for(d, s, :use, 0)) == :refused
 end
 
@@ -2582,7 +2579,7 @@ test "a control: a guard that must refuse, says why, names the task, and a use a
   assert why(v) == ["quality_ok: needs quality below 24; quality = 26"]
   t = first(verdict_tasks(v))
   assert task_name(t) == :replace
-  assert task_evidence(t) == [:reading, :scan]
+  assert task_evidence(t) == %i[reading scan]
   assert task_escalate_after(t) == 1200
   assert no_permit_why(permit_for(d, s, :use, 4100)) == :refused
   # Rejected before it is appended ...
@@ -2599,7 +2596,7 @@ end
 
 test "a control: a definition with an undeclared state is refused when built"
   bad = [
-    states([:a, :b]),
+    states(%i[a b]),
     start(:a),
     terminals([:b]),
     event(:go, []),
@@ -2624,7 +2621,7 @@ end
 # base definition; lc_example_problem_rows() covers lc_problem_kinds().
 def example_base()
   [
-    states([:a, :b]),
+    states(%i[a b]),
     start(:a),
     terminals([:b]),
     field(:n, 0),
@@ -2645,13 +2642,13 @@ def example_problem_rows()
     [states([:stay]), :reserved_name],
     [field(:n, 1), :duplicate_field],
     [event(:go, []), :duplicate_event],
-    [event(:e2, [:x, :x]), :duplicate_key],
+    [event(:e2, %i[x x]), :duplicate_key],
     [start(:b), :many_starts],
     [on(:x, :go, :b, []), :unknown_state],
     [on(:a, :fly, :b, []), :unknown_event],
     [guard(:h, [rule(:r, below(:nope, 1))], nil), :unknown_field],
     [[event(:e2, []), on(:a, :e2, :stay, [set(:n, :v)])], :unknown_payload],
-    [[event(:e2, []), on(:a, :e2, :stay, [[:frob, :n]])], :bad_effect],
+    [[event(:e2, []), on(:a, :e2, :stay, [%i[frob n]])], :bad_effect],
     [on(:a, :go, :a, []), :duplicate_edge],
     [permit(:nope, [valid_for(60)]), :unknown_capability],
     [on(:b, :go, :a, []), :terminal_has_exit],
@@ -2659,7 +2656,7 @@ def example_problem_rows()
     [[states([:c]), terminals([:c])], :unreachable],
     [
       [
-        states([:c, :d]),
+        states(%i[c d]),
         event(:hop, []),
         on(:a, :hop, :c, []),
         on(:c, :hop, :d, []),
@@ -2747,7 +2744,7 @@ test "every kind of bad definition is refused when built, one row per kind"
       problems(
         :x,
         [
-          states([:a, :b]),
+          states(%i[a b]),
           start(:a),
           event(:go, []),
           on(:a, :go, :b, []),
@@ -2761,7 +2758,7 @@ test "every kind of bad definition is refused when built, one row per kind"
   covered = unique(
     concat_lists(
       map(fn(row) nth(1, row) end, rows),
-      [:bad_name, :no_states, :no_start, :no_end]
+      %i[bad_name no_states no_start no_end]
     )
   )
   assert set_equal(covered, problem_kinds())
@@ -2783,7 +2780,7 @@ test "the fold records what it refuses and never throws"
   )
   assert refused(s2) ==
     [
-      [5, :open, :no_edge, [:use, :reading, :finish, :discard]],
+      [5, :open, :no_edge, %i[use reading finish discard]],
       [6, :fly, :unknown_event, nil],
       [7, :reading, :missing_payload, [:value]],
       [9, :use, :no_edge, []]
@@ -2794,7 +2791,7 @@ test "the fold records what it refuses and never throws"
   assert as_of(s2) == 2700
   # The same judgements, asked before appending.
   assert admit(d, s, ev(:open, 2400, [])) ==
-    [:reject, :no_edge, [:use, :reading, :finish, :discard]]
+    [:reject, :no_edge, %i[use reading finish discard]]
   assert admitted?(admit(d, s, ev(:use, 2400, [])))
   assert legal_events(d, :discarded) == []
 end
@@ -2837,8 +2834,8 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
       link(:batch, :lot)
     )
   )
-  assert d_permit_logs(d) == [[:use, :permit]]
-  assert d_links(d) == [[:batch, :lot]]
+  assert d_permit_logs(d) == [%i[use permit]]
+  assert d_links(d) == [%i[batch lot]]
   # The generated event's keys are the permit's limits, and the rows are the
   # two non-terminal states' self-loops.
   assert lookup(d_events(d), :permit) ==
@@ -2967,7 +2964,7 @@ test "a span is declared, checked when built, read back, and folds nothing"
   assert kinds(span(:s, :open, :open, nil)) == [:bad_span]
   assert kinds(span(:s, :spent, :open, nil)) == [:bad_span]
   assert kinds(span(:s, :open, :spent, 0)) == [:bad_span]
-  assert kinds(span(:s, 7, :spent, 60)) == [:bad_name, :unknown_state]
+  assert kinds(span(:s, 7, :spent, 60)) == %i[bad_name unknown_state]
   assert error?(
     try(
       lc_define(

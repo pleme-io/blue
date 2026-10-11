@@ -1,8 +1,8 @@
-use("junjo", [:sort, :sort_by])
-use("kazu", [:max, :sum])
-use("ran", [:next_float, :stream_seed])
-use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :last, :size])
-use("toukei", [:largest, :mean, :percentile, :smallest])
+use("junjo", %i[sort sort_by])
+use("kazu", %i[max sum])
+use("ran", %i[next_float stream_seed])
+use("retsu", %i[concat_lists first flat_map is_empty last size])
+use("toukei", %i[largest mean percentile smallest])
 
 # ryouiki (領域) — region: which region of the inputs produces an outcome.
 #
@@ -118,7 +118,7 @@ def peel_candidates(box, ids, points, ys, alpha)
             end
           end
         end,
-        [:lo, :hi]
+        %i[lo hi]
       )
     end,
     range(0, size(box))
@@ -253,7 +253,7 @@ test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
   b = prim_box(prim(pts, ys, 0.05, 0.02), 1)
   assert nth(4, b) == [[5, 9], [0, 3]]
   assert nth(2, b) == 1
-  assert box_text(["x", "y"], nth(4, b), box_around(pts)) ==
+  assert box_text(%w[x y], nth(4, b), box_around(pts)) ==
     "x in [5, 9], y in [0, 3]"
 end
 

@@ -48,7 +48,7 @@ row(
 row(
   "shift.lowest_wins",
   "def a(n: Int) -> Int\n  n\nend\n\ndef b(n)\n  n\nend\n\ndef c(n)\n  n\nend",
-  shifts("annotated", ["b", "c"]),
+  shifts("annotated", %w[b c]),
   position("annotated")
 )
 

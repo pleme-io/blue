@@ -1,6 +1,6 @@
 use("kansuu", [:compose])
 use("kazu", [:abs])
-use("retsu", [:first, :indexes, :is_empty, :rest, :size])
+use("retsu", %i[first indexes is_empty rest size])
 
 # ronri (論理) — predicates, and the algebra over them.
 #
@@ -523,7 +523,7 @@ end
 
 test "equals lifts a value into a predicate"
   assert count_if(equals(3), [3, 1, 3, 2]) == 2
-  assert find_index_by(equals("b"), ["a", "b", "c"]) == 1
+  assert find_index_by(equals("b"), %w[a b c]) == 1
   assert none(equals(9), [1, 2]) == true
   # Equality is structural, so a list is a perfectly good value to look for.
   assert equals([1, 2])([1, 2]) == true

@@ -24,7 +24,7 @@ def shout(args)
 end
 
 test "it shouts every argument"
-  assert shout(["one", "two"]) == "ONE TWO"
+  assert shout(%w[one two]) == "ONE TWO"
 end
 
 test "with no arguments it says how to call it"
@@ -62,7 +62,7 @@ test "a file written, appended to and read back"
   dir = scratch_dir("files")
   path = path_join(dir, "notes.txt")
   write_file(path, "first\n")
-  assert log_lines(path, ["second", "third"]) == ["first", "second", "third"]
+  assert log_lines(path, %w[second third]) == %w[first second third]
   assert is_file?(path)
   assert size(ls(dir)) == 1
   rm_rf(dir)
@@ -87,10 +87,10 @@ Text becomes records, records become answers. A record is a map with label keys;
 `examples/02_data.b`:
 
 ```blue
-use("deeta", [:get_int, :get_str])
+use("deeta", %i[get_int get_str])
 use("kazu", [:sum])
-use("moji", [:is_blank, :lines])
-use("retsu", [:first, :rest, :size])
+use("moji", %i[is_blank lines])
+use("retsu", %i[first rest size])
 
 def order_of(line)
   fields = split(line, ",")
@@ -155,8 +155,8 @@ Lists are values: every operation returns a new list. retsu's words are total (s
 
 ```blue
 use("junjo", [:sort_by])
-use("retsu", [:first, :is_empty, :rest, :size])
-use("shuugou", [:frequencies, :group_by, :lookup])
+use("retsu", %i[first is_empty rest size])
+use("shuugou", %i[frequencies group_by lookup])
 
 def squares_of_evens(xs)
   map(fn(x) x * x end, filter(fn(x) x % 2 == 0 end, xs))
@@ -181,12 +181,12 @@ test "the total list words accept the empty list"
 end
 
 test "nth takes the index first, and answers nil past the end"
-  assert nth(1, [:a, :b, :c]) == :b
+  assert nth(1, %i[a b c]) == :b
   assert nth(9, [:a]) == nil
 end
 
 test "a map built up and read back"
-  m = tally(["a", "b", "a"])
+  m = tally(%w[a b a])
   assert get(m, "a") == 2
   assert get(m, "z") == nil
   assert dissoc(m, "b") == {"a" => 2}
@@ -194,9 +194,9 @@ test "a map built up and read back"
 end
 
 test "grouping and counting return pairs"
-  assert frequencies([:x, :y, :x]) == [[:x, 2], [:y, 1]]
+  assert frequencies(%i[x y x]) == [[:x, 2], [:y, 1]]
   assert group_by(fn(n) n % 2 end, [1, 2, 3]) == [[1, [1, 3]], [0, [2]]]
-  assert lookup(frequencies([:x, :y, :x]), :x) == 2
+  assert lookup(frequencies(%i[x y x]), :x) == 2
 end
 
 test "sorting by a key"
@@ -205,7 +205,7 @@ test "sorting by a key"
     fn(p) get(p, :name) end,
     sort_by(fn(p) get(p, :age) end, people)
   ) ==
-    ["bo", "ana"]
+    %w[bo ana]
 end
 ```
 
@@ -216,8 +216,8 @@ Interpolation renders any value with to_s, so it needs no conversion calls. join
 `examples/04_strings.b`:
 
 ```blue
-use("moji", [:capitalize, :pad_left, :pad_right, :words])
-use("retsu", [:concat_lists, :first, :last])
+use("moji", %i[capitalize pad_left pad_right words])
+use("retsu", %i[concat_lists first last])
 
 def row(name, n)
   "#{pad_right(name, 8, " ")}#{pad_left(to_s(n), 4, " ")}"
@@ -249,7 +249,7 @@ test "the small string words"
   assert trim("  x  ") == "x"
   assert replace("a-b-c", "-", "+") == "a+b+c"
   assert starts_with?("blueshift", "blue")
-  assert words("  two   words ") == ["two", "words"]
+  assert words("  two   words ") == %w[two words]
   assert capitalize("bLUE") == "Blue"
 end
 
@@ -266,7 +266,7 @@ Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the inp
 `examples/05_errors.b`:
 
 ```blue
-use("retsu", [:first, :is_empty, :last])
+use("retsu", %i[first is_empty last])
 
 def port_refusals(text)
   n = to_int(text)
@@ -327,7 +327,7 @@ end
 
 ```blue
 use("kazu", [:sum])
-use("retsu", [:is_empty, :size])
+use("retsu", %i[is_empty size])
 
 def mean(xs)
   if is_empty(xs)
@@ -380,17 +380,17 @@ use("moji", [:repeated])
 
 use(
   "shomei",
-  [
-    :chain_genesis,
-    :chain_head,
-    :chain_verify,
-    :hash_message,
-    :is_hash_hex,
-    :keypair_public,
-    :keypair_secret,
-    :sign_message,
-    :signing_keypair,
-    :verify_message
+  %i[
+    chain_genesis
+    chain_head
+    chain_verify
+    hash_message
+    is_hash_hex
+    keypair_public
+    keypair_secret
+    sign_message
+    signing_keypair
+    verify_message
   ]
 )
 
@@ -416,9 +416,9 @@ end
 
 test "a hash chain detects an edited entry"
   g = chain_genesis("orders")
-  head = chain_head(g, ["a", "b", "c"])
-  assert chain_verify(g, ["a", "b", "c"], head)
-  assert !chain_verify(g, ["a", "B", "c"], head)
+  head = chain_head(g, %w[a b c])
+  assert chain_verify(g, %w[a b c], head)
+  assert !chain_verify(g, %w[a B c], head)
 end
 ```
 
@@ -436,7 +436,7 @@ defsm(
   :initial,
   :closed,
   :transitions,
-  [[:closed, :open, :opened], [:opened, :close, :closed]]
+  [%i[closed open opened], %i[opened close closed]]
 )
 
 defmacro twice(e)
@@ -469,7 +469,7 @@ exec_capture runs a command with no shell and answers its status, stdout and std
 
 ```blue
 use("moji", [:is_blank])
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 def blue_version()
   cap = exec_capture(self_exe(), "--version")
@@ -518,8 +518,8 @@ needs("shuugou", "^0.1")
 # imports, so each name carries the package's prefix (kz_). Its tests live in
 # the same file; `use` strips them, so importing a package never runs them.
 use("junjo", [:sort_stable_by])
-use("moji", [:is_alnum, :words])
-use("retsu", [:drop_while, :last, :size])
+use("moji", %i[is_alnum words])
+use("retsu", %i[drop_while last size])
 use("shuugou", [:unique])
 
 # Whether a token counts as a word: it holds at least one letter or digit.
@@ -548,11 +548,11 @@ def kz_counts(text)
 end
 
 test "words are lower-cased and stripped of punctuation"
-  assert kz_words("Blue, blue; BLUE!") == ["blue", "blue", "blue"]
+  assert kz_words("Blue, blue; BLUE!") == %w[blue blue blue]
 end
 
 test "a token with no letters is not a word"
-  assert kz_words("a -- b") == ["a", "b"]
+  assert kz_words("a -- b") == %w[a b]
   assert !kz_word?("--")
 end
 
@@ -600,10 +600,7 @@ def service_call(base, token, domain, service, entity)
   [
     "POST",
     "#{base}/api/services/#{domain}/#{service}",
-    [
-      ["Authorization", "Bearer #{token}"],
-      ["Content-Type", "application/json"]
-    ],
+    [["Authorization", "Bearer #{token}"], %w[Content-Type application/json]],
     json_stringify({entity_id: entity})
   ]
 end
@@ -656,7 +653,7 @@ end
 
 test "a bus message names its command"
   m = {subject: "home.light.kitchen", payload: "on", reply: nil}
-  assert command_of(m) == ["light", "turn_on", "light.kitchen"]
+  assert command_of(m) == %w[light turn_on light.kitchen]
   assert nth(1, command_of(assoc(m, :payload, "off"))) == "turn_off"
 end
 

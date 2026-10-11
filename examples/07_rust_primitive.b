@@ -8,17 +8,17 @@ use("moji", [:repeated])
 
 use(
   "shomei",
-  [
-    :chain_genesis,
-    :chain_head,
-    :chain_verify,
-    :hash_message,
-    :is_hash_hex,
-    :keypair_public,
-    :keypair_secret,
-    :sign_message,
-    :signing_keypair,
-    :verify_message
+  %i[
+    chain_genesis
+    chain_head
+    chain_verify
+    hash_message
+    is_hash_hex
+    keypair_public
+    keypair_secret
+    sign_message
+    signing_keypair
+    verify_message
   ]
 )
 
@@ -44,7 +44,7 @@ end
 
 test "a hash chain detects an edited entry"
   g = chain_genesis("orders")
-  head = chain_head(g, ["a", "b", "c"])
-  assert chain_verify(g, ["a", "b", "c"], head)
-  assert !chain_verify(g, ["a", "B", "c"], head)
+  head = chain_head(g, %w[a b c])
+  assert chain_verify(g, %w[a b c], head)
+  assert !chain_verify(g, %w[a B c], head)
 end

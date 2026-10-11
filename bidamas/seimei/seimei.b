@@ -1,16 +1,6 @@
 use(
   "retsu",
-  [
-    :as_list,
-    :contains,
-    :find_first,
-    :first,
-    :flatten1,
-    :is_empty,
-    :last,
-    :size,
-    :slice
-  ]
+  %i[as_list contains find_first first flatten1 is_empty last size slice]
 )
 
 # seimei (生命) — cellular automata: elementary rules, and Life.

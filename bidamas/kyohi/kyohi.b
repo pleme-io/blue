@@ -1,4 +1,4 @@
-use("retsu", [:first, :is_empty])
+use("retsu", %i[first is_empty])
 
 # kyohi (拒否) — refusals, as data.
 #
@@ -48,7 +48,7 @@ test "a refusal is its kind and its why"
   assert r == [:too_big, "3 > 2"]
   assert kind(r) == :too_big
   assert why(r) == "3 > 2"
-  assert kinds([r, refusal(:bad, "no")]) == [:too_big, :bad]
+  assert kinds([r, refusal(:bad, "no")]) == %i[too_big bad]
   assert kinds([]) == []
 end
 

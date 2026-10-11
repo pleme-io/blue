@@ -110,12 +110,21 @@ def uses_after(doc, want)
   )
 end
 
+# A list of names as the formatter writes it: `%i[a b]` from two on.
+def names_list(names)
+  if length(names) == 1
+    "[:#{first(names)}]"
+  else
+    "%i[#{join(names, " ")}]"
+  end
+end
+
 def render_use(u)
   names = nth(1, u)
   if empty?(names)
     "use(\"#{first(u)}\")"
   else
-    "use(\"#{first(u)}\", [#{join(map(fn(n) ":#{n}" end, names), ", ")}])"
+    "use(\"#{first(u)}\", #{names_list(names)})"
   end
 end
 

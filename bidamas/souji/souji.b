@@ -1,19 +1,9 @@
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :drop_n,
-    :first,
-    :flat_map,
-    :is_empty,
-    :push,
-    :rest,
-    :size
-  ]
+  %i[concat_lists contains drop_n first flat_map is_empty push rest size]
 )
 
-use("shisutemu", [:last_nonempty_line, :status_of, :stderr_of, :stdout_of])
+use("shisutemu", %i[last_nonempty_line status_of stderr_of stdout_of])
 
 legacy_names("0.1.1", "sj")
 
@@ -44,7 +34,7 @@ def parse(args)
     {error: "a command: rust, nix or all"}
   else
     cmd = first(args)
-    if contains(["rust", "nix", "all"], cmd) == false
+    if contains(%w[rust nix all], cmd) == false
       {error: "unknown command #{cmd}: rust, nix or all"}
     else
       parse_flags(
@@ -263,11 +253,11 @@ end
 # ── tests ────────────────────────────────────────────────────────────
 
 test "arguments: commands, flags, roots, and refusals"
-  o = parse(["rust", "--dry-run", "--min-age-hours", "12", "/a", "/b"])
+  o = parse(%w[rust --dry-run --min-age-hours 12 /a /b])
   assert get(o, :command) == "rust"
   assert get(o, :dry_run) == true
   assert get(o, :hours) == 12
-  assert get(o, :roots) == ["/a", "/b"]
+  assert get(o, :roots) == %w[/a /b]
   # Defaults.
   d = parse(["nix"])
   assert get(d, :days) == 14
@@ -275,15 +265,15 @@ test "arguments: commands, flags, roots, and refusals"
   # The controls: no command, an unknown one, a bad number, an unknown flag.
   assert get(parse([]), :error) != nil
   assert get(parse(["sweep"]), :error) != nil
-  assert get(parse(["rust", "--min-age-hours", "x"]), :error) != nil
-  assert get(parse(["rust", "--everything"]), :error) != nil
+  assert get(parse(%w[rust --min-age-hours x]), :error) != nil
+  assert get(parse(%w[rust --everything]), :error) != nil
 end
 
 test "the nix command line: generations older than N days, dry-run passed through"
   assert nix_argv({days: 7, dry_run: true}) ==
-    ["nix-collect-garbage", "--delete-older-than", "7d", "--dry-run"]
+    %w[nix-collect-garbage --delete-older-than 7d --dry-run]
   assert nix_argv({days: 14, dry_run: false}) ==
-    ["nix-collect-garbage", "--delete-older-than", "14d"]
+    %w[nix-collect-garbage --delete-older-than 14d]
 end
 
 test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes nothing"

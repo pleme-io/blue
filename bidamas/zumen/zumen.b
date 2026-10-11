@@ -1,36 +1,26 @@
-use("gyouretsu", [:dot, :magnitude, :scale, :vadd, :vector_near, :vsub])
-use("kazu", [:abs, :max, :min, :mod_positive, :near, :sum])
+use("gyouretsu", %i[dot magnitude scale vadd vector_near vsub])
+use("kazu", %i[abs max min mod_positive near sum])
 
 use(
   "kikagaku",
-  [
-    :bounding_box,
-    :circle_polygon,
-    :midpoint,
-    :px,
-    :py,
-    :radians,
-    :rect_polygon,
-    :region_holes,
-    :region_outline
+  %i[
+    bounding_box
+    circle_polygon
+    midpoint
+    px
+    py
+    radians
+    rect_polygon
+    region_holes
+    region_outline
   ]
 )
 
-use("moji", [:includes, :pad_left, :take_chars])
+use("moji", %i[includes pad_left take_chars])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :first,
-    :flat_map,
-    :indexes,
-    :is_empty,
-    :last,
-    :size,
-    :take_n
-  ]
+  %i[concat_lists contains first flat_map indexes is_empty last size take_n]
 )
 
 use("rittai")
@@ -40,7 +30,7 @@ use("shuugou", [:as_set])
 
 legacy_names("0.1.1", "zu")
 
-legacy_names("0.1.2", [["opt_lines", "shuugou::as_set"]])
+legacy_names("0.1.2", [%w[opt_lines shuugou::as_set]])
 
 # zumen (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.
 #
@@ -239,7 +229,7 @@ def sheet(entities, title)
 end
 
 def title_rows(title)
-  keys = [:part, :revision, :material, :thickness, :units, :source]
+  keys = %i[part revision material thickness units source]
   concat_lists(
     map(
       fn(k) "#{upcase(to_s(k))}: #{to_s(get(title, k))}" end,
@@ -694,9 +684,9 @@ test "a table: a header, then one line per row, numbers to one decimal"
     {name: "leg", length: 450.04, cut_a: 0},
     {name: "rail", length: 380, cut_a: 45}
   ]
-  t = table(rows, [:name, :length, :cut_a], [30, 25, 20], [0, 0], 3)
+  t = table(rows, %i[name length cut_a], [30, 25, 20], [0, 0], 3)
   assert size(t) == 9
-  assert map(fn(e) get(e, :s) end, take_n(t, 3)) == ["NAME", "LENGTH", "CUT_A"]
+  assert map(fn(e) get(e, :s) end, take_n(t, 3)) == %w[NAME LENGTH CUT_A]
   assert get(nth(4, t), :s) == "450"
   assert near(px(get(nth(5, t), :p)), 55) == true
   # The empty case: no rows is the header alone.

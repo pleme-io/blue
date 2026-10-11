@@ -20,7 +20,7 @@ use blue_lang_runtime::observe::{
 use blue_lang_runtime::uses::Entry;
 
 use crate::config::BlueConfig;
-use crate::{read_compiled, CliError};
+use crate::{read_checked, CliError};
 
 /// How long a rendered value in a trace line may get before it is cut.
 const VALUE_WIDTH: usize = 80;
@@ -185,18 +185,10 @@ fn run_files(
 /// Check one file, then run its (filtered) tests, recording coverage if asked.
 fn test_file(path: &Path, filter: Option<&str>, coverage: bool) -> Result<FileRun, CliError> {
     use std::fmt::Write as _;
-    let src = read_compiled(path)?;
-    // The check stage first, test blocks included: no test runs over a
-    // program with an error, as `run` would not evaluate it.
-    let checked = blue_lang_runtime::pipeline::check_entry(
-        Entry {
-            path: Some(path),
-            text: &src,
-        },
-        &blue_lang_pkg::load_path::LoadPath::for_entry(path),
-        None,
-        blue_lang_runtime::pipeline::Checking::WithTests,
-    )?;
+    // The check stage first, test blocks included (and the canonical fixes
+    // applied, as every compiling door does): no test runs over a program
+    // with an error, as `run` would not evaluate it.
+    let (_, checked, _) = read_checked(path, &blue_lang_pkg::load_path::LoadPath::for_entry(path))?;
     let mut errors = String::new();
     for d in &checked.outcome.diagnostics {
         let _ = writeln!(
@@ -287,7 +279,7 @@ fn run_watched(
     watch: impl FnOnce(&Arc<Definitions>) -> Arc<dyn CallObserver>,
 ) -> Result<blue_lang_runtime::pipeline::Observed, CliError> {
     blue_lang_runtime::sys::set_program_args(args);
-    let src = read_compiled(file)?;
+    let (src, _, _) = read_checked(file, &blue_lang_pkg::load_path::LoadPath::for_entry(file))?;
     let inputs = crate::bind_inputs(&src, &[], cfg)?;
     Ok(blue_lang_runtime::pipeline::run_observed(
         Entry {
@@ -439,16 +431,7 @@ pub(crate) fn trace(
 ) -> Result<ExitCode, CliError> {
     // Refused before anything runs: a trace of a name the program does not
     // define would run the program for nothing.
-    let src = read_compiled(file)?;
-    let checked = blue_lang_runtime::pipeline::check_entry(
-        Entry {
-            path: Some(file),
-            text: &src,
-        },
-        &blue_lang_pkg::load_path::LoadPath::for_entry(file),
-        None,
-        blue_lang_runtime::pipeline::Checking::Program,
-    )?;
+    let (_, checked, _) = read_checked(file, &blue_lang_pkg::load_path::LoadPath::for_entry(file))?;
     if checked.outcome.ok()
         && Definitions::of(&checked.program, &checked.erased())
             .named(def)

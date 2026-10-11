@@ -423,11 +423,12 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
     }
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-    // `run` formats a non-canonical file in place and says so; that line is
-    // the door's courtesy, not the program's output.
+    // `run` formats a non-canonical file in place, and applies the fixes that
+    // respell it, and says so; those lines are the door's courtesy, not the
+    // program's output.
     let stderr: String = stderr
         .lines()
-        .filter(|l| !l.starts_with("blue: formatted "))
+        .filter(|l| !l.starts_with("blue: formatted ") && !l.starts_with("blue: fixed "))
         .collect::<Vec<_>>()
         .join("\n");
     match &row.expect {

@@ -117,6 +117,10 @@ pub struct JsonDiagnostic {
     pub fixes: Vec<JsonFix>,
     /// Set when an in-source waiver suppressed this diagnostic.
     pub waiver: Option<JsonWaiver>,
+    /// True when the door already applied this diagnostic's fix before
+    /// compiling (a canonical fix); absent otherwise.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub fixed: bool,
 }
 
 fn file_of(program: &ResolvedProgram, top_level: usize) -> Option<&SourceFile> {
@@ -149,6 +153,7 @@ pub fn to_json(
             .collect(),
         fixes: json_fixes(file, &d.fixes),
         waiver,
+        fixed: false,
     }
 }
 
@@ -190,6 +195,7 @@ pub fn finding_json(
         related: Vec::new(),
         fixes: json_fixes(file, &f.fixes),
         waiver,
+        fixed: false,
     }
 }
 
@@ -227,6 +233,7 @@ fn failure_json(program: &ResolvedProgram, f: &Failure) -> JsonDiagnostic {
         related: Vec::new(),
         fixes: Vec::new(),
         waiver: None,
+        fixed: false,
     }
 }
 
@@ -345,6 +352,7 @@ pub fn syntax_json(path: &Path, text: &str, d: &Diagnostic) -> serde_json::Resul
         related: Vec::new(),
         fixes: Vec::new(),
         waiver: None,
+        fixed: false,
     };
     let mut s = serde_json::to_string(&j)?;
     s.push('\n');
@@ -375,6 +383,49 @@ pub fn apply_machine_fixes(
         &|i| program.owner_of(i) == Some(ResolvedProgram::ENTRY),
         text,
     )
+}
+
+/// A diagnostic a door fixed before compiling, rendered while the program
+/// it was found in is still at hand: as `--format json` writes it (with
+/// `"fixed": true`) and as text.
+pub struct Fixed {
+    pub json: String,
+    pub text: String,
+}
+
+/// [`apply_machine_fixes`] for the canonical rules only: what every compiling
+/// door applies before it compiles ([`blue_lang_check::fixes::apply_canonical_fixes`]).
+/// Returns the rewritten text and each fixed diagnostic, rendered.
+///
+/// # Errors
+///
+/// When a diagnostic cannot be rendered as JSON.
+pub fn apply_canonical_fixes(
+    program: &ResolvedProgram,
+    outcome: &Outcome,
+    text: &str,
+) -> serde_json::Result<(String, Vec<Fixed>)> {
+    let (out, applied) = blue_lang_check::fixes::apply_canonical_fixes(
+        &outcome.diagnostics,
+        &|i| program.owner_of(i) == Some(ResolvedProgram::ENTRY),
+        text,
+    );
+    let fixed = applied
+        .into_iter()
+        .map(|i| {
+            let d = &outcome.diagnostics[i];
+            let mut j = to_json(program, d, None);
+            j.fixed = true;
+            Ok(Fixed {
+                json: serde_json::to_string(&j)?,
+                text: format!(
+                    "{} (fixed)",
+                    blue_lang_runtime::pipeline::render(program, d)
+                ),
+            })
+        })
+        .collect::<serde_json::Result<_>>()?;
+    Ok((out, fixed))
 }
 
 // ---- `blue ast --resolved --json` -------------------------------------------

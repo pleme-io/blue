@@ -75,7 +75,8 @@ usual `# waive R0001: reason` applies. The shape, the frame and a worked rule:
 in [`rules/`](rules/).
 
 `run`, `test` and `check` rewrite a non-canonical file in place before they
-compile it, and say `blue: formatted <file>`. A checkout's bidamas override
+compile it, and say `blue: formatted <file>`; they apply the fixes that only
+respell a program the same way (`blue: fixed <file>`, docs/DIAGNOSTICS.md). A checkout's bidamas override
 the compiled-in ones from `BLUE_PATH`:
 `BLUE_PATH=path/to/blue/bidamas blue test file.b`.
 
@@ -131,7 +132,9 @@ The rest of blue's semantics is Ruby's, except where
 The formatter settles layout. For the rest, follow the examples: a predicate
 you define ends in `?` (okite D0010), `x == nil` over `nil?(x)`, interpolation
 over `concat`, `use` forms first and sorted, each listing what the file
-reads, and names without a package prefix. Tests go in the same
+reads, and names without a package prefix. A name is a keyword, not a string
+(`error(:kind, …)`, `{field: v}`); a list of plain words is `%w[a b]`, of
+names `%i[a b]` (the formatter writes both). Tests go in the same
 file, named for the behaviour, with the empty input among the cases.
 
 ## More

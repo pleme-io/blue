@@ -122,6 +122,7 @@ pins the exact output and fails if a field here is undocumented.
 | `related` | array | other places: each has the location fields above and a `message` |
 | `fixes` | array | suggested repairs, best first |
 | `waiver` | object or null | set when a waiver suppressed this diagnostic: `reason`, and the waiver's `line` |
+| `fixed` | `true`, or absent | the door applied this diagnostic's fix before checking (a canonical fix); its location is in the text before the fix |
 
 Each entry of `fixes`:
 
@@ -232,6 +233,22 @@ when any apply.
 **In nix**, a project whose Bluefile declares rules gets
 `checks.project-rules-hold`: `blue check` on every `.b` file of its packages and
 every run, check and app program.
+
+## Fixes applied before every compile
+
+Some machine-applicable fixes only respell a program: the same tree, every
+name resolved the same, written the one way. Their rules carry
+`FixKind::Canonical` (B0012, B0015, B0018, B0023). `blue run`,
+`blue test`, `blue check` and a bare `blue FILE` apply them to the file they
+were named, in place, before compiling, as they apply the formatter, and say
+`blue: fixed <path> (n fix(es))` on stderr. A file in the nix store or without
+write permission is refused instead, naming `blue check --fix`. A package a
+`use` loads is formatted, never fixed. `blue check` still reports each fix
+it applied: `(fixed)` after the line in text, `"fixed": true` in JSON. Two
+machine fixes are left to `--fix`: B0002's rename to `_name`, which records an
+intent (deliberately unused) that a file being written usually does not have
+yet, and B0021's move to a renamed definition's new home, which can leave the
+old `use` unreached and, in a bidama, needs a Bluefile `needs` edit.
 
 ## `blue ast --resolved --json`
 

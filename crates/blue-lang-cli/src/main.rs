@@ -453,6 +453,50 @@ fn read_compiled(path: &Path) -> Result<String, CliError> {
     Ok(blue_lang_pkg::canonical::read_source(path)?)
 }
 
+/// The entry of a door that compiles, CHECKED: [`read_compiled`], then every
+/// canonical fix the check stage found in it applied in place
+/// (`blue_lang_check::FixKind::Canonical`, the fixes that only respell the
+/// program), formatted, and checked again. A fix is to the rule what the
+/// formatter is to layout, so this is the same law one step on: blue compiles
+/// the one spelling, writing it when it may (`blue: fixed <path>`) and
+/// refusing the file when it may not (the nix store, a read-only file). Only
+/// the entry file is fixed; a package a `use` loads is formatted, never fixed.
+pub(crate) fn read_checked(
+    path: &Path,
+    loader: &dyn blue_lang_runtime::uses::Loader,
+) -> Result<
+    (
+        String,
+        blue_lang_runtime::pipeline::Checked,
+        Vec<diagnostics::Fixed>,
+    ),
+    CliError,
+> {
+    use blue_lang_runtime::pipeline::{check_entry, Checking};
+    fn entry<'a>(path: &'a Path, text: &'a str) -> blue_lang_runtime::uses::Entry<'a> {
+        blue_lang_runtime::uses::Entry {
+            path: Some(path),
+            text,
+        }
+    }
+    let mut src = read_compiled(path)?;
+    let mut checked = check_entry(entry(path, &src), loader, None, Checking::WithTests)?;
+    let mut reported = Vec::new();
+    // A fix can expose the next (a sorted list, then its qualifier), bounded.
+    for _ in 0..4 {
+        let (fixed, applied) =
+            diagnostics::apply_canonical_fixes(&checked.program, &checked.outcome, &src)?;
+        if applied.is_empty() {
+            break;
+        }
+        blue_lang_pkg::canonical::fix_in_place(path, &fixed, applied.len())?;
+        reported.extend(applied);
+        src = read_compiled(path)?;
+        checked = check_entry(entry(path, &src), loader, None, Checking::WithTests)?;
+    }
+    Ok((src, checked, reported))
+}
+
 fn read(path: &Path) -> Result<String, CliError> {
     std::fs::read_to_string(path).map_err(|source| CliError::Read {
         path: path.display().to_string(),
@@ -562,7 +606,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // English — the common case under a pt or de locale — and is held
             // to the rule like any other.
             let src = match &surface {
-                None => read_compiled(&file)?,
+                None => {
+                    read_checked(&file, &blue_lang_pkg::load_path::LoadPath::for_entry(&file))?.0
+                }
                 Some(pack) => {
                     let text = read(&file)?;
                     let english = blue_lang_syntax::parse_program(&text).ok();
@@ -1234,7 +1280,6 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
         return Ok(ExitCode::FAILURE);
     }
     let loader = blue_lang_pkg::load_path::LoadPath::for_entry(file);
-    let mut src = read_compiled(file)?;
     fn entry<'a>(file: &'a Path, text: &'a str) -> blue_lang_runtime::uses::Entry<'a> {
         blue_lang_runtime::uses::Entry {
             path: Some(file),
@@ -1253,7 +1298,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             blue_lang_runtime::project_rules::RULE_STEPS,
         )
     };
-    let mut checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+    let (mut src, mut checked, fixed) = read_checked(file, &loader)?;
     let mut project = project_pass(&checked);
     // A fix can expose the next one (a moved name's fix leaves the old
     // package's `use` unreached), so fix until nothing applies, bounded.
@@ -1279,6 +1324,9 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
     let outcome = &checked.outcome;
     match format {
         Format::Json => {
+            for f in &fixed {
+                println!("{}", f.json);
+            }
             print!("{}", diagnostics::json_lines(&checked.program, outcome)?);
             print!(
                 "{}",
@@ -1332,6 +1380,9 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
                         .at_top_level(w.diagnostic.top_level)
                     )
                 );
+            }
+            for f in &fixed {
+                eprintln!("{}", f.text);
             }
             for w in &project.waived {
                 let mut shown = w.finding.clone();

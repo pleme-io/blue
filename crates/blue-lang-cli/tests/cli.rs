@@ -1234,6 +1234,104 @@ fn run_refuses_a_read_only_messy_file_and_leaves_it_alone() {
     assert_eq!(std::fs::read_to_string(&f).expect("read back"), messy);
 }
 
+// ---------------------------------------------------------------------------
+// ... and only the one spelling: canonical fixes before every compile (T-P)
+//
+// A fix that only respells a program (`FixKind::Canonical`) is applied in
+// place before compiling, as the formatter is; a file blue cannot write is
+// refused; a respelling that would change meaning is never one of them.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn run_applies_canonical_fixes_in_place_and_runs_the_result() {
+    let f = fresh(
+        "fix-run",
+        "d = json_parse(\"{\\\"a\\\": 1}\")\n[json_get(d, \"a\"), [\"x\", \"y\"]]\n",
+    );
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "[1, [x, y]]");
+    assert!(
+        stderr(&o).contains(&format!("blue: fixed {} (1 fix(es))", f.display())),
+        "{}",
+        stderr(&o)
+    );
+    assert_eq!(
+        std::fs::read_to_string(&f).expect("read back"),
+        "d = json_parse(\"{\\\"a\\\": 1}\")\n[json_get(d, :a), %w[x y]]\n"
+    );
+    let again = run(&["run", f.to_str().unwrap()]);
+    assert!(
+        !stderr(&again).contains("blue: fixed"),
+        "{}",
+        stderr(&again)
+    );
+}
+
+#[test]
+fn test_and_check_apply_canonical_fixes_too() {
+    let f = fresh(
+        "fix-test",
+        "test \"kind\"\n  assert error?(error(\"bad\", \"why\"))\nend\n",
+    );
+    let o = run(&["test", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert!(std::fs::read_to_string(&f)
+        .expect("read")
+        .contains("error(:bad, "));
+    let g = fresh("fix-check", "error(\"bad\", \"why\")\n");
+    let o = run(&["check", g.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(
+        std::fs::read_to_string(&g).expect("read"),
+        "error(:bad, \"why\")\n"
+    );
+}
+
+/// Red run (2026-10-10): with `read_checked` ignoring `fix_in_place`'s
+/// refusal, the unfixed file compiled and ran: "a read-only file with fixes
+/// due must not compile".
+#[test]
+fn run_refuses_a_read_only_file_with_fixes_due_and_leaves_it_alone() {
+    let src = "error(\"bad\", \"why\")\n";
+    let f = fresh("fix-readonly", src);
+    let mut perm = std::fs::metadata(&f).expect("meta").permissions();
+    perm.set_readonly(true);
+    std::fs::set_permissions(&f, perm).expect("chmod");
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(
+        !o.status.success(),
+        "a read-only file with fixes due must not compile"
+    );
+    assert!(
+        stderr(&o).contains(&format!(
+            "{} has 1 fix(es) to apply before it compiles; run blue check --fix {}",
+            f.display(),
+            f.display()
+        )),
+        "{}",
+        stderr(&o)
+    );
+    assert_eq!(std::fs::read_to_string(&f).expect("read back"), src);
+}
+
+/// The cases where `"a"` → `:a` would change what the program computes: a
+/// map key, and a call whose head is the program's own `json_get`. Neither is
+/// touched by a run; the map key stays a warning with a suggestion.
+#[test]
+fn a_respelling_that_changes_meaning_is_never_applied() {
+    let src = "def json_get(d, k)\n  [d, k]\nend\n\nm = {\"k\" => 1}\n[json_get(1, \"a\"), get(m, \"k\")]\n";
+    let f = fresh("fix-meaning", src);
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(stdout(&o).trim(), "[[1, a], 1]");
+    assert!(!stderr(&o).contains("blue: fixed"), "{}", stderr(&o));
+    assert_eq!(std::fs::read_to_string(&f).expect("read back"), src);
+    let c = run(&["check", "--fix", f.to_str().unwrap()]);
+    assert!(stderr(&c).contains("warning[B0023]"), "{}", stderr(&c));
+    assert_eq!(std::fs::read_to_string(&f).expect("read back"), src);
+}
+
 #[test]
 fn a_messy_writable_package_loaded_by_use_is_formatted() {
     let root = std::env::temp_dir().join("blue-cli-test-canon-dist");

@@ -50,6 +50,15 @@ pub enum Refusal {
     /// compile.
     #[error("{path} cannot be formatted, so it is not compiled: {reason}")]
     Unformattable { path: String, reason: String },
+    /// Canonical fixes are due, and blue may not rewrite the file.
+    #[error(
+        "{path} has {count} fix(es) to apply before it compiles; run blue check --fix {path}{why}"
+    )]
+    NotFixed {
+        path: String,
+        count: usize,
+        why: String,
+    },
     /// The file could not be read at all.
     #[error("cannot read {path}: {source}")]
     Read {
@@ -96,6 +105,32 @@ pub fn admit(path: &Path, text: String) -> Result<String, Refusal> {
             why: format!(" (it cannot be rewritten here: {e})"),
         }),
     }
+}
+
+/// Write `fixed` — `path`'s text with `count` canonical fixes applied
+/// (`blue_lang_check::FixKind::Canonical`, the fixes that only respell a
+/// program) — in place, under the same rule as formatting: `blue: fixed
+/// <path>` on stderr, and a file in the nix store or without write permission
+/// refused, untouched. The caller formats and checks the result again.
+///
+/// # Errors
+///
+/// [`Refusal::NotFixed`] when the file cannot be rewritten.
+pub fn fix_in_place(path: &Path, fixed: &str, count: usize) -> Result<(), Refusal> {
+    let shown = path.display().to_string();
+    let refuse = |why: String| Refusal::NotFixed {
+        path: shown.clone(),
+        count,
+        why,
+    };
+    if in_store(path) {
+        return Err(refuse(
+            " (it is in the nix store, which is read-only)".to_string(),
+        ));
+    }
+    rewrite(path, fixed).map_err(|e| refuse(format!(" (it cannot be rewritten here: {e})")))?;
+    eprintln!("blue: fixed {shown} ({count} fix(es))");
+    Ok(())
 }
 
 /// Read `path` and [`admit`] it: the entry of every CLI door that compiles.

@@ -1,0 +1,1506 @@
+use("retsu", [:concat_lists, :contains, :first, :flat_map, :is_empty, :last])
+
+# kiwari (木割): one grammar spec, every syntax artifact emitted from it.
+#
+# 木割 is the proportioning rule-book of Japanese carpentry: every member's
+# dimensions derive from one base module, so no two pieces of the house can
+# disagree. A grammar is the member most often cut twice: once in the
+# compiler's parser and again in an editor's grammar, with nothing holding the
+# two equal. Here it is cut once. A grammar is data, built with the vocabulary
+# below; every artifact a tool wants is rendered from that one value:
+#
+#   grammar.js         tree_sitter_js(g)      the tree-sitter grammar
+#   tree-sitter.json   tree_sitter_json(g)    its metadata
+#   highlights.scm     highlights(g)          from rule and field roles
+#   folds.scm          folds(g)               from the rules a closer ends
+#   indents.scm        indents(g)             the same rules, closers, arms
+#   locals.scm         locals(g)              from scopes and definitions
+#   *.kiwari.json      spec_json(g)           operators, keywords and each
+#                                             rule's lowering, for Rust
+#
+# Each rule carries how its node LOWERS to the language's tree (a template:
+# `["list", ["sym", "define"], ["field", "name"], …]`), so the spec says what
+# a construct means beside how it parses. blue's own grammar is `blue()`, and
+# blue-lang-kiwari's differential holds the parser emitted from it to blue's
+# parser on every corpus file and every prefix of one.
+#
+# Grammar nodes are maps with a `kind`, made only by the constructors here, so
+# each renderer arm sits beside the constructor it reads.
+
+# ── the vocabulary ─────────────────────────────────────────────────────────
+
+def seq(items)
+  {kind: :seq, items: items}
+end
+
+def choice(items)
+  {kind: :choice, items: items}
+end
+
+def rep(item)
+  {kind: :rep, item: item}
+end
+
+def rep1(item)
+  {kind: :rep1, item: item}
+end
+
+def opt(item)
+  {kind: :opt, item: item}
+end
+
+# A literal token: the exact text.
+def lit(text)
+  {kind: :lit, text: text}
+end
+
+# A pattern token: a regular expression in tree-sitter's dialect.
+def pat(source)
+  {kind: :pat, source: source}
+end
+
+def ref(name)
+  {kind: :ref, name: name}
+end
+
+def field(name, item)
+  {kind: :field, name: name, item: item, role: "", defines: ""}
+end
+
+# A field whose node is painted `role` (a tree-sitter capture name) and, when
+# `defines` is not "", names a local of that kind.
+def painted(name, item, role, defines)
+  {kind: :field, name: name, item: item, role: role, defines: defines}
+end
+
+# A field painted `role` on the named kinds listed, for an item that is a
+# hidden choice (a callee may be any postfix chain; only a name is painted).
+def painted_as(name, item, kinds, role)
+  {kind: :field, name: name, item: item, role: role, defines: "", kinds: kinds}
+end
+
+# The kinds a field's role or definition applies to.
+def painted_kinds(f)
+  if get(f, :kinds) == nil
+    kinds_of(get(f, :item))
+  else
+    get(f, :kinds)
+  end
+end
+
+def alias(item, name)
+  {kind: :alias, item: item, name: name}
+end
+
+def token(item)
+  {kind: :token, item: item}
+end
+
+def immediate(item)
+  {kind: :immediate, item: item}
+end
+
+def prec(n, item)
+  {kind: :prec, assoc: :none, level: n, item: item}
+end
+
+def prec_left(n, item)
+  {kind: :prec, assoc: :left, level: n, item: item}
+end
+
+def prec_right(n, item)
+  {kind: :prec, assoc: :right, level: n, item: item}
+end
+
+# A rule: its name, its body, and how its node lowers (nil for a hidden rule,
+# whose node never appears, or for a part only its parent's template reads).
+def rule(name, body, lower)
+  {
+    name: name,
+    body: body,
+    lower: lower,
+    role: "",
+    arm: false,
+    scope: false,
+    reference: false
+  }
+end
+
+# The same rule, with `key` set: `role` (paint the whole node), `arm` (a
+# branch of the form around it, as `else` is), `scope` (opens a local scope),
+# `reference` (names a local).
+def with(r, key, value)
+  assoc(r, key, value)
+end
+
+def hidden?(name)
+  starts_with?(name, "_")
+end
+
+# ── reading a grammar ──────────────────────────────────────────────────────
+
+def children(e)
+  k = get(e, :kind)
+  if k == :seq || k == :choice
+    get(e, :items)
+  elsif k == :lit || k == :pat || k == :ref
+    []
+  else
+    [get(e, :item)]
+  end
+end
+
+def literals_of(e)
+  if get(e, :kind) == :lit
+    [get(e, :text)]
+  else
+    flat_map(fn(c) literals_of(c) end, children(e))
+  end
+end
+
+# Every literal token the grammar's rules use, once each.
+def literals(g)
+  distinct(flat_map(fn(r) literals_of(get(r, :body)) end, get(g, :rules)))
+end
+
+def fields_of(e)
+  here = if get(e, :kind) == :field
+    [e]
+  else
+    []
+  end
+  concat_lists(here, flat_map(fn(c) fields_of(c) end, children(e)))
+end
+
+# The named node kinds a field's item can be: a visible rule it refers to, or
+# the name it is aliased to.
+def kinds_of(e)
+  k = get(e, :kind)
+  if k == :ref
+    if hidden?(get(e, :name))
+      []
+    else
+      [get(e, :name)]
+    end
+  elsif k == :alias
+    [get(e, :name)]
+  elsif k == :lit || k == :pat
+    []
+  else
+    flat_map(fn(c) kinds_of(c) end, children(e))
+  end
+end
+
+def aliases_of(e)
+  here = if get(e, :kind) == :alias && get(get(e, :item), :kind) == :ref
+    [[get(get(e, :item), :name), get(e, :name)]]
+  else
+    []
+  end
+  concat_lists(here, flat_map(fn(c) aliases_of(c) end, children(e)))
+end
+
+# The name a rule's node carries in a tree: its own, or for a hidden rule the
+# name it is aliased to, or nil when it never appears as a node.
+def node_name(g, r)
+  if hidden?(get(r, :name))
+    found = filter(
+      fn(a) first(a) == get(r, :name) end,
+      flat_map(fn(x) aliases_of(get(x, :body)) end, get(g, :rules))
+    )
+    if is_empty(found)
+      nil
+    else
+      nth(1, first(found))
+    end
+  else
+    get(r, :name)
+  end
+end
+
+# One pattern per field with `key` set, over every rule its node can carry.
+def field_patterns(g, key, line)
+  distinct(
+    flat_map(
+      fn(r)
+        name = node_name(g, r)
+        if name == nil
+          []
+        else
+          flat_map(
+            fn(f) map(fn(kind) line(name, f, kind) end, painted_kinds(f)) end,
+            filter(fn(f) get(f, key) != "" end, fields_of(get(r, :body)))
+          )
+        end
+      end,
+      get(g, :rules)
+    )
+  )
+end
+
+# The body with precedence wrappers taken off.
+def bare(e)
+  if get(e, :kind) == :prec
+    bare(get(e, :item))
+  else
+    e
+  end
+end
+
+def first_lit(r)
+  b = bare(get(r, :body))
+  if get(b, :kind) == :seq && get(first(get(b, :items)), :kind) == :lit
+    get(first(get(b, :items)), :text)
+  else
+    nil
+  end
+end
+
+# The literal that closes a rule, if its body opens with a literal and ends in
+# one of `closers`.
+def closer(g, r)
+  b = bare(get(r, :body))
+  if get(b, :kind) == :seq && get(first(get(b, :items)), :kind) == :lit
+    t = last(get(b, :items))
+    if get(t, :kind) == :lit && contains(get(g, :closers), get(t, :text))
+      get(t, :text)
+    else
+      nil
+    end
+  else
+    nil
+  end
+end
+
+def visible(g)
+  filter(fn(r) !hidden?(get(r, :name)) end, get(g, :rules))
+end
+
+# The role of every literal: a keyword's, an operator's or punctuation's. A
+# literal with no row is returned by `unpainted`, and the renderers refuse a
+# grammar that has one, so a new token cannot ship without a decision.
+def literal_roles(g)
+  concat_lists(
+    concat_lists(get(g, :keywords_painted), get(g, :punctuation)),
+    map(fn(op) [op, "operator"] end, operator_spellings(g))
+  )
+end
+
+def operator_spellings(g)
+  concat_lists(
+    flat_map(
+      fn(row) concat_lists([get(row, :op)], get(row, :aliases)) end,
+      concat_lists(get(g, :infix), get(g, :unary))
+    ),
+    [get(get(g, :pipe), :op)]
+  )
+end
+
+def role_of_literal(g, text)
+  row = filter(fn(r) first(r) == text end, literal_roles(g))
+  if is_empty(row)
+    nil
+  else
+    nth(1, first(row))
+  end
+end
+
+def unpainted(g)
+  filter(fn(t) role_of_literal(g, t) == nil end, literals(g))
+end
+
+def checked(g)
+  bad = unpainted(g)
+  if is_empty(bad)
+    g
+  else
+    throw(error(:kiwari_unpainted, "literals with no role: #{join(bad, " ")}"))
+  end
+end
+
+# ── tree-sitter: grammar.js ────────────────────────────────────────────────
+
+def js_string(s)
+  "'#{replace(replace(replace(s, "\\", "\\\\"), "'", "\\'"), "\n", "\\n")}'"
+end
+
+def js(e)
+  k = get(e, :kind)
+  if k == :seq
+    "seq(#{join(map(fn(i) js(i) end, get(e, :items)), ", ")})"
+  elsif k == :choice
+    "choice(#{join(map(fn(i) js(i) end, get(e, :items)), ", ")})"
+  elsif k == :rep
+    "repeat(#{js(get(e, :item))})"
+  elsif k == :rep1
+    "repeat1(#{js(get(e, :item))})"
+  elsif k == :opt
+    "optional(#{js(get(e, :item))})"
+  elsif k == :lit
+    js_string(get(e, :text))
+  elsif k == :pat
+    "/#{replace(get(e, :source), "/", "\\/")}/u"
+  elsif k == :ref
+    "$.#{get(e, :name)}"
+  elsif k == :field
+    "field(#{js_string(get(e, :name))}, #{js(get(e, :item))})"
+  elsif k == :alias
+    "alias(#{js(get(e, :item))}, $.#{get(e, :name)})"
+  elsif k == :token
+    "token(#{js(get(e, :item))})"
+  elsif k == :immediate
+    "token.immediate(#{js(get(e, :item))})"
+  elsif get(e, :assoc) == :left
+    "prec.left(#{to_s(get(e, :level))}, #{js(get(e, :item))})"
+  elsif get(e, :assoc) == :right
+    "prec.right(#{to_s(get(e, :level))}, #{js(get(e, :item))})"
+  else
+    "prec(#{to_s(get(e, :level))}, #{js(get(e, :item))})"
+  end
+end
+
+def generated_by(comment)
+  "#{comment} Generated from bidamas/kiwari by gen/kiwari/. Edit the spec and run `nix run .#regen`."
+end
+
+def tree_sitter_js(grammar)
+  g = checked(grammar)
+  rules = map(
+    fn(r) "    #{get(r, :name)}: $ => #{js(get(r, :body))}," end,
+    get(g, :rules)
+  )
+  lines = concat_lists(
+    [
+      generated_by("//"),
+      "module.exports = grammar({",
+      "  name: #{js_string(get(g, :name))},",
+      "  word: $ => $.#{get(g, :word)},",
+      "  extras: $ => [#{join(map(fn(x) js(x) end, get(g, :extras)), ", ")}],",
+      "  rules: {"
+    ],
+    concat_lists(rules, ["  },", "});", ""])
+  )
+  join(lines, "\n")
+end
+
+def tree_sitter_json(g)
+  json_stringify(
+    {
+      grammars: [
+        {
+          name: get(g, :name),
+          camelcase: get(g, :camelcase),
+          scope: get(g, :scope),
+          path: ".",
+          "file-types" => get(g, :file_types)
+        }
+      ],
+      metadata: {
+        version: get(g, :version),
+        license: "MIT",
+        description: get(g, :description),
+        links: {repository: get(g, :repository)}
+      }
+    }
+  )
+end
+
+# ── tree-sitter: queries ───────────────────────────────────────────────────
+
+def scm_string(s)
+  "\"#{replace(replace(s, "\\", "\\\\"), "\"", "\\\"")}\""
+end
+
+def query_lines(header, body)
+  join(
+    concat_lists([generated_by(";"), header], concat_lists(body, [""])),
+    "\n"
+  )
+end
+
+# One line per role, its literals in brackets, in the order roles first appear.
+def literal_groups(g, roles)
+  painted_lits = filter(
+    fn(t) contains(roles, role_of_literal(g, t)) end,
+    literals(g)
+  )
+  in_order = distinct(map(fn(t) role_of_literal(g, t) end, painted_lits))
+  map(
+    fn(role)
+      lits = filter(fn(t) role_of_literal(g, t) == role end, painted_lits)
+      "[#{join(map(fn(t) scm_string(t) end, lits), " ")}] @#{role}"
+    end,
+    in_order
+  )
+end
+
+def literal_role_names(g)
+  filter(
+    fn(r) r != "" end,
+    distinct(map(fn(row) nth(1, row) end, literal_roles(g)))
+  )
+end
+
+def highlights(grammar)
+  g = checked(grammar)
+  whole = map(
+    fn(r) "(#{get(r, :name)}) @#{get(r, :role)}" end,
+    filter(fn(r) get(r, :role) != "" end, get(g, :rules))
+  )
+  fielded = field_patterns(
+    g,
+    :role,
+    fn(node, f, kind)
+      "(#{node} #{get(f, :name)}: (#{kind}) @#{get(f, :role)})"
+    end
+  )
+  query_lines(
+    "; The general first: neovim lets the last matching pattern win.",
+    concat_lists(
+      concat_lists(whole, fielded),
+      literal_groups(g, literal_role_names(g))
+    )
+  )
+end
+
+def closed_rules(g)
+  filter(fn(r) closer(g, r) != nil end, visible(g))
+end
+
+def node_list(rules)
+  "[#{join(map(fn(r) "(#{get(r, :name)})" end, rules), " ")}]"
+end
+
+def folds(grammar)
+  g = checked(grammar)
+  query_lines(
+    "; Every form a closer ends.",
+    ["#{node_list(closed_rules(g))} @fold"]
+  )
+end
+
+def indents(grammar)
+  g = checked(grammar)
+  closers = map(fn(t) scm_string(t) end, get(g, :closers))
+  arms = map(
+    fn(r) scm_string(first_lit(r)) end,
+    filter(fn(r) get(r, :arm) end, get(g, :rules))
+  )
+  query_lines(
+    "; A closed form indents its inside; its closer and its arms dedent.",
+    [
+      "#{node_list(closed_rules(g))} @indent.begin",
+      "[#{join(closers, " ")}] @indent.end",
+      "[#{join(concat_lists(closers, arms), " ")}] @indent.branch",
+      "(comment) @indent.auto"
+    ]
+  )
+end
+
+def locals(grammar)
+  g = checked(grammar)
+  scopes = map(
+    fn(r) "(#{get(r, :name)}) @local.scope" end,
+    filter(fn(r) get(r, :scope) end, get(g, :rules))
+  )
+  definitions = field_patterns(
+    g,
+    :defines,
+    fn(node, f, kind)
+      "(#{node} #{get(f, :name)}: (#{kind}) @local.definition.#{get(f, :defines)})"
+    end
+  )
+  references = map(
+    fn(r) "(#{get(r, :name)}) @local.reference" end,
+    filter(fn(r) get(r, :reference) end, get(g, :rules))
+  )
+  query_lines(
+    "; Scopes, the names they define, and the names that refer.",
+    concat_lists(concat_lists(scopes, definitions), references)
+  )
+end
+
+# ── the spec for Rust ──────────────────────────────────────────────────────
+
+def spec_json(grammar)
+  g = checked(grammar)
+  json_stringify(
+    {
+      name: get(g, :name),
+      infix: get(g, :infix),
+      pipe: get(g, :pipe),
+      unary: get(g, :unary),
+      keywords: get(g, :reserved),
+      lower: map(
+        fn(r) [get(r, :name), get(r, :lower)] end,
+        filter(fn(r) get(r, :lower) != nil end, get(g, :rules))
+      )
+    }
+  )
+end
+
+# Every artifact, by the file name it is written to.
+def artifacts(g)
+  [
+    ["grammar.js", fn() tree_sitter_js(g) end],
+    ["tree-sitter.json", fn() "#{tree_sitter_json(g)}\n" end],
+    ["highlights.scm", fn() highlights(g) end],
+    ["folds.scm", fn() folds(g) end],
+    ["indents.scm", fn() indents(g) end],
+    ["locals.scm", fn() locals(g) end],
+    ["#{get(g, :name)}.kiwari.json", fn() "#{spec_json(g)}\n" end]
+  ]
+end
+
+# The artifact a file named `file` holds, or a refusal naming the ones there are.
+def render(g, file)
+  row = filter(fn(a) first(a) == file end, artifacts(g))
+  if is_empty(row)
+    throw(
+      error(
+        :kiwari_artifact,
+        "kiwari renders #{join(map(fn(a) first(a) end, artifacts(g)), ", ")}, not #{file}"
+      )
+    )
+  end
+  nth(1, first(row))()
+end
+
+# ── blue ───────────────────────────────────────────────────────────────────
+#
+# blue's surface as blue-lang-syntax parses it (lex.rs, parse.rs). Where a
+# rule is shaped by a decision of that parser, the note says which one.
+
+def nl()
+  rep(ref("_newline"))
+end
+
+def comma_sep(item)
+  opt(seq([item, nl(), rep(seq([lit(","), nl(), item, nl()]))]))
+end
+
+# Statements, one per line; the first may share the header's line
+# (`fn(x) x * 2 end`), and the block may end on a statement's own line.
+def lines(stmt)
+  choice([seq([rep1(seq([stmt, rep1(ref("_newline"))])), opt(stmt)]), stmt])
+end
+
+def block(stmt)
+  choice([seq([rep1(ref("_newline")), opt(lines(stmt))]), lines(stmt)])
+end
+
+# An identifier: an ASCII letter or `_`, or any character outside ASCII that
+# is not an operator alias, whitespace or a control character (kigou), then
+# letters, digits, `_` or anything outside ASCII, then one `?` or `!`.
+def ident_pattern(aliases)
+  "(?:[A-Za-z_]|[^\\x00-\\x7F\\p{White_Space}\\p{Cc}#{join(aliases, "")}])[A-Za-z0-9_\\u{80}-\\u{10FFFF}]*[?!]?"
+end
+
+def infix_rows()
+  [
+    {op: "||", aliases: ["∨"], power: [1, 2], callee: "or"},
+    {op: "&&", aliases: ["∧"], power: [3, 4], callee: "and"},
+    {op: "==", aliases: ["≡"], power: [5, 6], callee: "equal?"},
+    {op: "!=", aliases: ["≠"], power: [5, 6], callee: "not="},
+    {op: "<", aliases: [], power: [5, 6], callee: "<"},
+    {op: "<=", aliases: ["≤"], power: [5, 6], callee: "<="},
+    {op: ">", aliases: [], power: [5, 6], callee: ">"},
+    {op: ">=", aliases: ["≥"], power: [5, 6], callee: ">="},
+    {op: "+", aliases: [], power: [7, 8], callee: "+"},
+    {op: "-", aliases: ["−"], power: [7, 8], callee: "-"},
+    {op: "*", aliases: ["×"], power: [9, 10], callee: "*"},
+    {op: "/", aliases: ["÷"], power: [9, 10], callee: "/"},
+    {op: "%", aliases: [], power: [9, 10], callee: "mod"}
+  ]
+end
+
+# A prefix operator's operand is parsed at power 11 (`expr(11)`): above every
+# infix row, so it is a postfix chain, never a binary.
+def unary_rows()
+  [
+    {
+      op: "-",
+      aliases: ["−"],
+      power: 11,
+      head: ["seq", ["sym", "-"], ["int", 0]]
+    },
+    {op: "!", aliases: ["¬"], power: 11, head: ["sym", "not"]}
+  ]
+end
+
+def spellings(row)
+  concat_lists([get(row, :op)], get(row, :aliases))
+end
+
+# One binary rule per binding power, left-associative when the right power is
+# the higher, so the table above is the only statement of precedence.
+def binary_rule(rows)
+  powers = distinct(map(fn(r) get(r, :power) end, rows))
+  choice(
+    map(
+      fn(p)
+        ops = flat_map(
+          fn(r) spellings(r) end,
+          filter(fn(r) get(r, :power) == p end, rows)
+        )
+        body = seq(
+          [
+            field("left", ref("_expression")),
+            field("operator", choice(map(fn(o) lit(o) end, ops))),
+            nl(),
+            field("right", ref("_expression"))
+          ]
+        )
+        if nth(1, p) > first(p)
+          prec_left(first(p), body)
+        else
+          prec_right(first(p), body)
+        end
+      end,
+      powers
+    )
+  )
+end
+
+def if_like(head)
+  seq(
+    [
+      lit(head),
+      field("condition", ref("_expression")),
+      opt(field("consequence", alias(ref("_body_if"), "body"))),
+      opt(field("alternative", choice([ref("elsif"), ref("else")])))
+    ]
+  )
+end
+
+def plain_parameters()
+  prec(
+    1,
+    seq(
+      [
+        lit("("),
+        nl(),
+        comma_sep(
+          painted(
+            "parameter",
+            ref("identifier"),
+            "variable.parameter",
+            "parameter"
+          )
+        ),
+        lit(")")
+      ]
+    )
+  )
+end
+
+def nil_or(f)
+  ["field", f, ["nil"]]
+end
+
+def if_lowering(condition)
+  [
+    "list",
+    ["sym", "if"],
+    condition,
+    nil_or("consequence"),
+    ["field?", "alternative"]
+  ]
+end
+
+def blue()
+  aliases = flat_map(
+    fn(r) get(r, :aliases) end,
+    concat_lists(infix_rows(), unary_rows())
+  )
+  ident = ident_pattern(aliases)
+  powers = map(fn(r) get(r, :power) end, infix_rows())
+  postfix = reduce(fn(m, p) blue::max(m, nth(1, p)) end, 0, powers) + 1
+  unary = reduce(fn(m, p) blue::min(m, first(p)) end, 0, powers) - 1
+  pipe = {op: "|>", power: [0, 1]}
+  {
+    name: "blue",
+    camelcase: "Blue",
+    scope: "source.blue",
+    file_types: ["b", "Bluefile"],
+    version: "0.1.0",
+    description: "blue, emitted from its one grammar spec (kiwari)",
+    repository: "https://github.com/pleme-io/blue",
+    word: "identifier",
+    extras: [pat("[ \\t\\r]"), ref("comment")],
+    infix: infix_rows(),
+    unary: unary_rows(),
+    pipe: pipe,
+    reserved: {
+      surface: [
+        "if",
+        "unless",
+        "def",
+        "defmacro",
+        "quote",
+        "unquote",
+        "unquote_splice",
+        "test",
+        "assert",
+        "fn",
+        "case"
+      ],
+      block: ["do", "end", "else", "elsif", "true", "false", "nil"]
+    },
+    closers: ["end", ")", "]", "}"],
+    keywords_painted: [
+      ["if", "keyword.conditional"],
+      ["unless", "keyword.conditional"],
+      ["elsif", "keyword.conditional"],
+      ["else", "keyword.conditional"],
+      ["case", "keyword.conditional"],
+      ["when", "keyword.conditional"],
+      ["def", "keyword.function"],
+      ["defmacro", "keyword.function"],
+      ["fn", "keyword.function"],
+      ["end", "keyword"],
+      ["test", "keyword"],
+      ["assert", "keyword"],
+      ["quote", "keyword"],
+      ["unquote", "keyword"],
+      ["unquote_splice", "keyword"],
+      ["true", ""],
+      ["false", ""],
+      ["nil", ""]
+    ],
+    punctuation: [
+      ["(", "punctuation.bracket"],
+      [")", "punctuation.bracket"],
+      ["[", "punctuation.bracket"],
+      ["]", "punctuation.bracket"],
+      ["{", "punctuation.bracket"],
+      ["}", "punctuation.bracket"],
+      [",", "punctuation.delimiter"],
+      [".", "punctuation.delimiter"],
+      ["::", "punctuation.delimiter"],
+      [concat("#", "{"), "punctuation.special"],
+      ["=", "operator"],
+      ["=>", "operator"],
+      ["->", "operator"],
+      [":", ""],
+      ["#", ""],
+      ["\"", ""],
+      ["\n", ""]
+    ],
+    rules: [
+      rule("source_file", opt(block(ref("_statement"))), ["named"]),
+      rule("_newline", lit("\n"), nil),
+      with(
+        rule("comment", token(seq([lit("#"), pat("[^\\n]*")])), nil),
+        :role,
+        "comment"
+      ),
+      with(
+        with(rule("identifier", pat(ident), ["symbol"]), :role, "variable"),
+        :reference,
+        true
+      ),
+      rule("_statement", choice([ref("binding"), ref("_expression")]), nil),
+      # `x = v` is a statement, never an expression (parse.rs `statement`).
+      rule(
+        "binding",
+        seq(
+          [
+            painted("name", ref("identifier"), "variable", "var"),
+            lit("="),
+            nl(),
+            field("value", ref("_expression"))
+          ]
+        ),
+        ["list", ["sym", "define"], ["field", "name"], ["field", "value"]]
+      ),
+      rule(
+        "_expression",
+        choice(
+          [ref("binary_expression"), ref("pipe_expression"), ref("_operand")]
+        ),
+        nil
+      ),
+      rule("_operand", choice([ref("unary_expression"), ref("_postfix")]), nil),
+      # Postfix applies to a postfix chain only: blue's Pratt loop lets the
+      # innermost expression take `.name` and `(…)`.
+      rule(
+        "_postfix",
+        choice([ref("call"), ref("send"), ref("_primary")]),
+        nil
+      ),
+      rule(
+        "_primary",
+        choice(
+          map(
+            fn(n) ref(n) end,
+            [
+              "integer",
+              "float",
+              "string",
+              "symbol",
+              "true",
+              "false",
+              "nil",
+              "identifier",
+              "qualified_name",
+              "list",
+              "map",
+              "parenthesized_expression",
+              "if",
+              "unless",
+              "def",
+              "defmacro",
+              "case",
+              "lambda",
+              "test",
+              "assert",
+              "quote",
+              "unquote",
+              "unquote_splice"
+            ]
+          )
+        ),
+        nil
+      ),
+      rule(
+        "binary_expression",
+        binary_rule(infix_rows()),
+        ["list", ["callee", "operator"], ["field", "left"], ["field", "right"]]
+      ),
+      rule(
+        "pipe_expression",
+        prec_left(
+          first(get(pipe, :power)),
+          seq(
+            [
+              field("left", ref("_expression")),
+              lit(get(pipe, :op)),
+              nl(),
+              field("right", ref("_expression"))
+            ]
+          )
+        ),
+        ["thread", "left", "right"]
+      ),
+      # Below every infix row: after an expression header (`if a - b`) the
+      # binary reading wins, as blue's greedy header does.
+      rule(
+        "unary_expression",
+        prec(
+          unary,
+          seq(
+            [
+              field(
+                "operator",
+                choice(
+                  map(
+                    fn(o) lit(o) end,
+                    flat_map(fn(r) spellings(r) end, unary_rows())
+                  )
+                )
+              ),
+              field("operand", ref("_operand"))
+            ]
+          )
+        ),
+        ["list", ["unary", "operator"], ["field", "operand"]]
+      ),
+      rule(
+        "call",
+        prec(
+          postfix,
+          seq(
+            [
+              painted_as(
+                "function",
+                ref("_postfix"),
+                ["identifier", "qualified_name"],
+                "function.call"
+              ),
+              field("arguments", ref("arguments"))
+            ]
+          )
+        ),
+        ["list", ["field", "function"], ["field?", "arguments"]]
+      ),
+      rule(
+        "send",
+        prec_right(
+          postfix,
+          seq(
+            [
+              field("receiver", ref("_postfix")),
+              lit("."),
+              painted("method", ref("identifier"), "function.method.call", ""),
+              opt(field("arguments", ref("arguments")))
+            ]
+          )
+        ),
+        [
+          "list",
+          ["field", "method"],
+          ["field", "receiver"],
+          ["field?", "arguments"]
+        ]
+      ),
+      # `f (x)` after a header is a call, not a header and a body.
+      rule(
+        "arguments",
+        prec(1, seq([lit("("), nl(), comma_sep(ref("_expression")), lit(")")])),
+        ["named"]
+      ),
+      rule(
+        "parenthesized_expression",
+        seq(
+          [
+            lit("("),
+            nl(),
+            field("expression", ref("_expression")),
+            nl(),
+            lit(")")
+          ]
+        ),
+        ["field", "expression"]
+      ),
+      rule(
+        "list",
+        seq([lit("["), nl(), comma_sep(ref("_expression")), lit("]")]),
+        ["list", ["sym", "list"], ["named"]]
+      ),
+      rule(
+        "map",
+        seq(
+          [
+            lit("{"),
+            nl(),
+            comma_sep(choice([ref("pair"), ref("rocket_pair")])),
+            lit("}")
+          ]
+        ),
+        ["list", ["sym", "hash-map"], ["named"]]
+      ),
+      rule(
+        "pair",
+        seq(
+          [field("key", ref("label")), nl(), field("value", ref("_expression"))]
+        ),
+        ["seq", ["field", "key"], ["field", "value"]]
+      ),
+      rule(
+        "rocket_pair",
+        seq(
+          [
+            field("key", ref("_expression")),
+            nl(),
+            lit("=>"),
+            nl(),
+            field("value", ref("_expression"))
+          ]
+        ),
+        ["seq", ["field", "key"], ["field", "value"]]
+      ),
+      # One token, so `{def: 1}` is a label although `def` is a keyword.
+      with(
+        rule("label", token(seq([pat(ident), lit(":")])), ["keyword"]),
+        :role,
+        "property"
+      ),
+      # `pkg::` as one token too, so a label cannot take `pkg:` in `{pkg::x => 1}`.
+      rule(
+        "qualified_name",
+        seq(
+          [
+            choice(
+              [
+                seq(
+                  [
+                    painted("package", ref("identifier"), "module", ""),
+                    lit("::")
+                  ]
+                ),
+                painted(
+                  "package",
+                  alias(token(seq([pat(ident), lit("::")])), "package"),
+                  "module",
+                  ""
+                )
+              ]
+            ),
+            field(
+              "name",
+              choice([ref("identifier"), ref("true"), ref("false"), ref("nil")])
+            )
+          ]
+        ),
+        ["qualify", "package", "name"]
+      ),
+      with(rule("integer", pat("[0-9][0-9_]*"), ["lexeme"]), :role, "number"),
+      with(
+        rule(
+          "float",
+          token(
+            choice(
+              [
+                pat("[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9][0-9_]*)?"),
+                pat("[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*")
+              ]
+            )
+          ),
+          ["lexeme"]
+        ),
+        :role,
+        "number.float"
+      ),
+      with(
+        rule("symbol", token(seq([lit(":"), pat(ident)])), ["keyword"]),
+        :role,
+        "string.special.symbol"
+      ),
+      with(rule("true", lit("true"), ["lexeme"]), :role, "boolean"),
+      with(rule("false", lit("false"), ["lexeme"]), :role, "boolean"),
+      with(rule("nil", lit("nil"), ["lexeme"]), :role, "constant.builtin"),
+      with(
+        rule(
+          "string",
+          seq(
+            [
+              lit("\""),
+              rep(
+                choice(
+                  [
+                    ref("string_content"),
+                    ref("escape_sequence"),
+                    ref("interpolation")
+                  ]
+                )
+              ),
+              immediate(lit("\""))
+            ]
+          ),
+          ["interpolate", "concat", "interpolation"]
+        ),
+        :role,
+        "string"
+      ),
+      rule(
+        "_plain_string",
+        seq(
+          [
+            lit("\""),
+            rep(choice([ref("string_content"), ref("escape_sequence")])),
+            immediate(lit("\""))
+          ]
+        ),
+        nil
+      ),
+      rule(
+        "string_content",
+        choice(
+          [immediate(prec(1, pat("[^\"\\\\#]+"))), immediate(prec(1, lit("#")))]
+        ),
+        nil
+      ),
+      with(
+        rule(
+          "escape_sequence",
+          immediate(prec(1, pat("\\\\([ntr\\\\\"0]|u\\{[0-9a-fA-F]+\\})"))),
+          nil
+        ),
+        :role,
+        "string.escape"
+      ),
+      # The inside of `#{…}` is a program of one statement (parse.rs `parse_expr`).
+      with(
+        rule(
+          "interpolation",
+          seq(
+            [
+              immediate(prec(1, lit(concat("#", "{")))),
+              nl(),
+              field("expression", ref("_statement")),
+              nl(),
+              lit("}")
+            ]
+          ),
+          ["field", "expression"]
+        ),
+        :role,
+        "none"
+      ),
+      rule(
+        "if",
+        seq(concat_lists(get(if_like("if"), :items), [lit("end")])),
+        if_lowering(["field", "condition"])
+      ),
+      rule(
+        "unless",
+        seq(concat_lists(get(if_like("unless"), :items), [lit("end")])),
+        if_lowering(["list", ["sym", "not"], ["field", "condition"]])
+      ),
+      with(
+        rule("elsif", if_like("elsif"), if_lowering(["field", "condition"])),
+        :arm,
+        true
+      ),
+      with(
+        rule(
+          "else",
+          seq([lit("else"), opt(field("body", ref("body")))]),
+          nil_or("body")
+        ),
+        :arm,
+        true
+      ),
+      # A typed signature lowers to `define-typed`, an untyped one to `define`.
+      with(
+        rule(
+          "def",
+          seq(
+            [
+              lit("def"),
+              painted("name", ref("identifier"), "function", "function"),
+              opt(field("parameters", ref("parameters"))),
+              opt(seq([lit("->"), nl(), field("return_type", ref("type"))])),
+              opt(field("body", ref("body"))),
+              lit("end")
+            ]
+          ),
+          [
+            "if_any",
+            [["return_type"], ["parameters", "*", "type"]],
+            [
+              "list",
+              ["sym", "define-typed"],
+              [
+                "list",
+                ["field", "name"],
+                [
+                  "each",
+                  ["parameters", "*"],
+                  [
+                    "if_kind",
+                    "identifier",
+                    ["list", ["symbol"], ["sym", "dyn"]],
+                    ["list", ["each", ["name"], ["symbol"]], ["field", "type"]]
+                  ]
+                ]
+              ],
+              ["field", "return_type", ["sym", "dyn"]],
+              nil_or("body")
+            ],
+            [
+              "list",
+              ["sym", "define"],
+              ["list", ["field", "name"], ["field?", "parameters"]],
+              nil_or("body")
+            ]
+          ]
+        ),
+        :scope,
+        true
+      ),
+      rule(
+        "parameters",
+        prec(
+          1,
+          seq(
+            [
+              lit("("),
+              nl(),
+              comma_sep(
+                choice(
+                  [
+                    painted(
+                      "parameter",
+                      ref("identifier"),
+                      "variable.parameter",
+                      "parameter"
+                    ),
+                    ref("typed_parameter")
+                  ]
+                )
+              ),
+              lit(")")
+            ]
+          )
+        ),
+        ["named"]
+      ),
+      rule(
+        "typed_parameter",
+        seq(
+          [
+            painted("name", ref("label"), "variable.parameter", ""),
+            nl(),
+            field("type", ref("type"))
+          ]
+        ),
+        nil
+      ),
+      rule(
+        "type",
+        prec_right(
+          0,
+          seq(
+            [
+              painted("name", ref("identifier"), "type", ""),
+              opt(field("arguments", ref("arguments")))
+            ]
+          )
+        ),
+        [
+          "if_any",
+          [["arguments"]],
+          ["list", ["field", "name"], ["field", "arguments"]],
+          ["field", "name"]
+        ]
+      ),
+      with(
+        rule(
+          "defmacro",
+          seq(
+            [
+              lit("defmacro"),
+              painted("name", ref("identifier"), "function.macro", "macro"),
+              opt(
+                field(
+                  "parameters",
+                  alias(ref("_plain_parameters"), "parameters")
+                )
+              ),
+              opt(field("body", ref("body"))),
+              lit("end")
+            ]
+          ),
+          [
+            "list",
+            ["sym", "defmacro"],
+            ["field", "name"],
+            ["list", ["field?", "parameters"]],
+            nil_or("body")
+          ]
+        ),
+        :scope,
+        true
+      ),
+      rule("_plain_parameters", plain_parameters(), nil),
+      # `case` compares with `equal?` against a subject bound once.
+      rule(
+        "case",
+        seq(
+          [
+            lit("case"),
+            field("subject", ref("_expression")),
+            nl(),
+            choice(
+              [
+                seq(
+                  [
+                    rep1(field("arm", ref("when"))),
+                    opt(field("default", ref("else")))
+                  ]
+                ),
+                field("default", ref("else"))
+              ]
+            ),
+            lit("end")
+          ]
+        ),
+        [
+          "list",
+          ["sym", "let"],
+          ["list", ["list", ["sym", "case-subject"], ["field", "subject"]]],
+          [
+            "list",
+            ["sym", "cond"],
+            [
+              "each",
+              ["arm"],
+              [
+                "list",
+                [
+                  "list",
+                  ["sym", "equal?"],
+                  ["sym", "case-subject"],
+                  ["field", "pattern"]
+                ],
+                nil_or("body")
+              ]
+            ],
+            ["list", ["sym", "else"], ["field", "default", ["nil"]]]
+          ]
+        ]
+      ),
+      with(
+        rule(
+          "when",
+          seq(
+            [
+              lit("when"),
+              nl(),
+              field("pattern", ref("_expression")),
+              opt(field("body", alias(ref("_body_when"), "body")))
+            ]
+          ),
+          nil
+        ),
+        :arm,
+        true
+      ),
+      with(
+        rule(
+          "lambda",
+          seq(
+            [
+              lit("fn"),
+              opt(
+                field(
+                  "parameters",
+                  alias(ref("_plain_parameters"), "parameters")
+                )
+              ),
+              opt(field("body", ref("body"))),
+              lit("end")
+            ]
+          ),
+          [
+            "list",
+            ["sym", "lambda"],
+            ["list", ["field?", "parameters"]],
+            nil_or("body")
+          ]
+        ),
+        :scope,
+        true
+      ),
+      rule(
+        "test",
+        seq(
+          [
+            lit("test"),
+            field("name", alias(ref("_plain_string"), "string")),
+            opt(field("body", ref("body"))),
+            lit("end")
+          ]
+        ),
+        ["list", ["sym", "deftest"], ["field", "name"], nil_or("body")]
+      ),
+      rule(
+        "assert",
+        prec_right(
+          0,
+          seq([lit("assert"), field("expression", ref("_expression"))])
+        ),
+        [
+          "list",
+          ["sym", "blue-assert"],
+          ["quote", ["field", "expression"]],
+          ["field", "expression"]
+        ]
+      ),
+      rule(
+        "quote",
+        seq([lit("quote"), opt(field("body", ref("body"))), lit("end")]),
+        ["quasiquote", nil_or("body")]
+      ),
+      rule(
+        "unquote",
+        seq(
+          [
+            lit("unquote"),
+            lit("("),
+            nl(),
+            field("expression", ref("_expression")),
+            nl(),
+            lit(")")
+          ]
+        ),
+        ["unquote", ["field", "expression"]]
+      ),
+      rule(
+        "unquote_splice",
+        seq(
+          [
+            lit("unquote_splice"),
+            lit("("),
+            nl(),
+            field("expression", ref("_expression")),
+            nl(),
+            lit(")")
+          ]
+        ),
+        ["unquote_splice", ["field", "expression"]]
+      ),
+      rule("body", block(ref("_statement")), ["block", "begin"]),
+      rule("_body_if", block(ref("_statement")), nil),
+      rule("_body_when", block(ref("_statement")), nil)
+    ]
+  }
+end
+
+# ── tests ──────────────────────────────────────────────────────────────────
+
+def tiny(rules, punctuation)
+  {
+    name: "tiny",
+    word: "word",
+    extras: [pat("\\s")],
+    infix: [],
+    unary: [],
+    pipe: {op: "|>", power: [0, 1]},
+    reserved: {surface: [], block: []},
+    closers: ["end"],
+    keywords_painted: [],
+    punctuation: punctuation,
+    rules: rules
+  }
+end
+
+test "a grammar with no rules renders the frame and nothing in it"
+  js = tree_sitter_js(tiny([], []))
+  assert contains?(js, "module.exports = grammar({")
+  assert contains?(js, "  rules: {\n  },")
+  assert unpainted(tiny([], [])) == []
+end
+
+test "a rule renders as the tree-sitter call its constructor names"
+  r = rule(
+    "word",
+    prec_left(2, seq([lit("a'\\"), opt(pat("x/y")), field("f", ref("_z"))])),
+    nil
+  )
+  assert js(get(r, :body)) ==
+    "prec.left(2, seq('a\\'\\\\', optional(/x\\/y/u), field('f', $._z)))"
+end
+
+test "blue's grammar paints every literal it uses, and folds each closed form"
+  g = blue()
+  assert unpainted(g) == []
+  assert contains?(folds(g), "(def)")
+  assert contains?(folds(g), "(case)")
+  assert contains?(folds(g), "(interpolation)") == false
+end
+
+test "every visible rule of blue's lowers, but the parts its parent reads"
+  g = blue()
+  parts = map(
+    fn(r) get(r, :name) end,
+    filter(fn(r) get(r, :lower) == nil end, visible(g))
+  )
+  assert parts ==
+    ["comment", "string_content", "escape_sequence", "typed_parameter", "when"]
+end
+
+test "a literal with no role is refused by every renderer"
+  bad = tiny([rule("word", lit("?!"), nil)], [])
+  assert unpainted(bad) == ["?!"]
+  assert try(highlights(bad), catch(e(), error?(e))) == true
+  assert try(tree_sitter_js(bad), catch(e(), error?(e))) == true
+  assert unpainted(tiny([rule("word", lit("?!"), nil)], [["?!", ""]])) == []
+end
+
+test "render names the artifacts it makes when asked for another"
+  assert try(render(blue(), "grammar.json"), catch(e(), error?(e))) == true
+  assert starts_with?(render(blue(), "folds.scm"), "; Generated")
+end

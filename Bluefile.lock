@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f059561d2747f265de5bfb246aeb5370753f5e4163f6afafeeaeb71dc39dcd61",
+  "bluefile_b3": "b3:ac9e3d09e675a8b24d96065245f03888c0ed644027a9d5e335e31714955a6b9a",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -37,6 +37,34 @@
       "kigou-tables": {
         "output": "crates/blue-lang-syntax/src/kigou/tables.rs",
         "program": "crates/blue-lang-syntax/gen/kigou.b"
+      },
+      "kiwari-folds": {
+        "output": "tree-sitter-blue/queries/folds.scm",
+        "program": "gen/kiwari/folds.b"
+      },
+      "kiwari-grammar": {
+        "output": "tree-sitter-blue/grammar.js",
+        "program": "gen/kiwari/grammar.b"
+      },
+      "kiwari-highlights": {
+        "output": "tree-sitter-blue/queries/highlights.scm",
+        "program": "gen/kiwari/highlights.b"
+      },
+      "kiwari-indents": {
+        "output": "tree-sitter-blue/queries/indents.scm",
+        "program": "gen/kiwari/indents.b"
+      },
+      "kiwari-locals": {
+        "output": "tree-sitter-blue/queries/locals.scm",
+        "program": "gen/kiwari/locals.b"
+      },
+      "kiwari-metadata": {
+        "output": "tree-sitter-blue/tree-sitter.json",
+        "program": "gen/kiwari/metadata.b"
+      },
+      "kiwari-spec": {
+        "output": "crates/blue-lang-kiwari/blue.kiwari.json",
+        "program": "gen/kiwari/spec.b"
       },
       "okite-rules": {
         "output": "bidamas/okite/RULES.md",

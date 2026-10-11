@@ -1,0 +1,1 @@
+{"grammars":[{"camelcase":"Blue","file-types":["b","Bluefile"],"name":"blue","path":".","scope":"source.blue"}],"metadata":{"description":"blue, emitted from its one grammar spec (kiwari)","license":"MIT","links":{"repository":"https://github.com/pleme-io/blue"},"version":"0.1.0"}}

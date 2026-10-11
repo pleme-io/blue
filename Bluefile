@@ -34,6 +34,17 @@ tool("openssh")
 generate("kigou-tables", "crates/blue-lang-syntax/src/kigou/tables.rs", "crates/blue-lang-syntax/gen/kigou.b")
 generate("okite-rules", "bidamas/okite/RULES.md", "gen/okite-rules.b")
 
+# blue's one grammar spec (bidamas/kiwari) and everything emitted from it: the
+# tree-sitter grammar editors build, its queries, and the spec as JSON for
+# blue-lang-kiwari's differential against blue's own parser.
+generate("kiwari-grammar", "tree-sitter-blue/grammar.js", "gen/kiwari/grammar.b")
+generate("kiwari-metadata", "tree-sitter-blue/tree-sitter.json", "gen/kiwari/metadata.b")
+generate("kiwari-highlights", "tree-sitter-blue/queries/highlights.scm", "gen/kiwari/highlights.b")
+generate("kiwari-folds", "tree-sitter-blue/queries/folds.scm", "gen/kiwari/folds.b")
+generate("kiwari-indents", "tree-sitter-blue/queries/indents.scm", "gen/kiwari/indents.b")
+generate("kiwari-locals", "tree-sitter-blue/queries/locals.scm", "gen/kiwari/locals.b")
+generate("kiwari-spec", "crates/blue-lang-kiwari/blue.kiwari.json", "gen/kiwari/spec.b")
+
 # The language reference, from `blue reference` (the tables the implementation
 # runs on) and, to say which built-in names a bidama redefines, the bidamas.
 generate("reference", "docs/REFERENCE.md", "gen/reference.b", ["bidamas"])

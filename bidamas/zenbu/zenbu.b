@@ -62,6 +62,7 @@ use("kazu", [:clamp, :near])
 use("keiyu", [:relay_env])
 use("kikagaku", [:manhattan])
 use("kinji")
+use("kiwari")
 use("kueri")
 use("kumiawase", [:combinations])
 use("kyohi")
@@ -110,6 +111,7 @@ test "every bidama in the distribution answers through this one import"
   assert near(kakou::outside_setback(90, 1, 1), 2) == true
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
+  assert kiwari::unpainted(kiwari::blue()) == []
   assert kueri::ident("order") == "\"order\""
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2598960

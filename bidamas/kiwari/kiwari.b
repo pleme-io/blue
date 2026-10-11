@@ -139,7 +139,7 @@ end
 
 # ── reading a grammar ──────────────────────────────────────────────────────
 
-def children(e)
+def parts(e)
   k = get(e, :kind)
   if k == :seq || k == :choice
     get(e, :items)
@@ -154,7 +154,7 @@ def literals_of(e)
   if get(e, :kind) == :lit
     [get(e, :text)]
   else
-    flat_map(fn(c) literals_of(c) end, children(e))
+    flat_map(fn(c) literals_of(c) end, parts(e))
   end
 end
 
@@ -169,7 +169,7 @@ def fields_of(e)
   else
     []
   end
-  concat_lists(here, flat_map(fn(c) fields_of(c) end, children(e)))
+  concat_lists(here, flat_map(fn(c) fields_of(c) end, parts(e)))
 end
 
 # The named node kinds a field's item can be: a visible rule it refers to, or
@@ -187,7 +187,7 @@ def kinds_of(e)
   elsif k == :lit || k == :pat
     []
   else
-    flat_map(fn(c) kinds_of(c) end, children(e))
+    flat_map(fn(c) kinds_of(c) end, parts(e))
   end
 end
 
@@ -197,7 +197,7 @@ def aliases_of(e)
   else
     []
   end
-  concat_lists(here, flat_map(fn(c) aliases_of(c) end, children(e)))
+  concat_lists(here, flat_map(fn(c) aliases_of(c) end, parts(e)))
 end
 
 # The name a rule's node carries in a tree: its own, or for a hidden rule the

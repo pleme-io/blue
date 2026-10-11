@@ -16,5 +16,8 @@ fn exactly_one_module_may_use_unsafe_and_it_is_the_tree_sitter_seam() {
     }
     assert_eq!(allowed, ["ts.rs"], "unsafe is allowed outside the seam");
     let lib = std::fs::read_to_string(src.join("lib.rs")).expect("lib.rs");
-    assert!(lib.contains("#![deny(unsafe_code)]"), "the crate root no longer denies unsafe code");
+    assert!(
+        lib.contains("#![deny(unsafe_code)]"),
+        "the crate root no longer denies unsafe code"
+    );
 }

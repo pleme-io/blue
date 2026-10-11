@@ -90,27 +90,49 @@ impl Spec {
         let raw: RawSpec = serde_json::from_str(json)?;
         let mut lower = HashMap::new();
         for (kind, v) in raw.lower {
-            let t = Template::from_value(&v).map_err(|why| SpecError::Template { kind: kind.clone(), why })?;
+            let t = Template::from_value(&v).map_err(|why| SpecError::Template {
+                kind: kind.clone(),
+                why,
+            })?;
             lower.insert(kind, t);
         }
         let unary = raw
             .unary
             .into_iter()
             .map(|u| {
-                let head = Template::from_value(&u.head).map_err(|why| SpecError::Template { kind: format!("unary `{}`", u.op), why })?;
-                Ok(Unary { op: u.op, aliases: u.aliases, power: u.power, head })
+                let head = Template::from_value(&u.head).map_err(|why| SpecError::Template {
+                    kind: format!("unary `{}`", u.op),
+                    why,
+                })?;
+                Ok(Unary {
+                    op: u.op,
+                    aliases: u.aliases,
+                    power: u.power,
+                    head,
+                })
             })
             .collect::<Result<Vec<_>, SpecError>>()?;
-        Ok(Self { name: raw.name, infix: raw.infix, pipe: raw.pipe, unary, keywords: raw.keywords, lower })
+        Ok(Self {
+            name: raw.name,
+            infix: raw.infix,
+            pipe: raw.pipe,
+            unary,
+            keywords: raw.keywords,
+            lower,
+        })
     }
 
     /// The infix row an operator's spelling names, by its ASCII form or an alias.
     pub fn infix_for(&self, spelling: &str) -> Option<&Infix> {
-        self.infix.iter().find(|i| i.op == spelling || i.aliases.iter().any(|a| a == spelling))
+        self.infix
+            .iter()
+            .find(|i| i.op == spelling || i.aliases.iter().any(|a| a == spelling))
     }
 
     pub fn unary_for(&self, spelling: &str) -> Option<&Unary> {
-        self.unary.iter().find(|u| u.op == spelling || u.aliases.iter().any(|a| a == spelling))
+        self.unary
+            .iter()
+            .find(|u| u.op == spelling || u.aliases.iter().any(|a| a == spelling))
     }
 }
 
@@ -126,11 +148,19 @@ pub enum Template {
     Nil,
     List(Vec<Template>),
     Seq(Vec<Template>),
-    Field { name: String, default: Option<Box<Template>> },
+    Field {
+        name: String,
+        default: Option<Box<Template>>,
+    },
     FieldOpt(String),
-    Each { path: Vec<String>, each: Box<Template> },
+    Each {
+        path: Vec<String>,
+        each: Box<Template>,
+    },
     Named,
-    Block { head: String },
+    Block {
+        head: String,
+    },
     Quote(Box<Template>),
     Quasiquote(Box<Template>),
     Unquote(Box<Template>),
@@ -138,17 +168,36 @@ pub enum Template {
     Symbol,
     Keyword,
     Lexeme,
-    Interpolate { join: String, part: String },
-    Qualify { package: String, name: String },
+    Interpolate {
+        join: String,
+        part: String,
+    },
+    Qualify {
+        package: String,
+        name: String,
+    },
     Callee(String),
     Unary(String),
-    Thread { left: String, right: String },
-    IfAny { paths: Vec<Vec<String>>, then: Box<Template>, otherwise: Box<Template> },
-    IfKind { kind: String, then: Box<Template>, otherwise: Box<Template> },
+    Thread {
+        left: String,
+        right: String,
+    },
+    IfAny {
+        paths: Vec<Vec<String>>,
+        then: Box<Template>,
+        otherwise: Box<Template>,
+    },
+    IfKind {
+        kind: String,
+        then: Box<Template>,
+        otherwise: Box<Template>,
+    },
 }
 
 fn s(v: &Value, what: &str) -> Result<String, String> {
-    v.as_str().map(str::to_owned).ok_or_else(|| format!("{what} must be a string, got {v}"))
+    v.as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| format!("{what} must be a string, got {v}"))
 }
 
 fn path(v: &Value) -> Result<Vec<String>, String> {
@@ -161,11 +210,18 @@ fn path(v: &Value) -> Result<Vec<String>, String> {
 
 impl Template {
     pub fn from_value(v: &Value) -> Result<Self, String> {
-        let items = v.as_array().ok_or_else(|| format!("a template is a list `[op, …]`, got {v}"))?;
+        let items = v
+            .as_array()
+            .ok_or_else(|| format!("a template is a list `[op, …]`, got {v}"))?;
         let (op, args) = items.split_first().ok_or("an empty template")?;
         let op = s(op, "a template's op")?;
-        let arg = |i: usize| args.get(i).ok_or_else(|| format!("`{op}` needs an argument at {i}"));
-        let sub = |i: usize| -> Result<Box<Template>, String> { Ok(Box::new(Template::from_value(arg(i)?)?)) };
+        let arg = |i: usize| {
+            args.get(i)
+                .ok_or_else(|| format!("`{op}` needs an argument at {i}"))
+        };
+        let sub = |i: usize| -> Result<Box<Template>, String> {
+            Ok(Box::new(Template::from_value(arg(i)?)?))
+        };
         let arity = |n: usize| {
             if args.len() == n {
                 Ok(())
@@ -186,11 +242,25 @@ impl Template {
                 arity(0)?;
                 Self::Nil
             }
-            "list" => Self::List(args.iter().map(Template::from_value).collect::<Result<_, _>>()?),
-            "seq" => Self::Seq(args.iter().map(Template::from_value).collect::<Result<_, _>>()?),
+            "list" => Self::List(
+                args.iter()
+                    .map(Template::from_value)
+                    .collect::<Result<_, _>>()?,
+            ),
+            "seq" => Self::Seq(
+                args.iter()
+                    .map(Template::from_value)
+                    .collect::<Result<_, _>>()?,
+            ),
             "field" => match args.len() {
-                1 => Self::Field { name: s(arg(0)?, "a field")?, default: None },
-                2 => Self::Field { name: s(arg(0)?, "a field")?, default: Some(sub(1)?) },
+                1 => Self::Field {
+                    name: s(arg(0)?, "a field")?,
+                    default: None,
+                },
+                2 => Self::Field {
+                    name: s(arg(0)?, "a field")?,
+                    default: Some(sub(1)?),
+                },
                 n => return Err(format!("`field` takes 1 or 2 arguments, got {n}")),
             },
             "field?" => {
@@ -199,7 +269,10 @@ impl Template {
             }
             "each" => {
                 arity(2)?;
-                Self::Each { path: path(arg(0)?)?, each: sub(1)? }
+                Self::Each {
+                    path: path(arg(0)?)?,
+                    each: sub(1)?,
+                }
             }
             "named" => {
                 arity(0)?;
@@ -207,7 +280,9 @@ impl Template {
             }
             "block" => {
                 arity(1)?;
-                Self::Block { head: s(arg(0)?, "the head symbol")? }
+                Self::Block {
+                    head: s(arg(0)?, "the head symbol")?,
+                }
             }
             "quote" => {
                 arity(1)?;
@@ -239,11 +314,17 @@ impl Template {
             }
             "interpolate" => {
                 arity(2)?;
-                Self::Interpolate { join: s(arg(0)?, "the join symbol")?, part: s(arg(1)?, "the interpolation kind")? }
+                Self::Interpolate {
+                    join: s(arg(0)?, "the join symbol")?,
+                    part: s(arg(1)?, "the interpolation kind")?,
+                }
             }
             "qualify" => {
                 arity(2)?;
-                Self::Qualify { package: s(arg(0)?, "a field")?, name: s(arg(1)?, "a field")? }
+                Self::Qualify {
+                    package: s(arg(0)?, "a field")?,
+                    name: s(arg(1)?, "a field")?,
+                }
             }
             "callee" => {
                 arity(1)?;
@@ -255,7 +336,10 @@ impl Template {
             }
             "thread" => {
                 arity(2)?;
-                Self::Thread { left: s(arg(0)?, "a field")?, right: s(arg(1)?, "a field")? }
+                Self::Thread {
+                    left: s(arg(0)?, "a field")?,
+                    right: s(arg(1)?, "a field")?,
+                }
             }
             "if_any" => {
                 arity(3)?;
@@ -265,11 +349,19 @@ impl Template {
                     .iter()
                     .map(path)
                     .collect::<Result<_, _>>()?;
-                Self::IfAny { paths, then: sub(1)?, otherwise: sub(2)? }
+                Self::IfAny {
+                    paths,
+                    then: sub(1)?,
+                    otherwise: sub(2)?,
+                }
             }
             "if_kind" => {
                 arity(3)?;
-                Self::IfKind { kind: s(arg(0)?, "a node kind")?, then: sub(1)?, otherwise: sub(2)? }
+                Self::IfKind {
+                    kind: s(arg(0)?, "a node kind")?,
+                    then: sub(1)?,
+                    otherwise: sub(2)?,
+                }
             }
             other => return Err(format!("unknown lowering op `{other}`")),
         })

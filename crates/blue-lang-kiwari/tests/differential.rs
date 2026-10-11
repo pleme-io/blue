@@ -23,15 +23,22 @@ fn repo() -> PathBuf {
 }
 
 fn runtime() -> Option<Runtime> {
-    let (Some(rt), Some(parser)) = (std::env::var_os("KIWARI_RUNTIME"), std::env::var_os("KIWARI_PARSER")) else {
+    let (Some(rt), Some(parser)) = (
+        std::env::var_os("KIWARI_RUNTIME"),
+        std::env::var_os("KIWARI_PARSER"),
+    ) else {
         assert!(
             std::env::var_os("KIWARI_REQUIRE").is_none(),
             "KIWARI_REQUIRE is set and KIWARI_RUNTIME or KIWARI_PARSER is not"
         );
-        eprintln!("SKIPPED: no tree-sitter runtime or grammar (set KIWARI_RUNTIME and KIWARI_PARSER)");
+        eprintln!(
+            "SKIPPED: no tree-sitter runtime or grammar (set KIWARI_RUNTIME and KIWARI_PARSER)"
+        );
         return None;
     };
-    Some(Runtime::load(Path::new(&rt), Path::new(&parser), "blue").unwrap_or_else(|e| panic!("{e}")))
+    Some(
+        Runtime::load(Path::new(&rt), Path::new(&parser), "blue").unwrap_or_else(|e| panic!("{e}")),
+    )
 }
 
 #[test]
@@ -39,9 +46,16 @@ fn the_emitted_parser_agrees_with_blue_on_the_corpus_and_every_prefix() {
     let Some(rt) = runtime() else { return };
     let spec = Spec::blue().expect("the rendered spec loads");
     let files = corpus(&[repo().join("spec"), repo().join("bidamas")]);
-    assert!(files.len() > 100, "the corpus walk found {} files; it is not reading the corpus", files.len());
+    assert!(
+        files.len() > 100,
+        "the corpus walk found {} files; it is not reading the corpus",
+        files.len()
+    );
     let files: Vec<_> = match std::env::var("KIWARI_ONLY") {
-        Ok(only) => files.into_iter().filter(|f| f.to_string_lossy().contains(&only)).collect(),
+        Ok(only) => files
+            .into_iter()
+            .filter(|f| f.to_string_lossy().contains(&only))
+            .collect(),
         Err(_) => files,
     };
     let scope = match std::env::var("KIWARI_SCOPE").as_deref() {
@@ -70,5 +84,10 @@ fn the_emitted_parser_agrees_with_blue_on_the_corpus_and_every_prefix() {
     for f in &t.findings {
         eprintln!("  {f}");
     }
-    assert_eq!(t.disagreements, 0, "the emitted parser and blue's parser disagree; the first {} are above", t.findings.len());
+    assert_eq!(
+        t.disagreements,
+        0,
+        "the emitted parser and blue's parser disagree; the first {} are above",
+        t.findings.len()
+    );
 }

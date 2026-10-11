@@ -23,7 +23,9 @@ pub enum LoadError {
     Open { path: PathBuf, reason: String },
     #[error("{path} does not export `{symbol}`")]
     Symbol { path: PathBuf, symbol: String },
-    #[error("the runtime refused the grammar in {path}: its ABI is outside what this runtime reads")]
+    #[error(
+        "the runtime refused the grammar in {path}: its ABI is outside what this runtime reads"
+    )]
     Abi { path: PathBuf },
 }
 
@@ -64,7 +66,8 @@ struct Api {
     parser_new: unsafe extern "C" fn() -> *mut c_void,
     parser_delete: unsafe extern "C" fn(*mut c_void),
     parser_set_language: unsafe extern "C" fn(*mut c_void, *const c_void) -> bool,
-    parser_parse_string: unsafe extern "C" fn(*mut c_void, *const c_void, *const c_char, u32) -> *mut c_void,
+    parser_parse_string:
+        unsafe extern "C" fn(*mut c_void, *const c_void, *const c_char, u32) -> *mut c_void,
     tree_delete: unsafe extern "C" fn(*mut c_void),
     tree_edit: unsafe extern "C" fn(*mut c_void, *const InputEdit),
     tree_root_node: unsafe extern "C" fn(*const c_void) -> RawNode,
@@ -91,9 +94,11 @@ struct Library {
 
 impl Library {
     fn open(path: &Path) -> Result<Self, LoadError> {
-        let c = CString::new(path.as_os_str().to_string_lossy().as_bytes()).map_err(|_| LoadError::Open {
-            path: path.to_path_buf(),
-            reason: "the path contains a NUL byte".into(),
+        let c = CString::new(path.as_os_str().to_string_lossy().as_bytes()).map_err(|_| {
+            LoadError::Open {
+                path: path.to_path_buf(),
+                reason: "the path contains a NUL byte".into(),
+            }
         })?;
         let handle = unsafe { libc::dlopen(c.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
         if handle.is_null() {
@@ -105,16 +110,25 @@ impl Library {
                     CStr::from_ptr(e).to_string_lossy().into_owned()
                 }
             };
-            return Err(LoadError::Open { path: path.to_path_buf(), reason });
+            return Err(LoadError::Open {
+                path: path.to_path_buf(),
+                reason,
+            });
         }
-        Ok(Self { handle, path: path.to_path_buf() })
+        Ok(Self {
+            handle,
+            path: path.to_path_buf(),
+        })
     }
 
     fn symbol(&self, name: &str) -> Result<*mut c_void, LoadError> {
         let c = CString::new(name).expect("symbol names carry no NUL");
         let p = unsafe { libc::dlsym(self.handle, c.as_ptr()) };
         if p.is_null() {
-            Err(LoadError::Symbol { path: self.path.clone(), symbol: name.to_string() })
+            Err(LoadError::Symbol {
+                path: self.path.clone(),
+                symbol: name.to_string(),
+            })
         } else {
             Ok(p)
         }
@@ -183,9 +197,16 @@ impl Runtime {
         let accepted = unsafe { (api.parser_set_language)(probe, language) };
         unsafe { (api.parser_delete)(probe) };
         if !accepted {
-            return Err(LoadError::Abi { path: grammar.to_path_buf() });
+            return Err(LoadError::Abi {
+                path: grammar.to_path_buf(),
+            });
         }
-        Ok(Self { api, language, _runtime: rt, _grammar: gr })
+        Ok(Self {
+            api,
+            language,
+            _runtime: rt,
+            _grammar: gr,
+        })
     }
 
     /// A parser for this grammar. One per thread.
@@ -209,7 +230,10 @@ impl<'r> Parser<'r> {
         let raw = unsafe {
             (self.rt.api.parser_parse_string)(self.raw, std::ptr::null(), src.as_ptr().cast(), len)
         };
-        assert!(!raw.is_null(), "tree-sitter returns no tree only on cancellation, which is never set here");
+        assert!(
+            !raw.is_null(),
+            "tree-sitter returns no tree only on cancellation, which is never set here"
+        );
         Tree { rt: self.rt, raw }
     }
 
@@ -222,7 +246,10 @@ impl<'r> Parser<'r> {
             let before = &src[..at];
             let row = before.matches('\n').count();
             let column = before.rfind('\n').map_or(at, |i| at - i - 1);
-            Point { row: row as u32, column: column as u32 }
+            Point {
+                row: row as u32,
+                column: column as u32,
+            }
         };
         let edit = InputEdit {
             start_byte: old_len as u32,
@@ -234,8 +261,13 @@ impl<'r> Parser<'r> {
         };
         unsafe { (self.rt.api.tree_edit)(old.raw, &edit) };
         let len = u32::try_from(src.len()).expect("a blue source fits in 4 GiB");
-        let raw = unsafe { (self.rt.api.parser_parse_string)(self.raw, old.raw, src.as_ptr().cast(), len) };
-        assert!(!raw.is_null(), "tree-sitter returns no tree only on cancellation, which is never set here");
+        let raw = unsafe {
+            (self.rt.api.parser_parse_string)(self.raw, old.raw, src.as_ptr().cast(), len)
+        };
+        assert!(
+            !raw.is_null(),
+            "tree-sitter returns no tree only on cancellation, which is never set here"
+        );
         Tree { rt: self.rt, raw }
     }
 }
@@ -253,7 +285,11 @@ pub struct Tree<'r> {
 
 impl<'r> Tree<'r> {
     pub fn root(&self) -> Node<'_> {
-        Node { rt: self.rt, raw: unsafe { (self.rt.api.tree_root_node)(self.raw) }, _tree: PhantomData }
+        Node {
+            rt: self.rt,
+            raw: unsafe { (self.rt.api.tree_root_node)(self.raw) },
+            _tree: PhantomData,
+        }
     }
 }
 
@@ -329,7 +365,14 @@ impl<'t> Node<'t> {
             loop {
                 let node = unsafe { (self.rt.api.cursor_node)(&c) };
                 let field = static_str(unsafe { (self.rt.api.cursor_field_name)(&c) });
-                out.push(Child { field, node: Node { rt: self.rt, raw: node, _tree: PhantomData } });
+                out.push(Child {
+                    field,
+                    node: Node {
+                        rt: self.rt,
+                        raw: node,
+                        _tree: PhantomData,
+                    },
+                });
                 if !unsafe { (self.rt.api.cursor_next_sibling)(&mut c) } {
                     break;
                 }

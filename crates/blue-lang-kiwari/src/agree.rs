@@ -52,11 +52,22 @@ pub const CHUNK: usize = 512;
 #[derive(Debug, Clone)]
 pub enum Disagreement {
     /// One parser accepted and the other did not.
-    Acceptance { blue: Result<(), String>, tree_sitter_error_at: Option<usize> },
+    Acceptance {
+        blue: Result<(), String>,
+        tree_sitter_error_at: Option<usize>,
+    },
     /// Both accepted, and the trees differ at top-level form `form`.
-    Meaning { form: usize, blue: Option<String>, kiwari: Result<Option<String>, LowerError> },
+    Meaning {
+        form: usize,
+        blue: Option<String>,
+        kiwari: Result<Option<String>, LowerError>,
+    },
     /// Both refused, and closed statement `form` is not intact in tree-sitter's tree.
-    Tolerance { form: usize, blue: String, kiwari: Result<String, String> },
+    Tolerance {
+        form: usize,
+        blue: String,
+        kiwari: Result<String, String>,
+    },
     /// Blue's own answers disagree: a closed region it refuses, or the
     /// decomposed verdict differing from the whole prefix's.
     Oracle { why: String },
@@ -81,9 +92,20 @@ pub struct Finding {
 
 impl std::fmt::Display for Finding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{} ({:?}, prefix of {} bytes): ", self.file.display(), self.line, self.col, self.mode, self.cut)?;
+        write!(
+            f,
+            "{}:{}:{} ({:?}, prefix of {} bytes): ",
+            self.file.display(),
+            self.line,
+            self.col,
+            self.mode,
+            self.cut
+        )?;
         match &self.what {
-            Disagreement::Acceptance { blue, tree_sitter_error_at } => write!(
+            Disagreement::Acceptance {
+                blue,
+                tree_sitter_error_at,
+            } => write!(
                 f,
                 "acceptance: blue {}, tree-sitter {}",
                 match blue {
@@ -161,14 +183,23 @@ struct Subject {
 impl Subject {
     fn read(path: &Path) -> Result<Self, String> {
         let src = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let spanned = parse_program_spanned(&src).map_err(|e| format!("{}: blue refuses it: {e}", path.display()))?;
+        let spanned = parse_program_spanned(&src)
+            .map_err(|e| format!("{}: blue refuses it: {e}", path.display()))?;
         let closes: Vec<usize> = spanned
             .iter()
             .map_while(|(_, span)| src[span.end..].find('\n').map(|i| span.end + i + 1))
             .collect();
         let closed = closes.iter().map(|_| Mutex::new(None)).collect();
-        let cuts = (0..=src.len()).filter(|i| src.is_char_boundary(*i)).collect();
-        Ok(Self { path: path.to_path_buf(), src, cuts, closes, closed })
+        let cuts = (0..=src.len())
+            .filter(|i| src.is_char_boundary(*i))
+            .collect();
+        Ok(Self {
+            path: path.to_path_buf(),
+            src,
+            cuts,
+            closes,
+            closed,
+        })
     }
 
     fn closed_count(&self, cut: usize) -> usize {
@@ -184,7 +215,12 @@ impl Subject {
         slot.get_or_insert_with(|| {
             parse_program(&self.src[..self.closes[k - 1]])
                 .map(std::sync::Arc::new)
-                .map_err(|e| format!("blue refuses the closed region ending at {}: {e}", self.closes[k - 1]))
+                .map_err(|e| {
+                    format!(
+                        "blue refuses the closed region ending at {}: {e}",
+                        self.closes[k - 1]
+                    )
+                })
         })
         .clone()
     }
@@ -204,11 +240,17 @@ fn first_error(node: Node<'_>) -> Option<usize> {
     if !node.has_error() {
         return None;
     }
-    node.children().into_iter().find_map(|c| first_error(c.node))
+    node.children()
+        .into_iter()
+        .find_map(|c| first_error(c.node))
 }
 
 fn top_level(root: Node<'_>) -> Vec<Node<'_>> {
-    root.children().into_iter().map(|c| c.node).filter(|n| n.is_named() && !n.is_extra()).collect()
+    root.children()
+        .into_iter()
+        .map(|c| c.node)
+        .filter(|n| n.is_named() && !n.is_extra())
+        .collect()
 }
 
 /// Top-level subtrees already shown to lower to blue's form at their index,
@@ -227,7 +269,14 @@ struct Judge<'a> {
 
 impl Judge<'_> {
     /// Does top-level `node` mean blue's form `want` at index `i`?
-    fn form(&self, node: Node<'_>, i: usize, want: &Sexp, lowerer: &Lowerer<'_>, memo: Option<&mut HashSet<(usize, usize, usize, usize)>>) -> Result<(), Result<String, String>> {
+    fn form(
+        &self,
+        node: Node<'_>,
+        i: usize,
+        want: &Sexp,
+        lowerer: &Lowerer<'_>,
+        memo: Option<&mut HashSet<(usize, usize, usize, usize)>>,
+    ) -> Result<(), Result<String, String>> {
         let key = (node.id(), node.start(), node.end(), i);
         if memo.as_ref().is_some_and(|m| m.contains(&key)) {
             return Ok(());
@@ -247,7 +296,14 @@ impl Judge<'_> {
         }
     }
 
-    fn judge(&self, cut: usize, root: Node<'_>, mode: Mode, mut memo: Option<&mut HashSet<(usize, usize, usize, usize)>>, tally: &mut Tally) -> Option<Disagreement> {
+    fn judge(
+        &self,
+        cut: usize,
+        root: Node<'_>,
+        mode: Mode,
+        mut memo: Option<&mut HashSet<(usize, usize, usize, usize)>>,
+        tally: &mut Tally,
+    ) -> Option<Disagreement> {
         let s = self.subject;
         let prefix = &s.src[..cut];
         let k = s.closed_count(cut);
@@ -259,14 +315,26 @@ impl Judge<'_> {
         let tail = parse_program(&s.src[from..cut]).map_err(|e| e.to_string());
         if mode == Mode::Opening {
             let whole = parse_program(prefix).map_err(|e| e.to_string());
-            let decomposed = tail.clone().map(|t| closed.iter().cloned().chain(t).collect::<Vec<_>>());
-            if whole.is_ok() != decomposed.is_ok() || whole.as_ref().ok() != decomposed.as_ref().ok() {
+            let decomposed = tail
+                .clone()
+                .map(|t| closed.iter().cloned().chain(t).collect::<Vec<_>>());
+            if whole.is_ok() != decomposed.is_ok()
+                || whole.as_ref().ok() != decomposed.as_ref().ok()
+            {
                 return Some(Disagreement::Oracle {
-                    why: format!("the prefix parses {} whole and {} split at byte {from}", verdict(&whole), verdict(&decomposed)),
+                    why: format!(
+                        "the prefix parses {} whole and {} split at byte {from}",
+                        verdict(&whole),
+                        verdict(&decomposed)
+                    ),
                 });
             }
         }
-        let ts_error = if root.has_error() { first_error(root).or(Some(root.start())) } else { None };
+        let ts_error = if root.has_error() {
+            first_error(root).or(Some(root.start()))
+        } else {
+            None
+        };
         let lowerer = Lowerer::new(self.spec, prefix);
         let nodes = top_level(root);
         match (tail, ts_error) {
@@ -284,7 +352,12 @@ impl Judge<'_> {
                         return Some(Disagreement::Meaning {
                             form: i,
                             blue: Some(want.to_string()),
-                            kiwari: got.map(Some).map_err(|why| LowerError { kind: nodes[i].kind().into(), start: nodes[i].start(), end: nodes[i].end(), why }),
+                            kiwari: got.map(Some).map_err(|why| LowerError {
+                                kind: nodes[i].kind().into(),
+                                start: nodes[i].start(),
+                                end: nodes[i].end(),
+                                why,
+                            }),
                         });
                     }
                 }
@@ -299,12 +372,19 @@ impl Judge<'_> {
                         Some(n) => self.form(*n, i, want, &lowerer, memo.as_deref_mut()),
                     };
                     if let Err(kiwari) = got {
-                        return Some(Disagreement::Tolerance { form: i, blue: want.to_string(), kiwari });
+                        return Some(Disagreement::Tolerance {
+                            form: i,
+                            blue: want.to_string(),
+                            kiwari,
+                        });
                     }
                 }
                 None
             }
-            (blue, ts) => Some(Disagreement::Acceptance { blue: blue.map(|_| ()), tree_sitter_error_at: ts }),
+            (blue, ts) => Some(Disagreement::Acceptance {
+                blue: blue.map(|_| ()),
+                tree_sitter_error_at: ts,
+            }),
         }
     }
 }
@@ -319,12 +399,16 @@ fn verdict<T>(r: &Result<T, String>) -> String {
 /// Every `.b` file and `Bluefile` under `roots`, sorted.
 pub fn corpus(roots: &[PathBuf]) -> Vec<PathBuf> {
     fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for e in entries.flatten() {
             let p = e.path();
             if p.is_dir() {
                 walk(&p, out);
-            } else if p.extension().is_some_and(|x| x == "b") || p.file_name().is_some_and(|n| n == "Bluefile") {
+            } else if p.extension().is_some_and(|x| x == "b")
+                || p.file_name().is_some_and(|n| n == "Bluefile")
+            {
                 out.push(p);
             }
         }
@@ -346,7 +430,16 @@ pub enum Scope {
     EveryPrefix,
 }
 
-fn record(tally: &mut Tally, failed: &mut Vec<usize>, keep: usize, s: &Subject, i: usize, cut: usize, mode: Mode, what: Option<Disagreement>) {
+fn record(
+    tally: &mut Tally,
+    failed: &mut Vec<usize>,
+    keep: usize,
+    s: &Subject,
+    i: usize,
+    cut: usize,
+    mode: Mode,
+    what: Option<Disagreement>,
+) {
     tally.prefixes += 1;
     match mode {
         Mode::Typing => tally.typing += 1,
@@ -357,12 +450,30 @@ fn record(tally: &mut Tally, failed: &mut Vec<usize>, keep: usize, s: &Subject, 
         failed.push(i);
         if tally.findings.len() < keep {
             let (line, col) = s.line_col(cut);
-            tally.findings.push(Finding { file: s.path.clone(), cut, line, col, mode, what });
+            tally.findings.push(Finding {
+                file: s.path.clone(),
+                cut,
+                line,
+                col,
+                mode,
+                what,
+            });
         }
     }
 }
 
-fn run_chunk<'r>(parser: &mut Parser<'r>, spec: &Spec, s: &Subject, i: usize, from: usize, to: usize, scope: Scope, keep: usize, tally: &mut Tally, failed: &mut Vec<usize>) {
+fn run_chunk<'r>(
+    parser: &mut Parser<'r>,
+    spec: &Spec,
+    s: &Subject,
+    i: usize,
+    from: usize,
+    to: usize,
+    scope: Scope,
+    keep: usize,
+    tally: &mut Tally,
+    failed: &mut Vec<usize>,
+) {
     let judge = Judge { spec, subject: s };
     let last = s.cuts.len() - 1;
     if scope == Scope::Whole {
@@ -378,7 +489,10 @@ fn run_chunk<'r>(parser: &mut Parser<'r>, spec: &Spec, s: &Subject, i: usize, fr
             parser.parse(&s.src[..cut])
         } else {
             let prev = s.cuts[c - 1];
-            let old = memo.trees.last_mut().expect("the chunk's first prefix parsed");
+            let old = memo
+                .trees
+                .last_mut()
+                .expect("the chunk's first prefix parsed");
             parser.reparse_appended(old, &s.src[..cut], prev)
         };
         let what = judge.judge(cut, tree.root(), Mode::Typing, Some(&mut memo.seen), tally);
@@ -394,14 +508,27 @@ fn run_chunk<'r>(parser: &mut Parser<'r>, spec: &Spec, s: &Subject, i: usize, fr
 
 /// Judge every file in `files` over `scope` on `threads` threads, keeping at
 /// most `keep` findings in full.
-pub fn run(rt: &Runtime, spec: &Spec, files: &[PathBuf], scope: Scope, threads: usize, keep: usize) -> Result<Tally, String> {
-    let subjects: Vec<Subject> = files.iter().map(|p| Subject::read(p)).collect::<Result<_, _>>()?;
+pub fn run(
+    rt: &Runtime,
+    spec: &Spec,
+    files: &[PathBuf],
+    scope: Scope,
+    threads: usize,
+    keep: usize,
+) -> Result<Tally, String> {
+    let subjects: Vec<Subject> = files
+        .iter()
+        .map(|p| Subject::read(p))
+        .collect::<Result<_, _>>()?;
     let work: Vec<(usize, usize, usize)> = subjects
         .iter()
         .enumerate()
         .flat_map(|(i, s)| match scope {
             Scope::Whole => vec![(i, 0, 0)],
-            Scope::EveryPrefix => (0..s.cuts.len()).step_by(CHUNK).map(|f| (i, f, (f + CHUNK).min(s.cuts.len()))).collect(),
+            Scope::EveryPrefix => (0..s.cuts.len())
+                .step_by(CHUNK)
+                .map(|f| (i, f, (f + CHUNK).min(s.cuts.len())))
+                .collect(),
         })
         .collect();
     let next = AtomicUsize::new(0);
@@ -415,18 +542,35 @@ pub fn run(rt: &Runtime, spec: &Spec, files: &[PathBuf], scope: Scope, threads: 
                 let mut local_failed = Vec::new();
                 loop {
                     let w = next.fetch_add(1, Ordering::Relaxed);
-                    let Some(&(i, from, to)) = work.get(w) else { break };
-                    run_chunk(&mut parser, spec, &subjects[i], i, from, to, scope, keep, &mut local, &mut local_failed);
+                    let Some(&(i, from, to)) = work.get(w) else {
+                        break;
+                    };
+                    run_chunk(
+                        &mut parser,
+                        spec,
+                        &subjects[i],
+                        i,
+                        from,
+                        to,
+                        scope,
+                        keep,
+                        &mut local,
+                        &mut local_failed,
+                    );
                 }
                 total.lock().expect("no panics while held").add(&local);
-                failed_files.lock().expect("no panics while held").extend(local_failed);
+                failed_files
+                    .lock()
+                    .expect("no panics while held")
+                    .extend(local_failed);
             });
         }
     });
     let mut t = total.into_inner().expect("threads joined");
     t.files = subjects.len();
     t.files_agreeing = subjects.len() - failed_files.into_inner().expect("threads joined").len();
-    t.findings.sort_by(|a, b| (&a.file, a.cut).cmp(&(&b.file, b.cut)));
+    t.findings
+        .sort_by(|a, b| (&a.file, a.cut).cmp(&(&b.file, b.cut)));
     t.findings.truncate(keep);
     Ok(t)
 }

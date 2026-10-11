@@ -15,7 +15,9 @@ use std::collections::BTreeSet;
 
 use blue_lang_kiwari::spec::{Spec, Template};
 use blue_lang_syntax::kigou::OPERATOR_ALIASES;
-use blue_lang_syntax::{BLOCK_KEYWORDS, INFIX, LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_MAP, SURFACE_KEYWORDS};
+use blue_lang_syntax::{
+    BLOCK_KEYWORDS, INFIX, LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_MAP, SURFACE_KEYWORDS,
+};
 
 fn spec() -> Spec {
     Spec::blue().expect("the rendered spec loads, every template with it")
@@ -23,10 +25,15 @@ fn spec() -> Spec {
 
 #[test]
 fn the_infix_table_is_parse_rs_table() {
-    let ours: Vec<(String, (u8, u8), String)> =
-        spec().infix.iter().map(|i| (i.op.clone(), i.power, i.callee.clone())).collect();
-    let theirs: Vec<(String, (u8, u8), String)> =
-        INFIX.iter().map(|i| (i.op.to_string(), i.power, i.callee.to_string())).collect();
+    let ours: Vec<(String, (u8, u8), String)> = spec()
+        .infix
+        .iter()
+        .map(|i| (i.op.clone(), i.power, i.callee.clone()))
+        .collect();
+    let theirs: Vec<(String, (u8, u8), String)> = INFIX
+        .iter()
+        .map(|i| (i.op.to_string(), i.power, i.callee.to_string()))
+        .collect();
     assert_eq!(ours, theirs);
 }
 
@@ -37,10 +44,16 @@ fn the_operator_aliases_are_kigou_aliases() {
         .infix
         .iter()
         .flat_map(|i| i.aliases.iter().map(|a| (a.clone(), i.op.clone())))
-        .chain(s.unary.iter().flat_map(|u| u.aliases.iter().map(|a| (a.clone(), u.op.clone()))))
+        .chain(
+            s.unary
+                .iter()
+                .flat_map(|u| u.aliases.iter().map(|a| (a.clone(), u.op.clone()))),
+        )
         .collect();
-    let theirs: BTreeSet<(String, String)> =
-        OPERATOR_ALIASES.iter().map(|(c, op, _)| (c.to_string(), op.to_string())).collect();
+    let theirs: BTreeSet<(String, String)> = OPERATOR_ALIASES
+        .iter()
+        .map(|(c, op, _)| (c.to_string(), op.to_string()))
+        .collect();
     assert_eq!(ours, theirs);
 }
 
@@ -56,12 +69,20 @@ fn mentions(t: &Template, sym: &str) -> bool {
         Template::Sym(s) => s == sym,
         Template::Interpolate { join, .. } => join == sym,
         Template::List(ts) | Template::Seq(ts) => ts.iter().any(|t| mentions(t, sym)),
-        Template::Field { default: Some(d), .. } => mentions(d, sym),
+        Template::Field {
+            default: Some(d), ..
+        } => mentions(d, sym),
         Template::Each { each, .. } => mentions(each, sym),
-        Template::Quote(t) | Template::Quasiquote(t) | Template::Unquote(t) | Template::UnquoteSplice(t) => mentions(t, sym),
-        Template::IfAny { then, otherwise, .. } | Template::IfKind { then, otherwise, .. } => {
-            mentions(then, sym) || mentions(otherwise, sym)
+        Template::Quote(t)
+        | Template::Quasiquote(t)
+        | Template::Unquote(t)
+        | Template::UnquoteSplice(t) => mentions(t, sym),
+        Template::IfAny {
+            then, otherwise, ..
         }
+        | Template::IfKind {
+            then, otherwise, ..
+        } => mentions(then, sym) || mentions(otherwise, sym),
         _ => false,
     }
 }
@@ -69,8 +90,18 @@ fn mentions(t: &Template, sym: &str) -> bool {
 #[test]
 fn the_lowered_names_are_the_parser_s() {
     let s = spec();
-    for (kind, name) in [("assert", LOWERED_ASSERT), ("map", LOWERED_MAP), ("string", LOWERED_CONCAT)] {
-        let t = s.lower.get(kind).unwrap_or_else(|| panic!("the spec lowers no `{kind}`"));
-        assert!(mentions(t, name), "`{kind}` lowers without `{name}`, the name parse.rs lowers it to");
+    for (kind, name) in [
+        ("assert", LOWERED_ASSERT),
+        ("map", LOWERED_MAP),
+        ("string", LOWERED_CONCAT),
+    ] {
+        let t = s
+            .lower
+            .get(kind)
+            .unwrap_or_else(|| panic!("the spec lowers no `{kind}`"));
+        assert!(
+            mentions(t, name),
+            "`{kind}` lowers without `{name}`, the name parse.rs lowers it to"
+        );
     }
 }

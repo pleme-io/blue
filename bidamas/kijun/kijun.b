@@ -1160,7 +1160,7 @@ def evaluate(cfg, source, trees)
   repo = assoc(source, :config, cfg)
   all = append(
     append(layout_findings(repo), expression_findings(repo)),
-    tree_findings(repo, trees)
+    unique(tree_findings(repo, trees))
   )
   ws = valid_waivers(cfg)
   live = filter(fn(x) !waived?(ws, x) end, all)
@@ -1734,6 +1734,16 @@ test "each rule fires exactly as often as its violating fixture says, and never 
   )
   assert map(fn(f) get(f, :rule) end, quiet) == []
   assert map(fn(f) get(f, :rule) end, noisy) == []
+end
+
+test "the same declaration seen from two configurations is one finding"
+  t = tree_case("lib/x.nix", :declaration)
+  two = [t, assoc(t, :configuration, "nixosConfigurations.b")]
+  xs = filter(
+    fn(x) get(x, :rule) == "tree/pleme-options-declared-in-shared" end,
+    get(evaluate(fleet_repo(1), in_memory([]), two), :findings)
+  )
+  assert size(xs) == 1
 end
 
 test "a finding names its file and line"

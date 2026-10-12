@@ -190,7 +190,7 @@ fn every_bidama_passes_its_own_tests_inner() {
         broken.join("\n")
     );
     assert!(
-        total >= 662,
+        total >= 683,
         "only {total} bidama tests ran across {} packages; the distribution \
          lost tests without any of them failing",
         pkgs.len()

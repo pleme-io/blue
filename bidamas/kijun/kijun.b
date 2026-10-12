@@ -17,9 +17,11 @@ use(
     :head_name,
     :kind,
     :line_of,
+    :literal_string?,
     :module_function?,
     :module_path,
     :named,
+    :nodes_of,
     :nodes_where,
     :option_declarations,
     :string_content
@@ -83,6 +85,8 @@ def fleet_repo(version)
       "modules/pleme/darwin/**",
       "modules/pleme/home-manager/**"
     ],
+    trio_factory: ["mkModuleTrio"],
+    concept_consumers: ["modules/**", "profiles/**"],
     configurations: [],
     waivers: [],
     disabled: [],
@@ -712,6 +716,267 @@ def check_hostname(tree, _repo)
   )
 end
 
+def unit_kinds()
+  [:shared, :package, :overlay, :registry]
+end
+
+def unit(kind_of, name, file, files)
+  {kind: kind_of, name: name, file: file, files: files}
+end
+
+def nix_under(files, prefix)
+  filter(fn(p) starts_with?(p, prefix) && ends_with?(p, ".nix") end, files)
+end
+
+def dir_units(files, root, kind_of, skip, pool)
+  depth = size(segments(root))
+  under = filter(fn(p) starts_with?(p, "#{root}/") end, pool)
+  singles = map(
+    fn(p)
+      unit(kind_of, before_first(nth(depth, segments(p)), ".nix"), p, [p])
+    end,
+    filter(
+      fn(p)
+        size(segments(p)) == depth + 1 &&
+          ends_with?(p, ".nix") &&
+          !member?(p, skip)
+      end,
+      under
+    )
+  )
+  dirs = unique(
+    map(
+      fn(p) nth(depth, segments(p)) end,
+      filter(fn(p) size(segments(p)) > depth + 1 end, under)
+    )
+  )
+  append(
+    singles,
+    map(
+      fn(d)
+        unit(kind_of, d, "#{root}/#{d}/", nix_under(files, "#{root}/#{d}/"))
+      end,
+      dirs
+    )
+  )
+end
+
+def returned_set(n)
+  k = kind(n)
+  if n == nil
+    nil
+  elsif k == "NODE_ATTR_SET"
+    n
+  elsif k == "NODE_ROOT" || k == "NODE_PAREN"
+    returned_set(first(nodes_of(n)))
+  elsif k == "NODE_LAMBDA" || k == "NODE_LET_IN"
+    returned_set(last(nodes_of(n)))
+  else
+    nil
+  end
+end
+
+def overlay_units(repo)
+  flat_map(
+    fn(p)
+      set = returned_set(get(nikkusu::read(source_of(repo, p)), :root))
+      if set == nil
+        []
+      else
+        map(
+          fn(a) unit(:overlay, a, p, [p]) end,
+          unique(
+            map(
+              fn(b) first(get(b, :path)) end,
+              filter(
+                fn(b) get(b, :scope) == :attrs && get(b, :outer) == nil end,
+                bindings(set)
+              )
+            )
+          )
+        )
+      end
+    end,
+    filter(
+      fn(p)
+        size(segments(p)) == 2 &&
+          p != "overlays/default.nix" &&
+          ends_with?(p, ".nix")
+      end,
+      nix_under(get(repo, :files), "overlays/")
+    )
+  )
+end
+
+def resolve(segs, acc)
+  if is_empty(segs)
+    acc
+  elsif first(segs) == "." || first(segs) == ""
+    resolve(rest(segs), acc)
+  elsif first(segs) == ".."
+    resolve(
+      rest(segs),
+      take(
+        if is_empty(acc)
+          0
+        else
+          size(acc) - 1
+        end,
+        acc
+      )
+    )
+  else
+    resolve(rest(segs), append(acc, [first(segs)]))
+  end
+end
+
+def relative_to(file, rel)
+  dir = take(size(segments(file)) - 1, segments(file))
+  join(resolve(segments(rel), dir), "/")
+end
+
+def imported_files(f)
+  map(
+    fn(c) relative_to(get(f, :path), code(first(get(c, :args)))) end,
+    filter(
+      fn(c)
+        first(get(c, :args)) != nil &&
+          kind(first(get(c, :args))) == "NODE_PATH_REL"
+      end,
+      named(get(f, :calls), ["import"])
+    )
+  )
+end
+
+def spec_names(c)
+  a = last(get(c, :args))
+  if a == nil || kind(a) != "NODE_ATTR_SET"
+    []
+  else
+    filter(
+      fn(x) x != nil end,
+      map(
+        fn(k)
+          v = attr(a, k)
+          if v != nil && literal_string?(v)
+            string_content(v)
+          else
+            nil
+          end
+        end,
+        ["name", "packageAttr"]
+      )
+    )
+  end
+end
+
+def concept_facts(repo)
+  cfg = get(repo, :config)
+  files = get(repo, :files)
+  wanted = filter(
+    fn(p)
+      ends_with?(p, ".nix") &&
+        (starts_with?(p, "modules/") ||
+          starts_with?(p, "profiles/") ||
+          starts_with?(p, "pkgs/") ||
+          starts_with?(p, "overlays/") ||
+          starts_with?(p, "lib/"))
+    end,
+    files
+  )
+  facts = map(fn(p) file_facts(p, source_of(repo, p)) end, wanted)
+  trio = filter(
+    fn(f) !is_empty(named(get(f, :calls), get(cfg, :trio_factory))) end,
+    facts
+  )
+  consumers = filter(
+    fn(f)
+      !is_empty(
+        filter(
+          fn(g) glob_match?(g, get(f, :path)) end,
+          get(cfg, :concept_consumers)
+        )
+      )
+    end,
+    facts
+  )
+  {
+    trio_files: map(fn(f) get(f, :path) end, trio),
+    names: unique(
+      flat_map(
+        fn(f)
+          flat_map(
+            fn(c) spec_names(c) end,
+            named(get(f, :calls), get(cfg, :trio_factory))
+          )
+        end,
+        trio
+      )
+    ),
+    trio_imports: unique(flat_map(fn(f) imported_files(f) end, trio)),
+    consumed: unique(flat_map(fn(f) imported_files(f) end, consumers))
+  }
+end
+
+def registry_units(files, facts)
+  map(
+    fn(p)
+      unit(:registry, before_first(nth(1, segments(p)), ".nix"), p, [p])
+    end,
+    filter(
+      fn(p)
+        size(segments(p)) == 2 &&
+          starts_with?(p, "lib/") &&
+          ends_with?(p, ".nix") &&
+          member?(p, get(facts, :consumed))
+      end,
+      files
+    )
+  )
+end
+
+def concept_units(repo, facts)
+  files = get(repo, :files)
+  append(
+    append(
+      dir_units(
+        files,
+        "modules/pleme/shared",
+        :shared,
+        ["modules/pleme/shared/default.nix"],
+        nix_under(files, "modules/pleme/shared/")
+      ),
+      dir_units(files, "pkgs", :package, ["pkgs/default.nix"], files)
+    ),
+    append(overlay_units(repo), registry_units(files, facts))
+  )
+end
+
+def covered?(u, facts)
+  !is_empty(
+    filter(fn(p) member?(p, get(facts, :trio_files)) end, get(u, :files))
+  ) ||
+    member?(get(u, :name), get(facts, :names)) ||
+    get(u, :kind) == :registry &&
+      member?(get(u, :file), get(facts, :trio_imports))
+end
+
+def check_concepts(repo)
+  facts = concept_facts(repo)
+  map(
+    fn(u)
+      finding(
+        "trio/every-concept",
+        get(u, :file),
+        0,
+        "#{to_s(get(u, :kind))} #{get(u, :name)}",
+        "the #{to_s(get(u, :kind))} concept #{get(u, :name)} is not declared through the module-trio factory; declare it with mkModuleTrio { kind = ...; } so it has one type-known interface on every arm"
+      )
+    end,
+    filter(fn(u) !covered?(u, facts) end, concept_units(repo, facts))
+  )
+end
+
 def rule(id, plane, tier, scope, why, fix, check)
   {
     id: id,
@@ -726,6 +991,15 @@ end
 
 def rules()
   [
+    rule(
+      "trio/every-concept",
+      :layout,
+      :gate,
+      ["modules/pleme/shared/**", "pkgs/**", "overlays/*.nix", "lib/*.nix"],
+      "every concept the fleet manages, a shared module, a package, an overlay-added package or a registry consumed as configuration, has one type-known interface on the nixos, darwin and home-manager arms, so it is declared through the module-trio factory",
+      "declare it with mkModuleTrio { kind = \"binary\" | \"package\" | \"registry\" | \"service\"; ... } in its own file, or name it (name or packageAttr) in a trio spec",
+      fn(r) check_concepts(r) end
+    ),
     rule(
       "layout/top-level",
       :layout,
@@ -1470,12 +1744,40 @@ def module_with(body)
   "{ config, lib, pkgs, ... }:\n{\n#{body}\n}\n"
 end
 
+def concept_sources(declared)
+  shared = if declared
+    "{ inputs, ... }:\nlet\n  t = inputs.substrate.moduleTrio;\n  r = import ../../../lib/r.nix;\nin\n{\n  imports = [\n    (t.mkModuleTrio { kind = \"registry\"; name = \"x\"; entries.default = r; }).module\n    (t.mkModuleTrio { kind = \"package\"; name = \"tools\"; packageAttr = \"p\"; }).module\n    (t.mkModuleTrio { kind = \"service\"; name = \"o\"; }).module\n  ];\n}\n"
+  else
+    "{ lib, ... }:\n{\n  options.pleme.x.enable = lib.mkEnableOption \"x\";\n}\n"
+  end
+  [
+    ["modules/pleme/shared/x.nix", shared],
+    ["modules/pleme/shared/default.nix", "{ imports = [ ./x.nix ]; }"],
+    ["pkgs/p/default.nix", "{ stdenv }: stdenv.mkDerivation { name = \"p\"; }"],
+    ["pkgs/p/src/main.rs", "fn main() {}"],
+    ["overlays/o.nix", "final: prev: let v = 1; in { o = prev.hello; }"],
+    ["overlays/default.nix", "{ }"],
+    ["lib/r.nix", "{ a = \"1\"; }"],
+    ["lib/unread.nix", "{ b = 2; }"],
+    [
+      "modules/pleme/nixos/use.nix",
+      "{ ... }:\nlet\n  r = import ../../../lib/r.nix;\nin\n{ }\n"
+    ]
+  ]
+end
+
 def fixtures()
   registry = [
     "lib/nodes.nix",
     "{ plo = mkNode { name = \"plo\"; nodeDir = ../nodes/plo; }; }\n"
   ]
   [
+    {
+      rule: "trio/every-concept",
+      fires: 4,
+      bad: example(concept_sources(false), []),
+      good: example(concept_sources(true), [])
+    },
     {
       rule: "layout/top-level",
       fires: 1,
@@ -1769,6 +2071,60 @@ test "each rule fires exactly as often as its violating fixture says, and never 
   )
   assert map(fn(f) get(f, :rule) end, quiet) == []
   assert map(fn(f) get(f, :rule) end, noisy) == []
+end
+
+test "trio/every-concept names every unit kind once and is silent when each is a trio"
+  cfg = fleet_repo(1)
+  subjects = fn(declared)
+    map(
+      fn(x) get(x, :subject) end,
+      fired(cfg, example(concept_sources(declared), []), "trio/every-concept")
+    )
+  end
+  assert sort_keyed(fn(t) t end, subjects(false)) ==
+    ["overlay o", "package p", "registry r", "shared x"]
+  assert subjects(true) == []
+  kinds = map(
+    fn(t) before_first(t, " ") end,
+    sort_keyed(fn(t) t end, subjects(false))
+  )
+  assert sort_keyed(fn(t) t end, kinds) ==
+    sort_keyed(fn(t) t end, map(fn(k) to_s(k) end, unit_kinds()))
+end
+
+test "a registry is a concept only when a configuration layer imports it"
+  xs = fired(
+    fleet_repo(1),
+    example(concept_sources(false), []),
+    "trio/every-concept"
+  )
+  assert filter(fn(x) get(x, :file) == "lib/unread.nix" end, xs) == []
+  assert relative_to("modules/pleme/nixos/a.nix", "../../../lib/r.nix") ==
+    "lib/r.nix"
+  assert relative_to("nodes/plo/default.nix", "./hw.nix") == "nodes/plo/hw.nix"
+end
+
+test "a package directory with no nix of its own is still a concept, covered by a spec naming it"
+  rust = [["pkgs/q/Cargo.toml", ""], ["pkgs/q/src/main.rs", "fn main() {}"]]
+  assert map(
+    fn(x) get(x, :subject) end,
+    fired(fleet_repo(1), example(rust, []), "trio/every-concept")
+  ) ==
+    ["package q"]
+  named_q = append(
+    rust,
+    [
+      [
+        "modules/pleme/shared/q.nix",
+        "{ inputs, ... }: { imports = [ (inputs.substrate.moduleTrio.mkModuleTrio { kind = \"package\"; name = \"q\"; }).module ]; }"
+      ]
+    ]
+  )
+  assert fired(fleet_repo(1), example(named_q, []), "trio/every-concept") == []
+end
+
+test "trio/every-concept is the first rule the standard lists"
+  assert get(first(rules()), :id) == "trio/every-concept"
 end
 
 test "the same declaration seen from two configurations is one finding"

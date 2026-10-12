@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-254 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+255 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -272,6 +272,12 @@ Higher binding power binds tighter.
 | `json_get_or` | `json_get_or(obj, key, default)` | 3 | The field of a parsed JSON object, or default. |
 | `json_parse` | `json_parse(text)` | 1 | Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil. |
 | `json_stringify` | `json_stringify(v)` | 1 | Compact JSON text, a map's keys sorted, a keyword as its name. |
+
+### Nix source
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `nix_parse` | `nix_parse(source)` | 1 | Nix source as rnix's lossless syntax tree: {root, errors}. A node is {kind, start, end, children}, a token {kind, start, end, text}; kinds are rnix's names (NODE_ATTR_SET, TOKEN_IDENT), offsets count characters, and each error is {message, start, end}. The nikkusu bidama queries it. |
 
 ### Files and paths
 

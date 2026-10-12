@@ -405,6 +405,7 @@
         tehai = { entry = "main"; tools = pkgs: lib.optional pkgs.stdenv.isLinux pkgs.openssh; }; # live nix builders
         keiyu = { entry = "main"; tools = _: [ ]; };
         ukai = { entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.iproute2 pkgs.tailscale ]; };
+        kijun = { entry = "main"; tools = pkgs: [ pkgs.git ]; };
       };
 
       # Everything blue gives a package set, from one blue and one distribution.

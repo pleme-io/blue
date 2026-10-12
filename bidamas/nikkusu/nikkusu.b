@@ -17,7 +17,11 @@ def read(source)
 end
 
 def kind(n)
-  get(n, :kind)
+  if n == nil
+    nil
+  else
+    get(n, :kind)
+  end
 end
 
 def token?(n)
@@ -73,8 +77,8 @@ def line_count(n)
   size(split(text(n), "\n"))
 end
 
-def find(f, n)
-  below = apply(append, map(fn(c) find(f, c) end, nodes_of(n)))
+def nodes_where(f, n)
+  below = apply(append, map(fn(c) nodes_where(f, c) end, nodes_of(n)))
   if f(n)
     cons(n, below)
   else
@@ -83,7 +87,7 @@ def find(f, n)
 end
 
 def of_kind(k, n)
-  find(fn(x) kind(x) == k end, n)
+  nodes_where(fn(x) kind(x) == k end, n)
 end
 
 def string_content(n)
@@ -372,6 +376,7 @@ test "read: the tree is lossless, error-free, and lines count from one"
 end
 
 test "read on empty source is a root with one error and no bindings"
+  assert kind(nil) == nil
   d = read("")
   assert kind(get(d, :root)) == "NODE_ROOT"
   assert size(get(d, :errors)) == 1

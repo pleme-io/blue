@@ -234,7 +234,7 @@ fn the_registry_dependency_graph_is_acyclic() {
     let graph = registry_graph();
     assert_eq!(
         graph.len(),
-        14,
+        15,
         "every workspace member must be in the graph; if this count is wrong \
          the rest of this test is measuring the wrong thing"
     );

@@ -60,6 +60,7 @@ use("kakou")
 use("kansuu", [:identity])
 use("kazu", [:clamp, :near])
 use("keiyu", [:relay_env])
+use("kijun")
 use("kikagaku", [:manhattan])
 use("kinji")
 use("kiwari")
@@ -68,6 +69,7 @@ use("kumiawase", [:combinations])
 use("kyohi")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
+use("nikkusu")
 use("nisshi")
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
 use("okite")
@@ -146,6 +148,8 @@ test "every bidama in the distribution answers through this one import"
   assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
   assert jitaku::to_json([]) == "{\"enable\":true}"
+  assert get(kijun::fleet_repo(1), :standard) == "fleet-repo"
+  assert nikkusu::kind(get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
 end
 
 test "four packages compose without the consumer naming any of them"

@@ -14,13 +14,13 @@ use(
     :calls_named,
     :code,
     :config_relative,
-    :find,
     :head_name,
     :kind,
     :line_of,
     :module_function?,
     :module_path,
     :named,
+    :nodes_where,
     :option_declarations,
     :string_content
   ]
@@ -112,10 +112,6 @@ def disable(cfg, rule, reason)
     :disabled,
     append(get(cfg, :disabled), [{rule: rule, reason: reason}])
   )
-end
-
-def with_setting(cfg, key, value)
-  assoc(cfg, key, value)
 end
 
 def finding(rule, file, line, subject, message)
@@ -425,7 +421,7 @@ def check_lib_data(f, _repo)
         "a module function (a lambda taking config) lives in lib/, which holds data"
       )
     end,
-    find(fn(n) module_function?(n) end, get(f, :root))
+    nodes_where(fn(n) module_function?(n) end, get(f, :root))
   )
   append(declaration_findings("expr/lib-is-data", f, "lib/"), modules)
 end
@@ -482,7 +478,7 @@ def check_shared_platform_question(f, _repo)
         "a shared module asks #{code(n)}, a rendering decision"
       )
     end,
-    find(
+    nodes_where(
       fn(n)
         kind(n) == "NODE_SELECT" &&
           member?(last(split(code(n), ".")), ["isDarwin", "isLinux"])
@@ -685,20 +681,22 @@ def check_hostname(tree, _repo)
       map(
         fn(d)
           rel = own_file(tree, d)
+          file = if rel == nil
+            "(external)"
+          else
+            rel
+          end
+          shown = if rel == nil
+            d
+          else
+            rel
+          end
           finding(
             "tree/hostname-from-node",
-            if rel == nil
-              "(external)"
-            else
-              rel
-            end,
+            file,
             0,
             "#{get(tree, :configuration)} networking.hostName",
-            "networking.hostName of #{get(tree, :configuration)} is defined in #{if rel == nil
-  d
-else
-  rel
-end}, not under nodes/"
+            "networking.hostName of #{get(tree, :configuration)} is defined in #{shown}, not under nodes/"
           )
         end,
         filter(
@@ -1445,11 +1443,13 @@ def fixtures()
   [
     {
       rule: "layout/top-level",
+      fires: 1,
       bad: example([["flake.nix", "{ }"], ["stray.txt", ""]], []),
       good: example([["flake.nix", "{ }"], ["lib/a.nix", "{ }"]], [])
     },
     {
       rule: "layout/node-shape",
+      fires: 2,
       bad: example(
         [
           registry,
@@ -1469,6 +1469,7 @@ def fixtures()
     },
     {
       rule: "layout/shared-has-proof",
+      fires: 1,
       bad: example([["modules/pleme/shared/x.nix", "{ }"]], []),
       good: example(
         [["modules/pleme/shared/x.nix", "{ }"], ["parts/x.nix", "{ }"]],
@@ -1477,6 +1478,7 @@ def fixtures()
     },
     {
       rule: "layout/shared-reachable",
+      fires: 1,
       bad: example(
         [
           ["modules/pleme/shared/x.nix", "{ }"],
@@ -1497,11 +1499,13 @@ def fixtures()
     },
     {
       rule: "expr/parses",
+      fires: 1,
       bad: example([["lib/a.nix", "{ a = ; }"]], []),
       good: example([["lib/a.nix", "{ a = 1; }"]], [])
     },
     {
       rule: "expr/node-system-only-via-mkNode",
+      fires: 1,
       bad: example(
         [
           [
@@ -1523,12 +1527,13 @@ def fixtures()
     },
     {
       rule: "expr/profile-no-identity",
+      fires: 4,
       bad: example(
         [
           [
             "profiles/p/default.nix",
             module_with(
-              "  networking.hostName = \"plo\";\n  fileSystems.\"/\".device = \"/dev/disk/by-uuid/abc\";"
+              "  networking.hostName = \"plo\";\n  networking.hostId = \"8425e349\";\n  fileSystems.\"/\".device = \"/dev/disk/by-uuid/abc\";\n  sops.secrets.k.sopsFile = ../../nodes/plo/secrets.yaml;\n  sops.secrets.f.sopsFile = ../../secrets.yaml;"
             )
           ]
         ],
@@ -1548,6 +1553,7 @@ def fixtures()
     },
     {
       rule: "expr/lib-is-data",
+      fires: 3,
       bad: example(
         [["lib/a.nix", module_with("  options.x = lib.mkOption { };")]],
         []
@@ -1559,6 +1565,7 @@ def fixtures()
     },
     {
       rule: "expr/shared-declares-only",
+      fires: 1,
       bad: example(
         [
           [
@@ -1584,6 +1591,7 @@ def fixtures()
     },
     {
       rule: "expr/shared-asks-no-platform",
+      fires: 1,
       bad: example(
         [
           [
@@ -1605,6 +1613,7 @@ def fixtures()
     },
     {
       rule: "expr/nodes-declare-no-options",
+      fires: 2,
       bad: example(
         [
           [
@@ -1621,6 +1630,7 @@ def fixtures()
     },
     {
       rule: "expr/no-angle-paths",
+      fires: 1,
       bad: example([["lib/a.nix", "import <nixpkgs> { }"]], []),
       good: example(
         [["lib/a.nix", "# <nixpkgs>\nimport ./x.nix { s = \"<nixpkgs>\"; }"]],
@@ -1629,11 +1639,16 @@ def fixtures()
     },
     {
       rule: "expr/no-unpinned-fetch",
+      fires: 2,
       bad: example(
         [
           [
             "lib/a.nix",
             "builtins.fetchTarball \"https://example.invalid/a.tar.gz\""
+          ],
+          [
+            "lib/b.nix",
+            "pkgs.fetchurl { url = \"https://example.invalid/b\"; }"
           ]
         ],
         []
@@ -1650,6 +1665,7 @@ def fixtures()
     },
     {
       rule: "expr/no-shell",
+      fires: 1,
       bad: example(
         [
           [
@@ -1671,11 +1687,13 @@ def fixtures()
     },
     {
       rule: "tree/pleme-options-declared-in-shared",
+      fires: 1,
       bad: example([], [tree_case("lib/x.nix", :declaration)]),
       good: example([], [tree_case("modules/pleme/shared/x.nix", :declaration)])
     },
     {
       rule: "tree/hostname-from-node",
+      fires: 1,
       bad: example([], [tree_case("profiles/p/default.nix", :definition)]),
       good: example([], [tree_case("nodes/a/default.nix", :definition)])
     }
@@ -1704,10 +1722,10 @@ test "every rule has a violating and a clean fixture, so a rule cannot land with
   assert size(ids) == size(unique(ids))
 end
 
-test "each rule fires on its violating fixture and stays silent on its clean one"
+test "each rule fires exactly as often as its violating fixture says, and never on its clean one"
   cfg = fleet_repo(1)
   quiet = filter(
-    fn(f) is_empty(fired(cfg, get(f, :bad), get(f, :rule))) end,
+    fn(f) size(fired(cfg, get(f, :bad), get(f, :rule))) != get(f, :fires) end,
     fixtures()
   )
   noisy = filter(

@@ -1,0 +1,3 @@
+package("nikkusu", "0.1.0")
+needs("junjo", "^0.1")
+needs("retsu", "^0.1")

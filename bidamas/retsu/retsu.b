@@ -73,7 +73,11 @@ def concat_lists(a, b)
 end
 
 def flatten1(xss)
-  reduce(fn(acc, xs) append(acc, xs) end, [], xss)
+  if xss == nil
+    []
+  else
+    apply(append, xss)
+  end
 end
 
 def indexes(xs)

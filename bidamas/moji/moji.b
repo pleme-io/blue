@@ -1095,3 +1095,59 @@ test "chunk_chars cuts into fixed widths with a short tail"
   # Nothing is lost or duplicated: the chunks rejoin into the original.
   assert join(chunk_chars("abcdefg", 3), "") == "abcdefg"
 end
+
+def glob_match?(pattern, s)
+  glob_segments?(split(pattern, "/"), split(s, "/"))
+end
+
+def glob_segments?(ps, ss)
+  if is_empty(ps)
+    is_empty(ss)
+  elsif first(ps) == "**"
+    glob_segments?(rest(ps), ss) ||
+      !is_empty(ss) && glob_segments?(ps, rest(ss))
+  else
+    !is_empty(ss) &&
+      glob_segment?(first(ps), first(ss)) &&
+      glob_segments?(rest(ps), rest(ss))
+  end
+end
+
+def glob_segment?(p, s)
+  if p == s
+    true
+  elsif !contains?(p, "*") && !contains?(p, "?")
+    false
+  else
+    glob_chars?(chars(p), chars(s))
+  end
+end
+
+def glob_chars?(p, s)
+  if is_empty(p)
+    is_empty(s)
+  elsif first(p) == "*"
+    glob_chars?(rest(p), s) || !is_empty(s) && glob_chars?(p, rest(s))
+  elsif is_empty(s)
+    false
+  elsif first(p) == "?" || first(p) == first(s)
+    glob_chars?(rest(p), rest(s))
+  else
+    false
+  end
+end
+
+test "glob_match? reads * within a segment, ** across them, ? as one character"
+  assert glob_match?("lib/*.nix", "lib/nodes.nix") == true
+  assert glob_match?("lib/*.nix", "lib/x/nodes.nix") == false
+  assert glob_match?("nodes/**", "nodes/plo/default.nix") == true
+  assert glob_match?("nodes/**/default.nix", "nodes/default.nix") == true
+  assert glob_match?("nodes/**/default.nix", "nodes/a/b/default.nix") == true
+  assert glob_match?("secrets*.yaml", "secrets.yaml") == true
+  assert glob_match?("?.nix", "a.nix") == true
+  assert glob_match?("?.nix", "/.nix") == false
+  assert glob_match?("flake.nix", "flake.lock") == false
+  assert glob_match?("", "") == true
+  assert glob_match?("", "a") == false
+  assert glob_match?("**", "") == true
+end

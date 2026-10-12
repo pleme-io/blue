@@ -39,6 +39,8 @@ serde_json = "1"
 # and a crate carrying one cannot be published at all.
 tatara-lisp = "0.4"
 tatara-lisp-eval = "0.4"
+rnix = "0.14"
+rowan = "0.16"
 
 # The evaluator is optimized even in a debug or test build. Every in-process
 # door — the conformance suite's walker, vm and wasm columns, `cargo test` of a

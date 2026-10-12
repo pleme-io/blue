@@ -46,6 +46,7 @@ pub mod literal;
 pub mod messages;
 #[cfg(feature = "sys")]
 pub mod net;
+pub mod nix;
 pub mod observe;
 pub mod pipeline;
 pub mod project_rules;
@@ -96,6 +97,7 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // seed supplied by the caller rather than drawn from an entropy source,
     // so it lowers to no import and the wasm consumer keeps it. See `crypto`.
     crypto::install_crypto_stdlib(&mut interp);
+    nix::install_nix_stdlib(&mut interp);
     // Layer 5: the host-side system surface — process, filesystem, env,
     // clock, network. Feature-gated: every sys primitive is a host import, so the
     // wasm consumer (which builds with `sys` OFF) keeps its zero-host-import

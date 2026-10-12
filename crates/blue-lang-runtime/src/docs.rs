@@ -45,6 +45,7 @@ pub enum Topic {
     Predicate,
     Error,
     Json,
+    Nix,
     File,
     Process,
     Environment,
@@ -74,6 +75,7 @@ impl Topic {
         Topic::Predicate,
         Topic::Error,
         Topic::Json,
+        Topic::Nix,
         Topic::File,
         Topic::Process,
         Topic::Environment,
@@ -101,6 +103,7 @@ impl Topic {
             Topic::Predicate => "Predicates",
             Topic::Error => "Errors",
             Topic::Json => "JSON",
+            Topic::Nix => "Nix source",
             Topic::File => "Files and paths",
             Topic::Process => "Processes",
             Topic::Environment => "Environment and arguments",
@@ -319,6 +322,7 @@ pub const NAMES: &[NameDoc] = names! {
     Json: "json_stringify" "json_stringify(v)" "Compact JSON text, a map's keys sorted, a keyword as its name.";
     Json: "json_get" "json_get(obj, key)" "The field of a parsed JSON object, or nil. Raises when obj is not an object.";
     Json: "json_get_or" "json_get_or(obj, key, default)" "The field of a parsed JSON object, or default.";
+    Nix: "nix_parse" "nix_parse(source)" "Nix source as rnix's lossless syntax tree: {root, errors}. A node is {kind, start, end, children}, a token {kind, start, end, text}; kinds are rnix's names (NODE_ATTR_SET, TOKEN_IDENT), offsets count characters, and each error is {message, start, end}. The nikkusu bidama queries it.";
     // ── files ─────────────────────────────────────────────────────────────
     File: "read_file" "read_file(path)" "The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not.";
     File: "write_file" "write_file(path, text)" "Replace the file's contents with text; nil.";

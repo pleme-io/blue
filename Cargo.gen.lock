@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "b616d69f572bfd33f50f60b6a403f40509f4138a8a9eedbe47472fcf3cff244e",
+  "cargo_lock_sha256": "0ccaaa9114b50105ea9a6327701823801be264c7d4b733ead434d514b8430425",
   "manifest_sha256": {
-    "Cargo.toml": "198665e1df7758880d11174619cb78a79d736a377fe50291ee4ce0f6c0467a05",
+    "Cargo.toml": "244ff6e00ea0feb57db1feaed31dc1f319feddca94b5976d4e16602897f2f430",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
@@ -13,7 +13,7 @@
     "crates/blue-lang-mondou/Cargo.toml": "21bcf1305dd95a070e7b8940be3cbfb17477d8bd7cdc05d6c17d17bdf55c4614",
     "crates/blue-lang-pkg/Cargo.toml": "6633ee54ee63519caff4173db913dc893dbc6e9982183ffb1f4f4c2bac0e66c3",
     "crates/blue-lang-proc/Cargo.toml": "a9702f9f855394147b0651eb89ae07fd8c787f8d1df4d47f1194fb858bce2fc1",
-    "crates/blue-lang-runtime/Cargo.toml": "19b6e0415732c35b9ec3ecc3c676622644d795ed92fc4e8c0c2a5f39e4a350fa",
+    "crates/blue-lang-runtime/Cargo.toml": "ba57d7be6e78924f0e44c51b766bffd698303e17672ad8ad3700441765685111",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "b5adfaccbe0253624d6ee8eca0164adfa1a3675023e0bb5275a6e2d7614ef042",
     "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
@@ -1039,6 +1039,26 @@
             "tree": "target"
           },
           {
+            "name": "rnix",
+            "package_key": "rnix-0.14.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rowan",
+            "package_key": "rowan-0.16.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "serde_json",
             "package_key": "serde_json-1.0.151",
             "kind": "normal",
@@ -1457,6 +1477,11 @@
         "features": [
           "std"
         ]
+      },
+      "countme-3.0.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
       },
       "crypto-common-0.1.7": {
         "runtime_dependencies": [
@@ -2211,6 +2236,13 @@
         ],
         "build_dependencies": [],
         "features": []
+      },
+      "hashbrown-0.14.5": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "inline-more"
+        ]
       },
       "hashbrown-0.17.1": {
         "runtime_dependencies": [],
@@ -3037,6 +3069,78 @@
           "unicode-perl",
           "unicode-script",
           "unicode-segment"
+        ]
+      },
+      "rnix-0.14.0": {
+        "runtime_dependencies": [
+          {
+            "name": "rowan",
+            "package_key": "rowan-0.16.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "rowan-0.16.1": {
+        "runtime_dependencies": [
+          {
+            "name": "countme",
+            "package_key": "countme-3.0.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "hashbrown",
+            "package_key": "hashbrown-0.14.5",
+            "kind": "normal",
+            "features": [
+              "inline-more"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rustc_hash",
+            "package_key": "rustc-hash-1.1.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "text_size",
+            "package_key": "text-size-1.1.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "rustc-hash-1.1.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "std"
         ]
       },
       "rustc_version-0.4.1": {
@@ -4013,6 +4117,11 @@
           "default",
           "getrandom"
         ]
+      },
+      "text-size-1.1.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
       },
       "thiserror-2.0.19": {
         "runtime_dependencies": [
@@ -7337,6 +7446,9 @@
     "core-foundation-sys-0.8.7": {
       "edition": "2018"
     },
+    "countme-3.0.1": {
+      "edition": "2018"
+    },
     "cpufeatures-0.2.17": {
       "edition": "2018"
     },
@@ -7416,6 +7528,9 @@
     "getrandom-0.4.3": {
       "edition": "2024",
       "build_script": "build.rs"
+    },
+    "hashbrown-0.14.5": {
+      "edition": "2021"
     },
     "hashbrown-0.17.1": {
       "edition": "2024"
@@ -7555,6 +7670,15 @@
     "regex-syntax-0.8.11": {
       "edition": "2021"
     },
+    "rnix-0.14.0": {
+      "edition": "2021"
+    },
+    "rowan-0.16.1": {
+      "edition": "2021"
+    },
+    "rustc-hash-1.1.0": {
+      "edition": "2015"
+    },
     "rustc_version-0.4.1": {
       "edition": "2018"
     },
@@ -7654,6 +7778,9 @@
     },
     "tempfile-3.27.0": {
       "edition": "2021"
+    },
+    "text-size-1.1.1": {
+      "edition": "2018"
     },
     "thiserror-2.0.19": {
       "edition": "2021",

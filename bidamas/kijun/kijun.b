@@ -997,18 +997,49 @@ def rule_ids(xs)
 end
 
 def baseline_text(gates)
+  baseline_with(gates, [])
+end
+
+def baseline_with(gates, kept)
+  own = map(
+    fn(id) [id, measurements(filter(fn(x) get(x, :rule) == id end, gates))] end,
+    rule_ids(gates)
+  )
+  held = map(
+    fn(id)
+      [
+        id,
+        map(
+          fn(r) hadome::measurement(get(r, :key), get(r, :size)) end,
+          filter(fn(r) get(r, :kind) == id end, kept)
+        )
+      ]
+    end,
+    unique(map(fn(r) get(r, :kind) end, kept))
+  )
   join(
     map(
-      fn(id)
-        hadome::render(
-          id,
-          measurements(filter(fn(x) get(x, :rule) == id end, gates))
-        )
-      end,
-      sort_keyed(fn(id) id end, rule_ids(gates))
+      fn(p) hadome::render(first(p), nth(1, p)) end,
+      sort_keyed(fn(p) first(p) end, append(own, held))
     ),
     ""
   )
+end
+
+def ran_ids(cfg, tree)
+  planes = if tree
+    [:layout, :expression, :tree]
+  else
+    [:layout, :expression]
+  end
+  map(fn(r) get(r, :id) end, flat_map(fn(p) active(cfg, p) end, planes))
+end
+
+def split_rows(rows, ids)
+  [
+    filter(fn(r) member?(get(r, :kind), ids) end, rows),
+    filter(fn(r) !member?(get(r, :kind), ids) end, rows)
+  ]
 end
 
 def judge(gates, rows)
@@ -1353,14 +1384,18 @@ def run(cfg, args)
     else
       get(a, :baseline)
     end
+    rows = split_rows(
+      hadome::parse(read_or(base, "")),
+      ran_ids(cfg, get(a, :tree))
+    )
     if get(a, :command) == "baseline"
-      write_file(base, baseline_text(get(result, :gates)))
+      write_file(base, baseline_with(get(result, :gates), nth(1, rows)))
       write_stdout(
         "kijun: wrote #{to_s(size(get(result, :gates)))} gate findings to #{base}\n"
       )
       nil
     else
-      verdict = judge(get(result, :gates), hadome::parse(read_or(base, "")))
+      verdict = judge(get(result, :gates), first(rows))
       if get(a, :json)
         write_stdout("#{report_json(cfg, result, verdict)}\n")
       else
@@ -1831,6 +1866,23 @@ test "the ratchet: a recorded finding holds, a new one fails, a fixed one shrink
   assert get(gone, :orphans) == ["expr/no-angle-paths: lib/a.nix::<nixpkgs>"]
   assert size(get(judge([a, a], rows), :new)) == 2
   assert get(judge([], []), :new) == []
+end
+
+test "a plane that did not run neither judges nor drops its baseline rows"
+  t = finding(
+    "tree/hostname-from-node",
+    "(external)",
+    0,
+    "a networking.hostName",
+    "m"
+  )
+  e = finding("expr/no-angle-paths", "lib/a.nix", 1, "<nixpkgs>", "m")
+  rows = hadome::parse(baseline_text([t, e]))
+  parts = split_rows(rows, ran_ids(fleet_repo(1), false))
+  assert map(fn(r) get(r, :kind) end, first(parts)) == ["expr/no-angle-paths"]
+  assert get(judge([e], first(parts)), :orphans) == []
+  assert baseline_with([e], nth(1, parts)) == baseline_text([t, e])
+  assert size(first(split_rows(rows, ran_ids(fleet_repo(1), true)))) == 2
 end
 
 test "the rules listing is the standard: every rule, with why and fix"

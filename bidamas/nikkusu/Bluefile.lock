@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:2d72600104ecdfac4c6b5eab9d0ee0340095d6ef7bde1b305fdfbe7c2e96b3a7",
+  "manifest": {
+    "schema": 1,
+    "name": "nikkusu",
+    "version": "0.1.0",
+    "needs": {
+      "junjo": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

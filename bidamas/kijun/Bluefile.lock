@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:afe19285bf13c188c3afe21b0777b723a55330714cb6dfa70352013ba35dfea3",
+  "manifest": {
+    "schema": 1,
+    "name": "kijun",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "hadome": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "nikkusu": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

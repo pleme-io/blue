@@ -111,9 +111,7 @@ impl From<&ParseError> for Problem {
         match e {
             ParseError::Unexpected(r) => Problem::Unexpected(*r),
             ParseError::UnexpectedExtra(r) => Problem::Extra(*r),
-            ParseError::UnexpectedWanted(got, r, want) => {
-                Problem::Wanted(*got, *r, want.to_vec())
-            }
+            ParseError::UnexpectedWanted(got, r, want) => Problem::Wanted(*got, *r, want.to_vec()),
             ParseError::UnexpectedDoubleBind(r) => Problem::DoubleBind(*r),
             ParseError::UnexpectedEOF => Problem::Eof,
             ParseError::UnexpectedEOFWanted(want) => Problem::EofWanted(want.to_vec()),
@@ -256,7 +254,9 @@ mod tests {
     fn kinds_are_rnix_names() {
         let v = parse("{ a = 1; }");
         let root = field(&v, "root");
-        let Value::List(xs) = field(root, "children") else { unreachable!() };
+        let Value::List(xs) = field(root, "children") else {
+            unreachable!()
+        };
         assert_eq!(kind(&xs[0]), "NODE_ATTR_SET");
     }
 
@@ -264,10 +264,14 @@ mod tests {
     fn a_parse_error_names_where_it_is() {
         let v = parse("{ a = ; }");
         assert!(errors(&v) >= 1);
-        let Value::List(es) = field(&v, "errors") else { unreachable!() };
+        let Value::List(es) = field(&v, "errors") else {
+            unreachable!()
+        };
         let start = int(field(&es[0], "start"));
         assert!((0..=9).contains(&start));
-        let Value::Str(m) = field(&es[0], "message") else { unreachable!() };
+        let Value::Str(m) = field(&es[0], "message") else {
+            unreachable!()
+        };
         assert!(!m.is_empty());
         assert_eq!(text_of(field(&v, "root")), "{ a = ; }");
     }

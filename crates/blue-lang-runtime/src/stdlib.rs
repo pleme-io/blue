@@ -370,6 +370,30 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
+    interp.register_fn(
+        "text_index",
+        Arity::Exact(3),
+        |a: &[Value], _h: &mut H, s| {
+            Ok(Value::Int(text_index(
+                &as_str(&a[0], s)?,
+                &as_str(&a[1], s)?,
+                as_index(&a[2], s)?,
+            )))
+        },
+    );
+
+    interp.register_fn(
+        "text_last_index",
+        Arity::Exact(3),
+        |a: &[Value], _h: &mut H, s| {
+            Ok(Value::Int(text_last_index(
+                &as_str(&a[0], s)?,
+                &as_str(&a[1], s)?,
+                as_index(&a[2], s)?,
+            )))
+        },
+    );
+
     interp.register_fn("replace", Arity::Exact(3), |a: &[Value], _h: &mut H, s| {
         Ok(Value::Str(
             as_str(&a[0], s)?
@@ -559,6 +583,48 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             Ok(list(tatara_lisp_eval::hof::sort_keyed_values(keyed, s)?))
         },
     );
+}
+
+fn as_index(v: &Value, span: tatara_lisp::Span) -> Result<i64, EvalError> {
+    match v {
+        Value::Int(n) => Ok(*n),
+        other => Err(EvalError::type_mismatch(
+            "an integer",
+            other.type_name(),
+            span,
+        )),
+    }
+}
+
+fn text_index(text: &str, sub: &str, from: i64) -> i64 {
+    let from = usize::try_from(from.max(0)).unwrap_or(usize::MAX);
+    let start = match text.char_indices().nth(from) {
+        Some((b, _)) => b,
+        None if text.chars().count() == from => text.len(),
+        None => return -1,
+    };
+    text[start..].find(sub).map_or(-1, |b| {
+        i64::try_from(from + text[start..start + b].chars().count()).unwrap_or(i64::MAX)
+    })
+}
+
+fn text_last_index(text: &str, sub: &str, from: i64) -> i64 {
+    let Ok(from) = usize::try_from(from) else {
+        return -1;
+    };
+    let total = text.chars().count();
+    let width = sub.chars().count();
+    if width > total {
+        return -1;
+    }
+    let limit = from.min(total - width);
+    let end = text
+        .char_indices()
+        .nth(limit + width)
+        .map_or(text.len(), |(b, _)| b);
+    text[..end].rfind(sub).map_or(-1, |b| {
+        i64::try_from(text[..b].chars().count()).unwrap_or(i64::MAX)
+    })
 }
 
 /// A number's value as a float, or a type error naming `range`.
@@ -803,6 +869,29 @@ mod tests {
             eval("ends_with?(\"hello\", \"lo\")"),
             Value::Bool(true)
         ));
+    }
+
+    #[test]
+    fn text_index_answers_character_positions() {
+        assert_eq!(i("text_index(\"héllo héllo\", \"llo\", 0)"), 2);
+        assert_eq!(i("text_index(\"héllo héllo\", \"llo\", 3)"), 8);
+        assert_eq!(i("text_index(\"héllo\", \"x\", 0)"), -1);
+        assert_eq!(i("text_index(\"abc\", \"\", 3)"), 3);
+        assert_eq!(i("text_index(\"abc\", \"\", 4)"), -1);
+        assert_eq!(i("text_index(\"abc\", \"a\", -5)"), 0);
+        assert_eq!(i("text_index(\"\", \"a\", 0)"), -1);
+    }
+
+    #[test]
+    fn text_last_index_finds_the_last_start_at_or_before_from() {
+        assert_eq!(i("text_last_index(\"héllo héllo\", \"llo\", 99)"), 8);
+        assert_eq!(i("text_last_index(\"héllo héllo\", \"llo\", 7)"), 2);
+        assert_eq!(i("text_last_index(\"aaa\", \"aa\", 1)"), 1);
+        assert_eq!(i("text_last_index(\"aaa\", \"aa\", 0)"), 0);
+        assert_eq!(i("text_last_index(\"abc\", \"x\", 2)"), -1);
+        assert_eq!(i("text_last_index(\"abc\", \"a\", -1)"), -1);
+        assert_eq!(i("text_last_index(\"ab\", \"abc\", 0)"), -1);
+        assert_eq!(i("text_last_index(\"abc\", \"\", 9)"), 3);
     }
 
     #[test]

@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-255 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+257 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -141,6 +141,8 @@ Higher binding power binds tighter.
 | `split` | `split(s, sep)` | 2 | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. |
 | `starts_with?` | `starts_with?(s, prefix)` | 2 | Whether s begins with prefix. |
 | `string` | `string(x)` | 1 | tatara-lisp's rendering: :a stays ":a" and a list prints as (1). Use to_s. |
+| `text_index` | `text_index(s, sub, from)` | 3 | The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it. |
+| `text_last_index` | `text_last_index(s, sub, from)` | 3 | The character index of the last sub in s starting at or before from, or -1. One linear pass. |
 | `to_s` | `to_s(x)` | 1 | Text for any value (okite D0005, D0006): nil is "", 1.0 is "1.0", a list or map its blue literal, a keyword its name. |
 | `trim` | `trim(s)` | 1 | The string without leading and trailing whitespace. |
 | `upcase` | `upcase(s)` | 1 | The string in upper case. Raises on nil. |

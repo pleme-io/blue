@@ -217,6 +217,8 @@ pub const NAMES: &[NameDoc] = names! {
     Text: "starts_with?" "starts_with?(s, prefix)" "Whether s begins with prefix.";
     Text: "ends_with?" "ends_with?(s, suffix)" "Whether s ends with suffix.";
     Text: "contains?" "contains?(s, sub)" "Whether the STRING s contains sub. On a list it raises: use member?(x, xs).";
+    Text: "text_index" "text_index(s, sub, from)" "The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it.";
+    Text: "text_last_index" "text_last_index(s, sub, from)" "The character index of the last sub in s starting at or before from, or -1. One linear pass.";
     // ── lists ─────────────────────────────────────────────────────────────
     List: "list" "list(xs...)" "A list of the arguments. Written [a, b].";
     List: "length" "length(xs)" "The length of a list or string. Raises on nil: retsu's size(xs) is total.";

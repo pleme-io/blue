@@ -121,19 +121,12 @@ end
 
 # ── searching ──────────────────────────────────────────────────────
 
-# The runtime HAS `starts_with?`, `ends_with?` and `contains?` — and blue's
-# lexer rejects `?` in an identifier, so none of the three can be called. These
-# are not preference; they are the only reachable spelling.
 def starts_with(s, prefix)
-  take_chars(s, length(prefix)) == prefix
+  starts_with?(s, prefix)
 end
 
 def ends_with(s, suffix)
-  if length(suffix) > length(s)
-    false
-  else
-    drop_chars(s, length(s) - length(suffix)) == suffix
-  end
+  ends_with?(s, suffix)
 end
 
 # First index of `sub` at or after `from`, or -1.
@@ -141,33 +134,19 @@ end
 # -1 rather than an error, and rather than nil: a search that does not find is
 # an ordinary answer, and `char_index(s, x) >= 0` is the whole test.
 def char_index_from(s, sub, from)
-  if from < 0
-    char_index_from(s, sub, 0)
-  elsif from + length(sub) > length(s)
-    -1
-  elsif starts_with(drop_chars(s, from), sub)
-    from
-  else
-    char_index_from(s, sub, from + 1)
-  end
+  text_index(s, sub, from)
 end
 
 def char_index(s, sub)
-  char_index_from(s, sub, 0)
+  text_index(s, sub, 0)
 end
 
 def last_char_index_from(s, sub, from)
-  if from < 0
-    -1
-  elsif starts_with(drop_chars(s, from), sub)
-    from
-  else
-    last_char_index_from(s, sub, from - 1)
-  end
+  text_last_index(s, sub, from)
 end
 
 def last_char_index(s, sub)
-  last_char_index_from(s, sub, length(s) - length(sub))
+  text_last_index(s, sub, length(s) - length(sub))
 end
 
 # Whether `sub` occurs in `s`: exactly what char_index(s, sub) >= 0 answers,
@@ -190,12 +169,7 @@ def occurrences(s, sub)
   if length(sub) == 0
     0
   else
-    i = char_index(s, sub)
-    if i < 0
-      0
-    else
-      1 + occurrences(drop_chars(s, i + length(sub)), sub)
-    end
+    size(split(s, sub)) - 1
   end
 end
 
@@ -771,6 +745,18 @@ test "occurrences counts non-overlapping copies"
   assert occurrences("", "a") == 0
   # The empty needle is 0, not a hang.
   assert occurrences("abc", "") == 0
+end
+
+test "searching a 200 000 character text is one pass, not one call per position"
+  long = "#{join(map(fn(_) "ab" end, range(100000)), "")}é!"
+  assert char_index(long, "é!") == 200000
+  assert char_index_from(long, "ab", 7) == 8
+  assert last_char_index(long, "ab") == 199998
+  assert last_char_index_from(long, "ab", 5) == 4
+  assert occurrences(long, "ab") == 100000
+  assert after_first(long, "é") == "!"
+  assert replace_first(long, "é!", "") ==
+    join(map(fn(_) "ab" end, range(100000)), "")
 end
 
 test "repeated builds a string, not a list"

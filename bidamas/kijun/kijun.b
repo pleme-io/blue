@@ -758,6 +758,40 @@ def check_hostname(tree, _repo)
   )
 end
 
+def declared_at(tree, option)
+  hit = filter(
+    fn(o) get(o, :path) == option end,
+    append(get(tree, :pleme), get(tree, :hostname))
+  )
+  rels = filter(
+    fn(r) r != nil end,
+    map(
+      fn(d) own_file(tree, d) end,
+      flat_map(fn(o) get(o, :declarations) end, hit)
+    )
+  )
+  if is_empty(rels)
+    "(external)"
+  else
+    first(rels)
+  end
+end
+
+def check_option_evaluates(tree, _repo)
+  map(
+    fn(b)
+      finding(
+        "tree/option-evaluates",
+        declared_at(tree, get(b, :option)),
+        0,
+        "#{get(tree, :configuration)} #{get(b, :option)}",
+        "#{get(b, :option)} does not evaluate on #{get(tree, :configuration)} (#{get(b, :error)}), so no tree rule sees its definitions there"
+      )
+    end,
+    or_list(get(tree, :blind))
+  )
+end
+
 def unit_kinds()
   [:shared, :package, :overlay, :registry]
 end
@@ -1185,6 +1219,15 @@ def rules()
       "a hostname is a node's identity, so only the node defines it",
       "define networking.hostName in nodes/<n>/",
       fn(t, r) check_hostname(t, r) end
+    ),
+    rule(
+      "tree/option-evaluates",
+      :tree,
+      :advise,
+      ["**"],
+      "an option whose definitions cannot be evaluated on a configuration is one no tree rule can see there; it is named alone, and every other option is still read",
+      "make the option's default and definitions evaluate on that configuration's class, or declare it only on the class that can",
+      fn(t, r) check_option_evaluates(t, r) end
     )
   ]
 end
@@ -1404,8 +1447,34 @@ def judge(gates, rows)
   }
 end
 
-def tree_expr()
-  "c: let lib = c.pkgs.lib; walk = defs: path: v: if lib.isOption v then [({ path = lib.concatStringsSep \".\" path; declarations = v.declarations or []; } // lib.optionalAttrs defs { definitions = map (d: d.file) (v.definitionsWithLocations or []); })] else if builtins.isAttrs v && !(lib.isDerivation v) then lib.concatLists (lib.mapAttrsToList (n: x: walk defs (path ++ [n]) x) v) else []; in { pleme = walk false [\"pleme\"] (c.options.pleme or {}); hostname = walk true [\"networking\" \"hostName\"] (c.options.networking.hostName or {}); }"
+def nix_string(s)
+  "\"#{replace(replace(replace(s, "\\", "\\\\"), "\"", "\\\""), "$", "\\$")}\""
+end
+
+def tree_expr(excluded)
+  skip = join(map(fn(o) nix_string(o) end, excluded), " ")
+  "c: let lib = c.pkgs.lib; excluded = [ #{skip} ]; defsOf = d: v: if builtins.elem d excluded then { definitions = [ ]; threw = false; } else let fs = builtins.addErrorContext \"kijun-option ${d}\" (map (x: x.file) (v.definitionsWithLocations or [ ])); r = builtins.tryEval (builtins.deepSeq fs fs); in if r.success then { definitions = r.value; threw = false; } else { definitions = [ ]; threw = true; }; walk = path: v: if lib.isOption v then [ ({ path = lib.concatStringsSep \".\" path; declarations = v.declarations or [ ]; } // defsOf (lib.concatStringsSep \".\" path) v) ] else if builtins.isAttrs v && !(lib.isDerivation v) then lib.concatLists (lib.mapAttrsToList (n: x: walk (path ++ [ n ]) x) v) else [ ]; in { pleme = walk [ \"pleme\" ] (c.options.pleme or { }); hostname = walk [ \"networking\" \"hostName\" ] (c.options.networking.hostName or { }); }"
+end
+
+def failing_option(stderr)
+  tagged = filter(fn(l) contains?(l, "kijun-option ") end, lines(stderr))
+  if is_empty(tagged)
+    nil
+  else
+    trim(before_first(after_first(last(tagged), "kijun-option "), "'"))
+  end
+end
+
+def last_error(stderr)
+  errs = filter(
+    fn(l) starts_with?(trim(l), "error:") && trim(l) != "error:" end,
+    lines(stderr)
+  )
+  if is_empty(errs)
+    trim(stderr)
+  else
+    trim(after_first(trim(last(errs)), "error:"))
+  end
 end
 
 def own_source(root)
@@ -1426,7 +1495,8 @@ def entries(xs)
         {
           path: get_str(o, "path", ""),
           declarations: or_list(as_json(o, "declarations")),
-          definitions: or_list(as_json(o, "definitions"))
+          definitions: or_list(as_json(o, "definitions")),
+          threw: as_json(o, "threw") == true
         }
       end,
       xs
@@ -1443,29 +1513,58 @@ def or_list(xs)
 end
 
 def tree_of(root, own, configuration)
+  probe(root, own, configuration, [])
+end
+
+def probe(root, own, configuration, blind)
   cap = exec_capture(
     "nix",
     "eval",
     "--json",
+    "--show-trace",
     "#{root}##{configuration}",
     "--apply",
-    tree_expr()
+    tree_expr(map(fn(b) get(b, :option) end, blind))
   )
   if status_of(cap) != 0
-    {
-      configuration: configuration,
-      own: own,
-      pleme: [],
-      hostname: [],
-      error: trim(stderr_of(cap))
-    }
+    err = stderr_of(cap)
+    o = failing_option(err)
+    if o != nil && is_empty(filter(fn(b) get(b, :option) == o end, blind))
+      probe(
+        root,
+        own,
+        configuration,
+        append(blind, [{option: o, error: last_error(err)}])
+      )
+    else
+      {
+        configuration: configuration,
+        own: own,
+        pleme: [],
+        hostname: [],
+        blind: blind,
+        error: last_error(err)
+      }
+    end
   else
     doc = json_parse(stdout_of(cap))
+    pleme = entries(as_json(doc, "pleme"))
+    hostname = entries(as_json(doc, "hostname"))
+    threw = map(
+      fn(x)
+        {
+          option: get(x, :path),
+          error: "threw while its definitions were evaluated"
+        }
+      end,
+      filter(fn(x) get(x, :threw) end, append(pleme, hostname))
+    )
     {
       configuration: configuration,
       own: own,
-      pleme: entries(as_json(doc, "pleme")),
-      hostname: entries(as_json(doc, "hostname")),
+      pleme: pleme,
+      hostname: hostname,
+      blind: append(blind, threw),
       error: nil
     }
   end
@@ -1504,11 +1603,19 @@ def in_memory(sources)
 end
 
 def evaluate(cfg, source, trees)
+  evaluate_timed(cfg, source, trees, fn() 0 end)
+end
+
+def evaluate_timed(cfg, source, trees, clock)
   repo = assoc(source, :config, cfg)
-  all = append(
-    append(layout_findings(repo), expression_findings(repo)),
-    unique(tree_findings(repo, trees))
-  )
+  t0 = clock()
+  lay = layout_findings(repo)
+  t1 = clock()
+  expr = expression_findings(repo)
+  t2 = clock()
+  tr = unique(tree_findings(repo, trees))
+  t3 = clock()
+  all = append(append(lay, expr), tr)
   ws = valid_waivers(cfg)
   live = filter(fn(x) !waived?(ws, x) end, all)
   {
@@ -1517,6 +1624,7 @@ def evaluate(cfg, source, trees)
     advice: filter(fn(x) tier_of(get(x, :rule)) == :advise end, live),
     waived: filter(fn(x) waived?(ws, x) end, all),
     refusals: config_refusals(cfg),
+    ms: {layout: t1 - t0, expression: t2 - t1, tree: t3 - t2},
     tree_errors: filter(
       fn(e) e != nil end,
       map(
@@ -1613,9 +1721,34 @@ def plain(x)
   }
 end
 
-def report_json(cfg, result, verdict)
+def plane_of(id)
+  get(first(filter(fn(r) get(r, :id) == id end, rules())), :plane)
+end
+
+def plane_counts(result, timing)
+  map(
+    fn(p)
+      mine = fn(k)
+        size(filter(fn(x) plane_of(get(x, :rule)) == p end, get(result, k)))
+      end
+      {
+        plane: p,
+        findings: mine(:findings),
+        gates: mine(:gates),
+        advice: mine(:advice),
+        waived: mine(:waived),
+        ms: get(get(timing, :planes), p)
+      }
+    end,
+    [:layout, :expression, :tree]
+  )
+end
+
+def report_json(cfg, result, verdict, timing)
   json_stringify(
     {
+      wall_ms: get(timing, :wall),
+      planes: plane_counts(result, timing),
       standard: get(cfg, :standard),
       version: get(cfg, :version),
       ok: is_empty(get(verdict, :new)),
@@ -1635,7 +1768,20 @@ def report_json(cfg, result, verdict)
   )
 end
 
-def report_text(cfg, result, verdict)
+def timing_line(result, timing)
+  ps = join(
+    map(
+      fn(p)
+        "#{to_s(get(p, :plane))} #{to_s(get(p, :findings))} findings #{to_s(get(p, :ms))} ms"
+      end,
+      plane_counts(result, timing)
+    ),
+    ", "
+  )
+  "wall #{to_s(get(timing, :wall))} ms: #{ps}\n"
+end
+
+def report_text(cfg, result, verdict, timing)
   head = "kijun #{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(get(result, :gates)))} gate findings, #{to_s(size(get(result, :advice)))} advice, #{to_s(size(get(result, :waived)))} waived\n"
   per = join(
     map(
@@ -1670,7 +1816,7 @@ def report_text(cfg, result, verdict)
     map(fn(e) "tree blind: #{e}\n" end, get(result, :tree_errors)),
     ""
   )
-  "#{head}#{per}#{refused}#{off}#{blind}#{shrink}#{fresh}"
+  "#{head}#{per}#{refused}#{off}#{blind}#{shrink}#{fresh}#{timing_line(result, timing)}"
 end
 
 def run(cfg, args)
@@ -1682,19 +1828,22 @@ def run(cfg, args)
     write_stdout(rules_text(cfg))
     nil
   else
+    started = now_ms()
     root = get(a, :root)
     files = tracked(root)
     if files == nil
       write_stderr("kijun: #{root} is not a git work tree\n")
       throw(error(:kijun_usage, "not a git work tree"))
     end
+    before_tree = now_ms()
     trees = if get(a, :tree)
       own = own_source(root)
       map(fn(c) tree_of(root, own, c) end, get(cfg, :configurations))
     else
       []
     end
-    result = evaluate(cfg, on_disk(root, files), trees)
+    tree_ms = now_ms() - before_tree
+    result = evaluate_timed(cfg, on_disk(root, files), trees, fn() now_ms() end)
     base = if get(a, :baseline) == nil
       path_join(root, get(cfg, :baseline))
     else
@@ -1712,10 +1861,15 @@ def run(cfg, args)
       nil
     else
       verdict = judge(get(result, :gates), first(rows))
+      ms = get(result, :ms)
+      timing = {
+        wall: now_ms() - started,
+        planes: assoc(ms, :tree, get(ms, :tree) + tree_ms)
+      }
       if get(a, :json)
-        write_stdout("#{report_json(cfg, result, verdict)}\n")
+        write_stdout("#{report_json(cfg, result, verdict, timing)}\n")
       else
-        write_stdout(report_text(cfg, result, verdict))
+        write_stdout(report_text(cfg, result, verdict, timing))
       end
       if !is_empty(get(verdict, :new))
         throw(error(:kijun_failed, "gate findings outside the baseline"))
@@ -1749,9 +1903,26 @@ def tree_case(file, kind_of)
     own: "/nix/store/h-source",
     pleme: [],
     hostname: [],
+    blind: [],
     error: nil
   }
-  if kind_of == :declaration
+  if kind_of == :blind
+    assoc(
+      assoc(
+        t,
+        :pleme,
+        [
+          {
+            path: "pleme.x",
+            declarations: ["/nix/store/h-source/#{file}"],
+            definitions: []
+          }
+        ]
+      ),
+      :blind,
+      [{option: "pleme.x", error: "attribute 'u' missing"}]
+    )
+  elsif kind_of == :declaration
     assoc(
       t,
       :pleme,
@@ -2096,6 +2267,12 @@ def fixtures()
       good: example([], [tree_case("modules/pleme/shared/x.nix", :declaration)])
     },
     {
+      rule: "tree/option-evaluates",
+      fires: 1,
+      bad: example([], [tree_case("modules/pleme/shared/x.nix", :blind)]),
+      good: example([], [tree_case("modules/pleme/shared/x.nix", :declaration)])
+    },
+    {
       rule: "tree/hostname-from-node",
       fires: 1,
       bad: example([], [tree_case("profiles/p/default.nix", :definition)]),
@@ -2212,6 +2389,66 @@ test "a trio file renders itself, and the factory proves every kind but a regist
     first(calls(get(nikkusu::read("f { kind = k; }"), :root)))
   ) ==
     "computed"
+end
+
+test "an uncatchable failure is located at its option's tag, and the error is its last line"
+  err = "error:\n       … while evaluating the attribute 'definitions'\n       … kijun-option pleme.fleet.nixRepo\n       … while evaluating the attribute 'default'\n       error: attribute 'darwinUser' missing\n"
+  assert failing_option(err) == "pleme.fleet.nixRepo"
+  assert last_error(err) == "attribute 'darwinUser' missing"
+  assert failing_option("error: flake has no attribute\n") == nil
+  assert last_error("error: flake has no attribute\n") ==
+    "flake has no attribute"
+  assert nix_string("a\"b${c}\\") == "\"a\\\"b\\${c}\\\\\""
+  assert contains?(
+    tree_expr(["pleme.a", "pleme.b"]),
+    "excluded = [ \"pleme.a\" \"pleme.b\" ]"
+  ) ==
+    true
+end
+
+test "a blind option is one advice finding at its declaration, and the plane keeps every other option"
+  t = tree_case("modules/pleme/shared/x.nix", :blind)
+  both = assoc(
+    t,
+    :hostname,
+    [
+      {
+        path: "networking.hostName",
+        declarations: [],
+        definitions: ["/nix/store/h-source/profiles/p/default.nix"]
+      }
+    ]
+  )
+  r = evaluate(fleet_repo(1), in_memory([]), [both])
+  assert map(fn(x) [get(x, :rule), get(x, :file)] end, get(r, :findings)) ==
+    [
+      ["tree/hostname-from-node", "profiles/p/default.nix"],
+      ["tree/option-evaluates", "modules/pleme/shared/x.nix"]
+    ]
+  assert map(fn(x) get(x, :rule) end, get(r, :advice)) ==
+    ["tree/option-evaluates"]
+end
+
+test "check --json carries the wall time and one count per plane"
+  c = example([["lib/a.nix", "import <nixpkgs> { }"]], [])
+  r = evaluate(fleet_repo(1), in_memory(get(c, :sources)), [])
+  timing = {wall: 7, planes: {layout: 1, expression: 2, tree: 3}}
+  doc = json_parse(
+    report_json(fleet_repo(1), r, judge(get(r, :gates), []), timing)
+  )
+  assert json_get(doc, "wall_ms") == 7
+  assert map(
+    fn(p)
+      [json_get(p, "plane"), json_get(p, "findings"), json_get(p, "ms")]
+    end,
+    json_get(doc, "planes")
+  ) ==
+    [["layout", 0, 1], ["expression", 1, 2], ["tree", 0, 3]]
+  assert contains?(
+    report_text(fleet_repo(1), r, judge(get(r, :gates), []), timing),
+    "wall 7 ms"
+  ) ==
+    true
 end
 
 test "trio/every-concept is the first rule the standard lists"

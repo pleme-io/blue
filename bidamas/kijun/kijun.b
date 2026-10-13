@@ -274,6 +274,44 @@ def shared_modules(files)
   )
 end
 
+def trio_calls(repo, path)
+  named(
+    calls(get(nikkusu::read(source_of(repo, path)), :root)),
+    get(get(repo, :config), :trio_factory)
+  )
+end
+
+def spec_kind(c)
+  a = last(get(c, :args))
+  v = if a != nil && kind(a) == "NODE_ATTR_SET"
+    attr(a, "kind")
+  else
+    nil
+  end
+  if v != nil && literal_string?(v)
+    string_content(v)
+  elsif v == nil
+    "binary"
+  else
+    "computed"
+  end
+end
+
+def self_rendering?(repo, m)
+  !is_empty(trio_calls(repo, "modules/pleme/shared/#{m}.nix"))
+end
+
+def factory_proven?(repo, m)
+  cs = trio_calls(repo, "modules/pleme/shared/#{m}.nix")
+  !is_empty(cs) &&
+    is_empty(
+      filter(
+        fn(c) !member?(spec_kind(c), ["binary", "package", "service"]) end,
+        cs
+      )
+    )
+end
+
 def check_proof(repo)
   files = get(repo, :files)
   map(
@@ -286,7 +324,10 @@ def check_proof(repo)
         "the shared module #{m} has no proof harness at parts/#{m}.nix"
       )
     end,
-    filter(fn(m) !member?("parts/#{m}.nix", files) end, shared_modules(files))
+    filter(
+      fn(m) !member?("parts/#{m}.nix", files) && !factory_proven?(repo, m) end,
+      shared_modules(files)
+    )
   )
 end
 
@@ -325,7 +366,8 @@ def check_reachable(repo)
       fn(m)
         !member?("modules/pleme/nixos/#{m}.nix", files) &&
           !member?("modules/pleme/darwin/#{m}.nix", files) &&
-          is_empty(filter(fn(t) contains?(t, "shared/#{m}.nix") end, routes))
+          is_empty(filter(fn(t) contains?(t, "shared/#{m}.nix") end, routes)) &&
+          !self_rendering?(repo, m)
       end,
       shared_modules(files)
     )
@@ -1023,8 +1065,8 @@ def rules()
       :layout,
       :gate,
       ["modules/pleme/shared/*.nix"],
-      "an option that exists is not a type: each shared options module is proven by a stub-universe harness",
-      "add parts/<name>.nix",
+      "an option that exists is not a type: each shared options module is proven by a stub-universe harness, unless it is a binary, package or service trio, which substrate's module-trio-kinds matrix proves",
+      "add parts/<name>.nix, or declare the concept through mkModuleTrio as a binary, package or service kind; a registry trio keeps its harness, since its projections are its own logic",
       fn(r) check_proof(r) end
     ),
     rule(
@@ -1032,8 +1074,8 @@ def rules()
       :layout,
       :gate,
       ["modules/pleme/shared/*.nix"],
-      "a shared options module nothing renders or imports is dead weight that looks live",
-      "add modules/pleme/{nixos,darwin}/<name>.nix, or import shared/<name>.nix from an import route",
+      "a shared options module nothing renders or imports is dead weight that looks live; a file that calls mkModuleTrio renders itself, since its module arm picks the platform by class",
+      "add modules/pleme/{nixos,darwin}/<name>.nix, import shared/<name>.nix from an import route, or declare the concept through mkModuleTrio",
       fn(r) check_reachable(r) end
     ),
     rule(
@@ -1766,6 +1808,18 @@ def concept_sources(declared)
   ]
 end
 
+def trio_source(name, kind_of)
+  k = if kind_of == nil
+    ""
+  else
+    "kind = \"#{kind_of}\"; "
+  end
+  [
+    "modules/pleme/shared/#{name}.nix",
+    "{ inputs, ... }:\n{\n  imports = [ (inputs.substrate.moduleTrio.mkModuleTrio { #{k}name = \"#{name}\"; }).module ];\n}\n"
+  ]
+end
+
 def fixtures()
   registry = [
     "lib/nodes.nix",
@@ -1806,10 +1860,21 @@ def fixtures()
     },
     {
       rule: "layout/shared-has-proof",
-      fires: 1,
-      bad: example([["modules/pleme/shared/x.nix", "{ }"]], []),
+      fires: 2,
+      bad: example(
+        [["modules/pleme/shared/x.nix", "{ }"], trio_source("r", "registry")],
+        []
+      ),
       good: example(
-        [["modules/pleme/shared/x.nix", "{ }"], ["parts/x.nix", "{ }"]],
+        [
+          ["modules/pleme/shared/x.nix", "{ }"],
+          ["parts/x.nix", "{ }"],
+          trio_source("p", "package"),
+          trio_source("s", "service"),
+          trio_source("b", nil),
+          trio_source("r", "registry"),
+          ["parts/r.nix", "{ }"]
+        ],
         []
       )
     },
@@ -1829,7 +1894,9 @@ def fixtures()
           [
             "profiles/p/default.nix",
             "{ imports = [ ../../modules/pleme/shared/x.nix ]; }"
-          ]
+          ],
+          trio_source("p", "package"),
+          trio_source("r", "registry")
         ],
         []
       )
@@ -2121,6 +2188,30 @@ test "a package directory with no nix of its own is still a concept, covered by 
     ]
   )
   assert fired(fleet_repo(1), example(named_q, []), "trio/every-concept") == []
+end
+
+test "a trio file renders itself, and the factory proves every kind but a registry"
+  c = example(
+    [
+      trio_source("p", "package"),
+      trio_source("b", nil),
+      trio_source("r", "registry"),
+      ["modules/pleme/shared/x.nix", "{ }"]
+    ],
+    []
+  )
+  subjects = fn(id)
+    sort_keyed(
+      fn(t) t end,
+      map(fn(x) get(x, :subject) end, fired(fleet_repo(1), c, id))
+    )
+  end
+  assert subjects("layout/shared-reachable") == ["x"]
+  assert subjects("layout/shared-has-proof") == ["r", "x"]
+  assert spec_kind(
+    first(calls(get(nikkusu::read("f { kind = k; }"), :root)))
+  ) ==
+    "computed"
 end
 
 test "trio/every-concept is the first rule the standard lists"

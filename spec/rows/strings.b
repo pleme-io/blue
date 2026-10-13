@@ -99,6 +99,20 @@ row(
 row("strings.string", "string(42)", value("\"42\""), covers("builtin:string"))
 
 row(
+  "strings.text_index",
+  "text_index(\"héllo héllo\", \"llo\", 3)",
+  value("8"),
+  covers("builtin:text_index")
+)
+
+row(
+  "strings.text_last_index",
+  "text_last_index(\"aaa\", \"aa\", 9)",
+  value("1"),
+  covers("builtin:text_last_index")
+)
+
+row(
   "strings.to_s.string",
   "to_s(\"a b\")",
   value("\"a b\""),

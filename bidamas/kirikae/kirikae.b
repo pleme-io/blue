@@ -2,12 +2,20 @@ use("deeta", [:get_int, :get_str])
 
 use(
   "hyouka",
-  [:first_out, :installable, :plan_build, :resolve, :store_name, :store_path?]
+  [
+    :first_out,
+    :installable,
+    :plan_build,
+    :resolve,
+    :store_hash,
+    :store_name,
+    :store_path?
+  ]
 )
 
 use("kyohi", [:ok?, :refusal_of, :value])
 
-use("moji", [:lines])
+use("moji", [:lines, :take_chars])
 
 use(
   "retsu",
@@ -73,11 +81,16 @@ def decide(desired, current, history, now_ms, pol)
         until_ms: get(s, :last_ms) + wait
       }
     else
-      {
-        action: :switch,
-        why: "#{store_name(desired)} differs from #{to_s(store_name(current))}"
-      }
+      {action: :switch, why: "#{label(desired)} differs from #{label(current)}"}
     end
+  end
+end
+
+def label(p)
+  if store_path?(p)
+    "#{take_chars(store_hash(p), 8)}-#{store_name(p)}"
+  else
+    to_s(p)
   end
 end
 
@@ -396,6 +409,14 @@ test "the node a rebuild names is the host it plans for"
     "rio"
   assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8"]) == nil
   assert node_arg(["darwin-rebuild"]) == nil
+end
+
+test "a switch names both systems by hash, since their names agree"
+  d = decide(b(), a(), [], 0, policy(0, 0))
+  assert label(b()) == "8i7qwqja-darwin-system-25.11.ebec37a"
+  assert get(d, :why) ==
+    "8i7qwqja-darwin-system-25.11.ebec37a differs from f97whj20-darwin-system-25.11.ebec37a"
+  assert label(nil) == ""
 end
 
 test "the toplevel attribute follows the platform"

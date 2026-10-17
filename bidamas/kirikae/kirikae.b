@@ -15,11 +15,21 @@ use(
 
 use("kyohi", [:ok?, :refusal_of, :value])
 
-use("moji", [:lines, :take_chars])
+use("moji", [:drop_chars, :includes, :lines, :take_chars])
 
 use(
   "retsu",
-  [:concat_lists, :drop_n, :drop_while, :first, :is_empty, :last, :rest, :size]
+  [
+    :concat_lists,
+    :drop_n,
+    :drop_while,
+    :first,
+    :is_empty,
+    :last,
+    :rest,
+    :size,
+    :take_n
+  ]
 )
 
 use("shisutemu", [:read_or, :stdout_of])
@@ -97,12 +107,11 @@ def hold_for(key, history, now_ms, pol)
 end
 
 def hex40?(t)
-  length(t) == 40 &&
-    every?(fn(c) moji::includes("0123456789abcdef", c) end, chars(t))
+  length(t) == 40 && every?(fn(c) includes("0123456789abcdef", c) end, chars(t))
 end
 
 def pinned?(flake)
-  any?(fn(t) hex40?(t) end, split(flake, "/")) || moji::includes(flake, "rev=")
+  any?(fn(t) hex40?(t) end, split(flake, "/")) || includes(flake, "rev=")
 end
 
 def label(p)
@@ -248,7 +257,203 @@ def kind_of_host()
   end
 end
 
+def checkout_path(flake)
+  if pinned?(flake)
+    nil
+  elsif flake == "." || starts_with?(flake, "/")
+    flake
+  elsif starts_with?(flake, "path:")
+    drop_chars(flake, 5)
+  elsif starts_with?(flake, "git+file://")
+    first(split(drop_chars(flake, 11), "?"))
+  else
+    nil
+  end
+end
+
+def git_out(dir, args)
+  cap = try(
+    apply(
+      exec_with_env,
+      [["GIT_TERMINAL_PROMPT", "0"]],
+      "git",
+      "-C",
+      dir,
+      args
+    ),
+    catch(_e(), nil)
+  )
+  if cap == nil || shisutemu::status_of(cap) != 0
+    nil
+  else
+    trim(stdout_of(cap))
+  end
+end
+
+def checkout_of(dir, branch)
+  remote = git_out(dir, ["ls-remote", "origin", "refs/heads/#{branch}"])
+  {
+    head: git_out(dir, ["rev-parse", "HEAD"]),
+    dirty: git_out(dir, ["status", "--porcelain", "--untracked-files=no"]),
+    remote: if remote == nil
+      nil
+    else
+      first(split(remote, "\t"))
+    end,
+    branch: branch
+  }
+end
+
+def checkout_refusal(c)
+  if get(c, :head) == nil
+    [:not_a_checkout, "the flake is not a git checkout kirikae can read"]
+  elsif get(c, :dirty) != nil && get(c, :dirty) != ""
+    [:dirty, "the checkout has uncommitted changes; plan a committed rev"]
+  elsif get(c, :remote) == nil || get(c, :remote) == ""
+    [
+      :remote_unknown,
+      "origin's #{get(c, :branch)} could not be read, so the checkout cannot be shown to be the published rev"
+    ]
+  elsif get(c, :head) != get(c, :remote)
+    [
+      :unpublished,
+      "the checkout is at #{take_chars(get(c, :head), 8)} but origin's #{get(c, :branch)} is #{take_chars(get(c, :remote), 8)}; plan only the published rev"
+    ]
+  else
+    nil
+  end
+end
+
+def base_name(t)
+  last(split(t, "/"))
+end
+
+def writer_line?(l, host)
+  ws = filter(fn(w) w != "" end, split(trim(l), " "))
+  heads = map(fn(w) base_name(w) end, take_n(ws, 2))
+  rebuild = member?("darwin-rebuild", heads) || member?("nixos-rebuild", heads)
+  evaluation = !is_empty(ws) &&
+    base_name(first(ws)) == "nix" &&
+    any?(fn(w) w == "build" || w == "eval" end, ws) &&
+    any?(
+      fn(w)
+        includes(w, "Configurations.#{host}") || ends_with?(w, "##{host}")
+      end,
+      ws
+    )
+  rebuild || evaluation
+end
+
+def writers(ps_text, host)
+  filter(fn(l) writer_line?(l, host) end, lines(ps_text))
+end
+
+def ps_bin()
+  if path_exists("/bin/ps")
+    "/bin/ps"
+  else
+    "ps"
+  end
+end
+
+def busy_refusal(ws)
+  if is_empty(ws)
+    nil
+  else
+    [
+      :busy,
+      "another evaluation or rebuild of this machine is running: #{take_chars(trim(first(ws)), 160)}"
+    ]
+  end
+end
+
+def heartbeat_noop(hb_text, head, current)
+  d = try(json_parse(hb_text), catch(_e(), nil))
+  if d == nil || head == nil
+    nil
+  elsif get_str(d, "outcome", "") == "unchanged" &&
+    get_str(d, "head_rev", "") == head
+    {
+      action: :noop,
+      why: "the gitops loop already runs #{take_chars(head, 8)} (#{label(current)}); nothing evaluated",
+      desired: current,
+      current: current,
+      key: current,
+      build: 0,
+      fetch: 0,
+      plan_ms: 0
+    }
+  else
+    nil
+  end
+end
+
+def busy_hold(r, now)
+  {action: :hold, why: nth(1, r), refusal: r, until_ms: now + 60000, plan_ms: 0}
+end
+
+def refused_plan(r)
+  {action: :refuse, why: nth(1, r), refusal: r, plan_ms: 0}
+end
+
+def guard(s)
+  dir = checkout_path(get(s, :flake))
+  c = if dir == nil
+    nil
+  else
+    checkout_of(dir, getenv("KIRIKAE_BRANCH", "main"))
+  end
+  stale = if c == nil || getenv("KIRIKAE_ALLOW_UNPUBLISHED", "") != ""
+    nil
+  else
+    checkout_refusal(c)
+  end
+  busy = if getenv("KIRIKAE_ALLOW_CONCURRENT", "") != ""
+    nil
+  else
+    busy_refusal(
+      writers(
+        stdout_of(
+          try(
+            exec_capture(ps_bin(), "-axww", "-o", "command="),
+            catch(_e(), nil)
+          )
+        ),
+        get(s, :host)
+      )
+    )
+  end
+  if stale != nil
+    refused_plan(stale)
+  elsif busy != nil
+    busy_hold(busy, now_ms())
+  elsif c != nil
+    heartbeat_noop(
+      read_or(
+        getenv(
+          "KIRIKAE_GITOPS_HEARTBEAT",
+          "/var/log/pleme-gitops/heartbeat.json"
+        ),
+        ""
+      ),
+      get(c, :head),
+      resolve(get(s, :current))
+    )
+  else
+    nil
+  end
+end
+
 def plan_now(s)
+  g = guard(s)
+  if g != nil
+    g
+  else
+    plan_unguarded(s)
+  end
+end
+
+def plan_unguarded(s)
   plan(
     get(s, :flake),
     get(s, :host),
@@ -484,6 +689,88 @@ test "a refusal of a pinned revision holds before anything evaluates; a moving r
   assert get(d, :plan_ms) == 0
   assert hold_for(inst, h, 2000 + 600000, pol) == nil
   assert hold_for(inst, [], 3000, pol) == nil
+end
+
+test "only a clean checkout at origin's rev is planned"
+  pub = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  old = "cb22456a00000000000000000000000000000000"
+  assert checkout_refusal(
+    {head: pub, dirty: "", remote: pub, branch: "main"}
+  ) ==
+    nil
+  assert first(
+    checkout_refusal({head: old, dirty: "", remote: pub, branch: "main"})
+  ) ==
+    :unpublished
+  assert first(
+    checkout_refusal(
+      {head: pub, dirty: " M flake.nix", remote: pub, branch: "main"}
+    )
+  ) ==
+    :dirty
+  assert first(
+    checkout_refusal({head: pub, dirty: "", remote: nil, branch: "main"})
+  ) ==
+    :remote_unknown
+  assert first(
+    checkout_refusal({head: nil, dirty: nil, remote: pub, branch: "main"})
+  ) ==
+    :not_a_checkout
+  assert checkout_path(".") == "."
+  assert checkout_path("/x/nix") == "/x/nix"
+  assert checkout_path("git+file:///x/nix?ref=main") == "/x/nix"
+  assert checkout_path("github:pleme-io/nix/#{pub}") == nil
+  assert checkout_path("github:pleme-io/nix") == nil
+end
+
+test "a running evaluation or rebuild of this machine refuses the plan; others do not"
+  ps = "/usr/sbin/cron\n/run/current-system/sw/bin/darwin-rebuild build --flake github:pleme-io/nix/abc#ryn -L\nnix build --no-link .#checks.aarch64-darwin.promotion-gate\n"
+  assert size(writers(ps, "ryn")) == 1
+  assert first(busy_refusal(writers(ps, "ryn"))) == :busy
+  assert writers(
+    "nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel\n",
+    "rio"
+  ) !=
+    []
+  assert writers(
+    "nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel\n",
+    "plo"
+  ) ==
+    []
+  assert writers("blue run kirikae plan darwin-rebuild switch\n", "ryn") == []
+  assert writers(
+    "zsh -c pgrep -lf 'darwin-rebuild ' ; nix build #ryn\n",
+    "ryn"
+  ) ==
+    []
+  assert size(
+    writers(
+      "/nix/store/x-nix-2.31.5/bin/nix build --no-link github:o/r/abc#ryn\n",
+      "ryn"
+    )
+  ) ==
+    1
+  assert busy_refusal([]) == nil
+  h = busy_hold([:busy, "x"], 1000)
+  assert get(h, :action) == :hold
+  assert get(h, :until_ms) == 61000
+end
+
+test "a loop that already runs the checkout's rev answers the plan without evaluating"
+  head = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  hb = "{\"outcome\":\"unchanged\",\"head_rev\":\"#{head}\"}"
+  n = heartbeat_noop(hb, head, a())
+  assert get(n, :action) == :noop
+  assert get(n, :desired) == a()
+  assert heartbeat_noop(hb, "cb22456a00000000000000000000000000000000", a()) ==
+    nil
+  assert heartbeat_noop(
+    "{\"outcome\":\"building\",\"head_rev\":\"#{head}\"}",
+    head,
+    a()
+  ) ==
+    nil
+  assert heartbeat_noop("", head, a()) == nil
 end
 
 test "the toplevel attribute follows the platform"

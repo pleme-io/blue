@@ -8,7 +8,12 @@ use(
 use("kyohi", [:ok?, :refusal_of, :value])
 
 use("moji", [:lines])
-use("retsu", [:concat_lists, :drop_n, :first, :is_empty, :last, :rest, :size])
+
+use(
+  "retsu",
+  [:concat_lists, :drop_n, :drop_while, :first, :is_empty, :last, :rest, :size]
+)
+
 use("shisutemu", [:read_or, :stdout_of])
 
 def attr_for(kind, host)
@@ -205,8 +210,39 @@ def summary(p)
   "kirikae: #{to_s(get(p, :action))} — #{get(p, :why)} (planned in #{to_s(get(p, :plan_ms))} ms; #{to_s(get(p, :build))} to build, #{to_s(get(p, :fetch))} to fetch)\n"
 end
 
+def node_step(acc, a)
+  if get(acc, :skip) > 0
+    assoc(acc, :skip, get(acc, :skip) - 1)
+  elsif get(acc, :node) != nil
+    acc
+  elsif a == "--nix-option"
+    assoc(acc, :skip, 2)
+  elsif starts_with?(a, "-")
+    acc
+  else
+    assoc(acc, :node, a)
+  end
+end
+
+def node_arg(cmd)
+  after = drop_while(fn(a) a != "rebuild" end, cmd)
+  get(
+    foldl(fn(acc, a) node_step(acc, a) end, {skip: 0, node: nil}, rest(after)),
+    :node
+  )
+end
+
+def settings_for(cmd)
+  n = node_arg(cmd)
+  if n == nil
+    settings()
+  else
+    assoc(settings(), :host, n)
+  end
+end
+
 def run(cmd)
-  s = settings()
+  s = settings_for(cmd)
   p = plan_now(s)
   write_stderr(summary(p))
   a = get(p, :action)
@@ -351,6 +387,15 @@ test "the history file round-trips and keeps only its tail"
   assert size(keep_last([1, 2, 3, 4], 2)) == 2
   assert keep_last([1, 2], 5) == [1, 2]
   rm_rf(dir)
+end
+
+test "the node a rebuild names is the host it plans for"
+  assert node_arg(["fleet", "rebuild"]) == nil
+  assert node_arg(["/x/bin/fleet", "rebuild", "--show-trace", "plo"]) == "plo"
+  assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8", "rio"]) ==
+    "rio"
+  assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8"]) == nil
+  assert node_arg(["darwin-rebuild"]) == nil
 end
 
 test "the toplevel attribute follows the platform"

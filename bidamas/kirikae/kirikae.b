@@ -541,7 +541,12 @@ def run(cmd)
 end
 
 def main()
-  args = argv()
+  text = answer(argv())
+  write_stdout("#{text}\n")
+  nil
+end
+
+def answer(args)
   verb = if is_empty(args)
     "plan"
   else
@@ -771,6 +776,11 @@ test "a loop that already runs the checkout's rev answers the plan without evalu
   ) ==
     nil
   assert heartbeat_noop("", head, a()) == nil
+end
+
+test "a command's answer is text it can print, and a wrong verb is a usage error"
+  assert error?(try(answer(["bogus"]), catch(e(), e))) == true
+  assert error?(try(answer(["run"]), catch(e(), e))) == true
 end
 
 test "the toplevel attribute follows the platform"

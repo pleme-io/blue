@@ -72,18 +72,37 @@ def decide(desired, current, history, now_ms, pol)
   elsif desired == current
     {action: :noop, why: "the system already runs #{store_name(desired)}"}
   else
-    s = streak(history, desired)
-    wait = backoff_ms(get(s, :n), pol)
-    if wait > 0 && now_ms < get(s, :last_ms) + wait
-      {
-        action: :hold,
-        why: "#{to_s(get(s, :n))} failed activation(s) of #{store_name(desired)}; next try in #{to_s(floor((get(s, :last_ms) + wait - now_ms) / 1000))}s",
-        until_ms: get(s, :last_ms) + wait
-      }
-    else
+    h = hold_for(desired, history, now_ms, pol)
+    if h == nil
       {action: :switch, why: "#{label(desired)} differs from #{label(current)}"}
+    else
+      h
     end
   end
+end
+
+def hold_for(key, history, now_ms, pol)
+  s = streak(history, key)
+  wait = backoff_ms(get(s, :n), pol)
+  if wait > 0 && now_ms < get(s, :last_ms) + wait
+    {
+      action: :hold,
+      why: "#{to_s(get(s, :n))} failed attempt(s) of #{label(key)}; next try in #{to_s(floor((get(s, :last_ms) + wait - now_ms) / 1000))}s",
+      until_ms: get(s, :last_ms) + wait,
+      key: key
+    }
+  else
+    nil
+  end
+end
+
+def hex40?(t)
+  length(t) == 40 &&
+    every?(fn(c) moji::includes("0123456789abcdef", c) end, chars(t))
+end
+
+def pinned?(flake)
+  any?(fn(t) hex40?(t) end, split(flake, "/")) || moji::includes(flake, "rev=")
 end
 
 def label(p)
@@ -147,34 +166,56 @@ def record(path, e)
 end
 
 def plan(flake, host, kind, current_link, hist, now_ms, pol)
+  inst = installable(flake, attr_for(kind, host))
+  early = if pinned?(flake)
+    hold_for(inst, hist, now_ms, pol)
+  else
+    nil
+  end
+  if early == nil
+    evaluated(flake, inst, current_link, hist, now_ms, pol)
+  else
+    assoc(early, :plan_ms, 0)
+  end
+end
+
+def evaluated(flake, inst, current_link, hist, now_ms, pol)
   started = now_ns()
-  b = plan_build(installable(flake, attr_for(kind, host)), [])
+  b = plan_build(inst, [])
+  ms = floor(elapsed_since(started) / 1000000)
   if ok?(b)
     p = value(b)
     desired = first_out(p)
     current = resolve(current_link)
     d = decide(desired, current, hist, now_ms, pol)
-    assoc(
-      assoc(
-        assoc(
-          assoc(assoc(d, :desired, desired), :current, current),
-          :build,
-          size(get(p, :build))
-        ),
-        :fetch,
-        size(get(p, :fetch))
-      ),
-      :plan_ms,
-      floor(elapsed_since(started) / 1000000)
+    assoc_all(
+      d,
+      [
+        [:key, desired],
+        [:desired, desired],
+        [:current, current],
+        [:build, size(get(p, :build))],
+        [:fetch, size(get(p, :fetch))],
+        [:plan_ms, ms]
+      ]
     )
   else
     {
       action: :refuse,
       why: "the system did not evaluate: #{to_s(refusal_of(b))}",
       refusal: refusal_of(b),
-      plan_ms: floor(elapsed_since(started) / 1000000)
+      key: if pinned?(flake)
+        inst
+      else
+        nil
+      end,
+      plan_ms: ms
     }
   end
+end
+
+def assoc_all(m, pairs)
+  foldl(fn(acc, kv) assoc(acc, first(kv), nth(1, kv)) end, m, pairs)
 end
 
 def settings()
@@ -264,6 +305,12 @@ def run(cmd)
   elsif a == :hold && getenv("KIRIKAE_FORCE", "") == ""
     throw(error(:hold, get(p, :why)))
   elsif a == :refuse
+    if get(p, :key) != nil
+      record(
+        get(s, :history),
+        entry(get(p, :key), "failed", now_ms(), get(p, :why))
+      )
+    end
     throw(error(:refuse, get(p, :why)))
   else
     status = apply(exec_check, cmd)
@@ -417,6 +464,26 @@ test "a switch names both systems by hash, since their names agree"
   assert get(d, :why) ==
     "8i7qwqja-darwin-system-25.11.ebec37a differs from f97whj20-darwin-system-25.11.ebec37a"
   assert label(nil) == ""
+end
+
+test "a refusal of a pinned revision holds before anything evaluates; a moving ref never does"
+  pol = policy(300, 3600)
+  pin = "github:pleme-io/nix/b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  inst = installable(pin, attr_for("darwin", "ryn"))
+  assert pinned?(pin) == true
+  assert pinned?(".") == false
+  assert pinned?("github:pleme-io/nix") == false
+  assert pinned?(
+    "git+file:///x?rev=b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  ) ==
+    true
+  h = [entry(inst, "failed", 1000, "eval"), entry(inst, "failed", 2000, "eval")]
+  d = plan(pin, "ryn", "darwin", "/run/current-system", h, 3000, pol)
+  assert get(d, :action) == :hold
+  assert get(d, :key) == inst
+  assert get(d, :plan_ms) == 0
+  assert hold_for(inst, h, 2000 + 600000, pol) == nil
+  assert hold_for(inst, [], 3000, pol) == nil
 end
 
 test "the toplevel attribute follows the platform"

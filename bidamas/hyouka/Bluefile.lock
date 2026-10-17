@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:df4576bc260dc29a9648e9d8e257e8a425d3c129103ac71293ca0b6d43fdc717",
+  "manifest": {
+    "schema": 1,
+    "name": "hyouka",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

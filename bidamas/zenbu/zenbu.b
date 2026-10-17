@@ -54,6 +54,7 @@ use("hadome")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
 use("hizuke", [:is_leap])
+use("hyouka")
 use("jitaku")
 use("junjo", [:is_sorted, :sort])
 use("kakou")
@@ -63,6 +64,7 @@ use("keiyu", [:relay_env])
 use("kijun")
 use("kikagaku", [:manhattan])
 use("kinji")
+use("kirikae")
 use("kiwari")
 use("kueri")
 use("kumiawase", [:combinations])
@@ -150,6 +152,8 @@ test "every bidama in the distribution answers through this one import"
   assert jitaku::to_json([]) == "{\"enable\":true}"
   assert get(kijun::fleet_repo(1), :standard) == "fleet-repo"
   assert nikkusu::kind(get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
+  assert hyouka::installable(".", "x") == ".#x"
+  assert kirikae::attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
 end
 
 test "four packages compose without the consumer naming any of them"

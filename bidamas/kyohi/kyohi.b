@@ -43,6 +43,47 @@ def refuse(refusals)
   nil
 end
 
+def ok(v)
+  {ok: true, value: v}
+end
+
+def refused(r)
+  {ok: false, refusal: r}
+end
+
+def ok?(result)
+  get(result, :ok) == true
+end
+
+def value(result)
+  if ok?(result)
+    get(result, :value)
+  else
+    nil
+  end
+end
+
+def refusal_of(result)
+  if ok?(result)
+    nil
+  else
+    get(result, :refusal)
+  end
+end
+
+test "a result carries a value or a refusal, never both"
+  a = ok(3)
+  assert ok?(a) == true
+  assert value(a) == 3
+  assert refusal_of(a) == nil
+  b = refused(refusal(:late, "after noon"))
+  assert ok?(b) == false
+  assert value(b) == nil
+  assert kind(refusal_of(b)) == :late
+  assert ok?({}) == false
+  assert value(ok(nil)) == nil
+end
+
 test "a refusal is its kind and its why"
   r = refusal(:too_big, "3 > 2")
   assert r == [:too_big, "3 > 2"]

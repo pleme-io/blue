@@ -1,4 +1,5 @@
 use("deeta", [:as_json, :get_str])
+use("kyohi", [:ok])
 use("retsu", [:first, :is_empty, :last, :rest, :size])
 use("shisutemu", [:read_or, :status_of, :stderr_of, :stdout_of])
 use("shuugou", [:as_set, :difference, :unique])
@@ -224,10 +225,6 @@ def capture(argv)
       stderr: stderr_of(cap)
     }
   end
-end
-
-def ok(v)
-  {ok: true, value: v}
 end
 
 def bad(why)

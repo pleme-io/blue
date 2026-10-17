@@ -406,6 +406,7 @@
         keiyu = { entry = "main"; tools = _: [ ]; };
         ukai = { entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.iproute2 pkgs.tailscale ]; };
         kijun = { entry = "main"; tools = pkgs: [ pkgs.git ]; };
+        kirikae = { entry = "main"; tools = _: [ ]; };
       };
 
       # Everything blue gives a package set, from one blue and one distribution.

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:7643cc2365deb395978af90836908655dd3077ee0ae7326b9a1c467bd262317a",
+  "manifest": {
+    "schema": 1,
+    "name": "kirikae",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "hyouka": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

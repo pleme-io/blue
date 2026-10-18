@@ -23,7 +23,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `-x` | `(- 0 x)` | Unary minus. The formatter writes 0 - x as -x. |
 | `use("retsu")` | `(use "retsu")` | Import a bidama by name, found on BLUE_PATH. Every definition it makes joins one flat namespace. |
 | `throw(error(:parse, "bad row"))` | `(throw (error :parse "bad row"))` | Raise. error(kind, message) alone only builds the value; throw raises it, and uncaught it fails the run. |
-| `try(risky(), catch(e(), fallback(e)))` | `(try (risky) (catch (e) (fallback e)))` | Catch a throw. The binding is written as a call, e(). error?(e) is true inside; the kind and message are not readable, so return refusals as data when a caller must tell them apart. |
+| `try(risky(), catch(e(), fallback(e)))` | `(try (risky) (catch (e) (fallback e)))` | Catch a throw. The binding is written as a call, e(). error?(e) is true inside, and error_kind(e) and error_message(e) read it; return refusals as data when a caller must tell several apart. |
 
 ## Operators
 
@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-257 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+265 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -191,6 +191,7 @@ Higher binding power binds tighter.
 | `assoc` | `assoc(m, k, v)` | 3 | A new map with k set to v. Copies m; raises on nil. |
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. |
+| `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |
 
 ### Functions
@@ -263,6 +264,8 @@ Higher binding power binds tighter.
 |---|---|---|---|
 | `error` | `error(kind, message[, data])` | 2..3 | An error VALUE. It raises nothing until throw(error(…)). |
 | `error?` | `error?(x)` | 1 | Whether x is an error value; true inside a catch handler. |
+| `error_kind` | `error_kind(e)` | 1 | The kind of an error value, the keyword error(kind, …) was given; raises on anything else. |
+| `error_message` | `error_message(e)` | 1 | The message of an error value, as text; raises on anything else. |
 | `gensym` | `gensym([prefix])` | 0..1 | A fresh unique symbol, for macros that need a private name. |
 | `throw` | `throw(err)` | 1 | Raise err. Uncaught, the run fails with its kind and message. |
 
@@ -273,6 +276,7 @@ Higher binding power binds tighter.
 | `json_get` | `json_get(obj, key)` | 2 | The field of a parsed JSON object, or nil. Raises when obj is not an object. |
 | `json_get_or` | `json_get_or(obj, key, default)` | 3 | The field of a parsed JSON object, or default. |
 | `json_parse` | `json_parse(text)` | 1 | Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil. |
+| `json_read` | `json_read(text)` | 1 | Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil. |
 | `json_stringify` | `json_stringify(v)` | 1 | Compact JSON text, a map's keys sorted, a keyword as its name. |
 
 ### Nix source
@@ -345,7 +349,11 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
+| `http_listen` | `http_listen(addr)` | 1 | A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound. |
+| `http_listener_port` | `http_listener_port(listener)` | 1 | The TCP port the listener is bound to. |
+| `http_next_request` | `http_next_request(listener, timeout_ms)` | 2 | {method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond. |
 | `http_request` | `http_request(method, url, headers, body, timeout_ms)` | 5 | One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. |
+| `http_respond` | `http_respond(request, status, headers, body)` | 4 | Answer a request from http_next_request once and close its connection; headers as for http_request, body nil or a string. A second answer raises. nil. |
 | `nats_close` | `nats_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
 | `nats_connect` | `nats_connect(url[, timeout_ms])` | 1..2 | A NATS connection to nats://[user:pass@\|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect. |
 | `nats_next_message` | `nats_next_message(sub, timeout_ms)` | 2 | {subject:, payload:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. reply is nil unless the sender wants an answer: publish to it. |
@@ -454,3 +462,4 @@ A Bluefile is a blue program that may call only these words.
 | `catalog(path)` | Where the mokuroku catalogue of the `packages` roots is committed; gated fresh. |
 | `image(name, spec)` | An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`. |
 | `workload(name, spec)` | A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster. |
+| `service(name, spec)` | An HTTP service from one of the project's programs: its runnable closure `packages.<name>`, its image through substrate's mkHardenedImageSet, its module trio, and the committed `output` tree (default `deploy/<name>`) of a Helm chart with a generated values.schema.json, its settings' defaults and schema, and with a `schema`, its additive SQL and shinka migration; every file gated fresh. |

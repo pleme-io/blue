@@ -370,7 +370,14 @@
       # substrate's image builders (mkPackageImage, mkDistrolessImage,
       # hardenedBases) for a Linux system: what a Bluefile `image(...)` lowers
       # through. Images are Linux; elsewhere there is none to give.
-      ociFor = system: if lib.hasSuffix "-linux" system then substrate.lib.${system} else null;
+      ociFor = system: if lib.hasSuffix "-linux" system then substrate.lib.${system} // {
+        cargoAudit = import "${substrate}/lib/build/rust/cargo-audit-data.nix" { };
+        hardenedImageSetArgs = {
+          docaPkg = substrate.packages.${system}.oci-push;
+          tataraScript = substrate.inputs.tatara-lisp.packages.${system}.tatara-script;
+        };
+      } else null;
+      moduleTrio = import "${substrate}/lib/module-trio.nix" { inherit lib; };
 
       # This repository as a blue project. `base = { }` because its packages
       # ARE the public distribution every other project composes over.
@@ -452,7 +459,7 @@
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
-      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor; };
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio; };
 
       # `blue.lib.bidamas pkgs` — the bidama library for any package set.
       lib.bidamas = bidamaLibFor;
@@ -605,6 +612,12 @@
           example-service =
             let ex = engine.projectFor { inherit pkgs blue; src = ./examples/service; oci = ociFor system; };
             in pkgs.runCommand "example-service" { } ''
+              ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
+            '';
+
+          example-http =
+            let ex = engine.projectFor { inherit pkgs blue moduleTrio; src = ./examples/http; oci = ociFor system; };
+            in pkgs.runCommand "example-http" { } ''
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';
         } // lib.optionalAttrs (ociFor system != null) {

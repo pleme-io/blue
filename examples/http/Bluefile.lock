@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:551eedc72be8544ec000169b6957ca9110b42baaaffac8ec16024cb679089df8",
+  "manifest": {
+    "schema": 1,
+    "name": "blue-http",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "greeter": {
+        "file": "greeter.b"
+      }
+    },
+    "apps": {},
+    "catalog": null,
+    "services": {
+      "greeter": {
+        "program": "greeter.b",
+        "repository": "ghcr.io/pleme-io/blue",
+        "port": 18080,
+        "probe": "/healthz",
+        "namespace": "greeter",
+        "replicas": 1,
+        "config": {
+          "greeting": "hello",
+          "subject": "world"
+        },
+        "flags": {
+          "shout": false
+        },
+        "schema": {
+          "greetings": {
+            "created_at": "timestamptz",
+            "note": "text?",
+            "text": "text"
+          }
+        },
+        "output": "deploy/greeter"
+      }
+    }
+  },
+  "sources": {}
+}

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:ee661a01288a973d090a0daae5b364947e1d2d5755eb03a29f2b01707c5d10c9",
+  "manifest": {
+    "schema": 1,
+    "name": "settei",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

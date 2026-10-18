@@ -411,7 +411,7 @@ rec {
   # executable: on PATH, behind a launchd agent or a systemd unit (substrate's
   # `services.tehai` is a caller). substrate carried a copy of it,
   # `mkBlueProgramPackage`, for one day (2026-09-27), before recon found this.
-  mkBlueApp = { blue, bidamas, name, program ? null, source ? null, tools ? [ ], env ? { } }:
+  mkBlueApp = { blue, bidamas, name, program ? null, source ? null, tools ? [ ], env ? { }, chdir ? null }:
     assert wrapperGiven "mkBlueApp";
     assert lib.assertMsg ((program == null) != (source == null))
       "mkBlueApp ${name}: give exactly one of `program` (a .b file) or `source` (its text)";
@@ -424,6 +424,7 @@ rec {
         ]
         ++ lib.optional (tools != [ ]) ''--suffix PATH : "${lib.makeBinPath tools}"''
         ++ lib.mapAttrsToList (k: v: "--set-default ${lib.escapeShellArg k} ${lib.escapeShellArg v}") env
+        ++ lib.optional (chdir != null) "--chdir ${lib.escapeShellArg chdir}"
         ++ [ ''--add-flags "run --quiet ${file} --"'' ];
     in
     runCommand name

@@ -50,6 +50,17 @@ pub fn install_json_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
+        "json_read",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let s = as_str(&args[0], "json_read", span)?;
+            let parsed: JsonValue = serde_json::from_str(&s)
+                .map_err(|e| EvalError::native_fn("json_read", e.to_string(), span))?;
+            Ok(json_to_maps(&parsed))
+        },
+    );
+
+    interp.register_fn(
         "json_stringify",
         Arity::Exact(1),
         |args: &[Value], _h: &mut H, span| {
@@ -153,6 +164,17 @@ pub fn json_to_value(j: &JsonValue) -> Value {
             m.iter()
                 .map(|(k, v)| Value::list([Value::Str(Arc::from(k.as_str())), json_to_value(v)])),
         ),
+    }
+}
+
+pub fn json_to_maps(j: &JsonValue) -> Value {
+    match j {
+        JsonValue::Array(xs) => Value::list(xs.iter().map(json_to_maps)),
+        JsonValue::Object(m) => Value::map(
+            m.iter()
+                .map(|(k, v)| (MapKey::Str(Arc::from(k.as_str())), json_to_maps(v))),
+        ),
+        other => json_to_value(other),
     }
 }
 

@@ -42,6 +42,9 @@
 
 pub mod diff;
 pub mod render;
+pub mod service;
+
+pub use service::{service_of, Service, Setting};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -233,6 +236,24 @@ pub enum SpecError {
     ImageRef { got: String },
     #[error("`output` `{output}` is already written by {by}")]
     OutputTaken { output: String, by: String },
+    #[error("`{got}` is not a setting name (lowercase letters, digits and single `_`, starting with a letter)")]
+    SettingName { got: String },
+    #[error("setting `{key}` is reserved: listen, health and flags are derived from the declaration, and config, tier and defaults name the settings tiers")]
+    ReservedSetting { key: String },
+    #[error("setting `{key}` must be text, an integer or true/false, got {got}")]
+    SettingType { key: String, got: &'static str },
+    #[error("flag `{key}` must be true or false, got {got}")]
+    FlagType { key: String, got: &'static str },
+    #[error("`{got}` is not a table name (lowercase letters, digits and single `_`, starting with a letter)")]
+    TableName { got: String },
+    #[error("table `{table}` must map column names to types, got {got}")]
+    TableColumns { table: String, got: &'static str },
+    #[error("table `{table}`: `{got}` is not a column name (`id` is every table's key, and is not declared)")]
+    ColumnName { table: String, got: String },
+    #[error("column `{column}`: `{got}` is not a column type; the types are {}, each optionally ending in `?` for nullable", service::COLUMN_TYPES.join(", "))]
+    ColumnType { column: String, got: String },
+    #[error("`{name}` is both a service and an image, and both build `image-{name}`")]
+    ServiceIsImage { name: String },
 }
 
 const IMAGE_FIELDS: &[&str] = &[
@@ -729,6 +750,32 @@ pub fn check_entries(project: &Project, refused_images: &BTreeSet<String>) -> Ve
             }),
             None => {
                 outputs.insert(&w.output, ["workload(\"", name, "\")"].concat());
+            }
+        }
+    }
+    for (name, svc) in &project.services {
+        if project.images.contains_key(name) || refused_images.contains(name) {
+            refusals.push(Refusal {
+                word: "service",
+                name: name.clone(),
+                error: SpecError::ServiceIsImage { name: name.clone() },
+            });
+        }
+        let dir = [svc.output.as_str(), "/"].concat();
+        let taken = outputs
+            .iter()
+            .find(|(o, _)| **o == svc.output || o.starts_with(&dir) || svc.output.starts_with(&[*o, "/"].concat()));
+        match taken {
+            Some((_, by)) => refusals.push(Refusal {
+                word: "service",
+                name: name.clone(),
+                error: SpecError::OutputTaken {
+                    output: svc.output.clone(),
+                    by: by.clone(),
+                },
+            }),
+            None => {
+                outputs.insert(&svc.output, ["service(\"", name, "\")"].concat());
             }
         }
     }

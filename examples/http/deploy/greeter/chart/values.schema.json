@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "greeting": {
+          "default": "hello",
+          "type": "string"
+        },
+        "subject": {
+          "default": "world",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "database": {
+      "additionalProperties": false,
+      "properties": {
+        "credentialsSecret": {
+          "default": "",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "host": {
+          "default": "",
+          "type": "string"
+        },
+        "migratorImage": {
+          "default": "docker.io/library/postgres:17-alpine",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "type": "string"
+        },
+        "passwordKey": {
+          "default": "password",
+          "type": "string"
+        },
+        "port": {
+          "default": 5432,
+          "type": "integer"
+        },
+        "username": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "flags": {
+      "additionalProperties": false,
+      "properties": {
+        "shout": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "health": {
+      "default": "/healthz",
+      "type": "string"
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "type": "string"
+        },
+        "repository": {
+          "default": "ghcr.io/pleme-io/blue",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "listen": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "default": "0.0.0.0",
+          "type": "string"
+        },
+        "port": {
+          "default": 18080,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "podAnnotations": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "replicaCount": {
+      "default": 1,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "resources": {
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "type": "string"
+            },
+            "memory": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "requests": {
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "type": "string"
+            },
+            "memory": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "securityContext": {
+      "type": "object"
+    },
+    "service": {
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "default": 18080,
+          "type": "integer"
+        },
+        "type": {
+          "default": "ClusterIP",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "title": "greeter chart values",
+  "type": "object"
+}

@@ -1,0 +1,2 @@
+{{ include "greeter.fullname" . }} answers HTTP on service port {{ .Values.service.port }}; its health is {{ .Values.health }}.
+Settings reach it as GREETER_* environment variables, the shikumi env tier over its baked defaults.

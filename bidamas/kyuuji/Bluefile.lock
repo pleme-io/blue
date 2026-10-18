@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:ac72ab69543de37e0c1af969ed69fd0866db8e6199d344db385812af035e25dc",
+  "manifest": {
+    "schema": 1,
+    "name": "kyuuji",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

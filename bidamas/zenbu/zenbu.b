@@ -51,6 +51,7 @@ use("chokkan")
 use("deeta", [:get_str])
 use("gyouretsu", [:dot])
 use("hadome")
+use("haibi")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
 use("hizuke", [:is_leap])
@@ -69,6 +70,7 @@ use("kiwari")
 use("kueri")
 use("kumiawase", [:combinations])
 use("kyohi")
+use("kyuuji")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
 use("nikkusu")
@@ -84,6 +86,7 @@ use("ronri", [:every])
 use("ryouiki", [:box_around])
 use("sabi")
 use("seimei", [:life_step])
+use("settei")
 use("shinsuu", [:to_hex])
 use("shisutemu", [:age_s])
 use("shomei", [:hash_message])
@@ -119,6 +122,10 @@ test "every bidama in the distribution answers through this one import"
   assert kueri::ident("order") == "\"order\""
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2598960
+  assert kyuuji::address({"listen" => {"host" => "h", "port" => 1}}) == "h:1"
+  assert haibi::column_sql("text?") == ["double precision", true] ||
+    haibi::column_sql("text?") == ["text", true]
+  assert settei::env_prefix("a-b") == "A_B_"
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
   assert nisshi::format() == "nisshi/1"

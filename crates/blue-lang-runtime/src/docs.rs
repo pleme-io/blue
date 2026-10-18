@@ -257,6 +257,7 @@ pub const NAMES: &[NameDoc] = names! {
     Map: "assoc" "assoc(m, k, v)" "A new map with k set to v. Copies m; raises on nil.";
     Map: "dissoc" "dissoc(m, k)" "A new map without k; unchanged when k is absent.";
     Map: "zipmap" "zipmap(keys, values)" "A map pairing keys with values, as long as the shorter list.";
+    Map: "map_entries" "map_entries(m)" "Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise.";
     // ── functions ─────────────────────────────────────────────────────────
     Function: "map" "map(f, xs, more...)" "f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to [].";
     Function: "filter" "filter(f, xs)" "The elements f accepts. The FUNCTION comes first.";
@@ -317,10 +318,13 @@ pub const NAMES: &[NameDoc] = names! {
     Error: "error" "error(kind, message[, data])" "An error VALUE. It raises nothing until throw(error(…)).";
     Error: "throw" "throw(err)" "Raise err. Uncaught, the run fails with its kind and message.";
     Error: "error?" "error?(x)" "Whether x is an error value; true inside a catch handler.";
+    Error: "error_message" "error_message(e)" "The message of an error value, as text; raises on anything else.";
+    Error: "error_kind" "error_kind(e)" "The kind of an error value, the keyword error(kind, …) was given; raises on anything else.";
     Error: "gensym" "gensym([prefix])" "A fresh unique symbol, for macros that need a private name.";
     Lisp: "builtin_names" "builtin_names()" "Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name.";
     // ── JSON ──────────────────────────────────────────────────────────────
     Json: "json_parse" "json_parse(text)" "Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil.";
+    Json: "json_read" "json_read(text)" "Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil.";
     Json: "json_stringify" "json_stringify(v)" "Compact JSON text, a map's keys sorted, a keyword as its name.";
     Json: "json_get" "json_get(obj, key)" "The field of a parsed JSON object, or nil. Raises when obj is not an object.";
     Json: "json_get_or" "json_get_or(obj, key, default)" "The field of a parsed JSON object, or default.";
@@ -378,6 +382,10 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "nats_unsubscribe" "nats_unsubscribe(sub)" "Stop a subscription; messages already queued for it are dropped. nil.";
     Network: "nats_close" "nats_close(conn)" "Close the connection; every later call on it raises. nil.";
     Network: "http_request" "http_request(method, url, headers, body, timeout_ms)" "One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises.";
+    Network: "http_listen" "http_listen(addr)" "A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound.";
+    Network: "http_listener_port" "http_listener_port(listener)" "The TCP port the listener is bound to.";
+    Network: "http_next_request" "http_next_request(listener, timeout_ms)" "{method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond.";
+    Network: "http_respond" "http_respond(request, status, headers, body)" "Answer a request from http_next_request once and close its connection; headers as for http_request, body nil or a string. A second answer raises. nil.";
     // ── crypto ────────────────────────────────────────────────────────────
     Crypto: "blake3_hex" "blake3_hex(data)" "The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it.";
     Crypto: "ed25519_keypair" "ed25519_keypair(seed_hex)" "[secret, public] in hex for a 32-byte seed. There is no entropy source: the caller supplies the seed.";

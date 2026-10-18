@@ -1,0 +1,4 @@
+package("haibi", "0.1.0")
+needs("deeta", "^0.1")
+needs("settei", "^0.1")
+needs("retsu", "^0.1")

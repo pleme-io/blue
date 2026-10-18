@@ -583,6 +583,40 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             Ok(list(tatara_lisp_eval::hof::sort_keyed_values(keyed, s)?))
         },
     );
+
+    interp.register_fn(
+        "error_message",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
+            Value::Error(e) => Ok(Value::Str(e.message.clone())),
+            other => Err(EvalError::type_mismatch("an error", other.type_name(), s)),
+        },
+    );
+
+    interp.register_fn(
+        "error_kind",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
+            Value::Error(e) => Ok(Value::Keyword(e.tag.clone())),
+            other => Err(EvalError::type_mismatch("an error", other.type_name(), s)),
+        },
+    );
+
+    interp.register_fn(
+        "map_entries",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
+            Value::Map(m) => {
+                let keyed = m
+                    .iter()
+                    .map(|(k, v)| (k.to_value(), list(vec![k.to_value(), v.clone()])))
+                    .collect();
+                Ok(list(tatara_lisp_eval::hof::sort_keyed_values(keyed, s)?))
+            }
+            Value::Nil => Ok(list(Vec::new())),
+            other => Err(EvalError::type_mismatch("a map", other.type_name(), s)),
+        },
+    );
 }
 
 fn as_index(v: &Value, span: tatara_lisp::Span) -> Result<i64, EvalError> {

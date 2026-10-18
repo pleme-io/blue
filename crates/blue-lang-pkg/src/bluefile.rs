@@ -162,6 +162,8 @@ pub struct Project {
     /// freshness-gated file ([`crate::deploy::render`]).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub workloads: BTreeMap<String, crate::deploy::Workload>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub services: BTreeMap<String, crate::deploy::Service>,
     /// `rule(code, file, def[, severity])`: the project's own check rules,
     /// keyed by code. Skipped when empty, as `generated` is.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -634,6 +636,20 @@ const WORDS: &[Word] = &[
             }
         },
     },
+    Word {
+        name: "service",
+        signature: "service(name, spec)",
+        doc: "An HTTP service from one of the project's programs: its runnable closure `packages.<name>`, its image through substrate's mkHardenedImageSet, its module trio, and the committed `output` tree (default `deploy/<name>`) of a Helm chart with a generated values.schema.json, its settings' defaults and schema, and with a `schema`, its additive SQL and shinka migration; every file gated fresh.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            match crate::deploy::service_of(&name, &c.args[1]) {
+                Ok(service) => insert_once(&mut into.project.services, c.word, name, service),
+                Err(error) => refuse(into, c.word, name, error),
+            }
+        },
+    },
 ];
 
 /// Record a refused entry and let the manifest go on, so the next refused
@@ -1036,6 +1052,7 @@ mod tests {
             .chain(["generate"])
             // T-J, 2026-10-10: images and workloads (`crate::deploy`).
             .chain(["image", "workload"])
+            .chain(["service"])
             // `rule`, 2026-10-10: a project's own check rules, written in blue.
             .chain(["rule"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.

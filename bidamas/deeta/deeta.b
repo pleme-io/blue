@@ -215,3 +215,175 @@ test "round-trip through stringify preserves what the accessors read"
   assert get_str(again, "outcome", "—") == "ok"
   assert get_int(again, "count", 0) == 2
 end
+
+def plain_key?(k)
+  cs = chars(k)
+  cs != [] &&
+    member?(
+      first(cs),
+      chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_")
+    ) &&
+    every?(
+      fn(c)
+        member?(
+          c,
+          chars(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+          )
+        )
+      end,
+      cs
+    ) &&
+    !member?(k, ["true", "false", "null", "yes", "no", "on", "off", "y", "n"])
+end
+
+def scalar_text(v)
+  if v == nil
+    "null"
+  elsif v == true
+    "true"
+  elsif v == false
+    "false"
+  elsif number?(v)
+    to_s(v)
+  else
+    json_stringify(to_s(v))
+  end
+end
+
+def collection?(v)
+  v != nil && (map?(v) || list?(v))
+end
+
+def pretty_at(v, pad)
+  inner = "#{pad}  "
+  if collection?(v) && map?(v)
+    es = map_entries(v)
+    if es == []
+      "{}"
+    else
+      body = join(
+        map(
+          fn(e)
+            "#{inner}#{json_stringify(to_s(first(e)))}: #{pretty_at(second(e), inner)}"
+          end,
+          es
+        ),
+        ",\n"
+      )
+      "{\n#{body}\n#{pad}}"
+    end
+  elsif collection?(v)
+    if v == []
+      "[]"
+    else
+      body = join(map(fn(x) "#{inner}#{pretty_at(x, inner)}" end, v), ",\n")
+      "[\n#{body}\n#{pad}]"
+    end
+  else
+    scalar_text(v)
+  end
+end
+
+def pretty(v)
+  "#{pretty_at(v, "")}\n"
+end
+
+def yaml_key(k)
+  t = to_s(k)
+  if plain_key?(t)
+    t
+  else
+    json_stringify(t)
+  end
+end
+
+def empty_collection?(v)
+  collection?(v) && (v == [] || map_entries_or_nil(v) == [])
+end
+
+def map_entries_or_nil(v)
+  if map?(v)
+    map_entries(v)
+  else
+    nil
+  end
+end
+
+def yaml_inline(v)
+  if collection?(v) && map?(v)
+    "{}"
+  elsif collection?(v)
+    "[]"
+  else
+    scalar_text(v)
+  end
+end
+
+def yaml_lines(v, pad)
+  if collection?(v) && map?(v)
+    flatten(
+      map(
+        fn(e) yaml_entry(yaml_key(first(e)), second(e), pad) end,
+        map_entries(v)
+      )
+    )
+  else
+    flatten(map(fn(x) yaml_item(x, pad) end, v))
+  end
+end
+
+def yaml_entry(key, v, pad)
+  if collection?(v) && !empty_collection?(v)
+    append(["#{pad}#{key}:"], yaml_lines(v, "#{pad}  "))
+  else
+    ["#{pad}#{key}: #{yaml_inline(v)}"]
+  end
+end
+
+def yaml_item(x, pad)
+  if collection?(x) && !empty_collection?(x)
+    lines = yaml_lines(x, "#{pad}  ")
+    head = "#{pad}- #{join(drop(length(pad) + 2, chars(first(lines))), "")}"
+    cons(head, rest(lines))
+  else
+    ["#{pad}- #{yaml_inline(x)}"]
+  end
+end
+
+def yaml(v)
+  if collection?(v) && !empty_collection?(v)
+    "#{join(yaml_lines(v, ""), "\n")}\n"
+  else
+    "#{yaml_inline(v)}\n"
+  end
+end
+
+test "pretty prints maps sorted, lists in order, scalars as JSON"
+  assert pretty({}) == "{}\n"
+  assert pretty([]) == "[]\n"
+  assert pretty(nil) == "null\n"
+  assert pretty({"b" => [1, true], "a" => "x\"y"}) ==
+    "{\n  \"a\": \"x\\\"y\",\n  \"b\": [\n    1,\n    true\n  ]\n}\n"
+  assert json_read(pretty({"k" => {"n" => 1.5, "z" => nil}})) ==
+    {"k" => {"n" => 1.5, "z" => nil}}
+end
+
+test "yaml writes block maps and lists, quoting every string"
+  assert yaml({}) == "{}\n"
+  assert yaml([]) == "[]\n"
+  assert yaml("a") == "\"a\"\n"
+  assert yaml({"a" => 1, "b" => {"c" => "d"}}) == "a: 1\nb:\n  c: \"d\"\n"
+  assert yaml({"l" => [1, {"x" => true, "z" => []}], "e" => {}}) ==
+    "e: {}\nl:\n  - 1\n  - x: true\n    z: []\n"
+  assert yaml({"has space" => nil, "true" => false}) ==
+    "\"has space\": null\n\"true\": false\n"
+end
+
+test "a key is plain only when YAML cannot read it as something else"
+  assert plain_key?("replicaCount") == true
+  assert plain_key?("app.kubernetes.io/name") == false
+  assert plain_key?("9lives") == false
+  assert plain_key?("yes") == false
+  assert plain_key?("") == false
+end

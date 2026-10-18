@@ -103,7 +103,7 @@ pub const FORMS: &[Form] = &[
     Form {
         example: "try(risky(), catch(e(), fallback(e)))",
         lowers_to: "(try (risky) (catch (e) (fallback e)))",
-        doc: "Catch a throw. The binding is written as a call, e(). error?(e) is true inside; the kind and message are not readable, so return refusals as data when a caller must tell them apart.",
+        doc: "Catch a throw. The binding is written as a call, e(). error?(e) is true inside, and error_kind(e) and error_message(e) read it; return refusals as data when a caller must tell several apart.",
     },
 ];
 

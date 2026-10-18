@@ -1,3 +1,4 @@
+use("haibi", [:files, :write_tree])
 use("mokuroku", [:catalog_of, :render_markdown])
 use("retsu", [:concat_lists, :first, :last])
 
@@ -77,6 +78,28 @@ else
     throw(error(:regen, "blue workload render --write failed", []))
   end
   concat_lists(written, map(fn(w) json_get(last(w), "output") end, workloads))
+end
+
+lock_manifest = get(json_read(read_file("Bluefile.lock")), "manifest")
+
+written = if get(lock_manifest, "services") == nil
+  written
+else
+  concat_lists(
+    written,
+    map(
+      fn(e)
+        out = get(second(e), "output")
+        rm_rf(out)
+        write_tree(
+          out,
+          files(first(e), get(lock_manifest, "version"), second(e))
+        )
+        out
+      end,
+      map_entries(get(lock_manifest, "services"))
+    )
+  )
 end
 
 write_file("/dev/stderr", "regen: rewrote #{join(written, ", ")}\n")

@@ -1,0 +1,15 @@
+package("blue-http", "0.1.0")
+
+service(
+  "greeter",
+  {
+    program: "greeter.b",
+    repository: "ghcr.io/pleme-io/blue",
+    port: 18080,
+    config: {greeting: "hello", subject: "world"},
+    flags: {shout: false},
+    schema: {greetings: {text: "text", created_at: "timestamptz", note: "text?"}}
+  }
+)
+
+check("greeter", "greeter.b")

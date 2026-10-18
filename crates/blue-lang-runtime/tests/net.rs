@@ -410,3 +410,55 @@ fn a_subscriber_process_forwards_the_bus_to_the_program() {
     ));
     assert_eq!(strs(&v), ["on", "open"]);
 }
+
+fn fetch_when_up(port: u16, path: &'static str) -> std::thread::JoinHandle<String> {
+    std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if let Ok(mut s) = TcpStream::connect(("127.0.0.1", port)) {
+                s.write_all(format!("GET {path} HTTP/1.1\r\nHost: x\r\n\r\n").as_bytes())
+                    .expect("send");
+                let mut out = String::new();
+                s.read_to_string(&mut out).expect("read");
+                return out;
+            }
+            assert!(Instant::now() < deadline, "the blue server never listened");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    })
+}
+
+#[test]
+fn a_blue_program_serves_one_request() {
+    let port = free_port();
+    let client = fetch_when_up(port, "/hello?who=blue");
+    let v = run(&format!(
+        "l = http_listen(\"127.0.0.1:{port}\")\n\
+         r = http_next_request(l, 10000)\n\
+         http_respond(r, 200, {{\"Content-Type\" => \"text/plain\"}}, \"hi #{{get(r, :query)}}\")\n\
+         [get(r, :method), get(r, :path), get(r, :query), http_listener_port(l)]"
+    ));
+    let response = client.join().expect("client");
+    assert_eq!(strs(&v), ["GET", "/hello", "who=blue", &port.to_string()]);
+    assert!(response.starts_with("HTTP/1.1 200 OK\r\n"), "{response}");
+    assert!(response.ends_with("\r\n\r\nhi who=blue"), "{response}");
+}
+
+#[test]
+fn an_idle_listener_answers_nil_and_a_request_is_answered_once() {
+    let v = run("l = http_listen(\"127.0.0.1:0\")\nhttp_next_request(l, 10)");
+    assert!(matches!(v, Value::Nil), "{v:?}");
+    let port = free_port();
+    let client = fetch_when_up(port, "/");
+    let e = run_err(&format!(
+        "l = http_listen(\"127.0.0.1:{port}\")\n\
+         r = http_next_request(l, 10000)\n\
+         http_respond(r, 204, nil, nil)\n\
+         http_respond(r, 200, nil, \"again\")"
+    ));
+    let response = client.join().expect("client");
+    assert!(e.contains("already answered"), "{e}");
+    assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"), "{response}");
+    let taken = run_err(&format!("http_listen(\"127.0.0.1:{port}\")\nhttp_listen(\"127.0.0.1:{port}\")"));
+    assert!(taken.contains("cannot listen"), "{taken}");
+}

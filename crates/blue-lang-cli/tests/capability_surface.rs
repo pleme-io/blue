@@ -205,8 +205,10 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             ("clock", 7),
             // Since 2026-10-10: NATS (connect, publish, request, subscribe,
             // next_message, unsubscribe, close) and http_request, so a blue
-            // daemon drives a message bus and calls an HTTP API.
-            ("network", 8)
+            // daemon drives a message bus and calls an HTTP API; 12 with
+            // http_listen, http_listener_port, http_next_request and
+            // http_respond, so a blue service answers HTTP.
+            ("network", 12)
         ]
     );
 }

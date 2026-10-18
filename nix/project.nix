@@ -49,6 +49,7 @@
 # | `generate`, `catalog` or `workload` | `apps.regen` |
 # | `image(name, spec)` | Linux only: `packages.image-<name>` (substrate's `mkPackageImage` on `hardenedBases.distroless-static`, or `mkDistrolessImage` for a declared shell or tools), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
 # | `workload(name, spec)` | `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
+# | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
 # | `posture(when)` | nothing: a runtime floor, not a build fact |
 #
@@ -98,7 +99,7 @@ let
   known = [
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
-    "images" "workloads" "rules"
+    "images" "workloads" "rules" "services"
   ];
 
   readLock = src:
@@ -166,7 +167,7 @@ let
   #   oci    substrate's image builders for the system (`substrate.lib.<system>`:
   #          mkPackageImage, mkDistrolessImage, hardenedBases); null where the
   #          caller has none, and an `image(...)` is then refused by name
-  projectFor = { pkgs, blue, src, base ? null, oci ? null }:
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -344,6 +345,10 @@ let
 
       lockFile = builtins.path { path = src + "/Bluefile.lock"; name = "Bluefile.lock"; };
 
+      lowered = import ./service.nix {
+        inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio;
+      };
+
       # `workload(name, spec)`: the objects `blue workload render` writes from
       # the lock, the bytes the committed `output` must equal.
       workloadPackages = lib.mapAttrs'
@@ -362,7 +367,8 @@ let
         workloads;
 
       packages = disjoint "package" runs
-        (disjoint "package" (catalogue // generatedPackages) (imagePackages // workloadPackages));
+        (disjoint "package" (catalogue // generatedPackages)
+          (disjoint "package" (imagePackages // workloadPackages) lowered.packages));
 
       gates =
         lib.optionalAttrs (ownNames != [ ]) ({
@@ -408,7 +414,8 @@ let
           }))
           generated
         // imageChecks
-        // workloadChecks;
+        // workloadChecks
+        // lowered.checks;
 
       # `rule`: the project's rules hold over its own code. `blue check` finds
       # the rules from the Bluefiles above each file, so the files are checked
@@ -453,7 +460,7 @@ let
 
       apps = disjoint "app"
         (lib.mapAttrs (an: a: app an (programFile a.file)) m.apps)
-        (lib.optionalAttrs (m.catalog != null || generated != { } || workloads != { }) {
+        (lowered.apps // lib.optionalAttrs (m.catalog != null || generated != { } || workloads != { } || lowered.services != { }) {
           # gen/regen.b reads the project's Bluefile.lock from the directory
           # it is run in: `nix run .#regen` from the project root.
           regen = app "regen" ../gen/regen.b;
@@ -463,6 +470,7 @@ let
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
     else {
       inherit name runner bidamas packages apps bluePath imageGate;
+      inherit (lowered) services trios executables;
       checks = disjoint "check" (disjoint "check" gates ruleGate) checkWords;
     };
 in
@@ -477,16 +485,25 @@ in
   #   blueFor   system -> the `blue` executable
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null) }: { src }:
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null }: { src }:
     let
       per = lib.genAttrs systems (system: projectFor {
-        inherit src;
+        inherit src moduleTrio;
         pkgs = pkgsFor system;
         blue = blueFor system;
         oci = ociFor system;
       });
+      any = per.${builtins.head systems};
+      arm = a: lib.mapAttrs (_: t: t."${a}Module") any.trios;
     in
-    {
+    lib.optionalAttrs (any.services != { }) {
+      overlays.default = final: _prev:
+        lib.mapAttrs (sn: _: per.${final.stdenv.hostPlatform.system}.executables.${sn}) any.services;
+      nixosModules = arm "nixos";
+      darwinModules = arm "darwin";
+      homeManagerModules = arm "homeManager";
+    }
+    // {
       packages = lib.mapAttrs
         (_: p: disjoint "package" p.packages { default = p.runner; ${p.name} = p.runner; })
         per;

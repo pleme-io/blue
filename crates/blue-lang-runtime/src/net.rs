@@ -13,6 +13,10 @@
 //! nats_unsubscribe(sub)                       → nil
 //! nats_close(conn)                            → nil
 //! http_request(method, url, headers, body, ms) → {status:, headers:, body:}
+//! http_listen(addr)                           → listener
+//! http_listener_port(listener)                → the bound port
+//! http_next_request(listener, ms)             → {method:, path:, query:, headers:, body:, exchange:} or nil
+//! http_respond(exchange, status, headers, body) → nil
 //! ```
 //!
 //! A connection and a subscription are opaque `Value::Foreign` handles. Every
@@ -21,6 +25,7 @@
 
 pub mod http;
 pub mod nats;
+pub mod serve;
 
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
@@ -237,6 +242,7 @@ fn headers_arg(
 pub fn install_net<H: 'static>(interp: &mut Interpreter<H>) {
     install_nats(interp);
     install_http(interp);
+    install_serve(interp);
 }
 
 fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
@@ -388,6 +394,130 @@ fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
                 ),
                 ("body", text(&resp.body)),
             ]))
+        },
+    );
+}
+
+struct HttpListener(serve::Listener);
+
+struct HttpExchange(Mutex<Option<TcpStream>>);
+
+fn listener(v: &Value, fname: &'static str, span: Span) -> Result<Arc<HttpListener>, EvalError> {
+    if let Value::Foreign(any) = v {
+        if let Ok(l) = Arc::downcast::<HttpListener>(any.clone()) {
+            return Ok(l);
+        }
+    }
+    Err(EvalError::native_fn(
+        fname,
+        format!("expected a listener from http_listen, got {}", v.type_name()),
+        span,
+    ))
+}
+
+fn exchange(v: &Value, fname: &'static str, span: Span) -> Result<Arc<HttpExchange>, EvalError> {
+    let inner = match v {
+        Value::Map(m) => m.get(&MapKey::Keyword(Arc::from("exchange"))).cloned(),
+        other => Some(other.clone()),
+    };
+    if let Some(Value::Foreign(any)) = inner {
+        if let Ok(x) = Arc::downcast::<HttpExchange>(any) {
+            return Ok(x);
+        }
+    }
+    Err(EvalError::native_fn(
+        fname,
+        format!(
+            "expected a request from http_next_request, got {}",
+            v.type_name()
+        ),
+        span,
+    ))
+}
+
+fn pairs(headers: Vec<(String, String)>) -> Value {
+    Value::list(
+        headers
+            .into_iter()
+            .map(|(k, v)| Value::list(vec![Value::Str(Arc::from(k)), Value::Str(Arc::from(v))]))
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
+    interp.register_fn(
+        "http_listen",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let addr = arg_str(&args[0], "http_listen", span)?;
+            let l = serve::Listener::bind(&addr)
+                .map_err(|e| EvalError::native_fn("http_listen", e.to_string(), span))?;
+            Ok(Value::Foreign(Arc::new(HttpListener(l))))
+        },
+    );
+
+    interp.register_fn(
+        "http_listener_port",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let l = listener(&args[0], "http_listener_port", span)?;
+            let addr =
+                l.0.local_addr()
+                    .map_err(|e| EvalError::native_fn("http_listener_port", e.to_string(), span))?;
+            Ok(Value::Int(i64::from(addr.port())))
+        },
+    );
+
+    interp.register_fn(
+        "http_next_request",
+        Arity::Exact(2),
+        |args: &[Value], _h: &mut H, span| {
+            let l = listener(&args[0], "http_next_request", span)?;
+            let timeout = arg_ms(&args[1], "http_next_request", span, true)?;
+            let next =
+                l.0.next(timeout)
+                    .map_err(|e| EvalError::native_fn("http_next_request", e.to_string(), span))?;
+            Ok(next.map_or(Value::Nil, |(req, stream)| {
+                record(vec![
+                    ("method", Value::Str(Arc::from(req.method))),
+                    ("path", Value::Str(Arc::from(req.path))),
+                    ("query", Value::Str(Arc::from(req.query))),
+                    ("headers", pairs(req.headers)),
+                    ("body", text(&req.body)),
+                    (
+                        "exchange",
+                        Value::Foreign(Arc::new(HttpExchange(Mutex::new(Some(stream))))),
+                    ),
+                ])
+            }))
+        },
+    );
+
+    interp.register_fn(
+        "http_respond",
+        Arity::Exact(4),
+        |args: &[Value], _h: &mut H, span| {
+            let x = exchange(&args[0], "http_respond", span)?;
+            let status = arg_int(&args[1], "http_respond", span)?;
+            let status = u16::try_from(status).map_err(|_| {
+                EvalError::native_fn("http_respond", format!("{status} is not a status"), span)
+            })?;
+            let headers = headers_arg(&args[2], "http_respond", span)?;
+            let body = match &args[3] {
+                Value::Nil => String::new(),
+                other => arg_str(other, "http_respond", span)?.to_string(),
+            };
+            let stream = x
+                .0
+                .lock()
+                .map_err(|_| EvalError::native_fn("http_respond", "the exchange's lock is poisoned", span))?
+                .take()
+                .ok_or_else(|| {
+                    EvalError::native_fn("http_respond", "this request was already answered", span)
+                })?;
+            serve::respond(&stream, status, &headers, body.as_bytes())
+                .map_err(|e| EvalError::native_fn("http_respond", e.to_string(), span))?;
+            Ok(Value::Nil)
         },
     );
 }

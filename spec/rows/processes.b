@@ -98,3 +98,11 @@ row(
   value("[[[1, :ok]], [:v2, 14]]"),
   covers("builtin:defmigrate")
 )
+
+row(
+  "processes.exit_with.not_a_status",
+  "exit_with(4294967296)",
+  fails(:eval, "is not a process exit status"),
+  covers("builtin:exit_with"),
+  host()
+)

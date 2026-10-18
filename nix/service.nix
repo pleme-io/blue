@@ -273,11 +273,14 @@ in
   apps = lib.concatMapAttrs
     (sn: set: {
       "grype-scan-${sn}" = set.apps."grype-scan:${sn}";
-      "scan-floor-${sn}" = oci.mkScanFloorApp {
-        imagePath = set.packages."${sn}Image";
-        expectTargets = [ "rustbinary" ];
-        label = sn;
-        inherit (oci.hardenedImageSetArgs) tataraScript;
+      "scan-floor-${sn}" = {
+        type = "app";
+        program = "${oci.mkScanFloorApp {
+          imagePath = set.packages."${sn}Image";
+          expectTargets = [ "rustbinary" ];
+          label = sn;
+          inherit (oci.hardenedImageSetArgs) tataraScript;
+        }}";
       };
     })
     imageSets;

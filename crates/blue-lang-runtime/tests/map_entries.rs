@@ -33,7 +33,10 @@ fn entries_rebuild_the_map_they_came_from() {
 
 #[test]
 fn a_list_is_not_a_map() {
-    let e = blue_lang_runtime::run("map_entries([[\"a\", 1]])").err().map(|e| e.to_string()).unwrap_or_default();
+    let e = blue_lang_runtime::run("map_entries([[\"a\", 1]])")
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
     assert!(e.contains("a map"), "{e}");
 }
 
@@ -49,10 +52,15 @@ fn json_read_gives_maps_that_get_and_map_entries_open() {
 #[test]
 fn an_errors_message_and_kind_are_readable() {
     assert_eq!(
-        text(r#"e = try(throw(error(:late, "after noon")), catch(x(), x))
-[error_kind(e), error_message(e)]"#),
+        text(
+            r#"e = try(throw(error(:late, "after noon")), catch(x(), x))
+[error_kind(e), error_message(e)]"#
+        ),
         text(r#"[:late, "after noon"]"#)
     );
-    let refused = blue_lang_runtime::run("error_message(\"no\")").err().map(|e| e.to_string()).unwrap_or_default();
+    let refused = blue_lang_runtime::run("error_message(\"no\")")
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
     assert!(refused.contains("an error"), "{refused}");
 }

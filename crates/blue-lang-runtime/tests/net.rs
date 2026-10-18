@@ -458,7 +458,12 @@ fn an_idle_listener_answers_nil_and_a_request_is_answered_once() {
     ));
     let response = client.join().expect("client");
     assert!(e.contains("already answered"), "{e}");
-    assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"), "{response}");
-    let taken = run_err(&format!("http_listen(\"127.0.0.1:{port}\")\nhttp_listen(\"127.0.0.1:{port}\")"));
+    assert!(
+        response.starts_with("HTTP/1.1 204 No Content\r\n"),
+        "{response}"
+    );
+    let taken = run_err(&format!(
+        "http_listen(\"127.0.0.1:{port}\")\nhttp_listen(\"127.0.0.1:{port}\")"
+    ));
     assert!(taken.contains("cannot listen"), "{taken}");
 }

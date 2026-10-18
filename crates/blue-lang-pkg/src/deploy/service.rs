@@ -116,7 +116,9 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
         return Err(SpecError::Repository { got: repository });
     }
     let port = port_of("port", s.required("port")?)?;
-    let probe = s.text("probe")?.unwrap_or_else(|| DEFAULT_PROBE.to_string());
+    let probe = s
+        .text("probe")?
+        .unwrap_or_else(|| DEFAULT_PROBE.to_string());
     if !probe.starts_with('/') {
         return Err(SpecError::ProbePath { got: probe });
     }
@@ -309,17 +311,43 @@ mod tests {
             let errs = refused(&body);
             assert!(errs.iter().any(|e| e.contains(needle)), "{extra}: {errs:?}");
         }
-        let missing = refused("service(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\"})\n");
-        assert!(missing.iter().any(|e| e.contains("`port` is required")), "{missing:?}");
+        let missing = refused(
+            "service(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\"})\n",
+        );
+        assert!(
+            missing.iter().any(|e| e.contains("`port` is required")),
+            "{missing:?}"
+        );
     }
 
     #[test]
     fn a_service_may_not_share_an_image_name_or_an_output() {
-        let errs = refused(&[MINIMAL, "image(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/x\"})\n"].concat());
-        assert!(errs.iter().any(|e| e.contains("both a service and an image")), "{errs:?}");
-        let errs = refused(&[MINIMAL, "generate(\"g\", \"deploy/hello/chart/x\", \"g.b\")\n"].concat());
-        assert!(errs.iter().any(|e| e.contains("already written by")), "{errs:?}");
-        assert!(read(&[MINIMAL, "generate(\"g\", \"deploy/hellothere\", \"g.b\")\n"].concat()).is_ok());
+        let errs = refused(
+            &[
+                MINIMAL,
+                "image(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/x\"})\n",
+            ]
+            .concat(),
+        );
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("both a service and an image")),
+            "{errs:?}"
+        );
+        let errs = refused(
+            &[
+                MINIMAL,
+                "generate(\"g\", \"deploy/hello/chart/x\", \"g.b\")\n",
+            ]
+            .concat(),
+        );
+        assert!(
+            errs.iter().any(|e| e.contains("already written by")),
+            "{errs:?}"
+        );
+        assert!(
+            read(&[MINIMAL, "generate(\"g\", \"deploy/hellothere\", \"g.b\")\n"].concat()).is_ok()
+        );
     }
 
     #[test]

@@ -762,9 +762,9 @@ pub fn check_entries(project: &Project, refused_images: &BTreeSet<String>) -> Ve
             });
         }
         let dir = [svc.output.as_str(), "/"].concat();
-        let taken = outputs
-            .iter()
-            .find(|(o, _)| **o == svc.output || o.starts_with(&dir) || svc.output.starts_with(&[*o, "/"].concat()));
+        let taken = outputs.iter().find(|(o, _)| {
+            **o == svc.output || o.starts_with(&dir) || svc.output.starts_with(&[*o, "/"].concat())
+        });
         match taken {
             Some((_, by)) => refusals.push(Refusal {
                 word: "service",

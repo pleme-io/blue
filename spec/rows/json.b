@@ -58,3 +58,10 @@ row(
   value("true"),
   pending("G4")
 )
+
+row(
+  "json.read_gives_maps",
+  "get(json_read(\"{\\\"a\\\": [1]}\"), \"a\")",
+  value("[1]"),
+  covers("builtin:json_read")
+)

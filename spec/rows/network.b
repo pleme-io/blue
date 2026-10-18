@@ -68,3 +68,35 @@ row(
   covers("builtin:http_request"),
   host()
 )
+
+row(
+  "network.http_listen.bad_address",
+  "http_listen(\"no-port-here\")",
+  fails(:eval, "cannot listen"),
+  covers("builtin:http_listen"),
+  host()
+)
+
+row(
+  "network.http_listener_port.not_a_listener",
+  "http_listener_port(:x)",
+  fails(:eval, "expected a listener"),
+  covers("builtin:http_listener_port"),
+  host()
+)
+
+row(
+  "network.http_next_request.not_a_listener",
+  "http_next_request(:x, 0)",
+  fails(:eval, "expected a listener"),
+  covers("builtin:http_next_request"),
+  host()
+)
+
+row(
+  "network.http_respond.not_a_request",
+  "http_respond(:x, 200, nil, nil)",
+  fails(:eval, "expected a request"),
+  covers("builtin:http_respond"),
+  host()
+)

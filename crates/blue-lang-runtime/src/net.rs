@@ -410,7 +410,10 @@ fn listener(v: &Value, fname: &'static str, span: Span) -> Result<Arc<HttpListen
     }
     Err(EvalError::native_fn(
         fname,
-        format!("expected a listener from http_listen, got {}", v.type_name()),
+        format!(
+            "expected a listener from http_listen, got {}",
+            v.type_name()
+        ),
         span,
     ))
 }
@@ -510,7 +513,9 @@ fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
             let stream = x
                 .0
                 .lock()
-                .map_err(|_| EvalError::native_fn("http_respond", "the exchange's lock is poisoned", span))?
+                .map_err(|_| {
+                    EvalError::native_fn("http_respond", "the exchange's lock is poisoned", span)
+                })?
                 .take()
                 .ok_or_else(|| {
                     EvalError::native_fn("http_respond", "this request was already answered", span)

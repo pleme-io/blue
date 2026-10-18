@@ -43,14 +43,16 @@ row(
   "errors.readable.kind",
   "try(throw(error(:boom, \"why\")), catch(e(), error_kind(e)))",
   value(":boom"),
-  pending("G4")
+  covers("builtin:error_kind"),
+  pending("G4", "wasm")
 )
 
 row(
   "errors.readable.message",
   "try(throw(error(:boom, \"why\")), catch(e(), error_message(e)))",
   value("\"why\""),
-  pending("G4")
+  covers("builtin:error_message"),
+  pending("G4", "wasm")
 )
 
 row(

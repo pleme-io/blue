@@ -72,3 +72,10 @@ row(
   "reduce(fn(m, i) assoc(m, i, i) end, {}, range(0, 2000)) |> get(1999)",
   value("1999")
 )
+
+row(
+  "maps.map_entries",
+  "map_entries({b: 2, a: 1})",
+  value("[[:a, 1], [:b, 2]]"),
+  covers("builtin:map_entries")
+)

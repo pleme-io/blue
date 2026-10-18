@@ -170,7 +170,8 @@ pub struct Listener {
 
 impl Listener {
     pub fn bind(addr: &str) -> Result<Listener, ServeError> {
-        let inner = TcpListener::bind(addr).map_err(|e| ServeError::Bind(format!("{addr}: {e}")))?;
+        let inner =
+            TcpListener::bind(addr).map_err(|e| ServeError::Bind(format!("{addr}: {e}")))?;
         inner
             .set_nonblocking(true)
             .map_err(|e| ServeError::Bind(format!("{addr}: {e}")))?;
@@ -281,14 +282,22 @@ mod tests {
             b"POST / HTTP/1.1\r\nContent-Length: x\r\n\r\n",
             b"POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n",
         ] {
-            assert!(parse_request(wire).is_err(), "{:?}", String::from_utf8_lossy(wire));
+            assert!(
+                parse_request(wire).is_err(),
+                "{:?}",
+                String::from_utf8_lossy(wire)
+            );
         }
     }
 
     #[test]
     fn a_response_carries_its_length_and_closes() {
-        let wire = encode_response(200, &[("Content-Type".into(), "text/plain".into())], b"hello")
-            .unwrap();
+        let wire = encode_response(
+            200,
+            &[("Content-Type".into(), "text/plain".into())],
+            b"hello",
+        )
+        .unwrap();
         assert_eq!(
             String::from_utf8(wire).unwrap(),
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello"

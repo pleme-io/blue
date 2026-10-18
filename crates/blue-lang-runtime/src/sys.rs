@@ -102,6 +102,21 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
+        "exit_with",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            use std::io::Write;
+            let code = arg_int(&args[0], "exit_with", span)?;
+            let code = i32::try_from(code).map_err(|_| {
+                EvalError::native_fn("exit_with", format!("{code} is not a process exit status"), span)
+            })?;
+            let _ = std::io::stdout().flush();
+            let _ = std::io::stderr().flush();
+            std::process::exit(code)
+        },
+    );
+
+    interp.register_fn(
         "exec_capture",
         Arity::AtLeast(1),
         |args: &[Value], _h: &mut H, span| {

@@ -193,9 +193,11 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
     assert_eq!(
         counts,
         vec![
-            // 7 since 2026-10-08: exec_into, so a blue wrapper hands its
-            // process to the command it wraps (keiyu).
-            ("process", 7),
+            // 8 since 2026-10-18: exit_with, so a command ends with the
+            // status its caller branches on (kirikae's hold is 75). 7 since
+            // 2026-10-08: exec_into, so a blue wrapper hands its process to
+            // the command it wraps (keiyu).
+            ("process", 8),
             // 21 since 2026-09-27: rename_file, the atomic replace a file
             // another program polls needs (nix's `builders = @file`).
             ("filesystem", 21),

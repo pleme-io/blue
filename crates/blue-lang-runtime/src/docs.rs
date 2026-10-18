@@ -358,6 +358,7 @@ pub const NAMES: &[NameDoc] = names! {
     Process: "exec_with_stdin" "exec_with_stdin(input, cmd, args...)" "exec_capture, with input written to the command's stdin. The INPUT comes first.";
     Process: "exec_with_env" "exec_with_env(env, cmd, args...)" "exec_capture with extra environment variables, given as [[name, value], …].";
     Process: "exec_into" "exec_into(env, cmd, args...)" "Replace this process with a command run with extra environment variables, given as [[name, value], …]; stdio is inherited. Returns only by raising, when the command cannot start.";
+    Process: "exit_with" "exit_with(code)" "End the program now with this exit status, after flushing stdout and stderr. A typed outcome a caller must branch on (EX_TEMPFAIL 75 for a hold) leaves this way, not as an uncaught error.";
     Process: "sh_exec" "sh_exec(script)" "Run a script through sh; the same result as exec_capture. Prefer exec_capture, which cannot be injected into.";
     // ── environment ───────────────────────────────────────────────────────
     Environment: "getenv" "getenv(name[, default])" "An environment variable, or default (nil when none is given).";

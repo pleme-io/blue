@@ -196,6 +196,7 @@ const PROCESS_NAMES: &[&str] = &[
     "exec_with_stdin",
     "exec_with_env",
     "exec_into",
+    "exit_with",
     "sh_exec",
 ];
 /// `blue_lang_runtime::sys::install_fs`, 2026-08-13.

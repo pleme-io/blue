@@ -466,7 +466,12 @@ def plan_unguarded(s)
 end
 
 def summary(p)
-  "kirikae: #{to_s(get(p, :action))} — #{get(p, :why)} (planned in #{to_s(get(p, :plan_ms))} ms; #{to_s(get(p, :build))} to build, #{to_s(get(p, :fetch))} to fetch)\n"
+  work = if get(p, :build) == nil
+    ""
+  else
+    " (planned in #{to_s(get(p, :plan_ms))} ms; #{to_s(get(p, :build))} to build, #{to_s(get(p, :fetch))} to fetch)"
+  end
+  "kirikae: #{to_s(get(p, :action))} — #{get(p, :why)}#{work}\n"
 end
 
 def node_step(acc, a)
@@ -506,9 +511,9 @@ def run(cmd)
   write_stderr(summary(p))
   a = get(p, :action)
   if a == :noop && getenv("KIRIKAE_FORCE", "") == ""
-    "noop"
+    outcome_of(0, "noop")
   elsif a == :hold && getenv("KIRIKAE_FORCE", "") == ""
-    throw(error(:hold, get(p, :why)))
+    outcome_of(exit_hold(), "hold")
   elsif a == :refuse
     if get(p, :key) != nil
       record(
@@ -516,7 +521,7 @@ def run(cmd)
         entry(get(p, :key), "failed", now_ms(), get(p, :why))
       )
     end
-    throw(error(:refuse, get(p, :why)))
+    outcome_of(exit_refused(), "refuse")
   else
     status = apply(exec_check, cmd)
     outcome = if status == 0
@@ -533,16 +538,44 @@ def run(cmd)
         "#{last(cmd)} exited #{to_s(status)}"
       )
     )
-    if status != 0
-      throw(error(:switch_failed, "#{join(cmd, " ")} exited #{to_s(status)}"))
-    end
-    outcome
+    outcome_of(status, outcome)
+  end
+end
+
+def exit_hold()
+  75
+end
+
+def exit_refused()
+  78
+end
+
+def outcome_of(status, text)
+  {status: status, text: text}
+end
+
+def exit_status_of(answer)
+  if map?(answer)
+    get(answer, :status)
+  else
+    0
+  end
+end
+
+def text_of(answer)
+  if map?(answer)
+    get(answer, :text)
+  else
+    answer
   end
 end
 
 def main()
-  text = answer(argv())
-  write_stdout("#{text}\n")
+  a = answer(argv())
+  write_stdout("#{text_of(a)}\n")
+  if exit_status_of(a) != 0
+    exit_with(exit_status_of(a))
+  end
   nil
 end
 
@@ -776,6 +809,24 @@ test "a loop that already runs the checkout's rev answers the plan without evalu
   ) ==
     nil
   assert heartbeat_noop("", head, a()) == nil
+end
+
+test "a plan that evaluated nothing says so without empty counts"
+  assert summary({action: :hold, why: "busy"}) == "kirikae: hold — busy\n"
+  assert ends_with?(
+    summary({action: :noop, why: "same", plan_ms: 5, build: 0, fetch: 0}),
+    "0 to fetch)\n"
+  ) ==
+    true
+end
+
+test "an outcome carries the exit status a caller branches on"
+  assert exit_status_of(outcome_of(exit_hold(), "hold")) == 75
+  assert exit_status_of(outcome_of(exit_refused(), "refuse")) == 78
+  assert exit_status_of(outcome_of(0, "noop")) == 0
+  assert exit_status_of("{\"action\":\"noop\"}") == 0
+  assert text_of(outcome_of(75, "hold")) == "hold"
+  assert text_of("plain") == "plain"
 end
 
 test "a command's answer is text it can print, and a wrong verb is a usage error"

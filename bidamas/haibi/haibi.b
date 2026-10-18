@@ -370,6 +370,7 @@ def service_account(n)
       "kind: ServiceAccount",
       "metadata:",
       "  name: {{ include \"#{n}.fullname\" . }}",
+      "  namespace: {{ .Release.Namespace }}",
       "  labels:",
       "    {{- include \"#{n}.labels\" . | nindent 4 }}",
       "automountServiceAccountToken: false"
@@ -384,6 +385,7 @@ def service(n)
       "kind: Service",
       "metadata:",
       "  name: {{ include \"#{n}.fullname\" . }}",
+      "  namespace: {{ .Release.Namespace }}",
       "  labels:",
       "    {{- include \"#{n}.labels\" . | nindent 4 }}",
       "spec:",
@@ -407,6 +409,7 @@ def deployment(n)
       "kind: Deployment",
       "metadata:",
       "  name: {{ include \"#{n}.fullname\" . }}",
+      "  namespace: {{ .Release.Namespace }}",
       "  labels:",
       "    {{- include \"#{n}.labels\" . | nindent 4 }}",
       "spec:",
@@ -487,6 +490,7 @@ def migration(n)
       "kind: ConfigMap",
       "metadata:",
       "  name: {{ include \"#{n}.fullname\" . }}-schema",
+      "  namespace: {{ .Release.Namespace }}",
       "  labels:",
       "    {{- include \"#{n}.labels\" . | nindent 4 }}",
       "data:",
@@ -497,6 +501,7 @@ def migration(n)
       "kind: DatabaseMigration",
       "metadata:",
       "  name: {{ include \"#{n}.fullname\" . }}-schema",
+      "  namespace: {{ .Release.Namespace }}",
       "  labels:",
       "    {{- include \"#{n}.labels\" . | nindent 4 }}",
       "spec:",
@@ -697,4 +702,6 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   ) ==
     true
   assert contains?(deployment("ola-mundo"), "OLA_MUNDO_FLAGS__%s") == true
+  assert contains?(service("hello"), "  namespace: {{ .Release.Namespace }}") ==
+    true
 end

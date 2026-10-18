@@ -1,5 +1,9 @@
 apiVersion: "v2"
 appVersion: "0.1.0"
+dependencies:
+  - name: "pleme-lib"
+    repository: "oci://ghcr.io/pleme-io/charts"
+    version: ">=0.53.0"
 description: "greeter, rendered by blue from its Bluefile service declaration"
 name: "greeter"
 type: "application"

@@ -110,6 +110,28 @@ def tables(svc)
 end
 
 def values(svc)
+  values_with(svc, :pleme_lib)
+end
+
+def service_values(svc, mode)
+  if mode == :self
+    {"type" => "ClusterIP", "port" => get(svc, "port")}
+  else
+    {
+      "type" => "ClusterIP",
+      "ports" => [
+        {
+          "name" => "http",
+          "port" => get(svc, "port"),
+          "targetPort" => "http",
+          "protocol" => "TCP"
+        }
+      ]
+    }
+  end
+end
+
+def values_with(svc, mode)
   d = defaults(svc)
   base = {
     "replicaCount" => get_or(svc, "replicas", 1),
@@ -119,7 +141,7 @@ def values(svc)
       "pullPolicy" => "IfNotPresent"
     },
     "command" => [],
-    "service" => {"type" => "ClusterIP", "port" => get(svc, "port")},
+    "service" => service_values(svc, mode),
     "listen" => get(d, "listen"),
     "health" => get(d, "health"),
     "config" => from_entries(entries_of(get_or(svc, "config", {}))),
@@ -137,11 +159,20 @@ def values(svc)
       "capabilities" => {"drop" => ["ALL"]}
     }
   }
-  if tables(svc) == []
+  with_sa = if mode == :self
     base
   else
     assoc(
       base,
+      "serviceAccount",
+      {"create" => true, "automountServiceAccountToken" => false}
+    )
+  end
+  if tables(svc) == []
+    with_sa
+  else
+    assoc(
+      with_sa,
       "database",
       {
         "enabled" => false,
@@ -158,7 +189,11 @@ def values(svc)
 end
 
 def values_schema(name, svc)
-  v = values(svc)
+  values_schema_with(name, svc, :pleme_lib)
+end
+
+def values_schema_with(name, svc, mode)
+  v = values_with(svc, mode)
   closed = schema_of(v)
   props = get(closed, "properties")
   string_map = open_object({"type" => "string"})
@@ -203,7 +238,12 @@ def values_schema(name, svc)
     "replicaCount",
     replicas
   )
-  document("#{name} chart values", assoc(closed, "properties", open))
+  with_library = if mode == :self
+    open
+  else
+    assoc(assoc(open, "pleme-lib", kube_object), "global", kube_object)
+  end
+  document("#{name} chart values", assoc(closed, "properties", with_library))
 end
 
 def column_sql(spec)
@@ -316,17 +356,36 @@ def lines(xs)
   "#{join(xs, "\n")}\n"
 end
 
-def chart_yaml(name, version)
+def chart_yaml(name, version, mode)
+  base = {
+    "apiVersion" => "v2",
+    "name" => name,
+    "description" => "#{name}, rendered by blue from its Bluefile service declaration",
+    "type" => "application",
+    "version" => version,
+    "appVersion" => version
+  }
   yaml(
-    {
-      "apiVersion" => "v2",
-      "name" => name,
-      "description" => "#{name}, rendered by blue from its Bluefile service declaration",
-      "type" => "application",
-      "version" => version,
-      "appVersion" => version
-    }
+    if mode == :self
+      base
+    else
+      assoc(
+        base,
+        "dependencies",
+        [
+          {
+            "name" => "pleme-lib",
+            "version" => pleme_lib_range(),
+            "repository" => "oci://ghcr.io/pleme-io/charts"
+          }
+        ]
+      )
+    end
   )
+end
+
+def pleme_lib_range()
+  ">=0.53.0"
 end
 
 def helpers(n)
@@ -401,32 +460,32 @@ def service(n)
   )
 end
 
-def deployment(n)
+def deployment(n, h)
   p = env_prefix(n)
   lines(
     [
       "apiVersion: apps/v1",
       "kind: Deployment",
       "metadata:",
-      "  name: {{ include \"#{n}.fullname\" . }}",
+      "  name: {{ include \"#{h}.fullname\" . }}",
       "  namespace: {{ .Release.Namespace }}",
       "  labels:",
-      "    {{- include \"#{n}.labels\" . | nindent 4 }}",
+      "    {{- include \"#{h}.labels\" . | nindent 4 }}",
       "spec:",
       "  replicas: {{ .Values.replicaCount }}",
       "  selector:",
       "    matchLabels:",
-      "      {{- include \"#{n}.selectorLabels\" . | nindent 6 }}",
+      "      {{- include \"#{h}.selectorLabels\" . | nindent 6 }}",
       "  template:",
       "    metadata:",
       "      labels:",
-      "        {{- include \"#{n}.selectorLabels\" . | nindent 8 }}",
+      "        {{- include \"#{h}.selectorLabels\" . | nindent 8 }}",
       "      {{- with .Values.podAnnotations }}",
       "      annotations:",
       "        {{- toYaml . | nindent 8 }}",
       "      {{- end }}",
       "    spec:",
-      "      serviceAccountName: {{ include \"#{n}.fullname\" . }}",
+      "      serviceAccountName: {{ include \"#{h}.fullname\" . }}",
       "      automountServiceAccountToken: false",
       "      {{- with .Values.podSecurityContext }}",
       "      securityContext:",
@@ -481,7 +540,7 @@ def deployment(n)
   )
 end
 
-def migration(n)
+def migration(_n, h)
   lines(
     [
       "{{- if .Values.database.enabled }}",
@@ -489,10 +548,10 @@ def migration(n)
       "apiVersion: v1",
       "kind: ConfigMap",
       "metadata:",
-      "  name: {{ include \"#{n}.fullname\" . }}-schema",
+      "  name: {{ include \"#{h}.fullname\" . }}-schema",
       "  namespace: {{ .Release.Namespace }}",
       "  labels:",
-      "    {{- include \"#{n}.labels\" . | nindent 4 }}",
+      "    {{- include \"#{h}.labels\" . | nindent 4 }}",
       "data:",
       "  schema.sql: |-",
       "    {{- .Files.Get \"files/schema.sql\" | trimSuffix \"\\n\" | nindent 4 }}",
@@ -500,10 +559,10 @@ def migration(n)
       "apiVersion: shinka.pleme.io/v1alpha1",
       "kind: DatabaseMigration",
       "metadata:",
-      "  name: {{ include \"#{n}.fullname\" . }}-schema",
+      "  name: {{ include \"#{h}.fullname\" . }}-schema",
       "  namespace: {{ .Release.Namespace }}",
       "  labels:",
-      "    {{- include \"#{n}.labels\" . | nindent 4 }}",
+      "    {{- include \"#{h}.labels\" . | nindent 4 }}",
       "spec:",
       "  database:",
       "    directRef:",
@@ -520,12 +579,12 @@ def migration(n)
       "        name: {{ required \"database.credentialsSecret is required when database.enabled is true\" $db.credentialsSecret | quote }}",
       "      passwordKey: {{ $db.passwordKey | quote }}",
       "      sqlConfigMapRef:",
-      "        name: {{ include \"#{n}.fullname\" . }}-schema",
+      "        name: {{ include \"#{h}.fullname\" . }}-schema",
       "  migrator:",
       "    type: custom",
       "    imageOverride: {{ $db.migratorImage | quote }}",
       "    deploymentRef:",
-      "      name: {{ include \"#{n}.fullname\" . }}",
+      "      name: {{ include \"#{h}.fullname\" . }}",
       "    command:",
       "      - psql",
       "      - -v",
@@ -537,31 +596,59 @@ def migration(n)
   )
 end
 
-def notes(n)
+def notes(n, h)
   lines(
     [
-      "{{ include \"#{n}.fullname\" . }} answers HTTP on service port {{ .Values.service.port }}; its health is {{ .Values.health }}.",
+      "{{ include \"#{h}.fullname\" . }} answers HTTP on port {{ .Values.listen.port }}; its health is {{ .Values.health }}.",
       "Settings reach it as #{env_prefix(n)}* environment variables, the shikumi env tier over its baked defaults."
     ]
   )
 end
 
 def files(name, version, svc)
+  files_with(name, version, svc, :pleme_lib)
+end
+
+def files_self(name, version, svc)
+  files_with(name, version, svc, :self)
+end
+
+def files_with(name, version, svc, mode)
+  h = if mode == :self
+    name
+  else
+    "pleme-lib"
+  end
+  own = if mode == :self
+    [
+      ["chart/templates/_helpers.tpl", helpers(name)],
+      ["chart/templates/serviceaccount.yaml", service_account(name)],
+      ["chart/templates/service.yaml", service(name)]
+    ]
+  else
+    [
+      [
+        "chart/templates/serviceaccount.yaml",
+        "{{- include \"pleme-lib.serviceaccount\" . }}\n"
+      ],
+      [
+        "chart/templates/service.yaml",
+        "{{- include \"pleme-lib.service\" . }}\n"
+      ]
+    ]
+  end
   chart = [
-    ["chart/Chart.yaml", chart_yaml(name, version)],
-    ["chart/values.yaml", yaml(values(svc))],
-    ["chart/values.schema.json", pretty(values_schema(name, svc))],
-    ["chart/templates/_helpers.tpl", helpers(name)],
-    ["chart/templates/serviceaccount.yaml", service_account(name)],
-    ["chart/templates/deployment.yaml", deployment(name)],
-    ["chart/templates/service.yaml", service(name)],
-    ["chart/templates/NOTES.txt", notes(name)]
+    ["chart/Chart.yaml", chart_yaml(name, version, mode)],
+    ["chart/values.yaml", yaml(values_with(svc, mode))],
+    ["chart/values.schema.json", pretty(values_schema_with(name, svc, mode))],
+    ["chart/templates/deployment.yaml", deployment(name, h)],
+    ["chart/templates/NOTES.txt", notes(name, h)]
   ]
   db = if tables(svc) == []
     []
   else
     [
-      ["chart/templates/migration.yaml", migration(name)],
+      ["chart/templates/migration.yaml", migration(name, h)],
       ["chart/files/schema.sql", ddl(svc)]
     ]
   end
@@ -569,7 +656,7 @@ def files(name, version, svc)
     ["config/#{name}.yaml", pretty(defaults(svc))],
     ["config/#{name}.schema.json", pretty(config_schema(name, svc))]
   ]
-  sort_keyed(fn(f) first(f) end, append(chart, db, config))
+  sort_keyed(fn(f) first(f) end, append(chart, own, db, config))
 end
 
 def write_tree(root, fs)
@@ -675,13 +762,14 @@ test "a row is checked against its table before it becomes SQL"
 end
 
 test "the tree holds the chart, its schema, the config and, with a schema, the migration"
+  self_paths = map(fn(f) first(f) end, files_self("hello", "0.1.0", sample()))
+  assert member?("chart/templates/_helpers.tpl", self_paths) == true
   paths = map(fn(f) first(f) end, files("hello", "0.1.0", sample()))
   assert paths ==
     [
       "chart/Chart.yaml",
       "chart/files/schema.sql",
       "chart/templates/NOTES.txt",
-      "chart/templates/_helpers.tpl",
       "chart/templates/deployment.yaml",
       "chart/templates/migration.yaml",
       "chart/templates/service.yaml",
@@ -701,7 +789,26 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
     "version: \"0.1.0\""
   ) ==
     true
-  assert contains?(deployment("ola-mundo"), "OLA_MUNDO_FLAGS__%s") == true
+  assert contains?(
+    deployment("ola-mundo", "pleme-lib"),
+    "OLA_MUNDO_FLAGS__%s"
+  ) ==
+    true
+  assert contains?(
+    deployment("ola-mundo", "pleme-lib"),
+    "include \"pleme-lib.fullname\""
+  ) ==
+    true
+  assert contains?(
+    second(first(files("hello", "0.1.0", sample()))),
+    "name: \"pleme-lib\""
+  ) ==
+    true
+  assert contains?(
+    second(first(files_self("hello", "0.1.0", sample()))),
+    "pleme-lib"
+  ) ==
+    false
   assert contains?(service("hello"), "  namespace: {{ .Release.Namespace }}") ==
     true
 end

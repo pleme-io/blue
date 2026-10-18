@@ -1,16 +1,1 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "greeter.fullname" . }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "greeter.labels" . | nindent 4 }}
-spec:
-  type: {{ .Values.service.type }}
-  ports:
-    - name: http
-      port: {{ .Values.service.port }}
-      targetPort: http
-      protocol: TCP
-  selector:
-    {{- include "greeter.selectorLabels" . | nindent 4 }}
+{{- include "pleme-lib.service" . }}

@@ -1,4 +1,4 @@
-{ lib, pkgs, blue, bl, common, src, m, name, bluePath, programFile, lockFile, imageGate, oci, moduleTrio }:
+{ lib, pkgs, blue, bl, common, src, m, name, bluePath, programFile, lockFile, imageGate, oci, moduleTrio, chartLibraries ? { } }:
 
 let
   inherit (builtins) attrNames;
@@ -65,11 +65,16 @@ let
 
   chartCheck = sn: spec:
     let
-      chart = "${trees.${sn}}/chart";
+      chart = "chart";
       withDb = (spec.schema or { }) != { };
     in
     pkgs.runCommand "service-${sn}-chart" { nativeBuildInputs = [ pkgs.kubernetes-helm ]; } (''
       export HOME=$TMPDIR
+      cp -r ${trees.${sn}}/chart chart && chmod -R u+w chart
+      mkdir -p chart/charts
+    '' + lib.concatStrings (lib.mapAttrsToList (l: path: ''
+      cp -r ${path} chart/charts/${l}
+    '') chartLibraries) + ''
       helm lint --strict ${chart}
       helm template t ${chart} > rendered.yaml
       grep -q '^kind: Deployment$' rendered.yaml

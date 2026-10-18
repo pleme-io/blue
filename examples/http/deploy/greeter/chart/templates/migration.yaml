@@ -3,10 +3,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "greeter.fullname" . }}-schema
+  name: {{ include "pleme-lib.fullname" . }}-schema
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "greeter.labels" . | nindent 4 }}
+    {{- include "pleme-lib.labels" . | nindent 4 }}
 data:
   schema.sql: |-
     {{- .Files.Get "files/schema.sql" | trimSuffix "\n" | nindent 4 }}
@@ -14,10 +14,10 @@ data:
 apiVersion: shinka.pleme.io/v1alpha1
 kind: DatabaseMigration
 metadata:
-  name: {{ include "greeter.fullname" . }}-schema
+  name: {{ include "pleme-lib.fullname" . }}-schema
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "greeter.labels" . | nindent 4 }}
+    {{- include "pleme-lib.labels" . | nindent 4 }}
 spec:
   database:
     directRef:
@@ -34,12 +34,12 @@ spec:
         name: {{ required "database.credentialsSecret is required when database.enabled is true" $db.credentialsSecret | quote }}
       passwordKey: {{ $db.passwordKey | quote }}
       sqlConfigMapRef:
-        name: {{ include "greeter.fullname" . }}-schema
+        name: {{ include "pleme-lib.fullname" . }}-schema
   migrator:
     type: custom
     imageOverride: {{ $db.migratorImage | quote }}
     deploymentRef:
-      name: {{ include "greeter.fullname" . }}
+      name: {{ include "pleme-lib.fullname" . }}
     command:
       - psql
       - -v

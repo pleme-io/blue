@@ -70,6 +70,9 @@
       },
       "type": "object"
     },
+    "global": {
+      "type": "object"
+    },
     "health": {
       "default": "/healthz",
       "type": "string"
@@ -104,6 +107,9 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    },
+    "pleme-lib": {
       "type": "object"
     },
     "podAnnotations": {
@@ -156,13 +162,48 @@
     "service": {
       "additionalProperties": false,
       "properties": {
-        "port": {
-          "default": 18080,
-          "type": "integer"
+        "ports": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "default": "http",
+                "type": "string"
+              },
+              "port": {
+                "default": 18080,
+                "type": "integer"
+              },
+              "protocol": {
+                "default": "TCP",
+                "type": "string"
+              },
+              "targetPort": {
+                "default": "http",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
         },
         "type": {
           "default": "ClusterIP",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "serviceAccount": {
+      "additionalProperties": false,
+      "properties": {
+        "automountServiceAccountToken": {
+          "default": false,
+          "type": "boolean"
+        },
+        "create": {
+          "default": true,
+          "type": "boolean"
         }
       },
       "type": "object"

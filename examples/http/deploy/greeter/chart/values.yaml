@@ -35,5 +35,12 @@ securityContext:
       - "ALL"
   readOnlyRootFilesystem: true
 service:
-  port: 18080
+  ports:
+    - name: "http"
+      port: 18080
+      protocol: "TCP"
+      targetPort: "http"
   type: "ClusterIP"
+serviceAccount:
+  automountServiceAccountToken: false
+  create: true

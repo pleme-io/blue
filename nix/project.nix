@@ -168,7 +168,7 @@ let
   #   oci    substrate's image builders for the system (`substrate.lib.<system>`:
   #          mkPackageImage, mkDistrolessImage, hardenedBases); null where the
   #          caller has none, and an `image(...)` is then refused by name
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { } }:
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { } }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -386,7 +386,7 @@ let
       lockFile = builtins.path { path = src + "/Bluefile.lock"; name = "Bluefile.lock"; };
 
       lowered = import ./service.nix {
-        inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio;
+        inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio chartLibraries;
       };
 
       # `workload(name, spec)`: the objects `blue workload render` writes from
@@ -539,10 +539,10 @@ in
   #   blueFor   system -> the `blue` executable
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null }: { src, legacy ? { } }:
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { } }: { src, legacy ? { } }:
     let
       per = lib.genAttrs systems (system: projectFor {
-        inherit src moduleTrio legacy;
+        inherit src moduleTrio legacy chartLibraries;
         pkgs = pkgsFor system;
         blue = blueFor system;
         oci = ociFor system;

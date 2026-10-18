@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "greeter.fullname" . }}
+  name: {{ include "pleme-lib.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "greeter.labels" . | nindent 4 }}
+    {{- include "pleme-lib.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "greeter.selectorLabels" . | nindent 6 }}
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "greeter.selectorLabels" . | nindent 8 }}
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
       {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "greeter.fullname" . }}
+      serviceAccountName: {{ include "pleme-lib.fullname" . }}
       automountServiceAccountToken: false
       {{- with .Values.podSecurityContext }}
       securityContext:

@@ -8,6 +8,10 @@
     substrate = {
       url = "github:pleme-io/substrate";
     };
+    helmworks = {
+      url = "github:pleme-io/helmworks";
+      flake = false;
+    };
     # blue native's emitter: a typed Rust AST as JSON in, Rust out
     # (nix/native.nix).
     tatara-rust-ast = {
@@ -25,6 +29,7 @@
     crate2nix,
     flake-utils,
     substrate,
+    helmworks,
     tatara-rust-ast,
   }: let
     inherit (nixpkgs) lib;
@@ -378,6 +383,7 @@
         };
       } else null;
       moduleTrio = import "${substrate}/lib/module-trio.nix" { inherit lib; };
+      chartLibraries = { pleme-lib = "${helmworks}/charts/pleme-lib"; };
 
       # This repository as a blue project. `base = { }` because its packages
       # ARE the public distribution every other project composes over.
@@ -459,7 +465,7 @@
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
-      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio; };
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries; };
 
       # `blue.lib.bidamas pkgs` — the bidama library for any package set.
       lib.bidamas = bidamaLibFor;
@@ -630,7 +636,7 @@
             pkgs.writeText "example-service-workload-off" "refused";
 
           example-http =
-            let ex = engine.projectFor { inherit pkgs blue moduleTrio; src = ./examples/http; oci = ociFor system; };
+            let ex = engine.projectFor { inherit pkgs blue moduleTrio chartLibraries; src = ./examples/http; oci = ociFor system; };
             in pkgs.runCommand "example-http" { } ''
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';

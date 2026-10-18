@@ -1,4 +1,8 @@
 {
+  "database": {
+    "schema": "greeter",
+    "url": ""
+  },
   "flags": {
     "shout": false
   },

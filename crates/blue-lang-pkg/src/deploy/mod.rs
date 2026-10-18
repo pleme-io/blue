@@ -238,7 +238,7 @@ pub enum SpecError {
     OutputTaken { output: String, by: String },
     #[error("`{got}` is not a setting name (lowercase letters, digits and single `_`, starting with a letter)")]
     SettingName { got: String },
-    #[error("setting `{key}` is reserved: listen, health and flags are derived from the declaration, and config, tier and defaults name the settings tiers")]
+    #[error("setting `{key}` is reserved: listen, health, flags and database are derived from the declaration, and config, tier and defaults name the settings tiers")]
     ReservedSetting { key: String },
     #[error("setting `{key}` must be text, an integer or true/false, got {got}")]
     SettingType { key: String, got: &'static str },

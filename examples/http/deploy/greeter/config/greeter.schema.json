@@ -2,6 +2,20 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "properties": {
+    "database": {
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "default": "greeter",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "flags": {
       "additionalProperties": false,
       "properties": {

@@ -93,6 +93,7 @@ use("shomei", [:hash_message])
 # waive B0016: zenbu is the facade, and depending on it means depending on shuugou
 use("shuugou")
 use("souji")
+use("teeburu")
 use("tehai")
 use("tokumei", [:suppress_small])
 use("toukei", [:mean, :median])
@@ -126,6 +127,7 @@ test "every bidama in the distribution answers through this one import"
   assert haibi::column_sql("text?") == ["double precision", true] ||
     haibi::column_sql("text?") == ["text", true]
   assert settei::env_prefix("a-b") == "A_B_"
+  assert teeburu::quoted("t") == "\"t\""
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
   assert nisshi::format() == "nisshi/1"

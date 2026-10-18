@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:13a92a0dd6defadb050d02d6af1947785ae7c7fce15ddfa2a3c23df22f40a553",
+  "manifest": {
+    "schema": 1,
+    "name": "teeburu",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

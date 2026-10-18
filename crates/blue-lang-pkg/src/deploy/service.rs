@@ -55,7 +55,9 @@ pub const SERVICE_FIELDS: &[&str] = &[
     "output",
 ];
 
-pub const RESERVED_SETTINGS: &[&str] = &["listen", "health", "flags", "config", "tier", "defaults"];
+pub const RESERVED_SETTINGS: &[&str] = &[
+    "listen", "health", "flags", "config", "tier", "defaults", "database",
+];
 
 pub const COLUMN_TYPES: &[&str] = &[
     "text",

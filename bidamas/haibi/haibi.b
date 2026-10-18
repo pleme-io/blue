@@ -82,8 +82,21 @@ def document(title, schema)
   )
 end
 
+def schema_name(name)
+  replace(name, "-", "_")
+end
+
+def service_defaults(name, svc)
+  d = defaults(svc)
+  if tables(svc) == []
+    d
+  else
+    assoc(d, "database", {"url" => "", "schema" => schema_name(name)})
+  end
+end
+
 def config_schema(name, svc)
-  document("#{name} settings", schema_of(defaults(svc)))
+  document("#{name} settings", schema_of(service_defaults(name, svc)))
 end
 
 def resources_of(svc)
@@ -277,7 +290,15 @@ def quoted(ident)
 end
 
 def table_sql(t)
-  name = first(t)
+  table_sql_in(nil, t)
+end
+
+def table_sql_in(schema, t)
+  name = if schema == nil
+    quoted(first(t))
+  else
+    "#{quoted(schema)}.#{quoted(first(t))}"
+  end
   cols = map_entries(second(t))
   defs = map(
     fn(c)
@@ -290,11 +311,11 @@ def table_sql(t)
     end,
     cols
   )
-  create = "CREATE TABLE IF NOT EXISTS #{quoted(name)} (\n  \"id\" bigserial PRIMARY KEY#{join(map(fn(d) ",\n#{d}" end, defs), "")}\n);\n"
+  create = "CREATE TABLE IF NOT EXISTS #{name} (\n  \"id\" bigserial PRIMARY KEY#{join(map(fn(d) ",\n#{d}" end, defs), "")}\n);\n"
   adds = join(
     map(
       fn(c)
-        "ALTER TABLE #{quoted(name)} ADD COLUMN IF NOT EXISTS #{quoted(first(c))} #{first(column_sql(second(c)))};\n"
+        "ALTER TABLE #{name} ADD COLUMN IF NOT EXISTS #{quoted(first(c))} #{first(column_sql(second(c)))};\n"
       end,
       cols
     ),
@@ -305,6 +326,10 @@ end
 
 def ddl(svc)
   join(map(fn(t) table_sql(t) end, tables(svc)), "\n")
+end
+
+def ddl_in(schema, svc)
+  "CREATE SCHEMA IF NOT EXISTS #{quoted(schema)};\n\n#{join(map(fn(t) table_sql_in(schema, t) end, tables(svc)), "\n")}"
 end
 
 def row_refusals(svc, table, row)
@@ -508,6 +533,10 @@ def deployment(n, h)
       "              value: {{ .Values.listen.port | quote }}",
       "            - name: #{p}HEALTH",
       "              value: {{ .Values.health | quote }}",
+      "            {{- if and .Values.database .Values.database.enabled }}",
+      "            - name: #{p}DATABASE__URL",
+      "              value: {{ printf \"postgres://%s@%s:%v/%s\" .Values.database.username .Values.database.host .Values.database.port .Values.database.name | quote }}",
+      "            {{- end }}",
       "            {{- range $k, $v := .Values.config }}",
       "            - name: {{ printf \"#{p}%s\" (upper $k) }}",
       "              value: {{ $v | toString | quote }}",
@@ -649,11 +678,11 @@ def files_with(name, version, svc, mode)
   else
     [
       ["chart/templates/migration.yaml", migration(name, h)],
-      ["chart/files/schema.sql", ddl(svc)]
+      ["chart/files/schema.sql", ddl_in(schema_name(name), svc)]
     ]
   end
   config = [
-    ["config/#{name}.yaml", pretty(defaults(svc))],
+    ["config/#{name}.yaml", pretty(service_defaults(name, svc))],
     ["config/#{name}.schema.json", pretty(config_schema(name, svc))]
   ]
   sort_keyed(fn(f) first(f) end, append(chart, own, db, config))
@@ -810,5 +839,28 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   ) ==
     false
   assert contains?(service("hello"), "  namespace: {{ .Release.Namespace }}") ==
+    true
+end
+
+test "a service with tables names its schema and a database setting"
+  d = service_defaults("ola-mundo", sample())
+  assert get(d, "database") == {"url" => "", "schema" => "ola_mundo"}
+  assert get(service_defaults("x", {"port" => 1}), "database") == nil
+  sql = ddl_in("ola_mundo", sample())
+  assert starts_with?(sql, "CREATE SCHEMA IF NOT EXISTS \"ola_mundo\";") == true
+  assert contains?(
+    sql,
+    "CREATE TABLE IF NOT EXISTS \"ola_mundo\".\"greetings\" ("
+  ) ==
+    true
+  assert contains?(
+    sql,
+    "ALTER TABLE \"ola_mundo\".\"greetings\" ADD COLUMN IF NOT EXISTS \"note\" text;"
+  ) ==
+    true
+  assert contains?(
+    deployment("ola-mundo", "pleme-lib"),
+    "OLA_MUNDO_DATABASE__URL"
+  ) ==
     true
 end

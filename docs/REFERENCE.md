@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-266 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -362,6 +362,10 @@ Higher binding power binds tighter.
 | `nats_request` | `nats_request(conn, subject, payload, timeout_ms)` | 4 | Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders). |
 | `nats_subscribe` | `nats_subscribe(conn, subject[, queue])` | 2..3 | A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message. |
 | `nats_unsubscribe` | `nats_unsubscribe(sub)` | 1 | Stop a subscription; messages already queued for it are dropped. nil. |
+| `pg_close` | `pg_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
+| `pg_connect` | `pg_connect(url[, timeout_ms])` | 1..2 | A PostgreSQL connection to postgres://user@host[:port]/database (a password, when the server asks for one, rides in the url's userinfo after a colon), speaking the wire protocol over plain TCP: trust, password and SCRAM-SHA-256 authentication; md5 and TLS are refused by name. Raises when it cannot connect. |
+| `pg_execute` | `pg_execute(conn, sql)` | 2 | A script of statements, unparameterised: the list of their command tags. Raises naming the first failure. |
+| `pg_query` | `pg_query(conn, sql, params)` | 3 | One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text. |
 
 ### Hashing and signatures
 

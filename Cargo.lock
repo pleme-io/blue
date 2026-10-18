@@ -314,6 +314,7 @@ dependencies = [
  "rnix",
  "rowan",
  "serde_json",
+ "sha2",
  "tatara-lisp",
  "tatara-lisp-eval",
  "thiserror",

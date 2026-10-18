@@ -100,3 +100,35 @@ row(
   covers("builtin:http_respond"),
   host()
 )
+
+row(
+  "network.pg_connect.not_postgres",
+  "pg_connect(\"mysql://u@h/d\")",
+  fails(:eval, "the scheme is postgres://"),
+  covers("builtin:pg_connect"),
+  host()
+)
+
+row(
+  "network.pg_query.not_a_connection",
+  "pg_query(:db, \"SELECT 1\", [])",
+  fails(:eval, "expected a Postgres connection"),
+  covers("builtin:pg_query"),
+  host()
+)
+
+row(
+  "network.pg_execute.not_a_connection",
+  "pg_execute(:db, \"SELECT 1\")",
+  fails(:eval, "expected a Postgres connection"),
+  covers("builtin:pg_execute"),
+  host()
+)
+
+row(
+  "network.pg_close.not_a_connection",
+  "pg_close(:db)",
+  fails(:eval, "expected a Postgres connection"),
+  covers("builtin:pg_close"),
+  host()
+)

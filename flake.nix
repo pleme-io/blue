@@ -537,11 +537,16 @@
               src = ./.;
               name = "blue-network";
               config = {
-                runs = [ { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "net" ]; } ];
-                nativeBuildInputs = [ "nats-server" ];
+                runs = [
+                  { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "net" ]; }
+                  { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "pg" ]; }
+                ];
+                nativeBuildInputs = [ "nats-server" "postgresql" ];
                 env = {
                   BLUE_NATS_SERVER = "${pkgs.nats-server}/bin/nats-server";
                   BLUE_REQUIRE_NATS_SERVER = "1";
+                  BLUE_POSTGRES_BIN = "${pkgs.postgresql}/bin";
+                  BLUE_REQUIRE_POSTGRES = "1";
                 };
               };
             };

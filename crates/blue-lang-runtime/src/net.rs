@@ -17,6 +17,10 @@
 //! http_listener_port(listener)                → the bound port
 //! http_next_request(listener, ms)             → {method:, path:, query:, headers:, body:, exchange:} or nil
 //! http_respond(exchange, status, headers, body) → nil
+//! pg_connect(url[, timeout_ms])               → connection
+//! pg_query(conn, sql, params)                 → {columns:, rows:, command:}
+//! pg_execute(conn, sql)                       → [command tag, …]
+//! pg_close(conn)                              → nil
 //! ```
 //!
 //! A connection and a subscription are opaque `Value::Foreign` handles. Every
@@ -25,6 +29,7 @@
 
 pub mod http;
 pub mod nats;
+pub mod pg;
 pub mod serve;
 
 use std::net::{TcpStream, ToSocketAddrs};
@@ -243,6 +248,7 @@ pub fn install_net<H: 'static>(interp: &mut Interpreter<H>) {
     install_nats(interp);
     install_http(interp);
     install_serve(interp);
+    install_pg(interp);
 }
 
 fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
@@ -522,6 +528,184 @@ fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
                 })?;
             serve::respond(&stream, status, &headers, body.as_bytes())
                 .map_err(|e| EvalError::native_fn("http_respond", e.to_string(), span))?;
+            Ok(Value::Nil)
+        },
+    );
+}
+
+struct PgConnection(Mutex<Option<pg::Conn>>);
+
+fn pg_conn(v: &Value, fname: &'static str, span: Span) -> Result<Arc<PgConnection>, EvalError> {
+    if let Value::Foreign(any) = v {
+        if let Ok(c) = Arc::downcast::<PgConnection>(any.clone()) {
+            return Ok(c);
+        }
+    }
+    Err(EvalError::native_fn(
+        fname,
+        format!(
+            "expected a Postgres connection from pg_connect, got {}",
+            v.type_name()
+        ),
+        span,
+    ))
+}
+
+fn with_pg<T>(
+    conn: &PgConnection,
+    fname: &'static str,
+    span: Span,
+    f: impl FnOnce(&mut pg::Conn) -> Result<T, pg::PgError>,
+) -> Result<T, EvalError> {
+    let mut guard = conn
+        .0
+        .lock()
+        .map_err(|_| EvalError::native_fn(fname, "the connection's lock is poisoned", span))?;
+    let c = guard
+        .as_mut()
+        .ok_or_else(|| EvalError::native_fn(fname, "the connection is closed", span))?;
+    f(c).map_err(|e| EvalError::native_fn(fname, e.to_string(), span))
+}
+
+fn pg_param(v: &Value, span: Span) -> Result<pg::Param, EvalError> {
+    Ok(match v {
+        Value::Nil => pg::Param::Null,
+        Value::Bool(b) => pg::Param::Text(if *b { "t" } else { "f" }.to_string()),
+        Value::Int(n) => pg::Param::Text(n.to_string()),
+        Value::Float(x) => pg::Param::Text(x.to_string()),
+        Value::Str(s) | Value::Keyword(s) => pg::Param::Text(s.to_string()),
+        other => {
+            return Err(EvalError::native_fn(
+                "pg_query",
+                format!(
+                    "a parameter is nil, true/false, a number or text, got {}",
+                    other.type_name()
+                ),
+                span,
+            ))
+        }
+    })
+}
+
+fn pg_cell(type_oid: i32, cell: pg::Cell) -> Value {
+    match cell {
+        pg::Cell::Null => Value::Nil,
+        pg::Cell::Text(t) => match type_oid {
+            16 => Value::Bool(t == "t"),
+            20 | 21 | 23 | 26 => t
+                .parse()
+                .map_or(Value::Str(Arc::from(t.as_str())), Value::Int),
+            700 | 701 => t
+                .parse()
+                .map_or(Value::Str(Arc::from(t.as_str())), Value::Float),
+            _ => Value::Str(Arc::from(t)),
+        },
+    }
+}
+
+fn install_pg<H: 'static>(interp: &mut Interpreter<H>) {
+    interp.register_fn(
+        "pg_connect",
+        Arity::Range(1, 2),
+        |args: &[Value], _h: &mut H, span| {
+            let url = arg_str(&args[0], "pg_connect", span)?;
+            let timeout = match args.get(1) {
+                Some(v) => arg_ms(v, "pg_connect", span, false)?,
+                None => Duration::from_millis(DEFAULT_CONNECT_MS as u64),
+            };
+            let target = pg::parse_url(&url)
+                .map_err(|e| EvalError::native_fn("pg_connect", e.to_string(), span))?;
+            let conn = pg::Conn::connect(&target, timeout).map_err(|e| {
+                EvalError::native_fn(
+                    "pg_connect",
+                    format!("{}:{}/{}: {e}", target.host, target.port, target.database),
+                    span,
+                )
+            })?;
+            Ok(Value::Foreign(Arc::new(PgConnection(Mutex::new(Some(
+                conn,
+            ))))))
+        },
+    );
+
+    interp.register_fn(
+        "pg_query",
+        Arity::Exact(3),
+        |args: &[Value], _h: &mut H, span| {
+            let conn = pg_conn(&args[0], "pg_query", span)?;
+            let sql = arg_str(&args[1], "pg_query", span)?;
+            let params = match &args[2] {
+                Value::Nil => Vec::new(),
+                Value::List(xs) => xs
+                    .iter()
+                    .map(|v| pg_param(v, span))
+                    .collect::<Result<Vec<_>, _>>()?,
+                other => {
+                    return Err(EvalError::native_fn(
+                        "pg_query",
+                        format!("params must be a list, got {}", other.type_name()),
+                        span,
+                    ))
+                }
+            };
+            let out = with_pg(&conn, "pg_query", span, |c| c.query(&sql, &params))?;
+            let names: Vec<Value> = out
+                .columns
+                .iter()
+                .map(|c| Value::Str(Arc::from(c.name.as_str())))
+                .collect();
+            let rows: Vec<Value> = out
+                .rows
+                .into_iter()
+                .map(|row| {
+                    Value::map(out.columns.iter().zip(row).map(|(col, cell)| {
+                        (
+                            MapKey::Str(Arc::from(col.name.as_str())),
+                            pg_cell(col.type_oid, cell),
+                        )
+                    }))
+                })
+                .collect();
+            Ok(record(vec![
+                ("columns", Value::list(names)),
+                ("rows", Value::list(rows)),
+                (
+                    "command",
+                    out.commands
+                        .last()
+                        .map_or(Value::Nil, |c| Value::Str(Arc::from(c.as_str()))),
+                ),
+            ]))
+        },
+    );
+
+    interp.register_fn(
+        "pg_execute",
+        Arity::Exact(2),
+        |args: &[Value], _h: &mut H, span| {
+            let conn = pg_conn(&args[0], "pg_execute", span)?;
+            let sql = arg_str(&args[1], "pg_execute", span)?;
+            let out = with_pg(&conn, "pg_execute", span, |c| c.execute(&sql))?;
+            Ok(Value::list(
+                out.commands
+                    .into_iter()
+                    .map(|c| Value::Str(Arc::from(c)))
+                    .collect::<Vec<_>>(),
+            ))
+        },
+    );
+
+    interp.register_fn(
+        "pg_close",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let conn = pg_conn(&args[0], "pg_close", span)?;
+            let mut guard = conn.0.lock().map_err(|_| {
+                EvalError::native_fn("pg_close", "the connection's lock is poisoned", span)
+            })?;
+            if let Some(mut c) = guard.take() {
+                c.close();
+            }
             Ok(Value::Nil)
         },
     );

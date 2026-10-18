@@ -383,6 +383,10 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "nats_unsubscribe" "nats_unsubscribe(sub)" "Stop a subscription; messages already queued for it are dropped. nil.";
     Network: "nats_close" "nats_close(conn)" "Close the connection; every later call on it raises. nil.";
     Network: "http_request" "http_request(method, url, headers, body, timeout_ms)" "One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises.";
+    Network: "pg_connect" "pg_connect(url[, timeout_ms])" "A PostgreSQL connection to postgres://user@host[:port]/database (a password, when the server asks for one, rides in the url's userinfo after a colon), speaking the wire protocol over plain TCP: trust, password and SCRAM-SHA-256 authentication; md5 and TLS are refused by name. Raises when it cannot connect.";
+    Network: "pg_query" "pg_query(conn, sql, params)" "One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text.";
+    Network: "pg_execute" "pg_execute(conn, sql)" "A script of statements, unparameterised: the list of their command tags. Raises naming the first failure.";
+    Network: "pg_close" "pg_close(conn)" "Close the connection; every later call on it raises. nil.";
     Network: "http_listen" "http_listen(addr)" "A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound.";
     Network: "http_listener_port" "http_listener_port(listener)" "The TCP port the listener is bound to.";
     Network: "http_next_request" "http_next_request(listener, timeout_ms)" "{method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond.";

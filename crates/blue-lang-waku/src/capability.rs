@@ -239,6 +239,10 @@ const NETWORK_NAMES: &[&str] = &[
     "http_listener_port",
     "http_next_request",
     "http_respond",
+    "pg_connect",
+    "pg_query",
+    "pg_execute",
+    "pg_close",
 ];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[

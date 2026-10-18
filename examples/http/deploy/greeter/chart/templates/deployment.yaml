@@ -42,6 +42,10 @@ spec:
               value: {{ .Values.listen.port | quote }}
             - name: GREETER_HEALTH
               value: {{ .Values.health | quote }}
+            {{- if and .Values.database .Values.database.enabled }}
+            - name: GREETER_DATABASE__URL
+              value: {{ printf "postgres://%s@%s:%v/%s" .Values.database.username .Values.database.host .Values.database.port .Values.database.name | quote }}
+            {{- end }}
             {{- range $k, $v := .Values.config }}
             - name: {{ printf "GREETER_%s" (upper $k) }}
               value: {{ $v | toString | quote }}

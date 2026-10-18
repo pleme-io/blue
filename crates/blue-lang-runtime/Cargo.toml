@@ -31,6 +31,7 @@ thiserror = { workspace = true }
 # caller's, so nothing here reaches for an entropy source.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std", "fast", "zeroize"] }
+sha2 = { version = "0.10", default-features = false, features = ["std"] }
 serde_json = "1"
 rnix = { workspace = true }
 rowan = { workspace = true }

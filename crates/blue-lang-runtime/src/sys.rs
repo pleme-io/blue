@@ -108,7 +108,11 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
             use std::io::Write;
             let code = arg_int(&args[0], "exit_with", span)?;
             let code = i32::try_from(code).map_err(|_| {
-                EvalError::native_fn("exit_with", format!("{code} is not a process exit status"), span)
+                EvalError::native_fn(
+                    "exit_with",
+                    format!("{code} is not a process exit status"),
+                    span,
+                )
             })?;
             let _ = std::io::stdout().flush();
             let _ = std::io::stderr().flush();

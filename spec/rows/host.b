@@ -182,6 +182,14 @@ row(
 )
 
 row(
+  "host.exit_with.not_a_status",
+  "exit_with(\"75\")",
+  fails(:eval, "exit_with"),
+  covers("builtin:exit_with"),
+  host()
+)
+
+row(
   "host.exec_with_stdin",
   "exec_with_stdin(\"abc\", \"cat\")",
   value("[[:status, 0], [:stdout, \"abc\"], [:stderr, \"\"]]"),

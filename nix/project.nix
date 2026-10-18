@@ -47,8 +47,9 @@
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
 # | `rule(code, file, def[, severity])` | `checks.project-rules-hold`: `blue check` on every `.b` of the project's packages and every run, check and app program, which runs the project rules beside the registry |
 # | `generate`, `catalog` or `workload` | `apps.regen` |
-# | `image(name, spec)` | Linux only: `packages.image-<name>` (substrate's `mkPackageImage` on `hardenedBases.distroless-static`, or `mkDistrolessImage` for a declared shell or tools), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
-# | `workload(name, spec)` | `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
+# | every project | `checks.project` (every other check, one name for CI) and, on Linux, `apps.scan-images` (each service's scan floor and grype gate) |
+# | `image(name, spec)` | Linux only: `packages.image-<name>` through `mkHardenedImageSet` (`nix/image.nix`; the direct `mkPackageImage` / `mkDistrolessImage` path is configured off, revived by `legacy.directImages = true`), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
+# | `workload(name, spec)` | configured off (refused) unless `legacy.rawWorkloads = true`; then `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
 # | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
 # | `posture(when)` | nothing: a runtime floor, not a build fact |
@@ -167,7 +168,7 @@ let
   #   oci    substrate's image builders for the system (`substrate.lib.<system>`:
   #          mkPackageImage, mkDistrolessImage, hardenedBases); null where the
   #          caller has none, and an `image(...)` is then refused by name
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null }:
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { } }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -244,7 +245,15 @@ let
         generated;
 
       images = m.images or { };
-      workloads = m.workloads or { };
+      workloads =
+        if (m.workloads or { }) != { } && !rawWorkloads then
+          throw ''
+            lib.project: the Bluefile declares workload ${lib.concatStringsSep ", " (attrNames m.workloads)},
+            whose raw Deployment+Service YAML lowering is configured off: a service(...)
+            renders a chart with a generated values schema instead. Revive it with
+            `blue.lib.project { src = ./.; legacy.rawWorkloads = true; }`.
+          ''
+        else m.workloads or { };
 
       # The project's bidamas as one BLUE_PATH root, for the image's runtime
       # and for the gate.
@@ -256,7 +265,38 @@ let
       # move it to `mkDistrolessImage` (distroless-glibc plus exactly those).
       # Everything the program reaches is under /app, its working directory,
       # in one derivation, so the image's closure (and the gate's) holds it.
-      imageOf = iname: spec:
+      directImages = legacy.directImages or false;
+      rawWorkloads = legacy.rawWorkloads or false;
+
+      factoryImageOf = iname: spec:
+        let
+          program = programFile spec.program;
+          app = pkgs.runCommand "image-${iname}-app" { } (''
+            mkdir -p $out/app $out/share/blue
+            ln -s ${program} $out/app/${baseNameOf spec.program}
+            ln -s ${bluePath} $out/share/blue/bidamas
+          '' + lib.concatMapStrings
+            (a: ''
+              mkdir -p "$out/app/${dirOf a}"
+              ln -s ${builtins.path { path = src + "/${a}"; name = baseNameOf a; }} "$out/app/${a}"
+            '')
+            (spec.assets or [ ]));
+        in
+        (import ./image.nix { inherit lib pkgs oci blue; }).build {
+          what = "image(\"${iname}\")";
+          name = iname;
+          inherit (spec) repository;
+          version = m.version;
+          program = "${app}/app/${baseNameOf spec.program}";
+          args = spec.args or [ ];
+          env = { BLUE_PATH = "${bluePath}"; };
+          ports = spec.ports or [ ];
+          contents = [ app ];
+          workdir = "${app}/app";
+          deviation = spec.deviation or null;
+        };
+
+      directImageOf = iname: spec:
         let
           deviation = spec.deviation or null;
           program = programFile spec.program;
@@ -309,7 +349,7 @@ let
         if images == { } || !pkgs.stdenv.isLinux then { }
         else if oci == null then
           throw "lib.project: the Bluefile declares image ${lib.concatStringsSep ", " (attrNames images)}, and this engine was given no image builder (`oci`, substrate.lib.<system>)"
-        else lib.mapAttrs imageOf images;
+        else lib.mapAttrs (if directImages then directImageOf else factoryImageOf) images;
 
       # The archive's manifest.json: its layers, read by `blue image build`.
       imagePackages = lib.concatMapAttrs
@@ -464,14 +504,28 @@ let
           # gen/regen.b reads the project's Bluefile.lock from the directory
           # it is run in: `nix run .#regen` from the project root.
           regen = app "regen" ../gen/regen.b;
+        }
+        // lib.optionalAttrs pkgs.stdenv.isLinux {
+          scan-images = {
+            type = "app";
+            program = "${pkgs.writeShellScript "${name}-scan-images" (''
+              set -e
+            '' + lib.concatMapStrings (a: "${a.program}\n") (lib.attrValues lowered.apps))}";
+          };
         });
+
+      allChecks = disjoint "check" (disjoint "check" gates ruleGate) checkWords;
     in
     if missingNeeds != [ ] then
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
     else {
       inherit name runner bidamas packages apps bluePath imageGate;
       inherit (lowered) services trios executables;
-      checks = disjoint "check" (disjoint "check" gates ruleGate) checkWords;
+      checks = disjoint "check" allChecks {
+        project = pkgs.runCommand "${name}-project" { } ''
+          ${lib.concatMapStrings (c: "echo ${c} >> $out\n") (lib.attrValues allChecks)}
+        '';
+      };
     };
 in
 {
@@ -485,10 +539,10 @@ in
   #   blueFor   system -> the `blue` executable
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null }: { src }:
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null }: { src, legacy ? { } }:
     let
       per = lib.genAttrs systems (system: projectFor {
-        inherit src moduleTrio;
+        inherit src moduleTrio legacy;
         pkgs = pkgsFor system;
         blue = blueFor system;
         oci = ociFor system;

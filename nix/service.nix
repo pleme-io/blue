@@ -43,51 +43,24 @@ let
     }))
     services;
 
-  sourceOf = sn: spec:
-    let parts = lib.splitString "/" spec.repository; in
-    if builtins.head parts == "ghcr.io" && builtins.length parts == 3 then
-      "https://github.com/${builtins.elemAt parts 1}/${builtins.elemAt parts 2}"
-    else
-      throw "lib.project: service(\"${sn}\") publishes to ${spec.repository}; the image's source label is derived only for ghcr.io/<org>/<repo>";
-
-  scannableBlue =
-    let
-      data = oci.cargoAudit.mkCargoAuditData pkgs {
-        name = "blue";
-        lockFile = ../Cargo.lock;
-        rootCrate = "blue-lang-cli";
-      };
-    in
-    pkgs.runCommand "blue-scannable" { nativeBuildInputs = [ pkgs.binutils ]; } ''
-      mkdir -p $out/bin
-      cat ${blue}/bin/blue > $out/bin/blue
-      chmod 0755 $out/bin/blue
-      ${oci.cargoAudit.injectCommand { auditData = data; target = "$out/bin/blue"; }}
-    '';
+  images = import ./image.nix { inherit lib pkgs oci blue; };
 
   imageSets =
     if services == { } || !pkgs.stdenv.isLinux then { }
     else if oci == null || !(oci ? mkHardenedImageSet) then
       throw "lib.project: the Bluefile declares service ${lib.concatStringsSep ", " (attrNames services)}, and this engine was given no image factory (`oci.mkHardenedImageSet`, substrate.lib.<system>)"
     else lib.mapAttrs
-      (sn: spec: oci.mkHardenedImageSet ((oci.hardenedImageSetArgs or { }) // {
-        sourceUrl = sourceOf sn spec;
-        images.${sn} = {
-          service = sn;
-          package = scannableBlue;
-          base = "distroless-static";
-          upstreamImage = "none: a blue program run by blue's static binary";
-          hardeningRationale = "blue is a static musl binary and the program is data it reads: no shell, no libc, no package manager";
-          publishName = spec.repository;
-          publishTag = m.version;
-          entrypoint = [ "${scannableBlue}/bin/blue" "run" "--quiet" (program sn spec) ];
-          env = lib.mapAttrsToList (k: v: "${k}=${v}") (envOf sn // { BLUE_PATH = "${bluePath}"; });
-          exposedPorts = { "${toString spec.port}/tcp" = { }; };
-          extraContents = [ apps.${sn} ];
-          workdir = "${apps.${sn}}/app";
-          trivyAnalysableTargets = [ "rustbinary" ];
-        };
-      }))
+      (sn: spec: (images.build {
+        what = "service(\"${sn}\")";
+        name = sn;
+        inherit (spec) repository;
+        version = m.version;
+        program = program sn spec;
+        env = envOf sn // { BLUE_PATH = "${bluePath}"; };
+        ports = [ spec.port ];
+        contents = [ apps.${sn} ];
+        workdir = "${apps.${sn}}/app";
+      }).set)
       services;
 
   chartCheck = sn: spec:

@@ -610,10 +610,24 @@
           # inputs too, so the image tarball itself is built, not only its
           # closure scanned.
           example-service =
-            let ex = engine.projectFor { inherit pkgs blue; src = ./examples/service; oci = ociFor system; };
+            let ex = engine.projectFor { inherit pkgs blue; src = ./examples/service; oci = ociFor system; legacy = { directImages = true; rawWorkloads = true; }; };
             in pkgs.runCommand "example-service" { } ''
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';
+
+          example-service-factory =
+            let ex = engine.projectFor { inherit pkgs blue; src = ./examples/service; oci = ociFor system; legacy.rawWorkloads = true; };
+            in pkgs.runCommand "example-service-factory" { } ''
+              ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
+            '';
+
+          example-service-workload-off =
+            let
+              ex = engine.projectFor { inherit pkgs blue; src = ./examples/service; oci = ociFor system; };
+              refused = builtins.tryEval (builtins.deepSeq (builtins.attrNames ex.checks) true);
+            in
+            assert lib.assertMsg (!refused.success) "example-service-workload-off: a workload lowered with rawWorkloads off";
+            pkgs.writeText "example-service-workload-off" "refused";
 
           example-http =
             let ex = engine.projectFor { inherit pkgs blue moduleTrio; src = ./examples/http; oci = ociFor system; };
@@ -627,7 +641,7 @@
           image-gate-refuses =
             let
               oci = ociFor system;
-              ex = engine.projectFor { inherit pkgs blue oci; src = ./examples/service; };
+              ex = engine.projectFor { inherit pkgs blue oci; src = ./examples/service; legacy = { directImages = true; rawWorkloads = true; }; };
             in
             ex.imageGate {
               name = "image-gate-refuses";

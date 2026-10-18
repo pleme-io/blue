@@ -35,7 +35,7 @@
 #
 # | Word | Lowers to |
 # |---|---|
-# | `package(name, v)` | `packages.<name>` and `default`: `blue` as `<name>`, with the project's BLUE_PATH and tools |
+# | `package(name, v)` | `packages.<name>` and `default`: `blue` as `<name>`, with the project's BLUE_PATH and tools; a service of the project's name takes `packages.<name>` and the runner keeps `default` |
 # | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `bidama-collisions` (touching the project's packages), `bidama-locks-fresh` and `bidama-deps-resolve` (the version solver) |
 # | the root lock itself | `checks.repository-lock-fresh` |
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
@@ -505,7 +505,7 @@ in
     }
     // {
       packages = lib.mapAttrs
-        (_: p: disjoint "package" p.packages { default = p.runner; ${p.name} = p.runner; })
+        (_: p: disjoint "package" p.packages ({ default = p.runner; } // lib.optionalAttrs (!(p.services ? ${p.name})) { ${p.name} = p.runner; }))
         per;
       apps = lib.mapAttrs
         (_: p: disjoint "app" p.apps { default = { type = "app"; program = "${p.runner}/bin/${p.name}"; }; })

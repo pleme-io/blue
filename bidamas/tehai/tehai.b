@@ -217,7 +217,7 @@ end
 # Check every declared machine once; write the live file and the state.
 # Returns the state record.
 def run(declared_path, live_path, state_path, timeout_s, ssh)
-  now = now_ms()
+  now = now_ms
   machines = parse(read_or(declared_path, ""))
   good = filter(fn(m) get(m, :ok) end, machines)
   refused = map(
@@ -269,7 +269,7 @@ def sample()
 end
 
 test "the machines format: comments and blanks skipped, fields read, a bad line refused alone"
-  ms = parse(sample())
+  ms = parse(sample)
   assert size(ms) == 3
   q = nth(0, ms)
   assert get(q, :host) == "quero-builder-ssm"
@@ -286,7 +286,7 @@ test "the machines format: comments and blanks skipped, fields read, a bad line 
 end
 
 test "the check is non-interactive, short, and asks nix, not just the port"
-  argv = probe_argv(first(parse(sample())), 2, "/usr/bin/ssh")
+  argv = probe_argv(first(parse(sample)), 2, "/usr/bin/ssh")
   assert first(argv) == "/usr/bin/ssh"
   assert contains(argv, "BatchMode=yes") == true
   assert contains(argv, "ConnectTimeout=2") == true
@@ -296,7 +296,7 @@ test "the check is non-interactive, short, and asks nix, not just the port"
 end
 
 test "only live machines are written, each line exactly as declared"
-  ms = filter(fn(m) get(m, :ok) end, parse(sample()))
+  ms = filter(fn(m) get(m, :ok) end, parse(sample))
   checked = [
     tehai::checked(nth(0, ms), [false, "Connection timed out"]),
     tehai::checked(nth(1, ms), [true, "nix-store (Nix) 2.31.5"])
@@ -307,7 +307,7 @@ test "only live machines are written, each line exactly as declared"
 end
 
 test "since carries forward while a machine's state holds, and resets when it flips"
-  ms = filter(fn(m) get(m, :ok) end, parse(sample()))
+  ms = filter(fn(m) get(m, :ok) end, parse(sample))
   c = checked(nth(1, ms), [true, "ok"])
   first_run = states([c], [], 1000)
   assert get(first(first_run), :since_ms) == 1000
@@ -319,7 +319,7 @@ test "since carries forward while a machine's state holds, and resets when it fl
 end
 
 test "a run end to end, with a machine that cannot answer"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-test-#{to_s(now_ms())}")
+  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-test-#{to_s(now_ms)}")
   mkdir_p(dir)
   declared = path_join(dir, "machines")
   # A port nothing listens on, on this host: a fast, certain "down".
@@ -354,7 +354,7 @@ test "a run end to end, with a machine that cannot answer"
 end
 
 test "a missing ssh binary is named, and the state records which ssh ran"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-ssh-test-#{to_s(now_ms())}")
+  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-ssh-test-#{to_s(now_ms)}")
   mkdir_p(dir)
   declared = path_join(dir, "machines")
   write_file(declared, "ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -\n")

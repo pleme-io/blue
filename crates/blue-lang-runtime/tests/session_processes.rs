@@ -18,7 +18,7 @@ fn a_process_spawned_in_one_request_answers_the_next() {
         &mut s,
         "def echo(parent)\n  send(parent, [:echo, receive()])\n  echo(parent)\nend\n",
     );
-    eval(&mut s, "e = spawn(echo, [self()])");
+    eval(&mut s, "e = spawn(echo, [self])");
     eval(&mut s, "send(e, 1)");
     assert_eq!(eval(&mut s, "receive()"), "[:echo, 1]");
     eval(&mut s, "send(e, 2)");

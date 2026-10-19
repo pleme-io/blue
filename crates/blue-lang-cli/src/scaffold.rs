@@ -50,7 +50,7 @@ app("__NAME__", "main.b")
 const MAIN: &str = r##"# `blue main.b ARGS` runs __NAME__; `nix run .#__NAME__ -- ARGS` runs it built.
 use("__NAME__", [:main])
 
-main(argv())
+main(argv)
 "##;
 
 const BIDAMA_BLUEFILE: &str = r##"package("__NAME__", "0.1.0")
@@ -91,7 +91,7 @@ const SCRIPT: &str = r##"#!/usr/bin/env blue
 # `./__FILE__ ARGS` or `blue __FILE__ ARGS`; `blue new` made it executable.
 use("retsu", [:size])
 
-write_stdout("hello, #{argv_get(0, "world")} (#{size(argv())} argument(s))\n")
+write_stdout("hello, #{argv_get(0, "world")} (#{size(argv)} argument(s))\n")
 "##;
 
 /// Make `shape` at `path`, and say what was made and how to run it.

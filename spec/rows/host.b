@@ -100,8 +100,8 @@ row(
   host()
 )
 
-row("host.cwd", "string?(cwd())", value("true"), covers("builtin:cwd"), host())
-row("host.argv", "list?(argv())", value("true"), covers("builtin:argv"), host())
+row("host.cwd", "string?(cwd)", value("true"), covers("builtin:cwd"), host())
+row("host.argv", "list?(argv)", value("true"), covers("builtin:argv"), host())
 
 row(
   "host.argv_get",
@@ -135,7 +135,7 @@ row(
 
 row(
   "host.self_exe",
-  "self_exe() == nil || string?(self_exe())",
+  "self_exe == nil || string?(self_exe)",
   value("true"),
   covers("builtin:self_exe"),
   host()
@@ -215,7 +215,7 @@ row(
 
 row(
   "host.now",
-  "[integer?(now()), integer?(now_ms()), integer?(now_ns()), string?(now_rfc3339())]",
+  "[integer?(now), integer?(now_ms), integer?(now_ns), string?(now_rfc3339)]",
   value("[true, true, true, true]"),
   covers(
     "builtin:now",
@@ -228,7 +228,7 @@ row(
 
 row(
   "host.elapsed",
-  "integer?(elapsed_since(now_ns()))",
+  "integer?(elapsed_since(now_ns))",
   value("true"),
   covers("builtin:elapsed_since"),
   host()

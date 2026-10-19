@@ -576,7 +576,7 @@ def nl()
 end
 
 def comma_sep(item)
-  opt(seq([item, nl(), rep(seq([lit(","), nl(), item, nl()]))]))
+  opt(seq([item, nl, rep(seq([lit(","), nl, item, nl]))]))
 end
 
 # Statements, one per line; the first may share the header's line
@@ -647,7 +647,7 @@ def binary_rule(rows)
           [
             field("left", ref("_expression")),
             field("operator", choice(map(fn(o) lit(o) end, ops))),
-            nl(),
+            nl,
             field("right", ref("_expression"))
           ]
         )
@@ -679,7 +679,7 @@ def plain_parameters()
     seq(
       [
         lit("("),
-        nl(),
+        nl,
         comma_sep(
           painted(
             "parameter",
@@ -711,10 +711,10 @@ end
 def blue()
   aliases = flat_map(
     fn(r) get(r, :aliases) end,
-    concat_lists(infix_rows(), unary_rows())
+    concat_lists(infix_rows, unary_rows)
   )
   ident = ident_pattern(aliases)
-  powers = map(fn(r) get(r, :power) end, infix_rows())
+  powers = map(fn(r) get(r, :power) end, infix_rows)
   postfix = reduce(fn(m, p) blue::max(m, nth(1, p)) end, 0, powers) + 1
   unary = reduce(fn(m, p) blue::min(m, first(p)) end, 0, powers) - 1
   pipe = {op: "|>", power: [0, 1]}
@@ -728,8 +728,8 @@ def blue()
     repository: "https://github.com/pleme-io/blue",
     word: "identifier",
     extras: [pat("[ \\t\\r]"), ref("comment")],
-    infix: infix_rows(),
-    unary: unary_rows(),
+    infix: infix_rows,
+    unary: unary_rows,
     pipe: pipe,
     reserved: {
       surface: [
@@ -808,7 +808,7 @@ def blue()
           [
             painted("name", ref("identifier"), "variable", "var"),
             lit("="),
-            nl(),
+            nl,
             field("value", ref("_expression"))
           ]
         ),
@@ -865,7 +865,7 @@ def blue()
       ),
       rule(
         "binary_expression",
-        binary_rule(infix_rows()),
+        binary_rule(infix_rows),
         ["list", ["callee", "operator"], ["field", "left"], ["field", "right"]]
       ),
       rule(
@@ -876,7 +876,7 @@ def blue()
             [
               field("left", ref("_expression")),
               lit(get(pipe, :op)),
-              nl(),
+              nl,
               field("right", ref("_expression"))
             ]
           )
@@ -896,7 +896,7 @@ def blue()
                 choice(
                   map(
                     fn(o) lit(o) end,
-                    flat_map(fn(r) spellings(r) end, unary_rows())
+                    flat_map(fn(r) spellings(r) end, unary_rows)
                   )
                 )
               ),
@@ -947,25 +947,19 @@ def blue()
       # `f (x)` after a header is a call, not a header and a body.
       rule(
         "arguments",
-        prec(1, seq([lit("("), nl(), comma_sep(ref("_expression")), lit(")")])),
+        prec(1, seq([lit("("), nl, comma_sep(ref("_expression")), lit(")")])),
         ["named"]
       ),
       rule(
         "parenthesized_expression",
         seq(
-          [
-            lit("("),
-            nl(),
-            field("expression", ref("_expression")),
-            nl(),
-            lit(")")
-          ]
+          [lit("("), nl, field("expression", ref("_expression")), nl, lit(")")]
         ),
         ["field", "expression"]
       ),
       rule(
         "list",
-        seq([lit("["), nl(), comma_sep(ref("_expression")), lit("]")]),
+        seq([lit("["), nl, comma_sep(ref("_expression")), lit("]")]),
         ["list", ["sym", "list"], ["named"]]
       ),
       rule(
@@ -973,7 +967,7 @@ def blue()
         seq(
           [
             lit("{"),
-            nl(),
+            nl,
             comma_sep(choice([ref("pair"), ref("rocket_pair")])),
             lit("}")
           ]
@@ -983,7 +977,7 @@ def blue()
       rule(
         "pair",
         seq(
-          [field("key", ref("label")), nl(), field("value", ref("_expression"))]
+          [field("key", ref("label")), nl, field("value", ref("_expression"))]
         ),
         ["seq", ["field", "key"], ["field", "value"]]
       ),
@@ -992,9 +986,9 @@ def blue()
         seq(
           [
             field("key", ref("_expression")),
-            nl(),
+            nl,
             lit("=>"),
-            nl(),
+            nl,
             field("value", ref("_expression"))
           ]
         ),
@@ -1117,9 +1111,9 @@ def blue()
           seq(
             [
               immediate(prec(1, lit(concat("#", "{")))),
-              nl(),
+              nl,
               field("expression", ref("_statement")),
-              nl(),
+              nl,
               lit("}")
             ]
           ),
@@ -1161,7 +1155,7 @@ def blue()
               lit("def"),
               painted("name", ref("identifier"), "function", "function"),
               opt(field("parameters", ref("parameters"))),
-              opt(seq([lit("->"), nl(), field("return_type", ref("type"))])),
+              opt(seq([lit("->"), nl, field("return_type", ref("type"))])),
               opt(field("body", ref("body"))),
               lit("end")
             ]
@@ -1207,7 +1201,7 @@ def blue()
           seq(
             [
               lit("("),
-              nl(),
+              nl,
               comma_sep(
                 choice(
                   [
@@ -1232,7 +1226,7 @@ def blue()
         seq(
           [
             painted("name", ref("label"), "variable.parameter", ""),
-            nl(),
+            nl,
             field("type", ref("type"))
           ]
         ),
@@ -1284,7 +1278,7 @@ def blue()
         :scope,
         true
       ),
-      rule("_plain_parameters", plain_parameters(), nil),
+      rule("_plain_parameters", plain_parameters, nil),
       # `case` compares with `equal?` against a subject bound once.
       rule(
         "case",
@@ -1292,7 +1286,7 @@ def blue()
           [
             lit("case"),
             field("subject", ref("_expression")),
-            nl(),
+            nl,
             choice(
               [
                 seq(
@@ -1338,7 +1332,7 @@ def blue()
           seq(
             [
               lit("when"),
-              nl(),
+              nl,
               field("pattern", ref("_expression")),
               opt(field("body", alias(ref("_body_when"), "body")))
             ]
@@ -1410,9 +1404,9 @@ def blue()
           [
             lit("unquote"),
             lit("("),
-            nl(),
+            nl,
             field("expression", ref("_expression")),
-            nl(),
+            nl,
             lit(")")
           ]
         ),
@@ -1424,9 +1418,9 @@ def blue()
           [
             lit("unquote_splice"),
             lit("("),
-            nl(),
+            nl,
             field("expression", ref("_expression")),
-            nl(),
+            nl,
             lit(")")
           ]
         ),
@@ -1475,7 +1469,7 @@ test "a rule renders as the tree-sitter call its constructor names"
 end
 
 test "blue's grammar paints every literal it uses, and folds each closed form"
-  g = blue()
+  g = blue
   assert unpainted(g) == []
   assert contains?(folds(g), "(def)")
   assert contains?(folds(g), "(case)")
@@ -1483,7 +1477,7 @@ test "blue's grammar paints every literal it uses, and folds each closed form"
 end
 
 test "every visible rule of blue's lowers, but the parts its parent reads"
-  g = blue()
+  g = blue
   parts = map(
     fn(r) get(r, :name) end,
     filter(fn(r) get(r, :lower) == nil end, visible(g))
@@ -1501,6 +1495,6 @@ test "a literal with no role is refused by every renderer"
 end
 
 test "render names the artifacts it makes when asked for another"
-  assert try(render(blue(), "grammar.json"), catch(e(), error?(e))) == true
-  assert starts_with?(render(blue(), "folds.scm"), "; Generated")
+  assert try(render(blue, "grammar.json"), catch(e(), error?(e))) == true
+  assert starts_with?(render(blue, "folds.scm"), "; Generated")
 end

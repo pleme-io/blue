@@ -98,17 +98,66 @@ pub fn admit(path: &Path, text: String) -> Result<String, Refusal> {
     }
 }
 
+/// # Errors
+///
+/// As [`admit`], plus [`Refusal::Read`].
+pub fn read_layout(path: &Path) -> Result<String, Refusal> {
+    let text = std::fs::read_to_string(path).map_err(|source| Refusal::Read {
+        path: path.display().to_string(),
+        source,
+    })?;
+    admit(path, text)
+}
+
+/// # Errors
+///
+/// As `blue_lang_fmt::format_source_lossless`.
+pub fn format_resolved(path: &Path, src: &str) -> Result<String, blue_lang_fmt::FormatError> {
+    format_with(&crate::load_path::LoadPath::for_entry(path), path, src)
+}
+
+/// # Errors
+///
+/// As `blue_lang_fmt::format_source_lossless`.
+pub fn format_with(
+    loader: &dyn blue_lang_runtime::uses::Loader,
+    path: &Path,
+    src: &str,
+) -> Result<String, blue_lang_fmt::FormatError> {
+    use blue_lang_runtime::pipeline::{check_entry, Checking};
+    let entry = blue_lang_runtime::uses::Entry {
+        path: Some(path),
+        text: src,
+    };
+    let tree = check_entry(entry, loader, None, Checking::WithTests)
+        .ok()
+        .and_then(|checked| checked.canonical_entry(src));
+    match tree {
+        Some(tree) => blue_lang_fmt::format_tree_lossless(src, &tree),
+        None => blue_lang_fmt::format_source_lossless(src),
+    }
+}
+
 /// Read `path` and [`admit`] it: the entry of every CLI door that compiles.
 ///
 /// # Errors
 ///
 /// As [`admit`], plus [`Refusal::Read`].
 pub fn read_source(path: &Path) -> Result<String, Refusal> {
-    let text = std::fs::read_to_string(path).map_err(|source| Refusal::Read {
-        path: path.display().to_string(),
-        source,
-    })?;
-    admit(path, text)
+    let text = read_layout(path)?;
+    if in_store(path) {
+        return Ok(text);
+    }
+    match format_resolved(path, &text) {
+        Ok(spelled) if spelled.trim_end() != text.trim_end() => match rewrite(path, &spelled) {
+            Ok(()) => {
+                eprintln!("blue: formatted {}", path.display());
+                Ok(spelled)
+            }
+            Err(_) => Ok(text),
+        },
+        _ => Ok(text),
+    }
 }
 
 /// Replace `path`'s content with `text`, atomically: a sibling temporary file,

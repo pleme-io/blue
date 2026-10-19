@@ -26,7 +26,7 @@ blue tool.b a b        ./tool.b a b
 
 It can `use` every standard bidama with no Bluefile and no `BLUE_PATH`: they
 are compiled into `blue`. Run this way a script prints only what it writes, and
-every argument after the file reaches `argv()` as given. A subcommand wins over
+every argument after the file reaches `argv` as given. A subcommand wins over
 a file of the same name; `blue ./test` runs the file.
 
 When a script outgrows one file, `blue new NAME` starts a project: a Bluefile
@@ -42,7 +42,7 @@ declares them), then the distribution compiled into `blue`. First match wins.
 
 | | |
 |---|---|
-| `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv()` |
+| `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv` |
 | `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; a runtime error prints the blue call stack, and `--format json` prints it as one object |
 | `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
@@ -52,7 +52,7 @@ declares them), then the distribution compiled into `blue`. First match wins.
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
-| `blue fmt file.b` | print the one formatting; `--write` rewrites, `--check` fails on drift |
+| `blue fmt file.b` | print the one formatting, zero-parameter calls bare (it resolves the file to know which); `--write` rewrites, `--check` fails on drift |
 | `blue reference` | the language reference as JSON |
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
 | `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
@@ -117,6 +117,17 @@ Each one was checked against the runtime.
   word lists a map's keys. When you need entries, keep `[key, value]` pairs,
   as shuugou's `group_by` and `frequencies` do. A parsed JSON object is such a
   pair list, not a map: read it with `json_get` or deeta.
+- **A function with no parameters is called bare** (B0023, `blue explain
+  B0023`): `now_ms`, `argv`, `kueri::count_all`, never `now_ms()`. `blue fmt
+  --write` rewrites the old spelling and the check stage refuses it. Pass
+  such a function as a value with `fn() now_ms end`. A local or parameter of
+  the same name is its value, never a call. Effects run where the name is
+  written: the built-in ones are listed in
+  [`docs/REFERENCE.md`](docs/REFERENCE.md), "Called where written bare". Find
+  a definition's callers through the resolver (`blue ast --resolved --json
+  FILE` lists every reference, `"position": "call"` or `"value"`, and the
+  language server's references), never by searching for `name(`: a bare
+  call has no parentheses.
 - **Output is `write_stdout`.** `println` prints strings with their quotes.
 - **Names with `-` do not exist in blue.** tatara-lisp's kebab-case words are
   unreachable. A keyword may end in `?` or `!` (`[:pair?]`), as a name may.

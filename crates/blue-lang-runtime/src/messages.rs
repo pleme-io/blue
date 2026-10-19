@@ -29,8 +29,85 @@ pub fn describe(e: &EvalError, forms: &[Spanned]) -> String {
             let who = name.map_or_else(|| "this function".to_string(), |n| format!("`{n}`"));
             format!("{who} expects {}, got {got}", arguments(expected))
         }
+        EvalError::TypeMismatch { got, at, .. } if is_function_kind(got) => {
+            with_hint(e.short_message(), bare_function_hint(forms, *at))
+        }
+        EvalError::TypeMismatch { at, .. }
+        | EvalError::NotCallable { at, .. }
+        | EvalError::NativeFn { at, .. } => {
+            with_hint(e.short_message(), called_bare_hint(forms, *at))
+        }
         other => other.short_message(),
     }
+}
+
+fn is_function_kind(kind: &str) -> bool {
+    kind == "closure" || kind == "native-fn"
+}
+
+fn with_hint(message: String, hint: Option<String>) -> String {
+    match hint {
+        Some(h) => format!("{message}; {h}"),
+        None => message,
+    }
+}
+
+fn spelled(key: &str) -> String {
+    match key.split_once('/') {
+        Some((blue_lang_check::names::ROOT_QUALIFIER, n)) => n.to_string(),
+        Some((pkg, n)) => format!("{pkg}::{n}"),
+        None => key.to_string(),
+    }
+}
+
+fn call_at(forms: &[Spanned], at: Span) -> Option<&[Spanned]> {
+    if at.is_synthetic() {
+        return None;
+    }
+    forms.iter().find_map(|f| list_at(f, at))
+}
+
+fn list_at(node: &Spanned, at: Span) -> Option<&[Spanned]> {
+    if node.span.start > at.start || node.span.end < at.end {
+        return None;
+    }
+    match &node.form {
+        SpannedForm::List(items) => {
+            if node.span == at && items.len() > 1 {
+                return Some(items);
+            }
+            items.iter().find_map(|i| list_at(i, at))
+        }
+        SpannedForm::Quote(i)
+        | SpannedForm::Quasiquote(i)
+        | SpannedForm::Unquote(i)
+        | SpannedForm::UnquoteSplice(i) => list_at(i, at),
+        _ => None,
+    }
+}
+
+fn bare_function_hint(forms: &[Spanned], at: Span) -> Option<String> {
+    let items = call_at(forms, at)?;
+    let name = items[1..]
+        .iter()
+        .find_map(|a| a.as_symbol().filter(|s| s.contains('/')).map(spelled))?;
+    Some(format!(
+        "`{name}` takes arguments, so bare `{name}` is the function itself; call it as `{name}(...)`"
+    ))
+}
+
+fn called_bare_hint(forms: &[Spanned], at: Span) -> Option<String> {
+    let items = call_at(forms, at)?;
+    let name = items[1..].iter().find_map(|a| match &a.form {
+        SpannedForm::List(call) => match call.as_slice() {
+            [head] if head.span == a.span => head.as_symbol().map(spelled),
+            _ => None,
+        },
+        _ => None,
+    })?;
+    Some(format!(
+        "`{name}` takes no arguments, so writing it bare calls it; pass the function itself as `fn() {name} end`"
+    ))
 }
 
 /// "2 arguments", "1 argument", "at least 1 argument", …

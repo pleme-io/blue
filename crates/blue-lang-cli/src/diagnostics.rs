@@ -444,6 +444,9 @@ struct ReferenceJson {
     ns: TargetJson,
     /// The locals in scope where it is written, innermost first.
     locals: Vec<String>,
+    position: &'static str,
+    argc: Option<usize>,
+    nullary: bool,
 }
 
 #[derive(Serialize)]
@@ -523,6 +526,17 @@ pub fn resolved_json(
                 flat: target_json(&r.flat),
                 ns: target_json(&r.ns),
                 locals: r.locals.clone(),
+                position: match r.position {
+                    blue_lang_check::names::Position::Value => "value",
+                    blue_lang_check::names::Position::Call(_) => "call",
+                    blue_lang_check::names::Position::Place => "place",
+                    blue_lang_check::names::Position::Syntax => "syntax",
+                },
+                argc: match r.position {
+                    blue_lang_check::names::Position::Call(n) => Some(n),
+                    _ => None,
+                },
+                nullary: r.nullary_ns,
             })
             .collect(),
         imports: program

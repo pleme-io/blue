@@ -22,7 +22,7 @@ end
 
 def store_path?(p)
   string?(p) &&
-    starts_with?(p, store_dir()) &&
+    starts_with?(p, store_dir) &&
     length(p) > 44 &&
     take_chars(drop_chars(p, 43), 1) == "-"
 end
@@ -87,10 +87,10 @@ def capture(argv)
 end
 
 def run_nix(args)
-  argv = concat_lists([nix_bin()], args)
+  argv = concat_lists([nix_bin], args)
   cap = capture(argv)
   if cap == nil
-    {status: -1, stdout: "", stderr: "could not start #{nix_bin()}"}
+    {status: -1, stdout: "", stderr: "could not start #{nix_bin}"}
   else
     {status: status_of(cap), stdout: stdout_of(cap), stderr: stderr_of(cap)}
   end
@@ -254,13 +254,13 @@ test "store paths are read by their fixed layout and nothing else is one"
 end
 
 test "a dry run's targets and its work are read from nix's own output"
-  ts = targets(sample_targets())
+  ts = targets(sample_targets)
   assert size(ts) == 1
   assert get(first(ts), :drv) ==
     "/nix/store/79318l15inqy72wqdqp9hixn762vlfza-kirikae-probe.drv"
   assert get(first(ts), :out) ==
     "/nix/store/jrbqf1qkyiiq0v3b66ngc9fbj2cj1737-kirikae-probe"
-  w = work(sample_dry_run())
+  w = work(sample_dry_run)
   assert size(get(w, :build)) == 1
   assert size(get(w, :fetch)) == 2
   assert store_name(first(get(w, :build))) == "kirikae-probe.drv"

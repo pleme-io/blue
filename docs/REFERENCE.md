@@ -16,7 +16,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `[1, "a"]` | `(list 1 "a")` | A list. Indexing is nth(i, xs); blue has no xs[i]. |
 | `{a: 1, "k" => 2}` | `(hash-map :a 1 "k" 2)` | A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v). |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
-| `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes. |
+| `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `x.f(y)` | `(f x y)` | A method-style call: the receiver becomes the first argument. Formatted as f(x, y). |
 | `xs \|> f(a)` | `(f xs a)` | A pipe: the value becomes the FIRST argument, so it suits data-first words. map(f, xs) is function-first: xs \|> map(f) is map(xs, f), an error. |
 | `!x` | `(not x)` | Negation. `not(x)` is the same tree. |
@@ -290,7 +290,7 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `append_file` | `append_file(path, text)` | 2 | Add text to the end of the file, creating it; nil. |
-| `cwd` | `cwd()` | 0 | The current directory. |
+| `cwd` | `cwd` | 0 | The current directory. |
 | `file_mtime_ms` | `file_mtime_ms(path)` | 1 | The last modification time, in Unix milliseconds. |
 | `file_size` | `file_size(path)` | 1 | The size in bytes. |
 | `glob` | `glob(pattern)` | 1 | Paths matching * and ** relative to the current directory. An absolute pattern finds nothing; walk_dir and filter instead. |
@@ -328,21 +328,21 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `argv` | `argv()` | 0 | The program's own arguments: what follows the file in blue run file -- a b. |
+| `argv` | `argv` | 0 | The program's own arguments: what follows the file in blue run file -- a b. |
 | `argv_get` | `argv_get(i[, default])` | 1..2 | One argument by index, or default. |
 | `env_required` | `env_required(name)` | 1 | An environment variable; raises, naming it, when unset. |
 | `getenv` | `getenv(name[, default])` | 1..2 | An environment variable, or default (nil when none is given). |
-| `self_exe` | `self_exe()` | 0 | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |
+| `self_exe` | `self_exe` | 0 | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |
 
 ### Time
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `elapsed_since` | `elapsed_since(start_ns)` | 1 | Nanoseconds since start_ns, a value of now_ns(). |
-| `now` | `now()` | 0 | Unix time in seconds. |
-| `now_ms` | `now_ms()` | 0 | Unix time in milliseconds. |
-| `now_ns` | `now_ns()` | 0 | Unix time in nanoseconds. |
-| `now_rfc3339` | `now_rfc3339()` | 0 | The current UTC time as RFC 3339 text. |
+| `elapsed_since` | `elapsed_since(start_ns)` | 1 | Nanoseconds since start_ns, a value of now_ns. |
+| `now` | `now` | 0 | Unix time in seconds. |
+| `now_ms` | `now_ms` | 0 | Unix time in milliseconds. |
+| `now_ns` | `now_ns` | 0 | Unix time in nanoseconds. |
+| `now_rfc3339` | `now_rfc3339` | 0 | The current UTC time as RFC 3339 text. |
 | `sleep` | `sleep(seconds)` | 1 | Pause for whole seconds. |
 | `sleep_ms` | `sleep_ms(ms)` | 1 | Pause for milliseconds. |
 
@@ -381,7 +381,7 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `display` | `display(x)` | 1 | Print a value's Lisp rendering, no newline. |
-| `newline` | `newline()` | 0 | Print a newline. |
+| `newline` | `newline` | 0 | Print a newline. |
 | `print` | `print(x)` | 1 | Print a value and a newline, a string with its quotes. |
 | `println` | `println(xs...)` | any | Print values with a newline, strings with their quotes. For output a person reads, use write_stdout. |
 | `write_stderr` | `write_stderr(text)` | 1 | Write text to stderr exactly. |
@@ -412,11 +412,11 @@ Higher binding power binds tighter.
 | `children` | `children(sup)` | 1 | The pids a supervisor started, in order. |
 | `defmigrate` | `defmigrate(target, new_fn[, transform])` | 2..3 | Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …]. |
 | `demonitor` | `demonitor(ref)` | 1 | Stop a monitor; true. |
-| `exit` | `exit(pid, reason)` | 2 | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self(), r) raises. |
+| `exit` | `exit(pid, reason)` | 2 | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self, r) raises. |
 | `link` | `link(pid)` | 1 | Link to pid: an abnormal exit of either ends the other. false when pid is not alive. Also defined by `raifusaikuru` (`raifusaikuru::link`): a file that lists it gets that one. |
 | `monitor` | `monitor(pid)` | 1 | Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone). |
 | `receive` | `receive([pattern][, timeout_ms][, on_timeout])` | 0..3 | The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock. |
-| `self` | `self()` | 0 | This process's pid. The program itself is 0. |
+| `self` | `self` | 0 | This process's pid. The program itself is 0. |
 | `send` | `send(pid, msg)` | 2 | Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped. |
 | `spawn` | `spawn(f[, args])` | 1..2 | Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does. |
 | `spawn_link` | `spawn_link(f[, args])` | 1..2 | spawn, linked to the caller: an abnormal exit of either ends the other, unless it traps exits. |
@@ -429,7 +429,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `builtin_names` | `builtin_names()` | 0 | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
+| `builtin_names` | `builtin_names` | 0 | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
 | `cond` | `(cond (test expr) …)` | — | Lisp multi-way conditional; its clauses have no blue spelling. In blue, use if … elsif … end. |
 | `defactor` | `defactor(name, initial, behaviour)` | — | A single-threaded actor with a mailbox. Its step message is :step!, which blue cannot spell, so from blue it can only be told, never stepped. |
 | `defcommand` | `defcommand(bus, name, params, body)` | — | Register a command on a tatara-lisp command bus; params is a Lisp list. |
@@ -446,6 +446,23 @@ Higher binding power binds tighter.
 | `match` | `(match v (pattern expr) …)` | — | Lisp pattern matching; its patterns have no blue spelling. blue's case compares values and does not destructure. |
 | `provide` | `(provide …)` | — | tatara-lisp's module export. A bidama exports every def. |
 | `require` | `(require …)` | — | tatara-lisp's module loader. In blue, use("pkg") imports a bidama. |
+
+### Called where written bare
+
+A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 10 built-in names therefore run, with their effects, wherever they are written bare:
+
+| name | meaning |
+|---|---|
+| `argv` | The program's own arguments: what follows the file in blue run file -- a b. |
+| `builtin_names` | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
+| `cwd` | The current directory. |
+| `newline` | Print a newline. |
+| `now` | Unix time in seconds. |
+| `now_ms` | Unix time in milliseconds. |
+| `now_ns` | Unix time in nanoseconds. |
+| `now_rfc3339` | The current UTC time as RFC 3339 text. |
+| `self` | This process's pid. The program itself is 0. |
+| `self_exe` | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |
 
 ## Bluefile words
 

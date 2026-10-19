@@ -103,7 +103,7 @@ row(
 
 row(
   "lisp.builtin_names",
-  "[member?(\"length\", builtin_names()), member?(\"no_such_name\", builtin_names())]",
+  "[member?(\"length\", builtin_names), member?(\"no_such_name\", builtin_names)]",
   value("[true, false]"),
   covers("builtin:builtin_names")
 )

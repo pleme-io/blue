@@ -189,7 +189,7 @@ def plan(flake, host, kind, current_link, hist, now_ms, pol)
 end
 
 def evaluated(flake, inst, current_link, hist, now_ms, pol)
-  started = now_ns()
+  started = now_ns
   b = plan_build(inst, [])
   ms = floor(elapsed_since(started) / 1000000)
   if ok?(b)
@@ -230,8 +230,8 @@ end
 def settings()
   {
     flake: getenv("KIRIKAE_FLAKE", "."),
-    host: getenv("KIRIKAE_HOST", trim(stdout_of_host())),
-    kind: getenv("KIRIKAE_KIND", kind_of_host()),
+    host: getenv("KIRIKAE_HOST", trim(stdout_of_host)),
+    kind: getenv("KIRIKAE_KIND", kind_of_host),
     current: getenv("KIRIKAE_CURRENT", "/run/current-system"),
     history: getenv(
       "KIRIKAE_HISTORY",
@@ -414,10 +414,7 @@ def guard(s)
     busy_refusal(
       writers(
         stdout_of(
-          try(
-            exec_capture(ps_bin(), "-axww", "-o", "command="),
-            catch(_e(), nil)
-          )
+          try(exec_capture(ps_bin, "-axww", "-o", "command="), catch(_e(), nil))
         ),
         get(s, :host)
       )
@@ -426,7 +423,7 @@ def guard(s)
   if stale != nil
     refused_plan(stale)
   elsif busy != nil
-    busy_hold(busy, now_ms())
+    busy_hold(busy, now_ms)
   elsif c != nil
     heartbeat_noop(
       read_or(
@@ -460,7 +457,7 @@ def plan_unguarded(s)
     get(s, :kind),
     get(s, :current),
     history(get(s, :history)),
-    now_ms(),
+    now_ms,
     get(s, :policy)
   )
 end
@@ -499,9 +496,9 @@ end
 def settings_for(cmd)
   n = node_arg(cmd)
   if n == nil
-    settings()
+    settings
   else
-    assoc(settings(), :host, n)
+    assoc(settings, :host, n)
   end
 end
 
@@ -513,15 +510,15 @@ def run(cmd)
   if a == :noop && getenv("KIRIKAE_FORCE", "") == ""
     outcome_of(0, "noop")
   elsif a == :hold && getenv("KIRIKAE_FORCE", "") == ""
-    outcome_of(exit_hold(), "hold")
+    outcome_of(exit_hold, "hold")
   elsif a == :refuse
     if get(p, :key) != nil
       record(
         get(s, :history),
-        entry(get(p, :key), "failed", now_ms(), get(p, :why))
+        entry(get(p, :key), "failed", now_ms, get(p, :why))
       )
     end
-    outcome_of(exit_refused(), "refuse")
+    outcome_of(exit_refused, "refuse")
   else
     status = apply(exec_check, cmd)
     outcome = if status == 0
@@ -534,7 +531,7 @@ def run(cmd)
       entry(
         get(p, :desired),
         outcome,
-        now_ms(),
+        now_ms,
         "#{last(cmd)} exited #{to_s(status)}"
       )
     )
@@ -571,7 +568,7 @@ def text_of(answer)
 end
 
 def main()
-  a = answer(argv())
+  a = answer(argv)
   write_stdout("#{text_of(a)}\n")
   if exit_status_of(a) != 0
     exit_with(exit_status_of(a))
@@ -586,7 +583,7 @@ def answer(args)
     first(args)
   end
   if verb == "plan"
-    json_stringify(plan_now(settings()))
+    json_stringify(plan_now(settings))
   elsif verb == "run"
     if size(args) < 2
       throw(error(:usage, "kirikae run <command> [args...]"))
@@ -600,11 +597,11 @@ def answer(args)
     end
     json_stringify(
       record(
-        get(settings(), :history),
+        get(settings, :history),
         entry(
           nth(1, args),
           nth(2, args),
-          now_ms(),
+          now_ms,
           if size(args) > 3
             nth(3, args)
           else
@@ -637,22 +634,22 @@ end
 
 test "the same system is nothing to do, a different one is a switch"
   pol = policy(0, 0)
-  assert get(decide(a(), a(), [], 0, pol), :action) == :noop
-  assert get(decide(b(), a(), [], 0, pol), :action) == :switch
-  assert get(decide(b(), nil, [], 0, pol), :action) == :switch
-  assert get(decide(nil, a(), [], 0, pol), :action) == :refuse
-  assert get(decide("/run/current-system", a(), [], 0, pol), :action) == :refuse
+  assert get(decide(a, a, [], 0, pol), :action) == :noop
+  assert get(decide(b, a, [], 0, pol), :action) == :switch
+  assert get(decide(b, nil, [], 0, pol), :action) == :switch
+  assert get(decide(nil, a, [], 0, pol), :action) == :refuse
+  assert get(decide("/run/current-system", a, [], 0, pol), :action) == :refuse
 end
 
 test "an exact system that keeps failing waits longer each time, and only that system"
   pol = policy(300, 3600)
-  h = [entry(b(), "failed", 1000, "x"), entry(b(), "failed", 2000, "x")]
-  d = decide(b(), a(), h, 3000, pol)
+  h = [entry(b, "failed", 1000, "x"), entry(b, "failed", 2000, "x")]
+  d = decide(b, a, h, 3000, pol)
   assert get(d, :action) == :hold
   assert get(d, :until_ms) == 2000 + 600000
-  assert get(decide(b(), a(), h, 2000 + 600000, pol), :action) == :switch
+  assert get(decide(b, a, h, 2000 + 600000, pol), :action) == :switch
   assert get(
-    decide(sys("00000000000000000000000000000000"), a(), h, 3000, pol),
+    decide(sys("00000000000000000000000000000000"), a, h, 3000, pol),
     :action
   ) ==
     :switch
@@ -663,29 +660,29 @@ end
 
 test "a success clears the streak, and a zero base never holds"
   pol = policy(300, 3600)
-  h = [entry(b(), "failed", 1000, "x"), entry(b(), "activated", 2000, "ok")]
-  assert get(streak(h, b()), :n) == 0
-  assert get(decide(b(), a(), h, 2001, pol), :action) == :switch
+  h = [entry(b, "failed", 1000, "x"), entry(b, "activated", 2000, "ok")]
+  assert get(streak(h, b), :n) == 0
+  assert get(decide(b, a, h, 2001, pol), :action) == :switch
   off = policy(0, 3600)
   assert get(
-    decide(b(), a(), [entry(b(), "failed", 1000, "x")], 1001, off),
+    decide(b, a, [entry(b, "failed", 1000, "x")], 1001, off),
     :action
   ) ==
     :switch
-  assert get(streak([], b()), :n) == 0
+  assert get(streak([], b), :n) == 0
 end
 
 test "the history file round-trips and keeps only its tail"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-test-#{to_s(now_ns())}")
+  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-test-#{to_s(now_ns)}")
   p = path_join(dir, "history.jsonl")
   assert history(p) == []
-  record(p, entry(b(), "failed", 1000, "first"))
-  record(p, entry(b(), "failed", 2000, "second"))
+  record(p, entry(b, "failed", 1000, "first"))
+  record(p, entry(b, "failed", 2000, "second"))
   h = history(p)
   assert size(h) == 2
   assert get(last(h), :why) == "second"
-  assert get(streak(h, b()), :n) == 2
-  write_file(p, "not json\n#{entry_line(entry(a(), "activated", 5, ""))}\n")
+  assert get(streak(h, b), :n) == 2
+  write_file(p, "not json\n#{entry_line(entry(a, "activated", 5, ""))}\n")
   assert size(history(p)) == 1
   assert size(keep_last([1, 2, 3, 4], 2)) == 2
   assert keep_last([1, 2], 5) == [1, 2]
@@ -702,8 +699,8 @@ test "the node a rebuild names is the host it plans for"
 end
 
 test "a switch names both systems by hash, since their names agree"
-  d = decide(b(), a(), [], 0, policy(0, 0))
-  assert label(b()) == "8i7qwqja-darwin-system-25.11.ebec37a"
+  d = decide(b, a, [], 0, policy(0, 0))
+  assert label(b) == "8i7qwqja-darwin-system-25.11.ebec37a"
   assert get(d, :why) ==
     "8i7qwqja-darwin-system-25.11.ebec37a differs from f97whj20-darwin-system-25.11.ebec37a"
   assert label(nil) == ""
@@ -797,18 +794,18 @@ end
 test "a loop that already runs the checkout's rev answers the plan without evaluating"
   head = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
   hb = "{\"outcome\":\"unchanged\",\"head_rev\":\"#{head}\"}"
-  n = heartbeat_noop(hb, head, a())
+  n = heartbeat_noop(hb, head, a)
   assert get(n, :action) == :noop
-  assert get(n, :desired) == a()
-  assert heartbeat_noop(hb, "cb22456a00000000000000000000000000000000", a()) ==
+  assert get(n, :desired) == a
+  assert heartbeat_noop(hb, "cb22456a00000000000000000000000000000000", a) ==
     nil
   assert heartbeat_noop(
     "{\"outcome\":\"building\",\"head_rev\":\"#{head}\"}",
     head,
-    a()
+    a
   ) ==
     nil
-  assert heartbeat_noop("", head, a()) == nil
+  assert heartbeat_noop("", head, a) == nil
 end
 
 test "a plan that evaluated nothing says so without empty counts"
@@ -821,8 +818,8 @@ test "a plan that evaluated nothing says so without empty counts"
 end
 
 test "an outcome carries the exit status a caller branches on"
-  assert exit_status_of(outcome_of(exit_hold(), "hold")) == 75
-  assert exit_status_of(outcome_of(exit_refused(), "refuse")) == 78
+  assert exit_status_of(outcome_of(exit_hold, "hold")) == 75
+  assert exit_status_of(outcome_of(exit_refused, "refuse")) == 78
   assert exit_status_of(outcome_of(0, "noop")) == 0
   assert exit_status_of("{\"action\":\"noop\"}") == 0
   assert text_of(outcome_of(75, "hold")) == "hold"

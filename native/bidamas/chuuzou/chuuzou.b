@@ -70,7 +70,7 @@ def cz_tokens(text)
       end
     elsif c == "\""
       assoc(assoc(cz_flush(st), :cur, "\""), :in_str, true)
-    elsif member?(c, cz_delims())
+    elsif member?(c, cz_delims)
       f = cz_flush(st)
       assoc(f, :toks, append(get(f, :toks), [c]))
     elsif c == " " || c == "\n" || c == "\t"
@@ -287,8 +287,8 @@ end
 def rs_fn(vis, name, params, ret, body)
   sig = {
     name: name,
-    generics: rs_generics(),
-    params: append([rs_io_param()], params)
+    generics: rs_generics,
+    params: append([rs_io_param], params)
   }
   sig_ = if ret == nil
     sig
@@ -353,8 +353,8 @@ end
 def cz_call(n, ctx)
   h = cz_head(n)
   args = rest(n)
-  arith = cz_lookup(h, cz_arith())
-  cmp = cz_lookup(h, cz_compare())
+  arith = cz_lookup(h, cz_arith)
+  cmp = cz_lookup(h, cz_compare)
   if h == nil
     cz_refuse(
       "a call through a computed function has no native form (every call is direct at the monomorphic position)"
@@ -653,7 +653,7 @@ def cz_emit(path, board_name)
   if board == nil
     cz_refuse("no board named #{board_name}")
   end
-  blue = self_exe()
+  blue = self_exe
   checked = cz_capture([blue, "check", path])
   if get(checked, :status) != 0
     cz_refuse(

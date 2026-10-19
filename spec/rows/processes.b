@@ -5,26 +5,26 @@
 
 row(
   "processes.spawn.runs_a_function",
-  "me = self()\nspawn(fn() send(me, 42) end)\nreceive()",
+  "me = self\nspawn(fn() send(me, 42) end)\nreceive()",
   value("42"),
   covers("builtin:spawn", "builtin:self", "builtin:send", "builtin:receive")
 )
 
 row(
   "processes.spawn.brings_helpers_and_copies_captures",
-  "def double(x)\n  x * 2\nend\nme = self()\nk = 20\nspawn(fn() send(me, [:r, double(k + 1)]) end)\nreceive()",
+  "def double(x)\n  x * 2\nend\nme = self\nk = 20\nspawn(fn() send(me, [:r, double(k + 1)]) end)\nreceive()",
   value("[:r, 42]")
 )
 
 row(
   "processes.send.refuses_a_function",
-  "send(self(), fn(x) x end)",
+  "send(self, fn(x) x end)",
   fails(:eval, "not data")
 )
 
 row(
   "processes.receive.selective",
-  "me = self()\nsend(me, :noise)\nsend(me, [:reply, 1])\n[receive([:reply, :_]), receive()]",
+  "me = self\nsend(me, :noise)\nsend(me, [:reply, 1])\n[receive([:reply, :_]), receive()]",
   value("[[:reply, 1], :noise]")
 )
 
@@ -80,21 +80,21 @@ row(
 
 row(
   "processes.supervisor.restarts_a_crashed_child",
-  "def child(parent)\n  send(parent, :up)\n  if receive() == :crash\n    throw(error(:asked, \"crash\"))\n  end\nend\nme = self()\nsup = supervisor(:one_for_one, [[child, [me]]], 3)\nc = nth(0, children(sup))\nreceive(:up)\nsend(c, :crash)\nreceive(:up)",
+  "def child(parent)\n  send(parent, :up)\n  if receive() == :crash\n    throw(error(:asked, \"crash\"))\n  end\nend\nme = self\nsup = supervisor(:one_for_one, [[child, [me]]], 3)\nc = nth(0, children(sup))\nreceive(:up)\nsend(c, :crash)\nreceive(:up)",
   value(":up"),
   covers("builtin:supervisor", "builtin:children")
 )
 
 row(
   "processes.spawn_server",
-  "def h(msg, n)\n  if list?(msg)\n    send(nth(1, msg), n)\n    n\n  else\n    n + msg\n  end\nend\ns = spawn_server(h, 1)\nsend(s, 2)\nsend(s, [:get, self()])\nreceive()",
+  "def h(msg, n)\n  if list?(msg)\n    send(nth(1, msg), n)\n    n\n  else\n    n + msg\n  end\nend\ns = spawn_server(h, 1)\nsend(s, 2)\nsend(s, [:get, self])\nreceive()",
   value("3"),
   covers("builtin:spawn_server")
 )
 
 row(
   "processes.defmigrate.keeps_the_mailbox_and_migrates_state",
-  "def h(msg, n)\n  if list?(msg)\n    send(nth(1, msg), n)\n    n\n  else\n    n + msg\n  end\nend\ndef h2(msg, n)\n  if list?(msg)\n    send(nth(1, msg), [:v2, n])\n    n\n  else\n    n + 2 * msg\n  end\nend\ns = spawn_server(h, 1)\nsend(s, 2)\nr = defmigrate(h, h2, fn(n) n * 10 end)\nsend(s, [:get, self()])\n[r, receive()]",
+  "def h(msg, n)\n  if list?(msg)\n    send(nth(1, msg), n)\n    n\n  else\n    n + msg\n  end\nend\ndef h2(msg, n)\n  if list?(msg)\n    send(nth(1, msg), [:v2, n])\n    n\n  else\n    n + 2 * msg\n  end\nend\ns = spawn_server(h, 1)\nsend(s, 2)\nr = defmigrate(h, h2, fn(n) n * 10 end)\nsend(s, [:get, self])\n[r, receive()]",
   value("[[[1, :ok]], [:v2, 14]]"),
   covers("builtin:defmigrate")
 )

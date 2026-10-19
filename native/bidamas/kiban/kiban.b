@@ -51,18 +51,18 @@ def kb_qemu_virt32()
       kb_device(:finisher, :sifive_test, 1048576)
     ],
     qemu: {system: "qemu-system-riscv32", machine: "virt", cpu: "rv32"},
-    ceiling: kb_native_ceiling()
+    ceiling: kb_native_ceiling
   }
 end
 
 # Every board this package knows, by name.
 def kb_boards()
-  [kb_qemu_virt32()]
+  [kb_qemu_virt32]
 end
 
 # The board named `name`, or nil.
 def kb_board(name)
-  find(fn(b) get(b, :name) == name end, kb_boards())
+  find(fn(b) get(b, :name) == name end, kb_boards)
 end
 
 # The base address of the board's device named `name`, or nil.
@@ -86,7 +86,7 @@ def kb_char(c)
   if c == 10
     "\n"
   elsif c >= 32 && c < 127
-    nth(c - 32, chars(kb_ascii()))
+    nth(c - 32, chars(kb_ascii))
   else
     throw(error(:kiban, "the UART model prints ASCII only, got #{c}"))
   end
@@ -97,7 +97,7 @@ end
 # the program, which on the host is simply the end of the run. Any other
 # address is a device the model does not have, and is refused.
 def mmio_write(addr, width, value)
-  board = kb_qemu_virt32()
+  board = kb_qemu_virt32
   if !(width == 8 || width == 32)
     throw(error(:kiban, "mmio_write width is 8 or 32, got #{width}"))
   elsif addr == kb_device_base(board, :uart0)
@@ -128,7 +128,7 @@ test "the virt32 board is found by name and an unknown one is nil"
 end
 
 test "device bases are the virt machine's"
-  b = kb_qemu_virt32()
+  b = kb_qemu_virt32
   assert kb_device_base(b, :uart0) == 268435456
   assert kb_device_base(b, :finisher) == 1048576
   assert kb_device_base(b, :gpio) == nil

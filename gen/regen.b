@@ -18,7 +18,7 @@ end
 
 # [name, output, program] for every `generate` in the Bluefile.
 def generated()
-  g = json_get(manifest(), "generated")
+  g = json_get(manifest, "generated")
   if g == nil
     []
   else
@@ -54,22 +54,22 @@ end
 # The catalogue covers the project's own `packages` roots, not every root on
 # BLUE_PATH: a project composed over the public distribution catalogues only
 # its own packages (the flake renders the same roots; nix/project.nix).
-catalog = json_get(manifest(), "catalog")
+catalog = json_get(manifest, "catalog")
 
 written = if catalog == nil
   []
 else
   write_file(
     catalog,
-    render_markdown(catalog_of(json_get(manifest(), "packages")))
+    render_markdown(catalog_of(json_get(manifest, "packages")))
   )
   [catalog]
 end
 
-written = concat_lists(written, map(fn(g) regenerate(g) end, generated()))
+written = concat_lists(written, map(fn(g) regenerate(g) end, generated))
 
 # Every `workload` file, rendered from the same lock by blue itself.
-workloads = json_get(manifest(), "workloads")
+workloads = json_get(manifest, "workloads")
 
 written = if workloads == nil
   written

@@ -4,5 +4,5 @@ def sp_helper()
 end
 
 def sp_call_helper()
-  sp_helper()
+  sp_helper
 end

@@ -321,7 +321,7 @@ pub const NAMES: &[NameDoc] = names! {
     Error: "error_message" "error_message(e)" "The message of an error value, as text; raises on anything else.";
     Error: "error_kind" "error_kind(e)" "The kind of an error value, the keyword error(kind, …) was given; raises on anything else.";
     Error: "gensym" "gensym([prefix])" "A fresh unique symbol, for macros that need a private name.";
-    Lisp: "builtin_names" "builtin_names()" "Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name.";
+    Lisp: "builtin_names" "builtin_names" "Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name.";
     // ── JSON ──────────────────────────────────────────────────────────────
     Json: "json_parse" "json_parse(text)" "Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil.";
     Json: "json_read" "json_read(text)" "Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil.";
@@ -350,7 +350,7 @@ pub const NAMES: &[NameDoc] = names! {
     File: "path_basename" "path_basename(path)" "The last component: \"b.txt\" of \"a/b.txt\".";
     File: "path_dirname" "path_dirname(path)" "Everything before the last component.";
     File: "path_extension" "path_extension(path)" "The extension without its dot, or nil.";
-    File: "cwd" "cwd()" "The current directory.";
+    File: "cwd" "cwd" "The current directory.";
     // ── processes ─────────────────────────────────────────────────────────
     Process: "exec_capture" "exec_capture(cmd, args...)" "Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of.";
     Process: "exec_check" "exec_check(cmd, args...)" "Run a command, no shell; its exit status as an Int. Output passes through.";
@@ -363,15 +363,15 @@ pub const NAMES: &[NameDoc] = names! {
     // ── environment ───────────────────────────────────────────────────────
     Environment: "getenv" "getenv(name[, default])" "An environment variable, or default (nil when none is given).";
     Environment: "env_required" "env_required(name)" "An environment variable; raises, naming it, when unset.";
-    Environment: "argv" "argv()" "The program's own arguments: what follows the file in blue run file -- a b.";
+    Environment: "argv" "argv" "The program's own arguments: what follows the file in blue run file -- a b.";
     Environment: "argv_get" "argv_get(i[, default])" "One argument by index, or default.";
-    Environment: "self_exe" "self_exe()" "The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH.";
+    Environment: "self_exe" "self_exe" "The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH.";
     // ── time ──────────────────────────────────────────────────────────────
-    Clock: "now" "now()" "Unix time in seconds.";
-    Clock: "now_ms" "now_ms()" "Unix time in milliseconds.";
-    Clock: "now_ns" "now_ns()" "Unix time in nanoseconds.";
-    Clock: "now_rfc3339" "now_rfc3339()" "The current UTC time as RFC 3339 text.";
-    Clock: "elapsed_since" "elapsed_since(start_ns)" "Nanoseconds since start_ns, a value of now_ns().";
+    Clock: "now" "now" "Unix time in seconds.";
+    Clock: "now_ms" "now_ms" "Unix time in milliseconds.";
+    Clock: "now_ns" "now_ns" "Unix time in nanoseconds.";
+    Clock: "now_rfc3339" "now_rfc3339" "The current UTC time as RFC 3339 text.";
+    Clock: "elapsed_since" "elapsed_since(start_ns)" "Nanoseconds since start_ns, a value of now_ns.";
     Clock: "sleep" "sleep(seconds)" "Pause for whole seconds.";
     Clock: "sleep_ms" "sleep_ms(ms)" "Pause for milliseconds.";
     // ── network ───────────────────────────────────────────────────────────
@@ -402,7 +402,7 @@ pub const NAMES: &[NameDoc] = names! {
     Output: "println" "println(xs...)" "Print values with a newline, strings with their quotes. For output a person reads, use write_stdout.";
     Output: "print" "print(x)" "Print a value and a newline, a string with its quotes.";
     Output: "display" "display(x)" "Print a value's Lisp rendering, no newline.";
-    Output: "newline" "newline()" "Print a newline.";
+    Output: "newline" "newline" "Print a newline.";
     // ── delayed values ────────────────────────────────────────────────────
     Lazy: "force" "force(p)" "The value of a promise, computed once; a non-promise is returned as is.";
     Lazy: "cycle" "cycle(xs)" "A tatara-lisp lazy sequence repeating xs. blue's list words do not force it: take(2, cycle(xs)) is not a plain list.";
@@ -418,13 +418,13 @@ pub const NAMES: &[NameDoc] = names! {
     Actor: "spawn_server" "spawn_server(handler, state)" "A process that answers each message m with state = handler(m, state). Its state is what defmigrate transforms.";
     Actor: "send" "send(pid, msg)" "Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped.";
     Actor: "receive" "receive([pattern][, timeout_ms][, on_timeout])" "The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock.";
-    Actor: "self" "self()" "This process's pid. The program itself is 0.";
+    Actor: "self" "self" "This process's pid. The program itself is 0.";
     Actor: "alive?" "alive?(pid)" "true while pid is running or waiting.";
     Actor: "link" "link(pid)" "Link to pid: an abnormal exit of either ends the other. false when pid is not alive.";
     Actor: "unlink" "unlink(pid)" "Remove a link; true.";
     Actor: "monitor" "monitor(pid)" "Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone).";
     Actor: "demonitor" "demonitor(ref)" "Stop a monitor; true.";
-    Actor: "exit" "exit(pid, reason)" "Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self(), r) raises.";
+    Actor: "exit" "exit(pid, reason)" "Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self, r) raises.";
     Actor: "trap_exit" "trap_exit(flag)" "While true, exit signals arrive as [:exit, pid, reason] messages instead of ending this process. Returns the previous flag.";
     Actor: "supervisor" "supervisor(strategy, children[, max_restarts])" "Start children (functions, [f, args] pairs, or [:server, handler, state]) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. Each crash writes a trace for blue replay.";
     Actor: "children" "children(sup)" "The pids a supervisor started, in order.";

@@ -380,7 +380,7 @@ def ident_start_chars()
 end
 
 def ident_chars()
-  concat_lists(ident_start_chars(), chars("0123456789"))
+  concat_lists(ident_start_chars, chars("0123456789"))
 end
 
 # An ASCII Rust identifier that is not a keyword.
@@ -388,12 +388,12 @@ def valid_ident?(s)
   cs = chars(s)
   if is_empty(cs)
     false
-  elsif contains(ident_start_chars(), first(cs)) == false
+  elsif contains(ident_start_chars, first(cs)) == false
     false
-  elsif contains(keywords(), s)
+  elsif contains(keywords, s)
     false
   else
-    count_where(fn(c) contains(ident_chars(), c) == false end, cs) == 0
+    count_where(fn(c) contains(ident_chars, c) == false end, cs) == 0
   end
 end
 
@@ -470,7 +470,7 @@ test "an enum with an impl renders a derive, variants and a match"
     [
       rs_fn(
         "as_str",
-        [self_param()],
+        [self_param],
         ty_ref(ty("'static str")),
         body,
         ["Its name."]

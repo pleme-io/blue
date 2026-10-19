@@ -24,8 +24,8 @@ def handle(s, req)
   end
 end
 
-if settei::serving?()
-  s = settei::current()
+if settei::serving?
+  s = settei::current
   kyuuji::serve_settings(s, fn(req) handle(s, req) end)
 end
 

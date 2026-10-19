@@ -295,10 +295,10 @@ def decisions()
       rule: "`==` is value equality: numbers by value (4 == 4.0), strings, lists and maps by content, nil only equals nil.",
       why: "Ruby's answer; maps compared by identity and 4 != 4.0 were silent wrong answers.",
       laws: [
-        ["reflexive", law_equal_reflexive],
-        ["symmetric", law_equal_symmetric],
-        ["numbers by value", law_numbers_by_value],
-        ["maps by value", law_maps_by_value]
+        ["reflexive", fn() law_equal_reflexive end],
+        ["symmetric", fn() law_equal_symmetric end],
+        ["numbers by value", fn() law_numbers_by_value end],
+        ["maps by value", fn() law_maps_by_value end]
       ]
     },
     {
@@ -306,28 +306,28 @@ def decisions()
       date: "2026-09-27",
       rule: "`!=` is exactly `not(a == b)`.",
       why: "Two operators, one meaning.",
-      laws: [["negation", law_not_equal_is_negation]]
+      laws: [["negation", fn() law_not_equal_is_negation end]]
     },
     {
       id: "D0003",
       date: "2026-09-27",
       rule: "`contains`, `index_of`, `count_of` and `distinct` use `==`.",
       why: "Membership that disagrees with equality answers the same question two ways.",
-      laws: [["membership", law_membership_is_equality]]
+      laws: [["membership", fn() law_membership_is_equality end]]
     },
     {
       id: "D0004",
       date: "2026-09-27",
       rule: "`nil` and `[]` are different values; `is_empty` is true of both.",
       why: "Ruby: absent is not empty.",
-      laws: [["nil is not []", law_nil_is_not_empty_list]]
+      laws: [["nil is not []", fn() law_nil_is_not_empty_list end]]
     },
     {
       id: "D0005",
       date: "2026-09-27",
       rule: "`to_s` gives text: a string is itself, nil is \"\", a float keeps its point (1.0).",
       why: "Ruby's to_s; to_s(1.0) was \"1\".",
-      laws: [["literals", law_to_s_literals]]
+      laws: [["literals", fn() law_to_s_literals end]]
     },
     {
       id: "D0006",
@@ -335,8 +335,11 @@ def decisions()
       rule: "A list or map renders as its blue literal, maps sorted by key: [1, \"a\"], {a: 1}. Interpolation uses to_s.",
       why: "to_s of a map was the word \"map\" and a list lost its brackets.",
       laws: [
-        ["collections", law_to_s_collections],
-        ["equal maps render equally", law_to_s_equal_maps_render_equally]
+        ["collections", fn() law_to_s_collections end],
+        [
+          "equal maps render equally",
+          fn() law_to_s_equal_maps_render_equally end
+        ]
       ]
     },
     {
@@ -344,42 +347,42 @@ def decisions()
       date: "2026-09-27",
       rule: "`concat` joins the text of one or more arguments, left to right.",
       why: "Ruby's String#concat takes many; two-only was an arity error.",
-      laws: [["any arity", law_concat_any_arity]]
+      laws: [["any arity", fn() law_concat_any_arity end]]
     },
     {
       id: "D0008",
       date: "2026-09-27",
       rule: "`/` is float division (7 / 2 == 3.5). Deviation from Ruby, kept.",
       why: "Integer truncation by the division operator is a classic silent bug.",
-      laws: [["float division", law_division_is_float]]
+      laws: [["float division", fn() law_division_is_float end]]
     },
     {
       id: "D0009",
       date: "2026-09-27",
       rule: "Map keys are exact: 1 and 1.0 are different keys.",
       why: "Ruby hashes key on eql?, where 1 and 1.0 differ.",
-      laws: [["exact keys", law_map_keys_are_exact]]
+      laws: [["exact keys", fn() law_map_keys_are_exact end]]
     },
     {
       id: "D0010",
       date: "2026-09-27",
       rule: "Every value has exactly one kind, each with one predicate: nil?, bool?, integer?, float?, string?, keyword?, list?, map?.",
       why: "float?, map? and bool? did not exist; nil? and list? each also held of the other kind.",
-      laws: [["one kind each", law_one_kind_each]]
+      laws: [["one kind each", fn() law_one_kind_each end]]
     },
     {
       id: "D0011",
       date: "2026-09-27",
       rule: "The empty list is always []: no list operation returns nil for an empty result.",
       why: "rest, cdr and append returned nil (Scheme), so rest([1]) == [] was false.",
-      laws: [["empty is []", law_empty_list_is_brackets]]
+      laws: [["empty is []", fn() law_empty_list_is_brackets end]]
     },
     {
       id: "D0012",
       date: "2026-09-27",
       rule: "`split` keeps every field: n separators give n + 1 fields, and join undoes split. Deviation from Ruby.",
       why: "Ruby drops trailing empty fields; tried, it broke nisshi, kueri and moji: a parser that loses a field loses data.",
-      laws: [["join undoes split", law_split_keeps_every_field]]
+      laws: [["join undoes split", fn() law_split_keeps_every_field end]]
     }
   ]
 end
@@ -392,7 +395,7 @@ end
 
 # Every law that does not hold, as "id: law", and every decision with no law.
 def failures()
-  flat_map(fn(d) decision_failures(d) end, decisions())
+  flat_map(fn(d) decision_failures(d) end, decisions)
 end
 
 def decision_failures(d)
@@ -419,25 +422,25 @@ end
 
 def card()
   head = "# Blue's rules\n\nGenerated from `bidamas/okite/okite.b` by `rules.b`: do not edit.\nEvery rule is enforced by laws in okite; a rule without a passing law fails\nthe build.\n\n**Blue values behave like Ruby's, except where a rule below says otherwise.**\n\n"
-  concat(head, join(map(fn(d) card_line(d) end, decisions()), ""))
+  concat(head, join(map(fn(d) card_line(d) end, decisions), ""))
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "every decision is enforced, and every law holds"
-  assert failures() == []
+  assert failures == []
 end
 
 test "decision ids are unique and in order"
-  ids = map(fn(d) get(d, :id) end, decisions())
+  ids = map(fn(d) get(d, :id) end, decisions)
   assert ids == distinct(ids)
   assert ids == sort(ids)
 end
 
 test "the card stays small: a rule is a line, and the card fits in 40"
-  card = okite::card()
+  card = okite::card
   assert size(lines(card)) <= 40
-  assert all(fn(d) length(get(d, :rule)) <= 160 end, decisions())
+  assert all(fn(d) length(get(d, :rule)) <= 160 end, decisions)
 end
 
 test "the generator covers every kind (anti-vacuity)"

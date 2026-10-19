@@ -6,7 +6,7 @@ Each program is one blessed way to do a common task, and each runs as a check (`
 
 ## A script
 
-A file is a program. `blue examples/00_script.b one two` runs this one, and so does `./examples/00_script.b one two`, because its first line names blue and the file is executable. No Bluefile and no BLUE_PATH are needed: the standard bidamas are compiled into blue, and a script inside a project also reaches the project's own packages. argv() is what follows the file. A script prints only what it writes, where `blue run` also prints the last value, and `blue test` runs its tests. When a script outgrows one file, `blue new NAME` starts a project around it.
+A file is a program. `blue examples/00_script.b one two` runs this one, and so does `./examples/00_script.b one two`, because its first line names blue and the file is executable. No Bluefile and no BLUE_PATH are needed: the standard bidamas are compiled into blue, and a script inside a project also reaches the project's own packages. argv is what follows the file. A script prints only what it writes, where `blue run` also prints the last value, and `blue test` runs its tests. When a script outgrows one file, `blue new NAME` starts a project around it.
 
 `examples/00_script.b`:
 
@@ -31,7 +31,7 @@ test "with no arguments it says how to call it"
   assert shout([]) == "usage: 00_script.b WORD..."
 end
 
-write_stdout("#{shout(argv())}\n")
+write_stdout("#{shout(argv)}\n")
 ```
 
 ## Reading and writing files
@@ -463,7 +463,7 @@ end
 
 ## Running other programs
 
-exec_capture runs a command with no shell and answers its status, stdout and stderr as pairs; shisutemu reads them. exec_check answers only the status. To run blue itself, spawn self_exe(): a nix sandbox has no blue on PATH.
+exec_capture runs a command with no shell and answers its status, stdout and stderr as pairs; shisutemu reads them. exec_check answers only the status. To run blue itself, spawn self_exe: a nix sandbox has no blue on PATH.
 
 `examples/09_processes.b`:
 
@@ -472,7 +472,7 @@ use("moji", [:is_blank])
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def blue_version()
-  cap = exec_capture(self_exe(), "--version")
+  cap = exec_capture(self_exe, "--version")
   if status_of(cap) == 0
     trim(stdout_of(cap))
   else
@@ -481,11 +481,11 @@ def blue_version()
 end
 
 test "a command's output, read through shisutemu"
-  assert starts_with?(blue_version(), "blue ")
+  assert starts_with?(blue_version, "blue ")
 end
 
 test "a failing command is a status, not a raise"
-  cap = exec_capture(self_exe(), "no-such-subcommand")
+  cap = exec_capture(self_exe, "no-such-subcommand")
   assert status_of(cap) != 0
   assert !is_blank(stderr_of(cap))
 end
@@ -693,12 +693,12 @@ def ask(worker, n)
 end
 
 test "a worker answers by message"
-  w = spawn(squarer, [self()])
+  w = spawn(squarer, [self])
   assert ask(w, 7) == 49
 end
 
 test "a supervised worker survives a bad job"
-  sup = supervisor(:one_for_one, [[squarer, [self()]]], 3)
+  sup = supervisor(:one_for_one, [[squarer, [self]]], 3)
   w = nth(0, children(sup))
   send(w, -1)
   receive(:never, 50)

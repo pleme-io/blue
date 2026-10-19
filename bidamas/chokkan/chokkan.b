@@ -255,7 +255,7 @@ test "a request with nothing to ask is refused, and an empty answer is blind"
 end
 
 test "a request carries every question's name, type and criteria"
-  doc = json_parse(request("jev-latest", "state", example_questions()))
+  doc = json_parse(request("jev-latest", "state", example_questions))
   qs = json_get(doc, "questions")
   assert json_get(doc, "model") == "jev-latest"
   assert json_get(doc, "state") == "state"
@@ -297,7 +297,7 @@ test "every problem is named at once, not only the first"
 end
 
 test "an answered body reads as typed answers"
-  r = read(200, example_body())
+  r = read(200, example_body)
   assert get(r, :kind) == :answered
   assert get(r, :model) == "jev-1.13.0"
   assert probability(r, "is_refund") == 0.99
@@ -327,8 +327,8 @@ test "a refusal and a failure are told apart, and neither answers"
   assert get(read(429, ""), :kind) == :blind
   assert get(read(503, ""), :kind) == :blind
   assert get(read(0, nil), :kind) == :blind
-  assert chosen(read(429, example_body()), "route") == nil
-  assert confident(read(429, example_body()), "route", 0) == false
+  assert chosen(read(429, example_body), "route") == nil
+  assert confident(read(429, example_body), "route", 0) == false
 end
 
 test "keep_tail keeps the newest characters"

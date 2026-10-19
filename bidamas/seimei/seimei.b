@@ -502,7 +502,7 @@ def rule_catalog()
 end
 
 def rule_name(rule)
-  hit = find_first(fn(p) first(p) == rule end, rule_catalog())
+  hit = find_first(fn(p) first(p) == rule end, rule_catalog)
   if hit == nil
     "unnamed"
   else
@@ -546,7 +546,7 @@ test "a rule's name is checked against what the rule actually does"
   assert rule_name(110) == "universal"
   # An unlisted rule is still a perfectly good rule.
   assert rule_name(137) == "unnamed"
-  assert size(rule_catalog()) == 8
+  assert size(rule_catalog) == 8
 end
 
 # ---------------------------------------------------------------------------
@@ -685,7 +685,7 @@ def neighbours_equal(grid, r, c, v)
       end
     end,
     0,
-    neighbour_offsets()
+    neighbour_offsets
   )
 end
 

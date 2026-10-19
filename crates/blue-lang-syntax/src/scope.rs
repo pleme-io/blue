@@ -236,6 +236,12 @@ pub trait Scopes {
     /// A symbol in code position. `opaque`: inside a macro call's arguments,
     /// which are syntax the macro may never evaluate.
     fn reference(&mut self, node: &Spanned, name: &str, opaque: bool);
+    fn call(&mut self, node: &Spanned, _whole: &Spanned, name: &str, opaque: bool) {
+        self.reference(node, name, opaque);
+    }
+    fn place(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        self.reference(node, name, opaque);
+    }
     /// The head of a special form or a macro call — not a reference to a
     /// binding, but still a name the program writes.
     fn head(&mut self, _node: &Spanned, _name: &str, _kind: HeadKind) {}
@@ -320,6 +326,19 @@ pub fn definition_nodes<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a Spanned, 
                 definition_nodes(item, out);
             }
         }
+    }
+}
+
+#[must_use]
+pub fn nullary_definition(form: &Spanned) -> Option<&str> {
+    let items = form.as_list()?;
+    let head = items.first()?.as_symbol()?;
+    if head != "define" && head != "define-typed" {
+        return None;
+    }
+    match items.get(1)?.as_list()? {
+        [name] => name.as_symbol(),
+        _ => None,
     }
 }
 
@@ -418,7 +437,7 @@ impl Walker<'_> {
             SpannedForm::Unquote(inner) | SpannedForm::UnquoteSplice(inner) => {
                 self.walk(inner, opaque);
             }
-            SpannedForm::List(items) if !items.is_empty() => self.walk_list(items, opaque),
+            SpannedForm::List(items) if !items.is_empty() => self.walk_list(form, items, opaque),
             _ => {}
         }
     }
@@ -446,7 +465,7 @@ impl Walker<'_> {
         }
     }
 
-    fn walk_list(&mut self, items: &[Spanned], opaque: bool) {
+    fn walk_list(&mut self, form: &Spanned, items: &[Spanned], opaque: bool) {
         let Some(head) = items[0].as_symbol() else {
             self.walk_all(items, opaque);
             return;
@@ -494,7 +513,7 @@ impl Walker<'_> {
                 }
             }
             Some(HeadKind::Value) | None => {
-                self.walk(&items[0], opaque);
+                self.pass.call(&items[0], form, head, opaque);
                 self.walk_all(&items[1..], opaque);
             }
         }
@@ -561,6 +580,14 @@ impl Walker<'_> {
                 }
             }
             "let" | "let*" | "letrec" => self.walk_let(head, args, opaque),
+            "set!" => match args.split_first() {
+                Some((target, rest)) if target.as_symbol().is_some() => {
+                    self.pass
+                        .place(target, target.as_symbol().expect("matched"), opaque);
+                    self.walk_all(rest, opaque);
+                }
+                _ => self.walk_all(args, opaque),
+            },
             "try" => {
                 for a in args {
                     let clause = a.as_list();

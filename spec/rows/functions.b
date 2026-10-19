@@ -27,7 +27,33 @@ row(
   covers("keyword:def", "form:f(x, y)")
 )
 
-row("fn.def.last_expression", "def f()\n  1\n  2\nend\n\nf()", value("2"))
+row("fn.def.bare_call", "def f()\n  41\nend\n\nf + 1", value("42"))
+
+row(
+  "fn.def.bare_call.condition",
+  "def no()\n  false\nend\n\nif no\n  1\nelse\n  2\nend",
+  value("2")
+)
+
+row(
+  "fn.def.bare_call.local_is_its_value",
+  "def f()\n  1\nend\n\ndef g(f)\n  f + 10\nend\n\ng(5)",
+  value("15")
+)
+
+row(
+  "fn.def.bare_call.value_form",
+  "def f()\n  2\nend\n\napply(fn() f end, [])",
+  value("2")
+)
+
+row(
+  "fn.def.bare_call.arguments_stay_values",
+  "def inc(x)\n  x + 1\nend\n\nmap(inc, [1, 2])",
+  value("[2, 3]")
+)
+
+row("fn.def.last_expression", "def f()\n  1\n  2\nend\n\nf", value("2"))
 
 row(
   "fn.anonymous",

@@ -14,7 +14,7 @@ def proxy_names()
 end
 
 def relay_env(url)
-  map(fn(n) [n, url] end, proxy_names())
+  map(fn(n) [n, url] end, proxy_names)
 end
 
 def run_via(url, command)
@@ -28,7 +28,7 @@ def run_via(url, command)
 end
 
 def main()
-  run_via(env_required("KEIYU_RELAY"), argv())
+  run_via(env_required("KEIYU_RELAY"), argv)
 end
 
 test "every proxy variable a client reads names the relay"
@@ -49,14 +49,14 @@ end
 
 test "the proxy reaches the child and never this process"
   before = getenv("ALL_PROXY")
-  if self_exe() != nil
-    dir = path_join(getenv("TMPDIR", "/tmp"), "keiyu-#{to_s(now_ns())}")
+  if self_exe != nil
+    dir = path_join(getenv("TMPDIR", "/tmp"), "keiyu-#{to_s(now_ns)}")
     mkdir_p(dir)
     prog = path_join(dir, "child.b")
     write_file(prog, "use(\"keiyu\", [:main])\nmain()\n")
     cap = exec_with_env(
       [["KEIYU_RELAY", "socks5h://relay.test:11080"]],
-      self_exe(),
+      self_exe,
       "run",
       "--quiet",
       prog,

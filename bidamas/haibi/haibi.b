@@ -400,7 +400,7 @@ def chart_yaml(name, version, mode)
         [
           {
             "name" => "pleme-lib",
-            "version" => pleme_lib_range(),
+            "version" => pleme_lib_range,
             "repository" => "oci://ghcr.io/pleme-io/charts"
           }
         ]
@@ -713,7 +713,7 @@ def sample()
 end
 
 test "defaults are the declared settings plus listen, health and flags"
-  d = defaults(sample())
+  d = defaults(sample)
   assert d ==
     {
       "greeting" => "hello",
@@ -744,7 +744,7 @@ test "a schema is closed and typed from the values it describes"
 end
 
 test "the values schema closes what blue owns and opens what Kubernetes owns"
-  vs = get(values_schema("hello", sample()), "properties")
+  vs = get(values_schema("hello", sample), "properties")
   assert get(get(vs, "config"), "additionalProperties") == false
   assert get(get(get(get(vs, "flags"), "properties"), "shout"), "type") ==
     "boolean"
@@ -761,7 +761,7 @@ test "the values schema closes what blue owns and opens what Kubernetes owns"
 end
 
 test "the DDL is additive, keyed by id, with nullable columns marked"
-  sql = ddl(sample())
+  sql = ddl(sample)
   assert contains?(
     sql,
     "CREATE TABLE IF NOT EXISTS \"greetings\" (\n  \"id\" bigserial PRIMARY KEY,\n  \"note\" text,\n  \"text\" text NOT NULL\n);"
@@ -778,22 +778,22 @@ test "the DDL is additive, keyed by id, with nullable columns marked"
 end
 
 test "a row is checked against its table before it becomes SQL"
-  assert insert_sql(sample(), "greetings", {"text" => "it's"}) ==
+  assert insert_sql(sample, "greetings", {"text" => "it's"}) ==
     "INSERT INTO \"greetings\" (\"text\") VALUES ('it''s');\n"
-  assert row_refusals(sample(), "greetings", {"note" => "x"}) ==
+  assert row_refusals(sample, "greetings", {"note" => "x"}) ==
     [[:missing_column, "greetings.text is required"]]
-  assert row_refusals(sample(), "nope", {}) ==
+  assert row_refusals(sample, "nope", {}) ==
     [[:unknown_table, "nope is not a declared table"]]
   assert first(
-    first(row_refusals(sample(), "greetings", {"text" => "a", "bad" => 1}))
+    first(row_refusals(sample, "greetings", {"text" => "a", "bad" => 1}))
   ) ==
     :unknown_column
 end
 
 test "the tree holds the chart, its schema, the config and, with a schema, the migration"
-  self_paths = map(fn(f) first(f) end, files_self("hello", "0.1.0", sample()))
+  self_paths = map(fn(f) first(f) end, files_self("hello", "0.1.0", sample))
   assert member?("chart/templates/_helpers.tpl", self_paths) == true
-  paths = map(fn(f) first(f) end, files("hello", "0.1.0", sample()))
+  paths = map(fn(f) first(f) end, files("hello", "0.1.0", sample))
   assert paths ==
     [
       "chart/Chart.yaml",
@@ -814,7 +814,7 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   )
   assert member?("chart/templates/migration.yaml", bare) == false
   assert contains?(
-    second(first(files("hello", "0.1.0", sample()))),
+    second(first(files("hello", "0.1.0", sample))),
     "version: \"0.1.0\""
   ) ==
     true
@@ -829,12 +829,12 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   ) ==
     true
   assert contains?(
-    second(first(files("hello", "0.1.0", sample()))),
+    second(first(files("hello", "0.1.0", sample))),
     "name: \"pleme-lib\""
   ) ==
     true
   assert contains?(
-    second(first(files_self("hello", "0.1.0", sample()))),
+    second(first(files_self("hello", "0.1.0", sample))),
     "pleme-lib"
   ) ==
     false
@@ -843,10 +843,10 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
 end
 
 test "a service with tables names its schema and a database setting"
-  d = service_defaults("ola-mundo", sample())
+  d = service_defaults("ola-mundo", sample)
   assert get(d, "database") == {"url" => "", "schema" => "ola_mundo"}
   assert get(service_defaults("x", {"port" => 1}), "database") == nil
-  sql = ddl_in("ola_mundo", sample())
+  sql = ddl_in("ola_mundo", sample)
   assert starts_with?(sql, "CREATE SCHEMA IF NOT EXISTS \"ola_mundo\";") == true
   assert contains?(
     sql,

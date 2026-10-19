@@ -65,7 +65,7 @@ def lower_digits()
 end
 
 def slug_chars()
-  "#{lower_digits()}_"
+  "#{lower_digits}_"
 end
 
 def name_chars()
@@ -74,9 +74,7 @@ end
 
 # A name a home gives a thing (a tone, a mood, a speaker, a role).
 def name_text()
-  fn(v)
-    verdict(string?(v) && made_of(v, name_chars()), "#{v} is not a name")
-  end
+  fn(v) verdict(string?(v) && made_of(v, name_chars), "#{v} is not a name") end
 end
 
 # A Home Assistant entity id in `domain`: `light.hallway`.
@@ -84,7 +82,7 @@ def entity(domain)
   fn(v)
     verdict(
       string?(v) &&
-        made_of(strip_prefix(v, "#{domain}."), slug_chars()) &&
+        made_of(strip_prefix(v, "#{domain}."), slug_chars) &&
         strip_prefix(v, "#{domain}.") != v,
       "#{v} is not a #{domain} entity"
     )
@@ -94,7 +92,7 @@ end
 def icon()
   fn(v)
     verdict(
-      string?(v) && made_of(v, "#{lower_digits()}-"),
+      string?(v) && made_of(v, "#{lower_digits}-"),
       "#{v} is not a Material Design Icons name"
     )
   end
@@ -285,7 +283,7 @@ def lights_table()
     field(:kelvin, "kelvin", int_in(2000, 6500)),
     field(:transition, "transition", int_in(0, 600)),
     field(:only, "only", list_of(entity("light"))),
-    field(:role, nil, name_text()),
+    field(:role, nil, name_text),
     field(:rgb, "rgb", three_of(int_in(0, 255)))
   ]
 end
@@ -303,30 +301,30 @@ end
 def hand_over_table()
   [
     required(field(:after_minutes, "afterMinutes", int_in(0, 240))),
-    required(field(:mood, "mood", name_text()))
+    required(field(:mood, "mood", name_text))
   ]
 end
 
 def sound_table()
   [
-    required(field(:tone, "tone", name_text())),
+    required(field(:tone, "tone", name_text)),
     field(:volume, "volume", number_in(0.0, 1.0)),
-    field(:speakers, "speakers", list_of(name_text()))
+    field(:speakers, "speakers", list_of(name_text))
   ]
 end
 
 def mood_table()
   [
-    field(:label, "label", text()),
-    field(:group, "group", text()),
-    field(:icon, "icon", icon()),
-    field(:color, "color", hex_color()),
-    field(:enable, "enable", flag()),
-    field(:phone_button, "phoneButton", flag()),
-    record_field(:lights, "lights", lights_table()),
-    record_field(:breathing, "breathing", breathing_table()),
-    records_field(:then, "then", hand_over_table()),
-    record_field(:sound, "sound", sound_table())
+    field(:label, "label", text),
+    field(:group, "group", text),
+    field(:icon, "icon", icon),
+    field(:color, "color", hex_color),
+    field(:enable, "enable", flag),
+    field(:phone_button, "phoneButton", flag),
+    record_field(:lights, "lights", lights_table),
+    record_field(:breathing, "breathing", breathing_table),
+    records_field(:then, "then", hand_over_table),
+    record_field(:sound, "sound", sound_table)
   ]
 end
 
@@ -340,13 +338,13 @@ end
 
 def site_table()
   [
-    required(field(:name, "name", name_text())),
-    record_field(:coordinates, "coordinates", coordinates_table())
+    required(field(:name, "name", name_text)),
+    record_field(:coordinates, "coordinates", coordinates_table)
   ]
 end
 
 def enable_field()
-  field(:enable, "enable", flag())
+  field(:enable, "enable", flag)
 end
 
 # [name, host] or [name, host, port], one per ESPHome device.
@@ -355,8 +353,8 @@ def device_row()
     verdict(
       list?(r) &&
         (size(r) == 2 || size(r) == 3) &&
-        passes?(name_text(), first(r)) &&
-        passes?(text(), nth(1, r)) &&
+        passes?(name_text, first(r)) &&
+        passes?(text, nth(1, r)) &&
         (size(r) == 2 || passes?(int_in(1, 65535), last(r))),
       "#{r} is not [name, host] or [name, host, port]"
     )
@@ -381,7 +379,7 @@ def camera_row()
     verdict(
       list?(r) &&
         size(r) == 2 &&
-        passes?(name_text(), first(r)) &&
+        passes?(name_text, first(r)) &&
         string?(last(r)) &&
         (strip_prefix(last(r), "rtsp://") != last(r) ||
           strip_prefix(last(r), "rtsps://") != last(r)),
@@ -402,32 +400,27 @@ end
 # its settings, and the radio it bridges (nil for none).
 def components()
   [
-    [:mosquitto, "mosquitto", [enable_field()], nil],
+    [:mosquitto, "mosquitto", [enable_field], nil],
     [
       :zigbee2mqtt,
       "zigbee2mqtt",
-      [enable_field(), field(:permit_join, "permitJoin", flag())],
+      [enable_field, field(:permit_join, "permitJoin", flag)],
       "zigbee"
     ],
-    [:zwave_js, "zwaveJs", [enable_field()], "zwave"],
-    [:matter, "matter", [enable_field()], nil],
+    [:zwave_js, "zwaveJs", [enable_field], "zwave"],
+    [:matter, "matter", [enable_field], nil],
     [
       :otbr,
       "otbr",
-      [enable_field(), field(:backbone_interface, "backboneInterface", text())],
+      [enable_field, field(:backbone_interface, "backboneInterface", text)],
       "thread"
     ],
     [
       :esphome,
       "esphome",
       [
-        enable_field(),
-        rows_field(
-          :devices,
-          "devices",
-          device_row(),
-          fn(v) device_render(v) end
-        )
+        enable_field,
+        rows_field(:devices, "devices", device_row, fn(v) device_render(v) end)
       ],
       nil
     ],
@@ -435,47 +428,42 @@ def components()
       :whisper,
       "whisper",
       [
-        enable_field(),
-        field(:model, "model", text()),
-        field(:language, "language", text())
+        enable_field,
+        field(:model, "model", text),
+        field(:language, "language", text)
       ],
       nil
     ],
-    [:piper, "piper", [enable_field(), field(:voice, "voice", text())], nil],
-    [:wakeword, "wakeword", [enable_field()], nil],
+    [:piper, "piper", [enable_field, field(:voice, "voice", text)], nil],
+    [:wakeword, "wakeword", [enable_field], nil],
     [
       :frigate,
       "frigate",
       [
-        enable_field(),
-        rows_field(
-          :cameras,
-          "cameras",
-          camera_row(),
-          fn(v) camera_render(v) end
-        )
+        enable_field,
+        rows_field(:cameras, "cameras", camera_row, fn(v) camera_render(v) end)
       ],
       nil
     ],
-    [:go2rtc, "go2rtc", [enable_field()], nil],
+    [:go2rtc, "go2rtc", [enable_field], nil],
     [
       :music_assistant,
       "musicAssistant",
-      [enable_field(), field(:providers, "providers", list_of(text()))],
+      [enable_field, field(:providers, "providers", list_of(text))],
       nil
     ],
-    [:node_red, "nodeRed", [enable_field()], nil],
+    [:node_red, "nodeRed", [enable_field], nil],
     [
       :nats,
       "nats",
-      [enable_field(), field(:bridge_mqtt, "bridgeMqtt", flag())],
+      [enable_field, field(:bridge_mqtt, "bridgeMqtt", flag)],
       nil
     ]
   ]
 end
 
 def component_row(name)
-  rows = filter(fn(c) first(c) == name end, components())
+  rows = filter(fn(c) first(c) == name end, components)
   if is_empty(rows)
     nil
   else
@@ -484,7 +472,7 @@ def component_row(name)
 end
 
 def component_names()
-  map(fn(c) first(c) end, components())
+  map(fn(c) first(c) end, components)
 end
 
 # ── entries: a home is a list of them; a mood set is a list inside it ─────
@@ -700,7 +688,7 @@ def singleton_checks()
     [:exposure, one_of(["tailnet", "lan"])],
     [:secrets_source, one_of(["sops", "external"])],
     [:recorder, one_of(["sqlite", "postgres"])],
-    [:media_base_url, base_url()]
+    [:media_base_url, base_url]
   ]
 end
 
@@ -732,32 +720,29 @@ end
 def local_refusals(e)
   k = kind_of(e)
   v = value_of(e)
-  singles = filter(fn(s) first(s) == k end, singleton_checks())
+  singles = filter(fn(s) first(s) == k end, singleton_checks)
   if !is_empty(singles)
     whys_to_refusals(e, check_why(last(first(singles)), v))
   elsif k == :site
-    whys_to_refusals(e, record_whys(site_table(), v))
+    whys_to_refusals(e, record_whys(site_table, v))
   elsif k == :integration
     whys_to_refusals(
       e,
       check_why(
         fn(d)
-          verdict(
-            string?(d) && made_of(d, slug_chars()),
-            "#{d} is not a domain"
-          )
+          verdict(string?(d) && made_of(d, slug_chars), "#{d} is not a domain")
         end,
         v
       )
     )
   elsif k == :speaker
     append(
-      whys_to_refusals(e, check_why(name_text(), name_of(e))),
+      whys_to_refusals(e, check_why(name_text, name_of(e))),
       whys_to_refusals(e, check_why(entity("media_player"), v))
     )
   elsif k == :light_role
     append(
-      whys_to_refusals(e, check_why(name_text(), name_of(e))),
+      whys_to_refusals(e, check_why(name_text, name_of(e))),
       whys_to_refusals(e, check_why(list_of(entity("light")), v))
     )
   elsif k == :tone
@@ -773,10 +758,7 @@ end
 
 def tone_refusals(e)
   v = value_of(e)
-  whys = append(
-    check_why(name_text(), name_of(e)),
-    record_whys(tone_table(), v)
-  )
+  whys = append(check_why(name_text, name_of(e)), record_whys(tone_table, v))
   if !is_empty(whys)
     whys_to_refusals(e, whys)
   else
@@ -814,10 +796,7 @@ end
 
 def mood_refusals(e)
   v = value_of(e)
-  whys = append(
-    check_why(name_text(), name_of(e)),
-    record_whys(mood_table(), v)
-  )
+  whys = append(check_why(name_text, name_of(e)), record_whys(mood_table, v))
   b = get(v, :breathing)
   if !is_empty(whys)
     whys_to_refusals(e, whys)
@@ -836,7 +815,7 @@ def component_refusals(e)
       refuse_entry(
         :unknown_component,
         e,
-        "not one of #{join(map(fn(n) to_s(n) end, component_names()), ", ")}"
+        "not one of #{join(map(fn(n) to_s(n) end, component_names), ", ")}"
       )
     ]
   else
@@ -862,7 +841,7 @@ end
 
 def component_key(e)
   n = name_of(e)
-  hits = filter(fn(c) to_s(c) == n end, component_names())
+  hits = filter(fn(c) to_s(c) == n end, component_names)
   if is_empty(hits)
     nil
   else
@@ -900,9 +879,9 @@ end
 
 def fields_of(kind)
   if kind == :mood
-    mood_table()
+    mood_table
   elsif kind == :tone
-    tone_table()
+    tone_table
   else
     nil
   end
@@ -1218,15 +1197,11 @@ def home_assistant(es)
       ),
       slot("speakers", :speaker, by_name(fn(e) value_of(e) end)),
       slot("lightRoles", :light_role, by_name(fn(e) value_of(e) end)),
-      slot(
-        "tones",
-        :tone,
-        by_name(fn(e) project(tone_table(), value_of(e)) end)
-      ),
+      slot("tones", :tone, by_name(fn(e) project(tone_table, value_of(e)) end)),
       slot(
         "moods",
         :mood,
-        by_name(fn(e) project(mood_table(), resolved(e, es)) end)
+        by_name(fn(e) project(mood_table, resolved(e, es)) end)
       )
     ]
   )
@@ -1243,7 +1218,7 @@ def lareira(entries)
       slot("delivery", :delivery, single(fn(e) value_of(e) end)),
       slot("exposure", :exposure, single(fn(e) value_of(e) end)),
       slot("secretsSource", :secrets_source, single(fn(e) value_of(e) end)),
-      slot("site", :site, single(fn(e) project(site_table(), value_of(e)) end)),
+      slot("site", :site, single(fn(e) project(site_table, value_of(e)) end)),
       slot("components", :component, fn(hits) component_json(hits) end)
     ]
   )
@@ -1340,10 +1315,10 @@ test "a tone and a mood project field for field as pleme.lareira takes them"
     ]
   ) ==
     "{\"enable\":true,\"homeAssistant\":{\"tones\":{\"alpha-10hz\":{\"depth\":1.0,\"frequency\":200,\"minutes\":30,\"tremolo\":10.0}}},\"site\":{\"name\":\"natal\"}}"
-  assert json_stringify(lareira(example_home())) == to_json(example_home())
+  assert json_stringify(lareira(example_home)) == to_json(example_home)
   relax = json_stringify(
     project(
-      mood_table(),
+      mood_table,
       value_of(
         nth(
           0,
@@ -1370,7 +1345,7 @@ test "a tone and a mood project field for field as pleme.lareira takes them"
 end
 
 test "judging is idempotent: what stands, judged again, all stands"
-  h = example_home()
+  h = example_home
   assert refusals(h) == []
   assert accepted(accepted(h)) == accepted(h)
   assert to_json(accepted(h)) == to_json(h)
@@ -1378,7 +1353,7 @@ test "judging is idempotent: what stands, judged again, all stands"
 end
 
 test "a role-addressed mood takes the role's lights, and hands over by name"
-  glow = mood_doc(example_home(), "glow")
+  glow = mood_doc(example_home, "glow")
   assert json_get(json_get(glow, "lights"), "only") == ["light.hallway"]
   assert json_get(first(json_get(glow, "then")), "afterMinutes") == 5
   assert json_get(json_get(glow, "lights"), "role") == nil
@@ -1386,7 +1361,7 @@ end
 
 test "a bad entry is refused alone, and what names it falls with it"
   h = append(
-    example_home(),
+    example_home,
     [
       mood_of("hot", "Hot", "fire", "#FF0000", white(50, 9000), "hz432", 0.3),
       mood_of("warm", "Warm", "fire", "#FF0000", white(50, 3000), "hz432", 0.3),
@@ -1452,7 +1427,7 @@ end
 
 test "a tune configures a set's mood off without forking the set"
   h = append(
-    example_home(),
+    example_home,
     [
       tune(:mood, "relax", {enable: false}),
       tune(:mood, "absent", {enable: false})
@@ -1464,7 +1439,7 @@ test "a tune configures a set's mood off without forking the set"
   assert kinds(
     refusals(
       append(
-        example_home(),
+        example_home,
         [
           tune(:mood, "relax", {enable: false}),
           mood("x", {label: "X", then: [hand_over(1, "relax")]})
@@ -1497,7 +1472,7 @@ test "a mood plays only where a base url and speakers stand"
     []
   hosted = append(
     bare,
-    [media_base_url_from_host(), speaker("k", "media_player.k")]
+    [media_base_url_from_host, speaker("k", "media_player.k")]
   )
   assert kinds(refusals(hosted)) == []
   assert get(get(lareira(hosted), "homeAssistant"), "mediaBaseUrl") == nil

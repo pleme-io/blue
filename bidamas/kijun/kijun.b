@@ -490,7 +490,7 @@ end
 def platform_path?(path)
   p = config_relative(path)
   first(path) != "options" &&
-    !is_empty(filter(fn(x) starts?(p, x) end, platform_prefixes()))
+    !is_empty(filter(fn(x) starts?(p, x) end, platform_prefixes))
 end
 
 def emits_platform?(b)
@@ -576,7 +576,7 @@ def unpinned?(c)
   if a == nil
     false
   elsif kind(a) == "NODE_ATTR_SET"
-    is_empty(filter(fn(k) attr(a, k) != nil end, pin_attrs()))
+    is_empty(filter(fn(k) attr(a, k) != nil end, pin_attrs))
   else
     kind(a) == "NODE_STRING" || kind(a) == "NODE_PATH_ABS"
   end
@@ -594,7 +594,7 @@ def check_fetch(f, _repo)
         "#{get(c, :head)} with no hash fetches whatever the server serves today"
       )
     end,
-    filter(fn(c) unpinned?(c) end, named(get(f, :calls), fetchers()))
+    filter(fn(c) unpinned?(c) end, named(get(f, :calls), fetchers))
   )
 end
 
@@ -653,7 +653,7 @@ def check_shell(f, _repo)
     end,
     filter(
       fn(c) script_lines(script_body(c)) > 3 end,
-      named(get(f, :calls), scripts())
+      named(get(f, :calls), scripts)
     )
   )
 end
@@ -1241,7 +1241,7 @@ def active(cfg, plane)
     fn(r)
       get(r, :plane) == plane && !member?(get(r, :id), disabled_ids(cfg))
     end,
-    rules()
+    rules
   )
 end
 
@@ -1293,7 +1293,7 @@ def waiver_refusal(w)
       :waiver,
       "the waiver of #{get(w, :rule)} for #{get(w, :glob)} must read \"#{prefix}<typed reason>\""
     )
-  elsif is_empty(filter(fn(r) get(r, :id) == get(w, :rule) end, rules()))
+  elsif is_empty(filter(fn(r) get(r, :id) == get(w, :rule) end, rules))
     refusal(:waiver, "#{get(w, :rule)} is not a rule of the standard")
   else
     nil
@@ -1316,7 +1316,7 @@ def config_refusals(cfg)
       end,
       filter(
         fn(d)
-          is_empty(filter(fn(r) get(r, :id) == get(d, :rule) end, rules()))
+          is_empty(filter(fn(r) get(r, :id) == get(d, :rule) end, rules))
         end,
         get(cfg, :disabled)
       )
@@ -1337,7 +1337,7 @@ def waived?(ws, x)
 end
 
 def tier_of(id)
-  get(first(filter(fn(r) get(r, :id) == id end, rules())), :tier)
+  get(first(filter(fn(r) get(r, :id) == id end, rules)), :tier)
 end
 
 def key_of(x)
@@ -1698,7 +1698,7 @@ def rule_line(r)
 end
 
 def rules_text(cfg)
-  "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules()))} rules\n\n#{join(map(fn(r) rule_line(r) end, rules()), "\n")}"
+  "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules\n\n#{join(map(fn(r) rule_line(r) end, rules), "\n")}"
 end
 
 def finding_line(x)
@@ -1728,7 +1728,7 @@ def plain(x)
 end
 
 def plane_of(id)
-  get(first(filter(fn(r) get(r, :id) == id end, rules())), :plane)
+  get(first(filter(fn(r) get(r, :id) == id end, rules)), :plane)
 end
 
 def plane_counts(result, timing)
@@ -1834,22 +1834,22 @@ def run(cfg, args)
     write_stdout(rules_text(cfg))
     nil
   else
-    started = now_ms()
+    started = now_ms
     root = get(a, :root)
     files = tracked(root)
     if files == nil
       write_stderr("kijun: #{root} is not a git work tree\n")
       throw(error(:kijun_usage, "not a git work tree"))
     end
-    before_tree = now_ms()
+    before_tree = now_ms
     trees = if get(a, :tree)
       own = own_source(root)
       map(fn(c) tree_of(root, own, c) end, get(cfg, :configurations))
     else
       []
     end
-    tree_ms = now_ms() - before_tree
-    result = evaluate_timed(cfg, on_disk(root, files), trees, fn() now_ms() end)
+    tree_ms = now_ms - before_tree
+    result = evaluate_timed(cfg, on_disk(root, files), trees, fn() now_ms end)
     base = if get(a, :baseline) == nil
       path_join(root, get(cfg, :baseline))
     else
@@ -1869,7 +1869,7 @@ def run(cfg, args)
       verdict = judge(get(result, :gates), first(rows))
       ms = get(result, :ms)
       timing = {
-        wall: now_ms() - started,
+        wall: now_ms - started,
         planes: assoc(ms, :tree, get(ms, :tree) + tree_ms)
       }
       if get(a, :json)
@@ -1886,7 +1886,7 @@ def run(cfg, args)
 end
 
 def main()
-  args = argv()
+  args = argv
   root = get(flags(drop(1, args), {root: ".", error: nil}), :root)
   local = path_join(root, "kijun.b")
   if read_or(local, "") != ""
@@ -2295,17 +2295,17 @@ def fired(cfg, c, id)
 end
 
 test "every rule has a violating and a clean fixture, so a rule cannot land without both"
-  ids = map(fn(r) get(r, :id) end, rules())
+  ids = map(fn(r) get(r, :id) end, rules)
   covered = filter(
     fn(f) get(f, :bad) != nil && get(f, :good) != nil end,
-    fixtures()
+    fixtures
   )
   assert filter(
     fn(id) is_empty(filter(fn(f) get(f, :rule) == id end, covered)) end,
     ids
   ) ==
     []
-  assert filter(fn(f) !member?(get(f, :rule), ids) end, fixtures()) == []
+  assert filter(fn(f) !member?(get(f, :rule), ids) end, fixtures) == []
   assert size(ids) == size(unique(ids))
 end
 
@@ -2313,11 +2313,11 @@ test "each rule fires exactly as often as its violating fixture says, and never 
   cfg = fleet_repo(1)
   quiet = filter(
     fn(f) size(fired(cfg, get(f, :bad), get(f, :rule))) != get(f, :fires) end,
-    fixtures()
+    fixtures
   )
   noisy = filter(
     fn(f) !is_empty(fired(cfg, get(f, :good), get(f, :rule))) end,
-    fixtures()
+    fixtures
   )
   assert map(fn(f) get(f, :rule) end, quiet) == []
   assert map(fn(f) get(f, :rule) end, noisy) == []
@@ -2339,7 +2339,7 @@ test "trio/every-concept names every unit kind once and is silent when each is a
     sort_keyed(fn(t) t end, subjects(false))
   )
   assert sort_keyed(fn(t) t end, kinds) ==
-    sort_keyed(fn(t) t end, map(fn(k) to_s(k) end, unit_kinds()))
+    sort_keyed(fn(t) t end, map(fn(k) to_s(k) end, unit_kinds))
 end
 
 test "a registry is a concept only when a configuration layer imports it"
@@ -2458,7 +2458,7 @@ test "check --json carries the wall time and one count per plane"
 end
 
 test "trio/every-concept is the first rule the standard lists"
-  assert get(first(rules()), :id) == "trio/every-concept"
+  assert get(first(rules), :id) == "trio/every-concept"
 end
 
 test "the same declaration seen from two configurations is one finding"
@@ -2480,7 +2480,7 @@ test "a finding names its file and line"
 end
 
 test "node-shape names both a missing default.nix and a NixOS node's missing layers.nix"
-  f = first(filter(fn(f) get(f, :rule) == "layout/node-shape" end, fixtures()))
+  f = first(filter(fn(f) get(f, :rule) == "layout/node-shape" end, fixtures))
   xs = fired(fleet_repo(1), get(f, :bad), "layout/node-shape")
   assert sort_keyed(fn(t) t end, map(fn(x) get(x, :subject) end, xs)) ==
     ["default.nix", "layers.nix"]
@@ -2577,8 +2577,7 @@ end
 
 test "the rules listing is the standard: every rule, with why and fix"
   t = rules_text(fleet_repo(1))
-  assert size(filter(fn(r) contains?(t, get(r, :id)) end, rules())) ==
-    size(rules())
+  assert size(filter(fn(r) contains?(t, get(r, :id)) end, rules)) == size(rules)
   assert contains?(t, "fleet-repo v1") == true
 end
 

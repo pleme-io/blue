@@ -331,7 +331,7 @@ def genesis(label)
       )
     )
   end
-  chain_genesis("#{format()}\n#{label}")
+  chain_genesis("#{format}\n#{label}")
 end
 
 # Every refusal kind a record can carry: lc_admit's. Closed.
@@ -930,7 +930,7 @@ def refusal_from(v)
     [
       find_first(
         fn(k) raifusaikuru::text(k) == get_str(v, "kind", "") end,
-        refusal_kinds()
+        refusal_kinds
       ),
       as_list(as_json(v, "detail"))
     ]
@@ -1006,7 +1006,7 @@ def refusal_shape?(status, v)
   else
     object?(v) &&
       contains(
-        map(fn(k) raifusaikuru::text(k) end, refusal_kinds()),
+        map(fn(k) raifusaikuru::text(k) end, refusal_kinds),
         get_str(v, "kind", nil)
       ) &&
       texts_list?(as_json(v, "detail"))
@@ -1821,13 +1821,13 @@ end
 
 # A fresh path under TMPDIR for a test's stream.
 def test_path(name)
-  path_join(getenv("TMPDIR", "/tmp"), "nisshi-#{name}-#{to_s(now_ns())}.jsonl")
+  path_join(getenv("TMPDIR", "/tmp"), "nisshi-#{name}-#{to_s(now_ns)}.jsonl")
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "the empty stream: no file, an empty file and empty text all read as no records at the genesis, intact"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   g = genesis("nisshi-test")
   p = test_path("empty")
   log = read(p, "nisshi-test", d)
@@ -1849,7 +1849,7 @@ test "the empty stream: no file, an empty file and empty text all read as no rec
 end
 
 test "an identity: append then read gives back every record and every state, and reading twice is the same"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   p = test_path("identity")
   items = concat_lists(
     example_events(60, 3),
@@ -1901,7 +1901,7 @@ def identity_step(acc, x)
 end
 
 test "a refused event is written, marked with its reason, counted in seq, and folded into nothing"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   p = test_path("refused")
   l1 = el_append(
     read(p, "nisshi-test", d),
@@ -1941,7 +1941,7 @@ end
 # The stream the b3sum test pins: three events for one item, signed with RFC
 # 8032 TEST 1's key.
 def doc_stream(p)
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   log = signing(
     read(p, "nisshi-doc", d),
     "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
@@ -1965,7 +1965,7 @@ test "values checked independently: the genesis and every hash by b3sum, the sig
   # -sign -rawin` (OpenSSL 3.6.2) with RFC 8032 TEST 1's seed.
   p = test_path("doc")
   log = doc_stream(p)
-  read_back = read(p, "nisshi-doc", raifusaikuru::example_consumable())
+  read_back = read(p, "nisshi-doc", raifusaikuru::example_consumable)
   back = records(read_back)
   rm(p)
   assert genesis("nisshi-doc") ==
@@ -1998,7 +1998,7 @@ end
 # controls below damage one way each.
 def control_lines(p, secret)
   log = signing(
-    read(p, "nisshi-test", raifusaikuru::example_consumable()),
+    read(p, "nisshi-test", raifusaikuru::example_consumable),
     secret
   )
   items = [
@@ -2020,7 +2020,7 @@ def control_rows(lines, head, k, other)
   pub = keypair_public(k)
   line2 = nth(2, lines)
   line3 = nth(3, lines)
-  r3 = decode_line(raifusaikuru::example_consumable(), 3, line3)
+  r3 = decode_line(raifusaikuru::example_consumable, 3, line3)
   forged = replace(
     line3,
     rec_sig(r3),
@@ -2071,7 +2071,7 @@ end
 # The stream with its last record rewritten to claim seq 1 for item-2's first
 # record, re-hashed and re-signed: a writer's bug the chain alone accepts.
 def wrong_seq_lines(lines, secret)
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   r = decode_line(d, 4, nth(4, lines))
   texts = nisshi::texts(
     rec_entity(r),
@@ -2098,7 +2098,7 @@ def control_verdict(row)
       nil,
       0,
       "nisshi-test",
-      raifusaikuru::example_consumable()
+      raifusaikuru::example_consumable
     ),
     nth(2, row),
     nth(3, row)
@@ -2122,7 +2122,7 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
       nil,
       0,
       "nisshi-test",
-      raifusaikuru::example_consumable()
+      raifusaikuru::example_consumable
     ),
     keypair_public(k),
     head
@@ -2139,18 +2139,18 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
         nil,
         0,
         "nisshi-test",
-        raifusaikuru::example_consumable()
+        raifusaikuru::example_consumable
       ),
       keypair_public(k),
       nil
     )
   )
   # Every break kind has a row: a new kind without one fails here.
-  assert set_equal(unique(map(fn(row) first(row) end, rows)), break_kinds())
+  assert set_equal(unique(map(fn(row) first(row) end, rows)), break_kinds)
 end
 
 test "append raises before writing on what JSON cannot hold, and on a malformed call"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   p = test_path("values")
   l0 = read(p, "nisshi-test", d)
   bad_calls = [
@@ -2219,7 +2219,7 @@ test "append raises before writing on what JSON cannot hold, and on a malformed 
 end
 
 test "a stale log value cannot write, a written-through value keeps no records, and a broken stream cannot grow"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   p = test_path("writers")
   l0 = read(p, "nisshi-test", d)
   l1 = el_append(l0, "item-1", raifusaikuru::ev(:open, 1000, []), [])
@@ -2273,7 +2273,7 @@ test "a stale log value cannot write, a written-through value keeps no records, 
 end
 
 test "links are carried faithfully: kinds as text, ids, order and duplicates, in the hash"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   p = test_path("links")
   l1 = el_append(
     read(p, "nisshi-test", d),
@@ -2308,7 +2308,7 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
   assert canon([nil]) == "[null]"
   assert error?(try(canon(:k), catch(e(), e)))
   assert error?(try(canon([["a", 1], ["a", 2]]), catch(e(), e)))
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   p = test_path("canon")
   l1 = el_append(
     read(p, "nisshi-test", d),
@@ -2336,7 +2336,7 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
 end
 
 test "history: the state after every record, from read's own fold"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   # The empty case.
   assert history(from_text("", nil, 0, "nisshi-test", d)) == []
   # A value checked by hand: the doc stream is a reading (admitted), a use
@@ -2397,7 +2397,7 @@ test "history: the state after every record, from read's own fold"
 end
 
 test "grouping by entity keeps first-appearance order and stream order, and leaves bad lines out"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   recs = records(
     from_text(
       unlines(
@@ -2422,7 +2422,7 @@ test "grouping by entity keeps first-appearance order and stream order, and leav
 end
 
 test "an observed event is a fact: a guard refusal is written admitted and replayed as a breach; what the fold refuses stays refused"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   # The empty case: where the guard allows, observing and appending write the
   # same record, byte for byte.
   a = test_path("observe-a")
@@ -2507,7 +2507,7 @@ test "an observed event is a fact: a guard refusal is written admitted and repla
 end
 
 test "the state as of a time: the records at or before it, folded as read folds them"
-  d = raifusaikuru::example_consumable()
+  d = raifusaikuru::example_consumable
   p = test_path("state-at")
   doc_stream(p)
   log = read(p, "nisshi-doc", d)

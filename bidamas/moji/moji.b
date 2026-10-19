@@ -522,15 +522,15 @@ end
 # the parser does not honour. These answer the question a caller is really
 # asking: "will this go through to_int / is it an identifier / is it a hash?"
 def is_digit(s)
-  made_of(s, ascii_digits())
+  made_of(s, ascii_digits)
 end
 
 def is_alpha(s)
-  made_of(s, ascii_letters())
+  made_of(s, ascii_letters)
 end
 
 def is_alnum(s)
-  made_of(s, concat(ascii_letters(), ascii_digits()))
+  made_of(s, concat(ascii_letters, ascii_digits))
 end
 
 def is_hex(s)

@@ -372,7 +372,7 @@ def alphabet()
 end
 
 def letter_index(ch)
-  find_index_of(alphabet(), ch, 0)
+  find_index_of(alphabet, ch, 0)
 end
 
 def find_index_of(xs, v, i)
@@ -396,7 +396,7 @@ def shift_char(ch, n)
   if i < 0
     ch
   else
-    nth(((i + n) % 26 + 26) % 26, alphabet())
+    nth(((i + n) % 26 + 26) % 26, alphabet)
   end
 end
 
@@ -464,7 +464,7 @@ def atbash_char(ch)
   if i < 0
     ch
   else
-    nth(25 - i, alphabet())
+    nth(25 - i, alphabet)
   end
 end
 
@@ -526,7 +526,7 @@ def letter_counts(text)
     fn(i) i >= 0 end,
     map(fn(ch) letter_index(ch) end, chars(downcase(text)))
   )
-  map(fn(i) count_of(ls, i) end, indexes(alphabet()))
+  map(fn(i) count_of(ls, i) end, indexes(alphabet))
 end
 
 def letter_count(text, ch)
@@ -546,7 +546,7 @@ def most_common_letter(text)
   if best == 0
     ""
   else
-    nth(index_of(cnt, best), alphabet())
+    nth(index_of(cnt, best), alphabet)
   end
 end
 
@@ -584,8 +584,8 @@ def invert_key(key)
     ks = chars(downcase(key))
     join(
       map(
-        fn(i) nth(index_of(ks, nth(i, alphabet())), alphabet()) end,
-        indexes(alphabet())
+        fn(i) nth(index_of(ks, nth(i, alphabet)), alphabet) end,
+        indexes(alphabet)
       ),
       ""
     )
@@ -594,7 +594,7 @@ end
 
 def is_substitution_key(key)
   ks = chars(downcase(key))
-  size(ks) == 26 && size(filter(fn(c) contains(ks, c) end, alphabet())) == 26
+  size(ks) == 26 && size(filter(fn(c) contains(ks, c) end, alphabet)) == 26
 end
 
 # The classical way a human generated a substitution key without memorising
@@ -603,7 +603,7 @@ end
 def keyword_key(word)
   ws = dedupe_letters(chars(downcase(word)), [])
   join(
-    concat_lists(ws, filter(fn(c) contains(ws, c) == false end, alphabet())),
+    concat_lists(ws, filter(fn(c) contains(ws, c) == false end, alphabet)),
     ""
   )
 end
@@ -642,7 +642,7 @@ def english_score(text)
   reduce(
     fn(a, b) a + b end,
     0,
-    map(fn(i) nth(i, cnt) * nth(i, english_weights()) end, indexes(alphabet()))
+    map(fn(i) nth(i, cnt) * nth(i, english_weights) end, indexes(alphabet))
   )
 end
 
@@ -922,9 +922,9 @@ test "substitution cipher and its key"
     "flee at once"
   # Repeats in the keyword are dropped, so it stays a permutation.
   assert is_substitution_key(keyword_key("mississippi")) == true
-  assert keyword_key("") == join(alphabet(), "")
+  assert keyword_key("") == join(alphabet, "")
   # The identity key is the identity cipher.
-  assert substitution("hello", join(alphabet(), "")) == "hello"
+  assert substitution("hello", join(alphabet, "")) == "hello"
   # A key that is not a permutation is rejected rather than half-applied.
   assert is_substitution_key("abc") == false
   assert is_substitution_key("aaaaaaaaaaaaaaaaaaaaaaaaaa") == false

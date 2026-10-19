@@ -192,6 +192,9 @@ pub fn reference() -> Reference {
 /// is (1, 0, true). Only the text between the first `(` and the last `)` is
 /// read, and a bracketed group counts its names as optional.
 fn declared_params(signature: &str) -> Option<(usize, usize, bool)> {
+    if blue_lang_syntax::is_callable_name(signature) {
+        return Some((0, 0, false));
+    }
     let open = signature.find('(')?;
     let close = signature.rfind(')')?;
     let inner = &signature[open + 1..close];
@@ -311,6 +314,19 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    #[test]
+    fn every_nullary_function_is_documented_bare() {
+        let parenthesized: Vec<String> = bound()
+            .into_iter()
+            .filter(|n| n.arity.as_deref() == Some("0") && n.signature.contains('('))
+            .map(|n| format!("{}: `{}`", n.name, n.signature))
+            .collect();
+        assert!(
+            parenthesized.is_empty(),
+            "a zero-parameter function is called bare, so its signature is its name: {parenthesized:?}"
+        );
     }
 
     #[test]

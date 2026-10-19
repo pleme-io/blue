@@ -279,7 +279,7 @@ fn eval_once_prints_the_value_or_says_why_not() {
         .unwrap();
     assert!(out.status.success());
     assert_eq!(String::from_utf8_lossy(&out.stdout), "2\n");
-    let out = blue().args(["eval", "now_ms()"]).output().unwrap();
+    let out = blue().args(["eval", "now_ms"]).output().unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("volatile: `now_ms`"));
     let path = scratch(

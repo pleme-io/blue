@@ -216,15 +216,15 @@ def point_in_rect(p, rect)
 end
 
 def circle_circumference(r)
-  2 * pi() * r
+  2 * pi * r
 end
 
 def radians(deg)
-  deg * pi() / 180
+  deg * pi / 180
 end
 
 def degrees(rad)
-  rad * 180 / pi()
+  rad * 180 / pi
 end
 
 # theta in RADIANS throughout, like sin/cos — a package that mixed the two
@@ -255,7 +255,7 @@ def arc_cosine(v)
   if v >= 1
     0
   elsif v <= -1
-    pi()
+    pi
   else
     acos(v)
   end
@@ -710,11 +710,11 @@ end
 # pi r^2: a tessellated hole removes less material than the round one, which
 # regular_polygon_area lets a caller account for exactly.
 def circle_polygon(centre, r, n)
-  all_but_last(arc_points(centre, r, 0, 2 * pi(), n))
+  all_but_last(arc_points(centre, r, 0, 2 * pi, n))
 end
 
 def regular_polygon_area(r, n)
-  n / 2.0 * r * r * sin(2 * pi() / n)
+  n / 2.0 * r * r * sin(2 * pi / n)
 end
 
 # The same polygon wound counter-clockwise, or clockwise.
@@ -993,46 +993,46 @@ test "bounding box and rectangle containment"
 end
 
 test "circles, arcs and sectors agree at a full turn"
-  assert near(circle_circumference(1), 2 * pi()) == true
+  assert near(circle_circumference(1), 2 * pi) == true
   # A full-turn arc is the circumference and a full-turn sector is the area:
   # the case a factor-of-two slip in either formula still gets wrong.
-  assert near(arc_length(3, 2 * pi()), circle_circumference(3)) == true
-  assert near(sector_area(3, 2 * pi()), circle_area(3)) == true
+  assert near(arc_length(3, 2 * pi), circle_circumference(3)) == true
+  assert near(sector_area(3, 2 * pi), circle_area(3)) == true
   # A half turn is half of each.
-  assert near(sector_area(2, pi()), circle_area(2) / 2) == true
-  assert near(radians(180), pi()) == true
-  assert near(degrees(pi()), 180) == true
+  assert near(sector_area(2, pi), circle_area(2) / 2) == true
+  assert near(radians(180), pi) == true
+  assert near(degrees(pi), 180) == true
   # radians and degrees must invert each other, not merely look plausible.
   assert near(degrees(radians(37)), 37) == true
   # The chord across a half turn is the diameter.
-  assert near(chord_length(5, pi()), 10) == true
+  assert near(chord_length(5, pi), 10) == true
 end
 
 test "arc_cosine inverts cos, which this runtime cannot do for us"
   assert near(arc_cosine(1), 0) == true
-  assert near(arc_cosine(0), pi() / 2) == true
-  assert near(arc_cosine(-1), pi()) == true
-  assert near(arc_cosine(0.5), pi() / 3) == true
+  assert near(arc_cosine(0), pi / 2) == true
+  assert near(arc_cosine(-1), pi) == true
+  assert near(arc_cosine(0.5), pi / 3) == true
   # The round trip is the real check: a bisection that searched the wrong
   # direction still lands on plausible-looking endpoints.
   assert near(arc_cosine(cos(1.2345)), 1.2345) == true
   # Out of domain is clamped rather than left to produce a non-number.
   assert arc_cosine(2) == 0
-  assert near(arc_cosine(-2), pi()) == true
+  assert near(arc_cosine(-2), pi) == true
 end
 
 test "angles at a vertex, and the sum that must come out to pi"
-  assert near(angle_at([0, 0], [1, 0], [0, 1]), pi() / 2) == true
-  assert near(angle_at([0, 0], [1, 0], [1, 1]), pi() / 4) == true
+  assert near(angle_at([0, 0], [1, 0], [0, 1]), pi / 2) == true
+  assert near(angle_at([0, 0], [1, 0], [1, 1]), pi / 4) == true
   # A straight arm pair is pi, not a rounding failure past the arc cosine domain.
-  assert near(angle_at([0, 0], [1, 0], [-1, 0]), pi()) == true
+  assert near(angle_at([0, 0], [1, 0], [-1, 0]), pi) == true
   # The three interior angles of any triangle sum to pi — the identity a
   # wrong-but-plausible formula (say, missing a normalisation) breaks.
   a = [0, 0]
   b = [4, 0]
   c = [1, 3]
   total = angle_at(a, b, c) + angle_at(b, a, c) + angle_at(c, a, b)
-  assert near(total, pi()) == true
+  assert near(total, pi) == true
 end
 
 test "right triangles are decided on squared lengths, exactly"
@@ -1110,16 +1110,13 @@ end
 
 test "transforms preserve what they must"
   square = [[0, 0], [2, 0], [2, 2], [0, 2]]
-  assert near(px(rotate_point([1, 0], pi() / 2)), 0) == true
-  assert near(py(rotate_point([1, 0], pi() / 2)), 1) == true
+  assert near(px(rotate_point([1, 0], pi / 2)), 0) == true
+  assert near(py(rotate_point([1, 0], pi / 2)), 1) == true
   # Four quarter turns is the identity — the check a sign slip in the matrix
   # survives when only one turn is tested.
   back = rotate_point(
-    rotate_point(
-      rotate_point(rotate_point([3, 5], pi() / 2), pi() / 2),
-      pi() / 2
-    ),
-    pi() / 2
+    rotate_point(rotate_point(rotate_point([3, 5], pi / 2), pi / 2), pi / 2),
+    pi / 2
   )
   assert near(px(back), 3) == true
   assert near(py(back), 5) == true
@@ -1252,15 +1249,12 @@ test "interior angles sum to (n - 2) * pi on a convex polygon"
   square = [[0, 0], [2, 0], [2, 2], [0, 2]]
   angles = interior_angles(square)
   assert size(angles) == 4
-  assert near(nth(0, angles), pi() / 2) == true
-  assert near(sum(angles), 2 * pi()) == true
+  assert near(nth(0, angles), pi / 2) == true
+  assert near(sum(angles), 2 * pi) == true
   tri = [[0, 0], [4, 0], [1, 3]]
-  assert near(sum(interior_angles(tri)), pi()) == true
+  assert near(sum(interior_angles(tri)), pi) == true
   # A rectangle's corners are all right angles however long it is.
-  assert near(
-    sum(interior_angles([[0, 0], [9, 0], [9, 1], [0, 1]])),
-    2 * pi()
-  ) ==
+  assert near(sum(interior_angles([[0, 0], [9, 0], [9, 1], [0, 1]])), 2 * pi) ==
     true
 end
 
@@ -1274,7 +1268,7 @@ test "regions: the empty-holes case, a drilled plate, and its centroid"
   # computed here by the closed form rather than by the shoelace.
   hole = circle_polygon([25, 25], 10, 64)
   plate = region(rect_polygon(0, 0, 100, 50), [hole])
-  assert near(region_area(plate), 5000 - 32 * 100 * sin(2 * pi() / 64)) == true
+  assert near(region_area(plate), 5000 - 32 * 100 * sin(2 * pi / 64)) == true
   assert near(regular_polygon_area(10, 64), polygon_area(hole)) == true
   # Its centroid, by hand: (5000 * 50 - Ah * 25) / (5000 - Ah) in x, and 25 in
   # y by symmetry.
@@ -1309,7 +1303,7 @@ test "edge distance and gaps measure to the boundary, not the vertices"
 end
 
 test "an arc has both ends, and a circle does not repeat its first point"
-  a = arc_points([0, 0], 1, 0, pi() / 2, 4)
+  a = arc_points([0, 0], 1, 0, pi / 2, 4)
   assert size(a) == 5
   assert near(px(first(a)), 1) == true
   assert near(py(last(a)), 1) == true

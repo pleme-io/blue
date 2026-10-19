@@ -32,7 +32,7 @@ def boot(elf)
 end
 
 def interpret(program)
-  r = exec_capture(self_exe(), "run", "--quiet", program)
+  r = exec_capture(self_exe, "run", "--quiet", program)
   [second(first(r)), second(second(r))]
 end
 

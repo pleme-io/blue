@@ -40,7 +40,7 @@ def to_base_digits(n, base)
   if n < 1
     []
   else
-    cons(nth(n % base, digits()), to_base_digits(floor(n / base), base))
+    cons(nth(n % base, digits), to_base_digits(floor(n / base), base))
   end
 end
 
@@ -57,7 +57,7 @@ def to_octal(n)
 end
 
 def digit_value(ch)
-  value_index(digits(), ch, 0)
+  value_index(digits, ch, 0)
 end
 
 def value_index(xs, v, i)
@@ -572,7 +572,7 @@ end
 # There is no Roman zero, so there is nothing honest to return; "" is the one
 # answer that stays consistent under from_roman, which reads "" as 0.
 def to_roman(n)
-  to_roman_from(n, roman_values(), roman_symbols(), 0)
+  to_roman_from(n, roman_values, roman_symbols, 0)
 end
 
 # The two tables are carried down the recursion rather than re-read from the
@@ -778,7 +778,7 @@ def digits36()
 end
 
 def digit_value36(ch)
-  value_index(digits36(), downcase(ch), 0)
+  value_index(digits36, downcase(ch), 0)
 end
 
 def to_base_n(n, base)
@@ -793,7 +793,7 @@ def to_base_n_digits(n, base)
   if n < 1
     []
   else
-    cons(nth(n % base, digits36()), to_base_n_digits(floor(n / base), base))
+    cons(nth(n % base, digits36), to_base_n_digits(floor(n / base), base))
   end
 end
 

@@ -92,9 +92,7 @@ def tables()
       rs_const(
         "OPERATOR_ALIASES",
         sabi::ty_ref(
-          sabi::ty_slice(
-            sabi::ty_tuple([sabi::ty("char"), str_ref(), str_ref()])
-          )
+          sabi::ty_slice(sabi::ty_tuple([sabi::ty("char"), str_ref, str_ref]))
         ),
         sabi::slice(
           map(
@@ -107,7 +105,7 @@ def tables()
                 ]
               )
             end,
-            operator_aliases()
+            operator_aliases
           )
         ),
         [
@@ -122,14 +120,14 @@ def tables()
       rs_const(
         "WELCOME",
         sabi::ty_ref(
-          sabi::ty_slice(sabi::ty_tuple([sabi::ty("char"), str_ref()]))
+          sabi::ty_slice(sabi::ty_tuple([sabi::ty("char"), str_ref]))
         ),
         sabi::slice(
           map(
             fn(r)
               sabi::tuple([sabi::char(nth(0, r)), sabi::str(nth(1, r))])
             end,
-            welcome()
+            welcome
           )
         ),
         [
@@ -145,12 +143,12 @@ def tables()
   )
 end
 
-bad = sabi::invalid_names(tables())
+bad = sabi::invalid_names(tables)
 
 if is_empty(bad)
   write_file(
     getenv("GEN_OUT", "crates/blue-lang-syntax/src/kigou/tables.rs"),
-    render_rust(tables())
+    render_rust(tables)
   )
 else
   write_file(

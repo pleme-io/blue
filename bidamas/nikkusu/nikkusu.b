@@ -330,7 +330,7 @@ def option_declarations(root)
     ),
     map(
       fn(c) {at: get(c, :head), node: get(c, :node), start: get(c, :start)} end,
-      calls_named(root, option_calls())
+      calls_named(root, option_calls)
     )
   )
 end
@@ -367,12 +367,12 @@ def dotted_of(doc)
 end
 
 test "read: the tree is lossless, error-free, and lines count from one"
-  d = read(sample())
-  assert text(get(d, :root)) == sample()
+  d = read(sample)
+  assert text(get(d, :root)) == sample
   assert get(d, :errors) == []
   assert line_of(d, 0) == 1
   assert line_of(d, 22) == 2
-  assert line_of(d, length(sample()) - 1) == 9
+  assert line_of(d, length(sample) - 1) == 9
 end
 
 test "read on empty source is a root with one error and no bindings"
@@ -385,7 +385,7 @@ test "read on empty source is a root with one error and no bindings"
 end
 
 test "bindings: nested sets and wrappers give dotted paths, let and inherit are scoped"
-  d = read(sample())
+  d = read(sample)
   ds = dotted_of(d)
   assert member?("options.pleme.x.enable", ds) == true
   assert member?("config.systemd.services.x", ds) == true
@@ -397,7 +397,7 @@ test "bindings: nested sets and wrappers give dotted paths, let and inherit are 
 end
 
 test "module_path drops a leading config, and under? reads a prefix"
-  d = read(sample())
+  d = read(sample)
   b = first(
     filter(
       fn(b) get(b, :dotted) == "config.systemd.services.x" end,
@@ -432,7 +432,7 @@ test "with scopes and angle paths are found, and comments never are"
 end
 
 test "option declarations come from options bindings and mkOption calls"
-  d = read(sample())
+  d = read(sample)
   os = option_declarations(get(d, :root))
   assert map(fn(o) get(o, :at) end, os) ==
     ["options.pleme.x.enable", "lib.mkEnableOption"]
@@ -446,7 +446,7 @@ test "attr reads one attribute of a set literal, and module_function? a module"
   set = first(nodes_of(get(d, :root)))
   assert string_content(attr(set, "url")) == "u"
   assert attr(set, "hash") == nil
-  m = first(nodes_of(get(read(sample()), :root)))
+  m = first(nodes_of(get(read(sample), :root)))
   assert module_function?(m) == true
   assert module_function?(first(nodes_of(get(read("{ lib }: { }"), :root)))) ==
     false

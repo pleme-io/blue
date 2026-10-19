@@ -21,12 +21,12 @@ def ask(worker, n)
 end
 
 test "a worker answers by message"
-  w = spawn(squarer, [self()])
+  w = spawn(squarer, [self])
   assert ask(w, 7) == 49
 end
 
 test "a supervised worker survives a bad job"
-  sup = supervisor(:one_for_one, [[squarer, [self()]]], 3)
+  sup = supervisor(:one_for_one, [[squarer, [self]]], 3)
   w = nth(0, children(sup))
   send(w, -1)
   receive(:never, 50)

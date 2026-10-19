@@ -851,6 +851,19 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
         .map_err(|e| BluefileError::Parse(e.to_string()))?;
     let collected: Shared = Arc::new(Mutex::new(Collected::default()));
 
+    let mut interp = blue_lang_runtime::interpreter_hostless();
+    install_manifest_primitives(&mut interp, &collected);
+    let forms = {
+        let own = blue_lang_check::Namespace::File("Bluefile".to_string());
+        let mut table = blue_lang_check::NameTable::new();
+        table.add_program(&forms, |_| own.clone());
+        for scope in blue_lang_runtime::pipeline::builtin_names(&interp).scopes() {
+            table.push(scope.clone());
+        }
+        blue_lang_check::names::resolve_program(&forms, &table, &|_| own.clone())
+            .call_explicit_tree(&forms)
+    };
+
     let erased = blue_lang_runtime::erase_types(&forms);
 
     // THE FRAME, checked BEFORE the interpreter exists.
@@ -870,9 +883,6 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
             names: escapes.into_iter().map(|e| e.name).collect(),
         });
     }
-
-    let mut interp = blue_lang_runtime::interpreter_hostless();
-    install_manifest_primitives(&mut interp, &collected);
 
     let evaluated = interp.eval_program(&erased, &mut ());
     let c = std::mem::take(&mut *collected.lock().expect("manifest lock"));

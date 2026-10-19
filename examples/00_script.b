@@ -5,7 +5,7 @@
 # so does `./examples/00_script.b one two`, because its first line names blue
 # and the file is executable. No Bluefile and no BLUE_PATH are needed: the
 # standard bidamas are compiled into blue, and a script inside a project also
-# reaches the project's own packages. argv() is what follows the file. A
+# reaches the project's own packages. argv is what follows the file. A
 # script prints only what it writes, where `blue run` also prints the last
 # value, and `blue test` runs its tests. When a script outgrows one file,
 # `blue new NAME` starts a project around it.
@@ -28,4 +28,4 @@ test "with no arguments it says how to call it"
   assert shout([]) == "usage: 00_script.b WORD..."
 end
 
-write_stdout("#{shout(argv())}\n")
+write_stdout("#{shout(argv)}\n")

@@ -314,6 +314,11 @@ impl Engine {
     #[must_use]
     pub fn formatted(&self, id: &str) -> Option<String> {
         let a = self.analysis(id)?;
+        if let Some(Ok(checked)) = &a.checked {
+            if let Some(tree) = checked.canonical_entry(&a.text) {
+                return blue_lang_fmt::format_tree_lossless(&a.text, &tree).ok();
+            }
+        }
         let tree = a.parsed.as_ref().as_ref().ok()?;
         blue_lang_fmt::format_tree_lossless(&a.text, tree).ok()
     }
@@ -341,6 +346,13 @@ impl Engine {
             }
             text = blue_lang_fmt::format_source_lossless(&fixed).unwrap_or(fixed);
             current = Rc::new(self.analyse_text(current.path.clone(), &text));
+        }
+        if let Some(Ok(checked)) = &current.checked {
+            if let Some(tree) = checked.canonical_entry(&text) {
+                if let Ok(canonical) = blue_lang_fmt::format_tree_lossless(&text, &tree) {
+                    text = canonical;
+                }
+            }
         }
         (text != original).then_some(text)
     }

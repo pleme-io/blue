@@ -17,7 +17,7 @@ def rf_root()
 end
 
 def rf_data()
-  cap = exec_capture(self_exe(), "reference")
+  cap = exec_capture(self_exe, "reference")
   if status_of(cap) != 0
     throw(error(:reference, "blue reference failed: #{stderr_of(cap)}"))
   end
@@ -98,7 +98,7 @@ end
 # [name, [package…]] for each built-in name a bidama also defines. Inside a
 # program that imports that bidama, its definition replaces the built-in.
 def rf_redefined(names)
-  records = catalog_of([path_join(rf_root(), "bidamas")])
+  records = catalog_of([path_join(rf_root, "bidamas")])
   owners = names_shadowing(records, names)
   map(
     fn(n)
@@ -154,6 +154,15 @@ def rf_names(data)
   "#{intro}\n\n#{join(sections, "\n\n")}"
 end
 
+def rf_nullary(names)
+  bare = filter(fn(n) rf_text(n, "arity") == "0" end, names)
+  rows = map(
+    fn(n) [rf_code(rf_text(n, "name")), md_cell(rf_text(n, "doc"))] end,
+    bare
+  )
+  "A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These #{to_s(size(bare))} built-in names therefore run, with their effects, wherever they are written bare:\n\n#{rf_table(["name", "meaning"], rows)}"
+end
+
 def rf_render(data)
   parts = [
     "# blue language reference",
@@ -168,6 +177,8 @@ def rf_render(data)
     rf_keywords(data),
     "## Built-in names",
     rf_names(data),
+    "### Called where written bare",
+    rf_nullary(rf_field(data, "names")),
     "## Bluefile words",
     "A Bluefile is a blue program that may call only these words.",
     rf_words(data)
@@ -175,5 +186,5 @@ def rf_render(data)
   "#{join(parts, "\n\n")}\n"
 end
 
-write_file(getenv("GEN_OUT", "docs/REFERENCE.md"), rf_render(rf_data()))
+write_file(getenv("GEN_OUT", "docs/REFERENCE.md"), rf_render(rf_data))
 nil

@@ -130,7 +130,7 @@ def layers()
 end
 
 def layer_names()
-  map(fn(l) first(l) end, layers())
+  map(fn(l) first(l) end, layers)
 end
 
 # A kikagaku region as entities: the outline, and each hole.
@@ -431,7 +431,7 @@ def dxf(entities)
     [0, "ENDTAB"]
   ]
   layers = concat_lists(
-    [[0, "TABLE"], [2, "LAYER"], [70, size(zumen::layers())]],
+    [[0, "TABLE"], [2, "LAYER"], [70, size(zumen::layers)]],
     concat_lists(
       flat_map(
         fn(l)
@@ -443,7 +443,7 @@ def dxf(entities)
             [6, nth(2, l)]
           ]
         end,
-        zumen::layers()
+        zumen::layers
       ),
       [[0, "ENDTAB"]]
     )
@@ -631,7 +631,7 @@ test "an empty drawing is still a whole DXF"
   assert starts_with?(d, "0\nSECTION\n2\nHEADER\n") == true
   assert ends_with?(d, "0\nEOF\n") == true
   assert zu_count(d, "ENDSEC") == 3
-  assert zu_count(d, "LAYER") == size(layers())
+  assert zu_count(d, "LAYER") == size(layers)
 end
 
 test "every entity is written once, of its own kind, on a declared layer"
@@ -661,7 +661,7 @@ test "every entity is written once, of its own kind, on a declared layer"
   assert zu_count(d, "ARC") == 1
   assert zu_count(d, "TEXT") == 2
   # Every layer named on an entity is declared in the table.
-  assert every(fn(e) contains(layer_names(), layer(e)) end, ents) == true
+  assert every(fn(e) contains(layer_names, layer(e)) end, ents) == true
   # The dimension reads the length it measures.
   assert get(last(dim([0, 0], [100, 0], -8, 3.5)), :s) == "100"
 end

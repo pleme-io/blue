@@ -299,7 +299,7 @@ it is an error, not a note.",
         severity: Error,
         fix: None,
         law: "a name resolves to one definition: no two namespaces in the same resolution tier define it",
-        witness: "use(\"kagi_a\", [:kagi])\nuse(\"kagi_b\", [:kagi])\n\nkagi()\n",
+        witness: "use(\"kagi_a\", [:kagi])\nuse(\"kagi_b\", [:kagi])\n\nkagi\n",
         imports: [
             ("kagi_a", "def kagi()\n  1\nend\n"),
             ("kagi_b", "def kagi()\n  2\nend\n"),
@@ -354,7 +354,7 @@ is checked against the interpreter's own names.",
         severity: Error,
         fix: Machine,
         law: "a bare name that is another bidama's definition is one the file lists: `use(\"retsu\", [:first])`, or written `retsu::first`",
-        witness: "use(\"kagi_a\")\n\nkagi()\n",
+        witness: "use(\"kagi_a\")\n\nkagi\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
         waivable: false,
         ratchet: 0,
@@ -377,7 +377,7 @@ once, and proves the program's meaning unchanged.",
         severity: Error,
         fix: None,
         law: "a bidama's definition does not spell its bidama: `def parse` in `moji`, never `def moji_parse`",
-        witness: "use(\"kagi\")\n\nkagi::kagi_x()\n",
+        witness: "use(\"kagi\")\n\nkagi::kagi_x\n",
         imports: [("kagi", "def kagi_x()\n  1\nend\n")],
         ratchet: 0,
         explanation: "\
@@ -395,7 +395,7 @@ builtin the package itself uses) keeps it under a waiver saying so.",
         severity: Error,
         fix: None,
         law: "a bidama does not prefix nine in ten of its definitions with one short `x_`",
-        witness: "use(\"mangled\")\n\nmangled::mg_a()\n",
+        witness: "use(\"mangled\")\n\nmangled::mg_a\n",
         imports: [(
             "mangled",
             "def mg_a()\n  1\nend\n\ndef mg_b()\n  1\nend\n\ndef mg_c()\n  1\nend\n\ndef mg_d()\n  1\nend\n\ndef mg_e()\n  1\nend\n\ndef mg_f()\n  1\nend\n\ndef mg_g()\n  1\nend\n\ndef mg_h()\n  1\nend\n"
@@ -417,7 +417,7 @@ spelling with `legacy_names`, so callers keep working while they move.",
         severity: Error,
         fix: Machine,
         law: "a file's `use` forms come first, one per package, sorted by package, each list sorted",
-        witness: "use(\"kagi_b\")\nuse(\"kagi_a\")\n\nkagi_a::kagi()\nkagi_b::kagi()\n",
+        witness: "use(\"kagi_b\")\nuse(\"kagi_a\")\n\nkagi_a::kagi\nkagi_b::kagi\n",
         imports: [
             ("kagi_a", "def kagi()\n  1\nend\n"),
             ("kagi_b", "def kagi()\n  2\nend\n"),
@@ -482,10 +482,10 @@ qualifier.",
         severity: Error,
         fix: None,
         law: "the bidamas a bidama `use`s are exactly the ones its Bluefile `needs`",
-        witness: "use(\"kagi_b\")\n\nkagi_b::kagi()\n",
+        witness: "use(\"kagi_b\")\n\nkagi_b::kagi\n",
         imports: [
             ("kagi_a", "def kagi()\n  1\nend\n"),
-            ("kagi_b", "use(\"kagi_a\")\n\ndef kagi()\n  kagi_a::kagi()\nend\n"),
+            ("kagi_b", "use(\"kagi_a\")\n\ndef kagi()\n  kagi_a::kagi\nend\n"),
         ],
         waivable: false,
         ratchet: 0,
@@ -500,7 +500,7 @@ Edit the Bluefile, then run `blue lock <dir>`.",
         severity: Error,
         fix: None,
         law: "a bidama's name is written as a qualifier, `retsu::first(xs)`, never as a value",
-        witness: "use(\"kagi_a\")\n\nkagi_a::kagi() + kagi_a / 2\n",
+        witness: "use(\"kagi_a\")\n\nkagi_a::kagi + kagi_a / 2\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
         waivable: false,
         ratchet: 0,
@@ -514,7 +514,7 @@ division; neither names retsu's `first`. blue qualifies with `::`:
         severity: Error,
         fix: Machine,
         law: "a renamed or moved definition is called by its new name; the old name is a bridge that closes at the next minor version",
-        witness: "use(\"lg\")\n\nlg::lg_hours()\n",
+        witness: "use(\"lg\")\n\nlg::lg_hours\n",
         imports: [("lg", "legacy_names(\"0.1.1\", \"lg\")\n\ndef hours()\n  1\nend\n")],
         waivable: false,
         ratchet: 0,
@@ -544,7 +544,7 @@ file lacks.",
         severity: Error,
         fix: None,
         law: "a `legacy_names` declaration is one of each form per bidama, dates from a version the bidama has reached, names no name twice, and moves a name only to a definition a loaded bidama holds",
-        witness: "use(\"lg\")\n\nlg::hours()\n",
+        witness: "use(\"lg\")\n\nlg::hours\n",
         imports: [("lg", "legacy_names(\"9.0.0\", \"lg\")\n\ndef hours()\n  1\nend\n")],
         waivable: false,
         ratchet: 0,
@@ -558,6 +558,31 @@ sees); and an old or stripped name must not also be defined, which would
 give two definitions one name. A moves declaration names each old name
 once, the old name is no longer defined, and each new home is a bidama the
 declaring one needs and a name that home defines.",
+    }
+    B0023 {
+        slug: "bare-nullary-call",
+        severity: Error,
+        fix: Machine,
+        law: "a call to a function that takes no parameters is written bare: `now_ms`, never `now_ms()`",
+        witness: "def f()\n  1\nend\n\nf()\n",
+        waivable: false,
+        explanation: "\
+A name that resolves to a definition or builtin with exactly zero parameters
+(`def f()`, `now_ms`, `argv`) is CALLED where it is written bare, so `f` and
+`f()` are one tree once resolved, and blue writes the one spelling: `f`. The
+fix drops the parentheses, and `blue fmt --write` applies it to every call in
+a file, interpolations included.
+
+The rule follows resolution, never spelling. A local, a parameter or a
+pattern binding named `f` is a value; a function with one or more parameters,
+optional ones or a rest parameter is a value when bare and keeps `f(x)`; a
+name inside a macro call's arguments or a quoted template is syntax and is
+left as written. To pass a zero-parameter function itself, write
+`fn() f end`.
+
+Reported for the file being compiled only: an imported package spelled the
+older way means the same program, and its own build is where it is held to
+the one spelling.",
     }
 }
 

@@ -184,6 +184,7 @@ pub struct Binding {
     pub span: Option<Span>,
     /// The top-level form that defines it, when it is defined in source.
     pub top_level: Option<usize>,
+    pub nullary: bool,
 }
 
 /// One namespace's names.
@@ -273,7 +274,11 @@ impl Scope {
     /// Bind a name. A second binding of the same name keeps the first: that
     /// is where a reader should be sent.
     pub fn bind(&mut self, binding: Binding) {
-        self.bindings.entry(binding.name.clone()).or_insert(binding);
+        let nullary = binding.nullary;
+        self.bindings
+            .entry(binding.name.clone())
+            .and_modify(|b| b.nullary &= nullary)
+            .or_insert(binding);
     }
 
     /// The binding `name` names: a definition, or the definition an open
@@ -403,10 +408,12 @@ impl NameTable {
     pub fn add_program(&mut self, forms: &[Spanned], namespace_of: impl Fn(usize) -> Namespace) {
         for (i, form) in forms.iter().enumerate() {
             let ns = namespace_of(i);
+            let nullary = scope::nullary_definition(form);
             for (name, span, kind) in scope::definitions_of(form) {
                 self.define(
                     ns.clone(),
                     Binding {
+                        nullary: nullary == Some(name.as_str()),
                         name,
                         kind,
                         span: Some(span),
@@ -706,6 +713,25 @@ impl NameTable {
             .find(|s| matches!(&s.namespace, Namespace::Bidama(p) if p == pkg))
     }
 
+    #[must_use]
+    pub fn nullary(&self, target: &Target) -> bool {
+        match target {
+            Target::Def(ns, name) => self
+                .scopes
+                .iter()
+                .filter(|s| &s.namespace == ns)
+                .find_map(|s| s.get(name))
+                .is_some_and(|b| b.kind == ScopeKind::Value && b.nullary),
+            Target::Builtin(name) => self
+                .scopes
+                .iter()
+                .filter(|s| s.namespace == Namespace::Builtin)
+                .find_map(|s| s.get(name))
+                .is_some_and(|b| b.nullary),
+            _ => false,
+        }
+    }
+
     /// Is `name` bound by the interpreter itself?
     #[must_use]
     pub fn builtin(&self, name: &str) -> bool {
@@ -999,6 +1025,14 @@ pub fn key(ns: &Namespace, name: &str) -> String {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Position {
+    Value,
+    Call(usize),
+    Place,
+    Syntax,
+}
+
 /// What one reference is bound to, under one resolution rule.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Target {
@@ -1077,6 +1111,9 @@ pub struct Reference {
     /// The locals in scope where it is written, innermost first: a rename
     /// that would make it one of these must write it qualified.
     pub locals: Vec<String>,
+    pub position: Position,
+    pub nullary_flat: bool,
+    pub nullary_ns: bool,
     /// The node's address in the forms it was resolved over: the join key
     /// [`resolved_tree`] rewrites by, since spans are not unique (every node
     /// of an interpolation carries the string's span).
@@ -1148,9 +1185,10 @@ impl Resolved {
     /// [`resolve_program`] walked**: the rewrite joins on node identity.
     #[must_use]
     pub fn resolved_tree(&self, forms: &[Spanned], rule: Rule) -> Vec<Spanned> {
-        let mut map: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
+        let mut map: std::collections::HashMap<usize, (String, bool)> =
+            std::collections::HashMap::new();
         for d in &self.defs {
-            map.insert(d.node, d.key.clone());
+            map.insert(d.node, (d.key.clone(), false));
         }
         for r in &self.references {
             let target = match rule {
@@ -1158,20 +1196,70 @@ impl Resolved {
                 Rule::Namespaced => &r.ns,
             };
             if let Some(sym) = target.resolved_symbol() {
-                map.insert(r.node, sym);
+                let nullary = match rule {
+                    Rule::Flat => r.nullary_flat,
+                    Rule::Namespaced => r.nullary_ns,
+                };
+                map.insert(r.node, (sym, r.called_bare_under(nullary)));
             }
         }
         forms.iter().map(|f| rewrite(f, &map)).collect()
     }
+
+    #[must_use]
+    pub fn call_explicit_tree(&self, forms: &[Spanned]) -> Vec<Spanned> {
+        let mut map: std::collections::HashMap<usize, (String, bool)> =
+            std::collections::HashMap::new();
+        for r in self.bare_calls() {
+            map.insert(r.node, (r.written.clone(), true));
+        }
+        forms.iter().map(|f| rewrite(f, &map)).collect()
+    }
+
+    #[must_use]
+    pub fn bare_calls(&self) -> Vec<&Reference> {
+        self.references
+            .iter()
+            .filter(|r| r.position == Position::Value && !r.opaque && r.nullary_ns)
+            .collect()
+    }
+
+    #[must_use]
+    pub fn parenthesized_nullary_calls(&self) -> Vec<&Reference> {
+        self.references
+            .iter()
+            .filter(|r| r.position == Position::Call(0) && !r.opaque && r.nullary_ns)
+            .collect()
+    }
 }
 
-fn rewrite(form: &Spanned, map: &std::collections::HashMap<usize, String>) -> Spanned {
+impl Reference {
+    #[must_use]
+    pub fn node_address(&self) -> usize {
+        self.node
+    }
+
+    fn called_bare_under(&self, nullary: bool) -> bool {
+        nullary && self.position == Position::Value && !self.opaque
+    }
+}
+
+fn rewrite(form: &Spanned, map: &std::collections::HashMap<usize, (String, bool)>) -> Spanned {
     let at = std::ptr::from_ref(form) as usize;
     let inner = match &form.form {
-        SpannedForm::Atom(Atom::Symbol(s)) => {
-            let s = map.get(&at).cloned().unwrap_or_else(|| s.clone());
-            SpannedForm::Atom(Atom::Symbol(s))
-        }
+        SpannedForm::Atom(Atom::Symbol(s)) => match map.get(&at) {
+            Some((key, true)) => {
+                return Spanned::new(
+                    form.span,
+                    SpannedForm::List(vec![Spanned::new(
+                        form.span,
+                        SpannedForm::Atom(Atom::Symbol(key.clone())),
+                    )]),
+                );
+            }
+            Some((key, false)) => SpannedForm::Atom(Atom::Symbol(key.clone())),
+            None => SpannedForm::Atom(Atom::Symbol(s.clone())),
+        },
         SpannedForm::List(items) => {
             SpannedForm::List(items.iter().map(|i| rewrite(i, map)).collect())
         }
@@ -1202,6 +1290,7 @@ struct Walker<'t> {
     /// Names resolved, for the report.
     resolved: usize,
     references: Vec<Reference>,
+    position: Position,
 }
 
 /// Names the parser synthesizes. Never reported unused: the author did not
@@ -1282,6 +1371,7 @@ impl<'t> Walker<'t> {
             diagnostics: Vec::new(),
             resolved: 0,
             references: Vec::new(),
+            position: Position::Value,
         }
     }
 
@@ -1364,6 +1454,7 @@ impl<'t> Walker<'t> {
             }
         }
         self.legacy_reference(node.span, name, &ns);
+        let position = std::mem::replace(&mut self.position, Position::Value);
         self.references.push(Reference {
             top_level: self.top_level,
             span: node.span,
@@ -1375,6 +1466,9 @@ impl<'t> Walker<'t> {
                 .into_iter()
                 .map(str::to_string)
                 .collect(),
+            position,
+            nullary_flat: self.table.nullary(&flat),
+            nullary_ns: self.table.nullary(&ns),
             flat,
             ns,
             node: std::ptr::from_ref(node) as usize,
@@ -1735,6 +1829,34 @@ impl Walker<'_> {
         self.diagnostics.push(d);
     }
 
+    fn parenthesized_nullary(&mut self, head: &Spanned, whole: &Spanned, name: &str) {
+        let spelled = match blue_lang_syntax::qualified(name) {
+            Some((pkg, n)) => format!("{pkg}::{n}"),
+            None => name.to_string(),
+        };
+        let mut d = Diagnostic::new(
+            Code::B0023,
+            format!("`{spelled}` takes no arguments, so it is called by writing `{spelled}`"),
+            whole.span,
+        )
+        .at_top_level(self.top_level)
+        .with_help(format!(
+            "write `{spelled}`; `blue fmt --write` rewrites every such call, and `fn() {spelled} end` is the function itself as a value"
+        ));
+        if whole.span != head.span {
+            d = d.with_fix(Fix {
+                message: format!("write `{spelled}`"),
+                edits: vec![Edit {
+                    span: whole.span,
+                    original: format!("{spelled}()"),
+                    replacement: spelled,
+                }],
+                applicability: Applicability::MachineApplicable,
+            });
+        }
+        self.diagnostics.push(d);
+    }
+
     /// B0011: `pkg` defines no `n`. Suggests the package that does, and the
     /// nearest names `pkg` has.
     fn no_such_definition(&self, span: Span, pkg: &str, n: &str, qualified: bool) -> Diagnostic {
@@ -1926,7 +2048,30 @@ impl Scopes for Walker<'_> {
     }
 
     fn reference(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        self.position = Position::Value;
         self.reference_at(node, name, opaque);
+    }
+
+    fn call(&mut self, node: &Spanned, whole: &Spanned, name: &str, opaque: bool) {
+        let argc = whole.as_list().map_or(0, |items| items.len() - 1);
+        self.position = Position::Call(argc);
+        let before = self.references.len();
+        self.reference_at(node, name, opaque);
+        self.position = Position::Value;
+        let parenthesized = argc == 0
+            && !opaque
+            && self.report_unused
+            && self.references.len() > before
+            && self.references.last().is_some_and(|r| r.nullary_ns);
+        if parenthesized {
+            self.parenthesized_nullary(node, whole, name);
+        }
+    }
+
+    fn place(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        self.position = Position::Place;
+        self.reference_at(node, name, opaque);
+        self.position = Position::Value;
     }
 
     /// A free symbol of a macro's template is qualified to the DEFINER's
@@ -1950,6 +2095,9 @@ impl Scopes for Walker<'_> {
                 ns,
                 shadowed: Vec::new(),
                 locals: Vec::new(),
+                position: Position::Syntax,
+                nullary_flat: false,
+                nullary_ns: false,
                 node: std::ptr::from_ref(node) as usize,
             });
         }
@@ -1962,6 +2110,7 @@ impl Scopes for Walker<'_> {
             HeadKind::Macro => {
                 self.resolved += 1;
                 if !self.frames.iter().any(|f| f.iter().any(|l| l.name == name)) {
+                    self.position = Position::Syntax;
                     self.record(node, name, false);
                 }
             }
@@ -1995,6 +2144,7 @@ mod tests {
                 kind: ScopeKind::SpecialForm,
                 span: None,
                 top_level: None,
+                nullary: false,
             });
         }
         t.push(sf);
@@ -2004,6 +2154,7 @@ mod tests {
             kind: ScopeKind::Macro,
             span: None,
             top_level: None,
+            nullary: false,
         });
         t.push(m);
         let mut b = Scope::new(Namespace::Builtin);
@@ -2015,6 +2166,7 @@ mod tests {
                 kind: ScopeKind::Value,
                 span: None,
                 top_level: None,
+                nullary: false,
             });
         }
         t.push(b);
@@ -2173,6 +2325,7 @@ mod tests {
                 kind: ScopeKind::Value,
                 span: None,
                 top_level: None,
+                nullary: false,
             });
         }
         s
@@ -2295,6 +2448,7 @@ mod tests {
             kind: ScopeKind::Value,
             span: None,
             top_level: None,
+            nullary: false,
         });
         t.push(v);
         let mut m = Scope::new(Namespace::Macro);
@@ -2303,6 +2457,7 @@ mod tests {
             kind: ScopeKind::Macro,
             span: None,
             top_level: None,
+            nullary: false,
         });
         t.push(m);
         assert_eq!(

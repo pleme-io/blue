@@ -194,7 +194,7 @@ rec {
       # Canonical, or refused: `blue fmt --check` names every file that is not
       # (`<file>: not formatted; run blue fmt --write <file>`), in one command.
       # The package's own top-level `.b` files are the ones the loader reads.
-      if ! (cd ${src} && ${fmt} fmt --check *.b); then
+      if ! (cd ${src} && BLUE_PATH=${bluePath} ${fmt} fmt --check *.b); then
         echo "bidama ${name}: blue compiles only canonical source, and the file(s) above are not; run blue fmt --write on each and commit" >&2
         exit 1
       fi

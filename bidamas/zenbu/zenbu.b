@@ -119,7 +119,7 @@ test "every bidama in the distribution answers through this one import"
   assert near(kakou::outside_setback(90, 1, 1), 2) == true
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
-  assert kiwari::unpainted(kiwari::blue()) == []
+  assert kiwari::unpainted(kiwari::blue) == []
   assert kueri::ident("order") == "\"order\""
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2598960
@@ -130,7 +130,7 @@ test "every bidama in the distribution answers through this one import"
   assert teeburu::quoted("t") == "\"t\""
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
-  assert nisshi::format() == "nisshi/1"
+  assert nisshi::format == "nisshi/1"
   assert major_triad(0) == [0, 4, 7]
   assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)

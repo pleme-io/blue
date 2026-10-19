@@ -87,14 +87,14 @@ row(
 
 row(
   "check.B0013",
-  "use(\"sp_pre\")\nsp_pre::sp_pre_x()",
+  "use(\"sp_pre\")\nsp_pre::sp_pre_x",
   diagnoses(["B0013"]),
   covers("rule:B0013")
 )
 
 row(
   "check.B0014",
-  "use(\"sp_mg\")\nsp_mg::sp_a()",
+  "use(\"sp_mg\")\nsp_mg::sp_a",
   diagnoses(["B0014"]),
   covers("rule:B0014")
 )
@@ -128,8 +128,27 @@ row(
 )
 
 row(
+  "check.B0023",
+  "def f()\n  1\nend\n\nf()",
+  diagnoses(["B0023"]),
+  covers("rule:B0023")
+)
+
+row(
+  "check.B0023.local_is_a_value",
+  "def f()\n  1\nend\n\ndef g(f)\n  f()\nend\n\ng(fn() 2 end)",
+  diagnoses([])
+)
+
+row(
+  "check.B0023.argument_taking_function",
+  "def f(x)\n  x\nend\n\nf(1)",
+  diagnoses([])
+)
+
+row(
   "check.B0019",
-  "use(\"sp_loose\")\nsp_loose::sp_l()",
+  "use(\"sp_loose\")\nsp_loose::sp_l",
   diagnoses(["B0019"]),
   covers("rule:B0019")
 )
@@ -143,14 +162,14 @@ row(
 
 row(
   "check.B0021",
-  "use(\"sp_lg\")\nsp_lg::lg_sp_hours()",
+  "use(\"sp_lg\")\nsp_lg::lg_sp_hours",
   diagnoses(["B0021"]),
   covers("rule:B0021")
 )
 
 row(
   "check.B0022",
-  "use(\"sp_lg2\")\nsp_lg2::sp_hours()",
+  "use(\"sp_lg2\")\nsp_lg2::sp_hours",
   diagnoses(["B0022"]),
   covers("rule:B0022")
 )
@@ -163,7 +182,7 @@ row(
 
 row(
   "check.waiver.runs",
-  "# waive B0001: the fixture needs a raise at runtime\ndef f()\n  nope()\nend\n\nf()",
+  "# waive B0001: the fixture needs a raise at runtime\ndef f()\n  nope()\nend\n\nf",
   fails(:eval, "nope"),
   pending("G19", "vm")
 )

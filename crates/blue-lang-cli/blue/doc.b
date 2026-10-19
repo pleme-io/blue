@@ -37,7 +37,7 @@ use("retsu", [:first, :flat_map, :last])
 # --rows`).
 
 def run_blue(args)
-  apply(exec_capture, cons(self_exe(), args))
+  apply(exec_capture, cons(self_exe, args))
 end
 
 def captured(args)
@@ -218,7 +218,7 @@ def lookup(name, file, records)
   from_builtins = if qualifier == nil || qualifier == "blue"
     map(
       fn(b) builtin_entry(b, "builtin") end,
-      filter(fn(b) json_get(b, "name") == bare end, builtins())
+      filter(fn(b) json_get(b, "name") == bare end, builtins)
     )
   else
     []
@@ -340,4 +340,4 @@ def main(args)
   end
 end
 
-main(argv())
+main(argv)

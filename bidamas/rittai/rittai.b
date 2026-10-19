@@ -140,7 +140,7 @@ def rot_between(a, b)
   if c > 0.999999999999
     identity_matrix(3)
   elsif c < -0.999999999999
-    rot_axis(perpendicular(ua), pi())
+    rot_axis(perpendicular(ua), pi)
   else
     rot_axis(cross_product(ua, ub), acos(clamp(c, -1, 1)))
   end
@@ -222,7 +222,7 @@ end
 
 # Several meshes as one, the later faces re-indexed past the earlier vertices.
 def merge(meshes)
-  reduce(fn(acc, m) merge_two(acc, m) end, empty_mesh(), meshes)
+  reduce(fn(acc, m) merge_two(acc, m) end, empty_mesh, meshes)
 end
 
 def merge_two(a, b)
@@ -998,12 +998,12 @@ end
 
 test "poses: rotation, composition, inverse, and standing a part on a segment"
   q = [1, 2, 3]
-  p = pose(rot_z(pi() / 2), [10, 0, 0])
+  p = pose(rot_z(pi / 2), [10, 0, 0])
   assert vector_near(rt_apply(p, [1, 0, 0]), [10, 1, 0]) == true
   assert vector_near(rt_apply(inverse(p), rt_apply(p, q)), q) == true
   assert vector_near(rt_apply(rt_compose(p, inverse(p)), q), q) == true
   assert vector_near(
-    mvmul(rot_axis([0, 0, 1], pi() / 2), [1, 0, 0]),
+    mvmul(rot_axis([0, 0, 1], pi / 2), [1, 0, 0]),
     [0, 1, 0]
   ) ==
     true
@@ -1052,7 +1052,7 @@ test "broken meshes are refused, each for its own reason"
   assert map(fn(r) nth(1, r) end, mesh_refusals(inward)) ==
     ["the volume is not positive: the faces are wound inward"]
   assert size(mesh_refusals(mesh(vertices(b), [[0, 1, 99]]))) == 1
-  assert size(mesh_refusals(empty_mesh())) == 1
+  assert size(mesh_refusals(empty_mesh)) == 1
 end
 
 test "parts that only touch are refused; fused, they are one solid"

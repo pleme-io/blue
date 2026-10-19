@@ -129,20 +129,20 @@ def example_baseline()
 end
 
 test "an unrecorded key is a new violation"
-  assert judge(example_baseline(), "entry", "nope", 1) == {verdict: :unrecorded}
+  assert judge(example_baseline, "entry", "nope", 1) == {verdict: :unrecorded}
   assert judge([], "entry", "anything", 0) == {verdict: :unrecorded}
 end
 
 test "recorded debt may hold or shrink"
   assert judge(
-    example_baseline(),
+    example_baseline,
     "entry",
     "wf/image-push.yml::push/Build and push",
     60
   ) ==
     {verdict: :held}
   assert judge(
-    example_baseline(),
+    example_baseline,
     "entry",
     "wf/image-push.yml::push/Build and push",
     12
@@ -152,7 +152,7 @@ end
 
 test "recorded debt that grows by one fails"
   assert judge(
-    example_baseline(),
+    example_baseline,
     "entry",
     "wf/image-push.yml::push/Build and push",
     61
@@ -162,7 +162,7 @@ end
 
 test "a row covers only its own kind"
   assert judge(
-    example_baseline(),
+    example_baseline,
     "host",
     "wf/image-push.yml::push/Build and push",
     1
@@ -188,13 +188,13 @@ end
 
 test "a row whose subject is gone is an orphan"
   assert orphans(
-    example_baseline(),
+    example_baseline,
     "entry",
     ["docs/CLAUDE.md::The Tendril Method"]
   ) ==
     ["wf/image-push.yml::push/Build and push"]
   assert orphans(
-    example_baseline(),
+    example_baseline,
     "entry",
     [
       "docs/CLAUDE.md::The Tendril Method",
@@ -205,7 +205,7 @@ test "a row whose subject is gone is an orphan"
 end
 
 test "orphans does not simply return everything"
-  assert orphans(example_baseline(), "entry", []) ==
+  assert orphans(example_baseline, "entry", []) ==
     [
       "docs/CLAUDE.md::The Tendril Method",
       "wf/image-push.yml::push/Build and push"
@@ -219,9 +219,8 @@ test "failures name every unrecorded and grown measurement, and nothing held"
     measurement("nope", 3),
     measurement("docs/CLAUDE.md::The Tendril Method", 4139)
   ]
-  assert kinds(failures(example_baseline(), "entry", ms)) ==
-    [:grew, :unrecorded]
-  assert failures(example_baseline(), "entry", []) == []
+  assert kinds(failures(example_baseline, "entry", ms)) == [:grew, :unrecorded]
+  assert failures(example_baseline, "entry", []) == []
 end
 
 test "shrunk lists only measurements below their row"
@@ -230,7 +229,7 @@ test "shrunk lists only measurements below their row"
     measurement("docs/CLAUDE.md::The Tendril Method", 4139),
     measurement("nope", 1)
   ]
-  assert shrunk(example_baseline(), "entry", ms) ==
+  assert shrunk(example_baseline, "entry", ms) ==
     [measurement("wf/image-push.yml::push/Build and push", 12)]
 end
 

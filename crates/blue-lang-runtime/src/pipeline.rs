@@ -417,7 +417,14 @@ pub(crate) fn check_stage(
         &is_entry,
         &whole,
     );
-    outcome.diagnostics.extend(names);
+    let stored = program
+        .file(ResolvedProgram::ENTRY)
+        .is_some_and(|f| f.path.is_some());
+    outcome.diagnostics.extend(
+        names
+            .into_iter()
+            .filter(|d| stored || d.code != blue_lang_check::Code::B0023),
+    );
     outcome.stats.names_resolved = resolved;
 
     // Waivers, per file: B0007 for a malformed one, B0008 for one that
@@ -489,10 +496,12 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
         let Ok(expanded) = interp.fully_expand(form, &mut ()) else {
             continue;
         };
+        let nullary = blue_lang_syntax::scope::nullary_definition(&expanded);
         for (name, span, kind) in blue_lang_check::names::definitions_of(&expanded) {
             table.define(
                 namespace_of(program, i),
                 Binding {
+                    nullary: nullary == Some(name.as_str()),
                     name,
                     kind,
                     span: Some(span),
@@ -698,11 +707,22 @@ pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> N
             Some(HeadBinding::Macro) => (&mut macros, ScopeKind::Macro),
             _ => (&mut values, ScopeKind::Value),
         };
+        let nullary = kind == ScopeKind::Value
+            && interp.lookup_global(&name).is_some_and(|v| {
+                nullary_value(&v)
+                    || (crate::docs::doc_of(&name).is_some_and(|d| d.signature == &*name)
+                        && matches!(
+                            v,
+                            tatara_lisp_eval::Value::NativeFn(_)
+                                | tatara_lisp_eval::Value::Closure(_)
+                        ))
+            });
         scope.bind(Binding {
             name: name.to_string(),
             kind,
             span: None,
             top_level: None,
+            nullary,
         });
     }
     let mut table = NameTable::new();
@@ -713,6 +733,7 @@ pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> N
             kind: ScopeKind::Value,
             span: None,
             top_level: None,
+            nullary: false,
         });
     }
     table.push(harness);
@@ -720,6 +741,17 @@ pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> N
     table.push(macros);
     table.push(values);
     table
+}
+
+#[must_use]
+pub fn nullary_value(value: &tatara_lisp_eval::Value) -> bool {
+    match value {
+        tatara_lisp_eval::Value::NativeFn(f) => {
+            matches!(f.arity, tatara_lisp_eval::ffi::Arity::Exact(0))
+        }
+        tatara_lisp_eval::Value::Closure(c) => c.params.is_empty() && c.rest.is_none(),
+        _ => false,
+    }
 }
 
 /// A diagnostic as a person reads it: `file:line:col: error[B0001]: message`,
@@ -781,6 +813,71 @@ impl Checked {
             namespace_of(&self.program, i)
         })
     }
+}
+
+impl Checked {
+    #[must_use]
+    pub fn call_explicit_forms(&self) -> Vec<tatara_lisp::Spanned> {
+        self.resolve().call_explicit_tree(self.program.forms())
+    }
+
+    #[must_use]
+    pub fn canonical_entry(&self, src: &str) -> Option<Vec<tatara_lisp::Spanned>> {
+        use crate::uses::ResolvedProgram;
+        let program = &self.program;
+        let entry: Vec<&tatara_lisp::Spanned> = program
+            .forms()
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| program.owner_of(*i) == Some(ResolvedProgram::ENTRY))
+            .map(|(_, f)| f)
+            .collect();
+        let written = blue_lang_syntax::parse_program_tree(src).ok()?;
+        let same = written.len() == entry.len()
+            && written
+                .iter()
+                .zip(&entry)
+                .all(|(w, e)| w.to_sexp() == e.to_sexp() && w.span == e.span);
+        if !same {
+            return None;
+        }
+        let bare: std::collections::HashSet<usize> = self
+            .resolve()
+            .parenthesized_nullary_calls()
+            .into_iter()
+            .filter(|r| program.owner_of(r.top_level) == Some(ResolvedProgram::ENTRY))
+            .map(blue_lang_check::names::Reference::node_address)
+            .collect();
+        Some(
+            entry
+                .into_iter()
+                .map(|f| unparenthesize(f, &bare))
+                .collect(),
+        )
+    }
+}
+
+fn unparenthesize(
+    form: &tatara_lisp::Spanned,
+    bare: &std::collections::HashSet<usize>,
+) -> tatara_lisp::Spanned {
+    use tatara_lisp::{Spanned, SpannedForm};
+    let inner = match &form.form {
+        SpannedForm::List(items) => match items.as_slice() {
+            [head] if bare.contains(&(std::ptr::from_ref(head) as usize)) => {
+                return Spanned::new(form.span, head.form.clone());
+            }
+            _ => SpannedForm::List(items.iter().map(|i| unparenthesize(i, bare)).collect()),
+        },
+        SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(unparenthesize(i, bare))),
+        SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(unparenthesize(i, bare))),
+        SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(unparenthesize(i, bare))),
+        SpannedForm::UnquoteSplice(i) => {
+            SpannedForm::UnquoteSplice(Box::new(unparenthesize(i, bare)))
+        }
+        other => other.clone(),
+    };
+    Spanned::new(form.span, inner)
 }
 
 /// Parse, resolve and CHECK, without running: the door for `blue check`,
@@ -951,7 +1048,7 @@ def bakuhatsu()
   kore_wa_sonzai_shinai()
 end
 
-bakuhatsu()";
+bakuhatsu";
 
     const KOTAE: &str = "def kotae()\n  42\nend";
 
@@ -1150,7 +1247,7 @@ bakuhatsu()";
         // not — a mis-attribution would still be refused rather than placed.
         let err = run_named(
             "yobidashi.b",
-            "use(\"bakuhatsu2\")\n# pad: 47 in range\nbakuhatsu2::yobu()\n",
+            "use(\"bakuhatsu2\")\n# pad: 47's in range\nbakuhatsu2::yobu\n",
         );
         assert_eq!(
             err.to_string(),

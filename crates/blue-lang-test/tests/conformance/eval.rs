@@ -320,7 +320,11 @@ pub fn project(obs: &Obs) -> Option<Abi> {
 pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
     match &row.expect {
         Expect::Diagnoses(_) => Obs::Codes(static_codes(&row.src, roots)),
-        Expect::Formats(_) => match blue_lang_fmt::format_source_lossless(&row.src) {
+        Expect::Formats(_) => match blue_lang_pkg::canonical::format_with(
+            &blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
+            Path::new(ROW_FILE),
+            &row.src,
+        ) {
             Ok(t) => Obs::Text(t),
             Err(e) => Obs::Failed {
                 stage: Stage::Parse,

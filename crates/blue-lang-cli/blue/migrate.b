@@ -22,7 +22,7 @@
 # name table.
 
 def run_blue(args)
-  apply(exec_capture, cons(self_exe(), args))
+  apply(exec_capture, cons(self_exe, args))
 end
 
 def status_of(r)
@@ -788,7 +788,7 @@ def strip(prefix, file, callers)
 end
 
 # `write_stdout`, not `println`: the report is text for a person, unquoted.
-args = argv()
+args = argv
 
 if !empty?(args) && first(args) == "--strip"
   write_stdout("#{strip(nth(1, args), nth(2, args), drop(3, args))}\n")

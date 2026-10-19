@@ -35,6 +35,7 @@ it; `blue explain --list` lists them.
 | B0020 | package-as-value | error | a bidama's name is written as a qualifier, never as a value |
 | B0021 | legacy-name | error | a renamed or moved definition is called by its new name; the old one is a bridge that closes at the next minor version |
 | B0022 | legacy-misuse | error | a `legacy_names` declaration is one of each form per bidama, dated from a version it has reached, names no name twice, and moves a name only to a definition a loaded bidama holds |
+| B0023 | bare-nullary-call | error | a call to a function that takes no parameters is written bare: `now_ms`, never `now_ms()` |
 
 The registry is the source of truth; a test fails if a code is missing here.
 
@@ -264,6 +265,12 @@ Each entry of `references` carries the location fields of `blue check` and:
 | `opaque` | inside a macro call's arguments |
 | `flat`, `ns` | what each rule binds it to |
 | `locals` | the locals in scope where it is written, innermost first |
+| `position` | `call` (the head of a call), `value` (anywhere else in code), `place` (the name `set!` rebinds) or `syntax` (a macro head, a template symbol) |
+| `argc` | for a `call`, how many arguments it passes; `null` otherwise |
+| `nullary` | what `ns` binds it to takes exactly zero parameters: a bare `value` reference is CALLED, and a `call` with `argc` 0 is B0023 |
+
+This list is how a definition's callers are found: bare calls have no
+parentheses, so searching the text for `name(` misses every one.
 
 A binding (`flat`, `ns`) has:
 

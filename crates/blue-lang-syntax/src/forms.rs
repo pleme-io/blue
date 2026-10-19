@@ -68,7 +68,7 @@ pub const FORMS: &[Form] = &[
     Form {
         example: "f(x, y)",
         lowers_to: "(f x y)",
-        doc: "A call. This is the one form the formatter writes.",
+        doc: "A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end.",
     },
     Form {
         example: "x.f(y)",

@@ -72,7 +72,7 @@ row(
 
 row(
   "shift.wrong_arg.checked",
-  "def f(n: Int) -> Int\n  n + 1\nend\n\ndef g() -> Int\n  f(\"a\")\nend\n\ng()",
+  "def f(n: Int) -> Int\n  n + 1\nend\n\ndef g() -> Int\n  f(\"a\")\nend\n\ng",
   fails(:check, "B0005"),
   position("checked")
 )

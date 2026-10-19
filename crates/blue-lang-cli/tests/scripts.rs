@@ -42,7 +42,7 @@ fn err(o: &Output) -> String {
 }
 
 /// Writes its arguments joined by commas, and leaves a value behind.
-const ARGS: &str = "write_stdout(\"#{join(argv(), \",\")}\\n\")\n42\n";
+const ARGS: &str = "write_stdout(\"#{join(argv, \",\")}\\n\")\n42\n";
 
 /// `blue FILE ARGS` is `blue run --quiet FILE -- ARGS`: every argument reaches
 /// the program verbatim, flags and `--` included, and no final value is
@@ -110,7 +110,7 @@ fn a_shebang_script_runs_directly() {
     let script = dir.join("greet");
     put(
         &script,
-        "#!/usr/bin/env blue\nuse(\"kazu\", [:clamp])\nuse(\"retsu\", [:size])\n\nwrite_stdout(\"#{size(argv())} #{clamp(99, 1, 10)}\\n\")\n",
+        "#!/usr/bin/env blue\nuse(\"kazu\", [:clamp])\nuse(\"retsu\", [:size])\n\nwrite_stdout(\"#{size(argv)} #{clamp(99, 1, 10)}\\n\")\n",
     );
     executable(&script);
     let bin = Path::new(env!("CARGO_BIN_EXE_blue")).parent().unwrap();
@@ -337,7 +337,7 @@ fn blue_new_writes_what_passes_its_own_gates() {
 fn blue_watch_reruns_on_save() {
     let dir = scratch("watch");
     let file = dir.join("w.b");
-    let passing = "def f()\n  1\nend\n\ntest \"f is one\"\n  assert f() == 1\nend\n";
+    let passing = "def f()\n  1\nend\n\ntest \"f is one\"\n  assert f == 1\nend\n";
     put(&file, passing);
     let mut child = blue()
         .args(["watch", "test"])

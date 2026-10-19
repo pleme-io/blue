@@ -633,7 +633,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 // against the comment-stripped rendering made every commented
                 // file report "not formatted" forever — a --check that can
                 // never be satisfied.
-                let formatted = match blue_lang_fmt::format_source_lossless(&src) {
+                let formatted = match blue_lang_pkg::canonical::format_resolved(file, &src) {
                     Ok(f) => f,
                     Err(e) if check || write => {
                         eprintln!("blue: {}: {e}", file.display());
@@ -1234,7 +1234,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
         return Ok(ExitCode::FAILURE);
     }
     let loader = blue_lang_pkg::load_path::LoadPath::for_entry(file);
-    let mut src = read_compiled(file)?;
+    let mut src = blue_lang_pkg::canonical::read_layout(file)?;
     fn entry<'a>(file: &'a Path, text: &'a str) -> blue_lang_runtime::uses::Entry<'a> {
         blue_lang_runtime::uses::Entry {
             path: Some(file),
@@ -1248,6 +1248,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
     let project_pass = |checked: &blue_lang_runtime::pipeline::Checked| {
         blue_lang_pkg::project_rules::check(
             &checked.program,
+            &checked.call_explicit_forms(),
             &rules,
             &loader,
             blue_lang_runtime::project_rules::RULE_STEPS,
@@ -1271,9 +1272,23 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             eprintln!("blue: applied {applied} fix(es) to {}", file.display());
             // Re-format (the compile door rewrites a non-canonical file) and
             // re-check what is now on disk.
-            src = read_compiled(file)?;
+            src = blue_lang_pkg::canonical::read_layout(file)?;
             checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
             project = project_pass(&checked);
+        }
+    }
+    if fix {
+        if let Ok(canonical) = blue_lang_pkg::canonical::format_resolved(file, &src) {
+            if canonical.trim_end() != src.trim_end() {
+                std::fs::write(file, &canonical).map_err(|source| CliError::Write {
+                    path: file.display().to_string(),
+                    source,
+                })?;
+                eprintln!("blue: formatted {}", file.display());
+                src = canonical;
+                checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+                project = project_pass(&checked);
+            }
         }
     }
     let outcome = &checked.outcome;

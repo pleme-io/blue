@@ -247,6 +247,11 @@ the sentence that says what a function is for right above it.
   fix: "write `nth(0, xs)` (or `first(xs)`, `last(xs)`)", and so is `f(x)[1]`.
   Until 2026-09-29 `y = xs[0]` parsed as two statements, `y = xs` and the list
   `[0]`, and bound `y` to the whole list. Use `nth(i, xs)`, `first` and `last`.
+- **A function with no parameters is called bare** (B0023): `now_ms`,
+  `argv`, `kueri::count_all`, never `now_ms()`; `blue fmt --write` rewrites
+  the old spelling. Pass such a function as a value with `fn() now_ms end`.
+  The rule, its edges and the effectful builtins it calls: AGENTS.md's traps
+  and `blue explain B0023`.
 - **Interpolation works**, calls included: `"| #{name} | #{to_s(n)} |"`. It
   reads better than nested `concat`.
 - **`println` prints a string with its quotes and escapes visible.** A program
@@ -261,8 +266,8 @@ the sentence that says what a function is for right above it.
   text exactly; `blue run` also prints the program's final value, which
   `blue run --quiet` suppresses. An installed command (`mkBlueApp`, `pkgs.blueApp`)
   runs `blue run --quiet <file> --`, so it never ends with a stray `nil` and every
-  argument a user types reaches `argv()`, even one spelled like a CLI flag.
-- **A program that runs blue spawns `self_exe()`**, the interpreter running it,
+  argument a user types reaches `argv`, even one spelled like a CLI flag.
+- **A program that runs blue spawns `self_exe`**, the interpreter running it,
   not a PATH lookup: in a nix sandbox there is no `blue` on PATH (measured
   2026-09-27: heni's control run found none and, correctly, stopped).
 
@@ -270,7 +275,7 @@ the sentence that says what a function is for right above it.
 
 A function that returns a record as a list exports accessors (`pkg_name(r)`,
 `conduct_of(p)`), and one that returns a row exports its column names
-(`keishou.metric_names()`). Consumers then never write `nth(4, r)` or hard-code
+(`keishou::metric_names`). Consumers then never write `nth(4, r)` or hard-code
 how many columns there are, so adding a field breaks nothing silently.
 
 ## Run the real path once

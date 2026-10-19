@@ -30,7 +30,7 @@ def worker(parent)
   send(parent, [:did, job])
   worker(parent)
 end
-me = self()
+me = self
 sup = supervisor(:one_for_one, [[worker, [me]]], 0)
 w = nth(0, children(sup))
 m = monitor(sup)

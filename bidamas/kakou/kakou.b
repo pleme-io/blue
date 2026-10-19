@@ -89,7 +89,7 @@ legacy_names("0.1.2", [["opt", "deeta::get_or"]])
 # kk_k_from_test_bend.
 
 def rad(deg)
-  deg * pi() / 180
+  deg * pi / 180
 end
 
 def bend_allowance(angle_deg, r, t, k)
@@ -149,7 +149,7 @@ end
 def rule(rules, key)
   v = get(rules, key)
   if v == nil
-    get(default_rules(), key)
+    get(default_rules, key)
   else
     v
   end
@@ -405,11 +405,7 @@ def folded_mesh(part)
   )
   walls = flat_map(
     fn(f)
-      rittai::extrude_wall_faces(
-        base_region,
-        0,
-        index_of(sides(), get(f, :side))
-      )
+      rittai::extrude_wall_faces(base_region, 0, index_of(sides, get(f, :side)))
     end,
     get(part, :flanges)
   )
@@ -428,9 +424,9 @@ def flange_section(part, f)
   t = get(part, :thickness)
   r = get(f, :radius)
   n = get(part, :arc_segments)
-  a_end = rad(get(f, :angle)) - pi() / 2
-  inner = arc_points([0, t + r], r, -(pi() / 2), a_end, n)
-  outer = arc_points([0, t + r], r + t, -(pi() / 2), a_end, n)
+  a_end = rad(get(f, :angle)) - pi / 2
+  inner = arc_points([0, t + r], r, -(pi / 2), a_end, n)
+  outer = arc_points([0, t + r], r + t, -(pi / 2), a_end, n)
   run = flange_run(part, f)
   dir = [-sin(a_end), cos(a_end)]
   tip_in = vadd(last(inner), scale(run, dir))
@@ -528,8 +524,8 @@ end
 def shape_refusals(part)
   fl = get(part, :flanges)
   sides = map(fn(f) get(f, :side) end, fl)
-  unknown = filter(fn(s) contains(kakou::sides(), s) == false end, sides)
-  twice = filter(fn(s) count_of(sides, s) > 1 end, kakou::sides())
+  unknown = filter(fn(s) contains(kakou::sides, s) == false end, sides)
+  twice = filter(fn(s) count_of(sides, s) > 1 end, kakou::sides)
   angles = filter(fn(f) get(f, :angle) <= 0 || get(f, :angle) >= 180 end, fl)
   concat_lists(
     map(
@@ -595,7 +591,7 @@ def one_hole_refusals(part, rules, b, base, i, hole)
   else
     flat_map(
       fn(side) hole_side_refusals(part, rules, b, i, hole, side) end,
-      sides()
+      sides
     )
   end
 end
@@ -871,7 +867,7 @@ test "a U channel's flat length is the sum of its outside legs less two bend ded
 end
 
 test "a tray's folded solid is closed, and its volume adds up by parts"
-  tray = kakou::tray()
+  tray = kakou::tray
   m = folded_mesh(tray)
   assert is_empty(rittai::mesh_refusals(m)) == true
   # Independently: the base plate is its flat area times T; each flange is
@@ -881,7 +877,7 @@ test "a tray's folded solid is closed, and its volume adds up by parts"
   bw = nth(2, b) - nth(0, b)
   bd = nth(3, b) - nth(1, b)
   base_v = (bw * bd - regular_polygon_area(10, 24)) * 1.5
-  sector = 12 / 2.0 * sin(pi() / 2 / 12) * (square(3.0) - square(1.5))
+  sector = 12 / 2.0 * sin(pi / 2 / 12) * (square(3.0) - square(1.5))
   run = 40 - 3
   flange_v = 2 * bw * (sector + run * 1.5) + 2 * bd * (sector + run * 1.5)
   assert near_within(rittai::volume(m), base_v + flange_v, 0.001) == true
@@ -892,7 +888,7 @@ test "a tray's folded solid is closed, and its volume adds up by parts"
 end
 
 test "a flat pattern: the blank's outline, its bend lines, and its mass"
-  tray = kakou::tray()
+  tray = kakou::tray
   fp = flat_pattern(tray)
   assert size(get(fp, :bends)) == 4
   assert is_empty(region_refusals(get(fp, :blank))) == true
@@ -912,7 +908,7 @@ test "a flat pattern: the blank's outline, its bend lines, and its mass"
 end
 
 test "a blank's drawing: outline, holes, one labelled bend line per flange, two dimensions"
-  es = blank_entities(tray(), 3.5)
+  es = blank_entities(tray, 3.5)
   assert size(filter(fn(e) zumen::layer(e) == "OUTLINE" end, es)) == 1
   assert size(filter(fn(e) zumen::layer(e) == "HOLES" end, es)) == 1
   bend_lines = filter(
@@ -926,7 +922,7 @@ test "a blank's drawing: outline, holes, one labelled bend line per flange, two 
   ) ==
     true
   # The dimensions read the blank's size, to one decimal.
-  s = blank_size(tray())
+  s = blank_size(tray)
   texts = map(
     fn(e) get(e, :s) end,
     filter(fn(e) zumen::layer(e) == "DIM" && zumen::kind(e) == :text end, es)
@@ -936,8 +932,8 @@ test "a blank's drawing: outline, holes, one labelled bend line per flange, two 
 end
 
 test "the shop's limits refuse, each naming its rule"
-  rules = default_rules()
-  assert is_empty(sheet_refusals(tray(), rules)) == true
+  rules = default_rules
+  assert is_empty(sheet_refusals(tray, rules)) == true
   tight = sheet_part(
     {
       name: "tight",
@@ -1019,7 +1015,7 @@ end
 test "a bent wire: its developed length by hand, and a refused radius"
   # An L of legs 100 and 100 bent at r = 5: 200 - 2(5)tan(45) + 5(pi/2).
   w = wire("hook", 3, [[0, 0, 0], [0, 0, 100], [100, 0, 100]], 5)
-  assert near(wire_length(w), 200 - 10 + 5 * pi() / 2) == true
+  assert near(wire_length(w), 200 - 10 + 5 * pi / 2) == true
   # The empty case: a straight wire's developed length is its length.
   assert near(wire_length(wire("rod", 3, [[0, 0, 0], [0, 0, 80]], 5)), 80) ==
     true

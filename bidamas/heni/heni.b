@@ -114,7 +114,7 @@ end
 
 # A fresh root holding one copy of the package: <tmp>/heni-<now>-<tag>/<name>.
 def fresh(pkg_dir, tmp, tag)
-  root = path_join(tmp, "heni-#{to_s(now_ms())}-#{tag}")
+  root = path_join(tmp, "heni-#{to_s(now_ms)}-#{tag}")
   copy(pkg_dir, path_join(root, package_name(pkg_dir)))
   root
 end
@@ -254,7 +254,7 @@ def parse(args)
       {
         package: nth(0, args),
         mutations_file: nth(1, args),
-        blue: self_exe(),
+        blue: self_exe,
         test: nil,
         error: nil
       }
@@ -281,7 +281,7 @@ def parse_flags(args, acc)
 end
 
 def main()
-  a = parse(argv())
+  a = parse(argv)
   if get(a, :error) != nil
     write_stderr("#{get(a, :error)}\n")
     throw(error(:heni_usage, get(a, :error)))
@@ -360,13 +360,13 @@ end
 # Embedded in another host (cargo's harness), self_exe() is nil and the test
 # above covers the refusal instead: spawning the host would re-run it.
 test "a run end to end: a caught mutation, a survivor, a refusal"
-  if self_exe() != nil
-    end_to_end()
+  if self_exe != nil
+    end_to_end
   end
 end
 
 def end_to_end()
-  tmp = path_join(getenv("TMPDIR", "/tmp"), "heni-self-#{to_s(now_ms())}")
+  tmp = path_join(getenv("TMPDIR", "/tmp"), "heni-self-#{to_s(now_ms)}")
   pkg = path_join(tmp, "hnprobe")
   mkdir_p(pkg)
   write_file(path_join(pkg, "Bluefile"), "package(\"hnprobe\", \"0.1.0\")\n")
@@ -389,9 +389,7 @@ def end_to_end()
     },
     {name: "not there", file: "hnprobe.b", find: "nowhere", replace: "x"}
   ]
-  r = run(
-    {package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp}
-  )
+  r = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp: tmp})
   assert get(r, :control) == 0
   assert map(fn(x) get(x, :verdict) end, get(r, :results)) ==
     [:caught, :survived, :refused]
@@ -407,7 +405,7 @@ def end_to_end()
     "test \"broken\"\n  assert 1 == 2\nend\n"
   )
   bad = run(
-    {package: pkg, mutations: muts, blue: self_exe(), test: nil, tmp: tmp}
+    {package: pkg, mutations: muts, blue: self_exe, test: nil, tmp: tmp}
   )
   assert get(bad, :control) != 0
   assert is_empty(get(bad, :results)) == true

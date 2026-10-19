@@ -54,7 +54,10 @@ fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Ve
         return vec![d.code];
     }
     let checked = check_entry(
-        Entry::anonymous(src),
+        Entry {
+            path: Some(std::path::Path::new("witness.b")),
+            text: src,
+        },
         &Imports(imports),
         None,
         Checking::WithTests,

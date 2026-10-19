@@ -125,7 +125,10 @@ def entries_of_text(text)
             found,
             [
               defined_name(line),
-              join(drop(4, chars(line)), ""),
+              bare_signature(
+                join(drop(4, chars(line)), ""),
+                defined_name(line)
+              ),
               pending,
               waivers
             ]
@@ -139,6 +142,15 @@ def entries_of_text(text)
     joined_header_lines(split(text, "\n"))
   )
   last(state)
+end
+
+def bare_signature(signature, name)
+  called = concat(name, "()")
+  if starts_with?(signature, called)
+    concat(name, join(drop(size(chars(called)), chars(signature)), ""))
+  else
+    signature
+  end
 end
 
 # The prefix a `legacy_names(since, prefix)` declaration names, or nil. A
@@ -463,7 +475,7 @@ def def_row(r, builtins, e)
 end
 
 def package_section(r)
-  builtins = builtin_names()
+  builtins = builtin_names
   rows = map(fn(e) def_row(r, builtins, e) end, pkg_entries(r))
   join(
     concat_lists(
@@ -534,6 +546,12 @@ test "a def header broken over lines is catalogued as one signature"
   src = "# Does it.\ndef long_one(\n  alpha,\n  beta\n) -> Int\n  1\nend\n"
   assert entries_of_text(src) ==
     [["long_one", "long_one(alpha, beta) -> Int", ["Does it."], []]]
+end
+
+test "a definition with no parameters is catalogued bare"
+  src = "def alphabet()\n  1\nend\n\ndef typed() -> Int\n  1\nend\n\ndef inc(x)\n  x\nend\n"
+  assert map(fn(e) nth(1, e) end, entries_of_text(src)) ==
+    ["alphabet", "typed -> Int", "inc(x)"]
 end
 
 test "a manifest yields its name, version and needs"

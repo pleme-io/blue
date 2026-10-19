@@ -70,7 +70,7 @@ fn the_bridge_warns_outside_refuses_inside_and_closes_at_the_next_minor() {
     let _ = std::fs::remove_dir_all(&root);
     let dist = root.join("bidamas");
     lk(&dist, "0.1.1");
-    let caller = "use(\"lk\")\n\nlk::lk_hours()\n";
+    let caller = "use(\"lk\")\n\nlk::lk_hours\n";
     let outside = root.join("app/main.b");
     write(&outside, caller);
     let inside = dist.join("user.b");
@@ -109,7 +109,7 @@ fn the_bridge_warns_outside_refuses_inside_and_closes_at_the_next_minor() {
     assert_eq!(code, 0);
     assert_eq!(
         std::fs::read_to_string(&outside).expect("read"),
-        "use(\"lk\")\n\nlk::hours()\n"
+        "use(\"lk\")\n\nlk::hours\n"
     );
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -157,7 +157,7 @@ fn a_moved_name_bridges_to_its_new_home() {
     let _ = std::fs::remove_dir_all(&root);
     let dist = root.join("bidamas");
     moved(&dist, "0.1.2");
-    let caller = "use(\"mv\")\n\nprint(mv::hours() + mv::mins() + mv::mv_mins())\n";
+    let caller = "use(\"mv\")\n\nprint(mv::hours + mv::mins + mv::mv_mins)\n";
     let outside = root.join("app/main.b");
     write(&outside, caller);
     let inside = dist.join("user.b");
@@ -188,7 +188,7 @@ fn a_moved_name_bridges_to_its_new_home() {
     assert_eq!(code, 0);
     assert_eq!(
         std::fs::read_to_string(&outside).expect("read"),
-        "use(\"hm\")\n\nprint(hm::hours() + hm::minutes() + hm::minutes())\n"
+        "use(\"hm\")\n\nprint(hm::hours + hm::minutes + hm::minutes)\n"
     );
 
     // 0.2.0: closed; the ledger's fix still names the new home.
@@ -201,7 +201,7 @@ fn a_moved_name_bridges_to_its_new_home() {
     assert_eq!(code, 0, "{json}");
     assert_eq!(
         std::fs::read_to_string(&outside).expect("read"),
-        "use(\"hm\")\n\nprint(hm::hours() + hm::minutes() + hm::minutes())\n"
+        "use(\"hm\")\n\nprint(hm::hours + hm::minutes + hm::minutes)\n"
     );
     let _ = std::fs::remove_dir_all(&root);
 }

@@ -22,7 +22,7 @@ end
 def shells_in(path)
   map(
     fn(s) path_join(path, s) end,
-    filter(fn(s) path_exists(path_join(path, s)) end, shells())
+    filter(fn(s) path_exists(path_join(path, s)) end, shells)
   )
 end
 
@@ -72,4 +72,4 @@ def gate(file, tier)
   write_stdout("tier #{tier}: #{to_s(count(paths))} store paths, no finding\n")
 end
 
-gate(nth(0, argv()), nth(1, argv()))
+gate(nth(0, argv), nth(1, argv))

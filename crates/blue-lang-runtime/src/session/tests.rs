@@ -139,7 +139,7 @@ fn reaching_the_host_is_volatile_under_the_pure_frame_directly_or_through_a_call
     value(s.eval("def peek()\n  read_file(\"/etc/hosts\")\nend\n", None, None));
     assert_eq!(stop(s.eval("peek()", None, None)), refused);
     assert_eq!(
-        stop(s.eval("try(now_ms(), catch(_e(), 0))", None, None)),
+        stop(s.eval("try(now_ms, catch(_e(), 0))", None, None)),
         Stop::Volatile {
             reach: Capability::Clock,
             name: "now_ms".to_string(),

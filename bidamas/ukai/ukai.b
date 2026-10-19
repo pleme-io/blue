@@ -20,11 +20,11 @@ def axes()
 end
 
 def axis_names()
-  map(fn(a) first(a) end, axes())
+  map(fn(a) first(a) end, axes)
 end
 
 def variants(axis)
-  last(first(filter(fn(a) first(a) == axis end, axes())))
+  last(first(filter(fn(a) first(a) == axis end, axes)))
 end
 
 def variant_named(axis, text)
@@ -32,7 +32,7 @@ def variant_named(axis, text)
 end
 
 def every_state()
-  reduce(fn(acc, a) flat_map_states(acc, first(a), last(a)) end, [{}], axes())
+  reduce(fn(acc, a) flat_map_states(acc, first(a), last(a)) end, [{}], axes)
 end
 
 def flat_map_states(acc, axis, vs)
@@ -44,7 +44,7 @@ def flat_map_states(acc, axis, vs)
 end
 
 def state(axes_map, payload)
-  bad = filter(fn(a) !member?(get(axes_map, a), variants(a)) end, axis_names())
+  bad = filter(fn(a) !member?(get(axes_map, a), variants(a)) end, axis_names)
   if is_empty(bad)
     reduce(
       fn(s, k) assoc(s, k, get(payload, k)) end,
@@ -62,7 +62,7 @@ def state(axes_map, payload)
 end
 
 def unread_axes(s)
-  filter(fn(a) get(s, a) == :unread end, axis_names())
+  filter(fn(a) get(s, a) == :unread end, axis_names)
 end
 
 def noop(reason)
@@ -126,7 +126,7 @@ def outcome_label(o)
 end
 
 def row_key(s)
-  join(map(fn(a) to_s(get(s, a)) end, axis_names()), "\t")
+  join(map(fn(a) to_s(get(s, a)) end, axis_names), "\t")
 end
 
 def matrix_rows(text)
@@ -138,11 +138,11 @@ end
 
 def matrix_row(line)
   fs = split(line, "\t")
-  [join(take(size(axis_names()), fs), "\t"), last(fs)]
+  [join(take(size(axis_names), fs), "\t"), last(fs)]
 end
 
 def matrix_text(states)
-  header = "#{join(map(fn(a) to_s(a) end, axis_names()), "\t")}\toutcome\n"
+  header = "#{join(map(fn(a) to_s(a) end, axis_names), "\t")}\toutcome\n"
   concat(
     header,
     join(
@@ -741,7 +741,7 @@ def observe(cfg)
     }
   else
     {
-      routes: from_capture(capture(netstat_argv()), parse_netstat),
+      routes: from_capture(capture(netstat_argv), parse_netstat),
       rules: ok([]),
       status: from_capture(capture(status_argv(ts)), parse_backend_state),
       netcheck: from_capture(capture(netcheck_argv(ts)), parse_netcheck),
@@ -836,7 +836,7 @@ def config()
 end
 
 def run(cfg)
-  now = now_ms()
+  now = now_ms
   cfg2 = assoc(cfg, :applied, read_applied(get(cfg, :state_path)))
   s = assemble(cfg2, observe(cfg2))
   o = decide(s)
@@ -876,13 +876,13 @@ def run(cfg)
 end
 
 def main()
-  run(config())
+  run(config)
 end
 
 def fixture(name)
   roots = append(
     split(getenv("BLUE_PATH", ""), ":"),
-    [path_join(cwd(), "bidamas"), path_join(cwd(), "../../bidamas")]
+    [path_join(cwd, "bidamas"), path_join(cwd, "../../bidamas")]
   )
   hits = filter(
     fn(p) is_file?(p) end,
@@ -924,7 +924,7 @@ def cfg_for(platform, applied)
 end
 
 test "the matrix: every variant of every axis has exactly one row, and decide agrees with each"
-  states = every_state()
+  states = every_state
   assert size(states) == 4 * 5 * 5 * 3 * 2 * 2
   assert size(states) == 1200
   findings = matrix_findings(fixture("matrix.tsv"), states)
@@ -932,7 +932,7 @@ test "the matrix: every variant of every axis has exactly one row, and decide ag
 end
 
 test "the matrix gate goes red on a missing row, a stray row and a wrong decision"
-  states = every_state()
+  states = every_state
   text = fixture("matrix.tsv")
   ls = matrix_rows(text)
   short = join(rest(ls), "\n")
@@ -971,7 +971,7 @@ test "the measured live row: full tunnel, permissive, relay, gateway present, da
 end
 
 test "blind is never noop: an unread axis wins over every other answer"
-  s = fill(first(every_state()))
+  s = fill(first(every_state))
   assert get(decide(assoc(s, :corp, :unread)), :kind) == :blind
   assert get(
     decide(assoc(assoc(s, :corp, :absent), :targets, :unread)),
@@ -980,7 +980,7 @@ test "blind is never noop: an unread axis wins over every other answer"
     [:targets]
   assert get(decide(assoc(s, :corp, :absent)), :kind) == :noop
   assert size(
-    filter(fn(x) get(decide(fill(x)), :kind) == :blind end, every_state())
+    filter(fn(x) get(decide(fill(x)), :kind) == :blind end, every_state)
   ) ==
     1200 - 3 * 4 * 4 * 2 * 1 * 2
 end

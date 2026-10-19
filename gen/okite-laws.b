@@ -7,6 +7,6 @@ use("retsu", [:size])
 # okite's enforcement assertion into `assert true` survived.
 
 test "every blue decision has a law, and every law holds"
-  assert okite::failures() == []
-  assert size(okite::decisions()) >= 12
+  assert okite::failures == []
+  assert size(okite::decisions) >= 12
 end

@@ -283,7 +283,7 @@ end
 def bare_ident?(s)
   made_of(s, "abcdefghijklmnopqrstuvwxyz_0123456789") &&
     made_of(char_at(s, 0), "abcdefghijklmnopqrstuvwxyz_") &&
-    contains(reserved_words(), s) == false
+    contains(reserved_words, s) == false
 end
 
 # An identifier as SQL: bare when safe, otherwise double-quoted with any
@@ -322,13 +322,13 @@ def types()
 end
 
 def type(t)
-  if keyword?(t) && contains(types(), t)
+  if keyword?(t) && contains(types, t)
     t
   elsif keyword?(t) || composite?(t) == false
     throw(
       error(
         :kueri_shape,
-        "unknown column type #{to_s(t)}; a type is one of #{blue::join(map(fn(x) to_s(x) end, types()), ", ")}, or q_struct_of / q_list_of over them"
+        "unknown column type #{to_s(t)}; a type is one of #{blue::join(map(fn(x) to_s(x) end, types), ", ")}, or q_struct_of / q_list_of over them"
       )
     )
   else
@@ -459,7 +459,7 @@ def lit(v)
   elsif boolean?(v)
     bool(v)
   elsif null?(v)
-    null()
+    null
   else
     throw(error(:kueri_shape, "q_lit takes a number, string, boolean or nil"))
   end
@@ -864,9 +864,7 @@ end
 def posture_of(words)
   ws = as_list(words)
   bad = blue::filter(
-    fn(w)
-      (contains(reach_words(), w) || contains(rigor_words(), w)) == false
-    end,
+    fn(w) (contains(reach_words, w) || contains(rigor_words, w)) == false end,
     ws
   )
   if is_empty(bad) == false
@@ -877,8 +875,8 @@ def posture_of(words)
       )
     )
   end
-  reach = blue::filter(fn(w) contains(reach_words(), w) end, ws)
-  rigor = blue::filter(fn(w) contains(rigor_words(), w) end, ws)
+  reach = blue::filter(fn(w) contains(reach_words, w) end, ws)
+  rigor = blue::filter(fn(w) contains(rigor_words, w) end, ws)
   if size(reach) > 1 || size(rigor) > 1
     throw(error(:kueri_shape, "a posture names one reach and one rigor"))
   end
@@ -1199,7 +1197,7 @@ def expr_refusals(e, where, aggs_allowed, windows_allowed)
   wasted = blue::filter(
     fn(n)
       is_empty(blue::get(n, :order)) == false &&
-        contains(order_sensitive_fns(), blue::get(n, :fn)) == false
+        contains(order_sensitive_fns, blue::get(n, :fn)) == false
     end,
     concat_lists(nodes_of(e, :agg), nodes_of(e, :win))
   )
@@ -1207,7 +1205,7 @@ def expr_refusals(e, where, aggs_allowed, windows_allowed)
     fn(n)
       [
         :kueri_shape,
-        "#{where}: an order on #{blue::get(n, :fn)} changes nothing; only #{blue::join(order_sensitive_fns(), " and ")} read one"
+        "#{where}: an order on #{blue::get(n, :fn)} changes nothing; only #{blue::join(order_sensitive_fns, " and ")} read one"
       ]
     end,
     wasted
@@ -1523,7 +1521,7 @@ end
 # field.
 def duckdb_node?(n)
   k = blue::get(n, :kind)
-  k == :field || k == :agg && contains(duckdb_only_fns(), blue::get(n, :fn))
+  k == :field || k == :agg && contains(duckdb_only_fns, blue::get(n, :fn))
 end
 
 def node_label(n)
@@ -1604,7 +1602,7 @@ def locked_refusals(model, out)
         end,
         blue::filter(
           fn(n)
-            contains(order_sensitive_fns(), blue::get(n, :fn)) &&
+            contains(order_sensitive_fns, blue::get(n, :fn)) &&
               is_empty(blue::get(n, :order))
           end,
           flat_map(fn(e) nodes(e) end, stage_exprs(last(ix)))
@@ -1983,7 +1981,7 @@ end
 # into a CASE inside the aggregate, which every mainstream engine reads.
 def render_agg(e, dialect)
   f = blue::get(e, :fn)
-  if contains(duckdb_only_fns(), f) && dialect != :duckdb
+  if contains(duckdb_only_fns, f) && dialect != :duckdb
     throw(
       error(:kueri_dialect, "#{f} has no core form; render it with :duckdb")
     )
@@ -2607,7 +2605,7 @@ def example_leverage()
   model(
     {
       name: :leverage,
-      from: example_horizons(),
+      from: example_horizons,
       posture: [:portable, :locked],
       materialize: :parquet,
       pipeline: [
@@ -2671,10 +2669,10 @@ def example_tipping()
   model(
     {
       name: :tipping,
-      from: example_curve_keep(),
+      from: example_curve_keep,
       posture: [:portable, :locked],
       pipeline: [
-        q_join(example_curve_cells(), [:cell]),
+        q_join(example_curve_cells, [:cell]),
         group(
           [:rounds],
           [
@@ -2683,7 +2681,7 @@ def example_tipping()
               q_min(:enforcement),
               ge(q_round(:mean, 3), 0.9)
             ),
-            agg_where(:bimodal_levels, count_all(), gt(sub(:max, :min), 0.5))
+            agg_where(:bimodal_levels, count_all, gt(sub(:max, :min), 0.5))
           ]
         ),
         sort([:rounds])
@@ -2700,7 +2698,7 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "an empty pipeline is SELECT * from its relation, in both dialects, and holds"
-  m = model({name: :everything, from: example_horizons()})
+  m = model({name: :everything, from: example_horizons})
   assert render(m, :duckdb) == "SELECT *\nFROM horizons"
   assert render(m, :core) == "SELECT *\nFROM horizons"
   assert is_empty(refusals(m)) == true
@@ -2719,7 +2717,7 @@ test "the dialects differ only where a construct does: a neutral model renders t
   m = model(
     {
       name: :recent,
-      from: example_horizons(),
+      from: example_horizons,
       pipeline: [
         q_filter(gt(:rounds_together, 5)),
         derive(:gap, sub(:keep_mean, :keep_sd)),
@@ -2736,14 +2734,14 @@ test "the dialects differ only where a construct does: a neutral model renders t
     derive(:gap, sub(:keep_mean, :keep_sd))
   ]
   b = [select([:rounds_together, :gap]), sort([desc(:gap)]), limit(3)]
-  base = model({name: :recent, from: example_horizons()})
+  base = model({name: :recent, from: example_horizons})
   assert render(then(then(base, a), b), :duckdb) ==
     render(then(base, concat_lists(a, b)), :duckdb)
   assert render(then(base, concat_lists(a, b)), :duckdb) == render(m, :duckdb)
 end
 
 test "leverage renders to one SELECT: FILTER in DuckDB, CASE in core, and a locked total order"
-  m = example_leverage()
+  m = example_leverage
   duck = blue::join(
     [
       "SELECT",
@@ -2779,7 +2777,7 @@ test "leverage renders to one SELECT: FILTER in DuckDB, CASE in core, and a lock
 end
 
 test "tipping renders a join, count(*) FILTER against a CASE that counts a 1, and typed floats"
-  m = example_tipping()
+  m = example_tipping
   duck = blue::join(
     [
       "SELECT",
@@ -2815,16 +2813,16 @@ test "a long pipeline folds into the fewest SELECTs: QUALIFY saves DuckDB a pass
   m = model(
     {
       name: :widest,
-      from: example_curve_keep(),
+      from: example_curve_keep,
       pipeline: [
         q_filter(gt(:mean, 0.1)),
-        q_join(example_curve_cells(), [:cell]),
+        q_join(example_curve_cells, [:cell]),
         derive(:spread, sub(:max, :min)),
         q_filter(lt(:enforcement, 0.75)),
         q_filter(gt(:spread, 0.3)),
         derive(:rank, row_number([:rounds], [desc(:mean)])),
         q_filter(eq(:rank, 1)),
-        group([:rounds], [agg(:n, count_all()), agg(:widest, q_max(:spread))]),
+        group([:rounds], [agg(:n, count_all), agg(:widest, q_max(:spread))]),
         q_filter(ge(:n, 1)),
         sort([desc(:widest)]),
         limit(10)
@@ -3038,7 +3036,7 @@ test "a declared contract is checked at any rigor, and a wrong one throws"
   wrong = model(
     {
       name: :w,
-      from: example_horizons(),
+      from: example_horizons,
       pipeline: [select([:rounds_together, :keep_mean])],
       contract: [col(:rounds_together, :bigint), col(:keep_sd, :double)]
     }
@@ -3048,7 +3046,7 @@ test "a declared contract is checked at any rigor, and a wrong one throws"
   right = model(
     {
       name: :w,
-      from: example_horizons(),
+      from: example_horizons,
       pipeline: [select([:rounds_together, :keep_mean])],
       contract: [col(:rounds_together, :bigint), col(:keep_mean, :double)]
     }
@@ -3060,7 +3058,7 @@ test "a declared contract is checked at any rigor, and a wrong one throws"
 end
 
 test "shape: unknown columns, a stray aggregate, a plain column in a group, and a discarded sort"
-  h = example_horizons()
+  h = example_horizons
   assert refusal_kinds(
     model({name: :a, from: h, pipeline: [q_filter(gt(:nope, 1))]})
   ) ==
@@ -3129,7 +3127,7 @@ test "the renderer holds the floor on its own: no door leads a duckdb form into 
   m = model(
     {
       name: :names,
-      from: example_horizons(),
+      from: example_horizons,
       posture: [:duckdb],
       pipeline: [
         group(
@@ -3160,7 +3158,7 @@ test "the renderer holds the floor on its own: no door leads a duckdb form into 
   assert error?(try(render_query(raw, :core), catch(e(), e))) == true
   assert error?(try(render(m, :duckdb), catch(e(), e))) == false
   assert error?(
-    try(render_load(example_horizons(), "h.tsv", :core), catch(e(), e))
+    try(render_load(example_horizons, "h.tsv", :core), catch(e(), e))
   ) ==
     true
   assert error?(try(render(m, :postgres), catch(e(), e))) == true
@@ -3172,16 +3170,14 @@ test "malformed nodes are refused where they are built"
   assert error?(try(col(:x, :float), catch(e(), e))) == true
   assert error?(
     try(
-      model({name: :m, from: example_horizons(), posture: [:strict]}),
+      model({name: :m, from: example_horizons, posture: [:strict]}),
       catch(e(), e)
     )
   ) ==
     true
   assert error?(
     try(
-      model(
-        {name: :m, from: example_horizons(), posture: [:portable, :duckdb]}
-      ),
+      model({name: :m, from: example_horizons, posture: [:portable, :duckdb]}),
       catch(e(), e)
     )
   ) ==
@@ -3189,17 +3185,17 @@ test "malformed nodes are refused where they are built"
   assert error?(try(limit(-1), catch(e(), e))) == true
   assert error?(try(filtered(c(:x), gt(:x, 1)), catch(e(), e))) == true
   # The control: a well-formed source is not an error.
-  assert error?(try(example_horizons(), catch(e(), e))) == false
+  assert error?(try(example_horizons, catch(e(), e))) == false
 end
 
 test "refs are the DAG: direct deps, and a closure with every upstream before its readers"
-  assert deps(example_leverage()) == ["horizons"]
-  assert deps(example_tipping()) == ["curve_keep", "curve_cells"]
+  assert deps(example_leverage) == ["horizons"]
+  assert deps(example_tipping) == ["curve_keep", "curve_cells"]
   summary = model(
     {
       name: :summary,
-      from: example_tipping(),
-      pipeline: [q_join(example_leverage(), [:rounds])]
+      from: example_tipping,
+      pipeline: [q_join(example_leverage, [:rounds])]
     }
   )
   assert deps(summary) == ["tipping", "leverage"]
@@ -3244,7 +3240,7 @@ test "a raw node is the escape hatch: its own CTE, its declared columns, and :du
 end
 
 test "materialize: COPY to a file in DuckDB, CREATE TABLE AS in both, and no file COPY in core"
-  m = example_leverage()
+  m = example_leverage
   sql = render(m, :duckdb)
   assert render_materialize(m, :duckdb, "out/leverage.parquet") ==
     "COPY (\n#{sql}\n) TO 'out/leverage.parquet' (FORMAT parquet, COMPRESSION zstd)"
@@ -3262,14 +3258,14 @@ end
 
 test "q_write_sql writes the @generated file a consumer commits and gates fresh"
   path = path_join(getenv("TMPDIR", "."), "kueri-write-test.sql")
-  m = example_tipping()
+  m = example_tipping
   assert write_sql(path, m, :duckdb, "analysis/tipping.b") == path
   written = read_file(path)
   assert written ==
     "-- @generated by analysis/tipping.b (kueri, duckdb). Do not edit: regenerate from the blue model.\n#{render(m, :duckdb)};\n"
   # A model that materializes writes its COPY, to <name>.parquet beside it.
   assert contains?(
-    render_file(example_leverage(), :duckdb, "l.b"),
+    render_file(example_leverage, :duckdb, "l.b"),
     ") TO 'leverage.parquet' (FORMAT parquet, COMPRESSION zstd);\n"
   ) ==
     true
@@ -3322,7 +3318,7 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
     )
   end
   run = fn(m, d) duckdb(blue::join(push(loads(m), render(m, d)), ";\n")) end
-  lev = example_leverage()
+  lev = example_leverage
   lev_names = col_names(blue::get(lev, :contract))
   # Per length: max keep without and with enforcement, their rounded
   # difference, the widest spread. 1000 has no unenforced row: NULL, not 0.
@@ -3335,7 +3331,7 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
   assert duckdb_failed?(run(lev, :duckdb)) == false
   assert row_values(run(lev, :duckdb), lev_names) == lev_known
   assert row_values(run(lev, :core), lev_names) == lev_known
-  tip = example_tipping()
+  tip = example_tipping
   tip_names = col_names(blue::get(tip, :contract))
   # Cell 2's mean 0.8996 rounds to 0.9 and counts; cell 5's 0.89 does not.
   # Horizon 500 never reaches 90%: NULL tipping, zero bimodal levels.
@@ -3408,11 +3404,8 @@ def example_run(m, names)
 end
 
 test "JSON Lines and literal rows load with declared types, and struct fields and explode read them"
-  path = path_join(
-    getenv("TMPDIR", "."),
-    "kueri-records-#{to_s(now_ns())}.jsonl"
-  )
-  write_file(path, example_records_text())
+  path = path_join(getenv("TMPDIR", "."), "kueri-records-#{to_s(now_ns)}.jsonl")
+  write_file(path, example_records_text)
   recs = example_records(path)
   assert render_load(recs, "r.jsonl", :duckdb) ==
     "CREATE OR REPLACE VIEW recs AS\nSELECT * FROM read_json('r.jsonl', format = 'newline_delimited', columns = {'entity': 'VARCHAR', 'seq': 'BIGINT', 'time': 'BIGINT', 'refusal': 'STRUCT(kind VARCHAR, detail VARCHAR[])', 'links': 'STRUCT(id VARCHAR, kind VARCHAR)[]', 'payload': 'STRUCT(value DOUBLE)'})"
@@ -3489,9 +3482,7 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
     [["item-1", "guard", 2]]
   none = kueri::values({name: :none, columns: [col(:kind, :varchar)], rows: []})
   assert example_run(
-    model(
-      {name: :n, from: none, pipeline: [group([], [agg(:n, count_all())])]}
-    ),
+    model({name: :n, from: none, pipeline: [group([], [agg(:n, count_all)])]}),
     [:n]
   ) ==
     [[0]]
@@ -3567,7 +3558,7 @@ def example_intervals()
   model(
     {
       name: :intervals,
-      from: example_steps(),
+      from: example_steps,
       materialize: :view,
       pipeline: [
         derive(:until, lead(:time, [:entity], [:seq])),
@@ -3581,7 +3572,7 @@ def example_intervals()
 end
 
 test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered once and run"
-  m = example_intervals()
+  m = example_intervals
   assert render(m, :duckdb) ==
     blue::join(
       [
@@ -3673,19 +3664,19 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
 end
 
 test "a script builds a database file of views, upstream first, and q_rows never reads a failure as no rows"
-  m = example_intervals()
+  m = example_intervals
   script = render_script([m], :duckdb, "kueri test")
   assert starts_with?(script, "-- @generated by kueri test (kueri, duckdb).")
   # Two statements, the load before the view that reads it, then the end.
   parts = split(script, ";\n")
   assert size(parts) == 3
-  assert ends_with?(first(parts), render_load(example_steps(), nil, :duckdb))
+  assert ends_with?(first(parts), render_load(example_steps, nil, :duckdb))
   assert starts_with?(
     nth(1, parts),
     "CREATE OR REPLACE VIEW intervals AS\nWITH step_1 AS ("
   )
   assert last(parts) == ""
-  db = path_join(getenv("TMPDIR", "."), "kueri-script-#{to_s(now_ns())}.duckdb")
+  db = path_join(getenv("TMPDIR", "."), "kueri-script-#{to_s(now_ns)}.duckdb")
   assert duckdb_failed?(duckdb_at(db, script)) == false
   # The views persist in the file: a second process reads them.
   assert rows_at(db, "SELECT sum(seconds) AS s FROM intervals") ==
@@ -3724,7 +3715,7 @@ test "q_rows reads values by conversion, so a DuckDB display change never change
   ) ==
     kueri::rows("SELECT 2 AS n")
   # The control: a script that fails throws, it never reads as done.
-  db = path_join(getenv("TMPDIR", "."), "kueri-run-#{to_s(now_ns())}.duckdb")
+  db = path_join(getenv("TMPDIR", "."), "kueri-run-#{to_s(now_ns)}.duckdb")
   assert error?(
     try(run_at(db, "CREATE VIEW v AS SELECT * FROM nowhere"), catch(e(), e))
   )
@@ -3734,7 +3725,7 @@ test "q_rows reads values by conversion, so a DuckDB display change never change
 end
 
 test "a model carries its columns, so a model built on it (plain or composed) sees exactly them, without re-walking"
-  base = example_steps()
+  base = example_steps
   a = model(
     {
       name: :ka,

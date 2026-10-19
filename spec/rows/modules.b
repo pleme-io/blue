@@ -63,7 +63,7 @@ row(
 
 row(
   "modules.ns.own_beats_importer",
-  "use(\"sp_own\", [:sp_call_helper])\n\ndef sp_helper()\n  :entry\nend\n\nsp_call_helper()",
+  "use(\"sp_own\", [:sp_call_helper])\n\ndef sp_helper()\n  :entry\nend\n\nsp_call_helper",
   value(":bidama"),
   pending("G16", "wasm")
 )

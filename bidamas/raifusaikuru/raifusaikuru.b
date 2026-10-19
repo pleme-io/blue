@@ -715,7 +715,7 @@ def problem_kinds()
 end
 
 def problem(kind, why)
-  if contains(problem_kinds(), kind) == false
+  if contains(problem_kinds, kind) == false
     throw(error(:raifusaikuru_internal, "unlisted problem kind #{show(kind)}"))
   end
   [kind, why]
@@ -900,7 +900,7 @@ def pb_links(p)
 end
 
 def pb_shape(p)
-  bad = filter(fn(c) contains(known_tags(), first(c)) == false end, d_flat(p))
+  bad = filter(fn(c) contains(known_tags, first(c)) == false end, d_flat(p))
   named = if name?(d_name(p))
     []
   else
@@ -2428,7 +2428,7 @@ end
 # so a use while refused is recorded as a breach. A device enforcing `use`
 # holds a permit of at most 2 h that counts uses. Time is in seconds.
 def example_consumable()
-  lc_define(:consumable, example_consumable_clauses())
+  lc_define(:consumable, example_consumable_clauses)
 end
 
 # The example's clauses, before lc_define: a consumer extends the example by
@@ -2492,7 +2492,7 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "the empty case: no events give the initial state, which may not be used"
-  d = example_consumable()
+  d = example_consumable
   s = state_of(d, [])
   assert s == initial(d)
   assert phase(s) == :sealed
@@ -2515,8 +2515,8 @@ test "the empty case: no events give the initial state, which may not be used"
 end
 
 test "an identity: replaying a state's own events reproduces it, and a fold resumes where it stopped"
-  d = example_consumable()
-  log = example_log()
+  d = example_consumable
+  log = example_log
   s = state_of(d, log)
   assert state_of(d, log) == s
   assert resume(d, s, []) == s
@@ -2545,8 +2545,8 @@ test "a worked lifecycle, checked by hand"
   # Permit at 12000: min(15400, 261200, 19200) = 15400, the reading's expiry.
   # At 15400 the reading is exactly 4 h old: reading_fresh refuses and asks
   # for take_reading.
-  d = example_consumable()
-  s = state_of(d, example_log())
+  d = example_consumable
+  s = state_of(d, example_log)
   assert phase(s) == :open
   assert fields(s) ==
     [[:uses, 3], [:opened_at, 2000], [:quality, 10], [:read_at, 1000]]
@@ -2572,8 +2572,8 @@ test "a worked lifecycle, checked by hand"
 end
 
 test "a control: a guard that must refuse, says why, names the task, and a use anyway is a breach"
-  d = example_consumable()
-  s = state_of(d, push(example_log(), ev(:reading, 4000, [[:value, 26]])))
+  d = example_consumable
+  s = state_of(d, push(example_log, ev(:reading, 4000, [[:value, 26]])))
   # quality 26 is not below 24; quality_ok names no task, so the guard's own
   # `replace` is asked for.
   v = allowed(d, s, :use, 4100)
@@ -2709,14 +2709,14 @@ def example_problem_rows()
 end
 
 test "every kind of bad definition is refused when built, one row per kind"
-  assert problems(:base, example_base()) == []
-  rows = example_problem_rows()
+  assert problems(:base, example_base) == []
+  rows = example_problem_rows
   missed = filter(
     fn(row)
       contains(
         map(
           fn(p) problem_kind(p) end,
-          problems(:base, push(example_base(), first(row)))
+          problems(:base, push(example_base, first(row)))
         ),
         nth(1, row)
       ) ==
@@ -2727,7 +2727,7 @@ test "every kind of bad definition is refused when built, one row per kind"
   assert map(fn(row) nth(1, row) end, missed) == []
   # The three that cannot be added to a sound base are checked on their own.
   assert contains(
-    map(fn(p) problem_kind(p) end, problems(7, example_base())),
+    map(fn(p) problem_kind(p) end, problems(7, example_base)),
     :bad_name
   )
   assert contains(
@@ -2764,12 +2764,12 @@ test "every kind of bad definition is refused when built, one row per kind"
       [:bad_name, :no_states, :no_start, :no_end]
     )
   )
-  assert set_equal(covered, problem_kinds())
+  assert set_equal(covered, problem_kinds)
 end
 
 test "the fold records what it refuses and never throws"
-  d = example_consumable()
-  s = state_of(d, example_log())
+  d = example_consumable
+  s = state_of(d, example_log)
   s2 = resume(
     d,
     s,
@@ -2800,9 +2800,9 @@ test "the fold records what it refuses and never throws"
 end
 
 test "lc_admit_step answers exactly as lc_admit and lc_step do, for admitted, refused and breaching events"
-  d = example_consumable()
-  s = state_of(d, example_log())
-  high = state_of(d, push(example_log(), ev(:reading, 4000, [[:value, 26]])))
+  d = example_consumable
+  s = state_of(d, example_log)
+  high = state_of(d, push(example_log, ev(:reading, 4000, [[:value, 26]])))
   cases = [
     [s, ev(:use, 2400, [])],
     [s, ev(:open, 2400, [])],
@@ -2827,13 +2827,13 @@ end
 
 test "a logged permit is an event: a no-op in every non-terminal state, refused in a terminal one, rendered from the permit"
   # The empty case: a definition that logs nothing and links nothing.
-  plain = example_consumable()
+  plain = example_consumable
   assert d_permit_logs(plain) == []
   assert d_links(plain) == []
   d = lc_define(
     :consumable,
     push(
-      push(example_consumable_clauses(), permit_log(:use, :permit)),
+      push(example_consumable_clauses, permit_log(:use, :permit)),
       link(:batch, :lot)
     )
   )
@@ -2850,7 +2850,7 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
     [[:sealed, :sealed, [], nil], [:open, :open, [], nil]]
   # A value checked by hand: the worked log's permit at 3000 (not_after 10200,
   # 37 uses left, basis 5, as the worked-lifecycle test computes).
-  s = state_of(d, example_log())
+  s = state_of(d, example_log)
   ev = permit_event(d, permit_for(d, s, :use, 3000), "device-7")
   assert ev ==
     raifusaikuru::ev(
@@ -2895,7 +2895,7 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
   assert contains(
     map(
       fn(p) problem_kind(p) end,
-      problems(:x, push(example_consumable_clauses(), permit_log(:fly, :flown)))
+      problems(:x, push(example_consumable_clauses, permit_log(:fly, :flown)))
     ),
     :unknown_capability
   )
@@ -2905,7 +2905,7 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
       problems(
         :x,
         push(
-          push(example_consumable_clauses(), permit_log(:use, :permit)),
+          push(example_consumable_clauses, permit_log(:use, :permit)),
           event(:permit, [])
         )
       )
@@ -2915,8 +2915,8 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
 end
 
 test "a permit never outlives its guard, in time or in uses"
-  d = example_consumable()
-  s = state_of(d, example_log())
+  d = example_consumable
+  s = state_of(d, example_log)
   # At 12000 the reading binds: allowed until the permit's not_after, refused at it.
   na = permit_not_after(permit_for(d, s, :use, 12000))
   assert is_allowed(allowed(d, s, :use, na - 1))
@@ -2933,20 +2933,19 @@ end
 
 test "a span is declared, checked when built, read back, and folds nothing"
   # The empty case: a definition that declares none.
-  assert d_spans(example_consumable()) == []
+  assert d_spans(example_consumable) == []
   # The identity: a span changes no state; the same log folds the same.
   d = lc_define(
     :consumable,
     push(
       push(
-        example_consumable_clauses(),
+        example_consumable_clauses,
         span(:open_to_done, :open, :spent, hours(8))
       ),
       span(:shelf, :sealed, :open, nil)
     )
   )
-  assert state_of(d, example_log()) ==
-    state_of(example_consumable(), example_log())
+  assert state_of(d, example_log) == state_of(example_consumable, example_log)
   # Read back in declaration order, through its accessors.
   assert d_spans(d) ==
     [[:open_to_done, :open, :spent, 28800], [:shelf, :sealed, :open, nil]]
@@ -2960,7 +2959,7 @@ test "a span is declared, checked when built, read back, and folds nothing"
   kinds = fn(extra)
     map(
       fn(p) problem_kind(p) end,
-      problems(:x, push(example_consumable_clauses(), extra))
+      problems(:x, push(example_consumable_clauses, extra))
     )
   end
   assert kinds(span(:s, :open, :gone, nil)) == [:unknown_state]
@@ -2972,7 +2971,7 @@ test "a span is declared, checked when built, read back, and folds nothing"
     try(
       lc_define(
         :x,
-        push(example_consumable_clauses(), span(:s, :spent, :open, nil))
+        push(example_consumable_clauses, span(:s, :spent, :open, nil))
       ),
       catch(e(), e)
     )

@@ -113,7 +113,7 @@ end
 # from "stopped long ago". Branch on nil first.
 def file_age_ms(path)
   if is_file?(path)
-    now_ms() - file_mtime_ms(path)
+    now_ms - file_mtime_ms(path)
   else
     nil
   end
@@ -172,7 +172,7 @@ def strip_ansi_from(cs, state, acc)
       else
         strip_ansi_from(rest(cs), 0, acc)
       end
-    elsif c == esc_char()
+    elsif c == esc_char
       strip_ansi_from(rest(cs), 1, acc)
     else
       strip_ansi_from(rest(cs), 0, concat(acc, c))

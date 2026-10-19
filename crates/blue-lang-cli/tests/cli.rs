@@ -86,7 +86,7 @@ const PROGRAM: &str =
 /// refused every trailing argument, so no blue program could take any.
 #[test]
 fn run_passes_the_programs_arguments_to_argv() {
-    let f = write("argv", "join(argv(), \"|\")");
+    let f = write("argv", "join(argv, \"|\")");
     let o = run(&[
         "run",
         f.to_str().unwrap(),
@@ -136,7 +136,7 @@ fn run_quiet_prints_only_what_the_program_writes() {
     assert_eq!(stdout(&o), "out\n");
     let o = run(&["run", f.to_str().unwrap()]);
     assert_eq!(stdout(&o), "out\nnil\n");
-    let g = write("quiet-argv", "write_stdout(join(argv(), \"|\"))\nnil");
+    let g = write("quiet-argv", "write_stdout(join(argv, \"|\"))\nnil");
     let o = run(&[
         "run",
         "--quiet",
@@ -455,7 +455,7 @@ fn test_on_a_file_with_no_tests_reports_zero_and_fails() {
 
 /// A Bluefile whose version is COMPUTED. A data-format manifest could not
 /// express this, and it is the reason the Bluefile is a blue program.
-const BLUEFILE: &str = "def app_version()\n  \"0.2.0\"\nend\n\npackage(\"myapp\", app_version())\nneeds(\"gaming\", \"^1.2\")\nposture(:preceding)";
+const BLUEFILE: &str = "def app_version()\n  \"0.2.0\"\nend\n\npackage(\"myapp\", app_version)\nneeds(\"gaming\", \"^1.2\")\nposture(:preceding)";
 
 #[test]
 fn deps_reports_the_manifest_including_a_computed_version() {

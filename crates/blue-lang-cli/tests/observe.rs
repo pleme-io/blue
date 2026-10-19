@@ -57,7 +57,7 @@ fn err(o: &Output) -> String {
 }
 
 const THREE_DEEP: &str = "def inner(n)\n  n / 0\nend\n\ndef middle(n)\n  inner(n) + 1\nend\n\n\
-                          def outer()\n  middle(2) * 3\nend\n\nouter()\n";
+                          def outer()\n  middle(2) * 3\nend\n\nouter\n";
 
 /// **A runtime error prints the blue call stack**, innermost first, each
 /// frame its definition and the line it was running.
@@ -107,7 +107,7 @@ fn try_still_catches_an_error_with_a_stack() {
     let f = write(
         &d,
         "caught.b",
-        "def inner()\n  1 / 0\nend\n\ndef safe()\n  try(inner(), catch(e(), 7))\nend\n\nsafe() + 1\n",
+        "def inner()\n  1 / 0\nend\n\ndef safe()\n  try(inner, catch(e(), 7))\nend\n\nsafe() + 1\n",
     );
     let o = run(&["run", f.to_str().unwrap()]);
     assert!(o.status.success(), "{}", err(&o));

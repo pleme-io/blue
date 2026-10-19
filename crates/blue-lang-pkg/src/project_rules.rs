@@ -172,6 +172,7 @@ impl Outcome {
 #[must_use]
 pub fn check(
     program: &ResolvedProgram,
+    explicit: &[Spanned],
     rules: &[Declared],
     loader: &dyn Loader,
     steps: usize,
@@ -187,8 +188,7 @@ pub fn check(
     let Some(entry) = program.file(ResolvedProgram::ENTRY) else {
         return out;
     };
-    let forms: Vec<(usize, &Spanned)> = program
-        .forms()
+    let forms: Vec<(usize, &Spanned)> = explicit
         .iter()
         .enumerate()
         .filter(|(i, _)| program.owner_of(*i) == Some(ResolvedProgram::ENTRY))

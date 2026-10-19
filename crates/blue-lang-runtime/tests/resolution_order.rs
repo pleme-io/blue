@@ -90,7 +90,7 @@ fn an_imported_definition_beats_a_builtin_for_its_importer() {
 fn a_bidamas_own_call_reaches_its_own_definition() {
     const P: &[(&str, &str)] = &[(
         "kotei",
-        "def helper()\n  :bidama\nend\n\ndef call_helper()\n  helper()\nend\n",
+        "def helper()\n  :bidama\nend\n\ndef call_helper()\n  helper\nend\n",
     )];
     let src = "use(\"kotei\", [:call_helper])\n\ndef helper()\n  :entry\nend\n\ncall_helper()\n";
     assert_eq!(keyword(&value(src, &Mem(P))), "bidama");

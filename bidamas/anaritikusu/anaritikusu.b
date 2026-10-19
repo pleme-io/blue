@@ -584,7 +584,7 @@ def event_columns(d)
         kueri::col(:status, :varchar),
         kueri::col(:refusal_kind, :varchar),
         kueri::col(:refusal_detail, kueri::list_of(:varchar)),
-        kueri::col(:links, kueri::list_of(link_type()))
+        kueri::col(:links, kueri::list_of(link_type))
       ],
       keys
     ),
@@ -628,14 +628,14 @@ end
 def check_names(d)
   keys = map(fn(k) raifusaikuru::text(k) end, anaritikusu::keys(d))
   fields = map(fn(f) raifusaikuru::text(f) end, raifusaikuru::d_field_names(d))
-  taken_keys = filter(fn(k) contains(record_names(), k) end, keys)
-  taken_fields = filter(fn(f) contains(state_names(), f) end, fields)
+  taken_keys = filter(fn(k) contains(record_names, k) end, keys)
+  taken_fields = filter(fn(f) contains(state_names, f) end, fields)
   dupes = unique(filter(fn(f) count_of(fields, f) > 1 end, fields))
   if is_empty(taken_keys) == false
     throw(
       error(
         :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(record_names(), ", ")}); rename the key"
+        "#{raifusaikuru::show(raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(record_names, ", ")}); rename the key"
       )
     )
   end
@@ -643,7 +643,7 @@ def check_names(d)
     throw(
       error(
         :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(state_names(), ", ")}); rename the field"
+        "#{raifusaikuru::show(raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(state_names, ", ")}); rename the field"
       )
     )
   end
@@ -702,7 +702,7 @@ def records_source(d, path)
         kueri::col(:type, :varchar),
         kueri::col(:status, :varchar),
         kueri::col(:refusal, refusal),
-        kueri::col(:links, kueri::list_of(link_type()))
+        kueri::col(:links, kueri::list_of(link_type))
       ],
       payload
     ),
@@ -947,7 +947,7 @@ def unreplayed_model(d, events, states)
       kueri::select([:entity, :seq]),
       kueri::left_join(states, [:entity, :seq]),
       q_filter(kueri::is_null(:phase)),
-      kueri::group([], [kueri::agg(:records, kueri::count_all())])
+      kueri::group([], [kueri::agg(:records, kueri::count_all)])
     ]
   )
 end
@@ -1002,7 +1002,7 @@ def time_in_state_model(d, intervals)
         [:entity, :phase],
         [
           kueri::agg(:seconds, kueri::sum(:seconds)),
-          kueri::agg_where(:ongoing, kueri::count_all(), kueri::is_null(:until))
+          kueri::agg_where(:ongoing, kueri::count_all, kueri::is_null(:until))
         ]
       )
     ]
@@ -1019,7 +1019,7 @@ def refusals_model(d, events)
       q_filter(kueri::eq(:status, "refused")),
       kueri::group(
         [:type, :refusal_kind],
-        [kueri::agg(:records, kueri::count_all())]
+        [kueri::agg(:records, kueri::count_all)]
       )
     ]
   )
@@ -1101,12 +1101,12 @@ def rule_hit_counts_model(d, hits)
         [
           kueri::agg_where(
             :refused,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::eq(:outcome, "refused")
           ),
           kueri::agg_where(
             :breached,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::eq(:outcome, "breach")
           )
         ]
@@ -1160,7 +1160,7 @@ def task_asks_model(d, hits, rule_tasks)
       q_join(rule_tasks, [:capability, :rule]),
       kueri::group(
         [:entity, :seq, :time, :task, :escalate_after],
-        [kueri::agg(:asked_by, kueri::count_all())]
+        [kueri::agg(:asked_by, kueri::count_all)]
       )
     ]
   )
@@ -1224,7 +1224,7 @@ def tasks_model(d, closes, now)
         [
           kueri::agg(:opened_seq, q_min(:seq)),
           kueri::agg(:opened_at, q_min(:time)),
-          kueri::agg(:asks, kueri::count_all()),
+          kueri::agg(:asks, kueri::count_all),
           kueri::agg(:closed_at, q_max(:closed_at)),
           kueri::agg(:escalate_after, q_max(:escalate_after))
         ]
@@ -1266,18 +1266,18 @@ def task_summary_model(d, tasks)
       kueri::group(
         [:task],
         [
-          kueri::agg(:opened, kueri::count_all()),
+          kueri::agg(:opened, kueri::count_all),
           kueri::agg_where(
             :still_open,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::eq(:state, "open")
           ),
           kueri::agg_where(
             :closed,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::eq(:state, "closed")
           ),
-          kueri::agg_where(:overdue, kueri::count_all(), :overdue)
+          kueri::agg_where(:overdue, kueri::count_all, :overdue)
         ]
       )
     ]
@@ -1390,12 +1390,12 @@ def permit_models(d, log, events, steps, gates)
           [
             kueri::agg_where(
               :uses,
-              kueri::count_all(),
+              kueri::count_all,
               q_and(within, kueri::lt(:use_time, :not_after))
             ),
             kueri::agg_where(
               :overrun,
-              kueri::count_all(),
+              kueri::count_all,
               q_and(within, kueri::ge(:use_time, :not_after))
             ),
             kueri::agg_where(
@@ -1446,7 +1446,7 @@ def unpermitted_models(d, log, events, steps, gates)
     q_if(
       kueri::ge(:time, :not_after),
       "lapsed",
-      q_if(kueri::not_null(:breach), "breach", kueri::null())
+      q_if(kueri::not_null(:breach), "breach", kueri::null)
     )
   )
   unpermitted = view(
@@ -1550,7 +1550,7 @@ def span_models(d, sp, steps, current, now)
     q_if(ended, "abandoned", "open")
   )
   over = if limit == nil
-    q_cast(kueri::null(), :boolean)
+    q_cast(kueri::null, :boolean)
   else
     kueri::gt(:elapsed, limit)
   end
@@ -1567,7 +1567,7 @@ def span_models(d, sp, steps, current, now)
         :elapsed,
         q_if(
           kueri::eq(:state, "abandoned"),
-          q_cast(kueri::null(), :bigint),
+          q_cast(kueri::null, :bigint),
           kueri::sub(kueri::coalesce(:to_at, now), :from_at)
         )
       ),
@@ -1597,23 +1597,23 @@ def span_models(d, sp, steps, current, now)
       kueri::group(
         [],
         [
-          kueri::agg(:started, kueri::count_all()),
+          kueri::agg(:started, kueri::count_all),
           kueri::agg_where(
             :reached,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::eq(:state, "done")
           ),
           kueri::agg_where(
             :still_open,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::eq(:state, "open")
           ),
           kueri::agg_where(
             :abandoned,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::eq(:state, "abandoned")
           ),
-          kueri::agg_where(:over_limit, kueri::count_all(), :over_limit),
+          kueri::agg_where(:over_limit, kueri::count_all, :over_limit),
           kueri::agg(:min_seconds, q_min(:seconds)),
           kueri::agg(:avg_seconds, kueri::avg(:seconds)),
           kueri::agg(:max_seconds, q_max(:seconds)),
@@ -1813,10 +1813,10 @@ def link_coverage_model(ad, role, link)
       kueri::group(
         [],
         [
-          kueri::agg(:links, kueri::count_all()),
+          kueri::agg(:links, kueri::count_all),
           kueri::agg_where(
             :unresolved,
-            kueri::count_all(),
+            kueri::count_all,
             kueri::is_null(kueri::c("#{r}_seq"))
           )
         ]
@@ -2138,7 +2138,7 @@ def example_consumable()
   lc_define(
     :consumable,
     push(
-      raifusaikuru::example_consumable_clauses(),
+      raifusaikuru::example_consumable_clauses,
       raifusaikuru::permit_log(:use, :permit)
     )
   )
@@ -2150,7 +2150,7 @@ def example_consumable_strict()
   clauses = map(
     fn(c) example_tighten(c) end,
     push(
-      raifusaikuru::example_consumable_clauses(),
+      raifusaikuru::example_consumable_clauses,
       raifusaikuru::permit_log(:use, :permit)
     )
   )
@@ -2363,7 +2363,7 @@ end
 # The day's three streams under `dir`: [la_stream …], after appending every
 # event to its lifecycle's stream through nisshi.
 def example_streams(dir)
-  defs = [example_consumable(), example_portion(), example_order()]
+  defs = [example_consumable, example_portion, example_order]
   streams = map(
     fn(d)
       stream(
@@ -2385,7 +2385,7 @@ def example_streams(dir)
     {},
     streams
   )
-  reduce(fn(m, x) example_append(m, x) end, logs, example_day())
+  reduce(fn(m, x) example_append(m, x) end, logs, example_day)
   streams
 end
 
@@ -2413,7 +2413,7 @@ end
 def test_dir(name)
   dir = path_join(
     getenv("TMPDIR", "/tmp"),
-    "anaritikusu-#{name}-#{to_s(now_ns())}"
+    "anaritikusu-#{name}-#{to_s(now_ns)}"
   )
   mkdir_p(dir)
   dir
@@ -2436,7 +2436,7 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "the telemetry schema is derived from the definition: the record's columns, then the typed keys and fields"
-  d = example_consumable()
+  d = example_consumable
   # By hand: value flows into quality, which lc_below compares, so both are
   # DOUBLE; uses counts from 0 by 1 (BIGINT); opened_at and read_at are
   # stamped (BIGINT); the permit log's keys are subject text and whole-number
@@ -2475,7 +2475,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
     ]
   # grams is set from a key into a field that starts at 0: numbers, widened
   # to DOUBLE because the key comes from outside.
-  assert field_types(example_portion()) ==
+  assert field_types(example_portion) ==
     [["grams", :double], ["made_at", :bigint], ["served_at", :bigint]]
   # The empty case: a lifecycle with no fields and no payload keys has the
   # record's columns and nothing else.
@@ -2545,7 +2545,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
 end
 
 test "the history is the fold's state after every record, and names what the replay found"
-  d = example_consumable()
+  d = example_consumable
   dir = test_dir("history")
   p = path_join(dir, "c.jsonl")
   # The empty case: no stream, no history.
@@ -2603,7 +2603,7 @@ test "the history is the fold's state after every record, and names what the rep
     ]
   )
   strict = nisshi::lines(
-    history_text(nisshi::read(q, "t", example_consumable_strict()))
+    history_text(nisshi::read(q, "t", example_consumable_strict))
   )
   assert map(
     fn(l)
@@ -3057,7 +3057,7 @@ end
 
 test "observed breaches and uses no permit covered: each found, with the reason, and asking for its task"
   dir = test_dir("observed")
-  d = example_consumable()
+  d = example_consumable
   s = stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-observed")
   log0 = nisshi::read(get(s, :path), get(s, :label), d)
   # item-a, seq in brackets: [0] reading 10 at 1000, [1] open 1100, [2] a use
@@ -3244,7 +3244,7 @@ end
 
 def example_restrict(s)
   if raifusaikuru::text(raifusaikuru::name(get(s, :def))) == "consumable"
-    stream(example_consumable_strict(), get(s, :path), get(s, :label))
+    stream(example_consumable_strict, get(s, :path), get(s, :label))
   else
     s
   end
@@ -3253,12 +3253,12 @@ end
 test "the set is refused where it cannot be generated, and a broken stream is refused where it is built"
   dir = test_dir("refused")
   portion = binding(
-    example_portion(),
+    example_portion,
     path_join(dir, "p.jsonl"),
     path_join(dir, "p.h")
   )
   consumable = binding(
-    example_consumable(),
+    example_consumable,
     path_join(dir, "c.jsonl"),
     path_join(dir, "c.h")
   )
@@ -3295,8 +3295,8 @@ end
 
 test "as of, with two records of the linked entity in one second: the state after the later one"
   dir = test_dir("tie")
-  d = example_consumable()
-  p = example_portion()
+  d = example_consumable
+  p = example_portion
   sc = stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-tie")
   sp = stream(p, path_join(dir, "portion.jsonl"), "anaritikusu-tie")
   # item-t: [0] reading 10 at 1000, [1] open 1100, [2] and [3] two uses at

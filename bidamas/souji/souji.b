@@ -241,7 +241,7 @@ end
 # to stderr and then thrown, which exits the process non-zero; a run that
 # completes returns nil.
 def main()
-  opts = parse(argv())
+  opts = parse(argv)
   if get(opts, :error) != nil
     write_stderr(
       "souji: #{get(opts, :error)}\nusage: souji rust|nix|all [--dry-run] [--min-age-hours N] [--older-than-days N] [ROOT...]\n"
@@ -287,7 +287,7 @@ test "the nix command line: generations older than N days, dry-run passed throug
 end
 
 test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes nothing"
-  base = path_join(getenv("TMPDIR", "/tmp"), "souji-test-#{to_s(now_ms())}")
+  base = path_join(getenv("TMPDIR", "/tmp"), "souji-test-#{to_s(now_ms)}")
   crate = path_join(base, "crate")
   mkdir_p(path_join(crate, "target/debug"))
   write_file(path_join(crate, "Cargo.toml"), "[package]\n")

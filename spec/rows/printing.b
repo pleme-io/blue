@@ -42,5 +42,5 @@ row(
 )
 
 row("output.print", "print(\"x\")", prints("\"x\"\n"), covers("builtin:print"))
-row("output.newline", "newline()", prints("\n"), covers("builtin:newline"))
+row("output.newline", "newline", prints("\n"), covers("builtin:newline"))
 row("output.quiet_drops_value", "42", prints(""))

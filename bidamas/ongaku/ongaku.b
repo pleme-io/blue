@@ -29,7 +29,7 @@ def note_names()
 end
 
 def note_name(pc)
-  nth((pc % 12 + 12) % 12, note_names())
+  nth((pc % 12 + 12) % 12, note_names)
 end
 
 def transpose_note(pc, semitones)
@@ -118,7 +118,7 @@ def note_names_flat()
 end
 
 def note_name_flat(pc)
-  nth(pitch_class(pc), note_names_flat())
+  nth(pitch_class(pc), note_names_flat)
 end
 
 def note_name_in(pc, use_flats)
@@ -133,11 +133,11 @@ end
 # retsu's index_of convention: a negative sentinel a caller can compare,
 # where nil would not survive a `<`.
 def pitch_class_of(name)
-  i = index_of(note_names(), name)
+  i = index_of(note_names, name)
   if i >= 0
     i
   else
-    j = index_of(note_names_flat(), name)
+    j = index_of(note_names_flat, name)
     if j >= 0
       j
     else
@@ -159,7 +159,7 @@ def crossing_names()
 end
 
 def pitch_class_of_crossing(name)
-  i = index_of(crossing_names(), name)
+  i = index_of(crossing_names, name)
   if i >= 0
     nth(i, [5, 4, 0, 11])
   else
@@ -281,11 +281,7 @@ def triad_quality_names()
 end
 
 def triad_quality(notes)
-  quality_of_shape(
-    chord_intervals(notes),
-    triad_shapes(),
-    triad_quality_names()
-  )
+  quality_of_shape(chord_intervals(notes), triad_shapes, triad_quality_names)
 end
 
 def seventh_shapes()
@@ -317,8 +313,8 @@ end
 def seventh_quality(notes)
   quality_of_shape(
     chord_intervals(notes),
-    seventh_shapes(),
-    seventh_quality_names()
+    seventh_shapes,
+    seventh_quality_names
   )
 end
 
@@ -371,11 +367,11 @@ def mode_names()
 end
 
 def mode_steps(name)
-  i = index_of(mode_names(), name)
+  i = index_of(mode_names, name)
   if i < 0
     []
   else
-    rotate(major_steps(), i)
+    rotate(major_steps, i)
   end
 end
 
@@ -383,7 +379,7 @@ end
 # scale_from with no steps returns just the root and a caller cannot tell that
 # apart from a real answer.
 def mode_scale(root, name)
-  if index_of(mode_names(), name) < 0
+  if index_of(mode_names, name) < 0
     []
   else
     scale_from(root, mode_steps(name))
@@ -396,7 +392,7 @@ end
 # checked by something other than itself.
 def mode_of_major(root, degree)
   d = (degree % 7 + 7) % 7
-  mode_scale(nth(d, major_scale(root)), nth(d, mode_names()))
+  mode_scale(nth(d, major_scale(root)), nth(d, mode_names))
 end
 
 # Harmonic minor raises the seventh so the chord on V is major and can pull
@@ -591,16 +587,16 @@ def sharps_in_order()
 end
 
 def flats_in_order()
-  reverse(sharps_in_order())
+  reverse(sharps_in_order)
 end
 
 # Which letters carry an accidental in this key, in the order a copyist writes
 # them on the staff.
 def key_accidentals(pc)
   if key_uses_flats(pc)
-    take(flat_count(pc), flats_in_order())
+    take(flat_count(pc), flats_in_order)
   else
-    take(sharp_count(pc), sharps_in_order())
+    take(sharp_count(pc), sharps_in_order)
   end
 end
 
@@ -780,9 +776,9 @@ end
 
 test "every mode is a rotation of one pattern and closes the octave"
   # Each mode's steps must still sum to 12, or the scale does not come home.
-  assert map(fn(m) sum(mode_steps(m)) end, mode_names()) == repeat(12, 7)
-  assert map(fn(m) size(mode_scale(0, m)) end, mode_names()) == repeat(8, 7)
-  assert map(fn(m) last(mode_scale(5, m)) end, mode_names()) == repeat(5, 7)
+  assert map(fn(m) sum(mode_steps(m)) end, mode_names) == repeat(12, 7)
+  assert map(fn(m) size(mode_scale(0, m)) end, mode_names) == repeat(8, 7)
+  assert map(fn(m) last(mode_scale(5, m)) end, mode_names) == repeat(5, 7)
 end
 
 test "ionian is major and aeolian is minor, by construction not by table"
@@ -903,7 +899,7 @@ test "every seventh quality classifies back to itself"
     augmented_major_seventh(0),
     augmented_seventh(0)
   ]
-  assert map(fn(c) seventh_quality(c) end, built) == seventh_quality_names()
+  assert map(fn(c) seventh_quality(c) end, built) == seventh_quality_names
   # The three that are one semitone apart in exactly one voice, spelled out so
   # a transposed table or an off-by-one interval cannot pass.
   assert minor_seventh(0) == [0, 3, 7, 10]
@@ -1055,8 +1051,8 @@ test "the accidental count is derivable from the notes, not just from the table"
 end
 
 test "accidentals come in a fixed order, and flats reverse the sharps"
-  assert sharps_in_order() == ["F", "C", "G", "D", "A", "E", "B"]
-  assert flats_in_order() == ["B", "E", "A", "D", "G", "C", "F"]
+  assert sharps_in_order == ["F", "C", "G", "D", "A", "E", "B"]
+  assert flats_in_order == ["B", "E", "A", "D", "G", "C", "F"]
   assert key_accidentals(0) == []
   assert key_accidentals(7) == ["F"]
   assert key_accidentals(2) == ["F", "C"]
@@ -1191,7 +1187,7 @@ end
 # unison, so 19 semitones is 3/1 and not 3/2. Reduced by gcd so the answer is
 # canonical and two callers building the same interval two ways compare equal.
 def just_ratio_parts(semitones)
-  base = nth(pitch_class(semitones), just_ratio_table())
+  base = nth(pitch_class(semitones), just_ratio_table)
   octaves = floor_div(semitones, 12)
   if octaves >= 0
     reduce_ratio(nth(0, base) * expt(2, octaves), nth(1, base))

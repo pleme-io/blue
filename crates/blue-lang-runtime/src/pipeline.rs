@@ -513,6 +513,7 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     for scope in builtins.scopes() {
         table.push(scope.clone());
     }
+    table.spell_bare_like(builtins);
     let form_file: Vec<usize> = (0..program.forms().len())
         .map(|i| program.owner_of(i).map_or(usize::MAX, |f| f.index()))
         .collect();
@@ -740,6 +741,13 @@ pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> N
     table.push(special);
     table.push(macros);
     table.push(values);
+    table.spell_bare_only(
+        crate::docs::NAMES
+            .iter()
+            .filter(|d| d.signature == d.name)
+            .map(|d| d.name.to_string())
+            .collect(),
+    );
     table
 }
 

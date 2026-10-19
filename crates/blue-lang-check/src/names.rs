@@ -333,6 +333,7 @@ pub struct NameTable {
     pkg_roots: BTreeMap<String, String>,
     /// B0022 findings from [`NameTable::apply_legacy`], reported by the check.
     legacy_findings: Vec<Diagnostic>,
+    spelled_bare: Option<BTreeSet<String>>,
 }
 
 /// `a.b.c` as numbers; `None` for anything else.
@@ -387,6 +388,23 @@ impl NameTable {
     /// Append a scope; it resolves after every scope already present.
     pub fn push(&mut self, scope: Scope) {
         self.scopes.push(scope);
+    }
+
+    pub fn spell_bare_only(&mut self, builtins: BTreeSet<String>) {
+        self.spelled_bare = Some(builtins);
+    }
+
+    pub fn spell_bare_like(&mut self, other: &NameTable) {
+        self.spelled_bare.clone_from(&other.spelled_bare);
+    }
+
+    #[must_use]
+    pub fn canonically_bare(&self, target: &Target) -> bool {
+        self.nullary(target)
+            && match (target, &self.spelled_bare) {
+                (Target::Builtin(name), Some(known)) => known.contains(name),
+                _ => true,
+            }
     }
 
     /// The scope for `namespace`, created at the end of the order if absent.
@@ -1114,6 +1132,7 @@ pub struct Reference {
     pub position: Position,
     pub nullary_flat: bool,
     pub nullary_ns: bool,
+    pub canonically_bare: bool,
     /// The node's address in the forms it was resolved over: the join key
     /// [`resolved_tree`] rewrites by, since spans are not unique (every node
     /// of an interpolation carries the string's span).
@@ -1228,7 +1247,7 @@ impl Resolved {
     pub fn parenthesized_nullary_calls(&self) -> Vec<&Reference> {
         self.references
             .iter()
-            .filter(|r| r.position == Position::Call(0) && !r.opaque && r.nullary_ns)
+            .filter(|r| r.position == Position::Call(0) && !r.opaque && r.canonically_bare)
             .collect()
     }
 }
@@ -1469,6 +1488,7 @@ impl<'t> Walker<'t> {
             position,
             nullary_flat: self.table.nullary(&flat),
             nullary_ns: self.table.nullary(&ns),
+            canonically_bare: self.table.canonically_bare(&ns),
             flat,
             ns,
             node: std::ptr::from_ref(node) as usize,
@@ -2062,7 +2082,7 @@ impl Scopes for Walker<'_> {
             && !opaque
             && self.report_unused
             && self.references.len() > before
-            && self.references.last().is_some_and(|r| r.nullary_ns);
+            && self.references.last().is_some_and(|r| r.canonically_bare);
         if parenthesized {
             self.parenthesized_nullary(node, whole, name);
         }
@@ -2098,6 +2118,7 @@ impl Scopes for Walker<'_> {
                 position: Position::Syntax,
                 nullary_flat: false,
                 nullary_ns: false,
+                canonically_bare: false,
                 node: std::ptr::from_ref(node) as usize,
             });
         }

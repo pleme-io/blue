@@ -76,9 +76,8 @@ fn bare_and_parenthesized_lower_to_one_tree() {
 
 #[test]
 fn a_zero_parameter_builtin_is_called_bare() {
-    assert_eq!(shown("integer?(now_ms)"), "true");
-    assert_eq!(shown("now_ms > 0"), "true");
-    assert_eq!(shown("integer?(self)"), "true");
+    assert_eq!(shown("list?(builtin_names)"), "true");
+    assert_eq!(shown("member?(\"length\", builtin_names)"), "true");
 }
 
 #[test]
@@ -176,7 +175,7 @@ fn a_test_block_calls_bare_names() {
 #[test]
 fn a_parenthesized_zero_parameter_call_in_a_stored_file_is_b0023() {
     assert_eq!(codes_in_file(&format!("{ANSWER}answer()\n")), ["B0023"]);
-    assert_eq!(codes_in_file("now_ms()\n"), ["B0023"]);
+    assert_eq!(codes_in_file("builtin_names()\n"), ["B0023"]);
     assert!(codes_in_file(&format!("{ANSWER}answer\n")).is_empty());
     let param = format!("{ANSWER}def g(answer)\n  answer()\nend\n\ng(fn() 1 end)\n");
     assert!(codes_in_file(&param).is_empty());
@@ -204,4 +203,40 @@ fn a_bare_zero_parameter_call_where_a_function_was_wanted_names_the_rule() {
         "{message}"
     );
     assert!(message.contains("fn() answer end"), "{message}");
+}
+
+#[test]
+fn an_embedders_zero_parameter_primitive_is_called_bare_and_never_b0023() {
+    use blue_lang_check::names::{check_names, resolve_program, Rule};
+    use blue_lang_check::{Code, NameTable, Namespace};
+    let mut interp = blue_lang_runtime::interpreter(&mut ());
+    interp.register_fn(
+        "host_count",
+        tatara_lisp_eval::ffi::Arity::Exact(0),
+        |_: &[tatara_lisp_eval::Value], _: &mut (), _| Ok(tatara_lisp_eval::Value::Int(7)),
+    );
+    let builtins = blue_lang_runtime::pipeline::builtin_names(&interp);
+    let table_for = |forms: &[blue_lang_syntax::Spanned]| {
+        let mut table = NameTable::new();
+        table.add_program(forms, |_| Namespace::File("e.b".into()));
+        for scope in builtins.scopes() {
+            table.push(scope.clone());
+        }
+        table.spell_bare_like(&builtins);
+        table
+    };
+    let own = |_: usize| Namespace::File("e.b".into());
+    let called =
+        blue_lang_syntax::parse_program_tree("host_count()\nbuiltin_names()\n").expect("parses");
+    let (diagnostics, _) = check_names(&called, &table_for(&called), &own, &|_| true);
+    let codes: Vec<Code> = diagnostics.iter().map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        [Code::B0023],
+        "only the documented builtin: {diagnostics:?}"
+    );
+    let bare = blue_lang_syntax::parse_program_tree("host_count + 1\n").expect("parses");
+    let tree =
+        resolve_program(&bare, &table_for(&bare), &own).resolved_tree(&bare, Rule::Namespaced);
+    assert_eq!(tree[0].to_sexp().to_string(), "(+ (host_count) 1)");
 }

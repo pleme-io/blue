@@ -16,4 +16,5 @@ Start with AGENTS.md, then copy the closest program in docs/EXAMPLES.md. REFEREN
 
 - [bidamas/AUTHORING.md](bidamas/AUTHORING.md): writing, testing and publishing a bidama
 - [bidamas/NAMES.md](bidamas/NAMES.md): how packages are named
+- [docs/STDLIB.md](docs/STDLIB.md): the standard library's design as one verb vocabulary (design, not built)
 - [CLAUDE.md](CLAUDE.md): for people changing blue itself

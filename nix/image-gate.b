@@ -16,13 +16,13 @@ def shells()
 end
 
 def closure(file)
-  filter(fn(p) p != "" end, split(read_file(file), "\n"))
+  filter((p) -> p != "", split(read_file(file), "\n"))
 end
 
 def shells_in(path)
   map(
-    fn(s) path_join(path, s) end,
-    filter(fn(s) path_exists(path_join(path, s)) end, shells)
+    (s) -> path_join(path, s),
+    filter((s) -> path_exists(path_join(path, s)), shells)
   )
 end
 
@@ -39,14 +39,14 @@ def findings(paths, tier)
     []
   else
     map(
-      fn(s) "#{s}: a shell, and the image declares none" end,
-      flat_map(fn(p) shells_in(p) end, paths)
+      (s) -> "#{s}: a shell, and the image declares none",
+      flat_map((p) -> shells_in(p), paths)
     )
   end
   libc = if tier == "distroless-static"
     map(
-      fn(p) "#{p}: glibc, on the static tier" end,
-      filter(fn(p) glibc?(p) end, paths)
+      (p) -> "#{p}: glibc, on the static tier",
+      filter((p) -> glibc?(p), paths)
     )
   else
     []
@@ -56,7 +56,7 @@ end
 
 def gate(file, tier)
   paths = closure(file)
-  if not any?(fn(p) blue?(p) end, paths)
+  if not any?((p) -> blue?(p), paths)
     raise(:gate, "#{file} holds no bin/blue: this is not an image's closure")
   end
   found = findings(paths, tier)

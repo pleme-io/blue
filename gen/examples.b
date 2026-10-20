@@ -31,20 +31,20 @@ end
 # is not its title: it stays at the top of the code.
 def split_example(text)
   all = lines(text)
-  bang = filter(fn(l) starts_with?(l, "#!") end, take(1, all))
+  bang = filter((l) -> starts_with?(l, "#!"), take(1, all))
   body = drop(length(bang), all)
-  head = take_while(fn(l) comment?(l) end, body)
-  code = drop_while(fn(l) l == "" end, drop_while(fn(l) comment?(l) end, body))
+  head = take_while((l) -> comment?(l), body)
+  code = drop_while((l) -> l == "", drop_while((l) -> comment?(l), body))
   [
     uncomment(first(head)),
-    map(fn(l) uncomment(l) end, rest(head)),
+    map((l) -> uncomment(l), rest(head)),
     join(concat_lists(bang, code), "\n")
   ]
 end
 
 def prose_lines(prose)
   paras = split(join(prose, "\n"), "\n\n")
-  map(fn(p) squish(p) end, filter(fn(p) not is_blank(p) end, paras))
+  map((p) -> squish(p), filter((p) -> not is_blank(p), paras))
 end
 
 def fenced(lang, text)
@@ -52,13 +52,13 @@ def fenced(lang, text)
 end
 
 def files()
-  filter(fn(p) ends_with?(p, ".b") end, ls(examples_dir))
+  filter((p) -> ends_with?(p, ".b"), ls(examples_dir))
 end
 
 def packages()
   root = path_join(examples_dir, "bidamas")
   if is_dir?(root)
-    filter(fn(p) is_file?(path_join(p, "Bluefile")) end, ls(root))
+    filter((p) -> is_file?(path_join(p, "Bluefile")), ls(root))
   else
     []
   end
@@ -97,9 +97,9 @@ def example_sections()
     fn(acc, path)
       text = read_file(path)
       pending = first(acc)
-      now = filter(fn(d) uses?(text, path_basename(d)) end, pending)
-      later = filter(fn(d) not member?(d, now) end, pending)
-      shown = flat_map(fn(d) package_section(d) end, now)
+      now = filter((d) -> uses?(text, path_basename(d)), pending)
+      later = filter((d) -> not member?(d, now), pending)
+      shown = flat_map((d) -> package_section(d), now)
       [
         later,
         concat_lists(last(acc), concat_lists(shown, example_section(path)))
@@ -108,7 +108,7 @@ def example_sections()
     [packages, []],
     files
   )
-  concat_lists(last(step), flat_map(fn(d) package_section(d) end, first(step)))
+  concat_lists(last(step), flat_map((d) -> package_section(d), first(step)))
 end
 
 def render()

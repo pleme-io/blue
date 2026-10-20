@@ -124,9 +124,7 @@ def tables()
         ),
         sabi::slice(
           map(
-            fn(r)
-              sabi::tuple([sabi::char(nth(0, r)), sabi::str(nth(1, r))])
-            end,
+            (r) -> sabi::tuple([sabi::char(nth(0, r)), sabi::str(nth(1, r))]),
             welcome
           )
         ),

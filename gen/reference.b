@@ -42,10 +42,10 @@ def code(s)
 end
 
 def table(head, rows)
-  rule = join(map(fn(_h) "---" end, head), "|")
+  rule = join(map((_h) -> "---", head), "|")
   lines = concat_lists(
     ["| #{join(head, " | ")} |", "|#{rule}|"],
-    map(fn(cells) "| #{join(cells, " | ")} |" end, rows)
+    map((cells) -> "| #{join(cells, " | ")} |", rows)
   )
   join(lines, "\n")
 end
@@ -81,7 +81,7 @@ end
 
 def keywords(data)
   rows = map(
-    fn(k) [code(text(k, "word")), md_cell(text(k, "doc"))] end,
+    (k) -> [code(text(k, "word")), md_cell(text(k, "doc"))],
     field(data, "keywords")
   )
   table(["word", "meaning"], rows)
@@ -89,7 +89,7 @@ end
 
 def words(data)
   rows = map(
-    fn(w) [code(text(w, "signature")), md_cell(text(w, "doc"))] end,
+    (w) -> [code(text(w, "signature")), md_cell(text(w, "doc"))],
     field(data, "bluefile")
   )
   table(["word", "declares"], rows)
@@ -101,19 +101,17 @@ def redefined_builtins(names)
   records = catalog_of([path_join(repository_root, "bidamas")])
   owners = names_shadowing(records, names)
   map(
-    fn(n)
-      [n, map(fn(p) last(p) end, filter(fn(p) first(p) == n end, owners))]
-    end,
+    (n) -> [n, map((p) -> last(p), filter((p) -> first(p) == n, owners))],
     names
   )
 end
 
 def note(redefined, name)
-  hit = find_first(fn(r) first(r) == name end, redefined)
+  hit = find_first((r) -> first(r) == name, redefined)
   if hit == nil or is_empty(last(hit))
     ""
   else
-    " Also defined by #{join(map(fn(p) "`#{p}` (`#{p}::#{name}`)" end, last(hit)), ", ")}: a file that lists it gets that one."
+    " Also defined by #{join(map((p) -> "`#{p}` (`#{p}::#{name}`)", last(hit)), ", ")}: a file that lists it gets that one."
   end
 end
 
@@ -128,7 +126,7 @@ end
 
 def topic_section(topic, names, redefined)
   slug = text(topic, "slug")
-  mine = filter(fn(n) text(n, "topic") == slug end, names)
+  mine = filter((n) -> text(n, "topic") == slug, names)
   rows = map(
     fn(n)
       [
@@ -145,9 +143,9 @@ end
 
 def names_section(data)
   names = field(data, "names")
-  redefined = redefined_builtins(map(fn(n) text(n, "name") end, names))
+  redefined = redefined_builtins(map((n) -> text(n, "name"), names))
   sections = map(
-    fn(t) topic_section(t, names, redefined) end,
+    (t) -> topic_section(t, names, redefined),
     field(data, "topics")
   )
   intro = "#{to_s(size(names))} names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further #{text(data, "uncallable")} bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above."
@@ -155,8 +153,8 @@ def names_section(data)
 end
 
 def nullary(names)
-  bare = filter(fn(n) text(n, "arity") == "0" end, names)
-  rows = map(fn(n) [code(text(n, "name")), md_cell(text(n, "doc"))] end, bare)
+  bare = filter((n) -> text(n, "arity") == "0", names)
+  rows = map((n) -> [code(text(n, "name")), md_cell(text(n, "doc"))], bare)
   "A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These #{to_s(size(bare))} built-in names therefore run, with their effects, wherever they are written bare:\n\n#{table(["name", "meaning"], rows)}"
 end
 

@@ -10,12 +10,12 @@ use("retsu", [:first, :is_empty, :rest, :size])
 use("shuugou", [:frequencies, :group_by, :lookup])
 
 def squares_of_evens(xs)
-  map(fn(x) x * x end, filter(fn(x) x % 2 == 0 end, xs))
+  map((x) -> x * x, filter((x) -> x % 2 == 0, xs))
 end
 
 # Tally words into a map with reduce and assoc.
 def tally(words)
-  reduce(fn(m, w) assoc(m, w, (get(m, w) or 0) + 1) end, {}, words)
+  reduce((m, w) -> assoc(m, w, (get(m, w) or 0) + 1), {}, words)
 end
 
 test "map and filter take the function first"
@@ -46,15 +46,12 @@ end
 
 test "grouping and counting return pairs"
   assert frequencies([:x, :y, :x]) == [[:x, 2], [:y, 1]]
-  assert group_by(fn(n) n % 2 end, [1, 2, 3]) == [[1, [1, 3]], [0, [2]]]
+  assert group_by((n) -> n % 2, [1, 2, 3]) == [[1, [1, 3]], [0, [2]]]
   assert lookup(frequencies([:x, :y, :x]), :x) == 2
 end
 
 test "sorting by a key"
   people = [{name: "ana", age: 41}, {name: "bo", age: 29}]
-  assert map(
-    fn(p) get(p, :name) end,
-    sort_by(fn(p) get(p, :age) end, people)
-  ) ==
+  assert map((p) -> get(p, :name), sort_by((p) -> get(p, :age), people)) ==
     ["bo", "ana"]
 end

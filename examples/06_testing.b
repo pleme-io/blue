@@ -21,7 +21,7 @@ def variance(xs)
   if m == nil
     nil
   else
-    mean(map(fn(x) (x - m) * (x - m) end, xs))
+    mean(map((x) -> (x - m) * (x - m), xs))
   end
 end
 

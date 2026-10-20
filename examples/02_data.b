@@ -20,16 +20,16 @@ end
 
 # Every order in a CSV text with a header line; blank lines are skipped.
 def orders_of(text)
-  rows = filter(fn(l) not is_blank(l) end, rest(lines(text)))
-  map(fn(l) order_of(l) end, rows)
+  rows = filter((l) -> not is_blank(l), rest(lines(text)))
+  map((l) -> order_of(l), rows)
 end
 
 def bad_orders(orders)
-  filter(fn(o) get(o, :qty) == nil end, orders)
+  filter((o) -> get(o, :qty) == nil, orders)
 end
 
 def total_qty(orders)
-  sum(map(fn(o) get(o, :qty) end, orders))
+  sum(map((o) -> get(o, :qty), orders))
 end
 
 csv = "id,item,qty\na1,apple,3\na2,pear,x\na3,apple,4\n"
@@ -42,11 +42,11 @@ end
 
 test "a field that is not a number is found, not read as zero"
   bad = bad_orders(orders_of(csv))
-  assert map(fn(o) get(o, :id) end, bad) == ["a2"]
+  assert map((o) -> get(o, :id), bad) == ["a2"]
 end
 
 test "the good rows add up"
-  good = filter(fn(o) get(o, :qty) != nil end, orders_of(csv))
+  good = filter((o) -> get(o, :qty) != nil, orders_of(csv))
   assert total_qty(good) == 7
 end
 

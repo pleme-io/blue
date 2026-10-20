@@ -47,7 +47,7 @@ end
 
 def serve(url, base, token)
   sub = nats_subscribe(nats_connect(url), "home.>")
-  reduce(fn(_acc, _i) serve_once(sub, base, token) end, nil, range(0, 3600))
+  reduce((_acc, _i) -> serve_once(sub, base, token), nil, range(0, 3600))
 end
 
 test "a service call is a POST with a bearer token and a JSON body"

@@ -63,7 +63,7 @@ else
   [catalog]
 end
 
-written = concat_lists(written, map(fn(g) regenerate(g) end, generated))
+written = concat_lists(written, map((g) -> regenerate(g), generated))
 
 # Every `workload` file, rendered from the same lock by blue itself.
 workloads = json_get(manifest, "workloads")
@@ -74,7 +74,7 @@ else
   if exec_check("blue", "workload", "render", "--write") != 0
     raise(:regen, "blue workload render --write failed")
   end
-  concat_lists(written, map(fn(w) json_get(last(w), "output") end, workloads))
+  concat_lists(written, map((w) -> json_get(last(w), "output"), workloads))
 end
 
 lock_manifest = get(json_read(read_file("Bluefile.lock")), "manifest")

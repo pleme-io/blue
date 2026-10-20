@@ -50,7 +50,7 @@ end
 
 # The value after `flag` in the arguments, or nil.
 def flag_value(args, flag)
-  at = filter(fn(i) nth(i, args) == flag end, range(length(args)))
+  at = filter((i) -> nth(i, args) == flag, range(length(args)))
   if empty?(at) or first(at) + 1 >= length(args)
     nil
   else
@@ -67,7 +67,7 @@ end
 # [id, program, expectation] for every conformance row covering the builtin.
 def rows_for(name)
   filter(
-    fn(r) member?("builtin:#{name}", json_get(r, "covers")) end,
+    (r) -> member?("builtin:#{name}", json_get(r, "covers")),
     json_parse(captured(["doc", "--rows"]))
   )
 end
@@ -119,17 +119,14 @@ end
 # The first test in `text` that calls `name`, as an example, or nil.
 def test_example(text, name)
   blocks = filter(
-    fn(b) any?(fn(l) calls?(l, name) end, last(b)) end,
+    (b) -> any?((l) -> calls?(l, name), last(b)),
     test_blocks_of_text(text)
   )
   if empty?(blocks)
     nil
   else
     b = first(blocks)
-    {
-      from: "test \"#{first(b)}\"",
-      code: map(fn(l) trim(l) end, take(8, last(b)))
-    }
+    {from: "test \"#{first(b)}\"", code: map((l) -> trim(l), take(8, last(b)))}
   end
 end
 
@@ -168,12 +165,12 @@ def tier_in(ctx, pkg, name)
     "own"
   else
     uses = filter(
-      fn(u) json_get(u, "package") == pkg end,
+      (u) -> json_get(u, "package") == pkg,
       json_get(ctx, "imports")
     )
     if empty?(uses)
       "not-imported"
-    elsif any?(fn(u) member?(name, json_get(u, "names")) end, uses)
+    elsif any?((u) -> member?(name, json_get(u, "names")), uses)
       "imported"
     else
       "qualified"
@@ -199,24 +196,24 @@ def lookup(name, file, records)
   else
     text = read_file(file)
     map(
-      fn(e) def_entry(nil, e, text, "own") end,
-      filter(fn(e) first(e) == bare end, entries_of_text(text))
+      (e) -> def_entry(nil, e, text, "own"),
+      filter((e) -> first(e) == bare, entries_of_text(text))
     )
   end
   from_bidamas = flat_map(
     fn(r)
       text = package_text(pkg_dir(r))
       map(
-        fn(e) def_entry(r, e, text, tier_in(ctx, pkg_name(r), bare)) end,
-        filter(fn(e) first(e) == bare end, pkg_entries(r))
+        (e) -> def_entry(r, e, text, tier_in(ctx, pkg_name(r), bare)),
+        filter((e) -> first(e) == bare, pkg_entries(r))
       )
     end,
-    filter(fn(r) qualifier == nil or qualifier == pkg_name(r) end, records)
+    filter((r) -> qualifier == nil or qualifier == pkg_name(r), records)
   )
   from_builtins = if qualifier == nil or qualifier == "blue"
     map(
-      fn(b) builtin_entry(b, "builtin") end,
-      filter(fn(b) json_get(b, "name") == bare end, builtins)
+      (b) -> builtin_entry(b, "builtin"),
+      filter((b) -> json_get(b, "name") == bare, builtins)
     )
   else
     []
@@ -237,13 +234,13 @@ def entry_text(e)
   example = get(e, :example)
   lines = append(
     [get(e, :signature), "  #{where} · tier: #{get(e, :tier)}"],
-    map(fn(l) "  #{l}" end, get(e, :doc)),
+    map((l) -> "  #{l}", get(e, :doc)),
     if example == nil
       []
     else
       append(
         ["  example (#{get(example, :from)}):"],
-        map(fn(l) "    #{l}" end, get(example, :code))
+        map((l) -> "    #{l}", get(example, :code))
       )
     end
   )
@@ -309,7 +306,7 @@ def main(args)
   json? = member?("--json", args)
   file = flag_value(args, "--file")
   records = catalog_of(blue_path_roots(getenv("BLUE_PATH", "")))
-  packages = filter(fn(r) pkg_name(r) == name end, records)
+  packages = filter((r) -> pkg_name(r) == name, records)
   if not contains?(name, "::") and not empty?(packages)
     p = package_entry(first(packages))
     if json?
@@ -329,10 +326,10 @@ def main(args)
       write_stderr("blue doc: no `#{name}` in #{where}\n")
       false
     elsif json?
-      map(fn(e) write_stdout("#{json_stringify(e)}\n") end, found)
+      map((e) -> write_stdout("#{json_stringify(e)}\n"), found)
       true
     else
-      write_stdout("#{join(map(fn(e) entry_text(e) end, found), "\n\n")}\n")
+      write_stdout("#{join(map((e) -> entry_text(e), found), "\n\n")}\n")
       true
     end
   end

@@ -12,7 +12,7 @@ def row(name, n)
 end
 
 def report(rows)
-  body = map(fn(r) row(first(r), last(r)) end, rows)
+  body = map((r) -> row(first(r), last(r)), rows)
   join(concat_lists(["name     count", "-------------"], body), "\n")
 end
 

@@ -19,14 +19,14 @@ def port_refusals(text)
 end
 
 def refusal_kinds(refusals)
-  map(fn(r) first(r) end, refusals)
+  map((r) -> first(r), refusals)
 end
 
 # The boundary: return the port, or raise naming every refusal.
 def port_of(text)
   refusals = port_refusals(text)
   if not is_empty(refusals)
-    raise(first(first(refusals)), join(map(fn(r) last(r) end, refusals), "; "))
+    raise(first(first(refusals)), join(map((r) -> last(r), refusals), "; "))
   end
   to_int(text)
 end

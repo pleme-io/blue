@@ -16,7 +16,7 @@ end
 
 # Append one line per entry, then read the file back as a list of lines.
 def log_lines(path, entries)
-  map(fn(e) append_file(path, "#{e}\n") end, entries)
+  map((e) -> append_file(path, "#{e}\n"), entries)
   lines(read_file(path))
 end
 

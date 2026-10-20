@@ -26,18 +26,18 @@ test "a binding works inside a def"
 end
 
 test "a lambda is a value"
-  double = fn(x) x * 2 end
+  double = (x) -> x * 2
   assert double(21) == 42
 end
 
 test "a lambda closes over its environment"
   n = 10
-  add_n = fn(x) x + n end
+  add_n = (x) -> x + n
   assert add_n(5) == 15
 end
 
 test "lambdas make the higher-order functions usable"
-  squares = map(fn(x) x * x end, [1, 2, 3])
+  squares = map((x) -> x * x, [1, 2, 3])
   assert join(squares, ",") == "1,4,9"
 end
 

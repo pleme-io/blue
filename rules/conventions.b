@@ -15,7 +15,7 @@ def nodes(tree, path)
     here
   else
     children = map(
-      fn(i) nodes(nth(i, tree), append(path, [i])) end,
+      (i) -> nodes(nth(i, tree), append(path, [i])),
       range(length(tree))
     )
     append(*cons(here, children))
@@ -38,7 +38,7 @@ end
 # `x == nil` over `nil?(x)` (AGENTS.md, Conventions). They mean the same:
 # nil equals only nil (okite D0001), so the fix is machine-applicable.
 def nil_predicate(form)
-  hits = filter(fn(p) call?(last(p), "nil?", 1) end, nodes(form, []))
+  hits = filter((p) -> call?(last(p), "nil?", 1), nodes(form, []))
   map(
     fn(p)
       arg = nth(1, last(p))
@@ -64,7 +64,7 @@ test "a nil? call anywhere in a form is found, with its path"
     end
   end
   found = nil_predicate(form)
-  assert map(fn(f) get(f, :at) end, found) == [[2, 1], [2, 2, 1]]
+  assert map((f) -> get(f, :at), found) == [[2, 1], [2, 2, 1]]
 end
 
 test "the fix is the same test written with =="

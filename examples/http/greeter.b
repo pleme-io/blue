@@ -26,7 +26,7 @@ end
 
 if settei::serving?
   s = settei::current
-  kyuuji::serve_settings(s, fn(req) handle(s, req) end)
+  kyuuji::serve_settings(s, (req) -> handle(s, req))
 end
 
 def settings(shout)

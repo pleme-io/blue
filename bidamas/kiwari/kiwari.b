@@ -357,6 +357,15 @@ def generated_by(comment)
   "#{comment} Generated from bidamas/kiwari by gen/kiwari/. Edit the spec and run `nix run .#regen`."
 end
 
+def conflict_lines(conflicts)
+  if conflicts == nil or is_empty(conflicts)
+    []
+  else
+    sets = map((c) -> "[#{join(map((n) -> "$.#{n}", c), ", ")}]", conflicts)
+    ["  conflicts: $ => [#{join(sets, ", ")}],"]
+  end
+end
+
 def tree_sitter_js(grammar)
   g = checked(grammar)
   rules = map(
@@ -369,11 +378,11 @@ def tree_sitter_js(grammar)
       "module.exports = grammar({",
       "  name: #{js_string(get(g, :name))},",
       "  word: $ => $.#{get(g, :word)},",
-      "  extras: $ => [#{join(map(js, get(g, :extras)), ", ")}],",
-      "  rules: {"
+      "  extras: $ => [#{join(map(js, get(g, :extras)), ", ")}],"
     ],
-    concat_lists(rules, ["  },", "});", ""])
+    concat_lists(conflict_lines(get(g, :conflicts)), ["  rules: {"])
   )
+  lines = concat_lists(lines, concat_lists(rules, ["  },", "});", ""]))
   join(lines, "\n")
 end
 
@@ -678,6 +687,40 @@ def plain_parameters()
   )
 end
 
+def arrow_parameters()
+  seq(
+    [
+      lit("("),
+      opt(
+        seq(
+          [
+            painted(
+              "parameter",
+              ref("identifier"),
+              "variable.parameter",
+              "parameter"
+            ),
+            rep(
+              seq(
+                [
+                  lit(","),
+                  painted(
+                    "parameter",
+                    ref("identifier"),
+                    "variable.parameter",
+                    "parameter"
+                  )
+                ]
+              )
+            )
+          ]
+        )
+      ),
+      lit(")")
+    ]
+  )
+end
+
 def nil_or(f)
   ["field", f, ["nil"]]
 end
@@ -843,6 +886,11 @@ def blue()
     repository: "https://github.com/pleme-io/blue",
     word: "identifier",
     extras: [pat("[ \\t\\r]"), ref("comment")],
+    conflicts: [
+      ["_primary", "_arrow_parameters"],
+      ["_arrow_parameters", "_plain_parameters"],
+      ["_arrow_parameters", "parameters"]
+    ],
     infix: infix_rows,
     unary: unary_rows,
     pipe: pipe,
@@ -1012,6 +1060,7 @@ def blue()
               "defmacro",
               "case",
               "lambda",
+              "arrow_lambda",
               "test",
               "assert",
               "quote",
@@ -1551,6 +1600,7 @@ def blue()
         true
       ),
       rule("_plain_parameters", plain_parameters, nil),
+      rule("_arrow_parameters", arrow_parameters, nil),
       # `case` compares with `equal?` against a subject bound once.
       rule(
         "case",
@@ -1635,6 +1685,33 @@ def blue()
             ["sym", "lambda"],
             ["list", ["field?", "parameters"]],
             nil_or("body")
+          ]
+        ),
+        :scope,
+        true
+      ),
+      with(
+        rule(
+          "arrow_lambda",
+          prec_right(
+            0,
+            seq(
+              [
+                field(
+                  "parameters",
+                  alias(ref("_arrow_parameters"), "parameters")
+                ),
+                lit("->"),
+                nl,
+                field("body", ref("_expression"))
+              ]
+            )
+          ),
+          [
+            "list",
+            ["sym", "lambda"],
+            ["list", ["field?", "parameters"]],
+            ["field", "body"]
           ]
         ),
         :scope,

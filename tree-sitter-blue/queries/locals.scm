@@ -3,6 +3,7 @@
 (def) @local.scope
 (defmacro) @local.scope
 (lambda) @local.scope
+(arrow_lambda) @local.scope
 (binding name: (identifier) @local.definition.var)
 (def name: (identifier) @local.definition.function)
 (parameters parameter: (identifier) @local.definition.parameter)

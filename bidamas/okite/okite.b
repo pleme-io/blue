@@ -395,7 +395,7 @@ end
 
 # Every law that does not hold, as "id: law", and every decision with no law.
 def failures()
-  flat_map((d) -> decision_failures(d), decisions)
+  flat_map(decision_failures, decisions)
 end
 
 def decision_failures(d)
@@ -422,7 +422,7 @@ end
 
 def card()
   head = "# Blue's rules\n\nGenerated from `bidamas/okite/okite.b` by `rules.b`: do not edit.\nEvery rule is enforced by laws in okite; a rule without a passing law fails\nthe build.\n\n**Blue values behave like Ruby's, except where a rule below says otherwise.**\n\n"
-  concat(head, join(map((d) -> card_line(d), decisions), ""))
+  concat(head, join(map(card_line, decisions), ""))
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────

@@ -108,6 +108,7 @@ Each one was checked against the runtime.
   `reduce(f, init, xs)`, `nth(i, xs)`, `take(n, xs)`, but `join(xs, sep)` and
   `split(s, sep)`. A pipe `xs |> f(a)` is read as `f(xs, a)` and written
   that way (B0028), so `xs |> map(f)` is `map(xs, f)` and fails.
+- **Brevity is the house style.** A lambda that only forwards its parameters to a `def` of the file is that name (`map(describe, vs)`, B0044, machine-fixed); say it in the fewest tokens that parse to the same tree.
 - **No blocks, no indexing.** Write `map((x) -> x * 2, xs)` (inline, one expression), or a broken `fn(x) … end` over several lines; `fn … end` is never on one line, and blue compiles only canonical source. Never
   `xs.map { |x| … }` or `do … end`. Write `nth(0, xs)`, never `xs[0]`.
 - **Errors are raised and rescued.** `raise(:not_found, "no repo #{name}")`

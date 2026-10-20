@@ -425,7 +425,7 @@ end
 # its predecessor cannot be asked for on its own, and pascal_row(40) with no
 # preamble is the call a caller actually makes.
 def pascal_triangle(n)
-  map((r) -> pascal_row(r), range(0, n + 1))
+  map(pascal_row, range(0, n + 1))
 end
 
 test "factorial, including the empty product"

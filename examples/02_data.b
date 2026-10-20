@@ -21,7 +21,7 @@ end
 # Every order in a CSV text with a header line; blank lines are skipped.
 def orders_of(text)
   rows = filter((l) -> not is_blank(l), rest(lines(text)))
-  map((l) -> order_of(l), rows)
+  map(order_of, rows)
 end
 
 def bad_orders(orders)

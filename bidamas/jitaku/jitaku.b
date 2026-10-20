@@ -224,7 +224,7 @@ def record_whys(table, m)
   if m == nil or not map?(m)
     ["#{m} is not a record"]
   else
-    known = map((f) -> key_text(f), table)
+    known = map(key_text, table)
     unknown = map(
       (k) -> "#{k} is not a field here",
       filter((k) -> not contains(known, k), key_names(m))
@@ -417,7 +417,7 @@ def components()
       "esphome",
       [
         enable_field,
-        rows_field(:devices, "devices", device_row, (v) -> device_render(v))
+        rows_field(:devices, "devices", device_row, device_render)
       ],
       nil
     ],
@@ -438,7 +438,7 @@ def components()
       "frigate",
       [
         enable_field,
-        rows_field(:cameras, "cameras", camera_row, (v) -> camera_render(v))
+        rows_field(:cameras, "cameras", camera_row, camera_render)
       ],
       nil
     ],
@@ -562,7 +562,7 @@ def integration(domain)
 end
 
 def integrations(domains)
-  map((d) -> integration(d), domains)
+  map(integration, domains)
 end
 
 # A speaker by short name, as the media_player entity Home Assistant gives it.
@@ -860,7 +860,7 @@ end
 
 # A name is declared once: every later declaration of it is refused.
 def duplicate_refusals(es)
-  ids = map((e) -> entry_id(e), es)
+  ids = map(entry_id, es)
   map(
     fn(i)
       refused_if(
@@ -939,7 +939,7 @@ def tuned(e, tunes)
 end
 
 def names_of_kind(es, kind)
-  map((e) -> name_of(e), filter((e) -> kind_of(e) == kind, es))
+  map(name_of, filter((e) -> kind_of(e) == kind, es))
 end
 
 def has_kind?(es, kind)
@@ -984,7 +984,7 @@ def mood_needs(m, es)
   active = filter((e) -> kind_of(e) == :mood and active?(e), es)
   targets = map((h) -> get(h, :mood), get(v, :then) or [])
   lost = missing(targets, names_of_kind(active, :mood))
-  phones = filter((p) -> phone?(p), es)
+  phones = filter(phone?, es)
   role = get(l or {}, :role)
   tone_name = get(s or {}, :tone)
   deaf = missing(get(s or {}, :speakers) or [], names_of_kind(es, :speaker))
@@ -1029,8 +1029,8 @@ def mood_needs(m, es)
       ),
       refused_if(
         phone?(m) and
-          index_of(map((p) -> label_of(p), phones), label_of(m)) <
-            index_of(map((p) -> name_of(p), phones), name_of(m)),
+          index_of(map(label_of, phones), label_of(m)) <
+            index_of(map(name_of, phones), name_of(m)),
         :duplicate_label,
         m,
         "an earlier phone button already says #{label_of(m)}"
@@ -1074,7 +1074,7 @@ end
 def judge(entries)
   t = apply_tunes(flat(entries))
   es = get(t, :entries)
-  own = map((e) -> local_refusals(e), es)
+  own = map(local_refusals, es)
   dups = duplicate_refusals(es)
   marks = map((i) -> append(nth(i, own), nth(i, dups)), range(0, size(es)))
   first_pass = unrefused(es, marks)
@@ -1176,19 +1176,15 @@ def home_assistant(es)
     {},
     es,
     [
-      slot("recorder", :recorder, single((e) -> value_of(e))),
+      slot("recorder", :recorder, single(value_of)),
       slot(
         "mediaBaseUrl",
         :media_base_url,
         single((e) -> unless_host(value_of(e)))
       ),
-      slot(
-        "integrations",
-        :integration,
-        (hits) -> map((e) -> name_of(e), hits)
-      ),
-      slot("speakers", :speaker, by_name((e) -> value_of(e))),
-      slot("lightRoles", :light_role, by_name((e) -> value_of(e))),
+      slot("integrations", :integration, (hits) -> map(name_of, hits)),
+      slot("speakers", :speaker, by_name(value_of)),
+      slot("lightRoles", :light_role, by_name(value_of)),
       slot("tones", :tone, by_name((e) -> project(tone_table, value_of(e)))),
       slot("moods", :mood, by_name((e) -> project(mood_table, resolved(e, es))))
     ]
@@ -1203,11 +1199,11 @@ def lareira(entries)
     {"enable" => true},
     es,
     [
-      slot("delivery", :delivery, single((e) -> value_of(e))),
-      slot("exposure", :exposure, single((e) -> value_of(e))),
-      slot("secretsSource", :secrets_source, single((e) -> value_of(e))),
+      slot("delivery", :delivery, single(value_of)),
+      slot("exposure", :exposure, single(value_of)),
+      slot("secretsSource", :secrets_source, single(value_of)),
       slot("site", :site, single((e) -> project(site_table, value_of(e)))),
-      slot("components", :component, (hits) -> component_json(hits))
+      slot("components", :component, component_json)
     ]
   )
   ha = home_assistant(es)

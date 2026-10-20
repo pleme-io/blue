@@ -29,14 +29,14 @@ end
 
 # The kind of each refusal, in order.
 def kinds(refusals)
-  map((r) -> kind(r), refusals)
+  map(kind, refusals)
 end
 
 # nil when there is nothing to refuse; otherwise throws one error whose kind
 # is the first refusal's and whose message joins every refusal's why.
 def refuse(refusals)
   if is_empty(refusals) == false
-    raise(kind(first(refusals)), join(map((r) -> why(r), refusals), "; "))
+    raise(kind(first(refusals)), join(map(why, refusals), "; "))
   end
   nil
 end

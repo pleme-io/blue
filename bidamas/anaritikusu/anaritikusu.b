@@ -410,11 +410,11 @@ end
 # The types the definition's constants and clocks give field `f`.
 def field_evidence(d, f)
   effects = map(
-    (x) -> effect_type(x),
+    effect_type,
     filter((x) -> nth(1, x) == f, anaritikusu::effects(d))
   )
   atoms = map(
-    (a) -> atom_type(a),
+    atom_type,
     filter((a) -> first(a) != :in and nth(1, a) == f, anaritikusu::atoms(d))
   )
   cons(
@@ -1965,7 +1965,7 @@ def json_value(v)
   elsif keyword?(v)
     raifusaikuru::text(v)
   elsif list?(v)
-    map((x) -> json_value(x), v)
+    map(json_value, v)
   else
     v
   end
@@ -2114,7 +2114,7 @@ end
 # from the example's clauses with the one rule replaced, as data.
 def example_consumable_strict()
   clauses = map(
-    (c) -> example_tighten(c),
+    example_tighten,
     push(
       raifusaikuru::example_consumable_clauses,
       raifusaikuru::permit_log(:use, :permit)
@@ -2125,12 +2125,7 @@ end
 
 def example_tighten(c)
   if list?(c) and is_empty(c) == false and first(c) == :lc_guard
-    [
-      :lc_guard,
-      nth(1, c),
-      map((r) -> example_tighten_rule(r), nth(2, c)),
-      nth(3, c)
-    ]
+    [:lc_guard, nth(1, c), map(example_tighten_rule, nth(2, c)), nth(3, c)]
   else
     c
   end
@@ -2351,7 +2346,7 @@ def example_streams(dir)
     {},
     streams
   )
-  reduce((m, x) -> example_append(m, x), logs, example_day)
+  reduce(example_append, logs, example_day)
   streams
 end
 
@@ -2396,7 +2391,7 @@ def norm(v)
 end
 
 def norm_rows(rows)
-  map((r) -> map((v) -> norm(v), r), rows)
+  map((r) -> map(norm, r), rows)
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────

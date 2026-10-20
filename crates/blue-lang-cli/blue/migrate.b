@@ -204,7 +204,7 @@ def migrate(file)
   else
     text = read_file(file)
     uses = uses_after(before, want)
-    write_file(file, rewrite(text, before, map((u) -> render_use(u), uses)))
+    write_file(file, rewrite(text, before, map(render_use, uses)))
     own = json_get(before, "namespace")
     bluefile = path_join(path_dirname(file), "Bluefile")
     bidama = own != nil and path_exists(bluefile)
@@ -741,7 +741,7 @@ def strip(prefix, file, callers)
         (t) -> unquoted(key_rewrite(t, pkg, renames)),
         settled_forms(old_doc, "ns")
       )
-      got = map((t) -> unquoted(t), settled_forms(now, "ns"))
+      got = map(unquoted, settled_forms(now, "ns"))
       if got != want
         pairs = filter((p) -> first(p) != nth(1, p), zip(want, got))
         if empty?(pairs)

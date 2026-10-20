@@ -642,8 +642,8 @@ def window(f, args, partition, order)
     kind: :win,
     fn: f,
     args: args,
-    partition: map((p) -> name(p), as_list(partition)),
-    order: map((k) -> key(k), as_list(order))
+    partition: map(name, as_list(partition)),
+    order: map(key, as_list(order))
   }
 end
 
@@ -661,7 +661,7 @@ def ordered(node, keys)
   if blue::get(node, :kind) != :agg and blue::get(node, :kind) != :win
     raise(:kueri_shape, "q_ordered takes an aggregate or a window")
   end
-  assoc(node, :order, map((k) -> key(k), keys))
+  assoc(node, :order, map(key, keys))
 end
 
 # Functions whose result depends on the order rows arrive in.
@@ -956,7 +956,7 @@ end
 
 # Keep these columns (keywords) and computed ones (q_as), in this order.
 def select(items)
-  {kind: :select, items: map((i) -> item(i), items)}
+  {kind: :select, items: map(item, items)}
 end
 
 # Add one computed column; every row stays.
@@ -979,28 +979,18 @@ end
 
 # One row per distinct key; `aggs` are q_agg / q_agg_where outputs.
 def group(keys, aggs)
-  {kind: :group, keys: map((k) -> name(k), as_list(keys)), aggs: as_list(aggs)}
+  {kind: :group, keys: map(name, as_list(keys)), aggs: as_list(aggs)}
 end
 
 # JOIN … USING (keys): the keys appear once, then the left's other columns,
 # then the right's.
 # waive B0013: `join` is a builtin kueri also uses, so the prefix stays; kueri::join names it too
 def q_join(rel, keys)
-  {
-    kind: :join,
-    how: :inner,
-    rel: kueri::rel(rel),
-    keys: map((k) -> name(k), keys)
-  }
+  {kind: :join, how: :inner, rel: kueri::rel(rel), keys: map(name, keys)}
 end
 
 def left_join(rel, keys)
-  {
-    kind: :join,
-    how: :left,
-    rel: kueri::rel(rel),
-    keys: map((k) -> name(k), keys)
-  }
+  {kind: :join, how: :left, rel: kueri::rel(rel), keys: map(name, keys)}
 end
 
 # ASOF LEFT JOIN … USING (keys): the LAST key matches inexactly — each left
@@ -1008,16 +998,11 @@ end
 # right side as of the left row's moment); the other keys match exactly. A
 # left row with no match keeps NULLs. DuckDB only.
 def asof_left_join(rel, keys)
-  {
-    kind: :join,
-    how: :asof_left,
-    rel: kueri::rel(rel),
-    keys: map((k) -> name(k), keys)
-  }
+  {kind: :join, how: :asof_left, rel: kueri::rel(rel), keys: map(name, keys)}
 end
 
 def sort(keys)
-  {kind: :sort, keys: map((k) -> key(k), keys)}
+  {kind: :sort, keys: map(key, keys)}
 end
 
 def limit(n)
@@ -1058,7 +1043,7 @@ end
 
 # Every node of an expression, the root first.
 def nodes(e)
-  cons(e, flat_map((c) -> nodes(c), kids(e)))
+  cons(e, flat_map(nodes, kids(e)))
 end
 
 def nodes_of(e, kind)
@@ -1080,20 +1065,20 @@ end
 
 # The column names an expression reads.
 def refs(e)
-  unique(flat_map((n) -> node_refs(n), nodes(e)))
+  unique(flat_map(node_refs, nodes(e)))
 end
 
 def outside_aggs(e)
   if blue::get(e, :kind) == :agg
     []
   else
-    cons(e, flat_map((c) -> outside_aggs(c), kids(e)))
+    cons(e, flat_map(outside_aggs, kids(e)))
   end
 end
 
 # The column names read OUTSIDE any aggregate — in a group, each must be a key.
 def bare_refs(e)
-  unique(flat_map((n) -> node_refs(n), outside_aggs(e)))
+  unique(flat_map(node_refs, outside_aggs(e)))
 end
 
 def has?(e, kind)
@@ -1468,7 +1453,7 @@ end
 
 def stage_uses(stage, where)
   nodes = flat_map((e) -> kueri::nodes(e), stage_exprs(stage))
-  only = blue::filter((n) -> duckdb_node?(n), nodes)
+  only = blue::filter(duckdb_node?, nodes)
   uses = map((n) -> [node_label(n), where], only)
   k = blue::get(stage, :kind)
   if k == :join
@@ -1576,7 +1561,7 @@ def locked_refusals(model, out)
             contains(order_sensitive_fns, blue::get(n, :fn)) and
               is_empty(blue::get(n, :order))
           end,
-          flat_map((e) -> nodes(e), stage_exprs(last(ix)))
+          flat_map(nodes, stage_exprs(last(ix)))
         )
       )
     end,
@@ -1859,7 +1844,7 @@ def lock_order(model, b, dialect)
     keys = blue::get(b, :order)
     have = key_names(keys)
     extra = map(
-      (n) -> key(n),
+      key,
       blue::filter(
         (n) -> contains(have, n) == false,
         col_names(blue::get(model, :contract))
@@ -1941,7 +1926,7 @@ def order_suffix(keys)
   if is_empty(keys)
     ""
   else
-    " ORDER BY #{blue::join(map((k) -> render_key(k), keys), ", ")}"
+    " ORDER BY #{blue::join(map(render_key, keys), ", ")}"
   end
 end
 
@@ -1978,16 +1963,12 @@ def render_win(e, dialect)
   part = if is_empty(blue::get(e, :partition))
     []
   else
-    [
-      "PARTITION BY #{blue::join(map((p) -> ident(p), blue::get(e, :partition)), ", ")}"
-    ]
+    ["PARTITION BY #{blue::join(map(ident, blue::get(e, :partition)), ", ")}"]
   end
   ord = if is_empty(blue::get(e, :order))
     []
   else
-    [
-      "ORDER BY #{blue::join(map((k) -> render_key(k), blue::get(e, :order)), ", ")}"
-    ]
+    ["ORDER BY #{blue::join(map(render_key, blue::get(e, :order)), ", ")}"]
   end
   args = blue::join(
     map((a) -> render_expr(a, dialect), as_list(blue::get(e, :args))),
@@ -2052,13 +2033,13 @@ def render_item(item, dialect)
 end
 
 def render_conj(preds, dialect)
-  render_expr(reduce((a, p) -> q_and(a, p), first(preds), rest(preds)), dialect)
+  render_expr(reduce(q_and, first(preds), rest(preds)), dialect)
 end
 
 def select_texts(b, dialect)
   if blue::get(b, :grouped)
     concat_lists(
-      map((k) -> ident(k), blue::get(b, :keys)),
+      map(ident, blue::get(b, :keys)),
       map((a) -> render_item(a, dialect), blue::get(b, :aggs))
     )
   elsif blue::get(b, :items) != nil
@@ -2101,7 +2082,7 @@ def join_line(j, dialect)
   else
     "JOIN"
   end
-  "#{word} #{ident(rel_name(blue::get(j, :rel)))} USING (#{blue::join(map((k) -> ident(k), blue::get(j, :keys)), ", ")})"
+  "#{word} #{ident(rel_name(blue::get(j, :rel)))} USING (#{blue::join(map(ident, blue::get(j, :keys)), ", ")})"
 end
 
 # One SELECT, as lines, clauses in SQL's order.
@@ -2117,7 +2098,7 @@ def block_lines(b, dialect)
     map((j) -> join_line(j, dialect), blue::get(b, :joins))
   )
   group = if blue::get(b, :grouped) and is_empty(blue::get(b, :keys)) == false
-    ["GROUP BY #{blue::join(map((k) -> ident(k), blue::get(b, :keys)), ", ")}"]
+    ["GROUP BY #{blue::join(map(ident, blue::get(b, :keys)), ", ")}"]
   else
     []
   end
@@ -2126,9 +2107,7 @@ def block_lines(b, dialect)
   elsif is_empty(blue::get(b, :order))
     []
   else
-    [
-      "ORDER BY #{blue::join(map((k) -> render_key(k), blue::get(b, :order)), ", ")}"
-    ]
+    ["ORDER BY #{blue::join(map(render_key, blue::get(b, :order)), ", ")}"]
   end
   limit = if blue::get(b, :limit) == nil
     []
@@ -2403,10 +2382,7 @@ end
 
 # Every upstream source and model, each before anything that reads it.
 def closure(model)
-  unique_by(
-    (n) -> blue::get(n, :name),
-    flat_map((t) -> closure_of(t), targets(model))
-  )
+  unique_by((n) -> blue::get(n, :name), flat_map(closure_of, targets(model)))
 end
 
 def closure_of(t)

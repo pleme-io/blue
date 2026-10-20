@@ -54,7 +54,7 @@ def no_factor_from(n, k)
 end
 
 def primes_below(n)
-  filter((k) -> is_prime(k), range(2, n))
+  filter(is_prime, range(2, n))
 end
 
 def prime_factors(n)
@@ -431,7 +431,7 @@ end
 # Non-letters in the KEY are dropped rather than treated as shift zero, so
 # "lemon" and "l e m o n" are the same key.
 def key_shifts(key)
-  filter((i) -> i >= 0, map((ch) -> letter_index(ch), chars(downcase(key))))
+  filter((i) -> i >= 0, map(letter_index, chars(downcase(key))))
 end
 
 def vigenere_chars(cs, ks, ki, dir)
@@ -453,7 +453,7 @@ end
 # Atbash reverses the alphabet: a<->z, b<->y. It has no key at all, so the
 # only property worth asserting is that it is its own inverse.
 def atbash(text)
-  join(map((ch) -> atbash_char(ch), chars(text)), "")
+  join(map(atbash_char, chars(text)), "")
 end
 
 def atbash_char(ch)
@@ -519,10 +519,7 @@ end
 # not a letter. A plain 26-list rather than a map so it lines up with
 # `alphabet()` by index — the shape a frequency attack actually consumes.
 def letter_counts(text)
-  ls = filter(
-    (i) -> i >= 0,
-    map((ch) -> letter_index(ch), chars(downcase(text)))
-  )
+  ls = filter((i) -> i >= 0, map(letter_index, chars(downcase(text))))
   map((i) -> count_of(ls, i), indexes(alphabet))
 end
 

@@ -33,11 +33,11 @@ def split_example(text)
   all = lines(text)
   bang = filter((l) -> starts_with?(l, "#!"), take(1, all))
   body = drop(length(bang), all)
-  head = take_while((l) -> comment?(l), body)
-  code = drop_while((l) -> l == "", drop_while((l) -> comment?(l), body))
+  head = take_while(comment?, body)
+  code = drop_while((l) -> l == "", drop_while(comment?, body))
   [
     uncomment(first(head)),
-    map((l) -> uncomment(l), rest(head)),
+    map(uncomment, rest(head)),
     join(concat_lists(bang, code), "\n")
   ]
 end
@@ -99,7 +99,7 @@ def example_sections()
       pending = first(acc)
       now = filter((d) -> uses?(text, path_basename(d)), pending)
       later = filter((d) -> not member?(d, now), pending)
-      shown = flat_map((d) -> package_section(d), now)
+      shown = flat_map(package_section, now)
       [
         later,
         concat_lists(last(acc), concat_lists(shown, example_section(path)))
@@ -108,7 +108,7 @@ def example_sections()
     [packages, []],
     files
   )
-  concat_lists(last(step), flat_map((d) -> package_section(d), first(step)))
+  concat_lists(last(step), flat_map(package_section, first(step)))
 end
 
 def render()

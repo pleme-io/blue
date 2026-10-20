@@ -135,7 +135,7 @@ end
 def targets(text)
   parsed = json_parse(text)
   if list?(parsed)
-    map((o) -> target_of(o), parsed)
+    map(target_of, parsed)
   else
     []
   end
@@ -169,11 +169,7 @@ def work_step(acc, line)
 end
 
 def work(text)
-  r = reduce(
-    (acc, l) -> work_step(acc, l),
-    {in: nil, build: [], fetch: []},
-    lines(text)
-  )
+  r = reduce(work_step, {in: nil, build: [], fetch: []}, lines(text))
   {build: get(r, :build), fetch: get(r, :fetch)}
 end
 
@@ -181,7 +177,7 @@ def plan_build(inst, extra)
   out = run_nix(
     concat_lists(["build", "--dry-run", "--json", "--no-link", inst], extra)
   )
-  r = answer(out, (t) -> targets(t))
+  r = answer(out, targets)
   if ok?(r)
     w = work(get(out, :stderr))
     ok({targets: value(r), build: get(w, :build), fetch: get(w, :fetch)})

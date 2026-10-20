@@ -392,7 +392,7 @@ end
 
 # k-way merge: fold the pairwise merge over a list of sorted lists.
 def merge_all_sorted(xss)
-  reduce((acc, xs) -> merge_sorted(acc, xs), [], xss)
+  reduce(merge_sorted, [], xss)
 end
 
 def insert_lex(x, xss)

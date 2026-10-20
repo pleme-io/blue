@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use tatara_lisp::{Atom, Span, Spanned, SpannedForm};
 
@@ -56,6 +56,20 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
                         .with_help(help),
                 );
             }
+        }
+    }
+    let eta = Eta::of(entry.iter().map(|(i, f)| (*i, *f)));
+    for (i, form) in &entry {
+        for (span, callee) in eta.found(form, *i) {
+            out.push(
+                Diagnostic::new(
+                    Code::B0044,
+                    format!("this function only forwards its parameters to `{callee}`; it is `{callee}`"),
+                    span,
+                )
+                .at_top_level(*i)
+                .with_help("`blue fmt --write`, `blue run` and `blue check --fix` replace it with the name"),
+            );
         }
     }
     for (i, form) in &entry {
@@ -437,4 +451,189 @@ fn rename(form: &Spanned, from: &str, to: &str) -> Spanned {
         other => other.clone(),
     };
     Spanned::new(form.span, inner)
+}
+
+/// Eta reduction: `(x) -> f(x)` is `f`. Only where it cannot change a
+/// program: `f` is a plain `def` of this file taking exactly the lambda's
+/// parameters, no lambda, definition or `let` in the form rebinds `f`, and
+/// `f`'s definition runs before the lambda is built (an earlier form, or a
+/// lambda inside a `def` body, which runs later).
+struct Eta {
+    arity: HashMap<String, (usize, usize)>,
+}
+
+const AMBIGUOUS: usize = usize::MAX;
+
+impl Eta {
+    fn of<'a>(forms: impl Iterator<Item = (usize, &'a Spanned)>) -> Self {
+        let mut arity: HashMap<String, (usize, usize)> = HashMap::new();
+        for (i, f) in forms {
+            let Some([d, sig, ..]) = f.as_list() else {
+                continue;
+            };
+            if d.as_symbol() != Some("define") {
+                continue;
+            }
+            let Some([name, params @ ..]) = sig.as_list() else {
+                continue;
+            };
+            let Some(name) = name.as_symbol() else {
+                continue;
+            };
+            let plain = params
+                .iter()
+                .all(|p| p.as_symbol().is_some_and(|s| !s.starts_with(['*', '&'])));
+            let entry = if plain && !arity.contains_key(name) {
+                (params.len(), i)
+            } else {
+                (AMBIGUOUS, i)
+            };
+            arity.insert(name.to_string(), entry);
+        }
+        Eta { arity }
+    }
+
+    fn reducible(&self, lambda: &Spanned, top: usize, in_def: bool, bound: &BTreeSet<String>) -> Option<String> {
+        let [l, params, body] = lambda.as_list()? else {
+            return None;
+        };
+        if l.as_symbol() != Some("lambda") {
+            return None;
+        }
+        let params: Vec<&str> = params
+            .as_list()?
+            .iter()
+            .map(Spanned::as_symbol)
+            .collect::<Option<_>>()?;
+        let [f, args @ ..] = body.as_list()? else {
+            return None;
+        };
+        let f = f.as_symbol()?;
+        let same_args = args.len() == params.len()
+            && args.iter().zip(&params).all(|(a, p)| a.as_symbol() == Some(*p));
+        let (n, defined_at) = *self.arity.get(f)?;
+        (same_args
+            && !params.is_empty()
+            && n == params.len()
+            && !params.contains(&f)
+            && !bound.contains(f)
+            && (in_def || defined_at < top))
+        .then(|| f.to_string())
+    }
+
+    fn found(&self, form: &Spanned, top: usize) -> Vec<(Span, String)> {
+        let mut bound = BTreeSet::new();
+        binders(form, 0, &mut bound);
+        let mut out = Vec::new();
+        self.walk(form, top, is_def(form), &bound, &mut |s, f| out.push((s, f)));
+        out
+    }
+
+    fn walk(
+        &self,
+        form: &Spanned,
+        top: usize,
+        in_def: bool,
+        bound: &BTreeSet<String>,
+        hit: &mut dyn FnMut(Span, String),
+    ) {
+        if let Some(f) = self.reducible(form, top, in_def, bound) {
+            hit(form.span, f);
+            return;
+        }
+        if let SpannedForm::List(items) = &form.form {
+            items.iter().for_each(|i| self.walk(i, top, in_def, bound, hit));
+        }
+    }
+
+    fn rewrite(&self, form: &Spanned, top: usize, in_def: bool, bound: &BTreeSet<String>) -> Spanned {
+        if let Some(f) = self.reducible(form, top, in_def, bound) {
+            return Spanned::new(form.span, SpannedForm::Atom(Atom::Symbol(f)));
+        }
+        match &form.form {
+            SpannedForm::List(items) => Spanned::new(
+                form.span,
+                SpannedForm::List(
+                    items.iter().map(|i| self.rewrite(i, top, in_def, bound)).collect(),
+                ),
+            ),
+            other => Spanned::new(form.span, other.clone()),
+        }
+    }
+}
+
+fn is_def(form: &Spanned) -> bool {
+    form.as_list()
+        .and_then(|i| i.first())
+        .and_then(Spanned::as_symbol)
+        .is_some_and(|s| matches!(s, "define" | "define-typed"))
+}
+
+fn binders(form: &Spanned, depth: usize, out: &mut BTreeSet<String>) {
+    let SpannedForm::List(items) = &form.form else {
+        return;
+    };
+    let names = |l: &Spanned, out: &mut BTreeSet<String>| {
+        for p in l.as_list().unwrap_or(&[]) {
+            if let Some(s) = p.as_symbol() {
+                out.insert(s.to_string());
+            }
+        }
+    };
+    match items.first().and_then(Spanned::as_symbol) {
+        Some("lambda") if items.len() > 1 => names(&items[1], out),
+        Some("catch") if items.len() > 1 => names(&items[1], out),
+        Some("define" | "define-typed") if items.len() > 1 => {
+            match items[1].as_list() {
+                Some([name, params @ ..]) => {
+                    if depth > 0 {
+                        out.extend(name.as_symbol().map(str::to_string));
+                    }
+                    for p in params {
+                        out.extend(p.as_symbol().map(str::to_string));
+                        if let Some([n, ..]) = p.as_list() {
+                            out.extend(n.as_symbol().map(str::to_string));
+                        }
+                    }
+                }
+                _ => {
+                    if depth > 0 {
+                        out.extend(items[1].as_symbol().map(str::to_string));
+                    }
+                }
+            }
+        }
+        Some("let" | "let*" | "letrec") if items.len() > 1 => {
+            for pair in items[1].as_list().unwrap_or(&[]) {
+                if let Some([n, ..]) = pair.as_list() {
+                    out.extend(n.as_symbol().map(str::to_string));
+                }
+            }
+        }
+        _ => {}
+    }
+    for i in items {
+        binders(i, depth + 1, out);
+    }
+}
+
+#[must_use]
+pub fn eta_reduced(forms: &[Spanned]) -> Option<Vec<Spanned>> {
+    let eta = Eta::of(forms.iter().enumerate());
+    let mut changed = false;
+    let out: Vec<Spanned> = forms
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let mut bound = BTreeSet::new();
+            binders(f, 0, &mut bound);
+            if eta.found(f, i).is_empty() {
+                f.clone()
+            } else {
+                changed = true;
+                eta.rewrite(f, i, is_def(f), &bound)
+            }
+        })
+        .collect();
+    changed.then_some(out)
 }

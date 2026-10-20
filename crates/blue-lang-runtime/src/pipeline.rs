@@ -953,7 +953,8 @@ impl Checked {
         } else {
             forms
         };
-        Some(blue_lang_check::form_rules::without_main_guard(&forms).unwrap_or(forms))
+        let forms = blue_lang_check::form_rules::without_main_guard(&forms).unwrap_or(forms);
+        Some(blue_lang_check::form_rules::eta_reduced(&forms).unwrap_or(forms))
     }
 }
 

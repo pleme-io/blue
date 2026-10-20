@@ -154,7 +154,7 @@ def literals_of(e)
   if get(e, :kind) == :lit
     [get(e, :text)]
   else
-    flat_map((c) -> literals_of(c), parts(e))
+    flat_map(literals_of, parts(e))
   end
 end
 
@@ -169,7 +169,7 @@ def fields_of(e)
   else
     []
   end
-  concat_lists(here, flat_map((c) -> fields_of(c), parts(e)))
+  concat_lists(here, flat_map(fields_of, parts(e)))
 end
 
 # The named node kinds a field's item can be: a visible rule it refers to, or
@@ -187,7 +187,7 @@ def kinds_of(e)
   elsif k == :lit or k == :pat
     []
   else
-    flat_map((c) -> kinds_of(c), parts(e))
+    flat_map(kinds_of, parts(e))
   end
 end
 
@@ -197,7 +197,7 @@ def aliases_of(e)
   else
     []
   end
-  concat_lists(here, flat_map((c) -> aliases_of(c), parts(e)))
+  concat_lists(here, flat_map(aliases_of, parts(e)))
 end
 
 # The name a rule's node carries in a tree: its own, or for a hidden rule the
@@ -321,9 +321,9 @@ end
 def js(e)
   k = get(e, :kind)
   if k == :seq
-    "seq(#{join(map((i) -> js(i), get(e, :items)), ", ")})"
+    "seq(#{join(map(js, get(e, :items)), ", ")})"
   elsif k == :choice
-    "choice(#{join(map((i) -> js(i), get(e, :items)), ", ")})"
+    "choice(#{join(map(js, get(e, :items)), ", ")})"
   elsif k == :rep
     "repeat(#{js(get(e, :item))})"
   elsif k == :rep1
@@ -369,7 +369,7 @@ def tree_sitter_js(grammar)
       "module.exports = grammar({",
       "  name: #{js_string(get(g, :name))},",
       "  word: $ => $.#{get(g, :word)},",
-      "  extras: $ => [#{join(map((x) -> js(x), get(g, :extras)), ", ")}],",
+      "  extras: $ => [#{join(map(js, get(g, :extras)), ", ")}],",
       "  rules: {"
     ],
     concat_lists(rules, ["  },", "});", ""])
@@ -422,7 +422,7 @@ def literal_groups(g, roles)
   map(
     fn(role)
       lits = filter((t) -> role_of_literal(g, t) == role, painted_lits)
-      "[#{join(map((t) -> scm_string(t), lits), " ")}] @#{role}"
+      "[#{join(map(scm_string, lits), " ")}] @#{role}"
     end,
     in_order
   )
@@ -470,7 +470,7 @@ end
 
 def indents(grammar)
   g = checked(grammar)
-  closers = map((t) -> scm_string(t), get(g, :closers))
+  closers = map(scm_string, get(g, :closers))
   arms = map(
     (r) -> scm_string(first_lit(r)),
     filter((r) -> get(r, :arm), get(g, :rules))
@@ -626,14 +626,11 @@ def binary_rule(rows)
   choice(
     map(
       fn(p)
-        ops = flat_map(
-          (r) -> spellings(r),
-          filter((r) -> get(r, :power) == p, rows)
-        )
+        ops = flat_map(spellings, filter((r) -> get(r, :power) == p, rows))
         body = seq(
           [
             field("left", ref("_expression")),
-            field("operator", choice(map((o) -> lit(o), ops))),
+            field("operator", choice(map(lit, ops))),
             nl,
             field("right", ref("_expression"))
           ]
@@ -994,7 +991,7 @@ def blue()
         "_primary",
         choice(
           map(
-            (n) -> ref(n),
+            ref,
             [
               "integer",
               "float",
@@ -1055,9 +1052,7 @@ def blue()
             [
               field(
                 "operator",
-                choice(
-                  map((o) -> lit(o), flat_map((r) -> spellings(r), unary_rows))
-                )
+                choice(map(lit, flat_map(spellings, unary_rows)))
               ),
               field("operand", ref("_operand"))
             ]

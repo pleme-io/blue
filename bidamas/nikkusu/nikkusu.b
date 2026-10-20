@@ -53,7 +53,7 @@ def text(n)
   if token?(n)
     get(n, :text)
   else
-    join(map((c) -> text(c), kids(n)), "")
+    join(map(text, kids(n)), "")
   end
 end
 
@@ -65,7 +65,7 @@ def code(n)
       get(n, :text)
     end
   else
-    join(map((c) -> code(c), kids(n)), "")
+    join(map(code, kids(n)), "")
   end
 end
 
@@ -94,7 +94,7 @@ def string_content(n)
   if kind(n) == "NODE_STRING"
     join(
       map(
-        (c) -> text(c),
+        text,
         filter(
           fn(c)
             kind(c) == "TOKEN_STRING_CONTENT" or kind(c) == "NODE_INTERPOL"
@@ -124,7 +124,7 @@ def segment(n)
 end
 
 def attrpath(n)
-  map((s) -> segment(s), nodes_of(n))
+  map(segment, nodes_of(n))
 end
 
 def passes_path?(k)

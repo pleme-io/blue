@@ -227,7 +227,7 @@ end
 
 # [[min x, min y], [max x, max y]] over every entity; nil for none.
 def bounds(entities)
-  bounding_box(flat_map((e) -> entity_points(e), entities))
+  bounding_box(flat_map(entity_points, entities))
 end
 
 # ── sheets ───────────────────────────────────────────────────────────
@@ -454,10 +454,7 @@ def dxf(entities)
   )
   body = concat_lists(
     [[0, "SECTION"], [2, "ENTITIES"]],
-    concat_lists(
-      flat_map((e) -> dxf_entity(e), entities),
-      [[0, "ENDSEC"], [0, "EOF"]]
-    )
+    concat_lists(flat_map(dxf_entity, entities), [[0, "ENDSEC"], [0, "EOF"]])
   )
   dxf_pairs(concat_lists(header, concat_lists(tables, body)))
 end

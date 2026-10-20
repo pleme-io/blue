@@ -144,7 +144,7 @@ def matrix_text(states)
 end
 
 def matrix_findings(text, states)
-  rows = map((l) -> matrix_row(l), matrix_rows(text))
+  rows = map(matrix_row, matrix_rows(text))
   want = reduce(
     (m, s) -> assoc(m, row_key(s), outcome_label(decide(fill(s)))),
     {},
@@ -328,7 +328,7 @@ def parse_netstat(text)
   if is_empty(hdr)
     bad("netstat: no Destination header")
   else
-    rows = filter((f) -> size(f) >= 4, map((l) -> fields(l), after_header(ls)))
+    rows = filter((f) -> size(f) >= 4, map(fields, after_header(ls)))
     ok(
       map(
         fn(f)
@@ -457,9 +457,7 @@ def corp_of(routes, pattern)
   halves = filter((r) -> half?(r_dest(r)) or r_dest(r) == "default", mine)
   if is_empty(mine)
     :absent
-  elsif size(
-    unique(map((r) -> r_dest(r), filter((r) -> half?(r_dest(r)), halves)))
-  ) >=
+  elsif size(unique(map(r_dest, filter((r) -> half?(r_dest(r)), halves)))) >=
     2 or
     not is_empty(filter((r) -> r_dest(r) == "default", halves))
     :full
@@ -486,7 +484,7 @@ end
 def routed_via(routes, gateway)
   unique(
     map(
-      (r) -> r_dest(r),
+      r_dest,
       filter(
         fn(r)
           get(r, :gateway) == gateway and
@@ -507,7 +505,7 @@ def parse_derp_map(text)
   else
     ips = unique(
       filter(
-        (ip) -> ipv4?(ip),
+        ipv4?,
         reduce((acc, reg) -> append(acc, region_ips(nth(1, reg))), [], regions)
       )
     )
@@ -561,7 +559,7 @@ end
 def parse_dscacheutil(text)
   ips = unique(
     filter(
-      (ip) -> ipv4?(ip),
+      ipv4?,
       map(
         (l) -> trim(replace(l, "ip_address:", "")),
         filter((l) -> starts_with?(l, "ip_address:"), split(text, "\n"))
@@ -578,7 +576,7 @@ end
 def parse_getent(text)
   ips = unique(
     filter(
-      (ip) -> ipv4?(ip),
+      ipv4?,
       map(
         (l) -> first(fields(l)),
         filter((l) -> not is_empty(trim(l)), split(text, "\n"))
@@ -778,7 +776,7 @@ def act(argvs, dry_run)
       argvs
     )
   else
-    map((a) -> capture(a), argvs)
+    map(capture, argvs)
   end
 end
 
@@ -803,10 +801,7 @@ def config()
     control_host: getenv("UKAI_CONTROL_HOST", "controlplane.tailscale.com"),
     gateway: getenv("UKAI_GATEWAY", ""),
     gateway_iface: getenv("UKAI_GATEWAY_IFACE", ""),
-    extra_hosts: filter(
-      (h) -> ipv4?(h),
-      split(getenv("UKAI_EXTRA_HOSTS", ""), ",")
-    ),
+    extra_hosts: filter(ipv4?, split(getenv("UKAI_EXTRA_HOSTS", ""), ",")),
     tailscale: getenv("UKAI_TAILSCALE", "tailscale"),
     ip: getenv("UKAI_IP", "ip"),
     getent: getenv("UKAI_GETENT", "getent"),
@@ -940,7 +935,7 @@ test "the matrix gate goes red on a missing row, a stray row and a wrong decisio
 end
 
 test "the measured live row: full tunnel, permissive, relay, gateway present, darwin is a bypass"
-  rows = map((l) -> matrix_row(l), matrix_rows(fixture("matrix.tsv")))
+  rows = map(matrix_row, matrix_rows(fixture("matrix.tsv")))
   r = first(
     filter(
       (r) -> first(r) == "full\tpermissive\trelay\tpresent\tresolved\tdarwin",

@@ -599,7 +599,7 @@ def cz_lower(forms, board)
   end
   kinds = map((f) -> [cz_kind(f), f], forms)
   pick = (k) -> map((p) -> second(p), filter((p) -> first(p) == k, kinds))
-  map((f) -> cz_check_use(f), pick(:use))
+  map(cz_check_use, pick(:use))
   if not empty?(pick(:untyped))
     cz_refuse(
       "`#{cz_local(cz_sym(first(second(first(pick(:untyped))))))}` is untyped; the native position is restricted, so every definition is typed (constraint C4)"
@@ -615,7 +615,7 @@ def cz_lower(forms, board)
     attrs: [cz_attr("no_std", []), cz_attr("forbid", ["unsafe_code"])],
     items: append(
       [{kind: "use", item: {path: ["kiban_io", "Io"]}}],
-      map((f) -> cz_const(f), const_forms),
+      map(cz_const, const_forms),
       map((f) -> cz_fn(f, fns, consts), fn_forms),
       [rs_fn("pub", "main", [], nil, main_body)]
     )

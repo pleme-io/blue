@@ -1296,13 +1296,20 @@ impl<'s> Renderer<'s> {
     /// on one line is never rendered.
     fn lambda_form(&self, s: &Spanned, items: &[Spanned], min_prec: u8) -> Doc {
         let params = items[1].as_list().unwrap_or(&[]);
+        // Where the lambda's own text ends: its `end`, or for the arrow
+        // spelling the end of its body. A comment past that belongs to the
+        // enclosing sequence, and `body` must not take it as the block doc is
+        // built beside the inline one.
+        let own_end = self.closer(s).unwrap_or(s.span.end);
         let block = Doc::text("fn")
             .concat(self.params(params, None))
-            .concat(self.body(&items[2], self.closer(s), Doc::hardline()))
+            .concat(self.body(&items[2], Some(own_end), Doc::hardline()))
             .concat(Doc::hardline())
             .concat(Doc::text("end"));
         let one_expression = self.statements(&items[2]).len() == 1;
-        let commented = self.real(s.span) && self.has_comments(s.span.start, s.span.end);
+        // A comment inside the lambda keeps it the block alone: building both
+        // spellings would hand the comment to the one that is not printed.
+        let commented = self.real(s.span) && self.has_comments(s.span.start, own_end);
         if !one_expression || commented {
             return block;
         }
@@ -1988,6 +1995,17 @@ mod tests {
         assert_eq!(
             f("s = \"n: #{join(map(xs, fn(x) to_s(x) end), \", \")}\"").trim(),
             "s = \"n: #{join(map(xs, (x) -> to_s(x)), \", \")}\""
+        );
+    }
+
+    /// A comment after an inline lambda that is a map value belongs to the
+    /// map entry: building the block spelling beside the inline one must not
+    /// take it.
+    #[test]
+    fn a_comment_after_an_inline_lambda_in_a_map_survives() {
+        assert_eq!(
+            l("g = {k: (a) -> a # c\n}\n"),
+            "g = {\n  k: (a) -> a # c\n}\n"
         );
     }
 

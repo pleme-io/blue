@@ -39,7 +39,7 @@ def parse_line(line)
 end
 
 def parse(text)
-  filter((r) -> r != nil, map((l) -> parse_line(l), lines(text)))
+  filter((r) -> r != nil, map(parse_line, lines(text)))
 end
 
 def recorded(rows, kind, key)

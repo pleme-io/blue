@@ -63,7 +63,7 @@ else
   [catalog]
 end
 
-written = concat_lists(written, map((g) -> regenerate(g), generated))
+written = concat_lists(written, map(regenerate, generated))
 
 # Every `workload` file, rendered from the same lock by blue itself.
 workloads = json_get(manifest, "workloads")

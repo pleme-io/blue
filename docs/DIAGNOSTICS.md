@@ -56,6 +56,7 @@ it; `blue explain --list` lists them.
 | B0041 | main-guard | error | a program's entry point is `def main()`, which `blue run` calls; never a top-level `if getenv("X_MAIN", "") == "1"` guard |
 | B0042 | splat | error | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name |
 | B0043 | prefixed-program | error | a program does not prefix every definition with one short `x_`: the file is the namespace |
+| B0044 | eta-reduction | error | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

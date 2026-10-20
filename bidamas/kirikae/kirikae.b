@@ -69,11 +69,7 @@ def streak_step(acc, e)
 end
 
 def streak(history, out)
-  reduce(
-    (acc, e) -> streak_step(acc, e),
-    {out: out, n: 0, last_ms: nil},
-    history
-  )
+  reduce(streak_step, {out: out, n: 0, last_ms: nil}, history)
 end
 
 def decide(desired, current, history, now_ms, pol)
@@ -109,7 +105,7 @@ def hex40?(t)
 end
 
 def pinned?(flake)
-  any?((t) -> hex40?(t), split(flake, "/")) or includes(flake, "rev=")
+  any?(hex40?, split(flake, "/")) or includes(flake, "rev=")
 end
 
 def label(p)
@@ -137,10 +133,7 @@ end
 def history(path)
   filter(
     (e) -> e != nil,
-    map(
-      (l) -> parse_entry(l),
-      filter((l) -> trim(l) != "", lines(read_or(path, "")))
-    )
+    map(parse_entry, filter((l) -> trim(l) != "", lines(read_or(path, ""))))
   )
 end
 
@@ -167,7 +160,7 @@ def record(path, e)
   kept = keep_last(concat_lists(history(path), [e]), 200)
   mkdir_p(path_dirname(path))
   tmp = "#{path}.kirikae-tmp"
-  write_file(tmp, concat(join(map((x) -> entry_line(x), kept), "\n"), "\n"))
+  write_file(tmp, concat(join(map(entry_line, kept), "\n"), "\n"))
   rename_file(tmp, path)
   e
 end
@@ -316,7 +309,7 @@ end
 
 def writer_line?(l, host)
   ws = filter((w) -> w != "", split(trim(l), " "))
-  heads = map((w) -> base_name(w), take_n(ws, 2))
+  heads = map(base_name, take_n(ws, 2))
   rebuild = member?("darwin-rebuild", heads) or member?("nixos-rebuild", heads)
   evaluation = not is_empty(ws) and
     base_name(first(ws)) == "nix" and
@@ -465,10 +458,7 @@ end
 
 def node_arg(cmd)
   after = drop_while((a) -> a != "rebuild", cmd)
-  get(
-    reduce((acc, a) -> node_step(acc, a), {skip: 0, node: nil}, rest(after)),
-    :node
-  )
+  get(reduce(node_step, {skip: 0, node: nil}, rest(after)), :node)
 end
 
 def settings_for(cmd)

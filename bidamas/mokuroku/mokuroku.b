@@ -276,10 +276,7 @@ end
 # Every package under the roots, sorted by name. When two roots hold the same
 # package, the earlier root wins, as it does for the loader.
 def catalog_of(roots)
-  records = flat_map(
-    (root) -> map((d) -> package_record(d), package_dirs(root)),
-    roots
-  )
+  records = flat_map((root) -> map(package_record, package_dirs(root)), roots)
   firsts = reduce(
     fn(acc, r)
       if contains(map((x) -> first(x), acc), first(r))
@@ -487,8 +484,8 @@ def render_markdown(records)
     "| package | version | needs | tests | defs | what it is |",
     "|---|---|---|---|---|---|"
   ]
-  body = map((r) -> package_section(r), records)
-  "#{join(concat_lists(header, map((r) -> pkg_summary_row(r), records)), "\n")}\n\n#{join(body, "\n\n")}\n\n#{shared_names_section(records)}\n"
+  body = map(package_section, records)
+  "#{join(concat_lists(header, map(pkg_summary_row, records)), "\n")}\n\n#{join(body, "\n\n")}\n\n#{shared_names_section(records)}\n"
 end
 
 # The names several packages define: legal, since each is reached qualified

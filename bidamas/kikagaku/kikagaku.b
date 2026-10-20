@@ -199,8 +199,8 @@ def bounding_box(pts)
   if is_empty(pts)
     nil
   else
-    xs = map((p) -> px(p), pts)
-    ys = map((p) -> py(p), pts)
+    xs = map(px, pts)
+    ys = map(py, pts)
     [[min_of(xs), min_of(ys)], [max_of(xs), max_of(ys)]]
   end
 end
@@ -334,7 +334,7 @@ def vertex_centroid(pts)
   if n == 0
     nil
   else
-    [sum(map((p) -> px(p), pts)) / n, sum(map((p) -> py(p), pts)) / n]
+    [sum(map(px, pts)) / n, sum(map(py, pts)) / n]
   end
 end
 
@@ -809,7 +809,7 @@ end
 # counter-clockwise and every hole clockwise, the convention that makes the
 # signed areas add up and an extrusion's faces point outward.
 def region(outline, holes)
-  [ccw_polygon(outline), map((h) -> cw_polygon(h), holes)]
+  [ccw_polygon(outline), map(cw_polygon, holes)]
 end
 
 def region_outline(r)
@@ -821,8 +821,7 @@ def region_holes(r)
 end
 
 def region_area(r)
-  polygon_area(region_outline(r)) -
-    sum(map((h) -> polygon_area(h), region_holes(r)))
+  polygon_area(region_outline(r)) - sum(map(polygon_area, region_holes(r)))
 end
 
 # The area centroid: the outline's, less each hole's, weighted by area.

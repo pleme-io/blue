@@ -74,7 +74,7 @@ def machine(line)
 end
 
 def parse(text)
-  map((l) -> machine(l), filter((l) -> meaningful?(l), split(text, "\n")))
+  map(machine, filter(meaningful?, split(text, "\n")))
 end
 
 # ── the check ────────────────────────────────────────────────────────

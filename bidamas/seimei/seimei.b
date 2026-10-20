@@ -271,11 +271,11 @@ end
 # The state after n generations. life_run keeps the history; this keeps only
 # the answer, which is what every identity test below actually compares.
 def life_after(grid, gens)
-  after_with((g) -> life_step(g), grid, gens)
+  after_with(life_step, grid, gens)
 end
 
 def life_run(grid, gens)
-  run_with((g) -> life_step(g), grid, gens)
+  run_with(life_step, grid, gens)
 end
 
 def is_stable(grid)
@@ -288,7 +288,7 @@ end
 # rather than 0: a block IS an oscillator, of period one. A glider on a bounded
 # grid answers 0 — it leaves, and never comes back.
 def is_oscillator(grid, max_period)
-  period_with((g) -> life_step(g), grid, max_period)
+  period_with(life_step, grid, max_period)
 end
 
 def period_with(f, grid, max_period)
@@ -388,7 +388,7 @@ def wrap_row(row)
 end
 
 def pad_toroidal(grid)
-  wide = map((row) -> wrap_row(row), grid)
+  wide = map(wrap_row, grid)
   append(cons(last(wide), wide), [first(wide)])
 end
 
@@ -405,7 +405,7 @@ def life_step_toroidal(grid)
 end
 
 def life_after_toroidal(grid, gens)
-  after_with((g) -> life_step_toroidal(g), grid, gens)
+  after_with(life_step_toroidal, grid, gens)
 end
 
 def neighbours_toroidal(grid, r, c)
@@ -458,7 +458,7 @@ test "a glider crosses the torus and comes home"
 end
 
 def is_oscillator_toroidal(grid, max_period)
-  period_with((g) -> life_step_toroidal(g), grid, max_period)
+  period_with(life_step_toroidal, grid, max_period)
 end
 
 # ---------------------------------------------------------------------------
@@ -632,11 +632,11 @@ def render_cell(v)
 end
 
 def render_row(row)
-  join(map((v) -> render_cell(v), row), "")
+  join(map(render_cell, row), "")
 end
 
 def render_grid(grid)
-  map((row) -> render_row(row), grid)
+  map(render_row, grid)
 end
 
 test "an elementary history renders as the triangle it is"
@@ -759,7 +759,7 @@ test "Brian's Brain fires, then cools, whatever the neighbours say"
   # that catches a Brain implemented by pasting Life's survival rule in.
   full = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
   assert brain_step(full) == [[2, 2, 2], [2, 2, 2], [2, 2, 2]]
-  assert after_with((g) -> brain_step(g), full, 2) == blank_grid(3, 3)
+  assert after_with(brain_step, full, 2) == blank_grid(3, 3)
   # Refractory cells must not be counted as firing when a birth is decided.
   d = life_from_coords(5, 5, [[2, 1], [2, 2]])
   n = brain_step(d)
@@ -772,9 +772,9 @@ test "the generic runner drives any of the rule sets"
   # One iterator, four automata: if this drifts apart, life_after and its
   # siblings have quietly become four copies of the same loop again.
   blinker = [[0, 0, 0], [1, 1, 1], [0, 0, 0]]
-  assert after_with((g) -> life_step(g), blinker, 2) == blinker
-  assert size(run_with((g) -> seeds_step(g), blinker, 3)) == 4
-  assert period_with((g) -> life_step(g), blinker, 4) == 2
+  assert after_with(life_step, blinker, 2) == blinker
+  assert size(run_with(seeds_step, blinker, 3)) == 4
+  assert period_with(life_step, blinker, 4) == 2
   # A rule with no fixed point inside the bound answers 0 rather than looping.
-  assert period_with((g) -> brain_step(g), blinker, 3) == 0
+  assert period_with(brain_step, blinker, 3) == 0
 end

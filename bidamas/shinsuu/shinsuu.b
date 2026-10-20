@@ -961,7 +961,7 @@ def luhn_valid_text(text)
   cs = chars(replace(replace(trim(text), " ", ""), "-", ""))
   size(cs) > 0 and
     all_digits_in_base(cs, 10) and
-    luhn_valid_digits(map((c) -> digit_value36(c), cs))
+    luhn_valid_digits(map(digit_value36, cs))
 end
 
 # ---------------------------------------------------------------------------

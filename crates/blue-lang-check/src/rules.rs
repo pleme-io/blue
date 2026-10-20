@@ -877,6 +877,21 @@ the file, when no stripped name is already used there or reserved; `ro_main`
 becomes `main`, which `blue run` calls (B0041). A bidama's own prefix is
 B0013 and B0014.",
     }
+    B0044 {
+        slug: "eta-reduction",
+        severity: Error,
+        fix: Machine,
+        law: "a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)`",
+        witness: "def describe(v)\n  v\nend\n\ndef go(vs)\n  map((v) -> describe(v), vs)\nend\n",
+        waivable: false,
+        explanation: "\
+`(x) -> f(x)` and `f` are the same function, and the name is shorter. The rule
+fires only where the swap cannot change the program: `f` is a plain `def` of
+this file taking exactly the lambda's parameters, nothing in the form rebinds
+`f`, and `f` is defined before the lambda is built (an earlier form, or the
+lambda sits inside a `def`). Builtins, imported names, optional or rest
+parameters and a different parameter count are left as written.",
+    }
 }
 
 impl Code {

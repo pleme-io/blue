@@ -457,7 +457,7 @@ def transpose_all(notes, semitones)
 end
 
 def note_names_of(notes)
-  map((pc) -> note_name(pc), notes)
+  map(note_name, notes)
 end
 
 # --- chords built out of a scale ----------------------------------------------
@@ -672,7 +672,7 @@ test "a major scale returns to its octave"
 end
 
 test "C major has no sharps, which is the thing everyone knows"
-  named = map((pc) -> note_name(pc), take(7, major_scale(0)))
+  named = map(note_name, take(7, major_scale(0)))
   assert named == ["C", "D", "E", "F", "G", "A", "B"]
 end
 
@@ -765,7 +765,7 @@ test "consonance splits the octave seven to five"
   assert is_consonant(11) == false
   # An inversion of a consonance is a consonance — true of this set and false
   # of most hand-typed near-misses.
-  assert count_where((s) -> is_consonant(s), range(0, 12)) == 7
+  assert count_where(is_consonant, range(0, 12)) == 7
   assert count_where((s) -> is_consonant(invert_interval(s)), range(0, 12)) == 7
   assert is_dissonant(6) == true
 end
@@ -895,7 +895,7 @@ test "every seventh quality classifies back to itself"
     augmented_major_seventh(0),
     augmented_seventh(0)
   ]
-  assert map((c) -> seventh_quality(c), built) == seventh_quality_names
+  assert map(seventh_quality, built) == seventh_quality_names
   # The three that are one semitone apart in exactly one voice, spelled out so
   # a transposed table or an off-by-one interval cannot pass.
   assert minor_seventh(0) == [0, 3, 7, 10]
@@ -1071,7 +1071,7 @@ test "relative keys share a signature; parallel keys do not"
     range(0, 12)
   # The defining property, checked for all twelve rather than for C alone.
   assert map((pc) -> minor_key_signature(relative_minor(pc)), range(0, 12)) ==
-    map((pc) -> key_signature(pc), range(0, 12))
+    map(key_signature, range(0, 12))
   assert minor_key_signature(9) == 0
   assert minor_key_signature(4) == 1
   # C major and C minor are parallel, not relative: same tonic, different

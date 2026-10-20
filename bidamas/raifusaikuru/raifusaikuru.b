@@ -488,7 +488,7 @@ end
 # A clause is a list headed by a keyword; anything else is a list of clauses
 # (as lc_on_each and lc_gate return), flattened.
 def flat(clauses)
-  flat_map((c) -> flat_one(c), as_list(clauses))
+  flat_map(flat_one, as_list(clauses))
 end
 
 def flat_one(c)
@@ -586,10 +586,7 @@ def permit_log_keys(permits, capability)
       filter((t) -> list?(t) and first(t) == :counted, as_list(nth(2, pm)))
     )
   end
-  concat_lists(
-    [:subject, :not_after, :basis],
-    map((f) -> permit_count_key(f), counted)
-  )
+  concat_lists([:subject, :not_after, :basis], map(permit_count_key, counted))
 end
 
 def d_name(d)
@@ -777,7 +774,7 @@ def pb_spans(p)
     fn(n)
       problem(:duplicate_span, "span #{show(n)} is declared more than once")
     end,
-    dupes(map((s) -> span_name(s), spans))
+    dupes(map(span_name, spans))
   )
   concat_lists(flat_map((s) -> pb_span(p, s), spans), dup)
 end
@@ -911,7 +908,7 @@ def pb_shape(p)
       )
     ]
   end
-  concat_lists(named, map((c) -> pb_clause(c), bad))
+  concat_lists(named, map(pb_clause, bad))
 end
 
 def pb_clause(c)
@@ -1402,7 +1399,7 @@ def pb_guard(p, g)
   else
     []
   end
-  shaped = filter((r) -> rule?(r), rules)
+  shaped = filter(rule?, rules)
   malformed = map(
     fn(r)
       problem(
@@ -1443,7 +1440,7 @@ end
 # inside lc_all, recursively. Only these may bound a permit.
 def conjuncts(pr)
   if first(pr) == :all
-    flat_map((c) -> conjuncts(c), nth(1, pr))
+    flat_map(conjuncts, nth(1, pr))
   else
     [pr]
   end
@@ -1452,7 +1449,7 @@ end
 def atoms(pr)
   op = first(pr)
   if op == :all or op == :any
-    flat_map((c) -> atoms(c), nth(1, pr))
+    flat_map(atoms, nth(1, pr))
   elsif op == :not
     atoms(nth(1, pr))
   else
@@ -1464,7 +1461,7 @@ end
 def hidden_atoms(pr)
   op = first(pr)
   if op == :all
-    flat_map((c) -> hidden_atoms(c), nth(1, pr))
+    flat_map(hidden_atoms, nth(1, pr))
   elsif op == :any or op == :not
     atoms(pr)
   else
@@ -1600,7 +1597,7 @@ def lc_define(name, clauses)
   if is_empty(problems) == false
     raise(
       :raifusaikuru_definition,
-      "lifecycle #{show(name)} refused: #{join(map((x) -> problem_text(x), problems), "; ")}"
+      "lifecycle #{show(name)} refused: #{join(map(problem_text, problems), "; ")}"
     )
   end
   cons(:lc_def, rest(p))
@@ -2112,7 +2109,7 @@ end
 def pred_fields(pr)
   op = first(pr)
   if op == :all or op == :any
-    unique(flat_map((c) -> pred_fields(c), nth(1, pr)))
+    unique(flat_map(pred_fields, nth(1, pr)))
   elsif op == :not
     pred_fields(nth(1, pr))
   elsif op == :in
@@ -2148,11 +2145,11 @@ def pred_text(pr)
   elsif op == :age_lt
     "#{text(nth(1, pr))} less than #{to_s(nth(2, pr))} old"
   elsif op == :in
-    "phase in [#{join(map((x) -> show(x), nth(1, pr)), ", ")}]"
+    "phase in [#{join(map(show, nth(1, pr)), ", ")}]"
   elsif op == :all
-    "all of (#{join(map((c) -> pred_text(c), nth(1, pr)), "; ")})"
+    "all of (#{join(map(pred_text, nth(1, pr)), "; ")})"
   elsif op == :any
-    "any of (#{join(map((c) -> pred_text(c), nth(1, pr)), "; ")})"
+    "any of (#{join(map(pred_text, nth(1, pr)), "; ")})"
   else
     "not (#{pred_text(nth(1, pr))})"
   end
@@ -2181,7 +2178,7 @@ def reason_text(r)
     else
       []
     end
-    seen = flatten1([map((kv) -> observed_text(kv), nth(3, r)), phase, clock])
+    seen = flatten1([map(observed_text, nth(3, r)), phase, clock])
     "#{text(first(r))}: needs #{pred_text(pr)}; #{join(seen, ", ")}"
   end
 end
@@ -2192,7 +2189,7 @@ def why(v)
   if is_allowed(v)
     []
   else
-    map((r) -> reason_text(r), nth(2, v))
+    map(reason_text, nth(2, v))
   end
 end
 
@@ -2472,7 +2469,7 @@ test "the empty case: no events give the initial state, which may not be used"
   assert refused_rules(v) ==
     [:is_open, :reading_fresh, :quality_ok, :not_too_old]
   assert map((r) -> nth(1, r), nth(2, v)) == [:no, :unknown, :unknown, :unknown]
-  assert map((t) -> task_name(t), verdict_tasks(v)) ==
+  assert map(task_name, verdict_tasks(v)) ==
     [:open_one, :take_reading, :replace]
   assert no_permit_why(permit_for(d, s, :use, 0)) == :refused
 end
@@ -2527,7 +2524,7 @@ test "a worked lifecycle, checked by hand"
     "raifusaikuru-permit/1\nlifecycle=consumable\nsubject=device-7\ncapability=use\nissued_at=3000\nnot_after=10200\ncount.uses=37\nbasis=5"
   v = allowed(d, s, :use, 15400)
   assert refused_rule(v) == :reading_fresh
-  assert map((t) -> task_name(t), verdict_tasks(v)) == [:take_reading]
+  assert map(task_name, verdict_tasks(v)) == [:take_reading]
   assert why(v) ==
     ["reading_fresh: needs read_at less than 14400 old; read_at = 1000, now = 15400"]
 end
@@ -2567,7 +2564,7 @@ test "a control: a definition with an undeclared state is refused when built"
     on(:a, :go, :b, []),
     on(:b, :go, :c, [])
   ]
-  kinds = map((p) -> problem_kind(p), problems(:bad, bad))
+  kinds = map(problem_kind, problems(:bad, bad))
   assert contains(kinds, :unknown_state)
   assert error?(
     begin
@@ -2579,7 +2576,7 @@ test "a control: a definition with an undeclared state is refused when built"
   # The same clauses with :c declared as a state still fail, now on the graph:
   # b is terminal yet has a row leaving it.
   assert contains(
-    map((p) -> problem_kind(p), problems(:bad, push(bad, states([:c])))),
+    map(problem_kind, problems(:bad, push(bad, states([:c])))),
     :terminal_has_exit
   )
   # And an unbuilt definition is refused at use: the fold takes only what
@@ -2687,10 +2684,7 @@ test "every kind of bad definition is refused when built, one row per kind"
   missed = filter(
     fn(row)
       contains(
-        map(
-          (p) -> problem_kind(p),
-          problems(:base, push(example_base, first(row)))
-        ),
+        map(problem_kind, problems(:base, push(example_base, first(row)))),
         nth(1, row)
       ) ==
         false
@@ -2699,21 +2693,15 @@ test "every kind of bad definition is refused when built, one row per kind"
   )
   assert map((row) -> nth(1, row), missed) == []
   # The three that cannot be added to a sound base are checked on their own.
+  assert contains(map(problem_kind, problems(7, example_base)), :bad_name)
+  assert contains(map(problem_kind, problems(:x, [start(:a)])), :no_states)
   assert contains(
-    map((p) -> problem_kind(p), problems(7, example_base)),
-    :bad_name
-  )
-  assert contains(
-    map((p) -> problem_kind(p), problems(:x, [start(:a)])),
-    :no_states
-  )
-  assert contains(
-    map((p) -> problem_kind(p), problems(:x, [states([:a]), terminals([:a])])),
+    map(problem_kind, problems(:x, [states([:a]), terminals([:a])])),
     :no_start
   )
   assert contains(
     map(
-      (p) -> problem_kind(p),
+      problem_kind,
       problems(
         :x,
         [
@@ -2865,14 +2853,14 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
   )
   assert contains(
     map(
-      (p) -> problem_kind(p),
+      problem_kind,
       problems(:x, push(example_consumable_clauses, permit_log(:fly, :flown)))
     ),
     :unknown_capability
   )
   assert contains(
     map(
-      (p) -> problem_kind(p),
+      problem_kind,
       problems(
         :x,
         push(
@@ -2928,10 +2916,7 @@ test "a span is declared, checked when built, read back, and folds nothing"
   # terminal, so nothing leads from it to open); a limit that is not a
   # positive whole duration; a state that is not a name.
   kinds = fn(extra)
-    map(
-      (p) -> problem_kind(p),
-      problems(:x, push(example_consumable_clauses, extra))
-    )
+    map(problem_kind, problems(:x, push(example_consumable_clauses, extra)))
   end
   assert kinds(span(:s, :open, :gone, nil)) == [:unknown_state]
   assert kinds(span(:s, :open, :open, nil)) == [:bad_span]

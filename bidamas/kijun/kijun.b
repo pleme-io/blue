@@ -431,7 +431,7 @@ def check_profile_identity(f, _repo)
         "a profile sets #{get(b, :dotted)}, which is a node's identity; set it in the node"
       )
     end,
-    filter((b) -> identity?(b), module_bindings(f))
+    filter(identity?, module_bindings(f))
   )
 end
 
@@ -504,7 +504,7 @@ def check_shared_emission(f, _repo)
         "a shared module emits #{join(module_path(b), ".")}, which only a platform renderer may"
       )
     end,
-    filter((b) -> emits_platform?(b), module_bindings(f))
+    filter(emits_platform?, module_bindings(f))
   )
 end
 
@@ -590,7 +590,7 @@ def check_fetch(f, _repo)
         "#{get(c, :head)} with no hash fetches whatever the server serves today"
       )
     end,
-    filter((c) -> unpinned?(c), named(get(f, :calls), fetchers))
+    filter(unpinned?, named(get(f, :calls), fetchers))
   )
 end
 
@@ -964,16 +964,13 @@ def concept_facts(repo)
     names: unique(
       flat_map(
         fn(f)
-          flat_map(
-            (c) -> spec_names(c),
-            named(get(f, :calls), get(cfg, :trio_factory))
-          )
+          flat_map(spec_names, named(get(f, :calls), get(cfg, :trio_factory)))
         end,
         trio
       )
     ),
-    trio_imports: unique(flat_map((f) -> imported_files(f), trio)),
-    consumed: unique(flat_map((f) -> imported_files(f), consumers))
+    trio_imports: unique(flat_map(imported_files, trio)),
+    consumed: unique(flat_map(imported_files, consumers))
   }
 end
 
@@ -1055,7 +1052,7 @@ def rules()
       ["modules/pleme/shared/**", "pkgs/**", "overlays/*.nix", "lib/*.nix"],
       "every concept the fleet manages, a shared module, a package, an overlay-added package or a registry consumed as configuration, has one type-known interface on the nixos, darwin and home-manager arms, so it is declared through the module-trio factory",
       "declare it with mkModuleTrio { kind = \"binary\" | \"package\" | \"registry\" | \"service\"; ... } in its own file, or name it (name or packageAttr) in a trio spec",
-      (r) -> check_concepts(r)
+      check_concepts
     ),
     rule(
       "layout/top-level",
@@ -1064,7 +1061,7 @@ def rules()
       ["*"],
       "a fleet repo is one instance of a template: every top-level entry is one the standard names or the instance declares",
       "move the entry under an allowed directory, or name it with allow_top in kijun.b",
-      (r) -> check_top(r)
+      check_top
     ),
     rule(
       "layout/node-shape",
@@ -1073,7 +1070,7 @@ def rules()
       ["nodes/*/"],
       "a node is a directory selected through default.nix; a registry-declared NixOS node selects layers from layers.nix",
       "add nodes/<n>/default.nix (and layers.nix for a NixOS node), or move what is not a node out of nodes/",
-      (r) -> check_nodes(r)
+      check_nodes
     ),
     rule(
       "layout/shared-has-proof",
@@ -1082,7 +1079,7 @@ def rules()
       ["modules/pleme/shared/*.nix"],
       "an option that exists is not a type: each shared options module is proven by a stub-universe harness, unless it is a binary, package or service trio, which substrate's module-trio-kinds matrix proves",
       "add parts/<name>.nix, or declare the concept through mkModuleTrio as a binary, package or service kind; a registry trio keeps its harness, since its projections are its own logic",
-      (r) -> check_proof(r)
+      check_proof
     ),
     rule(
       "layout/shared-reachable",
@@ -1091,7 +1088,7 @@ def rules()
       ["modules/pleme/shared/*.nix"],
       "a shared options module nothing renders or imports is dead weight that looks live; a file that calls mkModuleTrio renders itself, since its module arm picks the platform by class",
       "add modules/pleme/{nixos,darwin}/<name>.nix, import shared/<name>.nix from an import route, or declare the concept through mkModuleTrio",
-      (r) -> check_reachable(r)
+      check_reachable
     ),
     rule(
       "expr/parses",
@@ -1100,7 +1097,7 @@ def rules()
       ["**/*.nix"],
       "a file the parser refuses is checked by no rule",
       "fix the syntax error",
-      (f, r) -> check_parses(f, r)
+      check_parses
     ),
     rule(
       "expr/node-system-only-via-mkNode",
@@ -1109,7 +1106,7 @@ def rules()
       ["**/*.nix"],
       "a machine is declared through the node engine only; a bespoke nixosSystem or darwinSystem call bypasses the registry and its gates",
       "declare the node in the registry, or name the file in the engine setting",
-      (f, r) -> check_system_calls(f, r)
+      check_system_calls
     ),
     rule(
       "expr/profile-no-identity",
@@ -1118,7 +1115,7 @@ def rules()
       ["profiles/**/*.nix"],
       "a profile is reusable across nodes, so it carries no node identity: hostname, hostId, disk UUIDs, node-scoped secrets",
       "set the value in nodes/<n>/",
-      (f, r) -> check_profile_identity(f, r)
+      check_profile_identity
     ),
     rule(
       "expr/lib-is-data",
@@ -1127,7 +1124,7 @@ def rules()
       ["lib/**/*.nix"],
       "data never lives in a module, and lib/ is where data lives: no options, no module functions",
       "move the module to modules/pleme/<layer>/ and keep the data in lib/",
-      (f, r) -> check_lib_data(f, r)
+      check_lib_data
     ),
     rule(
       "expr/shared-declares-only",
@@ -1136,7 +1133,7 @@ def rules()
       ["modules/pleme/shared/**/*.nix"],
       "options never emit: a shared module is imported on both platforms, so platform config there fails the other platform",
       "move the emission to modules/pleme/{nixos,darwin}/<name>.nix",
-      (f, r) -> check_shared_emission(f, r)
+      check_shared_emission
     ),
     rule(
       "expr/shared-asks-no-platform",
@@ -1145,7 +1142,7 @@ def rules()
       ["modules/pleme/shared/**/*.nix"],
       "renderers never decide: a shared module that branches on the platform has taken a renderer's decision",
       "split the branch into the platform renderers",
-      (f, r) -> check_shared_platform_question(f, r)
+      check_shared_platform_question
     ),
     rule(
       "expr/nodes-declare-no-options",
@@ -1154,7 +1151,7 @@ def rules()
       ["nodes/**/*.nix"],
       "a node is identity and selection; an option it declares is a primitive nobody else can reach",
       "declare the option in modules/pleme/shared/ and set it from the node",
-      (f, r) -> check_node_options(f, r)
+      check_node_options
     ),
     rule(
       "expr/no-angle-paths",
@@ -1163,7 +1160,7 @@ def rules()
       ["**/*.nix"],
       "an angle path resolves through NIX_PATH, which the flake lock does not pin",
       "take the input from the flake's inputs",
-      (f, r) -> check_angle(f, r)
+      check_angle
     ),
     rule(
       "expr/no-unpinned-fetch",
@@ -1172,7 +1169,7 @@ def rules()
       ["**/*.nix"],
       "a fetch with no hash is whatever the server serves today",
       "add the hash, or make it a flake input",
-      (f, r) -> check_fetch(f, r)
+      check_fetch
     ),
     rule(
       "expr/no-shell",
@@ -1181,7 +1178,7 @@ def rules()
       ["**/*.nix"],
       "no shell beyond three lines of glue: past that it is a typed tool",
       "write it as a blue program or a typed binary",
-      (f, r) -> check_shell(f, r)
+      check_shell
     ),
     rule(
       "tree/pleme-options-declared-in-shared",
@@ -1190,7 +1187,7 @@ def rules()
       ["modules/pleme/**"],
       "the pleme.* surface is declared in one layer, so every node reads one vocabulary",
       "move the declaration to modules/pleme/shared/ or the platform renderer",
-      (t, r) -> check_pleme_declarations(t, r)
+      check_pleme_declarations
     ),
     rule(
       "tree/hostname-from-node",
@@ -1199,7 +1196,7 @@ def rules()
       ["nodes/**"],
       "a hostname is a node's identity, so only the node defines it",
       "define networking.hostName in nodes/<n>/",
-      (t, r) -> check_hostname(t, r)
+      check_hostname
     ),
     rule(
       "tree/option-evaluates",
@@ -1208,7 +1205,7 @@ def rules()
       ["**"],
       "an option whose definitions cannot be evaluated on a configuration is one no tree rule can see there; it is named alone, and every other option is still read",
       "make the option's default and definitions evaluate on that configuration's class, or declare it only on the class that can",
-      (t, r) -> check_option_evaluates(t, r)
+      check_option_evaluates
     )
   ]
 end
@@ -1285,7 +1282,7 @@ end
 
 def config_refusals(cfg)
   append(
-    filter((x) -> x != nil, map((w) -> waiver_refusal(w), get(cfg, :waivers))),
+    filter((x) -> x != nil, map(waiver_refusal, get(cfg, :waivers))),
     map(
       fn(d)
         refusal(:disable, "#{get(d, :rule)} is not a rule of the standard")
@@ -1321,7 +1318,7 @@ end
 def measurements(xs)
   map(
     (p) -> hadome::measurement(first(p), nth(1, p)),
-    frequencies(map((x) -> key_of(x), xs))
+    frequencies(map(key_of, xs))
   )
 end
 
@@ -1426,7 +1423,7 @@ def nix_string(s)
 end
 
 def tree_expr(excluded)
-  skip = join(map((o) -> nix_string(o), excluded), " ")
+  skip = join(map(nix_string, excluded), " ")
   "c: let lib = c.pkgs.lib; excluded = [ #{skip} ]; defsOf = d: v: if builtins.elem d excluded then { definitions = [ ]; threw = false; } else let fs = builtins.addErrorContext (\"kijun\" + \"-option \" + d) (map (x: x.file) (v.definitionsWithLocations or [ ])); r = builtins.tryEval (builtins.deepSeq fs fs); in if r.success then { definitions = r.value; threw = false; } else { definitions = [ ]; threw = true; }; walk = path: v: if lib.isOption v then [ ({ path = lib.concatStringsSep \".\" path; declarations = v.declarations or [ ]; } // defsOf (lib.concatStringsSep \".\" path) v) ] else if builtins.isAttrs v && !(lib.isDerivation v) then lib.concatLists (lib.mapAttrsToList (n: x: walk (path ++ [ n ]) x) v) else [ ]; in { pleme = walk [ \"pleme\" ] (c.options.pleme or { }); hostname = walk [ \"networking\" \"hostName\" ] (c.options.networking.hostName or { }); }"
 end
 
@@ -1672,7 +1669,7 @@ def rule_line(r)
 end
 
 def rules_text(cfg)
-  "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules\n\n#{join(map((r) -> rule_line(r), rules), "\n")}"
+  "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules\n\n#{join(map(rule_line, rules), "\n")}"
 end
 
 def finding_line(x)
@@ -1732,8 +1729,8 @@ def report_json(cfg, result, verdict, timing)
       standard: get(cfg, :standard),
       version: get(cfg, :version),
       ok: is_empty(get(verdict, :new)),
-      new: map((x) -> plain(x), get(verdict, :new)),
-      findings: map((x) -> plain(x), get(result, :findings)),
+      new: map(plain, get(verdict, :new)),
+      findings: map(plain, get(result, :findings)),
       counts: map(
         (c) -> {rule: first(c), count: nth(1, c)},
         counts(get(result, :findings))
@@ -1773,7 +1770,7 @@ def report_text(cfg, result, verdict, timing)
   fresh = if is_empty(get(verdict, :new))
     "no gate finding outside the baseline\n"
   else
-    "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:\n#{join(map((x) -> finding_line(x), get(verdict, :new)), "")}"
+    "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:\n#{join(map(finding_line, get(verdict, :new)), "")}"
   end
   shrink = if is_empty(get(verdict, :orphans)) and
     is_empty(get(verdict, :shrunk))

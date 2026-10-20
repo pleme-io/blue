@@ -159,7 +159,7 @@ end
 # The hash after every payload is linked in order: the genesis for no payloads.
 def chain_head(genesis, payloads)
   chain_require_hash(genesis, "the genesis")
-  reduce((h, p) -> chain_link(h, p), genesis, payloads)
+  reduce(chain_link, genesis, payloads)
 end
 
 # Every link hash in order, one per payload, as a log stores them beside its

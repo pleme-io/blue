@@ -276,7 +276,7 @@ end
 # one before it by exactly 1, which is the property that separates a walk from
 # a list of draws.
 def random_walk(seed, n)
-  running_sum(map((s) -> next_step(s), seeds(seed, n)))
+  running_sum(map(next_step, seeds(seed, n)))
 end
 
 test "next_uniform stays in bounds and covers them"
@@ -408,7 +408,7 @@ test "the affine derivation fails that test (positive control)"
 end
 
 test "mixed seeds stay 32-bit and draws are uniform"
-  xs = map((i) -> mix_seed(i), range(0, 60))
+  xs = map(mix_seed, range(0, 60))
   assert every((x) -> x >= 0 and x < 4_294_967_296, xs) == true
   m = reduce((a, i) -> a + next_float(stream_seed(1, i)), 0, range(0, 60)) / 60
   assert abs(m - 0.5) < 0.1

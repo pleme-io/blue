@@ -329,7 +329,7 @@ def main(args)
       map((e) -> write_stdout("#{json_stringify(e)}\n"), found)
       true
     else
-      write_stdout("#{join(map((e) -> entry_text(e), found), "\n\n")}\n")
+      write_stdout("#{join(map(entry_text, found), "\n\n")}\n")
       true
     end
   end

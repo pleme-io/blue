@@ -17,7 +17,7 @@ end
 # The words of a text, lower-cased, punctuation at either end removed.
 def kz_words(text)
   tokens = map((w) -> downcase(kz_strip(w)), words(text))
-  filter((w) -> kz_word?(w), tokens)
+  filter(kz_word?, tokens)
 end
 
 def kz_strip(word)

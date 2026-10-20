@@ -268,7 +268,7 @@ def pairs(xs)
 end
 
 def union_all(xss)
-  reduce((acc, s) -> union(acc, s), [], xss)
+  reduce(union, [], xss)
 end
 
 # The intersection of a FAMILY of sets. Seeded with the first member rather
@@ -281,7 +281,7 @@ def intersection_all(xss)
   if is_empty(xss)
     []
   else
-    reduce((acc, s) -> intersection(acc, s), first(xss), rest(xss))
+    reduce(intersection, first(xss), rest(xss))
   end
 end
 

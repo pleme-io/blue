@@ -475,7 +475,7 @@ end
 # collapse and leading/trailing space is dropped. Titles are being formatted,
 # not text being preserved; use `words` + `capitalize` directly to keep layout.
 def title_case(s)
-  join(map((w) -> capitalize(w), words(s)), " ")
+  join(map(capitalize, words(s)), " ")
 end
 
 def swap_char(c)
@@ -489,7 +489,7 @@ end
 # Case inverted character by character. Caseless characters — digits,
 # punctuation, kana — pass through, which is what makes it self-inverse.
 def swap_case(s)
-  join(map((c) -> swap_char(c), chars(s)), "")
+  join(map(swap_char, chars(s)), "")
 end
 
 # ── character-class predicates ─────────────────────────────────────

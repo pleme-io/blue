@@ -358,7 +358,7 @@ end
 
 # The state at time t, linearly interpolated between samples.
 def state_at(samples, t)
-  ts = map((s) -> sample_t(s), samples)
+  ts = map(sample_t, samples)
   i = segment(ts, t)
   a = nth(i, samples)
   b = nth(i + 1, samples)
@@ -627,7 +627,7 @@ def nelder_mead(f, x0, step, opts)
 end
 
 def nm_sort(simplex)
-  sort_stable_by((v) -> nm_f(v), simplex)
+  sort_stable_by(nm_f, simplex)
 end
 
 def nm_converged?(simplex, ftol, xtol)
@@ -893,14 +893,14 @@ def blowup(_t, y)
 end
 
 test "an ODE over no time is its start"
-  r = ode((t, y) -> decay(t, y), 2.0, [1.0], 2.0, {})
+  r = ode(decay, 2.0, [1.0], 2.0, {})
   assert value(r, :samples) == [[2.0, [1.0]]]
   assert get(r, :steps) == 0
 end
 
 test "decay matches exp(-t), by fixed and adaptive steps"
   # Independently checkable: y' = -y from y(0) = 1 is exp(-t).
-  rk = rk4((t, y) -> decay(t, y), 0.0, [1.0], 0.01, 100)
+  rk = rk4(decay, 0.0, [1.0], 0.01, 100)
   assert size(value(rk, :samples)) == 101
   assert near_within(
     nth(0, sample_y(last(get(rk, :samples)))),
@@ -908,13 +908,7 @@ test "decay matches exp(-t), by fixed and adaptive steps"
     0.0000001
   ) ==
     true
-  dp = ode(
-    (t, y) -> decay(t, y),
-    0.0,
-    [1.0],
-    1.0,
-    {rtol: 0.000000001, atol: 0.000000000001}
-  )
+  dp = ode(decay, 0.0, [1.0], 1.0, {rtol: 0.000000001, atol: 0.000000000001})
   assert near_within(nth(0, final(dp)), exp(-1.0), 0.00000001) == true
   # The adaptive solver takes far fewer steps than the fixed one for this.
   assert get(dp, :steps) < 100
@@ -931,7 +925,7 @@ test "an oscillator keeps its energy"
   # An identity: x'' = -x conserves x^2 + v^2; after one period it is back.
   two_pi = 2 * 3.141592653589793
   r = ode(
-    (t, y) -> oscillator(t, y),
+    oscillator,
     0.0,
     [1.0, 0.0],
     two_pi,
@@ -945,7 +939,7 @@ end
 
 test "an ODE that blows up is refused, not answered"
   # The control: y' = y^2 from y(0) = 1 is 1 / (1 - t), infinite at t = 1.
-  r = ode((t, y) -> blowup(t, y), 0.0, [1.0], 2.0, {})
+  r = ode(blowup, 0.0, [1.0], 2.0, {})
   assert is_empty(get(r, :refusals)) == false
   assert error?(
     begin
@@ -955,7 +949,7 @@ test "an ODE that blows up is refused, not answered"
     end
   ) ==
     true
-  rk = rk4((t, y) -> blowup(t, y), 0.0, [1.0], 0.1, 30)
+  rk = rk4(blowup, 0.0, [1.0], 0.1, 30)
   assert refusal_kinds(rk) == [:kinji_diverged]
 end
 

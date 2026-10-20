@@ -222,7 +222,7 @@ end
 
 # Several meshes as one, the later faces re-indexed past the earlier vertices.
 def merge(meshes)
-  reduce((acc, m) -> merge_two(acc, m), empty_mesh, meshes)
+  reduce(merge_two, empty_mesh, meshes)
 end
 
 def merge_two(a, b)
@@ -318,16 +318,8 @@ end
 def bounds(m)
   vs = vertices(m)
   [
-    [
-      min_of(map((p) -> x(p), vs)),
-      min_of(map((p) -> y(p), vs)),
-      min_of(map((p) -> z(p), vs))
-    ],
-    [
-      max_of(map((p) -> x(p), vs)),
-      max_of(map((p) -> y(p), vs)),
-      max_of(map((p) -> z(p), vs))
-    ]
+    [min_of(map(x, vs)), min_of(map(y, vs)), min_of(map(z, vs))],
+    [max_of(map(x, vs)), max_of(map(y, vs)), max_of(map(z, vs))]
   ]
 end
 
@@ -386,10 +378,7 @@ def closed_refusals(m)
     filter((kv) -> get(present, reverse_key(nth(0, kv))) == nil, seen)
   )
   crowded = size(
-    filter(
-      (kv) -> nth(1, kv) > 2,
-      count_keys(map((k) -> undirected_key(k), directed))
-    )
+    filter((kv) -> nth(1, kv) > 2, count_keys(map(undirected_key, directed)))
   )
   out = concat_lists(
     if crowded > 0
@@ -464,11 +453,7 @@ end
 # shared by more than two faces (they only touch).
 def weld(m)
   vs = vertices(m)
-  fin = reduce(
-    (acc, p) -> weld_step(acc, p),
-    {index: {}, kept: [], count: 0, remap: []},
-    vs
-  )
+  fin = reduce(weld_step, {index: {}, kept: [], count: 0, remap: []}, vs)
   remap = reverse(get(fin, :remap))
   mesh(
     reverse(get(fin, :kept)),
@@ -539,12 +524,7 @@ end
 
 # waive B0013: `distinct` is a builtin rittai also uses, so the prefix stays; rittai::distinct names it too
 def rt_distinct(keys, _table)
-  reverse(
-    get(
-      reduce((acc, k) -> distinct_step(acc, k), {seen: {}, out: []}, keys),
-      :out
-    )
-  )
+  reverse(get(reduce(distinct_step, {seen: {}, out: []}, keys), :out))
 end
 
 def distinct_step(acc, k)
@@ -615,10 +595,7 @@ end
 def bridge(pts, poly, h, holes)
   m = rightmost(pts, h)
   cands = sort_by((i) -> distance_squared(nth(i, pts), nth(m, pts)), poly)
-  edges = concat_lists(
-    index_edges(poly),
-    flat_map((l) -> index_edges(l), holes)
-  )
+  edges = concat_lists(index_edges(poly), flat_map(index_edges, holes))
   p = find_first((i) -> visible(pts, m, i, edges), cands)
   at = index_of(poly, p)
   k = index_of(h, m)

@@ -325,7 +325,7 @@ def table_sql_in(schema, t)
 end
 
 def ddl(svc)
-  join(map((t) -> table_sql(t), tables(svc)), "\n")
+  join(map(table_sql, tables(svc)), "\n")
 end
 
 def ddl_in(schema, svc)

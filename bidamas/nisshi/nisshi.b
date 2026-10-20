@@ -418,7 +418,7 @@ def canon_list(v)
   if object?(v)
     canon_object(v)
   else
-    "[#{join(map((x) -> canon(x), v), ",")}]"
+    "[#{join(map(canon, v), ",")}]"
   end
 end
 
@@ -436,7 +436,7 @@ end
 # Pairs ordered by key text, in code-point order (what `compare` gives).
 # Raises when a pair is not [name, value] or two keys share one text.
 def sorted_pairs(pairs)
-  checked = map((p) -> require_pair(p), as_list(pairs))
+  checked = map(require_pair, as_list(pairs))
   sorted = sort_stable_by((p) -> key_text(first(p)), checked)
   texts = map((p) -> key_text(first(p)), sorted)
   dup = find_first(
@@ -464,7 +464,7 @@ end
 
 # The canonical text of an object given as [name, value] pairs; "{}" for none.
 def canon_object(pairs)
-  "{#{join(map((p) -> canon_member(p), sorted_pairs(pairs)), ",")}}"
+  "{#{join(map(canon_member, sorted_pairs(pairs)), ",")}}"
 end
 
 def canon_member(p)
@@ -553,7 +553,7 @@ def normal_value(v)
   elsif object?(v)
     map((p) -> [first(p), normal_value(nth(1, p))], sorted_pairs(v))
   elsif list?(v)
-    map((x) -> normal_value(x), v)
+    map(normal_value, v)
   else
     v
   end
@@ -600,7 +600,7 @@ end
 
 # Links as the log holds them: [kind, id] pairs, the kind as text, in order.
 def normal_links(links)
-  map((l) -> normal_link(l), as_list(links))
+  map(normal_link, as_list(links))
 end
 
 def normal_link(l)
@@ -618,7 +618,7 @@ def normal_link(l)
 end
 
 def links_text(links)
-  "[#{join(map((l) -> link_text(l), links), ",")}]"
+  "[#{join(map(link_text, links), ",")}]"
 end
 
 def link_text(l)
@@ -1237,7 +1237,7 @@ def from_text(text, path, bytes, label, d)
     (i) -> decode_at(names, i, nth(i, lines), torn and i == n - 1),
     range(0, n)
   )
-  reduce((l, x) -> absorb(l, x), new(path, label, d, bytes, records), records)
+  reduce(absorb, new(path, label, d, bytes, records), records)
 end
 
 def decode_at(names, i, line, is_torn)
@@ -1465,7 +1465,7 @@ def verify(log, public_hex, expected_head)
   records = nisshi::records(log)
   bad = find_first((x) -> record?(x) == false, records)
   good = before_bad(records, bad)
-  texts = map((r) -> texts_of(r), good)
+  texts = map(texts_of, good)
   g = genesis(label(log))
   found = filter(
     (b) -> b != nil,
@@ -1477,7 +1477,7 @@ def verify(log, public_hex, expected_head)
       break_sig(good, public_hex)
     ]
   )
-  earliest = reduce((best, b) -> earlier(best, b), nil, found)
+  earliest = reduce(earlier, nil, found)
   head = head_of(g, good)
   if earliest != nil
     [:el_broken, nth(0, earliest), nth(1, earliest), nth(2, earliest)]
@@ -1529,11 +1529,7 @@ end
 # named :prev when its prev is not the hash before it (a line is missing or
 # out of order) and :hash when its content changed.
 def break_chain(g, good, texts)
-  p = chain_first_break(
-    g,
-    map((t) -> body_text(t), texts),
-    map((r) -> rec_hash(r), good)
-  )
+  p = chain_first_break(g, map(body_text, texts), map(rec_hash, good))
   if p == nil
     nil
   elsif rec_prev(nth(p, good)) != head_of(g, take_n(good, p))
@@ -1572,7 +1568,7 @@ def canonical_at?(r, t)
 end
 
 def break_seq(good)
-  nth(1, reduce((acc, r) -> seq_step(acc, r), [{}, nil], good))
+  nth(1, reduce(seq_step, [{}, nil], good))
 end
 
 def seq_step(acc, r)
@@ -1658,7 +1654,7 @@ end
 # a value that was read, not one that was appended to.
 def history(log)
   d = el_def(log)
-  records = filter((x) -> record?(x), nisshi::records(log))
+  records = filter(record?, nisshi::records(log))
   retsu::last(reduce((acc, r) -> history_step(d, acc, r), [{}, []], records))
 end
 
@@ -1702,11 +1698,7 @@ end
 # The records grouped by entity: [[entity, records]] in the order entities
 # first appear, each group in stream order. Bad lines are left out.
 def by_entity(records)
-  acc = reduce(
-    (a, x) -> group_add(a, x),
-    [[], {}],
-    filter((x) -> record?(x), as_list(records))
-  )
+  acc = reduce(group_add, [[], {}], filter(record?, as_list(records)))
   map((e) -> [e, reverse(get(nth(1, acc), e))], first(acc))
 end
 
@@ -1828,7 +1820,7 @@ test "an identity: append then read gives back every record and every state, and
         first(grp),
         raifusaikuru::state_of(
           d,
-          map((r) -> rec_event(r), filter((r) -> rec_admitted?(r), nth(1, grp)))
+          map(rec_event, filter(rec_admitted?, nth(1, grp)))
         )
       ]
     end,
@@ -1875,9 +1867,9 @@ test "a refused event is written, marked with its reason, counted in seq, and fo
   assert rec_type(el_last(l3)) == "fly"
   back = records(read(p, "nisshi-test", d))
   rm(p)
-  assert map((x) -> rec_status(x), back) ==
+  assert map(rec_status, back) ==
     [:refused, :admitted, :admitted, :refused, :refused]
-  assert map((x) -> rec_seq(x), back) == [0, 1, 2, 3, 4]
+  assert map(rec_seq, back) == [0, 1, 2, 3, 4]
   assert retsu::last(back) == el_last(l3)
 end
 
@@ -1913,7 +1905,7 @@ test "values checked independently: the genesis and every hash by b3sum, the sig
   rm(p)
   assert genesis("nisshi-doc") ==
     "0a42d546253d153e4253d118781c1b773338b3dd532373a12a83accd79e7cba2"
-  assert map((r) -> rec_hash(r), back) ==
+  assert map(rec_hash, back) ==
     [
       "9172aea16c9c2cb304ee3d624c0a79be88ca7537769f3386b64aa55b273dc412",
       "c0a4ffe9fe283b42e163c6ef6b722139699dc07dc1626520e65600acf08d062e",
@@ -2068,7 +2060,7 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
   )
   assert intact == [:el_intact, 5, head]
   rows = control_rows(lines, head, k, other)
-  assert map((row) -> control_verdict(row), rows) ==
+  assert map(control_verdict, rows) ==
     map((row) -> [first(row), nth(4, row)], rows)
   # Dropping the LAST line is invisible without the recorded head.
   assert intact?(
@@ -2353,7 +2345,7 @@ test "history: the state after every record, from read's own fold"
         raifusaikuru::state_of(
           d,
           map(
-            (r) -> rec_event(r),
+            rec_event,
             filter(
               fn(r)
                 rec_entity(r) == rec_entity(first(x)) and
@@ -2398,8 +2390,8 @@ test "grouping by entity keeps first-appearance order and stream order, and leav
   )
   groups = by_entity(push(recs, bad(5, "x", "not JSON")))
   assert map((g) -> first(g), groups) == ["item-1", "item-2"]
-  assert map((r) -> el_position(r), nth(1, first(groups))) == [0, 1, 2, 3]
-  assert map((r) -> el_position(r), nth(1, nth(1, groups))) == [4]
+  assert map(el_position, nth(1, first(groups))) == [0, 1, 2, 3]
+  assert map(el_position, nth(1, nth(1, groups))) == [4]
   assert by_entity([]) == []
 end
 

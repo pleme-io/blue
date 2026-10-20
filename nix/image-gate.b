@@ -40,14 +40,11 @@ def findings(paths, tier)
   else
     map(
       (s) -> "#{s}: a shell, and the image declares none",
-      flat_map((p) -> shells_in(p), paths)
+      flat_map(shells_in, paths)
     )
   end
   libc = if tier == "distroless-static"
-    map(
-      (p) -> "#{p}: glibc, on the static tier",
-      filter((p) -> glibc?(p), paths)
-    )
+    map((p) -> "#{p}: glibc, on the static tier", filter(glibc?, paths))
   else
     []
   end
@@ -56,7 +53,7 @@ end
 
 def gate(file, tier)
   paths = closure(file)
-  if not any?((p) -> blue?(p), paths)
+  if not any?(blue?, paths)
     raise(:gate, "#{file} holds no bin/blue: this is not an image's closure")
   end
   found = findings(paths, tier)

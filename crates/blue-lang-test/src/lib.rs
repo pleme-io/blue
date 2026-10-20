@@ -120,7 +120,11 @@ fn first_difference(a: &Value, b: &Value) -> Option<String> {
             (x.len() != y.len()).then(|| format!(" lengths {} vs {}", x.len(), y.len()))
         }
         (Value::Map(x), Value::Map(y)) => {
-            let mut keys: Vec<_> = x.iter().map(|(k, _)| k.clone()).chain(y.iter().map(|(k, _)| k.clone())).collect();
+            let mut keys: Vec<_> = x
+                .iter()
+                .map(|(k, _)| k.clone())
+                .chain(y.iter().map(|(k, _)| k.clone()))
+                .collect();
             keys.sort_by_key(|k| render_value(&k.to_value()));
             keys.dedup();
             for k in keys {
@@ -171,7 +175,12 @@ impl std::fmt::Display for Failure {
                 operands,
             } => {
                 write!(f, "FAIL {test}\n  assert {expression}")?;
-                if let Some(Operands { left, right, difference }) = operands {
+                if let Some(Operands {
+                    left,
+                    right,
+                    difference,
+                }) = operands
+                {
                     write!(f, "\n  left:  {left}\n  right: {right}")?;
                     if let Some(d) = difference {
                         write!(f, "\n  differ: at {}", d.trim_start())?;

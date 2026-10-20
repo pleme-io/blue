@@ -19,26 +19,102 @@ pub struct Synonym {
 }
 
 pub const SYNONYMS: &[Synonym] = &[
-    Synonym { name: "car", argc: 1, respell: Respell::Rename("first"), code: Code::B0036, written: "first(xs)" },
-    Synonym { name: "cdr", argc: 1, respell: Respell::Rename("rest"), code: Code::B0036, written: "rest(xs)" },
-    Synonym { name: "next", argc: 1, respell: Respell::Rename("rest"), code: Code::B0036, written: "rest(xs)" },
-    Synonym { name: "modulo", argc: 2, respell: Respell::Rename("mod"), code: Code::B0036, written: "a % b" },
-    Synonym { name: "rem", argc: 2, respell: Respell::Rename("mod"), code: Code::B0036, written: "a % b" },
-    Synonym { name: "bool?", argc: 1, respell: Respell::Rename("boolean?"), code: Code::B0036, written: "boolean?(x)" },
-    Synonym { name: "comp", argc: 2, respell: Respell::Rename("compose"), code: Code::B0036, written: "compose(f, g)" },
-    Synonym { name: "foldl", argc: 3, respell: Respell::Rename("reduce"), code: Code::B0036, written: "reduce(f, init, xs)" },
-    Synonym { name: "nil?", argc: 1, respell: Respell::CompareNil("equal?"), code: Code::B0036, written: "x == nil" },
-    Synonym { name: "some?", argc: 1, respell: Respell::CompareNil("not="), code: Code::B0036, written: "x != nil" },
-    Synonym { name: "error_kind", argc: 1, respell: Respell::Field("kind"), code: Code::B0036, written: "e.kind" },
-    Synonym { name: "error_message", argc: 1, respell: Respell::Field("message"), code: Code::B0036, written: "e.message" },
-    Synonym { name: "throw", argc: 1, respell: Respell::Raise, code: Code::B0037, written: "raise(…)" },
+    Synonym {
+        name: "car",
+        argc: 1,
+        respell: Respell::Rename("first"),
+        code: Code::B0036,
+        written: "first(xs)",
+    },
+    Synonym {
+        name: "cdr",
+        argc: 1,
+        respell: Respell::Rename("rest"),
+        code: Code::B0036,
+        written: "rest(xs)",
+    },
+    Synonym {
+        name: "next",
+        argc: 1,
+        respell: Respell::Rename("rest"),
+        code: Code::B0036,
+        written: "rest(xs)",
+    },
+    Synonym {
+        name: "modulo",
+        argc: 2,
+        respell: Respell::Rename("mod"),
+        code: Code::B0036,
+        written: "a % b",
+    },
+    Synonym {
+        name: "rem",
+        argc: 2,
+        respell: Respell::Rename("mod"),
+        code: Code::B0036,
+        written: "a % b",
+    },
+    Synonym {
+        name: "bool?",
+        argc: 1,
+        respell: Respell::Rename("boolean?"),
+        code: Code::B0036,
+        written: "boolean?(x)",
+    },
+    Synonym {
+        name: "comp",
+        argc: 2,
+        respell: Respell::Rename("compose"),
+        code: Code::B0036,
+        written: "compose(f, g)",
+    },
+    Synonym {
+        name: "foldl",
+        argc: 3,
+        respell: Respell::Rename("reduce"),
+        code: Code::B0036,
+        written: "reduce(f, init, xs)",
+    },
+    Synonym {
+        name: "nil?",
+        argc: 1,
+        respell: Respell::CompareNil("equal?"),
+        code: Code::B0036,
+        written: "x == nil",
+    },
+    Synonym {
+        name: "some?",
+        argc: 1,
+        respell: Respell::CompareNil("not="),
+        code: Code::B0036,
+        written: "x != nil",
+    },
+    Synonym {
+        name: "error_kind",
+        argc: 1,
+        respell: Respell::Field("kind"),
+        code: Code::B0036,
+        written: "e.kind",
+    },
+    Synonym {
+        name: "error_message",
+        argc: 1,
+        respell: Respell::Field("message"),
+        code: Code::B0036,
+        written: "e.message",
+    },
+    Synonym {
+        name: "throw",
+        argc: 1,
+        respell: Respell::Raise,
+        code: Code::B0037,
+        written: "raise(…)",
+    },
 ];
 
 #[must_use]
 pub fn synonym(name: &str, argc: usize) -> Option<&'static Synonym> {
-    SYNONYMS
-        .iter()
-        .find(|s| s.name == name && s.argc == argc)
+    SYNONYMS.iter().find(|s| s.name == name && s.argc == argc)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -100,7 +176,10 @@ pub fn apply(call: &Spanned, items: &[Spanned], r: &Respelling) -> Spanned {
                             d.span,
                             SpannedForm::List(vec![
                                 sym(d.span, blue_lang_syntax::LOWERED_MAP),
-                                Spanned::new(d.span, SpannedForm::Atom(Atom::Keyword("data".to_string()))),
+                                Spanned::new(
+                                    d.span,
+                                    SpannedForm::Atom(Atom::Keyword("data".to_string())),
+                                ),
                                 d.clone(),
                             ]),
                         ));

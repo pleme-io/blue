@@ -644,7 +644,9 @@ impl<'s> Renderer<'s> {
 
     fn seq_of(&self, open: &str, close: &str, items: &[Spanned], lo: usize, hi: usize) -> Doc {
         if let [only] = items {
-            if matches!(only.form, SpannedForm::Atom(_) | SpannedForm::Nil) && !self.has_comments(lo, hi) {
+            if matches!(only.form, SpannedForm::Atom(_) | SpannedForm::Nil)
+                && !self.has_comments(lo, hi)
+            {
                 return Doc::text(open.to_string())
                     .concat(self.expr(only, 0))
                     .concat(Doc::text(close.to_string()));
@@ -731,7 +733,9 @@ impl<'s> Renderer<'s> {
             }
             Some(n) if n == blue_lang_syntax::LOWERED_FIELD && items.len() == 3 => {
                 if let Some(field) = items[2].as_keyword().filter(|k| plain_field(k)) {
-                    let d = self.expr(&items[1], 12).concat(Doc::text(format!(".{field}")));
+                    let d = self
+                        .expr(&items[1], 12)
+                        .concat(Doc::text(format!(".{field}")));
                     return d;
                 }
             }
@@ -743,16 +747,14 @@ impl<'s> Renderer<'s> {
                     && !(matches!(head, Some("and" | "or")) && items.len() == 3)
                     && !(head == Some("not") && items.len() == 2) =>
             {
-                {
-                    let callee = Doc::text(head.unwrap_or("begin").to_string());
-                    let (lo, hi) = if self.real(s.span) && self.real(items[0].span) {
-                        let (_, hi) = self.inside(s, b'(', b')');
-                        (items[0].span.end, hi)
-                    } else {
-                        (0, 0)
-                    };
-                    return callee.concat(self.seq_of("(", ")", &items[1..], lo, hi));
-                }
+                let callee = Doc::text(head.unwrap_or("begin").to_string());
+                let (lo, hi) = if self.real(s.span) && self.real(items[0].span) {
+                    let (_, hi) = self.inside(s, b'(', b')');
+                    (items[0].span.end, hi)
+                } else {
+                    (0, 0)
+                };
+                return callee.concat(self.seq_of("(", ")", &items[1..], lo, hi));
             }
             // (define (name params...) body)
             Some("define") if items.len() == 3 && is_signature(&items[1]) => {
@@ -1007,7 +1009,9 @@ impl<'s> Renderer<'s> {
             .as_list()
             .is_some_and(|i| i.len() == 2 && i[0].as_symbol() == Some("not"));
         if negation && prec >= 5 {
-            return Doc::text("(").concat(self.expr(s, 0)).concat(Doc::text(")"));
+            return Doc::text("(")
+                .concat(self.expr(s, 0))
+                .concat(Doc::text(")"));
         }
         self.expr(s, prec)
     }
@@ -1243,7 +1247,8 @@ impl<'s> Renderer<'s> {
 
     fn def_block(&self, s: &Spanned, header: Doc, body: &Spanned) -> Doc {
         let inline = inline_rescue(body).is_some_and(|(x, h)| {
-            !flat_text(&self.expr(x, 0)).contains('\n') && !flat_text(&self.expr(h, 1)).contains('\n')
+            !flat_text(&self.expr(x, 0)).contains('\n')
+                && !flat_text(&self.expr(h, 1)).contains('\n')
         });
         if !inline {
             if let Some(parts) = self.rescue_parts(body) {
@@ -1435,7 +1440,12 @@ fn inline_rescue(s: &Spanned) -> Option<(&Spanned, &Spanned)> {
 
 fn thunk_body(s: &Spanned) -> Option<&Spanned> {
     match s.as_list()? {
-        [l, params, body] if l.as_symbol() == Some("lambda") && params.as_list().is_some_and(<[Spanned]>::is_empty) => Some(body),
+        [l, params, body]
+            if l.as_symbol() == Some("lambda")
+                && params.as_list().is_some_and(<[Spanned]>::is_empty) =>
+        {
+            Some(body)
+        }
         _ => None,
     }
 }

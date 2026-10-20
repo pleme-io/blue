@@ -23,8 +23,7 @@ fn data_key(k: &Value) -> Option<&str> {
 
 fn raised_by_blue(e: &ErrorObj) -> bool {
     !e.data.is_empty()
-        && e
-            .data
+        && e.data
             .iter()
             .all(|(k, _)| matches!(data_key(k), Some(DATA | CAUSE | TRACE)))
 }
@@ -118,7 +117,13 @@ fn build(
     };
     let message: Arc<str> = match message {
         Value::Str(s) => s.clone(),
-        other => return Err(EvalError::type_mismatch("a message string", other.type_name(), sp)),
+        other => {
+            return Err(EvalError::type_mismatch(
+                "a message string",
+                other.type_name(),
+                sp,
+            ))
+        }
     };
     let mut data = Vec::new();
     match opts {
@@ -134,7 +139,10 @@ fn build(
                     other => {
                         return Err(EvalError::native_fn(
                             "raise",
-                            format!("its options are {{data: …, cause: …}}, and `{}` is neither", crate::literal::render_value(&other.to_value())),
+                            format!(
+                                "its options are {{data: …, cause: …}}, and `{}` is neither",
+                                crate::literal::render_value(&other.to_value())
+                            ),
                             sp,
                         ))
                     }
@@ -158,7 +166,11 @@ fn build(
     Ok(Value::Error(Arc::new(ErrorObj { tag, message, data })))
 }
 
-fn raise_with(args: &[Value], trace: Option<String>, sp: tatara_lisp::Span) -> Result<Value, EvalError> {
+fn raise_with(
+    args: &[Value],
+    trace: Option<String>,
+    sp: tatara_lisp::Span,
+) -> Result<Value, EvalError> {
     let value = match args {
         [single] => single.clone(),
         [kind, message] => build(kind, message, None, trace, sp)?,
@@ -257,17 +269,26 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn("raise", Arity::Range(1, 3), |a: &[Value], _h: &mut H, s| {
         raise_with(a, None, s)
     });
-    interp.register_fn(RAISE_AT, Arity::Range(2, 4), |a: &[Value], _h: &mut H, s| {
-        let at = match &a[0] {
-            Value::Str(x) => Some(x.to_string()),
-            _ => None,
-        };
-        raise_with(&a[1..], at, s)
-    });
+    interp.register_fn(
+        RAISE_AT,
+        Arity::Range(2, 4),
+        |a: &[Value], _h: &mut H, s| {
+            let at = match &a[0] {
+                Value::Str(x) => Some(x.to_string()),
+                _ => None,
+            };
+            raise_with(&a[1..], at, s)
+        },
+    );
     interp.register_fn(
         blue_lang_syntax::LOWERED_RERAISE,
         Arity::Exact(1),
-        |a: &[Value], _h: &mut H, s| Err(EvalError::User { value: a[0].clone(), at: s }),
+        |a: &[Value], _h: &mut H, s| {
+            Err(EvalError::User {
+                value: a[0].clone(),
+                at: s,
+            })
+        },
     );
     interp.register_fn(
         blue_lang_syntax::LOWERED_ERROR_MATCH,
@@ -279,7 +300,11 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(2),
         |a: &[Value], _h: &mut H, s| match &a[1] {
             Value::Keyword(k) => field(&a[0], k, s),
-            other => Err(EvalError::type_mismatch("a field name", other.type_name(), s)),
+            other => Err(EvalError::type_mismatch(
+                "a field name",
+                other.type_name(),
+                s,
+            )),
         },
     );
     interp.register_fn(
@@ -299,9 +324,10 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
             caller.apply_value(&a[1], Vec::new(), host, s)?;
             match &a[0] {
                 Value::List(p) if p.len() == 2 => match &p[0] {
-                    Value::Keyword(k) if &**k == "raised" => {
-                        Err(EvalError::User { value: p[1].clone(), at: s })
-                    }
+                    Value::Keyword(k) if &**k == "raised" => Err(EvalError::User {
+                        value: p[1].clone(),
+                        at: s,
+                    }),
                     _ => Ok(p[1].clone()),
                 },
                 other => Ok(other.clone()),

@@ -33,9 +33,10 @@ pub use parse::{
     parse_program_in, parse_program_spanned, parse_program_spanned_with_depth, parse_program_tree,
     parse_program_tree_in, parse_program_tree_with_depth, parse_program_with_depth,
     parses_on_this_thread, qualified, qualify, spelling_notes, Comment, Infix, ParseError,
-    BLOCK_KEYWORDS, BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_ATTEMPTED, LOWERED_FAILED, LOWERED_CONCAT, LOWERED_ENSURE,
-    LOWERED_ERROR_MATCH, LOWERED_FIELD, LOWERED_MAP, LOWERED_RERAISE, MAX_EXPR_DEPTH,
-    OPERATOR_KEYWORDS, QUALIFIER, RESCUED, SURFACE_KEYWORDS, SYMBOL_SPELLINGS,
+    BLOCK_KEYWORDS, BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_ATTEMPTED, LOWERED_CONCAT,
+    LOWERED_ENSURE, LOWERED_ERROR_MATCH, LOWERED_FAILED, LOWERED_FIELD, LOWERED_MAP,
+    LOWERED_RERAISE, MAX_EXPR_DEPTH, OPERATOR_KEYWORDS, QUALIFIER, RESCUED, SURFACE_KEYWORDS,
+    SYMBOL_SPELLINGS,
 };
 pub use spelling::{Note, Spelling};
 // `Spanned`/`SpannedForm` alongside `Sexp` for the same reason `Sexp` is here:

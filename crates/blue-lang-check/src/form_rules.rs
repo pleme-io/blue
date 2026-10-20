@@ -8,7 +8,11 @@ use crate::{Code, Diagnostic};
 pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     let mut tests: HashMap<String, Span> = HashMap::new();
-    let entry: Vec<(usize, &Spanned)> = forms.iter().enumerate().filter(|(i, _)| is_entry(*i)).collect();
+    let entry: Vec<(usize, &Spanned)> = forms
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| is_entry(*i))
+        .collect();
     for (i, form) in &entry {
         swallowed(form, *i, &mut out);
         if !is_constant(form) {
@@ -17,9 +21,13 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
         if let Some((name, span)) = test_name(form) {
             if tests.contains_key(&name) {
                 out.push(
-                    Diagnostic::new(Code::B0039, format!("a test named \"{name}\" is already in this file"), span)
-                        .at_top_level(*i)
-                        .with_help("rename one of the two so each says what it holds"),
+                    Diagnostic::new(
+                        Code::B0039,
+                        format!("a test named \"{name}\" is already in this file"),
+                        span,
+                    )
+                    .at_top_level(*i)
+                    .with_help("rename one of the two so each says what it holds"),
                 );
             } else {
                 tests.insert(name, span);
@@ -29,7 +37,9 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
     let bodies: Vec<&Spanned> = entry.iter().map(|(_, f)| *f).collect();
     if script {
         if let Some(prefix) = script_prefix(&bodies) {
-            let at = entry.iter().find(|(_, f)| defined_name(f).is_some_and(|n| n.starts_with(&prefix)));
+            let at = entry
+                .iter()
+                .find(|(_, f)| defined_name(f).is_some_and(|n| n.starts_with(&prefix)));
             if let Some((i, f)) = at {
                 let fixable = strip_plan(&bodies, &prefix).is_some();
                 let message = format!(
@@ -40,7 +50,11 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
                 } else {
                     format!("strip `{prefix}` by hand: a stripped name is already used in the file, a builtin or a reserved word")
                 };
-                out.push(Diagnostic::new(Code::B0043, message, f.span).at_top_level(*i).with_help(help));
+                out.push(
+                    Diagnostic::new(Code::B0043, message, f.span)
+                        .at_top_level(*i)
+                        .with_help(help),
+                );
             }
         }
     }
@@ -70,7 +84,10 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
 
 fn defined_name(form: &Spanned) -> Option<&str> {
     let items = form.as_list()?;
-    if !matches!(items.first().and_then(Spanned::as_symbol), Some("define" | "define-typed" | "defmacro")) {
+    if !matches!(
+        items.first().and_then(Spanned::as_symbol),
+        Some("define" | "define-typed" | "defmacro")
+    ) {
         return None;
     }
     match items.get(1)? {
@@ -87,7 +104,11 @@ fn script_prefix(forms: &[&Spanned]) -> Option<String> {
     let first = names[0].split_once('_')?.0;
     let shaped = (1..=4).contains(&first.len()) && first.chars().all(|c| c.is_ascii_lowercase());
     let prefix = format!("{first}_");
-    (shaped && names.iter().all(|n| n.starts_with(&prefix) && n.len() > prefix.len())).then_some(prefix)
+    (shaped
+        && names
+            .iter()
+            .all(|n| n.starts_with(&prefix) && n.len() > prefix.len()))
+    .then_some(prefix)
 }
 
 fn symbols(form: &Spanned, out: &mut std::collections::BTreeSet<String>) {
@@ -96,7 +117,10 @@ fn symbols(form: &Spanned, out: &mut std::collections::BTreeSet<String>) {
             out.insert(s.clone());
         }
         SpannedForm::List(items) => items.iter().for_each(|i| symbols(i, out)),
-        SpannedForm::Quote(i) | SpannedForm::Quasiquote(i) | SpannedForm::Unquote(i) | SpannedForm::UnquoteSplice(i) => {
+        SpannedForm::Quote(i)
+        | SpannedForm::Quasiquote(i)
+        | SpannedForm::Unquote(i)
+        | SpannedForm::UnquoteSplice(i) => {
             symbols(i, out);
         }
         _ => {}
@@ -110,7 +134,9 @@ fn strip_plan(forms: &[&Spanned], prefix: &str) -> Option<Vec<(String, String)>>
     }
     let mut plan = Vec::new();
     for f in forms {
-        let Some(name) = defined_name(f) else { continue };
+        let Some(name) = defined_name(f) else {
+            continue;
+        };
         let Some(stripped) = name.strip_prefix(prefix).filter(|s| !s.is_empty()) else {
             continue;
         };
@@ -120,7 +146,9 @@ fn strip_plan(forms: &[&Spanned], prefix: &str) -> Option<Vec<(String, String)>>
         plan.push((name.to_string(), stripped.to_string()));
     }
     let mut seen = std::collections::BTreeSet::new();
-    plan.iter().all(|(_, s)| seen.insert(s.clone())).then_some(plan)
+    plan.iter()
+        .all(|(_, s)| seen.insert(s.clone()))
+        .then_some(plan)
 }
 
 #[must_use]
@@ -139,7 +167,9 @@ fn rename_all(form: &Spanned, map: &std::collections::HashMap<&str, &str>) -> Sp
             Some(to) => SpannedForm::Atom(Atom::Symbol((*to).to_string())),
             None => SpannedForm::Atom(Atom::Symbol(s.clone())),
         },
-        SpannedForm::List(items) => SpannedForm::List(items.iter().map(|i| rename_all(i, map)).collect()),
+        SpannedForm::List(items) => {
+            SpannedForm::List(items.iter().map(|i| rename_all(i, map)).collect())
+        }
         SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(rename_all(i, map))),
         SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(rename_all(i, map))),
         SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(rename_all(i, map))),
@@ -166,7 +196,10 @@ fn swallowed(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
         return;
     };
     if items.first().and_then(Spanned::as_symbol) == Some("catch") && items.len() == 3 {
-        let binder = items[1].as_list().and_then(|b| b.first()).and_then(Spanned::as_symbol);
+        let binder = items[1]
+            .as_list()
+            .and_then(|b| b.first())
+            .and_then(Spanned::as_symbol);
         if let Some(b) = binder {
             if b != "_" && b != blue_lang_syntax::RESCUED && is_nil(&items[2]) {
                 out.push(swallow_diagnostic(b, items[1].span, top));
@@ -179,7 +212,9 @@ fn swallowed(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
                 .as_list()
                 .and_then(|b| b.first())
                 .and_then(Spanned::as_list)
-                .filter(|pair| pair.len() == 2 && pair[1].as_symbol() == Some(blue_lang_syntax::RESCUED))
+                .filter(|pair| {
+                    pair.len() == 2 && pair[1].as_symbol() == Some(blue_lang_syntax::RESCUED)
+                })
                 .and_then(|pair| pair[0].as_symbol());
             if l.as_symbol() == Some("let") && is_nil(body) {
                 if let Some(b) = bound.filter(|b| *b != "_") {
@@ -209,7 +244,8 @@ fn is_constant(form: &Spanned) -> bool {
     };
     head.as_symbol() == Some("define")
         && name.as_symbol().is_some_and(|n| {
-            n.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+            n.chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
                 && n.chars().any(|c| c.is_ascii_uppercase())
         })
 }
@@ -234,7 +270,10 @@ fn names(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
                         n.span,
                     )
                     .at_top_level(top)
-                    .with_help(format!("rename it `{}` here and at every use", snake_of(name))),
+                    .with_help(format!(
+                        "rename it `{}` here and at every use",
+                        snake_of(name)
+                    )),
                 );
             }
         }
@@ -328,20 +367,22 @@ fn defines(form: &Spanned, name: &str, zero: bool) -> bool {
     let Some(items) = form.as_list() else {
         return false;
     };
-    matches!(items.first().and_then(Spanned::as_symbol), Some("define" | "define-typed"))
-        && items
-            .get(1)
-            .and_then(Spanned::as_list)
-            .is_some_and(|sig| sig.first().and_then(Spanned::as_symbol) == Some(name) && (!zero || sig.len() == 1))
+    matches!(
+        items.first().and_then(Spanned::as_symbol),
+        Some("define" | "define-typed")
+    ) && items.get(1).and_then(Spanned::as_list).is_some_and(|sig| {
+        sig.first().and_then(Spanned::as_symbol) == Some(name) && (!zero || sig.len() == 1)
+    })
 }
 
 fn mentions(form: &Spanned, name: &str) -> usize {
     match &form.form {
         SpannedForm::Atom(Atom::Symbol(s)) => usize::from(s == name),
         SpannedForm::List(items) => items.iter().map(|i| mentions(i, name)).sum(),
-        SpannedForm::Quote(i) | SpannedForm::Quasiquote(i) | SpannedForm::Unquote(i) | SpannedForm::UnquoteSplice(i) => {
-            mentions(i, name)
-        }
+        SpannedForm::Quote(i)
+        | SpannedForm::Quasiquote(i)
+        | SpannedForm::Unquote(i)
+        | SpannedForm::UnquoteSplice(i) => mentions(i, name),
         _ => 0,
     }
 }
@@ -351,11 +392,17 @@ fn guard_fix(forms: &[&Spanned], guard: Guard<'_>) -> Result<(), String> {
         return Err("the file already defines a `main`".to_string());
     }
     if !forms.iter().any(|f| defines(f, guard.callee, true)) {
-        return Err(format!("`{}` is not a zero-parameter definition of this file", guard.callee));
+        return Err(format!(
+            "`{}` is not a zero-parameter definition of this file",
+            guard.callee
+        ));
     }
     let uses: usize = forms.iter().map(|f| mentions(f, guard.callee)).sum();
     if uses != 2 {
-        return Err(format!("`{}` is also called elsewhere in the file", guard.callee));
+        return Err(format!(
+            "`{}` is also called elsewhere in the file",
+            guard.callee
+        ));
     }
     Ok(())
 }
@@ -381,8 +428,12 @@ pub fn without_main_guard(forms: &[Spanned]) -> Option<Vec<Spanned>> {
 
 fn rename(form: &Spanned, from: &str, to: &str) -> Spanned {
     let inner = match &form.form {
-        SpannedForm::Atom(Atom::Symbol(s)) if s == from => SpannedForm::Atom(Atom::Symbol(to.to_string())),
-        SpannedForm::List(items) => SpannedForm::List(items.iter().map(|i| rename(i, from, to)).collect()),
+        SpannedForm::Atom(Atom::Symbol(s)) if s == from => {
+            SpannedForm::Atom(Atom::Symbol(to.to_string()))
+        }
+        SpannedForm::List(items) => {
+            SpannedForm::List(items.iter().map(|i| rename(i, from, to)).collect())
+        }
         other => other.clone(),
     };
     Spanned::new(form.span, inner)

@@ -358,7 +358,12 @@ fn lsp_diagnostic(d: &blue_lang_check::Diagnostic, index: &LineIndex) -> Diagnos
     let source = match d.code {
         Code::B0003 | Code::B0004 | Code::B0005 => "types",
         Code::B0007 | Code::B0008 => "waivers",
-        c if c.rule().slug == "layout" || (Code::B0024..=Code::B0035).contains(&c) || c == Code::B0042 => "form",
+        c if c.rule().slug == "layout"
+            || (Code::B0024..=Code::B0035).contains(&c)
+            || c == Code::B0042 =>
+        {
+            "form"
+        }
         _ => "names",
     };
     Diagnostic {

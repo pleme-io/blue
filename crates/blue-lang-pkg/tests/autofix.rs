@@ -71,7 +71,10 @@ fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
             }
         };
         if written.trim_end() == r.witness.trim_end() {
-            failures.push(format!("{}: fmt --write left the witness unchanged", r.code));
+            failures.push(format!(
+                "{}: fmt --write left the witness unchanged",
+                r.code
+            ));
             continue;
         }
         let after = codes(&written, &loader);

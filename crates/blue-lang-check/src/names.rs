@@ -1816,8 +1816,14 @@ impl Walker<'_> {
         )
         .at_top_level(self.top_level)
         .with_help("`blue fmt --write`, `blue run` and `blue check --fix` rewrite it");
-        if let (crate::respell::Respell::Rename(to), false) = (syn.respell, to_is_operator(syn.respell)) {
-            let replacement = if qualify { format!("blue::{to}") } else { to.to_string() };
+        if let (crate::respell::Respell::Rename(to), false) =
+            (syn.respell, to_is_operator(syn.respell))
+        {
+            let replacement = if qualify {
+                format!("blue::{to}")
+            } else {
+                to.to_string()
+            };
             d = d.with_fix(Fix {
                 message: format!("write `{replacement}`"),
                 edits: vec![Edit {
@@ -2157,7 +2163,6 @@ impl Scopes for Walker<'_> {
             self.synonym_call(node, whole, name, argc);
         }
     }
-
 
     fn place(&mut self, node: &Spanned, name: &str, opaque: bool) {
         self.position = Position::Place;

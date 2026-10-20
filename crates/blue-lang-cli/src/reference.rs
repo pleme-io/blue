@@ -169,7 +169,11 @@ pub fn reference() -> Reference {
             .iter()
             .map(|w| (w, "form"))
             .chain(BLOCK_KEYWORDS.iter().map(|w| (w, "block")))
-            .chain(blue_lang_syntax::OPERATOR_KEYWORDS.iter().map(|w| (w, "operator")))
+            .chain(
+                blue_lang_syntax::OPERATOR_KEYWORDS
+                    .iter()
+                    .map(|w| (w, "operator")),
+            )
             .map(|(w, kind)| Keyword {
                 word: w,
                 kind,

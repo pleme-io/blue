@@ -235,11 +235,11 @@ pub fn run_observed(
     let outcome = eval_prepared(&mut interp, &prepared, &mut ())
         .and_then(|value| Ok(call_main(&mut interp, &prepared, &mut ())?.unwrap_or(value)))
         .map(|value| Run {
-        value,
-        visited: prepared.visited,
-        typed_decls: prepared.typed_decls,
-        seams: prepared.seams,
-    });
+            value,
+            visited: prepared.visited,
+            typed_decls: prepared.typed_decls,
+            seams: prepared.seams,
+        });
     interp.set_call_observer(None);
     Ok(Observed {
         definitions,
@@ -676,7 +676,8 @@ pub fn lower(
 
 fn raise_site(file: &crate::uses::SourceFile) -> impl Fn(tatara_lisp::Span) -> String + '_ {
     move |span| {
-        let (line, _) = blue_lang_syntax::Span::line_col(&file.text, span.start.min(file.text.len()));
+        let (line, _) =
+            blue_lang_syntax::Span::line_col(&file.text, span.start.min(file.text.len()));
         let shown = file
             .path
             .as_ref()
@@ -939,7 +940,10 @@ impl Checked {
                 .filter(|(_, r)| !waived.contains(&r.span))
                 .cloned()
                 .collect();
-        let canon = Canon { bare: &bare, respell: &respell };
+        let canon = Canon {
+            bare: &bare,
+            respell: &respell,
+        };
         let forms: Vec<tatara_lisp::Spanned> = entry.into_iter().map(|f| canon.form(f)).collect();
         let script = program
             .file(ResolvedProgram::ENTRY)
@@ -966,7 +970,11 @@ impl Canon<'_> {
                 [head] if self.bare.contains(&(std::ptr::from_ref(head) as usize)) => {
                     return Spanned::new(form.span, head.form.clone());
                 }
-                [head, ..] if self.respell.contains_key(&(std::ptr::from_ref(head) as usize)) => {
+                [head, ..]
+                    if self
+                        .respell
+                        .contains_key(&(std::ptr::from_ref(head) as usize)) =>
+                {
                     let r = &self.respell[&(std::ptr::from_ref(head) as usize)];
                     let walked: Vec<Spanned> = items.iter().map(|i| self.form(i)).collect();
                     return blue_lang_check::respell::apply(form, &walked, r);
@@ -1068,7 +1076,11 @@ pub fn form_diagnostics_against(text: &str, formatted: &str) -> Vec<blue_lang_ch
                 .with_help(help)
         })
         .collect();
-    out.extend(literal_diagnostics(text).into_iter().map(|d| d.with_help(help)));
+    out.extend(
+        literal_diagnostics(text)
+            .into_iter()
+            .map(|d| d.with_help(help)),
+    );
     if out.is_empty() {
         let at = text
             .lines()
@@ -1214,8 +1226,10 @@ pub fn entry_main(program: &crate::uses::ResolvedProgram) -> Option<(usize, tata
         }
         let items = f.as_list()?;
         let sig = items.get(1)?.as_list()?;
-        let named_main = matches!(items.first().and_then(tatara_lisp::Spanned::as_symbol), Some("define" | "define-typed"))
-            && sig.len() == 1
+        let named_main = matches!(
+            items.first().and_then(tatara_lisp::Spanned::as_symbol),
+            Some("define" | "define-typed")
+        ) && sig.len() == 1
             && sig[0].as_symbol() == Some(MAIN);
         named_main.then_some((i, sig[0].span))
     })
@@ -1234,7 +1248,9 @@ pub(crate) fn call_main<H: 'static>(
         span,
         tatara_lisp::SpannedForm::List(vec![tatara_lisp::Spanned::new(
             span,
-            tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(blue_lang_check::names::key(&ns, MAIN))),
+            tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(blue_lang_check::names::key(
+                &ns, MAIN,
+            ))),
         )]),
     );
     interp.eval_top_form(&call, host).map(Some).map_err(|e| {

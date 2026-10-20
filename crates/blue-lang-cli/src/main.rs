@@ -1301,7 +1301,9 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
     }
     let mut with_form = checked.outcome.clone();
     let entry_form = (0..checked.program.forms().len())
-        .find(|i| checked.program.owner_of(*i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY))
+        .find(|i| {
+            checked.program.owner_of(*i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+        })
         .unwrap_or(0);
     with_form.diagnostics.extend(
         blue_lang_runtime::pipeline::form_diagnostics(&src)

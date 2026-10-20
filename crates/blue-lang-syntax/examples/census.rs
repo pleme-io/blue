@@ -57,7 +57,10 @@ fn main() {
                         if text.contains("\\u{") {
                             bump("string unicode escape");
                         }
-                        if text.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
+                        if text
+                            .chars()
+                            .any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
+                        {
                             bump("string raw control char");
                         }
                     }

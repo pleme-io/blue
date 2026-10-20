@@ -141,12 +141,20 @@ pub fn parse_program_tree_with_depth(
     max_depth: usize,
 ) -> Result<Vec<Spanned>, ParseError> {
     PARSES.with(|n| n.set(n.get() + 1));
-    let mut p = Parser::over(src, lex(src).map_err(|e| ParseError::from(e).located(src))?, max_depth);
+    let mut p = Parser::over(
+        src,
+        lex(src).map_err(|e| ParseError::from(e).located(src))?,
+        max_depth,
+    );
     p.program().map_err(|e| e.located(src))
 }
 
 pub fn spelling_notes(src: &str) -> Result<Vec<Note>, ParseError> {
-    let mut p = Parser::over(src, lex(src).map_err(|e| ParseError::from(e).located(src))?, MAX_EXPR_DEPTH);
+    let mut p = Parser::over(
+        src,
+        lex(src).map_err(|e| ParseError::from(e).located(src))?,
+        MAX_EXPR_DEPTH,
+    );
     p.program().map_err(|e| e.located(src))?;
     Ok(p.notes)
 }
@@ -189,8 +197,8 @@ pub fn parse_program_tree_in(
     src: &str,
     pack: &crate::yakugo::Yakugo,
 ) -> Result<Vec<Spanned>, ParseError> {
-    let toks = crate::yakugo::canonical_tokens(src, pack)
-        .map_err(|e| ParseError::from(e).located(src))?;
+    let toks =
+        crate::yakugo::canonical_tokens(src, pack).map_err(|e| ParseError::from(e).located(src))?;
     PARSES.with(|n| n.set(n.get() + 1));
     let mut p = Parser::over(src, toks, MAX_EXPR_DEPTH);
     p.program().map_err(|e| e.located(src))
@@ -707,7 +715,9 @@ impl Parser {
     }
 
     fn comment_within(&self, lo: usize, hi: usize) -> bool {
-        self.comment_spans.iter().any(|c| c.start >= lo && c.start < hi)
+        self.comment_spans
+            .iter()
+            .any(|c| c.start >= lo && c.start < hi)
     }
 
     fn touches_previous(&self) -> bool {
@@ -1016,9 +1026,21 @@ impl Parser {
     }
 
     #[inline(never)]
-    fn infix_node(&mut self, start: usize, callee: Option<&str>, op_span: Span, lhs: Spanned, rhs: Spanned) -> Spanned {
+    fn infix_node(
+        &mut self,
+        start: usize,
+        callee: Option<&str>,
+        op_span: Span,
+        lhs: Spanned,
+        rhs: Spanned,
+    ) -> Spanned {
         if callee == Some("-") && matches!(lhs.form, SpannedForm::Atom(Atom::Int(0))) {
-            self.note(Spelling::OperatorSpelling, lhs.span.merge(op_span), "0 - x", "-x");
+            self.note(
+                Spelling::OperatorSpelling,
+                lhs.span.merge(op_span),
+                "0 - x",
+                "-x",
+            );
         }
 
         if callee.is_none() {
@@ -1061,7 +1083,7 @@ impl Parser {
             // operator underline both operands too.
             list_at(
                 self.span_since(start),
-                vec![sym_at(op_span, callee.unwrap()), lhs, rhs],
+                vec![sym_at(op_span, callee.unwrap_or_default()), lhs, rhs],
             )
         }
     }
@@ -1163,7 +1185,12 @@ impl Parser {
             self.note(Spelling::OperatorSpelling, span, "not(x)", "not x");
             let (args, splat) = self.call_args()?;
             if args.len() != 1 || splat.is_some() {
-                let call = self.call_node(self.span_since(span.start), vec![sym_at(span, "not")], args, splat);
+                let call = self.call_node(
+                    self.span_since(span.start),
+                    vec![sym_at(span, "not")],
+                    args,
+                    splat,
+                );
                 return Ok(call);
             }
             let operand = args.into_iter().next().expect("one argument");
@@ -1386,7 +1413,12 @@ impl Parser {
                 "equal?" => "a == b".to_string(),
                 other => format!("a {other} b"),
             };
-            self.note(Spelling::OperatorSpelling, call.span, &format!("{head}(…)"), &canonical);
+            self.note(
+                Spelling::OperatorSpelling,
+                call.span,
+                &format!("{head}(…)"),
+                &canonical,
+            );
             return call;
         }
         if head == "apply"
@@ -1432,7 +1464,8 @@ impl Parser {
         }
         self.note(Spelling::TryCatch, call.span, "try(…, catch(…))", "rescue");
         let handler = &clause[2..];
-        let rename = name.starts_with('_') && name != "_" && !handler.iter().any(|h| mentions(h, &name));
+        let rename =
+            name.starts_with('_') && name != "_" && !handler.iter().any(|h| mentions(h, &name));
         let body = if body.len() == 1 {
             body[0].clone()
         } else {
@@ -1507,12 +1540,28 @@ impl Parser {
                 ],
             ));
         }
-        self.note(Spelling::CallForm, dot.merge(name_span), &format!("x.{name}(…)"), &format!("{name}(x, …)"));
+        self.note(
+            Spelling::CallForm,
+            dot.merge(name_span),
+            &format!("x.{name}(…)"),
+            &format!("{name}(x, …)"),
+        );
         let (args, splat) = self.call_args()?;
-        Ok(self.call_node(self.span_since(start), vec![sym_at(name_span, &name), recv], args, splat))
+        Ok(self.call_node(
+            self.span_since(start),
+            vec![sym_at(name_span, &name), recv],
+            args,
+            splat,
+        ))
     }
 
-    fn call_node(&self, span: Span, head: Vec<Spanned>, args: Vec<Spanned>, splat: Option<Span>) -> Spanned {
+    fn call_node(
+        &self,
+        span: Span,
+        head: Vec<Spanned>,
+        args: Vec<Spanned>,
+        splat: Option<Span>,
+    ) -> Spanned {
         let mut list = Vec::with_capacity(head.len() + args.len() + 1);
         if let Some(at) = splat {
             list.push(sym_at(at, "apply"));
@@ -1525,7 +1574,10 @@ impl Parser {
     fn paren_args(&mut self) -> Result<Vec<Spanned>, Fail> {
         let (args, splat) = self.call_args()?;
         if let Some(at) = splat {
-            return Err(fail("a splat `*xs` passes a list as a call's last arguments, and this is not a call", at));
+            return Err(fail(
+                "a splat `*xs` passes a list as a call's last arguments, and this is not a call",
+                at,
+            ));
         }
         Ok(args)
     }
@@ -1541,7 +1593,9 @@ impl Parser {
         loop {
             self.skip_newlines();
             if splat.is_some() {
-                return Err(self.error("a splat `*xs` passes a list as the LAST arguments: write it last"));
+                return Err(
+                    self.error("a splat `*xs` passes a list as the LAST arguments: write it last")
+                );
             }
             if matches!(self.peek(), TokenKind::Op(o) if o == "*") {
                 splat = Some(self.peek_span());
@@ -1562,7 +1616,10 @@ impl Parser {
     }
 
     fn trailing_comma(&mut self, closer: &TokenKind) -> bool {
-        let comma = self.toks.get(self.pos.wrapping_sub(1)).map_or(self.peek_span(), |t| t.span);
+        let comma = self
+            .toks
+            .get(self.pos.wrapping_sub(1))
+            .map_or(self.peek_span(), |t| t.span);
         self.skip_newlines();
         if self.at(closer) {
             self.note(Spelling::TrailingComma, comma, ",", "");
@@ -2175,7 +2232,11 @@ impl Parser {
                         body,
                         list_at(
                             kw.merge(handler.span),
-                            vec![sym_at(kw, "catch"), list_at(binder.span, vec![binder]), handler],
+                            vec![
+                                sym_at(kw, "catch"),
+                                list_at(binder.span, vec![binder]),
+                                handler,
+                            ],
                         ),
                     ],
                 ),
@@ -2191,7 +2252,10 @@ impl Parser {
                     head,
                     vec![
                         sym_at(head, "else"),
-                        list_at(head, vec![sym_at(head, LOWERED_RERAISE), sym_at(head, RESCUED)]),
+                        list_at(
+                            head,
+                            vec![sym_at(head, LOWERED_RERAISE), sym_at(head, RESCUED)],
+                        ),
                     ],
                 ),
             };
@@ -2218,17 +2282,33 @@ impl Parser {
         Ok(match ensure {
             None => protected,
             Some(cleanup) => {
-                let attempted = list_at(protected.span, vec![sym_at(head, LOWERED_ATTEMPTED), protected]);
-                let failed = list_at(head, vec![sym_at(head, LOWERED_FAILED), sym_at(head, RESCUED)]);
+                let attempted = list_at(
+                    protected.span,
+                    vec![sym_at(head, LOWERED_ATTEMPTED), protected],
+                );
+                let failed = list_at(
+                    head,
+                    vec![sym_at(head, LOWERED_FAILED), sym_at(head, RESCUED)],
+                );
                 let caught = list_at(
                     whole,
                     vec![
                         sym_at(head, "try"),
                         attempted,
-                        list_at(head, vec![sym_at(head, "catch"), list_at(head, vec![sym_at(head, RESCUED)]), failed]),
+                        list_at(
+                            head,
+                            vec![
+                                sym_at(head, "catch"),
+                                list_at(head, vec![sym_at(head, RESCUED)]),
+                                failed,
+                            ],
+                        ),
                     ],
                 );
-                list_at(whole, vec![sym_at(head, LOWERED_ENSURE), caught, thunk(cleanup, head)])
+                list_at(
+                    whole,
+                    vec![sym_at(head, LOWERED_ENSURE), caught, thunk(cleanup, head)],
+                )
             }
         })
     }
@@ -2246,7 +2326,12 @@ impl Parser {
         };
         let mut params: Vec<(String, Span, Option<Spanned>)> = Vec::new();
         if !self.at(&TokenKind::LParen) {
-            self.note(Spelling::ParameterList, name_span, &format!("def {name}"), &format!("def {name}()"));
+            self.note(
+                Spelling::ParameterList,
+                name_span,
+                &format!("def {name}"),
+                &format!("def {name}()"),
+            );
         }
         if self.at(&TokenKind::LParen) {
             self.bump();
@@ -2307,7 +2392,12 @@ impl Parser {
             let protects = matches!(&body.form, SpannedForm::List(items)
                 if matches!(items.first().and_then(Spanned::as_symbol), Some("try") | Some(LOWERED_ENSURE)));
             if protects && body.span.start == b.start {
-                self.note(Spelling::TryCatch, b, "begin … end as a whole def body", "the clauses on the def itself");
+                self.note(
+                    Spelling::TryCatch,
+                    b,
+                    "begin … end as a whole def body",
+                    "the clauses on the def itself",
+                );
             }
         }
         self.expect_ident("end")?;
@@ -2446,12 +2536,18 @@ fn one_of(words: &[&str]) -> String {
 fn let_bound(binder: Spanned, body: Spanned, at: Span) -> Spanned {
     let span = at.merge(body.span);
     let pair = list_at(binder.span, vec![binder, sym_at(at, RESCUED)]);
-    list_at(span, vec![sym_at(at, "let"), list_at(pair.span, vec![pair]), body])
+    list_at(
+        span,
+        vec![sym_at(at, "let"), list_at(pair.span, vec![pair]), body],
+    )
 }
 
 fn thunk(body: Spanned, at: Span) -> Spanned {
     let span = at.merge(body.span);
-    list_at(span, vec![sym_at(at, "lambda"), list_at(at, Vec::new()), body])
+    list_at(
+        span,
+        vec![sym_at(at, "lambda"), list_at(at, Vec::new()), body],
+    )
 }
 
 fn blue_lang_name(name: &str) -> bool {

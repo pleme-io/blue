@@ -61,7 +61,8 @@ pub fn lawful_overflow(line: &str) -> bool {
                 if matches!(call.kind, TokenKind::Ident(_)) && open.kind == TokenKind::LParen {
                     head = rest;
                     if let [before @ .., pkg, sep] = head {
-                        if matches!(pkg.kind, TokenKind::Ident(_)) && sep.kind == TokenKind::PathSep {
+                        if matches!(pkg.kind, TokenKind::Ident(_)) && sep.kind == TokenKind::PathSep
+                        {
                             head = before;
                         }
                     }

@@ -123,7 +123,11 @@ pub fn rules_named(text: &str) -> String {
             }
         })
         .collect();
-    format!(" ({}; first at {line}:{col}: {})", named.join(", "), first.message)
+    format!(
+        " ({}; first at {line}:{col}: {})",
+        named.join(", "),
+        first.message
+    )
 }
 
 /// # Errors

@@ -66,7 +66,7 @@ Higher binding power binds tighter.
 | `unquote_splice` | `unquote_splice(xs)`: inside `quote`, splice the items of the form `xs` in place, not the form itself. |
 | `test` | `test "what must hold" … end`: a test block, run by `blue test` and ignored by `blue run`. |
 | `assert` | `assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression. |
-| `fn` | `fn(x)` … `end`, always over several lines: an anonymous function, a value. The inline spelling is `(x) -> x * 2`, which the formatter writes for a one-expression body that fits the line. Blue has no brace or do blocks. |
+| `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
 | `case` | `case v when 1 … when 2 … else … end`: compares with `==`; it does not destructure. |
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |
@@ -545,3 +545,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0041` | main-guard | a program's entry point is `def main()`, which `blue run` calls; never a top-level `if getenv("X_MAIN", "") == "1"` guard | autofix |
 | `B0042` | splat | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name | autofix |
 | `B0043` | prefixed-program | a program does not prefix every definition with one short `x_`: the file is the namespace | autofix |
+| `B0044` | eta-reduction | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` | autofix |

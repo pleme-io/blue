@@ -54,7 +54,7 @@ end
 
 # Append one line per entry, then read the file back as a list of lines.
 def log_lines(path, entries)
-  map(fn(e) append_file(path, "#{e}\n") end, entries)
+  map((e) -> append_file(path, "#{e}\n"), entries)
   lines(read_file(path))
 end
 
@@ -103,16 +103,16 @@ end
 
 # Every order in a CSV text with a header line; blank lines are skipped.
 def orders_of(text)
-  rows = filter(fn(l) not is_blank(l) end, rest(lines(text)))
-  map(fn(l) order_of(l) end, rows)
+  rows = filter((l) -> not is_blank(l), rest(lines(text)))
+  map(order_of, rows)
 end
 
 def bad_orders(orders)
-  filter(fn(o) get(o, :qty) == nil end, orders)
+  filter((o) -> get(o, :qty) == nil, orders)
 end
 
 def total_qty(orders)
-  sum(map(fn(o) get(o, :qty) end, orders))
+  sum(map((o) -> get(o, :qty), orders))
 end
 
 csv = "id,item,qty\na1,apple,3\na2,pear,x\na3,apple,4\n"
@@ -125,11 +125,11 @@ end
 
 test "a field that is not a number is found, not read as zero"
   bad = bad_orders(orders_of(csv))
-  assert map(fn(o) get(o, :id) end, bad) == ["a2"]
+  assert map((o) -> get(o, :id), bad) == ["a2"]
 end
 
 test "the good rows add up"
-  good = filter(fn(o) get(o, :qty) != nil end, orders_of(csv))
+  good = filter((o) -> get(o, :qty) != nil, orders_of(csv))
   assert total_qty(good) == 7
 end
 
@@ -159,12 +159,12 @@ use("retsu", [:first, :is_empty, :rest, :size])
 use("shuugou", [:frequencies, :group_by, :lookup])
 
 def squares_of_evens(xs)
-  map(fn(x) x * x end, filter(fn(x) x % 2 == 0 end, xs))
+  map((x) -> x * x, filter((x) -> x % 2 == 0, xs))
 end
 
 # Tally words into a map with reduce and assoc.
 def tally(words)
-  reduce(fn(m, w) assoc(m, w, (get(m, w) or 0) + 1) end, {}, words)
+  reduce((m, w) -> assoc(m, w, (get(m, w) or 0) + 1), {}, words)
 end
 
 test "map and filter take the function first"
@@ -195,16 +195,13 @@ end
 
 test "grouping and counting return pairs"
   assert frequencies([:x, :y, :x]) == [[:x, 2], [:y, 1]]
-  assert group_by(fn(n) n % 2 end, [1, 2, 3]) == [[1, [1, 3]], [0, [2]]]
+  assert group_by((n) -> n % 2, [1, 2, 3]) == [[1, [1, 3]], [0, [2]]]
   assert lookup(frequencies([:x, :y, :x]), :x) == 2
 end
 
 test "sorting by a key"
   people = [{name: "ana", age: 41}, {name: "bo", age: 29}]
-  assert map(
-    fn(p) get(p, :name) end,
-    sort_by(fn(p) get(p, :age) end, people)
-  ) ==
+  assert map((p) -> get(p, :name), sort_by((p) -> get(p, :age), people)) ==
     ["bo", "ana"]
 end
 ```
@@ -224,7 +221,7 @@ def row(name, n)
 end
 
 def report(rows)
-  body = map(fn(r) row(first(r), last(r)) end, rows)
+  body = map((r) -> row(first(r), last(r)), rows)
   join(concat_lists(["name     count", "-------------"], body), "\n")
 end
 
@@ -280,14 +277,14 @@ def port_refusals(text)
 end
 
 def refusal_kinds(refusals)
-  map(fn(r) first(r) end, refusals)
+  map((r) -> first(r), refusals)
 end
 
 # The boundary: return the port, or raise naming every refusal.
 def port_of(text)
   refusals = port_refusals(text)
   if not is_empty(refusals)
-    raise(first(first(refusals)), join(map(fn(r) last(r) end, refusals), "; "))
+    raise(first(first(refusals)), join(map((r) -> last(r), refusals), "; "))
   end
   to_int(text)
 end
@@ -341,7 +338,7 @@ def variance(xs)
   if m == nil
     nil
   else
-    mean(map(fn(x) (x - m) * (x - m) end, xs))
+    mean(map((x) -> (x - m) * (x - m), xs))
   end
 end
 
@@ -521,27 +518,27 @@ use("shuugou", [:unique])
 
 # Whether a token counts as a word: it holds at least one letter or digit.
 def kz_word?(token)
-  any?(fn(c) is_alnum(c) end, chars(token))
+  any?((c) -> is_alnum(c), chars(token))
 end
 
 # The words of a text, lower-cased, punctuation at either end removed.
 def kz_words(text)
-  tokens = map(fn(w) downcase(kz_strip(w)) end, words(text))
-  filter(fn(w) kz_word?(w) end, tokens)
+  tokens = map((w) -> downcase(kz_strip(w)), words(text))
+  filter(kz_word?, tokens)
 end
 
 def kz_strip(word)
   cs = chars(word)
-  kept = drop_while(fn(c) not is_alnum(c) end, cs)
-  join(reverse(drop_while(fn(c) not is_alnum(c) end, reverse(kept))), "")
+  kept = drop_while((c) -> not is_alnum(c), cs)
+  join(reverse(drop_while((c) -> not is_alnum(c), reverse(kept))), "")
 end
 
 # [word, count] pairs, most frequent first, ties in first-seen order.
 def kz_counts(text)
   ws = kz_words(text)
   seen = unique(ws)
-  pairs = map(fn(w) [w, size(filter(fn(x) x == w end, ws))] end, seen)
-  sort_stable_by(fn(p) -last(p) end, pairs)
+  pairs = map((w) -> [w, size(filter((x) -> x == w, ws))], seen)
+  sort_stable_by((p) -> -last(p), pairs)
 end
 
 test "words are lower-cased and stripped of punctuation"
@@ -634,7 +631,7 @@ end
 
 def serve(url, base, token)
   sub = nats_subscribe(nats_connect(url), "home.>")
-  reduce(fn(_acc, _i) serve_once(sub, base, token) end, nil, range(0, 3600))
+  reduce((_acc, _i) -> serve_once(sub, base, token), nil, range(0, 3600))
 end
 
 test "a service call is a POST with a bearer token and a JSON body"

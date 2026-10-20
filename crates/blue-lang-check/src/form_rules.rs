@@ -493,7 +493,13 @@ impl Eta {
         Eta { arity }
     }
 
-    fn reducible(&self, lambda: &Spanned, top: usize, in_def: bool, bound: &BTreeSet<String>) -> Option<String> {
+    fn reducible(
+        &self,
+        lambda: &Spanned,
+        top: usize,
+        in_def: bool,
+        bound: &BTreeSet<String>,
+    ) -> Option<String> {
         let [l, params, body] = lambda.as_list()? else {
             return None;
         };
@@ -510,7 +516,10 @@ impl Eta {
         };
         let f = f.as_symbol()?;
         let same_args = args.len() == params.len()
-            && args.iter().zip(&params).all(|(a, p)| a.as_symbol() == Some(*p));
+            && args
+                .iter()
+                .zip(&params)
+                .all(|(a, p)| a.as_symbol() == Some(*p));
         let (n, defined_at) = *self.arity.get(f)?;
         (same_args
             && !params.is_empty()
@@ -518,14 +527,16 @@ impl Eta {
             && !params.contains(&f)
             && !bound.contains(f)
             && (in_def || defined_at < top))
-        .then(|| f.to_string())
+            .then(|| f.to_string())
     }
 
     fn found(&self, form: &Spanned, top: usize) -> Vec<(Span, String)> {
         let mut bound = BTreeSet::new();
         binders(form, 0, &mut bound);
         let mut out = Vec::new();
-        self.walk(form, top, is_def(form), &bound, &mut |s, f| out.push((s, f)));
+        self.walk(form, top, is_def(form), &bound, &mut |s, f| {
+            out.push((s, f))
+        });
         out
     }
 
@@ -542,11 +553,19 @@ impl Eta {
             return;
         }
         if let SpannedForm::List(items) = &form.form {
-            items.iter().for_each(|i| self.walk(i, top, in_def, bound, hit));
+            items
+                .iter()
+                .for_each(|i| self.walk(i, top, in_def, bound, hit));
         }
     }
 
-    fn rewrite(&self, form: &Spanned, top: usize, in_def: bool, bound: &BTreeSet<String>) -> Spanned {
+    fn rewrite(
+        &self,
+        form: &Spanned,
+        top: usize,
+        in_def: bool,
+        bound: &BTreeSet<String>,
+    ) -> Spanned {
         if let Some(f) = self.reducible(form, top, in_def, bound) {
             return Spanned::new(form.span, SpannedForm::Atom(Atom::Symbol(f)));
         }
@@ -554,7 +573,10 @@ impl Eta {
             SpannedForm::List(items) => Spanned::new(
                 form.span,
                 SpannedForm::List(
-                    items.iter().map(|i| self.rewrite(i, top, in_def, bound)).collect(),
+                    items
+                        .iter()
+                        .map(|i| self.rewrite(i, top, in_def, bound))
+                        .collect(),
                 ),
             ),
             other => Spanned::new(form.span, other.clone()),
@@ -583,26 +605,24 @@ fn binders(form: &Spanned, depth: usize, out: &mut BTreeSet<String>) {
     match items.first().and_then(Spanned::as_symbol) {
         Some("lambda") if items.len() > 1 => names(&items[1], out),
         Some("catch") if items.len() > 1 => names(&items[1], out),
-        Some("define" | "define-typed") if items.len() > 1 => {
-            match items[1].as_list() {
-                Some([name, params @ ..]) => {
-                    if depth > 0 {
-                        out.extend(name.as_symbol().map(str::to_string));
-                    }
-                    for p in params {
-                        out.extend(p.as_symbol().map(str::to_string));
-                        if let Some([n, ..]) = p.as_list() {
-                            out.extend(n.as_symbol().map(str::to_string));
-                        }
-                    }
+        Some("define" | "define-typed") if items.len() > 1 => match items[1].as_list() {
+            Some([name, params @ ..]) => {
+                if depth > 0 {
+                    out.extend(name.as_symbol().map(str::to_string));
                 }
-                _ => {
-                    if depth > 0 {
-                        out.extend(items[1].as_symbol().map(str::to_string));
+                for p in params {
+                    out.extend(p.as_symbol().map(str::to_string));
+                    if let Some([n, ..]) = p.as_list() {
+                        out.extend(n.as_symbol().map(str::to_string));
                     }
                 }
             }
-        }
+            _ => {
+                if depth > 0 {
+                    out.extend(items[1].as_symbol().map(str::to_string));
+                }
+            }
+        },
         Some("let" | "let*" | "letrec") if items.len() > 1 => {
             for pair in items[1].as_list().unwrap_or(&[]) {
                 if let Some([n, ..]) = pair.as_list() {

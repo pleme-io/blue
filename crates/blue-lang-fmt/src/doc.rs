@@ -58,6 +58,9 @@ pub enum Doc {
     Concat(Rc<Doc>, Rc<Doc>),
     Nest(isize, Rc<Doc>),
     Group(Rc<Doc>),
+    /// Two spellings of one thing: the first when it fits flat on the rest of
+    /// the line, else the second. Measured by `fits` as its first branch.
+    Choice(Rc<Doc>, Rc<Doc>),
 }
 
 impl Doc {
@@ -104,6 +107,10 @@ impl Doc {
 
     pub fn nest(self, indent: isize) -> Self {
         Doc::Nest(indent, Rc::new(self))
+    }
+
+    pub fn choice(flat: Doc, broken: Doc) -> Self {
+        Doc::Choice(Rc::new(flat), Rc::new(broken))
     }
 
     pub fn group(self) -> Self {
@@ -175,6 +182,13 @@ pub fn pretty(doc: &Doc, width: usize) -> String {
             Doc::Nest(n, inner) => {
                 stack.push((indent + n, mode, (*inner).clone()));
             }
+            Doc::Choice(flat, broken) => {
+                if mode == Mode::Flat || fits(width.saturating_sub(col), &flat, &stack) {
+                    stack.push((indent, Mode::Flat, (*flat).clone()));
+                } else {
+                    stack.push((indent, Mode::Break, (*broken).clone()));
+                }
+            }
             Doc::Group(inner) => {
                 // The single decision: does this group fit flat? A group
                 // inside a flat group is flat already — its parent fit, and
@@ -242,6 +256,7 @@ fn fits(space: usize, doc: &Doc, rest: &[(isize, Mode, Doc)]) -> bool {
             // A nested group is measured flat, which is what makes this
             // Oppen's linear algorithm rather than Wadler's exponential one.
             Doc::Group(inner) => local.push((Mode::Flat, (*inner).clone())),
+            Doc::Choice(flat, _) => local.push((Mode::Flat, (*flat).clone())),
         }
     }
 }

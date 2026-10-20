@@ -66,10 +66,7 @@ end
 # [name, version, needs] from a Bluefile's text.
 def parse_manifest(text)
   pkg = quoted_after(text, "package(\"")
-  needs = map(
-    fn(part) first(split(part, "\"")) end,
-    rest(split(text, "needs(\""))
-  )
+  needs = map((part) -> first(split(part, "\"")), rest(split(text, "needs(\"")))
   if is_empty(pkg)
     ["", "", needs]
   else
@@ -89,7 +86,7 @@ end
 
 # The name a `def` line defines: everything up to "(" or a space.
 def defined_name(line)
-  join(take_while(fn(c) c != "(" and c != " " end, drop(4, chars(line))), "")
+  join(take_while((c) -> c != "(" and c != " ", drop(4, chars(line))), "")
 end
 
 # The code a `# waive CODE: reason` comment names, or nil for any other line.
@@ -156,7 +153,7 @@ end
 # prefix: its line is not two strings.
 def legacy_prefix_of_text(text)
   line = find_first(
-    fn(l) starts_with?(l, "legacy_names(") and size(split(l, "\"")) == 5 end,
+    (l) -> starts_with?(l, "legacy_names(") and size(split(l, "\"")) == 5,
     split(text, "\n")
   )
   if line == nil
@@ -198,7 +195,7 @@ end
 
 # The package's gloss: the first comment line of its source.
 def gloss_of_text(text)
-  comment = find_first(fn(l) starts_with?(l, "#") end, split(text, "\n"))
+  comment = find_first((l) -> starts_with?(l, "#"), split(text, "\n"))
   if comment == nil
     ""
   else
@@ -230,20 +227,20 @@ def test_blocks_of_text(text)
 end
 
 def tests_in_text(text)
-  count_where(fn(l) starts_with?(l, "test \"") end, split(text, "\n"))
+  count_where((l) -> starts_with?(l, "test \""), split(text, "\n"))
 end
 
 # ── reading a root ─────────────────────────────────────────────────────────
 
 def blue_path_roots(blue_path)
-  filter(fn(r) r != "" end, split(blue_path, ":"))
+  filter((r) -> r != "", split(blue_path, ":"))
 end
 
 # Package directories under a root: any directory holding a Bluefile.
 def package_dirs(root)
   map(
-    fn(p) path_dirname(p) end,
-    filter(fn(p) ends_with?(p, "/Bluefile") end, walk_dir(root))
+    (p) -> path_dirname(p),
+    filter((p) -> ends_with?(p, "/Bluefile"), walk_dir(root))
   )
 end
 
@@ -251,9 +248,9 @@ end
 def package_text(dir)
   join(
     map(
-      fn(p) read_file(p) end,
+      (p) -> read_file(p),
       filter(
-        fn(p) ends_with?(p, ".b") and path_dirname(p) == dir end,
+        (p) -> ends_with?(p, ".b") and path_dirname(p) == dir,
         walk_dir(dir)
       )
     ),
@@ -280,12 +277,12 @@ end
 # package, the earlier root wins, as it does for the loader.
 def catalog_of(roots)
   records = flat_map(
-    fn(root) map(fn(d) package_record(d) end, package_dirs(root)) end,
+    (root) -> map((d) -> package_record(d), package_dirs(root)),
     roots
   )
   firsts = reduce(
     fn(acc, r)
-      if contains(map(fn(x) first(x) end, acc), first(r))
+      if contains(map((x) -> first(x), acc), first(r))
         acc
       else
         push(acc, r)
@@ -294,7 +291,7 @@ def catalog_of(roots)
     [],
     records
   )
-  sort_by(fn(r) first(r) end, firsts)
+  sort_by((r) -> first(r), firsts)
 end
 
 def pkg_name(r)
@@ -336,7 +333,7 @@ def pkg_dir(r)
 end
 
 def catalog_def_count(records)
-  reduce(fn(acc, r) acc + size(pkg_entries(r)) end, 0, records)
+  reduce((acc, r) -> acc + size(pkg_entries(r)), 0, records)
 end
 
 # ── the namespace gates ────────────────────────────────────────────────────
@@ -345,10 +342,7 @@ end
 def definition_owners(records)
   flat_map(
     fn(r)
-      map(
-        fn(n) [n, pkg_name(r)] end,
-        unique(map(fn(e) first(e) end, pkg_entries(r)))
-      )
+      map((n) -> [n, pkg_name(r)], unique(map((e) -> first(e), pkg_entries(r))))
     end,
     records
   )
@@ -357,21 +351,19 @@ end
 # [def_name, [packages…]] for every name more than one package defines.
 def name_collisions(records)
   pairs = definition_owners(records)
-  names = unique(map(fn(p) first(p) end, pairs))
+  names = unique(map((p) -> first(p), pairs))
   groups = map(
-    fn(n)
-      [n, map(fn(p) last(p) end, filter(fn(p) first(p) == n end, pairs))]
-    end,
+    (n) -> [n, map((p) -> last(p), filter((p) -> first(p) == n, pairs))],
     names
   )
-  filter(fn(g) size(last(g)) > 1 end, groups)
+  filter((g) -> size(last(g)) > 1, groups)
 end
 
 # The collisions that involve at least one of `owned` (a private distribution
 # checking itself against everything it composes with).
 def name_collisions_touching(records, owned)
   filter(
-    fn(g) some(fn(pkg) contains(owned, pkg) end, last(g)) end,
+    (g) -> some((pkg) -> contains(owned, pkg), last(g)),
     name_collisions(records)
   )
 end
@@ -382,13 +374,10 @@ end
 def namespace_duplicates(records)
   flat_map(
     fn(r)
-      names = map(fn(e) first(e) end, pkg_entries(r))
+      names = map((e) -> first(e), pkg_entries(r))
       map(
-        fn(n) [pkg_name(r), n] end,
-        filter(
-          fn(n) size(filter(fn(m) m == n end, names)) > 1 end,
-          unique(names)
-        )
+        (n) -> [pkg_name(r), n],
+        filter((n) -> size(filter((m) -> m == n, names)) > 1, unique(names))
       )
     end,
     records
@@ -397,7 +386,7 @@ end
 
 # [def_name, package] for every definition that reuses one of `names`.
 def names_shadowing(records, names)
-  filter(fn(p) contains(names, first(p)) end, definition_owners(records))
+  filter((p) -> contains(names, first(p)), definition_owners(records))
 end
 
 # ── rendering ──────────────────────────────────────────────────────────────
@@ -447,7 +436,7 @@ end
 
 def entry_waivers(e)
   if size(e) > 3
-    join(map(fn(c) "`#{c}`" end, nth(3, e)), " ")
+    join(map((c) -> "`#{c}`", nth(3, e)), " ")
   else
     ""
   end
@@ -470,7 +459,7 @@ end
 
 def package_section(r)
   builtins = builtin_names
-  rows = map(fn(e) def_row(r, builtins, e) end, pkg_entries(r))
+  rows = map((e) -> def_row(r, builtins, e), pkg_entries(r))
   join(
     concat_lists(
       [
@@ -498,8 +487,8 @@ def render_markdown(records)
     "| package | version | needs | tests | defs | what it is |",
     "|---|---|---|---|---|---|"
   ]
-  body = map(fn(r) package_section(r) end, records)
-  "#{join(concat_lists(header, map(fn(r) pkg_summary_row(r) end, records)), "\n")}\n\n#{join(body, "\n\n")}\n\n#{shared_names_section(records)}\n"
+  body = map((r) -> package_section(r), records)
+  "#{join(concat_lists(header, map((r) -> pkg_summary_row(r), records)), "\n")}\n\n#{join(body, "\n\n")}\n\n#{shared_names_section(records)}\n"
 end
 
 # The names several packages define: legal, since each is reached qualified
@@ -508,7 +497,7 @@ end
 def shared_names_section(records)
   rows = map(
     fn(g)
-      "| `#{md_cell(first(g))}` | #{join(map(fn(p) "`#{p}::#{first(g)}`" end, last(g)), ", ")} |"
+      "| `#{md_cell(first(g))}` | #{join(map((p) -> "`#{p}::#{first(g)}`", last(g)), ", ")} |"
     end,
     name_collisions(records)
   )
@@ -544,7 +533,7 @@ end
 
 test "a definition with no parameters is catalogued bare"
   src = "def alphabet()\n  1\nend\n\ndef typed() -> Int\n  1\nend\n\ndef inc(x)\n  x\nend\n"
-  assert map(fn(e) nth(1, e) end, entries_of_text(src)) ==
+  assert map((e) -> nth(1, e), entries_of_text(src)) ==
     ["alphabet", "typed -> Int", "inc(x)"]
 end
 

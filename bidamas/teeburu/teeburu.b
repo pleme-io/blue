@@ -19,11 +19,11 @@ end
 
 def insert_statement(table, row)
   es = map_entries(row)
-  cols = join(map(fn(e) quoted(to_s(first(e))) end, es), ", ")
-  marks = join(map(fn(i) "$#{to_s(i + 1)}" end, range(count(es))), ", ")
+  cols = join(map((e) -> quoted(to_s(first(e))), es), ", ")
+  marks = join(map((i) -> "$#{to_s(i + 1)}", range(count(es))), ", ")
   [
     "INSERT INTO #{quoted(table)} (#{cols}) VALUES (#{marks}) RETURNING *",
-    map(fn(e) second(e) end, es)
+    map((e) -> second(e), es)
   ]
 end
 

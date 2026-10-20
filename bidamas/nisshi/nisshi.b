@@ -381,7 +381,7 @@ end
 def object?(v)
   list?(v) and
     is_empty(v) == false and
-    count_where(fn(p) el_pair?(p) == false end, v) == 0
+    count_where((p) -> el_pair?(p) == false, v) == 0
 end
 
 # True for the value json_parse gives an empty object: a map that writes "{}".
@@ -418,7 +418,7 @@ def canon_list(v)
   if object?(v)
     canon_object(v)
   else
-    "[#{join(map(fn(x) canon(x) end, v), ",")}]"
+    "[#{join(map((x) -> canon(x), v), ",")}]"
   end
 end
 
@@ -436,11 +436,11 @@ end
 # Pairs ordered by key text, in code-point order (what `compare` gives).
 # Raises when a pair is not [name, value] or two keys share one text.
 def sorted_pairs(pairs)
-  checked = map(fn(p) require_pair(p) end, as_list(pairs))
-  sorted = sort_stable_by(fn(p) key_text(first(p)) end, checked)
-  texts = map(fn(p) key_text(first(p)) end, sorted)
+  checked = map((p) -> require_pair(p), as_list(pairs))
+  sorted = sort_stable_by((p) -> key_text(first(p)), checked)
+  texts = map((p) -> key_text(first(p)), sorted)
   dup = find_first(
-    fn(i) nth(i, texts) == nth(i + 1, texts) end,
+    (i) -> nth(i, texts) == nth(i + 1, texts),
     range(0, size(texts) - 1)
   )
   if dup != nil
@@ -464,7 +464,7 @@ end
 
 # The canonical text of an object given as [name, value] pairs; "{}" for none.
 def canon_object(pairs)
-  "{#{join(map(fn(p) canon_member(p) end, sorted_pairs(pairs)), ",")}}"
+  "{#{join(map((p) -> canon_member(p), sorted_pairs(pairs)), ",")}}"
 end
 
 def canon_member(p)
@@ -480,7 +480,7 @@ end
 # text: the log writes names as text and could not tell them apart.
 def names(d)
   events = raifusaikuru::d_events(d)
-  require_distinct(map(fn(e) raifusaikuru::text(first(e)) end, events), "event")
+  require_distinct(map((e) -> raifusaikuru::text(first(e)), events), "event")
   reduce(
     fn(m, e)
       assoc(m, raifusaikuru::text(first(e)), [first(e), key_index(nth(1, e))])
@@ -492,10 +492,10 @@ end
 
 def key_index(keys)
   require_distinct(
-    map(fn(k) raifusaikuru::text(k) end, as_list(keys)),
+    map((k) -> raifusaikuru::text(k), as_list(keys)),
     "payload key"
   )
-  reduce(fn(m, k) assoc(m, raifusaikuru::text(k), k) end, {}, as_list(keys))
+  reduce((m, k) -> assoc(m, raifusaikuru::text(k), k), {}, as_list(keys))
 end
 
 def require_distinct(texts, what)
@@ -538,9 +538,7 @@ end
 def normal_event(names, ev)
   ty = type_named(names, raifusaikuru::text(raifusaikuru::ev_type(ev)))
   payload = map(
-    fn(p)
-      [key_named(names, ty, key_text(first(p))), normal_value(nth(1, p))]
-    end,
+    (p) -> [key_named(names, ty, key_text(first(p))), normal_value(nth(1, p))],
     sorted_pairs(raifusaikuru::ev_payload(ev))
   )
   raifusaikuru::ev(ty, raifusaikuru::ev_time(ev), payload)
@@ -553,9 +551,9 @@ def normal_value(v)
   if v == nil
     nil
   elsif object?(v)
-    map(fn(p) [first(p), normal_value(nth(1, p))] end, sorted_pairs(v))
+    map((p) -> [first(p), normal_value(nth(1, p))], sorted_pairs(v))
   elsif list?(v)
-    map(fn(x) normal_value(x) end, v)
+    map((x) -> normal_value(x), v)
   else
     v
   end
@@ -582,11 +580,11 @@ end
 
 def detail_texts(kind, detail)
   if kind == :guard
-    map(fn(r) raifusaikuru::text(r) end, raifusaikuru::refused_rules(detail))
+    map((r) -> raifusaikuru::text(r), raifusaikuru::refused_rules(detail))
   elsif detail == nil
     []
   elsif list?(detail)
-    map(fn(x) raifusaikuru::text(x) end, detail)
+    map((x) -> raifusaikuru::text(x), detail)
   else
     [raifusaikuru::text(detail)]
   end
@@ -602,7 +600,7 @@ end
 
 # Links as the log holds them: [kind, id] pairs, the kind as text, in order.
 def normal_links(links)
-  map(fn(l) normal_link(l) end, as_list(links))
+  map((l) -> normal_link(l), as_list(links))
 end
 
 def normal_link(l)
@@ -620,7 +618,7 @@ def normal_link(l)
 end
 
 def links_text(links)
-  "[#{join(map(fn(l) link_text(l) end, links), ",")}]"
+  "[#{join(map((l) -> link_text(l), links), ",")}]"
 end
 
 def link_text(l)
@@ -867,10 +865,10 @@ def decode_doc(names, position, line, doc)
   else
     ty = type_named(names, ty_text)
     pairs = map(
-      fn(p) [key_named(names, ty, first(p)), nth(1, p)] end,
+      (p) -> [key_named(names, ty, first(p)), nth(1, p)],
       payload_pairs(payload)
     )
-    kinds = map(fn(l) [get_str(l, "kind", ""), get_str(l, "id", "")] end, links)
+    kinds = map((l) -> [get_str(l, "kind", ""), get_str(l, "id", "")], links)
     record(
       position,
       seq,
@@ -911,7 +909,7 @@ def refusal_from(v)
   else
     [
       find_first(
-        fn(k) raifusaikuru::text(k) == get_str(v, "kind", "") end,
+        (k) -> raifusaikuru::text(k) == get_str(v, "kind", ""),
         refusal_kinds
       ),
       as_list(as_json(v, "detail"))
@@ -971,9 +969,7 @@ def sig_shape?(v)
 end
 
 def links_shape?(v)
-  v != nil and
-    list?(v) and
-    count_where(fn(l) link_shape?(l) == false end, v) == 0
+  v != nil and list?(v) and count_where((l) -> link_shape?(l) == false, v) == 0
 end
 
 def link_shape?(l)
@@ -988,7 +984,7 @@ def refusal_shape?(status, v)
   else
     object?(v) and
       contains(
-        map(fn(k) raifusaikuru::text(k) end, refusal_kinds),
+        map((k) -> raifusaikuru::text(k), refusal_kinds),
         get_str(v, "kind", nil)
       ) and
       texts_list?(as_json(v, "detail"))
@@ -996,7 +992,7 @@ def refusal_shape?(status, v)
 end
 
 def texts_list?(v)
-  v != nil and list?(v) and count_where(fn(x) string?(x) == false end, v) == 0
+  v != nil and list?(v) and count_where((x) -> string?(x) == false, v) == 0
 end
 
 # ── the log value ──────────────────────────────────────────────────────────
@@ -1124,7 +1120,7 @@ end
 
 # Every entity's state, [entity, state], in the order entities first appear.
 def states(log)
-  map(fn(e) [e, state(log, e)] end, entities(log))
+  map((e) -> [e, state(log, e)], entities(log))
 end
 
 # The log with a signing key: every record appended through it carries an
@@ -1238,14 +1234,10 @@ def from_text(text, path, bytes, label, d)
   torn = text != "" and ends_with?(text, "\n") == false
   names = nisshi::names(d)
   records = map(
-    fn(i) decode_at(names, i, nth(i, lines), torn and i == n - 1) end,
+    (i) -> decode_at(names, i, nth(i, lines), torn and i == n - 1),
     range(0, n)
   )
-  reduce(
-    fn(l, x) absorb(l, x) end,
-    new(path, label, d, bytes, records),
-    records
-  )
+  reduce((l, x) -> absorb(l, x), new(path, label, d, bytes, records), records)
 end
 
 def decode_at(names, i, line, is_torn)
@@ -1270,7 +1262,7 @@ end
 
 # Lines back into a stream's text, each ended by a newline.
 def unlines(lines)
-  join(map(fn(l) "#{l}\n" end, lines), "")
+  join(map((l) -> "#{l}\n", lines), "")
 end
 
 # The writer's door: read the stream, verify it (signatures too, given a
@@ -1471,12 +1463,12 @@ def verify(log, public_hex, expected_head)
     raise(:eventlog_use, "a public key is 64 lowercase hex characters")
   end
   records = nisshi::records(log)
-  bad = find_first(fn(x) record?(x) == false end, records)
+  bad = find_first((x) -> record?(x) == false, records)
   good = before_bad(records, bad)
-  texts = map(fn(r) texts_of(r) end, good)
+  texts = map((r) -> texts_of(r), good)
   g = genesis(label(log))
   found = filter(
-    fn(b) b != nil end,
+    (b) -> b != nil,
     [
       break_bad(bad),
       break_chain(g, good, texts),
@@ -1485,7 +1477,7 @@ def verify(log, public_hex, expected_head)
       break_sig(good, public_hex)
     ]
   )
-  earliest = reduce(fn(best, b) earlier(best, b) end, nil, found)
+  earliest = reduce((best, b) -> earlier(best, b), nil, found)
   head = head_of(g, good)
   if earliest != nil
     [:el_broken, nth(0, earliest), nth(1, earliest), nth(2, earliest)]
@@ -1539,8 +1531,8 @@ end
 def break_chain(g, good, texts)
   p = chain_first_break(
     g,
-    map(fn(t) body_text(t) end, texts),
-    map(fn(r) rec_hash(r) end, good)
+    map((t) -> body_text(t), texts),
+    map((r) -> rec_hash(r), good)
   )
   if p == nil
     nil
@@ -1561,7 +1553,7 @@ end
 
 def break_canon(good, texts)
   i = find_first(
-    fn(k) canonical_at?(nth(k, good), nth(k, texts)) == false end,
+    (k) -> canonical_at?(nth(k, good), nth(k, texts)) == false,
     range(0, size(good))
   )
   if i == nil
@@ -1580,7 +1572,7 @@ def canonical_at?(r, t)
 end
 
 def break_seq(good)
-  nth(1, reduce(fn(acc, r) seq_step(acc, r) end, [{}, nil], good))
+  nth(1, reduce((acc, r) -> seq_step(acc, r), [{}, nil], good))
 end
 
 def seq_step(acc, r)
@@ -1612,7 +1604,7 @@ def break_sig(good, public_hex)
   if public_hex == nil
     nil
   else
-    sig_break(find_first(fn(r) sig_ok?(r, public_hex) == false end, good))
+    sig_break(find_first((r) -> sig_ok?(r, public_hex) == false, good))
   end
 end
 
@@ -1666,8 +1658,8 @@ end
 # a value that was read, not one that was appended to.
 def history(log)
   d = el_def(log)
-  records = filter(fn(x) record?(x) end, nisshi::records(log))
-  retsu::last(reduce(fn(acc, r) history_step(d, acc, r) end, [{}, []], records))
+  records = filter((x) -> record?(x), nisshi::records(log))
+  retsu::last(reduce((acc, r) -> history_step(d, acc, r), [{}, []], records))
 end
 
 # One record into the history: [states by entity, rows so far].
@@ -1699,10 +1691,10 @@ end
 def state_at(log, entity, time)
   d = el_def(log)
   records = filter(
-    fn(x) record?(x) and rec_entity(x) == entity and rec_time(x) <= time end,
+    (x) -> record?(x) and rec_entity(x) == entity and rec_time(x) <= time,
     nisshi::records(log)
   )
-  reduce(fn(s, r) fold_record(d, s, r) end, raifusaikuru::initial(d), records)
+  reduce((s, r) -> fold_record(d, s, r), raifusaikuru::initial(d), records)
 end
 
 # ── grouping ───────────────────────────────────────────────────────────────
@@ -1711,11 +1703,11 @@ end
 # first appear, each group in stream order. Bad lines are left out.
 def by_entity(records)
   acc = reduce(
-    fn(a, x) group_add(a, x) end,
+    (a, x) -> group_add(a, x),
     [[], {}],
-    filter(fn(x) record?(x) end, as_list(records))
+    filter((x) -> record?(x), as_list(records))
   )
-  map(fn(e) [e, reverse(get(nth(1, acc), e))] end, first(acc))
+  map((e) -> [e, reverse(get(nth(1, acc), e))], first(acc))
 end
 
 def group_add(a, r)
@@ -1737,7 +1729,7 @@ end
 # so a long stream holds refusals as well as admissions. Time moves 10 s an
 # event. Each element is [entity, event, links].
 def example_events(n, k)
-  map(fn(i) example_event(i, k) end, range(0, n))
+  map((i) -> example_event(i, k), range(0, n))
 end
 
 def example_event(i, k)
@@ -1770,7 +1762,7 @@ end
 
 # Append every [entity, event, links] in order.
 def append_all(log, items)
-  reduce(fn(l, x) el_append(l, first(x), nth(1, x), nth(2, x)) end, log, items)
+  reduce((l, x) -> el_append(l, first(x), nth(1, x), nth(2, x)), log, items)
 end
 
 # A fresh path under TMPDIR for a test's stream.
@@ -1813,7 +1805,7 @@ test "an identity: append then read gives back every record and every state, and
     ]
   )
   steps = reduce(
-    fn(acc, x) identity_step(acc, x) end,
+    (acc, x) -> identity_step(acc, x),
     [read(p, "nisshi-test", d), []],
     items
   )
@@ -1836,10 +1828,7 @@ test "an identity: append then read gives back every record and every state, and
         first(grp),
         raifusaikuru::state_of(
           d,
-          map(
-            fn(r) rec_event(r) end,
-            filter(fn(r) rec_admitted?(r) end, nth(1, grp))
-          )
+          map((r) -> rec_event(r), filter((r) -> rec_admitted?(r), nth(1, grp)))
         )
       ]
     end,
@@ -1886,9 +1875,9 @@ test "a refused event is written, marked with its reason, counted in seq, and fo
   assert rec_type(el_last(l3)) == "fly"
   back = records(read(p, "nisshi-test", d))
   rm(p)
-  assert map(fn(x) rec_status(x) end, back) ==
+  assert map((x) -> rec_status(x), back) ==
     [:refused, :admitted, :admitted, :refused, :refused]
-  assert map(fn(x) rec_seq(x) end, back) == [0, 1, 2, 3, 4]
+  assert map((x) -> rec_seq(x), back) == [0, 1, 2, 3, 4]
   assert retsu::last(back) == el_last(l3)
 end
 
@@ -1924,7 +1913,7 @@ test "values checked independently: the genesis and every hash by b3sum, the sig
   rm(p)
   assert genesis("nisshi-doc") ==
     "0a42d546253d153e4253d118781c1b773338b3dd532373a12a83accd79e7cba2"
-  assert map(fn(r) rec_hash(r) end, back) ==
+  assert map((r) -> rec_hash(r), back) ==
     [
       "9172aea16c9c2cb304ee3d624c0a79be88ca7537769f3386b64aa55b273dc412",
       "c0a4ffe9fe283b42e163c6ef6b722139699dc07dc1626520e65600acf08d062e",
@@ -2079,8 +2068,8 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
   )
   assert intact == [:el_intact, 5, head]
   rows = control_rows(lines, head, k, other)
-  assert map(fn(row) control_verdict(row) end, rows) ==
-    map(fn(row) [first(row), nth(4, row)] end, rows)
+  assert map((row) -> control_verdict(row), rows) ==
+    map((row) -> [first(row), nth(4, row)], rows)
   # Dropping the LAST line is invisible without the recorded head.
   assert intact?(
     verify(
@@ -2096,7 +2085,7 @@ test "controls: a changed, dropped or reordered line, a wrong signature and ever
     )
   )
   # Every break kind has a row: a new kind without one fails here.
-  assert set_equal(unique(map(fn(row) first(row) end, rows)), break_kinds)
+  assert set_equal(unique(map((row) -> first(row), rows)), break_kinds)
 end
 
 test "append raises before writing on what JSON cannot hold, and on a malformed call"
@@ -2148,11 +2137,11 @@ test "append raises before writing on what JSON cannot hold, and on a malformed 
         []
       )
     end,
-    fn() el_append(l0, "", raifusaikuru::ev(:open, 1000, []), []) end,
+    () -> el_append(l0, "", raifusaikuru::ev(:open, 1000, []), []),
     fn()
       el_append(l0, "item-1", raifusaikuru::ev(:open, 1000, []), [[:batch, 7]])
     end,
-    fn() el_append(l0, "item-1", [:open], []) end
+    () -> el_append(l0, "item-1", [:open], [])
   ]
   assert map(
     fn(call)
@@ -2340,10 +2329,7 @@ test "history: the state after every record, from read's own fold"
   back = read(p, "nisshi-doc", d)
   rm(p)
   h = history(back)
-  assert map(
-    fn(x) [rec_seq(first(x)), raifusaikuru::phase(nth(1, x))] end,
-    h
-  ) ==
+  assert map((x) -> [rec_seq(first(x)), raifusaikuru::phase(nth(1, x))], h) ==
     [[0, :sealed], [1, :sealed], [2, :open]]
   assert nth(1, nth(1, h)) == nth(1, nth(0, h))
   # The identity: the last row per entity is el_state's, and every row is
@@ -2356,10 +2342,7 @@ test "history: the state after every record, from read's own fold"
   assert size(rows) == 60
   assert map(
     fn(e)
-      [
-        e,
-        nth(1, retsu::last(filter(fn(x) rec_entity(first(x)) == e end, rows)))
-      ]
+      [e, nth(1, retsu::last(filter((x) -> rec_entity(first(x)) == e, rows)))]
     end,
     entities(many)
   ) ==
@@ -2370,14 +2353,14 @@ test "history: the state after every record, from read's own fold"
         raifusaikuru::state_of(
           d,
           map(
-            fn(r) rec_event(r) end,
+            (r) -> rec_event(r),
             filter(
               fn(r)
                 rec_entity(r) == rec_entity(first(x)) and
                   rec_seq(r) <= rec_seq(first(x)) and
                   rec_admitted?(r)
               end,
-              map(fn(y) first(y) end, rows)
+              map((y) -> first(y), rows)
             )
           )
         )
@@ -2414,9 +2397,9 @@ test "grouping by entity keeps first-appearance order and stream order, and leav
     )
   )
   groups = by_entity(push(recs, bad(5, "x", "not JSON")))
-  assert map(fn(g) first(g) end, groups) == ["item-1", "item-2"]
-  assert map(fn(r) el_position(r) end, nth(1, first(groups))) == [0, 1, 2, 3]
-  assert map(fn(r) el_position(r) end, nth(1, nth(1, groups))) == [4]
+  assert map((g) -> first(g), groups) == ["item-1", "item-2"]
+  assert map((r) -> el_position(r), nth(1, first(groups))) == [0, 1, 2, 3]
+  assert map((r) -> el_position(r), nth(1, nth(1, groups))) == [4]
   assert by_entity([]) == []
 end
 
@@ -2433,7 +2416,7 @@ test "an observed event is a fact: a guard refusal is written admitted and repla
   ]
   append_all(read(a, "nisshi-test", d), ok)
   reduce(
-    fn(l, x) observe(l, first(x), nth(1, x), nth(2, x)) end,
+    (l, x) -> observe(l, first(x), nth(1, x), nth(2, x)),
     read(o, "nisshi-test", d),
     ok
   )
@@ -2531,10 +2514,10 @@ test "the state as of a time: the records at or before it, folded as read folds 
   # time it is el_history's state after that record.
   assert state_at(log, "item-1", 2000) == state(log, "item-1")
   assert map(
-    fn(x) state_at(log, rec_entity(first(x)), rec_time(first(x))) end,
+    (x) -> state_at(log, rec_entity(first(x)), rec_time(first(x))),
     history(log)
   ) ==
-    map(fn(x) nth(1, x) end, history(log))
+    map((x) -> nth(1, x), history(log))
   # The control: a value that was appended to keeps no records.
   q = test_path("state-at-writer")
   w = el_append(

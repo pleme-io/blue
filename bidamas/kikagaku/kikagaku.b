@@ -71,7 +71,7 @@ end
 def perimeter(pts)
   n = size(pts)
   reduce(
-    fn(acc, i) acc + distance(nth(i, pts), nth((i + 1) % n, pts)) end,
+    (acc, i) -> acc + distance(nth(i, pts), nth((i + 1) % n, pts)),
     0,
     range(0, n)
   )
@@ -199,8 +199,8 @@ def bounding_box(pts)
   if is_empty(pts)
     nil
   else
-    xs = map(fn(p) px(p) end, pts)
-    ys = map(fn(p) py(p) end, pts)
+    xs = map((p) -> px(p), pts)
+    ys = map((p) -> py(p), pts)
     [[min_of(xs), min_of(ys)], [max_of(xs), max_of(ys)]]
   end
 end
@@ -334,7 +334,7 @@ def vertex_centroid(pts)
   if n == 0
     nil
   else
-    [sum(map(fn(p) px(p) end, pts)) / n, sum(map(fn(p) py(p) end, pts)) / n]
+    [sum(map((p) -> px(p), pts)) / n, sum(map((p) -> py(p), pts)) / n]
   end
 end
 
@@ -387,7 +387,7 @@ def is_convex(pts)
     false
   else
     turns = filter(
-      fn(s) s != 0 end,
+      (s) -> s != 0,
       map(
         fn(i)
           orientation(nth(i, pts), nth((i + 1) % n, pts), nth((i + 2) % n, pts))
@@ -398,7 +398,7 @@ def is_convex(pts)
     if is_empty(turns)
       false
     else
-      size(filter(fn(s) s == first(turns) end, turns)) == size(turns)
+      size(filter((s) -> s == first(turns), turns)) == size(turns)
     end
   end
 end
@@ -469,13 +469,13 @@ end
 # silent last-wins, so the suffix is what keeps two packages from quietly
 # swapping meanings under a caller.
 def translate_polygon(pts, dx, dy)
-  map(fn(p) [px(p) + dx, py(p) + dy] end, pts)
+  map((p) -> [px(p) + dx, py(p) + dy], pts)
 end
 
 # Scaling about the ORIGIN, which moves the shape as well as resizing it. Use
 # `scale_polygon_about` to resize in place.
 def scale_polygon(pts, k)
-  map(fn(p) [px(p) * k, py(p) * k] end, pts)
+  map((p) -> [px(p) * k, py(p) * k], pts)
 end
 
 def scale_polygon_about(pts, centre, k)
@@ -491,7 +491,7 @@ def scale_polygon_about(pts, centre, k)
 end
 
 def rotate_polygon(pts, theta)
-  map(fn(p) rotate_point(p, theta) end, pts)
+  map((p) -> rotate_point(p, theta), pts)
 end
 
 # The lowest point, ties broken leftmost. It is provably on the hull, which is
@@ -737,7 +737,7 @@ end
 # The edges of a closed polygon as [a, b] pairs, the closing edge included.
 def polygon_edges(pts)
   n = size(pts)
-  map(fn(i) [nth(i, pts), nth((i + 1) % n, pts)] end, range(0, n))
+  map((i) -> [nth(i, pts), nth((i + 1) % n, pts)], range(0, n))
 end
 
 # Distance from p to the polygon's BOUNDARY: 0 on an edge, and the same inside
@@ -746,7 +746,7 @@ end
 def polygon_edge_distance(p, pts)
   min_of(
     map(
-      fn(e) point_segment_distance(p, nth(0, e), nth(1, e)) end,
+      (e) -> point_segment_distance(p, nth(0, e), nth(1, e)),
       polygon_edges(pts)
     )
   )
@@ -777,8 +777,8 @@ def boundary_gap(a, b)
     0
   else
     min(
-      min_of(map(fn(p) polygon_edge_distance(p, b) end, a)),
-      min_of(map(fn(p) polygon_edge_distance(p, a) end, b))
+      min_of(map((p) -> polygon_edge_distance(p, b), a)),
+      min_of(map((p) -> polygon_edge_distance(p, a), b))
     )
   end
 end
@@ -809,7 +809,7 @@ end
 # counter-clockwise and every hole clockwise, the convention that makes the
 # signed areas add up and an extrusion's faces point outward.
 def region(outline, holes)
-  [ccw_polygon(outline), map(fn(h) cw_polygon(h) end, holes)]
+  [ccw_polygon(outline), map((h) -> cw_polygon(h), holes)]
 end
 
 def region_outline(r)
@@ -822,19 +822,19 @@ end
 
 def region_area(r)
   polygon_area(region_outline(r)) -
-    sum(map(fn(h) polygon_area(h) end, region_holes(r)))
+    sum(map((h) -> polygon_area(h), region_holes(r)))
 end
 
 # The area centroid: the outline's, less each hole's, weighted by area.
 def region_centroid(r)
   parts = concat_lists(
     [[polygon_area(region_outline(r)), centroid(region_outline(r))]],
-    map(fn(h) [-polygon_area(h), centroid(h)] end, region_holes(r))
+    map((h) -> [-polygon_area(h), centroid(h)], region_holes(r))
   )
-  a = sum(map(fn(p) nth(0, p) end, parts))
+  a = sum(map((p) -> nth(0, p), parts))
   [
-    sum(map(fn(p) nth(0, p) * px(nth(1, p)) end, parts)) / a,
-    sum(map(fn(p) nth(0, p) * py(nth(1, p)) end, parts)) / a
+    sum(map((p) -> nth(0, p) * px(nth(1, p)), parts)) / a,
+    sum(map((p) -> nth(0, p) * py(nth(1, p)), parts)) / a
   ]
 end
 
@@ -858,13 +858,13 @@ def region_refusals(r)
       [:kikagaku_region, "hole #{to_s(i)} is not strictly inside the outline"]
     end,
     filter(
-      fn(i) polygon_inside(nth(i, holes), outline) == false end,
+      (i) -> polygon_inside(nth(i, holes), outline) == false,
       indexes(holes)
     )
   )
   pairs = filter(
-    fn(ij) nth(0, ij) < nth(1, ij) end,
-    flat_map(fn(i) map(fn(j) [i, j] end, indexes(holes)) end, indexes(holes))
+    (ij) -> nth(0, ij) < nth(1, ij),
+    flat_map((i) -> map((j) -> [i, j], indexes(holes)), indexes(holes))
   )
   overlapping = map(
     fn(ij)
@@ -874,9 +874,7 @@ def region_refusals(r)
       ]
     end,
     filter(
-      fn(ij)
-        polygons_overlap(nth(nth(0, ij), holes), nth(nth(1, ij), holes))
-      end,
+      (ij) -> polygons_overlap(nth(nth(0, ij), holes), nth(nth(1, ij), holes)),
       pairs
     )
   )
@@ -1182,7 +1180,7 @@ test "the hull contains every input point"
   assert polygon_area(hull) >= polygon_area(pts)
   # Every original point is inside or on the hull.
   outside = filter(
-    fn(p) not (point_in_polygon(p, hull) or point_on_polygon(p, hull)) end,
+    (p) -> not (point_in_polygon(p, hull) or point_on_polygon(p, hull)),
     pts
   )
   assert is_empty(outside) == true
@@ -1315,7 +1313,7 @@ test "invalid regions are refused, naming the hole"
   # overlap, and a two-point outline.
   outline = rect_polygon(0, 0, 100, 50)
   across = region(outline, [circle_polygon([98, 25], 5, 16)])
-  assert map(fn(r) nth(0, r) end, region_refusals(across)) == [:kikagaku_region]
+  assert map((r) -> nth(0, r), region_refusals(across)) == [:kikagaku_region]
   away = region(outline, [circle_polygon([200, 25], 5, 16)])
   assert size(region_refusals(away)) == 1
   pair = region(

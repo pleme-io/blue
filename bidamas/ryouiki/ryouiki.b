@@ -33,7 +33,7 @@ def box_around(points)
   else
     map(
       fn(j)
-        xs = map(fn(p) nth(j, p) end, points)
+        xs = map((p) -> nth(j, p), points)
         [smallest(xs), largest(xs)]
       end,
       range(0, size(first(points)))
@@ -44,7 +44,7 @@ end
 def in_box?(box, p)
   size(
     filter(
-      fn(j) nth(j, p) < first(nth(j, box)) or nth(j, p) > last(nth(j, box)) end,
+      (j) -> nth(j, p) < first(nth(j, box)) or nth(j, p) > last(nth(j, box)),
       range(0, size(box))
     )
   ) ==
@@ -52,14 +52,14 @@ def in_box?(box, p)
 end
 
 def inside_of(box, points)
-  filter(fn(i) in_box?(box, nth(i, points)) end, range(0, size(points)))
+  filter((i) -> in_box?(box, nth(i, points)), range(0, size(points)))
 end
 
 def mean_target(ids, ys)
   if is_empty(ids)
     0
   else
-    mean(map(fn(i) nth(i, ys) end, ids))
+    mean(map((i) -> nth(i, ys), ids))
   end
 end
 
@@ -73,14 +73,14 @@ def peeled_edge(values, side, alpha)
   elsif side == :lo
     q = percentile(values, alpha)
     if q > first(levels)
-      smallest(filter(fn(v) v >= q end, levels))
+      smallest(filter((v) -> v >= q, levels))
     else
       nth(1, levels)
     end
   else
     q = percentile(values, 1 - alpha)
     if q < last(levels)
-      largest(filter(fn(v) v <= q end, levels))
+      largest(filter((v) -> v <= q, levels))
     else
       nth(size(levels) - 2, levels)
     end
@@ -91,7 +91,7 @@ end
 def peel_candidates(box, ids, points, ys, alpha)
   flat_map(
     fn(j)
-      values = map(fn(i) nth(j, nth(i, points)) end, ids)
+      values = map((i) -> nth(j, nth(i, points)), ids)
       flat_map(
         fn(side)
           edge = peeled_edge(values, side, alpha)
@@ -110,7 +110,7 @@ def peel_candidates(box, ids, points, ys, alpha)
               end,
               range(0, size(box))
             )
-            kept = filter(fn(i) in_box?(narrowed, nth(i, points)) end, ids)
+            kept = filter((i) -> in_box?(narrowed, nth(i, points)), ids)
             if is_empty(kept) or size(kept) == size(ids)
               []
             else
@@ -139,7 +139,7 @@ def prim(points, ys, alpha, min_support)
         size(ids) / n,
         if_zero_total(
           total,
-          sum(map(fn(i) nth(i, ys) end, ids)) / max(total, 0.000000001)
+          sum(map((i) -> nth(i, ys), ids)) / max(total, 0.000000001)
         ),
         mean_target(ids, ys),
         box
@@ -153,7 +153,7 @@ def prim(points, ys, alpha, min_support)
         acc
       else
         best = first(
-          sort_by(fn(c) -nth(2, c) + size(nth(1, c)) * 0.000000001 end, cands)
+          sort_by((c) -> -nth(2, c) + size(nth(1, c)) * 0.000000001, cands)
         )
         if size(nth(1, best)) / n < min_support
           acc
@@ -183,11 +183,11 @@ end
 # The box to report: the most coverage among steps at or above `density`,
 # or nil when no step reaches it.
 def prim_box(trajectory, density)
-  ok = filter(fn(r) nth(3, r) >= density end, trajectory)
+  ok = filter((r) -> nth(3, r) >= density, trajectory)
   if is_empty(ok)
     nil
   else
-    first(sort_by(fn(r) -nth(2, r) + nth(0, r) * 0.000000001 end, ok))
+    first(sort_by((r) -> -nth(2, r) + nth(0, r) * 0.000000001, ok))
   end
 end
 
@@ -222,7 +222,7 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 def grid(k)
-  flat_map(fn(x) map(fn(y) [x, y] end, range(0, k)) end, range(0, k))
+  flat_map((x) -> map((y) -> [x, y], range(0, k)), range(0, k))
 end
 
 test "the empty case: no points, no trajectory"
@@ -232,7 +232,7 @@ end
 
 test "an identity: when every point is the outcome, the first box is dense and full"
   pts = grid(5)
-  traj = prim(pts, map(fn(_p) 1 end, pts), 0.05, 0.05)
+  traj = prim(pts, map((_p) -> 1, pts), 0.05, 0.05)
   assert nth(3, first(traj)) == 1
   assert nth(2, first(traj)) == 1
   assert nth(4, prim_box(traj, 1)) == box_around(pts)

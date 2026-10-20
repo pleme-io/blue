@@ -38,7 +38,7 @@ end
 
 # Build a scale by walking a list of intervals from a root.
 def scale_from(root, steps)
-  reduce(fn(acc, s) push(acc, transpose_note(last(acc), s)) end, [root], steps)
+  reduce((acc, s) -> push(acc, transpose_note(last(acc), s)), [root], steps)
 end
 
 def major_scale(root)
@@ -252,12 +252,12 @@ def chord_intervals(notes)
   if is_empty(notes)
     []
   else
-    map(fn(pc) interval_between(first(notes), pc) end, notes)
+    map((pc) -> interval_between(first(notes), pc), notes)
   end
 end
 
 def chord_from_root(root, intervals)
-  map(fn(s) transpose_note(root, s) end, intervals)
+  map((s) -> transpose_note(root, s), intervals)
 end
 
 # Shape -> name, with "unknown" for anything unlisted. An unlisted shape is a
@@ -453,11 +453,11 @@ end
 # Transposes any note list — a scale, a chord, a melody. Kept separate from
 # transpose_note so callers do not map by hand at every site.
 def transpose_all(notes, semitones)
-  map(fn(pc) transpose_note(pc, semitones) end, notes)
+  map((pc) -> transpose_note(pc, semitones), notes)
 end
 
 def note_names_of(notes)
-  map(fn(pc) note_name(pc) end, notes)
+  map((pc) -> note_name(pc), notes)
 end
 
 # --- chords built out of a scale ----------------------------------------------
@@ -503,14 +503,14 @@ end
 # of a key, derived rather than recited.
 def scale_triad_qualities(scale)
   map(
-    fn(d) triad_quality(scale_triad(scale, d)) end,
+    (d) -> triad_quality(scale_triad(scale, d)),
     range(0, size(scale_tones(scale)))
   )
 end
 
 def scale_seventh_qualities(scale)
   map(
-    fn(d) seventh_quality(scale_seventh(scale, d)) end,
+    (d) -> seventh_quality(scale_seventh(scale, d)),
     range(0, size(scale_tones(scale)))
   )
 end
@@ -529,7 +529,7 @@ end
 # 12 are coprime. That single fact is why the circle is a circle and why the
 # key signatures come out one accidental apart all the way round.
 def circle_of_fifths(start)
-  map(fn(i) transpose_note(start, 7 * i) end, range(0, 12))
+  map((i) -> transpose_note(start, 7 * i), range(0, 12))
 end
 
 # Accidentals in a MAJOR key: positive counts sharps, negative counts flats.
@@ -575,7 +575,7 @@ end
 # Fixing that needs a letter+accidental type, not a bigger table; the test
 # pins the failure so it is a known edge and not a lurking one.
 def key_note_names(key)
-  map(fn(pc) note_name_for_key(pc, key) end, scale_tones(major_scale(key)))
+  map((pc) -> note_name_for_key(pc, key), scale_tones(major_scale(key)))
 end
 
 # Sharps are added F C G D A E B and flats in the exact reverse. It is the same
@@ -672,7 +672,7 @@ test "a major scale returns to its octave"
 end
 
 test "C major has no sharps, which is the thing everyone knows"
-  named = map(fn(pc) note_name(pc) end, take(7, major_scale(0)))
+  named = map((pc) -> note_name(pc), take(7, major_scale(0)))
   assert named == ["C", "D", "E", "F", "G", "A", "B"]
 end
 
@@ -703,9 +703,9 @@ test "the two spelling tables name the same twelve pitches"
   # The check that matters: every flat name round-trips to the pitch class it
   # was taken from. A table with a typo, or one note out of order, fails here
   # and nowhere else — naming C# and Db both "correct" hides a shifted table.
-  assert map(fn(pc) pitch_class_of(note_name_flat(pc)) end, range(0, 12)) ==
+  assert map((pc) -> pitch_class_of(note_name_flat(pc)), range(0, 12)) ==
     range(0, 12)
-  assert map(fn(pc) pitch_class_of(note_name(pc)) end, range(0, 12)) ==
+  assert map((pc) -> pitch_class_of(note_name(pc)), range(0, 12)) ==
     range(0, 12)
   assert note_name_flat(1) == "Db"
   assert note_name(1) == "C#"
@@ -752,7 +752,7 @@ test "interval inversion is an involution with the tritone fixed"
   assert invert_interval(5) == 7
   assert invert_interval(0) == 0
   assert invert_interval(6) == 6
-  assert map(fn(s) invert_interval(invert_interval(s)) end, range(0, 12)) ==
+  assert map((s) -> invert_interval(invert_interval(s)), range(0, 12)) ==
     range(0, 12)
 end
 
@@ -765,20 +765,16 @@ test "consonance splits the octave seven to five"
   assert is_consonant(11) == false
   # An inversion of a consonance is a consonance — true of this set and false
   # of most hand-typed near-misses.
-  assert count_where(fn(s) is_consonant(s) end, range(0, 12)) == 7
-  assert count_where(
-    fn(s) is_consonant(invert_interval(s)) end,
-    range(0, 12)
-  ) ==
-    7
+  assert count_where((s) -> is_consonant(s), range(0, 12)) == 7
+  assert count_where((s) -> is_consonant(invert_interval(s)), range(0, 12)) == 7
   assert is_dissonant(6) == true
 end
 
 test "every mode is a rotation of one pattern and closes the octave"
   # Each mode's steps must still sum to 12, or the scale does not come home.
-  assert map(fn(m) sum(mode_steps(m)) end, mode_names) == repeat(12, 7)
-  assert map(fn(m) size(mode_scale(0, m)) end, mode_names) == repeat(8, 7)
-  assert map(fn(m) last(mode_scale(5, m)) end, mode_names) == repeat(5, 7)
+  assert map((m) -> sum(mode_steps(m)), mode_names) == repeat(12, 7)
+  assert map((m) -> size(mode_scale(0, m)), mode_names) == repeat(8, 7)
+  assert map((m) -> last(mode_scale(5, m)), mode_names) == repeat(5, 7)
 end
 
 test "ionian is major and aeolian is minor, by construction not by table"
@@ -800,7 +796,7 @@ test "the two definitions of a mode agree"
   assert mode_of_major(0, 5) == mode_scale(9, "aeolian")
   # All seven modes of C major use only the white notes.
   assert map(
-    fn(d) contains(major_scale(0), first(mode_of_major(0, d))) end,
+    (d) -> contains(major_scale(0), first(mode_of_major(0, d))),
     range(0, 7)
   ) ==
     repeat(true, 7)
@@ -829,7 +825,7 @@ test "pentatonics and the blues scale"
   assert size(scale_tones(blues_scale(9))) == 6
   # A minor pentatonic is a subset of A minor, and the blues note is not.
   assert count_where(
-    fn(pc) is_in_scale(pc, minor_scale(9)) end,
+    (pc) -> is_in_scale(pc, minor_scale(9)),
     scale_tones(minor_pentatonic_scale(9))
   ) ==
     5
@@ -846,12 +842,12 @@ test "chromatic and whole-tone scales"
   assert transpose_all(scale_tones(whole_tone_scale(0)), 2) ==
     [2, 4, 6, 8, 10, 0]
   assert count_where(
-    fn(pc) is_in_scale(pc, whole_tone_scale(0)) end,
+    (pc) -> is_in_scale(pc, whole_tone_scale(0)),
     transpose_all(scale_tones(whole_tone_scale(0)), 2)
   ) ==
     6
   assert count_where(
-    fn(pc) is_in_scale(pc, whole_tone_scale(0)) end,
+    (pc) -> is_in_scale(pc, whole_tone_scale(0)),
     transpose_all(scale_tones(whole_tone_scale(0)), 1)
   ) ==
     0
@@ -899,7 +895,7 @@ test "every seventh quality classifies back to itself"
     augmented_major_seventh(0),
     augmented_seventh(0)
   ]
-  assert map(fn(c) seventh_quality(c) end, built) == seventh_quality_names
+  assert map((c) -> seventh_quality(c), built) == seventh_quality_names
   # The three that are one semitone apart in exactly one voice, spelled out so
   # a transposed table or an off-by-one interval cannot pass.
   assert minor_seventh(0) == [0, 3, 7, 10]
@@ -967,7 +963,7 @@ test "chords on scale degrees are real chords in the scale"
   # Every note of a scale chord is in the scale — the invariant the wrapping
   # index exists to preserve.
   assert count_where(
-    fn(pc) is_in_scale(pc, major_scale(3)) end,
+    (pc) -> is_in_scale(pc, major_scale(3)),
     scale_seventh(major_scale(3), 5)
   ) ==
     4
@@ -1001,7 +997,7 @@ test "stepping by fifths visits every pitch exactly once"
   c = circle_of_fifths(0)
   assert size(c) == 12
   assert c == [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5]
-  assert count_where(fn(pc) contains(c, pc) end, range(0, 12)) == 12
+  assert count_where((pc) -> contains(c, pc), range(0, 12)) == 12
   assert transpose_note(0, 7 * 12) == 0
   assert fifth_down(fifth_up(4)) == 4
   assert first(circle_of_fifths(9)) == 9
@@ -1021,30 +1017,30 @@ test "key signatures, against the ones everybody can check"
   assert key_uses_flats(10) == true
   assert key_uses_flats(2) == false
   # Each step round the circle adds one sharp, all the way to six.
-  assert map(fn(i) key_signature(transpose_note(0, 7 * i)) end, range(0, 7)) ==
+  assert map((i) -> key_signature(transpose_note(0, 7 * i)), range(0, 7)) ==
     range(0, 7)
 end
 
 test "the accidental count is derivable from the notes, not just from the table"
   # Independent derivation: how many notes of the key are not in C major. It
   # must equal the signature for every key with five or fewer accidentals.
-  agree = filter(fn(k) abs(key_signature(k)) < 6 end, range(0, 12))
+  agree = filter((k) -> abs(key_signature(k)) < 6, range(0, 12))
   assert size(agree) == 11
   assert map(
     fn(k)
       count_where(
-        fn(pc) not is_in_scale(pc, major_scale(0)) end,
+        (pc) -> not is_in_scale(pc, major_scale(0)),
         scale_tones(major_scale(k))
       )
     end,
     agree
   ) ==
-    map(fn(k) abs(key_signature(k)) end, agree)
+    map((k) -> abs(key_signature(k)), agree)
   # F# major is the one key where they part company, because its sixth sharp is
   # E# — a sharp on a white key. Pinned so the boundary is documented, not lost.
   assert abs(key_signature(6)) == 6
   assert count_where(
-    fn(pc) not is_in_scale(pc, major_scale(0)) end,
+    (pc) -> not is_in_scale(pc, major_scale(0)),
     scale_tones(major_scale(6))
   ) ==
     5
@@ -1071,14 +1067,11 @@ end
 test "relative keys share a signature; parallel keys do not"
   assert relative_minor(0) == 9
   assert relative_major(9) == 0
-  assert map(fn(pc) relative_major(relative_minor(pc)) end, range(0, 12)) ==
+  assert map((pc) -> relative_major(relative_minor(pc)), range(0, 12)) ==
     range(0, 12)
   # The defining property, checked for all twelve rather than for C alone.
-  assert map(
-    fn(pc) minor_key_signature(relative_minor(pc)) end,
-    range(0, 12)
-  ) ==
-    map(fn(pc) key_signature(pc) end, range(0, 12))
+  assert map((pc) -> minor_key_signature(relative_minor(pc)), range(0, 12)) ==
+    map((pc) -> key_signature(pc), range(0, 12))
   assert minor_key_signature(9) == 0
   assert minor_key_signature(4) == 1
   # C major and C minor are parallel, not relative: same tonic, different
@@ -1225,7 +1218,7 @@ test "MIDI numbers and octave names round-trip"
   # into. A truncating divide would break this below MIDI 0, and an off-by-one
   # octave base would break it everywhere.
   assert map(
-    fn(n) note_to_midi(midi_pitch_class(n), midi_octave(n)) end,
+    (n) -> note_to_midi(midi_pitch_class(n), midi_octave(n)),
     range(0, 128)
   ) ==
     range(0, 128)
@@ -1242,7 +1235,7 @@ test "hz_to_midi inverts midi_to_hz"
   assert near(hz_to_midi(220), 57) == true
   # The round trip over the whole keyboard, both ways.
   assert count_where(
-    fn(n) near(hz_to_midi(midi_to_hz(n)), n) end,
+    (n) -> near(hz_to_midi(midi_to_hz(n)), n),
     range(21, 109)
   ) ==
     88

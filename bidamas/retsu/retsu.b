@@ -85,15 +85,15 @@ def indexes(xs)
 end
 
 def zip_with(f, a, b)
-  map(fn(i) f(nth(i, a), nth(i, b)) end, range(0, min(size(a), size(b))))
+  map((i) -> f(nth(i, a), nth(i, b)), range(0, min(size(a), size(b))))
 end
 
 def zip(a, b)
-  zip_with(fn(x, y) [x, y] end, a, b)
+  zip_with((x, y) -> [x, y], a, b)
 end
 
 def repeat(v, n)
-  map(fn(_i) v end, range(0, n))
+  map((_i) -> v, range(0, n))
 end
 
 def sum_to(n)
@@ -150,7 +150,7 @@ end
 
 test "zip, repeat, flatten"
   assert zip([1, 2], [3, 4]) == [[1, 3], [2, 4]]
-  assert zip_with(fn(a, b) a + b end, [1, 2], [10, 20]) == [11, 22]
+  assert zip_with((a, b) -> a + b, [1, 2], [10, 20]) == [11, 22]
   # zip stops at the SHORTER list rather than reading past the end.
   assert zip([1], [1, 2, 3]) == [[1, 1]]
   assert repeat(7, 3) == [7, 7, 7]
@@ -246,11 +246,11 @@ def contains(xs, v)
 end
 
 def count_of(xs, v)
-  size(filter(fn(x) x == v end, xs))
+  size(filter((x) -> x == v, xs))
 end
 
 def without(xs, v)
-  filter(fn(x) x != v end, xs)
+  filter((x) -> x != v, xs)
 end
 
 test "take_n and drop_n are total where take and drop are ordered the other way"
@@ -391,7 +391,7 @@ def windows(xs, n)
   if n < 1 or size(xs) < n
     []
   else
-    map(fn(i) slice(xs, i, n) end, range(0, size(xs) - n + 1))
+    map((i) -> slice(xs, i, n), range(0, size(xs) - n + 1))
   end
 end
 
@@ -501,7 +501,7 @@ def find_first(f, xs)
 end
 
 def reject(f, xs)
-  filter(fn(x) not f(x) end, xs)
+  filter((x) -> not f(x), xs)
 end
 
 def count_where(f, xs)
@@ -554,7 +554,7 @@ end
 # zero. That is `scan` with its seed dropped, which is what "running total"
 # means to everyone who is not thinking about folds.
 def running_sum(xs)
-  rest(scan(fn(a, b) a + b end, 0, xs))
+  rest(scan((a, b) -> a + b, 0, xs))
 end
 
 def enumerate(xs)
@@ -567,59 +567,59 @@ end
 
 # The inverse of zip: a list of pairs back into [firsts, seconds].
 def unzip(ps)
-  [map(fn(p) nth(0, p) end, ps), map(fn(p) nth(1, p) end, ps)]
+  [map((p) -> nth(0, p), ps), map((p) -> nth(1, p), ps)]
 end
 
 test "find_first returns the element, not its position"
-  assert find_first(fn(x) x > 1 end, [1, 2, 3]) == 2
-  assert find_first(fn(x) x > 9 end, [1, 2]) == nil
+  assert find_first((x) -> x > 1, [1, 2, 3]) == 2
+  assert find_first((x) -> x > 9, [1, 2]) == nil
   # Nothing satisfies anything in an empty list — including a predicate that is
   # true of everything, which is where a vacuous implementation shows up.
-  assert find_first(fn(_x) true end, []) == nil
+  assert find_first((_x) -> true, []) == nil
 end
 
 test "reject, count_where and partition"
-  assert reject(fn(x) x > 2 end, [1, 2, 3, 4]) == [1, 2]
-  assert reject(fn(_x) true end, [1, 2]) == []
-  assert reject(fn(_x) false end, [1, 2]) == [1, 2]
-  assert count_where(fn(x) x > 1 end, [1, 2, 3]) == 2
-  assert count_where(fn(x) x > 1 end, []) == 0
-  assert partition(fn(x) x > 2 end, [1, 3, 2, 4]) == [[3, 4], [1, 2]]
+  assert reject((x) -> x > 2, [1, 2, 3, 4]) == [1, 2]
+  assert reject((_x) -> true, [1, 2]) == []
+  assert reject((_x) -> false, [1, 2]) == [1, 2]
+  assert count_where((x) -> x > 1, [1, 2, 3]) == 2
+  assert count_where((x) -> x > 1, []) == 0
+  assert partition((x) -> x > 2, [1, 3, 2, 4]) == [[3, 4], [1, 2]]
   # The two halves account for every element exactly once, whatever the predicate.
-  assert count_where(fn(x) x > 2 end, [1, 3, 2, 4]) +
-    size(reject(fn(x) x > 2 end, [1, 3, 2, 4])) ==
+  assert count_where((x) -> x > 2, [1, 3, 2, 4]) +
+    size(reject((x) -> x > 2, [1, 3, 2, 4])) ==
     4
-  assert partition(fn(_x) true end, []) == [[], []]
+  assert partition((_x) -> true, []) == [[], []]
 end
 
 test "take_while and drop_while stop at the first failure"
-  assert take_while(fn(x) x < 3 end, [1, 2, 3, 1]) == [1, 2]
+  assert take_while((x) -> x < 3, [1, 2, 3, 1]) == [1, 2]
   # The trailing 1 passes the predicate and is still dropped — this is what
   # separates take_while from filter, and filter would answer [1, 2, 1].
-  assert drop_while(fn(x) x < 3 end, [1, 2, 3, 1]) == [3, 1]
-  assert take_while(fn(_x) false end, [1, 2]) == []
-  assert drop_while(fn(_x) true end, [1, 2]) == []
-  assert take_while(fn(_x) true end, []) == []
-  assert drop_while(fn(_x) true end, []) == []
+  assert drop_while((x) -> x < 3, [1, 2, 3, 1]) == [3, 1]
+  assert take_while((_x) -> false, [1, 2]) == []
+  assert drop_while((_x) -> true, [1, 2]) == []
+  assert take_while((_x) -> true, []) == []
+  assert drop_while((_x) -> true, []) == []
   # Together they rebuild the input, at any split point.
   assert append(
-    take_while(fn(x) x < 3 end, [1, 2, 3, 1]),
-    drop_while(fn(x) x < 3 end, [1, 2, 3, 1])
+    take_while((x) -> x < 3, [1, 2, 3, 1]),
+    drop_while((x) -> x < 3, [1, 2, 3, 1])
   ) ==
     [1, 2, 3, 1]
 end
 
 test "scan keeps every intermediate accumulator"
-  assert scan(fn(a, b) a + b end, 0, [1, 2, 3]) == [0, 1, 3, 6]
+  assert scan((a, b) -> a + b, 0, [1, 2, 3]) == [0, 1, 3, 6]
   # Seed included, so an empty input still yields the seed and the length is
   # always size + 1 — the off-by-one a plausible implementation gets wrong.
-  assert scan(fn(a, b) a + b end, 7, []) == [7]
-  assert size(scan(fn(a, b) a + b end, 0, [1, 2, 3])) == 4
+  assert scan((a, b) -> a + b, 7, []) == [7]
+  assert size(scan((a, b) -> a + b, 0, [1, 2, 3])) == 4
   # The last accumulator is exactly what reduce would have returned.
-  assert last(scan(fn(a, b) a + b end, 0, [1, 2, 3, 4])) ==
-    reduce(fn(a, b) a + b end, 0, [1, 2, 3, 4])
+  assert last(scan((a, b) -> a + b, 0, [1, 2, 3, 4])) ==
+    reduce((a, b) -> a + b, 0, [1, 2, 3, 4])
   # It is not sum-specific.
-  assert scan(fn(a, b) a * b end, 1, [2, 3, 4]) == [1, 2, 6, 24]
+  assert scan((a, b) -> a * b, 1, [2, 3, 4]) == [1, 2, 6, 24]
 end
 
 test "running_sum has no leading seed"
@@ -633,10 +633,10 @@ end
 test "enumerate, flat_map and unzip"
   assert enumerate([7, 8]) == [[0, 7], [1, 8]]
   assert enumerate([]) == []
-  assert flat_map(fn(x) [x, x] end, [1, 2]) == [1, 1, 2, 2]
+  assert flat_map((x) -> [x, x], [1, 2]) == [1, 1, 2, 2]
   # A function returning an empty list contributes nothing rather than a hole.
-  assert flat_map(fn(_x) [] end, [1, 2]) == []
-  assert flat_map(fn(x) [x] end, []) == []
+  assert flat_map((_x) -> [], [1, 2]) == []
+  assert flat_map((x) -> [x], []) == []
   assert unzip([[1, 3], [2, 4]]) == [[1, 2], [3, 4]]
   assert unzip([]) == [[], []]
   # unzip undoes zip — the identity that catches a transposed implementation.

@@ -207,13 +207,13 @@ end
 # these stay total on both empties without borrowing anything.
 
 def sum(xs)
-  reduce(fn(a, b) a + b end, 0, xs)
+  reduce((a, b) -> a + b, 0, xs)
 end
 
 # Seeded with 1, not 0 — the empty product is one, and a 0 seed makes every
 # answer zero.
 def product(xs)
-  reduce(fn(a, b) a * b end, 1, xs)
+  reduce((a, b) -> a * b, 1, xs)
 end
 
 # nil seeds the fold so that no sentinel can be mistaken for data. Seeding
@@ -251,11 +251,11 @@ end
 # gcd(0, n) is n, so 0 seeds the gcd fold; lcm(1, n) is n, so 1 seeds the lcm
 # fold. Swapping them silently returns 1 from every gcd and 0 from every lcm.
 def gcd_of(xs)
-  reduce(fn(a, b) gcd(a, b) end, 0, xs)
+  reduce((a, b) -> gcd(a, b), 0, xs)
 end
 
 def lcm_of(xs)
-  reduce(fn(a, b) lcm(a, b) end, 1, xs)
+  reduce((a, b) -> lcm(a, b), 1, xs)
 end
 
 # --- interpolation, rounding, ratios ----------------------------------------

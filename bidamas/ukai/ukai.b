@@ -20,47 +20,43 @@ def axes()
 end
 
 def axis_names()
-  map(fn(a) first(a) end, axes)
+  map((a) -> first(a), axes)
 end
 
 def variants(axis)
-  last(first(filter(fn(a) first(a) == axis end, axes)))
+  last(first(filter((a) -> first(a) == axis, axes)))
 end
 
 def variant_named(axis, text)
-  first(filter(fn(v) to_s(v) == text end, variants(axis)))
+  first(filter((v) -> to_s(v) == text, variants(axis)))
 end
 
 def every_state()
-  reduce(fn(acc, a) flat_map_states(acc, first(a), last(a)) end, [{}], axes)
+  reduce((acc, a) -> flat_map_states(acc, first(a), last(a)), [{}], axes)
 end
 
 def flat_map_states(acc, axis, vs)
-  reduce(
-    fn(out, s) append(out, map(fn(v) assoc(s, axis, v) end, vs)) end,
-    [],
-    acc
-  )
+  reduce((out, s) -> append(out, map((v) -> assoc(s, axis, v), vs)), [], acc)
 end
 
 def state(axes_map, payload)
-  bad = filter(fn(a) not member?(get(axes_map, a), variants(a)) end, axis_names)
+  bad = filter((a) -> not member?(get(axes_map, a), variants(a)), axis_names)
   if is_empty(bad)
     reduce(
-      fn(s, k) assoc(s, k, get(payload, k)) end,
+      (s, k) -> assoc(s, k, get(payload, k)),
       axes_map,
       [:gateway_addr, :gateway_iface, :hosts, :routed, :table, :priority]
     )
   else
     raise(
       :not_a_variant,
-      "no such variant on #{join(map(fn(a) to_s(a) end, bad), ", ")}"
+      "no such variant on #{join(map((a) -> to_s(a), bad), ", ")}"
     )
   end
 end
 
 def unread_axes(s)
-  filter(fn(a) get(s, a) == :unread end, axis_names)
+  filter((a) -> get(s, a) == :unread, axis_names)
 end
 
 def noop(reason)
@@ -109,13 +105,13 @@ def route_set(s)
 end
 
 def sorted(xs)
-  sort_keyed(fn(x) x end, xs)
+  sort_keyed((x) -> x, xs)
 end
 
 def outcome_label(o)
   k = get(o, :kind)
   if k == :blind
-    "blind:#{join(map(fn(a) to_s(a) end, get(o, :unread)), ",")}"
+    "blind:#{join(map((a) -> to_s(a), get(o, :unread)), ",")}"
   elsif k == :bypass
     "bypass"
   else
@@ -124,12 +120,12 @@ def outcome_label(o)
 end
 
 def row_key(s)
-  join(map(fn(a) to_s(get(s, a)) end, axis_names), "\t")
+  join(map((a) -> to_s(get(s, a)), axis_names), "\t")
 end
 
 def matrix_rows(text)
   filter(
-    fn(l) not is_empty(trim(l)) and not starts_with?(l, "corp\t") end,
+    (l) -> not is_empty(trim(l)) and not starts_with?(l, "corp\t"),
     split(text, "\n")
   )
 end
@@ -140,37 +136,34 @@ def matrix_row(line)
 end
 
 def matrix_text(states)
-  header = "#{join(map(fn(a) to_s(a) end, axis_names), "\t")}\toutcome\n"
+  header = "#{join(map((a) -> to_s(a), axis_names), "\t")}\toutcome\n"
   concat(
     header,
-    join(
-      map(fn(s) "#{row_key(s)}\t#{outcome_label(decide(s))}\n" end, states),
-      ""
-    )
+    join(map((s) -> "#{row_key(s)}\t#{outcome_label(decide(s))}\n", states), "")
   )
 end
 
 def matrix_findings(text, states)
-  rows = map(fn(l) matrix_row(l) end, matrix_rows(text))
+  rows = map((l) -> matrix_row(l), matrix_rows(text))
   want = reduce(
-    fn(m, s) assoc(m, row_key(s), outcome_label(decide(fill(s)))) end,
+    (m, s) -> assoc(m, row_key(s), outcome_label(decide(fill(s)))),
     {},
     states
   )
-  seen = reduce(fn(m, r) assoc(m, first(r), last(r)) end, {}, rows)
+  seen = reduce((m, r) -> assoc(m, first(r), last(r)), {}, rows)
   missing = map(
-    fn(s) [:missing_row, row_key(s)] end,
-    filter(fn(s) get(seen, row_key(s)) == nil end, states)
+    (s) -> [:missing_row, row_key(s)],
+    filter((s) -> get(seen, row_key(s)) == nil, states)
   )
   extra = map(
-    fn(r) [:row_without_variant, first(r)] end,
-    filter(fn(r) get(want, first(r)) == nil end, rows)
+    (r) -> [:row_without_variant, first(r)],
+    filter((r) -> get(want, first(r)) == nil, rows)
   )
   dup = duplicates(rows)
   wrong = map(
-    fn(r) [:decision_disagrees, "#{first(r)}\twant #{last(r)}"] end,
+    (r) -> [:decision_disagrees, "#{first(r)}\twant #{last(r)}"],
     filter(
-      fn(r) get(want, first(r)) != nil and get(want, first(r)) != last(r) end,
+      (r) -> get(want, first(r)) != nil and get(want, first(r)) != last(r),
       rows
     )
   )
@@ -311,7 +304,7 @@ def getent_argv(getent, name)
 end
 
 def fields(line)
-  filter(fn(f) not is_empty(f) end, split(replace(trim(line), "\t", " "), " "))
+  filter((f) -> not is_empty(f), split(replace(trim(line), "\t", " "), " "))
 end
 
 def ipv4?(s)
@@ -320,25 +313,22 @@ def ipv4?(s)
 end
 
 def every_octet(ps)
-  is_empty(filter(fn(p) not octet?(p) end, ps))
+  is_empty(filter((p) -> not octet?(p), ps))
 end
 
 def octet?(p)
   not is_empty(p) and
-    is_empty(filter(fn(c) not contains?("0123456789", c) end, chars(p))) and
+    is_empty(filter((c) -> not contains?("0123456789", c), chars(p))) and
     to_int(p) <= 255
 end
 
 def parse_netstat(text)
   ls = split(text, "\n")
-  hdr = filter(fn(l) starts_with?(l, "Destination") end, ls)
+  hdr = filter((l) -> starts_with?(l, "Destination"), ls)
   if is_empty(hdr)
     bad("netstat: no Destination header")
   else
-    rows = filter(
-      fn(f) size(f) >= 4 end,
-      map(fn(l) fields(l) end, after_header(ls))
-    )
+    rows = filter((f) -> size(f) >= 4, map((l) -> fields(l), after_header(ls)))
     ok(
       map(
         fn(f)
@@ -367,10 +357,10 @@ end
 
 def parse_ip_route(text)
   rows = map(
-    fn(l) ip_route_row(fields(l)) end,
-    filter(fn(l) not is_empty(trim(l)) end, split(text, "\n"))
+    (l) -> ip_route_row(fields(l)),
+    filter((l) -> not is_empty(trim(l)), split(text, "\n"))
   )
-  if not is_empty(filter(fn(r) r == nil end, rows))
+  if not is_empty(filter((r) -> r == nil, rows))
     bad("ip route: a line with no dev")
   else
     ok(rows)
@@ -421,8 +411,8 @@ def parse_ip_rules(text)
   ok(
     unique(
       filter(
-        fn(h) h != nil end,
-        map(fn(l) rule_host(fields(l)) end, split(text, "\n"))
+        (h) -> h != nil,
+        map((l) -> rule_host(fields(l)), split(text, "\n"))
       )
     )
   )
@@ -442,7 +432,7 @@ end
 def overlay_iface(routes)
   r = first(
     filter(
-      fn(r) r_dest(r) == "100.64/10" or r_dest(r) == "100.64.0.0/10" end,
+      (r) -> r_dest(r) == "100.64/10" or r_dest(r) == "100.64.0.0/10",
       routes
     )
   )
@@ -463,15 +453,15 @@ end
 
 def corp_of(routes, pattern)
   ov = overlay_iface(routes)
-  mine = filter(fn(r) corp_iface?(get(r, :iface), pattern, ov) end, routes)
-  halves = filter(fn(r) half?(r_dest(r)) or r_dest(r) == "default" end, mine)
+  mine = filter((r) -> corp_iface?(get(r, :iface), pattern, ov), routes)
+  halves = filter((r) -> half?(r_dest(r)) or r_dest(r) == "default", mine)
   if is_empty(mine)
     :absent
   elsif size(
-    unique(map(fn(r) r_dest(r) end, filter(fn(r) half?(r_dest(r)) end, halves)))
+    unique(map((r) -> r_dest(r), filter((r) -> half?(r_dest(r)), halves)))
   ) >=
     2 or
-    not is_empty(filter(fn(r) r_dest(r) == "default" end, halves))
+    not is_empty(filter((r) -> r_dest(r) == "default", halves))
     :full
   else
     :split
@@ -496,7 +486,7 @@ end
 def routed_via(routes, gateway)
   unique(
     map(
-      fn(r) r_dest(r) end,
+      (r) -> r_dest(r),
       filter(
         fn(r)
           get(r, :gateway) == gateway and
@@ -517,12 +507,8 @@ def parse_derp_map(text)
   else
     ips = unique(
       filter(
-        fn(ip) ipv4?(ip) end,
-        reduce(
-          fn(acc, reg) append(acc, region_ips(nth(1, reg))) end,
-          [],
-          regions
-        )
+        (ip) -> ipv4?(ip),
+        reduce((acc, reg) -> append(acc, region_ips(nth(1, reg))), [], regions)
       )
     )
     if is_empty(ips)
@@ -538,7 +524,7 @@ def region_ips(reg)
   if nodes == nil or not list?(nodes)
     []
   else
-    map(fn(n) get_str(n, "IPv4", "") end, nodes)
+    map((n) -> get_str(n, "IPv4", ""), nodes)
   end
 end
 
@@ -575,10 +561,10 @@ end
 def parse_dscacheutil(text)
   ips = unique(
     filter(
-      fn(ip) ipv4?(ip) end,
+      (ip) -> ipv4?(ip),
       map(
-        fn(l) trim(replace(l, "ip_address:", "")) end,
-        filter(fn(l) starts_with?(l, "ip_address:") end, split(text, "\n"))
+        (l) -> trim(replace(l, "ip_address:", "")),
+        filter((l) -> starts_with?(l, "ip_address:"), split(text, "\n"))
       )
     )
   )
@@ -592,10 +578,10 @@ end
 def parse_getent(text)
   ips = unique(
     filter(
-      fn(ip) ipv4?(ip) end,
+      (ip) -> ipv4?(ip),
       map(
-        fn(l) first(fields(l)) end,
-        filter(fn(l) not is_empty(trim(l)) end, split(text, "\n"))
+        (l) -> first(fields(l)),
+        filter((l) -> not is_empty(trim(l)), split(text, "\n"))
       )
     )
   )
@@ -607,8 +593,8 @@ def parse_getent(text)
 end
 
 def infer_enforcement(targets, routed, applied, overlay)
-  present = filter(fn(h) member?(h, routed) end, targets)
-  lost = filter(fn(h) not member?(h, routed) end, applied)
+  present = filter((h) -> member?(h, routed), targets)
+  lost = filter((h) -> not member?(h, routed), applied)
   if not is_empty(lost)
     :routes_rewritten
   elsif is_empty(present)
@@ -778,7 +764,7 @@ def plan(o, cfg)
         get(rs, :add)
       )
     else
-      map(fn(h) route_add_argv(h, get(rs, :gateway)) end, get(rs, :add))
+      map((h) -> route_add_argv(h, get(rs, :gateway)), get(rs, :add))
     end
   end
 end
@@ -792,7 +778,7 @@ def act(argvs, dry_run)
       argvs
     )
   else
-    map(fn(a) capture(a) end, argvs)
+    map((a) -> capture(a), argvs)
   end
 end
 
@@ -802,7 +788,7 @@ def read_applied(path)
   if xs == nil or not list?(xs)
     []
   else
-    filter(fn(x) string?(x) end, xs)
+    filter((x) -> string?(x), xs)
   end
 end
 
@@ -818,7 +804,7 @@ def config()
     gateway: getenv("UKAI_GATEWAY", ""),
     gateway_iface: getenv("UKAI_GATEWAY_IFACE", ""),
     extra_hosts: filter(
-      fn(h) ipv4?(h) end,
+      (h) -> ipv4?(h),
       split(getenv("UKAI_EXTRA_HOSTS", ""), ",")
     ),
     tailscale: getenv("UKAI_TAILSCALE", "tailscale"),
@@ -839,7 +825,7 @@ def run(cfg)
   argvs = plan(o, cfg2)
   results = act(argvs, get(cfg2, :dry_run))
   failed = filter(
-    fn(r) get(r, :status) != 0 and get(r, :status) != nil end,
+    (r) -> get(r, :status) != 0 and get(r, :status) != nil,
     results
   )
   applied = if get(cfg2, :dry_run) or
@@ -854,9 +840,9 @@ def run(cfg)
     outcome: outcome_label(o),
     state: row_key(s),
     dry_run: get(cfg2, :dry_run),
-    planned: map(fn(a) join(a, " ") end, argvs),
+    planned: map((a) -> join(a, " "), argvs),
     failed: map(
-      fn(r) "#{join(get(r, :argv), " ")}: #{trim(get(r, :stderr))}" end,
+      (r) -> "#{join(get(r, :argv), " ")}: #{trim(get(r, :stderr))}",
       failed
     ),
     applied: applied
@@ -881,8 +867,8 @@ def fixture(name)
     [path_join(cwd, "bidamas"), path_join(cwd, "../../bidamas")]
   )
   hits = filter(
-    fn(p) is_file?(p) end,
-    map(fn(r) path_join(r, "ukai/fixtures/#{name}") end, roots)
+    (p) -> is_file?(p),
+    map((r) -> path_join(r, "ukai/fixtures/#{name}"), roots)
   )
   if is_empty(hits)
     raise(:no_fixture, name)
@@ -954,12 +940,10 @@ test "the matrix gate goes red on a missing row, a stray row and a wrong decisio
 end
 
 test "the measured live row: full tunnel, permissive, relay, gateway present, darwin is a bypass"
-  rows = map(fn(l) matrix_row(l) end, matrix_rows(fixture("matrix.tsv")))
+  rows = map((l) -> matrix_row(l), matrix_rows(fixture("matrix.tsv")))
   r = first(
     filter(
-      fn(r)
-        first(r) == "full\tpermissive\trelay\tpresent\tresolved\tdarwin"
-      end,
+      (r) -> first(r) == "full\tpermissive\trelay\tpresent\tresolved\tdarwin",
       rows
     )
   )
@@ -976,7 +960,7 @@ test "blind is never noop: an unread axis wins over every other answer"
     [:targets]
   assert get(decide(assoc(s, :corp, :absent)), :kind) == :noop
   assert size(
-    filter(fn(x) get(decide(fill(x)), :kind) == :blind end, every_state)
+    filter((x) -> get(decide(fill(x)), :kind) == :blind, every_state)
   ) ==
     1200 - 3 * 4 * 4 * 2 * 1 * 2
 end

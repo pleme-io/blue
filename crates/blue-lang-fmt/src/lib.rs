@@ -52,9 +52,10 @@
 //! - **A broken call, list or map** puts one element per line, indented one
 //!   level (two spaces), and its closer on its own line aligned with the line
 //!   that opened it.
-//! - **A lambda** is `fn(x) body end` when that fits and its body is one
-//!   statement. Otherwise `fn(x)` ends its line, the body is indented one level
-//!   from the line `fn` starts on, and `end` is aligned with that line.
+//! - **A lambda always breaks**: `fn(x)` ends its line, the body is indented
+//!   one level from the line `fn` starts on, and `end` is aligned with that
+//!   line. `fn(x) body end` on one line is never rendered, and since blue
+//!   compiles only canonical source it never compiles.
 //! - **`def`, `if`, `case`, `test`, `defmacro` and `quote` always break**: a
 //!   block collapsed onto one line would be a second rendering of one tree.
 //! - **A long operator chain** (`&&`, `||`, `+`, `==`, …, one precedence level
@@ -804,7 +805,7 @@ impl<'s> Renderer<'s> {
             }
             // (lambda (params) body)
             Some("lambda") if items.len() == 3 && is_params(&items[1]) => {
-                return self.lambda_form(s, items)
+                return self.lambda_form(s, items, min_prec)
             }
             // (defmacro name (params) body)
             //
@@ -922,8 +923,9 @@ impl<'s> Renderer<'s> {
         let mut rest = vec![items[0].clone()];
         rest.extend(items[2..].iter().cloned());
         let into = Spanned::new(Span::synthetic(), SpannedForm::List(rest));
+        let lhs_prec = u8::from(sym_name_of(&items[1]) == Some("lambda"));
         let d = self
-            .expr(&items[1], 0)
+            .expr(&items[1], lhs_prec)
             .concat(Doc::text(" |> ("))
             .concat(self.expr(&into, 0))
             .concat(Doc::text(")"));
@@ -1288,15 +1290,30 @@ impl<'s> Renderer<'s> {
         self.def_block(s, header, &items[3])
     }
 
-    /// `(lambda (a b) body)` → `fn(a, b) body end`, on one line when it fits.
-    fn lambda_form(&self, s: &Spanned, items: &[Spanned]) -> Doc {
+    /// `(lambda (a b) body)`: `(a, b) -> body` when the body is one expression
+    /// and the whole fits the rest of the line, else `fn(a, b)`, the body
+    /// indented, `end` aligned. The block spelling always breaks: `fn … end`
+    /// on one line is never rendered.
+    fn lambda_form(&self, s: &Spanned, items: &[Spanned], min_prec: u8) -> Doc {
         let params = items[1].as_list().unwrap_or(&[]);
-        Doc::text("fn")
+        let block = Doc::text("fn")
             .concat(self.params(params, None))
-            .concat(self.body(&items[2], self.closer(s), Doc::line()))
-            .concat(Doc::line())
-            .concat(Doc::text("end"))
-            .group()
+            .concat(self.body(&items[2], self.closer(s), Doc::hardline()))
+            .concat(Doc::hardline())
+            .concat(Doc::text("end"));
+        let one_expression = self.statements(&items[2]).len() == 1;
+        let commented = self.real(s.span) && self.has_comments(s.span.start, s.span.end);
+        if !one_expression || commented {
+            return block;
+        }
+        let mut inline = self
+            .params(params, None)
+            .concat(Doc::text(" -> "))
+            .concat(self.expr(&items[2], 0));
+        if min_prec > 0 {
+            inline = Doc::text("(").concat(inline).concat(Doc::text(")"));
+        }
+        Doc::choice(inline, block)
     }
 
     /// `if c … [elsif … | else …]`, without the closing `end`, so an `elsif`
@@ -1539,6 +1556,10 @@ fn is_name(s: &Spanned) -> bool {
 }
 
 /// `(a b …)` — a parameter list: only names, as `fn(a, b)` writes them.
+fn sym_name_of(s: &Spanned) -> Option<&str> {
+    s.as_list()?.first()?.as_symbol()
+}
+
 fn is_params(s: &Spanned) -> bool {
     s.as_list().is_some_and(|ps| ps.iter().all(is_name))
 }
@@ -1938,22 +1959,55 @@ mod tests {
 
     // ---- the one layout (2026-09-27) --------------------------------
 
-    /// Defects 1 and 2 of the operator's sample: a lambda that fits stays on
-    /// one line inside a call that breaks, and one that breaks keeps its body
-    /// indented one level under the line `fn` is on, `end` aligned with it.
+    /// A one-expression lambda that fits is the inline `(x) -> expr`; the
+    /// block `fn … end` is only ever rendered broken, `end` aligned with the
+    /// line `fn` is on.
     #[test]
-    fn a_lambda_is_its_own_group() {
-        let src = "another = map(fn(x) x * 2 end, [alpha_value, beta_value, alpha_value, beta_value, alpha_value, beta_value])";
+    fn a_lambda_is_inline_when_it_fits_and_a_broken_block_otherwise() {
         assert_eq!(
-            f(src).trim(),
-            "another = map(\n  fn(x) x * 2 end,\n  \
-[alpha_value, beta_value, alpha_value, beta_value, alpha_value, beta_value]\n)"
+            f("y = map(xs, fn(x) x * 2 end)").trim(),
+            "y = map(xs, (x) -> x * 2)"
         );
         let multi = "each(xs, fn(x)\n  a(x)\n  b(x)\nend)";
         assert_eq!(
             f(multi).trim(),
             "each(\n  xs,\n  fn(x)\n    a(x)\n    b(x)\n  end\n)"
         );
+        let long = "y = map(xs, fn(x) some_long_function_name(x, another_argument, a_third_argument_here, a_fourth_argument_here) end)";
+        assert_eq!(
+            f(long).trim(),
+            "y = map(\n  xs,\n  fn(x)\n    some_long_function_name(\n      x,\n      another_argument,\n      a_third_argument_here,\n      a_fourth_argument_here\n    )\n  end\n)"
+        );
+    }
+
+    /// An inline lambda is parenthesised as an operand, and inside an
+    /// interpolation it stays on the string's line.
+    #[test]
+    fn an_inline_lambda_is_wrapped_as_an_operand_and_fits_in_interpolation() {
+        assert_eq!(f("y = ((x) -> x) == g").trim(), "y = ((x) -> x) == g");
+        assert_eq!(
+            f("s = \"n: #{join(map(xs, fn(x) to_s(x) end), \", \")}\"").trim(),
+            "s = \"n: #{join(map(xs, (x) -> to_s(x)), \", \")}\""
+        );
+    }
+
+    /// The hard rule: no formatted output holds `fn(...)` and its `end` on one
+    /// line, whatever the source spelled.
+    #[test]
+    fn no_block_is_ever_rendered_on_one_line() {
+        for src in [
+            "f = fn(x) x end",
+            "z = map(xs, fn(x) fn(y) x + y end end)",
+            "each(xs, fn(x) a(x) end)",
+            "each(xs, fn(x) a(x)\n b(x) end)",
+        ] {
+            for line in f(src).lines() {
+                assert!(
+                    !(line.contains("fn(") && line.trim_end().ends_with("end")),
+                    "one-line block in {line:?}"
+                );
+            }
+        }
     }
 
     /// Defect 3: a blank line between top-level forms that span lines; and

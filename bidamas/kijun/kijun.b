@@ -152,7 +152,7 @@ def allowed_top?(cfg, entry)
   else
     entry
   end
-  not is_empty(filter(fn(g) glob_match?(g, name) end, get(cfg, :top)))
+  not is_empty(filter((g) -> glob_match?(g, name), get(cfg, :top)))
 end
 
 def check_top(repo)
@@ -167,7 +167,7 @@ def check_top(repo)
       )
     end,
     filter(
-      fn(e) not allowed_top?(get(repo, :config), e) end,
+      (e) -> not allowed_top?(get(repo, :config), e),
       top_entries(get(repo, :files))
     )
   )
@@ -176,9 +176,9 @@ end
 def node_dirs(files)
   unique(
     map(
-      fn(p) nth(1, segments(p)) end,
+      (p) -> nth(1, segments(p)),
       filter(
-        fn(p) first(segments(p)) == "nodes" and size(segments(p)) > 2 end,
+        (p) -> first(segments(p)) == "nodes" and size(segments(p)) > 2,
         files
       )
     )
@@ -197,7 +197,7 @@ def declared_nodes(repo)
   if member?(path, get(repo, :files))
     doc = nikkusu::read(source_of(repo, path))
     filter(
-      fn(d) d != nil end,
+      (d) -> d != nil,
       map(
         fn(c)
           a = first(args_of(get(c, :node)))
@@ -259,7 +259,7 @@ end
 
 def shared_modules(files)
   map(
-    fn(p) before_first(last(segments(p)), ".nix") end,
+    (p) -> before_first(last(segments(p)), ".nix"),
     filter(
       fn(p)
         glob_match?("modules/pleme/shared/*.nix", p) and
@@ -300,7 +300,7 @@ def factory_proven?(repo, m)
   not is_empty(cs) and
     is_empty(
       filter(
-        fn(c) not member?(spec_kind(c), ["binary", "package", "service"]) end,
+        (c) -> not member?(spec_kind(c), ["binary", "package", "service"]),
         cs
       )
     )
@@ -333,7 +333,7 @@ def route_files(repo)
     fn(p)
       not is_empty(
         filter(
-          fn(g) glob_match?(g, p) end,
+          (g) -> glob_match?(g, p),
           get(get(repo, :config), :import_routes)
         )
       )
@@ -345,7 +345,7 @@ end
 def check_reachable(repo)
   files = get(repo, :files)
   routes = map(
-    fn(p) code(get(nikkusu::read(source_of(repo, p)), :root)) end,
+    (p) -> code(get(nikkusu::read(source_of(repo, p)), :root)),
     route_files(repo)
   )
   map(
@@ -362,9 +362,7 @@ def check_reachable(repo)
       fn(m)
         not member?("modules/pleme/nixos/#{m}.nix", files) and
           not member?("modules/pleme/darwin/#{m}.nix", files) and
-          is_empty(
-            filter(fn(t) contains?(t, "shared/#{m}.nix") end, routes)
-          ) and
+          is_empty(filter((t) -> contains?(t, "shared/#{m}.nix"), routes)) and
           not self_rendering?(repo, m)
       end,
       shared_modules(files)
@@ -377,7 +375,7 @@ def binding_finding(rule, f, b, message)
 end
 
 def module_bindings(f)
-  filter(fn(b) get(b, :scope) == :attrs end, get(f, :bindings))
+  filter((b) -> get(b, :scope) == :attrs, get(f, :bindings))
 end
 
 def starts?(path, prefix)
@@ -387,7 +385,7 @@ end
 def check_system_calls(f, repo)
   if not is_empty(
     filter(
-      fn(g) glob_match?(g, get(f, :path)) end,
+      (g) -> glob_match?(g, get(f, :path)),
       get(get(repo, :config), :engine)
     )
   )
@@ -433,7 +431,7 @@ def check_profile_identity(f, _repo)
         "a profile sets #{get(b, :dotted)}, which is a node's identity; set it in the node"
       )
     end,
-    filter(fn(b) identity?(b) end, module_bindings(f))
+    filter((b) -> identity?(b), module_bindings(f))
   )
 end
 
@@ -465,7 +463,7 @@ def check_lib_data(f, _repo)
         "a module function (a lambda taking config) lives in lib/, which holds data"
       )
     end,
-    nodes_where(fn(n) module_function?(n) end, get(f, :root))
+    nodes_where((n) -> module_function?(n), get(f, :root))
   )
   append(declaration_findings("expr/lib-is-data", f, "lib/"), modules)
 end
@@ -488,7 +486,7 @@ end
 def platform_path?(path)
   p = config_relative(path)
   first(path) != "options" and
-    not is_empty(filter(fn(x) starts?(p, x) end, platform_prefixes))
+    not is_empty(filter((x) -> starts?(p, x), platform_prefixes))
 end
 
 def emits_platform?(b)
@@ -506,7 +504,7 @@ def check_shared_emission(f, _repo)
         "a shared module emits #{join(module_path(b), ".")}, which only a platform renderer may"
       )
     end,
-    filter(fn(b) emits_platform?(b) end, module_bindings(f))
+    filter((b) -> emits_platform?(b), module_bindings(f))
   )
 end
 
@@ -574,7 +572,7 @@ def unpinned?(c)
   if a == nil
     false
   elsif kind(a) == "NODE_ATTR_SET"
-    is_empty(filter(fn(k) attr(a, k) != nil end, pin_attrs))
+    is_empty(filter((k) -> attr(a, k) != nil, pin_attrs))
   else
     kind(a) == "NODE_STRING" or kind(a) == "NODE_PATH_ABS"
   end
@@ -592,7 +590,7 @@ def check_fetch(f, _repo)
         "#{get(c, :head)} with no hash fetches whatever the server serves today"
       )
     end,
-    filter(fn(c) unpinned?(c) end, named(get(f, :calls), fetchers))
+    filter((c) -> unpinned?(c), named(get(f, :calls), fetchers))
   )
 end
 
@@ -617,7 +615,7 @@ def script_lines(body)
   if body == nil or kind(body) != "NODE_STRING"
     0
   else
-    size(filter(fn(l) trim(l) != "" end, lines(string_content(body))))
+    size(filter((l) -> trim(l) != "", lines(string_content(body))))
   end
 end
 
@@ -648,7 +646,7 @@ def check_shell(f, _repo)
       )
     end,
     filter(
-      fn(c) script_lines(script_body(c)) > 3 end,
+      (c) -> script_lines(script_body(c)) > 3,
       named(get(f, :calls), scripts)
     )
   )
@@ -705,7 +703,7 @@ def check_pleme_declarations(tree, repo)
           fn(d)
             rel = own_file(tree, d)
             rel == nil or
-              is_empty(filter(fn(g) glob_match?(g, rel) end, declarers))
+              is_empty(filter((g) -> glob_match?(g, rel), declarers))
           end,
           get(o, :declarations)
         )
@@ -754,15 +752,12 @@ end
 
 def declared_at(tree, option)
   hit = filter(
-    fn(o) get(o, :path) == option end,
+    (o) -> get(o, :path) == option,
     append(get(tree, :pleme), get(tree, :hostname))
   )
   rels = filter(
-    fn(r) r != nil end,
-    map(
-      fn(d) own_file(tree, d) end,
-      flat_map(fn(o) get(o, :declarations) end, hit)
-    )
+    (r) -> r != nil,
+    map((d) -> own_file(tree, d), flat_map((o) -> get(o, :declarations), hit))
   )
   if is_empty(rels)
     "(external)"
@@ -795,16 +790,14 @@ def unit(kind_of, name, file, files)
 end
 
 def nix_under(files, prefix)
-  filter(fn(p) starts_with?(p, prefix) and ends_with?(p, ".nix") end, files)
+  filter((p) -> starts_with?(p, prefix) and ends_with?(p, ".nix"), files)
 end
 
 def dir_units(files, root, kind_of, skip, pool)
   depth = size(segments(root))
-  under = filter(fn(p) starts_with?(p, "#{root}/") end, pool)
+  under = filter((p) -> starts_with?(p, "#{root}/"), pool)
   singles = map(
-    fn(p)
-      unit(kind_of, before_first(nth(depth, segments(p)), ".nix"), p, [p])
-    end,
+    (p) -> unit(kind_of, before_first(nth(depth, segments(p)), ".nix"), p, [p]),
     filter(
       fn(p)
         size(segments(p)) == depth + 1 and
@@ -816,8 +809,8 @@ def dir_units(files, root, kind_of, skip, pool)
   )
   dirs = unique(
     map(
-      fn(p) nth(depth, segments(p)) end,
-      filter(fn(p) size(segments(p)) > depth + 1 end, under)
+      (p) -> nth(depth, segments(p)),
+      filter((p) -> size(segments(p)) > depth + 1, under)
     )
   )
   append(
@@ -852,12 +845,12 @@ def overlay_units(repo)
         []
       else
         map(
-          fn(a) unit(:overlay, a, p, [p]) end,
+          (a) -> unit(:overlay, a, p, [p]),
           unique(
             map(
-              fn(b) first(get(b, :path)) end,
+              (b) -> first(get(b, :path)),
               filter(
-                fn(b) get(b, :scope) == :attrs and get(b, :outer) == nil end,
+                (b) -> get(b, :scope) == :attrs and get(b, :outer) == nil,
                 bindings(set)
               )
             )
@@ -905,7 +898,7 @@ end
 
 def imported_files(f)
   map(
-    fn(c) relative_to(get(f, :path), code(first(get(c, :args)))) end,
+    (c) -> relative_to(get(f, :path), code(first(get(c, :args)))),
     filter(
       fn(c)
         first(get(c, :args)) != nil and
@@ -922,7 +915,7 @@ def spec_names(c)
     []
   else
     filter(
-      fn(x) x != nil end,
+      (x) -> x != nil,
       map(
         fn(k)
           v = attr(a, k)
@@ -950,16 +943,16 @@ def concept_facts(repo)
     end,
     files
   )
-  facts = map(fn(p) file_facts(p, source_of(repo, p)) end, wanted)
+  facts = map((p) -> file_facts(p, source_of(repo, p)), wanted)
   trio = filter(
-    fn(f) not is_empty(named(get(f, :calls), get(cfg, :trio_factory))) end,
+    (f) -> not is_empty(named(get(f, :calls), get(cfg, :trio_factory))),
     facts
   )
   consumers = filter(
     fn(f)
       not is_empty(
         filter(
-          fn(g) glob_match?(g, get(f, :path)) end,
+          (g) -> glob_match?(g, get(f, :path)),
           get(cfg, :concept_consumers)
         )
       )
@@ -967,28 +960,26 @@ def concept_facts(repo)
     facts
   )
   {
-    trio_files: map(fn(f) get(f, :path) end, trio),
+    trio_files: map((f) -> get(f, :path), trio),
     names: unique(
       flat_map(
         fn(f)
           flat_map(
-            fn(c) spec_names(c) end,
+            (c) -> spec_names(c),
             named(get(f, :calls), get(cfg, :trio_factory))
           )
         end,
         trio
       )
     ),
-    trio_imports: unique(flat_map(fn(f) imported_files(f) end, trio)),
-    consumed: unique(flat_map(fn(f) imported_files(f) end, consumers))
+    trio_imports: unique(flat_map((f) -> imported_files(f), trio)),
+    consumed: unique(flat_map((f) -> imported_files(f), consumers))
   }
 end
 
 def registry_units(files, facts)
   map(
-    fn(p)
-      unit(:registry, before_first(nth(1, segments(p)), ".nix"), p, [p])
-    end,
+    (p) -> unit(:registry, before_first(nth(1, segments(p)), ".nix"), p, [p]),
     filter(
       fn(p)
         size(segments(p)) == 2 and
@@ -1020,7 +1011,7 @@ end
 
 def covered?(u, facts)
   not is_empty(
-    filter(fn(p) member?(p, get(facts, :trio_files)) end, get(u, :files))
+    filter((p) -> member?(p, get(facts, :trio_files)), get(u, :files))
   ) or
     member?(get(u, :name), get(facts, :names)) or
     get(u, :kind) == :registry and
@@ -1039,7 +1030,7 @@ def check_concepts(repo)
         "the #{to_s(get(u, :kind))} concept #{get(u, :name)} is not declared through the module-trio factory; declare it with mkModuleTrio { kind = ...; } so it has one type-known interface on every arm"
       )
     end,
-    filter(fn(u) not covered?(u, facts) end, concept_units(repo, facts))
+    filter((u) -> not covered?(u, facts), concept_units(repo, facts))
   )
 end
 
@@ -1064,7 +1055,7 @@ def rules()
       ["modules/pleme/shared/**", "pkgs/**", "overlays/*.nix", "lib/*.nix"],
       "every concept the fleet manages, a shared module, a package, an overlay-added package or a registry consumed as configuration, has one type-known interface on the nixos, darwin and home-manager arms, so it is declared through the module-trio factory",
       "declare it with mkModuleTrio { kind = \"binary\" | \"package\" | \"registry\" | \"service\"; ... } in its own file, or name it (name or packageAttr) in a trio spec",
-      fn(r) check_concepts(r) end
+      (r) -> check_concepts(r)
     ),
     rule(
       "layout/top-level",
@@ -1073,7 +1064,7 @@ def rules()
       ["*"],
       "a fleet repo is one instance of a template: every top-level entry is one the standard names or the instance declares",
       "move the entry under an allowed directory, or name it with allow_top in kijun.b",
-      fn(r) check_top(r) end
+      (r) -> check_top(r)
     ),
     rule(
       "layout/node-shape",
@@ -1082,7 +1073,7 @@ def rules()
       ["nodes/*/"],
       "a node is a directory selected through default.nix; a registry-declared NixOS node selects layers from layers.nix",
       "add nodes/<n>/default.nix (and layers.nix for a NixOS node), or move what is not a node out of nodes/",
-      fn(r) check_nodes(r) end
+      (r) -> check_nodes(r)
     ),
     rule(
       "layout/shared-has-proof",
@@ -1091,7 +1082,7 @@ def rules()
       ["modules/pleme/shared/*.nix"],
       "an option that exists is not a type: each shared options module is proven by a stub-universe harness, unless it is a binary, package or service trio, which substrate's module-trio-kinds matrix proves",
       "add parts/<name>.nix, or declare the concept through mkModuleTrio as a binary, package or service kind; a registry trio keeps its harness, since its projections are its own logic",
-      fn(r) check_proof(r) end
+      (r) -> check_proof(r)
     ),
     rule(
       "layout/shared-reachable",
@@ -1100,7 +1091,7 @@ def rules()
       ["modules/pleme/shared/*.nix"],
       "a shared options module nothing renders or imports is dead weight that looks live; a file that calls mkModuleTrio renders itself, since its module arm picks the platform by class",
       "add modules/pleme/{nixos,darwin}/<name>.nix, import shared/<name>.nix from an import route, or declare the concept through mkModuleTrio",
-      fn(r) check_reachable(r) end
+      (r) -> check_reachable(r)
     ),
     rule(
       "expr/parses",
@@ -1109,7 +1100,7 @@ def rules()
       ["**/*.nix"],
       "a file the parser refuses is checked by no rule",
       "fix the syntax error",
-      fn(f, r) check_parses(f, r) end
+      (f, r) -> check_parses(f, r)
     ),
     rule(
       "expr/node-system-only-via-mkNode",
@@ -1118,7 +1109,7 @@ def rules()
       ["**/*.nix"],
       "a machine is declared through the node engine only; a bespoke nixosSystem or darwinSystem call bypasses the registry and its gates",
       "declare the node in the registry, or name the file in the engine setting",
-      fn(f, r) check_system_calls(f, r) end
+      (f, r) -> check_system_calls(f, r)
     ),
     rule(
       "expr/profile-no-identity",
@@ -1127,7 +1118,7 @@ def rules()
       ["profiles/**/*.nix"],
       "a profile is reusable across nodes, so it carries no node identity: hostname, hostId, disk UUIDs, node-scoped secrets",
       "set the value in nodes/<n>/",
-      fn(f, r) check_profile_identity(f, r) end
+      (f, r) -> check_profile_identity(f, r)
     ),
     rule(
       "expr/lib-is-data",
@@ -1136,7 +1127,7 @@ def rules()
       ["lib/**/*.nix"],
       "data never lives in a module, and lib/ is where data lives: no options, no module functions",
       "move the module to modules/pleme/<layer>/ and keep the data in lib/",
-      fn(f, r) check_lib_data(f, r) end
+      (f, r) -> check_lib_data(f, r)
     ),
     rule(
       "expr/shared-declares-only",
@@ -1145,7 +1136,7 @@ def rules()
       ["modules/pleme/shared/**/*.nix"],
       "options never emit: a shared module is imported on both platforms, so platform config there fails the other platform",
       "move the emission to modules/pleme/{nixos,darwin}/<name>.nix",
-      fn(f, r) check_shared_emission(f, r) end
+      (f, r) -> check_shared_emission(f, r)
     ),
     rule(
       "expr/shared-asks-no-platform",
@@ -1154,7 +1145,7 @@ def rules()
       ["modules/pleme/shared/**/*.nix"],
       "renderers never decide: a shared module that branches on the platform has taken a renderer's decision",
       "split the branch into the platform renderers",
-      fn(f, r) check_shared_platform_question(f, r) end
+      (f, r) -> check_shared_platform_question(f, r)
     ),
     rule(
       "expr/nodes-declare-no-options",
@@ -1163,7 +1154,7 @@ def rules()
       ["nodes/**/*.nix"],
       "a node is identity and selection; an option it declares is a primitive nobody else can reach",
       "declare the option in modules/pleme/shared/ and set it from the node",
-      fn(f, r) check_node_options(f, r) end
+      (f, r) -> check_node_options(f, r)
     ),
     rule(
       "expr/no-angle-paths",
@@ -1172,7 +1163,7 @@ def rules()
       ["**/*.nix"],
       "an angle path resolves through NIX_PATH, which the flake lock does not pin",
       "take the input from the flake's inputs",
-      fn(f, r) check_angle(f, r) end
+      (f, r) -> check_angle(f, r)
     ),
     rule(
       "expr/no-unpinned-fetch",
@@ -1181,7 +1172,7 @@ def rules()
       ["**/*.nix"],
       "a fetch with no hash is whatever the server serves today",
       "add the hash, or make it a flake input",
-      fn(f, r) check_fetch(f, r) end
+      (f, r) -> check_fetch(f, r)
     ),
     rule(
       "expr/no-shell",
@@ -1190,7 +1181,7 @@ def rules()
       ["**/*.nix"],
       "no shell beyond three lines of glue: past that it is a typed tool",
       "write it as a blue program or a typed binary",
-      fn(f, r) check_shell(f, r) end
+      (f, r) -> check_shell(f, r)
     ),
     rule(
       "tree/pleme-options-declared-in-shared",
@@ -1199,7 +1190,7 @@ def rules()
       ["modules/pleme/**"],
       "the pleme.* surface is declared in one layer, so every node reads one vocabulary",
       "move the declaration to modules/pleme/shared/ or the platform renderer",
-      fn(t, r) check_pleme_declarations(t, r) end
+      (t, r) -> check_pleme_declarations(t, r)
     ),
     rule(
       "tree/hostname-from-node",
@@ -1208,7 +1199,7 @@ def rules()
       ["nodes/**"],
       "a hostname is a node's identity, so only the node defines it",
       "define networking.hostName in nodes/<n>/",
-      fn(t, r) check_hostname(t, r) end
+      (t, r) -> check_hostname(t, r)
     ),
     rule(
       "tree/option-evaluates",
@@ -1217,13 +1208,13 @@ def rules()
       ["**"],
       "an option whose definitions cannot be evaluated on a configuration is one no tree rule can see there; it is named alone, and every other option is still read",
       "make the option's default and definitions evaluate on that configuration's class, or declare it only on the class that can",
-      fn(t, r) check_option_evaluates(t, r) end
+      (t, r) -> check_option_evaluates(t, r)
     )
   ]
 end
 
 def disabled_ids(cfg)
-  map(fn(d) get(d, :rule) end, get(cfg, :disabled))
+  map((d) -> get(d, :rule), get(cfg, :disabled))
 end
 
 def active(cfg, plane)
@@ -1236,7 +1227,7 @@ def active(cfg, plane)
 end
 
 def in_scope?(r, path)
-  not is_empty(filter(fn(g) glob_match?(g, path) end, get(r, :scope)))
+  not is_empty(filter((g) -> glob_match?(g, path), get(r, :scope)))
 end
 
 def file_facts(path, source)
@@ -1254,25 +1245,25 @@ def expression_findings(repo)
   rs = active(get(repo, :config), :expression)
   flat_map(
     fn(p)
-      mine = filter(fn(r) in_scope?(r, p) end, rs)
+      mine = filter((r) -> in_scope?(r, p), rs)
       if is_empty(mine)
         []
       else
         f = file_facts(p, source_of(repo, p))
-        flat_map(fn(r) get(r, :check)(f, repo) end, mine)
+        flat_map((r) -> get(r, :check)(f, repo), mine)
       end
     end,
-    filter(fn(p) ends_with?(p, ".nix") end, get(repo, :files))
+    filter((p) -> ends_with?(p, ".nix"), get(repo, :files))
   )
 end
 
 def layout_findings(repo)
-  flat_map(fn(r) get(r, :check)(repo) end, active(get(repo, :config), :layout))
+  flat_map((r) -> get(r, :check)(repo), active(get(repo, :config), :layout))
 end
 
 def tree_findings(repo, trees)
   rs = active(get(repo, :config), :tree)
-  flat_map(fn(t) flat_map(fn(r) get(r, :check)(t, repo) end, rs) end, trees)
+  flat_map((t) -> flat_map((r) -> get(r, :check)(t, repo), rs), trees)
 end
 
 def waiver_refusal(w)
@@ -1283,29 +1274,24 @@ def waiver_refusal(w)
       :waiver,
       "the waiver of #{get(w, :rule)} for #{get(w, :glob)} must read \"#{prefix}<typed reason>\""
     )
-  elsif is_empty(filter(fn(r) get(r, :id) == get(w, :rule) end, rules))
+  elsif is_empty(filter((r) -> get(r, :id) == get(w, :rule), rules))
     refusal(:waiver, "#{get(w, :rule)} is not a rule of the standard")
   end
 end
 
 def valid_waivers(cfg)
-  filter(fn(w) waiver_refusal(w) == nil end, get(cfg, :waivers))
+  filter((w) -> waiver_refusal(w) == nil, get(cfg, :waivers))
 end
 
 def config_refusals(cfg)
   append(
-    filter(
-      fn(x) x != nil end,
-      map(fn(w) waiver_refusal(w) end, get(cfg, :waivers))
-    ),
+    filter((x) -> x != nil, map((w) -> waiver_refusal(w), get(cfg, :waivers))),
     map(
       fn(d)
         refusal(:disable, "#{get(d, :rule)} is not a rule of the standard")
       end,
       filter(
-        fn(d)
-          is_empty(filter(fn(r) get(r, :id) == get(d, :rule) end, rules))
-        end,
+        (d) -> is_empty(filter((r) -> get(r, :id) == get(d, :rule), rules)),
         get(cfg, :disabled)
       )
     )
@@ -1325,7 +1311,7 @@ def waived?(ws, x)
 end
 
 def tier_of(id)
-  get(first(filter(fn(r) get(r, :id) == id end, rules)), :tier)
+  get(first(filter((r) -> get(r, :id) == id, rules)), :tier)
 end
 
 def key_of(x)
@@ -1334,13 +1320,13 @@ end
 
 def measurements(xs)
   map(
-    fn(p) hadome::measurement(first(p), nth(1, p)) end,
-    frequencies(map(fn(x) key_of(x) end, xs))
+    (p) -> hadome::measurement(first(p), nth(1, p)),
+    frequencies(map((x) -> key_of(x), xs))
   )
 end
 
 def rule_ids(xs)
-  unique(map(fn(x) get(x, :rule) end, xs))
+  unique(map((x) -> get(x, :rule), xs))
 end
 
 def baseline_text(gates)
@@ -1349,7 +1335,7 @@ end
 
 def baseline_with(gates, kept)
   own = map(
-    fn(id) [id, measurements(filter(fn(x) get(x, :rule) == id end, gates))] end,
+    (id) -> [id, measurements(filter((x) -> get(x, :rule) == id, gates))],
     rule_ids(gates)
   )
   held = map(
@@ -1357,17 +1343,17 @@ def baseline_with(gates, kept)
       [
         id,
         map(
-          fn(r) hadome::measurement(get(r, :key), get(r, :size)) end,
-          filter(fn(r) get(r, :kind) == id end, kept)
+          (r) -> hadome::measurement(get(r, :key), get(r, :size)),
+          filter((r) -> get(r, :kind) == id, kept)
         )
       ]
     end,
-    unique(map(fn(r) get(r, :kind) end, kept))
+    unique(map((r) -> get(r, :kind), kept))
   )
   join(
     map(
-      fn(p) hadome::render(first(p), nth(1, p)) end,
-      sort_keyed(fn(p) first(p) end, append(own, held))
+      (p) -> hadome::render(first(p), nth(1, p)),
+      sort_keyed((p) -> first(p), append(own, held))
     ),
     ""
   )
@@ -1379,25 +1365,25 @@ def ran_ids(cfg, tree)
   else
     [:layout, :expression]
   end
-  map(fn(r) get(r, :id) end, flat_map(fn(p) active(cfg, p) end, planes))
+  map((r) -> get(r, :id), flat_map((p) -> active(cfg, p), planes))
 end
 
 def split_rows(rows, ids)
   [
-    filter(fn(r) member?(get(r, :kind), ids) end, rows),
-    filter(fn(r) not member?(get(r, :kind), ids) end, rows)
+    filter((r) -> member?(get(r, :kind), ids), rows),
+    filter((r) -> not member?(get(r, :kind), ids), rows)
   ]
 end
 
 def judge(gates, rows)
-  ids = unique(append(rule_ids(gates), map(fn(r) get(r, :kind) end, rows)))
+  ids = unique(append(rule_ids(gates), map((r) -> get(r, :kind), rows)))
   per = map(
     fn(id)
-      mine = filter(fn(x) get(x, :rule) == id end, gates)
+      mine = filter((x) -> get(x, :rule) == id, gates)
       ms = measurements(mine)
       fresh = hadome::failures(rows, id, ms)
       bad_keys = map(
-        fn(m) get(m, :key) end,
+        (m) -> get(m, :key),
         filter(
           fn(m)
             hadome::judge(rows, id, get(m, :key), get(m, :size)) !=
@@ -1409,24 +1395,24 @@ def judge(gates, rows)
       {
         rule: id,
         failures: fresh,
-        new: filter(fn(x) member?(key_of(x), bad_keys) end, mine),
-        orphans: hadome::orphans(rows, id, map(fn(m) get(m, :key) end, ms)),
+        new: filter((x) -> member?(key_of(x), bad_keys), mine),
+        orphans: hadome::orphans(rows, id, map((m) -> get(m, :key), ms)),
         shrunk: hadome::shrunk(rows, id, ms)
       }
     end,
     ids
   )
   {
-    new: flat_map(fn(p) get(p, :new) end, per),
-    failures: flat_map(fn(p) get(p, :failures) end, per),
+    new: flat_map((p) -> get(p, :new), per),
+    failures: flat_map((p) -> get(p, :failures), per),
     orphans: flat_map(
-      fn(p) map(fn(k) "#{get(p, :rule)}: #{k}" end, get(p, :orphans)) end,
+      (p) -> map((k) -> "#{get(p, :rule)}: #{k}", get(p, :orphans)),
       per
     ),
     shrunk: flat_map(
       fn(p)
         map(
-          fn(m) "#{get(p, :rule)}: #{get(m, :key)} #{to_s(get(m, :size))}" end,
+          (m) -> "#{get(p, :rule)}: #{get(m, :key)} #{to_s(get(m, :size))}",
           get(p, :shrunk)
         )
       end,
@@ -1440,13 +1426,13 @@ def nix_string(s)
 end
 
 def tree_expr(excluded)
-  skip = join(map(fn(o) nix_string(o) end, excluded), " ")
+  skip = join(map((o) -> nix_string(o), excluded), " ")
   "c: let lib = c.pkgs.lib; excluded = [ #{skip} ]; defsOf = d: v: if builtins.elem d excluded then { definitions = [ ]; threw = false; } else let fs = builtins.addErrorContext (\"kijun\" + \"-option \" + d) (map (x: x.file) (v.definitionsWithLocations or [ ])); r = builtins.tryEval (builtins.deepSeq fs fs); in if r.success then { definitions = r.value; threw = false; } else { definitions = [ ]; threw = true; }; walk = path: v: if lib.isOption v then [ ({ path = lib.concatStringsSep \".\" path; declarations = v.declarations or [ ]; } // defsOf (lib.concatStringsSep \".\" path) v) ] else if builtins.isAttrs v && !(lib.isDerivation v) then lib.concatLists (lib.mapAttrsToList (n: x: walk (path ++ [ n ]) x) v) else [ ]; in { pleme = walk [ \"pleme\" ] (c.options.pleme or { }); hostname = walk [ \"networking\" \"hostName\" ] (c.options.networking.hostName or { }); }"
 end
 
 def failing_option(stderr)
   tagged = filter(
-    fn(l) starts_with?(trim(l), "… kijun-option ") end,
+    (l) -> starts_with?(trim(l), "… kijun-option "),
     lines(stderr)
   )
   if is_empty(tagged)
@@ -1458,7 +1444,7 @@ end
 
 def last_error(stderr)
   errs = filter(
-    fn(l) starts_with?(trim(l), "error:") and trim(l) != "error:" end,
+    (l) -> starts_with?(trim(l), "error:") and trim(l) != "error:",
     lines(stderr)
   )
   if is_empty(errs)
@@ -1518,12 +1504,12 @@ def probe(root, own, configuration, blind)
     "false",
     "#{root}##{configuration}",
     "--apply",
-    tree_expr(map(fn(b) get(b, :option) end, blind))
+    tree_expr(map((b) -> get(b, :option), blind))
   )
   if status_of(cap) != 0
     err = stderr_of(cap)
     o = failing_option(err)
-    if o != nil and is_empty(filter(fn(b) get(b, :option) == o end, blind))
+    if o != nil and is_empty(filter((b) -> get(b, :option) == o, blind))
       probe(
         root,
         own,
@@ -1551,7 +1537,7 @@ def probe(root, own, configuration, blind)
           error: "threw while its definitions were evaluated"
         }
       end,
-      filter(fn(x) get(x, :threw) end, append(pleme, hostname))
+      filter((x) -> get(x, :threw), append(pleme, hostname))
     )
     {
       configuration: configuration,
@@ -1569,7 +1555,7 @@ def tracked(root)
   if status_of(cap) != 0
     nil
   else
-    filter(fn(l) l != "" end, split(stdout_of(cap), "\n"))
+    filter((l) -> l != "", split(stdout_of(cap), "\n"))
   end
 end
 
@@ -1578,15 +1564,15 @@ def source_of(repo, path)
 end
 
 def on_disk(root, files)
-  {root: root, files: files, read: fn(p) read_or(path_join(root, p), "") end}
+  {root: root, files: files, read: (p) -> read_or(path_join(root, p), "")}
 end
 
 def in_memory(sources)
   {
     root: ".",
-    files: map(fn(s) first(s) end, sources),
+    files: map((s) -> first(s), sources),
     read: fn(p)
-      hit = filter(fn(s) first(s) == p end, sources)
+      hit = filter((s) -> first(s) == p, sources)
       if is_empty(hit)
         ""
       else
@@ -1597,7 +1583,7 @@ def in_memory(sources)
 end
 
 def evaluate(cfg, source, trees)
-  evaluate_timed(cfg, source, trees, fn() 0 end)
+  evaluate_timed(cfg, source, trees, () -> 0)
 end
 
 def evaluate_timed(cfg, source, trees, clock)
@@ -1611,16 +1597,16 @@ def evaluate_timed(cfg, source, trees, clock)
   t3 = clock()
   all = append(append(lay, expr), tr)
   ws = valid_waivers(cfg)
-  live = filter(fn(x) not waived?(ws, x) end, all)
+  live = filter((x) -> not waived?(ws, x), all)
   {
     findings: live,
-    gates: filter(fn(x) tier_of(get(x, :rule)) == :gate end, live),
-    advice: filter(fn(x) tier_of(get(x, :rule)) == :advise end, live),
-    waived: filter(fn(x) waived?(ws, x) end, all),
+    gates: filter((x) -> tier_of(get(x, :rule)) == :gate, live),
+    advice: filter((x) -> tier_of(get(x, :rule)) == :advise, live),
+    waived: filter((x) -> waived?(ws, x), all),
     refusals: config_refusals(cfg),
     ms: {layout: t1 - t0, expression: t2 - t1, tree: t3 - t2},
     tree_errors: filter(
-      fn(e) e != nil end,
+      (e) -> e != nil,
       map(
         fn(t)
           if get(t, :error) == nil
@@ -1686,7 +1672,7 @@ def rule_line(r)
 end
 
 def rules_text(cfg)
-  "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules\n\n#{join(map(fn(r) rule_line(r) end, rules), "\n")}"
+  "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules\n\n#{join(map((r) -> rule_line(r), rules), "\n")}"
 end
 
 def finding_line(x)
@@ -1700,8 +1686,8 @@ end
 
 def counts(xs)
   map(
-    fn(id) [id, size(filter(fn(x) get(x, :rule) == id end, xs))] end,
-    sort_keyed(fn(id) id end, rule_ids(xs))
+    (id) -> [id, size(filter((x) -> get(x, :rule) == id, xs))],
+    sort_keyed((id) -> id, rule_ids(xs))
   )
 end
 
@@ -1716,14 +1702,14 @@ def plain(x)
 end
 
 def plane_of(id)
-  get(first(filter(fn(r) get(r, :id) == id end, rules)), :plane)
+  get(first(filter((r) -> get(r, :id) == id, rules)), :plane)
 end
 
 def plane_counts(result, timing)
   map(
     fn(p)
       mine = fn(k)
-        size(filter(fn(x) plane_of(get(x, :rule)) == p end, get(result, k)))
+        size(filter((x) -> plane_of(get(x, :rule)) == p, get(result, k)))
       end
       {
         plane: p,
@@ -1746,16 +1732,16 @@ def report_json(cfg, result, verdict, timing)
       standard: get(cfg, :standard),
       version: get(cfg, :version),
       ok: is_empty(get(verdict, :new)),
-      new: map(fn(x) plain(x) end, get(verdict, :new)),
-      findings: map(fn(x) plain(x) end, get(result, :findings)),
+      new: map((x) -> plain(x), get(verdict, :new)),
+      findings: map((x) -> plain(x), get(result, :findings)),
       counts: map(
-        fn(c) {rule: first(c), count: nth(1, c)} end,
+        (c) -> {rule: first(c), count: nth(1, c)},
         counts(get(result, :findings))
       ),
       waived: size(get(result, :waived)),
       orphans: get(verdict, :orphans),
       shrunk: get(verdict, :shrunk),
-      refusals: map(fn(r) kyohi::why(r) end, get(result, :refusals)),
+      refusals: map((r) -> kyohi::why(r), get(result, :refusals)),
       disabled: get(cfg, :disabled),
       tree_errors: get(result, :tree_errors)
     }
@@ -1779,7 +1765,7 @@ def report_text(cfg, result, verdict, timing)
   head = "kijun #{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(get(result, :gates)))} gate findings, #{to_s(size(get(result, :advice)))} advice, #{to_s(size(get(result, :waived)))} waived\n"
   per = join(
     map(
-      fn(c) "  #{first(c)} #{to_s(tier_of(first(c)))} #{to_s(nth(1, c))}\n" end,
+      (c) -> "  #{first(c)} #{to_s(tier_of(first(c)))} #{to_s(nth(1, c))}\n",
       counts(get(result, :findings))
     ),
     ""
@@ -1787,7 +1773,7 @@ def report_text(cfg, result, verdict, timing)
   fresh = if is_empty(get(verdict, :new))
     "no gate finding outside the baseline\n"
   else
-    "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:\n#{join(map(fn(x) finding_line(x) end, get(verdict, :new)), "")}"
+    "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:\n#{join(map((x) -> finding_line(x), get(verdict, :new)), "")}"
   end
   shrink = if is_empty(get(verdict, :orphans)) and
     is_empty(get(verdict, :shrunk))
@@ -1796,20 +1782,17 @@ def report_text(cfg, result, verdict, timing)
     "the baseline can shrink (run kijun baseline): #{to_s(size(get(verdict, :orphans)))} gone, #{to_s(size(get(verdict, :shrunk)))} smaller\n"
   end
   refused = join(
-    map(fn(r) "refused: #{kyohi::why(r)}\n" end, get(result, :refusals)),
+    map((r) -> "refused: #{kyohi::why(r)}\n", get(result, :refusals)),
     ""
   )
   off = join(
     map(
-      fn(d) "disabled: #{get(d, :rule)}: #{get(d, :reason)}\n" end,
+      (d) -> "disabled: #{get(d, :rule)}: #{get(d, :reason)}\n",
       get(cfg, :disabled)
     ),
     ""
   )
-  blind = join(
-    map(fn(e) "tree blind: #{e}\n" end, get(result, :tree_errors)),
-    ""
-  )
+  blind = join(map((e) -> "tree blind: #{e}\n", get(result, :tree_errors)), "")
   "#{head}#{per}#{refused}#{off}#{blind}#{shrink}#{fresh}#{timing_line(result, timing)}"
 end
 
@@ -1832,12 +1815,12 @@ def run(cfg, args)
     before_tree = now_ms
     trees = if get(a, :tree)
       own = own_source(root)
-      map(fn(c) tree_of(root, own, c) end, get(cfg, :configurations))
+      map((c) -> tree_of(root, own, c), get(cfg, :configurations))
     else
       []
     end
     tree_ms = now_ms - before_tree
-    result = evaluate_timed(cfg, on_disk(root, files), trees, fn() now_ms end)
+    result = evaluate_timed(cfg, on_disk(root, files), trees, () -> now_ms)
     base = if get(a, :baseline) == nil
       path_join(root, get(cfg, :baseline))
     else
@@ -2266,57 +2249,57 @@ end
 
 def fired(cfg, c, id)
   filter(
-    fn(x) get(x, :rule) == id end,
+    (x) -> get(x, :rule) == id,
     get(evaluate(cfg, in_memory(get(c, :sources)), get(c, :trees)), :findings)
   )
 end
 
 test "every rule has a violating and a clean fixture, so a rule cannot land without both"
-  ids = map(fn(r) get(r, :id) end, rules)
+  ids = map((r) -> get(r, :id), rules)
   covered = filter(
-    fn(f) get(f, :bad) != nil and get(f, :good) != nil end,
+    (f) -> get(f, :bad) != nil and get(f, :good) != nil,
     fixtures
   )
   assert filter(
-    fn(id) is_empty(filter(fn(f) get(f, :rule) == id end, covered)) end,
+    (id) -> is_empty(filter((f) -> get(f, :rule) == id, covered)),
     ids
   ) ==
     []
-  assert filter(fn(f) not member?(get(f, :rule), ids) end, fixtures) == []
+  assert filter((f) -> not member?(get(f, :rule), ids), fixtures) == []
   assert size(ids) == size(unique(ids))
 end
 
 test "each rule fires exactly as often as its violating fixture says, and never on its clean one"
   cfg = fleet_repo(1)
   quiet = filter(
-    fn(f) size(fired(cfg, get(f, :bad), get(f, :rule))) != get(f, :fires) end,
+    (f) -> size(fired(cfg, get(f, :bad), get(f, :rule))) != get(f, :fires),
     fixtures
   )
   noisy = filter(
-    fn(f) not is_empty(fired(cfg, get(f, :good), get(f, :rule))) end,
+    (f) -> not is_empty(fired(cfg, get(f, :good), get(f, :rule))),
     fixtures
   )
-  assert map(fn(f) get(f, :rule) end, quiet) == []
-  assert map(fn(f) get(f, :rule) end, noisy) == []
+  assert map((f) -> get(f, :rule), quiet) == []
+  assert map((f) -> get(f, :rule), noisy) == []
 end
 
 test "trio/every-concept names every unit kind once and is silent when each is a trio"
   cfg = fleet_repo(1)
   subjects = fn(declared)
     map(
-      fn(x) get(x, :subject) end,
+      (x) -> get(x, :subject),
       fired(cfg, example(concept_sources(declared), []), "trio/every-concept")
     )
   end
-  assert sort_keyed(fn(t) t end, subjects(false)) ==
+  assert sort_keyed((t) -> t, subjects(false)) ==
     ["overlay o", "package p", "registry r", "shared x"]
   assert subjects(true) == []
   kinds = map(
-    fn(t) before_first(t, " ") end,
-    sort_keyed(fn(t) t end, subjects(false))
+    (t) -> before_first(t, " "),
+    sort_keyed((t) -> t, subjects(false))
   )
-  assert sort_keyed(fn(t) t end, kinds) ==
-    sort_keyed(fn(t) t end, map(fn(k) to_s(k) end, unit_kinds))
+  assert sort_keyed((t) -> t, kinds) ==
+    sort_keyed((t) -> t, map((k) -> to_s(k), unit_kinds))
 end
 
 test "a registry is a concept only when a configuration layer imports it"
@@ -2325,7 +2308,7 @@ test "a registry is a concept only when a configuration layer imports it"
     example(concept_sources(false), []),
     "trio/every-concept"
   )
-  assert filter(fn(x) get(x, :file) == "lib/unread.nix" end, xs) == []
+  assert filter((x) -> get(x, :file) == "lib/unread.nix", xs) == []
   assert relative_to("modules/pleme/nixos/a.nix", "../../../lib/r.nix") ==
     "lib/r.nix"
   assert relative_to("nodes/plo/default.nix", "./hw.nix") == "nodes/plo/hw.nix"
@@ -2334,7 +2317,7 @@ end
 test "a package directory with no nix of its own is still a concept, covered by a spec naming it"
   rust = [["pkgs/q/Cargo.toml", ""], ["pkgs/q/src/main.rs", "fn main() {}"]]
   assert map(
-    fn(x) get(x, :subject) end,
+    (x) -> get(x, :subject),
     fired(fleet_repo(1), example(rust, []), "trio/every-concept")
   ) ==
     ["package q"]
@@ -2362,8 +2345,8 @@ test "a trio file renders itself, and the factory proves every kind but a regist
   )
   subjects = fn(id)
     sort_keyed(
-      fn(t) t end,
-      map(fn(x) get(x, :subject) end, fired(fleet_repo(1), c, id))
+      (t) -> t,
+      map((x) -> get(x, :subject), fired(fleet_repo(1), c, id))
     )
   end
   assert subjects("layout/shared-reachable") == ["x"]
@@ -2403,13 +2386,12 @@ test "a blind option is one advice finding at its declaration, and the plane kee
     ]
   )
   r = evaluate(fleet_repo(1), in_memory([]), [both])
-  assert map(fn(x) [get(x, :rule), get(x, :file)] end, get(r, :findings)) ==
+  assert map((x) -> [get(x, :rule), get(x, :file)], get(r, :findings)) ==
     [
       ["tree/hostname-from-node", "profiles/p/default.nix"],
       ["tree/option-evaluates", "modules/pleme/shared/x.nix"]
     ]
-  assert map(fn(x) get(x, :rule) end, get(r, :advice)) ==
-    ["tree/option-evaluates"]
+  assert map((x) -> get(x, :rule), get(r, :advice)) == ["tree/option-evaluates"]
 end
 
 test "check --json carries the wall time and one count per plane"
@@ -2421,9 +2403,7 @@ test "check --json carries the wall time and one count per plane"
   )
   assert json_get(doc, "wall_ms") == 7
   assert map(
-    fn(p)
-      [json_get(p, "plane"), json_get(p, "findings"), json_get(p, "ms")]
-    end,
+    (p) -> [json_get(p, "plane"), json_get(p, "findings"), json_get(p, "ms")],
     json_get(doc, "planes")
   ) ==
     [["layout", 0, 1], ["expression", 1, 2], ["tree", 0, 3]]
@@ -2442,7 +2422,7 @@ test "the same declaration seen from two configurations is one finding"
   t = tree_case("lib/x.nix", :declaration)
   two = [t, assoc(t, :configuration, "nixosConfigurations.b")]
   xs = filter(
-    fn(x) get(x, :rule) == "tree/pleme-options-declared-in-shared" end,
+    (x) -> get(x, :rule) == "tree/pleme-options-declared-in-shared",
     get(evaluate(fleet_repo(1), in_memory([]), two), :findings)
   )
   assert size(xs) == 1
@@ -2457,9 +2437,9 @@ test "a finding names its file and line"
 end
 
 test "node-shape names both a missing default.nix and a NixOS node's missing layers.nix"
-  f = first(filter(fn(f) get(f, :rule) == "layout/node-shape" end, fixtures))
+  f = first(filter((f) -> get(f, :rule) == "layout/node-shape", fixtures))
   xs = fired(fleet_repo(1), get(f, :bad), "layout/node-shape")
-  assert sort_keyed(fn(t) t end, map(fn(x) get(x, :subject) end, xs)) ==
+  assert sort_keyed((t) -> t, map((x) -> get(x, :subject), xs)) ==
     ["default.nix", "layers.nix"]
 end
 
@@ -2479,10 +2459,10 @@ test "a waiver is scoped to its rule and glob, and its siblings keep going"
   )
   r = evaluate(cfg, in_memory(get(c, :sources)), [])
   angle = filter(
-    fn(x) get(x, :rule) == "expr/no-angle-paths" end,
+    (x) -> get(x, :rule) == "expr/no-angle-paths",
     get(r, :findings)
   )
-  assert map(fn(x) get(x, :file) end, angle) == ["lib/b.nix"]
+  assert map((x) -> get(x, :file), angle) == ["lib/b.nix"]
   assert size(get(r, :waived)) == 1
   assert get(r, :refusals) == []
 end
@@ -2493,7 +2473,7 @@ test "a waiver without its typed skip reason is refused and covers nothing"
   r = evaluate(cfg, in_memory(get(c, :sources)), [])
   assert size(get(r, :refusals)) == 1
   assert size(
-    filter(fn(x) get(x, :rule) == "expr/no-angle-paths" end, get(r, :findings))
+    filter((x) -> get(x, :rule) == "expr/no-angle-paths", get(r, :findings))
   ) ==
     1
   bogus = waive(fleet_repo(1), "expr/nope", "**", "skip-expr/nope: x")
@@ -2526,7 +2506,7 @@ test "the ratchet: a recorded finding holds, a new one fails, a fixed one shrink
   rows = hadome::parse(baseline_text([a]))
   assert baseline_text([a]) == "expr/no-angle-paths: lib/a.nix::<nixpkgs> 1\n"
   assert get(judge([a], rows), :new) == []
-  assert map(fn(x) get(x, :file) end, get(judge([a, b], rows), :new)) ==
+  assert map((x) -> get(x, :file), get(judge([a, b], rows), :new)) ==
     ["lib/b.nix"]
   gone = judge([], rows)
   assert get(gone, :new) == []
@@ -2546,7 +2526,7 @@ test "a plane that did not run neither judges nor drops its baseline rows"
   e = finding("expr/no-angle-paths", "lib/a.nix", 1, "<nixpkgs>", "m")
   rows = hadome::parse(baseline_text([t, e]))
   parts = split_rows(rows, ran_ids(fleet_repo(1), false))
-  assert map(fn(r) get(r, :kind) end, first(parts)) == ["expr/no-angle-paths"]
+  assert map((r) -> get(r, :kind), first(parts)) == ["expr/no-angle-paths"]
   assert get(judge([e], first(parts)), :orphans) == []
   assert baseline_with([e], nth(1, parts)) == baseline_text([t, e])
   assert size(first(split_rows(rows, ran_ids(fleet_repo(1), true)))) == 2
@@ -2554,7 +2534,7 @@ end
 
 test "the rules listing is the standard: every rule, with why and fix"
   t = rules_text(fleet_repo(1))
-  assert size(filter(fn(r) contains?(t, get(r, :id)) end, rules)) == size(rules)
+  assert size(filter((r) -> contains?(t, get(r, :id)), rules)) == size(rules)
   assert contains?(t, "fleet-repo v1") == true
 end
 

@@ -108,7 +108,7 @@ test "the health path is answered before the handler"
   r = answer(
     request("GET", "/healthz", ""),
     "/healthz",
-    fn(_) raise(:x, "unreached") end
+    (_) -> raise(:x, "unreached")
   )
   assert get(r, :status) == 200
   assert get(r, :body) == "ok\n"

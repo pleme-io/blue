@@ -11,7 +11,7 @@ def read(source)
     errors: get(t, :errors),
     line_starts: cons(
       0,
-      running_sum(map(fn(l) length(l) + 1 end, split(source, "\n")))
+      running_sum(map((l) -> length(l) + 1, split(source, "\n")))
     )
   }
 end
@@ -38,7 +38,7 @@ def kids(n)
 end
 
 def nodes_of(n)
-  filter(fn(c) get(c, :children) != nil end, kids(n))
+  filter((c) -> get(c, :children) != nil, kids(n))
 end
 
 def trivia?(n)
@@ -46,14 +46,14 @@ def trivia?(n)
 end
 
 def significant(n)
-  filter(fn(c) not trivia?(c) end, kids(n))
+  filter((c) -> not trivia?(c), kids(n))
 end
 
 def text(n)
   if token?(n)
     get(n, :text)
   else
-    join(map(fn(c) text(c) end, kids(n)), "")
+    join(map((c) -> text(c), kids(n)), "")
   end
 end
 
@@ -65,7 +65,7 @@ def code(n)
       get(n, :text)
     end
   else
-    join(map(fn(c) code(c) end, kids(n)), "")
+    join(map((c) -> code(c), kids(n)), "")
   end
 end
 
@@ -78,7 +78,7 @@ def line_count(n)
 end
 
 def nodes_where(f, n)
-  below = append(*map(fn(c) nodes_where(f, c) end, nodes_of(n)))
+  below = append(*map((c) -> nodes_where(f, c), nodes_of(n)))
   if f(n)
     cons(n, below)
   else
@@ -87,14 +87,14 @@ def nodes_where(f, n)
 end
 
 def of_kind(k, n)
-  nodes_where(fn(x) kind(x) == k end, n)
+  nodes_where((x) -> kind(x) == k, n)
 end
 
 def string_content(n)
   if kind(n) == "NODE_STRING"
     join(
       map(
-        fn(c) text(c) end,
+        (c) -> text(c),
         filter(
           fn(c)
             kind(c) == "TOKEN_STRING_CONTENT" or kind(c) == "NODE_INTERPOL"
@@ -109,7 +109,7 @@ end
 
 def literal_string?(n)
   kind(n) == "NODE_STRING" and
-    is_empty(filter(fn(c) kind(c) == "NODE_INTERPOL" end, kids(n)))
+    is_empty(filter((c) -> kind(c) == "NODE_INTERPOL", kids(n)))
 end
 
 def segment(n)
@@ -124,7 +124,7 @@ def segment(n)
 end
 
 def attrpath(n)
-  map(fn(s) segment(s) end, nodes_of(n))
+  map((s) -> segment(s), nodes_of(n))
 end
 
 def passes_path?(k)
@@ -175,31 +175,29 @@ def bindings_in(n, prefix, scope, outer)
       )
     end
   elsif k == "NODE_INHERIT"
-    names = filter(fn(c) kind(c) == "NODE_IDENT" end, nodes_of(n))
-    from = filter(fn(c) kind(c) == "NODE_INHERIT_FROM" end, nodes_of(n))
+    names = filter((c) -> kind(c) == "NODE_IDENT", nodes_of(n))
+    from = filter((c) -> kind(c) == "NODE_INHERIT_FROM", nodes_of(n))
     map(
-      fn(i)
-        binding(n, append(prefix, [code(i)]), scope, first(from), outer)
-      end,
+      (i) -> binding(n, append(prefix, [code(i)]), scope, first(from), outer),
       names
     )
   elsif k == "NODE_LET_IN"
     parts = nodes_of(n)
     lets = filter(
-      fn(c) kind(c) == "NODE_ATTRPATH_VALUE" or kind(c) == "NODE_INHERIT" end,
+      (c) -> kind(c) == "NODE_ATTRPATH_VALUE" or kind(c) == "NODE_INHERIT",
       parts
     )
     body = last(parts)
     append(
-      flat_map(fn(c) bindings_in(c, [], :let, nil) end, lets),
+      flat_map((c) -> bindings_in(c, [], :let, nil), lets),
       bindings_in(body, prefix, scope, outer)
     )
   elsif k == "NODE_ATTR_SET"
-    flat_map(fn(c) bindings_in(c, prefix, :attrs, outer) end, nodes_of(n))
+    flat_map((c) -> bindings_in(c, prefix, :attrs, outer), nodes_of(n))
   elsif passes_path?(k)
-    flat_map(fn(c) bindings_in(c, prefix, scope, outer) end, nodes_of(n))
+    flat_map((c) -> bindings_in(c, prefix, scope, outer), nodes_of(n))
   else
-    flat_map(fn(c) bindings_in(c, [], :nested, outer) end, nodes_of(n))
+    flat_map((c) -> bindings_in(c, [], :nested, outer), nodes_of(n))
   end
 end
 
@@ -257,7 +255,7 @@ def calls_in(n, as_head)
     parts = nodes_of(n)
     inner = append(
       calls_in(first(parts), true),
-      flat_map(fn(c) calls_in(c, false) end, rest(parts))
+      flat_map((c) -> calls_in(c, false), rest(parts))
     )
     if as_head
       inner
@@ -265,7 +263,7 @@ def calls_in(n, as_head)
       cons(call(n), inner)
     end
   else
-    flat_map(fn(c) calls_in(c, false) end, nodes_of(n))
+    flat_map((c) -> calls_in(c, false), nodes_of(n))
   end
 end
 
@@ -278,7 +276,7 @@ def called?(c, names)
 end
 
 def named(cs, names)
-  filter(fn(c) called?(c, names) end, cs)
+  filter((c) -> called?(c, names), cs)
 end
 
 def calls_named(root, names)
@@ -296,7 +294,7 @@ end
 
 def angle_paths(root)
   map(
-    fn(p) {path: code(p), node: p, start: get(p, :start)} end,
+    (p) -> {path: code(p), node: p, start: get(p, :start)},
     of_kind("NODE_PATH_SEARCH", root)
   )
 end
@@ -321,13 +319,11 @@ end
 def option_declarations(root)
   append(
     map(
-      fn(b)
-        {at: get(b, :dotted), node: get(b, :node), start: get(b, :start)}
-      end,
+      (b) -> {at: get(b, :dotted), node: get(b, :node), start: get(b, :start)},
       options_roots(root)
     ),
     map(
-      fn(c) {at: get(c, :head), node: get(c, :node), start: get(c, :start)} end,
+      (c) -> {at: get(c, :head), node: get(c, :node), start: get(c, :start)},
       calls_named(root, option_calls)
     )
   )
@@ -335,8 +331,8 @@ end
 
 def attr(set, name)
   hit = filter(
-    fn(b) get(b, :path) == [name] end,
-    flat_map(fn(c) bindings_in(c, [], :attrs, nil) end, nodes_of(set))
+    (b) -> get(b, :path) == [name],
+    flat_map((c) -> bindings_in(c, [], :attrs, nil), nodes_of(set))
   )
   if is_empty(hit)
     nil
@@ -350,7 +346,7 @@ def module_function?(n)
     member?(
       "config",
       map(
-        fn(e) code(first(nodes_of(e))) end,
+        (e) -> code(first(nodes_of(e))),
         of_kind("NODE_PAT_ENTRY", first(nodes_of(n)))
       )
     )
@@ -361,7 +357,7 @@ def sample()
 end
 
 def dotted_of(doc)
-  map(fn(b) get(b, :dotted) end, bindings(get(doc, :root)))
+  map((b) -> get(b, :dotted), bindings(get(doc, :root)))
 end
 
 test "read: the tree is lossless, error-free, and lines count from one"
@@ -389,16 +385,16 @@ test "bindings: nested sets and wrappers give dotted paths, let and inherit are 
   assert member?("config.systemd.services.x", ds) == true
   assert member?("config.environment.etc.a b.text", ds) == true
   assert member?("config.port", ds) == true
-  lets = filter(fn(b) get(b, :scope) == :let end, bindings(get(d, :root)))
-  assert map(fn(b) get(b, :dotted) end, lets) == ["cfg"]
-  assert member?("cfg", filter(fn(x) x != "cfg" end, ds)) == false
+  lets = filter((b) -> get(b, :scope) == :let, bindings(get(d, :root)))
+  assert map((b) -> get(b, :dotted), lets) == ["cfg"]
+  assert member?("cfg", filter((x) -> x != "cfg", ds)) == false
 end
 
 test "module_path drops a leading config, and under? reads a prefix"
   d = read(sample)
   b = first(
     filter(
-      fn(b) get(b, :dotted) == "config.systemd.services.x" end,
+      (b) -> get(b, :dotted) == "config.systemd.services.x",
       bindings(get(d, :root))
     )
   )
@@ -410,11 +406,11 @@ end
 test "calls: a curried call is one call with its head and every argument"
   d = read("lib.nixosSystem { system = \"x\"; } // f a (g b)")
   cs = calls(get(d, :root))
-  assert map(fn(c) get(c, :head) end, cs) == ["lib.nixosSystem", "f", "g"]
+  assert map((c) -> get(c, :head), cs) == ["lib.nixosSystem", "f", "g"]
   assert size(get(nth(1, cs), :args)) == 2
   assert head_name(first(cs)) == "nixosSystem"
   assert map(
-    fn(c) get(c, :head) end,
+    (c) -> get(c, :head),
     calls_named(get(d, :root), ["nixosSystem", "darwinSystem"])
   ) ==
     ["lib.nixosSystem"]
@@ -423,16 +419,15 @@ end
 
 test "with scopes and angle paths are found, and comments never are"
   d = read("# with pkgs; <nixpkgs>\nwith pkgs; [ (import <nixpkgs> { }) ]")
-  assert map(fn(w) get(w, :namespace) end, withs(get(d, :root))) == ["pkgs"]
-  assert map(fn(p) get(p, :path) end, angle_paths(get(d, :root))) ==
-    ["<nixpkgs>"]
+  assert map((w) -> get(w, :namespace), withs(get(d, :root))) == ["pkgs"]
+  assert map((p) -> get(p, :path), angle_paths(get(d, :root))) == ["<nixpkgs>"]
   assert withs(get(read("{ a = 1; }"), :root)) == []
 end
 
 test "option declarations come from options bindings and mkOption calls"
   d = read(sample)
   os = option_declarations(get(d, :root))
-  assert map(fn(o) get(o, :at) end, os) ==
+  assert map((o) -> get(o, :at), os) ==
     ["options.pleme.x.enable", "lib.mkEnableOption"]
   assert option_declarations(get(read("{ a.options = 1; }"), :root)) == []
   assert option_declarations(get(read("{ options = [ 1 ]; }"), :root)) == []

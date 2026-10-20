@@ -39,11 +39,11 @@ def parse_line(line)
 end
 
 def parse(text)
-  filter(fn(r) r != nil end, map(fn(l) parse_line(l) end, lines(text)))
+  filter((r) -> r != nil, map((l) -> parse_line(l), lines(text)))
 end
 
 def recorded(rows, kind, key)
-  hit = filter(fn(r) get(r, :kind) == kind and get(r, :key) == key end, rows)
+  hit = filter((r) -> get(r, :kind) == kind and get(r, :key) == key, rows)
   if is_empty(hit)
     nil
   else
@@ -81,22 +81,16 @@ def failure(rows, kind, m)
 end
 
 def failures(rows, kind, measurements)
-  filter(
-    fn(f) f != nil end,
-    map(fn(m) failure(rows, kind, m) end, measurements)
-  )
+  filter((f) -> f != nil, map((m) -> failure(rows, kind, m), measurements))
 end
 
 def keys_of(rows, kind)
-  ks = map(
-    fn(r) get(r, :key) end,
-    filter(fn(r) get(r, :kind) == kind end, rows)
-  )
-  distinct(sort_keyed(fn(k) k end, ks))
+  ks = map((r) -> get(r, :key), filter((r) -> get(r, :kind) == kind, rows))
+  distinct(sort_keyed((k) -> k, ks))
 end
 
 def orphans(rows, kind, live)
-  filter(fn(k) not member?(k, live) end, keys_of(rows, kind))
+  filter((k) -> not member?(k, live), keys_of(rows, kind))
 end
 
 def shrunk(rows, kind, measurements)
@@ -110,9 +104,9 @@ def shrunk(rows, kind, measurements)
 end
 
 def render(kind, measurements)
-  sorted = sort_keyed(fn(m) get(m, :key) end, measurements)
+  sorted = sort_keyed((m) -> get(m, :key), measurements)
   join(
-    map(fn(m) "#{kind}: #{get(m, :key)} #{to_s(get(m, :size))}\n" end, sorted),
+    map((m) -> "#{kind}: #{get(m, :key)} #{to_s(get(m, :size))}\n", sorted),
     ""
   )
 end

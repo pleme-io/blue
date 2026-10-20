@@ -22,19 +22,19 @@ use(
 # already has.
 
 def dot(a, b)
-  reduce(fn(acc, i) acc + nth(i, a) * nth(i, b) end, 0, range(0, length(a)))
+  reduce((acc, i) -> acc + nth(i, a) * nth(i, b), 0, range(0, length(a)))
 end
 
 def scale(k, v)
-  map(fn(x) k * x end, v)
+  map((x) -> k * x, v)
 end
 
 def vadd(a, b)
-  map(fn(i) nth(i, a) + nth(i, b) end, range(0, length(a)))
+  map((i) -> nth(i, a) + nth(i, b), range(0, length(a)))
 end
 
 def vsub(a, b)
-  map(fn(i) nth(i, a) - nth(i, b) end, range(0, length(a)))
+  map((i) -> nth(i, a) - nth(i, b), range(0, length(a)))
 end
 
 def magnitude(v)
@@ -57,7 +57,7 @@ end
 # vector against a written-out literal needs this, not `==`.
 def vector_near(a, b)
   if size(a) == size(b)
-    reduce(fn(acc, i) acc and near(nth(i, a), nth(i, b)) end, true, indexes(a))
+    reduce((acc, i) -> acc and near(nth(i, a), nth(i, b)), true, indexes(a))
   else
     false
   end
@@ -147,16 +147,16 @@ def cols(m)
 end
 
 def col(m, j)
-  map(fn(r) nth(j, r) end, m)
+  map((r) -> nth(j, r), m)
 end
 
 def transpose(m)
-  map(fn(j) col(m, j) end, range(0, cols(m)))
+  map((j) -> col(m, j), range(0, cols(m)))
 end
 
 def matmul(a, b)
   bt = transpose(b)
-  map(fn(r) map(fn(c) dot(r, c) end, bt) end, a)
+  map((r) -> map((c) -> dot(r, c), bt), a)
 end
 
 def identity_matrix(n)
@@ -209,7 +209,7 @@ def matrix_equal(a, b)
       fn(acc, i)
         acc and
           reduce(
-            fn(inner, j) inner and nth(j, row(a, i)) == nth(j, row(b, i)) end,
+            (inner, j) -> inner and nth(j, row(a, i)) == nth(j, row(b, i)),
             true,
             indexes(row(a, i))
           )
@@ -226,7 +226,7 @@ end
 def matrix_near(a, b)
   if shape(a) == shape(b)
     reduce(
-      fn(acc, i) acc and vector_near(row(a, i), row(b, i)) end,
+      (acc, i) -> acc and vector_near(row(a, i), row(b, i)),
       true,
       indexes(a)
     )
@@ -246,7 +246,7 @@ end
 # --- matrix construction and arithmetic --------------------------------------
 
 def filled(r, c, v)
-  map(fn(_i) map(fn(_j) v end, range(0, c)) end, range(0, r))
+  map((_i) -> map((_j) -> v, range(0, c)), range(0, r))
 end
 
 def zeros(r, c)
@@ -254,15 +254,15 @@ def zeros(r, c)
 end
 
 def madd(a, b)
-  map(fn(i) vadd(row(a, i), row(b, i)) end, indexes(a))
+  map((i) -> vadd(row(a, i), row(b, i)), indexes(a))
 end
 
 def msub(a, b)
-  map(fn(i) vsub(row(a, i), row(b, i)) end, indexes(a))
+  map((i) -> vsub(row(a, i), row(b, i)), indexes(a))
 end
 
 def mscale(k, m)
-  map(fn(r) scale(k, r) end, m)
+  map((r) -> scale(k, r), m)
 end
 
 # Matrix times column vector. Written separately from `matmul` because wrapping
@@ -270,18 +270,18 @@ end
 # get wrong — `matmul(m, [v])` multiplies by a one-ROW matrix and is a shape
 # error, not the answer.
 def mvmul(m, v)
-  map(fn(r) dot(r, v) end, m)
+  map((r) -> dot(r, v), m)
 end
 
 # Outer product: an n-vector and an m-vector give an n-by-m rank-1 matrix.
 # The dual of `dot`, which contracts the same two vectors to a scalar.
 def outer_product(a, b)
-  map(fn(x) map(fn(y) x * y end, b) end, a)
+  map((x) -> map((y) -> x * y, b), a)
 end
 
 def diagonal(m)
   s = shape(m)
-  map(fn(i) nth(i, row(m, i)) end, range(0, min(nth(0, s), nth(1, s))))
+  map((i) -> nth(i, row(m, i)), range(0, min(nth(0, s), nth(1, s))))
 end
 
 def trace(m)
@@ -295,7 +295,7 @@ end
 def hadamard(a, b)
   map(
     fn(i)
-      map(fn(j) nth(j, row(a, i)) * nth(j, row(b, i)) end, indexes(row(a, i)))
+      map((j) -> nth(j, row(a, i)) * nth(j, row(b, i)), indexes(row(a, i)))
     end,
     indexes(a)
   )
@@ -312,14 +312,14 @@ end
 # --- determinants, minors, inverses ------------------------------------------
 
 def replace_col(m, j, v)
-  map(fn(i) update_at(row(m, i), j, nth(i, v)) end, indexes(m))
+  map((i) -> update_at(row(m, i), j, nth(i, v)), indexes(m))
 end
 
 # The matrix with row i and column j struck out. `minor` is the DETERMINANT of
 # this, which is the usual source of confusion, so both names exist and each
 # means exactly what the textbook means.
 def submatrix(m, i, j)
-  map(fn(r) remove_at(r, j) end, remove_at(m, i))
+  map((r) -> remove_at(r, j), remove_at(m, i))
 end
 
 # The checkerboard sign (-1)^(i+j) that turns a minor into a cofactor. Getting
@@ -368,10 +368,7 @@ end
 # matrices.
 def adjugate(m)
   transpose(
-    map(
-      fn(i) map(fn(j) cofactor(m, i, j) end, indexes(row(m, i))) end,
-      indexes(m)
-    )
+    map((i) -> map((j) -> cofactor(m, i, j), indexes(row(m, i))), indexes(m))
   )
 end
 
@@ -408,7 +405,7 @@ def solve_cramer(m, b)
   if near(d, 0)
     []
   else
-    map(fn(j) determinant(replace_col(m, j, b)) / d end, indexes(b))
+    map((j) -> determinant(replace_col(m, j, b)) / d, indexes(b))
   end
 end
 
@@ -425,8 +422,8 @@ end
 # what makes elimination stable in floating point.
 def solve_gauss(m, b)
   n = size(b)
-  aug = map(fn(i) push(nth(i, m), nth(i, b)) end, range(0, n))
-  reduced = reduce(fn(a, k) gauss_eliminate(a, k, n) end, aug, range(0, n))
+  aug = map((i) -> push(nth(i, m), nth(i, b)), range(0, n))
+  reduced = reduce((a, k) -> gauss_eliminate(a, k, n), aug, range(0, n))
   if is_empty(reduced)
     []
   else
@@ -480,17 +477,13 @@ end
 
 # Back substitution over an upper-triangular augmented matrix, last row first.
 def gauss_back_substitute(a, n)
-  reduce(
-    fn(xs, i) push_front_solution(a, n, i, xs) end,
-    [],
-    reverse(range(0, n))
-  )
+  reduce((xs, i) -> push_front_solution(a, n, i, xs), [], reverse(range(0, n)))
 end
 
 def push_front_solution(a, n, i, xs)
   row = nth(i, a)
   known = reduce(
-    fn(acc, t) acc + nth(i + 1 + t, row) * nth(t, xs) end,
+    (acc, t) -> acc + nth(i + 1 + t, row) * nth(t, xs),
     0,
     indexes(xs)
   )

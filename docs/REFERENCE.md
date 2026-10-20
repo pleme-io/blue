@@ -66,7 +66,7 @@ Higher binding power binds tighter.
 | `unquote_splice` | `unquote_splice(xs)`: inside `quote`, splice the items of the form `xs` in place, not the form itself. |
 | `test` | `test "what must hold" … end`: a test block, run by `blue test` and ignored by `blue run`. |
 | `assert` | `assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression. |
-| `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
+| `fn` | `fn(x)` … `end`, always over several lines: an anonymous function, a value. The inline spelling is `(x) -> x * 2`, which the formatter writes for a one-expression body that fits the line. Blue has no brace or do blocks. |
 | `case` | `case v when 1 … when 2 … else … end`: compares with `==`; it does not destructure. |
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |

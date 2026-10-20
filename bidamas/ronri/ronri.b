@@ -37,15 +37,15 @@ def count_if(p, xs)
 end
 
 def complement(p)
-  fn(x) not p(x) end
+  (x) -> not p(x)
 end
 
 def both(p, q)
-  fn(x) p(x) and q(x) end
+  (x) -> p(x) and q(x)
 end
 
 def either(p, q)
-  fn(x) p(x) or q(x) end
+  (x) -> p(x) or q(x)
 end
 
 # The rest of the connectives, so a caller never has to spell one out by hand.
@@ -54,22 +54,22 @@ end
 # `(p || q) && !(p && q)` is the same function written three times as long,
 # and it is where a transcription error lands.
 def xor(p, q)
-  fn(x) p(x) != q(x) end
+  (x) -> p(x) != q(x)
 end
 
 # Material implication — FALSE antecedent makes it TRUE. That is the case
 # readers guess wrong, which is the whole argument for it being a named
 # combinator instead of an inlined `!p(x) || q(x)` at each site.
 def implies(p, q)
-  fn(x) not p(x) or q(x) end
+  (x) -> not p(x) or q(x)
 end
 
 def nand(p, q)
-  fn(x) not (p(x) and q(x)) end
+  (x) -> not (p(x) and q(x))
 end
 
 def nor(p, q)
-  fn(x) not (p(x) or q(x)) end
+  (x) -> not (p(x) or q(x))
 end
 
 # all_of / any_of / none_of take a LIST of predicates and hand back a
@@ -83,15 +83,15 @@ end
 # (an empty conjunction is true because `every` says so), and the walk stops at
 # the first decisive predicate instead of calling all of them.
 def all_of(ps)
-  fn(x) every(fn(p) p(x) end, ps) end
+  (x) -> every((p) -> p(x), ps)
 end
 
 def any_of(ps)
-  fn(x) any(fn(p) p(x) end, ps) end
+  (x) -> any((p) -> p(x), ps)
 end
 
 def none_of(ps)
-  fn(x) none(fn(p) p(x) end, ps) end
+  (x) -> none((p) -> p(x), ps)
 end
 
 # Predicates ABOUT lists, so `count_if(is_nonempty_pred, rows)` reads without a
@@ -190,7 +190,7 @@ end
 # file be used without writing a lambda: count_if(equals(3), xs),
 # find_index_by(equals("b"), xs), none(equals(nil), xs).
 def equals(v)
-  fn(x) x == v end
+  (x) -> x == v
 end
 
 # via(f, p) asks p about f(x) rather than about x — `count_if(via(abs,
@@ -238,18 +238,18 @@ end
 
 # Every index whose element satisfies p; find_index_by is its first entry.
 def indexes_where(p, xs)
-  filter(fn(i) p(nth(i, xs)) end, indexes(xs))
+  filter((i) -> p(nth(i, xs)), indexes(xs))
 end
 
 test "the vacuous cases, which is where predicate libraries go wrong"
   # Everything holds of nothing; nothing holds of nothing.
-  assert every(fn(x) x > 0 end, []) == true
-  assert any(fn(x) x > 0 end, []) == false
-  assert none(fn(x) x > 0 end, []) == true
+  assert every((x) -> x > 0, []) == true
+  assert any((x) -> x > 0, []) == false
+  assert none((x) -> x > 0, []) == true
 end
 
 test "every, any, none"
-  pos = fn(x) x > 0 end
+  pos = (x) -> x > 0
   assert every(pos, [1, 2, 3]) == true
   assert every(pos, [1, 0, 3]) == false
   assert any(pos, [-1, 2]) == true
@@ -257,12 +257,12 @@ test "every, any, none"
 end
 
 test "count_if"
-  assert count_if(fn(x) x % 2 == 0 end, [1, 2, 3, 4, 5, 6]) == 3
+  assert count_if((x) -> x % 2 == 0, [1, 2, 3, 4, 5, 6]) == 3
 end
 
 test "predicate algebra"
-  pos = fn(x) x > 0 end
-  even_p = fn(x) x % 2 == 0 end
+  pos = (x) -> x > 0
+  even_p = (x) -> x % 2 == 0
   assert both(pos, even_p)(4) == true
   assert both(pos, even_p)(3) == false
   assert either(pos, even_p)(-2) == true
@@ -270,8 +270,8 @@ test "predicate algebra"
 end
 
 test "xor is exclusive where either is not"
-  pos = fn(x) x > 0 end
-  even_p = fn(x) x % 2 == 0 end
+  pos = (x) -> x > 0
+  even_p = (x) -> x % 2 == 0
   # The row that separates xor from either: BOTH true is FALSE.
   assert xor(pos, even_p)(4) == false
   assert either(pos, even_p)(4) == true
@@ -281,8 +281,8 @@ test "xor is exclusive where either is not"
 end
 
 test "implies is true whenever the antecedent is false"
-  pos = fn(x) x > 0 end
-  even_p = fn(x) x % 2 == 0 end
+  pos = (x) -> x > 0
+  even_p = (x) -> x % 2 == 0
   # Vacuously true, twice: -3 is not positive, so the implication holds
   # regardless of the consequent. A `p(x) && q(x)` mistake fails right here.
   assert implies(pos, even_p)(-3) == true
@@ -292,16 +292,15 @@ test "implies is true whenever the antecedent is false"
 end
 
 test "nand and nor obey De Morgan"
-  pos = fn(x) x > 0 end
-  even_p = fn(x) x % 2 == 0 end
+  pos = (x) -> x > 0
+  even_p = (x) -> x % 2 == 0
   # An independent derivation of the same functions, checked on all four rows
   # of the truth table: a swapped &&/|| in either one shows up as a mismatch.
   demorgan_nand = either(complement(pos), complement(even_p))
   demorgan_nor = both(complement(pos), complement(even_p))
   probes = [4, 3, -2, -3]
-  assert every(fn(x) nand(pos, even_p)(x) == demorgan_nand(x) end, probes) ==
-    true
-  assert every(fn(x) nor(pos, even_p)(x) == demorgan_nor(x) end, probes) == true
+  assert every((x) -> nand(pos, even_p)(x) == demorgan_nand(x), probes) == true
+  assert every((x) -> nor(pos, even_p)(x) == demorgan_nor(x), probes) == true
   assert nand(pos, even_p)(4) == false
   assert nor(pos, even_p)(-3) == true
 end
@@ -316,9 +315,9 @@ test "all_of, any_of and none_of over an EMPTY predicate list"
 end
 
 test "all_of, any_of and none_of over a list of predicates"
-  pos = fn(x) x > 0 end
-  even_p = fn(x) x % 2 == 0 end
-  small = fn(x) x < 10 end
+  pos = (x) -> x > 0
+  even_p = (x) -> x % 2 == 0
+  small = (x) -> x < 10
   assert all_of([pos, even_p, small])(4) == true
   assert all_of([pos, even_p, small])(12) == false
   assert any_of([pos, even_p, small])(-3) == true
@@ -326,7 +325,7 @@ test "all_of, any_of and none_of over a list of predicates"
   # none_of is the complement of any_of by construction; assert it stays so.
   probes = [4, 3, -2, -3]
   assert every(
-    fn(x) none_of([pos, even_p])(x) == (not any_of([pos, even_p])(x)) end,
+    (x) -> none_of([pos, even_p])(x) == (not any_of([pos, even_p])(x)),
     probes
   ) ==
     true
@@ -338,10 +337,10 @@ test "all_of, any_of and none_of stop at the first decisive predicate"
   # only complete at all if the bomb is never reached. That makes the
   # short-circuit a proven property rather than a comment: a reduce-based
   # implementation, which calls every predicate, turns each line into an ERROR.
-  bomb = fn(_x) length(nil) end
-  assert any_of([fn(_x) true end, bomb])(0) == true
-  assert all_of([fn(_x) false end, bomb])(0) == false
-  assert none_of([fn(_x) true end, bomb])(0) == false
+  bomb = (_x) -> length(nil)
+  assert any_of([(_x) -> true, bomb])(0) == true
+  assert all_of([(_x) -> false, bomb])(0) == false
+  assert none_of([(_x) -> true, bomb])(0) == false
 end
 
 test "the emptiness predicates pass by name"
@@ -355,7 +354,7 @@ test "the emptiness predicates pass by name"
 end
 
 test "the counting quantifiers, including the empty list"
-  even_p = fn(x) x % 2 == 0 end
+  even_p = (x) -> x % 2 == 0
   xs = [1, 2, 3, 4, 5, 6]
   assert exactly_n(3, even_p, xs) == true
   assert exactly_n(2, even_p, xs) == false
@@ -373,29 +372,23 @@ test "the counting quantifiers, including the empty list"
 end
 
 test "at_least_n and at_most_n recover any and every at the boundaries"
-  even_p = fn(x) x % 2 == 0 end
+  even_p = (x) -> x % 2 == 0
   probes = [[], [1], [2], [1, 2], [2, 4], [1, 3, 5]]
   # An independent definition of the same two functions. at_least_n(1) IS any;
   # at_most_n(0) IS none. If either bound is off by one this fails on [2].
-  assert every(
-    fn(xs) at_least_n(1, even_p, xs) == any(even_p, xs) end,
-    probes
-  ) ==
+  assert every((xs) -> at_least_n(1, even_p, xs) == any(even_p, xs), probes) ==
+    true
+  assert every((xs) -> at_most_n(0, even_p, xs) == none(even_p, xs), probes) ==
     true
   assert every(
-    fn(xs) at_most_n(0, even_p, xs) == none(even_p, xs) end,
-    probes
-  ) ==
-    true
-  assert every(
-    fn(xs) exactly_n(size(xs), even_p, xs) == every(even_p, xs) end,
+    (xs) -> exactly_n(size(xs), even_p, xs) == every(even_p, xs),
     probes
   ) ==
     true
 end
 
 test "majority needs strictly more than half"
-  even_p = fn(x) x % 2 == 0 end
+  even_p = (x) -> x % 2 == 0
   # An exact tie is NOT a majority — the case `>=` still passes and `>` catches.
   assert majority(even_p, [1, 2]) == false
   assert majority(even_p, [1, 2, 4]) == true
@@ -410,7 +403,7 @@ test "majority needs strictly more than half"
 end
 
 test "partition_by keeps both halves in order and loses nothing"
-  even_p = fn(x) x % 2 == 0 end
+  even_p = (x) -> x % 2 == 0
   assert partition_by(even_p, [1, 2, 3, 4, 5]) == [[2, 4], [1, 3, 5]]
   # Order INSIDE each half is the input order — an accumulator-based partition
   # returns [[4, 2], [5, 3, 1]] and passes a size-only check.
@@ -423,7 +416,7 @@ test "partition_by keeps both halves in order and loses nothing"
 end
 
 test "take_until stops at the FIRST hit and does not resume"
-  big = fn(x) x > 3 end
+  big = (x) -> x > 3
   # The 1 after the 4 is not picked back up — this is what separates a prefix
   # from a filter, and a filter-based take_until returns [1, 2, 3, 1] here.
   assert take_until(big, [1, 2, 3, 4, 5, 1]) == [1, 2, 3]
@@ -437,7 +430,7 @@ test "take_until stops at the FIRST hit and does not resume"
 end
 
 test "take_while_pred and drop_while_pred split a list in two"
-  small = fn(x) x < 4 end
+  small = (x) -> x < 4
   assert take_while_pred(small, [1, 2, 3, 4, 1]) == [1, 2, 3]
   assert drop_while_pred(small, [1, 2, 3, 4, 1]) == [4, 1]
   # The invariant that must survive for any predicate and any list: the two
@@ -460,7 +453,7 @@ test "take_while_pred and drop_while_pred split a list in two"
   assert is_empty(drop_while_pred(small, [])) == true
   # take_until is take_while_pred of the complement, on the same probes plus [].
   assert every(
-    fn(xs) take_until(small, xs) == take_while_pred(complement(small), xs) end,
+    (xs) -> take_until(small, xs) == take_while_pred(complement(small), xs),
     probes
   ) ==
     true
@@ -470,7 +463,7 @@ test "take_while_pred and drop_while_pred split a list in two"
 end
 
 test "find_index_by reports the first hit, or 0 - 1"
-  even_p = fn(x) x % 2 == 0 end
+  even_p = (x) -> x % 2 == 0
   # Two matches: the FIRST index, not the last, and not the count of matches.
   assert find_index_by(even_p, [1, 2, 3, 4]) == 1
   assert find_index_by(even_p, [2, 4]) == 0
@@ -483,27 +476,27 @@ test "find_index_by reports the first hit, or 0 - 1"
 end
 
 test "find_by returns the element, and nil for a miss"
-  even_p = fn(x) x % 2 == 0 end
+  even_p = (x) -> x % 2 == 0
   assert find_by(even_p, [1, 2, 3, 4]) == 2
   assert find_by(even_p, [1, 3]) == nil
   assert find_by(even_p, []) == nil
   # find_by and find_index_by agree about whether there IS a hit.
   probes = [[], [1], [2], [1, 2, 3], [1, 3]]
   assert every(
-    fn(xs) find_by(even_p, xs) == nil == (find_index_by(even_p, xs) == -1) end,
+    (xs) -> find_by(even_p, xs) == nil == (find_index_by(even_p, xs) == -1),
     probes
   ) ==
     true
 end
 
 test "indexes_where agrees with count_if and starts at find_index_by"
-  even_p = fn(x) x % 2 == 0 end
+  even_p = (x) -> x % 2 == 0
   assert indexes_where(even_p, [1, 2, 3, 4]) == [1, 3]
   assert indexes_where(even_p, []) == []
   assert indexes_where(even_p, [1, 3]) == []
   probes = [[], [1], [2], [1, 2, 3, 4], [2, 2, 2]]
   assert every(
-    fn(xs) size(indexes_where(even_p, xs)) == count_if(even_p, xs) end,
+    (xs) -> size(indexes_where(even_p, xs)) == count_if(even_p, xs),
     probes
   ) ==
     true
@@ -512,7 +505,7 @@ test "indexes_where agrees with count_if and starts at find_index_by"
 end
 
 test "span_by stops where partition_by keeps scanning"
-  small = fn(x) x < 4 end
+  small = (x) -> x < 4
   # The one input that tells the two apart: the trailing 1 satisfies the
   # predicate but is NOT in span_by's prefix, because a 9 ended it.
   assert span_by(small, [1, 9, 1]) == [[1], [9, 1]]
@@ -544,8 +537,8 @@ test "via asks the predicate about a derived value"
   assert count_if(via(abs, equals(2)), [2, -2, 3]) == 2
   # The case that fails if the composition order is flipped: -5 is not > 1, but
   # abs(-5) is.
-  assert via(abs, fn(x) x > 1 end)(-5) == true
-  assert every(via(abs, fn(x) x > 1 end), [-5, 5]) == true
+  assert via(abs, (x) -> x > 1)(-5) == true
+  assert every(via(abs, (x) -> x > 1), [-5, 5]) == true
   # via over a list-shaped value, where the derived thing is a size.
   assert count_if(via(size, equals(0)), [[], [1], []]) == 2
   assert every(via(size, equals(0)), []) == true

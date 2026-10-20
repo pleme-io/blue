@@ -137,10 +137,10 @@ test "every bidama in the distribution answers through this one import"
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert rittai::z([1, 2, 3]) == 3
   assert size([1, 2, 3]) == 3
-  assert every(fn(v) v > 0 end, [1, 2, 3]) == true
+  assert every((v) -> v > 0, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]
   assert sabi::valid_ident?("OPERATOR_ALIASES") == true
-  assert saishikou::retrying({times: 1}, fn() 1 end) == 1
+  assert saishikou::retrying({times: 1}, () -> 1) == 1
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
   assert age_s(3_600_000) == "1h0m"

@@ -43,7 +43,7 @@ end
 
 # The nth row of Pascal's triangle.
 def pascal_row(n)
-  map(fn(k) combinations(n, k) end, range(0, n + 1))
+  map((k) -> combinations(n, k), range(0, n + 1))
 end
 
 # Catalan number — the count that shows up in balanced parentheses, binary
@@ -283,7 +283,7 @@ end
 # Stirling row summed. Defined this way rather than by its own recurrence so
 # that the two cannot drift apart.
 def bell(n)
-  sum(map(fn(k) stirling2(n, k) end, range(0, n + 1)))
+  sum(map((k) -> stirling2(n, k), range(0, n + 1)))
 end
 
 # Surjections: functions from an n-set ONTO all k elements of a k-set.
@@ -425,7 +425,7 @@ end
 # its predecessor cannot be asked for on its own, and pascal_row(40) with no
 # preamble is the call a caller actually makes.
 def pascal_triangle(n)
-  map(fn(r) pascal_row(r) end, range(0, n + 1))
+  map((r) -> pascal_row(r), range(0, n + 1))
 end
 
 test "factorial, including the empty product"
@@ -449,7 +449,7 @@ end
 
 test "pascal row sums to a power of two"
   assert pascal_row(4) == [1, 4, 6, 4, 1]
-  assert reduce(fn(a, b) a + b end, 0, pascal_row(6)) == 64
+  assert reduce((a, b) -> a + b, 0, pascal_row(6)) == 64
 end
 
 test "catalan numbers"
@@ -543,8 +543,8 @@ test "binomial row sum agrees with the row it summarises"
   # The alternating sum is the companion identity: every row past the first
   # cancels to nothing. A row that is off by one entry fails this and not the
   # sum above.
-  assert sum(map(fn(k) expt(-1, k) * combinations(7, k) end, range(0, 8))) == 0
-  assert sum(map(fn(k) expt(-1, k) * combinations(0, k) end, range(0, 1))) == 1
+  assert sum(map((k) -> expt(-1, k) * combinations(7, k), range(0, 8))) == 0
+  assert sum(map((k) -> expt(-1, k) * combinations(0, k), range(0, 1))) == 1
 end
 
 test "figurate numbers, each against a value you can count by hand"
@@ -614,7 +614,7 @@ test "derangements, where the two seeds are the whole difficulty"
   # binomial convolution must rebuild n! exactly. A shifted recurrence still
   # produces plausible-looking numbers and fails here.
   assert sum(
-    map(fn(k) combinations(5, k) * derangements(5 - k) end, range(0, 6))
+    map((k) -> combinations(5, k) * derangements(5 - k), range(0, 6))
   ) ==
     factorial(5)
 end
@@ -648,9 +648,7 @@ test "surjections count the onto maps, not all of them"
   # Every map is a surjection onto its image, so classifying all k^n maps by
   # image size must give them all back. This is the identity that catches a
   # missing k! as well as a wrong stirling row.
-  assert sum(
-    map(fn(k) combinations(3, k) * surjections(4, k) end, range(0, 4))
-  ) ==
+  assert sum(map((k) -> combinations(3, k) * surjections(4, k), range(0, 4))) ==
     permutations_with_repetition(3, 4)
 end
 
@@ -674,8 +672,7 @@ test "bell numbers are the stirling row summed"
   assert bell(5) == 52
   # The independent recurrence B(n+1) == sum C(n,k) * B(k). If either bell or
   # stirling2 drifts, this is the line that notices.
-  assert bell(6) ==
-    sum(map(fn(k) combinations(5, k) * bell(k) end, range(0, 6)))
+  assert bell(6) == sum(map((k) -> combinations(5, k) * bell(k), range(0, 6)))
 end
 
 test "partitions of an integer, counted rather than listed"
@@ -705,8 +702,7 @@ test "partitions into exactly k parts sum back to partitions"
   assert partitions_into(3, 0) == 0
   assert partitions_into(3, 4) == 0
   # The identity that ties the two counts together across every k at once.
-  assert sum(map(fn(k) partitions_into(9, k) end, range(0, 10))) ==
-    partitions(9)
+  assert sum(map((k) -> partitions_into(9, k), range(0, 10))) == partitions(9)
 end
 
 test "compositions are ordered where partitions are not"
@@ -720,11 +716,11 @@ test "compositions are ordered where partitions are not"
   assert compositions(3, 0) == 0
   # And the row must sum to the closed form, at zero as well as above it.
   assert compositions_total(4) == 8
-  assert sum(map(fn(k) compositions(4, k) end, range(0, 5))) ==
+  assert sum(map((k) -> compositions(4, k), range(0, 5))) ==
     compositions_total(4)
   assert compositions_total(1) == 1
   assert compositions_total(0) == 1
-  assert sum(map(fn(k) compositions(0, k) end, range(0, 1))) ==
+  assert sum(map((k) -> compositions(0, k), range(0, 1))) ==
     compositions_total(0)
 end
 

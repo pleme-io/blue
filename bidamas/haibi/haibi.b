@@ -11,7 +11,7 @@ def entries_of(m)
 end
 
 def from_entries(es)
-  reduce(fn(acc, e) assoc(acc, first(e), second(e)) end, {}, es)
+  reduce((acc, e) -> assoc(acc, first(e), second(e)), {}, es)
 end
 
 def defaults(svc)
@@ -54,7 +54,7 @@ def schema_of(v)
       "type" => "object",
       "additionalProperties" => false,
       "properties" => from_entries(
-        map(fn(e) [first(e), schema_of(second(e))] end, map_entries(v))
+        map((e) -> [first(e), schema_of(second(e))], map_entries(v))
       )
     }
   elsif t == "array"
@@ -103,16 +103,16 @@ def resources_of(svc)
   r = get_or(svc, "resources", {})
   requests = from_entries(
     filter(
-      fn(e) second(e) != nil end,
+      (e) -> second(e) != nil,
       [["cpu", get(r, "cpu")], ["memory", get(r, "memory")]]
     )
   )
   limits = from_entries(
-    filter(fn(e) second(e) != nil end, [["memory", get(r, "memory_limit")]])
+    filter((e) -> second(e) != nil, [["memory", get(r, "memory_limit")]])
   )
   from_entries(
     filter(
-      fn(e) map_entries(second(e)) != [] end,
+      (e) -> map_entries(second(e)) != [],
       [["requests", requests], ["limits", limits]]
     )
   )
@@ -311,7 +311,7 @@ def table_sql_in(schema, t)
     end,
     cols
   )
-  create = "CREATE TABLE IF NOT EXISTS #{name} (\n  \"id\" bigserial PRIMARY KEY#{join(map(fn(d) ",\n#{d}" end, defs), "")}\n);\n"
+  create = "CREATE TABLE IF NOT EXISTS #{name} (\n  \"id\" bigserial PRIMARY KEY#{join(map((d) -> ",\n#{d}", defs), "")}\n);\n"
   adds = join(
     map(
       fn(c)
@@ -325,11 +325,11 @@ def table_sql_in(schema, t)
 end
 
 def ddl(svc)
-  join(map(fn(t) table_sql(t) end, tables(svc)), "\n")
+  join(map((t) -> table_sql(t), tables(svc)), "\n")
 end
 
 def ddl_in(schema, svc)
-  "CREATE SCHEMA IF NOT EXISTS #{quoted(schema)};\n\n#{join(map(fn(t) table_sql_in(schema, t) end, tables(svc)), "\n")}"
+  "CREATE SCHEMA IF NOT EXISTS #{quoted(schema)};\n\n#{join(map((t) -> table_sql_in(schema, t), tables(svc)), "\n")}"
 end
 
 def row_refusals(svc, table, row)
@@ -338,15 +338,13 @@ def row_refusals(svc, table, row)
     [[:unknown_table, "#{table} is not a declared table"]]
   else
     unknown = map(
-      fn(e)
-        [:unknown_column, "#{table}.#{first(e)} is not a declared column"]
-      end,
-      filter(fn(e) get(cols, first(e)) == nil end, map_entries(row))
+      (e) -> [:unknown_column, "#{table}.#{first(e)} is not a declared column"],
+      filter((e) -> get(cols, first(e)) == nil, map_entries(row))
     )
     missing = map(
-      fn(e) [:missing_column, "#{table}.#{first(e)} is required"] end,
+      (e) -> [:missing_column, "#{table}.#{first(e)} is required"],
       filter(
-        fn(e) not ends_with?(second(e), "?") and get(row, first(e)) == nil end,
+        (e) -> not ends_with?(second(e), "?") and get(row, first(e)) == nil,
         map_entries(cols)
       )
     )
@@ -371,10 +369,10 @@ end
 def insert_sql(svc, table, row)
   rs = row_refusals(svc, table, row)
   if rs != []
-    raise(first(first(rs)), join(map(fn(r) second(r) end, rs), "; "))
+    raise(first(first(rs)), join(map((r) -> second(r), rs), "; "))
   end
   es = map_entries(row)
-  "INSERT INTO #{quoted(table)} (#{join(map(fn(e) quoted(first(e)) end, es), ", ")}) VALUES (#{join(map(fn(e) literal(second(e)) end, es), ", ")});\n"
+  "INSERT INTO #{quoted(table)} (#{join(map((e) -> quoted(first(e)), es), ", ")}) VALUES (#{join(map((e) -> literal(second(e)), es), ", ")});\n"
 end
 
 def lines(xs)
@@ -685,7 +683,7 @@ def files_with(name, version, svc, mode)
     ["config/#{name}.yaml", pretty(service_defaults(name, svc))],
     ["config/#{name}.schema.json", pretty(config_schema(name, svc))]
   ]
-  sort_keyed(fn(f) first(f) end, append(chart, own, db, config))
+  sort_keyed((f) -> first(f), append(chart, own, db, config))
 end
 
 def write_tree(root, fs)
@@ -798,9 +796,9 @@ test "a row is checked against its table before it becomes SQL"
 end
 
 test "the tree holds the chart, its schema, the config and, with a schema, the migration"
-  self_paths = map(fn(f) first(f) end, files_self("hello", "0.1.0", sample))
+  self_paths = map((f) -> first(f), files_self("hello", "0.1.0", sample))
   assert member?("chart/templates/_helpers.tpl", self_paths) == true
-  paths = map(fn(f) first(f) end, files("hello", "0.1.0", sample))
+  paths = map((f) -> first(f), files("hello", "0.1.0", sample))
   assert paths ==
     [
       "chart/Chart.yaml",
@@ -816,7 +814,7 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
       "config/hello.yaml"
     ]
   bare = map(
-    fn(f) first(f) end,
+    (f) -> first(f),
     files("hello", "0.1.0", {"port" => 1, "repository" => "r/x"})
   )
   assert member?("chart/templates/migration.yaml", bare) == false

@@ -11,7 +11,7 @@ end
 
 # The constant function. Useful wherever a callback is required and ignored.
 def constantly(x)
-  fn(_ignored) x end
+  (_ignored) -> x
 end
 
 # compose(f, g) applies g FIRST, then f — the mathematical order.
@@ -20,17 +20,17 @@ end
 # the word people reach for expecting f∘g, and quietly reversing it would make
 # every use site subtly wrong. `pipe` below is the left-to-right one.
 def compose(f, g)
-  fn(x) f(g(x)) end
+  (x) -> f(g(x))
 end
 
 # pipe(f, g) applies f FIRST — reading order.
 def pipe(f, g)
-  fn(x) g(f(x)) end
+  (x) -> g(f(x))
 end
 
 # flip a two-argument function's arguments.
 def flip(f)
-  fn(a, b) f(b, a) end
+  (a, b) -> f(b, a)
 end
 
 # Apply f to x, n times.
@@ -46,11 +46,11 @@ end
 # compose(f, compose(g, h)) so the argument order is visible at the definition
 # instead of having to be re-derived from a nesting.
 def compose3(f, g, h)
-  fn(x) f(g(h(x))) end
+  (x) -> f(g(h(x)))
 end
 
 def pipe3(f, g, h)
-  fn(x) h(g(f(x))) end
+  (x) -> h(g(f(x)))
 end
 
 # pipe_all folds a LIST of functions into one, left to right.
@@ -60,24 +60,24 @@ end
 # building a pipeline from data (a config, a list of enabled transforms) can
 # therefore hand over an empty list without a guard at the call site.
 def pipe_all(fs)
-  reduce(fn(acc, f) fn(x) f(acc(x)) end end, identity, fs)
+  reduce((acc, f) -> (x) -> f(acc(x)), identity, fs)
 end
 
 # The mathematical order: compose_all([f, g, h]) is f∘g∘h, so h runs first.
 # Equivalent to pipe_all(reverse(fs)), and the tests pin that equivalence.
 def compose_all(fs)
-  reduce(fn(acc, f) fn(x) acc(f(x)) end end, identity, fs)
+  reduce((acc, f) -> (x) -> acc(f(x)), identity, fs)
 end
 
 # curry2 turns f(a, b) into f(a)(b), so the first argument can be fixed and the
 # result reused. That partial application is the point: it is how a binary
 # operator becomes something `map` or `pipe_all` will accept.
 def curry2(f)
-  fn(a) fn(b) f(a, b) end end
+  (a) -> (b) -> f(a, b)
 end
 
 def uncurry2(g)
-  fn(a, b) g(a)(b) end
+  (a, b) -> g(a)(b)
 end
 
 # f(f(x)). The general form is iterate_n; this exists because doubling up is
@@ -92,7 +92,7 @@ end
 # iterate_n takes the value, so it cannot be dropped into pipe_all. This can —
 # pipe_all([iterated(dbl, 3), inc]) is a pipeline stage that repeats.
 def iterated(f, n)
-  fn(x) iterate_n(f, x, n) end
+  (x) -> iterate_n(f, x, n)
 end
 
 # Haskell's `on`: compare/combine two values THROUGH a key function.
@@ -101,7 +101,7 @@ end
 # leftmost, as map/filter/reduce do here. The classic use is a comparator that
 # orders by a derived value without the caller ever naming that value.
 def on(op, key)
-  fn(a, b) op(key(a), key(b)) end
+  (a, b) -> op(key(a), key(b))
 end
 
 # juxt(fs) applies EVERY function to ONE value and collects the results.
@@ -111,13 +111,13 @@ end
 # the value so it can be handed straight to `map` — building a row per element
 # from a list of column functions is the reason it exists.
 def juxt(fs)
-  fn(x) map(fn(f) f(x) end, fs) end
+  (x) -> map((f) -> f(x), fs)
 end
 
 # The two-function case, named, because a pair is what most callers want and
 # [f, g] spelled as a list is one bracket of noise per use site.
 def both_results(f, g)
-  fn(x) [f(x), g(x)] end
+  (x) -> [f(x), g(x)]
 end
 
 # fork is both_results with the pair already combined: op(f(x), g(x)).
@@ -127,7 +127,7 @@ end
 # things from one input and put them together" — a ratio, a difference, a span
 # — is a fork, and written this way the intermediate pair is never built.
 def fork(op, f, g)
-  fn(x) op(f(x), g(x)) end
+  (x) -> op(f(x), g(x))
 end
 
 # tap runs f for its effect and hands the ORIGINAL value on.
@@ -223,8 +223,8 @@ test "identity and constantly"
 end
 
 test "compose applies right to left, pipe left to right"
-  inc = fn(n) n + 1 end
-  dbl = fn(n) n * 2 end
+  inc = (n) -> n + 1
+  dbl = (n) -> n * 2
   # compose: double THEN increment -> 2*5+1
   assert compose(inc, dbl)(5) == 11
   # pipe: increment THEN double -> (5+1)*2
@@ -232,18 +232,18 @@ test "compose applies right to left, pipe left to right"
 end
 
 test "flip swaps arguments"
-  assert flip(fn(a, b) a - b end)(3, 10) == 7
+  assert flip((a, b) -> a - b)(3, 10) == 7
 end
 
 test "iterate_n applies repeatedly"
-  assert iterate_n(fn(n) n * 2 end, 1, 10) == 1024
-  assert iterate_n(fn(n) n + 1 end, 0, 0) == 0
+  assert iterate_n((n) -> n * 2, 1, 10) == 1024
+  assert iterate_n((n) -> n + 1, 0, 0) == 0
 end
 
 test "compose3 and pipe3 are each other read backwards"
-  inc = fn(n) n + 1 end
-  dbl = fn(n) n * 2 end
-  neg = fn(n) -n end
+  inc = (n) -> n + 1
+  dbl = (n) -> n * 2
+  neg = (n) -> -n
   # inc LAST: neg(1) = -1, dbl = -2, inc = -1
   assert compose3(inc, dbl, neg)(1) == -1
   # inc FIRST: 1+1 = 2, dbl = 4, neg = -4
@@ -254,8 +254,8 @@ test "compose3 and pipe3 are each other read backwards"
 end
 
 test "pipe_all folds a list of functions, empty list included"
-  inc = fn(n) n + 1 end
-  dbl = fn(n) n * 2 end
+  inc = (n) -> n + 1
+  dbl = (n) -> n * 2
   # the empty pipeline is identity, not an error and not zero
   assert pipe_all([])(9) == 9
   assert pipe_all([inc])(9) == 10
@@ -268,9 +268,9 @@ test "pipe_all folds a list of functions, empty list included"
 end
 
 test "compose_all is pipe_all reversed"
-  inc = fn(n) n + 1 end
-  dbl = fn(n) n * 2 end
-  sq = fn(n) n * n end
+  inc = (n) -> n + 1
+  dbl = (n) -> n * 2
+  sq = (n) -> n * n
   assert compose_all([])(9) == 9
   assert compose_all([inc, dbl])(5) == compose(inc, dbl)(5)
   assert compose_all([inc, dbl])(5) == 11
@@ -281,7 +281,7 @@ test "compose_all is pipe_all reversed"
 end
 
 test "curry2 partial application is reusable, uncurry2 undoes it"
-  sub = fn(a, b) a - b end
+  sub = (a, b) -> a - b
   # subtraction does not commute, so an argument swap cannot hide here
   assert curry2(sub)(10)(3) == 7
   from_ten = curry2(sub)(10)
@@ -290,11 +290,11 @@ test "curry2 partial application is reusable, uncurry2 undoes it"
   assert from_ten(2) == 8
   assert uncurry2(curry2(sub))(10, 3) == 7
   # curried, a binary operator becomes something map will take
-  assert map(curry2(fn(a, b) a * b end)(3), [1, 2, 3]) == [3, 6, 9]
+  assert map(curry2((a, b) -> a * b)(3), [1, 2, 3]) == [3, 6, 9]
 end
 
 test "apply_twice and iterated agree with iterate_n"
-  dbl = fn(n) n * 2 end
+  dbl = (n) -> n * 2
   assert apply_twice(dbl, 3) == 12
   assert apply_twice(dbl, 3) == iterate_n(dbl, 3, 2)
   assert iterated(dbl, 2)(3) == 12
@@ -302,13 +302,13 @@ test "apply_twice and iterated agree with iterate_n"
   # applying an involution twice is the identity - the reason this shape matters
   assert apply_twice(reverse, [1, 2, 3]) == [1, 2, 3]
   # iterated composes where iterate_n cannot: it is unary
-  assert pipe_all([iterated(dbl, 3), fn(n) n + 1 end])(1) == 9
+  assert pipe_all([iterated(dbl, 3), (n) -> n + 1])(1) == 9
 end
 
 test "juxt fans one value across many functions"
-  inc = fn(n) n + 1 end
-  dbl = fn(n) n * 2 end
-  sq = fn(n) n * n end
+  inc = (n) -> n + 1
+  dbl = (n) -> n * 2
+  sq = (n) -> n * n
   # no functions means no results - an empty list, not nil and not the input
   assert juxt([])(5) == []
   assert juxt([inc])(5) == [6]
@@ -318,8 +318,8 @@ test "juxt fans one value across many functions"
 end
 
 test "both_results is the two-function juxt"
-  neg = fn(n) -n end
-  sq = fn(n) n * n end
+  neg = (n) -> -n
+  sq = (n) -> n * n
   assert both_results(neg, sq)(3) == [-3, 9]
   assert both_results(neg, sq)(3) == juxt([neg, sq])(3)
   # order is preserved, so the two entries are not interchangeable
@@ -327,25 +327,25 @@ test "both_results is the two-function juxt"
 end
 
 test "fork combines what both_results would have paired"
-  sub = fn(a, b) a - b end
-  sq = fn(n) n * n end
-  dbl = fn(n) n * 2 end
+  sub = (a, b) -> a - b
+  sq = (n) -> n * n
+  dbl = (n) -> n * 2
   # 3^2 - 3*2 = 3
   assert fork(sub, sq, dbl)(3) == 3
   # the identity that ties it to both_results: pairing IS an operator
-  assert fork(fn(a, b) [a, b] end, sq, dbl)(3) == both_results(sq, dbl)(3)
+  assert fork((a, b) -> [a, b], sq, dbl)(3) == both_results(sq, dbl)(3)
   # both branches see the SAME input - not the first branch's output
   assert fork(sub, identity, identity)(9) == 0
   # spread of a list, without naming the list twice
-  span = fork(sub, fn(xs) nth(0, xs) end, fn(xs) nth(1, xs) end)
+  span = fork(sub, (xs) -> nth(0, xs), (xs) -> nth(1, xs))
   assert span([10, 4]) == 6
 end
 
 test "tap discards its function's result and keeps the value"
-  inc = fn(n) n + 1 end
-  dbl = fn(n) n * 2 end
+  inc = (n) -> n + 1
+  dbl = (n) -> n * 2
   # f returns something entirely different; the value passes through anyway
-  assert tap(fn(n) n * 1000 end)(7) == 7
+  assert tap((n) -> n * 1000)(7) == 7
   assert tap(constantly("ignored"))(7) == 7
   # spliced mid-pipeline: 1 -> 2 -> (tap doubles, discarded) -> 3.
   # A tap that leaked f's result would give 5 here.
@@ -353,7 +353,7 @@ test "tap discards its function's result and keeps the value"
 end
 
 test "apply_when transforms only where the predicate holds"
-  halve_evens = apply_when(fn(n) n % 2 == 0 end, fn(n) floor(n / 2) end)
+  halve_evens = apply_when((n) -> n % 2 == 0, (n) -> floor(n / 2))
   assert halve_evens(8) == 4
   assert halve_evens(7) == 7
   # outside the predicate it IS the identity, which is what makes it iterable
@@ -361,7 +361,7 @@ test "apply_when transforms only where the predicate holds"
 end
 
 test "until_stable reaches a fixed point and reports the last value otherwise"
-  countdown = fn(n) max(0, n - 1) end
+  countdown = (n) -> max(0, n - 1)
   # 5 -> 4 -> 3 -> 2 -> 1 -> 0, and 0 is fixed
   assert until_stable(countdown, 5, 100) == 0
   # already stable: returned untouched, and identity is fixed everywhere
@@ -373,12 +373,12 @@ test "until_stable reaches a fixed point and reports the last value otherwise"
   once = until_stable(countdown, 9, 100)
   assert until_stable(countdown, once, 100) == once
   # works on any value == compares, not just numbers
-  assert until_stable(fn(xs) take(2, xs) end, [1, 2, 3, 4], 10) == [1, 2]
+  assert until_stable((xs) -> take(2, xs), [1, 2, 3, 4], 10) == [1, 2]
 end
 
 test "converges answers what until_stable cannot"
-  countdown = fn(n) max(0, n - 1) end
-  inc = fn(n) n + 1 end
+  countdown = (n) -> max(0, n - 1)
+  inc = (n) -> n + 1
   assert converges(countdown, 5, 100) == true
   # exactly 5 steps are needed, so 5 is enough and 4 is not - an
   # always-true implementation passes the first and fails the second
@@ -391,8 +391,8 @@ test "converges answers what until_stable cannot"
 end
 
 test "stable_steps counts applications, zero when already stable"
-  countdown = fn(n) max(0, n - 1) end
-  inc = fn(n) n + 1 end
+  countdown = (n) -> max(0, n - 1)
+  inc = (n) -> n + 1
   assert stable_steps(countdown, 5, 100) == 5
   # already a fixed point: no application was needed
   assert stable_steps(identity, 7, 10) == 0
@@ -404,17 +404,17 @@ test "stable_steps counts applications, zero when already stable"
 end
 
 test "the combinators compose with each other"
-  inc = fn(n) n + 1 end
-  dbl = fn(n) n * 2 end
+  inc = (n) -> n + 1
+  dbl = (n) -> n * 2
   # iterate a conditional transform until the condition stops holding:
   # 10 -> 7 -> 4 -> 1, and 1 fails the guard so 1 is the fixed point
-  drain = apply_when(fn(n) n > 2 end, fn(n) n - 3 end)
+  drain = apply_when((n) -> n > 2, (n) -> n - 3)
   assert until_stable(drain, 10, 100) == 1
   assert stable_steps(drain, 10, 100) == 3
   # pipe_all a pipeline that ends in a fan-out
   assert pipe_all([inc, dbl, juxt([inc, dbl])])(1) == [5, 8]
   # on + flip + curry2: subtract magnitudes, arguments the other way round
-  by_abs = on(fn(a, b) a - b end, abs)
+  by_abs = on((a, b) -> a - b, abs)
   assert flip(by_abs)(-2, 5) == 3
   assert curry2(by_abs)(-7)(3) == 4
   # a pipeline assembled from data, including the empty one
@@ -425,12 +425,12 @@ test "the combinators compose with each other"
 end
 
 test "on applies the key function before the operator"
-  sub = fn(a, b) a - b end
-  sq = fn(n) n * n end
+  sub = (a, b) -> a - b
+  sq = (n) -> n * n
   # 3^2 - 2^2 = 5, NOT (3-2)^2 = 1
   assert on(sub, sq)(3, 2) == 5
   # by-magnitude comparison: the key is what is compared, not the input
-  by_size = on(fn(a, b) max(a, b) end, abs)
+  by_size = on((a, b) -> max(a, b), abs)
   assert by_size(-7, 3) == 7
   # key = identity degenerates to the bare operator
   assert on(sub, identity)(10, 4) == sub(10, 4)

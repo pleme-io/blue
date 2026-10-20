@@ -47,11 +47,11 @@ def float_in(lo, hi)
 end
 
 def flag()
-  fn(v) verdict(boolean?(v), "#{v} is not true or false") end
+  (v) -> verdict(boolean?(v), "#{v} is not true or false")
 end
 
 def text()
-  fn(v) verdict(string?(v) and length(v) > 0, "#{v} is not text") end
+  (v) -> verdict(string?(v) and length(v) > 0, "#{v} is not text")
 end
 
 def one_of(choices)
@@ -74,7 +74,7 @@ end
 
 # A name a home gives a thing (a tone, a mood, a speaker, a role).
 def name_text()
-  fn(v) verdict(string?(v) and made_of(v, name_chars), "#{v} is not a name") end
+  (v) -> verdict(string?(v) and made_of(v, name_chars), "#{v} is not a name")
 end
 
 # A Home Assistant entity id in `domain`: `light.hallway`.
@@ -136,7 +136,7 @@ def passes?(check, v)
 end
 
 def first_why(check, xs)
-  whys = filter(fn(w) w != nil end, map(fn(x) check(x) end, xs))
+  whys = filter((w) -> w != nil, map((x) -> check(x), xs))
   if is_empty(whys)
     nil
   else
@@ -169,7 +169,7 @@ end
 # A field: its key in blue, its key in pleme.lareira (nil: blue's alone), the
 # check its value passes, and how its value is rendered.
 def field(key, json, check)
-  {key: key, json: json, check: check, render: fn(v) v end, required: false}
+  {key: key, json: json, check: check, render: (v) -> v, required: false}
 end
 
 def required(f)
@@ -181,7 +181,7 @@ def record_field(key, json, table)
     key: key,
     json: json,
     check: record_check(table),
-    render: fn(v) project(table, v) end,
+    render: (v) -> project(table, v),
     required: false
   }
 end
@@ -191,7 +191,7 @@ def records_field(key, json, table)
     key: key,
     json: json,
     check: list_of(record_check(table)),
-    render: fn(v) map(fn(r) project(table, r) end, v) end,
+    render: (v) -> map((r) -> project(table, r), v),
     required: false
   }
 end
@@ -203,7 +203,7 @@ end
 # The keys a map was written with, as text. Blue has no word that lists a
 # map's keys; JSON text does, so the map is read back through it.
 def key_names(m)
-  map(fn(p) first(p) end, json_parse(json_stringify(m)))
+  map((p) -> first(p), json_parse(json_stringify(m)))
 end
 
 def field_why(f, m)
@@ -224,15 +224,12 @@ def record_whys(table, m)
   if m == nil or not map?(m)
     ["#{m} is not a record"]
   else
-    known = map(fn(f) key_text(f) end, table)
+    known = map((f) -> key_text(f), table)
     unknown = map(
-      fn(k) "#{k} is not a field here" end,
-      filter(fn(k) not contains(known, k) end, key_names(m))
+      (k) -> "#{k} is not a field here",
+      filter((k) -> not contains(known, k), key_names(m))
     )
-    append(
-      unknown,
-      filter(fn(w) w != nil end, map(fn(f) field_why(f, m) end, table))
-    )
+    append(unknown, filter((w) -> w != nil, map((f) -> field_why(f, m), table)))
   end
 end
 
@@ -250,7 +247,7 @@ end
 # The record in pleme.lareira's spelling: its declared fields only, so every
 # default stays the module's.
 def project(table, m)
-  reduce(fn(acc, f) projected(acc, f, m) end, {}, table)
+  reduce((acc, f) -> projected(acc, f, m), {}, table)
 end
 
 def projected(acc, f, m)
@@ -362,7 +359,7 @@ def device_row()
 end
 
 def device_render(rows)
-  reduce(fn(acc, r) assoc(acc, first(r), device_of(r)) end, {}, rows)
+  reduce((acc, r) -> assoc(acc, first(r), device_of(r)), {}, rows)
 end
 
 def device_of(r)
@@ -389,7 +386,7 @@ def camera_row()
 end
 
 def camera_render(rows)
-  reduce(fn(acc, r) assoc(acc, first(r), {"stream" => last(r)}) end, {}, rows)
+  reduce((acc, r) -> assoc(acc, first(r), {"stream" => last(r)}), {}, rows)
 end
 
 def rows_field(key, json, row_check, render)
@@ -420,7 +417,7 @@ def components()
       "esphome",
       [
         enable_field,
-        rows_field(:devices, "devices", device_row, fn(v) device_render(v) end)
+        rows_field(:devices, "devices", device_row, (v) -> device_render(v))
       ],
       nil
     ],
@@ -441,7 +438,7 @@ def components()
       "frigate",
       [
         enable_field,
-        rows_field(:cameras, "cameras", camera_row, fn(v) camera_render(v) end)
+        rows_field(:cameras, "cameras", camera_row, (v) -> camera_render(v))
       ],
       nil
     ],
@@ -463,7 +460,7 @@ def components()
 end
 
 def component_row(name)
-  rows = filter(fn(c) first(c) == name end, components)
+  rows = filter((c) -> first(c) == name, components)
   if is_empty(rows)
     nil
   else
@@ -472,7 +469,7 @@ def component_row(name)
 end
 
 def component_names()
-  map(fn(c) first(c) end, components)
+  map((c) -> first(c), components)
 end
 
 # ── entries: a home is a list of them; a mood set is a list inside it ─────
@@ -565,7 +562,7 @@ def integration(domain)
 end
 
 def integrations(domains)
-  map(fn(d) integration(d) end, domains)
+  map((d) -> integration(d), domains)
 end
 
 # A speaker by short name, as the media_player entity Home Assistant gives it.
@@ -720,7 +717,7 @@ end
 def local_refusals(e)
   k = kind_of(e)
   v = value_of(e)
-  singles = filter(fn(s) first(s) == k end, singleton_checks)
+  singles = filter((s) -> first(s) == k, singleton_checks)
   if not is_empty(singles)
     whys_to_refusals(e, check_why(last(first(singles)), v))
   elsif k == :site
@@ -815,7 +812,7 @@ def component_refusals(e)
       refuse_entry(
         :unknown_component,
         e,
-        "not one of #{join(map(fn(n) to_s(n) end, component_names), ", ")}"
+        "not one of #{join(map((n) -> to_s(n), component_names), ", ")}"
       )
     ]
   else
@@ -841,7 +838,7 @@ end
 
 def component_key(e)
   n = name_of(e)
-  hits = filter(fn(c) to_s(c) == n end, component_names)
+  hits = filter((c) -> to_s(c) == n, component_names)
   if is_empty(hits)
     nil
   else
@@ -856,14 +853,14 @@ end
 # The entries whose refusal list (same position in `marks`) is empty.
 def unrefused(es, marks)
   map(
-    fn(i) nth(i, es) end,
-    filter(fn(i) is_empty(nth(i, marks)) end, range(0, size(es)))
+    (i) -> nth(i, es),
+    filter((i) -> is_empty(nth(i, marks)), range(0, size(es)))
   )
 end
 
 # A name is declared once: every later declaration of it is refused.
 def duplicate_refusals(es)
-  ids = map(fn(e) entry_id(e) end, es)
+  ids = map((e) -> entry_id(e), es)
   map(
     fn(i)
       refused_if(
@@ -902,7 +899,7 @@ end
 def tune_refusals(t, es)
   table = fields_of(get(t, :target))
   hits = filter(
-    fn(e) kind_of(e) == get(t, :target) and name_of(e) == get(t, :of) end,
+    (e) -> kind_of(e) == get(t, :target) and name_of(e) == get(t, :of),
     es
   )
   if table == nil
@@ -916,14 +913,11 @@ end
 
 # Every tune laid onto its entry, in order; each tune is checked first.
 def apply_tunes(es)
-  tunes = filter(fn(e) kind_of(e) == :tune end, es)
-  base = filter(fn(e) kind_of(e) != :tune end, es)
-  bad = map(fn(t) tune_refusals(t, base) end, tunes)
+  tunes = filter((e) -> kind_of(e) == :tune, es)
+  base = filter((e) -> kind_of(e) != :tune, es)
+  bad = map((t) -> tune_refusals(t, base), tunes)
   good = unrefused(tunes, bad)
-  {
-    entries: map(fn(e) tuned(e, good) end, base),
-    refusals: flat_map(fn(r) r end, bad)
-  }
+  {entries: map((e) -> tuned(e, good), base), refusals: flat_map((r) -> r, bad)}
 end
 
 def tuned(e, tunes)
@@ -945,7 +939,7 @@ def tuned(e, tunes)
 end
 
 def names_of_kind(es, kind)
-  map(fn(e) name_of(e) end, filter(fn(e) kind_of(e) == kind end, es))
+  map((e) -> name_of(e), filter((e) -> kind_of(e) == kind, es))
 end
 
 def has_kind?(es, kind)
@@ -970,11 +964,11 @@ def label_of(m)
 end
 
 def missing(names, known)
-  filter(fn(n) not contains(known, n) end, names)
+  filter((n) -> not contains(known, n), names)
 end
 
 def role_lights(es, role)
-  hits = filter(fn(e) kind_of(e) == :light_role and name_of(e) == role end, es)
+  hits = filter((e) -> kind_of(e) == :light_role and name_of(e) == role, es)
   if is_empty(hits)
     []
   else
@@ -987,15 +981,15 @@ def mood_needs(m, es)
   v = value_of(m)
   s = get(v, :sound)
   l = get(v, :lights)
-  active = filter(fn(e) kind_of(e) == :mood and active?(e) end, es)
-  targets = map(fn(h) get(h, :mood) end, get(v, :then) or [])
+  active = filter((e) -> kind_of(e) == :mood and active?(e), es)
+  targets = map((h) -> get(h, :mood), get(v, :then) or [])
   lost = missing(targets, names_of_kind(active, :mood))
-  phones = filter(fn(p) phone?(p) end, es)
+  phones = filter((p) -> phone?(p), es)
   role = get(l or {}, :role)
   tone_name = get(s or {}, :tone)
   deaf = missing(get(s or {}, :speakers) or [], names_of_kind(es, :speaker))
   flat_map(
-    fn(g) g end,
+    (g) -> g,
     [
       refused_if(
         s != nil and not contains(names_of_kind(es, :tone), tone_name),
@@ -1035,8 +1029,8 @@ def mood_needs(m, es)
       ),
       refused_if(
         phone?(m) and
-          index_of(map(fn(p) label_of(p) end, phones), label_of(m)) <
-            index_of(map(fn(p) name_of(p) end, phones), name_of(m)),
+          index_of(map((p) -> label_of(p), phones), label_of(m)) <
+            index_of(map((p) -> name_of(p), phones), name_of(m)),
         :duplicate_label,
         m,
         "an earlier phone button already says #{label_of(m)}"
@@ -1065,8 +1059,8 @@ end
 # Refuse whatever lacks what it names, and again over what is left, until
 # nothing more falls: a mood handing over to a refused mood falls with it.
 def settle(standing, refused)
-  fresh = map(fn(e) needs(e, standing) end, standing)
-  falls = flat_map(fn(r) r end, fresh)
+  fresh = map((e) -> needs(e, standing), standing)
+  falls = flat_map((r) -> r, fresh)
   if is_empty(falls)
     {accepted: standing, refusals: refused}
   else
@@ -1080,13 +1074,13 @@ end
 def judge(entries)
   t = apply_tunes(flat(entries))
   es = get(t, :entries)
-  own = map(fn(e) local_refusals(e) end, es)
+  own = map((e) -> local_refusals(e), es)
   dups = duplicate_refusals(es)
-  marks = map(fn(i) append(nth(i, own), nth(i, dups)) end, range(0, size(es)))
+  marks = map((i) -> append(nth(i, own), nth(i, dups)), range(0, size(es)))
   first_pass = unrefused(es, marks)
   settled = settle(
     first_pass,
-    append(get(t, :refusals), flat_map(fn(r) r end, marks))
+    append(get(t, :refusals), flat_map((r) -> r, marks))
   )
   site_missing = if has_kind?(get(settled, :accepted), :site)
     []
@@ -1110,7 +1104,7 @@ end
 # ── the projection: pleme.lareira's attribute set ──────────────────────────
 
 def of_kind(es, kind)
-  filter(fn(e) kind_of(e) == kind end, es)
+  filter((e) -> kind_of(e) == kind, es)
 end
 
 # A role-addressed mood's lights become the role's lights.
@@ -1145,7 +1139,7 @@ def slot(json, kind, render)
 end
 
 def filled(acc, es, slots)
-  reduce(fn(m, s) slot_into(m, s, of_kind(es, nth(1, s))) end, acc, slots)
+  reduce((m, s) -> slot_into(m, s, of_kind(es, nth(1, s))), acc, slots)
 end
 
 def slot_into(acc, s, hits)
@@ -1170,11 +1164,11 @@ def unless_host(v)
 end
 
 def single(render)
-  fn(hits) render(first(hits)) end
+  (hits) -> render(first(hits))
 end
 
 def by_name(render)
-  fn(hits) reduce(fn(m, e) assoc(m, name_of(e), render(e)) end, {}, hits) end
+  (hits) -> reduce((m, e) -> assoc(m, name_of(e), render(e)), {}, hits)
 end
 
 def home_assistant(es)
@@ -1182,25 +1176,21 @@ def home_assistant(es)
     {},
     es,
     [
-      slot("recorder", :recorder, single(fn(e) value_of(e) end)),
+      slot("recorder", :recorder, single((e) -> value_of(e))),
       slot(
         "mediaBaseUrl",
         :media_base_url,
-        single(fn(e) unless_host(value_of(e)) end)
+        single((e) -> unless_host(value_of(e)))
       ),
       slot(
         "integrations",
         :integration,
-        fn(hits) map(fn(e) name_of(e) end, hits) end
+        (hits) -> map((e) -> name_of(e), hits)
       ),
-      slot("speakers", :speaker, by_name(fn(e) value_of(e) end)),
-      slot("lightRoles", :light_role, by_name(fn(e) value_of(e) end)),
-      slot("tones", :tone, by_name(fn(e) project(tone_table, value_of(e)) end)),
-      slot(
-        "moods",
-        :mood,
-        by_name(fn(e) project(mood_table, resolved(e, es)) end)
-      )
+      slot("speakers", :speaker, by_name((e) -> value_of(e))),
+      slot("lightRoles", :light_role, by_name((e) -> value_of(e))),
+      slot("tones", :tone, by_name((e) -> project(tone_table, value_of(e)))),
+      slot("moods", :mood, by_name((e) -> project(mood_table, resolved(e, es))))
     ]
   )
 end
@@ -1213,11 +1203,11 @@ def lareira(entries)
     {"enable" => true},
     es,
     [
-      slot("delivery", :delivery, single(fn(e) value_of(e) end)),
-      slot("exposure", :exposure, single(fn(e) value_of(e) end)),
-      slot("secretsSource", :secrets_source, single(fn(e) value_of(e) end)),
-      slot("site", :site, single(fn(e) project(site_table, value_of(e)) end)),
-      slot("components", :component, fn(hits) component_json(hits) end)
+      slot("delivery", :delivery, single((e) -> value_of(e))),
+      slot("exposure", :exposure, single((e) -> value_of(e))),
+      slot("secretsSource", :secrets_source, single((e) -> value_of(e))),
+      slot("site", :site, single((e) -> project(site_table, value_of(e)))),
+      slot("components", :component, (hits) -> component_json(hits))
     ]
   )
   ha = home_assistant(es)

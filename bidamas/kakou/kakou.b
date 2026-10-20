@@ -186,7 +186,7 @@ def sides()
 end
 
 def flange_on(part, side)
-  find_first(fn(f) get(f, :side) == side end, get(part, :flanges))
+  find_first((f) -> get(f, :side) == side, get(part, :flanges))
 end
 
 # The setback a flange takes off its side of the flat base; 0 unflanged.
@@ -272,7 +272,7 @@ end
 def flat_pattern(part)
   {
     blank: region(blank_outline(part), get(part, :holes)),
-    bends: map(fn(f) bend_line(part, f) end, get(part, :flanges))
+    bends: map((f) -> bend_line(part, f), get(part, :flanges))
   }
 end
 
@@ -290,8 +290,8 @@ def bend_line(part, f)
   {
     side: side,
     start: seg,
-    finish: map(fn(p) vadd(p, scale(ba, out)) end, seg),
-    centre: map(fn(p) vadd(p, scale(ba / 2, out)) end, seg),
+    finish: map((p) -> vadd(p, scale(ba, out)), seg),
+    centre: map((p) -> vadd(p, scale(ba / 2, out)), seg),
     angle: get(f, :angle),
     radius: get(f, :radius),
     direction: :up,
@@ -351,7 +351,7 @@ end
 def blank_entities(part, text_h)
   fp = flat_pattern(part)
   blank = get(fp, :blank)
-  bends = flat_map(fn(b) bend_entities(b, text_h) end, get(fp, :bends))
+  bends = flat_map((b) -> bend_entities(b, text_h), get(fp, :bends))
   bb = bounding_box(region_outline(blank))
   lo = nth(0, bb)
   hi = nth(1, bb)
@@ -412,7 +412,7 @@ def folded_mesh(part)
     rittai::merge(
       concat_lists(
         [base],
-        map(fn(f) flange_mesh(part, b, f) end, get(part, :flanges))
+        map((f) -> flange_mesh(part, b, f), get(part, :flanges))
       )
     )
   )
@@ -493,7 +493,7 @@ def sheet_refusals(part, rules)
         ]
       end,
       filter(
-        fn(f) get(f, :radius) < rule(rules, :min_radius_t) * t - 0.000001 end,
+        (f) -> get(f, :radius) < rule(rules, :min_radius_t) * t - 0.000001,
         fl
       )
     )
@@ -504,7 +504,7 @@ def sheet_refusals(part, rules)
           "#{to_s(get(part, :name))} #{to_s(get(f, :side))}: the straight run #{to_s(flange_run(part, f))} is under #{to_s(rule(rules, :min_flange_t))} T = #{to_s(rule(rules, :min_flange_t) * t)}, too short to hold in the brake"
         ]
       end,
-      filter(fn(f) flange_run(part, f) < rule(rules, :min_flange_t) * t end, fl)
+      filter((f) -> flange_run(part, f) < rule(rules, :min_flange_t) * t, fl)
     )
     concat_lists(
       radius,
@@ -521,10 +521,10 @@ end
 
 def shape_refusals(part)
   fl = get(part, :flanges)
-  sides = map(fn(f) get(f, :side) end, fl)
-  unknown = filter(fn(s) contains(kakou::sides, s) == false end, sides)
-  twice = filter(fn(s) count_of(sides, s) > 1 end, kakou::sides)
-  angles = filter(fn(f) get(f, :angle) <= 0 or get(f, :angle) >= 180 end, fl)
+  sides = map((f) -> get(f, :side), fl)
+  unknown = filter((s) -> contains(kakou::sides, s) == false, sides)
+  twice = filter((s) -> count_of(sides, s) > 1, kakou::sides)
+  angles = filter((f) -> get(f, :angle) <= 0 or get(f, :angle) >= 180, fl)
   concat_lists(
     map(
       fn(s)
@@ -587,10 +587,7 @@ def one_hole_refusals(part, rules, b, base, i, hole)
       ]
     ]
   else
-    flat_map(
-      fn(side) hole_side_refusals(part, rules, b, i, hole, side) end,
-      sides
-    )
+    flat_map((side) -> hole_side_refusals(part, rules, b, i, hole, side), sides)
   end
 end
 
@@ -627,7 +624,7 @@ end
 
 def sheet_size_refusals(part, rules)
   s = blank_size(part)
-  fits = some(fn(sh) kakou::fits(s, sh) end, rule(rules, :sheets)) == true
+  fits = some((sh) -> kakou::fits(s, sh), rule(rules, :sheets)) == true
   if fits
     []
   else
@@ -777,12 +774,12 @@ def wire_length(w)
   r = get(w, :radius)
   straight = sum(
     map(
-      fn(i) vdistance(nth(i, path), nth(i + 1, path)) end,
+      (i) -> vdistance(nth(i, path), nth(i + 1, path)),
       range(0, size(path) - 1)
     )
   )
-  corners = map(fn(i) turn(path, i) end, range(1, size(path) - 1))
-  straight - sum(map(fn(th) 2 * r * tan(th / 2) - r * th end, corners))
+  corners = map((i) -> turn(path, i), range(1, size(path) - 1))
+  straight - sum(map((th) -> 2 * r * tan(th / 2) - r * th, corners))
 end
 
 def wire_mesh(w, n)
@@ -812,7 +809,7 @@ def tray()
       width: 300,
       depth: 200,
       flanges: map(
-        fn(s) flange(s, 40, 90, 1.5) end,
+        (s) -> flange(s, 40, 90, 1.5),
         [:south, :east, :north, :west]
       ),
       holes: [circle_polygon([150, 100], 10, 24)],
@@ -907,23 +904,23 @@ end
 
 test "a blank's drawing: outline, holes, one labelled bend line per flange, two dimensions"
   es = blank_entities(tray, 3.5)
-  assert size(filter(fn(e) zumen::layer(e) == "OUTLINE" end, es)) == 1
-  assert size(filter(fn(e) zumen::layer(e) == "HOLES" end, es)) == 1
+  assert size(filter((e) -> zumen::layer(e) == "OUTLINE", es)) == 1
+  assert size(filter((e) -> zumen::layer(e) == "HOLES", es)) == 1
   bend_lines = filter(
-    fn(e) zumen::layer(e) == "BEND" and zumen::kind(e) == :line end,
+    (e) -> zumen::layer(e) == "BEND" and zumen::kind(e) == :line,
     es
   )
   assert size(bend_lines) == 4
   assert contains(
-    map(fn(e) get(e, :s) end, filter(fn(e) zumen::kind(e) == :text end, es)),
+    map((e) -> get(e, :s), filter((e) -> zumen::kind(e) == :text, es)),
     "UP 90 DEG R1.5"
   ) ==
     true
   # The dimensions read the blank's size, to one decimal.
   s = blank_size(tray)
   texts = map(
-    fn(e) get(e, :s) end,
-    filter(fn(e) zumen::layer(e) == "DIM" and zumen::kind(e) == :text end, es)
+    (e) -> get(e, :s),
+    filter((e) -> zumen::layer(e) == "DIM" and zumen::kind(e) == :text, es)
   )
   assert texts ==
     [zumen::num(round(px(s) * 10) / 10), zumen::num(round(py(s) * 10) / 10)]
@@ -941,8 +938,7 @@ test "the shop's limits refuse, each naming its rule"
       flanges: [flange(:south, 40, 90, 0.5)]
     }
   )
-  assert map(fn(r) nth(0, r) end, sheet_refusals(tight, rules)) ==
-    [:kakou_radius]
+  assert map((r) -> nth(0, r), sheet_refusals(tight, rules)) == [:kakou_radius]
   stub = sheet_part(
     {
       name: "stub",
@@ -952,8 +948,7 @@ test "the shop's limits refuse, each naming its rule"
       flanges: [flange(:south, 6, 90, 1.5)]
     }
   )
-  assert map(fn(r) nth(0, r) end, sheet_refusals(stub, rules)) ==
-    [:kakou_flange]
+  assert map((r) -> nth(0, r), sheet_refusals(stub, rules)) == [:kakou_flange]
   near_bend = sheet_part(
     {
       name: "nb",
@@ -964,7 +959,7 @@ test "the shop's limits refuse, each naming its rule"
       holes: [circle_polygon([50, 8], 3, 16)]
     }
   )
-  assert map(fn(r) nth(0, r) end, sheet_refusals(near_bend, rules)) ==
+  assert map((r) -> nth(0, r), sheet_refusals(near_bend, rules)) ==
     [:kakou_hole_bend]
   near_edge = sheet_part(
     {
@@ -975,10 +970,10 @@ test "the shop's limits refuse, each naming its rule"
       holes: [circle_polygon([50, 4], 3, 16)]
     }
   )
-  assert map(fn(r) nth(0, r) end, sheet_refusals(near_edge, rules)) ==
+  assert map((r) -> nth(0, r), sheet_refusals(near_edge, rules)) ==
     [:kakou_hole_edge]
   huge = sheet_part({name: "huge", thickness: 1.5, width: 1400, depth: 2500})
-  assert map(fn(r) nth(0, r) end, sheet_refusals(huge, rules)) == [:kakou_sheet]
+  assert map((r) -> nth(0, r), sheet_refusals(huge, rules)) == [:kakou_sheet]
   hem = sheet_part(
     {
       name: "hem",
@@ -988,7 +983,7 @@ test "the shop's limits refuse, each naming its rule"
       flanges: [flange(:north, 10, 180, 1.0)]
     }
   )
-  assert map(fn(r) nth(0, r) end, sheet_refusals(hem, rules)) ==
+  assert map((r) -> nth(0, r), sheet_refusals(hem, rules)) ==
     [:kakou_unsupported]
 end
 
@@ -1019,7 +1014,7 @@ test "a bent wire: its developed length by hand, and a refused radius"
     true
   assert is_empty(rittai::mesh_refusals(wire_mesh(w, 12))) == true
   assert map(
-    fn(r) nth(0, r) end,
+    (r) -> nth(0, r),
     wire_refusals(wire("kink", 3, [[0, 0, 0], [0, 0, 10], [10, 0, 10]], 1))
   ) ==
     [:kakou_radius]

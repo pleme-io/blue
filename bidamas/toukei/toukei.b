@@ -10,7 +10,7 @@ use("shuugou", [:unique])
 # truncates is worse than none, because every number it returns is plausible.
 
 def total(xs)
-  reduce(fn(a, b) a + b end, 0, xs)
+  reduce((a, b) -> a + b, 0, xs)
 end
 
 def mean(xs)
@@ -35,7 +35,7 @@ end
 
 def variance(xs)
   m = mean(xs)
-  total(map(fn(x) (x - m) * (x - m) end, xs)) / size(xs)
+  total(map((x) -> (x - m) * (x - m), xs)) / size(xs)
 end
 
 def stddev(xs)
@@ -79,7 +79,7 @@ end
 # wrong. Every dispersion measure below is this divided by something.
 def sum_of_squares(xs)
   m = mean_or_zero(xs)
-  total(map(fn(x) (x - m) * (x - m) end, xs))
+  total(map((x) -> (x - m) * (x - m), xs))
 end
 
 # The n-1 denominator: the variance of a POPULATION estimated from a SAMPLE.
@@ -126,7 +126,7 @@ def mean_absolute_deviation(xs)
     0
   else
     m = mean(xs)
-    total(map(fn(x) abs(x - m) end, xs)) / size(xs)
+    total(map((x) -> abs(x - m), xs)) / size(xs)
   end
 end
 
@@ -140,7 +140,7 @@ def geometric_mean(xs)
   if is_empty(xs)
     0
   else
-    exp(total(map(fn(x) log(x) end, xs)) / size(xs))
+    exp(total(map((x) -> log(x), xs)) / size(xs))
   end
 end
 
@@ -152,7 +152,7 @@ def harmonic_mean(xs)
   if is_empty(xs)
     0
   else
-    size(xs) / total(map(fn(x) 1 / x end, xs))
+    size(xs) / total(map((x) -> 1 / x, xs))
   end
 end
 
@@ -165,7 +165,7 @@ def weighted_mean(xs, ws)
   if near(w, 0)
     0
   else
-    total(zip_with(fn(x, k) x * k end, xs, ws)) / w
+    total(zip_with((x, k) -> x * k, xs, ws)) / w
   end
 end
 
@@ -277,7 +277,7 @@ def outliers(xs)
   f = fences(xs)
   lo = nth(0, f)
   hi = nth(1, f)
-  filter(fn(x) x < lo or x > hi end, xs)
+  filter((x) -> x < lo or x > hi, xs)
 end
 
 # The inverse of `percentile`: what fraction of the data is at or below x.
@@ -286,7 +286,7 @@ def percentile_rank(x, xs)
   if is_empty(xs)
     0
   else
-    size(filter(fn(y) y <= x end, xs)) / size(xs)
+    size(filter((y) -> y <= x, xs)) / size(xs)
   end
 end
 
@@ -303,7 +303,7 @@ def covariance(xs, ys)
   else
     mx = mean(take(n, xs))
     my = mean(take(n, ys))
-    total(zip_with(fn(x, y) (x - mx) * (y - my) end, xs, ys)) / n
+    total(zip_with((x, y) -> (x - mx) * (y - my), xs, ys)) / n
   end
 end
 
@@ -336,7 +336,7 @@ def z_score(x, xs)
 end
 
 def z_scores(xs)
-  map(fn(x) z_score(x, xs) end, xs)
+  map((x) -> z_score(x, xs), xs)
 end
 
 # Min-max rescaling onto [0, 1].
@@ -352,9 +352,9 @@ def rescale(xs)
     lo = smallest(xs)
     w = largest(xs) - lo
     if near(w, 0)
-      map(fn(_x) 0 end, xs)
+      map((_x) -> 0, xs)
     else
-      map(fn(x) (x - lo) / w end, xs)
+      map((x) -> (x - lo) / w, xs)
     end
   end
 end
@@ -363,7 +363,7 @@ end
 # `total(xs)`. That identity is the thing to check: an off-by-one in the
 # window shows up there before it shows up anywhere else.
 def cumulative_sum(xs)
-  map(fn(i) total(take(i + 1, xs)) end, indexes(xs))
+  map((i) -> total(take(i + 1, xs)), indexes(xs))
 end
 
 # Simple moving average, one value per COMPLETE window.
@@ -378,7 +378,7 @@ def moving_average(xs, w)
   elsif size(xs) < w
     []
   else
-    map(fn(i) mean(take(w, drop(i, xs))) end, range(0, size(xs) - w + 1))
+    map((i) -> mean(take(w, drop(i, xs))), range(0, size(xs) - w + 1))
   end
 end
 
@@ -395,7 +395,7 @@ def skewness(xs)
     if near(s, 0)
       0
     else
-      total(map(fn(x) pow((x - m) / s, 3) end, xs)) / size(xs)
+      total(map((x) -> pow((x - m) / s, 3), xs)) / size(xs)
     end
   end
 end
@@ -416,7 +416,7 @@ def excess_kurtosis(xs)
     if near(s, 0)
       0
     else
-      total(map(fn(x) pow((x - m) / s, 4) end, xs)) / size(xs) - 3
+      total(map((x) -> pow((x - m) / s, 4), xs)) / size(xs) - 3
     end
   end
 end
@@ -424,7 +424,7 @@ end
 # How many times x occurs. The counting primitive the three functions below
 # share, rather than three separate walks that can drift apart.
 def tally(x, xs)
-  size(filter(fn(y) y == x end, xs))
+  size(filter((y) -> y == x, xs))
 end
 
 # Every distinct value paired with its count, ascending by value.
@@ -434,7 +434,7 @@ end
 # order to be got wrong. Sorting first makes the output order a property of
 # the DATA rather than of how the caller happened to build the list.
 def frequency_table(xs)
-  map(fn(v) [v, tally(v, xs)] end, unique(sort(xs)))
+  map((v) -> [v, tally(v, xs)], unique(sort(xs)))
 end
 
 # The most frequent value; nil for the empty list.
@@ -471,7 +471,7 @@ def modes(xs)
     []
   else
     best = tally(mode(xs), xs)
-    filter(fn(v) tally(v, xs) == best end, unique(sort(xs)))
+    filter((v) -> tally(v, xs) == best, unique(sort(xs)))
   end
 end
 
@@ -601,7 +601,7 @@ test "coefficient_of_variation is unitless"
   assert variance(xs) == 4
   assert near(coefficient_of_variation(xs), 0.4) == true
   # Doubling every value doubles the spread AND the mean: the ratio holds.
-  assert near(coefficient_of_variation(map(fn(x) x * 2 end, xs)), 0.4) == true
+  assert near(coefficient_of_variation(map((x) -> x * 2, xs)), 0.4) == true
   assert near(coefficient_of_variation([5, 5, 5]), 0) == true
   # Total: a mean of zero has no scale to divide by, and neither has nothing.
   assert coefficient_of_variation([-2, 2]) == 0
@@ -750,7 +750,7 @@ test "skewness signs the long tail"
   assert skewness([1, 10, 10, 10]) < 0
   # Mirroring the data must mirror the answer.
   xs = [1, 2, 2, 3, 9]
-  assert near(skewness(map(fn(x) -x end, xs)), -skewness(xs)) == true
+  assert near(skewness(map((x) -> -x, xs)), -skewness(xs)) == true
   assert skewness([5, 5, 5]) == 0
   assert skewness([]) == 0
 end
@@ -793,7 +793,7 @@ test "frequency_table account for every element exactly once"
   assert frequency_table([]) == []
   # The identity: the counts must sum back to the size of the input.
   xs = [5, 3, 5, 5, 1, 3, 9]
-  assert total(map(fn(p) nth(1, p) end, frequency_table(xs))) == size(xs)
+  assert total(map((p) -> nth(1, p), frequency_table(xs))) == size(xs)
   assert size(frequency_table(xs)) == size(unique(xs))
 end
 

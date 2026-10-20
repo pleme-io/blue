@@ -316,7 +316,7 @@ def cz_compare()
 end
 
 def cz_lookup(key, pairs)
-  hit = find(fn(p) first(p) == key end, pairs)
+  hit = find((p) -> first(p) == key, pairs)
   if hit == nil
     nil
   else
@@ -410,7 +410,7 @@ def cz_call(n, ctx)
     end
     rs_call(
       [cz_fn_name(h)],
-      append([rs_path("io")], map(fn(a) cz_expr(a, ctx) end, args))
+      append([rs_path("io")], map((a) -> cz_expr(a, ctx), args))
     )
   else
     cz_refuse(
@@ -443,7 +443,7 @@ end
 # A sequence in value position: every form but the last as a statement.
 def cz_body(forms, ctx)
   append(
-    map(fn(f) rs_semi(cz_expr(f, ctx)) end, butlast(forms)),
+    map((f) -> rs_semi(cz_expr(f, ctx)), butlast(forms)),
     [rs_tail(cz_expr(last(forms), ctx))]
   )
 end
@@ -454,7 +454,7 @@ def cz_tail_self?(n, name)
   if h == name
     true
   elsif h == "if"
-    any?(fn(b) cz_tail_self?(b, name) end, drop(2, n))
+    any?((b) -> cz_tail_self?(b, name), drop(2, n))
   elsif h == "begin"
     cz_tail_self?(last(rest(n)), name)
   else
@@ -475,9 +475,7 @@ def cz_tail(n, ctx)
       )
     end
     temps = map(
-      fn(i)
-        {kind: "local", name: "t_#{i}", value: cz_expr(nth(i, args), ctx)}
-      end,
+      (i) -> {kind: "local", name: "t_#{i}", value: cz_expr(nth(i, args), ctx)},
       range(count(args))
     )
     rebinds = map(
@@ -505,7 +503,7 @@ def cz_tail(n, ctx)
   elsif h == "begin"
     forms = rest(n)
     append(
-      map(fn(f) rs_semi(cz_expr(f, ctx)) end, butlast(forms)),
+      map((f) -> rs_semi(cz_expr(f, ctx)), butlast(forms)),
       cz_tail(last(forms), ctx)
     )
   else
@@ -517,12 +515,12 @@ end
 def cz_fn(form, fns, consts)
   sig = second(form)
   name = cz_sym(first(sig))
-  params = map(fn(p) cz_sym(first(p)) end, rest(sig))
+  params = map((p) -> cz_sym(first(p)), rest(sig))
   ret = cz_type(third(form))
   body = fourth(form)
   ctx = {self: name, params: params, fns: fns, consts: consts}
   rparams = map(
-    fn(p) {name: cz_param_name(cz_sym(first(p))), ty: cz_type(second(p))} end,
+    (p) -> {name: cz_param_name(cz_sym(first(p))), ty: cz_type(second(p))},
     rest(sig)
   )
   stmts = if cz_tail_self?(body, name)
@@ -599,11 +597,9 @@ def cz_lower(forms, board)
       "N0 lowers to a 32-bit board word; #{get(board, :name)} has #{get(board, :word)}"
     )
   end
-  kinds = map(fn(f) [cz_kind(f), f] end, forms)
-  pick = fn(k)
-    map(fn(p) second(p) end, filter(fn(p) first(p) == k end, kinds))
-  end
-  map(fn(f) cz_check_use(f) end, pick(:use))
+  kinds = map((f) -> [cz_kind(f), f], forms)
+  pick = (k) -> map((p) -> second(p), filter((p) -> first(p) == k, kinds))
+  map((f) -> cz_check_use(f), pick(:use))
   if not empty?(pick(:untyped))
     cz_refuse(
       "`#{cz_local(cz_sym(first(second(first(pick(:untyped))))))}` is untyped; the native position is restricted, so every definition is typed (constraint C4)"
@@ -611,18 +607,16 @@ def cz_lower(forms, board)
   end
   fn_forms = pick(:fn)
   const_forms = pick(:const)
-  fns = map(fn(f) cz_sym(first(second(f))) end, fn_forms)
-  consts = map(fn(f) cz_sym(second(f)) end, const_forms)
+  fns = map((f) -> cz_sym(first(second(f))), fn_forms)
+  consts = map((f) -> cz_sym(second(f)), const_forms)
   main_ctx = {self: nil, params: [], fns: fns, consts: consts}
-  main_body = rs_block(
-    map(fn(e) rs_semi(cz_expr(e, main_ctx)) end, pick(:expr))
-  )
+  main_body = rs_block(map((e) -> rs_semi(cz_expr(e, main_ctx)), pick(:expr)))
   {
     attrs: [cz_attr("no_std", []), cz_attr("forbid", ["unsafe_code"])],
     items: append(
       [{kind: "use", item: {path: ["kiban_io", "Io"]}}],
-      map(fn(f) cz_const(f) end, const_forms),
-      map(fn(f) cz_fn(f, fns, consts) end, fn_forms),
+      map((f) -> cz_const(f), const_forms),
+      map((f) -> cz_fn(f, fns, consts), fn_forms),
       [rs_fn("pub", "main", [], nil, main_body)]
     )
   }
@@ -672,7 +666,7 @@ end
 # section in RAM, the stack at the top of RAM. Generated, never hand-written
 # (BLUE-NATIVE.md §1.6); a board with no `ram` region is refused.
 def cz_link_script(board)
-  ram = find(fn(r) get(r, :name) == :ram end, get(board, :memory))
+  ram = find((r) -> get(r, :name) == :ram, get(board, :memory))
   if ram == nil
     cz_refuse("#{get(board, :name)} declares no ram region")
   end
@@ -814,11 +808,11 @@ end
 # One section's size from `llvm-size -A` output, read by name (0 when the
 # image has no such section).
 def cz_section(size_text, section)
-  row = find(fn(l) starts_with?(l, "#{section} ") end, split(size_text, "\n"))
+  row = find((l) -> starts_with?(l, "#{section} "), split(size_text, "\n"))
   if row == nil
     0
   else
-    to_int!(second(filter(fn(f) f != "" end, split(row, " "))))
+    to_int!(second(filter((f) -> f != "", split(row, " "))))
   end
 end
 
@@ -827,7 +821,7 @@ end
 def cz_measure(elf)
   sized = get(cz_run(["llvm-size", "-A", elf], "llvm-size"), :stdout)
   syms = get(cz_run(["llvm-nm", "-C", elf], "llvm-nm"), :stdout)
-  fmt = filter(fn(l) contains?(l, "core::fmt") end, split(syms, "\n"))
+  fmt = filter((l) -> contains?(l, "core::fmt"), split(syms, "\n"))
   {
     text: cz_section(sized, ".text"),
     rodata: cz_section(sized, ".rodata"),

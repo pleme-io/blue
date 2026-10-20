@@ -222,19 +222,19 @@ end
 
 # Several meshes as one, the later faces re-indexed past the earlier vertices.
 def merge(meshes)
-  reduce(fn(acc, m) merge_two(acc, m) end, empty_mesh, meshes)
+  reduce((acc, m) -> merge_two(acc, m), empty_mesh, meshes)
 end
 
 def merge_two(a, b)
   off = size(vertices(a))
   mesh(
     concat_lists(vertices(a), vertices(b)),
-    concat_lists(faces(a), map(fn(f) map(fn(i) i + off end, f) end, faces(b)))
+    concat_lists(faces(a), map((f) -> map((i) -> i + off, f), faces(b)))
   )
 end
 
 def transform(pose, m)
-  mesh(map(fn(p) rt_apply(pose, p) end, vertices(m)), faces(m))
+  mesh(map((p) -> rt_apply(pose, p), vertices(m)), faces(m))
 end
 
 def translate(m, d)
@@ -242,7 +242,7 @@ def translate(m, d)
 end
 
 def face_points(m, f)
-  map(fn(i) nth(i, vertices(m)) end, f)
+  map((i) -> nth(i, vertices(m)), f)
 end
 
 # The face's outward normal, unit length; zero for a degenerate face.
@@ -271,7 +271,7 @@ def face_area(m, f)
 end
 
 def surface_area(m)
-  sum(map(fn(f) face_area(m, f) end, faces(m)))
+  sum(map((f) -> face_area(m, f), faces(m)))
 end
 
 # ── volume and centroid ──────────────────────────────────────────────
@@ -284,13 +284,13 @@ def tet_volume(pts)
 end
 
 def volume(m)
-  sum(map(fn(f) tet_volume(face_points(m, f)) end, faces(m)))
+  sum(map((f) -> tet_volume(face_points(m, f)), faces(m)))
 end
 
 def centroid(m)
   v = volume(m)
   moment = reduce(
-    fn(acc, f) centroid_term(acc, face_points(m, f)) end,
+    (acc, f) -> centroid_term(acc, face_points(m, f)),
     [0, 0, 0],
     faces(m)
   )
@@ -319,14 +319,14 @@ def bounds(m)
   vs = vertices(m)
   [
     [
-      min_of(map(fn(p) x(p) end, vs)),
-      min_of(map(fn(p) y(p) end, vs)),
-      min_of(map(fn(p) z(p) end, vs))
+      min_of(map((p) -> x(p), vs)),
+      min_of(map((p) -> y(p), vs)),
+      min_of(map((p) -> z(p), vs))
     ],
     [
-      max_of(map(fn(p) x(p) end, vs)),
-      max_of(map(fn(p) y(p) end, vs)),
-      max_of(map(fn(p) z(p) end, vs))
+      max_of(map((p) -> x(p), vs)),
+      max_of(map((p) -> y(p), vs)),
+      max_of(map((p) -> z(p), vs))
     ]
   ]
 end
@@ -359,10 +359,7 @@ def mesh_refusals(m)
   if is_empty(faces)
     [[:rittai_mesh, "the mesh has no faces"]]
   else
-    bad_index = filter(
-      fn(f) some(fn(i) i < 0 or i >= n end, f) == true end,
-      faces
-    )
+    bad_index = filter((f) -> some((i) -> i < 0 or i >= n, f) == true, faces)
     if is_empty(bad_index) == false
       [
         [
@@ -380,18 +377,18 @@ def mesh_refusals(m)
 end
 
 def closed_refusals(m)
-  degenerate = size(filter(fn(f) face_area(m, f) <= 0.0000000001 end, faces(m)))
+  degenerate = size(filter((f) -> face_area(m, f) <= 0.0000000001, faces(m)))
   directed = directed_edges(m)
   seen = count_keys(directed)
   present = key_set(seen)
-  doubled = size(filter(fn(kv) nth(1, kv) > 1 end, seen))
+  doubled = size(filter((kv) -> nth(1, kv) > 1, seen))
   unmatched = size(
-    filter(fn(kv) get(present, reverse_key(nth(0, kv))) == nil end, seen)
+    filter((kv) -> get(present, reverse_key(nth(0, kv))) == nil, seen)
   )
   crowded = size(
     filter(
-      fn(kv) nth(1, kv) > 2 end,
-      count_keys(map(fn(k) undirected_key(k) end, directed))
+      (kv) -> nth(1, kv) > 2,
+      count_keys(map((k) -> undirected_key(k), directed))
     )
   )
   out = concat_lists(
@@ -449,7 +446,7 @@ end
 
 # The edge regardless of direction: its two indices, lower first.
 def undirected_key(k)
-  parts = map(fn(s) to_int(s) end, split(k, ">"))
+  parts = map((s) -> to_int(s), split(k, ">"))
   "#{to_s(min(nth(0, parts), nth(1, parts)))}-#{to_s(max(nth(0, parts), nth(1, parts)))}"
 end
 
@@ -468,14 +465,14 @@ end
 def weld(m)
   vs = vertices(m)
   fin = reduce(
-    fn(acc, p) weld_step(acc, p) end,
+    (acc, p) -> weld_step(acc, p),
     {index: {}, kept: [], count: 0, remap: []},
     vs
   )
   remap = reverse(get(fin, :remap))
   mesh(
     reverse(get(fin, :kept)),
-    map(fn(f) map(fn(i) nth(i, remap) end, f) end, faces(m))
+    map((f) -> map((i) -> nth(i, remap), f), faces(m))
   )
 end
 
@@ -505,8 +502,8 @@ def drop_faces(m, drop)
   mesh(
     vertices(m),
     map(
-      fn(i) nth(i, faces(m)) end,
-      filter(fn(i) contains(drop, i) == false end, indexes(faces(m)))
+      (i) -> nth(i, faces(m)),
+      filter((i) -> contains(drop, i) == false, indexes(faces(m)))
     )
   )
 end
@@ -519,7 +516,7 @@ end
 def extrude_wall_faces(r, l, e)
   sizes = concat_lists(
     [size(region_outline(r))],
-    map(fn(h) size(h) end, region_holes(r))
+    map((h) -> size(h), region_holes(r))
   )
   before = sum(take_n(sizes, l))
   [2 * (before + e), 2 * (before + e) + 1]
@@ -527,8 +524,8 @@ end
 
 # [key, count] for each distinct key.
 def count_keys(keys)
-  table = reduce(fn(acc, k) assoc(acc, k, count_of(acc, k) + 1) end, {}, keys)
-  map(fn(k) [k, get(table, k)] end, rt_distinct(keys, table))
+  table = reduce((acc, k) -> assoc(acc, k, count_of(acc, k) + 1), {}, keys)
+  map((k) -> [k, get(table, k)], rt_distinct(keys, table))
 end
 
 def count_of(table, k)
@@ -544,7 +541,7 @@ end
 def rt_distinct(keys, _table)
   reverse(
     get(
-      reduce(fn(acc, k) distinct_step(acc, k) end, {seen: {}, out: []}, keys),
+      reduce((acc, k) -> distinct_step(acc, k), {seen: {}, out: []}, keys),
       :out
     )
   )
@@ -562,7 +559,7 @@ def distinct_step(acc, k)
 end
 
 def key_set(pairs)
-  reduce(fn(acc, kv) assoc(acc, nth(0, kv), true) end, {}, pairs)
+  reduce((acc, kv) -> assoc(acc, nth(0, kv), true), {}, pairs)
 end
 
 # ── triangulating a polygon with holes ───────────────────────────────
@@ -574,13 +571,13 @@ end
 
 # All of a region's points, outline first, and each loop's index range.
 def region_points(r)
-  concat_lists(region_outline(r), flat_map(fn(h) h end, region_holes(r)))
+  concat_lists(region_outline(r), flat_map((h) -> h, region_holes(r)))
 end
 
 def region_loops(r)
   sizes = concat_lists(
     [size(region_outline(r))],
-    map(fn(h) size(h) end, region_holes(r))
+    map((h) -> size(h), region_holes(r))
   )
   starts = reverse(
     get(
@@ -598,7 +595,7 @@ def region_loops(r)
     )
   )
   map(
-    fn(i) range(nth(i, starts), nth(i, starts) + nth(i, sizes)) end,
+    (i) -> range(nth(i, starts), nth(i, starts) + nth(i, sizes)),
     indexes(sizes)
   )
 end
@@ -607,15 +604,8 @@ end
 def triangulate(r)
   pts = region_points(r)
   loops = region_loops(r)
-  holes = sort_by(
-    fn(l) -max_of(map(fn(i) px(nth(i, pts)) end, l)) end,
-    rest(loops)
-  )
-  merged = reduce(
-    fn(poly, h) bridge(pts, poly, h, holes) end,
-    first(loops),
-    holes
-  )
+  holes = sort_by((l) -> -max_of(map((i) -> px(nth(i, pts)), l)), rest(loops))
+  merged = reduce((poly, h) -> bridge(pts, poly, h, holes), first(loops), holes)
   ear_clip(pts, merged)
 end
 
@@ -624,12 +614,12 @@ end
 # segment reaches without crossing any edge.
 def bridge(pts, poly, h, holes)
   m = rightmost(pts, h)
-  cands = sort_by(fn(i) distance_squared(nth(i, pts), nth(m, pts)) end, poly)
+  cands = sort_by((i) -> distance_squared(nth(i, pts), nth(m, pts)), poly)
   edges = concat_lists(
     index_edges(poly),
-    flat_map(fn(l) index_edges(l) end, holes)
+    flat_map((l) -> index_edges(l), holes)
   )
-  p = find_first(fn(i) visible(pts, m, i, edges) end, cands)
+  p = find_first((i) -> visible(pts, m, i, edges), cands)
   at = index_of(poly, p)
   k = index_of(h, m)
   around = concat_lists(drop_n(h, k), take_n(h, k))
@@ -655,14 +645,14 @@ end
 
 def index_edges(loop)
   n = size(loop)
-  map(fn(j) [nth(j, loop), nth((j + 1) % n, loop)] end, range(0, n))
+  map((j) -> [nth(j, loop), nth((j + 1) % n, loop)], range(0, n))
 end
 
 # The segment from vertex m to vertex p crosses no edge except at its ends.
 def visible(pts, m, p, edges)
   a = nth(m, pts)
   b = nth(p, pts)
-  some(fn(e) blocks(pts, e, m, p, a, b) end, edges) != true
+  some((e) -> blocks(pts, e, m, p, a, b), edges) != true
 end
 
 def blocks(pts, e, m, p, a, b)
@@ -678,7 +668,7 @@ end
 def ear_clip(pts, poly)
   n = size(poly)
   fin = reduce(
-    fn(acc, _step) clip_step(pts, acc) end,
+    (acc, _step) -> clip_step(pts, acc),
     {poly: poly, tris: [], stuck: false},
     range(0, n)
   )
@@ -704,9 +694,9 @@ def clip_step(pts, acc)
   elsif size(poly) == 3
     {poly: [], tris: concat_lists([poly], get(acc, :tris)), stuck: false}
   else
-    ears = filter(fn(k) is_ear(pts, poly, k) end, indexes(poly))
+    ears = filter((k) -> is_ear(pts, poly, k), indexes(poly))
     if is_empty(ears)
-      flat = filter(fn(k) turn(pts, poly, k) == 0 end, indexes(poly))
+      flat = filter((k) -> turn(pts, poly, k) == 0, indexes(poly))
       if is_empty(flat)
         {poly: poly, tris: get(acc, :tris), stuck: true}
       else
@@ -758,7 +748,7 @@ def is_ear(pts, poly, k)
     a = nth(nth((k + n - 1) % n, poly), pts)
     b = nth(nth(k, poly), pts)
     c = nth(nth((k + 1) % n, poly), pts)
-    some(fn(j) blocks_ear(pts, poly, j, a, b, c) end, indexes(poly)) != true
+    some((j) -> blocks_ear(pts, poly, j, a, b, c), indexes(poly)) != true
   end
 end
 
@@ -784,11 +774,11 @@ def extrude(r, h)
   if is_empty(get(tri, :refusals)) == false
     raise(:rittai_triangulation, why_of(get(tri, :refusals)))
   end
-  bottom = map(fn(p) lift(p, 0) end, pts)
-  top = map(fn(p) lift(p, h) end, pts)
-  sides = flat_map(fn(l) loop_sides(l, n) end, region_loops(r))
-  caps_top = map(fn(t) map(fn(i) i + n end, t) end, get(tri, :triangles))
-  caps_bottom = map(fn(t) reverse(t) end, get(tri, :triangles))
+  bottom = map((p) -> lift(p, 0), pts)
+  top = map((p) -> lift(p, h), pts)
+  sides = flat_map((l) -> loop_sides(l, n), region_loops(r))
+  caps_top = map((t) -> map((i) -> i + n, t), get(tri, :triangles))
+  caps_bottom = map((t) -> reverse(t), get(tri, :triangles))
   mesh(
     concat_lists(bottom, top),
     concat_lists(sides, concat_lists(caps_top, caps_bottom))
@@ -796,7 +786,7 @@ def extrude(r, h)
 end
 
 def why_of(refusals)
-  join(map(fn(r) nth(1, r) end, refusals), "; ")
+  join(map((r) -> nth(1, r), refusals), "; ")
 end
 
 # The two side triangles of each edge a -> b of a loop, facing out: bottom
@@ -829,14 +819,14 @@ end
 def sweep(profile, path)
   prof = ccw_polygon(profile)
   frames = sweep_frames(path)
-  rings = map(fn(i) ring(prof, path, frames, i) end, indexes(path))
+  rings = map((i) -> ring(prof, path, frames, i), indexes(path))
   np = size(prof)
-  verts = flat_map(fn(ring) ring end, rings)
-  walls = flat_map(fn(s) ring_walls(s, np) end, range(0, size(path) - 1))
+  verts = flat_map((ring) -> ring, rings)
+  walls = flat_map((s) -> ring_walls(s, np), range(0, size(path) - 1))
   tri = triangulate(region(prof, []))
   last_base = (size(path) - 1) * np
-  start_cap = map(fn(t) reverse(t) end, get(tri, :triangles))
-  end_cap = map(fn(t) map(fn(i) i + last_base end, t) end, get(tri, :triangles))
+  start_cap = map((t) -> reverse(t), get(tri, :triangles))
+  end_cap = map((t) -> map((i) -> i + last_base, t), get(tri, :triangles))
   mesh(verts, concat_lists(walls, concat_lists(start_cap, end_cap)))
 end
 
@@ -852,7 +842,7 @@ def sweep_frames(path)
   first_frame = [n0, cross_product(t0, n0)]
   reverse(
     reduce(
-      fn(acc, i) transport(path, acc, i) end,
+      (acc, i) -> transport(path, acc, i),
       [first_frame],
       range(1, size(path) - 1)
     )
@@ -927,7 +917,7 @@ end
 
 # ASCII STL: one facet per face, its normal included.
 def stl(m, name)
-  facets = map(fn(f) stl_facet(m, f) end, faces(m))
+  facets = map((f) -> stl_facet(m, f), faces(m))
   "solid #{name}\n#{join(facets, "")}endsolid #{name}\n"
 end
 
@@ -1048,8 +1038,8 @@ test "broken meshes are refused, each for its own reason"
     concat_lists([reverse(first(faces(b)))], rest(faces(b)))
   )
   assert size(mesh_refusals(flipped)) >= 1
-  inward = mesh(vertices(b), map(fn(f) reverse(f) end, faces(b)))
-  assert map(fn(r) nth(1, r) end, mesh_refusals(inward)) ==
+  inward = mesh(vertices(b), map((f) -> reverse(f), faces(b)))
+  assert map((r) -> nth(1, r), mesh_refusals(inward)) ==
     ["the volume is not positive: the faces are wound inward"]
   assert size(mesh_refusals(mesh(vertices(b), [[0, 1, 99]]))) == 1
   assert size(mesh_refusals(empty_mesh)) == 1
@@ -1084,8 +1074,6 @@ test "STL: one facet per face, with outward normals"
   s = stl(box(1, 1, 1), "cube")
   assert starts_with?(s, "solid cube\n") == true
   assert ends_with?(s, "endsolid cube\n") == true
-  assert size(
-    filter(fn(l) starts_with?(l, "facet normal") end, split(s, "\n"))
-  ) ==
+  assert size(filter((l) -> starts_with?(l, "facet normal"), split(s, "\n"))) ==
     12
 end

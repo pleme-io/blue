@@ -11,27 +11,27 @@ use("shuugou", [:unique])
 
 # Whether a token counts as a word: it holds at least one letter or digit.
 def kz_word?(token)
-  any?(fn(c) is_alnum(c) end, chars(token))
+  any?((c) -> is_alnum(c), chars(token))
 end
 
 # The words of a text, lower-cased, punctuation at either end removed.
 def kz_words(text)
-  tokens = map(fn(w) downcase(kz_strip(w)) end, words(text))
-  filter(fn(w) kz_word?(w) end, tokens)
+  tokens = map((w) -> downcase(kz_strip(w)), words(text))
+  filter((w) -> kz_word?(w), tokens)
 end
 
 def kz_strip(word)
   cs = chars(word)
-  kept = drop_while(fn(c) not is_alnum(c) end, cs)
-  join(reverse(drop_while(fn(c) not is_alnum(c) end, reverse(kept))), "")
+  kept = drop_while((c) -> not is_alnum(c), cs)
+  join(reverse(drop_while((c) -> not is_alnum(c), reverse(kept))), "")
 end
 
 # [word, count] pairs, most frequent first, ties in first-seen order.
 def kz_counts(text)
   ws = kz_words(text)
   seen = unique(ws)
-  pairs = map(fn(w) [w, size(filter(fn(x) x == w end, ws))] end, seen)
-  sort_stable_by(fn(p) -last(p) end, pairs)
+  pairs = map((w) -> [w, size(filter((x) -> x == w, ws))], seen)
+  sort_stable_by((p) -> -last(p), pairs)
 end
 
 test "words are lower-cased and stripped of punctuation"

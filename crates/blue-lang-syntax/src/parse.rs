@@ -1202,7 +1202,11 @@ impl Parser {
 
     fn prefix(&mut self) -> Result<Spanned, Fail> {
         if self.at(&TokenKind::LParen) {
+            let span = self.peek_span();
             self.bump();
+            if self.arrow_lambda_ahead() {
+                return self.arrow_lambda(span);
+            }
             return self.group();
         }
         self.prefix_token()
@@ -1892,6 +1896,59 @@ impl Parser {
         ))
     }
 
+    /// Is the `(` just consumed the head of `(a, b) -> expr`? Only bare names
+    /// and commas between the parens, then `->`, all on one line.
+    fn arrow_lambda_ahead(&self) -> bool {
+        let mut i = self.pos;
+        let kind = |i: usize| self.toks.get(i).map(|t| &t.kind);
+        if !matches!(kind(i), Some(TokenKind::RParen)) {
+            loop {
+                if !matches!(kind(i), Some(TokenKind::Ident(_))) {
+                    return false;
+                }
+                i += 1;
+                match kind(i) {
+                    Some(TokenKind::Comma) => i += 1,
+                    Some(TokenKind::RParen) => break,
+                    _ => return false,
+                }
+            }
+        }
+        matches!(kind(i + 1), Some(TokenKind::Op(o)) if o == "->")
+    }
+
+    /// `(a, b) -> expr` => `(lambda (a b) expr)`: the inline spelling of a
+    /// one-expression `fn`. `->` is unambiguous here: the return-type arrow
+    /// only follows a `def` header, never a parenthesised name list in
+    /// expression position. The formatter spells a lambda this way exactly
+    /// when its body is one expression that fits the line, and as a broken
+    /// `fn … end` otherwise.
+    fn arrow_lambda(&mut self, head: Span) -> Result<Spanned, Fail> {
+        let mut params: Vec<Spanned> = Vec::new();
+        while !self.at(&TokenKind::RParen) {
+            let p_span = self.peek_span();
+            match self.bump() {
+                TokenKind::Ident(p) => params.push(sym_at(p_span, &p)),
+                other => {
+                    return Err(fail(
+                        format!("expected a parameter name, found {other}"),
+                        p_span,
+                    ))
+                }
+            }
+            self.eat(&TokenKind::Comma);
+        }
+        self.bump();
+        self.bump();
+        self.skip_newlines();
+        let params_span = cover(&params, head);
+        let body = self.expr(0)?;
+        Ok(list_at(
+            self.span_since(head.start),
+            vec![sym_at(head, "lambda"), list_at(params_span, params), body],
+        ))
+    }
+
     /// `fn(a, b) ... end` => `(lambda (a b) body)`
     ///
     /// Without this the higher-order functions are unreachable in practice:
@@ -1899,9 +1956,8 @@ impl Parser {
     /// function, and there was no way to write the one-off the call site
     /// actually wants.
     ///
-    /// `fn` rather than Ruby's `->` or `lambda`: `->` collides with the return-
-    /// type arrow the typed `def` already uses, and reusing one glyph for two
-    /// unrelated things is the ambiguity the FORM axis exists to prevent.
+    /// `fn … end` is the block spelling and always breaks over lines; the
+    /// inline spelling is `(x) -> expr` ([`Self::arrow_lambda`]).
     fn lambda_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let mut params: Vec<Spanned> = Vec::new();
         if !self.at(&TokenKind::LParen) {
@@ -2809,6 +2865,30 @@ mod tests {
         ] {
             assert!(parse_program(src).is_err(), "{src:?} must not parse");
         }
+    }
+
+    /// `(x) -> e` is the inline spelling of `fn(x) e end`: one tree.
+    #[test]
+    fn an_arrow_lambda_lowers_to_the_same_tree_as_fn() {
+        for (arrow, block) in [
+            ("(x) -> x * 2", "fn(x) x * 2 end"),
+            ("(a, b) -> a + b", "fn(a, b) a + b end"),
+            ("() -> 1", "fn() 1 end"),
+            ("map(xs, (x) -> x + 1)", "map(xs, fn(x) x + 1 end)"),
+        ] {
+            let a = parse_program(arrow).expect(arrow);
+            let b = parse_program(block).expect(block);
+            assert_eq!(
+                format!("{:?}", a.iter().map(Spanned::to_sexp).collect::<Vec<_>>()),
+                format!("{:?}", b.iter().map(Spanned::to_sexp).collect::<Vec<_>>()),
+                "{arrow}"
+            );
+        }
+        assert_eq!(
+            parse_program("(x)").map(|p| p.len()).ok(),
+            Some(1),
+            "a parenthesised name is still a group"
+        );
     }
 
     /// The controls: every place a statement legitimately ends on its line.

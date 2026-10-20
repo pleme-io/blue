@@ -39,7 +39,7 @@ legacy_names("0.1.1", "th")
 
 def fields(line)
   filter(
-    fn(f) is_empty(f) == false end,
+    (f) -> is_empty(f) == false,
     split(replace(trim(line), "\t", " "), " ")
   )
 end
@@ -74,7 +74,7 @@ def machine(line)
 end
 
 def parse(text)
-  map(fn(l) machine(l) end, filter(fn(l) meaningful?(l) end, split(text, "\n")))
+  map((l) -> machine(l), filter((l) -> meaningful?(l), split(text, "\n")))
 end
 
 # ── the check ────────────────────────────────────────────────────────
@@ -130,8 +130,8 @@ end
 def live_text(checked)
   join(
     map(
-      fn(c) concat(get(c, :line), "\n") end,
-      filter(fn(c) get(c, :up) end, checked)
+      (c) -> concat(get(c, :line), "\n"),
+      filter((c) -> get(c, :up), checked)
     ),
     ""
   )
@@ -139,11 +139,11 @@ end
 
 # Each machine's state, carrying `since` forward while up/down is unchanged.
 def states(checked, previous, now)
-  map(fn(c) state(c, previous_of(previous, get(c, :line)), now) end, checked)
+  map((c) -> state(c, previous_of(previous, get(c, :line)), now), checked)
 end
 
 def previous_of(previous, line)
-  find_first(fn(p) get(p, :line) == line end, previous)
+  find_first((p) -> get(p, :line) == line, previous)
 end
 
 def state(c, prev, now)
@@ -212,12 +212,12 @@ end
 def run(declared_path, live_path, state_path, timeout_s, ssh)
   now = now_ms
   machines = parse(read_or(declared_path, ""))
-  good = filter(fn(m) get(m, :ok) end, machines)
+  good = filter((m) -> get(m, :ok), machines)
   refused = map(
-    fn(m) {line: get(m, :line), why: get(m, :why)} end,
-    filter(fn(m) get(m, :ok) == false end, machines)
+    (m) -> {line: get(m, :line), why: get(m, :why)},
+    filter((m) -> get(m, :ok) == false, machines)
   )
-  checked = map(fn(m) tehai::checked(m, probe(m, timeout_s, ssh)) end, good)
+  checked = map((m) -> tehai::checked(m, probe(m, timeout_s, ssh)), good)
   states = tehai::states(checked, read_previous(state_path), now)
   mkdir_p(path_dirname(live_path))
   write_atomic(live_path, live_text(checked))
@@ -273,7 +273,7 @@ test "the machines format: comments and blanks skipped, fields read, a bad line 
   assert get(nth(1, ms), :host) == "plo"
   # The control: one malformed line is refused, and its siblings are not.
   assert get(nth(2, ms), :ok) == false
-  assert size(filter(fn(m) get(m, :ok) end, ms)) == 2
+  assert size(filter((m) -> get(m, :ok), ms)) == 2
   # The empty case.
   assert is_empty(parse("")) == true
 end
@@ -289,7 +289,7 @@ test "the check is non-interactive, short, and asks nix, not just the port"
 end
 
 test "only live machines are written, each line exactly as declared"
-  ms = filter(fn(m) get(m, :ok) end, parse(sample))
+  ms = filter((m) -> get(m, :ok), parse(sample))
   checked = [
     tehai::checked(nth(0, ms), [false, "Connection timed out"]),
     tehai::checked(nth(1, ms), [true, "nix-store (Nix) 2.31.5"])
@@ -300,7 +300,7 @@ test "only live machines are written, each line exactly as declared"
 end
 
 test "since carries forward while a machine's state holds, and resets when it flips"
-  ms = filter(fn(m) get(m, :ok) end, parse(sample))
+  ms = filter((m) -> get(m, :ok), parse(sample))
   c = checked(nth(1, ms), [true, "ok"])
   first_run = states([c], [], 1000)
   assert get(first(first_run), :since_ms) == 1000

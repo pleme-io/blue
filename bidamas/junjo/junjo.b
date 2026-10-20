@@ -47,8 +47,8 @@ def sort_by(key, xs)
   else
     pivot = first(xs)
     tail = rest(xs)
-    smaller = filter(fn(y) compare(key(y), key(pivot)) <= 0 end, tail)
-    larger = filter(fn(y) compare(key(y), key(pivot)) > 0 end, tail)
+    smaller = filter((y) -> compare(key(y), key(pivot)) <= 0, tail)
+    larger = filter((y) -> compare(key(y), key(pivot)) > 0, tail)
     append(append(sort_by(key, smaller), [pivot]), sort_by(key, larger))
   end
 end
@@ -362,7 +362,7 @@ end
 # The indices of xs in sorted order: nth(nth(0, argsort(xs)), xs) is the
 # smallest element. Ties keep their input order, because sort_stable_by does.
 def argsort(xs)
-  sort_stable_by(fn(i) nth(i, xs) end, indexes(xs))
+  sort_stable_by((i) -> nth(i, xs), indexes(xs))
 end
 
 # Where each element LANDS in sorted order — the inverse permutation of
@@ -376,7 +376,7 @@ def rank(xs)
   map(
     fn(i)
       count_if(
-        fn(j) nth(j, xs) < nth(i, xs) or nth(j, xs) == nth(i, xs) and j < i end,
+        (j) -> nth(j, xs) < nth(i, xs) or nth(j, xs) == nth(i, xs) and j < i,
         ids
       )
     end,
@@ -392,7 +392,7 @@ end
 
 # k-way merge: fold the pairwise merge over a list of sorted lists.
 def merge_all_sorted(xss)
-  reduce(fn(acc, xs) merge_sorted(acc, xs) end, [], xss)
+  reduce((acc, xs) -> merge_sorted(acc, xs), [], xss)
 end
 
 def insert_lex(x, xss)
@@ -434,7 +434,7 @@ test "is_sorted agrees with sort"
 end
 
 test "sort_by uses the key, sort_desc reverses"
-  assert sort_by(fn(x) -x end, [1, 3, 2]) == [3, 2, 1]
+  assert sort_by((x) -> -x, [1, 3, 2]) == [3, 2, 1]
   assert sort_desc([1, 3, 2]) == [3, 2, 1]
 end
 
@@ -448,14 +448,14 @@ test "binary search finds, and reports absence as -1"
 end
 
 test "min_by and max_by"
-  assert min_by(fn(x) x end, [3, 1, 2]) == 1
-  assert max_by(fn(x) x end, [3, 1, 2]) == 3
+  assert min_by((x) -> x, [3, 1, 2]) == 1
+  assert max_by((x) -> x, [3, 1, 2]) == 3
   # The vacuous case: the extreme of nothing is nil rather than an error,
   # because sort_by of [] is [] and retsu's first/last are total over it.
-  assert min_by(fn(x) x end, []) == nil
-  assert max_by(fn(x) x end, []) == nil
+  assert min_by((x) -> x, []) == nil
+  assert max_by((x) -> x, []) == nil
   # A key that is not the value, which is the only reason these exist at all.
-  assert min_by(fn(p) nth(1, p) end, [["a", 9], ["b", 2]]) == ["b", 2]
+  assert min_by((p) -> nth(1, p), [["a", 9], ["b", 2]]) == ["b", 2]
 end
 
 test "compare_values answers all three cases, including the equal one"
@@ -493,7 +493,7 @@ test "merge_sorted merges without re-sorting"
 end
 
 test "merge_sorted_by merges on the key"
-  key = fn(p) nth(0, p) end
+  key = (p) -> nth(0, p)
   a = [[1, "a"], [3, "c"]]
   b = [[2, "b"], [4, "d"]]
   assert merge_sorted_by(key, a, b) == [[1, "a"], [2, "b"], [3, "c"], [4, "d"]]
@@ -504,9 +504,9 @@ test "merge_sorted_by merges on the key"
 end
 
 test "is_sorted_by, is_sorted_desc"
-  assert is_sorted_by(fn(x) -x end, [3, 2, 1]) == true
-  assert is_sorted_by(fn(x) -x end, [1, 2, 3]) == false
-  assert is_sorted_by(fn(x) x end, []) == true
+  assert is_sorted_by((x) -> -x, [3, 2, 1]) == true
+  assert is_sorted_by((x) -> -x, [1, 2, 3]) == false
+  assert is_sorted_by((x) -> x, []) == true
   assert is_sorted_desc([3, 2, 2, 1]) == true
   assert is_sorted_desc([1, 2]) == false
   # A single element is both, which is the pair of vacuous cases.
@@ -515,14 +515,14 @@ test "is_sorted_by, is_sorted_desc"
 end
 
 test "sort_desc_by orders by key, descending"
-  assert sort_desc_by(fn(x) x end, [1, 3, 2]) == [3, 2, 1]
-  assert sort_desc_by(fn(p) nth(1, p) end, [["a", 1], ["b", 9]]) ==
+  assert sort_desc_by((x) -> x, [1, 3, 2]) == [3, 2, 1]
+  assert sort_desc_by((p) -> nth(1, p), [["a", 1], ["b", 9]]) ==
     [["b", 9], ["a", 1]]
 end
 
 test "insert_sorted_by puts a tie in FRONT of the ties already there"
-  key = fn(p) nth(0, p) end
-  ins = fn(x, xs) insert_sorted_by(key, x, xs) end
+  key = (p) -> nth(0, p)
+  ins = (x, xs) -> insert_sorted_by(key, x, xs)
   assert ins([2, "new"], [[1, "a"], [3, "c"]]) ==
     [[1, "a"], [2, "new"], [3, "c"]]
   # The stability-carrying case: the arriving [2, "new"] lands before the
@@ -536,7 +536,7 @@ test "sort_stable_by keeps equal keys in input order"
   # key in the order they arrived, and any sort that reorders ties fails here.
   # The payload is what makes the tie observable at all — on bare numbers,
   # stability cannot be seen.
-  key = fn(p) nth(0, p) end
+  key = (p) -> nth(0, p)
   rs = [[2, "b1"], [1, "a1"], [2, "b2"], [1, "a2"], [2, "b3"]]
   assert sort_stable_by(key, rs) ==
     [[1, "a1"], [1, "a2"], [2, "b1"], [2, "b2"], [2, "b3"]]
@@ -667,7 +667,7 @@ test "argsort returns indices, and indexing by them sorts"
   # The identity that makes it argsort rather than a permutation that happens
   # to look right on one input.
   xs = [5, 3, 9, 1, 7]
-  assert map(fn(i) nth(i, xs) end, argsort(xs)) == sort(xs)
+  assert map((i) -> nth(i, xs), argsort(xs)) == sort(xs)
   # Ties keep input order: index 0 before index 2, both holding 5.
   assert argsort([5, 1, 5]) == [1, 0, 2]
 end
@@ -683,9 +683,9 @@ test "rank inverts argsort"
   assert sort(rank([7, 7, 7])) == [0, 1, 2]
   # The inverse-permutation identity, stated directly.
   xs = [5, 3, 9, 1, 7]
-  assert map(fn(i) nth(i, rank(xs)) end, argsort(xs)) == range(0, size(xs))
+  assert map((i) -> nth(i, rank(xs)), argsort(xs)) == range(0, size(xs))
   # And the round trip: the rank of an element indexes it in the sorted list.
-  assert map(fn(i) nth(nth(i, rank(xs)), sort(xs)) end, indexes(xs)) == xs
+  assert map((i) -> nth(nth(i, rank(xs)), sort(xs)), indexes(xs)) == xs
 end
 
 test "is_strictly_sorted rejects the duplicates is_sorted allows"
@@ -739,14 +739,14 @@ test "keyed sorts order by string keys as well as numbers"
   # NAME raised "expected number, got string" (measured 2026-09-23, when
   # mokuroku sorted packages by name).
   rows = [["kazu", 3], ["angou", 1], ["retsu", 2]]
-  assert map(fn(r) first(r) end, sort_by(fn(r) first(r) end, rows)) ==
+  assert map((r) -> first(r), sort_by((r) -> first(r), rows)) ==
     ["angou", "kazu", "retsu"]
-  assert map(fn(r) first(r) end, sort_stable_by(fn(r) first(r) end, rows)) ==
+  assert map((r) -> first(r), sort_stable_by((r) -> first(r), rows)) ==
     ["angou", "kazu", "retsu"]
-  assert first(min_by(fn(r) first(r) end, rows)) == "angou"
-  assert is_sorted_by(fn(r) first(r) end, [["a", 1], ["b", 2]]) == true
+  assert first(min_by((r) -> first(r), rows)) == "angou"
+  assert is_sorted_by((r) -> first(r), [["a", 1], ["b", 2]]) == true
   # Numeric keys order exactly as before.
-  assert map(fn(r) last(r) end, sort_by(fn(r) last(r) end, rows)) == [1, 2, 3]
+  assert map((r) -> last(r), sort_by((r) -> last(r), rows)) == [1, 2, 3]
   # merge_sort had the same `<=` and the same failure on words.
   assert merge_sort(["kazu", "angou", "retsu"]) == ["angou", "kazu", "retsu"]
 end

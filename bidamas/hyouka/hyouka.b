@@ -119,12 +119,12 @@ end
 def eval_json(inst, extra)
   answer(
     run_nix(concat_lists(["eval", "--json", inst], extra)),
-    fn(t) json_parse(t) end
+    (t) -> json_parse(t)
   )
 end
 
 def eval_raw(inst, extra)
-  answer(run_nix(concat_lists(["eval", "--raw", inst], extra)), fn(t) t end)
+  answer(run_nix(concat_lists(["eval", "--raw", inst], extra)), (t) -> t)
 end
 
 def target_of(o)
@@ -135,7 +135,7 @@ end
 def targets(text)
   parsed = json_parse(text)
   if list?(parsed)
-    map(fn(o) target_of(o) end, parsed)
+    map((o) -> target_of(o), parsed)
   else
     []
   end
@@ -170,7 +170,7 @@ end
 
 def work(text)
   r = reduce(
-    fn(acc, l) work_step(acc, l) end,
+    (acc, l) -> work_step(acc, l),
     {in: nil, build: [], fetch: []},
     lines(text)
   )
@@ -181,7 +181,7 @@ def plan_build(inst, extra)
   out = run_nix(
     concat_lists(["build", "--dry-run", "--json", "--no-link", inst], extra)
   )
-  r = answer(out, fn(t) targets(t) end)
+  r = answer(out, (t) -> targets(t))
   if ok?(r)
     w = work(get(out, :stderr))
     ok({targets: value(r), build: get(w, :build), fetch: get(w, :fetch)})
@@ -201,7 +201,7 @@ end
 
 def info_pairs(parsed)
   if list?(parsed)
-    filter(fn(p) list?(p) and size(p) == 2 and nth(1, p) != nil end, parsed)
+    filter((p) -> list?(p) and size(p) == 2 and nth(1, p) != nil, parsed)
   else
     []
   end
@@ -217,10 +217,10 @@ def path_info(paths, store)
     concat_lists(concat_lists(["path-info", "--json"], where), paths)
   )
   parsed = json_parse(get(out, :stdout)) rescue nil
-  present = map(fn(p) first(p) end, info_pairs(parsed))
+  present = map((p) -> first(p), info_pairs(parsed))
   {
     present: present,
-    missing: filter(fn(p) member?(p, present) == false end, paths)
+    missing: filter((p) -> member?(p, present) == false, paths)
   }
 end
 
@@ -294,10 +294,7 @@ test "a failure is classified by what nix said, with the last line as its why"
 end
 
 test "results carry a value or a refusal, never both"
-  a = answer(
-    {status: 0, stdout: "{\"a\":1}", stderr: ""},
-    fn(t) json_parse(t) end
-  )
+  a = answer({status: 0, stdout: "{\"a\":1}", stderr: ""}, (t) -> json_parse(t))
   assert ok?(a) == true
   assert as_json(value(a), "a") == 1
   b = answer(
@@ -306,19 +303,13 @@ test "results carry a value or a refusal, never both"
       stdout: "",
       stderr: "error: builder for '/nix/store/y.drv' failed"
     },
-    fn(t) t end
+    (t) -> t
   )
   assert ok?(b) == false
   assert first(refusal_of(b)) == :builder
-  c = answer(
-    {status: 0, stdout: "not json", stderr: ""},
-    fn(t) json_parse(t) end
-  )
+  c = answer({status: 0, stdout: "not json", stderr: ""}, (t) -> json_parse(t))
   assert first(refusal_of(c)) == :unreadable
-  d = answer(
-    {status: -1, stdout: "", stderr: "could not start nix"},
-    fn(t) t end
-  )
+  d = answer({status: -1, stdout: "", stderr: "could not start nix"}, (t) -> t)
   assert first(refusal_of(d)) == :unstartable
   assert installable(".", "darwinConfigurations.ryn.system") ==
     ".#darwinConfigurations.ryn.system"

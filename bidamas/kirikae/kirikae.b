@@ -70,7 +70,7 @@ end
 
 def streak(history, out)
   reduce(
-    fn(acc, e) streak_step(acc, e) end,
+    (acc, e) -> streak_step(acc, e),
     {out: out, n: 0, last_ms: nil},
     history
   )
@@ -105,12 +105,11 @@ def hold_for(key, history, now_ms, pol)
 end
 
 def hex40?(t)
-  length(t) == 40 and
-    every?(fn(c) includes("0123456789abcdef", c) end, chars(t))
+  length(t) == 40 and every?((c) -> includes("0123456789abcdef", c), chars(t))
 end
 
 def pinned?(flake)
-  any?(fn(t) hex40?(t) end, split(flake, "/")) or includes(flake, "rev=")
+  any?((t) -> hex40?(t), split(flake, "/")) or includes(flake, "rev=")
 end
 
 def label(p)
@@ -137,10 +136,10 @@ end
 
 def history(path)
   filter(
-    fn(e) e != nil end,
+    (e) -> e != nil,
     map(
-      fn(l) parse_entry(l) end,
-      filter(fn(l) trim(l) != "" end, lines(read_or(path, "")))
+      (l) -> parse_entry(l),
+      filter((l) -> trim(l) != "", lines(read_or(path, "")))
     )
   )
 end
@@ -168,7 +167,7 @@ def record(path, e)
   kept = keep_last(concat_lists(history(path), [e]), 200)
   mkdir_p(path_dirname(path))
   tmp = "#{path}.kirikae-tmp"
-  write_file(tmp, concat(join(map(fn(x) entry_line(x) end, kept), "\n"), "\n"))
+  write_file(tmp, concat(join(map((x) -> entry_line(x), kept), "\n"), "\n"))
   rename_file(tmp, path)
   e
 end
@@ -219,7 +218,7 @@ def evaluated(flake, inst, current_link, hist, now_ms, pol)
 end
 
 def assoc_all(m, pairs)
-  reduce(fn(acc, kv) assoc(acc, first(kv), nth(1, kv)) end, m, pairs)
+  reduce((acc, kv) -> assoc(acc, first(kv), nth(1, kv)), m, pairs)
 end
 
 def settings()
@@ -316,23 +315,21 @@ def base_name(t)
 end
 
 def writer_line?(l, host)
-  ws = filter(fn(w) w != "" end, split(trim(l), " "))
-  heads = map(fn(w) base_name(w) end, take_n(ws, 2))
+  ws = filter((w) -> w != "", split(trim(l), " "))
+  heads = map((w) -> base_name(w), take_n(ws, 2))
   rebuild = member?("darwin-rebuild", heads) or member?("nixos-rebuild", heads)
   evaluation = not is_empty(ws) and
     base_name(first(ws)) == "nix" and
-    any?(fn(w) w == "build" or w == "eval" end, ws) and
+    any?((w) -> w == "build" or w == "eval", ws) and
     any?(
-      fn(w)
-        includes(w, "Configurations.#{host}") or ends_with?(w, "##{host}")
-      end,
+      (w) -> includes(w, "Configurations.#{host}") or ends_with?(w, "##{host}"),
       ws
     )
   rebuild or evaluation
 end
 
 def writers(ps_text, host)
-  filter(fn(l) writer_line?(l, host) end, lines(ps_text))
+  filter((l) -> writer_line?(l, host), lines(ps_text))
 end
 
 def ps_bin()
@@ -467,9 +464,9 @@ def node_step(acc, a)
 end
 
 def node_arg(cmd)
-  after = drop_while(fn(a) a != "rebuild" end, cmd)
+  after = drop_while((a) -> a != "rebuild", cmd)
   get(
-    reduce(fn(acc, a) node_step(acc, a) end, {skip: 0, node: nil}, rest(after)),
+    reduce((acc, a) -> node_step(acc, a), {skip: 0, node: nil}, rest(after)),
     :node
   )
 end

@@ -70,7 +70,7 @@ def file_tier(defaults, doc, path)
             [
               refusal(
                 :unknown_key,
-                "#{dotted(at)} is not a setting; the settings are #{join(map(fn(x) first(x) end, map_entries(defaults)), ", ")}"
+                "#{dotted(at)} is not a setting; the settings are #{join(map((x) -> first(x), map_entries(defaults)), ", ")}"
               )
             ]
           )
@@ -164,7 +164,7 @@ def discovered_path(app, lookup)
   xdg = lookup("XDG_CONFIG_HOME")
   home = lookup("HOME")
   candidates = filter(
-    fn(p) p != nil end,
+    (p) -> p != nil,
     [
       explicit,
       if xdg == nil
@@ -179,7 +179,7 @@ def discovered_path(app, lookup)
       end
     ]
   )
-  find(fn(p) is_file?(p) end, candidates)
+  find((p) -> is_file?(p), candidates)
 end
 
 def defaults_of(app, lookup)
@@ -194,7 +194,7 @@ def defaults_of(app, lookup)
 end
 
 def load(app)
-  lookup = fn(name) getenv(name) end
+  lookup = (name) -> getenv(name)
   path = discovered_path(app, lookup)
   doc = if path == nil
     nil
@@ -238,7 +238,7 @@ def no_env(_name)
 end
 
 def env_of(pairs)
-  fn(name) get(pairs, name) end
+  (name) -> get(pairs, name)
 end
 
 test "nothing configured resolves to the defaults"

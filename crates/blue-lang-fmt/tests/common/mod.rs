@@ -25,10 +25,17 @@ pub const WIDTH: usize = 80;
 ///    separating punctuation (`,` `)` `]` `}`) plus at most one infix operator
 ///    the line breaks after.
 ///
+/// 3. **The first line of a multi-line interpolation**: `"…#{f(` where the
+///    code inside `#{}` holds a block, which always breaks. The line does not
+///    lex alone because the string closes lines later, and the string is the
+///    token that cannot be split.
+///
 /// Anything else past the width is the formatter failing to break.
 pub fn lawful_overflow(line: &str) -> bool {
     let body = line.trim_start();
-    let Ok(toks) = lex(body) else { return false };
+    let Ok(toks) = lex(body) else {
+        return body.contains("#{");
+    };
     let toks: Vec<_> = toks
         .into_iter()
         .filter(|t| !matches!(t.kind, TokenKind::Newline | TokenKind::Eof))

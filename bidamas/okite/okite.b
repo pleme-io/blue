@@ -112,24 +112,21 @@ end
 # Consecutive pairs of generated values, so pairs mix kinds.
 def pairs(seed, n)
   vs = values(seed, n + 1)
-  map(fn(i) [nth(i, vs), nth(i + 1, vs)] end, range(0, n))
+  map((i) -> [nth(i, vs), nth(i + 1, vs)], range(0, n))
 end
 
 def all(f, xs)
-  is_empty(filter(fn(x) not f(x) end, xs))
+  is_empty(filter((x) -> not f(x), xs))
 end
 
 # ── laws ───────────────────────────────────────────────────────────────────
 
 def law_equal_reflexive()
-  all(fn(v) v == v end, values(11, 300))
+  all((v) -> v == v, values(11, 300))
 end
 
 def law_equal_symmetric()
-  all(
-    fn(p) nth(0, p) == nth(1, p) == (nth(1, p) == nth(0, p)) end,
-    pairs(12, 300)
-  )
+  all((p) -> nth(0, p) == nth(1, p) == (nth(1, p) == nth(0, p)), pairs(12, 300))
 end
 
 def law_not_equal_is_negation()
@@ -143,8 +140,8 @@ def law_not_equal_is_negation()
 end
 
 def law_numbers_by_value()
-  ns = map(fn(i) i - 20 end, range(0, 41))
-  all(fn(n) n == to_float(n) and to_float(n) == n and n != n + 0.5 end, ns) and
+  ns = map((i) -> i - 20, range(0, 41))
+  all((n) -> n == to_float(n) and to_float(n) == n and n != n + 0.5, ns) and
     4 == 4.0 and
     [1, 2] == [1.0, 2.0]
 end
@@ -167,7 +164,7 @@ end
 def law_membership_is_equality()
   pairs = okite::pairs(14, 200)
   all(
-    fn(p) contains([nth(0, p)], nth(1, p)) == (nth(0, p) == nth(1, p)) end,
+    (p) -> contains([nth(0, p)], nth(1, p)) == (nth(0, p) == nth(1, p)),
     pairs
   ) and
     contains([1], 1.0) and
@@ -199,7 +196,7 @@ end
 def law_concat_any_arity()
   ss = ["", "a", "bc", "日本", "x y"]
   triples = map(
-    fn(i) [nth(i % 5, ss), nth((i + 1) % 5, ss), nth((i + 3) % 5, ss)] end,
+    (i) -> [nth(i % 5, ss), nth((i + 1) % 5, ss), nth((i + 3) % 5, ss)],
     range(0, 25)
   )
   all(
@@ -235,7 +232,7 @@ end
 # waive R0001: the law states that nil? is false for []
 # waive B0036: the law states what nil? itself answers
 def law_one_kind_each()
-  all(fn(v) size(filter(fn(k) k end, kinds(v))) == 1 end, values(15, 300)) and
+  all((v) -> size(filter((k) -> k, kinds(v))) == 1, values(15, 300)) and
     not list?(nil) and
     not nil?([])
 end
@@ -248,8 +245,8 @@ def law_empty_list_is_brackets()
     cdr([1]),
     append([], []),
     append(),
-    filter(fn(_x) false end, [1]),
-    map(fn(x) x end, []),
+    filter((_x) -> false, [1]),
+    map((x) -> x, []),
     reverse([]),
     take(0, [1]),
     drop(1, [1]),
@@ -257,9 +254,9 @@ def law_empty_list_is_brackets()
     split("", ""),
     sort([]),
     distinct([]),
-    flat_map(fn(_x) [] end, [1])
+    flat_map((_x) -> [], [1])
   ]
-  all(fn(r) r == [] and not nil?(r) end, results)
+  all((r) -> r == [] and not nil?(r), results)
 end
 
 def law_split_keeps_every_field()
@@ -301,10 +298,10 @@ def decisions()
       rule: "`==` is value equality: numbers by value (4 == 4.0), strings, lists and maps by content, nil only equals nil.",
       why: "Ruby's answer; maps compared by identity and 4 != 4.0 were silent wrong answers.",
       laws: [
-        ["reflexive", fn() law_equal_reflexive end],
-        ["symmetric", fn() law_equal_symmetric end],
-        ["numbers by value", fn() law_numbers_by_value end],
-        ["maps by value", fn() law_maps_by_value end]
+        ["reflexive", () -> law_equal_reflexive],
+        ["symmetric", () -> law_equal_symmetric],
+        ["numbers by value", () -> law_numbers_by_value],
+        ["maps by value", () -> law_maps_by_value]
       ]
     },
     {
@@ -312,28 +309,28 @@ def decisions()
       date: "2026-09-27",
       rule: "`!=` is exactly `not(a == b)`.",
       why: "Two operators, one meaning.",
-      laws: [["negation", fn() law_not_equal_is_negation end]]
+      laws: [["negation", () -> law_not_equal_is_negation]]
     },
     {
       id: "D0003",
       date: "2026-09-27",
       rule: "`contains`, `index_of`, `count_of` and `distinct` use `==`.",
       why: "Membership that disagrees with equality answers the same question two ways.",
-      laws: [["membership", fn() law_membership_is_equality end]]
+      laws: [["membership", () -> law_membership_is_equality]]
     },
     {
       id: "D0004",
       date: "2026-09-27",
       rule: "`nil` and `[]` are different values; `is_empty` is true of both.",
       why: "Ruby: absent is not empty.",
-      laws: [["nil is not []", fn() law_nil_is_not_empty_list end]]
+      laws: [["nil is not []", () -> law_nil_is_not_empty_list]]
     },
     {
       id: "D0005",
       date: "2026-09-27",
       rule: "`to_s` gives text: a string is itself, nil is \"\", a float keeps its point (1.0).",
       why: "Ruby's to_s; to_s(1.0) was \"1\".",
-      laws: [["literals", fn() law_to_s_literals end]]
+      laws: [["literals", () -> law_to_s_literals]]
     },
     {
       id: "D0006",
@@ -341,11 +338,8 @@ def decisions()
       rule: "A list or map renders as its blue literal, maps sorted by key: [1, \"a\"], {a: 1}. Interpolation uses to_s.",
       why: "to_s of a map was the word \"map\" and a list lost its brackets.",
       laws: [
-        ["collections", fn() law_to_s_collections end],
-        [
-          "equal maps render equally",
-          fn() law_to_s_equal_maps_render_equally end
-        ]
+        ["collections", () -> law_to_s_collections],
+        ["equal maps render equally", () -> law_to_s_equal_maps_render_equally]
       ]
     },
     {
@@ -353,42 +347,42 @@ def decisions()
       date: "2026-09-27",
       rule: "`concat` joins the text of one or more arguments, left to right.",
       why: "Ruby's String#concat takes many; two-only was an arity error.",
-      laws: [["any arity", fn() law_concat_any_arity end]]
+      laws: [["any arity", () -> law_concat_any_arity]]
     },
     {
       id: "D0008",
       date: "2026-09-27",
       rule: "`/` is float division (7 / 2 == 3.5). Deviation from Ruby, kept.",
       why: "Integer truncation by the division operator is a classic silent bug.",
-      laws: [["float division", fn() law_division_is_float end]]
+      laws: [["float division", () -> law_division_is_float]]
     },
     {
       id: "D0009",
       date: "2026-09-27",
       rule: "Map keys are exact: 1 and 1.0 are different keys.",
       why: "Ruby hashes key on eql?, where 1 and 1.0 differ.",
-      laws: [["exact keys", fn() law_map_keys_are_exact end]]
+      laws: [["exact keys", () -> law_map_keys_are_exact]]
     },
     {
       id: "D0010",
       date: "2026-09-27",
       rule: "Every value has exactly one kind, each with one predicate: nil?, bool?, integer?, float?, string?, keyword?, list?, map?.",
       why: "float?, map? and bool? did not exist; nil? and list? each also held of the other kind.",
-      laws: [["one kind each", fn() law_one_kind_each end]]
+      laws: [["one kind each", () -> law_one_kind_each]]
     },
     {
       id: "D0011",
       date: "2026-09-27",
       rule: "The empty list is always []: no list operation returns nil for an empty result.",
       why: "rest, cdr and append returned nil (Scheme), so rest([1]) == [] was false.",
-      laws: [["empty is []", fn() law_empty_list_is_brackets end]]
+      laws: [["empty is []", () -> law_empty_list_is_brackets]]
     },
     {
       id: "D0012",
       date: "2026-09-27",
       rule: "`split` keeps every field: n separators give n + 1 fields, and join undoes split. Deviation from Ruby.",
       why: "Ruby drops trailing empty fields; tried, it broke nisshi, kueri and moji: a parser that loses a field loses data.",
-      laws: [["join undoes split", fn() law_split_keeps_every_field end]]
+      laws: [["join undoes split", () -> law_split_keeps_every_field]]
     }
   ]
 end
@@ -401,7 +395,7 @@ end
 
 # Every law that does not hold, as "id: law", and every decision with no law.
 def failures()
-  flat_map(fn(d) decision_failures(d) end, decisions)
+  flat_map((d) -> decision_failures(d), decisions)
 end
 
 def decision_failures(d)
@@ -410,8 +404,8 @@ def decision_failures(d)
     ["#{get(d, :id)}: has no law"]
   else
     map(
-      fn(l) "#{get(d, :id)}: #{nth(0, l)}" end,
-      filter(fn(l) not holds(nth(1, l)) end, laws)
+      (l) -> "#{get(d, :id)}: #{nth(0, l)}",
+      filter((l) -> not holds(nth(1, l)), laws)
     )
   end
 end
@@ -428,7 +422,7 @@ end
 
 def card()
   head = "# Blue's rules\n\nGenerated from `bidamas/okite/okite.b` by `rules.b`: do not edit.\nEvery rule is enforced by laws in okite; a rule without a passing law fails\nthe build.\n\n**Blue values behave like Ruby's, except where a rule below says otherwise.**\n\n"
-  concat(head, join(map(fn(d) card_line(d) end, decisions), ""))
+  concat(head, join(map((d) -> card_line(d), decisions), ""))
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────
@@ -438,7 +432,7 @@ test "every decision is enforced, and every law holds"
 end
 
 test "decision ids are unique and in order"
-  ids = map(fn(d) get(d, :id) end, decisions)
+  ids = map((d) -> get(d, :id), decisions)
   assert ids == distinct(ids)
   assert ids == sort(ids)
 end
@@ -446,15 +440,15 @@ end
 test "the card stays small: a rule is a line, and the card fits in 40"
   card = okite::card
   assert size(lines(card)) <= 40
-  assert all(fn(d) length(get(d, :rule)) <= 160 end, decisions)
+  assert all((d) -> length(get(d, :rule)) <= 160, decisions)
 end
 
 test "the generator covers every kind (anti-vacuity)"
   vs = values(99, 300)
-  assert some(fn(v) integer?(v) end, vs)
-  assert some(fn(v) float?(v) end, vs)
-  assert some(fn(v) string?(v) end, vs)
-  assert some(fn(v) v == nil end, vs)
-  assert some(fn(v) list?(v) and not is_empty(v) end, vs)
-  assert some(fn(v) map?(v) end, vs)
+  assert some((v) -> integer?(v), vs)
+  assert some((v) -> float?(v), vs)
+  assert some((v) -> string?(v), vs)
+  assert some((v) -> v == nil, vs)
+  assert some((v) -> list?(v) and not is_empty(v), vs)
+  assert some((v) -> map?(v), vs)
 end

@@ -325,7 +325,7 @@ def pretty_at(v, pad)
     if v == []
       "[]"
     else
-      body = join(map(fn(x) "#{inner}#{pretty_at(x, inner)}" end, v), ",\n")
+      body = join(map((x) -> "#{inner}#{pretty_at(x, inner)}", v), ",\n")
       "[\n#{body}\n#{pad}]"
     end
   else
@@ -369,13 +369,10 @@ end
 def yaml_lines(v, pad)
   if collection?(v) and map?(v)
     flatten(
-      map(
-        fn(e) yaml_entry(yaml_key(first(e)), second(e), pad) end,
-        map_entries(v)
-      )
+      map((e) -> yaml_entry(yaml_key(first(e)), second(e), pad), map_entries(v))
     )
   else
-    flatten(map(fn(x) yaml_item(x, pad) end, v))
+    flatten(map((x) -> yaml_item(x, pad), v))
   end
 end
 

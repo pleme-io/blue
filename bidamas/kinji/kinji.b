@@ -67,7 +67,7 @@ legacy_names(
 # ── refusals ─────────────────────────────────────────────────────────
 
 def refusal_kinds(result)
-  map(fn(r) kyohi::kind(r) end, get(result, :refusals))
+  map((r) -> kyohi::kind(r), get(result, :refusals))
 end
 
 # A result's value, or a thrown error naming its refusals.
@@ -85,13 +85,13 @@ def finite?(x)
 end
 
 def all_finite?(v)
-  reduce(fn(acc, x) acc and finite?(x) end, true, v)
+  reduce((acc, x) -> acc and finite?(x), true, v)
 end
 
 # A weighted sum of vectors: sum of ws[i] * ks[i].
 def combo(ks, ws)
   reduce(
-    fn(acc, i) vadd(acc, scale(nth(i, ws), nth(i, ks))) end,
+    (acc, i) -> vadd(acc, scale(nth(i, ws), nth(i, ks))),
     scale(0.0, first(ks)),
     indexes(ks)
   )
@@ -121,7 +121,7 @@ end
 # being finite ends the run with :kinji_diverged.
 def rk4(f, t0, y0, h, n)
   start = {t: t0, y: y0, back: [[t0, y0]], refusals: []}
-  fin = reduce(fn(acc, _i) rk4_tick(f, h, acc) end, start, range(0, n))
+  fin = reduce((acc, _i) -> rk4_tick(f, h, acc), start, range(0, n))
   {samples: reverse(get(fin, :back)), refusals: get(fin, :refusals)}
 end
 
@@ -258,7 +258,7 @@ def ode(f, t0, y0, t1, opts)
       refusals: []
     }
     fin = reduce(
-      fn(acc, _i) ode_tick(f, t1, rtol, atol, hmin, acc) end,
+      (acc, _i) -> ode_tick(f, t1, rtol, atol, hmin, acc),
       start,
       range(0, get_or(opts, :max_steps, 100_000))
     )
@@ -358,7 +358,7 @@ end
 
 # The state at time t, linearly interpolated between samples.
 def state_at(samples, t)
-  ts = map(fn(s) sample_t(s) end, samples)
+  ts = map((s) -> sample_t(s), samples)
   i = segment(ts, t)
   a = nth(i, samples)
   b = nth(i + 1, samples)
@@ -391,7 +391,7 @@ def bisect(f, lo, hi, tol, max_iter)
     {root: nil, iterations: 0, refusals: bad}
   else
     fin = reduce(
-      fn(acc, _i) bisect_tick(f, tol, acc) end,
+      (acc, _i) -> bisect_tick(f, tol, acc),
       {lo: lo, hi: hi, flo: flo, n: 0, done: false},
       range(0, max_iter)
     )
@@ -461,7 +461,7 @@ def brent(f, lo, hi, tol, max_iter)
       }
     )
     fin = reduce(
-      fn(acc, _i) brent_tick(f, tol, acc) end,
+      (acc, _i) -> brent_tick(f, tol, acc),
       start,
       range(0, max_iter)
     )
@@ -610,10 +610,10 @@ def nelder_mead(f, x0, step, opts)
   ftol = get_or(opts, :ftol, 0.000000001)
   xtol = get_or(opts, :xtol, 0.000000001)
   max_iter = get_or(opts, :max_iter, 2000)
-  corners = map(fn(i) update_at(x0, i, nth(i, x0) + step) end, indexes(x0))
-  simplex = map(fn(x) nm_vertex(x, f(x)) end, concat_lists([x0], corners))
+  corners = map((i) -> update_at(x0, i, nth(i, x0) + step), indexes(x0))
+  simplex = map((x) -> nm_vertex(x, f(x)), concat_lists([x0], corners))
   fin = reduce(
-    fn(acc, _i) nm_tick(f, ftol, xtol, acc) end,
+    (acc, _i) -> nm_tick(f, ftol, xtol, acc),
     {simplex: nm_sort(simplex), n: 0, done: false},
     range(0, max_iter)
   )
@@ -627,7 +627,7 @@ def nelder_mead(f, x0, step, opts)
 end
 
 def nm_sort(simplex)
-  sort_stable_by(fn(v) nm_f(v) end, simplex)
+  sort_stable_by((v) -> nm_f(v), simplex)
 end
 
 def nm_converged?(simplex, ftol, xtol)
@@ -664,7 +664,7 @@ def nm_move(f, simplex)
   keep = all_but_last(simplex)
   centroid = scale(
     1.0 / (n - 1),
-    reduce(fn(acc, v) vadd(acc, nm_x(v)) end, scale(0.0, nm_x(worst)), keep)
+    reduce((acc, v) -> vadd(acc, nm_x(v)), scale(0.0, nm_x(worst)), keep)
   )
   xr = vadd(centroid, vsub(centroid, nm_x(worst)))
   fr = f(xr)
@@ -695,7 +695,7 @@ def nm_shrink(f, simplex)
   best = nm_x(first(simplex))
   concat_lists(
     [first(simplex)],
-    map(fn(v) nm_shrunk(f, best, nm_x(v)) end, rest(simplex))
+    map((v) -> nm_shrunk(f, best, nm_x(v)), rest(simplex))
   )
 end
 
@@ -733,7 +733,7 @@ end
 
 # The straight line y = intercept + slope * x through (xs, ys), by least squares.
 def fit_line(xs, ys)
-  r = least_squares(map(fn(x) [1, x] end, xs), ys)
+  r = least_squares(map((x) -> [1, x], xs), ys)
   if is_empty(get(r, :refusals))
     {
       intercept: nth(0, get(r, :x)),
@@ -749,7 +749,7 @@ end
 # The sum of squared errors of model(params, x) against (xs, ys).
 def sse(model, params, xs, ys)
   reduce(
-    fn(acc, i) acc + square(model(params, nth(i, xs)) - nth(i, ys)) end,
+    (acc, i) -> acc + square(model(params, nth(i, xs)) - nth(i, ys)),
     0.0,
     indexes(xs)
   )
@@ -776,7 +776,7 @@ def fit(model, p0, xs, ys, opts)
     }
   else
     r = nelder_mead(
-      fn(p) sse(model, p, xs, ys) end,
+      (p) -> sse(model, p, xs, ys),
       p0,
       get_or(opts, :step, 0.1),
       opts
@@ -838,7 +838,7 @@ end
 # The trapezoid rule over n equal panels.
 def trapezoid(f, a, b, n)
   h = (b - a) / n
-  inner = reduce(fn(acc, i) acc + f(a + i * h) end, 0.0, range(1, n))
+  inner = reduce((acc, i) -> acc + f(a + i * h), 0.0, range(1, n))
   h * ((f(a) + f(b)) / 2 + inner)
 end
 
@@ -893,14 +893,14 @@ def blowup(_t, y)
 end
 
 test "an ODE over no time is its start"
-  r = ode(fn(t, y) decay(t, y) end, 2.0, [1.0], 2.0, {})
+  r = ode((t, y) -> decay(t, y), 2.0, [1.0], 2.0, {})
   assert value(r, :samples) == [[2.0, [1.0]]]
   assert get(r, :steps) == 0
 end
 
 test "decay matches exp(-t), by fixed and adaptive steps"
   # Independently checkable: y' = -y from y(0) = 1 is exp(-t).
-  rk = rk4(fn(t, y) decay(t, y) end, 0.0, [1.0], 0.01, 100)
+  rk = rk4((t, y) -> decay(t, y), 0.0, [1.0], 0.01, 100)
   assert size(value(rk, :samples)) == 101
   assert near_within(
     nth(0, sample_y(last(get(rk, :samples)))),
@@ -909,7 +909,7 @@ test "decay matches exp(-t), by fixed and adaptive steps"
   ) ==
     true
   dp = ode(
-    fn(t, y) decay(t, y) end,
+    (t, y) -> decay(t, y),
     0.0,
     [1.0],
     1.0,
@@ -931,7 +931,7 @@ test "an oscillator keeps its energy"
   # An identity: x'' = -x conserves x^2 + v^2; after one period it is back.
   two_pi = 2 * 3.141592653589793
   r = ode(
-    fn(t, y) oscillator(t, y) end,
+    (t, y) -> oscillator(t, y),
     0.0,
     [1.0, 0.0],
     two_pi,
@@ -945,7 +945,7 @@ end
 
 test "an ODE that blows up is refused, not answered"
   # The control: y' = y^2 from y(0) = 1 is 1 / (1 - t), infinite at t = 1.
-  r = ode(fn(t, y) blowup(t, y) end, 0.0, [1.0], 2.0, {})
+  r = ode((t, y) -> blowup(t, y), 0.0, [1.0], 2.0, {})
   assert is_empty(get(r, :refusals)) == false
   assert error?(
     begin
@@ -955,26 +955,26 @@ test "an ODE that blows up is refused, not answered"
     end
   ) ==
     true
-  rk = rk4(fn(t, y) blowup(t, y) end, 0.0, [1.0], 0.1, 30)
+  rk = rk4((t, y) -> blowup(t, y), 0.0, [1.0], 0.1, 30)
   assert refusal_kinds(rk) == [:kinji_diverged]
 end
 
 test "roots: sqrt(2), the Dottie number, and a refused bracket"
-  sq = brent(fn(x) x * x - 2 end, 0.0, 2.0, 0.000000000001, 100)
+  sq = brent((x) -> x * x - 2, 0.0, 2.0, 0.000000000001, 100)
   assert near_within(value(sq, :root), sqrt(2.0), 0.0000000001) == true
   # cos(x) = x at 0.7390851332151607 (the Dottie number).
-  dottie = brent(fn(x) cos(x) - x end, 0.0, 1.0, 0.000000000001, 100)
+  dottie = brent((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 100)
   assert near_within(value(dottie, :root), 0.7390851332151607, 0.0000000001) ==
     true
-  bi = bisect(fn(x) cos(x) - x end, 0.0, 1.0, 0.000000000001, 100)
+  bi = bisect((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 100)
   assert near_within(value(bi, :root), 0.7390851332151607, 0.0000000001) == true
   # Brent's point: the same answer in fewer evaluations.
   assert get(dottie, :iterations) < get(bi, :iterations)
   # The controls: no sign change, and too few iterations.
-  assert refusal_kinds(brent(fn(x) x * x + 1 end, -1.0, 1.0, 0.000001, 100)) ==
+  assert refusal_kinds(brent((x) -> x * x + 1, -1.0, 1.0, 0.000001, 100)) ==
     [:kinji_no_bracket]
   assert refusal_kinds(
-    bisect(fn(x) cos(x) - x end, 0.0, 1.0, 0.000000000001, 5)
+    bisect((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 5)
   ) ==
     [:kinji_iterations]
 end
@@ -1008,9 +1008,9 @@ end
 
 test "kj_fit recovers a decay constant, with its error and point count"
   ts = [0, 1, 2, 3, 4, 5]
-  ys = map(fn(t) 80 * exp(-0.3 * t) end, ts)
+  ys = map((t) -> 80 * exp(-0.3 * t), ts)
   r = fit(
-    fn(p, t) nth(0, p) * exp(-(nth(1, p) * t)) end,
+    (p, t) -> nth(0, p) * exp(-(nth(1, p) * t)),
     [50.0, 0.1],
     ts,
     ys,
@@ -1019,7 +1019,7 @@ test "kj_fit recovers a decay constant, with its error and point count"
   assert vector_near(value(r, :params), [80.0, 0.3]) == true
   assert get(r, :n) == 6
   assert get(r, :rmse) < 0.0001
-  assert refusal_kinds(fit(fn(_p, t) t end, [1.0], [1, 2], [1], {})) ==
+  assert refusal_kinds(fit((_p, t) -> t, [1.0], [1, 2], [1], {})) ==
     [:kinji_data]
 end
 
@@ -1044,15 +1044,14 @@ end
 
 test "quadrature: the area under sin, and Simpson exact for a cubic"
   pi = 3.141592653589793
-  assert near_within(trapezoid(fn(x) sin(x) end, 0, pi, 1000), 2.0, 0.00001) ==
+  assert near_within(trapezoid((x) -> sin(x), 0, pi, 1000), 2.0, 0.00001) ==
     true
-  assert near_within(simpson(fn(x) sin(x) end, 0, pi, 100), 2.0, 0.0000001) ==
-    true
+  assert near_within(simpson((x) -> sin(x), 0, pi, 100), 2.0, 0.0000001) == true
   # The integral of x^3 from 0 to 2 is 4, and Simpson is exact for cubics.
-  assert near(simpson(fn(x) x * x * x end, 0, 2, 2), 4) == true
+  assert near(simpson((x) -> x * x * x, 0, 2, 2), 4) == true
   assert error?(
     begin
-      simpson(fn(x) x end, 0, 1, 3)
+      simpson((x) -> x, 0, 1, 3)
     rescue e
       e
     end

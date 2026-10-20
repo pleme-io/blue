@@ -107,7 +107,7 @@ def is_hash_hex(s)
   if string?(s)
     length(s) == 64 and
       reduce(
-        fn(left, c) replace(left, c, "") end,
+        (left, c) -> replace(left, c, ""),
         s,
         [
           "0",
@@ -159,7 +159,7 @@ end
 # The hash after every payload is linked in order: the genesis for no payloads.
 def chain_head(genesis, payloads)
   chain_require_hash(genesis, "the genesis")
-  reduce(fn(h, p) chain_link(h, p) end, genesis, payloads)
+  reduce((h, p) -> chain_link(h, p), genesis, payloads)
 end
 
 # Every link hash in order, one per payload, as a log stores them beside its
@@ -169,7 +169,7 @@ def chain_hashes(genesis, payloads)
   chain_require_hash(genesis, "the genesis")
   reverse(
     reduce(
-      fn(acc, p) cons(chain_link(chain_prev(acc, genesis), p), acc) end,
+      (acc, p) -> cons(chain_link(chain_prev(acc, genesis), p), acc),
       [],
       payloads
     )
@@ -189,7 +189,7 @@ end
 def chain_first_break(genesis, payloads, hashes)
   computed = chain_hashes(genesis, payloads)
   n = max(size(computed), size(hashes))
-  find(fn(i) chain_at(i, computed) != chain_at(i, hashes) end, range(0, n))
+  find((i) -> chain_at(i, computed) != chain_at(i, hashes), range(0, n))
 end
 
 # The most recent link in a reversed accumulator, or the genesis when empty.

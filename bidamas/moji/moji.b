@@ -475,7 +475,7 @@ end
 # collapse and leading/trailing space is dropped. Titles are being formatted,
 # not text being preserved; use `words` + `capitalize` directly to keep layout.
 def title_case(s)
-  join(map(fn(w) capitalize(w) end, words(s)), " ")
+  join(map((w) -> capitalize(w), words(s)), " ")
 end
 
 def swap_char(c)
@@ -489,7 +489,7 @@ end
 # Case inverted character by character. Caseless characters — digits,
 # punctuation, kana — pass through, which is what makes it self-inverse.
 def swap_case(s)
-  join(map(fn(c) swap_char(c) end, chars(s)), "")
+  join(map((c) -> swap_char(c), chars(s)), "")
 end
 
 # ── character-class predicates ─────────────────────────────────────
@@ -503,7 +503,7 @@ def made_of(s, set)
   if length(s) == 0
     false
   else
-    size(filter(fn(c) includes(set, c) end, chars(s))) == length(s)
+    size(filter((c) -> includes(set, c), chars(s))) == length(s)
   end
 end
 
@@ -748,7 +748,7 @@ test "occurrences counts non-overlapping copies"
 end
 
 test "searching a 200 000 character text is one pass, not one call per position"
-  long = "#{join(map(fn(_) "ab" end, range(100_000)), "")}é!"
+  long = "#{join(map((_) -> "ab", range(100_000)), "")}é!"
   assert char_index(long, "é!") == 200_000
   assert char_index_from(long, "ab", 7) == 8
   assert last_char_index(long, "ab") == 199_998
@@ -756,7 +756,7 @@ test "searching a 200 000 character text is one pass, not one call per position"
   assert occurrences(long, "ab") == 100_000
   assert after_first(long, "é") == "!"
   assert replace_first(long, "é!", "") ==
-    join(map(fn(_) "ab" end, range(100_000)), "")
+    join(map((_) -> "ab", range(100_000)), "")
 end
 
 test "repeated builds a string, not a list"

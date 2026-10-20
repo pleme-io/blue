@@ -54,7 +54,7 @@ def no_factor_from(n, k)
 end
 
 def primes_below(n)
-  filter(fn(k) is_prime(k) end, range(2, n))
+  filter((k) -> is_prime(k), range(2, n))
 end
 
 def prime_factors(n)
@@ -101,7 +101,7 @@ def totient(n)
   if n == 1
     1
   else
-    size(filter(fn(k) gcd(k, n) == 1 end, range(1, n)))
+    size(filter((k) -> gcd(k, n) == 1, range(1, n)))
   end
 end
 
@@ -123,7 +123,7 @@ def sieve_from(xs)
     []
   else
     p = first(xs)
-    cons(p, sieve_from(filter(fn(k) k % p != 0 end, rest(xs))))
+    cons(p, sieve_from(filter((k) -> k % p != 0, rest(xs))))
   end
 end
 
@@ -229,17 +229,17 @@ def divisors(n)
   if n < 1
     []
   else
-    filter(fn(k) n % k == 0 end, range(1, n + 1))
+    filter((k) -> n % k == 0, range(1, n + 1))
   end
 end
 
 def proper_divisors(n)
-  filter(fn(k) k != n end, divisors(n))
+  filter((k) -> k != n, divisors(n))
 end
 
 # sigma(n), counting n itself — the convention every table uses.
 def sum_of_divisors(n)
-  reduce(fn(a, b) a + b end, 0, divisors(n))
+  reduce((a, b) -> a + b, 0, divisors(n))
 end
 
 # Perfect: equal to the sum of its PROPER divisors, which is sigma(n) == 2n.
@@ -291,9 +291,9 @@ def carmichael_lambda(n)
     1
   else
     reduce(
-      fn(acc, a) lcm(acc, multiplicative_order(a, n)) end,
+      (acc, a) -> lcm(acc, multiplicative_order(a, n)),
       1,
-      filter(fn(a) is_coprime(a, n) end, range(1, n))
+      filter((a) -> is_coprime(a, n), range(1, n))
     )
   end
 end
@@ -319,7 +319,7 @@ def is_carmichael(n)
   else
     size(
       filter(
-        fn(a) is_coprime(a, n) and fermat_probable_prime(n, a) == false end,
+        (a) -> is_coprime(a, n) and fermat_probable_prime(n, a) == false,
         range(2, n)
       )
     ) ==
@@ -336,7 +336,7 @@ def primitive_root(p)
   elsif p == 2
     1
   else
-    first(filter(fn(g) multiplicative_order(g, p) == p - 1 end, range(2, p)))
+    first(filter((g) -> multiplicative_order(g, p) == p - 1, range(2, p)))
   end
 end
 
@@ -388,7 +388,7 @@ end
 # Shift each letter by n; anything that is not a lowercase letter passes
 # through untouched, so punctuation and spacing survive a round trip.
 def caesar(text, n)
-  join(map(fn(ch) shift_char(ch, n) end, chars(text)), "")
+  join(map((ch) -> shift_char(ch, n), chars(text)), "")
 end
 
 def shift_char(ch, n)
@@ -431,10 +431,7 @@ end
 # Non-letters in the KEY are dropped rather than treated as shift zero, so
 # "lemon" and "l e m o n" are the same key.
 def key_shifts(key)
-  filter(
-    fn(i) i >= 0 end,
-    map(fn(ch) letter_index(ch) end, chars(downcase(key)))
-  )
+  filter((i) -> i >= 0, map((ch) -> letter_index(ch), chars(downcase(key))))
 end
 
 def vigenere_chars(cs, ks, ki, dir)
@@ -456,7 +453,7 @@ end
 # Atbash reverses the alphabet: a<->z, b<->y. It has no key at all, so the
 # only property worth asserting is that it is its own inverse.
 def atbash(text)
-  join(map(fn(ch) atbash_char(ch) end, chars(text)), "")
+  join(map((ch) -> atbash_char(ch), chars(text)), "")
 end
 
 def atbash_char(ch)
@@ -477,7 +474,7 @@ def rail_fence(text, rails)
     text
   else
     join(
-      map(fn(i) nth(i, chars(text)) end, rail_order(size(chars(text)), rails)),
+      map((i) -> nth(i, chars(text)), rail_order(size(chars(text)), rails)),
       ""
     )
   end
@@ -493,7 +490,7 @@ def rail_fence_decrypt(text, rails)
   else
     cs = chars(text)
     order = rail_order(size(cs), rails)
-    join(map(fn(i) nth(index_of(order, i), cs) end, range(0, size(cs))), "")
+    join(map((i) -> nth(index_of(order, i), cs), range(0, size(cs))), "")
   end
 end
 
@@ -501,7 +498,7 @@ end
 # j holds original character rail_order[j].
 def rail_order(n, rails)
   flat_map(
-    fn(r) filter(fn(i) rail_of(i, rails) == r end, range(0, n)) end,
+    (r) -> filter((i) -> rail_of(i, rails) == r, range(0, n)),
     range(0, rails)
   )
 end
@@ -523,10 +520,10 @@ end
 # `alphabet()` by index — the shape a frequency attack actually consumes.
 def letter_counts(text)
   ls = filter(
-    fn(i) i >= 0 end,
-    map(fn(ch) letter_index(ch) end, chars(downcase(text)))
+    (i) -> i >= 0,
+    map((ch) -> letter_index(ch), chars(downcase(text)))
   )
-  map(fn(i) count_of(ls, i) end, indexes(alphabet))
+  map((i) -> count_of(ls, i), indexes(alphabet))
 end
 
 def letter_count(text, ch)
@@ -542,7 +539,7 @@ end
 # answers "" rather than "a" — the vacuous case a max-index search gets wrong.
 def most_common_letter(text)
   cnt = letter_counts(text)
-  best = reduce(fn(a, b) max(a, b) end, 0, cnt)
+  best = reduce((a, b) -> max(a, b), 0, cnt)
   if best == 0
     ""
   else
@@ -559,7 +556,7 @@ end
 # empty key is the identity.
 def substitution(text, key)
   ks = chars(downcase(key))
-  join(map(fn(ch) substitute_char(ch, ks) end, chars(text)), "")
+  join(map((ch) -> substitute_char(ch, ks), chars(text)), "")
 end
 
 def substitute_char(ch, ks)
@@ -584,7 +581,7 @@ def invert_key(key)
     ks = chars(downcase(key))
     join(
       map(
-        fn(i) nth(index_of(ks, nth(i, alphabet)), alphabet) end,
+        (i) -> nth(index_of(ks, nth(i, alphabet)), alphabet),
         indexes(alphabet)
       ),
       ""
@@ -594,7 +591,7 @@ end
 
 def is_substitution_key(key)
   ks = chars(downcase(key))
-  size(ks) == 26 and size(filter(fn(c) contains(ks, c) end, alphabet)) == 26
+  size(ks) == 26 and size(filter((c) -> contains(ks, c), alphabet)) == 26
 end
 
 # The classical way a human generated a substitution key without memorising
@@ -602,10 +599,7 @@ end
 # alphabet in order. "zebras" gives the textbook zebrascdfghijklmnopqtuvwxy.
 def keyword_key(word)
   ws = dedupe_letters(chars(downcase(word)), [])
-  join(
-    concat_lists(ws, filter(fn(c) contains(ws, c) == false end, alphabet)),
-    ""
-  )
+  join(concat_lists(ws, filter((c) -> contains(ws, c) == false, alphabet)), "")
 end
 
 def dedupe_letters(cs, seen)
@@ -625,7 +619,7 @@ end
 # candidate 0 is the input itself. Twenty-six is a keyspace you can exhaust
 # by eye, which is the first half of why caesar is not a cipher.
 def caesar_candidates(text)
-  map(fn(n) caesar(text, -n) end, range(0, 26))
+  map((n) -> caesar(text, -n), range(0, 26))
 end
 
 # The second half: you do not even have to look. Scoring each candidate
@@ -633,16 +627,16 @@ end
 # guesswork, and this is the same attack that breaks the substitution cipher
 # above once you let it work per-letter instead of per-shift.
 def crack_caesar(text)
-  scores = map(fn(n) english_score(caesar(text, -n)) end, range(0, 26))
-  index_of(scores, reduce(fn(a, b) max(a, b) end, 0, scores))
+  scores = map((n) -> english_score(caesar(text, -n)), range(0, 26))
+  index_of(scores, reduce((a, b) -> max(a, b), 0, scores))
 end
 
 def english_score(text)
   cnt = letter_counts(text)
   reduce(
-    fn(a, b) a + b end,
+    (a, b) -> a + b,
     0,
-    map(fn(i) nth(i, cnt) * nth(i, english_weights) end, indexes(alphabet))
+    map((i) -> nth(i, cnt) * nth(i, english_weights), indexes(alphabet))
   )
 end
 
@@ -693,7 +687,7 @@ end
 test "prime factorisation multiplies back"
   assert prime_factors(12) == [2, 2, 3]
   assert prime_factors(97) == [97]
-  assert reduce(fn(a, b) a * b end, 1, prime_factors(360)) == 360
+  assert reduce((a, b) -> a * b, 1, prime_factors(360)) == 360
 end
 
 test "modular exponentiation stays in range where expt would overflow"
@@ -902,7 +896,7 @@ test "letter frequency"
   assert nth(0, letter_counts("aab")) == 2
   assert nth(1, letter_counts("aab")) == 1
   assert size(letter_counts("")) == 26
-  assert reduce(fn(a, b) a + b end, 0, letter_counts("")) == 0
+  assert reduce((a, b) -> a + b, 0, letter_counts("")) == 0
   assert most_common_letter("aab") == "a"
   # A tie goes to the earlier letter, and no letters at all is "" — not "a".
   assert most_common_letter("ba") == "a"

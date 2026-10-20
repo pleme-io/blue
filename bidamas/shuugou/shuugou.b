@@ -9,7 +9,7 @@ use("ronri", [:any, :count_if, :every])
 # function in the distribution and none of the forks would be better.
 
 def member(xs, v)
-  any(fn(x) x == v end, xs)
+  any((x) -> x == v, xs)
 end
 
 # Keeps the FIRST occurrence of each element.
@@ -39,15 +39,15 @@ def union(a, b)
 end
 
 def intersection(a, b)
-  unique(filter(fn(x) member(b, x) end, a))
+  unique(filter((x) -> member(b, x), a))
 end
 
 def difference(a, b)
-  unique(filter(fn(x) not member(b, x) end, a))
+  unique(filter((x) -> not member(b, x), a))
 end
 
 def subset(a, b)
-  every(fn(x) member(b, x) end, a)
+  every((x) -> member(b, x), a)
 end
 
 def disjoint(a, b)
@@ -156,14 +156,14 @@ end
 # Key order is first-seen, not sorted: the keys need no ordering relation, so
 # sorting them would demand one the caller may not have.
 def group_by(key, xs)
-  map(fn(k) [k, filter(fn(x) key(x) == k end, xs)] end, unique(map(key, xs)))
+  map((k) -> [k, filter((x) -> key(x) == k, xs)], unique(map(key, xs)))
 end
 
 # [value, count] pairs, in first-seen order. Same representation as group_by,
 # and the counts sum back to size(xs) — the invariant a double-counting
 # implementation breaks.
 def frequencies(xs)
-  map(fn(v) [v, count_if(fn(x) x == v end, xs)] end, unique(xs))
+  map((v) -> [v, count_if((x) -> x == v, xs)], unique(xs))
 end
 
 # The value for a key in a pair list, or nil when absent.
@@ -173,7 +173,7 @@ end
 # case wrong the first time. nil rather than an error, for the same reason
 # junjo's binary search returns -1 — absence is an ordinary answer.
 def lookup(ps, k)
-  hit = filter(fn(p) first(p) == k end, ps)
+  hit = filter((p) -> first(p) == k, ps)
   if is_empty(hit)
     nil
   else
@@ -222,7 +222,7 @@ def power_set_of(xs)
     [[]]
   else
     subs = power_set_of(rest(xs))
-    append(subs, map(fn(s) cons(first(xs), s) end, subs))
+    append(subs, map((s) -> cons(first(xs), s), subs))
   end
 end
 
@@ -247,7 +247,7 @@ end
 # pairs — [1,2] and [2,1] are different elements — which is what separates this
 # from `pairs` below.
 def cartesian_product(a, b)
-  as_set(reduce(fn(acc, x) append(acc, map(fn(y) [x, y] end, b)) end, [], a))
+  as_set(reduce((acc, x) -> append(acc, map((y) -> [x, y], b)), [], a))
 end
 
 # Every UNORDERED pair of distinct members: [1,2] appears, [2,1] does not, and
@@ -259,10 +259,7 @@ def pairs(xs)
   as_set(
     reduce(
       fn(acc, i)
-        append(
-          acc,
-          map(fn(j) [nth(i, s), nth(j, s)] end, range(i + 1, size(s)))
-        )
+        append(acc, map((j) -> [nth(i, s), nth(j, s)], range(i + 1, size(s))))
       end,
       [],
       range(0, size(s))
@@ -271,7 +268,7 @@ def pairs(xs)
 end
 
 def union_all(xss)
-  reduce(fn(acc, s) union(acc, s) end, [], xss)
+  reduce((acc, s) -> union(acc, s), [], xss)
 end
 
 # The intersection of a FAMILY of sets. Seeded with the first member rather
@@ -284,7 +281,7 @@ def intersection_all(xss)
   if is_empty(xss)
     []
   else
-    reduce(fn(acc, s) intersection(acc, s) end, first(xss), rest(xss))
+    reduce((acc, s) -> intersection(acc, s), first(xss), rest(xss))
   end
 end
 
@@ -368,36 +365,36 @@ end
 test "unique_by keeps the first element per key, not the last"
   # Keys are 1, 1, 2, 2 — so 11 and 2 survive. A last-wins implementation
   # returns [21, 12] and passes every unordered check.
-  assert unique_by(fn(n) n % 10 end, [11, 21, 2, 12]) == [11, 2]
-  assert unique_by(fn(x) x end, [1, 2, 1]) == unique([1, 2, 1])
-  assert unique_by(fn(x) x end, []) == []
+  assert unique_by((n) -> n % 10, [11, 21, 2, 12]) == [11, 2]
+  assert unique_by((x) -> x, [1, 2, 1]) == unique([1, 2, 1])
+  assert unique_by((x) -> x, []) == []
   # A constant key collapses everything to one element.
-  assert unique_by(fn(_x) 0 end, [5, 6, 7]) == [5]
+  assert unique_by((_x) -> 0, [5, 6, 7]) == [5]
 end
 
 test "group_by partitions, in first-seen key order"
   # Key 1 is seen before key 0, so it comes first — a sorted-key
   # implementation returns the pairs the other way round.
-  assert group_by(fn(n) n % 2 end, [1, 2, 3, 4]) == [[1, [1, 3]], [0, [2, 4]]]
-  assert group_by(fn(x) x end, []) == []
+  assert group_by((n) -> n % 2, [1, 2, 3, 4]) == [[1, [1, 3]], [0, [2, 4]]]
+  assert group_by((x) -> x, []) == []
   # A partition loses nothing and duplicates nothing: the group sizes sum
   # back to the input size.
-  gs = group_by(fn(n) n % 3 end, [1, 2, 3, 4, 5, 6, 7])
-  assert reduce(fn(a, p) a + size(nth(1, p)) end, 0, gs) == 7
+  gs = group_by((n) -> n % 3, [1, 2, 3, 4, 5, 6, 7])
+  assert reduce((a, p) -> a + size(nth(1, p)), 0, gs) == 7
 end
 
 test "frequencies counts, and the counts sum to the input size"
   assert frequencies([1, 1, 2]) == [[1, 2], [2, 1]]
   assert frequencies([]) == []
   fs = frequencies([1, 2, 2, 3, 3, 3])
-  assert reduce(fn(a, p) a + nth(1, p) end, 0, fs) == 6
+  assert reduce((a, p) -> a + nth(1, p), 0, fs) == 6
   # One pair per DISTINCT value.
   assert size(fs) == cardinality([1, 2, 2, 3, 3, 3])
 end
 
 test "lookup reads a pair list, and reports absence as nil"
   assert lookup(frequencies([1, 1, 2]), 1) == 2
-  assert lookup(group_by(fn(n) n % 2 end, [1, 2, 3]), 0) == [2]
+  assert lookup(group_by((n) -> n % 2, [1, 2, 3]), 0) == [2]
   assert lookup(frequencies([1]), 9) == nil
   assert lookup([], 1) == nil
 end
@@ -433,7 +430,7 @@ test "power_set, its size, and its two guaranteed members"
   # Duplicates are collapsed first, so the size is 2^cardinality, not 2^size.
   assert size(power_set([1, 1, 2])) == 4
   # Every member is a subset of the original — the defining property.
-  assert every(fn(s) subset(s, [1, 2, 3]) end, power_set([1, 2, 3])) == true
+  assert every((s) -> subset(s, [1, 2, 3]), power_set([1, 2, 3])) == true
 end
 
 test "power_set refuses past its bound, distinguishably"

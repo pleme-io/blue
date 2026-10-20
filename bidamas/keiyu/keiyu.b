@@ -14,7 +14,7 @@ def proxy_names()
 end
 
 def relay_env(url)
-  map(fn(n) [n, url] end, proxy_names)
+  map((n) -> [n, url], proxy_names)
 end
 
 def run_via(url, command)

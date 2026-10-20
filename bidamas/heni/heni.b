@@ -89,7 +89,7 @@ end
 
 # The package's name: the last segment of its directory.
 def package_name(dir)
-  last(filter(fn(s) not is_empty(s) end, split(dir, "/")))
+  last(filter((s) -> not is_empty(s), split(dir, "/")))
 end
 
 # ── the fresh copy ───────────────────────────────────────────────────
@@ -173,16 +173,16 @@ def run(spec)
     }
   else
     results = map(
-      fn(p) one(spec, name, test_file, nth(0, p), nth(1, p)) end,
+      (p) -> one(spec, name, test_file, nth(0, p), nth(1, p)),
       enumerate(get(spec, :mutations))
     )
     {
       control: 0,
       results: results,
-      caught: count_where(fn(r) get(r, :verdict) == :caught end, results),
-      survived: count_where(fn(r) get(r, :verdict) == :survived end, results),
-      refused: count_where(fn(r) get(r, :verdict) == :refused end, results),
-      blind: count_where(fn(r) get(r, :verdict) == :blind end, results)
+      caught: count_where((r) -> get(r, :verdict) == :caught, results),
+      survived: count_where((r) -> get(r, :verdict) == :survived, results),
+      refused: count_where((r) -> get(r, :verdict) == :refused, results),
+      blind: count_where((r) -> get(r, :verdict) == :blind, results)
     }
   end
 end
@@ -211,7 +211,7 @@ def report_text(r)
   else
     rows = join(
       map(
-        fn(x) "#{to_s(get(x, :verdict))}  #{get(x, :name)}#{detail(x)}\n" end,
+        (x) -> "#{to_s(get(x, :verdict))}  #{get(x, :name)}#{detail(x)}\n",
         get(r, :results)
       ),
       ""
@@ -375,7 +375,7 @@ def end_to_end()
   ]
   r = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp: tmp})
   assert get(r, :control) == 0
-  assert map(fn(x) get(x, :verdict) end, get(r, :results)) ==
+  assert map((x) -> get(x, :verdict), get(r, :results)) ==
     [:caught, :survived, :refused]
   assert ok?(r) == false
   assert contains?(

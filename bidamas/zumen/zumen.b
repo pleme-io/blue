@@ -130,14 +130,14 @@ def layers()
 end
 
 def layer_names()
-  map(fn(l) first(l) end, layers)
+  map((l) -> first(l), layers)
 end
 
 # A kikagaku region as entities: the outline, and each hole.
 def region(r)
   concat_lists(
     [polyline(region_outline(r), true, "OUTLINE")],
-    map(fn(h) polyline(h, true, "HOLES") end, region_holes(r))
+    map((h) -> polyline(h, true, "HOLES"), region_holes(r))
   )
 end
 
@@ -168,8 +168,8 @@ end
 # wide. Rows are maps (a cut list, a bill of materials).
 def table(rows, columns, widths, origin, h)
   lines = concat_lists(
-    [map(fn(c) upcase(to_s(c)) end, columns)],
-    map(fn(r) map(fn(c) cell(get(r, c)) end, columns) end, rows)
+    [map((c) -> upcase(to_s(c)), columns)],
+    map((r) -> map((c) -> cell(get(r, c)), columns), rows)
   )
   flat_map(
     fn(i)
@@ -227,7 +227,7 @@ end
 
 # [[min x, min y], [max x, max y]] over every entity; nil for none.
 def bounds(entities)
-  bounding_box(flat_map(fn(e) entity_points(e) end, entities))
+  bounding_box(flat_map((e) -> entity_points(e), entities))
 end
 
 # ── sheets ───────────────────────────────────────────────────────────
@@ -242,8 +242,8 @@ def title_rows(title)
   keys = [:part, :revision, :material, :thickness, :units, :source]
   concat_lists(
     map(
-      fn(k) "#{upcase(to_s(k))}: #{to_s(get(title, k))}" end,
-      filter(fn(k) get(title, k) != nil end, keys)
+      (k) -> "#{upcase(to_s(k))}: #{to_s(get(title, k))}",
+      filter((k) -> get(title, k) != nil, keys)
     ),
     as_set(get(title, :notes))
   )
@@ -260,7 +260,7 @@ def sheet_entities(sheet)
   rows = title_rows(get(sheet, :title))
   top = py(lo) - 15
   texts = map(
-    fn(i) text([px(lo), top - i * h * 1.6], h, nth(i, rows), "TEXT") end,
+    (i) -> text([px(lo), top - i * h * 1.6], h, nth(i, rows), "TEXT"),
     indexes(rows)
   )
   bottom = top - size(rows) * h * 1.6 - 3
@@ -298,15 +298,15 @@ def view(mesh, view)
   m = rittai::weld(mesh)
   vs = rittai::vertices(m)
   faces = rittai::faces(m)
-  normals = map(fn(f) rittai::face_normal(m, f) end, faces)
+  normals = map((f) -> rittai::face_normal(m, f), faces)
   table = reduce(
-    fn(acc, i) edge_faces(acc, nth(i, faces), i) end,
+    (acc, i) -> edge_faces(acc, nth(i, faces), i),
     {},
     indexes(faces)
   )
   keys = distinct_keys(faces)
-  drawn = filter(fn(k) feature?(get(table, k), normals) end, keys)
-  map(fn(k) edge_line(k, vs, view) end, drawn)
+  drawn = filter((k) -> feature?(get(table, k), normals), keys)
+  map((k) -> edge_line(k, vs, view), drawn)
 end
 
 def edge_key(a, b)
@@ -319,7 +319,7 @@ end
 
 def edge_faces(acc, f, i)
   reduce(
-    fn(t, e) add_face(t, edge_key(nth(0, e), nth(1, e)), i) end,
+    (t, e) -> add_face(t, edge_key(nth(0, e), nth(1, e)), i),
     acc,
     edges_of(f)
   )
@@ -339,7 +339,7 @@ def distinct_keys(faces)
     reduce(
       fn(acc, f)
         reduce(
-          fn(a2, e) note_key(a2, edge_key(nth(0, e), nth(1, e))) end,
+          (a2, e) -> note_key(a2, edge_key(nth(0, e), nth(1, e))),
           acc,
           edges_of(f)
         )
@@ -371,7 +371,7 @@ def feature?(fs, normals)
 end
 
 def edge_line(k, vs, view)
-  ij = map(fn(s) to_int(s) end, split(k, "-"))
+  ij = map((s) -> to_int(s), split(k, "-"))
   line(
     project(nth(nth(0, ij), vs), view),
     project(nth(nth(1, ij), vs), view),
@@ -386,7 +386,7 @@ end
 # VERTEXes and SEQEND, R12's only polyline.
 
 def dxf_pairs(pairs)
-  join(map(fn(p) "#{to_s(nth(0, p))}\n#{to_s(nth(1, p))}\n" end, pairs), "")
+  join(map((p) -> "#{to_s(nth(0, p))}\n#{to_s(nth(1, p))}\n", pairs), "")
 end
 
 def dxf(entities)
@@ -455,7 +455,7 @@ def dxf(entities)
   body = concat_lists(
     [[0, "SECTION"], [2, "ENTITIES"]],
     concat_lists(
-      flat_map(fn(e) dxf_entity(e) end, entities),
+      flat_map((e) -> dxf_entity(e), entities),
       [[0, "ENDSEC"], [0, "EOF"]]
     )
   )
@@ -505,7 +505,7 @@ def dxf_entity(e)
       ],
       concat_lists(
         flat_map(
-          fn(p) concat_lists([[0, "VERTEX"], l], xy(10, p)) end,
+          (p) -> concat_lists([[0, "VERTEX"], l], xy(10, p)),
           get(e, :pts)
         ),
         [[0, "SEQEND"], l]
@@ -550,7 +550,7 @@ def svg(entities, margin)
   y1 = py(nth(1, bb)) + margin
   w = px(nth(1, bb)) - px(nth(0, bb)) + 2 * margin
   h = py(nth(1, bb)) - py(nth(0, bb)) + 2 * margin
-  body = join(map(fn(e) svg_entity(e, x0, y1) end, entities), "\n")
+  body = join(map((e) -> svg_entity(e, x0, y1), entities), "\n")
   "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"#{num(w)}mm\" height=\"#{num(h)}mm\" viewBox=\"0 0 #{num(w)} #{num(h)}\">\n<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>\n#{body}\n</svg>\n"
 end
 
@@ -575,7 +575,7 @@ def svg_entity(e, x0, y1)
     else
       "polyline"
     end
-    "<#{tag} points=\"#{join(map(fn(p) "#{sx(p, x0)},#{sy(p, y1)}" end, get(e, :pts)), " ")}\" #{st}/>"
+    "<#{tag} points=\"#{join(map((p) -> "#{sx(p, x0)},#{sy(p, y1)}", get(e, :pts)), " ")}\" #{st}/>"
   elsif k == :arc
     svg_arc(e, x0, y1, st)
   else
@@ -609,8 +609,8 @@ def zu_count(text, kind)
   ls = split(text, "\n")
   size(
     filter(
-      fn(i) nth(i, ls) == "0" and nth(i + 1, ls) == kind end,
-      filter(fn(i) i % 2 == 0 end, range(0, size(ls) - 1))
+      (i) -> nth(i, ls) == "0" and nth(i + 1, ls) == kind,
+      filter((i) -> i % 2 == 0, range(0, size(ls) - 1))
     )
   )
 end
@@ -661,7 +661,7 @@ test "every entity is written once, of its own kind, on a declared layer"
   assert zu_count(d, "ARC") == 1
   assert zu_count(d, "TEXT") == 2
   # Every layer named on an entity is declared in the table.
-  assert every(fn(e) contains(layer_names, layer(e)) end, ents) == true
+  assert every((e) -> contains(layer_names, layer(e)), ents) == true
   # The dimension reads the length it measures.
   assert get(last(dim([0, 0], [100, 0], -8, 3.5)), :s) == "100"
 end
@@ -684,7 +684,7 @@ end
 test "a view of a box draws its twelve edges and no diagonals"
   v = view(rittai::box(20, 30, 40), :front)
   assert size(v) == 12
-  assert every(fn(e) layer(e) == "VIEW" end, v) == true
+  assert every((e) -> layer(e) == "VIEW", v) == true
   bb = bounds(v)
   assert vector_near(nth(1, bb), [20, 40]) == true
 end
@@ -696,7 +696,7 @@ test "a table: a header, then one line per row, numbers to one decimal"
   ]
   t = table(rows, [:name, :length, :cut_a], [30, 25, 20], [0, 0], 3)
   assert size(t) == 9
-  assert map(fn(e) get(e, :s) end, take_n(t, 3)) == ["NAME", "LENGTH", "CUT_A"]
+  assert map((e) -> get(e, :s), take_n(t, 3)) == ["NAME", "LENGTH", "CUT_A"]
   assert get(nth(4, t), :s) == "450"
   assert near(px(get(nth(5, t), :p)), 55) == true
   # The empty case: no rows is the header alone.
@@ -714,6 +714,6 @@ test "a sheet adds a frame and one title line per field"
     }
   )
   es = sheet_entities(sh)
-  assert size(filter(fn(e) layer(e) == "TEXT" end, es)) == 4
-  assert size(filter(fn(e) layer(e) == "FRAME" end, es)) == 1
+  assert size(filter((e) -> layer(e) == "TEXT", es)) == 4
+  assert size(filter((e) -> layer(e) == "FRAME", es)) == 1
 end

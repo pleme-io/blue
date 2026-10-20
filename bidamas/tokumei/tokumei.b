@@ -113,12 +113,12 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "forced response recovers the true share from answers that each mean nothing"
-  truths = map(fn(i) i < 180 end, range(0, 600))
+  truths = map((i) -> i < 180, range(0, 600))
   answers = map(
-    fn(i) forced_response(nth(i, truths), 0.5, stream_seed(11, i)) end,
+    (i) -> forced_response(nth(i, truths), 0.5, stream_seed(11, i)),
     range(0, 600)
   )
-  yes = size(filter(fn(a) a end, answers)) / 600
+  yes = size(filter((a) -> a, answers)) / 600
   assert abs(forced_response_estimate(yes, 0.5) - 0.3) < 0.08
 end
 
@@ -135,10 +135,10 @@ test "the privacy budget and the exposure of a forced-response answer"
 end
 
 test "Laplace noise is centred on zero and scales with 1 / epsilon"
-  draws = map(fn(i) laplace_draw(1, stream_seed(3, i)) end, range(0, 400))
+  draws = map((i) -> laplace_draw(1, stream_seed(3, i)), range(0, 400))
   assert abs(mean(draws)) < 0.3
-  wide = map(fn(i) abs(laplace_draw(10, stream_seed(3, i))) end, range(0, 200))
-  narrow = map(fn(i) abs(laplace_draw(1, stream_seed(3, i))) end, range(0, 200))
+  wide = map((i) -> abs(laplace_draw(10, stream_seed(3, i))), range(0, 200))
+  narrow = map((i) -> abs(laplace_draw(1, stream_seed(3, i))), range(0, 200))
   assert mean(wide) > mean(narrow)
 end
 

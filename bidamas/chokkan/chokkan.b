@@ -22,7 +22,7 @@ def ask(name, question)
 end
 
 def names_of(pairs)
-  map(fn(p) first(p) end, pairs)
+  map((p) -> first(p), pairs)
 end
 
 def repeats(xs)
@@ -96,14 +96,14 @@ def problems(questions)
     else
       []
     end
-    append(dup_err, flat_map(fn(nq) question_problems(nq) end, questions))
+    append(dup_err, flat_map((nq) -> question_problems(nq), questions))
   end
 end
 
 def criteria_of(q)
   t = get(q, :type)
   if t == "choice"
-    reduce(fn(acc, o) assoc(acc, first(o), last(o)) end, {}, get(q, :options))
+    reduce((acc, o) -> assoc(acc, first(o), last(o)), {}, get(q, :options))
   elsif t == "score"
     get(q, :levels)
   end
@@ -122,7 +122,7 @@ end
 def request(model, state, questions)
   refuse(problems(questions))
   wired = reduce(
-    fn(acc, nq) assoc(acc, first(nq), wire(last(nq))) end,
+    (acc, nq) -> assoc(acc, first(nq), wire(last(nq))),
     {},
     questions
   )
@@ -207,11 +207,11 @@ def probabilities(reading, name)
 end
 
 def expected_level(probs)
-  reduce(fn(acc, p) acc + to_int(first(p)) * last(p) end, 0, probs)
+  reduce((acc, p) -> acc + to_int(first(p)) * last(p), 0, probs)
 end
 
 def margin(probs)
-  ps = reverse(sort_keyed(fn(p) last(p) end, probs))
+  ps = reverse(sort_keyed((p) -> last(p), probs))
   if is_empty(ps)
     0
   elsif size(ps) == 1
@@ -266,7 +266,7 @@ test "a request carries every question's name, type and criteria"
 end
 
 test "option and level counts are bounded exactly at their limits"
-  many = fn(n) map(fn(i) [to_s(i), "d"] end, range(0, n)) end
+  many = (n) -> map((i) -> [to_s(i), "d"], range(0, n))
   assert problems([ask("c", choice("pick", many(255)))]) == []
   assert kinds(problems([ask("c", choice("pick", many(256)))])) ==
     [:options_out_of_range]
@@ -276,11 +276,11 @@ test "option and level counts are bounded exactly at their limits"
     [:levels_out_of_range]
   assert problems([ask("s", score("rate", ["a", "b"]))]) == []
   assert problems(
-    [ask("s", score("rate", map(fn(i) to_s(i) end, range(0, 10))))]
+    [ask("s", score("rate", map((i) -> to_s(i), range(0, 10))))]
   ) ==
     []
   assert kinds(
-    problems([ask("s", score("rate", map(fn(i) to_s(i) end, range(0, 11))))])
+    problems([ask("s", score("rate", map((i) -> to_s(i), range(0, 11))))])
   ) ==
     [:levels_out_of_range]
 end

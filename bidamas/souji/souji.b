@@ -116,8 +116,8 @@ def targets(root, depth)
     "-prune"
   )
   filter(
-    fn(d) path_exists(path_join(path_dirname(d), "Cargo.toml")) end,
-    filter(fn(l) is_empty(trim(l)) == false end, split(stdout_of(cap), "\n"))
+    (d) -> path_exists(path_join(path_dirname(d), "Cargo.toml")),
+    filter((l) -> is_empty(trim(l)) == false, split(stdout_of(cap), "\n"))
   )
 end
 
@@ -153,22 +153,22 @@ end
 # One row per target/: {path, kib, active}.
 def rust_survey(roots, hours)
   map(
-    fn(d) {path: d, kib: size_kib(d), active: active?(d, hours)} end,
-    flat_map(fn(r) targets(r, 4) end, roots)
+    (d) -> {path: d, kib: size_kib(d), active: active?(d, hours)},
+    flat_map((r) -> targets(r, 4), roots)
   )
 end
 
 def rust(opts)
   rows = rust_survey(roots(opts), get(opts, :hours))
-  gone = filter(fn(r) get(r, :active) == false end, rows)
+  gone = filter((r) -> get(r, :active) == false, rows)
   if get(opts, :dry_run) == false
-    map(fn(r) rm_rf(get(r, :path)) end, gone)
+    map((r) -> rm_rf(get(r, :path)), gone)
   end
-  {rows: rows, removed: gone, kib: sum(map(fn(r) get(r, :kib) end, gone))}
+  {rows: rows, removed: gone, kib: sum(map((r) -> get(r, :kib), gone))}
 end
 
 def sum(xs)
-  reduce(fn(a, x) a + x end, 0, xs)
+  reduce((a, x) -> a + x, 0, xs)
 end
 
 # ── nix ──────────────────────────────────────────────────────────────

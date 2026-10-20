@@ -251,6 +251,24 @@ mod tests {
     }
 
     #[test]
+    fn a_one_line_block_is_not_canonical_and_compiles_as_an_inline_lambda() {
+        let p = scratch("oneline", "y = map(xs, fn(x) x * 2 end)\n");
+        assert_eq!(
+            read_source(&p).expect("admitted"),
+            "y = map(xs, (x) -> x * 2)\n"
+        );
+    }
+
+    #[test]
+    fn a_read_only_one_line_block_is_refused() {
+        let p = scratch("oneline-ro", "f = fn(x) x end\n");
+        let mut perm = std::fs::metadata(&p).expect("meta").permissions();
+        perm.set_readonly(true);
+        std::fs::set_permissions(&p, perm).expect("chmod");
+        assert!(read_source(&p).is_err());
+    }
+
+    #[test]
     fn a_read_only_messy_file_is_refused_and_left_alone() {
         let p = scratch("readonly", "x   =   1+2\n");
         let mut perm = std::fs::metadata(&p).expect("meta").permissions();

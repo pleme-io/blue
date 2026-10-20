@@ -71,7 +71,7 @@ def value_index(xs, v, i)
 end
 
 def from_base(text, base)
-  reduce(fn(acc, ch) acc * base + digit_value(ch) end, 0, chars(text))
+  reduce((acc, ch) -> acc * base + digit_value(ch), 0, chars(text))
 end
 
 # Digits of a number in base 10, most significant first.
@@ -84,14 +84,14 @@ def digits_of(n)
 end
 
 def digit_sum(n)
-  reduce(fn(a, b) a + b end, 0, digits_of(n))
+  reduce((a, b) -> a + b, 0, digits_of(n))
 end
 
 # The Luhn checksum, which every credit-card number satisfies.
 def luhn_valid(n)
   ds = reverse(digits_of(n))
   total = reduce(
-    fn(acc, i) acc + luhn_digit(nth(i, ds), i) end,
+    (acc, i) -> acc + luhn_digit(nth(i, ds), i),
     0,
     range(0, size(ds))
   )
@@ -163,7 +163,7 @@ end
 # The empty list answers 0 rather than erroring, which is what makes it safe to
 # feed the result of a filter or a `rest` straight back in.
 def from_digits(ds, base)
-  reduce(fn(acc, d) acc * base + d end, 0, ds)
+  reduce((acc, d) -> acc * base + d, 0, ds)
 end
 
 # Left-pad a digit list to a fixed width with zeros.
@@ -200,23 +200,23 @@ def bits_zip(f, a, b)
   w = max(size(a), size(b))
   x = pad_digits(a, w)
   y = pad_digits(b, w)
-  map(fn(i) f(nth(i, x), nth(i, y)) end, range(0, w))
+  map((i) -> f(nth(i, x), nth(i, y)), range(0, w))
 end
 
 def bits_and(a, b)
-  bits_zip(fn(p, q) p * q end, a, b)
+  bits_zip((p, q) -> p * q, a, b)
 end
 
 def bits_or(a, b)
-  bits_zip(fn(p, q) max(p, q) end, a, b)
+  bits_zip((p, q) -> max(p, q), a, b)
 end
 
 def bits_xor(a, b)
-  bits_zip(fn(p, q) (p + q) % 2 end, a, b)
+  bits_zip((p, q) -> (p + q) % 2, a, b)
 end
 
 def bits_not(bs)
-  map(fn(p) 1 - p end, bs)
+  map((p) -> 1 - p, bs)
 end
 
 def bit_and(a, b)
@@ -253,7 +253,7 @@ def shift_right(n, k)
 end
 
 def popcount(n)
-  reduce(fn(a, b) a + b end, 0, bits_of(n))
+  reduce((a, b) -> a + b, 0, bits_of(n))
 end
 
 # Bits needed to write n, with zero needing none.
@@ -532,14 +532,12 @@ test "Gray code is a bijection whose successive values differ by one bit"
   # Decoding undoes encoding for every n — the fold, not a second XOR. A
   # `gray_decode = gray_encode` implementation passes for 0, 1, 2 and 3 and
   # first disagrees at 4.
-  assert size(
-    filter(fn(n) gray_decode(gray_encode(n)) != n end, range(0, 128))
-  ) ==
+  assert size(filter((n) -> gray_decode(gray_encode(n)) != n, range(0, 128))) ==
     0
   # And the defining property: one bit changes per step, for every step.
   assert size(
     filter(
-      fn(n) popcount(bit_xor(gray_encode(n), gray_encode(n + 1))) != 1 end,
+      (n) -> popcount(bit_xor(gray_encode(n), gray_encode(n + 1))) != 1,
       range(0, 128)
     )
   ) ==
@@ -706,7 +704,7 @@ test "every numeral from 1 to 3999 survives the round trip"
       acc +
         size(
           filter(
-            fn(n) from_roman(to_roman(n)) != n end,
+            (n) -> from_roman(to_roman(n)) != n,
             range(s, min(s + 400, 4000))
           )
         )
@@ -802,9 +800,7 @@ def to_base36(n)
 end
 
 def all_digits_in_base(cs, base)
-  is_empty(
-    filter(fn(c) digit_value36(c) < 0 or digit_value36(c) >= base end, cs)
-  )
+  is_empty(filter((c) -> digit_value36(c) < 0 or digit_value36(c) >= base, cs))
 end
 
 # Is every character of `text` a digit of `base`?
@@ -841,7 +837,7 @@ def parse_signed(cs, base, sign)
   if is_empty(cs) or not all_digits_in_base(cs, base)
     nil
   else
-    sign * reduce(fn(acc, c) acc * base + digit_value36(c) end, 0, cs)
+    sign * reduce((acc, c) -> acc * base + digit_value36(c), 0, cs)
   end
 end
 
@@ -937,7 +933,7 @@ end
 def luhn_check_digit(n)
   ds = reverse(digits_of(n))
   total = reduce(
-    fn(acc, i) acc + luhn_digit(nth(i, ds), i + 1) end,
+    (acc, i) -> acc + luhn_digit(nth(i, ds), i + 1),
     0,
     range(0, size(ds))
   )
@@ -952,11 +948,7 @@ def luhn_valid_digits(ds)
     false
   else
     rs = reverse(ds)
-    reduce(
-      fn(acc, i) acc + luhn_digit(nth(i, rs), i) end,
-      0,
-      range(0, size(rs))
-    ) %
+    reduce((acc, i) -> acc + luhn_digit(nth(i, rs), i), 0, range(0, size(rs))) %
       10 ==
       0
   end
@@ -969,7 +961,7 @@ def luhn_valid_text(text)
   cs = chars(replace(replace(trim(text), " ", ""), "-", ""))
   size(cs) > 0 and
     all_digits_in_base(cs, 10) and
-    luhn_valid_digits(map(fn(c) digit_value36(c) end, cs))
+    luhn_valid_digits(map((c) -> digit_value36(c), cs))
 end
 
 # ---------------------------------------------------------------------------
@@ -1000,16 +992,14 @@ def isbn10_char_ok(ch, i)
 end
 
 def isbn10_ok_chars(cs)
-  is_empty(
-    filter(fn(i) not isbn10_char_ok(nth(i, cs), i) end, range(0, size(cs)))
-  )
+  is_empty(filter((i) -> not isbn10_char_ok(nth(i, cs), i), range(0, size(cs))))
 end
 
 # Weights run 10, 9, 8 … down to 1, so this is also the partial sum over a
 # nine-character prefix — which is what isbn10_check_char needs.
 def isbn10_weighted(cs)
   reduce(
-    fn(acc, i) acc + (10 - i) * isbn10_char_value(nth(i, cs)) end,
+    (acc, i) -> acc + (10 - i) * isbn10_char_value(nth(i, cs)),
     0,
     range(0, size(cs))
   )
@@ -1060,14 +1050,14 @@ test "the mod-N checksum and its check digit are inverses"
   # hand-picked pair would.
   assert size(
     filter(
-      fn(n) not mod_check_valid(n * 10 + mod_check_digit(n, 7), 7) end,
+      (n) -> not mod_check_valid(n * 10 + mod_check_digit(n, 7), 7),
       range(1, 256)
     )
   ) ==
     0
   assert size(
     filter(
-      fn(n) not mod_check_valid(n * 10 + mod_check_digit(n, 9), 9) end,
+      (n) -> not mod_check_valid(n * 10 + mod_check_digit(n, 9), 9),
       range(1, 256)
     )
   ) ==
@@ -1081,10 +1071,7 @@ test "the Luhn check digit is the one the Luhn checker wants"
   # And the identity over a range, which the off-by-one in the doubling
   # position fails on roughly half of all inputs.
   assert size(
-    filter(
-      fn(n) not luhn_valid(n * 10 + luhn_check_digit(n)) end,
-      range(1, 256)
-    )
+    filter((n) -> not luhn_valid(n * 10 + luhn_check_digit(n)), range(1, 256))
   ) ==
     0
 end
@@ -1148,7 +1135,7 @@ test "the ISBN-10 check character, including the X case"
   assert isbn10_check_char("000000006") == "X"
   assert size(
     filter(
-      fn(n) not isbn10_valid(isbn10_complete(to_base_width(n, 10, 9))) end,
+      (n) -> not isbn10_valid(isbn10_complete(to_base_width(n, 10, 9))),
       range(1, 128)
     )
   ) ==

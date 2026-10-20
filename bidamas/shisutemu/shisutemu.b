@@ -125,7 +125,7 @@ end
 # "\r\n" endings and trailing newlines are handled before this sees them. A
 # log whose final line is a blank or a spinner echo answers the line before.
 def last_nonempty_line(text)
-  ls = filter(fn(l) not is_blank(l) end, lines(text))
+  ls = filter((l) -> not is_blank(l), lines(text))
   if is_empty(ls)
     ""
   else

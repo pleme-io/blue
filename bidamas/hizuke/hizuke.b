@@ -42,7 +42,7 @@ end
 
 # Day of the year, 1-based.
 def ordinal_day(y, m, d)
-  d + reduce(fn(acc, mm) acc + days_in_month(y, mm) end, 0, range(1, m))
+  d + reduce((acc, mm) -> acc + days_in_month(y, mm), 0, range(1, m))
 end
 
 # Day of week by Zeller's congruence: 0 = Sunday.
@@ -361,7 +361,7 @@ end
 def business_days_in_span(a, b)
   size(
     filter(
-      fn(n) weekday_of_day_number(n) > 0 and weekday_of_day_number(n) < 6 end,
+      (n) -> weekday_of_day_number(n) > 0 and weekday_of_day_number(n) < 6,
       range(a, b)
     )
   )
@@ -792,7 +792,7 @@ test "Easter obeys its own invariants for two centuries"
   # correction table were wrong anywhere, some year would land off a Sunday.
   assert size(
     filter(
-      fn(yy) day_of_week(yy, month_of(easter(yy)), day_of(easter(yy))) == 0 end,
+      (yy) -> day_of_week(yy, month_of(easter(yy)), day_of(easter(yy))) == 0,
       range(1900, 2100)
     )
   ) ==

@@ -122,7 +122,7 @@ def roll_dice(seed, count, sides)
 end
 
 def roll_sum(seed, count, sides)
-  reduce(fn(a, b) a + b end, 0, roll_dice(seed, count, sides))
+  reduce((a, b) -> a + b, 0, roll_dice(seed, count, sides))
 end
 
 # Roll with advantage: the best of `count` dice, reproducibly.
@@ -211,7 +211,7 @@ def sample_n(seed, xs, n)
 end
 
 def total_weight(ws)
-  reduce(fn(a, b) a + b end, 0, ws)
+  reduce((a, b) -> a + b, 0, ws)
 end
 
 # Walk the weights subtracting as we go — the inverse-CDF pick.
@@ -276,12 +276,12 @@ end
 # one before it by exactly 1, which is the property that separates a walk from
 # a list of draws.
 def random_walk(seed, n)
-  running_sum(map(fn(s) next_step(s) end, seeds(seed, n)))
+  running_sum(map((s) -> next_step(s), seeds(seed, n)))
 end
 
 test "next_uniform stays in bounds and covers them"
-  vs = map(fn(s) next_uniform(s, 6) end, seeds(4, 200))
-  assert every(fn(v) v >= 0 and v < 6 end, vs) == true
+  vs = map((s) -> next_uniform(s, 6), seeds(4, 200))
+  assert every((v) -> v >= 0 and v < 6, vs) == true
   # A generator that never emits 0 or never emits 5 still passes a bounds
   # check; only the face count catches it.
   assert size(unique(vs)) == 6
@@ -290,10 +290,10 @@ end
 test "next_uniform escapes the alternating low bit that next_int is stuck with"
   # The distinguishing property, and the reason next_uniform exists at all:
   # a two-valued stream off the low bit repeats NO value twice in a row.
-  bits = map(fn(s) next_uniform(s, 2) end, seeds(1, 12))
+  bits = map((s) -> next_uniform(s, 2), seeds(1, 12))
   low = take_ints(1, 2, 12)
-  assert any(fn(p) first(p) == last(p) end, zip(bits, rest(bits))) == true
-  assert any(fn(p) first(p) == last(p) end, zip(low, rest(low))) == false
+  assert any((p) -> first(p) == last(p), zip(bits, rest(bits))) == true
+  assert any((p) -> first(p) == last(p), zip(low, rest(low))) == false
 end
 
 test "next_bool is both values, and is not a metronome"
@@ -307,24 +307,24 @@ test "next_bool is both values, and is not a metronome"
   # Off the low bit this would be true,false,true,false forever — the coin
   # would land the same way every second toss and both the value check above
   # and a fair-looking 30/30 count would still pass.
-  assert any(fn(p) first(p) == last(p) end, zip(bs, rest(bs))) == true
+  assert any((p) -> first(p) == last(p), zip(bs, rest(bs))) == true
 end
 
 test "take_floats lands in the unit interval and averages near its middle"
   fs = take_floats(21, 400)
-  assert every(fn(f) f >= 0 and f < 1 end, fs) == true
+  assert every((f) -> f >= 0 and f < 1, fs) == true
   assert size(fs) == 400
   assert take_floats(21, 0) == []
   # A stuck stream also satisfies the bounds; the mean does not.
-  assert near_within(reduce(fn(a, b) a + b end, 0, fs) / 400, 0.5, 0.05) == true
+  assert near_within(reduce((a, b) -> a + b, 0, fs) / 400, 0.5, 0.05) == true
 end
 
 test "a die never shows zero and never shows sides + 1"
   vs = roll_dice(6, 120, 6)
-  assert every(fn(v) v >= 1 and v <= 6 end, vs) == true
+  assert every((v) -> v >= 1 and v <= 6, vs) == true
   assert size(vs) == 120
   # The off-by-one that a bounds check on a d6 misses entirely.
-  assert every(fn(s) roll(s, 1) == 1 end, seeds(3, 20)) == true
+  assert every((s) -> roll(s, 1) == 1, seeds(3, 20)) == true
   assert roll_dice(6, 0, 6) == []
   assert roll_sum(6, 0, 6) == 0
 end
@@ -332,20 +332,19 @@ end
 test "roll_sum adds the dice rather than picking one of them"
   # 4d20 lives in [4, 80] and nowhere else; a sum mistaken for a max or a
   # single roll collapses into [1, 20] and never leaves it.
-  totals = map(fn(s) roll_sum(s, 4, 20) end, seeds(77, 60))
-  assert every(fn(t) t >= 4 and t <= 80 end, totals) == true
-  assert any(fn(t) t > 20 end, totals) == true
+  totals = map((s) -> roll_sum(s, 4, 20), seeds(77, 60))
+  assert every((t) -> t >= 4 and t <= 80, totals) == true
+  assert any((t) -> t > 20, totals) == true
   # One die summed is that die.
-  assert every(fn(s) roll_sum(s, 1, 6) == roll(s, 6) end, seeds(12, 20)) == true
+  assert every((s) -> roll_sum(s, 1, 6) == roll(s, 6), seeds(12, 20)) == true
   # 2d6 cannot be 1, however the dice fall — the off-by-one a range check on a
   # single die would let through.
-  assert every(fn(s) roll_sum(s, 2, 6) >= 2 end, seeds(12, 40)) == true
+  assert every((s) -> roll_sum(s, 2, 6) >= 2, seeds(12, 40)) == true
 end
 
 test "advantage of one die is that die"
-  assert every(fn(s) roll_best(s, 1, 20) == roll(s, 20) end, seeds(31, 15)) ==
-    true
-  assert every(fn(s) roll_worst(s, 1, 20) == roll(s, 20) end, seeds(31, 15)) ==
+  assert every((s) -> roll_best(s, 1, 20) == roll(s, 20), seeds(31, 15)) == true
+  assert every((s) -> roll_worst(s, 1, 20) == roll(s, 20), seeds(31, 15)) ==
     true
   assert roll_best(5, 3, 6) >= roll_worst(5, 3, 6)
 end
@@ -382,11 +381,11 @@ test "streams are independent, not merely distinct"
     end,
     range(0, 60)
   )
-  low = map(fn(p) last(p) end, filter(fn(p) first(p) < 0.44 end, pairs))
-  high = map(fn(p) last(p) end, filter(fn(p) first(p) >= 0.44 end, pairs))
+  low = map((p) -> last(p), filter((p) -> first(p) < 0.44, pairs))
+  high = map((p) -> last(p), filter((p) -> first(p) >= 0.44, pairs))
   assert abs(
-    reduce(fn(a, v) a + v end, 0, low) / size(low) -
-      reduce(fn(a, v) a + v end, 0, high) / size(high)
+    reduce((a, v) -> a + v, 0, low) / size(low) -
+      reduce((a, v) -> a + v, 0, high) / size(high)
   ) <
     0.12
 end
@@ -396,23 +395,22 @@ test "the affine derivation fails that test (positive control)"
     next_seed(next_seed((7 + (i + 1) * 2_654_435_769) % 4_294_967_296))
   end
   pairs = map(
-    fn(i) [next_float(affine(2 * i)), next_float(affine(2 * i + 1))] end,
+    (i) -> [next_float(affine(2 * i)), next_float(affine(2 * i + 1))],
     range(0, 60)
   )
-  low = map(fn(p) last(p) end, filter(fn(p) first(p) < 0.44 end, pairs))
-  high = map(fn(p) last(p) end, filter(fn(p) first(p) >= 0.44 end, pairs))
+  low = map((p) -> last(p), filter((p) -> first(p) < 0.44, pairs))
+  high = map((p) -> last(p), filter((p) -> first(p) >= 0.44, pairs))
   gap = abs(
-    reduce(fn(a, v) a + v end, 0, low) / size(low) -
-      reduce(fn(a, v) a + v end, 0, high) / size(high)
+    reduce((a, v) -> a + v, 0, low) / size(low) -
+      reduce((a, v) -> a + v, 0, high) / size(high)
   )
   assert gap > 0.1
 end
 
 test "mixed seeds stay 32-bit and draws are uniform"
-  xs = map(fn(i) mix_seed(i) end, range(0, 60))
-  assert every(fn(x) x >= 0 and x < 4_294_967_296 end, xs) == true
-  m = reduce(fn(a, i) a + next_float(stream_seed(1, i)) end, 0, range(0, 60)) /
-    60
+  xs = map((i) -> mix_seed(i), range(0, 60))
+  assert every((x) -> x >= 0 and x < 4_294_967_296, xs) == true
+  m = reduce((a, i) -> a + next_float(stream_seed(1, i)), 0, range(0, 60)) / 60
   assert abs(m - 0.5) < 0.1
   assert stream_seed(3, 4) == stream_seed(3, 4)
 end
@@ -429,7 +427,7 @@ end
 
 test "values stay inside their bounds"
   vs = take_ints(7, 10, 50)
-  assert every(fn(v) v >= 0 and v < 10 end, vs) == true
+  assert every((v) -> v >= 0 and v < 10, vs) == true
   assert size(vs) == 50
 end
 
@@ -441,8 +439,8 @@ test "a stream actually advances rather than repeating one value"
 end
 
 test "next_range respects both ends"
-  vs = map(fn(s) next_range(s, 10, 20) end, seeds(5, 30))
-  assert every(fn(v) v >= 10 and v < 20 end, vs) == true
+  vs = map((s) -> next_range(s, 10, 20), seeds(5, 30))
+  assert every((v) -> v >= 10 and v < 20, vs) == true
 end
 
 test "choice returns a member of the list"
@@ -467,14 +465,14 @@ test "shuffle actually reorders, and handles the degenerate lists"
   assert shuffle(7, [9]) == [9]
   # A shuffle that only ever rotates also permutes; it must not fix element 0
   # for every seed.
-  assert any(fn(s) first(shuffle(s, xs)) != 1 end, seeds(5, 10)) == true
+  assert any((s) -> first(shuffle(s, xs)) != 1, seeds(5, 10)) == true
 end
 
 test "shuffle reaches both orders of a two-element list"
   # A shuffle that is secretly a fixed reordering — the identity, or a plain
   # reverse — permutes correctly and passes the sort test above. Only asking
   # for both outcomes across seeds separates it from a real one.
-  outs = map(fn(s) shuffle(s, [1, 2]) end, seeds(3, 20))
+  outs = map((s) -> shuffle(s, [1, 2]), seeds(3, 20))
   assert contains(outs, [1, 2]) == true
   assert contains(outs, [2, 1]) == true
 end
@@ -498,50 +496,45 @@ test "choices draws WITH replacement"
   assert subset(cs, [1, 2]) == true
   # The distinguishing pair: repeats must be possible here and impossible in
   # sample_n over the same two-element list.
-  assert any(fn(p) first(p) == last(p) end, zip(cs, rest(cs))) == true
+  assert any((p) -> first(p) == last(p), zip(cs, rest(cs))) == true
   assert size(unique(sample_n(5, [1, 2], 2))) == 2
 end
 
 test "pick is a member, and is not stuck on the low bits"
-  assert every(
-    fn(s) contains([1, 2, 3], pick(s, [1, 2, 3])) end,
-    seeds(4, 30)
-  ) ==
+  assert every((s) -> contains([1, 2, 3], pick(s, [1, 2, 3])), seeds(4, 30)) ==
     true
-  ps = map(fn(s) pick(s, [1, 2]) end, seeds(1, 12))
-  assert any(fn(p) first(p) == last(p) end, zip(ps, rest(ps))) == true
+  ps = map((s) -> pick(s, [1, 2]), seeds(1, 12))
+  assert any((p) -> first(p) == last(p), zip(ps, rest(ps))) == true
 end
 
 test "a weight of zero is never chosen"
   # The case a plausible `<=` walk gets wrong, and the reason weighted_choice
   # is worth having at all.
   assert every(
-    fn(s) weighted_choice(s, ["a", "b"], [1, 0]) == "a" end,
+    (s) -> weighted_choice(s, ["a", "b"], [1, 0]) == "a",
     seeds(2, 40)
   ) ==
     true
   assert every(
-    fn(s) weighted_choice(s, ["a", "b"], [0, 1]) == "b" end,
+    (s) -> weighted_choice(s, ["a", "b"], [0, 1]) == "b",
     seeds(2, 40)
   ) ==
     true
   assert every(
-    fn(s) weighted_choice(s, ["a", "b", "c"], [0, 1, 0]) == "b" end,
+    (s) -> weighted_choice(s, ["a", "b", "c"], [0, 1, 0]) == "b",
     seeds(9, 40)
   ) ==
     true
 end
 
 test "weighted_choice follows the weights it was given"
-  picks = map(fn(s) weighted_choice(s, ["a", "b"], [9, 1]) end, seeds(101, 200))
+  picks = map((s) -> weighted_choice(s, ["a", "b"], [9, 1]), seeds(101, 200))
   # Equal treatment would give roughly 100 each; 9:1 must be lopsided.
   assert count_of(picks, "a") > 3 * count_of(picks, "b")
   assert count_of(picks, "b") > 0
   # Equal weights must reach every option, including the last.
   assert size(
-    unique(
-      map(fn(s) weighted_choice(s, [1, 2, 3], [1, 1, 1]) end, seeds(5, 100))
-    )
+    unique(map((s) -> weighted_choice(s, [1, 2, 3], [1, 1, 1]), seeds(5, 100)))
   ) ==
     3
   assert weighted_choice(4, ["only"], [1]) == "only"
@@ -557,32 +550,29 @@ end
 test "gaussians have the right centre AND the right spread"
   gs = take_gaussians(13, 400)
   assert size(gs) == 400
-  m = reduce(fn(a, b) a + b end, 0, gs) / 400
+  m = reduce((a, b) -> a + b, 0, gs) / 400
   assert near_within(m, 0, 0.15) == true
   # The mean alone passes for any symmetric formula. The second moment is what
   # catches a dropped factor of 2 in sqrt(-2 log u), which would give 0.5.
-  v = reduce(fn(a, b) a + b * b end, 0, gs) / 400
+  v = reduce((a, b) -> a + b * b, 0, gs) / 400
   assert near_within(v, 1, 0.2) == true
-  assert any(fn(g) g < 0 end, gs) == true
-  assert any(fn(g) g > 0 end, gs) == true
+  assert any((g) -> g < 0, gs) == true
+  assert any((g) -> g > 0, gs) == true
   assert take_gaussians(13, 0) == []
 end
 
 test "next_normal is next_gaussian shifted and scaled"
   # The identity a wrong scaling cannot satisfy.
-  assert every(
-    fn(s) next_normal(s, 0, 1) == next_gaussian(s) end,
-    seeds(6, 20)
-  ) ==
+  assert every((s) -> next_normal(s, 0, 1) == next_gaussian(s), seeds(6, 20)) ==
     true
   assert every(
-    fn(s) near(next_normal(s, 10, 2), 10 + 2 * next_gaussian(s)) end,
+    (s) -> near(next_normal(s, 10, 2), 10 + 2 * next_gaussian(s)),
     seeds(6, 20)
   ) ==
     true
   # Shifting by 100 must move the whole cloud, not widen it.
-  ns = map(fn(s) next_normal(s, 100, 1) end, seeds(17, 200))
-  assert every(fn(n) n > 94 and n < 106 end, ns) == true
+  ns = map((s) -> next_normal(s, 100, 1), seeds(17, 200))
+  assert every((n) -> n > 94 and n < 106, ns) == true
 end
 
 test "a random walk steps by exactly one, every time"
@@ -592,7 +582,7 @@ test "a random walk steps by exactly one, every time"
   assert contains([1, -1], first(w)) == true
   # The property that separates a walk from a list of draws: successive
   # positions are adjacent. A walk built from raw draws fails here.
-  assert every(fn(p) abs(last(p) - first(p)) == 1 end, zip(w, rest(w))) == true
+  assert every((p) -> abs(last(p) - first(p)) == 1, zip(w, rest(w))) == true
   # And it must actually wander rather than march.
   assert size(unique(w)) > 2
   assert random_walk(23, 60) == random_walk(23, 60)

@@ -44,7 +44,7 @@ def flaky(failures)
 end
 
 test "a step that succeeds is called once"
-  assert retrying({times: 3, wait_ms: 0}, fn() 7 end) == 7
+  assert retrying({times: 3, wait_ms: 0}, () -> 7) == 7
 end
 
 test "a step that fails twice succeeds on the third call"

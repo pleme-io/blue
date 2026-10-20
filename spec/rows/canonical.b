@@ -129,6 +129,27 @@ row(
 
 row("canon.B0042.writes", "apply(max, [1, 2])", formats("max(*[1, 2])\n"))
 
+row(
+  "canon.B0044",
+  "def describe(v)\n  v\nend\n\ndef go(vs)\n  map((v) -> describe(v), vs)\nend",
+  diagnoses(["B0044"]),
+  covers("rule:B0044")
+)
+
+row(
+  "canon.B0044.writes",
+  "def describe(v)\n  v\nend\n\ndef go(vs)\n  map((v) -> describe(v), vs)\nend",
+  formats("def describe(v)\n  v\nend\n\ndef go(vs)\n  map(describe, vs)\nend\n")
+)
+
+row(
+  "canon.B0044.keeps_a_different_call",
+  "def two(a, b)\n  a + b\nend\n\ndef go(vs)\n  map((v) -> two(v, 1), vs)\nend",
+  diagnoses([])
+)
+
+row("canon.B0024.one_line_fn", "f = fn(x) x end", diagnoses(["B0024"]))
+
 row("canon.B0036", "car([1])", diagnoses(["B0036"]), covers("rule:B0036"))
 
 row(

@@ -136,7 +136,7 @@ row(
 
 row(
   "check.B0023.local_is_a_value",
-  "def f()\n  1\nend\n\ndef g(f)\n  f()\nend\n\ng(fn() 2 end)",
+  "def f()\n  1\nend\n\ndef g(f)\n  f()\nend\n\ng(() -> 2)",
   diagnoses([])
 )
 

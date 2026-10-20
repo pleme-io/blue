@@ -47,7 +47,13 @@ row(
 row(
   "fmt.fn",
   "map(fn(x)\n  x * 2\nend, xs)",
-  formats("map(fn(x) x * 2 end, xs)\n")
+  formats("map((x) -> x * 2, xs)\n")
+)
+
+row(
+  "fmt.fn_block",
+  "each(xs, fn(x) a(x)\nb(x) end)",
+  formats("each(\n  xs,\n  fn(x)\n    a(x)\n    b(x)\n  end\n)\n")
 )
 
 row(

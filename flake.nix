@@ -436,7 +436,7 @@
         }
         // lib.mapAttrs (name: c: blueApp {
           inherit name;
-          source = "use(\"${name}\", [:${c.entry}])\n${c.entry}()\n";
+          source = "use(\"${name}\", [:${c.entry}])\n${c.entry}\n";
           tools = c.tools pkgs;
         }) commands;
 

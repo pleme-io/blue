@@ -208,11 +208,13 @@ fn the_width_law_tells_a_long_token_from_a_missed_break() {
         format!("  {s} +"),
         format!("  # {long}"),
         format!("  f(x) # {long}"),
+        format!("  f({s})"),
+        format!("  e = failure_of({s})"),
     ] {
         assert!(lawful_overflow(&ok), "must be lawful: {ok}");
     }
     for bad in [
-        format!("  f({s})"),
+        format!("  f(x, {s})"),
         format!("  a: {s}, b: 1"),
         format!("  {}", "abc, ".repeat(20)),
         format!("  f(x, y, {}) # note", "z".repeat(80)),

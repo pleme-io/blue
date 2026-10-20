@@ -326,7 +326,7 @@ end
 # POSITIONAL, not distinct: nth_smallest(1, [5, 5, 1]) is 5, because the second
 # smallest of three values is the second one, duplicate or not.
 def nth_smallest(n, xs)
-  if n < 0 || n >= size(xs)
+  if n < 0 or n >= size(xs)
     nil
   else
     nth(n, sort(xs))
@@ -334,7 +334,7 @@ def nth_smallest(n, xs)
 end
 
 def nth_largest(n, xs)
-  if n < 0 || n >= size(xs)
+  if n < 0 or n >= size(xs)
     nil
   else
     nth(n, sort_desc(xs))
@@ -376,7 +376,7 @@ def rank(xs)
   map(
     fn(i)
       count_if(
-        fn(j) nth(j, xs) < nth(i, xs) || nth(j, xs) == nth(i, xs) && j < i end,
+        fn(j) nth(j, xs) < nth(i, xs) or nth(j, xs) == nth(i, xs) and j < i end,
         ids
       )
     end,
@@ -387,7 +387,7 @@ end
 # Sorted AND without duplicates. `is_sorted` says yes to [1, 1]; this does not,
 # which is the difference between an order and a strict one.
 def is_strictly_sorted(xs)
-  is_sorted(xs) && size(dedupe_sorted(xs)) == size(xs)
+  is_sorted(xs) and size(dedupe_sorted(xs)) == size(xs)
 end
 
 # k-way merge: fold the pairwise merge over a list of sorted lists.

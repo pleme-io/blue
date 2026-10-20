@@ -116,7 +116,7 @@ def pairs(seed, n)
 end
 
 def all(f, xs)
-  is_empty(filter(fn(x) !f(x) end, xs))
+  is_empty(filter(fn(x) not f(x) end, xs))
 end
 
 # ── laws ───────────────────────────────────────────────────────────────────
@@ -134,31 +134,34 @@ end
 
 def law_not_equal_is_negation()
   all(
-    fn(p) nth(0, p) != nth(1, p) == !(nth(0, p) == nth(1, p)) end,
+    fn(p)
+      same = nth(0, p) == nth(1, p)
+      nth(0, p) != nth(1, p) == (not same)
+    end,
     pairs(13, 300)
   )
 end
 
 def law_numbers_by_value()
   ns = map(fn(i) i - 20 end, range(0, 41))
-  all(fn(n) n == to_float(n) && to_float(n) == n && n != n + 0.5 end, ns) &&
-    4 == 4.0 &&
+  all(fn(n) n == to_float(n) and to_float(n) == n and n != n + 0.5 end, ns) and
+    4 == 4.0 and
     [1, 2] == [1.0, 2.0]
 end
 
 def law_maps_by_value()
   a = assoc(assoc({}, :a, 1), :b, [2, "x"])
   b = assoc(assoc({}, :b, [2, "x"]), :a, 1)
-  a == b &&
-    {a: 1} == {a: 1} &&
-    {a: 1} != {a: 2} &&
-    {a: 1} != {b: 1} &&
-    {a: 1} != {a: 1, b: 2} &&
+  a == b and
+    {a: 1} == {a: 1} and
+    {a: 1} != {a: 2} and
+    {a: 1} != {b: 1} and
+    {a: 1} != {a: 1, b: 2} and
     {} == {}
 end
 
 def law_nil_is_not_empty_list()
-  nil != [] && [] == [] && nil == nil && is_empty(nil) && is_empty([])
+  nil != [] and [] == [] and nil == nil and is_empty(nil) and is_empty([])
 end
 
 def law_membership_is_equality()
@@ -166,31 +169,31 @@ def law_membership_is_equality()
   all(
     fn(p) contains([nth(0, p)], nth(1, p)) == (nth(0, p) == nth(1, p)) end,
     pairs
-  ) &&
-    contains([1], 1.0) &&
+  ) and
+    contains([1], 1.0) and
     index_of([{a: 1}], {a: 1}) == 0
 end
 
 def law_to_s_literals()
-  to_s(3) == "3" &&
-    to_s(1.0) == "1.0" &&
-    to_s(2.5) == "2.5" &&
-    to_s(true) == "true" &&
-    to_s("a b") == "a b" &&
+  to_s(3) == "3" and
+    to_s(1.0) == "1.0" and
+    to_s(2.5) == "2.5" and
+    to_s(true) == "true" and
+    to_s("a b") == "a b" and
     to_s(nil) == ""
 end
 
 def law_to_s_collections()
-  to_s([]) == "[]" &&
-    to_s({}) == "{}" &&
-    to_s([1, "a", nil, 2.0]) == "[1, \"a\", nil, 2.0]" &&
+  to_s([]) == "[]" and
+    to_s({}) == "{}" and
+    to_s([1, "a", nil, 2.0]) == "[1, \"a\", nil, 2.0]" and
     to_s({b: 2, a: [1]}) == "{a: [1], b: 2}"
 end
 
 def law_to_s_equal_maps_render_equally()
   a = assoc(assoc(assoc({}, :c, 3), :a, 1), :b, 2)
   b = assoc(assoc(assoc({}, :b, 2), :c, 3), :a, 1)
-  to_s(a) == to_s(b) && "#{[1, 2]}" == "[1, 2]"
+  to_s(a) == to_s(b) and "#{[1, 2]}" == "[1, 2]"
 end
 
 def law_concat_any_arity()
@@ -205,16 +208,17 @@ def law_concat_any_arity()
         concat(concat(nth(0, t), nth(1, t)), nth(2, t))
     end,
     triples
-  ) &&
-    concat("a") == "a" &&
+  ) and
+    concat("a") == "a" and
     concat("a", "b", "c", "d") == "abcd"
 end
 
 def law_division_is_float()
-  7 / 2 == 3.5 && 4 / 2 == 2 && 1 / 4 == 0.25
+  7 / 2 == 3.5 and 4 / 2 == 2 and 1 / 4 == 0.25
 end
 
 # waive R0001: D0010 is one predicate per kind, so the law names nil? itself
+# waive B0036: the law states what nil? and bool? themselves answer
 def kinds(v)
   [
     nil?(v),
@@ -229,13 +233,15 @@ def kinds(v)
 end
 
 # waive R0001: the law states that nil? is false for []
+# waive B0036: the law states what nil? itself answers
 def law_one_kind_each()
-  all(fn(v) size(filter(fn(k) k end, kinds(v))) == 1 end, values(15, 300)) &&
-    !list?(nil) &&
-    !nil?([])
+  all(fn(v) size(filter(fn(k) k end, kinds(v))) == 1 end, values(15, 300)) and
+    not list?(nil) and
+    not nil?([])
 end
 
 # waive R0001: the law states that nil? is false for every empty list
+# waive B0036: the law states what cdr and nil? themselves answer
 def law_empty_list_is_brackets()
   results = [
     rest([1]),
@@ -253,7 +259,7 @@ def law_empty_list_is_brackets()
     distinct([]),
     flat_map(fn(_x) [] end, [1])
   ]
-  all(fn(r) r == [] && !nil?(r) end, results)
+  all(fn(r) r == [] and not nil?(r) end, results)
 end
 
 def law_split_keeps_every_field()
@@ -274,15 +280,15 @@ def law_split_keeps_every_field()
         join(nth(1, c), nth(0, c))
     end,
     cases
-  ) &&
-    split("", ",") == [""] &&
-    split("a,b,,", ",") == ["a", "b", "", ""] &&
+  ) and
+    split("", ",") == [""] and
+    split("a,b,,", ",") == ["a", "b", "", ""] and
     size(split(",,", ",")) == 3
 end
 
 def law_map_keys_are_exact()
   m = assoc({}, 1, :int)
-  get(m, 1) == :int && get(m, 1.0) == nil
+  get(m, 1) == :int and get(m, 1.0) == nil
 end
 
 # ── the ledger ─────────────────────────────────────────────────────────────
@@ -390,7 +396,7 @@ end
 # A law holds when it returns true. One that throws does not hold: it is
 # reported by its decision like any other failure, never aborting the check.
 def holds(law)
-  try(apply(law, []) == true, catch(_e(), false))
+  law(*[]) == true rescue false
 end
 
 # Every law that does not hold, as "id: law", and every decision with no law.
@@ -405,7 +411,7 @@ def decision_failures(d)
   else
     map(
       fn(l) "#{get(d, :id)}: #{nth(0, l)}" end,
-      filter(fn(l) !holds(nth(1, l)) end, laws)
+      filter(fn(l) not holds(nth(1, l)) end, laws)
     )
   end
 end
@@ -449,6 +455,6 @@ test "the generator covers every kind (anti-vacuity)"
   assert some(fn(v) float?(v) end, vs)
   assert some(fn(v) string?(v) end, vs)
   assert some(fn(v) v == nil end, vs)
-  assert some(fn(v) list?(v) && !is_empty(v) end, vs)
+  assert some(fn(v) list?(v) and not is_empty(v) end, vs)
   assert some(fn(v) map?(v) end, vs)
 end

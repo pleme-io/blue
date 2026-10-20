@@ -89,7 +89,7 @@ end
 
 # The name a `def` line defines: everything up to "(" or a space.
 def defined_name(line)
-  join(take_while(fn(c) c != "(" && c != " " end, drop(4, chars(line))), "")
+  join(take_while(fn(c) c != "(" and c != " " end, drop(4, chars(line))), "")
 end
 
 # The code a `# waive CODE: reason` comment names, or nil for any other line.
@@ -97,8 +97,6 @@ def waived_code(line)
   body = comment_text(line)
   if starts_with?(body, "waive ")
     trim(first(split(join(drop(6, chars(body)), ""), ":")))
-  else
-    nil
   end
 end
 
@@ -113,7 +111,7 @@ def entries_of_text(text)
       pending = first(acc)
       waivers = nth(1, acc)
       found = last(acc)
-      if starts_with?(line, "#") && waived_code(line) != nil
+      if starts_with?(line, "#") and waived_code(line) != nil
         [pending, push(waivers, waived_code(line)), found]
       elsif starts_with?(line, "#")
         [push(pending, comment_text(line)), waivers, found]
@@ -158,7 +156,7 @@ end
 # prefix: its line is not two strings.
 def legacy_prefix_of_text(text)
   line = find_first(
-    fn(l) starts_with?(l, "legacy_names(") && size(split(l, "\"")) == 5 end,
+    fn(l) starts_with?(l, "legacy_names(") and size(split(l, "\"")) == 5 end,
     split(text, "\n")
   )
   if line == nil
@@ -186,7 +184,7 @@ def joined_header_lines(lines)
         else
           [out, concat(open, concat(" ", t))]
         end
-      elsif starts_with?(line, "def ") && ends_with?(line, "(")
+      elsif starts_with?(line, "def ") and ends_with?(line, "(")
         [out, line]
       else
         [push(out, line), nil]
@@ -215,9 +213,9 @@ def test_blocks_of_text(text)
     fn(acc, line)
       open = first(acc)
       found = last(acc)
-      if open == nil && starts_with?(line, "test \"")
+      if open == nil and starts_with?(line, "test \"")
         [[nth(1, split(line, "\"")), []], found]
-      elsif open != nil && line == "end"
+      elsif open != nil and line == "end"
         [nil, push(found, open)]
       elsif open != nil
         [[first(open), push(last(open), line)], found]
@@ -255,7 +253,7 @@ def package_text(dir)
     map(
       fn(p) read_file(p) end,
       filter(
-        fn(p) ends_with?(p, ".b") && path_dirname(p) == dir end,
+        fn(p) ends_with?(p, ".b") and path_dirname(p) == dir end,
         walk_dir(dir)
       )
     ),
@@ -327,8 +325,6 @@ end
 def pkg_legacy_prefix(r)
   if size(r) > 6
     nth(6, r)
-  else
-    nil
   end
 end
 
@@ -336,8 +332,6 @@ end
 def pkg_dir(r)
   if size(r) > 7
     nth(7, r)
-  else
-    nil
   end
 end
 
@@ -461,12 +455,12 @@ end
 
 def def_row(r, builtins, e)
   prefix = pkg_legacy_prefix(r)
-  second = if prefix != nil && starts_with?(first(e), "#{prefix}_")
+  second = if prefix != nil and starts_with?(first(e), "#{prefix}_")
     join(drop(size(chars(prefix)) + 1, chars(first(e))), "")
   else
     first(e)
   end
-  shares = if contains(builtins, first(e)) || contains(builtins, second)
+  shares = if contains(builtins, first(e)) or contains(builtins, second)
     "yes"
   else
     ""
@@ -555,9 +549,7 @@ test "a definition with no parameters is catalogued bare"
 end
 
 test "a manifest yields its name, version and needs"
-  m = parse_manifest(
-    "package(\"kazu\", \"0.1.0\")\nneeds(\"retsu\", \"^0.1\")\nneeds(\"moji\", \"^0.1\")\n"
-  )
+  m = parse_manifest("package(\"kazu\", \"0.1.0\")\nneeds(\"retsu\", \"^0.1\")\nneeds(\"moji\", \"^0.1\")\n")
   assert m == ["kazu", "0.1.0", ["retsu", "moji"]]
 end
 

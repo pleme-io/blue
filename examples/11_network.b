@@ -71,11 +71,18 @@ test "a bus message names its command"
 end
 
 test "nothing listening is a raise, not a silent false"
-  assert error?(try(nats_connect("nats://127.0.0.1:1", 500), catch(e(), e)))
   assert error?(
-    try(
-      http_request("GET", "http://127.0.0.1:1/", nil, nil, 500),
-      catch(e(), e)
-    )
+    begin
+      nats_connect("nats://127.0.0.1:1", 500)
+    rescue e
+      e
+    end
+  )
+  assert error?(
+    begin
+      http_request("GET", "http://127.0.0.1:1/", nil, nil, 500)
+    rescue e
+      e
+    end
   )
 end

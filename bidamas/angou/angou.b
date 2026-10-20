@@ -247,15 +247,15 @@ end
 # implementation that wrote sigma(n) == n instead calls 1 perfect and 6 not,
 # and either one alone lets that through.
 def is_perfect(n)
-  n > 0 && sum_of_divisors(n) == 2 * n
+  n > 0 and sum_of_divisors(n) == 2 * n
 end
 
 def is_abundant(n)
-  n > 0 && sum_of_divisors(n) > 2 * n
+  n > 0 and sum_of_divisors(n) > 2 * n
 end
 
 def is_deficient(n)
-  n > 0 && sum_of_divisors(n) < 2 * n
+  n > 0 and sum_of_divisors(n) < 2 * n
 end
 
 # The smallest m >= 1 with a^m == 1 mod n, or 0-1 when a is not invertible.
@@ -319,7 +319,7 @@ def is_carmichael(n)
   else
     size(
       filter(
-        fn(a) is_coprime(a, n) && fermat_probable_prime(n, a) == false end,
+        fn(a) is_coprime(a, n) and fermat_probable_prime(n, a) == false end,
         range(2, n)
       )
     ) ==
@@ -564,7 +564,7 @@ end
 
 def substitute_char(ch, ks)
   i = letter_index(ch)
-  if i < 0 || i >= size(ks)
+  if i < 0 or i >= size(ks)
     ch
   else
     nth(i, ks)
@@ -594,7 +594,7 @@ end
 
 def is_substitution_key(key)
   ks = chars(downcase(key))
-  size(ks) == 26 && size(filter(fn(c) contains(ks, c) end, alphabet)) == 26
+  size(ks) == 26 and size(filter(fn(c) contains(ks, c) end, alphabet)) == 26
 end
 
 # The classical way a human generated a substitution key without memorising
@@ -613,7 +613,7 @@ def dedupe_letters(cs, seen)
     seen
   else
     ch = first(cs)
-    if letter_index(ch) < 0 || contains(seen, ch)
+    if letter_index(ch) < 0 or contains(seen, ch)
       dedupe_letters(rest(cs), seen)
     else
       dedupe_letters(rest(cs), push(seen, ch))

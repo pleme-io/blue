@@ -32,6 +32,16 @@ pub struct Reference {
     /// How many bound names cannot head a blue call: kebab-case ones, and the
     /// reserved words, which the keyword table describes instead.
     uncallable: usize,
+    rules: Vec<RuleRow>,
+}
+
+#[derive(Serialize)]
+struct RuleRow {
+    code: &'static str,
+    slug: &'static str,
+    severity: &'static str,
+    fix: &'static str,
+    law: &'static str,
 }
 
 #[derive(Serialize)]
@@ -159,6 +169,7 @@ pub fn reference() -> Reference {
             .iter()
             .map(|w| (w, "form"))
             .chain(BLOCK_KEYWORDS.iter().map(|w| (w, "block")))
+            .chain(blue_lang_syntax::OPERATOR_KEYWORDS.iter().map(|w| (w, "operator")))
             .map(|(w, kind)| Keyword {
                 word: w,
                 kind,
@@ -183,6 +194,20 @@ pub fn reference() -> Reference {
             .collect(),
         names,
         uncallable,
+        rules: blue_lang_check::RULES
+            .iter()
+            .map(|r| RuleRow {
+                code: r.code.as_str(),
+                slug: r.slug,
+                severity: r.severity.label(),
+                fix: match r.fix {
+                    blue_lang_check::FixKind::Machine => "autofix",
+                    blue_lang_check::FixKind::Suggested => "suggested",
+                    blue_lang_check::FixKind::None => "refused",
+                },
+                law: r.law,
+            })
+            .collect(),
     }
 }
 

@@ -45,10 +45,10 @@ def kb_qemu_virt32()
     isa: :rv32imac,
     rust_target: "riscv32imac-unknown-none-elf",
     word: 32,
-    memory: [kb_region(:ram, 2147483648, 131072)],
+    memory: [kb_region(:ram, 2_147_483_648, 131_072)],
     devices: [
-      kb_device(:uart0, :ns16550, 268435456),
-      kb_device(:finisher, :sifive_test, 1048576)
+      kb_device(:uart0, :ns16550, 268_435_456),
+      kb_device(:finisher, :sifive_test, 1_048_576)
     ],
     qemu: {system: "qemu-system-riscv32", machine: "virt", cpu: "rv32"},
     ceiling: kb_native_ceiling
@@ -85,10 +85,10 @@ end
 def kb_char(c)
   if c == 10
     "\n"
-  elsif c >= 32 && c < 127
+  elsif c >= 32 and c < 127
     nth(c - 32, chars(kb_ascii))
   else
-    throw(error(:kiban, "the UART model prints ASCII only, got #{c}"))
+    raise(:kiban, "the UART model prints ASCII only, got #{c}")
   end
 end
 
@@ -98,14 +98,14 @@ end
 # address is a device the model does not have, and is refused.
 def mmio_write(addr, width, value)
   board = kb_qemu_virt32
-  if !(width == 8 || width == 32)
-    throw(error(:kiban, "mmio_write width is 8 or 32, got #{width}"))
+  if not (width == 8 or width == 32)
+    raise(:kiban, "mmio_write width is 8 or 32, got #{width}")
   elsif addr == kb_device_base(board, :uart0)
     write_stdout(kb_char(value))
   elsif addr == kb_device_base(board, :finisher)
     nil
   else
-    throw(error(:kiban, "no device at #{addr} on #{get(board, :name)}"))
+    raise(:kiban, "no device at #{addr} on #{get(board, :name)}")
   end
 end
 
@@ -113,11 +113,11 @@ end
 # name. Plain + is checked everywhere (overflow is a fault on the board); this
 # word is the one way to wrap, and it lowers to u32::wrapping_add.
 def wrapping_add(a, b)
-  (a + b) % 4294967296
+  (a + b) % 4_294_967_296
 end
 
 test "wrapping_add wraps at the board word"
-  assert wrapping_add(4294967295, 1) == 0
+  assert wrapping_add(4_294_967_295, 1) == 0
   assert wrapping_add(2, 3) == 5
 end
 
@@ -129,8 +129,8 @@ end
 
 test "device bases are the virt machine's"
   b = kb_qemu_virt32
-  assert kb_device_base(b, :uart0) == 268435456
-  assert kb_device_base(b, :finisher) == 1048576
+  assert kb_device_base(b, :uart0) == 268_435_456
+  assert kb_device_base(b, :finisher) == 1_048_576
   assert kb_device_base(b, :gpio) == nil
 end
 
@@ -139,10 +139,10 @@ test "the UART model prints ASCII and newline, and refuses other bytes"
   assert kb_char(126) == "~"
   assert kb_char(32) == " "
   assert kb_char(10) == "\n"
-  assert try(kb_char(7), catch(_e(), :refused)) == :refused
+  assert (kb_char(7) rescue :refused) == :refused
 end
 
 test "a store to an address with no device is refused"
-  assert try(mmio_write(4096, 32, 1), catch(_e(), :refused)) == :refused
-  assert try(mmio_write(268435456, 16, 1), catch(_e(), :refused)) == :refused
+  assert (mmio_write(4096, 32, 1) rescue :refused) == :refused
+  assert (mmio_write(268_435_456, 16, 1) rescue :refused) == :refused
 end

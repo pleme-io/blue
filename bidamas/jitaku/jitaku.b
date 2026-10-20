@@ -22,7 +22,7 @@ end
 def int_in(lo, hi)
   fn(v)
     verdict(
-      integer?(v) && v >= lo && v <= hi,
+      integer?(v) and v >= lo and v <= hi,
       "#{v} is not a whole number in #{lo}..#{hi}"
     )
   end
@@ -31,7 +31,7 @@ end
 def number_in(lo, hi)
   fn(v)
     verdict(
-      number?(v) && v >= lo && v <= hi,
+      number?(v) and v >= lo and v <= hi,
       "#{v} is not a number in #{lo}..#{hi}"
     )
   end
@@ -40,18 +40,18 @@ end
 def float_in(lo, hi)
   fn(v)
     verdict(
-      float?(v) && v >= lo && v <= hi,
+      float?(v) and v >= lo and v <= hi,
       "#{v} is not a float in #{lo}..#{hi}"
     )
   end
 end
 
 def flag()
-  fn(v) verdict(bool?(v), "#{v} is not true or false") end
+  fn(v) verdict(boolean?(v), "#{v} is not true or false") end
 end
 
 def text()
-  fn(v) verdict(string?(v) && length(v) > 0, "#{v} is not text") end
+  fn(v) verdict(string?(v) and length(v) > 0, "#{v} is not text") end
 end
 
 def one_of(choices)
@@ -74,15 +74,15 @@ end
 
 # A name a home gives a thing (a tone, a mood, a speaker, a role).
 def name_text()
-  fn(v) verdict(string?(v) && made_of(v, name_chars), "#{v} is not a name") end
+  fn(v) verdict(string?(v) and made_of(v, name_chars), "#{v} is not a name") end
 end
 
 # A Home Assistant entity id in `domain`: `light.hallway`.
 def entity(domain)
   fn(v)
     verdict(
-      string?(v) &&
-        made_of(strip_prefix(v, "#{domain}."), slug_chars) &&
+      string?(v) and
+        made_of(strip_prefix(v, "#{domain}."), slug_chars) and
         strip_prefix(v, "#{domain}.") != v,
       "#{v} is not a #{domain} entity"
     )
@@ -92,7 +92,7 @@ end
 def icon()
   fn(v)
     verdict(
-      string?(v) && made_of(v, "#{lower_digits}-"),
+      string?(v) and made_of(v, "#{lower_digits}-"),
       "#{v} is not a Material Design Icons name"
     )
   end
@@ -101,9 +101,9 @@ end
 def hex_color()
   fn(v)
     verdict(
-      string?(v) &&
-        length(v) == 7 &&
-        strip_prefix(v, "#") != v &&
+      string?(v) and
+        length(v) == 7 and
+        strip_prefix(v, "#") != v and
         is_hex(strip_prefix(v, "#")),
       "#{v} is not a #RRGGBB colour"
     )
@@ -117,11 +117,11 @@ end
 def base_url()
   fn(v)
     verdict(
-      v == :host ||
-        string?(v) &&
-          host_of(v) != v &&
-          length(host_of(v)) > 0 &&
-          !contains(chars(host_of(v)), "/"),
+      v == :host or
+        string?(v) and
+          host_of(v) != v and
+          length(host_of(v)) > 0 and
+          not contains(chars(host_of(v)), "/"),
       "#{v} is not http(s)://host[:port]"
     )
   end
@@ -146,7 +146,7 @@ end
 
 def list_of(check)
   fn(v)
-    if v != nil && list?(v) && !map?(v)
+    if v != nil and list?(v) and not map?(v)
       first_why(check, v)
     else
       "#{v} is not a list"
@@ -156,7 +156,7 @@ end
 
 def three_of(check)
   fn(v)
-    if v != nil && list?(v) && size(v) == 3
+    if v != nil and list?(v) and size(v) == 3
       first_why(check, v)
     else
       "#{v} is not three values"
@@ -209,7 +209,7 @@ end
 def field_why(f, m)
   v = get(m, get(f, :key))
   if v == nil
-    verdict(!get(f, :required), "#{key_text(f)} is required")
+    verdict(not get(f, :required), "#{key_text(f)} is required")
   else
     why = applied(get(f, :check), v)
     if why == nil
@@ -221,13 +221,13 @@ def field_why(f, m)
 end
 
 def record_whys(table, m)
-  if m == nil || !map?(m)
+  if m == nil or not map?(m)
     ["#{m} is not a record"]
   else
     known = map(fn(f) key_text(f) end, table)
     unknown = map(
       fn(k) "#{k} is not a field here" end,
-      filter(fn(k) !contains(known, k) end, key_names(m))
+      filter(fn(k) not contains(known, k) end, key_names(m))
     )
     append(
       unknown,
@@ -255,7 +255,7 @@ end
 
 def projected(acc, f, m)
   v = get(m, get(f, :key))
-  if v == nil || get(f, :json) == nil
+  if v == nil or get(f, :json) == nil
     acc
   else
     assoc(acc, get(f, :json), applied(get(f, :render), v))
@@ -351,11 +351,11 @@ end
 def device_row()
   fn(r)
     verdict(
-      list?(r) &&
-        (size(r) == 2 || size(r) == 3) &&
-        passes?(name_text, first(r)) &&
-        passes?(text, nth(1, r)) &&
-        (size(r) == 2 || passes?(int_in(1, 65535), last(r))),
+      list?(r) and
+        (size(r) == 2 or size(r) == 3) and
+        passes?(name_text, first(r)) and
+        passes?(text, nth(1, r)) and
+        (size(r) == 2 or passes?(int_in(1, 65535), last(r))),
       "#{r} is not [name, host] or [name, host, port]"
     )
   end
@@ -377,11 +377,11 @@ end
 def camera_row()
   fn(r)
     verdict(
-      list?(r) &&
-        size(r) == 2 &&
-        passes?(name_text, first(r)) &&
-        string?(last(r)) &&
-        (strip_prefix(last(r), "rtsp://") != last(r) ||
+      list?(r) and
+        size(r) == 2 and
+        passes?(name_text, first(r)) and
+        string?(last(r)) and
+        (strip_prefix(last(r), "rtsp://") != last(r) or
           strip_prefix(last(r), "rtsps://") != last(r)),
       "#{r} is not [name, rtsp(s)://stream]"
     )
@@ -721,7 +721,7 @@ def local_refusals(e)
   k = kind_of(e)
   v = value_of(e)
   singles = filter(fn(s) first(s) == k end, singleton_checks)
-  if !is_empty(singles)
+  if not is_empty(singles)
     whys_to_refusals(e, check_why(last(first(singles)), v))
   elsif k == :site
     whys_to_refusals(e, record_whys(site_table, v))
@@ -730,7 +730,7 @@ def local_refusals(e)
       e,
       check_why(
         fn(d)
-          verdict(string?(d) && made_of(d, slug_chars), "#{d} is not a domain")
+          verdict(string?(d) and made_of(d, slug_chars), "#{d} is not a domain")
         end,
         v
       )
@@ -759,12 +759,12 @@ end
 def tone_refusals(e)
   v = value_of(e)
   whys = append(check_why(name_text, name_of(e)), record_whys(tone_table, v))
-  if !is_empty(whys)
+  if not is_empty(whys)
     whys_to_refusals(e, whys)
   else
     refused_if(
-      get(v, :frequency) == nil &&
-        is_empty(get(v, :frequencies)) &&
+      get(v, :frequency) == nil and
+        is_empty(get(v, :frequencies)) and
         get(v, :noise) == nil,
       :silent,
       e,
@@ -774,7 +774,7 @@ def tone_refusals(e)
 end
 
 def both?(l, a, b)
-  l != nil && get(l, a) != nil && get(l, b) != nil
+  l != nil and get(l, a) != nil and get(l, b) != nil
 end
 
 def lights_conflicts(e, l)
@@ -798,9 +798,9 @@ def mood_refusals(e)
   v = value_of(e)
   whys = append(check_why(name_text, name_of(e)), record_whys(mood_table, v))
   b = get(v, :breathing)
-  if !is_empty(whys)
+  if not is_empty(whys)
     whys_to_refusals(e, whys)
-  elsif b != nil && get(b, :low_pct) >= get(b, :high_pct)
+  elsif b != nil and get(b, :low_pct) >= get(b, :high_pct)
     [refuse_entry(:breath, e, "breathing needs low_pct below high_pct")]
   else
     lights_conflicts(e, get(v, :lights))
@@ -821,9 +821,9 @@ def component_refusals(e)
   else
     whys = record_whys(nth(2, row), v)
     enabled = get(v, :enable) == true
-    if !is_empty(whys)
+    if not is_empty(whys)
       whys_to_refusals(e, whys)
-    elsif enabled && last(row) != nil
+    elsif enabled and last(row) != nil
       [
         refuse_entry(
           :needs_radio,
@@ -831,7 +831,7 @@ def component_refusals(e)
           "it bridges a #{last(row)} radio, and jitaku declares no radios yet"
         )
       ]
-    elsif enabled && first(row) == :frigate && is_empty(get(v, :cameras))
+    elsif enabled and first(row) == :frigate and is_empty(get(v, :cameras))
       [refuse_entry(:no_cameras, e, "Frigate with no cameras records nothing")]
     else
       []
@@ -882,8 +882,6 @@ def fields_of(kind)
     mood_table
   elsif kind == :tone
     tone_table
-  else
-    nil
   end
 end
 
@@ -904,7 +902,7 @@ end
 def tune_refusals(t, es)
   table = fields_of(get(t, :target))
   hits = filter(
-    fn(e) kind_of(e) == get(t, :target) && name_of(e) == get(t, :of) end,
+    fn(e) kind_of(e) == get(t, :target) and name_of(e) == get(t, :of) end,
     es
   )
   if table == nil
@@ -931,7 +929,7 @@ end
 def tuned(e, tunes)
   reduce(
     fn(acc, t)
-      if kind_of(acc) == get(t, :target) && name_of(acc) == get(t, :of)
+      if kind_of(acc) == get(t, :target) and name_of(acc) == get(t, :of)
         entry(
           kind_of(acc),
           name_of(acc),
@@ -951,15 +949,15 @@ def names_of_kind(es, kind)
 end
 
 def has_kind?(es, kind)
-  !is_empty(names_of_kind(es, kind))
+  not is_empty(names_of_kind(es, kind))
 end
 
 def active?(m)
-  kind_of(m) == :mood && get(value_of(m), :enable) != false
+  kind_of(m) == :mood and get(value_of(m), :enable) != false
 end
 
 def phone?(m)
-  active?(m) && get(value_of(m), :phone_button) != false
+  active?(m) and get(value_of(m), :phone_button) != false
 end
 
 def label_of(m)
@@ -972,11 +970,11 @@ def label_of(m)
 end
 
 def missing(names, known)
-  filter(fn(n) !contains(known, n) end, names)
+  filter(fn(n) not contains(known, n) end, names)
 end
 
 def role_lights(es, role)
-  hits = filter(fn(e) kind_of(e) == :light_role && name_of(e) == role end, es)
+  hits = filter(fn(e) kind_of(e) == :light_role and name_of(e) == role end, es)
   if is_empty(hits)
     []
   else
@@ -989,54 +987,54 @@ def mood_needs(m, es)
   v = value_of(m)
   s = get(v, :sound)
   l = get(v, :lights)
-  active = filter(fn(e) kind_of(e) == :mood && active?(e) end, es)
-  targets = map(fn(h) get(h, :mood) end, get(v, :then) || [])
+  active = filter(fn(e) kind_of(e) == :mood and active?(e) end, es)
+  targets = map(fn(h) get(h, :mood) end, get(v, :then) or [])
   lost = missing(targets, names_of_kind(active, :mood))
   phones = filter(fn(p) phone?(p) end, es)
-  role = get(l || {}, :role)
-  tone_name = get(s || {}, :tone)
-  deaf = missing(get(s || {}, :speakers) || [], names_of_kind(es, :speaker))
+  role = get(l or {}, :role)
+  tone_name = get(s or {}, :tone)
+  deaf = missing(get(s or {}, :speakers) or [], names_of_kind(es, :speaker))
   flat_map(
     fn(g) g end,
     [
       refused_if(
-        s != nil && !contains(names_of_kind(es, :tone), tone_name),
+        s != nil and not contains(names_of_kind(es, :tone), tone_name),
         :unknown_tone,
         m,
         "no tone #{tone_name} stands"
       ),
       refused_if(
-        !is_empty(deaf),
+        not is_empty(deaf),
         :unknown_speaker,
         m,
         "no speaker #{join(deaf, ", ")} stands"
       ),
       refused_if(
-        s != nil && !has_kind?(es, :media_base_url),
+        s != nil and not has_kind?(es, :media_base_url),
         :no_media_base_url,
         m,
         "it plays a tone, and no media_base_url stands"
       ),
       refused_if(
-        s != nil && !has_kind?(es, :speaker),
+        s != nil and not has_kind?(es, :speaker),
         :no_speakers,
         m,
         "it plays a tone, and no speaker stands"
       ),
       refused_if(
-        !is_empty(lost),
+        not is_empty(lost),
         :unknown_mood,
         m,
         "it hands over to #{join(lost, ", ")}, not a standing mood"
       ),
       refused_if(
-        role != nil && is_empty(role_lights(es, role)),
+        role != nil and is_empty(role_lights(es, role)),
         :unknown_role,
         m,
         "no light role #{role} with lights stands"
       ),
       refused_if(
-        phone?(m) &&
+        phone?(m) and
           index_of(map(fn(p) label_of(p) end, phones), label_of(m)) <
             index_of(map(fn(p) name_of(p) end, phones), name_of(m)),
         :duplicate_label,
@@ -1118,7 +1116,7 @@ end
 # A role-addressed mood's lights become the role's lights.
 def resolved(m, es)
   l = get(value_of(m), :lights)
-  if l == nil || get(l, :role) == nil
+  if l == nil or get(l, :role) == nil
     value_of(m)
   else
     assoc(value_of(m), :lights, assoc(l, :only, role_lights(es, get(l, :role))))

@@ -101,6 +101,57 @@ pub enum Failure {
 pub struct Operands {
     pub left: String,
     pub right: String,
+    pub difference: Option<String>,
+}
+
+fn first_difference(a: &Value, b: &Value) -> Option<String> {
+    use blue_lang_runtime::stdlib::blue_equal;
+    match (a, b) {
+        (Value::List(x), Value::List(y)) => {
+            for (i, (p, q)) in x.iter().zip(y.iter()).enumerate() {
+                if !blue_equal(p, q) {
+                    let inner = first_difference(p, q).map_or_else(
+                        || format!("{} vs {}", render_value(p), render_value(q)),
+                        |d| d,
+                    );
+                    return Some(format!("[{i}]{}", path_tail(&inner)));
+                }
+            }
+            (x.len() != y.len()).then(|| format!(" lengths {} vs {}", x.len(), y.len()))
+        }
+        (Value::Map(x), Value::Map(y)) => {
+            let mut keys: Vec<_> = x.iter().map(|(k, _)| k.clone()).chain(y.iter().map(|(k, _)| k.clone())).collect();
+            keys.sort_by_key(|k| render_value(&k.to_value()));
+            keys.dedup();
+            for k in keys {
+                let p = x.iter().find(|(j, _)| *j == &k).map(|(_, v)| v.clone());
+                let q = y.iter().find(|(j, _)| *j == &k).map(|(_, v)| v.clone());
+                let name = render_value(&k.to_value());
+                match (p, q) {
+                    (Some(p), Some(q)) if !blue_equal(&p, &q) => {
+                        let inner = first_difference(&p, &q).map_or_else(
+                            || format!("{} vs {}", render_value(&p), render_value(&q)),
+                            |d| d,
+                        );
+                        return Some(format!("[{name}]{}", path_tail(&inner)));
+                    }
+                    (Some(_), None) => return Some(format!("[{name}] only on the left")),
+                    (None, Some(_)) => return Some(format!("[{name}] only on the right")),
+                    _ => {}
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn path_tail(inner: &str) -> String {
+    if inner.starts_with('[') || inner.starts_with(' ') {
+        inner.to_string()
+    } else {
+        format!(": {inner}")
+    }
 }
 
 impl Failure {
@@ -120,8 +171,11 @@ impl std::fmt::Display for Failure {
                 operands,
             } => {
                 write!(f, "FAIL {test}\n  assert {expression}")?;
-                if let Some(Operands { left, right }) = operands {
+                if let Some(Operands { left, right, difference }) = operands {
                     write!(f, "\n  left:  {left}\n  right: {right}")?;
+                    if let Some(d) = difference {
+                        write!(f, "\n  differ: at {}", d.trim_start())?;
+                    }
                 }
                 Ok(())
             }
@@ -325,6 +379,7 @@ fn install_assert(interp: &mut Interpreter<()>, rec: &Recorder) {
                         *slot = Some(Operands {
                             left: render_value(&args[1]),
                             right: render_value(&args[2]),
+                            difference: first_difference(&args[1], &args[2]),
                         });
                     }
                 }
@@ -600,7 +655,8 @@ mod tests {
                     operands.clone(),
                     Some(Operands {
                         left: "3".into(),
-                        right: "4".into()
+                        right: "4".into(),
+                        difference: None
                     })
                 );
             }

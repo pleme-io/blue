@@ -50,9 +50,20 @@ fn the_operator_aliases_are_kigou_aliases() {
                 .flat_map(|u| u.aliases.iter().map(|a| (a.clone(), u.op.clone()))),
         )
         .collect();
+    let word = |op: &str| {
+        blue_lang_syntax::SYMBOL_SPELLINGS
+            .iter()
+            .find(|(sym, _)| *sym == op)
+            .map_or(op.to_string(), |(_, w)| (*w).to_string())
+    };
     let theirs: BTreeSet<(String, String)> = OPERATOR_ALIASES
         .iter()
-        .map(|(c, op, _)| (c.to_string(), op.to_string()))
+        .map(|(c, op, _)| (c.to_string(), word(op)))
+        .chain(
+            blue_lang_syntax::SYMBOL_SPELLINGS
+                .iter()
+                .map(|(sym, w)| ((*sym).to_string(), (*w).to_string())),
+        )
         .collect();
     assert_eq!(ours, theirs);
 }

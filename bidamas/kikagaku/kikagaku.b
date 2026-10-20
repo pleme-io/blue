@@ -210,9 +210,9 @@ end
 def point_in_rect(p, rect)
   a = nth(0, rect)
   b = nth(1, rect)
-  inx = px(p) >= min(px(a), px(b)) && px(p) <= max(px(a), px(b))
-  iny = py(p) >= min(py(a), py(b)) && py(p) <= max(py(a), py(b))
-  inx && iny
+  inx = px(p) >= min(px(a), px(b)) and px(p) <= max(px(a), px(b))
+  iny = py(p) >= min(py(a), py(b)) and py(p) <= max(py(a), py(b))
+  inx and iny
 end
 
 def circle_circumference(r)
@@ -281,7 +281,7 @@ end
 def angle_at(o, a, b)
   da = distance(o, a)
   db = distance(o, b)
-  if near(da, 0) || near(db, 0)
+  if near(da, 0) or near(db, 0)
     0
   else
     arc_cosine(clamp(dot_at(o, a, b) / (da * db), -1, 1))
@@ -316,9 +316,9 @@ def triangle_kind(a, b, c)
     d1 = distance_squared(a, b)
     d2 = distance_squared(b, c)
     d3 = distance_squared(c, a)
-    if near(d1, d2) && near(d2, d3)
+    if near(d1, d2) and near(d2, d3)
       "equilateral"
-    elsif near(d1, d2) || near(d2, d3) || near(d1, d3)
+    elsif near(d1, d2) or near(d2, d3) or near(d1, d3)
       "isosceles"
     else
       "scalene"
@@ -418,7 +418,7 @@ def crossings_from(p, pts, i, n, inside)
   if i >= n
     inside
   elsif crosses_ray(p, nth(i, pts), nth((i + 1) % n, pts))
-    crossings_from(p, pts, i + 1, n, !inside)
+    crossings_from(p, pts, i + 1, n, not inside)
   else
     crossings_from(p, pts, i + 1, n, inside)
   end
@@ -499,7 +499,7 @@ end
 def hull_start(pts)
   reduce(
     fn(best, p)
-      if py(p) < py(best) || py(p) == py(best) && px(p) < px(best)
+      if py(p) < py(best) or py(p) == py(best) and px(p) < px(best)
         p
       else
         best
@@ -524,7 +524,7 @@ def hull_next(p, pts)
       o = orientation(p, q, r)
       if o < 0
         r
-      elsif o == 0 && distance_squared(p, r) > distance_squared(p, q)
+      elsif o == 0 and distance_squared(p, r) > distance_squared(p, q)
         r
       else
         q
@@ -580,12 +580,12 @@ def segments_intersect(p1, p2, p3, p4)
   o2 = orientation(p1, p2, p4)
   o3 = orientation(p3, p4, p1)
   o4 = orientation(p3, p4, p2)
-  crossing = o1 != o2 && o3 != o4
+  crossing = o1 != o2 and o3 != o4
   t1 = near(point_segment_distance(p3, p1, p2), 0)
   t2 = near(point_segment_distance(p4, p1, p2), 0)
   t3 = near(point_segment_distance(p1, p3, p4), 0)
   t4 = near(point_segment_distance(p2, p3, p4), 0)
-  crossing || t1 || t2 || t3 || t4
+  crossing or t1 or t2 or t3 or t4
 end
 
 # The single point two segments cross at, or nil.
@@ -604,7 +604,7 @@ def segment_intersection(p1, p2, p3, p4)
     qp = [px(p3) - px(p1), py(p3) - py(p1)]
     t = (px(qp) * py(s) - py(qp) * px(s)) / den
     u = (px(qp) * py(r) - py(qp) * px(r)) / den
-    if t < 0 || t > 1 || u < 0 || u > 1
+    if t < 0 or t > 1 or u < 0 or u > 1
       nil
     else
       [px(p1) + t * px(r), py(p1) + t * py(r)]
@@ -785,8 +785,8 @@ end
 
 # Do two polygons share any area: boundaries crossing, or one inside the other?
 def polygons_overlap(a, b)
-  boundaries_cross(a, b) ||
-    point_in_polygon(first(a), b) ||
+  boundaries_cross(a, b) or
+    point_in_polygon(first(a), b) or
     point_in_polygon(first(b), a)
 end
 
@@ -802,7 +802,7 @@ end
 
 # Is `inner` strictly inside `outer`: no boundary contact, and inside?
 def polygon_inside(inner, outer)
-  boundary_gap(inner, outer) > 0 && point_in_polygon(first(inner), outer)
+  boundary_gap(inner, outer) > 0 and point_in_polygon(first(inner), outer)
 end
 
 # A region: an outline with holes, each a polygon. Stored with the outline
@@ -1182,7 +1182,7 @@ test "the hull contains every input point"
   assert polygon_area(hull) >= polygon_area(pts)
   # Every original point is inside or on the hull.
   outside = filter(
-    fn(p) !(point_in_polygon(p, hull) || point_on_polygon(p, hull)) end,
+    fn(p) not (point_in_polygon(p, hull) or point_on_polygon(p, hull)) end,
     pts
   )
   assert is_empty(outside) == true

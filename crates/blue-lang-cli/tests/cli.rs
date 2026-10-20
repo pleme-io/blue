@@ -319,7 +319,7 @@ fn erase_is_the_identity_on_untyped_source() {
 /// prints the number so it can be checked rather than believed.
 #[test]
 fn check_reports_zero_analysis_for_an_untyped_program() {
-    let f = write("check-untyped", "def f(x)\n  x + 1\nend\nf(1)");
+    let f = write("check-untyped", "def f(x)\n  x + 1\nend\n\nf(1)\n");
     let o = run(&["check", f.to_str().unwrap()]);
     assert!(o.status.success(), "stderr: {}", stderr(&o));
     let out = stdout(&o);

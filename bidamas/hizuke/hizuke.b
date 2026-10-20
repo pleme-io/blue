@@ -25,7 +25,7 @@ def days_in_month(y, m)
     else
       28
     end
-  elsif m == 4 || m == 6 || m == 9 || m == 11
+  elsif m == 4 or m == 6 or m == 9 or m == 11
     30
   else
     31
@@ -73,7 +73,7 @@ end
 
 def is_weekend(y, m, d)
   w = day_of_week(y, m, d)
-  w == 0 || w == 6
+  w == 0 or w == 6
 end
 
 def day_name(w)
@@ -116,7 +116,7 @@ def to_day_number(y, m, d)
   doy = floor((153 * mp + 2) / 5) + d - 1
   doe = yoe * 365 + floor(yoe / 4) - floor(yoe / 100) + doy
   # 305 = the March-shift offset that puts 0001-01-01 at 1.
-  era * 146097 + doe - 305
+  era * 146_097 + doe - 305
 end
 
 # The exact inverse of to_day_number, as [year, month, day].
@@ -125,10 +125,10 @@ end
 # add_days/next_day/easter compose: their result is itself a date.
 def from_day_number(n)
   z = n + 305
-  era = floor(z / 146097)
-  doe = z - era * 146097
+  era = floor(z / 146_097)
+  doe = z - era * 146_097
   yoe = floor(
-    (doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146096)) / 365
+    (doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146_096)) / 365
   )
   ys = yoe + era * 400
   doy = doe - (365 * yoe + floor(yoe / 4) - floor(yoe / 100))
@@ -218,7 +218,7 @@ end
 # day number: to_day_number happily normalises nonsense, so anything parsing
 # user input must ask this FIRST.
 def is_valid_date(y, m, d)
-  m >= 1 && m <= 12 && d >= 1 && d <= days_in_month(y, m)
+  m >= 1 and m <= 12 and d >= 1 and d <= days_in_month(y, m)
 end
 
 def is_month_end(y, m, d)
@@ -236,7 +236,7 @@ def first_day_of_month(y, m)
 end
 
 def is_business_day(y, m, d)
-  !is_weekend(y, m, d)
+  not is_weekend(y, m, d)
 end
 
 # 0001-01-01 was a Monday and day numbers have no gaps, so the day number mod 7
@@ -272,7 +272,7 @@ end
 # this year AND 31 December's does too.
 def iso_weeks_in_year(y)
   j = iso_weekday(y, 1, 1)
-  if j == 4 || is_leap(y) && j == 3
+  if j == 4 or is_leap(y) and j == 3
     53
   else
     52
@@ -318,7 +318,7 @@ end
 # on 29 February is 0 years older on 28 February of a non-leap year.
 def age_in_years(by, bm, bd, y, m, d)
   n = y - by
-  if m < bm || m == bm && d < bd
+  if m < bm or m == bm and d < bd
     n - 1
   else
     n
@@ -361,7 +361,7 @@ end
 def business_days_in_span(a, b)
   size(
     filter(
-      fn(n) weekday_of_day_number(n) > 0 && weekday_of_day_number(n) < 6 end,
+      fn(n) weekday_of_day_number(n) > 0 and weekday_of_day_number(n) < 6 end,
       range(a, b)
     )
   )
@@ -507,7 +507,7 @@ test "the serial day number is anchored where it claims to be"
   assert to_day_number(1, 1, 1) == 1
   assert from_day_number(0) == [0, 12, 31]
   # 1970-01-01 is Rata Die 719163; an independently published constant.
-  assert to_day_number(1970, 1, 1) == 719163
+  assert to_day_number(1970, 1, 1) == 719_163
 end
 
 test "to_day_number and from_day_number are exact inverses"
@@ -802,7 +802,7 @@ test "Easter obeys its own invariants for two centuries"
     filter(
       fn(yy)
         compare_dates(yy, 3, 22, yy, month_of(easter(yy)), day_of(easter(yy))) <
-          1 &&
+          1 and
           compare_dates(
             yy,
             month_of(easter(yy)),

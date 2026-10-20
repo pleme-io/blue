@@ -94,7 +94,7 @@ end
 # Zero by ordering. Since okite D0001 `n == 0` is the same question (a float
 # zero equals an int zero); this stays, as vocabulary, and agrees with it.
 def is_zero(n)
-  !(n < 0) && !(n > 0)
+  not (n < 0) and not (n > 0)
 end
 
 def is_positive(n)
@@ -107,7 +107,7 @@ end
 
 # Inclusive on both ends, matching clamp: whatever clamp returns is in_range.
 def in_range(n, lo, hi)
-  n >= lo && n <= hi
+  n >= lo and n <= hi
 end
 
 # Zero divides nothing — the guard exists because `n % 0` is a runtime error,
@@ -334,8 +334,8 @@ test "odd agrees with even, including where the two implementations differ"
   # If either drifts this is where it shows.
   assert odd(-3) == true
   assert odd(-4) == false
-  assert odd(-3) == !even(-3)
-  assert odd(-4) == !even(-4)
+  assert odd(-3) == (not even(-3))
+  assert odd(-4) == (not even(-4))
 end
 
 test "is_zero agrees with == 0, float zeros included"
@@ -437,8 +437,8 @@ test "int_sqrt is exact on and around perfect squares"
   assert int_sqrt(1) == 1
   assert int_sqrt(2) == 1
   # An integer answer, not the float sqrt returns. == would fail on that.
-  assert int_sqrt(1000000) == 1000
-  assert int_sqrt(999999) == 999
+  assert int_sqrt(1_000_000) == 1000
+  assert int_sqrt(999_999) == 999
   # Negative has no integer root; it must not spin or error.
   assert int_sqrt(-5) == 0
 end
@@ -449,7 +449,7 @@ test "digit_count counts zero as one digit"
   assert digit_count(10) == 2
   assert digit_count(99) == 2
   assert digit_count(100) == 3
-  assert digit_count(123456) == 6
+  assert digit_count(123_456) == 6
   # The sign is not a digit.
   assert digit_count(-1234) == 4
 end

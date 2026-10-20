@@ -36,9 +36,7 @@ end
 # is the first refusal's and whose message joins every refusal's why.
 def refuse(refusals)
   if is_empty(refusals) == false
-    throw(
-      error(kind(first(refusals)), join(map(fn(r) why(r) end, refusals), "; "))
-    )
+    raise(kind(first(refusals)), join(map(fn(r) why(r) end, refusals), "; "))
   end
   nil
 end
@@ -58,8 +56,6 @@ end
 def value(result)
   if ok?(result)
     get(result, :value)
-  else
-    nil
   end
 end
 
@@ -95,6 +91,10 @@ end
 
 test "refuse passes nothing and throws everything, kind first"
   assert refuse([]) == nil
-  caught = try(refuse([refusal(:a, "one"), refusal(:b, "two")]), catch(e(), e))
+  caught = begin
+    refuse([refusal(:a, "one"), refusal(:b, "two")])
+  rescue e
+    e
+  end
   assert error?(caught) == true
 end

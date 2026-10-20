@@ -66,22 +66,22 @@ row(
 
 row(
   "control.and",
-  "[true && 2, false && 1, nil && 1]",
+  "[true and 2, false and 1, nil and 1]",
   value("[2, false, nil]"),
-  covers("op:&&")
+  covers("op:and")
 )
 
 row("control.and.short_circuit", "x = false && 1 / 0\nx", value("false"))
-row("control.or", "[nil || 3, 1 || 1 / 0]", value("[3, 1]"), covers("op:||"))
-row("control.and.builtin", "and(1, 2, 3)", value("3"), covers("builtin:and"))
-row("control.or.builtin", "or(false, nil, 4)", value("4"), covers("builtin:or"))
+row("control.or", "[nil or 3, 1 or 1 / 0]", value("[3, 1]"), covers("op:or"))
+row("control.and.symbol", "[true && 2, nil || 3]", value("[2, 3]"))
+row("control.and.builtin", "and(1, 2, 3)", value("3"))
+row("control.or.builtin", "or(false, nil, 4)", value("4"))
 
 row(
   "control.not",
   "[!nil, !0, not(false)]",
   value("[true, false, true]"),
-  covers("form:!x"),
-  covers("builtin:not")
+  covers("form:not x")
 )
 
 row(
@@ -91,7 +91,7 @@ row(
   covers("builtin:when")
 )
 
-row("control.begin", "begin(1, 2, 3)", value("3"), covers("builtin:begin"))
+row("control.begin", "begin(1, 2, 3)", value("3"), covers("keyword:begin"))
 
 row(
   "control.while",

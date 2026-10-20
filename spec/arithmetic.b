@@ -32,7 +32,7 @@ test "comparison operators"
 end
 
 test "logical operators bind loosest"
-  assert true && true
-  assert true || false
-  assert 1 < 2 && 2 < 3
+  assert true and true
+  assert true or false
+  assert 1 < 2 and 2 < 3
 end

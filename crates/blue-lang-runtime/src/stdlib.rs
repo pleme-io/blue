@@ -94,6 +94,7 @@ fn render(v: &Value) -> String {
     match v {
         Value::Nil => String::new(),
         Value::Str(s) | Value::Symbol(s) | Value::Keyword(s) => s.to_string(),
+        Value::Error(e) => crate::errors::describe(e),
         other => literal(other),
     }
 }
@@ -171,6 +172,7 @@ fn list(items: Vec<Value>) -> Value {
 
 /// Install blue's string and number core.
 pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
+    crate::errors::install(interp);
     // ── text ──────────────────────────────────────────────────────────
 
     // `length` counts CHARACTERS, per Ruby. Also accepts a list, where it is

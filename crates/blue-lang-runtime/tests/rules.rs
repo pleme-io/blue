@@ -70,6 +70,7 @@ fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Ve
         .diagnostics
         .iter()
         .chain(&checked.outcome.census)
+        .chain(&blue_lang_runtime::pipeline::form_diagnostics(src))
         .map(|d| d.code)
         .collect()
 }

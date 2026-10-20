@@ -399,7 +399,7 @@ mod tests {
         assert_eq!(fix.edits[0].replacement, "x == nil");
         assert_eq!(fix.edits[0].original, "nil?(x)");
 
-        let text = "def f()\n  !nil?([])\nend\n";
+        let text = "def f()\n  nil?([]) * 2\nend\n";
         let f = tree(text);
         let node = node_at(&f, &[2, 1]).unwrap();
         let want = tree("[] == nil\n").to_sexp();

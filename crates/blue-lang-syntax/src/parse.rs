@@ -45,6 +45,7 @@
 use tatara_lisp::{Atom, Sexp, Spanned, SpannedForm};
 
 use crate::lex::{lex, Span, Token, TokenKind};
+use crate::spelling::{Note, Spelling};
 
 /// Why a source did not parse, and where.
 ///
@@ -140,18 +141,14 @@ pub fn parse_program_tree_with_depth(
     max_depth: usize,
 ) -> Result<Vec<Spanned>, ParseError> {
     PARSES.with(|n| n.set(n.get() + 1));
-    let toks: Vec<Token> = lex(src)
-        .map_err(|e| ParseError::from(e).located(src))?
-        .into_iter()
-        .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
-        .collect();
-    let mut p = Parser {
-        toks,
-        pos: 0,
-        depth: 0,
-        max_depth,
-    };
+    let mut p = Parser::over(src, lex(src).map_err(|e| ParseError::from(e).located(src))?, max_depth);
     p.program().map_err(|e| e.located(src))
+}
+
+pub fn spelling_notes(src: &str) -> Result<Vec<Note>, ParseError> {
+    let mut p = Parser::over(src, lex(src).map_err(|e| ParseError::from(e).located(src))?, MAX_EXPR_DEPTH);
+    p.program().map_err(|e| e.located(src))?;
+    Ok(p.notes)
 }
 
 /// Parse a program written in a [`Yakugo`](crate::yakugo::Yakugo) surface.
@@ -192,18 +189,10 @@ pub fn parse_program_tree_in(
     src: &str,
     pack: &crate::yakugo::Yakugo,
 ) -> Result<Vec<Spanned>, ParseError> {
+    let toks = crate::yakugo::canonical_tokens(src, pack)
+        .map_err(|e| ParseError::from(e).located(src))?;
     PARSES.with(|n| n.set(n.get() + 1));
-    let toks: Vec<Token> = crate::yakugo::canonical_tokens(src, pack)
-        .map_err(|e| ParseError::from(e).located(src))?
-        .into_iter()
-        .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
-        .collect();
-    let mut p = Parser {
-        toks,
-        pos: 0,
-        depth: 0,
-        max_depth: MAX_EXPR_DEPTH,
-    };
+    let mut p = Parser::over(src, toks, MAX_EXPR_DEPTH);
     p.program().map_err(|e| e.located(src))
 }
 
@@ -331,16 +320,16 @@ pub struct Infix {
 /// without parentheses.
 pub const INFIX: &[Infix] = &[
     Infix {
-        op: "||",
+        op: "or",
         power: (1, 2),
         callee: "or",
-        doc: "Logical or: the left value if truthy, otherwise the right; the right is evaluated only when needed.",
+        doc: "Logical or: the left value if truthy, otherwise the right; the right is evaluated only when needed. `||` is read as `or` and written `or` (B0025).",
     },
     Infix {
-        op: "&&",
+        op: "and",
         power: (3, 4),
         callee: "and",
-        doc: "Logical and: the right value if the left is truthy, otherwise the left; short-circuits.",
+        doc: "Logical and: the right value if the left is truthy, otherwise the left; short-circuits. `&&` is read as `and` and written `and` (B0025).",
     },
     // `==` is STRUCTURAL equality, so it lowers to `equal?` and not to `=`.
     //
@@ -459,8 +448,23 @@ pub const LOWERED_MAP: &str = "hash-map";
 /// lets `"n=#{42}"` interpolate a number. Not `+`, which is arithmetic.
 pub const LOWERED_CONCAT: &str = "concat";
 
+pub const LOWERED_FIELD: &str = "blue-field";
+
+pub const LOWERED_ERROR_MATCH: &str = "blue-rescues?";
+
+pub const LOWERED_ENSURE: &str = "blue-ensure";
+
+pub const LOWERED_RERAISE: &str = "blue-reraise";
+
+pub const LOWERED_ATTEMPTED: &str = "blue-attempted";
+
+pub const LOWERED_FAILED: &str = "blue-failed";
+
+pub const RESCUED: &str = "rescued-error";
+
 pub const SURFACE_KEYWORDS: &[&str] = &[
     "if",
+    "begin",
     "unless",
     "def",
     "defmacro",
@@ -484,7 +488,11 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
 /// four block words `is_reserved_word` adds", because the union was
 /// unreachable from outside this module. A transcription is a second
 /// definition, and it drifts the first time this list changes.
-pub const BLOCK_KEYWORDS: &[&str] = &["do", "end", "else", "elsif", "true", "false", "nil"];
+pub const BLOCK_KEYWORDS: &[&str] = &[
+    "do", "end", "else", "elsif", "rescue", "ensure", "true", "false", "nil",
+];
+
+pub const OPERATOR_KEYWORDS: &[&str] = &["and", "or", "not"];
 
 /// A surface keyword may not be rebound. `if = 1` is a mistake, not a binding,
 /// and letting it through would shadow the form for the rest of the file.
@@ -493,7 +501,9 @@ pub const BLOCK_KEYWORDS: &[&str] = &["do", "end", "else", "elsif", "true", "fal
 /// the parser's rebinding check and every downstream highlighter read it here
 /// rather than each carrying its own copy of the list.
 pub fn is_reserved_word(name: &str) -> bool {
-    SURFACE_KEYWORDS.contains(&name) || BLOCK_KEYWORDS.contains(&name)
+    SURFACE_KEYWORDS.contains(&name)
+        || BLOCK_KEYWORDS.contains(&name)
+        || OPERATOR_KEYWORDS.contains(&name)
 }
 
 /// Can `name` be written as the head of a call — `name(…)`?
@@ -561,8 +571,14 @@ pub fn qualified(sym: &str) -> Option<(&str, &str)> {
 #[must_use]
 pub fn keyword_doc(word: &str) -> &'static str {
     match word {
-        "if" => "`if c … elsif d … else … end`: an expression; its value is the branch taken, nil when none is.",
-        "unless" => "`unless c … end`: `if !c`. The formatter writes it as `if !c`.",
+        "if" => "`if c … elsif d … else … end`: an expression; its value is the branch taken, nil when none is. An `else` that is empty or `nil` is dropped (B0035).",
+        "unless" => "`unless c … end` is read as `if not c` and written that way (B0026).",
+        "begin" => "`begin … rescue :kind as e … rescue e … ensure … end`: run the statements; a `rescue` clause catches an error by kind, binding it with `as`, and `rescue e` catches every error; `ensure` always runs. A def body takes the same clauses without `begin`.",
+        "rescue" => "A clause of `begin` or `def`: `rescue :a, :b as e`, `rescue e` (every error, last). Inline, `x rescue fallback` is fallback when x raises; it binds loosest, below `|>`.",
+        "ensure" => "The last clause of `begin` or `def`: statements that run whether the block returned or raised; the block's value or error is kept.",
+        "and" => "`a and b`: logical and; `&&` is read as `and` and written `and` (B0025).",
+        "or" => "`a or b`: logical or; `||` is read as `or` and written `or` (B0025).",
+        "not" => "`not x`: true when x is false or nil; `!x` is read as `not x` and written `not x` (B0025). `not (a == b)` is written `a != b` (B0034).",
         "def" => "`def name(a, b) … end`: a named function; its value is the last expression. Parameters may be typed: `def f(n: Int) -> Int`.",
         "defmacro" => "`defmacro name(x) quote … unquote(x) … end end`: a macro, a rewrite of the unevaluated form.",
         "quote" => "`quote … end`: the form itself as data, not its value. Used inside `defmacro`.",
@@ -575,7 +591,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "do" => "Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead.",
         "end" => "Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`.",
         "else" => "The branch of `if` or `case` taken when nothing before it matched.",
-        "elsif" => "A further condition in an `if` chain; the formatter writes nested `else if` as `elsif`.",
+        "elsif" => "A further condition in an `if` chain; an `else` holding only an `if` is written `elsif` (B0027).",
         "true" => "The boolean true.",
         "false" => "The boolean false. Only `false` and `nil` are falsy; 0, \"\" and [] are truthy.",
         "nil" => "The absent value. It is not `[]` (okite D0004), and only `nil == nil`.",
@@ -587,7 +603,25 @@ fn infix(op: &str) -> Option<&'static Infix> {
     INFIX.iter().find(|i| i.op == op)
 }
 
+pub const SYMBOL_SPELLINGS: &[(&str, &str)] = &[("&&", "and"), ("||", "or"), ("!", "not")];
+
+fn word_for(op: &str) -> &str {
+    SYMBOL_SPELLINGS
+        .iter()
+        .find(|(sym, _)| *sym == op)
+        .map_or(op, |(_, word)| word)
+}
+
+fn infix_of(kind: &TokenKind) -> Option<&'static Infix> {
+    match kind {
+        TokenKind::Op(o) => infix(word_for(o)),
+        TokenKind::Ident(w) if w == "and" || w == "or" => infix(w),
+        _ => None,
+    }
+}
+
 const PIPE_POWER: (u8, u8) = (0, 1);
+const RESCUE_POWER: (u8, u8) = (0, 1);
 
 struct Parser {
     toks: Vec<Token>,
@@ -607,6 +641,9 @@ struct Parser {
     /// without recompiling. It is a **bound**, so raising it changes no
     /// program's meaning — only which pathological inputs are refused.
     max_depth: usize,
+    src: String,
+    comment_spans: Vec<Span>,
+    notes: Vec<Note>,
 }
 
 /// Maximum expression nesting before the parser refuses.
@@ -635,6 +672,51 @@ fn fail(message: impl Into<String>, span: Span) -> Fail {
 }
 
 impl Parser {
+    fn over(src: &str, all: Vec<Token>, max_depth: usize) -> Self {
+        let comment_spans = all
+            .iter()
+            .filter(|t| matches!(t.kind, TokenKind::Comment(_)))
+            .map(|t| t.span)
+            .collect();
+        let toks = all
+            .into_iter()
+            .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
+            .collect();
+        Parser {
+            toks,
+            pos: 0,
+            depth: 0,
+            max_depth,
+            src: src.to_string(),
+            comment_spans,
+            notes: Vec::new(),
+        }
+    }
+
+    fn note(&mut self, spelling: Spelling, span: Span, written: &str, canonical: &str) {
+        self.notes.push(Note {
+            spelling,
+            span,
+            written: written.to_string(),
+            canonical: canonical.to_string(),
+        });
+    }
+
+    fn text(&self, span: Span) -> &str {
+        self.src.get(span.start..span.end).unwrap_or("")
+    }
+
+    fn comment_within(&self, lo: usize, hi: usize) -> bool {
+        self.comment_spans.iter().any(|c| c.start >= lo && c.start < hi)
+    }
+
+    fn touches_previous(&self) -> bool {
+        let here = self.peek_span();
+        self.toks
+            .get(self.pos.wrapping_sub(1))
+            .is_some_and(|prev| prev.span.end == here.start)
+    }
+
     fn peek(&self) -> &TokenKind {
         &self.toks[self.pos.min(self.toks.len() - 1)].kind
     }
@@ -853,7 +935,17 @@ impl Parser {
                 ));
             }
         }
-        self.expr(0)
+        let e = self.expr(0)?;
+        if let SpannedForm::List(items) = &e.form {
+            if items.len() == 3
+                && items[0].as_symbol() == Some("define")
+                && items[1].as_symbol().is_some()
+                && self.text(items[0].span) == "define"
+            {
+                self.note(Spelling::OperatorSpelling, e.span, "define(x, v)", "x = v");
+            }
+        }
+        Ok(e)
     }
 
     /// The token `n` positions ahead, for the two-token lookahead a binding
@@ -889,6 +981,91 @@ impl Parser {
         r
     }
 
+    #[inline(never)]
+    fn rescue_node(&self, start: usize, op_span: Span, lhs: Spanned, fallback: Spanned) -> Spanned {
+        list_at(
+            self.span_since(start),
+            vec![
+                sym_at(op_span, "try"),
+                lhs,
+                list_at(
+                    op_span.merge(fallback.span),
+                    vec![
+                        sym_at(op_span, "catch"),
+                        list_at(op_span, vec![sym_at(op_span, "_")]),
+                        fallback,
+                    ],
+                ),
+            ],
+        )
+    }
+
+    #[inline(never)]
+    fn infix_spelling(&mut self, callee: Option<&str>, op_span: Span) {
+        let written = self.text(op_span).to_string();
+        match (callee, self.peek().clone()) {
+            (None, _) => self.note(Spelling::CallForm, op_span, "|>", "a call"),
+            (Some(c), TokenKind::Op(o)) if word_for(&o) != o => {
+                self.note(Spelling::LogicalSymbol, op_span, &written, c);
+            }
+            (Some(_), TokenKind::Op(o)) if written != o => {
+                self.note(Spelling::OperatorSpelling, op_span, &written, &o);
+            }
+            _ => {}
+        }
+    }
+
+    #[inline(never)]
+    fn infix_node(&mut self, start: usize, callee: Option<&str>, op_span: Span, lhs: Spanned, rhs: Spanned) -> Spanned {
+        if callee == Some("-") && matches!(lhs.form, SpannedForm::Atom(Atom::Int(0))) {
+            self.note(Spelling::OperatorSpelling, lhs.span.merge(op_span), "0 - x", "-x");
+        }
+
+        if callee.is_none() {
+            // `x |> f`      => (f x)
+            // `x |> f(a)`   => (f x a)   — the pipeline threads into
+            //                  the FIRST argument position, as Elixir's
+            //                  does; that is what makes it composable.
+            let rhs_span = rhs.span;
+            let threaded = match rhs.form {
+                SpannedForm::List(mut items) if !items.is_empty() => {
+                    items.insert(1, lhs);
+                    list_at(self.span_since(start), items)
+                }
+                callee => list_at(
+                    self.span_since(start),
+                    vec![Spanned::new(rhs_span, callee), lhs],
+                ),
+            };
+            match &threaded.form {
+                SpannedForm::List(items)
+                    if items.len() == 2 && items[0].as_symbol() == Some("not") =>
+                {
+                    let (head, operand) = (items[0].span, items[1].clone());
+                    self.negation(head, threaded.span, operand)
+                }
+                SpannedForm::List(items)
+                    if items.len() == 4
+                        && items[0].as_symbol() == Some("if")
+                        && matches!(items[3].form, SpannedForm::Nil) =>
+                {
+                    list_at(threaded.span, items[..3].to_vec())
+                }
+                _ => threaded,
+            }
+        } else {
+            // The callee symbol takes the OPERATOR's span, not the whole
+            // expression's: `a + b` lowers to `(+ a b)` and the `+` node is
+            // the one byte-range in the source that means it. Handing it the
+            // whole expression's span would make a diagnostic about the
+            // operator underline both operands too.
+            list_at(
+                self.span_since(start),
+                vec![sym_at(op_span, callee.unwrap()), lhs, rhs],
+            )
+        }
+    }
+
     fn expr_inner(&mut self, min_bp: u8) -> Result<Spanned, Fail> {
         let start = self.mark();
         let mut lhs = self.prefix()?;
@@ -897,16 +1074,15 @@ impl Parser {
             // Postfix: `.name`, `.name(args)`, `(args)`
             match self.peek() {
                 TokenKind::Dot => {
+                    let dot = self.peek_span();
                     self.bump();
-                    lhs = self.finish_send(start, lhs)?;
+                    lhs = self.finish_send(start, lhs, dot)?;
                     continue;
                 }
                 TokenKind::LParen => {
-                    // A call on an expression already parsed: `f(x)`.
-                    let args = self.paren_args()?;
-                    let mut list = vec![lhs];
-                    list.extend(args);
-                    lhs = list_at(self.span_since(start), list);
+                    let (args, splat) = self.call_args()?;
+                    let call = self.call_node(self.span_since(start), vec![lhs], args, splat);
+                    lhs = self.call_spelling(call);
                     continue;
                 }
                 _ => {}
@@ -916,54 +1092,105 @@ impl Parser {
             // `callee == None` marks the pipeline, which is a rewrite rather
             // than a call.
             let op_span = self.peek_span();
+            if self.at_ident("rescue") {
+                if RESCUE_POWER.0 < min_bp {
+                    break;
+                }
+                self.bump();
+                self.skip_newlines();
+                let fallback = self.expr(RESCUE_POWER.1)?;
+                lhs = self.rescue_node(start, op_span, lhs, fallback);
+                continue;
+            }
             let (callee, (lbp, rbp)) = match self.peek() {
                 TokenKind::Pipe => (None, PIPE_POWER),
-                TokenKind::Op(o) => match infix(o) {
+                other => match infix_of(other) {
                     Some(i) => (Some(i.callee), i.power),
                     None => break,
                 },
-                _ => break,
             };
             if lbp < min_bp {
                 break;
             }
+            self.infix_spelling(callee, op_span);
             self.bump();
             self.skip_newlines();
             let rhs = self.expr(rbp)?;
-
-            lhs = if callee.is_none() {
-                // `x |> f`      => (f x)
-                // `x |> f(a)`   => (f x a)   — the pipeline threads into
-                //                  the FIRST argument position, as Elixir's
-                //                  does; that is what makes it composable.
-                let rhs_span = rhs.span;
-                match rhs.form {
-                    SpannedForm::List(mut items) if !items.is_empty() => {
-                        items.insert(1, lhs);
-                        list_at(self.span_since(start), items)
-                    }
-                    callee => list_at(
-                        self.span_since(start),
-                        vec![Spanned::new(rhs_span, callee), lhs],
-                    ),
-                }
-            } else {
-                // The callee symbol takes the OPERATOR's span, not the whole
-                // expression's: `a + b` lowers to `(+ a b)` and the `+` node is
-                // the one byte-range in the source that means it. Handing it the
-                // whole expression's span would make a diagnostic about the
-                // operator underline both operands too.
-                list_at(
-                    self.span_since(start),
-                    vec![sym_at(op_span, callee.unwrap()), lhs, rhs],
-                )
-            };
+            lhs = self.infix_node(start, callee, op_span, lhs, rhs);
         }
 
         Ok(lhs)
     }
 
+    #[inline(never)]
+    fn interpolation(span: Span, parts: &[String], exprs: &[String]) -> Result<Spanned, Fail> {
+        // Every node here carries the WHOLE string literal's span.
+        //
+        // The inner expression is parsed from `raw` — a substring — so
+        // its own offsets index that substring, not `src`. Carrying them
+        // through would produce spans that look real and point into a
+        // buffer nobody has: for `"a#{x}"` at offset 40, `x`'s span
+        // would be 0..1, i.e. the start of the file. The lexer does not
+        // record where each part sat in the outer source, so the string
+        // literal is the most precise honest answer available.
+        let mut acc = atom_at(span, Atom::Str(parts[0].clone()));
+        for (i, raw) in exprs.iter().enumerate() {
+            let inner = parse_expr(raw).map_err(|e| {
+                fail(
+                    format!("in interpolation `#{{{raw}}}`: {}", e.message),
+                    span,
+                )
+            })?;
+            let inner = Spanned::from_sexp_at(&inner, span);
+            acc = list_at(span, vec![sym_at(span, LOWERED_CONCAT), acc, inner]);
+            // `parts.len() == exprs.len() + 1` by construction, so this
+            // index is always in range.
+            acc = list_at(
+                span,
+                vec![
+                    sym_at(span, LOWERED_CONCAT),
+                    acc,
+                    atom_at(span, Atom::Str(parts[i + 1].clone())),
+                ],
+            );
+        }
+        Ok(acc)
+    }
+
+    #[inline(never)]
+    fn not_prefix(&mut self, span: Span) -> Result<Spanned, Fail> {
+        if self.at(&TokenKind::LParen) && self.touches_previous() {
+            self.note(Spelling::OperatorSpelling, span, "not(x)", "not x");
+            let (args, splat) = self.call_args()?;
+            if args.len() != 1 || splat.is_some() {
+                let call = self.call_node(self.span_since(span.start), vec![sym_at(span, "not")], args, splat);
+                return Ok(call);
+            }
+            let operand = args.into_iter().next().expect("one argument");
+            return Ok(self.negation(span, self.span_since(span.start), operand));
+        }
+        let rhs = self.expr(11)?;
+        Ok(self.negation(span, self.span_since(span.start), rhs))
+    }
+
     fn prefix(&mut self) -> Result<Spanned, Fail> {
+        if self.at(&TokenKind::LParen) {
+            self.bump();
+            return self.group();
+        }
+        self.prefix_token()
+    }
+
+    fn group(&mut self) -> Result<Spanned, Fail> {
+        self.skip_newlines();
+        let inner = self.expr(0)?;
+        self.skip_newlines();
+        self.expect(&TokenKind::RParen, "`)`")?;
+        Ok(inner)
+    }
+
+    #[inline(never)]
+    fn prefix_token(&mut self) -> Result<Spanned, Fail> {
         let span = self.peek_span();
         match self.bump() {
             TokenKind::Int(v) => Ok(atom_at(span, Atom::Int(v))),
@@ -980,39 +1207,7 @@ impl Parser {
             // The expression source is parsed HERE with the ordinary parser
             // rather than lexed inside the string, so an interpolation can hold
             // anything an expression can and the two can never drift.
-            TokenKind::InterpolatedStr { parts, exprs } => {
-                // Every node here carries the WHOLE string literal's span.
-                //
-                // The inner expression is parsed from `raw` — a substring — so
-                // its own offsets index that substring, not `src`. Carrying them
-                // through would produce spans that look real and point into a
-                // buffer nobody has: for `"a#{x}"` at offset 40, `x`'s span
-                // would be 0..1, i.e. the start of the file. The lexer does not
-                // record where each part sat in the outer source, so the string
-                // literal is the most precise honest answer available.
-                let mut acc = atom_at(span, Atom::Str(parts[0].clone()));
-                for (i, raw) in exprs.iter().enumerate() {
-                    let inner = parse_expr(raw).map_err(|e| {
-                        fail(
-                            format!("in interpolation `#{{{raw}}}`: {}", e.message),
-                            span,
-                        )
-                    })?;
-                    let inner = Spanned::from_sexp_at(&inner, span);
-                    acc = list_at(span, vec![sym_at(span, LOWERED_CONCAT), acc, inner]);
-                    // `parts.len() == exprs.len() + 1` by construction, so this
-                    // index is always in range.
-                    acc = list_at(
-                        span,
-                        vec![
-                            sym_at(span, LOWERED_CONCAT),
-                            acc,
-                            atom_at(span, Atom::Str(parts[i + 1].clone())),
-                        ],
-                    );
-                }
-                Ok(acc)
-            }
+            TokenKind::InterpolatedStr { parts, exprs } => Self::interpolation(span, &parts, &exprs),
             TokenKind::Sym(s) => Ok(atom_at(span, Atom::Keyword(s))),
             TokenKind::True => Ok(atom_at(span, Atom::Bool(true))),
             TokenKind::False => Ok(atom_at(span, Atom::Bool(false))),
@@ -1026,12 +1221,19 @@ impl Parser {
                 ))
             }
             TokenKind::Op(o) if o == "!" => {
+                let written = self.text(span).to_string();
+                self.note(Spelling::LogicalSymbol, span, &written, "not");
                 let rhs = self.expr(11)?;
-                Ok(list_at(
-                    self.span_since(span.start),
-                    vec![sym_at(span, "not"), rhs],
-                ))
+                Ok(self.negation(span, self.span_since(span.start), rhs))
             }
+            TokenKind::Ident(w) if w == "not" => self.not_prefix(span),
+            TokenKind::Ident(w) if (w == "and" || w == "or") && self.at(&TokenKind::LParen) => {
+                Ok(sym_at(span, &w))
+            }
+            TokenKind::Ident(w) if w == "and" || w == "or" => Err(fail(
+                format!("`{w}` joins two expressions: `a {w} b`"),
+                span,
+            )),
 
             TokenKind::LParen => {
                 self.skip_newlines();
@@ -1056,7 +1258,17 @@ impl Parser {
             )),
             TokenKind::Ident(name) => match name.as_str() {
                 "if" => self.if_form(span, false),
-                "unless" => self.if_form(span, true),
+                "begin" if !(self.at(&TokenKind::LParen) && self.touches_previous()) => {
+                    self.begin_form(span)
+                }
+                "rescue" | "ensure" => Err(fail(
+                    format!("`{name}` belongs to a `begin … end` block or a `def` body, after the statements it protects"),
+                    span,
+                )),
+                "unless" => {
+                    self.note(Spelling::Unless, span, "unless", "if not");
+                    self.if_form(span, true)
+                }
                 "def" => self.def_form(span),
                 "defmacro" => self.defmacro_form(span),
                 "case" => self.case_form(span),
@@ -1130,7 +1342,132 @@ impl Parser {
     /// the uniform access principle here: a structure exposes no public
     /// fields, so a field can later become a computed method without
     /// breaking a caller.
-    fn finish_send(&mut self, start: usize, recv: Spanned) -> Result<Spanned, Fail> {
+    #[inline(never)]
+    fn negation(&mut self, head: Span, whole: Span, operand: Spanned) -> Spanned {
+        if let SpannedForm::List(items) = &operand.form {
+            let flipped = match items.first().and_then(Spanned::as_symbol) {
+                Some("equal?") => Some("not="),
+                Some("not=") => Some("equal?"),
+                _ => None,
+            };
+            if let (Some(to), 3) = (flipped, items.len()) {
+                let (written, canonical) = if to == "not=" {
+                    ("not (a == b)", "a != b")
+                } else {
+                    ("not (a != b)", "a == b")
+                };
+                self.note(Spelling::NegatedComparison, whole, written, canonical);
+                let mut out = items.clone();
+                out[0] = sym_at(items[0].span, to);
+                return list_at(whole, out);
+            }
+        }
+        list_at(whole, vec![sym_at(head, "not"), operand])
+    }
+
+    #[inline(never)]
+    fn call_spelling(&mut self, call: Spanned) -> Spanned {
+        let SpannedForm::List(items) = &call.form else {
+            return call;
+        };
+        let Some(head) = items.first().and_then(Spanned::as_symbol) else {
+            return call;
+        };
+        let argc = items.len() - 1;
+        let operator = match (head, argc) {
+            ("and" | "or" | "mod" | "equal?", 2) => Some(head),
+            ("list", _) => Some("list"),
+            _ => None,
+        };
+        if let Some(op) = operator {
+            let canonical = match op {
+                "list" => "[…]".to_string(),
+                "mod" => "a % b".to_string(),
+                "equal?" => "a == b".to_string(),
+                other => format!("a {other} b"),
+            };
+            self.note(Spelling::OperatorSpelling, call.span, &format!("{head}(…)"), &canonical);
+            return call;
+        }
+        if head == "apply"
+            && self.text(items[0].span) == "apply"
+            && argc >= 2
+            && items[1].as_symbol().is_some_and(is_callable_name)
+        {
+            self.note(Spelling::Apply, call.span, "apply(f, …, xs)", "f(…, *xs)");
+            return call;
+        }
+        if head == "try" {
+            return self.try_spelling(call);
+        }
+        call
+    }
+
+    fn try_spelling(&mut self, call: Spanned) -> Spanned {
+        let SpannedForm::List(items) = &call.form else {
+            return call;
+        };
+        let Some((catch, body)) = items[1..].split_last() else {
+            return call;
+        };
+        let Some(clause) = catch.as_list() else {
+            return call;
+        };
+        let binder = match clause {
+            [head, binding, handler @ ..]
+                if head.as_symbol() == Some("catch") && !handler.is_empty() =>
+            {
+                match binding.as_list() {
+                    Some([b]) => b.as_symbol().map(|n| (n.to_string(), b.span)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let Some((name, binder_span)) = binder else {
+            return call;
+        };
+        if body.is_empty() {
+            return call;
+        }
+        self.note(Spelling::TryCatch, call.span, "try(…, catch(…))", "rescue");
+        let handler = &clause[2..];
+        let rename = name.starts_with('_') && name != "_" && !handler.iter().any(|h| mentions(h, &name));
+        let body = if body.len() == 1 {
+            body[0].clone()
+        } else {
+            let span = cover(body, call.span);
+            let mut list = vec![sym_at(Span::new(span.start, span.start), "begin")];
+            list.extend(body.iter().cloned());
+            list_at(span, list)
+        };
+        let handler = if handler.len() == 1 {
+            handler[0].clone()
+        } else {
+            let span = cover(handler, catch.span);
+            let mut list = vec![sym_at(Span::new(span.start, span.start), "begin")];
+            list.extend(handler.iter().cloned());
+            list_at(span, list)
+        };
+        let binder = sym_at(binder_span, if rename { "_" } else { &name });
+        list_at(
+            call.span,
+            vec![
+                items[0].clone(),
+                body,
+                list_at(
+                    catch.span,
+                    vec![
+                        clause[0].clone(),
+                        list_at(clause[1].span, vec![binder]),
+                        handler,
+                    ],
+                ),
+            ],
+        )
+    }
+
+    fn finish_send(&mut self, start: usize, recv: Spanned, dot: Span) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
             // A RESERVED WORD is not a method name.
@@ -1160,31 +1497,79 @@ impl Parser {
                 ))
             }
         };
-        let mut list = vec![sym_at(name_span, &name), recv];
-        if self.at(&TokenKind::LParen) {
-            list.extend(self.paren_args()?);
+        if !self.at(&TokenKind::LParen) {
+            return Ok(list_at(
+                self.span_since(start),
+                vec![
+                    sym_at(dot, LOWERED_FIELD),
+                    recv,
+                    atom_at(name_span, Atom::Keyword(name)),
+                ],
+            ));
         }
-        Ok(list_at(self.span_since(start), list))
+        self.note(Spelling::CallForm, dot.merge(name_span), &format!("x.{name}(…)"), &format!("{name}(x, …)"));
+        let (args, splat) = self.call_args()?;
+        Ok(self.call_node(self.span_since(start), vec![sym_at(name_span, &name), recv], args, splat))
+    }
+
+    fn call_node(&self, span: Span, head: Vec<Spanned>, args: Vec<Spanned>, splat: Option<Span>) -> Spanned {
+        let mut list = Vec::with_capacity(head.len() + args.len() + 1);
+        if let Some(at) = splat {
+            list.push(sym_at(at, "apply"));
+        }
+        list.extend(head);
+        list.extend(args);
+        list_at(span, list)
     }
 
     fn paren_args(&mut self) -> Result<Vec<Spanned>, Fail> {
+        let (args, splat) = self.call_args()?;
+        if let Some(at) = splat {
+            return Err(fail("a splat `*xs` passes a list as a call's last arguments, and this is not a call", at));
+        }
+        Ok(args)
+    }
+
+    fn call_args(&mut self) -> Result<(Vec<Spanned>, Option<Span>), Fail> {
         self.expect(&TokenKind::LParen, "`(`")?;
         let mut args = Vec::new();
+        let mut splat = None;
         self.skip_newlines();
         if self.eat(&TokenKind::RParen) {
-            return Ok(args);
+            return Ok((args, splat));
         }
         loop {
             self.skip_newlines();
+            if splat.is_some() {
+                return Err(self.error("a splat `*xs` passes a list as the LAST arguments: write it last"));
+            }
+            if matches!(self.peek(), TokenKind::Op(o) if o == "*") {
+                splat = Some(self.peek_span());
+                self.bump();
+            }
             args.push(self.expr(0)?);
             self.skip_newlines();
             if self.eat(&TokenKind::Comma) {
+                if self.trailing_comma(&TokenKind::RParen) {
+                    break;
+                }
                 continue;
             }
             self.expect(&TokenKind::RParen, "`,` or `)`")?;
             break;
         }
-        Ok(args)
+        Ok((args, splat))
+    }
+
+    fn trailing_comma(&mut self, closer: &TokenKind) -> bool {
+        let comma = self.toks.get(self.pos.wrapping_sub(1)).map_or(self.peek_span(), |t| t.span);
+        self.skip_newlines();
+        if self.at(closer) {
+            self.note(Spelling::TrailingComma, comma, ",", "");
+            self.bump();
+            return true;
+        }
+        false
     }
 
     fn list_literal(&mut self, open: Span) -> Result<Spanned, Fail> {
@@ -1198,6 +1583,9 @@ impl Parser {
             items.push(self.expr(0)?);
             self.skip_newlines();
             if self.eat(&TokenKind::Comma) {
+                if self.trailing_comma(&TokenKind::RBracket) {
+                    break;
+                }
                 continue;
             }
             self.expect(&TokenKind::RBracket, "`,` or `]`")?;
@@ -1231,6 +1619,13 @@ impl Parser {
                 _ => {
                     let k = self.expr(0)?;
                     self.skip_newlines();
+                    if let SpannedForm::Atom(Atom::Keyword(name)) = &k.form {
+                        if blue_lang_name(name) {
+                            let written = format!(":{name} =>");
+                            let canonical = format!("{name}:");
+                            self.note(Spelling::KeywordRocket, k.span, &written, &canonical);
+                        }
+                    }
                     self.expect(&TokenKind::Rocket, "`=>` in a map literal")?;
                     self.skip_newlines();
                     items.push(k);
@@ -1239,6 +1634,9 @@ impl Parser {
             }
             self.skip_newlines();
             if self.eat(&TokenKind::Comma) {
+                if self.trailing_comma(&TokenKind::RBrace) {
+                    break;
+                }
                 continue;
             }
             self.expect(&TokenKind::RBrace, "`,` or `}`")?;
@@ -1259,24 +1657,43 @@ impl Parser {
     fn if_chain(&mut self, head: Span) -> Result<Spanned, Fail> {
         let cond = self.expr(0)?;
         let then = self.body(&["elsif", "else", "end"])?;
-        let els = if self.at_ident("elsif") {
-            let elsif = self.peek_span();
-            self.bump();
-            Some(self.if_chain(elsif)?)
-        } else if self.at_ident("else") {
-            self.bump();
-            let e = self.body(&["end"])?;
-            self.expect_ident("end")?;
-            Some(e)
-        } else {
-            self.expect_ident("end")?;
-            None
-        };
+        let els = self.else_part()?;
         let mut out = vec![sym_at(head, "if"), cond, then];
         if let Some(e) = els {
             out.push(e);
         }
         Ok(list_at(self.span_since(head.start), out))
+    }
+
+    fn else_part(&mut self) -> Result<Option<Spanned>, Fail> {
+        if self.at_ident("elsif") {
+            let elsif = self.peek_span();
+            self.bump();
+            return Ok(Some(self.if_chain(elsif)?));
+        }
+        if !self.at_ident("else") {
+            self.expect_ident("end")?;
+            return Ok(None);
+        }
+        let else_span = self.peek_span();
+        self.bump();
+        let save = self.pos;
+        self.skip_newlines();
+        let leads_with_if = self.at_ident("if") || self.at_ident("unless");
+        self.pos = save;
+        let e = self.body(&["end"])?;
+        let end_at = self.peek_span().start;
+        self.expect_ident("end")?;
+        if matches!(e.form, SpannedForm::Nil) && !self.comment_within(else_span.start, end_at) {
+            self.note(Spelling::ElseNil, else_span, "else nil", "no else");
+            return Ok(None);
+        }
+        let single_if = matches!(&e.form, SpannedForm::List(items)
+            if (items.len() == 3 || items.len() == 4) && items[0].as_symbol() == Some("if"));
+        if leads_with_if && single_if {
+            self.note(Spelling::ElseIf, else_span, "else if", "elsif");
+        }
+        Ok(Some(e))
     }
 
     fn if_form(&mut self, head: Span, negate: bool) -> Result<Spanned, Fail> {
@@ -1285,7 +1702,7 @@ impl Parser {
             // `unless c` lowers to `(if (not c) …)`. The synthesized `not` takes
             // the `unless` keyword's span — that word is what put it there.
             let inner = cond.span;
-            list_at(head.merge(inner), vec![sym_at(head, "not"), cond])
+            self.negation(head, head.merge(inner), cond)
         } else {
             cond
         };
@@ -1302,21 +1719,7 @@ impl Parser {
         // A silent wrong answer in the most-used control form in the language,
         // reachable by writing the Ruby every blue user already knows.
         let then = self.body(&["elsif", "else", "end"])?;
-        let els = if self.at_ident("elsif") {
-            let elsif = self.peek_span();
-            self.bump();
-            // The chain shares ONE `end`, so recurse without consuming it and
-            // let the outermost `if` close the whole thing.
-            Some(self.if_chain(elsif)?)
-        } else if self.at_ident("else") {
-            self.bump();
-            let e = self.body(&["end"])?;
-            self.expect_ident("end")?;
-            Some(e)
-        } else {
-            self.expect_ident("end")?;
-            None
-        };
+        let els = self.else_part()?;
         let mut out = vec![sym_at(head, "if"), cond, then];
         if let Some(e) = els {
             out.push(e);
@@ -1444,6 +1847,9 @@ impl Parser {
     /// unrelated things is the ambiguity the FORM axis exists to prevent.
     fn lambda_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let mut params: Vec<Spanned> = Vec::new();
+        if !self.at(&TokenKind::LParen) {
+            self.note(Spelling::ParameterList, head, "fn", "fn()");
+        }
         if self.at(&TokenKind::LParen) {
             self.bump();
             self.skip_newlines();
@@ -1462,6 +1868,9 @@ impl Parser {
                     }
                     self.skip_newlines();
                     if self.eat(&TokenKind::Comma) {
+                        if self.trailing_comma(&TokenKind::RParen) {
+                            break;
+                        }
                         continue;
                     }
                     self.expect(&TokenKind::RParen, "`,` or `)`")?;
@@ -1582,6 +1991,9 @@ impl Parser {
                     }
                     self.skip_newlines();
                     if self.eat(&TokenKind::Comma) {
+                        if self.trailing_comma(&TokenKind::RParen) {
+                            break;
+                        }
                         continue;
                     }
                     self.expect(&TokenKind::RParen, "`,` or `)`")?;
@@ -1652,6 +2064,175 @@ impl Parser {
         ))
     }
 
+    fn protected_body(&mut self, head: Span) -> Result<Spanned, Fail> {
+        let body = self.body(&["rescue", "ensure", "end"])?;
+        if self.at_ident("rescue") || self.at_ident("ensure") {
+            return self.rescue_tail(head, body);
+        }
+        Ok(body)
+    }
+
+    fn begin_form(&mut self, head: Span) -> Result<Spanned, Fail> {
+        let body = self.body(&["rescue", "ensure", "end"])?;
+        if !(self.at_ident("rescue") || self.at_ident("ensure")) {
+            return Err(self.error(
+                "a `begin` block protects its statements with `rescue` or `ensure`; without either, write the statements directly",
+            ));
+        }
+        let tree = self.rescue_tail(head, body)?;
+        self.expect_ident("end")?;
+        Ok(Spanned::new(self.span_since(head.start), tree.form))
+    }
+
+    fn rescue_tail(&mut self, head: Span, body: Spanned) -> Result<Spanned, Fail> {
+        let mut clauses: Vec<Spanned> = Vec::new();
+        let mut catch_all: Option<(Spanned, Spanned, Span)> = None;
+        while self.at_ident("rescue") {
+            let kw = self.peek_span();
+            self.bump();
+            if catch_all.is_some() {
+                return Err(fail(
+                    "a `rescue NAME` catches every error, so it is the last `rescue`; put the kinds it would shadow above it",
+                    kw,
+                ));
+            }
+            match self.peek().clone() {
+                TokenKind::Sym(_) => {
+                    let mut kinds = Vec::new();
+                    loop {
+                        let k_span = self.peek_span();
+                        match self.bump() {
+                            TokenKind::Sym(k) => kinds.push(atom_at(k_span, Atom::Keyword(k))),
+                            other => {
+                                return Err(fail(
+                                    format!("expected an error kind such as `:not_found`, found {other}"),
+                                    k_span,
+                                ))
+                            }
+                        }
+                        if self.eat(&TokenKind::Comma) {
+                            self.skip_newlines();
+                            continue;
+                        }
+                        break;
+                    }
+                    let binder = if self.eat_ident("as") {
+                        let b_span = self.peek_span();
+                        match self.bump() {
+                            TokenKind::Ident(b) if !is_reserved_word(&b) => Some(sym_at(b_span, &b)),
+                            other => {
+                                return Err(fail(
+                                    format!("expected the name the error is bound to after `as`, found {other}"),
+                                    b_span,
+                                ))
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    let handler = self.body(&["rescue", "ensure", "end"])?;
+                    let mut test = vec![sym_at(kw, LOWERED_ERROR_MATCH), sym_at(kw, RESCUED)];
+                    test.extend(kinds);
+                    let test = list_at(cover(&test, kw), test);
+                    let handler = match binder {
+                        Some(b) => let_bound(b, handler, kw),
+                        None => handler,
+                    };
+                    clauses.push(list_at(kw.merge(handler.span), vec![test, handler]));
+                }
+                TokenKind::Ident(b) if !is_reserved_word(&b) => {
+                    let b_span = self.peek_span();
+                    self.bump();
+                    let handler = self.body(&["rescue", "ensure", "end"])?;
+                    catch_all = Some((sym_at(b_span, &b), handler, kw));
+                }
+                _ => {
+                    return Err(fail(
+                        "`rescue` names what it catches: `rescue :kind`, `rescue :a, :b as e`, or `rescue e` for every error (`rescue _` discards it)",
+                        kw,
+                    ))
+                }
+            }
+        }
+        let ensure = if self.at_ident("ensure") {
+            self.bump();
+            let cleanup = self.body(&["rescue", "end"])?;
+            if self.at_ident("rescue") {
+                return Err(self.error("`ensure` comes after every `rescue` of its block"));
+            }
+            Some(cleanup)
+        } else {
+            None
+        };
+        let whole = self.span_since(head.start);
+        let protected = if clauses.is_empty() {
+            match catch_all {
+                None => body,
+                Some((binder, handler, kw)) => list_at(
+                    whole,
+                    vec![
+                        sym_at(head, "try"),
+                        body,
+                        list_at(
+                            kw.merge(handler.span),
+                            vec![sym_at(kw, "catch"), list_at(binder.span, vec![binder]), handler],
+                        ),
+                    ],
+                ),
+            }
+        } else {
+            let first_kw = clauses[0].span;
+            let otherwise = match catch_all {
+                Some((binder, handler, kw)) => {
+                    let bound = let_bound(binder, handler, kw);
+                    list_at(kw.merge(bound.span), vec![sym_at(kw, "else"), bound])
+                }
+                None => list_at(
+                    head,
+                    vec![
+                        sym_at(head, "else"),
+                        list_at(head, vec![sym_at(head, LOWERED_RERAISE), sym_at(head, RESCUED)]),
+                    ],
+                ),
+            };
+            let mut cond = vec![sym_at(first_kw, "cond")];
+            cond.extend(clauses);
+            cond.push(otherwise);
+            let cond_span = cover(&cond, first_kw);
+            list_at(
+                whole,
+                vec![
+                    sym_at(head, "try"),
+                    body,
+                    list_at(
+                        cond_span,
+                        vec![
+                            sym_at(first_kw, "catch"),
+                            list_at(first_kw, vec![sym_at(first_kw, RESCUED)]),
+                            list_at(cond_span, cond),
+                        ],
+                    ),
+                ],
+            )
+        };
+        Ok(match ensure {
+            None => protected,
+            Some(cleanup) => {
+                let attempted = list_at(protected.span, vec![sym_at(head, LOWERED_ATTEMPTED), protected]);
+                let failed = list_at(head, vec![sym_at(head, LOWERED_FAILED), sym_at(head, RESCUED)]);
+                let caught = list_at(
+                    whole,
+                    vec![
+                        sym_at(head, "try"),
+                        attempted,
+                        list_at(head, vec![sym_at(head, "catch"), list_at(head, vec![sym_at(head, RESCUED)]), failed]),
+                    ],
+                );
+                list_at(whole, vec![sym_at(head, LOWERED_ENSURE), caught, thunk(cleanup, head)])
+            }
+        })
+    }
+
     fn def_form(&mut self, head: Span) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
@@ -1664,6 +2245,9 @@ impl Parser {
             }
         };
         let mut params: Vec<(String, Span, Option<Spanned>)> = Vec::new();
+        if !self.at(&TokenKind::LParen) {
+            self.note(Spelling::ParameterList, name_span, &format!("def {name}"), &format!("def {name}()"));
+        }
         if self.at(&TokenKind::LParen) {
             self.bump();
             self.skip_newlines();
@@ -1689,6 +2273,9 @@ impl Parser {
                     }
                     self.skip_newlines();
                     if self.eat(&TokenKind::Comma) {
+                        if self.trailing_comma(&TokenKind::RParen) {
+                            break;
+                        }
                         continue;
                     }
                     self.expect(&TokenKind::RParen, "`,` or `)`")?;
@@ -1708,7 +2295,21 @@ impl Parser {
             None
         };
 
-        let body = self.body(&["end"])?;
+        let begins = {
+            let save = self.pos;
+            self.skip_newlines();
+            let at = self.at_ident("begin").then(|| self.peek_span());
+            self.pos = save;
+            at
+        };
+        let body = self.protected_body(head)?;
+        if let Some(b) = begins {
+            let protects = matches!(&body.form, SpannedForm::List(items)
+                if matches!(items.first().and_then(Spanned::as_symbol), Some("try") | Some(LOWERED_ENSURE)));
+            if protects && body.span.start == b.start {
+                self.note(Spelling::TryCatch, b, "begin … end as a whole def body", "the clauses on the def itself");
+            }
+        }
         self.expect_ident("end")?;
         let whole = self.span_since(head.start);
 
@@ -1842,6 +2443,36 @@ fn one_of(words: &[&str]) -> String {
     }
 }
 
+fn let_bound(binder: Spanned, body: Spanned, at: Span) -> Spanned {
+    let span = at.merge(body.span);
+    let pair = list_at(binder.span, vec![binder, sym_at(at, RESCUED)]);
+    list_at(span, vec![sym_at(at, "let"), list_at(pair.span, vec![pair]), body])
+}
+
+fn thunk(body: Spanned, at: Span) -> Spanned {
+    let span = at.merge(body.span);
+    list_at(span, vec![sym_at(at, "lambda"), list_at(at, Vec::new()), body])
+}
+
+fn blue_lang_name(name: &str) -> bool {
+    matches!(
+        lex(name).as_deref(),
+        Ok([t, e]) if matches!(&t.kind, TokenKind::Ident(n) if n == name) && e.kind == TokenKind::Eof
+    ) && !name.ends_with(['?', '!'])
+}
+
+fn mentions(form: &Spanned, name: &str) -> bool {
+    match &form.form {
+        SpannedForm::Atom(Atom::Symbol(s)) => s == name,
+        SpannedForm::List(items) => items.iter().any(|i| mentions(i, name)),
+        SpannedForm::Quote(i)
+        | SpannedForm::Quasiquote(i)
+        | SpannedForm::Unquote(i)
+        | SpannedForm::UnquoteSplice(i) => mentions(i, name),
+        _ => false,
+    }
+}
+
 /// A symbol node at `span`.
 fn sym_at(span: Span, s: &str) -> Spanned {
     Spanned::new(span, SpannedForm::Atom(Atom::Symbol(s.to_string())))
@@ -1915,12 +2546,9 @@ mod tests {
         assert_eq!(q("1 - 2 - 3"), "(- (- 1 2) 3)");
     }
 
-    /// A bare `recv.name` is a SEND. Blue commits to uniform access here,
-    /// so a field can later become a computed method without breaking
-    /// callers.
     #[test]
-    fn method_call_without_parens_is_a_send() {
-        assert_eq!(q("user.name"), "(name user)");
+    fn a_dot_without_parentheses_reads_a_field() {
+        assert_eq!(q("user.name"), "(blue-field user :name)");
     }
 
     #[test]
@@ -1929,8 +2557,9 @@ mod tests {
     }
 
     #[test]
-    fn chained_sends_read_left_to_right() {
-        assert_eq!(q("a.b.c"), "(c (b a))");
+    fn chained_fields_read_left_to_right() {
+        assert_eq!(q("a.b.c"), "(blue-field (blue-field a :b) :c)");
+        assert_eq!(q("a.b(1).c"), "(blue-field (b a 1) :c)");
     }
 
     #[test]

@@ -95,8 +95,21 @@ row("numbers.log.base", "log(8, 2)", value("3.0"))
 row("numbers.max", "max(1, 5, 3)", value("5"), covers("builtin:max"))
 row("numbers.min", "min(4, 2, 8)", value("2"), covers("builtin:min"))
 row("numbers.mod.builtin", "mod(-7, 3)", value("2"), covers("builtin:mod"))
-row("numbers.modulo", "modulo(-7, 3)", value("2"), covers("builtin:modulo"))
-row("numbers.rem", "rem(-7, 3)", value("2"), covers("builtin:rem"))
+
+row(
+  "numbers.modulo",
+  "# waive B0036: the row covers this name itself\nmodulo(-7, 3)",
+  value("2"),
+  covers("builtin:modulo")
+)
+
+row(
+  "numbers.rem",
+  "# waive B0036: the row covers this name itself\nrem(-7, 3)",
+  value("2"),
+  covers("builtin:rem")
+)
+
 row("numbers.round", "round(2.5)", value("3"), covers("builtin:round"))
 row("numbers.sin", "sin(0)", value("0.0"), covers("builtin:sin"))
 row("numbers.sqrt", "sqrt(16)", value("4.0"), covers("builtin:sqrt"))

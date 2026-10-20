@@ -361,6 +361,7 @@ fn static_codes(src: &str, roots: &[PathBuf]) -> Vec<String> {
             .outcome
             .diagnostics
             .iter()
+            .chain(&blue_lang_runtime::pipeline::form_diagnostics(src))
             .map(|d| d.code.as_str().to_owned())
             .collect(),
         Err(e) => vec![format!("<{e}>")],
@@ -426,7 +427,9 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         return Obs::Crashed(format!("panic: {msg}"));
     }
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr)
+        .into_owned()
+        .replace(&file.display().to_string(), ROW_FILE);
     // `run` formats a non-canonical file in place and says so; that line is
     // the door's courtesy, not the program's output.
     let stderr: String = stderr
@@ -569,9 +572,15 @@ fn cli_failure(stderr: &str) -> Obs {
         // The first line is the error; the lines under it are the call stack
         // (`  at f (row.b:2:3)`), which the in-process columns observe as a
         // separate `Fault` field and a row does not state.
+        let mut lines = rest.lines();
+        let mut message = unlocate(lines.next().unwrap_or(rest));
+        for cause in lines.take_while(|l| l.starts_with("  caused by ")) {
+            message.push('\n');
+            message.push_str(cause);
+        }
         return Obs::Failed {
             stage: Stage::Eval,
-            message: unlocate(rest.lines().next().unwrap_or(rest)),
+            message,
         };
     }
     if let Some(rest) = body.strip_prefix("import error: ") {

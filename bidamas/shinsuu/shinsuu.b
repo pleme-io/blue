@@ -136,8 +136,8 @@ end
 
 test "the Luhn checksum"
   # A known-valid test number, and the same number with one digit changed.
-  assert luhn_valid(79927398713) == true
-  assert luhn_valid(79927398714) == false
+  assert luhn_valid(79_927_398_713) == true
+  assert luhn_valid(79_927_398_714) == false
 end
 
 # ---------------------------------------------------------------------------
@@ -270,7 +270,7 @@ def bit_length(n)
 end
 
 def is_power_of_two(n)
-  n > 0 && popcount(n) == 1
+  n > 0 and popcount(n) == 1
 end
 
 # The smallest power of two that is not less than n.
@@ -493,7 +493,7 @@ test "digital root"
   assert digital_root(99) == 9
   assert digital_root(12345) == 6
   # It really is repeated: 999999 sums to 54, then to 9.
-  assert digital_root(999999) == 9
+  assert digital_root(999_999) == 9
   assert digital_root(7) == 7
 end
 
@@ -533,13 +533,13 @@ test "Gray code is a bijection whose successive values differ by one bit"
   # `gray_decode = gray_encode` implementation passes for 0, 1, 2 and 3 and
   # first disagrees at 4.
   assert size(
-    filter(fn(n) !(gray_decode(gray_encode(n)) == n) end, range(0, 128))
+    filter(fn(n) gray_decode(gray_encode(n)) != n end, range(0, 128))
   ) ==
     0
   # And the defining property: one bit changes per step, for every step.
   assert size(
     filter(
-      fn(n) !(popcount(bit_xor(gray_encode(n), gray_encode(n + 1))) == 1) end,
+      fn(n) popcount(bit_xor(gray_encode(n), gray_encode(n + 1))) != 1 end,
       range(0, 128)
     )
   ) ==
@@ -581,7 +581,7 @@ end
 # recursion that runs fifteen deep — building the tables once per numeral
 # instead of forty-five times is most of this package's test-suite runtime.
 def to_roman_from(n, vs, ss, i)
-  if n < 1 || i >= size(vs)
+  if n < 1 or i >= size(vs)
     ""
   else
     v = nth(i, vs)
@@ -656,7 +656,7 @@ end
 # canonical that cannot drift from the encoder's own table.
 def is_canonical_roman(text)
   n = from_roman(text)
-  n > 0 && to_roman(n) == upcase(trim(text))
+  n > 0 and to_roman(n) == upcase(trim(text))
 end
 
 test "writing Roman numerals, including every subtractive pair"
@@ -706,7 +706,7 @@ test "every numeral from 1 to 3999 survives the round trip"
       acc +
         size(
           filter(
-            fn(n) !(from_roman(to_roman(n)) == n) end,
+            fn(n) from_roman(to_roman(n)) != n end,
             range(s, min(s + 400, 4000))
           )
         )
@@ -803,7 +803,7 @@ end
 
 def all_digits_in_base(cs, base)
   is_empty(
-    filter(fn(c) digit_value36(c) < 0 || digit_value36(c) >= base end, cs)
+    filter(fn(c) digit_value36(c) < 0 or digit_value36(c) >= base end, cs)
   )
 end
 
@@ -813,7 +813,7 @@ end
 # caller reaching for this is about to parse.
 def is_valid_in_base(text, base)
   cs = chars(downcase(trim(text)))
-  size(cs) > 0 && all_digits_in_base(cs, base)
+  size(cs) > 0 and all_digits_in_base(cs, base)
 end
 
 # Parse, answering nil when the text is not a numeral in this base.
@@ -838,7 +838,7 @@ def parse_int(text, base)
 end
 
 def parse_signed(cs, base, sign)
-  if is_empty(cs) || !all_digits_in_base(cs, base)
+  if is_empty(cs) or not all_digits_in_base(cs, base)
     nil
   else
     sign * reduce(fn(acc, c) acc * base + digit_value36(c) end, 0, cs)
@@ -865,7 +865,7 @@ test "base 36"
   assert from_base36("zz") == 1295
   assert from_base36("10") == 36
   # Round trip on a value with digits from both halves of the table.
-  assert from_base36(to_base36(123456789)) == 123456789
+  assert from_base36(to_base36(123_456_789)) == 123_456_789
 end
 
 test "parse_int refuses what from_base would have swallowed"
@@ -967,8 +967,8 @@ end
 # character, since silently ignoring a stray letter would validate a typo.
 def luhn_valid_text(text)
   cs = chars(replace(replace(trim(text), " ", ""), "-", ""))
-  size(cs) > 0 &&
-    all_digits_in_base(cs, 10) &&
+  size(cs) > 0 and
+    all_digits_in_base(cs, 10) and
     luhn_valid_digits(map(fn(c) digit_value36(c) end, cs))
 end
 
@@ -995,12 +995,14 @@ def isbn10_char_ok(ch, i)
   if ch == "X"
     i == 9
   else
-    digit_value36(ch) >= 0 && digit_value36(ch) < 10
+    digit_value36(ch) >= 0 and digit_value36(ch) < 10
   end
 end
 
 def isbn10_ok_chars(cs)
-  is_empty(filter(fn(i) !isbn10_char_ok(nth(i, cs), i) end, range(0, size(cs))))
+  is_empty(
+    filter(fn(i) not isbn10_char_ok(nth(i, cs), i) end, range(0, size(cs)))
+  )
 end
 
 # Weights run 10, 9, 8 … down to 1, so this is also the partial sum over a
@@ -1015,7 +1017,7 @@ end
 
 def isbn10_valid(text)
   cs = isbn10_chars(text)
-  size(cs) == 10 && isbn10_ok_chars(cs) && isbn10_weighted(cs) % 11 == 0
+  size(cs) == 10 and isbn10_ok_chars(cs) and isbn10_weighted(cs) % 11 == 0
 end
 
 def isbn10_digit_char(v)
@@ -1028,7 +1030,7 @@ end
 
 def isbn10_check_char(first9)
   cs = isbn10_chars(first9)
-  if !(size(cs) == 9) || !isbn10_ok_chars(cs)
+  if size(cs) != 9 or not isbn10_ok_chars(cs)
     nil
   else
     isbn10_digit_char((11 - isbn10_weighted(cs) % 11) % 11)
@@ -1058,14 +1060,14 @@ test "the mod-N checksum and its check digit are inverses"
   # hand-picked pair would.
   assert size(
     filter(
-      fn(n) !mod_check_valid(n * 10 + mod_check_digit(n, 7), 7) end,
+      fn(n) not mod_check_valid(n * 10 + mod_check_digit(n, 7), 7) end,
       range(1, 256)
     )
   ) ==
     0
   assert size(
     filter(
-      fn(n) !mod_check_valid(n * 10 + mod_check_digit(n, 9), 9) end,
+      fn(n) not mod_check_valid(n * 10 + mod_check_digit(n, 9), 9) end,
       range(1, 256)
     )
   ) ==
@@ -1075,18 +1077,21 @@ end
 test "the Luhn check digit is the one the Luhn checker wants"
   # 79927398713 is the standard valid number, so its first ten digits must
   # generate a 3.
-  assert luhn_check_digit(7992739871) == 3
+  assert luhn_check_digit(7_992_739_871) == 3
   # And the identity over a range, which the off-by-one in the doubling
   # position fails on roughly half of all inputs.
   assert size(
-    filter(fn(n) !luhn_valid(n * 10 + luhn_check_digit(n)) end, range(1, 256))
+    filter(
+      fn(n) not luhn_valid(n * 10 + luhn_check_digit(n)) end,
+      range(1, 256)
+    )
   ) ==
     0
 end
 
 test "Luhn over digit lists and over written text"
-  assert luhn_valid_digits(digits_of(79927398713)) == true
-  assert luhn_valid_digits(digits_of(79927398714)) == false
+  assert luhn_valid_digits(digits_of(79_927_398_713)) == true
+  assert luhn_valid_digits(digits_of(79_927_398_714)) == false
   # A checksum of nothing does not pass.
   assert luhn_valid_digits([]) == false
   # Leading zeros are unrepresentable as an integer, and it turns out they can
@@ -1143,7 +1148,7 @@ test "the ISBN-10 check character, including the X case"
   assert isbn10_check_char("000000006") == "X"
   assert size(
     filter(
-      fn(n) !isbn10_valid(isbn10_complete(to_base_width(n, 10, 9))) end,
+      fn(n) not isbn10_valid(isbn10_complete(to_base_width(n, 10, 9))) end,
       range(1, 128)
     )
   ) ==

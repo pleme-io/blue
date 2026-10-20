@@ -49,7 +49,7 @@ test "a branch returns the taken arm"
 end
 
 test "unless is a negated if"
-  assert if !(1 > 2)
+  assert if not (1 > 2)
     7
   else
     8

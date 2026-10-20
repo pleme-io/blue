@@ -24,9 +24,11 @@
 (type name: (identifier) @type)
 (defmacro name: (identifier) @function.macro)
 ["=" "||" "∨" "&&" "∧" "==" "≡" "!=" "≠" "<" "<=" "≤" ">" ">=" "≥" "+" "-" "−" "*" "×" "/" "÷" "%" "|>" "!" "¬" "=>" "->"] @operator
+["rescue" "begin" "as" "ensure"] @keyword.exception
+["or" "and" "not"] @keyword.operator
 ["." "," "::"] @punctuation.delimiter
 ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+["end" "test" "assert" "quote" "unquote" "unquote_splice"] @keyword
 ["#{"] @punctuation.special
 ["if" "unless" "elsif" "else" "case" "when"] @keyword.conditional
-["end" "test" "assert" "quote" "unquote" "unquote_splice"] @keyword
 ["def" "defmacro" "fn"] @keyword.function

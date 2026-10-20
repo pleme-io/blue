@@ -59,10 +59,10 @@ legacy_names("0.1.2", [["opt_lines", "shuugou::as_set"]])
 # A number to at most six decimals, trailing zeros dropped, never an
 # exponent, and never "-0".
 def num(x)
-  n = round(x * 1000000)
+  n = round(x * 1_000_000)
   a = abs(n)
-  whole = floor(a / 1000000)
-  frac = a - whole * 1000000
+  whole = floor(a / 1_000_000)
+  frac = a - whole * 1_000_000
   sign = if n < 0
     "-"
   else
@@ -213,7 +213,7 @@ def entity_points(e)
     [get(e, :a), get(e, :b)]
   elsif k == :polyline
     get(e, :pts)
-  elsif k == :circle || k == :arc
+  elsif k == :circle or k == :arc
     c = get(e, :c)
     r = get(e, :r)
     [[px(c) - r, py(c) - r], [px(c) + r, py(c) + r]]
@@ -537,7 +537,7 @@ def svg_style(layer)
     "stroke=\"#1a7f37\" stroke-width=\"0.35\" stroke-dasharray=\"4 2\" fill=\"none\""
   elsif layer == "HOLES"
     "stroke=\"#cf222e\" stroke-width=\"0.5\" fill=\"none\""
-  elsif layer == "DIM" || layer == "FRAME"
+  elsif layer == "DIM" or layer == "FRAME"
     "stroke=\"#57606a\" stroke-width=\"0.25\" fill=\"none\""
   else
     "stroke=\"#1f2328\" stroke-width=\"0.5\" fill=\"none\""
@@ -609,7 +609,7 @@ def zu_count(text, kind)
   ls = split(text, "\n")
   size(
     filter(
-      fn(i) nth(i, ls) == "0" && nth(i + 1, ls) == kind end,
+      fn(i) nth(i, ls) == "0" and nth(i + 1, ls) == kind end,
       filter(fn(i) i % 2 == 0 end, range(0, size(ls) - 1))
     )
   )

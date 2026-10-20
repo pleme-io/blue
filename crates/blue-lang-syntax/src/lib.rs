@@ -21,6 +21,7 @@ pub mod kigou;
 pub mod lex;
 pub mod parse;
 pub mod scope;
+pub mod spelling;
 pub mod yakugo;
 
 pub use forms::{Form, FORMS};
@@ -31,10 +32,12 @@ pub use parse::{
     comments, is_callable_name, is_reserved_word, keyword_doc, parse_expr, parse_program,
     parse_program_in, parse_program_spanned, parse_program_spanned_with_depth, parse_program_tree,
     parse_program_tree_in, parse_program_tree_with_depth, parse_program_with_depth,
-    parses_on_this_thread, qualified, qualify, Comment, Infix, ParseError, BLOCK_KEYWORDS,
-    BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_MAP, MAX_EXPR_DEPTH,
-    QUALIFIER, SURFACE_KEYWORDS,
+    parses_on_this_thread, qualified, qualify, spelling_notes, Comment, Infix, ParseError,
+    BLOCK_KEYWORDS, BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_ATTEMPTED, LOWERED_FAILED, LOWERED_CONCAT, LOWERED_ENSURE,
+    LOWERED_ERROR_MATCH, LOWERED_FIELD, LOWERED_MAP, LOWERED_RERAISE, MAX_EXPR_DEPTH,
+    OPERATOR_KEYWORDS, QUALIFIER, RESCUED, SURFACE_KEYWORDS, SYMBOL_SPELLINGS,
 };
+pub use spelling::{Note, Spelling};
 // `Spanned`/`SpannedForm` alongside `Sexp` for the same reason `Sexp` is here:
 // the parser's real output is the spanned tree, and a consumer that wants a
 // position should not have to add a tatara-lisp dependency to name the node it

@@ -1,4 +1,4 @@
-use("retsu", [:first, :is_empty, :push, :rest, :size])
+use("retsu", [:first, :is_empty, :push, :rest, :size, :without])
 use("ronri", [:any, :count_if, :every])
 
 # shuugou (集合) — sets, over plain lists.
@@ -43,7 +43,7 @@ def intersection(a, b)
 end
 
 def difference(a, b)
-  unique(filter(fn(x) !member(b, x) end, a))
+  unique(filter(fn(x) not member(b, x) end, a))
 end
 
 def subset(a, b)
@@ -93,7 +93,7 @@ end
 # because unique preserves first-seen ORDER, so the list comparison would call
 # those two unequal.
 def set_equal(a, b)
-  subset(a, b) && subset(b, a)
+  subset(a, b) and subset(b, a)
 end
 
 def superset(a, b)
@@ -103,7 +103,7 @@ end
 # Proper = contained AND not equal. The case worth stating: no set is a proper
 # subset of itself, which is what separates this from `subset`.
 def proper_subset(a, b)
-  subset(a, b) && !set_equal(a, b)
+  subset(a, b) and not set_equal(a, b)
 end
 
 def proper_superset(a, b)
@@ -127,7 +127,7 @@ end
 # leaves another would hand back a value that still `member` what was just
 # removed — the postcondition every caller assumes.
 def remove(xs, v)
-  filter(fn(x) x != v end, xs)
+  without(xs, v)
 end
 
 # unique, but on a derived key — keeps the first element per key, and keeps

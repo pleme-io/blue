@@ -13,6 +13,10 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    "begin\n  risky\nrescue :timeout, :refused as e\n  e.message\nrescue e\n  raise(e)\nensure\n  close\nend",
+    "def f(x)\n  g(x)\nrescue :boom\n  nil\nend",
+    "x = json_parse(s) rescue nil",
+    "ready and not done or failed",
     // case/when.
     "case x\nwhen 1\n  \"one\"\nend",
     "case x\nwhen 1\n  \"one\"\nwhen 2\n  \"two\"\nend",
@@ -561,10 +565,16 @@ fn a_binding_inside_an_expression_stays_a_call() {
 #[test]
 fn every_printed_form_keeps_its_own_binding() {
     for (src, want) in [
-        ("not(not(a))", "!(!a)"),
+        ("not(not(a))", "not (not a)"),
         ("-(-a)", "-(-a)"),
-        ("(!f)(x)", "(!f)(x)"),
-        ("(assert a) || b", "(assert a) || b"),
+        ("(!f)(x)", "(not f)(x)"),
+        ("(assert a) || b", "(assert a) or b"),
+        ("(not a) == b", "(not a) == b"),
+        ("x.status", "x.status"),
+        ("f(1, *xs)", "f(1, *xs)"),
+        ("x rescue nil", "x rescue nil"),
+        ("(x rescue 1) + 2", "(x rescue 1) + 2"),
+        ("a |> f rescue b", "f(a) rescue b"),
         ("a |> (b != c)", "a |> (b != c)"),
         ("x |> {a: 1}", "x |> ({a: 1})"),
         ("\"#\\u{7b}\"", "\"#\\u{7b}\""),

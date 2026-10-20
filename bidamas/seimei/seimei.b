@@ -57,9 +57,9 @@ end
 
 # Conway's Life on a bounded grid, cells outside counting as dead.
 def cell_at(grid, r, c)
-  if r < 0 || c < 0
+  if r < 0 or c < 0
     0
-  elsif r >= size(grid) || c >= size(first(grid))
+  elsif r >= size(grid) or c >= size(first(grid))
     0
   else
     nth(c, nth(r, grid))
@@ -80,7 +80,7 @@ end
 def life_cell(grid, r, c)
   n = neighbours(grid, r, c)
   if cell_at(grid, r, c) == 1
-    if n == 2 || n == 3
+    if n == 2 or n == 3
       1
     else
       0
@@ -367,7 +367,7 @@ test "stability and period tell still lifes, oscillators and gliders apart"
   block = [[0, 0, 0, 0], [0, 1, 1, 0], [0, 1, 1, 0], [0, 0, 0, 0]]
   blinker = [[0, 0, 0], [1, 1, 1], [0, 0, 0]]
   assert is_stable(block)
-  assert !is_stable(blinker)
+  assert not is_stable(blinker)
   # A still life is an oscillator of period one, not of period zero.
   assert is_oscillator(block, 4) == 1
   assert is_oscillator(blinker, 4) == 2

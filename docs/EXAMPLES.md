@@ -66,7 +66,7 @@ test "a file written, appended to and read back"
   assert is_file?(path)
   assert size(ls(dir)) == 1
   rm_rf(dir)
-  assert !path_exists(dir)
+  assert not path_exists(dir)
 end
 
 test "a missing file is a default, not a crash, through read_or"
@@ -103,7 +103,7 @@ end
 
 # Every order in a CSV text with a header line; blank lines are skipped.
 def orders_of(text)
-  rows = filter(fn(l) !is_blank(l) end, rest(lines(text)))
+  rows = filter(fn(l) not is_blank(l) end, rest(lines(text)))
   map(fn(l) order_of(l) end, rows)
 end
 
@@ -164,7 +164,7 @@ end
 
 # Tally words into a map with reduce and assoc.
 def tally(words)
-  reduce(fn(m, w) assoc(m, w, (get(m, w) || 0) + 1) end, {}, words)
+  reduce(fn(m, w) assoc(m, w, (get(m, w) or 0) + 1) end, {}, words)
 end
 
 test "map and filter take the function first"
@@ -272,7 +272,7 @@ def port_refusals(text)
   n = to_int(text)
   if n == nil
     [[:not_a_number, "#{text} is not a port number"]]
-  elsif n < 1 || n > 65535
+  elsif n < 1 or n > 65535
     [[:out_of_range, "#{n} is outside 1..65535"]]
   else
     []
@@ -286,13 +286,8 @@ end
 # The boundary: return the port, or raise naming every refusal.
 def port_of(text)
   refusals = port_refusals(text)
-  if !is_empty(refusals)
-    throw(
-      error(
-        first(first(refusals)),
-        join(map(fn(r) last(r) end, refusals), "; ")
-      )
-    )
+  if not is_empty(refusals)
+    raise(first(first(refusals)), join(map(fn(r) last(r) end, refusals), "; "))
   end
   to_int(text)
 end
@@ -309,9 +304,13 @@ test "each bad input is refused with its own kind"
 end
 
 test "the boundary raises, and a caller can catch it"
-  caught = try(port_of("http"), catch(e(), e))
+  caught = begin
+    port_of("http")
+  rescue e
+    e
+  end
   assert error?(caught)
-  assert try(port_of("22"), catch(_e(), :failed)) == 22
+  assert (port_of("22") rescue :failed) == 22
 end
 
 test "error() alone is a value, not a raise"
@@ -411,14 +410,14 @@ test "sign with the secret half, verify with the public half"
   kp = signing_keypair(seed)
   sig = sign_message(keypair_secret(kp), "ship it")
   assert verify_message(keypair_public(kp), "ship it", sig)
-  assert !verify_message(keypair_public(kp), "ship it later", sig)
+  assert not verify_message(keypair_public(kp), "ship it later", sig)
 end
 
 test "a hash chain detects an edited entry"
   g = chain_genesis("orders")
   head = chain_head(g, ["a", "b", "c"])
   assert chain_verify(g, ["a", "b", "c"], head)
-  assert !chain_verify(g, ["a", "B", "c"], head)
+  assert not chain_verify(g, ["a", "B", "c"], head)
 end
 ```
 
@@ -475,8 +474,6 @@ def blue_version()
   cap = exec_capture(self_exe, "--version")
   if status_of(cap) == 0
     trim(stdout_of(cap))
-  else
-    nil
   end
 end
 
@@ -487,7 +484,7 @@ end
 test "a failing command is a status, not a raise"
   cap = exec_capture(self_exe, "no-such-subcommand")
   assert status_of(cap) != 0
-  assert !is_blank(stderr_of(cap))
+  assert not is_blank(stderr_of(cap))
 end
 ```
 
@@ -535,8 +532,8 @@ end
 
 def kz_strip(word)
   cs = chars(word)
-  kept = drop_while(fn(c) !is_alnum(c) end, cs)
-  join(reverse(drop_while(fn(c) !is_alnum(c) end, reverse(kept))), "")
+  kept = drop_while(fn(c) not is_alnum(c) end, cs)
+  join(reverse(drop_while(fn(c) not is_alnum(c) end, reverse(kept))), "")
 end
 
 # [word, count] pairs, most frequent first, ties in first-seen order.
@@ -553,7 +550,7 @@ end
 
 test "a token with no letters is not a word"
   assert kz_words("a -- b") == ["a", "b"]
-  assert !kz_word?("--")
+  assert not kz_word?("--")
 end
 
 test "counts come most frequent first, ties in first-seen order"
@@ -661,12 +658,19 @@ test "a bus message names its command"
 end
 
 test "nothing listening is a raise, not a silent false"
-  assert error?(try(nats_connect("nats://127.0.0.1:1", 500), catch(e(), e)))
   assert error?(
-    try(
-      http_request("GET", "http://127.0.0.1:1/", nil, nil, 500),
-      catch(e(), e)
-    )
+    begin
+      nats_connect("nats://127.0.0.1:1", 500)
+    rescue e
+      e
+    end
+  )
+  assert error?(
+    begin
+      http_request("GET", "http://127.0.0.1:1/", nil, nil, 500)
+    rescue e
+      e
+    end
   )
 end
 ```
@@ -681,7 +685,7 @@ spawn runs a function as a process of its own; send copies a message into its ma
 def squarer(parent)
   n = receive()
   if n < 0
-    throw(error(:negative, "cannot square #{n}"))
+    raise(:negative, "cannot square #{n}")
   end
   send(parent, [:square, n, n * n])
   squarer(parent)

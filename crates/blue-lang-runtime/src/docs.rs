@@ -140,16 +140,12 @@ macro_rules! names {
 /// Every name the full interpreter binds that a blue identifier can spell.
 pub const NAMES: &[NameDoc] = names! {
     // ── forms ─────────────────────────────────────────────────────────────
-    Form: "and" "and(a, b, more...)" "The last value if every one is truthy, else the first falsy one; stops early. The operator form is a && b.";
-    Form: "or" "or(a, b, more...)" "The first truthy value, else the last; stops early. The operator form is a || b.";
-    Form: "not" "not(x)" "true when x is false or nil. Written !x.";
     Form: "when" "when(c, body...)" "The body's last value when c is truthy, else nil. An if with no else says the same thing.";
     Form: "define" "define(name, value)" "Bind a name. Written name = value; the formatter prints that form.";
     Form: "set!" "set!(name, value)" "Rebind an existing name. A name a forked process inherited is sealed and refuses it.";
-    Form: "begin" "begin(a, b, more...)" "Evaluate in order; the value is the last. A def body already does this.";
     Form: "lambda" "fn(x) … end" "The function form fn lowers to. Write fn.";
     Form: "quasiquote" "quote … end" "What quote with unquote lowers to inside defmacro.";
-    Form: "try" "try(expr, catch(e(), handler))" "The value of expr, or of handler when expr throws. The binding is written e(). The kind and message of e cannot be read.";
+    Form: "try" "try(expr, catch(e(), handler))" "The Lisp form begin … rescue lowers to. Written `expr rescue fallback` or a begin … rescue e … end block (B0037).";
     Form: "while" "while(c, body)" "Evaluate body while c is truthy; nil. Needs set! to make progress, so map, filter and reduce are usually the better word.";
     Form: "comment" "comment(anything...)" "Ignores its arguments and is nil. Use # comments instead.";
     Form: "eval" "eval(form)" "Evaluate a quoted form.";
@@ -269,7 +265,7 @@ pub const NAMES: &[NameDoc] = names! {
     Function: "some" "some(f, xs)" "true when f accepts an element, else nil (not false).";
     Function: "any?" "any?(f, xs)" "Whether f accepts some element; false for [].";
     Function: "every?" "every?(f, xs)" "Whether f accepts every element; true for [].";
-    Function: "apply" "apply(f, args..., xs)" "Call f with the elements of the last list as its arguments: apply(max, [3, 1]).";
+    Function: "apply" "apply(f, args..., xs)" "Call f with the elements of the last list as its arguments. With f a name it is written as a splat, max(*xs) (B0042); apply stays for a function computed by an expression.";
     Function: "identity" "identity(x)" "x.";
     Function: "const" "const(x)" "A function that ignores its argument and returns x.";
     Function: "comp" "comp(f, g)" "The function x -> f(g(x)).";
@@ -315,11 +311,12 @@ pub const NAMES: &[NameDoc] = names! {
     Predicate: "chan?" "chan?(x)" "Whether x is a channel.";
     Predicate: "go?" "go?(x)" "Whether x is a fiber.";
     // ── errors ────────────────────────────────────────────────────────────
-    Error: "error" "error(kind, message[, data])" "An error VALUE. It raises nothing until throw(error(…)).";
-    Error: "throw" "throw(err)" "Raise err. Uncaught, the run fails with its kind and message.";
+    Error: "raise" "raise(kind_or_error[, message[, opts]])" "Raise an error: raise(:not_found, \"no repo #{name}\"); opts is {data: value, cause: e}. raise(e) raises e again unchanged. Uncaught, the run prints kind: message, every cause, the stack, and exits 1. The error's fields are e.kind, e.message, e.data, e.cause and e.trace, the raise site as file:line.";
+    Error: "error" "error(kind, message[, data])" "An error VALUE, raising nothing. throw(error(k, m)) is written raise(k, m) (B0037).";
+    Error: "throw" "throw(err)" "Raise any value. Written raise(err) (B0037).";
     Error: "error?" "error?(x)" "Whether x is an error value; true inside a catch handler.";
-    Error: "error_message" "error_message(e)" "The message of an error value, as text; raises on anything else.";
-    Error: "error_kind" "error_kind(e)" "The kind of an error value, the keyword error(kind, …) was given; raises on anything else.";
+    Error: "error_message" "error_message(e)" "The message of an error value. Written e.message (B0036).";
+    Error: "error_kind" "error_kind(e)" "The kind of an error value, a keyword. Written e.kind (B0036).";
     Error: "gensym" "gensym([prefix])" "A fresh unique symbol, for macros that need a private name.";
     Lisp: "builtin_names" "builtin_names" "Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name.";
     // ── JSON ──────────────────────────────────────────────────────────────

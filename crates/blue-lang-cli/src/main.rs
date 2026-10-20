@@ -646,8 +646,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     // Compare trimmed: a trailing newline is not drift.
                     if formatted.trim_end() != src.trim_end() {
                         eprintln!(
-                            "{}: not formatted; run blue fmt --write {}",
+                            "{}: not formatted{}; run blue fmt --write {}",
                             file.display(),
+                            blue_lang_pkg::canonical::rules_named(&src),
                             file.display()
                         );
                         failed = true;
@@ -1234,7 +1235,14 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
         return Ok(ExitCode::FAILURE);
     }
     let loader = blue_lang_pkg::load_path::LoadPath::for_entry(file);
-    let mut src = blue_lang_pkg::canonical::read_layout(file)?;
+    let mut src = if fix {
+        blue_lang_pkg::canonical::read_layout(file)?
+    } else {
+        std::fs::read_to_string(file).map_err(|source| CliError::Read {
+            path: file.display().to_string(),
+            source,
+        })?
+    };
     fn entry<'a>(file: &'a Path, text: &'a str) -> blue_lang_runtime::uses::Entry<'a> {
         blue_lang_runtime::uses::Entry {
             path: Some(file),
@@ -1291,7 +1299,16 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             }
         }
     }
-    let outcome = &checked.outcome;
+    let mut with_form = checked.outcome.clone();
+    let entry_form = (0..checked.program.forms().len())
+        .find(|i| checked.program.owner_of(*i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY))
+        .unwrap_or(0);
+    with_form.diagnostics.extend(
+        blue_lang_runtime::pipeline::form_diagnostics(&src)
+            .into_iter()
+            .map(|d| d.at_top_level(entry_form)),
+    );
+    let outcome = &with_form;
     match format {
         Format::Json => {
             print!("{}", diagnostics::json_lines(&checked.program, outcome)?);

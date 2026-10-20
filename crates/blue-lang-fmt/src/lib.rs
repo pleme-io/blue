@@ -643,6 +643,13 @@ impl<'s> Renderer<'s> {
     }
 
     fn seq_of(&self, open: &str, close: &str, items: &[Spanned], lo: usize, hi: usize) -> Doc {
+        if let [only] = items {
+            if matches!(only.form, SpannedForm::Atom(_) | SpannedForm::Nil) && !self.has_comments(lo, hi) {
+                return Doc::text(open.to_string())
+                    .concat(self.expr(only, 0))
+                    .concat(Doc::text(close.to_string()));
+            }
+        }
         let spans: Vec<Span> = items.iter().map(|i| i.span).collect();
         let u = self.units(lo, hi, &spans);
         let docs = items.iter().map(|i| self.expr(i, 0)).collect();
@@ -716,6 +723,36 @@ impl<'s> Renderer<'s> {
                     .if_parts(s, "if")
                     .concat(Doc::hardline())
                     .concat(Doc::text("end"))
+            }
+            Some("try" | "blue-ensure") => {
+                if let Some(d) = self.rescue_form(s, min_prec) {
+                    return d;
+                }
+            }
+            Some(n) if n == blue_lang_syntax::LOWERED_FIELD && items.len() == 3 => {
+                if let Some(field) = items[2].as_keyword().filter(|k| plain_field(k)) {
+                    let d = self.expr(&items[1], 12).concat(Doc::text(format!(".{field}")));
+                    return d;
+                }
+            }
+            Some("apply") if items.len() >= 3 && is_name(&items[1]) => {
+                return self.splat_call(s, items);
+            }
+            Some("begin" | "and" | "or" | "not")
+                if items.len() >= 2
+                    && !(matches!(head, Some("and" | "or")) && items.len() == 3)
+                    && !(head == Some("not") && items.len() == 2) =>
+            {
+                {
+                    let callee = Doc::text(head.unwrap_or("begin").to_string());
+                    let (lo, hi) = if self.real(s.span) && self.real(items[0].span) {
+                        let (_, hi) = self.inside(s, b'(', b')');
+                        (items[0].span.end, hi)
+                    } else {
+                        (0, 0)
+                    };
+                    return callee.concat(self.seq_of("(", ")", &items[1..], lo, hi));
+                }
             }
             // (define (name params...) body)
             Some("define") if items.len() == 3 && is_signature(&items[1]) => {
@@ -797,7 +834,7 @@ impl<'s> Renderer<'s> {
             Some(n) if n == blue_lang_syntax::LOWERED_MAP && items.len() % 2 == 1 => {
                 return self.map_form(s, &items[1..])
             }
-            Some("not") if items.len() == 2 => return self.unary("!", &items[1], min_prec),
+            Some("not") if items.len() == 2 => return self.unary("not ", &items[1], min_prec),
             // (- 0 x) is unary minus — the shape the parser emits.
             Some("-") if items.len() == 3 && is_zero(&items[1]) => {
                 return self.unary("-", &items[2], min_prec)
@@ -957,12 +994,158 @@ impl<'s> Renderer<'s> {
             tail = tail
                 .concat(Doc::line())
                 .concat(leading)
-                .concat(self.expr(rhs, prec + 1));
+                .concat(self.operand(rhs, prec + 1));
             if self.real(rhs.span) {
                 prev_end = rhs.span.end;
             }
         }
-        self.expr(first, prec).concat(tail.nest(2)).group()
+        self.operand(first, prec).concat(tail.nest(2)).group()
+    }
+
+    fn operand(&self, s: &Spanned, prec: u8) -> Doc {
+        let negation = s
+            .as_list()
+            .is_some_and(|i| i.len() == 2 && i[0].as_symbol() == Some("not"));
+        if negation && prec >= 5 {
+            return Doc::text("(").concat(self.expr(s, 0)).concat(Doc::text(")"));
+        }
+        self.expr(s, prec)
+    }
+
+    fn splat_call(&self, s: &Spanned, items: &[Spanned]) -> Doc {
+        let callee = self.expr(&items[1], 12);
+        let (lo, hi) = if self.real(s.span) && self.real(items[1].span) {
+            let (_, hi) = self.inside(s, b'(', b')');
+            (items[1].span.end, hi)
+        } else {
+            (0, 0)
+        };
+        let args = &items[2..];
+        let spans: Vec<Span> = args.iter().map(|i| i.span).collect();
+        let u = self.units(lo, hi, &spans);
+        let last = args.len() - 1;
+        let docs = args
+            .iter()
+            .enumerate()
+            .map(|(k, a)| {
+                let d = self.expr(a, 0);
+                if k == last {
+                    Doc::text("*").concat(d)
+                } else {
+                    d
+                }
+            })
+            .collect();
+        callee.concat(self.seq("(", ")", &u, docs))
+    }
+
+    fn rescue_form(&self, s: &Spanned, min_prec: u8) -> Option<Doc> {
+        if let Some((body, fallback)) = inline_rescue(s) {
+            let lhs = self.expr(body, 0);
+            let rhs = self.expr(fallback, 1);
+            if !flat_text(&lhs).contains('\n') && !flat_text(&rhs).contains('\n') {
+                let d = lhs
+                    .concat(Doc::text(" rescue"))
+                    .concat(Doc::line().concat(rhs).nest(2))
+                    .group();
+                return Some(parenthesize_below(d, min_prec, 0));
+            }
+        }
+        let parts = self.rescue_parts(s)?;
+        Some(
+            Doc::text("begin")
+                .concat(parts)
+                .concat(Doc::hardline())
+                .concat(Doc::text("end")),
+        )
+    }
+
+    fn rescue_parts(&self, s: &Spanned) -> Option<Doc> {
+        let items = s.as_list()?;
+        let head = items.first()?.as_symbol()?;
+        if head == blue_lang_syntax::LOWERED_ENSURE {
+            let (protected, cleanup) = match items {
+                [_, p, c] => (attempted_body(p)?, thunk_body(c)?),
+                _ => return None,
+            };
+            let first = if is_try(protected) {
+                self.rescue_parts(protected)?
+            } else {
+                self.body(protected, None, Doc::hardline())
+            };
+            return Some(
+                first
+                    .concat(Doc::hardline())
+                    .concat(Doc::text("ensure"))
+                    .concat(self.body(cleanup, self.closer(s), Doc::hardline())),
+            );
+        }
+        if head != "try" || items.len() != 3 {
+            return None;
+        }
+        let body = &items[1];
+        let clause = items[2].as_list()?;
+        let [catch, binding, handler] = clause else {
+            return None;
+        };
+        if catch.as_symbol() != Some("catch") {
+            return None;
+        }
+        let binder = binding.as_list().and_then(|b| match b {
+            [one] => one.as_symbol(),
+            _ => None,
+        })?;
+        let mut d = self.body(body, None, Doc::hardline());
+        if binder != blue_lang_syntax::RESCUED {
+            let header = format!("rescue {binder}");
+            return Some(
+                d.concat(Doc::hardline())
+                    .concat(Doc::text(header))
+                    .concat(self.body(handler, None, Doc::hardline())),
+            );
+        }
+        let cond = handler.as_list()?;
+        if cond.first()?.as_symbol() != Some("cond") {
+            return None;
+        }
+        for clause in &cond[1..] {
+            let [test, then] = clause.as_list()? else {
+                return None;
+            };
+            if test.as_symbol() == Some("else") {
+                if is_reraise(then) {
+                    continue;
+                }
+                let (bound, inner) = let_bound(then)?;
+                d = d
+                    .concat(Doc::hardline())
+                    .concat(Doc::text(format!("rescue {bound}")))
+                    .concat(self.body(inner, None, Doc::hardline()));
+                continue;
+            }
+            let t = test.as_list()?;
+            if t.len() < 3 || t[0].as_symbol() != Some(blue_lang_syntax::LOWERED_ERROR_MATCH) {
+                return None;
+            }
+            let kinds: Vec<String> = t[2..]
+                .iter()
+                .map(|k| k.as_keyword().map(|k| format!(":{k}")))
+                .collect::<Option<_>>()?;
+            let mut header = format!("rescue {}", kinds.join(", "));
+            let inner = match let_bound(then) {
+                Some((bound, inner)) => {
+                    header.push_str(" as ");
+                    header.push_str(bound);
+                    inner
+                }
+                None => then,
+            };
+            d = d
+                .concat(Doc::hardline())
+                .concat(Doc::text(header))
+                .concat(self.body(inner, None, Doc::hardline()));
+        }
+        Some(d)
     }
 
     /// `{a: 1, "k" => v}` — **the minimal-spelling law in one function.**
@@ -1055,7 +1238,22 @@ impl<'s> Renderer<'s> {
             return Doc::text(items[1].to_sexp().to_string());
         };
         let header = self.signature(&items[1], sig);
-        self.block(s, header, &items[2])
+        self.def_block(s, header, &items[2])
+    }
+
+    fn def_block(&self, s: &Spanned, header: Doc, body: &Spanned) -> Doc {
+        let inline = inline_rescue(body).is_some_and(|(x, h)| {
+            !flat_text(&self.expr(x, 0)).contains('\n') && !flat_text(&self.expr(h, 1)).contains('\n')
+        });
+        if !inline {
+            if let Some(parts) = self.rescue_parts(body) {
+                return header
+                    .concat(parts)
+                    .concat(Doc::hardline())
+                    .concat(Doc::text("end"));
+            }
+        }
+        self.block(s, header, body)
     }
 
     /// `def name(params…)` from a signature node `(name p…)`.
@@ -1082,7 +1280,7 @@ impl<'s> Renderer<'s> {
             t.push_str(&r);
             header = header.concat(Doc::text(t));
         }
-        self.block(s, header, &items[3])
+        self.def_block(s, header, &items[3])
     }
 
     /// `(lambda (a b) body)` → `fn(a, b) body end`, on one line when it fits.
@@ -1202,6 +1400,92 @@ impl<'s> Renderer<'s> {
         }
         doc.concat(Doc::hardline()).concat(Doc::text("end"))
     }
+}
+
+fn flat_text(d: &Doc) -> String {
+    pretty(d, usize::MAX / 4)
+}
+
+fn plain_field(k: &str) -> bool {
+    blue_lang_syntax::is_callable_name(k) && blue_lang_syntax::qualified(k).is_none()
+}
+
+fn is_begin(s: &Spanned) -> bool {
+    s.as_list()
+        .is_some_and(|i| i.first().and_then(Spanned::as_symbol) == Some("begin"))
+}
+
+fn inline_rescue(s: &Spanned) -> Option<(&Spanned, &Spanned)> {
+    let items = s.as_list()?;
+    let [head, body, clause] = items else {
+        return None;
+    };
+    if head.as_symbol() != Some("try") || is_begin(body) {
+        return None;
+    }
+    let [catch, binding, handler] = clause.as_list()? else {
+        return None;
+    };
+    let bound_underscore = binding
+        .as_list()
+        .is_some_and(|b| matches!(b, [one] if one.as_symbol() == Some("_")));
+    (catch.as_symbol() == Some("catch") && bound_underscore && !is_begin(handler))
+        .then_some((body, handler))
+}
+
+fn thunk_body(s: &Spanned) -> Option<&Spanned> {
+    match s.as_list()? {
+        [l, params, body] if l.as_symbol() == Some("lambda") && params.as_list().is_some_and(<[Spanned]>::is_empty) => Some(body),
+        _ => None,
+    }
+}
+
+fn attempted_body(s: &Spanned) -> Option<&Spanned> {
+    let [t, attempted, clause] = s.as_list()? else {
+        return None;
+    };
+    let [a, body] = attempted.as_list()? else {
+        return None;
+    };
+    let [catch, _, failed] = clause.as_list()? else {
+        return None;
+    };
+    let failed_ok = failed
+        .as_list()
+        .and_then(|f| f.first())
+        .and_then(Spanned::as_symbol)
+        == Some(blue_lang_syntax::LOWERED_FAILED);
+    (t.as_symbol() == Some("try")
+        && a.as_symbol() == Some(blue_lang_syntax::LOWERED_ATTEMPTED)
+        && catch.as_symbol() == Some("catch")
+        && failed_ok)
+        .then_some(body)
+}
+
+fn is_try(s: &Spanned) -> bool {
+    s.as_list()
+        .is_some_and(|i| i.len() == 3 && i[0].as_symbol() == Some("try"))
+}
+
+fn is_reraise(s: &Spanned) -> bool {
+    matches!(s.as_list(), Some([h, e]) if h.as_symbol() == Some(blue_lang_syntax::LOWERED_RERAISE)
+        && e.as_symbol() == Some(blue_lang_syntax::RESCUED))
+}
+
+fn let_bound(s: &Spanned) -> Option<(&str, &Spanned)> {
+    let [l, binds, body] = s.as_list()? else {
+        return None;
+    };
+    if l.as_symbol() != Some("let") {
+        return None;
+    }
+    let [pair] = binds.as_list()? else {
+        return None;
+    };
+    let [name, value] = pair.as_list()? else {
+        return None;
+    };
+    (value.as_symbol() == Some(blue_lang_syntax::RESCUED)).then_some((name.as_symbol()?, body))
 }
 
 /// Is `s` a link in a chain at `prec` — an infix node of that precedence that
@@ -1340,7 +1624,7 @@ fn atom(a: &Atom) -> Doc {
         },
         Atom::Keyword(k) => Doc::text(format!(":{k}")),
         Atom::Str(s) => Doc::text(render_string(s)),
-        Atom::Int(i) => Doc::text(i.to_string()),
+        Atom::Int(i) => Doc::text(render_int(*i)),
         Atom::Float(f) => Doc::text(render_float(*f)),
         Atom::Bool(b) => Doc::text(if *b { "true" } else { "false" }),
     }
@@ -1362,12 +1646,40 @@ fn render_string(s: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\t' => out.push_str("\\t"),
             '\r' => out.push_str("\\r"),
+            c if invisible(c) => out.push_str(&format!("\\u{{{:x}}}", c as u32)),
             c => out.push(c),
         }
         after_hash = c == '#';
     }
     out.push('"');
     out
+}
+
+pub fn render_int(i: i64) -> String {
+    let digits = i.unsigned_abs().to_string();
+    if digits.len() < 6 {
+        return i.to_string();
+    }
+    let mut grouped = String::with_capacity(digits.len() + digits.len() / 3 + 1);
+    if i < 0 {
+        grouped.push('-');
+    }
+    for (k, c) in digits.chars().enumerate() {
+        if k > 0 && (digits.len() - k) % 3 == 0 {
+            grouped.push('_');
+        }
+        grouped.push(c);
+    }
+    grouped
+}
+
+fn invisible(c: char) -> bool {
+    (c.is_control() && c != '\n' && c != '\t' && c != '\r')
+        || matches!(c, '\u{200b}'..='\u{200f}' | '\u{2028}' | '\u{2029}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}' | '\u{00a0}')
+}
+
+pub fn render_literal(a: &Atom) -> String {
+    pretty(&atom(a), usize::MAX / 4)
 }
 
 /// A float must render so it lexes back as a float — `1.0`, never `1`.
@@ -1521,7 +1833,12 @@ mod tests {
     #[test]
     fn unary_forms_render_back_to_their_surface() {
         assert_eq!(f("-x").trim(), "-x");
-        assert_eq!(f("!x").trim(), "!x");
+        assert_eq!(f("!x").trim(), "not x");
+        assert_eq!(f("not x").trim(), "not x");
+        assert_eq!(f("not (a < b)").trim(), "not (a < b)");
+        assert_eq!(f("!a == b").trim(), "(not a) == b");
+        assert_eq!(f("not a and b").trim(), "not a and b");
+        assert_eq!(f("!(a == b)").trim(), "a != b");
     }
 
     /// `else if … end end` and `elsif` are one tree; the shorter is rendered.
@@ -1564,17 +1881,12 @@ mod tests {
         assert_eq!(f("g(f(x))").trim(), "g(f(x))");
     }
 
-    /// **The named cost of the choice above.** Uniform access makes `x.f` and
-    /// `f(x)` the same tree, so canonicality forces one rendering — and
-    /// attribute-style access converges on the call form too.
-    ///
-    /// This is asserted rather than left implicit so the trade is visible in
-    /// the test list. Recovering `person.age` needs the AST metadata slot
-    /// (§V.6.3), not a second rendering rule.
     #[test]
-    fn send_syntax_parses_and_converges_on_the_call_form() {
-        assert_eq!(f("user.name").trim(), "name(user)");
-        assert_eq!(f("a.b.c").trim(), "c(b(a))");
+    fn a_field_read_keeps_its_dot_and_a_send_converges_on_the_call_form() {
+        assert_eq!(f("user.name").trim(), "user.name");
+        assert_eq!(f("a.b.c").trim(), "a.b.c");
+        assert_eq!(f("f(x).status").trim(), "f(x).status");
+        assert_eq!(f("(a + b).total").trim(), "(a + b).total");
         assert_eq!(f("user.greet(1, 2)").trim(), "greet(user, 1, 2)");
     }
 
@@ -1583,7 +1895,7 @@ mod tests {
     #[test]
     fn both_spellings_of_one_call_format_identically() {
         assert_eq!(f("user.greet(1, 2)"), f("greet(user, 1, 2)"));
-        assert_eq!(f("x.f"), f("f(x)"));
+        assert_eq!(f("x |> f"), f("f(x)"));
     }
 
     #[test]
@@ -1673,7 +1985,7 @@ mod tests {
             "ok = aaaaaaaaaaaaaaaa(x) && bbbbbbbbbbbbbbbbbbbbb(y) && cccccccccccccccccccc(z) && d";
         assert_eq!(
             f(src).trim(),
-            "ok = aaaaaaaaaaaaaaaa(x) &&\n  bbbbbbbbbbbbbbbbbbbbb(y) &&\n  cccccccccccccccccccc(z) &&\n  d"
+            "ok = aaaaaaaaaaaaaaaa(x) and\n  bbbbbbbbbbbbbbbbbbbbb(y) and\n  cccccccccccccccccccc(z) and\n  d"
         );
     }
 
@@ -1696,8 +2008,9 @@ mod tests {
 
     #[test]
     fn a_comment_after_an_operator_is_placed() {
-        let src = "ok = a && # the a\n  b\n";
+        let src = "ok = a and # the a\n  b\n";
         assert_eq!(l(src), src);
+        assert_eq!(l("ok = a && # the a\n  b\n"), src);
     }
 
     /// The refusal is narrow and names its line.

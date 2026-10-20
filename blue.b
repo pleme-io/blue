@@ -37,8 +37,8 @@
 # — see `crates/blue-lang-cli/src/config.rs`. `max_steps: nil` is unbounded, the
 # default (nil lowers to `Sexp::Nil`, which shikumi maps to absent).
 {
-  solver_max_steps: 100000,
+  solver_max_steps: 100_000,
   max_expr_depth: 256,
-  max_call_depth: 100000,
+  max_call_depth: 100_000,
   max_steps: nil
 }

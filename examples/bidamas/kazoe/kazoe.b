@@ -22,8 +22,8 @@ end
 
 def kz_strip(word)
   cs = chars(word)
-  kept = drop_while(fn(c) !is_alnum(c) end, cs)
-  join(reverse(drop_while(fn(c) !is_alnum(c) end, reverse(kept))), "")
+  kept = drop_while(fn(c) not is_alnum(c) end, cs)
+  join(reverse(drop_while(fn(c) not is_alnum(c) end, reverse(kept))), "")
 end
 
 # [word, count] pairs, most frequent first, ties in first-seen order.
@@ -40,7 +40,7 @@ end
 
 test "a token with no letters is not a word"
   assert kz_words("a -- b") == ["a", "b"]
-  assert !kz_word?("--")
+  assert not kz_word?("--")
 end
 
 test "counts come most frequent first, ties in first-seen order"

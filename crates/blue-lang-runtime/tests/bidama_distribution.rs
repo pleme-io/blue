@@ -118,8 +118,8 @@ fn moji_counts_characters_not_bytes() {
     // The property blue's own stdlib exists to provide. A byte-length
     // implementation returns 3 for a CJK character and 4 for an emoji —
     // exactly the bug the UTF-8 crash in the LSP came from.
-    assert_eq!(eval_with("moji", "\"日本語\".length"), "Int(3)");
-    assert_eq!(eval_with("moji", "\"🔥\".length"), "Int(1)");
+    assert_eq!(eval_with("moji", "length(\"日本語\")"), "Int(3)");
+    assert_eq!(eval_with("moji", "length(\"🔥\")"), "Int(1)");
 }
 
 /// The cross-package call — the whole point of a distribution.

@@ -277,7 +277,7 @@ def outliers(xs)
   f = fences(xs)
   lo = nth(0, f)
   hi = nth(1, f)
-  filter(fn(x) x < lo || x > hi end, xs)
+  filter(fn(x) x < lo or x > hi end, xs)
 end
 
 # The inverse of `percentile`: what fraction of the data is at or below x.

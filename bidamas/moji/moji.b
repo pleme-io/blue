@@ -80,7 +80,7 @@ end
 # "" flows through concat, length and the predicates unchanged.
 def char_at(s, i)
   cs = chars(s)
-  if i < 0 || i >= size(cs)
+  if i < 0 or i >= size(cs)
     ""
   else
     nth(i, cs)
@@ -245,7 +245,7 @@ end
 # The n < 1 guard is not decoration: chunking by zero would take "" off the
 # front forever and never shorten the remainder.
 def chunk_chars(s, n)
-  if n < 1 || length(s) == 0
+  if n < 1 or length(s) == 0
     []
   else
     cons(take_chars(s, n), chunk_chars(drop_chars(s, n), n))
@@ -274,7 +274,7 @@ end
 # An empty pad answers "" instead of looping forever. It is the one input that
 # can never reach the requested width, and a hang is the worst way to say so.
 def fill_to(n, pad)
-  if n < 1 || length(pad) == 0
+  if n < 1 or length(pad) == 0
     ""
   else
     take_chars(grow_to(pad, pad, n), n)
@@ -321,7 +321,7 @@ end
 # the builtin is already global.
 def replace_first(s, from, to)
   i = char_index(s, from)
-  if i < 0 || length(from) == 0
+  if i < 0 or length(from) == 0
     s
   else
     concat(concat(take_chars(s, i), to), drop_chars(s, i + length(from)))
@@ -377,7 +377,7 @@ end
 # The empty string is NOT whitespace. Everything holds of nothing is exactly
 # how a predicate library goes wrong, and "" is better answered by `is_blank`.
 def is_space(s)
-  length(s) > 0 && length(trim(s)) == 0
+  length(s) > 0 and length(trim(s)) == 0
 end
 
 # Nothing there to read: empty, or whitespace only. The predicate a caller
@@ -544,11 +544,11 @@ end
 # that HAS a case, which is what makes is_upper and is_lower both false for a
 # string of digits instead of both true.
 def is_upper(s)
-  s == upcase(s) && s != downcase(s)
+  s == upcase(s) and s != downcase(s)
 end
 
 def is_lower(s)
-  s == downcase(s) && s != upcase(s)
+  s == downcase(s) and s != upcase(s)
 end
 
 # ── ordering ───────────────────────────────────────────────────────
@@ -748,15 +748,15 @@ test "occurrences counts non-overlapping copies"
 end
 
 test "searching a 200 000 character text is one pass, not one call per position"
-  long = "#{join(map(fn(_) "ab" end, range(100000)), "")}é!"
-  assert char_index(long, "é!") == 200000
+  long = "#{join(map(fn(_) "ab" end, range(100_000)), "")}é!"
+  assert char_index(long, "é!") == 200_000
   assert char_index_from(long, "ab", 7) == 8
-  assert last_char_index(long, "ab") == 199998
+  assert last_char_index(long, "ab") == 199_998
   assert last_char_index_from(long, "ab", 5) == 4
-  assert occurrences(long, "ab") == 100000
+  assert occurrences(long, "ab") == 100_000
   assert after_first(long, "é") == "!"
   assert replace_first(long, "é!", "") ==
-    join(map(fn(_) "ab" end, range(100000)), "")
+    join(map(fn(_) "ab" end, range(100_000)), "")
 end
 
 test "repeated builds a string, not a list"
@@ -1018,7 +1018,7 @@ test "sort_strings sorts what junjo.sort cannot"
   # Already sorted stays put, and sorting twice changes nothing.
   assert sort_strings(sort_strings(["c", "a"])) == sort_strings(["c", "a"])
   # nil is the other empty, and it must not reach the recursion.
-  assert sort_strings(cdr(["x"])) == []
+  assert sort_strings(blue::rest(["x"])) == []
   # Capitals first, consistent with sorts_before.
   assert sort_strings(["b", "A"]) == ["A", "b"]
 end
@@ -1090,11 +1090,11 @@ def glob_segments?(ps, ss)
   if is_empty(ps)
     is_empty(ss)
   elsif first(ps) == "**"
-    glob_segments?(rest(ps), ss) ||
-      !is_empty(ss) && glob_segments?(ps, rest(ss))
+    glob_segments?(rest(ps), ss) or
+      not is_empty(ss) and glob_segments?(ps, rest(ss))
   else
-    !is_empty(ss) &&
-      glob_segment?(first(ps), first(ss)) &&
+    not is_empty(ss) and
+      glob_segment?(first(ps), first(ss)) and
       glob_segments?(rest(ps), rest(ss))
   end
 end
@@ -1102,7 +1102,7 @@ end
 def glob_segment?(p, s)
   if p == s
     true
-  elsif !contains?(p, "*") && !contains?(p, "?")
+  elsif not contains?(p, "*") and not contains?(p, "?")
     false
   else
     glob_chars?(chars(p), chars(s))
@@ -1113,10 +1113,10 @@ def glob_chars?(p, s)
   if is_empty(p)
     is_empty(s)
   elsif first(p) == "*"
-    glob_chars?(rest(p), s) || !is_empty(s) && glob_chars?(p, rest(s))
+    glob_chars?(rest(p), s) or not is_empty(s) and glob_chars?(p, rest(s))
   elsif is_empty(s)
     false
-  elsif first(p) == "?" || first(p) == first(s)
+  elsif first(p) == "?" or first(p) == first(s)
     glob_chars?(rest(p), rest(s))
   else
     false

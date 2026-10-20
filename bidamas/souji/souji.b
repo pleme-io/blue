@@ -63,19 +63,17 @@ def parse(args)
 end
 
 def parse_flags(args, acc)
-  if is_empty(args) || get(acc, :error) != nil
+  if is_empty(args) or get(acc, :error) != nil
     acc
   else
     a = first(args)
     if a == "--dry-run"
       parse_flags(rest(args), assoc(acc, :dry_run, true))
-    elsif a == "--min-age-hours" || a == "--older-than-days"
+    elsif a == "--min-age-hours" or a == "--older-than-days"
       v = if size(args) > 1
         to_int(nth(1, args))
-      else
-        nil
       end
-      if v == nil || v < 0
+      if v == nil or v < 0
         assoc(acc, :error, "#{a} needs a whole number of 0 or more")
       else
         key = if a == "--min-age-hours"
@@ -191,7 +189,7 @@ def nix_argv(opts)
 end
 
 def nix(opts)
-  cap = try(apply(exec_capture, nix_argv(opts)), catch(_e(), nil))
+  cap = exec_capture(*nix_argv(opts)) rescue nil
   if cap == nil
     {ok: false, summary: "nix-collect-garbage could not be started"}
   else
@@ -246,13 +244,13 @@ def main()
     write_stderr(
       "souji: #{get(opts, :error)}\nusage: souji rust|nix|all [--dry-run] [--min-age-hours N] [--older-than-days N] [ROOT...]\n"
     )
-    throw(error(:souji_usage, get(opts, :error)))
+    raise(:souji_usage, get(opts, :error))
   else
     cmd = get(opts, :command)
-    if cmd == "rust" || cmd == "all"
+    if cmd == "rust" or cmd == "all"
       write_stdout(concat(rust_report(rust(opts), get(opts, :dry_run)), "\n"))
     end
-    if cmd == "nix" || cmd == "all"
+    if cmd == "nix" or cmd == "all"
       n = nix(opts)
       write_stdout("nix: #{get(n, :summary)}\n")
     end

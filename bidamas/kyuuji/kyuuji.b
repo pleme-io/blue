@@ -16,7 +16,7 @@ end
 
 def query_params(req)
   q = get(req, :query)
-  if q == nil || q == ""
+  if q == nil or q == ""
     {}
   else
     reduce(
@@ -39,14 +39,18 @@ def query_param(req, name)
 end
 
 def well_formed?(resp)
-  resp != nil && map?(resp) && integer?(get(resp, :status))
+  resp != nil and map?(resp) and integer?(get(resp, :status))
 end
 
 def answer(req, health, handler)
   if get(req, :path) == health
     text(200, "ok\n")
   else
-    resp = try(handler(req), catch(e(), text(500, "#{error_message(e)}\n")))
+    resp = begin
+      handler(req)
+    rescue e
+      text(500, "#{e.message}\n")
+    end
     if well_formed?(resp)
       resp
     else
@@ -92,7 +96,7 @@ def hello(req)
   if get(req, :path) == "/"
     text(200, "hi #{query_param(req, "who")}")
   elsif get(req, :path) == "/boom"
-    throw(error(:boom, "it broke"))
+    raise(:boom, "it broke")
   elsif get(req, :path) == "/nil"
     nil
   else
@@ -104,7 +108,7 @@ test "the health path is answered before the handler"
   r = answer(
     request("GET", "/healthz", ""),
     "/healthz",
-    fn(_) throw(error(:x, "unreached")) end
+    fn(_) raise(:x, "unreached") end
   )
   assert get(r, :status) == 200
   assert get(r, :body) == "ok\n"

@@ -45,7 +45,7 @@ row(
 
 row(
   "processes.spawn_link.crash_reaches_the_program",
-  "spawn_link(fn() throw(error(:x, \"boom\")) end)\nreceive()",
+  "spawn_link(fn() raise(:x, \"boom\") end)\nreceive()",
   fails(:eval, "linked process 1 exited"),
   covers("builtin:spawn_link")
 )
@@ -59,7 +59,7 @@ row(
 
 row(
   "processes.trap_exit",
-  "trap_exit(true)\nspawn_link(fn() throw(error(:x, \"boom\")) end)\nm = receive()\n[nth(0, m), nth(1, m)]",
+  "trap_exit(true)\nspawn_link(fn() raise(:x, \"boom\") end)\nm = receive()\n[nth(0, m), nth(1, m)]",
   value("[:exit, 1]"),
   covers("builtin:trap_exit")
 )
@@ -80,7 +80,7 @@ row(
 
 row(
   "processes.supervisor.restarts_a_crashed_child",
-  "def child(parent)\n  send(parent, :up)\n  if receive() == :crash\n    throw(error(:asked, \"crash\"))\n  end\nend\nme = self\nsup = supervisor(:one_for_one, [[child, [me]]], 3)\nc = nth(0, children(sup))\nreceive(:up)\nsend(c, :crash)\nreceive(:up)",
+  "def child(parent)\n  send(parent, :up)\n  if receive() == :crash\n    raise(:asked, \"crash\")\n  end\nend\nme = self\nsup = supervisor(:one_for_one, [[child, [me]]], 3)\nc = nth(0, children(sup))\nreceive(:up)\nsend(c, :crash)\nreceive(:up)",
   value(":up"),
   covers("builtin:supervisor", "builtin:children")
 )

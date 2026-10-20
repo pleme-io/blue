@@ -102,7 +102,7 @@ fn interpreter_hostless_forks_rather_than_rebuilding() {
 /// cases rather than one:
 ///
 /// - `1 + 2` exercises tatara-lisp's own installed primitives.
-/// - `"ab".length` exercises **blue's layer-3 stdlib** (`install_blue_stdlib`),
+/// - `length("ab")` exercises **blue's layer-3 stdlib** (`install_blue_stdlib`),
 ///   which the interpreter builder documents as absent from tatara-lisp
 ///   entirely. A fork that carried the base and dropped blue's own layer would
 ///   pass a single-case test while breaking every string operation.
@@ -121,7 +121,7 @@ fn the_forked_interpreter_still_has_every_substrate_layer() {
         "base primitives unavailable in a forked interpreter: {base:?}"
     );
 
-    let blue_layer = blue_lang_runtime::pipeline::run("\"ab\".length");
+    let blue_layer = blue_lang_runtime::pipeline::run("length(\"ab\")");
     assert!(
         blue_layer.is_ok(),
         "blue's OWN stdlib layer (string ops) is missing from the fork — the \

@@ -12,23 +12,23 @@ use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 # the build that rendered it. The bidamas are read under $GEN_ROOT, the one
 # input the Bluefile declares, to say which built-in names a bidama redefines.
 
-def rf_root()
+def repository_root()
   getenv("GEN_ROOT", ".")
 end
 
-def rf_data()
+def reference_json()
   cap = exec_capture(self_exe, "reference")
   if status_of(cap) != 0
-    throw(error(:reference, "blue reference failed: #{stderr_of(cap)}"))
+    raise(:reference, "blue reference failed: #{stderr_of(cap)}")
   end
   json_parse(stdout_of(cap))
 end
 
-def rf_field(obj, key)
+def field(obj, key)
   json_get(obj, key)
 end
 
-def rf_text(obj, key)
+def text(obj, key)
   v = json_get(obj, key)
   if v == nil
     ""
@@ -37,11 +37,11 @@ def rf_text(obj, key)
   end
 end
 
-def rf_code(s)
+def code(s)
   "`#{md_cell(s)}`"
 end
 
-def rf_table(head, rows)
+def table(head, rows)
   rule = join(map(fn(_h) "---" end, head), "|")
   lines = concat_lists(
     ["| #{join(head, " | ")} |", "|#{rule}|"],
@@ -50,55 +50,55 @@ def rf_table(head, rows)
   join(lines, "\n")
 end
 
-def rf_forms(data)
+def forms(data)
   rows = map(
     fn(f)
       [
-        rf_code(rf_text(f, "example")),
-        rf_code(rf_text(f, "lowers_to")),
-        md_cell(rf_text(f, "doc"))
+        code(text(f, "example")),
+        code(text(f, "lowers_to")),
+        md_cell(text(f, "doc"))
       ]
     end,
-    rf_field(data, "forms")
+    field(data, "forms")
   )
-  rf_table(["write", "lowers to", "meaning"], rows)
+  table(["write", "lowers to", "meaning"], rows)
 end
 
-def rf_operators(data)
+def operators(data)
   rows = map(
     fn(o)
       [
-        rf_code(rf_text(o, "op")),
-        "#{rf_text(o, "left")}, #{rf_text(o, "right")}",
-        rf_code(rf_text(o, "callee")),
-        md_cell(rf_text(o, "doc"))
+        code(text(o, "op")),
+        "#{text(o, "left")}, #{text(o, "right")}",
+        code(text(o, "callee")),
+        md_cell(text(o, "doc"))
       ]
     end,
-    rf_field(data, "operators")
+    field(data, "operators")
   )
-  rf_table(["operator", "binding power", "lowers to", "meaning"], rows)
+  table(["operator", "binding power", "lowers to", "meaning"], rows)
 end
 
-def rf_keywords(data)
+def keywords(data)
   rows = map(
-    fn(k) [rf_code(rf_text(k, "word")), md_cell(rf_text(k, "doc"))] end,
-    rf_field(data, "keywords")
+    fn(k) [code(text(k, "word")), md_cell(text(k, "doc"))] end,
+    field(data, "keywords")
   )
-  rf_table(["word", "meaning"], rows)
+  table(["word", "meaning"], rows)
 end
 
-def rf_words(data)
+def words(data)
   rows = map(
-    fn(w) [rf_code(rf_text(w, "signature")), md_cell(rf_text(w, "doc"))] end,
-    rf_field(data, "bluefile")
+    fn(w) [code(text(w, "signature")), md_cell(text(w, "doc"))] end,
+    field(data, "bluefile")
   )
-  rf_table(["word", "declares"], rows)
+  table(["word", "declares"], rows)
 end
 
 # [name, [package…]] for each built-in name a bidama also defines. Inside a
 # program that imports that bidama, its definition replaces the built-in.
-def rf_redefined(names)
-  records = catalog_of([path_join(rf_root, "bidamas")])
+def redefined_builtins(names)
+  records = catalog_of([path_join(repository_root, "bidamas")])
   owners = names_shadowing(records, names)
   map(
     fn(n)
@@ -108,17 +108,17 @@ def rf_redefined(names)
   )
 end
 
-def rf_note(redefined, name)
+def note(redefined, name)
   hit = find_first(fn(r) first(r) == name end, redefined)
-  if hit == nil || is_empty(last(hit))
+  if hit == nil or is_empty(last(hit))
     ""
   else
     " Also defined by #{join(map(fn(p) "`#{p}` (`#{p}::#{name}`)" end, last(hit)), ", ")}: a file that lists it gets that one."
   end
 end
 
-def rf_arity(n)
-  a = rf_text(n, "arity")
+def arity(n)
+  a = text(n, "arity")
   if a == ""
     "—"
   else
@@ -126,65 +126,79 @@ def rf_arity(n)
   end
 end
 
-def rf_topic_section(topic, names, redefined)
-  slug = rf_text(topic, "slug")
-  mine = filter(fn(n) rf_text(n, "topic") == slug end, names)
+def topic_section(topic, names, redefined)
+  slug = text(topic, "slug")
+  mine = filter(fn(n) text(n, "topic") == slug end, names)
   rows = map(
     fn(n)
       [
-        rf_code(rf_text(n, "name")),
-        rf_code(rf_text(n, "signature")),
-        rf_arity(n),
-        "#{md_cell(rf_text(n, "doc"))}#{rf_note(redefined, rf_text(n, "name"))}"
+        code(text(n, "name")),
+        code(text(n, "signature")),
+        arity(n),
+        "#{md_cell(text(n, "doc"))}#{note(redefined, text(n, "name"))}"
       ]
     end,
     mine
   )
-  "### #{rf_text(topic, "title")}\n\n#{rf_table(["name", "call", "arity", "meaning"], rows)}"
+  "### #{text(topic, "title")}\n\n#{table(["name", "call", "arity", "meaning"], rows)}"
 end
 
-def rf_names(data)
-  names = rf_field(data, "names")
-  redefined = rf_redefined(map(fn(n) rf_text(n, "name") end, names))
+def names_section(data)
+  names = field(data, "names")
+  redefined = redefined_builtins(map(fn(n) text(n, "name") end, names))
   sections = map(
-    fn(t) rf_topic_section(t, names, redefined) end,
-    rf_field(data, "topics")
+    fn(t) topic_section(t, names, redefined) end,
+    field(data, "topics")
   )
-  intro = "#{to_s(size(names))} names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further #{rf_text(data, "uncallable")} bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above."
+  intro = "#{to_s(size(names))} names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further #{text(data, "uncallable")} bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above."
   "#{intro}\n\n#{join(sections, "\n\n")}"
 end
 
-def rf_nullary(names)
-  bare = filter(fn(n) rf_text(n, "arity") == "0" end, names)
-  rows = map(
-    fn(n) [rf_code(rf_text(n, "name")), md_cell(rf_text(n, "doc"))] end,
-    bare
-  )
-  "A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These #{to_s(size(bare))} built-in names therefore run, with their effects, wherever they are written bare:\n\n#{rf_table(["name", "meaning"], rows)}"
+def nullary(names)
+  bare = filter(fn(n) text(n, "arity") == "0" end, names)
+  rows = map(fn(n) [code(text(n, "name")), md_cell(text(n, "doc"))] end, bare)
+  "A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These #{to_s(size(bare))} built-in names therefore run, with their effects, wherever they are written bare:\n\n#{table(["name", "meaning"], rows)}"
 end
 
-def rf_render(data)
+def rules(data)
+  rows = map(
+    fn(r)
+      [
+        code(text(r, "code")),
+        text(r, "slug"),
+        md_cell(text(r, "law")),
+        text(r, "fix")
+      ]
+    end,
+    field(data, "rules")
+  )
+  "Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write`, `blue run`, `blue test` and `blue check --fix` rewrite it where the fix is `autofix`. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).\n\n#{table(["code", "rule", "law", "fix"], rows)}"
+end
+
+def render(data)
   parts = [
     "# blue language reference",
     "Generated by `gen/reference.b` from `blue reference`, which reads the tables the implementation runs on. Do not edit by hand: run `nix run .#regen`, and the `generated-reference-fresh` check fails when this file is stale.",
     "Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/okite/RULES.md). Packages and their definitions are in [`bidamas/CATALOG.md`](../bidamas/CATALOG.md). Idiomatic programs are in [`EXAMPLES.md`](EXAMPLES.md).",
     "## Surface forms",
-    rf_forms(data),
+    forms(data),
     "## Operators",
     "Higher binding power binds tighter.",
-    rf_operators(data),
+    operators(data),
     "## Reserved words",
-    rf_keywords(data),
+    keywords(data),
     "## Built-in names",
-    rf_names(data),
+    names_section(data),
     "### Called where written bare",
-    rf_nullary(rf_field(data, "names")),
+    nullary(field(data, "names")),
     "## Bluefile words",
     "A Bluefile is a blue program that may call only these words.",
-    rf_words(data)
+    words(data),
+    "## Rules",
+    rules(data)
   ]
   "#{join(parts, "\n\n")}\n"
 end
 
-write_file(getenv("GEN_OUT", "docs/REFERENCE.md"), rf_render(rf_data))
+write_file(getenv("GEN_OUT", "docs/REFERENCE.md"), render(reference_json))
 nil

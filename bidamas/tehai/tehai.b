@@ -46,7 +46,7 @@ end
 
 def meaningful?(line)
   t = trim(line)
-  is_empty(t) == false && starts_with?(t, "#") == false
+  is_empty(t) == false and starts_with?(t, "#") == false
 end
 
 # A declared machine: its line as written, its URI, host and user, and its
@@ -54,24 +54,20 @@ end
 def machine(line)
   fs = fields(line)
   uri = first(fs)
-  if (starts_with?(uri, "ssh://") || starts_with?(uri, "ssh-ng://")) == false
+  if (starts_with?(uri, "ssh://") or starts_with?(uri, "ssh-ng://")) == false
     {line: line, ok: false, why: "not an ssh:// or ssh-ng:// URI: #{uri}"}
   else
     target = after_first(uri, "://")
     user = if includes(target, "@")
       before_first(target, "@")
-    else
-      nil
     end
     host = if includes(target, "@")
       after_first(target, "@")
     else
       target
     end
-    key = if size(fs) > 2 && nth(2, fs) != "-"
+    key = if size(fs) > 2 and nth(2, fs) != "-"
       nth(2, fs)
-    else
-      nil
     end
     {line: trim(line), ok: true, uri: uri, host: host, user: user, key: key}
   end
@@ -118,13 +114,10 @@ end
 # [up?, detail] for one machine. A failure to start ssh at all is a down
 # machine with the reason, never an uncaught error for the whole run.
 def probe(m, timeout_s, ssh)
-  cap = try(
-    apply(exec_capture, probe_argv(m, timeout_s, ssh)),
-    catch(_e(), nil)
-  )
+  cap = exec_capture(*probe_argv(m, timeout_s, ssh)) rescue nil
   if cap == nil
     [false, "ssh could not be started: #{ssh}"]
-  elsif status_of(cap) == 0 && starts_with?(trim(stdout_of(cap)), "nix-store")
+  elsif status_of(cap) == 0 and starts_with?(trim(stdout_of(cap)), "nix-store")
     [true, trim(stdout_of(cap))]
   else
     [false, last_nonempty_line(stderr_of(cap))]
@@ -154,7 +147,7 @@ def previous_of(previous, line)
 end
 
 def state(c, prev, now)
-  since = if prev != nil && get(prev, :up) == get(c, :up)
+  since = if prev != nil and get(prev, :up) == get(c, :up)
     get(prev, :since_ms)
   else
     now
@@ -176,7 +169,7 @@ def read_previous(path)
   if is_empty(text)
     []
   else
-    parsed = try(json_parse(text), catch(_e(), nil))
+    parsed = json_parse(text) rescue nil
     if parsed == nil
       []
     else

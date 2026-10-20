@@ -8,22 +8,29 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 
 | write | lowers to | meaning |
 |---|---|---|
-| `42` | `42` | An Int. Underscores may separate digits: 1_000. |
+| `42` | `42` | An Int. Six or more digits are grouped by threes, 1_000_000; fewer are not (B0033). |
 | `3.5` | `3.5` | A Float. |
-| `"text"` | `"text"` | A string. Escapes: \n, \t, \", \\, \u{1b}. |
+| `"text"` | `"text"` | A string. Escapes: \n, \t, \", \\, \u{1b}; a character a reader cannot see is always escaped (B0033). |
 | `"n = #{n}!"` | `(concat (concat "n = " n) "!")` | Interpolation: any expression inside #{…}, rendered with to_s. A literal that must contain #{ is built with concat("#", "{"). |
 | `:done` | `:done` | A keyword: a name as a value. It may not end in ? or !. |
 | `[1, "a"]` | `(list 1 "a")` | A list. Indexing is nth(i, xs); blue has no xs[i]. |
 | `{a: 1, "k" => 2}` | `(hash-map :a 1 "k" 2)` | A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v). |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
-| `x.f(y)` | `(f x y)` | A method-style call: the receiver becomes the first argument. Formatted as f(x, y). |
-| `xs \|> f(a)` | `(f xs a)` | A pipe: the value becomes the FIRST argument, so it suits data-first words. map(f, xs) is function-first: xs \|> map(f) is map(xs, f), an error. |
-| `!x` | `(not x)` | Negation. `not(x)` is the same tree. |
+| `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
+| `cap.status` | `(blue-field cap :status)` | A field read: a map's keyword or string key, a keyed list such as exec_capture's result or a parsed JSON object, or an error's kind, message, data, cause or trace. A missing field raises naming the fields there are; get(m, :k) reads one that may be absent. |
+| `x.f(y)` | `(f x y)` | A method-style call: the receiver becomes the first argument. Read, and written f(x, y) (B0028). |
+| `xs \|> f(a)` | `(f xs a)` | A pipe: the value becomes the FIRST argument. Read, and written f(xs, a) (B0028). map(f, xs) is function-first: xs \|> map(f) is map(xs, f), an error. |
+| `not x` | `(not x)` | Negation; `!x` is read and written `not x` (B0025). |
 | `-x` | `(- 0 x)` | Unary minus. The formatter writes 0 - x as -x. |
 | `use("retsu")` | `(use "retsu")` | Import a bidama by name, found on BLUE_PATH. Every definition it makes joins one flat namespace. |
-| `throw(error(:parse, "bad row"))` | `(throw (error :parse "bad row"))` | Raise. error(kind, message) alone only builds the value; throw raises it, and uncaught it fails the run. |
-| `try(risky(), catch(e(), fallback(e)))` | `(try (risky) (catch (e) (fallback e)))` | Catch a throw. The binding is written as a call, e(). error?(e) is true inside, and error_kind(e) and error_message(e) read it; return refusals as data when a caller must tell several apart. |
+| `raise(:parse, "bad row")` | `(raise :parse "bad row")` | Raise an error; raise(:k, "m", {data: d, cause: e}) attaches data and the error it wraps, raise(e) raises e again. throw(error(…)) is read as this (B0037). |
+| `risky(x) rescue fallback` | `(try (risky x) (catch (_) fallback))` | The value of risky(x), or fallback when it raises. Binds loosest of all, below \|>. |
+| `begin
+  risky(x)
+rescue :timeout as e
+  wait(e)
+end` | `(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))` | Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin. |
 
 ## Operators
 
@@ -31,8 +38,8 @@ Higher binding power binds tighter.
 
 | operator | binding power | lowers to | meaning |
 |---|---|---|---|
-| `\|\|` | 1, 2 | `or` | Logical or: the left value if truthy, otherwise the right; the right is evaluated only when needed. |
-| `&&` | 3, 4 | `and` | Logical and: the right value if the left is truthy, otherwise the left; short-circuits. |
+| `or` | 1, 2 | `or` | Logical or: the left value if truthy, otherwise the right; the right is evaluated only when needed. `\|\|` is read as `or` and written `or` (B0025). |
+| `and` | 3, 4 | `and` | Logical and: the right value if the left is truthy, otherwise the left; short-circuits. `&&` is read as `and` and written `and` (B0025). |
 | `==` | 5, 6 | `equal?` | Structural equality over every value (okite D0001): 4 == 4.0, lists and maps by content, nil only equals nil. |
 | `!=` | 5, 6 | `not=` | Exactly not(a == b) (okite D0002). |
 | `<` | 5, 6 | `<` | Numeric less-than. A string operand is a type error: order text with compare(a, b). |
@@ -49,8 +56,9 @@ Higher binding power binds tighter.
 
 | word | meaning |
 |---|---|
-| `if` | `if c … elsif d … else … end`: an expression; its value is the branch taken, nil when none is. |
-| `unless` | `unless c … end`: `if !c`. The formatter writes it as `if !c`. |
+| `if` | `if c … elsif d … else … end`: an expression; its value is the branch taken, nil when none is. An `else` that is empty or `nil` is dropped (B0035). |
+| `begin` | `begin … rescue :kind as e … rescue e … ensure … end`: run the statements; a `rescue` clause catches an error by kind, binding it with `as`, and `rescue e` catches every error; `ensure` always runs. A def body takes the same clauses without `begin`. |
+| `unless` | `unless c … end` is read as `if not c` and written that way (B0026). |
 | `def` | `def name(a, b) … end`: a named function; its value is the last expression. Parameters may be typed: `def f(n: Int) -> Int`. |
 | `defmacro` | `defmacro name(x) quote … unquote(x) … end end`: a macro, a rewrite of the unevaluated form. |
 | `quote` | `quote … end`: the form itself as data, not its value. Used inside `defmacro`. |
@@ -63,32 +71,33 @@ Higher binding power binds tighter.
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |
 | `else` | The branch of `if` or `case` taken when nothing before it matched. |
-| `elsif` | A further condition in an `if` chain; the formatter writes nested `else if` as `elsif`. |
+| `elsif` | A further condition in an `if` chain; an `else` holding only an `if` is written `elsif` (B0027). |
+| `rescue` | A clause of `begin` or `def`: `rescue :a, :b as e`, `rescue e` (every error, last). Inline, `x rescue fallback` is fallback when x raises; it binds loosest, below `\|>`. |
+| `ensure` | The last clause of `begin` or `def`: statements that run whether the block returned or raised; the block's value or error is kept. |
 | `true` | The boolean true. |
 | `false` | The boolean false. Only `false` and `nil` are falsy; 0, "" and [] are truthy. |
 | `nil` | The absent value. It is not `[]` (okite D0004), and only `nil == nil`. |
+| `and` | `a and b`: logical and; `&&` is read as `and` and written `and` (B0025). |
+| `or` | `a or b`: logical or; `\|\|` is read as `or` and written `or` (B0025). |
+| `not` | `not x`: true when x is false or nil; `!x` is read as `not x` and written `not x` (B0025). `not (a == b)` is written `a != b` (B0034). |
 
 ## Built-in names
 
-270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+267 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 176 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `and` | `and(a, b, more...)` | — | The last value if every one is truthy, else the first falsy one; stops early. The operator form is a && b. |
-| `begin` | `begin(a, b, more...)` | — | Evaluate in order; the value is the last. A def body already does this. |
 | `comment` | `comment(anything...)` | — | Ignores its arguments and is nil. Use # comments instead. |
 | `define` | `define(name, value)` | — | Bind a name. Written name = value; the formatter prints that form. |
 | `delay` | `delay(expr)` | — | A promise that evaluates expr once, on the first force. |
 | `eval` | `eval(form)` | — | Evaluate a quoted form. |
 | `lambda` | `fn(x) … end` | — | The function form fn lowers to. Write fn. |
 | `macroexpand` | `macroexpand(form)` | — | The expansion of a quoted macro call, for debugging a defmacro. |
-| `not` | `not(x)` | — | true when x is false or nil. Written !x. |
-| `or` | `or(a, b, more...)` | — | The first truthy value, else the last; stops early. The operator form is a \|\| b. |
 | `quasiquote` | `quote … end` | — | What quote with unquote lowers to inside defmacro. |
 | `set!` | `set!(name, value)` | — | Rebind an existing name. A name a forked process inherited is sealed and refuses it. |
-| `try` | `try(expr, catch(e(), handler))` | — | The value of expr, or of handler when expr throws. The binding is written e(). The kind and message of e cannot be read. |
+| `try` | `try(expr, catch(e(), handler))` | — | The Lisp form begin … rescue lowers to. Written `expr rescue fallback` or a begin … rescue e … end block (B0037). |
 | `when` | `when(c, body...)` | — | The body's last value when c is truthy, else nil. An if with no else says the same thing. |
 | `while` | `while(c, body)` | — | Evaluate body while c is truthy; nil. Needs set! to make progress, so map, filter and reduce are usually the better word. |
 
@@ -199,7 +208,7 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `any?` | `any?(f, xs)` | 2 | Whether f accepts some element; false for []. |
-| `apply` | `apply(f, args..., xs)` | 2+ | Call f with the elements of the last list as its arguments: apply(max, [3, 1]). |
+| `apply` | `apply(f, args..., xs)` | 2+ | Call f with the elements of the last list as its arguments. With f a name it is written as a splat, max(*xs) (B0042); apply stays for a function computed by an expression. |
 | `comp` | `comp(f, g)` | 2 | The function x -> f(g(x)). |
 | `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `kansuu` (`kansuu::compose`): a file that lists it gets that one. |
 | `const` | `const(x)` | 1 | A function that ignores its argument and returns x. |
@@ -262,12 +271,13 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `error` | `error(kind, message[, data])` | 2..3 | An error VALUE. It raises nothing until throw(error(…)). |
+| `error` | `error(kind, message[, data])` | 2..3 | An error VALUE, raising nothing. throw(error(k, m)) is written raise(k, m) (B0037). |
 | `error?` | `error?(x)` | 1 | Whether x is an error value; true inside a catch handler. |
-| `error_kind` | `error_kind(e)` | 1 | The kind of an error value, the keyword error(kind, …) was given; raises on anything else. |
-| `error_message` | `error_message(e)` | 1 | The message of an error value, as text; raises on anything else. |
+| `error_kind` | `error_kind(e)` | 1 | The kind of an error value, a keyword. Written e.kind (B0036). |
+| `error_message` | `error_message(e)` | 1 | The message of an error value. Written e.message (B0036). |
 | `gensym` | `gensym([prefix])` | 0..1 | A fresh unique symbol, for macros that need a private name. |
-| `throw` | `throw(err)` | 1 | Raise err. Uncaught, the run fails with its kind and message. |
+| `raise` | `raise(kind_or_error[, message[, opts]])` | 1..3 | Raise an error: raise(:not_found, "no repo #{name}"); opts is {data: value, cause: e}. raise(e) raises e again unchanged. Uncaught, the run prints kind: message, every cause, the stack, and exits 1. The error's fields are e.kind, e.message, e.data, e.cause and e.trace, the raise site as file:line. |
+| `throw` | `throw(err)` | 1 | Raise any value. Written raise(err) (B0037). |
 
 ### JSON
 
@@ -485,3 +495,53 @@ A Bluefile is a blue program that may call only these words.
 | `image(name, spec)` | An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`. |
 | `workload(name, spec)` | A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster. |
 | `service(name, spec)` | An HTTP service from one of the project's programs: its runnable closure `packages.<name>`, its image through substrate's mkHardenedImageSet, its module trio, and the committed `output` tree (default `deploy/<name>`) of a Helm chart with a generated values.schema.json, its settings' defaults and schema, and with a `schema`, its additive SQL and shinka migration; every file gated fresh. |
+
+## Rules
+
+Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write`, `blue run`, `blue test` and `blue check --fix` rewrite it where the fix is `autofix`. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).
+
+| code | rule | law | fix |
+|---|---|---|---|
+| `B0001` | unbound-name | every name a program uses is bound: a local, a parameter, a definition, an imported bidama's definition, or a builtin | suggested |
+| `B0002` | unused-binding | a local binding is read at least once, or its name starts with `_` | autofix |
+| `B0003` | return-type-mismatch | a typed definition's body produces the type its signature declares | refused |
+| `B0004` | operand-type-mismatch | an operator inside a typed definition receives operands of the type it takes | refused |
+| `B0005` | argument-type-mismatch | a call to a typed definition passes arguments of the declared parameter types | refused |
+| `B0006` | syntax-error | a file parses | refused |
+| `B0007` | malformed-waiver | a waiver names a known, waivable code and gives a reason: `# waive B0002: <reason>` | refused |
+| `B0008` | unused-waiver | a waiver suppresses at least one diagnostic | refused |
+| `B0009` | ambiguous-name | a name resolves to one definition: no two namespaces in the same resolution tier define it | refused |
+| `B0010` | qualifier-not-imported | a qualified name's package is one the file `use`s: `retsu::first` needs `use("retsu")` | refused |
+| `B0011` | no-such-definition | a qualified name, or a name a `use` lists, is a definition of that package | suggested |
+| `B0012` | implicit-reference | a bare name that is another bidama's definition is one the file lists: `use("retsu", [:first])`, or written `retsu::first` | autofix |
+| `B0013` | prefixed-definition | a bidama's definition does not spell its bidama: `def parse` in `moji`, never `def moji_parse` | refused |
+| `B0014` | mangled-namespace | a bidama does not prefix nine in ten of its definitions with one short `x_` | refused |
+| `B0015` | non-canonical-import | a file's `use` forms come first, one per package, sorted by package, each list sorted | autofix |
+| `B0016` | unused-import | every `use` is reached by something in the file, and every name it lists is read | refused |
+| `B0017` | duplicate-definition | a namespace defines a function or macro once | refused |
+| `B0018` | redundant-qualifier | a qualifier changes what its name means: not a bidama's own definition, not a listed name, not a builtin already reached bare | autofix |
+| `B0019` | needs-mismatch | the bidamas a bidama `use`s are exactly the ones its Bluefile `needs` | refused |
+| `B0020` | package-as-value | a bidama's name is written as a qualifier, `retsu::first(xs)`, never as a value | refused |
+| `B0021` | legacy-name | a renamed or moved definition is called by its new name; the old name is a bridge that closes at the next minor version | autofix |
+| `B0022` | legacy-misuse | a `legacy_names` declaration is one of each form per bidama, dates from a version the bidama has reached, names no name twice, and moves a name only to a definition a loaded bidama holds | refused |
+| `B0023` | bare-nullary-call | a call to a function that takes no parameters is written bare: `now_ms`, never `now_ms()` | autofix |
+| `B0024` | layout | a file is laid out as `blue fmt` writes it: indentation, line breaks at 80 columns, blank lines and parentheses | autofix |
+| `B0025` | logical-words | logic is written in words: `a and b`, `a or b`, `not x`, never `&&`, `\|\|`, `!` | autofix |
+| `B0026` | unless | a negated condition is written `if not c`, never `unless c` | autofix |
+| `B0027` | elsif | an `else` whose whole body is an `if` is written `elsif` | autofix |
+| `B0028` | call-form | a call is written `f(x, y)`: never `x.f(y)` or `x \|> f(y)` | autofix |
+| `B0029` | keyword-key | a map key that is a keyword is written `name: value`, never `:name => value` | autofix |
+| `B0030` | parameter-list | a definition and a lambda write their parameter list, even an empty one: `def f()`, `fn() … end` | autofix |
+| `B0031` | operator-spelling | an operator or literal is written as itself, never as the call it lowers to or a typographic alias | autofix |
+| `B0032` | trailing-comma | no comma before a closing bracket | autofix |
+| `B0033` | literal-spelling | a literal is written as `blue fmt` writes its value: digits of six or more grouped `1_000_000`, an invisible character escaped `\u{1b}` | autofix |
+| `B0034` | negated-comparison | a negated equality is written with the other operator: `a != b`, never `not (a == b)` | autofix |
+| `B0035` | else-nil | an `if` has no `else` whose body is empty or `nil` | autofix |
+| `B0036` | builtin-synonym | a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x == nil` not `nil?(x)`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message` | autofix |
+| `B0037` | error-spelling | an error is raised with `raise` and caught with `rescue`: never `throw(error(…))` or `try(…, catch(…))` | autofix |
+| `B0038` | swallowed-error | a `rescue` that catches every error and does nothing names the error `_` | refused |
+| `B0039` | duplicate-test-name | the tests of a file have distinct names | refused |
+| `B0040` | identifier-case | a function, parameter or local is named in lower snake_case (`retry_count`, never `retryCount`); a top-level constant may be UPPER_SNAKE | refused |
+| `B0041` | main-guard | a program's entry point is `def main()`, which `blue run` calls; never a top-level `if getenv("X_MAIN", "") == "1"` guard | autofix |
+| `B0042` | splat | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name | autofix |
+| `B0043` | prefixed-program | a program does not prefix every definition with one short `x_`: the file is the namespace | autofix |

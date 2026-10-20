@@ -81,11 +81,11 @@ end
 # A real number: not NaN (NaN is the one value unequal to itself) and not
 # infinite. A sqrt of a negative or a blown-up ODE produces these silently.
 def finite?(x)
-  x == x && abs(x) < expt(10.0, 300)
+  x == x and abs(x) < expt(10.0, 300)
 end
 
 def all_finite?(v)
-  reduce(fn(acc, x) acc && finite?(x) end, true, v)
+  reduce(fn(acc, x) acc and finite?(x) end, true, v)
 end
 
 # A weighted sum of vectors: sum of ws[i] * ks[i].
@@ -210,7 +210,7 @@ def dopri_step(f, t, y, h)
         71.0 / 57600,
         -71.0 / 16695,
         71.0 / 1920,
-        -17253.0 / 339200,
+        -17253.0 / 339_200,
         22.0 / 525,
         -1.0 / 40
       ]
@@ -260,7 +260,7 @@ def ode(f, t0, y0, t1, opts)
     fin = reduce(
       fn(acc, _i) ode_tick(f, t1, rtol, atol, hmin, acc) end,
       start,
-      range(0, get_or(opts, :max_steps, 100000))
+      range(0, get_or(opts, :max_steps, 100_000))
     )
     late = if get(fin, :done)
       []
@@ -291,7 +291,7 @@ def ode_tick(f, t1, rtol, atol, hmin, acc)
     r = dopri_step(f, t, y, h)
     ynew = nth(0, r)
     e = error_norm(nth(1, r), y, ynew, rtol, atol)
-    if all_finite?(ynew) == false || finite?(e) == false
+    if all_finite?(ynew) == false or finite?(e) == false
       ode_stop(
         acc,
         refusal(
@@ -500,7 +500,7 @@ def brent_candidate(s)
   fa = get(s, :fa)
   fb = get(s, :fb)
   fc = get(s, :fc)
-  if fa != fc && fb != fc
+  if fa != fc and fb != fc
     a * fb * fc / ((fa - fb) * (fa - fc)) +
       b * fa * fc / ((fb - fa) * (fb - fc)) +
       c * fa * fb / ((fc - fa) * (fc - fb))
@@ -517,21 +517,21 @@ def brent_bisect?(s, cand, tol)
   d = get(s, :d)
   q = (3 * a + b) / 4
   outside = if q < b
-    cand < q || cand > b
+    cand < q or cand > b
   else
-    cand < b || cand > q
+    cand < b or cand > q
   end
   if get(s, :mflag)
-    outside || abs(cand - b) >= abs(b - c) / 2 || abs(b - c) < tol
+    outside or abs(cand - b) >= abs(b - c) / 2 or abs(b - c) < tol
   else
-    outside || abs(cand - b) >= abs(c - d) / 2 || abs(c - d) < tol
+    outside or abs(cand - b) >= abs(c - d) / 2 or abs(c - d) < tol
   end
 end
 
 def brent_tick(f, tol, s)
   if get(s, :done)
     s
-  elsif get(s, :fb) == 0 || abs(get(s, :b) - get(s, :a)) < tol
+  elsif get(s, :fb) == 0 or abs(get(s, :b) - get(s, :a)) < tol
     {
       a: get(s, :a),
       fa: get(s, :fa),
@@ -634,8 +634,8 @@ def nm_converged?(simplex, ftol, xtol)
   best = first(simplex)
   reduce(
     fn(acc, v)
-      acc &&
-        abs(nm_f(v) - nm_f(best)) <= ftol &&
+      acc and
+        abs(nm_f(v) - nm_f(best)) <= ftol and
         vdistance(nm_x(v), nm_x(best)) <= xtol
     end,
     true,
@@ -760,7 +760,7 @@ end
 # and the point count, so every fitted constant reports how well it fits and
 # on how much data.
 def fit(model, p0, xs, ys, opts)
-  if size(xs) != size(ys) || is_empty(xs)
+  if size(xs) != size(ys) or is_empty(xs)
     {
       params: [],
       sse: nil,
@@ -800,11 +800,11 @@ def segment(xs, x)
 end
 
 def interp_refusals(xs, ys, x)
-  if size(xs) < 2 || size(xs) != size(ys)
+  if size(xs) < 2 or size(xs) != size(ys)
     [refusal(:kinji_data, "interpolation needs at least two xs and as many ys")]
   elsif is_strictly_sorted(xs) == false
     [refusal(:kinji_data, "the xs must be strictly ascending")]
-  elsif x < first(xs) || x > last(xs)
+  elsif x < first(xs) or x > last(xs)
     [
       refusal(
         :kinji_out_of_range,
@@ -845,11 +845,9 @@ end
 # Simpson's rule over n equal panels, n even: exact for cubics.
 def simpson(f, a, b, n)
   if n % 2 != 0
-    throw(
-      error(
-        :kinji_data,
-        "Simpson's rule needs an even number of panels, not #{to_s(n)}"
-      )
+    raise(
+      :kinji_data,
+      "Simpson's rule needs an even number of panels, not #{to_s(n)}"
     )
   end
   h = (b - a) / n
@@ -949,7 +947,14 @@ test "an ODE that blows up is refused, not answered"
   # The control: y' = y^2 from y(0) = 1 is 1 / (1 - t), infinite at t = 1.
   r = ode(fn(t, y) blowup(t, y) end, 0.0, [1.0], 2.0, {})
   assert is_empty(get(r, :refusals)) == false
-  assert error?(try(final(r), catch(e(), e))) == true
+  assert error?(
+    begin
+      final(r)
+    rescue e
+      e
+    end
+  ) ==
+    true
   rk = rk4(fn(t, y) blowup(t, y) end, 0.0, [1.0], 0.1, 30)
   assert refusal_kinds(rk) == [:kinji_diverged]
 end
@@ -1024,7 +1029,14 @@ test "interpolation: at nodes, between them, and refused outside"
   assert near(interp(xs, ys, 10), 150) == true
   assert near(interp(xs, ys, 5), 125) == true
   assert near(interp(xs, ys, 20), 130) == true
-  assert error?(try(interp(xs, ys, 25), catch(e(), e))) == true
+  assert error?(
+    begin
+      interp(xs, ys, 25)
+    rescue e
+      e
+    end
+  ) ==
+    true
   assert kyohi::kind(first(interp_refusals(xs, ys, -1))) == :kinji_out_of_range
   assert kyohi::kind(first(interp_refusals([0, 0, 1], ys, 0))) == :kinji_data
   assert near(interp_clamped(xs, ys, 25), 130) == true
@@ -1038,7 +1050,14 @@ test "quadrature: the area under sin, and Simpson exact for a cubic"
     true
   # The integral of x^3 from 0 to 2 is 4, and Simpson is exact for cubics.
   assert near(simpson(fn(x) x * x * x end, 0, 2, 2), 4) == true
-  assert error?(try(simpson(fn(x) x end, 0, 1, 3), catch(e(), e))) == true
+  assert error?(
+    begin
+      simpson(fn(x) x end, 0, 1, 3)
+    rescue e
+      e
+    end
+  ) ==
+    true
   # Sampled: a straight line's trapezoid area is exact.
   assert near(trapz([0, 1, 3], [0, 2, 6]), 9) == true
   # The empty case: one sample encloses no area.

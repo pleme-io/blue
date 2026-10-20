@@ -17,17 +17,15 @@ row(
 
 row(
   "errors.throw",
-  "throw(error(:parse, \"bad row\"))",
-  fails(:eval, "uncaught"),
-  covers("form:throw(error(:parse, \"bad row\"))"),
+  "# waive B0037: the row covers this spelling itself\nthrow(error(:parse, \"bad row\"))",
+  fails(:eval, "parse: bad row"),
   covers("builtin:throw")
 )
 
 row(
   "errors.try",
-  "try(throw(error(:boom, \"x\")), catch(e(), :handled))",
+  "# waive B0037: the row covers this spelling itself\ntry(throw(error(:boom, \"x\")), catch(e(), :handled))",
   value(":handled"),
-  covers("form:try(risky(), catch(e(), fallback(e)))"),
   covers("builtin:try")
 )
 
@@ -35,13 +33,13 @@ row("errors.try.no_throw", "try(1 + 1, catch(_e(), 0))", value("2"))
 
 row(
   "errors.try.binding",
-  "try(throw(error(:boom, \"x\")), catch(e(), error?(e)))",
+  "# waive B0037: the row covers this spelling itself\ntry(throw(error(:boom, \"x\")), catch(e(), error?(e)))",
   value("true")
 )
 
 row(
   "errors.readable.kind",
-  "try(throw(error(:boom, \"why\")), catch(e(), error_kind(e)))",
+  "# waive B0036: the row covers this name itself\n# waive B0037: the row covers this spelling itself\ntry(throw(error(:boom, \"why\")), catch(e(), error_kind(e)))",
   value(":boom"),
   covers("builtin:error_kind"),
   pending("G4", "wasm")
@@ -49,7 +47,7 @@ row(
 
 row(
   "errors.readable.message",
-  "try(throw(error(:boom, \"why\")), catch(e(), error_message(e)))",
+  "# waive B0036: the row covers this name itself\n# waive B0037: the row covers this spelling itself\ntry(throw(error(:boom, \"why\")), catch(e(), error_message(e)))",
   value("\"why\""),
   covers("builtin:error_message"),
   pending("G4", "wasm")
@@ -83,8 +81,4 @@ row(
   pending("G4")
 )
 
-row(
-  "errors.uncaught_value",
-  "x = throw(error(:boom, \"why\"))",
-  fails(:eval, "boom")
-)
+row("errors.uncaught_value", "x = raise(:boom, \"why\")", fails(:eval, "boom"))

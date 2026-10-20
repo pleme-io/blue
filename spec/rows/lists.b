@@ -47,9 +47,26 @@ row(
   covers("builtin:butlast")
 )
 
-row("lists.car", "car([1, 2])", value("1"), covers("builtin:car"))
-row("lists.car.empty", "car([])", fails(:eval, "car of empty list"))
-row("lists.cdr", "cdr([1])", value("[]"), covers("builtin:cdr"))
+row(
+  "lists.car",
+  "# waive B0036: the row covers this name itself\ncar([1, 2])",
+  value("1"),
+  covers("builtin:car")
+)
+
+row(
+  "lists.car.empty",
+  "# waive B0036: the row covers this name itself\ncar([])",
+  fails(:eval, "car of empty list")
+)
+
+row(
+  "lists.cdr",
+  "# waive B0036: the row covers this name itself\ncdr([1])",
+  value("[]"),
+  covers("builtin:cdr")
+)
+
 row("lists.cons", "cons(0, [1])", value("[0, 1]"), covers("builtin:cons"))
 row("lists.count", "count([1, 2, 3])", value("3"), covers("builtin:count"))
 
@@ -119,7 +136,13 @@ row(
   covers("builtin:member?")
 )
 
-row("lists.next", "next([1])", value("[]"), covers("builtin:next"))
+row(
+  "lists.next",
+  "# waive B0036: the row covers this name itself\nnext([1])",
+  value("[]"),
+  covers("builtin:next")
+)
+
 row("lists.nth", "nth(1, [:a, :b])", value(":b"), covers("builtin:nth"))
 row("lists.nth.out_of_range", "nth(5, [1])", value("nil"))
 

@@ -36,6 +36,26 @@ it; `blue explain --list` lists them.
 | B0021 | legacy-name | error | a renamed or moved definition is called by its new name; the old one is a bridge that closes at the next minor version |
 | B0022 | legacy-misuse | error | a `legacy_names` declaration is one of each form per bidama, dated from a version it has reached, names no name twice, and moves a name only to a definition a loaded bidama holds |
 | B0023 | bare-nullary-call | error | a call to a function that takes no parameters is written bare: `now_ms`, never `now_ms()` |
+| B0024 | layout | error | a file is laid out as `blue fmt` writes it: indentation, line breaks at 80 columns, blank lines and parentheses |
+| B0025 | logical-words | error | logic is written in words: `a and b`, `a or b`, `not x`, never `&&`, `\|\|`, `!` |
+| B0026 | unless | error | a negated condition is written `if not c`, never `unless c` |
+| B0027 | elsif | error | an `else` whose whole body is an `if` is written `elsif` |
+| B0028 | call-form | error | a call is written `f(x, y)`: never `x.f(y)` or `x \|> f(y)` |
+| B0029 | keyword-key | error | a map key that is a keyword is written `name: value`, never `:name => value` |
+| B0030 | parameter-list | error | a definition and a lambda write their parameter list, even an empty one: `def f()`, `fn() … end` |
+| B0031 | operator-spelling | error | an operator or literal is written as itself, never as the call it lowers to or a typographic alias |
+| B0032 | trailing-comma | error | no comma before a closing bracket |
+| B0033 | literal-spelling | error | a literal is written as `blue fmt` writes its value: digits of six or more grouped `1_000_000`, an invisible character escaped `\u{1b}` |
+| B0034 | negated-comparison | error | a negated equality is written with the other operator: `a != b`, never `not (a == b)` |
+| B0035 | else-nil | error | an `if` has no `else` whose body is empty or `nil` |
+| B0036 | builtin-synonym | error | a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x == nil` not `nil?(x)`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message` |
+| B0037 | error-spelling | error | an error is raised with `raise` and caught with `rescue`: never `throw(error(…))` or `try(…, catch(…))` |
+| B0038 | swallowed-error | error | a `rescue` that catches every error and does nothing names the error `_` |
+| B0039 | duplicate-test-name | error | the tests of a file have distinct names |
+| B0040 | identifier-case | error | a function, parameter or local is named in lower snake_case (`retry_count`, never `retryCount`); a top-level constant may be UPPER_SNAKE |
+| B0041 | main-guard | error | a program's entry point is `def main()`, which `blue run` calls; never a top-level `if getenv("X_MAIN", "") == "1"` guard |
+| B0042 | splat | error | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name |
+| B0043 | prefixed-program | error | a program does not prefix every definition with one short `x_`: the file is the namespace |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

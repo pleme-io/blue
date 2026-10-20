@@ -34,7 +34,7 @@ use("shuugou", [:intersection, :subset, :unique])
 # repeatable", never "secure".
 
 def next_seed(seed)
-  (1664525 * seed + 1013904223) % 4294967296
+  (1_664_525 * seed + 1_013_904_223) % 4_294_967_296
 end
 
 def next_int(seed, bound)
@@ -42,7 +42,7 @@ def next_int(seed, bound)
 end
 
 def next_float(seed)
-  next_seed(seed) / 4294967296
+  next_seed(seed) / 4_294_967_296
 end
 
 def next_range(seed, lo, hi)
@@ -87,7 +87,7 @@ end
 
 # The top bit, for the same reason: `next_int(seed, 2)` would be a metronome.
 def next_bool(seed)
-  next_seed(seed) >= 2147483648
+  next_seed(seed) >= 2_147_483_648
 end
 
 def take_bools(seed, n)
@@ -161,20 +161,18 @@ end
 # the halves, between multiplications. Every product stays below 2^63.
 
 def mix_seed(x)
-  a = modulo(modulo(x, 4294967296) * 747796405 + 2891336453, 4294967296)
-  b = modulo(
-    a + floor(a / 65536) * modulo(a, 65536) * 40503 + floor(a / 65536),
-    4294967296
-  )
-  swapped = modulo(b, 65536) * 65536 + floor(b / 65536)
-  c = modulo(swapped * 277803737 + 1013904223, 4294967296)
-  modulo(c + floor(c / 65536) * modulo(c, 65536) * 22695477, 4294967296)
+  a = (x % 4_294_967_296 * 747_796_405 + 2_891_336_453) % 4_294_967_296
+  b = (a + floor(a / 65536) * (a % 65536) * 40503 + floor(a / 65536)) %
+    4_294_967_296
+  swapped = b % 65536 * 65536 + floor(b / 65536)
+  c = (swapped * 277_803_737 + 1_013_904_223) % 4_294_967_296
+  (c + floor(c / 65536) * (c % 65536) * 22_695_477) % 4_294_967_296
 end
 
 # The seed of stream i from one experiment seed. Streams for different i are
 # statistically independent, not merely distinct.
 def stream_seed(seed, i)
-  mix_seed(modulo(mix_seed(seed) + (i + 1) * 2654435769, 4294967296))
+  mix_seed((mix_seed(seed) + (i + 1) * 2_654_435_769) % 4_294_967_296)
 end
 
 # `choice` off the top of the word. Kept separate rather than folded into
@@ -249,8 +247,8 @@ end
 def next_gaussian(seed)
   s1 = next_seed(seed)
   s2 = next_seed(s1)
-  u1 = (s1 + 1) / 4294967297
-  u2 = s2 / 4294967296
+  u1 = (s1 + 1) / 4_294_967_297
+  u2 = s2 / 4_294_967_296
   sqrt(-(2 * log(u1))) * cos(6.283185307179586 * u2)
 end
 
@@ -283,7 +281,7 @@ end
 
 test "next_uniform stays in bounds and covers them"
   vs = map(fn(s) next_uniform(s, 6) end, seeds(4, 200))
-  assert every(fn(v) v >= 0 && v < 6 end, vs) == true
+  assert every(fn(v) v >= 0 and v < 6 end, vs) == true
   # A generator that never emits 0 or never emits 5 still passes a bounds
   # check; only the face count catches it.
   assert size(unique(vs)) == 6
@@ -314,7 +312,7 @@ end
 
 test "take_floats lands in the unit interval and averages near its middle"
   fs = take_floats(21, 400)
-  assert every(fn(f) f >= 0 && f < 1 end, fs) == true
+  assert every(fn(f) f >= 0 and f < 1 end, fs) == true
   assert size(fs) == 400
   assert take_floats(21, 0) == []
   # A stuck stream also satisfies the bounds; the mean does not.
@@ -323,7 +321,7 @@ end
 
 test "a die never shows zero and never shows sides + 1"
   vs = roll_dice(6, 120, 6)
-  assert every(fn(v) v >= 1 && v <= 6 end, vs) == true
+  assert every(fn(v) v >= 1 and v <= 6 end, vs) == true
   assert size(vs) == 120
   # The off-by-one that a bounds check on a d6 misses entirely.
   assert every(fn(s) roll(s, 1) == 1 end, seeds(3, 20)) == true
@@ -335,7 +333,7 @@ test "roll_sum adds the dice rather than picking one of them"
   # 4d20 lives in [4, 80] and nowhere else; a sum mistaken for a max or a
   # single roll collapses into [1, 20] and never leaves it.
   totals = map(fn(s) roll_sum(s, 4, 20) end, seeds(77, 60))
-  assert every(fn(t) t >= 4 && t <= 80 end, totals) == true
+  assert every(fn(t) t >= 4 and t <= 80 end, totals) == true
   assert any(fn(t) t > 20 end, totals) == true
   # One die summed is that die.
   assert every(fn(s) roll_sum(s, 1, 6) == roll(s, 6) end, seeds(12, 20)) == true
@@ -358,13 +356,13 @@ test "split_seed gives two streams that do not replay each other"
   b = last(p)
   # The failure this catches: b = next_seed(a), which shares 19 of these 20.
   assert is_empty(
-    intersection(take_ints(a, 1000000, 20), take_ints(b, 1000000, 20))
+    intersection(take_ints(a, 1_000_000, 20), take_ints(b, 1_000_000, 20))
   ) ==
     true
   assert is_empty(
     intersection(
-      take_ints(a, 1000000, 20),
-      take_ints(next_seed(a), 1000000, 20)
+      take_ints(a, 1_000_000, 20),
+      take_ints(next_seed(a), 1_000_000, 20)
     )
   ) ==
     false
@@ -395,7 +393,7 @@ end
 
 test "the affine derivation fails that test (positive control)"
   affine = fn(i)
-    next_seed(next_seed(modulo(7 + (i + 1) * 2654435769, 4294967296)))
+    next_seed(next_seed((7 + (i + 1) * 2_654_435_769) % 4_294_967_296))
   end
   pairs = map(
     fn(i) [next_float(affine(2 * i)), next_float(affine(2 * i + 1))] end,
@@ -412,7 +410,7 @@ end
 
 test "mixed seeds stay 32-bit and draws are uniform"
   xs = map(fn(i) mix_seed(i) end, range(0, 60))
-  assert every(fn(x) x >= 0 && x < 4294967296 end, xs) == true
+  assert every(fn(x) x >= 0 and x < 4_294_967_296 end, xs) == true
   m = reduce(fn(a, i) a + next_float(stream_seed(1, i)) end, 0, range(0, 60)) /
     60
   assert abs(m - 0.5) < 0.1
@@ -431,7 +429,7 @@ end
 
 test "values stay inside their bounds"
   vs = take_ints(7, 10, 50)
-  assert every(fn(v) v >= 0 && v < 10 end, vs) == true
+  assert every(fn(v) v >= 0 and v < 10 end, vs) == true
   assert size(vs) == 50
 end
 
@@ -444,7 +442,7 @@ end
 
 test "next_range respects both ends"
   vs = map(fn(s) next_range(s, 10, 20) end, seeds(5, 30))
-  assert every(fn(v) v >= 10 && v < 20 end, vs) == true
+  assert every(fn(v) v >= 10 and v < 20 end, vs) == true
 end
 
 test "choice returns a member of the list"
@@ -584,7 +582,7 @@ test "next_normal is next_gaussian shifted and scaled"
     true
   # Shifting by 100 must move the whole cloud, not widen it.
   ns = map(fn(s) next_normal(s, 100, 1) end, seeds(17, 200))
-  assert every(fn(n) n > 94 && n < 106 end, ns) == true
+  assert every(fn(n) n > 94 and n < 106 end, ns) == true
 end
 
 test "a random walk steps by exactly one, every time"

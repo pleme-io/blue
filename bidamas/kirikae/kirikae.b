@@ -47,7 +47,7 @@ def policy(base_s, cap_s)
 end
 
 def backoff_ms(failures, pol)
-  if failures < 1 || get(pol, :base_ms) < 1
+  if failures < 1 or get(pol, :base_ms) < 1
     0
   else
     blue::min(get(pol, :cap_ms), get(pol, :base_ms) * expt(2, failures - 1))
@@ -69,7 +69,7 @@ def streak_step(acc, e)
 end
 
 def streak(history, out)
-  foldl(
+  reduce(
     fn(acc, e) streak_step(acc, e) end,
     {out: out, n: 0, last_ms: nil},
     history
@@ -94,24 +94,23 @@ end
 def hold_for(key, history, now_ms, pol)
   s = streak(history, key)
   wait = backoff_ms(get(s, :n), pol)
-  if wait > 0 && now_ms < get(s, :last_ms) + wait
+  if wait > 0 and now_ms < get(s, :last_ms) + wait
     {
       action: :hold,
       why: "#{to_s(get(s, :n))} failed attempt(s) of #{label(key)}; next try in #{to_s(floor((get(s, :last_ms) + wait - now_ms) / 1000))}s",
       until_ms: get(s, :last_ms) + wait,
       key: key
     }
-  else
-    nil
   end
 end
 
 def hex40?(t)
-  length(t) == 40 && every?(fn(c) includes("0123456789abcdef", c) end, chars(t))
+  length(t) == 40 and
+    every?(fn(c) includes("0123456789abcdef", c) end, chars(t))
 end
 
 def pinned?(flake)
-  any?(fn(t) hex40?(t) end, split(flake, "/")) || includes(flake, "rev=")
+  any?(fn(t) hex40?(t) end, split(flake, "/")) or includes(flake, "rev=")
 end
 
 def label(p)
@@ -123,7 +122,7 @@ def label(p)
 end
 
 def parse_entry(line)
-  d = try(json_parse(line), catch(_e(), nil))
+  d = json_parse(line) rescue nil
   if d == nil
     nil
   else
@@ -178,8 +177,6 @@ def plan(flake, host, kind, current_link, hist, now_ms, pol)
   inst = installable(flake, attr_for(kind, host))
   early = if pinned?(flake)
     hold_for(inst, hist, now_ms, pol)
-  else
-    nil
   end
   if early == nil
     evaluated(flake, inst, current_link, hist, now_ms, pol)
@@ -191,7 +188,7 @@ end
 def evaluated(flake, inst, current_link, hist, now_ms, pol)
   started = now_ns
   b = plan_build(inst, [])
-  ms = floor(elapsed_since(started) / 1000000)
+  ms = floor(elapsed_since(started) / 1_000_000)
   if ok?(b)
     p = value(b)
     desired = first_out(p)
@@ -215,8 +212,6 @@ def evaluated(flake, inst, current_link, hist, now_ms, pol)
       refusal: refusal_of(b),
       key: if pinned?(flake)
         inst
-      else
-        nil
       end,
       plan_ms: ms
     }
@@ -224,7 +219,7 @@ def evaluated(flake, inst, current_link, hist, now_ms, pol)
 end
 
 def assoc_all(m, pairs)
-  foldl(fn(acc, kv) assoc(acc, first(kv), nth(1, kv)) end, m, pairs)
+  reduce(fn(acc, kv) assoc(acc, first(kv), nth(1, kv)) end, m, pairs)
 end
 
 def settings()
@@ -245,12 +240,11 @@ def settings()
 end
 
 def stdout_of_host()
-  stdout_of(try(exec_capture("hostname", "-s"), catch(_e(), nil)))
+  stdout_of(exec_capture("hostname", "-s") rescue nil)
 end
 
 def kind_of_host()
-  if trim(stdout_of(try(exec_capture("uname", "-s"), catch(_e(), nil)))) ==
-    "Linux"
+  if trim(stdout_of(exec_capture("uname", "-s") rescue nil)) == "Linux"
     "nixos"
   else
     "darwin"
@@ -260,30 +254,25 @@ end
 def checkout_path(flake)
   if pinned?(flake)
     nil
-  elsif flake == "." || starts_with?(flake, "/")
+  elsif flake == "." or starts_with?(flake, "/")
     flake
   elsif starts_with?(flake, "path:")
     drop_chars(flake, 5)
   elsif starts_with?(flake, "git+file://")
     first(split(drop_chars(flake, 11), "?"))
-  else
-    nil
   end
 end
 
 def git_out(dir, args)
-  cap = try(
-    apply(
-      exec_with_env,
-      [["GIT_TERMINAL_PROMPT", "0"]],
-      "git",
-      "-C",
-      dir,
-      args
-    ),
-    catch(_e(), nil)
-  )
-  if cap == nil || shisutemu::status_of(cap) != 0
+  cap = exec_with_env(
+    [["GIT_TERMINAL_PROMPT", "0"]],
+    "git",
+    "-C",
+    dir,
+    *args
+  ) rescue
+    nil
+  if cap == nil or shisutemu::status_of(cap) != 0
     nil
   else
     trim(stdout_of(cap))
@@ -307,9 +296,9 @@ end
 def checkout_refusal(c)
   if get(c, :head) == nil
     [:not_a_checkout, "the flake is not a git checkout kirikae can read"]
-  elsif get(c, :dirty) != nil && get(c, :dirty) != ""
+  elsif get(c, :dirty) != nil and get(c, :dirty) != ""
     [:dirty, "the checkout has uncommitted changes; plan a committed rev"]
-  elsif get(c, :remote) == nil || get(c, :remote) == ""
+  elsif get(c, :remote) == nil or get(c, :remote) == ""
     [
       :remote_unknown,
       "origin's #{get(c, :branch)} could not be read, so the checkout cannot be shown to be the published rev"
@@ -319,8 +308,6 @@ def checkout_refusal(c)
       :unpublished,
       "the checkout is at #{take_chars(get(c, :head), 8)} but origin's #{get(c, :branch)} is #{take_chars(get(c, :remote), 8)}; plan only the published rev"
     ]
-  else
-    nil
   end
 end
 
@@ -331,17 +318,17 @@ end
 def writer_line?(l, host)
   ws = filter(fn(w) w != "" end, split(trim(l), " "))
   heads = map(fn(w) base_name(w) end, take_n(ws, 2))
-  rebuild = member?("darwin-rebuild", heads) || member?("nixos-rebuild", heads)
-  evaluation = !is_empty(ws) &&
-    base_name(first(ws)) == "nix" &&
-    any?(fn(w) w == "build" || w == "eval" end, ws) &&
+  rebuild = member?("darwin-rebuild", heads) or member?("nixos-rebuild", heads)
+  evaluation = not is_empty(ws) and
+    base_name(first(ws)) == "nix" and
+    any?(fn(w) w == "build" or w == "eval" end, ws) and
     any?(
       fn(w)
-        includes(w, "Configurations.#{host}") || ends_with?(w, "##{host}")
+        includes(w, "Configurations.#{host}") or ends_with?(w, "##{host}")
       end,
       ws
     )
-  rebuild || evaluation
+  rebuild or evaluation
 end
 
 def writers(ps_text, host)
@@ -368,10 +355,10 @@ def busy_refusal(ws)
 end
 
 def heartbeat_noop(hb_text, head, current)
-  d = try(json_parse(hb_text), catch(_e(), nil))
-  if d == nil || head == nil
+  d = json_parse(hb_text) rescue nil
+  if d == nil or head == nil
     nil
-  elsif get_str(d, "outcome", "") == "unchanged" &&
+  elsif get_str(d, "outcome", "") == "unchanged" and
     get_str(d, "head_rev", "") == head
     {
       action: :noop,
@@ -383,8 +370,6 @@ def heartbeat_noop(hb_text, head, current)
       fetch: 0,
       plan_ms: 0
     }
-  else
-    nil
   end
 end
 
@@ -403,7 +388,7 @@ def guard(s)
   else
     checkout_of(dir, getenv("KIRIKAE_BRANCH", "main"))
   end
-  stale = if c == nil || getenv("KIRIKAE_ALLOW_UNPUBLISHED", "") != ""
+  stale = if c == nil or getenv("KIRIKAE_ALLOW_UNPUBLISHED", "") != ""
     nil
   else
     checkout_refusal(c)
@@ -413,9 +398,7 @@ def guard(s)
   else
     busy_refusal(
       writers(
-        stdout_of(
-          try(exec_capture(ps_bin, "-axww", "-o", "command="), catch(_e(), nil))
-        ),
+        stdout_of(exec_capture(ps_bin, "-axww", "-o", "command=") rescue nil),
         get(s, :host)
       )
     )
@@ -436,8 +419,6 @@ def guard(s)
       get(c, :head),
       resolve(get(s, :current))
     )
-  else
-    nil
   end
 end
 
@@ -488,7 +469,7 @@ end
 def node_arg(cmd)
   after = drop_while(fn(a) a != "rebuild" end, cmd)
   get(
-    foldl(fn(acc, a) node_step(acc, a) end, {skip: 0, node: nil}, rest(after)),
+    reduce(fn(acc, a) node_step(acc, a) end, {skip: 0, node: nil}, rest(after)),
     :node
   )
 end
@@ -507,9 +488,9 @@ def run(cmd)
   p = plan_now(s)
   write_stderr(summary(p))
   a = get(p, :action)
-  if a == :noop && getenv("KIRIKAE_FORCE", "") == ""
+  if a == :noop and getenv("KIRIKAE_FORCE", "") == ""
     outcome_of(0, "noop")
-  elsif a == :hold && getenv("KIRIKAE_FORCE", "") == ""
+  elsif a == :hold and getenv("KIRIKAE_FORCE", "") == ""
     outcome_of(exit_hold, "hold")
   elsif a == :refuse
     if get(p, :key) != nil
@@ -520,7 +501,7 @@ def run(cmd)
     end
     outcome_of(exit_refused, "refuse")
   else
-    status = apply(exec_check, cmd)
+    status = exec_check(*cmd)
     outcome = if status == 0
       "activated"
     else
@@ -586,14 +567,12 @@ def answer(args)
     json_stringify(plan_now(settings))
   elsif verb == "run"
     if size(args) < 2
-      throw(error(:usage, "kirikae run <command> [args...]"))
+      raise(:usage, "kirikae run <command> [args...]")
     end
     run(rest(args))
   elsif verb == "record"
     if size(args) < 3
-      throw(
-        error(:usage, "kirikae record <store-path> <activated|failed> [why]")
-      )
+      raise(:usage, "kirikae record <store-path> <activated|failed> [why]")
     end
     json_stringify(
       record(
@@ -611,11 +590,9 @@ def answer(args)
       )
     )
   else
-    throw(
-      error(
-        :usage,
-        "kirikae plan | run <command> [args...] | record <store-path> <outcome> [why]"
-      )
+    raise(
+      :usage,
+      "kirikae plan | run <command> [args...] | record <store-path> <outcome> [why]"
     )
   end
 end
@@ -646,16 +623,16 @@ test "an exact system that keeps failing waits longer each time, and only that s
   h = [entry(b, "failed", 1000, "x"), entry(b, "failed", 2000, "x")]
   d = decide(b, a, h, 3000, pol)
   assert get(d, :action) == :hold
-  assert get(d, :until_ms) == 2000 + 600000
-  assert get(decide(b, a, h, 2000 + 600000, pol), :action) == :switch
+  assert get(d, :until_ms) == 2000 + 600_000
+  assert get(decide(b, a, h, 2000 + 600_000, pol), :action) == :switch
   assert get(
     decide(sys("00000000000000000000000000000000"), a, h, 3000, pol),
     :action
   ) ==
     :switch
   assert backoff_ms(0, pol) == 0
-  assert backoff_ms(1, pol) == 300000
-  assert backoff_ms(5, pol) == 3600000
+  assert backoff_ms(1, pol) == 300_000
+  assert backoff_ms(5, pol) == 3_600_000
 end
 
 test "a success clears the streak, and a zero base never holds"
@@ -713,16 +690,14 @@ test "a refusal of a pinned revision holds before anything evaluates; a moving r
   assert pinned?(pin) == true
   assert pinned?(".") == false
   assert pinned?("github:pleme-io/nix") == false
-  assert pinned?(
-    "git+file:///x?rev=b548e3a24f88a08d1c673ad27ac494293ac5cac1"
-  ) ==
+  assert pinned?("git+file:///x?rev=b548e3a24f88a08d1c673ad27ac494293ac5cac1") ==
     true
   h = [entry(inst, "failed", 1000, "eval"), entry(inst, "failed", 2000, "eval")]
   d = plan(pin, "ryn", "darwin", "/run/current-system", h, 3000, pol)
   assert get(d, :action) == :hold
   assert get(d, :key) == inst
   assert get(d, :plan_ms) == 0
-  assert hold_for(inst, h, 2000 + 600000, pol) == nil
+  assert hold_for(inst, h, 2000 + 600_000, pol) == nil
   assert hold_for(inst, [], 3000, pol) == nil
 end
 
@@ -827,8 +802,22 @@ test "an outcome carries the exit status a caller branches on"
 end
 
 test "a command's answer is text it can print, and a wrong verb is a usage error"
-  assert error?(try(answer(["bogus"]), catch(e(), e))) == true
-  assert error?(try(answer(["run"]), catch(e(), e))) == true
+  assert error?(
+    begin
+      answer(["bogus"])
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      answer(["run"])
+    rescue e
+      e
+    end
+  ) ==
+    true
 end
 
 test "the toplevel attribute follows the platform"

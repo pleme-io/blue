@@ -186,7 +186,10 @@ pub fn run_in_surface(
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, inputs);
     let prepared = prepare(entry, loader, surface, &builtin_names(&interp))?;
-    let value = eval_prepared(&mut interp, &prepared, &mut ())?;
+    let mut value = eval_prepared(&mut interp, &prepared, &mut ())?;
+    if let Some(v) = call_main(&mut interp, &prepared, &mut ())? {
+        value = v;
+    }
     Ok(Run {
         value,
         visited: prepared.visited,
@@ -229,7 +232,9 @@ pub fn run_observed(
         &prepared.erased,
     ));
     interp.set_call_observer(Some(watch(&definitions)));
-    let outcome = eval_prepared(&mut interp, &prepared, &mut ()).map(|value| Run {
+    let outcome = eval_prepared(&mut interp, &prepared, &mut ())
+        .and_then(|value| Ok(call_main(&mut interp, &prepared, &mut ())?.unwrap_or(value)))
+        .map(|value| Run {
         value,
         visited: prepared.visited,
         typed_decls: prepared.typed_decls,
@@ -420,12 +425,23 @@ pub(crate) fn check_stage(
     let stored = program
         .file(ResolvedProgram::ENTRY)
         .is_some_and(|f| f.path.is_some());
-    outcome.diagnostics.extend(
-        names
-            .into_iter()
-            .filter(|d| stored || d.code != blue_lang_check::Code::B0023),
-    );
+    outcome.diagnostics.extend(names);
     outcome.stats.names_resolved = resolved;
+    if stored {
+        let script = program
+            .file(ResolvedProgram::ENTRY)
+            .is_some_and(|f| f.package.is_none());
+        let found = blue_lang_check::form_rules::check(forms, &is_entry, script);
+        let silenced: Vec<tatara_lisp::Span> = found
+            .iter()
+            .filter(|d| d.code == blue_lang_check::Code::B0038)
+            .map(|d| d.span)
+            .collect();
+        outcome
+            .diagnostics
+            .retain(|d| !(d.code == blue_lang_check::Code::B0002 && silenced.contains(&d.span)));
+        outcome.diagnostics.extend(found);
+    }
 
     // Waivers, per file: B0007 for a malformed one, B0008 for one that
     // suppresses nothing.
@@ -442,6 +458,16 @@ pub(crate) fn check_stage(
         outcome.diagnostics.extend(malformed);
     }
     outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
+    if !stored {
+        outcome.diagnostics.retain(|d| {
+            !matches!(
+                d.code,
+                blue_lang_check::Code::B0023
+                    | blue_lang_check::Code::B0036
+                    | blue_lang_check::Code::B0037
+            )
+        });
+    }
     // A rule whose census has not reached zero is computed, and counted, but
     // not enforced: its findings move to `census` (see `RULES`' `ratchet`).
     let (enforced, census): (Vec<_>, Vec<_>) = std::mem::take(&mut outcome.diagnostics)
@@ -631,16 +657,60 @@ pub fn lower(
         .resolved_tree(program.forms(), blue_lang_check::names::Rule::Namespaced)
         .into_iter()
         .zip(program.forms())
-        .map(|(resolved, written)| {
+        .enumerate()
+        .map(|(i, (resolved, written))| {
             if crate::uses::use_target(written).is_some()
                 || blue_lang_syntax::scope::legacy_target(written).is_some()
             {
                 tatara_lisp::Spanned::new(written.span, tatara_lisp::SpannedForm::Nil)
             } else {
-                resolved
+                let file = program.owner_of(i).and_then(|id| program.file(id));
+                match file {
+                    Some(f) => locate_raises(&resolved, &raise_site(f)),
+                    None => resolved,
+                }
             }
         })
         .collect()
+}
+
+fn raise_site(file: &crate::uses::SourceFile) -> impl Fn(tatara_lisp::Span) -> String + '_ {
+    move |span| {
+        let (line, _) = blue_lang_syntax::Span::line_col(&file.text, span.start.min(file.text.len()));
+        let shown = file
+            .path
+            .as_ref()
+            .map_or_else(|| "<source>".to_string(), |p| p.display().to_string());
+        format!("{shown}:{line}")
+    }
+}
+
+fn locate_raises(
+    form: &tatara_lisp::Spanned,
+    site: &dyn Fn(tatara_lisp::Span) -> String,
+) -> tatara_lisp::Spanned {
+    use tatara_lisp::{Atom, Spanned, SpannedForm};
+    let inner = match &form.form {
+        SpannedForm::List(items) => {
+            let mut out: Vec<Spanned> = items.iter().map(|i| locate_raises(i, site)).collect();
+            let raising = items.first().and_then(Spanned::as_symbol) == Some("raise")
+                && (3..=4).contains(&items.len());
+            if raising {
+                out[0] = Spanned::new(
+                    items[0].span,
+                    SpannedForm::Atom(Atom::Symbol(crate::errors::RAISE_AT.to_string())),
+                );
+                out.insert(
+                    1,
+                    Spanned::new(items[0].span, SpannedForm::Atom(Atom::Str(site(form.span)))),
+                );
+            }
+            SpannedForm::List(out)
+        }
+        SpannedForm::Quote(_) | SpannedForm::Quasiquote(_) => return form.clone(),
+        other => other.clone(),
+    };
+    Spanned::new(form.span, inner)
 }
 
 /// The namespace top-level form `i` of `program` defines into.
@@ -849,43 +919,68 @@ impl Checked {
         if !same {
             return None;
         }
-        let bare: std::collections::HashSet<usize> = self
-            .resolve()
+        let resolved = self.resolve();
+        let bare: std::collections::HashSet<usize> = resolved
             .parenthesized_nullary_calls()
             .into_iter()
             .filter(|r| program.owner_of(r.top_level) == Some(ResolvedProgram::ENTRY))
             .map(blue_lang_check::names::Reference::node_address)
             .collect();
-        Some(
-            entry
-                .into_iter()
-                .map(|f| unparenthesize(f, &bare))
-                .collect(),
-        )
+        let waived: Vec<tatara_lisp::Span> = self
+            .outcome
+            .waived
+            .iter()
+            .map(|w| w.diagnostic.span)
+            .collect();
+        let respell: std::collections::HashMap<usize, blue_lang_check::respell::Respelling> =
+            resolved
+                .respellings
+                .iter()
+                .filter(|(_, r)| !waived.contains(&r.span))
+                .cloned()
+                .collect();
+        let canon = Canon { bare: &bare, respell: &respell };
+        let forms: Vec<tatara_lisp::Spanned> = entry.into_iter().map(|f| canon.form(f)).collect();
+        let script = program
+            .file(ResolvedProgram::ENTRY)
+            .is_some_and(|f| f.package.is_none());
+        let forms = if script {
+            blue_lang_check::form_rules::without_prefix(&forms).unwrap_or(forms)
+        } else {
+            forms
+        };
+        Some(blue_lang_check::form_rules::without_main_guard(&forms).unwrap_or(forms))
     }
 }
 
-fn unparenthesize(
-    form: &tatara_lisp::Spanned,
-    bare: &std::collections::HashSet<usize>,
-) -> tatara_lisp::Spanned {
-    use tatara_lisp::{Spanned, SpannedForm};
-    let inner = match &form.form {
-        SpannedForm::List(items) => match items.as_slice() {
-            [head] if bare.contains(&(std::ptr::from_ref(head) as usize)) => {
-                return Spanned::new(form.span, head.form.clone());
-            }
-            _ => SpannedForm::List(items.iter().map(|i| unparenthesize(i, bare)).collect()),
-        },
-        SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(unparenthesize(i, bare))),
-        SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(unparenthesize(i, bare))),
-        SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(unparenthesize(i, bare))),
-        SpannedForm::UnquoteSplice(i) => {
-            SpannedForm::UnquoteSplice(Box::new(unparenthesize(i, bare)))
-        }
-        other => other.clone(),
-    };
-    Spanned::new(form.span, inner)
+struct Canon<'a> {
+    bare: &'a std::collections::HashSet<usize>,
+    respell: &'a std::collections::HashMap<usize, blue_lang_check::respell::Respelling>,
+}
+
+impl Canon<'_> {
+    fn form(&self, form: &tatara_lisp::Spanned) -> tatara_lisp::Spanned {
+        use tatara_lisp::{Spanned, SpannedForm};
+        let inner = match &form.form {
+            SpannedForm::List(items) => match items.as_slice() {
+                [head] if self.bare.contains(&(std::ptr::from_ref(head) as usize)) => {
+                    return Spanned::new(form.span, head.form.clone());
+                }
+                [head, ..] if self.respell.contains_key(&(std::ptr::from_ref(head) as usize)) => {
+                    let r = &self.respell[&(std::ptr::from_ref(head) as usize)];
+                    let walked: Vec<Spanned> = items.iter().map(|i| self.form(i)).collect();
+                    return blue_lang_check::respell::apply(form, &walked, r);
+                }
+                _ => SpannedForm::List(items.iter().map(|i| self.form(i)).collect()),
+            },
+            SpannedForm::Quote(i) => SpannedForm::Quote(Box::new(self.form(i))),
+            SpannedForm::Quasiquote(i) => SpannedForm::Quasiquote(Box::new(self.form(i))),
+            SpannedForm::Unquote(i) => SpannedForm::Unquote(Box::new(self.form(i))),
+            SpannedForm::UnquoteSplice(i) => SpannedForm::UnquoteSplice(Box::new(self.form(i))),
+            other => other.clone(),
+        };
+        Spanned::new(form.span, inner)
+    }
 }
 
 /// Parse, resolve and CHECK, without running: the door for `blue check`,
@@ -922,6 +1017,106 @@ pub fn check_entry(
         outcome,
         names,
     })
+}
+
+#[must_use]
+pub fn spelling_code(spelling: blue_lang_syntax::Spelling) -> blue_lang_check::Code {
+    use blue_lang_check::Code;
+    use blue_lang_syntax::Spelling;
+    match spelling {
+        Spelling::LogicalSymbol => Code::B0025,
+        Spelling::Unless => Code::B0026,
+        Spelling::ElseIf => Code::B0027,
+        Spelling::CallForm => Code::B0028,
+        Spelling::KeywordRocket => Code::B0029,
+        Spelling::ParameterList => Code::B0030,
+        Spelling::OperatorSpelling => Code::B0031,
+        Spelling::TrailingComma => Code::B0032,
+        Spelling::NegatedComparison => Code::B0034,
+        Spelling::ElseNil => Code::B0035,
+        Spelling::TryCatch => Code::B0037,
+        Spelling::Apply => Code::B0042,
+    }
+}
+
+#[must_use]
+pub fn form_diagnostics(text: &str) -> Vec<blue_lang_check::Diagnostic> {
+    match blue_lang_fmt::format_source_lossless(text) {
+        Ok(formatted) => form_diagnostics_against(text, &formatted),
+        Err(_) => Vec::new(),
+    }
+}
+
+#[must_use]
+pub fn form_diagnostics_against(text: &str, formatted: &str) -> Vec<blue_lang_check::Diagnostic> {
+    use blue_lang_check::{Code, Diagnostic};
+    if formatted.trim_end() == text.trim_end() {
+        return Vec::new();
+    }
+    let help = "`blue fmt --write` writes it; `blue run`, `blue test` and `blue check` rewrite a writable file before compiling it";
+    let mut out: Vec<Diagnostic> = blue_lang_syntax::spelling_notes(text)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|n| {
+            let message = if n.canonical.is_empty() {
+                format!("`{}` is not written", n.written)
+            } else {
+                format!("`{}` is written `{}`", n.written, n.canonical)
+            };
+            Diagnostic::new(spelling_code(n.spelling), message, n.span)
+                .at_top_level(0)
+                .with_help(help)
+        })
+        .collect();
+    out.extend(literal_diagnostics(text).into_iter().map(|d| d.with_help(help)));
+    if out.is_empty() {
+        let at = text
+            .lines()
+            .zip(formatted.lines())
+            .position(|(a, b)| a != b)
+            .unwrap_or_else(|| text.lines().count().min(formatted.lines().count()));
+        let start: usize = text.lines().take(at).map(|l| l.len() + 1).sum();
+        let start = start.min(text.len());
+        let end = text[start..].find('\n').map_or(text.len(), |e| start + e);
+        out.push(
+            Diagnostic::new(
+                Code::B0024,
+                format!("line {} is not laid out as blue writes it", at + 1),
+                tatara_lisp::Span::new(start, end),
+            )
+            .at_top_level(0)
+            .with_help(help),
+        );
+    }
+    out.sort_by_key(|d| (d.span.start, d.code));
+    out
+}
+
+fn literal_diagnostics(text: &str) -> Vec<blue_lang_check::Diagnostic> {
+    use blue_lang_syntax::{Atom, TokenKind};
+    let Ok(toks) = blue_lang_syntax::lex(text) else {
+        return Vec::new();
+    };
+    toks.iter()
+        .filter_map(|t| {
+            let atom = match &t.kind {
+                TokenKind::Int(v) => Atom::Int(*v),
+                TokenKind::Float(v) => Atom::Float(*v),
+                TokenKind::Str(v) => Atom::Str(v.clone()),
+                _ => return None,
+            };
+            let written = text.get(t.span.start..t.span.end)?;
+            let canonical = blue_lang_fmt::render_literal(&atom);
+            (written != canonical).then(|| {
+                blue_lang_check::Diagnostic::new(
+                    blue_lang_check::Code::B0033,
+                    format!("`{written}` is written `{canonical}`"),
+                    t.span,
+                )
+                .at_top_level(0)
+            })
+        })
+        .collect()
 }
 
 /// A syntax error in `text` as a [`B0006`](blue_lang_check::Code::B0006)
@@ -1000,6 +1195,57 @@ pub(crate) fn eval_prepared<H: 'static>(
         })?;
     }
     Ok(value)
+}
+
+pub const MAIN: &str = "main";
+
+#[must_use]
+pub fn entry_main(program: &crate::uses::ResolvedProgram) -> Option<(usize, tatara_lisp::Span)> {
+    use crate::uses::ResolvedProgram;
+    let stored = program
+        .file(ResolvedProgram::ENTRY)
+        .is_some_and(|f| f.path.is_some());
+    if !stored {
+        return None;
+    }
+    program.forms().iter().enumerate().find_map(|(i, f)| {
+        if program.owner_of(i) != Some(ResolvedProgram::ENTRY) {
+            return None;
+        }
+        let items = f.as_list()?;
+        let sig = items.get(1)?.as_list()?;
+        let named_main = matches!(items.first().and_then(tatara_lisp::Spanned::as_symbol), Some("define" | "define-typed"))
+            && sig.len() == 1
+            && sig[0].as_symbol() == Some(MAIN);
+        named_main.then_some((i, sig[0].span))
+    })
+}
+
+pub(crate) fn call_main<H: 'static>(
+    interp: &mut tatara_lisp_eval::Interpreter<H>,
+    prepared: &Prepared,
+    host: &mut H,
+) -> Result<Option<Value>, RunError> {
+    let Some((top_level, span)) = entry_main(&prepared.program) else {
+        return Ok(None);
+    };
+    let ns = namespace_of(&prepared.program, top_level);
+    let call = tatara_lisp::Spanned::new(
+        span,
+        tatara_lisp::SpannedForm::List(vec![tatara_lisp::Spanned::new(
+            span,
+            tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(blue_lang_check::names::key(&ns, MAIN))),
+        )]),
+    );
+    interp.eval_top_form(&call, host).map(Some).map_err(|e| {
+        RunError::Eval(Box::new(crate::observe::Fault::of(
+            &prepared.program,
+            &prepared.erased,
+            top_level,
+            &e,
+            &interp.take_trace(),
+        )))
+    })
 }
 
 /// **A runtime error names a place.** The gates for the last stage that

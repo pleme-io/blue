@@ -89,7 +89,7 @@ end
 
 # The package's name: the last segment of its directory.
 def package_name(dir)
-  last(filter(fn(s) !is_empty(s) end, split(dir, "/")))
+  last(filter(fn(s) not is_empty(s) end, split(dir, "/")))
 end
 
 # ── the fresh copy ───────────────────────────────────────────────────
@@ -123,15 +123,13 @@ end
 # waive B0013: `test` is a reserved word, so the prefix stays; heni::test names it too
 def hn_test(blue, root, name, test_file)
   path = "#{root}:#{getenv("BLUE_PATH", "")}"
-  try(
-    exec_with_env(
-      [["BLUE_PATH", path]],
-      blue,
-      "test",
-      path_join(path_join(root, name), test_file)
-    ),
-    catch(_e(), nil)
-  )
+  exec_with_env(
+    [["BLUE_PATH", path]],
+    blue,
+    "test",
+    path_join(path_join(root, name), test_file)
+  ) rescue
+    nil
 end
 
 def status(cap)
@@ -155,11 +153,9 @@ def run(spec)
   end
   blue = get(spec, :blue)
   if blue == nil
-    throw(
-      error(
-        :heni_no_blue,
-        "heni runs each mutation's tests with the blue CLI, and none is running this program (self_exe() is nil); run heni through blue, or pass --blue"
-      )
+    raise(
+      :heni_no_blue,
+      "heni runs each mutation's tests with the blue CLI, and none is running this program (self_exe() is nil); run heni through blue, or pass --blue"
     )
   end
   tmp = get(spec, :tmp)
@@ -198,8 +194,6 @@ def one(spec, name, test_file, i, m)
   status = if get(applied, :error) == nil
     write_file(file, get(applied, :text))
     heni::status(hn_test(get(spec, :blue), root, name, test_file))
-  else
-    nil
   end
   rm_rf(root)
   {
@@ -238,9 +232,9 @@ def detail(x)
 end
 
 def ok?(r)
-  get(r, :control) == 0 &&
-    get(r, :survived) == 0 &&
-    get(r, :refused) == 0 &&
+  get(r, :control) == 0 and
+    get(r, :survived) == 0 and
+    get(r, :refused) == 0 and
     get(r, :blind) == 0
 end
 
@@ -263,11 +257,11 @@ def parse(args)
 end
 
 def parse_flags(args, acc)
-  if is_empty(args) || get(acc, :error) != nil
+  if is_empty(args) or get(acc, :error) != nil
     acc
   else
     flag = first(args)
-    if contains(["--blue", "--test"], flag) && size(args) >= 2
+    if contains(["--blue", "--test"], flag) and size(args) >= 2
       key = if flag == "--blue"
         :blue
       else
@@ -284,7 +278,7 @@ def main()
   a = parse(argv)
   if get(a, :error) != nil
     write_stderr("#{get(a, :error)}\n")
-    throw(error(:heni_usage, get(a, :error)))
+    raise(:heni_usage, get(a, :error))
   end
   r = run(
     {
@@ -297,11 +291,9 @@ def main()
   )
   write_stdout(report_text(r))
   if ok?(r) == false
-    throw(
-      error(
-        :heni_failed,
-        "a mutation survived or was refused, or the control failed"
-      )
+    raise(
+      :heni_failed,
+      "a mutation survived or was refused, or the control failed"
     )
   end
   r
@@ -341,18 +333,10 @@ test "arguments"
 end
 
 test "without a blue CLI, heni refuses rather than spawning its host"
-  refused = try(
-    run(
-      {
-        package: "/nonexistent",
-        mutations: [],
-        blue: nil,
-        test: nil,
-        tmp: "/tmp"
-      }
-    ),
-    catch(_e(), :refused)
-  )
+  refused = run(
+    {package: "/nonexistent", mutations: [], blue: nil, test: nil, tmp: "/tmp"}
+  ) rescue
+    :refused
   assert refused == :refused
 end
 

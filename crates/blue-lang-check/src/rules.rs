@@ -584,6 +584,299 @@ Reported for the file being compiled only: an imported package spelled the
 older way means the same program, and its own build is where it is held to
 the one spelling.",
     }
+    B0024 {
+        slug: "layout",
+        severity: Error,
+        fix: Machine,
+        law: "a file is laid out as `blue fmt` writes it: indentation, line breaks at 80 columns, blank lines and parentheses",
+        witness: "x   =   1\n",
+        waivable: false,
+        explanation: "\
+blue has one layout, chosen for a person reading the file cold: two-space
+indentation, a line broken at 80 columns after an operator or between
+arguments, one blank line around a form that spans lines, parentheses only
+where precedence needs them, and a call whose one argument is a literal kept
+on its line. There is no option, so a file that differs from it is not yet
+blue source.
+
+`blue run`, `blue test` and `blue check` rewrite a writable file to the
+layout before compiling it and say so; a read-only file is refused, naming
+the rule. `blue fmt --write` applies it. The more specific spelling rules
+(B0025 to B0035, B0042) are reported instead when one of them explains the
+difference.",
+    }
+    B0025 {
+        slug: "logical-words",
+        severity: Error,
+        fix: Machine,
+        law: "logic is written in words: `a and b`, `a or b`, `not x`, never `&&`, `||`, `!`",
+        witness: "ready = true\nready && ready\n",
+        waivable: false,
+        explanation: "\
+A reader who has never seen blue reads `if ready and not failed` aloud
+without a lookup; `if ready && !failed` needs one, and `!` disappears beside
+a name. Both spellings build the same tree, `(and ready (not failed))`, so
+blue reads `&&`, `||`, `!` (and `∧`, `∨`, `¬`) and writes the words.
+
+`and` and `or` bind as `&&` and `||` did; `not` binds tightly, as `!` did, so
+`not ready and done` is `(not ready) and done`. A negation that is an
+operand of a comparison or arithmetic is written in parentheses,
+`(not a) == b`, so it can never be read the other way.",
+    }
+    B0026 {
+        slug: "unless",
+        severity: Error,
+        fix: Machine,
+        law: "a negated condition is written `if not c`, never `unless c`",
+        witness: "done = false\nunless done\n  1\nend\n",
+        waivable: false,
+        explanation: "\
+`unless c` is read as `if not c`: the same tree. `if not c` keeps one
+conditional keyword, reads naturally with `else` and `elsif` where `unless …
+else` reads backwards, and needs no second word to learn.",
+    }
+    B0027 {
+        slug: "elsif",
+        severity: Error,
+        fix: Machine,
+        law: "an `else` whose whole body is an `if` is written `elsif`",
+        witness: "a = 1\nif a == 1\n  1\nelse\n  if a == 2\n    2\n  end\nend\n",
+        waivable: false,
+        explanation: "\
+`else` holding only an `if … end` and `elsif` are one tree. `elsif` keeps
+the chain flat, one `end` for the whole chain and every branch at the same
+indentation. A comment beside the inner `if` keeps the nested spelling,
+since `elsif` would leave the comment no line.",
+    }
+    B0028 {
+        slug: "call-form",
+        severity: Error,
+        fix: Machine,
+        law: "a call is written `f(x, y)`: never `x.f(y)` or `x |> f(y)`",
+        witness: "xs = [1]\nxs |> count\n",
+        waivable: false,
+        explanation: "\
+`x.f(y)`, `x |> f(y)` and `f(x, y)` are one tree, `(f x y)`. blue writes the
+call form: the function is named first, as a reader looks for it, and a
+recursive call reads forwards. `x.name` without parentheses is not a call:
+it reads the field `name` of a record.",
+    }
+    B0029 {
+        slug: "keyword-key",
+        severity: Error,
+        fix: Machine,
+        law: "a map key that is a keyword is written `name: value`, never `:name => value`",
+        witness: "{:a => 1}\n",
+        waivable: false,
+        explanation: "\
+`{a: 1}` and `{:a => 1}` are one tree. The label form is shorter and reads
+as a record's field; `=>` stays where it is the only spelling of the key: a
+string, a number, or an expression.",
+    }
+    B0030 {
+        slug: "parameter-list",
+        severity: Error,
+        fix: Machine,
+        law: "a definition and a lambda write their parameter list, even an empty one: `def f()`, `fn() … end`",
+        witness: "def f\n  1\nend\n\nf\n",
+        waivable: false,
+        explanation: "\
+`def f` and `def f()` are one tree. The parentheses say, where the function
+is defined, that it takes nothing; the call is then written bare (B0023).",
+    }
+    B0031 {
+        slug: "operator-spelling",
+        severity: Error,
+        fix: Machine,
+        law: "an operator or literal is written as itself, never as the call it lowers to or a typographic alias",
+        witness: "not(true)\n",
+        waivable: false,
+        explanation: "\
+`not(x)`, `and(a, b)`, `mod(a, b)`, `equal?(a, b)`, `list(1, 2)`,
+`define(x, 1)` and `0 - x` build the trees `not x`, `a and b`, `a % b`,
+`a == b`, `[1, 2]`, `x = 1` and `-x` build; `≠ ≤ ≥ × ÷ − ≡` are read as
+`!= <= >= * / - ==`. blue writes the operator, the literal, and the ASCII
+spelling a reader can type.",
+    }
+    B0032 {
+        slug: "trailing-comma",
+        severity: Error,
+        fix: Machine,
+        law: "no comma before a closing bracket",
+        witness: "[1, 2,]\n",
+        waivable: false,
+        explanation: "\
+A trailing comma is read and dropped: a broken list already puts each
+element on its own line, so the comma adds nothing a reader needs.",
+    }
+    B0033 {
+        slug: "literal-spelling",
+        severity: Error,
+        fix: Machine,
+        law: "a literal is written as `blue fmt` writes its value: digits of six or more grouped `1_000_000`, an invisible character escaped `\\u{1b}`",
+        witness: "1000000\n",
+        waivable: false,
+        explanation: "\
+A number is one value however it is spelled, so it has one spelling: an
+integer of six or more digits is grouped in threes (`1_000_000`), a shorter
+one is not (`65535`), and a float is written as its shortest exact decimal.
+A string is written with its characters, except that a quote, a backslash,
+a control character, a zero-width or bidirectional mark and a no-break space
+are escaped: a character a reader cannot see must not hide in source.",
+    }
+    B0034 {
+        slug: "negated-comparison",
+        severity: Error,
+        fix: Machine,
+        law: "a negated equality is written with the other operator: `a != b`, never `not (a == b)`",
+        witness: "a = 1\nnot (a == 2)\n",
+        waivable: false,
+        explanation: "\
+`a != b` is exactly `not (a == b)` (okite D0002), so blue reads the negation
+and writes the operator: one comparison, no parentheses. `not (a != b)` is
+written `a == b`.",
+    }
+    B0035 {
+        slug: "else-nil",
+        severity: Error,
+        fix: Machine,
+        law: "an `if` has no `else` whose body is empty or `nil`",
+        witness: "a = 1\nif a == 1\n  1\nelse\n  nil\nend\n",
+        waivable: false,
+        explanation: "\
+An `if` whose condition fails is already `nil`, so `else nil` says nothing
+the reader needs. blue reads it and drops it; an `else` holding only a
+comment keeps its line.",
+    }
+    B0036 {
+        slug: "builtin-synonym",
+        severity: Error,
+        fix: Machine,
+        law: "a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x == nil` not `nil?(x)`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message`",
+        witness: "car([1])\n",
+        explanation: "\
+Each pair computes the same value; blue keeps the name a reader who has
+never seen Lisp understands, so `car`, `cdr`, `next`, `modulo`, `rem`, `bool?`,
+`comp`, `foldl`, `nil?`, `some?`, `error_kind` and `error_message` are read
+and rewritten. `some?` is the one most worth losing: it reads as \"some
+element\", which is `some(f, xs)`, a different word.
+
+The rule follows resolution: a program's own `car` is left alone, and where a
+listed import or a local shadows the readable name, the rewrite writes
+`blue::first`.",
+    }
+    B0037 {
+        slug: "error-spelling",
+        severity: Error,
+        fix: Machine,
+        law: "an error is raised with `raise` and caught with `rescue`: never `throw(error(…))` or `try(…, catch(…))`",
+        witness: "throw(error(:k, \"m\"))\n",
+        explanation: "\
+`raise(:not_found, \"no repo #{name}\")` builds and raises in one step;
+`raise(:k, \"m\", {data: x, cause: e})` attaches data and the error being
+wrapped, and `raise(e)` raises an error again. `throw(error(k, m))` is read
+as `raise(k, m)` and `throw(x)` as `raise(x)`.
+
+`x rescue fallback` is the value of `x`, or `fallback` when `x` raises; it
+binds loosest of all. A block catches by kind and binds the error:
+
+    begin
+      fetch(url)
+    rescue :timeout, :refused as e
+      retry_later(e)
+    rescue e
+      raise(:fetch_failed, \"#{url}: #{e.message}\", {cause: e})
+    ensure
+      close(conn)
+    end
+
+A `def` body takes the same clauses without `begin`, which is how blue writes
+a block that is a whole body. `try(x, catch(e(), h))` is read as that block,
+and as `x rescue h` when it discards the error.",
+    }
+    B0038 {
+        slug: "swallowed-error",
+        severity: Error,
+        fix: None,
+        law: "a `rescue` that catches every error and does nothing names the error `_`",
+        witness: "begin\n  1\nrescue e\n  nil\nend\n",
+        waivable: false,
+        explanation: "\
+Silencing every error is sometimes right and never something a reader
+should have to discover. A catch-all whose handler is empty or `nil` must
+say so: `rescue _` and `nil`, or `x rescue nil` inline. It is not fixed
+automatically, because the fix would make the silence deliberate without
+anyone deciding it.",
+    }
+    B0039 {
+        slug: "duplicate-test-name",
+        severity: Error,
+        fix: None,
+        law: "the tests of a file have distinct names",
+        witness: "test \"adds\"\n  assert 1 + 1 == 2\nend\n\ntest \"adds\"\n  assert 2 + 2 == 4\nend\n",
+        waivable: false,
+        explanation: "\
+A test's name is how its failure is reported; two tests with one name make
+the report ambiguous about which one failed. Rename one so each says what it
+holds.",
+    }
+    B0040 {
+        slug: "identifier-case",
+        severity: Error,
+        fix: None,
+        law: "a function, parameter or local is named in lower snake_case (`retry_count`, never `retryCount`); a top-level constant may be UPPER_SNAKE",
+        witness: "def addOne(x)\n  x + 1\nend\n",
+        waivable: false,
+        explanation: "\
+One case for names means a reader never wonders whether `retryCount` and
+`retry_count` are two things. A name may end in `?` (a question) or `!` (a
+warning). A top-level value binding written wholly in capitals
+(`UART0 = 268_435_456`) is a constant, and reads as one. Renaming is left to
+the author, because a definition's name is also its callers'.",
+    }
+    B0041 {
+        slug: "main-guard",
+        severity: Error,
+        fix: Machine,
+        law: "a program's entry point is `def main()`, which `blue run` calls; never a top-level `if getenv(\"X_MAIN\", \"\") == \"1\"` guard",
+        witness: "def getenv(_name, fallback)\n  fallback\nend\n\ndef go()\n  1\nend\n\nif getenv(\"GO_MAIN\", \"\") == \"1\"\n  go\nend\n",
+        waivable: false,
+        explanation: "\
+`blue run FILE` evaluates the file and then calls its `main`, if it defines
+one with no parameters; `blue test`, `blue check` and a `use` never do. So a
+file is a program and a library at once, with no environment variable to
+set. The guard `if getenv(\"X_MAIN\", \"\") == \"1\" … end` around one call is
+read as that: the fix removes it and renames the function it called to
+`main`. A guard of any other shape is left for the author.",
+    }
+    B0042 {
+        slug: "splat",
+        severity: Error,
+        fix: Machine,
+        law: "a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name",
+        witness: "apply(max, [1, 2])\n",
+        waivable: false,
+        explanation: "\
+`f(a, *xs)` and `apply(f, a, xs)` are one tree. The splat keeps the function
+where a call names it and marks the list being spread. `apply` stays where
+the function is computed by an expression.",
+    }
+    B0043 {
+        slug: "prefixed-program",
+        severity: Error,
+        fix: Machine,
+        law: "a program does not prefix every definition with one short `x_`: the file is the namespace",
+        witness: "def ro_argv()\n  []\nend\n\ndef ro_count()\n  0\nend\n\ndef ro_check()\n  ro_count\nend\n",
+        waivable: false,
+        explanation: "\
+A program's definitions live in the file's own namespace, so nothing they
+are named can collide with a bidama's or be reached from another file:
+`ro_resolve_argv`, `ro_patch_argv` and `ro_main` say `ro_` three times for
+nothing. The fix strips the prefix from every definition and every use in
+the file, when no stripped name is already used there or reserved; `ro_main`
+becomes `main`, which `blue run` calls (B0041). A bidama's own prefix is
+B0013 and B0014.",
+    }
 }
 
 impl Code {

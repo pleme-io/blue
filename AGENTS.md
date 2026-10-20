@@ -79,6 +79,18 @@ compile it, and say `blue: formatted <file>`. A checkout's bidamas override
 the compiled-in ones from `BLUE_PATH`:
 `BLUE_PATH=path/to/blue/bidamas blue test file.b`.
 
+## One way to write each thing
+
+blue reads every older or borrowed spelling and writes one: `a and b`, `not x`,
+`if not c`, `f(x, y)`, `x.field`, `f(a, *xs)`, `raise(:kind, "why")`,
+`x rescue fallback`, `def main()`. `blue run`, `blue test` and `blue check
+--fix` rewrite a writable file to it and name each rule; a read-only file is
+refused naming them. The rules are the table at the end of
+[`docs/REFERENCE.md`](docs/REFERENCE.md) (generated from the registry the
+check stage runs); why each spelling won is
+[`docs/CANONICAL-FORMS.md`](docs/CANONICAL-FORMS.md). Write the canonical
+spelling and nothing is rewritten.
+
 ## The traps that cost the most
 
 Each one was checked against the runtime.
@@ -94,14 +106,30 @@ Each one was checked against the runtime.
   `compare(a, b)`.
 - **Argument order is Lisp's.** `map(f, xs)`, `filter(f, xs)`,
   `reduce(f, init, xs)`, `nth(i, xs)`, `take(n, xs)`, but `join(xs, sep)` and
-  `split(s, sep)`. The pipe `xs |> f(a)` puts `xs` FIRST, so
-  `xs |> map(f)` is `map(xs, f)` and fails.
+  `split(s, sep)`. A pipe `xs |> f(a)` is read as `f(xs, a)` and written
+  that way (B0028), so `xs |> map(f)` is `map(xs, f)` and fails.
 - **No blocks, no indexing.** Write `map(fn(x) x * 2 end, xs)`, never
   `xs.map { |x| … }` or `do … end`. Write `nth(0, xs)`, never `xs[0]`.
-- **`error(:kind, "why")` raises nothing.** It builds a value. Raise with
-  `throw(error(:kind, "why"))`. A caught error's kind and message cannot be
-  read, so return refusals as data (`[[kind, why], …]`) and throw only at the
-  boundary. See the errors example.
+- **Errors are raised and rescued.** `raise(:not_found, "no repo #{name}")`
+  raises; `raise(:k, "m", {data: d, cause: e})` attaches data and the error
+  it wraps; `raise(e)` raises one again. `json_parse(text) rescue nil` is the
+  value or nil. A block catches by kind and binds the error:
+  `begin … rescue :timeout, :refused as e … rescue e … ensure … end`, and a
+  `def` takes the same clauses directly. The error reads as a record:
+  `e.kind`, `e.message`, `e.data`, `e.cause`, `e.trace`. A catch-all that
+  ignores the error is written `rescue _` (B0038). Retry a flaky step with
+  `saishikou::retrying({times: 3, wait_ms: 500}, fn() fetch(url) end)`.
+  Return refusals as data (`kyohi`) where a caller must branch on several.
+- **`x.name` reads a field; it is not a call.** It reads a map's key, a
+  keyed list (`exec_capture(...)` gives `cap.status`, `cap.stdout`), a
+  parsed JSON object (`doc.spec`) or an error's field, and raises naming the
+  fields there are when it is absent; `get(m, :k)` reads one that may be
+  absent. Nested JSON that may be missing: `deeta::json_at(doc,
+  "spec.items.0.name")`, nil when any step is absent. A call with arguments
+  is written `f(x, y)`.
+- **The entry point is `def main()`.** `blue run FILE` calls it after the
+  file's top level; `blue test`, `blue check` and `use` never do, so a file
+  is a program and a library at once. No `X_MAIN` variable (B0041).
 - **Each bidama is a namespace.** Reach another bidama's definition
   qualified, `kueri::join(a, b)` after `use("kueri")`, or list it,
   `use("retsu", [:first, :size])`, then call `first(xs)` bare. Nothing else
@@ -129,6 +157,12 @@ Each one was checked against the runtime.
   language server's references), never by searching for `name(`: a bare
   call has no parentheses.
 - **Output is `write_stdout`.** `println` prints strings with their quotes.
+- **Logic is words.** `if ready and not failed`; `&&`, `||` and `!` are read
+  and written as `and`, `or` and `not` (B0025). `not` binds tightly:
+  `not a == b` is `(not a) == b`, and blue writes the parentheses; the
+  comparison you meant is `a != b`.
+- **A list spread as arguments is a splat**: `max(*xs)`, `exec_capture(cmd,
+  *argv)`; `apply(f, xs)` with `f` a name is written that way (B0042).
 - **Names with `-` do not exist in blue.** tatara-lisp's kebab-case words are
   unreachable. A keyword may end in `?` or `!` (`[:pair?]`), as a name may.
 - **Deep recursion aborts.** Prefer `map`, `filter` and `reduce` over
@@ -140,9 +174,10 @@ The rest of blue's semantics is Ruby's, except where
 ## Conventions
 
 The formatter settles layout. For the rest, follow the examples: a predicate
-you define ends in `?` (okite D0010), `x == nil` over `nil?(x)`, interpolation
-over `concat`, `use` forms first and sorted, each listing what the file
-reads, and names without a package prefix. Tests go in the same
+you define ends in `?` (okite D0010), names in lower snake_case (B0040),
+interpolation over `concat`, `use` forms first and sorted, each listing what
+the file reads, and names without a prefix in a bidama (B0013/B0014) or a
+program (B0043). Tests go in the same
 file, named for the behaviour, with the empty input among the cases.
 
 ## More

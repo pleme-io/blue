@@ -73,11 +73,11 @@ fn a_bare_file_runs_quietly_with_its_arguments_verbatim() {
 fn a_failing_script_exits_non_zero() {
     let dir = scratch("failing");
     let file = dir.join("boom.b");
-    put(&file, "throw(error(:boom, \"no\"))\n");
+    put(&file, "raise(:boom, \"no\")\n");
     let o = blue().arg(&file).output().unwrap();
     assert!(!o.status.success(), "{}", out(&o));
     assert!(
-        err(&o).contains(":boom"),
+        err(&o).contains("boom: no"),
         "the program did not run: {}",
         err(&o)
     );

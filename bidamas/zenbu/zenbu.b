@@ -85,6 +85,7 @@ use("rittai")
 use("ronri", [:every])
 use("ryouiki", [:box_around])
 use("sabi")
+use("saishikou")
 use("seimei", [:life_step])
 use("settei")
 use("shinsuu", [:to_hex])
@@ -122,9 +123,9 @@ test "every bidama in the distribution answers through this one import"
   assert kiwari::unpainted(kiwari::blue) == []
   assert kueri::ident("order") == "\"order\""
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
-  assert combinations(52, 5) == 2598960
+  assert combinations(52, 5) == 2_598_960
   assert kyuuji::address({"listen" => {"host" => "h", "port" => 1}}) == "h:1"
-  assert haibi::column_sql("text?") == ["double precision", true] ||
+  assert haibi::column_sql("text?") == ["double precision", true] or
     haibi::column_sql("text?") == ["text", true]
   assert settei::env_prefix("a-b") == "A_B_"
   assert teeburu::quoted("t") == "\"t\""
@@ -139,9 +140,10 @@ test "every bidama in the distribution answers through this one import"
   assert every(fn(v) v > 0 end, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]
   assert sabi::valid_ident?("OPERATOR_ALIASES") == true
+  assert saishikou::retrying({times: 1}, fn() 1 end) == 1
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
-  assert age_s(3600000) == "1h0m"
+  assert age_s(3_600_000) == "1h0m"
   assert hash_message("") ==
     "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
   assert contains([1, 2, 3], 2) == true

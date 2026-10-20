@@ -56,18 +56,12 @@ end
 
 def gate(file, tier)
   paths = closure(file)
-  if !any?(fn(p) blue?(p) end, paths)
-    throw(
-      error(
-        :gate,
-        "#{file} holds no bin/blue: this is not an image's closure",
-        []
-      )
-    )
+  if not any?(fn(p) blue?(p) end, paths)
+    raise(:gate, "#{file} holds no bin/blue: this is not an image's closure")
   end
   found = findings(paths, tier)
   if found != []
-    throw(error(:gate, "the image is not #{tier}:\n#{join(found, "\n")}", []))
+    raise(:gate, "the image is not #{tier}:\n#{join(found, "\n")}")
   end
   write_stdout("tier #{tier}: #{to_s(count(paths))} store paths, no finding\n")
 end

@@ -372,7 +372,7 @@ def lit_type(v)
 end
 
 def numeric?(t)
-  t == :bigint || t == :double
+  t == :bigint or t == :double
 end
 
 # One type from several, nil for none: numbers widen to DOUBLE, and anything
@@ -386,11 +386,9 @@ def merge(ts, what)
   elsif count_where(fn(t) numeric?(t) == false end, known) == 0
     :double
   else
-    throw(
-      error(
-        :anaritikusu_schema,
-        "#{what} holds values of types #{join(map(fn(t) to_s(t) end, known), " and ")}; a column has one type"
-      )
+    raise(
+      :anaritikusu_schema,
+      "#{what} holds values of types #{join(map(fn(t) to_s(t) end, known), " and ")}; a column has one type"
     )
   end
 end
@@ -417,7 +415,7 @@ def field_evidence(d, f)
   )
   atoms = map(
     fn(a) atom_type(a) end,
-    filter(fn(a) first(a) != :in && nth(1, a) == f end, anaritikusu::atoms(d))
+    filter(fn(a) first(a) != :in and nth(1, a) == f end, anaritikusu::atoms(d))
   )
   cons(
     lit_type(lookup(raifusaikuru::d_fields(d), f)),
@@ -427,12 +425,10 @@ end
 
 def effect_type(x)
   op = first(x)
-  if op == :put || op == :add
+  if op == :put or op == :add
     lit_type(nth(2, x))
   elsif op == :stamp
     :bigint
-  else
-    nil
   end
 end
 
@@ -442,25 +438,23 @@ def atom_type(a)
     lit_type(nth(2, a))
   elsif op == :age_lt
     :bigint
-  else
-    nil
   end
 end
 
 # Field `f` holds a number: compared, counted, or given a numeric constant.
 def needs_number?(d, f)
   compared = count_where(
-    fn(a) contains([:lt, :le, :gt, :ge], first(a)) && nth(1, a) == f end,
+    fn(a) contains([:lt, :le, :gt, :ge], first(a)) and nth(1, a) == f end,
     atoms(d)
   ) >
     0
   counted = count_where(
-    fn(x) contains([:add, :add_key], first(x)) && nth(1, x) == f end,
+    fn(x) contains([:add, :add_key], first(x)) and nth(1, x) == f end,
     effects(d)
   ) >
     0
-  compared ||
-    counted ||
+  compared or
+    counted or
     numeric?(merge(field_evidence(d, f), "field #{raifusaikuru::show(f)}"))
 end
 
@@ -468,7 +462,7 @@ end
 def flows_of_key(d, k)
   filter(
     fn(x)
-      (first(x) == :set || first(x) == :add_key) &&
+      (first(x) == :set or first(x) == :add_key) and
         raifusaikuru::text(nth(2, x)) == raifusaikuru::text(k)
     end,
     effects(d)
@@ -502,7 +496,7 @@ def key_type(d, k)
   else
     flows = flows_of_key(d, k)
     targets = unique(map(fn(x) nth(1, x) end, flows))
-    numeric = count_where(fn(x) first(x) == :add_key end, flows) > 0 ||
+    numeric = count_where(fn(x) first(x) == :add_key end, flows) > 0 or
       count_where(fn(f) needs_number?(d, f) end, targets) > 0
     if numeric
       :double
@@ -525,7 +519,7 @@ def field_type(d, f)
   keys = map(
     fn(x) key_type(d, nth(2, x)) end,
     filter(
-      fn(x) (first(x) == :set || first(x) == :add_key) && nth(1, x) == f end,
+      fn(x) (first(x) == :set or first(x) == :add_key) and nth(1, x) == f end,
       effects(d)
     )
   )
@@ -632,27 +626,21 @@ def check_names(d)
   taken_fields = filter(fn(f) contains(state_names, f) end, fields)
   dupes = unique(filter(fn(f) count_of(fields, f) > 1 end, fields))
   if is_empty(taken_keys) == false
-    throw(
-      error(
-        :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(record_names, ", ")}); rename the key"
-      )
+    raise(
+      :anaritikusu_schema,
+      "#{raifusaikuru::show(raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(record_names, ", ")}); rename the key"
     )
   end
   if is_empty(taken_fields) == false
-    throw(
-      error(
-        :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(state_names, ", ")}); rename the field"
-      )
+    raise(
+      :anaritikusu_schema,
+      "#{raifusaikuru::show(raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(state_names, ", ")}); rename the field"
     )
   end
   if is_empty(dupes) == false
-    throw(
-      error(
-        :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(d))}: two fields are named #{join(dupes, ", ")} as text"
-      )
+    raise(
+      :anaritikusu_schema,
+      "#{raifusaikuru::show(raifusaikuru::name(d))}: two fields are named #{join(dupes, ", ")} as text"
     )
   end
   d
@@ -1695,11 +1683,9 @@ def target(bindings, a, role, target)
     bindings
   )
   if hit == nil
-    throw(
-      error(
-        :anaritikusu_schema,
-        "#{raifusaikuru::show(raifusaikuru::name(la_def(a)))} links #{raifusaikuru::show(role)} to lifecycle #{raifusaikuru::show(target)}, which is not among the lifecycles given (#{join(map(fn(b) raifusaikuru::text(raifusaikuru::name(la_def(b))) end, bindings), ", ")})"
-      )
+    raise(
+      :anaritikusu_schema,
+      "#{raifusaikuru::show(raifusaikuru::name(la_def(a)))} links #{raifusaikuru::show(role)} to lifecycle #{raifusaikuru::show(target)}, which is not among the lifecycles given (#{join(map(fn(b) raifusaikuru::text(raifusaikuru::name(la_def(b))) end, bindings), ", ")})"
     )
   end
   hit
@@ -1710,7 +1696,7 @@ end
 def la_find(models, name)
   hit = find_first(fn(m) get(m, :name) == name end, models)
   if hit == nil
-    throw(error(:anaritikusu_schema, "no generated relation is named #{name}"))
+    raise(:anaritikusu_schema, "no generated relation is named #{name}")
   end
   hit
 end
@@ -1911,16 +1897,12 @@ def models(bindings, now)
   names = map(fn(b) raifusaikuru::text(raifusaikuru::name(la_def(b))) end, bs)
   dup = unique(filter(fn(n) count_of(names, n) > 1 end, names))
   if is_empty(dup) == false
-    throw(
-      error(:anaritikusu_schema, "two lifecycles are named #{join(dup, ", ")}")
-    )
+    raise(:anaritikusu_schema, "two lifecycles are named #{join(dup, ", ")}")
   end
   if integer?(now) == false
-    throw(
-      error(
-        :anaritikusu_schema,
-        "now is a whole-number time on the lifecycles' clock, not #{raifusaikuru::show(now)}"
-      )
+    raise(
+      :anaritikusu_schema,
+      "now is a whole-number time on the lifecycles' clock, not #{raifusaikuru::show(now)}"
     )
   end
   own = flat_map(fn(b) lifecycle_models(b, now) end, bs)
@@ -1971,11 +1953,9 @@ def check_unique(models, sources)
   names = concat_lists(map(fn(m) get(m, :name) end, models), sources)
   dup = unique(filter(fn(n) count_of(names, n) > 1 end, names))
   if is_empty(dup) == false
-    throw(
-      error(
-        :anaritikusu_schema,
-        "two generated relations are named #{join(dup, ", ")}; rename a lifecycle, role or field"
-      )
+    raise(
+      :anaritikusu_schema,
+      "two generated relations are named #{join(dup, ", ")}; rename a lifecycle, role or field"
     )
   end
   models
@@ -2009,15 +1989,13 @@ def history_line(r, s)
   folded = nisshi::rec_admitted?(r)
   b = last(raifusaikuru::breaches(s))
   rf = last(raifusaikuru::refused(s))
-  breach = if folded && b != nil && raifusaikuru::breach_position(b) == pos
+  breach = if folded and b != nil and raifusaikuru::breach_position(b) == pos
     b
-  else
-    nil
   end
-  refusal = if folded && rf != nil && raifusaikuru::refusal_position(rf) == pos
+  refusal = if folded and
+    rf != nil and
+    raifusaikuru::refusal_position(rf) == pos
     raifusaikuru::text(raifusaikuru::refusal_kind(rf))
-  else
-    nil
   end
   rules = if breach == nil
     nil
@@ -2101,11 +2079,9 @@ def build_history(dir, s)
   log = nisshi::read(get(s, :path), get(s, :label), d)
   rep = nisshi::verify(log, nil, nil)
   if nisshi::intact?(rep) == false
-    throw(
-      error(
-        :anaritikusu_broken,
-        "#{get(s, :path)}: position #{to_s(nisshi::break_position(rep))}, #{to_s(nisshi::break_kind(rep))}: #{nisshi::break_why(rep)}"
-      )
+    raise(
+      :anaritikusu_broken,
+      "#{get(s, :path)}: position #{to_s(nisshi::break_position(rep))}, #{to_s(nisshi::break_kind(rep))}: #{nisshi::break_why(rep)}"
     )
   end
   write_history(
@@ -2158,7 +2134,7 @@ def example_consumable_strict()
 end
 
 def example_tighten(c)
-  if list?(c) && is_empty(c) == false && first(c) == :lc_guard
+  if list?(c) and is_empty(c) == false and first(c) == :lc_guard
     [
       :lc_guard,
       nth(1, c),
@@ -2517,7 +2493,13 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [])
     ]
   )
-  assert error?(try(event_columns(clash), catch(e(), e)))
+  assert error?(
+    begin
+      event_columns(clash)
+    rescue e
+      e
+    end
+  )
   phased = lc_define(
     :phased,
     [
@@ -2529,7 +2511,13 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [])
     ]
   )
-  assert error?(try(state_columns(phased), catch(e(), e)))
+  assert error?(
+    begin
+      state_columns(phased)
+    rescue e
+      e
+    end
+  )
   mixed = lc_define(
     :mixed,
     [
@@ -2541,7 +2529,13 @@ test "the telemetry schema is derived from the definition: the record's columns,
       raifusaikuru::on(:a, :go, :b, [raifusaikuru::put(:x, "high")])
     ]
   )
-  assert error?(try(field_types(mixed), catch(e(), e)))
+  assert error?(
+    begin
+      field_types(mixed)
+    rescue e
+      e
+    end
+  )
 end
 
 test "the history is the fold's state after every record, and names what the replay found"
@@ -3203,11 +3197,9 @@ def example_differential(db, ms, s)
     norm_rows(read(db, la_find(ms, n(d, "current_state"))))
   )
   if set_equal(map(fn(x) first(x) end, fold), sql) == false
-    throw(
-      error(
-        :anaritikusu_test,
-        "#{raifusaikuru::text(raifusaikuru::name(d))}: the database's current state differs from nisshi's replay"
-      )
+    raise(
+      :anaritikusu_test,
+      "#{raifusaikuru::text(raifusaikuru::name(d))}: the database's current state differs from nisshi's replay"
     )
   end
   size(sql)
@@ -3265,11 +3257,23 @@ test "the set is refused where it cannot be generated, and a broken stream is re
   # The empty case: no lifecycles, no models.
   assert is_empty(models([], 0))
   # A link to a lifecycle not given; the same set with it holds.
-  assert error?(try(models([portion], 0), catch(e(), e)))
+  assert error?(
+    begin
+      models([portion], 0)
+    rescue e
+      e
+    end
+  )
   assert size(models([portion, consumable], 0)) > 0
   # Two lifecycles with one name; a role whose generated name collides with a
   # standard view (a role named `events`); `now` that is not a time.
-  assert error?(try(models([consumable, consumable], 0), catch(e(), e)))
+  assert error?(
+    begin
+      models([consumable, consumable], 0)
+    rescue e
+      e
+    end
+  )
   evented = lc_define(
     :portion,
     [
@@ -3282,14 +3286,30 @@ test "the set is refused where it cannot be generated, and a broken stream is re
     ]
   )
   assert error?(
-    try(models([binding(evented, "x", "y"), consumable], 0), catch(e(), e))
+    begin
+      models([binding(evented, "x", "y"), consumable], 0)
+    rescue e
+      e
+    end
   )
-  assert error?(try(models([consumable], 1.5), catch(e(), e)))
+  assert error?(
+    begin
+      models([consumable], 1.5)
+    rescue e
+      e
+    end
+  )
   # A stream with a changed line is not built on.
   streams = example_streams(dir)
   path = get(first(streams), :path)
   write_file(path, replace(read_file(path), "\"time\":29300", "\"time\":29301"))
-  assert error?(try(build(dir, streams, 86400), catch(e(), e)))
+  assert error?(
+    begin
+      build(dir, streams, 86400)
+    rescue e
+      e
+    end
+  )
   rm_rf(dir)
 end
 

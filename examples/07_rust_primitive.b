@@ -39,12 +39,12 @@ test "sign with the secret half, verify with the public half"
   kp = signing_keypair(seed)
   sig = sign_message(keypair_secret(kp), "ship it")
   assert verify_message(keypair_public(kp), "ship it", sig)
-  assert !verify_message(keypair_public(kp), "ship it later", sig)
+  assert not verify_message(keypair_public(kp), "ship it later", sig)
 end
 
 test "a hash chain detects an edited entry"
   g = chain_genesis("orders")
   head = chain_head(g, ["a", "b", "c"])
   assert chain_verify(g, ["a", "b", "c"], head)
-  assert !chain_verify(g, ["a", "B", "c"], head)
+  assert not chain_verify(g, ["a", "B", "c"], head)
 end

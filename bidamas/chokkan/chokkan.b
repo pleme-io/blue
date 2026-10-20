@@ -55,7 +55,7 @@ end
 
 def option_problems(name, options)
   n = size(options)
-  range_err = if n < 1 || n > 255
+  range_err = if n < 1 or n > 255
     [
       refusal(
         :options_out_of_range,
@@ -75,7 +75,7 @@ end
 
 def level_problems(name, levels)
   n = size(levels)
-  if n < 2 || n > 10
+  if n < 2 or n > 10
     [
       refusal(
         :levels_out_of_range,
@@ -106,8 +106,6 @@ def criteria_of(q)
     reduce(fn(acc, o) assoc(acc, first(o), last(o)) end, {}, get(q, :options))
   elsif t == "score"
     get(q, :levels)
-  else
-    nil
   end
 end
 
@@ -144,14 +142,14 @@ def parsed(body)
   if body == nil
     nil
   else
-    try(json_parse(body), catch(_e(), nil))
+    json_parse(body) rescue nil
   end
 end
 
 def read(status, body)
   if status == 200
     doc = parsed(body)
-    if is_doc(doc) && is_doc(as_json(doc, "answers"))
+    if is_doc(doc) and is_doc(as_json(doc, "answers"))
       {
         kind: :answered,
         answers: as_json(doc, "answers"),
@@ -160,7 +158,7 @@ def read(status, body)
     else
       {kind: :blind, why: "the judge answered 200 without answers"}
     end
-  elsif status == 400 || status == 404 || status == 422
+  elsif status == 400 or status == 404 or status == 422
     {kind: :refused, why: "the judge refused the request (#{to_s(status)})"}
   else
     {kind: :blind, why: "the judge could not answer (#{to_s(status)})"}
@@ -170,8 +168,6 @@ end
 def answer(reading, name)
   if get(reading, :kind) == :answered
     as_json(get(reading, :answers), name)
-  else
-    nil
   end
 end
 
@@ -179,8 +175,6 @@ def number_of(reading, name, key)
   a = answer(reading, name)
   if is_doc(a)
     get_number(a, key, nil)
-  else
-    nil
   end
 end
 
@@ -188,8 +182,6 @@ def chosen(reading, name)
   a = answer(reading, name)
   if is_doc(a)
     get_str(a, "choice", nil)
-  else
-    nil
   end
 end
 
@@ -207,7 +199,7 @@ end
 
 def probabilities(reading, name)
   a = answer(reading, name)
-  if is_doc(a) && as_json(a, "probabilities") != nil
+  if is_doc(a) and as_json(a, "probabilities") != nil
     as_json(a, "probabilities")
   else
     []
@@ -231,7 +223,7 @@ end
 
 def confident(reading, name, min)
   c = confidence(reading, name)
-  c != nil && c >= min
+  c != nil and c >= min
 end
 
 def example_body()
@@ -248,7 +240,14 @@ end
 
 test "a request with nothing to ask is refused, and an empty answer is blind"
   assert kinds(problems([])) == [:no_questions]
-  assert error?(try(request("jev-latest", "s", []), catch(e(), e))) == true
+  assert error?(
+    begin
+      request("jev-latest", "s", [])
+    rescue e
+      e
+    end
+  ) ==
+    true
   assert get(read(200, "{}"), :kind) == :blind
   assert get(read(200, "not json"), :kind) == :blind
   assert get(read(200, nil), :kind) == :blind

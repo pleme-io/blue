@@ -15,7 +15,7 @@ end
 # One message: answered when the sender asked for an answer, else dropped.
 def serve_once(conn, sub, template)
   m = nats_next_message(sub, 1000)
-  if m != nil && get(m, :reply) != nil
+  if m != nil and get(m, :reply) != nil
     nats_publish(conn, get(m, :reply), reply(template, get(m, :subject)))
   end
 end

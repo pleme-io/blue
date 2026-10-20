@@ -53,7 +53,7 @@ use("retsu", [:first, :is_empty, :last, :rest])
 # between the value and the error.
 def status_of(cap)
   v = nil
-  if !null?(cap) && list?(cap)
+  if not null?(cap) and list?(cap)
     v = json_get(cap, :status)
   end
   if integer?(v)
@@ -66,7 +66,7 @@ end
 # The captured stdout; "" when absent or not a capture.
 def stdout_of(cap)
   v = nil
-  if !null?(cap) && list?(cap)
+  if not null?(cap) and list?(cap)
     v = json_get(cap, :stdout)
   end
   if string?(v)
@@ -79,7 +79,7 @@ end
 # The captured stderr; "" when absent or not a capture.
 def stderr_of(cap)
   v = nil
-  if !null?(cap) && list?(cap)
+  if not null?(cap) and list?(cap)
     v = json_get(cap, :stderr)
   end
   if string?(v)
@@ -114,8 +114,6 @@ end
 def file_age_ms(path)
   if is_file?(path)
     now_ms - file_mtime_ms(path)
-  else
-    nil
   end
 end
 
@@ -127,7 +125,7 @@ end
 # "\r\n" endings and trailing newlines are handled before this sees them. A
 # log whose final line is a blank or a spinner echo answers the line before.
 def last_nonempty_line(text)
-  ls = filter(fn(l) !is_blank(l) end, lines(text))
+  ls = filter(fn(l) not is_blank(l) end, lines(text))
   if is_empty(ls)
     ""
   else
@@ -137,7 +135,7 @@ end
 
 # The ESC character, spelled once. Blue strings accept `\u{1b}`.
 def esc_char()
-  ""
+  "\u{1b}"
 end
 
 # True when `c` is the final byte of an ANSI escape sequence: any ASCII letter.
@@ -196,10 +194,10 @@ end
 def age_s(ms)
   if ms < 60000
     "#{floor(ms / 1000)}s"
-  elsif ms < 3600000
+  elsif ms < 3_600_000
     "#{floor(ms / 60000)}m"
   else
-    "#{floor(ms / 3600000)}h#{floor(ms % 3600000 / 60000)}m"
+    "#{floor(ms / 3_600_000)}h#{floor(ms % 3_600_000 / 60000)}m"
   end
 end
 
@@ -212,7 +210,7 @@ end
 # wrong. "—" is the sentinela's spelling for "no revision known", kept here so
 # a null head and an absent head cannot diverge.
 def short_rev(rev, n)
-  if null?(rev) || length(rev) == 0
+  if null?(rev) or length(rev) == 0
     "—"
   else
     take_chars(rev, n)
@@ -275,15 +273,15 @@ test "last_nonempty_line ignores trailing blank lines and invents none"
 end
 
 test "strip_ansi removes CSI sequences and leaves plain text alone"
-  assert strip_ansi("[31mred[0m") == "red"
-  assert strip_ansi("[1;32mgreen") == "green"
-  assert strip_ansi("[2Jclear") == "clear"
+  assert strip_ansi("\u{1b}[31mred\u{1b}[0m") == "red"
+  assert strip_ansi("\u{1b}[1;32mgreen") == "green"
+  assert strip_ansi("\u{1b}[2Jclear") == "clear"
   assert strip_ansi("plain") == "plain"
   assert strip_ansi("") == ""
   # A non-CSI escape is still a two-character escape and is dropped whole.
-  assert strip_ansi("a7b") == "ab"
+  assert strip_ansi("a\u{1b}7b") == "ab"
   # An ESC alone at the end cannot be a sequence; it must not leak.
-  assert strip_ansi("x") == "x"
+  assert strip_ansi("x\u{1b}") == "x"
 end
 
 test "age_s mirrors the sentinela display exactly"
@@ -292,11 +290,11 @@ test "age_s mirrors the sentinela display exactly"
   assert age_s(59000) == "59s"
   assert age_s(60000) == "1m"
   assert age_s(59999) == "59s"
-  assert age_s(3599000) == "59m"
+  assert age_s(3_599_000) == "59m"
   # The exact-hour boundary is "1h0m", not "1h" — the Rust original's spelling.
-  assert age_s(3600000) == "1h0m"
-  assert age_s(3660000) == "1h1m"
-  assert age_s(5400000) == "1h30m"
+  assert age_s(3_600_000) == "1h0m"
+  assert age_s(3_660_000) == "1h1m"
+  assert age_s(5_400_000) == "1h30m"
 end
 
 test "short_rev clamps to the width and answers the em dash for an absent rev"

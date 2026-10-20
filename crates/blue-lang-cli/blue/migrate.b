@@ -22,7 +22,7 @@
 # name table.
 
 def run_blue(args)
-  apply(exec_capture, cons(self_exe, args))
+  exec_capture(*cons(self_exe, args))
 end
 
 def status_of(r)
@@ -40,7 +40,7 @@ end
 def resolved(file)
   r = run_blue(["ast", "--resolved", "--json", file])
   if status_of(r) != 0
-    throw(error(:migrate, "blue ast --resolved #{file}: #{stderr_of(r)}"))
+    raise(:migrate, "blue ast --resolved #{file}: #{stderr_of(r)}")
   end
   json_parse(stdout_of(r))
 end
@@ -48,7 +48,7 @@ end
 # The file's forms resolved under `rule` ("flat" or "ns"), without its `use`
 # declarations, which are what the migration changes.
 def forms_under(doc, rule)
-  filter(fn(f) !starts_with?(f, "(use ") end, json_get(doc, rule))
+  filter(fn(f) not starts_with?(f, "(use ") end, json_get(doc, rule))
 end
 
 def sorted(xs)
@@ -61,11 +61,11 @@ def implicit?(r, own)
   flat = json_get(r, "flat")
   kind = json_get(json_get(r, "ns"), "kind")
   owner = json_get(flat, "namespace")
-  json_get(flat, "kind") == "def" &&
-    owner != nil &&
-    owner != own &&
-    (kind == "builtin" || kind == "unbound") &&
-    !contains?(json_get(r, "written"), "/")
+  json_get(flat, "kind") == "def" and
+    owner != nil and
+    owner != own and
+    (kind == "builtin" or kind == "unbound") and
+    not contains?(json_get(r, "written"), "/")
 end
 
 # [[package, name], ...] the file must list.
@@ -95,9 +95,8 @@ def uses_after(doc, want)
   map(
     fn(p)
       listed = append(
-        apply(
-          append,
-          map(
+        append(
+          *map(
             fn(u) json_get(u, "names") end,
             filter(fn(u) json_get(u, "package") == p end, existing)
           )
@@ -124,9 +123,8 @@ end
 def rewrite(text, doc, block)
   lines = split(text, "\n")
   existing = json_get(doc, "imports")
-  dropped = apply(
-    append,
-    map(
+  dropped = append(
+    *map(
       fn(u) range(json_get(u, "line"), json_get(u, "end_line") + 1) end,
       existing
     )
@@ -143,11 +141,11 @@ def rewrite(text, doc, block)
   end
   numbered = zip(range(1, length(lines) + 1), lines)
   before = filter(
-    fn(nl) first(nl) < at && !member?(first(nl), dropped) end,
+    fn(nl) first(nl) < at and not member?(first(nl), dropped) end,
     numbered
   )
   after = filter(
-    fn(nl) first(nl) >= at && !member?(first(nl), dropped) end,
+    fn(nl) first(nl) >= at and not member?(first(nl), dropped) end,
     numbered
   )
   join(
@@ -164,7 +162,7 @@ end
 def needs_of(bluefile)
   r = run_blue(["bluefile", "--json", bluefile])
   if status_of(r) != 0
-    throw(error(:migrate, "blue bluefile #{bluefile}: #{stderr_of(r)}"))
+    raise(:migrate, "blue bluefile #{bluefile}: #{stderr_of(r)}")
   end
   needs = json_get(json_parse(stdout_of(r)), "needs")
   if needs == nil
@@ -180,7 +178,7 @@ def add_needs(text, packages)
   numbered = zip(range(0, length(lines)), lines)
   anchors = filter(
     fn(nl)
-      starts_with?(nth(1, nl), "needs(") || starts_with?(nth(1, nl), "package(")
+      starts_with?(nth(1, nl), "needs(") or starts_with?(nth(1, nl), "package(")
     end,
     numbered
   )
@@ -192,7 +190,7 @@ end
 def relock(dir)
   r = run_blue(["lock", dir])
   if status_of(r) != 0
-    throw(error(:migrate, "blue lock #{dir}: #{stderr_of(r)}"))
+    raise(:migrate, "blue lock #{dir}: #{stderr_of(r)}")
   end
 end
 
@@ -209,34 +207,32 @@ def migrate(file)
     write_file(file, rewrite(text, before, map(fn(u) render_use(u) end, uses)))
     own = json_get(before, "namespace")
     bluefile = path_join(path_dirname(file), "Bluefile")
-    bidama = own != nil && path_exists(bluefile)
+    bidama = own != nil and path_exists(bluefile)
     old_bluefile = if bidama
       read_file(bluefile)
-    else
-      nil
     end
     if bidama
       needed = needs_of(bluefile)
       missing = filter(
-        fn(p) p != own && !member?(p, needed) end,
+        fn(p) p != own and not member?(p, needed) end,
         map(fn(u) first(u) end, uses)
       )
-      if !empty?(missing)
+      if not empty?(missing)
         write_file(bluefile, add_needs(old_bluefile, missing))
         relock(path_dirname(file))
       end
     end
     # A rewrite that does not even resolve is refused like one that changes
     # the tree: restored, and named.
-    after = try(resolved(file), catch(_e(), nil))
-    same = after != nil &&
+    after = resolved(file) rescue nil
+    same = after != nil and
       forms_under(after, "ns") == forms_under(before, "flat")
     left = if after == nil
       []
     else
       wanted(after)
     end
-    if same && empty?(left)
+    if same and empty?(left)
       "migrated #{file}: #{length(want)} name(s) made explicit"
     else
       write_file(file, text)
@@ -251,7 +247,7 @@ def migrate(file)
       else
         "its resolved tree changed"
       end
-      throw(error(:migrate, "refused #{file}: #{why}; restored"))
+      raise(:migrate, "refused #{file}: #{why}; restored")
     end
   end
 end
@@ -282,7 +278,7 @@ end
 def replace_word(s, old, new)
   pieces = split(s, old)
   numbered = zip(range(0, length(pieces)), pieces)
-  foldl(
+  reduce(
     fn(acc, np)
       i = first(np)
       piece = nth(1, np)
@@ -299,8 +295,8 @@ def replace_word(s, old, new)
         else
           first(chars(piece))
         end
-        whole = (before == nil || !ident_char?(before)) &&
-          (after == nil || !ident_char?(after))
+        whole = (before == nil or not ident_char?(before)) and
+          (after == nil or not ident_char?(after))
         if whole
           "#{acc}#{new}#{piece}"
         else
@@ -325,19 +321,19 @@ def replace_ident(s, old, new)
     cur = nth(1, st)
     depth = nth(2, st)
     prev = nth(3, st)
-    if depth == 0 && prev == "#" && c == "{"
+    if depth == 0 and prev == "#" and c == "{"
       [append(segs, [[false, cur]]), c, 1, c]
-    elsif depth > 0 && c == "{"
+    elsif depth > 0 and c == "{"
       [segs, "#{cur}#{c}", depth + 1, c]
-    elsif depth == 1 && c == "}"
+    elsif depth == 1 and c == "}"
       [append(segs, [[true, cur]]), c, 0, c]
-    elsif depth > 1 && c == "}"
+    elsif depth > 1 and c == "}"
       [segs, "#{cur}#{c}", depth - 1, c]
     else
       [segs, "#{cur}#{c}", depth, c]
     end
   end
-  st = foldl(step, [[], "", 0, ""], chars(s))
+  st = reduce(step, [[], "", 0, ""], chars(s))
   segs = append(first(st), [[nth(2, st) > 0, nth(1, st)]])
   join(
     map(
@@ -361,16 +357,14 @@ def edit_at(line, col, end_col, renames)
   cs = chars(line)
   written = join(take(end_col - col, drop(col - 1, cs)), "")
   exact = filter(fn(r) first(r) == written end, renames)
-  replacement = if !empty?(exact)
+  replacement = if not empty?(exact)
     nth(1, first(exact))
   elsif contains?(written, "#\u{7b}")
-    foldl(fn(w, r) replace_ident(w, first(r), nth(1, r)) end, written, renames)
+    reduce(fn(w, r) replace_ident(w, first(r), nth(1, r)) end, written, renames)
   else
-    throw(
-      error(
-        :migrate,
-        "expected `#{first(first(renames))}` at column #{col}, found `#{written}`"
-      )
+    raise(
+      :migrate,
+      "expected `#{first(first(renames))}` at column #{col}, found `#{written}`"
     )
   end
   join(append(take(col - 1, cs), [replacement], drop(end_col - 1, cs)), "")
@@ -388,13 +382,13 @@ def apply_edits(text, edits)
         fn(sp) -first(sp) end,
         distinct(map(fn(e) [nth(1, e), nth(2, e)] end, here))
       )
-      foldl(
+      reduce(
         fn(l, sp)
           renames = distinct(
             map(
               fn(e) [nth(3, e), nth(4, e)] end,
               filter(
-                fn(e) nth(1, e) == first(sp) && nth(2, e) == nth(1, sp) end,
+                fn(e) nth(1, e) == first(sp) and nth(2, e) == nth(1, sp) end,
                 here
               )
             )
@@ -420,9 +414,9 @@ end
 # `pkg/new`. Quoted data (the source an assertion quotes) is elided before
 # the comparison, and strings are text the rename leaves alone.
 def key_rewrite(tree, pkg, renames)
-  foldl(
+  reduce(
     fn(t, r)
-      foldl(
+      reduce(
         fn(acc, end_char)
           replace(
             acc,
@@ -453,7 +447,7 @@ def unquoted(t)
     esc = nth(3, st)
     prev = nth(4, st)
     if depth == 0
-      if prev == "'" && c == "("
+      if prev == "'" and c == "("
         [cons("…", out), 1, false, false, c]
       else
         [cons(c, out), 0, false, false, c]
@@ -482,11 +476,14 @@ def unquoted(t)
       [out, depth, false, false, c]
     end
   end
-  join(reverse(first(foldl(step, [[], 0, false, false, ""], chars(t)))), "")
+  join(reverse(first(reduce(step, [[], 0, false, false, ""], chars(t)))), "")
 end
 
 def settled_forms(doc, rule)
-  filter(fn(f) !starts_with?(f, "(legacy_names ") end, forms_under(doc, rule))
+  filter(
+    fn(f) not starts_with?(f, "(legacy_names ") end,
+    forms_under(doc, rule)
+  )
 end
 
 # The source spelling of a reference: `pkg::x` for a qualified one.
@@ -525,11 +522,11 @@ def strip_bidama(prefix, file)
   )
   stripped = fn(n) join(drop(length(chars(p)), chars(n)), "") end
   keep? = fn(n)
-    member?(stripped(n), builtins) || member?(stripped(n), reserved)
+    member?(stripped(n), builtins) or member?(stripped(n), reserved)
   end
   renames = map(
     fn(d) [json_get(d, "name"), stripped(json_get(d, "name"))] end,
-    filter(fn(d) !keep?(json_get(d, "name")) end, defs)
+    filter(fn(d) not keep?(json_get(d, "name")) end, defs)
   )
   kept = map(
     fn(d) stripped(json_get(d, "name")) end,
@@ -563,8 +560,8 @@ def strip_bidama(prefix, file)
     filter(
       fn(r)
         ns = json_get(r, "ns")
-        member?(json_get(r, "written"), old_names) &&
-          json_get(ns, "kind") == "def" &&
+        member?(json_get(r, "written"), old_names) and
+          json_get(ns, "kind") == "def" and
           json_get(ns, "namespace") == pkg
       end,
       refs
@@ -577,9 +574,9 @@ def strip_bidama(prefix, file)
   lent = filter(
     fn(r)
       ns = json_get(r, "ns")
-      json_get(ns, "kind") == "def" &&
-        json_get(ns, "namespace") != pkg &&
-        json_get(ns, "namespace") != nil &&
+      json_get(ns, "kind") == "def" and
+        json_get(ns, "namespace") != pkg and
+        json_get(ns, "namespace") != nil and
         member?(json_get(r, "written"), shadowing)
     end,
     refs
@@ -597,7 +594,7 @@ def strip_bidama(prefix, file)
     fn(r) ref_edit(r, "blue::#{json_get(r, "written")}") end,
     filter(
       fn(r)
-        json_get(json_get(r, "ns"), "kind") == "builtin" &&
+        json_get(json_get(r, "ns"), "kind") == "builtin" and
           member?(json_get(r, "written"), kept)
       end,
       refs
@@ -613,7 +610,7 @@ def strip_bidama(prefix, file)
     fn(d) -json_get(d, "line") end,
     filter(fn(d) keep?(json_get(d, "name")) end, defs)
   )
-  waived = foldl(
+  waived = reduce(
     fn(t, d)
       n = stripped(json_get(d, "name"))
       why = if member?(n, reserved)
@@ -647,7 +644,7 @@ def strip_bidama(prefix, file)
   lenders = distinct(
     map(fn(r) json_get(json_get(r, "ns"), "namespace") end, lent)
   )
-  relisted = foldl(
+  relisted = reduce(
     fn(t, lender) relist(t, doc, lender, shadowing) end,
     ledgered,
     lenders
@@ -663,8 +660,8 @@ def strip_caller(pkg, renames, file)
   bridged = filter(
     fn(r)
       ns = json_get(r, "ns")
-      json_get(ns, "kind") == "def" &&
-        json_get(ns, "namespace") == pkg &&
+      json_get(ns, "kind") == "def" and
+        json_get(ns, "namespace") == pkg and
         json_get(ns, "name") != last(split(json_get(r, "written"), "/"))
     end,
     json_get(doc, "references")
@@ -688,12 +685,12 @@ def relist(text, doc, package, dropped)
     text
   else
     u = first(mine)
-    left = filter(fn(n) !member?(n, dropped) end, json_get(u, "names"))
+    left = filter(fn(n) not member?(n, dropped) end, json_get(u, "names"))
     line = json_get(u, "line")
     lines = split(text, "\n")
     numbered = zip(range(1, length(lines) + 1), lines)
     kept = filter(
-      fn(nl) first(nl) < line || first(nl) > json_get(u, "end_line") end,
+      fn(nl) first(nl) < line or first(nl) > json_get(u, "end_line") end,
       numbered
     )
     before = filter(fn(nl) first(nl) < line end, kept)
@@ -741,7 +738,7 @@ def strip(prefix, file, callers)
   )
   # nil when `f` proves out; otherwise why, with the first difference.
   proof = fn(f, old_doc)
-    now = try(resolved(f), catch(_e(), nil))
+    now = resolved(f) rescue nil
     if now == nil
       "#{f}: does not resolve"
     else
@@ -761,8 +758,6 @@ def strip(prefix, file, callers)
         c = run_blue(["check", f])
         if status_of(c) != 0
           "#{f}: does not check: #{stderr_of(c)}"
-        else
-          nil
         end
       end
     end
@@ -778,19 +773,14 @@ def strip(prefix, file, callers)
     "stripped #{pkg}: #{length(renames)} renamed, #{nth(4, plan)} kept with a second name, #{length(callers)} caller(s) rewritten"
   else
     restore()
-    throw(
-      error(
-        :migrate,
-        "refused the strip of #{pkg}, restored: #{join(bad, "\n")}"
-      )
-    )
+    raise(:migrate, "refused the strip of #{pkg}, restored: #{join(bad, "\n")}")
   end
 end
 
 # `write_stdout`, not `println`: the report is text for a person, unquoted.
 args = argv
 
-if !empty?(args) && first(args) == "--strip"
+if not empty?(args) and first(args) == "--strip"
   write_stdout("#{strip(nth(1, args), nth(2, args), drop(3, args))}\n")
 else
   map(fn(f) write_stdout("#{migrate(f)}\n") end, args)

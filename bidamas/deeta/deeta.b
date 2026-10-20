@@ -57,7 +57,7 @@
 # doc. (An empty OBJECT parses to a Map, which is not a list at all; it has no
 # fields, so reading it as not-a-doc and answering the default is correct.)
 def is_doc(v)
-  list?(v) && !null?(v)
+  list?(v) and not null?(v)
 end
 
 # The raw value at `key`, or nil when there is none to give.
@@ -70,8 +70,6 @@ end
 def as_json(doc, key)
   if is_doc(doc)
     json_get(doc, key)
-  else
-    nil
   end
 end
 
@@ -130,6 +128,57 @@ def get_or(m, key, default)
   end
 end
 
+# The value at a dotted path, `json_at(doc, "spec.items.0.name")`, or nil when any step is absent.
+def json_at(doc, path)
+  path_from(doc, split(path, "."))
+end
+
+def path_from(v, keys)
+  if null?(keys)
+    v
+  elsif v == nil
+    nil
+  else
+    path_from(step_into(v, first(keys)), rest(keys))
+  end
+end
+
+def step_into(v, key)
+  index = to_int(key)
+  if index != nil and list?(v) and not is_doc_pair?(first(v))
+    nth(index, v)
+  elsif map?(v)
+    get(v, key)
+  else
+    json_get(v, key) rescue nil
+  end
+end
+
+def is_doc_pair?(x)
+  list?(x) and count(x) == 2 and string?(first(x))
+end
+
+test "json_at walks objects, lists by index, and both kinds of parse"
+  doc = json_parse("{\"spec\":{\"variables\":{\"owner\":\"pleme-io\"},\"items\":[{\"name\":\"a\"},{\"name\":\"b\"}]}}")
+  assert json_at(doc, "spec.variables.owner") == "pleme-io"
+  assert json_at(doc, "spec.items.1.name") == "b"
+  assert json_at(json_read("{\"a\":{\"b\":2}}"), "a.b") == 2
+end
+
+test "json_at answers nil for every path that is not there"
+  doc = json_parse("{\"spec\":{\"n\":1,\"s\":\"x\"}}")
+  assert json_at(doc, "spec.variables") == nil
+  assert json_at(doc, "spec.n.deeper") == nil
+  assert json_at(doc, "spec.s.deeper") == nil
+  assert json_at(nil, "a") == nil
+  assert json_at(doc, "spec.items.9") == nil
+end
+
+test "json_at of the empty path is the document"
+  assert json_at([1], "") == nil
+  assert json_at(json_parse("{\"\":5}"), "") == 5
+end
+
 test "get_or reads a Map, and its default answers a missing or nil key"
   assert get_or({a: 1}, :a, 9) == 1
   assert get_or({a: 1}, :b, 9) == 9
@@ -150,9 +199,7 @@ test "is_doc is true for a parsed object and false for every other shape"
 end
 
 test "get_str reads a string and answers the default for every other shape"
-  doc = json_parse(
-    "{\"outcome\":\"ok\",\"phase\":\"idle\",\"head_rev\":null,\"count\":3}"
-  )
+  doc = json_parse("{\"outcome\":\"ok\",\"phase\":\"idle\",\"head_rev\":null,\"count\":3}")
   assert get_str(doc, "outcome", "—") == "ok"
   assert get_str(doc, "phase", "—") == "idle"
   # Missing key and present null both answer the default.
@@ -218,23 +265,24 @@ end
 
 def plain_key?(k)
   cs = chars(k)
-  cs != [] &&
+  cs != [] and
     member?(
       first(cs),
       chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_")
-    ) &&
+    ) and
     every?(
       fn(c)
         member?(
           c,
-          chars(
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
-          )
+          chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
         )
       end,
       cs
-    ) &&
-    !member?(k, ["true", "false", "null", "yes", "no", "on", "off", "y", "n"])
+    ) and
+    not member?(
+      k,
+      ["true", "false", "null", "yes", "no", "on", "off", "y", "n"]
+    )
 end
 
 def scalar_text(v)
@@ -252,12 +300,12 @@ def scalar_text(v)
 end
 
 def collection?(v)
-  v != nil && (map?(v) || list?(v))
+  v != nil and (map?(v) or list?(v))
 end
 
 def pretty_at(v, pad)
   inner = "#{pad}  "
-  if collection?(v) && map?(v)
+  if collection?(v) and map?(v)
     es = map_entries(v)
     if es == []
       "{}"
@@ -299,19 +347,17 @@ def yaml_key(k)
 end
 
 def empty_collection?(v)
-  collection?(v) && (v == [] || map_entries_or_nil(v) == [])
+  collection?(v) and (v == [] or map_entries_or_nil(v) == [])
 end
 
 def map_entries_or_nil(v)
   if map?(v)
     map_entries(v)
-  else
-    nil
   end
 end
 
 def yaml_inline(v)
-  if collection?(v) && map?(v)
+  if collection?(v) and map?(v)
     "{}"
   elsif collection?(v)
     "[]"
@@ -321,7 +367,7 @@ def yaml_inline(v)
 end
 
 def yaml_lines(v, pad)
-  if collection?(v) && map?(v)
+  if collection?(v) and map?(v)
     flatten(
       map(
         fn(e) yaml_entry(yaml_key(first(e)), second(e), pad) end,
@@ -334,7 +380,7 @@ def yaml_lines(v, pad)
 end
 
 def yaml_entry(key, v, pad)
-  if collection?(v) && !empty_collection?(v)
+  if collection?(v) and not empty_collection?(v)
     append(["#{pad}#{key}:"], yaml_lines(v, "#{pad}  "))
   else
     ["#{pad}#{key}: #{yaml_inline(v)}"]
@@ -342,7 +388,7 @@ def yaml_entry(key, v, pad)
 end
 
 def yaml_item(x, pad)
-  if collection?(x) && !empty_collection?(x)
+  if collection?(x) and not empty_collection?(x)
     lines = yaml_lines(x, "#{pad}  ")
     head = "#{pad}- #{join(drop(length(pad) + 2, chars(first(lines))), "")}"
     cons(head, rest(lines))
@@ -352,7 +398,7 @@ def yaml_item(x, pad)
 end
 
 def yaml(v)
-  if collection?(v) && !empty_collection?(v)
+  if collection?(v) and not empty_collection?(v)
     "#{join(yaml_lines(v, ""), "\n")}\n"
   else
     "#{yaml_inline(v)}\n"

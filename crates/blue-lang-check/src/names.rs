@@ -1173,7 +1173,12 @@ pub fn resolve_program(
     Resolved {
         references: w.references,
         defs,
+        respellings: w.respellings,
     }
+}
+
+fn to_is_operator(r: crate::respell::Respell) -> bool {
+    matches!(r, crate::respell::Respell::Rename("mod"))
 }
 
 /// [`resolve_program`]'s result.
@@ -1181,6 +1186,7 @@ pub fn resolve_program(
 pub struct Resolved {
     pub references: Vec<Reference>,
     defs: Vec<DefSite>,
+    pub respellings: Vec<(usize, crate::respell::Respelling)>,
 }
 
 /// Which resolution rule a resolved tree is built under.
@@ -1310,11 +1316,12 @@ struct Walker<'t> {
     resolved: usize,
     references: Vec<Reference>,
     position: Position,
+    respellings: Vec<(usize, crate::respell::Respelling)>,
 }
 
 /// Names the parser synthesizes. Never reported unused: the author did not
 /// write them.
-const SYNTHESIZED: &[&str] = &["case-subject"];
+const SYNTHESIZED: &[&str] = &["case-subject", blue_lang_syntax::RESCUED];
 
 /// Resolve every name in `forms` against `table`.
 ///
@@ -1391,6 +1398,7 @@ impl<'t> Walker<'t> {
             resolved: 0,
             references: Vec::new(),
             position: Position::Value,
+            respellings: Vec::new(),
         }
     }
 
@@ -1764,6 +1772,65 @@ impl<'t> Walker<'t> {
 }
 
 impl Walker<'_> {
+    fn bare_builtin(&self, name: &str) -> bool {
+        let builtin = Target::Builtin(name.to_string());
+        !self.locals_in_scope().contains(&name)
+            && self.table.ns_target(name, &self.own, self.top_level) == builtin
+            && self.table.flat_target(name) == builtin
+    }
+
+    fn synonym_call(&mut self, node: &Spanned, whole: &Spanned, name: &str, argc: usize) {
+        let resolved_builtin = matches!(
+            self.references.last().map(|r| &r.ns),
+            Some(Target::Builtin(b)) if b == name
+        );
+        if !resolved_builtin {
+            return;
+        }
+        let Some(syn) = crate::respell::synonym(name, argc) else {
+            return;
+        };
+        let target = match syn.respell {
+            crate::respell::Respell::Rename(to) => Some(to),
+            crate::respell::Respell::Raise => Some("raise"),
+            _ => None,
+        };
+        let qualify = target.is_some_and(|t| t != "mod" && !self.bare_builtin(t));
+        let error_builtin = self.bare_builtin("error");
+        self.respellings.push((
+            std::ptr::from_ref(node) as usize,
+            crate::respell::Respelling {
+                span: whole.span,
+                respell: syn.respell,
+                qualify,
+                error_builtin,
+            },
+        ));
+        if !self.report_unused {
+            return;
+        }
+        let mut d = Diagnostic::new(
+            syn.code,
+            format!("`{name}` is written `{}`", syn.written),
+            whole.span,
+        )
+        .at_top_level(self.top_level)
+        .with_help("`blue fmt --write`, `blue run` and `blue check --fix` rewrite it");
+        if let (crate::respell::Respell::Rename(to), false) = (syn.respell, to_is_operator(syn.respell)) {
+            let replacement = if qualify { format!("blue::{to}") } else { to.to_string() };
+            d = d.with_fix(Fix {
+                message: format!("write `{replacement}`"),
+                edits: vec![Edit {
+                    span: node.span,
+                    original: name.to_string(),
+                    replacement,
+                }],
+                applicability: Applicability::MachineApplicable,
+            });
+        }
+        self.diagnostics.push(d);
+    }
+
     /// `pkg::n`: exact, and checked to be what it says. The package must be
     /// one this file `use`s (B0010) and must define `n` (B0011); `blue::n`
     /// must name a builtin.
@@ -2086,7 +2153,11 @@ impl Scopes for Walker<'_> {
         if parenthesized {
             self.parenthesized_nullary(node, whole, name);
         }
+        if !opaque && self.references.len() > before {
+            self.synonym_call(node, whole, name, argc);
+        }
     }
+
 
     fn place(&mut self, node: &Spanned, name: &str, opaque: bool) {
         self.position = Position::Place;

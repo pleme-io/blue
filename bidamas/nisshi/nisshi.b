@@ -324,11 +324,9 @@ end
 # labels, or of different formats, never share a first hash.
 def genesis(label)
   if string?(label) == false
-    throw(
-      error(
-        :eventlog_use,
-        "a stream label is a string, not #{raifusaikuru::show(label)}"
-      )
+    raise(
+      :eventlog_use,
+      "a stream label is a string, not #{raifusaikuru::show(label)}"
     )
   end
   chain_genesis("#{format}\n#{label}")
@@ -360,14 +358,12 @@ end
 def key_text(k)
   if string?(k)
     k
-  elsif keyword?(k) || symbol?(k)
+  elsif keyword?(k) or symbol?(k)
     to_s(k)
   else
-    throw(
-      error(
-        :eventlog_value,
-        "an object key is a name (a string or a keyword), not #{raifusaikuru::show(k)}"
-      )
+    raise(
+      :eventlog_value,
+      "an object key is a name (a string or a keyword), not #{raifusaikuru::show(k)}"
     )
   end
 end
@@ -375,22 +371,22 @@ end
 # True for a [name, value] pair.
 # waive B0013: `pair?` is a builtin nisshi also uses, so the prefix stays; nisshi::pair? names it too
 def el_pair?(p)
-  list?(p) &&
-    size(p) == 2 &&
-    (string?(first(p)) || keyword?(first(p)) || symbol?(first(p)))
+  list?(p) and
+    size(p) == 2 and
+    (string?(first(p)) or keyword?(first(p)) or symbol?(first(p)))
 end
 
 # True for a value JSON writes as an object: a non-empty list whose every
 # element is a [name, value] pair, the runtime's own rule.
 def object?(v)
-  list?(v) &&
-    is_empty(v) == false &&
+  list?(v) and
+    is_empty(v) == false and
     count_where(fn(p) el_pair?(p) == false end, v) == 0
 end
 
 # True for the value json_parse gives an empty object: a map that writes "{}".
 def empty_object?(v)
-  v != nil && list?(v) == false && json_stringify(v) == "{}"
+  v != nil and list?(v) == false and json_stringify(v) == "{}"
 end
 
 # The canonical JSON text of a value. Raises :eventlog_value for what JSON
@@ -401,23 +397,19 @@ def canon(v)
     "null"
   elsif list?(v)
     canon_list(v)
-  elsif string?(v) || integer?(v) || boolean?(v)
+  elsif string?(v) or integer?(v) or boolean?(v)
     json_stringify(v)
   elsif number?(v)
     canon_float(v)
-  elsif keyword?(v) || symbol?(v)
-    throw(
-      error(
-        :eventlog_value,
-        "#{raifusaikuru::show(v)} is a keyword, which JSON gives back as the string \"#{to_s(v)}\"; write the string"
-      )
+  elsif keyword?(v) or symbol?(v)
+    raise(
+      :eventlog_value,
+      "#{raifusaikuru::show(v)} is a keyword, which JSON gives back as the string \"#{to_s(v)}\"; write the string"
     )
   else
-    throw(
-      error(
-        :eventlog_value,
-        "#{raifusaikuru::show(v)} is not JSON data; write an object as a list of [key, value] pairs"
-      )
+    raise(
+      :eventlog_value,
+      "#{raifusaikuru::show(v)} is not JSON data; write an object as a list of [key, value] pairs"
     )
   end
 end
@@ -433,11 +425,9 @@ end
 def canon_float(x)
   t = json_stringify(x)
   if t == "null"
-    throw(
-      error(
-        :eventlog_value,
-        "#{to_s(x)} is not a finite number, and JSON cannot write it"
-      )
+    raise(
+      :eventlog_value,
+      "#{to_s(x)} is not a finite number, and JSON cannot write it"
     )
   end
   t
@@ -454,11 +444,9 @@ def sorted_pairs(pairs)
     range(0, size(texts) - 1)
   )
   if dup != nil
-    throw(
-      error(
-        :eventlog_value,
-        "key \"#{nth(dup, texts)}\" is given twice; an object holds one value per key"
-      )
+    raise(
+      :eventlog_value,
+      "key \"#{nth(dup, texts)}\" is given twice; an object holds one value per key"
     )
   end
   sorted
@@ -466,11 +454,9 @@ end
 
 def require_pair(p)
   if el_pair?(p) == false
-    throw(
-      error(
-        :eventlog_value,
-        "an object is a list of [key, value] pairs, and #{raifusaikuru::show(p)} is not one"
-      )
+    raise(
+      :eventlog_value,
+      "an object is a list of [key, value] pairs, and #{raifusaikuru::show(p)} is not one"
     )
   end
   p
@@ -514,11 +500,9 @@ end
 
 def require_distinct(texts, what)
   if size(unique(texts)) != size(texts)
-    throw(
-      error(
-        :eventlog_use,
-        "the definition has two of one #{what} name as text among #{raifusaikuru::show(texts)}; a log writes names as text and could not tell them apart"
-      )
+    raise(
+      :eventlog_use,
+      "the definition has two of one #{what} name as text among #{raifusaikuru::show(texts)}; a log writes names as text and could not tell them apart"
     )
   end
 end
@@ -622,17 +606,15 @@ def normal_links(links)
 end
 
 def normal_link(l)
-  if list?(l) &&
-    size(l) == 2 &&
-    raifusaikuru::name?(first(l)) &&
+  if list?(l) and
+    size(l) == 2 and
+    raifusaikuru::name?(first(l)) and
     string?(nth(1, l))
     [raifusaikuru::text(first(l)), nth(1, l)]
   else
-    throw(
-      error(
-        :eventlog_value,
-        "a link is [kind, id]: a name and a string, not #{raifusaikuru::show(l)}"
-      )
+    raise(
+      :eventlog_value,
+      "a link is [kind, id]: a name and a string, not #{raifusaikuru::show(l)}"
     )
   end
 end
@@ -843,7 +825,7 @@ end
 # el_decode_line with the definition's names already indexed (el_names), as
 # read and append hold them.
 def decode_named(names, position, line)
-  doc = try(json_parse(line), catch(_e(), :el_unreadable))
+  doc = json_parse(line) rescue :el_unreadable
   if doc == :el_unreadable
     bad(position, line, "not JSON")
   elsif is_doc(doc) == false
@@ -967,36 +949,36 @@ def shape_problem(
     "hash is not a hash"
   elsif sig_shape?(sig) == false
     "sig is neither null nor a string"
-  elsif (object?(payload) || empty_object?(payload)) == false
+  elsif (object?(payload) or empty_object?(payload)) == false
     "payload is not an object"
   elsif links_shape?(links) == false
     "links is not a list of {id, kind} objects"
   elsif refusal_shape?(status, refusal) == false
     "refusal does not match status"
-  else
-    nil
   end
 end
 
 def nonempty_string?(v)
-  string?(v) && v != ""
+  string?(v) and v != ""
 end
 
 def natural?(v)
-  integer?(v) && v >= 0
+  integer?(v) and v >= 0
 end
 
 def sig_shape?(v)
-  v == nil || string?(v)
+  v == nil or string?(v)
 end
 
 def links_shape?(v)
-  v != nil && list?(v) && count_where(fn(l) link_shape?(l) == false end, v) == 0
+  v != nil and
+    list?(v) and
+    count_where(fn(l) link_shape?(l) == false end, v) == 0
 end
 
 def link_shape?(l)
-  object?(l) &&
-    string?(get_str(l, "kind", nil)) &&
+  object?(l) and
+    string?(get_str(l, "kind", nil)) and
     string?(get_str(l, "id", nil))
 end
 
@@ -1004,17 +986,17 @@ def refusal_shape?(status, v)
   if status == "admitted"
     v == nil
   else
-    object?(v) &&
+    object?(v) and
       contains(
         map(fn(k) raifusaikuru::text(k) end, refusal_kinds),
         get_str(v, "kind", nil)
-      ) &&
+      ) and
       texts_list?(as_json(v, "detail"))
   end
 end
 
 def texts_list?(v)
-  v != nil && list?(v) && count_where(fn(x) string?(x) == false end, v) == 0
+  v != nil and list?(v) and count_where(fn(x) string?(x) == false end, v) == 0
 end
 
 # ── the log value ──────────────────────────────────────────────────────────
@@ -1043,10 +1025,8 @@ def new(path, label, d, bytes, records)
 end
 
 def require_log(log)
-  if (list?(log) && is_empty(log) == false && first(log) == :el_log) == false
-    throw(
-      error(:eventlog_use, "not a log value; get one from el_read or el_open")
-    )
+  if (list?(log) and is_empty(log) == false and first(log) == :el_log) == false
+    raise(:eventlog_use, "not a log value; get one from el_read or el_open")
   end
   log
 end
@@ -1101,11 +1081,9 @@ end
 def records(log)
   require_log(log)
   if nth(10, log) == nil
-    throw(
-      error(
-        :eventlog_use,
-        "this log value has been appended to, and a writer keeps no records; read the stream again"
-      )
+    raise(
+      :eventlog_use,
+      "this log value has been appended to, and a writer keeps no records; read the stream again"
     )
   end
   nth(10, log)
@@ -1155,11 +1133,9 @@ end
 def signing(log, secret_hex)
   require_log(log)
   if is_hash_hex(secret_hex) == false
-    throw(
-      error(
-        :eventlog_use,
-        "a signing key is a 32-byte seed, as 64 lowercase hex characters"
-      )
+    raise(
+      :eventlog_use,
+      "a signing key is a 32-byte seed, as 64 lowercase hex characters"
     )
   end
   update_at(log, 11, secret_hex)
@@ -1259,10 +1235,10 @@ end
 def from_text(text, path, bytes, label, d)
   lines = nisshi::lines(text)
   n = size(lines)
-  torn = text != "" && ends_with?(text, "\n") == false
+  torn = text != "" and ends_with?(text, "\n") == false
   names = nisshi::names(d)
   records = map(
-    fn(i) decode_at(names, i, nth(i, lines), torn && i == n - 1) end,
+    fn(i) decode_at(names, i, nth(i, lines), torn and i == n - 1) end,
     range(0, n)
   )
   reduce(
@@ -1304,11 +1280,9 @@ def open(path, label, d, public_hex)
   log = read(path, label, d)
   rep = verify(log, public_hex, nil)
   if intact?(rep) == false
-    throw(
-      error(
-        :eventlog_broken,
-        "#{path}: position #{to_s(break_position(rep))}, #{to_s(break_kind(rep))}: #{break_why(rep)}"
-      )
+    raise(
+      :eventlog_broken,
+      "#{path}: position #{to_s(break_position(rep))}, #{to_s(break_kind(rep))}: #{break_why(rep)}"
     )
   end
   log
@@ -1352,11 +1326,9 @@ def write(log, entity, event, links, observed)
   path = nisshi::path(log)
   on_disk = bytes_on_disk(path)
   if on_disk != bytes(log)
-    throw(
-      error(
-        :eventlog_stale,
-        "#{path} holds #{to_s(on_disk)} bytes and this log value knows #{to_s(bytes(log))}: the stream changed since the value was read. Read it again."
-      )
+    raise(
+      :eventlog_stale,
+      "#{path} holds #{to_s(on_disk)} bytes and this log value knows #{to_s(bytes(log))}: the stream changed since the value was read. Read it again."
     )
   end
   names = names_of(log)
@@ -1391,8 +1363,8 @@ end
 # observed event's guard refusal is none, because the event happened (the
 # step lc_admit_step took applied it and recorded the breach).
 def refusal_as(verdict, observed)
-  if observed &&
-    raifusaikuru::admitted?(verdict) == false &&
+  if observed and
+    raifusaikuru::admitted?(verdict) == false and
     raifusaikuru::reject_kind(verdict) == :guard
     nil
   else
@@ -1429,46 +1401,38 @@ end
 def require_writable(log)
   require_log(log)
   if path(log) == nil
-    throw(
-      error(
-        :eventlog_use,
-        "this log value was read from text, not a file, so it cannot be appended to"
-      )
+    raise(
+      :eventlog_use,
+      "this log value was read from text, not a file, so it cannot be appended to"
     )
   end
   if fault(log) != nil
-    throw(
-      error(
-        :eventlog_broken,
-        "position #{to_s(fault(log))} of #{path(log)} is not a record; a broken stream cannot grow"
-      )
+    raise(
+      :eventlog_broken,
+      "position #{to_s(fault(log))} of #{path(log)} is not a record; a broken stream cannot grow"
     )
   end
 end
 
 def require_entity(entity)
   if nonempty_string?(entity) == false
-    throw(
-      error(
-        :eventlog_value,
-        "an entity id is a non-empty string, not #{raifusaikuru::show(entity)}"
-      )
+    raise(
+      :eventlog_value,
+      "an entity id is a non-empty string, not #{raifusaikuru::show(entity)}"
     )
   end
 end
 
 def require_event(ev)
-  if (list?(ev) &&
-    size(ev) == 3 &&
-    raifusaikuru::name?(raifusaikuru::ev_type(ev)) &&
-    integer?(raifusaikuru::ev_time(ev)) &&
+  if (list?(ev) and
+    size(ev) == 3 and
+    raifusaikuru::name?(raifusaikuru::ev_type(ev)) and
+    integer?(raifusaikuru::ev_time(ev)) and
     list?(nth(2, ev))) ==
     false
-    throw(
-      error(
-        :eventlog_value,
-        "an event is lc_ev(type, time, payload): a name, a whole-number time and [key, value] pairs, not #{raifusaikuru::show(ev)}"
-      )
+    raise(
+      :eventlog_value,
+      "an event is lc_ev(type, time, payload): a name, a whole-number time and [key, value] pairs, not #{raifusaikuru::show(ev)}"
     )
   end
 end
@@ -1477,24 +1441,18 @@ end
 # and the event that was judged.
 def require_round_trip(r, line, ev)
   if record?(r) == false
-    throw(
-      error(
-        :eventlog_internal,
-        "a rendered line did not parse as a record: #{bad_why(r)}"
-      )
+    raise(
+      :eventlog_internal,
+      "a rendered line did not parse as a record: #{bad_why(r)}"
     )
   end
   if line_of(r) != line
-    throw(
-      error(:eventlog_internal, "a rendered line is not canonical: #{line}")
-    )
+    raise(:eventlog_internal, "a rendered line is not canonical: #{line}")
   end
   if rec_event(r) != ev
-    throw(
-      error(
-        :eventlog_value,
-        "the event would not read back as written; JSON keeps strings, numbers, true/false, nil and lists, and a keyword inside a value (a key or an element) comes back as a string"
-      )
+    raise(
+      :eventlog_value,
+      "the event would not read back as written; JSON keeps strings, numbers, true/false, nil and lists, and a keyword inside a value (a key or an element) comes back as a string"
     )
   end
 end
@@ -1509,8 +1467,8 @@ end
 # exactly there: the only way a line dropped from the END can be seen. Pure.
 def verify(log, public_hex, expected_head)
   require_log(log)
-  if public_hex != nil && is_hash_hex(public_hex) == false
-    throw(error(:eventlog_use, "a public key is 64 lowercase hex characters"))
+  if public_hex != nil and is_hash_hex(public_hex) == false
+    raise(:eventlog_use, "a public key is 64 lowercase hex characters")
   end
   records = nisshi::records(log)
   bad = find_first(fn(x) record?(x) == false end, records)
@@ -1531,7 +1489,7 @@ def verify(log, public_hex, expected_head)
   head = head_of(g, good)
   if earliest != nil
     [:el_broken, nth(0, earliest), nth(1, earliest), nth(2, earliest)]
-  elsif expected_head != nil && expected_head != head
+  elsif expected_head != nil and expected_head != head
     [
       :el_broken,
       size(records),
@@ -1560,7 +1518,7 @@ def head_of(g, good)
 end
 
 def earlier(best, b)
-  if best == nil || first(b) < first(best)
+  if best == nil or first(b) < first(best)
     b
   else
     best
@@ -1674,11 +1632,7 @@ end
 
 def sig_ok?(r, public_hex)
   if string?(rec_sig(r))
-    try(
-      verify_message(public_hex, rec_hash(r), rec_sig(r)),
-      catch(_e(), false)
-    ) ==
-      true
+    (verify_message(public_hex, rec_hash(r), rec_sig(r)) rescue false) == true
   else
     false
   end
@@ -1745,7 +1699,7 @@ end
 def state_at(log, entity, time)
   d = el_def(log)
   records = filter(
-    fn(x) record?(x) && rec_entity(x) == entity && rec_time(x) <= time end,
+    fn(x) record?(x) and rec_entity(x) == entity and rec_time(x) <= time end,
     nisshi::records(log)
   )
   reduce(fn(s, r) fold_record(d, s, r) end, raifusaikuru::initial(d), records)
@@ -2107,12 +2061,8 @@ def control_verdict(row)
 end
 
 test "controls: a changed, dropped or reordered line, a wrong signature and every other break, each found at its position"
-  k = signing_keypair(
-    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
-  )
-  other = signing_keypair(
-    "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
-  )
+  k = signing_keypair("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
+  other = signing_keypair("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb")
   base = control_lines(test_path("controls"), keypair_secret(k))
   lines = first(base)
   head = nth(1, base)
@@ -2204,7 +2154,18 @@ test "append raises before writing on what JSON cannot hold, and on a malformed 
     end,
     fn() el_append(l0, "item-1", [:open], []) end
   ]
-  assert map(fn(call) error?(try(call(), catch(e(), e))) end, bad_calls) ==
+  assert map(
+    fn(call)
+      error?(
+        begin
+          call()
+        rescue e
+          e
+        end
+      )
+    end,
+    bad_calls
+  ) ==
     repeat(true, size(bad_calls))
   assert path_exists(p) == false
   # The control: the same call with a JSON value goes through.
@@ -2224,25 +2185,39 @@ test "a stale log value cannot write, a written-through value keeps no records, 
   l0 = read(p, "nisshi-test", d)
   l1 = el_append(l0, "item-1", raifusaikuru::ev(:open, 1000, []), [])
   assert error?(
-    try(
-      el_append(l0, "item-1", raifusaikuru::ev(:open, 1100, []), []),
-      catch(e(), e)
-    )
+    begin
+      el_append(l0, "item-1", raifusaikuru::ev(:open, 1100, []), [])
+    rescue e
+      e
+    end
   )
   assert el_count(read(p, "nisshi-test", d)) == 1
-  assert error?(try(records(l1), catch(e(), e)))
+  assert error?(
+    begin
+      records(l1)
+    rescue e
+      e
+    end
+  )
   l2 = el_append(l1, "item-1", raifusaikuru::ev(:use, 1100, []), [])
   assert el_count(l2) == 2
   append_file(p, "not a record\n")
   broken = read(p, "nisshi-test", d)
   assert fault(broken) == 2
   assert error?(
-    try(
-      el_append(broken, "item-1", raifusaikuru::ev(:use, 1200, []), []),
-      catch(e(), e)
-    )
+    begin
+      el_append(broken, "item-1", raifusaikuru::ev(:use, 1200, []), [])
+    rescue e
+      e
+    end
   )
-  assert error?(try(open(p, "nisshi-test", d, nil), catch(e(), e)))
+  assert error?(
+    begin
+      open(p, "nisshi-test", d, nil)
+    rescue e
+      e
+    end
+  )
   assert el_count(read(p, "nisshi-test", d)) == 3
   rm(p)
   # The control: el_open on an intact stream opens it.
@@ -2269,7 +2244,13 @@ test "a stale log value cannot write, a written-through value keeps no records, 
       raifusaikuru::on(:a, "go", :b, [])
     ]
   )
-  assert error?(try(read(p2, "nisshi-test", two), catch(e(), e)))
+  assert error?(
+    begin
+      read(p2, "nisshi-test", two)
+    rescue e
+      e
+    end
+  )
 end
 
 test "links are carried faithfully: kinds as text, ids, order and duplicates, in the hash"
@@ -2306,8 +2287,20 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
   assert canon([[:z, [["y", 2], ["x", 1]]]]) == "{\"z\":{\"x\":1,\"y\":2}}"
   assert canon("é \"q\"\n") == "\"é \\\"q\\\"\\n\""
   assert canon([nil]) == "[null]"
-  assert error?(try(canon(:k), catch(e(), e)))
-  assert error?(try(canon([["a", 1], ["a", 2]]), catch(e(), e)))
+  assert error?(
+    begin
+      canon(:k)
+    rescue e
+      e
+    end
+  )
+  assert error?(
+    begin
+      canon([["a", 1], ["a", 2]])
+    rescue e
+      e
+    end
+  )
   d = raifusaikuru::example_consumable
   p = test_path("canon")
   l1 = el_append(
@@ -2380,8 +2373,8 @@ test "history: the state after every record, from read's own fold"
             fn(r) rec_event(r) end,
             filter(
               fn(r)
-                rec_entity(r) == rec_entity(first(x)) &&
-                  rec_seq(r) <= rec_seq(first(x)) &&
+                rec_entity(r) == rec_entity(first(x)) and
+                  rec_seq(r) <= rec_seq(first(x)) and
                   rec_admitted?(r)
               end,
               map(fn(y) first(y) end, rows)
@@ -2393,7 +2386,13 @@ test "history: the state after every record, from read's own fold"
   ) ==
     0
   # The control: a value that was appended to keeps no records to replay.
-  assert error?(try(history(log), catch(e(), e)))
+  assert error?(
+    begin
+      history(log)
+    rescue e
+      e
+    end
+  )
 end
 
 test "grouping by entity keeps first-appearance order and stream order, and leaves bad lines out"
@@ -2544,7 +2543,13 @@ test "the state as of a time: the records at or before it, folded as read folds 
     raifusaikuru::ev(:open, 10, []),
     []
   )
-  assert error?(try(state_at(w, "item-1", 10), catch(e(), e)))
+  assert error?(
+    begin
+      state_at(w, "item-1", 10)
+    rescue e
+      e
+    end
+  )
   rm(p)
   rm(q)
 end

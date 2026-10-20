@@ -253,7 +253,7 @@ end
 # the sum counts ORDERED block assignments and k! is how many orderings each
 # unordered partition was counted under.
 def stirling2(n, k)
-  if n < 0 || k < 0
+  if n < 0 or k < 0
     0
   elsif k > n
     0
@@ -332,7 +332,7 @@ end
 # every part exceeds 1 (subtract one from each: n-k into k parts). Summing
 # this over k recovers partitions(n), which is the test below.
 def partitions_into(n, k)
-  if n < 0 || k < 0
+  if n < 0 or k < 0
     0
   elsif k < 1
     if n < 1
@@ -444,7 +444,7 @@ test "permutations and combinations"
 end
 
 test "a poker hand, which is the number everyone knows"
-  assert combinations(52, 5) == 2598960
+  assert combinations(52, 5) == 2_598_960
 end
 
 test "pascal row sums to a power of two"
@@ -587,7 +587,7 @@ test "fibonacci is seeded at zero, and stays cheap far out"
   # An implementation seeded 1,1 passes every line above except this one.
   assert fibonacci(7) == 13
   # Far enough out that a doubly-recursive version would still be running.
-  assert fibonacci(30) == 832040
+  assert fibonacci(30) == 832_040
 end
 
 test "lucas is the same recurrence with different seeds"
@@ -743,7 +743,7 @@ test "simplify_ratio reduces, normalises the sign, and survives a zero"
   assert simplify_ratio(5, 0) == [5, 0]
   assert simplify_ratio(0, 0) == [0, 0]
   # What it is for: the odds of a specific poker hand, exactly.
-  assert simplify_ratio(4, combinations(52, 5)) == [1, 649740]
+  assert simplify_ratio(4, combinations(52, 5)) == [1, 649_740]
 end
 
 test "coprime, including the two cases people argue about"

@@ -11,7 +11,7 @@ def port_refusals(text)
   n = to_int(text)
   if n == nil
     [[:not_a_number, "#{text} is not a port number"]]
-  elsif n < 1 || n > 65535
+  elsif n < 1 or n > 65535
     [[:out_of_range, "#{n} is outside 1..65535"]]
   else
     []
@@ -25,13 +25,8 @@ end
 # The boundary: return the port, or raise naming every refusal.
 def port_of(text)
   refusals = port_refusals(text)
-  if !is_empty(refusals)
-    throw(
-      error(
-        first(first(refusals)),
-        join(map(fn(r) last(r) end, refusals), "; ")
-      )
-    )
+  if not is_empty(refusals)
+    raise(first(first(refusals)), join(map(fn(r) last(r) end, refusals), "; "))
   end
   to_int(text)
 end
@@ -48,9 +43,13 @@ test "each bad input is refused with its own kind"
 end
 
 test "the boundary raises, and a caller can catch it"
-  caught = try(port_of("http"), catch(e(), e))
+  caught = begin
+    port_of("http")
+  rescue e
+    e
+  end
   assert error?(caught)
-  assert try(port_of("22"), catch(_e(), :failed)) == 22
+  assert (port_of("22") rescue :failed) == 22
 end
 
 test "error() alone is a value, not a raise"

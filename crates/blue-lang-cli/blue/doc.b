@@ -37,13 +37,13 @@ use("retsu", [:first, :flat_map, :last])
 # --rows`).
 
 def run_blue(args)
-  apply(exec_capture, cons(self_exe, args))
+  exec_capture(*cons(self_exe, args))
 end
 
 def captured(args)
   r = run_blue(args)
   if nth(1, nth(0, r)) != 0
-    throw(error(:doc, "blue #{join(args, " ")}: #{nth(1, nth(2, r))}"))
+    raise(:doc, "blue #{join(args, " ")}: #{nth(1, nth(2, r))}")
   end
   nth(1, nth(1, r))
 end
@@ -51,7 +51,7 @@ end
 # The value after `flag` in the arguments, or nil.
 def flag_value(args, flag)
   at = filter(fn(i) nth(i, args) == flag end, range(length(args)))
-  if empty?(at) || first(at) + 1 >= length(args)
+  if empty?(at) or first(at) + 1 >= length(args)
     nil
   else
     nth(first(at) + 1, args)
@@ -99,11 +99,11 @@ end
 # Does `line` call `name`: `name(` not preceded by a name character?
 def calls?(line, name)
   parts = split(line, "#{name}(")
-  length(parts) > 1 &&
+  length(parts) > 1 and
     any?(
       fn(before)
         cs = chars(before)
-        empty?(cs) || !name_char?(nth(length(cs) - 1, cs))
+        empty?(cs) or not name_char?(nth(length(cs) - 1, cs))
       end,
       take(length(parts) - 1, parts)
     )
@@ -192,11 +192,9 @@ def lookup(name, file, records)
   parts = split(name, "::")
   qualifier = if length(parts) == 2
     first(parts)
-  else
-    nil
   end
   bare = last(parts)
-  own = if file == nil || json_get(ctx, "namespace") != nil
+  own = if file == nil or json_get(ctx, "namespace") != nil
     []
   else
     text = read_file(file)
@@ -213,9 +211,9 @@ def lookup(name, file, records)
         filter(fn(e) first(e) == bare end, pkg_entries(r))
       )
     end,
-    filter(fn(r) qualifier == nil || qualifier == pkg_name(r) end, records)
+    filter(fn(r) qualifier == nil or qualifier == pkg_name(r) end, records)
   )
-  from_builtins = if qualifier == nil || qualifier == "blue"
+  from_builtins = if qualifier == nil or qualifier == "blue"
     map(
       fn(b) builtin_entry(b, "builtin") end,
       filter(fn(b) json_get(b, "name") == bare end, builtins)
@@ -304,15 +302,15 @@ end
 # What the doc says, written to stdout; true when something was found. The
 # binary exits non-zero on false.
 def main(args)
-  if empty?(args) || starts_with?(first(args), "--")
-    throw(error(:usage, "usage: blue doc NAME [--file FILE] [--json]"))
+  if empty?(args) or starts_with?(first(args), "--")
+    raise(:usage, "usage: blue doc NAME [--file FILE] [--json]")
   end
   name = first(args)
   json? = member?("--json", args)
   file = flag_value(args, "--file")
   records = catalog_of(blue_path_roots(getenv("BLUE_PATH", "")))
   packages = filter(fn(r) pkg_name(r) == name end, records)
-  if !contains?(name, "::") && !empty?(packages)
+  if not contains?(name, "::") and not empty?(packages)
     p = package_entry(first(packages))
     if json?
       write_stdout("#{json_stringify(p)}\n")

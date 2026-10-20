@@ -40,7 +40,7 @@ def first(xs)
   if is_empty(xs)
     nil
   else
-    car(xs)
+    blue::first(xs)
   end
 end
 
@@ -52,7 +52,7 @@ def rest(xs)
   if size(xs) < 2
     []
   else
-    cdr(xs)
+    blue::rest(xs)
   end
 end
 
@@ -76,7 +76,7 @@ def flatten1(xss)
   if xss == nil
     []
   else
-    apply(append, xss)
+    append(*xss)
   end
 end
 
@@ -120,10 +120,10 @@ end
 test "size is total where length is not"
   # cdr of a singleton is nil, and length(nil) errors. This is the whole
   # reason the package exists, so it is the first thing asserted.
-  assert size(cdr([1])) == 0
+  assert size(blue::rest([1])) == 0
   assert size([]) == 0
   assert size([1, 2, 3]) == 3
-  assert is_empty(cdr([1])) == true
+  assert is_empty(blue::rest([1])) == true
 end
 
 test "rest normalises the tail to a list"
@@ -187,7 +187,7 @@ end
 # On top of the order they close the partial edges: a negative count, a count
 # past the end, and nil for the list all answer with a list instead of an error.
 def take_n(xs, n)
-  if is_empty(xs) || n < 1
+  if is_empty(xs) or n < 1
     []
   else
     take(min(n, size(xs)), xs)
@@ -250,7 +250,7 @@ def count_of(xs, v)
 end
 
 def without(xs, v)
-  filter(fn(x) !(x == v) end, xs)
+  filter(fn(x) x != v end, xs)
 end
 
 test "take_n and drop_n are total where take and drop are ordered the other way"
@@ -262,8 +262,8 @@ test "take_n and drop_n are total where take and drop are ordered the other way"
   assert drop_n([1, 2], 9) == []
   assert drop_n([1, 2], -1) == [1, 2]
   # nil is the other empty, and it must not reach the builtin.
-  assert take_n(cdr([1]), 1) == []
-  assert drop_n(cdr([1]), 1) == []
+  assert take_n(blue::rest([1]), 1) == []
+  assert drop_n(blue::rest([1]), 1) == []
   # take_n and drop_n cut the list in two at every point, losing nothing.
   assert append(take_n([1, 2, 3], 2), drop_n([1, 2, 3], 2)) == [1, 2, 3]
 end
@@ -376,7 +376,7 @@ end
 # The `n < 1` guard is load-bearing: without it a chunk size of zero drops
 # nothing each pass and the recursion never reaches the empty list.
 def chunk(xs, n)
-  if is_empty(xs) || n < 1
+  if is_empty(xs) or n < 1
     []
   else
     cons(take_n(xs, n), chunk(drop_n(xs, n), n))
@@ -388,7 +388,7 @@ end
 # A width wider than the list has no windows at all, which is why this answers
 # [] rather than one short window: a caller asking for pairs wants pairs.
 def windows(xs, n)
-  if n < 1 || size(xs) < n
+  if n < 1 or size(xs) < n
     []
   else
     map(fn(i) slice(xs, i, n) end, range(0, size(xs) - n + 1))
@@ -401,7 +401,7 @@ def rotate(xs, n)
   if is_empty(xs)
     []
   else
-    k = modulo(n, size(xs))
+    k = n % size(xs)
     append(drop_n(xs, k), take_n(xs, k))
   end
 end
@@ -501,7 +501,7 @@ def find_first(f, xs)
 end
 
 def reject(f, xs)
-  filter(fn(x) !f(x) end, xs)
+  filter(fn(x) not f(x) end, xs)
 end
 
 def count_where(f, xs)
@@ -650,8 +650,8 @@ end
 # tail was nil); since okite D0011 the empty list is always [], so this agrees
 # with `==` everywhere and stays as vocabulary. Prefer `==`.
 def equal_lists(a, b)
-  if is_empty(a) || is_empty(b)
-    is_empty(a) && is_empty(b)
+  if is_empty(a) or is_empty(b)
+    is_empty(a) and is_empty(b)
   elsif first(a) == first(b)
     equal_lists(rest(a), rest(b))
   else
@@ -680,7 +680,7 @@ end
 # way to catch the raise. So the depth is the caller's to state, and a level
 # whose elements are not all lists is an error rather than a silent pass.
 def flatten_n(xss, depth)
-  if depth < 1 || is_empty(xss)
+  if depth < 1 or is_empty(xss)
     as_list(xss)
   else
     flatten_n(flatten1(xss), depth - 1)
@@ -690,8 +690,8 @@ end
 test "equal_lists agrees with ==, the empty lists included"
   # Since okite D0011 `cdr([1])` is [] rather than nil, so == already equates
   # them; equal_lists stays, as vocabulary, and agrees.
-  assert cdr([1]) == []
-  assert equal_lists(cdr([1]), []) == true
+  assert blue::rest([1]) == []
+  assert equal_lists(blue::rest([1]), []) == true
   assert equal_lists([], []) == true
   assert equal_lists([1, 2], [1, 2]) == true
   assert equal_lists([1, 2], [1, 3]) == false

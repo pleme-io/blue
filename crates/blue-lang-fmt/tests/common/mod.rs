@@ -54,7 +54,29 @@ pub fn lawful_overflow(line: &str) -> bool {
     else {
         return false;
     };
-    let head = &toks[..s];
+    let mut head = &toks[..s];
+    match toks.get(s + 1).map(|t| &t.kind) {
+        Some(TokenKind::RParen) => {
+            if let [rest @ .., call, open] = head {
+                if matches!(call.kind, TokenKind::Ident(_)) && open.kind == TokenKind::LParen {
+                    head = rest;
+                    if let [before @ .., pkg, sep] = head {
+                        if matches!(pkg.kind, TokenKind::Ident(_)) && sep.kind == TokenKind::PathSep {
+                            head = before;
+                        }
+                    }
+                }
+            }
+        }
+        Some(TokenKind::RBracket) => {
+            if let [rest @ .., open] = head {
+                if open.kind == TokenKind::LBracket {
+                    head = rest;
+                }
+            }
+        }
+        _ => {}
+    }
     let head_ok = match head {
         [] => true,
         [t] => {

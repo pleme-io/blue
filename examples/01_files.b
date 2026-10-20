@@ -28,7 +28,7 @@ test "a file written, appended to and read back"
   assert is_file?(path)
   assert size(ls(dir)) == 1
   rm_rf(dir)
-  assert !path_exists(dir)
+  assert not path_exists(dir)
 end
 
 test "a missing file is a default, not a crash, through read_or"

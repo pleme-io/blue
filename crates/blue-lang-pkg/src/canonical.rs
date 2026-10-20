@@ -80,22 +80,50 @@ pub fn admit(path: &Path, text: String) -> Result<String, Refusal> {
     if formatted.trim_end() == text.trim_end() {
         return Ok(text);
     }
+    let rules = rules_named(&text);
     if in_store(path) {
         return Err(Refusal::NotFormatted {
             path: shown,
-            why: " (it is in the nix store, which is read-only)".to_string(),
+            why: format!("{rules} (it is in the nix store, which is read-only)"),
         });
     }
     match rewrite(path, &formatted) {
         Ok(()) => {
-            eprintln!("blue: formatted {shown}");
+            eprintln!("blue: formatted {shown}{rules}");
             Ok(formatted)
         }
         Err(e) => Err(Refusal::NotFormatted {
             path: shown,
-            why: format!(" (it cannot be rewritten here: {e})"),
+            why: format!("{rules} (it cannot be rewritten here: {e})"),
         }),
     }
+}
+
+#[must_use]
+pub fn rules_named(text: &str) -> String {
+    let diagnostics = blue_lang_runtime::pipeline::form_diagnostics(text);
+    if diagnostics.is_empty() {
+        return String::new();
+    }
+    let mut counts: std::collections::BTreeMap<blue_lang_check::Code, usize> =
+        std::collections::BTreeMap::new();
+    for d in &diagnostics {
+        *counts.entry(d.code).or_default() += 1;
+    }
+    let first = &diagnostics[0];
+    let (line, col) = blue_lang_syntax::Span::line_col(text, first.span.start.min(text.len()));
+    let named: Vec<String> = counts
+        .iter()
+        .map(|(c, n)| {
+            let slug = c.rule().slug;
+            if *n > 1 {
+                format!("{c} {slug} ×{n}")
+            } else {
+                format!("{c} {slug}")
+            }
+        })
+        .collect();
+    format!(" ({}; first at {line}:{col}: {})", named.join(", "), first.message)
 }
 
 /// # Errors

@@ -10,8 +10,6 @@ def blue_version()
   cap = exec_capture(self_exe, "--version")
   if status_of(cap) == 0
     trim(stdout_of(cap))
-  else
-    nil
   end
 end
 
@@ -22,5 +20,5 @@ end
 test "a failing command is a status, not a raise"
   cap = exec_capture(self_exe, "no-such-subcommand")
   assert status_of(cap) != 0
-  assert !is_blank(stderr_of(cap))
+  assert not is_blank(stderr_of(cap))
 end

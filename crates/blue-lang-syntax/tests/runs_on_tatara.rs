@@ -177,7 +177,7 @@ fn every_infix_operator_lowers_to_a_callee_the_interpreter_resolves() {
 fn the_operator_table_is_populated_and_actually_renames_where_needed() {
     let ops: Vec<&str> = blue_lang_syntax::INFIX.iter().map(|i| i.op).collect();
     for expected in [
-        "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%", "&&", "||",
+        "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%", "and", "or",
     ] {
         assert!(
             ops.contains(&expected),

@@ -57,7 +57,7 @@ end
 # vector against a written-out literal needs this, not `==`.
 def vector_near(a, b)
   if size(a) == size(b)
-    reduce(fn(acc, i) acc && near(nth(i, a), nth(i, b)) end, true, indexes(a))
+    reduce(fn(acc, i) acc and near(nth(i, a), nth(i, b)) end, true, indexes(a))
   else
     false
   end
@@ -131,7 +131,7 @@ end
 # Angle in radians. A zero vector has no direction, so there is no angle to
 # report; 0 is returned rather than crashing in the division.
 def angle_between(a, b)
-  if is_zero_vector(a) || is_zero_vector(b)
+  if is_zero_vector(a) or is_zero_vector(b)
     0
   else
     arccos(dot(a, b) / (magnitude(a) * magnitude(b)))
@@ -143,7 +143,7 @@ def rows(m)
 end
 
 def cols(m)
-  length(car(m))
+  length(blue::first(m))
 end
 
 def col(m, j)
@@ -207,9 +207,9 @@ def matrix_equal(a, b)
   if shape(a) == shape(b)
     reduce(
       fn(acc, i)
-        acc &&
+        acc and
           reduce(
-            fn(inner, j) inner && nth(j, row(a, i)) == nth(j, row(b, i)) end,
+            fn(inner, j) inner and nth(j, row(a, i)) == nth(j, row(b, i)) end,
             true,
             indexes(row(a, i))
           )
@@ -226,7 +226,7 @@ end
 def matrix_near(a, b)
   if shape(a) == shape(b)
     reduce(
-      fn(acc, i) acc && vector_near(row(a, i), row(b, i)) end,
+      fn(acc, i) acc and vector_near(row(a, i), row(b, i)) end,
       true,
       indexes(a)
     )
@@ -236,11 +236,11 @@ def matrix_near(a, b)
 end
 
 def is_symmetric(m)
-  is_square(m) && matrix_equal(m, transpose(m))
+  is_square(m) and matrix_equal(m, transpose(m))
 end
 
 def is_identity(m)
-  is_square(m) && matrix_equal(m, identity_matrix(size(m)))
+  is_square(m) and matrix_equal(m, identity_matrix(size(m)))
 end
 
 # --- matrix construction and arithmetic --------------------------------------
@@ -305,7 +305,8 @@ end
 # with matrix_near rather than matrix_equal because any real rotation goes
 # through sin/cos and lands on floats.
 def is_orthogonal(m)
-  is_square(m) && matrix_near(matmul(m, transpose(m)), identity_matrix(size(m)))
+  is_square(m) and
+    matrix_near(matmul(m, transpose(m)), identity_matrix(size(m)))
 end
 
 # --- determinants, minors, inverses ------------------------------------------
@@ -578,7 +579,7 @@ test "arccos on acos agrees with the bisection it replaced"
   xs = [-0.9, -0.5, -0.1, 0, 0.3, 0.5, 0.7071067811865476, 0.99]
   assert reduce(
     fn(ok, x)
-      ok &&
+      ok and
         near_within(
           arccos(x),
           arccos_bisect(x, 0, 3.141592653589793, 60),
@@ -631,7 +632,7 @@ end
 test "matrix_equal agrees with == on every matrix, the empty ones included"
   # Since okite D0011 no list operation yields nil for an empty result, so the
   # two empties this test once kept apart are one value.
-  e = cdr([[1, 2]])
+  e = blue::rest([[1, 2]])
   assert e == []
   assert matrix_equal(e, []) == true
   assert matrix_equal([[1, 2]], [[1, 2]]) == true

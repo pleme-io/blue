@@ -105,7 +105,7 @@ end
 # (31 of 32 µs; now 12 µs. Measured 2026-09-24 by nisshi's profile).
 def is_hash_hex(s)
   if string?(s)
-    length(s) == 64 &&
+    length(s) == 64 and
       reduce(
         fn(left, c) replace(left, c, "") end,
         s,
@@ -141,7 +141,7 @@ def chain_genesis(label)
   if string?(label)
     hash_message("blue-chain/v1/genesis\n#{label}")
   else
-    throw(error(:chain, "a chain label must be a string"))
+    raise(:chain, "a chain label must be a string")
   end
 end
 
@@ -152,7 +152,7 @@ def chain_link(prev, payload)
   if string?(payload)
     hash_message("blue-chain/v1/link\n#{prev}\n#{payload}")
   else
-    throw(error(:chain, "a chain payload must be a string; serialize it first"))
+    raise(:chain, "a chain payload must be a string; serialize it first")
   end
 end
 
@@ -206,15 +206,13 @@ end
 def chain_at(i, xs)
   if i < size(xs)
     nth(i, xs)
-  else
-    nil
   end
 end
 
 # Raise unless `h` has the shape of a hash, naming which argument it was.
 def chain_require_hash(h, what)
-  if !is_hash_hex(h)
-    throw(error(:chain, "#{what} must be 64 lowercase hex characters"))
+  if not is_hash_hex(h)
+    raise(:chain, "#{what} must be 64 lowercase hex characters")
   end
 end
 
@@ -235,9 +233,7 @@ test "the empty message: the official BLAKE3 vector and RFC 8032 TEST 1"
   assert hash_message("") ==
     "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
   assert hash_message([]) == hash_message("")
-  kp = signing_keypair(
-    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
-  )
+  kp = signing_keypair("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
   assert keypair_public(kp) ==
     "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
   assert sign_message(keypair_secret(kp), "") ==
@@ -248,9 +244,7 @@ test "RFC 8032 TEST 2 (the one byte 0x72, written as r) and TEST 3 (bytes af 82)
   pub2 = "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
   sig2 = "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
   assert keypair_public(
-    signing_keypair(
-      "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
-    )
+    signing_keypair("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb")
   ) ==
     pub2
   assert sign_message(
@@ -271,12 +265,8 @@ test "RFC 8032 TEST 2 (the one byte 0x72, written as r) and TEST 3 (bytes af 82)
 end
 
 test "a signature round-trips, and fails for a changed message, key or signature"
-  kp = signing_keypair(
-    "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
-  )
-  other = signing_keypair(
-    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
-  )
+  kp = signing_keypair("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb")
+  other = signing_keypair("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
   sig = sign_message(keypair_secret(kp), "permit: door 3, until 18:00")
   assert verify_message(
     keypair_public(kp),
@@ -307,21 +297,26 @@ end
 
 test "malformed input raises instead of answering false"
   pub = "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
-  assert try(verify_message("abcd", "m", "00"), catch(_e(), :raised)) == :raised
-  assert try(verify_message(pub, "m", "not hex"), catch(_e(), :raised)) ==
-    :raised
-  assert try(sign_message("00", "m"), catch(_e(), :raised)) == :raised
-  assert try(hash_message(nil), catch(_e(), :raised)) == :raised
-  assert try(hash_message([256]), catch(_e(), :raised)) == :raised
-  assert error?(try(signing_keypair(42), catch(e(), e)))
+  assert (verify_message("abcd", "m", "00") rescue :raised) == :raised
+  assert (verify_message(pub, "m", "not hex") rescue :raised) == :raised
+  assert (sign_message("00", "m") rescue :raised) == :raised
+  assert (hash_message(nil) rescue :raised) == :raised
+  assert (hash_message([256]) rescue :raised) == :raised
+  assert error?(
+    begin
+      signing_keypair(42)
+    rescue e
+      e
+    end
+  )
 end
 
 test "is_hash_hex accepts exactly the shape hash_message returns"
   assert is_hash_hex(hash_message("x"))
-  assert !is_hash_hex(upcase(hash_message("x")))
-  assert !is_hash_hex("abc")
-  assert !is_hash_hex(nil)
-  assert !is_hash_hex(concat(hash_message("x"), "0"))
+  assert not is_hash_hex(upcase(hash_message("x")))
+  assert not is_hash_hex("abc")
+  assert not is_hash_hex(nil)
+  assert not is_hash_hex(concat(hash_message("x"), "0"))
 end
 
 test "chain values match b3sum over the two documented lines"
@@ -355,14 +350,14 @@ test "a changed, dropped, added or reordered payload breaks the chain"
   stored = chain_hashes(g, events)
   assert chain_verify(g, events, head_hash)
   assert chain_first_break(g, events, stored) == nil
-  assert !chain_verify(g, ["event-1", "event-X", "event-3"], head_hash)
-  assert !chain_verify(g, ["event-1", "event-3"], head_hash)
-  assert !chain_verify(
+  assert not chain_verify(g, ["event-1", "event-X", "event-3"], head_hash)
+  assert not chain_verify(g, ["event-1", "event-3"], head_hash)
+  assert not chain_verify(
     g,
     ["event-1", "event-2", "event-3", "event-4"],
     head_hash
   )
-  assert !chain_verify(g, ["event-2", "event-1", "event-3"], head_hash)
+  assert not chain_verify(g, ["event-2", "event-1", "event-3"], head_hash)
   assert chain_first_break(g, ["event-1", "event-X", "event-3"], stored) == 1
   assert chain_first_break(g, ["event-1", "event-2"], stored) == 2
   assert chain_first_break(g, ["event-9", "event-2", "event-3"], stored) == 0
@@ -370,9 +365,9 @@ end
 
 test "a link refuses a previous hash or payload it cannot place"
   g = chain_genesis("test-log")
-  assert try(chain_link("abc", "x"), catch(_e(), :raised)) == :raised
-  assert try(chain_link(upcase(g), "x"), catch(_e(), :raised)) == :raised
-  assert try(chain_link(g, 42), catch(_e(), :raised)) == :raised
-  assert try(chain_verify(g, [], "not a head"), catch(_e(), :raised)) == :raised
-  assert try(chain_genesis(nil), catch(_e(), :raised)) == :raised
+  assert (chain_link("abc", "x") rescue :raised) == :raised
+  assert (chain_link(upcase(g), "x") rescue :raised) == :raised
+  assert (chain_link(g, 42) rescue :raised) == :raised
+  assert (chain_verify(g, [], "not a head") rescue :raised) == :raised
+  assert (chain_genesis(nil) rescue :raised) == :raised
 end

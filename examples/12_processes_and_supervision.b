@@ -9,7 +9,7 @@
 def squarer(parent)
   n = receive()
   if n < 0
-    throw(error(:negative, "cannot square #{n}"))
+    raise(:negative, "cannot square #{n}")
   end
   send(parent, [:square, n, n * n])
   squarer(parent)

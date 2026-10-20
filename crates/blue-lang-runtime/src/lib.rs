@@ -39,6 +39,7 @@ pub mod crypto;
 pub mod docs;
 pub mod domain;
 pub mod erase;
+pub mod errors;
 pub mod hosted;
 pub mod inputs;
 pub mod json;

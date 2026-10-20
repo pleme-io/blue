@@ -21,54 +21,50 @@ def store_dir()
 end
 
 def store_path?(p)
-  string?(p) &&
-    starts_with?(p, store_dir) &&
-    length(p) > 44 &&
+  string?(p) and
+    starts_with?(p, store_dir) and
+    length(p) > 44 and
     take_chars(drop_chars(p, 43), 1) == "-"
 end
 
 def store_hash(p)
   if store_path?(p)
     take_chars(drop_chars(p, 11), 32)
-  else
-    nil
   end
 end
 
 def store_name(p)
   if store_path?(p)
     first(split(drop_chars(p, 44), "/"))
-  else
-    nil
   end
 end
 
 def failure_class(text)
-  if includes(text, "HTTP error 401") ||
-    includes(text, "HTTP error 403") ||
-    includes(text, "HTTP error 404") ||
+  if includes(text, "HTTP error 401") or
+    includes(text, "HTTP error 403") or
+    includes(text, "HTTP error 404") or
     includes(text, "Bad credentials")
     :credential
-  elsif includes(text, "unable to download") ||
-    includes(text, "Could not resolve host") ||
-    includes(text, "Couldn't resolve host") ||
+  elsif includes(text, "unable to download") or
+    includes(text, "Could not resolve host") or
+    includes(text, "Couldn't resolve host") or
     includes(text, "HTTP error")
     :fetch
-  elsif includes(text, "error: builder for") ||
-    includes(text, "Cannot build '") ||
+  elsif includes(text, "error: builder for") or
+    includes(text, "Cannot build '") or
     includes(text, "failed with exit code")
     :builder
   elsif includes(text, "timed out")
     :timeout
-  elsif includes(text, "out of memory") ||
-    includes(text, "GC Warning: Out of Memory") ||
+  elsif includes(text, "out of memory") or
+    includes(text, "GC Warning: Out of Memory") or
     includes(text, "std::bad_alloc")
     :memory
   elsif includes(text, "Failed assertions:")
     :assertion
-  elsif includes(text, "while evaluating") ||
-    includes(text, "while calling") ||
-    includes(text, "error: attribute") ||
+  elsif includes(text, "while evaluating") or
+    includes(text, "while calling") or
+    includes(text, "error: attribute") or
     includes(text, "undefined variable")
     :eval
   elsif includes(text, "No space left on device")
@@ -83,7 +79,7 @@ def failure_of(text)
 end
 
 def capture(argv)
-  try(apply(exec_capture, argv), catch(_e(), nil))
+  exec_capture(*argv) rescue nil
 end
 
 def run_nix(args)
@@ -98,7 +94,11 @@ end
 
 def answer(out, read)
   if get(out, :status) == 0
-    parsed = try(read(get(out, :stdout)), catch(e(), e))
+    parsed = begin
+      read(get(out, :stdout))
+    rescue e
+      e
+    end
     if error?(parsed)
       refused(
         refusal(
@@ -143,11 +143,11 @@ end
 
 def section_of(line)
   t = trim(line)
-  if starts_with?(t, "this derivation will be built") ||
-    starts_with?(t, "these ") && includes(t, "derivations will be built")
+  if starts_with?(t, "this derivation will be built") or
+    starts_with?(t, "these ") and includes(t, "derivations will be built")
     :build
-  elsif starts_with?(t, "this path will be fetched") ||
-    starts_with?(t, "these ") && includes(t, "paths will be fetched")
+  elsif starts_with?(t, "this path will be fetched") or
+    starts_with?(t, "these ") and includes(t, "paths will be fetched")
     :fetch
   elsif store_path?(t)
     :member
@@ -158,9 +158,9 @@ end
 
 def work_step(acc, line)
   s = section_of(line)
-  if s == :build || s == :fetch
+  if s == :build or s == :fetch
     assoc(acc, :in, s)
-  elsif s == :member && get(acc, :in) != nil
+  elsif s == :member and get(acc, :in) != nil
     k = get(acc, :in)
     assoc(acc, k, concat_lists(get(acc, k), [trim(line)]))
   else
@@ -169,7 +169,7 @@ def work_step(acc, line)
 end
 
 def work(text)
-  r = foldl(
+  r = reduce(
     fn(acc, l) work_step(acc, l) end,
     {in: nil, build: [], fetch: []},
     lines(text)
@@ -201,7 +201,7 @@ end
 
 def info_pairs(parsed)
   if list?(parsed)
-    filter(fn(p) list?(p) && size(p) == 2 && nth(1, p) != nil end, parsed)
+    filter(fn(p) list?(p) and size(p) == 2 and nth(1, p) != nil end, parsed)
   else
     []
   end
@@ -216,7 +216,7 @@ def path_info(paths, store)
   out = run_nix(
     concat_lists(concat_lists(["path-info", "--json"], where), paths)
   )
-  parsed = try(json_parse(get(out, :stdout)), catch(_e(), nil))
+  parsed = json_parse(get(out, :stdout)) rescue nil
   present = map(fn(p) first(p) end, info_pairs(parsed))
   {
     present: present,
@@ -226,7 +226,7 @@ end
 
 def resolve(link)
   cap = capture(["readlink", "-f", link])
-  if cap == nil || status_of(cap) != 0
+  if cap == nil or status_of(cap) != 0
     nil
   else
     trim(stdout_of(cap))
@@ -278,23 +278,15 @@ test "nothing to do is empty work, not an error"
 end
 
 test "a failure is classified by what nix said, with the last line as its why"
-  f = failure_of(
-    "error:\n       … while evaluating the attribute 'optionalValue.value'\n\n       error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed\n"
-  )
+  f = failure_of("error:\n       … while evaluating the attribute 'optionalValue.value'\n\n       error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed\n")
   assert first(f) == :eval
   assert nth(1, f) ==
     "error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed"
-  assert failure_class(
-    "error: unable to download 'https://github.com/x': HTTP error 404"
-  ) ==
+  assert failure_class("error: unable to download 'https://github.com/x': HTTP error 404") ==
     :credential
-  assert failure_class(
-    "error: unable to download 'https://x': Couldn't resolve host name"
-  ) ==
+  assert failure_class("error: unable to download 'https://x': Couldn't resolve host name") ==
     :fetch
-  assert failure_class(
-    "error: builder for '/nix/store/x.drv' failed with exit code 1"
-  ) ==
+  assert failure_class("error: builder for '/nix/store/x.drv' failed with exit code 1") ==
     :builder
   assert failure_class("run timed out after 5400s") == :timeout
   assert failure_class("Failed assertions:\n- nope") == :assertion

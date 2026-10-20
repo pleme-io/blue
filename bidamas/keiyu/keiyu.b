@@ -24,7 +24,7 @@ def run_via(url, command)
       "keiyu runs a command through the relay: keiyu <command> [args...]"
     )
   end
-  apply(exec_into, relay_env(url), first(command), rest(command))
+  exec_into(relay_env(url), first(command), *rest(command))
 end
 
 def main()
@@ -44,7 +44,7 @@ test "every proxy variable a client reads names the relay"
 end
 
 test "an empty command is refused"
-  assert try(run_via("socks5h://r:1", []), catch(_e(), :refused)) == :refused
+  assert (run_via("socks5h://r:1", []) rescue :refused) == :refused
 end
 
 test "the proxy reaches the child and never this process"

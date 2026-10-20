@@ -30,7 +30,7 @@ def defaults(svc)
 end
 
 def type_name(v)
-  if v == true || v == false
+  if v == true or v == false
     "boolean"
   elsif integer?(v)
     "integer"
@@ -38,7 +38,7 @@ def type_name(v)
     "number"
   elsif string?(v)
     "string"
-  elsif v != nil && map?(v)
+  elsif v != nil and map?(v)
     "object"
   elsif v == nil
     "null"
@@ -280,7 +280,7 @@ def column_sql(spec)
     t
   )
   if sql == nil
-    throw(error(:column_type, "#{spec} is not a column type"))
+    raise(:column_type, "#{spec} is not a column type")
   end
   [sql, nullable]
 end
@@ -346,7 +346,7 @@ def row_refusals(svc, table, row)
     missing = map(
       fn(e) [:missing_column, "#{table}.#{first(e)} is required"] end,
       filter(
-        fn(e) !ends_with?(second(e), "?") && get(row, first(e)) == nil end,
+        fn(e) not ends_with?(second(e), "?") and get(row, first(e)) == nil end,
         map_entries(cols)
       )
     )
@@ -371,7 +371,7 @@ end
 def insert_sql(svc, table, row)
   rs = row_refusals(svc, table, row)
   if rs != []
-    throw(error(first(first(rs)), join(map(fn(r) second(r) end, rs), "; ")))
+    raise(first(first(rs)), join(map(fn(r) second(r) end, rs), "; "))
   end
   es = map_entries(row)
   "INSERT INTO #{quoted(table)} (#{join(map(fn(e) quoted(first(e)) end, es), ", ")}) VALUES (#{join(map(fn(e) literal(second(e)) end, es), ", ")});\n"
@@ -773,7 +773,14 @@ test "the DDL is additive, keyed by id, with nullable columns marked"
   ) ==
     true
   assert ddl({"port" => 1}) == ""
-  assert error?(try(column_sql("varchar"), catch(e(), e))) == true
+  assert error?(
+    begin
+      column_sql("varchar")
+    rescue e
+      e
+    end
+  ) ==
+    true
   assert column_sql("double?") == ["double precision", true]
 end
 

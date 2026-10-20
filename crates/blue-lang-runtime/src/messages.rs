@@ -37,6 +37,19 @@ pub fn describe(e: &EvalError, forms: &[Spanned]) -> String {
         | EvalError::NativeFn { at, .. } => {
             with_hint(e.short_message(), called_bare_hint(forms, *at))
         }
+        EvalError::User {
+            value: tatara_lisp_eval::Value::Error(err),
+            ..
+        } => {
+            let mut lines = vec![format!("{}: {}", err.tag, err.message)];
+            let cause = crate::errors::error_cause(err);
+            lines.extend(
+                crate::errors::chain(&cause)
+                    .into_iter()
+                    .map(|c| format!("  caused by {c}")),
+            );
+            lines.join("\n")
+        }
         other => other.short_message(),
     }
 }

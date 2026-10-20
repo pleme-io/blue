@@ -144,7 +144,7 @@ end
 
 test "a private share stays a share"
   s = private_share(3, 4, 0.1, 9)
-  assert s >= 0 && s <= 1
+  assert s >= 0 and s <= 1
 end
 
 test "small counts are suppressed, and the threshold is inclusive"

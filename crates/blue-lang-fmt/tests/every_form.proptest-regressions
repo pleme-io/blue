@@ -8,3 +8,5 @@ cc 68541d31b832d20375f34d069d450cccc76426a8b2bd3d1af49a1c0bbcf20983 # shrinks to
 cc 41f5da14126f87dee5c543c3b6e2dc6beb06ff35b9747b3bb17145d6ccb69d22 # shrinks to src = "{a: case a\nwhen a\na |> a() != :a\nend}"
 cc a32c6c4b3cbef6f0010f7f26053ff15c8a5f42889788beb4b7f6cc4006c609b2 # shrinks to src = "or(assert a, a)()"
 cc f148c5b205985183a044fa74191a297c165a656eb9084b33d721f534d50d6a98 # shrinks to src = "a = {a => a |> case a\nwhen a\na\nend}"
+cc b7490158b87b5032755bf223f743aaa96da430ea6ce6b12e55e5ced71d210a13 # shrinks to src = "a = a == a |> not()"
+cc d4c0f364a1ce8cd0d0ac9a4652ab2359ff35349eeba77f60571d0cc0982b10b5 # shrinks to src = "a |> if a\nnil\nend"

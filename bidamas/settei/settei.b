@@ -10,7 +10,7 @@ def env_name(app, path)
 end
 
 def kind_of(v)
-  if v == true || v == false
+  if v == true or v == false
     :bool
   elsif integer?(v)
     :int
@@ -18,7 +18,7 @@ def kind_of(v)
     :float
   elsif string?(v)
     :text
-  elsif v != nil && map?(v)
+  elsif v != nil and map?(v)
     :map
   else
     :other
@@ -26,8 +26,8 @@ def kind_of(v)
 end
 
 def same_kind?(default, v)
-  kind_of(default) == kind_of(v) ||
-    kind_of(default) == :float && kind_of(v) == :int
+  kind_of(default) == kind_of(v) or
+    kind_of(default) == :float and kind_of(v) == :int
 end
 
 def dotted(path)
@@ -45,19 +45,13 @@ def coerce(default, text)
       to_float(text)
     elsif contains?(text, ".")
       to_float(text)
-    else
-      nil
     end
   elsif k == :bool
     if member?(downcase(text), ["true", "1", "yes", "on"])
       true
     elsif member?(downcase(text), ["false", "0", "no", "off"])
       false
-    else
-      nil
     end
-  else
-    nil
   end
 end
 
@@ -81,7 +75,7 @@ def file_tier(defaults, doc, path)
             ]
           )
         ]
-      elsif kind_of(d) == :map && kind_of(v) == :map
+      elsif kind_of(d) == :map and kind_of(v) == :map
         inner = file_tier(d, v, at)
         [
           assoc(first(acc), key, first(inner)),
@@ -191,11 +185,9 @@ end
 def defaults_of(app, lookup)
   path = lookup("#{env_prefix(app)}DEFAULTS")
   if path == nil
-    throw(
-      error(
-        :no_defaults,
-        "#{env_prefix(app)}DEFAULTS names no file of prescribed settings"
-      )
+    raise(
+      :no_defaults,
+      "#{env_prefix(app)}DEFAULTS names no file of prescribed settings"
     )
   end
   json_read(read_file(path))
@@ -228,7 +220,7 @@ def flag(settings, name)
     get(flags, name)
   end
   if v == nil
-    throw(error(:unknown_flag, "#{name} is not a declared flag"))
+    raise(:unknown_flag, "#{name} is not a declared flag")
   end
   v == true
 end
@@ -236,7 +228,7 @@ end
 def setting(settings, name)
   v = get(settings, name)
   if v == nil
-    throw(error(:unknown_setting, "#{name} is not a declared setting"))
+    raise(:unknown_setting, "#{name} is not a declared setting")
   end
   v
 end
@@ -284,10 +276,11 @@ end
 test "an unknown key and a wrong type are each refused, all at once"
   d = {"port" => 8080, "flags" => {"shout" => false}}
   doc = json_read("{\"prot\":1,\"flags\":{\"shout\":\"yes\"}}")
-  caught = try(
-    resolve("x", d, doc, env_of({"X_PORT" => "eighty"})),
-    catch(e(), error_message(e))
-  )
+  caught = begin
+    resolve("x", d, doc, env_of({"X_PORT" => "eighty"}))
+  rescue e
+    e.message
+  end
   assert contains?(caught, "prot is not a setting") == true
   assert contains?(caught, "flags.shout must be bool, got text") == true
   assert contains?(caught, "X_PORT=eighty is not a int") == true
@@ -296,6 +289,20 @@ end
 test "an undeclared flag or setting is refused, not read as off"
   r = {"flags" => {"shout" => true}}
   assert flag(r, "shout") == true
-  assert error?(try(flag(r, "whisper"), catch(e(), e))) == true
-  assert error?(try(setting(r, "nope"), catch(e(), e))) == true
+  assert error?(
+    begin
+      flag(r, "whisper")
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      setting(r, "nope")
+    rescue e
+      e
+    end
+  ) ==
+    true
 end

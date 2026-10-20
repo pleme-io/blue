@@ -531,7 +531,12 @@ impl Session {
         let (mut outcome, names) = pipeline::check_stage(&program, &self.builtins, false);
         outcome
             .diagnostics
-            .retain(|d| d.code != blue_lang_check::Code::B0023);
+            .retain(|d| {
+                !matches!(
+                    d.code,
+                    blue_lang_check::Code::B0023 | blue_lang_check::Code::B0036 | blue_lang_check::Code::B0037
+                )
+            });
         let place = |top_level: usize, span: Span, message: &str| -> String {
             let in_code = (program.owner_of(top_level) == Some(ResolvedProgram::ENTRY)
                 && !span.is_synthetic())

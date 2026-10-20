@@ -8,7 +8,7 @@ row(
   formats("def f(x)\n  x + 1\nend\n")
 )
 
-row("fmt.unless", "unless x\n  1\nend", formats("if !x\n  1\nend\n"))
+row("fmt.unless", "unless x\n  1\nend", formats("if not x\n  1\nend\n"))
 row("fmt.send_to_call", "x.f(y)", formats("f(x, y)\n"))
 
 row(
@@ -18,7 +18,7 @@ row(
 )
 
 row("fmt.unary_minus", "0 - x", formats("-x\n"))
-row("fmt.not", "not(x)", formats("!x\n"))
+row("fmt.not", "not(x)", formats("not x\n"))
 row("fmt.define", "define(x, 5)", formats("x = 5\n"))
 
 row(
@@ -41,9 +41,7 @@ row("fmt.pipe", "xs |> f(a)", formats("f(xs, a)\n"))
 row(
   "fmt.long_call_breaks",
   "f(aaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbb, cccccccccccccccccccccc, dddddddddddddddddd)",
-  formats(
-    "f(\n  aaaaaaaaaaaaaaaaaaaa,\n  bbbbbbbbbbbbbbbbbbbbbbbbb,\n  cccccccccccccccccccccc,\n  dddddddddddddddddd\n)\n"
-  )
+  formats("f(\n  aaaaaaaaaaaaaaaaaaaa,\n  bbbbbbbbbbbbbbbbbbbbbbbbb,\n  cccccccccccccccccccccc,\n  dddddddddddddddddd\n)\n")
 )
 
 row(

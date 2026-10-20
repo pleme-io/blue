@@ -221,20 +221,15 @@ the sentence that says what a function is for right above it.
   line. Anything else after a statement is a parse error: there is no `;`, and
   `a = f x` is refused with "a call needs parentheses: write `f(x)`". Until
   2026-09-29 the parser started a second statement there instead, silently.
-- **`error(kind, msg)` builds an error VALUE; `throw(...)` raises it.** A check
-  written as `error(:x, "...")` returns a value and the program carries on
-  with exit 0 — a gate that can never fail. Fail a run with
-  `throw(error(:kind, "why"))` (exit 1, "uncaught: #<error :kind ...>").
-  `raise`, `panic`, `fail` and `exit` are unbound (measured 2026-09-23).
-- **A throw CAN be caught, and nothing about it can be read.** The reachable
-  spelling is `try(expr, catch(e(), handler))`: the binding is written as a
-  zero-argument call, because `catch` wants the one-element list `(e)` and
-  `[e]` lowers to a two-element one. Inside the handler, `error?(e)` works, but
-  `error-tag` and `error-message` are kebab-case (unreachable), `to_s(e)` is
-  `"error"`, and two identical errors are not `==`. So a package whose refusals
-  must be tested returns them as DATA too (`kueri`'s `q_refusals` gives
-  `[kind, why]`, `q_check` throws the same list), and its tests assert the
-  kinds on the data and `error?` on the throw (measured 2026-09-23).
+- **`raise` raises; `error(kind, msg)` only builds a value.** A check written
+  as `error(:x, "...")` returns a value and the program carries on with exit
+  0, a gate that can never fail. Fail a run with `raise(:kind, "why")`: it
+  exits 1 printing `kind: why`, every cause and the stack. Catch with
+  `x rescue fallback` or `begin … rescue :kind as e … end` and read the error
+  as a record, `e.kind`, `e.message`, `e.data`, `e.cause`; the old
+  `throw(error(…))` and `try(…, catch(e(), …))` are read and rewritten (B0037).
+  A package whose refusals a caller must tell apart still returns them as data
+  (`kyohi`), and raises one error at the boundary (2026-10-19).
 - **Maps compare by value** (okite D0001): `{a: 1} == {a: 1}`, whatever order
   the entries were added in. Until 2026-09-27 they compared by identity.
 - **`to_s` of a list or map is its blue literal** (D0006): `[1, "a"]`,

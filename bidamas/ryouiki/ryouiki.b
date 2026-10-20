@@ -44,7 +44,7 @@ end
 def in_box?(box, p)
   size(
     filter(
-      fn(j) nth(j, p) < first(nth(j, box)) || nth(j, p) > last(nth(j, box)) end,
+      fn(j) nth(j, p) < first(nth(j, box)) or nth(j, p) > last(nth(j, box)) end,
       range(0, size(box))
     )
   ) ==
@@ -111,7 +111,7 @@ def peel_candidates(box, ids, points, ys, alpha)
               range(0, size(box))
             )
             kept = filter(fn(i) in_box?(narrowed, nth(i, points)) end, ids)
-            if is_empty(kept) || size(kept) == size(ids)
+            if is_empty(kept) or size(kept) == size(ids)
               []
             else
               [[narrowed, kept, mean_target(kept, ys)]]
@@ -149,7 +149,7 @@ def prim(points, ys, alpha, min_support)
     start_ids = range(0, n)
     walk = fn(self, step, box, ids, acc)
       cands = peel_candidates(box, ids, points, ys, alpha)
-      if is_empty(cands) || size(ids) / n <= min_support
+      if is_empty(cands) or size(ids) / n <= min_support
         acc
       else
         best = first(
@@ -242,7 +242,7 @@ test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
   pts = grid(10)
   ys = map(
     fn(p)
-      if first(p) >= 5 && last(p) <= 3
+      if first(p) >= 5 and last(p) <= 3
         1
       else
         0
@@ -270,5 +270,5 @@ test "a control: a target with no structure finds no dense box with real coverag
     range(0, size(pts))
   )
   b = prim_box(prim(pts, ys, 0.05, 0.1), 0.9)
-  assert b == nil || nth(2, b) < 0.25
+  assert b == nil or nth(2, b) < 0.25
 end

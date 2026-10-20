@@ -281,8 +281,8 @@ end
 # reserved. Anything else is quoted, because engines fold unquoted case
 # differently and a quoted name means the same thing everywhere.
 def bare_ident?(s)
-  made_of(s, "abcdefghijklmnopqrstuvwxyz_0123456789") &&
-    made_of(char_at(s, 0), "abcdefghijklmnopqrstuvwxyz_") &&
+  made_of(s, "abcdefghijklmnopqrstuvwxyz_0123456789") and
+    made_of(char_at(s, 0), "abcdefghijklmnopqrstuvwxyz_") and
     contains(reserved_words, s) == false
 end
 
@@ -306,7 +306,7 @@ end
 # engine would read as an INTEGER.
 def float_text(x)
   s = to_s(x)
-  if contains?(s, ".") || contains?(s, "e") || contains?(s, "E")
+  if contains?(s, ".") or contains?(s, "e") or contains?(s, "E")
     s
   else
     "#{s}.0"
@@ -322,14 +322,12 @@ def types()
 end
 
 def type(t)
-  if keyword?(t) && contains(types, t)
+  if keyword?(t) and contains(types, t)
     t
-  elsif keyword?(t) || composite?(t) == false
-    throw(
-      error(
-        :kueri_shape,
-        "unknown column type #{to_s(t)}; a type is one of #{blue::join(map(fn(x) to_s(x) end, types), ", ")}, or q_struct_of / q_list_of over them"
-      )
+  elsif keyword?(t) or composite?(t) == false
+    raise(
+      :kueri_shape,
+      "unknown column type #{to_s(t)}; a type is one of #{blue::join(map(fn(x) to_s(x) end, types), ", ")}, or q_struct_of / q_list_of over them"
     )
   else
     t
@@ -338,12 +336,12 @@ end
 
 # A composite type: a map built by q_struct_of or q_list_of.
 def composite?(t)
-  t != nil &&
-    keyword?(t) == false &&
-    list?(t) == false &&
-    string?(t) == false &&
-    number?(t) == false &&
-    boolean?(t) == false &&
+  t != nil and
+    keyword?(t) == false and
+    list?(t) == false and
+    string?(t) == false and
+    number?(t) == false and
+    boolean?(t) == false and
     contains([:struct, :list], blue::get(t, :kind))
 end
 
@@ -352,7 +350,7 @@ end
 def struct_of(cols)
   fs = as_list(cols)
   if is_empty(fs)
-    throw(error(:kueri_shape, "a struct type has at least one field"))
+    raise(:kueri_shape, "a struct type has at least one field")
   end
   {kind: :struct, fields: fs}
 end
@@ -382,11 +380,9 @@ end
 
 def composite_sql(t, dialect)
   if dialect != :duckdb
-    throw(
-      error(
-        :kueri_dialect,
-        "struct and list types have no core form; render with :duckdb"
-      )
+    raise(
+      :kueri_dialect,
+      "struct and list types have no core form; render with :duckdb"
     )
   end
   if blue::get(t, :kind) == :list
@@ -414,7 +410,7 @@ end
 
 def int(n)
   if integer?(n) == false
-    throw(error(:kueri_shape, "q_int takes an integer"))
+    raise(:kueri_shape, "q_int takes an integer")
   end
   {kind: :lit, type: :int, value: n}
 end
@@ -422,11 +418,11 @@ end
 # A DOUBLE literal, typed on purpose: DuckDB reads a bare 1.0 as DECIMAL(2,1).
 def double(x)
   if number?(x) == false
-    throw(error(:kueri_shape, "q_double takes a number"))
+    raise(:kueri_shape, "q_double takes a number")
   end
   # NaN and the infinities have no SQL literal; x - x is 0 only when x is finite.
   if x - x < 1 == false
-    throw(error(:kueri_shape, "q_double takes a finite number"))
+    raise(:kueri_shape, "q_double takes a finite number")
   end
   {kind: :lit, type: :double, value: x}
 end
@@ -444,7 +440,7 @@ def null()
 end
 
 def value?(x)
-  number?(x) || string?(x) || boolean?(x) || null?(x)
+  number?(x) or string?(x) or boolean?(x) or null?(x)
 end
 
 # A blue value as a literal, typed by what it is: an int stays an INTEGER and a
@@ -461,7 +457,7 @@ def lit(v)
   elsif null?(v)
     null
   else
-    throw(error(:kueri_shape, "q_lit takes a number, string, boolean or nil"))
+    raise(:kueri_shape, "q_lit takes a number, string, boolean or nil")
   end
 end
 
@@ -633,11 +629,9 @@ end
 
 def ordered_window(f, x, partition, order)
   if is_empty(as_list(order))
-    throw(
-      error(
-        :kueri_shape,
-        "#{f} needs an order; without one the neighbouring row is arbitrary"
-      )
+    raise(
+      :kueri_shape,
+      "#{f} needs an order; without one the neighbouring row is arbitrary"
     )
   end
   window(f, [expr(x)], partition, order)
@@ -657,15 +651,15 @@ end
 # DuckDB, CASE WHEN inside the aggregate in core.
 def filtered(agg, pred)
   if blue::get(agg, :kind) != :agg
-    throw(error(:kueri_shape, "q_filtered takes an aggregate"))
+    raise(:kueri_shape, "q_filtered takes an aggregate")
   end
   assoc(agg, :where, expr(pred))
 end
 
 # An order for an order-sensitive aggregate or window.
 def ordered(node, keys)
-  if blue::get(node, :kind) != :agg && blue::get(node, :kind) != :win
-    throw(error(:kueri_shape, "q_ordered takes an aggregate or a window"))
+  if blue::get(node, :kind) != :agg and blue::get(node, :kind) != :win
+    raise(:kueri_shape, "q_ordered takes an aggregate or a window")
   end
   assoc(node, :order, map(fn(k) key(k) end, keys))
 end
@@ -683,7 +677,7 @@ end
 # ── sort keys ──────────────────────────────────────────────────────────────
 
 def key(k)
-  if keyword?(k) || string?(k)
+  if keyword?(k) or string?(k)
     {kind: :key, name: name(k), desc: false}
   else
     k
@@ -710,11 +704,9 @@ end
 def source(opts)
   cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
-    throw(
-      error(
-        :kueri_shape,
-        "source #{name(blue::get(opts, :name))} declares no columns; a source states its schema, the sniffer never does"
-      )
+    raise(
+      :kueri_shape,
+      "source #{name(blue::get(opts, :name))} declares no columns; a source states its schema, the sniffer never does"
     )
   end
   format = blue::get(opts, :format)
@@ -722,14 +714,14 @@ def source(opts)
     format = :delimited
   end
   if contains([:delimited, :jsonl], format) == false
-    throw(error(:kueri_shape, "a source's format is :delimited or :jsonl"))
+    raise(:kueri_shape, "a source's format is :delimited or :jsonl")
   end
   delim = blue::get(opts, :delim)
   if delim == nil
     delim = :tab
   end
   if contains([:tab, :comma], delim) == false
-    throw(error(:kueri_shape, "a source's delim is :tab or :comma"))
+    raise(:kueri_shape, "a source's delim is :tab or :comma")
   end
   {
     kind: :source,
@@ -749,33 +741,29 @@ def values(opts)
   name = kueri::name(blue::get(opts, :name))
   cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
-    throw(error(:kueri_shape, "values #{name} declares no columns"))
+    raise(:kueri_shape, "values #{name} declares no columns")
   end
   if is_empty(blue::filter(fn(c) composite?(blue::get(c, :type)) end, cols)) ==
     false
-    throw(
-      error(
-        :kueri_shape,
-        "values #{name}: a literal row holds scalars; a list is one row per element"
-      )
+    raise(
+      :kueri_shape,
+      "values #{name}: a literal row holds scalars; a list is one row per element"
     )
   end
   rows = as_list(blue::get(opts, :rows))
   n = size(cols)
   bad = blue::filter(
     fn(r)
-      list?(r) == false ||
-        size(r) != n ||
+      list?(r) == false or
+        size(r) != n or
         count_where(fn(v) value?(v) == false end, r) > 0
     end,
     rows
   )
   if is_empty(bad) == false
-    throw(
-      error(
-        :kueri_shape,
-        "values #{name}: every row is #{to_s(n)} literals (numbers, strings, booleans or nil)"
-      )
+    raise(
+      :kueri_shape,
+      "values #{name}: every row is #{to_s(n)} literals (numbers, strings, booleans or nil)"
     )
   end
   {
@@ -796,11 +784,9 @@ end
 def raw(opts)
   cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
-    throw(
-      error(
-        :kueri_shape,
-        "raw node #{name(blue::get(opts, :name))} declares no columns; the escape hatch must say what it returns"
-      )
+    raise(
+      :kueri_shape,
+      "raw node #{name(blue::get(opts, :name))} declares no columns; the escape hatch must say what it returns"
     )
   end
   d = blue::get(opts, :dialect)
@@ -808,7 +794,7 @@ def raw(opts)
     d = :duckdb
   end
   if contains([:core, :duckdb], d) == false
-    throw(error(:kueri_shape, "a raw node's dialect is :core or :duckdb"))
+    raise(:kueri_shape, "a raw node's dialect is :core or :duckdb")
   end
   {
     kind: :raw,
@@ -822,8 +808,8 @@ end
 # A reference to an upstream source or model. The DAG is these nodes.
 def ref(x)
   k = blue::get(x, :kind)
-  if k != :source && k != :model
-    throw(error(:kueri_shape, "q_ref takes a source or a model"))
+  if k != :source and k != :model
+    raise(:kueri_shape, "q_ref takes a source or a model")
   end
   {kind: :ref, target: x}
 end
@@ -832,12 +818,12 @@ end
 # raw node is itself.
 def rel(x)
   k = blue::get(x, :kind)
-  if k == :source || k == :model
+  if k == :source or k == :model
     ref(x)
-  elsif k == :ref || k == :raw
+  elsif k == :ref or k == :raw
     x
   else
-    throw(error(:kueri_shape, "a relation is a source, model, ref or raw node"))
+    raise(:kueri_shape, "a relation is a source, model, ref or raw node")
   end
 end
 
@@ -864,21 +850,19 @@ end
 def posture_of(words)
   ws = as_list(words)
   bad = blue::filter(
-    fn(w) (contains(reach_words, w) || contains(rigor_words, w)) == false end,
+    fn(w) (contains(reach_words, w) or contains(rigor_words, w)) == false end,
     ws
   )
   if is_empty(bad) == false
-    throw(
-      error(
-        :kueri_shape,
-        "unknown posture word #{to_s(first(bad))}; a posture takes a reach (:portable, :duckdb) and a rigor (:loose, :locked)"
-      )
+    raise(
+      :kueri_shape,
+      "unknown posture word #{to_s(first(bad))}; a posture takes a reach (:portable, :duckdb) and a rigor (:loose, :locked)"
     )
   end
   reach = blue::filter(fn(w) contains(reach_words, w) end, ws)
   rigor = blue::filter(fn(w) contains(rigor_words, w) end, ws)
-  if size(reach) > 1 || size(rigor) > 1
-    throw(error(:kueri_shape, "a posture names one reach and one rigor"))
+  if size(reach) > 1 or size(rigor) > 1
+    raise(:kueri_shape, "a posture names one reach and one rigor")
   end
   r = first(reach)
   if r == nil
@@ -908,14 +892,12 @@ end
 def model(opts)
   m = blue::get(opts, :materialize)
   if contains([nil, :parquet, :csv, :table, :view], m) == false
-    throw(error(:kueri_shape, "materialize is :parquet, :csv, :table or :view"))
+    raise(:kueri_shape, "materialize is :parquet, :csv, :table or :view")
   end
   if blue::get(opts, :from) == nil
-    throw(
-      error(
-        :kueri_shape,
-        "model #{name(blue::get(opts, :name))} reads from nothing"
-      )
+    raise(
+      :kueri_shape,
+      "model #{name(blue::get(opts, :name))} reads from nothing"
     )
   end
   known(
@@ -965,7 +947,7 @@ def agg_where(name, agg, pred)
 end
 
 def item(i)
-  if keyword?(i) || string?(i)
+  if keyword?(i) or string?(i)
     as(i, c(i))
   else
     i
@@ -1043,8 +1025,8 @@ def sort(keys)
 end
 
 def limit(n)
-  if integer?(n) == false || n < 0
-    throw(error(:kueri_shape, "q_limit takes a count of zero or more"))
+  if integer?(n) == false or n < 0
+    raise(:kueri_shape, "q_limit takes a count of zero or more")
   end
   {kind: :limit, n: n}
 end
@@ -1053,7 +1035,7 @@ def stage_exprs(stage)
   k = blue::get(stage, :kind)
   if k == :filter
     [blue::get(stage, :pred)]
-  elsif k == :derive || k == :explode
+  elsif k == :derive or k == :explode
     [blue::get(stage, :expr)]
   elsif k == :select
     map(fn(i) blue::get(i, :expr) end, blue::get(stage, :items))
@@ -1071,7 +1053,7 @@ end
 # ── walking expressions ────────────────────────────────────────────────────
 
 def kids(e)
-  if blue::get(e, :kind) == :agg && blue::get(e, :where) != nil
+  if blue::get(e, :kind) == :agg and blue::get(e, :where) != nil
     push(as_list(blue::get(e, :args)), blue::get(e, :where))
   else
     as_list(blue::get(e, :args))
@@ -1174,7 +1156,7 @@ end
 # What no expression may hold outside a group: an aggregate. And the order
 # rules every stage shares.
 def expr_refusals(e, where, aggs_allowed, windows_allowed)
-  a = if aggs_allowed == false && has?(e, :agg)
+  a = if aggs_allowed == false and has?(e, :agg)
     [
       [
         :kueri_shape,
@@ -1184,7 +1166,7 @@ def expr_refusals(e, where, aggs_allowed, windows_allowed)
   else
     []
   end
-  w = if windows_allowed == false && has?(e, :win)
+  w = if windows_allowed == false and has?(e, :win)
     [
       [
         :kueri_shape,
@@ -1196,7 +1178,7 @@ def expr_refusals(e, where, aggs_allowed, windows_allowed)
   end
   wasted = blue::filter(
     fn(n)
-      is_empty(blue::get(n, :order)) == false &&
+      is_empty(blue::get(n, :order)) == false and
         contains(order_sensitive_fns, blue::get(n, :fn)) == false
     end,
     concat_lists(nodes_of(e, :agg), nodes_of(e, :win))
@@ -1261,7 +1243,7 @@ def stage_refusals(stage, cols, where, next_kind)
     )
   elsif k == :derive
     e = blue::get(stage, :expr)
-    dup = if cols != nil && contains(cols, blue::get(stage, :name))
+    dup = if cols != nil and contains(cols, blue::get(stage, :name))
       [
         [
           :kueri_shape,
@@ -1280,7 +1262,7 @@ def stage_refusals(stage, cols, where, next_kind)
     )
   elsif k == :explode
     e = blue::get(stage, :expr)
-    dup = if cols != nil && contains(cols, blue::get(stage, :name))
+    dup = if cols != nil and contains(cols, blue::get(stage, :name))
       [
         [
           :kueri_shape,
@@ -1315,7 +1297,7 @@ def stage_refusals(stage, cols, where, next_kind)
   elsif k == :group
     keys = blue::get(stage, :keys)
     aggs = blue::get(stage, :aggs)
-    empty = if is_empty(keys) && is_empty(aggs)
+    empty = if is_empty(keys) and is_empty(aggs)
       [[:kueri_shape, "#{where}: a group with no keys and no aggregates"]]
     else
       []
@@ -1341,7 +1323,7 @@ def stage_refusals(stage, cols, where, next_kind)
   elsif k == :join
     join_refusals(stage, cols, where)
   elsif k == :sort
-    discarded = if next_kind != nil && next_kind != :limit
+    discarded = if next_kind != nil and next_kind != :limit
       [
         [
           :kueri_shape,
@@ -1370,7 +1352,7 @@ def join_refusals(stage, cols, where)
   end
   left = unknown_refusals(keys, cols, where)
   right = unknown_refusals(keys, rc, "#{where} (right side)")
-  both = if cols == nil || rc == nil
+  both = if cols == nil or rc == nil
     []
   else
     as_list(difference(intersection(cols, rc), keys))
@@ -1391,7 +1373,7 @@ end
 # The columns a stage returns, or nil when its input's are unknown.
 def stage_output(stage, cols)
   k = blue::get(stage, :kind)
-  if k == :derive || k == :explode
+  if k == :derive or k == :explode
     if cols == nil
       nil
     else
@@ -1406,7 +1388,7 @@ def stage_output(stage, cols)
     )
   elsif k == :join
     rc = rel_columns(blue::get(stage, :rel))
-    if cols == nil || rc == nil
+    if cols == nil or rc == nil
       nil
     else
       keys = blue::get(stage, :keys)
@@ -1426,8 +1408,6 @@ end
 def next_kind(stages, i)
   if i + 1 < size(stages)
     blue::get(nth(i + 1, stages), :kind)
-  else
-    nil
   end
 end
 
@@ -1521,7 +1501,7 @@ end
 # field.
 def duckdb_node?(n)
   k = blue::get(n, :kind)
-  k == :field || k == :agg && contains(duckdb_only_fns, blue::get(n, :fn))
+  k == :field or k == :agg and contains(duckdb_only_fns, blue::get(n, :fn))
 end
 
 def node_label(n)
@@ -1533,7 +1513,7 @@ def node_label(n)
 end
 
 def rel_uses(rel, where)
-  if blue::get(rel, :kind) == :raw && blue::get(rel, :dialect) == :duckdb
+  if blue::get(rel, :kind) == :raw and blue::get(rel, :dialect) == :duckdb
     [["raw node #{blue::get(rel, :name)}", where]]
   else
     []
@@ -1559,7 +1539,7 @@ end
 
 def contract_refusals(model, out)
   cn = col_names(blue::get(model, :contract))
-  if is_empty(cn) || out == nil || equal_lists(cn, out)
+  if is_empty(cn) or out == nil or equal_lists(cn, out)
     []
   else
     [
@@ -1602,7 +1582,7 @@ def locked_refusals(model, out)
         end,
         blue::filter(
           fn(n)
-            contains(order_sensitive_fns, blue::get(n, :fn)) &&
+            contains(order_sensitive_fns, blue::get(n, :fn)) and
               is_empty(blue::get(n, :order))
           end,
           flat_map(fn(e) nodes(e) end, stage_exprs(last(ix)))
@@ -1621,7 +1601,7 @@ end
 def locked_limit(stages, i, stage)
   if blue::get(stage, :kind) != :limit
     []
-  elsif i > 0 && blue::get(nth(i - 1, stages), :kind) == :sort
+  elsif i > 0 and blue::get(nth(i - 1, stages), :kind) == :sort
     []
   else
     [
@@ -1737,7 +1717,7 @@ def fits?(b, stage, dialect)
     elsif pushable?(b, stage)
       true
     else
-      p <= 6 && blue::get(b, :window) && dialect == :duckdb
+      p <= 6 and blue::get(b, :window) and dialect == :duckdb
     end
   elsif k == :group
     p <= 2
@@ -1745,12 +1725,12 @@ def fits?(b, stage, dialect)
     if p <= 2
       true
     else
-      p == 5 &&
-        blue::get(b, :items) == nil &&
+      p == 5 and
+        blue::get(b, :items) == nil and
         is_empty(
           as_list(intersection(refs(blue::get(stage, :expr)), derived_names(b)))
-        ) &&
-        (blue::get(b, :exploded) && has?(blue::get(stage, :expr), :win)) ==
+        ) and
+        (blue::get(b, :exploded) and has?(blue::get(stage, :expr), :win)) ==
           false
     end
   elsif k == :explode
@@ -1771,10 +1751,10 @@ end
 # A filter that can join the WHERE of a block whose select list holds only
 # row-wise derives it does not read.
 def pushable?(b, stage)
-  blue::get(b, :phase) == 5 &&
-    blue::get(b, :items) == nil &&
-    blue::get(b, :grouped) == false &&
-    blue::get(b, :window) == false &&
+  blue::get(b, :phase) == 5 and
+    blue::get(b, :items) == nil and
+    blue::get(b, :grouped) == false and
+    blue::get(b, :window) == false and
     is_empty(
       as_list(intersection(refs(blue::get(stage, :pred)), derived_names(b)))
     )
@@ -1794,7 +1774,7 @@ def subst(e, items)
     else
       blue::get(hit, :expr)
     end
-  elsif k == :agg || k == :win || k == :lit
+  elsif k == :agg or k == :win or k == :lit
     e
   else
     assoc(e, :args, map(fn(a) subst(a, items) end, blue::get(e, :args)))
@@ -1837,7 +1817,7 @@ def into(b, stage, _dialect)
       assoc(
         b,
         :window,
-        blue::get(b, :window) || has?(blue::get(stage, :expr), :win)
+        blue::get(b, :window) or has?(blue::get(stage, :expr), :win)
       ),
       :derives,
       push(blue::get(b, :derives), d),
@@ -1902,8 +1882,8 @@ def lock_order(model, b, dialect)
     assoc(
       assoc(b, :order, total),
       :order_all,
-      dialect == :duckdb &&
-        all_asc &&
+      dialect == :duckdb and
+        all_asc and
         equal_lists(key_names(total), col_names(blue::get(model, :contract)))
     )
   end
@@ -1930,7 +1910,7 @@ end
 def operand(child, parent_prec, tie_wraps, dialect)
   s = render_expr(child, dialect)
   cp = prec(child)
-  if cp < parent_prec || tie_wraps && cp == parent_prec
+  if cp < parent_prec or tie_wraps and cp == parent_prec
     "(#{s})"
   else
     s
@@ -1981,10 +1961,8 @@ end
 # into a CASE inside the aggregate, which every mainstream engine reads.
 def render_agg(e, dialect)
   f = blue::get(e, :fn)
-  if contains(duckdb_only_fns, f) && dialect != :duckdb
-    throw(
-      error(:kueri_dialect, "#{f} has no core form; render it with :duckdb")
-    )
+  if contains(duckdb_only_fns, f) and dialect != :duckdb
+    raise(:kueri_dialect, "#{f} has no core form; render it with :duckdb")
   end
   args = blue::get(e, :args)
   pred = blue::get(e, :where)
@@ -2063,7 +2041,7 @@ def render_expr(e, dialect)
     duckdb_floor(dialect, "unnest")
     "unnest(#{render_expr(first(blue::get(e, :args)), dialect)})"
   else
-    throw(error(:kueri_shape, "no renderer arm for a #{to_s(k)} node"))
+    raise(:kueri_shape, "no renderer arm for a #{to_s(k)} node")
   end
 end
 
@@ -2071,15 +2049,13 @@ end
 # whichever door it came through.
 def duckdb_floor(dialect, what)
   if dialect != :duckdb
-    throw(
-      error(:kueri_dialect, "#{what} has no core form; render with :duckdb")
-    )
+    raise(:kueri_dialect, "#{what} has no core form; render with :duckdb")
   end
 end
 
 def render_item(item, dialect)
   e = blue::get(item, :expr)
-  if blue::get(e, :kind) == :col &&
+  if blue::get(e, :kind) == :col and
     blue::get(e, :name) == blue::get(item, :name)
     ident(blue::get(item, :name))
   else
@@ -2155,7 +2131,7 @@ def block_lines(b, dialect)
     "FROM #{ident(blue::get(b, :from))}",
     map(fn(j) join_line(j, dialect) end, blue::get(b, :joins))
   )
-  group = if blue::get(b, :grouped) && is_empty(blue::get(b, :keys)) == false
+  group = if blue::get(b, :grouped) and is_empty(blue::get(b, :keys)) == false
     [
       "GROUP BY #{blue::join(map(fn(k) ident(k) end, blue::get(b, :keys)), ", ")}"
     ]
@@ -2214,12 +2190,10 @@ def raws(model)
 end
 
 def render_raw(r, dialect)
-  if blue::get(r, :dialect) == :duckdb && dialect != :duckdb
-    throw(
-      error(
-        :kueri_dialect,
-        "raw node #{blue::get(r, :name)} is not vouched portable; render it with :duckdb"
-      )
+  if blue::get(r, :dialect) == :duckdb and dialect != :duckdb
+    raise(
+      :kueri_dialect,
+      "raw node #{blue::get(r, :name)} is not vouched portable; render it with :duckdb"
     )
   end
   "#{ident(blue::get(r, :name))} AS (\n#{blue::get(r, :sql)}\n)"
@@ -2249,7 +2223,7 @@ end
 # semicolon. Checks first, then the dialect floor: it throws, never degrades.
 def render(model, dialect)
   if contains([:core, :duckdb], dialect) == false
-    throw(error(:kueri_shape, "a dialect is :core or :duckdb"))
+    raise(:kueri_shape, "a dialect is :core or :duckdb")
   end
   check(model)
   refuse(dialect_refusals(model, dialect))
@@ -2280,11 +2254,9 @@ def render_load(source, path, dialect)
       "read_csv"
     end
     if dialect != :duckdb
-      throw(
-        error(
-          :kueri_dialect,
-          "#{reader} has no core form; load source #{blue::get(source, :name)} with :duckdb"
-        )
+      raise(
+        :kueri_dialect,
+        "#{reader} has no core form; load source #{blue::get(source, :name)} with :duckdb"
       )
     end
     cols = blue::join(
@@ -2340,8 +2312,6 @@ def materialize_target(model)
     "#{blue::get(model, :name)}.parquet"
   elsif m == :csv
     "#{blue::get(model, :name)}.csv"
-  else
-    nil
   end
 end
 
@@ -2356,18 +2326,14 @@ def render_materialize(model, dialect, target)
   elsif m == :view
     "CREATE OR REPLACE VIEW #{ident(blue::get(model, :name))} AS\n#{sql}"
   elsif m == nil
-    throw(
-      error(
-        :kueri_shape,
-        "model #{blue::get(model, :name)} declares no materialize"
-      )
+    raise(
+      :kueri_shape,
+      "model #{blue::get(model, :name)} declares no materialize"
     )
   elsif dialect != :duckdb
-    throw(
-      error(
-        :kueri_dialect,
-        "COPY to a file has no core form; model #{blue::get(model, :name)} materializes as :#{to_s(m)}, so render it with :duckdb or materialize :table"
-      )
+    raise(
+      :kueri_dialect,
+      "COPY to a file has no core form; model #{blue::get(model, :name)} materializes as :#{to_s(m)}, so render it with :duckdb or materialize :table"
     )
   elsif m == :parquet
     "COPY (\n#{sql}\n) TO #{quote_str(target)} (FORMAT parquet, COMPRESSION zstd)"
@@ -2412,11 +2378,9 @@ def render_script(models, dialect, source)
     ms
   )
   if is_empty(loose) == false
-    throw(
-      error(
-        :kueri_shape,
-        "a script builds relations, and #{blue::join(map(fn(m) blue::get(m, :name) end, loose), ", ")} materialize as neither :view nor :table"
-      )
+    raise(
+      :kueri_shape,
+      "a script builds relations, and #{blue::join(map(fn(m) blue::get(m, :name) end, loose), ", ")} materialize as neither :view nor :table"
     )
   end
   stmts = concat_lists(
@@ -2559,7 +2523,7 @@ end
 
 def checked(result, sql)
   if duckdb_failed?(result)
-    throw(error(:kueri_query, "#{trim(last(result))} -- in: #{sql}"))
+    raise(:kueri_query, "#{trim(last(result))} -- in: #{sql}")
   end
   last(result)
 end
@@ -2941,8 +2905,22 @@ test "a duckdb-only construct in a :portable model is refused, and q_check throw
     {name: :names, from: plays, posture: [:portable], pipeline: stages}
   )
   assert refusal_kinds(held) == [:kueri_reach]
-  assert error?(try(check(held), catch(e(), e))) == true
-  assert error?(try(render(held, :duckdb), catch(e(), e))) == true
+  assert error?(
+    begin
+      check(held)
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      render(held, :duckdb)
+    rescue e
+      e
+    end
+  ) ==
+    true
   # The control: the same stages at :duckdb reach hold, so the posture was the
   # whole of the refusal.
   free = model(
@@ -3010,7 +2988,14 @@ test "a locked model refuses what would make its output depend on luck"
     }
   )
   assert refusal_kinds(lucky) == [:kueri_locked]
-  assert error?(try(check(lucky), catch(e(), e))) == true
+  assert error?(
+    begin
+      check(lucky)
+    rescue e
+      e
+    end
+  ) ==
+    true
   # The control: a sort right before the limit, and the order is completed
   # with the rest of the contract so ties cannot fall either way.
   top = model(
@@ -3022,7 +3007,14 @@ test "a locked model refuses what would make its output depend on luck"
       contract: [col(:game, :varchar), col(:score, :double)]
     }
   )
-  assert error?(try(check(top), catch(e(), e))) == false
+  assert error?(
+    begin
+      check(top)
+    rescue e
+      e
+    end
+  ) ==
+    false
   assert render(top, :duckdb) ==
     "SELECT *\nFROM plays\nORDER BY score DESC, game\nLIMIT 1"
   # :loose asks for none of it.
@@ -3042,7 +3034,14 @@ test "a declared contract is checked at any rigor, and a wrong one throws"
     }
   )
   assert refusal_kinds(wrong) == [:kueri_contract]
-  assert error?(try(render(wrong, :core), catch(e(), e))) == true
+  assert error?(
+    begin
+      render(wrong, :core)
+    rescue e
+      e
+    end
+  ) ==
+    true
   right = model(
     {
       name: :w,
@@ -3143,10 +3142,30 @@ test "the renderer holds the floor on its own: no door leads a duckdb form into 
     }
   )
   assert is_empty(refusals(m)) == true
-  assert error?(try(render(m, :core), catch(e(), e))) == true
-  assert error?(try(render_expr(string_agg(:x, ","), :core), catch(e(), e))) ==
+  assert error?(
+    begin
+      render(m, :core)
+    rescue e
+      e
+    end
+  ) ==
     true
-  assert error?(try(render_query(m, :core), catch(e(), e))) == true
+  assert error?(
+    begin
+      render_expr(string_agg(:x, ","), :core)
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      render_query(m, :core)
+    rescue e
+      e
+    end
+  ) ==
+    true
   raw = model(
     {
       name: :r,
@@ -3155,37 +3174,106 @@ test "the renderer holds the floor on its own: no door leads a duckdb form into 
       )
     }
   )
-  assert error?(try(render_query(raw, :core), catch(e(), e))) == true
-  assert error?(try(render(m, :duckdb), catch(e(), e))) == false
   assert error?(
-    try(render_load(example_horizons, "h.tsv", :core), catch(e(), e))
+    begin
+      render_query(raw, :core)
+    rescue e
+      e
+    end
   ) ==
     true
-  assert error?(try(render(m, :postgres), catch(e(), e))) == true
+  assert error?(
+    begin
+      render(m, :duckdb)
+    rescue e
+      e
+    end
+  ) ==
+    false
+  assert error?(
+    begin
+      render_load(example_horizons, "h.tsv", :core)
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      render(m, :postgres)
+    rescue e
+      e
+    end
+  ) ==
+    true
 end
 
 test "malformed nodes are refused where they are built"
-  assert error?(try(source({name: :s, file: "s.tsv"}), catch(e(), e))) == true
-  assert error?(try(raw({name: :r, sql: "SELECT 1"}), catch(e(), e))) == true
-  assert error?(try(col(:x, :float), catch(e(), e))) == true
   assert error?(
-    try(
-      model({name: :m, from: example_horizons, posture: [:strict]}),
-      catch(e(), e)
-    )
+    begin
+      source({name: :s, file: "s.tsv"})
+    rescue e
+      e
+    end
   ) ==
     true
   assert error?(
-    try(
-      model({name: :m, from: example_horizons, posture: [:portable, :duckdb]}),
-      catch(e(), e)
-    )
+    begin
+      raw({name: :r, sql: "SELECT 1"})
+    rescue e
+      e
+    end
   ) ==
     true
-  assert error?(try(limit(-1), catch(e(), e))) == true
-  assert error?(try(filtered(c(:x), gt(:x, 1)), catch(e(), e))) == true
+  assert error?(
+    begin
+      col(:x, :float)
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      model({name: :m, from: example_horizons, posture: [:strict]})
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      model({name: :m, from: example_horizons, posture: [:portable, :duckdb]})
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      limit(-1)
+    rescue e
+      e
+    end
+  ) ==
+    true
+  assert error?(
+    begin
+      filtered(c(:x), gt(:x, 1))
+    rescue e
+      e
+    end
+  ) ==
+    true
   # The control: a well-formed source is not an error.
-  assert error?(try(example_horizons, catch(e(), e))) == false
+  assert error?(
+    begin
+      example_horizons
+    rescue e
+      e
+    end
+  ) ==
+    false
 end
 
 test "refs are the DAG: direct deps, and a closure with every upstream before its readers"
@@ -3245,7 +3333,11 @@ test "materialize: COPY to a file in DuckDB, CREATE TABLE AS in both, and no fil
   assert render_materialize(m, :duckdb, "out/leverage.parquet") ==
     "COPY (\n#{sql}\n) TO 'out/leverage.parquet' (FORMAT parquet, COMPRESSION zstd)"
   assert error?(
-    try(render_materialize(m, :core, "x.parquet"), catch(e(), e))
+    begin
+      render_materialize(m, :core, "x.parquet")
+    rescue e
+      e
+    end
   ) ==
     true
   as_table = assoc(m, :materialize, :table)
@@ -3493,13 +3585,37 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
     path,
     "{\"entity\":\"x\",\"payload\":{\"value\":\"high\"},\"seq\":0,\"time\":1}\n"
   )
-  assert error?(try(example_run(values, [:entity]), catch(e(), e)))
-  rm(path)
-  assert error?(try(render_load(recs, "r.jsonl", :core), catch(e(), e)))
-  assert error?(try(render(links, :core), catch(e(), e)))
-  assert error?(try(render_query(links, :core), catch(e(), e)))
   assert error?(
-    try(
+    begin
+      example_run(values, [:entity])
+    rescue e
+      e
+    end
+  )
+  rm(path)
+  assert error?(
+    begin
+      render_load(recs, "r.jsonl", :core)
+    rescue e
+      e
+    end
+  )
+  assert error?(
+    begin
+      render(links, :core)
+    rescue e
+      e
+    end
+  )
+  assert error?(
+    begin
+      render_query(links, :core)
+    rescue e
+      e
+    end
+  )
+  assert error?(
+    begin
       render_query(
         model(
           {
@@ -3509,11 +3625,18 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
           }
         ),
         :core
-      ),
-      catch(e(), e)
-    )
+      )
+    rescue e
+      e
+    end
   )
-  assert error?(try(type_sql(list_of(:varchar), :core), catch(e(), e)))
+  assert error?(
+    begin
+      type_sql(list_of(:varchar), :core)
+    rescue e
+      e
+    end
+  )
   assert blue::get(shift(links), :held_by) ==
     [
       "unnest at stage 1 (explode)",
@@ -3521,14 +3644,21 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
       "struct field kind at stage 2 (select)"
     ]
   assert error?(
-    try(
+    begin
       kueri::values(
         {name: :bad, columns: [col(:a, :varchar)], rows: [["a", "b"]]}
-      ),
-      catch(e(), e)
-    )
+      )
+    rescue e
+      e
+    end
   )
-  assert error?(try(struct_of([]), catch(e(), e)))
+  assert error?(
+    begin
+      struct_of([])
+    rescue e
+      e
+    end
+  )
 end
 
 # Steps of two entities as literal rows: entity, seq, time, phase.
@@ -3656,10 +3786,22 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
     [["a", 1.0], ["b", 2.0], ["early", nil], ["none", nil]]
   # Controls: a lead with no order, and an asof join held at :portable or
   # rendered as core.
-  assert error?(try(lead(:time, [:entity], []), catch(e(), e)))
+  assert error?(
+    begin
+      lead(:time, [:entity], [])
+    rescue e
+      e
+    end
+  )
   assert refusal_kinds(assoc(asof, :posture, posture_of([:portable]))) ==
     [:kueri_reach]
-  assert error?(try(render_query(asof, :core), catch(e(), e)))
+  assert error?(
+    begin
+      render_query(asof, :core)
+    rescue e
+      e
+    end
+  )
   assert render_expr(q_not(is_null(:x)), :core) == "NOT x IS NULL"
 end
 
@@ -3684,22 +3826,27 @@ test "a script builds a database file of views, upstream first, and q_rows never
   rm(db)
   # The empty case and the control: no rows is [], a failure throws.
   assert rows("SELECT 1 AS x WHERE false") == []
-  assert error?(try(rows("SELECT FROM nowhere"), catch(e(), e)))
+  assert error?(
+    begin
+      rows("SELECT FROM nowhere")
+    rescue e
+      e
+    end
+  )
   # A model a script cannot name (no :view or :table) is refused.
   assert error?(
-    try(
-      render_script([assoc(m, :materialize, nil)], :duckdb, "t"),
-      catch(e(), e)
-    )
+    begin
+      render_script([assoc(m, :materialize, nil)], :duckdb, "t")
+    rescue e
+      e
+    end
   )
 end
 
 test "q_rows reads values by conversion, so a DuckDB display change never changes a value's type"
   # Each type DuckDB 1.5's `-json` display prints as a string (measured
   # 2026-09-25): a sum over integers (HUGEINT), a DECIMAL, a UHUGEINT.
-  rows = kueri::rows(
-    "SELECT sum(x) AS s, 1.25::DECIMAL(10,2) AS d, 7::UHUGEINT AS u FROM (VALUES (1780)) t(x)"
-  )
+  rows = kueri::rows("SELECT sum(x) AS s, 1.25::DECIMAL(10,2) AS d, 7::UHUGEINT AS u FROM (VALUES (1780)) t(x)")
   row = first(rows)
   assert [as_json(row, "s"), as_json(row, "d"), as_json(row, "u")] ==
     [1780, 1.25, 7]
@@ -3717,7 +3864,11 @@ test "q_rows reads values by conversion, so a DuckDB display change never change
   # The control: a script that fails throws, it never reads as done.
   db = path_join(getenv("TMPDIR", "."), "kueri-run-#{to_s(now_ns)}.duckdb")
   assert error?(
-    try(run_at(db, "CREATE VIEW v AS SELECT * FROM nowhere"), catch(e(), e))
+    begin
+      run_at(db, "CREATE VIEW v AS SELECT * FROM nowhere")
+    rescue e
+      e
+    end
   )
   assert run_at(db, "CREATE VIEW v AS SELECT 3 AS n") == nil
   assert rows_at(db, "SELECT n FROM v") == kueri::rows("SELECT 3 AS n")
@@ -3749,13 +3900,14 @@ test "a model carries its columns, so a model built on it (plain or composed) se
   )
   assert output(over) == ["next_time"]
   assert error?(
-    try(
+    begin
       check(
         model(
           {name: :kd, from: c, pipeline: [select([:phase])], materialize: :view}
         )
-      ),
-      catch(e(), e)
-    )
+      )
+    rescue e
+      e
+    end
   )
 end

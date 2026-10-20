@@ -44,7 +44,7 @@ def flat_map_states(acc, axis, vs)
 end
 
 def state(axes_map, payload)
-  bad = filter(fn(a) !member?(get(axes_map, a), variants(a)) end, axis_names)
+  bad = filter(fn(a) not member?(get(axes_map, a), variants(a)) end, axis_names)
   if is_empty(bad)
     reduce(
       fn(s, k) assoc(s, k, get(payload, k)) end,
@@ -52,11 +52,9 @@ def state(axes_map, payload)
       [:gateway_addr, :gateway_iface, :hosts, :routed, :table, :priority]
     )
   else
-    throw(
-      error(
-        :not_a_variant,
-        "no such variant on #{join(map(fn(a) to_s(a) end, bad), ", ")}"
-      )
+    raise(
+      :not_a_variant,
+      "no such variant on #{join(map(fn(a) to_s(a) end, bad), ", ")}"
     )
   end
 end
@@ -78,7 +76,7 @@ def blind(what)
 end
 
 def decide(s)
-  if !is_empty(unread_axes(s))
+  if not is_empty(unread_axes(s))
     blind(unread_axes(s))
   elsif get(s, :corp) == :absent
     noop(:no_corp_tunnel)
@@ -131,7 +129,7 @@ end
 
 def matrix_rows(text)
   filter(
-    fn(l) !is_empty(trim(l)) && !starts_with?(l, "corp\t") end,
+    fn(l) not is_empty(trim(l)) and not starts_with?(l, "corp\t") end,
     split(text, "\n")
   )
 end
@@ -172,7 +170,7 @@ def matrix_findings(text, states)
   wrong = map(
     fn(r) [:decision_disagrees, "#{first(r)}\twant #{last(r)}"] end,
     filter(
-      fn(r) get(want, first(r)) != nil && get(want, first(r)) != last(r) end,
+      fn(r) get(want, first(r)) != nil and get(want, first(r)) != last(r) end,
       rows
     )
   )
@@ -207,7 +205,7 @@ def fill(s)
 end
 
 def capture(argv)
-  cap = try(apply(exec_capture, argv), catch(_e(), nil))
+  cap = exec_capture(*argv) rescue nil
   if cap == nil
     {
       argv: argv,
@@ -313,21 +311,21 @@ def getent_argv(getent, name)
 end
 
 def fields(line)
-  filter(fn(f) !is_empty(f) end, split(replace(trim(line), "\t", " "), " "))
+  filter(fn(f) not is_empty(f) end, split(replace(trim(line), "\t", " "), " "))
 end
 
 def ipv4?(s)
   ps = split(s, ".")
-  size(ps) == 4 && every_octet(ps)
+  size(ps) == 4 and every_octet(ps)
 end
 
 def every_octet(ps)
-  is_empty(filter(fn(p) !octet?(p) end, ps))
+  is_empty(filter(fn(p) not octet?(p) end, ps))
 end
 
 def octet?(p)
-  !is_empty(p) &&
-    is_empty(filter(fn(c) !contains?("0123456789", c) end, chars(p))) &&
+  not is_empty(p) and
+    is_empty(filter(fn(c) not contains?("0123456789", c) end, chars(p))) and
     to_int(p) <= 255
 end
 
@@ -370,9 +368,9 @@ end
 def parse_ip_route(text)
   rows = map(
     fn(l) ip_route_row(fields(l)) end,
-    filter(fn(l) !is_empty(trim(l)) end, split(text, "\n"))
+    filter(fn(l) not is_empty(trim(l)) end, split(text, "\n"))
   )
-  if !is_empty(filter(fn(r) r == nil end, rows))
+  if not is_empty(filter(fn(r) r == nil end, rows))
     bad("ip route: a line with no dev")
   else
     ok(rows)
@@ -432,21 +430,19 @@ end
 
 def rule_host(fs)
   t = after_word(fs, "to")
-  if t != nil && ends_with?(t, "/32")
+  if t != nil and ends_with?(t, "/32")
     replace(t, "/32", "")
-  else
-    nil
   end
 end
 
 def corp_iface?(iface, pattern, overlay_iface)
-  starts_with?(iface, pattern) && iface != overlay_iface
+  starts_with?(iface, pattern) and iface != overlay_iface
 end
 
 def overlay_iface(routes)
   r = first(
     filter(
-      fn(r) r_dest(r) == "100.64/10" || r_dest(r) == "100.64.0.0/10" end,
+      fn(r) r_dest(r) == "100.64/10" or r_dest(r) == "100.64.0.0/10" end,
       routes
     )
   )
@@ -468,14 +464,14 @@ end
 def corp_of(routes, pattern)
   ov = overlay_iface(routes)
   mine = filter(fn(r) corp_iface?(get(r, :iface), pattern, ov) end, routes)
-  halves = filter(fn(r) half?(r_dest(r)) || r_dest(r) == "default" end, mine)
+  halves = filter(fn(r) half?(r_dest(r)) or r_dest(r) == "default" end, mine)
   if is_empty(mine)
     :absent
   elsif size(
     unique(map(fn(r) r_dest(r) end, filter(fn(r) half?(r_dest(r)) end, halves)))
   ) >=
-    2 ||
-    !is_empty(filter(fn(r) r_dest(r) == "default" end, halves))
+    2 or
+    not is_empty(filter(fn(r) r_dest(r) == "default" end, halves))
     :full
   else
     :split
@@ -487,9 +483,9 @@ def gateway_of(routes, pattern)
   first(
     filter(
       fn(r)
-        r_dest(r) == "default" &&
-          ipv4?(get(r, :gateway)) &&
-          !corp_iface?(get(r, :iface), pattern, ov) &&
+        r_dest(r) == "default" and
+          ipv4?(get(r, :gateway)) and
+          not corp_iface?(get(r, :iface), pattern, ov) and
           get(r, :iface) != ov
       end,
       routes
@@ -503,8 +499,8 @@ def routed_via(routes, gateway)
       fn(r) r_dest(r) end,
       filter(
         fn(r)
-          get(r, :gateway) == gateway &&
-            ipv4?(r_dest(r)) &&
+          get(r, :gateway) == gateway and
+            ipv4?(r_dest(r)) and
             contains?(get(r, :flags), "H")
         end,
         routes
@@ -514,9 +510,9 @@ def routed_via(routes, gateway)
 end
 
 def parse_derp_map(text)
-  doc = try(json_parse(text), catch(_e(), nil))
+  doc = json_parse(text) rescue nil
   regions = as_json(doc, "Regions")
-  if regions == nil || !list?(regions)
+  if regions == nil or not list?(regions)
     bad("derp-map: no Regions object")
   else
     ips = unique(
@@ -539,7 +535,7 @@ end
 
 def region_ips(reg)
   nodes = as_json(reg, "Nodes")
-  if nodes == nil || !list?(nodes)
+  if nodes == nil or not list?(nodes)
     []
   else
     map(fn(n) get_str(n, "IPv4", "") end, nodes)
@@ -547,16 +543,16 @@ def region_ips(reg)
 end
 
 def parse_netcheck(text)
-  doc = try(json_parse(text), catch(_e(), nil))
-  if doc == nil || !list?(doc)
+  doc = json_parse(text) rescue nil
+  if doc == nil or not list?(doc)
     bad("netcheck: not a JSON object")
   else
     udp = as_json(doc, "UDP")
     lat = as_json(doc, "RegionLatency")
-    reached = list?(lat) && !null?(lat)
-    if !boolean?(udp)
+    reached = list?(lat) and not null?(lat)
+    if not boolean?(udp)
       bad("netcheck: no UDP field")
-    elsif !reached
+    elsif not reached
       ok(:none)
     elsif udp
       ok(:direct)
@@ -567,7 +563,7 @@ def parse_netcheck(text)
 end
 
 def parse_backend_state(text)
-  doc = try(json_parse(text), catch(_e(), nil))
+  doc = json_parse(text) rescue nil
   st = get_str(doc, "BackendState", "")
   if is_empty(st)
     bad("status: no BackendState")
@@ -599,7 +595,7 @@ def parse_getent(text)
       fn(ip) ipv4?(ip) end,
       map(
         fn(l) first(fields(l)) end,
-        filter(fn(l) !is_empty(trim(l)) end, split(text, "\n"))
+        filter(fn(l) not is_empty(trim(l)) end, split(text, "\n"))
       )
     )
   )
@@ -612,8 +608,8 @@ end
 
 def infer_enforcement(targets, routed, applied, overlay)
   present = filter(fn(h) member?(h, routed) end, targets)
-  lost = filter(fn(h) !member?(h, routed) end, applied)
-  if !is_empty(lost)
+  lost = filter(fn(h) not member?(h, routed) end, applied)
+  if not is_empty(lost)
     :routes_rewritten
   elsif is_empty(present)
     :unknown
@@ -625,11 +621,11 @@ def infer_enforcement(targets, routed, applied, overlay)
 end
 
 def overlay_of(status_r, netcheck_r)
-  if !get(status_r, :ok)
+  if not get(status_r, :ok)
     :unread
   elsif get(status_r, :value) != "Running"
     :down
-  elsif !get(netcheck_r, :ok)
+  elsif not get(netcheck_r, :ok)
     :unread
   else
     get(netcheck_r, :value)
@@ -646,14 +642,14 @@ def assemble(cfg, obs)
   end
   overlay = overlay_of(get(obs, :status), get(obs, :netcheck))
   gw_row = gateway_of(routes, pattern)
-  gw_addr = if !is_empty(get(cfg, :gateway))
+  gw_addr = if not is_empty(get(cfg, :gateway))
     get(cfg, :gateway)
   elsif gw_row != nil
     get(gw_row, :gateway)
   else
     ""
   end
-  gw_iface = if !is_empty(get(cfg, :gateway_iface))
+  gw_iface = if not is_empty(get(cfg, :gateway_iface))
     get(cfg, :gateway_iface)
   elsif gw_row != nil
     get(gw_row, :iface)
@@ -662,7 +658,7 @@ def assemble(cfg, obs)
   end
   derp_r = get(obs, :derp)
   ctl_r = get(obs, :control)
-  targets_ok = get(derp_r, :ok) && get(ctl_r, :ok)
+  targets_ok = get(derp_r, :ok) and get(ctl_r, :ok)
   hosts = if targets_ok
     sorted(
       unique(
@@ -680,21 +676,21 @@ def assemble(cfg, obs)
   else
     routed_via(routes, gw_addr)
   end
-  routes_ok = get(routes_r, :ok) &&
-    (get(cfg, :platform) == :darwin || get(get(obs, :rules), :ok))
+  routes_ok = get(routes_r, :ok) and
+    (get(cfg, :platform) == :darwin or get(get(obs, :rules), :ok))
   corp = if get(routes_r, :ok)
     corp_of(routes, pattern)
   else
     :unread
   end
-  gateway = if !get(routes_r, :ok) && is_empty(get(cfg, :gateway))
+  gateway = if not get(routes_r, :ok) and is_empty(get(cfg, :gateway))
     :unread
-  elsif is_empty(gw_addr) || is_empty(gw_iface)
+  elsif is_empty(gw_addr) or is_empty(gw_iface)
     :absent
   else
     :present
   end
-  enforcement = if !routes_ok || overlay == :unread || !targets_ok
+  enforcement = if not routes_ok or overlay == :unread or not targets_ok
     :unread
   else
     infer_enforcement(hosts, routed, get(cfg, :applied), overlay)
@@ -801,9 +797,9 @@ def act(argvs, dry_run)
 end
 
 def read_applied(path)
-  doc = try(json_parse(read_or(path, "")), catch(_e(), nil))
+  doc = json_parse(read_or(path, "")) rescue nil
   xs = as_json(doc, "applied")
-  if xs == nil || !list?(xs)
+  if xs == nil or not list?(xs)
     []
   else
     filter(fn(x) string?(x) end, xs)
@@ -843,12 +839,12 @@ def run(cfg)
   argvs = plan(o, cfg2)
   results = act(argvs, get(cfg2, :dry_run))
   failed = filter(
-    fn(r) get(r, :status) != 0 && get(r, :status) != nil end,
+    fn(r) get(r, :status) != 0 and get(r, :status) != nil end,
     results
   )
-  applied = if get(cfg2, :dry_run) ||
-    get(o, :kind) != :bypass ||
-    !is_empty(failed)
+  applied = if get(cfg2, :dry_run) or
+    get(o, :kind) != :bypass or
+    not is_empty(failed)
     get(cfg2, :applied)
   else
     sorted(unique(append(get(cfg2, :applied), get(get(o, :routes), :hosts))))
@@ -889,7 +885,7 @@ def fixture(name)
     map(fn(r) path_join(r, "ukai/fixtures/#{name}") end, roots)
   )
   if is_empty(hits)
-    throw(error(:no_fixture, name))
+    raise(:no_fixture, name)
   else
     read_file(first(hits))
   end
@@ -986,20 +982,18 @@ test "blind is never noop: an unread axis wins over every other answer"
 end
 
 test "a state with a value outside its axis is refused, not decided"
-  r = try(
-    state(
-      {
-        corp: :sideways,
-        enforcement: :unknown,
-        overlay: :relay,
-        gateway: :present,
-        targets: :resolved,
-        platform: :darwin
-      },
-      {}
-    ),
-    catch(_e(), :refused)
-  )
+  r = state(
+    {
+      corp: :sideways,
+      enforcement: :unknown,
+      overlay: :relay,
+      gateway: :present,
+      targets: :resolved,
+      platform: :darwin
+    },
+    {}
+  ) rescue
+    :refused
   assert r == :refused
 end
 
@@ -1058,9 +1052,7 @@ test "control plane resolution and status"
     "Stopped"
   assert get(parse_backend_state("{}"), :ok) == false
   assert get(
-    parse_getent(
-      "192.200.0.102   STREAM controlplane.tailscale.com\n192.200.0.102   DGRAM\n"
-    ),
+    parse_getent("192.200.0.102   STREAM controlplane.tailscale.com\n192.200.0.102   DGRAM\n"),
     :value
   ) ==
     ["192.200.0.102"]
@@ -1148,9 +1140,7 @@ test "nixos is policy routing: a table route and a rule per host"
   assert corp_of(rs, "ppp") == :full
   assert get(gateway_of(rs, "ppp"), :iface) == "eth0"
   assert get(
-    parse_ip_rules(
-      "5200:\tfrom all to 192.200.0.102/32 lookup 5280\n5210:\tfrom all fwmark 0x80000/0xff0000 lookup main\n"
-    ),
+    parse_ip_rules("5200:\tfrom all to 192.200.0.102/32 lookup 5280\n5210:\tfrom all fwmark 0x80000/0xff0000 lookup main\n"),
     :value
   ) ==
     ["192.200.0.102"]

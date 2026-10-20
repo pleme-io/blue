@@ -70,7 +70,7 @@ fn heads(s: &Sexp, out: &mut BTreeSet<String>) {
 
 /// Is `name` spellable as a call's head: one identifier token, not reserved?
 fn callable(name: &str) -> bool {
-    !is_reserved_word(name)
+    (!is_reserved_word(name) || blue_lang_syntax::OPERATOR_KEYWORDS.contains(&name))
         && matches!(
             lex(name).as_deref(),
             Ok([t, e]) if matches!(&t.kind, TokenKind::Ident(n) if n == name)

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:69fc2061b7c478d74716cef03e7ab1b565dbc9210ce89cbe9df29cf4beb57d70",
+  "manifest": {
+    "schema": 1,
+    "name": "saishikou",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

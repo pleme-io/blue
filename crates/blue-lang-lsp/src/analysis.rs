@@ -314,6 +314,13 @@ pub fn diagnostics(engine: &Engine, id: &str) -> Vec<Diagnostic> {
             }]
         }
     };
+    let form: Vec<Diagnostic> = blue_lang_fmt::format_tree_lossless(&a.text, forms)
+        .ok()
+        .map(|f| blue_lang_runtime::pipeline::form_diagnostics_against(&a.text, &f))
+        .unwrap_or_default()
+        .iter()
+        .map(|d| lsp_diagnostic(d, &index))
+        .collect();
     match &a.checked {
         Some(Ok(checked)) => checked
             .outcome
@@ -321,6 +328,7 @@ pub fn diagnostics(engine: &Engine, id: &str) -> Vec<Diagnostic> {
             .iter()
             .filter(|d| checked.program.owner_of(d.top_level) == Some(ResolvedProgram::ENTRY))
             .map(|d| lsp_diagnostic(d, &index))
+            .chain(form)
             .collect(),
         // Imports that do not load leave no program to resolve names in: say
         // so once, and still run the typing rules on this buffer alone, which
@@ -350,6 +358,7 @@ fn lsp_diagnostic(d: &blue_lang_check::Diagnostic, index: &LineIndex) -> Diagnos
     let source = match d.code {
         Code::B0003 | Code::B0004 | Code::B0005 => "types",
         Code::B0007 | Code::B0008 => "waivers",
+        c if c.rule().slug == "layout" || (Code::B0024..=Code::B0035).contains(&c) || c == Code::B0042 => "form",
         _ => "names",
     };
     Diagnostic {
@@ -491,7 +500,7 @@ pub fn hover_of(engine: &Engine, id: &str, offset: usize) -> Option<Hover> {
 mod tests {
     use super::*;
 
-    const PROGRAM: &str = "def add(a: Int, b: Int) -> Int\n  a + b\nend\nadd(1, 2)";
+    const PROGRAM: &str = "def add(a: Int, b: Int) -> Int\n  a + b\nend\n\nadd(1, 2)\n";
 
     #[test]
     fn a_clean_document_has_no_diagnostics_and_formats() {

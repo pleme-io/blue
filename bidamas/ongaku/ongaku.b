@@ -186,7 +186,7 @@ end
 
 def is_enharmonic(a, b)
   pa = pitch_class_of(a)
-  pa >= 0 && pa == pitch_class_of(b)
+  pa >= 0 and pa == pitch_class_of(b)
 end
 
 # --- chords -------------------------------------------------------------------
@@ -651,7 +651,7 @@ def is_consonant(semitones)
 end
 
 def is_dissonant(semitones)
-  !is_consonant(semitones)
+  not is_consonant(semitones)
 end
 
 test "note naming wraps in both directions"
@@ -1033,7 +1033,7 @@ test "the accidental count is derivable from the notes, not just from the table"
   assert map(
     fn(k)
       count_where(
-        fn(pc) !is_in_scale(pc, major_scale(0)) end,
+        fn(pc) not is_in_scale(pc, major_scale(0)) end,
         scale_tones(major_scale(k))
       )
     end,
@@ -1044,7 +1044,7 @@ test "the accidental count is derivable from the notes, not just from the table"
   # E# — a sharp on a white key. Pinned so the boundary is documented, not lost.
   assert abs(key_signature(6)) == 6
   assert count_where(
-    fn(pc) !is_in_scale(pc, major_scale(0)) end,
+    fn(pc) not is_in_scale(pc, major_scale(0)) end,
     scale_tones(major_scale(6))
   ) ==
     5

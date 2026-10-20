@@ -21,19 +21,17 @@ def sized(kind, rest)
   r = replace(rest, "\t", " ")
   if includes(r, " ")
     n = to_int(trim(after_last(r, " ")))
-    if n == nil || n < 0
+    if n == nil or n < 0
       nil
     else
       row(kind, trim(before_last(r, " ")), n)
     end
-  else
-    nil
   end
 end
 
 def parse_line(line)
   t = trim(line)
-  if t == "" || starts_with?(t, "#") || !includes(t, ":")
+  if t == "" or starts_with?(t, "#") or not includes(t, ":")
     nil
   else
     sized(trim(before_first(t, ":")), trim(after_first(t, ":")))
@@ -45,7 +43,7 @@ def parse(text)
 end
 
 def recorded(rows, kind, key)
-  hit = filter(fn(r) get(r, :kind) == kind && get(r, :key) == key end, rows)
+  hit = filter(fn(r) get(r, :kind) == kind and get(r, :key) == key end, rows)
   if is_empty(hit)
     nil
   else
@@ -79,8 +77,6 @@ def failure(rows, kind, m)
       :grew,
       "#{kind}: #{key} measures #{to_s(size)}, past its recorded #{to_s(get(j, :recorded))} by #{to_s(get(j, :grew))}"
     )
-  else
-    nil
   end
 end
 
@@ -100,13 +96,13 @@ def keys_of(rows, kind)
 end
 
 def orphans(rows, kind, live)
-  filter(fn(k) !member?(k, live) end, keys_of(rows, kind))
+  filter(fn(k) not member?(k, live) end, keys_of(rows, kind))
 end
 
 def shrunk(rows, kind, measurements)
   filter(
     fn(m)
-      recorded(rows, kind, get(m, :key)) != nil &&
+      recorded(rows, kind, get(m, :key)) != nil and
         get(m, :size) < recorded(rows, kind, get(m, :key))
     end,
     measurements
@@ -176,9 +172,7 @@ test "parse keeps keys containing spaces"
 end
 
 test "a malformed line covers nothing rather than weakening the gate"
-  assert parse(
-    "# a comment\n\nentry: no-size-here\nnocolon 12\nentry: bad-size xyz\nentry: negative -3\n"
-  ) ==
+  assert parse("# a comment\n\nentry: no-size-here\nnocolon 12\nentry: bad-size xyz\nentry: negative -3\n") ==
     []
 end
 

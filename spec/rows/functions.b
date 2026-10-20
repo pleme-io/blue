@@ -170,7 +170,7 @@ row(
 
 row(
   "fn.comp",
-  "comp(fn(x) x + 1 end, fn(x) x * 2 end)(5)",
+  "# waive B0036: the row covers this name itself\ncomp(fn(x) x + 1 end, fn(x) x * 2 end)(5)",
   value("11"),
   covers("builtin:comp")
 )
@@ -223,7 +223,7 @@ row(
 
 row(
   "fn.foldl",
-  "foldl(fn(acc, x) acc - x end, 10, [1, 2])",
+  "# waive B0036: the row covers this name itself\nfoldl(fn(acc, x) acc - x end, 10, [1, 2])",
   value("7"),
   covers("builtin:foldl")
 )

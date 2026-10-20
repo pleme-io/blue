@@ -73,7 +73,7 @@ def cz_tokens(text)
     elsif member?(c, cz_delims)
       f = cz_flush(st)
       assoc(f, :toks, append(get(f, :toks), [c]))
-    elsif c == " " || c == "\n" || c == "\t"
+    elsif c == " " or c == "\n" or c == "\t"
       cz_flush(st)
     else
       assoc(st, :cur, concat(get(st, :cur), c))
@@ -138,7 +138,7 @@ def cz_read(text)
         append(stack, [[]])
       elsif tok == ")"
         if count(stack) < 2
-          throw(error(:chuuzou, "unbalanced `)` in the resolved tree"))
+          raise(:chuuzou, "unbalanced `)` in the resolved tree")
         end
         done = last(stack)
         rest_ = butlast(stack)
@@ -151,7 +151,7 @@ def cz_read(text)
     cz_tokens(text)
   )
   if count(st) != 1
-    throw(error(:chuuzou, "unbalanced `(` in the resolved tree"))
+    raise(:chuuzou, "unbalanced `(` in the resolved tree")
   end
   first(st)
 end
@@ -159,27 +159,23 @@ end
 # ── Node predicates ────────────────────────────────────────────────────────
 
 def cz_sym?(n)
-  map?(n) && get(n, :sym) != nil
+  map?(n) and get(n, :sym) != nil
 end
 
 def cz_sym(n)
   if cz_sym?(n)
     get(n, :sym)
-  else
-    nil
   end
 end
 
 def cz_head(n)
-  if list?(n) && count(n) > 0
+  if list?(n) and count(n) > 0
     cz_sym(first(n))
-  else
-    nil
   end
 end
 
 def cz_refuse(what)
-  throw(error(:chuuzou, what))
+  raise(:chuuzou, what)
 end
 
 # ── Names (L1: already qualified by the resolver) ─────────────────────────
@@ -207,7 +203,7 @@ def cz_ident_ok?(s)
 end
 
 def cz_checked_ident(s, why)
-  if s == "" || !cz_ident_ok?(s)
+  if s == "" or not cz_ident_ok?(s)
     cz_refuse(
       "`#{s}` cannot be a Rust identifier (#{why}); name it with letters, digits and _"
     )
@@ -234,7 +230,7 @@ def rs_path(name)
 end
 
 def rs_u32(n)
-  if !integer?(n) || n < 0 || n > 4294967295
+  if not integer?(n) or n < 0 or n > 4_294_967_295
     cz_refuse("the literal #{n} does not fit the board word (u32)")
   end
   {kind: "int", value: n, suffix: "u32"}
@@ -306,7 +302,7 @@ def cz_type(n)
     rs_ty("u32")
   else
     cz_refuse(
-      "the type `#{cz_sym(n) || n}` has no native representation at N0; Int is the board word"
+      "the type `#{cz_sym(n) or n}` has no native representation at N0; Int is the board word"
     )
   end
 end
@@ -341,7 +337,7 @@ def cz_expr(n, ctx)
     else
       cz_refuse("`#{s}` is not a parameter or a constant here")
     end
-  elsif list?(n) && count(n) > 0
+  elsif list?(n) and count(n) > 0
     cz_call(n, ctx)
   else
     cz_refuse(
@@ -356,9 +352,7 @@ def cz_call(n, ctx)
   arith = cz_lookup(h, cz_arith)
   cmp = cz_lookup(h, cz_compare)
   if h == nil
-    cz_refuse(
-      "a call through a computed function has no native form (every call is direct at the monomorphic position)"
-    )
+    cz_refuse("a call through a computed function has no native form (every call is direct at the monomorphic position)")
   elsif arith != nil
     if count(args) < 2
       cz_refuse("`#{h}` with #{count(args)} operands has no native form at N0")
@@ -555,7 +549,7 @@ end
 
 def cz_const(form)
   v = third(form)
-  if !integer?(v)
+  if not integer?(v)
     cz_refuse(
       "the constant `#{cz_local(cz_sym(second(form)))}` must be an integer literal at N0"
     )
@@ -574,7 +568,7 @@ def cz_kind(form)
     :use
   elsif h == "define-typed"
     :fn
-  elsif h == "define" && cz_sym?(second(form))
+  elsif h == "define" and cz_sym?(second(form))
     :const
   elsif h == "define"
     :untyped
@@ -610,7 +604,7 @@ def cz_lower(forms, board)
     map(fn(p) second(p) end, filter(fn(p) first(p) == k end, kinds))
   end
   map(fn(f) cz_check_use(f) end, pick(:use))
-  if !empty?(pick(:untyped))
+  if not empty?(pick(:untyped))
     cz_refuse(
       "`#{cz_local(cz_sym(first(second(first(pick(:untyped))))))}` is untyped; the native position is restricted, so every definition is typed (constraint C4)"
     )
@@ -637,7 +631,7 @@ end
 # ── The driver ────────────────────────────────────────────────────────────
 
 def cz_capture(args)
-  r = apply(exec_capture, args)
+  r = exec_capture(*args)
   {
     status: second(first(r)),
     stdout: second(second(r)),
@@ -872,8 +866,8 @@ test "the reader reads the resolved tree's atoms and nesting"
   assert first(forms) == [{sym: "define"}, {sym: "%root/X"}, 5]
   assert second(forms) == [{sym: "f"}, {str: "a b"}, {kw: "k"}, [{sym: "g"}]]
   assert cz_read("") == []
-  assert try(cz_read("(a"), catch(_e(), :refused)) == :refused
-  assert try(cz_read("a)"), catch(_e(), :refused)) == :refused
+  assert (cz_read("(a") rescue :refused) == :refused
+  assert (cz_read("a)") rescue :refused) == :refused
 end
 
 test "arithmetic lowers checked, and wrapping only where asked"
@@ -886,17 +880,15 @@ test "arithmetic lowers checked, and wrapping only where asked"
 end
 
 test "a literal past the board word is a compile error"
-  assert get(rs_u32(4294967295), :value) == 4294967295
-  assert try(rs_u32(4294967296), catch(_e(), :refused)) == :refused
-  assert try(rs_u32(-1), catch(_e(), :refused)) == :refused
+  assert get(rs_u32(4_294_967_295), :value) == 4_294_967_295
+  assert (rs_u32(4_294_967_296) rescue :refused) == :refused
+  assert (rs_u32(-1) rescue :refused) == :refused
 end
 
 test "a tail self-call becomes a loop and any other self-call is refused"
   looped = cz_fn(
     first(
-      cz_read(
-        "(define-typed (%root/down (n Int)) Int (if (equal? n 0) n (%root/down (- n 1))))"
-      )
+      cz_read("(define-typed (%root/down (n Int)) Int (if (equal? n 0) n (%root/down (- n 1))))")
     ),
     ["%root/down"],
     []
@@ -906,32 +898,23 @@ test "a tail self-call becomes a loop and any other self-call is refused"
   deep = first(
     cz_read("(define-typed (%root/f (n Int)) Int (+ 1 (%root/f n)))")
   )
-  assert try(cz_fn(deep, ["%root/f"], []), catch(_e(), :refused)) == :refused
+  assert (cz_fn(deep, ["%root/f"], []) rescue :refused) == :refused
 end
 
 test "outside the N0 subset is refused, naming the rule"
   board = kb_board("qemu-virt32")
-  assert try(
-    cz_lower(cz_read("(define (%root/f x) x)"), board),
-    catch(_e(), :refused)
-  ) ==
+  assert (cz_lower(cz_read("(define (%root/f x) x)"), board) rescue :refused) ==
     :refused
-  assert try(
-    cz_lower(cz_read("(use \"retsu\" (list :first))"), board),
-    catch(_e(), :refused)
-  ) ==
+  assert (cz_lower(cz_read("(use \"retsu\" (list :first))"), board) rescue
+    :refused) ==
     :refused
-  assert try(cz_lower(cz_read("(eval 1)"), board), catch(_e(), :refused)) ==
-    :refused
+  assert (cz_lower(cz_read("(eval 1)"), board) rescue :refused) == :refused
 end
 
 test "the linker script comes from the board's ram region"
   script = cz_link_script(kb_board("qemu-virt32"))
   assert contains?(script, "ORIGIN = 2147483648, LENGTH = 131072")
-  assert try(
-    cz_link_script({name: "bare", memory: []}),
-    catch(_e(), :refused)
-  ) ==
+  assert (cz_link_script({name: "bare", memory: []}) rescue :refused) ==
     :refused
 end
 

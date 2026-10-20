@@ -353,7 +353,7 @@ test "tap discards its function's result and keeps the value"
 end
 
 test "apply_when transforms only where the predicate holds"
-  halve_evens = apply_when(fn(n) modulo(n, 2) == 0 end, fn(n) floor(n / 2) end)
+  halve_evens = apply_when(fn(n) n % 2 == 0 end, fn(n) floor(n / 2) end)
   assert halve_evens(8) == 4
   assert halve_evens(7) == 7
   # outside the predicate it IS the identity, which is what makes it iterable

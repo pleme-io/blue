@@ -4,12 +4,12 @@ end
 
 def enabled?(settings)
   db = get(settings, "database")
-  db != nil && get(db, "url") != nil && get(db, "url") != ""
+  db != nil and get(db, "url") != nil and get(db, "url") != ""
 end
 
 def open(settings)
-  if !enabled?(settings)
-    throw(error(:no_database, "the settings name no database.url"))
+  if not enabled?(settings)
+    raise(:no_database, "the settings name no database.url")
   end
   db = get(settings, "database")
   c = pg_connect(get(db, "url"))
@@ -68,5 +68,12 @@ test "a database is configured only when its url is set"
     {"database" => {"url" => "postgres://u@h/d", "schema" => "s"}}
   ) ==
     true
-  assert error?(try(open({}), catch(e(), e))) == true
+  assert error?(
+    begin
+      open({})
+    rescue e
+      e
+    end
+  ) ==
+    true
 end

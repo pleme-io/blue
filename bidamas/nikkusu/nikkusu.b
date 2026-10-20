@@ -42,11 +42,11 @@ def nodes_of(n)
 end
 
 def trivia?(n)
-  kind(n) == "TOKEN_WHITESPACE" || kind(n) == "TOKEN_COMMENT"
+  kind(n) == "TOKEN_WHITESPACE" or kind(n) == "TOKEN_COMMENT"
 end
 
 def significant(n)
-  filter(fn(c) !trivia?(c) end, kids(n))
+  filter(fn(c) not trivia?(c) end, kids(n))
 end
 
 def text(n)
@@ -78,7 +78,7 @@ def line_count(n)
 end
 
 def nodes_where(f, n)
-  below = apply(append, map(fn(c) nodes_where(f, c) end, nodes_of(n)))
+  below = append(*map(fn(c) nodes_where(f, c) end, nodes_of(n)))
   if f(n)
     cons(n, below)
   else
@@ -97,20 +97,18 @@ def string_content(n)
         fn(c) text(c) end,
         filter(
           fn(c)
-            kind(c) == "TOKEN_STRING_CONTENT" || kind(c) == "NODE_INTERPOL"
+            kind(c) == "TOKEN_STRING_CONTENT" or kind(c) == "NODE_INTERPOL"
           end,
           kids(n)
         )
       ),
       ""
     )
-  else
-    nil
   end
 end
 
 def literal_string?(n)
-  kind(n) == "NODE_STRING" &&
+  kind(n) == "NODE_STRING" and
     is_empty(filter(fn(c) kind(c) == "NODE_INTERPOL" end, kids(n)))
 end
 
@@ -118,7 +116,7 @@ def segment(n)
   k = kind(n)
   if k == "NODE_IDENT"
     code(n)
-  elsif k == "NODE_STRING" && literal_string?(n)
+  elsif k == "NODE_STRING" and literal_string?(n)
     string_content(n)
   else
     code(n)
@@ -188,7 +186,7 @@ def bindings_in(n, prefix, scope, outer)
   elsif k == "NODE_LET_IN"
     parts = nodes_of(n)
     lets = filter(
-      fn(c) kind(c) == "NODE_ATTRPATH_VALUE" || kind(c) == "NODE_INHERIT" end,
+      fn(c) kind(c) == "NODE_ATTRPATH_VALUE" or kind(c) == "NODE_INHERIT" end,
       parts
     )
     body = last(parts)
@@ -207,7 +205,7 @@ end
 
 def under?(b, prefix)
   p = get(b, :path)
-  size(p) >= size(prefix) && take(size(prefix), p) == prefix
+  size(p) >= size(prefix) and take(size(prefix), p) == prefix
 end
 
 def module_path(b)
@@ -311,10 +309,10 @@ def options_roots(root)
   filter(
     fn(b)
       o = get(b, :outer)
-      get(b, :scope) == :attrs &&
-        first(get(b, :path)) == "options" &&
-        (o == nil || first(o) != "options") &&
-        (size(get(b, :path)) > 1 || kind(get(b, :value)) == "NODE_ATTR_SET")
+      get(b, :scope) == :attrs and
+        first(get(b, :path)) == "options" and
+        (o == nil or first(o) != "options") and
+        (size(get(b, :path)) > 1 or kind(get(b, :value)) == "NODE_ATTR_SET")
     end,
     bindings(root)
   )
@@ -348,7 +346,7 @@ def attr(set, name)
 end
 
 def module_function?(n)
-  kind(n) == "NODE_LAMBDA" &&
+  kind(n) == "NODE_LAMBDA" and
     member?(
       "config",
       map(

@@ -29,7 +29,7 @@ def any(p, xs)
 end
 
 def none(p, xs)
-  !any(p, xs)
+  not any(p, xs)
 end
 
 def count_if(p, xs)
@@ -37,15 +37,15 @@ def count_if(p, xs)
 end
 
 def complement(p)
-  fn(x) !p(x) end
+  fn(x) not p(x) end
 end
 
 def both(p, q)
-  fn(x) p(x) && q(x) end
+  fn(x) p(x) and q(x) end
 end
 
 def either(p, q)
-  fn(x) p(x) || q(x) end
+  fn(x) p(x) or q(x) end
 end
 
 # The rest of the connectives, so a caller never has to spell one out by hand.
@@ -61,15 +61,15 @@ end
 # readers guess wrong, which is the whole argument for it being a named
 # combinator instead of an inlined `!p(x) || q(x)` at each site.
 def implies(p, q)
-  fn(x) !p(x) || q(x) end
+  fn(x) not p(x) or q(x) end
 end
 
 def nand(p, q)
-  fn(x) !(p(x) && q(x)) end
+  fn(x) not (p(x) and q(x)) end
 end
 
 def nor(p, q)
-  fn(x) !(p(x) || q(x)) end
+  fn(x) not (p(x) or q(x)) end
 end
 
 # all_of / any_of / none_of take a LIST of predicates and hand back a
@@ -103,7 +103,7 @@ def is_empty_pred(xs)
 end
 
 def is_nonempty_pred(xs)
-  !is_empty(xs)
+  not is_empty(xs)
 end
 
 # The counting quantifiers, between `any` (n >= 1) and `every` (n == size).
@@ -326,7 +326,7 @@ test "all_of, any_of and none_of over a list of predicates"
   # none_of is the complement of any_of by construction; assert it stays so.
   probes = [4, 3, -2, -3]
   assert every(
-    fn(x) none_of([pos, even_p])(x) == !any_of([pos, even_p])(x) end,
+    fn(x) none_of([pos, even_p])(x) == (not any_of([pos, even_p])(x)) end,
     probes
   ) ==
     true
@@ -351,7 +351,7 @@ test "the emptiness predicates pass by name"
   assert every(is_empty_pred, []) == true
   # cdr of a singleton is nil, not [] — is_empty_pred inherits retsu's totality
   # rather than erroring the way a length-based test would.
-  assert is_empty_pred(cdr([1])) == true
+  assert is_empty_pred(blue::rest([1])) == true
 end
 
 test "the counting quantifiers, including the empty list"

@@ -360,7 +360,7 @@ def mesh_refusals(m)
     [[:rittai_mesh, "the mesh has no faces"]]
   else
     bad_index = filter(
-      fn(f) some(fn(i) i < 0 || i >= n end, f) == true end,
+      fn(f) some(fn(i) i < 0 or i >= n end, f) == true end,
       faces
     )
     if is_empty(bad_index) == false
@@ -435,7 +435,7 @@ def closed_refusals(m)
       )
     )
   )
-  if is_empty(out) && volume(m) <= 0
+  if is_empty(out) and volume(m) <= 0
     [[:rittai_mesh, "the volume is not positive: the faces are wound inward"]]
   else
     out
@@ -458,7 +458,7 @@ end
 # A position as a key, to a millionth of the unit: two vertices closer than
 # that are one vertex.
 def position_key(p)
-  "#{to_s(round(x(p) * 1000000))},#{to_s(round(y(p) * 1000000))},#{to_s(round(z(p) * 1000000))}"
+  "#{to_s(round(x(p) * 1_000_000))},#{to_s(round(y(p) * 1_000_000))},#{to_s(round(z(p) * 1_000_000))}"
 end
 
 # Vertices at the same position merged into one, faces re-indexed. An
@@ -668,7 +668,7 @@ end
 def blocks(pts, e, m, p, a, b)
   i = nth(0, e)
   j = nth(1, e)
-  if i == m || j == m || i == p || j == p
+  if i == m or j == m or i == p or j == p
     false
   else
     segments_intersect(a, b, nth(i, pts), nth(j, pts))
@@ -682,7 +682,7 @@ def ear_clip(pts, poly)
     {poly: poly, tris: [], stuck: false},
     range(0, n)
   )
-  if get(fin, :stuck) || size(get(fin, :poly)) > 0
+  if get(fin, :stuck) or size(get(fin, :poly)) > 0
     {
       triangles: reverse(get(fin, :tris)),
       refusals: [
@@ -699,7 +699,7 @@ end
 
 def clip_step(pts, acc)
   poly = get(acc, :poly)
-  if get(acc, :stuck) || size(poly) == 0
+  if get(acc, :stuck) or size(poly) == 0
     acc
   elsif size(poly) == 3
     {poly: [], tris: concat_lists([poly], get(acc, :tris)), stuck: false}
@@ -764,12 +764,12 @@ end
 
 def blocks_ear(pts, poly, j, a, b, c)
   q = nth(nth(j, poly), pts)
-  if near(distance_squared(q, a), 0) ||
-    near(distance_squared(q, b), 0) ||
+  if near(distance_squared(q, a), 0) or
+    near(distance_squared(q, b), 0) or
     near(distance_squared(q, c), 0)
     false
   else
-    cross(a, b, q) >= 0 && cross(b, c, q) >= 0 && cross(c, a, q) >= 0
+    cross(a, b, q) >= 0 and cross(b, c, q) >= 0 and cross(c, a, q) >= 0
   end
 end
 
@@ -782,7 +782,7 @@ def extrude(r, h)
   n = size(pts)
   tri = triangulate(r)
   if is_empty(get(tri, :refusals)) == false
-    throw(error(:rittai_triangulation, why_of(get(tri, :refusals))))
+    raise(:rittai_triangulation, why_of(get(tri, :refusals)))
   end
   bottom = map(fn(p) lift(p, 0) end, pts)
   top = map(fn(p) lift(p, h) end, pts)
@@ -872,7 +872,7 @@ def ring(prof, path, frames, i)
   last_seg = size(path) - 2
   seg = min(i, last_seg)
   frame = nth(seg, frames)
-  if i == 0 || i == size(path) - 1
+  if i == 0 or i == size(path) - 1
     map(
       fn(q)
         vadd(

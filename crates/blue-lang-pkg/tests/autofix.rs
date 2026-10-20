@@ -1,0 +1,111 @@
+use blue_lang_check::{Code, FixKind, RULES};
+use blue_lang_runtime::pipeline::{check_entry, form_diagnostics, syntax_diagnostic, Checking};
+use blue_lang_runtime::uses::{Entry, Loader};
+use std::path::Path;
+
+const FIRST_SPELLING_RULE: &str = "B0023";
+
+struct Imports(&'static [(&'static str, &'static str)]);
+
+impl Loader for Imports {
+    fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+        self.0
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(n, src)| vec![(format!("{n}.b"), (*src).to_string())])
+            .ok_or_else(|| format!("no bidama named \"{name}\""))
+    }
+
+    fn needs(
+        &self,
+        _package: &str,
+        _entry_dir: Option<&Path>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        Some(std::collections::BTreeSet::new())
+    }
+
+    fn version(&self, _package: &str, _entry_dir: Option<&Path>) -> Option<String> {
+        Some("0.1.1".to_string())
+    }
+}
+
+fn codes(src: &str, loader: &Imports) -> Vec<Code> {
+    if let Some(d) = syntax_diagnostic(src) {
+        return vec![d.code];
+    }
+    let Ok(checked) = check_entry(
+        Entry {
+            path: Some(Path::new("witness.b")),
+            text: src,
+        },
+        loader,
+        None,
+        Checking::WithTests,
+    ) else {
+        return Vec::new();
+    };
+    checked
+        .outcome
+        .diagnostics
+        .iter()
+        .chain(&checked.outcome.census)
+        .chain(&form_diagnostics(src))
+        .map(|d| d.code)
+        .collect()
+}
+
+#[test]
+fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
+    let mut failures = Vec::new();
+    for r in RULES
+        .iter()
+        .filter(|r| r.fix == FixKind::Machine && r.code.as_str() >= FIRST_SPELLING_RULE)
+    {
+        let loader = Imports(r.imports);
+        let path = Path::new("witness.b");
+        let written = match blue_lang_pkg::canonical::format_with(&loader, path, r.witness) {
+            Ok(w) => w,
+            Err(e) => {
+                failures.push(format!("{}: fmt refused the witness: {e}", r.code));
+                continue;
+            }
+        };
+        if written.trim_end() == r.witness.trim_end() {
+            failures.push(format!("{}: fmt --write left the witness unchanged", r.code));
+            continue;
+        }
+        let after = codes(&written, &loader);
+        if after.contains(&r.code) {
+            failures.push(format!(
+                "{}: still fires after fmt --write: {after:?}\n{written}",
+                r.code
+            ));
+        }
+        let again = blue_lang_pkg::canonical::format_with(&loader, path, &written)
+            .unwrap_or_else(|e| panic!("{}: second fmt refused: {e}", r.code));
+        if again.trim_end() != written.trim_end() {
+            failures.push(format!(
+                "{}: fmt --write is not idempotent on its witness:\n{written}---\n{again}",
+                r.code
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn a_refused_rule_offers_no_rewrite_of_its_witness() {
+    for r in RULES.iter().filter(|r| r.fix == FixKind::None) {
+        let loader = Imports(r.imports);
+        let Ok(written) =
+            blue_lang_pkg::canonical::format_with(&loader, Path::new("witness.b"), r.witness)
+        else {
+            continue;
+        };
+        assert!(
+            codes(&written, &loader).contains(&r.code),
+            "{}: a rule with no fix stopped firing after fmt --write",
+            r.code
+        );
+    }
+}

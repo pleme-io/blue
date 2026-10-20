@@ -4,7 +4,7 @@
 # three bytes the image prints on QEMU; the check compares the two.
 use("kiban", [:mmio_write])
 
-UART0 = 268435456
+UART0 = 268_435_456
 
 # Send one byte to the UART and answer it.
 def put(c: Int) -> Int

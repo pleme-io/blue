@@ -20,7 +20,7 @@ end
 
 # Every order in a CSV text with a header line; blank lines are skipped.
 def orders_of(text)
-  rows = filter(fn(l) !is_blank(l) end, rest(lines(text)))
+  rows = filter(fn(l) not is_blank(l) end, rest(lines(text)))
   map(fn(l) order_of(l) end, rows)
 end
 

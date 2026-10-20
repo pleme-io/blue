@@ -141,9 +141,9 @@ end
 
 def parts(e)
   k = get(e, :kind)
-  if k == :seq || k == :choice
+  if k == :seq or k == :choice
     get(e, :items)
-  elsif k == :lit || k == :pat || k == :ref
+  elsif k == :lit or k == :pat or k == :ref
     []
   else
     [get(e, :item)]
@@ -184,7 +184,7 @@ def kinds_of(e)
     end
   elsif k == :alias
     [get(e, :name)]
-  elsif k == :lit || k == :pat
+  elsif k == :lit or k == :pat
     []
   else
     flat_map(fn(c) kinds_of(c) end, parts(e))
@@ -192,7 +192,7 @@ def kinds_of(e)
 end
 
 def aliases_of(e)
-  here = if get(e, :kind) == :alias && get(get(e, :item), :kind) == :ref
+  here = if get(e, :kind) == :alias and get(get(e, :item), :kind) == :ref
     [[get(get(e, :item), :name), get(e, :name)]]
   else
     []
@@ -249,10 +249,8 @@ end
 
 def first_lit(r)
   b = bare(get(r, :body))
-  if get(b, :kind) == :seq && get(first(get(b, :items)), :kind) == :lit
+  if get(b, :kind) == :seq and get(first(get(b, :items)), :kind) == :lit
     get(first(get(b, :items)), :text)
-  else
-    nil
   end
 end
 
@@ -260,20 +258,16 @@ end
 # one of `closers`.
 def closer(g, r)
   b = bare(get(r, :body))
-  if get(b, :kind) == :seq && get(first(get(b, :items)), :kind) == :lit
+  if get(b, :kind) == :seq and get(first(get(b, :items)), :kind) == :lit
     t = last(get(b, :items))
-    if get(t, :kind) == :lit && contains(get(g, :closers), get(t, :text))
+    if get(t, :kind) == :lit and contains(get(g, :closers), get(t, :text))
       get(t, :text)
-    else
-      nil
     end
-  else
-    nil
   end
 end
 
 def visible(g)
-  filter(fn(r) !hidden?(get(r, :name)) end, get(g, :rules))
+  filter(fn(r) not hidden?(get(r, :name)) end, get(g, :rules))
 end
 
 # The role of every literal: a keyword's, an operator's or punctuation's. A
@@ -314,7 +308,7 @@ def checked(g)
   if is_empty(bad)
     g
   else
-    throw(error(:kiwari_unpainted, "literals with no role: #{join(bad, " ")}"))
+    raise(:kiwari_unpainted, "literals with no role: #{join(bad, " ")}")
   end
 end
 
@@ -556,11 +550,9 @@ end
 def render(g, file)
   row = filter(fn(a) first(a) == file end, artifacts(g))
   if is_empty(row)
-    throw(
-      error(
-        :kiwari_artifact,
-        "kiwari renders #{join(map(fn(a) first(a) end, artifacts(g)), ", ")}, not #{file}"
-      )
+    raise(
+      :kiwari_artifact,
+      "kiwari renders #{join(map(fn(a) first(a) end, artifacts(g)), ", ")}, not #{file}"
     )
   end
   nth(1, first(row))()
@@ -598,8 +590,8 @@ end
 
 def infix_rows()
   [
-    {op: "||", aliases: ["∨"], power: [1, 2], callee: "or"},
-    {op: "&&", aliases: ["∧"], power: [3, 4], callee: "and"},
+    {op: "or", aliases: ["||", "∨"], power: [1, 2], callee: "or"},
+    {op: "and", aliases: ["&&", "∧"], power: [3, 4], callee: "and"},
     {op: "==", aliases: ["≡"], power: [5, 6], callee: "equal?"},
     {op: "!=", aliases: ["≠"], power: [5, 6], callee: "not="},
     {op: "<", aliases: [], power: [5, 6], callee: "<"},
@@ -624,7 +616,7 @@ def unary_rows()
       power: 11,
       head: ["seq", ["sym", "-"], ["int", 0]]
     },
-    {op: "!", aliases: ["¬"], power: 11, head: ["sym", "not"]}
+    {op: "not", aliases: ["!", "¬"], power: 11, head: ["sym", "not"]}
   ]
 end
 
@@ -698,6 +690,137 @@ def nil_or(f)
   ["field", f, ["nil"]]
 end
 
+def rescued()
+  ["sym", "rescued-error"]
+end
+
+def bound_to_rescued(handler)
+  [
+    "if_any",
+    [["binder"]],
+    [
+      "list",
+      ["sym", "let"],
+      ["list", ["list", ["field", "binder"], rescued]],
+      handler
+    ],
+    handler
+  ]
+end
+
+def rescue_lowering()
+  kind_clause = [
+    "list",
+    [
+      "list",
+      ["sym", "blue-rescues?"],
+      rescued,
+      ["each", ["kind"], ["keyword"]]
+    ],
+    bound_to_rescued(nil_or("body"))
+  ]
+  otherwise = [
+    "if_any",
+    [["otherwise"]],
+    ["each", ["otherwise"], bound_to_rescued(nil_or("body"))],
+    ["list", ["sym", "blue-reraise"], rescued]
+  ]
+  by_kind = [
+    "list",
+    ["sym", "try"],
+    nil_or("body"),
+    [
+      "list",
+      ["sym", "catch"],
+      ["list", rescued],
+      [
+        "list",
+        ["sym", "cond"],
+        ["each", ["clause"], kind_clause],
+        ["list", ["sym", "else"], otherwise]
+      ]
+    ]
+  ]
+  catch_all = [
+    "list",
+    ["sym", "try"],
+    nil_or("body"),
+    [
+      "list",
+      ["sym", "catch"],
+      ["list", ["each", ["otherwise", "binder"], ["symbol"]]],
+      ["each", ["otherwise"], nil_or("body")]
+    ]
+  ]
+  protected = [
+    "if_any",
+    [["clause"]],
+    by_kind,
+    ["if_any", [["otherwise"]], catch_all, nil_or("body")]
+  ]
+  [
+    "if_any",
+    [["ensure"]],
+    [
+      "list",
+      ["sym", "blue-ensure"],
+      [
+        "list",
+        ["sym", "try"],
+        ["list", ["sym", "blue-attempted"], protected],
+        [
+          "list",
+          ["sym", "catch"],
+          ["list", rescued],
+          ["list", ["sym", "blue-failed"], rescued]
+        ]
+      ],
+      [
+        "list",
+        ["sym", "lambda"],
+        ["list"],
+        ["each", ["ensure"], nil_or("body")]
+      ]
+    ],
+    protected
+  ]
+end
+
+def def_body()
+  [
+    "if_any",
+    [["clause"], ["otherwise"], ["ensure"]],
+    rescue_lowering,
+    nil_or("body")
+  ]
+end
+
+def rescue_clauses()
+  choice(
+    [
+      seq(
+        [
+          rep1(field("clause", ref("rescue_clause"))),
+          opt(field("otherwise", ref("rescue_all"))),
+          opt(field("ensure", ref("ensure_clause")))
+        ]
+      ),
+      seq(
+        [
+          field("otherwise", ref("rescue_all")),
+          opt(field("ensure", ref("ensure_clause")))
+        ]
+      ),
+      field("ensure", ref("ensure_clause"))
+    ]
+  )
+end
+
+def ended_lines(stmt)
+  ended = rep1(seq([stmt, rep1(ref("_newline"))]))
+  choice([seq([rep1(ref("_newline")), opt(ended)]), ended])
+end
+
 def if_lowering(condition)
   [
     "list",
@@ -709,9 +832,9 @@ def if_lowering(condition)
 end
 
 def blue()
-  aliases = flat_map(
-    fn(r) get(r, :aliases) end,
-    concat_lists(infix_rows, unary_rows)
+  aliases = filter(
+    fn(a) not member?(a, ["||", "&&", "!"]) end,
+    flat_map(fn(r) get(r, :aliases) end, concat_lists(infix_rows, unary_rows))
   )
   ident = ident_pattern(aliases)
   powers = map(fn(r) get(r, :power) end, infix_rows)
@@ -734,6 +857,7 @@ def blue()
     reserved: {
       surface: [
         "if",
+        "begin",
         "unless",
         "def",
         "defmacro",
@@ -745,7 +869,17 @@ def blue()
         "fn",
         "case"
       ],
-      block: ["do", "end", "else", "elsif", "true", "false", "nil"]
+      block: [
+        "do",
+        "end",
+        "else",
+        "elsif",
+        "rescue",
+        "ensure",
+        "true",
+        "false",
+        "nil"
+      ]
     },
     closers: ["end", ")", "]", "}"],
     keywords_painted: [
@@ -764,6 +898,13 @@ def blue()
       ["quote", "keyword"],
       ["unquote", "keyword"],
       ["unquote_splice", "keyword"],
+      ["begin", "keyword.exception"],
+      ["rescue", "keyword.exception"],
+      ["ensure", "keyword.exception"],
+      ["as", "keyword.exception"],
+      ["and", "keyword.operator"],
+      ["or", "keyword.operator"],
+      ["not", "keyword.operator"],
       ["true", ""],
       ["false", ""],
       ["nil", ""]
@@ -817,9 +958,34 @@ def blue()
       rule(
         "_expression",
         choice(
-          [ref("binary_expression"), ref("pipe_expression"), ref("_operand")]
+          [
+            ref("binary_expression"),
+            ref("pipe_expression"),
+            ref("rescue_expression"),
+            ref("_operand")
+          ]
         ),
         nil
+      ),
+      rule(
+        "rescue_expression",
+        prec_left(
+          -1,
+          seq(
+            [
+              field("left", ref("_expression")),
+              lit("rescue"),
+              nl,
+              field("right", ref("_expression"))
+            ]
+          )
+        ),
+        [
+          "list",
+          ["sym", "try"],
+          ["field", "left"],
+          ["list", ["sym", "catch"], ["list", ["sym", "_"]], ["field", "right"]]
+        ]
       ),
       rule("_operand", choice([ref("unary_expression"), ref("_postfix")]), nil),
       # Postfix applies to a postfix chain only: blue's Pratt loop lets the
@@ -848,6 +1014,7 @@ def blue()
               "map",
               "parenthesized_expression",
               "if",
+              "begin",
               "unless",
               "def",
               "defmacro",
@@ -922,7 +1089,17 @@ def blue()
             ]
           )
         ),
-        ["list", ["field", "function"], ["field?", "arguments"]]
+        [
+          "if_any",
+          [["arguments", "*", "list"]],
+          [
+            "list",
+            ["sym", "apply"],
+            ["field", "function"],
+            ["field?", "arguments"]
+          ],
+          ["list", ["field", "function"], ["field?", "arguments"]]
+        ]
       ),
       rule(
         "send",
@@ -938,17 +1115,115 @@ def blue()
           )
         ),
         [
-          "list",
-          ["field", "method"],
-          ["field", "receiver"],
-          ["field?", "arguments"]
+          "if_any",
+          [["arguments", "*", "list"]],
+          [
+            "list",
+            ["sym", "apply"],
+            ["field", "method"],
+            ["field", "receiver"],
+            ["field?", "arguments"]
+          ],
+          [
+            "if_any",
+            [["arguments"]],
+            [
+              "list",
+              ["field", "method"],
+              ["field", "receiver"],
+              ["field?", "arguments"]
+            ],
+            [
+              "list",
+              ["sym", "blue-field"],
+              ["field", "receiver"],
+              ["each", ["method"], ["keyword"]]
+            ]
+          ]
         ]
       ),
       # `f (x)` after a header is a call, not a header and a body.
       rule(
         "arguments",
-        prec(1, seq([lit("("), nl, comma_sep(ref("_expression")), lit(")")])),
+        prec(
+          1,
+          seq(
+            [
+              lit("("),
+              nl,
+              comma_sep(choice([ref("_expression"), ref("splat")])),
+              lit(")")
+            ]
+          )
+        ),
         ["named"]
+      ),
+      rule(
+        "splat",
+        seq([lit("*"), field("list", ref("_expression"))]),
+        ["field", "list"]
+      ),
+      rule(
+        "begin",
+        seq(
+          [
+            lit("begin"),
+            opt(field("body", alias(ref("_protected_body"), "body"))),
+            rescue_clauses,
+            lit("end")
+          ]
+        ),
+        rescue_lowering
+      ),
+      with(
+        rule(
+          "rescue_clause",
+          seq(
+            [
+              lit("rescue"),
+              seq(
+                [
+                  field("kind", ref("symbol")),
+                  rep(seq([lit(","), nl, field("kind", ref("symbol"))]))
+                ]
+              ),
+              opt(seq([lit("as"), field("binder", ref("identifier"))])),
+              opt(field("body", alias(ref("_body_rescue"), "body")))
+            ]
+          ),
+          nil
+        ),
+        :arm,
+        true
+      ),
+      with(
+        rule(
+          "rescue_all",
+          seq(
+            [
+              lit("rescue"),
+              field("binder", ref("identifier")),
+              opt(field("body", alias(ref("_body_rescue"), "body")))
+            ]
+          ),
+          nil
+        ),
+        :arm,
+        true
+      ),
+      with(
+        rule(
+          "ensure_clause",
+          seq(
+            [
+              lit("ensure"),
+              opt(field("body", alias(ref("_body_rescue"), "body")))
+            ]
+          ),
+          nil
+        ),
+        :arm,
+        true
       ),
       rule(
         "parenthesized_expression",
@@ -1156,7 +1431,17 @@ def blue()
               painted("name", ref("identifier"), "function", "function"),
               opt(field("parameters", ref("parameters"))),
               opt(seq([lit("->"), nl, field("return_type", ref("type"))])),
-              opt(field("body", ref("body"))),
+              choice(
+                [
+                  opt(field("body", ref("body"))),
+                  seq(
+                    [
+                      opt(field("body", alias(ref("_protected_body"), "body"))),
+                      rescue_clauses
+                    ]
+                  )
+                ]
+              ),
               lit("end")
             ]
           ),
@@ -1181,13 +1466,13 @@ def blue()
                 ]
               ],
               ["field", "return_type", ["sym", "dyn"]],
-              nil_or("body")
+              def_body
             ],
             [
               "list",
               ["sym", "define"],
               ["list", ["field", "name"], ["field?", "parameters"]],
-              nil_or("body")
+              def_body
             ]
           ]
         ),
@@ -1428,7 +1713,9 @@ def blue()
       ),
       rule("body", block(ref("_statement")), ["block", "begin"]),
       rule("_body_if", block(ref("_statement")), nil),
-      rule("_body_when", block(ref("_statement")), nil)
+      rule("_body_when", block(ref("_statement")), nil),
+      rule("_body_rescue", block(ref("_statement")), nil),
+      rule("_protected_body", ended_lines(ref("_statement")), nil)
     ]
   }
 end
@@ -1483,18 +1770,42 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
     filter(fn(r) get(r, :lower) == nil end, visible(g))
   )
   assert parts ==
-    ["comment", "string_content", "escape_sequence", "typed_parameter", "when"]
+    [
+      "comment",
+      "rescue_clause",
+      "rescue_all",
+      "ensure_clause",
+      "string_content",
+      "escape_sequence",
+      "typed_parameter",
+      "when"
+    ]
 end
 
 test "a literal with no role is refused by every renderer"
   bad = tiny([rule("word", lit("?!"), nil)], [])
   assert unpainted(bad) == ["?!"]
-  assert try(highlights(bad), catch(e(), error?(e))) == true
-  assert try(tree_sitter_js(bad), catch(e(), error?(e))) == true
+  assert begin
+    highlights(bad)
+  rescue e
+    error?(e)
+  end ==
+    true
+  assert begin
+    tree_sitter_js(bad)
+  rescue e
+    error?(e)
+  end ==
+    true
   assert unpainted(tiny([rule("word", lit("?!"), nil)], [["?!", ""]])) == []
 end
 
 test "render names the artifacts it makes when asked for another"
-  assert try(render(blue, "grammar.json"), catch(e(), error?(e))) == true
+  assert begin
+    render(blue, "grammar.json")
+  rescue e
+    error?(e)
+  end ==
+    true
   assert starts_with?(render(blue, "folds.scm"), "; Generated")
 end

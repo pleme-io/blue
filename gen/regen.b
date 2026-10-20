@@ -40,12 +40,9 @@ end
 def regenerate(g)
   status = exec_check("env", "GEN_OUT=#{nth(1, g)}", "blue", "run", nth(2, g))
   if status != 0
-    throw(
-      error(
-        :regen,
-        "#{nth(2, g)} exited #{to_s(status)}; #{nth(1, g)} was not rewritten",
-        []
-      )
+    raise(
+      :regen,
+      "#{nth(2, g)} exited #{to_s(status)}; #{nth(1, g)} was not rewritten"
     )
   end
   nth(1, g)
@@ -75,7 +72,7 @@ written = if workloads == nil
   written
 else
   if exec_check("blue", "workload", "render", "--write") != 0
-    throw(error(:regen, "blue workload render --write failed", []))
+    raise(:regen, "blue workload render --write failed")
   end
   concat_lists(written, map(fn(w) json_get(last(w), "output") end, workloads))
 end

@@ -120,11 +120,9 @@ def density(material)
   table = {ss316l: 7.99, ss304: 7.93, al6061: 2.7, steel: 7.85}
   d = get(table, material)
   if d == nil
-    throw(
-      error(
-        :kakou_material,
-        "no density for #{to_s(material)}; known: ss316l, ss304, al6061, steel"
-      )
+    raise(
+      :kakou_material,
+      "no density for #{to_s(material)}; known: ss316l, ss304, al6061, steel"
     )
   end
   d
@@ -470,7 +468,7 @@ def seam_edge(section)
   first(
     filter(
       fn(e)
-        abs(px(nth(e, pts))) < 0.000001 &&
+        abs(px(nth(e, pts))) < 0.000001 and
           abs(px(nth((e + 1) % n, pts))) < 0.000001
       end,
       range(0, n)
@@ -526,7 +524,7 @@ def shape_refusals(part)
   sides = map(fn(f) get(f, :side) end, fl)
   unknown = filter(fn(s) contains(kakou::sides, s) == false end, sides)
   twice = filter(fn(s) count_of(sides, s) > 1 end, kakou::sides)
-  angles = filter(fn(f) get(f, :angle) <= 0 || get(f, :angle) >= 180 end, fl)
+  angles = filter(fn(f) get(f, :angle) <= 0 or get(f, :angle) >= 180 end, fl)
   concat_lists(
     map(
       fn(s)
@@ -643,8 +641,8 @@ def sheet_size_refusals(part, rules)
 end
 
 def fits(s, sheet)
-  px(s) <= px(sheet) && py(s) <= py(sheet) ||
-    py(s) <= px(sheet) && px(s) <= py(sheet)
+  px(s) <= px(sheet) and py(s) <= py(sheet) or
+    py(s) <= px(sheet) and px(s) <= py(sheet)
 end
 
 # How many blanks of size s come from one sheet, in rows and columns with a
@@ -912,7 +910,7 @@ test "a blank's drawing: outline, holes, one labelled bend line per flange, two 
   assert size(filter(fn(e) zumen::layer(e) == "OUTLINE" end, es)) == 1
   assert size(filter(fn(e) zumen::layer(e) == "HOLES" end, es)) == 1
   bend_lines = filter(
-    fn(e) zumen::layer(e) == "BEND" && zumen::kind(e) == :line end,
+    fn(e) zumen::layer(e) == "BEND" and zumen::kind(e) == :line end,
     es
   )
   assert size(bend_lines) == 4
@@ -925,7 +923,7 @@ test "a blank's drawing: outline, holes, one labelled bend line per flange, two 
   s = blank_size(tray)
   texts = map(
     fn(e) get(e, :s) end,
-    filter(fn(e) zumen::layer(e) == "DIM" && zumen::kind(e) == :text end, es)
+    filter(fn(e) zumen::layer(e) == "DIM" and zumen::kind(e) == :text end, es)
   )
   assert texts ==
     [zumen::num(round(px(s) * 10) / 10), zumen::num(round(py(s) * 10) / 10)]

@@ -15,7 +15,7 @@ end
 
 # Tally words into a map with reduce and assoc.
 def tally(words)
-  reduce(fn(m, w) assoc(m, w, (get(m, w) || 0) + 1) end, {}, words)
+  reduce(fn(m, w) assoc(m, w, (get(m, w) or 0) + 1) end, {}, words)
 end
 
 test "map and filter take the function first"

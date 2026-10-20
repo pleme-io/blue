@@ -11,27 +11,27 @@
 # quote nil? as input, and without this it reported them.
 def nodes(tree, path)
   here = [[path, tree]]
-  if tree == nil || !list?(tree) || quoted?(tree)
+  if tree == nil or not list?(tree) or quoted?(tree)
     here
   else
     children = map(
       fn(i) nodes(nth(i, tree), append(path, [i])) end,
       range(length(tree))
     )
-    apply(append, cons(here, children))
+    append(*cons(here, children))
   end
 end
 
 def quoted?(node)
-  call?(node, "quote", 1) || call?(node, "quasiquote", 1)
+  call?(node, "quote", 1) or call?(node, "quasiquote", 1)
 end
 
 # Is `node` a call to `name` with `arity` arguments?
 def call?(node, name, arity)
-  node != nil &&
-    list?(node) &&
-    length(node) == arity + 1 &&
-    symbol?(first(node)) &&
+  node != nil and
+    list?(node) and
+    length(node) == arity + 1 and
+    symbol?(first(node)) and
     to_s(first(node)) == name
 end
 

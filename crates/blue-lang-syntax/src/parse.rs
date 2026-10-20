@@ -2878,11 +2878,7 @@ mod tests {
         ] {
             let a = parse_program(arrow).expect(arrow);
             let b = parse_program(block).expect(block);
-            assert_eq!(
-                format!("{:?}", a.iter().map(Spanned::to_sexp).collect::<Vec<_>>()),
-                format!("{:?}", b.iter().map(Spanned::to_sexp).collect::<Vec<_>>()),
-                "{arrow}"
-            );
+            assert_eq!(format!("{a:?}"), format!("{b:?}"), "{arrow}");
         }
         assert_eq!(
             parse_program("(x)").map(|p| p.len()).ok(),

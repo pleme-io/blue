@@ -58,6 +58,7 @@ and the refusals. `blue explain CODE` prints each row.
 | `throw(error(k, m))`, `throw(x)`, `try(x, catch(e(), h))`, `begin … end` as a whole `def` body | `raise(k, m)`, `raise(x)`, `x rescue h` or `begin … rescue e … end`, the clauses on the `def` | readability: one step to raise, a block that reads like Ruby's, the error a readable record. Corpus: 92 `throw(error(`, 178 `throw(`, 212 `try(` | resolution (`throw`), parser (`try`, `begin`) | B0037 | autofix |
 | `apply(f, a, xs)` with `f` a name | `f(a, *xs)` | one tree; the call keeps its shape. Corpus: 41 | parser, formatter | B0042 | autofix |
 | `(x) -> f(x)` with `f` a `def` of the file taking exactly those parameters | `f` | one function, the shorter name; `fn … end` on one line is B0024 | check stage | B0044 | autofix |
+| `to_s(to_s(x))`, `string(trim(x))`, `to_int(to_int!(x))`, `to_float(sqrt(x))`, `trim(trim(x))`, `to_s("a")`: a conversion whose argument is a builtin call that already returns the kind it leaves alone, or a literal of that kind | the argument itself | the chain does nothing; one table, `blue_lang_check::chains::RULES`, read by the check stage, the formatter and the evaluator, each row carrying an okite law (D0013). `to_int(to_int(x))`, `to_float(to_float(x))` and `upcase(downcase(x))` stay: they change values. A local or definition named like the builtin is never rewritten | check stage, evaluator | B0045 | autofix |
 | `if getenv("X_MAIN", "") == "1" … f … end` | `def main()`, called by `blue run` | one entry-point convention; no environment variable. Corpus: 8 | check stage | B0041 | autofix where the guard calls one zero-parameter function used nowhere else; refused otherwise |
 | `ro_resolve_argv`, `ro_patch_argv`, `ro_main` in a program | `resolve_argv`, `patch_argv`, `main` | the file is the namespace; a prefix repeats it. Corpus: the nix programs and the `gen/` generators | check stage | B0043 | autofix where no stripped name is already used in the file or reserved; refused otherwise (a bidama's prefix is B0013/B0014) |
 | `rescue e` with an empty or `nil` handler | `rescue _` and `nil`, or `x rescue nil` | silence must be visible | check stage | B0038 | refused |
@@ -65,7 +66,8 @@ and the refusals. `blue explain CODE` prints each row.
 | `retryCount` | `retry_count` | readability: one case for names. Corpus: 1 | check stage | B0040 | refused (a name is its callers' too) |
 | whitespace, indentation, width 80, blank lines, redundant parentheses, a call whose one argument is a literal broken over lines | `blue fmt`'s layout | one layout; a short call stays on its line | formatter | B0024 | autofix |
 | `name()` for a zero-parameter function | `name` | (shipped in v0.0.74) | resolution | B0023 | autofix |
-| a `use` out of order, twice, or unread | sorted, once, read | (shipped) | check stage | B0015, B0016 | sort: autofix; unused: refused |
+| a `use` out of order, twice, or unread | sorted, once, read | (shipped) | check stage | B0015, B0016 | list sort and `use` form order: autofix; unused: refused |
+| a bare name reached only through a bidama another `use` loaded; `retsu::first` with no `use("retsu")` | `use("retsu", [:first, :last])` added in package order; `use("retsu")` added | the file says what it reads | check stage | B0012, B0010 | autofix in a script (a bidama's Bluefile `needs` is the author's) |
 | `blue::name` where the bare name is the builtin | `name` | (shipped) | resolution | B0018 | autofix |
 
 ## New forms these rules write

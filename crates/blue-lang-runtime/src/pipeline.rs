@@ -650,13 +650,33 @@ pub fn lower(
     program: &crate::uses::ResolvedProgram,
     names: &NameTable,
 ) -> Vec<tatara_lisp::Spanned> {
-    let resolved = blue_lang_check::names::resolve_program(program.forms(), names, &|i| {
+    lower_with(program, names, true)
+}
+
+#[must_use]
+pub fn lower_with(
+    program: &crate::uses::ResolvedProgram,
+    names: &NameTable,
+    simplify_chains: bool,
+) -> Vec<tatara_lisp::Spanned> {
+    let mut resolved = blue_lang_check::names::resolve_program(program.forms(), names, &|i| {
         namespace_of(program, i)
     });
+    let simplified = if simplify_chains {
+        chain_simplified(program.forms(), &resolved)
+    } else {
+        None
+    };
+    let forms: &[tatara_lisp::Spanned] = simplified.as_deref().unwrap_or(program.forms());
+    if simplified.is_some() {
+        resolved = blue_lang_check::names::resolve_program(forms, names, &|i| {
+            namespace_of(program, i)
+        });
+    }
     resolved
-        .resolved_tree(program.forms(), blue_lang_check::names::Rule::Namespaced)
+        .resolved_tree(forms, blue_lang_check::names::Rule::Namespaced)
         .into_iter()
-        .zip(program.forms())
+        .zip(forms)
         .enumerate()
         .map(|(i, (resolved, written))| {
             if crate::uses::use_target(written).is_some()
@@ -672,6 +692,27 @@ pub fn lower(
             }
         })
         .collect()
+}
+
+fn chain_simplified(
+    forms: &[tatara_lisp::Spanned],
+    resolved: &blue_lang_check::names::Resolved,
+) -> Option<Vec<tatara_lisp::Spanned>> {
+    let respell: std::collections::HashMap<usize, blue_lang_check::respell::Respelling> = resolved
+        .respellings
+        .iter()
+        .filter(|(_, r)| matches!(r.respell, blue_lang_check::respell::Respell::Chain(_)))
+        .cloned()
+        .collect();
+    if respell.is_empty() {
+        return None;
+    }
+    let bare = std::collections::HashSet::new();
+    let canon = Canon {
+        bare: &bare,
+        respell: &respell,
+    };
+    Some(forms.iter().map(|f| canon.form(f)).collect())
 }
 
 fn raise_site(file: &crate::uses::SourceFile) -> impl Fn(tatara_lisp::Span) -> String + '_ {
@@ -937,8 +978,7 @@ impl Checked {
             resolved
                 .respellings
                 .iter()
-                .filter(|(_, r)| !waived.contains(&r.span))
-                .cloned()
+                .filter(|(_, r)| !waived.contains(&r.span))                .cloned()
                 .collect();
         let canon = Canon {
             bare: &bare,

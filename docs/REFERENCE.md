@@ -83,7 +83,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-267 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 176 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+268 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 176 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -440,6 +440,7 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `builtin_names` | `builtin_names` | 0 | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
+| `chain_rules` | `chain_rules` | 0 | Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides. |
 | `cond` | `(cond (test expr) …)` | — | Lisp multi-way conditional; its clauses have no blue spelling. In blue, use if … elsif … end. |
 | `defactor` | `defactor(name, initial, behaviour)` | — | A single-threaded actor with a mailbox. Its step message is :step!, which blue cannot spell, so from blue it can only be told, never stepped. |
 | `defcommand` | `defcommand(bus, name, params, body)` | — | Register a command on a tatara-lisp command bus; params is a Lisp list. |
@@ -459,12 +460,13 @@ Higher binding power binds tighter.
 
 ### Called where written bare
 
-A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 10 built-in names therefore run, with their effects, wherever they are written bare:
+A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 11 built-in names therefore run, with their effects, wherever they are written bare:
 
 | name | meaning |
 |---|---|
 | `argv` | The program's own arguments: what follows the file in blue run file -- a b. |
 | `builtin_names` | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
+| `chain_rules` | Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides. |
 | `cwd` | The current directory. |
 | `newline` | Print a newline. |
 | `now` | Unix time in seconds. |
@@ -511,7 +513,7 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0007` | malformed-waiver | a waiver names a known, waivable code and gives a reason: `# waive B0002: <reason>` | refused |
 | `B0008` | unused-waiver | a waiver suppresses at least one diagnostic | refused |
 | `B0009` | ambiguous-name | a name resolves to one definition: no two namespaces in the same resolution tier define it | refused |
-| `B0010` | qualifier-not-imported | a qualified name's package is one the file `use`s: `retsu::first` needs `use("retsu")` | refused |
+| `B0010` | qualifier-not-imported | a qualified name's package is one the file `use`s: `retsu::first` needs `use("retsu")` | autofix |
 | `B0011` | no-such-definition | a qualified name, or a name a `use` lists, is a definition of that package | suggested |
 | `B0012` | implicit-reference | a bare name that is another bidama's definition is one the file lists: `use("retsu", [:first])`, or written `retsu::first` | autofix |
 | `B0013` | prefixed-definition | a bidama's definition does not spell its bidama: `def parse` in `moji`, never `def moji_parse` | refused |
@@ -546,3 +548,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0042` | splat | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name | autofix |
 | `B0043` | prefixed-program | a program does not prefix every definition with one short `x_`: the file is the namespace | autofix |
 | `B0044` | eta-reduction | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` | autofix |
+| `B0045` | redundant-conversion | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain | autofix |

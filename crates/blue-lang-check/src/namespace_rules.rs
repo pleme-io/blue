@@ -76,7 +76,46 @@ fn render_use(import: &Import, names: &[String]) -> String {
 
 /// B0015: one `use` per package, every `use` before the file's other forms,
 /// sorted by package, each list sorted and without duplicates.
+fn sorted_block_fix(fu: &FileUses) -> Option<Fix> {
+    let first_other = fu.others.first().copied();
+    let block: Vec<&Import> = fu
+        .uses
+        .iter()
+        .filter(|(i, _)| first_other.is_none_or(|o| *i < o))
+        .map(|(_, u)| u)
+        .collect();
+    let distinct: BTreeSet<&str> = block.iter().map(|u| u.package.as_str()).collect();
+    if distinct.len() != block.len() {
+        return None;
+    }
+    let mut order = block.clone();
+    order.sort_by(|a, b| a.package.cmp(&b.package));
+    let names = |u: &Import| -> Vec<String> { u.names.iter().map(|(n, _)| n.clone()).collect() };
+    let canonical = |u: &Import| -> Vec<String> {
+        let mut n = names(u);
+        n.sort();
+        n.dedup();
+        n
+    };
+    let edits: Vec<Edit> = block
+        .iter()
+        .zip(&order)
+        .filter(|(slot, target)| slot.package != target.package)
+        .map(|(slot, target)| Edit {
+            span: slot.span,
+            original: render_use(slot, &names(slot)),
+            replacement: render_use(target, &canonical(target)),
+        })
+        .collect();
+    (!edits.is_empty()).then(|| Fix {
+        message: "sort the `use` forms by package".to_string(),
+        edits,
+        applicability: Applicability::MachineApplicable,
+    })
+}
+
 fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
+    let sorted_fix = sorted_block_fix(fu);
     let first_other = fu.others.first().copied();
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     let mut previous: Option<&str> = None;
@@ -98,10 +137,12 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
                 .with_help("move every `use` to the top of the file, before any other form"),
             );
         } else if previous.is_some_and(|p| p > u.package.as_str()) {
-            out.push(
-                at(format!("`use(\"{}\")` is out of order", u.package))
-                    .with_help("sort the file's `use` forms by package name"),
-            );
+            let mut d = at(format!("`use(\"{}\")` is out of order", u.package))
+                .with_help("sort the file's `use` forms by package name");
+            if let Some(fix) = &sorted_fix {
+                d = d.with_fix(fix.clone());
+            }
+            out.push(d);
         }
         previous = Some(u.package.as_str());
         let written: Vec<String> = u.names.iter().map(|(n, _)| n.clone()).collect();

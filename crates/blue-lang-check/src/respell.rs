@@ -8,6 +8,7 @@ pub enum Respell {
     CompareNil(&'static str),
     Field(&'static str),
     Raise,
+    Chain(&'static crate::chains::ChainRule),
 }
 
 pub struct Synonym {
@@ -142,6 +143,7 @@ pub fn apply(call: &Spanned, items: &[Spanned], r: &Respelling) -> Spanned {
     let head = &items[0];
     let list = |v: Vec<Spanned>| Spanned::new(call.span, SpannedForm::List(v));
     match r.respell {
+        Respell::Chain(_) => items[1].clone(),
         Respell::Rename(to) => {
             let mut out = items.to_vec();
             out[0] = sym(head.span, &qualified(to, r.qualify && to != "mod"));

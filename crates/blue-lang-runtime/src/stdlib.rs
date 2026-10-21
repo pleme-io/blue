@@ -90,6 +90,47 @@ pub fn blue_equal(a: &Value, b: &Value) -> bool {
 /// is its own text and nil is empty, as in Ruby; every other value is its blue
 /// literal. Until 2026-09-27 a map rendered as the word `map`, a list lost its
 /// brackets (`[1, {a: 2}]` came out `1 map`) and `1.0` came out `1`.
+fn chain_rules_value() -> Value {
+    use blue_lang_check::chains::{cases, Case, Kind, RULES};
+    let sym = |s: &str| Value::Symbol(std::sync::Arc::from(s));
+    let text = |s: &str| Value::Str(std::sync::Arc::from(s));
+    let hole = |n: usize| (0..n).map(|_| sym("x")).collect::<Vec<_>>();
+    let lambda = |body: Value| Value::list([sym("lambda"), Value::list([sym("x")]), body]);
+    let call = |name: &str, args: Vec<Value>| {
+        Value::list(std::iter::once(sym(name)).chain(args))
+    };
+    Value::list(RULES.iter().map(|rule| {
+        let rows = cases(rule).into_iter().map(|case| match case {
+            Case::Call { inner, argc } => {
+                let inner_call = call(inner, hole(argc));
+                Value::list([
+                    text(&format!("{}({}(x))", rule.outer, inner)),
+                    Value::Nil,
+                    lambda(call(rule.outer, vec![inner_call.clone()])),
+                    lambda(inner_call),
+                ])
+            }
+            Case::Literal(kind) => Value::list([
+                text(&format!("{}(<literal>)", rule.outer)),
+                Value::Keyword(std::sync::Arc::from(match kind {
+                    Kind::Text => "text",
+                    Kind::Int => "int",
+                    Kind::Float => "float",
+                })),
+                lambda(call(rule.outer, vec![sym("x")])),
+                lambda(sym("x")),
+            ]),
+        });
+        Value::list([
+            text(rule.id),
+            text(rule.slug),
+            text(rule.outer),
+            text(rule.soundness),
+            Value::list(rows),
+        ])
+    }))
+}
+
 fn render(v: &Value) -> String {
     match v {
         Value::Nil => String::new(),
@@ -198,6 +239,11 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                     .map(|n| Value::Str(std::sync::Arc::from(n.name))),
             ))
         },
+    );
+    interp.register_fn(
+        "chain_rules",
+        Arity::Exact(0),
+        |_a: &[Value], _h: &mut H, _s| Ok(chain_rules_value()),
     );
     interp.register_fn("to_s", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
         Ok(Value::Str(render(&a[0]).into()))

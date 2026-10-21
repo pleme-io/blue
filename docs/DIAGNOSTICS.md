@@ -57,6 +57,7 @@ it; `blue explain --list` lists them.
 | B0042 | splat | error | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name |
 | B0043 | prefixed-program | error | a program does not prefix every definition with one short `x_`: the file is the namespace |
 | B0044 | eta-reduction | error | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` |
+| B0045 | redundant-conversion | warning | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

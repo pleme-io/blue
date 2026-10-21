@@ -176,7 +176,7 @@ def law_to_s_literals()
     to_s(1.0) == "1.0" and
     to_s(2.5) == "2.5" and
     to_s(true) == "true" and
-    to_s("a b") == "a b" and
+    "a b" == "a b" and
     to_s(nil) == ""
 end
 
@@ -288,6 +288,117 @@ def law_map_keys_are_exact()
   get(m, 1) == :int and get(m, 1.0) == nil
 end
 
+def chain_values()
+  fixed = [
+    "",
+    "a",
+    " a ",
+    "007",
+    "1.5",
+    "-3",
+    "1e3",
+    " 12 ",
+    "日本",
+    "\"q\"",
+    "a\nb",
+    "ẞ",
+    "İ",
+    "x y",
+    0,
+    1,
+    -1,
+    42,
+    9_007_199_254_740_993,
+    -9_007_199_254_740_993,
+    0.0,
+    1.5,
+    -2.5,
+    1000000.0,
+    0.1,
+    :a,
+    :ok,
+    nil,
+    true,
+    false,
+    [],
+    [1, "a"],
+    {a: 1},
+    {}
+  ]
+  append(fixed, values(41, 200))
+end
+
+def chain_kind_matches(kind, v)
+  if kind == nil
+    true
+  elsif kind == :text
+    string?(v)
+  elsif kind == :int
+    integer?(v)
+  else
+    float?(v)
+  end
+end
+
+def chain_outcome(f, v)
+  [:value, f(v)]
+rescue e
+  [:refused, e.kind]
+end
+
+def chain_same_result(x, y)
+  if float?(x) or float?(y)
+    float?(x) and float?(y) and to_s(x) == to_s(y)
+  else
+    x == y and integer?(x) == integer?(y) and string?(x) == string?(y)
+  end
+end
+
+def chain_same(a, b)
+  nth(0, a) == nth(0, b) and chain_same_result(nth(1, a), nth(1, b))
+end
+
+def chain_case_values(c)
+  filter((v) -> chain_kind_matches(nth(1, c), v), chain_values)
+end
+
+def chain_check(label, kind, lhs, rhs)
+  bad = filter(
+    (v) -> not chain_same(chain_outcome(lhs, v), chain_outcome(rhs, v)),
+    filter((v) -> chain_kind_matches(kind, v), chain_values)
+  )
+  map(
+    fn(v)
+      "#{label} on #{v}: #{chain_outcome(lhs, v)} vs #{chain_outcome(rhs, v)}"
+    end,
+    bad
+  )
+end
+
+def chain_case_counterexamples(c)
+  chain_check(nth(0, c), nth(1, c), eval(nth(2, c)), eval(nth(3, c)))
+end
+
+def chain_counterexamples(rule)
+  flat_map(chain_case_counterexamples, nth(4, rule))
+end
+
+def chain_covered(rule)
+  all((c) -> size(chain_case_values(c)) >= 10, nth(4, rule))
+end
+
+def chain_rule_holds(rule)
+  chain_covered(rule) and is_empty(chain_counterexamples(rule))
+end
+
+def chain_law(rule)
+  [
+    "#{nth(0, rule)} #{nth(1, rule)}",
+    () -> chain_rule_holds(rule),
+    () -> chain_counterexamples(rule)
+  ]
+end
+
 # ── the ledger ─────────────────────────────────────────────────────────────
 
 def decisions()
@@ -383,6 +494,13 @@ def decisions()
       rule: "`split` keeps every field: n separators give n + 1 fields, and join undoes split. Deviation from Ruby.",
       why: "Ruby drops trailing empty fields; tried, it broke nisshi, kueri and moji: a parser that loses a field loses data.",
       laws: [["join undoes split", () -> law_split_keeps_every_field]]
+    },
+    {
+      id: "D0013",
+      date: "2026-10-21",
+      rule: "A conversion chain is simplified only by a row of chain_rules, and a row gives the chain's own value, or its refusal, for every value.",
+      why: "to_s(to_s(x)) is to_s(x), but to_int(to_int(x)) is not to_int(x); the check stage, the formatter and the evaluator read one table, and every row carries a law.",
+      laws: map(chain_law, chain_rules)
     }
   ]
 end
@@ -404,9 +522,18 @@ def decision_failures(d)
     ["#{get(d, :id)}: has no law"]
   else
     map(
-      (l) -> "#{get(d, :id)}: #{nth(0, l)}",
+      (l) -> "#{get(d, :id)}: #{nth(0, l)}#{law_why(l)}",
       filter((l) -> not holds(nth(1, l)), laws)
     )
+  end
+end
+
+def law_why(l)
+  if size(l) > 2
+    why = nth(2, l)
+    " (#{join(take(3, why(*[])), "; ")})"
+  else
+    ""
   end
 end
 
@@ -451,4 +578,35 @@ test "the generator covers every kind (anti-vacuity)"
   assert some((v) -> v == nil, vs)
   assert some((v) -> list?(v) and not is_empty(v), vs)
   assert some((v) -> map?(v), vs)
+end
+
+test "every row of the chain table has a law, and each law reaches values"
+  laws = map(chain_law, chain_rules)
+  assert size(laws) == size(chain_rules)
+  assert size(chain_rules) >= 6
+  assert all(chain_covered, chain_rules)
+  assert all((l) -> holds(nth(1, l)), laws)
+end
+
+test "the chain values cover every kind a conversion can see"
+  vs = chain_values
+  assert some((v) -> v == "", vs)
+  assert some((v) -> v == "007", vs)
+  assert some((v) -> keyword?(v), vs)
+  assert some((v) -> v == nil, vs)
+  assert some((v) -> float?(v), vs)
+  assert some((v) -> integer?(v), vs)
+  assert some((v) -> list?(v), vs)
+  assert some((v) -> map?(v), vs)
+end
+
+test "a chain law names the value that breaks an unsound identity"
+  bad = chain_check(
+    "to_int twice",
+    nil,
+    (x) -> to_int(to_int(x)),
+    (x) -> to_int(x)
+  )
+  assert not is_empty(bad)
+  assert some((s) -> contains?(s, "refused"), bad)
 end

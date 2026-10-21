@@ -318,6 +318,7 @@ pub const NAMES: &[NameDoc] = names! {
     Error: "error_message" "error_message(e)" "The message of an error value. Written e.message (B0036).";
     Error: "error_kind" "error_kind(e)" "The kind of an error value, a keyword. Written e.kind (B0036).";
     Error: "gensym" "gensym([prefix])" "A fresh unique symbol, for macros that need a private name.";
+    Lisp: "chain_rules" "chain_rules" "Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides.";
     Lisp: "builtin_names" "builtin_names" "Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name.";
     // ── JSON ──────────────────────────────────────────────────────────────
     Json: "json_parse" "json_parse(text)" "Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil.";

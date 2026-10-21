@@ -1317,6 +1317,7 @@ struct Walker<'t> {
     references: Vec<Reference>,
     position: Position,
     respellings: Vec<(usize, crate::respell::Respelling)>,
+    missing_uses: Vec<MissingUse>,
 }
 
 /// Names the parser synthesizes. Never reported unused: the author did not
@@ -1363,6 +1364,7 @@ pub fn check_names_whole(
         // A top-level form's own defines are globals, already in `table`.
         scope::walk_top(form, &mut w);
     }
+    w.attach_missing_uses();
     let file_rules =
         crate::namespace_rules::check(forms, table, namespace_of, &w.references, whole_file);
     w.diagnostics.extend(file_rules);
@@ -1399,6 +1401,7 @@ impl<'t> Walker<'t> {
             references: Vec::new(),
             position: Position::Value,
             respellings: Vec::new(),
+            missing_uses: Vec::new(),
         }
     }
 
@@ -1475,6 +1478,13 @@ impl<'t> Walker<'t> {
                             replacement: format!("{owner}::{n}"),
                         }],
                         applicability: Applicability::MachineApplicable,
+                    });
+                } else if matches!(self.own, Namespace::File(_)) {
+                    self.missing_uses.push(MissingUse {
+                        diagnostic: self.diagnostics.len(),
+                        top_level: self.top_level,
+                        owner: owner.clone(),
+                        name: n.clone(),
                     });
                 }
                 self.diagnostics.push(d);
@@ -1771,12 +1781,91 @@ impl<'t> Walker<'t> {
     }
 }
 
+struct MissingUse {
+    diagnostic: usize,
+    top_level: usize,
+    owner: String,
+    name: String,
+}
+
 impl Walker<'_> {
+    fn use_insertion(&self, top_level: usize, line: &str) -> Edit {
+        let imports = self.table.imports_of(top_level);
+        let (at, tail) = match imports.and_then(|i| i.use_at) {
+            Some(at) => (at, ""),
+            None => (0, "\n"),
+        };
+        Edit {
+            span: Span::new(at, at),
+            original: String::new(),
+            replacement: format!("{line}\n{tail}"),
+        }
+    }
+
+    fn attach_missing_uses(&mut self) {
+        let mut wanted: BTreeMap<(usize, String), BTreeSet<String>> = BTreeMap::new();
+        for m in &self.missing_uses {
+            wanted
+                .entry((self.table.file_of(m.top_level), m.owner.clone()))
+                .or_default()
+                .insert(m.name.clone());
+        }
+        let pending = std::mem::take(&mut self.missing_uses);
+        for m in pending {
+            let names = &wanted[&(self.table.file_of(m.top_level), m.owner.clone())];
+            let listed: Vec<String> = names.iter().map(|n| format!(":{n}")).collect();
+            let line = format!("use(\"{}\", [{}])", m.owner, listed.join(", "));
+            let edit = self.use_insertion(m.top_level, &line);
+            let d = &mut self.diagnostics[m.diagnostic];
+            d.fixes.push(Fix {
+                message: format!("add `{line}`"),
+                edits: vec![edit],
+                applicability: Applicability::MachineApplicable,
+            });
+        }
+    }
+
     fn bare_builtin(&self, name: &str) -> bool {
         let builtin = Target::Builtin(name.to_string());
         !self.locals_in_scope().contains(&name)
             && self.table.ns_target(name, &self.own, self.top_level) == builtin
             && self.table.flat_target(name) == builtin
+    }
+
+    fn chain_call(&mut self, node: &Spanned, whole: &Spanned, name: &str, argc: usize) {
+        if argc != 1 || !self.bare_builtin(name) {
+            return;
+        }
+        let Some(arg) = whole.as_list().and_then(|items| items.get(1)) else {
+            return;
+        };
+        let Some(rule) = crate::chains::simplifies(name, arg, &|h| self.bare_builtin(h)) else {
+            return;
+        };
+        self.respellings.push((
+            std::ptr::from_ref(node) as usize,
+            crate::respell::Respelling {
+                span: whole.span,
+                respell: crate::respell::Respell::Chain(rule),
+                qualify: false,
+                error_builtin: false,
+            },
+        ));
+        if !self.report_unused {
+            return;
+        }
+        self.diagnostics.push(
+            Diagnostic::new(
+                Code::B0045,
+                format!(
+                    "`{name}` leaves its argument alone here ({} {}); the call is its argument",
+                    rule.id, rule.slug
+                ),
+                whole.span,
+            )
+            .at_top_level(self.top_level)
+            .with_help("`blue fmt --write`, `blue run` and `blue check --fix` replace the call with its argument"),
+        );
     }
 
     fn synonym_call(&mut self, node: &Spanned, whole: &Spanned, name: &str, argc: usize) {
@@ -1877,6 +1966,17 @@ impl Walker<'_> {
             .with_help(format!(
                 "add `use(\"{pkg}\")` to the file's imports (and `needs(\"{pkg}\", …)` to its Bluefile, inside a bidama)"
             ));
+            let d = if matches!(self.own, Namespace::File(_)) && self.table.bidama(pkg).is_some() {
+                let line = format!("use(\"{pkg}\")");
+                let edit = self.use_insertion(self.top_level, &line);
+                d.with_fix(Fix {
+                    message: format!("add `{line}`"),
+                    edits: vec![edit],
+                    applicability: Applicability::MachineApplicable,
+                })
+            } else {
+                d
+            };
             self.diagnostics.push(d);
             return;
         }
@@ -2161,6 +2261,7 @@ impl Scopes for Walker<'_> {
         }
         if !opaque && self.references.len() > before {
             self.synonym_call(node, whole, name, argc);
+            self.chain_call(node, whole, name, argc);
         }
     }
 

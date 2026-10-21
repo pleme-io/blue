@@ -318,7 +318,7 @@ collision gate already forbids this among its own packages.)",
     B0010 {
         slug: "qualifier-not-imported",
         severity: Error,
-        fix: None,
+        fix: Machine,
         law: "a qualified name's package is one the file `use`s: `retsu::first` needs `use(\"retsu\")`",
         witness: "def f(xs)\n  retsu::first(xs)\nend\n",
         waivable: false,
@@ -329,7 +329,10 @@ The qualifier must be a bidama the file declares with `use(\"retsu\")`
 reaches only what it says it depends on, so no reference can work by the
 accident of some other file having loaded the package.
 
-To comply, add the `use` — or, if a builtin was meant, write `blue::first`.",
+To comply, add the `use` — or, if a builtin was meant, write `blue::first`.
+In a script whose program has loaded the bidama, `blue check --fix` adds
+`use(\"retsu\")` for you; inside a bidama the Bluefile's `needs` is yours to
+write.",
     }
     B0011 {
         slug: "no-such-definition",
@@ -367,7 +370,9 @@ the names its `use` forms list, then builtins, so that same `first` would
 quietly become the builtin. This rule finds every such reference before
 that can happen.
 
-The fix writes `retsu::first` when the file already `use`s retsu. Otherwise
+The fix writes `retsu::first` when the file already `use`s retsu. When it does
+not, and the file is a script, `blue check --fix` adds one `use(\"retsu\",
+[:first, :last])` listing every name the file reaches that way. Otherwise
 add `use(\"retsu\", [:first])` (and, inside a bidama, `needs(\"retsu\", …)`
 to its Bluefile). `blue migrate` makes every reference in a file explicit at
 once, and proves the program's meaning unchanged.",
@@ -430,9 +435,11 @@ changes what the file means, so there is one way to write the imports: every
 package, and each list of names sorted without repeats. `use(\"x\", [])`
 lists nothing and is written `use(\"x\")`.
 
-Sorting a list is a machine-applicable fix. Moving a `use` is left to the
-author: while one global environment holds every definition, the order in
-which packages load can decide which of two same-named definitions wins.",
+Sorting a list is a machine-applicable fix, and so is sorting the `use` forms
+by package when they all sit before the file's other forms and name each
+package once: the forms swap places and nothing else moves. Merging two `use`
+forms of one package, and moving a `use` up past a definition, are left to the
+author.",
     }
     B0016 {
         slug: "unused-import",
@@ -891,6 +898,32 @@ this file taking exactly the lambda's parameters, nothing in the form rebinds
 `f`, and `f` is defined before the lambda is built (an earlier form, or the
 lambda sits inside a `def`). Builtins, imported names, optional or rest
 parameters and a different parameter count are left as written.",
+    }
+    B0045 {
+        slug: "redundant-conversion",
+        severity: Warning,
+        fix: Machine,
+        law: "a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain",
+        witness: "def f(x)\n  to_s(to_s(x))\nend\n",
+        waivable: false,
+        explanation: "\
+`to_s` of a string is the string, `to_int!` of an Int is the Int, and so on:
+when the inner expression is a builtin call that always returns the kind the
+outer conversion leaves alone (or a literal of that kind), the outer call does
+nothing, and the chain is its inner expression. A chain of any length
+collapses from the inside out.
+
+Every rewrite is a row of one table, `blue_lang_check::chains::RULES`, and each
+row has a soundness law in okite (`D0013`) that evaluates both sides over
+generated values: same value, or the same refusal. The table is the only
+source: this report, the rewrite `blue fmt --write`, `blue run`, `blue test`
+and `blue check --fix` write, and the form the evaluator runs all read it, so
+unformatted code runs the simplified chain too.
+
+A row is left out when the identity fails for some value the chain can see:
+`to_int(to_int(x))` is not `to_int(x)`, because `to_int` of nil refuses where
+`to_int(\"abc\")` is nil. The names are builtins only: a local or a definition
+called `to_s` is never rewritten.",
     }
 }
 

@@ -33,6 +33,7 @@ use std::collections::BTreeMap;
 
 use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 
+pub mod chains;
 pub mod fixes;
 pub mod form_rules;
 pub mod names;

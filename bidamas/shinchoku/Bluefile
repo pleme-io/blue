@@ -1,0 +1,5 @@
+package("shinchoku", "0.1.0")
+needs("kazu", "^0.1")
+needs("retsu", "^0.1")
+needs("settei", "^0.1")
+needs("shisutemu", "^0.1")

@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:6b2ded2cca8a5d64f8d700cfcae8a749b5135863e7258591aa49c212ec20df93",
+  "manifest": {
+    "schema": 1,
+    "name": "shinchoku",
+    "version": "0.1.0",
+    "needs": {
+      "kazu": "^0.1.0",
+      "retsu": "^0.1.0",
+      "settei": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

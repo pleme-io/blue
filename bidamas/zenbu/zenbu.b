@@ -90,6 +90,7 @@ use("sabi")
 use("saishikou")
 use("seimei", [:life_step])
 use("settei")
+use("shinchoku")
 use("shinsuu", [:to_hex])
 use("shisutemu", [:age_s])
 use("shomei", [:hash_message])
@@ -165,6 +166,7 @@ test "every bidama in the distribution answers through this one import"
   assert jitaku::to_json([]) == "{\"enable\":true}"
   assert kinko::interval_s("families", 16) == 2765
   assert empresa::slug?("acme-org")
+  assert get(shinchoku::agents_allowed(29, 14, 4000, 0), :allowed) == 0
   assert get(kijun::fleet_repo(1), :standard) == "fleet-repo"
   assert nikkusu::kind(get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
   assert hyouka::installable(".", "x") == ".#x"

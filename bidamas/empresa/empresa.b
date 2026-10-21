@@ -528,14 +528,13 @@ def pending?(value)
   starts_with?(value, "PENDING-")
 end
 
-def dns_row(zone, purpose, name, type, priority, value)
+def dns_row(zone, purpose, name, type, value)
   {
-    key: "#{zone}__#{purpose}",
-    zone_key: zone,
+    slug: "#{zone}__#{purpose}",
+    zone: zone,
     name: name,
     type: type,
     ttl: "3600",
-    priority: priority,
     value: value,
     pending: flag(pending?(value))
   }
@@ -545,7 +544,7 @@ def mx_rows(z, d, p)
   map(
     fn(i)
       e = nth(i, get(p, :mx))
-      dns_row(z, "mx#{i + 1}", d, "MX", to_s(first(e)), nth(1, e))
+      dns_row(z, "mx#{i + 1}", d, "MX", "#{first(e)} #{nth(1, e)}")
     end,
     range(0, size(get(p, :mx)))
   )
@@ -560,7 +559,6 @@ def dkim_rows(z, d, p)
         "dkim#{i + 1}",
         "#{first(e)}.#{d}",
         nth(1, e),
-        "",
         replace(nth(2, e), "{domain}", d)
       )
     end,
@@ -572,7 +570,7 @@ def verify_rows(z, d, p)
   if get(p, :verify) == ""
     []
   else
-    [dns_row(z, "verify", d, "TXT", "", get(p, :verify))]
+    [dns_row(z, "verify", d, "TXT", get(p, :verify))]
   end
 end
 
@@ -585,7 +583,7 @@ def mail_rows(m)
     p = get(presets, get(m, :provider))
     append(
       mx_rows(z, d, p),
-      [dns_row(z, "spf", d, "TXT", "", get(p, :spf))],
+      [dns_row(z, "spf", d, "TXT", get(p, :spf))],
       dkim_rows(z, d, p),
       verify_rows(z, d, p),
       [
@@ -594,7 +592,6 @@ def mail_rows(m)
           "dmarc",
           "_dmarc.#{d}",
           "TXT",
-          "",
           "v=DMARC1; p=none; rua=mailto:dmarc@#{d}"
         )
       ]
@@ -622,28 +619,14 @@ def alias_rows(ds, ss)
       map(
         fn(h)
           {
-            key: replace(h, ".", "_"),
+            slug: replace(h, ".", "-"),
             site: get(s, :name),
             host: h,
-            zone_key: zone_key(zone_for(ds, h))
+            zone: zone_for(ds, h)
           }
         end,
         get(s, :hosts)
       )
-    end,
-    ss
-  )
-end
-
-def origin_rows(ss)
-  map(
-    fn(s)
-      {
-        site: get(s, :name),
-        origin_host: get(s, :origin_host),
-        origin_path: get(s, :path_prefix) or "",
-        gate: to_s(get(s, :gate))
-      }
     end,
     ss
   )
@@ -658,6 +641,10 @@ def edge_site_rows(ss)
     fn(s)
       {
         site: get(s, :name),
+        origin_host: get(s, :origin_host),
+        origin_path: get(s, :path_prefix) or "",
+        hosts: join(get(s, :hosts), ","),
+        gate: to_s(get(s, :gate)),
         kind: to_s(get(s, :kind)),
         cache: if_ok(service?(s), "disabled", "optimized"),
         all_methods: flag(service?(s)),
@@ -744,7 +731,6 @@ def variables(a)
     zones: zone_rows(get(x, :domains)),
     dns_records: mail_rows(get(x, :mail)),
     edge_aliases: alias_rows(get(x, :domains), get(x, :sites)),
-    edge_origins: origin_rows(get(x, :sites)),
     edge_sites: edge_site_rows(get(x, :sites)),
     repos: map(repo_row, get(x, :repos)),
     teams: team_rows(get(x, :teams)),
@@ -1014,6 +1000,53 @@ test "a service without a flake or a port, or a static site with a flake, is ref
     0
 end
 
+test "edge rows carry the comma-joined hosts, a host slug and the zone name"
+  v = variables(example)
+  s = first(v.edge_sites)
+  assert s.hosts == "acme.example,www.acme.example,acme-labs.example"
+  assert s.site == "acme-site"
+  assert s.origin_host == "origin.tailnet.example"
+  assert map((a) -> a.slug, v.edge_aliases) ==
+    ["acme-example", "www-acme-example", "acme-labs-example"]
+  assert map((a) -> a.zone, v.edge_aliases) ==
+    ["acme.example", "acme.example", "acme-labs.example"]
+  assert map((a) -> a.site, v.edge_aliases) ==
+    ["acme-site", "acme-site", "acme-site"]
+end
+
+def all_strings?(rows)
+  every((r) -> every((e) -> string?(nth(1, e)), map_entries(r)), rows)
+end
+
+test "every projected field is a string, numeric-looking ones included"
+  v = variables(example)
+  lists = [
+    v.zones,
+    v.dns_records,
+    v.edge_aliases,
+    v.edge_sites,
+    v.repos,
+    v.teams,
+    v.team_repo_grants
+  ]
+  assert every(all_strings?, lists)
+  assert size(v.dns_records) > 0
+  api = assoc(
+    service_site("api", ["api.acme.example"]),
+    :health_path,
+    "/healthz"
+  )
+  w = variables({company: "acme", domains: one_domain, sites: [api]})
+  assert nth(0, w.edge_sites).port == "8081"
+  assert first(v.dns_records).ttl == "3600"
+  j = json_read(variables_json(example))
+  assert string?(first(j.dns_records).ttl)
+  assert string?(first(j.zones).key)
+  assert string?(first(j.edge_sites).all_methods)
+  numeric = with(example, :mail, {provider: :fastmail, domain: "acme.example"})
+  assert every(string?, map((r) -> r.value, variables(numeric).dns_records))
+end
+
 test "an empty declaration stands empty and every list is empty"
   a = {company: "acme"}
   assert judge(a).refused == []
@@ -1022,7 +1055,6 @@ test "an empty declaration stands empty and every list is empty"
   assert v.zones == []
   assert v.dns_records == []
   assert v.edge_aliases == []
-  assert v.edge_origins == []
   assert v.repos == []
   assert v.teams == []
   assert v.team_repo_grants == []
@@ -1048,15 +1080,15 @@ test "two domains, one site and a google preset give counted rows"
   assert size(v.zones) == 2
   assert size(v.dns_records) == 5
   assert size(v.edge_aliases) == 3
-  assert size(v.edge_origins) == 1
+  assert size(v.edge_sites) == 1
   assert size(v.repos) == 2
   assert size(v.teams) == 2
   assert size(v.team_repo_grants) == 3
   assert v.repo_count == "2"
   assert v.owner == "acme-org"
   assert size(manual_steps(example)) == 8
-  assert size(distinct(map((r) -> r.key, v.dns_records))) == 5
-  assert first(v.edge_origins).origin_path == "/acme"
+  assert size(distinct(map((r) -> r.slug, v.dns_records))) == 5
+  assert first(v.edge_sites).origin_path == "/acme"
   assert nth(1, v.zones).key == "acme-labs_example"
 end
 
@@ -1064,8 +1096,7 @@ test "email rows are expanded from the preset with documented values only"
   rows = variables(example).dns_records
   mx = first(rows)
   assert mx.type == "MX"
-  assert mx.priority == "1"
-  assert mx.value == "smtp.google.com."
+  assert mx.value == "1 smtp.google.com."
   assert mx.name == "acme.example"
   dmarc = last(rows)
   assert dmarc.name == "_dmarc.acme.example"
@@ -1083,7 +1114,8 @@ test "a control: another preset changes the rows, undecided removes them"
     with(example, :mail, {provider: :proton, domain: "acme.example"})
   ).dns_records
   assert size(proton) == 8
-  assert map((r) -> r.priority, take(2, proton)) == ["10", "20"]
+  assert map((r) -> r.value, take(2, proton)) ==
+    ["10 mail.protonmail.ch.", "20 mailsec.protonmail.ch."]
   fast = variables(
     with(example, :mail, {provider: :fastmail, domain: "acme.example"})
   ).dns_records
@@ -1140,8 +1172,8 @@ test "a host belongs to the longest domain that holds it"
       site("s", ["x.eu.acme.example", "y.acme.example", "eu.acme.example"])
     ]
   }
-  assert map((r) -> r.zone_key, variables(a).edge_aliases) ==
-    ["eu_acme_example", "acme_example", "eu_acme_example"]
+  assert map((r) -> r.zone, variables(a).edge_aliases) ==
+    ["eu.acme.example", "acme.example", "eu.acme.example"]
 end
 
 test "a duplicate domain is refused and the first stands"

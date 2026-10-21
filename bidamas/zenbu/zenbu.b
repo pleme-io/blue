@@ -65,6 +65,7 @@ use("keiyu", [:relay_env])
 use("kijun")
 use("kikagaku", [:manhattan])
 use("kinji")
+use("kinko")
 use("kirikae")
 use("kiwari")
 use("kueri")
@@ -161,6 +162,7 @@ test "every bidama in the distribution answers through this one import"
   assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
   assert jitaku::to_json([]) == "{\"enable\":true}"
+  assert kinko::interval_s("families", 16) == 2765
   assert get(kijun::fleet_repo(1), :standard) == "fleet-repo"
   assert nikkusu::kind(get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
   assert hyouka::installable(".", "x") == ".#x"

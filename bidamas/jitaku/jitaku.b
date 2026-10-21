@@ -2,6 +2,8 @@ use("kyohi", [:kinds, :refusal])
 use("moji", [:is_hex, :made_of, :strip_prefix])
 use("retsu", [:contains, :first, :flat_map, :index_of, :is_empty, :last, :size])
 
+legacy_names("0.1.1", [["unrefused", "kyohi::standing"]])
+
 # jitaku (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
 #
 # A home is a list of entries: its site, delivery and exposure, components with
@@ -850,14 +852,6 @@ def entry_id(e)
   "#{kind_of(e)}/#{name_of(e)}"
 end
 
-# The entries whose refusal list (same position in `marks`) is empty.
-def unrefused(es, marks)
-  map(
-    (i) -> nth(i, es),
-    filter((i) -> is_empty(nth(i, marks)), range(0, size(es)))
-  )
-end
-
 # A name is declared once: every later declaration of it is refused.
 def duplicate_refusals(es)
   ids = map(entry_id, es)
@@ -916,7 +910,7 @@ def apply_tunes(es)
   tunes = filter((e) -> kind_of(e) == :tune, es)
   base = filter((e) -> kind_of(e) != :tune, es)
   bad = map((t) -> tune_refusals(t, base), tunes)
-  good = unrefused(tunes, bad)
+  good = kyohi::standing(tunes, bad)
   {entries: map((e) -> tuned(e, good), base), refusals: flat_map((r) -> r, bad)}
 end
 
@@ -1064,7 +1058,7 @@ def settle(standing, refused)
   if is_empty(falls)
     {accepted: standing, refusals: refused}
   else
-    settle(unrefused(standing, fresh), append(refused, falls))
+    settle(kyohi::standing(standing, fresh), append(refused, falls))
   end
 end
 
@@ -1077,7 +1071,7 @@ def judge(entries)
   own = map(local_refusals, es)
   dups = duplicate_refusals(es)
   marks = map((i) -> append(nth(i, own), nth(i, dups)), range(0, size(es)))
-  first_pass = unrefused(es, marks)
+  first_pass = kyohi::standing(es, marks)
   settled = settle(
     first_pass,
     append(get(t, :refusals), flat_map((r) -> r, marks))

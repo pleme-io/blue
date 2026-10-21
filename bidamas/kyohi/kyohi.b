@@ -1,4 +1,4 @@
-use("retsu", [:first, :is_empty])
+use("retsu", [:first, :is_empty, :size])
 
 # kyohi (拒否) — refusals, as data.
 #
@@ -65,6 +65,20 @@ def refusal_of(result)
   else
     get(result, :refusal)
   end
+end
+
+def standing(xs, marks)
+  map(
+    (i) -> nth(i, xs),
+    filter((i) -> is_empty(nth(i, marks)), range(0, size(xs)))
+  )
+end
+
+test "what stands is every entry refused for nothing, in order"
+  assert standing([], []) == []
+  assert standing(["a", "b", "c"], [[], [refusal(:x, "no")], []]) == ["a", "c"]
+  assert standing(["a"], [[]]) == ["a"]
+  assert standing(["a", "b"], [[refusal(:x, "1")], [refusal(:y, "2")]]) == []
 end
 
 test "a result carries a value or a refusal, never both"

@@ -110,7 +110,11 @@ pub fn literal_kind(form: &Spanned) -> Option<Kind> {
 }
 
 #[must_use]
-pub fn simplifies(outer: &str, arg: &Spanned, builtin: &dyn Fn(&str) -> bool) -> Option<&'static ChainRule> {
+pub fn simplifies(
+    outer: &str,
+    arg: &Spanned,
+    builtin: &dyn Fn(&str) -> bool,
+) -> Option<&'static ChainRule> {
     RULES.iter().find(|r| {
         r.outer == outer
             && match arg.as_list() {
@@ -156,7 +160,11 @@ mod tests {
         assert_eq!(ids.len(), RULES.len());
         for r in RULES {
             assert!(!cases(r).is_empty(), "{} matches nothing", r.id);
-            assert!(!r.soundness.trim().is_empty(), "{} has no soundness note", r.id);
+            assert!(
+                !r.soundness.trim().is_empty(),
+                "{} has no soundness note",
+                r.id
+            );
         }
     }
 }

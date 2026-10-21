@@ -31,7 +31,11 @@ const MISSING_USE: &str = "use(\"moji\", [:lines])\n\ndef go(xs)\n  t = now_ms()
 fn check_fix_adds_the_use_a_bare_name_needs_and_keeps_the_uses_sorted() {
     let f = fixture("missing-use", MISSING_USE);
     let out = run(&["check", "--fix"], &f);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
     assert_eq!(
         text(&f),
         "use(\"moji\", [:lines])\nuse(\"retsu\", [:last, :size])\n\ndef go(xs)\n  t = now_ms\n  [last(xs), size(xs), t, lines(\"a\")]\nend\n"
@@ -56,7 +60,11 @@ fn check_fix_sorts_use_forms_by_package() {
     let src = "use(\"retsu\", [:size, :first])\nuse(\"moji\", [:lines])\nuse(\"junjo\", [:sort])\n\ndef go(xs)\n  [first(xs), size(xs), lines(\"a\"), sort(xs)]\nend\n";
     let f = fixture("unsorted-uses", src);
     let out = run(&["check", "--fix"], &f);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
     assert_eq!(
         text(&f),
         "use(\"junjo\", [:sort])\nuse(\"moji\", [:lines])\nuse(\"retsu\", [:first, :size])\n\ndef go(xs)\n  [first(xs), size(xs), lines(\"a\"), sort(xs)]\nend\n"
@@ -68,7 +76,11 @@ fn check_fix_adds_the_use_a_qualifier_needs() {
     let src = "use(\"moji\", [:lines])\n\ndef go(xs)\n  [retsu::first(xs), lines(\"a\")]\nend\n";
     let f = fixture("qualifier", src);
     let out = run(&["check", "--fix"], &f);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
     assert_eq!(
         text(&f),
         "use(\"moji\", [:lines])\nuse(\"retsu\")\n\ndef go(xs)\n  [retsu::first(xs), lines(\"a\")]\nend\n"
@@ -80,7 +92,11 @@ fn fmt_write_simplifies_a_redundant_conversion_chain() {
     let src = "def go(x)\n  to_s(to_s(to_s(x)))\nend\n";
     let f = fixture("fmt-chain", src);
     let out = run(&["fmt", "--write"], &f);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert_eq!(text(&f), "def go(x)\n  to_s(x)\nend\n");
 }
 
@@ -89,7 +105,11 @@ fn check_fix_simplifies_a_redundant_conversion_chain() {
     let src = "def go(x)\n  string(trim(trim(x)))\nend\n";
     let f = fixture("fix-chain", src);
     let out = run(&["check", "--fix"], &f);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
     assert_eq!(text(&f), "def go(x)\n  trim(x)\nend\n");
 }
 

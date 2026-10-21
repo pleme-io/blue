@@ -111,19 +111,7 @@ def path_prefix?(v)
 end
 
 def fault(cond, r)
-  if cond
-    r
-  else
-    []
-  end
-end
-
-def listed(v)
-  if list?(v)
-    v
-  else
-    []
-  end
+  if_ok(cond, r, [])
 end
 
 def if_ok(ok, v, otherwise)
@@ -151,7 +139,7 @@ def repo_slug(name)
 end
 
 def team_slug(name)
-  replace(name, "-", "_")
+  repo_slug(name)
 end
 
 def domain_whys(d)
@@ -882,10 +870,6 @@ def example()
   }
 end
 
-def with(a, k, v)
-  assoc(a, k, v)
-end
-
 def one_domain()
   [{name: "acme.example", role: :primary, dns_host: :route53}]
 end
@@ -1043,7 +1027,7 @@ test "every projected field is a string, numeric-looking ones included"
   assert string?(first(j.dns_records).ttl)
   assert string?(first(j.zones).key)
   assert string?(first(j.edge_sites).all_methods)
-  numeric = with(example, :mail, {provider: :fastmail, domain: "acme.example"})
+  numeric = assoc(example, :mail, {provider: :fastmail, domain: "acme.example"})
   assert every(string?, map((r) -> r.value, variables(numeric).dns_records))
 end
 
@@ -1067,7 +1051,7 @@ test "what stands is itself accepted again"
   assert j.refused == []
   assert judge(j.accepted).accepted == j.accepted
   assert judge(j.accepted).refused == []
-  bad = with(
+  bad = assoc(
     example,
     :domains,
     [{name: "x", role: :primary, dns_host: :route53}]
@@ -1111,18 +1095,18 @@ end
 
 test "a control: another preset changes the rows, undecided removes them"
   proton = variables(
-    with(example, :mail, {provider: :proton, domain: "acme.example"})
+    assoc(example, :mail, {provider: :proton, domain: "acme.example"})
   ).dns_records
   assert size(proton) == 8
   assert map((r) -> r.value, take(2, proton)) ==
     ["10 mail.protonmail.ch.", "20 mailsec.protonmail.ch."]
   fast = variables(
-    with(example, :mail, {provider: :fastmail, domain: "acme.example"})
+    assoc(example, :mail, {provider: :fastmail, domain: "acme.example"})
   ).dns_records
   assert size(fast) == 7
   assert nth(3, fast).value == "fm1.acme.example.dkim.fmhosted.com."
   assert filter((r) -> r.pending == "true", fast) == []
-  none = with(example, :mail, {provider: :undecided})
+  none = assoc(example, :mail, {provider: :undecided})
   assert variables(none).dns_records == []
   assert judge(none).refused == []
   assert size(filter((s) -> s.step == "3", manual_steps(none))) == 1
@@ -1140,11 +1124,11 @@ test "manual steps follow the order table and name each pending value"
 end
 
 test "a bad company slug is refused and the rest stands"
-  j = judge(with(example, :company, "Acme Corp"))
+  j = judge(assoc(example, :company, "Acme Corp"))
   assert kinds(j.refused) == [:bad_slug]
   assert j.accepted.company == nil
   assert size(j.accepted.domains) == 2
-  assert kinds(judge(with(example, :github_org, "Bad Org")).refused) ==
+  assert kinds(judge(assoc(example, :github_org, "Bad Org")).refused) ==
     [:bad_slug]
 end
 
@@ -1224,7 +1208,7 @@ test "a bad or duplicate site is refused alone"
 end
 
 test "an unknown mail preset is refused and nothing else falls"
-  a = with(example, :mail, {provider: :hotmail, domain: "acme.example"})
+  a = assoc(example, :mail, {provider: :hotmail, domain: "acme.example"})
   j = judge(a)
   assert kinds(j.refused) == [:unknown_mail_preset]
   assert j.accepted.mail == nil
@@ -1233,7 +1217,7 @@ test "an unknown mail preset is refused and nothing else falls"
 end
 
 test "mail on a domain nobody declared is refused"
-  j = judge(with(example, :mail, {provider: :google, domain: "other.example"}))
+  j = judge(assoc(example, :mail, {provider: :google, domain: "other.example"}))
   assert kinds(j.refused) == [:mail_domain_undeclared]
 end
 
@@ -1270,8 +1254,8 @@ test "a bad or duplicate team is refused alone and an unknown repo falls only it
     {name: "core", permission: :read, repos: :all},
     {name: "field", permission: :write, repos: ["audit-action", "ghost"]}
   ]
-  a = with(
-    with(example, :teams, ts),
+  a = assoc(
+    assoc(example, :teams, ts),
     :repos,
     [{name: "audit-action", visibility: :public}]
   )
@@ -1290,7 +1274,7 @@ test "grants map permissions to the provider's names"
 end
 
 test "repos and teams without an org are refused, the rest stands"
-  j = judge(with(example, :github_org, nil))
+  j = judge(assoc(example, :github_org, nil))
   assert kinds(j.refused) == [:no_github_org]
   assert j.accepted.repos == []
   assert size(j.accepted.domains) == 2

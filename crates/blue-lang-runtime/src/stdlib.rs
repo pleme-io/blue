@@ -96,9 +96,7 @@ fn chain_rules_value() -> Value {
     let text = |s: &str| Value::Str(std::sync::Arc::from(s));
     let hole = |n: usize| (0..n).map(|_| sym("x")).collect::<Vec<_>>();
     let lambda = |body: Value| Value::list([sym("lambda"), Value::list([sym("x")]), body]);
-    let call = |name: &str, args: Vec<Value>| {
-        Value::list(std::iter::once(sym(name)).chain(args))
-    };
+    let call = |name: &str, args: Vec<Value>| Value::list(std::iter::once(sym(name)).chain(args));
     Value::list(RULES.iter().map(|rule| {
         let rows = cases(rule).into_iter().map(|case| match case {
             Case::Call { inner, argc } => {

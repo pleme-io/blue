@@ -52,7 +52,10 @@ fn run_within(forms: &[Spanned], fuel: usize) -> Option<String> {
 
 fn least_fuel(forms: &[Spanned]) -> usize {
     let (mut lo, mut hi) = (1, 1 << 22);
-    assert!(run_within(forms, hi).is_some(), "does not run in {hi} steps");
+    assert!(
+        run_within(forms, hi).is_some(),
+        "does not run in {hi} steps"
+    );
     while lo < hi {
         let mid = (lo + hi) / 2;
         if run_within(forms, mid).is_some() {
@@ -99,8 +102,13 @@ fn the_canonical_rewrite_writes_the_simplified_chain() {
     let tree = c.canonical_entry(CHAIN).expect("canonical");
     let plain = checked(PLAIN).canonical_entry(PLAIN).expect("canonical");
     assert_eq!(
-        tree.iter().map(|f| f.to_sexp().to_string()).collect::<Vec<_>>(),
-        plain.iter().map(|f| f.to_sexp().to_string()).collect::<Vec<_>>()
+        tree.iter()
+            .map(|f| f.to_sexp().to_string())
+            .collect::<Vec<_>>(),
+        plain
+            .iter()
+            .map(|f| f.to_sexp().to_string())
+            .collect::<Vec<_>>()
     );
 }
 

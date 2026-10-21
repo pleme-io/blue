@@ -669,9 +669,8 @@ pub fn lower_with(
     };
     let forms: &[tatara_lisp::Spanned] = simplified.as_deref().unwrap_or(program.forms());
     if simplified.is_some() {
-        resolved = blue_lang_check::names::resolve_program(forms, names, &|i| {
-            namespace_of(program, i)
-        });
+        resolved =
+            blue_lang_check::names::resolve_program(forms, names, &|i| namespace_of(program, i));
     }
     resolved
         .resolved_tree(forms, blue_lang_check::names::Rule::Namespaced)
@@ -978,7 +977,8 @@ impl Checked {
             resolved
                 .respellings
                 .iter()
-                .filter(|(_, r)| !waived.contains(&r.span))                .cloned()
+                .filter(|(_, r)| !waived.contains(&r.span))
+                .cloned()
                 .collect();
         let canon = Canon {
             bare: &bare,

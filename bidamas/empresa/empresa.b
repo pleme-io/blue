@@ -507,6 +507,7 @@ def judge(a)
       mj.refusals,
       flat(rmarks),
       flat(tmarks),
+      value_refusals(mail_rows(mj.kept)),
       flat_map((t) -> grant_refusals(names, t), ts)
     )
   }
@@ -587,6 +588,73 @@ def mail_rows(m)
   end
 end
 
+def unsafe_value?(v)
+  cs = split(v, "")
+  contains(cs, "|") or contains(cs, "\"") or contains(cs, "\\")
+end
+
+def value_refusals(rows)
+  flat_map(
+    fn(r)
+      if unsafe_value?(get(r, :value))
+        [
+          refusal(
+            :unsafe_dns_value,
+            "dns row #{get(r, :slug)}: a value holds | or a quote or a backslash"
+          )
+        ]
+      else
+        []
+      end
+    end,
+    rows
+  )
+end
+
+def dns_key(r)
+  if get(r, :pending) == "true"
+    "pending #{get(r, :slug)}"
+  else
+    "#{get(r, :zone)} #{get(r, :name)} #{get(r, :type)}"
+  end
+end
+
+def fold_dns(acc, r)
+  k = dns_key(r)
+  if contains(map(dns_key, acc), k)
+    map(
+      fn(x)
+        if dns_key(x) == k
+          assoc(x, :value, "#{get(x, :value)}|#{get(r, :value)}")
+        else
+          x
+        end
+      end,
+      acc
+    )
+  else
+    append(acc, [r])
+  end
+end
+
+def dns_projection(rows)
+  map(
+    fn(r)
+      {
+        slug: get(r, :slug),
+        zone: get(r, :zone),
+        name: get(r, :name),
+        type: get(r, :type),
+        ttl: get(r, :ttl),
+        values: get(r, :value),
+        pending: get(r, :pending),
+        apply: flag(get(r, :pending) == "false")
+      }
+    end,
+    reduce(fold_dns, [], filter((r) -> not unsafe_value?(get(r, :value)), rows))
+  )
+end
+
 def zone_rows(ds)
   map(
     fn(d)
@@ -601,13 +669,17 @@ def zone_rows(ds)
   )
 end
 
+def host_slug(h)
+  replace(h, ".", "-")
+end
+
 def alias_rows(ds, ss)
   flat_map(
     fn(s)
       map(
         fn(h)
           {
-            slug: replace(h, ".", "-"),
+            slug: host_slug(h),
             site: get(s, :name),
             host: h,
             zone: zone_for(ds, h)
@@ -632,6 +704,13 @@ def edge_site_rows(ss)
         origin_host: get(s, :origin_host),
         origin_path: get(s, :path_prefix) or "",
         hosts: join(get(s, :hosts), ","),
+        validation_fqdns: join(
+          map(
+            (h) -> "aws_route53_record.#{host_slug(h)}-validation.fqdn",
+            get(s, :hosts)
+          ),
+          ","
+        ),
         gate: to_s(get(s, :gate)),
         kind: to_s(get(s, :kind)),
         cache: if_ok(service?(s), "disabled", "optimized"),
@@ -717,7 +796,7 @@ def variables(a)
     owner: get(x, :github_org) or "",
     repo_count: to_s(size(get(x, :repos))),
     zones: zone_rows(get(x, :domains)),
-    dns_records: mail_rows(get(x, :mail)),
+    dns_records: dns_projection(mail_rows(get(x, :mail))),
     edge_aliases: alias_rows(get(x, :domains), get(x, :sites)),
     edge_sites: edge_site_rows(get(x, :sites)),
     repos: map(repo_row, get(x, :repos)),
@@ -1028,7 +1107,7 @@ test "every projected field is a string, numeric-looking ones included"
   assert string?(first(j.zones).key)
   assert string?(first(j.edge_sites).all_methods)
   numeric = assoc(example, :mail, {provider: :fastmail, domain: "acme.example"})
-  assert every(string?, map((r) -> r.value, variables(numeric).dns_records))
+  assert every(string?, map((r) -> r.values, variables(numeric).dns_records))
 end
 
 test "an empty declaration stands empty and every list is empty"
@@ -1080,31 +1159,31 @@ test "email rows are expanded from the preset with documented values only"
   rows = variables(example).dns_records
   mx = first(rows)
   assert mx.type == "MX"
-  assert mx.value == "1 smtp.google.com."
+  assert mx.values == "1 smtp.google.com."
   assert mx.name == "acme.example"
   dmarc = last(rows)
   assert dmarc.name == "_dmarc.acme.example"
-  assert dmarc.value == "v=DMARC1; p=none; rua=mailto:dmarc@acme.example"
+  assert dmarc.values == "v=DMARC1; p=none; rua=mailto:dmarc@acme.example"
   assert map((r) -> r.pending, rows) ==
     ["false", "false", "true", "true", "false"]
-  assert nth(1, rows).value == "v=spf1 include:_spf.google.com ~all"
+  assert nth(1, rows).values == "v=spf1 include:_spf.google.com ~all"
   assert nth(2, rows).name == "google._domainkey.acme.example"
-  assert nth(2, rows).value == "PENDING-google-dkim"
-  assert nth(3, rows).value == "PENDING-google-verification"
+  assert nth(2, rows).values == "PENDING-google-dkim"
+  assert nth(3, rows).values == "PENDING-google-verification"
 end
 
 test "a control: another preset changes the rows, undecided removes them"
   proton = variables(
     assoc(example, :mail, {provider: :proton, domain: "acme.example"})
   ).dns_records
-  assert size(proton) == 8
-  assert map((r) -> r.value, take(2, proton)) ==
-    ["10 mail.protonmail.ch.", "20 mailsec.protonmail.ch."]
+  assert size(proton) == 7
+  assert first(proton).values ==
+    "10 mail.protonmail.ch.|20 mailsec.protonmail.ch."
   fast = variables(
     assoc(example, :mail, {provider: :fastmail, domain: "acme.example"})
   ).dns_records
-  assert size(fast) == 7
-  assert nth(3, fast).value == "fm1.acme.example.dkim.fmhosted.com."
+  assert size(fast) == 6
+  assert nth(2, fast).values == "fm1.acme.example.dkim.fmhosted.com."
   assert filter((r) -> r.pending == "true", fast) == []
   none = assoc(example, :mail, {provider: :undecided})
   assert variables(none).dns_records == []
@@ -1285,4 +1364,62 @@ test "the json carries one object per list"
   assert size(v.zones) == 2
   assert size(v.dns_records) == 5
   assert first(v.zones).key == "acme_example"
+end
+
+def txt(purpose, value)
+  dns_row("acme_example", purpose, "acme.example", "TXT", value)
+end
+
+test "values on one zone, name and type become one row, in order"
+  rows = dns_projection(
+    [
+      txt("spf", "v=spf1 -all"),
+      dns_row("acme_example", "www", "www.acme.example", "A", "192.0.2.1"),
+      txt("verify", "site-verification=abc"),
+      dns_row("acme_example", "mx1", "acme.example", "MX", "10 a.example."),
+      dns_row("acme_example", "mx2", "acme.example", "MX", "20 b.example.")
+    ]
+  )
+  assert map((r) -> r.slug, rows) ==
+    ["acme_example__spf", "acme_example__www", "acme_example__mx1"]
+  assert first(rows).values == "v=spf1 -all|site-verification=abc"
+  assert nth(1, rows).values == "192.0.2.1"
+  assert nth(2, rows).values == "10 a.example.|20 b.example."
+  assert every(string?, map((r) -> r.values, rows))
+end
+
+test "a pending value is never merged into a live row and is marked not to apply"
+  rows = dns_projection(
+    [txt("spf", "v=spf1 -all"), txt("verify", "PENDING-google-verification")]
+  )
+  assert size(rows) == 2
+  assert map((r) -> r.apply, rows) == ["true", "false"]
+  assert map((r) -> r.pending, rows) == ["false", "true"]
+  assert first(rows).values == "v=spf1 -all"
+  v = variables(example).dns_records
+  assert map((r) -> r.apply, v) == ["true", "true", "false", "false", "true"]
+end
+
+test "a value holding a pipe, a quote or a backslash is refused alone"
+  good = txt("spf", "v=spf1 -all")
+  piped = txt("verify", "a|b")
+  quoted = txt("q", "say \"x\"")
+  slashed = txt("s", "a\\b")
+  assert kinds(value_refusals([good, piped, quoted, slashed])) ==
+    [:unsafe_dns_value, :unsafe_dns_value, :unsafe_dns_value]
+  assert value_refusals([good]) == []
+  rows = dns_projection([good, piped, quoted, slashed])
+  assert size(rows) == 1
+  assert first(rows).values == "v=spf1 -all"
+end
+
+test "a site row names the validation record of each of its hosts"
+  s = first(variables(example).edge_sites)
+  assert s.validation_fqdns ==
+    "aws_route53_record.acme-example-validation.fqdn,aws_route53_record.www-acme-example-validation.fqdn,aws_route53_record.acme-labs-example-validation.fqdn"
+  assert map(
+    (a) -> "aws_route53_record.#{a.slug}-validation.fqdn",
+    variables(example).edge_aliases
+  ) ==
+    split(s.validation_fqdns, ",")
 end

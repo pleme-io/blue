@@ -1,6 +1,8 @@
 use("deeta", [:get_or, :pretty, :yaml])
+use("kyuuji")
 use("retsu", [:first])
 use("settei", [:env_prefix])
+use("shihyou")
 
 def entries_of(m)
   if m == nil
@@ -160,7 +162,12 @@ def values_with(svc, mode)
     "config" => from_entries(entries_of(get_or(svc, "config", {}))),
     "flags" => get(d, "flags"),
     "resources" => resources_of(svc),
-    "podAnnotations" => {},
+    "podAnnotations" => {
+      "prometheus.io/scrape" => "true",
+      "prometheus.io/port" => to_s(get(svc, "port")),
+      "prometheus.io/path" => kyuuji::metrics_path
+    },
+    "slo" => {"rules" => true, "dashboard" => true},
     "podSecurityContext" => {
       "runAsNonRoot" => true,
       "runAsUser" => 65532,
@@ -632,6 +639,37 @@ def notes(n, h)
   )
 end
 
+def slo_rules(name, svc)
+  r = shihyou::rules(name, svc)
+  m = assoc(get(r, "metadata"), "namespace", "{{ .Release.Namespace }}")
+  "{{- if .Values.slo.rules }}\n#{yaml(assoc(r, "metadata", m))}{{- end }}\n"
+end
+
+def dashboard_map(name)
+  lines(
+    [
+      "{{- if .Values.slo.dashboard }}",
+      "apiVersion: v1",
+      "kind: ConfigMap",
+      "metadata:",
+      "  name: #{name}-dashboard",
+      "  namespace: {{ .Release.Namespace }}",
+      "  labels:",
+      "    grafana_dashboard: \"1\"",
+      "    app.kubernetes.io/name: #{name}",
+      "    app.kubernetes.io/component: slo",
+      "data:",
+      "  #{name}.json: |-",
+      "    {{- .Files.Get \"files/dashboard.json\" | trimSuffix \"\\n\" | nindent 4 }}",
+      "{{- end }}"
+    ]
+  )
+end
+
+def catalog_entry(name, version, svc)
+  shihyou::entry(name, version, svc)
+end
+
 def files(name, version, svc)
   files_with(name, version, svc, :pleme_lib)
 end
@@ -669,7 +707,10 @@ def files_with(name, version, svc, mode)
     ["chart/values.yaml", yaml(values_with(svc, mode))],
     ["chart/values.schema.json", pretty(values_schema_with(name, svc, mode))],
     ["chart/templates/deployment.yaml", deployment(name, h)],
-    ["chart/templates/NOTES.txt", notes(name, h)]
+    ["chart/templates/NOTES.txt", notes(name, h)],
+    ["chart/templates/slo-rules.yaml", slo_rules(name, svc)],
+    ["chart/templates/dashboard.yaml", dashboard_map(name)],
+    ["chart/files/dashboard.json", pretty(shihyou::dashboard(name, svc))]
   ]
   db = if tables(svc) == []
     []
@@ -802,12 +843,15 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   assert paths ==
     [
       "chart/Chart.yaml",
+      "chart/files/dashboard.json",
       "chart/files/schema.sql",
       "chart/templates/NOTES.txt",
+      "chart/templates/dashboard.yaml",
       "chart/templates/deployment.yaml",
       "chart/templates/migration.yaml",
       "chart/templates/service.yaml",
       "chart/templates/serviceaccount.yaml",
+      "chart/templates/slo-rules.yaml",
       "chart/values.schema.json",
       "chart/values.yaml",
       "config/hello.schema.json",
@@ -868,4 +912,22 @@ test "a service with tables names its schema and a database setting"
     "OLA_MUNDO_DATABASE__URL"
   ) ==
     true
+end
+
+test "the chart carries the service's SLO rules, its dashboard and a scrape annotation"
+  fs = files("hello", "0.1.0", sample)
+  rules = second(
+    first(filter((f) -> first(f) == "chart/templates/slo-rules.yaml", fs))
+  )
+  assert starts_with?(rules, "{{- if .Values.slo.rules }}\n") == true
+  assert contains?(rules, "kind: \"PrometheusRule\"") == true
+  assert contains?(rules, "SloLatencyBurn3d") == true
+  assert contains?(rules, ".Release.Namespace") == true
+  v = values(sample)
+  assert get(get(v, "podAnnotations"), "prometheus.io/port") == "8080"
+  assert get(v, "slo") == {"rules" => true, "dashboard" => true}
+  vs = get(values_schema("hello", sample), "properties")
+  assert get(get(get(get(vs, "slo"), "properties"), "rules"), "type") ==
+    "boolean"
+  assert get(catalog_entry("hello", "0.1.0", sample), "owner") == "pleme-io"
 end

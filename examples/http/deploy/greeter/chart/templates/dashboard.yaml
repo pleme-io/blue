@@ -1,0 +1,14 @@
+{{- if .Values.slo.dashboard }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: greeter-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: greeter
+    app.kubernetes.io/component: slo
+data:
+  greeter.json: |-
+    {{- .Files.Get "files/dashboard.json" | trimSuffix "\n" | nindent 4 }}
+{{- end }}

@@ -230,6 +230,8 @@ pub enum SpecError {
     ProbePortWithoutProbe,
     #[error("`probe` is a path (\"/healthz\") or :tcp, got `{got}`")]
     ProbeKind { got: String },
+    #[error("slo `{field}` is out of range, got {got}: an objective is a percentage strictly between 0 and 100, latency_ms is 1 to 60000 and window_days 1 to 90")]
+    SloObjective { field: &'static str, got: String },
     #[error("`replicas` must be 0 or more, got {got}")]
     Replicas { got: i64 },
     #[error("`{got}` names no image this Bluefile declares, and is not a pinned reference (repo:tag or repo@sha256:…, never :latest)")]

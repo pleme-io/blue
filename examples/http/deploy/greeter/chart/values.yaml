@@ -21,7 +21,10 @@ image:
 listen:
   host: "0.0.0.0"
   port: 18080
-podAnnotations: {}
+podAnnotations:
+  "prometheus.io/path": "/metrics"
+  "prometheus.io/port": "18080"
+  "prometheus.io/scrape": "true"
 podSecurityContext:
   runAsGroup: 65532
   runAsNonRoot: true
@@ -44,3 +47,6 @@ service:
 serviceAccount:
   automountServiceAccountToken: false
   create: true
+slo:
+  dashboard: true
+  rules: true

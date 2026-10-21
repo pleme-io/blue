@@ -1,14 +1,16 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:12d2639b2bea96dac1d2ab7c3ac5c80fe182dd236c40cb49b74c11c288a93010",
+  "bluefile_b3": "b3:6aaa030fca961025aa6b2bd967f3a5f217a30f1fbe0d10ec2c1b97804f387e3a",
   "manifest": {
     "schema": 1,
     "name": "haibi",
     "version": "0.1.0",
     "needs": {
       "deeta": "^0.1.0",
+      "kyuuji": "^0.1.0",
       "retsu": "^0.1.0",
-      "settei": "^0.1.0"
+      "settei": "^0.1.0",
+      "shihyou": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

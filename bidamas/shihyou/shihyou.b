@@ -1,0 +1,373 @@
+use("deeta", [:get_or])
+use("kyuuji")
+
+def defaults()
+  {
+    "availability" => 99.5,
+    "latency" => 99,
+    "latency_ms" => 250,
+    "window_days" => 30
+  }
+end
+
+def le_of(latency_ms)
+  to_s(latency_ms / 1000)
+end
+
+def objectives(svc)
+  given = get_or(svc, "slo", {})
+  o = reduce(
+    (acc, e) -> assoc(acc, first(e), second(e)),
+    defaults,
+    if given == nil
+      []
+    else
+      map_entries(given)
+    end
+  )
+  le = le_of(get(o, "latency_ms"))
+  if member?(le, map((b) -> to_s(b), kyuuji::latency_bounds))
+    o
+  else
+    raise(
+      :latency_bound,
+      "slo latency_ms #{to_s(get(o, "latency_ms"))} is no histogram bound; the bounds are #{join(map((b) -> to_s(round(b * 1000)), kyuuji::latency_bounds), ", ")} ms"
+    )
+  end
+end
+
+def budget(percent)
+  (100 - percent) / 100
+end
+
+def windows()
+  [
+    {"severity" => "page", "long" => "1h", "short" => "5m", "factor" => 14.4},
+    {"severity" => "page", "long" => "6h", "short" => "30m", "factor" => 6},
+    {"severity" => "ticket", "long" => "1d", "short" => "2h", "factor" => 3},
+    {"severity" => "ticket", "long" => "3d", "short" => "6h", "factor" => 1}
+  ]
+end
+
+def ranges()
+  ["5m", "30m", "1h", "2h", "6h", "1d", "3d"]
+end
+
+def selector(name)
+  "service=\"#{name}\""
+end
+
+def error_ratio(name, w)
+  "sum(rate(http_requests_total{#{selector(name)},code=\"5xx\"}[#{w}])) / sum(rate(http_requests_total{#{selector(name)}}[#{w}]))"
+end
+
+def slow_ratio(name, le, w)
+  "1 - sum(rate(http_request_duration_seconds_bucket{#{selector(name)},le=\"#{le}\"}[#{w}])) / sum(rate(http_request_duration_seconds_count{#{selector(name)}}[#{w}]))"
+end
+
+def indicators(name, o)
+  [
+    [
+      "availability",
+      "slo:error_ratio:rate",
+      (w) -> error_ratio(name, w),
+      get(o, "availability")
+    ],
+    [
+      "latency",
+      "slo:slow_ratio:rate",
+      (w) -> slow_ratio(name, le_of(get(o, "latency_ms")), w),
+      get(o, "latency")
+    ]
+  ]
+end
+
+def recording(name, o)
+  reduce(
+    (acc, xs) -> append(acc, xs),
+    [],
+    map(
+      fn(ind)
+        map(
+          fn(w)
+            {
+              "record" => "#{second(ind)}#{w}",
+              "expr" => nth(2, ind)(w),
+              "labels" => {"service" => name}
+            }
+          end,
+          ranges
+        )
+      end,
+      indicators(name, o)
+    )
+  )
+end
+
+def capitalized(s)
+  "#{upcase(first(chars(s)))}#{join(rest(chars(s)), "")}"
+end
+
+def alerts(name, o)
+  reduce(
+    (acc, xs) -> append(acc, xs),
+    [],
+    map(
+      fn(ind)
+        threshold = budget(nth(3, ind))
+        map(
+          fn(w)
+            limit = "(#{to_s(get(w, "factor"))} * #{to_s(threshold)})"
+            rec = second(ind)
+            {
+              "alert" => "Slo#{capitalized(first(ind))}Burn#{capitalized(get(w, "long"))}",
+              "expr" => "#{rec}#{get(w, "long")}{#{selector(name)}} > #{limit} and #{rec}#{get(w, "short")}{#{selector(name)}} > #{limit}",
+              "labels" => {
+                "severity" => get(w, "severity"),
+                "service" => name,
+                "slo" => first(ind)
+              },
+              "annotations" => {
+                "summary" => "#{name} is spending its #{first(ind)} error budget #{to_s(get(w, "factor"))}x too fast over #{get(w, "long")} and #{get(w, "short")}",
+                "objective" => "#{to_s(nth(3, ind))}% over #{to_s(get(o, "window_days"))}d"
+              }
+            }
+          end,
+          windows
+        )
+      end,
+      indicators(name, o)
+    )
+  )
+end
+
+def rules(name, svc)
+  o = objectives(svc)
+  {
+    "apiVersion" => "monitoring.coreos.com/v1",
+    "kind" => "PrometheusRule",
+    "metadata" => {
+      "name" => "#{name}-slo",
+      "labels" => {
+        "app.kubernetes.io/name" => name,
+        "app.kubernetes.io/component" => "slo"
+      }
+    },
+    "spec" => {
+      "groups" => [
+        {"name" => "#{name}-slo-recording", "rules" => recording(name, o)},
+        {"name" => "#{name}-slo-alerts", "rules" => alerts(name, o)}
+      ]
+    }
+  }
+end
+
+def target(expr, legend)
+  {
+    "datasource" => {"type" => "prometheus", "uid" => "${datasource}"},
+    "expr" => expr,
+    "legendFormat" => legend,
+    "refId" => "A"
+  }
+end
+
+def panel(id, title, kind, x, y, targets, unit)
+  {
+    "id" => id,
+    "type" => kind,
+    "title" => title,
+    "gridPos" => {"h" => 8, "w" => 12, "x" => x, "y" => y},
+    "datasource" => {"type" => "prometheus", "uid" => "${datasource}"},
+    "fieldConfig" => {"defaults" => {"unit" => unit}, "overrides" => []},
+    "targets" => targets
+  }
+end
+
+def dashboard(name, svc)
+  o = objectives(svc)
+  s = selector(name)
+  window = "#{to_s(get(o, "window_days"))}d"
+  {
+    "uid" => "#{name}-slo",
+    "title" => "#{name} service",
+    "tags" => ["blue", "slo", name],
+    "schemaVersion" => 39,
+    "time" => {"from" => "now-6h", "to" => "now"},
+    "templating" => {
+      "list" => [
+        {
+          "name" => "datasource",
+          "type" => "datasource",
+          "query" => "prometheus",
+          "label" => "Data source"
+        }
+      ]
+    },
+    "panels" => [
+      panel(
+        1,
+        "Requests by status class",
+        "timeseries",
+        0,
+        0,
+        [
+          target(
+            "sum by (code) (rate(http_requests_total{#{s}}[5m]))",
+            "{{code}}"
+          )
+        ],
+        "reqps"
+      ),
+      panel(
+        2,
+        "Latency p50, p99",
+        "timeseries",
+        12,
+        0,
+        [
+          target(
+            "histogram_quantile(0.5, sum by (le) (rate(http_request_duration_seconds_bucket{#{s}}[5m])))",
+            "p50"
+          ),
+          assoc(
+            target(
+              "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{#{s}}[5m])))",
+              "p99"
+            ),
+            "refId",
+            "B"
+          )
+        ],
+        "s"
+      ),
+      panel(
+        3,
+        "Availability over #{window} (objective #{to_s(get(o, "availability"))}%)",
+        "stat",
+        0,
+        8,
+        [target("100 * (1 - (#{error_ratio(name, window)}))", "availability")],
+        "percent"
+      ),
+      panel(
+        4,
+        "Error budget burn rate, 1h",
+        "timeseries",
+        12,
+        8,
+        [
+          target(
+            "slo:error_ratio:rate1h{#{s}} / #{to_s(budget(get(o, "availability")))}",
+            "availability"
+          ),
+          assoc(
+            target(
+              "slo:slow_ratio:rate1h{#{s}} / #{to_s(budget(get(o, "latency")))}",
+              "latency"
+            ),
+            "refId",
+            "B"
+          )
+        ],
+        "none"
+      )
+    ]
+  }
+end
+
+def entry(name, version, svc)
+  repo = get(svc, "repository")
+  {
+    "name" => name,
+    "version" => version,
+    "owner" => get_or(svc, "owner", nth(1, split(repo, "/"))),
+    "endpoints" => [
+      {"name" => "http", "port" => get(svc, "port"), "path" => "/"},
+      {
+        "name" => "health",
+        "port" => get(svc, "port"),
+        "path" => get_or(svc, "probe", "/healthz")
+      },
+      {
+        "name" => "metrics",
+        "port" => get(svc, "port"),
+        "path" => kyuuji::metrics_path
+      }
+    ],
+    "slo" => objectives(svc),
+    "placement" => {
+      "namespace" => get_or(svc, "namespace", name),
+      "replicas" => get_or(svc, "replicas", 1)
+    },
+    "chart" => {
+      "name" => name,
+      "version" => version,
+      "path" => "#{get_or(svc, "output", "deploy/#{name}")}/chart"
+    },
+    "image" => {"repository" => repo, "tag" => version}
+  }
+end
+
+def sample()
+  {
+    "repository" => "ghcr.io/pleme-io/hello",
+    "port" => 8080,
+    "probe" => "/healthz"
+  }
+end
+
+test "with no slo declared the objectives are the defaults"
+  assert objectives(sample) == defaults
+  assert objectives(assoc(sample, "slo", nil)) == defaults
+end
+
+test "a declared objective overrides only itself"
+  o = objectives(
+    assoc(sample, "slo", {"availability" => 99.9, "latency_ms" => 1000})
+  )
+  assert get(o, "availability") == 99.9
+  assert get(o, "latency_ms") == 1000
+  assert get(o, "latency") == 99
+  assert le_of(1000) == "1"
+end
+
+test "a latency off the histogram bounds is refused by name"
+  e = begin
+    objectives(assoc(sample, "slo", {"latency_ms" => 300}))
+  rescue e
+    e
+  end
+  assert error?(e) == true
+  assert contains?(e.message, "no histogram bound") == true
+end
+
+test "the rules record both ratios per window and alert on each multi-window pair"
+  r = rules("hello", sample)
+  groups = get(get(r, "spec"), "groups")
+  rec = get(first(groups), "rules")
+  al = get(second(groups), "rules")
+  assert count(rec) == 14
+  assert count(al) == 8
+  assert get(first(rec), "record") == "slo:error_ratio:rate5m"
+  assert get(first(al), "expr") ==
+    "slo:error_ratio:rate1h{service=\"hello\"} > (14.4 * 0.005) and slo:error_ratio:rate5m{service=\"hello\"} > (14.4 * 0.005)"
+  assert get(first(al), "alert") == "SloAvailabilityBurn1h"
+  assert contains?(get(nth(7, rec), "expr"), "le=\"0.25\"") == true
+end
+
+test "the dashboard and the catalog entry read the same objectives"
+  d = dashboard("hello", sample)
+  assert get(d, "uid") == "hello-slo"
+  assert count(get(d, "panels")) == 4
+  assert contains?(get(nth(2, get(d, "panels")), "title"), "99.5%") == true
+  e = entry("hello", "0.1.0", sample)
+  assert get(e, "owner") == "pleme-io"
+  assert get(e, "slo") == defaults
+  assert get(get(e, "image"), "tag") == "0.1.0"
+  assert get(nth(2, get(e, "endpoints")), "path") == "/metrics"
+  assert get(
+    entry("hello", "0.1.0", assoc(sample, "owner", "edge")),
+    "owner"
+  ) ==
+    "edge"
+end

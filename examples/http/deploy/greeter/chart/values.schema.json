@@ -207,6 +207,20 @@
         }
       },
       "type": "object"
+    },
+    "slo": {
+      "additionalProperties": false,
+      "properties": {
+        "dashboard": {
+          "default": true,
+          "type": "boolean"
+        },
+        "rules": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
     }
   },
   "title": "greeter chart values",

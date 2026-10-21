@@ -74,9 +74,131 @@ def serve_once(l, health, handler, wait_ms)
 end
 
 def serve(addr, health, handler)
+  serve_metered(addr, health, handler, getenv("BLUE_SERVICE", "blue"))
+end
+
+def metrics_path()
+  "/metrics"
+end
+
+def latency_bounds()
+  [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+end
+
+def status_classes()
+  ["2xx", "3xx", "4xx", "5xx"]
+end
+
+def status_class(status)
+  "#{to_s(floor(status / 100))}xx"
+end
+
+def metrics_empty()
+  {
+    "codes" => reduce((acc, c) -> assoc(acc, c, 0), {}, status_classes),
+    "errors" => 0,
+    "buckets" => map((_) -> 0, latency_bounds),
+    "sum" => 0,
+    "count" => 0
+  }
+end
+
+def observe(m, status, seconds)
+  codes = get(m, "codes")
+  c = status_class(status)
+  seen = get(codes, c)
+  {
+    "codes" => assoc(
+      codes,
+      c,
+      if seen == nil
+        1
+      else
+        seen + 1
+      end
+    ),
+    "errors" => get(m, "errors") +
+      if status >= 500
+        1
+      else
+        0
+      end,
+    "buckets" => map(
+      fn(pair)
+        if seconds <= first(pair)
+          second(pair) + 1
+        else
+          second(pair)
+        end
+      end,
+      zip(latency_bounds, get(m, "buckets"))
+    ),
+    "sum" => get(m, "sum") + seconds,
+    "count" => get(m, "count") + 1
+  }
+end
+
+def exposition(m, service)
+  l = "service=\"#{service}\""
+  codes = get(m, "codes")
+  requests = map(
+    (c) -> "http_requests_total{#{l},code=\"#{c}\"} #{to_s(get(codes, c))}",
+    status_classes
+  )
+  buckets = map(
+    fn(pair)
+      "http_request_duration_seconds_bucket{#{l},le=\"#{to_s(first(pair))}\"} #{to_s(second(pair))}"
+    end,
+    zip(latency_bounds, get(m, "buckets"))
+  )
+  "#{join(append(["# HELP http_requests_total Requests answered, by status class.", "# TYPE http_requests_total counter"], requests, ["# HELP http_request_errors_total Requests answered with a 5xx status.", "# TYPE http_request_errors_total counter", "http_request_errors_total{#{l}} #{to_s(get(m, "errors"))}", "# HELP http_request_duration_seconds Time from a request to its answer.", "# TYPE http_request_duration_seconds histogram"], buckets, ["http_request_duration_seconds_bucket{#{l},le=\"+Inf\"} #{to_s(get(m, "count"))}", "http_request_duration_seconds_sum{#{l}} #{to_s(get(m, "sum"))}", "http_request_duration_seconds_count{#{l}} #{to_s(get(m, "count"))}"]), "\n")}\n"
+end
+
+def metrics_response(m, service)
+  response(
+    200,
+    "text/plain; version=0.0.4; charset=utf-8",
+    exposition(m, service)
+  )
+end
+
+def metered(req, health, handler, m, service)
+  path = get(req, :path)
+  if path == metrics_path
+    [metrics_response(m, service), m]
+  else
+    started = now_ms
+    resp = answer(req, health, handler)
+    if path == health
+      [resp, m]
+    else
+      [resp, observe(m, get(resp, :status), (now_ms - started) / 1000)]
+    end
+  end
+end
+
+def serve_metered_once(l, health, handler, wait_ms, m, service)
+  req = http_next_request(l, wait_ms)
+  if req == nil
+    m
+  else
+    out = metered(req, health, handler, m, service)
+    resp = first(out)
+    http_respond(req, get(resp, :status), get(resp, :headers), get(resp, :body))
+    write_stderr(
+      "kyuuji: #{get(req, :method)} #{get(req, :path)} #{to_s(get(resp, :status))}\n"
+    )
+    second(out)
+  end
+end
+
+def serve_metered(addr, health, handler, service)
   l = http_listen(addr)
-  write_stderr("kyuuji: listening on #{addr}, health #{health}\n")
-  while(true, serve_once(l, health, handler, 1000))
+  write_stderr(
+    "kyuuji: listening on #{addr}, health #{health}, metrics #{metrics_path}\n"
+  )
+  m = metrics_empty
+  while(true, set!(m, serve_metered_once(l, health, handler, 1000, m, service)))
 end
 
 def address(settings)
@@ -146,4 +268,46 @@ end
 test "settings name the address and the health path"
   s = {"listen" => {"host" => "127.0.0.1", "port" => 8080}, "health" => "/up"}
   assert address(s) == "127.0.0.1:8080"
+end
+
+test "an empty registry exposes every series at zero"
+  text = exposition(metrics_empty, "svc")
+  assert contains?(
+    text,
+    "http_requests_total{service=\"svc\",code=\"5xx\"} 0\n"
+  ) ==
+    true
+  assert contains?(text, "http_request_errors_total{service=\"svc\"} 0\n") ==
+    true
+  assert contains?(
+    text,
+    "http_request_duration_seconds_bucket{service=\"svc\",le=\"+Inf\"} 0\n"
+  ) ==
+    true
+  assert contains?(text, "# TYPE http_request_duration_seconds histogram\n") ==
+    true
+end
+
+test "an observation lands in its class, its buckets and the sum"
+  m = observe(observe(metrics_empty, 200, 0.02), 503, 2)
+  assert get(get(m, "codes"), "2xx") == 1
+  assert get(get(m, "codes"), "5xx") == 1
+  assert get(m, "errors") == 1
+  assert get(m, "count") == 2
+  assert get(m, "sum") == 2.02
+  assert get(m, "buckets") == [0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2]
+  assert status_class(404) == "4xx"
+end
+
+test "the metrics path answers the exposition and is not itself counted"
+  m = observe(metrics_empty, 200, 0.001)
+  out = metered(request("GET", "/metrics", ""), "/healthz", hello, m, "svc")
+  assert get(first(out), :status) == 200
+  assert contains?(get(first(out), :body), "code=\"2xx\"} 1\n") == true
+  assert second(out) == m
+  h = metered(request("GET", "/healthz", ""), "/healthz", hello, m, "svc")
+  assert second(h) == m
+  b = metered(request("GET", "/boom", ""), "/healthz", hello, m, "svc")
+  assert get(first(b), :status) == 500
+  assert get(second(b), "errors") == 1
 end

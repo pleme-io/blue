@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:5dd0aebeebeac8a2ed1501e8d90972d142dc59d2359fa4ce21bb24897ac06002",
+  "manifest": {
+    "schema": 1,
+    "name": "shihyou",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kyuuji": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

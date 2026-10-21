@@ -35,7 +35,98 @@ pub struct Service {
     pub flags: BTreeMap<String, bool>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub schema: BTreeMap<String, BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    #[serde(default, skip_serializing_if = "Slo::is_empty")]
+    pub slo: Slo,
     pub output: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Slo {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub availability: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latency: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_days: Option<u32>,
+}
+
+impl Eq for Slo {}
+
+impl Slo {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+pub const SLO_FIELDS: &[&str] = &["availability", "latency", "latency_ms", "window_days"];
+
+fn percent_of(field: &'static str, v: &Value) -> Result<f64, SpecError> {
+    #[allow(clippy::cast_precision_loss)]
+    let x = match v {
+        Value::Int(n) => *n as f64,
+        Value::Float(f) => *f,
+        other => {
+            return Err(SpecError::Type {
+                field,
+                expected: "a percentage",
+                got: other.type_name(),
+            })
+        }
+    };
+    if x > 0.0 && x < 100.0 {
+        Ok(x)
+    } else {
+        Err(SpecError::SloObjective {
+            field,
+            got: x.to_string(),
+        })
+    }
+}
+
+fn bounded_of(field: &'static str, v: &Value, max: i64) -> Result<u32, SpecError> {
+    let n = int_of(field, v)?;
+    if (1..=max).contains(&n) {
+        u32::try_from(n).map_err(|_| SpecError::SloObjective {
+            field,
+            got: n.to_string(),
+        })
+    } else {
+        Err(SpecError::SloObjective {
+            field,
+            got: n.to_string(),
+        })
+    }
+}
+
+fn slo_of(v: Option<&Value>) -> Result<Slo, SpecError> {
+    let Some(v) = v else {
+        return Ok(Slo::default());
+    };
+    let s = Spec::of(v, SLO_FIELDS)?;
+    Ok(Slo {
+        availability: s
+            .get("availability")
+            .map(|x| percent_of("availability", x))
+            .transpose()?,
+        latency: s
+            .get("latency")
+            .map(|x| percent_of("latency", x))
+            .transpose()?,
+        latency_ms: s
+            .get("latency_ms")
+            .map(|x| bounded_of("latency_ms", x, 60_000))
+            .transpose()?,
+        window_days: s
+            .get("window_days")
+            .map(|x| bounded_of("window_days", x, 90))
+            .transpose()?,
+    })
 }
 
 pub const SERVICE_FIELDS: &[&str] = &[
@@ -52,6 +143,8 @@ pub const SERVICE_FIELDS: &[&str] = &[
     "config",
     "flags",
     "schema",
+    "owner",
+    "slo",
     "output",
 ];
 
@@ -215,6 +308,12 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
         schema.insert(table, columns);
     }
 
+    let owner = s.text("owner")?;
+    if let Some(o) = &owner {
+        check_name(o)?;
+    }
+    let slo = slo_of(s.get("slo"))?;
+
     let output = match s.text("output")? {
         Some(o) => project_path("output", o)?,
         None => [DEFAULT_OUTPUT_DIR, "/", name].concat(),
@@ -232,6 +331,8 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
         config,
         flags,
         schema,
+        owner,
+        slo,
         output,
     })
 }
@@ -271,6 +372,24 @@ mod tests {
         assert_eq!(s.replicas, 1);
         assert_eq!(s.output, "deploy/hello");
         assert!(s.config.is_empty() && s.flags.is_empty() && s.schema.is_empty());
+        assert!(s.slo.is_empty() && s.owner.is_none());
+        assert!(!serde_json::to_string(s).unwrap().contains("slo"));
+    }
+
+    #[test]
+    fn an_slo_override_is_recorded_and_round_trips() {
+        let p = read(
+            "service(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080, \
+             owner: \"edge\", slo: {availability: 99.9, latency_ms: 250, window_days: 7}})\n",
+        )
+        .unwrap();
+        let s = &p.services["hello"];
+        assert_eq!(s.owner.as_deref(), Some("edge"));
+        assert_eq!(s.slo.availability, Some(99.9));
+        assert_eq!(s.slo.latency_ms, Some(250));
+        assert_eq!(s.slo.latency, None);
+        let back: Service = serde_json::from_str(&serde_json::to_string(s).unwrap()).unwrap();
+        assert_eq!(&back, s);
     }
 
     #[test]
@@ -307,6 +426,13 @@ mod tests {
             ("schema: {T: {c: \"text\"}}", "is not a table name"),
             ("probe: \"healthz\"", "starts with `/`"),
             ("prot: 1", "is not a field here"),
+            ("slo: {availability: 100}", "objective"),
+            ("slo: {latency: 0}", "objective"),
+            ("slo: {latency_ms: 0}", "objective"),
+            ("slo: {window_days: 91}", "objective"),
+            ("slo: {availability: \"high\"}", "a percentage"),
+            ("slo: {burn: 1}", "is not a field here"),
+            ("owner: \"Team A\"", "not"),
         ];
         for (extra, needle) in cases {
             let body = ["service(\"hello\", {", base, ", ", extra, "})\n"].concat();

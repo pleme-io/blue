@@ -90,6 +90,7 @@ use("sabi")
 use("saishikou")
 use("seimei", [:life_step])
 use("settei")
+use("shihyou")
 use("shinchoku")
 use("shinsuu", [:to_hex])
 use("shisutemu", [:age_s])
@@ -131,6 +132,7 @@ test "every bidama in the distribution answers through this one import"
   assert haibi::column_sql("text?") == ["double precision", true] or
     haibi::column_sql("text?") == ["text", true]
   assert settei::env_prefix("a-b") == "A_B_"
+  assert get(shihyou::defaults, "availability") == 99.5
   assert teeburu::quoted("t") == "\"t\""
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"

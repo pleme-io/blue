@@ -79,6 +79,16 @@ let
       helm template t ${chart} > rendered.yaml
       grep -q '^kind: Deployment$' rendered.yaml
       grep -q '^kind: Service$' rendered.yaml
+      grep -q '^kind: "PrometheusRule"$' rendered.yaml
+      grep -q 'alert: "SloAvailabilityBurn1h"' rendered.yaml
+      grep -q 'grafana_dashboard: "1"' rendered.yaml
+      grep -q '"uid": "${sn}-slo"' rendered.yaml
+      grep -q 'prometheus.io/path: /metrics' rendered.yaml
+      helm template t ${chart} --set slo.rules=false --set slo.dashboard=false > off.yaml
+      if grep -q 'PrometheusRule\|grafana_dashboard' off.yaml; then
+        echo "service-${sn}-chart: the SLO rules or dashboard rendered while switched off" >&2
+        exit 1
+      fi
       if helm template t ${chart} --set config.not_declared=1 > /dev/null 2> unknown.log; then
         echo "service-${sn}-chart: the values schema accepted an undeclared setting" >&2
         exit 1
@@ -108,7 +118,7 @@ let
   servesCheck = sn: spec:
     pkgs.runCommand "service-${sn}-serves" { nativeBuildInputs = [ pkgs.curl ]; __darwinAllowLocalNetworking = true; } ''
       export HOME=$TMPDIR
-      ${envPrefix sn}LISTEN__HOST=127.0.0.1 ${executables.${sn}}/bin/${sn} > serve.log 2>&1 &
+      BLUE_SERVICE=${sn} ${envPrefix sn}LISTEN__HOST=127.0.0.1 ${executables.${sn}}/bin/${sn} > serve.log 2>&1 &
       pid=$!
       for i in $(seq 1 300); do
         if curl -sf -o health.txt http://127.0.0.1:${toString spec.port}${spec.probe}; then break; fi
@@ -116,10 +126,13 @@ let
         sleep 0.1
       done
       code=$(curl -s -o root.txt -w '%{http_code}' http://127.0.0.1:${toString spec.port}/ || true)
+      curl -sf -o metrics.txt http://127.0.0.1:${toString spec.port}/metrics || true
       kill $pid
+      grep -Eq '^http_requests_total\{service="${sn}",code="[2-4]xx"\} [1-9]' metrics.txt || { echo "service-${sn}-serves: /metrics did not count the request to /" >&2; cat metrics.txt serve.log >&2; exit 1; }
+      grep -q '^http_request_duration_seconds_count{service="${sn}"} ' metrics.txt
       test -s health.txt || { echo "service-${sn}-serves: ${spec.probe} never answered" >&2; cat serve.log >&2; exit 1; }
       test "$code" -ge 200 -a "$code" -lt 500 || { echo "service-${sn}-serves: / answered $code" >&2; cat root.txt serve.log >&2; exit 1; }
-      cat health.txt root.txt > $out
+      cat health.txt root.txt metrics.txt > $out
     '';
 
   migrationsCheck = sn: spec:

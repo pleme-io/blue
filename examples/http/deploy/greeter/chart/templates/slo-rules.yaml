@@ -1,0 +1,144 @@
+{{- if .Values.slo.rules }}
+apiVersion: "monitoring.coreos.com/v1"
+kind: "PrometheusRule"
+metadata:
+  labels:
+    "app.kubernetes.io/component": "slo"
+    "app.kubernetes.io/name": "greeter"
+  name: "greeter-slo"
+  namespace: "{{ .Release.Namespace }}"
+spec:
+  groups:
+    - name: "greeter-slo-recording"
+      rules:
+        - expr: "sum(rate(http_requests_total{service=\"greeter\",code=\"5xx\"}[5m])) / sum(rate(http_requests_total{service=\"greeter\"}[5m]))"
+          labels:
+            service: "greeter"
+          record: "slo:error_ratio:rate5m"
+        - expr: "sum(rate(http_requests_total{service=\"greeter\",code=\"5xx\"}[30m])) / sum(rate(http_requests_total{service=\"greeter\"}[30m]))"
+          labels:
+            service: "greeter"
+          record: "slo:error_ratio:rate30m"
+        - expr: "sum(rate(http_requests_total{service=\"greeter\",code=\"5xx\"}[1h])) / sum(rate(http_requests_total{service=\"greeter\"}[1h]))"
+          labels:
+            service: "greeter"
+          record: "slo:error_ratio:rate1h"
+        - expr: "sum(rate(http_requests_total{service=\"greeter\",code=\"5xx\"}[2h])) / sum(rate(http_requests_total{service=\"greeter\"}[2h]))"
+          labels:
+            service: "greeter"
+          record: "slo:error_ratio:rate2h"
+        - expr: "sum(rate(http_requests_total{service=\"greeter\",code=\"5xx\"}[6h])) / sum(rate(http_requests_total{service=\"greeter\"}[6h]))"
+          labels:
+            service: "greeter"
+          record: "slo:error_ratio:rate6h"
+        - expr: "sum(rate(http_requests_total{service=\"greeter\",code=\"5xx\"}[1d])) / sum(rate(http_requests_total{service=\"greeter\"}[1d]))"
+          labels:
+            service: "greeter"
+          record: "slo:error_ratio:rate1d"
+        - expr: "sum(rate(http_requests_total{service=\"greeter\",code=\"5xx\"}[3d])) / sum(rate(http_requests_total{service=\"greeter\"}[3d]))"
+          labels:
+            service: "greeter"
+          record: "slo:error_ratio:rate3d"
+        - expr: "1 - sum(rate(http_request_duration_seconds_bucket{service=\"greeter\",le=\"0.25\"}[5m])) / sum(rate(http_request_duration_seconds_count{service=\"greeter\"}[5m]))"
+          labels:
+            service: "greeter"
+          record: "slo:slow_ratio:rate5m"
+        - expr: "1 - sum(rate(http_request_duration_seconds_bucket{service=\"greeter\",le=\"0.25\"}[30m])) / sum(rate(http_request_duration_seconds_count{service=\"greeter\"}[30m]))"
+          labels:
+            service: "greeter"
+          record: "slo:slow_ratio:rate30m"
+        - expr: "1 - sum(rate(http_request_duration_seconds_bucket{service=\"greeter\",le=\"0.25\"}[1h])) / sum(rate(http_request_duration_seconds_count{service=\"greeter\"}[1h]))"
+          labels:
+            service: "greeter"
+          record: "slo:slow_ratio:rate1h"
+        - expr: "1 - sum(rate(http_request_duration_seconds_bucket{service=\"greeter\",le=\"0.25\"}[2h])) / sum(rate(http_request_duration_seconds_count{service=\"greeter\"}[2h]))"
+          labels:
+            service: "greeter"
+          record: "slo:slow_ratio:rate2h"
+        - expr: "1 - sum(rate(http_request_duration_seconds_bucket{service=\"greeter\",le=\"0.25\"}[6h])) / sum(rate(http_request_duration_seconds_count{service=\"greeter\"}[6h]))"
+          labels:
+            service: "greeter"
+          record: "slo:slow_ratio:rate6h"
+        - expr: "1 - sum(rate(http_request_duration_seconds_bucket{service=\"greeter\",le=\"0.25\"}[1d])) / sum(rate(http_request_duration_seconds_count{service=\"greeter\"}[1d]))"
+          labels:
+            service: "greeter"
+          record: "slo:slow_ratio:rate1d"
+        - expr: "1 - sum(rate(http_request_duration_seconds_bucket{service=\"greeter\",le=\"0.25\"}[3d])) / sum(rate(http_request_duration_seconds_count{service=\"greeter\"}[3d]))"
+          labels:
+            service: "greeter"
+          record: "slo:slow_ratio:rate3d"
+    - name: "greeter-slo-alerts"
+      rules:
+        - alert: "SloAvailabilityBurn1h"
+          annotations:
+            objective: "99.5% over 30d"
+            summary: "greeter is spending its availability error budget 14.4x too fast over 1h and 5m"
+          expr: "slo:error_ratio:rate1h{service=\"greeter\"} > (14.4 * 0.005) and slo:error_ratio:rate5m{service=\"greeter\"} > (14.4 * 0.005)"
+          labels:
+            service: "greeter"
+            severity: "page"
+            slo: "availability"
+        - alert: "SloAvailabilityBurn6h"
+          annotations:
+            objective: "99.5% over 30d"
+            summary: "greeter is spending its availability error budget 6x too fast over 6h and 30m"
+          expr: "slo:error_ratio:rate6h{service=\"greeter\"} > (6 * 0.005) and slo:error_ratio:rate30m{service=\"greeter\"} > (6 * 0.005)"
+          labels:
+            service: "greeter"
+            severity: "page"
+            slo: "availability"
+        - alert: "SloAvailabilityBurn1d"
+          annotations:
+            objective: "99.5% over 30d"
+            summary: "greeter is spending its availability error budget 3x too fast over 1d and 2h"
+          expr: "slo:error_ratio:rate1d{service=\"greeter\"} > (3 * 0.005) and slo:error_ratio:rate2h{service=\"greeter\"} > (3 * 0.005)"
+          labels:
+            service: "greeter"
+            severity: "ticket"
+            slo: "availability"
+        - alert: "SloAvailabilityBurn3d"
+          annotations:
+            objective: "99.5% over 30d"
+            summary: "greeter is spending its availability error budget 1x too fast over 3d and 6h"
+          expr: "slo:error_ratio:rate3d{service=\"greeter\"} > (1 * 0.005) and slo:error_ratio:rate6h{service=\"greeter\"} > (1 * 0.005)"
+          labels:
+            service: "greeter"
+            severity: "ticket"
+            slo: "availability"
+        - alert: "SloLatencyBurn1h"
+          annotations:
+            objective: "99% over 30d"
+            summary: "greeter is spending its latency error budget 14.4x too fast over 1h and 5m"
+          expr: "slo:slow_ratio:rate1h{service=\"greeter\"} > (14.4 * 0.01) and slo:slow_ratio:rate5m{service=\"greeter\"} > (14.4 * 0.01)"
+          labels:
+            service: "greeter"
+            severity: "page"
+            slo: "latency"
+        - alert: "SloLatencyBurn6h"
+          annotations:
+            objective: "99% over 30d"
+            summary: "greeter is spending its latency error budget 6x too fast over 6h and 30m"
+          expr: "slo:slow_ratio:rate6h{service=\"greeter\"} > (6 * 0.01) and slo:slow_ratio:rate30m{service=\"greeter\"} > (6 * 0.01)"
+          labels:
+            service: "greeter"
+            severity: "page"
+            slo: "latency"
+        - alert: "SloLatencyBurn1d"
+          annotations:
+            objective: "99% over 30d"
+            summary: "greeter is spending its latency error budget 3x too fast over 1d and 2h"
+          expr: "slo:slow_ratio:rate1d{service=\"greeter\"} > (3 * 0.01) and slo:slow_ratio:rate2h{service=\"greeter\"} > (3 * 0.01)"
+          labels:
+            service: "greeter"
+            severity: "ticket"
+            slo: "latency"
+        - alert: "SloLatencyBurn3d"
+          annotations:
+            objective: "99% over 30d"
+            summary: "greeter is spending its latency error budget 1x too fast over 3d and 6h"
+          expr: "slo:slow_ratio:rate3d{service=\"greeter\"} > (1 * 0.01) and slo:slow_ratio:rate6h{service=\"greeter\"} > (1 * 0.01)"
+          labels:
+            service: "greeter"
+            severity: "ticket"
+            slo: "latency"
+{{- end }}

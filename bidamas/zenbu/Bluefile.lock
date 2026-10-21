@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f425ebb6899afffe6baeb2c1ce2873491bd26a8c60d477c0f4c0920f862e7c89",
+  "bluefile_b3": "b3:138f16c8631562a1961540142528878fdaae4d05de8091f94418e245641c875c",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -49,6 +49,7 @@
       "saishikou": "^0.1.0",
       "seimei": "^0.1.0",
       "settei": "^0.1.0",
+      "shihyou": "^0.1.0",
       "shinchoku": "^0.1.0",
       "shinsuu": "^0.1.0",
       "shisutemu": "^0.1.0",

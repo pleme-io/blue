@@ -102,6 +102,13 @@ row(
 )
 
 row(
+  "lisp.chain_rules",
+  "[length(chain_rules) > 5, to_s(nth(0, nth(0, chain_rules)))]",
+  value("[true, \"C0001\"]"),
+  covers("builtin:chain_rules")
+)
+
+row(
   "lisp.builtin_names",
   "[member?(\"length\", builtin_names), member?(\"no_such_name\", builtin_names)]",
   value("[true, false]"),

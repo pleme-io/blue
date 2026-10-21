@@ -81,6 +81,13 @@ row(
   covers("okite:D0012")
 )
 
+row(
+  "strings.to_s.conversion_chain",
+  "[to_s(to_s(1.0)), to_s(trim(\" a \")), to_int!(length(\"ab\"))]",
+  value("[\"1.0\", \"a\", 2]"),
+  covers("okite:D0013")
+)
+
 row("strings.split.empty", "split(\"\", \",\")", value("[\"\"]"))
 
 row(

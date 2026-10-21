@@ -148,6 +148,25 @@ row(
   diagnoses([])
 )
 
+row(
+  "canon.B0045",
+  "def go(x)\n  to_s(to_s(x))\nend",
+  diagnoses(["B0045"]),
+  covers("rule:B0045")
+)
+
+row(
+  "canon.B0045.writes",
+  "def go(x)\n  to_s(to_s(x))\nend",
+  formats("def go(x)\n  to_s(x)\nend\n")
+)
+
+row(
+  "canon.B0045.keeps_a_lossy_chain",
+  "def go(x)\n  to_int(to_int(x))\nend",
+  diagnoses([])
+)
+
 row("canon.B0024.one_line_fn", "f = fn(x) x end", diagnoses(["B0024"]))
 
 row("canon.B0036", "car([1])", diagnoses(["B0036"]), covers("rule:B0036"))

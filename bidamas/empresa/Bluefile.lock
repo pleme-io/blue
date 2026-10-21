@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:355354dbcfa5f58ec4054d4c503268bf20baecdc533e8c7e8be8a07009764f03",
+  "manifest": {
+    "schema": 1,
+    "name": "empresa",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "ronri": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

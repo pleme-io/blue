@@ -49,6 +49,7 @@ use("anaritikusu")
 use("angou", [:is_prime])
 use("chokkan")
 use("deeta", [:get_str])
+use("empresa")
 use("gyouretsu", [:dot])
 use("hadome")
 use("haibi")
@@ -163,6 +164,7 @@ test "every bidama in the distribution answers through this one import"
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
   assert jitaku::to_json([]) == "{\"enable\":true}"
   assert kinko::interval_s("families", 16) == 2765
+  assert empresa::slug?("acme-org")
   assert get(kijun::fleet_repo(1), :standard) == "fleet-repo"
   assert nikkusu::kind(get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
   assert hyouka::installable(".", "x") == ".#x"

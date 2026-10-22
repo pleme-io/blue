@@ -8,6 +8,11 @@ a Ruby/Elixir surface on tatara-lisp and Rust
 [tatara-lisp](https://github.com/pleme-io/tatara-lisp) AST, macros are term
 rewriting on that AST, and the runtime is Rust — not the BEAM.
 
+Its philosophy is two axes ([`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md) §0).
+**Form has no choices:** there is one short, distinct way to write each thing, every larger form is built from
+smaller ones, and every tool and gate enforces it. **Rigor has every choice:** a program is as strict as you write
+it, where you write it, and pays for nothing else.
+
 ## The mark is a blueshift
 
 Four solid cells walking Nord's Frost band toward blue. **Blueshift** is blue's

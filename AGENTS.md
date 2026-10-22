@@ -91,6 +91,14 @@ check stage runs); why each spelling won is
 [`docs/CANONICAL-FORMS.md`](docs/CANONICAL-FORMS.md). Write the canonical
 spelling and nothing is rewritten.
 
+The one spelling is the shortest that stays distinct, and each shorthand is
+built from a longer form that also works, so writing the long form is never
+wrong: the formatter shortens it. The same holds for the library: one verb per
+meaning, and one bidama for each cross-cutting concern (errors and refusals in
+`kyohi`, entries and switches in `kousei`, configuration in `settei`). Reach
+for that bidama before writing the concern by hand. Why: `theory/BLUE.md` §0
+and §V.28.1.
+
 ## The traps that cost the most
 
 Each one was checked against the runtime.

@@ -61,6 +61,17 @@ dependency order. **Blue bends to the pattern:** boilerplate in a blue program m
 missing a word, so add the form, macro or primitive. The principle is `theory/BLUE.md` §I.1; the
 loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-development-cycle` skill.
 
+## One short way, built on the last
+
+The FORM axis (`theory/BLUE.md` §0) is the core of blue: each thing has one spelling, the
+shortest that stays distinct from every other meaning. A new form or shorthand lowers to a form
+that already exists (`x++` → `x += 1` → `x = x + 1`), and it ships whole or not at all: a
+`Spelling` note and formatter arm, a `RULES` row with a witness and autofix, a
+`CANONICAL-FORMS.md` row, spec rows, and an okite law per lowering link that the two spellings
+agree on every input class. The library follows the same law (§V.28): one verb per meaning, and
+one battery per cross-cutting concern (§V.28.1), extended rather than rewritten. A Rust program
+runs blue through `blue-lang-host`.
+
 ## Compose first: a reusable component is the unit of development
 
 Every capability starts as the smallest reusable component, and a service is a declaration that
@@ -387,62 +398,9 @@ make this workspace unpublishable.
 
 ## `Cargo.gen.lock` is committed, and that is a trade
 
-The rationale is recorded here because the artifact itself landed in `d917383`,
-a commit about Japanese naming that says nothing about it — three concurrent
-sessions were writing to this repo that night and one swept the other's staged
-files into its own commit. A 5880-line generated file appearing with no
-explanation is how the next author learns to distrust it.
-
-**Why it exists.** Without a committed delta, substrate takes the IFD path and
-says so on every evaluation — ten times in one `nix flake check`:
-
-    trace: mkBuildSpec[IFD]: no committed Cargo.build-spec.json for
-    /nix/store/…-source → eval-time `gen build` (network). Commit one for a
-    deterministic no-IFD build.
-
-That runs `gen build` inside a `__noChroot` sandbox *during eval* — network,
-variable latency, and a derivation whose `.drv` exists only because eval put it
-there. When that `.drv` is not valid in the store at build time the check dies
-with `path '…-cargo-build-spec-ifd.drv' is not valid`. **That failure is
-store-state dependent, not a property of this source** — on a warm store where
-the IFD `.drv` is still valid the same tree checks green, which it did here
-before the fix. Do not read one green run as evidence the path is sound.
-
-Measured with a control, same eval, one file moved: delta absent → 1 trace,
-delta present → 0.
-
-**Why the delta and not `Cargo.build-spec.json`.** substrate's
-`reusable-gen-spec.yml` states the doctrine — "the committed artifact is the
-slim `Cargo.gen.lock` … a gitignored `Cargo.build-spec.json` intermediate" —
-and `lockfile-builder` reads the delta *first*, reconstructing the graph in
-pure Nix. 197 KB against 417 KB, and committing both would be two derived
-files that can disagree.
-
-**The cost, and what pays it.** A checked-in derived file can go stale: land a
-`cargo update` without re-running `gen build` and substrate reconstructs the
-build graph from a delta describing a dependency set the lock no longer has.
-Two things hold it, neither of which existed before:
-
-- **`checks.gen-confirm`** — already emitted by substrate's tool-release and
-  until now passing over nothing. Its `gen confirm . --if-present` *tolerates*
-  a repo with no delta; blue had none, so the check was green having verified
-  nothing. With the delta committed it recomputes `sha256(Cargo.lock)` offline
-  and compares it to the recorded `cargo_lock_sha256`. Red run: that field
-  zeroed by hand → `{"status":"stale"}`, exit 1; restored → `{"status":"fresh"}`,
-  14 manifests verified, exit 0.
-- **`.github/workflows/gen-spec.yml`** — the regen. On main `gen build . --commit`
-  is a no-op when fresh; on a PR it regenerates without committing and fails if
-  the result differs.
-
-**Honest tier: eval- and CI-caught, not unrepresentable.** Nothing stops a
-stale delta being committed locally; it cannot pass `nix flake check`.
-
-**Generate the delta AFTER any lock work, never before.** `gen build` rewrites
-`Cargo.gen.lock` from whatever `Cargo.lock` it finds, so generating against a
-stale lock ties the delta to bytes about to change — and it can quietly revert
-an in-flight `Cargo.lock` edit. Verify the tie afterwards by comparing
-`shasum -a 256 Cargo.lock` against the delta's `cargo_lock_sha256`; a tie that
-reports fresh against a lock you never checked is the trap.
+The slim delta avoids eval-time IFD; `checks.gen-confirm` and `gen-spec.yml` keep it tied to
+`Cargo.lock`. Regenerate it with `gen build .` AFTER any lock work and check the sha tie. Why,
+the measured failure and the tier: [`docs/CARGO-GEN-LOCK.md`](docs/CARGO-GEN-LOCK.md).
 
 ## What is not built
 

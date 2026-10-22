@@ -1,58 +1,36 @@
 region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave	contract_shape	conforms
-C	aktaa?	alive?	effect	alive?(pid) -> Bool	process	-	absent	Whether a process is running.	1	alive?(pid) -> Bool	yes
-C	aktaa?	call	effect	call(pid, request, opts) -> reply	deadline,error,process	blue	rust:blue-lang-proc	Send a request and wait for its reply.	0	call(pid, request, opts) -> reply	yes
-C	aktaa?	cast	effect	cast(pid, request) -> nil	process	blue	rust:blue-lang-proc	Send a request and do not wait.	0		na
-C	aktaa?	child	decl	child(name, f, restart) -> spec	process	blue	rust:blue-lang-proc	One supervised child and when it restarts.	0		na
-C	aktaa?	connect	effect	connect(node) -> nil	capability,process	-	absent	Join another node so pids reach across.	3	connect(node) -> nil	yes
-C	aktaa?	demonitor	effect	demonitor(ref) -> nil	process	-	absent	Stop watching a monitored process.	1		na
-C	aktaa?	exit	effect	exit(pid, reason) -> nil	process	blue	rust:blue-lang-proc	Ask a process to end with a reason.	0		na
-C	aktaa?	info	effect	info(pid) -> record	process	-	absent	Mailbox depth, links, status and memory of a process.	1	info(pid) -> record	yes
-C	aktaa?	isolate	pure	isolate(f) -> value	error,process	blue	rust:blue-lang-proc	Run f with private state; return its result or exit reason.	1		na
-C	aktaa?	kill	effect	kill(pid) -> nil	process	blue	rust:blue-lang-proc	End a process now; it cannot trap this.	0		na
-C	aktaa?	link	effect	link(pid) -> nil	process	blue	rust:blue-lang-proc	Tie exits together: one dies, both die.	0	link(pid, to, opts) -> nil	no
-C	aktaa?	list	effect	list(opts) -> [pid]	process	-	absent	Every process on this node.	1	list(opts) -> [pid]	yes
-C	aktaa?	migrate	effect	migrate(pid, new code) -> nil	migrate,process	blue	rust:blue-lang-proc	Swap a running process to new code live.	0		na
-C	aktaa?	monitor	effect	monitor(pid) -> ref	process	blue	rust:blue-lang-proc	Get a down message when it exits; no coupling.	0		na
-C	aktaa?	node	decl	node(name, opts) -> node	capability,process	blue	rust:blue-lang-proc	Declare a node that hosts processes.	0		na
-C	aktaa?	pool	decl	pool(size, f) -> pool	process,resource	-	absent	A fixed set of workers that share requests.	2	pool(size, f) -> pool	yes
-C	aktaa?	receive	effect	receive(patterns, opts) -> value	deadline,process	blue	rust:blue-lang-proc	Take the first mailbox message matching a pattern.	0	receive(patterns, opts) -> value	yes
-C	aktaa?	register	effect	register(name, pid) -> nil	process	-	absent	Give a process a name that others can find.	1	register(name, pid) -> nil	yes
-C	aktaa?	replay	effect	replay(trace) -> result	test,trace	blue	rust:blue-lang-proc	Re-run a crashed process from its trace without the host.	0	replay(trace) -> result	yes
-C	aktaa?	reply	effect	reply(request, answer) -> nil	process	-	absent	Answer a call from inside its handler.	1		na
-C	aktaa?	restart	effect	restart(supervisor, child) -> pid	process	blue	rust:blue-lang-proc	Restart one child with an empty mailbox.	0	restart(supervisor, opts) -> pid	no
-C	aktaa?	self	effect	self() -> pid	process	blue	rust:blue-lang-proc	This process's id.	0		na
-C	aktaa?	send	effect	send(pid, message) -> nil	process	blue	rust:blue-lang-proc	Put a message in a process's mailbox.	0	send(pid, message) -> nil	yes
-C	aktaa?	spawn	effect	spawn(f, opts) -> pid	process,resource	blue	rust:blue-lang-proc	Start an isolated process running f.	0	spawn(f, opts) -> pid	yes
-C	aktaa?	stop	effect	stop(pid, opts) -> nil	deadline,process	blue	rust:blue-lang-proc	Ask, wait a grace period, then kill.	1	stop(pid, opts) -> nil	yes
-C	aktaa?	supervise	decl	supervise(strategy, children, opts) -> supervisor	process,retry	blue	rust:blue-lang-proc	Declare children restarted by a strategy.	0		na
-C	aktaa?	task	effect	task(f) -> handle	process	-	absent	Run f in a process and hold its single result.	1		na
-C	aktaa?	team	effect	team(name) -> group	process	-	absent	Name a set of pids that can be addressed together.	3	team(name) -> group	yes
-C	aktaa?	trace	effect	trace(pid) -> trace	log,trace	blue	rust:blue-lang-proc	The recorded crash trace of a process.	0	trace(pid) -> trace	yes
-C	aktaa?	unlink	effect	unlink(pid) -> nil	process	-	absent	Undo a link.	1		na
-C	aktaa?	wait	effect	wait(pid, opts) -> exit reason	deadline,process	-	absent	Block until a process exits.	1	wait(pid, opts) -> exit reason	yes
-C	aktaa?	whereis	effect	whereis(name) -> pid or nil	process	-	absent	The pid under a name, or nil.	1		na
-C	ami?	certify	effect	certify(key, principal, ttl) -> certificate	capability,time	-	absent	Obtain a short-lived SSH certificate for a key.	3		na
-C	ami?	close	effect	close(session) -> nil	resource	-	absent	End a session; closing twice is done.	2	close(session) -> nil	yes
-C	ami?	connect	effect	connect(host, opts) -> session	capability,deadline,error,resource	sshproxy	absent	Open an authenticated remote shell session.	2	connect(host, opts) -> session	yes
-C	ami?	copy	effect	copy(session, from, to, opts) -> nil	error,resource	-	absent	Move a file to or from a remote host.	2	copy(session, from, opts) -> nil	no
-C	ami?	delete	effect	delete(zone, record) -> nil	idempotent	-	absent	Remove a DNS record; absent counts as done.	2	delete(zone, record) -> nil	yes
-C	ami?	deregister	effect	deregister(registration) -> nil	resource	-	absent	Withdraw an instance; absent counts as done.	2		na
-C	ami?	diff	pure	diff(wanted, actual) -> [change]	-	-	absent	Record changes that turn actual into wanted.	2	diff(wanted, actual) -> [change]	yes
-C	ami?	down	effect	down(link) -> nil	resource	blackmatter-vpn	absent	Take a tunnel interface down.	2		na
-C	ami?	find	effect	find(service, opts) -> [instance]	cache	-	absent	Healthy instances of a service; empty if none.	2	find(service, query, opts) -> [instance]	no
-C	ami?	forward	effect	forward(session, local, remote) -> forwarding	cancel,resource	sshproxy	absent	Carry a local port to a remote one over the session.	3		na
-C	ami?	info	effect	info(link) -> record	-	blackmatter-vpn	absent	Peers, last handshake and traffic of a tunnel.	2	info(link) -> record	yes
-C	ami?	list	effect	list(zone, opts) -> [record]	-	-	absent	Every record in a zone.	2	list(zone, opts) -> [record]	yes
-C	ami?	peer	decl	peer(key, endpoint, allowed) -> peer	capability,config	blackmatter-vpn	absent	Declare one tunnel peer by key and address ranges.	2		na
-C	ami?	propagated?	effect	propagated?(record, servers) -> Bool	deadline,time	-	absent	Whether every server answers the new value.	3		na
-C	ami?	put	effect	put(zone, record) -> record	error,idempotent	-	absent	Create or replace a DNS record.	2	put(zone, record) -> record	yes
-C	ami?	register	effect	register(service, opts) -> registration	resource,time	-	absent	Announce a service instance under a lease.	2	register(service, opts) -> registration	yes
-C	ami?	resolve	effect	resolve(name, type, opts) -> [record]	cache,deadline,error	-	absent	Look up DNS records of a type for a name.	1	resolve(name, type, opts) -> [record]	yes
-C	ami?	reverse	effect	reverse(address) -> [name]	deadline,error	-	absent	Names that point at an address.	2	reverse(address) -> [name]	yes
-C	ami?	rotate	effect	rotate(link, opts) -> key	capability,time	-	absent	Replace a tunnel's keys without a gap.	3	rotate(link, opts) -> key	yes
-C	ami?	run	effect	run(session, command, opts) -> result	deadline,error,process	sshproxy	absent	Run a command remotely; same result as a local run.	2	run(session, command, opts) -> result	yes
-C	ami?	up	effect	up(link) -> nil	capability,resource	blackmatter-vpn	absent	Bring a tunnel interface up.	2		na
-C	ami?	watch	stream	watch(service, f) -> nil	cancel	-	absent	Call f when a service's instances change.	2	watch(service, f) -> nil	yes
+C	akutaa?	alive?	effect	alive?(pid) -> Bool	process	-	absent	Whether a process is running.	1	alive?(pid) -> Bool	yes
+C	akutaa?	call	effect	call(pid, request, opts) -> reply	deadline,error,process	blue	rust:blue-lang-proc	Send a request and wait for its reply.	0	call(pid, request, opts) -> reply	yes
+C	akutaa?	cast	effect	cast(pid, request) -> nil	process	blue	rust:blue-lang-proc	Send a request and do not wait.	0		na
+C	akutaa?	child	decl	child(name, f, restart) -> spec	process	blue	rust:blue-lang-proc	One supervised child and when it restarts.	0		na
+C	akutaa?	connect	effect	connect(node) -> nil	capability,process	-	absent	Join another node so pids reach across.	3	connect(node) -> nil	yes
+C	akutaa?	demonitor	effect	demonitor(ref) -> nil	process	-	absent	Stop watching a monitored process.	1		na
+C	akutaa?	exit	effect	exit(pid, reason) -> nil	process	blue	rust:blue-lang-proc	Ask a process to end with a reason.	0		na
+C	akutaa?	info	effect	info(pid) -> record	process	-	absent	Mailbox depth, links, status and memory of a process.	1	info(pid) -> record	yes
+C	akutaa?	isolate	pure	isolate(f) -> value	error,process	blue	rust:blue-lang-proc	Run f with private state; return its result or exit reason.	1		na
+C	akutaa?	kill	effect	kill(pid) -> nil	process	blue	rust:blue-lang-proc	End a process now; it cannot trap this.	0		na
+C	akutaa?	link	effect	link(pid) -> nil	process	blue	rust:blue-lang-proc	Tie exits together: one dies, both die.	0	link(pid, to, opts) -> nil	no
+C	akutaa?	list	effect	list(opts) -> [pid]	process	-	absent	Every process on this node.	1	list(opts) -> [pid]	yes
+C	akutaa?	migrate	effect	migrate(pid, new code) -> nil	migrate,process	blue	rust:blue-lang-proc	Swap a running process to new code live.	0		na
+C	akutaa?	monitor	effect	monitor(pid) -> ref	process	blue	rust:blue-lang-proc	Get a down message when it exits; no coupling.	0		na
+C	akutaa?	node	decl	node(name, opts) -> node	capability,process	blue	rust:blue-lang-proc	Declare a node that hosts processes.	0		na
+C	akutaa?	pool	decl	pool(size, f) -> pool	process,resource	-	absent	A fixed set of workers that share requests.	2	pool(size, f) -> pool	yes
+C	akutaa?	receive	effect	receive(patterns, opts) -> value	deadline,process	blue	rust:blue-lang-proc	Take the first mailbox message matching a pattern.	0	receive(patterns, opts) -> value	yes
+C	akutaa?	register	effect	register(name, pid) -> nil	process	-	absent	Give a process a name that others can find.	1	register(name, pid) -> nil	yes
+C	akutaa?	replay	effect	replay(trace) -> result	test,trace	blue	rust:blue-lang-proc	Re-run a crashed process from its trace without the host.	0	replay(trace) -> result	yes
+C	akutaa?	reply	effect	reply(request, answer) -> nil	process	-	absent	Answer a call from inside its handler.	1		na
+C	akutaa?	restart	effect	restart(supervisor, child) -> pid	process	blue	rust:blue-lang-proc	Restart one child with an empty mailbox.	0	restart(supervisor, opts) -> pid	no
+C	akutaa?	self	effect	self() -> pid	process	blue	rust:blue-lang-proc	This process's id.	0		na
+C	akutaa?	send	effect	send(pid, message) -> nil	process	blue	rust:blue-lang-proc	Put a message in a process's mailbox.	0	send(pid, message) -> nil	yes
+C	akutaa?	spawn	effect	spawn(f, opts) -> pid	process,resource	blue	rust:blue-lang-proc	Start an isolated process running f.	0	spawn(f, opts) -> pid	yes
+C	akutaa?	stop	effect	stop(pid, opts) -> nil	deadline,process	blue	rust:blue-lang-proc	Ask, wait a grace period, then kill.	1	stop(pid, opts) -> nil	yes
+C	akutaa?	supervise	decl	supervise(strategy, children, opts) -> supervisor	process,retry	blue	rust:blue-lang-proc	Declare children restarted by a strategy.	0		na
+C	akutaa?	task	effect	task(f) -> handle	process	-	absent	Run f in a process and hold its single result.	1		na
+C	akutaa?	team	effect	team(name) -> group	process	-	absent	Name a set of pids that can be addressed together.	3	team(name) -> group	yes
+C	akutaa?	trace	effect	trace(pid) -> trace	log,trace	blue	rust:blue-lang-proc	The recorded crash trace of a process.	0	trace(pid) -> trace	yes
+C	akutaa?	unlink	effect	unlink(pid) -> nil	process	-	absent	Undo a link.	1		na
+C	akutaa?	wait	effect	wait(pid, opts) -> exit reason	deadline,process	-	absent	Block until a process exits.	1	wait(pid, opts) -> exit reason	yes
+C	akutaa?	whereis	effect	whereis(name) -> pid or nil	process	-	absent	The pid under a name, or nil.	1		na
 D	angou	bezout	pure	bezout(a, b) -> record	validate	-	exists:angou	gcd with the coefficients that build it	0		na
 D	angou	crack	pure	crack(text, cipher) -> [candidate]	validate	-	partial:angou	plaintext guesses ranked by letter frequency	0		na
 D	angou	crt	pure	crt(congruences) -> int	validate	-	partial:angou	number matching several remainders at once	0		na
@@ -103,6 +81,25 @@ E	bajon?	pick	pure	pick(versions, constraint) -> version or nil	-	-	absent	the h
 E	bajon?	render	pure	render(version) -> text	serialize	-	absent	a version as canonical text	1	render(version) -> text	yes
 E	bajon?	satisfies?	pure	satisfies?(version, constraint) -> Bool	-	-	absent	whether a version fits a constraint	1		na
 E	bajon?	valid?	pure	valid?(text, scheme) -> Bool	validate	-	absent	whether text is a well-formed version	1		na
+B	bakkuappu?	backup	effect	backup(source, target, opts) -> manifest	cancel,deadline,error,idempotent,log,retry	hozon	absent	copy a snapshot to a target, hashed and optionally encrypted	2		na
+B	bakkuappu?	copy	effect	copy(from, to, opts) -> manifest	cancel,deadline,error,idempotent	-	absent	copy a backup from one target to another	3	copy(from, to, opts) -> manifest	yes
+B	bakkuappu?	delete	effect	delete(target, id) -> nil	error,idempotent	-	absent	remove one backup; absent counts as done	3	delete(target, id) -> nil	yes
+B	bakkuappu?	diff	pure	diff(a, b) -> [change]	-	fudajiku	absent	files added, removed or changed between two manifests	2	diff(a, b) -> [change]	yes
+B	bakkuappu?	drill	effect	drill(target, opts) -> report	deadline,error,log,resource	pitr-forge	absent	restore into scratch space and prove the data is usable	3		na
+B	bakkuappu?	info	effect	info(target, id) -> manifest	error	hozon	absent	the manifest of one backup: files, hashes, sizes, time	2	info(target, opts) -> manifest	no
+B	bakkuappu?	lag	effect	lag(from, to) -> duration	time	-	absent	how far behind the source a replica is	3	lag(from, to) -> duration	yes
+B	bakkuappu?	list	effect	list(target, opts) -> [manifest]	error	hozon	absent	every backup at a target, newest first	2	list(target, opts) -> [manifest]	yes
+B	bakkuappu?	manifest	pure	manifest(entries) -> manifest	serialize	fudajiku	absent	the hashed list of files a backup holds	2		na
+B	bakkuappu?	mirror	effect	mirror(from, to, opts) -> [action]	cancel,deadline,error,idempotent,retry	-	absent	make the target match the source once, deleting extras on request	2	mirror(from, to, opts) -> [action]	yes
+B	bakkuappu?	plan	pure	plan(source, target, opts) -> [action]	log,validate	hozon	absent	what a backup would copy and prune, changing nothing	2	plan(source, target, opts) -> [action]	yes
+B	bakkuappu?	promote	effect	promote(replica, opts) -> nil	error,switch	-	absent	make a replica the writable primary	4	promote(replica, opts) -> nil	yes
+B	bakkuappu?	prune	effect	prune(target, policy, opts) -> [id]	error,idempotent	-	absent	remove backups the retention policy no longer keeps	3		na
+B	bakkuappu?	replicate	stream	replicate(from, to, opts) -> nil	cancel,error,retry	-	absent	keep a target following a source continuously	3		na
+B	bakkuappu?	restore	effect	restore(target, to, opts) -> manifest	cancel,deadline,error,log,validate	hozon	absent	bring a backup back, to a point in time when given	2	restore(target, to, opts) -> manifest	yes
+B	bakkuappu?	retain	decl	retain(rules) -> policy	config,validate	-	absent	declare how many daily, weekly and monthly backups to keep	3	retain(rules) -> policy	yes
+B	bakkuappu?	schedule	decl	schedule(source, target, spec) -> decl	config,time	pitr-forge	absent	declare a backup on a repeating time rule	3	schedule(source, target, opts) -> decl	no
+B	bakkuappu?	snapshot	effect	snapshot(source, opts) -> snap	error,idempotent,resource,time	hozon	absent	a consistent point-in-time copy of files, a volume or a database	2	snapshot(source, opts) -> snap	yes
+B	bakkuappu?	verify?	effect	verify?(target, opts) -> Bool	deadline,validate	hozon	absent	whether stored backups still match their manifest hashes	2	verify?(target) -> Bool	no
 E	birudo?	bench	effect	bench(project, opts) -> [measure]	process,time	-	absent	timed runs of marked workloads	3		na
 E	birudo?	build	effect	build(project, targets, opts) -> [artifact]	cache,deadline,error,process	-	partial:hyouka	produce artifacts from sources	1	build(project, targets, opts) -> [artifact]	yes
 E	birudo?	check	effect	check(project, opts) -> [diagnostic]	process,validate	-	rust:blue-lang-cli	type and rule check without producing outputs	0	check(project, opts) -> [diagnostic]	yes
@@ -138,6 +135,19 @@ D	bougyo	request_id	decl	request_id(opts) -> posture	config,log	-	exists:bougyo	
 D	bougyo	safe_id?	pure	safe_id?(text, max) -> Bool	validate	-	exists:bougyo	inbound id is short and made of safe characters	0		na
 D	bougyo	tls	decl	tls(opts) -> posture	config,switch	-	absent	require TLS and send strict transport security	2		na
 D	bougyo	trusted_proxy	decl	trusted_proxy(opts) -> posture	config	-	absent	which forwarding hops to believe for client address	2		na
+F	bunmyaku?	actions	pure	actions(document, range) -> [action]	migrate	blue-lang-lsp	absent	fixes and refactors offered for a range	2		na
+F	bunmyaku?	complete	pure	complete(document, position) -> [item]	-	blue-lang-mondou	rust:blue-lang-mondou	names valid at a position	0		na
+F	bunmyaku?	definition	pure	definition(document, position) -> location or nil	-	blue-lang-mondou	rust:blue-lang-mondou	where the name at a position is defined	0		na
+F	bunmyaku?	describe	pure	describe(document, position) -> text	-	blue-lang-mondou	rust:blue-lang-mondou	signature, doc and type of the name at a position	1	describe(document, position) -> text	yes
+F	bunmyaku?	diagnostics	pure	diagnostics(document) -> [diagnostic]	error	blue-lang-check	rust:blue-lang-lsp	findings of the check stage with spans	0		na
+F	bunmyaku?	eval	effect	eval(expr, context) -> value	capability,deadline	blue-lang-runtime	rust:blue-lang-runtime	evaluate one expression in a session	0	eval(expr, context) -> value	yes
+F	bunmyaku?	infer	pure	infer(expr, env) -> type	validate	blue-lang-check	rust:blue-lang-check	the type of an expression in an environment	0		na
+F	bunmyaku?	references	pure	references(document, position) -> [location]	-	blue-lang-mondou	rust:blue-lang-mondou	every use of the name at a position	0		na
+F	bunmyaku?	serve	effect	serve(transport, opts) -> nil	cancel,resource	blue-lang-lsp	rust:blue-lang-lsp	run the language server on a transport	0	serve(transport, handler, opts) -> nil	no
+F	bunmyaku?	signature	pure	signature(document, position) -> record or nil	-	blue-lang-mondou	rust:blue-lang-mondou	the call signature at a position, with the active argument	0		na
+F	bunmyaku?	subtype?	pure	subtype?(a, b) -> Bool	validate	blue-lang-check	rust:blue-lang-check	whether a value of type a fits where b is wanted	0		na
+F	bunmyaku?	symbols	pure	symbols(document) -> [symbol]	-	blue-lang-mondou	rust:blue-lang-mondou	the outline of a document	0		na
+F	bunmyaku?	sync	effect	sync(document, change) -> nil	cache	blue-lang-lsp	rust:blue-lang-lsp	tell the server a document changed	0	sync(document, change) -> nil	yes
 A	bunpou?	check	pure	check(grammar) -> nil	error,validate	-	absent	refuse left recursion, ambiguity and unused rules	3	check(grammar) -> nil	yes
 A	bunpou?	expected	pure	expected(text, grammar, at) -> [token]	-	-	absent	tokens that could come next at a position	4		na
 A	bunpou?	explain	pure	explain(error) -> text	-	-	absent	why a parse failed, with the nearest rule	3	explain(error) -> text	yes
@@ -150,6 +160,18 @@ A	bunpou?	matches?	pure	matches?(text, grammar) -> Bool	-	-	absent	whether the t
 A	bunpou?	parse	pure	parse(text, grammar, opts) -> tree	error	-	absent	text to a tree; failure names line and column	2	parse(text, grammar, opts) -> tree	yes
 A	bunpou?	render	pure	render(tree, grammar) -> text	error	-	absent	tree back to text by the same grammar	3	render(tree, grammar) -> text	yes
 A	bunpou?	spans	pure	spans(text, grammar) -> [span]	-	-	absent	token or node kinds with offsets for highlighting	3		na
+D	bunri?	confine	effect	confine(f, profile, opts) -> value	capability,deadline,error,process	sui	absent	run a function or command inside a profile	2		na
+D	bunri?	drop	effect	drop(privileges) -> nil	capability,process	-	absent	give up privileges for good	3	drop(privileges, n) -> nil	no
+D	bunri?	egress	decl	egress(rules) -> rules	capability,config	-	absent	which hosts and ports a run may reach	2		na
+D	bunri?	elevate	decl	elevate(profile, why, until) -> profile	log,switch,time	sekiban	absent	time-boxed, logged widening set by the root only	3		na
+D	bunri?	embed	effect	embed(module, profile, opts) -> instance	capability,resource	blue-lang-wasm	absent	run a WASM module with exactly the granted imports	3	embed(module, profile, opts) -> instance	yes
+D	bunri?	exceeds	pure	exceeds(observed, profile) -> [access]	trace,validate	-	absent	accesses a profile did not grant	3		na
+D	bunri?	filter	decl	filter(syscalls) -> filter	capability,config	-	absent	allow-list of system calls (seccomp)	4	filter(syscalls, f, opts) -> filter	no
+D	bunri?	learn	effect	learn(command, opts) -> profile	process,trace	-	absent	run once, record what it touched, as a profile	3		na
+D	bunri?	limit	decl	limit(resource, amount) -> limit	config,deadline,resource	-	absent	cap CPU, memory, files or time for a run	2	limit(resource, amount) -> limit	yes
+D	bunri?	profile	decl	profile(name, allow, opts) -> profile	capability,config	blue-lang-waku	absent	what a run may touch: paths, hosts, processes	1	profile(name, opts) -> profile	no
+D	bunri?	scrub_env	pure	scrub_env(env, keep) -> env	validate	-	absent	environment with everything but the kept names removed	1		na
+D	bunri?	tighten	pure	tighten(profile, observed) -> profile	validate	-	absent	narrowest profile that still permits what was observed	3		na
 G	bunsho?	check	pure	check(doc, rules) -> findings	validate	-	absent	find dead links, skipped heading levels, missing alt text	1	check(doc, rules) -> findings	yes
 G	bunsho?	convert	pure	convert(doc, to) -> doc	-	-	absent	a document in another format, content kept	2	convert(doc, to) -> doc	yes
 G	bunsho?	deck	decl	deck(slides, theme) -> doc	validate	-	absent	declare a slide deck	2		na
@@ -192,6 +214,16 @@ G	byouga?	shape	pure	shape(text, font, opts) -> glyph run	-	garasu	absent	text t
 G	byouga?	surface	decl	surface(kind, size, opts) -> surface	resource,validate	garasu	absent	declare a draw target: window, offscreen or terminal	3		na
 G	byouga?	tessellate	pure	tessellate(path, tolerance) -> mesh	-	-	absent	a vector path as triangles	2		na
 G	byouga?	unproject	pure	unproject(camera, point) -> ray	-	-	absent	the world ray under a screen point	2	unproject(camera, point) -> ray	yes
+A	chigai?	align	pure	align(a, b, opts) -> [pair]	-	-	absent	pair up matching items of two sequences	3		na
+A	chigai?	compose	pure	compose(first, second) -> [hunk]	-	-	absent	one set of hunks equal to two in order	3	compose(first, second) -> [hunk]	yes
+A	chigai?	diff	pure	diff(a, b, opts) -> [hunk]	-	-	absent	changes between two texts or lists	1	diff(a, b, opts) -> [hunk]	yes
+A	chigai?	invert	pure	invert(hunks) -> [hunk]	-	-	absent	hunks that undo the given hunks	2	invert(hunks) -> [hunk]	yes
+A	chigai?	lcs	pure	lcs(a, b) -> list	-	-	absent	longest common subsequence	2		na
+A	chigai?	merge3	pure	merge3(base, ours, theirs, opts) -> record	error	-	absent	three-way merge with the conflicts listed	2		na
+A	chigai?	parse	pure	parse(text) -> [hunk]	error	-	absent	unified diff text to hunks	1	parse(text) -> [hunk]	yes
+A	chigai?	patch	pure	patch(a, hunks, opts) -> value	error,idempotent	-	absent	apply hunks; a mismatch raises conflict	1	patch(a, hunks, opts) -> value	yes
+A	chigai?	stat	pure	stat(hunks) -> record	-	-	absent	lines added, removed and changed	1		na
+A	chigai?	unify	pure	unify(hunks, opts) -> text	serialize	-	absent	hunks as unified diff text	1		na
 A	chiri?	area	pure	area(region) -> number	-	-	absent	surface area in square metres	3		na
 A	chiri?	bearing	pure	bearing(a, b) -> number	-	-	absent	initial compass heading from a to b	3		na
 A	chiri?	bounds	pure	bounds(points) -> box	-	-	absent	smallest box holding every point	3	bounds(points) -> box	yes
@@ -317,6 +349,29 @@ G	dairi?	spawn	effect	spawn(agent, task) -> handle	process,resource	-	absent	sta
 G	dairi?	stop	effect	stop(handle) -> nil	cancel	arnes-loop	absent	end a run at the next safe point	2	stop(handle) -> nil	yes
 G	dairi?	tool	decl	tool(name, schema, f) -> tool	validate	arnes-tools	absent	declare a tool: name, input shape, body	1		na
 G	dairi?	wait	effect	wait(handle, opts) -> outcome	deadline	-	absent	wait for a sub-agent to end	3	wait(handle, opts) -> outcome	yes
+G	debaisu?	calibrate	pure	calibrate(sensor, points) -> model	-	-	absent	fit raw readings to known true values	3		na
+G	debaisu?	check	pure	check(board, program) -> findings	validate	kiban	absent	find a pin clash, a missing clock or a bad register use	2	check(board, program) -> findings	yes
+G	debaisu?	close	effect	close(handle) -> nil	idempotent,resource	-	absent	release a bus or device; closed counts as done	3	close(handle) -> nil	yes
+G	debaisu?	decode	pure	decode(protocol, bytes) -> record	validate	-	absent	bytes of a frame as a record; bad checksum refused	2	decode(protocol, bytes) -> record	yes
+G	debaisu?	encode	pure	encode(protocol, record) -> bytes	-	-	absent	a record as bytes of a bus or radio frame	2	encode(protocol, record) -> bytes	yes
+G	debaisu?	flash	effect	flash(image, target, opts) -> nil	capability,deadline,resource	-	absent	write an image to a device	3		na
+G	debaisu?	fuse	pure	fuse(estimates, opts) -> estimate	-	-	absent	combine several sensor estimates into one	3	fuse(estimates, opts) -> estimate	yes
+G	debaisu?	list	effect	list(bus) -> addresses	deadline	-	absent	devices that answer on a bus	3	list(bus) -> addresses	yes
+G	debaisu?	monitor	stream	monitor(port, f, opts) -> nil	cancel	-	absent	call f for each line from a device console	3		na
+G	debaisu?	on	decl	on(source, interrupt, handler) -> nil	capability	-	absent	bind a handler to an interrupt	3	on(source, interrupt, handler) -> nil	yes
+G	debaisu?	open	effect	open(bus, opts) -> handle	capability,resource	-	absent	take a bus: I2C, SPI, UART, CAN	3	open(bus, opts) -> handle	yes
+G	debaisu?	read	effect	read(target, opts) -> value	deadline,resource	kiban	rust:kiban	a pin level or a register value	3	read(target, opts) -> value	yes
+G	debaisu?	reset	effect	reset(target, opts) -> nil	capability	-	absent	restart a device	3	reset(target, opts) -> nil	yes
+G	debaisu?	run	effect	run(image, board, opts) -> trace	deadline,process	kiban	rust:kiban	run an image on an emulated board	2	run(image, board, opts) -> trace	yes
+G	debaisu?	sample	stream	sample(sensor, opts) -> readings	deadline,time	-	absent	readings from a sensor at a rate	3	sample(sensor) -> readings	no
+G	debaisu?	schedule	pure	schedule(tasks) -> table	time,validate	-	absent	prove every task meets its deadline, or name the one that fails	2	schedule(tasks) -> table	yes
+G	debaisu?	smooth	pure	smooth(readings, kind, opts) -> readings	-	-	absent	reduce noise: moving average, median, Kalman	2		na
+G	debaisu?	task	decl	task(period, budget, f) -> task	time,validate	-	absent	declare a periodic task with a time budget	2		na
+G	debaisu?	terminal	decl	terminal(board, name) -> pin	validate	-	absent	declare a pin: name, function, pull, drive	3	terminal(board, name) -> pin	yes
+G	debaisu?	transfer	effect	transfer(handle, address, bytes, opts) -> bytes	deadline,retry	-	absent	one bus transaction: write, then read	3		na
+G	debaisu?	watch	stream	watch(pin, f, opts) -> nil	cancel,deadline	-	absent	call f on every edge of a pin	3	watch(pin, f, opts) -> nil	yes
+G	debaisu?	waveform	decl	waveform(kind, params) -> signal	validate	-	absent	declare a level, pulse train or PWM wave	3	waveform(kind, params) -> signal	yes
+G	debaisu?	write	effect	write(target, value, opts) -> nil	capability,resource	kiban	rust:kiban	drive a pin or set a register	3	write(target, value, opts) -> nil	yes
 A	deeta	address	pure	address(value, algorithm) -> text	serialize	-	absent	hash of the canonical form: a content address	2	address(value, algorithm) -> text	yes
 A	deeta	canonical	pure	canonical(value, opts) -> text	idempotent,serialize	-	absent	one byte-exact form per value: sorted keys, no noise	1		na
 A	deeta	convert	pure	convert(text, from, to, opts) -> text	error,serialize	-	absent	reparse in one format, render in another	1	convert(text, from, to, opts) -> text	yes
@@ -400,6 +455,45 @@ F	fuka?	soak	effect	soak(scenario, shape, opts) -> report	resource,time	vendaval
 F	fuka?	spike	decl	spike(base, peak, at, for) -> shape	time	-	absent	declare a short burst on top of base load	2		na
 F	fuka?	steady	decl	steady(rate, for) -> shape	time	-	absent	declare constant load for a duration	2		na
 F	fuka?	threshold	decl	threshold(metric, limit) -> threshold	config	-	absent	declare a limit a load run must stay within	2		na
+E	furagu?	eval	effect	eval(flag, context) -> value	cache,config	-	absent	the value of a flag for a context	3	eval(flag, context) -> value	yes
+E	furagu?	history	effect	history(flag) -> [change]	time	-	absent	who changed a flag and when	4	history(flag) -> [change]	yes
+E	furagu?	kill	effect	kill(flag, reason) -> flag	idempotent,log,switch	-	absent	turn a flag off for everyone at once	3		na
+E	furagu?	list	effect	list(opts) -> [flag]	error	-	absent	every flag with its rule	3	list(opts) -> [flag]	yes
+E	furagu?	on?	effect	on?(flag, context) -> Bool	config	-	absent	whether a boolean flag is on	3		na
+E	furagu?	put	effect	put(flag, rule, opts) -> flag	idempotent,log	-	absent	create or replace a flag rule	3	put(flag, rule, opts) -> flag	yes
+E	furagu?	ramp	effect	ramp(flag, percent) -> flag	log,switch	-	absent	raise the share of contexts that see it	3		na
+E	furagu?	stale?	effect	stale?(flag, opts) -> Bool	time	-	absent	whether a flag changed nothing for a long time	4	stale?(flag) -> Bool	no
+E	furagu?	watch	stream	watch(flag, f) -> nil	cancel	-	absent	call f when a flag's rule changes	4	watch(flag, f) -> nil	yes
+D	fuuin?	derive	pure	derive(secret, salt, info, opts) -> key	error,validate	-	absent	several independent keys from one secret (HKDF)	1	derive(secret, salt, info, opts) -> key	yes
+D	fuuin?	destroy	effect	destroy(key_id, opts) -> nil	idempotent,log	-	absent	erase key material; data under it is gone for good	3		na
+D	fuuin?	due?	pure	due?(key, policy, now) -> Bool	time	-	absent	key is older than its rotation policy allows	2	due?(key, policy, now) -> Bool	yes
+D	fuuin?	enclose	effect	enclose(data, key_id, opts) -> envelope	capability,error,resource	cofre	absent	envelope encryption: fresh data key wrapped by a managed key	2	enclose(data, key_id, opts) -> envelope	yes
+D	fuuin?	encrypted?	pure	encrypted?(bytes) -> Bool	validate	-	absent	bytes look like one of our envelopes	1		na
+D	fuuin?	exchange	pure	exchange(secret, peer_public) -> key	error,validate	-	absent	shared key from my secret and a peer public key	2		na
+D	fuuin?	generate	effect	generate(kind, opts) -> key	capability,error	cofre	absent	new key of a kind from secure entropy	1	generate(kind, opts) -> key	yes
+D	fuuin?	hybrid	pure	hybrid(classical, post_quantum) -> algorithm	validate	-	absent	pair two schemes so breaking one alone is not enough	4		na
+D	fuuin?	open_as	pure	open_as(envelope, secret, opts) -> bytes	error,validate	-	absent	open an envelope sealed to my public key	2		na
+D	fuuin?	open_stream	stream	open_stream(source, target, key) -> nil	cancel,error,resource	-	absent	open a chunked envelope, failing on the first bad chunk	3		na
+D	fuuin?	parse	pure	parse(text, format) -> key	serialize,validate	-	absent	PEM, JWK or hex text to a key	2	parse(text, format) -> key	yes
+D	fuuin?	peek	pure	peek(envelope) -> record	validate	-	absent	read algorithm and key id without opening	1	peek(envelope) -> record	yes
+D	fuuin?	quantum_safe?	pure	quantum_safe?(algorithm) -> Bool	validate	-	absent	algorithm resists a quantum computer	3		na
+D	fuuin?	random	effect	random(count) -> bytes	capability,error	-	absent	secure random bytes from the host entropy source	1		na
+D	fuuin?	rebuild	pure	rebuild(shares) -> secret	error,validate	tameshi	absent	secret from a threshold of shares	2		na
+D	fuuin?	render	pure	render(key, format) -> text	serialize	-	absent	key to PEM, JWK or hex; secret half only on request	2	render(key, format) -> text	yes
+D	fuuin?	retire	effect	retire(key_id) -> nil	idempotent,log	-	absent	stop a key from sealing new data; old data still opens	2		na
+D	fuuin?	rewrap	effect	rewrap(envelope, key_id) -> envelope	idempotent,resource	-	absent	move the data key to a new key without touching data	2		na
+D	fuuin?	rotate	effect	rotate(key_id, opts) -> key	idempotent,log,time	cofre	absent	new key version; old versions still open old data	2	rotate(key_id, opts) -> key	yes
+D	fuuin?	seal	effect	seal(data, key, opts) -> envelope	capability,error	-	absent	authenticated encryption; any tampering breaks it	1	seal(data, key, opts) -> envelope	yes
+D	fuuin?	seal_stream	stream	seal_stream(source, target, key) -> nil	cancel,error,resource	-	absent	seal data larger than memory in authenticated chunks	3		na
+D	fuuin?	seal_to	effect	seal_to(data, recipient_public, opts) -> envelope	capability,error	-	absent	seal so only the holder of a secret key can open	2		na
+D	fuuin?	share	effect	share(secret, threshold, count) -> [share]	capability,error	tameshi	absent	Shamir shares; any threshold of them rebuild the secret	2		na
+D	fuuin?	shield	pure	shield(key, wrapping_key) -> text	error,validate	-	absent	encrypt one key under another key	2	shield(key, wrapping_key) -> text	yes
+D	fuuin?	strength	pure	strength(key) -> bits	validate	-	absent	security bits a key or parameter set gives	2		na
+D	fuuin?	stretch	pure	stretch(password, salt, opts) -> key	resource,validate	x-crypto	absent	password to key with a memory-hard function	1		na
+D	fuuin?	unlock	effect	unlock(envelope, opts) -> bytes	error,resource	cofre	absent	open an envelope by asking for its data key	2		na
+D	fuuin?	unseal	pure	unseal(envelope, key, opts) -> bytes	error,validate	-	absent	decrypt and check; raises :tampered on a bad tag	1	unseal(envelope, key, opts) -> bytes	yes
+D	fuuin?	unwrap	pure	unwrap(text, wrapping_key) -> key	error,validate	-	absent	recover a key wrapped under another key	2		na
+D	fuuin?	zeroize	effect	zeroize(secret) -> nil	resource	-	absent	overwrite secret bytes in memory (needs runtime support)	3		na
 G	gamen?	apply	effect	apply(app, patches) -> nil	idempotent	madori	absent	make a surface show the patches	2	apply(app, patches) -> nil	yes
 G	gamen?	check	pure	check(tree, rules) -> findings	validate	-	absent	find accessibility and layout faults in a tree	1	check(tree, rules) -> findings	yes
 G	gamen?	choose	effect	choose(items, opts) -> item or nil	deadline	egaku	absent	the human picks from a list	1	choose(items, opts) -> item or nil	yes
@@ -480,19 +574,6 @@ B	genbo?	tree	effect	tree(cas, entries) -> oid	error,idempotent,serialize	daicho
 B	genbo?	unpack	effect	unpack(cas, bytes) -> [oid]	serialize,validate	daicho	absent	store every object in a pack after checking each hash	3	unpack(cas, bytes) -> [oid]	yes
 B	genbo?	verify	effect	verify(cas) -> [oid]	cancel,validate	daicho	absent	the ids whose content no longer matches their hash	2	verify(cas) -> [oid]	yes
 B	genbo?	walk	effect	walk(cas, oid) -> [oid]	cancel,error	daicho	absent	every object reachable from a root, each once	2	walk(cas, opts) -> [oid]	no
-F	gengo?	actions	pure	actions(document, range) -> [action]	migrate	blue-lang-lsp	absent	fixes and refactors offered for a range	2		na
-F	gengo?	complete	pure	complete(document, position) -> [item]	-	blue-lang-mondou	rust:blue-lang-mondou	names valid at a position	0		na
-F	gengo?	definition	pure	definition(document, position) -> location or nil	-	blue-lang-mondou	rust:blue-lang-mondou	where the name at a position is defined	0		na
-F	gengo?	describe	pure	describe(document, position) -> text	-	blue-lang-mondou	rust:blue-lang-mondou	signature, doc and type of the name at a position	1	describe(document, position) -> text	yes
-F	gengo?	diagnostics	pure	diagnostics(document) -> [diagnostic]	error	blue-lang-check	rust:blue-lang-lsp	findings of the check stage with spans	0		na
-F	gengo?	eval	effect	eval(expr, context) -> value	capability,deadline	blue-lang-runtime	rust:blue-lang-runtime	evaluate one expression in a session	0	eval(expr, context) -> value	yes
-F	gengo?	infer	pure	infer(expr, env) -> type	validate	blue-lang-check	rust:blue-lang-check	the type of an expression in an environment	0		na
-F	gengo?	references	pure	references(document, position) -> [location]	-	blue-lang-mondou	rust:blue-lang-mondou	every use of the name at a position	0		na
-F	gengo?	serve	effect	serve(transport, opts) -> nil	cancel,resource	blue-lang-lsp	rust:blue-lang-lsp	run the language server on a transport	0	serve(transport, handler, opts) -> nil	no
-F	gengo?	signature	pure	signature(document, position) -> record or nil	-	blue-lang-mondou	rust:blue-lang-mondou	the call signature at a position, with the active argument	0		na
-F	gengo?	subtype?	pure	subtype?(a, b) -> Bool	validate	blue-lang-check	rust:blue-lang-check	whether a value of type a fits where b is wanted	0		na
-F	gengo?	symbols	pure	symbols(document) -> [symbol]	-	blue-lang-mondou	rust:blue-lang-mondou	the outline of a document	0		na
-F	gengo?	sync	effect	sync(document, change) -> nil	cache	blue-lang-lsp	rust:blue-lang-lsp	tell the server a document changed	0	sync(document, change) -> nil	yes
 F	genin?	attach	effect	attach(target, opts) -> session	capability,resource	-	absent	connect a debugger to a running process	3		na
 F	genin?	backtrace	pure	backtrace(dump) -> [frame]	-	caixa-backtrace	absent	the call stack of a crash dump	2		na
 F	genin?	bisect	effect	bisect(candidates, f) -> candidate	process	-	absent	find the first candidate where f turns bad	1	bisect(candidates, f) -> candidate	yes
@@ -662,18 +743,6 @@ E	haichi?	need	effect	need(name) -> environment	config	-	absent	one environment,
 E	haichi?	path	pure	path(name) -> [environment]	-	-	absent	environments a change passes through in order	2	path(name, from, to, opts) -> [environment]	no
 E	haichi?	promote	effect	promote(change, from, to) -> change	log,switch	-	absent	carry a pinned change to the next environment	2	promote(change, from, opts) -> change	no
 E	haichi?	resolve	pure	resolve(spec, environment) -> record	config,validate	-	absent	a spec with this environment's overlay applied	1	resolve(spec, environment) -> record	yes
-E	haifu?	channels	effect	channels(name) -> [channel]	error	-	absent	stable, beta and nightly pointers	3		na
-E	haifu?	fetch	effect	fetch(name, channel, opts) -> archive	cache,deadline,retry,validate	-	absent	download and verify a distributable	3	fetch(name, channel, opts) -> archive	yes
-E	haifu?	install	effect	install(archive, dest, opts) -> installed	capability,idempotent	-	absent	put a program where the user runs it	3		na
-E	haifu?	installed	effect	installed(opts) -> [record]	error	-	absent	programs installed and their versions	3		na
-E	haifu?	manifest	pure	manifest(artifacts) -> record	serialize	-	absent	names, sizes and hashes of a release	2		na
-E	haifu?	mirror	effect	mirror(from, to) -> nil	idempotent,retry	-	absent	copy releases to another host	4	mirror(from, to) -> nil	yes
-E	haifu?	pack	effect	pack(files, format, opts) -> archive	serialize	-	absent	bundle a binary and its files	2	pack(files, format, opts) -> archive	yes
-E	haifu?	publish	effect	publish(archive, channel, opts) -> record	idempotent,retry	-	absent	put a distributable on a channel	2	publish(archive, channel, opts) -> record	yes
-E	haifu?	sign	effect	sign(archive, key) -> signature	capability	tameshi	absent	sign a distributable	2	sign(archive, key) -> signature	yes
-E	haifu?	uninstall	effect	uninstall(name, opts) -> nil	idempotent	-	absent	remove an installed program	3		na
-E	haifu?	upgrade	effect	upgrade(name, opts) -> record	idempotent,switch	-	absent	move an installed program to its channel head	3	upgrade(name, opts) -> record	yes
-E	haifu?	verify	effect	verify(archive, opts) -> verdict	validate	-	absent	signature and hash of a distributable	2	verify(archive, opts) -> verdict	yes
 F	hakkou?	breaking?	pure	breaking?(old, new) -> Bool	validate	-	absent	whether the interface lost or changed an entry	2		na
 F	hakkou?	build	effect	build(project, opts) -> artifact	cache,process	-	absent	make the release artifact reproducibly	1	build(project, opts) -> artifact	yes
 F	hakkou?	canary	effect	canary(release, share, opts) -> verdict	cancel,test,time	-	absent	send a share of traffic to a release and judge it	3		na
@@ -700,15 +769,6 @@ A	hani?	range	pure	range(low, high, opts) -> range	error	-	absent	build a range;
 A	hani?	shift	pure	shift(range, by) -> range	-	-	absent	move both ends by the same amount	2	shift(range, by) -> range	yes
 A	hani?	split	pure	split(range, at) -> [range]	-	-	absent	cut a range at a point	2	split(range, at) -> [range]	yes
 A	hani?	touches?	pure	touches?(a, b) -> Bool	-	-	absent	whether two ranges overlap or meet end to end	2		na
-E	hata?	eval	effect	eval(flag, context) -> value	cache,config	-	absent	the value of a flag for a context	3	eval(flag, context) -> value	yes
-E	hata?	history	effect	history(flag) -> [change]	time	-	absent	who changed a flag and when	4	history(flag) -> [change]	yes
-E	hata?	kill	effect	kill(flag, reason) -> flag	idempotent,log,switch	-	absent	turn a flag off for everyone at once	3		na
-E	hata?	list	effect	list(opts) -> [flag]	error	-	absent	every flag with its rule	3	list(opts) -> [flag]	yes
-E	hata?	on?	effect	on?(flag, context) -> Bool	config	-	absent	whether a boolean flag is on	3		na
-E	hata?	put	effect	put(flag, rule, opts) -> flag	idempotent,log	-	absent	create or replace a flag rule	3	put(flag, rule, opts) -> flag	yes
-E	hata?	ramp	effect	ramp(flag, percent) -> flag	log,switch	-	absent	raise the share of contexts that see it	3		na
-E	hata?	stale?	effect	stale?(flag, opts) -> Bool	time	-	absent	whether a flag changed nothing for a long time	4	stale?(flag) -> Bool	no
-E	hata?	watch	stream	watch(flag, f) -> nil	cancel	-	absent	call f when a flag's rule changes	4	watch(flag, f) -> nil	yes
 C	heikou	all	effect	all(fs, opts) -> [value]	cancel,error,process	-	absent	Run all; first failure cancels the rest.	1	all(fs, opts) -> [value]	yes
 C	heikou	any	effect	any(fs, opts) -> value	cancel,error,process	-	absent	Return the first success; fail only if all fail.	1		na
 C	heikou	backoff	pure	backoff(policy, attempt) -> duration	retry,time	-	absent	The wait before a given attempt.	1		na
@@ -820,25 +880,6 @@ E	hosuto?	need	effect	need(name) -> host	config	fleet	absent	one host, raises wh
 E	hosuto?	reach?	effect	reach?(host, opts) -> Bool	deadline,process	tehai	partial:tehai	whether the host answers now	0		na
 E	hosuto?	wait	effect	wait(host, state, opts) -> host	cancel,deadline	-	absent	block until a host is up or gone	2	wait(host, state, opts) -> host	yes
 E	hosuto?	wake	effect	wake(host) -> nil	idempotent	-	absent	bring a sleeping host up	3		na
-B	hozon?	backup	effect	backup(source, target, opts) -> manifest	cancel,deadline,error,idempotent,log,retry	hozon	absent	copy a snapshot to a target, hashed and optionally encrypted	2		na
-B	hozon?	copy	effect	copy(from, to, opts) -> manifest	cancel,deadline,error,idempotent	-	absent	copy a backup from one target to another	3	copy(from, to, opts) -> manifest	yes
-B	hozon?	delete	effect	delete(target, id) -> nil	error,idempotent	-	absent	remove one backup; absent counts as done	3	delete(target, id) -> nil	yes
-B	hozon?	diff	pure	diff(a, b) -> [change]	-	fudajiku	absent	files added, removed or changed between two manifests	2	diff(a, b) -> [change]	yes
-B	hozon?	drill	effect	drill(target, opts) -> report	deadline,error,log,resource	pitr-forge	absent	restore into scratch space and prove the data is usable	3		na
-B	hozon?	info	effect	info(target, id) -> manifest	error	hozon	absent	the manifest of one backup: files, hashes, sizes, time	2	info(target, opts) -> manifest	no
-B	hozon?	lag	effect	lag(from, to) -> duration	time	-	absent	how far behind the source a replica is	3	lag(from, to) -> duration	yes
-B	hozon?	list	effect	list(target, opts) -> [manifest]	error	hozon	absent	every backup at a target, newest first	2	list(target, opts) -> [manifest]	yes
-B	hozon?	manifest	pure	manifest(entries) -> manifest	serialize	fudajiku	absent	the hashed list of files a backup holds	2		na
-B	hozon?	mirror	effect	mirror(from, to, opts) -> [action]	cancel,deadline,error,idempotent,retry	-	absent	make the target match the source once, deleting extras on request	2	mirror(from, to, opts) -> [action]	yes
-B	hozon?	plan	pure	plan(source, target, opts) -> [action]	log,validate	hozon	absent	what a backup would copy and prune, changing nothing	2	plan(source, target, opts) -> [action]	yes
-B	hozon?	promote	effect	promote(replica, opts) -> nil	error,switch	-	absent	make a replica the writable primary	4	promote(replica, opts) -> nil	yes
-B	hozon?	prune	effect	prune(target, policy, opts) -> [id]	error,idempotent	-	absent	remove backups the retention policy no longer keeps	3		na
-B	hozon?	replicate	stream	replicate(from, to, opts) -> nil	cancel,error,retry	-	absent	keep a target following a source continuously	3		na
-B	hozon?	restore	effect	restore(target, to, opts) -> manifest	cancel,deadline,error,log,validate	hozon	absent	bring a backup back, to a point in time when given	2	restore(target, to, opts) -> manifest	yes
-B	hozon?	retain	decl	retain(rules) -> policy	config,validate	-	absent	declare how many daily, weekly and monthly backups to keep	3	retain(rules) -> policy	yes
-B	hozon?	schedule	decl	schedule(source, target, spec) -> decl	config,time	pitr-forge	absent	declare a backup on a repeating time rule	3	schedule(source, target, opts) -> decl	no
-B	hozon?	snapshot	effect	snapshot(source, opts) -> snap	error,idempotent,resource,time	hozon	absent	a consistent point-in-time copy of files, a volume or a database	2	snapshot(source, opts) -> snap	yes
-B	hozon?	verify?	effect	verify?(target, opts) -> Bool	deadline,validate	hozon	absent	whether stored backups still match their manifest hashes	2	verify?(target) -> Bool	no
 E	hyouka	build	effect	build(installable, opts) -> [out path]	cache,deadline,error,process	-	partial:hyouka	realise a derivation and return its output paths	0	build(installable, opts) -> [out path]	yes
 E	hyouka	build_log	effect	build_log(installable) -> text	error	-	absent	the build log of a derivation	1	build_log(installable) -> text	yes
 E	hyouka	check	effect	check(flake, opts) -> [finding]	error,test	-	absent	run the flake checks and return failures as data	1	check(flake, opts) -> [finding]	yes
@@ -914,35 +955,6 @@ A	jikan	year	pure	year(instant) -> int	time	-	partial:hizuke	calendar year of an
 A	jikan	years	pure	years(n) -> span	time	-	partial:hizuke	calendar span; add respects leap years	1		na
 A	jikan	zone	pure	zone(instant) -> name	time	-	absent	name of the zone an instant is shown in	2		na
 A	jikan	zones	pure	zones() -> [name]	time	-	absent	every zone name the tz database knows	3		na
-E	jikkou?	delete	effect	delete(name) -> nil	idempotent	wasm-operator	absent	remove a function	4	delete(name) -> nil	yes
-E	jikkou?	deploy	effect	deploy(module, opts) -> function	capability,idempotent,log	wasm-operator	absent	place a module where it runs	3		na
-E	jikkou?	get	effect	get(name) -> function or nil	error	wasm-operator	absent	one function, nil when absent	3	get(name) -> function or nil	yes
-E	jikkou?	invoke	effect	invoke(function, input, opts) -> output	deadline,error,resource	wasm-engine	absent	run a function once	3		na
-E	jikkou?	limit	decl	limit(function, record) -> function	capability,resource	wasm-engine	absent	fuel, memory and time a run may use	3	limit(function, record) -> function	yes
-E	jikkou?	list	effect	list(opts) -> [function]	error	wasm-operator	absent	functions and their versions	3	list(opts) -> [function]	yes
-E	jikkou?	pack	effect	pack(source, target, opts) -> module	cache,process	wasm-engine	absent	compile a function to a portable module	3	pack(source, target, opts) -> module	yes
-E	jikkou?	read	effect	read(function, opts) -> text	error	-	absent	logs from a function's runs	3	read(function, opts) -> text	yes
-E	jikkou?	resize	effect	resize(function, bounds) -> function	resource,switch	wasm-operator	absent	set minimum and maximum instances	4	resize(function, bounds) -> function	yes
-E	jikkou?	route	decl	route(function, pattern) -> route	config	-	absent	the requests that reach a function	4	route(function, pattern) -> route	yes
-E	jikkou?	versions	effect	versions(function) -> [version]	serialize	-	absent	published versions of a function	4	versions(function) -> [version]	yes
-F	jiko?	acknowledge	effect	acknowledge(alert, who) -> nil	idempotent	-	absent	say that a person has taken an alert	2		na
-F	jiko?	announce	effect	announce(audience, message) -> nil	log	-	absent	publish a status message to an audience	3		na
-F	jiko?	assign	effect	assign(incident, who) -> nil	idempotent	-	absent	name the person who leads an incident	2	assign(incident, who) -> nil	yes
-F	jiko?	classify	pure	classify(impact) -> severity	-	-	absent	map impact to a severity level by a stated rule	3	classify(impact) -> severity	yes
-F	jiko?	declare	effect	declare(summary, opts) -> incident	idempotent,log	-	absent	open an incident with a severity and a timeline	2	declare(summary, opts) -> incident	yes
-F	jiko?	drill	effect	drill(scenario, opts) -> report	test,time	-	absent	rehearse an incident and measure the response	3		na
-F	jiko?	escalate	effect	escalate(incident, level) -> nil	deadline	-	absent	move an incident to the next level or person	2		na
-F	jiko?	get	effect	get(source, id) -> record or nil	-	-	absent	one alert or incident or nil	2	get(source, id) -> record or nil	yes
-F	jiko?	list	effect	list(source, kind, opts) -> [record]	deadline	-	absent	alerts, incidents or silences, all pages	2	list(source, opts) -> [record]	no
-F	jiko?	mitigate	effect	mitigate(incident, action) -> nil	log	-	absent	record and run a step that limits the harm	2		na
-F	jiko?	note	effect	note(incident, text) -> nil	log	-	absent	add a timestamped entry to the incident timeline	2		na
-F	jiko?	oncall	effect	oncall(schedule, opts) -> [person]	time	-	absent	who is on call now or at an instant	2		na
-F	jiko?	page	effect	page(target, alert, opts) -> ack	deadline,retry	pangea-pagerduty	absent	notify an on-call person or team	2		na
-F	jiko?	postmortem	pure	postmortem(incident, opts) -> doc	serialize	-	absent	draft a blameless review from the timeline	3		na
-F	jiko?	resolve	effect	resolve(incident, opts) -> nil	idempotent	-	absent	close an incident with a cause and a time	2	resolve(incident, opts) -> nil	yes
-F	jiko?	route	pure	route(alert, rules) -> [target]	-	-	absent	decide whom an alert goes to	2	route(alert, rules) -> [target]	yes
-F	jiko?	silence	effect	silence(matcher, opts) -> silence	switch,time	-	absent	mute matching alerts for a period	2		na
-F	jiko?	timeline	pure	timeline(incident) -> [event]	time	-	absent	the ordered events of an incident	2		na
 A	jisho	delete	pure	delete(map, key) -> map	-	-	absent	new map without the key	0	delete(map, key) -> map	yes
 A	jisho	empty?	pure	empty?(map) -> Bool	-	-	absent	whether the map has no entries	0	empty?(map) -> Bool	yes
 A	jisho	entries	pure	entries(map) -> [pair]	-	-	absent	key and value pairs in key order	0	entries(map) -> [pair]	yes
@@ -993,6 +1005,18 @@ D	jouka?	strip	pure	strip(text, allowed) -> text	validate	-	absent	remove markup
 D	jouka?	taint	pure	taint(value, source) -> value	validate	-	absent	mark a value as coming from outside	4		na
 D	jouka?	vet	effect	vet(url, rules) -> url	error,resource,validate	-	absent	refuse targets inside private, link-local or metadata ranges	2		na
 G	joutai	segment	pure	segment(text) -> segment	-	arnes	rust:joutai	one piece of the status line	0	segment(text) -> segment	yes
+A	junban?	empty?	pure	empty?(queue) -> Bool	-	-	absent	whether nothing is waiting	2	empty?(queue) -> Bool	yes
+A	junban?	from	pure	from(kind, items, opts) -> queue	-	-	absent	queue filled from a list	2		na
+A	junban?	full?	pure	full?(queue) -> Bool	-	-	absent	whether a bounded queue is at capacity	2		na
+A	junban?	merge	pure	merge(a, b) -> queue	-	-	absent	one priority queue holding both	3	merge(a, b) -> queue	yes
+A	junban?	peek	pure	peek(queue) -> item or nil	-	-	absent	next item without removing it	2	peek(queue) -> item or nil	yes
+A	junban?	pop	pure	pop(queue) -> record	error	-	absent	next item and the remaining queue	2		na
+A	junban?	push	pure	push(queue, item, opts) -> queue	-	-	absent	queue with an item added; a full ring drops its oldest	2	push(queue, item, opts) -> queue	yes
+A	junban?	queue	decl	queue(kind, opts) -> queue	validate	-	absent	empty fifo, lifo, priority or ring queue	2		na
+A	junban?	reprioritize	pure	reprioritize(queue, item, priority) -> queue	error	-	absent	change the priority of a queued item	3		na
+A	junban?	size	pure	size(queue) -> int	-	-	absent	number of items waiting	2	size(queue) -> int	yes
+A	junban?	to_list	pure	to_list(queue) -> list	-	-	absent	items in pop order, queue unchanged	2		na
+A	junban?	unload	pure	unload(queue) -> list	-	-	absent	every item in pop order	2	unload(queue) -> list	yes
 A	junjo	max_by	pure	max_by(list, f) -> item or nil	-	-	exists:junjo	item with the greatest key	0	max_by(list, f) -> item or nil	yes
 A	junjo	merge	pure	merge(a, b) -> list	-	-	exists:junjo	two sorted lists joined in order	0	merge(a, b) -> list	yes
 A	junjo	min_by	pure	min_by(list, f) -> item or nil	-	-	exists:junjo	item with the least key	0	min_by(list, f) -> item or nil	yes
@@ -1034,36 +1058,6 @@ F	kadai?	transition	effect	transition(issue, to, opts) -> issue	error,idempotent
 F	kadai?	triage	pure	triage(issues, rules) -> [issue]	-	-	absent	issues ordered and labelled by stated rules	3	triage(issues, rules) -> [issue]	yes
 F	kadai?	update	effect	update(tracker, id, f) -> issue	error,idempotent	-	absent	change an issue; conflict on a concurrent write	2	update(tracker, id, f) -> issue	yes
 F	kadai?	watch	stream	watch(tracker, f, opts) -> nil	cancel	-	absent	call f per issue change until it returns stop	3	watch(tracker, f, opts) -> nil	yes
-D	kagi?	derive	pure	derive(secret, salt, info, opts) -> key	error,validate	-	absent	several independent keys from one secret (HKDF)	1	derive(secret, salt, info, opts) -> key	yes
-D	kagi?	destroy	effect	destroy(key_id, opts) -> nil	idempotent,log	-	absent	erase key material; data under it is gone for good	3		na
-D	kagi?	due?	pure	due?(key, policy, now) -> Bool	time	-	absent	key is older than its rotation policy allows	2	due?(key, policy, now) -> Bool	yes
-D	kagi?	enclose	effect	enclose(data, key_id, opts) -> envelope	capability,error,resource	cofre	absent	envelope encryption: fresh data key wrapped by a managed key	2	enclose(data, key_id, opts) -> envelope	yes
-D	kagi?	encrypted?	pure	encrypted?(bytes) -> Bool	validate	-	absent	bytes look like one of our envelopes	1		na
-D	kagi?	exchange	pure	exchange(secret, peer_public) -> key	error,validate	-	absent	shared key from my secret and a peer public key	2		na
-D	kagi?	generate	effect	generate(kind, opts) -> key	capability,error	cofre	absent	new key of a kind from secure entropy	1	generate(kind, opts) -> key	yes
-D	kagi?	hybrid	pure	hybrid(classical, post_quantum) -> algorithm	validate	-	absent	pair two schemes so breaking one alone is not enough	4		na
-D	kagi?	open_as	pure	open_as(envelope, secret, opts) -> bytes	error,validate	-	absent	open an envelope sealed to my public key	2		na
-D	kagi?	open_stream	stream	open_stream(source, target, key) -> nil	cancel,error,resource	-	absent	open a chunked envelope, failing on the first bad chunk	3		na
-D	kagi?	parse	pure	parse(text, format) -> key	serialize,validate	-	absent	PEM, JWK or hex text to a key	2	parse(text, format) -> key	yes
-D	kagi?	peek	pure	peek(envelope) -> record	validate	-	absent	read algorithm and key id without opening	1	peek(envelope) -> record	yes
-D	kagi?	quantum_safe?	pure	quantum_safe?(algorithm) -> Bool	validate	-	absent	algorithm resists a quantum computer	3		na
-D	kagi?	random	effect	random(count) -> bytes	capability,error	-	absent	secure random bytes from the host entropy source	1		na
-D	kagi?	rebuild	pure	rebuild(shares) -> secret	error,validate	tameshi	absent	secret from a threshold of shares	2		na
-D	kagi?	render	pure	render(key, format) -> text	serialize	-	absent	key to PEM, JWK or hex; secret half only on request	2	render(key, format) -> text	yes
-D	kagi?	retire	effect	retire(key_id) -> nil	idempotent,log	-	absent	stop a key from sealing new data; old data still opens	2		na
-D	kagi?	rewrap	effect	rewrap(envelope, key_id) -> envelope	idempotent,resource	-	absent	move the data key to a new key without touching data	2		na
-D	kagi?	rotate	effect	rotate(key_id, opts) -> key	idempotent,log,time	cofre	absent	new key version; old versions still open old data	2	rotate(key_id, opts) -> key	yes
-D	kagi?	seal	effect	seal(data, key, opts) -> envelope	capability,error	-	absent	authenticated encryption; any tampering breaks it	1	seal(data, key, opts) -> envelope	yes
-D	kagi?	seal_stream	stream	seal_stream(source, target, key) -> nil	cancel,error,resource	-	absent	seal data larger than memory in authenticated chunks	3		na
-D	kagi?	seal_to	effect	seal_to(data, recipient_public, opts) -> envelope	capability,error	-	absent	seal so only the holder of a secret key can open	2		na
-D	kagi?	share	effect	share(secret, threshold, count) -> [share]	capability,error	tameshi	absent	Shamir shares; any threshold of them rebuild the secret	2		na
-D	kagi?	shield	pure	shield(key, wrapping_key) -> text	error,validate	-	absent	encrypt one key under another key	2	shield(key, wrapping_key) -> text	yes
-D	kagi?	strength	pure	strength(key) -> bits	validate	-	absent	security bits a key or parameter set gives	2		na
-D	kagi?	stretch	pure	stretch(password, salt, opts) -> key	resource,validate	x-crypto	absent	password to key with a memory-hard function	1		na
-D	kagi?	unlock	effect	unlock(envelope, opts) -> bytes	error,resource	cofre	absent	open an envelope by asking for its data key	2		na
-D	kagi?	unseal	pure	unseal(envelope, key, opts) -> bytes	error,validate	-	absent	decrypt and check; raises :tampered on a bad tag	1	unseal(envelope, key, opts) -> bytes	yes
-D	kagi?	unwrap	pure	unwrap(text, wrapping_key) -> key	error,validate	-	absent	recover a key wrapped under another key	2		na
-D	kagi?	zeroize	effect	zeroize(secret) -> nil	resource	-	absent	overwrite secret bytes in memory (needs runtime support)	3		na
 F	kaihatsu?	bootstrap	effect	bootstrap(project, opts) -> nil	idempotent,process	-	absent	make a fresh checkout ready to build and test	2	bootstrap(project, statistic, rng, n) -> nil	no
 F	kaihatsu?	doctor	effect	doctor(env) -> [problem]	capability,process	-	absent	check the tools, versions and access a project needs	2		na
 F	kaihatsu?	gate	effect	gate(project, event) -> verdict	process,test	blue	absent	run the steps declared for an event; any red stops it	1	gate(project, event) -> verdict	yes
@@ -1074,18 +1068,6 @@ F	kaihatsu?	repl	effect	repl(opts) -> nil	capability	blue-lang-cli	rust:blue-lan
 F	kaihatsu?	run	effect	run(task, opts) -> result	deadline,process	-	absent	run one declared task in the project environment	2	run(task, opts) -> result	yes
 F	kaihatsu?	tasks	pure	tasks(project) -> [task]	-	-	absent	the named tasks a project declares	2		na
 F	kaihatsu?	watch	stream	watch(paths, task) -> nil	cancel	blue-lang-cli	rust:blue-lang-cli	rerun a task when watched files change	0	watch(paths, task) -> nil	yes
-F	kaiseki?	call_graph	pure	call_graph(source) -> graph	-	blue-lang-mondou	rust:blue-lang-mondou	who calls whom in a source	2		na
-F	kaiseki?	census	effect	census(root, opts) -> counts	test	blue-lang-cli	rust:blue-lang-cli	count each ratcheted finding under a root	0		na
-F	kaiseki?	check	pure	check(source, opts) -> [finding]	error,validate	blue-lang-check	rust:blue-lang-check	findings of every rule on a source, in one pass	0	check(source, opts) -> [finding]	yes
-F	kaiseki?	clones	pure	clones(sources, opts) -> [group]	-	-	absent	near-duplicate code, grouped	2		na
-F	kaiseki?	complexity	pure	complexity(definition) -> number	-	-	absent	a size and branching measure of one definition	2		na
-F	kaiseki?	explain	pure	explain(code) -> text	-	blue-lang-cli	rust:blue-lang-cli	what a rule code means, with its witness	0	explain(code) -> text	yes
-F	kaiseki?	fix	pure	fix(findings, source) -> source	migrate	blue-lang-check	rust:blue-lang-check	apply the safe fixes that findings carry	1		na
-F	kaiseki?	format	pure	format(source, opts) -> text	serialize	blue-lang-fmt	rust:blue-lang-fmt	the one canonical layout of a source	0		na
-F	kaiseki?	formatted?	pure	formatted?(source) -> Bool	validate	blue-lang-fmt	rust:blue-lang-fmt	whether a source is already in canonical layout	0		na
-F	kaiseki?	list	pure	list(kind) -> [row]	-	blue-lang-check	rust:blue-lang-check	the rules, with code, severity and law	0	list(kind) -> [row]	yes
-F	kaiseki?	scan	effect	scan(subject, opts) -> [finding]	capability,deadline	cse-lint	absent	look for secrets, advisories or licence problems	2	scan(subject, opts) -> [finding]	yes
-F	kaiseki?	unused	pure	unused(project) -> [name]	-	blue-lang-check	rust:blue-lang-check	definitions nothing reaches	1		na
 F	kakikae?	apply	effect	apply(edits, opts) -> nil	idempotent,migrate	blue-lang-cli	rust:blue-lang-cli	write edits, each file only if its tree stays proven	1	apply(edits, opts) -> nil	yes
 F	kakikae?	deprecate	decl	deprecate(name, replacement, until) -> row	migrate,switch	-	absent	mark a name as replaced, with a date it goes	2		na
 F	kakikae?	inline	pure	inline(project, name) -> [edit]	migrate	-	absent	the edits that put a definition at each use	2		na
@@ -1098,18 +1080,36 @@ F	kakikae?	rename	pure	rename(project, from, to) -> [edit]	migrate	blue-lang-mon
 F	kakikae?	replace	pure	replace(tree, pattern, template) -> tree	migrate	-	absent	structural search and replace over a tree	2		na
 F	kakikae?	rewrite	pure	rewrite(tree, rule) -> tree	migrate	-	rust:blue-lang-runtime	apply a term rewrite rule to a tree	1		na
 F	kakikae?	undo	effect	undo(edits) -> nil	migrate	-	absent	restore the files an apply changed	2		na
-D	kakuri?	confine	effect	confine(f, profile, opts) -> value	capability,deadline,error,process	sui	absent	run a function or command inside a profile	2		na
-D	kakuri?	drop	effect	drop(privileges) -> nil	capability,process	-	absent	give up privileges for good	3	drop(privileges, n) -> nil	no
-D	kakuri?	egress	decl	egress(rules) -> rules	capability,config	-	absent	which hosts and ports a run may reach	2		na
-D	kakuri?	elevate	decl	elevate(profile, why, until) -> profile	log,switch,time	sekiban	absent	time-boxed, logged widening set by the root only	3		na
-D	kakuri?	embed	effect	embed(module, profile, opts) -> instance	capability,resource	blue-lang-wasm	absent	run a WASM module with exactly the granted imports	3	embed(module, profile, opts) -> instance	yes
-D	kakuri?	exceeds	pure	exceeds(observed, profile) -> [access]	trace,validate	-	absent	accesses a profile did not grant	3		na
-D	kakuri?	filter	decl	filter(syscalls) -> filter	capability,config	-	absent	allow-list of system calls (seccomp)	4	filter(syscalls, f, opts) -> filter	no
-D	kakuri?	learn	effect	learn(command, opts) -> profile	process,trace	-	absent	run once, record what it touched, as a profile	3		na
-D	kakuri?	limit	decl	limit(resource, amount) -> limit	config,deadline,resource	-	absent	cap CPU, memory, files or time for a run	2	limit(resource, amount) -> limit	yes
-D	kakuri?	profile	decl	profile(name, allow, opts) -> profile	capability,config	blue-lang-waku	absent	what a run may touch: paths, hosts, processes	1	profile(name, opts) -> profile	no
-D	kakuri?	scrub_env	pure	scrub_env(env, keep) -> env	validate	-	absent	environment with everything but the kept names removed	1		na
-D	kakuri?	tighten	pure	tighten(profile, observed) -> profile	validate	-	absent	narrowest profile that still permits what was observed	3		na
+B	kakunou?	batch	effect	batch(store, ops) -> [result]	error,idempotent	-	absent	apply many writes atomically or none	3	batch(store, ops) -> [result]	yes
+B	kakunou?	clear	effect	clear(store, prefix) -> count	error	-	absent	delete every key under a prefix	3	clear(store, prefix) -> count	yes
+B	kakunou?	close	effect	close(store) -> nil	resource	-	absent	release the store	2	close(store) -> nil	yes
+B	kakunou?	compact	effect	compact(store) -> nil	cancel,resource	-	absent	reclaim space held by deleted entries	4	compact(store) -> nil	yes
+B	kakunou?	count	effect	count(store, opts) -> number	deadline,error	-	absent	how many keys lie under a prefix	2	count(store, opts) -> number	yes
+B	kakunou?	create	effect	create(store, key, value, opts) -> value	error,idempotent	-	absent	set a key only if it is absent	2	create(store, key, value, opts) -> value	yes
+B	kakunou?	delete	effect	delete(store, key) -> nil	error,idempotent	pleme-redis	absent	make the key absent; absent counts as done	2	delete(store, key) -> nil	yes
+B	kakunou?	expire	effect	expire(store, key, ttl) -> nil	idempotent,time	pleme-redis	absent	make a key vanish after a duration	2		na
+B	kakunou?	export	stream	export(store, f, opts) -> count	cancel,error	-	absent	call f per entry for a full copy out	3	export(store, f, opts) -> count	yes
+B	kakunou?	get	effect	get(store, key, opts) -> value or nil	deadline,error,trace	pleme-redis	absent	the value at a key, or nil when absent	2	get(store, key, opts) -> value or nil	yes
+B	kakunou?	get_many	effect	get_many(store, keys) -> map	deadline,error	-	absent	the values of many keys in one round trip	2		na
+B	kakunou?	has?	effect	has?(store, key) -> Bool	deadline	-	absent	whether a key is present	2	has?(store, key) -> Bool	yes
+B	kakunou?	import	effect	import(store, entries, opts) -> count	error,idempotent	-	absent	load many entries in bulk	3	import(store, entries, opts) -> count	yes
+B	kakunou?	increment	effect	increment(store, key, by) -> number	error,idempotent	pleme-redis	absent	add to a counter atomically and return it	2		na
+B	kakunou?	index	effect	index(store, field, opts) -> nil	error,idempotent	-	absent	declare a secondary index on a document field	3	index(store, field, opts) -> nil	yes
+B	kakunou?	info	effect	info(store) -> {keys, bytes, engine}	-	-	absent	size and engine facts of the store as a record	3	info(store) -> {keys, bytes, engine}	yes
+B	kakunou?	keys	effect	keys(store, opts) -> [key]	deadline,error	-	absent	every key under a prefix, sorted	2	keys(store, opts) -> [key]	yes
+B	kakunou?	list	effect	list(store, opts) -> [{key, value}]	deadline,error	-	absent	every entry under a prefix, all pages, sorted	2	list(store, opts) -> [{key, value}]	yes
+B	kakunou?	need	effect	need(store, key, opts) -> value	deadline,error	-	absent	the value at a key, raising not_found	2	need(store, key, opts) -> value	yes
+B	kakunou?	open	effect	open(spec) -> store	capability,config,resource	pleme-redis	absent	connect to an embedded, Redis, etcd or document store	2	open(spec) -> store	yes
+B	kakunou?	patch	effect	patch(store, key, patch) -> doc	error,idempotent	-	absent	deep-merge a patch into the stored document	3	patch(store, key, opts) -> doc	no
+B	kakunou?	put	effect	put(store, key, value, opts) -> value	deadline,error,idempotent	pleme-redis	absent	create or replace the value at a key	2	put(store, key, value, opts) -> value	yes
+B	kakunou?	query	effect	query(store, filter, opts) -> [doc]	deadline,error	-	absent	documents matching a filter record, sorted	3	query(store, filter, opts) -> [doc]	yes
+B	kakunou?	range	effect	range(store, from, to, opts) -> [{key, value}]	deadline,error	-	absent	entries between two keys in key order	3	range(store, from, to, opts) -> [{key, value}]	yes
+B	kakunou?	snapshot	effect	snapshot(store) -> view	resource	-	absent	a read-only view frozen at one moment	3	snapshot(store) -> view	yes
+B	kakunou?	swap	effect	swap(store, key, expected, new) -> Bool	error,idempotent	-	absent	set new only if the value equals expected	2		na
+B	kakunou?	ttl	effect	ttl(store, key) -> duration or nil	time	pleme-redis	absent	time left before a key vanishes, or nil	2		na
+B	kakunou?	update	effect	update(store, key, f, opts) -> value	error,idempotent,retry	-	absent	replace a value with f(old); conflict if it moved	2	update(store, key, f, opts) -> value	yes
+B	kakunou?	watch	stream	watch(store, f, opts) -> nil	cancel,deadline	-	absent	call f per key change under a prefix	3	watch(store, f, opts) -> nil	yes
+B	kakunou?	with_transaction	effect	with_transaction(store, f, opts) -> value	error,resource,retry	-	absent	run f against a consistent view; commit or abandon	3		na
 A	kakuritsu?	bayes	pure	bayes(prior, likelihood, evidence) -> number	-	-	absent	posterior chance after seeing evidence	3		na
 A	kakuritsu?	bootstrap	pure	bootstrap(data, statistic, rng, n) -> record	-	-	absent	resampled spread of a statistic	3	bootstrap(data, statistic, rng, n) -> record	yes
 A	kakuritsu?	bytes	pure	bytes(rng, n) -> record	-	-	absent	n pseudo-random bytes and the next stream	1		na
@@ -1145,27 +1145,6 @@ A	kansuu	once	pure	once(f) -> function	idempotent	-	absent	function that runs f 
 A	kansuu	partial	pure	partial(f, args) -> function	-	-	absent	function with leading arguments fixed	1		na
 A	kansuu	pipe	pure	pipe(x, fs) -> value	-	-	exists:kansuu	pass a value through functions left to right	0	pipe(x, opts) -> value	no
 A	kansuu	tap	pure	tap(x, f) -> x	-	-	exists:kansuu	call f for its effect, return x	0		na
-A	katachi?	coerce	pure	coerce(value, schema) -> value	error,validate	-	absent	convert text and numbers to the schema's types	2		na
-A	katachi?	compatible?	pure	compatible?(old, new, direction) -> Bool	migrate	-	absent	whether data moves between versions safely	3		na
-A	katachi?	conforms?	pure	conforms?(value, schema) -> Bool	validate	-	absent	whether the value matches the schema	2		na
-A	katachi?	defaults	pure	defaults(schema) -> value	-	-	absent	a value filled with every declared default	2	defaults(schema) -> value	yes
-A	katachi?	describe	pure	describe(schema) -> text	-	-	absent	schema in prose for a human	3	describe(schema) -> text	yes
-A	katachi?	diff	pure	diff(old, new) -> [change]	-	-	absent	how two schemas differ, field by field	3	diff(old, new) -> [change]	yes
-A	katachi?	enum_of	decl	enum_of(values) -> shape	validate	-	absent	shape of one value from a closed set	2		na
-A	katachi?	example	pure	example(schema, seed) -> value	-	-	absent	a valid value generated from the schema	3		na
-A	katachi?	explain	pure	explain(value, schema) -> [problem]	validate	-	absent	every problem as path and reason	2	explain(value, schema) -> [problem]	yes
-A	katachi?	fields	pure	fields(schema) -> [field]	-	-	absent	name, shape and default of each field	2		na
-A	katachi?	infer	pure	infer(values, opts) -> schema	-	-	absent	schema that fits a set of example values	3		na
-A	katachi?	list_of	decl	list_of(shape) -> shape	validate	-	absent	shape of a list of one shape	2		na
-A	katachi?	map_of	decl	map_of(key, value) -> shape	validate	-	absent	shape of a map with typed keys and values	2		na
-A	katachi?	one_of	decl	one_of(shapes) -> shape	validate	-	absent	shape of a value matching any listed shape	2		na
-A	katachi?	optional	decl	optional(shape) -> shape	validate	-	absent	shape that also accepts nil	2		na
-A	katachi?	parse	pure	parse(text, format) -> schema	error	-	absent	JSON Schema text to a schema	3	parse(text, format) -> schema	yes
-A	katachi?	refine	decl	refine(shape, predicate, why) -> shape	validate	-	absent	shape narrowed by a predicate with a reason	2		na
-A	katachi?	render	pure	render(schema, format) -> text	serialize	haibi	partial:haibi	schema as JSON Schema text	2	render(schema, format) -> text	yes
-A	katachi?	schema	decl	schema(name, shape) -> schema	validate	-	absent	declare a named type as data	2	schema(name) -> schema	no
-A	katachi?	shape	decl	shape(fields) -> shape	validate	-	absent	shape of a record with named typed fields	2	shape(fields) -> shape	yes
-A	katachi?	validate	pure	validate(value, schema) -> value	error,validate	-	absent	return the value or raise every problem at once	2	validate(value, schema) -> value	yes
 A	kazu	abs	pure	abs(n) -> number	-	-	exists:kazu	distance from zero	0		na
 A	kazu	atan2	pure	atan2(y, x) -> number	-	-	absent	angle of a point from the x axis	1		na
 A	kazu	ceil	pure	ceil(n) -> int	-	-	absent	least integer not below n	1		na
@@ -1304,62 +1283,31 @@ G	kensaku?	similarity	pure	similarity(a, b, metric) -> number	-	codesearch	absen
 G	kensaku?	support?	effect	support?(answer, hits) -> {supported, gaps}	deadline	-	absent	whether the sources back every claim in an answer	3		na
 G	kensaku?	sync	effect	sync(index, source, opts) -> report	idempotent,resource	codesearch	absent	bring an index level with its source, changes only	2	sync(index, source, opts) -> report	yes
 G	kensaku?	watch	stream	watch(index, source, opts) -> nil	cancel	codesearch	absent	keep an index fresh as the source changes	3	watch(index, source, opts) -> nil	yes
-F	kentei?	affected	pure	affected(changes, graph) -> [test]	test	-	absent	the tests that depend on changed code	3		na
-F	kentei?	assert	effect	assert(expr) -> nil	error,test	blue-lang-test	rust:blue-lang-test	fail the test with a structural diff when expr is false	0		na
-F	kentei?	calls	pure	calls(spy) -> [call]	test	-	absent	the recorded calls of a spy, in order	2		na
-F	kentei?	case	decl	case(name, f) -> test	test	blue-lang-test	rust:blue-lang-test	declare one named test	0	case(name, f) -> test	yes
-F	kentei?	conforms?	effect	conforms?(provider, contract) -> verdict	test	-	absent	whether a provider meets a contract	3		na
-F	kentei?	contract	decl	contract(consumer, provider, interactions) -> contract	test,validate	-	absent	declare what a consumer expects of a provider	3		na
-F	kentei?	cover	effect	cover(target, opts) -> coverage	resource,test	-	absent	run tests and record which code ran	3		na
-F	kentei?	fake	effect	fake(target, impl, f) -> value	capability,test	-	absent	replace a dependency by a fake while f runs	2		na
-F	kentei?	fixture	effect	fixture(name) -> content	test	pleme-testing	absent	read a file kept beside the test	0		na
-F	kentei?	flaky?	pure	flaky?(history, test) -> Bool	test	-	absent	whether a test both passed and failed on one revision	2		na
-F	kentei?	freeze	effect	freeze(instant, f) -> value	test,time	-	absent	run f with the clock fixed at an instant	1	freeze(instant, f) -> value	yes
-F	kentei?	fuzz	effect	fuzz(target, opts) -> [crash]	deadline,resource,test	caixa-cargo-fuzz	absent	feed generated inputs until something fails or time ends	3		na
-F	kentei?	list	effect	list(target, opts) -> [test]	test	blue-lang-test	absent	the tests under a target without running them	1	list(target, opts) -> [test]	yes
-F	kentei?	merge	pure	merge(a, b) -> coverage	test	-	absent	combine coverage from several runs or shards	3	merge(a, b) -> coverage	yes
-F	kentei?	parse	pure	parse(text, format) -> report	serialize,test	-	absent	a JUnit or TAP report to a record	3	parse(text, format) -> report	yes
-F	kentei?	quarantine	effect	quarantine(test, reason, until) -> nil	switch,test	-	absent	skip a flaky test by a dated, counted entry	2		na
-F	kentei?	raises?	pure	raises?(kind, f) -> Bool	error,test	blue-lang-test	absent	whether f raises that kind of error	0		na
-F	kentei?	render	pure	render(report, format) -> text	serialize,test	-	absent	a test report as text, JUnit or TAP	2	render(report, format) -> text	yes
-F	kentei?	rerun	effect	rerun(test, n) -> [result]	retry,test	-	absent	run one test again n times and keep every result	2		na
-F	kentei?	run	effect	run(target, opts) -> report	deadline,process,test	blue-lang-test	rust:blue-lang-test	run every test under a target in parallel	0	run(target, opts) -> report	yes
-F	kentei?	shard	pure	shard(tests, n, i) -> [test]	test	-	absent	the i-th of n balanced groups of tests	2		na
-F	kentei?	snapshot	effect	snapshot(value, name) -> nil	serialize,test	blue-lang-test	absent	compare a value with its stored copy; update on request	0	snapshot(value, opts) -> nil	no
-F	kentei?	spy	effect	spy(target, f) -> spy	test	-	absent	wrap a function so its calls are recorded	2		na
-F	kentei?	uncovered	pure	uncovered(coverage) -> [span]	test	-	absent	code that no test reached	3		na
-F	kentei?	watch	stream	watch(paths, opts) -> nil	cancel,test	blue-lang-cli	rust:blue-lang-cli	rerun tests when a watched file changes	0	watch(paths, f, opts) -> nil	no
-F	kettei?	decide	effect	decide(record, outcome, why) -> record	log	okite	partial:okite	accept, reject or defer a record, with the reason	3	decide(record, outcome, why) -> record	yes
-F	kettei?	due?	pure	due?(record, facts) -> Bool	time	-	absent	whether a revisit trigger has fired	3	due?(record, facts) -> Bool	yes
-F	kettei?	enforce	decl	enforce(record, laws) -> row	test	okite	partial:okite	bind a decision to the laws that keep it true	2		na
-F	kettei?	get	effect	get(store, id) -> record or nil	-	-	partial:okite	one decision record or nil	3	get(store, id) -> record or nil	yes
-F	kettei?	link	effect	link(record, to, kind) -> nil	-	-	absent	relate a decision to code, tests or another record	3	link(record, to, kind) -> nil	yes
-F	kettei?	list	effect	list(store, filter) -> [record]	-	-	absent	decisions by state, area or date, sorted	3	list(store, opts) -> [record]	no
-F	kettei?	propose	effect	propose(title, context, options) -> record	idempotent	-	absent	write a new decision record in proposed state	3		na
-F	kettei?	render	pure	render(record, format) -> text	serialize	-	absent	a record as a stable document	3	render(record, format) -> text	yes
-F	kettei?	revisit	decl	revisit(record, trigger) -> row	time	-	absent	name the event or date that reopens a decision	3		na
-F	kettei?	supersede	effect	supersede(old, new) -> nil	log	-	absent	mark a record replaced by a newer one	3		na
+F	kenshutsu?	call_graph	pure	call_graph(source) -> graph	-	blue-lang-mondou	rust:blue-lang-mondou	who calls whom in a source	2		na
+F	kenshutsu?	census	effect	census(root, opts) -> counts	test	blue-lang-cli	rust:blue-lang-cli	count each ratcheted finding under a root	0		na
+F	kenshutsu?	check	pure	check(source, opts) -> [finding]	error,validate	blue-lang-check	rust:blue-lang-check	findings of every rule on a source, in one pass	0	check(source, opts) -> [finding]	yes
+F	kenshutsu?	clones	pure	clones(sources, opts) -> [group]	-	-	absent	near-duplicate code, grouped	2		na
+F	kenshutsu?	complexity	pure	complexity(definition) -> number	-	-	absent	a size and branching measure of one definition	2		na
+F	kenshutsu?	explain	pure	explain(code) -> text	-	blue-lang-cli	rust:blue-lang-cli	what a rule code means, with its witness	0	explain(code) -> text	yes
+F	kenshutsu?	fix	pure	fix(findings, source) -> source	migrate	blue-lang-check	rust:blue-lang-check	apply the safe fixes that findings carry	1		na
+F	kenshutsu?	format	pure	format(source, opts) -> text	serialize	blue-lang-fmt	rust:blue-lang-fmt	the one canonical layout of a source	0		na
+F	kenshutsu?	formatted?	pure	formatted?(source) -> Bool	validate	blue-lang-fmt	rust:blue-lang-fmt	whether a source is already in canonical layout	0		na
+F	kenshutsu?	list	pure	list(kind) -> [row]	-	blue-lang-check	rust:blue-lang-check	the rules, with code, severity and law	0	list(kind) -> [row]	yes
+F	kenshutsu?	scan	effect	scan(subject, opts) -> [finding]	capability,deadline	cse-lint	absent	look for secrets, advisories or licence problems	2	scan(subject, opts) -> [finding]	yes
+F	kenshutsu?	unused	pure	unused(project) -> [name]	-	blue-lang-check	rust:blue-lang-check	definitions nothing reaches	1		na
+F	ketsugi?	decide	effect	decide(record, outcome, why) -> record	log	okite	partial:okite	accept, reject or defer a record, with the reason	3	decide(record, outcome, why) -> record	yes
+F	ketsugi?	due?	pure	due?(record, facts) -> Bool	time	-	absent	whether a revisit trigger has fired	3	due?(record, facts) -> Bool	yes
+F	ketsugi?	enforce	decl	enforce(record, laws) -> row	test	okite	partial:okite	bind a decision to the laws that keep it true	2		na
+F	ketsugi?	get	effect	get(store, id) -> record or nil	-	-	partial:okite	one decision record or nil	3	get(store, id) -> record or nil	yes
+F	ketsugi?	link	effect	link(record, to, kind) -> nil	-	-	absent	relate a decision to code, tests or another record	3	link(record, to, kind) -> nil	yes
+F	ketsugi?	list	effect	list(store, filter) -> [record]	-	-	absent	decisions by state, area or date, sorted	3	list(store, opts) -> [record]	no
+F	ketsugi?	propose	effect	propose(title, context, options) -> record	idempotent	-	absent	write a new decision record in proposed state	3		na
+F	ketsugi?	render	pure	render(record, format) -> text	serialize	-	absent	a record as a stable document	3	render(record, format) -> text	yes
+F	ketsugi?	revisit	decl	revisit(record, trigger) -> row	time	-	absent	name the event or date that reopens a decision	3		na
+F	ketsugi?	supersede	effect	supersede(old, new) -> nil	log	-	absent	mark a record replaced by a newer one	3		na
 G	kiban	board	decl	board(name) -> board	validate	blue-native	rust:kiban	a board spec: memory regions and devices	0		na
 G	kiban	device	decl	device(name, kind, base) -> device	validate	blue-native	rust:kiban	a device on a board, with its base address	0		na
 G	kiban	get	pure	get(board, name) -> device or nil	-	blue-native	rust:kiban	the base address of a named device	0	get(board, name) -> device or nil	yes
-E	kiban?	apply	effect	apply(plan, opts) -> result	capability,error,log	-	absent	carry out a reviewed plan, gated and logged	3	apply(plan, opts) -> result	yes
-E	kiban?	check	pure	check(stack) -> [finding]	test,validate	pangea-sim	absent	refuse a bad stack before any plan	1	check(stack) -> [finding]	yes
-E	kiban?	claim	effect	claim(stack, opts) -> lease	capability,deadline	-	absent	claim the state against a second writer	2	claim(stack, opts) -> lease	yes
-E	kiban?	declare	decl	declare(name, resources) -> stack	config,validate	pangea-core	absent	infrastructure as typed resources	1	declare(name, resources) -> stack	yes
-E	kiban?	destroy	effect	destroy(stack, opts) -> result	capability,log	-	absent	remove everything a stack owns	3		na
-E	kiban?	diff	pure	diff(a, b) -> [change]	-	-	absent	differences between two plans or stacks	1	diff(a, b) -> [change]	yes
-E	kiban?	drift	effect	drift(stack) -> [difference]	error,time	pangea-operator	absent	where real state left the declaration	2	drift(stack) -> [difference]	yes
-E	kiban?	get	effect	get(stack, address) -> resource or nil	error	-	absent	one resource in state, nil when absent	1	get(stack, address) -> resource or nil	yes
-E	kiban?	graph	pure	graph(stack) -> graph	-	-	absent	resource dependencies	2	graph(stack) -> graph	yes
-E	kiban?	import	effect	import(stack, resource, id) -> state	error,idempotent	-	absent	adopt an existing resource into a stack	3	import(stack, resource, opts) -> state	no
-E	kiban?	list	effect	list(stack, opts) -> [resource]	error	-	absent	resources a stack holds	1	list(stack, opts) -> [resource]	yes
-E	kiban?	move	effect	move(stack, from, to) -> nil	idempotent	-	absent	rename a resource without recreating it	3	move(stack, from, opts) -> nil	no
-E	kiban?	output	effect	output(stack, name) -> value	error	-	absent	a value a stack exports	1		na
-E	kiban?	plan	effect	plan(stack, opts) -> plan	deadline,error,idempotent	pangea-operator	absent	what apply would create, change and delete	1	plan(stack, opts) -> plan	yes
-E	kiban?	refresh	effect	refresh(stack) -> state	error	-	absent	read real state back into the record	2	refresh(stack) -> state	yes
-E	kiban?	render	pure	render(stack, format) -> text	serialize	pangea-core	absent	a stack in the planner's input format	1	render(stack, format) -> text	yes
-E	kiban?	test	effect	test(stack, suite) -> report	test	kensa	absent	prove a stack against its compliance suite	3	test(stack, suite) -> report	yes
-E	kiban?	unlock	effect	unlock(lease) -> nil	idempotent	-	absent	give up a state claim	2		na
 E	kijun	check	effect	check(repo, config) -> [finding]	test,validate	kijun	exists:kijun	hold a repo to its standard, findings as data	0	check(repo, config) -> [finding]	yes
 E	kijun	explain	pure	explain(rule) -> text	-	kijun	partial:kijun	why a rule exists and how to fix it	1	explain(rule) -> text	yes
 E	kijun	list	pure	list(config) -> [rule]	config	kijun	partial:kijun	rules a standard enforces	1	list(config) -> [rule]	yes
@@ -1431,23 +1379,6 @@ F	kiwari	render	pure	render(grammar, target) -> text	serialize	blue-lang-kiwari	
 F	kiwari	rep	decl	rep(item) -> expr	-	blue-lang-kiwari	exists:kiwari	zero or more of an item	0		na
 F	kiwari	rule	decl	rule(name, body, lower) -> rule	validate	blue-lang-kiwari	exists:kiwari	declare one grammar production	0	rule(name, body, lower) -> rule	yes
 F	kiwari	seq	decl	seq(items) -> expr	-	blue-lang-kiwari	exists:kiwari	items in order	0		na
-F	kobun?	children	pure	children(node) -> [node]	-	-	rust:blue-lang-syntax	the direct children of a node, in order	0		na
-F	kobun?	diff	pure	diff(a, b) -> [change]	-	-	absent	tree changes between two sources, not text lines	2	diff(a, b) -> [change]	yes
-F	kobun?	edit	pure	edit(tree, range, text) -> tree	-	-	absent	a new tree after a text change, reusing the rest	3		na
-F	kobun?	errors	pure	errors(tree) -> [error]	error	blue-lang-syntax	rust:blue-lang-syntax	the error nodes of a tree with expected tokens	1		na
-F	kobun?	grammar	pure	grammar(spec) -> parser	validate	blue-lang-kiwari	partial:kiwari	a parser built from a grammar spec	2	grammar(spec) -> parser	yes
-F	kobun?	hash	pure	hash(tree) -> text	serialize	blue-lang-mondou	rust:blue-lang-mondou	identity of a tree; a definition hashes with its callees	0	hash(tree) -> text	yes
-F	kobun?	highlight	pure	highlight(tree) -> [span]	-	blue-lang-kiwari	partial:kiwari	spans tagged with a role such as keyword or name	1	highlight(tree) -> [span]	yes
-F	kobun?	kind	pure	kind(node) -> name	-	blue-lang-syntax	rust:blue-lang-syntax	the grammar name of a node	0	kind(node) -> name	yes
-F	kobun?	lex	pure	lex(source, lang) -> [token]	-	blue-lang-syntax	rust:blue-lang-syntax	source text to tokens with positions	0		na
-F	kobun?	normalize	pure	normalize(tree) -> tree	serialize	blue-lang-syntax	rust:blue-lang-syntax	the canonical tree for equivalent surface forms	1	normalize(tree) -> tree	yes
-F	kobun?	parent	pure	parent(tree, node) -> node or nil	-	-	absent	the node that holds a node, or nil at the root	1	parent(tree, node) -> node or nil	yes
-F	kobun?	parse	pure	parse(source, lang) -> tree	error,validate	blue-lang-syntax	rust:blue-lang-syntax	source text to a tree with spans; error nodes kept	0	parse(source, lang) -> tree	yes
-F	kobun?	query	pure	query(tree, pattern) -> [match]	-	-	absent	nodes that match a structural pattern	2	query(tree, pattern) -> [match]	yes
-F	kobun?	render	pure	render(tree, lang) -> text	serialize	blue-lang-fmt	rust:blue-lang-fmt	a tree back to source text	0	render(tree, lang) -> text	yes
-F	kobun?	span	pure	span(node) -> range	-	blue-lang-syntax	rust:blue-lang-syntax	the start and end position of a node	0		na
-F	kobun?	text	pure	text(node) -> text	-	-	rust:blue-lang-syntax	the source text under a node	0	text(node) -> text	yes
-F	kobun?	walk	pure	walk(tree, order) -> [node]	-	blue-lang-syntax	rust:blue-lang-syntax	every node in a fixed order	0	walk(tree, opts) -> [node]	no
 A	kokusai?	catalog	decl	catalog(entries) -> catalog	validate	pleme-i18n	absent	declare message texts per locale	3		na
 A	kokusai?	collate	pure	collate(locale, a, b) -> int	-	-	absent	order two texts by a locale's alphabet	3		na
 A	kokusai?	coverage	pure	coverage(catalog, locales) -> record	validate	namimado	absent	keys each locale lacks	3	coverage(catalog, locales) -> record	yes
@@ -1462,23 +1393,41 @@ A	kokusai?	phrase	pure	phrase(locale, items) -> text	-	-	absent	items joined as 
 A	kokusai?	plural	pure	plural(locale, n) -> symbol	-	-	absent	CLDR plural category of a number	3		na
 A	kokusai?	relative	pure	relative(locale, duration) -> text	time	-	absent	a duration as "3 days ago" in a locale	3		na
 A	kokusai?	translate	pure	translate(catalog, key, args, opts) -> text	error	pleme-i18n	absent	message for a key in a locale, with fallbacks	3	translate(catalog, key, args, opts) -> text	yes
-E	konteina?	build	effect	build(spec, opts) -> image	cache,error,process	-	absent	make an image from a spec, no daemon	2	build(spec, opts) -> image	yes
-E	konteina?	check	effect	check(ref, policy) -> [finding]	validate	lacre	absent	refuse an image holding a shell, root user or extras	2	check(ref, policy) -> [finding]	yes
-E	konteina?	combine	effect	combine(refs, name) -> digest	idempotent	multi-arch-image-release	absent	one multi-arch index from per-arch images	1		na
-E	konteina?	copy	effect	copy(from, to, opts) -> digest	idempotent,retry	multi-arch-image-release	absent	move an image between registries without unpacking	1	copy(from, to, opts) -> digest	yes
-E	konteina?	delete	effect	delete(ref) -> nil	idempotent	-	absent	remove a tag or manifest	2	delete(ref) -> nil	yes
-E	konteina?	diff	effect	diff(a, b) -> [change]	-	-	absent	files and packages that differ between images	2	diff(a, b) -> [change]	yes
-E	konteina?	export	effect	export(ref, dir) -> nil	error	-	absent	unpack an image's filesystem	3	export(ref, dir) -> nil	yes
-E	konteina?	gc	effect	gc(repo, opts) -> {freed:}	idempotent,resource	-	absent	drop untagged and unreferenced blobs	3		na
-E	konteina?	info	effect	info(ref) -> record	cache,error	-	absent	manifest, config and size of an image	1	info(ref) -> record	yes
-E	konteina?	layers	effect	layers(ref) -> [layer]	error	-	absent	layer digests, sizes and commands	1		na
-E	konteina?	list	effect	list(repo, opts) -> [tag]	error,ratelimit	-	absent	tags in a repository, all pages	1	list(repo, opts) -> [tag]	yes
-E	konteina?	pull	effect	pull(ref, dir, opts) -> image	cache,deadline,retry	-	absent	fetch an image by digest	2		na
-E	konteina?	push	effect	push(image, ref, opts) -> digest	deadline,idempotent,retry	-	absent	upload an image, return its digest	2	push(image, ref, opts) -> digest	yes
-E	konteina?	render	pure	render(spec) -> text	serialize	-	absent	image spec in the build tool's own syntax	3	render(spec) -> text	yes
-E	konteina?	resolve	effect	resolve(ref) -> digest	cache,error	-	absent	turn a tag into its digest	1	resolve(ref) -> digest	yes
-E	konteina?	run	effect	run(ref, args, opts) -> result	capability,deadline,process	-	absent	run an image once and return its result	3	run(ref, args, opts) -> result	yes
-E	konteina?	tag	effect	tag(ref, name) -> nil	idempotent	-	absent	add a tag to a digest	1	tag(ref, name) -> nil	yes
+F	koubun?	children	pure	children(node) -> [node]	-	-	rust:blue-lang-syntax	the direct children of a node, in order	0		na
+F	koubun?	diff	pure	diff(a, b) -> [change]	-	-	absent	tree changes between two sources, not text lines	2	diff(a, b) -> [change]	yes
+F	koubun?	edit	pure	edit(tree, range, text) -> tree	-	-	absent	a new tree after a text change, reusing the rest	3		na
+F	koubun?	errors	pure	errors(tree) -> [error]	error	blue-lang-syntax	rust:blue-lang-syntax	the error nodes of a tree with expected tokens	1		na
+F	koubun?	grammar	pure	grammar(spec) -> parser	validate	blue-lang-kiwari	partial:kiwari	a parser built from a grammar spec	2	grammar(spec) -> parser	yes
+F	koubun?	hash	pure	hash(tree) -> text	serialize	blue-lang-mondou	rust:blue-lang-mondou	identity of a tree; a definition hashes with its callees	0	hash(tree) -> text	yes
+F	koubun?	highlight	pure	highlight(tree) -> [span]	-	blue-lang-kiwari	partial:kiwari	spans tagged with a role such as keyword or name	1	highlight(tree) -> [span]	yes
+F	koubun?	kind	pure	kind(node) -> name	-	blue-lang-syntax	rust:blue-lang-syntax	the grammar name of a node	0	kind(node) -> name	yes
+F	koubun?	lex	pure	lex(source, lang) -> [token]	-	blue-lang-syntax	rust:blue-lang-syntax	source text to tokens with positions	0		na
+F	koubun?	normalize	pure	normalize(tree) -> tree	serialize	blue-lang-syntax	rust:blue-lang-syntax	the canonical tree for equivalent surface forms	1	normalize(tree) -> tree	yes
+F	koubun?	parent	pure	parent(tree, node) -> node or nil	-	-	absent	the node that holds a node, or nil at the root	1	parent(tree, node) -> node or nil	yes
+F	koubun?	parse	pure	parse(source, lang) -> tree	error,validate	blue-lang-syntax	rust:blue-lang-syntax	source text to a tree with spans; error nodes kept	0	parse(source, lang) -> tree	yes
+F	koubun?	query	pure	query(tree, pattern) -> [match]	-	-	absent	nodes that match a structural pattern	2	query(tree, pattern) -> [match]	yes
+F	koubun?	render	pure	render(tree, lang) -> text	serialize	blue-lang-fmt	rust:blue-lang-fmt	a tree back to source text	0	render(tree, lang) -> text	yes
+F	koubun?	span	pure	span(node) -> range	-	blue-lang-syntax	rust:blue-lang-syntax	the start and end position of a node	0		na
+F	koubun?	text	pure	text(node) -> text	-	-	rust:blue-lang-syntax	the source text under a node	0	text(node) -> text	yes
+F	koubun?	walk	pure	walk(tree, order) -> [node]	-	blue-lang-syntax	rust:blue-lang-syntax	every node in a fixed order	0	walk(tree, opts) -> [node]	no
+E	kouchiku?	apply	effect	apply(plan, opts) -> result	capability,error,log	-	absent	carry out a reviewed plan, gated and logged	3	apply(plan, opts) -> result	yes
+E	kouchiku?	check	pure	check(stack) -> [finding]	test,validate	pangea-sim	absent	refuse a bad stack before any plan	1	check(stack) -> [finding]	yes
+E	kouchiku?	claim	effect	claim(stack, opts) -> lease	capability,deadline	-	absent	claim the state against a second writer	2	claim(stack, opts) -> lease	yes
+E	kouchiku?	declare	decl	declare(name, resources) -> stack	config,validate	pangea-core	absent	infrastructure as typed resources	1	declare(name, resources) -> stack	yes
+E	kouchiku?	destroy	effect	destroy(stack, opts) -> result	capability,log	-	absent	remove everything a stack owns	3		na
+E	kouchiku?	diff	pure	diff(a, b) -> [change]	-	-	absent	differences between two plans or stacks	1	diff(a, b) -> [change]	yes
+E	kouchiku?	drift	effect	drift(stack) -> [difference]	error,time	pangea-operator	absent	where real state left the declaration	2	drift(stack) -> [difference]	yes
+E	kouchiku?	get	effect	get(stack, address) -> resource or nil	error	-	absent	one resource in state, nil when absent	1	get(stack, address) -> resource or nil	yes
+E	kouchiku?	graph	pure	graph(stack) -> graph	-	-	absent	resource dependencies	2	graph(stack) -> graph	yes
+E	kouchiku?	import	effect	import(stack, resource, id) -> state	error,idempotent	-	absent	adopt an existing resource into a stack	3	import(stack, resource, opts) -> state	no
+E	kouchiku?	list	effect	list(stack, opts) -> [resource]	error	-	absent	resources a stack holds	1	list(stack, opts) -> [resource]	yes
+E	kouchiku?	move	effect	move(stack, from, to) -> nil	idempotent	-	absent	rename a resource without recreating it	3	move(stack, from, opts) -> nil	no
+E	kouchiku?	output	effect	output(stack, name) -> value	error	-	absent	a value a stack exports	1		na
+E	kouchiku?	plan	effect	plan(stack, opts) -> plan	deadline,error,idempotent	pangea-operator	absent	what apply would create, change and delete	1	plan(stack, opts) -> plan	yes
+E	kouchiku?	refresh	effect	refresh(stack) -> state	error	-	absent	read real state back into the record	2	refresh(stack) -> state	yes
+E	kouchiku?	render	pure	render(stack, format) -> text	serialize	pangea-core	absent	a stack in the planner's input format	1	render(stack, format) -> text	yes
+E	kouchiku?	test	effect	test(stack, suite) -> report	test	kensa	absent	prove a stack against its compliance suite	3	test(stack, suite) -> report	yes
+E	kouchiku?	unlock	effect	unlock(lease) -> nil	idempotent	-	absent	give up a state claim	2		na
 A	kueri	asof_join	pure	asof_join(left, right, on) -> plan	validate	kueri	exists:kueri	join each left row to the nearest earlier right row	0		na
 A	kueri	count	pure	count(plan) -> plan	validate	kueri	absent	a plan that yields the row count	1	count(plan) -> plan	yes
 A	kueri	derive	pure	derive(plan, items) -> plan	validate	kueri	exists:kueri	add computed columns	0	derive(plan, items) -> plan	yes
@@ -1638,18 +1587,6 @@ D	kyoukyuu?	trust	decl	trust(name, keys, scope) -> root	config	tameshi	absent	wh
 E	kyoukyuu?	verify	effect	verify(subject, policy) -> verdict	capability,validate	sekiban	absent	check signatures and attestations against a policy	2	verify(subject, policy) -> verdict	yes
 D	kyoukyuu?	verify?	effect	verify?(artifact, signature, trust) -> Bool	resource,time,validate	tameshi-sigstore	absent	artifact signature checks against the trusted identities	2	verify?(artifact, signature, trust) -> Bool	yes
 D	kyoukyuu?	vex	decl	vex(finding, status, why) -> statement	config	security-contract	absent	a finding judged exploitable or not, with reason	2		na
-A	kyuu?	empty?	pure	empty?(queue) -> Bool	-	-	absent	whether nothing is waiting	2	empty?(queue) -> Bool	yes
-A	kyuu?	from	pure	from(kind, items, opts) -> queue	-	-	absent	queue filled from a list	2		na
-A	kyuu?	full?	pure	full?(queue) -> Bool	-	-	absent	whether a bounded queue is at capacity	2		na
-A	kyuu?	merge	pure	merge(a, b) -> queue	-	-	absent	one priority queue holding both	3	merge(a, b) -> queue	yes
-A	kyuu?	peek	pure	peek(queue) -> item or nil	-	-	absent	next item without removing it	2	peek(queue) -> item or nil	yes
-A	kyuu?	pop	pure	pop(queue) -> record	error	-	absent	next item and the remaining queue	2		na
-A	kyuu?	push	pure	push(queue, item, opts) -> queue	-	-	absent	queue with an item added; a full ring drops its oldest	2	push(queue, item, opts) -> queue	yes
-A	kyuu?	queue	decl	queue(kind, opts) -> queue	validate	-	absent	empty fifo, lifo, priority or ring queue	2		na
-A	kyuu?	reprioritize	pure	reprioritize(queue, item, priority) -> queue	error	-	absent	change the priority of a queued item	3		na
-A	kyuu?	size	pure	size(queue) -> int	-	-	absent	number of items waiting	2	size(queue) -> int	yes
-A	kyuu?	to_list	pure	to_list(queue) -> list	-	-	absent	items in pop order, queue unchanged	2		na
-A	kyuu?	unload	pure	unload(queue) -> list	-	-	absent	every item in pop order	2	unload(queue) -> list	yes
 C	kyuuji	body	pure	body(req, format) -> value	error,validate	-	absent	Parse the request body into a value.	1		na
 C	kyuuji	compress	pure	compress(handler, opts) -> handler	-	-	absent	Compress bodies by the client's Accept-Encoding.	3	compress(handler, opts) -> handler	yes
 C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	absent	Add cross-origin headers by policy.	2		na
@@ -1709,6 +1646,25 @@ C	messeeji?	retain	decl	retain(policy) -> config	config	-	absent	Declare how lon
 C	messeeji?	seek	effect	seek(consumer, position) -> nil	-	-	absent	Move a log reader to an offset, time or start.	2		na
 C	messeeji?	subscribe	stream	subscribe(bus, subject, f, opts) -> subscription	cancel,error	blue-lang-runtime	rust:blue-lang-runtime	Call f per message on a subject or group.	0	subscribe(bus, subject, f, opts) -> subscription	yes
 C	messeeji?	unsubscribe	effect	unsubscribe(subscription) -> nil	resource	blue-lang-runtime	rust:blue-lang-runtime	End a subscription.	0		na
+D	mimoto?	chain_of	effect	chain_of(chain, roots, opts) -> [cert]	error,time,validate	webpki	absent	valid chain from leaf to a trusted root, or :untrusted	2	chain_of(chain, roots, opts) -> [cert]	yes
+D	mimoto?	expires	pure	expires(cert) -> instant	time	-	absent	the end of a certificate's validity	2		na
+D	mimoto?	expiring?	pure	expiring?(cert, within, now) -> Bool	time	-	absent	certificate ends inside the given duration	2		na
+D	mimoto?	fingerprint	pure	fingerprint(cert) -> hex	validate	-	absent	hash of the public key, for pinning	2	fingerprint(cert) -> hex	yes
+D	mimoto?	info	pure	info(cert) -> record	validate	-	absent	subject, issuer, names, validity, key usage	2	info(cert) -> record	yes
+D	mimoto?	issue	effect	issue(csr, authority, opts) -> cert	capability,log,time	openclaw-publisher-pki	absent	sign a request as a CA with a lifetime	3		na
+D	mimoto?	matches?	pure	matches?(cert, name) -> Bool	validate	webpki	absent	certificate covers a host name or address	2	matches?(cert, name) -> Bool	yes
+D	mimoto?	parse	pure	parse(text, format) -> cert	serialize,validate	webpki	absent	PEM or DER to a certificate record	2	parse(text, format) -> cert	yes
+D	mimoto?	principal	pure	principal(cert) -> text	validate	kakuin-workload-api	absent	workload identity (SPIFFE id) a certificate names	3	principal(cert) -> text	yes
+D	mimoto?	probe	effect	probe(host, opts) -> record	deadline,resource	-	absent	connect and report version, chain and expiry	2	probe(host, opts) -> record	yes
+D	mimoto?	profile	decl	profile(level) -> record	config	kakuin-rustls	absent	TLS settings by level: versions, suites, client auth	2	profile(level) -> record	yes
+D	mimoto?	render	pure	render(cert, format) -> text	serialize	-	absent	certificate to PEM or DER text	2	render(cert, format) -> text	yes
+D	mimoto?	renew	effect	renew(cert, opts) -> cert	idempotent,retry,time	x-crypto	absent	new certificate for the same identity before expiry (ACME)	3	renew(cert, opts) -> cert	yes
+D	mimoto?	request	pure	request(subject, key, opts) -> csr	validate	-	absent	certificate signing request for a key	2	request(subject, key, opts) -> csr	yes
+D	mimoto?	revoke	effect	revoke(cert, reason) -> nil	idempotent,log	openclaw-publisher-pki	absent	add a certificate to the signed revocation list	3	revoke(cert, reason) -> nil	yes
+D	mimoto?	revoked?	effect	revoked?(cert, opts) -> Bool	cache,deadline,resource	openclaw-publisher-pki	absent	listed as revoked by CRL or OCSP	3		na
+D	mimoto?	roots	effect	roots(opts) -> [cert]	cache,resource	webpki	absent	trusted root certificates in force	2		na
+D	mimoto?	self_sign	effect	self_sign(subject, key, opts) -> cert	capability,time	-	absent	certificate signed by its own key, for tests and roots	2		na
+D	mimoto?	watch	stream	watch(source, f, opts) -> nil	cancel,resource	kakuin-workload-api	absent	call f on each rotated workload certificate	3	watch(source, f, opts) -> nil	yes
 G	moderu?	ask	effect	ask(model, prompt, opts) -> reply	cache,deadline,ratelimit,retry,trace	arnes-anthropic	partial:chokkan	one call to a model; reply holds text, tool uses, usage	2		na
 G	moderu?	classify	effect	classify(model, input, labels, opts) -> {label, confidence}	cache,deadline,retry	chokkan	partial:chokkan	one label from a closed set, with confidence	2	classify(model, input, opts) -> {label, confidence}	no
 G	moderu?	cost	pure	cost(usage, price) -> money	-	arnes-loop	absent	what a usage record costs at a price	1		na
@@ -1949,6 +1905,21 @@ G	ran	pick	pure	pick(seed, xs, opts) -> {value, seed}	-	-	exists:ran	one random 
 G	ran	shuffle	pure	shuffle(seed, xs) -> {value, seed}	-	-	exists:ran	a random order of a list	0		na
 H	ran	stream_seed	pure	stream_seed(seed, i) -> seed	-	-	exists:ran	the seed of stream i from one experiment seed	0		na
 G	ran	walk	pure	walk(seed, steps, opts) -> path	-	-	exists:ran	a seeded random walk	0	walk(seed, opts) -> path	no
+F	rebyuu?	approve	effect	approve(review, opts) -> nil	capability,idempotent	-	absent	record that the reviewer accepts the change	2	approve(review, opts) -> nil	yes
+F	rebyuu?	assign	effect	assign(review, who) -> nil	idempotent	-	absent	name the reviewers who must answer	2	assign(review, who) -> nil	yes
+F	rebyuu?	block	effect	block(review, reason) -> nil	capability	-	absent	record a reason the change must not land	2		na
+F	rebyuu?	catchup	effect	catchup(review, opts) -> nil	error,process	-	absent	bring the review branch up to its base by merge	2	catchup(review, opts) -> nil	yes
+F	rebyuu?	comment	effect	comment(review, at, text) -> thread	idempotent	-	absent	start a thread on a line or the whole change	2		na
+F	rebyuu?	land	effect	land(review, opts) -> commit	error,idempotent	-	absent	merge a ready review by the repo policy	2	land(review, opts) -> commit	yes
+F	rebyuu?	list	effect	list(source, filter) -> [review]	deadline	-	absent	reviews matching a filter, all pages	2	list(source, opts) -> [review]	no
+F	rebyuu?	owners	pure	owners(paths, rules) -> [who]	-	-	absent	the people who own the paths a change touches	2		na
+F	rebyuu?	read	effect	read(review) -> record	deadline	-	absent	a review with its threads, checks and state	2	read(review) -> record	yes
+F	rebyuu?	ready?	effect	ready?(review) -> verdict	capability,test	-	absent	whether checks, approvals and threads allow landing	2	ready?(review) -> verdict	yes
+F	rebyuu?	request	effect	request(change, reviewers, opts) -> review	idempotent	-	absent	ask for review of a change	2	request(change, reviewers, opts) -> review	yes
+F	rebyuu?	resolve	effect	resolve(thread) -> nil	idempotent	-	absent	mark a thread as dealt with	2	resolve(thread) -> nil	yes
+F	rebyuu?	size	pure	size(review) -> record	-	-	absent	lines, files and areas a change touches	3	size(review) -> record	yes
+F	rebyuu?	suggest	effect	suggest(review, at, patch) -> thread	idempotent	-	absent	propose an exact edit the author can accept	3		na
+F	rebyuu?	train	effect	train(reviews) -> [review]	error	confluence-pr-refresh	absent	reviews that depend on each other, in merge order	2	train(reviews) -> [review]	yes
 B	rekishi?	ancestors	effect	ancestors(repo, oid) -> [oid]	cancel,error	daicho	absent	every commit that leads to this one	3		na
 B	rekishi?	base	effect	base(repo, a, b) -> oid or nil	error	daicho	absent	the newest common ancestor of two commits	2		na
 B	rekishi?	bisect	effect	bisect(repo, good, bad, test) -> oid	cancel,deadline,error	-	absent	find the first commit where a test turns bad	3	bisect(repo, good, bad, test) -> oid	yes
@@ -2084,16 +2055,18 @@ A	ronri	not	pure	not(f) -> function	-	-	exists:ronri	predicate that holds when f
 A	ronri	satisfiable?	pure	satisfiable?(formula) -> Bool	-	-	absent	whether some assignment makes a formula true	4		na
 A	ronri	table	pure	table(f, arity) -> [row]	-	-	absent	truth table of a predicate	3		na
 A	ronri	xor	pure	xor(a, b) -> Bool	-	-	exists:ronri	whether exactly one of a and b holds	0		na
-A	sabun?	align	pure	align(a, b, opts) -> [pair]	-	-	absent	pair up matching items of two sequences	3		na
-A	sabun?	compose	pure	compose(first, second) -> [hunk]	-	-	absent	one set of hunks equal to two in order	3	compose(first, second) -> [hunk]	yes
-A	sabun?	diff	pure	diff(a, b, opts) -> [hunk]	-	-	absent	changes between two texts or lists	1	diff(a, b, opts) -> [hunk]	yes
-A	sabun?	invert	pure	invert(hunks) -> [hunk]	-	-	absent	hunks that undo the given hunks	2	invert(hunks) -> [hunk]	yes
-A	sabun?	lcs	pure	lcs(a, b) -> list	-	-	absent	longest common subsequence	2		na
-A	sabun?	merge3	pure	merge3(base, ours, theirs, opts) -> record	error	-	absent	three-way merge with the conflicts listed	2		na
-A	sabun?	parse	pure	parse(text) -> [hunk]	error	-	absent	unified diff text to hunks	1	parse(text) -> [hunk]	yes
-A	sabun?	patch	pure	patch(a, hunks, opts) -> value	error,idempotent	-	absent	apply hunks; a mismatch raises conflict	1	patch(a, hunks, opts) -> value	yes
-A	sabun?	stat	pure	stat(hunks) -> record	-	-	absent	lines added, removed and changed	1		na
-A	sabun?	unify	pure	unify(hunks, opts) -> text	serialize	-	absent	hunks as unified diff text	1		na
+E	ryuutsuu?	channels	effect	channels(name) -> [channel]	error	-	absent	stable, beta and nightly pointers	3		na
+E	ryuutsuu?	fetch	effect	fetch(name, channel, opts) -> archive	cache,deadline,retry,validate	-	absent	download and verify a distributable	3	fetch(name, channel, opts) -> archive	yes
+E	ryuutsuu?	install	effect	install(archive, dest, opts) -> installed	capability,idempotent	-	absent	put a program where the user runs it	3		na
+E	ryuutsuu?	installed	effect	installed(opts) -> [record]	error	-	absent	programs installed and their versions	3		na
+E	ryuutsuu?	manifest	pure	manifest(artifacts) -> record	serialize	-	absent	names, sizes and hashes of a release	2		na
+E	ryuutsuu?	mirror	effect	mirror(from, to) -> nil	idempotent,retry	-	absent	copy releases to another host	4	mirror(from, to) -> nil	yes
+E	ryuutsuu?	pack	effect	pack(files, format, opts) -> archive	serialize	-	absent	bundle a binary and its files	2	pack(files, format, opts) -> archive	yes
+E	ryuutsuu?	publish	effect	publish(archive, channel, opts) -> record	idempotent,retry	-	absent	put a distributable on a channel	2	publish(archive, channel, opts) -> record	yes
+E	ryuutsuu?	sign	effect	sign(archive, key) -> signature	capability	tameshi	absent	sign a distributable	2	sign(archive, key) -> signature	yes
+E	ryuutsuu?	uninstall	effect	uninstall(name, opts) -> nil	idempotent	-	absent	remove an installed program	3		na
+E	ryuutsuu?	upgrade	effect	upgrade(name, opts) -> record	idempotent,switch	-	absent	move an installed program to its channel head	3	upgrade(name, opts) -> record	yes
+E	ryuutsuu?	verify	effect	verify(archive, opts) -> verdict	validate	-	absent	signature and hash of a distributable	2	verify(archive, opts) -> verdict	yes
 H	saishikou	retrying	effect	retrying(policy, step) -> value	retry,error	-	exists:saishikou	call step again under a policy while it fails	0		na
 G	saiten?	agreement	pure	agreement(raters) -> number	-	-	absent	how far two judges or labelers agree: kappa	2		na
 G	saiten?	balance	pure	balance(dataset, by, opts) -> dataset	-	-	absent	even out classes by seeded sampling	2		na
@@ -2256,21 +2229,6 @@ A	shikibetsu?	version	pure	version(id) -> int	-	-	absent	uuid version number	1	v
 E	shinchoku	info	effect	info(target) -> record	error	shinchoku	partial:shinchoku	generation, observed generation and phase	1	info(target) -> record	yes
 E	shinchoku	progress	pure	progress(samples, window) -> verdict	time	shinchoku	exists:shinchoku	moving, stalled or blind from counter samples	0		na
 E	shinchoku	watch	stream	watch(target, f, opts) -> nil	cancel,time	shinchoku	partial:shinchoku	sample a reconciler until it settles or stalls	1	watch(target, f, opts) -> nil	yes
-F	shinsa?	approve	effect	approve(review, opts) -> nil	capability,idempotent	-	absent	record that the reviewer accepts the change	2	approve(review, opts) -> nil	yes
-F	shinsa?	assign	effect	assign(review, who) -> nil	idempotent	-	absent	name the reviewers who must answer	2	assign(review, who) -> nil	yes
-F	shinsa?	block	effect	block(review, reason) -> nil	capability	-	absent	record a reason the change must not land	2		na
-F	shinsa?	catchup	effect	catchup(review, opts) -> nil	error,process	-	absent	bring the review branch up to its base by merge	2	catchup(review, opts) -> nil	yes
-F	shinsa?	comment	effect	comment(review, at, text) -> thread	idempotent	-	absent	start a thread on a line or the whole change	2		na
-F	shinsa?	land	effect	land(review, opts) -> commit	error,idempotent	-	absent	merge a ready review by the repo policy	2	land(review, opts) -> commit	yes
-F	shinsa?	list	effect	list(source, filter) -> [review]	deadline	-	absent	reviews matching a filter, all pages	2	list(source, opts) -> [review]	no
-F	shinsa?	owners	pure	owners(paths, rules) -> [who]	-	-	absent	the people who own the paths a change touches	2		na
-F	shinsa?	read	effect	read(review) -> record	deadline	-	absent	a review with its threads, checks and state	2	read(review) -> record	yes
-F	shinsa?	ready?	effect	ready?(review) -> verdict	capability,test	-	absent	whether checks, approvals and threads allow landing	2	ready?(review) -> verdict	yes
-F	shinsa?	request	effect	request(change, reviewers, opts) -> review	idempotent	-	absent	ask for review of a change	2	request(change, reviewers, opts) -> review	yes
-F	shinsa?	resolve	effect	resolve(thread) -> nil	idempotent	-	absent	mark a thread as dealt with	2	resolve(thread) -> nil	yes
-F	shinsa?	size	pure	size(review) -> record	-	-	absent	lines, files and areas a change touches	3	size(review) -> record	yes
-F	shinsa?	suggest	effect	suggest(review, at, patch) -> thread	idempotent	-	absent	propose an exact edit the author can accept	3		na
-F	shinsa?	train	effect	train(reviews) -> [review]	error	confluence-pr-refresh	absent	reviews that depend on each other, in merge order	2	train(reviews) -> [review]	yes
 B	shinsuu	align	pure	align(n, boundary) -> n	-	-	partial:shinsuu	round up to a multiple of a boundary	1		na
 B	shinsuu	bit_at	pure	bit_at(n, i) -> 0 or 1	-	-	exists:shinsuu	the bit at a position	0		na
 B	shinsuu	checksum	pure	checksum(data, algorithm) -> n	validate	-	absent	a CRC or Adler checksum of bytes, algorithm named	1	checksum(data, algorithm) -> n	yes
@@ -2326,25 +2284,24 @@ D	shomei	trail	pure	trail(genesis, payloads) -> [hex]	validate	-	exists:shomei	e
 D	shomei	verify?	pure	verify?(data, signature, public) -> Bool	error,validate	tameshi	partial:shomei	signature is valid; malformed input raises	0	verify?(data, signature, public) -> Bool	yes
 B	shomei	verify_chain	pure	verify_chain(genesis, payloads, head) -> Bool	validate	-	partial:shomei	whether the payloads reproduce the stated head	0		na
 B	shomei	verify_proof?	pure	verify_proof?(root, payload, proof) -> Bool	validate	cartorio	partial:shomei	whether a proof climbs from a payload to the root	0		na
-D	shoumeisho?	chain_of	effect	chain_of(chain, roots, opts) -> [cert]	error,time,validate	webpki	absent	valid chain from leaf to a trusted root, or :untrusted	2	chain_of(chain, roots, opts) -> [cert]	yes
-D	shoumeisho?	expires	pure	expires(cert) -> instant	time	-	absent	the end of a certificate's validity	2		na
-D	shoumeisho?	expiring?	pure	expiring?(cert, within, now) -> Bool	time	-	absent	certificate ends inside the given duration	2		na
-D	shoumeisho?	fingerprint	pure	fingerprint(cert) -> hex	validate	-	absent	hash of the public key, for pinning	2	fingerprint(cert) -> hex	yes
-D	shoumeisho?	info	pure	info(cert) -> record	validate	-	absent	subject, issuer, names, validity, key usage	2	info(cert) -> record	yes
-D	shoumeisho?	issue	effect	issue(csr, authority, opts) -> cert	capability,log,time	openclaw-publisher-pki	absent	sign a request as a CA with a lifetime	3		na
-D	shoumeisho?	matches?	pure	matches?(cert, name) -> Bool	validate	webpki	absent	certificate covers a host name or address	2	matches?(cert, name) -> Bool	yes
-D	shoumeisho?	parse	pure	parse(text, format) -> cert	serialize,validate	webpki	absent	PEM or DER to a certificate record	2	parse(text, format) -> cert	yes
-D	shoumeisho?	principal	pure	principal(cert) -> text	validate	kakuin-workload-api	absent	workload identity (SPIFFE id) a certificate names	3	principal(cert) -> text	yes
-D	shoumeisho?	probe	effect	probe(host, opts) -> record	deadline,resource	-	absent	connect and report version, chain and expiry	2	probe(host, opts) -> record	yes
-D	shoumeisho?	profile	decl	profile(level) -> record	config	kakuin-rustls	absent	TLS settings by level: versions, suites, client auth	2	profile(level) -> record	yes
-D	shoumeisho?	render	pure	render(cert, format) -> text	serialize	-	absent	certificate to PEM or DER text	2	render(cert, format) -> text	yes
-D	shoumeisho?	renew	effect	renew(cert, opts) -> cert	idempotent,retry,time	x-crypto	absent	new certificate for the same identity before expiry (ACME)	3	renew(cert, opts) -> cert	yes
-D	shoumeisho?	request	pure	request(subject, key, opts) -> csr	validate	-	absent	certificate signing request for a key	2	request(subject, key, opts) -> csr	yes
-D	shoumeisho?	revoke	effect	revoke(cert, reason) -> nil	idempotent,log	openclaw-publisher-pki	absent	add a certificate to the signed revocation list	3	revoke(cert, reason) -> nil	yes
-D	shoumeisho?	revoked?	effect	revoked?(cert, opts) -> Bool	cache,deadline,resource	openclaw-publisher-pki	absent	listed as revoked by CRL or OCSP	3		na
-D	shoumeisho?	roots	effect	roots(opts) -> [cert]	cache,resource	webpki	absent	trusted root certificates in force	2		na
-D	shoumeisho?	self_sign	effect	self_sign(subject, key, opts) -> cert	capability,time	-	absent	certificate signed by its own key, for tests and roots	2		na
-D	shoumeisho?	watch	stream	watch(source, f, opts) -> nil	cancel,resource	kakuin-workload-api	absent	call f on each rotated workload certificate	3	watch(source, f, opts) -> nil	yes
+F	shougai?	acknowledge	effect	acknowledge(alert, who) -> nil	idempotent	-	absent	say that a person has taken an alert	2		na
+F	shougai?	announce	effect	announce(audience, message) -> nil	log	-	absent	publish a status message to an audience	3		na
+F	shougai?	assign	effect	assign(incident, who) -> nil	idempotent	-	absent	name the person who leads an incident	2	assign(incident, who) -> nil	yes
+F	shougai?	classify	pure	classify(impact) -> severity	-	-	absent	map impact to a severity level by a stated rule	3	classify(impact) -> severity	yes
+F	shougai?	declare	effect	declare(summary, opts) -> incident	idempotent,log	-	absent	open an incident with a severity and a timeline	2	declare(summary, opts) -> incident	yes
+F	shougai?	drill	effect	drill(scenario, opts) -> report	test,time	-	absent	rehearse an incident and measure the response	3		na
+F	shougai?	escalate	effect	escalate(incident, level) -> nil	deadline	-	absent	move an incident to the next level or person	2		na
+F	shougai?	get	effect	get(source, id) -> record or nil	-	-	absent	one alert or incident or nil	2	get(source, id) -> record or nil	yes
+F	shougai?	list	effect	list(source, kind, opts) -> [record]	deadline	-	absent	alerts, incidents or silences, all pages	2	list(source, opts) -> [record]	no
+F	shougai?	mitigate	effect	mitigate(incident, action) -> nil	log	-	absent	record and run a step that limits the harm	2		na
+F	shougai?	note	effect	note(incident, text) -> nil	log	-	absent	add a timestamped entry to the incident timeline	2		na
+F	shougai?	oncall	effect	oncall(schedule, opts) -> [person]	time	-	absent	who is on call now or at an instant	2		na
+F	shougai?	page	effect	page(target, alert, opts) -> ack	deadline,retry	pangea-pagerduty	absent	notify an on-call person or team	2		na
+F	shougai?	postmortem	pure	postmortem(incident, opts) -> doc	serialize	-	absent	draft a blameless review from the timeline	3		na
+F	shougai?	resolve	effect	resolve(incident, opts) -> nil	idempotent	-	absent	close an incident with a cause and a time	2	resolve(incident, opts) -> nil	yes
+F	shougai?	route	pure	route(alert, rules) -> [target]	-	-	absent	decide whom an alert goes to	2	route(alert, rules) -> [target]	yes
+F	shougai?	silence	effect	silence(matcher, opts) -> silence	switch,time	-	absent	mute matching alerts for a period	2		na
+F	shougai?	timeline	pure	timeline(incident) -> [event]	time	-	absent	the ordered events of an incident	2		na
 A	shuugou	dense	pure	dense(items, bound) -> set	-	-	absent	set of small integers kept as a bitset	3		na
 A	shuugou	difference	pure	difference(a, b) -> set	-	-	exists:shuugou	members of a that are not in b	0		na
 A	shuugou	disjoint?	pure	disjoint?(a, b) -> Bool	-	-	exists:shuugou	whether the sets share no member	0		na
@@ -2360,36 +2317,6 @@ A	shuugou	size	pure	size(set) -> int	-	-	exists:shuugou	number of members	0	size
 A	shuugou	subset?	pure	subset?(a, b) -> Bool	-	-	exists:shuugou	whether every member of a is in b	0		na
 A	shuugou	symmetric_difference	pure	symmetric_difference(a, b) -> set	-	-	exists:shuugou	members of exactly one of the sets	0		na
 A	shuugou	union	pure	union(a, b) -> set	-	-	exists:shuugou	members of either set	0	union(a, b) -> set	yes
-B	shuunou?	batch	effect	batch(store, ops) -> [result]	error,idempotent	-	absent	apply many writes atomically or none	3	batch(store, ops) -> [result]	yes
-B	shuunou?	clear	effect	clear(store, prefix) -> count	error	-	absent	delete every key under a prefix	3	clear(store, prefix) -> count	yes
-B	shuunou?	close	effect	close(store) -> nil	resource	-	absent	release the store	2	close(store) -> nil	yes
-B	shuunou?	compact	effect	compact(store) -> nil	cancel,resource	-	absent	reclaim space held by deleted entries	4	compact(store) -> nil	yes
-B	shuunou?	count	effect	count(store, opts) -> number	deadline,error	-	absent	how many keys lie under a prefix	2	count(store, opts) -> number	yes
-B	shuunou?	create	effect	create(store, key, value, opts) -> value	error,idempotent	-	absent	set a key only if it is absent	2	create(store, key, value, opts) -> value	yes
-B	shuunou?	delete	effect	delete(store, key) -> nil	error,idempotent	pleme-redis	absent	make the key absent; absent counts as done	2	delete(store, key) -> nil	yes
-B	shuunou?	expire	effect	expire(store, key, ttl) -> nil	idempotent,time	pleme-redis	absent	make a key vanish after a duration	2		na
-B	shuunou?	export	stream	export(store, f, opts) -> count	cancel,error	-	absent	call f per entry for a full copy out	3	export(store, f, opts) -> count	yes
-B	shuunou?	get	effect	get(store, key, opts) -> value or nil	deadline,error,trace	pleme-redis	absent	the value at a key, or nil when absent	2	get(store, key, opts) -> value or nil	yes
-B	shuunou?	get_many	effect	get_many(store, keys) -> map	deadline,error	-	absent	the values of many keys in one round trip	2		na
-B	shuunou?	has?	effect	has?(store, key) -> Bool	deadline	-	absent	whether a key is present	2	has?(store, key) -> Bool	yes
-B	shuunou?	import	effect	import(store, entries, opts) -> count	error,idempotent	-	absent	load many entries in bulk	3	import(store, entries, opts) -> count	yes
-B	shuunou?	increment	effect	increment(store, key, by) -> number	error,idempotent	pleme-redis	absent	add to a counter atomically and return it	2		na
-B	shuunou?	index	effect	index(store, field, opts) -> nil	error,idempotent	-	absent	declare a secondary index on a document field	3	index(store, field, opts) -> nil	yes
-B	shuunou?	info	effect	info(store) -> {keys, bytes, engine}	-	-	absent	size and engine facts of the store as a record	3	info(store) -> {keys, bytes, engine}	yes
-B	shuunou?	keys	effect	keys(store, opts) -> [key]	deadline,error	-	absent	every key under a prefix, sorted	2	keys(store, opts) -> [key]	yes
-B	shuunou?	list	effect	list(store, opts) -> [{key, value}]	deadline,error	-	absent	every entry under a prefix, all pages, sorted	2	list(store, opts) -> [{key, value}]	yes
-B	shuunou?	need	effect	need(store, key, opts) -> value	deadline,error	-	absent	the value at a key, raising not_found	2	need(store, key, opts) -> value	yes
-B	shuunou?	open	effect	open(spec) -> store	capability,config,resource	pleme-redis	absent	connect to an embedded, Redis, etcd or document store	2	open(spec) -> store	yes
-B	shuunou?	patch	effect	patch(store, key, patch) -> doc	error,idempotent	-	absent	deep-merge a patch into the stored document	3	patch(store, key, opts) -> doc	no
-B	shuunou?	put	effect	put(store, key, value, opts) -> value	deadline,error,idempotent	pleme-redis	absent	create or replace the value at a key	2	put(store, key, value, opts) -> value	yes
-B	shuunou?	query	effect	query(store, filter, opts) -> [doc]	deadline,error	-	absent	documents matching a filter record, sorted	3	query(store, filter, opts) -> [doc]	yes
-B	shuunou?	range	effect	range(store, from, to, opts) -> [{key, value}]	deadline,error	-	absent	entries between two keys in key order	3	range(store, from, to, opts) -> [{key, value}]	yes
-B	shuunou?	snapshot	effect	snapshot(store) -> view	resource	-	absent	a read-only view frozen at one moment	3	snapshot(store) -> view	yes
-B	shuunou?	swap	effect	swap(store, key, expected, new) -> Bool	error,idempotent	-	absent	set new only if the value equals expected	2		na
-B	shuunou?	ttl	effect	ttl(store, key) -> duration or nil	time	pleme-redis	absent	time left before a key vanishes, or nil	2		na
-B	shuunou?	update	effect	update(store, key, f, opts) -> value	error,idempotent,retry	-	absent	replace a value with f(old); conflict if it moved	2	update(store, key, f, opts) -> value	yes
-B	shuunou?	watch	stream	watch(store, f, opts) -> nil	cancel,deadline	-	absent	call f per key change under a prefix	3	watch(store, f, opts) -> nil	yes
-B	shuunou?	with_transaction	effect	with_transaction(store, f, opts) -> value	error,resource,retry	-	absent	run f against a consistent view; commit or abandon	3		na
 H	shuusei	deep_merge	pure	deep_merge(a, b) -> value	-	-	exists:shuusei	maps merge key by key and b replaces the rest	0		na
 H	shuusei	put	pure	put(doc, path, value) -> doc	-	-	exists:shuusei	doc with value at path; absent map keys are created	0	put(doc, path, value) -> doc	yes
 C	sokketto?	accept	effect	accept(listener, opts) -> conn	cancel,deadline	blue-lang-runtime	rust:blue-lang-runtime	Take the next incoming connection.	1		na
@@ -2411,29 +2338,6 @@ C	sokketto?	send	effect	send(conn, bytes, to) -> nil	error	-	absent	Send one dat
 C	sokketto?	stream	stream	stream(conn, f, opts) -> nil	cancel,deadline	-	absent	Call f per message until the peer closes.	1	stream(conn, f, opts) -> nil	yes
 C	sokketto?	wait	effect	wait(conns, opts) -> [ready conn]	deadline	-	absent	Block until some connection is ready.	2	wait(conns, opts) -> [ready conn]	yes
 C	sokketto?	write	effect	write(conn, bytes, opts) -> nil	deadline,error	-	absent	Write all bytes or raise.	1	write(conn, bytes, opts) -> nil	yes
-G	souchi?	calibrate	pure	calibrate(sensor, points) -> model	-	-	absent	fit raw readings to known true values	3		na
-G	souchi?	check	pure	check(board, program) -> findings	validate	kiban	absent	find a pin clash, a missing clock or a bad register use	2	check(board, program) -> findings	yes
-G	souchi?	close	effect	close(handle) -> nil	idempotent,resource	-	absent	release a bus or device; closed counts as done	3	close(handle) -> nil	yes
-G	souchi?	decode	pure	decode(protocol, bytes) -> record	validate	-	absent	bytes of a frame as a record; bad checksum refused	2	decode(protocol, bytes) -> record	yes
-G	souchi?	encode	pure	encode(protocol, record) -> bytes	-	-	absent	a record as bytes of a bus or radio frame	2	encode(protocol, record) -> bytes	yes
-G	souchi?	flash	effect	flash(image, target, opts) -> nil	capability,deadline,resource	-	absent	write an image to a device	3		na
-G	souchi?	fuse	pure	fuse(estimates, opts) -> estimate	-	-	absent	combine several sensor estimates into one	3	fuse(estimates, opts) -> estimate	yes
-G	souchi?	list	effect	list(bus) -> addresses	deadline	-	absent	devices that answer on a bus	3	list(bus) -> addresses	yes
-G	souchi?	monitor	stream	monitor(port, f, opts) -> nil	cancel	-	absent	call f for each line from a device console	3		na
-G	souchi?	on	decl	on(source, interrupt, handler) -> nil	capability	-	absent	bind a handler to an interrupt	3	on(source, interrupt, handler) -> nil	yes
-G	souchi?	open	effect	open(bus, opts) -> handle	capability,resource	-	absent	take a bus: I2C, SPI, UART, CAN	3	open(bus, opts) -> handle	yes
-G	souchi?	read	effect	read(target, opts) -> value	deadline,resource	kiban	rust:kiban	a pin level or a register value	3	read(target, opts) -> value	yes
-G	souchi?	reset	effect	reset(target, opts) -> nil	capability	-	absent	restart a device	3	reset(target, opts) -> nil	yes
-G	souchi?	run	effect	run(image, board, opts) -> trace	deadline,process	kiban	rust:kiban	run an image on an emulated board	2	run(image, board, opts) -> trace	yes
-G	souchi?	sample	stream	sample(sensor, opts) -> readings	deadline,time	-	absent	readings from a sensor at a rate	3	sample(sensor) -> readings	no
-G	souchi?	schedule	pure	schedule(tasks) -> table	time,validate	-	absent	prove every task meets its deadline, or name the one that fails	2	schedule(tasks) -> table	yes
-G	souchi?	smooth	pure	smooth(readings, kind, opts) -> readings	-	-	absent	reduce noise: moving average, median, Kalman	2		na
-G	souchi?	task	decl	task(period, budget, f) -> task	time,validate	-	absent	declare a periodic task with a time budget	2		na
-G	souchi?	terminal	decl	terminal(board, name) -> pin	validate	-	absent	declare a pin: name, function, pull, drive	3	terminal(board, name) -> pin	yes
-G	souchi?	transfer	effect	transfer(handle, address, bytes, opts) -> bytes	deadline,retry	-	absent	one bus transaction: write, then read	3		na
-G	souchi?	watch	stream	watch(pin, f, opts) -> nil	cancel,deadline	-	absent	call f on every edge of a pin	3	watch(pin, f, opts) -> nil	yes
-G	souchi?	waveform	decl	waveform(kind, params) -> signal	validate	-	absent	declare a level, pulse train or PWM wave	3	waveform(kind, params) -> signal	yes
-G	souchi?	write	effect	write(target, value, opts) -> nil	capability,resource	kiban	rust:kiban	drive a pin or set a register	3	write(target, value, opts) -> nil	yes
 B	souko?	close	effect	close(store) -> nil	resource	-	absent	release the store connection	1	close(store) -> nil	yes
 B	souko?	copy	effect	copy(from, to, opts) -> {etag, version}	deadline,error,retry	-	absent	copy an object inside or across stores	1	copy(from, to, opts) -> {etag, version}	yes
 B	souko?	create	effect	create(store, key, bytes, opts) -> {etag, version}	error,idempotent	armazem	absent	put an object only if the key is absent	1	create(store, key, bytes, opts) -> {etag, version}	yes
@@ -2464,6 +2368,27 @@ B	souko?	url	pure	url(store, key) -> url	-	-	absent	the plain address of an obje
 B	souko?	usage	effect	usage(store, prefix) -> {objects, bytes}	error,retry	-	absent	object count and total bytes under a prefix	2		na
 B	souko?	versions	effect	versions(store, key) -> [version]	error,retry	-	absent	every stored version of an object, newest first	3	versions(store) -> [version]	no
 B	souko?	watch	stream	watch(store, f, opts) -> nil	cancel,deadline	-	absent	call f per object change notice or poll difference	3	watch(store, f, opts) -> nil	yes
+A	sukiima?	coerce	pure	coerce(value, schema) -> value	error,validate	-	absent	convert text and numbers to the schema's types	2		na
+A	sukiima?	compatible?	pure	compatible?(old, new, direction) -> Bool	migrate	-	absent	whether data moves between versions safely	3		na
+A	sukiima?	conforms?	pure	conforms?(value, schema) -> Bool	validate	-	absent	whether the value matches the schema	2		na
+A	sukiima?	defaults	pure	defaults(schema) -> value	-	-	absent	a value filled with every declared default	2	defaults(schema) -> value	yes
+A	sukiima?	describe	pure	describe(schema) -> text	-	-	absent	schema in prose for a human	3	describe(schema) -> text	yes
+A	sukiima?	diff	pure	diff(old, new) -> [change]	-	-	absent	how two schemas differ, field by field	3	diff(old, new) -> [change]	yes
+A	sukiima?	enum_of	decl	enum_of(values) -> shape	validate	-	absent	shape of one value from a closed set	2		na
+A	sukiima?	example	pure	example(schema, seed) -> value	-	-	absent	a valid value generated from the schema	3		na
+A	sukiima?	explain	pure	explain(value, schema) -> [problem]	validate	-	absent	every problem as path and reason	2	explain(value, schema) -> [problem]	yes
+A	sukiima?	fields	pure	fields(schema) -> [field]	-	-	absent	name, shape and default of each field	2		na
+A	sukiima?	infer	pure	infer(values, opts) -> schema	-	-	absent	schema that fits a set of example values	3		na
+A	sukiima?	list_of	decl	list_of(shape) -> shape	validate	-	absent	shape of a list of one shape	2		na
+A	sukiima?	map_of	decl	map_of(key, value) -> shape	validate	-	absent	shape of a map with typed keys and values	2		na
+A	sukiima?	one_of	decl	one_of(shapes) -> shape	validate	-	absent	shape of a value matching any listed shape	2		na
+A	sukiima?	optional	decl	optional(shape) -> shape	validate	-	absent	shape that also accepts nil	2		na
+A	sukiima?	parse	pure	parse(text, format) -> schema	error	-	absent	JSON Schema text to a schema	3	parse(text, format) -> schema	yes
+A	sukiima?	refine	decl	refine(shape, predicate, why) -> shape	validate	-	absent	shape narrowed by a predicate with a reason	2		na
+A	sukiima?	render	pure	render(schema, format) -> text	serialize	haibi	partial:haibi	schema as JSON Schema text	2	render(schema, format) -> text	yes
+A	sukiima?	schema	decl	schema(name, shape) -> schema	validate	-	absent	declare a named type as data	2	schema(name) -> schema	no
+A	sukiima?	shape	decl	shape(fields) -> shape	validate	-	absent	shape of a record with named typed fields	2	shape(fields) -> shape	yes
+A	sukiima?	validate	pure	validate(value, schema) -> value	error,validate	-	absent	return the value or raise every problem at once	2	validate(value, schema) -> value	yes
 B	taiki?	ack	effect	ack(queue, message) -> nil	idempotent	pleme-redis	absent	finish a leased message and remove it	2		na
 B	taiki?	cancel	effect	cancel(queue, id) -> nil	cancel,idempotent	-	absent	remove a waiting message before anyone leases it	2	cancel(queue, id) -> nil	yes
 B	taiki?	close	effect	close(queue) -> nil	resource	-	absent	release the queue handle	2	close(queue) -> nil	yes
@@ -2573,6 +2498,31 @@ E	tenkai?	step	effect	step(rollout) -> rollout	log,switch	-	absent	advance one s
 E	tenkai?	thaw	effect	thaw(window) -> nil	idempotent,log	-	absent	end a change freeze	3		na
 E	tenkai?	verify	effect	verify(rollout) -> verdict	deadline,validate	forge	absent	health gate before the next step	2	verify(rollout) -> verdict	yes
 E	tenkai?	watch	stream	watch(rollout, f, opts) -> nil	cancel,deadline	shinchoku	absent	call f per step or health change	2	watch(rollout, f, opts) -> nil	yes
+F	tesuto?	affected	pure	affected(changes, graph) -> [test]	test	-	absent	the tests that depend on changed code	3		na
+F	tesuto?	assert	effect	assert(expr) -> nil	error,test	blue-lang-test	rust:blue-lang-test	fail the test with a structural diff when expr is false	0		na
+F	tesuto?	calls	pure	calls(spy) -> [call]	test	-	absent	the recorded calls of a spy, in order	2		na
+F	tesuto?	case	decl	case(name, f) -> test	test	blue-lang-test	rust:blue-lang-test	declare one named test	0	case(name, f) -> test	yes
+F	tesuto?	conforms?	effect	conforms?(provider, contract) -> verdict	test	-	absent	whether a provider meets a contract	3		na
+F	tesuto?	contract	decl	contract(consumer, provider, interactions) -> contract	test,validate	-	absent	declare what a consumer expects of a provider	3		na
+F	tesuto?	cover	effect	cover(target, opts) -> coverage	resource,test	-	absent	run tests and record which code ran	3		na
+F	tesuto?	fake	effect	fake(target, impl, f) -> value	capability,test	-	absent	replace a dependency by a fake while f runs	2		na
+F	tesuto?	fixture	effect	fixture(name) -> content	test	pleme-testing	absent	read a file kept beside the test	0		na
+F	tesuto?	flaky?	pure	flaky?(history, test) -> Bool	test	-	absent	whether a test both passed and failed on one revision	2		na
+F	tesuto?	freeze	effect	freeze(instant, f) -> value	test,time	-	absent	run f with the clock fixed at an instant	1	freeze(instant, f) -> value	yes
+F	tesuto?	fuzz	effect	fuzz(target, opts) -> [crash]	deadline,resource,test	caixa-cargo-fuzz	absent	feed generated inputs until something fails or time ends	3		na
+F	tesuto?	list	effect	list(target, opts) -> [test]	test	blue-lang-test	absent	the tests under a target without running them	1	list(target, opts) -> [test]	yes
+F	tesuto?	merge	pure	merge(a, b) -> coverage	test	-	absent	combine coverage from several runs or shards	3	merge(a, b) -> coverage	yes
+F	tesuto?	parse	pure	parse(text, format) -> report	serialize,test	-	absent	a JUnit or TAP report to a record	3	parse(text, format) -> report	yes
+F	tesuto?	quarantine	effect	quarantine(test, reason, until) -> nil	switch,test	-	absent	skip a flaky test by a dated, counted entry	2		na
+F	tesuto?	raises?	pure	raises?(kind, f) -> Bool	error,test	blue-lang-test	absent	whether f raises that kind of error	0		na
+F	tesuto?	render	pure	render(report, format) -> text	serialize,test	-	absent	a test report as text, JUnit or TAP	2	render(report, format) -> text	yes
+F	tesuto?	rerun	effect	rerun(test, n) -> [result]	retry,test	-	absent	run one test again n times and keep every result	2		na
+F	tesuto?	run	effect	run(target, opts) -> report	deadline,process,test	blue-lang-test	rust:blue-lang-test	run every test under a target in parallel	0	run(target, opts) -> report	yes
+F	tesuto?	shard	pure	shard(tests, n, i) -> [test]	test	-	absent	the i-th of n balanced groups of tests	2		na
+F	tesuto?	snapshot	effect	snapshot(value, name) -> nil	serialize,test	blue-lang-test	absent	compare a value with its stored copy; update on request	0	snapshot(value, opts) -> nil	no
+F	tesuto?	spy	effect	spy(target, f) -> spy	test	-	absent	wrap a function so its calls are recorded	2		na
+F	tesuto?	uncovered	pure	uncovered(coverage) -> [span]	test	-	absent	code that no test reached	3		na
+F	tesuto?	watch	stream	watch(paths, opts) -> nil	cancel,test	blue-lang-cli	rust:blue-lang-cli	rerun tests when a watched file changes	0	watch(paths, f, opts) -> nil	no
 D	tokumei	budget	decl	budget(epsilon, opts) -> budget	config	-	absent	total privacy a dataset may spend	2	budget(epsilon, opts) -> budget	yes
 D	tokumei	classify	pure	classify(value, rules) -> [label]	validate	-	absent	label fields or text as kinds of personal data	1	classify(value, rules) -> [label]	yes
 D	tokumei	consent	decl	consent(subject, purpose, until) -> consent	config,time	-	absent	a person's permission for one purpose	3		na
@@ -2628,6 +2578,28 @@ A	toukei	stddev	pure	stddev(numbers, opts) -> number	error	-	exists:toukei	squar
 A	toukei	summary	pure	summary(numbers) -> record	-	-	exists:toukei	count, extremes, quartiles, mean and spread	0		na
 A	toukei	variance	pure	variance(numbers, opts) -> number	error	-	exists:toukei	mean squared distance from the mean	0	variance(numbers, opts) -> number	yes
 A	toukei	zscore	pure	zscore(numbers) -> [number]	error	-	exists:toukei	distance from the mean in standard deviations	0		na
+C	toutatsu?	certify	effect	certify(key, principal, ttl) -> certificate	capability,time	-	absent	Obtain a short-lived SSH certificate for a key.	3		na
+C	toutatsu?	close	effect	close(session) -> nil	resource	-	absent	End a session; closing twice is done.	2	close(session) -> nil	yes
+C	toutatsu?	connect	effect	connect(host, opts) -> session	capability,deadline,error,resource	sshproxy	absent	Open an authenticated remote shell session.	2	connect(host, opts) -> session	yes
+C	toutatsu?	copy	effect	copy(session, from, to, opts) -> nil	error,resource	-	absent	Move a file to or from a remote host.	2	copy(session, from, opts) -> nil	no
+C	toutatsu?	delete	effect	delete(zone, record) -> nil	idempotent	-	absent	Remove a DNS record; absent counts as done.	2	delete(zone, record) -> nil	yes
+C	toutatsu?	deregister	effect	deregister(registration) -> nil	resource	-	absent	Withdraw an instance; absent counts as done.	2		na
+C	toutatsu?	diff	pure	diff(wanted, actual) -> [change]	-	-	absent	Record changes that turn actual into wanted.	2	diff(wanted, actual) -> [change]	yes
+C	toutatsu?	down	effect	down(link) -> nil	resource	blackmatter-vpn	absent	Take a tunnel interface down.	2		na
+C	toutatsu?	find	effect	find(service, opts) -> [instance]	cache	-	absent	Healthy instances of a service; empty if none.	2	find(service, query, opts) -> [instance]	no
+C	toutatsu?	forward	effect	forward(session, local, remote) -> forwarding	cancel,resource	sshproxy	absent	Carry a local port to a remote one over the session.	3		na
+C	toutatsu?	info	effect	info(link) -> record	-	blackmatter-vpn	absent	Peers, last handshake and traffic of a tunnel.	2	info(link) -> record	yes
+C	toutatsu?	list	effect	list(zone, opts) -> [record]	-	-	absent	Every record in a zone.	2	list(zone, opts) -> [record]	yes
+C	toutatsu?	peer	decl	peer(key, endpoint, allowed) -> peer	capability,config	blackmatter-vpn	absent	Declare one tunnel peer by key and address ranges.	2		na
+C	toutatsu?	propagated?	effect	propagated?(record, servers) -> Bool	deadline,time	-	absent	Whether every server answers the new value.	3		na
+C	toutatsu?	put	effect	put(zone, record) -> record	error,idempotent	-	absent	Create or replace a DNS record.	2	put(zone, record) -> record	yes
+C	toutatsu?	register	effect	register(service, opts) -> registration	resource,time	-	absent	Announce a service instance under a lease.	2	register(service, opts) -> registration	yes
+C	toutatsu?	resolve	effect	resolve(name, type, opts) -> [record]	cache,deadline,error	-	absent	Look up DNS records of a type for a name.	1	resolve(name, type, opts) -> [record]	yes
+C	toutatsu?	reverse	effect	reverse(address) -> [name]	deadline,error	-	absent	Names that point at an address.	2	reverse(address) -> [name]	yes
+C	toutatsu?	rotate	effect	rotate(link, opts) -> key	capability,time	-	absent	Replace a tunnel's keys without a gap.	3	rotate(link, opts) -> key	yes
+C	toutatsu?	run	effect	run(session, command, opts) -> result	deadline,error,process	sshproxy	absent	Run a command remotely; same result as a local run.	2	run(session, command, opts) -> result	yes
+C	toutatsu?	up	effect	up(link) -> nil	capability,resource	blackmatter-vpn	absent	Bring a tunnel interface up.	2		na
+C	toutatsu?	watch	stream	watch(service, f) -> nil	cancel	-	absent	Call f when a service's instances change.	2	watch(service, f) -> nil	yes
 F	tsuiseki?	adopt	pure	adopt(carrier) -> context	serialize,trace	-	absent	read trace context from headers or a message	1		na
 F	tsuiseki?	carry	pure	carry(span, carrier) -> carrier	serialize,trace	-	absent	write trace context into headers or a message	1		na
 F	tsuiseki?	correlate	effect	correlate(trace_id, sources) -> [record]	log,trace	-	absent	logs, metrics and spans that share one trace id	2	correlate(trace_id, sources) -> [record]	yes
@@ -2646,6 +2618,23 @@ F	tsuiseki?	span	effect	span(name, f, attrs) -> value	error,time,trace	pleme-obs
 F	tsuiseki?	start	effect	start(name, attrs) -> span	trace	pleme-observability	absent	open a span by hand	1	start(name, attrs) -> span	yes
 F	tsuiseki?	stop	effect	stop(span, opts) -> nil	trace	pleme-observability	absent	close a span by hand; records an error status if given	1	stop(span, opts) -> nil	yes
 F	tsuiseki?	tree	pure	tree(spans) -> tree	-	-	absent	assemble spans into a parent-child tree	2	tree(spans) -> tree	yes
+E	tsumini?	build	effect	build(spec, opts) -> image	cache,error,process	-	absent	make an image from a spec, no daemon	2	build(spec, opts) -> image	yes
+E	tsumini?	check	effect	check(ref, policy) -> [finding]	validate	lacre	absent	refuse an image holding a shell, root user or extras	2	check(ref, policy) -> [finding]	yes
+E	tsumini?	combine	effect	combine(refs, name) -> digest	idempotent	multi-arch-image-release	absent	one multi-arch index from per-arch images	1		na
+E	tsumini?	copy	effect	copy(from, to, opts) -> digest	idempotent,retry	multi-arch-image-release	absent	move an image between registries without unpacking	1	copy(from, to, opts) -> digest	yes
+E	tsumini?	delete	effect	delete(ref) -> nil	idempotent	-	absent	remove a tag or manifest	2	delete(ref) -> nil	yes
+E	tsumini?	diff	effect	diff(a, b) -> [change]	-	-	absent	files and packages that differ between images	2	diff(a, b) -> [change]	yes
+E	tsumini?	export	effect	export(ref, dir) -> nil	error	-	absent	unpack an image's filesystem	3	export(ref, dir) -> nil	yes
+E	tsumini?	gc	effect	gc(repo, opts) -> {freed:}	idempotent,resource	-	absent	drop untagged and unreferenced blobs	3		na
+E	tsumini?	info	effect	info(ref) -> record	cache,error	-	absent	manifest, config and size of an image	1	info(ref) -> record	yes
+E	tsumini?	layers	effect	layers(ref) -> [layer]	error	-	absent	layer digests, sizes and commands	1		na
+E	tsumini?	list	effect	list(repo, opts) -> [tag]	error,ratelimit	-	absent	tags in a repository, all pages	1	list(repo, opts) -> [tag]	yes
+E	tsumini?	pull	effect	pull(ref, dir, opts) -> image	cache,deadline,retry	-	absent	fetch an image by digest	2		na
+E	tsumini?	push	effect	push(image, ref, opts) -> digest	deadline,idempotent,retry	-	absent	upload an image, return its digest	2	push(image, ref, opts) -> digest	yes
+E	tsumini?	render	pure	render(spec) -> text	serialize	-	absent	image spec in the build tool's own syntax	3	render(spec) -> text	yes
+E	tsumini?	resolve	effect	resolve(ref) -> digest	cache,error	-	absent	turn a tag into its digest	1	resolve(ref) -> digest	yes
+E	tsumini?	run	effect	run(ref, args, opts) -> result	capability,deadline,process	-	absent	run an image once and return its result	3	run(ref, args, opts) -> result	yes
+E	tsumini?	tag	effect	tag(ref, name) -> nil	idempotent	-	absent	add a tag to a digest	1	tag(ref, name) -> nil	yes
 C	tsuuchi?	channel	decl	channel(kind, config) -> channel	capability,config	-	absent	Declare how one delivery kind is reached.	1		na
 C	tsuuchi?	compose	pure	compose(parts) -> message	validate	-	absent	Build a MIME or payload message from parts.	2	compose(parts) -> message	yes
 C	tsuuchi?	parse	pure	parse(text, :email) -> message	error	-	absent	Read a raw email into headers, body and parts.	3	parse(text, :email) -> message	yes
@@ -2720,6 +2709,17 @@ G	wariate	decide	pure	decide(facts, judged, memory) -> decision	-	arnes	rust:war
 G	wariate	eligible	pure	eligible(facts, judged) -> routes	-	arnes	rust:wariate	routes that fit the window, tools and price	0		na
 G	wariate	explain	pure	explain(memory) -> text	-	arnes	rust:wariate	say why the last route was picked	0	explain(memory) -> text	yes
 G	wariate	gate	pure	gate(facts, judged, m, e, pick, why) -> decision	-	arnes	rust:wariate	admit a route change or refuse it	0	gate(facts, judged) -> decision	no
+E	yobidashi?	delete	effect	delete(name) -> nil	idempotent	wasm-operator	absent	remove a function	4	delete(name) -> nil	yes
+E	yobidashi?	deploy	effect	deploy(module, opts) -> function	capability,idempotent,log	wasm-operator	absent	place a module where it runs	3		na
+E	yobidashi?	get	effect	get(name) -> function or nil	error	wasm-operator	absent	one function, nil when absent	3	get(name) -> function or nil	yes
+E	yobidashi?	invoke	effect	invoke(function, input, opts) -> output	deadline,error,resource	wasm-engine	absent	run a function once	3		na
+E	yobidashi?	limit	decl	limit(function, record) -> function	capability,resource	wasm-engine	absent	fuel, memory and time a run may use	3	limit(function, record) -> function	yes
+E	yobidashi?	list	effect	list(opts) -> [function]	error	wasm-operator	absent	functions and their versions	3	list(opts) -> [function]	yes
+E	yobidashi?	pack	effect	pack(source, target, opts) -> module	cache,process	wasm-engine	absent	compile a function to a portable module	3	pack(source, target, opts) -> module	yes
+E	yobidashi?	read	effect	read(function, opts) -> text	error	-	absent	logs from a function's runs	3	read(function, opts) -> text	yes
+E	yobidashi?	resize	effect	resize(function, bounds) -> function	resource,switch	wasm-operator	absent	set minimum and maximum instances	4	resize(function, bounds) -> function	yes
+E	yobidashi?	route	decl	route(function, pattern) -> route	config	-	absent	the requests that reach a function	4	route(function, pattern) -> route	yes
+E	yobidashi?	versions	effect	versions(function) -> [version]	serialize	-	absent	published versions of a function	4	versions(function) -> [version]	yes
 F	youken?	covered?	pure	covered?(requirement) -> Bool	test	-	absent	whether every acceptance has passing evidence	3		na
 F	youken?	diff	pure	diff(old, new) -> [change]	-	-	absent	requirements added, removed or reworded between versions	4	diff(old, new) -> [change]	yes
 F	youken?	gaps	pure	gaps(requirements) -> [requirement]	test	-	absent	requirements with no evidence or failing evidence	3		na

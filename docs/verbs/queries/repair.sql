@@ -174,11 +174,22 @@ select region, space, verb, kind, shape, laterals, fleet, blue_today, meaning, w
   case when not has_contract then 'na' when ok then 'yes' else 'no' end as conforms
 from shaped1;
 
+create or replace table srn as
+  select * from read_csv('docs/verbs/merged/space-renames.tsv', delim='\t', header=true, quote='', escape='', all_varchar=true);
+
 copy (
-  select region, space, verb, kind, shape, laterals, fleet, blue_today, meaning, wave, contract_shape, conforms
-  from shaped order by space, verb
+  select s.region, coalesce(r.new, s.space) as space, s.verb, s.kind, s.shape, s.laterals, s.fleet, s.blue_today, s.meaning, s.wave, s.contract_shape, s.conforms
+  from shaped s left join srn r on r.old = s.space order by 2, s.verb
 ) to 'docs/verbs/merged/verbs.tsv' (delimiter '\t', header true, quote '', escape '');
 
 copy (
-  select "from", rel, "to", why from edges1 order by "from", rel, "to"
+  select
+    case when a.old is not null then a.new || substr(e."from", length(a.old) + 1) else e."from" end as "from",
+    e.rel,
+    case when b.old is not null then b.new || substr(e."to", length(b.old) + 1) else e."to" end as "to",
+    e.why
+  from edges1 e
+  left join srn a on split_part(e."from", '::', 1) = a.old
+  left join srn b on split_part(e."to", '::', 1) = b.old
+  order by 1, 2, 3
 ) to 'docs/verbs/merged/edges.tsv' (delimiter '\t', header true, quote '', escape '');

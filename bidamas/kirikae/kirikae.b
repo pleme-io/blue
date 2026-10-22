@@ -220,6 +220,7 @@ def settings()
     host: getenv("KIRIKAE_HOST", trim(stdout_of_host)),
     kind: getenv("KIRIKAE_KIND", kind_of_host),
     current: getenv("KIRIKAE_CURRENT", "/run/current-system"),
+    verify: verify_flag(getenv("KIRIKAE_VERIFY_SWITCH", "1")),
     history: getenv(
       "KIRIKAE_HISTORY",
       path_join(getenv("HOME", "/tmp"), ".local/state/kirikae/history.jsonl")
@@ -489,6 +490,24 @@ def run(cmd)
     outcome_of(exit_refused, "refuse")
   else
     status = exec_check(*cmd)
+    v = if status == 0 and get(s, :verify)
+      verify_switch(get(p, :desired), resolve(get(s, :current)))
+    end
+    settle(s, p, status, v, last(cmd))
+  end
+end
+
+def settle(s, p, status, v, ran)
+  if v != nil
+    write_stderr("kirikae: #{to_s(get(v, :verdict))} — #{get(v, :why)}\n")
+  end
+  if v != nil and get(v, :verdict) == :not_switched
+    record(
+      get(s, :history),
+      entry(get(p, :desired), "failed", now_ms, get(v, :why))
+    )
+    outcome_of(exit_not_switched, "not-switched")
+  else
     outcome = if status == 0
       "activated"
     else
@@ -496,19 +515,47 @@ def run(cmd)
     end
     record(
       get(s, :history),
-      entry(
-        get(p, :desired),
-        outcome,
-        now_ms,
-        "#{last(cmd)} exited #{to_s(status)}"
-      )
+      entry(get(p, :desired), outcome, now_ms, "#{ran} exited #{to_s(status)}")
     )
     outcome_of(status, outcome)
   end
 end
 
+def verify_switch(desired, after)
+  if store_path?(desired) == false
+    {
+      verdict: :unverified,
+      why: "no planned system to compare /run/current-system against"
+    }
+  elsif after == desired
+    {verdict: :switched, why: "the system now runs #{label(desired)}"}
+  else
+    {
+      verdict: :not_switched,
+      step: :activation,
+      desired:,
+      current: after,
+      why: "the switch step did not take effect: built #{desired}, but the current system resolves to #{to_s(after)}"
+    }
+  end
+end
+
+def verify_flag(t)
+  if t == "1"
+    true
+  elsif t == "0"
+    false
+  else
+    raise(:usage, "KIRIKAE_VERIFY_SWITCH is 0 or 1, not #{t}")
+  end
+end
+
 def exit_hold()
   75
+end
+
+def exit_not_switched()
+  76
 end
 
 def exit_refused()
@@ -800,6 +847,45 @@ test "a command's answer is text it can print, and a wrong verb is a usage error
   assert error?(
     begin
       answer(["run"])
+    rescue e
+      e
+    end
+  ) ==
+    true
+end
+
+test "a switch is verified against the system it built, naming both on a mismatch"
+  assert get(verify_switch(b, b), :verdict) == :switched
+  miss = verify_switch(b, a)
+  assert get(miss, :verdict) == :not_switched
+  assert get(miss, :step) == :activation
+  assert includes(get(miss, :why), b) == true
+  assert includes(get(miss, :why), a) == true
+  assert get(verify_switch(b, nil), :verdict) == :not_switched
+  assert get(verify_switch(nil, a), :verdict) == :unverified
+end
+
+test "a command that exits 0 without switching is a failure the history counts"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-verify-#{to_s(now_ns)}")
+  s = {history: path_join(dir, "history.jsonl")}
+  p = {desired: b}
+  out = settle(s, p, 0, verify_switch(b, a), "rebuild")
+  assert exit_status_of(out) == exit_not_switched
+  assert text_of(out) == "not-switched"
+  assert get(streak(history(get(s, :history)), b), :n) == 1
+  ok = settle(s, p, 0, verify_switch(b, b), "rebuild")
+  assert exit_status_of(ok) == 0
+  assert get(streak(history(get(s, :history)), b), :n) == 0
+  assert exit_status_of(settle(s, p, 0, nil, "rebuild")) == 0
+  rm_rf(dir)
+end
+
+test "the verify switch is 0 or 1 and nothing else"
+  assert verify_flag("1") == true
+  assert verify_flag("0") == false
+  assert error?(
+    begin
+      verify_flag("yes")
     rescue e
       e
     end

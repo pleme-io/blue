@@ -321,3 +321,21 @@ fn two_hosts_compose_as_parts_of_one_host() {
     assert_eq!(p.call::<Vec<i64>>("go", (), &mut host).unwrap(), [1, 1]);
     assert_eq!(host.shelf.seen, ["y"]);
 }
+
+#[test]
+fn the_surface_file_round_trips_through_the_check_stage_reader() {
+    let parsed =
+        blue_lang_runtime::host_surface::parse(&blue_lang_host::surface_json::<Ledger>()).unwrap();
+    let names: Vec<_> = parsed.iter().map(|h| h.name.as_str()).collect();
+    let declared: Vec<_> = Ledger::SURFACE.iter().map(|f| f.name).collect();
+    assert_eq!(names, declared);
+    let note = parsed.iter().find(|h| h.name == "ledger_note").unwrap();
+    assert_eq!((note.params.len(), note.required), (2, 1));
+    let dir = std::env::temp_dir().join(format!("blue-host-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join(blue_lang_host::SURFACE_FILE);
+    blue_lang_host::write_surface::<Ledger>(&file).unwrap();
+    assert!(blue_lang_host::surface_fresh::<Ledger>(&file).is_ok());
+    assert!(blue_lang_host::surface_fresh::<Shelf>(&file).is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}

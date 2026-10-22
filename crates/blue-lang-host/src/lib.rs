@@ -1,5 +1,6 @@
 pub use blue_lang_host_macros::host;
 pub use blue_lang_runtime::domain::DomainError;
+pub use blue_lang_runtime::host_surface::FILE as SURFACE_FILE;
 pub use blue_lang_runtime::hosted::{CallError, FramedError, Hosted};
 pub use blue_lang_runtime::uses::{Entry, Loader, NoLoader};
 pub use blue_lang_runtime::RunError;
@@ -35,6 +36,49 @@ pub struct HostFn {
     pub params: &'static [&'static str],
     pub required: usize,
     pub doc: &'static str,
+}
+
+#[must_use]
+pub fn surface_json<H: Host>() -> String {
+    blue_lang_runtime::host_surface::render(
+        H::SURFACE
+            .iter()
+            .map(|f| (f.name, f.params, f.required, f.doc)),
+    )
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SurfaceFile {
+    #[error(
+        "{path} does not match the host's surface; write it with blue_lang_host::write_surface"
+    )]
+    Stale { path: String },
+    #[error("{path}: {source}")]
+    Io {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+pub fn write_surface<H: Host>(path: &std::path::Path) -> Result<(), SurfaceFile> {
+    std::fs::write(path, surface_json::<H>()).map_err(|source| SurfaceFile::Io {
+        path: path.display().to_string(),
+        source,
+    })
+}
+
+pub fn surface_fresh<H: Host>(path: &std::path::Path) -> Result<(), SurfaceFile> {
+    let shown = path.display().to_string();
+    let committed = std::fs::read_to_string(path).map_err(|source| SurfaceFile::Io {
+        path: shown.clone(),
+        source,
+    })?;
+    if committed == surface_json::<H>() {
+        Ok(())
+    } else {
+        Err(SurfaceFile::Stale { path: shown })
+    }
 }
 
 #[must_use]

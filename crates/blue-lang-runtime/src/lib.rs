@@ -40,6 +40,7 @@ pub mod docs;
 pub mod domain;
 pub mod erase;
 pub mod errors;
+pub mod host_surface;
 pub mod hosted;
 pub mod inputs;
 pub mod json;

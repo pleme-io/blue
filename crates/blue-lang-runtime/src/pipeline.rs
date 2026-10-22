@@ -797,6 +797,14 @@ pub const HARNESS_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
 /// primitives are in scope here because the embedder installs them first.
 #[must_use]
 pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> NameTable {
+    builtin_names_with(interp, &[])
+}
+
+#[must_use]
+pub fn builtin_names_with<H: 'static>(
+    interp: &tatara_lisp_eval::Interpreter<H>,
+    host: &[crate::host_surface::HostName],
+) -> NameTable {
     use blue_lang_check::{Binding, Scope, ScopeKind};
     use tatara_lisp_eval::HeadBinding;
     let mut special = Scope::new(Namespace::SpecialForm);
@@ -837,6 +845,15 @@ pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> N
             nullary,
         });
     }
+    for h in host {
+        values.bind(Binding {
+            name: h.name.clone(),
+            kind: ScopeKind::Value,
+            span: None,
+            top_level: None,
+            nullary: h.nullary(),
+        });
+    }
     let mut table = NameTable::new();
     let mut harness = Scope::new(Namespace::Harness);
     for n in HARNESS_NAMES {
@@ -857,6 +874,7 @@ pub fn builtin_names<H: 'static>(interp: &tatara_lisp_eval::Interpreter<H>) -> N
             .iter()
             .filter(|d| d.signature == d.name)
             .map(|d| d.name.to_string())
+            .chain(host.iter().filter(|h| h.nullary()).map(|h| h.name.clone()))
             .collect(),
     );
     table
@@ -1057,9 +1075,16 @@ pub fn check_entry(
     if checking == Checking::Program {
         program.retain(|f| !crate::uses::is_test_form(f));
     }
+    let host = match entry.path {
+        Some(path) => crate::host_surface::near(path)
+            .map_err(|e| RunError::Import(e.to_string()))?
+            .map(|s| s.functions)
+            .unwrap_or_default(),
+        None => Vec::new(),
+    };
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, Inputs::new());
-    let builtins = builtin_names(&interp);
+    let builtins = builtin_names_with(&interp, &host);
     let (outcome, names) = check_stage(&program, &builtins, checking == Checking::WithTests);
     Ok(Checked {
         program,

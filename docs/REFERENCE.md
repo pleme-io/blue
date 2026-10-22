@@ -167,7 +167,7 @@ Higher binding power binds tighter.
 | `cons` | `cons(x, xs)` | 2 | A new list with x in front. Copies xs. |
 | `count` | `count(xs)` | 1 | The number of elements; 0 for nil. |
 | `distinct` | `distinct(xs)` | 1 | The elements with repeats removed, first occurrence kept, compared with ==. |
-| `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. |
+| `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. Also defined by `shuusei` (`shuusei::drop`): a file that lists it gets that one. |
 | `first` | `first(xs)` | 1 | The first element; raises on []. retsu's first answers nil. Also defined by `retsu` (`retsu::first`): a file that lists it gets that one. |
 | `flatten` | `flatten(xs)` | 1 | Every nested list spliced in, to any depth. |
 | `fourth` | `fourth(xs)` | 1 | The fourth element; raises when there is none. |

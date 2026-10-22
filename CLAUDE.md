@@ -130,6 +130,7 @@ bidama that does not check does not build.
 | the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; `def_hash` (a definition's identity, its resolved tree with each callee replaced by its hash); completion, definition, references, rename, symbols, signatures | `blue-lang-mondou` |
 | LSP: transport-free core + stdio shim, every answer from `mondou` | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
+| embedding blue in a Rust program: `#[host]` turns an impl block into host functions, `Program` loads `.b` and makes typed calls; the one dependency a Rust host takes | `blue-lang-host`, `blue-lang-host-macros` |
 | every subcommand; `BlueConfig` (the two typed bounds) | `blue-lang-cli` |
 | project check rules written in blue: the Bluefile's `rule` word, the ABI and frame (`project_rules` in `blue-lang-runtime`), the pass `blue check` runs (`project_rules` in `blue-lang-pkg`), codes and waivers (`blue-lang-check::project`) | `blue-lang-check`, `-runtime`, `-pkg` |
 | `blue doc`: a blue program (`blue-lang-cli/blue/doc.b`) over mokuroku | `blue-lang-cli` |

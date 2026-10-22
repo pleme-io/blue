@@ -1,0 +1,17 @@
+[package]
+name = "blue-lang-host-macros"
+description = "The #[host] attribute behind blue-lang-host: a Rust impl block becomes blue host functions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }

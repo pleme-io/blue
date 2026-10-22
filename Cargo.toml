@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime", "crates/blue-lang-cli", "crates/blue-lang-test", "crates/blue-lang-pkg", "crates/blue-lang-wasm", "crates/blue-lang-lsp", "crates/blue-lang-mondou", "crates/blue-lang-art", "crates/blue-lang-kiwari"]
+members = ["crates/blue-lang-syntax", "crates/blue-lang-fmt", "crates/blue-lang-waku", "crates/blue-lang-check", "crates/blue-lang-bidama", "crates/blue-lang-proc", "crates/blue-lang-runtime", "crates/blue-lang-cli", "crates/blue-lang-test", "crates/blue-lang-pkg", "crates/blue-lang-wasm", "crates/blue-lang-lsp", "crates/blue-lang-mondou", "crates/blue-lang-art", "crates/blue-lang-kiwari", "crates/blue-lang-host", "crates/blue-lang-host-macros"]
 resolver = "2"
 
 [workspace.package]
@@ -25,6 +25,8 @@ blue-lang-lsp = { path = "crates/blue-lang-lsp", version = "0.0.83" }
 blue-lang-mondou = { path = "crates/blue-lang-mondou", version = "0.0.83" }
 blue-lang-art = { path = "crates/blue-lang-art", version = "0.0.83" }
 blue-lang-kiwari = { path = "crates/blue-lang-kiwari", version = "0.0.83" }
+blue-lang-host = { path = "crates/blue-lang-host", version = "0.0.83" }
+blue-lang-host-macros = { path = "crates/blue-lang-host-macros", version = "0.0.83" }
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
 # `Bluefile.lock` and `blue bluefile --json` — the evaluated manifest nix reads.

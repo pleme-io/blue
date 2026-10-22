@@ -1,0 +1,20 @@
+[package]
+name = "blue-lang-host"
+description = "Embed blue in a Rust program: one dependency, a #[host] impl block, typed calls into blue definitions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["packages"]
+packages = ["blue-lang-pkg/embedded"]
+
+[dependencies]
+blue-lang-host-macros = { workspace = true }
+blue-lang-runtime = { workspace = true }
+blue-lang-pkg = { workspace = true }
+tatara-lisp-eval = { workspace = true }
+thiserror = { workspace = true }

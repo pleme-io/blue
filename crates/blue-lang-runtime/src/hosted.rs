@@ -205,24 +205,46 @@ impl<H: 'static> Hosted<H> {
         host: &mut H,
         budget: tatara_lisp_eval::vm::Budget,
     ) -> Result<Value, CallError> {
-        let callee = match self.lookup(name) {
-            Some(v @ (Value::Closure(_) | Value::NativeFn(_))) => v,
-            Some(other) => {
-                return Err(CallError::NotAFunction {
-                    name: name.to_string(),
-                    kind: kind(&other),
-                })
-            }
-            None => return Err(CallError::Undefined(name.to_string())),
-        };
+        let callee = self.callee(name)?;
         if let Err(e) = self.interp.set_budget(budget) {
             return Err(CallError::Raised {
                 name: name.to_string(),
                 message: e.to_string(),
             });
         }
+        self.apply(name, &callee, args, host)
+    }
+
+    pub fn try_call(
+        &mut self,
+        name: &str,
+        args: Vec<Value>,
+        host: &mut H,
+    ) -> Result<Value, CallError> {
+        let callee = self.callee(name)?;
+        self.apply(name, &callee, args, host)
+    }
+
+    fn callee(&self, name: &str) -> Result<Value, CallError> {
+        match self.lookup(name) {
+            Some(v @ (Value::Closure(_) | Value::NativeFn(_))) => Ok(v),
+            Some(other) => Err(CallError::NotAFunction {
+                name: name.to_string(),
+                kind: kind(&other),
+            }),
+            None => Err(CallError::Undefined(name.to_string())),
+        }
+    }
+
+    fn apply(
+        &mut self,
+        name: &str,
+        callee: &Value,
+        args: Vec<Value>,
+        host: &mut H,
+    ) -> Result<Value, CallError> {
         self.interp
-            .apply_external_value(&callee, args, host, tatara_lisp::Span::synthetic())
+            .apply_external_value(callee, args, host, tatara_lisp::Span::synthetic())
             .map_err(|e| match e {
                 tatara_lisp_eval::EvalError::BudgetExceeded { .. } => CallError::Exhausted {
                     name: name.to_string(),

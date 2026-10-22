@@ -1,4 +1,4 @@
-use blue_lang_host::{host, Entry, Error, Host, NoLoader, Program};
+use blue_lang_host::{host, CallError, Entry, Error, Host, NoLoader, Program};
 
 #[derive(Default)]
 struct Ledger {
@@ -130,4 +130,32 @@ fn a_program_naming_an_unknown_host_function_is_refused_at_load() {
     let src = "def f()\n  ledger_remove(1)\nend\n";
     let err = Program::<Ledger>::load_with(Entry::anonymous(src), &NoLoader, &mut host);
     assert!(matches!(err, Err(Error::Load(_))));
+}
+
+#[test]
+fn a_failure_inside_a_call_is_a_call_error_not_a_load_error() {
+    let mut host = Ledger {
+        limit: 1,
+        ..Ledger::default()
+    };
+    let mut p = load(&mut host);
+    let err = p.call::<i64>("record", ("a", "b"), &mut host).unwrap_err();
+    assert!(
+        matches!(err, Error::Call(CallError::Raised { ref name, .. }) if name == "record"),
+        "{err}"
+    );
+    let err = p.call::<i64>("absent", (), &mut host).unwrap_err();
+    assert!(
+        matches!(err, Error::Call(CallError::Undefined(ref n)) if n == "absent"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_program_with_no_host_functions_needs_no_host_type() {
+    let src = "def double(x)\n  x * 2\nend\n";
+    let mut p = Program::<()>::load_with(Entry::anonymous(src), &NoLoader, &mut ()).unwrap();
+    let n: i64 = p.call("double", (21i64,), &mut ()).unwrap();
+    assert_eq!(n, 42);
+    assert!(<() as Host>::SURFACE.is_empty());
 }

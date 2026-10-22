@@ -14,6 +14,12 @@ pub trait Host: Sized + 'static {
     fn install(interp: &mut Interpreter<Self>);
 }
 
+impl Host for () {
+    const SURFACE: &'static [HostFn] = &[];
+
+    fn install(_: &mut Interpreter<Self>) {}
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HostFn {
     pub name: &'static str,
@@ -109,7 +115,7 @@ impl<H: Host> Program<H> {
         args: impl Args,
         host: &mut H,
     ) -> Result<R, Error> {
-        let value = self.hosted.call(name, args.into_args(), host)?;
+        let value = self.hosted.try_call(name, args.into_args(), host)?;
         read(name, &value)
     }
 

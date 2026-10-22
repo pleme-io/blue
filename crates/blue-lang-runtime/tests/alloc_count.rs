@@ -43,13 +43,17 @@ fn a_known_allocation_is_counted_exactly() {
     let v: Vec<u64> = Vec::with_capacity(100);
     let after = now();
     drop(v);
+    let freed = now();
     assert_eq!(
         after.since(before),
         Allocations {
             count: 1,
-            bytes: 800
+            bytes: 800,
+            freed: 0
         }
     );
+    assert_eq!(freed.since(after).freed, 800, "dropping it returns all 800");
+    assert_eq!(freed.since(before).retained(), 0, "nothing left live");
 }
 
 #[test]

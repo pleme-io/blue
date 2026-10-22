@@ -92,6 +92,16 @@ fn doc_of(attrs: &[Attribute]) -> String {
         .to_owned()
 }
 
+fn is_str_ref(ty: &Type) -> bool {
+    match ty {
+        Type::Reference(r) => {
+            r.mutability.is_none()
+                && matches!(r.elem.as_ref(), Type::Path(p) if p.path.is_ident("str"))
+        }
+        _ => false,
+    }
+}
+
 fn is_option(ty: &Type) -> bool {
     match ty {
         Type::Path(p) => p.path.segments.last().is_some_and(|s| s.ident == "Option"),
@@ -208,10 +218,22 @@ fn expand(
         let name = &m.blue_name;
         let ident = &m.ident;
         let arity = m.params.len();
-        let binds = (0..arity).map(|i| format_ident!("a{i}"));
+        let binds = m.params.iter().enumerate().map(|(i, (_, ty))| {
+            let var = format_ident!("a{i}");
+            if is_str_ref(ty) {
+                quote!(&*#var)
+            } else {
+                quote!(#var)
+            }
+        });
         let required = m.required;
         let converts = m.params.iter().enumerate().map(|(i, (label, ty))| {
             let var = format_ident!("a{i}");
+            let ty = if is_str_ref(ty) {
+                syn::parse_quote!(::std::sync::Arc<str>)
+            } else {
+                ty.clone()
+            };
             let position = i + 1;
             if i < required {
                 quote! {

@@ -1,10 +1,14 @@
 pub use blue_lang_host_macros::host;
+pub use blue_lang_runtime::domain::DomainError;
 pub use blue_lang_runtime::hosted::{CallError, FramedError, Hosted};
 pub use blue_lang_runtime::uses::{Entry, Loader, NoLoader};
 pub use blue_lang_runtime::RunError;
 pub use blue_lang_waku::Capability;
+pub use tatara_lisp::TataraDomain;
 pub use tatara_lisp_eval::vm::Budget;
-pub use tatara_lisp_eval::{Arity, EvalError, FromValue, Interpreter, IntoValue, Span, Value};
+pub use tatara_lisp_eval::{
+    Arity, EvalError, FromValue, Interpreter, IntoValue, MapKey, Span, Value,
+};
 
 #[cfg(feature = "packages")]
 pub use blue_lang_pkg::embedded::Standard;
@@ -35,6 +39,17 @@ pub fn host_effect_names() -> Vec<&'static str> {
         .into_iter()
         .flat_map(Capability::names)
         .collect()
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Domain<T>(pub T);
+
+impl<T: TataraDomain> FromValue for Domain<T> {
+    fn from_value(v: &Value, at: Span) -> Result<Self, EvalError> {
+        blue_lang_runtime::domain::compile_value(v)
+            .map(Domain)
+            .map_err(|e| EvalError::native_fn(T::KEYWORD, e.to_string(), at))
+    }
 }
 
 type Extension<'a, H> = Box<dyn FnOnce(&mut Interpreter<H>) + 'a>;

@@ -239,6 +239,7 @@ dependencies = [
  "blue-lang-pkg",
  "blue-lang-runtime",
  "blue-lang-waku",
+ "tatara-lisp",
  "tatara-lisp-eval",
  "thiserror",
 ]

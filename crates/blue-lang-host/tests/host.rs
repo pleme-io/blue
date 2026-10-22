@@ -231,3 +231,39 @@ fn a_frame_built_from_host_effect_names_refuses_a_host_effect() {
         .load(&mut host);
     assert!(ok.is_ok());
 }
+
+#[derive(Debug, tatara_lisp::DeriveTataraDomain)]
+#[tatara(keyword = "defcrate")]
+struct Crate {
+    name: String,
+    size: i64,
+}
+
+#[derive(Default)]
+struct Shelf {
+    seen: Vec<String>,
+}
+
+#[host(prefix = "shelf_")]
+impl Shelf {
+    fn label(&mut self, text: &str) -> String {
+        self.seen.push(text.to_owned());
+        text.to_uppercase()
+    }
+
+    fn store(&mut self, c: blue_lang_host::Domain<Crate>) -> i64 {
+        self.seen.push(c.0.name);
+        c.0.size
+    }
+}
+
+#[test]
+fn a_str_parameter_borrows_and_a_domain_parameter_reads_a_map() {
+    let src = "def go()\n  \"#{shelf_label(\"ab\")}:#{shelf_store({name: \"c\", size: 4})}\"\nend\n\ndef bad()\n  shelf_store({name: \"c\", sise: 4})\nend\n";
+    let mut host = Shelf::default();
+    let mut p = Program::<Shelf>::load_with(Entry::anonymous(src), &NoLoader, &mut host).unwrap();
+    assert_eq!(p.call::<String>("go", (), &mut host).unwrap(), "AB:4");
+    assert_eq!(host.seen, ["ab", "c"]);
+    let err = p.call::<i64>("bad", (), &mut host).unwrap_err().to_string();
+    assert!(err.contains("shelf_store") && err.contains("sise"), "{err}");
+}

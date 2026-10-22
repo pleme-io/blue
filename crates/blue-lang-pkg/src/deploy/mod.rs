@@ -194,6 +194,10 @@ pub enum SpecError {
     Name { got: String },
     #[error("`repository` must be a registry path without a tag or digest (the tag is the package version), got `{got}`")]
     Repository { got: String },
+    #[error("`host_args` entries must be non-empty single-line text, got `{got}`")]
+    HostArg { got: String },
+    #[error("`host_args` has no effect without `host`; name the package that runs the program")]
+    HostArgsWithoutHost,
     #[error("`{field}`: {got} is not a TCP port (1 to 65535)")]
     Port { field: &'static str, got: i64 },
     #[error(

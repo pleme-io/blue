@@ -20,6 +20,10 @@ pub enum Setting {
 #[serde(deny_unknown_fields)]
 pub struct Service {
     pub program: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub host_args: Vec<String>,
     pub repository: String,
     pub port: u16,
     pub probe: String,
@@ -131,6 +135,8 @@ fn slo_of(v: Option<&Value>) -> Result<Slo, SpecError> {
 
 pub const SERVICE_FIELDS: &[&str] = &[
     "program",
+    "host",
+    "host_args",
     "repository",
     "port",
     "probe",
@@ -206,6 +212,17 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
     check_name(name)?;
     let s = Spec::of(spec, SERVICE_FIELDS)?;
     let program = project_path("program", text_of("program", s.required("program")?)?)?;
+    let host = s.text("host")?;
+    if let Some(h) = &host {
+        check_name(h)?;
+    }
+    let host_args = s.texts("host_args")?;
+    if host.is_none() && !host_args.is_empty() {
+        return Err(SpecError::HostArgsWithoutHost);
+    }
+    if let Some(bad) = host_args.iter().find(|a| a.is_empty() || a.contains('\n')) {
+        return Err(SpecError::HostArg { got: bad.clone() });
+    }
     let repository = text_of("repository", s.required("repository")?)?;
     if !is_repository(&repository) {
         return Err(SpecError::Repository { got: repository });
@@ -321,6 +338,8 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
 
     Ok(Service {
         program,
+        host,
+        host_args,
         repository,
         port,
         probe,
@@ -374,6 +393,49 @@ mod tests {
         assert!(s.config.is_empty() && s.flags.is_empty() && s.schema.is_empty());
         assert!(s.slo.is_empty() && s.owner.is_none());
         assert!(!serde_json::to_string(s).unwrap().contains("slo"));
+    }
+
+    #[test]
+    fn a_host_names_the_package_that_runs_the_program_and_round_trips() {
+        let p = read(
+            "service(\"hello\", {program: \"hello.b\", host: \"hello-host\", \
+             host_args: [\"daemon\", \"--declaration\"], \
+             repository: \"ghcr.io/pleme-io/hello\", port: 8080})\n",
+        )
+        .unwrap();
+        let s = &p.services["hello"];
+        assert_eq!(s.host.as_deref(), Some("hello-host"));
+        assert_eq!(s.host_args, ["daemon", "--declaration"]);
+        let back: Service = serde_json::from_str(&serde_json::to_string(s).unwrap()).unwrap();
+        assert_eq!(&back, s);
+    }
+
+    #[test]
+    fn without_a_host_the_lock_carries_no_host_keys() {
+        let p = read(MINIMAL).unwrap();
+        let s = &p.services["hello"];
+        assert!(s.host.is_none() && s.host_args.is_empty());
+        let json = serde_json::to_string(s).unwrap();
+        assert!(!json.contains("host"));
+    }
+
+    #[test]
+    fn a_broken_host_is_refused_by_name() {
+        let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
+        let cases = [
+            ("host: \"Bad Name\"", "not a name"),
+            ("host_args: [\"daemon\"]", "no effect without `host`"),
+            ("host: \"h\", host_args: [\"\"]", "non-empty single-line"),
+            ("host: \"h\", host_args: [\"a\\nb\"]", "non-empty single-line"),
+        ];
+        for (extra, expect) in cases {
+            let body = format!("service(\"hello\", {{{base}, {extra}}})\n");
+            let got = refused(&body);
+            assert!(
+                got.iter().any(|r| r.contains(expect)),
+                "{extra}: wanted `{expect}`, got {got:?}"
+            );
+        }
     }
 
     #[test]

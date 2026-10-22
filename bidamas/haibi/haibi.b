@@ -156,6 +156,7 @@ def values_with(svc, mode)
       "pullPolicy" => "IfNotPresent"
     },
     "command" => [],
+    "args" => get_or(svc, "host_args", []),
     "service" => service_values(svc, mode),
     "listen" => get(d, "listen"),
     "health" => get(d, "health"),
@@ -258,10 +259,11 @@ def values_schema_with(name, svc, mode)
     "replicaCount",
     replicas
   )
+  with_args = assoc(open, "args", command)
   with_library = if mode == :self
-    open
+    with_args
   else
-    assoc(assoc(open, "pleme-lib", kube_object), "global", kube_object)
+    assoc(assoc(with_args, "pleme-lib", kube_object), "global", kube_object)
   end
   document("#{name} chart values", assoc(closed, "properties", with_library))
 end
@@ -527,6 +529,10 @@ def deployment(n, h)
       "          imagePullPolicy: {{ .Values.image.pullPolicy }}",
       "          {{- with .Values.command }}",
       "          command:",
+      "            {{- toYaml . | nindent 12 }}",
+      "          {{- end }}",
+      "          {{- with .Values.args }}",
+      "          args:",
       "            {{- toYaml . | nindent 12 }}",
       "          {{- end }}",
       "          env:",
@@ -930,4 +936,12 @@ test "the chart carries the service's SLO rules, its dashboard and a scrape anno
   assert get(get(get(get(vs, "slo"), "properties"), "rules"), "type") ==
     "boolean"
   assert get(catalog_entry("hello", "0.1.0", sample), "owner") == "pleme-io"
+end
+
+test "a host service's arguments become the chart's args, and a blue service has none"
+  hosted = assoc(sample, "host_args", ["daemon", "--declaration"])
+  assert get(values(hosted), "args") == ["daemon", "--declaration"]
+  assert get(values(sample), "args") == []
+  vs = get(values_schema("hello", hosted), "properties")
+  assert get(get(vs, "args"), "type") == "array"
 end

@@ -5,6 +5,8 @@ let
 
   services = m.services or { };
 
+  own = lib.filterAttrs (_: s: !(s ? host)) services;
+
   envPrefix = sn: "${lib.toUpper (lib.replaceStrings [ "-" ] [ "_" ] sn)}_";
 
   trees = lib.mapAttrs
@@ -25,7 +27,7 @@ let
         ln -s ${builtins.path { path = src + "/${a}"; name = baseNameOf a; }} "$out/app/${a}"
       '')
       (spec.assets or [ ])))
-    services;
+    own;
 
   program = sn: spec: "${apps.${sn}}/app/${baseNameOf spec.program}";
 
@@ -41,14 +43,14 @@ let
       env = envOf sn;
       chdir = "${apps.${sn}}/app";
     }))
-    services;
+    own;
 
   images = import ./image.nix { inherit lib pkgs oci blue; };
 
   imageSets =
-    if services == { } || !pkgs.stdenv.isLinux then { }
+    if own == { } || !pkgs.stdenv.isLinux then { }
     else if oci == null || !(oci ? mkHardenedImageSet) then
-      throw "lib.project: the Bluefile declares service ${lib.concatStringsSep ", " (attrNames services)}, and this engine was given no image factory (`oci.mkHardenedImageSet`, substrate.lib.<system>)"
+      throw "lib.project: the Bluefile declares service ${lib.concatStringsSep ", " (attrNames own)}, and this engine was given no image factory (`oci.mkHardenedImageSet`, substrate.lib.<system>)"
     else lib.mapAttrs
       (sn: spec: (images.build {
         what = "service(\"${sn}\")";
@@ -61,7 +63,7 @@ let
         contents = [ apps.${sn} ];
         workdir = "${apps.${sn}}/app";
       }).set)
-      services;
+      own;
 
   chartCheck = sn: spec:
     let
@@ -165,7 +167,7 @@ let
       binaryName = sn;
       scope = "system";
     })
-    services);
+    own);
 
   anyAttrs = lib.mkOption { type = lib.types.attrsOf lib.types.anything; default = { }; };
   anyList = lib.mkOption { type = lib.types.listOf lib.types.anything; default = [ ]; };
@@ -241,8 +243,8 @@ let
         touch $out
       '';
       "service-${sn}-chart" = chartCheck sn spec;
-      "service-${sn}-serves" = servesCheck sn spec;
     }
+    // lib.optionalAttrs (executables ? ${sn}) { "service-${sn}-serves" = servesCheck sn spec; }
     // lib.optionalAttrs ((spec.schema or { }) != { }) { "service-${sn}-migrations" = migrationsCheck sn spec; }
     // lib.optionalAttrs (trios ? ${sn}) { "service-${sn}-trio" = trioCheck sn trios.${sn}; }
     // lib.optionalAttrs (imageSets ? ${sn}) {

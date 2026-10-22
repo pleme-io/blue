@@ -1,0 +1,102 @@
+space	verb	newverb	why
+kyoujin?	call	protect	runs f through a breaker; call means invoke a remote operation
+chuukai?	check	probe	health probe; check means findings against rules
+kyoujin?	check	probe	health probe; check means findings against rules
+kazu	check	dimension	returns a unit dimension, not findings
+sekai?	run	simulate	steps a world; run means run to completion
+gyouretsu	plan	compile	compiles a graph; plan means what would happen
+byouga?	plan	compile	orders and proves passes; plan means what would happen
+yuugou?	diff	delta	returns only unseen updates, not a diff of two values
+habu	merge	land	merge a pull request; merge means combine two values
+hani?	merge	coalesce	joins overlapping ranges inside one list
+nisshi	merge	interleave	interleaves several logs by time
+shuunou?	merge	patch	applies a patch to a stored document
+tehai	put	write	writes a file atomically; put means keyed upsert
+haifu?	update	upgrade	moves to a newer version; update means f of the old value
+paketto?	update	upgrade	moves pins to newer versions
+shinsa?	update	catchup	brings a review branch to its base
+assaku?	create	pack	writes an archive; create means add a keyed entry
+kokusai?	list	phrase	joins items as a phrase; list means every entry of a store
+hata?	get	eval	evaluates a flag for a context; get returns nil for absent
+paketto?	add	depend	declares a dependency; add means sum
+kengen?	assign	bind	binds a role in a scope; assign names an owner
+shigoto?	at	timer	schedules a call; at means item at a position
+kyoukyuu?	audit	audit_lock	scans a lock for advisories; audit appends a record
+kazu	sign	signum	sign of a number; sign means a signature
+kazu	log	logarithm	logarithm; log means history
+kazu	root	nth_root	nth root; root means the top node
+kinji	root	zero	root finding; root means the top node
+kazu	truncate	whole	integer part; truncate means cut to a limit
+angou	order	period	multiplicative order; order means a sequence
+kikagaku	offset	grow	polygon offset; offset means a position
+ongaku	scale	notes	notes of a scale; scale means multiply
+seimitsu?	scale	places	digits after the point; scale means multiply
+jikkou?	scale	resize	set instance count; scale means multiply
+youryou?	scale	resize	set replica count; scale means multiply
+kyuu?	drain	unload	takes every item; drain means stop and finish
+genin?	record	tape	records host reads; record means append an outcome
+nisshi	record	entry	builds a record value
+katachi?	record	shape	declares a record shape
+onsei?	record	listen	captures from a device
+toukei	test	hypothesis	statistical test; test means run tests
+kentei?	test	case	declares one named test
+gyouretsu	trace	diagsum	matrix trace; trace means a run's path
+kyuuji	text	plain	plain-text response; text means text under a node
+kyohi	status	exit_status	exit status of a kind; status means a summary record
+settei	path	file	config file location; path means a route in a graph
+shoumeisho?	path	chain_of	certificate chain; path means a route in a graph
+moderu?	pin	prefix	marks a cacheable prefix; pin fixes a version
+shoumeisho?	pin	fingerprint	key hash; pin fixes a version
+souchi?	pin	terminal	hardware pin; pin fixes a version
+goui?	lock	with_lock	runs f under a lease; lock writes a lock
+haichi?	lock	freeze	stops changes to an environment
+kiban?	lock	claim	claims state against a writer
+kagi?	lock	enclose	envelope encryption
+chuuzou	link	assemble	links code into an image; link relates two things
+shomei	link	chain	next hash in a chain; link relates two things
+goui?	join	enter	joins a group; join combines items
+messeeji?	join	enter	joins a group; join combines items
+sokketto?	join	enter	joins a group; join combines items
+chuukai?	split	weigh	divides traffic by weight; split cuts text
+kakuritsu?	split	fork	independent random stream; ran::fork has the same meaning
+genin?	stack	frames	call frames of a program
+shinsa?	stack	train	ordered dependent reviews
+paketto?	tree	closure	dependency graph of a lock
+bajon?	range	constraint	a version constraint as a value
+souko?	range	slice	byte range of an object
+kagi?	open	unseal	decrypts an envelope; open means open a handle
+ami?	open	connect	opens a remote session; connect is the verb
+kinyuu?	close	seal	seals a period; close releases a handle
+hiyou?	commit	reserve	purchase commitments; commit makes durable
+shomei	commit	pledge	hiding commitment; commit makes durable
+kakikae?	extract	outline	refactor that moves a span to a definition
+assaku?	extract	unpack	unpacks an archive; extract pulls parts out
+asshuku?	extract	unpack_to	unpacks an archive; extract pulls parts out
+aktaa?	group	team	names a set of processes
+heikou	group	scope	structured concurrency scope
+gyouretsu	identity	eye	identity matrix
+shoumeisho?	identity	principal	workload identity of a certificate
+kueri	limit	take	first n rows; take is the collection verb
+kyuuji	limit	throttle	answers 429 past a bucket
+gitto	pick	graft	cherry-pick; pick chooses one item
+rekishi?	pick	graft	cherry-pick; pick chooses one item
+nisshi	project	fold	keeps a read model from a log
+sekai?	schedule	arrange	orders systems; schedule declares times
+gamen?	select	choose	a human picks; select keeps parts of a value
+souchi?	signal	waveform	declares a waveform; signal delivers an event
+raifusaikuru	start	initial	declares the initial state; start begins a run
+kikagaku	translate	shift	moves a shape; translate means a message in a locale
+rittai	translate	shift	moves a mesh; translate means a message in a locale
+gazou?	trim	cut	cuts a clip; trim drops space from text
+onsei?	trim	cut	cuts a clip; trim drops space from text
+keiyaku?	version	negotiate	picks a shared version
+jikkou?	version	versions	published versions of a function
+kyoujin?	window	limiter	sliding-window quota; window is a query operation
+kagi?	wrap	shield	encrypts a key under a key
+hyouka	log	build_log	build log text; log means commits
+kurasuta	explain	describe	schema of a kind; explain says why
+kyasshu?	fetch	remember	read-through cache; fetch downloads
+gazou?	rotate	turn	geometric turn; rotate replaces a credential
+kikagaku	rotate	turn	geometric turn; rotate replaces a credential
+rittai	rotate	turn	geometric turn; rotate replaces a credential
+retsu	rotate	turn	items moved n places; rotate replaces a credential

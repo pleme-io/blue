@@ -1,0 +1,354 @@
+verb	subject	args	opts	returns	raises	kind	meaning	stdlib_ref	status
+acquire	source	~source,name	yes	lease	timeout	effect	take a lease or credential	-	decided
+add	a	a,b	no	value		pure	a moved or summed by b	§3.5	stdlib
+address	data	data,algorithm?	yes	oid		pure	content address of a value	-	decided
+admit	subject	subject,policy,event?	yes	decision		any	decide whether a thing may pass	-	decided
+advance	subject	subject,by	yes	state		effect	move a world, run or clock forward	-	open
+alive?	subject	subject,now?	no	Bool		any	whether a process, link or session is alive	-	decided
+all	fs	fs	yes	[value]	first error	effect	run functions concurrently; values in order	§3.3	stdlib
+all?	xs	xs,f	no	Bool		pure	whether f holds for every item	§3.6	stdlib
+analyze	subject	subject,by?	yes	verdict		pure	derive findings from a subject	-	decided
+any?	xs	xs,f	no	Bool		pure	whether f holds for at least one item	§3.6	stdlib
+append	target	target,content	yes	nil	permission_denied	effect	add to the end of a target	§3.1	stdlib
+apply	target	target,change?	yes	result	conflict	effect	carry out a reviewed plan, patch or delta	§3.3	open
+approve	subject	subject,gate?	yes	decision		effect	record approval of a request or gate	-	decided
+arrange	systems	systems	no	order		pure	order systems so no two clash on a write	-	decided
+assemble	ast	ast,board	no	image		pure	link emitted code into an image	-	decided
+assign	subject	subject,who	yes	nil	not_found	effect	name the owner of a subject	-	decided
+at	subject	subject,position	no	item or nil		pure	the item or state at a position	-	decided
+audit	actor	actor,action,target,outcome	yes	record		effect	append who did what to what, with the result	-	decided
+audit_lock	lock	lock	yes	[advisory]		effect	locked packages checked against advisories	-	decided
+batch	store	store,ops	yes	[result]		effect	several operations in one call	-	decided
+become	command	command,args?	yes	never	command_not_found	effect	replace this program with a command	§3.3	stdlib
+bind	subject	subject,role,scope	yes	binding		effect	give a subject a role inside a scope	-	decided
+bisect	candidates	candidates,good?,bad?,test	no	candidate		effect	find the first bad candidate by halving	-	decided
+bootstrap	data	data,statistic,rng,n	no	interval		pure	resample to estimate a statistic	-	decided
+bounds	shape	shape	no	box		pure	the smallest box holding a shape	-	decided
+budget	scope	scope?,amount?,period?	yes	budget		pure	a limit on spend, error or work	-	decided
+build	project	project,targets?	yes	artifact	command_failed	effect	produce outputs from a project	-	decided
+build_log	installable	installable	no	text		effect	the build log of a derivation	-	decided
+call	target	target,input	yes	reply	timeout	effect	invoke one remote operation and wait for its reply	-	open
+cancel	handle	handle,reason?	yes	nil		effect	ask a running thing to stop	-	decided
+capture	command	command,args?	yes	text	command_not_found,command_failed	effect	run and return stdout without its trailing newline	§3.3	stdlib
+case	name	name,f	no	test		pure	declare one named test	-	decided
+catchup	review	review	yes	nil		effect	bring a branch up to its base	-	decided
+centroid	shape	shape	no	point		pure	the centre of a shape	-	decided
+chain	prev	prev,payload	no	hash		pure	the hash that follows prev when payload is appended	-	decided
+chain_of	chain	chain,roots	yes	[cert]		pure	a valid chain from a leaf to a trusted root	-	decided
+check	subject	subject,rules?	yes	[finding]		any	findings of a subject against rules; empty when sound	§4.9	open
+checksum	data	data,algorithm?	yes	integer		pure	a short integrity number over data	-	decided
+choice	instructions	instructions,options?	no	question		pure	a closed question with a fixed set of answers	-	decided
+choose	items	items	yes	item or nil		effect	a human picks from a list	-	decided
+chunk	xs	xs,n?	yes	[list]		pure	the items in consecutive groups of n	§3.6	stdlib
+claim	stack	stack	yes	lease	conflict	effect	claim the state against a second writer	-	decided
+classify	subject	subject,rules?	yes	label		pure	put a subject in one of a closed set of classes	-	decided
+clear	store	store,prefix?	yes	count		effect	remove every entry, or those under a prefix	-	decided
+close	handle	handle	yes	nil		effect	release a handle; closing twice is done	-	decided
+closure	lock	lock	no	graph		pure	the dependency graph a lock implies	-	decided
+coalesce	ranges	ranges	no	[range]		pure	join overlapping ranges into disjoint ones	-	decided
+commit	subject	subject,what?	yes	oid or nil		effect	make staged changes or a position durable	-	decided
+compact	store	store,policy?	yes	count		effect	reclaim space or fold old records	-	decided
+compare	a	a,b	yes	-1, 0 or 1		pure	order two values	-	decided
+compile	graph	graph	yes	compiled graph		pure	compile a graph; shapes proved before any run	-	decided
+compose	first	first,second?	no	function		pure	join two functions or parts into one	-	decided
+compress	data	data,algorithm?	yes	bytes		pure	bytes made smaller	-	decided
+connect	address	address	yes	conn	timeout	effect	open a connection to an address	-	decided
+constraint	text	text	no	constraint		pure	a version constraint as a value	-	decided
+contains?	xs	xs,x	no	Bool		pure	whether x is among the items or the text	§3.6	stdlib
+convert	value	value,to,from?	yes	value		pure	a value in another unit, format or space	-	open
+copy	from	from,to	yes	nil	not_found,exists	effect	place a copy at a destination	§3.1	stdlib
+correlate	a	a,b	yes	[record]		pure	link records that share an identity or window	-	decided
+count	xs	xs,f?	yes	int		any	how many items, or how many match	§3.6	stdlib
+coverage	subject	subject,locales?	no	ratio		pure	how much of a whole is covered	-	decided
+create	store	~store,key,value	yes	value	exists	any	add a new entry; refuse to overwrite	§3.2	stdlib
+cut	clip	clip,from,to	no	clip		pure	the part of a clip between two times	-	decided
+debug	message	message,fields?	no	nil		effect	a structured log line at debug level	§3.5	stdlib
+decide	facts	facts,history?,policy?,now?	no	decision		pure	choose an outcome from facts and a policy	-	decided
+declare	name	name,spec?	yes	decl		pure	declare an entry; nothing runs	-	decided
+decode	data	data,encoding	no	bytes	decode_error	pure	text to bytes in an encoding	§3.4	stdlib
+dedupe	xs	xs,key?	yes	list		pure	drop repeats	-	decided
+defaults	app	app?	no	record		pure	the default values of a subject	-	decided
+delete	store	~store,key	yes	nil	permission_denied	any	make the entry absent; absent counts as done	§3.2	stdlib
+delta	crdt	crdt,since	no	delta		pure	only the updates a replica has not yet seen	-	decided
+depend	project	project,dep	yes	[changed pin]		effect	declare a dependency and re-lock	-	decided
+derive	secret	secret,salt,info?	yes	key		pure	a key or id derived from inputs	-	decided
+describe	subject	subject,at?	no	text		pure	a plain-language account of a subject	-	decided
+detect	data	data,rules?	yes	format or nil		pure	find which format or event the data is	-	decided
+diagsum	m	m	no	number		pure	the sum of the diagonal of a matrix	-	decided
+diff	a	a,b	yes	[change]		any	differences between two values as change records	§3.4	stdlib
+dimension	expr	expr	no	dimension		pure	the unit dimension an expression proves to have	-	decided
+distance	a	a,b	yes	number		pure	how far apart two values are	-	decided
+drain	subject	subject	yes	nil		effect	stop taking new work and finish what is held	-	decided
+draw	rng	rng,kind?	no	value		pure	one random value from a stream	-	decided
+drift	a	a,b?	yes	[change]		effect	differences between wanted and actual state	-	decided
+drop	xs	xs,n	no	list		pure	all but the first n items	§3.6	stdlib
+drop_while	xs	xs,f	no	list		pure	the items after the leading run where f holds	§3.6	stdlib
+due?	subject	subject,now,last?	no	Bool		pure	whether a time, key or trigger has come	-	decided
+each	xs	xs,f	no	nil		effect	call f on each item for its effect	§3.6	stdlib
+embed	model	~model,input	yes	vector		effect	text or items as vectors	-	decided
+empty?	xs	xs	no	Bool		pure	whether there are no items	§3.6	stdlib
+enclose	data	data,key_id	yes	envelope		effect	envelope encryption with a fresh data key wrapped by a managed key	-	decided
+encode	data	data,encoding	no	text		pure	bytes to text in an encoding	§3.4	stdlib
+enter	group	group,member?	no	view		effect	join a group	-	decided
+entries	m	m	no	[pair]		pure	the key and value pairs of a map	§3.6	stdlib
+entry	fields	fields	no	record		pure	build one record value with its links	-	decided
+error	message	message,fields?	no	nil		effect	a structured log line at error level	§3.5	stdlib
+estimate	subject	subject,method?,n?	yes	estimate		pure	a value with its range from a method	-	decided
+eval	flag	flag,context	yes	value		effect	the value of a flag for a context	-	decided
+events	subject	~subject	yes	[event]		effect	events about a subject	-	decided
+exists?	subject	subject	yes	Bool		effect	whether the subject is there; never raises	§3.1	stdlib
+exit_status	kind	kind	no	int		pure	the exit status the ledger gives a kind	-	decided
+expand	subject	subject,by?	yes	value		pure	a short form made long	-	decided
+explain	subject	subject,path?	no	text		pure	why a result or finding came out as it did	-	decided
+export	store	store,target	yes	count		effect	write a store out to a target	-	decided
+extract	source	source,kind?	yes	[part]		pure	pull named parts out of a source	-	decided
+eye	n	n	no	matrix		pure	the identity matrix of size n	-	decided
+fetch	source	source,version?	yes	local copy	not_found	effect	bring a remote thing to local disk	-	decided
+file	app	app,tier	no	path		pure	where the config file of a tier lives	-	decided
+fill	template	template,data	no	text		pure	a template with its holes filled	-	decided
+filter	xs	xs,f	yes	list		pure	the items where f holds	§3.6	stdlib
+find	subject	subject,query	yes	item or nil		any	the first match of a query or predicate, else nil	§3.6	stdlib
+fingerprint	cert	cert	no	hex		pure	a hash of the public key, for pinning	-	decided
+first	xs	xs	no	item or nil		pure	the first item	§3.6	stdlib
+fit	model	model,data	yes	params		pure	choose parameters that match data	-	decided
+flat_map	xs	xs,f	no	list		pure	map then flatten one level	§3.6	stdlib
+flatten	xs	xs	no	list		pure	nested lists as one list	§3.6	stdlib
+fold	log	log,projection	yes	view		effect	keep a read model current from a log	-	decided
+forecast	series	series,horizon	yes	series		pure	a series continued forward	-	decided
+fork	rng	rng,label?	no	rng		pure	an independent stream from one	-	decided
+frames	session	session	no	[frame]		effect	the frames of a paused program or a dump	-	decided
+freeze	name	name,reason	no	nil		effect	stop changes to an environment	-	decided
+fresh?	subject	subject,now	no	Bool		pure	whether a thing is still within its lifetime	-	decided
+fuse	lists	lists	yes	[hit]		pure	several rankings combined into one	-	decided
+gate	subject	subject,rule	no	verdict		pure	a pass or fail verdict against a rule	-	decided
+generate	spec	spec,target?	yes	content		any	produce content or keys from a spec	-	decided
+get	store	~store,key	yes	value or nil		any	one entry, nil when absent	§3.2	stdlib
+glob	pattern	pattern	yes	[path]		effect	paths matching a pattern, sorted	§3.1	stdlib
+graft	repo	repo,commits	no	[commit]		effect	copy commits onto the current branch	-	decided
+grammar	rules	rules	no	grammar		pure	declare a grammar from rules	-	decided
+grant	subject	subject,permission,resource	yes	relation	permission_denied	effect	let a subject do something to a resource	-	decided
+graph	edges	edges	yes	graph		pure	build or read a graph of nodes and edges	-	decided
+group	subject	subject,keys?	yes	group		any	a set of things taken together	-	decided
+group_by	xs	xs,f	no	map		pure	items grouped under f of each	§3.6	stdlib
+grow	polygon	polygon,distance	no	polygon		pure	a polygon grown or shrunk by a distance	-	decided
+has?	store	~store,key	no	Bool		any	whether the key is present	§3.2	stdlib
+hash	data	data,algorithm?	yes	hex	bad_option	pure	a digest in lowercase hex	§3.4	stdlib
+highlight	code	code,language?	no	spans		pure	the spans of text worth marking	-	decided
+history	subject	subject,range?	no	[record]		effect	past records of a subject, in order	-	decided
+hypothesis	a	a,b,kind	no	record		pure	a statistical test: statistic and p-value	-	decided
+identity	x	x	no	x		pure	the value unchanged	-	decided
+import	store	store,entries	yes	count		effect	bring entries into a store	-	decided
+index	store	store,field?	yes	index		effect	build or declare an index	-	decided
+index_of	xs	xs,x	no	int or nil		pure	the position of the first x	§3.6	stdlib
+info	subject	subject	yes	record	not_found	effect	current state of the subject as a record	§3.1,§3.5	open
+initial	state	state	no	decl		pure	declare the state an instance begins in	-	decided
+insert	xs	xs,at?,item	no	xs		pure	xs with an item placed at a position	-	decided
+interleave	logs	logs	no	[record]		pure	several logs merged into one ordered list	-	decided
+intersect	a	a,b	no	x or nil		pure	what two values have in common	-	decided
+invert	x	x	yes	x		pure	the opposite of a value	-	decided
+join	xs	xs,sep?	no	text		pure	items joined into one value with a separator	§3.6	stdlib
+judge	subject	subject,criteria,b?	yes	verdict		pure	a verdict from criteria	-	decided
+key	parts	parts	no	key		pure	one canonical key built from ordered parts	-	decided
+keys	m	m	yes	[key]		pure	the keys of a map	§3.6	stdlib
+kind	node	node	no	name		pure	the kind or scheme a value belongs to	-	decided
+lag	consumer	consumer,log?	no	number		effect	how far behind a consumer is	-	decided
+land	change	change	yes	record	conflict	effect	merge a reviewed change into its base	-	decided
+last	xs	xs	no	item or nil		pure	the last item	§3.6	stdlib
+ledger	accounts	accounts?,rules?	yes	ledger		any	a closed list or record of entries	-	decided
+limit	subject	subject,amount?	yes	limit		pure	a cap on a resource or a flow	-	decided
+limiter	count	count,duration	no	limiter		pure	declare a sliding-window limiter	-	decided
+link	from	from,to,kind?	yes	nil		effect	relate two things	-	decided
+lint	subject	subject	yes	[finding]		pure	style and quality findings	-	decided
+list	store	~store	yes	[record]	not_found	any	every entry, all pages, sorted	§3.2	stdlib
+listen	device	device	yes	handle		effect	capture from an input device	-	decided
+lock	project	project	yes	[changed pin]		effect	write the lock of a project from its manifest	-	decided
+log	repo	repo	yes	[commit]		effect	commits from a ref backward	-	decided
+logarithm	n	n,base?	no	number		pure	the logarithm of n in a base	-	decided
+map	xs	xs,f	yes	list		pure	a list of f applied to each item	§3.6	stdlib
+matches?	subject	subject,pattern	no	Bool		pure	whether a subject matches a pattern	-	decided
+max_by	xs	xs,f	no	item or nil		pure	the item with the greatest f	§3.6	stdlib
+measure	subject	subject,metric?	yes	number		any	a size or a rate of a subject	-	decided
+merge	a	a,b	yes	value	conflict	any	combine b into a	§3.4	open
+min_by	xs	xs,f	no	item or nil		pure	the item with the least f	§3.6	stdlib
+mirror	from	from,to	yes	report		effect	make a destination equal a source	-	decided
+move	from	from,to	yes	nil	not_found,exists	effect	move or rename atomically	§3.1	stdlib
+need	store	~store,key	yes	value	not_found	any	one entry, raising when absent	§3.2	stdlib
+negotiate	client	client,server	no	version		pure	pick the highest version both sides speak	-	decided
+neighbors	graph	~graph,node	no	[node]		pure	the nodes next to a node	-	decided
+next	schedule	schedule,after	no	instant or nil		pure	the next occurrence after a point	-	decided
+none?	xs	xs,f	no	Bool		pure	whether f holds for no item	§3.6	stdlib
+normalize	x	x,form?	yes	x		pure	the one canonical form of a value	-	decided
+notes	root	root,kind	no	notes		pure	the notes of a scale from a root	-	decided
+now			no	instant		effect	the current instant	§3.5	stdlib
+nth_root	n	n,degree	no	number		pure	the n-th root of a number	-	decided
+observe	subject	~subject,value?,labels?	yes	nil or state		effect	record or read one measurement	-	decided
+offset	subject	subject,key	no	number or nil		pure	a position relative to a reference	-	decided
+on	subject	subject,event,handler	no	subject		pure	attach a handler to an event	-	open
+open	spec	spec	yes	handle	not_found,permission_denied	effect	open or connect a store, log or session	-	decided
+order	subject	subject	no	[x]		pure	the sequence a collection takes	-	decided
+outline	tree	tree,span,name	no	[edit]		pure	edits that move a span into a new definition	-	decided
+pack	items	items,format?	yes	bytes		pure	bundle items into one value	-	decided
+parent	node	~tree,node	no	node or nil		pure	the node that holds a node, nil at the root	-	decided
+parse	text	text,format?	yes	value	parse_error	pure	text to a value	§3.4	stdlib
+partition	xs	xs,f	no	[list]		pure	two lists: where f holds and where it does not	§3.6	stdlib
+patch	base	base,delta	yes	value	conflict	any	a value changed by a set of edits	-	decided
+path	graph	graph,from,to	yes	[node] or nil		pure	the cheapest route between two nodes	-	decided
+pause	handle	handle	yes	nil		effect	hold a run without ending it	-	decided
+peek	queue	queue,n?	no	item or nil		effect	look at the next item without taking it	-	decided
+period	a	a,modulus	no	int		pure	the smallest power of a equal to one	-	decided
+phrase	items	locale,items	no	text		pure	items joined as a phrase in a locale	-	decided
+pick	source	source,rule	yes	item or nil		pure	choose one item by a rule	-	decided
+pin	subject	subject,to?	yes	nil		effect	fix a subject to one exact version	-	decided
+pipe	stages	stages	yes	result	command_failed	effect	run stages joined stdout to stdin	§3.3	stdlib
+places	decimal	decimal	no	int		pure	digits after the decimal point	-	decided
+plain	status	status,body	no	response		pure	a plain-text response	-	decided
+plan	subject	subject,target?	yes	[action]	as the verb	pure	what the verb would do, as data, changing nothing	§3.3	stdlib
+pledge	value	value,nonce	no	hex		pure	a hiding binding commitment to a value	-	decided
+policy	name	name?,rules?	yes	policy		pure	declare rules that decide	-	decided
+pool	size	size,f	yes	pool		effect	a fixed set of workers that share requests	-	decided
+prefix	prompt	prompt,mark	no	prompt		pure	mark the stable prefix a provider may cache	-	decided
+principal	cert	cert	no	text		pure	the workload identity a certificate names	-	decided
+probe	target	target,check?	yes	record		effect	test whether a target is healthy	-	decided
+profile	subject	subject	yes	profile		any	where time or resource goes	-	decided
+project	subject	subject,onto	no	projection		pure	a subject seen in another space	-	decided
+promote	subject	subject,to?	yes	subject		effect	move a thing to the next stage	-	decided
+protect	breaker	breaker,f	yes	value	breaker_open	effect	run f through a breaker; open breaker raises at once	-	decided
+publish	artifact	artifact,target	yes	record		effect	send an artifact or message to a target	-	decided
+purge	store	store,filter?	yes	count		effect	remove entries matching a filter	-	decided
+push	subject	subject,item?	yes	nil or digest		effect	send an item to a remote or queue	-	decided
+put	store	~store,key,value	yes	value	permission_denied	any	create or replace an entry	§3.2	stdlib
+query	store	store,question,params?	yes	[record]	query_error	any	ask the store in its own language	§3.2	stdlib
+quota	limiter	limiter,key	no	record		effect	remaining, limit and reset time of a key under a limiter	-	decided
+range	from	from,to,step?	yes	range		pure	numbers or keys between two ends	-	decided
+rank	items	items,query?	yes	ranked		pure	items ordered by a score	-	decided
+read	source	source	yes	content	not_found,permission_denied,parse_error	effect	whole content of a source	§3.1	stdlib
+ready?	subject	subject	no	Bool		any	whether a thing is ready to use	-	decided
+receive	source	source,subject?	yes	message or nil		effect	take the next message from a source	-	decided
+record	subject	subject,entry	yes	receipt		effect	append an outcome to a history or ledger	-	decided
+redact	doc	doc,rules	no	doc		pure	a value with sensitive parts hidden	-	decided
+reduce	xs	xs,f,init?	no	value		pure	fold the items into one value	§3.6	stdlib
+refresh	subject	subject,key?,f?	yes	value		effect	replace a held value with a fresh one	-	decided
+register	subject	subject,target?	yes	registration		effect	enter a name or device in a registry	-	decided
+reject	xs	xs,f	no	list		pure	the items where f does not hold	§3.6	stdlib
+remember	cache	cache,key,f	yes	value		effect	the cached value, computed by f when missing	-	decided
+remove	xs	xs,item	no	xs		pure	xs without an item	-	decided
+render	value	value,format?	yes	text	render_error	pure	a value to canonical stable text	§3.4	stdlib
+renew	subject	subject,by?	yes	subject		effect	lengthen the life of a lease, session or cert	-	decided
+replay	log	log,definition?	yes	state		any	re-run recorded events to a state	-	decided
+request	target	target,input	yes	reply		effect	ask a service for something and wait	-	decided
+reserve	lines	lines,options	no	plan		pure	layered purchase commitments for steady use	-	decided
+reset	subject	subject	yes	nil		effect	return a thing to its initial state	-	decided
+resize	workload	workload,n	yes	workload		effect	set the instance count or the capacity	-	decided
+resolve	ref	ref,context?	yes	value		any	turn a reference into what it names	-	decided
+rest	xs	xs	no	list		pure	all but the first item	§3.6	stdlib
+restart	unit	unit	yes	nil	not_found,command_failed	effect	stop then start a service	§3.3	stdlib
+restore	source	source,to?,version?	yes	manifest		effect	bring back a saved state	-	decided
+resume	handle	handle	yes	nil		effect	continue a paused run	-	decided
+retain	subject	subject,key?	yes	nil or policy		effect	set how long things are kept	-	decided
+retry	f	f,policy	no	value	last error	effect	call f again under a policy while it raises a retryable kind	§3.3	stdlib
+reverse	x	x	no	x		pure	the same in the opposite order	§3.6	stdlib
+revoke	subject	subject,reason?	yes	nil		effect	withdraw a grant, lease or certificate	-	decided
+rollback	subject	subject,to?	yes	outcome		effect	return to an earlier state	-	decided
+root	tree	tree	no	node		pure	the top node of a tree	-	decided
+rotate	secret	secret,policy?	yes	secret		effect	replace a credential or log segment with a fresh one	-	decided
+round	n	n,unit?	yes	number		pure	a value to the nearest whole unit	-	decided
+route	subject	subject,rules	no	[target]		pure	choose targets for a subject by rules	-	decided
+rule	name	name,match,body?	yes	rule		pure	declare one rule	-	decided
+run	subject	subject,input?	yes	result	command_not_found,command_failed,timeout	effect	run to completion and return the result	§3.3	stdlib
+sample	dist	dist,rng?,n?	no	record		pure	draws from a distribution or a source	-	decided
+save	subject	subject,path	yes	nil		effect	write a held state to storage	-	decided
+say	line	line	no	nil		effect	a line of program output on stdout	§3.5	stdlib
+scale	subject	subject,factor	yes	x		pure	a value multiplied by a plain factor	-	decided
+scan	subject	subject,rules?	yes	[finding]		effect	findings from looking over a subject	-	decided
+schedule	spec	spec,target?	yes	schedule		any	declare or compute when things happen	-	decided
+schema	subject	subject	no	schema		pure	the shape a subject has or implies	-	decided
+scope	f	f	no	value		effect	a scope where every child ends before it returns	-	decided
+score	output	output,rubric?	yes	number		pure	a number saying how good a result is	-	decided
+seal	subject	subject,key?	yes	envelope		effect	close a thing so later change is refused or unreadable	-	decided
+search	index	index,query	yes	[hit]		effect	ranked hits for a query	-	decided
+segment	source	source	yes	spans		pure	a source cut into spans	-	decided
+select	x	x,keys	no	x		pure	only the listed parts of a value	-	decided
+send	target	target,message	yes	receipt		effect	deliver a message or event to a target	-	open
+serve	address	address,handler	yes	nil		effect	answer requests at an address	-	decided
+shape	fields	fields	no	shape		pure	the shape of a record with named typed fields	-	decided
+shield	key	key,wrapping_key	no	text		pure	encrypt one key under another key	-	decided
+shift	shape	shape,by	no	shape		pure	a shape moved by a vector	-	decided
+sign	data	data,secret?	yes	signature	bad_key	pure	a signature over data	§3.4	stdlib
+signal	target	target,event,payload?	yes	nil		effect	deliver an event to a running thing	-	decided
+signum	n	n	no	-1, 0 or 1		pure	the sign of a number	-	decided
+simulate	world	world,ticks	yes	world		effect	advance a world a number of ticks	-	decided
+since	instant	instant	no	duration		effect	duration from an instant to now	§3.5	stdlib
+size	xs	xs	no	int		pure	how many items or keys	§3.6	stdlib
+sleep	duration	duration	no	nil		effect	pause for a duration	§3.5	stdlib
+slice	store	store,key,from,to	no	bytes		effect	read a byte range of an object	-	decided
+snapshot	subject	subject	yes	snapshot		effect	a frozen copy of a state	-	decided
+sort	xs	xs	yes	list		pure	the items in order	§3.6	stdlib
+sort_by	xs	xs,f	no	list		pure	the items ordered by f of each	§3.6	stdlib
+spawn	subject	subject,input?	yes	handle	command_not_found	effect	start without waiting; return a handle	§3.3	stdlib
+split	text	text,pattern	yes	[text]		pure	cut text at each match	§3.6	stdlib
+stack	items	items,axis?	no	combined		pure	several items layered or joined as one	-	decided
+stale?	subject	subject,policy?	no	Bool		pure	whether a thing is older than allowed	-	decided
+start	subject	subject,input?	yes	handle or nil	not_found,command_failed	effect	start a service, run or session	§3.3	stdlib
+status	subject	subject	no	record		effect	the summary state of a subject	-	decided
+stop	handle	handle	yes	nil		effect	end it: grace period, then kill	§3.3	stdlib
+stream	source	source,input?,f	yes	result	as run	stream	call f per item as it arrives	§3.3,§2.6	stdlib
+subscribe	bus	bus,subject,f	yes	subscription		effect	call f for each message on a subject	-	decided
+succeeds?	command	command,args?	yes	Bool	command_not_found	effect	whether the command exits with an ok status	§3.3	stdlib
+sum	xs	xs	no	number		pure	the total of the numbers	§3.6	stdlib
+sync	from	from,to?	yes	report		effect	make two places agree	-	decided
+tag	subject	subject,name	yes	nil		effect	attach a name or label to a subject	-	decided
+take	xs	xs,n	no	list		pure	the first n items	§3.6	stdlib
+take_while	xs	xs,f	no	list		pure	the leading items where f holds	§3.6	stdlib
+tally	xs	xs	no	map		pure	a count of each distinct item	§3.6	stdlib
+tape	f	f	yes	trace		effect	run f and keep the host reads needed to replay it	-	decided
+team	name	name	no	group		effect	name a set of processes addressed together	-	decided
+terminal	board	board,name	no	pin		pure	declare a hardware pin	-	decided
+test	project	project,suite?	yes	report		effect	run tests and return a report	-	decided
+text	node	node	no	text		pure	the text under a node	-	decided
+throttle	handler	handler,bucket	no	handler		effect	answer 429 past a bucket	-	decided
+tick	clock	clock,event?	no	clock		pure	advance a clock by one step	-	decided
+timer	instant	instant,f	yes	timer		effect	call f once at an instant	-	decided
+top	xs	xs,n?,by?	yes	list		pure	the n greatest items	-	decided
+trace	subject	subject	yes	trace		effect	the recorded path of a run	-	decided
+train	reviews	reviews	no	[review]		pure	reviews that depend on each other, in merge order	-	decided
+translate	key	key,locale,args?	yes	text		pure	the message for a key in a locale	-	decided
+tree	value	value,kids?	no	tree		pure	a rooted tree of values	-	decided
+triage	alert	alert,context?	no	verdict		pure	sort items by urgency	-	decided
+trim	text	text	yes	text		pure	drop space from both ends	-	decided
+truncate	subject	subject,limit	yes	x or count		any	cut to a limit	-	decided
+turn	shape	shape,angle,about?	no	shape		pure	a shape or list turned by an angle or n places	-	decided
+union	a	a,b	yes	x		pure	everything in either	-	decided
+unique	xs	xs	no	list		pure	the items with repeats dropped	§3.6	stdlib
+unload	queue	queue	no	list		effect	take every item in pop order	-	decided
+unpack	archive	archive,to?	yes	[entry]	decode_error	effect	take entries out of an archive	-	decided
+unpack_to	archive	archive,to	yes	[path]		effect	write an archive under a directory; traversal refused	-	decided
+unproject	point	subject,point	no	point		pure	a projected point back in its source space	-	decided
+unseal	envelope	envelope,key	yes	bytes	tampered	pure	decrypt and check an envelope	-	decided
+until	instant	instant	no	duration		effect	duration from now to an instant	§3.5	stdlib
+unzip	pairs	pairs	no	[list]		pure	a list of pairs split into two lists	§3.6	stdlib
+update	store	~store,key,f	yes	value	not_found,conflict	any	replace an entry with f of the old value	§3.2	stdlib
+upgrade	subject	subject,names?	yes	[change]		effect	move to a newer allowed version	-	decided
+validate	value	value,schema	yes	value	bad_option	pure	the value if valid, else the problems	-	decided
+values	m	m	no	[value]		pure	the values of a map	§3.6	stdlib
+variance	xs	xs	yes	number		pure	how spread out numbers are	-	decided
+verify	subject	subject,policy?	yes	verdict	tampered	any	check integrity against a record or policy	-	open
+verify?	data	data,signature?,key?	no	Bool		pure	whether a signature or proof holds	§3.4	stdlib
+version	subject	subject	no	version		pure	the version of a subject	-	decided
+versions	function	function	no	[version]		effect	published versions of a function	-	decided
+wait	handle	handle,until?	yes	result	timeout	effect	wait for a handle to finish	§3.3	stdlib
+waive	subject	subject,reason,until?	no	waiver		pure	a recorded exception to a rule	-	decided
+walk	root	root	yes	[node]	not_found	any	every node under a root, in a fixed order	§3.1	stdlib
+warn	message	message,fields?	no	nil		effect	a structured log line at warn level	§3.5	stdlib
+watch	store	store,f	yes	nil	not_found	stream	call f per change until it returns stop	§3.2	stdlib
+waveform	kind	kind,params	no	signal		pure	declare a level, pulse train or PWM wave	-	decided
+weigh	upstreams	upstreams,weights	no	rule		pure	divide traffic by weight	-	decided
+which	name	name	no	path or nil		effect	absolute path of a command on PATH, or nil	§3.3	stdlib
+whole	n	n	no	int		pure	the integer part of n toward zero	-	decided
+why	decision	subject,name?	no	text		pure	the rules or path behind a decision	-	decided
+windows	xs	xs,n	no	[list]		pure	every run of n consecutive items	§3.6	stdlib
+with_lock	name	name,f	yes	value	timeout	effect	run f while holding a named lease	-	decided
+wrap	x	x,with	no	x		pure	surround a value with another layer	-	decided
+write	target	target,content	yes	nil	permission_denied	effect	replace the whole content atomically	§3.1	stdlib
+yank	name	name,version,registry?	yes	nil		effect	withdraw a published version	-	decided
+zero	f	f,bracket	yes	number		pure	where f is zero inside a bracket	-	decided
+zip	xs	xs,ys	no	[pair]		pure	items of two lists paired by position	§3.6	stdlib

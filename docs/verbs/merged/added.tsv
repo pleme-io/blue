@@ -1,0 +1,8 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+H	kankyou	get	effect	get(name) -> text or nil	capability	-	rust:blue-lang-runtime	one environment variable, nil when unset	0
+H	kueri	ident	pure	ident(name) -> text	-	-	exists:kueri	an identifier as SQL, quoted when unsafe	0
+H	ran	stream_seed	pure	stream_seed(seed, i) -> seed	-	-	exists:ran	the seed of stream i from one experiment seed	0
+H	saishikou	retrying	effect	retrying(policy, step) -> value	retry,error	-	exists:saishikou	call step again under a policy while it fails	0
+H	shisutemu	run	effect	run(command, args, opts) -> result	process,capability,error	-	partial:shisutemu	run a command to completion; exec primitives exist, the verb does not	0
+H	shuusei	deep_merge	pure	deep_merge(a, b) -> value	-	-	exists:shuusei	maps merge key by key and b replaces the rest	0
+H	shuusei	put	pure	put(doc, path, value) -> doc	-	-	exists:shuusei	doc with value at path; absent map keys are created	0

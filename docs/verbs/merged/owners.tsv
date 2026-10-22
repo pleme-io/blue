@@ -1,0 +1,16 @@
+space	owner	why
+gitto	E	git as a build and ship tool; F's review rows are kept where more specific
+habu	E	GitHub API as a ship tool
+himitsu	D	secrets belong to security
+shomei	D	hashing and signatures belong to security
+kyoukyuu?	D	supply chain belongs to security
+tokumei	D	anonymity belongs to security
+kyuuji	C	serving belongs to the network
+nisshi	B	an append-only record belongs to storage
+mokuroku	F	catalogue checks belong to quality
+shihyou	F	indicators belong to observation
+kazu	A	numbers belong to data and math
+gyouretsu	A	matrices belong to math
+kikagaku	A	plane geometry belongs to math
+rittai	A	solids belong to math
+toukei	A	statistics belongs to math

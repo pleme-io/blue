@@ -1,0 +1,6 @@
+from	rel	to	action	why
+retsu::unique	composes	shuugou::set	refines	shuugou::set is the primitive; unique is its list form
+jisho::entries	composes	jisho::keys	drop	entries is the primitive; keys is built from it
+chokkan::choice	composes	chokkan::ask	refines	ask is the primitive; a choice is a closed ask
+kazu::floor	composes	kazu::divmod	drop	floor is the primitive; divmod is built from mod and floor
+fairu::write	composes	fairu::with_temp_file	drop	write is the primitive; with_temp_file uses it

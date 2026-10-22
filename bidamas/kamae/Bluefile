@@ -1,0 +1,3 @@
+package("kamae", "0.1.0")
+needs("kousei", "^0.1")
+needs("retsu", "^0.1")

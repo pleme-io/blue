@@ -9,6 +9,29 @@ row(
   covers("form:{a: 1, \"k\" => 2}")
 )
 
+row(
+  "maps.pun",
+  "a = 1\nb = 2\n{a:, b:}",
+  value("{a: 1, b: 2}"),
+  covers("form:{a:, b:}")
+)
+
+row(
+  "maps.pun.mixed",
+  "a = 1\n{a:, n: 3, \"k\" => a}",
+  value("{\"k\" => 1, a: 1, n: 3}")
+)
+
+row(
+  "maps.pun.multiline",
+  "a = 1\nb = 2\n{\n  a:,\n  b:\n}",
+  value("{a: 1, b: 2}")
+)
+
+row("maps.pun.predicate", "ok? = true\n{ok?:}", value("{ok?: true}"))
+
+row("maps.pun.unbound", "{missing:}", fails(:check, "B0001"))
+
 row("maps.empty", "{}", value("{}"))
 
 row(

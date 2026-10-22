@@ -520,11 +520,11 @@ end
 def dns_row(zone, purpose, name, type, value)
   {
     slug: "#{zone}__#{purpose}",
-    zone: zone,
-    name: name,
-    type: type,
+    zone:,
+    name:,
+    type:,
     ttl: "3600",
-    value: value,
+    value:,
     pending: flag(pending?(value))
   }
 end
@@ -818,7 +818,7 @@ def registrar(name)
 end
 
 def step(id, where, what)
-  {step: id, where: where, what: what}
+  {step: id, where:, what:}
 end
 
 def mail_steps(m, rows)
@@ -954,13 +954,7 @@ def one_domain()
 end
 
 def site(name, hosts)
-  {
-    name: name,
-    hosts: hosts,
-    origin_host: "o.example",
-    gate: :proxy,
-    kind: :static
-  }
+  {name:, hosts:, origin_host: "o.example", gate: :proxy, kind: :static}
 end
 
 def service_site(name, hosts)

@@ -64,7 +64,7 @@ end
 
 # A field of a record: its key and its check, optional unless `required`.
 def field(key, check)
-  {key: key, check: check, required: false}
+  {key:, check:, required: false}
 end
 
 def required(f)
@@ -103,7 +103,7 @@ def loosened(table)
 end
 
 def entry(kind, name, value)
-  {entry: kind, name: name, value: value}
+  {entry: kind, name:, value:}
 end
 
 def kind_of(e)
@@ -125,7 +125,7 @@ end
 
 # Fields laid over an entry declared earlier.
 def tune(kind, name, fields)
-  entry(:tune, name, {target: kind, fields: fields})
+  entry(:tune, name, {target: kind, fields:})
 end
 
 def where(e)

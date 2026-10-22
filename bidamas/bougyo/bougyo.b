@@ -160,7 +160,7 @@ def limit_methods()
 end
 
 def refusal_response(status, why)
-  {status: status, headers: {}, body: "#{why}\n"}
+  {status:, headers: {}, body: "#{why}\n"}
 end
 
 # The first limit a request breaks, as [status, why], or nil.
@@ -221,7 +221,7 @@ def ok(_req)
 end
 
 def get_req(path, headers, body)
-  {method: "GET", path: path, query: "", headers: headers, body: body}
+  {method: "GET", path:, query: "", headers:, body:}
 end
 
 def defended(declaration, sink, handler)

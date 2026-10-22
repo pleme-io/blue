@@ -6,7 +6,7 @@ use("retsu", [:first, :flat_map, :is_empty, :last, :rest, :running_sum, :size])
 def read(source)
   t = nix_parse(source)
   {
-    source: source,
+    source:,
     root: get(t, :root),
     errors: get(t, :errors),
     line_starts: cons(
@@ -146,12 +146,12 @@ end
 
 def binding(n, path, scope, value, outer)
   {
-    path: path,
+    path:,
     dotted: join(path, "."),
     node: n,
-    value: value,
-    scope: scope,
-    outer: outer,
+    value:,
+    scope:,
+    outer:,
     start: get(n, :start)
   }
 end

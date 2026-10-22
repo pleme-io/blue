@@ -360,7 +360,8 @@ fn lsp_diagnostic(d: &blue_lang_check::Diagnostic, index: &LineIndex) -> Diagnos
         Code::B0007 | Code::B0008 => "waivers",
         c if c.rule().slug == "layout"
             || (Code::B0024..=Code::B0035).contains(&c)
-            || c == Code::B0042 =>
+            || c == Code::B0042
+            || c == Code::B0046 =>
         {
             "form"
         }

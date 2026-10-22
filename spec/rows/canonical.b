@@ -121,6 +121,31 @@ row(
 )
 
 row(
+  "canon.B0046",
+  "name = 1\n{name: name}",
+  diagnoses(["B0046"]),
+  covers("rule:B0046")
+)
+
+row(
+  "canon.B0046.writes",
+  "name = 1\nsize = 2\n{name: name, size: size, n: 3}",
+  formats("name = 1\nsize = 2\n{name:, size:, n: 3}\n")
+)
+
+row(
+  "canon.B0046.predicate",
+  "ok? = true\n{ok?: ok?}",
+  formats("ok? = true\n{ok?:}\n")
+)
+
+row(
+  "canon.B0046.keeps",
+  "name = 1\n{name: 1, other: name}",
+  formats("name = 1\n{name: 1, other: name}\n")
+)
+
+row(
   "canon.B0042",
   "apply(max, [1, 2])",
   diagnoses(["B0042"]),

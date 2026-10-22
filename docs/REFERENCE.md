@@ -15,6 +15,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `:done` | `:done` | A keyword: a name as a value. It may not end in ? or !. |
 | `[1, "a"]` | `(list 1 "a")` | A list. Indexing is nth(i, xs); blue has no xs[i]. |
 | `{a: 1, "k" => 2}` | `(hash-map :a 1 "k" 2)` | A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v). |
+| `{a:, b:}` | `(hash-map :a a :b b)` | A map whose values are the variables of the same names: `{a:}` is `{a: a}`. Mix it with `{a:, n: 1}`. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
@@ -167,7 +168,7 @@ Higher binding power binds tighter.
 | `cons` | `cons(x, xs)` | 2 | A new list with x in front. Copies xs. |
 | `count` | `count(xs)` | 1 | The number of elements; 0 for nil. |
 | `distinct` | `distinct(xs)` | 1 | The elements with repeats removed, first occurrence kept, compared with ==. |
-| `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. Also defined by `shuusei` (`shuusei::drop`): a file that lists it gets that one. |
+| `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. |
 | `first` | `first(xs)` | 1 | The first element; raises on []. retsu's first answers nil. Also defined by `retsu` (`retsu::first`): a file that lists it gets that one. |
 | `flatten` | `flatten(xs)` | 1 | Every nested list spliced in, to any depth. |
 | `fourth` | `fourth(xs)` | 1 | The fourth element; raises when there is none. |
@@ -549,3 +550,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0043` | prefixed-program | a program does not prefix every definition with one short `x_`: the file is the namespace | autofix |
 | `B0044` | eta-reduction | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` | autofix |
 | `B0045` | redundant-conversion | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain | autofix |
+| `B0046` | map-pun | a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}` | autofix |

@@ -9,7 +9,7 @@ def sdk()
 end
 
 def permission(name, bit, requires, settable)
-  {name: name, bit: bit, requires: requires, settable: settable}
+  {name:, bit:, requires:, settable:}
 end
 
 def permissions()
@@ -212,8 +212,8 @@ end
 
 def vault(key, title)
   {
-    key: key,
-    title: title,
+    key:,
+    title:,
     description: "",
     allow_admins_access: true,
     force_destroy: false
@@ -237,7 +237,7 @@ def grant(vault_key, group_id, ns)
 end
 
 def account(tier, vaults, grants)
-  {tier: tier, vaults: vaults, grants: grants}
+  {tier:, vaults:, grants:}
 end
 
 def fault(cond, r)
@@ -380,7 +380,7 @@ def judge(a)
     gs = get(a, :grants) or []
     gmarks = grant_refusals(tier, map((v) -> get(v, :key), kept), gs)
     {
-      tier: tier,
+      tier:,
       vaults: kept,
       grants: standing(gs, gmarks),
       refusals: append(flat_map((r) -> r, vmarks), flat_map((r) -> r, gmarks))
@@ -476,7 +476,7 @@ end
 def permissions_doc()
   {
     source: "kinko",
-    sdk: sdk,
+    sdk:,
     permissions: map(
       fn(p)
         {name: p.name, bit: p.bit, requires: p.requires, settable: p.settable}

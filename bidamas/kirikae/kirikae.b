@@ -55,7 +55,7 @@ def backoff_ms(failures, pol)
 end
 
 def entry(out, outcome, at_ms, why)
-  {out: out, outcome: outcome, at_ms: at_ms, why: why}
+  {out:, outcome:, at_ms:, why:}
 end
 
 def streak_step(acc, e)
@@ -69,7 +69,7 @@ def streak_step(acc, e)
 end
 
 def streak(history, out)
-  reduce(streak_step, {out: out, n: 0, last_ms: nil}, history)
+  reduce(streak_step, {out:, n: 0, last_ms: nil}, history)
 end
 
 def decide(desired, current, history, now_ms, pol)
@@ -95,7 +95,7 @@ def hold_for(key, history, now_ms, pol)
       action: :hold,
       why: "#{to_s(get(s, :n))} failed attempt(s) of #{label(key)}; next try in #{to_s(floor((get(s, :last_ms) + wait - now_ms) / 1000))}s",
       until_ms: get(s, :last_ms) + wait,
-      key: key
+      key:
     }
   end
 end
@@ -281,7 +281,7 @@ def checkout_of(dir, branch)
     else
       first(split(remote, "\t"))
     end,
-    branch: branch
+    branch:
   }
 end
 
@@ -354,7 +354,7 @@ def heartbeat_noop(hb_text, head, current)
       action: :noop,
       why: "the gitops loop already runs #{take_chars(head, 8)} (#{label(current)}); nothing evaluated",
       desired: current,
-      current: current,
+      current:,
       key: current,
       build: 0,
       fetch: 0,
@@ -516,7 +516,7 @@ def exit_refused()
 end
 
 def outcome_of(status, text)
-  {status: status, text: text}
+  {status:, text:}
 end
 
 def exit_status_of(answer)

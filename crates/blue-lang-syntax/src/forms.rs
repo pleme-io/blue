@@ -61,6 +61,11 @@ pub const FORMS: &[Form] = &[
         doc: "A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v).",
     },
     Form {
+        example: "{a:, b:}",
+        lowers_to: "(hash-map :a a :b b)",
+        doc: "A map whose values are the variables of the same names: `{a:}` is `{a: a}`. Mix it with `{a:, n: 1}`.",
+    },
+    Form {
         example: "x = 5",
         lowers_to: "(define x 5)",
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",

@@ -85,14 +85,14 @@ def builtin_entry(b, tier)
     }
   end
   {
-    name: name,
+    name:,
     namespace: "blue",
-    tier: tier,
+    tier:,
     kind: json_get(b, "arbiter"),
     topic: json_get(b, "topic"),
     signature: json_get(b, "signature"),
     doc: [json_get(b, "doc")],
-    example: example
+    example:
   }
 end
 
@@ -146,7 +146,7 @@ def def_entry(pkg, e, text, tier)
     else
       pkg_name(pkg)
     end,
-    tier: tier,
+    tier:,
     kind: "definition",
     topic: nil,
     signature: "#{qualifier}#{nth(1, e)}",

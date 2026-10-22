@@ -8,28 +8,23 @@ use(
 )
 
 def moving(rate)
-  {verdict: "moving", rate: rate}
+  {verdict: "moving", rate:}
 end
 
 def stalled(since)
-  {verdict: "stalled", since: since}
+  {verdict: "stalled", since:}
 end
 
 def blind(why)
-  {verdict: "blind", why: why}
+  {verdict: "blind", why:}
 end
 
 def queued_behind(generation, observed, phase)
-  {
-    verdict: "queued-behind",
-    generation: generation,
-    observed: observed,
-    behind: phase
-  }
+  {verdict: "queued-behind", generation:, observed:, behind: phase}
 end
 
 def settled(generation, phase)
-  {verdict: "settled", generation: generation, phase: phase}
+  {verdict: "settled", generation:, phase:}
 end
 
 def verdict(v)
@@ -37,11 +32,11 @@ def verdict(v)
 end
 
 def sample(at_ms, value)
-  {at_ms: at_ms, value: value}
+  {at_ms:, value:}
 end
 
 def failed_sample(at_ms, why)
-  {at_ms: at_ms, error: why}
+  {at_ms:, error: why}
 end
 
 def failed?(s)
@@ -171,7 +166,7 @@ def settings_from(lookup)
 end
 
 def admission(n, why)
-  {allowed: max(n, 0), why: why}
+  {allowed: max(n, 0), why:}
 end
 
 def agents_allowed_with(s, load1, cores, gh_remaining, agents_running)

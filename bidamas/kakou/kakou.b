@@ -164,7 +164,7 @@ end
 # for now, by name.
 
 def flange(side, length, angle_deg, inside_radius)
-  {side: side, length: length, angle: angle_deg, radius: inside_radius}
+  {side:, length:, angle: angle_deg, radius: inside_radius}
 end
 
 def sheet_part(spec)
@@ -288,7 +288,7 @@ def bend_line(part, f)
   seg = base_edge(b, side)
   out = side_out(side)
   {
-    side: side,
+    side:,
     start: seg,
     finish: map((p) -> vadd(p, scale(ba, out)), seg),
     centre: map((p) -> vadd(p, scale(ba / 2, out)), seg),
@@ -662,11 +662,11 @@ end
 # travel on the cut list, which is what the saw needs.
 
 def square_tube(side, wall)
-  {kind: :square_tube, side: side, wall: wall}
+  {kind: :square_tube, side:, wall:}
 end
 
 def round_tube(od, wall)
-  {kind: :round_tube, od: od, wall: wall}
+  {kind: :round_tube, od:, wall:}
 end
 
 def round_bar(d)
@@ -706,8 +706,8 @@ end
 
 def tube_member(name, stock, a, b, cut_a_deg, cut_b_deg)
   {
-    name: name,
-    stock: stock,
+    name:,
+    stock:,
     from: a,
     to: b,
     cut_a: cut_a_deg,
@@ -759,7 +759,7 @@ end
 # for the straight it no longer runs, plus r theta for the arc it does.
 
 def wire(name, d, path, bend_radius)
-  {name: name, d: d, path: path, radius: bend_radius, material: :ss316l}
+  {name:, d:, path:, radius: bend_radius, material: :ss316l}
 end
 
 def turn(path, i)

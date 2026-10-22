@@ -132,11 +132,11 @@ def rk4_tick(f, h, acc)
     t = get(acc, :t) + h
     y = rk4_step(f, get(acc, :t), get(acc, :y), h)
     if all_finite?(y)
-      {t: t, y: y, back: concat_lists([[t, y]], get(acc, :back)), refusals: []}
+      {t:, y:, back: concat_lists([[t, y]], get(acc, :back)), refusals: []}
     else
       {
-        t: t,
-        y: y,
+        t:,
+        y:,
         back: get(acc, :back),
         refusals: [
           refusal(
@@ -324,8 +324,8 @@ def ode_tick(f, t1, rtol, atol, hmin, acc)
         )
       else
         {
-          t: t,
-          y: y,
+          t:,
+          y:,
           h: hn,
           back: get(acc, :back),
           steps: get(acc, :steps),
@@ -392,7 +392,7 @@ def bisect(f, lo, hi, tol, max_iter)
   else
     fin = reduce(
       (acc, _i) -> bisect_tick(f, tol, acc),
-      {lo: lo, hi: hi, flo: flo, n: 0, done: false},
+      {lo:, hi:, flo:, n: 0, done: false},
       range(0, max_iter)
     )
     {
@@ -410,14 +410,14 @@ def bisect_tick(f, tol, acc)
     lo = get(acc, :lo)
     hi = get(acc, :hi)
     if hi - lo < tol
-      {lo: lo, hi: hi, flo: get(acc, :flo), n: get(acc, :n), done: true}
+      {lo:, hi:, flo: get(acc, :flo), n: get(acc, :n), done: true}
     else
       mid = (lo + hi) / 2
       fm = f(mid)
       if fm * get(acc, :flo) > 0
-        {lo: mid, hi: hi, flo: fm, n: get(acc, :n) + 1, done: false}
+        {lo: mid, hi:, flo: fm, n: get(acc, :n) + 1, done: false}
       else
-        {lo: lo, hi: mid, flo: get(acc, :flo), n: get(acc, :n) + 1, done: false}
+        {lo:, hi: mid, flo: get(acc, :flo), n: get(acc, :n) + 1, done: false}
       end
     end
   end
@@ -449,9 +449,9 @@ def brent(f, lo, hi, tol, max_iter)
     start = brent_order(
       {
         a: lo,
-        fa: fa,
+        fa:,
         b: hi,
-        fb: fb,
+        fb:,
         c: lo,
         fc: fa,
         d: lo,
@@ -565,7 +565,7 @@ def brent_tick(f, tol, s)
           fc: get(s, :fb),
           d: get(s, :c),
           mflag: bisect,
-          n: n,
+          n:,
           done: false
         }
       )
@@ -580,7 +580,7 @@ def brent_tick(f, tol, s)
           fc: get(s, :fb),
           d: get(s, :c),
           mflag: bisect,
-          n: n,
+          n:,
           done: false
         }
       )
@@ -649,7 +649,7 @@ def nm_tick(f, ftol, xtol, acc)
   else
     simplex = get(acc, :simplex)
     if nm_converged?(simplex, ftol, xtol)
-      {simplex: simplex, n: get(acc, :n), done: true}
+      {simplex:, n: get(acc, :n), done: true}
     else
       {simplex: nm_sort(nm_move(f, simplex)), n: get(acc, :n) + 1, done: false}
     end
@@ -727,7 +727,7 @@ def least_squares(a, b)
     }
   else
     res = vsub(mvmul(a, x), b)
-    {x: x, residuals: res, sse: dot(res, res), refusals: []}
+    {x:, residuals: res, sse: dot(res, res), refusals: []}
   end
 end
 

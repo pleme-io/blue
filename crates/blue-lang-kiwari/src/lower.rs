@@ -210,6 +210,10 @@ impl<'a> Lowerer<'a> {
                 vec![Sexp::UnquoteSplice(Box::new(self.eval_one(inner, node)?))]
             }
             Template::Symbol => vec![sym(self.text(node).trim_end_matches(':'))],
+            Template::SymbolOf(name) => match Self::field(node, name) {
+                Some(child) => vec![sym(self.text(child).trim_end_matches(':'))],
+                None => return Err(self.err(node, format!("no `{name}` field"))),
+            },
             Template::Keyword => {
                 let t = self.text(node);
                 let name = t

@@ -162,13 +162,13 @@ end
 # A field: its key in blue, its key in pleme.lareira (nil: blue's alone), the
 # check its value passes, and how its value is rendered.
 def field(key, json, check)
-  {key: key, json: json, check: check, render: (v) -> v, required: false}
+  {key:, json:, check:, render: (v) -> v, required: false}
 end
 
 def record_field(key, json, table)
   {
-    key: key,
-    json: json,
+    key:,
+    json:,
     check: record_check(table),
     render: (v) -> project(table, v),
     required: false
@@ -177,8 +177,8 @@ end
 
 def records_field(key, json, table)
   {
-    key: key,
-    json: json,
+    key:,
+    json:,
     check: list_of(record_check(table)),
     render: (v) -> map((r) -> project(table, r), v),
     required: false
@@ -465,7 +465,7 @@ end
 
 # Which home this is, by its site name.
 def site(name)
-  entry(:site, "site", {name: name})
+  entry(:site, "site", {name:})
 end
 
 # A site with its true coordinates rather than the site's city-level point.
@@ -473,14 +473,7 @@ def site_at(name, latitude, longitude, elevation)
   entry(
     :site,
     "site",
-    {
-      name: name,
-      coordinates: {
-        latitude: latitude,
-        longitude: longitude,
-        elevation: elevation
-      }
-    }
+    {name:, coordinates: {latitude:, longitude:, elevation:}}
   )
 end
 
@@ -563,13 +556,7 @@ end
 def mood_of(name, label, icon_name, color, lights, tone_name, volume)
   mood(
     name,
-    {
-      label: label,
-      icon: icon_name,
-      color: color,
-      lights: lights,
-      sound: sound(tone_name, volume)
-    }
+    {label:, icon: icon_name, color:, lights:, sound: sound(tone_name, volume)}
   )
 end
 
@@ -579,11 +566,11 @@ def with(e, key, v)
 end
 
 def white(brightness_pct, kelvin)
-  {brightness_pct: brightness_pct, kelvin: kelvin}
+  {brightness_pct:, kelvin:}
 end
 
 def tint(brightness_pct, rgb)
-  {brightness_pct: brightness_pct, rgb: rgb}
+  {brightness_pct:, rgb:}
 end
 
 def slow(seconds, lights)
@@ -600,21 +587,15 @@ def on_role(role, lights)
 end
 
 def breathing(low_pct, high_pct, inhale, exhale, minutes)
-  {
-    low_pct: low_pct,
-    high_pct: high_pct,
-    inhale: inhale,
-    exhale: exhale,
-    minutes: minutes
-  }
+  {low_pct:, high_pct:, inhale:, exhale:, minutes:}
 end
 
 def hand_over(after_minutes, mood_name)
-  {after_minutes: after_minutes, mood: mood_name}
+  {after_minutes:, mood: mood_name}
 end
 
 def sound(tone_name, volume)
-  {tone: tone_name, volume: volume}
+  {tone: tone_name, volume:}
 end
 
 # Moods under one dashboard heading; a mood that names its own group keeps it.

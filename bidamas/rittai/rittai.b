@@ -646,7 +646,7 @@ def ear_clip(pts, poly)
   n = size(poly)
   fin = reduce(
     (acc, _step) -> clip_step(pts, acc),
-    {poly: poly, tris: [], stuck: false},
+    {poly:, tris: [], stuck: false},
     range(0, n)
   )
   if get(fin, :stuck) or size(get(fin, :poly)) > 0
@@ -675,7 +675,7 @@ def clip_step(pts, acc)
     if is_empty(ears)
       flat = filter((k) -> turn(pts, poly, k) == 0, indexes(poly))
       if is_empty(flat)
-        {poly: poly, tris: get(acc, :tris), stuck: true}
+        {poly:, tris: get(acc, :tris), stuck: true}
       else
         {
           poly: remove_at(poly, first(flat)),

@@ -166,6 +166,7 @@ pub enum Template {
     Unquote(Box<Template>),
     UnquoteSplice(Box<Template>),
     Symbol,
+    SymbolOf(String),
     Keyword,
     Lexeme,
     Interpolate {
@@ -303,6 +304,10 @@ impl Template {
             "symbol" => {
                 arity(0)?;
                 Self::Symbol
+            }
+            "symbol_of" => {
+                arity(1)?;
+                Self::SymbolOf(s(arg(0)?, "a field")?)
             }
             "keyword" => {
                 arity(0)?;

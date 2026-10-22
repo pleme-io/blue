@@ -476,7 +476,7 @@ end
 # A binary operator. `prec` orders them for the renderer's parentheses:
 # OR 1, AND 2, NOT 3, comparisons 4, + - 5, * / 6.
 def op(op, prec, a, b)
-  {kind: :op, op: op, prec: prec, args: [expr(a), expr(b)]}
+  {kind: :op, op:, prec:, args: [expr(a), expr(b)]}
 end
 
 def add(a, b)
@@ -574,7 +574,7 @@ end
 # ── aggregates and windows ─────────────────────────────────────────────────
 
 def agg_fn(f, args)
-  {kind: :agg, fn: f, args: args, where: nil, order: []}
+  {kind: :agg, fn: f, args:, where: nil, order: []}
 end
 
 # waive B0013: `min` is a builtin kueri also uses, so the prefix stays; kueri::min names it too
@@ -641,7 +641,7 @@ def window(f, args, partition, order)
   {
     kind: :win,
     fn: f,
-    args: args,
+    args:,
     partition: map(name, as_list(partition)),
     order: map(key, as_list(order))
   }
@@ -728,8 +728,8 @@ def source(opts)
     name: name(blue::get(opts, :name)),
     file: blue::get(opts, :file),
     columns: cols,
-    delim: delim,
-    format: format
+    delim:,
+    format:
   }
 end
 
@@ -768,12 +768,12 @@ def values(opts)
   end
   {
     kind: :source,
-    name: name,
+    name:,
     file: nil,
     columns: cols,
     delim: nil,
     format: :values,
-    rows: rows
+    rows:
   }
 end
 
@@ -1009,7 +1009,7 @@ def limit(n)
   if integer?(n) == false or n < 0
     raise(:kueri_shape, "q_limit takes a count of zero or more")
   end
-  {kind: :limit, n: n}
+  {kind: :limit, n:}
 end
 
 def stage_exprs(stage)
@@ -1638,7 +1638,7 @@ def shift(model)
   else
     :duckdb
   end
-  {needs: needs, held_by: map((u) -> "#{first(u)} at #{last(u)}", uses)}
+  {needs:, held_by: map((u) -> "#{first(u)} at #{last(u)}", uses)}
 end
 
 # ── lowering: stages into SELECT blocks ────────────────────────────────────
@@ -1659,7 +1659,7 @@ end
 
 def block(from)
   {
-    from: from,
+    from:,
     joins: [],
     where: [],
     grouped: false,

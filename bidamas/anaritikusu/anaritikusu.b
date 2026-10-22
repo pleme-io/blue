@@ -652,7 +652,7 @@ end
 # and the path its history (the state after every record) is written to.
 def binding(d, stream, history)
   raifusaikuru::name(d)
-  {def: d, stream: stream, history: history}
+  {def: d, stream:, history:}
 end
 
 # waive B0013: `def` is a reserved word, so the prefix stays; anaritikusu::def names it too
@@ -769,7 +769,7 @@ def edges_rel(d)
         kueri::col(:phase, :varchar),
         kueri::col(:capability, :varchar)
       ],
-      rows: rows
+      rows:
     }
   )
 end
@@ -792,7 +792,7 @@ def rules_rel(d)
         kueri::col(:task, :varchar),
         kueri::col(:escalate_after, :bigint)
       ],
-      rows: rows
+      rows:
     }
   )
 end
@@ -845,7 +845,7 @@ def task_evidence_rel(d)
     {
       name: n(d, "task_evidence"),
       columns: [kueri::col(:task, :varchar), kueri::col(:evidence, :varchar)],
-      rows: rows
+      rows:
     }
   )
 end
@@ -853,9 +853,7 @@ end
 # ── the models of one lifecycle ────────────────────────────────────────────
 
 def view(d, suffix, from, pipeline)
-  kueri::model(
-    {name: n(d, suffix), from: from, pipeline: pipeline, materialize: :view}
-  )
+  kueri::model({name: n(d, suffix), from:, pipeline:, materialize: :view})
 end
 
 def field_names(d)
@@ -2027,7 +2025,7 @@ end
 # nisshi hashes it under).
 def stream(d, path, label)
   raifusaikuru::name(d)
-  {def: d, path: path, label: label}
+  {def: d, path:, label:}
 end
 
 # The bindings la_build uses: each stream's history under `dir`.

@@ -163,14 +163,7 @@ def run(spec)
   control = status(hn_test(blue, control_root, name, test_file))
   rm_rf(control_root)
   if control != 0
-    {
-      control: control,
-      results: [],
-      caught: 0,
-      survived: 0,
-      refused: 0,
-      blind: 0
-    }
+    {control:, results: [], caught: 0, survived: 0, refused: 0, blind: 0}
   else
     results = map(
       (p) -> one(spec, name, test_file, nth(0, p), nth(1, p)),
@@ -178,7 +171,7 @@ def run(spec)
     )
     {
       control: 0,
-      results: results,
+      results:,
       caught: count_where((r) -> get(r, :verdict) == :caught, results),
       survived: count_where((r) -> get(r, :verdict) == :survived, results),
       refused: count_where((r) -> get(r, :verdict) == :refused, results),
@@ -373,7 +366,7 @@ def end_to_end()
     },
     {name: "not there", file: "hnprobe.b", find: "nowhere", replace: "x"}
   ]
-  r = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp: tmp})
+  r = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp:})
   assert get(r, :control) == 0
   assert map((x) -> get(x, :verdict), get(r, :results)) ==
     [:caught, :survived, :refused]
@@ -388,9 +381,7 @@ def end_to_end()
     path_join(pkg, "hnprobe.b"),
     "test \"broken\"\n  assert 1 == 2\nend\n"
   )
-  bad = run(
-    {package: pkg, mutations: muts, blue: self_exe, test: nil, tmp: tmp}
-  )
+  bad = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp:})
   assert get(bad, :control) != 0
   assert is_empty(get(bad, :results)) == true
   rm_rf(tmp)

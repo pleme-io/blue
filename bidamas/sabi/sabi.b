@@ -38,19 +38,19 @@ legacy_names("0.1.1", "rs")
 # ── types ──────────────────────────────────────────────────────────────────
 
 def ty(name)
-  {kind: :ty_name, name: name}
+  {kind: :ty_name, name:}
 end
 
 def ty_ref(inner)
-  {kind: :ty_ref, inner: inner}
+  {kind: :ty_ref, inner:}
 end
 
 def ty_slice(inner)
-  {kind: :ty_slice, inner: inner}
+  {kind: :ty_slice, inner:}
 end
 
 def ty_tuple(items)
-  {kind: :ty_tuple, items: items}
+  {kind: :ty_tuple, items:}
 end
 
 def render_ty(t)
@@ -86,25 +86,25 @@ end
 
 # `&[a, b, …]`, one element per line.
 def slice(items)
-  {kind: :slice, items: items}
+  {kind: :slice, items:}
 end
 
 def tuple(items)
-  {kind: :tuple, items: items}
+  {kind: :tuple, items:}
 end
 
 # `A::B::C`.
 def path(segments)
-  {kind: :path, segments: segments}
+  {kind: :path, segments:}
 end
 
 # waive B0013: `match` is a builtin sabi also uses, so the prefix stays; sabi::match names it too
 def rs_match(scrutinee, arms)
-  {kind: :match, scrutinee: scrutinee, arms: arms}
+  {kind: :match, scrutinee:, arms:}
 end
 
 def arm(pattern, expr)
-  {kind: :arm, pattern: pattern, expr: expr}
+  {kind: :arm, pattern:, expr:}
 end
 
 # A Rust string literal's body: backslash first, so the escapes added after it
@@ -179,27 +179,27 @@ end
 
 # waive B0013: `const` is a builtin sabi also uses, so the prefix stays; sabi::const names it too
 def rs_const(name, ty, value, doc)
-  {kind: :const, name: name, ty: ty, value: value, doc: doc}
+  {kind: :const, name:, ty:, value:, doc:}
 end
 
 def variant(name, doc)
-  {kind: :variant, name: name, doc: doc}
+  {kind: :variant, name:, doc:}
 end
 
 def enum(name, derives, variants, doc)
-  {kind: :enum, name: name, derives: derives, variants: variants, doc: doc}
+  {kind: :enum, name:, derives:, variants:, doc:}
 end
 
 def field(name, ty, doc)
-  {kind: :field, name: name, ty: ty, doc: doc}
+  {kind: :field, name:, ty:, doc:}
 end
 
 def struct(name, derives, fields, doc)
-  {kind: :struct, name: name, derives: derives, fields: fields, doc: doc}
+  {kind: :struct, name:, derives:, fields:, doc:}
 end
 
 def param(name, ty)
-  {kind: :param, name: name, ty: ty}
+  {kind: :param, name:, ty:}
 end
 
 # `&self`.
@@ -209,11 +209,11 @@ end
 
 # waive B0013: `fn` is a reserved word, so the prefix stays; sabi::fn names it too
 def rs_fn(name, params, ret, body, doc)
-  {kind: :fn, name: name, params: params, ret: ret, body: body, doc: doc}
+  {kind: :fn, name:, params:, ret:, body:, doc:}
 end
 
 def impl(ty_name, fns)
-  {kind: :impl, name: ty_name, fns: fns}
+  {kind: :impl, name: ty_name, fns:}
 end
 
 def doc_line(line, level, marker)
@@ -423,7 +423,7 @@ end
 
 # `source` names the blue program that generated the file, for the header.
 def file(source, items)
-  {kind: :file, source: source, items: items}
+  {kind: :file, source:, items:}
 end
 
 def render_rust(file)

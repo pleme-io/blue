@@ -60,11 +60,11 @@ def unread_axes(s)
 end
 
 def noop(reason)
-  {kind: :noop, reason: reason}
+  {kind: :noop, reason:}
 end
 
 def refused(reason)
-  {kind: :refused, reason: reason}
+  {kind: :refused, reason:}
 end
 
 def blind(what)
@@ -99,7 +99,7 @@ def route_set(s)
     iface: get(s, :gateway_iface),
     table: get(s, :table),
     priority: get(s, :priority),
-    hosts: hosts,
+    hosts:,
     add: sorted(difference(hosts, as_set(get(s, :routed))))
   }
 end
@@ -201,7 +201,7 @@ def capture(argv)
   cap = exec_capture(*argv) rescue nil
   if cap == nil
     {
-      argv: argv,
+      argv:,
       started: false,
       status: -1,
       stdout: "",
@@ -209,7 +209,7 @@ def capture(argv)
     }
   else
     {
-      argv: argv,
+      argv:,
       started: true,
       status: status_of(cap),
       stdout: stdout_of(cap),
@@ -219,7 +219,7 @@ def capture(argv)
 end
 
 def bad(why)
-  {ok: false, why: why}
+  {ok: false, why:}
 end
 
 def from_capture(c, parser)
@@ -381,7 +381,7 @@ def ip_route_row(fs)
     end
     via = after_word(fs, "via")
     {
-      dest: dest,
+      dest:,
       gateway: if via == nil
         d
       else
@@ -681,10 +681,10 @@ def assemble(cfg, obs)
   end
   state(
     {
-      corp: corp,
-      enforcement: enforcement,
-      overlay: overlay,
-      gateway: gateway,
+      corp:,
+      enforcement:,
+      overlay:,
+      gateway:,
       targets: if targets_ok
         :resolved
       else
@@ -695,8 +695,8 @@ def assemble(cfg, obs)
     {
       gateway_addr: gw_addr,
       gateway_iface: gw_iface,
-      hosts: hosts,
-      routed: routed,
+      hosts:,
+      routed:,
       table: get(cfg, :table),
       priority: get(cfg, :priority)
     }
@@ -840,7 +840,7 @@ def run(cfg)
       (r) -> "#{join(get(r, :argv), " ")}: #{trim(get(r, :stderr))}",
       failed
     ),
-    applied: applied
+    applied:
   }
   mkdir_p(path_dirname(get(cfg2, :state_path)))
   tmp = "#{get(cfg2, :state_path)}.tmp"
@@ -885,7 +885,7 @@ end
 
 def cfg_for(platform, applied)
   {
-    platform: platform,
+    platform:,
     corp_pattern: "utun",
     control_host: "controlplane.tailscale.com",
     gateway: "",
@@ -896,7 +896,7 @@ def cfg_for(platform, applied)
     getent: "getent",
     table: 5280,
     priority: 5200,
-    applied: applied
+    applied:
   }
 end
 

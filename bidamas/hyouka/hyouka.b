@@ -214,10 +214,7 @@ def path_info(paths, store)
   )
   parsed = json_parse(get(out, :stdout)) rescue nil
   present = map((p) -> first(p), info_pairs(parsed))
-  {
-    present: present,
-    missing: filter((p) -> member?(p, present) == false, paths)
-  }
+  {present:, missing: filter((p) -> member?(p, present) == false, paths)}
 end
 
 def resolve(link)

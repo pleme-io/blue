@@ -87,24 +87,24 @@ end
 # Each entity is a map with :kind and :layer.
 
 def line(a, b, layer)
-  {kind: :line, a: a, b: b, layer: layer}
+  {kind: :line, a:, b:, layer:}
 end
 
 def circle(c, r, layer)
-  {kind: :circle, c: c, r: r, layer: layer}
+  {kind: :circle, c:, r:, layer:}
 end
 
 # An arc counter-clockwise from a0 to a1, in degrees (DXF's convention).
 def arc(c, r, a0, a1, layer)
-  {kind: :arc, c: c, r: r, a0: a0, a1: a1, layer: layer}
+  {kind: :arc, c:, r:, a0:, a1:, layer:}
 end
 
 def polyline(pts, closed, layer)
-  {kind: :polyline, pts: pts, closed: closed, layer: layer}
+  {kind: :polyline, pts:, closed:, layer:}
 end
 
 def text(p, height, s, layer)
-  {kind: :text, p: p, h: height, s: s, layer: layer}
+  {kind: :text, p:, h: height, s:, layer:}
 end
 
 def kind(e)
@@ -235,7 +235,7 @@ end
 # title block goes below the drawing, the width of the drawing's extent.
 
 def sheet(entities, title)
-  {entities: entities, title: title}
+  {entities:, title:}
 end
 
 def title_rows(title)

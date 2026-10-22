@@ -32,7 +32,7 @@ use("retsu", [:first, :flat_map, :size])
 # new posture never turns a working service away until the operator says so.
 
 def posture(name, table, defaults, layer)
-  {name: name, table: table, defaults: defaults, layer: layer}
+  {name:, table:, defaults:, layer:}
 end
 
 def table_of(p)
@@ -103,7 +103,7 @@ def tag(key, value)
   posture(
     :tag,
     [field(:value, text)],
-    {value: value},
+    {value:},
     fn(settings, _sink)
       fn(handler)
         fn(req)
@@ -150,7 +150,7 @@ def echo(req)
 end
 
 def req_at(path)
-  {method: "GET", path: path, query: "", headers: [], body: ""}
+  {method: "GET", path:, query: "", headers: [], body: ""}
 end
 
 test "a bare service runs every posture it is given"

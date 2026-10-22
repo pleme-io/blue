@@ -38,7 +38,7 @@ use("shuugou", [:frequencies, :unique])
 def fleet_repo(version)
   {
     standard: "fleet-repo",
-    version: version,
+    version:,
     top: [
       "flake.nix",
       "flake.lock",
@@ -103,23 +103,15 @@ def configurations(cfg, names)
 end
 
 def waive(cfg, rule, glob, reason)
-  assoc(
-    cfg,
-    :waivers,
-    append(get(cfg, :waivers), [{rule: rule, glob: glob, reason: reason}])
-  )
+  assoc(cfg, :waivers, append(get(cfg, :waivers), [{rule:, glob:, reason:}]))
 end
 
 def disable(cfg, rule, reason)
-  assoc(
-    cfg,
-    :disabled,
-    append(get(cfg, :disabled), [{rule: rule, reason: reason}])
-  )
+  assoc(cfg, :disabled, append(get(cfg, :disabled), [{rule:, reason:}]))
 end
 
 def finding(rule, file, line, subject, message)
-  {rule: rule, file: file, line: line, subject: subject, message: message}
+  {rule:, file:, line:, subject:, message:}
 end
 
 def at(f, doc, rule, start, subject, message)
@@ -786,7 +778,7 @@ def unit_kinds()
 end
 
 def unit(kind_of, name, file, files)
-  {kind: kind_of, name: name, file: file, files: files}
+  {kind: kind_of, name:, file:, files:}
 end
 
 def nix_under(files, prefix)
@@ -1032,15 +1024,7 @@ def check_concepts(repo)
 end
 
 def rule(id, plane, tier, scope, why, fix, check)
-  {
-    id: id,
-    plane: plane,
-    tier: tier,
-    scope: scope,
-    why: why,
-    fix: fix,
-    check: check
-  }
+  {id:, plane:, tier:, scope:, why:, fix:, check:}
 end
 
 def rules()
@@ -1230,8 +1214,8 @@ end
 def file_facts(path, source)
   doc = nikkusu::read(source)
   {
-    path: path,
-    doc: doc,
+    path:,
+    doc:,
     root: get(doc, :root),
     bindings: bindings(get(doc, :root)),
     calls: calls(get(doc, :root))
@@ -1515,11 +1499,11 @@ def probe(root, own, configuration, blind)
       )
     else
       {
-        configuration: configuration,
-        own: own,
+        configuration:,
+        own:,
         pleme: [],
         hostname: [],
-        blind: blind,
+        blind:,
         error: last_error(err)
       }
     end
@@ -1537,10 +1521,10 @@ def probe(root, own, configuration, blind)
       filter((x) -> get(x, :threw), append(pleme, hostname))
     )
     {
-      configuration: configuration,
-      own: own,
-      pleme: pleme,
-      hostname: hostname,
+      configuration:,
+      own:,
+      pleme:,
+      hostname:,
       blind: append(blind, threw),
       error: nil
     }
@@ -1561,7 +1545,7 @@ def source_of(repo, path)
 end
 
 def on_disk(root, files)
-  {root: root, files: files, read: (p) -> read_or(path_join(root, p), "")}
+  {root:, files:, read: (p) -> read_or(path_join(root, p), "")}
 end
 
 def in_memory(sources)
@@ -1921,7 +1905,7 @@ def tree_case(file, kind_of)
 end
 
 def example(sources, trees)
-  {sources: sources, trees: trees}
+  {sources:, trees:}
 end
 
 def module_with(body)

@@ -237,19 +237,19 @@ def rs_u32(n)
 end
 
 def rs_call(path, args)
-  {kind: "call", func: path, args: args}
+  {kind: "call", func: path, args:}
 end
 
 def rs_method(receiver, method, args)
-  {kind: "method-call", receiver: receiver, method: method, args: args}
+  {kind: "method-call", receiver:, method:, args:}
 end
 
 def rs_binary(op, a, b)
-  {kind: "binary", op: op, lhs: a, rhs: b}
+  {kind: "binary", op:, lhs: a, rhs: b}
 end
 
 def rs_block(stmts)
-  {stmts: stmts}
+  {stmts:}
 end
 
 def rs_semi(e)
@@ -281,17 +281,13 @@ def rs_generics()
 end
 
 def rs_fn(vis, name, params, ret, body)
-  sig = {
-    name: name,
-    generics: rs_generics,
-    params: append([rs_io_param], params)
-  }
+  sig = {name:, generics: rs_generics, params: append([rs_io_param], params)}
   sig_ = if ret == nil
     sig
   else
     assoc(sig, :return_type, ret)
   end
-  {kind: "fn", vis: vis, item: {sig: sig_, body: body}}
+  {kind: "fn", vis:, item: {sig: sig_, body:}}
 end
 
 # ── Lowering (L5 represent; tail calls; L8 emit) ──────────────────────────
@@ -518,7 +514,7 @@ def cz_fn(form, fns, consts)
   params = map((p) -> cz_sym(first(p)), rest(sig))
   ret = cz_type(third(form))
   body = fourth(form)
-  ctx = {self: name, params: params, fns: fns, consts: consts}
+  ctx = {self: name, params:, fns:, consts:}
   rparams = map(
     (p) -> {name: cz_param_name(cz_sym(first(p))), ty: cz_type(second(p))},
     rest(sig)
@@ -587,7 +583,7 @@ def cz_check_use(form)
 end
 
 def cz_attr(path, args)
-  {path: [path], args: args}
+  {path: [path], args:}
 end
 
 # The lowered program: a typed Rust `File` (as data), for `board`.
@@ -609,7 +605,7 @@ def cz_lower(forms, board)
   const_forms = pick(:const)
   fns = map((f) -> cz_sym(first(second(f))), fn_forms)
   consts = map((f) -> cz_sym(second(f)), const_forms)
-  main_ctx = {self: nil, params: [], fns: fns, consts: consts}
+  main_ctx = {self: nil, params: [], fns:, consts:}
   main_body = rs_block(map((e) -> rs_semi(cz_expr(e, main_ctx)), pick(:expr)))
   {
     attrs: [cz_attr("no_std", []), cz_attr("forbid", ["unsafe_code"])],

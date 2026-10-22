@@ -1166,6 +1166,14 @@ impl<'s> Renderer<'s> {
             let (sp, d) = match pair {
                 [k, v] => {
                     let d = match k.as_keyword() {
+                        Some(name)
+                            if matches!(&v.form, SpannedForm::Atom(Atom::Symbol(s)) if s == name)
+                                && blue_lang_syntax::parse::label_name(name) =>
+                        {
+                            let mut t = String::from(name);
+                            t.push(':');
+                            Doc::text(t)
+                        }
                         Some(name) => {
                             let mut t = String::from(name);
                             t.push_str(": ");

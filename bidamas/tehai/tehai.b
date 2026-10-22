@@ -55,7 +55,7 @@ def machine(line)
   fs = fields(line)
   uri = first(fs)
   if (starts_with?(uri, "ssh://") or starts_with?(uri, "ssh-ng://")) == false
-    {line: line, ok: false, why: "not an ssh:// or ssh-ng:// URI: #{uri}"}
+    {line:, ok: false, why: "not an ssh:// or ssh-ng:// URI: #{uri}"}
   else
     target = after_first(uri, "://")
     user = if includes(target, "@")
@@ -69,7 +69,7 @@ def machine(line)
     key = if size(fs) > 2 and nth(2, fs) != "-"
       nth(2, fs)
     end
-    {line: trim(line), ok: true, uri: uri, host: host, user: user, key: key}
+    {line: trim(line), ok: true, uri:, host:, user:, key:}
   end
 end
 
@@ -225,9 +225,9 @@ def run(declared_path, live_path, state_path, timeout_s, ssh)
     checked_ms: now,
     declared: declared_path,
     live: live_path,
-    ssh: ssh,
+    ssh:,
     machines: states,
-    refused: refused
+    refused:
   }
   mkdir_p(path_dirname(state_path))
   write_atomic(state_path, json_stringify(record))

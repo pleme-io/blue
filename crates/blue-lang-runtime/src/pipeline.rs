@@ -1110,6 +1110,7 @@ pub fn spelling_code(spelling: blue_lang_syntax::Spelling) -> blue_lang_check::C
         Spelling::ElseNil => Code::B0035,
         Spelling::TryCatch => Code::B0037,
         Spelling::Apply => Code::B0042,
+        Spelling::MapPun => Code::B0046,
     }
 }
 

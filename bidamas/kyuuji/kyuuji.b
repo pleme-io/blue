@@ -1,5 +1,5 @@
 def response(status, content_type, body)
-  {status: status, headers: {"Content-Type" => content_type}, body: body}
+  {status:, headers: {"Content-Type" => content_type}, body:}
 end
 
 def text(status, body)
@@ -211,7 +211,7 @@ def serve_settings(settings, handler)
 end
 
 def request(method, path, query)
-  {method: method, path: path, query: query, headers: [], body: ""}
+  {method:, path:, query:, headers: [], body: ""}
 end
 
 def hello(req)

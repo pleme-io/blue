@@ -30,53 +30,53 @@ use("retsu", [:concat_lists, :contains, :first, :flat_map, :is_empty, :last])
 # ── the vocabulary ─────────────────────────────────────────────────────────
 
 def seq(items)
-  {kind: :seq, items: items}
+  {kind: :seq, items:}
 end
 
 def choice(items)
-  {kind: :choice, items: items}
+  {kind: :choice, items:}
 end
 
 def rep(item)
-  {kind: :rep, item: item}
+  {kind: :rep, item:}
 end
 
 def rep1(item)
-  {kind: :rep1, item: item}
+  {kind: :rep1, item:}
 end
 
 def opt(item)
-  {kind: :opt, item: item}
+  {kind: :opt, item:}
 end
 
 # A literal token: the exact text.
 def lit(text)
-  {kind: :lit, text: text}
+  {kind: :lit, text:}
 end
 
 # A pattern token: a regular expression in tree-sitter's dialect.
 def pat(source)
-  {kind: :pat, source: source}
+  {kind: :pat, source:}
 end
 
 def ref(name)
-  {kind: :ref, name: name}
+  {kind: :ref, name:}
 end
 
 def field(name, item)
-  {kind: :field, name: name, item: item, role: "", defines: ""}
+  {kind: :field, name:, item:, role: "", defines: ""}
 end
 
 # A field whose node is painted `role` (a tree-sitter capture name) and, when
 # `defines` is not "", names a local of that kind.
 def painted(name, item, role, defines)
-  {kind: :field, name: name, item: item, role: role, defines: defines}
+  {kind: :field, name:, item:, role:, defines:}
 end
 
 # A field painted `role` on the named kinds listed, for an item that is a
 # hidden choice (a callee may be any postfix chain; only a name is painted).
 def painted_as(name, item, kinds, role)
-  {kind: :field, name: name, item: item, role: role, defines: "", kinds: kinds}
+  {kind: :field, name:, item:, role:, defines: "", kinds:}
 end
 
 # The kinds a field's role or definition applies to.
@@ -89,41 +89,33 @@ def painted_kinds(f)
 end
 
 def alias(item, name)
-  {kind: :alias, item: item, name: name}
+  {kind: :alias, item:, name:}
 end
 
 def token(item)
-  {kind: :token, item: item}
+  {kind: :token, item:}
 end
 
 def immediate(item)
-  {kind: :immediate, item: item}
+  {kind: :immediate, item:}
 end
 
 def prec(n, item)
-  {kind: :prec, assoc: :none, level: n, item: item}
+  {kind: :prec, assoc: :none, level: n, item:}
 end
 
 def prec_left(n, item)
-  {kind: :prec, assoc: :left, level: n, item: item}
+  {kind: :prec, assoc: :left, level: n, item:}
 end
 
 def prec_right(n, item)
-  {kind: :prec, assoc: :right, level: n, item: item}
+  {kind: :prec, assoc: :right, level: n, item:}
 end
 
 # A rule: its name, its body, and how its node lowers (nil for a hidden rule,
 # whose node never appears, or for a part only its parent's template reads).
 def rule(name, body, lower)
-  {
-    name: name,
-    body: body,
-    lower: lower,
-    role: "",
-    arm: false,
-    scope: false,
-    reference: false
-  }
+  {name:, body:, lower:, role: "", arm: false, scope: false, reference: false}
 end
 
 # The same rule, with `key` set: `role` (paint the whole node), `arm` (a
@@ -893,7 +885,7 @@ def blue()
     ],
     infix: infix_rows,
     unary: unary_rows,
-    pipe: pipe,
+    pipe:,
     reserved: {
       surface: [
         "if",
@@ -1279,11 +1271,18 @@ def blue()
           [
             lit("{"),
             nl,
-            comma_sep(choice([ref("pair"), ref("rocket_pair")])),
+            comma_sep(
+              choice([ref("pair"), ref("pun_pair"), ref("rocket_pair")])
+            ),
             lit("}")
           ]
         ),
         ["list", ["sym", "hash-map"], ["named"]]
+      ),
+      rule(
+        "pun_pair",
+        field("key", ref("label")),
+        ["seq", ["field", "key"], ["symbol_of", "key"]]
       ),
       rule(
         "pair",
@@ -1797,8 +1796,8 @@ def tiny(rules, punctuation)
     reserved: {surface: [], block: []},
     closers: ["end"],
     keywords_painted: [],
-    punctuation: punctuation,
-    rules: rules
+    punctuation:,
+    rules:
   }
 end
 

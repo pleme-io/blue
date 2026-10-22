@@ -164,7 +164,7 @@ def rust(opts)
   if get(opts, :dry_run) == false
     map((r) -> rm_rf(get(r, :path)), gone)
   end
-  {rows: rows, removed: gone, kib: sum(map((r) -> get(r, :kib), gone))}
+  {rows:, removed: gone, kib: sum(map((r) -> get(r, :kib), gone))}
 end
 
 def sum(xs)

@@ -15,12 +15,12 @@
 
 # A memory region: a name, a start address, a length in bytes.
 def kb_region(name, origin, length)
-  {name: name, origin: origin, length: length}
+  {name:, origin:, length:}
 end
 
 # A memory-mapped device: what it is and where its registers start.
 def kb_device(name, kind, base)
-  {name: name, kind: kind, base: base}
+  {name:, kind:, base:}
 end
 
 # The position a board imposes on every program built for it (the root

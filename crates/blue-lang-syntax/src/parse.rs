@@ -1674,8 +1674,20 @@ impl Parser {
                     let label_span = self.peek_span();
                     self.bump();
                     self.skip_newlines();
-                    items.push(atom_at(label_span, Atom::Keyword(name)));
-                    items.push(self.expr(0)?);
+                    items.push(atom_at(label_span, Atom::Keyword(name.clone())));
+                    if matches!(self.peek(), TokenKind::Comma | TokenKind::RBrace) {
+                        items.push(sym_at(label_span, &name));
+                    } else {
+                        let value = self.expr(0)?;
+                        if matches!(&value.form, SpannedForm::Atom(Atom::Symbol(s)) if *s == name)
+                            && label_name(&name)
+                        {
+                            let written = format!("{name}: {name}");
+                            let canonical = format!("{name}:");
+                            self.note(Spelling::MapPun, label_span.merge(value.span), &written, &canonical);
+                        }
+                        items.push(value);
+                    }
                 }
                 _ => {
                     let k = self.expr(0)?;
@@ -2603,6 +2615,18 @@ fn thunk(body: Spanned, at: Span) -> Spanned {
     list_at(
         span,
         vec![sym_at(at, "lambda"), list_at(at, Vec::new()), body],
+    )
+}
+
+/// Whether `name:` lexes as exactly one label spelling `name`: the parser's and
+/// the formatter's shared test for a key that can be punned (`{name:}`). It asks
+/// the lexer, so a name ending in `?` or `!` puns too and no second list of
+/// "plain names" can drift from what a label is.
+#[must_use]
+pub fn label_name(name: &str) -> bool {
+    matches!(
+        lex(&format!("{name}:")).as_deref(),
+        Ok([t, e]) if matches!(&t.kind, TokenKind::Label(n) if n == name) && e.kind == TokenKind::Eof
     )
 }
 

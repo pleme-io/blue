@@ -10,11 +10,11 @@ use("retsu", [:is_empty, :last])
 # hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
 
 def row(kind, key, size)
-  {kind: kind, key: key, size: size}
+  {kind:, key:, size:}
 end
 
 def measurement(key, size)
-  {key: key, size: size}
+  {key:, size:}
 end
 
 def sized(kind, rest)

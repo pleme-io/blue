@@ -6,15 +6,15 @@ use("retsu", [:first, :flat_map, :is_empty, :last, :size])
 # chokkan (直感) — System One judgment: typed questions in, calibrated answers out.
 
 def noul(instructions)
-  {type: "noul", instructions: instructions}
+  {type: "noul", instructions:}
 end
 
 def choice(instructions, options)
-  {type: "choice", instructions: instructions, options: options}
+  {type: "choice", instructions:, options:}
 end
 
 def score(instructions, levels)
-  {type: "score", instructions: instructions, levels: levels}
+  {type: "score", instructions:, levels:}
 end
 
 def ask(name, question)
@@ -126,7 +126,7 @@ def request(model, state, questions)
     {},
     questions
   )
-  json_stringify({model: model, state: state, questions: wired})
+  json_stringify({model:, state:, questions: wired})
 end
 
 def keep_tail(text, max_chars)

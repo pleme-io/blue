@@ -609,7 +609,7 @@ blue source.
 `blue run`, `blue test` and `blue check` rewrite a writable file to the
 layout before compiling it and say so; a read-only file is refused, naming
 the rule. `blue fmt --write` applies it. The more specific spelling rules
-(B0025 to B0035, B0042) are reported instead when one of them explains the
+(B0025 to B0035, B0042, B0046) are reported instead when one of them explains the
 difference.",
     }
     B0025 {
@@ -924,6 +924,19 @@ A row is left out when the identity fails for some value the chain can see:
 `to_int(to_int(x))` is not `to_int(x)`, because `to_int` of nil refuses where
 `to_int(\"abc\")` is nil. The names are builtins only: a local or a definition
 called `to_s` is never rewritten.",
+    }
+    B0046 {
+        slug: "map-pun",
+        severity: Error,
+        fix: Machine,
+        law: "a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}`",
+        witness: "name = 1\n{name: name}\n",
+        waivable: false,
+        explanation: "\
+`{name:}` is `{name: name}`: a label with no value takes the variable of the
+same name, so a map built from locals names each one once. blue reads the long
+spelling and writes the short one, and a mixed map keeps its explicit values:
+`{name:, size: 3}`.",
     }
 }
 

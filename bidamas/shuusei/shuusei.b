@@ -21,7 +21,7 @@ use("kyohi", [:kinds])
 
 use("retsu", [:first, :rest, :size])
 
-# shuusei (修正) — amending declared data: put a value at a path, drop it, merge into it, upsert a list element, and amend a keyed set of objects by judged patch entries.
+# shuusei (修正) — amending declared data: put a value at a path, delete it, merge into it, upsert a list element, and amend a keyed set of objects by judged patch entries.
 #
 # Everything is a pure function from data to data; the input is never changed.
 # A path is deeta's dotted text, `spec.template.spec.containers.0.image`, where
@@ -52,14 +52,6 @@ def replace_at(xs, i, v)
       end
     end,
     range(0, size(xs))
-  )
-end
-
-def without_key(m, k)
-  reduce(
-    (acc, p) -> assoc(acc, nth(0, p), nth(1, p)),
-    {},
-    filter((p) -> nth(0, p) != k, map_entries(m))
   )
 end
 
@@ -112,7 +104,7 @@ def drop_keys(v, keys)
         v
       end
     elsif map?(v)
-      without_key(v, k)
+      dissoc(v, k)
     else
       v
     end
@@ -131,7 +123,7 @@ def path_below(v, k)
 end
 
 # `doc` without the value at `path`; absent already is no change.
-def drop(doc, path)
+def delete(doc, path)
   drop_keys(doc, segments(path))
 end
 
@@ -212,7 +204,7 @@ def patch_table()
     required(field(:kind, text)),
     required(field(:name, text)),
     field(:namespace, text),
-    required(field(:op, one_of(["set", "drop", "merge", "upsert"]))),
+    required(field(:op, one_of(["set", "delete", "merge", "upsert"]))),
     required(field(:path, text)),
     field(:value, anything),
     field(:key, text)
@@ -254,8 +246,8 @@ def apply_op(obj, v)
   op = get(v, :op)
   if op == "set"
     put(obj, get(v, :path), get(v, :value))
-  elsif op == "drop"
-    drop(obj, get(v, :path))
+  elsif op == "delete"
+    delete(obj, get(v, :path))
   elsif op == "merge"
     merge(obj, get(v, :path), get(v, :value))
   else
@@ -329,7 +321,7 @@ end
 # Returns `objects` (patched, same order), `applied`, `off` and `refusals`.
 def amend(objects, keyer, entries)
   judged = judge(patch_schema, entries)
-  start = {objects: objects, claims: [], refusals: [], applied: 0}
+  start = {objects:, claims: [], refusals: [], applied: 0}
   end_state = reduce(
     (state, e) -> one_step(keyer, state, e),
     start,
@@ -460,18 +452,18 @@ test "put sets a value, creates missing map keys, indexes lists, and never touch
     "x"
 end
 
-test "drop removes a map key or a list element, and dropping what is absent is no change"
+test "delete removes a map key or a list element, and deleting what is absent is no change"
   d = web
-  assert json_at(drop(d, "metadata.labels.app"), "metadata.labels") == {}
+  assert json_at(delete(d, "metadata.labels.app"), "metadata.labels") == {}
   assert json_at(
-    drop(d, "spec.template.spec.containers.0"),
+    delete(d, "spec.template.spec.containers.0"),
     "spec.template.spec.containers"
   ) ==
     [{"name" => "side", "image" => "side:1"}]
-  assert drop(d, "spec.nothing.here") == d
-  assert drop(d, "spec.template.spec.containers.7") == d
-  assert drop(drop(d, "spec.replicas"), "spec.replicas") ==
-    drop(d, "spec.replicas")
+  assert delete(d, "spec.nothing.here") == d
+  assert delete(d, "spec.template.spec.containers.7") == d
+  assert delete(delete(d, "spec.replicas"), "spec.replicas") ==
+    delete(d, "spec.replicas")
   assert json_at(d, "spec.replicas") == 1
 end
 

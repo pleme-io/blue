@@ -20,6 +20,8 @@ verbs**. Each verb means one thing in every problem space where it appears. Each
 complete set of verbs it implements, and a build gate holds the declaration (§5). Readability comes
 first: verbs are plain English words, never abbreviations.
 
+**Beyond scripting:** [`VERB-ROADMAP.md`](VERB-ROADMAP.md) extends this vocabulary to all of software engineering: 2,839 verbs in 163 spaces and 4,529 relations, the defects the merge found, and the phased plan. Data: `docs/verbs/`.
+
 ## 0. The design in one screen
 
 ```ruby

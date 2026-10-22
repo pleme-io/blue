@@ -1,0 +1,347 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+E	hyouka	eval	effect	eval(installable, opts) -> value	error,deadline,cache	-	partial:hyouka	evaluate a nix expression to a value	0
+E	hyouka	build	effect	build(installable, opts) -> [out path]	error,deadline,cache,process	-	partial:hyouka	realise a derivation and return its output paths	0
+E	hyouka	plan	pure	plan(installable) -> {build:, fetch:}	error,cache	-	partial:hyouka	what a build would build and fetch, changing nothing	0
+E	hyouka	info	effect	info(path, opts) -> path info	error	-	partial:hyouka	store path record: size, references, signatures	0
+E	hyouka	copy	effect	copy(paths, {to:}) -> nil	error,deadline,retry,idempotent	-	absent	move closures between stores or hosts	1
+E	hyouka	lock	effect	lock(flake, {inputs:}) -> [changed input]	error,idempotent	-	absent	update flake.lock inputs, writing only through nix	1
+E	hyouka	get	effect	get(flake_lock, input) -> pin or nil	error	-	absent	pinned revision of one flake input, nil if absent	1
+E	hyouka	show	effect	show(flake) -> record	error,cache	-	absent	the outputs a flake offers, by system	1
+E	hyouka	check	effect	check(flake, opts) -> [finding]	error,test	-	absent	run the flake checks and return failures as data	1
+E	hyouka	run	effect	run(installable, args, opts) -> result	process,error	-	absent	build then run an app output to completion	1
+E	hyouka	diff	pure	diff(a, b) -> [change]	error	-	absent	closure difference between two store paths	2
+E	hyouka	log	effect	log(installable) -> text	error	-	absent	the build log of a derivation	1
+E	hyouka	verify	effect	verify(path, opts) -> [mismatch]	error,validate	-	absent	check store contents and signatures against their hashes	2
+E	hyouka	fetch	effect	fetch(url, opts) -> {path:, hash:}	error,retry,cache	-	absent	prefetch a source and return its content hash	2
+E	hyouka	search	effect	search(flake, query) -> [record]	error,cache	-	absent	find packages by name or description	2
+E	hyouka	depends	effect	depends(path, on) -> [path]	error	-	absent	the reference chain from one path to another	2
+E	hyouka	clean	effect	clean(opts) -> {freed:}	error,resource,idempotent	souji	partial:souji	delete store paths nothing refers to, dry run first	1
+E	kirikae	plan	pure	plan(flake, host, opts) -> action	error,validate	kirikae	exists:kirikae	what a system switch would do, as data	0
+E	kirikae	decide	pure	decide(desired, current, history, now, policy) -> verdict	switch,retry	kirikae	exists:kirikae	switch, hold or no-op from state and backoff	0
+E	kirikae	hold	pure	hold(key, history, now, policy) -> record or nil	retry,time	kirikae	exists:kirikae	back-off window after repeated failure	0
+E	kirikae	run	effect	run(plan, opts) -> outcome	process,error,switch,log	kirikae	exists:kirikae	build and activate the planned system	0
+E	kirikae	verify	effect	verify(desired, opts) -> Bool	validate,switch	kirikae	exists:kirikae	current system resolves to the one built	0
+E	kirikae	record	effect	record(path, entry) -> nil	serialize,idempotent	kirikae	exists:kirikae	append one outcome to the switch history	0
+E	kirikae	list	effect	list(host, opts) -> [generation]	error	-	absent	generations a host can roll back to	1
+E	kirikae	rollback	effect	rollback(host, {to:}) -> outcome	switch,error,process	-	absent	activate an earlier generation	1
+E	tehai	parse	pure	parse(text) -> [machine]	validate	tehai	exists:tehai	declared remote builders from the machines file	0
+E	tehai	probe	effect	probe(machine, opts) -> checked	deadline,process	tehai	exists:tehai	whether one builder takes work right now	0
+E	tehai	list	effect	list(declared, opts) -> [state]	time,deadline	tehai	exists:tehai	every builder with live or stale state	0
+E	tehai	put	effect	put(path, machines) -> nil	idempotent,serialize	tehai	exists:tehai	write the live set atomically where nix reads it	0
+E	kijun	check	effect	check(repo, config) -> [finding]	validate,test	kijun	exists:kijun	hold a repo to its standard, findings as data	0
+E	kijun	list	pure	list(config) -> [rule]	config	kijun	partial:kijun	rules a standard enforces	1
+E	kijun	explain	pure	explain(rule) -> text	-	kijun	partial:kijun	why a rule exists and how to fix it	1
+E	kijun	waive	decl	waive(config, rule, glob, reason) -> config	config	kijun	exists:kijun	exempt one path from one rule with a reason	0
+E	kijun	ratchet	effect	ratchet(findings, baseline) -> verdict	validate,serialize	hadome	exists:hadome	recorded debt may shrink or hold, never grow	0
+E	nikkusu	parse	pure	parse(text) -> tree	error	nikkusu	exists:nikkusu	nix source as a lossless tree	0
+E	nikkusu	find	pure	find(tree, query) -> [node]	-	nikkusu	exists:nikkusu	nodes matching a call head, attrpath or path	0
+E	nikkusu	get	pure	get(tree, attrpath) -> node or nil	-	nikkusu	exists:nikkusu	the binding at an attribute path	0
+E	nikkusu	render	pure	render(tree) -> text	serialize	-	absent	nix source back from a tree, comments kept	2
+E	haibi	render	pure	render(service, opts) -> [file]	serialize,validate	haibi	exists:haibi	chart, values, schema and rules from one service spec	0
+E	haibi	schema	pure	schema(service) -> schema	validate	haibi	exists:haibi	values.schema.json from the service defaults	0
+E	haibi	ddl	pure	ddl(service) -> text	serialize	haibi	exists:haibi	database schema statements from declared tables	0
+E	haibi	check	pure	check(service, row) -> [refusal]	validate	haibi	exists:haibi	refuse a row that breaks the declared table	0
+E	shinchoku	progress	pure	progress(samples, window) -> verdict	time	shinchoku	exists:shinchoku	moving, stalled or blind from counter samples	0
+E	shinchoku	watch	stream	watch(target, f, opts) -> nil	time,cancel	shinchoku	partial:shinchoku	sample a reconciler until it settles or stalls	1
+E	shinchoku	info	effect	info(target) -> record	error	shinchoku	partial:shinchoku	generation, observed generation and phase	1
+E	gitto	info	effect	info(repo) -> record	error	-	absent	branch, head, ahead, behind, changes	1
+E	gitto	get	effect	get(repo, ref) -> commit or nil	error	-	absent	one commit, nil when the ref is absent	1
+E	gitto	need	effect	need(repo, ref) -> commit	error	-	absent	one commit, raises when absent	1
+E	gitto	list	effect	list(repo, what, opts) -> [record]	error	-	absent	branches, tags, commits, remotes or worktrees	1
+E	gitto	read	effect	read(repo, path, {at:}) -> bytes	error	-	absent	a file's content at a ref	1
+E	gitto	exists?	effect	exists?(repo, ref) -> Bool	-	-	absent	whether a ref resolves	1
+E	gitto	diff	effect	diff(repo, a, b, opts) -> [change]	error	-	absent	changes between two refs	1
+E	gitto	commit	effect	commit(repo, message, opts) -> commit	error,idempotent	-	absent	record staged paths as a commit	1
+E	gitto	fetch	effect	fetch(repo, opts) -> nil	error,retry,deadline	-	absent	update remote refs without touching the tree	1
+E	gitto	merge	effect	merge(repo, ref, opts) -> commit	error	-	absent	fast-forward only by default	1
+E	gitto	push	effect	push(repo, opts) -> nil	error,retry	-	absent	publish refs, rebase or refuse, never force	1
+E	gitto	clone	effect	clone(url, dir, opts) -> repo	error,retry,deadline	-	absent	copy a remote repository	1
+E	gitto	create	effect	create(repo, key, value, opts) -> value	error	-	absent	make a branch or tag that must not exist	1
+E	gitto	delete	effect	delete(repo, key) -> nil	error,idempotent	-	absent	remove a branch or tag, absent counts done	1
+E	gitto	describe	effect	describe(repo, ref) -> {tag:, distance:}	error	-	absent	nearest tag and distance from it	1
+E	gitto	tag	effect	tag(repo, name, {at:, sign:}) -> tag	error	-	absent	annotate a commit with a name	1
+E	gitto	worktree	effect	worktree(repo, branch, dir) -> repo	error,resource	tend	absent	a second checkout of one repository	1
+E	gitto	revert	effect	revert(repo, ref) -> commit	error	-	absent	a commit that undoes another	2
+E	gitto	pick	effect	pick(repo, ref) -> commit	error	-	absent	apply one commit onto the current branch	2
+E	gitto	bisect	effect	bisect(repo, good, bad, f) -> commit	error,process	-	absent	first commit where a test fails	2
+E	gitto	blame	effect	blame(repo, path, {at:}) -> [line record]	error	-	absent	who last changed each line	2
+E	gitto	changed	effect	changed(repo, a, b) -> [path]	error	-	absent	paths touched between two refs	1
+E	gitto	patch	pure	patch(repo, change) -> text	serialize	-	absent	a change rendered as an applicable patch	2
+E	kurasuta	list	effect	list(kind, opts) -> [object]	error,deadline	banken	absent	every object of a kind, all pages, sorted	1
+E	kurasuta	get	effect	get(kind, name, opts) -> object or nil	error	banken	absent	one object, nil when absent	1
+E	kurasuta	need	effect	need(kind, name, opts) -> object	error	banken	absent	one object, raises when absent	1
+E	kurasuta	has?	effect	has?(kind, name, opts) -> Bool	-	-	absent	whether an object exists	1
+E	kurasuta	watch	stream	watch(kind, f, opts) -> nil	cancel,deadline	banken	absent	call f per change until it returns stop	1
+E	kurasuta	read	effect	read(pod, opts) -> text	error	-	absent	container logs	1
+E	kurasuta	info	effect	info(opts) -> record	error	banken	absent	cluster version and reachability	1
+E	kurasuta	diff	effect	diff(desired, opts) -> [change]	error,validate	-	absent	live objects against rendered manifests	1
+E	kurasuta	events	effect	events(subject, opts) -> [event]	time	banken	absent	cluster events about one object	1
+E	kurasuta	top	effect	top(kind, opts) -> [usage]	resource	-	absent	cpu and memory in use	1
+E	kurasuta	wait	effect	wait(kind, name, condition, opts) -> object	deadline,cancel	-	absent	block until a condition holds	1
+E	kurasuta	can?	effect	can?(verb, kind, opts) -> Bool	capability	banken	absent	whether the credential may do that	1
+E	kurasuta	explain	pure	explain(kind) -> schema	-	-	absent	fields a kind accepts	2
+E	kurasuta	render	pure	render(chart, values) -> [object]	serialize,validate	-	absent	objects a chart yields, no cluster contact	1
+E	habu	list	effect	list(path, opts) -> [record]	error,ratelimit	-	absent	every item under an API path, all pages	1
+E	habu	get	effect	get(path, opts) -> record or nil	error,ratelimit	-	absent	one API item, nil when absent	1
+E	habu	need	effect	need(path, opts) -> record	error,ratelimit	-	absent	one API item, raises when absent	1
+E	habu	create	effect	create(path, value, opts) -> record	error,ratelimit	-	absent	add an item that must not exist	1
+E	habu	update	effect	update(path, f, opts) -> record	error,ratelimit	-	absent	change an item with a function	1
+E	habu	put	effect	put(path, value, opts) -> record	error,idempotent,ratelimit	-	absent	create or replace an item	1
+E	habu	delete	effect	delete(path, opts) -> nil	error,idempotent	-	absent	remove an item	1
+E	habu	query	effect	query(graphql, vars) -> record	error,ratelimit	-	absent	a GraphQL question	1
+E	habu	merge	effect	merge(pr, opts) -> record	error	-	absent	merge a pull request when checks allow	1
+E	habu	read	effect	read(path, {at:}) -> bytes	error	-	absent	file content or a PR diff from the API	1
+E	joujuu	list	effect	list(opts) -> [unit]	error	-	absent	every service with state	1
+E	joujuu	info	effect	info(unit) -> record	error	-	absent	state, pid, last exit, since	1
+E	joujuu	start	effect	start(unit, opts) -> nil	error,idempotent	-	absent	start a service	1
+E	joujuu	stop	effect	stop(unit, opts) -> nil	error,idempotent	-	absent	end a service after a grace period	1
+E	joujuu	restart	effect	restart(unit, opts) -> nil	error	-	absent	stop then start	1
+E	joujuu	read	effect	read(unit, {since:}) -> text	error	-	absent	journal or launchd log	1
+E	joujuu	plan	pure	plan(action, units) -> [action]	-	-	absent	what a restart would touch	1
+E	joujuu	reload	effect	reload(unit) -> nil	error	-	absent	re-read configuration without ending the process	1
+E	joujuu	wait	effect	wait(unit, state, opts) -> record	deadline,cancel	-	absent	block until a unit reaches a state	1
+E	joujuu	active?	effect	active?(unit) -> Bool	-	-	absent	whether a unit is running now	1
+E	joujuu	enabled?	effect	enabled?(unit) -> Bool	config	-	absent	whether a unit starts at boot or login	1
+E	joujuu	reset	effect	reset(unit) -> nil	error,idempotent	-	absent	clear a failed state	2
+E	joujuu	signal	effect	signal(unit, sig) -> nil	error	-	absent	send a signal to a unit's processes	2
+E	joujuu	limits	effect	limits(unit) -> record	resource	-	absent	memory, cpu and file limits in force	2
+E	paketto?	parse	pure	parse(text, format) -> manifest	validate,serialize	gen	absent	a package manifest into a record	1
+E	paketto?	read	effect	read(project) -> lock	error	gen	partial:bidama	the lockfile of a project	1
+E	paketto?	resolve	pure	resolve(manifest, index, opts) -> lock or conflict	error,validate	gen	partial:bidama	pick one version per package that satisfies all ranges	1
+E	paketto?	lock	effect	lock(project, opts) -> [changed pin]	idempotent,serialize	gen	exists:bidama	write the lockfile from the manifest	0
+E	paketto?	fetch	effect	fetch(pin, opts) -> bytes	retry,deadline,cache,validate	gen	absent	download one package and verify its hash	1
+E	paketto?	install	effect	install(lock, opts) -> nil	idempotent,cache,process	gen	absent	place every locked package where the build reads it	1
+E	paketto?	add	effect	add(project, dep, opts) -> [changed pin]	idempotent	gen	absent	declare a dependency and re-lock	1
+E	paketto?	remove	effect	remove(project, name) -> [changed pin]	idempotent	gen	absent	drop a dependency and re-lock	1
+E	paketto?	update	effect	update(project, names, opts) -> [change]	idempotent	gen	absent	move pins to newer allowed versions	1
+E	paketto?	outdated	effect	outdated(project) -> [record]	error	gen	absent	pins behind the newest allowed version	1
+E	paketto?	tree	pure	tree(lock) -> graph	-	gen	partial:bidama	the dependency graph	1
+E	paketto?	why	pure	why(lock, name) -> [path]	-	gen	absent	every chain that pulls a package in	1
+E	paketto?	explain	pure	explain(conflict) -> text	-	-	absent	the minimal clash behind an unsolvable set	2
+E	paketto?	verify	effect	verify(lock) -> [mismatch]	validate	gen	partial:gen	lockfile against manifest and stored hashes	0
+E	paketto?	vendor	effect	vendor(lock, dir) -> nil	idempotent	-	absent	copy sources into the tree for offline builds	2
+E	paketto?	dedupe	pure	dedupe(lock) -> lock	-	-	absent	merge versions that one pin can serve	3
+E	paketto?	info	effect	info(name, registry) -> record	error,cache	-	absent	versions, yanks and metadata of a package	1
+E	paketto?	search	effect	search(registry, query) -> [record]	error,ratelimit	-	absent	packages matching a query	2
+E	paketto?	publish	effect	publish(package, registry, opts) -> record	error,idempotent	-	absent	upload a package version, immutable once up	2
+E	paketto?	yank	effect	yank(name, version, registry) -> nil	error,idempotent	-	absent	mark a version unfit without deleting it	3
+E	bajon?	parse	pure	parse(text, scheme) -> version	validate	-	absent	text into a version, semver or calver	1
+E	bajon?	render	pure	render(version) -> text	serialize	-	absent	a version as canonical text	1
+E	bajon?	compare	pure	compare(a, b) -> -1, 0 or 1	-	-	absent	order two versions by their scheme	1
+E	bajon?	valid?	pure	valid?(text, scheme) -> Bool	validate	-	absent	whether text is a well-formed version	1
+E	bajon?	bump	pure	bump(version, part) -> version	-	-	absent	next major, minor, patch or prerelease	1
+E	bajon?	next	pure	next(version, changes) -> version	-	-	absent	the bump that conventional commits require	2
+E	bajon?	range	pure	range(text) -> constraint	validate	-	absent	a version constraint as a value	1
+E	bajon?	satisfies?	pure	satisfies?(version, constraint) -> Bool	-	-	absent	whether a version fits a constraint	1
+E	bajon?	intersect	pure	intersect(a, b) -> constraint or nil	-	-	absent	what two constraints both allow	2
+E	bajon?	pick	pure	pick(versions, constraint) -> version or nil	-	-	absent	the highest version a constraint allows	1
+E	bajon?	change	pure	change(a, b) -> :major, :minor, :patch or :none	-	-	absent	how big a step between two versions is	2
+E	birudo?	plan	pure	plan(project, targets, opts) -> [step]	cache,validate	-	partial:hyouka	steps and cache hits a build would take	1
+E	birudo?	build	effect	build(project, targets, opts) -> [artifact]	process,cache,error,deadline	-	partial:hyouka	produce artifacts from sources	1
+E	birudo?	check	effect	check(project, opts) -> [diagnostic]	validate,process	-	exists:blue	type and rule check without producing outputs	0
+E	birudo?	test	effect	test(project, opts) -> report	test,process,deadline	-	exists:blue	run the project tests and return a report	0
+E	birudo?	bench	effect	bench(project, opts) -> [measure]	time,process	-	absent	timed runs of marked workloads	3
+E	birudo?	lint	effect	lint(project, opts) -> [finding]	validate	-	partial:kijun	style and correctness findings as data	1
+E	birudo?	format	effect	format(project, opts) -> [changed path]	idempotent	-	exists:blue	rewrite sources to the one canonical form	0
+E	birudo?	doc	effect	doc(project, opts) -> [file]	serialize	-	exists:blue	reference pages generated from definitions	1
+E	birudo?	watch	stream	watch(project, f, opts) -> nil	cancel,process	-	absent	rebuild when inputs change	2
+E	birudo?	clean	effect	clean(project, opts) -> {freed:}	resource,idempotent	souji	partial:souji	remove build outputs	1
+E	birudo?	graph	pure	graph(project) -> graph	-	-	absent	targets and their inputs as a graph	2
+E	birudo?	key	pure	key(step, inputs) -> hash	cache	-	absent	content address of a step from its inputs	1
+E	birudo?	stale?	effect	stale?(step) -> Bool	cache	-	absent	whether inputs changed since the last output	1
+E	birudo?	restore	effect	restore(key) -> outputs or nil	cache,retry	-	absent	fetch a step's outputs from the cache	2
+E	birudo?	save	effect	save(key, outputs) -> nil	cache,idempotent	-	absent	store a step's outputs under its key	2
+E	birudo?	toolchain	effect	toolchain(spec) -> toolchain	cache,process	-	absent	the compiler and tools a build is pinned to	2
+E	birudo?	target	pure	target(name) -> record	-	-	absent	a platform triple with its capabilities	2
+E	birudo?	run	effect	run(step, opts) -> result	process,capability	-	absent	one step in a sandbox with declared inputs only	2
+E	birudo?	reproduce	effect	reproduce(artifact, opts) -> Bool	validate,process	-	absent	rebuild and compare hashes bit for bit	3
+E	birudo?	profile	effect	profile(project) -> [timing]	time	-	absent	where build time went, per step	3
+E	paipurain?	declare	decl	declare(name, spec) -> pipeline	config,validate	-	absent	a pipeline as stages, jobs and gates	1
+E	paipurain?	plan	pure	plan(pipeline, event) -> [job]	validate	-	absent	jobs an event would start, after filters	1
+E	paipurain?	order	pure	order(pipeline) -> [[job]]	-	-	absent	jobs in dependency waves	1
+E	paipurain?	matrix	pure	matrix(axes) -> [record]	-	-	absent	every combination of axis values	1
+E	paipurain?	skip?	pure	skip?(job, changed) -> Bool	-	-	absent	whether path filters make a job unneeded	2
+E	paipurain?	run	effect	run(pipeline, event, opts) -> run	process,deadline,log	-	absent	start a pipeline for an event	1
+E	paipurain?	list	effect	list(opts) -> [run]	error	-	absent	runs, newest first	1
+E	paipurain?	get	effect	get(id) -> run or nil	error	-	absent	one run with job states	1
+E	paipurain?	watch	stream	watch(run, f, opts) -> nil	cancel,deadline	-	absent	call f per job state change	1
+E	paipurain?	read	effect	read(run, job) -> text	error	-	absent	the log of one job	1
+E	paipurain?	cancel	effect	cancel(run) -> nil	cancel,idempotent	-	absent	stop a run and its jobs	2
+E	paipurain?	retry	effect	retry(run, opts) -> run	retry	-	absent	run failed jobs again	2
+E	paipurain?	approve	effect	approve(run, gate, opts) -> nil	capability,log	-	absent	let a held gate pass, naming who	2
+E	paipurain?	artifacts	effect	artifacts(run) -> [artifact]	error	-	absent	files a run produced	2
+E	paipurain?	triage	pure	triage(runs) -> [cluster]	-	-	absent	failed runs grouped by shared cause	2
+E	paipurain?	lint	pure	lint(pipeline) -> [finding]	validate	-	absent	refuse a pipeline that cannot run	1
+E	paipurain?	schedule	decl	schedule(pipeline, cron) -> entry	time,config	-	absent	run a pipeline on a calendar	3
+E	rirezu?	plan	pure	plan(repo, changes, opts) -> release plan	validate	-	absent	next version, notes and targets from changes	1
+E	rirezu?	notes	pure	notes(changes) -> text	serialize	-	absent	changelog text from commits	1
+E	rirezu?	changelog	effect	changelog(repo, plan) -> nil	idempotent,serialize	-	absent	insert notes into the changelog file	2
+E	rirezu?	cut	effect	cut(repo, plan, opts) -> release	idempotent,log	-	absent	bump, tag and record a release	1
+E	rirezu?	publish	effect	publish(release, targets, opts) -> [record]	retry,idempotent,error	-	absent	send artifacts to registries and hosts	2
+E	rirezu?	promote	effect	promote(release, to) -> release	switch,log	-	absent	move a release to the next channel	2
+E	rirezu?	list	effect	list(repo, opts) -> [release]	error	-	absent	releases, newest first	1
+E	rirezu?	get	effect	get(repo, tag) -> release or nil	error	-	absent	one release, nil when absent	1
+E	rirezu?	latest	effect	latest(repo, channel) -> release or nil	error	-	absent	newest release on a channel	1
+E	rirezu?	diff	effect	diff(repo, a, b) -> [change]	error	-	absent	changes between two releases	1
+E	rirezu?	yank	effect	yank(release, reason) -> nil	idempotent,log	-	absent	withdraw a release, keeping the record	3
+E	rirezu?	verify	effect	verify(release) -> [mismatch]	validate	-	absent	assets match recorded hashes and signatures	2
+E	konteina?	build	effect	build(spec, opts) -> image	process,cache,error	-	absent	make an image from a spec, no daemon	2
+E	konteina?	info	effect	info(ref) -> record	error,cache	-	absent	manifest, config and size of an image	1
+E	konteina?	layers	effect	layers(ref) -> [layer]	error	-	absent	layer digests, sizes and commands	1
+E	konteina?	resolve	effect	resolve(ref) -> digest	error,cache	-	absent	turn a tag into its digest	1
+E	konteina?	list	effect	list(repo, opts) -> [tag]	error,ratelimit	-	absent	tags in a repository, all pages	1
+E	konteina?	pull	effect	pull(ref, dir, opts) -> image	retry,deadline,cache	-	absent	fetch an image by digest	2
+E	konteina?	push	effect	push(image, ref, opts) -> digest	retry,idempotent,deadline	-	absent	upload an image, return its digest	2
+E	konteina?	copy	effect	copy(from, to, opts) -> digest	retry,idempotent	multi-arch-image-release	absent	move an image between registries without unpacking	1
+E	konteina?	tag	effect	tag(ref, name) -> nil	idempotent	-	absent	add a tag to a digest	1
+E	konteina?	combine	effect	combine(refs, name) -> digest	idempotent	multi-arch-image-release	absent	one multi-arch index from per-arch images	1
+E	konteina?	delete	effect	delete(ref) -> nil	idempotent	-	absent	remove a tag or manifest	2
+E	konteina?	diff	effect	diff(a, b) -> [change]	-	-	absent	files and packages that differ between images	2
+E	konteina?	check	effect	check(ref, policy) -> [finding]	validate	lacre	absent	refuse an image holding a shell, root user or extras	2
+E	konteina?	export	effect	export(ref, dir) -> nil	error	-	absent	unpack an image's filesystem	3
+E	konteina?	run	effect	run(ref, args, opts) -> result	process,deadline,capability	-	absent	run an image once and return its result	3
+E	konteina?	gc	effect	gc(repo, opts) -> {freed:}	resource,idempotent	-	absent	drop untagged and unreferenced blobs	3
+E	konteina?	render	pure	render(spec) -> text	serialize	-	absent	image spec in the build tool's own syntax	3
+E	kyoukyuu?	sbom	effect	sbom(subject, opts) -> sbom	serialize,cache	-	absent	the bill of materials of an image or closure	2
+E	kyoukyuu?	scan	effect	scan(subject, opts) -> [finding]	error,validate	-	absent	known flaws in what a subject contains	2
+E	kyoukyuu?	audit	effect	audit(lock, opts) -> [advisory]	error,validate	-	absent	locked packages against advisories	2
+E	kyoukyuu?	explain	pure	explain(finding) -> text	-	-	absent	how a flaw reaches the subject	3
+E	kyoukyuu?	provenance	effect	provenance(subject) -> record	serialize	tameshi	absent	who built it, from what, with which inputs	2
+E	kyoukyuu?	attest	effect	attest(subject, predicate, opts) -> attestation	serialize,log	tameshi	absent	sign a claim about a subject	2
+E	kyoukyuu?	verify	effect	verify(subject, policy) -> verdict	validate,capability	sekiban	absent	check signatures and attestations against a policy	2
+E	kyoukyuu?	license	effect	license(subject) -> [license]	validate	-	absent	licenses found in a subject	3
+E	kyoukyuu?	diff	pure	diff(a, b) -> [change]	-	-	absent	what changed between two SBOMs	3
+E	kyoukyuu?	record	effect	record(attestation, ledger) -> receipt	log,idempotent	cartorio	absent	append an attestation to a ledger	3
+E	kyoukyuu?	admit?	effect	admit?(subject, policy) -> Bool	capability	sekiban	absent	whether the cluster gate would let it in	3
+E	kiban?	declare	decl	declare(name, resources) -> stack	config,validate	pangea-core	absent	infrastructure as typed resources	1
+E	kiban?	render	pure	render(stack, format) -> text	serialize	pangea-core	absent	a stack in the planner's input format	1
+E	kiban?	check	pure	check(stack) -> [finding]	validate,test	pangea-sim	absent	refuse a bad stack before any plan	1
+E	kiban?	plan	effect	plan(stack, opts) -> plan	error,deadline,idempotent	pangea-operator	absent	what apply would create, change and delete	1
+E	kiban?	apply	effect	apply(plan, opts) -> result	error,capability,log	-	absent	carry out a reviewed plan, gated and logged	3
+E	kiban?	destroy	effect	destroy(stack, opts) -> result	capability,log	-	absent	remove everything a stack owns	3
+E	kiban?	refresh	effect	refresh(stack) -> state	error	-	absent	read real state back into the record	2
+E	kiban?	drift	effect	drift(stack) -> [difference]	error,time	pangea-operator	absent	where real state left the declaration	2
+E	kiban?	diff	pure	diff(a, b) -> [change]	-	-	absent	differences between two plans or stacks	1
+E	kiban?	import	effect	import(stack, resource, id) -> state	error,idempotent	-	absent	adopt an existing resource into a stack	3
+E	kiban?	list	effect	list(stack, opts) -> [resource]	error	-	absent	resources a stack holds	1
+E	kiban?	get	effect	get(stack, address) -> resource or nil	error	-	absent	one resource in state, nil when absent	1
+E	kiban?	move	effect	move(stack, from, to) -> nil	idempotent	-	absent	rename a resource without recreating it	3
+E	kiban?	output	effect	output(stack, name) -> value	error	-	absent	a value a stack exports	1
+E	kiban?	lock	effect	lock(stack, opts) -> lease	capability,deadline	-	absent	claim the state against a second writer	2
+E	kiban?	unlock	effect	unlock(lease) -> nil	idempotent	-	absent	give up a state claim	2
+E	kiban?	graph	pure	graph(stack) -> graph	-	-	absent	resource dependencies	2
+E	kiban?	test	effect	test(stack, suite) -> report	test	kensa	absent	prove a stack against its compliance suite	3
+E	kumo?	list	effect	list(kind, opts) -> [resource]	error,ratelimit,deadline	cordel	absent	cloud resources of a kind, all pages	1
+E	kumo?	get	effect	get(kind, id, opts) -> resource or nil	error,ratelimit	cordel	absent	one cloud resource, nil when absent	1
+E	kumo?	need	effect	need(kind, id, opts) -> resource	error	cordel	absent	one cloud resource, raises when absent	1
+E	kumo?	has?	effect	has?(kind, id, opts) -> Bool	-	-	absent	whether a resource exists	1
+E	kumo?	find	effect	find(query, opts) -> [resource]	error	-	absent	resources by tag or attribute across kinds	2
+E	kumo?	tags	effect	tags(resource) -> record	error	-	absent	the tags on a resource	2
+E	kumo?	tag	effect	tag(resource, tags) -> nil	idempotent,capability	-	absent	set tags on a resource	3
+E	kumo?	wait	effect	wait(resource, state, opts) -> resource	deadline,cancel	-	absent	block until a resource reaches a state	2
+E	kumo?	quota	effect	quota(kind, opts) -> {used:, limit:}	resource	-	absent	how much of a limit is spent	2
+E	kumo?	whoami	effect	whoami(opts) -> identity	capability	-	absent	the account and role the credential acts as	1
+E	kumo?	events	effect	events(opts) -> [event]	time,error	-	absent	the audit trail of changes	3
+E	kumo?	regions	effect	regions(opts) -> [region]	cache	-	absent	regions available to the account	3
+E	tenkai?	plan	pure	plan(strategy, from, to) -> [step]	validate	forge	absent	steps a rollout would take, as data	1
+E	tenkai?	start	effect	start(plan, opts) -> rollout	log,capability,idempotent	forge	absent	begin a rollout	2
+E	tenkai?	info	effect	info(rollout) -> record	error	forge	absent	step, weight, health and age	2
+E	tenkai?	watch	stream	watch(rollout, f, opts) -> nil	cancel,deadline	shinchoku	absent	call f per step or health change	2
+E	tenkai?	step	effect	step(rollout) -> rollout	log,switch	-	absent	advance one stage	2
+E	tenkai?	shift	effect	shift(rollout, weight) -> rollout	switch,log	-	absent	move a share of traffic to the new version	3
+E	tenkai?	analyze	effect	analyze(rollout, window) -> verdict	time,validate	-	absent	compare new against old on live metrics	3
+E	tenkai?	verify	effect	verify(rollout) -> verdict	validate,deadline	forge	absent	health gate before the next step	2
+E	tenkai?	bake	effect	bake(rollout, duration) -> verdict	time,deadline,cancel	-	absent	hold a stage for a soak period	3
+E	tenkai?	pause	effect	pause(rollout) -> rollout	switch,idempotent	-	absent	hold a rollout where it stands	2
+E	tenkai?	resume	effect	resume(rollout) -> rollout	switch,idempotent	-	absent	continue a held rollout	2
+E	tenkai?	promote	effect	promote(rollout) -> rollout	switch,log	-	absent	make the new version the only one	2
+E	tenkai?	abort	effect	abort(rollout, reason) -> rollout	cancel,log,idempotent	-	absent	stop and keep the current mix	2
+E	tenkai?	rollback	effect	rollback(rollout, {to:}) -> rollout	switch,log,idempotent	-	absent	return all traffic to the earlier version	2
+E	tenkai?	list	effect	list(opts) -> [rollout]	error	-	absent	rollouts, newest first	2
+E	tenkai?	freeze	effect	freeze(scope, reason, opts) -> window	capability,time,log	-	absent	forbid rollouts in a scope for a time	3
+E	tenkai?	thaw	effect	thaw(window) -> nil	idempotent,log	-	absent	end a change freeze	3
+E	tenkai?	approve	effect	approve(rollout, gate, opts) -> nil	capability,log	-	absent	let a held gate pass, naming who	3
+E	hata?	get	effect	get(flag, context) -> value	config,cache	-	absent	the value of a flag for a context	3
+E	hata?	list	effect	list(opts) -> [flag]	error	-	absent	every flag with its rule	3
+E	hata?	put	effect	put(flag, rule, opts) -> flag	idempotent,log	-	absent	create or replace a flag rule	3
+E	hata?	ramp	effect	ramp(flag, percent) -> flag	switch,log	-	absent	raise the share of contexts that see it	3
+E	hata?	kill	effect	kill(flag, reason) -> flag	switch,log,idempotent	-	absent	turn a flag off for everyone at once	3
+E	hata?	on?	effect	on?(flag, context) -> Bool	config	-	absent	whether a boolean flag is on	3
+E	hata?	watch	stream	watch(flag, f) -> nil	cancel	-	absent	call f when a flag's rule changes	4
+E	hata?	stale?	effect	stale?(flag, opts) -> Bool	time	-	absent	whether a flag changed nothing for a long time	4
+E	hata?	history	effect	history(flag) -> [change]	time	-	absent	who changed a flag and when	4
+E	haichi?	list	effect	list() -> [environment]	config	-	absent	named deploy targets	1
+E	haichi?	get	effect	get(name) -> environment or nil	config	-	absent	one environment's record	1
+E	haichi?	need	effect	need(name) -> environment	config	-	absent	one environment, raises when absent	1
+E	haichi?	resolve	pure	resolve(spec, environment) -> record	config,validate	-	absent	a spec with this environment's overlay applied	1
+E	haichi?	diff	pure	diff(a, b) -> [change]	config	-	absent	how two environments differ in resolved config	1
+E	haichi?	promote	effect	promote(change, from, to) -> change	switch,log	-	absent	carry a pinned change to the next environment	2
+E	haichi?	lock	effect	lock(name, reason) -> nil	capability,log,idempotent	-	absent	stop changes to an environment	3
+E	haichi?	path	pure	path(name) -> [environment]	-	-	absent	environments a change passes through in order	2
+E	youryou?	list	effect	list(opts) -> [band]	error	breathe	absent	resource bands and their state	1
+E	youryou?	get	effect	get(band) -> record or nil	error	breathe	absent	one band with its resolved write gate	1
+E	youryou?	observe	effect	observe(workload, opts) -> usage	resource,time	breathe	absent	utilization over a window	1
+E	youryou?	plan	pure	plan(band, usage) -> action	resource	breathe	absent	the limit change a band would make	1
+E	youryou?	put	effect	put(band, spec) -> band	idempotent,log	breathe	absent	create or replace a band declaration	2
+E	youryou?	intent	effect	intent(band, mode, opts) -> band	capability,switch,log	breathe	absent	set a band to observe, calibrate, write or frozen	1
+E	youryou?	confirm	effect	confirm(band) -> band	capability,log	breathe	absent	promote a calibrating band to live writes	2
+E	youryou?	explain	pure	explain(band) -> text	-	breathe	absent	why a band is shadowed or live	1
+E	youryou?	forecast	pure	forecast(series, horizon) -> series	time	-	absent	expected demand ahead	3
+E	youryou?	headroom	effect	headroom(pool) -> {free:, reserved:}	resource	-	absent	capacity left in a pool	2
+E	youryou?	scale	effect	scale(workload, n, opts) -> workload	resource,switch,log	-	absent	set the replica count	3
+E	youryou?	bound	pure	bound(band) -> {floor:, ceiling:}	resource,validate	breathe	absent	the limits a band may never cross	1
+E	youryou?	burst	effect	burst(workload, load, opts) -> report	resource,time	burst-forge	absent	drive load and record scaling behaviour	4
+E	hiyou?	cost	effect	cost(scope, range, opts) -> [line]	error,time	-	absent	spend by scope and period	3
+E	hiyou?	check	pure	check(resources, policy) -> [finding]	validate	tag-forge	absent	resources missing required cost tags	3
+E	hiyou?	attribute	pure	attribute(lines, rules) -> [line]	-	-	absent	spend assigned to an owner	3
+E	hiyou?	showback	pure	showback(lines, owners) -> report	serialize	showback-forge	absent	spend per owner as a report	3
+E	hiyou?	recommend	effect	recommend(workload, usage) -> [action]	resource	rightsize-forge	absent	right-sized requests and limits	3
+E	hiyou?	unit	pure	unit(lines, measure) -> record	-	unit-econ-forge	absent	cost per request, tenant or build	4
+E	hiyou?	forecast	pure	forecast(lines, horizon) -> [line]	time	-	absent	expected spend ahead	4
+E	hiyou?	budget	decl	budget(scope, amount, period) -> budget	config,time	-	absent	a spend limit for a scope	4
+E	hiyou?	breach?	pure	breach?(budget, lines) -> Bool	validate	-	absent	whether spend passes a budget	4
+E	hiyou?	commit	pure	commit(lines, options) -> plan	-	commitment-forge	absent	layered purchase commitments for steady use	4
+E	hiyou?	waste	effect	waste(scope) -> [resource]	resource	-	absent	idle resources still costing money	4
+E	hosuto?	list	effect	list(opts) -> [host]	config	fleet	absent	declared hosts and their groups	1
+E	hosuto?	get	effect	get(name) -> host or nil	config	fleet	absent	one host record	1
+E	hosuto?	need	effect	need(name) -> host	config	fleet	absent	one host, raises when absent	1
+E	hosuto?	reach?	effect	reach?(host, opts) -> Bool	deadline,process	tehai	partial:tehai	whether the host answers now	0
+E	hosuto?	facts	effect	facts(host) -> record	process,cache	-	absent	kernel, system, disk and load facts	2
+E	hosuto?	converge	effect	converge(host, opts) -> outcome	switch,log,process	kirikae	partial:kirikae	bring a host to its declared system	1
+E	hosuto?	drift	effect	drift(host) -> [difference]	validate	-	absent	declared system against the running one	2
+E	hosuto?	drain	effect	drain(host, opts) -> nil	switch,deadline,idempotent	-	absent	move work off a host	3
+E	hosuto?	wait	effect	wait(host, state, opts) -> host	deadline,cancel	-	absent	block until a host is up or gone	2
+E	hosuto?	wake	effect	wake(host) -> nil	idempotent	-	absent	bring a sleeping host up	3
+E	hosuto?	group	pure	group(hosts, key) -> record	-	fleet	absent	hosts partitioned by role or site	1
+E	hosuto?	health	effect	health(host) -> verdict	error	-	absent	healthy, degraded, down or blind	2
+E	jikkou?	pack	effect	pack(source, target, opts) -> module	process,cache	wasm-engine	absent	compile a function to a portable module	3
+E	jikkou?	deploy	effect	deploy(module, opts) -> function	idempotent,capability,log	wasm-operator	absent	place a module where it runs	3
+E	jikkou?	invoke	effect	invoke(function, input, opts) -> output	deadline,error,resource	wasm-engine	absent	run a function once	3
+E	jikkou?	list	effect	list(opts) -> [function]	error	wasm-operator	absent	functions and their versions	3
+E	jikkou?	get	effect	get(name) -> function or nil	error	wasm-operator	absent	one function, nil when absent	3
+E	jikkou?	read	effect	read(function, opts) -> text	error	-	absent	logs from a function's runs	3
+E	jikkou?	scale	effect	scale(function, bounds) -> function	resource,switch	wasm-operator	absent	set minimum and maximum instances	4
+E	jikkou?	limit	decl	limit(function, record) -> function	resource,capability	wasm-engine	absent	fuel, memory and time a run may use	3
+E	jikkou?	route	decl	route(function, pattern) -> route	config	-	absent	the requests that reach a function	4
+E	jikkou?	delete	effect	delete(name) -> nil	idempotent	wasm-operator	absent	remove a function	4
+E	jikkou?	version	effect	version(function) -> [version]	serialize	-	absent	published versions of a function	4
+E	haifu?	pack	effect	pack(files, format, opts) -> archive	serialize	-	absent	bundle a binary and its files	2
+E	haifu?	manifest	pure	manifest(artifacts) -> record	serialize	-	absent	names, sizes and hashes of a release	2
+E	haifu?	sign	effect	sign(archive, key) -> signature	capability	tameshi	absent	sign a distributable	2
+E	haifu?	publish	effect	publish(archive, channel, opts) -> record	retry,idempotent	-	absent	put a distributable on a channel	2
+E	haifu?	channels	effect	channels(name) -> [channel]	error	-	absent	stable, beta and nightly pointers	3
+E	haifu?	fetch	effect	fetch(name, channel, opts) -> archive	retry,deadline,cache,validate	-	absent	download and verify a distributable	3
+E	haifu?	install	effect	install(archive, dest, opts) -> installed	idempotent,capability	-	absent	put a program where the user runs it	3
+E	haifu?	uninstall	effect	uninstall(name, opts) -> nil	idempotent	-	absent	remove an installed program	3
+E	haifu?	installed	effect	installed(opts) -> [record]	error	-	absent	programs installed and their versions	3
+E	haifu?	update	effect	update(name, opts) -> record	switch,idempotent	-	absent	move an installed program to its channel head	3
+E	haifu?	verify	effect	verify(archive, opts) -> verdict	validate	-	absent	signature and hash of a distributable	2
+E	haifu?	mirror	effect	mirror(from, to) -> nil	retry,idempotent	-	absent	copy releases to another host	4
+E	kenkou?	probe	effect	probe(target, check, opts) -> verdict	deadline,error	-	absent	healthy, degraded, down or blind, never guessed	1
+E	kenkou?	ready?	effect	ready?(target) -> Bool	deadline	-	absent	whether a target takes traffic now	1
+E	kenkou?	live?	effect	live?(target) -> Bool	deadline	-	absent	whether a target is running at all	1
+E	kenkou?	wait	effect	wait(target, opts) -> verdict	deadline,cancel,retry	-	absent	block until a target is healthy	1
+E	kenkou?	gate	pure	gate(verdicts, rule) -> verdict	validate	-	absent	combine probes into one go or no-go	2
+E	kenkou?	budget	pure	budget(slo, samples) -> {remaining:}	time	-	absent	error budget left in a period	3
+E	kenkou?	burn	pure	burn(slo, samples, window) -> rate	time	-	absent	how fast the budget is spent	3
+E	kenkou?	history	effect	history(target, range) -> [verdict]	time	-	absent	past verdicts	3

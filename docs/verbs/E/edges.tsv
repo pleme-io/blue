@@ -1,0 +1,568 @@
+from	rel	to	why
+hyouka::build	composes	hyouka::plan	plan before realise
+hyouka::build	composes	hyouka::eval	instantiate then realise
+hyouka::plan	refines	core::plan	dry run of build
+hyouka::eval	refines	core::read	value of an expression
+hyouka::info	refines	core::info	store path state
+hyouka::copy	refines	core::copy	closure to a host or store
+hyouka::copy	requires	hyouka::info	references decide the closure
+hyouka::lock	inverse	hyouka::get	write versus read of a pin
+hyouka::get	refines	core::get	nil when input is absent
+hyouka::show	composes	hyouka::eval	outputs are an evaluation
+hyouka::check	composes	hyouka::build	checks are builds
+hyouka::check	composes	birudo?::test	a flake check runs tests
+hyouka::run	composes	hyouka::build	build then execute
+hyouka::diff	requires	hyouka::info	compare reference sets
+hyouka::log	pairs	hyouka::build	a build leaves a log
+hyouka::verify	guards	hyouka::copy	check contents before trusting
+hyouka::fetch	pairs	hyouka::lock	fetch yields the pinned hash
+hyouka::search	pairs	hyouka::show	find then inspect
+hyouka::depends	requires	hyouka::info	walks references
+hyouka::clean	inverse	hyouka::build	frees what builds made
+kirikae::plan	composes	hyouka::plan	switch is a nix build
+kirikae::decide	guards	kirikae::run	chooses act or hold
+kirikae::hold	guards	kirikae::decide	backoff input
+kirikae::run	composes	kirikae::plan	run executes the plan
+kirikae::run	composes	hyouka::build	builds the system
+kirikae::verify	guards	kirikae::run	proves the switch happened
+kirikae::record	pairs	kirikae::run	every run leaves an entry
+kirikae::list	pairs	kirikae::rollback	rollback picks from the list
+kirikae::rollback	inverse	kirikae::run	activate the earlier system
+kirikae::rollback	requires	kirikae::list	needs a target generation
+tehai::parse	requires	core::read	reads the declared file
+tehai::probe	guards	tehai::put	only live machines are written
+tehai::list	composes	tehai::probe	probe each declared machine
+tehai::list	composes	tehai::parse	declared set first
+tehai::put	inverse	tehai::list	write versus read of the live set
+kijun::check	composes	nikkusu::find	rules query nix source
+kijun::check	composes	kijun::list	runs every rule
+kijun::list	refines	core::list	rules of a standard
+kijun::explain	pairs	kijun::check	findings link to explanations
+kijun::waive	guards	kijun::check	exempts a path from a rule
+kijun::ratchet	guards	kijun::check	findings may not grow
+nikkusu::parse	inverse	nikkusu::render	text to tree and back
+nikkusu::find	requires	nikkusu::parse	queries a tree
+nikkusu::get	refines	core::get	nil when no binding
+nikkusu::get	requires	nikkusu::parse	reads a tree
+nikkusu::render	refines	core::render	tree to source
+haibi::render	composes	haibi::schema	chart ships its schema
+haibi::render	composes	haibi::ddl	service tables become DDL
+haibi::schema	refines	core::render	values schema from defaults
+haibi::ddl	refines	core::render	tables to SQL
+haibi::check	guards	haibi::ddl	rows must fit the tables
+shinchoku::progress	refines	core::info	verdict from samples
+shinchoku::watch	lifts	shinchoku::progress	sample repeatedly
+shinchoku::info	pairs	shinchoku::progress	generation then motion
+gitto::info	refines	core::info	repo state
+gitto::get	refines	core::get	nil when ref absent
+gitto::need	refines	core::need	raises when ref absent
+gitto::need	composes	gitto::get	get then raise
+gitto::list	refines	core::list	refs, commits or worktrees
+gitto::read	refines	core::read	file at a ref
+gitto::exists?	refines	core::exists?	ref resolves
+gitto::diff	refines	core::diff	between refs
+gitto::changed	composes	gitto::diff	paths only
+gitto::commit	inverse	gitto::revert	undo by a new commit
+gitto::fetch	pairs	gitto::merge	house rule fetch then ff merge
+gitto::merge	requires	gitto::fetch	merge needs fresh refs
+gitto::push	requires	gitto::fetch	rebase before publishing
+gitto::push	inverse	gitto::fetch	publish versus update
+gitto::clone	refines	core::copy	remote to local
+gitto::create	refines	core::create	branch or tag
+gitto::delete	inverse	gitto::create	remove what create made
+gitto::tag	refines	gitto::create	a tag is a named ref
+gitto::describe	requires	gitto::tag	nearest tag
+gitto::worktree	refines	gitto::create	extra checkout
+gitto::revert	inverse	gitto::pick	undo versus apply
+gitto::pick	requires	gitto::need	commit must exist
+gitto::bisect	composes	gitto::diff	narrow by halves
+gitto::bisect	composes	gitto::pick	test each midpoint
+gitto::blame	composes	gitto::read	history of lines
+gitto::patch	composes	gitto::diff	diff as text
+kurasuta::list	refines	core::list	objects of a kind
+kurasuta::get	refines	core::get	nil when absent
+kurasuta::need	refines	core::need	raises when absent
+kurasuta::need	composes	kurasuta::get	get then raise
+kurasuta::has?	refines	core::has?	object present
+kurasuta::watch	lifts	kurasuta::list	stream of changes
+kurasuta::read	refines	core::read	pod logs
+kurasuta::info	refines	core::info	cluster state
+kurasuta::diff	composes	kurasuta::render	render desired first
+kurasuta::diff	composes	kurasuta::get	compare with live
+kurasuta::events	refines	kurasuta::list	events are objects
+kurasuta::top	refines	kurasuta::list	usage metrics
+kurasuta::wait	composes	kurasuta::watch	watch until condition
+kurasuta::can?	guards	kurasuta::read	check access first
+kurasuta::explain	pairs	kurasuta::render	schema explains manifests
+kurasuta::render	refines	core::render	chart to objects
+habu::list	refines	core::list	all pages
+habu::get	refines	core::get	nil when absent
+habu::need	refines	core::need	raises when absent
+habu::create	refines	core::create	refuses to overwrite
+habu::update	refines	core::update	function of old value
+habu::put	refines	core::put	upsert
+habu::delete	inverse	habu::create	remove an item
+habu::query	generalizes	habu::get	graphql form
+habu::merge	composes	habu::update	merging changes the PR
+habu::merge	requires	paipurain?::get	checks must pass
+habu::read	refines	core::read	content from API
+joujuu::list	refines	core::list	units
+joujuu::info	refines	core::info	unit state
+joujuu::start	inverse	joujuu::stop	begin versus end
+joujuu::restart	composes	joujuu::stop	stop then start
+joujuu::restart	composes	joujuu::start	stop then start
+joujuu::read	refines	core::read	journal
+joujuu::plan	refines	core::plan	what restart touches
+joujuu::reload	refines	joujuu::restart	no process end
+joujuu::wait	composes	joujuu::info	poll state
+joujuu::active?	composes	joujuu::info	state is active
+joujuu::enabled?	composes	joujuu::info	boot setting
+joujuu::reset	guards	joujuu::start	clear failed state first
+joujuu::signal	refines	joujuu::stop	stop is a signal
+joujuu::limits	composes	joujuu::info	part of unit state
+paketto?::parse	inverse	paketto?::lock	manifest in, lock out
+paketto?::parse	requires	bajon?::range	constraints in manifests
+paketto?::read	refines	core::read	lockfile content
+paketto?::resolve	composes	bajon?::satisfies?	each pick fits its ranges
+paketto?::resolve	composes	bajon?::pick	highest allowed version
+paketto?::resolve	requires	paketto?::info	needs the index
+paketto?::lock	composes	paketto?::resolve	lock is a stored resolution
+paketto?::lock	composes	paketto?::parse	read the manifest first
+paketto?::fetch	requires	paketto?::read	pins say what to fetch
+paketto?::fetch	composes	hyouka::fetch	same verified download
+paketto?::install	composes	paketto?::fetch	every pin fetched
+paketto?::install	requires	paketto?::verify	check before placing
+paketto?::add	composes	paketto?::lock	add then relock
+paketto?::remove	inverse	paketto?::add	drop what add declared
+paketto?::remove	composes	paketto?::lock	remove then relock
+paketto?::update	composes	paketto?::outdated	move what is behind
+paketto?::update	composes	paketto?::lock	relock with new bounds
+paketto?::outdated	composes	bajon?::compare	latest versus pinned
+paketto?::outdated	composes	paketto?::info	needs newest versions
+paketto?::tree	composes	paketto?::read	graph of the lock
+paketto?::why	requires	paketto?::tree	paths through the graph
+paketto?::explain	refines	paketto?::resolve	says why resolve failed
+paketto?::verify	guards	paketto?::install	lock matches manifest
+paketto?::vendor	composes	paketto?::fetch	copy fetched sources
+paketto?::dedupe	refines	paketto?::resolve	smaller satisfying set
+paketto?::info	refines	core::get	registry record
+paketto?::search	refines	core::list	registry search
+paketto?::publish	requires	bajon?::valid?	version must be well formed
+paketto?::publish	guards	rirezu?::publish	registry upload step
+paketto?::yank	inverse	paketto?::publish	withdraw a version
+bajon?::parse	inverse	bajon?::render	text and version
+bajon?::render	refines	core::render	canonical text
+bajon?::compare	requires	bajon?::parse	compares parsed versions
+bajon?::valid?	guards	bajon?::parse	predicate for parse
+bajon?::bump	requires	bajon?::parse	acts on a version
+bajon?::next	composes	bajon?::bump	picked part then bump
+bajon?::next	requires	gitto::list	reads commits
+bajon?::range	refines	core::parse	constraint text to value
+bajon?::satisfies?	requires	bajon?::range	tests a constraint
+bajon?::intersect	composes	bajon?::range	constraints combine
+bajon?::pick	composes	bajon?::satisfies?	filter then max
+bajon?::pick	composes	bajon?::compare	highest wins
+bajon?::change	composes	bajon?::compare	size of a step
+bajon?::change	pairs	bajon?::bump	step names a bump
+birudo?::plan	refines	core::plan	steps and cache hits
+birudo?::plan	composes	birudo?::graph	order from the graph
+birudo?::plan	composes	birudo?::stale?	skip fresh steps
+birudo?::build	composes	birudo?::plan	plan then execute
+birudo?::build	composes	birudo?::run	each step runs
+birudo?::build	composes	birudo?::restore	reuse cached outputs
+birudo?::build	composes	birudo?::save	store new outputs
+birudo?::build	requires	birudo?::toolchain	pinned tools
+birudo?::build	requires	paketto?::install	dependencies first
+birudo?::check	refines	birudo?::build	build without outputs
+birudo?::test	requires	birudo?::build	tests run built code
+birudo?::bench	refines	birudo?::test	timed tests
+birudo?::lint	refines	birudo?::check	style findings
+birudo?::format	inverse	birudo?::lint	fix versus find
+birudo?::doc	requires	birudo?::check	docs from checked code
+birudo?::watch	lifts	birudo?::build	rebuild per change
+birudo?::clean	inverse	birudo?::build	remove outputs
+birudo?::graph	refines	core::info	target structure
+birudo?::key	requires	shomei::hash	hash of inputs
+birudo?::key	pairs	birudo?::restore	key finds outputs
+birudo?::stale?	composes	birudo?::key	key changed since last build
+birudo?::restore	inverse	birudo?::save	read versus write of cache
+birudo?::save	requires	birudo?::key	stored under its key
+birudo?::toolchain	refines	hyouka::build	tools come from the store
+birudo?::target	pairs	birudo?::build	target selects outputs
+birudo?::run	refines	core::run	sandboxed step
+birudo?::reproduce	composes	birudo?::build	second build
+birudo?::reproduce	composes	hyouka::verify	compare hashes
+birudo?::profile	composes	birudo?::build	timing of build
+paipurain?::declare	refines	core::parse	pipeline as data
+paipurain?::plan	refines	core::plan	jobs an event starts
+paipurain?::plan	composes	paipurain?::order	waves of jobs
+paipurain?::plan	composes	paipurain?::matrix	expand axes
+paipurain?::plan	composes	paipurain?::skip?	drop unneeded jobs
+paipurain?::order	requires	paipurain?::declare	needs the job graph
+paipurain?::matrix	refines	core::flat_map	all combinations
+paipurain?::skip?	requires	gitto::changed	path filters
+paipurain?::run	composes	paipurain?::plan	plan then start
+paipurain?::run	composes	birudo?::build	jobs are builds
+paipurain?::list	refines	core::list	runs
+paipurain?::get	refines	core::get	one run
+paipurain?::watch	lifts	paipurain?::get	stream of state
+paipurain?::read	refines	core::read	job log
+paipurain?::cancel	inverse	paipurain?::run	stop a run
+paipurain?::retry	refines	paipurain?::run	rerun failed jobs
+paipurain?::approve	guards	paipurain?::run	held gate opens
+paipurain?::artifacts	refines	core::list	files a run made
+paipurain?::triage	composes	paipurain?::read	cluster by log cause
+paipurain?::lint	guards	paipurain?::declare	refuse bad pipelines
+paipurain?::schedule	refines	paipurain?::declare	timed trigger
+rirezu?::plan	composes	bajon?::next	next version
+rirezu?::plan	composes	rirezu?::notes	notes in the plan
+rirezu?::plan	requires	gitto::list	reads commits
+rirezu?::notes	refines	core::render	commits to text
+rirezu?::changelog	composes	rirezu?::notes	write notes to file
+rirezu?::cut	composes	rirezu?::plan	plan then tag
+rirezu?::cut	composes	gitto::tag	tag marks the release
+rirezu?::publish	requires	rirezu?::cut	cut first
+rirezu?::publish	composes	haifu?::publish	binaries to a channel
+rirezu?::publish	composes	konteina?::push	images to a registry
+rirezu?::promote	requires	rirezu?::verify	verify before moving on
+rirezu?::list	refines	core::list	releases
+rirezu?::get	refines	core::get	one release
+rirezu?::latest	composes	rirezu?::list	newest of the list
+rirezu?::diff	composes	gitto::diff	changes between tags
+rirezu?::yank	inverse	rirezu?::publish	withdraw
+rirezu?::verify	composes	haifu?::verify	assets match record
+konteina?::build	refines	hyouka::build	image from a store closure
+konteina?::build	guards	konteina?::check	policy runs on result
+konteina?::info	refines	core::info	manifest and config
+konteina?::layers	refines	core::list	layers of an image
+konteina?::layers	requires	konteina?::info	manifest names layers
+konteina?::resolve	refines	core::get	tag to digest
+konteina?::list	refines	core::list	tags
+konteina?::pull	refines	core::read	image content
+konteina?::pull	requires	konteina?::resolve	pull by digest
+konteina?::push	inverse	konteina?::pull	write versus read
+konteina?::copy	composes	konteina?::pull	read side
+konteina?::copy	composes	konteina?::push	write side
+konteina?::tag	refines	core::put	name a digest
+konteina?::tag	requires	konteina?::resolve	target digest must exist
+konteina?::combine	composes	konteina?::push	push an index
+konteina?::combine	requires	konteina?::resolve	per-arch digests
+konteina?::delete	inverse	konteina?::tag	remove a name
+konteina?::diff	composes	konteina?::layers	compare layers
+konteina?::check	refines	kijun::check	rules for images
+konteina?::check	composes	kyoukyuu?::scan	vulnerability gate
+konteina?::export	inverse	konteina?::build	image to files
+konteina?::run	refines	core::run	image as a command
+konteina?::run	requires	konteina?::pull	image must be local
+konteina?::gc	composes	konteina?::list	find unreferenced
+konteina?::render	refines	core::render	spec to text
+kyoukyuu?::sbom	refines	core::render	inventory of contents
+kyoukyuu?::sbom	composes	hyouka::depends	closure is the list
+kyoukyuu?::sbom	pairs	konteina?::layers	layers hold the packages
+kyoukyuu?::scan	requires	kyoukyuu?::sbom	scan the inventory
+kyoukyuu?::audit	composes	paketto?::read	lock against advisories
+kyoukyuu?::audit	refines	kyoukyuu?::scan	scope is a lockfile
+kyoukyuu?::explain	requires	paketto?::why	chain to the flaw
+kyoukyuu?::provenance	pairs	kyoukyuu?::attest	record then sign
+kyoukyuu?::attest	composes	shomei::sign	signed claim
+kyoukyuu?::attest	requires	kyoukyuu?::provenance	claim is provenance
+kyoukyuu?::verify	refines	shomei::verify?	policy-aware check
+kyoukyuu?::verify	guards	kyoukyuu?::admit?	check precedes admission
+kyoukyuu?::license	composes	kyoukyuu?::sbom	licenses per entry
+kyoukyuu?::diff	composes	kyoukyuu?::sbom	compare two inventories
+kyoukyuu?::record	composes	kyoukyuu?::attest	ledger holds attestations
+kyoukyuu?::admit?	composes	kyoukyuu?::verify	cluster gate logic
+kiban?::declare	refines	core::parse	stack as data
+kiban?::render	refines	core::render	stack to planner input
+kiban?::render	requires	kiban?::declare	renders a declared stack
+kiban?::check	guards	kiban?::plan	refuse before planning
+kiban?::plan	refines	core::plan	dry run of apply
+kiban?::plan	composes	kiban?::refresh	plan from current state
+kiban?::plan	composes	kiban?::diff	declared versus real
+kiban?::apply	requires	kiban?::plan	apply a reviewed plan
+kiban?::apply	requires	kiban?::lock	one writer at a time
+kiban?::apply	guards	kiban?::destroy	same gates
+kiban?::destroy	inverse	kiban?::apply	remove what apply made
+kiban?::refresh	refines	core::read	real state into record
+kiban?::drift	composes	kiban?::refresh	refresh then compare
+kiban?::drift	composes	kiban?::diff	compare to declaration
+kiban?::diff	refines	core::diff	between plans
+kiban?::import	inverse	kiban?::destroy	adopt versus remove
+kiban?::import	requires	kumo?::need	resource must exist
+kiban?::list	refines	core::list	state entries
+kiban?::get	refines	core::get	one state entry
+kiban?::move	refines	core::move	rename in state
+kiban?::output	refines	kiban?::get	exported value
+kiban?::lock	inverse	kiban?::unlock	claim versus release
+kiban?::unlock	requires	kiban?::lock	releases a lease
+kiban?::graph	composes	kiban?::list	edges between entries
+kiban?::test	composes	kiban?::check	proof of a stack
+kumo?::list	refines	core::list	cloud resources
+kumo?::get	refines	core::get	nil when absent
+kumo?::need	refines	core::need	raises when absent
+kumo?::need	composes	kumo?::get	get then raise
+kumo?::has?	refines	core::has?	resource exists
+kumo?::find	generalizes	kumo?::list	across kinds
+kumo?::tags	refines	core::get	resource tags
+kumo?::tag	inverse	kumo?::tags	write versus read
+kumo?::tag	requires	kumo?::whoami	acts under an identity
+kumo?::wait	composes	kumo?::get	poll state
+kumo?::quota	refines	core::info	limit and use
+kumo?::whoami	guards	kumo?::list	know the account first
+kumo?::events	refines	core::list	audit trail
+kumo?::regions	refines	core::list	available regions
+tenkai?::plan	refines	core::plan	steps as data
+tenkai?::plan	requires	haichi?::resolve	environment config
+tenkai?::start	composes	tenkai?::plan	plan then begin
+tenkai?::start	requires	tenkai?::freeze	no start inside a freeze
+tenkai?::info	refines	core::info	rollout state
+tenkai?::watch	lifts	tenkai?::info	stream of state
+tenkai?::step	composes	tenkai?::verify	verify then advance
+tenkai?::shift	refines	tenkai?::step	step by traffic weight
+tenkai?::analyze	composes	kenkou?::probe	live signals
+tenkai?::analyze	refines	tenkai?::verify	canary comparison
+tenkai?::verify	composes	kenkou?::gate	health gate
+tenkai?::verify	guards	tenkai?::step	gate before advance
+tenkai?::bake	composes	tenkai?::verify	verify over a period
+tenkai?::pause	inverse	tenkai?::resume	hold versus continue
+tenkai?::resume	requires	tenkai?::pause	only a held rollout
+tenkai?::promote	composes	tenkai?::step	final step
+tenkai?::abort	refines	tenkai?::pause	hold and end
+tenkai?::rollback	inverse	tenkai?::promote	undo the move
+tenkai?::rollback	composes	tenkai?::shift	weight back to old
+tenkai?::list	refines	core::list	rollouts
+tenkai?::freeze	inverse	tenkai?::thaw	open versus close window
+tenkai?::thaw	requires	tenkai?::freeze	ends a window
+tenkai?::approve	refines	paipurain?::approve	same gate verb
+hata?::get	refines	core::get	flag value
+hata?::list	refines	core::list	flags
+hata?::put	refines	core::put	flag rule
+hata?::ramp	refines	hata?::put	percent rule
+hata?::kill	refines	hata?::put	rule off
+hata?::kill	inverse	hata?::ramp	off versus up
+hata?::on?	composes	hata?::get	boolean form
+hata?::watch	lifts	hata?::get	rule change stream
+hata?::stale?	composes	hata?::history	age of last change
+hata?::history	refines	core::list	changes
+hata?::ramp	pairs	tenkai?::shift	flag ramp mirrors traffic shift
+haichi?::list	refines	core::list	environments
+haichi?::get	refines	core::get	nil when absent
+haichi?::need	refines	core::need	raises when absent
+haichi?::need	composes	haichi?::get	get then raise
+haichi?::resolve	composes	settei::read	layered config
+haichi?::resolve	requires	haichi?::need	environment must exist
+haichi?::diff	composes	haichi?::resolve	resolve both sides
+haichi?::diff	refines	core::diff	between environments
+haichi?::promote	requires	haichi?::path	next environment
+haichi?::promote	guards	tenkai?::start	pin carried forward
+haichi?::lock	inverse	haichi?::promote	freezes versus moves
+haichi?::path	composes	haichi?::list	ordered list
+youryou?::list	refines	core::list	bands
+youryou?::get	refines	core::get	one band
+youryou?::observe	refines	core::read	utilization
+youryou?::observe	composes	kurasuta::top	usage source
+youryou?::plan	refines	core::plan	limit change as data
+youryou?::plan	composes	youryou?::observe	plan from usage
+youryou?::plan	composes	youryou?::bound	within floor and ceiling
+youryou?::put	refines	core::put	band declaration
+youryou?::intent	guards	youryou?::put	write gate decides effect
+youryou?::intent	pairs	youryou?::explain	gate and its reason
+youryou?::confirm	refines	youryou?::intent	calibrate to write
+youryou?::explain	refines	core::info	why shadow or live
+youryou?::forecast	refines	hiyou?::forecast	same shape over demand
+youryou?::headroom	composes	kurasuta::top	capacity less usage
+youryou?::scale	refines	youryou?::put	replica band write
+youryou?::scale	guards	tenkai?::step	capacity before rollout
+youryou?::bound	refines	core::info	capacity limits
+youryou?::burst	composes	youryou?::observe	record scaling under load
+hiyou?::cost	refines	core::list	spend lines
+hiyou?::check	refines	kijun::check	tag policy as rules
+hiyou?::check	guards	hiyou?::attribute	untagged cannot attribute
+hiyou?::attribute	requires	kumo?::tags	tags name owners
+hiyou?::showback	composes	hiyou?::attribute	owner report
+hiyou?::showback	refines	core::render	report
+hiyou?::recommend	composes	youryou?::observe	usage drives sizing
+hiyou?::unit	composes	hiyou?::attribute	per measure
+hiyou?::forecast	refines	core::plan	spend ahead
+hiyou?::budget	guards	hiyou?::breach?	limit it checks
+hiyou?::breach?	requires	hiyou?::cost	compares real spend
+hiyou?::commit	composes	hiyou?::forecast	steady use drives buys
+hiyou?::waste	composes	kumo?::list	idle resources
+hiyou?::waste	composes	hiyou?::cost	priced idle
+hosuto?::list	refines	core::list	declared hosts
+hosuto?::get	refines	core::get	nil when absent
+hosuto?::need	refines	core::need	raises when absent
+hosuto?::need	composes	hosuto?::get	get then raise
+hosuto?::reach?	composes	tehai::probe	builder probe generalised
+hosuto?::facts	refines	core::info	host state
+hosuto?::converge	composes	kirikae::run	switch the host
+hosuto?::converge	composes	hyouka::copy	closure sent first
+hosuto?::converge	requires	hosuto?::reach?	host must answer
+hosuto?::drift	composes	hosuto?::facts	running versus declared
+hosuto?::drift	refines	kiban?::drift	same verb for hosts
+hosuto?::drain	guards	hosuto?::converge	move work before switch
+hosuto?::wait	composes	hosuto?::reach?	poll until up
+hosuto?::wake	inverse	hosuto?::drain	bring up versus empty
+hosuto?::group	refines	core::group_by	partition hosts
+hosuto?::health	composes	kenkou?::probe	host verdict
+jikkou?::pack	refines	birudo?::build	module is a build output
+jikkou?::deploy	requires	jikkou?::pack	needs a module
+jikkou?::deploy	refines	tenkai?::start	placing a version
+jikkou?::invoke	refines	core::run	one call
+jikkou?::invoke	requires	jikkou?::deploy	must be placed
+jikkou?::list	refines	core::list	functions
+jikkou?::get	refines	core::get	nil when absent
+jikkou?::read	refines	core::read	function logs
+jikkou?::scale	refines	youryou?::scale	instance bounds
+jikkou?::limit	guards	jikkou?::invoke	bounds every run
+jikkou?::route	pairs	jikkou?::deploy	reachable after deploy
+jikkou?::delete	inverse	jikkou?::deploy	remove a function
+jikkou?::version	refines	core::list	published versions
+haifu?::pack	refines	core::render	archive from files
+haifu?::manifest	composes	shomei::hash	hashes of artifacts
+haifu?::sign	composes	shomei::sign	signature of archive
+haifu?::publish	requires	haifu?::sign	signed before upload
+haifu?::publish	composes	haifu?::manifest	channel lists manifest
+haifu?::channels	refines	core::list	channel pointers
+haifu?::fetch	refines	core::read	download
+haifu?::fetch	composes	haifu?::verify	check on arrival
+haifu?::install	requires	haifu?::fetch	archive must be local
+haifu?::uninstall	inverse	haifu?::install	remove a program
+haifu?::installed	refines	core::list	programs present
+haifu?::update	composes	haifu?::channels	find channel head
+haifu?::update	composes	haifu?::install	replace in place
+haifu?::verify	refines	shomei::verify?	hash and signature
+haifu?::mirror	composes	haifu?::fetch	read origin
+haifu?::mirror	composes	haifu?::publish	write copy
+kenkou?::probe	refines	core::info	state with blind kept
+kenkou?::ready?	composes	kenkou?::probe	predicate form
+kenkou?::live?	composes	kenkou?::probe	predicate form
+kenkou?::wait	composes	kenkou?::probe	poll until healthy
+kenkou?::wait	composes	kenkou?::ready?	poll until ready
+kenkou?::gate	composes	kenkou?::probe	combine verdicts
+kenkou?::budget	requires	kenkou?::history	samples over a period
+kenkou?::burn	composes	kenkou?::budget	rate of spend
+kenkou?::history	refines	core::list	past verdicts
+kenkou?::probe	pairs	kurasuta::wait	cluster condition is a probe
+hyouka::eval	pairs	hyouka::build	value then realise
+hyouka::lock	requires	gitto::fetch	inputs come from remotes
+hyouka::info	pairs	hyouka::depends	record then references
+hyouka::copy	pairs	hosuto?::converge	closure then switch
+hyouka::verify	refines	kyoukyuu?::verify	store contents check
+kirikae::decide	requires	kirikae::record	history feeds backoff
+kirikae::plan	requires	gitto::info	checkout state
+kirikae::run	guards	kirikae::rollback	run leaves a point to return to
+tehai::probe	refines	hosuto?::reach?	builder probe specialised
+tehai::put	requires	tehai::probe	only checked machines
+kijun::explain	requires	kijun::list	rules to explain
+nikkusu::find	refines	core::find	search a tree
+nikkusu::get	composes	nikkusu::find	one match by path
+haibi::render	requires	haibi::check	validated spec renders
+haibi::schema	pairs	kurasuta::render	schema guards chart values
+shinchoku::watch	pairs	tenkai?::watch	reconciler progress for rollouts
+shinchoku::info	refines	kurasuta::get	reads generation fields
+gitto::list	composes	gitto::need	refs resolve to commits
+gitto::tag	pairs	rirezu?::cut	release marks a tag
+gitto::push	guards	rirezu?::cut	published only after tests
+gitto::worktree	inverse	gitto::delete	remove a checkout
+gitto::describe	composes	gitto::list	walks commits to a tag
+gitto::commit	requires	gitto::info	needs a dirty tree
+gitto::merge	requires	gitto::info	clean tree needed
+kurasuta::diff	pairs	kiban?::drift	same compare in cluster scope
+kurasuta::read	pairs	kurasuta::events	logs and events
+kurasuta::watch	composes	kurasuta::get	keyed by object
+kurasuta::info	guards	kurasuta::list	reachable cluster first
+kurasuta::top	pairs	youryou?::observe	usage feeds bands
+habu::list	composes	habu::get	items of a path
+habu::put	composes	habu::get	check then upsert
+habu::update	composes	habu::get	read then write
+habu::create	pairs	gitto::push	PR follows a pushed branch
+habu::merge	pairs	rirezu?::cut	merge triggers release
+joujuu::start	composes	joujuu::wait	start then wait active
+joujuu::stop	composes	joujuu::signal	term then kill
+joujuu::plan	pairs	joujuu::restart	preview then act
+joujuu::wait	pairs	kenkou?::wait	unit state is a probe
+paketto?::lock	inverse	paketto?::verify	write versus check
+paketto?::install	composes	hyouka::build	store provides packages
+paketto?::tree	pairs	paketto?::why	graph and paths
+paketto?::search	pairs	paketto?::info	find then inspect
+paketto?::vendor	pairs	paketto?::verify	vendored copy is checked
+paketto?::update	inverse	paketto?::lock	move pins versus freeze
+bajon?::satisfies?	composes	bajon?::compare	bounds are comparisons
+bajon?::intersect	pairs	paketto?::resolve	resolver intersects ranges
+bajon?::bump	inverse	bajon?::change	step in, step out
+birudo?::test	composes	birudo?::run	tests are sandboxed steps
+birudo?::lint	composes	kijun::check	project rules
+birudo?::format	pairs	birudo?::check	format then check
+birudo?::watch	composes	birudo?::stale?	rebuild only stale steps
+birudo?::profile	pairs	birudo?::graph	time per node
+birudo?::target	requires	birudo?::toolchain	target needs its tools
+birudo?::reproduce	guards	kyoukyuu?::attest	attest only reproducible builds
+paipurain?::declare	composes	birudo?::build	jobs name build steps
+paipurain?::watch	composes	paipurain?::list	poll runs
+paipurain?::retry	composes	paipurain?::get	find failed jobs
+paipurain?::cancel	requires	paipurain?::get	needs a live run
+paipurain?::approve	pairs	tenkai?::approve	gate in CI and in rollout
+paipurain?::triage	pairs	paipurain?::list	group the list
+paipurain?::schedule	composes	paipurain?::run	timer fires a run
+rirezu?::publish	guards	rirezu?::promote	published before promoted
+rirezu?::cut	guards	rirezu?::publish	tag exists first
+rirezu?::changelog	inverse	rirezu?::notes	write versus render
+rirezu?::list	composes	gitto::list	releases are tags
+rirezu?::get	composes	gitto::get	one tag
+rirezu?::yank	pairs	paketto?::yank	withdraw in registry and host
+konteina?::push	guards	kyoukyuu?::attest	attest the pushed digest
+konteina?::copy	guards	kyoukyuu?::verify	verify on the way
+konteina?::list	pairs	konteina?::gc	tags to prune
+konteina?::combine	pairs	konteina?::tag	index then name
+konteina?::layers	pairs	konteina?::diff	layers compared
+kyoukyuu?::scan	guards	konteina?::push	no push of flawed images
+kyoukyuu?::attest	inverse	kyoukyuu?::verify	sign versus check
+kyoukyuu?::sbom	requires	konteina?::info	image gives packages
+kiban?::plan	pairs	tenkai?::plan	plan for infra and for apps
+kiban?::apply	guards	kiban?::refresh	state read after apply
+kiban?::declare	pairs	kiban?::check	declared then checked
+kiban?::import	pairs	kiban?::drift	adopt what drift found
+kiban?::lock	guards	kiban?::move	no move without a claim
+kiban?::output	composes	kiban?::get	reads state
+kiban?::test	pairs	kyoukyuu?::verify	compliance evidence
+kumo?::events	pairs	kiban?::drift	who changed what
+kumo?::quota	guards	kiban?::apply	capacity before creating
+kumo?::find	composes	kumo?::tags	tag query
+kumo?::regions	pairs	kumo?::quota	quota per region
+tenkai?::rollback	guards	tenkai?::promote	rollback path ready first
+tenkai?::start	pairs	tenkai?::abort	begin and end
+tenkai?::pause	guards	tenkai?::step	held rollouts do not step
+tenkai?::bake	composes	kenkou?::wait	soak is a timed wait
+tenkai?::list	composes	tenkai?::info	each rollout's state
+tenkai?::step	composes	tenkai?::shift	weight moves per step
+tenkai?::promote	pairs	haichi?::promote	app and environment
+hata?::kill	pairs	tenkai?::rollback	fast off without redeploy
+hata?::put	composes	hata?::history	each put leaves a change
+hata?::get	pairs	hata?::on?	value versus boolean
+haichi?::resolve	pairs	haichi?::diff	compare resolved records
+haichi?::get	composes	haichi?::list	lookup by name
+haichi?::lock	guards	tenkai?::freeze	environment-wide freeze
+youryou?::forecast	composes	youryou?::observe	history drives forecast
+youryou?::headroom	guards	youryou?::scale	no scale beyond headroom
+youryou?::get	composes	youryou?::list	lookup by name
+youryou?::put	pairs	youryou?::bound	declaration carries bounds
+hiyou?::cost	composes	kumo?::list	resources carry price
+hiyou?::budget	pairs	hiyou?::forecast	budget compared to forecast
+hiyou?::recommend	pairs	youryou?::plan	sizing action
+hiyou?::unit	requires	hiyou?::cost	spend first
+hosuto?::health	refines	kenkou?::probe	host as target
+hosuto?::get	composes	hosuto?::list	lookup by name
+hosuto?::facts	pairs	hosuto?::drift	facts then compare
+hosuto?::group	composes	hosuto?::list	partition the list
+hosuto?::wake	pairs	hosuto?::wait	wake then wait
+jikkou?::pack	pairs	jikkou?::limit	module and its bounds
+jikkou?::scale	composes	jikkou?::get	bounds on a function
+jikkou?::version	composes	jikkou?::get	versions of one function
+haifu?::publish	pairs	rirezu?::publish	binaries in a release
+haifu?::install	pairs	haifu?::installed	install then list
+haifu?::pack	composes	haifu?::manifest	archive and its record
+haifu?::channels	pairs	haifu?::update	update follows a channel
+kenkou?::gate	guards	tenkai?::step	health gates rollout
+kenkou?::probe	pairs	kenkou?::ready?	probe and its predicate
+kenkou?::live?	pairs	kenkou?::ready?	liveness and readiness

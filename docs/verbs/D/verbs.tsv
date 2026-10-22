@@ -1,0 +1,344 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+D	shomei	hash	pure	hash(data, algorithm) -> hex	validate,error	tameshi	partial:shomei	digest of bytes or text under a named algorithm	0
+D	shomei	hash_file	effect	hash_file(path, algorithm) -> hex	resource,error	-	absent	digest of a file, read in chunks	1
+D	shomei	mac	pure	mac(data, key, algorithm) -> hex	validate,error	-	absent	keyed digest proving data came from a key holder	1
+D	shomei	same?	pure	same?(a, b) -> Bool	validate	-	absent	equality that takes equal time for every input	0
+D	shomei	hash?	pure	hash?(text, algorithm) -> Bool	validate	-	exists:shomei	text has the shape of a digest	0
+D	shomei	algorithms	pure	algorithms(opts) -> [record]	config	-	absent	supported algorithms with strength and status	1
+D	shomei	keypair	pure	keypair(seed) -> record	validate,error	tameshi	exists:shomei	signing key and public key from a seed	0
+D	shomei	public	pure	public(keypair) -> hex	validate	-	exists:shomei	the half a verifier holds	0
+D	shomei	fingerprint	pure	fingerprint(key) -> hex	validate	-	absent	short stable id of a public key	1
+D	shomei	sign	pure	sign(data, secret) -> hex	validate,error	tameshi	partial:shomei	signature over data	0
+D	shomei	verify?	pure	verify?(data, signature, public) -> Bool	validate,error	tameshi	partial:shomei	signature is valid; malformed input raises	0
+D	shomei	genesis	pure	genesis(label) -> hex	validate	tameshi	exists:shomei	first hash of a named chain	0
+D	shomei	link	pure	link(previous, payload) -> hex	validate	tameshi	exists:shomei	hash that follows when a payload is appended	0
+D	shomei	head	pure	head(genesis, payloads) -> hex	validate	tameshi	exists:shomei	hash after all payloads are linked	0
+D	shomei	trail	pure	trail(genesis, payloads) -> [hex]	validate	-	exists:shomei	every link hash in order	0
+D	shomei	intact?	pure	intact?(genesis, payloads, head) -> Bool	validate	-	exists:shomei	re-linking the payloads reproduces the head	0
+D	shomei	first_break	pure	first_break(genesis, payloads, hashes) -> index or nil	validate	-	exists:shomei	index of the first stored hash the payloads miss	0
+D	shomei	root	pure	root(payloads) -> hex	validate	tameshi	exists:shomei	Merkle root over payloads in order	0
+D	shomei	prove	pure	prove(payloads, index) -> [step]	validate,error	tameshi	exists:shomei	inclusion proof for one payload	0
+D	shomei	proves?	pure	proves?(root, payload, proof) -> Bool	validate	tameshi	exists:shomei	proof climbs from payload to root	0
+D	shomei	commit	pure	commit(value, nonce) -> hex	validate	tameshi	absent	hiding, binding commitment to a value	2
+D	shomei	opens?	pure	opens?(commitment, value, nonce) -> Bool	validate	tameshi	absent	commitment matches the revealed value	2
+D	shomei	batch_verify?	pure	batch_verify?(items) -> Bool	validate,error	-	absent	many signatures checked together, faster than one by one	3
+D	angou	prime?	pure	prime?(n) -> Bool	validate	-	exists:angou	n is prime by trial division	0
+D	angou	factor	pure	factor(n) -> [int]	validate	-	exists:angou	prime factors with multiplicity	0
+D	angou	divisors	pure	divisors(n) -> [int]	validate	-	exists:angou	every divisor in ascending order	0
+D	angou	power_mod	pure	power_mod(base, exponent, modulus) -> int	validate	-	exists:angou	modular exponentiation by repeated squaring	0
+D	angou	inverse_mod	pure	inverse_mod(a, modulus) -> int or nil	validate	-	exists:angou	multiplicative inverse, nil when none exists	0
+D	angou	bezout	pure	bezout(a, b) -> record	validate	-	exists:angou	gcd with the coefficients that build it	0
+D	angou	crt	pure	crt(congruences) -> int	validate	-	partial:angou	number matching several remainders at once	0
+D	angou	totient	pure	totient(n) -> int	validate	-	exists:angou	count of integers below n coprime to it	0
+D	angou	order	pure	order(a, modulus) -> int	validate	-	exists:angou	smallest power of a that equals one	0
+D	angou	primitive_root	pure	primitive_root(prime) -> int	validate	-	exists:angou	smallest generator of the units modulo a prime	0
+D	angou	encipher	pure	encipher(text, key, cipher) -> text	validate	-	exists:angou	classical cipher forward: caesar, vigenere, atbash, rail fence, substitution	0
+D	angou	decipher	pure	decipher(text, key, cipher) -> text	validate	-	exists:angou	classical cipher backward	0
+D	angou	frequency	pure	frequency(text) -> [count]	validate	-	exists:angou	letter counts a to z, case folded	0
+D	angou	crack	pure	crack(text, cipher) -> [candidate]	validate	-	partial:angou	plaintext guesses ranked by letter frequency	0
+D	kagi?	random	effect	random(count) -> bytes	capability,error	-	absent	secure random bytes from the host entropy source	1
+D	kagi?	generate	effect	generate(kind, opts) -> key	capability,error	cofre	absent	new key of a kind from secure entropy	1
+D	kagi?	derive	pure	derive(secret, salt, info, opts) -> key	validate,error	-	absent	several independent keys from one secret (HKDF)	1
+D	kagi?	stretch	pure	stretch(password, salt, opts) -> key	resource,validate	x-crypto	absent	password to key with a memory-hard function	1
+D	kagi?	exchange	pure	exchange(secret, peer_public) -> key	validate,error	-	absent	shared key from my secret and a peer public key	2
+D	kagi?	wrap	pure	wrap(key, wrapping_key) -> text	validate,error	-	absent	encrypt one key under another key	2
+D	kagi?	unwrap	pure	unwrap(text, wrapping_key) -> key	validate,error	-	absent	recover a key wrapped under another key	2
+D	kagi?	share	effect	share(secret, threshold, count) -> [share]	capability,error	tameshi	absent	Shamir shares; any threshold of them rebuild the secret	2
+D	kagi?	rebuild	pure	rebuild(shares) -> secret	validate,error	tameshi	absent	secret from a threshold of shares	2
+D	kagi?	rotate	effect	rotate(key_id, opts) -> key	idempotent,time,log	cofre	absent	new key version; old versions still open old data	2
+D	kagi?	retire	effect	retire(key_id) -> nil	idempotent,log	-	absent	stop a key from sealing new data; old data still opens	2
+D	kagi?	destroy	effect	destroy(key_id, opts) -> nil	idempotent,log	-	absent	erase key material; data under it is gone for good	3
+D	kagi?	parse	pure	parse(text, format) -> key	validate,serialize	-	absent	PEM, JWK or hex text to a key	2
+D	kagi?	render	pure	render(key, format) -> text	serialize	-	absent	key to PEM, JWK or hex; secret half only on request	2
+D	kagi?	strength	pure	strength(key) -> bits	validate	-	absent	security bits a key or parameter set gives	2
+D	kagi?	due?	pure	due?(key, policy, now) -> Bool	time	-	absent	key is older than its rotation policy allows	2
+D	kagi?	quantum_safe?	pure	quantum_safe?(algorithm) -> Bool	validate	-	absent	algorithm resists a quantum computer	3
+D	kagi?	hybrid	pure	hybrid(classical, post_quantum) -> algorithm	validate	-	absent	pair two schemes so breaking one alone is not enough	4
+D	kagi?	zeroize	effect	zeroize(secret) -> nil	resource	-	absent	overwrite secret bytes in memory (needs runtime support)	3
+D	kagi?	seal	effect	seal(data, key, opts) -> envelope	capability,error	-	absent	authenticated encryption; any tampering breaks it	1
+D	kagi?	open	pure	open(envelope, key, opts) -> bytes	error,validate	-	absent	decrypt and check; raises :tampered on a bad tag	1
+D	kagi?	seal_to	effect	seal_to(data, recipient_public, opts) -> envelope	capability,error	-	absent	seal so only the holder of a secret key can open	2
+D	kagi?	open_as	pure	open_as(envelope, secret, opts) -> bytes	error,validate	-	absent	open an envelope sealed to my public key	2
+D	kagi?	lock	effect	lock(data, key_id, opts) -> envelope	capability,resource,error	cofre	absent	envelope encryption: fresh data key wrapped by a managed key	2
+D	kagi?	unlock	effect	unlock(envelope, opts) -> bytes	resource,error	cofre	absent	open an envelope by asking for its data key	2
+D	kagi?	rewrap	effect	rewrap(envelope, key_id) -> envelope	resource,idempotent	-	absent	move the data key to a new key without touching data	2
+D	kagi?	peek	pure	peek(envelope) -> record	validate	-	absent	read algorithm and key id without opening	1
+D	kagi?	encrypted?	pure	encrypted?(bytes) -> Bool	validate	-	absent	bytes look like one of our envelopes	1
+D	kagi?	seal_stream	stream	seal_stream(source, target, key) -> nil	resource,cancel,error	-	absent	seal data larger than memory in authenticated chunks	3
+D	kagi?	open_stream	stream	open_stream(source, target, key) -> nil	resource,cancel,error	-	absent	open a chunked envelope, failing on the first bad chunk	3
+D	ninshou?	protect	effect	protect(password, opts) -> verifier	capability,resource	pleme-auth-validators	absent	salted slow hash of a password, safe to store	1
+D	ninshou?	matches?	pure	matches?(password, verifier) -> Bool	validate	-	absent	password fits the stored verifier in equal time	1
+D	ninshou?	stale?	pure	stale?(verifier, policy) -> Bool	validate	-	absent	verifier is weaker than policy; rehash at next login	1
+D	ninshou?	flaws	pure	flaws(password, policy) -> [reason]	validate	pleme-auth-validators	absent	reasons a password fails length, breach or reuse rules	1
+D	ninshou?	challenge	effect	challenge(identity, opts) -> challenge	capability,time	-	absent	fresh one-use nonce a client must answer	2
+D	ninshou?	answer?	effect	answer?(challenge, response, key) -> Bool	validate,time,idempotent	-	absent	response is right, and the challenge is now spent	2
+D	ninshou?	code	pure	code(secret, moment, opts) -> text	time	pleme-auth-mfa	absent	one-time code (TOTP or HOTP) for a moment	1
+D	ninshou?	code_valid?	pure	code_valid?(secret, text, opts) -> Bool	validate,time	pleme-auth-mfa	absent	code is right within the allowed time window	1
+D	ninshou?	backup_codes	effect	backup_codes(count) -> [text]	capability	pleme-auth-mfa	absent	single-use recovery codes, shown once	1
+D	ninshou?	spend	pure	spend(codes, code) -> [text]	validate	pleme-auth-mfa	absent	the recovery codes left after one is used	1
+D	ninshou?	passkey_ask	effect	passkey_ask(kind, opts) -> request	capability,time	namimado	absent	WebAuthn creation or assertion request with a fresh challenge	3
+D	ninshou?	passkey_accept	pure	passkey_accept(request, response) -> credential	validate,error	namimado	absent	check an enrolment response and keep the new credential	3
+D	ninshou?	passkey_verify	pure	passkey_verify(request, response, credential) -> credential	validate,error	namimado	absent	check a sign-in; raises :cloned when the counter goes back	3
+D	ninshou?	start	effect	start(identity, opts) -> session	time,capability,log	pleme-auth-sessions	absent	start a session with idle and absolute lifetimes	2
+D	ninshou?	touch	effect	touch(session) -> session	time,error	pleme-auth-sessions	absent	record activity; raises :expired past either lifetime	2
+D	ninshou?	stop	effect	stop(session, opts) -> nil	idempotent,log	pleme-auth-sessions	absent	end one session or every session of an identity	2
+D	ninshou?	renew	effect	renew(session) -> session	time,log	pleme-auth-sessions	absent	new session id after a privilege change, old one dead	2
+D	ninshou?	alive?	pure	alive?(session, now) -> Bool	time	pleme-auth-sessions	absent	session is inside both lifetimes	2
+D	ninshou?	fresh?	pure	fresh?(session, within, now) -> Bool	time	-	absent	identity proved itself recently enough for a risky act	3
+D	ninshou?	strike	effect	strike(identity, opts) -> record	ratelimit,time,log	-	absent	count a failed attempt toward a lockout	2
+D	ninshou?	locked?	pure	locked?(identity, now) -> Bool	ratelimit,time	-	absent	too many failures; further attempts are refused	2
+D	ninshou?	forgive	effect	forgive(identity) -> nil	idempotent,log	-	absent	clear the failure count after success	2
+D	ninshou?	sign_in	effect	sign_in(identity, proofs, opts) -> session	error,log,ratelimit,time	pleme-auth-sdk	absent	check every required factor, then start a session	2
+D	ninshou?	caller	pure	caller(request, opts) -> identity or nil	validate	pleme-auth-sdk	absent	the identity a request proves, from session, token or cert	2
+D	tegata?	issue	effect	issue(claims, key, opts) -> token	time,capability,validate	pleme-auth-tokens	absent	mint a signed token with expiry and audience	1
+D	tegata?	read	effect	read(token, opts) -> claims	time,validate,error	pleme-auth-tokens	absent	check signature, expiry, issuer, audience; return claims	1
+D	tegata?	unverified	pure	unverified(token) -> record	validate	-	absent	header and claims with no checks; never decide on these	1
+D	tegata?	expired?	pure	expired?(token, now) -> Bool	time	-	absent	token is past its expiry, signature unchecked	1
+D	tegata?	refresh	effect	refresh(refresh_token, opts) -> pair	time,idempotent,error	pleme-auth-tokens	absent	swap a refresh token for a new pair, retiring the old	2
+D	tegata?	revoke	effect	revoke(token, opts) -> nil	idempotent,log	-	absent	make a token unacceptable before its expiry	2
+D	tegata?	revoked?	effect	revoked?(token) -> Bool	cache,resource	-	absent	token is on the revocation list	2
+D	tegata?	introspect	effect	introspect(token, opts) -> record	resource,cache,deadline	-	absent	ask the issuer whether a token is still active	3
+D	tegata?	exchange	effect	exchange(token, audience, opts) -> token	resource,validate	-	absent	trade a token for one narrower or for another service	3
+D	tegata?	keys	effect	keys(issuer, opts) -> [key]	cache,resource,deadline	-	absent	issuer's published verification keys, cached (JWKS)	2
+D	tegata?	discover	effect	discover(issuer) -> record	cache,resource,deadline	-	absent	an issuer's OpenID configuration document	2
+D	tegata?	flow_start	effect	flow_start(provider, opts) -> record	capability,time	-	absent	OAuth2 sign-in URL with state and PKCE verifier	2
+D	tegata?	flow_finish	effect	flow_finish(provider, callback, saved) -> tokens	resource,validate,error	-	absent	check the callback and trade its code for tokens	2
+D	tegata?	acquire	effect	acquire(provider, opts) -> token	resource,cache,retry	-	absent	machine token by client credentials, reused until near expiry	2
+D	tegata?	pkce	pure	pkce(verifier) -> text	validate	-	absent	code challenge derived from a verifier (S256)	2
+D	tegata?	assertion	pure	assertion(xml, trust, opts) -> record	validate,time,error	-	absent	SAML assertion with signature, conditions and audience checked	4
+D	tegata?	attenuate	pure	attenuate(token, caveat) -> token	validate	-	absent	add a restriction to a token; it can never widen	3
+D	tegata?	tie	pure	tie(token, key) -> token	validate	-	absent	bind a token to the holder's key so theft is useless	3
+D	tegata?	api_key	effect	api_key(prefix, opts) -> record	capability,validate	-	absent	long-lived key: id, secret shown once, stored hash	2
+D	tegata?	api_key_valid?	pure	api_key_valid?(secret, record) -> Bool	validate	-	absent	presented key matches the stored hash in equal time	2
+D	shoumeisho?	parse	pure	parse(text, format) -> cert	validate,serialize	webpki	absent	PEM or DER to a certificate record	2
+D	shoumeisho?	render	pure	render(cert, format) -> text	serialize	-	absent	certificate to PEM or DER text	2
+D	shoumeisho?	info	pure	info(cert) -> record	validate	-	absent	subject, issuer, names, validity, key usage	2
+D	shoumeisho?	request	pure	request(subject, key, opts) -> csr	validate	-	absent	certificate signing request for a key	2
+D	shoumeisho?	issue	effect	issue(csr, authority, opts) -> cert	time,capability,log	openclaw-publisher-pki	absent	sign a request as a CA with a lifetime	3
+D	shoumeisho?	self_sign	effect	self_sign(subject, key, opts) -> cert	time,capability	-	absent	certificate signed by its own key, for tests and roots	2
+D	shoumeisho?	path	effect	path(chain, roots, opts) -> [cert]	time,error,validate	webpki	absent	valid chain from leaf to a trusted root, or :untrusted	2
+D	shoumeisho?	matches?	pure	matches?(cert, name) -> Bool	validate	webpki	absent	certificate covers a host name or address	2
+D	shoumeisho?	expires	pure	expires(cert) -> instant	time	-	absent	the end of a certificate's validity	2
+D	shoumeisho?	expiring?	pure	expiring?(cert, within, now) -> Bool	time	-	absent	certificate ends inside the given duration	2
+D	shoumeisho?	revoked?	effect	revoked?(cert, opts) -> Bool	resource,cache,deadline	openclaw-publisher-pki	absent	listed as revoked by CRL or OCSP	3
+D	shoumeisho?	revoke	effect	revoke(cert, reason) -> nil	idempotent,log	openclaw-publisher-pki	absent	add a certificate to the signed revocation list	3
+D	shoumeisho?	renew	effect	renew(cert, opts) -> cert	time,idempotent,retry	x-crypto	absent	new certificate for the same identity before expiry (ACME)	3
+D	shoumeisho?	pin	pure	pin(cert) -> hex	validate	-	absent	hash of the public key, for pinning	2
+D	shoumeisho?	identity	pure	identity(cert) -> text	validate	kakuin-workload-api	absent	workload identity (SPIFFE id) a certificate names	3
+D	shoumeisho?	watch	stream	watch(source, f, opts) -> nil	cancel,resource	kakuin-workload-api	absent	call f on each rotated workload certificate	3
+D	shoumeisho?	profile	decl	profile(level) -> record	config	kakuin-rustls	absent	TLS settings by level: versions, suites, client auth	2
+D	shoumeisho?	probe	effect	probe(host, opts) -> record	resource,deadline	-	absent	connect and report version, chain and expiry	2
+D	shoumeisho?	roots	effect	roots(opts) -> [cert]	resource,cache	webpki	absent	trusted root certificates in force	2
+D	kengen?	allow?	pure	allow?(subject, action, resource, ctx) -> Bool	validate,trace	pleme-rbac	absent	policies permit this action	1
+D	kengen?	permit	pure	permit(subject, action, resource, ctx) -> nil	error,validate,log	pleme-rbac	absent	raise :denied unless allowed; the guard form	1
+D	kengen?	decide	pure	decide(request, policies) -> decision	trace,validate	pleme-rbac	absent	full answer: effect, matched rules, obligations	2
+D	kengen?	why	pure	why(decision) -> [rule]	trace	-	absent	the rules that produced a decision	2
+D	kengen?	grant	effect	grant(subject, permission, resource, opts) -> relation	idempotent,log	pleme-rbac	absent	let a subject do something to a resource	1
+D	kengen?	revoke	effect	revoke(subject, permission, resource) -> nil	idempotent,log	pleme-rbac	absent	withdraw a grant	1
+D	kengen?	holders	effect	holders(action, resource, opts) -> [subject]	resource,cache	pleme-rbac	absent	everyone who may do an action to a resource	2
+D	kengen?	powers	effect	powers(subject, opts) -> [record]	resource,cache	-	absent	every action and resource a subject can reach	2
+D	kengen?	visible	effect	visible(subject, action, resources) -> [resource]	resource,cache	-	absent	the resources a subject may act on, in one pass	2
+D	kengen?	role	decl	role(name, permissions, opts) -> role	config	pleme-rbac	absent	a named set of permissions	1
+D	kengen?	assign	effect	assign(subject, role, scope) -> binding	idempotent,log	pleme-rbac	absent	give a subject a role inside a scope	1
+D	kengen?	permission	decl	permission(resource, action) -> permission	config	pleme-rbac	absent	one resource and action pair, wildcards allowed	1
+D	kengen?	grants?	pure	grants?(permission, requested) -> Bool	validate	pleme-rbac	absent	a held permission covers the requested one	1
+D	kengen?	policy	decl	policy(name, rules, opts) -> policy	config,validate	-	absent	rules over subject, action, resource and context	2
+D	kengen?	rule	decl	rule(effect, match, opts) -> rule	config	-	absent	one permit or forbid with a condition	2
+D	kengen?	parse	pure	parse(text, language) -> policy	validate,serialize	-	absent	policy text in a policy language to a policy	3
+D	kengen?	relation	decl	relation(object, relation, subject) -> tuple	config	pleme-rbac	absent	one relationship fact such as editor of document	1
+D	kengen?	expand	effect	expand(object, relation) -> tree	trace,resource	pleme-rbac	absent	tree of everyone holding a relation to an object	3
+D	kengen?	delegate	effect	delegate(from, to, permission, opts) -> grant	time,idempotent,log	-	absent	pass on part of my power for a limited time	3
+D	waku	frame	decl	frame(reach, when, where) -> frame	capability,config	blue-lang-waku	exists:waku	what a computation may name, depend on and own	0
+D	waku	narrow	pure	narrow(frame, bound) -> frame	capability,validate	blue-lang-waku	exists:waku	meet of two frames; never wider than either	0
+D	waku	escapes	pure	escapes(frame, program) -> [escape]	capability,validate	blue-lang-waku	exists:waku	names a program uses that its frame does not grant	0
+D	waku	imports	pure	imports(frame) -> [import]	capability	blue-lang-waku	exists:waku	host imports a frame lowers to	0
+D	waku	allows?	pure	allows?(frame, name) -> Bool	capability,validate	blue-lang-waku	absent	frame grants one name	1
+D	himitsu	read	effect	read(reference, opts) -> secret	resource,cache,error	cofre	absent	fetch a secret by reference; it prints as <secret>	1
+D	himitsu	get	effect	get(store, key, opts) -> secret or nil	resource,cache	blackmatter-secrets	absent	one secret, nil when absent	1
+D	himitsu	need	effect	need(store, key, opts) -> secret	resource,error	blackmatter-secrets	absent	one secret, raising :not_found when absent	1
+D	himitsu	has?	effect	has?(store, key) -> Bool	resource	-	absent	the secret exists	1
+D	himitsu	list	effect	list(store, opts) -> [key]	resource	blackmatter-secrets	absent	keys only, never values	1
+D	himitsu	put	effect	put(store, key, value, opts) -> secret	resource,idempotent,log	cofre	absent	create or replace a secret	1
+D	himitsu	delete	effect	delete(store, key) -> nil	idempotent,log	-	absent	make the secret absent	1
+D	himitsu	secret	pure	secret(text) -> secret	validate	-	absent	wrap text so it cannot be printed or logged	1
+D	himitsu	reveal	pure	reveal(secret) -> text	log	-	absent	the single door from secret to plain text	1
+D	himitsu	rotate	effect	rotate(reference, opts) -> secret	idempotent,time,log	cofre	absent	new value stored; previous version kept for a grace period	2
+D	himitsu	versions	effect	versions(reference) -> [record]	resource	-	absent	stored versions of a secret, newest first	2
+D	himitsu	generate	effect	generate(spec) -> secret	capability,validate	cofre	absent	new random secret by a typed spec	2
+D	himitsu	deliver	effect	deliver(reference, target, opts) -> nil	resource,idempotent,log	cofre	absent	place a secret in a file, env or cluster Secret	2
+D	himitsu	rekey	effect	rekey(file, recipients) -> nil	resource,idempotent,log	blackmatter-secrets	absent	re-encrypt a sops file for a new recipient set	2
+D	himitsu	recipients	pure	recipients(file) -> [text]	validate	blackmatter-secrets	absent	key ids that can open a sops file	2
+D	himitsu	leaks	effect	leaks(paths, opts) -> [finding]	resource,validate	-	absent	secrets committed in files, by pattern and entropy	2
+D	himitsu	stale?	effect	stale?(reference, policy) -> Bool	time,resource	-	absent	secret is older than its rotation policy	2
+D	himitsu	connect	effect	connect(backend, opts) -> vault	resource,deadline,error	akeyless-auth	absent	authenticate to a secret backend, gated on the user	2
+D	himitsu	with_secrets	effect	with_secrets(references, f) -> value	resource,error	-	absent	run f with secrets delivered, then wipe them	2
+D	himitsu	lease	effect	lease(reference, opts) -> lease	time,resource,log	akeyless-api	absent	short-lived credential issued on demand, expiring itself	3
+D	himitsu	renew	effect	renew(lease) -> lease	time,idempotent	-	absent	extend a lease before it ends	3
+D	himitsu	revoke	effect	revoke(lease) -> nil	idempotent,log	-	absent	end a lease now	3
+D	kyoukyuu?	inventory	effect	inventory(subject, opts) -> sbom	resource,cache	tameshi	absent	every component in an artifact or closure (SBOM)	1
+D	kyoukyuu?	parse	pure	parse(text, format) -> sbom	validate,serialize	tameshi	absent	SPDX or CycloneDX text to an inventory	2
+D	kyoukyuu?	render	pure	render(sbom, format) -> text	serialize	tameshi	absent	inventory to SPDX or CycloneDX text	2
+D	kyoukyuu?	diff	pure	diff(a, b) -> [change]	validate	-	absent	components added, removed or moved between two inventories	2
+D	kyoukyuu?	pin	effect	pin(dependencies, opts) -> lock	idempotent,resource	blue-lang-pkg	absent	record exact versions and hashes of dependencies	1
+D	kyoukyuu?	scan	effect	scan(subject, opts) -> [finding]	resource,cache,time	openclaw-scanner	absent	match components against known vulnerability data	1
+D	kyoukyuu?	list	effect	list(feed, opts) -> [advisory]	resource,cache,deadline	-	absent	advisories of a CVE or OSV feed, all pages	2
+D	kyoukyuu?	get	effect	get(feed, id) -> advisory or nil	resource,cache	-	absent	one advisory by id, nil when unknown	2
+D	kyoukyuu?	affects?	pure	affects?(advisory, component) -> Bool	validate	tameshi	absent	advisory version range covers the component	1
+D	kyoukyuu?	vex	decl	vex(finding, status, why) -> statement	config	security-contract	absent	a finding judged exploitable or not, with reason	2
+D	kyoukyuu?	score	pure	score(finding, opts) -> record	validate	tameshi	absent	severity and exploit likelihood of a finding	2
+D	kyoukyuu?	breaches	pure	breaches(findings, policy) -> [finding]	validate,switch	tameshi	absent	findings that break the policy threshold	1
+D	kyoukyuu?	provenance	pure	provenance(build, opts) -> statement	validate	tameshi-attest	absent	who built what, from which inputs, how (SLSA)	2
+D	kyoukyuu?	attest	effect	attest(subject, predicate, key, opts) -> envelope	capability,log	tameshi-attest	absent	sign a statement about an artifact (in-toto, DSSE)	1
+D	kyoukyuu?	attested?	effect	attested?(subject, envelope, trust) -> Bool	validate,time	sekiban	absent	envelope verifies and names the subject digest	1
+D	kyoukyuu?	admit	effect	admit(artifact, policy, opts) -> decision	switch,log,error	sekiban	absent	gate on required attestations; audit or enforce mode	2
+D	kyoukyuu?	record	effect	record(artifact, evidence) -> receipt	idempotent,log,resource	cartorio	absent	append to the ledger; get an inclusion receipt	3
+D	kyoukyuu?	sign	effect	sign(artifact, opts) -> signature	capability,log	tameshi-sigstore	absent	sign an artifact digest as an identity (Sigstore)	2
+D	kyoukyuu?	verify?	effect	verify?(artifact, signature, trust) -> Bool	validate,time,resource	tameshi-sigstore	absent	artifact signature checks against the trusted identities	2
+D	kyoukyuu?	rebuild	effect	rebuild(recipe, opts) -> record	process,resource	substrate	absent	build again and report whether outputs are bit-identical	3
+D	kyoukyuu?	review	effect	review(change, opts) -> [finding]	resource,validate	-	absent	risk in a dependency change: new, abandoned, unsigned	3
+D	kyoukyuu?	licenses	pure	licenses(sbom, policy) -> [violation]	validate	-	absent	components whose license the policy refuses	2
+D	kyoukyuu?	posture	effect	posture(repository) -> record	resource	security-contract	absent	repository security practices as a score	3
+D	kyoukyuu?	blast	effect	blast(component, graph) -> [artifact]	resource,cache	security-contract	absent	every artifact that contains a component	3
+D	kyoukyuu?	trust	decl	trust(name, keys, scope) -> root	config	tameshi	absent	which keys and identities count, and for what	1
+D	junshu?	control	decl	control(id, framework, statement, opts) -> control	config	compliance-controls	absent	a named requirement from NIST, CIS, FedRAMP or SOC2	2
+D	junshu?	list	pure	list(framework, opts) -> [control]	config	compliance-profiles	absent	every control of a framework	2
+D	junshu?	mapping	decl	mapping(check, controls) -> mapping	config	kensa	absent	which controls a test gives evidence for	2
+D	junshu?	assess	effect	assess(target, pack, opts) -> [result]	process,resource,test	kensa	absent	run a pack of compliance tests against a target	1
+D	junshu?	pack	decl	pack(name, tests, opts) -> pack	config,test	provas	absent	a pinned set of tests with a deterministic hash	2
+D	junshu?	evidence	pure	evidence(result, opts) -> record	validate,time	tameshi-watch	absent	a result bound to target, time, tool and digest	1
+D	junshu?	collect	effect	collect(source, opts) -> [evidence]	resource,deadline	tameshi-watch	absent	gather results from external scanners	2
+D	junshu?	render	pure	render(assessment, format) -> text	serialize	kensa	absent	assessment as OSCAL, SARIF or JUnit text	2
+D	junshu?	parse	pure	parse(text, format) -> assessment	validate,serialize	kensa	absent	OSCAL, SARIF or JUnit text to an assessment	3
+D	junshu?	rollup	pure	rollup(results, by) -> [record]	validate	kensa	absent	pass counts per control family	2
+D	junshu?	gap	pure	gap(catalog, evidence) -> [control]	validate	tameshi	absent	controls with no passing evidence	2
+D	junshu?	waive	decl	waive(control, why, until) -> waiver	config,time	-	absent	time-boxed, reasoned exception to a control	1
+D	junshu?	lapsed	pure	lapsed(waivers, now) -> [waiver]	time	-	absent	waivers whose end date has passed	2
+D	junshu?	drift	pure	drift(before, after) -> [change]	validate	-	absent	controls whose status changed between assessments	2
+D	junshu?	watch	stream	watch(sources, f, opts) -> nil	cancel,resource	tameshi-watch	absent	keep assessing as new results arrive	3
+D	junshu?	certify	effect	certify(assessment, key) -> certificate	capability,log	tameshi	absent	sign an assessment as a dated certification	3
+D	junshu?	inherit	decl	inherit(control, provider) -> control	config	-	absent	a control met by a provider under shared responsibility	4
+D	nisshi	append	effect	append(log, event, opts) -> record	log,idempotent,error	-	partial:nisshi	add one hash-chained record, refused if invalid	0
+D	nisshi	read	effect	read(log, opts) -> [record]	resource,error	-	exists:nisshi	every record of a log, in order	0
+D	nisshi	replay	pure	replay(log, definition) -> states	validate	-	exists:nisshi	fold records into the states they imply	0
+D	nisshi	at	pure	at(log, entity, seq) -> state	validate	-	exists:nisshi	an entity's state after a given record	0
+D	nisshi	history	pure	history(log, entity) -> [record]	validate	-	exists:nisshi	one entity's records in order	0
+D	nisshi	verify	pure	verify(log) -> report	validate,error	-	exists:nisshi	first break in hashes, sequence or signature, named	0
+D	nisshi	intact?	pure	intact?(log) -> Bool	validate	-	exists:nisshi	no break anywhere in the log	0
+D	nisshi	head	pure	head(log) -> hex	validate	-	exists:nisshi	hash of the last record	0
+D	nisshi	checkpoint	effect	checkpoint(log, key) -> record	capability,log	tameshi	absent	signed head at a moment; later rewrites contradict it	1
+D	nisshi	prove	pure	prove(log, seq) -> proof	validate	tameshi	absent	proof that a record is in the log up to a head	2
+D	nisshi	watch	stream	watch(log, f, opts) -> nil	cancel,resource	-	absent	call f on each record as it lands	2
+D	nisshi	roll	effect	roll(log, opts) -> nil	resource,idempotent	-	absent	start a new segment linked to the old head	2
+D	nisshi	audit	effect	audit(actor, action, target, outcome, opts) -> record	log,time,idempotent	tameshi	absent	append who did what to what, with the result	1
+D	nisshi	query	effect	query(log, question, params) -> [record]	resource,validate	-	absent	ask a log a question in SQL via kueri	2
+D	nisshi	witness	effect	witness(log, ledger) -> receipt	resource,idempotent	cartorio	absent	publish the head to an outside ledger	3
+D	kakuri?	profile	decl	profile(name, allow, opts) -> profile	config,capability	blue-lang-waku	absent	what a run may touch: paths, hosts, processes	1
+D	kakuri?	confine	effect	confine(f, profile, opts) -> value	process,capability,deadline,error	sui	absent	run a function or command inside a profile	2
+D	kakuri?	limit	decl	limit(resource, amount) -> limit	resource,deadline,config	-	absent	cap CPU, memory, files or time for a run	2
+D	kakuri?	drop	effect	drop(privileges) -> nil	capability,process	-	absent	give up privileges for good	3
+D	kakuri?	filter	decl	filter(syscalls) -> filter	capability,config	-	absent	allow-list of system calls (seccomp)	4
+D	kakuri?	embed	effect	embed(module, profile, opts) -> instance	capability,resource	blue-lang-wasm	absent	run a WASM module with exactly the granted imports	3
+D	kakuri?	learn	effect	learn(command, opts) -> profile	process,trace	-	absent	run once, record what it touched, as a profile	3
+D	kakuri?	tighten	pure	tighten(profile, observed) -> profile	validate	-	absent	narrowest profile that still permits what was observed	3
+D	kakuri?	exceeds	pure	exceeds(observed, profile) -> [access]	validate,trace	-	absent	accesses a profile did not grant	3
+D	kakuri?	elevate	decl	elevate(profile, why, until) -> profile	time,log,switch	sekiban	absent	time-boxed, logged widening set by the root only	3
+D	kakuri?	scrub_env	pure	scrub_env(env, keep) -> env	validate	-	absent	environment with everything but the kept names removed	1
+D	kakuri?	egress	decl	egress(rules) -> rules	capability,config	-	absent	which hosts and ports a run may reach	2
+D	jouka?	escape	pure	escape(text, context) -> text	validate	-	absent	make text inert inside HTML, URL, shell, SQL, regex or log	1
+D	jouka?	bind	pure	bind(template, params, context) -> command	validate	kueri	absent	put values into a query or command as data, never code	1
+D	jouka?	strip	pure	strip(text, allowed) -> text	validate	-	absent	remove markup and control characters not on the allow-list	1
+D	jouka?	canonical	pure	canonical(text, form) -> text	validate	-	absent	normalise Unicode, case and encoding before checking	1
+D	jouka?	confusable?	pure	confusable?(a, b) -> Bool	validate	-	absent	two strings look alike but differ (homoglyphs)	2
+D	jouka?	contain	pure	contain(root, path) -> path	validate,error	-	absent	untrusted path under a root; raises :escapes_root	1
+D	jouka?	contain_real	effect	contain_real(root, path) -> path	resource,error	-	absent	as contain, after resolving links on disk	2
+D	jouka?	fits?	pure	fits?(value, shape) -> Bool	validate	-	absent	value is inside an allow-list shape: pattern, set, range	1
+D	jouka?	bound	pure	bound(value, limits) -> value	validate,error	-	absent	reject input too large, too deep or too long	1
+D	jouka?	vet	effect	vet(url, rules) -> url	resource,validate,error	-	absent	refuse targets inside private, link-local or metadata ranges	2
+D	jouka?	local?	pure	local?(url, host) -> Bool	validate	-	absent	redirect stays on our own host	2
+D	jouka?	taint	pure	taint(value, source) -> value	validate	-	absent	mark a value as coming from outside	4
+D	jouka?	clear	pure	clear(value, check) -> value	validate,error	-	absent	remove the mark once a check has passed	4
+D	jouka?	hostile	pure	hostile(context) -> [text]	test	-	absent	known attack strings for a context, for tests	1
+D	jouka?	linear?	pure	linear?(pattern) -> Bool	validate	-	absent	pattern cannot blow up on crafted input (ReDoS)	3
+D	bougyo	headers	decl	headers(opts) -> posture	config,switch	-	exists:bougyo	security response headers, added when missing	0
+D	bougyo	request_id	decl	request_id(opts) -> posture	config,log	-	exists:bougyo	request id that cannot forge a log line	0
+D	bougyo	limits	decl	limits(opts) -> posture	config,validate	-	exists:bougyo	caps on method, path, headers and body	0
+D	bougyo	broken	pure	broken(settings, request) -> record or nil	validate	-	exists:bougyo	first limit a request breaks, as status and reason	0
+D	bougyo	safe_id?	pure	safe_id?(text, max) -> Bool	validate	-	exists:bougyo	inbound id is short and made of safe characters	0
+D	bougyo	cors	decl	cors(opts) -> posture	config,switch	-	absent	cross-origin rules as an explicit allow-list	1
+D	bougyo	csp	decl	csp(opts) -> posture	config,switch	-	absent	content security policy with a fresh nonce per response	1
+D	bougyo	rate	decl	rate(opts) -> posture	ratelimit,config	pleme-middleware-rate-limit	absent	requests per window per client	1
+D	bougyo	csrf	decl	csrf(opts) -> posture	config,switch	-	absent	state-changing requests carry a token or same-site proof	2
+D	bougyo	tls	decl	tls(opts) -> posture	config,switch	-	absent	require TLS and send strict transport security	2
+D	bougyo	trusted_proxy	decl	trusted_proxy(opts) -> posture	config	-	absent	which forwarding hops to believe for client address	2
+D	bougyo	deadlines	decl	deadlines(opts) -> posture	deadline,config	-	absent	header, body and idle time limits against slow clients	2
+D	bougyo	authenticate	decl	authenticate(opts) -> posture	config,switch	pleme-auth-sdk	absent	attach the caller identity to each request	2
+D	bougyo	authorize	decl	authorize(opts) -> posture	config,switch	pleme-rbac	absent	permit or deny each request by policy	2
+D	bougyo	audit	decl	audit(opts) -> posture	log,config	-	absent	record each decision as an audit record	2
+D	shisei	posture	decl	posture(name, table, defaults, layer) -> posture	config	-	exists:shisei	one named behaviour of a service with its fields	0
+D	shisei	defaults	pure	defaults(postures) -> entries	config	-	exists:shisei	the stance of a bare service	0
+D	shisei	stance	pure	stance(postures, declaration) -> record	config,validate	-	exists:shisei	declaration over defaults, judged into accepted, off, refused	0
+D	shisei	stack	pure	stack(layers, handler) -> handler	config	-	exists:shisei	layers around a handler; first is outermost	0
+D	shisei	serving	pure	serving(postures, declaration, sink, handler) -> handler	config,switch	-	exists:shisei	the whole composition: stance, refusals, handler	0
+D	shisei	gated	pure	gated(mode, sink, name, why, deny, allow) -> response	switch,log	sekiban	exists:shisei	audit-or-enforce ladder for a refusing posture	0
+D	shisei	promote	effect	promote(posture, mode, evidence) -> declaration	switch,log	sekiban	absent	move a posture from audit to enforce on evidence	2
+D	shisei	rehearse	effect	rehearse(posture, window) -> record	switch,log,time	-	absent	what enforcing would have refused in a past window	2
+D	tokumei	randomize	pure	randomize(truth, p, seed) -> Bool	validate	-	exists:tokumei	forced-response answer: truth or a fair coin	0
+D	tokumei	estimate	pure	estimate(yes_share, p) -> number	validate	-	exists:tokumei	true share recovered from randomized answers	0
+D	tokumei	epsilon	pure	epsilon(p) -> number	validate	-	exists:tokumei	privacy cost of one forced-response answer	0
+D	tokumei	exposure	pure	exposure(prevalence, p) -> number	validate	-	exists:tokumei	how sure an observer is about a yes answer	0
+D	tokumei	laplace	pure	laplace(scale, seed) -> number	validate	-	exists:tokumei	one draw of Laplace noise	0
+D	tokumei	private_count	pure	private_count(count, epsilon, seed) -> number	validate	-	exists:tokumei	a count published with differential privacy	0
+D	tokumei	private_share	pure	private_share(count, n, epsilon, seed) -> number	validate	-	exists:tokumei	a share published with differential privacy, kept in range	0
+D	tokumei	private_mean	pure	private_mean(values, bounds, epsilon, seed) -> number	validate	-	absent	a mean published with differential privacy	2
+D	tokumei	suppress	pure	suppress(count, k) -> number or nil	validate	-	exists:tokumei	the count, or nil below the threshold	0
+D	tokumei	unique_share	pure	unique_share(group_size, cells) -> number	validate	-	exists:tokumei	chance a person is alone in a cell	0
+D	tokumei	budget	decl	budget(epsilon, opts) -> budget	config	-	absent	total privacy a dataset may spend	2
+D	tokumei	spend	effect	spend(budget, epsilon) -> budget	log,error	-	absent	use part of a budget; raises :exhausted at zero	2
+D	tokumei	k_anonymous?	pure	k_anonymous?(rows, columns, k) -> Bool	validate	-	absent	every combination of columns appears at least k times	2
+D	tokumei	generalize	pure	generalize(value, level) -> value	validate	-	absent	coarsen a value: exact age to ten-year band	2
+D	tokumei	classify	pure	classify(value, rules) -> [label]	validate	-	absent	label fields or text as kinds of personal data	1
+D	tokumei	spot	pure	spot(text, kinds) -> [match]	validate	-	absent	locate personal data inside free text	1
+D	tokumei	redact	pure	redact(value, kinds, opts) -> value	validate,log	-	absent	replace personal data with fixed marks	1
+D	tokumei	mask	pure	mask(text, keep) -> text	validate	-	absent	hide all but a few characters, such as the last four	1
+D	tokumei	mark	pure	mark(value, kind) -> value	validate	-	absent	tag a value personal so it prints as a mark	2
+D	tokumei	pseudonym	pure	pseudonym(value, key) -> text	validate	-	absent	stable keyed stand-in; same input gives same output	2
+D	tokumei	tokenize	effect	tokenize(value, vault) -> token	resource,idempotent	-	absent	swap a value for a random token kept in a vault	3
+D	tokumei	detokenize	effect	detokenize(token, vault) -> value	resource,log,error	-	absent	recover the value a token stands for	3
+D	tokumei	retention	decl	retention(kind, keep, basis) -> retention	config,time	-	absent	how long a kind of data is kept, and why	2
+D	tokumei	lapsed	pure	lapsed(records, retention, now) -> [record]	time	-	absent	records kept past their retention	2
+D	tokumei	erase	effect	erase(subject, opts) -> receipt	idempotent,log,resource	-	absent	delete a person's data from every store, with receipt	3
+D	tokumei	gather	effect	gather(subject, stores) -> bundle	resource,log	-	absent	collect everything held about a person	3
+D	tokumei	consent	decl	consent(subject, purpose, until) -> consent	config,time	-	absent	a person's permission for one purpose	3
+D	tokumei	permitted?	pure	permitted?(subject, purpose, consents, now) -> Bool	validate,time	-	absent	a consent covers this use right now	3
+D	tokumei	locate	effect	locate(stores, kinds) -> [place]	resource	-	absent	where in the stores personal data lives	3
+D	kyoui?	model	decl	model(system, assets, boundaries) -> model	config	-	absent	a system as assets, flows and trust boundaries	2
+D	kyoui?	threats	pure	threats(model, method) -> [threat]	validate	-	absent	threats per element by a method such as STRIDE	2
+D	kyoui?	rank	pure	rank(threats, opts) -> [threat]	validate	-	absent	threats ordered by impact and likelihood	2
+D	kyoui?	uncovered	pure	uncovered(model, controls) -> [threat]	validate	-	absent	threats with no control against them	2
+D	kyoui?	rule	decl	rule(name, match, opts) -> rule	config	guardrail	absent	a detection rule: pattern, severity, tags	1
+D	kyoui?	witness	decl	witness(rule, positive, negative) -> witness	test	guardrail	absent	samples a rule must fire on and must not	1
+D	kyoui?	match	pure	match(rules, event) -> [hit]	validate	guardrail	absent	the rules an event triggers	1
+D	kyoui?	detect	stream	detect(events, rules, opts) -> [alert]	cancel,log	bm-guard	absent	match a stream of events; alerts as they occur	2
+D	kyoui?	alert	effect	alert(hit, sink, opts) -> nil	log,ratelimit,idempotent	tameshi	absent	send a deduplicated alert	2
+D	kyoui?	correlate	pure	correlate(alerts, window) -> [incident]	time	-	absent	group alerts of one actor or asset in a window	3
+D	kyoui?	baseline	pure	baseline(events, opts) -> profile	validate	-	absent	learn normal behaviour of an actor or service	3
+D	kyoui?	deviates?	pure	deviates?(event, baseline) -> Bool	validate	-	absent	event lies outside the learned normal	3
+D	kyoui?	indicator	decl	indicator(kind, value, opts) -> indicator	config,time	kagemusha	absent	a known-bad hash, address or domain, with expiry	3
+D	kyoui?	hunt	effect	hunt(store, indicators) -> [hit]	resource,deadline	-	absent	search stored events for indicators	3
+D	kyoui?	triage	pure	triage(alert, context) -> verdict	validate	-	absent	decide: ignore, watch or page	3
+D	kyoui?	playbook	decl	playbook(name, steps) -> playbook	config	-	absent	ordered, reversible steps that contain an incident	4
+D	kyoui?	respond	effect	respond(incident, playbook, opts) -> run	process,idempotent,log	-	absent	run a playbook against an incident, logging each step	4
+D	kyoui?	honeytoken	effect	honeytoken(kind, place) -> token	capability,log	-	absent	plant a fake secret whose use raises an alert	4
+D	kyohi	refusal	pure	refusal(kind, why) -> refusal	error	-	exists:kyohi	a refusal of one kind with its reason	0
+D	kyohi	kind	pure	kind(refusal) -> keyword	error	-	exists:kyohi	what was refused	0
+D	kyohi	why	pure	why(refusal) -> text	error	-	exists:kyohi	why it was refused	0
+D	kyohi	kinds	pure	kinds(refusals) -> [keyword]	error	-	exists:kyohi	the kind of each refusal, in order	0
+D	kyohi	check	pure	check(refusals) -> nil	error,validate	-	partial:kyohi	raise one error carrying every refusal, or return nil	0
+D	kyohi	standing	pure	standing(entries, marks) -> [entry]	error	-	exists:kyohi	entries not refused	0
+D	kyohi	ledger	decl	ledger() -> [record]	error,config	-	absent	the closed list of error kinds with status and retry	0
+D	kyohi	retryable?	pure	retryable?(kind) -> Bool	error,retry	-	absent	the ledger marks the kind worth retrying	0
+D	kyohi	status	pure	status(kind) -> int	error	-	absent	exit status the ledger gives a kind	0
+D	ukai	observe	effect	observe(opts) -> state	resource,process	-	partial:ukai	read routes and overlay status into one typed state	0
+D	ukai	decide	pure	decide(state) -> outcome	validate	-	exists:ukai	noop, bypass, refused or blind, over a total state	0
+D	ukai	plan	pure	plan(outcome) -> [action]	validate	-	exists:ukai	host routes or policy rules an outcome needs	0
+D	ukai	apply	effect	apply(plan, opts) -> record	process,idempotent,log	-	partial:ukai	install the planned routes; same plan twice changes nothing	1

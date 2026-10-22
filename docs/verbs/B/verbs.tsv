@@ -1,0 +1,459 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+B	fairu	read	effect	read(path, opts) -> text	error,capability,deadline	-	partial:shisutemu	the whole text of a file	0
+B	fairu	read_bytes	effect	read_bytes(path, opts) -> bytes	error,capability	-	absent	the whole content of a file as bytes	1
+B	fairu	write	effect	write(path, content, opts) -> nil	error,capability,idempotent	-	partial:shisutemu	replace a whole file atomically, making parents	0
+B	fairu	append	effect	append(path, content) -> nil	error,capability	-	partial:shisutemu	add to the end of a file, creating it	0
+B	fairu	update	effect	update(path, f, opts) -> text	error,retry,idempotent	-	absent	read, change with f, write back; conflict if it moved	1
+B	fairu	exists?	effect	exists?(path) -> Bool	capability	-	partial:shisutemu	whether the path is there; never raises	0
+B	fairu	file?	effect	file?(path) -> Bool	capability	-	partial:shisutemu	whether the path is a regular file	0
+B	fairu	dir?	effect	dir?(path) -> Bool	capability	-	partial:shisutemu	whether the path is a directory	0
+B	fairu	list	effect	list(dir, opts) -> [entry]	error,capability	-	partial:shisutemu	the entries of one directory, sorted	0
+B	fairu	walk	effect	walk(root, opts) -> [path]	error,capability,cancel	-	partial:shisutemu	every file under a root, sorted	0
+B	fairu	glob	effect	glob(pattern, opts) -> [path]	capability	-	partial:shisutemu	the paths matching a pattern, sorted	0
+B	fairu	copy	effect	copy(from, to, opts) -> nil	error,capability,deadline	-	partial:shisutemu	place a copy of a file or tree at a destination	0
+B	fairu	move	effect	move(from, to, opts) -> nil	error,capability,idempotent	-	partial:shisutemu	rename atomically on one filesystem	0
+B	fairu	delete	effect	delete(path, opts) -> nil	error,capability,idempotent	-	partial:shisutemu	make the path absent; absent counts as done	0
+B	fairu	make_dir	effect	make_dir(path, opts) -> nil	error,capability,idempotent	-	partial:shisutemu	create a directory and its parents	0
+B	fairu	with_temp_dir	effect	with_temp_dir(f) -> value	resource,cancel,error	tatara-lisp	absent	run f in a fresh directory removed afterwards	1
+B	fairu	with_temp_file	effect	with_temp_file(f, opts) -> value	resource,cancel,error	tatara-lisp	absent	run f with a fresh file removed afterwards	1
+B	fairu	info	effect	info(path) -> {kind, size, modified, mode}	error,capability,time	-	partial:shisutemu	the current state of a path as a record	0
+B	fairu	watch	stream	watch(path, f, opts) -> nil	cancel,deadline,time	-	absent	call f per change event until it returns stop	2
+B	fairu	stream	stream	stream(path, f, opts) -> nil	error,cancel,deadline	-	absent	call f per line or chunk without holding the file	1
+B	fairu	touch	effect	touch(path, opts) -> nil	capability,time,idempotent	-	absent	create an empty file or bump its modified time	2
+B	fairu	link	effect	link(target, path, opts) -> nil	capability,error	-	absent	make a symbolic link; configured off by default	3
+B	fairu	mode	effect	mode(path, bits) -> nil	capability,error	-	absent	set permission bits; configured off by default	3
+B	fairu	space	effect	space(path) -> {total, free}	capability	-	absent	free and total bytes of the volume holding a path	2
+B	fairu	usage	effect	usage(path) -> {bytes, files}	capability,deadline	-	absent	bytes and files used under a path	2
+B	fairu	sync	effect	sync(path) -> nil	capability,error	-	absent	flush a file to stable storage	2
+B	fairu	match?	pure	match?(pattern, path) -> Bool	-	-	absent	whether a glob pattern matches a path text	1
+B	fairu	same?	effect	same?(a, b) -> Bool	capability	-	absent	whether two paths are one file on disk	2
+B	fairu	place	effect	place(app, tier) -> path	config,capability	okiba	absent	the absolute config, state, data or cache path of an app	1
+B	fairu	join	pure	join(*parts) -> path	-	-	partial:shisutemu	join path parts with one separator	0
+B	fairu	parent	pure	parent(path) -> path	-	-	partial:shisutemu	the directory part of a path	0
+B	fairu	name	pure	name(path) -> text	-	-	partial:shisutemu	the last part of a path	0
+B	fairu	stem	pure	stem(path) -> text	-	-	absent	the name without its final extension	0
+B	fairu	extension	pure	extension(path) -> text	-	-	partial:shisutemu	the final extension of a name, or empty	0
+B	fairu	with_extension	pure	with_extension(path, ext) -> path	-	-	absent	the path with its extension replaced	1
+B	fairu	absolute	effect	absolute(path) -> path	capability	-	absent	the path made absolute against the current directory	0
+B	fairu	relative	pure	relative(path, base) -> path	-	-	absent	the path expressed relative to a base	1
+B	fairu	normalize	pure	normalize(path) -> path	-	-	absent	the path with dot parts and doubled separators removed	1
+B	fairu	parts	pure	parts(path) -> [text]	-	-	absent	the path split into its parts	0
+B	fairu	home	effect	home() -> path	capability	-	absent	the home directory of the user	0
+B	fairu	current	effect	current() -> path	capability	-	partial:shisutemu	the current working directory	0
+B	asshuku?	compress	pure	compress(data, opts) -> bytes	error	-	absent	shrink bytes with an algorithm named in opts	2
+B	asshuku?	decompress	pure	decompress(data, opts) -> bytes	error,validate	-	absent	restore bytes, refusing output past a size limit	2
+B	asshuku?	detect	pure	detect(data) -> algorithm or nil	-	-	absent	name the compression or archive format from magic bytes	2
+B	asshuku?	stream	stream	stream(source, f, opts) -> nil	error,cancel,deadline	-	absent	compress or decompress chunk by chunk, calling f per chunk	3
+B	asshuku?	pack	pure	pack(entries, opts) -> bytes	error	-	absent	bundle named entries into one tar or zip archive	2
+B	asshuku?	unpack	pure	unpack(archive, opts) -> [entry]	error,validate	-	absent	every entry of an archive in memory, paths checked	2
+B	asshuku?	list	pure	list(archive, opts) -> [{name, size, mode}]	error	hozon	absent	the entry headers of an archive without their content	2
+B	asshuku?	read	pure	read(archive, name, opts) -> bytes	error	hozon	absent	one entry of an archive by name	2
+B	asshuku?	extract	effect	extract(archive, to, opts) -> [path]	error,capability,validate	-	absent	write an archive under a directory; traversal refused	2
+B	asshuku?	archive	effect	archive(root, to, opts) -> nil	error,capability,deadline	-	absent	pack a directory tree into an archive file	2
+B	asshuku?	append	pure	append(archive, entries) -> bytes	error	-	absent	add entries to the end of an archive	3
+B	asshuku?	verify?	pure	verify?(archive) -> Bool	validate	-	absent	whether every entry of an archive decodes and checks	2
+B	asshuku?	delta	pure	delta(base, target) -> bytes	-	-	absent	a binary difference that turns base into target	3
+B	asshuku?	patch	pure	patch(base, delta) -> bytes	error	-	absent	apply a binary delta to base	3
+B	souko?	open	effect	open(spec) -> store	resource,config,capability	armazem	absent	connect to an S3, R2, GCS or local object store	1
+B	souko?	close	effect	close(store) -> nil	resource	-	absent	release the store connection	1
+B	souko?	get	effect	get(store, key, opts) -> bytes or nil	error,retry,deadline,trace	armazem	absent	the object content, or nil when absent	1
+B	souko?	need	effect	need(store, key, opts) -> bytes	error,retry,deadline	armazem	absent	the object content, raising not_found when absent	1
+B	souko?	has?	effect	has?(store, key) -> Bool	retry,deadline	armazem	absent	whether an object exists	1
+B	souko?	put	effect	put(store, key, bytes, opts) -> {etag, version}	error,retry,idempotent,deadline	armazem	absent	create or replace an object	1
+B	souko?	create	effect	create(store, key, bytes, opts) -> {etag, version}	error,idempotent	armazem	absent	put an object only if the key is absent	1
+B	souko?	update	effect	update(store, key, f, opts) -> {etag, version}	error,retry,idempotent	-	absent	replace an object with f(old) using the etag precondition	2
+B	souko?	delete	effect	delete(store, key) -> nil	error,retry,idempotent	armazem	absent	make the object absent; absent counts as done	1
+B	souko?	purge	effect	purge(store, prefix, opts) -> count	error,retry,cancel	-	absent	delete every object under a prefix	2
+B	souko?	list	effect	list(store, opts) -> [{key, size, modified, etag}]	error,retry,deadline	armazem	absent	all objects under a prefix, every page, sorted	1
+B	souko?	info	effect	info(store, key) -> {size, etag, modified, type, meta}	error,retry,deadline	armazem	absent	the object headers without its content	1
+B	souko?	copy	effect	copy(from, to, opts) -> {etag, version}	error,retry,deadline	-	absent	copy an object inside or across stores	1
+B	souko?	move	effect	move(from, to, opts) -> nil	error,retry	-	absent	copy then delete; not atomic, and says so	2
+B	souko?	upload	effect	upload(store, key, path, opts) -> {etag, version}	error,retry,deadline,cancel	-	absent	send a file as one object, in parts when large	1
+B	souko?	download	effect	download(store, key, path, opts) -> nil	error,retry,deadline,cancel	-	absent	write an object to a file atomically	1
+B	souko?	stream	stream	stream(store, key, f, opts) -> nil	error,cancel,deadline	-	absent	call f per chunk of an object as it arrives	2
+B	souko?	range	effect	range(store, key, from, to) -> bytes	error,retry,deadline	-	absent	read a byte range of an object	2
+B	souko?	presign	pure	presign(store, key, opts) -> url	capability,time	-	absent	a time-limited URL granting one operation on an object	2
+B	souko?	versions	effect	versions(store, key) -> [version]	error,retry	-	absent	every stored version of an object, newest first	3
+B	souko?	restore	effect	restore(store, key, version) -> {etag, version}	error,idempotent	-	absent	make an earlier version the current object	3
+B	souko?	watch	stream	watch(store, f, opts) -> nil	cancel,deadline	-	absent	call f per object change notice or poll difference	3
+B	souko?	parse	pure	parse(url) -> {scheme, bucket, key}	validate	-	absent	split an s3, gs or r2 URL into its parts	1
+B	souko?	url	pure	url(store, key) -> url	-	-	absent	the plain address of an object	1
+B	souko?	etag	pure	etag(bytes, opts) -> text	-	-	absent	the etag a store would give this content	2
+B	souko?	usage	effect	usage(store, prefix) -> {objects, bytes}	error,retry	-	absent	object count and total bytes under a prefix	2
+B	souko?	make_bucket	effect	make_bucket(account, name, opts) -> nil	error,idempotent	-	absent	create a bucket; existing counts as done	2
+B	souko?	retain	effect	retain(store, key, opts) -> nil	error	-	absent	hold an object against deletion until a date	3
+B	souko?	lifecycle	decl	lifecycle(store, rules) -> decl	validate,config	-	absent	declare expiry and tiering rules for a prefix	3
+B	souko?	policy	decl	policy(store, grants) -> decl	validate,capability	-	absent	declare who may read or write which prefix	3
+B	teeburu	connect	effect	connect(url, opts) -> conn	resource,config,deadline,capability	pleme-database	partial:teeburu	open one database connection from a URL or settings	1
+B	teeburu	close	effect	close(conn) -> nil	resource	pleme-database	partial:teeburu	end a connection; later calls on it raise	1
+B	teeburu	pool	effect	pool(url, opts) -> pool	resource,config,ratelimit	pleme-database	absent	a bounded set of reusable connections	2
+B	teeburu	with_connection	effect	with_connection(pool, f) -> value	resource,cancel,error	pleme-database	absent	lend a pooled connection to f and take it back	2
+B	teeburu	alive?	effect	alive?(conn) -> Bool	deadline	pleme-database	absent	whether the server answers a trivial statement	1
+B	teeburu	query	effect	query(conn, sql, params) -> [row]	error,deadline,trace,retry	pleme-database	partial:teeburu	run one parameterized statement and return its rows	1
+B	teeburu	execute	effect	execute(conn, sql, params) -> {affected}	error,deadline,trace	pleme-database	absent	run one parameterized statement for its effect	1
+B	teeburu	script	effect	script(conn, text) -> [tag]	error,deadline	-	absent	run an unparameterized multi-statement script	1
+B	teeburu	stream	stream	stream(conn, sql, params, f) -> nil	error,cancel,deadline	-	absent	call f per row from a server cursor	2
+B	teeburu	get	effect	get(conn, table, key) -> row or nil	error,deadline	pleme-database	absent	one row by primary key, or nil when absent	1
+B	teeburu	need	effect	need(conn, table, key) -> row	error,deadline	pleme-database	absent	one row by primary key, raising not_found	1
+B	teeburu	has?	effect	has?(conn, table, key) -> Bool	deadline	pleme-database	absent	whether a row with the key exists	1
+B	teeburu	list	effect	list(conn, table, opts) -> [row]	error,deadline	pleme-database	partial:teeburu	rows matching a filter, ordered, every page	1
+B	teeburu	count	effect	count(conn, table, opts) -> number	error,deadline	-	absent	how many rows match a filter	1
+B	teeburu	create	effect	create(conn, table, row) -> row	error,idempotent	pleme-database	partial:teeburu	insert a new row and return it; exists if duplicate	1
+B	teeburu	put	effect	put(conn, table, key, row) -> row	error,idempotent	pleme-database	absent	insert or replace a row by key	1
+B	teeburu	update	effect	update(conn, table, key, f) -> row	error,retry,idempotent	pleme-database	absent	replace a row with f(old); conflict if it changed	1
+B	teeburu	delete	effect	delete(conn, table, key) -> nil	error,idempotent	pleme-database	absent	make the row absent; absent counts as done	1
+B	teeburu	with_transaction	effect	with_transaction(conn, f, opts) -> value	error,retry,cancel,resource	pleme-database	absent	run f in one transaction; commit, or roll back on raise	1
+B	teeburu	begin	effect	begin(conn, opts) -> tx	resource,error	pleme-database	absent	open a transaction at an isolation level	2
+B	teeburu	commit	effect	commit(tx) -> nil	error	pleme-database	absent	make a transaction permanent	2
+B	teeburu	rollback	effect	rollback(tx) -> nil	error,idempotent	pleme-database	absent	discard a transaction; already ended counts as done	2
+B	teeburu	savepoint	effect	savepoint(tx, f) -> value	error,resource	-	absent	run f in a nested unit that rolls back alone	2
+B	teeburu	load	effect	load(conn, table, rows) -> count	error,deadline,cancel	-	absent	bulk insert many rows in one round trip	2
+B	teeburu	dump	stream	dump(conn, source, f) -> count	error,cancel,deadline	-	absent	stream a table or query out, row by row	2
+B	teeburu	explain	effect	explain(conn, sql, params) -> plan	error	-	absent	the execution plan the server chose for a statement	2
+B	teeburu	listen	stream	listen(conn, channel, f) -> nil	cancel,deadline	-	absent	call f per notification on a channel	3
+B	teeburu	notify	effect	notify(conn, channel, payload) -> nil	error	-	absent	send a notification on a channel	3
+B	teeburu	tables	effect	tables(conn) -> [name]	error	-	absent	the table names visible to the connection	2
+B	teeburu	columns	effect	columns(conn, table) -> [column]	error	-	absent	the columns, types and constraints of a table	2
+B	teeburu	schema	effect	schema(conn) -> schema	error	shinka	absent	the whole live schema as one record	2
+B	teeburu	diff	pure	diff(a, b) -> [change]	-	shinka	absent	the changes that turn schema a into schema b	2
+B	teeburu	plan	pure	plan(changes) -> [statement]	validate	shinka	absent	the DDL statements for schema changes, ordered safely	2
+B	teeburu	copy	effect	copy(from, to, opts) -> count	error,deadline,cancel	shinka	absent	copy a table or model between databases	3
+B	teeburu	quote	pure	quote(ident) -> text	-	-	partial:teeburu	an identifier made safe to put in SQL	0
+B	teeburu	parse	pure	parse(url) -> {host, port, db, user}	validate	-	absent	split a database URL into its parts	1
+B	ikou?	define	decl	define(version, up, down) -> migration	validate	pleme-migrations	absent	declare one versioned change with its way back	1
+B	ikou?	plan	pure	plan(target, migrations) -> [step]	validate	shinka	absent	the steps still to apply, changing nothing	1
+B	ikou?	apply	effect	apply(target, migrations, opts) -> [step]	error,idempotent,migrate,log	shinka	absent	run pending steps in order, recording each	1
+B	ikou?	status	effect	status(target) -> {applied, pending, drift}	migrate	shinka	absent	what is applied, what waits, and what changed	1
+B	ikou?	rollback	effect	rollback(target, opts) -> [step]	error,migrate	pleme-migrations	absent	undo steps back to a version or by count	2
+B	ikou?	verify?	effect	verify?(target, migrations) -> Bool	validate,migrate	shinka	absent	whether applied steps still match their checksums	1
+B	ikou?	baseline	effect	baseline(target, version) -> nil	migrate,idempotent	-	absent	mark a version as applied without running it	2
+B	ikou?	history	effect	history(target) -> [record]	migrate	shinka	absent	every recorded step with time, checksum and outcome	1
+B	ikou?	create	effect	create(dir, name) -> path	capability	-	absent	scaffold a new empty migration file	2
+B	ikou?	checksum	pure	checksum(migration) -> text	-	shinka	absent	the content hash recorded for a migration	1
+B	ikou?	check	pure	check(migrations) -> [problem]	validate	pleme-migrations	absent	find gaps, duplicates and unsafe operations	2
+B	ikou?	backfill	effect	backfill(target, f, opts) -> count	retry,cancel,ratelimit,resource	-	absent	rewrite existing data in resumable batches	3
+B	ikou?	squash	pure	squash(migrations, opts) -> migration	validate	-	absent	fold applied steps into one baseline step	3
+B	ikou?	expand	decl	expand(change) -> migration	validate	pleme-migrations	absent	the additive first half of a zero-downtime change	2
+B	ikou?	contract	decl	contract(change) -> migration	validate	pleme-migrations	absent	the removing last half once nothing reads the old shape	2
+B	shuunou?	open	effect	open(spec) -> store	resource,config,capability	pleme-redis	absent	connect to an embedded, Redis, etcd or document store	2
+B	shuunou?	close	effect	close(store) -> nil	resource	-	absent	release the store	2
+B	shuunou?	get	effect	get(store, key, opts) -> value or nil	error,deadline,trace	pleme-redis	absent	the value at a key, or nil when absent	2
+B	shuunou?	need	effect	need(store, key, opts) -> value	error,deadline	-	absent	the value at a key, raising not_found	2
+B	shuunou?	has?	effect	has?(store, key) -> Bool	deadline	-	absent	whether a key is present	2
+B	shuunou?	get_many	effect	get_many(store, keys) -> map	error,deadline	-	absent	the values of many keys in one round trip	2
+B	shuunou?	put	effect	put(store, key, value, opts) -> value	error,idempotent,deadline	pleme-redis	absent	create or replace the value at a key	2
+B	shuunou?	create	effect	create(store, key, value, opts) -> value	error,idempotent	-	absent	set a key only if it is absent	2
+B	shuunou?	update	effect	update(store, key, f, opts) -> value	error,retry,idempotent	-	absent	replace a value with f(old); conflict if it moved	2
+B	shuunou?	swap	effect	swap(store, key, expected, new) -> Bool	error,idempotent	-	absent	set new only if the value equals expected	2
+B	shuunou?	increment	effect	increment(store, key, by) -> number	error,idempotent	pleme-redis	absent	add to a counter atomically and return it	2
+B	shuunou?	delete	effect	delete(store, key) -> nil	error,idempotent	pleme-redis	absent	make the key absent; absent counts as done	2
+B	shuunou?	list	effect	list(store, opts) -> [{key, value}]	error,deadline	-	absent	every entry under a prefix, all pages, sorted	2
+B	shuunou?	keys	effect	keys(store, opts) -> [key]	error,deadline	-	absent	every key under a prefix, sorted	2
+B	shuunou?	range	effect	range(store, from, to, opts) -> [{key, value}]	error,deadline	-	absent	entries between two keys in key order	3
+B	shuunou?	count	effect	count(store, opts) -> number	error,deadline	-	absent	how many keys lie under a prefix	2
+B	shuunou?	batch	effect	batch(store, ops) -> [result]	error,idempotent	-	absent	apply many writes atomically or none	3
+B	shuunou?	with_transaction	effect	with_transaction(store, f, opts) -> value	error,retry,resource	-	absent	run f against a consistent view; commit or abandon	3
+B	shuunou?	expire	effect	expire(store, key, ttl) -> nil	time,idempotent	pleme-redis	absent	make a key vanish after a duration	2
+B	shuunou?	ttl	effect	ttl(store, key) -> duration or nil	time	pleme-redis	absent	time left before a key vanishes, or nil	2
+B	shuunou?	watch	stream	watch(store, f, opts) -> nil	cancel,deadline	-	absent	call f per key change under a prefix	3
+B	shuunou?	query	effect	query(store, filter, opts) -> [doc]	error,deadline	-	absent	documents matching a filter record, sorted	3
+B	shuunou?	index	effect	index(store, field, opts) -> nil	error,idempotent	-	absent	declare a secondary index on a document field	3
+B	shuunou?	merge	effect	merge(store, key, patch) -> doc	error,idempotent	-	absent	deep-merge a patch into the stored document	3
+B	shuunou?	snapshot	effect	snapshot(store) -> view	resource	-	absent	a read-only view frozen at one moment	3
+B	shuunou?	export	stream	export(store, f, opts) -> count	error,cancel	-	absent	call f per entry for a full copy out	3
+B	shuunou?	import	effect	import(store, entries, opts) -> count	error,idempotent	-	absent	load many entries in bulk	3
+B	shuunou?	clear	effect	clear(store, prefix) -> count	error	-	absent	delete every key under a prefix	3
+B	shuunou?	info	effect	info(store) -> {keys, bytes, engine}	-	-	absent	size and engine facts of the store as a record	3
+B	shuunou?	compact	effect	compact(store) -> nil	cancel,resource	-	absent	reclaim space held by deleted entries	4
+B	sakuin	open	effect	open(spec) -> index	resource,config,capability	sakuin	absent	open or create a search index at a path or URL	2
+B	sakuin	close	effect	close(index) -> nil	resource	sakuin	absent	release the index and its writer lock	2
+B	sakuin	schema	decl	schema(fields) -> schema	validate	sakuin	absent	declare the fields of a document and how each is indexed	2
+B	sakuin	put	effect	put(index, id, doc) -> nil	error,idempotent	sakuin	absent	add or replace one document by id	2
+B	sakuin	delete	effect	delete(index, id) -> nil	error,idempotent	sakuin	absent	remove one document by id; absent counts as done	2
+B	sakuin	purge	effect	purge(index, query) -> count	error	sakuin	absent	remove every document matching a query	2
+B	sakuin	get	effect	get(index, id) -> doc or nil	error	-	absent	the stored document by id, or nil	2
+B	sakuin	has?	effect	has?(index, id) -> Bool	-	-	absent	whether a document with the id is indexed	2
+B	sakuin	commit	effect	commit(index) -> nil	error,resource	sakuin	absent	make pending writes visible to searches	2
+B	sakuin	query	effect	query(index, question, params) -> [hit]	error,deadline	codesearch	absent	hits for a structured question in the index language	2
+B	sakuin	search	effect	search(index, text, opts) -> {hits, total}	error,deadline,trace	sakuin	absent	ranked hits for free text, with filter, sort and page	2
+B	sakuin	parse	pure	parse(text, opts) -> question	validate	sakuin	absent	turn a query string into a structured question	2
+B	sakuin	suggest	effect	suggest(index, prefix, opts) -> [text]	deadline	-	absent	completions for a typed prefix	3
+B	sakuin	similar	effect	similar(index, subject, opts) -> [hit]	error,deadline	codesearch	absent	hits nearest to a document or vector	3
+B	sakuin	embed	effect	embed(text, opts) -> vector	error,deadline,retry,ratelimit	codesearch	absent	the vector a model gives a text	3
+B	sakuin	analyze	pure	analyze(text, opts) -> [token]	-	sakuin	absent	split text into index tokens: case, stems, stop words	2
+B	sakuin	fuse	pure	fuse(rankings, opts) -> [hit]	-	-	absent	merge several ranked lists by reciprocal rank	3
+B	sakuin	facet	effect	facet(index, query, field) -> [{value, count}]	deadline	-	absent	count hits per value of a field	3
+B	sakuin	highlight	pure	highlight(doc, question, opts) -> text	-	-	absent	the document text with matched terms marked	3
+B	sakuin	count	effect	count(index, query) -> number	deadline	-	absent	how many documents match a query	2
+B	sakuin	list	effect	list(index, opts) -> [id]	error	-	absent	document ids, sorted, all pages	3
+B	sakuin	reindex	effect	reindex(index, source, opts) -> count	error,cancel,migrate	sakuin	absent	rebuild the index from a source of documents	3
+B	sakuin	optimize	effect	optimize(index) -> nil	cancel,resource	-	absent	merge index segments to speed later searches	4
+B	sakuin	info	effect	info(index) -> {docs, bytes, schema}	-	codesearch	absent	size and schema facts of the index	3
+B	sakuin	invert	pure	invert(docs, opts) -> postings	-	-	absent	build an in-memory inverted index from documents	3
+B	sakuin	lookup	pure	lookup(postings, term) -> [id]	-	-	absent	the document ids holding a term in an in-memory index	3
+B	sakuin	score	pure	score(postings, terms, opts) -> [{id, score}]	-	-	absent	rank documents by BM25 over an in-memory index	3
+B	sakuin	distance	pure	distance(a, b, metric) -> number	-	-	absent	cosine, L2 or dot distance between two vectors	3
+B	sakuin	nearest	pure	nearest(vectors, q, k, opts) -> [{id, distance}]	-	-	absent	the k closest vectors to q by exact scan	3
+B	kyasshu?	open	effect	open(spec) -> cache	resource,config	almoxarifado	absent	make a cache with a size, policy and lifetime	1
+B	kyasshu?	get	effect	get(cache, key) -> value or nil	cache,time	pleme-redis	absent	the cached value, or nil when absent or expired	1
+B	kyasshu?	has?	effect	has?(cache, key) -> Bool	cache	-	absent	whether a live entry exists, counting no hit	1
+B	kyasshu?	put	effect	put(cache, key, value, opts) -> value	cache,time	pleme-redis	absent	store a value, evicting by policy when full	1
+B	kyasshu?	delete	effect	delete(cache, key) -> nil	cache,idempotent	pleme-redis	absent	drop one entry; absent counts as done	1
+B	kyasshu?	clear	effect	clear(cache) -> nil	cache	-	absent	drop every entry	1
+B	kyasshu?	fetch	effect	fetch(cache, key, f, opts) -> value	cache,error,deadline,idempotent	almoxarifado	absent	get, or compute with f once for concurrent callers and store	1
+B	kyasshu?	invalidate	effect	invalidate(cache, subject) -> count	cache,idempotent	-	absent	mark stale by key, prefix, tag or dependency	1
+B	kyasshu?	refresh	effect	refresh(cache, key, f) -> value	cache,error	-	absent	recompute one entry now, serving the old one meanwhile	2
+B	kyasshu?	renew	effect	renew(cache, key, ttl) -> nil	cache,time	-	absent	lengthen the life of an entry without changing its value	2
+B	kyasshu?	sweep	effect	sweep(cache) -> count	cache,time	-	absent	remove every expired entry now	2
+B	kyasshu?	fresh?	pure	fresh?(entry, now) -> Bool	cache,time	token-cache-go	absent	whether an entry is still inside its lifetime	1
+B	kyasshu?	key	pure	key(parts) -> text	cache	-	absent	one canonical cache key built from ordered parts	1
+B	kyasshu?	memoize	pure	memoize(f, opts) -> f	cache	-	absent	a function that remembers results by argument	1
+B	kyasshu?	warm	effect	warm(cache, source, keys) -> count	cache,cancel	-	absent	fill entries ahead of demand	3
+B	kyasshu?	tier	pure	tier(caches) -> cache	cache	-	absent	layer caches so a miss falls to the next and fills upward	2
+B	kyasshu?	flush	effect	flush(cache) -> count	cache,error	-	absent	push pending write-behind entries to the backing store	3
+B	kyasshu?	save	effect	save(cache, path) -> nil	cache,serialize	token-cache-go	absent	persist entries to disk so a restart keeps them	3
+B	kyasshu?	info	effect	info(cache) -> {hits, misses, evictions, size}	cache	-	absent	counters and size of the cache as a record	1
+B	nisshi	open	effect	open(spec, opts) -> log	resource,config,capability	tundra-events	partial:nisshi	open a stream of records by label, with its genesis hash	1
+B	nisshi	close	effect	close(log) -> nil	resource	-	absent	release the log and its writer	1
+B	nisshi	append	effect	append(log, event, opts) -> record	error,idempotent,serialize,time	tundra-events	partial:nisshi	add one event as a hash-chained record; conflict if seq moved	1
+B	nisshi	append_all	effect	append_all(log, events, opts) -> [record]	error,idempotent	-	absent	add many events atomically or none	2
+B	nisshi	read	effect	read(log, opts) -> [record]	error,deadline	-	partial:nisshi	records in order, filtered by entity, type and seq range	1
+B	nisshi	get	effect	get(log, seq) -> record or nil	error	-	absent	one record by sequence number, or nil	1
+B	nisshi	head	effect	head(log) -> {seq, hash}	error	-	absent	the latest sequence number and chain hash	1
+B	nisshi	stream	stream	stream(log, f, opts) -> nil	error,cancel,deadline	-	absent	call f per record from a sequence onward, then return	2
+B	nisshi	watch	stream	watch(log, f, opts) -> nil	cancel,deadline,time	-	absent	call f per new record as it lands until f says stop	2
+B	nisshi	verify?	effect	verify?(log) -> Bool	validate,serialize	-	exists:nisshi	whether every hash link and signature holds	0
+B	nisshi	first_break	effect	first_break(log) -> break or nil	validate	-	exists:nisshi	the first line where the chain fails, with why	0
+B	nisshi	replay	effect	replay(log, machine, opts) -> state	error,deadline	-	partial:nisshi	fold records through a lifecycle into its current state	1
+B	nisshi	project	effect	project(log, projection, opts) -> view	error,resume,cancel	-	absent	keep a read model current from the log, from a checkpoint	2
+B	nisshi	snapshot	effect	snapshot(log, state, opts) -> nil	serialize,idempotent	-	absent	save folded state at a sequence so replay can start there	2
+B	nisshi	checkpoint	effect	checkpoint(log, consumer, seq) -> nil	idempotent	-	absent	record how far a named consumer has read	2
+B	nisshi	offset	effect	offset(log, consumer) -> seq or nil	-	-	absent	where a named consumer last stopped	2
+B	nisshi	subscribe	stream	subscribe(log, consumer, f, opts) -> nil	cancel,retry,deadline	pleme-redis	absent	durable delivery to f from the consumer offset, at least once	2
+B	nisshi	publish	effect	publish(bus, topic, event, opts) -> nil	error,serialize,trace	pleme-redis	absent	send an event to the live readers of a topic	2
+B	nisshi	lag	effect	lag(log, consumer) -> number	time	-	absent	how many records a consumer is behind the head	2
+B	nisshi	truncate	effect	truncate(log, before) -> count	error,idempotent	-	absent	drop records older than a sequence under a retention rule	3
+B	nisshi	compact	effect	compact(log, keyer) -> count	error,idempotent	-	absent	keep only the latest record per key	3
+B	nisshi	rotate	effect	rotate(log) -> segment	resource	-	absent	close the current segment and start a new one	3
+B	nisshi	seal	effect	seal(log, segment) -> hash	validate,idempotent	-	absent	freeze a segment against further writes and hash it	3
+B	nisshi	upcast	pure	upcast(record, version) -> record	migrate,validate	-	absent	raise an old record to the current event shape	3
+B	nisshi	correlate	effect	correlate(log, id) -> [record]	trace	-	absent	every record linked to a correlation or cause id	2
+B	nisshi	merge	pure	merge(logs) -> [record]	time	-	absent	interleave several logs by time into one ordered list	3
+B	nisshi	diff	pure	diff(a, b) -> break or nil	-	-	absent	the first sequence where two logs disagree	3
+B	nisshi	capture	stream	capture(source, f, opts) -> nil	cancel,retry,resume,deadline	-	absent	turn a store changes into events, as change data capture	3
+B	nisshi	forget	effect	forget(log, subject) -> count	error,validate	-	absent	make one subject payloads unreadable while the chain holds	4
+B	nisshi	canon	pure	canon(value) -> text	serialize	-	exists:nisshi	the canonical JSON text of a value	0
+B	nisshi	genesis	pure	genesis(label) -> hash	serialize	-	exists:nisshi	the first hash of the stream named by a label	0
+B	nisshi	record	pure	record(fields) -> record	validate	-	exists:nisshi	build a record value with its body, links and status	0
+B	taiki?	open	effect	open(spec) -> queue	resource,config	pleme-redis	absent	connect to a durable queue by name	2
+B	taiki?	close	effect	close(queue) -> nil	resource	-	absent	release the queue handle	2
+B	taiki?	send	effect	send(queue, message, opts) -> id	error,idempotent,ratelimit,serialize	pleme-redis	absent	add a message, optionally delayed, keyed or prioritized	2
+B	taiki?	send_all	effect	send_all(queue, messages, opts) -> [id]	error,idempotent	-	absent	add many messages in one round trip	2
+B	taiki?	receive	effect	receive(queue, opts) -> [message]	error,deadline,resource	pleme-redis	absent	lease messages for a visibility time without removing them	2
+B	taiki?	ack	effect	ack(queue, message) -> nil	idempotent	pleme-redis	absent	finish a leased message and remove it	2
+B	taiki?	nack	effect	nack(queue, message, opts) -> nil	retry,idempotent	pleme-redis	absent	give a leased message back, optionally after a delay	2
+B	taiki?	renew	effect	renew(queue, message, by) -> nil	time,deadline	-	absent	lengthen the lease on a message being worked	2
+B	taiki?	peek	effect	peek(queue, n) -> [message]	-	-	absent	look at waiting messages without leasing them	2
+B	taiki?	get	effect	get(queue, id) -> message or nil	-	pleme-redis	absent	one message and its state by id, or nil	2
+B	taiki?	cancel	effect	cancel(queue, id) -> nil	cancel,idempotent	-	absent	remove a waiting message before anyone leases it	2
+B	taiki?	purge	effect	purge(queue) -> count	error	-	absent	delete every waiting message	3
+B	taiki?	dead	effect	dead(queue, opts) -> [message]	error	-	absent	messages that ran out of retries, with the last error	2
+B	taiki?	redrive	effect	redrive(queue, opts) -> count	error,idempotent	-	absent	move dead messages back to the live queue	3
+B	taiki?	work	effect	work(queue, f, opts) -> nil	retry,cancel,deadline,ratelimit,resource,log	pleme-redis	absent	run f per message with leases, retries and a concurrency limit	2
+B	taiki?	schedule	decl	schedule(queue, spec, message) -> decl	time,config	-	absent	declare a message sent on a repeating time rule	3
+B	taiki?	pause	effect	pause(queue) -> nil	switch,idempotent	-	absent	stop handing out messages while still accepting them	3
+B	taiki?	resume	effect	resume(queue) -> nil	switch,idempotent	-	absent	hand out messages again after a pause	3
+B	taiki?	drain	effect	drain(queue, opts) -> nil	deadline,cancel	-	absent	wait until the queue is empty and nothing is leased	3
+B	taiki?	info	effect	info(queue) -> {waiting, leased, dead, oldest}	time	pleme-redis	absent	depth and age counters of the queue as a record	2
+B	genbo?	open	effect	open(spec) -> cas	resource,config,capability	daicho	absent	open a content-addressed store on disk or an object store	2
+B	genbo?	put	effect	put(cas, bytes, opts) -> oid	error,idempotent,serialize	daicho	absent	store content under its own hash and return the id	2
+B	genbo?	get	effect	get(cas, oid) -> bytes or nil	error,validate	daicho	absent	content by id, checked against its hash, or nil	2
+B	genbo?	need	effect	need(cas, oid) -> bytes	error,validate	daicho	absent	content by id, raising not_found	2
+B	genbo?	has?	effect	has?(cas, oid) -> Bool	-	daicho	absent	whether an object id is stored	2
+B	genbo?	list	effect	list(cas, opts) -> [oid]	error	daicho	absent	stored object ids under a prefix, sorted	2
+B	genbo?	info	effect	info(cas, oid) -> {kind, size}	error	daicho	absent	the type and size of a stored object	2
+B	genbo?	delete	effect	delete(cas, oid) -> nil	error,idempotent	-	absent	remove one object; absent counts as done	3
+B	genbo?	address	pure	address(bytes, opts) -> oid	serialize	daicho	absent	the id content would get, without storing it	2
+B	genbo?	tree	effect	tree(cas, entries) -> oid	error,idempotent,serialize	daicho	absent	store a named set of child ids as one merkle node	2
+B	genbo?	entries	effect	entries(cas, oid) -> [{name, mode, oid}]	error	daicho	absent	the children of a tree object	2
+B	genbo?	import	effect	import(cas, path, opts) -> oid	error,capability,cancel	fudajiku	absent	store a directory or file and return its root id	2
+B	genbo?	export	effect	export(cas, oid, to, opts) -> [path]	error,capability,cancel	-	absent	write a stored tree out to a directory	2
+B	genbo?	walk	effect	walk(cas, oid) -> [oid]	error,cancel	daicho	absent	every object reachable from a root, each once	2
+B	genbo?	reachable	effect	reachable(cas, roots) -> set	error,cancel	daicho	absent	the set of ids reachable from several roots	3
+B	genbo?	gc	effect	gc(cas, roots, opts) -> {removed, freed}	error,cancel,resource	daicho	absent	delete objects no root reaches, after a dry plan	3
+B	genbo?	verify	effect	verify(cas) -> [oid]	validate,cancel	daicho	absent	the ids whose content no longer matches their hash	2
+B	genbo?	pack	effect	pack(cas, oids) -> bytes	serialize,error	daicho	absent	bundle objects into one transferable pack	3
+B	genbo?	unpack	effect	unpack(cas, bytes) -> [oid]	serialize,validate	daicho	absent	store every object in a pack after checking each hash	3
+B	genbo?	diff	effect	diff(cas, a, b) -> [change]	error	daicho	absent	the added, removed and changed paths between two trees	2
+B	genbo?	copy	effect	copy(from, to, roots) -> count	error,deadline,cancel,idempotent	daicho	absent	send the objects the target lacks for some roots	3
+B	genbo?	chunk	pure	chunk(bytes, opts) -> [bytes]	-	-	absent	split content at content-defined boundaries for deduplication	3
+B	rekishi?	commit	effect	commit(repo, snapshot, opts) -> oid	error,idempotent,time	daicho	absent	record a snapshot with parents, author and a message	2
+B	rekishi?	get	effect	get(repo, ref) -> commit or nil	error	daicho	absent	the commit a ref or id names, or nil	2
+B	rekishi?	read	effect	read(repo, ref, path) -> content	error	daicho	absent	the content of a path as it was at a ref	2
+B	rekishi?	log	effect	log(repo, opts) -> [commit]	error	daicho	absent	commits from a ref backward, optionally for a path	2
+B	rekishi?	ancestors	effect	ancestors(repo, oid) -> [oid]	error,cancel	daicho	absent	every commit that leads to this one	3
+B	rekishi?	base	effect	base(repo, a, b) -> oid or nil	error	daicho	absent	the newest common ancestor of two commits	2
+B	rekishi?	diff	effect	diff(repo, a, b, opts) -> [change]	error	daicho	absent	the changes between two commits or refs	2
+B	rekishi?	patch	pure	patch(value, changes) -> value	error	-	absent	apply change records to a value	2
+B	rekishi?	invert	pure	invert(changes) -> changes	-	-	absent	the changes that undo these changes	2
+B	rekishi?	three_way	pure	three_way(base, ours, theirs) -> {merged, conflicts}	-	-	absent	merge two edits of one base, marking overlaps	2
+B	rekishi?	merge	effect	merge(repo, a, b, opts) -> {oid, conflicts}	error,idempotent	daicho	absent	join two histories with a strategy; conflicts are data	2
+B	rekishi?	rebase	effect	rebase(repo, branch, onto) -> oid	error	-	absent	replay a branch commits on a new base	3
+B	rekishi?	pick	effect	pick(repo, oid, onto) -> oid	error	-	absent	replay one commit onto another line	3
+B	rekishi?	revert	effect	revert(repo, oid) -> oid	error	-	absent	add a commit that undoes an earlier one	3
+B	rekishi?	restore	effect	restore(repo, ref, to) -> nil	error,capability	-	absent	bring a past state back to a directory or store	2
+B	rekishi?	squash	effect	squash(repo, from, to, opts) -> oid	error	-	absent	fold a run of commits into one	3
+B	rekishi?	blame	effect	blame(repo, path) -> [{line, commit}]	error	-	absent	the commit that last changed each line	3
+B	rekishi?	bisect	effect	bisect(repo, good, bad, test) -> oid	error,cancel,deadline	-	absent	find the first commit where a test turns bad	3
+B	rekishi?	create	effect	create(repo, name, oid) -> oid	error,idempotent	galho	absent	add a branch or tag ref; exists if taken	2
+B	rekishi?	list	effect	list(repo, opts) -> [{name, oid}]	error	galho	absent	every ref, sorted	2
+B	rekishi?	update	effect	update(repo, name, f) -> oid	error,retry,idempotent	-	absent	move a ref with f(old) and refuse a concurrent move	2
+B	rekishi?	delete	effect	delete(repo, name) -> nil	error,idempotent	-	absent	remove a ref; absent counts as done	2
+B	yuugou?	counter	pure	counter(replica) -> crdt	-	-	absent	a grow and shrink counter owned by one replica	3
+B	yuugou?	register	pure	register(replica, value) -> crdt	-	-	absent	a single value where the latest write wins	3
+B	yuugou?	set	pure	set(replica) -> crdt	-	-	absent	a set where adds and removes both converge	3
+B	yuugou?	map	pure	map(replica) -> crdt	-	-	absent	a map of keys to crdt values	3
+B	yuugou?	text	pure	text(replica, initial) -> crdt	-	crdt-doc	absent	a sequence of characters edited by many replicas	3
+B	yuugou?	put	pure	put(crdt, key, value) -> crdt	-	-	absent	set a register or map key, returning the new state	3
+B	yuugou?	get	pure	get(crdt, key) -> value or nil	-	-	absent	read a register or map key from the merged state	3
+B	yuugou?	has?	pure	has?(crdt, x) -> Bool	-	-	absent	whether a set holds x or a map holds the key	3
+B	yuugou?	delete	pure	delete(crdt, x) -> crdt	-	-	absent	remove x from a set or map; later adds can win	3
+B	yuugou?	increment	pure	increment(crdt, by) -> crdt	-	-	absent	add to a counter, negative to subtract	3
+B	yuugou?	insert	pure	insert(crdt, pos, text) -> crdt	-	crdt-doc	absent	put text at a position in a text crdt	3
+B	yuugou?	erase	pure	erase(crdt, from, to) -> crdt	-	crdt-doc	absent	remove a range of a text crdt	3
+B	yuugou?	value	pure	value(crdt) -> plain	-	crdt-doc	absent	the ordinary value the state currently stands for	3
+B	yuugou?	merge	pure	merge(a, b) -> crdt	-	crdt-doc	absent	the join of two states: commutative, associative, idempotent	3
+B	yuugou?	diff	pure	diff(crdt, since) -> delta	-	crdt-doc	absent	only the updates a replica has not yet seen	3
+B	yuugou?	apply	pure	apply(crdt, delta) -> crdt	-	crdt-doc	absent	merge a delta received from another replica	3
+B	yuugou?	clock	pure	clock() -> vclock	time	-	absent	an empty version vector	3
+B	yuugou?	tick	pure	tick(vclock, replica) -> vclock	time	-	absent	advance one replica counter in a version vector	3
+B	yuugou?	compare	pure	compare(a, b) -> before, after, equal or concurrent	time	-	absent	the causal order of two version vectors	3
+B	yuugou?	concurrent?	pure	concurrent?(a, b) -> Bool	time	-	absent	whether neither version vector happened before the other	3
+B	yuugou?	converge	effect	converge(replicas, opts) -> crdt	deadline,retry,cancel	crdt-doc	absent	exchange deltas among replicas until all agree	4
+B	hozon?	plan	pure	plan(source, target, opts) -> [action]	validate,log	hozon	absent	what a backup would copy and prune, changing nothing	2
+B	hozon?	snapshot	effect	snapshot(source, opts) -> snap	error,resource,time,idempotent	hozon	absent	a consistent point-in-time copy of files, a volume or a database	2
+B	hozon?	backup	effect	backup(source, target, opts) -> manifest	error,retry,deadline,cancel,log,idempotent	hozon	absent	copy a snapshot to a target, hashed and optionally encrypted	2
+B	hozon?	restore	effect	restore(target, to, opts) -> manifest	error,deadline,cancel,log,validate	hozon	absent	bring a backup back, to a point in time when given	2
+B	hozon?	verify?	effect	verify?(target, opts) -> Bool	validate,deadline	hozon	absent	whether stored backups still match their manifest hashes	2
+B	hozon?	drill	effect	drill(target, opts) -> report	error,deadline,resource,log	pitr-forge	absent	restore into scratch space and prove the data is usable	3
+B	hozon?	list	effect	list(target, opts) -> [manifest]	error	hozon	absent	every backup at a target, newest first	2
+B	hozon?	info	effect	info(target, id) -> manifest	error	hozon	absent	the manifest of one backup: files, hashes, sizes, time	2
+B	hozon?	delete	effect	delete(target, id) -> nil	error,idempotent	-	absent	remove one backup; absent counts as done	3
+B	hozon?	prune	effect	prune(target, policy, opts) -> [id]	error,idempotent	-	absent	remove backups the retention policy no longer keeps	3
+B	hozon?	retain	decl	retain(rules) -> policy	validate,config	-	absent	declare how many daily, weekly and monthly backups to keep	3
+B	hozon?	schedule	decl	schedule(source, target, spec) -> decl	time,config	pitr-forge	absent	declare a backup on a repeating time rule	3
+B	hozon?	manifest	pure	manifest(entries) -> manifest	serialize	fudajiku	absent	the hashed list of files a backup holds	2
+B	hozon?	diff	pure	diff(a, b) -> [change]	-	fudajiku	absent	files added, removed or changed between two manifests	2
+B	hozon?	copy	effect	copy(from, to, opts) -> manifest	error,deadline,cancel,idempotent	-	absent	copy a backup from one target to another	3
+B	hozon?	mirror	effect	mirror(from, to, opts) -> [action]	error,retry,deadline,cancel,idempotent	-	absent	make the target match the source once, deleting extras on request	2
+B	hozon?	replicate	stream	replicate(from, to, opts) -> nil	error,retry,cancel,resume	-	absent	keep a target following a source continuously	3
+B	hozon?	lag	effect	lag(from, to) -> duration	time	-	absent	how far behind the source a replica is	3
+B	hozon?	promote	effect	promote(replica, opts) -> nil	error,switch	-	absent	make a replica the writable primary	4
+B	himitsu	read	effect	read(ref, opts) -> secret	error,capability,deadline,trace	cofre	absent	the value at a secret reference, wrapped so it cannot print	1
+B	himitsu	get	effect	get(store, key, opts) -> secret or nil	error,capability	cofre	absent	one secret from a store, or nil when absent	1
+B	himitsu	need	effect	need(store, key, opts) -> secret	error,capability	cofre	absent	one secret from a store, raising not_found	1
+B	himitsu	has?	effect	has?(store, key) -> Bool	capability	cofre	absent	whether a secret exists, revealing nothing	1
+B	himitsu	list	effect	list(store, opts) -> [key]	error,capability	cofre	absent	the secret names in a store, never their values	1
+B	himitsu	put	effect	put(store, key, secret, opts) -> nil	error,capability,idempotent	cofre	absent	create or replace a secret	1
+B	himitsu	create	effect	create(store, key, secret, opts) -> nil	error,capability,idempotent	cofre	absent	add a secret only if the name is free	2
+B	himitsu	delete	effect	delete(store, key) -> nil	error,capability,idempotent	cofre	absent	make the secret absent; absent counts as done	2
+B	himitsu	reveal	pure	reveal(secret) -> text	capability,log	-	absent	the one door from a secret to its plain text	1
+B	himitsu	ref	pure	ref(uri) -> secret-ref	validate	cofre	absent	a typed pointer to a secret in a named backend	1
+B	himitsu	rotate	effect	rotate(store, key, opts) -> secret	error,capability,retry,idempotent	cofre	absent	replace a secret with a fresh one under its policy	2
+B	himitsu	generate	effect	generate(policy) -> secret	capability	cofre	absent	a random secret of a stated length and alphabet	1
+B	himitsu	encrypt	pure	encrypt(data, key) -> bytes	error,capability	blackmatter-secrets	absent	seal data under a key so only the key reads it	2
+B	himitsu	decrypt	pure	decrypt(bytes, key) -> secret	error,capability	blackmatter-secrets	absent	open sealed data into a secret	2
+B	himitsu	rekey	effect	rekey(file, keys) -> nil	error,capability	blackmatter-secrets	absent	change which keys can open an encrypted file	3
+B	himitsu	versions	effect	versions(store, key) -> [version]	error,capability	cofre	absent	the stored versions of a secret, without values	3
+B	himitsu	lease	effect	lease(store, key, opts) -> lease	error,capability,time	-	absent	a short-lived credential issued on demand	3
+B	himitsu	renew	effect	renew(lease, by) -> lease	time,error	-	absent	lengthen the life of a lease	3
+B	himitsu	revoke	effect	revoke(lease) -> nil	error,idempotent	-	absent	end a lease or credential now	3
+B	himitsu	redact	pure	redact(text, secrets) -> text	log	-	absent	the text with every known secret value masked	1
+B	himitsu	scan	effect	scan(path, opts) -> [finding]	cancel,capability	-	absent	find secret-shaped values in files or history	3
+B	himitsu	plan	pure	plan(declared, store) -> [action]	validate	cofre	absent	the writes needed to make a store match its declaration	2
+B	himitsu	materialize	effect	materialize(plan, opts) -> report	error,capability,idempotent	cofre	absent	apply a plan so each declared secret exists in its backend	2
+B	himitsu	diff	effect	diff(declared, store) -> [change]	capability	cofre	absent	which declared secrets are missing, extra or stale	3
+B	settei	read	effect	read(app, defaults, opts) -> record	config,error,validate	shikumi	partial:settei	resolve defaults, then file, then environment into one record	0
+B	settei	get	pure	get(config, path) -> value or nil	config	shikumi	partial:settei	one setting by dotted path, or nil when absent	0
+B	settei	need	pure	need(config, path) -> value	config,error	shikumi	absent	one setting by dotted path, raising not_found	0
+B	settei	has?	pure	has?(config, path) -> Bool	config	shikumi	absent	whether a setting is defined	0
+B	settei	put	effect	put(app, tier, path, value) -> nil	config,error,idempotent	shikumi	absent	write one setting into a named tier file	2
+B	settei	explain	pure	explain(config, path) -> {value, tier, source}	config	shikumi	absent	which tier and file a setting value came from	1
+B	settei	list	pure	list(config, opts) -> [{path, value}]	config	shikumi	absent	every setting as a sorted path and value list	1
+B	settei	watch	stream	watch(app, f, opts) -> nil	config,cancel,time	shikumi	absent	call f with the new record whenever a tier changes	2
+B	settei	reload	effect	reload(app) -> record	config,error	shikumi	absent	read the tiers again and return the fresh record	2
+B	settei	validate	pure	validate(config, schema) -> [problem]	config,validate	shikumi	absent	check a record against a schema, naming each fault	1
+B	settei	schema	pure	schema(defaults) -> schema	config,validate	shikumi	absent	the schema a defaults record implies	1
+B	settei	diff	pure	diff(a, b) -> [change]	config	-	absent	the settings that differ between two records	1
+B	settei	merge	pure	merge(a, b) -> record	config	shikumi	partial:settei	combine two records, b winning, deep for maps	0
+B	settei	defaults	pure	defaults(app) -> record	config	shikumi	partial:settei	the built-in default record of an app	0
+B	settei	path	effect	path(app, tier) -> path	config,capability	okiba	partial:settei	where the config file of an app tier lives	0
+B	rokku?	open	effect	open(spec) -> locks	resource,config,capability	pleme-redis	absent	connect to a lock backend: file, database, Redis or cluster	2
+B	rokku?	acquire	effect	acquire(locks, name, opts) -> lease	error,deadline,retry,resource	pleme-redis	absent	take a named lock with a time limit, waiting up to wait	2
+B	rokku?	release	effect	release(lease) -> nil	resource,idempotent	pleme-redis	absent	give up a lock; already released counts as done	2
+B	rokku?	renew	effect	renew(lease, by) -> lease	time,error	pleme-redis	absent	lengthen the life of a lease before it lapses	2
+B	rokku?	revoke	effect	revoke(locks, name) -> nil	error,idempotent	-	absent	take a lock from its holder by force	3
+B	rokku?	holder	effect	holder(locks, name) -> {owner, since, expires} or nil	time	-	absent	who holds a lock now, or nil when free	2
+B	rokku?	held?	effect	held?(lease) -> Bool	time	-	absent	whether a lease is still valid	2
+B	rokku?	list	effect	list(locks, opts) -> [holder]	-	-	absent	every held lock under a prefix	3
+B	rokku?	with_lock	effect	with_lock(locks, name, f, opts) -> value	resource,cancel,error,deadline	pleme-redis	absent	run f while holding a lock, releasing on any exit	2
+B	rokku?	elect	effect	elect(locks, name, f, opts) -> nil	resource,cancel,switch,time	shinka	absent	run f only while this process is the leader	3
+B	rokku?	fence	pure	fence(lease) -> number	time	-	absent	the rising token a storage layer uses to reject stale holders	3
+B	rokku?	expired?	pure	expired?(lease, now) -> Bool	time	almoxarifado	absent	whether a lease has passed its end	2
+B	rokku?	barrier	effect	barrier(locks, name, n, opts) -> nil	deadline,cancel	-	absent	wait until n parties have arrived	4
+B	rokku?	close	effect	close(locks) -> nil	resource	-	absent	release the backend connection	2
+B	raifusaikuru	states	decl	states(names) -> decl	validate	pleme-state-machines	exists:raifusaikuru	declare the states of a lifecycle	0
+B	raifusaikuru	start	decl	start(state) -> decl	validate	-	exists:raifusaikuru	declare the state an instance begins in	0
+B	raifusaikuru	event	decl	event(name, fields) -> decl	validate	-	exists:raifusaikuru	declare an event type and its payload fields	0
+B	raifusaikuru	on	decl	on(state, event, to) -> decl	validate	pleme-state-machines	exists:raifusaikuru	declare a transition from a state on an event	0
+B	raifusaikuru	gate	decl	gate(transition, predicate) -> decl	validate	-	exists:raifusaikuru	declare a condition a transition must meet	0
+B	raifusaikuru	rule	decl	rule(name, predicate, task) -> decl	validate	-	exists:raifusaikuru	declare a guard that names the rule and the task	0
+B	raifusaikuru	permit	decl	permit(name, limit, window) -> decl	validate,ratelimit	-	exists:raifusaikuru	declare a count limit on a kind of event	0
+B	raifusaikuru	check	pure	check(definition) -> [problem]	validate	-	exists:raifusaikuru	find unreachable states, duplicates and bad guards	0
+B	raifusaikuru	admit	pure	admit(definition, state, event) -> verdict	validate	-	partial:raifusaikuru	whether an event is allowed in a state, with the refusal	0
+B	raifusaikuru	replay	pure	replay(definition, events) -> state	-	-	partial:raifusaikuru	fold events from the start into the current state	0
+B	raifusaikuru	render	pure	render(definition, format) -> text	serialize	-	absent	draw the machine as a diagram or table	2
+B	raifusaikuru	create	effect	create(engine, definition, input) -> instance	error,idempotent,trace	-	absent	start a persisted instance of a lifecycle	2
+B	raifusaikuru	get	effect	get(engine, id) -> instance or nil	error	-	absent	one instance with its state, or nil	2
+B	raifusaikuru	list	effect	list(engine, opts) -> [instance]	error	-	absent	instances filtered by state, sorted	2
+B	raifusaikuru	signal	effect	signal(engine, id, event, payload) -> state	error,idempotent,trace	-	absent	deliver an event to an instance and persist the result	2
+B	raifusaikuru	advance	effect	advance(engine, id) -> state	error,deadline,retry	-	absent	run an instance until it rests or ends	2
+B	raifusaikuru	wait	effect	wait(engine, id, opts) -> state	deadline,cancel	-	absent	block until an instance reaches a terminal state	2
+B	raifusaikuru	cancel	effect	cancel(engine, id, opts) -> state	cancel,idempotent	-	absent	end an instance and run its compensations	3
+B	raifusaikuru	timer	decl	timer(state, duration, event) -> decl	time,validate	-	absent	declare an event raised after a state lasts too long	3
+B	raifusaikuru	compensate	effect	compensate(engine, id) -> state	error,retry,idempotent	-	absent	undo completed steps in reverse order, as a saga	3
+B	raifusaikuru	resume	effect	resume(engine, opts) -> count	error,cancel	-	absent	continue every unfinished instance after a restart	3
+B	raifusaikuru	history	effect	history(engine, id) -> [record]	trace	-	absent	the event records an instance has seen	2
+B	shinsuu	to_base	pure	to_base(n, base) -> text	-	-	exists:shinsuu	write a number in a base	0
+B	shinsuu	from_base	pure	from_base(text, base) -> n	validate	-	exists:shinsuu	read a number written in a base	0
+B	shinsuu	checksum	pure	checksum(data, algorithm) -> n	validate	-	absent	a CRC or Adler checksum of bytes, algorithm named	1
+B	shinsuu	luhn?	pure	luhn?(n) -> Bool	validate	-	exists:shinsuu	whether a number passes the Luhn check	0
+B	shinsuu	to_bytes	pure	to_bytes(n, width, order) -> bytes	-	-	absent	an integer as fixed-width bytes, big or little endian	1
+B	shinsuu	from_bytes	pure	from_bytes(bytes, order) -> n	-	-	absent	an integer read from bytes of either byte order	1
+B	shinsuu	to_varint	pure	to_varint(n) -> bytes	-	-	absent	an integer in variable-length LEB128 bytes	2
+B	shinsuu	from_varint	pure	from_varint(bytes) -> {value, rest}	validate	-	absent	read one variable-length integer from the front of bytes	2
+B	shinsuu	popcount	pure	popcount(n) -> n	-	-	exists:shinsuu	how many bits are set in a number	0
+B	shinsuu	bit_at	pure	bit_at(n, i) -> 0 or 1	-	-	exists:shinsuu	the bit at a position	0
+B	shinsuu	align	pure	align(n, boundary) -> n	-	-	partial:shinsuu	round up to a multiple of a boundary	1
+B	shinsuu	to_size	pure	to_size(n) -> text	-	-	absent	bytes written as text such as 4.2 GiB	1
+B	shinsuu	from_size	pure	from_size(text) -> n	validate	-	absent	bytes read from text such as 10MiB	1
+B	shomei	hash	pure	hash(data, algorithm, opts) -> text	serialize	-	partial:shomei	a digest in lowercase hex; opts.key gives an HMAC	0
+B	shomei	hash_stream	stream	hash_stream(source, algorithm) -> text	error,cancel,deadline	-	absent	a digest of a file or stream without holding it whole	1
+B	shomei	hash?	pure	hash?(text) -> Bool	validate	-	partial:shomei	whether text has the shape of a digest	0
+B	shomei	equal?	pure	equal?(a, b) -> Bool	validate	-	absent	compare two secrets or digests in constant time	1
+B	shomei	sign	pure	sign(data, secret) -> text	error	-	partial:shomei	an Ed25519 signature in hex	0
+B	shomei	verify?	pure	verify?(data, signature, public) -> Bool	validate	-	partial:shomei	whether a signature is valid for the data	0
+B	shomei	keypair	pure	keypair(seed) -> {secret, public}	-	-	partial:shomei	the signing keys a seed gives	0
+B	shomei	random	effect	random(n) -> bytes	capability	-	absent	n bytes from the system entropy source	1
+B	shomei	derive	pure	derive(secret, salt, opts) -> bytes	error	-	absent	stretch a secret into a key with a salted KDF	3
+B	shomei	address	pure	address(bytes, opts) -> oid	serialize	daicho	absent	a self-describing content id: algorithm plus digest	2
+B	shomei	genesis	pure	genesis(label) -> hash	serialize	-	partial:shomei	the first hash of a chain, from a label	0
+B	shomei	link	pure	link(prev, payload) -> hash	serialize	-	partial:shomei	the hash that follows prev when payload is added	0
+B	shomei	head	pure	head(genesis, payloads) -> hash	serialize	-	partial:shomei	the chain hash after every payload is linked	0
+B	shomei	verify_chain	pure	verify_chain(genesis, payloads, head) -> Bool	validate	-	partial:shomei	whether the payloads reproduce the stated head	0
+B	shomei	first_break	pure	first_break(genesis, payloads, hashes) -> index or nil	validate	-	partial:shomei	the first stored hash the payloads do not reproduce	0
+B	shomei	root	pure	root(payloads) -> hash	serialize	cartorio	partial:shomei	the merkle root over payloads in order	0
+B	shomei	proof	pure	proof(payloads, index) -> [step]	serialize	cartorio	partial:shomei	the sibling path that shows a payload is in the tree	0
+B	shomei	verify_proof?	pure	verify_proof?(root, payload, proof) -> Bool	validate	cartorio	partial:shomei	whether a proof climbs from a payload to the root	0
+B	shomei	consistency	pure	consistency(old_n, new_n, payloads) -> [step]	serialize	-	absent	a proof that a larger tree extends a smaller one	3
+B	shomei	accumulate	pure	accumulate(acc, payload) -> acc	serialize	reduto	absent	add a leaf to a merkle accumulator without a rebuild	3

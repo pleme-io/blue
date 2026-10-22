@@ -1,0 +1,579 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+A	deeta	parse	pure	parse(text, format, opts) -> value	error,validate,serialize	tatara-lisp-script	partial:builtin	text to value; the format is an argument	1
+A	deeta	render	pure	render(value, format, opts) -> text	error,serialize	tatara-lisp-script	partial:deeta	value to stable canonical text	1
+A	deeta	read	effect	read(path, opts) -> value	error,serialize,capability	-	partial:deeta	file to value, format taken from the extension	1
+A	deeta	write	effect	write(path, value, opts) -> nil	error,serialize,idempotent,capability	-	absent	value to file atomically, format from extension	1
+A	deeta	detect	pure	detect(text, opts) -> format or nil	-	-	absent	guess the format of unlabelled text	2
+A	deeta	convert	pure	convert(text, from, to, opts) -> text	error,serialize	-	absent	reparse in one format, render in another	1
+A	deeta	canonical	pure	canonical(value, opts) -> text	serialize,idempotent	-	absent	one byte-exact form per value: sorted keys, no noise	1
+A	deeta	address	pure	address(value, algorithm) -> text	serialize	-	absent	hash of the canonical form: a content address	2
+A	deeta	get	pure	get(doc, path, opts) -> value or nil	-	-	exists:deeta	value at a dotted path, nil when absent	0
+A	deeta	need	pure	need(doc, path) -> value	error	-	partial:deeta	value at a path, raises not_found when absent	0
+A	deeta	has?	pure	has?(doc, path) -> Bool	-	-	partial:deeta	whether the path is present	0
+A	deeta	put	pure	put(doc, path, value) -> doc	-	-	absent	new doc with the value set at the path	1
+A	deeta	update	pure	update(doc, path, f) -> doc	error	-	absent	new doc with f applied at the path	1
+A	deeta	delete	pure	delete(doc, path) -> doc	-	-	absent	new doc with the path removed	1
+A	deeta	select	pure	select(doc, paths) -> doc	-	-	absent	keep only the listed paths	1
+A	deeta	query	pure	query(doc, expression) -> [value]	error	-	absent	jq-style expression over a document	3
+A	deeta	walk	pure	walk(doc, f) -> doc	-	-	absent	apply f to every node, children first	2
+A	deeta	paths	pure	paths(doc, opts) -> [path]	-	-	absent	every leaf path, sorted	2
+A	deeta	flatten	pure	flatten(doc, opts) -> record	-	-	absent	nested doc to one level of dotted keys	2
+A	deeta	unflatten	pure	unflatten(record, opts) -> doc	error	-	absent	dotted keys back to a nested doc	2
+A	deeta	merge	pure	merge(a, b, opts) -> doc	error	-	absent	combine two docs deeply; b wins	1
+A	deeta	diff	pure	diff(a, b, opts) -> [change]	-	-	partial:deeta	structural changes between two docs	1
+A	deeta	patch	pure	patch(doc, changes) -> doc	error,idempotent	-	absent	apply change records (RFC 6902 JSON Patch)	2
+A	deeta	stream	stream	stream(source, format, f, opts) -> count	error,cancel,resource	-	absent	call f per record of NDJSON, CSV or a JSON array	2
+A	deeta	encode	pure	encode(bytes, encoding) -> text	serialize	tatara-lisp-script	exists:builtin	bytes to base64, base64url, hex or url text	1
+A	deeta	decode	pure	decode(text, encoding) -> bytes	error	tatara-lisp-script	exists:builtin	text in an encoding back to bytes	1
+A	deeta	pack	pure	pack(value, format, opts) -> bytes	serialize	bencode	absent	value to a binary format: cbor, msgpack, bencode	3
+A	deeta	unpack	pure	unpack(bytes, format, opts) -> value	error,validate	bencode	absent	binary format back to a value	3
+A	jisho	get	pure	get(map, key, opts) -> value or nil	-	-	partial:deeta	value at key, nil when absent	0
+A	jisho	need	pure	need(map, key) -> value	error	-	absent	value at key, raises not_found when absent	0
+A	jisho	has?	pure	has?(map, key) -> Bool	-	-	absent	whether the key is present	0
+A	jisho	put	pure	put(map, key, value) -> map	-	-	absent	new map with key set	0
+A	jisho	delete	pure	delete(map, key) -> map	-	-	absent	new map without the key	0
+A	jisho	update	pure	update(map, key, f) -> map	error	-	absent	new map with f applied to the value at key	0
+A	jisho	merge	pure	merge(a, b, opts) -> map	-	-	absent	new map from a and b; b wins	0
+A	jisho	select	pure	select(map, keys) -> map	-	-	absent	keep only the listed keys	0
+A	jisho	omit	pure	omit(map, keys) -> map	-	-	absent	drop the listed keys	1
+A	jisho	keys	pure	keys(map) -> [key]	-	-	absent	keys in sorted order	0
+A	jisho	values	pure	values(map) -> [value]	-	-	absent	values in key order	0
+A	jisho	entries	pure	entries(map) -> [pair]	-	-	absent	key and value pairs in key order	0
+A	jisho	from_entries	pure	from_entries(pairs) -> map	error	-	absent	map built from key and value pairs	0
+A	jisho	rename	pure	rename(map, from, to) -> map	-	-	absent	new map with one key renamed	1
+A	jisho	map_values	pure	map_values(map, f) -> map	-	-	absent	apply f to every value	1
+A	jisho	map_keys	pure	map_keys(map, f) -> map	error	-	absent	apply f to every key	1
+A	jisho	filter	pure	filter(map, f) -> map	-	-	absent	keep entries where f(key, value) holds	1
+A	jisho	invert	pure	invert(map) -> map	error	-	absent	swap keys and values	2
+A	jisho	size	pure	size(map) -> int	-	-	absent	number of entries	0
+A	jisho	empty?	pure	empty?(map) -> Bool	-	-	absent	whether the map has no entries	0
+A	jikan	now	effect	now() -> instant	time,capability	tatara-lisp-script	exists:builtin	the current instant	0
+A	jikan	today	effect	today(opts) -> date	time,capability	-	absent	the current calendar date in a zone	1
+A	jikan	sleep	effect	sleep(duration) -> nil	time,cancel,deadline	tatara-lisp-script	exists:builtin	pause for a duration	0
+A	jikan	since	effect	since(instant) -> duration	time,capability	tatara-lisp-script	exists:builtin	duration from an instant to now	0
+A	jikan	until	effect	until(instant) -> duration	time,capability	-	absent	duration from now to an instant	1
+A	jikan	measure	effect	measure(f) -> record	time,trace,log	-	absent	run f; return its value and how long it took	1
+A	jikan	instant	pure	instant(unix_seconds, opts) -> instant	time	-	absent	build an instant from unix seconds	1
+A	jikan	unix_seconds	pure	unix_seconds(instant) -> int	time	-	absent	seconds since the unix epoch	1
+A	jikan	add	pure	add(instant, duration) -> instant	time	-	partial:hizuke	instant moved by a duration; negative goes back	1
+A	jikan	between	pure	between(a, b) -> duration	time	-	partial:hizuke	duration from a to b	1
+A	jikan	compare	pure	compare(a, b) -> int	time	-	partial:hizuke	order two instants as -1, 0 or 1	1
+A	jikan	before?	pure	before?(a, b) -> Bool	time	-	absent	whether a is earlier than b	1
+A	jikan	after?	pure	after?(a, b) -> Bool	time	-	absent	whether a is later than b	1
+A	jikan	parse	pure	parse(text, format, opts) -> instant	error,time	-	absent	text to instant: rfc3339, date, human, pattern	1
+A	jikan	render	pure	render(value, format, opts) -> text	time,serialize	-	partial:hizuke	instant or duration to text	1
+A	jikan	milliseconds	pure	milliseconds(n) -> duration	time	-	absent	duration of n milliseconds	1
+A	jikan	seconds	pure	seconds(n) -> duration	time	-	absent	duration of n seconds	1
+A	jikan	minutes	pure	minutes(n) -> duration	time	-	absent	duration of n minutes	1
+A	jikan	hours	pure	hours(n) -> duration	time	-	absent	duration of n hours	1
+A	jikan	days	pure	days(n) -> duration	time	-	absent	duration of n days of 24 hours	1
+A	jikan	weeks	pure	weeks(n) -> duration	time	-	absent	duration of n weeks of 7 days	1
+A	jikan	months	pure	months(n) -> span	time	-	partial:hizuke	calendar span; add respects month lengths	1
+A	jikan	years	pure	years(n) -> span	time	-	partial:hizuke	calendar span; add respects leap years	1
+A	jikan	scale	pure	scale(duration, factor) -> duration	time	-	absent	duration multiplied by a number	1
+A	jikan	total	pure	total(duration, unit) -> number	time	-	absent	duration expressed in one unit	1
+A	jikan	year	pure	year(instant) -> int	time	-	partial:hizuke	calendar year of an instant	1
+A	jikan	month	pure	month(instant) -> int	time	-	partial:hizuke	calendar month, 1 to 12	1
+A	jikan	day	pure	day(instant) -> int	time	-	partial:hizuke	day of the month	1
+A	jikan	weekday	pure	weekday(instant) -> symbol	time	-	partial:hizuke	day of the week as a name	1
+A	jikan	hour	pure	hour(instant) -> int	time	-	absent	hour of the day in the instant's zone	1
+A	jikan	minute	pure	minute(instant) -> int	time	-	absent	minute of the hour	1
+A	jikan	second	pure	second(instant) -> int	time	-	absent	second of the minute	1
+A	jikan	zone	pure	zone(instant) -> name	time	-	absent	name of the zone an instant is shown in	2
+A	jikan	in_zone	pure	in_zone(instant, name) -> instant	error,time	-	absent	same moment shown in another zone	2
+A	jikan	offset	pure	offset(name, instant) -> seconds	error,time	-	absent	zone offset from UTC at that moment	2
+A	jikan	zones	pure	zones() -> [name]	time	-	absent	every zone name the tz database knows	3
+A	jikan	start_of	pure	start_of(instant, unit) -> instant	time	-	absent	first moment of the day, week, month or year	2
+A	jikan	end_of	pure	end_of(instant, unit) -> instant	time	-	absent	last moment of the day, week, month or year	2
+A	jikan	round	pure	round(instant, unit) -> instant	time	-	absent	nearest whole minute, hour or day	2
+A	jikan	schedule	decl	schedule(spec) -> schedule	validate,time	lava-cron	absent	declare a cron, RRULE or every-duration schedule	2
+A	jikan	next	pure	next(schedule, after) -> instant or nil	time	-	absent	first occurrence strictly after an instant	2
+A	jikan	occurrences	pure	occurrences(schedule, range) -> [instant]	time	-	absent	every occurrence inside a range, sorted	2
+A	jikan	due?	pure	due?(schedule, last, now) -> Bool	time	-	absent	whether an occurrence fell between last and now	2
+A	hizuke	leap?	pure	leap?(year) -> Bool	-	-	exists:hizuke	whether the year has 366 days	0
+A	hizuke	days_in	pure	days_in(year, month) -> int	-	-	exists:hizuke	days in a month	0
+A	hizuke	weekday_of	pure	weekday_of(date) -> symbol	-	-	exists:hizuke	day of the week of a date	0
+A	hizuke	weekend?	pure	weekend?(date) -> Bool	-	-	exists:hizuke	whether the date is Saturday or Sunday	0
+A	hizuke	business_day?	pure	business_day?(date, calendar) -> Bool	-	-	exists:hizuke	whether work happens on the date	0
+A	hizuke	add_business_days	pure	add_business_days(date, n, calendar) -> date	-	-	partial:hizuke	date moved by n working days	1
+A	hizuke	business_days_between	pure	business_days_between(a, b, calendar) -> int	-	-	exists:hizuke	working days from a to b	0
+A	hizuke	iso_week	pure	iso_week(date) -> record	-	-	exists:hizuke	ISO week number and week year	0
+A	hizuke	quarter	pure	quarter(date) -> int	-	-	exists:hizuke	calendar quarter, 1 to 4	0
+A	hizuke	nth_weekday	pure	nth_weekday(year, month, weekday, n) -> date	-	-	exists:hizuke	the n-th given weekday of a month	0
+A	hizuke	easter	pure	easter(year) -> date	-	-	exists:hizuke	date of Western Easter	0
+A	hizuke	holidays	pure	holidays(calendar, year) -> [date]	-	-	absent	public holidays of a calendar for a year	3
+A	hizuke	holiday?	pure	holiday?(date, calendar) -> Bool	-	-	absent	whether the date is a public holiday	3
+A	hizuke	fiscal_year	pure	fiscal_year(date, start_month) -> int	-	-	absent	fiscal year a date belongs to	2
+A	hani?	range	pure	range(low, high, opts) -> range	error	-	absent	build a range; ends open or closed	2
+A	hani?	contains?	pure	contains?(range, x) -> Bool	-	-	absent	whether a point or range lies inside	2
+A	hani?	overlaps?	pure	overlaps?(a, b) -> Bool	-	-	absent	whether two ranges share a point	2
+A	hani?	touches?	pure	touches?(a, b) -> Bool	-	-	absent	whether two ranges overlap or meet end to end	2
+A	hani?	intersect	pure	intersect(a, b) -> range or nil	-	-	absent	the shared part of two ranges	2
+A	hani?	hull	pure	hull(a, b) -> range	-	-	absent	smallest range holding both	2
+A	hani?	merge	pure	merge(ranges) -> [range]	-	-	absent	join overlapping ranges into disjoint ones	2
+A	hani?	gaps	pure	gaps(ranges, within) -> [range]	-	-	absent	parts of a range that no range covers	2
+A	hani?	split	pure	split(range, at) -> [range]	-	-	absent	cut a range at a point	2
+A	hani?	length	pure	length(range) -> number	-	-	absent	distance from low to high	2
+A	hani?	shift	pure	shift(range, by) -> range	-	-	absent	move both ends by the same amount	2
+A	hani?	clamp	pure	clamp(x, range) -> value	-	-	partial:kazu	nearest point inside a range	2
+A	hizuke	year_of	pure	year_of(date) -> int	-	-	exists:hizuke	calendar year of a date	0
+A	hizuke	month_of	pure	month_of(date) -> int	-	-	exists:hizuke	calendar month of a date	0
+A	hizuke	day_of	pure	day_of(date) -> int	-	-	exists:hizuke	day of the month of a date	0
+A	moji	pattern	pure	pattern(text, opts) -> pattern	error,validate	tatara-lisp-script	exists:builtin	compile a regex into a reusable value	1
+A	moji	find	pure	find(text, pattern, opts) -> match or nil	-	tatara-lisp-script	exists:builtin	first match with start and groups, else nil	1
+A	moji	find_all	pure	find_all(text, pattern, opts) -> [match]	-	tatara-lisp-script	exists:builtin	every non-overlapping match	1
+A	moji	matches?	pure	matches?(text, pattern) -> Bool	-	tatara-lisp-script	exists:builtin	whether the pattern matches the whole text	1
+A	moji	replace	pure	replace(text, pattern, with, opts) -> text	-	tatara-lisp-script	exists:builtin	replace matches by text or by f(match)	1
+A	moji	split	pure	split(text, pattern, opts) -> [text]	-	tatara-lisp-script	exists:builtin	cut text at each match	1
+A	moji	contains?	pure	contains?(text, needle) -> Bool	-	-	exists:moji	whether a string or pattern occurs in the text	0
+A	moji	starts_with?	pure	starts_with?(text, prefix) -> Bool	-	-	exists:moji	whether the text begins with the prefix	0
+A	moji	ends_with?	pure	ends_with?(text, suffix) -> Bool	-	-	exists:moji	whether the text ends with the suffix	0
+A	moji	trim	pure	trim(text, opts) -> text	-	-	partial:moji	drop space from both ends	0
+A	moji	upper	pure	upper(text) -> text	-	tatara-lisp-script	exists:builtin	every letter in upper case	0
+A	moji	lower	pure	lower(text) -> text	-	-	absent	every letter in lower case	0
+A	moji	casefold	pure	casefold(text) -> text	-	-	absent	caseless-comparison form of the text	2
+A	moji	case	pure	case(text, style) -> text	-	-	partial:moji	convert to snake, kebab, camel, pascal or title case	1
+A	moji	slug	pure	slug(text, opts) -> text	-	tatara-lisp-script	exists:builtin	lowercase ASCII words joined by hyphens	1
+A	moji	join	pure	join(list, separator) -> text	-	tatara-lisp-script	exists:builtin	list of text joined with a separator	0
+A	moji	lines	pure	lines(text) -> [text]	-	-	exists:moji	text cut at line ends	0
+A	moji	words	pure	words(text) -> [text]	-	-	exists:moji	text cut at runs of space	0
+A	moji	chars	pure	chars(text) -> [char]	-	tatara-lisp-script	exists:builtin	the code points of the text	0
+A	moji	graphemes	pure	graphemes(text) -> [text]	-	-	absent	the user-perceived characters of the text	3
+A	moji	bytes	pure	bytes(text, opts) -> bytes	-	tatara-lisp-script	exists:builtin	the UTF-8 bytes of the text	1
+A	moji	from_bytes	pure	from_bytes(bytes, opts) -> text	error	-	absent	UTF-8 bytes to text; invalid bytes raise	1
+A	moji	normalize	pure	normalize(text, form) -> text	-	-	absent	Unicode form NFC, NFD, NFKC or NFKD	3
+A	moji	width	pure	width(text) -> int	-	caixa-unicode-width	absent	terminal columns the text takes	3
+A	moji	size	pure	size(text) -> int	-	-	absent	number of code points	0
+A	moji	pad	pure	pad(text, width, opts) -> text	-	-	exists:moji	extend text to a width on a chosen side	0
+A	moji	truncate	pure	truncate(text, width, opts) -> text	-	-	partial:moji	cut text to a width with an ellipsis	0
+A	moji	wrap	pure	wrap(text, width) -> [text]	-	-	exists:moji	break text into lines of at most a width	0
+A	moji	indent	pure	indent(text, prefix) -> text	-	-	absent	prefix every line	1
+A	moji	dedent	pure	dedent(text) -> text	-	-	absent	remove the common leading space of all lines	1
+A	moji	repeat	pure	repeat(text, n) -> text	-	tatara-lisp-script	exists:moji	text repeated n times	0
+A	moji	reverse	pure	reverse(text) -> text	-	tatara-lisp-script	absent	code points in reverse order	1
+A	moji	count	pure	count(text, needle) -> int	-	-	exists:moji	number of non-overlapping occurrences	0
+A	moji	escape	pure	escape(text, target) -> text	-	-	absent	make text safe for regex, shell, html, json or sql	1
+A	moji	unescape	pure	unescape(text, target) -> text	error	-	absent	undo escape for the same target	1
+A	moji	distance	pure	distance(a, b, opts) -> number	-	-	absent	edit distance: levenshtein, damerau, hamming	2
+A	moji	similarity	pure	similarity(a, b, opts) -> number	-	-	absent	likeness from 0 to 1 by a chosen metric	2
+A	moji	closest	pure	closest(text, candidates, opts) -> text or nil	-	-	absent	candidate nearest to the text, for did-you-mean	2
+A	moji	tokenize	pure	tokenize(text, opts) -> [token]	-	-	absent	text to words or sentences with offsets	3
+A	moji	transliterate	pure	transliterate(text, script) -> text	-	-	absent	text in another script, or folded to ASCII	3
+A	moji	compare	pure	compare(a, b, opts) -> int	-	-	partial:moji	order two texts; a locale option sorts by language	1
+A	moji	template	pure	template(text, opts) -> template	error,validate	-	absent	compile text with named slots into a template	2
+A	moji	fill	pure	fill(template, data, opts) -> text	error	-	absent	put data into the slots of a template	2
+A	moji	slots	pure	slots(template) -> [name]	-	-	absent	slot names a template uses	2
+A	kokusai?	locale	pure	locale(tag) -> locale	error,validate	-	absent	parse a BCP 47 language tag	3
+A	kokusai?	negotiate	pure	negotiate(wanted, available) -> locale	-	-	absent	best available locale for an Accept-Language list	3
+A	kokusai?	catalog	decl	catalog(entries) -> catalog	validate	pleme-i18n	absent	declare message texts per locale	3
+A	kokusai?	translate	pure	translate(catalog, key, args, opts) -> text	error	pleme-i18n	absent	message for a key in a locale, with fallbacks	3
+A	kokusai?	plural	pure	plural(locale, n) -> symbol	-	-	absent	CLDR plural category of a number	3
+A	kokusai?	number	pure	number(locale, n, opts) -> text	-	-	absent	number shown by a locale's conventions	3
+A	kokusai?	currency	pure	currency(locale, amount, code) -> text	-	-	absent	money shown by a locale's conventions	3
+A	kokusai?	date	pure	date(locale, value, opts) -> text	time	-	absent	date or instant shown by a locale's conventions	3
+A	kokusai?	relative	pure	relative(locale, duration) -> text	time	-	absent	a duration as "3 days ago" in a locale	3
+A	kokusai?	list	pure	list(locale, items) -> text	-	-	absent	items joined as "a, b and c" in a locale	3
+A	kokusai?	collate	pure	collate(locale, a, b) -> int	-	-	absent	order two texts by a locale's alphabet	3
+A	kokusai?	direction	pure	direction(locale) -> symbol	-	-	absent	text direction: left-to-right or right-to-left	3
+A	kokusai?	coverage	pure	coverage(catalog, locales) -> record	validate	namimado	absent	keys each locale lacks	3
+A	kokusai?	extract	pure	extract(source, opts) -> [key]	-	-	absent	message keys used by a source tree	4
+A	bunpou?	grammar	decl	grammar(rules) -> grammar	validate	-	absent	declare lexer and parser rules as data	2
+A	bunpou?	lexer	decl	lexer(tokens) -> lexer	validate	-	absent	declare token kinds by pattern	2
+A	bunpou?	lex	pure	lex(text, lexer) -> [token]	error	-	absent	text to tokens with spans	2
+A	bunpou?	parse	pure	parse(text, grammar, opts) -> tree	error	-	absent	text to a tree; failure names line and column	2
+A	bunpou?	render	pure	render(tree, grammar) -> text	error	-	absent	tree back to text by the same grammar	3
+A	bunpou?	matches?	pure	matches?(text, grammar) -> Bool	-	-	absent	whether the text is in the grammar's language	2
+A	bunpou?	find_all	pure	find_all(text, rule) -> [match]	-	-	absent	every place a rule matches in the text	3
+A	bunpou?	spans	pure	spans(text, grammar) -> [span]	-	-	absent	token or node kinds with offsets for highlighting	3
+A	bunpou?	expected	pure	expected(text, grammar, at) -> [token]	-	-	absent	tokens that could come next at a position	4
+A	bunpou?	explain	pure	explain(error) -> text	-	-	absent	why a parse failed, with the nearest rule	3
+A	bunpou?	check	pure	check(grammar) -> nil	error,validate	-	absent	refuse left recursion, ambiguity and unused rules	3
+A	bunpou?	generate	pure	generate(grammar, seed, opts) -> text	-	-	absent	a sentence of the language, for fuzzing	4
+A	sabun?	diff	pure	diff(a, b, opts) -> [hunk]	-	-	absent	changes between two texts or lists	1
+A	sabun?	patch	pure	patch(a, hunks, opts) -> value	error,idempotent	-	absent	apply hunks; a mismatch raises conflict	1
+A	sabun?	unify	pure	unify(hunks, opts) -> text	serialize	-	absent	hunks as unified diff text	1
+A	sabun?	parse	pure	parse(text) -> [hunk]	error	-	absent	unified diff text to hunks	1
+A	sabun?	merge3	pure	merge3(base, ours, theirs, opts) -> record	error	-	absent	three-way merge with the conflicts listed	2
+A	sabun?	invert	pure	invert(hunks) -> [hunk]	-	-	absent	hunks that undo the given hunks	2
+A	sabun?	compose	pure	compose(first, second) -> [hunk]	-	-	absent	one set of hunks equal to two in order	3
+A	sabun?	stat	pure	stat(hunks) -> record	-	-	absent	lines added, removed and changed	1
+A	sabun?	align	pure	align(a, b, opts) -> [pair]	-	-	absent	pair up matching items of two sequences	3
+A	sabun?	lcs	pure	lcs(a, b) -> list	-	-	absent	longest common subsequence	2
+A	katachi?	schema	decl	schema(name, shape) -> schema	validate	-	absent	declare a named type as data	2
+A	katachi?	record	decl	record(fields) -> shape	validate	-	absent	shape of a record with named typed fields	2
+A	katachi?	enum_of	decl	enum_of(values) -> shape	validate	-	absent	shape of one value from a closed set	2
+A	katachi?	list_of	decl	list_of(shape) -> shape	validate	-	absent	shape of a list of one shape	2
+A	katachi?	map_of	decl	map_of(key, value) -> shape	validate	-	absent	shape of a map with typed keys and values	2
+A	katachi?	one_of	decl	one_of(shapes) -> shape	validate	-	absent	shape of a value matching any listed shape	2
+A	katachi?	optional	decl	optional(shape) -> shape	validate	-	absent	shape that also accepts nil	2
+A	katachi?	refine	decl	refine(shape, predicate, why) -> shape	validate	-	absent	shape narrowed by a predicate with a reason	2
+A	katachi?	validate	pure	validate(value, schema) -> value	error,validate	-	absent	return the value or raise every problem at once	2
+A	katachi?	conforms?	pure	conforms?(value, schema) -> Bool	validate	-	absent	whether the value matches the schema	2
+A	katachi?	explain	pure	explain(value, schema) -> [problem]	validate	-	absent	every problem as path and reason	2
+A	katachi?	coerce	pure	coerce(value, schema) -> value	error,validate	-	absent	convert text and numbers to the schema's types	2
+A	katachi?	defaults	pure	defaults(schema) -> value	-	-	absent	a value filled with every declared default	2
+A	katachi?	infer	pure	infer(values, opts) -> schema	-	-	absent	schema that fits a set of example values	3
+A	katachi?	fields	pure	fields(schema) -> [field]	-	-	absent	name, shape and default of each field	2
+A	katachi?	describe	pure	describe(schema) -> text	-	-	absent	schema in prose for a human	3
+A	katachi?	render	pure	render(schema, format) -> text	serialize	haibi	partial:haibi	schema as JSON Schema text	2
+A	katachi?	parse	pure	parse(text, format) -> schema	error	-	absent	JSON Schema text to a schema	3
+A	katachi?	diff	pure	diff(old, new) -> [change]	-	-	absent	how two schemas differ, field by field	3
+A	katachi?	compatible?	pure	compatible?(old, new, direction) -> Bool	migrate	-	absent	whether data moves between versions safely	3
+A	katachi?	example	pure	example(schema, seed) -> value	-	-	absent	a valid value generated from the schema	3
+A	retsu	size	pure	size(list) -> int	-	-	exists:retsu	number of items	0
+A	retsu	empty?	pure	empty?(list) -> Bool	-	-	exists:retsu	whether the list has no items	0
+A	retsu	first	pure	first(list) -> item or nil	-	-	exists:retsu	first item, nil when empty	0
+A	retsu	last	pure	last(list) -> item or nil	-	-	exists:retsu	last item, nil when empty	0
+A	retsu	rest	pure	rest(list) -> list	-	-	exists:retsu	every item after the first	0
+A	retsu	at	pure	at(list, index) -> item or nil	-	tatara-lisp-script	partial:retsu	item at an index; negative counts from the end	0
+A	retsu	take	pure	take(list, n) -> list	-	tatara-lisp-script	exists:retsu	the first n items	0
+A	retsu	drop	pure	drop(list, n) -> list	-	tatara-lisp-script	exists:retsu	all but the first n items	0
+A	retsu	slice	pure	slice(list, from, to) -> list	-	-	exists:retsu	items from an index up to another	0
+A	retsu	append	pure	append(list, item) -> list	-	-	partial:retsu	new list with an item at the end	0
+A	retsu	prepend	pure	prepend(list, item) -> list	-	-	absent	new list with an item at the front	0
+A	retsu	concat	pure	concat(lists) -> list	-	tatara-lisp-script	exists:retsu	lists joined end to end	0
+A	retsu	insert	pure	insert(list, index, item) -> list	-	-	exists:retsu	new list with an item placed at an index	0
+A	retsu	remove	pure	remove(list, index) -> list	-	-	exists:retsu	new list without the item at an index	0
+A	retsu	update	pure	update(list, index, f) -> list	error	-	exists:retsu	new list with f applied at an index	0
+A	retsu	reverse	pure	reverse(list) -> list	-	-	absent	items in opposite order	0
+A	retsu	rotate	pure	rotate(list, n) -> list	-	-	exists:retsu	items moved n places, wrapping around	0
+A	retsu	map	pure	map(list, f) -> list	-	-	exists:builtin	apply f to each item	0
+A	retsu	filter	pure	filter(list, f) -> list	-	-	exists:builtin	items where f holds	0
+A	retsu	reject	pure	reject(list, f) -> list	-	-	exists:retsu	items where f does not hold	0
+A	retsu	reduce	pure	reduce(list, start, f) -> value	-	-	exists:builtin	fold items into one value	0
+A	retsu	scan	pure	scan(list, start, f) -> list	-	-	exists:retsu	every running result of a fold	0
+A	retsu	find	pure	find(list, f) -> item or nil	-	-	exists:retsu	first item where f holds	0
+A	retsu	index_of	pure	index_of(list, item) -> int or nil	-	-	exists:retsu	index of the first equal item	0
+A	retsu	contains?	pure	contains?(list, item) -> Bool	-	-	exists:retsu	whether an equal item is in the list	0
+A	retsu	count	pure	count(list, f) -> int	-	-	exists:retsu	number of items where f holds	0
+A	retsu	each	effect	each(list, f) -> nil	-	-	exists:builtin	call f on each item for its effect	0
+A	retsu	zip	pure	zip(a, b) -> [pair]	-	tatara-lisp-script	exists:retsu	items of two lists paired by position	0
+A	retsu	unzip	pure	unzip(pairs) -> record	-	-	exists:retsu	a list of pairs split into two lists	0
+A	retsu	flatten	pure	flatten(list, depth) -> list	-	tatara-lisp-script	exists:retsu	nested lists to one level	0
+A	retsu	flat_map	pure	flat_map(list, f) -> list	-	-	exists:retsu	map then flatten one level	0
+A	retsu	chunk	pure	chunk(list, n) -> [list]	-	-	exists:retsu	consecutive groups of n items	0
+A	retsu	windows	pure	windows(list, n) -> [list]	-	-	exists:retsu	every run of n adjacent items	0
+A	retsu	partition	pure	partition(list, f) -> record	-	-	exists:retsu	items split by whether f holds	0
+A	retsu	group_by	pure	group_by(list, f) -> map	-	-	exists:shuugou	items grouped under the key f gives	0
+A	retsu	unique	pure	unique(list) -> list	-	tatara-lisp-script	exists:shuugou	first of each equal item, order kept	0
+A	retsu	tally	pure	tally(list) -> map	-	-	exists:toukei	how often each item occurs	0
+A	retsu	interleave	pure	interleave(a, b) -> list	-	-	exists:retsu	items of two lists taken in turn	0
+A	retsu	range	pure	range(from, to, step) -> list	-	tatara-lisp-script	absent	numbers from a start up to an end	0
+A	retsu	take_while	pure	take_while(list, f) -> list	-	-	exists:retsu	leading items while f holds	0
+A	retsu	drop_while	pure	drop_while(list, f) -> list	-	-	exists:retsu	skip leading items while f holds	0
+A	retsu	sample	pure	sample(list, rng, n) -> record	-	-	absent	n items chosen with a seeded stream	2
+A	retsu	shuffle	pure	shuffle(list, rng) -> record	-	-	absent	items in random order from a seeded stream	2
+A	junjo	sort	pure	sort(list, opts) -> list	-	-	exists:junjo	items in ascending order; stable	0
+A	junjo	sort_by	pure	sort_by(list, f, opts) -> list	-	-	exists:junjo	items ordered by the key f gives	0
+A	junjo	sorted?	pure	sorted?(list, opts) -> Bool	-	-	exists:junjo	whether the list is in order	0
+A	junjo	search	pure	search(list, item) -> int or nil	-	-	exists:junjo	binary search in a sorted list	0
+A	junjo	merge	pure	merge(a, b) -> list	-	-	exists:junjo	two sorted lists joined in order	0
+A	junjo	top	pure	top(list, n, opts) -> list	-	-	exists:junjo	the n greatest items	0
+A	junjo	min_by	pure	min_by(list, f) -> item or nil	-	-	exists:junjo	item with the least key	0
+A	junjo	max_by	pure	max_by(list, f) -> item or nil	-	-	exists:junjo	item with the greatest key	0
+A	junjo	rank	pure	rank(list) -> [int]	-	-	exists:junjo	position each item would take when sorted	0
+A	shuugou	set	pure	set(items) -> set	-	-	exists:shuugou	set built from a list	0
+A	shuugou	has?	pure	has?(set, item) -> Bool	-	-	exists:shuugou	whether the item is a member	0
+A	shuugou	insert	pure	insert(set, item) -> set	-	-	exists:shuugou	set with the item added	0
+A	shuugou	remove	pure	remove(set, item) -> set	-	-	exists:shuugou	set without the item	0
+A	shuugou	union	pure	union(a, b) -> set	-	-	exists:shuugou	members of either set	0
+A	shuugou	intersection	pure	intersection(a, b) -> set	-	-	exists:shuugou	members of both sets	0
+A	shuugou	difference	pure	difference(a, b) -> set	-	-	exists:shuugou	members of a that are not in b	0
+A	shuugou	symmetric_difference	pure	symmetric_difference(a, b) -> set	-	-	exists:shuugou	members of exactly one of the sets	0
+A	shuugou	subset?	pure	subset?(a, b) -> Bool	-	-	exists:shuugou	whether every member of a is in b	0
+A	shuugou	disjoint?	pure	disjoint?(a, b) -> Bool	-	-	exists:shuugou	whether the sets share no member	0
+A	shuugou	size	pure	size(set) -> int	-	-	exists:shuugou	number of members	0
+A	shuugou	empty?	pure	empty?(set) -> Bool	-	-	absent	whether the set has no member	0
+A	shuugou	power_set	pure	power_set(set) -> [set]	-	-	exists:shuugou	every subset of a set	0
+A	shuugou	product	pure	product(a, b) -> [pair]	-	-	exists:shuugou	every pair of one member from each set	0
+A	shuugou	dense	pure	dense(items, bound) -> set	-	-	absent	set of small integers kept as a bitset	3
+A	gurafu?	graph	decl	graph(edges, opts) -> graph	validate	-	absent	build a graph from edges; directed or not	2
+A	gurafu?	nodes	pure	nodes(graph) -> [node]	-	-	absent	every node, sorted	2
+A	gurafu?	edges	pure	edges(graph) -> [edge]	-	-	absent	every edge, sorted	2
+A	gurafu?	add_node	pure	add_node(graph, node) -> graph	-	-	absent	graph with a node added	2
+A	gurafu?	add_edge	pure	add_edge(graph, from, to, opts) -> graph	-	-	absent	graph with an edge added; weight optional	2
+A	gurafu?	remove_node	pure	remove_node(graph, node) -> graph	-	-	absent	graph without a node and its edges	2
+A	gurafu?	remove_edge	pure	remove_edge(graph, from, to) -> graph	-	-	absent	graph without one edge	2
+A	gurafu?	has_edge?	pure	has_edge?(graph, from, to) -> Bool	-	-	absent	whether the edge exists	2
+A	gurafu?	neighbors	pure	neighbors(graph, node) -> [node]	-	-	absent	nodes one edge away	2
+A	gurafu?	degree	pure	degree(graph, node) -> int	-	-	absent	number of edges at a node	2
+A	gurafu?	walk	pure	walk(graph, start, order) -> [node]	-	-	absent	nodes in breadth-first or depth-first order	2
+A	gurafu?	reachable	pure	reachable(graph, start) -> set	-	-	absent	every node a start node can reach	2
+A	gurafu?	path	pure	path(graph, from, to, opts) -> [node] or nil	-	-	absent	cheapest route between two nodes	2
+A	gurafu?	distances	pure	distances(graph, from) -> map	-	-	absent	cheapest cost from a node to every node	2
+A	gurafu?	components	pure	components(graph) -> [set]	-	-	absent	groups of nodes joined by edges	2
+A	gurafu?	scc	pure	scc(graph) -> [set]	-	-	absent	strongly connected groups of a directed graph	3
+A	gurafu?	cycle	pure	cycle(graph) -> [node] or nil	-	-	absent	one cycle if the graph has any	2
+A	gurafu?	topo	pure	topo(graph) -> [node]	error	-	absent	nodes ordered so every edge points forward	2
+A	gurafu?	closure	pure	closure(graph) -> graph	-	-	absent	graph with an edge for every reachable pair	3
+A	gurafu?	reduction	pure	reduction(graph) -> graph	-	-	absent	smallest graph with the same reachability	3
+A	gurafu?	spanning	pure	spanning(graph) -> graph	-	-	absent	cheapest tree that joins all nodes	3
+A	gurafu?	flow	pure	flow(graph, from, to) -> record	-	-	absent	largest flow between two nodes	4
+A	gurafu?	color	pure	color(graph, opts) -> map	-	-	absent	give nodes colors so neighbors differ	4
+A	gurafu?	subgraph	pure	subgraph(graph, nodes) -> graph	-	-	absent	graph restricted to some nodes	2
+A	gurafu?	reverse	pure	reverse(graph) -> graph	-	-	absent	graph with every edge turned around	2
+A	gurafu?	tree	decl	tree(value, kids) -> tree	validate	-	absent	rooted tree: a value and its subtrees	2
+A	gurafu?	root	pure	root(tree) -> node	-	-	absent	the node without a parent	2
+A	gurafu?	kids	pure	kids(tree, node) -> [node]	-	-	absent	direct children of a node	2
+A	gurafu?	parent	pure	parent(tree, node) -> node or nil	-	-	absent	parent of a node, nil at the root	2
+A	gurafu?	depth	pure	depth(tree, node) -> int	-	-	absent	edges from the root to a node	2
+A	gurafu?	leaves	pure	leaves(tree) -> [node]	-	-	absent	nodes without children	2
+A	gurafu?	lca	pure	lca(tree, a, b) -> node	-	-	absent	nearest common ancestor of two nodes	3
+A	gurafu?	fold	pure	fold(tree, f) -> value	-	-	absent	reduce a tree from the leaves up	2
+A	gurafu?	prune	pure	prune(tree, f) -> tree	-	-	absent	tree without subtrees where f holds	3
+A	gurafu?	graft	pure	graft(tree, node, subtree) -> tree	-	-	absent	tree with a subtree attached at a node	3
+A	kyuu?	queue	decl	queue(kind, opts) -> queue	validate	-	absent	empty fifo, lifo, priority or ring queue	2
+A	kyuu?	from	pure	from(kind, items, opts) -> queue	-	-	absent	queue filled from a list	2
+A	kyuu?	push	pure	push(queue, item, opts) -> queue	-	-	absent	queue with an item added; a full ring drops its oldest	2
+A	kyuu?	pop	pure	pop(queue) -> record	error	-	absent	next item and the remaining queue	2
+A	kyuu?	peek	pure	peek(queue) -> item or nil	-	-	absent	next item without removing it	2
+A	kyuu?	size	pure	size(queue) -> int	-	-	absent	number of items waiting	2
+A	kyuu?	empty?	pure	empty?(queue) -> Bool	-	-	absent	whether nothing is waiting	2
+A	kyuu?	full?	pure	full?(queue) -> Bool	-	-	absent	whether a bounded queue is at capacity	2
+A	kyuu?	drain	pure	drain(queue) -> list	-	-	absent	every item in pop order	2
+A	kyuu?	to_list	pure	to_list(queue) -> list	-	-	absent	items in pop order, queue unchanged	2
+A	kyuu?	merge	pure	merge(a, b) -> queue	-	-	absent	one priority queue holding both	3
+A	kyuu?	reprioritize	pure	reprioritize(queue, item, priority) -> queue	error	-	absent	change the priority of a queued item	3
+A	kazu	abs	pure	abs(n) -> number	-	-	exists:kazu	distance from zero	0
+A	kazu	sign	pure	sign(n) -> int	-	-	exists:kazu	-1, 0 or 1 by the sign	0
+A	kazu	min	pure	min(a, b) -> number	-	-	exists:kazu	the lesser of two numbers	0
+A	kazu	max	pure	max(a, b) -> number	-	-	exists:kazu	the greater of two numbers	0
+A	kazu	clamp	pure	clamp(n, low, high) -> number	-	-	exists:kazu	number held between two bounds	0
+A	kazu	pow	pure	pow(base, exponent) -> number	-	-	exists:kazu	base raised to an exponent	0
+A	kazu	sqrt	pure	sqrt(n) -> number	error	-	absent	square root; negative raises domain error	1
+A	kazu	root	pure	root(n, degree) -> number	error	-	absent	n-th root	2
+A	kazu	exp	pure	exp(n) -> number	-	-	absent	e raised to n	1
+A	kazu	log	pure	log(n, base) -> number	error	-	absent	logarithm in a base; natural by default	1
+A	kazu	sin	pure	sin(radians) -> number	-	-	absent	sine	1
+A	kazu	cos	pure	cos(radians) -> number	-	-	absent	cosine	1
+A	kazu	tan	pure	tan(radians) -> number	-	-	absent	tangent	1
+A	kazu	atan2	pure	atan2(y, x) -> number	-	-	absent	angle of a point from the x axis	1
+A	kazu	floor	pure	floor(n) -> int	-	-	absent	greatest integer not above n	1
+A	kazu	ceil	pure	ceil(n) -> int	-	-	absent	least integer not below n	1
+A	kazu	truncate	pure	truncate(n) -> int	-	-	absent	integer part of n, toward zero	1
+A	kazu	round	pure	round(n, opts) -> number	-	-	partial:kazu	round to places by a named mode	0
+A	kazu	divmod	pure	divmod(a, b) -> record	error	-	partial:kazu	quotient and remainder; zero divisor raises	1
+A	kazu	mod	pure	mod(a, b) -> int	error	-	exists:kazu	remainder that takes the sign of b	0
+A	kazu	gcd	pure	gcd(a, b) -> int	-	-	exists:kazu	greatest common divisor	0
+A	kazu	lcm	pure	lcm(a, b) -> int	-	-	exists:kazu	least common multiple	0
+A	kazu	sum	pure	sum(numbers) -> number	-	-	exists:kazu	total of a list	0
+A	kazu	product	pure	product(numbers) -> number	-	-	exists:kazu	product of a list	0
+A	kazu	lerp	pure	lerp(a, b, t) -> number	-	-	exists:kazu	point t of the way from a to b	0
+A	kazu	near?	pure	near?(a, b, tolerance) -> Bool	-	-	exists:kazu	whether two numbers differ by at most a tolerance	0
+A	kazu	finite?	pure	finite?(n) -> Bool	-	-	absent	whether a number is neither infinite nor NaN	1
+A	kazu	parse	pure	parse(text, opts) -> number	error	-	absent	text to integer or float; junk raises	1
+A	kazu	render	pure	render(n, format) -> text	serialize	-	absent	number to text: fixed, scientific, percent, grouped	1
+A	seimitsu?	big	pure	big(value) -> big	error	-	absent	integer without a size limit	3
+A	seimitsu?	decimal	pure	decimal(text, opts) -> decimal	error	-	absent	exact base-ten number with a scale	3
+A	seimitsu?	ratio	pure	ratio(numerator, denominator) -> ratio	error	-	absent	exact fraction in lowest terms	3
+A	seimitsu?	numerator	pure	numerator(ratio) -> big	-	-	absent	top of a fraction	3
+A	seimitsu?	denominator	pure	denominator(ratio) -> big	-	-	absent	bottom of a fraction	3
+A	seimitsu?	scale	pure	scale(decimal) -> int	-	-	absent	digits after the decimal point	3
+A	seimitsu?	rescale	pure	rescale(decimal, places, mode) -> decimal	error	-	absent	decimal with a new scale by a rounding mode	3
+A	seimitsu?	exact	pure	exact(float) -> ratio	-	-	absent	the exact fraction a float stores	3
+A	seimitsu?	to_float	pure	to_float(number) -> float	-	-	absent	nearest float of an exact number	3
+A	seimitsu?	to_int	pure	to_int(number, mode) -> big	error	-	absent	whole number by a rounding mode	3
+A	seimitsu?	mod_pow	pure	mod_pow(base, exponent, modulus) -> big	-	-	exists:angou	power modulo a number without overflow	3
+A	tanni?	unit	decl	unit(name, definition) -> unit	validate	-	absent	declare a unit by its dimension and factor	3
+A	tanni?	quantity	pure	quantity(value, unit) -> quantity	error	-	absent	a number with a unit	3
+A	tanni?	parse	pure	parse(text) -> quantity	error	-	absent	text like "5 km/h" to a quantity	3
+A	tanni?	render	pure	render(quantity, opts) -> text	serialize	-	absent	quantity to text in a chosen unit	3
+A	tanni?	convert	pure	convert(quantity, unit) -> quantity	error	-	absent	same amount in another unit of the same dimension	3
+A	tanni?	add	pure	add(a, b) -> quantity	error	-	absent	sum of two quantities; mismatched dimensions raise	3
+A	tanni?	scale	pure	scale(quantity, factor) -> quantity	-	-	absent	quantity multiplied by a plain number	3
+A	tanni?	compare	pure	compare(a, b) -> int	error	-	absent	order two quantities of one dimension	3
+A	tanni?	dimension	pure	dimension(quantity) -> record	-	-	absent	exponents of length, mass, time and so on	3
+A	tanni?	compatible?	pure	compatible?(a, b) -> Bool	-	-	absent	whether two units share a dimension	3
+A	tanni?	base	pure	base(quantity) -> quantity	-	-	absent	quantity in the SI base units	3
+A	kakuritsu?	seed	pure	seed(value) -> rng	-	-	absent	a random stream fixed by a number or text	1
+A	kakuritsu?	entropy	effect	entropy(n) -> bytes	capability	tatara-lisp-script	absent	n bytes from the operating system	1
+A	kakuritsu?	draw	pure	draw(rng) -> record	-	-	absent	float in [0,1) and the next stream	1
+A	kakuritsu?	int	pure	int(rng, low, high) -> record	-	-	absent	integer in a range and the next stream	1
+A	kakuritsu?	choice	pure	choice(rng, list) -> record	error	-	absent	one item at random and the next stream	1
+A	kakuritsu?	weighted	pure	weighted(rng, items, weights) -> record	error	-	absent	one item chosen by weight	2
+A	kakuritsu?	split	pure	split(rng) -> record	-	-	absent	two independent streams from one	1
+A	kakuritsu?	bytes	pure	bytes(rng, n) -> record	-	-	absent	n pseudo-random bytes and the next stream	1
+A	kakuritsu?	distribution	decl	distribution(kind, params) -> distribution	validate	-	absent	declare normal, uniform, binomial, poisson and others	2
+A	kakuritsu?	pdf	pure	pdf(dist, x) -> number	-	-	absent	density or mass at a point	2
+A	kakuritsu?	cdf	pure	cdf(dist, x) -> number	-	-	absent	chance of a value at or below x	2
+A	kakuritsu?	quantile	pure	quantile(dist, p) -> number	error	-	absent	value below which a share p falls	2
+A	kakuritsu?	sample	pure	sample(dist, rng, n) -> record	-	-	absent	n draws from a distribution	2
+A	kakuritsu?	mean	pure	mean(dist) -> number	-	-	absent	expected value of a distribution	2
+A	kakuritsu?	variance	pure	variance(dist) -> number	-	-	absent	spread of a distribution	2
+A	kakuritsu?	fit	pure	fit(kind, data) -> distribution	error	-	absent	distribution parameters estimated from data	3
+A	kakuritsu?	likelihood	pure	likelihood(dist, data) -> number	-	-	absent	how probable the data is under a distribution	3
+A	kakuritsu?	bayes	pure	bayes(prior, likelihood, evidence) -> number	-	-	absent	posterior chance after seeing evidence	3
+A	kakuritsu?	expectation	pure	expectation(dist, f) -> number	-	-	absent	average of f over a distribution	3
+A	kakuritsu?	estimate	pure	estimate(f, rng, n) -> record	-	-	absent	Monte Carlo mean and error of f over n runs	3
+A	kakuritsu?	bootstrap	pure	bootstrap(data, statistic, rng, n) -> record	-	-	absent	resampled spread of a statistic	3
+A	shikibetsu?	make	effect	make(kind, opts) -> id	capability	tatara-lisp-script	absent	new uuid, ulid, nanoid or similar id	1
+A	shikibetsu?	derive	pure	derive(kind, namespace, name) -> id	-	-	absent	same id every time for the same name	1
+A	shikibetsu?	parse	pure	parse(text) -> id	error	-	absent	text to an id; a malformed one raises	1
+A	shikibetsu?	render	pure	render(id, format) -> text	serialize	-	absent	id as canonical, compact or URN text	1
+A	shikibetsu?	valid?	pure	valid?(text, kind) -> Bool	validate	-	absent	whether text is a well-formed id of a kind	1
+A	shikibetsu?	kind	pure	kind(id) -> symbol	-	-	absent	which scheme an id belongs to	1
+A	shikibetsu?	version	pure	version(id) -> int	-	-	absent	uuid version number	1
+A	shikibetsu?	timestamp	pure	timestamp(id) -> instant or nil	time	-	absent	the time inside a time-ordered id	2
+A	shikibetsu?	compare	pure	compare(a, b) -> int	-	-	absent	order two ids; time-ordered ids sort by time	1
+A	shikibetsu?	nil_id	pure	nil_id(kind) -> id	-	-	absent	the all-zero id of a kind	1
+A	shikibetsu?	short	pure	short(id, n) -> text	-	-	absent	first n characters, for display only	1
+A	shikibetsu?	obscure	pure	obscure(number, salt) -> text	-	-	absent	integer to a short reversible public id	3
+A	shikibetsu?	reveal	pure	reveal(text, salt) -> number	error	-	absent	undo obscure with the same salt	3
+A	chiri?	point	pure	point(latitude, longitude, opts) -> point	error,validate	-	absent	a place on the earth; bad ranges raise	3
+A	chiri?	parse	pure	parse(text, format) -> point	error	-	absent	degrees-minutes-seconds, decimal, WKT or plus code to a point	3
+A	chiri?	render	pure	render(point, format) -> text	serialize	-	absent	point as decimal, DMS, WKT or plus code	3
+A	chiri?	distance	pure	distance(a, b, opts) -> number	-	-	absent	surface distance in metres by haversine or ellipsoid	3
+A	chiri?	bearing	pure	bearing(a, b) -> number	-	-	absent	initial compass heading from a to b	3
+A	chiri?	destination	pure	destination(point, bearing, distance) -> point	-	-	absent	point reached by travelling a distance on a heading	3
+A	chiri?	midpoint	pure	midpoint(a, b) -> point	-	-	absent	point halfway along the great circle	3
+A	chiri?	bounds	pure	bounds(points) -> box	-	-	absent	smallest box holding every point	3
+A	chiri?	region	decl	region(shape, opts) -> region	validate	-	absent	declare a box, circle or polygon on the earth	3
+A	chiri?	contains?	pure	contains?(region, point) -> Bool	-	-	absent	whether a point lies inside a region	3
+A	chiri?	area	pure	area(region) -> number	-	-	absent	surface area in square metres	3
+A	chiri?	cell	pure	cell(point, system, level) -> text	-	-	absent	geohash, H3 or S2 cell holding a point	4
+A	chiri?	cell_point	pure	cell_point(cell) -> point	error	-	absent	centre of a cell	4
+A	chiri?	neighbors	pure	neighbors(cell) -> [text]	-	-	absent	cells touching a cell	4
+A	chiri?	project	pure	project(point, crs) -> record	error	-	absent	point in a flat coordinate system such as UTM	4
+A	chiri?	unproject	pure	unproject(xy, crs) -> point	error	-	absent	flat coordinates back to latitude and longitude	4
+A	chiri?	simplify	pure	simplify(line, tolerance) -> line	-	-	absent	line with fewer points inside a tolerance	4
+A	chiri?	nearest	pure	nearest(point, points) -> point or nil	-	-	absent	closest point of a set	3
+A	chiri?	within	pure	within(point, points, radius) -> [point]	-	-	absent	points no farther than a radius	3
+A	assaku?	compress	pure	compress(bytes, algorithm, opts) -> bytes	error	caixa-flate2	absent	bytes shrunk by gzip, zstd, xz or deflate	3
+A	assaku?	decompress	pure	decompress(bytes, algorithm, opts) -> bytes	error,resource	caixa-flate2	absent	compressed bytes back to the original	3
+A	assaku?	detect	pure	detect(bytes) -> algorithm or nil	-	-	absent	which codec a header announces	3
+A	assaku?	ratio	pure	ratio(bytes, algorithm) -> number	-	-	absent	compressed size over original size	3
+A	assaku?	create	effect	create(path, entries, opts) -> nil	error,capability,idempotent	-	absent	write a tar or zip archive of named entries	3
+A	assaku?	list	effect	list(archive) -> [entry]	error,capability	-	absent	names, sizes and kinds inside an archive	3
+A	assaku?	read	effect	read(archive, entry) -> bytes	error,capability	-	absent	one entry's content	3
+A	assaku?	extract	effect	extract(archive, destination, opts) -> [path]	error,capability,resource	-	absent	unpack entries; paths that escape the target raise	3
+A	assaku?	append	effect	append(archive, entries) -> nil	error,capability	-	absent	add entries to an archive	3
+A	assaku?	verify	pure	verify(archive) -> nil	error,validate	-	absent	check checksums and structure	3
+A	assaku?	stream	stream	stream(source, algorithm, f, opts) -> nil	error,cancel,resource	-	absent	compress or decompress chunk by chunk	4
+A	toukei	mean	pure	mean(numbers) -> number	error	-	exists:toukei	arithmetic average; empty raises	0
+A	toukei	median	pure	median(numbers) -> number	error	-	exists:toukei	middle value	0
+A	toukei	mode	pure	mode(items) -> item	-	-	exists:toukei	most frequent value	0
+A	toukei	variance	pure	variance(numbers, opts) -> number	error	-	exists:toukei	mean squared distance from the mean	0
+A	toukei	stddev	pure	stddev(numbers, opts) -> number	error	-	exists:toukei	square root of the variance	0
+A	toukei	percentile	pure	percentile(numbers, p) -> number	error	-	exists:toukei	value below which a share p falls	0
+A	toukei	covariance	pure	covariance(xs, ys) -> number	error	-	exists:toukei	how two series vary together	0
+A	toukei	correlation	pure	correlation(xs, ys) -> number	error	-	exists:toukei	strength of a linear link, -1 to 1	0
+A	toukei	zscore	pure	zscore(numbers) -> [number]	error	-	exists:toukei	distance from the mean in standard deviations	0
+A	toukei	summary	pure	summary(numbers) -> record	-	-	exists:toukei	count, extremes, quartiles, mean and spread	0
+A	toukei	outliers	pure	outliers(numbers, opts) -> [number]	-	-	exists:toukei	values beyond the quartile fences	0
+A	toukei	moving_average	pure	moving_average(numbers, n) -> [number]	-	-	exists:toukei	average over a sliding window	0
+A	toukei	rolling	pure	rolling(numbers, n, f) -> [number]	-	-	absent	f over a sliding window	2
+A	toukei	ewma	pure	ewma(numbers, alpha) -> [number]	-	-	absent	exponentially weighted moving average	2
+A	toukei	histogram	pure	histogram(numbers, bins) -> [bin]	-	-	absent	counts of values per equal-width bin	2
+A	toukei	normalize	pure	normalize(numbers, opts) -> [number]	-	-	partial:toukei	rescale to a range or to unit variance	1
+A	toukei	regression	pure	regression(xs, ys, opts) -> model	error	kinji	partial:kinji	best-fit line or polynomial and its error	2
+A	toukei	predict	pure	predict(model, x) -> number	-	-	absent	value a fitted model gives at x	2
+A	toukei	interval	pure	interval(numbers, level) -> range	error	-	absent	confidence interval for the mean	3
+A	toukei	test	pure	test(kind, samples, opts) -> record	error	-	absent	t, chi-square or other test: statistic and p-value	3
+A	toukei	autocorrelation	pure	autocorrelation(numbers, lag) -> number	error	-	absent	how a series relates to itself later	3
+A	gyouretsu	matrix	pure	matrix(rows) -> matrix	error,validate	-	partial:gyouretsu	build a matrix from rows of numbers	0
+A	gyouretsu	identity	pure	identity(n) -> matrix	-	-	exists:gyouretsu	n by n identity matrix	0
+A	gyouretsu	zeros	pure	zeros(rows, cols) -> matrix	-	-	exists:gyouretsu	matrix of zeros	0
+A	gyouretsu	shape	pure	shape(m) -> record	-	-	exists:gyouretsu	row and column counts	0
+A	gyouretsu	transpose	pure	transpose(m) -> matrix	-	-	exists:gyouretsu	rows and columns swapped	0
+A	gyouretsu	add	pure	add(a, b) -> matrix	error	-	exists:gyouretsu	entrywise sum; shape mismatch raises	0
+A	gyouretsu	scale	pure	scale(m, k) -> matrix	-	-	exists:gyouretsu	every entry multiplied by a number	0
+A	gyouretsu	multiply	pure	multiply(a, b) -> matrix	error	-	exists:gyouretsu	matrix product	0
+A	gyouretsu	dot	pure	dot(a, b) -> number	error	-	exists:gyouretsu	inner product of two vectors	0
+A	gyouretsu	cross	pure	cross(a, b) -> vector	error	-	exists:gyouretsu	cross product of two 3-vectors	0
+A	gyouretsu	norm	pure	norm(v, order) -> number	-	-	exists:gyouretsu	length of a vector in a chosen norm	0
+A	gyouretsu	normalize	pure	normalize(v) -> vector	error	-	exists:gyouretsu	vector scaled to length one	0
+A	gyouretsu	determinant	pure	determinant(m) -> number	error	-	exists:gyouretsu	signed volume factor of a square matrix	0
+A	gyouretsu	inverse	pure	inverse(m) -> matrix	error	-	exists:gyouretsu	matrix that multiplies to identity; singular raises	0
+A	gyouretsu	solve	pure	solve(a, b) -> vector	error	-	exists:gyouretsu	vector x with a times x equal to b	0
+A	gyouretsu	power	pure	power(m, n) -> matrix	error	-	exists:gyouretsu	matrix times itself n times	0
+A	gyouretsu	trace	pure	trace(m) -> number	error	-	exists:gyouretsu	sum of the diagonal	0
+A	gyouretsu	rank	pure	rank(m, opts) -> int	-	-	absent	number of independent rows	2
+A	gyouretsu	decompose	pure	decompose(m, kind) -> record	error	-	absent	LU, QR, Cholesky or SVD factors	3
+A	gyouretsu	eigen	pure	eigen(m) -> record	error	-	absent	eigenvalues and eigenvectors	4
+A	gyouretsu	reshape	pure	reshape(m, rows, cols) -> matrix	error	-	absent	same entries in a new shape	2
+A	gyouretsu	stack	pure	stack(matrices, axis) -> matrix	error	-	absent	matrices joined side by side or one above another	2
+A	kikagaku	distance	pure	distance(a, b) -> number	-	-	exists:kikagaku	straight-line distance between points	0
+A	kikagaku	midpoint	pure	midpoint(a, b) -> point	-	-	exists:kikagaku	point halfway between two points	0
+A	kikagaku	area	pure	area(shape) -> number	-	-	exists:kikagaku	area of a polygon, circle or region	0
+A	kikagaku	perimeter	pure	perimeter(shape) -> number	-	-	exists:kikagaku	length around a shape	0
+A	kikagaku	centroid	pure	centroid(shape) -> point	-	-	exists:kikagaku	centre of mass of a shape	0
+A	kikagaku	contains?	pure	contains?(shape, point) -> Bool	-	-	exists:kikagaku	whether a point is inside a shape	0
+A	kikagaku	hull	pure	hull(points) -> polygon	-	-	exists:kikagaku	smallest convex polygon around the points	0
+A	kikagaku	intersect	pure	intersect(a, b) -> point or nil	-	-	exists:kikagaku	where two segments cross	0
+A	kikagaku	angle	pure	angle(a, b, c) -> number	-	-	exists:kikagaku	angle at b between a and c	0
+A	kikagaku	rotate	pure	rotate(shape, angle, about) -> shape	-	-	exists:kikagaku	shape turned about a point	0
+A	kikagaku	translate	pure	translate(shape, by) -> shape	-	-	exists:kikagaku	shape moved by a vector	0
+A	kikagaku	scale	pure	scale(shape, factor, about) -> shape	-	-	exists:kikagaku	shape grown or shrunk about a point	0
+A	kikagaku	bounds	pure	bounds(shape) -> box	-	-	exists:kikagaku	smallest axis-aligned box around a shape	0
+A	kikagaku	closest	pure	closest(shape, point) -> point	-	-	exists:kikagaku	point of a shape nearest to a point	0
+A	kikagaku	overlap?	pure	overlap?(a, b) -> Bool	-	-	exists:kikagaku	whether two shapes share area	0
+A	kikagaku	offset	pure	offset(polygon, distance) -> polygon	-	-	absent	polygon grown or shrunk by a distance	3
+A	kikagaku	union	pure	union(a, b) -> region	-	-	absent	area covered by either polygon	3
+A	kikagaku	difference	pure	difference(a, b) -> region	-	-	absent	area of a not covered by b	3
+A	rittai	mesh	pure	mesh(vertices, faces) -> mesh	error	-	exists:rittai	solid made of triangles	0
+A	rittai	transform	pure	transform(mesh, pose) -> mesh	-	-	exists:rittai	mesh moved and turned by a pose	0
+A	rittai	translate	pure	translate(mesh, by) -> mesh	-	-	exists:rittai	mesh moved by a vector	0
+A	rittai	rotate	pure	rotate(mesh, axis, angle) -> mesh	-	-	exists:rittai	mesh turned about an axis	0
+A	rittai	volume	pure	volume(mesh) -> number	error	-	exists:rittai	enclosed volume of a closed mesh	0
+A	rittai	surface_area	pure	surface_area(mesh) -> number	-	-	exists:rittai	total area of all faces	0
+A	rittai	centroid	pure	centroid(mesh) -> point	-	-	exists:rittai	centre of mass of a mesh	0
+A	rittai	bounds	pure	bounds(mesh) -> box	-	-	exists:rittai	smallest axis-aligned box around a mesh	0
+A	rittai	weld	pure	weld(mesh, tolerance) -> mesh	-	-	exists:rittai	merge vertices closer than a tolerance	0
+A	rittai	extrude	pure	extrude(outline, height) -> mesh	-	-	exists:rittai	outline pulled into a solid	0
+A	rittai	render	pure	render(mesh, format) -> text	serialize	-	partial:rittai	mesh as STL text	1
+A	ronri	every	pure	every(list, f) -> Bool	-	-	exists:ronri	whether f holds for all items	0
+A	ronri	any	pure	any(list, f) -> Bool	-	-	exists:ronri	whether f holds for some item	0
+A	ronri	none	pure	none(list, f) -> Bool	-	-	exists:ronri	whether f holds for no item	0
+A	ronri	not	pure	not(f) -> function	-	-	exists:ronri	predicate that holds when f does not	0
+A	ronri	both	pure	both(f, g) -> function	-	-	exists:ronri	predicate that holds when f and g hold	0
+A	ronri	either	pure	either(f, g) -> function	-	-	exists:ronri	predicate that holds when f or g holds	0
+A	ronri	xor	pure	xor(a, b) -> Bool	-	-	exists:ronri	whether exactly one of a and b holds	0
+A	ronri	implies	pure	implies(a, b) -> Bool	-	-	exists:ronri	false only when a holds and b does not	0
+A	ronri	majority	pure	majority(list, f) -> Bool	-	-	exists:ronri	whether f holds for most items	0
+A	ronri	table	pure	table(f, arity) -> [row]	-	-	absent	truth table of a predicate	3
+A	ronri	satisfiable?	pure	satisfiable?(formula) -> Bool	-	-	absent	whether some assignment makes a formula true	4
+A	kansuu	identity	pure	identity(x) -> x	-	-	exists:kansuu	return the argument unchanged	0
+A	kansuu	constantly	pure	constantly(x) -> function	-	-	exists:kansuu	function that always returns x	0
+A	kansuu	compose	pure	compose(fs) -> function	-	-	exists:kansuu	apply functions right to left	0
+A	kansuu	pipe	pure	pipe(x, fs) -> value	-	-	exists:kansuu	pass a value through functions left to right	0
+A	kansuu	flip	pure	flip(f) -> function	-	-	exists:kansuu	function with its first two arguments swapped	0
+A	kansuu	curry	pure	curry(f, arity) -> function	-	-	exists:kansuu	function that takes arguments one at a time	0
+A	kansuu	partial	pure	partial(f, args) -> function	-	-	absent	function with leading arguments fixed	1
+A	kansuu	juxt	pure	juxt(fs) -> function	-	-	exists:kansuu	function returning every f's result as a list	0
+A	kansuu	tap	pure	tap(x, f) -> x	-	-	exists:kansuu	call f for its effect, return x	0
+A	kansuu	iterate	pure	iterate(f, x, n) -> value	-	-	exists:kansuu	apply f to x n times	0
+A	kansuu	fixpoint	pure	fixpoint(f, x, opts) -> value	error	-	exists:kansuu	apply f until the result stops changing	0
+A	kansuu	memoize	pure	memoize(f) -> function	cache	-	absent	function that remembers results per argument	2
+A	kansuu	once	pure	once(f) -> function	idempotent	-	absent	function that runs f only the first time	2
+A	kumiawase	factorial	pure	factorial(n) -> big	error	-	exists:kumiawase	product of 1 up to n	0
+A	kumiawase	choose	pure	choose(n, k) -> big	error	-	exists:kumiawase	number of ways to pick k of n	0
+A	kumiawase	permutations	pure	permutations(list, k) -> [list]	-	-	exists:kumiawase	every ordered pick of k items	0
+A	kumiawase	combinations	pure	combinations(list, k) -> [list]	-	-	exists:kumiawase	every unordered pick of k items	0
+A	kumiawase	partitions	pure	partitions(n) -> [list]	-	-	exists:kumiawase	every way to write n as a sum	0
+A	kueri	from	pure	from(source, opts) -> plan	validate	kueri	exists:kueri	start a plan from a table, file or plan	0
+A	kueri	select	pure	select(plan, items) -> plan	validate	kueri	exists:kueri	choose and name output columns	0
+A	kueri	derive	pure	derive(plan, items) -> plan	validate	kueri	exists:kueri	add computed columns	0
+A	kueri	filter	pure	filter(plan, predicate) -> plan	validate	kueri	exists:kueri	keep rows where the predicate holds	0
+A	kueri	group	pure	group(plan, keys, aggregates) -> plan	validate	kueri	exists:kueri	one row per key with aggregate columns	0
+A	kueri	join	pure	join(left, right, on, opts) -> plan	validate	kueri	exists:kueri	rows paired across two plans by a condition	0
+A	kueri	left_join	pure	left_join(left, right, on) -> plan	validate	kueri	exists:kueri	join that keeps every left row	0
+A	kueri	asof_join	pure	asof_join(left, right, on) -> plan	validate	kueri	exists:kueri	join each left row to the nearest earlier right row	0
+A	kueri	window	pure	window(plan, items, opts) -> plan	validate	kueri	exists:kueri	columns computed over ordered partitions	0
+A	kueri	sort	pure	sort(plan, keys) -> plan	validate	kueri	exists:kueri	order rows by keys	0
+A	kueri	limit	pure	limit(plan, n, opts) -> plan	validate	kueri	exists:kueri	keep the first n rows	0
+A	kueri	explode	pure	explode(plan, column) -> plan	validate	kueri	exists:kueri	one row per item of a list column	0
+A	kueri	distinct	pure	distinct(plan, keys) -> plan	validate	kueri	absent	one row per distinct key	1
+A	kueri	union	pure	union(a, b, opts) -> plan	validate	kueri	absent	rows of both plans	1
+A	kueri	except	pure	except(a, b) -> plan	validate	kueri	absent	rows of a that are not in b	1
+A	kueri	pivot	pure	pivot(plan, on, value, agg) -> plan	validate	kueri	absent	row values turned into columns	2
+A	kueri	unpivot	pure	unpivot(plan, columns, opts) -> plan	validate	kueri	absent	columns turned into row values	2
+A	kueri	sample	pure	sample(plan, n, rng) -> plan	validate	kueri	absent	n rows chosen with a seeded stream	2
+A	kueri	count	pure	count(plan) -> plan	validate	kueri	absent	a plan that yields the row count	1
+A	kueri	describe	pure	describe(plan) -> plan	validate	kueri	absent	per-column type, nulls and summary figures	2
+A	kueri	schema	pure	schema(plan) -> schema	validate	kueri	absent	column names and types a plan yields	1
+A	kueri	render	pure	render(plan, dialect) -> text	serialize	kueri	exists:kueri	the plan as SQL text in a dialect	0
+A	kueri	explain	pure	explain(plan) -> text	-	kueri	absent	the engine's execution plan as text	2
+A	kueri	run	effect	run(plan, opts) -> [record]	error,capability,resource,deadline	kueri	partial:kueri	execute a plan in memory or in DuckDB	1
+A	kueri	query	effect	query(store, sql, params) -> [record]	error,capability,deadline	kueri	partial:kueri	raw SQL against a store, returning records	1
+A	kueri	load	effect	load(path, opts) -> plan	error,capability	-	absent	a file of CSV, JSON or Parquet as a source	1
+A	kueri	save	effect	save(plan, path, opts) -> nil	error,capability,idempotent	-	absent	write a plan's rows to a file	2

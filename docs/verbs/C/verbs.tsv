@@ -1,0 +1,325 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+C	tsuushin	request	effect	request(method, url, opts) -> response	error,deadline,retry,trace,capability	blue-lang-runtime	partial:net	Send one HTTP request; any status is data.	0
+C	tsuushin	read	effect	read(url, opts) -> body	error,deadline,retry	blue-lang-runtime	partial:net	GET the body; raises outside 2xx.	0
+C	tsuushin	get	effect	get(base, key, opts) -> value or nil	error,deadline	-	absent	One REST entry as parsed JSON; nil on 404.	1
+C	tsuushin	need	effect	need(base, key, opts) -> value	error,deadline	-	absent	One REST entry; raises when absent.	1
+C	tsuushin	list	effect	list(base, opts) -> [record]	error,deadline,retry	-	absent	Every entry, following next-page links to the end.	1
+C	tsuushin	create	effect	create(base, key, value, opts) -> value	error,idempotent	-	absent	POST a new entry; refuses to overwrite.	1
+C	tsuushin	update	effect	update(base, key, f, opts) -> value	error,retry	-	absent	GET, apply f, conditional PATCH; raises conflict.	1
+C	tsuushin	put	effect	put(base, key, value, opts) -> value	error,idempotent	-	absent	PUT: create or replace an entry.	1
+C	tsuushin	delete	effect	delete(base, key, opts) -> nil	error,idempotent	-	absent	DELETE an entry; absent counts as done.	1
+C	tsuushin	exists?	effect	exists?(url, opts) -> Bool	deadline	-	absent	HEAD probe; never raises for the condition.	1
+C	tsuushin	stream	stream	stream(url, f, opts) -> response	error,deadline,cancel	blue-lang-runtime	absent	Call f per chunk or line as the body arrives.	1
+C	tsuushin	download	effect	download(url, path, opts) -> info	error,deadline,retry,resource	-	absent	Fetch a body to a file, resuming by range.	2
+C	tsuushin	upload	effect	upload(url, source, opts) -> response	error,deadline,retry	-	absent	Send a file or multipart form as the body.	2
+C	tsuushin	wait	effect	wait(url, opts) -> response	deadline,retry,time	-	absent	Poll until the URL answers a wanted status.	1
+C	tsuushin	parse	pure	parse(text, :url) -> url record	error,validate	-	absent	URL text to scheme, host, path, query record.	0
+C	tsuushin	render	pure	render(url record, :url) -> text	serialize	-	absent	URL record to canonical text.	0
+C	tsuushin	join	pure	join(base, path) -> url	-	-	absent	Resolve a path against a base URL.	0
+C	tsuushin	sign	pure	sign(request, credentials) -> request	capability,serialize	-	absent	Add a signature or bearer header to a request.	2
+C	tsuushin	negotiate	pure	negotiate(accept, offered) -> choice or nil	-	-	absent	Pick the best offered type for an Accept header.	2
+C	tsuushin	fresh?	pure	fresh?(response, now) -> Bool	cache,time	-	absent	Whether a cached response may be used unchecked.	2
+C	tsuushin	cache_key	pure	cache_key(request) -> text	cache	-	absent	The key a cache stores a request under.	2
+C	tsuushin	revalidate	effect	revalidate(request, cached) -> response	cache,error	-	absent	Conditional GET with ETag; reuse body on 304.	2
+C	tsuushin	etag	pure	etag(body) -> text	cache	-	absent	The strong validator for a body.	2
+C	tsuushin	authenticate	effect	authenticate(client, flow, opts) -> token	error,capability,cache	-	absent	Run an auth flow (OAuth2, basic) and keep the token.	3
+C	tsuushin	mock	decl	mock(routes) -> client	test	-	absent	A client that answers from declared routes.	2
+C	kyuuji	response	pure	response(status, content_type, body) -> response	-	blue	exists:kyuuji	Build a response record.	0
+C	kyuuji	text	pure	text(status, body) -> response	-	blue	exists:kyuuji	A plain-text response.	0
+C	kyuuji	json	pure	json(status, value) -> response	serialize	blue	exists:kyuuji	A JSON response.	0
+C	kyuuji	not_found	pure	not_found(req) -> response	-	blue	exists:kyuuji	The 404 response for a request.	0
+C	kyuuji	param	pure	param(req, name) -> text or nil	-	blue	partial:kyuuji	One query or path parameter.	0
+C	kyuuji	serve	effect	serve(addr, app, opts) -> nil	error,log,trace,cancel,capability	blue	exists:kyuuji	Listen and answer requests until stopped.	0
+C	kyuuji	serve_once	effect	serve_once(listener, app, opts) -> nil	error,deadline	blue	exists:kyuuji	Answer one request; the test door.	0
+C	kyuuji	route	decl	route(method, pattern, handler) -> route	validate	-	absent	Declare one method and path pattern with a handler.	1
+C	kyuuji	router	decl	router(routes) -> app	validate	-	absent	Compose routes into one app; overlap is refused.	1
+C	kyuuji	mount	decl	mount(app, prefix, sub) -> app	-	-	absent	Place a sub-app under a path prefix.	1
+C	kyuuji	match	pure	match(app, req) -> route and params or nil	-	-	absent	Find the route that serves a request.	1
+C	kyuuji	wrap	pure	wrap(handler, middleware) -> handler	-	-	absent	Surround a handler with a middleware.	1
+C	kyuuji	body	pure	body(req, format) -> value	error,validate	-	absent	Parse the request body into a value.	1
+C	kyuuji	header	pure	header(req, name) -> text or nil	-	-	absent	One request header.	1
+C	kyuuji	redirect	pure	redirect(status, location) -> response	-	-	absent	A redirect response.	1
+C	kyuuji	file	effect	file(path, opts) -> response	resource,cache	-	absent	A response serving a file with validators and ranges.	2
+C	kyuuji	stream	stream	stream(req, f, opts) -> response	cancel,deadline	-	absent	Send chunks as f produces them.	2
+C	kyuuji	events	stream	events(req, f) -> response	cancel	-	absent	Answer as a server-sent event stream.	2
+C	kyuuji	upgrade	effect	upgrade(req, f) -> response	cancel,capability	-	absent	Switch to a WebSocket and hand it to f.	2
+C	kyuuji	guard	pure	guard(handler, check) -> handler	error,capability	-	absent	Refuse requests that fail a check before the handler.	1
+C	kyuuji	limit	pure	limit(handler, bucket) -> handler	ratelimit	pleme-middleware-rate-limit	absent	Answer 429 past a kyoujin bucket.	1
+C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	absent	Add cross-origin headers by policy.	2
+C	kyuuji	compress	pure	compress(handler, opts) -> handler	-	-	absent	Compress bodies by the client's Accept-Encoding.	3
+C	kyuuji	recover	pure	recover(handler) -> handler	error	-	absent	Turn a raised kind into its status response.	1
+C	kyuuji	timeout	pure	timeout(handler, duration) -> handler	deadline	-	absent	Answer 503 when the handler runs past a deadline.	1
+C	kyuuji	observe	effect	observe(m, status, seconds) -> m	log,trace	blue	exists:kyuuji	Count one request in the metrics.	0
+C	kyuuji	exposition	pure	exposition(m, service) -> text	serialize	blue	exists:kyuuji	Metrics rendered in Prometheus text form.	0
+C	kyuuji	health	decl	health(checks) -> handler	-	blue	partial:kyuuji	A liveness and readiness handler from checks.	1
+C	kyuuji	shutdown	effect	shutdown(server, opts) -> nil	cancel,deadline	-	absent	Stop accepting, drain in-flight requests, then close.	2
+C	kyuuji	hook	decl	hook(path, secret, f) -> route	capability,idempotent	-	absent	Receive a signed webhook and call f once per delivery.	2
+C	sokketto?	connect	effect	connect(addr, opts) -> conn	error,deadline,capability,resource	-	absent	Open a TCP, UDP, Unix or TLS connection.	1
+C	sokketto?	listen	effect	listen(addr, opts) -> listener	error,capability,resource	blue-lang-runtime	partial:net	Bind and listen; port 0 picks a free one.	1
+C	sokketto?	accept	effect	accept(listener, opts) -> conn	deadline,cancel	blue-lang-runtime	partial:net	Take the next incoming connection.	1
+C	sokketto?	read	effect	read(conn, opts) -> bytes	error,deadline	-	absent	Read what has arrived, up to a size.	1
+C	sokketto?	write	effect	write(conn, bytes, opts) -> nil	error,deadline	-	absent	Write all bytes or raise.	1
+C	sokketto?	send	effect	send(conn, bytes, to) -> nil	error	-	absent	Send one datagram or WebSocket message.	1
+C	sokketto?	receive	effect	receive(conn, opts) -> message	deadline,cancel	-	absent	Take the next datagram or WebSocket message.	1
+C	sokketto?	stream	stream	stream(conn, f, opts) -> nil	cancel,deadline	-	absent	Call f per message until the peer closes.	1
+C	sokketto?	close	effect	close(conn_or_listener) -> nil	resource	blue-lang-runtime	partial:net	Release it; closing twice is done.	1
+C	sokketto?	secure	effect	secure(conn, tls opts) -> conn	capability,error	-	absent	Upgrade a connection to TLS with a verified peer.	2
+C	sokketto?	certificate	effect	certificate(host, opts) -> record	error,time	-	absent	The peer certificate chain, expiry and names.	2
+C	sokketto?	wait	effect	wait(conns, opts) -> [ready conn]	deadline	-	absent	Block until some connection is ready.	2
+C	sokketto?	pipe	effect	pipe(a, b, opts) -> info	cancel,resource	-	absent	Copy bytes both ways until one side closes.	2
+C	sokketto?	info	effect	info(conn) -> record	-	-	absent	Local and peer address, protocol and options.	1
+C	sokketto?	exists?	effect	exists?(addr, opts) -> Bool	deadline	-	absent	Whether a port accepts a connection.	1
+C	sokketto?	bind	effect	bind(addr, opts) -> conn	error,capability	-	absent	Bind a datagram socket to receive on.	2
+C	sokketto?	join	effect	join(conn, group) -> nil	capability	-	absent	Join a multicast group on a socket.	4
+C	sokketto?	handshake	effect	handshake(conn, opts) -> record	error,deadline	-	absent	Run a protocol opening (TLS, WebSocket, PROXY) and return its outcome.	2
+C	sokketto?	reuse	decl	reuse(opts) -> pool	resource	-	absent	Declare a pool that keeps connections alive for reuse.	3
+C	keiyaku?	parse	pure	parse(text, :openapi) -> spec	error,validate	openapi-forge	absent	Read an OpenAPI, protobuf or GraphQL schema into a spec.	1
+C	keiyaku?	render	pure	render(spec, format) -> text	serialize	-	absent	Write a spec in its format.	1
+C	keiyaku?	describe	pure	describe(spec) -> [operation]	-	openapi-forge	absent	List the operations a spec offers.	1
+C	keiyaku?	generate	pure	generate(spec, target) -> source	serialize	grpc-forge	absent	Produce a client, server or docs from a spec.	2
+C	keiyaku?	client	decl	client(spec, base, opts) -> client	config,capability	-	absent	Bind a spec to an endpoint.	2
+C	keiyaku?	call	effect	call(client, operation, request, opts) -> response	error,deadline,retry,trace,idempotent	-	absent	Invoke one operation; the kind of error comes from the status.	2
+C	keiyaku?	stream	stream	stream(client, operation, request, f) -> nil	cancel,deadline	-	absent	Call f per message of a streaming operation.	3
+C	keiyaku?	serve	effect	serve(spec, handlers, addr) -> nil	error,log,trace	grpc-forge	absent	Serve a spec with one handler per operation.	3
+C	keiyaku?	validate	pure	validate(request, operation) -> request	error,validate	-	absent	Refuse a request that does not conform to its schema.	2
+C	keiyaku?	conform?	pure	conform?(value, schema) -> Bool	validate	-	absent	Whether a value matches a schema.	2
+C	keiyaku?	diff	pure	diff(old, new) -> [change]	-	-	absent	Spec changes, each marked breaking or compatible.	2
+C	keiyaku?	lint	pure	lint(spec) -> [finding]	validate	-	absent	Style and safety findings on a spec.	3
+C	keiyaku?	mock	decl	mock(spec, examples) -> app	test	-	absent	An app that answers every operation from examples.	3
+C	keiyaku?	introspect	effect	introspect(url, opts) -> spec	error,deadline	pleme-graphql-helpers	absent	Fetch a live endpoint's own schema.	3
+C	keiyaku?	bundle	pure	bundle(specs) -> spec	-	-	absent	Merge specs and resolve references into one.	3
+C	keiyaku?	paginate	stream	paginate(client, operation, request) -> [record]	retry	pleme-graphql-helpers	absent	Follow every page of a listing operation.	2
+C	keiyaku?	federate	decl	federate(specs) -> spec	validate	pleme-graphql-helpers	absent	Compose several schemas into one graph.	4
+C	keiyaku?	frame	pure	frame(message, framing) -> bytes	serialize	-	absent	Wrap a message with its length prefix or delimiter.	2
+C	keiyaku?	unframe	pure	unframe(bytes, framing) -> [message] and rest	error	-	absent	Split bytes into whole messages and a remainder.	2
+C	keiyaku?	pack	pure	pack(value, layout) -> bytes	serialize	-	absent	Binary-encode a value by a declared layout (varint, TLV).	2
+C	keiyaku?	unpack	pure	unpack(bytes, layout) -> value	error	-	absent	Decode bytes by a declared layout.	2
+C	keiyaku?	checksum	pure	checksum(bytes, algorithm) -> integer	validate	-	absent	A CRC or Adler checksum of bytes.	3
+C	keiyaku?	version	pure	version(client, server) -> agreed version	error	-	absent	Pick the highest version both sides speak.	3
+C	messeeji?	connect	effect	connect(url, opts) -> bus	error,deadline,resource,capability	blue-lang-runtime	partial:net	Open a connection to a broker.	0
+C	messeeji?	close	effect	close(bus) -> nil	resource	blue-lang-runtime	partial:net	Close it after flushing.	0
+C	messeeji?	publish	effect	publish(bus, subject, message, opts) -> receipt	error,idempotent,retry	blue-lang-runtime	partial:net	Put a message on a subject, queue or log.	0
+C	messeeji?	subscribe	stream	subscribe(bus, subject, f, opts) -> subscription	cancel,error	blue-lang-runtime	partial:net	Call f per message on a subject or group.	0
+C	messeeji?	unsubscribe	effect	unsubscribe(subscription) -> nil	resource	blue-lang-runtime	partial:net	End a subscription.	0
+C	messeeji?	receive	effect	receive(bus, subject, opts) -> message or nil	deadline	blue-lang-runtime	partial:net	Pull the next message, or nil on timeout.	0
+C	messeeji?	request	effect	request(bus, subject, message, opts) -> reply	deadline,retry,error	blue-lang-runtime	partial:net	Publish and wait for one reply.	0
+C	messeeji?	reply	effect	reply(message, answer) -> nil	error	-	absent	Answer a request message.	1
+C	messeeji?	ack	effect	ack(message) -> nil	idempotent	-	absent	Confirm the message is done; it is not redelivered.	1
+C	messeeji?	nack	effect	nack(message, opts) -> nil	retry	-	absent	Refuse the message; redeliver after a delay.	1
+C	messeeji?	extend	effect	extend(message, duration) -> nil	deadline	-	absent	Lengthen the time to ack before redelivery.	2
+C	messeeji?	park	effect	park(message, reason) -> nil	error	-	absent	Move a message to the dead-letter subject.	2
+C	messeeji?	redrive	effect	redrive(bus, dead, opts) -> count	retry	-	absent	Send parked messages back for another try.	2
+C	messeeji?	create	effect	create(bus, name, config) -> info	config	-	absent	Make a stream, queue or consumer; refuses overwrite.	1
+C	messeeji?	delete	effect	delete(bus, name) -> nil	-	-	absent	Remove a stream, queue or consumer.	1
+C	messeeji?	list	effect	list(bus, opts) -> [record]	-	-	absent	Every stream, queue or consumer.	1
+C	messeeji?	info	effect	info(bus, name) -> record	-	-	absent	Depth, bytes, consumers and retention of one.	1
+C	messeeji?	purge	effect	purge(bus, name, opts) -> count	-	-	absent	Drop messages from a stream or queue.	2
+C	messeeji?	seek	effect	seek(consumer, position) -> nil	-	-	absent	Move a log reader to an offset, time or start.	2
+C	messeeji?	commit	effect	commit(consumer, position) -> nil	idempotent	-	absent	Record how far a consumer group has read.	2
+C	messeeji?	lag	effect	lag(consumer) -> integer	-	-	absent	How many messages a consumer is behind.	2
+C	messeeji?	replay	stream	replay(bus, name, range, f) -> nil	cancel	-	absent	Re-read a log range through f.	2
+C	messeeji?	join	effect	join(bus, group, f) -> member	process,resource	-	absent	Share a subject's load across a consumer group.	2
+C	messeeji?	dedupe	pure	dedupe(window, id) -> Bool	idempotent	-	absent	Whether a message id was seen within a window.	3
+C	messeeji?	retain	decl	retain(policy) -> config	config	-	absent	Declare how long or how much a log keeps.	3
+C	messeeji?	compact	effect	compact(bus, name) -> info	-	-	absent	Keep only the newest message per key.	4
+C	messeeji?	batch	effect	batch(bus, subject, messages, opts) -> [receipt]	retry	samba	absent	Publish many messages and return every receipt.	2
+C	tsuuchi?	send	effect	send(message, opts) -> receipt	error,retry,idempotent,ratelimit	-	absent	Deliver to a person by email, SMS, push or webhook.	1
+C	tsuuchi?	compose	pure	compose(parts) -> message	validate	-	absent	Build a MIME or payload message from parts.	2
+C	tsuuchi?	template	decl	template(name, body) -> template	-	-	absent	Declare a message body with named holes.	1
+C	tsuuchi?	render	pure	render(template, data) -> message	serialize	-	absent	Fill a template; a missing hole is refused.	1
+C	tsuuchi?	parse	pure	parse(text, :email) -> message	error	-	absent	Read a raw email into headers, body and parts.	3
+C	tsuuchi?	status	effect	status(receipt) -> record	-	-	absent	Delivery state: queued, sent, delivered, bounced.	2
+C	tsuuchi?	verify?	pure	verify?(request, secret) -> Bool	capability,validate	-	absent	Whether a webhook signature and timestamp are good.	1
+C	tsuuchi?	sign	pure	sign(payload, secret) -> signature	capability	-	absent	Sign an outgoing webhook payload.	1
+C	tsuuchi?	register	effect	register(device or address, opts) -> record	idempotent	-	absent	Enrol a device token or address for delivery.	3
+C	tsuuchi?	suppress	effect	suppress(address, reason) -> nil	idempotent	-	absent	Stop sending to an address.	3
+C	tsuuchi?	suppressed?	effect	suppressed?(address) -> Bool	-	-	absent	Whether an address is on the stop list.	3
+C	tsuuchi?	validate	pure	validate(address, kind) -> address	validate,error	-	absent	Check an email or phone number's form.	2
+C	tsuuchi?	subscribe	effect	subscribe(topic, address) -> nil	idempotent	-	absent	Put an address on a topic's list.	3
+C	tsuuchi?	channel	decl	channel(kind, config) -> channel	config,capability	-	absent	Declare how one delivery kind is reached.	1
+C	aktaa?	spawn	effect	spawn(f, opts) -> pid	process,resource	blue	exists:proc	Start an isolated process running f.	0
+C	aktaa?	send	effect	send(pid, message) -> nil	process	blue	exists:proc	Put a message in a process's mailbox.	0
+C	aktaa?	receive	effect	receive(patterns, opts) -> value	process,deadline	blue	exists:proc	Take the first mailbox message matching a pattern.	0
+C	aktaa?	self	effect	self() -> pid	process	blue	exists:proc	This process's id.	0
+C	aktaa?	call	effect	call(pid, request, opts) -> reply	process,deadline,error	blue	exists:proc	Send a request and wait for its reply.	0
+C	aktaa?	cast	effect	cast(pid, request) -> nil	process	blue	exists:proc	Send a request and do not wait.	0
+C	aktaa?	reply	effect	reply(request, answer) -> nil	process	-	absent	Answer a call from inside its handler.	1
+C	aktaa?	link	effect	link(pid) -> nil	process	blue	exists:proc	Tie exits together: one dies, both die.	0
+C	aktaa?	unlink	effect	unlink(pid) -> nil	process	-	absent	Undo a link.	1
+C	aktaa?	monitor	effect	monitor(pid) -> ref	process	blue	exists:proc	Get a down message when it exits; no coupling.	0
+C	aktaa?	demonitor	effect	demonitor(ref) -> nil	process	-	absent	Stop watching a monitored process.	1
+C	aktaa?	exit	effect	exit(pid, reason) -> nil	process	blue	exists:proc	Ask a process to end with a reason.	0
+C	aktaa?	kill	effect	kill(pid) -> nil	process	blue	exists:proc	End a process now; it cannot trap this.	0
+C	aktaa?	stop	effect	stop(pid, opts) -> nil	process,deadline	blue	partial:proc	Ask, wait a grace period, then kill.	1
+C	aktaa?	wait	effect	wait(pid, opts) -> exit reason	process,deadline	-	absent	Block until a process exits.	1
+C	aktaa?	register	effect	register(name, pid) -> nil	process	-	absent	Give a process a name that others can find.	1
+C	aktaa?	whereis	effect	whereis(name) -> pid or nil	process	-	absent	The pid under a name, or nil.	1
+C	aktaa?	alive?	effect	alive?(pid) -> Bool	process	-	absent	Whether a process is running.	1
+C	aktaa?	info	effect	info(pid) -> record	process	-	absent	Mailbox depth, links, status and memory of a process.	1
+C	aktaa?	list	effect	list(opts) -> [pid]	process	-	absent	Every process on this node.	1
+C	aktaa?	supervise	decl	supervise(strategy, children, opts) -> supervisor	process,retry	blue	exists:proc	Declare children restarted by a strategy.	0
+C	aktaa?	child	decl	child(name, f, restart) -> spec	process	blue	exists:proc	One supervised child and when it restarts.	0
+C	aktaa?	restart	effect	restart(supervisor, child) -> pid	process	blue	exists:proc	Restart one child with an empty mailbox.	0
+C	aktaa?	trace	effect	trace(pid) -> trace	log,trace	blue	exists:proc	The recorded crash trace of a process.	0
+C	aktaa?	replay	effect	replay(trace) -> result	test,trace	blue	exists:proc	Re-run a crashed process from its trace without the host.	0
+C	aktaa?	node	decl	node(name, opts) -> node	process,capability	blue	exists:proc	Declare a node that hosts processes.	0
+C	aktaa?	connect	effect	connect(node) -> nil	process,capability	-	absent	Join another node so pids reach across.	3
+C	aktaa?	migrate	effect	migrate(pid, new code) -> nil	migrate,process	blue	exists:proc	Swap a running process to new code live.	0
+C	aktaa?	task	effect	task(f) -> handle	process	-	absent	Run f in a process and hold its single result.	1
+C	aktaa?	pool	decl	pool(size, f) -> pool	process,resource	-	absent	A fixed set of workers that share requests.	2
+C	aktaa?	group	effect	group(name) -> group	process	-	absent	Name a set of pids that can be addressed together.	3
+C	aktaa?	isolate	pure	isolate(f) -> value	process,error	blue	partial:proc	Run f with private state; return its result or exit reason.	1
+C	goui?	elect	effect	elect(group, opts) -> leadership	deadline,cancel,error,resource	-	absent	Campaign until this member leads; hold while valid.	2
+C	goui?	resign	effect	resign(leadership) -> nil	resource	-	absent	Give up leading.	2
+C	goui?	leader	effect	leader(group) -> member or nil	time	-	absent	Who leads now, or nil if no one.	2
+C	goui?	acquire	effect	acquire(name, opts) -> lease	deadline,resource,time	-	absent	Take a lease on a name for a duration.	2
+C	goui?	renew	effect	renew(lease) -> lease	time	-	absent	Extend a lease before it lapses.	2
+C	goui?	release	effect	release(lease) -> nil	resource	-	absent	Give a lease back; releasing twice is done.	2
+C	goui?	held?	effect	held?(lease) -> Bool	time	-	absent	Whether the lease is still valid now.	2
+C	goui?	fence	pure	fence(lease) -> integer	idempotent	-	absent	The lease's increasing token, checked by the resource.	2
+C	goui?	lock	effect	lock(name, f, opts) -> value	deadline,resource,cancel	-	absent	Run f while holding a named lease, then release.	2
+C	goui?	barrier	effect	barrier(name, count, opts) -> nil	deadline	-	absent	Block until count members have arrived.	3
+C	goui?	join	effect	join(group, member) -> view	process	-	absent	Add a member to a group; return the new view.	3
+C	goui?	leave	effect	leave(group, member) -> view	process	-	absent	Remove a member from a group.	3
+C	goui?	members	effect	members(group) -> [member]	-	-	absent	Who is in the group now, with their state.	3
+C	goui?	propose	effect	propose(group, value, opts) -> result	deadline,error,idempotent	-	absent	Ask the group to agree on a value.	4
+C	goui?	append	effect	append(log, entry, opts) -> index	error,idempotent	-	absent	Add an entry to a replicated log; return where.	4
+C	goui?	replicate	effect	replicate(log, to, opts) -> info	retry,deadline	-	absent	Bring a follower up to date.	4
+C	goui?	snapshot	effect	snapshot(log, opts) -> snapshot	resource	-	absent	Capture log state so older entries can go.	4
+C	goui?	quorum	pure	quorum(size) -> integer	-	-	absent	The votes that make a majority of a group.	3
+C	goui?	heartbeat	stream	heartbeat(member, interval) -> nil	time,cancel	-	absent	Announce liveness every interval.	3
+C	goui?	suspect?	pure	suspect?(history, now) -> Bool	time	-	absent	Whether a member's silence marks it failed.	3
+C	goui?	tick	pure	tick(clock, event) -> clock	time	-	absent	Advance a logical or hybrid clock.	3
+C	goui?	compare	pure	compare(a, b) -> order	time	-	absent	Order two clocks: before, after or concurrent.	3
+C	goui?	merge	pure	merge(a, b) -> value	time	-	absent	Join two replicas of a mergeable value (CRDT).	4
+C	goui?	gossip	stream	gossip(peers, state, opts) -> nil	cancel,time	-	absent	Exchange state with random peers until stable.	4
+C	goui?	watch	stream	watch(group, f) -> nil	cancel	-	absent	Call f when membership or leader changes.	3
+C	heikou	map	effect	map(xs, f, opts) -> [value]	process,error,cancel,resource	-	absent	Parallel map with a limit; results in order.	1
+C	heikou	each	effect	each(xs, f, opts) -> nil	process,error,cancel	-	absent	Parallel side effects with a limit.	1
+C	heikou	all	effect	all(fs, opts) -> [value]	process,error,cancel	-	absent	Run all; first failure cancels the rest.	1
+C	heikou	race	effect	race(fs, opts) -> value	process,cancel	-	absent	Return the first finisher; cancel the rest.	1
+C	heikou	any	effect	any(fs, opts) -> value	process,error,cancel	-	absent	Return the first success; fail only if all fail.	1
+C	heikou	run	effect	run(f, opts) -> value	process,deadline	-	absent	Run f in a process with a timeout.	1
+C	heikou	spawn	effect	spawn(f, opts) -> handle	process	-	absent	Start f without waiting.	1
+C	heikou	wait	effect	wait(handle, opts) -> value	process,deadline	-	absent	Wait for a handle's result.	1
+C	heikou	stop	effect	stop(handle, opts) -> nil	process,cancel	-	absent	Cancel a handle and wait for it to end.	1
+C	heikou	retry	effect	retry(f, policy) -> value	retry,error,time,deadline	shigoto-retry	absent	Call f again under a policy while its error is retryable.	1
+C	heikou	policy	decl	policy(opts) -> policy	retry,config	shigoto-retry	absent	Declare attempts, backoff, jitter and which kinds retry.	1
+C	heikou	backoff	pure	backoff(policy, attempt) -> duration	retry,time	-	absent	The wait before a given attempt.	1
+C	heikou	timeout	effect	timeout(f, duration) -> value	deadline	-	absent	Run f; raise timeout when the duration passes.	1
+C	heikou	deadline	effect	deadline(instant, f) -> value	deadline,cancel	-	absent	Run f with an absolute deadline inherited by callees.	1
+C	heikou	remaining	pure	remaining() -> duration	deadline,time	-	absent	Time left before the current deadline.	1
+C	heikou	token	decl	token() -> cancel token	cancel	-	absent	Make a token that signals cancellation.	1
+C	heikou	cancel	effect	cancel(token, reason) -> nil	cancel	-	absent	Signal cancellation to everything holding the token.	1
+C	heikou	cancelled?	pure	cancelled?(token) -> Bool	cancel	-	absent	Whether cancellation was signalled.	1
+C	heikou	shield	effect	shield(f) -> value	cancel	-	absent	Run f to the end even if cancelled meanwhile.	3
+C	heikou	group	effect	group(f) -> value	process,cancel,resource	-	absent	A scope where every child ends before it returns.	2
+C	heikou	limit	decl	limit(count) -> semaphore	resource	shigoto-budget	absent	Make a bound on how many run at once.	2
+C	heikou	batch	pure	batch(xs, size) -> [[x]]	-	-	absent	Cut a list into groups of a size.	1
+C	heikou	debounce	effect	debounce(f, duration) -> function	time	-	absent	Call f once after calls stop for a duration.	3
+C	heikou	throttle	effect	throttle(f, duration) -> function	time,ratelimit	-	absent	Call f at most once per duration.	3
+C	kyoujin?	breaker	decl	breaker(name, opts) -> breaker	config,error	todoku-go	absent	Declare a breaker: failure count, window and reset time.	2
+C	kyoujin?	call	effect	call(breaker, f) -> value	error,retry	todoku-go	absent	Run f through a breaker; open breaker raises at once.	2
+C	kyoujin?	state	effect	state(breaker) -> :closed or :open or :half_open	-	todoku-go	absent	Where a breaker stands now.	2
+C	kyoujin?	trip	effect	trip(breaker) -> nil	switch	-	absent	Force a breaker open.	2
+C	kyoujin?	reset	effect	reset(breaker) -> nil	switch	-	absent	Force a breaker closed.	2
+C	kyoujin?	bulkhead	decl	bulkhead(name, limit, queue) -> bulkhead	resource,config	-	absent	Declare a bound on concurrent callers of one resource.	2
+C	kyoujin?	enter	effect	enter(bulkhead, f, opts) -> value	resource,deadline	-	absent	Run f in a bulkhead slot; raise when full.	2
+C	kyoujin?	bucket	decl	bucket(rate, burst) -> bucket	ratelimit,config	samba	absent	Declare a token bucket by rate and burst.	1
+C	kyoujin?	admit	effect	admit(bucket, key, n) -> Bool	ratelimit	samba	absent	Take n tokens now if present; never waits.	1
+C	kyoujin?	take	effect	take(bucket, key, n, opts) -> nil	ratelimit,deadline	samba	absent	Wait until n tokens are free, then take them.	1
+C	kyoujin?	window	decl	window(count, duration) -> limiter	ratelimit	pleme-middleware-rate-limit	absent	Declare a sliding-window quota.	2
+C	kyoujin?	quota	effect	quota(limiter, key) -> record	ratelimit	-	absent	Remaining, limit and reset time for a key.	2
+C	kyoujin?	shed	pure	shed(load, policy) -> Bool	ratelimit,resource	-	absent	Whether to refuse work now to keep latency.	3
+C	kyoujin?	pressure	effect	pressure(queue) -> level	resource	-	absent	How full a queue or pool is, as a level.	2
+C	kyoujin?	slow	effect	slow(source, level) -> nil	ratelimit	-	absent	Tell a producer to slow until pressure falls.	3
+C	kyoujin?	drain	effect	drain(source, opts) -> info	cancel,deadline	-	absent	Finish queued work and stop taking more.	2
+C	kyoujin?	hedge	effect	hedge(f, after) -> value	deadline,retry	-	absent	Start a second try after a delay; keep the first answer.	3
+C	kyoujin?	key	pure	key(request) -> idempotency key	idempotent	-	absent	The stable key that names one logical request.	1
+C	kyoujin?	once	effect	once(store, key, f) -> value	idempotent	-	absent	Run f once per key; later calls return the stored result.	1
+C	kyoujin?	seen?	effect	seen?(store, key) -> Bool	idempotent	-	absent	Whether a key already ran.	1
+C	kyoujin?	check	effect	check(probe, opts) -> record	deadline	-	absent	Run a health probe; return status and detail.	2
+C	kyoujin?	ready?	effect	ready?(checks) -> Bool	deadline	-	absent	Whether every required check passes.	2
+C	kyoujin?	inject	decl	inject(fault, opts) -> wrapper	test,switch	-	absent	Add delay, error or loss to a call, for chaos tests.	3
+C	shigoto?	parse	pure	parse(text, :cron) -> schedule	error,time	lava-cron	absent	Read a cron or interval expression into a schedule.	1
+C	shigoto?	next	pure	next(schedule, from) -> instant	time	-	absent	The next time a schedule fires.	1
+C	shigoto?	every	effect	every(schedule, f, opts) -> timer	time,cancel,process	-	absent	Call f on each firing until cancelled.	1
+C	shigoto?	at	effect	at(instant, f) -> timer	time,cancel	-	absent	Call f once at an instant.	1
+C	shigoto?	after	effect	after(duration, f) -> timer	time,cancel	-	absent	Call f once after a duration.	1
+C	shigoto?	missed	pure	missed(schedule, since, now) -> [instant]	time	-	absent	Firings that fell between two instants.	2
+C	shigoto?	backfill	effect	backfill(schedule, range, f) -> count	time,idempotent	-	absent	Run f for every firing in a past range.	2
+C	shigoto?	enqueue	effect	enqueue(queue, job, opts) -> id	idempotent,error	shigoto	absent	Add a job to a queue; a duplicate key is one job.	1
+C	shigoto?	claim	effect	claim(queue, opts) -> job or nil	deadline,resource	shigoto	absent	Take the next job under a lease.	1
+C	shigoto?	complete	effect	complete(job, result) -> nil	idempotent	shigoto	absent	Mark a claimed job finished.	1
+C	shigoto?	fail	effect	fail(job, error) -> nil	error,retry	shigoto-retry	absent	Mark a claimed job failed; the policy decides to retry.	1
+C	shigoto?	defer	effect	defer(job, duration) -> nil	time	-	absent	Hand a job back to run later.	2
+C	shigoto?	rank	pure	rank(jobs, opts) -> [job]	-	shigoto-rank	absent	Order jobs so none starves.	2
+C	shigoto?	gate	decl	gate(job, precondition) -> job	validate	shigoto-gate	absent	Hold a job until a precondition passes.	2
+C	shigoto?	budget	decl	budget(opts) -> budget	resource,config	shigoto-budget	absent	Bound parallelism on three axes.	2
+C	shigoto?	dag	decl	dag(jobs, deps) -> graph	validate	shigoto-dag	absent	Declare jobs with dependencies; cycles are refused.	1
+C	shigoto?	run	effect	run(graph, opts) -> record	process,error,cancel	shigoto	absent	Run a graph in dependency order within a budget.	1
+C	shigoto?	plan	pure	plan(graph, opts) -> [step]	-	shigoto	absent	The order and parallelism a run would use.	1
+C	shigoto?	workflow	decl	workflow(name, steps) -> workflow	validate	-	absent	Declare a durable multi-step flow.	3
+C	shigoto?	start	effect	start(workflow, input, opts) -> run	idempotent,resource	-	absent	Begin a workflow run under a key.	3
+C	shigoto?	signal	effect	signal(run, name, payload) -> nil	idempotent	-	absent	Send an outside event to a waiting run.	3
+C	shigoto?	wait	effect	wait(run, opts) -> result	deadline	-	absent	Block until a run ends.	3
+C	shigoto?	info	effect	info(run) -> record	-	-	absent	A run's state, step and history.	3
+C	shigoto?	pause	effect	pause(run) -> nil	switch	-	absent	Stop taking steps; keep state.	3
+C	shigoto?	resume	effect	resume(run) -> nil	switch	-	absent	Continue a paused run.	3
+C	shigoto?	cancel	effect	cancel(run, reason) -> nil	cancel	-	absent	End a run and compensate completed steps.	3
+C	shigoto?	saga	decl	saga(steps) -> saga	error	-	absent	Steps each paired with an undo.	3
+C	shigoto?	compensate	effect	compensate(saga, from) -> nil	error,retry	-	absent	Run undos for completed steps in reverse order.	3
+C	chuukai?	forward	effect	forward(request, upstream, opts) -> response	error,deadline,retry,trace	-	absent	Pass a request to an upstream and return its answer.	2
+C	chuukai?	upstream	decl	upstream(name, targets, opts) -> upstream	config	-	absent	Declare a named set of backend targets.	2
+C	chuukai?	route	decl	route(match, upstream, opts) -> rule	validate	tatara-mesh	absent	Declare which requests go to which upstream.	2
+C	chuukai?	pick	pure	pick(upstream, strategy, request) -> target	-	-	absent	Choose a target: round robin, least load or hash.	2
+C	chuukai?	check	effect	check(target, probe) -> record	deadline	-	absent	Probe a target's health.	2
+C	chuukai?	eject	effect	eject(upstream, target, duration) -> nil	switch	-	absent	Remove an unhealthy target for a while.	2
+C	chuukai?	drain	effect	drain(target) -> nil	cancel,deadline	-	absent	Stop new traffic to a target; finish in-flight.	2
+C	chuukai?	split	decl	split(upstreams, weights) -> rule	config	-	absent	Divide traffic by weight, for canary or blue-green.	3
+C	chuukai?	mirror	effect	mirror(request, upstream) -> nil	trace	-	absent	Copy traffic to another upstream and drop the answer.	3
+C	chuukai?	rewrite	pure	rewrite(request, rule) -> request	-	-	absent	Change path, host or headers by a rule.	2
+C	chuukai?	authorize	pure	authorize(request, policy) -> decision	capability,error	-	absent	Decide whether a caller may reach a route.	3
+C	chuukai?	terminate	effect	terminate(listener, certificates) -> listener	capability	-	absent	Accept TLS and pass plain traffic on.	3
+C	chuukai?	tunnel	effect	tunnel(client, target) -> info	resource,cancel	-	absent	Relay raw bytes between two connections (CONNECT).	3
+C	chuukai?	policy	decl	policy(mesh, rule) -> mesh	capability,config	tatara-mesh	absent	Declare retry, timeout, mTLS and identity for a mesh.	3
+C	chuukai?	ttl	decl	ttl(rule, duration) -> rule	cache,time	-	absent	Declare how long an edge may keep a response.	2
+C	chuukai?	purge	effect	purge(cdn, target) -> count	cache,idempotent	-	absent	Drop cached objects by URL, tag or prefix.	2
+C	chuukai?	warm	effect	warm(cdn, urls) -> count	cache	-	absent	Fetch URLs so the edge holds them before traffic.	3
+C	chuukai?	stats	effect	stats(upstream) -> record	trace	-	absent	Requests, errors and latency per target.	3
+C	ami?	resolve	effect	resolve(name, type, opts) -> [record]	error,deadline,cache	-	absent	Look up DNS records of a type for a name.	1
+C	ami?	reverse	effect	reverse(address) -> [name]	error,deadline	-	absent	Names that point at an address.	2
+C	ami?	put	effect	put(zone, record) -> record	idempotent,error	-	absent	Create or replace a DNS record.	2
+C	ami?	delete	effect	delete(zone, record) -> nil	idempotent	-	absent	Remove a DNS record; absent counts as done.	2
+C	ami?	list	effect	list(zone, opts) -> [record]	-	-	absent	Every record in a zone.	2
+C	ami?	diff	pure	diff(wanted, actual) -> [change]	-	-	absent	Record changes that turn actual into wanted.	2
+C	ami?	propagated?	effect	propagated?(record, servers) -> Bool	time,deadline	-	absent	Whether every server answers the new value.	3
+C	ami?	register	effect	register(service, opts) -> registration	resource,time	-	absent	Announce a service instance under a lease.	2
+C	ami?	deregister	effect	deregister(registration) -> nil	resource	-	absent	Withdraw an instance; absent counts as done.	2
+C	ami?	find	effect	find(service, opts) -> [instance]	cache	-	absent	Healthy instances of a service; empty if none.	2
+C	ami?	watch	stream	watch(service, f) -> nil	cancel	-	absent	Call f when a service's instances change.	2
+C	ami?	peer	decl	peer(key, endpoint, allowed) -> peer	capability,config	blackmatter-vpn	absent	Declare one tunnel peer by key and address ranges.	2
+C	ami?	up	effect	up(link) -> nil	capability,resource	blackmatter-vpn	absent	Bring a tunnel interface up.	2
+C	ami?	down	effect	down(link) -> nil	resource	blackmatter-vpn	absent	Take a tunnel interface down.	2
+C	ami?	info	effect	info(link) -> record	-	blackmatter-vpn	absent	Peers, last handshake and traffic of a tunnel.	2
+C	ami?	rotate	effect	rotate(link, opts) -> key	capability,time	-	absent	Replace a tunnel's keys without a gap.	3
+C	ami?	open	effect	open(host, opts) -> session	error,deadline,capability,resource	sshproxy	absent	Open an authenticated remote shell session.	2
+C	ami?	run	effect	run(session, command, opts) -> result	error,deadline,process	sshproxy	absent	Run a command remotely; same result as a local run.	2
+C	ami?	copy	effect	copy(session, from, to, opts) -> nil	error,resource	-	absent	Move a file to or from a remote host.	2
+C	ami?	forward	effect	forward(session, local, remote) -> forwarding	resource,cancel	sshproxy	absent	Carry a local port to a remote one over the session.	3
+C	ami?	close	effect	close(session) -> nil	resource	-	absent	End a session; closing twice is done.	2
+C	ami?	certify	effect	certify(key, principal, ttl) -> certificate	capability,time	-	absent	Obtain a short-lived SSH certificate for a key.	3
+C	shihyou	objectives	pure	objectives(svc) -> [objective]	-	blue	exists:shihyou	The objectives declared for a service.	0
+C	shihyou	budget	pure	budget(percent) -> budget	-	blue	exists:shihyou	The error budget a target percent leaves.	0
+C	shihyou	error_ratio	pure	error_ratio(name, w) -> query	-	blue	exists:shihyou	The failing-request ratio over a window.	0
+C	shihyou	slow_ratio	pure	slow_ratio(name, le, w) -> query	-	blue	exists:shihyou	The ratio of requests slower than a bound.	0
+C	shihyou	alerts	pure	alerts(name, o) -> [rule]	-	blue	exists:shihyou	Multi-window burn-rate alert rules.	0
+C	shihyou	dashboard	pure	dashboard(name, svc) -> dashboard	serialize	blue	exists:shihyou	A dashboard of an objective's indicators.	0
+C	shihyou	burn	pure	burn(objective, window) -> rate	time	-	absent	How fast the error budget is being spent.	1
+C	shihyou	exhausted?	effect	exhausted?(objective) -> Bool	-	-	absent	Whether the error budget is spent.	1
+C	nisshi	append	effect	append(stream, event) -> record	serialize,idempotent	blue	exists:nisshi	Add a hash-chained event to a stream.	0
+C	nisshi	read	effect	read(stream, opts) -> [event]	error	blue	exists:nisshi	The events of a stream, in order.	0
+C	nisshi	verify	pure	verify(stream) -> report	validate	blue	exists:nisshi	Check the chain and signatures; report each break.	0
+C	nisshi	replay	pure	replay(stream, definition) -> states	-	blue	exists:nisshi	Fold events into lifecycle states.	0
+C	nisshi	watch	stream	watch(stream, f) -> nil	cancel	-	absent	Call f per event as it is appended.	1
+C	nisshi	publish	effect	publish(stream, bus, subject) -> nil	retry	-	absent	Forward a stream's events to a message bus in order.	2

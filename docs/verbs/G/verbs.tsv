@@ -1,0 +1,396 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+G	gamen?	view	decl	view(kind, props, children) -> node	validate	egaku	absent	declare one UI node with props and children	1
+G	gamen?	component	decl	component(name, spec) -> component	validate,switch	pleme-widget-spec	absent	declare a reusable view: props, state, events	1
+G	gamen?	state	decl	state(initial, opts) -> store	serialize	egaku	absent	declare the store that holds a view state	1
+G	gamen?	get	pure	get(subject, key) -> value or nil	-	egaku	absent	read a state value, theme token or key binding; nil if absent	1
+G	gamen?	put	effect	put(subject, key, value) -> value	validate	egaku	absent	set a state value, theme token or key binding	1
+G	gamen?	update	effect	update(store, key, f) -> value	idempotent	egaku	absent	change a state value to f of the old value	1
+G	gamen?	watch	stream	watch(store, f, opts) -> nil	cancel	egaku	absent	call f for every state change until stopped	2
+G	gamen?	send	effect	send(app, event) -> nil	-	madori	absent	deliver one event to a running app	2
+G	gamen?	on	decl	on(node, event, handler) -> node	-	egaku	absent	bind a handler to an event of a node	1
+G	gamen?	render	pure	render(tree, target, opts) -> output	serialize	pleme-widget-gen	absent	tree to html, ansi, svg or widget spec text	1
+G	gamen?	layout	pure	layout(tree, size, opts) -> placed tree	-	egaku	absent	place nodes in a size: stack, flex or grid	1
+G	gamen?	measure	pure	measure(subject, space) -> size or number	-	garasu	absent	natural size of a node, or a level of a signal	1
+G	gamen?	diff	pure	diff(old, new) -> patches	-	egaku	absent	changes between two trees, as patches	2
+G	gamen?	apply	effect	apply(app, patches) -> nil	idempotent	madori	absent	make a surface show the patches	2
+G	gamen?	start	effect	start(app, surface, opts) -> handle	process,resource	madori	absent	run an app on a terminal, window or page	2
+G	gamen?	stop	effect	stop(handle, opts) -> nil	cancel,resource	madori	absent	end a running app and free its surface	2
+G	gamen?	focus	effect	focus(app, target) -> nil	-	egaku	absent	move keyboard focus to a node	2
+G	gamen?	order	pure	order(tree) -> ids	-	egaku	absent	tab order of the focusable nodes	1
+G	gamen?	theme	decl	theme(tokens, mode) -> theme	config	irodori	absent	declare a theme: Nord tokens for light and dark	0
+G	gamen?	style	pure	style(node, theme) -> styled node	-	ishou	absent	resolve semantic tokens on a node to colors and sizes	1
+G	gamen?	paint	pure	paint(text, style) -> text	-	katsuji	absent	text with ink and attributes, never raw escape codes	1
+G	gamen?	contrast	pure	contrast(a, b) -> ratio	-	-	absent	WCAG contrast ratio of two colors	0
+G	gamen?	describe	pure	describe(node) -> {role, name, state}	-	namimado	absent	the accessibility meaning of a node	1
+G	gamen?	check	pure	check(tree, rules) -> findings	validate	-	absent	find accessibility and layout faults in a tree	1
+G	gamen?	translate	pure	translate(key, locale, args) -> text	-	pleme-i18n	absent	the message for a key in a locale	1
+G	gamen?	localize	pure	localize(value, locale, opts) -> text	-	pleme-i18n	absent	a number, date or money as a locale writes it	1
+G	gamen?	plural	pure	plural(n, locale, forms) -> text	-	pleme-i18n	absent	the word form that suits n in a locale	1
+G	gamen?	direction	pure	direction(locale) -> ltr or rtl	-	pleme-i18n	absent	reading direction of a locale	1
+G	gamen?	coverage	pure	coverage(bundles) -> report	validate	namimado	absent	keys that a locale still lacks	2
+G	gamen?	prompt	effect	prompt(question, opts) -> answer	deadline	egaku	absent	ask the human: text, yes-no or secret	1
+G	gamen?	select	effect	select(items, opts) -> item or nil	deadline	egaku	absent	the human picks from a list	1
+G	gamen?	show	effect	show(node, opts) -> nil	-	kazari	absent	put a node on the terminal as styled output	0
+G	gamen?	progress	stream	progress(total, opts) -> handle	-	kazari	absent	a progress line that the program advances	2
+G	gamen?	notify	effect	notify(message, opts) -> nil	ratelimit	tsuuchi	absent	raise a desktop or phone notification	2
+G	ugoki?	curve	decl	curve(kind, params) -> curve	validate	ishou-batente	absent	declare an easing curve: bezier, steps or named	0
+G	ugoki?	ease	pure	ease(curve, t) -> number	-	ishou-batente	absent	progress from 0 to 1 along a curve at t	0
+G	ugoki?	mix	pure	mix(a, b, t) -> value	-	-	absent	blend two numbers, vectors, colors or rotations at t	0
+G	ugoki?	spring	decl	spring(stiffness, damping, mass) -> motion	validate	-	absent	declare a damped spring motion	0
+G	ugoki?	tween	decl	tween(from, to, opts) -> motion	validate	caixa-bevy_tweening	absent	declare a change of value over a duration	0
+G	ugoki?	advance	pure	advance(motion, state, dt) -> state	-	-	absent	move a motion state forward by dt	0
+G	ugoki?	settled?	pure	settled?(motion, state) -> Bool	-	-	absent	whether a motion has come to rest	0
+G	ugoki?	sample	pure	sample(motion, t) -> value	-	-	absent	the value of a motion at time t	0
+G	ugoki?	duration	pure	duration(motion) -> duration	time	ishou-batente	absent	how long a motion runs; nil for a spring	0
+G	ugoki?	timeline	decl	timeline(tracks) -> motion	validate	ishou-batente	absent	declare keyframe tracks on one clock	1
+G	ugoki?	sequence	pure	sequence(motions) -> motion	-	ishou-batente	absent	motions that run one after another	1
+G	ugoki?	parallel	pure	parallel(motions) -> motion	-	ishou-batente	absent	motions that run together	1
+G	ugoki?	stagger	pure	stagger(motions, delay) -> motion	time	ishou-batente	absent	motions that start one delay apart	1
+G	ugoki?	repeat	pure	repeat(motion, n) -> motion	-	ishou-batente	absent	a motion run n times, or forever	1
+G	ugoki?	retime	pure	retime(motion, factor) -> motion	time	-	absent	a motion made faster or slower	1
+G	ugoki?	soften	pure	soften(motion, preference) -> motion	config	-	absent	a motion reduced for people who prefer less motion	1
+G	ugoki?	check	pure	check(motion, limits) -> findings	validate	ishou-batente	absent	find a motion that breaks its time or distance budget	1
+G	ugoki?	bake	pure	bake(motion, fps) -> samples	serialize	-	absent	sample a motion at a fixed frame rate	1
+G	ugoki?	clock	decl	clock(kind, opts) -> clock	time	madori	absent	declare a frame clock: fixed step or display sync	2
+G	ugoki?	play	stream	play(motion, f, opts) -> handle	cancel,time	madori	absent	call f with the motion value on every frame	2
+G	ugoki?	seek	effect	seek(handle, t) -> nil	-	-	absent	jump a playing motion to time t	2
+G	ugoki?	pause	effect	pause(handle) -> nil	-	-	absent	hold a playing motion where it is	2
+G	byouga?	surface	decl	surface(kind, size, opts) -> surface	resource,validate	garasu	absent	declare a draw target: window, offscreen or terminal	3
+G	byouga?	material	decl	material(shader, params) -> material	validate	engawa-wgpu	absent	declare how a surface is shaded	3
+G	byouga?	shader	decl	shader(stage, program) -> shader	validate	garasu	absent	declare a shader program as data	3
+G	byouga?	graph	decl	graph(passes) -> render graph	validate	engawa-wgpu	absent	declare passes and the data between them	3
+G	byouga?	plan	pure	plan(graph) -> ordered passes	validate	engawa-wgpu	absent	order the passes and prove each input is made	2
+G	byouga?	check	pure	check(subject, rules) -> findings	validate	-	absent	find a fault in a graph, shader or scene before drawing	2
+G	byouga?	render	pure	render(program, target) -> text	serialize	-	absent	a shader program as WGSL text, built from data	2
+G	byouga?	draw	effect	draw(surface, graph, scene) -> frame	resource,deadline	garasu	absent	run the passes and fill the surface	3
+G	byouga?	capture	effect	capture(surface, opts) -> image	resource	garasu	absent	draw without a window and return the pixels	3
+G	byouga?	info	pure	info(surface) -> {size, format, frames}	-	garasu	absent	state of a draw target	3
+G	byouga?	scene	decl	scene(nodes) -> scene	validate	recanto	absent	declare drawable nodes, layered and posed	2
+G	byouga?	camera	decl	camera(kind, params) -> camera	validate	recanto	absent	declare a view: flat, tilted or perspective	2
+G	byouga?	project	pure	project(camera, point) -> screen point	-	-	absent	a world point as seen on the screen	2
+G	byouga?	unproject	pure	unproject(camera, point) -> ray	-	-	absent	the world ray under a screen point	2
+G	byouga?	hit	pure	hit(scene, point) -> node or nil	-	-	absent	the first node under a point or ray	2
+G	byouga?	shape	pure	shape(text, font, opts) -> glyph run	-	garasu	absent	text to positioned glyphs for a font	3
+G	byouga?	tessellate	pure	tessellate(path, tolerance) -> mesh	-	-	absent	a vector path as triangles	2
+G	byouga?	pack	pure	pack(items, size) -> atlas	-	asobi-text	absent	fit rectangles into one atlas sheet	2
+G	byouga?	rasterize	pure	rasterize(shapes, size, opts) -> image	-	-	absent	draw shapes into pixels on the CPU	3
+G	byouga?	composite	pure	composite(layers, mode) -> image	-	-	absent	layer images with alpha and a blend mode	2
+G	byouga?	convert	pure	convert(color, space) -> color	-	irodori	absent	a color in another space: sRGB, linear, OKLCH	1
+G	onsei?	info	effect	info(src) -> {codec, rate, channels, duration}	-	oto	absent	facts about an audio source	2
+G	onsei?	read	effect	read(src, opts) -> clip	resource	oto	absent	decode a whole audio file to a clip	2
+G	onsei?	write	effect	write(clip, target, opts) -> nil	resource	oto	absent	encode a clip to a file by its extension	2
+G	onsei?	decode	pure	decode(bytes, codec) -> clip	-	oto	absent	encoded bytes to samples	2
+G	onsei?	encode	pure	encode(clip, codec) -> bytes	-	eizou	absent	samples to encoded bytes	2
+G	onsei?	stream	stream	stream(src, f, opts) -> nil	cancel	oto	absent	call f with each chunk of samples	3
+G	onsei?	resample	pure	resample(clip, rate) -> clip	-	-	absent	a clip at another sample rate	2
+G	onsei?	gain	pure	gain(clip, decibels) -> clip	-	-	absent	a clip made louder or quieter	2
+G	onsei?	trim	pure	trim(clip, from, to) -> clip	-	-	absent	the part of a clip between two times	2
+G	onsei?	concat	pure	concat(clips) -> clip	-	-	absent	clips joined end to end	2
+G	onsei?	overlay	pure	overlay(base, top, at) -> clip	-	-	absent	one clip layered over another at a time	2
+G	onsei?	treat	pure	treat(clip, effect) -> clip	-	-	absent	apply an effect: low-pass, equalizer, compressor	3
+G	onsei?	measure	pure	measure(clip, metric) -> number	-	-	absent	peak, RMS, loudness or pitch of a clip	2
+G	onsei?	level	pure	level(clip, target) -> clip	-	-	absent	a clip set to a target loudness	3
+G	onsei?	segment	pure	segment(clip, opts) -> spans	-	-	absent	speech and silence spans of a clip	3
+G	onsei?	spectrum	pure	spectrum(clip, opts) -> frames	-	-	absent	frequency content of a clip over time	3
+G	onsei?	transcribe	effect	transcribe(clip, opts) -> {text, spans}	deadline,retry,cache	-	absent	speech in a clip as timed text	3
+G	onsei?	speak	effect	speak(text, voice, opts) -> clip	deadline,retry,cache	-	absent	text spoken as a clip	3
+G	onsei?	tone	pure	tone(hz, duration, shape) -> clip	-	-	absent	a pure tone, square, saw or noise clip	2
+G	onsei?	play	effect	play(clip, opts) -> handle	resource,cancel	oto	absent	play a clip on an output device	3
+G	onsei?	record	effect	record(device, opts) -> handle	resource,cancel	oto	absent	capture audio from an input device	3
+G	onsei?	list	effect	list(devices) -> devices	-	oto	absent	the audio devices that exist now	3
+G	gazou?	info	effect	info(src) -> {format, size, frames, fps}	-	caixa-image	absent	facts about an image or video source	2
+G	gazou?	read	effect	read(src, opts) -> image	resource	caixa-image	absent	decode a still image file	2
+G	gazou?	write	effect	write(image, target, opts) -> nil	resource	caixa-image	absent	encode an image to a file by its extension	2
+G	gazou?	decode	pure	decode(bytes, format) -> image	-	caixa-png	absent	PNG, JPEG or WebP bytes to pixels	2
+G	gazou?	encode	pure	encode(image, format) -> bytes	-	caixa-png	absent	pixels to PNG, JPEG or WebP bytes	2
+G	gazou?	resize	pure	resize(image, size, opts) -> image	-	-	absent	an image scaled to a size	2
+G	gazou?	crop	pure	crop(image, rect) -> image	-	-	absent	the part of an image inside a rectangle	2
+G	gazou?	rotate	pure	rotate(image, turns) -> image	-	-	absent	an image turned by quarter turns or an angle	2
+G	gazou?	convert	pure	convert(image, space) -> image	-	-	absent	an image in another pixel format or color space	2
+G	gazou?	treat	pure	treat(image, effect) -> image	-	-	absent	apply an effect: blur, sharpen, curves	3
+G	gazou?	overlay	pure	overlay(base, top, at) -> image	-	-	absent	one image layered over another at a place	2
+G	gazou?	measure	pure	measure(image, metric) -> number	-	-	absent	mean color, sharpness or entropy of an image	2
+G	gazou?	diff	pure	diff(a, b) -> {score, mask}	-	-	absent	how two images differ, and where	2
+G	gazou?	hash	pure	hash(image, kind) -> text	-	-	absent	a perceptual hash that survives resizing	2
+G	gazou?	thumbnail	pure	thumbnail(media, size, opts) -> image	-	-	absent	a small preview of an image or video	2
+G	gazou?	ocr	effect	ocr(image, opts) -> {text, boxes}	deadline,retry,cache	-	absent	text found in an image, with boxes	3
+G	gazou?	strip	pure	strip(image) -> image	-	-	absent	an image without its metadata, such as GPS	2
+G	gazou?	palette	pure	palette(image, n) -> colors	-	-	absent	the n dominant colors of an image	2
+G	gazou?	trim	pure	trim(video, from, to) -> video	-	-	absent	the part of a video between two times	3
+G	gazou?	segment	pure	segment(video, opts) -> spans	-	-	absent	shots or scenes of a video as spans	4
+G	gazou?	frames	stream	frames(video, f, opts) -> nil	cancel,resource	eizou	absent	call f with each decoded frame	3
+G	gazou?	demux	effect	demux(src) -> streams	resource	eizou	absent	split a container into video, audio and text streams	3
+G	gazou?	mux	effect	mux(streams, target, opts) -> nil	resource	eizou	absent	join streams into one container file	3
+G	gazou?	transcode	effect	transcode(src, target, opts) -> nil	process,deadline	-	absent	re-encode a video to another codec or size	4
+G	bunsho?	parse	pure	parse(text, format) -> doc	validate	mojiban	absent	markdown or HTML text to a document tree	1
+G	bunsho?	render	pure	render(doc, format, opts) -> text or bytes	serialize	mojiban	absent	a document as html, ansi, markdown, pdf or docx	1
+G	bunsho?	read	effect	read(src, opts) -> doc	resource	mojiban	absent	a document file read to a tree, by extension	1
+G	bunsho?	write	effect	write(doc, target, opts) -> nil	resource	-	absent	a document tree written to a file	1
+G	bunsho?	convert	pure	convert(doc, to) -> doc	-	-	absent	a document in another format, content kept	2
+G	bunsho?	outline	pure	outline(doc) -> heading tree	-	mojiban	absent	the headings of a document, nested	1
+G	bunsho?	extract	pure	extract(doc, kind) -> parts	-	-	absent	tables, images, code blocks, links or front matter	1
+G	bunsho?	find	pure	find(doc, query) -> node or nil	-	-	absent	the first node that matches a query	1
+G	bunsho?	get	pure	get(doc, id) -> node or nil	-	-	absent	a section or cell by id; nil if absent	1
+G	bunsho?	put	pure	put(doc, id, node) -> doc	-	-	absent	a document with a section or cell replaced	1
+G	bunsho?	check	pure	check(doc, rules) -> findings	validate	-	absent	find dead links, skipped heading levels, missing alt text	1
+G	bunsho?	diff	pure	diff(a, b) -> changes	-	-	absent	structural changes between two documents	2
+G	bunsho?	merge	pure	merge(a, b, opts) -> doc	-	-	absent	combine two documents; conflict is a refusal	2
+G	bunsho?	fill	pure	fill(template, data) -> doc	validate	-	absent	a template with its slots filled from a record	1
+G	bunsho?	paginate	pure	paginate(doc, page) -> pages	-	-	absent	break a document into pages of a size	3
+G	bunsho?	highlight	pure	highlight(code, language) -> spans	-	hikari	absent	code split into classed token spans	1
+G	bunsho?	redact	pure	redact(doc, rules) -> doc	-	-	absent	a document with sensitive spans masked	1
+G	bunsho?	normalize	pure	normalize(doc) -> doc	-	-	absent	the one canonical form of a document	1
+G	bunsho?	table	decl	table(columns, rows) -> table	validate	caixa-csv	absent	declare rows under typed columns	1
+G	bunsho?	deck	decl	deck(slides, theme) -> doc	validate	-	absent	declare a slide deck	2
+G	bunsho?	slide	decl	slide(layout, content) -> slide	validate	-	absent	declare one slide: layout, text, figures, notes	2
+G	moderu?	model	decl	model(provider, id, opts) -> model	config,validate	arnes-anthropic	absent	declare a model: window, price, tier	1
+G	moderu?	prompt	decl	prompt(parts) -> prompt	validate	arnes-core	absent	declare a prompt from system, messages and examples	1
+G	moderu?	message	decl	message(role, content) -> message	-	arnes-core	absent	declare one turn: user, assistant or tool	1
+G	moderu?	example	decl	example(input, output) -> example	-	-	absent	declare one worked case for few-shot prompting	1
+G	moderu?	render	pure	render(prompt, format) -> text or messages	serialize	arnes-core	absent	a prompt in a provider wire form	1
+G	moderu?	ask	effect	ask(model, prompt, opts) -> reply	deadline,retry,ratelimit,cache,trace	arnes-anthropic	partial:chokkan	one call to a model; reply holds text, tool uses, usage	2
+G	moderu?	stream	stream	stream(model, prompt, f, opts) -> reply	deadline,cancel,trace	arnes-anthropic	absent	call f for each delta of a reply	2
+G	moderu?	tokens	pure	tokens(model, text) -> number	-	-	absent	how many tokens a text costs in a model	1
+G	moderu?	embed	effect	embed(model, texts, opts) -> vectors	deadline,retry,ratelimit,cache	codesearch	absent	vectors for texts, one per text	2
+G	moderu?	cost	pure	cost(usage, price) -> money	-	arnes-loop	absent	what a usage record costs at a price	1
+G	moderu?	ledger	decl	ledger(path, opts) -> ledger	serialize	arnes-loop	absent	declare the append-only record of usage	1
+G	moderu?	total	pure	total(ledger, by) -> totals	-	arnes-loop	absent	tokens, cost and cache hits per model or session	1
+G	moderu?	fit	pure	fit(prompt, window, opts) -> prompt	-	-	absent	cut a prompt to a token budget, newest kept	1
+G	moderu?	pin	pure	pin(prompt, prefix) -> prompt	cache	arnes-loop	absent	mark the stable prefix that a provider may cache	1
+G	moderu?	extract	effect	extract(model, text, shape) -> record	deadline,retry,validate	-	absent	a record of the given shape pulled from text	2
+G	moderu?	classify	effect	classify(model, input, labels, opts) -> {label, confidence}	deadline,retry,cache	chokkan	partial:chokkan	one label from a closed set, with confidence	2
+G	moderu?	info	pure	info(model) -> {window, price, tier, tools?}	-	arnes-anthropic	absent	what a model can take and costs	1
+G	moderu?	list	pure	list(catalog) -> models	-	arnes-anthropic	absent	the models a catalog serves	1
+G	wariate	decide	pure	decide(facts, judged, memory) -> decision	-	arnes	exists:wariate	which model route answers the next turn, and why	0
+G	wariate	eligible	pure	eligible(facts, judged) -> routes	-	arnes	exists:wariate	routes that fit the window, tools and price	0
+G	wariate	explain	pure	explain(memory) -> text	-	arnes	exists:wariate	say why the last route was picked	0
+G	wariate	gate	pure	gate(facts, judged, m, e, pick, why) -> decision	-	arnes	exists:wariate	admit a route change or refuse it	0
+G	chokkan	ask	decl	ask(name, question) -> question	-	arnes	exists:chokkan	declare one typed question for a judge	0
+G	chokkan	choice	decl	choice(instructions, options) -> question	-	arnes	exists:chokkan	a question with a closed set of answers	0
+G	chokkan	score	decl	score(instructions, levels) -> question	-	arnes	exists:chokkan	a question answered on a numbered scale	0
+G	chokkan	request	pure	request(model, state, questions) -> request	-	arnes	exists:chokkan	the wire request that carries the questions	0
+G	dairi?	agent	decl	agent(spec) -> agent	config,validate	arnes-loop	absent	declare an agent: model, tools, policy, limits	1
+G	dairi?	tool	decl	tool(name, schema, f) -> tool	validate	arnes-tools	absent	declare a tool: name, input shape, body	1
+G	dairi?	skill	decl	skill(name, body) -> skill	validate	arnes-tools	absent	declare reusable instructions an agent can load	1
+G	dairi?	budget	decl	budget(limits) -> budget	config	arnes-loop	absent	declare caps on tokens, cost, steps and time	1
+G	dairi?	connect	effect	connect(server, opts) -> client	resource,deadline,retry	arnes-mcp-client	absent	open an MCP client to a command or URL	2
+G	dairi?	serve	effect	serve(tools, transport) -> handle	resource,capability	kotoba	absent	offer tools as an MCP server	2
+G	dairi?	list	effect	list(client) -> tools	deadline	arnes-mcp-client	absent	the tools a connected server offers	2
+G	dairi?	call	effect	call(tool, args, opts) -> result	deadline,retry,trace,idempotent	arnes-mcp-client	absent	invoke one tool; failure is a typed result	2
+G	dairi?	run	effect	run(agent, task, opts) -> outcome	deadline,cancel,trace,log	arnes-loop	absent	loop until the agent ends or a budget runs out	2
+G	dairi?	advance	effect	advance(agent, state) -> state	trace	arnes-loop	absent	one turn: ask, run tool calls, observe	2
+G	dairi?	plan	pure	plan(agent, task) -> actions	-	arnes-loop	absent	what the agent would do, with no effect	2
+G	dairi?	spawn	effect	spawn(agent, task) -> handle	process,resource	-	absent	start a sub-agent without waiting	3
+G	dairi?	wait	effect	wait(handle, opts) -> outcome	deadline	-	absent	wait for a sub-agent to end	3
+G	dairi?	stop	effect	stop(handle) -> nil	cancel	arnes-loop	absent	end a run at the next safe point	2
+G	dairi?	delegate	effect	delegate(agent, task, opts) -> outcome	process,deadline	-	absent	hand a task to another agent and take its outcome	3
+G	dairi?	approve	effect	approve(request) -> decision	capability,log	arnes-loop	absent	let a person or policy allow one effect	1
+G	dairi?	screen	pure	screen(tool, args) -> {allow, ask, deny, why}	capability,validate	guardrail	absent	rules decide a tool call before it runs	1
+G	dairi?	compact	pure	compact(state, opts) -> state	-	arnes-loop	absent	shorten history to fit the window, keep decisions	2
+G	dairi?	resume	effect	resume(session) -> state	resource	arnes-store	absent	continue a saved session	1
+G	dairi?	replay	effect	replay(trace, opts) -> outcome	test,trace	-	absent	re-run a trace with recorded replies, no model	3
+G	dairi?	on	decl	on(agent, event, handler) -> agent	-	arnes-loop	absent	bind a hook to an agent event	1
+G	dairi?	put	effect	put(memory, key, value) -> value	resource	arnes-store	absent	remember a fact across turns	2
+G	dairi?	get	pure	get(memory, key) -> value or nil	-	arnes-store	absent	recall a fact by key	2
+G	dairi?	find	effect	find(memory, query) -> facts	-	arnes-store	absent	recall facts that match a query	3
+G	joutai	segment	pure	segment(text) -> segment	-	arnes	exists:joutai	one piece of the status line	0
+G	kenkou	tick	pure	tick(facts) -> facts	-	arnes	exists:kenkou	one MCP health probe step	0
+G	meirei	help	effect	help(args) -> nil	-	arnes	exists:meirei	a built-in slash command that lists commands	0
+G	kenban	exports	decl	exports -> rows	-	arnes	exists:kenban	default key bindings handed to arnes	0
+G	sanshou	paths	pure	paths(prompt) -> paths	-	arnes	exists:sanshou	file mentions in a prompt, in order	0
+G	yushutsu	exports	decl	exports -> rows	-	arnes	exists:yushutsu	what a hosted package tells arnes it serves	0
+G	kensaku?	chunk	pure	chunk(doc, opts) -> chunks	-	codesearch	absent	split a document into pieces that fit a search unit	1
+G	kensaku?	analyze	pure	analyze(text, analyzer) -> tokens	-	sakuin	absent	text to index terms: split, fold, stem	1
+G	kensaku?	index	decl	index(kind, opts) -> index	resource,config	sakuin	absent	declare an index: keyword, vector, hybrid or spatial	1
+G	kensaku?	put	effect	put(index, id, doc) -> nil	idempotent	sakuin	absent	add or replace a document in an index	2
+G	kensaku?	delete	effect	delete(index, id) -> nil	idempotent	sakuin	absent	remove a document; absent counts as done	2
+G	kensaku?	sync	effect	sync(index, source, opts) -> report	idempotent,resource	codesearch	absent	bring an index level with its source, changes only	2
+G	kensaku?	watch	stream	watch(index, source, opts) -> nil	cancel	codesearch	absent	keep an index fresh as the source changes	3
+G	kensaku?	info	effect	info(index) -> {docs, bytes, built}	-	codesearch	absent	state of an index; docs scanned must be read	2
+G	kensaku?	search	effect	search(index, query, opts) -> hits	deadline,cache	codesearch	absent	ranked hits for a query: exact, keyword, vector or hybrid	2
+G	kensaku?	query	effect	query(index, question, params) -> records	-	-	absent	ask an index in its own language, no ranking	2
+G	kensaku?	rank	pure	rank(items, query, opts) -> ranked	-	furui	absent	order items by fuzzy score against a query	1
+G	kensaku?	rerank	effect	rerank(hits, query, opts) -> hits	deadline,cache	codesearch	absent	reorder hits with a stronger model	3
+G	kensaku?	fuse	pure	fuse(lists, opts) -> hits	-	-	absent	merge ranked lists into one, by reciprocal rank	1
+G	kensaku?	similarity	pure	similarity(a, b, metric) -> number	-	codesearch	absent	cosine, dot or L2 closeness of two vectors	1
+G	kensaku?	expand	effect	expand(model, query) -> queries	deadline,cache	-	absent	rewrite a query into variants to widen recall	3
+G	kensaku?	ground	effect	ground(question, index, opts) -> {text, citations}	deadline,trace	-	absent	answer a question from retrieved sources only	3
+G	kensaku?	cite	pure	cite(hits) -> citations	-	-	absent	source, span and score for each used hit	2
+G	kensaku?	support?	effect	support?(answer, hits) -> {supported, gaps}	deadline	-	absent	whether the sources back every claim in an answer	3
+G	kensaku?	explain	pure	explain(hit) -> text	-	codesearch	absent	say why a hit matched: terms, vector, rank	2
+G	saiten?	case	decl	case(input, expected, meta) -> case	validate	-	absent	declare one evaluation case	1
+G	saiten?	suite	decl	suite(cases, opts) -> suite	validate	-	absent	declare a set of cases with a metric	1
+G	saiten?	run	effect	run(suite, subject, opts) -> results	deadline,retry,ratelimit,cache	-	absent	run every case on a function, model or agent	2
+G	saiten?	score	pure	score(output, rubric) -> number	-	chokkan	partial:chokkan	grade an output: exact, pattern, similarity or judge	1
+G	saiten?	judge	effect	judge(a, b, criteria, opts) -> {winner, why}	deadline,retry,cache	-	absent	blind pairwise grade of two outputs by a model	2
+G	saiten?	compare	pure	compare(runs_a, runs_b, opts) -> report	-	-	absent	which run is better, with spread and significance	2
+G	saiten?	gate	pure	gate(results, thresholds) -> verdict	test	-	absent	pass or refuse a run against minimum scores	1
+G	saiten?	diff	pure	diff(baseline, results) -> changes	test	-	absent	cases that got better or worse than a baseline	1
+G	saiten?	calibrate	pure	calibrate(scores, labels) -> curve	-	chokkan	absent	map raw scores to true rates	3
+G	saiten?	agreement	pure	agreement(raters) -> number	-	-	absent	how far two judges or labelers agree: kappa	2
+G	saiten?	dataset	decl	dataset(rows, shape) -> dataset	validate,serialize	-	absent	declare training or test rows with a shape	1
+G	saiten?	holdout	pure	holdout(dataset, ratio, opts) -> {train, test}	-	-	absent	a stable split chosen by hash, not by position	1
+G	saiten?	dedupe	pure	dedupe(dataset, opts) -> dataset	-	-	absent	drop exact and near duplicate rows	2
+G	saiten?	balance	pure	balance(dataset, by, opts) -> dataset	-	-	absent	even out classes by seeded sampling	2
+G	saiten?	label	effect	label(dataset, labeler, opts) -> dataset	deadline,retry,cache	-	absent	add labels from a function, model or person	2
+G	saiten?	check	pure	check(dataset, rules) -> findings	validate	-	absent	find rows that break the shape, leak or repeat	1
+G	saiten?	estimate	pure	estimate(dataset, model) -> {tokens, cost}	-	-	absent	tokens and cost of a run over a dataset	1
+G	saiten?	drift	pure	drift(baseline, current) -> number	-	-	absent	how far a new data set moved from the old	3
+G	saiten?	train	effect	train(spec, dataset, opts) -> handle	deadline,cancel,resource	ml-forge	absent	start a hosted fine-tune; local GPU training stays Rust	4
+G	sekai?	world	decl	world(spec) -> world	validate	asobi-ecs	absent	declare components, systems and resources	1
+G	sekai?	spawn	effect	spawn(world, components) -> entity	-	asobi-ecs	absent	bring a new entity into the world	1
+G	sekai?	delete	effect	delete(world, entity) -> nil	idempotent	asobi-ecs	absent	remove an entity; absent counts as done	1
+G	sekai?	put	effect	put(world, entity, component) -> nil	-	asobi-ecs	absent	set one component on an entity	1
+G	sekai?	get	pure	get(world, entity, kind) -> component or nil	-	asobi-ecs	absent	read one component; nil if absent	1
+G	sekai?	query	pure	query(world, shape) -> rows	-	asobi-ecs	absent	entities that carry the listed components	1
+G	sekai?	system	decl	system(name, reads, writes, f) -> system	validate	asobi-ecs	absent	declare a rule over components, with its reads and writes	1
+G	sekai?	schedule	pure	schedule(systems) -> order	validate	asobi-ecs	absent	order systems so no two clash on a write	1
+G	sekai?	advance	effect	advance(world, dt) -> world	time	asobi-ecs	partial:seimei	one fixed time step of every system	1
+G	sekai?	run	effect	run(world, ticks, opts) -> world	deadline	asobi-ecs	absent	advance a world a number of ticks	1
+G	sekai?	send	effect	send(world, event) -> nil	-	asobi-ecs	absent	deliver one event to the systems that read it	1
+G	sekai?	on	decl	on(world, event, handler) -> world	-	asobi-ecs	absent	bind a handler to a world event	1
+G	sekai?	read	effect	read(src, opts) -> world	resource	asobi-save	absent	load a saved world, version and checksum checked	2
+G	sekai?	write	effect	write(world, target, opts) -> nil	resource,serialize	asobi-save	absent	save a world, versioned and checksummed	2
+G	sekai?	rollback	effect	rollback(world, tick, inputs) -> world	-	asobi-net-rollback	absent	return to an earlier tick and replay the inputs	3
+G	sekai?	replay	effect	replay(world, log) -> world	test,trace	asobi-net-rollback	absent	re-run recorded inputs; same seed, same world	2
+G	sekai?	check	pure	check(world, invariants) -> findings	validate,test	zairyo	absent	find a broken law: leaked energy, mass or entity	2
+G	sekai?	body	decl	body(shape, mass, opts) -> body	validate	zairyo	absent	declare a rigid body: shape, mass, material	3
+G	sekai?	collide	pure	collide(a, b) -> contact or nil	-	-	absent	the contact of two bodies, if they touch	3
+G	sekai?	hit	pure	hit(world, ray) -> entity or nil	-	-	absent	the first entity that a ray meets	3
+G	sekai?	field	pure	field(kind, seed, point) -> number	-	-	absent	smooth value noise at a point: gradient, simplex, cell	1
+G	sekai?	grammar	decl	grammar(rules) -> grammar	validate	-	absent	declare production rules or tile constraints	2
+G	sekai?	generate	pure	generate(grammar, seed, opts) -> content	-	-	absent	build a level, name or map from rules and a seed	2
+G	sekai?	path	pure	path(graph, from, to, opts) -> steps	-	-	absent	the cheapest steps from one cell to another	1
+G	seimei	advance	pure	advance(grid, rule) -> grid	-	-	exists:seimei	one generation of a cellular automaton	0
+G	ran	draw	pure	draw(seed, kind) -> {value, seed}	-	-	exists:ran	the next random value and the next seed	0
+G	ran	pick	pure	pick(seed, xs, opts) -> {value, seed}	-	-	exists:ran	one random element, weighted if asked	0
+G	ran	shuffle	pure	shuffle(seed, xs) -> {value, seed}	-	-	exists:ran	a random order of a list	0
+G	ran	fork	pure	fork(seed, label) -> seed	-	-	exists:ran	a new independent seed from a parent seed	0
+G	ran	walk	pure	walk(seed, steps, opts) -> path	-	-	exists:ran	a seeded random walk	0
+G	souchi?	pin	decl	pin(board, name) -> pin	validate	-	absent	declare a pin: name, function, pull, drive	3
+G	souchi?	signal	decl	signal(kind, params) -> signal	validate	-	absent	declare a level, pulse train or PWM wave	3
+G	souchi?	read	effect	read(target, opts) -> value	deadline,resource	kiban	partial:kiban	a pin level or a register value	3
+G	souchi?	write	effect	write(target, value, opts) -> nil	resource,capability	kiban	partial:kiban	drive a pin or set a register	3
+G	souchi?	watch	stream	watch(pin, f, opts) -> nil	cancel,deadline	-	absent	call f on every edge of a pin	3
+G	souchi?	on	decl	on(source, interrupt, handler) -> nil	capability	-	absent	bind a handler to an interrupt	3
+G	souchi?	open	effect	open(bus, opts) -> handle	resource,capability	-	absent	take a bus: I2C, SPI, UART, CAN	3
+G	souchi?	close	effect	close(handle) -> nil	resource,idempotent	-	absent	release a bus or device; closed counts as done	3
+G	souchi?	transfer	effect	transfer(handle, address, bytes, opts) -> bytes	deadline,retry	-	absent	one bus transaction: write, then read	3
+G	souchi?	list	effect	list(bus) -> addresses	deadline	-	absent	devices that answer on a bus	3
+G	souchi?	encode	pure	encode(protocol, record) -> bytes	-	-	absent	a record as bytes of a bus or radio frame	2
+G	souchi?	decode	pure	decode(protocol, bytes) -> record	validate	-	absent	bytes of a frame as a record; bad checksum refused	2
+G	souchi?	sample	stream	sample(sensor, opts) -> readings	deadline,time	-	absent	readings from a sensor at a rate	3
+G	souchi?	calibrate	pure	calibrate(sensor, points) -> model	-	-	absent	fit raw readings to known true values	3
+G	souchi?	smooth	pure	smooth(readings, kind, opts) -> readings	-	-	absent	reduce noise: moving average, median, Kalman	2
+G	souchi?	fuse	pure	fuse(estimates, opts) -> estimate	-	-	absent	combine several sensor estimates into one	3
+G	souchi?	task	decl	task(period, budget, f) -> task	time,validate	-	absent	declare a periodic task with a time budget	2
+G	souchi?	schedule	pure	schedule(tasks) -> table	time,validate	-	absent	prove every task meets its deadline, or name the one that fails	2
+G	souchi?	check	pure	check(board, program) -> findings	validate	kiban	absent	find a pin clash, a missing clock or a bad register use	2
+G	souchi?	flash	effect	flash(image, target, opts) -> nil	resource,capability,deadline	-	absent	write an image to a device	3
+G	souchi?	run	effect	run(image, board, opts) -> trace	process,deadline	kiban	partial:kiban	run an image on an emulated board	2
+G	souchi?	reset	effect	reset(target, opts) -> nil	capability	-	absent	restart a device	3
+G	souchi?	monitor	stream	monitor(port, f, opts) -> nil	cancel	-	absent	call f for each line from a device console	3
+G	kiban	board	decl	board(name) -> board	validate	blue-native	exists:kiban	a board spec: memory regions and devices	0
+G	kiban	device	decl	device(name, kind, base) -> device	validate	blue-native	exists:kiban	a device on a board, with its base address	0
+G	kiban	get	pure	get(board, name) -> device or nil	-	blue-native	exists:kiban	the base address of a named device	0
+G	chuuzou	emit	pure	emit(program) -> Rust AST	validate	blue-native	partial:chuuzou	a checked program as a typed Rust AST	2
+G	chuuzou	build	effect	build(program, board) -> image	process,resource	blue-native	partial:chuuzou	emit, link and measure one board image	2
+G	chuuzou	link	effect	link(ast, board) -> image	process	blue-native	exists:chuuzou	link emitted code into a board image	0
+G	chuuzou	measure	pure	measure(image) -> {text, data, ram}	-	blue-native	exists:chuuzou	code and data size of an image	0
+G	kinyuu?	money	decl	money(amount, currency) -> money	validate	-	absent	exact amount in minor units; float refused	1
+G	kinyuu?	allocate	pure	allocate(money, ratios) -> parts	-	-	absent	split money by ratios; parts sum to the whole	1
+G	kinyuu?	convert	pure	convert(money, currency, rate) -> money	-	-	absent	money in another currency at a rate	1
+G	kinyuu?	round	pure	round(money, mode) -> money	-	-	absent	money rounded to the currency minor unit	1
+G	kinyuu?	parse	pure	parse(text, locale) -> money	validate	-	absent	text such as 1.234,50 EUR to money	1
+G	kinyuu?	render	pure	render(money, locale) -> text	-	-	absent	money as a locale writes it	1
+G	kinyuu?	get	effect	get(rates, pair, at) -> rate or nil	cache	-	absent	an exchange rate at a time; nil if unquoted	2
+G	kinyuu?	ledger	decl	ledger(accounts, rules) -> ledger	validate	-	absent	declare accounts and posting rules	1
+G	kinyuu?	post	effect	post(ledger, entry) -> entry	idempotent,validate,log	-	absent	record a balanced entry once; unbalanced is refused	1
+G	kinyuu?	reverse	effect	reverse(ledger, entry) -> entry	idempotent,log	-	absent	post the opposite of an entry	1
+G	kinyuu?	balance	pure	balance(ledger, account, at) -> money	-	-	absent	what an account holds at a time	1
+G	kinyuu?	trial	pure	trial(ledger, at) -> report	-	-	absent	every balance, with debits equal to credits	1
+G	kinyuu?	reconcile	pure	reconcile(ledger, statement) -> mismatches	-	-	absent	match entries to a bank statement	2
+G	kinyuu?	close	effect	close(ledger, period) -> nil	idempotent,log	-	absent	seal a period; later posts to it are refused	2
+G	kinyuu?	check	pure	check(ledger) -> findings	validate	-	absent	verify chain, balance and period seals	1
+G	kinyuu?	list	pure	list(ledger, filter) -> entries	-	-	absent	entries that match, oldest first	1
+G	kinyuu?	interest	pure	interest(principal, rate, term, kind) -> money	-	-	absent	simple or compound interest	1
+G	kinyuu?	amortize	pure	amortize(loan) -> schedule	-	-	absent	payment schedule: interest, principal, balance	2
+G	kinyuu?	discount	pure	discount(flows, rate) -> money	-	-	absent	present value of future cash flows	1
+G	kinyuu?	irr	pure	irr(flows) -> rate	-	-	absent	the rate at which flows net to zero	2
+G	kinyuu?	price	pure	price(instrument, market, opts) -> money	-	-	absent	value a bond, option or swap from market data	3
+G	kinyuu?	tax	pure	tax(amount, rules) -> breakdown	-	-	absent	tax due per rule, with the rounding shown	2
+G	kinyuu?	invoice	decl	invoice(lines, opts) -> invoice	validate	-	absent	declare an invoice: lines, tax, totals	2
+G	kinyuu?	trade	pure	trade(book, order) -> {fills, book}	-	-	absent	match an order against a book	3
+G	chizu?	point	decl	point(lat, lon, opts) -> point	validate	-	absent	a position; latitude and longitude range refused	1
+G	chizu?	distance	pure	distance(a, b, opts) -> meters	-	-	absent	great-circle distance of two points	1
+G	chizu?	bearing	pure	bearing(a, b) -> degrees	-	-	absent	compass direction from a to b	1
+G	chizu?	destination	pure	destination(point, bearing, meters) -> point	-	-	absent	the point reached by going a bearing and distance	1
+G	chizu?	project	pure	project(point, crs) -> xy	-	-	absent	a point in a flat system: Web Mercator, UTM	1
+G	chizu?	unproject	pure	unproject(xy, crs) -> point	-	-	absent	a flat coordinate as latitude and longitude	1
+G	chizu?	bounds	pure	bounds(geometry) -> box	-	-	absent	the bounding box of a geometry	1
+G	chizu?	contains?	pure	contains?(region, point) -> Bool	-	-	absent	whether a point is inside a region	1
+G	chizu?	intersects?	pure	intersects?(a, b) -> Bool	-	-	absent	whether two geometries touch	1
+G	chizu?	buffer	pure	buffer(geometry, meters) -> geometry	-	-	absent	a geometry grown by a distance	2
+G	chizu?	simplify	pure	simplify(line, tolerance) -> line	-	-	absent	a line with fewer points, same shape	1
+G	chizu?	centroid	pure	centroid(geometry) -> point	-	-	absent	the center of a geometry	1
+G	chizu?	measure	pure	measure(geometry, metric) -> number	-	-	absent	length, area or elevation gain	1
+G	chizu?	cell	pure	cell(point, level) -> cell	-	-	absent	the grid cell that holds a point: geohash or H3	2
+G	chizu?	neighbors	pure	neighbors(cell) -> cells	-	-	absent	the cells beside a cell	2
+G	chizu?	parse	pure	parse(text, format) -> geometry	validate	-	absent	GeoJSON, WKT or GPX text to geometry	1
+G	chizu?	render	pure	render(geometry, format) -> text	serialize	-	absent	a geometry as GeoJSON or WKT text	1
+G	chizu?	geocode	effect	geocode(text, opts) -> places	deadline,retry,ratelimit,cache	-	absent	places that match an address or name	2
+G	chizu?	locate	effect	locate(point, opts) -> place or nil	deadline,retry,ratelimit,cache	-	absent	the place at a point; nil if none	2
+G	chizu?	path	effect	path(from, to, opts) -> steps	deadline,retry,cache	-	absent	a route over roads or tracks between two points	2
+G	ongaku	scale	pure	scale(root, kind) -> notes	-	-	exists:ongaku	the notes of a scale from a root	0
+G	ongaku	chord	pure	chord(root, kind) -> notes	-	-	exists:ongaku	the notes of a chord from a root	0
+G	ongaku	transpose	pure	transpose(notes, semitones) -> notes	-	-	exists:ongaku	notes moved by semitones	0
+G	ongaku	hz	pure	hz(note) -> number	-	-	exists:ongaku	the frequency of a MIDI note	0
+G	ongaku	parse	pure	parse(text, format) -> score	validate	-	absent	ABC or MIDI text to a score	1
+G	ongaku	render	pure	render(score, format) -> clip or bytes	serialize	-	absent	a score as MIDI bytes or an audio clip	2
+G	ongaku	analyze	pure	analyze(notes) -> {key, chords}	-	-	absent	the key and chords that fit notes	1
+G	kikagaku	area	pure	area(polygon) -> number	-	-	exists:kikagaku	area of a simple polygon	0
+G	kikagaku	contains?	pure	contains?(region, point) -> Bool	-	-	partial:kikagaku	whether a point is inside a circle or polygon	0
+G	kikagaku	hull	pure	hull(points) -> polygon	-	-	absent	the smallest convex polygon around points	1
+G	kikagaku	intersect	pure	intersect(a, b) -> geometry or nil	-	-	absent	the shared part of two shapes	1
+G	kikagaku	offset	pure	offset(polygon, distance) -> polygon	-	-	absent	a polygon grown or shrunk by a distance	1
+G	kikagaku	closest	pure	closest(points, p) -> point	-	-	absent	the point nearest to p	1
+G	rittai	transform	pure	transform(mesh, pose) -> mesh	-	-	exists:rittai	a mesh moved by a pose	0
+G	rittai	merge	pure	merge(a, b) -> mesh	-	-	exists:rittai	two meshes as one	0
+G	rittai	extrude	pure	extrude(region, height) -> mesh	-	-	exists:rittai	a region pushed into a solid	0
+G	rittai	measure	pure	measure(mesh, metric) -> number	-	-	exists:rittai	volume, surface area or mass of a mesh	0
+G	rittai	render	pure	render(mesh, format) -> text	serialize	-	exists:rittai	a mesh as STL text	0
+G	rittai	parse	pure	parse(text, format) -> mesh	validate	-	absent	STL or OBJ text to a mesh	1
+G	rittai	check	pure	check(mesh) -> findings	validate	-	partial:rittai	find open edges and flipped faces	0
+G	rittai	slice	pure	slice(mesh, height) -> region	-	-	absent	the cut of a mesh at a height	1
+G	rittai	boolean	pure	boolean(a, b, op) -> mesh	-	-	absent	union, difference or intersection of solids	4
+G	zumen	render	pure	render(sheet, format) -> text	serialize	-	exists:zumen	a sheet as SVG or DXF text	0
+G	zumen	project	pure	project(mesh, view) -> sheet	-	-	exists:zumen	feature-edge view of a solid	0
+G	zumen	parse	pure	parse(text, format) -> sheet	validate	-	absent	DXF text to entities on layers	2
+G	zumen	plot	pure	plot(series, opts) -> sheet	-	-	absent	a chart from series: line, bar, scatter	1
+G	zumen	layout	pure	layout(nodes, edges, opts) -> placed graph	-	-	absent	place a graph in layers with routed edges	2
+G	zumen	diagram	decl	diagram(kind, spec) -> sheet	validate	-	absent	declare a flow, sequence or architecture diagram	2
+G	zumen	check	pure	check(sheet) -> findings	validate	-	absent	find overlaps, clipped text and low contrast	2
+G	tokumei	count	pure	count(xs, epsilon, seed) -> number	-	-	exists:tokumei	a count with noise that hides one person	0
+G	tokumei	suppress	pure	suppress(groups, k) -> groups	-	-	exists:tokumei	drop groups smaller than k	0
+G	tokumei	perturb	pure	perturb(value, epsilon, seed) -> number	-	-	exists:tokumei	add Laplace noise to a value	0
+G	kazu	quantity	decl	quantity(n, unit) -> quantity	validate	-	absent	a number with a physical unit and dimension	1
+G	kazu	convert	pure	convert(quantity, unit) -> quantity	validate	-	absent	a quantity in another unit of the same dimension	1
+G	kazu	check	pure	check(expr) -> dimension	validate	-	absent	prove that units add up: meters plus seconds is refused	1
+G	kinji	advance	pure	advance(ode, state, span) -> state	-	-	exists:kinji	move an ODE state forward over a span	0
+G	kinji	root	pure	root(f, bracket) -> number	-	-	exists:kinji	where f is zero in a bracket	0
+G	kinji	minimize	pure	minimize(f, start) -> point	-	-	exists:kinji	a point where f is least	0
+G	kinji	fit	pure	fit(model, data) -> params	-	-	exists:kinji	least-squares parameters for a model	0
+G	kinji	interpolate	pure	interpolate(points, x) -> number	-	-	exists:kinji	a value between known points	0
+G	kinji	integrate	pure	integrate(f, a, b) -> number	-	-	exists:kinji	area under f from a to b	0
+G	gyouretsu	solve	pure	solve(a, b) -> vector	-	-	exists:gyouretsu	solve a linear system	0
+G	gyouretsu	decompose	pure	decompose(matrix, kind) -> factors	-	-	absent	LU, QR, eigen or SVD factors	3
+G	gyouretsu	tensor	decl	tensor(shape, dtype) -> tensor	validate	ml-forge	absent	declare an n-dimensional array with symbolic shape	3
+G	gyouretsu	plan	pure	plan(graph) -> compiled graph	validate	ml-forge	absent	compile a tensor graph; shapes proved before any run	3
+G	gyouretsu	run	effect	run(compiled, inputs) -> tensors	resource,deadline	ml-forge	absent	run a compiled graph on CPU or GPU	4
+G	toukei	describe	pure	describe(xs) -> summary	-	-	exists:toukei	count, mean, spread and quartiles	0
+G	toukei	test	pure	test(a, b, kind) -> {statistic, p}	-	-	absent	a hypothesis test: t, chi-square, rank	1
+G	toukei	bootstrap	pure	bootstrap(xs, f, n, seed) -> interval	-	-	absent	a confidence interval by seeded resampling	1
+G	toukei	correlate	pure	correlate(xs, ys) -> number	-	-	exists:toukei	how two series move together	0
+G	mokuroku	render	pure	render(catalog, format) -> text	serialize	-	exists:mokuroku	the package catalog as markdown	0
+G	mokuroku	list	pure	list(roots) -> packages	-	-	exists:mokuroku	every package on a path	0
+G	mokuroku	check	pure	check(catalog) -> findings	validate	-	exists:mokuroku	find name collisions and shadowed names	0

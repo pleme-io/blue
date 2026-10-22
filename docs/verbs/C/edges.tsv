@@ -1,0 +1,507 @@
+from	rel	to	why
+aktaa?::alive?	composes	aktaa?::info	info reduced to a Bool
+aktaa?::call	composes	aktaa?::receive	selective receive of the answer
+aktaa?::call	composes	aktaa?::send	send then wait for reply
+aktaa?::call	pairs	aktaa?::reply	asker and answerer
+aktaa?::call	pairs	keiyaku?::call	local and remote request-reply
+aktaa?::cast	refines	aktaa?::send	fire and forget request
+aktaa?::child	refines	aktaa?::spawn	a spawn the supervisor repeats
+aktaa?::connect	requires	aktaa?::node	joins declared nodes
+aktaa?::exit	refines	aktaa?::send	exit signal with reason
+aktaa?::group	generalizes	aktaa?::register	one name, many pids
+aktaa?::info	requires	aktaa?::spawn	about a live process
+aktaa?::isolate	composes	aktaa?::spawn	spawn, wait and unwrap
+aktaa?::isolate	composes	aktaa?::wait	result back to caller
+aktaa?::kill	refines	aktaa?::exit	exit that cannot be trapped
+aktaa?::link	inverse	aktaa?::unlink	couple and uncouple
+aktaa?::list	lifts	aktaa?::info	every process
+aktaa?::migrate	requires	aktaa?::spawn	upgrades a live process
+aktaa?::monitor	generalizes	aktaa?::link	one-way observation
+aktaa?::monitor	inverse	aktaa?::demonitor	watch and stop
+aktaa?::monitor	pairs	aktaa?::supervise	supervision builds on monitoring
+aktaa?::node	pairs	aktaa?::connect	declare then join
+aktaa?::node	pairs	ami?::peer	nodes ride peer links
+aktaa?::pool	composes	aktaa?::spawn	fixed set of spawns
+aktaa?::pool	composes	aktaa?::supervise	workers under a supervisor
+aktaa?::receive	composes	aktaa?::self	reads own mailbox
+aktaa?::receive	pairs	heikou::timeout	receive with an after clause
+aktaa?::register	inverse	aktaa?::whereis	name in, pid out
+aktaa?::replay	pairs	nisshi::replay	both fold recorded events
+aktaa?::replay	requires	aktaa?::trace	replays what trace recorded
+aktaa?::reply	requires	aktaa?::call	only answers a call
+aktaa?::restart	composes	aktaa?::spawn	new incarnation, empty mailbox
+aktaa?::send	inverse	aktaa?::receive	put in, take out of a mailbox
+aktaa?::send	pairs	messeeji?::publish	local and remote messaging
+aktaa?::send	requires	aktaa?::spawn	needs a live pid
+aktaa?::spawn	inverse	aktaa?::kill	start and end
+aktaa?::spawn	pairs	aktaa?::link	spawn and link together
+aktaa?::stop	composes	aktaa?::exit	ask first
+aktaa?::stop	composes	aktaa?::kill	then force after grace
+aktaa?::stop	inverse	aktaa?::spawn	end versus start
+aktaa?::supervise	composes	aktaa?::child	children under a strategy
+aktaa?::supervise	composes	aktaa?::link	supervisor traps child exits
+aktaa?::supervise	composes	aktaa?::restart	restart by strategy
+aktaa?::supervise	pairs	heikou::policy	restart intensity is a retry policy
+aktaa?::supervise	pairs	kyoujin?::breaker	restart storms trip a breaker
+aktaa?::task	composes	aktaa?::spawn	spawn plus one result
+aktaa?::task	composes	aktaa?::wait	result via wait
+aktaa?::task	pairs	heikou::spawn	same shape at two levels
+aktaa?::trace	pairs	nisshi::append	crash traces are events
+aktaa?::trace	requires	aktaa?::exit	traces exist for crashed processes
+aktaa?::wait	composes	aktaa?::monitor	waits for the down message
+aktaa?::whereis	requires	aktaa?::register	lookup of a registered name
+ami?::certify	guards	ami?::open	short-lived cert replaces long keys
+ami?::close	requires	ami?::open	ends what open began
+ami?::copy	refines	fairu::copy	remote form of copy
+ami?::copy	requires	ami?::open	needs a session
+ami?::diff	refines	deeta::diff	records as data
+ami?::find	generalizes	ami?::resolve	discovery over DNS or registry
+ami?::find	pairs	chuukai?::upstream	discovery fills upstreams
+ami?::find	requires	ami?::register	returns registered instances
+ami?::forward	composes	sokketto?::pipe	relay bytes
+ami?::forward	requires	ami?::open	rides a session
+ami?::info	requires	ami?::up	inspects a link
+ami?::list	pairs	ami?::diff	actual state for the diff
+ami?::open	inverse	ami?::close	start and end a session
+ami?::open	pairs	sokketto?::secure	a session is an encrypted connection
+ami?::peer	pairs	ami?::up	declare then bring up
+ami?::propagated?	composes	ami?::resolve	asks each server
+ami?::put	inverse	ami?::delete	create and remove a record
+ami?::put	requires	ami?::diff	reconcile applies a diff
+ami?::register	inverse	ami?::deregister	announce and withdraw
+ami?::register	pairs	goui?::heartbeat	a registration lives by its lease
+ami?::resolve	inverse	ami?::reverse	name to address and back
+ami?::resolve	pairs	ami?::list	query versus zone listing
+ami?::resolve	pairs	heikou::retry	lookups retried on failure
+ami?::rotate	requires	ami?::info	reads handshake before swapping
+ami?::run	pairs	heikou::timeout	remote commands are bounded
+ami?::run	refines	shisutemu::run	remote form of run
+ami?::run	requires	ami?::open	needs a session
+ami?::up	inverse	ami?::down	raise and lower a link
+ami?::up	pairs	sokketto?::connect	a tunnel carries sockets
+ami?::up	requires	ami?::peer	needs declared peers
+ami?::watch	lifts	ami?::find	changes in the result
+ami?::watch	pairs	goui?::watch	both stream membership changes
+chuukai?::authorize	guards	chuukai?::forward	decision before forwarding
+chuukai?::check	pairs	chuukai?::eject	failed probe leads to eject
+chuukai?::check	refines	kyoujin?::check	a probe of one target
+chuukai?::drain	refines	kyoujin?::drain	drain for one target
+chuukai?::eject	inverse	chuukai?::upstream	removes a declared target
+chuukai?::eject	requires	chuukai?::check	ejects what checks failed
+chuukai?::forward	composes	chuukai?::pick	choose a target
+chuukai?::forward	composes	tsuushin::request	sends the request on
+chuukai?::forward	pairs	kyoujin?::call	upstream calls pass a breaker
+chuukai?::forward	requires	chuukai?::route	a route picks the upstream
+chuukai?::mirror	refines	chuukai?::forward	forward that drops the reply
+chuukai?::pick	guards	chuukai?::forward	a healthy target only
+chuukai?::pick	pairs	ami?::find	targets come from discovery
+chuukai?::pick	requires	chuukai?::upstream	chooses within an upstream
+chuukai?::policy	generalizes	chuukai?::route	mesh-wide rules
+chuukai?::purge	inverse	chuukai?::warm	drop and fill the edge
+chuukai?::purge	pairs	chuukai?::ttl	invalidation beside expiry
+chuukai?::rewrite	guards	chuukai?::forward	applied before forwarding
+chuukai?::route	composes	kyuuji::route	gateway rule over a server route
+chuukai?::split	refines	chuukai?::route	weighted route
+chuukai?::stats	lifts	kyuuji::observe	per-target metrics
+chuukai?::stats	pairs	shihyou::error_ratio	edge metrics feed objectives
+chuukai?::terminate	composes	sokketto?::secure	TLS on the listener side
+chuukai?::terminate	pairs	sokketto?::certificate	certificates at the edge
+chuukai?::ttl	pairs	tsuushin::fresh?	server sets, client judges
+chuukai?::tunnel	composes	sokketto?::pipe	byte relay
+chuukai?::upstream	pairs	chuukai?::route	targets and rules
+goui?::acquire	inverse	goui?::release	take and give back
+goui?::acquire	pairs	ami?::register	registration is a lease
+goui?::append	composes	goui?::replicate	entry copied to followers
+goui?::append	requires	goui?::elect	only the leader appends
+goui?::barrier	requires	goui?::members	counts arrived members
+goui?::compare	requires	goui?::tick	orders ticked clocks
+goui?::elect	composes	goui?::acquire	leadership is a lease on a group
+goui?::elect	pairs	goui?::resign	take and give up
+goui?::elect	pairs	shigoto?::every	one leader runs the schedule
+goui?::fence	guards	goui?::lock	the resource checks the token
+goui?::fence	requires	goui?::acquire	token comes from the lease
+goui?::gossip	composes	goui?::merge	exchange then merge
+goui?::gossip	composes	messeeji?::publish	peers are reached by messages
+goui?::heartbeat	pairs	goui?::suspect?	signals and their absence
+goui?::heartbeat	pairs	heikou::deadline	silence past a deadline fails
+goui?::held?	guards	goui?::renew	a lapsed lease cannot renew
+goui?::held?	requires	goui?::acquire	asks about a held lease
+goui?::join	inverse	goui?::leave	enter and leave a group
+goui?::leader	requires	goui?::elect	reads the holder of leadership
+goui?::lock	composes	goui?::acquire	acquire around f
+goui?::lock	composes	goui?::release	release after f
+goui?::lock	pairs	goui?::renew	long work renews
+goui?::lock	pairs	kyoujin?::once	lock or key for exactly-once
+goui?::members	pairs	ami?::find	both answer who is there
+goui?::members	requires	goui?::join	the group joined
+goui?::merge	generalizes	jisho::merge	merge with a convergence law
+goui?::merge	pairs	goui?::gossip	gossip spreads, merge joins
+goui?::propose	composes	goui?::append	a proposal appends to the log
+goui?::propose	pairs	aktaa?::call	agreement over messages
+goui?::propose	requires	goui?::quorum	agreement needs a majority
+goui?::quorum	guards	goui?::propose	size checked before voting
+goui?::renew	requires	goui?::acquire	extends a held lease
+goui?::replicate	pairs	messeeji?::replay	followers replay the log
+goui?::replicate	requires	goui?::quorum	commit when a majority has it
+goui?::resign	inverse	goui?::elect	give up what elect takes
+goui?::snapshot	pairs	goui?::append	snapshot lets the log shrink
+goui?::suspect?	requires	goui?::heartbeat	judges the heartbeat history
+goui?::tick	pairs	goui?::compare	advance and order clocks
+goui?::watch	lifts	goui?::leader	leader changes as events
+goui?::watch	lifts	goui?::members	membership changes as events
+heikou::all	composes	heikou::spawn	spawn each, then wait
+heikou::all	composes	heikou::wait	collect results
+heikou::all	requires	heikou::token	first failure cancels through a token
+heikou::any	refines	heikou::race	race that skips failures
+heikou::backoff	requires	heikou::policy	derived from the policy
+heikou::batch	pairs	heikou::map	batches then parallel work
+heikou::cancel	pairs	aktaa?::exit	task cancel and process exit
+heikou::cancel	requires	heikou::token	fires a token
+heikou::cancelled?	guards	heikou::cancel	check before acting
+heikou::cancelled?	requires	heikou::token	reads a token
+heikou::deadline	composes	heikou::token	expiry cancels the token
+heikou::deadline	pairs	heikou::remaining	set and read the budget
+heikou::debounce	refines	heikou::throttle	trailing edge instead of rate cap
+heikou::each	refines	heikou::map	map that drops results
+heikou::group	composes	heikou::spawn	children of one scope
+heikou::group	composes	heikou::stop	ends children at the scope end
+heikou::limit	guards	heikou::map	bounds the concurrency
+heikou::map	composes	heikou::all	map is all over f applied
+heikou::map	lifts	heikou::run	many bounded runs
+heikou::map	pairs	kyoujin?::bulkhead	concurrency bound per resource
+heikou::policy	guards	heikou::retry	declared bounds on attempts
+heikou::race	composes	heikou::cancel	cancel losers
+heikou::race	composes	heikou::spawn	spawn all
+heikou::remaining	requires	heikou::deadline	only inside a deadline
+heikou::retry	composes	heikou::backoff	wait computed per attempt
+heikou::retry	pairs	heikou::deadline	a deadline ends the attempts
+heikou::retry	requires	heikou::policy	retry needs a policy
+heikou::run	composes	heikou::spawn	spawn then wait
+heikou::run	composes	heikou::timeout	bounded by a timeout
+heikou::run	pairs	aktaa?::spawn	the task over the process
+heikou::shield	guards	heikou::cancel	work survives cancellation
+heikou::spawn	inverse	heikou::stop	start and end
+heikou::spawn	pairs	aktaa?::spawn	task level over process level
+heikou::stop	composes	heikou::cancel	cancel then wait
+heikou::throttle	composes	kyoujin?::bucket	rate cap from a bucket
+heikou::timeout	pairs	shigoto?::after	deadline versus timer
+heikou::timeout	refines	heikou::deadline	relative form of a deadline
+heikou::token	inverse	heikou::cancel	make and fire a token
+heikou::wait	requires	heikou::spawn	waits on a handle
+keiyaku?::bundle	composes	keiyaku?::parse	merges parsed specs
+keiyaku?::call	composes	tsuushin::request	REST binding of an operation
+keiyaku?::call	guards	keiyaku?::validate	validate before sending
+keiyaku?::call	pairs	heikou::retry	operation idempotence sets retry
+keiyaku?::call	requires	keiyaku?::client	calls go through a client
+keiyaku?::checksum	guards	keiyaku?::unframe	verify frames before use
+keiyaku?::checksum	pairs	keiyaku?::frame	frames carry a check
+keiyaku?::client	pairs	keiyaku?::call	bind then invoke
+keiyaku?::client	requires	keiyaku?::parse	bind a parsed spec
+keiyaku?::conform?	guards	keiyaku?::validate	the predicate under the raising form
+keiyaku?::describe	requires	keiyaku?::parse	lists a parsed spec
+keiyaku?::diff	pairs	kyuuji::hook	breaking changes gate releases
+keiyaku?::diff	requires	keiyaku?::parse	compares parsed specs
+keiyaku?::federate	generalizes	keiyaku?::bundle	bundle with ownership rules
+keiyaku?::frame	composes	keiyaku?::pack	frame carries packed bytes
+keiyaku?::frame	inverse	keiyaku?::unframe	wrap and split messages
+keiyaku?::generate	pairs	keiyaku?::diff	generation follows spec changes
+keiyaku?::generate	requires	keiyaku?::describe	code per operation
+keiyaku?::introspect	composes	tsuushin::request	queries the live endpoint
+keiyaku?::introspect	inverse	keiyaku?::render	fetch a schema, or write it out
+keiyaku?::lint	requires	keiyaku?::parse	checks a parsed spec
+keiyaku?::mock	composes	keiyaku?::describe	one stub per operation
+keiyaku?::mock	composes	kyuuji::serve	served as an app
+keiyaku?::pack	inverse	keiyaku?::unpack	encode and decode a layout
+keiyaku?::pack	pairs	deeta::encode	binary layouts beside text encodings
+keiyaku?::paginate	lifts	keiyaku?::call	every page of a call
+keiyaku?::paginate	refines	tsuushin::list	operation-level paging
+keiyaku?::parse	inverse	keiyaku?::render	spec text both ways
+keiyaku?::render	pairs	deeta::render	specs are data
+keiyaku?::serve	composes	kyuuji::serve	REST binding of a server
+keiyaku?::serve	pairs	keiyaku?::client	server and client of one spec
+keiyaku?::serve	requires	keiyaku?::validate	requests checked on entry
+keiyaku?::stream	lifts	keiyaku?::call	streaming form of call
+keiyaku?::validate	composes	keiyaku?::conform?	validate raises where conform? answers
+keiyaku?::version	pairs	sokketto?::handshake	agreed during the opening
+kyoujin?::admit	pairs	chuukai?::route	per-route limits at the edge
+kyoujin?::admit	requires	kyoujin?::bucket	takes from a bucket
+kyoujin?::breaker	pairs	chuukai?::eject	breaker locally, eject at the edge
+kyoujin?::breaker	pairs	kyoujin?::call	declare and use
+kyoujin?::bucket	pairs	kyoujin?::admit	declare and use
+kyoujin?::bucket	pairs	shigoto?::budget	rate and parallelism bounds
+kyoujin?::bulkhead	pairs	kyoujin?::enter	declare and use
+kyoujin?::call	guards	heikou::retry	an open breaker ends retries
+kyoujin?::call	requires	kyoujin?::breaker	a breaker is required
+kyoujin?::check	composes	heikou::timeout	a probe is bounded
+kyoujin?::check	pairs	shihyou::budget	probes and objectives
+kyoujin?::drain	inverse	kyoujin?::slow	stop intake fully versus slow it
+kyoujin?::drain	pairs	heikou::cancel	drain waits where cancel stops
+kyoujin?::enter	composes	heikou::limit	a bulkhead is a semaphore with a queue
+kyoujin?::enter	requires	kyoujin?::bulkhead	needs the declared bound
+kyoujin?::hedge	composes	heikou::race	second try races the first
+kyoujin?::hedge	requires	kyoujin?::key	hedged calls must be idempotent
+kyoujin?::inject	pairs	kyoujin?::breaker	chaos exercises breakers
+kyoujin?::inject	refines	kyoujin?::call	a wrapper around a call
+kyoujin?::key	guards	kyoujin?::once	keys decide sameness
+kyoujin?::once	refines	kyoujin?::seen?	seen? plus run
+kyoujin?::once	requires	kyoujin?::key	stored result per key
+kyoujin?::pressure	pairs	messeeji?::lag	queue depth beside lag
+kyoujin?::quota	requires	kyoujin?::window	reads a limiter
+kyoujin?::ready?	composes	kyoujin?::check	all required probes
+kyoujin?::seen?	requires	kyoujin?::key	asks about a key
+kyoujin?::shed	pairs	kyoujin?::pressure	pressure decides what to refuse
+kyoujin?::slow	requires	kyoujin?::pressure	reacts to a level
+kyoujin?::state	requires	kyoujin?::breaker	reads a breaker
+kyoujin?::take	composes	kyoujin?::admit	admit, else wait for refill
+kyoujin?::take	pairs	heikou::deadline	waiting is bounded
+kyoujin?::trip	inverse	kyoujin?::reset	force open, force closed
+kyoujin?::trip	refines	kyoujin?::state	forces a state
+kyoujin?::window	generalizes	kyoujin?::bucket	a quota counted over a window
+kyuuji::body	inverse	kyuuji::response	read a body in, write one out
+kyuuji::body	pairs	keiyaku?::validate	parse then check schema
+kyuuji::body	requires	kyuuji::header	format comes from Content-Type
+kyuuji::compress	refines	kyuuji::wrap	body-transforming wrap
+kyuuji::cors	refines	kyuuji::wrap	header-adding wrap
+kyuuji::events	pairs	messeeji?::subscribe	events fed from a subscription
+kyuuji::events	refines	kyuuji::stream	stream with event framing
+kyuuji::exposition	pairs	shihyou::error_ratio	metrics feed objectives
+kyuuji::file	composes	kyuuji::response	response whose body is a file
+kyuuji::guard	refines	kyuuji::wrap	a wrap that can refuse
+kyuuji::header	pairs	kyuuji::param	request reading verbs
+kyuuji::health	composes	kyoujin?::ready?	health answers from checks
+kyuuji::hook	composes	kyoujin?::once	one effect per delivery id
+kyuuji::hook	composes	tsuuchi?::verify?	signature checked first
+kyuuji::hook	refines	kyuuji::route	a route for signed callbacks
+kyuuji::json	refines	kyuuji::response	JSON content type preset
+kyuuji::limit	refines	kyuuji::guard	guard whose check is a bucket
+kyuuji::limit	requires	kyoujin?::admit	asks the bucket per request
+kyuuji::match	requires	kyuuji::router	matching needs the app
+kyuuji::mount	composes	kyuuji::router	nest one router in another
+kyuuji::not_found	refines	kyuuji::response	fixed 404 response
+kyuuji::observe	pairs	kyuuji::exposition	record then render
+kyuuji::observe	pairs	shihyou::slow_ratio	latency buckets feed indicators
+kyuuji::param	pairs	kyuuji::match	path params come from the match
+kyuuji::recover	refines	kyuuji::wrap	turns raised kinds to responses
+kyuuji::redirect	refines	kyuuji::response	3xx with Location
+kyuuji::route	composes	kyuuji::match	a route is a match plus handler
+kyuuji::route	pairs	kyuuji::param	a pattern defines its params
+kyuuji::router	composes	kyuuji::route	a router is a set of routes
+kyuuji::serve_once	composes	sokketto?::accept	takes one connection
+kyuuji::serve_once	pairs	tsuushin::request	test one request against a server
+kyuuji::serve	composes	kyuuji::serve_once	serve is serve_once in a loop
+kyuuji::serve	composes	sokketto?::listen	binds a listener
+kyuuji::serve	pairs	kyuuji::health	a server answers probes
+kyuuji::serve	pairs	kyuuji::shutdown	start and graceful end
+kyuuji::serve	requires	kyuuji::router	serving needs an app
+kyuuji::shutdown	composes	kyoujin?::drain	stop intake, finish in-flight
+kyuuji::shutdown	requires	kyuuji::serve	stops a running server
+kyuuji::stream	refines	kyuuji::response	chunked body from f
+kyuuji::text	refines	kyuuji::response	plain-text content type preset
+kyuuji::timeout	composes	heikou::timeout	reuses the one timeout
+kyuuji::timeout	refines	kyuuji::wrap	deadline wrap
+kyuuji::upgrade	composes	sokketto?::handshake	websocket opening
+kyuuji::upgrade	pairs	sokketto?::stream	a socket after the upgrade
+kyuuji::upgrade	refines	kyuuji::response	101 switch to a socket
+kyuuji::wrap	composes	kyuuji::guard	guard is wrap with a check
+kyuuji::wrap	generalizes	kyuuji::limit	middleware in general
+kyuuji::wrap	generalizes	kyuuji::recover	middleware in general
+kyuuji::wrap	generalizes	kyuuji::timeout	middleware in general
+messeeji?::ack	pairs	messeeji?::receive	every received message gets a verdict
+messeeji?::batch	lifts	messeeji?::publish	many publishes, many receipts
+messeeji?::commit	pairs	messeeji?::seek	save then resume position
+messeeji?::commit	refines	messeeji?::ack	ack for a whole position
+messeeji?::compact	refines	messeeji?::purge	purge by key supersession
+messeeji?::connect	inverse	messeeji?::close	open and release a bus
+messeeji?::connect	pairs	sokketto?::connect	brokers ride sockets
+messeeji?::create	inverse	messeeji?::delete	make and remove
+messeeji?::create	pairs	messeeji?::retain	retention set at creation
+messeeji?::dedupe	composes	kyoujin?::seen?	same seen-key idea
+messeeji?::dedupe	pairs	messeeji?::publish	publisher ids drop duplicates
+messeeji?::extend	requires	messeeji?::receive	a held message only
+messeeji?::info	pairs	kyoujin?::pressure	depth feeds pressure
+messeeji?::info	requires	messeeji?::create	needs an existing stream
+messeeji?::join	pairs	goui?::members	group of consumers
+messeeji?::join	refines	messeeji?::subscribe	subscribe sharing load
+messeeji?::lag	composes	messeeji?::info	stream end minus consumer position
+messeeji?::lag	pairs	kyoujin?::pressure	lag is a pressure signal
+messeeji?::list	lifts	messeeji?::info	all, rather than one
+messeeji?::nack	inverse	messeeji?::ack	refuse versus confirm
+messeeji?::nack	pairs	messeeji?::ack	opposite verdicts
+messeeji?::park	composes	messeeji?::publish	publish to the dead subject
+messeeji?::park	requires	messeeji?::nack	parked after tries run out
+messeeji?::publish	inverse	messeeji?::receive	put in, take out
+messeeji?::publish	pairs	heikou::retry	publish retried with the same id
+messeeji?::publish	pairs	kyoujin?::once	publisher id makes it idempotent
+messeeji?::publish	requires	messeeji?::connect	needs an open bus
+messeeji?::purge	refines	messeeji?::delete	delete messages, keep the stream
+messeeji?::receive	pairs	heikou::timeout	pull with a bound
+messeeji?::redrive	composes	messeeji?::publish	re-publish parked messages
+messeeji?::redrive	inverse	messeeji?::park	parked messages go back
+messeeji?::replay	composes	messeeji?::seek	seek then read forward
+messeeji?::replay	lifts	messeeji?::receive	a range of past messages
+messeeji?::replay	pairs	nisshi::read	log replays on both
+messeeji?::reply	composes	messeeji?::publish	publish to the reply subject
+messeeji?::request	composes	messeeji?::publish	publish with a reply subject
+messeeji?::request	composes	messeeji?::receive	then one reply
+messeeji?::request	pairs	heikou::deadline	replies are bounded
+messeeji?::request	pairs	messeeji?::reply	asker and answerer
+messeeji?::retain	guards	messeeji?::create	policy given at creation
+messeeji?::seek	requires	messeeji?::create	positions a log consumer
+messeeji?::subscribe	lifts	messeeji?::receive	push form of receive
+messeeji?::subscribe	pairs	aktaa?::send	subscription feeds a mailbox
+messeeji?::subscribe	pairs	heikou::token	subscription ends on cancel
+messeeji?::unsubscribe	inverse	messeeji?::subscribe	end a subscription
+nisshi::append	inverse	nisshi::read	write and read events
+nisshi::append	pairs	keiyaku?::checksum	hash chain beside frame checks
+nisshi::publish	composes	messeeji?::publish	each event goes to the bus
+nisshi::publish	composes	nisshi::watch	driven by the appends
+nisshi::read	lifts	nisshi::append	all appended events
+nisshi::replay	composes	nisshi::read	fold what was read
+nisshi::verify	guards	nisshi::replay	replay only a valid chain
+nisshi::watch	lifts	nisshi::append	appends as events
+shigoto?::after	composes	jikan::sleep	sleep then call
+shigoto?::at	refines	shigoto?::after	absolute instead of relative
+shigoto?::backfill	composes	shigoto?::missed	runs each missed firing
+shigoto?::backfill	pairs	kyoujin?::once	each firing runs once
+shigoto?::budget	guards	shigoto?::run	bounds parallelism of a run
+shigoto?::cancel	composes	shigoto?::compensate	undo completed steps
+shigoto?::cancel	pairs	heikou::cancel	run-level cancel
+shigoto?::claim	requires	goui?::acquire	a claim is a lease
+shigoto?::compensate	pairs	heikou::retry	undos retried until done
+shigoto?::compensate	requires	shigoto?::saga	undoes a declared saga
+shigoto?::complete	requires	shigoto?::claim	only the claimant completes
+shigoto?::dag	pairs	shigoto?::run	declare then run
+shigoto?::defer	refines	shigoto?::fail	failure with a chosen delay
+shigoto?::defer	requires	shigoto?::claim	hands back a claimed job
+shigoto?::enqueue	inverse	shigoto?::claim	add and take
+shigoto?::enqueue	pairs	kyoujin?::key	duplicate key is one job
+shigoto?::enqueue	pairs	messeeji?::publish	a queue over a log
+shigoto?::every	composes	jikan::sleep	waits between firings
+shigoto?::every	composes	shigoto?::next	sleep to each firing
+shigoto?::every	pairs	goui?::lock	run one copy of a schedule
+shigoto?::every	refines	shigoto?::at	at repeated by a schedule
+shigoto?::fail	composes	heikou::retry	policy decides redelivery
+shigoto?::fail	pairs	messeeji?::park	exhausted jobs go to a dead queue
+shigoto?::fail	requires	shigoto?::claim	only the claimant fails
+shigoto?::gate	guards	shigoto?::claim	held until precondition
+shigoto?::info	composes	nisshi::replay	state is folded from the log
+shigoto?::info	requires	shigoto?::start	inspects a run
+shigoto?::missed	composes	shigoto?::next	firings between two instants
+shigoto?::next	requires	shigoto?::parse	computed from a schedule
+shigoto?::parse	inverse	shigoto?::next	text to schedule, schedule to time
+shigoto?::parse	requires	jikan::parse	schedules use time parsing
+shigoto?::pause	inverse	shigoto?::resume	stop and continue
+shigoto?::plan	inverse	shigoto?::run	the plan changes nothing
+shigoto?::plan	requires	shigoto?::dag	plans a declared graph
+shigoto?::rank	pairs	shigoto?::claim	claim order
+shigoto?::run	composes	heikou::map	parallel by level
+shigoto?::run	pairs	nisshi::append	runs are recorded
+shigoto?::run	requires	shigoto?::dag	runs a declared graph
+shigoto?::saga	refines	shigoto?::workflow	steps each with an undo
+shigoto?::signal	requires	shigoto?::start	targets a run
+shigoto?::start	composes	nisshi::append	each step is logged
+shigoto?::start	requires	shigoto?::workflow	runs a declared workflow
+shigoto?::wait	requires	shigoto?::start	waits on a run
+shigoto?::workflow	generalizes	shigoto?::dag	durable and signal-aware graph
+shihyou::alerts	composes	shihyou::burn	alerts fire on burn rate
+shihyou::alerts	composes	shihyou::error_ratio	burn alerts use ratios
+shihyou::budget	requires	shihyou::objectives	derived from a target
+shihyou::burn	composes	shihyou::error_ratio	ratio over budget
+shihyou::dashboard	requires	shihyou::objectives	panels per objective
+shihyou::error_ratio	pairs	kyuuji::observe	ratio of what observe counted
+shihyou::error_ratio	pairs	shihyou::slow_ratio	two indicators
+shihyou::exhausted?	composes	shihyou::burn	spent when burn crosses budget
+shihyou::exhausted?	guards	kyoujin?::shed	spent budget can trigger shedding
+shihyou::objectives	pairs	shihyou::budget	objective and its allowed errors
+shihyou::slow_ratio	pairs	shihyou::error_ratio	two indicators
+sokketto?::accept	pairs	aktaa?::spawn	one process per connection
+sokketto?::accept	requires	sokketto?::listen	accept needs a listener
+sokketto?::bind	refines	sokketto?::listen	datagram counterpart
+sokketto?::certificate	composes	sokketto?::secure	reads the chain it negotiated
+sokketto?::certificate	pairs	kyoujin?::check	expiry is a health signal
+sokketto?::close	pairs	sokketto?::reuse	closed or returned to the pool
+sokketto?::connect	inverse	sokketto?::close	open and release
+sokketto?::connect	pairs	heikou::timeout	connecting is bounded
+sokketto?::exists?	composes	sokketto?::connect	connect then close
+sokketto?::handshake	requires	sokketto?::connect	runs on an open connection
+sokketto?::info	pairs	sokketto?::certificate	peer details
+sokketto?::info	pairs	sokketto?::connect	inspect what connect opened
+sokketto?::join	requires	sokketto?::bind	multicast needs a bound socket
+sokketto?::listen	inverse	sokketto?::close	bind and release
+sokketto?::listen	pairs	sokketto?::accept	bind then take
+sokketto?::pipe	composes	sokketto?::read	copy loop
+sokketto?::pipe	composes	sokketto?::write	copy loop
+sokketto?::read	inverse	sokketto?::write	bytes in, bytes out
+sokketto?::read	pairs	keiyaku?::unframe	bytes are split into frames
+sokketto?::read	requires	sokketto?::connect	needs an open connection
+sokketto?::receive	refines	sokketto?::read	message-oriented read
+sokketto?::reuse	guards	sokketto?::connect	pool decides open or reuse
+sokketto?::secure	composes	sokketto?::handshake	TLS opening on a connection
+sokketto?::secure	requires	sokketto?::connect	upgrades an open connection
+sokketto?::send	inverse	sokketto?::receive	message out, message in
+sokketto?::send	refines	sokketto?::write	message-oriented write
+sokketto?::stream	lifts	sokketto?::receive	messages until close
+sokketto?::stream	pairs	heikou::token	ends on cancellation
+sokketto?::wait	lifts	sokketto?::read	ready set instead of one read
+sokketto?::write	pairs	keiyaku?::frame	frames are written whole
+sokketto?::write	requires	sokketto?::connect	needs an open connection
+tsuuchi?::channel	pairs	tsuuchi?::send	declaration and use
+tsuuchi?::compose	inverse	tsuuchi?::parse	build and read a message
+tsuuchi?::parse	pairs	deeta::parse	a message is data
+tsuuchi?::register	inverse	tsuuchi?::suppress	enrol versus stop
+tsuuchi?::render	inverse	tsuuchi?::parse	text out versus text in
+tsuuchi?::render	requires	tsuuchi?::template	fills a declared template
+tsuuchi?::send	composes	tsuuchi?::render	render then deliver
+tsuuchi?::send	pairs	kyoujin?::bucket	senders are rate limited
+tsuuchi?::send	pairs	kyoujin?::once	a key makes a send safe to retry
+tsuuchi?::send	pairs	messeeji?::publish	delivery can be queued
+tsuuchi?::send	pairs	tsuushin::request	webhook delivery is a request
+tsuuchi?::send	requires	tsuuchi?::channel	delivery needs a channel
+tsuuchi?::send	requires	tsuuchi?::suppressed?	stop-list checked first
+tsuuchi?::sign	refines	shomei::sign	webhook form of sign
+tsuuchi?::status	pairs	nisshi::append	receipts are logged
+tsuuchi?::status	requires	tsuuchi?::send	status of a receipt
+tsuuchi?::subscribe	refines	messeeji?::subscribe	topic list for humans
+tsuuchi?::suppress	pairs	tsuuchi?::suppressed?	write and read of the stop list
+tsuuchi?::validate	guards	tsuuchi?::send	bad addresses refused early
+tsuuchi?::verify?	inverse	tsuuchi?::sign	check and make a signature
+tsuuchi?::verify?	refines	shomei::verify?	webhook form of verify
+tsuushin::authenticate	composes	tsuushin::sign	a flow yields what sign applies
+tsuushin::create	composes	tsuushin::request	POST with exists check
+tsuushin::create	inverse	tsuushin::delete	create adds what delete removes
+tsuushin::delete	composes	tsuushin::request	DELETE treating 404 as done
+tsuushin::download	composes	tsuushin::stream	body streamed into a file
+tsuushin::download	pairs	tsuushin::upload	file out and file in
+tsuushin::etag	pairs	tsuushin::revalidate	validator and conditional request
+tsuushin::exists?	pairs	sokketto?::exists?	URL probe and port probe
+tsuushin::exists?	refines	tsuushin::request	HEAD request reduced to a Bool
+tsuushin::fresh?	inverse	tsuushin::revalidate	fresh needs no check; stale does
+tsuushin::fresh?	requires	tsuushin::cache_key	freshness is judged per cached key
+tsuushin::get	composes	tsuushin::request	get is GET mapping 404 to nil
+tsuushin::join	requires	tsuushin::parse	resolution works on parsed URLs
+tsuushin::list	composes	tsuushin::get	list follows pages of entries
+tsuushin::list	lifts	tsuushin::get	all pages of a keyed lookup
+tsuushin::list	pairs	keiyaku?::paginate	REST paging and operation paging
+tsuushin::mock	refines	tsuushin::request	same shape, canned answers
+tsuushin::need	refines	tsuushin::get	need raises where get gives nil
+tsuushin::negotiate	pairs	kyuuji::response	server picks the type the client asks
+tsuushin::parse	inverse	tsuushin::render	text to record and back
+tsuushin::put	composes	tsuushin::request	PUT with the entry as body
+tsuushin::put	inverse	tsuushin::delete	put makes present, delete absent
+tsuushin::read	composes	tsuushin::request	read is request GET plus status check
+tsuushin::read	pairs	deeta::parse	body then parsed value
+tsuushin::request	composes	sokketto?::connect	a request rides a connection
+tsuushin::request	pairs	heikou::retry	retry under a declared policy
+tsuushin::request	requires	heikou::timeout	every request has a deadline
+tsuushin::request	requires	kyoujin?::bucket	callers share an upstream budget
+tsuushin::request	requires	tsuushin::parse	a request needs a valid URL
+tsuushin::revalidate	composes	tsuushin::request	conditional GET using a validator
+tsuushin::revalidate	requires	tsuushin::fresh?	only stale entries are revalidated
+tsuushin::sign	guards	tsuushin::request	signed before sending
+tsuushin::stream	lifts	tsuushin::read	incremental form of read
+tsuushin::stream	pairs	sokketto?::stream	HTTP bodies and socket messages
+tsuushin::update	composes	tsuushin::get	read, apply f, write back
+tsuushin::update	requires	tsuushin::etag	conditional write needs a validator
+tsuushin::upload	composes	tsuushin::request	request with a file or form body
+tsuushin::wait	composes	tsuushin::exists?	poll until a probe passes
+tsuushin::wait	pairs	kyoujin?::ready?	poll a readiness endpoint

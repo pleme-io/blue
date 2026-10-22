@@ -1,0 +1,876 @@
+from	rel	to	why
+deeta::parse	inverse	deeta::render	text and value round-trip
+deeta::read	composes	deeta::parse	file text then parse
+deeta::read	composes	fairu::read	bytes come from the file
+deeta::write	composes	deeta::render	value rendered, then stored
+deeta::write	inverse	deeta::read	stores what read returns
+deeta::write	composes	fairu::write	atomic file replacement
+deeta::convert	composes	deeta::parse	read the source format
+deeta::convert	composes	deeta::render	write the target format
+deeta::detect	guards	deeta::parse	picks the format parse needs
+deeta::canonical	refines	deeta::render	render with fixed key order
+deeta::canonical	pairs	deeta::address	hash needs canonical bytes
+deeta::address	composes	deeta::canonical	hash the canonical bytes
+deeta::address	composes	shomei::hash	digest of the canonical text
+deeta::get	pairs	deeta::put	read and write one path
+deeta::need	refines	deeta::get	raises instead of nil
+deeta::has?	guards	deeta::need	check presence before demanding
+deeta::put	pairs	deeta::get	set what get reads
+deeta::update	composes	deeta::get	read the old value
+deeta::update	composes	deeta::put	store f(old)
+deeta::delete	inverse	deeta::put	removes what put sets
+deeta::select	composes	deeta::get	read each listed path
+deeta::select	refines	jisho::select	paths instead of keys
+deeta::query	generalizes	deeta::get	expressions beyond dotted paths
+deeta::walk	generalizes	deeta::update	visits every node
+deeta::paths	composes	deeta::walk	collects the leaves walk visits
+deeta::flatten	composes	deeta::paths	one dotted key per path
+deeta::unflatten	inverse	deeta::flatten	rebuilds the nesting
+deeta::merge	refines	jisho::merge	deep merge for documents
+deeta::diff	refines	sabun?::diff	changes by path, not by line
+deeta::patch	inverse	deeta::diff	applies what diff finds
+deeta::patch	refines	sabun?::patch	path-addressed hunks
+deeta::stream	lifts	deeta::parse	parse one record at a time
+deeta::encode	inverse	deeta::decode	text and bytes round-trip
+deeta::pack	inverse	deeta::unpack	value and bytes round-trip
+deeta::pack	pairs	deeta::render	binary versus text output
+deeta::unpack	pairs	deeta::parse	binary versus text input
+jisho::get	refines	deeta::get	one key instead of a path
+jisho::need	refines	jisho::get	raises instead of nil
+jisho::has?	guards	jisho::need	check presence first
+jisho::put	pairs	jisho::get	set what get reads
+jisho::delete	inverse	jisho::put	removes what put sets
+jisho::update	composes	jisho::get	read the old value
+jisho::update	composes	jisho::put	store f(old)
+jisho::merge	composes	jisho::put	fold entries of b into a
+jisho::select	composes	jisho::get	read each listed key
+jisho::omit	pairs	jisho::select	drop versus keep
+jisho::keys	pairs	jisho::values	same order
+jisho::entries	inverse	jisho::from_entries	pairs and map round-trip
+jisho::entries	composes	jisho::keys	pairs of keys and values
+jisho::from_entries	composes	jisho::put	builds the map by puts
+jisho::rename	composes	jisho::delete	remove the old key
+jisho::rename	composes	jisho::put	store under the new key
+jisho::map_values	composes	jisho::entries	rewrite each pair
+jisho::map_keys	composes	jisho::entries	rewrite each pair
+jisho::filter	composes	jisho::entries	keep pairs where f holds
+jisho::invert	composes	jisho::entries	swap each pair
+jisho::size	composes	jisho::keys	count of keys
+jisho::empty?	composes	jisho::size	size equals zero
+jikan::now	pairs	jikan::since	one reads the clock for the other
+jikan::since	composes	jikan::now	now minus an instant
+jikan::since	composes	jikan::between	between(instant, now)
+jikan::until	composes	jikan::now	an instant minus now
+jikan::until	composes	jikan::between	between(now, instant)
+jikan::measure	composes	jikan::since	time the call
+jikan::measure	composes	jikan::now	take the start
+jikan::instant	inverse	jikan::unix_seconds	numbers and instants round-trip
+jikan::add	requires	jikan::seconds	a duration to add
+jikan::between	inverse	jikan::add	add(a, between(a, b)) is b
+jikan::compare	generalizes	jikan::before?	three-way order
+jikan::before?	composes	jikan::compare	compare is -1
+jikan::after?	composes	jikan::compare	compare is 1
+jikan::parse	inverse	jikan::render	text and instant round-trip
+jikan::render	requires	jikan::zone	text depends on the zone
+jikan::milliseconds	inverse	jikan::total	build versus read back
+jikan::seconds	composes	jikan::milliseconds	1000 milliseconds each
+jikan::minutes	composes	jikan::seconds	60 seconds each
+jikan::hours	composes	jikan::minutes	60 minutes each
+jikan::days	composes	jikan::hours	24 hours each
+jikan::weeks	composes	jikan::days	7 days each
+jikan::months	requires	hizuke::days_in	month lengths vary
+jikan::years	requires	hizuke::leap?	year lengths vary
+jikan::scale	composes	jikan::total	multiply the total
+jikan::year	composes	hizuke::year_of	calendar field of an instant
+jikan::year	requires	jikan::zone	field depends on the zone
+jikan::month	composes	hizuke::month_of	calendar field of an instant
+jikan::month	requires	jikan::zone	field depends on the zone
+jikan::day	composes	hizuke::day_of	calendar field of an instant
+jikan::day	requires	jikan::zone	field depends on the zone
+jikan::weekday	composes	hizuke::weekday_of	weekday of the date
+jikan::hour	requires	jikan::zone	field depends on the zone
+jikan::minute	composes	jikan::unix_seconds	seconds modulo 3600
+jikan::second	composes	jikan::unix_seconds	seconds modulo 60
+jikan::zone	pairs	jikan::in_zone	read and change the zone
+jikan::in_zone	composes	jikan::offset	shift by the zone offset
+jikan::offset	requires	jikan::zones	name must be in the tz database
+jikan::zones	guards	jikan::offset	lists the valid names
+jikan::start_of	requires	jikan::zone	day boundaries depend on the zone
+jikan::end_of	composes	jikan::start_of	start of the next unit minus one
+jikan::round	composes	jikan::start_of	floor or step to the next unit
+jikan::round	composes	jikan::between	distance to each boundary
+jikan::today	composes	jikan::now	the date part of now
+jikan::today	composes	jikan::in_zone	date in the chosen zone
+jikan::sleep	requires	jikan::seconds	takes a duration
+jikan::schedule	composes	jikan::parse	cron text and RRULE text parse
+jikan::next	requires	jikan::schedule	needs a declared schedule
+jikan::occurrences	composes	jikan::next	repeat next across the range
+jikan::occurrences	lifts	jikan::next	batch form of next
+jikan::due?	composes	jikan::next	next occurrence not after now
+hizuke::leap?	guards	hizuke::days_in	february length
+hizuke::days_in	requires	hizuke::leap?	february depends on leap years
+hizuke::weekday_of	pairs	jikan::weekday	date form and instant form
+hizuke::weekend?	composes	hizuke::weekday_of	saturday or sunday
+hizuke::business_day?	composes	hizuke::weekend?	not a weekend
+hizuke::business_day?	composes	hizuke::holiday?	not a holiday
+hizuke::add_business_days	composes	hizuke::business_day?	skip non-working days
+hizuke::business_days_between	composes	hizuke::business_day?	count working days
+hizuke::iso_week	requires	hizuke::weekday_of	weeks start on Monday
+hizuke::quarter	composes	jikan::month	month divided by three
+hizuke::nth_weekday	composes	hizuke::weekday_of	find the first, then step
+hizuke::easter	pairs	hizuke::holidays	moveable feasts
+hizuke::holidays	composes	hizuke::easter	moveable holidays follow Easter
+hizuke::holidays	composes	hizuke::nth_weekday	rule-based holidays
+hizuke::holiday?	composes	hizuke::holidays	membership in the list
+hizuke::fiscal_year	composes	jikan::year	calendar year shifted by start month
+hani?::range	guards	hani?::contains?	builds the value contains? tests
+hani?::contains?	refines	hani?::overlaps?	inside implies overlap
+hani?::overlaps?	refines	hani?::touches?	overlap implies touching
+hani?::touches?	requires	hani?::range	needs two built ranges
+hani?::intersect	requires	hani?::overlaps?	empty when no overlap
+hani?::hull	pairs	hani?::intersect	outer and inner cover
+hani?::merge	composes	hani?::touches?	join ranges that touch
+hani?::merge	composes	hani?::hull	each joined pair becomes a hull
+hani?::gaps	composes	hani?::merge	what the merged ranges miss
+hani?::split	inverse	hani?::hull	cut versus join
+hani?::length	requires	hani?::range	needs low and high
+hani?::shift	requires	hani?::range	moves both ends
+hani?::clamp	composes	hani?::contains?	pull the point inside
+moji::pattern	guards	moji::find	compile before searching
+moji::find	generalizes	moji::contains?	match record instead of Bool
+moji::find_all	lifts	moji::find	every match, not the first
+moji::matches?	refines	moji::find	match covers the whole text
+moji::replace	composes	moji::find_all	rewrite each match
+moji::split	composes	moji::find_all	cut between matches
+moji::contains?	refines	moji::find	Bool answer only
+moji::starts_with?	refines	moji::matches?	anchored at the start
+moji::ends_with?	refines	moji::matches?	anchored at the end
+moji::trim	composes	moji::replace	drop edge space
+moji::upper	pairs	moji::lower	case pair
+moji::lower	pairs	moji::casefold	casefold is the strong form
+moji::casefold	refines	moji::lower	full Unicode folding
+moji::case	composes	moji::words	split into words first
+moji::case	composes	moji::join	rejoin in the target style
+moji::slug	composes	moji::case	kebab form of the words
+moji::slug	composes	moji::transliterate	fold to ASCII first
+moji::join	inverse	moji::split	list and text round-trip
+moji::lines	refines	moji::split	cut at line ends
+moji::words	refines	moji::split	cut at runs of space
+moji::chars	refines	moji::split	cut at every code point
+moji::graphemes	generalizes	moji::chars	clusters of code points
+moji::bytes	inverse	moji::from_bytes	text and UTF-8 round-trip
+moji::normalize	guards	moji::compare	compare after normalizing
+moji::width	composes	moji::graphemes	sum of cluster widths
+moji::size	composes	moji::chars	count of code points
+moji::pad	composes	moji::width	fill to a column count
+moji::truncate	composes	moji::width	cut to a column count
+moji::wrap	composes	moji::words	break between words
+moji::wrap	composes	moji::width	lines stay within a width
+moji::indent	composes	moji::lines	prefix each line
+moji::dedent	inverse	moji::indent	removes the shared prefix
+moji::repeat	composes	moji::join	n copies joined
+moji::reverse	composes	moji::graphemes	reverse clusters, not code points
+moji::count	composes	moji::find_all	length of the match list
+moji::escape	inverse	moji::unescape	target-specific round-trip
+moji::distance	requires	moji::chars	compares code points
+moji::similarity	composes	moji::distance	scaled by length
+moji::closest	composes	moji::similarity	highest-scoring candidate
+moji::tokenize	generalizes	moji::words	offsets and sentences too
+moji::transliterate	requires	moji::normalize	decompose accents first
+moji::compare	requires	moji::normalize	equal text must compare equal
+moji::template	guards	moji::fill	compile before filling
+moji::fill	requires	moji::template	needs a compiled template
+moji::fill	composes	moji::replace	substitute each slot
+moji::slots	requires	moji::template	read the compiled form
+kokusai?::locale	guards	kokusai?::translate	a catalog lookup needs a locale
+kokusai?::negotiate	composes	kokusai?::locale	parses the wanted tags
+kokusai?::catalog	requires	kokusai?::locale	keys are per locale
+kokusai?::translate	composes	kokusai?::plural	choose the plural form
+kokusai?::translate	composes	moji::fill	put args into the message
+kokusai?::plural	requires	kokusai?::locale	rules are per locale
+kokusai?::number	requires	kokusai?::locale	separators are per locale
+kokusai?::number	refines	kazu::render	locale-aware rendering
+kokusai?::currency	composes	kokusai?::number	amount then symbol
+kokusai?::currency	composes	seimitsu?::decimal	money is exact
+kokusai?::date	refines	jikan::render	locale-aware rendering
+kokusai?::relative	composes	jikan::total	largest sensible unit
+kokusai?::list	composes	moji::join	locale-aware conjunction
+kokusai?::collate	refines	moji::compare	locale alphabet
+kokusai?::direction	requires	kokusai?::locale	script decides direction
+kokusai?::coverage	composes	kokusai?::catalog	compare key sets
+kokusai?::coverage	guards	kokusai?::translate	finds missing messages first
+kokusai?::extract	composes	bunpou?::find_all	scan source for keys
+bunpou?::grammar	composes	bunpou?::lexer	tokens feed the rules
+bunpou?::lexer	guards	bunpou?::lex	lex needs a lexer
+bunpou?::lex	composes	moji::find	one pattern per token kind
+bunpou?::parse	composes	bunpou?::lex	rules read tokens
+bunpou?::parse	requires	bunpou?::grammar	needs the declared rules
+bunpou?::render	inverse	bunpou?::parse	tree and text round-trip
+bunpou?::matches?	refines	bunpou?::parse	only the verdict
+bunpou?::find_all	composes	bunpou?::parse	parse at each offset
+bunpou?::spans	composes	bunpou?::lex	token kinds with offsets
+bunpou?::expected	composes	bunpou?::parse	failure position gives the next tokens
+bunpou?::explain	pairs	bunpou?::parse	turns a failure into prose
+bunpou?::check	guards	bunpou?::grammar	refuse bad grammars before use
+bunpou?::generate	requires	bunpou?::grammar	walks the rules
+bunpou?::generate	composes	kakuritsu?::choice	pick an alternative
+sabun?::diff	composes	sabun?::lcs	common parts anchor the hunks
+sabun?::diff	generalizes	gitto::diff	any sequence, not commits
+sabun?::patch	inverse	sabun?::diff	applies what diff finds
+sabun?::unify	inverse	sabun?::parse	hunks and unified text round-trip
+sabun?::merge3	composes	sabun?::diff	diff base against each side
+sabun?::merge3	composes	sabun?::patch	apply both sets of hunks
+sabun?::invert	requires	sabun?::diff	swaps each hunk's sides
+sabun?::compose	pairs	sabun?::invert	combine and undo
+sabun?::stat	composes	sabun?::diff	count the hunks
+sabun?::align	generalizes	sabun?::lcs	pairs instead of one list
+sabun?::lcs	pairs	sabun?::diff	diff is built on it
+katachi?::schema	composes	katachi?::record	a name for a record shape
+katachi?::record	composes	katachi?::optional	fields may be optional
+katachi?::enum_of	refines	katachi?::one_of	a one_of of literals
+katachi?::optional	refines	katachi?::one_of	value or nil
+katachi?::list_of	pairs	katachi?::map_of	the two collection shapes
+katachi?::map_of	requires	katachi?::list_of	shares element shapes
+katachi?::one_of	requires	katachi?::schema	alternatives are shapes
+katachi?::refine	guards	katachi?::validate	predicate runs in validate
+katachi?::validate	composes	katachi?::explain	raise the problems explain finds
+katachi?::validate	composes	kyohi::check	one error carrying every problem
+katachi?::conforms?	refines	katachi?::validate	Bool instead of raising
+katachi?::conforms?	composes	katachi?::explain	no problems means conforms
+katachi?::explain	requires	katachi?::schema	walks the shape
+katachi?::coerce	composes	katachi?::validate	convert, then check
+katachi?::defaults	composes	katachi?::fields	each field's default
+katachi?::fields	requires	katachi?::record	only records have fields
+katachi?::infer	pairs	katachi?::example	learn a shape or make a value
+katachi?::example	composes	katachi?::defaults	start from the defaults
+katachi?::example	composes	kakuritsu?::choice	vary fields by seed
+katachi?::describe	composes	katachi?::fields	prose from the fields
+katachi?::render	inverse	katachi?::parse	schema and JSON Schema round-trip
+katachi?::render	refines	deeta::render	output is a document
+katachi?::diff	composes	katachi?::fields	compare field by field
+katachi?::diff	refines	deeta::diff	changes between shapes
+katachi?::compatible?	composes	katachi?::diff	safe changes only
+retsu::empty?	composes	retsu::size	size equals zero
+retsu::size	pairs	retsu::empty?	count and its zero test
+retsu::first	composes	retsu::at	index zero
+retsu::last	composes	retsu::at	index minus one
+retsu::rest	composes	retsu::drop	drop one
+retsu::at	refines	jisho::get	index is the key
+retsu::take	pairs	retsu::drop	prefix and suffix
+retsu::slice	composes	retsu::take	prefix of the suffix
+retsu::slice	composes	retsu::drop	prefix of the suffix
+retsu::append	pairs	retsu::prepend	the two ends
+retsu::prepend	composes	retsu::concat	a one-item list in front
+retsu::concat	generalizes	retsu::append	many items at once
+retsu::insert	composes	retsu::take	keep the head
+retsu::insert	composes	retsu::concat	join head, item, tail
+retsu::remove	inverse	retsu::insert	undoes insert
+retsu::update	composes	retsu::remove	replace at an index
+retsu::reverse	composes	retsu::reduce	fold from the end
+retsu::rotate	composes	retsu::slice	move a prefix to the end
+retsu::map	pairs	retsu::filter	transform versus select
+retsu::filter	generalizes	retsu::find	all matches, not the first
+retsu::reject	composes	retsu::filter	filter with the test negated
+retsu::reduce	generalizes	retsu::map	map is a fold
+retsu::scan	composes	retsu::reduce	keeps each partial result
+retsu::find	composes	retsu::filter	first of the matches
+retsu::index_of	composes	retsu::find	position instead of item
+retsu::contains?	refines	retsu::find	Bool answer only
+retsu::count	composes	retsu::filter	size of the matches
+retsu::each	pairs	retsu::map	effect versus value
+retsu::zip	inverse	retsu::unzip	pairs and two lists round-trip
+retsu::flatten	composes	retsu::concat	concat the inner lists
+retsu::flat_map	composes	retsu::map	map first
+retsu::flat_map	composes	retsu::flatten	then flatten one level
+retsu::chunk	generalizes	retsu::windows	windows that do not overlap
+retsu::windows	pairs	retsu::chunk	overlapping versus not
+retsu::partition	composes	retsu::filter	the kept half
+retsu::partition	composes	retsu::reject	the other half
+retsu::group_by	generalizes	retsu::partition	many groups, not two
+retsu::unique	composes	shuugou::set	a set keeps one of each
+retsu::tally	refines	retsu::group_by	group sizes only
+retsu::interleave	composes	retsu::zip	flatten the pairs
+retsu::range	pairs	retsu::take	bounded slices of a sequence
+retsu::take_while	composes	retsu::take	take up to the first miss
+retsu::take_while	pairs	retsu::drop_while	prefix and rest
+retsu::sample	composes	retsu::shuffle	first n of a shuffle
+retsu::sample	composes	kakuritsu?::int	draws indexes
+retsu::shuffle	composes	kakuritsu?::int	draws swap positions
+junjo::sort	generalizes	junjo::sort_by	key is the item itself
+junjo::sort_by	composes	junjo::min_by	compares keys
+junjo::sorted?	guards	junjo::search	search needs order
+junjo::search	requires	junjo::sorted?	binary search on a sorted list
+junjo::merge	composes	junjo::sort	keeps two sorted lists sorted
+junjo::top	composes	junjo::sort	sort, then take
+junjo::top	composes	retsu::take	first n of the order
+junjo::min_by	pairs	junjo::max_by	the two ends of the order
+junjo::min_by	refines	junjo::top	top of one
+junjo::max_by	refines	junjo::top	top of one, reversed
+junjo::rank	composes	junjo::sort	index in the sorted list
+shuugou::set	composes	retsu::unique	drop repeats
+shuugou::has?	refines	retsu::contains?	fast membership
+shuugou::insert	pairs	shuugou::remove	add and drop a member
+shuugou::remove	inverse	shuugou::insert	undoes insert
+shuugou::union	generalizes	shuugou::insert	insert a whole set
+shuugou::intersection	pairs	shuugou::union	inner and outer
+shuugou::difference	pairs	shuugou::union	subtraction and addition
+shuugou::symmetric_difference	composes	shuugou::difference	a minus b, b minus a
+shuugou::symmetric_difference	composes	shuugou::union	joined
+shuugou::subset?	composes	shuugou::difference	a minus b is empty
+shuugou::disjoint?	composes	shuugou::intersection	intersection is empty
+shuugou::size	refines	retsu::size	count of members
+shuugou::empty?	composes	shuugou::size	size equals zero
+shuugou::power_set	composes	kumiawase::combinations	all sizes together
+shuugou::product	composes	retsu::flat_map	pair each with each
+shuugou::dense	refines	shuugou::set	same verbs, compact form
+gurafu?::graph	composes	gurafu?::add_edge	built edge by edge
+gurafu?::nodes	pairs	gurafu?::edges	vertices and links
+gurafu?::add_node	inverse	gurafu?::remove_node	undoes add_node
+gurafu?::add_edge	inverse	gurafu?::remove_edge	undoes add_edge
+gurafu?::has_edge?	composes	gurafu?::neighbors	target in neighbors
+gurafu?::neighbors	composes	gurafu?::edges	edges at a node
+gurafu?::degree	composes	gurafu?::neighbors	count of neighbors
+gurafu?::walk	composes	gurafu?::neighbors	visit neighbors in order
+gurafu?::reachable	composes	gurafu?::walk	every visited node
+gurafu?::path	composes	gurafu?::distances	cheapest cost then route
+gurafu?::distances	refines	gurafu?::walk	walk with costs
+gurafu?::components	composes	gurafu?::reachable	reach from each unvisited node
+gurafu?::scc	refines	gurafu?::components	components of a directed graph
+gurafu?::cycle	composes	gurafu?::walk	walk until a node repeats
+gurafu?::topo	requires	gurafu?::cycle	only acyclic graphs order
+gurafu?::closure	composes	gurafu?::reachable	an edge to each reachable node
+gurafu?::reduction	pairs	gurafu?::closure	smallest and fullest same reach
+gurafu?::spanning	requires	gurafu?::components	connected component at a time
+gurafu?::flow	composes	gurafu?::path	augmenting paths
+gurafu?::color	requires	gurafu?::neighbors	neighbors differ
+gurafu?::subgraph	composes	gurafu?::nodes	keep chosen nodes
+gurafu?::reverse	composes	gurafu?::edges	swap each edge
+gurafu?::tree	refines	gurafu?::graph	acyclic, one parent each
+gurafu?::root	requires	gurafu?::tree	has no parent
+gurafu?::kids	refines	gurafu?::neighbors	outgoing edges of a tree
+gurafu?::parent	refines	gurafu?::neighbors	incoming edge of a tree
+gurafu?::depth	composes	gurafu?::path	path length from the root
+gurafu?::leaves	composes	gurafu?::kids	nodes whose kids are empty
+gurafu?::lca	composes	gurafu?::parent	climb until the paths meet
+gurafu?::fold	composes	gurafu?::kids	children first
+gurafu?::prune	composes	gurafu?::kids	drop children where f holds
+gurafu?::graft	inverse	gurafu?::prune	attach what prune cut
+kyuu?::queue	guards	kyuu?::push	push needs a queue
+kyuu?::from	composes	kyuu?::push	push each item
+kyuu?::push	pairs	kyuu?::pop	add and take
+kyuu?::pop	composes	kyuu?::peek	peek, then remove
+kyuu?::peek	guards	kyuu?::pop	pop of an empty queue raises
+kyuu?::size	pairs	kyuu?::empty?	count and its zero test
+kyuu?::empty?	composes	kyuu?::size	size equals zero
+kyuu?::full?	requires	kyuu?::size	compare against capacity
+kyuu?::drain	composes	kyuu?::pop	pop until empty
+kyuu?::drain	lifts	kyuu?::pop	batch form of pop
+kyuu?::to_list	refines	kyuu?::drain	drain without consuming
+kyuu?::merge	composes	kyuu?::push	push each item of b
+kyuu?::reprioritize	composes	kyuu?::push	remove then push again
+kazu::abs	pairs	kazu::sign	magnitude and direction
+kazu::min	pairs	kazu::max	the two ends
+kazu::clamp	composes	kazu::min	upper bound
+kazu::clamp	composes	kazu::max	lower bound
+kazu::pow	pairs	kazu::root	power and inverse
+kazu::root	composes	kazu::pow	exponent is 1/degree
+kazu::sqrt	refines	kazu::root	degree two
+kazu::exp	pairs	kazu::log	growth and its inverse
+kazu::log	inverse	kazu::exp	undoes exp
+kazu::sin	pairs	kazu::cos	quarter-turn apart
+kazu::tan	composes	kazu::sin	sin over cos
+kazu::tan	composes	kazu::cos	sin over cos
+kazu::atan2	pairs	kazu::tan	angle from slope
+kazu::floor	pairs	kazu::ceil	round down and up
+kazu::ceil	pairs	kazu::truncate	toward zero versus up
+kazu::truncate	refines	kazu::round	mode toward zero
+kazu::round	generalizes	kazu::floor	floor is a mode
+kazu::divmod	composes	kazu::mod	quotient and remainder
+kazu::mod	composes	kazu::floor	a minus b times floor
+kazu::gcd	pairs	kazu::lcm	lcm uses gcd
+kazu::lcm	composes	kazu::gcd	a times b over gcd
+kazu::sum	refines	retsu::reduce	fold with add
+kazu::product	refines	retsu::reduce	fold with multiply
+kazu::lerp	pairs	kazu::clamp	t held in 0..1
+kazu::near?	composes	kazu::abs	difference within tolerance
+kazu::finite?	guards	kazu::parse	reject NaN and infinity
+kazu::parse	inverse	kazu::render	text and number round-trip
+seimitsu?::big	guards	seimitsu?::mod_pow	exact exponent math
+seimitsu?::decimal	pairs	seimitsu?::scale	digits and their count
+seimitsu?::decimal	requires	seimitsu?::big	digits are a big integer
+seimitsu?::ratio	pairs	seimitsu?::numerator	top of the fraction
+seimitsu?::ratio	requires	seimitsu?::big	parts are big integers
+seimitsu?::numerator	pairs	seimitsu?::denominator	the two halves
+seimitsu?::scale	pairs	seimitsu?::rescale	read and change the scale
+seimitsu?::rescale	refines	kazu::round	round to places
+seimitsu?::exact	inverse	seimitsu?::to_float	float and its exact value
+seimitsu?::to_int	refines	kazu::round	round to a whole number
+seimitsu?::mod_pow	requires	seimitsu?::big	operands exceed 64 bits
+tanni?::unit	guards	tanni?::quantity	a quantity needs a declared unit
+tanni?::quantity	requires	tanni?::unit	attaches a unit
+tanni?::parse	composes	tanni?::quantity	text to value and unit
+tanni?::parse	inverse	tanni?::render	text and quantity round-trip
+tanni?::convert	requires	tanni?::compatible?	same dimension only
+tanni?::convert	composes	tanni?::base	via base units
+tanni?::compatible?	composes	tanni?::dimension	equal exponents
+tanni?::add	requires	tanni?::compatible?	mismatch raises dimension_mismatch
+tanni?::add	composes	tanni?::convert	bring b into a's unit
+tanni?::scale	composes	tanni?::quantity	rebuild with the new value
+tanni?::compare	composes	tanni?::base	compare in base units
+tanni?::dimension	requires	tanni?::unit	read from the declaration
+tanni?::base	requires	tanni?::unit	factor from the declaration
+kakuritsu?::seed	guards	kakuritsu?::draw	every draw needs a stream
+kakuritsu?::entropy	pairs	kakuritsu?::seed	the only way to a fresh seed
+kakuritsu?::draw	generalizes	kakuritsu?::int	int is a scaled draw
+kakuritsu?::int	composes	kakuritsu?::draw	scale into a range
+kakuritsu?::choice	composes	kakuritsu?::int	pick an index
+kakuritsu?::weighted	composes	kakuritsu?::draw	walk cumulative weights
+kakuritsu?::split	composes	kakuritsu?::draw	derive two child seeds
+kakuritsu?::bytes	composes	kakuritsu?::draw	fill bytes from draws
+kakuritsu?::distribution	guards	kakuritsu?::pdf	queries need a distribution
+kakuritsu?::pdf	pairs	kakuritsu?::cdf	density and its running total
+kakuritsu?::cdf	inverse	kakuritsu?::quantile	quantile undoes cdf
+kakuritsu?::sample	composes	kakuritsu?::quantile	inverse transform sampling
+kakuritsu?::sample	lifts	kakuritsu?::draw	n draws at once
+kakuritsu?::mean	pairs	kakuritsu?::variance	centre and spread
+kakuritsu?::fit	inverse	kakuritsu?::sample	estimate from draws
+kakuritsu?::likelihood	composes	kakuritsu?::pdf	product of densities
+kakuritsu?::bayes	composes	kakuritsu?::likelihood	prior times likelihood
+kakuritsu?::expectation	generalizes	kakuritsu?::mean	mean of f(x)
+kakuritsu?::estimate	composes	kakuritsu?::sample	average f over draws
+kakuritsu?::bootstrap	composes	kakuritsu?::sample	resample the data
+kakuritsu?::bootstrap	composes	toukei::percentile	read the interval
+shikibetsu?::make	composes	kakuritsu?::entropy	random bits
+shikibetsu?::make	composes	jikan::now	time-ordered kinds
+shikibetsu?::derive	pairs	shikibetsu?::make	stable versus fresh
+shikibetsu?::derive	composes	shomei::hash	name-based ids are hashes
+shikibetsu?::parse	inverse	shikibetsu?::render	text and id round-trip
+shikibetsu?::valid?	guards	shikibetsu?::parse	test before parsing
+shikibetsu?::kind	requires	shikibetsu?::parse	read the scheme from the text
+shikibetsu?::version	refines	shikibetsu?::kind	uuid version
+shikibetsu?::timestamp	requires	shikibetsu?::kind	only time-ordered kinds
+shikibetsu?::compare	composes	shikibetsu?::timestamp	time-ordered kinds sort by time
+shikibetsu?::nil_id	refines	shikibetsu?::make	the fixed id
+shikibetsu?::short	composes	shikibetsu?::render	prefix of the text
+shikibetsu?::obscure	inverse	shikibetsu?::reveal	undoes obscure
+shikibetsu?::obscure	composes	deeta::encode	encode with the salt
+chiri?::point	guards	chiri?::distance	distance needs valid points
+chiri?::parse	inverse	chiri?::render	text and point round-trip
+chiri?::distance	pairs	chiri?::bearing	how far and which way
+chiri?::destination	pairs	chiri?::bearing	walk a bearing and distance
+chiri?::midpoint	composes	chiri?::destination	halfway along the heading
+chiri?::bounds	composes	chiri?::point	min and max of the coordinates
+chiri?::region	requires	chiri?::point	built from points
+chiri?::contains?	refines	kikagaku::contains?	on the sphere
+chiri?::area	refines	kikagaku::area	on the sphere
+chiri?::cell	inverse	chiri?::cell_point	cell and centre round-trip
+chiri?::neighbors	composes	chiri?::cell	cells around a cell
+chiri?::project	inverse	chiri?::unproject	flat and round-trip
+chiri?::simplify	requires	chiri?::project	tolerance in flat metres
+chiri?::nearest	composes	chiri?::distance	least distance wins
+chiri?::within	generalizes	chiri?::nearest	every point inside a radius
+assaku?::compress	inverse	assaku?::decompress	bytes round-trip
+assaku?::detect	guards	assaku?::decompress	pick the codec first
+assaku?::ratio	composes	assaku?::compress	compressed size over original
+assaku?::create	composes	assaku?::compress	entries compressed into the archive
+assaku?::create	inverse	assaku?::extract	archive and files round-trip
+assaku?::list	guards	assaku?::extract	inspect before unpacking
+assaku?::read	composes	assaku?::list	entry must be listed
+assaku?::extract	composes	assaku?::read	write each entry out
+assaku?::extract	composes	assaku?::decompress	inflate each entry
+assaku?::append	refines	assaku?::create	add to an existing archive
+assaku?::verify	guards	assaku?::extract	check before unpacking
+assaku?::stream	lifts	assaku?::compress	chunked form
+assaku?::stream	lifts	assaku?::decompress	chunked form
+toukei::mean	pairs	toukei::median	average and middle
+toukei::median	refines	toukei::percentile	percentile fifty
+toukei::mode	pairs	toukei::mean	most common and average
+toukei::variance	composes	toukei::mean	squared distance from the mean
+toukei::stddev	composes	toukei::variance	square root
+toukei::percentile	requires	junjo::sort	reads a sorted list
+toukei::covariance	composes	toukei::mean	mean of products
+toukei::correlation	composes	toukei::covariance	scaled by deviations
+toukei::correlation	composes	toukei::stddev	scaled by deviations
+toukei::zscore	composes	toukei::stddev	distance in deviations
+toukei::zscore	composes	toukei::mean	centre first
+toukei::summary	composes	toukei::percentile	quartiles
+toukei::summary	composes	toukei::mean	centre
+toukei::outliers	composes	toukei::percentile	quartile fences
+toukei::moving_average	refines	toukei::rolling	rolling mean
+toukei::rolling	composes	retsu::windows	f over each window
+toukei::ewma	pairs	toukei::moving_average	weighted versus flat
+toukei::histogram	composes	retsu::group_by	group by bin
+toukei::normalize	composes	toukei::zscore	unit variance form
+toukei::regression	composes	toukei::covariance	slope from covariance
+toukei::predict	requires	toukei::regression	needs a fitted model
+toukei::interval	composes	toukei::stddev	spread of the mean
+toukei::interval	composes	kakuritsu?::quantile	critical value
+toukei::test	composes	kakuritsu?::cdf	p-value from the distribution
+toukei::autocorrelation	refines	toukei::correlation	a series against itself
+gyouretsu::matrix	guards	gyouretsu::multiply	multiply needs a matrix
+gyouretsu::identity	pairs	gyouretsu::inverse	a times inverse is identity
+gyouretsu::zeros	pairs	gyouretsu::identity	additive and multiplicative units
+gyouretsu::shape	guards	gyouretsu::add	add needs equal shapes
+gyouretsu::transpose	composes	gyouretsu::shape	swap the shape
+gyouretsu::add	requires	gyouretsu::shape	shapes must match
+gyouretsu::scale	pairs	gyouretsu::add	both are entrywise
+gyouretsu::multiply	requires	gyouretsu::shape	columns match rows
+gyouretsu::dot	refines	gyouretsu::multiply	row times column
+gyouretsu::cross	pairs	gyouretsu::dot	perpendicular versus parallel
+gyouretsu::norm	composes	gyouretsu::dot	root of self dot
+gyouretsu::normalize	composes	gyouretsu::norm	divide by length
+gyouretsu::determinant	requires	gyouretsu::shape	square only
+gyouretsu::inverse	composes	gyouretsu::determinant	zero determinant raises
+gyouretsu::solve	composes	gyouretsu::inverse	x equals inverse times b
+gyouretsu::solve	pairs	gyouretsu::decompose	factor once, solve many
+gyouretsu::power	composes	gyouretsu::multiply	repeated product
+gyouretsu::trace	requires	gyouretsu::shape	square only
+gyouretsu::rank	composes	gyouretsu::decompose	count nonzero pivots
+gyouretsu::decompose	requires	gyouretsu::determinant	singular matrices limit kinds
+gyouretsu::eigen	composes	gyouretsu::decompose	iterate on factors
+gyouretsu::reshape	requires	gyouretsu::shape	same entry count
+gyouretsu::stack	requires	gyouretsu::shape	shared edge must match
+kikagaku::distance	refines	gyouretsu::norm	norm of the difference
+kikagaku::midpoint	pairs	kikagaku::distance	halfway along it
+kikagaku::area	pairs	kikagaku::perimeter	inside and around
+kikagaku::perimeter	composes	kikagaku::distance	sum of edge lengths
+kikagaku::centroid	composes	kikagaku::area	area-weighted mean
+kikagaku::contains?	refines	kikagaku::overlap?	a point is a tiny shape
+kikagaku::hull	composes	kikagaku::angle	keep left turns
+kikagaku::intersect	composes	kikagaku::bounds	cheap box test first
+kikagaku::angle	composes	gyouretsu::dot	cosine from the dot product
+kikagaku::rotate	pairs	kikagaku::translate	turn and move
+kikagaku::translate	pairs	kikagaku::scale	move and resize
+kikagaku::scale	requires	kikagaku::bounds	about a point
+kikagaku::bounds	pairs	kikagaku::overlap?	box test before exact test
+kikagaku::closest	composes	kikagaku::distance	least distance on the shape
+kikagaku::overlap?	composes	kikagaku::intersect	any crossing or containment
+kikagaku::offset	composes	kikagaku::translate	move each edge outward
+kikagaku::union	pairs	kikagaku::difference	add and subtract area
+kikagaku::difference	composes	kikagaku::overlap?	only where they meet
+rittai::mesh	guards	rittai::volume	volume needs a closed mesh
+rittai::transform	composes	rittai::rotate	rotate then move
+rittai::translate	refines	rittai::transform	pose with no turn
+rittai::rotate	refines	rittai::transform	pose with no move
+rittai::volume	pairs	rittai::surface_area	inside and outside
+rittai::centroid	composes	rittai::volume	volume-weighted mean
+rittai::bounds	pairs	rittai::centroid	box and centre
+rittai::weld	guards	rittai::volume	close gaps before measuring
+rittai::extrude	composes	rittai::mesh	walls and caps
+rittai::render	requires	rittai::mesh	needs a closed mesh
+rittai::render	refines	deeta::render	output is a document
+ronri::every	pairs	ronri::any	all and some
+ronri::none	composes	ronri::any	not any
+ronri::none	composes	ronri::not	negate the test
+ronri::not	pairs	ronri::both	and, or, not
+ronri::both	pairs	ronri::either	and and or
+ronri::xor	composes	ronri::either	or but not both
+ronri::xor	composes	ronri::both	or but not both
+ronri::implies	composes	ronri::not	not a, or b
+ronri::implies	composes	ronri::either	not a, or b
+ronri::majority	generalizes	ronri::every	a threshold, not all
+ronri::majority	generalizes	ronri::any	a threshold, not one
+ronri::table	composes	ronri::implies	evaluate every assignment
+ronri::satisfiable?	composes	ronri::table	some row is true
+kansuu::identity	pairs	kansuu::constantly	returns self versus fixed
+kansuu::compose	pairs	kansuu::pipe	right-to-left and left-to-right
+kansuu::pipe	composes	kansuu::compose	reversed compose applied
+kansuu::flip	pairs	kansuu::curry	argument order and arity
+kansuu::curry	pairs	kansuu::partial	all-at-once versus some
+kansuu::partial	composes	kansuu::curry	curry then apply
+kansuu::juxt	composes	retsu::map	map each function over x
+kansuu::tap	composes	kansuu::identity	returns the argument
+kansuu::iterate	composes	kansuu::compose	compose f with itself n times
+kansuu::fixpoint	generalizes	kansuu::iterate	iterate until stable
+kansuu::memoize	pairs	kansuu::once	remember per argument versus once
+kansuu::once	refines	kansuu::memoize	memoize with no arguments
+kumiawase::factorial	pairs	kumiawase::choose	choose uses factorials
+kumiawase::choose	composes	kumiawase::factorial	n! over k!(n-k)!
+kumiawase::permutations	pairs	kumiawase::factorial	n! orders of n items
+kumiawase::combinations	pairs	kumiawase::choose	count equals choose
+kumiawase::partitions	pairs	kumiawase::permutations	both enumerate arrangements
+kueri::from	guards	kueri::select	a plan starts from a source
+kueri::select	pairs	kueri::derive	choose versus add columns
+kueri::derive	refines	kueri::select	select plus every old column
+kueri::filter	pairs	kueri::select	rows versus columns
+kueri::group	composes	kueri::select	aggregates are select items
+kueri::distinct	refines	kueri::group	group on all columns
+kueri::join	generalizes	kueri::left_join	inner and outer
+kueri::left_join	refines	kueri::join	keeps unmatched left rows
+kueri::asof_join	refines	kueri::join	match by nearest earlier key
+kueri::window	pairs	kueri::group	keep rows versus collapse them
+kueri::limit	composes	kueri::sort	first rows of the order
+kueri::sort	pairs	kueri::limit	order then cut
+kueri::explode	pairs	kueri::group	split a list versus collect rows
+kueri::union	pairs	kueri::except	add and subtract rows
+kueri::pivot	pairs	kueri::unpivot	rows to columns and back
+kueri::sample	refines	kueri::limit	random rows, not first rows
+kueri::sample	composes	kakuritsu?::int	draws row positions
+kueri::count	refines	kueri::group	one group over all rows
+kueri::describe	composes	kueri::group	aggregate each column
+kueri::describe	composes	toukei::summary	figures per column
+kueri::schema	guards	kueri::run	know the columns before running
+kueri::render	guards	kueri::run	SQL text is what the engine runs
+kueri::explain	composes	kueri::render	ask the engine about the text
+kueri::run	composes	kueri::render	render, then execute
+kueri::run	composes	kueri::query	execute the text
+kueri::query	generalizes	kueri::run	raw SQL, not a plan
+kueri::load	refines	kueri::from	a file as the source
+kueri::save	inverse	kueri::load	rows to file and back
+kueri::save	composes	deeta::write	file format from the extension
+deeta::query	composes	deeta::walk	evaluates by visiting nodes
+deeta::select	composes	deeta::put	builds the projected doc
+deeta::merge	composes	deeta::walk	descends both docs together
+deeta::diff	composes	deeta::paths	compares path by path
+deeta::patch	composes	deeta::put	each change sets a path
+deeta::patch	composes	deeta::delete	each change may remove a path
+deeta::stream	pairs	deeta::read	whole file versus record at a time
+deeta::detect	pairs	deeta::convert	unknown input to a chosen format
+deeta::address	pairs	shomei::verify?	check content against its address
+deeta::pack	composes	deeta::canonical	deterministic bytes need one order
+deeta::has?	composes	deeta::get	get returns a value
+deeta::unflatten	composes	deeta::put	put each dotted path
+deeta::canonical	requires	deeta::walk	sorts every level
+deeta::parse	generalizes	bunpou?::parse	each data format is a fixed grammar
+deeta::walk	refines	gurafu?::walk	documents are trees
+deeta::read	pairs	deeta::write	the file round trip
+deeta::render	pairs	deeta::canonical	stable text is the canonical form
+jisho::get	pairs	jisho::has?	value and presence
+jisho::keys	composes	jisho::entries	first of each pair
+jisho::values	composes	jisho::entries	second of each pair
+jisho::from_entries	pairs	retsu::zip	keys zipped with values
+jisho::map_values	refines	retsu::map	map over the values
+jisho::filter	refines	retsu::filter	filter over the pairs
+jisho::size	refines	retsu::size	count of entries
+jisho::empty?	refines	retsu::empty?	no entries
+jisho::update	requires	jisho::need	missing key raises not_found
+jisho::merge	pairs	jisho::select	combine versus restrict
+jikan::parse	composes	moji::find	match the fixed layouts
+jikan::render	composes	moji::pad	zero-padded fields
+jikan::add	composes	hizuke::days_in	calendar part honors month length
+jikan::since	pairs	jikan::until	past versus future
+jikan::measure	pairs	rogu::info	report how long it took
+jikan::sleep	pairs	heikou::retry	backoff waits
+jikan::start_of	pairs	jikan::end_of	the two edges of a unit
+jikan::hour	pairs	jikan::minute	clock fields
+jikan::minute	pairs	jikan::second	clock fields
+jikan::year	pairs	jikan::month	calendar fields
+jikan::month	pairs	jikan::day	calendar fields
+jikan::days	pairs	jikan::months	fixed versus calendar span
+jikan::next	requires	jikan::zone	local-time rules
+jikan::seconds	refines	tanni?::quantity	a duration is a time quantity
+jikan::scale	refines	tanni?::scale	same operation on durations
+jikan::total	pairs	tanni?::convert	duration in another unit
+hizuke::business_days_between	inverse	hizuke::add_business_days	count versus step
+hizuke::fiscal_year	pairs	hizuke::quarter	fiscal and calendar groupings
+hizuke::holidays	pairs	hizuke::holiday?	list and membership
+hizuke::weekend?	pairs	hizuke::business_day?	rest and work
+hizuke::year_of	pairs	jikan::year	date form and instant form
+hizuke::month_of	pairs	jikan::month	date form and instant form
+hizuke::day_of	pairs	jikan::day	date form and instant form
+hani?::length	composes	jikan::between	time ranges measure a duration
+hani?::contains?	pairs	shuugou::has?	range versus set membership
+hani?::merge	refines	shuugou::union	ranges as sets of points
+hani?::intersect	refines	shuugou::intersection	ranges as sets of points
+hani?::gaps	refines	shuugou::difference	ranges as sets of points
+hani?::overlaps?	composes	shuugou::disjoint?	overlap is not disjoint
+hani?::clamp	generalizes	kazu::clamp	any range, not two numbers
+hani?::shift	pairs	hani?::split	move versus cut
+moji::pattern	refines	bunpou?::grammar	a regex is a small grammar
+moji::tokenize	refines	bunpou?::lex	natural-language lexing
+moji::trim	pairs	moji::pad	remove versus add space
+moji::upper	refines	moji::case	a fixed style
+moji::lower	refines	moji::case	a fixed style
+moji::escape	composes	moji::replace	rewrite the unsafe characters
+moji::unescape	composes	moji::replace	rewrite the escapes
+moji::bytes	pairs	deeta::encode	bytes then a text encoding
+moji::from_bytes	pairs	deeta::decode	text encoding then text
+moji::distance	pairs	sabun?::lcs	edit distance and LCS agree
+moji::compare	pairs	junjo::sort	sort uses compare
+moji::contains?	pairs	retsu::contains?	text versus list
+moji::size	refines	retsu::size	count of code points
+moji::reverse	refines	retsu::reverse	list of clusters
+moji::width	pairs	moji::size	columns versus code points
+kokusai?::catalog	composes	deeta::read	catalogs are documents
+kokusai?::negotiate	pairs	kokusai?::translate	choose the language, then the text
+kokusai?::collate	pairs	junjo::sort	locale-aware sort
+kokusai?::date	requires	jikan::in_zone	local fields need a zone
+kokusai?::relative	pairs	jikan::since	elapsed time to words
+bunpou?::check	composes	gurafu?::cycle	left recursion is a rule-graph cycle
+bunpou?::matches?	composes	bunpou?::parse	parse and test success
+bunpou?::explain	composes	bunpou?::expected	nearest rule from the next tokens
+bunpou?::generate	pairs	bunpou?::parse	produce and recognize
+bunpou?::lexer	composes	moji::pattern	tokens are patterns
+sabun?::diff	composes	moji::lines	text diffs work line by line
+sabun?::merge3	pairs	gitto::merge	text level versus commit level
+sabun?::stat	pairs	sabun?::unify	summary and full listing
+sabun?::patch	requires	sabun?::parse	hunks may arrive as text
+katachi?::schema	pairs	katachi?::validate	declare then check
+katachi?::validate	pairs	deeta::parse	parse, then validate
+katachi?::validate	composes	ronri::every	every item must conform
+katachi?::infer	composes	retsu::group_by	group values by shape
+katachi?::example	pairs	katachi?::conforms?	generated values conform
+katachi?::render	composes	katachi?::fields	walk the fields
+katachi?::describe	pairs	katachi?::render	prose versus machine
+katachi?::parse	composes	deeta::parse	schema text is a document
+katachi?::record	pairs	katachi?::fields	declare and read
+retsu::at	pairs	retsu::index_of	item and position
+retsu::first	pairs	retsu::last	the two ends
+retsu::rest	pairs	retsu::first	head and tail
+retsu::contains?	composes	ronri::any	any item equal
+retsu::find	pairs	ronri::any	the item versus existence
+retsu::reject	composes	ronri::not	negated test
+retsu::group_by	composes	jisho::put	collect into a map
+retsu::tally	composes	jisho::update	increment per item
+retsu::windows	composes	retsu::slice	slice at each offset
+junjo::sort	pairs	junjo::sorted?	order and its test
+junjo::search	pairs	retsu::index_of	sorted versus unsorted
+junjo::min_by	refines	retsu::reduce	fold keeping the least
+junjo::max_by	refines	retsu::reduce	fold keeping the greatest
+shuugou::power_set	pairs	shuugou::product	subsets versus pairs
+gurafu?::path	composes	kyuu?::pop	cheapest next node first
+gurafu?::walk	composes	kyuu?::pop	queue order sets BFS or DFS
+gurafu?::distances	composes	kyuu?::reprioritize	lower a cost in the queue
+gurafu?::fold	generalizes	retsu::reduce	trees fold like lists
+gurafu?::root	pairs	gurafu?::leaves	the two ends of a tree
+gurafu?::prune	pairs	gurafu?::subgraph	cut a tree or a graph
+kyuu?::push	composes	retsu::append	a fifo adds at the tail
+kyuu?::drain	pairs	junjo::sort	a priority drain is a sort
+kyuu?::size	refines	retsu::size	count of items
+kyuu?::empty?	refines	retsu::empty?	no items
+kazu::atan2	pairs	kikagaku::angle	angle from components
+kazu::round	pairs	seimitsu?::rescale	float versus exact rounding
+seimitsu?::to_float	pairs	kazu::parse	exact to inexact
+tanni?::parse	composes	moji::find	number then unit text
+tanni?::render	composes	kazu::render	number part
+tanni?::convert	composes	seimitsu?::ratio	factors are exact fractions
+kakuritsu?::seed	composes	shomei::hash	text seeds hash to a state
+kakuritsu?::choice	refines	kakuritsu?::weighted	equal weights
+kakuritsu?::mean	pairs	toukei::mean	distribution versus data
+kakuritsu?::variance	pairs	toukei::variance	distribution versus data
+kakuritsu?::fit	composes	toukei::mean	estimate the centre
+kakuritsu?::fit	composes	toukei::stddev	estimate the spread
+kakuritsu?::quantile	pairs	toukei::percentile	distribution versus data
+kakuritsu?::estimate	pairs	kakuritsu?::expectation	simulated versus exact average
+kakuritsu?::bytes	pairs	kakuritsu?::entropy	seeded versus system
+shikibetsu?::render	composes	deeta::encode	compact forms use base encodings
+shikibetsu?::valid?	composes	moji::matches?	format pattern
+shikibetsu?::timestamp	composes	jikan::instant	build the instant
+chiri?::point	composes	katachi?::refine	range checks are refinements
+chiri?::parse	composes	moji::find	degrees, minutes, seconds text
+chiri?::bounds	refines	kikagaku::bounds	on the sphere
+chiri?::midpoint	refines	kikagaku::midpoint	on the sphere
+chiri?::distance	refines	kikagaku::distance	on the sphere
+chiri?::distance	composes	kazu::sin	haversine terms
+chiri?::distance	composes	kazu::atan2	haversine angle
+chiri?::bearing	composes	kazu::atan2	heading from components
+chiri?::neighbors	refines	gurafu?::neighbors	grid cells as nodes
+assaku?::create	composes	fairu::write	archive file is written
+assaku?::extract	composes	fairu::write	entries become files
+assaku?::read	refines	fairu::read	an entry is a file in an archive
+assaku?::verify	composes	shomei::hash	checksum per entry
+toukei::mean	composes	kazu::sum	total over count
+toukei::median	composes	junjo::sort	middle of the order
+toukei::mode	composes	retsu::tally	largest tally
+toukei::regression	composes	gyouretsu::solve	normal equations
+toukei::test	pairs	toukei::interval	verdict and range
+gyouretsu::matrix	composes	retsu::chunk	rows from a flat list
+gyouretsu::transpose	composes	retsu::zip	columns become rows
+gyouretsu::multiply	composes	gyouretsu::dot	row dot column
+gyouretsu::stack	composes	retsu::concat	join rows or columns
+gyouretsu::reshape	composes	retsu::flatten	flatten, then chunk
+kikagaku::angle	composes	kazu::atan2	angle from components
+kikagaku::rotate	composes	kazu::sin	rotation matrix terms
+kikagaku::rotate	composes	kazu::cos	rotation matrix terms
+kikagaku::distance	composes	kazu::sqrt	root of squared differences
+kikagaku::hull	composes	junjo::sort	sort points, then sweep
+rittai::volume	composes	gyouretsu::determinant	signed tetrahedra volumes
+rittai::transform	composes	gyouretsu::multiply	a pose is a matrix
+rittai::bounds	refines	kikagaku::bounds	in three dimensions
+rittai::centroid	refines	kikagaku::centroid	in three dimensions
+ronri::any	pairs	retsu::find	existence versus the item
+ronri::majority	composes	retsu::count	count against half
+kansuu::compose	composes	retsu::reduce	fold the list of functions
+kansuu::memoize	composes	jisho::put	the cache is a map
+kumiawase::permutations	pairs	retsu::shuffle	one random permutation
+kumiawase::factorial	requires	seimitsu?::big	results exceed 64 bits
+kueri::filter	refines	retsu::filter	rows are a list
+kueri::sort	refines	junjo::sort_by	rows ordered by keys
+kueri::group	refines	retsu::group_by	rows grouped by keys
+kueri::distinct	refines	retsu::unique	rows without repeats
+kueri::union	refines	shuugou::union	rows as a set
+kueri::except	refines	shuugou::difference	rows as a set
+kueri::select	refines	retsu::map	each row rewritten
+kueri::limit	refines	retsu::take	the first rows
+kueri::join	refines	shuugou::product	a filtered product
+kueri::window	composes	retsu::windows	frames over ordered rows
+kueri::explode	refines	retsu::flat_map	one row per list item
+kueri::query	pairs	teeburu::query	DuckDB versus PostgreSQL
+kueri::load	composes	deeta::parse	CSV and JSON sources
+deeta::encode	pairs	moji::bytes	text to bytes, then bytes to text
+deeta::decode	pairs	moji::from_bytes	text to bytes, then bytes to text
+deeta::unpack	guards	katachi?::validate	decoded bytes still need checking
+deeta::get	composes	jisho::get	a path is a chain of key lookups
+deeta::put	composes	jisho::put	a path is a chain of key writes
+deeta::merge	pairs	deeta::diff	combine versus compare
+jisho::omit	composes	jisho::delete	drop each key
+jisho::select	refines	retsu::filter	keep chosen entries
+jikan::now	pairs	jikan::today	instant and date
+jikan::unix_seconds	pairs	jikan::between	numbers for subtraction
+jikan::milliseconds	pairs	jikan::sleep	smallest sleep unit
+hizuke::quarter	pairs	hizuke::iso_week	two ways to group a year
+hizuke::easter	pairs	hizuke::nth_weekday	moveable and rule-based dates
+hizuke::iso_week	pairs	hizuke::weekday_of	week and day
+hani?::split	composes	hani?::intersect	cut into the inside and the rest
+hani?::touches?	pairs	hani?::merge	meeting ranges join
+moji::find_all	pairs	moji::count	matches and how many
+moji::fill	pairs	moji::template	compile once, fill many
+moji::indent	pairs	moji::wrap	layout verbs on lines
+kokusai?::number	pairs	kokusai?::currency	plain and monetary
+kokusai?::plural	pairs	kokusai?::translate	message variants
+bunpou?::spans	pairs	moji::tokenize	code versus prose
+bunpou?::render	pairs	bunpou?::grammar	printing uses the same rules
+sabun?::invert	pairs	sabun?::patch	apply the inverse to undo
+sabun?::lcs	composes	retsu::zip	pair the common items
+katachi?::coerce	pairs	katachi?::defaults	convert, then fill gaps
+katachi?::refine	composes	ronri::both	conjoin predicates
+katachi?::compatible?	pairs	katachi?::coerce	safe change or convertible value
+retsu::zip	pairs	retsu::interleave	pair versus alternate
+retsu::sample	pairs	retsu::shuffle	n items versus all
+retsu::chunk	composes	retsu::slice	consecutive slices
+retsu::append	pairs	retsu::concat	one item versus many
+junjo::top	pairs	junjo::rank	greatest versus position
+shuugou::union	pairs	retsu::concat	unique versus plain join
+shuugou::difference	pairs	retsu::reject	set minus versus filter
+gurafu?::neighbors	pairs	gurafu?::degree	which and how many
+gurafu?::topo	pairs	gurafu?::cycle	order or the cycle that blocks it
+gurafu?::closure	pairs	gurafu?::reachable	all pairs versus one start
+gurafu?::nodes	pairs	gurafu?::add_node	read and build
+kyuu?::reprioritize	pairs	kyuu?::pop	decrease-key then take
+kyuu?::full?	pairs	kyuu?::push	check before adding
+kazu::sum	pairs	kazu::product	add and multiply folds
+kazu::floor	composes	kazu::divmod	quotient rounds down
+seimitsu?::decimal	pairs	seimitsu?::ratio	base ten and base n exact numbers
+seimitsu?::big	pairs	seimitsu?::to_int	build and convert
+tanni?::compatible?	guards	tanni?::add	checked before adding
+tanni?::base	pairs	tanni?::convert	canonical form for comparison
+kakuritsu?::draw	pairs	kakuritsu?::entropy	seeded versus system
+kakuritsu?::distribution	pairs	katachi?::record	params are a record
+shikibetsu?::make	pairs	shikibetsu?::short	full id versus display id
+shikibetsu?::compare	pairs	shikibetsu?::timestamp	time order
+chiri?::contains?	pairs	chiri?::within	region versus radius
+chiri?::area	pairs	chiri?::bounds	measure versus box
+assaku?::list	pairs	assaku?::read	names then content
+assaku?::compress	pairs	deeta::pack	compress after serializing
+toukei::percentile	pairs	toukei::histogram	position versus counts
+toukei::variance	pairs	toukei::stddev	squared and rooted
+gyouretsu::solve	pairs	gyouretsu::rank	a unique solution needs full rank
+gyouretsu::dot	pairs	gyouretsu::norm	length is root of self dot
+kikagaku::area	composes	kikagaku::hull	region of a boundary
+kikagaku::perimeter	pairs	kikagaku::hull	boundary length
+ronri::every	pairs	ronri::none	all versus none
+kansuu::juxt	pairs	kansuu::compose	fan out versus chain
+kumiawase::factorial	composes	retsu::reduce	product of 1 up to n
+kueri::join	pairs	kueri::group	combine tables then collapse rows
+kueri::run	pairs	kueri::save	execute and persist
+kueri::schema	pairs	katachi?::validate	rows checked against the schema

@@ -1,0 +1,396 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave
+F	rogu	debug	effect	debug(message, fields) -> nil	log,switch	logging-go	absent	write a structured line at debug level	0
+F	rogu	info	effect	info(message, fields) -> nil	log	logging-go	absent	write a structured line at info level	0
+F	rogu	warn	effect	warn(message, fields) -> nil	log	logging-go	absent	write a structured line at warn level	0
+F	rogu	error	effect	error(message, fields) -> nil	log,error	logging-go	absent	write a structured line at error level; carries an error record	0
+F	rogu	scope	effect	scope(fields, f) -> value	log,trace	pleme-observability	absent	run f with extra fields on every line it logs	1
+F	rogu	enabled?	pure	enabled?(level) -> Bool	log,switch	-	absent	whether a line at this level would be written	0
+F	rogu	sink	decl	sink(target, opts) -> sink	log,config,resource	-	absent	choose where lines go: stderr, file, NATS, journal	1
+F	rogu	redact	pure	redact(fields, rules) -> fields	log,capability	-	absent	replace secret and personal values before they are written	0
+F	rogu	sample?	pure	sample?(rule, line) -> Bool	log,ratelimit	-	absent	decide whether to keep a line under a rate or key rule	2
+F	rogu	collapse	pure	collapse(lines, window) -> [line]	log,ratelimit	-	absent	merge repeated lines into one with a count	2
+F	rogu	rotate	effect	rotate(file, policy) -> nil	log,resource	-	absent	start a new log file by size or age; prune old	2
+F	rogu	read	effect	read(source, opts) -> [record]	log,serialize	-	absent	all log records from a file, journal or cluster source	1
+F	rogu	parse	pure	parse(line, format) -> record	log,serialize	-	absent	a log line (json, logfmt, syslog) to a record	1
+F	rogu	render	pure	render(record, format) -> text	log,serialize	-	absent	a record to a log line in a stable format	0
+F	rogu	watch	stream	watch(source, f, opts) -> nil	log,cancel	-	absent	call f per new record until it returns stop	1
+F	rogu	query	effect	query(source, question, opts) -> [record]	log,deadline	-	absent	ask a log store a question in its own language	2
+F	nisshi	open	effect	open(path, opts) -> log	resource,idempotent	-	exists:nisshi	open or create an append-only event log	0
+F	nisshi	append	effect	append(log, event, opts) -> record	idempotent,error	-	exists:nisshi	add one event; refuses a bad event with a typed kind	0
+F	nisshi	read	effect	read(log, opts) -> [record]	serialize	-	exists:nisshi	all records of a log in order	0
+F	nisshi	verify?	pure	verify?(log) -> Bool	error	-	exists:nisshi	whether the hash chain and signatures are intact	0
+F	nisshi	replay	pure	replay(log, definition) -> states	migrate	-	exists:nisshi	fold the events into lifecycle states	0
+F	nisshi	state_at	pure	state_at(log, entity, at) -> state	time	-	exists:nisshi	an entity state as of an instant	0
+F	nisshi	watch	stream	watch(log, f, opts) -> nil	cancel	-	absent	call f per appended record until it returns stop	1
+F	nisshi	compact	effect	compact(log, policy) -> log	resource,idempotent	-	absent	fold old records into a checkpoint under a retention rule	2
+F	nisshi	export	effect	export(log, target, opts) -> nil	serialize	-	absent	write a sealed bundle of a log for another party	2
+F	keisoku?	counter	decl	counter(name, opts) -> instrument	config	metrics-go	absent	declare a value that only goes up	0
+F	keisoku?	gauge	decl	gauge(name, opts) -> instrument	config	metrics-go	absent	declare a value that goes up and down	0
+F	keisoku?	histogram	decl	histogram(name, bounds, opts) -> instrument	config	metrics-go	partial:kyuuji	declare a value recorded into buckets	0
+F	keisoku?	increase	effect	increase(counter, by, labels) -> nil	idempotent	metrics-go	absent	add to a counter	0
+F	keisoku?	put	effect	put(gauge, value, labels) -> nil	idempotent	metrics-go	absent	set a gauge to a value	0
+F	keisoku?	observe	effect	observe(histogram, value, labels) -> nil	time	metrics-go	exists:kyuuji	record one value into a histogram	0
+F	keisoku?	measure	effect	measure(histogram, f, labels) -> value	time,error	metrics-go	absent	run f and record how long it took	0
+F	keisoku?	read	effect	read(source, opts) -> [sample]	serialize,deadline	-	absent	scrape samples from an endpoint or exposition text	1
+F	keisoku?	parse	pure	parse(text, format) -> [sample]	serialize	-	absent	exposition text (Prometheus, OpenMetrics) to samples	1
+F	keisoku?	render	pure	render(samples, format) -> text	serialize	metrics-go	exists:kyuuji	samples to exposition text, stable order	0
+F	keisoku?	push	effect	push(sink, samples, opts) -> nil	retry,deadline	-	absent	send samples to a remote store	2
+F	keisoku?	query	effect	query(store, expr, opts) -> [series]	deadline	-	absent	ask a metrics store with its query language	2
+F	keisoku?	rate	pure	rate(series, window) -> series	time	-	absent	per-second change of a counter over a window	1
+F	keisoku?	quantile	pure	quantile(histogram, q) -> number	-	-	absent	estimate a quantile from buckets	1
+F	keisoku?	cardinality	pure	cardinality(samples) -> [row]	validate	-	absent	distinct series per metric, to catch label explosions	2
+F	keisoku?	watch	stream	watch(source, f, opts) -> nil	cancel	-	absent	call f per scrape until it returns stop	2
+F	keisoku?	profile	effect	profile(f, opts) -> profile	time,resource	-	exists:blue-lang-cli	run f and report calls, time and allocation per function	0
+F	keisoku?	top	pure	top(profile, n, by) -> [row]	-	-	absent	the n costliest functions of a profile	1
+F	keisoku?	bench	effect	bench(f, opts) -> stats	time,deadline	tundra-gwbench	absent	run f many times; report spread, not one number	1
+F	keisoku?	diff	pure	diff(a, b, opts) -> [change]	-	-	absent	compare two profiles or bench runs, with significance	2
+F	tsuiseki?	span	effect	span(name, f, attrs) -> value	trace,error,time	pleme-observability	absent	run f inside a named span	0
+F	tsuiseki?	start	effect	start(name, attrs) -> span	trace	pleme-observability	absent	open a span by hand	1
+F	tsuiseki?	stop	effect	stop(span, opts) -> nil	trace	pleme-observability	absent	close a span by hand; records an error status if given	1
+F	tsuiseki?	event	effect	event(span, name, attrs) -> nil	trace	-	absent	record a point-in-time event on a span	1
+F	tsuiseki?	put	effect	put(span, key, value) -> nil	trace	-	absent	set an attribute on a span	1
+F	tsuiseki?	link	effect	link(span, other) -> nil	trace	-	absent	relate a span to another trace without parenthood	2
+F	tsuiseki?	current	pure	current() -> span or nil	trace	-	absent	the span active in this process or nil	1
+F	tsuiseki?	carry	pure	carry(span, carrier) -> carrier	trace,serialize	-	absent	write trace context into headers or a message	1
+F	tsuiseki?	adopt	pure	adopt(carrier) -> context	trace,serialize	-	absent	read trace context from headers or a message	1
+F	tsuiseki?	sample?	pure	sample?(rule, context) -> Bool	trace,ratelimit	-	absent	decide whether a trace is recorded	2
+F	tsuiseki?	push	effect	push(sink, spans, opts) -> nil	retry,deadline	-	absent	send spans to a collector	2
+F	tsuiseki?	read	effect	read(source, opts) -> [span]	serialize	-	absent	spans from a file or collector export	2
+F	tsuiseki?	get	effect	get(store, trace_id) -> trace or nil	deadline	-	absent	one whole trace by id	2
+F	tsuiseki?	query	effect	query(store, question, opts) -> [trace]	deadline	-	absent	find traces by service, duration or attribute	2
+F	tsuiseki?	tree	pure	tree(spans) -> tree	-	-	absent	assemble spans into a parent-child tree	2
+F	tsuiseki?	critical_path	pure	critical_path(trace) -> [span]	time	-	absent	the chain of spans that sets the total duration	2
+F	tsuiseki?	diff	pure	diff(a, b) -> [change]	-	-	absent	compare two traces of one operation	3
+F	tsuiseki?	correlate	effect	correlate(trace_id, sources) -> [record]	log,trace	-	absent	logs, metrics and spans that share one trace id	2
+F	shihyou	objective	decl	objective(name, target, window) -> slo	config	-	partial:shihyou	declare a service level objective	0
+F	shihyou	indicator	decl	indicator(name, good, total) -> sli	config	-	partial:shihyou	declare what counts as good events over all events	0
+F	shihyou	budget	pure	budget(slo, window) -> ratio	time	-	exists:shihyou	the error budget left in a window	0
+F	shihyou	burn	pure	burn(slo, window) -> number	time	-	absent	how fast the budget is spent, as a multiple of even use	1
+F	shihyou	runway	pure	runway(slo) -> duration	time	-	absent	how long until the budget runs out at this burn	2
+F	shihyou	meets?	pure	meets?(slo, samples) -> Bool	-	-	absent	whether samples satisfy the objective	1
+F	shihyou	rules	pure	rules(slo) -> [rule]	serialize	-	exists:shihyou	recording and alert rules derived from an objective	0
+F	shihyou	alerts	pure	alerts(slo) -> [rule]	-	-	exists:shihyou	multi-window burn alerts for an objective	0
+F	shihyou	dashboard	pure	dashboard(slo) -> panels	serialize	-	exists:shihyou	panels showing an objective, built from the same rules	0
+F	shihyou	dora	pure	dora(events, window) -> record	time	-	absent	deploy frequency, lead time, failure rate and restore time	2
+F	shihyou	cycle_time	pure	cycle_time(items, window) -> stats	time	-	absent	time from work started to done, as a distribution	2
+F	shihyou	throughput	pure	throughput(items, window) -> number	time	-	absent	items finished per unit of time	2
+F	shihyou	review_time	pure	review_time(reviews, window) -> stats	time	-	absent	time a change waits for and spends in review	3
+F	jiko?	declare	effect	declare(summary, opts) -> incident	log,idempotent	-	absent	open an incident with a severity and a timeline	2
+F	jiko?	page	effect	page(target, alert, opts) -> ack	retry,deadline	pangea-pagerduty	absent	notify an on-call person or team	2
+F	jiko?	acknowledge	effect	acknowledge(alert, who) -> nil	idempotent	-	absent	say that a person has taken an alert	2
+F	jiko?	escalate	effect	escalate(incident, level) -> nil	deadline	-	absent	move an incident to the next level or person	2
+F	jiko?	assign	effect	assign(incident, who) -> nil	idempotent	-	absent	name the person who leads an incident	2
+F	jiko?	mitigate	effect	mitigate(incident, action) -> nil	log	-	absent	record and run a step that limits the harm	2
+F	jiko?	note	effect	note(incident, text) -> nil	log	-	absent	add a timestamped entry to the incident timeline	2
+F	jiko?	resolve	effect	resolve(incident, opts) -> nil	idempotent	-	absent	close an incident with a cause and a time	2
+F	jiko?	timeline	pure	timeline(incident) -> [event]	time	-	absent	the ordered events of an incident	2
+F	jiko?	oncall	effect	oncall(schedule, opts) -> [person]	time	-	absent	who is on call now or at an instant	2
+F	jiko?	silence	effect	silence(matcher, opts) -> silence	time,switch	-	absent	mute matching alerts for a period	2
+F	jiko?	route	pure	route(alert, rules) -> [target]	-	-	absent	decide whom an alert goes to	2
+F	jiko?	classify	pure	classify(impact) -> severity	-	-	absent	map impact to a severity level by a stated rule	3
+F	jiko?	postmortem	pure	postmortem(incident, opts) -> doc	serialize	-	absent	draft a blameless review from the timeline	3
+F	jiko?	drill	effect	drill(scenario, opts) -> report	test,time	-	absent	rehearse an incident and measure the response	3
+F	jiko?	announce	effect	announce(audience, message) -> nil	log	-	absent	publish a status message to an audience	3
+F	jiko?	list	effect	list(source, kind, opts) -> [record]	deadline	-	absent	alerts, incidents or silences, all pages	2
+F	jiko?	get	effect	get(source, id) -> record or nil	-	-	absent	one alert or incident or nil	2
+F	genin?	trace	stream	trace(program, def, opts) -> nil	trace	-	exists:blue-lang-cli	print each call of a definition with arguments and result	0
+F	genin?	record	effect	record(f, opts) -> trace	trace,resource	-	exists:blue-lang-proc	run f and keep the host reads needed to replay it	0
+F	genin?	replay	effect	replay(trace, opts) -> verdict	test	-	exists:blue-lang-proc	run a recorded crash again and say if it crashed the same	0
+F	genin?	pause	effect	pause(target, at, opts) -> breakpoint	cancel	-	absent	stop a running program at a place or condition	3
+F	genin?	resume	effect	resume(session, opts) -> nil	cancel	-	absent	let a paused program run on	3
+F	genin?	step	effect	step(session, how) -> frame	-	-	absent	run one step: over, into or out	3
+F	genin?	attach	effect	attach(target, opts) -> session	capability,resource	-	absent	connect a debugger to a running process	3
+F	genin?	detach	effect	detach(session) -> nil	resource	-	absent	disconnect a debugger and leave the process running	3
+F	genin?	inspect	effect	inspect(session, expr) -> value	capability	-	absent	evaluate an expression in a paused frame	3
+F	genin?	stack	effect	stack(session) -> [frame]	-	caixa-backtrace	absent	the frames of a paused program or a dump	2
+F	genin?	watch	stream	watch(session, expr, f) -> nil	cancel	-	absent	call f when an expression changes value	3
+F	genin?	dump	effect	dump(process, opts) -> core	capability,resource	-	absent	write the memory and state of a process to a file	3
+F	genin?	backtrace	pure	backtrace(dump) -> [frame]	-	caixa-backtrace	absent	the call stack of a crash dump	2
+F	genin?	symbolize	pure	symbolize(addresses, binary) -> [frame]	-	-	absent	turn addresses into function names and lines	3
+F	genin?	fingerprint	pure	fingerprint(crash) -> text	serialize	-	absent	a stable hash that groups crashes of one cause	2
+F	genin?	bisect	effect	bisect(candidates, f) -> candidate	process	-	absent	find the first candidate where f turns bad	1
+F	genin?	shrink	pure	shrink(input, f) -> input	test	caixa-proptest	absent	the smallest input for which f still fails	1
+F	genin?	reproduce	effect	reproduce(report, opts) -> recipe	test,process	-	absent	build a command list that triggers the reported failure	3
+F	genin?	diagnose	effect	diagnose(subject, opts) -> [finding]	log,trace	-	absent	collect evidence about a failing subject and rank causes	2
+F	genin?	stuck	effect	stuck(process) -> [wait]	process,deadline	-	absent	what a hung process waits on, as a chain	3
+F	kentei?	test	decl	test(name, f) -> test	test	blue-lang-test	exists:blue-lang-test	declare one named test	0
+F	kentei?	assert	effect	assert(expr) -> nil	test,error	blue-lang-test	exists:blue-lang-test	fail the test with a structural diff when expr is false	0
+F	kentei?	raises?	pure	raises?(kind, f) -> Bool	test,error	blue-lang-test	absent	whether f raises that kind of error	0
+F	kentei?	snapshot	effect	snapshot(value, name) -> nil	test,serialize	blue-lang-test	absent	compare a value with its stored copy; update on request	0
+F	kentei?	fixture	effect	fixture(name) -> content	test	pleme-testing	absent	read a file kept beside the test	0
+F	kentei?	run	effect	run(target, opts) -> report	test,process,deadline	blue-lang-test	exists:blue-lang-test	run every test under a target in parallel	0
+F	kentei?	list	effect	list(target, opts) -> [test]	test	blue-lang-test	absent	the tests under a target without running them	1
+F	kentei?	watch	stream	watch(paths, opts) -> nil	test,cancel	blue-lang-cli	exists:blue-lang-cli	rerun tests when a watched file changes	0
+F	kentei?	fake	effect	fake(target, impl, f) -> value	test,capability	-	absent	replace a dependency by a fake while f runs	2
+F	kentei?	spy	effect	spy(target, f) -> spy	test	-	absent	wrap a function so its calls are recorded	2
+F	kentei?	calls	pure	calls(spy) -> [call]	test	-	absent	the recorded calls of a spy, in order	2
+F	kentei?	freeze	effect	freeze(instant, f) -> value	test,time	-	absent	run f with the clock fixed at an instant	1
+F	kentei?	contract	decl	contract(consumer, provider, interactions) -> contract	test,validate	-	absent	declare what a consumer expects of a provider	3
+F	kentei?	conforms?	effect	conforms?(provider, contract) -> verdict	test	-	absent	whether a provider meets a contract	3
+F	kentei?	fuzz	effect	fuzz(target, opts) -> [crash]	test,deadline,resource	caixa-cargo-fuzz	absent	feed generated inputs until something fails or time ends	3
+F	kentei?	rerun	effect	rerun(test, n) -> [result]	test,retry	-	absent	run one test again n times and keep every result	2
+F	kentei?	flaky?	pure	flaky?(history, test) -> Bool	test	-	absent	whether a test both passed and failed on one revision	2
+F	kentei?	quarantine	effect	quarantine(test, reason, until) -> nil	test,switch	-	absent	skip a flaky test by a dated, counted entry	2
+F	kentei?	cover	effect	cover(target, opts) -> coverage	test,resource	-	absent	run tests and record which code ran	3
+F	kentei?	uncovered	pure	uncovered(coverage) -> [span]	test	-	absent	code that no test reached	3
+F	kentei?	merge	pure	merge(a, b) -> coverage	test	-	absent	combine coverage from several runs or shards	3
+F	kentei?	shard	pure	shard(tests, n, i) -> [test]	test	-	absent	the i-th of n balanced groups of tests	2
+F	kentei?	affected	pure	affected(changes, graph) -> [test]	test	-	absent	the tests that depend on changed code	3
+F	kentei?	render	pure	render(report, format) -> text	test,serialize	-	absent	a test report as text, JUnit or TAP	2
+F	kentei?	parse	pure	parse(text, format) -> report	test,serialize	-	absent	a JUnit or TAP report to a record	3
+F	okite	law	decl	law(name, shape, f) -> law	test	-	exists:okite	declare a property that must hold for all generated values	0
+F	okite	generate	pure	generate(shape, seed, n) -> [value]	test	caixa-proptest	exists:okite	n values of a shape from a seed, same every time	0
+F	okite	holds?	effect	holds?(law, opts) -> Bool	test	caixa-proptest	exists:okite	whether a law holds over generated cases	0
+F	okite	counterexample	effect	counterexample(law, opts) -> value or nil	test	caixa-proptest	partial:okite	a shrunk value that breaks a law, or nil	1
+F	fuka?	steady	decl	steady(rate, for) -> shape	time	-	absent	declare constant load for a duration	2
+F	fuka?	ramp	decl	ramp(from, to, over) -> shape	time	-	absent	declare load that grows over a duration	2
+F	fuka?	spike	decl	spike(base, peak, at, for) -> shape	time	-	absent	declare a short burst on top of base load	2
+F	fuka?	scenario	decl	scenario(steps) -> scenario	test	vendaval	absent	declare a user journey as ordered requests	2
+F	fuka?	run	effect	run(scenario, shape, opts) -> report	process,deadline,cancel	vendaval	absent	apply load and record latency, errors and saturation	2
+F	fuka?	soak	effect	soak(scenario, shape, opts) -> report	time,resource	vendaval	absent	hold load for hours and watch for drift and leaks	3
+F	fuka?	mirror	stream	mirror(source, target, opts) -> report	capability	-	absent	copy live requests to a shadow target and compare answers	4
+F	fuka?	threshold	decl	threshold(metric, limit) -> threshold	config	-	absent	declare a limit a load run must stay within	2
+F	fuka?	judge	pure	judge(report, thresholds) -> verdict	test	-	absent	whether a load report stays within every threshold	2
+F	fuka?	fault	effect	fault(target, kind, opts) -> handle	capability,resource,time	vendaval	absent	inject a failure: kill, delay, loss, partition or corrupt	3
+F	fuka?	heal	effect	heal(handle) -> nil	resource,idempotent	vendaval	absent	undo an injected fault	3
+F	fuka?	experiment	effect	experiment(spec) -> verdict	test,capability,cancel	vendaval	absent	test a steady-state claim under a fault and always heal	3
+F	fuka?	guard	decl	guard(probe, limit) -> guard	cancel,deadline	-	absent	declare a stop condition that aborts an experiment	3
+F	fuka?	blast	pure	blast(target, radius) -> scope	capability	-	absent	bound which targets a fault may touch	3
+F	heni	mutations	pure	mutations(parsed) -> [mutation]	test	-	exists:heni	every one-literal change a package admits	0
+F	heni	apply	pure	apply(text, mutation) -> text	test	-	exists:heni	text with one mutation applied, or an error	0
+F	heni	run	effect	run(package, opts) -> report	test,process	-	exists:heni	mutate a fresh copy per change and run its tests	0
+F	heni	survivors	pure	survivors(report) -> [mutation]	test	-	partial:heni	the mutations no test caught	0
+F	heni	score	pure	score(report) -> ratio	test	-	partial:heni	the share of mutations the tests caught	1
+F	heni	ok?	pure	ok?(report) -> Bool	test	-	exists:heni	whether every mutation was caught	0
+F	hadome	parse	pure	parse(text) -> [row]	serialize	-	exists:hadome	a baseline file to rows	0
+F	hadome	render	pure	render(kind, measurements) -> text	serialize	-	exists:hadome	measurements as a baseline file, stable order	0
+F	hadome	judge	pure	judge(rows, kind, key, measured) -> verdict	test	-	exists:hadome	whether a measure grew past its recorded size	0
+F	hadome	failures	pure	failures(rows, kind, measurements) -> [failure]	test	-	exists:hadome	every key that grew or is new	0
+F	hadome	shrunk	pure	shrunk(rows, kind, measurements) -> [key]	test	-	exists:hadome	keys that fell below their record and can be tightened	0
+F	hadome	orphans	pure	orphans(rows, kind, live) -> [key]	test	-	exists:hadome	recorded keys that no longer exist	0
+F	hadome	tighten	pure	tighten(rows, kind, measurements) -> [row]	test,migrate	-	partial:hadome	rows lowered to the new sizes, never raised	1
+F	hadome	waive	decl	waive(key, reason, until) -> row	switch	-	absent	a dated, reasoned exception to a ratchet	1
+F	kaiseki?	check	pure	check(source, opts) -> [finding]	validate,error	blue-lang-check	exists:blue-lang-check	findings of every rule on a source, in one pass	0
+F	kaiseki?	fix	pure	fix(findings, source) -> source	migrate	blue-lang-check	partial:blue-lang-check	apply the safe fixes that findings carry	1
+F	kaiseki?	format	pure	format(source, opts) -> text	serialize	blue-lang-fmt	exists:blue-lang-fmt	the one canonical layout of a source	0
+F	kaiseki?	formatted?	pure	formatted?(source) -> Bool	validate	blue-lang-fmt	exists:blue-lang-fmt	whether a source is already in canonical layout	0
+F	kaiseki?	census	effect	census(root, opts) -> counts	test	blue-lang-cli	exists:blue-lang-cli	count each ratcheted finding under a root	0
+F	kaiseki?	explain	pure	explain(code) -> text	-	blue-lang-cli	exists:blue-lang-cli	what a rule code means, with its witness	0
+F	kaiseki?	list	pure	list(kind) -> [row]	-	blue-lang-check	exists:blue-lang-check	the rules, with code, severity and law	0
+F	kaiseki?	call_graph	pure	call_graph(source) -> graph	-	blue-lang-mondou	partial:blue-lang-mondou	who calls whom in a source	2
+F	kaiseki?	unused	pure	unused(project) -> [name]	-	blue-lang-check	partial:blue-lang-check	definitions nothing reaches	1
+F	kaiseki?	complexity	pure	complexity(definition) -> number	-	-	absent	a size and branching measure of one definition	2
+F	kaiseki?	clones	pure	clones(sources, opts) -> [group]	-	-	absent	near-duplicate code, grouped	2
+F	kaiseki?	scan	effect	scan(subject, opts) -> [finding]	capability,deadline	cse-lint	absent	look for secrets, advisories or licence problems	2
+F	kakikae?	rewrite	pure	rewrite(tree, rule) -> tree	migrate	-	partial:blue-lang-runtime	apply a term rewrite rule to a tree	1
+F	kakikae?	replace	pure	replace(tree, pattern, template) -> tree	migrate	-	absent	structural search and replace over a tree	2
+F	kakikae?	rename	pure	rename(project, from, to) -> [edit]	migrate	blue-lang-mondou	exists:blue-lang-mondou	the edits that rename a name and all its uses	1
+F	kakikae?	extract	pure	extract(tree, span, name) -> [edit]	migrate	-	absent	the edits that move a span into a new definition	2
+F	kakikae?	inline	pure	inline(project, name) -> [edit]	migrate	-	absent	the edits that put a definition at each use	2
+F	kakikae?	move	pure	move(project, name, to) -> [edit]	migrate	-	absent	the edits that relocate a definition and fix references	2
+F	kakikae?	plan	pure	plan(edits) -> [change]	migrate	-	absent	what applying edits would change, as data	1
+F	kakikae?	apply	effect	apply(edits, opts) -> nil	migrate,idempotent	blue-lang-cli	partial:blue-lang-cli	write edits, each file only if its tree stays proven	1
+F	kakikae?	undo	effect	undo(edits) -> nil	migrate	-	absent	restore the files an apply changed	2
+F	kakikae?	preserves?	pure	preserves?(before, after) -> Bool	validate	blue-lang-cli	exists:blue-lang-cli	whether two sources resolve to the same tree	0
+F	kakikae?	migrate	effect	migrate(files, rule) -> [file]	migrate	blue-lang-cli	exists:blue-lang-cli	move files to a new form with a proof per file	0
+F	kakikae?	deprecate	decl	deprecate(name, replacement, until) -> row	migrate,switch	-	absent	mark a name as replaced, with a date it goes	2
+F	hinagata?	fill	pure	fill(template, data) -> text	serialize	-	absent	a template with its holes filled from data	1
+F	hinagata?	parse	pure	parse(text) -> template	serialize,validate	-	absent	template text to a template that names its holes	1
+F	hinagata?	scaffold	effect	scaffold(archetype, dest, data) -> [file]	idempotent	repo-forge	partial:blue-lang-cli	new files from an archetype, never over existing ones	1
+F	hinagata?	generate	effect	generate(spec, target, opts) -> [file]	idempotent,serialize	forge-gen	absent	code and docs derived from a spec	2
+F	hinagata?	regen	effect	regen(project) -> [file]	idempotent	blue-lang-pkg	partial:blue-lang-pkg	rewrite every generated file from its program	0
+F	hinagata?	fresh?	pure	fresh?(file, project) -> Bool	validate	blue-lang-pkg	partial:blue-lang-pkg	whether a generated file equals its generator output	0
+F	hinagata?	macro	decl	macro(name, params, body) -> macro	migrate	tatara-lisp	exists:blue-lang-runtime	declare a rewrite that runs before evaluation	0
+F	hinagata?	expand	pure	expand(form, opts) -> form	trace	tatara-lisp	exists:blue-lang-runtime	a form after macros, step by step on request	0
+F	hinagata?	list	pure	list(kind) -> [row]	-	repo-forge	absent	the archetypes or generators available	2
+F	hinagata?	plan	pure	plan(spec, target) -> [change]	-	-	absent	which files a generate or scaffold would write	1
+F	mokuroku	catalog	pure	catalog(roots) -> catalog	serialize	-	exists:mokuroku	every package and definition under some roots	0
+F	mokuroku	extract	pure	extract(source) -> [entry]	serialize	pleme-doc-gen	exists:mokuroku	signature, gloss, tests and waivers from source text	0
+F	mokuroku	get	pure	get(catalog, name) -> entry or nil	-	blue-lang-cli	exists:blue-lang-cli	one entry by qualified name, or nil	0
+F	mokuroku	render	pure	render(catalog, format) -> text	serialize	pleme-doc-gen	exists:mokuroku	a catalog as a document, stable order	0
+F	mokuroku	check	pure	check(catalog, rules) -> [gap]	validate	-	partial:mokuroku	entries with no gloss, example or test	1
+F	mokuroku	coverage	pure	coverage(catalog) -> ratio	-	-	absent	the share of entries that are documented	1
+F	mokuroku	diff	pure	diff(old, new) -> [change]	migrate	-	absent	added, removed and changed entries between two catalogs	1
+F	mokuroku	run	effect	run(catalog, opts) -> report	test	-	absent	run the examples in the docs as tests	2
+F	chishiki?	get	effect	get(wiki, page) -> page or nil	deadline	confluence-pr-refresh	absent	one page by title or id, or nil	2
+F	chishiki?	put	effect	put(wiki, page, content) -> page	idempotent	confluence-pr-refresh	absent	create or replace a page	2
+F	chishiki?	update	effect	update(wiki, page, f) -> page	idempotent,error	confluence-pr-refresh	absent	change one anchored section; refuse a stale version	2
+F	chishiki?	delete	effect	delete(wiki, page) -> nil	idempotent	-	absent	remove a page; an absent page counts as done	2
+F	chishiki?	list	effect	list(wiki, opts) -> [page]	deadline	-	absent	every page of a space, all pages, sorted	2
+F	chishiki?	search	effect	search(index, query, opts) -> [hit]	deadline	-	absent	ranked pages for a text query	2
+F	chishiki?	index	effect	index(sources, opts) -> index	cache,resource	-	absent	build a search index over pages and docs	2
+F	chishiki?	links_to	pure	links_to(wiki, page) -> [page]	-	-	absent	pages that link to a page	3
+F	chishiki?	orphans	pure	orphans(wiki) -> [page]	-	-	absent	pages that nothing links to	3
+F	chishiki?	duplicates	pure	duplicates(wiki) -> [group]	-	-	absent	pages that say nearly the same thing	3
+F	chishiki?	stale?	pure	stale?(page, since) -> Bool	time	-	absent	whether a page is older than the code or date it describes	3
+F	chishiki?	publish	effect	publish(doc, wiki, opts) -> page	idempotent	confluence-pr-refresh	absent	put a generated document in a wiki at its anchor	2
+F	chishiki?	export	effect	export(wiki, target, opts) -> nil	serialize	-	absent	write a space or subtree as sealed files	3
+F	chishiki?	runbook	decl	runbook(name, steps) -> runbook	capability	-	absent	declare ordered steps, each with a check and a rollback	2
+F	chishiki?	plan	pure	plan(runbook, opts) -> [action]	capability	-	absent	the actions a runbook would take, changing nothing	2
+F	chishiki?	run	effect	run(runbook, opts) -> report	capability,cancel,log	-	absent	run steps; stop at the first failed check	3
+F	gitto	info	effect	info(repo) -> record	process	tend	absent	branch, head, ahead, behind, clean and changes of a repo	0
+F	gitto	get	effect	get(repo, ref) -> commit or nil	process	-	absent	one commit by ref, or nil	0
+F	gitto	list	effect	list(repo, kind, opts) -> [record]	process	tend	absent	branches, tags, commits or remotes, sorted	0
+F	gitto	read	effect	read(repo, path, opts) -> content	process	-	absent	a file as it was at a ref	0
+F	gitto	exists?	effect	exists?(repo, ref) -> Bool	process	-	absent	whether a ref resolves	0
+F	gitto	diff	effect	diff(repo, a, b, opts) -> [change]	process	-	absent	changes between two refs, as records	0
+F	gitto	stage	effect	stage(repo, paths) -> nil	process	-	absent	choose paths for the next commit	1
+F	gitto	commit	effect	commit(repo, message, opts) -> commit	process,idempotent	-	absent	record staged changes under an author	0
+F	gitto	revert	effect	revert(repo, ref) -> commit	process	-	absent	a new commit that undoes an earlier one	1
+F	gitto	fetch	effect	fetch(repo, opts) -> nil	process,retry,deadline	tend	absent	bring remote refs up to date without touching the tree	0
+F	gitto	merge	effect	merge(repo, ref, opts) -> commit	process,error	tend	absent	merge a ref; fast-forward only by default	0
+F	gitto	rebase	effect	rebase(repo, onto, opts) -> nil	process,error	-	absent	replay local commits on a new base; refuse on conflict	1
+F	gitto	pick	effect	pick(repo, commits) -> [commit]	process	-	absent	copy commits onto the current branch	2
+F	gitto	push	effect	push(repo, opts) -> nil	process,retry	tend	absent	send commits; rebase or refuse, never force by default	0
+F	gitto	clone	effect	clone(url, dir, opts) -> repo	process,resource,retry	tend	absent	copy a remote repo to a directory	0
+F	gitto	create	effect	create(repo, kind, name, opts) -> ref	process,idempotent	-	absent	make a branch or tag; refuse to overwrite	0
+F	gitto	delete	effect	delete(repo, kind, name) -> nil	process,idempotent	-	absent	remove a branch or tag; absent counts as done	0
+F	gitto	blame	effect	blame(repo, path, opts) -> [line]	process	-	absent	for each line, the commit that last changed it	2
+F	gitto	ancestor?	effect	ancestor?(repo, a, b) -> Bool	process	-	absent	whether a is reachable from b	0
+F	gitto	merge_base	effect	merge_base(repo, a, b) -> commit	process	-	absent	the newest commit that both refs contain	1
+F	gitto	conflicts	effect	conflicts(repo) -> [file]	process	-	absent	files left unmerged after a merge or rebase	1
+F	gitto	worktree	effect	worktree(repo, ref, opts) -> path	process,resource	tend	absent	a separate working directory for a ref	2
+F	gitto	hook	decl	hook(event, step) -> hook	switch,test	blue	absent	declare a step git runs before commit or push	1
+F	gitto	ignore?	effect	ignore?(repo, path) -> Bool	process	-	absent	whether ignore rules hide a path	2
+F	shinsa?	request	effect	request(change, reviewers, opts) -> review	idempotent	-	absent	ask for review of a change	2
+F	shinsa?	read	effect	read(review) -> record	deadline	-	absent	a review with its threads, checks and state	2
+F	shinsa?	list	effect	list(source, filter) -> [review]	deadline	-	absent	reviews matching a filter, all pages	2
+F	shinsa?	comment	effect	comment(review, at, text) -> thread	idempotent	-	absent	start a thread on a line or the whole change	2
+F	shinsa?	suggest	effect	suggest(review, at, patch) -> thread	idempotent	-	absent	propose an exact edit the author can accept	3
+F	shinsa?	approve	effect	approve(review, opts) -> nil	capability,idempotent	-	absent	record that the reviewer accepts the change	2
+F	shinsa?	block	effect	block(review, reason) -> nil	capability	-	absent	record a reason the change must not land	2
+F	shinsa?	resolve	effect	resolve(thread) -> nil	idempotent	-	absent	mark a thread as dealt with	2
+F	shinsa?	assign	effect	assign(review, who) -> nil	idempotent	-	absent	name the reviewers who must answer	2
+F	shinsa?	owners	pure	owners(paths, rules) -> [who]	-	-	absent	the people who own the paths a change touches	2
+F	shinsa?	ready?	effect	ready?(review) -> verdict	test,capability	-	absent	whether checks, approvals and threads allow landing	2
+F	shinsa?	land	effect	land(review, opts) -> commit	idempotent,error	-	absent	merge a ready review by the repo policy	2
+F	shinsa?	size	pure	size(review) -> record	-	-	absent	lines, files and areas a change touches	3
+F	shinsa?	stack	effect	stack(reviews) -> [review]	error	confluence-pr-refresh	absent	reviews that depend on each other, in merge order	2
+F	shinsa?	update	effect	update(review, opts) -> nil	process,error	-	absent	bring the review branch up to its base by merge	2
+F	habu	list	effect	list(path, opts) -> [record]	deadline,retry	-	absent	every entry under an API path, all pages	1
+F	habu	get	effect	get(path, opts) -> record or nil	deadline,retry	-	absent	one entry or nil when absent	1
+F	habu	need	effect	need(path, opts) -> record	error	-	absent	one entry, raising not_found when absent	1
+F	habu	create	effect	create(path, value, opts) -> record	idempotent	-	absent	add a new entry; refuse to overwrite	1
+F	habu	update	effect	update(path, f, opts) -> record	idempotent,error	-	absent	change an entry with f; conflict on a concurrent write	1
+F	habu	put	effect	put(path, value, opts) -> record	idempotent	-	absent	create or replace an entry	1
+F	habu	delete	effect	delete(path, opts) -> nil	idempotent	-	absent	remove an entry; absent counts as done	1
+F	habu	query	effect	query(graphql, variables) -> [record]	deadline	-	absent	ask GraphQL and follow every page	1
+F	habu	dispatch	effect	dispatch(workflow, inputs, opts) -> run	idempotent	-	absent	start a workflow run	2
+F	habu	wait	effect	wait(run, opts) -> result	deadline,cancel	-	absent	wait for a run to finish	2
+F	habu	cancel	effect	cancel(run) -> nil	cancel,idempotent	-	absent	stop a run in progress	2
+F	habu	rerun	effect	rerun(run, opts) -> run	retry	-	absent	run again, failed jobs only if asked	2
+F	hakkou?	next	pure	next(project, changes) -> version	-	releaser	absent	the next version from the kinds of change since the last	1
+F	hakkou?	changelog	pure	changelog(changes, opts) -> text	serialize	releaser	absent	release notes from changes, grouped by kind	1
+F	hakkou?	breaking?	pure	breaking?(old, new) -> Bool	validate	-	absent	whether the interface lost or changed an entry	2
+F	hakkou?	build	effect	build(project, opts) -> artifact	process,cache	-	absent	make the release artifact reproducibly	1
+F	hakkou?	sbom	pure	sbom(artifact) -> doc	serialize	tameshi	absent	the list of parts inside an artifact	3
+F	hakkou?	publish	effect	publish(artifact, registry, opts) -> release	idempotent,retry	cartorio	absent	upload an artifact and record its provenance	2
+F	hakkou?	released?	effect	released?(project, version) -> Bool	-	releaser	absent	whether a version is already published	1
+F	hakkou?	pin	effect	pin(env, release) -> nil	idempotent	-	absent	set which release an environment runs	2
+F	hakkou?	promote	effect	promote(release, env, opts) -> nil	idempotent,error	-	absent	move a release to the next environment after its gates	2
+F	hakkou?	canary	effect	canary(release, share, opts) -> verdict	test,time,cancel	-	absent	send a share of traffic to a release and judge it	3
+F	hakkou?	rollback	effect	rollback(env, opts) -> nil	idempotent	-	absent	return an environment to its previous release	2
+F	hakkou?	yank	effect	yank(release, reason) -> nil	idempotent	-	absent	withdraw a published version without deleting it	3
+F	hakkou?	diff	pure	diff(a, b) -> [change]	-	-	absent	the changes between two releases	2
+F	hakkou?	plan	pure	plan(project, opts) -> [action]	-	releaser	absent	what a release would do, changing nothing	1
+F	kettei?	propose	effect	propose(title, context, options) -> record	idempotent	-	absent	write a new decision record in proposed state	3
+F	kettei?	decide	effect	decide(record, outcome, why) -> record	log	okite	partial:okite	accept, reject or defer a record, with the reason	3
+F	kettei?	supersede	effect	supersede(old, new) -> nil	log	-	absent	mark a record replaced by a newer one	3
+F	kettei?	revisit	decl	revisit(record, trigger) -> row	time	-	absent	name the event or date that reopens a decision	3
+F	kettei?	due?	pure	due?(record, facts) -> Bool	time	-	absent	whether a revisit trigger has fired	3
+F	kettei?	get	effect	get(store, id) -> record or nil	-	-	partial:okite	one decision record or nil	3
+F	kettei?	list	effect	list(store, filter) -> [record]	-	-	absent	decisions by state, area or date, sorted	3
+F	kettei?	link	effect	link(record, to, kind) -> nil	-	-	absent	relate a decision to code, tests or another record	3
+F	kettei?	render	pure	render(record, format) -> text	serialize	-	absent	a record as a stable document	3
+F	kettei?	enforce	decl	enforce(record, laws) -> row	test	okite	partial:okite	bind a decision to the laws that keep it true	2
+F	youken?	requirement	decl	requirement(id, text, acceptance) -> requirement	validate	-	absent	declare a need with a testable acceptance	3
+F	youken?	satisfies	decl	satisfies(requirement, evidence) -> row	test	-	absent	bind a requirement to a test or check that shows it	3
+F	youken?	trace	pure	trace(requirement) -> [link]	-	-	absent	the tests, code and decisions behind a requirement	3
+F	youken?	covered?	pure	covered?(requirement) -> Bool	test	-	absent	whether every acceptance has passing evidence	3
+F	youken?	gaps	pure	gaps(requirements) -> [requirement]	test	-	absent	requirements with no evidence or failing evidence	3
+F	youken?	impact	pure	impact(changes, requirements) -> [requirement]	-	-	absent	requirements that a set of changes may break	4
+F	youken?	list	effect	list(source, filter) -> [requirement]	-	-	absent	requirements by area or state	3
+F	youken?	diff	pure	diff(old, new) -> [change]	-	-	absent	requirements added, removed or reworded between versions	4
+F	kadai?	create	effect	create(tracker, value, opts) -> issue	idempotent	-	absent	open a new issue; refuse a duplicate key	2
+F	kadai?	get	effect	get(tracker, id) -> issue or nil	deadline	-	absent	one issue or nil	2
+F	kadai?	need	effect	need(tracker, id) -> issue	error	-	absent	one issue, raising not_found when absent	2
+F	kadai?	update	effect	update(tracker, id, f) -> issue	idempotent,error	-	absent	change an issue; conflict on a concurrent write	2
+F	kadai?	delete	effect	delete(tracker, id) -> nil	idempotent	-	absent	remove an issue; absent counts as done	2
+F	kadai?	list	effect	list(tracker, filter) -> [issue]	deadline	-	absent	issues matching a filter, all pages, sorted	2
+F	kadai?	query	effect	query(tracker, question, params) -> [issue]	deadline	-	absent	ask a tracker in its own query language	2
+F	kadai?	transition	effect	transition(issue, to, opts) -> issue	error,idempotent	-	absent	move an issue along its workflow; refuse an illegal move	2
+F	kadai?	assign	effect	assign(issue, who) -> nil	idempotent	-	absent	name the owner of an issue	2
+F	kadai?	comment	effect	comment(issue, text) -> nil	idempotent	-	absent	add a note to an issue	2
+F	kadai?	link	effect	link(issue, to, kind) -> nil	idempotent	-	absent	relate two issues: blocks, duplicates, relates	2
+F	kadai?	triage	pure	triage(issues, rules) -> [issue]	-	-	absent	issues ordered and labelled by stated rules	3
+F	kadai?	duplicates	pure	duplicates(issues) -> [group]	-	-	absent	issues that describe one problem	3
+F	kadai?	sync	effect	sync(from, to, opts) -> report	idempotent,error	-	absent	mirror issues between two trackers	3
+F	kadai?	watch	stream	watch(tracker, f, opts) -> nil	cancel	-	absent	call f per issue change until it returns stop	3
+F	keikaku?	estimate	pure	estimate(item, method) -> estimate	-	-	absent	a size or duration for an item, with its range	3
+F	keikaku?	velocity	pure	velocity(history, window) -> distribution	time	-	absent	work finished per period, as a distribution	3
+F	keikaku?	forecast	pure	forecast(backlog, velocity, opts) -> distribution	time	-	absent	when a backlog finishes, as dates with odds	3
+F	keikaku?	capacity	pure	capacity(team, window) -> number	time	-	absent	work a team can take on in a window	3
+F	keikaku?	schedule	pure	schedule(items, capacity) -> plan	time	-	absent	items placed in periods by order, size and capacity	3
+F	keikaku?	critical_path	pure	critical_path(items) -> [item]	time	-	absent	the chain of dependent items that sets the end date	3
+F	keikaku?	milestone	decl	milestone(name, due, items) -> milestone	time	-	absent	declare a dated set of items	3
+F	keikaku?	sprint	decl	sprint(window, items) -> sprint	time	-	absent	declare a time-boxed set of items	3
+F	keikaku?	roadmap	pure	roadmap(milestones) -> roadmap	serialize	-	absent	milestones in time order, by theme	3
+F	keikaku?	burndown	pure	burndown(items, window) -> series	time	-	absent	work left over time	3
+F	keikaku?	variance	pure	variance(plan, actual) -> record	time	-	absent	how far reality moved from the plan	3
+F	keikaku?	risk	decl	risk(name, odds, impact) -> risk	config	-	absent	declare something that may go wrong, with odds and cost	4
+F	keikaku?	goal	decl	goal(owner, target, window) -> goal	config,time	-	absent	declare an outcome target for a person or team	3
+F	keikaku?	checkin	effect	checkin(goal, progress) -> nil	log,time	-	absent	record progress against a goal	3
+F	keikaku?	retro	pure	retro(events, window) -> record	time	-	absent	facts from a period: what changed, slipped and repeated	4
+F	kaihatsu?	new	effect	new(kind, name, opts) -> project	idempotent	blue-lang-cli	exists:blue-lang-cli	start a project that passes its own tests	0
+F	kaihatsu?	doctor	effect	doctor(env) -> [problem]	process,capability	-	absent	check the tools, versions and access a project needs	2
+F	kaihatsu?	bootstrap	effect	bootstrap(project, opts) -> nil	process,idempotent	-	absent	make a fresh checkout ready to build and test	2
+F	kaihatsu?	tasks	pure	tasks(project) -> [task]	-	-	absent	the named tasks a project declares	2
+F	kaihatsu?	run	effect	run(task, opts) -> result	process,deadline	-	absent	run one declared task in the project environment	2
+F	kaihatsu?	gate	effect	gate(project, event) -> verdict	test,process	blue	absent	run the steps declared for an event; any red stops it	1
+F	kaihatsu?	watch	stream	watch(paths, task) -> nil	cancel	blue-lang-cli	exists:blue-lang-cli	rerun a task when watched files change	0
+F	kaihatsu?	repl	effect	repl(opts) -> nil	capability	blue-lang-cli	exists:blue-lang-cli	an evaluation session at the terminal	0
+F	kaihatsu?	rehearse	effect	rehearse(project, ci) -> report	process,test	-	absent	run the CI jobs locally, in the same order	3
+F	kaihatsu?	onboard	pure	onboard(person, project) -> [step]	-	-	absent	the ordered steps to a first merged change	4
+F	kobun?	lex	pure	lex(source, lang) -> [token]	-	blue-lang-syntax	exists:blue-lang-syntax	source text to tokens with positions	0
+F	kobun?	parse	pure	parse(source, lang) -> tree	error,validate	blue-lang-syntax	exists:blue-lang-syntax	source text to a tree with spans; error nodes kept	0
+F	kobun?	render	pure	render(tree, lang) -> text	serialize	blue-lang-fmt	exists:blue-lang-fmt	a tree back to source text	0
+F	kobun?	walk	pure	walk(tree, order) -> [node]	-	blue-lang-syntax	partial:blue-lang-syntax	every node in a fixed order	0
+F	kobun?	query	pure	query(tree, pattern) -> [match]	-	-	absent	nodes that match a structural pattern	2
+F	kobun?	kind	pure	kind(node) -> name	-	blue-lang-syntax	exists:blue-lang-syntax	the grammar name of a node	0
+F	kobun?	span	pure	span(node) -> range	-	blue-lang-syntax	exists:blue-lang-syntax	the start and end position of a node	0
+F	kobun?	text	pure	text(node) -> text	-	-	partial:blue-lang-syntax	the source text under a node	0
+F	kobun?	children	pure	children(node) -> [node]	-	-	partial:blue-lang-syntax	the direct children of a node, in order	0
+F	kobun?	parent	pure	parent(tree, node) -> node or nil	-	-	absent	the node that holds a node, or nil at the root	1
+F	kobun?	edit	pure	edit(tree, range, text) -> tree	-	-	absent	a new tree after a text change, reusing the rest	3
+F	kobun?	diff	pure	diff(a, b) -> [change]	-	-	absent	tree changes between two sources, not text lines	2
+F	kobun?	hash	pure	hash(tree) -> text	serialize	blue-lang-mondou	exists:blue-lang-mondou	identity of a tree; a definition hashes with its callees	0
+F	kobun?	normalize	pure	normalize(tree) -> tree	serialize	blue-lang-syntax	partial:blue-lang-syntax	the canonical tree for equivalent surface forms	1
+F	kobun?	grammar	pure	grammar(spec) -> parser	validate	blue-lang-kiwari	partial:kiwari	a parser built from a grammar spec	2
+F	kobun?	highlight	pure	highlight(tree) -> [span]	-	blue-lang-kiwari	partial:kiwari	spans tagged with a role such as keyword or name	1
+F	kobun?	errors	pure	errors(tree) -> [error]	error	blue-lang-syntax	partial:blue-lang-syntax	the error nodes of a tree with expected tokens	1
+F	gengo?	serve	effect	serve(transport, opts) -> nil	resource,cancel	blue-lang-lsp	exists:blue-lang-lsp	run the language server on a transport	0
+F	gengo?	sync	effect	sync(document, change) -> nil	cache	blue-lang-lsp	exists:blue-lang-lsp	tell the server a document changed	0
+F	gengo?	complete	pure	complete(document, position) -> [item]	-	blue-lang-mondou	exists:blue-lang-mondou	names valid at a position	0
+F	gengo?	definition	pure	definition(document, position) -> location or nil	-	blue-lang-mondou	exists:blue-lang-mondou	where the name at a position is defined	0
+F	gengo?	references	pure	references(document, position) -> [location]	-	blue-lang-mondou	exists:blue-lang-mondou	every use of the name at a position	0
+F	gengo?	describe	pure	describe(document, position) -> text	-	blue-lang-mondou	partial:blue-lang-mondou	signature, doc and type of the name at a position	1
+F	gengo?	symbols	pure	symbols(document) -> [symbol]	-	blue-lang-mondou	exists:blue-lang-mondou	the outline of a document	0
+F	gengo?	signature	pure	signature(document, position) -> record or nil	-	blue-lang-mondou	exists:blue-lang-mondou	the call signature at a position, with the active argument	0
+F	gengo?	diagnostics	pure	diagnostics(document) -> [diagnostic]	error	blue-lang-check	exists:blue-lang-lsp	findings of the check stage with spans	0
+F	gengo?	actions	pure	actions(document, range) -> [action]	migrate	blue-lang-lsp	absent	fixes and refactors offered for a range	2
+F	gengo?	infer	pure	infer(expr, env) -> type	validate	blue-lang-check	exists:blue-lang-check	the type of an expression in an environment	0
+F	gengo?	subtype?	pure	subtype?(a, b) -> Bool	validate	blue-lang-check	exists:blue-lang-check	whether a value of type a fits where b is wanted	0
+F	gengo?	eval	effect	eval(expr, context) -> value	capability,deadline	blue-lang-runtime	exists:blue-lang-runtime	evaluate one expression in a session	0
+F	kiwari	rule	decl	rule(name, body, lower) -> rule	validate	blue-lang-kiwari	exists:kiwari	declare one grammar production	0
+F	kiwari	seq	decl	seq(items) -> expr	-	blue-lang-kiwari	exists:kiwari	items in order	0
+F	kiwari	choice	decl	choice(items) -> expr	-	blue-lang-kiwari	exists:kiwari	exactly one of the items	0
+F	kiwari	rep	decl	rep(item) -> expr	-	blue-lang-kiwari	exists:kiwari	zero or more of an item	0
+F	kiwari	opt	decl	opt(item) -> expr	-	blue-lang-kiwari	exists:kiwari	an item or nothing	0
+F	kiwari	lit	decl	lit(text) -> expr	-	blue-lang-kiwari	exists:kiwari	a fixed piece of text	0
+F	kiwari	field	decl	field(name, item) -> expr	-	blue-lang-kiwari	exists:kiwari	name a part of a node	0
+F	kiwari	literals	pure	literals(grammar) -> [text]	-	blue-lang-kiwari	exists:kiwari	every fixed token a grammar uses	0
+F	kiwari	check	pure	check(grammar) -> [problem]	validate	blue-lang-kiwari	partial:kiwari	ambiguity, unused rules and missing closers	1
+F	kiwari	render	pure	render(grammar, target) -> text	serialize	blue-lang-kiwari	exists:kiwari	a syntax artifact for a target: parser, highlights, tables	0
+F	kyuuji	serve	effect	serve(address, health, handler) -> nil	resource,cancel,deadline	blue-lang-runtime	exists:kyuuji	run an HTTP service with health and metrics	0
+F	kyuuji	metered	effect	metered(request, health, handler, metrics) -> response	time	-	exists:kyuuji	answer a request and record its status and latency	0
+F	kyuuji	health	pure	health(request, check) -> response	test	-	exists:kyuuji	answer a liveness or readiness probe from a check	0

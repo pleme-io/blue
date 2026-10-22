@@ -1,0 +1,549 @@
+from	rel	to	why
+shomei::hash_file	composes	shomei::hash	hash chunks of a read file
+shomei::hash_file	lifts	shomei::hash	streams instead of holding all bytes
+shomei::mac	refines	shomei::hash	a digest that needs a key
+shomei::same?	guards	shomei::mac	compare tags without timing leak
+shomei::same?	guards	shomei::verify?	compare digests without timing leak
+shomei::hash?	guards	shomei::hash	check shape before trusting text
+shomei::algorithms	guards	shomei::hash	names which algorithms may be asked for
+shomei::keypair	requires	kagi?::random	seed must come from secure entropy
+shomei::public	pairs	shomei::keypair	the two halves of a key
+shomei::fingerprint	composes	shomei::hash	hash of the public key
+shomei::fingerprint	requires	shomei::public	names only the public half
+shomei::sign	requires	shomei::keypair	needs the secret half
+shomei::sign	pairs	shomei::verify?	every signature has its check
+shomei::verify?	inverse	shomei::sign	checks what sign made
+shomei::verify?	requires	shomei::public	needs the public half
+shomei::batch_verify?	lifts	shomei::verify?	many signatures at once
+shomei::genesis	composes	shomei::hash	label hashed with format tag
+shomei::link	composes	shomei::hash	previous hash plus payload
+shomei::link	requires	shomei::genesis	every chain starts at a genesis
+shomei::head	composes	shomei::link	fold link over payloads
+shomei::trail	composes	shomei::link	keep every intermediate hash
+shomei::intact?	composes	shomei::head	recompute and compare head
+shomei::intact?	refines	shomei::first_break	yes when there is no break
+shomei::first_break	composes	shomei::trail	compare stored with recomputed
+shomei::root	composes	shomei::hash	tree of hashes over payloads
+shomei::prove	requires	shomei::root	proof is relative to a root
+shomei::proves?	inverse	shomei::prove	checks what prove built
+shomei::proves?	composes	shomei::hash	climb proof by hashing
+shomei::commit	composes	shomei::hash	hash of value with nonce
+shomei::opens?	inverse	shomei::commit	checks a revealed value
+shomei::opens?	guards	shomei::same?	compare commitments safely
+angou::prime?	refines	angou::factor	prime when only itself factors
+angou::factor	composes	angou::prime?	trial division by primes
+angou::divisors	composes	angou::factor	products of prime powers
+angou::power_mod	composes	angou::totient	exponent reduces modulo totient
+angou::inverse_mod	composes	angou::bezout	coefficient of the extended gcd
+angou::bezout	generalizes	angou::inverse_mod	inverse is one coefficient
+angou::crt	composes	angou::inverse_mod	combine congruences with inverses
+angou::totient	composes	angou::factor	product over prime factors
+angou::order	requires	angou::totient	divides the totient
+angou::order	composes	angou::power_mod	try powers until one
+angou::primitive_root	composes	angou::order	order equals totient
+angou::decipher	inverse	angou::encipher	undoes the same cipher
+angou::crack	composes	angou::frequency	score candidates by letter counts
+angou::crack	composes	angou::decipher	try every key
+angou::frequency	requires	angou::encipher	statistics break classical ciphers
+kagi?::random	requires	kagi?::generate	entropy is the base of every key
+kagi?::generate	composes	kagi?::random	key bytes from entropy
+kagi?::generate	guards	kagi?::strength	refuses kinds below the minimum
+kagi?::derive	refines	shomei::mac	HKDF is built from keyed hash
+kagi?::stretch	refines	kagi?::derive	derive from a low-entropy password
+kagi?::stretch	pairs	ninshou?::protect	password storage uses stretching
+kagi?::exchange	pairs	kagi?::derive	shared secret then derive keys
+kagi?::exchange	requires	kagi?::generate	each side needs a keypair
+kagi?::wrap	composes	kagi?::seal	key sealed under key
+kagi?::unwrap	inverse	kagi?::wrap	recover the wrapped key
+kagi?::share	inverse	kagi?::rebuild	split what rebuild joins
+kagi?::share	requires	kagi?::random	share polynomial needs entropy
+kagi?::rebuild	requires	kagi?::share	needs a threshold of shares
+kagi?::rotate	composes	kagi?::generate	new version of the key
+kagi?::rotate	pairs	kagi?::retire	old version retires after rotation
+kagi?::rotate	requires	kagi?::due?	rotate when policy says so
+kagi?::retire	guards	kagi?::seal	retired keys cannot seal
+kagi?::destroy	requires	kagi?::retire	retire before erasing
+kagi?::destroy	inverse	kagi?::generate	key cannot return once gone
+kagi?::parse	inverse	kagi?::render	text to key
+kagi?::render	inverse	kagi?::parse	key to text
+kagi?::strength	guards	kagi?::generate	names security bits of a request
+kagi?::due?	guards	kagi?::rotate	decides when rotation runs
+kagi?::quantum_safe?	guards	kagi?::generate	filters kinds for long-lived data
+kagi?::hybrid	composes	kagi?::exchange	classical plus post-quantum exchange
+kagi?::hybrid	generalizes	kagi?::quantum_safe?	safe when either part holds
+kagi?::zeroize	pairs	himitsu::reveal	wipe after plain text use
+kagi?::seal	requires	kagi?::random	fresh nonce per message
+kagi?::seal	pairs	kagi?::open	every seal has an open
+kagi?::open	inverse	kagi?::seal	decrypts and authenticates
+kagi?::seal_to	composes	kagi?::exchange	ephemeral exchange then seal
+kagi?::seal_to	composes	kagi?::seal	payload sealed under derived key
+kagi?::open_as	inverse	kagi?::seal_to	opens with the secret key
+kagi?::lock	composes	kagi?::wrap	data key wrapped by managed key
+kagi?::lock	composes	kagi?::seal	data sealed under data key
+kagi?::lock	composes	kagi?::generate	fresh data key each time
+kagi?::unlock	inverse	kagi?::lock	asks the key service to unwrap
+kagi?::rewrap	composes	kagi?::unlock	unwrap then wrap under new key
+kagi?::rewrap	pairs	kagi?::rotate	rotation moves data keys over
+kagi?::peek	guards	kagi?::open	learn key id before opening
+kagi?::encrypted?	guards	kagi?::open	avoid opening plain bytes
+kagi?::seal_stream	lifts	kagi?::seal	chunked sealing of streams
+kagi?::open_stream	lifts	kagi?::open	chunked opening of streams
+kagi?::open_stream	inverse	kagi?::seal_stream	undoes chunked sealing
+ninshou?::protect	composes	kagi?::stretch	slow salted derivation
+ninshou?::protect	requires	kagi?::random	salt from secure entropy
+ninshou?::matches?	inverse	ninshou?::protect	checks a password against its verifier
+ninshou?::matches?	composes	shomei::same?	equal-time comparison
+ninshou?::stale?	guards	ninshou?::protect	decides when to rehash
+ninshou?::flaws	guards	ninshou?::protect	refuse weak passwords before storing
+ninshou?::challenge	requires	kagi?::random	nonce must be unpredictable
+ninshou?::answer?	pairs	ninshou?::challenge	each challenge answered once
+ninshou?::answer?	composes	shomei::verify?	response is a signature
+ninshou?::code	composes	shomei::mac	HMAC of the time step
+ninshou?::code_valid?	composes	ninshou?::code	compare within the window
+ninshou?::code_valid?	composes	shomei::same?	equal-time comparison
+ninshou?::backup_codes	requires	kagi?::random	codes need entropy
+ninshou?::spend	pairs	ninshou?::backup_codes	a code works once
+ninshou?::passkey_ask	requires	kagi?::random	challenge must be fresh
+ninshou?::passkey_accept	pairs	ninshou?::passkey_ask	answers an enrolment request
+ninshou?::passkey_accept	composes	shomei::verify?	attestation signature check
+ninshou?::passkey_verify	pairs	ninshou?::passkey_ask	answers a sign-in request
+ninshou?::passkey_verify	composes	shomei::verify?	assertion signature check
+ninshou?::passkey_verify	requires	ninshou?::passkey_accept	needs the enrolled credential
+ninshou?::start	requires	kagi?::random	session id from entropy
+ninshou?::start	pairs	ninshou?::stop	every session ends
+ninshou?::touch	requires	ninshou?::start	only a live session
+ninshou?::touch	guards	ninshou?::alive?	raises when either lifetime ended
+ninshou?::stop	inverse	ninshou?::start	ends what start began
+ninshou?::renew	requires	ninshou?::start	replaces a live session id
+ninshou?::renew	composes	ninshou?::stop	old id is stopped
+ninshou?::alive?	requires	ninshou?::start	only sessions that started
+ninshou?::fresh?	guards	ninshou?::sign_in	step-up before a risky act
+ninshou?::strike	pairs	ninshou?::locked?	failures feed the lockout
+ninshou?::strike	guards	ninshou?::matches?	count each failed match
+ninshou?::locked?	guards	ninshou?::sign_in	refuse while locked
+ninshou?::forgive	inverse	ninshou?::strike	clears the count
+ninshou?::sign_in	composes	ninshou?::matches?	first factor
+ninshou?::sign_in	composes	ninshou?::code_valid?	second factor
+ninshou?::sign_in	composes	ninshou?::start	session after proofs
+ninshou?::sign_in	composes	ninshou?::strike	failures are counted
+ninshou?::caller	composes	tegata?::read	identity from a token
+ninshou?::caller	requires	ninshou?::alive?	identity from a live session
+tegata?::issue	composes	shomei::sign	signature over header and claims
+tegata?::issue	pairs	tegata?::read	every token has a check
+tegata?::read	inverse	tegata?::issue	checks and opens what issue made
+tegata?::read	composes	shomei::verify?	signature check
+tegata?::read	composes	tegata?::keys	find the verification key
+tegata?::unverified	guards	tegata?::read	peek at key id before verifying
+tegata?::expired?	refines	tegata?::read	expiry check alone
+tegata?::refresh	composes	tegata?::issue	new pair
+tegata?::refresh	composes	tegata?::revoke	old refresh token retired
+tegata?::revoke	guards	tegata?::read	revoked tokens fail reading
+tegata?::revoke	inverse	tegata?::issue	withdraws an issued token
+tegata?::revoked?	pairs	tegata?::revoke	the list revoke writes
+tegata?::introspect	generalizes	tegata?::read	asks the issuer instead of verifying locally
+tegata?::exchange	composes	tegata?::read	check the incoming token
+tegata?::exchange	composes	tegata?::issue	mint the narrower token
+tegata?::keys	composes	tegata?::discover	key set URL from discovery
+tegata?::discover	requires	tegata?::keys	keys come after discovery
+tegata?::flow_start	composes	tegata?::pkce	challenge from verifier
+tegata?::flow_start	requires	kagi?::random	state and verifier from entropy
+tegata?::flow_finish	pairs	tegata?::flow_start	redeems what start prepared
+tegata?::flow_finish	composes	tegata?::read	check the returned ID token
+tegata?::acquire	composes	tegata?::issue	assertion for client credentials
+tegata?::pkce	composes	shomei::hash	SHA-256 of the verifier
+tegata?::assertion	generalizes	tegata?::read	same checks on a SAML document
+tegata?::attenuate	refines	tegata?::issue	adds a caveat, never removes
+tegata?::attenuate	pairs	waku::narrow	same law: narrow cannot widen
+tegata?::tie	requires	shomei::keypair	holder owns a key
+tegata?::api_key	composes	shomei::hash	store hash, not secret
+tegata?::api_key	requires	kagi?::random	key from entropy
+tegata?::api_key_valid?	inverse	tegata?::api_key	checks a presented key
+tegata?::api_key_valid?	composes	shomei::same?	equal-time comparison
+shoumeisho?::parse	inverse	shoumeisho?::render	text to certificate
+shoumeisho?::render	inverse	shoumeisho?::parse	certificate to text
+shoumeisho?::info	requires	shoumeisho?::parse	reads a parsed certificate
+shoumeisho?::request	requires	shomei::keypair	request signed by the key
+shoumeisho?::issue	requires	shoumeisho?::request	signs a request
+shoumeisho?::issue	composes	shomei::sign	CA signature
+shoumeisho?::self_sign	refines	shoumeisho?::issue	issuer is the subject
+shoumeisho?::path	requires	shoumeisho?::roots	chain ends at a root
+shoumeisho?::path	composes	shomei::verify?	each link signature
+shoumeisho?::path	guards	shoumeisho?::revoked?	revocation checked on the path
+shoumeisho?::matches?	guards	shoumeisho?::path	name check follows chain check
+shoumeisho?::expires	requires	shoumeisho?::parse	reads the validity end
+shoumeisho?::expiring?	composes	shoumeisho?::expires	compare to now plus window
+shoumeisho?::expiring?	guards	shoumeisho?::renew	renew when near expiry
+shoumeisho?::revoked?	pairs	shoumeisho?::revoke	the list revoke writes
+shoumeisho?::revoke	inverse	shoumeisho?::issue	withdraws an issued certificate
+shoumeisho?::renew	composes	shoumeisho?::issue	new certificate for same key
+shoumeisho?::pin	composes	shomei::hash	hash of the public key
+shoumeisho?::pin	refines	shomei::fingerprint	a fingerprint used for pinning
+shoumeisho?::identity	requires	shoumeisho?::info	reads the URI name
+shoumeisho?::watch	lifts	shoumeisho?::identity	stream of rotated identities
+shoumeisho?::profile	guards	shoumeisho?::probe	probe judges against a level
+shoumeisho?::probe	composes	shoumeisho?::path	connect then verify chain
+shoumeisho?::probe	composes	shoumeisho?::expires	report remaining validity
+shoumeisho?::roots	guards	shoumeisho?::path	supplies the trust anchors
+kengen?::allow?	refines	kengen?::decide	the boolean of the decision
+kengen?::allow?	generalizes	waku::allows?	any subject, action and resource
+kengen?::permit	composes	kengen?::allow?	raise :denied when false
+kengen?::permit	guards	kyohi::check	denial is a ledger refusal
+kengen?::decide	composes	kengen?::policy	evaluate policies over a request
+kengen?::decide	composes	kengen?::grants?	permission matching
+kengen?::why	requires	kengen?::decide	explains a decision
+kengen?::grant	composes	kengen?::relation	stores one tuple
+kengen?::grant	pairs	kengen?::revoke	each grant can be withdrawn
+kengen?::revoke	inverse	kengen?::grant	removes the tuple
+kengen?::holders	lifts	kengen?::allow?	all subjects where allow? is true
+kengen?::powers	lifts	kengen?::allow?	all resources where allow? is true
+kengen?::visible	lifts	kengen?::allow?	filter resources by allow?
+kengen?::role	composes	kengen?::permission	a set of permissions
+kengen?::assign	requires	kengen?::role	assign a declared role
+kengen?::assign	refines	kengen?::grant	grant by role instead of permission
+kengen?::permission	generalizes	kengen?::grants?	a permission with wildcards
+kengen?::grants?	guards	kengen?::allow?	wildcard match step
+kengen?::policy	composes	kengen?::rule	a named list of rules
+kengen?::rule	requires	kengen?::policy	rules live inside policies
+kengen?::parse	guards	kengen?::policy	bad text never becomes a policy
+kengen?::parse	requires	kengen?::policy	text becomes a policy
+kengen?::relation	generalizes	kengen?::grant	a grant is a relation tuple
+kengen?::expand	lifts	kengen?::holders	tree form of holders
+kengen?::delegate	refines	kengen?::grant	a grant with an end time
+kengen?::delegate	requires	kengen?::allow?	cannot pass on what you lack
+waku::frame	pairs	waku::narrow	frames form a lattice
+waku::narrow	guards	waku::frame	narrowing never widens
+waku::escapes	requires	waku::frame	checked against a frame
+waku::imports	requires	waku::frame	derived from a frame
+waku::imports	pairs	kakuri?::embed	imports are what a module may call
+waku::allows?	refines	waku::escapes	one name instead of a program
+himitsu::read	refines	himitsu::get	reads a reference, raises on absence
+himitsu::read	composes	himitsu::reveal	reveal stays in the caller
+himitsu::get	generalizes	himitsu::read	nil when the key is absent
+himitsu::need	refines	himitsu::get	raises when absent
+himitsu::has?	refines	himitsu::get	presence only
+himitsu::list	pairs	himitsu::get	keys here, values there
+himitsu::put	pairs	himitsu::get	put then get returns the value
+himitsu::put	composes	kagi?::lock	stored encrypted at rest
+himitsu::delete	inverse	himitsu::put	makes the key absent
+himitsu::secret	pairs	himitsu::reveal	the only way in and out
+himitsu::reveal	inverse	himitsu::secret	plain text from a secret
+himitsu::rotate	composes	himitsu::generate	new value
+himitsu::rotate	composes	himitsu::put	stored as a new version
+himitsu::rotate	requires	himitsu::stale?	rotate when overdue
+himitsu::versions	requires	himitsu::put	every put adds a version
+himitsu::generate	composes	kagi?::random	bytes from entropy
+himitsu::deliver	composes	himitsu::read	read then place
+himitsu::deliver	pairs	himitsu::with_secrets	place and wipe
+himitsu::rekey	composes	kagi?::rewrap	new recipients for data keys
+himitsu::recipients	guards	himitsu::rekey	see who can open before rekeying
+himitsu::leaks	guards	himitsu::put	find secrets that should be in a vault
+himitsu::leaks	composes	kyoukyuu?::scan	a scan with secret rules
+himitsu::stale?	composes	kagi?::due?	same rotation policy
+himitsu::connect	guards	himitsu::read	a vault session before reads
+himitsu::with_secrets	composes	himitsu::deliver	deliver for the body only
+himitsu::with_secrets	composes	kagi?::zeroize	wipe on exit
+himitsu::lease	generalizes	himitsu::read	a read that expires itself
+himitsu::renew	requires	himitsu::lease	extends a live lease
+himitsu::revoke	inverse	himitsu::lease	ends a lease early
+kyoukyuu?::inventory	pairs	kyoukyuu?::scan	scan consumes the inventory
+kyoukyuu?::parse	inverse	kyoukyuu?::render	text to inventory
+kyoukyuu?::render	inverse	kyoukyuu?::parse	inventory to text
+kyoukyuu?::diff	refines	deeta::diff	specialised to inventories
+kyoukyuu?::pin	composes	shomei::hash	record the hash of each dependency
+kyoukyuu?::pin	guards	kyoukyuu?::inventory	exact versions make inventory stable
+kyoukyuu?::scan	composes	kyoukyuu?::list	advisories to match against
+kyoukyuu?::scan	composes	kyoukyuu?::affects?	match one component
+kyoukyuu?::list	pairs	kyoukyuu?::get	all entries, one entry
+kyoukyuu?::get	generalizes	kyoukyuu?::list	one advisory of the feed
+kyoukyuu?::affects?	guards	kyoukyuu?::scan	version range test
+kyoukyuu?::vex	refines	kyoukyuu?::scan	judges a finding the scan made
+kyoukyuu?::score	requires	kyoukyuu?::scan	ranks findings
+kyoukyuu?::breaches	requires	kyoukyuu?::score	policy threshold on score
+kyoukyuu?::breaches	guards	kyoukyuu?::admit	findings that block
+kyoukyuu?::provenance	requires	kyoukyuu?::inventory	names the inputs
+kyoukyuu?::attest	composes	shomei::sign	DSSE envelope signature
+kyoukyuu?::attest	composes	kyoukyuu?::provenance	a common statement
+kyoukyuu?::attested?	inverse	kyoukyuu?::attest	checks an attestation
+kyoukyuu?::attested?	composes	shomei::verify?	signature check
+kyoukyuu?::attested?	requires	kyoukyuu?::trust	only trusted keys count
+kyoukyuu?::admit	composes	kyoukyuu?::attested?	required attestations
+kyoukyuu?::admit	composes	shisei::gated	audit-or-enforce ladder
+kyoukyuu?::admit	composes	kyoukyuu?::breaches	findings policy
+kyoukyuu?::record	composes	shomei::root	ledger is a Merkle tree
+kyoukyuu?::record	pairs	nisshi::witness	ledger receipt for a log head
+kyoukyuu?::sign	refines	shomei::sign	adds identity and transparency
+kyoukyuu?::sign	pairs	kyoukyuu?::verify?	every signature has a check
+kyoukyuu?::verify?	refines	shomei::verify?	adds identity and trust roots
+kyoukyuu?::verify?	requires	kyoukyuu?::trust	identities to accept
+kyoukyuu?::rebuild	composes	shomei::hash_file	compare output digests
+kyoukyuu?::rebuild	composes	kyoukyuu?::diff	show what differs
+kyoukyuu?::review	composes	kyoukyuu?::diff	new dependencies in a change
+kyoukyuu?::review	composes	kyoukyuu?::scan	vulnerable additions
+kyoukyuu?::licenses	requires	kyoukyuu?::inventory	reads inventory licenses
+kyoukyuu?::posture	refines	junshu?::assess	checks practices of a repository
+kyoukyuu?::blast	requires	kyoukyuu?::inventory	inventories form the graph
+kyoukyuu?::trust	guards	kyoukyuu?::verify?	names the accepted roots
+junshu?::control	pairs	junshu?::list	declared and listed
+junshu?::list	requires	junshu?::control	catalog of declared controls
+junshu?::mapping	requires	junshu?::control	maps checks to controls
+junshu?::assess	composes	junshu?::pack	run the pack tests
+junshu?::assess	composes	junshu?::evidence	results become evidence
+junshu?::pack	composes	shomei::hash	deterministic pack hash
+junshu?::evidence	pairs	kyoukyuu?::attest	evidence is signed as an attestation
+junshu?::collect	lifts	junshu?::evidence	many sources of evidence
+junshu?::render	inverse	junshu?::parse	assessment to text
+junshu?::parse	inverse	junshu?::render	text to assessment
+junshu?::rollup	requires	junshu?::mapping	group results by control family
+junshu?::gap	requires	junshu?::list	compares catalog and evidence
+junshu?::gap	composes	junshu?::rollup	controls with zero passes
+junshu?::waive	guards	junshu?::gap	a waiver removes a control from the gap
+junshu?::lapsed	requires	junshu?::waive	waivers past their end
+junshu?::drift	refines	kyoukyuu?::diff	difference between assessments
+junshu?::watch	lifts	junshu?::collect	continuous collection
+junshu?::certify	composes	shomei::sign	signed assessment
+junshu?::certify	requires	junshu?::gap	no gaps outside waivers
+junshu?::inherit	refines	junshu?::control	a control satisfied by a provider
+nisshi::append	composes	shomei::link	chain the new record
+nisshi::append	pairs	nisshi::read	written then read
+nisshi::read	inverse	nisshi::append	returns what append wrote
+nisshi::replay	composes	nisshi::read	fold records into states
+nisshi::at	refines	nisshi::replay	replay up to a record
+nisshi::history	refines	nisshi::read	records of one entity
+nisshi::verify	composes	shomei::first_break	find the first break
+nisshi::intact?	refines	nisshi::verify	true when no break
+nisshi::head	composes	shomei::head	chain head of the log
+nisshi::checkpoint	composes	shomei::sign	sign the head
+nisshi::checkpoint	requires	nisshi::head	signs the current head
+nisshi::prove	composes	shomei::prove	inclusion proof for a record
+nisshi::watch	lifts	nisshi::read	records as they land
+nisshi::roll	requires	nisshi::checkpoint	seal a segment before rolling
+nisshi::audit	composes	nisshi::append	a record of fixed audit shape
+nisshi::audit	guards	kengen?::permit	every decision is recorded
+nisshi::query	composes	nisshi::read	SQL over read records
+nisshi::witness	composes	nisshi::checkpoint	publish the signed head
+kakuri?::profile	refines	waku::frame	a frame for processes and hosts
+kakuri?::confine	requires	kakuri?::profile	run inside a profile
+kakuri?::confine	composes	kakuri?::limit	limits applied to the run
+kakuri?::confine	composes	kakuri?::scrub_env	clean environment for the child
+kakuri?::limit	guards	kakuri?::confine	caps a run
+kakuri?::drop	pairs	kakuri?::confine	drop privileges before running work
+kakuri?::filter	refines	kakuri?::profile	system calls as a profile part
+kakuri?::embed	requires	waku::imports	only the granted imports
+kakuri?::embed	refines	kakuri?::confine	a module instead of a process
+kakuri?::learn	composes	kakuri?::confine	run once while observing
+kakuri?::tighten	requires	kakuri?::learn	narrow to what was seen
+kakuri?::tighten	composes	waku::narrow	meet of profile and observation
+kakuri?::exceeds	composes	kakuri?::learn	observations beyond the profile
+kakuri?::elevate	inverse	waku::narrow	the only widening, root only
+kakuri?::elevate	composes	nisshi::audit	every elevation is logged
+kakuri?::scrub_env	guards	kakuri?::confine	no stray secrets in env
+kakuri?::egress	refines	kakuri?::profile	network part of a profile
+jouka?::escape	guards	jouka?::bind	escaping for contexts without binding
+jouka?::bind	refines	jouka?::escape	structured form of escaping
+jouka?::strip	refines	jouka?::escape	removes instead of neutralising
+jouka?::canonical	guards	jouka?::fits?	normalise before matching
+jouka?::canonical	guards	jouka?::contain	normalise before containing
+jouka?::confusable?	requires	jouka?::canonical	compare normalised forms
+jouka?::contain	guards	fairu::write	safe path before write
+jouka?::contain_real	refines	jouka?::contain	adds link resolution
+jouka?::fits?	guards	jouka?::bind	values checked before binding
+jouka?::bound	guards	jouka?::fits?	size check comes first
+jouka?::vet	composes	jouka?::fits?	address range rules
+jouka?::vet	guards	tsuushin::request	check before connecting
+jouka?::local?	guards	tsuushin::request	redirect target check
+jouka?::taint	pairs	jouka?::clear	mark then clear
+jouka?::clear	requires	jouka?::fits?	a check clears a mark
+jouka?::hostile	pairs	jouka?::escape	tests escape against attacks
+jouka?::hostile	guards	bougyo::limits	attack inputs for posture tests
+jouka?::linear?	guards	moji::pattern	refuse patterns that blow up
+bougyo::headers	requires	shisei::posture	a posture
+bougyo::request_id	requires	shisei::posture	a posture
+bougyo::request_id	composes	bougyo::safe_id?	inbound id check
+bougyo::limits	composes	bougyo::broken	find the broken limit
+bougyo::limits	requires	shisei::posture	a posture
+bougyo::broken	refines	jouka?::bound	request-shaped bound
+bougyo::safe_id?	refines	jouka?::fits?	id allow-list
+bougyo::cors	requires	shisei::posture	a posture
+bougyo::csp	requires	shisei::posture	a posture
+bougyo::rate	requires	shisei::posture	a posture
+bougyo::csrf	requires	shisei::posture	a posture
+bougyo::tls	requires	shisei::posture	a posture
+bougyo::tls	composes	shoumeisho?::profile	settings of the TLS level
+bougyo::trusted_proxy	requires	shisei::posture	a posture
+bougyo::deadlines	requires	shisei::posture	a posture
+bougyo::authenticate	composes	ninshou?::caller	identity from the request
+bougyo::authenticate	requires	shisei::posture	a posture
+bougyo::authorize	composes	kengen?::permit	policy per request
+bougyo::authorize	requires	bougyo::authenticate	needs an identity first
+bougyo::audit	composes	nisshi::audit	one audit record per decision
+bougyo::audit	requires	shisei::posture	a posture
+shisei::posture	pairs	shisei::stance	declared then judged
+shisei::defaults	requires	shisei::posture	one entry per posture
+shisei::stance	composes	shisei::defaults	laid over defaults
+shisei::stance	composes	kyohi::check	refusals of entries
+shisei::stack	composes	shisei::posture	layers from postures
+shisei::serving	composes	shisei::stance	judge then stack
+shisei::serving	composes	shisei::stack	build the handler
+shisei::gated	guards	shisei::posture	audit or enforce for refusals
+shisei::promote	requires	shisei::rehearse	evidence before enforcing
+shisei::promote	refines	shisei::gated	moves a posture up the ladder
+shisei::rehearse	composes	shisei::gated	replay in audit mode
+tokumei::randomize	pairs	tokumei::estimate	answer then recover the share
+tokumei::estimate	inverse	tokumei::randomize	undoes the randomising in aggregate
+tokumei::epsilon	requires	tokumei::randomize	cost of one answer
+tokumei::exposure	requires	tokumei::epsilon	observer certainty
+tokumei::laplace	requires	ran::stream_seed	seeded noise stream
+tokumei::private_count	composes	tokumei::laplace	count plus noise
+tokumei::private_share	composes	tokumei::private_count	count over n
+tokumei::private_mean	composes	tokumei::laplace	clipped mean plus noise
+tokumei::private_mean	refines	tokumei::private_count	a different query, same privacy cost
+tokumei::suppress	guards	tokumei::private_count	small counts are not published
+tokumei::unique_share	guards	tokumei::k_anonymous?	estimate before checking
+tokumei::budget	pairs	tokumei::spend	declared then spent
+tokumei::spend	guards	tokumei::private_count	each release costs epsilon
+tokumei::spend	requires	tokumei::budget	spends from a budget
+tokumei::k_anonymous?	requires	tokumei::generalize	coarsen until it holds
+tokumei::generalize	guards	tokumei::k_anonymous?	raises group sizes
+tokumei::classify	pairs	tokumei::spot	labels fields, spots text
+tokumei::spot	refines	tokumei::classify	classify inside free text
+tokumei::redact	requires	tokumei::spot	replace what was spotted
+tokumei::redact	guards	rogu::info	scrub before logging
+tokumei::mask	refines	tokumei::redact	keeps the last characters
+tokumei::mark	refines	himitsu::secret	same printing rule for personal data
+tokumei::mark	requires	tokumei::classify	kind comes from classification
+tokumei::pseudonym	composes	shomei::mac	keyed hash is the stand-in
+tokumei::tokenize	requires	tokumei::pseudonym	stand-in may be random instead
+tokumei::tokenize	composes	kagi?::random	random token
+tokumei::detokenize	inverse	tokumei::tokenize	returns the original value
+tokumei::detokenize	guards	nisshi::audit	each reversal is logged
+tokumei::retention	pairs	tokumei::lapsed	declared then applied
+tokumei::lapsed	requires	tokumei::retention	compares age to retention
+tokumei::erase	composes	tokumei::locate	find then delete
+tokumei::erase	composes	nisshi::audit	a receipt in the audit log
+tokumei::erase	composes	kagi?::destroy	crypto-shred when data is sealed per person
+tokumei::erase	requires	tokumei::lapsed	erasure is how retention is enforced
+tokumei::gather	composes	tokumei::locate	find then collect
+tokumei::gather	composes	nisshi::audit	each access is logged
+tokumei::consent	pairs	tokumei::permitted?	recorded then checked
+tokumei::permitted?	requires	tokumei::consent	reads the recorded consents
+tokumei::permitted?	guards	kengen?::permit	purpose check beside access check
+tokumei::locate	requires	tokumei::classify	find stores by labelled kinds
+kyoui?::model	pairs	kyoui?::threats	declared then analysed
+kyoui?::threats	requires	kyoui?::model	per element of the model
+kyoui?::rank	requires	kyoui?::threats	orders the threats
+kyoui?::uncovered	requires	kyoui?::threats	threats without controls
+kyoui?::uncovered	requires	junshu?::list	controls to compare with
+kyoui?::rule	pairs	kyoui?::witness	every rule carries its samples
+kyoui?::witness	guards	kyoui?::rule	rule must fire and must not
+kyoui?::match	requires	kyoui?::rule	apply the rules
+kyoui?::detect	lifts	kyoui?::match	match over a stream
+kyoui?::alert	requires	kyoui?::match	alert on a hit
+kyoui?::correlate	requires	kyoui?::alert	group alerts
+kyoui?::baseline	pairs	kyoui?::deviates?	learned then compared
+kyoui?::deviates?	requires	kyoui?::baseline	compares to normal
+kyoui?::indicator	pairs	kyoui?::hunt	known bad, searched for
+kyoui?::hunt	lifts	kyoui?::match	match stored events
+kyoui?::hunt	composes	nisshi::query	search the audit log
+kyoui?::triage	requires	kyoui?::correlate	judge an incident
+kyoui?::playbook	pairs	kyoui?::respond	declared then run
+kyoui?::respond	requires	kyoui?::triage	respond after a verdict
+kyoui?::respond	composes	nisshi::audit	every step logged
+kyoui?::honeytoken	composes	kyoui?::indicator	its use is an indicator
+kyoui?::honeytoken	composes	kyoui?::alert	any use alerts
+kyohi::refusal	pairs	kyohi::kind	a refusal has a kind
+kyohi::kind	requires	kyohi::refusal	reads a refusal
+kyohi::why	requires	kyohi::refusal	reads a refusal
+kyohi::kinds	lifts	kyohi::kind	kind of each refusal
+kyohi::check	composes	kyohi::kinds	one error carries all kinds
+kyohi::check	requires	kyohi::refusal	collects refusals
+kyohi::standing	refines	kyohi::check	entries left standing
+kyohi::ledger	generalizes	kyohi::kind	kinds with status and retry
+kyohi::retryable?	requires	kyohi::ledger	reads the retry column
+kyohi::status	requires	kyohi::ledger	reads the status column
+ukai::observe	pairs	ukai::decide	observed then decided
+ukai::decide	requires	ukai::observe	decides over observed state
+ukai::plan	requires	ukai::decide	actions from an outcome
+ukai::apply	requires	ukai::plan	installs a plan
+ukai::apply	pairs	ukai::plan	plan describes, apply does
+ukai::observe	requires	shisutemu::run	reads routes through a process
+ukai::apply	requires	shisutemu::run	installs routes through a process
+shomei::sign	generalizes	kyoukyuu?::sign	an artifact signature adds identity
+shomei::hash	generalizes	shomei::mac	a mac is a hash with a key
+shomei::hash	pairs	shomei::hash?	a hash always passes the shape check
+shomei::trail	pairs	shomei::head	head is the last of the trail
+shomei::root	generalizes	shomei::head	a tree root versus a chain head
+shomei::prove	pairs	shomei::proves?	every proof has its check
+shomei::first_break	pairs	shomei::intact?	index form and yes-no form
+shomei::commit	pairs	shomei::opens?	every commitment has an opening
+shomei::batch_verify?	refines	shomei::verify?	same answer, one pass
+shomei::keypair	requires	shomei::hash	seed to key uses a hash
+shomei::fingerprint	pairs	kagi?::parse	fingerprint names a parsed key
+kagi?::parse	requires	kagi?::render	round trip law
+kagi?::wrap	pairs	kagi?::unwrap	every wrap has an unwrap
+kagi?::share	requires	kagi?::strength	threshold must keep the bits
+kagi?::retire	guards	kagi?::rotate	old version retires after rotate
+kagi?::seal	composes	shomei::mac	tag authenticates ciphertext
+kagi?::derive	composes	shomei::mac	extract and expand steps
+kagi?::exchange	requires	kagi?::parse	peer key arrives as text
+kagi?::hybrid	requires	kagi?::quantum_safe?	one half must be post-quantum
+kagi?::zeroize	guards	kagi?::destroy	memory wiped when a key dies
+kagi?::open	guards	kagi?::peek	peek chooses the key to open with
+kagi?::encrypted?	pairs	kagi?::peek	detect, then read the header
+kagi?::lock	guards	kagi?::due?	policy age checked at lock time
+ninshou?::code	pairs	ninshou?::code_valid?	generate and check
+ninshou?::protect	pairs	ninshou?::matches?	store and check
+ninshou?::alive?	guards	ninshou?::touch	touch only when alive
+ninshou?::fresh?	requires	ninshou?::alive?	fresh implies alive
+ninshou?::challenge	guards	ninshou?::passkey_ask	same fresh nonce rule
+ninshou?::flaws	requires	ninshou?::protect	checked before the hash is stored
+ninshou?::caller	guards	kengen?::permit	identity comes before permission
+tegata?::read	guards	ninshou?::caller	token is one source of identity
+tegata?::keys	pairs	tegata?::read	read needs the issuer keys
+tegata?::refresh	pairs	tegata?::issue	refresh mints a pair like issue
+tegata?::introspect	pairs	tegata?::revoked?	remote versus local state
+tegata?::flow_finish	requires	tegata?::discover	endpoints come from discovery
+tegata?::acquire	requires	tegata?::discover	token endpoint from discovery
+tegata?::unverified	requires	tegata?::keys	key id picks the verification key
+tegata?::tie	guards	tegata?::read	reader checks the holder proof
+tegata?::api_key	pairs	tegata?::api_key_valid?	issue and check
+shoumeisho?::request	pairs	shoumeisho?::issue	request then issue
+shoumeisho?::path	guards	shoumeisho?::matches?	chain valid before name checked
+shoumeisho?::info	pairs	shoumeisho?::render	read fields of what is rendered
+shoumeisho?::profile	guards	kagi?::quantum_safe?	level names allowed algorithms
+shoumeisho?::probe	composes	shoumeisho?::info	report the chain's fields
+kengen?::allow?	guards	himitsu::read	secrets read only when allowed
+kengen?::grants?	refines	waku::allows?	permission wildcards versus name grants
+kengen?::role	pairs	kengen?::assign	declared then assigned
+kengen?::powers	pairs	kengen?::holders	a subject's view and a resource's view
+kengen?::rule	pairs	kengen?::why	why names the rules that fired
+himitsu::list	guards	kengen?::visible	list only keys the caller may see
+himitsu::get	guards	kengen?::allow?	reads pass the policy
+kyoukyuu?::scan	guards	kyoukyuu?::admit	findings feed the gate
+kyoukyuu?::vex	guards	kyoukyuu?::breaches	not-exploitable findings are removed
+kyoukyuu?::sign	composes	kyoukyuu?::record	signature logged in the ledger
+kyoukyuu?::verify?	composes	kyoukyuu?::record	inclusion checked against the ledger
+kyoukyuu?::inventory	composes	shomei::hash	each component carries its digest
+kyoukyuu?::provenance	guards	kyoukyuu?::rebuild	claims to reproduce
+kyoukyuu?::licenses	guards	kyoukyuu?::review	license risk in a change
+kyoukyuu?::pin	pairs	kyoukyuu?::rebuild	pinned inputs make rebuilds equal
+kyoukyuu?::score	refines	kyoui?::rank	ranking of vulnerability findings
+junshu?::assess	composes	nisshi::audit	each run is logged
+junshu?::pack	pairs	junshu?::assess	declared then run
+junshu?::certify	pairs	kyoukyuu?::verify?	certificates are verified like signatures
+junshu?::render	composes	junshu?::rollup	summary in the rendered report
+nisshi::append	guards	kengen?::permit	writers are authorised
+nisshi::replay	pairs	nisshi::at	whole fold and one point
+nisshi::watch	pairs	nisshi::append	appenders feed watchers
+kakuri?::confine	guards	kengen?::delegate	delegation stays inside the profile
+kakuri?::profile	pairs	kakuri?::egress	egress is part of the profile
+jouka?::escape	pairs	jouka?::hostile	hostile strings test escapes
+jouka?::strip	pairs	jouka?::canonical	canonicalise then strip
+jouka?::contain	pairs	jouka?::contain_real	lexical then resolved
+jouka?::bound	guards	kagi?::open_stream	decompression and chunk limits
+bougyo::limits	composes	jouka?::bound	limits are bounds on a request
+bougyo::rate	pairs	ninshou?::strike	lockout and request limits
+bougyo::headers	pairs	bougyo::csp	csp is one of the headers
+tokumei::consent	guards	nisshi::audit	consents are recorded
+kyoui?::alert	composes	nisshi::audit	alerts also reach the audit log
+kyoui?::rule	guards	jouka?::hostile	hostile strings are rule samples
+kyohi::ledger	guards	kengen?::permit	denied is a ledger kind

@@ -1,0 +1,611 @@
+from	rel	to	why
+bunsho?::check	guards	bunsho?::render	no output with dead links
+bunsho?::check	requires	bunsho?::outline	heading levels from the outline
+bunsho?::convert	composes	bunsho?::parse	parse the source
+bunsho?::convert	composes	bunsho?::render	render the target
+bunsho?::deck	composes	bunsho?::render	a deck renders to pdf or html
+bunsho?::deck	composes	bunsho?::slide	a deck is slides
+bunsho?::deck	requires	gamen?::theme	slides take a theme
+bunsho?::diff	requires	bunsho?::normalize	compare canonical forms
+bunsho?::extract	refines	bunsho?::find	all parts of a kind
+bunsho?::fill	composes	bunsho?::put	slots are puts
+bunsho?::fill	requires	bunsho?::parse	templates are documents
+bunsho?::find	requires	bunsho?::parse	searches a tree
+bunsho?::get	pairs	bunsho?::put	read and write by id
+bunsho?::highlight	requires	bunsho?::parse	code blocks are nodes
+bunsho?::highlight	requires	gamen?::paint	spans become ink
+bunsho?::merge	inverse	bunsho?::diff	apply what diff found
+bunsho?::merge	requires	bunsho?::normalize	merge canonical forms
+bunsho?::normalize	composes	bunsho?::parse	parse then render canonical
+bunsho?::normalize	composes	bunsho?::render	parse then render canonical
+bunsho?::outline	requires	bunsho?::parse	needs a tree
+bunsho?::paginate	requires	bunsho?::outline	break before headings
+bunsho?::paginate	requires	gamen?::measure	page breaks need sizes
+bunsho?::parse	inverse	bunsho?::render	text to tree and back
+bunsho?::put	pairs	bunsho?::get	write and read by id
+bunsho?::read	composes	bunsho?::parse	file then tree
+bunsho?::read	requires	bunsho?::normalize	one form after reading
+bunsho?::redact	guards	bunsho?::write	no secret in output
+bunsho?::render	inverse	bunsho?::parse	tree to text
+bunsho?::slide	requires	gamen?::layout	slides are laid out
+bunsho?::table	requires	bunsho?::extract	tables are extracted parts
+bunsho?::table	requires	gamen?::view	a table is a view
+bunsho?::write	composes	bunsho?::render	tree then file
+bunsho?::write	guards	bunsho?::redact	redact before write
+byouga?::camera	generalizes	byouga?::project	projection comes from a camera
+byouga?::capture	pairs	gazou?::diff	screenshots compared
+byouga?::capture	refines	byouga?::draw	draw offscreen and read back
+byouga?::capture	requires	byouga?::info	size from the surface
+byouga?::check	guards	byouga?::draw	no draw of a bad graph
+byouga?::check	requires	byouga?::plan	a plan to verify
+byouga?::composite	requires	byouga?::rasterize	layers of pixels
+byouga?::convert	guards	byouga?::composite	blend in linear space
+byouga?::convert	requires	gazou?::convert	same color math as images
+byouga?::draw	requires	byouga?::plan	runs the ordered passes
+byouga?::draw	requires	byouga?::scene	draws a scene
+byouga?::graph	composes	byouga?::material	passes use materials
+byouga?::hit	composes	byouga?::unproject	ray from the screen point
+byouga?::hit	pairs	gamen?::send	a hit becomes an event
+byouga?::info	requires	byouga?::surface	reads a surface
+byouga?::material	requires	byouga?::shader	material wraps a shader
+byouga?::pack	requires	byouga?::shape	atlas holds glyphs
+byouga?::plan	requires	byouga?::graph	orders a graph
+byouga?::project	inverse	byouga?::unproject	world to screen and back
+byouga?::rasterize	refines	byouga?::draw	CPU draw without a GPU
+byouga?::render	inverse	byouga?::shader	data to text
+byouga?::scene	requires	byouga?::camera	a scene is seen by a camera
+byouga?::shader	generalizes	byouga?::render	WGSL text comes from the program
+byouga?::shape	requires	byouga?::pack	glyphs sit in an atlas
+byouga?::surface	pairs	gamen?::start	an app owns a surface
+byouga?::surface	requires	byouga?::info	state of the target
+byouga?::tessellate	requires	byouga?::draw	the GPU draws triangles
+byouga?::tessellate	requires	kikagaku::area	polygon input
+byouga?::tessellate	requires	rittai::extrude	solids and paths share meshes
+byouga?::unproject	inverse	byouga?::project	screen to world
+chizu?::bearing	requires	chizu?::point	two points
+chizu?::bounds	requires	chizu?::parse	geometry in hand
+chizu?::bounds	requires	kikagaku::hull	box around a shape
+chizu?::buffer	requires	chizu?::project	grow in a flat system
+chizu?::buffer	requires	kikagaku::offset	planar offset
+chizu?::cell	requires	chizu?::point	a cell holds points
+chizu?::centroid	refines	rittai::measure	center of a shape
+chizu?::centroid	requires	chizu?::project	average in a flat system
+chizu?::contains?	refines	kikagaku::contains?	on a sphere
+chizu?::contains?	requires	kikagaku::contains?	planar test after project
+chizu?::destination	inverse	chizu?::bearing	distance and bearing to a point
+chizu?::destination	requires	chizu?::distance	distance along a bearing
+chizu?::distance	requires	chizu?::point	two points
+chizu?::geocode	inverse	chizu?::locate	text to place and back
+chizu?::intersects?	requires	chizu?::bounds	test boxes first
+chizu?::intersects?	requires	kikagaku::intersect	planar test
+chizu?::locate	inverse	chizu?::geocode	place to text
+chizu?::measure	requires	chizu?::distance	length is summed distance
+chizu?::neighbors	pairs	chizu?::cell	cell and its ring
+chizu?::neighbors	requires	chizu?::cell	beside a cell
+chizu?::parse	inverse	chizu?::render	text to geometry
+chizu?::path	refines	sekai?::path	a route over a road graph
+chizu?::path	requires	chizu?::distance	cost of a leg
+chizu?::point	generalizes	chizu?::distance	distance of points
+chizu?::point	pairs	chizu?::project	geo and flat
+chizu?::project	inverse	chizu?::unproject	geo to flat
+chizu?::project	refines	byouga?::project	a point into another system
+chizu?::render	inverse	chizu?::parse	geometry to text
+chizu?::simplify	requires	chizu?::measure	tolerance from length
+chizu?::simplify	requires	kikagaku::hull	shape kept
+chizu?::unproject	inverse	chizu?::project	flat to geo
+chokkan::ask	composes	chokkan::choice	a question is a choice or a score
+chokkan::ask	pairs	chokkan::request	questions go in a request
+chokkan::choice	composes	chokkan::ask	a closed question
+chokkan::choice	refines	moderu?::classify	closed answers
+chokkan::request	requires	moderu?::ask	the call that carries it
+chokkan::score	composes	chokkan::ask	a scored question
+chokkan::score	refines	saiten?::score	numbered levels
+chuuzou::build	composes	chuuzou::emit	emit first
+chuuzou::build	composes	chuuzou::link	then link
+chuuzou::build	composes	chuuzou::measure	then measure
+chuuzou::emit	requires	kiban::board	specialised to a board
+chuuzou::link	requires	chuuzou::emit	links emitted code
+chuuzou::measure	guards	chuuzou::build	size within the region
+dairi?::advance	composes	dairi?::call	the tool turn
+dairi?::advance	composes	moderu?::ask	the model turn
+dairi?::agent	composes	dairi?::budget	and limits
+dairi?::agent	composes	dairi?::tool	an agent has tools
+dairi?::approve	requires	dairi?::call	guards a call
+dairi?::approve	requires	gamen?::prompt	ask a person
+dairi?::budget	guards	dairi?::run	stops a runaway loop
+dairi?::call	requires	dairi?::list	call a listed tool
+dairi?::call	requires	dairi?::screen	rules before effect
+dairi?::call	requires	moderu?::tokens	result size is bounded
+dairi?::compact	guards	dairi?::advance	fit the window each turn
+dairi?::compact	requires	moderu?::fit	shared budget rule
+dairi?::connect	pairs	dairi?::serve	client and server
+dairi?::connect	requires	gamen?::start	a client may need a surface
+dairi?::delegate	composes	dairi?::spawn	start
+dairi?::delegate	composes	dairi?::wait	join
+dairi?::delegate	requires	dairi?::budget	child budget from parent
+dairi?::find	refines	dairi?::get	by query, not by key
+dairi?::find	requires	kensaku?::search	memory is an index
+dairi?::get	pairs	dairi?::put	memory read and write
+dairi?::list	requires	dairi?::connect	tools of a client
+dairi?::on	requires	dairi?::agent	hooks on an agent
+dairi?::on	requires	dairi?::run	hooks fire inside a run
+dairi?::plan	guards	dairi?::run	show before doing
+dairi?::plan	requires	dairi?::tool	tools a plan would call
+dairi?::put	pairs	dairi?::get	memory write and read
+dairi?::replay	requires	dairi?::resume	trace is a stored run
+dairi?::replay	requires	moderu?::ask	replies are recorded, not asked
+dairi?::resume	inverse	dairi?::run	continue a stored run
+dairi?::run	composes	dairi?::advance	a loop of turns
+dairi?::screen	guards	dairi?::approve	only ask when rules say ask
+dairi?::serve	requires	dairi?::tool	offers tools
+dairi?::skill	refines	dairi?::tool	instructions, not an effect
+dairi?::skill	requires	bunsho?::parse	a skill is a document
+dairi?::spawn	requires	dairi?::agent	a sub-agent
+dairi?::stop	inverse	dairi?::run	ends the loop
+dairi?::stop	pairs	dairi?::wait	end then join
+dairi?::stop	requires	dairi?::budget	budget can stop
+dairi?::tool	requires	dairi?::screen	every call is screened
+dairi?::wait	pairs	dairi?::spawn	start and join
+gamen?::apply	requires	byouga?::draw	the GPU path of apply
+gamen?::apply	requires	gamen?::diff	patches come from a diff
+gamen?::check	composes	gamen?::contrast	color pairs
+gamen?::check	composes	gamen?::describe	labels and roles
+gamen?::check	guards	gamen?::render	no output with faults
+gamen?::component	composes	gamen?::view	a component is views plus state
+gamen?::component	requires	gamen?::on	a component declares its events
+gamen?::contrast	guards	gamen?::theme	a theme must meet contrast
+gamen?::coverage	guards	gamen?::translate	every key has a text
+gamen?::coverage	requires	gamen?::translate	reads message keys
+gamen?::describe	pairs	gamen?::check	facts then rules
+gamen?::describe	requires	gamen?::view	reads role and state
+gamen?::diff	pairs	gamen?::apply	patches go to a surface
+gamen?::focus	pairs	gamen?::send	focus changes are events
+gamen?::focus	requires	gamen?::order	focus moves along tab order
+gamen?::get	pairs	gamen?::put	read and write of one key
+gamen?::layout	requires	gamen?::direction	right to left flips layout
+gamen?::layout	requires	gamen?::measure	sizes before positions
+gamen?::localize	composes	gamen?::plural	counts in text
+gamen?::localize	requires	kinyuu?::render	money text
+gamen?::measure	requires	gamen?::view	a node has a size
+gamen?::notify	refines	gamen?::send	an event for the person
+gamen?::notify	requires	gamen?::localize	text in the user locale
+gamen?::on	requires	gamen?::view	binds to a node
+gamen?::order	requires	gamen?::view	reads the tree
+gamen?::paint	refines	gamen?::style	style applied to text
+gamen?::paint	requires	gamen?::contrast	ink must be readable
+gamen?::progress	lifts	gamen?::show	show as a stream of updates
+gamen?::progress	requires	gamen?::measure	bar width from space
+gamen?::prompt	pairs	gamen?::select	ask in two forms
+gamen?::prompt	requires	gamen?::show	a question is output first
+gamen?::put	inverse	gamen?::get	write is the other face of read
+gamen?::render	composes	gamen?::layout	place, then draw
+gamen?::render	composes	gamen?::style	tokens before output
+gamen?::select	refines	gamen?::prompt	a prompt with a closed set
+gamen?::select	requires	gamen?::order	choices keep an order
+gamen?::send	pairs	gamen?::on	an event needs a handler
+gamen?::show	refines	gamen?::render	render to the terminal
+gamen?::start	composes	gamen?::render	first frame
+gamen?::start	pairs	gamen?::stop	open and close an app
+gamen?::start	requires	ugoki?::clock	redraws follow a clock
+gamen?::state	generalizes	gamen?::get	reads and writes go through the store
+gamen?::stop	inverse	gamen?::start	ends the app
+gamen?::style	requires	gamen?::theme	needs a theme
+gamen?::theme	generalizes	gamen?::style	style resolves theme tokens
+gamen?::translate	composes	gamen?::plural	forms inside messages
+gamen?::translate	requires	bunsho?::fill	messages are templates
+gamen?::update	composes	gamen?::get	reads the old value
+gamen?::update	composes	gamen?::put	writes f of old
+gamen?::view	requires	gamen?::component	a view may be a component
+gamen?::view	requires	gamen?::state	a view reads state
+gamen?::watch	lifts	gamen?::get	get as a stream of changes
+gamen?::watch	pairs	gamen?::update	a change fires a watch
+gazou?::convert	guards	gazou?::overlay	same space before layering
+gazou?::crop	requires	gazou?::info	rect inside size
+gazou?::decode	inverse	gazou?::encode	bytes and pixels
+gazou?::demux	inverse	gazou?::mux	streams out of a container
+gazou?::diff	composes	gazou?::measure	score from pixel error
+gazou?::diff	requires	gazou?::resize	same size before compare
+gazou?::encode	inverse	gazou?::decode	pixels and bytes
+gazou?::frames	lifts	gazou?::decode	decode per frame
+gazou?::hash	pairs	gazou?::diff	hash for fast, diff for detail
+gazou?::hash	requires	gazou?::resize	hash a normalized size
+gazou?::info	requires	gazou?::read	facts before decode
+gazou?::measure	requires	gazou?::decode	reads pixels
+gazou?::mux	inverse	gazou?::demux	streams into a container
+gazou?::ocr	requires	gazou?::treat	clean before reading
+gazou?::ocr	requires	moderu?::ask	a vision model
+gazou?::overlay	refines	byouga?::composite	image form of layering
+gazou?::palette	requires	gamen?::theme	colors feed a theme
+gazou?::palette	requires	gazou?::measure	color stats
+gazou?::read	composes	gazou?::decode	bytes then pixels
+gazou?::resize	requires	gazou?::convert	resize in linear space
+gazou?::rotate	requires	gazou?::crop	crop after turning
+gazou?::rotate	requires	gazou?::info	orientation metadata
+gazou?::segment	refines	onsei?::segment	shots, not speech
+gazou?::segment	requires	gazou?::frames	shot changes from frames
+gazou?::strip	guards	gazou?::write	no metadata leaves
+gazou?::strip	requires	gazou?::info	metadata to remove
+gazou?::thumbnail	composes	gazou?::resize	resize with a preview rule
+gazou?::thumbnail	requires	gazou?::frames	a frame of a video
+gazou?::transcode	composes	gazou?::demux	split first
+gazou?::transcode	composes	gazou?::frames	re-encode frames
+gazou?::transcode	composes	gazou?::mux	join last
+gazou?::treat	pairs	onsei?::treat	effects on any media
+gazou?::treat	requires	gazou?::convert	effects in a known space
+gazou?::trim	pairs	gazou?::frames	cut at frame times
+gazou?::trim	refines	onsei?::trim	time cut on video
+gazou?::write	composes	gazou?::encode	pixels then bytes
+gazou?::write	requires	gazou?::strip	strip then write
+gyouretsu::decompose	requires	gyouretsu::tensor	arrays of numbers
+gyouretsu::plan	guards	gyouretsu::run	no run of a bad shape
+gyouretsu::run	requires	gyouretsu::plan	runs a plan
+gyouretsu::solve	pairs	kinji::fit	linear solve inside fitting
+gyouretsu::solve	requires	gyouretsu::decompose	solve by factors
+gyouretsu::tensor	requires	gyouretsu::plan	shape proved
+gyouretsu::tensor	requires	gyouretsu::solve	dense math kept in Rust
+joutai::segment	requires	dairi?::run	status shows run state
+joutai::segment	requires	gamen?::paint	status text is painted
+kazu::check	guards	kazu::convert	dimensions match
+kazu::convert	requires	kazu::quantity	between units
+kazu::quantity	requires	kazu::check	units must add up
+kenban::exports	pairs	yushutsu::exports	how bindings reach arnes
+kenban::exports	requires	gamen?::put	key bindings
+kenkou::tick	pairs	joutai::segment	health shown in status
+kenkou::tick	requires	dairi?::list	probes a server
+kensaku?::analyze	requires	kensaku?::index	index terms
+kensaku?::chunk	pairs	kensaku?::analyze	pieces then terms
+kensaku?::chunk	requires	bunsho?::outline	split on structure
+kensaku?::cite	requires	kensaku?::search	from hits
+kensaku?::delete	inverse	kensaku?::put	removes what put added
+kensaku?::expand	pairs	kensaku?::fuse	variants merged back
+kensaku?::expand	requires	moderu?::ask	a model rewrites
+kensaku?::explain	pairs	kensaku?::cite	why and from where
+kensaku?::explain	requires	kensaku?::search	about a hit
+kensaku?::fuse	requires	kensaku?::search	merge lists of hits
+kensaku?::ground	composes	kensaku?::cite	show sources
+kensaku?::ground	composes	kensaku?::search	find sources
+kensaku?::ground	composes	moderu?::ask	answer from them
+kensaku?::index	generalizes	kensaku?::put	documents go in
+kensaku?::info	guards	kensaku?::search	check the index is not empty
+kensaku?::info	requires	kensaku?::index	reads an index
+kensaku?::put	pairs	kensaku?::delete	add and remove
+kensaku?::put	requires	kensaku?::analyze	terms of a document
+kensaku?::query	refines	kensaku?::search	exact language, no rank
+kensaku?::query	requires	kensaku?::index	asks an index
+kensaku?::rank	requires	kensaku?::similarity	score from closeness
+kensaku?::rerank	refines	kensaku?::rank	model scoring
+kensaku?::rerank	requires	moderu?::ask	a stronger model
+kensaku?::search	composes	moderu?::embed	vector mode
+kensaku?::search	requires	kensaku?::index	searches an index
+kensaku?::similarity	requires	moderu?::embed	vectors to compare
+kensaku?::support?	guards	kensaku?::ground	check claims
+kensaku?::support?	requires	moderu?::ask	a judge model
+kensaku?::sync	composes	kensaku?::delete	removes gone
+kensaku?::sync	composes	kensaku?::put	adds changes
+kensaku?::watch	lifts	kensaku?::sync	sync per change
+kensaku?::watch	requires	kensaku?::index	keeps an index fresh
+kiban::board	generalizes	kiban::device	a board holds devices
+kiban::device	requires	kiban::board	devices sit on a board
+kiban::get	pairs	kiban::device	lookup and declaration
+kiban::get	requires	kiban::device	address of a device
+kikagaku::area	requires	kikagaku::hull	area of a hull
+kikagaku::closest	requires	kikagaku::contains?	nearest inside or outside
+kikagaku::closest	requires	kikagaku::hull	nearest of a set
+kikagaku::contains?	requires	kikagaku::area	polygon test
+kikagaku::hull	generalizes	kikagaku::area	smallest enclosing polygon
+kikagaku::intersect	requires	kikagaku::contains?	overlap test
+kikagaku::offset	pairs	kikagaku::hull	grow a hull
+kikagaku::offset	requires	kikagaku::area	grow or shrink
+kinji::advance	refines	sekai?::advance	an ODE step
+kinji::advance	requires	gyouretsu::solve	implicit steps solve systems
+kinji::fit	requires	kinji::minimize	least squares
+kinji::integrate	requires	gyouretsu::solve	quadrature weights
+kinji::integrate	requires	kinji::interpolate	area under a curve
+kinji::interpolate	requires	kinji::fit	between known points
+kinji::minimize	requires	kinji::fit	fit is a minimum
+kinji::root	generalizes	kinyuu?::irr	a root of a function
+kinyuu?::allocate	requires	kinyuu?::money	splits a money
+kinyuu?::amortize	composes	kinyuu?::interest	a row per period
+kinyuu?::amortize	requires	kinyuu?::round	each payment rounded
+kinyuu?::balance	requires	kinyuu?::list	sums entries
+kinyuu?::check	requires	kinyuu?::trial	debits equal credits
+kinyuu?::check	requires	shomei::hash	chain verification
+kinyuu?::close	guards	kinyuu?::post	no post into a sealed period
+kinyuu?::close	requires	kinyuu?::trial	trial balance before sealing
+kinyuu?::convert	requires	kinyuu?::get	needs a rate
+kinyuu?::convert	requires	kinyuu?::round	round after converting
+kinyuu?::discount	composes	kinyuu?::interest	inverse of growth
+kinyuu?::get	requires	kinyuu?::money	a rate converts money
+kinyuu?::interest	requires	kinyuu?::round	round each period
+kinyuu?::invoice	composes	kinyuu?::tax	totals with tax
+kinyuu?::invoice	requires	bunsho?::fill	an invoice is rendered from a template
+kinyuu?::invoice	requires	kinyuu?::money	totals in money
+kinyuu?::irr	composes	kinyuu?::discount	root of net present value
+kinyuu?::irr	requires	kinji::root	a root finder
+kinyuu?::ledger	composes	kinyuu?::money	entries hold money
+kinyuu?::list	requires	kinyuu?::ledger	reads a ledger
+kinyuu?::money	requires	kinyuu?::round	amounts sit on minor units
+kinyuu?::parse	inverse	kinyuu?::render	text to money
+kinyuu?::post	composes	nisshi::append	an append-only record
+kinyuu?::post	requires	kinyuu?::ledger	posts to a ledger
+kinyuu?::price	composes	kinyuu?::discount	value is discounted flows
+kinyuu?::price	requires	toukei::describe	market data summaries
+kinyuu?::reconcile	requires	kinyuu?::balance	compare balances
+kinyuu?::reconcile	requires	kinyuu?::list	match against entries
+kinyuu?::render	inverse	kinyuu?::parse	money to text
+kinyuu?::render	refines	gamen?::localize	money form of localize
+kinyuu?::reverse	inverse	kinyuu?::post	opposite entry
+kinyuu?::reverse	requires	kinyuu?::list	find the entry to reverse
+kinyuu?::round	requires	kinyuu?::money	rounds a money
+kinyuu?::tax	requires	kinyuu?::allocate	spread rounding across lines
+kinyuu?::trade	composes	kinyuu?::post	a fill is posted
+kinyuu?::trade	requires	kinyuu?::money	prices in money
+kinyuu?::trial	composes	kinyuu?::balance	every balance
+meirei::help	refines	gamen?::show	a command that prints
+meirei::help	requires	gamen?::show	prints through show
+moderu?::ask	guards	moderu?::fit	window checked first
+moderu?::ask	requires	dairi?::budget	spend is capped
+moderu?::ask	requires	moderu?::render	wire form of the prompt
+moderu?::classify	pairs	chokkan::choice	same job, two surfaces
+moderu?::classify	refines	moderu?::ask	ask with labels
+moderu?::cost	requires	moderu?::info	price comes from the model
+moderu?::embed	pairs	kensaku?::similarity	vectors then closeness
+moderu?::embed	requires	moderu?::model	embedding model
+moderu?::example	requires	moderu?::prompt	part of a prompt
+moderu?::extract	refines	moderu?::ask	ask with a shape
+moderu?::extract	requires	saiten?::check	shape check of the record
+moderu?::fit	pairs	moderu?::pin	cut after the cached prefix
+moderu?::fit	requires	moderu?::tokens	count before cut
+moderu?::info	requires	moderu?::list	facts from the catalog
+moderu?::ledger	pairs	moderu?::total	record and sum
+moderu?::ledger	requires	moderu?::cost	entries carry cost
+moderu?::list	generalizes	moderu?::info	catalog of models
+moderu?::message	requires	moderu?::prompt	part of a prompt
+moderu?::model	requires	moderu?::info	a model has facts
+moderu?::pin	requires	moderu?::ask	provider caches the prefix
+moderu?::pin	requires	moderu?::prompt	marks a prompt prefix
+moderu?::prompt	composes	moderu?::example	plus worked cases
+moderu?::prompt	composes	moderu?::message	a prompt is turns
+moderu?::render	pairs	bunsho?::fill	templates fill slots
+moderu?::render	requires	moderu?::prompt	needs a prompt
+moderu?::stream	lifts	moderu?::ask	ask as deltas
+moderu?::stream	requires	moderu?::tokens	usage counted per delta
+moderu?::tokens	requires	moderu?::model	tokenizer belongs to a model
+moderu?::total	composes	moderu?::cost	sum of costs
+mokuroku::check	requires	mokuroku::list	checks the whole set
+mokuroku::list	generalizes	mokuroku::check	the set checked
+mokuroku::render	pairs	bunsho?::render	catalogs are documents
+mokuroku::render	requires	mokuroku::list	catalog of packages
+ongaku::analyze	pairs	ongaku::parse	parse then analyze
+ongaku::analyze	requires	ongaku::chord	match known chords
+ongaku::chord	requires	ongaku::transpose	chord from a root
+ongaku::hz	requires	ongaku::scale	frequency of a note
+ongaku::parse	inverse	ongaku::render	text to score
+ongaku::render	composes	onsei?::encode	an audio clip is encoded
+ongaku::render	inverse	ongaku::parse	score to bytes
+ongaku::scale	requires	ongaku::transpose	scale from a root
+ongaku::transpose	pairs	ongaku::scale	moves any notes
+onsei?::concat	inverse	onsei?::trim	join what trim cut
+onsei?::decode	inverse	onsei?::encode	bytes and samples
+onsei?::decode	requires	gazou?::demux	audio from a container
+onsei?::encode	inverse	onsei?::decode	samples and bytes
+onsei?::gain	requires	onsei?::measure	set gain from a level
+onsei?::info	requires	onsei?::read	facts before decode
+onsei?::level	composes	onsei?::gain	set loudness
+onsei?::level	composes	onsei?::measure	measure then gain
+onsei?::list	refines	onsei?::info	devices, not files
+onsei?::list	requires	souchi?::list	devices and buses are lists
+onsei?::measure	requires	onsei?::spectrum	pitch needs a spectrum
+onsei?::overlay	generalizes	onsei?::concat	layers in time
+onsei?::overlay	pairs	gazou?::overlay	layering on any media
+onsei?::play	requires	onsei?::list	pick an output device
+onsei?::read	composes	onsei?::decode	bytes then samples
+onsei?::record	pairs	onsei?::play	input and output
+onsei?::record	requires	onsei?::list	pick an input device
+onsei?::resample	pairs	onsei?::spectrum	fixed rate for analysis
+onsei?::resample	requires	onsei?::info	rate comes from info
+onsei?::segment	composes	onsei?::measure	speech by energy
+onsei?::segment	pairs	onsei?::transcribe	spans feed transcription
+onsei?::speak	inverse	onsei?::transcribe	text to speech and back
+onsei?::speak	requires	moderu?::ask	a speech model
+onsei?::spectrum	requires	onsei?::resample	fixed rate input
+onsei?::stream	lifts	onsei?::read	chunks of read
+onsei?::stream	requires	onsei?::info	chunk size from the rate
+onsei?::tone	pairs	onsei?::overlay	tones mixed into a clip
+onsei?::tone	requires	ongaku::hz	pitch from a note
+onsei?::transcribe	requires	moderu?::ask	a speech model
+onsei?::transcribe	requires	onsei?::segment	split long audio first
+onsei?::treat	requires	gazou?::treat	same verb on images
+onsei?::treat	requires	onsei?::resample	effects need one rate
+onsei?::trim	requires	onsei?::info	bounds from duration
+onsei?::trim	requires	onsei?::segment	cut at spans
+onsei?::write	composes	onsei?::encode	samples then bytes
+onsei?::write	requires	onsei?::level	level before write
+ran::draw	generalizes	ran::pick	a pick is a draw
+ran::fork	requires	ran::draw	a seed from a seed
+ran::pick	requires	ran::draw	one draw per pick
+ran::shuffle	composes	ran::pick	pick without repeat
+ran::shuffle	requires	ran::draw	one draw per slot
+ran::walk	composes	ran::draw	a draw per step
+ran::walk	requires	sekai?::field	walks over a field
+rittai::boolean	requires	rittai::merge	combine solids
+rittai::check	guards	rittai::boolean	no solid op on an open mesh
+rittai::extrude	requires	kikagaku::area	a region has area
+rittai::measure	requires	rittai::check	only closed meshes have volume
+rittai::measure	requires	rittai::transform	measure in world pose
+rittai::merge	requires	rittai::check	only valid meshes
+rittai::parse	inverse	rittai::render	text to mesh
+rittai::render	inverse	rittai::parse	mesh to text
+rittai::slice	inverse	rittai::extrude	solid to its cut region
+rittai::slice	requires	zumen::project	slice becomes a drawing
+rittai::transform	pairs	rittai::merge	move then join
+saiten?::agreement	guards	saiten?::label	trust labels only if raters agree
+saiten?::agreement	requires	toukei::correlate	agreement is correlation
+saiten?::balance	pairs	saiten?::dedupe	both shape a dataset
+saiten?::balance	requires	ran::pick	seeded sampling
+saiten?::calibrate	requires	saiten?::score	raw scores to rates
+saiten?::calibrate	requires	toukei::describe	rates from counts
+saiten?::case	requires	saiten?::dataset	cases are rows
+saiten?::check	guards	saiten?::train	no bad rows reach a run
+saiten?::check	requires	bunsho?::redact	find personal data
+saiten?::compare	composes	toukei::test	significance
+saiten?::compare	requires	saiten?::run	two result sets
+saiten?::dataset	requires	saiten?::check	rows meet the shape
+saiten?::dedupe	guards	saiten?::holdout	clean before split
+saiten?::diff	pairs	saiten?::gate	diff then gate
+saiten?::diff	requires	saiten?::run	against a baseline
+saiten?::drift	pairs	saiten?::gate	drift can gate
+saiten?::drift	requires	toukei::describe	compare summaries
+saiten?::estimate	composes	moderu?::cost	price them
+saiten?::estimate	composes	moderu?::tokens	count tokens
+saiten?::gate	guards	saiten?::run	stop a merge on a drop
+saiten?::gate	requires	toukei::test	significance, not luck
+saiten?::holdout	requires	saiten?::dedupe	no leak into test
+saiten?::judge	refines	saiten?::score	a model grades
+saiten?::judge	requires	chokkan::choice	a typed question
+saiten?::label	requires	moderu?::classify	model labels
+saiten?::run	composes	saiten?::score	grade each output
+saiten?::run	requires	saiten?::suite	runs a suite
+saiten?::score	requires	saiten?::case	against the expected
+saiten?::suite	composes	saiten?::case	a suite holds cases
+saiten?::train	requires	saiten?::estimate	cost before start
+saiten?::train	requires	saiten?::holdout	train on the train part
+sanshou::paths	pairs	dairi?::call	mentions become tool calls
+sanshou::paths	refines	bunsho?::extract	mentions as parts
+seimei::advance	pairs	ran::draw	seeded rules
+seimei::advance	refines	sekai?::advance	a grid world step
+sekai?::advance	composes	sekai?::schedule	runs the order
+sekai?::advance	composes	sekai?::system	each system once
+sekai?::body	pairs	sekai?::put	a body is a component
+sekai?::body	requires	sekai?::collide	bodies touch
+sekai?::check	guards	sekai?::advance	laws hold each tick
+sekai?::check	requires	sekai?::query	reads every entity
+sekai?::collide	requires	kikagaku::intersect	shape overlap
+sekai?::delete	inverse	sekai?::spawn	remove what spawn added
+sekai?::field	pairs	sekai?::generate	noise feeds generation
+sekai?::field	requires	ran::draw	seeded values
+sekai?::generate	composes	ran::pick	seeded choice
+sekai?::generate	requires	sekai?::grammar	runs rules
+sekai?::get	pairs	sekai?::put	component read and write
+sekai?::grammar	requires	sekai?::generate	rules need a runner
+sekai?::hit	refines	byouga?::hit	first thing a ray meets
+sekai?::hit	requires	sekai?::query	searches bodies
+sekai?::on	requires	sekai?::system	handlers are systems
+sekai?::path	requires	sekai?::query	graph from the world
+sekai?::put	pairs	sekai?::get	component write and read
+sekai?::query	generalizes	sekai?::get	many entities, not one
+sekai?::read	inverse	sekai?::write	load what was saved
+sekai?::replay	requires	ran::fork	same seed, same world
+sekai?::replay	requires	sekai?::advance	inputs drive steps
+sekai?::rollback	pairs	sekai?::write	snapshots to rewind to
+sekai?::rollback	requires	sekai?::replay	rewind then replay
+sekai?::run	composes	sekai?::advance	ticks in a row
+sekai?::run	pairs	ugoki?::play	a fixed step under a frame clock
+sekai?::schedule	guards	sekai?::advance	no write clash
+sekai?::send	pairs	sekai?::on	an event needs a handler
+sekai?::send	requires	sekai?::world	events live in a world
+sekai?::spawn	inverse	sekai?::delete	add and remove an entity
+sekai?::system	requires	sekai?::query	a system reads a query
+sekai?::world	composes	sekai?::system	a world runs systems
+sekai?::world	requires	sekai?::schedule	systems are ordered
+sekai?::write	inverse	sekai?::read	save a world
+souchi?::calibrate	pairs	saiten?::calibrate	fit raw to true
+souchi?::calibrate	requires	souchi?::sample	needs readings
+souchi?::check	guards	chuuzou::build	catch faults before the image
+souchi?::check	requires	kiban::board	pins and clocks come from the board
+souchi?::close	inverse	souchi?::open	release what open took
+souchi?::decode	inverse	souchi?::encode	bytes to record
+souchi?::encode	inverse	souchi?::decode	record to bytes
+souchi?::flash	requires	chuuzou::build	needs an image
+souchi?::fuse	refines	kensaku?::fuse	merge estimates, not lists
+souchi?::fuse	requires	souchi?::smooth	fuse clean estimates
+souchi?::list	pairs	souchi?::transfer	scan then talk
+souchi?::list	requires	souchi?::open	scan a bus
+souchi?::monitor	lifts	souchi?::read	console lines as a stream
+souchi?::monitor	requires	souchi?::open	console is a port
+souchi?::on	refines	souchi?::watch	interrupt, not polling
+souchi?::on	requires	souchi?::pin	interrupts come from pins
+souchi?::open	pairs	souchi?::close	take and release
+souchi?::pin	pairs	souchi?::signal	pins carry signals
+souchi?::pin	requires	kiban::board	pins belong to a board
+souchi?::read	pairs	souchi?::write	pin and register access
+souchi?::reset	pairs	souchi?::flash	restart after write
+souchi?::reset	requires	souchi?::open	needs a link
+souchi?::run	guards	souchi?::flash	try before real hardware
+souchi?::run	requires	chuuzou::build	emulate the image
+souchi?::sample	lifts	souchi?::read	reads at a rate
+souchi?::schedule	guards	souchi?::flash	no image with a missed deadline
+souchi?::signal	pairs	ugoki?::sample	waves are sampled values
+souchi?::signal	requires	souchi?::write	a signal is written
+souchi?::smooth	requires	souchi?::sample	filters readings
+souchi?::task	pairs	ugoki?::clock	periods follow a clock
+souchi?::task	requires	souchi?::schedule	tasks are scheduled
+souchi?::transfer	composes	souchi?::decode	parse the reply
+souchi?::transfer	composes	souchi?::encode	frame the request
+souchi?::transfer	requires	souchi?::open	needs a handle
+souchi?::watch	lifts	souchi?::read	a read per edge
+souchi?::write	pairs	souchi?::read	register and pin access
+souchi?::write	requires	kiban::device	address from the board
+tokumei::count	requires	tokumei::perturb	noise on a count
+tokumei::perturb	requires	ran::draw	seeded noise
+tokumei::suppress	guards	tokumei::count	no small groups
+tokumei::suppress	requires	toukei::describe	group sizes
+toukei::bootstrap	requires	ran::draw	seeded resampling
+toukei::bootstrap	requires	toukei::describe	statistic of each resample
+toukei::correlate	requires	toukei::describe	two series
+toukei::describe	requires	toukei::correlate	summary of series
+toukei::test	requires	toukei::describe	test on summaries
+ugoki?::advance	pairs	ugoki?::settled?	step until rest
+ugoki?::advance	requires	ugoki?::spring	steps a spring
+ugoki?::bake	lifts	ugoki?::sample	samples at a fixed rate
+ugoki?::bake	requires	ugoki?::duration	frame count
+ugoki?::check	guards	ugoki?::play	budget before playing
+ugoki?::check	requires	ugoki?::duration	time budget
+ugoki?::clock	pairs	byouga?::draw	frames follow the clock
+ugoki?::clock	requires	ugoki?::play	play follows a clock
+ugoki?::curve	generalizes	ugoki?::ease	an ease samples a curve
+ugoki?::duration	requires	ugoki?::sample	a motion has an end
+ugoki?::ease	requires	ugoki?::curve	needs a curve
+ugoki?::mix	requires	ugoki?::ease	blend at eased t
+ugoki?::parallel	composes	ugoki?::timeline	together
+ugoki?::pause	pairs	ugoki?::seek	hold then jump
+ugoki?::pause	requires	ugoki?::play	needs a handle
+ugoki?::play	composes	ugoki?::advance	steps per frame
+ugoki?::play	composes	ugoki?::sample	value per frame
+ugoki?::play	requires	gamen?::apply	each frame changes the surface
+ugoki?::repeat	composes	ugoki?::sequence	n copies in sequence
+ugoki?::repeat	requires	ugoki?::duration	loop length
+ugoki?::retime	pairs	ugoki?::stagger	scale offsets too
+ugoki?::retime	requires	ugoki?::duration	scales time
+ugoki?::sample	refines	ugoki?::advance	random access at t
+ugoki?::seek	requires	ugoki?::play	needs a handle
+ugoki?::seek	requires	ugoki?::sample	jump needs a sample
+ugoki?::sequence	composes	ugoki?::timeline	one after another
+ugoki?::settled?	requires	ugoki?::advance	tests the stepped state
+ugoki?::soften	guards	ugoki?::play	reduced motion before playing
+ugoki?::soften	requires	gamen?::describe	reduced-motion preference
+ugoki?::spring	refines	ugoki?::tween	a tween with physics, no end
+ugoki?::stagger	composes	ugoki?::parallel	parallel with offsets
+ugoki?::stagger	requires	ugoki?::duration	offsets within length
+ugoki?::timeline	composes	ugoki?::tween	tracks hold tweens
+ugoki?::tween	composes	ugoki?::ease	value follows the curve
+ugoki?::tween	composes	ugoki?::mix	blend from to
+wariate::decide	requires	wariate::eligible	choose among eligible routes
+wariate::eligible	requires	moderu?::info	window and price per route
+wariate::explain	pairs	joutai::segment	reason shown in status
+wariate::explain	requires	wariate::decide	says why
+wariate::gate	guards	wariate::decide	admit or refuse a change
+wariate::gate	requires	wariate::eligible	only eligible routes
+yushutsu::exports	pairs	dairi?::serve	what a package serves
+yushutsu::exports	pairs	meirei::help	exports list commands
+zumen::check	requires	gamen?::contrast	chart colors
+zumen::diagram	composes	zumen::layout	a diagram is laid out
+zumen::layout	requires	zumen::diagram	places a diagram
+zumen::parse	inverse	zumen::render	text to sheet
+zumen::parse	requires	zumen::check	check what was read
+zumen::plot	composes	zumen::render	a chart is a sheet
+zumen::plot	requires	gamen?::theme	chart colors from a theme
+zumen::plot	requires	toukei::describe	axes from data range
+zumen::project	pairs	zumen::render	view then drawing
+zumen::project	requires	rittai::transform	view is a pose
+zumen::render	requires	zumen::check	no output with faults

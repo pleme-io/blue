@@ -1,0 +1,707 @@
+from	rel	to	why
+fairu::read	refines	fairu::read_bytes	text is bytes decoded
+fairu::read_bytes	pairs	fairu::write	whole-content in and out
+fairu::read	pairs	fairu::write	read what write replaced
+fairu::write	composes	fairu::move	temp file then atomic rename
+fairu::write	composes	fairu::make_dir	creates missing parent directories
+fairu::append	refines	fairu::write	grows the file in place
+fairu::update	composes	fairu::read	reads the old content
+fairu::update	composes	fairu::write	writes the changed content
+fairu::update	composes	fairu::info	compares modified time for conflict
+fairu::exists?	guards	fairu::read	check before a read
+fairu::exists?	refines	fairu::info	cheap form of the state lookup
+fairu::file?	refines	fairu::exists?	exists and is a regular file
+fairu::file?	guards	fairu::stream	stream needs a file
+fairu::dir?	refines	fairu::exists?	exists and is a directory
+fairu::dir?	guards	fairu::list	list needs a directory
+fairu::dir?	guards	fairu::walk	walk needs a directory root
+fairu::list	pairs	fairu::info	entries and their state
+fairu::walk	composes	fairu::list	recursion over listings
+fairu::walk	lifts	fairu::list	whole tree form of one directory
+fairu::glob	composes	fairu::walk	patterns select from a tree
+fairu::glob	composes	fairu::match?	pattern test per path
+fairu::match?	pairs	fairu::glob	same pattern language
+fairu::copy	composes	fairu::stream	chunked transfer of content
+fairu::copy	requires	fairu::exists?	source must be there
+fairu::move	composes	fairu::copy	fallback across volumes
+fairu::move	composes	fairu::delete	removes the source afterwards
+fairu::delete	inverse	fairu::write	makes absent what write made
+fairu::delete	inverse	fairu::make_dir	removes what make_dir made
+fairu::with_temp_dir	composes	fairu::make_dir	creates the directory
+fairu::with_temp_dir	composes	fairu::delete	removes it on every exit
+fairu::with_temp_file	composes	fairu::write	creates the file
+fairu::with_temp_file	composes	fairu::delete	removes it on every exit
+fairu::with_temp_file	refines	fairu::with_temp_dir	one file instead of a directory
+fairu::watch	lifts	fairu::info	stream of state changes
+fairu::watch	composes	jikan::sleep	polling interval between probes
+fairu::stream	lifts	fairu::read	per-chunk form of whole read
+fairu::touch	refines	fairu::write	empty write or time bump
+fairu::link	requires	fairu::exists?	target is checked first
+fairu::mode	pairs	fairu::info	info reads the bits mode sets
+fairu::space	refines	fairu::info	state of the volume not the path
+fairu::usage	composes	fairu::walk	adds up sizes over a tree
+fairu::usage	composes	fairu::info	size of each file
+fairu::sync	pairs	fairu::write	makes the write durable
+fairu::same?	composes	fairu::info	compares file identity
+fairu::place	composes	fairu::join	app tier path from parts
+fairu::place	composes	kankyou::get	reads the XDG variables
+fairu::place	requires	fairu::home	fallback root of every tier
+fairu::join	inverse	fairu::parts	parts rebuild the path
+fairu::name	pairs	fairu::parent	together they split a path
+fairu::stem	composes	fairu::name	name without its extension
+fairu::extension	composes	fairu::name	tail of the name
+fairu::stem	pairs	fairu::extension	together they split a name
+fairu::with_extension	composes	fairu::stem	keeps the stem
+fairu::with_extension	composes	fairu::join	joins stem and new extension
+fairu::absolute	composes	fairu::join	current directory plus path
+fairu::absolute	composes	fairu::current	base of relative paths
+fairu::relative	inverse	fairu::absolute	path as seen from a base
+fairu::normalize	composes	fairu::parts	drops dot parts
+fairu::normalize	composes	fairu::join	rebuilds the cleaned path
+fairu::home	pairs	fairu::absolute	tilde is always explicit
+fairu::current	pairs	fairu::absolute	base for resolving
+asshuku?::decompress	inverse	asshuku?::compress	restores the original bytes
+asshuku?::detect	guards	asshuku?::decompress	pick the algorithm first
+asshuku?::stream	lifts	asshuku?::compress	chunked form
+asshuku?::stream	lifts	asshuku?::decompress	chunked form
+asshuku?::unpack	inverse	asshuku?::pack	entries back out of the archive
+asshuku?::list	refines	asshuku?::unpack	headers only
+asshuku?::read	refines	asshuku?::unpack	one named entry
+asshuku?::extract	composes	asshuku?::unpack	entries to write
+asshuku?::extract	composes	fairu::write	writes each entry
+asshuku?::extract	inverse	asshuku?::archive	tree back from the archive
+asshuku?::archive	composes	asshuku?::pack	packs the walked files
+asshuku?::archive	composes	fairu::walk	finds the files
+asshuku?::append	refines	asshuku?::pack	adds entries to an archive
+asshuku?::verify?	composes	asshuku?::unpack	decodes every entry
+asshuku?::verify?	composes	shinsuu::checksum	checks entry checksums
+asshuku?::verify?	guards	asshuku?::extract	check before writing files
+asshuku?::patch	inverse	asshuku?::delta	applies the difference
+asshuku?::delta	pairs	genbo?::chunk	both feed deduplication
+souko?::open	composes	souko?::parse	spec may be a URL
+souko?::open	composes	himitsu::read	credentials from a secret ref
+souko?::close	inverse	souko?::open	releases the store
+souko?::get	requires	souko?::open	needs a connected store
+souko?::need	refines	souko?::get	raises when absent
+souko?::has?	refines	souko?::info	head request only
+souko?::info	pairs	souko?::get	headers beside content
+souko?::put	inverse	souko?::delete	delete makes absent what put made
+souko?::create	refines	souko?::put	refuses to overwrite
+souko?::update	composes	souko?::get	reads the old object
+souko?::update	composes	souko?::put	writes with the etag precondition
+souko?::etag	pairs	souko?::update	the precondition value
+souko?::purge	composes	souko?::list	finds the keys
+souko?::purge	lifts	souko?::delete	many keys at once
+souko?::list	pairs	souko?::info	keys and their headers
+souko?::copy	requires	souko?::has?	source object must exist
+souko?::move	composes	souko?::copy	copies first
+souko?::move	composes	souko?::delete	then deletes the source
+souko?::upload	refines	souko?::put	content comes from a file
+souko?::upload	composes	fairu::stream	reads the file in parts
+souko?::download	inverse	souko?::upload	object back to a file
+souko?::download	composes	fairu::write	atomic file write
+souko?::download	composes	souko?::range	resumes by byte range
+souko?::stream	lifts	souko?::get	chunked form
+souko?::range	refines	souko?::get	part of the content
+souko?::presign	composes	shomei::sign	signs the request
+souko?::presign	composes	souko?::url	grants access to this address
+souko?::url	inverse	souko?::parse	parse reads what url builds
+souko?::versions	pairs	souko?::restore	list then choose one
+souko?::restore	composes	souko?::copy	old version copied to current
+souko?::watch	lifts	souko?::list	changes in the listing
+souko?::etag	composes	shomei::hash	content digest basis
+souko?::usage	composes	souko?::list	adds up listed sizes
+souko?::make_bucket	requires	souko?::open	account connection first
+souko?::retain	guards	souko?::delete	blocks deletion until a date
+souko?::lifecycle	composes	souko?::delete	expiry deletes by rule
+souko?::policy	guards	souko?::get	decides who may read
+teeburu::close	inverse	teeburu::connect	ends the connection
+teeburu::connect	composes	teeburu::parse	URL split into parts
+teeburu::connect	composes	settei::read	settings supply the URL
+teeburu::parse	guards	teeburu::connect	reject a bad URL early
+teeburu::pool	composes	teeburu::connect	holds many connections
+teeburu::with_connection	requires	teeburu::pool	lends from the pool
+teeburu::alive?	composes	teeburu::query	trivial statement probe
+teeburu::alive?	guards	teeburu::with_connection	health check before lending
+teeburu::query	composes	kueri::render	accepts a query value or text
+teeburu::execute	refines	teeburu::query	no rows returned
+teeburu::script	refines	teeburu::execute	many statements, no parameters
+teeburu::stream	lifts	teeburu::query	per-row form with a cursor
+teeburu::get	composes	teeburu::query	select by primary key
+teeburu::need	refines	teeburu::get	raises when absent
+teeburu::has?	refines	teeburu::get	existence only
+teeburu::list	composes	teeburu::query	select with filter and order
+teeburu::count	composes	teeburu::query	aggregate select
+teeburu::create	composes	teeburu::execute	insert returning the row
+teeburu::put	composes	teeburu::execute	upsert statement
+teeburu::put	refines	teeburu::create	create that may replace
+teeburu::update	composes	teeburu::get	reads the old row
+teeburu::update	composes	teeburu::put	writes the new row
+teeburu::update	composes	teeburu::with_transaction	keeps read and write atomic
+teeburu::delete	composes	teeburu::execute	delete statement
+teeburu::delete	inverse	teeburu::create	makes absent what create made
+teeburu::with_transaction	composes	teeburu::begin	opens the unit
+teeburu::with_transaction	composes	teeburu::commit	on normal return
+teeburu::with_transaction	composes	teeburu::rollback	on any raise
+teeburu::commit	pairs	teeburu::begin	close of the unit
+teeburu::rollback	inverse	teeburu::begin	discards what begin opened
+teeburu::savepoint	refines	teeburu::with_transaction	nested unit inside one
+teeburu::savepoint	requires	teeburu::begin	needs an open transaction
+teeburu::load	lifts	teeburu::create	many rows per round trip
+teeburu::load	composes	teeburu::execute	batched insert
+teeburu::dump	composes	teeburu::stream	rows out one by one
+teeburu::dump	inverse	teeburu::load	rows back out of the table
+teeburu::explain	composes	teeburu::query	asks for the plan
+teeburu::listen	pairs	teeburu::notify	receiver and sender
+teeburu::notify	composes	teeburu::execute	sends via a statement
+teeburu::tables	composes	teeburu::query	catalog select
+teeburu::columns	composes	teeburu::query	catalog select
+teeburu::schema	composes	teeburu::tables	names each table
+teeburu::schema	composes	teeburu::columns	describes each table
+teeburu::diff	requires	teeburu::schema	compares two live or declared schemas
+teeburu::plan	requires	teeburu::diff	statements for the changes
+teeburu::copy	composes	teeburu::dump	reads the source table
+teeburu::copy	composes	teeburu::load	writes the target table
+teeburu::quote	pairs	kueri::ident	one identifier rule
+teeburu::quote	guards	teeburu::query	identifiers are never interpolated raw
+ikou?::define	pairs	ikou?::create	declaration and its file
+ikou?::define	composes	teeburu::plan	SQL steps come from schema changes
+ikou?::plan	requires	ikou?::status	needs applied versus available
+ikou?::plan	guards	ikou?::apply	preview before running
+ikou?::apply	composes	ikou?::plan	runs the planned steps
+ikou?::apply	composes	rokku?::with_lock	one runner at a time
+ikou?::apply	composes	teeburu::with_transaction	each step atomic where the target allows
+ikou?::verify?	guards	ikou?::apply	refuse to run over drift
+ikou?::rollback	inverse	ikou?::apply	runs the down steps
+ikou?::rollback	requires	ikou?::history	needs the recorded steps
+ikou?::baseline	refines	ikou?::apply	marks applied without running
+ikou?::status	composes	ikou?::history	applied set from history
+ikou?::history	pairs	ikou?::status	log beside summary
+ikou?::create	composes	fairu::write	scaffolds the file
+ikou?::checksum	composes	shomei::hash	hash of the migration text
+ikou?::verify?	composes	ikou?::checksum	compares recorded and current
+ikou?::check	guards	ikou?::plan	reject gaps and unsafe steps
+ikou?::squash	composes	ikou?::define	one baseline step replaces many
+ikou?::backfill	requires	ikou?::expand	new shape must exist first
+ikou?::contract	requires	ikou?::backfill	old shape goes after data moved
+ikou?::expand	pairs	ikou?::contract	the two halves of one change
+shuunou?::close	inverse	shuunou?::open	releases the store
+shuunou?::get	requires	shuunou?::open	needs a connected store
+shuunou?::need	refines	shuunou?::get	raises when absent
+shuunou?::has?	refines	shuunou?::get	existence only
+shuunou?::get_many	lifts	shuunou?::get	one round trip for many
+shuunou?::put	inverse	shuunou?::delete	delete makes absent what put made
+shuunou?::create	refines	shuunou?::put	refuses to overwrite
+shuunou?::update	composes	shuunou?::get	reads the old value
+shuunou?::update	composes	shuunou?::swap	writes only if unchanged
+shuunou?::swap	refines	shuunou?::put	conditional write
+shuunou?::increment	refines	shuunou?::update	numeric add inside the store
+shuunou?::list	pairs	shuunou?::keys	entries beside names
+shuunou?::keys	refines	shuunou?::list	names only
+shuunou?::range	refines	shuunou?::list	bounded by two keys
+shuunou?::count	composes	shuunou?::keys	size of the key set
+shuunou?::batch	lifts	shuunou?::put	many writes as one unit
+shuunou?::with_transaction	composes	shuunou?::batch	commit applies the collected writes
+shuunou?::expire	pairs	shuunou?::ttl	set and read the lifetime
+shuunou?::expire	requires	shuunou?::has?	key must be present
+shuunou?::watch	lifts	shuunou?::get	change stream of keys
+shuunou?::query	refines	shuunou?::list	filters by document fields
+shuunou?::index	pairs	shuunou?::query	indexes speed filters
+shuunou?::merge	refines	shuunou?::update	patch inside the document
+shuunou?::snapshot	pairs	shuunou?::with_transaction	frozen view for reads
+shuunou?::export	lifts	shuunou?::list	whole store out
+shuunou?::import	inverse	shuunou?::export	whole store back in
+shuunou?::import	lifts	shuunou?::put	bulk load
+shuunou?::clear	composes	shuunou?::keys	finds the keys
+shuunou?::clear	lifts	shuunou?::delete	prefix at once
+shuunou?::info	pairs	shuunou?::count	size facts
+shuunou?::compact	pairs	shuunou?::clear	reclaims what deletes left
+sakuin::close	inverse	sakuin::open	releases the index
+sakuin::open	requires	sakuin::schema	fields define the index
+sakuin::put	composes	sakuin::analyze	tokens for each text field
+sakuin::put	requires	sakuin::schema	fields are checked
+sakuin::delete	inverse	sakuin::put	removes what put added
+sakuin::purge	composes	sakuin::query	finds the documents
+sakuin::purge	lifts	sakuin::delete	by question not by id
+sakuin::get	pairs	sakuin::put	store and fetch by id
+sakuin::has?	refines	sakuin::get	existence only
+sakuin::commit	pairs	sakuin::put	writes show after commit
+sakuin::search	refines	sakuin::query	ranked free-text form
+sakuin::search	composes	sakuin::parse	query text to question
+sakuin::search	composes	sakuin::analyze	same tokens as indexing
+sakuin::parse	composes	sakuin::analyze	terms of the query text
+sakuin::suggest	refines	sakuin::search	prefix completions
+sakuin::similar	composes	sakuin::embed	vector of the subject
+sakuin::similar	composes	sakuin::nearest	closest vectors
+sakuin::embed	pairs	sakuin::similar	text to vector to hits
+sakuin::fuse	composes	sakuin::search	merges text and vector rankings
+sakuin::facet	refines	sakuin::query	counts per field value
+sakuin::highlight	composes	sakuin::analyze	finds matched terms
+sakuin::count	refines	sakuin::query	number not hits
+sakuin::list	pairs	sakuin::count	ids beside their count
+sakuin::reindex	lifts	sakuin::put	whole source into the index
+sakuin::reindex	composes	fairu::walk	file sources are walked
+sakuin::optimize	pairs	sakuin::commit	segment merge after writes
+sakuin::info	pairs	sakuin::count	size and schema facts
+sakuin::invert	composes	sakuin::analyze	postings from tokens
+sakuin::lookup	requires	sakuin::invert	needs built postings
+sakuin::score	composes	sakuin::lookup	ranks looked-up documents
+sakuin::score	refines	sakuin::search	in-memory form
+sakuin::distance	pairs	sakuin::nearest	metric for the scan
+sakuin::nearest	requires	sakuin::distance	ranks by the metric
+kyasshu?::open	composes	shuunou?::open	optional shared tier
+kyasshu?::get	pairs	kyasshu?::put	read and write sides
+kyasshu?::has?	refines	kyasshu?::get	no hit counted
+kyasshu?::delete	inverse	kyasshu?::put	drops what put stored
+kyasshu?::clear	lifts	kyasshu?::delete	every entry
+kyasshu?::fetch	composes	kyasshu?::get	hit path
+kyasshu?::fetch	composes	kyasshu?::put	miss path stores the result
+kyasshu?::fetch	composes	kyasshu?::fresh?	stale entries are recomputed
+kyasshu?::invalidate	refines	kyasshu?::delete	by prefix, tag or dependency
+kyasshu?::refresh	composes	kyasshu?::put	stores the recomputed value
+kyasshu?::renew	requires	kyasshu?::has?	entry must be live
+kyasshu?::sweep	composes	kyasshu?::fresh?	finds expired entries
+kyasshu?::sweep	lifts	kyasshu?::delete	many at once
+kyasshu?::key	composes	shomei::hash	stable digest of parts
+kyasshu?::key	pairs	kyasshu?::get	the lookup subject
+kyasshu?::memoize	composes	kyasshu?::fetch	function results cached by argument
+kyasshu?::warm	lifts	kyasshu?::fetch	many keys ahead of demand
+kyasshu?::tier	composes	kyasshu?::fetch	miss falls to the next layer
+kyasshu?::flush	pairs	kyasshu?::put	write-behind drains puts
+kyasshu?::save	composes	fairu::write	persists entries
+kyasshu?::info	pairs	kyasshu?::get	counters beside lookups
+nisshi::open	composes	nisshi::genesis	label fixes the first hash
+nisshi::append	composes	nisshi::canon	canonical body text
+nisshi::append	composes	shomei::link	extends the hash chain
+nisshi::append	composes	fairu::append	JSON Lines backing file
+nisshi::append	requires	nisshi::head	expected sequence for conflict check
+nisshi::append_all	lifts	nisshi::append	many events as one unit
+nisshi::read	pairs	nisshi::append	read back what was added
+nisshi::get	refines	nisshi::read	one record by sequence
+nisshi::head	refines	nisshi::get	the newest record
+nisshi::stream	lifts	nisshi::read	per-record form
+nisshi::watch	refines	nisshi::stream	keeps going after the end
+nisshi::verify?	composes	nisshi::first_break	true when no break
+nisshi::first_break	composes	shomei::first_break	chain check per payload
+nisshi::replay	composes	nisshi::read	reads the records
+nisshi::replay	composes	raifusaikuru::replay	folds them into a state
+nisshi::project	lifts	nisshi::replay	incremental form with a checkpoint
+nisshi::project	composes	nisshi::checkpoint	resumes where it stopped
+nisshi::snapshot	pairs	nisshi::replay	replay starts from the snapshot
+nisshi::checkpoint	pairs	nisshi::offset	write and read of progress
+nisshi::subscribe	composes	nisshi::stream	delivers records
+nisshi::subscribe	composes	nisshi::checkpoint	moves the offset forward
+nisshi::subscribe	refines	nisshi::watch	durable and resumable
+nisshi::publish	pairs	nisshi::subscribe	sender and receiver
+nisshi::lag	composes	nisshi::head	head position
+nisshi::lag	composes	nisshi::offset	consumer position
+nisshi::truncate	pairs	nisshi::compact	two ways to bound size
+nisshi::compact	refines	nisshi::truncate	drops by key not by age
+nisshi::rotate	pairs	nisshi::seal	new segment after the old is frozen
+nisshi::seal	composes	shomei::hash	hash of the frozen segment
+nisshi::upcast	guards	nisshi::replay	old shapes raised before folding
+nisshi::correlate	refines	nisshi::read	filtered by link id
+nisshi::merge	composes	nisshi::read	inputs are record lists
+nisshi::diff	refines	nisshi::first_break	first disagreement of two logs
+nisshi::capture	lifts	nisshi::append	each change becomes an event
+nisshi::capture	composes	teeburu::listen	database change notices
+nisshi::forget	composes	himitsu::delete	per-subject key destroyed
+nisshi::record	composes	nisshi::canon	body text of the record
+nisshi::canon	pairs	nisshi::genesis	both fix the byte form
+nisshi::genesis	composes	shomei::genesis	label to first hash
+taiki?::close	inverse	taiki?::open	releases the handle
+taiki?::send_all	lifts	taiki?::send	many messages per call
+taiki?::receive	pairs	taiki?::ack	lease then finish
+taiki?::ack	requires	taiki?::receive	only a leased message
+taiki?::nack	inverse	taiki?::receive	returns the lease
+taiki?::renew	requires	taiki?::receive	lease must be held
+taiki?::peek	refines	taiki?::receive	looks without leasing
+taiki?::get	pairs	taiki?::send	look up what was sent
+taiki?::cancel	inverse	taiki?::send	withdraws a waiting message
+taiki?::purge	lifts	taiki?::cancel	every waiting message
+taiki?::dead	composes	taiki?::nack	messages out of retries
+taiki?::redrive	pairs	taiki?::dead	moves them back
+taiki?::redrive	composes	taiki?::send	re-enqueues each
+taiki?::work	composes	taiki?::receive	takes leases
+taiki?::work	composes	taiki?::ack	finishes on success
+taiki?::work	composes	taiki?::nack	returns on raise
+taiki?::work	composes	taiki?::renew	keeps long jobs leased
+taiki?::work	composes	heikou::map	bounded concurrency
+taiki?::work	composes	saishikou::retrying	retry policy per message
+taiki?::schedule	composes	taiki?::send	sends on the rule
+taiki?::pause	inverse	taiki?::resume	stops hand-out
+taiki?::resume	inverse	taiki?::pause	starts hand-out
+taiki?::drain	composes	taiki?::info	polls until empty
+taiki?::drain	requires	taiki?::pause	no new work meanwhile
+taiki?::info	pairs	taiki?::peek	counters beside contents
+taiki?::open	composes	himitsu::read	credentials for the broker
+genbo?::open	composes	souko?::open	object store backend
+genbo?::put	composes	genbo?::address	id is the content hash
+genbo?::address	composes	shomei::address	digest with algorithm
+genbo?::get	pairs	genbo?::put	store and fetch by id
+genbo?::need	refines	genbo?::get	raises when absent
+genbo?::has?	refines	genbo?::get	existence only
+genbo?::info	refines	genbo?::get	kind and size without content
+genbo?::list	pairs	genbo?::info	ids and their facts
+genbo?::delete	inverse	genbo?::put	removes what put stored
+genbo?::tree	composes	genbo?::put	stores the node
+genbo?::tree	inverse	genbo?::entries	entries rebuild the node
+genbo?::import	composes	genbo?::tree	one node per directory
+genbo?::import	composes	fairu::walk	finds the files
+genbo?::import	composes	genbo?::chunk	large files in chunks
+genbo?::export	inverse	genbo?::import	tree back to a directory
+genbo?::export	composes	genbo?::entries	reads each node
+genbo?::export	composes	fairu::write	writes each file
+genbo?::walk	composes	genbo?::entries	follows children
+genbo?::reachable	composes	genbo?::walk	union over roots
+genbo?::gc	composes	genbo?::reachable	what is kept
+genbo?::gc	composes	genbo?::delete	removes the rest
+genbo?::verify	composes	genbo?::address	recomputes each hash
+genbo?::verify	composes	genbo?::list	checks every object
+genbo?::pack	lifts	genbo?::get	many objects in one pack
+genbo?::unpack	inverse	genbo?::pack	objects back into the store
+genbo?::unpack	lifts	genbo?::put	each object verified and stored
+genbo?::diff	composes	genbo?::entries	compares two trees
+genbo?::copy	composes	genbo?::pack	sends only missing objects
+genbo?::copy	composes	genbo?::walk	finds what is missing
+genbo?::chunk	pairs	genbo?::import	boundaries for deduplication
+rekishi?::commit	composes	genbo?::tree	snapshot becomes a tree
+rekishi?::commit	composes	genbo?::put	stores the commit object
+rekishi?::read	generalizes	gitto::read	a git blob at a ref is one history kind
+rekishi?::get	pairs	rekishi?::commit	look up what was committed
+rekishi?::read	composes	rekishi?::get	resolves the ref
+rekishi?::read	composes	genbo?::get	reads the stored content
+rekishi?::log	lifts	rekishi?::get	walks parents
+rekishi?::ancestors	refines	rekishi?::log	ids only
+rekishi?::base	composes	rekishi?::ancestors	first shared ancestor
+rekishi?::diff	composes	genbo?::diff	compares trees
+rekishi?::diff	generalizes	gitto::diff	git diff is one history kind
+rekishi?::patch	inverse	rekishi?::diff	applies what diff found
+rekishi?::invert	pairs	rekishi?::diff	changes reversed
+rekishi?::three_way	composes	rekishi?::diff	both sides against the base
+rekishi?::merge	composes	rekishi?::base	finds the base
+rekishi?::merge	composes	rekishi?::three_way	combines the edits
+rekishi?::merge	generalizes	gitto::merge	git merge is one history kind
+rekishi?::rebase	composes	rekishi?::pick	replays each commit
+rekishi?::pick	composes	rekishi?::patch	applies the commit changes
+rekishi?::pick	composes	rekishi?::commit	records the result
+rekishi?::revert	composes	rekishi?::invert	changes reversed
+rekishi?::revert	composes	rekishi?::commit	records the undo
+rekishi?::restore	composes	genbo?::export	writes the old tree out
+rekishi?::restore	inverse	rekishi?::commit	brings a recorded state back
+rekishi?::squash	composes	rekishi?::commit	one commit replaces a run
+rekishi?::blame	composes	rekishi?::log	walks history
+rekishi?::blame	composes	rekishi?::diff	finds each line origin
+rekishi?::bisect	composes	rekishi?::log	candidate commits
+rekishi?::bisect	composes	rekishi?::ancestors	narrows the range
+rekishi?::create	generalizes	gitto::create	git branch is one ref
+rekishi?::list	pairs	rekishi?::create	refs and their names
+rekishi?::update	generalizes	rekishi?::create	create is update from nothing
+rekishi?::delete	inverse	rekishi?::create	removes the ref
+yuugou?::counter	pairs	yuugou?::increment	its only operation
+yuugou?::register	pairs	yuugou?::put	its only operation
+yuugou?::set	pairs	yuugou?::has?	membership test
+yuugou?::map	pairs	yuugou?::get	keyed read
+yuugou?::text	pairs	yuugou?::insert	sequence edit
+yuugou?::put	pairs	yuugou?::get	write and read of a key
+yuugou?::get	pairs	yuugou?::value	one key against the whole
+yuugou?::has?	refines	yuugou?::get	existence only
+yuugou?::delete	inverse	yuugou?::put	removes what put set
+yuugou?::erase	inverse	yuugou?::insert	removes inserted text
+yuugou?::increment	pairs	yuugou?::value	reads the total
+yuugou?::value	pairs	yuugou?::merge	merged state read as plain
+yuugou?::merge	requires	yuugou?::compare	causal order of the inputs
+yuugou?::merge	refines	rekishi?::merge	conflict-free kind of merge
+yuugou?::diff	composes	yuugou?::compare	what the other side lacks
+yuugou?::apply	composes	yuugou?::merge	delta is merged in
+yuugou?::apply	pairs	yuugou?::diff	delta out and delta in
+yuugou?::clock	pairs	yuugou?::tick	empty then advanced
+yuugou?::tick	requires	yuugou?::clock	needs a vector
+yuugou?::compare	composes	yuugou?::clock	orders two vectors
+yuugou?::concurrent?	refines	yuugou?::compare	the concurrent case only
+yuugou?::converge	composes	yuugou?::diff	exchanges deltas
+yuugou?::converge	composes	yuugou?::apply	applies them everywhere
+yuugou?::converge	lifts	yuugou?::merge	many replicas
+hozon?::plan	guards	hozon?::backup	preview before copying
+hozon?::snapshot	pairs	hozon?::backup	consistent source for the copy
+hozon?::backup	composes	hozon?::snapshot	copies a fixed state
+hozon?::backup	composes	hozon?::manifest	records what was stored
+hozon?::backup	composes	asshuku?::compress	shrinks before storing
+hozon?::backup	composes	himitsu::encrypt	encrypts before storing
+hozon?::backup	composes	souko?::put	object store target
+hozon?::restore	inverse	hozon?::backup	brings the data back
+hozon?::restore	composes	hozon?::verify?	hashes checked on the way
+hozon?::verify?	composes	hozon?::manifest	compares to recorded hashes
+hozon?::verify?	composes	shomei::hash	recomputes digests
+hozon?::drill	composes	hozon?::restore	restores into scratch space
+hozon?::drill	composes	hozon?::verify?	proves the data is usable
+hozon?::list	pairs	hozon?::info	backups and their manifests
+hozon?::info	composes	hozon?::manifest	reads one manifest
+hozon?::delete	inverse	hozon?::backup	removes one backup
+hozon?::prune	composes	hozon?::list	candidates
+hozon?::prune	composes	hozon?::delete	removes the rest
+hozon?::prune	pairs	hozon?::retain	policy and its enforcement
+hozon?::schedule	composes	hozon?::backup	runs on the rule
+hozon?::manifest	composes	shomei::hash	hash per file
+hozon?::diff	composes	hozon?::manifest	compares two manifests
+hozon?::copy	composes	souko?::copy	moves a backup between targets
+hozon?::mirror	composes	hozon?::diff	finds what differs
+hozon?::mirror	composes	hozon?::copy	transfers it
+hozon?::replicate	lifts	hozon?::mirror	continuous form
+hozon?::lag	pairs	hozon?::replicate	measures its delay
+hozon?::lag	guards	hozon?::promote	promote only a caught-up replica
+hozon?::promote	composes	rokku?::revoke	fences the old primary
+himitsu::get	composes	himitsu::read	ref built from store and key
+himitsu::need	refines	himitsu::get	raises when absent
+himitsu::has?	refines	himitsu::get	existence only
+himitsu::list	pairs	himitsu::get	names beside values
+himitsu::read	composes	himitsu::ref	resolves the reference
+himitsu::put	inverse	himitsu::delete	delete makes absent what put made
+himitsu::create	refines	himitsu::put	refuses to overwrite
+himitsu::reveal	pairs	himitsu::read	only door from secret to text
+himitsu::rotate	composes	himitsu::generate	new value
+himitsu::rotate	composes	himitsu::put	stores it
+himitsu::rotate	pairs	himitsu::versions	old versions stay listed
+himitsu::generate	composes	shomei::random	entropy source
+himitsu::encrypt	inverse	himitsu::decrypt	opens what encrypt sealed
+himitsu::encrypt	composes	shomei::derive	key from a passphrase
+himitsu::rekey	composes	himitsu::decrypt	opens under old keys
+himitsu::rekey	composes	himitsu::encrypt	seals under new keys
+himitsu::versions	pairs	himitsu::put	each put makes a version
+himitsu::lease	refines	himitsu::get	issued on demand with a limit
+himitsu::lease	pairs	himitsu::revoke	issue and end
+himitsu::renew	requires	himitsu::lease	only a live lease
+himitsu::revoke	inverse	himitsu::lease	ends what lease issued
+himitsu::redact	pairs	himitsu::reveal	masks what reveal exposes
+himitsu::scan	pairs	himitsu::redact	finds what redact must mask
+himitsu::plan	composes	himitsu::diff	declared against stored
+himitsu::materialize	composes	himitsu::plan	runs the planned writes
+himitsu::materialize	composes	himitsu::put	writes each secret
+himitsu::diff	composes	himitsu::list	names on both sides
+settei::read	composes	settei::defaults	lowest tier
+settei::read	composes	settei::merge	file and environment layered on
+settei::read	composes	settei::path	finds the file
+settei::get	pairs	settei::read	lookup in the record
+settei::need	refines	settei::get	raises when absent
+settei::has?	refines	settei::get	existence only
+settei::put	composes	settei::path	which tier file
+settei::put	composes	shuusei::put	amends the document
+settei::put	composes	fairu::write	atomic file write
+settei::explain	refines	settei::get	adds tier and file
+settei::list	pairs	settei::get	all paths beside one
+settei::watch	lifts	settei::reload	each change reloads
+settei::watch	composes	fairu::watch	file change events
+settei::reload	refines	settei::read	read again now
+settei::validate	composes	settei::schema	checks against the schema
+settei::schema	requires	settei::defaults	types come from defaults
+settei::diff	composes	settei::list	compares path lists
+settei::merge	composes	shuusei::deep_merge	deep for maps
+settei::defaults	pairs	settei::schema	values and their types
+settei::path	composes	fairu::place	config tier directory
+settei::path	composes	fairu::join	file name under it
+rokku?::close	inverse	rokku?::open	releases the backend
+rokku?::release	inverse	rokku?::acquire	gives the lock back
+rokku?::renew	requires	rokku?::held?	only a valid lease
+rokku?::renew	generalizes	himitsu::renew	one meaning for every lease
+rokku?::renew	generalizes	taiki?::renew	one meaning for every lease
+rokku?::renew	generalizes	kyasshu?::renew	one meaning for every lifetime
+rokku?::revoke	refines	rokku?::release	forced by someone else
+rokku?::revoke	generalizes	himitsu::revoke	one meaning for every grant
+rokku?::holder	pairs	rokku?::acquire	who won
+rokku?::held?	composes	rokku?::expired?	validity by clock
+rokku?::list	lifts	rokku?::holder	all locks under a prefix
+rokku?::with_lock	composes	rokku?::acquire	takes the lock
+rokku?::with_lock	composes	rokku?::release	frees it on every exit
+rokku?::elect	composes	rokku?::acquire	campaigns
+rokku?::elect	composes	rokku?::renew	holds leadership
+rokku?::fence	pairs	rokku?::acquire	token issued with the lease
+rokku?::expired?	guards	rokku?::renew	late renewals are refused
+rokku?::barrier	composes	rokku?::acquire	counts arrivals under a lock
+raifusaikuru::start	requires	raifusaikuru::states	start is one of the states
+raifusaikuru::on	requires	raifusaikuru::states	transitions join states
+raifusaikuru::event	pairs	raifusaikuru::on	events drive transitions
+raifusaikuru::gate	guards	raifusaikuru::on	condition on a transition
+raifusaikuru::rule	refines	raifusaikuru::gate	names rule and task
+raifusaikuru::permit	refines	raifusaikuru::gate	count limit on events
+raifusaikuru::check	guards	raifusaikuru::create	only a clean definition runs
+raifusaikuru::admit	composes	raifusaikuru::gate	evaluates the conditions
+raifusaikuru::admit	composes	raifusaikuru::permit	evaluates the limits
+raifusaikuru::replay	lifts	raifusaikuru::admit	folds many events
+raifusaikuru::render	pairs	raifusaikuru::check	diagram beside the checks
+raifusaikuru::create	composes	raifusaikuru::start	begins in the start state
+raifusaikuru::create	composes	nisshi::append	first record persists
+raifusaikuru::get	composes	nisshi::replay	state from the log
+raifusaikuru::list	lifts	raifusaikuru::get	many instances
+raifusaikuru::signal	composes	raifusaikuru::admit	checks the event
+raifusaikuru::signal	composes	nisshi::append	persists it
+raifusaikuru::signal	composes	rokku?::with_lock	one writer per instance
+raifusaikuru::advance	composes	raifusaikuru::signal	signals until it rests
+raifusaikuru::wait	composes	raifusaikuru::get	polls for a terminal state
+raifusaikuru::wait	pairs	raifusaikuru::advance	run then wait
+raifusaikuru::cancel	composes	raifusaikuru::compensate	undo before ending
+raifusaikuru::timer	refines	raifusaikuru::event	an event raised by time
+raifusaikuru::timer	composes	taiki?::schedule	delivery of the timeout
+raifusaikuru::compensate	inverse	raifusaikuru::advance	undoes completed steps
+raifusaikuru::resume	composes	raifusaikuru::list	finds unfinished ones
+raifusaikuru::resume	composes	raifusaikuru::advance	continues each
+raifusaikuru::history	composes	nisshi::read	records of one instance
+shinsuu::from_base	inverse	shinsuu::to_base	text back to a number
+shinsuu::checksum	pairs	shomei::hash	cheap integrity beside strong
+shinsuu::luhn?	refines	shinsuu::checksum	one check-digit scheme
+shinsuu::from_bytes	inverse	shinsuu::to_bytes	bytes back to a number
+shinsuu::from_varint	inverse	shinsuu::to_varint	bytes back to a number
+shinsuu::to_varint	refines	shinsuu::to_bytes	variable width form
+shinsuu::popcount	pairs	shinsuu::bit_at	bit counting and probing
+shinsuu::align	pairs	shinsuu::to_size	block sizes in storage
+shinsuu::to_size	inverse	shinsuu::from_size	text back to bytes
+shinsuu::to_size	pairs	fairu::usage	prints what usage measures
+shinsuu::from_size	pairs	settei::validate	quota settings are sizes
+shinsuu::checksum	guards	asshuku?::decompress	frame check before use
+shomei::hash_stream	lifts	shomei::hash	file or stream form
+shomei::hash?	guards	shomei::verify_chain	shape check first
+shomei::equal?	guards	shomei::verify?	constant-time compare
+shomei::verify?	pairs	shomei::sign	check what sign made
+shomei::keypair	pairs	shomei::sign	keys for signing
+shomei::keypair	requires	shomei::random	seed from entropy
+shomei::derive	composes	shomei::hash	stretched hash
+shomei::address	composes	shomei::hash	digest plus algorithm tag
+shomei::genesis	pairs	shomei::link	first hash then each next
+shomei::link	composes	shomei::hash	hash of prev and payload
+shomei::head	composes	shomei::link	folds every payload
+shomei::head	lifts	shomei::link	whole chain
+shomei::verify_chain	composes	shomei::head	recomputes the head
+shomei::first_break	refines	shomei::verify_chain	says where it fails
+shomei::root	composes	shomei::hash	hash per node
+shomei::proof	pairs	shomei::root	path to the root
+shomei::verify_proof?	inverse	shomei::proof	checks the path climbs
+shomei::consistency	refines	shomei::proof	old root inside the new
+shomei::accumulate	refines	shomei::root	incremental form
+shomei::accumulate	pairs	shomei::consistency	appending keeps old roots valid
+fairu::glob	lifts	fairu::match?	one pattern over many paths
+fairu::watch	requires	fairu::exists?	the path must be there to watch
+fairu::touch	pairs	fairu::info	info reads the time touch bumps
+fairu::update	pairs	rokku?::with_lock	read-modify-write under a lock
+fairu::write	composes	fairu::with_temp_file	temp file beside the target
+fairu::space	guards	fairu::write	check room before a large write
+fairu::usage	pairs	fairu::space	used beside free
+asshuku?::compress	pairs	asshuku?::detect	detect names what compress used
+asshuku?::pack	composes	asshuku?::compress	archive then compress
+asshuku?::unpack	composes	asshuku?::decompress	decompress then split
+asshuku?::list	pairs	asshuku?::read	headers then one entry
+asshuku?::delta	pairs	asshuku?::patch	difference and its application
+souko?::put	pairs	souko?::get	store and fetch
+souko?::versions	refines	souko?::list	versions of one key
+souko?::make_bucket	pairs	souko?::policy	a bucket and its grants
+souko?::lifecycle	pairs	souko?::policy	rules beside grants
+souko?::parse	guards	souko?::open	reject a bad address early
+souko?::upload	composes	souko?::etag	integrity check after sending
+souko?::download	composes	shomei::hash_stream	optional digest check
+teeburu::get	pairs	teeburu::put	read and write by key
+teeburu::list	lifts	teeburu::get	many rows by filter
+teeburu::count	pairs	teeburu::list	number beside rows
+teeburu::query	pairs	teeburu::execute	rows out versus effect only
+teeburu::connect	pairs	teeburu::alive?	open then probe
+teeburu::tables	pairs	teeburu::columns	names then shapes
+teeburu::schema	pairs	teeburu::diff	live shape against declared
+teeburu::plan	composes	kueri::render	statement text
+ikou?::history	composes	teeburu::list	applied set stored in a table
+ikou?::status	requires	ikou?::checksum	drift needs the recorded hash
+ikou?::baseline	guards	ikou?::plan	declared steps are skipped
+ikou?::check	guards	ikou?::squash	only a clean set folds
+ikou?::backfill	composes	rokku?::with_lock	one runner at a time
+ikou?::backfill	composes	saishikou::retrying	batches may fail and repeat
+shuunou?::open	pairs	shuunou?::close	handle and its release
+shuunou?::open	composes	himitsu::read	credentials from a secret ref
+shuunou?::ttl	refines	shuunou?::info	one fact about a key
+shuunou?::list	lifts	shuunou?::get	every entry of a prefix
+shuunou?::query	composes	shuunou?::list	filter applied to listed documents
+shuunou?::import	pairs	fairu::stream	bulk load from a file
+shuunou?::merge	composes	shuusei::deep_merge	deep merge of the patch
+sakuin::query	pairs	sakuin::search	structured and free text
+sakuin::parse	guards	sakuin::search	reject a bad query early
+sakuin::commit	guards	sakuin::search	searches see committed writes
+sakuin::similar	refines	sakuin::query	nearest by vector
+sakuin::delete	pairs	sakuin::commit	removals show after commit
+sakuin::optimize	requires	sakuin::commit	merges committed segments
+sakuin::facet	pairs	sakuin::count	counts per value and total
+sakuin::nearest	refines	sakuin::similar	exact scan form
+kyasshu?::get	composes	kyasshu?::fresh?	expired entries read as absent
+kyasshu?::invalidate	pairs	kyasshu?::put	staleness and refill
+kyasshu?::memoize	pairs	kyasshu?::key	argument digest as key
+kyasshu?::refresh	refines	kyasshu?::fetch	forced recompute
+kyasshu?::save	pairs	kyasshu?::open	persist then reload
+kyasshu?::flush	composes	shuunou?::put	write-behind target
+nisshi::append	pairs	nisshi::verify?	write and prove
+nisshi::open	pairs	nisshi::close	handle and its release
+nisshi::close	inverse	nisshi::open	releases the log
+nisshi::watch	lifts	nisshi::get	each new record
+nisshi::get	pairs	nisshi::head	any record beside the newest
+nisshi::snapshot	guards	nisshi::truncate	keep state before dropping records
+nisshi::snapshot	composes	fairu::write	persists the state
+nisshi::rotate	composes	fairu::move	closed segment moves aside
+nisshi::seal	guards	nisshi::append	sealed segments refuse writes
+nisshi::verify?	pairs	nisshi::seal	proof of a frozen segment
+nisshi::merge	pairs	nisshi::diff	combine or compare logs
+nisshi::forget	pairs	nisshi::verify?	the chain still holds afterwards
+nisshi::project	pairs	nisshi::snapshot	view and its starting state
+taiki?::send	composes	shomei::hash	dedupe key from the message
+taiki?::dead	pairs	taiki?::info	dead count among counters
+taiki?::open	pairs	taiki?::close	handle and its release
+taiki?::pause	guards	taiki?::drain	drain waits on a paused queue
+taiki?::get	refines	taiki?::peek	one message by id
+genbo?::put	pairs	genbo?::has?	skip storing what exists
+genbo?::list	pairs	genbo?::verify	enumerate then check
+genbo?::tree	pairs	shomei::root	a tree id is a merkle node
+genbo?::reachable	pairs	genbo?::gc	roots decide what stays
+genbo?::walk	lifts	genbo?::entries	whole graph from one node
+genbo?::diff	pairs	rekishi?::diff	trees under commits
+genbo?::pack	pairs	genbo?::copy	transfer unit
+rekishi?::log	pairs	rekishi?::diff	commits then their changes
+rekishi?::base	guards	rekishi?::merge	merge needs a common base
+rekishi?::three_way	pairs	rekishi?::patch	merged result applied
+rekishi?::squash	requires	rekishi?::log	needs the run of commits
+rekishi?::restore	pairs	rekishi?::read	whole state beside one path
+rekishi?::update	composes	rekishi?::get	compares the old ref target
+rekishi?::commit	pairs	rekishi?::log	record and read back
+yuugou?::tick	pairs	yuugou?::compare	advance then order
+yuugou?::value	pairs	yuugou?::text	plain text of the sequence
+yuugou?::diff	pairs	yuugou?::clock	delta since a vector
+hozon?::snapshot	pairs	genbo?::import	deduplicated storage of the copy
+hozon?::list	composes	souko?::list	backups stored as objects
+hozon?::manifest	pairs	genbo?::tree	manifest is a merkle node
+hozon?::retain	guards	hozon?::delete	policy decides what may go
+hozon?::schedule	pairs	hozon?::retain	when to run and what to keep
+hozon?::verify?	guards	hozon?::restore	prove before bringing back
+hozon?::promote	requires	hozon?::replicate	needs a following replica
+himitsu::redact	guards	rogu::info	secrets never reach a log line
+himitsu::scan	composes	fairu::walk	reads files and history
+himitsu::generate	pairs	himitsu::rotate	new value for an old name
+himitsu::ref	guards	himitsu::read	typed pointer before resolving
+himitsu::put	pairs	himitsu::versions	each write is a version
+himitsu::decrypt	pairs	himitsu::reveal	open then show
+himitsu::diff	pairs	himitsu::materialize	drift then repair
+settei::validate	guards	settei::reload	refuse a bad record on reload
+settei::explain	pairs	settei::list	origin beside value
+settei::schema	pairs	settei::validate	shape and its check
+settei::path	pairs	settei::put	file beside write
+settei::diff	pairs	settei::merge	compare then combine
+settei::watch	pairs	settei::reload	change and refresh
+settei::get	pairs	settei::put	read and write a setting
+rokku?::open	pairs	rokku?::close	handle and its release
+rokku?::fence	guards	shuunou?::put	storage rejects stale holders
+rokku?::acquire	pairs	rokku?::release	take and give back
+raifusaikuru::get	pairs	raifusaikuru::signal	state and its change
+raifusaikuru::list	pairs	raifusaikuru::resume	find then continue
+raifusaikuru::advance	requires	raifusaikuru::get	needs the current state
+raifusaikuru::check	pairs	raifusaikuru::admit	static and dynamic checks
+raifusaikuru::replay	pairs	nisshi::replay	fold from the log
+raifusaikuru::start	pairs	raifusaikuru::create	declared then begun
+raifusaikuru::cancel	pairs	raifusaikuru::wait	end then confirm
+shinsuu::align	pairs	fairu::space	block rounding of sizes
+shinsuu::popcount	pairs	sakuin::distance	hamming distance of bits
+shinsuu::to_bytes	pairs	asshuku?::pack	archive header fields
+shomei::sign	composes	shomei::hash	signs the digest
+shomei::root	pairs	genbo?::tree	merkle node of children
+shomei::address	pairs	genbo?::put	id of stored content
+shomei::equal?	pairs	shomei::hash	compare digests safely
+shomei::proof	composes	shomei::root	tree levels hashed

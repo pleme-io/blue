@@ -285,3 +285,39 @@ fn a_program_that_is_not_canonical_is_refused_unless_the_host_says_as_written() 
         .unwrap();
     assert_eq!(p.call::<i64>("f", (), &mut host).unwrap(), 1);
 }
+
+#[derive(Default)]
+struct Both {
+    ledger: Ledger,
+    shelf: Shelf,
+}
+
+#[host(prefix = "both_")]
+impl Both {
+    fn sizes(&self) -> Vec<i64> {
+        vec![
+            i64::try_from(self.ledger.entries.len()).unwrap_or(i64::MAX),
+            i64::try_from(self.shelf.seen.len()).unwrap_or(i64::MAX),
+        ]
+    }
+}
+
+#[test]
+fn two_hosts_compose_as_parts_of_one_host() {
+    let src = "def go()\n  ledger_note(\"x\")\n  shelf_label(\"y\")\n  both_sizes\nend\n";
+    let mut host = Both {
+        ledger: Ledger {
+            limit: 5,
+            ..Ledger::default()
+        },
+        ..Both::default()
+    };
+    let mut p = Program::<Both>::builder(Entry::anonymous(src))
+        .loader(&NoLoader)
+        .part(|b: &mut Both| &mut b.ledger)
+        .part(|b: &mut Both| &mut b.shelf)
+        .load(&mut host)
+        .unwrap();
+    assert_eq!(p.call::<Vec<i64>>("go", (), &mut host).unwrap(), [1, 1]);
+    assert_eq!(host.shelf.seen, ["y"]);
+}

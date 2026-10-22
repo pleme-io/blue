@@ -256,7 +256,7 @@ fn expand(
             quote!(#krate::Arity::Range(#required, #arity))
         };
         let call = if m.receiver {
-            quote!(host.#ident(#(#binds),*))
+            quote!(part(outer).#ident(#(#binds),*))
         } else {
             quote!(<#self_ty>::#ident(#(#binds),*))
         };
@@ -269,7 +269,7 @@ fn expand(
             interp.register_fn(
                 #name,
                 #arity_expr,
-                |args: &[#krate::Value], host: &mut Self, span: #krate::Span| {
+                move |args: &[#krate::Value], outer: &mut O, span: #krate::Span| {
                     #(#converts)*
                     #finish
                 },
@@ -283,7 +283,11 @@ fn expand(
         impl #impl_generics #krate::Host for #self_ty #where_clause {
             const SURFACE: &'static [#krate::HostFn] = &[#(#surface),*];
 
-            fn install(interp: &mut #krate::Interpreter<Self>) {
+            #[allow(unused_variables)]
+            fn install_into<O: 'static>(
+                interp: &mut #krate::Interpreter<O>,
+                part: fn(&mut O) -> &mut Self,
+            ) {
                 #(#registrations)*
             }
         }

@@ -16,13 +16,17 @@ pub use blue_lang_pkg::embedded::Standard;
 pub trait Host: Sized + 'static {
     const SURFACE: &'static [HostFn];
 
-    fn install(interp: &mut Interpreter<Self>);
+    fn install_into<O: 'static>(interp: &mut Interpreter<O>, part: fn(&mut O) -> &mut Self);
+
+    fn install(interp: &mut Interpreter<Self>) {
+        Self::install_into(interp, |h| h);
+    }
 }
 
 impl Host for () {
     const SURFACE: &'static [HostFn] = &[];
 
-    fn install(_: &mut Interpreter<Self>) {}
+    fn install_into<O: 'static>(_: &mut Interpreter<O>, _: fn(&mut O) -> &mut Self) {}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +77,11 @@ impl<'a, H: Host> Load<'a, H> {
     pub fn extend(mut self, install: impl FnOnce(&mut Interpreter<H>) + 'a) -> Self {
         self.extensions.push(Box::new(install));
         self
+    }
+
+    #[must_use]
+    pub fn part<P: Host>(self, project: fn(&mut H) -> &mut P) -> Self {
+        self.extend(move |interp| P::install_into(interp, project))
     }
 
     #[must_use]

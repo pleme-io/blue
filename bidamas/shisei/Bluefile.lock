@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:02bd0e184a54b4360515f615f8030b616ae5ff1a253c81239b79de3738a858f5",
+  "manifest": {
+    "schema": 1,
+    "name": "shisei",
+    "version": "0.1.0",
+    "needs": {
+      "kousei": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -1,13 +1,14 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:386fc8600e71e92a90c899033c05861c44a0706ee2ee60f499fe2f2ac3ad76d0",
+  "bluefile_b3": "b3:bf51bf9dabc5342cfe2f47ba10c3ee88dc9547f7f90a58f308770d79639d407d",
   "manifest": {
     "schema": 1,
-    "name": "kamae",
+    "name": "bougyo",
     "version": "0.1.0",
     "needs": {
       "kousei": "^0.1.0",
-      "retsu": "^0.1.0"
+      "retsu": "^0.1.0",
+      "shisei": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

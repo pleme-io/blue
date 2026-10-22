@@ -345,6 +345,12 @@ a recursion that copied the tail at each step (664 ms to find the last of
 
 ## Silent answers
 
+- **`set!` rebinds the variable it names, so a cell does not cross a parameter.** A
+  helper `recording(cell)` that calls `set!(cell, …)` rebinds its own parameter, and the caller's
+  cell stays `[[]]`; the test then reads an empty log and passes or fails for no visible reason
+  (measured 2026-10-22, `shisei`). Write the closure where the variable lives:
+  `note = (n, w) -> set!(seen, [append(first(seen), [[n, w]])])`.
+
 - **In kueri, a string in an expression is a VALUE.** A keyword is a column
   and a string is a literal (the HoneySQL rule), so a column name a program
   computes as text (`"#{role}_seq"`) renders as `'item_seq'` inside a

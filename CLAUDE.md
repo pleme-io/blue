@@ -61,6 +61,16 @@ dependency order. **Blue bends to the pattern:** boilerplate in a blue program m
 missing a word, so add the form, macro or primitive. The principle is `theory/BLUE.md` §I.1; the
 loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-development-cycle` skill.
 
+## Compose first: a reusable component is the unit of development
+
+Every capability starts as the smallest reusable component, and a service is a declaration that
+composes them. Declare entries with `kousei` (each checked, configured off, tuned or refused
+alone); declare service behaviour as `shisei` postures (on by default, a blocking one defaults to
+`audit`); take the request defence from `bougyo`. A second copy of a shape is a bug the
+distribution refuses: `cargo test -p blue-lang-pkg --test distribution` fails when the count of
+identical function shapes rises, so reuse the existing word. The list of service batteries and
+what is still missing: `theory/FUEKI.md` section I.
+
 ## The pipeline is the architecture
 
 **parse → check → erase → run.** The order is load-bearing and lives in

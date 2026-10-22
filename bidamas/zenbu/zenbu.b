@@ -47,6 +47,7 @@
 
 use("anaritikusu")
 use("angou", [:is_prime])
+use("bougyo")
 use("chokkan")
 use("deeta", [:get_str])
 use("empresa")
@@ -94,6 +95,7 @@ use("settei")
 use("shihyou")
 use("shinchoku")
 use("shinsuu", [:to_hex])
+use("shisei")
 use("shisutemu", [:age_s])
 use("shomei", [:hash_message])
 # waive B0016: zenbu is the facade, and depending on it means depending on shuugou
@@ -175,6 +177,8 @@ test "every bidama in the distribution answers through this one import"
   assert nikkusu::kind(get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
   assert hyouka::installable(".", "x") == ".#x"
   assert kirikae::attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
+  assert shisei::stack([], (r) -> r)(1) == 1
+  assert bougyo::safe_id?("abc-1", 64)
 end
 
 test "four packages compose without the consumer naming any of them"

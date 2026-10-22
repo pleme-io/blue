@@ -1,11 +1,22 @@
 use(
   "kousei",
-  [:entry, :field, :judge, :kind_of, :off, :one_of, :text, :tune, :value_of]
+  [
+    :entry,
+    :field,
+    :judge,
+    :kind_of,
+    :name_of,
+    :off,
+    :one_of,
+    :text,
+    :tune,
+    :value_of
+  ]
 )
 
 use("retsu", [:first, :flat_map, :size])
 
-# kamae (構え) — a service's stance: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
+# shisei (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
 #
 # A posture is a record: name (the kousei kind), table (its field table),
 # defaults (the settings it runs with when declared bare) and layer, a function
@@ -20,10 +31,6 @@ use("retsu", [:first, :flat_map, :size])
 
 def posture(name, table, defaults, layer)
   {name: name, table: table, defaults: defaults, layer: layer}
-end
-
-def name_of(p)
-  get(p, :name)
 end
 
 def table_of(p)

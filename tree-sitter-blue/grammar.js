@@ -3,7 +3,7 @@ module.exports = grammar({
   name: 'blue',
   word: $ => $.identifier,
   extras: $ => [/[ \t\r]/u, $.comment],
-  conflicts: $ => [[$._primary, $._arrow_parameters], [$._arrow_parameters, $._plain_parameters], [$._arrow_parameters, $.parameters]],
+  conflicts: $ => [[$._primary, $._arrow_parameters], [$._arrow_parameters, $._plain_parameters], [$._arrow_parameters, $.parameters], [$.pun_pair, $.pair]],
   rules: {
     source_file: $ => optional(choice(seq(repeat1($._newline), optional(choice(seq(repeat1(seq($._statement, repeat1($._newline))), optional($._statement)), $._statement))), choice(seq(repeat1(seq($._statement, repeat1($._newline))), optional($._statement)), $._statement))),
     _newline: $ => '\n',

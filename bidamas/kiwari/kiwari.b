@@ -881,7 +881,8 @@ def blue()
     conflicts: [
       ["_primary", "_arrow_parameters"],
       ["_arrow_parameters", "_plain_parameters"],
-      ["_arrow_parameters", "parameters"]
+      ["_arrow_parameters", "parameters"],
+      ["pun_pair", "pair"]
     ],
     infix: infix_rows,
     unary: unary_rows,

@@ -1684,7 +1684,12 @@ impl Parser {
                         {
                             let written = format!("{name}: {name}");
                             let canonical = format!("{name}:");
-                            self.note(Spelling::MapPun, label_span.merge(value.span), &written, &canonical);
+                            self.note(
+                                Spelling::MapPun,
+                                label_span.merge(value.span),
+                                &written,
+                                &canonical,
+                            );
                         }
                         items.push(value);
                     }

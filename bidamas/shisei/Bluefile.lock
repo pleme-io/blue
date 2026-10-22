@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:02bd0e184a54b4360515f615f8030b616ae5ff1a253c81239b79de3738a858f5",
+  "bluefile_b3": "b3:fc16b426fde8b9d73385d7f3ad01c12e97fc2cc117c41df2fc31831d275d98dd",
   "manifest": {
     "schema": 1,
     "name": "shisei",
     "version": "0.1.0",
     "needs": {
       "kousei": "^0.1.0",
+      "kyohi": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

@@ -14,6 +14,8 @@ use(
   ]
 )
 
+use("kyohi", [:kinds])
+
 use("retsu", [:first, :flat_map, :size])
 
 # shisei (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
@@ -223,4 +225,18 @@ test "a bad entry is refused alone and the other postures still stand"
   )
   assert size(get(s, :refusals)) == 1
   assert get(get(get(s, :handler)(req_at("/")), :headers), "X-A") == "1"
+end
+
+test "redeclaring a default is refused as a duplicate and the default stands"
+  s = serving(
+    [tag("X-A", "1")],
+    [entry(:tag, "default", {value: "9"})],
+    silent,
+    echo
+  )
+  assert kinds(get(s, :refusals)) == [:duplicate]
+  assert get(get(get(s, :handler)(req_at("/")), :headers), "X-A") == "1"
+  extra = stance([tag("X-A", "1")], [entry(:tag, "second", {value: "2"})])
+  assert get(extra, :refusals) == []
+  assert size(get(extra, :accepted)) == 2
 end

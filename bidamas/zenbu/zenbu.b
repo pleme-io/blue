@@ -100,6 +100,7 @@ use("shisutemu", [:age_s])
 use("shomei", [:hash_message])
 # waive B0016: zenbu is the facade, and depending on it means depending on shuugou
 use("shuugou")
+use("shuusei")
 use("souji")
 use("teeburu")
 use("tehai")
@@ -179,6 +180,7 @@ test "every bidama in the distribution answers through this one import"
   assert kirikae::attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
   assert shisei::stack([], (r) -> r)(1) == 1
   assert bougyo::safe_id?("abc-1", 64)
+  assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}
 end
 
 test "four packages compose without the consumer naming any of them"

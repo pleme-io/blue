@@ -303,6 +303,8 @@ test "a safe inbound request id is echoed and an unsafe one is replaced"
   assert starts_with?(hdr(long, "X-Request-Id"), "req-")
   fresh = h(get_req("/", [], ""))
   assert starts_with?(hdr(fresh, "X-Request-Id"), "req-")
+  blank = h(get_req("/", [["x-request-id", ""]], ""))
+  assert starts_with?(hdr(blank, "X-Request-Id"), "req-")
 end
 
 test "the request id reaches the handler"

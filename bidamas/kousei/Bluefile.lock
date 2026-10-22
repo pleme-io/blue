@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:7ccc5b97044b70a25cbcc9032592a80bbce68d7f86361d16e43a96d03e0e791e",
+  "manifest": {
+    "schema": 1,
+    "name": "kousei",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

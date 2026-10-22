@@ -69,6 +69,7 @@ use("kinji")
 use("kinko")
 use("kirikae")
 use("kiwari")
+use("kousei")
 use("kueri")
 use("kumiawase", [:combinations])
 use("kyohi")
@@ -125,6 +126,7 @@ test "every bidama in the distribution answers through this one import"
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kiwari::unpainted(kiwari::blue) == []
+  assert kousei::name_of(kousei::entry(:plane, "edge", {})) == "edge"
   assert kueri::ident("order") == "\"order\""
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2_598_960

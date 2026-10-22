@@ -1,4 +1,5 @@
-package("jitaku", "0.1.1")
+package("jitaku", "0.1.2")
+needs("kousei", "^0.1")
 needs("kyohi", "^0.1")
 needs("moji", "^0.1")
 needs("retsu", "^0.1")

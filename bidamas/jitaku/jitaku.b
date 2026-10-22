@@ -1,3 +1,19 @@
+use(
+  "kousei",
+  [
+    :entry,
+    :flag,
+    :int_in,
+    :kind_of,
+    :name_of,
+    :required,
+    :text,
+    :value_of,
+    :verdict,
+    :where
+  ]
+)
+
 use("kyohi", [:kinds, :refusal])
 use("moji", [:is_hex, :made_of, :strip_prefix])
 use("retsu", [:contains, :first, :flat_map, :index_of, :is_empty, :last, :size])
@@ -12,23 +28,6 @@ legacy_names("0.1.1", [["unrefused", "kyohi::standing"]])
 # nix module takes, from the entries that stand; `refusals` names the rest.
 
 # ── checks: a check is fn(value) answering nil, or why the value is wrong ──
-
-def verdict(ok, why)
-  if ok
-    nil
-  else
-    why
-  end
-end
-
-def int_in(lo, hi)
-  fn(v)
-    verdict(
-      integer?(v) and v >= lo and v <= hi,
-      "#{v} is not a whole number in #{lo}..#{hi}"
-    )
-  end
-end
 
 def number_in(lo, hi)
   fn(v)
@@ -46,14 +45,6 @@ def float_in(lo, hi)
       "#{v} is not a float in #{lo}..#{hi}"
     )
   end
-end
-
-def flag()
-  (v) -> verdict(boolean?(v), "#{v} is not true or false")
-end
-
-def text()
-  (v) -> verdict(string?(v) and length(v) > 0, "#{v} is not text")
 end
 
 def one_of(choices)
@@ -172,10 +163,6 @@ end
 # check its value passes, and how its value is rendered.
 def field(key, json, check)
   {key: key, json: json, check: check, render: (v) -> v, required: false}
-end
-
-def required(f)
-  assoc(f, :required, true)
 end
 
 def record_field(key, json, table)
@@ -476,22 +463,6 @@ end
 
 # ── entries: a home is a list of them; a mood set is a list inside it ─────
 
-def entry(kind, name, value)
-  {entry: kind, name: name, value: value}
-end
-
-def kind_of(e)
-  get(e, :entry)
-end
-
-def name_of(e)
-  get(e, :name)
-end
-
-def value_of(e)
-  get(e, :value)
-end
-
 # Which home this is, by its site name.
 def site(name)
   entry(:site, "site", {name: name})
@@ -689,10 +660,6 @@ def singleton_checks()
     [:recorder, one_of(["sqlite", "postgres"])],
     [:media_base_url, base_url]
   ]
-end
-
-def where(e)
-  "#{kind_of(e)} #{name_of(e)}"
 end
 
 def refuse_entry(kind, e, why)

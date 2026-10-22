@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:357a07b74c9c4388d6f5f64129b79172008c682a35a1d26aa64115ae754df0d3",
+  "bluefile_b3": "b3:5d6129e6f4cf9f87b6b4740526e489f2a2f8fa9b50bf2aaddb909d885b8cbb1b",
   "manifest": {
     "schema": 1,
     "name": "jitaku",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "needs": {
+      "kousei": "^0.1.0",
       "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0"

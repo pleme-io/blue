@@ -38,7 +38,14 @@ end
 # Run one generator with $GEN_OUT set to the output the lock names, so the
 # declaration, not the program's own default, decides where the file goes.
 def regenerate(g)
-  status = exec_check("env", "GEN_OUT=#{nth(1, g)}", "blue", "run", nth(2, g))
+  status = exec_check(
+    "env",
+    "GEN_ROOT=#{cwd}",
+    "GEN_OUT=#{nth(1, g)}",
+    "blue",
+    "run",
+    nth(2, g)
+  )
   if status != 0
     raise(
       :regen,

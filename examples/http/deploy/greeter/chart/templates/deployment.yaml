@@ -33,6 +33,10 @@ spec:
           command:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: BLUE_SERVICE
               value: "greeter"

@@ -426,7 +426,10 @@ mod tests {
             ("host: \"Bad Name\"", "not a name"),
             ("host_args: [\"daemon\"]", "no effect without `host`"),
             ("host: \"h\", host_args: [\"\"]", "non-empty single-line"),
-            ("host: \"h\", host_args: [\"a\\nb\"]", "non-empty single-line"),
+            (
+                "host: \"h\", host_args: [\"a\\nb\"]",
+                "non-empty single-line",
+            ),
         ];
         for (extra, expect) in cases {
             let body = format!("service(\"hello\", {{{base}, {extra}}})\n");

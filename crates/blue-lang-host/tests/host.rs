@@ -1,4 +1,6 @@
-use blue_lang_host::{host, CallError, Entry, Error, Host, NoLoader, Program};
+use blue_lang_host::{
+    host, host_effect_names, Arity, Budget, CallError, Entry, Error, Host, NoLoader, Program, Value,
+};
 
 #[derive(Default)]
 struct Ledger {
@@ -25,6 +27,11 @@ impl Ledger {
     #[blue(name = "repeat")]
     fn repeat(word: String, times: u8) -> String {
         word.repeat(usize::from(times))
+    }
+
+    fn note(&mut self, text: String, level: Option<i64>) -> i64 {
+        self.entries.push(format!("{text}:{}", level.unwrap_or(0)));
+        level.unwrap_or(0)
     }
 
     #[blue(skip)]
@@ -55,7 +62,7 @@ fn load(host: &mut Ledger) -> Program<Ledger> {
 #[test]
 fn the_surface_names_every_exposed_method_and_only_those() {
     let names: Vec<_> = Ledger::SURFACE.iter().map(|f| f.name).collect();
-    assert_eq!(names, ["ledger_add", "ledger_all", "repeat"]);
+    assert_eq!(names, ["ledger_add", "ledger_all", "repeat", "ledger_note"]);
     assert_eq!(Ledger::SURFACE[0].params, ["entry"]);
     assert_eq!(Ledger::SURFACE[0].doc, "Record one entry.");
 }
@@ -158,4 +165,69 @@ fn a_program_with_no_host_functions_needs_no_host_type() {
     let n: i64 = p.call("double", (21i64,), &mut ()).unwrap();
     assert_eq!(n, 42);
     assert!(<() as Host>::SURFACE.is_empty());
+}
+
+#[test]
+fn a_trailing_option_parameter_may_be_left_out() {
+    let note = Ledger::SURFACE
+        .iter()
+        .find(|f| f.name == "ledger_note")
+        .unwrap();
+    assert_eq!((note.params.len(), note.required), (2, 1));
+    let mut host = Ledger::default();
+    let src =
+        "def short()\n  ledger_note(\"a\")\nend\n\ndef long()\n  ledger_note(\"b\", 3)\nend\n";
+    let mut p = Program::<Ledger>::load_with(Entry::anonymous(src), &NoLoader, &mut host).unwrap();
+    assert_eq!(p.call::<i64>("short", (), &mut host).unwrap(), 0);
+    assert_eq!(p.call::<i64>("long", (), &mut host).unwrap(), 3);
+    assert_eq!(host.entries, ["a:0", "b:3"]);
+}
+
+#[test]
+fn an_extension_registers_after_the_host_and_its_names_check() {
+    let mut host = Ledger::default();
+    host.entries.push("x".into());
+    let src = "def count()\n  ledger_count_extra()\nend\n";
+    let mut p = Program::<Ledger>::builder(Entry::anonymous(src))
+        .loader(&NoLoader)
+        .extend(|interp| {
+            interp.register_fn(
+                "ledger_count_extra",
+                Arity::Exact(0),
+                |_: &[Value], h: &mut Ledger, _| {
+                    Ok(Value::Int(
+                        i64::try_from(h.entries.len()).unwrap_or(i64::MAX),
+                    ))
+                },
+            );
+        })
+        .load(&mut host)
+        .unwrap();
+    assert_eq!(p.call::<i64>("count", (), &mut host).unwrap(), 1);
+    let without = Program::<Ledger>::builder(Entry::anonymous(src))
+        .loader(&NoLoader)
+        .load(&mut host);
+    assert!(matches!(without, Err(Error::Load(_))));
+}
+
+#[test]
+fn a_frame_built_from_host_effect_names_refuses_a_host_effect() {
+    let effects = host_effect_names();
+    assert!(effects.contains(&"rm_rf") && effects.contains(&"read_file"));
+    let permits = |name: &str| !effects.contains(&name);
+    let mut host = Ledger::default();
+    let bad = Program::<Ledger>::builder(Entry::anonymous("def f()\n  rm_rf(\"/tmp/x\")\nend\n"))
+        .loader(&NoLoader)
+        .frame(&permits, Budget::tree_walker_default())
+        .load(&mut host);
+    assert!(
+        matches!(bad, Err(Error::Framed(_))),
+        "{:?}",
+        bad.err().map(|e| e.to_string())
+    );
+    let ok = Program::<Ledger>::builder(Entry::anonymous("def f()\n  ledger_all()\nend\n"))
+        .loader(&NoLoader)
+        .frame(&permits, Budget::tree_walker_default())
+        .load(&mut host);
+    assert!(ok.is_ok());
 }

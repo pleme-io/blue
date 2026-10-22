@@ -16,5 +16,6 @@ packages = ["blue-lang-pkg/embedded"]
 blue-lang-host-macros = { workspace = true }
 blue-lang-runtime = { workspace = true }
 blue-lang-pkg = { workspace = true }
+blue-lang-waku = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 thiserror = { workspace = true }

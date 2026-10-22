@@ -92,6 +92,13 @@ fn doc_of(attrs: &[Attribute]) -> String {
         .to_owned()
 }
 
+fn is_option(ty: &Type) -> bool {
+    match ty {
+        Type::Path(p) => p.path.segments.last().is_some_and(|s| s.ident == "Option"),
+        _ => false,
+    }
+}
+
 fn returns_result(ret: &ReturnType) -> bool {
     match ret {
         ReturnType::Default => false,
@@ -106,6 +113,7 @@ struct Method {
     ident: syn::Ident,
     blue_name: String,
     params: Vec<(String, Type)>,
+    required: usize,
     receiver: bool,
     fallible: bool,
     doc: String,
@@ -145,7 +153,14 @@ fn method(f: &mut ImplItemFn, prefix: &str) -> syn::Result<Option<Method>> {
             }
         }
     }
+    let required = params.len()
+        - params
+            .iter()
+            .rev()
+            .take_while(|(_, ty)| is_option(ty))
+            .count();
     Ok(Some(Method {
+        required,
         ident: sig.ident.clone(),
         blue_name: name.unwrap_or_else(|| format!("{prefix}{}", sig.ident)),
         params,
@@ -183,8 +198,9 @@ fn expand(
         let name = &m.blue_name;
         let doc = &m.doc;
         let labels = m.params.iter().map(|(l, _)| l);
+        let required = m.required;
         quote! {
-            #krate::HostFn { name: #name, params: &[#(#labels),*], doc: #doc }
+            #krate::HostFn { name: #name, params: &[#(#labels),*], required: #required, doc: #doc }
         }
     });
 
@@ -193,14 +209,30 @@ fn expand(
         let ident = &m.ident;
         let arity = m.params.len();
         let binds = (0..arity).map(|i| format_ident!("a{i}"));
+        let required = m.required;
         let converts = m.params.iter().enumerate().map(|(i, (label, ty))| {
             let var = format_ident!("a{i}");
             let position = i + 1;
-            quote! {
-                let #var = <#ty as #krate::FromValue>::from_value(&args[#i], span)
-                    .map_err(|e| #krate::__private::argument(#name, #position, #label, &e, span))?;
+            if i < required {
+                quote! {
+                    let #var = <#ty as #krate::FromValue>::from_value(&args[#i], span)
+                        .map_err(|e| #krate::__private::argument(#name, #position, #label, &e, span))?;
+                }
+            } else {
+                quote! {
+                    let #var = match args.get(#i) {
+                        ::core::option::Option::Some(v) => <#ty as #krate::FromValue>::from_value(v, span)
+                            .map_err(|e| #krate::__private::argument(#name, #position, #label, &e, span))?,
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    };
+                }
             }
         });
+        let arity_expr = if required == arity {
+            quote!(#krate::Arity::Exact(#arity))
+        } else {
+            quote!(#krate::Arity::Range(#required, #arity))
+        };
         let call = if m.receiver {
             quote!(host.#ident(#(#binds),*))
         } else {
@@ -214,7 +246,7 @@ fn expand(
         quote! {
             interp.register_fn(
                 #name,
-                #krate::Arity::Exact(#arity),
+                #arity_expr,
                 |args: &[#krate::Value], host: &mut Self, span: #krate::Span| {
                     #(#converts)*
                     #finish

@@ -2,6 +2,7 @@ pub use blue_lang_host_macros::host;
 pub use blue_lang_runtime::hosted::{CallError, FramedError, Hosted};
 pub use blue_lang_runtime::uses::{Entry, Loader, NoLoader};
 pub use blue_lang_runtime::RunError;
+pub use blue_lang_waku::Capability;
 pub use tatara_lisp_eval::vm::Budget;
 pub use tatara_lisp_eval::{Arity, EvalError, FromValue, Interpreter, IntoValue, Span, Value};
 
@@ -24,7 +25,67 @@ impl Host for () {
 pub struct HostFn {
     pub name: &'static str,
     pub params: &'static [&'static str],
+    pub required: usize,
     pub doc: &'static str,
+}
+
+#[must_use]
+pub fn host_effect_names() -> Vec<&'static str> {
+    Capability::host_effects()
+        .into_iter()
+        .flat_map(Capability::names)
+        .collect()
+}
+
+type Extension<'a, H> = Box<dyn FnOnce(&mut Interpreter<H>) + 'a>;
+
+pub struct Load<'a, H: Host> {
+    entry: Entry<'a>,
+    loader: &'a dyn Loader,
+    extensions: Vec<Extension<'a, H>>,
+    frame: Option<(&'a dyn Fn(&str) -> bool, Budget)>,
+}
+
+impl<'a, H: Host> Load<'a, H> {
+    #[must_use]
+    pub fn loader(mut self, loader: &'a dyn Loader) -> Self {
+        self.loader = loader;
+        self
+    }
+
+    #[must_use]
+    pub fn extend(mut self, install: impl FnOnce(&mut Interpreter<H>) + 'a) -> Self {
+        self.extensions.push(Box::new(install));
+        self
+    }
+
+    #[must_use]
+    pub fn frame(mut self, permits: &'a dyn Fn(&str) -> bool, budget: Budget) -> Self {
+        self.frame = Some((permits, budget));
+        self
+    }
+
+    pub fn load(self, host: &mut H) -> Result<Program<H>, Error> {
+        let extensions = self.extensions;
+        let install = move |interp: &mut Interpreter<H>| {
+            H::install(interp);
+            for extension in extensions {
+                extension(interp);
+            }
+        };
+        let hosted = match self.frame {
+            Some((permits, budget)) => blue_lang_runtime::hosted::load_hosted_in_frame(
+                self.entry,
+                self.loader,
+                host,
+                install,
+                permits,
+                budget,
+            )?,
+            None => blue_lang_runtime::hosted::load_hosted(self.entry, self.loader, host, install)?,
+        };
+        Ok(Program { hosted })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -76,6 +137,20 @@ pub struct Program<H: Host> {
 }
 
 impl<H: Host> Program<H> {
+    #[must_use]
+    pub fn builder(entry: Entry<'_>) -> Load<'_, H> {
+        #[cfg(feature = "packages")]
+        let loader: &dyn Loader = &Standard;
+        #[cfg(not(feature = "packages"))]
+        let loader: &dyn Loader = &NoLoader;
+        Load {
+            entry,
+            loader,
+            extensions: Vec::new(),
+            frame: None,
+        }
+    }
+
     #[cfg(feature = "packages")]
     pub fn load(entry: Entry<'_>, host: &mut H) -> Result<Self, Error> {
         Self::load_with(entry, &Standard, host)

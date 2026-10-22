@@ -7,7 +7,7 @@ create or replace table gc as
 
 create or replace macro meaning_key(s) as array_to_string(
   list_filter(regexp_split_to_array(lower(s), '[^a-z0-9]+'),
-    x -> x <> '' and not list_contains(['a','an','the','of','to','in','on','by','for','and','or','with','as','from','into','at','its','is','it','that'], x)),
+    lambda x: x <> '' and not list_contains(['a','an','the','of','to','in','on','by','for','and','or','with','as','from','into','at','its','is','it','that'], x)),
   ' ');
 
 create or replace table gk as

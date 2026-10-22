@@ -216,6 +216,134 @@ def chain_require_hash(h, what)
   end
 end
 
+# ── Merkle trees ───────────────────────────────────────────────────
+#
+# A chain proves a whole log; a Merkle tree proves one entry of it, to someone
+# who holds only the root, with log2(n) hashes. The lines follow the chain's
+# rules, with their own tags so a leaf, a node and a link are never confused:
+#
+#   leaf   "blue-merkle/v1/leaf\n" + payload
+#   node   "blue-merkle/v1/node\n" + left + "\n" + right
+#   empty  "blue-merkle/v1/empty"
+#
+# Leaves pair left to right. An odd node at the end of a level moves up
+# unpaired, so no hash is ever duplicated (the Bitcoin tree duplicates it, and
+# then two different lists share a root). A proof is a list of [side, hash]
+# steps from the leaf up: "L" when the sibling sits on the left. An auditor
+# replays it with b3sum and no blue. To write one as JSON, make each step an
+# object: blue's JSON reads a list of [text, value] pairs as an object.
+
+# The leaf hash of a payload (a string).
+def merkle_leaf(payload)
+  if string?(payload)
+    hash_message("blue-merkle/v1/leaf\n#{payload}")
+  else
+    raise(:merkle, "a merkle payload must be a string; serialize it first")
+  end
+end
+
+# The node hash over two child hashes, left then right.
+def merkle_node(left, right)
+  chain_require_hash(left, "the left hash")
+  chain_require_hash(right, "the right hash")
+  hash_message("blue-merkle/v1/node\n#{left}\n#{right}")
+end
+
+# The root over the payloads in order; the empty root for none.
+def merkle_root(payloads)
+  if is_empty(payloads)
+    hash_message("blue-merkle/v1/empty")
+  else
+    merkle_top(map(merkle_leaf, payloads))
+  end
+end
+
+# The proof that payload `index` is in the tree: [side, hash] steps, leaf up.
+def merkle_proof(payloads, index)
+  if not (integer?(index) and index >= 0 and index < size(payloads))
+    raise(:merkle, "the index must name one of the payloads")
+  end
+  merkle_path(map(merkle_leaf, payloads), index, [])
+end
+
+# True when the proof climbs from the payload's leaf to `root`. A step with a
+# side other than "L" or "R", or a hash of the wrong shape, raises.
+def merkle_verify(root, payload, proof)
+  chain_require_hash(root, "the root")
+  reduce(merkle_climb, merkle_leaf(payload), proof) == root
+end
+
+# The one hash a level of one node is.
+def merkle_top(level)
+  if size(level) == 1
+    first(level)
+  else
+    merkle_top(merkle_up(level))
+  end
+end
+
+# The next level up: each pair joined, an odd last node carried as it is.
+def merkle_up(level)
+  map((i) -> merkle_pair(level, i), range(0, floor((size(level) + 1) / 2)))
+end
+
+# The parent of the pair starting at 2i, or the lone node when it has no pair.
+def merkle_pair(level, i)
+  right = chain_at(2 * i + 1, level)
+  if right == nil
+    nth(2 * i, level)
+  else
+    merkle_node(nth(2 * i, level), right)
+  end
+end
+
+# The proof steps from position `i` of `level` to the top, `acc` reversed.
+def merkle_path(level, i, acc)
+  if size(level) == 1
+    reverse(acc)
+  else
+    merkle_path(
+      merkle_up(level),
+      floor(i / 2),
+      merkle_push(merkle_step(level, i), acc)
+    )
+  end
+end
+
+# The sibling of position `i` as a proof step, or nil when it has none.
+def merkle_step(level, i)
+  if i % 2 == 1
+    ["L", nth(i - 1, level)]
+  else
+    merkle_side("R", chain_at(i + 1, level))
+  end
+end
+
+def merkle_side(side, h)
+  if h != nil
+    [side, h]
+  end
+end
+
+def merkle_push(step, acc)
+  if step == nil
+    acc
+  else
+    cons(step, acc)
+  end
+end
+
+# One step up a proof: the running hash joined with the step's sibling.
+def merkle_climb(h, step)
+  if first(step) == "L"
+    merkle_node(nth(1, step), h)
+  elsif first(step) == "R"
+    merkle_node(h, nth(1, step))
+  else
+    raise(:merkle, "a proof step's side must be \"L\" or \"R\"")
+  end
+end
+
 # ── tests ──────────────────────────────────────────────────────────
 #
 # Oracles, all outside this package: RFC 8032 §7.1 (Ed25519), BLAKE3's official
@@ -370,4 +498,65 @@ test "a link refuses a previous hash or payload it cannot place"
   assert (chain_link(g, 42) rescue :raised) == :raised
   assert (chain_verify(g, [], "not a head") rescue :raised) == :raised
   assert (chain_genesis(nil) rescue :raised) == :raised
+end
+
+test "merkle values match b3sum over the three documented lines"
+  la = "d6f59f937f1a20df8ffe84872b79005f6a3cf8a799dba3795247ff2d6f2bfbca"
+  lb = "2519d16b7f5b5e538c69a7a37820024b75462a429b675f17c1369ff3f504a8ac"
+  lc = "eb4773482ec97958492c784c9fa2a8f247bb1a9657710c9e4a2e1118a9deaf3f"
+  nab = "f5a5d8aff2c96f3abd9d097277b4dde881f23bae1f05ee31b2d3e064c6d9c81b"
+  assert merkle_leaf("a") == la
+  assert merkle_leaf("b") == lb
+  assert merkle_node(la, lb) == nab
+  assert merkle_root(["a", "b"]) == nab
+  assert merkle_root(["a", "b", "c"]) ==
+    "b48d08dfd84e110f9790ac8bb31b50aedb753ff315ad2db75dd812b8fba02251"
+  assert merkle_proof(["a", "b", "c"], 2) == [["L", nab]]
+  assert merkle_proof(["a", "b", "c"], 0) == [["R", lb], ["R", lc]]
+end
+
+test "the empty tree, a single leaf, and a leaf never equal to a node or link"
+  assert merkle_root([]) ==
+    "e0e9879448ec201f6ccd55c9bc3b9970074f37d1e34dc7b80f15d4d046f5c388"
+  assert merkle_root(["a"]) == merkle_leaf("a")
+  assert merkle_proof(["a"], 0) == []
+  assert merkle_verify(merkle_root(["a"]), "a", [])
+  assert merkle_leaf("a") != hash_message("a")
+  assert merkle_leaf("a") != chain_link(chain_genesis(""), "a")
+end
+
+test "every proof of every tree from 1 to 9 leaves verifies"
+  events = (n) -> map((i) -> "event-#{i}", range(0, n))
+  proves = fn(xs)
+    every?(
+      (i) -> merkle_verify(merkle_root(xs), nth(i, xs), merkle_proof(xs, i)),
+      range(0, size(xs))
+    )
+  end
+  assert every?((n) -> proves(events(n)), range(1, 10))
+end
+
+test "a changed payload, a swapped proof or a reordered list breaks the root"
+  xs = ["a", "b", "c", "d", "e"]
+  root = merkle_root(xs)
+  assert not merkle_verify(root, "X", merkle_proof(xs, 1))
+  assert not merkle_verify(root, "b", merkle_proof(xs, 2))
+  assert merkle_root(["b", "a", "c", "d", "e"]) != root
+  assert merkle_root(["a", "b", "c", "d"]) != root
+  assert merkle_root(["a", "b", "c", "d", "e", "e"]) != root
+end
+
+test "merkle refuses what it cannot place"
+  assert (merkle_leaf(42) rescue :raised) == :raised
+  assert (merkle_node("abc", merkle_leaf("a")) rescue :raised) == :raised
+  assert (merkle_proof(["a"], 1) rescue :raised) == :raised
+  assert (merkle_proof(["a"], -1) rescue :raised) == :raised
+  assert (merkle_verify("nope", "a", []) rescue :raised) == :raised
+  assert (merkle_verify(
+    merkle_root(["a", "b"]),
+    "a",
+    [["X", merkle_leaf("b")]]
+  ) rescue
+    :raised) ==
+    :raised
 end

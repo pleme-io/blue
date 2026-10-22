@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:25f3a68f3203de13f1b8aa0fd013e4d8a64d65c614ba37b0815b88b47507d472",
+  "bluefile_b3": "b3:cec14817d96f12a83d0fc510daacc062da5576d09f9dfac2f302818ede1d6f88",
   "manifest": {
     "schema": 1,
     "name": "shomei",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "kazu": "^0.1.0",
       "retsu": "^0.1.0"

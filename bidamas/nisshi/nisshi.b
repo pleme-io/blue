@@ -401,6 +401,8 @@ def canon(v)
     json_stringify(v)
   elsif number?(v)
     canon_float(v)
+  elsif empty_object?(v)
+    "{}"
   elsif keyword?(v) or symbol?(v)
     raise(
       :eventlog_value,
@@ -2527,4 +2529,12 @@ test "the state as of a time: the records at or before it, folded as read folds 
   )
   rm(p)
   rm(q)
+end
+
+test "canon takes back every value json_parse gives, the empty object included"
+  assert canon(json_parse("{}")) == "{}"
+  assert canon(json_parse("{\"b\": {}, \"a\": [{}]}")) ==
+    "{\"a\":[{}],\"b\":{}}"
+  assert canon(json_parse("[]")) == "[]"
+  assert (canon({a: 1}) rescue :raised) == :raised
 end

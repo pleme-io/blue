@@ -1,5 +1,6 @@
 use blue_lang_host::{
-    host, host_effect_names, Arity, Budget, CallError, Entry, Error, Host, NoLoader, Program, Value,
+    host, host_effect_names, Arity, Budget, CallError, Canonical, Entry, Error, Host, NoLoader,
+    Program, Value,
 };
 
 #[derive(Default)]
@@ -266,4 +267,21 @@ fn a_str_parameter_borrows_and_a_domain_parameter_reads_a_map() {
     assert_eq!(host.seen, ["ab", "c"]);
     let err = p.call::<i64>("bad", (), &mut host).unwrap_err().to_string();
     assert!(err.contains("shelf_store") && err.contains("sise"), "{err}");
+}
+
+#[test]
+fn a_program_that_is_not_canonical_is_refused_unless_the_host_says_as_written() {
+    let src = "def f\n  1\nend\n";
+    let mut host = ();
+    let Err(err) = Program::<()>::load_with(Entry::anonymous(src), &NoLoader, &mut host) else {
+        panic!("a non-canonical program loaded");
+    };
+    assert!(matches!(err, Error::NotCanonical(_)), "{err}");
+    assert!(err.to_string().contains("blue fmt --write"), "{err}");
+    let mut p = Program::<()>::builder(Entry::anonymous(src))
+        .loader(&NoLoader)
+        .canonical(Canonical::AsWritten)
+        .load(&mut host)
+        .unwrap();
+    assert_eq!(p.call::<i64>("f", (), &mut host).unwrap(), 1);
 }

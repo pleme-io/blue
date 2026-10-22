@@ -100,6 +100,21 @@ pub fn admit(path: &Path, text: String) -> Result<String, Refusal> {
 }
 
 #[must_use]
+pub fn require(label: &str, text: &str) -> Result<(), Refusal> {
+    let formatted =
+        blue_lang_fmt::format_source_lossless(text).map_err(|e| Refusal::Unformattable {
+            path: label.to_owned(),
+            reason: e.to_string(),
+        })?;
+    if formatted.trim_end() == text.trim_end() {
+        return Ok(());
+    }
+    Err(Refusal::NotFormatted {
+        path: label.to_owned(),
+        why: rules_named(text),
+    })
+}
+
 pub fn rules_named(text: &str) -> String {
     let diagnostics = blue_lang_runtime::pipeline::form_diagnostics(text);
     if diagnostics.is_empty() {

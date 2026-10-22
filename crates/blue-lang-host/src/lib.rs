@@ -59,6 +59,7 @@ pub struct Load<'a, H: Host> {
     loader: &'a dyn Loader,
     extensions: Vec<Extension<'a, H>>,
     frame: Option<(&'a dyn Fn(&str) -> bool, Budget)>,
+    canonical: Canonical,
 }
 
 impl<'a, H: Host> Load<'a, H> {
@@ -75,12 +76,25 @@ impl<'a, H: Host> Load<'a, H> {
     }
 
     #[must_use]
+    pub fn canonical(mut self, canonical: Canonical) -> Self {
+        self.canonical = canonical;
+        self
+    }
+
+    #[must_use]
     pub fn frame(mut self, permits: &'a dyn Fn(&str) -> bool, budget: Budget) -> Self {
         self.frame = Some((permits, budget));
         self
     }
 
     pub fn load(self, host: &mut H) -> Result<Program<H>, Error> {
+        if self.canonical == Canonical::Required {
+            let label = self.entry.path.map_or_else(
+                || "the host's entry program".to_owned(),
+                |p| p.display().to_string(),
+            );
+            blue_lang_pkg::canonical::require(&label, self.entry.text)?;
+        }
         let extensions = self.extensions;
         let install = move |interp: &mut Interpreter<H>| {
             H::install(interp);
@@ -103,8 +117,17 @@ impl<'a, H: Host> Load<'a, H> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Canonical {
+    #[default]
+    Required,
+    AsWritten,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    NotCanonical(#[from] blue_lang_pkg::canonical::Refusal),
     #[error(transparent)]
     Load(#[from] RunError),
     #[error(transparent)]
@@ -163,6 +186,7 @@ impl<H: Host> Program<H> {
             loader,
             extensions: Vec::new(),
             frame: None,
+            canonical: Canonical::Required,
         }
     }
 
@@ -172,8 +196,7 @@ impl<H: Host> Program<H> {
     }
 
     pub fn load_with(entry: Entry<'_>, loader: &dyn Loader, host: &mut H) -> Result<Self, Error> {
-        let hosted = blue_lang_runtime::hosted::load_hosted(entry, loader, host, H::install)?;
-        Ok(Self { hosted })
+        Self::builder(entry).loader(loader).load(host)
     }
 
     pub fn load_in_frame(
@@ -183,15 +206,10 @@ impl<H: Host> Program<H> {
         permits: &dyn Fn(&str) -> bool,
         budget: Budget,
     ) -> Result<Self, Error> {
-        let hosted = blue_lang_runtime::hosted::load_hosted_in_frame(
-            entry,
-            loader,
-            host,
-            H::install,
-            permits,
-            budget,
-        )?;
-        Ok(Self { hosted })
+        Self::builder(entry)
+            .loader(loader)
+            .frame(permits, budget)
+            .load(host)
     }
 
     #[must_use]

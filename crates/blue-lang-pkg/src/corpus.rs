@@ -14,9 +14,10 @@ pub const FIXTURE_DISTRIBUTIONS: &[&str] = &["spec/bidamas"];
 
 /// Directories of `.b` DATA, relative to the root: `spec/rows/*.b` are row
 /// declarations (`row(…)`, `value(…)`) whose words only the conformance
-/// runner binds. They are formatted like every `.b` file, and are not
-/// programs to check.
-pub const DATA_DIRECTORIES: &[&str] = &["spec/rows"];
+/// runner binds, and `bidamas/mokuroku/graph/*.b` are verb-graph rows
+/// (`verb(…)`, `edge(…)`) that only mokuroku's reader accepts. They are
+/// formatted like every `.b` file, and are not programs to check.
+pub const DATA_DIRECTORIES: &[&str] = &["spec/rows", "bidamas/mokuroku/graph"];
 
 /// Every `.b` file under `root`, sorted: `target/`, dot directories,
 /// symlinks (a `result` into the store), [`FIXTURE_DISTRIBUTIONS`] and

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ac9e3d09e675a8b24d96065245f03888c0ed644027a9d5e335e31714955a6b9a",
+  "bluefile_b3": "b3:cb7ba928f7dbbb0e536b9bc4e3c7a8aa4c0d4a22567149b7a974e27256b9cb1b",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -22,6 +22,9 @@
       },
       "project-rules": {
         "file": "rules/conventions.b"
+      },
+      "verb-graph": {
+        "file": "gen/verb-graph.b"
       }
     },
     "apps": {},

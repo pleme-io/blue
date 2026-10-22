@@ -65,6 +65,8 @@ mod census;
 
 /// `blue migrate`'s program: blue, over builtins only.
 const MIGRATE: &str = include_str!("../blue/migrate.b");
+
+const VERBS: &str = include_str!("../blue/verbs.b");
 mod config;
 mod deploy;
 mod diagnostics;
@@ -213,6 +215,15 @@ enum Cmd {
         /// `doc.b` reads a builtin's example from.
         #[arg(long, hide = true)]
         rows: bool,
+    },
+    /// The verb graph (`bidamas/mokuroku/graph`): `import` region or merged
+    /// TSVs into its row files, `export` them back to TSV (the only writer of
+    /// TSV), `check` its gates against the recorded baseline, `findings` of a
+    /// TSV directory. The tool is the blue program
+    /// `crates/blue-lang-cli/blue/verbs.b`, compiled into this binary.
+    Verbs {
+        #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
     /// How a bare NAME resolves at FILE:LINE: every tier of the resolution
     /// order, what each holds, and which wins.
@@ -767,6 +778,26 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 blue_lang_runtime::uses::Entry {
                     path: Some(Path::new("crates/blue-lang-cli/blue/doc.b")),
                     text: doc::PROGRAM,
+                },
+                blue_lang_runtime::inputs::Inputs::new(),
+                &blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),
+                None,
+            )?;
+            Ok(
+                if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
+                    ExitCode::FAILURE
+                } else {
+                    ExitCode::SUCCESS
+                },
+            )
+        }
+
+        Cmd::Verbs { args } => {
+            blue_lang_runtime::sys::set_program_args(args);
+            let out = blue_lang_runtime::pipeline::run_in_surface(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(Path::new("crates/blue-lang-cli/blue/verbs.b")),
+                    text: VERBS,
                 },
                 blue_lang_runtime::inputs::Inputs::new(),
                 &blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),

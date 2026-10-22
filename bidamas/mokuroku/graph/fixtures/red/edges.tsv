@@ -1,0 +1,9 @@
+from	rel	to	why
+deeta::read	composes	fairu::read	text comes from the file
+a::x	composes	a::y	a cycle, one way
+a::y	composes	a::x	a cycle, the other way
+fairu::write	requires	deeta::read	a verb waiting on a later wave
+fairu::rd	composes	fairu::read	an endpoint that is no verb
+fairu::read	frobs	fairu::write	a relation outside the closed set
+jisho::put	inverse	jisho::delete	undoes
+jisho::put	inverse	jisho::has?	a second partner

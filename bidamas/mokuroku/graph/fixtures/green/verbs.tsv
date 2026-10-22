@@ -1,0 +1,9 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave	contract_shape	conforms
+T	fairu	read	effect	read(source, opts) -> text	error	-	absent	whole content of a file	1	read(source, opts) -> text	yes
+T	fairu	write	effect	write(target, content) -> nil	error	-	absent	replace a file with content	1	write(target, content) -> nil	yes
+T	deeta	read	pure	read(source, opts) -> value	-	-	absent	text parsed into a value	2	read(source, opts) -> value	yes
+T	a	x	pure	x(value) -> value	-	-	absent	the first thing	0	x(value) -> value	yes
+T	a	y	pure	y(value) -> value	-	-	absent	the second thing	0	y(value) -> value	yes
+T	jisho	put	pure	put(store, key, value) -> store	-	-	absent	set a key to a value	1	put(store, key, value) -> store	yes
+T	jisho	delete	pure	delete(store, key) -> store	-	-	absent	remove a key	1	delete(store, key) -> store	yes
+T	jisho	has?	pure	has?(store, key) -> Bool	-	-	absent	whether a key is present	1	has?(store, key) -> Bool	yes

@@ -1,0 +1,162 @@
+space("kyohi", {status: :ratified})
+
+verb(
+  "kyohi",
+  "check",
+  {
+    kind: :pure,
+    shape: "check(refusals) -> nil",
+    laterals: ["error", "validate"],
+    fleet: nil,
+    today: "partial:kyohi",
+    meaning: "raise one error carrying every refusal, or return nil",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "exit_status",
+  {
+    kind: :pure,
+    shape: "exit_status(kind) -> int",
+    laterals: ["error"],
+    fleet: nil,
+    today: "absent",
+    meaning: "exit status the ledger gives a kind",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "kind",
+  {
+    kind: :pure,
+    shape: "kind(refusal) -> keyword",
+    laterals: ["error"],
+    fleet: nil,
+    today: "exists:kyohi",
+    meaning: "what was refused",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "kinds",
+  {
+    kind: :pure,
+    shape: "kinds(refusals) -> [keyword]",
+    laterals: ["error"],
+    fleet: nil,
+    today: "exists:kyohi",
+    meaning: "the kind of each refusal, in order",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "ledger",
+  {
+    kind: :decl,
+    shape: "ledger() -> [record]",
+    laterals: ["config", "error"],
+    fleet: nil,
+    today: "absent",
+    meaning: "the closed list of error kinds with status and retry",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "refusal",
+  {
+    kind: :pure,
+    shape: "refusal(kind, why) -> refusal",
+    laterals: ["error"],
+    fleet: nil,
+    today: "exists:kyohi",
+    meaning: "a refusal of one kind with its reason",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "retryable?",
+  {
+    kind: :pure,
+    shape: "retryable?(kind) -> Bool",
+    laterals: ["error", "retry"],
+    fleet: nil,
+    today: "absent",
+    meaning: "the ledger marks the kind worth retrying",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "standing",
+  {
+    kind: :pure,
+    shape: "standing(entries, marks) -> [entry]",
+    laterals: ["error"],
+    fleet: nil,
+    today: "exists:kyohi",
+    meaning: "entries not refused",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+verb(
+  "kyohi",
+  "why",
+  {
+    kind: :pure,
+    shape: "why(refusal) -> text",
+    laterals: ["error"],
+    fleet: nil,
+    today: "exists:kyohi",
+    meaning: "why it was refused",
+    wave: 0,
+    origin: "D"
+  }
+)
+
+edge("kyohi::check", :composes, "kyohi::kinds", "one error carries all kinds")
+
+edge(
+  "kyohi::ledger",
+  :generalizes,
+  "kyohi::kind",
+  "kinds with status and retry"
+)
+
+edge("kyohi::ledger", :guards, "kengen?::permit", "denied is a ledger kind")
+edge("kyohi::kinds", :lifts, "kyohi::kind", "kind of each refusal")
+edge("kyohi::refusal", :pairs, "kyohi::kind", "a refusal has a kind")
+edge("kyohi::standing", :refines, "kyohi::check", "entries left standing")
+
+edge(
+  "kyohi::exit_status",
+  :requires,
+  "kyohi::ledger",
+  "reads the status column"
+)
+
+edge("kyohi::retryable?", :requires, "kyohi::ledger", "reads the retry column")
+edge("kyohi::check", :requires, "kyohi::refusal", "collects refusals")
+edge("kyohi::kind", :requires, "kyohi::refusal", "reads a refusal")
+edge("kyohi::why", :requires, "kyohi::refusal", "reads a refusal")

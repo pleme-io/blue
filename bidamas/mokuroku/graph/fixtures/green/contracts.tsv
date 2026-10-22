@@ -1,0 +1,9 @@
+verb	subject	args	opts	returns	raises	kind	meaning	stdlib_ref	status
+read	source	source	yes	text	not_found	effect	the whole content of a source	-	decided
+write	target	target,content	no	nil		effect	content put into a target	-	decided
+slurp	source	source	yes	text		effect	a source slurped whole	-	decided
+x	value	value	no	value		pure	a value	-	decided
+y	value	value	no	value		pure	a value	-	decided
+put	store	store,key,value	no	store		pure	a key set in a store	-	decided
+delete	store	store,key	no	store		pure	a key removed from a store	-	decided
+has?	store	store,key	no	Bool		pure	whether a store holds a key	-	decided

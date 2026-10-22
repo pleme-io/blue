@@ -738,7 +738,7 @@ E	haibi	schema	pure	schema(service) -> schema	validate	haibi	exists:haibi	values
 E	haichi?	diff	pure	diff(a, b) -> [change]	config	-	absent	how two environments differ in resolved config	1	diff(a, b) -> [change]	yes
 E	haichi?	freeze	effect	freeze(name, reason) -> nil	capability,idempotent,log	-	absent	stop changes to an environment	3	freeze(name, reason) -> nil	yes
 E	haichi?	get	effect	get(name) -> environment or nil	config	-	absent	one environment's record	1	get(name) -> environment or nil	yes
-E	haichi?	list	effect	list() -> [environment]	config	-	absent	named deploy targets	1		yes
+E	haichi?	list	effect	list() -> [environment]	config	-	absent	named deploy targets	1	list() -> [environment]	yes
 E	haichi?	need	effect	need(name) -> environment	config	-	absent	one environment, raises when absent	1	need(name) -> environment	yes
 E	haichi?	path	pure	path(name) -> [environment]	-	-	absent	environments a change passes through in order	2	path(name, from, to, opts) -> [environment]	no
 E	haichi?	promote	effect	promote(change, from, to) -> change	log,switch	-	absent	carry a pinned change to the next environment	2	promote(change, from, opts) -> change	no
@@ -932,7 +932,7 @@ A	jikan	minutes	pure	minutes(n) -> duration	time	-	absent	duration of n minutes	
 A	jikan	month	pure	month(instant) -> int	time	-	partial:hizuke	calendar month, 1 to 12	1		na
 A	jikan	months	pure	months(n) -> span	time	-	partial:hizuke	calendar span; add respects month lengths	1		na
 A	jikan	next	pure	next(schedule, after) -> instant or nil	time	-	absent	first occurrence strictly after an instant	2	next(schedule, after) -> instant or nil	yes
-A	jikan	now	effect	now() -> instant	capability,time	tatara-lisp-script	rust:blue-lang-runtime	the current instant	0		no
+A	jikan	now	effect	now() -> instant	capability,time	tatara-lisp-script	rust:blue-lang-runtime	the current instant	0	now() -> instant	yes
 A	jikan	occurrences	pure	occurrences(schedule, range) -> [instant]	time	-	absent	every occurrence inside a range, sorted	2		na
 A	jikan	offset	pure	offset(name, instant) -> seconds	error,time	-	absent	zone offset from UTC at that moment	2	offset(name, instant) -> seconds	yes
 A	jikan	parse	pure	parse(text, format, opts) -> instant	error,time	-	absent	text to instant: rfc3339, date, human, pattern	1	parse(text, format, opts) -> instant	yes
@@ -1510,7 +1510,7 @@ D	kyohi	check	pure	check(refusals) -> nil	error,validate	-	partial:kyohi	raise o
 D	kyohi	exit_status	pure	exit_status(kind) -> int	error	-	absent	exit status the ledger gives a kind	0	exit_status(kind) -> int	yes
 D	kyohi	kind	pure	kind(refusal) -> keyword	error	-	exists:kyohi	what was refused	0	kind(refusal) -> keyword	yes
 D	kyohi	kinds	pure	kinds(refusals) -> [keyword]	error	-	exists:kyohi	the kind of each refusal, in order	0		na
-D	kyohi	ledger	decl	ledger() -> [record]	config,error	-	absent	the closed list of error kinds with status and retry	0		yes
+D	kyohi	ledger	decl	ledger() -> [record]	config,error	-	absent	the closed list of error kinds with status and retry	0	ledger() -> [record]	yes
 D	kyohi	refusal	pure	refusal(kind, why) -> refusal	error	-	exists:kyohi	a refusal of one kind with its reason	0		na
 D	kyohi	retryable?	pure	retryable?(kind) -> Bool	error,retry	-	absent	the ledger marks the kind worth retrying	0		na
 D	kyohi	standing	pure	standing(entries, marks) -> [entry]	error	-	exists:kyohi	entries not refused	0		na

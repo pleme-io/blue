@@ -1,4 +1,12 @@
+use("deeta", [:get_or])
+
+use("hadome", [:failures, :measurement, :parse, :render, :shrunk])
+
 use("junjo", [:sort_by])
+
+use("kiwari", [:scm_string])
+
+use("kyohi", [:kinds, :refusal, :why])
 
 use(
   "retsu",
@@ -12,8 +20,10 @@ use(
     :is_empty,
     :last,
     :push,
+    :reject,
     :rest,
     :size,
+    :slice,
     :take_while
   ]
 )
@@ -520,6 +530,1592 @@ def write_catalog(path)
   )
 end
 
+# ── the verb graph ──────────────────────────────────────────────────────────
+
+def row_space?(c)
+  c == " " or c == "\n" or c == "\t"
+end
+
+def row_digit?(c)
+  contains?("0123456789", c)
+end
+
+def row_ident_char?(c)
+  contains?("abcdefghijklmnopqrstuvwxyz0123456789_?!", c)
+end
+
+def row_skip(cs, i, n)
+  if i < n and row_space?(nth(i, cs))
+    row_skip(cs, i + 1, n)
+  else
+    i
+  end
+end
+
+def row_ident_end(cs, i, n)
+  if i < n and row_ident_char?(nth(i, cs))
+    row_ident_end(cs, i + 1, n)
+  else
+    i
+  end
+end
+
+def row_digits_end(cs, i, n)
+  if i < n and row_digit?(nth(i, cs))
+    row_digits_end(cs, i + 1, n)
+  else
+    i
+  end
+end
+
+def row_text(cs, from, to)
+  join(slice(cs, from, to - from), "")
+end
+
+def row_fail(cs, i, why)
+  line = 1 + count_where((c) -> c == "\n", take(i, cs))
+  raise(:row_syntax, "line #{to_s(line)}: #{why}")
+end
+
+def row_symbol?(v)
+  list?(v) and size(v) == 2 and first(v) == :symbol
+end
+
+def row_plain(v)
+  if row_symbol?(v)
+    nth(1, v)
+  else
+    v
+  end
+end
+
+def row_string(cs, i, n, from, acc)
+  if i >= n
+    row_fail(cs, from, "a string is not closed")
+  else
+    c = nth(i, cs)
+    if c == "\""
+      [join(acc, ""), i + 1]
+    elsif c == "\\"
+      d = if i + 1 < n
+        nth(i + 1, cs)
+      else
+        ""
+      end
+      if d == "\"" or d == "\\"
+        row_string(cs, i + 2, n, from, push(acc, d))
+      else
+        row_fail(cs, i, "a string holds the escapes \\\" and \\\\ only")
+      end
+    elsif c == "\n"
+      row_fail(cs, i, "a string holds no line break")
+    else
+      row_string(cs, i + 1, n, from, push(acc, c))
+    end
+  end
+end
+
+def row_number(cs, i, n)
+  from = if nth(i, cs) == "-"
+    i + 1
+  else
+    i
+  end
+  e = row_digits_end(cs, from, n)
+  if e == from
+    row_fail(cs, i, "a number is digits, with a leading - for a negative one")
+  else
+    [to_int(row_text(cs, i, e)), e]
+  end
+end
+
+def row_word_value(cs, i, n)
+  e = row_ident_end(cs, i, n)
+  w = row_text(cs, i, e)
+  if w == "nil"
+    [nil, e]
+  elsif w == "true"
+    [true, e]
+  elsif w == "false"
+    [false, e]
+  else
+    row_fail(
+      cs,
+      i,
+      "`#{w}` is no value: a row holds strings, symbols, numbers, nil, true, false, lists and maps"
+    )
+  end
+end
+
+def row_items(cs, i, n, close, acc)
+  j = row_skip(cs, i, n)
+  if j < n and nth(j, cs) == close
+    [acc, j + 1]
+  else
+    r = row_value(cs, j, n)
+    k = row_skip(cs, nth(1, r), n)
+    if k < n and nth(k, cs) == ","
+      row_items(cs, k + 1, n, close, push(acc, nth(0, r)))
+    elsif k < n and nth(k, cs) == close
+      [push(acc, nth(0, r)), k + 1]
+    else
+      row_fail(cs, k, "expected `,` or `#{close}`")
+    end
+  end
+end
+
+def row_entries(cs, i, n, acc)
+  j = row_skip(cs, i, n)
+  if j < n and nth(j, cs) == "}"
+    [acc, j + 1]
+  else
+    e = row_ident_end(cs, j, n)
+    if e == j or e >= n or nth(e, cs) != ":"
+      row_fail(cs, j, "a map entry is `name: value`")
+    else
+      key = row_text(cs, j, e)
+      if member?(key, map(first, map_entries(acc)))
+        row_fail(cs, j, "the key `#{key}` is written twice")
+      else
+        r = row_value(cs, e + 1, n)
+        k = row_skip(cs, nth(1, r), n)
+        grown = assoc(acc, key, nth(0, r))
+        if k < n and nth(k, cs) == ","
+          row_entries(cs, k + 1, n, grown)
+        elsif k < n and nth(k, cs) == "}"
+          [grown, k + 1]
+        else
+          row_fail(cs, k, "expected `,` or `}`")
+        end
+      end
+    end
+  end
+end
+
+def row_value(cs, i, n)
+  j = row_skip(cs, i, n)
+  if j >= n
+    row_fail(cs, j, "a value is missing")
+  else
+    c = nth(j, cs)
+    if c == "\""
+      row_string(cs, j + 1, n, j + 1, [])
+    elsif c == ":"
+      e = row_ident_end(cs, j + 1, n)
+      if e == j + 1
+        row_fail(cs, j, "a symbol has a name")
+      else
+        [[:symbol, row_text(cs, j + 1, e)], e]
+      end
+    elsif c == "["
+      row_items(cs, j + 1, n, "]", [])
+    elsif c == "{"
+      row_entries(cs, j + 1, n, {})
+    elsif row_digit?(c) or c == "-"
+      row_number(cs, j, n)
+    else
+      row_word_value(cs, j, n)
+    end
+  end
+end
+
+def row_forms_from(cs, i, n, acc)
+  j = row_skip(cs, i, n)
+  if j >= n
+    acc
+  else
+    e = row_ident_end(cs, j, n)
+    if e == j or e >= n or nth(e, cs) != "("
+      row_fail(cs, j, "a row is `word(arguments)`")
+    else
+      r = row_items(cs, e + 1, n, ")", [])
+      row_forms_from(
+        cs,
+        nth(1, r),
+        n,
+        push(acc, {word: row_text(cs, j, e), args: nth(0, r)})
+      )
+    end
+  end
+end
+
+def row_forms(text)
+  cs = chars(text)
+  row_forms_from(cs, 0, size(cs), [])
+end
+
+def row_specs()
+  {
+    "space" => {
+      pos: [["name", "str"]],
+      fields: [
+        ["status", "sym:ratified,provisional", true, nil],
+        ["gloss", "strnil", false, nil]
+      ]
+    },
+    "verb" => {
+      pos: [["space", "str"], ["verb", "str"]],
+      fields: [
+        ["kind", "sym:pure,effect,stream,decl", true, nil],
+        ["shape", "str", true, nil],
+        ["laterals", "strs", true, nil],
+        ["fleet", "strnil", true, nil],
+        ["today", "str", true, nil],
+        ["meaning", "str", true, nil],
+        ["wave", "int", true, nil],
+        ["origin", "str", true, nil],
+        ["contract", "strnil", false, nil],
+        ["enabled", "bool", false, true],
+        ["replaced_by", "strnil", false, nil]
+      ]
+    },
+    "edge" => {
+      pos: [
+        ["from", "str"],
+        ["rel", "sym:#{join(graph_rels, ",")}"],
+        ["to", "str"],
+        ["why", "str"]
+      ],
+      fields: []
+    },
+    "vocab" => {
+      pos: [["verb", "str"]],
+      fields: [
+        ["subject", "str", true, nil],
+        ["args", "strs", true, nil],
+        ["opts", "bool", true, nil],
+        ["returns", "str", true, nil],
+        ["raises", "strs", true, nil],
+        ["kind", "sym:pure,effect,stream,decl,any", true, nil],
+        ["meaning", "str", true, nil],
+        ["ref", "strnil", true, nil],
+        ["status", "sym:stdlib,decided,open", true, nil]
+      ]
+    },
+    "lateral" => {
+      pos: [["name", "str"]],
+      fields: [["battery", "strnil", false, nil]]
+    }
+  }
+end
+
+def graph_rels()
+  [
+    "inverse",
+    "composes",
+    "refines",
+    "generalizes",
+    "requires",
+    "lifts",
+    "guards",
+    "pairs"
+  ]
+end
+
+def row_fits(type, v)
+  if type == "str"
+    string?(v)
+  elsif type == "int"
+    integer?(v)
+  elsif type == "bool"
+    boolean?(v)
+  elsif type == "strnil"
+    v == nil or string?(v)
+  elsif type == "strs"
+    v != nil and list?(v) and every?(string?, v)
+  elsif starts_with?(type, "sym:")
+    row_symbol?(v) and member?(nth(1, v), split(drop_chars_of(type, 4), ","))
+  else
+    false
+  end
+end
+
+def drop_chars_of(s, n)
+  join(drop(n, chars(s)), "")
+end
+
+def row_type_name(type)
+  if starts_with?(type, "sym:")
+    "a symbol, one of #{join(map((s) -> ":#{s}", split(drop_chars_of(type, 4), ",")), ", ")}"
+  elsif type == "str"
+    "a string"
+  elsif type == "int"
+    "a whole number"
+  elsif type == "bool"
+    "true or false"
+  elsif type == "strnil"
+    "a string or nil"
+  else
+    "a list of strings"
+  end
+end
+
+def row_problems(word, spec, args)
+  pos = get(spec, :pos)
+  fields = get(spec, :fields)
+  want = if is_empty(fields)
+    size(pos)
+  else
+    size(pos) + 1
+  end
+  if size(args) != want
+    ["#{word} takes #{to_s(want)} arguments, not #{to_s(size(args))}"]
+  else
+    bad_pos = flat_map(
+      fn(i)
+        p = nth(i, pos)
+        if row_fits(nth(1, p), nth(i, args))
+          []
+        else
+          ["#{nth(0, p)} must be #{row_type_name(nth(1, p))}"]
+        end
+      end,
+      range(0, size(pos))
+    )
+    if is_empty(fields)
+      bad_pos
+    elsif not map?(nth(size(pos), args))
+      concat_lists(bad_pos, ["the last argument is a map"])
+    else
+      m = nth(size(pos), args)
+      known = map(first, fields)
+      stray = map(
+        (k) -> "`#{k}` is no field of #{word}",
+        reject((k) -> member?(k, known), map(first, map_entries(m)))
+      )
+      absent = flat_map(
+        fn(f)
+          if nth(2, f) and not member?(nth(0, f), map(first, map_entries(m)))
+            ["`#{nth(0, f)}` is missing"]
+          else
+            []
+          end
+        end,
+        fields
+      )
+      wrong = flat_map(
+        fn(f)
+          present = member?(nth(0, f), map(first, map_entries(m)))
+          if present and not row_fits(nth(1, f), get(m, nth(0, f)))
+            ["`#{nth(0, f)}` must be #{row_type_name(nth(1, f))}"]
+          else
+            []
+          end
+        end,
+        fields
+      )
+      concat_lists(concat_lists(bad_pos, stray), concat_lists(absent, wrong))
+    end
+  end
+end
+
+def row_values(spec, args)
+  pos = get(spec, :pos)
+  fields = get(spec, :fields)
+  named = reduce(
+    (acc, i) -> assoc(acc, nth(0, nth(i, pos)), row_plain(nth(i, args))),
+    {},
+    range(0, size(pos))
+  )
+  if is_empty(fields)
+    named
+  else
+    m = nth(size(pos), args)
+    reduce(
+      fn(acc, f)
+        if member?(nth(0, f), map(first, map_entries(m)))
+          assoc(acc, nth(0, f), row_plain(get(m, nth(0, f))))
+        else
+          assoc(acc, nth(0, f), nth(3, f))
+        end
+      end,
+      named,
+      fields
+    )
+  end
+end
+
+def row_model(word, v)
+  if word == "space"
+    {
+      word:,
+      name: get(v, "name"),
+      status: get(v, "status"),
+      gloss: get(v, "gloss")
+    }
+  elsif word == "verb"
+    {
+      word:,
+      space: get(v, "space"),
+      verb: get(v, "verb"),
+      kind: get(v, "kind"),
+      shape: get(v, "shape"),
+      laterals: get(v, "laterals"),
+      fleet: get(v, "fleet"),
+      today: get(v, "today"),
+      meaning: get(v, "meaning"),
+      wave: get(v, "wave"),
+      origin: get(v, "origin"),
+      contract: get(v, "contract"),
+      enabled: get(v, "enabled"),
+      replaced_by: get(v, "replaced_by")
+    }
+  elsif word == "edge"
+    {
+      word:,
+      from: get(v, "from"),
+      rel: get(v, "rel"),
+      to: get(v, "to"),
+      why: get(v, "why")
+    }
+  elsif word == "vocab"
+    {
+      word:,
+      verb: get(v, "verb"),
+      subject: get(v, "subject"),
+      args: get(v, "args"),
+      opts: get(v, "opts"),
+      returns: get(v, "returns"),
+      raises: get(v, "raises"),
+      kind: get(v, "kind"),
+      meaning: get(v, "meaning"),
+      ref: get(v, "ref"),
+      status: get(v, "status")
+    }
+  else
+    {word:, name: get(v, "name"), battery: get(v, "battery")}
+  end
+end
+
+def row_of(form)
+  word = get(form, :word)
+  spec = get(row_specs, word)
+  if spec == nil
+    [
+      :unknown_word,
+      "`#{word}` is no row word: the words are #{join(map(first, map_entries(row_specs)), ", ")}"
+    ]
+  else
+    problems = row_problems(word, spec, get(form, :args))
+    if is_empty(problems)
+      row_model(word, row_values(spec, get(form, :args)))
+    else
+      [:bad_row, "#{word}: #{join(problems, "; ")}"]
+    end
+  end
+end
+
+def row_refusal?(r)
+  list?(r) and size(r) == 2 and keyword?(first(r))
+end
+
+def row_node(r)
+  if get(r, :word) == "verb"
+    "#{get(r, :space)}::#{get(r, :verb)}"
+  end
+end
+
+def file_kind(name)
+  if name == "vocab.b"
+    "vocab"
+  elsif name == "laterals.b"
+    "lateral"
+  else
+    "space"
+  end
+end
+
+def file_refusals(name, rows)
+  kind = file_kind(name)
+  words = map((r) -> get(r, :word), rows)
+  stray = map(
+    fn(w)
+      refusal(:misplaced, "#{name}: a `#{w}` row does not belong in this file")
+    end,
+    distinct(
+      reject(
+        (w) -> w == kind or kind == "space" and (w == "verb" or w == "edge"),
+        words
+      )
+    )
+  )
+  if kind != "space"
+    stray
+  else
+    spaces = filter((r) -> get(r, :word) == "space", rows)
+    if size(spaces) != 1
+      concat_lists(
+        stray,
+        [
+          refusal(
+            :misplaced,
+            "#{name}: a space file holds exactly one `space` row, not #{to_s(size(spaces))}"
+          )
+        ]
+      )
+    else
+      s = get(first(spaces), :name)
+      wrong_verbs = map(
+        fn(r)
+          refusal(
+            :misplaced,
+            "#{name}: #{row_node(r)} is a verb of another space than #{s}"
+          )
+        end,
+        filter((r) -> get(r, :word) == "verb" and get(r, :space) != s, rows)
+      )
+      wrong_edges = map(
+        fn(r)
+          refusal(
+            :misplaced,
+            "#{name}: the edge from #{get(r, :from)} belongs in the file of its `from` space, not #{s}"
+          )
+        end,
+        filter(
+          fn(r)
+            get(r, :word) == "edge" and
+              not starts_with?(get(r, :from), "#{s}::")
+          end,
+          rows
+        )
+      )
+      concat_lists(stray, concat_lists(wrong_verbs, wrong_edges))
+    end
+  end
+end
+
+def file_graph(name, text)
+  forms = row_forms(text)
+  made = map(row_of, forms)
+  rows = reject(row_refusal?, made)
+  bad = map(
+    (r) -> refusal(first(r), "#{name}: #{nth(1, r)}"),
+    filter(row_refusal?, made)
+  )
+  {rows:, refusals: concat_lists(bad, file_refusals(name, rows))}
+rescue :row_syntax as e
+  {rows: [], refusals: [refusal(:row_syntax, "#{name}: #{e.message}")]}
+end
+
+def graph_files(dir)
+  sort_keyed(
+    (p) -> p,
+    filter((p) -> ends_with?(p, ".b") and path_dirname(p) == dir, walk_dir(dir))
+  )
+end
+
+def graph_assemble(parts)
+  rows = flat_map((p) -> get(p, :rows), parts)
+  {
+    spaces: filter((r) -> get(r, :word) == "space", rows),
+    verbs: filter((r) -> get(r, :word) == "verb", rows),
+    edges: filter((r) -> get(r, :word) == "edge", rows),
+    vocab: filter((r) -> get(r, :word) == "vocab", rows),
+    laterals: filter((r) -> get(r, :word) == "lateral", rows),
+    refusals: flat_map((p) -> get(p, :refusals), parts)
+  }
+end
+
+def graph_load(dir)
+  graph_assemble(
+    map((p) -> file_graph(path_basename(p), read_file(p)), graph_files(dir))
+  )
+end
+
+def graph_duplicates(g)
+  keyed = fn(label, keys)
+    map(
+      (k) -> refusal(:duplicate, "#{label} #{k} is declared twice"),
+      sort_keyed(
+        (k) -> k,
+        map(
+          first,
+          filter((e) -> nth(1, e) > 1, map_entries(blue::frequencies(keys)))
+        )
+      )
+    )
+  end
+  concat_lists(
+    keyed("verb", map(row_node, get(g, :verbs))),
+    concat_lists(
+      keyed("space", map((s) -> get(s, :name), get(g, :spaces))),
+      concat_lists(
+        keyed("vocab", map((v) -> get(v, :verb), get(g, :vocab))),
+        keyed(
+          "edge",
+          map(
+            (e) -> "#{get(e, :from)} #{get(e, :rel)} #{get(e, :to)}",
+            get(g, :edges)
+          )
+        )
+      )
+    )
+  )
+end
+
+def shape_head(shape)
+  at = text_index(shape, " -> ", 0)
+  if at < 0
+    shape
+  else
+    row_text(chars(shape), 0, at)
+  end
+end
+
+def shape_params(shape)
+  head = shape_head(shape)
+  open = text_index(head, "(", 0)
+  if open < 0 or not ends_with?(head, ")")
+    ""
+  else
+    cs = chars(head)
+    row_text(cs, open + 1, size(cs) - 1)
+  end
+end
+
+def shape_braces?(text)
+  open = text_index(text, "{", 0)
+  open >= 0 and text_index(text, "}", open) >= 0
+end
+
+def shape_collapsed(text)
+  open = text_index(text, "{", 0)
+  if open < 0
+    text
+  else
+    close = text_index(text, "}", open)
+    if close < 0
+      text
+    else
+      cs = chars(text)
+      "#{row_text(cs, 0, open)}{}#{shape_collapsed(row_text(cs, close + 1, size(cs)))}"
+    end
+  end
+end
+
+def shape_names(text)
+  map(trim, split(text, ","))
+end
+
+def shape_positionals(shape)
+  count_where(
+    (x) -> x != "" and x != "opts" and x != "{}",
+    shape_names(shape_collapsed(shape_params(shape)))
+  )
+end
+
+def shape_takes_opts?(shape)
+  member?("opts", shape_names(shape_params(shape))) or
+    shape_braces?(shape_head(shape))
+end
+
+def vocab_by_verb(g)
+  reduce((acc, v) -> assoc(acc, get(v, :verb), v), {}, get(g, :vocab))
+end
+
+def vocab_least(v)
+  count_where(
+    (a) -> not (starts_with?(a, "~") or ends_with?(a, "?")),
+    reject((a) -> a == "", map(trim, get(v, :args)))
+  )
+end
+
+def vocab_most(v)
+  size(reject((a) -> a == "", map(trim, get(v, :args))))
+end
+
+def verb_conforms(shape, v)
+  if v == nil
+    "na"
+  else
+    n = shape_positionals(shape)
+    if n >= vocab_least(v) and
+      n <= vocab_most(v) and
+      (get(v, :opts) or not shape_takes_opts?(shape))
+      "yes"
+    else
+      "no"
+    end
+  end
+end
+
+def verb_contract_shape(row, v)
+  if get(row, :contract) != nil
+    get(row, :contract)
+  elsif v == nil
+    ""
+  else
+    get(row, :shape)
+  end
+end
+
+def verb_contract_default(row, v)
+  if v == nil
+    ""
+  else
+    get(row, :shape)
+  end
+end
+
+def graph_nodes(g)
+  reduce((acc, r) -> assoc(acc, row_node(r), r), {}, get(g, :verbs))
+end
+
+def meaning_stops()
+  [
+    "a",
+    "an",
+    "the",
+    "of",
+    "to",
+    "in",
+    "on",
+    "by",
+    "for",
+    "and",
+    "or",
+    "with",
+    "as",
+    "from",
+    "into",
+    "at",
+    "its",
+    "is",
+    "it",
+    "that"
+  ]
+end
+
+def meaning_tokens(s)
+  letters = "abcdefghijklmnopqrstuvwxyz0123456789"
+  r = reduce(
+    fn(acc, c)
+      if contains?(letters, c)
+        [nth(0, acc), push(nth(1, acc), c)]
+      elsif is_empty(nth(1, acc))
+        acc
+      else
+        [push(nth(0, acc), join(nth(1, acc), "")), []]
+      end
+    end,
+    [[], []],
+    chars(downcase(s))
+  )
+  all = if is_empty(nth(1, r))
+    nth(0, r)
+  else
+    push(nth(0, r), join(nth(1, r), ""))
+  end
+  reject((t) -> member?(t, meaning_stops), all)
+end
+
+def finding(kind, scope, subject)
+  {kind:, scope:, subject:}
+end
+
+def node_space(id)
+  first(split(id, "::"))
+end
+
+def graph_related(g, rels)
+  reduce(
+    fn(acc, e)
+      if member?(get(e, :rel), rels)
+        assoc(
+          assoc(acc, "#{get(e, :from)} #{get(e, :to)}", true),
+          "#{get(e, :to)} #{get(e, :from)}",
+          true
+        )
+      else
+        acc
+      end
+    end,
+    {},
+    get(g, :edges)
+  )
+end
+
+def finds_meaning(g)
+  related = graph_related(g, ["refines", "generalizes", "inverse"])
+  live = filter((r) -> get(r, :enabled), get(g, :verbs))
+  keyed = map(
+    fn(r)
+      [
+        "#{get(r, :space)} #{join(meaning_tokens(get(r, :meaning)), " ")}",
+        row_node(r)
+      ]
+    end,
+    filter((r) -> not is_empty(meaning_tokens(get(r, :meaning))), live)
+  )
+  groups = reduce(
+    fn(acc, k)
+      assoc(acc, nth(0, k), push(get_or(acc, nth(0, k), []), nth(1, k)))
+    end,
+    {},
+    keyed
+  )
+  flat_map(
+    fn(entry)
+      ids = sort_keyed((x) -> x, nth(1, entry))
+      flat_map(
+        fn(i)
+          flat_map(
+            fn(j)
+              a = nth(i, ids)
+              b = nth(j, ids)
+              if get(related, "#{a} #{b}") == true
+                []
+              else
+                [finding("g1-meaning", node_space(a), "#{a} #{b}")]
+              end
+            end,
+            range(i + 1, size(ids))
+          )
+        end,
+        range(0, size(ids))
+      )
+    end,
+    filter((e) -> size(nth(1, e)) > 1, map_entries(groups))
+  )
+end
+
+def finds_vocab(g)
+  known = vocab_by_verb(g)
+  map(
+    (r) -> finding("g2-vocab", get(r, :space), row_node(r)),
+    filter(
+      (r) -> get(r, :enabled) and get(known, get(r, :verb)) == nil,
+      get(g, :verbs)
+    )
+  )
+end
+
+def needs_edges(g)
+  filter((e) -> member?(get(e, :rel), ["composes", "requires"]), get(g, :edges))
+end
+
+def adjacency(edges)
+  reduce(
+    fn(acc, e)
+      assoc(
+        acc,
+        get(e, :from),
+        push(get_or(acc, get(e, :from), []), get(e, :to))
+      )
+    end,
+    {},
+    edges
+  )
+end
+
+def peeled(live, edges)
+  kept = filter(
+    (e) -> get(live, get(e, :from)) == true and get(live, get(e, :to)) == true,
+    edges
+  )
+  heads = reduce((acc, e) -> assoc(acc, get(e, :from), true), {}, kept)
+  tails = reduce((acc, e) -> assoc(acc, get(e, :to), true), {}, kept)
+  next_live = reduce(
+    fn(acc, k)
+      if get(heads, k) == true and get(tails, k) == true
+        assoc(acc, k, true)
+      else
+        acc
+      end
+    end,
+    {},
+    map(first, map_entries(live))
+  )
+  if size(map_entries(next_live)) == size(map_entries(live))
+    live
+  else
+    peeled(next_live, kept)
+  end
+end
+
+def reaches(adj, live, frontier, seen)
+  if is_empty(frontier)
+    seen
+  else
+    nexts = distinct(
+      filter(
+        (t) -> get(live, t) == true and get(seen, t) != true,
+        flat_map((f) -> get_or(adj, f, []), frontier)
+      )
+    )
+    reaches(
+      adj,
+      live,
+      nexts,
+      reduce((acc, t) -> assoc(acc, t, true), seen, nexts)
+    )
+  end
+end
+
+def finds_cycle(g)
+  edges = needs_edges(g)
+  nodes = reduce(
+    (acc, e) -> assoc(assoc(acc, get(e, :from), true), get(e, :to), true),
+    {},
+    edges
+  )
+  live = peeled(nodes, edges)
+  adj = adjacency(filter((e) -> get(live, get(e, :from)) == true, edges))
+  on_cycle = filter(
+    (k) -> get(reaches(adj, live, get_or(adj, k, []), {}), k) == true,
+    sort_keyed((k) -> k, map(first, map_entries(live)))
+  )
+  map((k) -> finding("g4-cycle", node_space(k), k), on_cycle)
+end
+
+def finds_wave(g)
+  nodes = graph_nodes(g)
+  flat_map(
+    fn(e)
+      f = get(nodes, get(e, :from))
+      t = get(nodes, get(e, :to))
+      if f != nil and t != nil and get(t, :wave) > get(f, :wave)
+        [
+          finding(
+            "g4-wave",
+            node_space(get(e, :from)),
+            "#{get(e, :from)} -> #{get(e, :to)}"
+          )
+        ]
+      else
+        []
+      end
+    end,
+    needs_edges(g)
+  )
+end
+
+def finds_inverse(g)
+  pairs = distinct(
+    map(
+      fn(e)
+        a = get(e, :from)
+        b = get(e, :to)
+        if compare(a, b) <= 0
+          [a, b]
+        else
+          [b, a]
+        end
+      end,
+      filter((e) -> get(e, :rel) == "inverse", get(g, :edges))
+    )
+  )
+  partners = reduce(
+    fn(acc, p)
+      a = nth(0, p)
+      b = nth(1, p)
+      assoc(
+        assoc(acc, a, push(get_or(acc, a, []), b)),
+        b,
+        push(get_or(acc, b, []), a)
+      )
+    end,
+    {},
+    pairs
+  )
+  map(
+    (e) -> finding("g7-inverse", node_space(nth(0, e)), nth(0, e)),
+    sort_keyed(
+      (e) -> nth(0, e),
+      filter((e) -> size(distinct(nth(1, e))) > 1, map_entries(partners))
+    )
+  )
+end
+
+def finds_edges(g)
+  nodes = graph_nodes(g)
+  ends = distinct(flat_map((e) -> [get(e, :from), get(e, :to)], get(g, :edges)))
+  dangling = map(
+    (x) -> finding("g9-dangling", node_space(x), x),
+    sort_keyed((x) -> x, filter((x) -> get(nodes, x) == nil, ends))
+  )
+  unknown = map(
+    fn(e)
+      finding(
+        "g9-relation",
+        node_space(get(e, :from)),
+        "#{get(e, :from)} #{get(e, :rel)} #{get(e, :to)}"
+      )
+    end,
+    filter((e) -> not member?(get(e, :rel), graph_rels), get(g, :edges))
+  )
+  concat_lists(dangling, unknown)
+end
+
+def graph_findings(g)
+  sort_keyed(
+    (f) -> "#{get(f, :kind)} #{get(f, :subject)}",
+    concat_lists(
+      concat_lists(finds_meaning(g), finds_vocab(g)),
+      concat_lists(
+        concat_lists(finds_cycle(g), finds_wave(g)),
+        concat_lists(finds_inverse(g), finds_edges(g))
+      )
+    )
+  )
+end
+
+def finding_kinds()
+  [
+    "g1-meaning",
+    "g2-vocab",
+    "g4-cycle",
+    "g4-wave",
+    "g7-inverse",
+    "g9-dangling",
+    "g9-relation"
+  ]
+end
+
+def finding_measurements(findings, kind)
+  counts = reduce(
+    (acc, f) -> assoc(acc, get(f, :scope), get_or(acc, get(f, :scope), 0) + 1),
+    {},
+    filter((f) -> get(f, :kind) == kind, findings)
+  )
+  map(
+    (e) -> measurement(nth(0, e), nth(1, e)),
+    sort_keyed((e) -> nth(0, e), map_entries(counts))
+  )
+end
+
+def graph_baseline(findings)
+  join(
+    map((k) -> render(k, finding_measurements(findings, k)), finding_kinds),
+    ""
+  )
+end
+
+def graph_verdict(findings, baseline_text)
+  rows = parse(baseline_text)
+  flat_map(
+    (k) -> failures(rows, k, finding_measurements(findings, k)),
+    finding_kinds
+  )
+end
+
+def graph_shrunk(findings, baseline_text)
+  rows = parse(baseline_text)
+  flat_map(
+    fn(k)
+      map(
+        (m) -> "#{k}: #{get(m, :key)}",
+        shrunk(rows, k, finding_measurements(findings, k))
+      )
+    end,
+    finding_kinds
+  )
+end
+
+def tsv_lines(text)
+  reject((l) -> l == "", split(text, "\n"))
+end
+
+def tsv_fields(line)
+  split(line, "\t")
+end
+
+def tsv_list(s)
+  if s == "" or s == "-"
+    []
+  else
+    map(trim, split(s, ","))
+  end
+end
+
+def text_safe?(s)
+  not (contains?(s, "\n") or
+    contains?(s, "\t") or
+    contains?(s, concat("#", "{")))
+end
+
+def tsv_table(label, text, header_sets)
+  lines = tsv_lines(text)
+  if is_empty(lines)
+    {rows: [], refusals: [refusal(:tsv_header, "#{label}: no header")]}
+  else
+    header = tsv_fields(first(lines))
+    if not member?(header, header_sets)
+      {
+        rows: [],
+        refusals: [
+          refusal(
+            :tsv_header,
+            "#{label}: the header is `#{join(header, " ")}`, which is no table this reads"
+          )
+        ]
+      }
+    else
+      made = map(
+        fn(i)
+          fields = tsv_fields(nth(i, lines))
+          if size(fields) != size(header)
+            refusal(
+              :tsv_shape,
+              "#{label} line #{to_s(i + 1)}: #{to_s(size(fields))} fields, the header has #{to_s(size(header))}"
+            )
+          elsif not every?(text_safe?, fields)
+            refusal(
+              :unsafe_text,
+              "#{label} line #{to_s(i + 1)}: a field holds a line break, a tab or an interpolation, which no row file holds"
+            )
+          else
+            zipmap(header, fields)
+          end
+        end,
+        range(1, size(lines))
+      )
+      {rows: reject(row_refusal?, made), refusals: filter(row_refusal?, made)}
+    end
+  end
+end
+
+def verb_header()
+  [
+    "region",
+    "space",
+    "verb",
+    "kind",
+    "shape",
+    "laterals",
+    "fleet",
+    "blue_today",
+    "meaning",
+    "wave",
+    "contract_shape",
+    "conforms"
+  ]
+end
+
+def verb_header_region()
+  take(10, verb_header)
+end
+
+def edge_header()
+  ["from", "rel", "to", "why"]
+end
+
+def vocab_header()
+  [
+    "verb",
+    "subject",
+    "args",
+    "opts",
+    "returns",
+    "raises",
+    "kind",
+    "meaning",
+    "stdlib_ref",
+    "status"
+  ]
+end
+
+def tsv_verb(label, c, vocab)
+  v = get(vocab, get(c, "verb"))
+  id = "#{get(c, "space")}::#{get(c, "verb")}"
+  wave = to_int(get(c, "wave"))
+  row = {
+    word: "verb",
+    space: get(c, "space"),
+    verb: get(c, "verb"),
+    kind: get(c, "kind"),
+    shape: get(c, "shape"),
+    laterals: tsv_list(get(c, "laterals")),
+    fleet: if get(c, "fleet") == "-"
+      nil
+    else
+      get(c, "fleet")
+    end,
+    today: get(c, "blue_today"),
+    meaning: get(c, "meaning"),
+    wave:,
+    origin: get(c, "region"),
+    contract: nil,
+    enabled: true,
+    replaced_by: nil
+  }
+  given = get(c, "contract_shape")
+  if wave == nil
+    refusal(
+      :tsv_value,
+      "#{label} #{id}: wave `#{get(c, "wave")}` is no whole number"
+    )
+  elsif not member?(get(row, :kind), ["pure", "effect", "stream", "decl"])
+    refusal(:tsv_value, "#{label} #{id}: kind `#{get(row, :kind)}` is no kind")
+  elsif given == nil
+    row
+  elsif get(c, "conforms") != verb_conforms(get(row, :shape), v)
+    refusal(
+      :derived,
+      "#{label} #{id}: conforms is `#{get(c, "conforms")}` and the shape says `#{verb_conforms(get(row, :shape), v)}`"
+    )
+  elsif given == verb_contract_default(row, v)
+    row
+  else
+    assoc(row, :contract, given)
+  end
+end
+
+def graph_from_tsv(verbs_text, edges_text, vocab_text)
+  vt = tsv_table("vocab", vocab_text, [vocab_header])
+  vocab = map(
+    fn(c)
+      {
+        word: "vocab",
+        verb: get(c, "verb"),
+        subject: get(c, "subject"),
+        args: tsv_list(get(c, "args")),
+        opts: get(c, "opts") == "yes",
+        returns: get_or(c, "returns", ""),
+        raises: tsv_list(get(c, "raises")),
+        kind: get(c, "kind"),
+        meaning: get(c, "meaning"),
+        ref: if get(c, "stdlib_ref") == "-"
+          nil
+        else
+          get(c, "stdlib_ref")
+        end,
+        status: get(c, "status")
+      }
+    end,
+    get(vt, :rows)
+  )
+  by_verb = reduce((acc, v) -> assoc(acc, get(v, :verb), v), {}, vocab)
+  vr = tsv_table("verbs", verbs_text, [verb_header, verb_header_region])
+  verbs_made = map((c) -> tsv_verb("verbs", c, by_verb), get(vr, :rows))
+  et = tsv_table("edges", edges_text, [edge_header])
+  edges = map(
+    fn(c)
+      {
+        word: "edge",
+        from: get(c, "from"),
+        rel: get(c, "rel"),
+        to: get(c, "to"),
+        why: get(c, "why")
+      }
+    end,
+    get(et, :rows)
+  )
+  verbs = reject(row_refusal?, verbs_made)
+  names = distinct(sort_keyed((s) -> s, map((r) -> get(r, :space), verbs)))
+  g = {
+    spaces: map(
+      fn(s)
+        {
+          word: "space",
+          name: s,
+          status: if ends_with?(s, "?")
+            "provisional"
+          else
+            "ratified"
+          end,
+          gloss: nil
+        }
+      end,
+      names
+    ),
+    verbs:,
+    edges:,
+    vocab:,
+    laterals: [],
+    refusals: []
+  }
+  assoc(
+    g,
+    :refusals,
+    concat_lists(
+      concat_lists(get(vt, :refusals), get(vr, :refusals)),
+      concat_lists(
+        filter(row_refusal?, verbs_made),
+        concat_lists(get(et, :refusals), graph_duplicates(g))
+      )
+    )
+  )
+end
+
+def tsv_join(fields)
+  join(fields, "\t")
+end
+
+def tsv_text(header, rows)
+  join(map((r) -> "#{tsv_join(r)}\n", concat_lists([header], rows)), "")
+end
+
+def verbs_tsv(g)
+  by_verb = vocab_by_verb(g)
+  rows = sort_keyed(row_node, get(g, :verbs))
+  tsv_text(
+    verb_header,
+    map(
+      fn(r)
+        v = get(by_verb, get(r, :verb))
+        [
+          get(r, :origin),
+          get(r, :space),
+          get(r, :verb),
+          get(r, :kind),
+          get(r, :shape),
+          if is_empty(get(r, :laterals))
+            "-"
+          else
+            join(get(r, :laterals), ",")
+          end,
+          if get(r, :fleet) == nil
+            "-"
+          else
+            get(r, :fleet)
+          end,
+          get(r, :today),
+          get(r, :meaning),
+          to_s(get(r, :wave)),
+          verb_contract_shape(r, v),
+          verb_conforms(get(r, :shape), v)
+        ]
+      end,
+      rows
+    )
+  )
+end
+
+def edges_tsv(g)
+  tsv_text(
+    edge_header,
+    map(
+      (e) -> [get(e, :from), get(e, :rel), get(e, :to), get(e, :why)],
+      sort_keyed(
+        (e) -> "#{get(e, :from)}\t#{get(e, :rel)}\t#{get(e, :to)}",
+        get(g, :edges)
+      )
+    )
+  )
+end
+
+def vocab_tsv(g)
+  tsv_text(
+    vocab_header,
+    map(
+      fn(v)
+        [
+          get(v, :verb),
+          get(v, :subject),
+          join(get(v, :args), ","),
+          if get(v, :opts)
+            "yes"
+          else
+            "no"
+          end,
+          get(v, :returns),
+          join(get(v, :raises), ","),
+          get(v, :kind),
+          get(v, :meaning),
+          if get(v, :ref) == nil
+            "-"
+          else
+            get(v, :ref)
+          end,
+          get(v, :status)
+        ]
+      end,
+      sort_keyed((v) -> get(v, :verb), get(g, :vocab))
+    )
+  )
+end
+
+def row_strings(xs)
+  "[#{join(map(scm_string, xs), ", ")}]"
+end
+
+def row_scalar(v)
+  if v == nil
+    "nil"
+  elsif boolean?(v) or integer?(v)
+    to_s(v)
+  else
+    scm_string(v)
+  end
+end
+
+def row_fields(pairs)
+  "{#{join(map((p) -> "#{nth(0, p)}: #{nth(1, p)}", pairs), ", ")}}"
+end
+
+def optional_field(name, value)
+  if value == nil
+    []
+  else
+    [[name, value]]
+  end
+end
+
+def verb_fields(r)
+  concat_lists(
+    [
+      ["kind", ":#{get(r, :kind)}"],
+      ["shape", scm_string(get(r, :shape))],
+      ["laterals", row_strings(get(r, :laterals))],
+      ["fleet", row_scalar(get(r, :fleet))],
+      ["today", scm_string(get(r, :today))],
+      ["meaning", scm_string(get(r, :meaning))],
+      ["wave", to_s(get(r, :wave))],
+      ["origin", scm_string(get(r, :origin))]
+    ],
+    concat_lists(
+      optional_field(
+        "contract",
+        if get(r, :contract) == nil
+          nil
+        else
+          scm_string(get(r, :contract))
+        end
+      ),
+      concat_lists(
+        if get(r, :enabled)
+          []
+        else
+          [["enabled", "false"]]
+        end,
+        optional_field(
+          "replaced_by",
+          if get(r, :replaced_by) == nil
+            nil
+          else
+            scm_string(get(r, :replaced_by))
+          end
+        )
+      )
+    )
+  )
+end
+
+def row_source(r)
+  w = get(r, :word)
+  if w == "space"
+    fields = concat_lists(
+      [["status", ":#{get(r, :status)}"]],
+      optional_field(
+        "gloss",
+        if get(r, :gloss) == nil
+          nil
+        else
+          scm_string(get(r, :gloss))
+        end
+      )
+    )
+    "space(#{scm_string(get(r, :name))}, #{row_fields(fields)})"
+  elsif w == "verb"
+    "verb(#{scm_string(get(r, :space))}, #{scm_string(get(r, :verb))}, #{row_fields(verb_fields(r))})"
+  elsif w == "edge"
+    "edge(#{scm_string(get(r, :from))}, :#{get(r, :rel)}, #{scm_string(get(r, :to))}, #{scm_string(get(r, :why))})"
+  elsif w == "vocab"
+    fields = [
+      ["subject", scm_string(get(r, :subject))],
+      ["args", row_strings(get(r, :args))],
+      ["opts", row_scalar(get(r, :opts))],
+      ["returns", scm_string(get(r, :returns))],
+      ["raises", row_strings(get(r, :raises))],
+      ["kind", ":#{get(r, :kind)}"],
+      ["meaning", scm_string(get(r, :meaning))],
+      ["ref", row_scalar(get(r, :ref))],
+      ["status", ":#{get(r, :status)}"]
+    ]
+    "vocab(#{scm_string(get(r, :verb))}, #{row_fields(fields)})"
+  else
+    "lateral(#{scm_string(get(r, :name))}, #{row_fields([["battery", row_scalar(get(r, :battery))]])})"
+  end
+end
+
+def graph_file_name(space)
+  if ends_with?(space, "?")
+    "#{join(take(size(chars(space)) - 1, chars(space)), "")}-provisional.b"
+  else
+    "#{space}.b"
+  end
+end
+
+def space_file_text(g, space)
+  verbs = sort_keyed(
+    (r) -> get(r, :verb),
+    filter((r) -> get(r, :space) == space, get(g, :verbs))
+  )
+  edges = sort_keyed(
+    (e) -> "#{get(e, :rel)}\t#{get(e, :to)}\t#{get(e, :from)}",
+    filter((e) -> node_space(get(e, :from)) == space, get(g, :edges))
+  )
+  s = first(filter((r) -> get(r, :name) == space, get(g, :spaces)))
+  join(
+    map(
+      (r) -> "#{row_source(r)}\n",
+      concat_lists([s], concat_lists(verbs, edges))
+    ),
+    ""
+  )
+end
+
+def graph_writes(g)
+  concat_lists(
+    concat_lists(
+      [
+        [
+          "vocab.b",
+          join(
+            map(
+              (r) -> "#{row_source(r)}\n",
+              sort_keyed((v) -> get(v, :verb), get(g, :vocab))
+            ),
+            ""
+          )
+        ]
+      ],
+      if is_empty(get(g, :laterals))
+        []
+      else
+        [
+          [
+            "laterals.b",
+            join(
+              map(
+                (r) -> "#{row_source(r)}\n",
+                sort_keyed((l) -> get(l, :name), get(g, :laterals))
+              ),
+              ""
+            )
+          ]
+        ]
+      end
+    ),
+    map(
+      fn(s)
+        [graph_file_name(get(s, :name)), space_file_text(g, get(s, :name))]
+      end,
+      sort_keyed((s) -> get(s, :name), get(g, :spaces))
+    )
+  )
+end
+
+def import_refusals(g)
+  spaces = map((s) -> get(s, :name), get(g, :spaces))
+  concat_lists(
+    get(g, :refusals),
+    map(
+      fn(e)
+        refusal(
+          :orphan_edge,
+          "#{get(e, :from)} #{get(e, :rel)} #{get(e, :to)}: the file of its `from` space does not exist"
+        )
+      end,
+      filter(
+        (e) -> not member?(node_space(get(e, :from)), spaces),
+        get(g, :edges)
+      )
+    )
+  )
+end
+
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "a def header broken over lines is catalogued as one signature"
@@ -635,4 +2231,455 @@ test "test blocks are read with their titles and bodies; other lines are not"
       ["empty", []]
     ]
   assert test_blocks_of_text("") == []
+end
+
+def fx_graph(verbs, edges, known)
+  graph_from_tsv(
+    tsv_text(
+      verb_header_region,
+      map(
+        fn(v)
+          [
+            "T",
+            nth(0, v),
+            nth(1, v),
+            "pure",
+            "#{nth(1, v)}(value) -> value",
+            "-",
+            "-",
+            "absent",
+            nth(2, v),
+            to_s(nth(3, v))
+          ]
+        end,
+        verbs
+      )
+    ),
+    tsv_text(edge_header, edges),
+    tsv_text(
+      vocab_header,
+      map(
+        fn(k)
+          [
+            k,
+            "value",
+            "value",
+            "no",
+            "value",
+            "",
+            "pure",
+            "a value",
+            "-",
+            "decided"
+          ]
+        end,
+        known
+      )
+    )
+  )
+end
+
+def fx_kinds(g)
+  map((f) -> "#{get(f, :kind)} #{get(f, :subject)}", graph_findings(g))
+end
+
+test "a graph that breaks no gate has no finding"
+  g = fx_graph(
+    [
+      ["a", "read", "whole content of a file", 1],
+      ["a", "write", "replace a file", 1]
+    ],
+    [["a::write", "requires", "a::read", "needs it"]],
+    ["read", "write"]
+  )
+  assert get(g, :refusals) == []
+  assert graph_findings(g) == []
+end
+
+test "g1 names two verbs of one space whose meanings differ only in stop words and case"
+  g = fx_graph(
+    [
+      ["a", "read", "Whole content of a file", 1],
+      ["a", "slurp", "the whole content of the file", 1],
+      ["b", "load", "whole content of a file", 1]
+    ],
+    [["a::read", "requires", "b::load", "x"]],
+    ["read", "slurp", "load"]
+  )
+  assert fx_kinds(g) == ["g1-meaning a::read a::slurp"]
+end
+
+test "g1 keeps word order: the same words in another order are another meaning"
+  g = fx_graph(
+    [["a", "take", "item from list", 1], ["a", "pull", "list from item", 1]],
+    [["a::take", "pairs", "a::pull", "x"]],
+    ["take", "pull"]
+  )
+  assert graph_findings(g) == []
+end
+
+test "g1 is silenced by a refines, generalizes or inverse edge, and by nothing else"
+  rows = [["a", "read", "whole content", 1], ["a", "slurp", "whole content", 1]]
+  known = ["read", "slurp"]
+  assert fx_kinds(fx_graph(rows, [], known)) == ["g1-meaning a::read a::slurp"]
+  assert fx_kinds(
+    fx_graph(rows, [["a::slurp", "refines", "a::read", "x"]], known)
+  ) ==
+    []
+  assert fx_kinds(
+    fx_graph(rows, [["a::read", "generalizes", "a::slurp", "x"]], known)
+  ) ==
+    []
+  assert fx_kinds(
+    fx_graph(rows, [["a::read", "inverse", "a::slurp", "x"]], known)
+  ) ==
+    []
+  assert fx_kinds(
+    fx_graph(rows, [["a::read", "pairs", "a::slurp", "x"]], known)
+  ) ==
+    ["g1-meaning a::read a::slurp"]
+end
+
+test "g2 names a verb with no vocabulary row"
+  g = fx_graph(
+    [["a", "read", "one", 1], ["a", "fetch", "two", 1]],
+    [["a::read", "pairs", "a::fetch", "x"]],
+    ["read"]
+  )
+  assert fx_kinds(g) == ["g2-vocab a::fetch"]
+end
+
+test "g4 names the nodes on a cycle of composes and requires, and not those leading into it"
+  g = fx_graph(
+    [
+      ["a", "p", "one", 1],
+      ["a", "q", "two", 1],
+      ["a", "r", "three", 1],
+      ["a", "s", "four", 1]
+    ],
+    [
+      ["a::p", "composes", "a::q", "x"],
+      ["a::q", "requires", "a::r", "x"],
+      ["a::r", "composes", "a::p", "x"],
+      ["a::s", "composes", "a::p", "enters the cycle"]
+    ],
+    ["p", "q", "r", "s"]
+  )
+  assert fx_kinds(g) == ["g4-cycle a::p", "g4-cycle a::q", "g4-cycle a::r"]
+end
+
+test "g4 names an edge to a later wave, and only for composes and requires"
+  g = fx_graph(
+    [["a", "p", "one", 1], ["a", "q", "two", 3]],
+    [["a::p", "composes", "a::q", "x"]],
+    ["p", "q"]
+  )
+  assert fx_kinds(g) == ["g4-wave a::p -> a::q"]
+  assert fx_kinds(
+    fx_graph(
+      [["a", "p", "one", 1], ["a", "q", "two", 3]],
+      [["a::p", "pairs", "a::q", "x"]],
+      ["p", "q"]
+    )
+  ) ==
+    []
+end
+
+test "g7 names a verb with two inverse partners, however the edges are written"
+  rows = [
+    ["a", "put", "one", 1],
+    ["a", "del", "two", 1],
+    ["a", "has", "three", 1]
+  ]
+  known = ["put", "del", "has"]
+  assert fx_kinds(
+    fx_graph(
+      rows,
+      [
+        ["a::put", "inverse", "a::del", "x"],
+        ["a::has", "inverse", "a::put", "x"]
+      ],
+      known
+    )
+  ) ==
+    ["g7-inverse a::put"]
+  assert fx_kinds(
+    fx_graph(
+      rows,
+      [
+        ["a::put", "inverse", "a::del", "x"],
+        ["a::del", "inverse", "a::put", "x"]
+      ],
+      known
+    )
+  ) ==
+    []
+end
+
+test "g9 names an endpoint that is no verb and a relation outside the closed set"
+  g = fx_graph(
+    [["a", "p", "one", 1]],
+    [["a::p", "composes", "a::gone", "x"], ["a::p", "frobs", "a::p", "x"]],
+    ["p"]
+  )
+  assert fx_kinds(g) == ["g9-dangling a::gone", "g9-relation a::p frobs a::p"]
+end
+
+test "a retired verb keeps its row and is not held to g1 or g2"
+  g = fx_graph(
+    [["a", "read", "one", 1], ["a", "slurp", "one", 1]],
+    [["a::read", "pairs", "a::slurp", "x"]],
+    ["read"]
+  )
+  off = assoc(
+    g,
+    :verbs,
+    map(
+      fn(r)
+        if get(r, :verb) == "slurp"
+          assoc(r, :enabled, false)
+        else
+          r
+        end
+      end,
+      get(g, :verbs)
+    )
+  )
+  assert fx_kinds(off) == []
+end
+
+test "the ratchet: recorded debt holds or shrinks, and a new or grown count is a failure"
+  g = fx_graph(
+    [["a", "p", "one", 1], ["a", "q", "two", 1], ["b", "r", "three", 1]],
+    [["a::p", "pairs", "a::q", "x"], ["a::q", "pairs", "b::r", "x"]],
+    []
+  )
+  found = graph_findings(g)
+  base = graph_baseline(found)
+  assert base == "g2-vocab: a 2\ng2-vocab: b 1\n"
+  assert graph_verdict(found, base) == []
+  assert graph_verdict(found, "g2-vocab: a 3\ng2-vocab: b 1\n") == []
+  assert graph_shrunk(found, "g2-vocab: a 3\ng2-vocab: b 1\n") ==
+    ["g2-vocab: a"]
+  assert kinds(graph_verdict(found, "g2-vocab: a 1\ng2-vocab: b 1\n")) ==
+    [:grew]
+  assert kinds(graph_verdict(found, "g2-vocab: a 2\n")) == [:unrecorded]
+end
+
+test "a row file reads its own writing, for every word"
+  g = fx_graph(
+    [["a", "p?", "one", 1]],
+    [["a::p?", "pairs", "a::p?", "say \"hi\" \\ there"]],
+    ["p?"]
+  )
+  space = {
+    word: "space",
+    name: "a",
+    status: "ratified",
+    gloss: "files \"and\" paths"
+  }
+  rows = concat_lists([space], concat_lists(get(g, :verbs), get(g, :edges)))
+  parsed = file_graph("a.b", join(map((r) -> "#{row_source(r)}\n", rows), ""))
+  assert get(parsed, :refusals) == []
+  assert get(parsed, :rows) == rows
+  voc = file_graph(
+    "vocab.b",
+    join(map((r) -> "#{row_source(r)}\n", get(g, :vocab)), "")
+  )
+  assert get(voc, :refusals) == []
+  assert get(voc, :rows) == get(g, :vocab)
+  assert size(get(voc, :rows)) == 1
+end
+
+test "a row file is data: a word that is not a row word is refused, never run"
+  r = file_graph(
+    "a.b",
+    "space(\"a\", {status: :ratified})\nwrite_file(\"x\", \"y\")\n"
+  )
+  assert kinds(get(r, :refusals)) == [:unknown_word]
+  assert size(get(r, :rows)) == 1
+end
+
+test "a row file holds only literals: a name, a call or an operator in a value is a syntax refusal"
+  assert kinds(
+    get(file_graph("a.b", "space(\"a\", {status: ratified})\n"), :refusals)
+  ) ==
+    [:row_syntax]
+  assert kinds(
+    get(file_graph("a.b", "space(\"a\", {status: 1 + 2})\n"), :refusals)
+  ) ==
+    [:row_syntax]
+  assert kinds(
+    get(file_graph("a.b", "space(\"a\", {status: f(1)})\n"), :refusals)
+  ) ==
+    [:row_syntax]
+  assert kinds(
+    get(file_graph("a.b", "space(\"a\", {status: \"x\n"), :refusals)
+  ) ==
+    [:row_syntax]
+end
+
+test "a bad row is refused alone: its siblings load"
+  r = file_graph(
+    "a.b",
+    "space(\"a\", {status: :ratified})\nspace(\"b\", {status: :nope})\nspace(\"c\", {status: :provisional, color: 1})\n"
+  )
+  assert size(get(r, :rows)) == 1
+  assert kinds(get(r, :refusals)) == [:bad_row, :bad_row]
+end
+
+test "a file holds the rows of its own space only, and the edges that start there"
+  r = file_graph(
+    "a.b",
+    "space(\"a\", {status: :ratified})\nedge(\"b::x\", :pairs, \"a::y\", \"w\")\nvocab(\"v\", {subject: \"s\", args: [], opts: false, returns: \"r\", raises: [], kind: :pure, meaning: \"m\", ref: nil, status: :open})\n"
+  )
+  assert kinds(get(r, :refusals)) == [:misplaced, :misplaced]
+end
+
+test "a duplicate verb, space, vocabulary row or edge is refused by name"
+  g = fx_graph(
+    [["a", "p", "one", 1], ["a", "p", "two", 1]],
+    [["a::p", "pairs", "a::p", "w"], ["a::p", "pairs", "a::p", "w"]],
+    ["p", "p"]
+  )
+  assert map(why, get(g, :refusals)) ==
+    [
+      "verb a::p is declared twice",
+      "vocab p is declared twice",
+      "edge a::p pairs a::p is declared twice"
+    ]
+end
+
+test "shapes: positionals exclude opts and option maps, and a contract takes the shape's arity"
+  assert shape_positionals("read(path, opts) -> text") == 1
+  assert shape_positionals("run(cmd, {cwd: x, env: y}) -> record") == 1
+  assert shape_positionals("now() -> instant") == 0
+  assert shape_takes_opts?("read(path, opts) -> text")
+  assert shape_takes_opts?("run(cmd, {cwd: x}) -> record")
+  assert not shape_takes_opts?("get(store, key) -> value")
+  v = {args: ["a", "b?"], opts: false}
+  assert verb_conforms("f(a) -> x", v) == "yes"
+  assert verb_conforms("f(a, b) -> x", v) == "yes"
+  assert verb_conforms("f(a, b, c) -> x", v) == "no"
+  assert verb_conforms("f(a, opts) -> x", v) == "no"
+  assert verb_conforms("f() -> x", v) == "no"
+  assert verb_conforms("f() -> x", nil) == "na"
+end
+
+test "a TSV that disagrees with its derived columns is refused, row by row"
+  head = tsv_text(verb_header, [])
+  row = [
+    "T",
+    "a",
+    "p",
+    "pure",
+    "p(x, y) -> v",
+    "-",
+    "-",
+    "absent",
+    "m",
+    "1",
+    "p(x, y) -> v",
+    "yes"
+  ]
+  voc = tsv_text(
+    vocab_header,
+    [["p", "s", "x", "no", "v", "", "pure", "m", "-", "decided"]]
+  )
+  g = graph_from_tsv(
+    "#{head}#{tsv_join(row)}\n",
+    tsv_text(edge_header, []),
+    voc
+  )
+  assert kinds(get(g, :refusals)) == [:derived]
+  assert get(g, :verbs) == []
+end
+
+test "a TSV round trips through the graph: export of import is the sorted input"
+  verbs = [
+    [
+      "T",
+      "a",
+      "p",
+      "pure",
+      "p(x, opts) -> v",
+      "error,time",
+      "kotoba",
+      "exists:retsu",
+      "m one",
+      "1",
+      "p(x, opts) -> v",
+      "yes"
+    ],
+    [
+      "T",
+      "a",
+      "q",
+      "effect",
+      "q() -> nil",
+      "-",
+      "-",
+      "absent",
+      "m two",
+      "0",
+      "",
+      "na"
+    ],
+    [
+      "T",
+      "b",
+      "r",
+      "decl",
+      "r(a, b) -> t",
+      "-",
+      "-",
+      "absent",
+      "say \"hi\"",
+      "4",
+      "",
+      "na"
+    ]
+  ]
+  edges = [
+    ["a::p", "composes", "a::q", "w one"],
+    ["a::q", "pairs", "b::r", "w two"]
+  ]
+  vocab = [
+    ["p", "s", "x", "yes", "v", "bad,worse", "pure", "m", "§3.5", "stdlib"]
+  ]
+  vt = tsv_text(verb_header, verbs)
+  et = tsv_text(edge_header, edges)
+  ct = tsv_text(vocab_header, vocab)
+  g = graph_from_tsv(vt, et, ct)
+  assert get(g, :refusals) == []
+  assert verbs_tsv(g) == vt
+  assert edges_tsv(g) == et
+  assert vocab_tsv(g) == ct
+  shuffled = graph_from_tsv(
+    tsv_text(verb_header, reverse(verbs)),
+    tsv_text(edge_header, reverse(edges)),
+    ct
+  )
+  assert verbs_tsv(shuffled) == vt
+  assert edges_tsv(shuffled) == et
+end
+
+test "a graph is written as one file per space, edges in the file of their from, and read back whole"
+  g = graph_from_tsv(
+    tsv_text(
+      verb_header_region,
+      [
+        ["T", "a", "p", "pure", "p(x) -> v", "-", "-", "absent", "m one", "1"],
+        ["T", "b?", "q", "pure", "q(x) -> v", "-", "-", "absent", "m two", "1"]
+      ]
+    ),
+    tsv_text(edge_header, [["b?::q", "pairs", "a::p", "w"]]),
+    tsv_text(vocab_header, [])
+  )
+  files = graph_writes(g)
+  assert map(first, files) == ["vocab.b", "a.b", "b-provisional.b"]
+  b = file_graph("b-provisional.b", nth(1, nth(2, files)))
+  assert get(b, :refusals) == []
+  assert map((r) -> get(r, :word), get(b, :rows)) == ["space", "verb", "edge"]
+  assert get(first(get(b, :rows)), :status) == "provisional"
 end

@@ -3,7 +3,7 @@
 //!
 //! # Why this test lives here and not in `blue-lang-waku`
 //!
-//! `Capability`'s host bundles (five since 2026-10-10, with `net`'s) claim to
+//! `Capability`'s host bundles (six since 2026-10-23, with `entropy`'s) claim to
 //! be exactly what `blue_lang_runtime::sys` installs. A test inside
 //! `blue-lang-waku` could only compare that claim against itself — the repo's named trap: *"a gate derived
 //! from the thing it checks is a tautology."* So the evidence is taken from a
@@ -183,7 +183,7 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
         .into_iter()
         .map(|c| (c.label(), c.names().len()))
         .collect();
-    assert_eq!(counts.len(), 5, "the floor, 2026-10-10: {counts:?}");
+    assert_eq!(counts.len(), 6, "the floor, 2026-10-23: {counts:?}");
     for (label, n) in &counts {
         assert!(*n > 0, "{label} grants no names");
     }
@@ -211,7 +211,10 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             // http_listen, http_listener_port, http_next_request and
             // http_respond, so a blue service answers HTTP; 16 with the
             // four pg_ words, so it reads and writes PostgreSQL.
-            ("network", 16)
+            ("network", 16),
+            // Since 2026-10-23: random_bytes, the one draw from the system
+            // entropy source, so key material and nonces are generated here.
+            ("entropy", 1)
         ]
     );
 }

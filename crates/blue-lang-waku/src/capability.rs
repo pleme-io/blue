@@ -134,6 +134,7 @@ pub enum Capability {
     /// because a frame that may read files has not thereby been allowed to
     /// reach another machine.
     Network,
+    Entropy,
 }
 
 /// The wasm import module every host capability lowers into.
@@ -244,6 +245,7 @@ const NETWORK_NAMES: &[&str] = &[
     "pg_execute",
     "pg_close",
 ];
+const ENTROPY_NAMES: &[&str] = &["random_bytes"];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",
@@ -256,11 +258,11 @@ const CLOCK_NAMES: &[&str] = &[
 ];
 
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: eleven as of
-    /// 2026-10-10, six pure and five host-effect (ten until `Network`). Stated so a count gate cannot
+    /// How many capabilities exist. A **floor with a date**: twelve as of
+    /// 2026-10-23, six pure and six host-effect (eleven until `Entropy`). Stated so a count gate cannot
     /// pass over an empty set — `ALL.len() == 0` would satisfy every
     /// "for every capability…" test in this file.
-    pub const COUNT: usize = 11;
+    pub const COUNT: usize = 12;
 
     const FIRST: Self = Capability::CoreForms;
 
@@ -285,7 +287,8 @@ impl Capability {
             Capability::FileSystem => Some(Capability::Environment),
             Capability::Environment => Some(Capability::Clock),
             Capability::Clock => Some(Capability::Network),
-            Capability::Network => None,
+            Capability::Network => Some(Capability::Entropy),
+            Capability::Entropy => None,
         }
     }
 
@@ -325,6 +328,7 @@ impl Capability {
             Capability::Environment => "environment",
             Capability::Clock => "clock",
             Capability::Network => "network",
+            Capability::Entropy => "entropy",
         }
     }
 
@@ -343,6 +347,7 @@ impl Capability {
             Capability::Environment => Names::Fixed(ENVIRONMENT_NAMES),
             Capability::Clock => Names::Fixed(CLOCK_NAMES),
             Capability::Network => Names::Fixed(NETWORK_NAMES),
+            Capability::Entropy => Names::Fixed(ENTROPY_NAMES),
         }
     }
 
@@ -401,6 +406,10 @@ impl Capability {
                 module: HOST_MODULE,
                 field: "net",
             }),
+            Capability::Entropy => Some(Import {
+                module: HOST_MODULE,
+                field: "entropy",
+            }),
         }
     }
 
@@ -457,8 +466,8 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
-    /// **The floor, with the date.** Eleven capabilities on 2026-10-10, six
-    /// pure and five host-effect (four until `Network`).
+    /// **The floor, with the date.** Twelve capabilities on 2026-10-23, six
+    /// pure and six host-effect (five until `Entropy`).
     ///
     /// Anti-vacuity for every "for every capability…" test below: each of them
     /// passes trivially over an empty `ALL`, and `ALL` is *derived* from the
@@ -467,11 +476,11 @@ mod tests {
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 11, "the floor, measured 2026-10-10");
+        assert_eq!(Capability::COUNT, 12, "the floor, measured 2026-10-23");
         assert_eq!(
             Capability::host_effects().len(),
-            5,
-            "process, filesystem, environment, clock, network"
+            6,
+            "process, filesystem, environment, clock, network, entropy"
         );
         assert_eq!(
             Capability::ALL

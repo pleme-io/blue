@@ -608,10 +608,13 @@ behind the same surface: a typed fallback, not a second API.
 **Verbs:** `hash(data, algorithm, {key: nil})`, `sign(data, secret)`, `verify?(data, signature,
 public)`, the noun `keypair(seed)`, and the hash-chain nouns kept as they are. **Renames:**
 `hash_message` → `hash(_, :blake3)`, `sign_message` → `sign`, `verify_message` → `verify?`,
-`signing_keypair` → `keypair`, `is_hash_hex` → `hash?`. **Runtime:** move `sha256`, `sha512`,
-`sha1` and `hmac-sha256` from tatara-lisp-script (`sha2` is already a blue-runtime dependency) and
-`random-bytes` (getrandom), which also gives blue the entropy source it lacks
-(`ed25519_keypair`'s caller-supplied seed).
+`signing_keypair` → `keypair`, `is_hash_hex` → `hash?`. **Built 2026-10-23:** `hash(data, algorithm, opts)`
+for `:sha1`, `:sha256`, `:sha512` and `:blake3`, with `key:` as HMAC for the first three (`:blake3`
+keyed raises `:bad_option`), `mac(data, key, algorithm)`, `random(n)` and `same?(a, b)`. **Runtime:**
+`digest_hex`, `hmac_hex` and `bytes_equal?` in the pure crypto layer (RustCrypto `sha1`, `sha2`,
+`hmac`; no C), and `random_bytes(n)` under `Capability::Entropy`, read from `/dev/urandom` with std
+alone. `bytes_equal?` reads every position of the longer side; a unit test counts the positions
+visited, so the claim holds by structure and not by timing. **Still to do:** the renames, `hash?`.
 
 ### 4.15 Testing, owned by the runner
 

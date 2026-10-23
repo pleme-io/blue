@@ -170,13 +170,14 @@ verb(
   "hash",
   {
     kind: :pure,
-    shape: "hash(data, algorithm) -> hex",
+    shape: "hash(data, algorithm, opts) -> hex",
     laterals: ["error", "serialize", "validate"],
     fleet: "tameshi",
-    today: "partial:shomei",
+    today: "exists:shomei",
     meaning: "digest of bytes or text under a named algorithm",
     wave: 0,
-    origin: "D"
+    origin: "D",
+    contract: "hash(data, algorithm) -> hex"
   }
 )
 
@@ -278,7 +279,7 @@ verb(
     shape: "mac(data, key, algorithm) -> hex",
     laterals: ["error", "validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:shomei",
     meaning: "keyed digest proving data came from a key holder",
     wave: 1,
     origin: "D"
@@ -383,7 +384,7 @@ verb(
     shape: "random(n) -> bytes",
     laterals: ["capability"],
     fleet: nil,
-    today: "absent",
+    today: "exists:shomei",
     meaning: "n bytes from the system entropy source",
     wave: 1,
     origin: "B"
@@ -413,7 +414,7 @@ verb(
     shape: "same?(a, b) -> Bool",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:shomei",
     meaning: "equality that takes equal time for every input",
     wave: 0,
     origin: "D"

@@ -64,6 +64,7 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     install_env(interp);
     install_clock(interp);
     crate::net::install_net(interp);
+    crate::entropy::install_entropy(interp);
 }
 
 // ── process ──────────────────────────────────────────────────────────────

@@ -241,3 +241,19 @@ row(
   covers("builtin:sleep", "builtin:sleep_ms"),
   host()
 )
+
+row(
+  "host.random_bytes",
+  "a = random_bytes(16)\n[length(a), length(random_bytes(0)), a == random_bytes(16), every?(fn(b) b >= 0 and b <= 255 end, a)]",
+  value("[16, 0, false, true]"),
+  covers("builtin:random_bytes"),
+  host()
+)
+
+row(
+  "host.random_bytes.count",
+  "random_bytes(-1)",
+  fails(:eval, "must be 0..="),
+  covers("builtin:random_bytes"),
+  host()
+)

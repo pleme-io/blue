@@ -1,5 +1,8 @@
+use("deeta", [:get_or])
 use("kazu", [:max])
+use("moji", [:checked])
 use("retsu", [:first, :is_empty, :size])
+use("tesuto", [:raises?])
 
 # shomei (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
 #
@@ -345,14 +348,48 @@ end
 
 # ── verbs ──────────────────────────────────────────────────────────
 
-# The hash of data as lowercase hex under a named algorithm; only :blake3 is
-# built, any other raises :bad_option.
-def hash(data, algorithm)
-  if algorithm == :blake3
-    hash_message(data)
+# The hash of data as lowercase hex under a named algorithm: :sha1, :sha256,
+# :sha512 or :blake3; any other raises :bad_option. With key: it is the HMAC of
+# data under that key, for :sha1, :sha256 and :sha512 (:blake3 has no keyed
+# form here and raises :bad_option).
+def hash(data, algorithm, opts?)
+  opts = checked(opts, [:key])
+  key = get_or(opts, :key, nil)
+  if not member?(algorithm, [:sha1, :sha256, :sha512, :blake3])
+    raise(
+      :bad_option,
+      "hash: the algorithm must be :sha1, :sha256, :sha512 or :blake3, got #{algorithm}"
+    )
+  elsif key.nil?
+    digest_hex(algorithm, data)
   else
-    raise(:bad_option, "hash: the algorithm must be :blake3, got #{algorithm}")
+    mac(data, key, algorithm)
   end
+end
+
+# The keyed digest (HMAC) of data under key, in lowercase hex, for :sha1,
+# :sha256 or :sha512; any other algorithm raises :bad_option.
+def mac(data, key, algorithm)
+  if member?(algorithm, [:sha1, :sha256, :sha512])
+    hmac_hex(algorithm, key, data)
+  else
+    raise(
+      :bad_option,
+      "mac: the algorithm must be :sha1, :sha256 or :sha512, got #{algorithm}"
+    )
+  end
+end
+
+# n random bytes from the system entropy source, as a list of integers 0..255;
+# n is an integer from 0 to 1048576.
+def random(n)
+  random_bytes(n)
+end
+
+# Whether two strings or byte lists hold the same bytes. Every position is read
+# whether or not an earlier one differs; a difference in length is false.
+def same?(a, b)
+  bytes_equal?(a, b)
 end
 
 # The Ed25519 signature of data under a secret, in hex; a malformed secret
@@ -598,8 +635,103 @@ test "hash names its algorithm and refuses the ones that are not built"
   assert hash("x", :blake3) == hash_message("x")
   assert hash([120], :blake3) == hash("x", :blake3)
   assert hash("x", :blake3) != hash("y", :blake3)
-  assert (hash("x", :sha256) rescue :raised) == :raised
-  assert (hash("x", nil) rescue :raised) == :raised
+  assert raises?(:bad_option, () -> hash("x", :md5))
+  assert raises?(:bad_option, () -> hash("x", nil))
+  assert raises?(:bad_option, () -> hash("x", "sha256"))
+end
+
+test "hash agrees with FIPS 180 for sha1, sha256 and sha512"
+  assert hash("", :sha1) == "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+  assert hash("abc", :sha1) == "a9993e364706816aba3e25717850c26c9cd0d89d"
+  assert hash("", :sha256) ==
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  assert hash("abc", :sha256) ==
+    "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  assert hash([97, 98, 99], :sha256) == hash("abc", :sha256)
+  assert hash("", :sha512) ==
+    "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+  assert hash("abc", :sha512) ==
+    "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+  assert hash("abc", :sha256) != hash("abd", :sha256)
+  assert hash("abc", :sha256) != hash("abc", :sha512)
+end
+
+test "hash with key: is the HMAC of RFC 4231 and RFC 2202"
+  assert hash("what do ya want for nothing?", :sha256, {key: "Jefe"}) ==
+    "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+  assert hash("what do ya want for nothing?", :sha1, {key: "Jefe"}) ==
+    "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79"
+  assert hash("what do ya want for nothing?", :sha512, {key: "Jefe"}) ==
+    "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
+  assert hash("Hi There", :sha256, {key: map((_i) -> 11, range(0, 20))}) ==
+    "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+  assert hash("x", :sha256, {key: ""}) ==
+    "4cbc96099a6467ce002461f10549b4898265ebe6188b45efacc44293516e62c4"
+  assert hash("x", :sha256, {key: "k"}) != hash("x", :sha256)
+  assert hash("x", :sha256, {key: "k"}) != hash("x", :sha256, {key: "j"})
+  assert hash("x", :sha256, {}) == hash("x", :sha256)
+  assert hash("x", :sha256, nil) == hash("x", :sha256)
+end
+
+test "hash refuses an unknown option, a keyed blake3 and a key it cannot place"
+  assert raises?(:bad_option, () -> hash("x", :sha256, {keey: "k"}))
+  assert raises?(:bad_option, () -> hash("x", :sha256, {key: "k", extra: 1}))
+  assert raises?(:bad_option, () -> hash("x", :blake3, {key: "k"}))
+  assert raises?(:bad_option, () -> hash("x", :md5, {key: "k"}))
+  assert (hash("x", :sha256, {key: 42}) rescue :raised) == :raised
+  assert (hash(nil, :sha256) rescue :raised) == :raised
+end
+
+test "mac is the keyed digest and refuses the algorithms with no keyed form"
+  assert mac("what do ya want for nothing?", "Jefe", :sha256) ==
+    "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+  assert mac("x", "k", :sha512) == hash("x", :sha512, {key: "k"})
+  assert mac("x", "k", :sha1) == hash("x", :sha1, {key: "k"})
+  assert mac("x", "k", :sha256) != mac("x", "k2", :sha256)
+  assert mac("x", "k", :sha256) != mac("y", "k", :sha256)
+  assert raises?(:bad_option, () -> mac("x", "k", :blake3))
+  assert raises?(:bad_option, () -> mac("x", "k", :md5))
+  assert raises?(:bad_option, () -> mac("x", "k", nil))
+  assert (mac("x", nil, :sha256) rescue :raised) == :raised
+  assert (mac(nil, "k", :sha256) rescue :raised) == :raised
+end
+
+test "same? compares text and bytes and treats every difference as false"
+  assert same?("abc", "abc")
+  assert same?("abc", [97, 98, 99])
+  assert same?("", [])
+  assert same?(hash("a", :sha256), hash("a", :sha256))
+  assert not same?("abc", "abd")
+  assert not same?("abc", "xbc")
+  assert not same?("abc", "abcd")
+  assert not same?("abcd", "abc")
+  assert not same?("", "a")
+  assert not same?([1], [1, 0])
+  assert (same?(nil, "a") rescue :raised) == :raised
+  assert (same?("a", 1) rescue :raised) == :raised
+  assert (same?([300], "a") rescue :raised) == :raised
+end
+
+test "random draws byte integers, none for zero, and refuses a bad count"
+  bytes = random(32)
+  assert size(bytes) == 32
+  assert every?((b) -> integer?(b) and b >= 0 and b <= 255, bytes)
+  assert random(0) == []
+  assert random(16) != random(16)
+  assert size(random(1)) == 1
+  assert (random(-1) rescue :raised) == :raised
+  assert (random(1_048_577) rescue :raised) == :raised
+  assert (random("8") rescue :raised) == :raised
+  assert (random(nil) rescue :raised) == :raised
+end
+
+test "random bytes feed hash and same? as a message"
+  a = random(24)
+  assert same?(a, a)
+  assert hash(a, :sha256) == hash(a, :sha256)
+  assert not same?(a, random(24))
+  assert is_hash_hex(hash(a, :blake3))
+  assert size(hash(random(8), :sha1)) == 40
 end
 
 test "sign and verify? agree with RFC 8032 and fail for a changed input"

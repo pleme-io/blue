@@ -411,7 +411,11 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "http_respond" "http_respond(request, status, headers, body)" "Answer a request from http_next_request once and close its connection; headers as for http_request, body nil or a string. A second answer raises. nil.";
     // ── crypto ────────────────────────────────────────────────────────────
     Crypto: "blake3_hex" "blake3_hex(data)" "The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it.";
-    Crypto: "ed25519_keypair" "ed25519_keypair(seed_hex)" "[secret, public] in hex for a 32-byte seed. There is no entropy source: the caller supplies the seed.";
+    Crypto: "digest_hex" "digest_hex(algorithm, data)" "The digest of a string or byte list in lowercase hex. The algorithm is \"sha1\", \"sha256\", \"sha512\" or \"blake3\" (a string or a keyword); any other name raises. shomei's hash wraps it.";
+    Crypto: "hmac_hex" "hmac_hex(algorithm, key, data)" "The HMAC of data under key in lowercase hex, for \"sha1\", \"sha256\" or \"sha512\"; key and data are a string or byte list, and an empty key is allowed. blake3 and unknown names raise. shomei's hash with key: wraps it.";
+    Crypto: "bytes_equal?" "bytes_equal?(a, b)" "Whether two strings or byte lists hold the same bytes. It reads every position of the longer side whether or not an earlier byte differs. A difference in length is false. shomei's same? wraps it.";
+    Crypto: "random_bytes" "random_bytes(n)" "A list of n random byte integers (0..=255) from the operating system, n from 0 to 1048576. Raises when n is not an integer in range or the source cannot be read. Needs the entropy capability.";
+    Crypto: "ed25519_keypair" "ed25519_keypair(seed_hex)" "[secret, public] in hex for a 32-byte seed. The caller supplies the seed; random_bytes draws one.";
     Crypto: "ed25519_sign" "ed25519_sign(secret_hex, message)" "The Ed25519 signature of a message, in hex.";
     Crypto: "ed25519_verify" "ed25519_verify(public_hex, message, signature_hex)" "Whether the signature is valid.";
     // ── output ────────────────────────────────────────────────────────────

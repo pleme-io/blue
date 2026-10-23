@@ -76,6 +76,9 @@
 use std::sync::Arc;
 
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use hmac::{Hmac, Mac};
+use sha1::Sha1;
+use sha2::{Digest, Sha256, Sha512};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{EvalError, Interpreter, Value};
 
@@ -128,6 +131,62 @@ pub enum CryptoError {
     /// A point of small order: every signature under it is meaningless.
     #[error("the public key has small order and cannot vouch for any message")]
     WeakPublicKey,
+    #[error("the algorithm must be a string or keyword; got {got}")]
+    NotAnAlgorithm { got: &'static str },
+    #[error("unknown algorithm `{name}`; the built ones are {known}")]
+    UnknownAlgorithm { name: String, known: &'static str },
+    #[error("{name} has no keyed form here; a keyed digest is one of {known}")]
+    NoMac {
+        name: &'static str,
+        known: &'static str,
+    },
+    #[error("the key is not usable as a keyed-digest key")]
+    BadMacKey,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Algorithm {
+    Sha1,
+    Sha256,
+    Sha512,
+    Blake3,
+}
+
+impl Algorithm {
+    pub const DIGESTS: &'static str = "sha1, sha256, sha512, blake3";
+    pub const MACS: &'static str = "sha1, sha256, sha512";
+
+    pub fn parse(name: &str) -> Result<Self, CryptoError> {
+        match name {
+            "sha1" => Ok(Algorithm::Sha1),
+            "sha256" => Ok(Algorithm::Sha256),
+            "sha512" => Ok(Algorithm::Sha512),
+            "blake3" => Ok(Algorithm::Blake3),
+            other => Err(CryptoError::UnknownAlgorithm {
+                name: other.to_string(),
+                known: Self::DIGESTS,
+            }),
+        }
+    }
+
+    pub fn from_value(v: &Value) -> Result<Self, CryptoError> {
+        match v {
+            Value::Str(s) => Self::parse(s),
+            Value::Keyword(k) => Self::parse(k),
+            other => Err(CryptoError::NotAnAlgorithm {
+                got: other.type_name(),
+            }),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Algorithm::Sha1 => "sha1",
+            Algorithm::Sha256 => "sha256",
+            Algorithm::Sha512 => "sha512",
+            Algorithm::Blake3 => "blake3",
+        }
+    }
 }
 
 /// The bytes a message or hash input stands for.
@@ -250,6 +309,56 @@ pub fn ed25519_verify(
     Ok(key.verify_strict(message, &signature).is_ok())
 }
 
+pub fn digest_hex(algorithm: Algorithm, data: &[u8]) -> String {
+    match algorithm {
+        Algorithm::Sha1 => encode_hex(&Sha1::digest(data)),
+        Algorithm::Sha256 => encode_hex(&Sha256::digest(data)),
+        Algorithm::Sha512 => encode_hex(&Sha512::digest(data)),
+        Algorithm::Blake3 => blake3_hex(data),
+    }
+}
+
+fn mac_hex<M: Mac>(
+    key: &[u8],
+    data: &[u8],
+    new: fn(&[u8]) -> Result<M, hmac::digest::InvalidLength>,
+) -> Result<String, CryptoError> {
+    let mut mac = new(key).map_err(|_| CryptoError::BadMacKey)?;
+    mac.update(data);
+    Ok(encode_hex(&mac.finalize().into_bytes()))
+}
+
+pub fn hmac_hex(algorithm: Algorithm, key: &[u8], data: &[u8]) -> Result<String, CryptoError> {
+    match algorithm {
+        Algorithm::Sha1 => mac_hex(key, data, Hmac::<Sha1>::new_from_slice),
+        Algorithm::Sha256 => mac_hex(key, data, Hmac::<Sha256>::new_from_slice),
+        Algorithm::Sha512 => mac_hex(key, data, Hmac::<Sha512>::new_from_slice),
+        Algorithm::Blake3 => Err(CryptoError::NoMac {
+            name: algorithm.name(),
+            known: Algorithm::MACS,
+        }),
+    }
+}
+
+pub fn scan_differences(a: &[u8], b: &[u8]) -> (u8, usize) {
+    let width = a.len().max(b.len());
+    let mut acc = 0u8;
+    let mut visited = 0usize;
+    for i in 0..width {
+        let x = a.get(i).copied().unwrap_or(0);
+        let y = b.get(i).copied().unwrap_or(0);
+        acc |= x ^ y;
+        visited += 1;
+    }
+    (acc, visited)
+}
+
+pub fn bytes_equal(a: &[u8], b: &[u8]) -> bool {
+    let (acc, _) = scan_differences(a, b);
+    let lengths = (a.len() ^ b.len()) as u64;
+    std::hint::black_box(acc) == 0 && std::hint::black_box(lengths) == 0
+}
+
 /// Raise a refusal as the named primitive's error.
 fn refuse(name: &'static str, span: tatara_lisp::Span) -> impl Fn(CryptoError) -> EvalError {
     move |e| EvalError::native_fn(name, e.to_string(), span)
@@ -267,6 +376,38 @@ pub fn install_crypto_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         |a: &[Value], _h: &mut H, span| {
             let data = message_bytes(&a[0]).map_err(refuse("blake3_hex", span))?;
             Ok(Value::Str(Arc::from(blake3_hex(&data))))
+        },
+    );
+
+    interp.register_fn(
+        "digest_hex",
+        Arity::Exact(2),
+        |a: &[Value], _h: &mut H, span| {
+            let algorithm = Algorithm::from_value(&a[0]).map_err(refuse("digest_hex", span))?;
+            let data = message_bytes(&a[1]).map_err(refuse("digest_hex", span))?;
+            Ok(Value::Str(Arc::from(digest_hex(algorithm, &data))))
+        },
+    );
+
+    interp.register_fn(
+        "hmac_hex",
+        Arity::Exact(3),
+        |a: &[Value], _h: &mut H, span| {
+            let algorithm = Algorithm::from_value(&a[0]).map_err(refuse("hmac_hex", span))?;
+            let key = message_bytes(&a[1]).map_err(refuse("hmac_hex", span))?;
+            let data = message_bytes(&a[2]).map_err(refuse("hmac_hex", span))?;
+            let tag = hmac_hex(algorithm, &key, &data).map_err(refuse("hmac_hex", span))?;
+            Ok(Value::Str(Arc::from(tag)))
+        },
+    );
+
+    interp.register_fn(
+        "bytes_equal?",
+        Arity::Exact(2),
+        |a: &[Value], _h: &mut H, span| {
+            let left = message_bytes(&a[0]).map_err(refuse("bytes_equal?", span))?;
+            let right = message_bytes(&a[1]).map_err(refuse("bytes_equal?", span))?;
+            Ok(Value::Bool(bytes_equal(&left, &right)))
         },
     );
 
@@ -673,5 +814,191 @@ mod tests {
         let text = encode_hex(&all);
         assert_eq!(decode_hex(&text, "t").expect("round trip"), all);
         assert_eq!(decode_hex("", "t").expect("empty"), Vec::<u8>::new());
+    }
+
+    const SHA: [(&str, &str, &str, &str); 3] = [
+        ("sha1", "da39a3ee5e6b4b0d3255bfef95601890afd80709", "a9993e364706816aba3e25717850c26c9cd0d89d", "6244e66451a1c8695db9731ce2c4fd5de25ccf87"),
+        ("sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "4cbc96099a6467ce002461f10549b4898265ebe6188b45efacc44293516e62c4"),
+        ("sha512", "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e", "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f", "aee650458ddcbcd4557531b27f1cded4c577f576079b086f57f3c6b9e037a7c0b3cdf7ff58afa09fe279076d1107d5d554f4d34fc6f03d8fd12f93d892802ac3"),
+    ];
+
+    fn bytes_literal(byte: u8, count: usize) -> String {
+        format!("[{}]", vec![byte.to_string(); count].join(", "))
+    }
+
+    #[test]
+    fn digests_match_fips_180_for_the_empty_input_and_abc() {
+        for (name, empty, abc, _) in SHA {
+            assert_eq!(
+                s(&format!("digest_hex(\"{name}\", \"\")")),
+                empty,
+                "{name} empty"
+            );
+            assert_eq!(
+                s(&format!("digest_hex(\"{name}\", \"abc\")")),
+                abc,
+                "{name} abc"
+            );
+        }
+    }
+
+    #[test]
+    fn digests_take_text_and_bytes_and_a_keyword_name() {
+        for (name, _, abc, _) in SHA {
+            assert_eq!(
+                s(&format!("digest_hex(\"{name}\", [97, 98, 99])")),
+                abc,
+                "{name} bytes"
+            );
+            assert_eq!(
+                s(&format!("digest_hex(:{name}, \"abc\")")),
+                abc,
+                "{name} keyword"
+            );
+        }
+        assert_eq!(s("digest_hex(\"blake3\", \"\")"), s("blake3_hex(\"\")"));
+    }
+
+    #[test]
+    fn digests_differ_by_algorithm_and_by_input() {
+        let all: std::collections::BTreeSet<String> = ["sha1", "sha256", "sha512", "blake3"]
+            .iter()
+            .map(|n| s(&format!("digest_hex(\"{n}\", \"abc\")")))
+            .collect();
+        assert_eq!(all.len(), 4);
+        assert_ne!(
+            s("digest_hex(\"sha256\", \"abc\")"),
+            s("digest_hex(\"sha256\", \"abd\")")
+        );
+    }
+
+    #[test]
+    fn digest_hex_refuses_what_it_cannot_place() {
+        assert!(err("digest_hex(\"md5\", \"x\")").contains("unknown algorithm `md5`"));
+        assert!(err("digest_hex(\"SHA256\", \"x\")").contains("unknown algorithm"));
+        assert!(err("digest_hex(256, \"x\")").contains("string or keyword"));
+        assert!(err("digest_hex(nil, \"x\")").contains("string or keyword"));
+        assert!(err("digest_hex(\"sha256\", nil)").contains("string or a list of bytes"));
+        assert!(err("digest_hex(\"sha256\", [256])").contains("outside 0..=255"));
+        assert!(err("digest_hex(\"sha256\")").contains("digest_hex"));
+    }
+
+    #[test]
+    fn hmac_matches_rfc_4231_and_rfc_2202() {
+        let key = bytes_literal(0x0b, 20);
+        let long_key = bytes_literal(0xaa, 131);
+        let cases: [(&str, &str, &str, &str); 3] = [
+            ("sha1", "b617318655057264e28bc0b6fb378c8ef146be00", "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79", "90d0dace1c1bdc957339307803160335bde6df2b"),
+            ("sha256", "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7", "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843", "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"),
+            ("sha512", "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854", "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737", "80b24263c7c1a3ebb71493c1dd7be8b49b46d1f41b4aeec1121b013783f8f3526b56d037e05f2598bd0fd2215d6a1e5295e64f73f63f0aec8b915a985d786598"),
+        ];
+        for (name, one, two, long) in cases {
+            assert_eq!(
+                s(&format!("hmac_hex(\"{name}\", {key}, \"Hi There\")")),
+                one,
+                "{name} case 1"
+            );
+            assert_eq!(
+                s(&format!(
+                    "hmac_hex(:{name}, \"Jefe\", \"what do ya want for nothing?\")"
+                )),
+                two,
+                "{name} case 2"
+            );
+            assert_eq!(
+                s(&format!("hmac_hex(\"{name}\", {long_key}, \"Test Using Larger Than Block-Size Key - Hash Key First\")")),
+                long,
+                "{name} long key"
+            );
+        }
+    }
+
+    #[test]
+    fn hmac_with_an_empty_key_is_defined_and_differs_from_the_plain_digest() {
+        for (name, _, _, empty_key) in SHA {
+            assert_eq!(
+                s(&format!("hmac_hex(\"{name}\", \"\", \"x\")")),
+                empty_key,
+                "{name}"
+            );
+            assert_ne!(
+                s(&format!("hmac_hex(\"{name}\", \"\", \"x\")")),
+                s(&format!("digest_hex(\"{name}\", \"x\")"))
+            );
+        }
+        assert_eq!(
+            s("hmac_hex(\"sha256\", [], \"x\")"),
+            s("hmac_hex(\"sha256\", \"\", \"x\")")
+        );
+    }
+
+    #[test]
+    fn hmac_depends_on_the_key_and_the_data() {
+        let base = s("hmac_hex(\"sha256\", \"k\", \"m\")");
+        assert_ne!(base, s("hmac_hex(\"sha256\", \"k2\", \"m\")"));
+        assert_ne!(base, s("hmac_hex(\"sha256\", \"k\", \"m2\")"));
+    }
+
+    #[test]
+    fn hmac_refuses_blake3_unknown_names_and_bad_arguments() {
+        assert!(err("hmac_hex(\"blake3\", \"k\", \"m\")").contains("no keyed form"));
+        assert!(err("hmac_hex(\"md5\", \"k\", \"m\")").contains("unknown algorithm"));
+        assert!(err("hmac_hex(1, \"k\", \"m\")").contains("string or keyword"));
+        assert!(err("hmac_hex(\"sha256\", nil, \"m\")").contains("string or a list of bytes"));
+        assert!(err("hmac_hex(\"sha256\", \"k\", nil)").contains("string or a list of bytes"));
+        assert!(err("hmac_hex(\"sha256\", \"k\")").contains("hmac_hex"));
+    }
+
+    #[test]
+    fn bytes_equal_answers_for_text_bytes_and_empties() {
+        assert!(b("bytes_equal?(\"abc\", \"abc\")"));
+        assert!(b("bytes_equal?(\"abc\", [97, 98, 99])"));
+        assert!(b("bytes_equal?(\"\", [])"));
+        assert!(!b("bytes_equal?(\"abc\", \"abd\")"));
+        assert!(!b("bytes_equal?(\"abc\", \"ab\")"));
+        assert!(!b("bytes_equal?(\"ab\", \"abc\")"));
+        assert!(!b("bytes_equal?(\"\", \"a\")"));
+        assert!(!b("bytes_equal?([1], [1, 0])"));
+    }
+
+    #[test]
+    fn bytes_equal_refuses_what_is_not_a_message() {
+        assert!(err("bytes_equal?(nil, \"a\")").contains("string or a list of bytes"));
+        assert!(err("bytes_equal?(\"a\", 1)").contains("string or a list of bytes"));
+        assert!(err("bytes_equal?([300], \"a\")").contains("outside 0..=255"));
+        assert!(err("bytes_equal?(\"a\")").contains("bytes_equal?"));
+    }
+
+    #[test]
+    fn the_scan_visits_every_position_whatever_the_first_difference() {
+        let reference = vec![7u8; 64];
+        for first_difference in 0..64 {
+            let mut other = reference.clone();
+            other[first_difference] ^= 0xff;
+            let (acc, visited) = scan_differences(&reference, &other);
+            assert_ne!(acc, 0, "difference at {first_difference} must register");
+            assert_eq!(
+                visited, 64,
+                "stopped early when the first difference was at {first_difference}"
+            );
+        }
+        let (acc, visited) = scan_differences(&reference, &reference);
+        assert_eq!((acc, visited), (0, 64));
+    }
+
+    #[test]
+    fn the_scan_covers_the_longer_side_when_lengths_differ() {
+        assert_eq!(scan_differences(b"", b"abcd").1, 4);
+        assert_eq!(scan_differences(b"abcd", b"").1, 4);
+        assert_eq!(scan_differences(b"x", b"yzzz").1, 4);
+        assert_eq!(scan_differences(b"", b"").1, 0);
+    }
+
+    #[test]
+    fn the_scan_accumulates_every_difference_not_just_the_last() {
+        let (acc, _) = scan_differences(&[0b0001, 0b0000, 0b0000], &[0b0000, 0b0000, 0b0000]);
+        assert_ne!(acc, 0, "a difference before equal tail bytes must survive");
+        let (acc, _) = scan_differences(&[0b0001, 0b0010], &[0b0000, 0b0000]);
+        assert_eq!(acc, 0b0011);
     }
 }

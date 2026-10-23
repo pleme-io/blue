@@ -39,6 +39,8 @@ pub mod crypto;
 pub mod dispatch;
 pub mod docs;
 pub mod domain;
+#[cfg(feature = "sys")]
+pub mod entropy;
 pub mod erase;
 pub mod errors;
 pub mod host_surface;

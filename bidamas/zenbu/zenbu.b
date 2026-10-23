@@ -190,7 +190,6 @@ test "every bidama in the distribution answers through this one import"
   assert gitto::ref_of("v1", :tag) == "refs/tags/v1"
   assert rogu::level_of("warn") == :warn
   assert tsuushin::join("http://a.com/b/c", "../d") == "http://a.com/d"
-  assert rogu::level_of("warn") == :warn
   assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}
 end
 

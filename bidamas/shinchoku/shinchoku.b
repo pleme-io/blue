@@ -423,7 +423,7 @@ def counter_sample(argv)
   if get(r, :ok) == false
     failed_sample(now_ms, get(r, :why))
   else
-    v = to_float(trim(get(r, :stdout))) rescue nil
+    v = to_float(blue::trim(get(r, :stdout))) rescue nil
     if v.nil?
       failed_sample(now_ms, "#{first(argv)} printed no number")
     else
@@ -481,12 +481,12 @@ def load_and_cores()
   else
     r = run_capture(["sysctl", "-n", "vm.loadavg"])
     if get(r, :ok)
-      to_float(nth(1, split(trim(get(r, :stdout)), " ")))
+      to_float(nth(1, split(blue::trim(get(r, :stdout)), " ")))
     end
   end
   c = run_capture(["getconf", "_NPROCESSORS_ONLN"])
   cores = if get(c, :ok)
-    to_int(trim(get(c, :stdout)))
+    to_int(blue::trim(get(c, :stdout)))
   end
   [load1, cores]
 end

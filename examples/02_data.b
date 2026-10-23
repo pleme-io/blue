@@ -6,7 +6,7 @@
 # not maps: read their fields with deeta.
 use("deeta", [:get_int, :get_str])
 use("kazu", [:sum])
-use("moji", [:is_blank, :lines])
+use("moji", [:is_blank, :lines, :trim])
 use("retsu", [:first, :rest, :size])
 
 def order_of(line)

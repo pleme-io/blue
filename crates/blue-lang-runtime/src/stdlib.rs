@@ -35,6 +35,56 @@
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{EvalError, Interpreter, Value};
 
+const TRIM_OPTIONS: &[&str] = &["side", "chars"];
+
+fn trim_with(text: &str, opts: &Value, s: tatara_lisp::Span) -> Result<Value, EvalError> {
+    let bad = |message: String| crate::errors::raise_kind("bad_option", message, s);
+    let mut side = "both".to_string();
+    let mut chars: Option<Vec<char>> = None;
+    match opts {
+        Value::Nil => {}
+        Value::Map(m) => {
+            for (k, v) in m.iter() {
+                let key = match k {
+                    tatara_lisp_eval::MapKey::Keyword(n)
+                    | tatara_lisp_eval::MapKey::Symbol(n)
+                    | tatara_lisp_eval::MapKey::Str(n) => n.to_string(),
+                    _ => String::new(),
+                };
+                match (key.as_str(), v) {
+                    ("side", Value::Keyword(k)) if matches!(&**k, "both" | "start" | "end") => {
+                        side = k.to_string();
+                    }
+                    ("side", _) => return Err(bad("side must be :both, :start or :end".into())),
+                    ("chars", Value::Str(c)) => chars = Some(c.chars().collect()),
+                    ("chars", _) => return Err(bad("chars must be text".into())),
+                    _ => {
+                        return Err(bad(format!(
+                            "unknown option {key}; this verb takes {}",
+                            TRIM_OPTIONS.join(", ")
+                        )))
+                    }
+                }
+            }
+        }
+        other => {
+            return Err(bad(format!(
+                "options must be a map, got {}",
+                other.type_name()
+            )))
+        }
+    }
+    let out = match (&chars, side.as_str()) {
+        (None, "both") => text.trim(),
+        (None, "start") => text.trim_start(),
+        (None, _) => text.trim_end(),
+        (Some(set), "both") => text.trim_matches(|c| set.contains(&c)),
+        (Some(set), "start") => text.trim_start_matches(|c| set.contains(&c)),
+        (Some(set), _) => text.trim_end_matches(|c| set.contains(&c)),
+    };
+    Ok(Value::Str(out.into()))
+}
+
 fn as_str(v: &Value, span: tatara_lisp::Span) -> Result<String, EvalError> {
     match v {
         Value::Str(s) => Ok(s.to_string()),
@@ -257,9 +307,54 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         Ok(Value::Str(as_str(&a[0], s)?.to_lowercase().into()))
     });
 
-    interp.register_fn("trim", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        Ok(Value::Str(as_str(&a[0], s)?.trim().into()))
+    interp.register_fn("trim", Arity::Range(1, 2), |a: &[Value], _h: &mut H, s| {
+        let text = as_str(&a[0], s)?;
+        trim_with(&text, a.get(1).unwrap_or(&Value::Nil), s)
     });
+
+    interp.register_fn(
+        blue_lang_syntax::LOWERED_OPTIONAL_ARITY,
+        Arity::Exact(4),
+        |a: &[Value], _h: &mut H, s| {
+            let name = as_str(&a[0], s)?;
+            let (Value::List(rest), Value::Int(required), Value::Int(most)) = (&a[1], &a[2], &a[3])
+            else {
+                return Err(EvalError::native_fn(
+                    blue_lang_syntax::LOWERED_OPTIONAL_ARITY,
+                    "expects a name, the rest list and two counts",
+                    s,
+                ));
+            };
+            if rest.len() as i64 > *most {
+                let want = Arity::Range(*required as usize, (*required + *most) as usize);
+                return Err(EvalError::native_fn(
+                    name.as_str(),
+                    format!(
+                        "takes {}, got {}",
+                        crate::messages::arguments(&want),
+                        *required as usize + rest.len()
+                    ),
+                    s,
+                ));
+            }
+            Ok(Value::Nil)
+        },
+    );
+
+    interp.register_fn(
+        blue_lang_syntax::LOWERED_OPTIONAL_ARG,
+        Arity::Exact(2),
+        |a: &[Value], _h: &mut H, s| match (&a[0], &a[1]) {
+            (Value::List(rest), Value::Int(i)) => {
+                Ok(rest.get(*i as usize).cloned().unwrap_or(Value::Nil))
+            }
+            _ => Err(EvalError::native_fn(
+                blue_lang_syntax::LOWERED_OPTIONAL_ARG,
+                "expects the rest list and an index",
+                s,
+            )),
+        },
+    );
 
     // `concat(a, …)` joins the text of one or more arguments, left to right
     // (okite D0007; Ruby's String#concat takes many). Two-only until
@@ -951,6 +1046,59 @@ mod tests {
             eval("ends_with?(\"hello\", \"lo\")"),
             Value::Bool(true)
         ));
+    }
+
+    fn refused(src: &str) -> String {
+        match crate::run(src) {
+            Ok(v) => panic!("{src:?} should fail, produced {:?}", v.value),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn trim_without_options_cuts_whitespace_at_both_ends() {
+        assert_eq!(s("trim(\"  a b \\n\")"), "a b");
+        assert_eq!(s("trim(\"  a \", nil)"), "a");
+        assert_eq!(s("trim(\"  a \", {})"), "a");
+        assert_eq!(s("trim(\"\")"), "");
+        assert_eq!(s("trim(\"   \")"), "");
+        assert_eq!(s("trim(\"\", {side: :start})"), "");
+    }
+
+    #[test]
+    fn trim_side_keeps_the_other_end() {
+        assert_eq!(s("trim(\"  a  \", {side: :both})"), "a");
+        assert_eq!(s("trim(\"  a  \", {side: :start})"), "a  ");
+        assert_eq!(s("trim(\"  a  \", {side: :end})"), "  a");
+    }
+
+    #[test]
+    fn trim_chars_replaces_whitespace_as_the_set_to_cut() {
+        assert_eq!(s("trim(\"--a-b--\", {chars: \"-\"})"), "a-b");
+        assert_eq!(s("trim(\"-+a+-\", {chars: \"-+\", side: :start})"), "a+-");
+        assert_eq!(s("trim(\"-+a+-\", {chars: \"-+\", side: :end})"), "-+a");
+        assert_eq!(s("trim(\" a \", {chars: \"-\"})"), " a ");
+        assert_eq!(s("trim(\"aaa\", {chars: \"a\"})"), "");
+        assert_eq!(s("trim(\"héé\", {chars: \"é\", side: :end})"), "h");
+        assert_eq!(s("trim(\"  a  \", {chars: \"\"})"), "  a  ");
+    }
+
+    #[test]
+    fn trim_refuses_what_it_does_not_take() {
+        assert!(refused("trim(\"a\", {sid: :end})").contains("bad_option"));
+        assert!(refused("trim(\"a\", {sid: :end})").contains("side, chars"));
+        assert!(refused("trim(\"a\", {side: :middle})").contains("side must be"));
+        assert!(refused("trim(\"a\", {side: \"end\"})").contains("bad_option"));
+        assert!(refused("trim(\"a\", {chars: 1})").contains("chars must be text"));
+        assert!(refused("trim(\"a\", 5)").contains("options must be a map"));
+        assert!(refused("trim(\"a\", {}, {})").contains("1 to 2"));
+        assert!(refused("trim()").contains("1 to 2"));
+        assert!(refused("trim(5)").contains("string"));
+    }
+
+    #[test]
+    fn trim_is_still_a_value_other_functions_take() {
+        assert_eq!(s("join(map(trim, [\" a\", \"b \"]), \",\")"), "a,b");
     }
 
     #[test]

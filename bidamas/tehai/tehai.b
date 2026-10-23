@@ -1,5 +1,5 @@
 use("deeta", [:as_json, :get_int, :get_str])
-use("moji", [:after_first, :before_first, :includes])
+use("moji", [:after_first, :before_first, :includes, :trim])
 
 use(
   "retsu",

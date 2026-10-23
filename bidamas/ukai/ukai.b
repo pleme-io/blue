@@ -125,7 +125,7 @@ end
 
 def matrix_rows(text)
   filter(
-    (l) -> not is_empty(trim(l)) and not starts_with?(l, "corp\t"),
+    (l) -> not is_empty(blue::trim(l)) and not starts_with?(l, "corp\t"),
     split(text, "\n")
   )
 end
@@ -225,7 +225,7 @@ end
 def from_capture(c, parser)
   if get(c, :status) != 0
     bad(
-      "#{first(get(c, :argv))} exited #{to_s(get(c, :status))}: #{trim(get(c, :stderr))}"
+      "#{first(get(c, :argv))} exited #{to_s(get(c, :status))}: #{blue::trim(get(c, :stderr))}"
     )
   else
     parser(get(c, :stdout))
@@ -304,7 +304,10 @@ def getent_argv(getent, name)
 end
 
 def fields(line)
-  filter((f) -> not is_empty(f), split(replace(trim(line), "\t", " "), " "))
+  filter(
+    (f) -> not is_empty(f),
+    split(replace(blue::trim(line), "\t", " "), " ")
+  )
 end
 
 def ipv4?(s)
@@ -358,7 +361,7 @@ end
 def parse_ip_route(text)
   rows = map(
     (l) -> ip_route_row(fields(l)),
-    filter((l) -> not is_empty(trim(l)), split(text, "\n"))
+    filter((l) -> not is_empty(blue::trim(l)), split(text, "\n"))
   )
   if not is_empty(filter((r) -> r.nil?, rows))
     bad("ip route: a line with no dev")
@@ -560,7 +563,7 @@ def parse_dscacheutil(text)
     filter(
       ipv4?,
       map(
-        (l) -> trim(replace(l, "ip_address:", "")),
+        (l) -> blue::trim(replace(l, "ip_address:", "")),
         filter((l) -> starts_with?(l, "ip_address:"), split(text, "\n"))
       )
     )
@@ -578,7 +581,7 @@ def parse_getent(text)
       ipv4?,
       map(
         (l) -> first(fields(l)),
-        filter((l) -> not is_empty(trim(l)), split(text, "\n"))
+        filter((l) -> not is_empty(blue::trim(l)), split(text, "\n"))
       )
     )
   )
@@ -836,7 +839,7 @@ def run(cfg)
     dry_run: get(cfg2, :dry_run),
     planned: map((a) -> join(a, " "), argvs),
     failed: map(
-      (r) -> "#{join(get(r, :argv), " ")}: #{trim(get(r, :stderr))}",
+      (r) -> "#{join(get(r, :argv), " ")}: #{blue::trim(get(r, :stderr))}",
       failed
     ),
     applied:

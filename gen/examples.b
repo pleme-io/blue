@@ -1,4 +1,4 @@
-use("moji", [:includes, :is_blank, :lines, :squish, :strip_prefix])
+use("moji", [:includes, :is_blank, :lines, :squish, :strip_prefix, :trim])
 
 use(
   "retsu",

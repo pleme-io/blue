@@ -89,7 +89,7 @@ Text becomes records, records become answers. A record is a map with label keys;
 ```blue
 use("deeta", [:get_int, :get_str])
 use("kazu", [:sum])
-use("moji", [:is_blank, :lines])
+use("moji", [:is_blank, :lines, :trim])
 use("retsu", [:first, :rest, :size])
 
 def order_of(line)
@@ -213,7 +213,7 @@ Interpolation renders any value with to_s, so it needs no conversion calls. join
 `examples/04_strings.b`:
 
 ```blue
-use("moji", [:capitalize, :pad_left, :pad_right, :words])
+use("moji", [:capitalize, :pad_left, :pad_right, :trim, :words])
 use("retsu", [:concat_lists, :first, :last])
 
 def row(name, n)
@@ -464,7 +464,7 @@ exec_capture runs a command with no shell and answers its status, stdout and std
 `examples/09_processes.b`:
 
 ```blue
-use("moji", [:is_blank])
+use("moji", [:is_blank, :trim])
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def blue_version()

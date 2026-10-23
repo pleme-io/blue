@@ -564,7 +564,7 @@ verb(
     shape: "trim(text, opts) -> text",
     laterals: [],
     fleet: nil,
-    today: "partial:moji",
+    today: "exists:moji",
     meaning: "drop space from both ends",
     wave: 0,
     origin: "A"

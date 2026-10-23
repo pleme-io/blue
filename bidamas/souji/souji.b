@@ -117,14 +117,14 @@ def targets(root, depth)
   )
   filter(
     (d) -> path_exists(path_join(path_dirname(d), "Cargo.toml")),
-    filter((l) -> is_empty(trim(l)) == false, split(stdout_of(cap), "\n"))
+    filter((l) -> is_empty(blue::trim(l)) == false, split(stdout_of(cap), "\n"))
   )
 end
 
 # Kibibytes under dir, from du; 0 when du could not read it.
 def size_kib(dir)
   cap = exec_capture("du", "-sk", dir)
-  n = to_int(first(split(trim(stdout_of(cap)), "\t")))
+  n = to_int(first(split(blue::trim(stdout_of(cap)), "\t")))
   if n.nil?
     0
   else
@@ -146,7 +146,7 @@ def active?(dir, hours)
       "-print",
       "-quit"
     )
-    is_empty(trim(stdout_of(cap))) == false
+    is_empty(blue::trim(stdout_of(cap))) == false
   end
 end
 

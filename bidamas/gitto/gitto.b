@@ -9,7 +9,8 @@ use(
     :ends_with,
     :lines,
     :starts_with,
-    :take_chars
+    :take_chars,
+    :trim
   ]
 )
 
@@ -72,7 +73,7 @@ def exists?(repo, ref)
   resolves(repo, ref)
 end
 
-def get(repo, ref, opts)
+def get(repo, ref, opts?)
   checked(opts, [])
   if resolves(repo, ref)
     commit_of(out(repo, ["log", "-1", commit_format, ref, "--"]))
@@ -80,7 +81,7 @@ def get(repo, ref, opts)
 end
 
 def head_of(repo)
-  get(repo, "HEAD", {})
+  get(repo, "HEAD")
 end
 
 def ancestor?(repo, a, b)
@@ -174,10 +175,10 @@ def limit_args(opts)
   end
 end
 
-def list(repo, opts)
-  checked(opts, [:of, :limit, :ref])
+def list(repo, opts?)
+  o = checked(opts, [:of, :limit, :ref])
   require_repo(repo)
-  what = get_or(opts, :of, :commits)
+  what = get_or(o, :of, :commits)
   if what == :branches
     map(
       branch_of,
@@ -207,17 +208,14 @@ def list(repo, opts)
       )
     )
   elsif what == :commits
-    ref = get_or(opts, :ref, "HEAD")
+    ref = get_or(o, :ref, "HEAD")
     if resolves(repo, ref)
       map(
         commit_of,
         lines(
           raw(
             repo,
-            append(
-              append(["log", commit_format], limit_args(opts)),
-              [ref, "--"]
-            )
+            append(append(["log", commit_format], limit_args(o)), [ref, "--"])
           )
         )
       )
@@ -247,9 +245,9 @@ def list(repo, opts)
   end
 end
 
-def read(repo, path, opts)
-  checked(opts, [:at])
-  at = get_or(opts, :at, "HEAD")
+def read(repo, path, opts?)
+  o = checked(opts, [:at])
+  at = get_or(o, :at, "HEAD")
   cap = run(repo, ["show", "#{at}:#{path}"])
   if shisutemu::status_of(cap) != 0
     raise(:not_found, "#{path} at #{at} in #{repo}")
@@ -274,8 +272,8 @@ def change_line(line)
   {path: nth(1, f), state: state_of(nth(0, f))}
 end
 
-def diff(repo, a, b, opts)
-  checked(opts, [:paths])
+def diff(repo, a, b, opts?)
+  o = checked(opts, [:paths])
   map(
     change_line,
     lines(
@@ -283,7 +281,7 @@ def diff(repo, a, b, opts)
         repo,
         append(
           ["diff", "--name-status", "--no-renames", a, b, "--"],
-          get_or(opts, :paths, [])
+          get_or(o, :paths, [])
         )
       )
     )
@@ -300,9 +298,9 @@ def ref_of(key, kind)
   end
 end
 
-def create(repo, key, value, opts)
-  checked(opts, [:kind])
-  ref = ref_of(key, get_or(opts, :kind, :branch))
+def create(repo, key, value, opts?)
+  o = checked(opts, [:kind])
+  ref = ref_of(key, get_or(o, :kind, :branch))
   if succeeds(repo, ["show-ref", "--verify", "--quiet", ref])
     raise(:exists, "#{ref} in #{repo}")
   end
@@ -327,19 +325,19 @@ def delete(repo, key)
   nil
 end
 
-def commit(repo, message, opts)
-  checked(opts, [:paths, :all, :author])
-  paths = get_or(opts, :paths, [])
+def commit(repo, message, opts?)
+  o = checked(opts, [:paths, :all, :author])
+  paths = get_or(o, :paths, [])
   if is_empty(paths) == false
     out(repo, append(["add", "--"], paths))
   end
-  if get_or(opts, :all, false)
+  if get_or(o, :all, false)
     out(repo, ["add", "-A"])
   end
   if succeeds(repo, ["diff", "--cached", "--quiet"])
     raise(:empty, "nothing staged to commit in #{repo}")
   end
-  author = get_or(opts, :author, nil)
+  author = get_or(o, :author, nil)
   out(
     repo,
     append(
@@ -354,27 +352,27 @@ def commit(repo, message, opts)
   head_of(repo)
 end
 
-def fetch(repo, opts)
-  checked(opts, [:remote, :prune])
+def fetch(repo, opts?)
+  o = checked(opts, [:remote, :prune])
   out(
     repo,
     append(
       ["fetch"],
-      if get_or(opts, :prune, false)
+      if get_or(o, :prune, false)
         ["--prune"]
       else
         []
       end,
-      [get_or(opts, :remote, "origin")]
+      [get_or(o, :remote, "origin")]
     )
   )
   nil
 end
 
-def clone(url, dir, opts)
-  checked(opts, [:branch, :depth])
-  branch = get_or(opts, :branch, nil)
-  depth = get_or(opts, :depth, nil)
+def clone(url, dir, opts?)
+  o = checked(opts, [:branch, :depth])
+  branch = get_or(o, :branch, nil)
+  depth = get_or(o, :depth, nil)
   out(
     ".",
     append(
@@ -395,9 +393,9 @@ def clone(url, dir, opts)
   dir
 end
 
-def merge(repo, ref, opts)
-  checked(opts, [:fast_forward_only])
-  ff = get_or(opts, :fast_forward_only, true)
+def merge(repo, ref, opts?)
+  o = checked(opts, [:fast_forward_only])
+  ff = get_or(o, :fast_forward_only, true)
   args = if ff
     ["merge", "--ff-only", ref]
   else
@@ -424,16 +422,16 @@ def current_branch(repo)
   out(repo, ["symbolic-ref", "--short", "HEAD"])
 end
 
-def push(repo, opts)
-  checked(opts, [:remote, :branch, :rebase])
-  remote = get_or(opts, :remote, "origin")
-  branch = get_or(opts, :branch, current_branch(repo))
+def push(repo, opts?)
+  o = checked(opts, [:remote, :branch, :rebase])
+  remote = get_or(o, :remote, "origin")
+  branch = get_or(o, :branch, current_branch(repo))
   cap = run(repo, ["push", remote, branch])
   if shisutemu::status_of(cap) != 0
     if contains?(shisutemu::stderr_of(cap), "rejected") == false
       fail(repo, ["push", remote, branch], cap)
     end
-    if get_or(opts, :rebase, true) == false
+    if get_or(o, :rebase, true) == false
       raise(:diverged, "#{branch} on #{remote} has commits #{repo} lacks")
     end
     out(repo, ["fetch", remote])
@@ -662,4 +660,55 @@ test "list refuses an unknown of and an unknown option"
   save(r, "a.txt", "one\n", "first")
   assert raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
   assert raised(() -> gitto::list(r, {limt: 2})) == :bad_option
+end
+
+test "each verb runs with its options left out as it runs with an empty record"
+  r = fixture("optional")
+  first_commit = save(r, "a.txt", "one\n", "first")
+  second = save(r, "a.txt", "two\n", "second")
+  assert get(r, "HEAD") == second
+  assert get(r, "HEAD") == get(r, "HEAD", {})
+  assert get(r, "HEAD", nil) == second
+  assert get(r, "nope").nil?
+  assert gitto::list(r) == gitto::list(r, {})
+  assert gitto::list(r, nil) == gitto::list(r, {})
+  assert map((c) -> c.subject, gitto::list(r)) == ["second", "first"]
+  assert read(r, "a.txt") == "two\n"
+  assert read(r, "a.txt", nil) == "two\n"
+  assert diff(r, first_commit.oid, second.oid) ==
+    [{path: "a.txt", state: :modified}]
+  assert diff(r, first_commit.oid, second.oid, nil) ==
+    diff(r, first_commit.oid, second.oid, {})
+  assert create(r, "topic", second.oid) == second.oid
+  assert raised(() -> create(r, "topic", second.oid)) == :exists
+  assert create(r, "other", second.oid, nil) == second.oid
+  assert raised(() -> commit(r, "nothing")) == :empty
+  assert raised(() -> commit(r, "nothing", nil)) == :empty
+end
+
+test "an option given to a verb with options left out is still checked"
+  r = fixture("optional-bad")
+  save(r, "a.txt", "one\n", "first")
+  assert raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
+  assert raised(() -> read(r, "a.txt", {when: 1})) == :bad_option
+  assert raised(() -> fetch(r, {force: true})) == :bad_option
+  assert raised(() -> get(r, "HEAD", 1)) != nil
+end
+
+test "clone, fetch, merge and push run with their options left out"
+  origin = fixture("optional-origin")
+  base = save(origin, "a.txt", "one\n", "first")
+  out(origin, ["config", "receive.denyCurrentBranch", "ignore"])
+  work = "/tmp/blue-gitto-optional-work"
+  rm_rf(work)
+  assert clone(origin, work) == work
+  out(work, ["config", "user.name", "Tester"])
+  out(work, ["config", "user.email", "tester@example.invalid"])
+  assert info(work).head == base.oid
+  ahead = save(origin, "a.txt", "two\n", "second")
+  assert fetch(work).nil?
+  assert merge(work, "origin/main").oid == ahead.oid
+  local = save(work, "b.txt", "local\n", "third")
+  assert push(work).nil?
+  assert get(origin, "main").oid == local.oid
 end

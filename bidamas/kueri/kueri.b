@@ -1,7 +1,7 @@
 use("deeta", [:as_json])
 use("kazu")
 use("kyohi", [:enforce])
-use("moji", [:char_at, :made_of, :strip_suffix])
+use("moji", [:char_at, :made_of, :strip_suffix, :trim])
 
 use(
   "retsu",

@@ -1,7 +1,7 @@
 use("deeta", [:as_json, :get_str])
 use("hadome")
 use("kyohi", [:refusal])
-use("moji", [:after_first, :before_first, :glob_match?, :lines])
+use("moji", [:after_first, :before_first, :glob_match?, :lines, :trim])
 
 use(
   "nikkusu",

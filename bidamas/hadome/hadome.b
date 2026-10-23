@@ -2,7 +2,15 @@ use("kyohi", [:kinds, :refusal])
 
 use(
   "moji",
-  [:after_first, :after_last, :before_first, :before_last, :includes, :lines]
+  [
+    :after_first,
+    :after_last,
+    :before_first,
+    :before_last,
+    :includes,
+    :lines,
+    :trim
+  ]
 )
 
 use("retsu", [:is_empty, :last])

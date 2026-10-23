@@ -97,7 +97,8 @@ def raised_kind(want, found)
   end
 end
 
-def enforce(subject, rules, opts)
+def enforce(subject, rules, opts?)
+  opts = opts or {}
   found = check(subject, rules)
   if is_empty(found) == false
     raise(
@@ -282,4 +283,30 @@ test "enforce raises exactly when check finds something"
   assert sound == quiet
   assert contains(sound, true) == true
   assert contains(sound, false) == true
+end
+
+test "enforce takes its options or none, and the raised kind follows"
+  small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
+  assert enforce(2, [small]).nil?
+  assert enforce(2, [small], nil).nil?
+  assert enforce(2, []).nil?
+  caught = begin
+    enforce(5, [small])
+  rescue e
+    e
+  end
+  assert caught.kind == :refused
+  assert caught.message == "5 > 2"
+  by_nil = begin
+    enforce(5, [small], nil)
+  rescue e
+    e
+  end
+  assert by_nil.kind == :refused
+  named = begin
+    enforce(5, [small], {kind: :usage})
+  rescue e
+    e
+  end
+  assert named.kind == :usage
 end

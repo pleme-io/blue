@@ -1,6 +1,6 @@
 use("deeta", [:as_json, :get_str])
 use("kyohi", [:ok, :ok?, :refusal, :refusal_of, :refused, :value])
-use("moji", [:drop_chars, :includes, :lines, :take_chars])
+use("moji", [:drop_chars, :includes, :lines, :take_chars, :trim])
 use("retsu", [:concat_lists, :first, :is_empty, :size])
 
 use(

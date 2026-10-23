@@ -400,7 +400,7 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
             let sig = sigs.get(&name).expect("just inserted");
             let mut env: BTreeMap<String, Ty> = BTreeMap::new();
             if let Some(params) = items[1].as_list() {
-                for (i, p) in params[1..].iter().enumerate() {
+                for (i, p) in params[1..].iter().filter(|p| !is_marker(p)).enumerate() {
                     if let Some(pair) = p.as_list() {
                         if let Some(pn) = pair[0].as_symbol() {
                             env.insert(pn.to_string(), sig.params[i].clone());
@@ -452,6 +452,10 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
     out
 }
 
+fn is_marker(p: &Spanned) -> bool {
+    p.as_symbol().is_some_and(|n| n.starts_with('&'))
+}
+
 /// Read `(define-typed (name (p T) ...) R body)`.
 fn read_typed_decl(form: &Spanned) -> Option<(String, Sig)> {
     let items = form.as_list()?;
@@ -465,6 +469,7 @@ fn read_typed_decl(form: &Spanned) -> Option<(String, Sig)> {
     let name = sig[0].as_symbol()?;
     let params = sig[1..]
         .iter()
+        .filter(|p| !is_marker(p))
         .map(|p| match p.as_list() {
             Some(pair) if pair.len() == 2 => Ty::from_sexp(&pair[1].to_sexp()),
             _ => Ty::Dyn,
@@ -670,6 +675,43 @@ mod tests {
         assert!(o.ok(), "{:?}", msgs(&o));
         assert_eq!(o.stats.typed_decls, 1);
         assert!(o.stats.visited > 0, "a typed decl must actually be walked");
+    }
+
+    #[test]
+    fn an_optional_parameter_keeps_its_own_declared_type() {
+        let ok = check(
+            "def f(a: Int, b?: Str) -> Str\n  b\nend\n\
+             def g() -> Str\n  f(1, \"x\")\nend\n\
+             def h() -> Str\n  f(1)\nend",
+        );
+        assert!(ok.ok(), "{:?}", msgs(&ok));
+        let bad = check(
+            "def f(a: Int, b?: Str) -> Str\n  b\nend\n\
+             def g() -> Str\n  f(1, 2)\nend",
+        );
+        assert!(
+            msgs(&bad)
+                .iter()
+                .any(|m| m.contains("argument 2 expects Str")),
+            "{:?}",
+            msgs(&bad)
+        );
+    }
+
+    #[test]
+    fn an_optional_parameter_does_not_shift_the_types_around_it() {
+        let bad = check(
+            "def f(a: Int, b?: Int, c?: Str) -> Int\n  a + b\nend\n\
+             def g() -> Int\n  f(1, 2, 3)\nend",
+        );
+        assert!(
+            msgs(&bad)
+                .iter()
+                .any(|m| m.contains("argument 3 expects Str")),
+            "{:?}",
+            msgs(&bad)
+        );
+        assert_eq!(bad.diagnostics.len(), 1, "{:?}", msgs(&bad));
     }
 
     #[test]

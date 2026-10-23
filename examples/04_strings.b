@@ -4,7 +4,7 @@
 # join takes the list first; split takes the string first and keeps empty
 # fields. Build many lines as a list and join them once. moji holds the
 # string words the runtime lacks (padding, lines, words).
-use("moji", [:capitalize, :pad_left, :pad_right, :words])
+use("moji", [:capitalize, :pad_left, :pad_right, :trim, :words])
 use("retsu", [:concat_lists, :first, :last])
 
 def row(name, n)

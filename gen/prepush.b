@@ -109,7 +109,7 @@ if off?
   exit_with(0)
 end
 
-root = trim(git(["rev-parse", "--show-toplevel"]))
+root = blue::trim(git(["rev-parse", "--show-toplevel"]))
 dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
 
 if dirty != []

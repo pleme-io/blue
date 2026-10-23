@@ -2422,6 +2422,26 @@ mod tests {
     }
 
     #[test]
+    fn optional_and_rest_parameters_bind_their_names_in_typed_and_plain_defs() {
+        for src in [
+            "def f(a, b?)\n  [a, b]\nend\n",
+            "def f(a, b?, c?)\n  [a, b, c]\nend\n",
+            "def f(a: Int, b?: Int) -> dyn\n  [a, b]\nend\n",
+            "def f(a: Int, *r) -> dyn\n  [a, r]\nend\n",
+            "def f(a, *r)\n  [a, r]\nend\n",
+        ] {
+            assert!(codes(src).is_empty(), "{src}: {:?}", codes(src));
+        }
+    }
+
+    #[test]
+    fn an_optional_parameter_is_unbound_outside_its_def() {
+        let c = codes("def f(a, b?)\n  [a, b]\nend\nb\n");
+        assert_eq!(c.len(), 1, "{c:?}");
+        assert_eq!(c[0].0, Code::B0001);
+    }
+
+    #[test]
     fn parameters_locals_and_globals_resolve() {
         assert!(codes("def f(a)\n  b = a + 1\n  g(b)\nend\n\ndef g(x)\n  x\nend\n").is_empty());
     }

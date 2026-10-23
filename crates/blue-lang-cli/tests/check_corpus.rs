@@ -148,7 +148,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
         Vec::<String>::new(),
         "a definition named like a macro or special form cannot be made"
     );
-    // Measured 2026-09-29: 17 definitions in 5 bidamas. retsu's are what
+    // Measured 2026-09-29: 17 definitions in 5 bidamas; `moji.trim` since 2026-10-23, whose one-argument call is the builtin's, so replacing it changes no program. retsu's are what
     // AUTHORING.md calls its "total replacements" (`retsu.first` is nil on an
     // empty list) — deliberate, and deliberately program-wide today.
     // `raifusaikuru.link` since 2026-10-10: the bidama's link predates the
@@ -168,6 +168,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "kazu.abs",
             "kazu.max",
             "kazu.min",
+            "moji.trim",
             "moji.truncate",
             "raifusaikuru.link",
             "retsu.first",

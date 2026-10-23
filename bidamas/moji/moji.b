@@ -359,7 +359,11 @@ def ellipsize(s, width)
   truncate(s, width, {})
 end
 
-def truncate(text, width, opts)
+def trim(text, opts?)
+  blue::trim(text, opts)
+end
+
+def truncate(text, width, opts?)
   marker = get(checked(opts, [:marker]), :marker) or "..."
   if length(text) <= width
     text
@@ -371,6 +375,7 @@ def truncate(text, width, opts)
 end
 
 def checked(opts, allowed)
+  opts = opts or {}
   bad = filter((e) -> member?(first(e), allowed) == false, map_entries(opts))
   if is_empty(bad) == false
     raise(
@@ -651,6 +656,55 @@ test "lower, size and truncate"
   assert truncate("hello", 2, {}) == "he"
   bad = truncate("hello", 3, {cut: 1}) rescue "caught"
   assert bad == "caught"
+end
+
+test "trim cuts whitespace with or without options, and agrees with the builtin"
+  assert trim("  a  ") == "a"
+  assert trim("  a  ", {}) == "a"
+  assert trim("  a  ", nil) == "a"
+  assert trim("") == ""
+  assert trim("   ") == ""
+  assert trim("  a  ", {side: :start}) == "a  "
+  assert trim("  a  ", {side: :end}) == "  a"
+  assert trim("--a--", {chars: "-"}) == "a"
+  assert trim("--a--", {chars: "-", side: :end}) == "--a"
+  assert trim("\t a b \n") == blue::trim("\t a b \n")
+  assert map(trim, [" a", "b "]) == ["a", "b"]
+end
+
+test "trim refuses an unknown option, a bad side and a bad character set by kind"
+  unknown = begin
+    trim("a", {sid: :end})
+  rescue e
+    e.kind
+  end
+  assert unknown == :bad_option
+  side = begin
+    trim("a", {side: :middle})
+  rescue e
+    e.kind
+  end
+  assert side == :bad_option
+  chars = begin
+    trim("a", {chars: 1})
+  rescue e
+    e.kind
+  end
+  assert chars == :bad_option
+end
+
+test "the cut takes its options or none"
+  assert truncate("hello world", 8) == "hello..."
+  assert truncate("hello world", 8, nil) == "hello..."
+  assert truncate("hello world", 8, {}) == truncate("hello world", 8)
+  assert truncate("hello world", 8, {marker: "~"}) == "hello w~"
+  assert truncate("hello", 5) == "hello"
+  unknown = begin
+    truncate("hello", 3, {cut: 1})
+  rescue e
+    e.kind
+  end
+  assert unknown == :bad_option
 end
 
 test "the two builtins this package deliberately does NOT wrap"

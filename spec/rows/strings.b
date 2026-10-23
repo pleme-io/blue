@@ -145,6 +145,24 @@ row(
 row("strings.trim", "trim(\"  x  \")", value("\"x\""), covers("builtin:trim"))
 
 row(
+  "strings.trim.side",
+  "[trim(\"  x  \", {side: :start}), trim(\"  x  \", {side: :end}), trim(\"  x  \", {side: :both})]",
+  value("[\"x  \", \"  x\", \"x\"]")
+)
+
+row(
+  "strings.trim.chars",
+  "[trim(\"--x-y--\", {chars: \"-\"}), trim(\"-+x\", {chars: \"-+\", side: :start}), trim(\" x \", {})]",
+  value("[\"x-y\", \"x\", \"x\"]")
+)
+
+row(
+  "strings.trim.unknown_option",
+  "trim(\"x\", {sid: :end})",
+  fails(:eval, "unknown option sid; this verb takes side, chars")
+)
+
+row(
   "strings.upcase",
   "upcase(\"abc\")",
   value("\"ABC\""),

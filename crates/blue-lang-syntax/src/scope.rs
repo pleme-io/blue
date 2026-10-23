@@ -534,9 +534,8 @@ impl Walker<'_> {
             .iter()
             .skip(1)
             .filter_map(|p| {
-                if head == "define-typed" {
-                    let pair = p.as_list()?;
-                    let n = pair.first()?;
+                if head == "define-typed" && p.as_list().is_some() {
+                    let n = p.as_list()?.first()?;
                     Some((n.as_symbol()?.to_string(), n.span))
                 } else {
                     param(p)

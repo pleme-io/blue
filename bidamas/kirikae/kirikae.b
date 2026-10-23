@@ -15,7 +15,7 @@ use(
 
 use("kyohi", [:ok?, :refusal_of, :value])
 
-use("moji", [:drop_chars, :includes, :lines, :take_chars])
+use("moji", [:drop_chars, :includes, :lines, :take_chars, :trim])
 
 use(
   "retsu",

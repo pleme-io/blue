@@ -46,7 +46,10 @@
 //! for. **No node in an erased tree needs a synthetic span**, so nothing is
 //! lost and nothing is fabricated.
 
+use blue_lang_syntax::{LOWERED_OPTIONAL_ARG, LOWERED_OPTIONAL_ARITY, OPTIONAL_MARKER};
 use tatara_lisp::{Atom, Sexp, Spanned, SpannedForm};
+
+const REST_NAME: &str = "%rest";
 
 /// Erase every type annotation in a program, leaving code the interpreter
 /// can execute — **with every surviving node's source position intact**.
@@ -64,6 +67,90 @@ pub fn erase_types(forms: &[Spanned]) -> Vec<Spanned> {
 }
 
 fn erase_form(s: &Spanned) -> Spanned {
+    lower_optional(erase_types_in(s))
+}
+
+fn sym(at: &Spanned, name: &str) -> Spanned {
+    Spanned::new(at.span, SpannedForm::Atom(Atom::Symbol(name.into())))
+}
+
+fn int(at: &Spanned, n: usize) -> Spanned {
+    Spanned::new(at.span, SpannedForm::Atom(Atom::Int(n as i64)))
+}
+
+fn call(at: &Spanned, head: &str, args: Vec<Spanned>) -> Spanned {
+    let mut items = vec![sym(at, head)];
+    items.extend(args);
+    Spanned::new(at.span, SpannedForm::List(items))
+}
+
+fn lower_optional(s: Spanned) -> Spanned {
+    let SpannedForm::List(items) = &s.form else {
+        return s;
+    };
+    if items.len() < 3 || items[0].as_symbol() != Some("define") {
+        return s;
+    }
+    let Some(sig) = items[1].as_list() else {
+        return s;
+    };
+    let Some(at) = sig
+        .iter()
+        .position(|p| p.as_symbol() == Some(OPTIONAL_MARKER))
+    else {
+        return s;
+    };
+    let marker = &sig[at];
+    let required = &sig[1..at];
+    let optional = &sig[at + 1..];
+    let rest = sym(marker, REST_NAME);
+    let mut flat = vec![sig[0].clone()];
+    flat.extend(required.iter().cloned());
+    flat.push(sym(marker, "&rest"));
+    flat.push(rest.clone());
+    let arity = call(
+        marker,
+        LOWERED_OPTIONAL_ARITY,
+        vec![
+            Spanned::new(
+                sig[0].span,
+                SpannedForm::Atom(Atom::Str(sig[0].as_symbol().unwrap_or("_").into())),
+            ),
+            rest.clone(),
+            int(marker, required.len()),
+            int(marker, optional.len()),
+        ],
+    );
+    let bindings = optional
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            Spanned::new(
+                name.span,
+                SpannedForm::List(vec![
+                    name.clone(),
+                    call(name, LOWERED_OPTIONAL_ARG, vec![rest.clone(), int(name, i)]),
+                ]),
+            )
+        })
+        .collect();
+    let mut body = vec![
+        sym(marker, "let"),
+        Spanned::new(marker.span, SpannedForm::List(bindings)),
+    ];
+    body.extend(items[2..].iter().cloned());
+    let wrapped = Spanned::new(s.span, SpannedForm::List(body));
+    Spanned::new(
+        s.span,
+        SpannedForm::List(vec![
+            items[0].clone(),
+            Spanned::new(items[1].span, SpannedForm::List(flat)),
+            call(marker, "begin", vec![arity, wrapped]),
+        ]),
+    )
+}
+
+fn erase_types_in(s: &Spanned) -> Spanned {
     match &s.form {
         SpannedForm::List(items) if is_define_typed(items) => {
             // items = [define-typed, (name (p T)...), R, body]
@@ -138,6 +225,46 @@ mod tests {
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    #[test]
+    fn an_optional_def_lowers_to_a_rest_def_that_binds_each_optional_by_position() {
+        assert_eq!(
+            erased("def f(a, b?, c?)\n  [a, b, c]\nend"),
+            "(define (f a &rest %rest) (begin (blue-optional-arity \"f\" %rest 1 2) (let ((b (blue-optional-arg %rest 0)) (c (blue-optional-arg %rest 1))) (list a b c))))"
+        );
+    }
+
+    #[test]
+    fn an_annotated_optional_def_erases_to_the_same_code_as_the_plain_one() {
+        assert_eq!(
+            erased("def f(a: Int, b?: Int) -> Int\n  a\nend"),
+            erased("def f(a, b?)\n  a\nend")
+        );
+    }
+
+    #[test]
+    fn a_def_with_only_optional_parameters_requires_none() {
+        assert_eq!(
+            erased("def f(a?)\n  a\nend"),
+            "(define (f &rest %rest) (begin (blue-optional-arity \"f\" %rest 0 1) (let ((a (blue-optional-arg %rest 0))) a)))"
+        );
+    }
+
+    #[test]
+    fn an_optional_def_nested_in_a_body_is_lowered_too() {
+        let out = erased("def outer()\n  def inner(a, b?)\n    b\n  end\n  inner(1)\nend");
+        assert!(!out.contains("&optional"), "{out}");
+        assert!(
+            out.contains("blue-optional-arity \"inner\" %rest 1 1"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn a_def_without_optionals_is_untouched() {
+        assert_eq!(erased("def f(a, *r)\n  a\nend"), "(define (f a &rest r) a)");
+        assert_eq!(erased("def f(a, b)\n  a\nend"), "(define (f a b) a)");
     }
 
     /// The shape of the erasure, spelled out.
@@ -252,6 +379,8 @@ mod tests {
             "def three(a: Int, b, c: Str) -> dyn\n  a\nend",
             "def outer(x: Int) -> Int\n  def inner(y: Int) -> Int\n    y\n  end\nend",
             "def f(x)\n  x\nend\nf(1)",
+            "def f(a, b?, c?)\n  [a, b, c]\nend",
+            "def g(a: Int, b?: Int) -> Int\n  a\nend",
         ] {
             let mut seen = 0;
             for form in &erase_types(&tree(src)) {

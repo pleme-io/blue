@@ -96,6 +96,11 @@ pub const FORMS: &[Form] = &[
         doc: "A rest parameter: `*name` last in a def, fn or arrow parameter list collects the remaining arguments into a list, the signature-side sibling of the call-side splat. A call passes every fixed parameter and any number more.",
     },
     Form {
+        example: "def f(a, b?) b end",
+        lowers_to: "(define (f a &optional b) b)",
+        doc: "An optional parameter: `name?` after the required ones in a def is nil when the call leaves it out. A call passes every required parameter and up to the optional ones; more raises, naming the range. A required or rest parameter cannot follow an optional one.",
+    },
+    Form {
         example: "cap.status",
         lowers_to: "(blue-field cap :status)",
         doc: "A field read: a map's keyword or string key, a keyed list such as exec_capture's result or a parsed JSON object, or an error's kind, message, data, cause or trace. A missing field raises naming the fields there are; get(m, :k) reads one that may be absent.",

@@ -105,6 +105,10 @@ exception: they are the prelude and are written bare.
 - **Subject first.** The thing acted on (a path, a command, a store, a list) is the first argument,
   so `x |> verb(...)` works for every space verb.
 - **Required positionals, at most three.** Anything optional goes in the trailing options record.
+- **Optional means `name?`.** A def writes its optional trailing parameters with a question mark,
+  `def read(path, opts?)`: a call may leave them out, the body reads `nil`, and a call with more
+  arguments than the def has raises, naming the range (`takes 1 to 2 arguments, got 3`). A required
+  or rest parameter cannot follow an optional one. The contract table's `name?` is this spelling.
 - **Options are one record, last, optional, with declared defaults.** An unknown key raises
   `:bad_option` and names the keys the verb takes, so a typo is never silently ignored. Option names
   are the same across spaces: `cwd:`, `env:`, `timeout:`, `ok:`, `show:`, `at:`, `limit:`,

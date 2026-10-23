@@ -103,7 +103,7 @@ end
 def waived_code(line)
   body = comment_text(line)
   if starts_with?(body, "waive ")
-    trim(first(split(join(drop(6, chars(body)), ""), ":")))
+    blue::trim(first(split(join(drop(6, chars(body)), ""), ":")))
   end
 end
 
@@ -182,7 +182,7 @@ def joined_header_lines(lines)
     fn(acc, line)
       out = first(acc)
       open = last(acc)
-      t = trim(line)
+      t = blue::trim(line)
       if open != nil
         if starts_with?(t, ")")
           [push(out, concat(open, t)), nil]
@@ -1201,7 +1201,7 @@ def shape_collapsed(text)
 end
 
 def shape_names(text)
-  map(trim, split(text, ","))
+  map(blue::trim, split(text, ","))
 end
 
 def shape_positionals(shape)
@@ -1223,12 +1223,12 @@ end
 def vocab_least(v)
   count_where(
     (a) -> not (starts_with?(a, "~") or ends_with?(a, "?")),
-    reject((a) -> a == "", map(trim, get(v, :args)))
+    reject((a) -> a == "", map(blue::trim, get(v, :args)))
   )
 end
 
 def vocab_most(v)
-  size(reject((a) -> a == "", map(trim, get(v, :args))))
+  size(reject((a) -> a == "", map(blue::trim, get(v, :args))))
 end
 
 def verb_conforms(shape, v)
@@ -1695,7 +1695,7 @@ def tsv_list(s)
   if s == "" or s == "-"
     []
   else
-    map(trim, split(s, ","))
+    map(blue::trim, split(s, ","))
   end
 end
 

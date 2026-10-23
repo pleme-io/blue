@@ -205,7 +205,7 @@ pub const NAMES: &[NameDoc] = names! {
     Text: "string" "string(x)" "tatara-lisp's rendering: :a stays \":a\" and a list prints as (1). Use to_s.";
     Text: "upcase" "upcase(s)" "The string in upper case. Raises on nil.";
     Text: "downcase" "downcase(s)" "The string in lower case. Raises on nil.";
-    Text: "trim" "trim(s)" "The string without leading and trailing whitespace.";
+    Text: "trim" "trim(s[, opts])" "The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option.";
     Text: "split" "split(s, sep)" "The fields between separators, empty ones kept (okite D0012): split(\"a,b,\", \",\") is [\"a\", \"b\", \"\"]. An empty sep splits into characters.";
     Text: "join" "join(xs, sep)" "The elements' text with sep between. The LIST comes first here, and the string first in split.";
     Text: "replace" "replace(s, from, to)" "Every occurrence of from replaced by to.";

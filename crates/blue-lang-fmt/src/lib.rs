@@ -1453,8 +1453,19 @@ impl<'s> Renderer<'s> {
     /// A parameter list `(a, b)`, broken one per line when it is too long.
     /// `region` is the inside of the parentheses when the source has them.
     fn params(&self, params: &[Spanned], region: Option<(usize, usize)>) -> Doc {
-        let marker = |p: &Spanned| p.as_symbol() == Some("&rest");
-        let rest_name = params.iter().position(marker).map(|i| i + 1);
+        let marker = |p: &Spanned| {
+            matches!(
+                p.as_symbol(),
+                Some("&rest") | Some(blue_lang_syntax::OPTIONAL_MARKER)
+            )
+        };
+        let rest_name = params
+            .iter()
+            .position(|p| p.as_symbol() == Some("&rest"))
+            .map(|i| i + 1);
+        let optional_from = params
+            .iter()
+            .position(|p| p.as_symbol() == Some(blue_lang_syntax::OPTIONAL_MARKER));
         let kept: Vec<(usize, &Spanned)> = params
             .iter()
             .enumerate()
@@ -1472,7 +1483,7 @@ impl<'s> Renderer<'s> {
                 if Some(*i) == rest_name {
                     Doc::text(format!("*{}", p.as_symbol().unwrap_or("_")))
                 } else {
-                    self.param(p)
+                    self.param(p, optional_from.is_some_and(|o| *i > o))
                 }
             })
             .collect();
@@ -1485,17 +1496,19 @@ impl<'s> Renderer<'s> {
     /// parser fills in for an unannotated parameter, so printing it would turn
     /// every plain `def` into an annotated one on the first format — the scale
     /// would slide by itself, in the direction nobody asked for.
-    fn param(&self, p: &Spanned) -> Doc {
+    fn param(&self, p: &Spanned, optional: bool) -> Doc {
+        let mark = if optional { "?" } else { "" };
         match p.as_list() {
             Some([name, ty]) => {
                 let mut t = String::from(name.as_symbol().unwrap_or("_"));
+                t.push_str(mark);
                 if let Some(ty) = render_ty(&ty.to_sexp()) {
                     t.push_str(": ");
                     t.push_str(&ty);
                 }
                 Doc::text(t)
             }
-            _ => Doc::text(p.as_symbol().unwrap_or("_").to_string()),
+            _ => Doc::text(format!("{}{mark}", p.as_symbol().unwrap_or("_"))),
         }
     }
 
@@ -1889,38 +1902,64 @@ fn sym_name_of(s: &Spanned) -> Option<&str> {
     s.as_list()?.first()?.as_symbol()
 }
 
-fn without_rest(ps: &[Spanned]) -> Option<&[Spanned]> {
-    match ps {
-        [head @ .., marker, name]
-            if marker.as_symbol() == Some("&rest")
-                && is_name(name)
-                && !head.iter().any(|p| p.as_symbol() == Some("&rest")) =>
-        {
-            Some(head)
+fn without_markers(ps: &[Spanned]) -> Option<Vec<&Spanned>> {
+    let rest_at = ps.iter().position(|p| p.as_symbol() == Some("&rest"));
+    let optional_at = ps
+        .iter()
+        .position(|p| p.as_symbol() == Some(blue_lang_syntax::OPTIONAL_MARKER));
+    let kept = |skip: &dyn Fn(usize) -> bool| -> Vec<&Spanned> {
+        ps.iter()
+            .enumerate()
+            .filter(|(i, _)| !skip(*i))
+            .map(|(_, p)| p)
+            .collect()
+    };
+    let rest_ok = match rest_at {
+        Some(i) => {
+            i + 2 == ps.len()
+                && is_name(&ps[i + 1])
+                && !ps[..i].iter().any(|p| p.as_symbol() == Some("&rest"))
         }
-        _ if ps.iter().any(|p| p.as_symbol() == Some("&rest")) => None,
-        _ => Some(ps),
+        None => true,
+    };
+    let optional_ok = match optional_at {
+        Some(i) => {
+            i + 1 < ps.len()
+                && rest_at.is_none()
+                && !ps[i + 1..]
+                    .iter()
+                    .any(|p| p.as_symbol() == Some(blue_lang_syntax::OPTIONAL_MARKER))
+        }
+        None => true,
+    };
+    if !(rest_ok && optional_ok) {
+        return None;
     }
+    Some(match (rest_at, optional_at) {
+        (Some(i), _) => kept(&|j| j >= i),
+        (None, Some(i)) => kept(&|j| j == i),
+        (None, None) => kept(&|_| false),
+    })
 }
 
 fn is_params(s: &Spanned) -> bool {
     s.as_list()
-        .and_then(without_rest)
-        .is_some_and(|ps| ps.iter().all(is_name))
+        .and_then(without_markers)
+        .is_some_and(|ps| ps.into_iter().all(is_name))
 }
 
 /// `(name a b …)` — an untyped `def` signature.
 fn is_signature(s: &Spanned) -> bool {
     s.as_list()
-        .and_then(without_rest)
-        .is_some_and(|sig| !sig.is_empty() && sig.iter().all(is_name))
+        .and_then(without_markers)
+        .is_some_and(|sig| !sig.is_empty() && sig.into_iter().all(is_name))
 }
 
 /// `(name (a T) …)` and a return type: the shape an annotated `def` lowers to,
 /// every parameter a `(name type)` pair.
 fn is_typed_signature(sig: &Spanned, ret: &Spanned) -> bool {
-    sig.as_list().and_then(without_rest).is_some_and(|sig| {
-        sig.first().is_some_and(is_name)
+    sig.as_list().and_then(without_markers).is_some_and(|sig| {
+        sig.first().copied().is_some_and(is_name)
             && sig[1..].iter().all(|p| {
                 p.as_list()
                     .is_some_and(|pair| pair.len() == 2 && is_name(&pair[0]) && is_type(&pair[1]))
@@ -2185,6 +2224,29 @@ mod tests {
 
     fn l(src: &str) -> String {
         format_source_lossless(src).unwrap_or_else(|e| panic!("{src:?}: {e}"))
+    }
+
+    #[test]
+    fn optional_parameters_render_back_with_their_question_marks() {
+        for src in [
+            "def f(a, b?)\n  [a, b]\nend",
+            "def f(a?, b?)\n  [a, b]\nend",
+            "def f(a: Int, b?: Str) -> Int\n  [a, b]\nend",
+            "def f(a, b?: Str) -> Int\n  [a, b]\nend",
+            "def f(a, *r)\n  [a, r]\nend",
+            "def f(a: Int, *r) -> Int\n  [a, r]\nend",
+        ] {
+            assert_eq!(f(src).trim(), src, "{src}");
+            assert_eq!(l(src).trim(), src, "{src}");
+        }
+    }
+
+    #[test]
+    fn a_long_optional_parameter_list_breaks_one_per_line() {
+        let src = "def configure(repository, revision, destination?, branch_name?, remote_name?, depth?)\n  repository\nend";
+        let out = f(src);
+        assert!(out.contains("branch_name?,\n"), "{out}");
+        assert_eq!(f(out.trim()).trim(), out.trim());
     }
 
     // ---- the minimal-spelling law (§V.13) ---------------------------

@@ -71,6 +71,43 @@ row(
   formats("def pack(a, *rest)\n  rest\nend\n")
 )
 
+row(
+  "fn.optional",
+  "def pick(a, b?, c?)\n  [a, b, c]\nend\n\n[pick(1), pick(1, 2), pick(1, 2, 3)]",
+  value("[[1, nil, nil], [1, 2, nil], [1, 2, 3]]"),
+  covers("form:def f(a, b?) b end")
+)
+
+row(
+  "fn.optional.typed",
+  "def pick(a: Int, b?: Int) -> Int\n  a + (b or 10)\nend\n\n[pick(1), pick(1, 5)]",
+  value("[11, 6]")
+)
+
+row(
+  "fn.optional.too_many",
+  "def pick(a, b?)\n  [a, b]\nend\n\npick(1, 2, 3)",
+  fails(:eval, "takes 1 to 2 arguments, got 3")
+)
+
+row(
+  "fn.optional.required_after",
+  "def pick(a?, b)\n  a\nend",
+  fails(:parse, "cannot follow an optional one")
+)
+
+row(
+  "fn.optional.rest_after",
+  "def pick(a, b?, *rest)\n  a\nend",
+  fails(:parse, "a rest parameter cannot follow an optional one")
+)
+
+row(
+  "fmt.optional",
+  "def pick(a,b?)\n  [a, b]\nend",
+  formats("def pick(a, b?)\n  [a, b]\nend\n")
+)
+
 row("fn.def.bare_call", "def f()\n  41\nend\n\nf + 1", value("42"))
 
 row(

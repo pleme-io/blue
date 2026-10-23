@@ -460,6 +460,12 @@ pub const LOWERED_MAP: &str = "hash-map";
 /// lets `"n=#{42}"` interpolate a number. Not `+`, which is arithmetic.
 pub const LOWERED_CONCAT: &str = "concat";
 
+pub const OPTIONAL_MARKER: &str = "&optional";
+
+pub const LOWERED_OPTIONAL_ARITY: &str = "blue-optional-arity";
+
+pub const LOWERED_OPTIONAL_ARG: &str = "blue-optional-arg";
+
 pub const LOWERED_FIELD: &str = "blue-field";
 
 pub const LOWERED_MERGE: &str = "blue-merge";
@@ -2113,6 +2119,26 @@ impl Parser {
         matches!(self.peek(), TokenKind::Op(o) if o == "*")
     }
 
+    fn optional_mark(
+        &self,
+        name: String,
+        span: Span,
+        optional_from: &mut Option<usize>,
+        index: usize,
+    ) -> Result<String, Fail> {
+        match name.strip_suffix('?').filter(|n| !n.is_empty()) {
+            Some(bare) => {
+                optional_from.get_or_insert(index);
+                Ok(bare.to_string())
+            }
+            None if optional_from.is_some() => Err(fail(
+                format!("the required parameter `{name}` cannot follow an optional one"),
+                span,
+            )),
+            None => Ok(name),
+        }
+    }
+
     fn rest_is_last(&mut self) -> Result<(), Fail> {
         self.skip_newlines();
         if self.at(&TokenKind::Comma) {
@@ -2561,6 +2587,7 @@ impl Parser {
         };
         self.not_reserved(&name, name_span, "a `def` name")?;
         let mut params: Vec<(String, Span, Option<Spanned>)> = Vec::new();
+        let mut optional_from: Option<usize> = None;
         let mut rest: Vec<Spanned> = Vec::new();
         if !self.at(&TokenKind::LParen) {
             self.note(
@@ -2578,6 +2605,12 @@ impl Parser {
                     self.skip_newlines();
                     let p_span = self.peek_span();
                     if self.at_star() {
+                        if optional_from.is_some() {
+                            return Err(fail(
+                                "a rest parameter cannot follow an optional one",
+                                p_span,
+                            ));
+                        }
                         rest = self.rest_parameter()?.to_vec();
                         self.rest_is_last()?;
                         self.expect(&TokenKind::RParen, "`)` after the rest parameter")?;
@@ -2587,11 +2620,15 @@ impl Parser {
                         // `a` — unannotated
                         TokenKind::Ident(p) => {
                             self.not_reserved(&p, p_span, "a parameter name")?;
+                            let p =
+                                self.optional_mark(p, p_span, &mut optional_from, params.len())?;
                             params.push((p, p_span, None));
                         }
                         // `a:` came through as one token, so a type follows
                         TokenKind::Label(p) => {
                             self.not_reserved(&p, p_span, "a parameter name")?;
+                            let p =
+                                self.optional_mark(p, p_span, &mut optional_from, params.len())?;
                             self.skip_newlines();
                             let ty = self.type_expr()?;
                             params.push((p, p_span, Some(ty)));
@@ -2653,7 +2690,12 @@ impl Parser {
         let annotated = ret.is_some() || params.iter().any(|(_, _, t)| t.is_some());
         if !annotated {
             let mut sig = vec![sym_at(name_span, &name)];
-            sig.extend(params.into_iter().map(|(p, s, _)| sym_at(s, &p)));
+            for (i, (p, s, _)) in params.into_iter().enumerate() {
+                if optional_from == Some(i) {
+                    sig.push(sym_at(s, OPTIONAL_MARKER));
+                }
+                sig.push(sym_at(s, &p));
+            }
             sig.extend(rest);
             return Ok(list_at(
                 whole,
@@ -2669,7 +2711,10 @@ impl Parser {
         // parameter's own span, so a diagnostic about it points at the
         // parameter — the only thing in the source it could mean.
         let mut sig = vec![sym_at(name_span, &name)];
-        for (p, s, t) in params {
+        for (i, (p, s, t)) in params.into_iter().enumerate() {
+            if optional_from == Some(i) {
+                sig.push(sym_at(s, OPTIONAL_MARKER));
+            }
             let ty = t.unwrap_or_else(|| sym_at(s, "dyn"));
             sig.push(list_at(s.merge(ty.span), vec![sym_at(s, &p), ty]));
         }
@@ -3045,6 +3090,49 @@ mod tests {
     #[test]
     fn def_with_no_params() {
         assert_eq!(q("def zero()\n  0\nend"), "(define (zero) 0)");
+    }
+
+    fn refused(src: &str) -> String {
+        match parse_expr(src) {
+            Ok(s) => panic!("{src:?} should be refused, parsed to {s}"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_question_mark_parameter_is_optional() {
+        assert_eq!(q("def f(a, b?)\n  b\nend"), "(define (f a &optional b) b)");
+        assert_eq!(q("def f(a?, b?)\n  a\nend"), "(define (f &optional a b) a)");
+        assert_eq!(q("def f(a?)\n  a\nend"), "(define (f &optional a) a)");
+    }
+
+    #[test]
+    fn an_annotated_optional_parameter_keeps_its_type_after_the_marker() {
+        assert_eq!(
+            q("def f(a: Int, b?: Str) -> Int\n  a\nend"),
+            "(define-typed (f (a Int) &optional (b Str)) Int a)"
+        );
+        assert_eq!(
+            q("def f(a, b?: Str)\n  a\nend"),
+            "(define-typed (f (a dyn) &optional (b Str)) dyn a)"
+        );
+    }
+
+    #[test]
+    fn a_def_without_question_marks_carries_no_marker() {
+        assert_eq!(q("def f(a, b)\n  a\nend"), "(define (f a b) a)");
+        assert_eq!(q("def f(a, *r)\n  a\nend"), "(define (f a &rest r) a)");
+    }
+
+    #[test]
+    fn a_required_parameter_cannot_follow_an_optional_one() {
+        assert!(refused("def f(a?, b)\n  a\nend").contains("`b` cannot follow an optional"));
+        assert!(refused("def f(a, b?, c: Int)\n  a\nend").contains("`c` cannot follow"));
+    }
+
+    #[test]
+    fn a_rest_parameter_cannot_follow_an_optional_one() {
+        assert!(refused("def f(a, b?, *r)\n  a\nend").contains("rest parameter cannot follow"));
     }
 
     // ---- literals ----------------------------------------------------

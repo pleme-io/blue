@@ -126,7 +126,7 @@ def test_example(text, name)
     nil
   else
     b = first(blocks)
-    {from: "test \"#{first(b)}\"", code: map((l) -> trim(l), take(8, last(b)))}
+    {from: "test \"#{first(b)}\"", code: map((l) -> blue::trim(l), take(8, last(b)))}
   end
 end
 

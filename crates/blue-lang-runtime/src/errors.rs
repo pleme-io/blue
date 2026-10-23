@@ -186,6 +186,13 @@ fn raise_with(
     Err(EvalError::User { value, at: sp })
 }
 
+pub fn raise_kind(kind: &str, message: String, sp: tatara_lisp::Span) -> EvalError {
+    match raise_with(&[keyword(kind), Value::Str(message.into())], None, sp) {
+        Err(e) => e,
+        Ok(_) => unreachable!("raise_with always raises"),
+    }
+}
+
 const NIL_TEST: &str = "nil?";
 
 fn field(v: &Value, name: &str, sp: tatara_lisp::Span) -> Result<Value, EvalError> {

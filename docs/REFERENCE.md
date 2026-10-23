@@ -558,7 +558,7 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0016` | unused-import | every `use` is reached by something in the file, and every name it lists is read | refused |
 | `B0017` | duplicate-definition | a namespace defines a function or macro once | refused |
 | `B0018` | redundant-qualifier | a qualifier changes what its name means: not a bidama's own definition, not a listed name, not a builtin already reached bare | autofix |
-| `B0019` | needs-mismatch | the bidamas a bidama `use`s are exactly the ones its Bluefile `needs` | autofix |
+| `B0019` | needs-mismatch | the bidamas a bidama `use`s are exactly the `needs` its Bluefile.lock records | autofix |
 | `B0020` | package-as-value | a bidama's name is written as a qualifier, `retsu::first(xs)`, never as a value | refused |
 | `B0021` | legacy-name | a renamed or moved definition is called by its new name; the old name is a bridge that closes at the next minor version | autofix |
 | `B0022` | legacy-misuse | a `legacy_names` declaration is one of each form per bidama, dates from a version the bidama has reached, names no name twice, and moves a name only to a definition a loaded bidama holds | refused |

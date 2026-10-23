@@ -93,7 +93,11 @@ impl GitRegistry {
                     path: manifest_path.clone(),
                     message: err.to_string(),
                 })?;
-            entries.insert((bf.name.clone(), bf.version), bf.manifest);
+            let mut manifest = bf.manifest;
+            if let Some(needs) = crate::lock::locked_needs(&path) {
+                manifest.needs = needs;
+            }
+            entries.insert((bf.name.clone(), bf.version), manifest);
         }
 
         Ok(Self { entries })

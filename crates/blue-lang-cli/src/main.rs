@@ -83,7 +83,7 @@ mod watch;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use blue_lang_pkg::lock::{Freshness, ManifestRecord, LOCK_FILE};
+use blue_lang_pkg::lock::{Freshness, LOCK_FILE};
 use clap::{CommandFactory, Parser, Subcommand};
 
 use config::BlueConfig;
@@ -476,6 +476,13 @@ pub(crate) fn read_run(path: &Path) -> Result<String, CliError> {
         path,
         blue_lang_pkg::canonical::Policy::run(),
     )?)
+}
+
+fn dir_of(file: &Path) -> PathBuf {
+    file.parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+        .to_path_buf()
 }
 
 fn read(path: &Path) -> Result<String, CliError> {
@@ -962,8 +969,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         } => observe::trace(&def, &file, limit, args, &cfg),
 
         Cmd::Deps { file } => {
-            let manifest = blue_lang_pkg::read_bluefile(&read(&file)?)
+            let mut manifest = blue_lang_pkg::read_bluefile(&read(&file)?)
                 .map_err(|e| CliError::Pkg(e.to_string()))?;
+            if let Some(needs) = blue_lang_pkg::lock::locked_needs(&dir_of(&file)) {
+                manifest.manifest.needs = needs;
+            }
             println!("{} {}", manifest.name, manifest.version);
             if manifest.manifest.needs.is_empty() {
                 println!("  (no dependencies)");
@@ -1038,11 +1048,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 let [file] = files.as_slice() else {
                     return Err(CliError::JsonTakesOne { got: files.len() });
                 };
-                let bluefile = blue_lang_pkg::read_bluefile(&read(file)?)?;
-                print!(
-                    "{}",
-                    blue_lang_pkg::lock::render(&ManifestRecord::of(&bluefile))?
-                );
+                let manifest = blue_lang_pkg::lock::manifest_at(&dir_of(file))?;
+                print!("{}", blue_lang_pkg::lock::render(&manifest)?);
                 return Ok(ExitCode::SUCCESS);
             }
             // `--confirm`, the group's only other member. Every file is
@@ -1050,19 +1057,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // stale package does not hide the next.
             let mut all_fresh = true;
             for file in &files {
-                let src = read(file)?;
-                let lock_path = file.with_file_name(LOCK_FILE);
-                let lock_text = match std::fs::read_to_string(&lock_path) {
-                    Ok(text) => Some(text),
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-                    Err(source) => {
-                        return Err(CliError::Read {
-                            path: lock_path.display().to_string(),
-                            source,
-                        })
-                    }
-                };
-                let verdict = blue_lang_pkg::lock::confirm(&src, lock_text.as_deref())?;
+                let verdict = blue_lang_pkg::lock::confirm_dir(&dir_of(file))?;
                 println!(
                     "{}",
                     serde_json::to_string(&Confirmation {
@@ -1097,8 +1092,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // to pin must not leave half a directory tree relocked.
             let mut locks = Vec::with_capacity(dirs.len());
             for dir in &dirs {
-                let src = read(&dir.join(blue_lang_pkg::MANIFEST_FILE))?;
-                let lock = blue_lang_pkg::lock::lock(&src, &prefetch::NixPrefetch)?;
+                let lock = blue_lang_pkg::lock::lock_dir(dir, &prefetch::NixPrefetch)?;
                 locks.push((dir.join(LOCK_FILE), lock));
             }
             for (path, lock) in &locks {
@@ -1331,46 +1325,45 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             project = project_pass(&checked);
         }
     }
-    if fix
-        && checked
+    if fix && blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some() {
+        let dir = dir_of(file);
+        let disagrees = checked
             .outcome
             .diagnostics
             .iter()
-            .any(|d| d.code == blue_lang_check::Code::B0019)
-    {
-        if let Some(dir) = file
-            .parent()
-            .filter(|_| blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some())
-        {
-            let dir = if dir.as_os_str().is_empty() {
-                Path::new(".")
-            } else {
-                dir
-            };
-            if let Some(r) = blue_lang_pkg::needs::reconcile(dir, &loader).map_err(CliError::Pkg)? {
-                let bluefile = dir.join(blue_lang_pkg::MANIFEST_FILE);
-                std::fs::write(&bluefile, &r.bluefile).map_err(|source| CliError::Write {
-                    path: bluefile.display().to_string(),
-                    source,
-                })?;
-                let lock = blue_lang_pkg::lock::lock(&r.bluefile, &prefetch::NixPrefetch)?;
-                let lock_path = dir.join(LOCK_FILE);
-                std::fs::write(&lock_path, blue_lang_pkg::lock::render(&lock)?).map_err(
-                    |source| CliError::Write {
-                        path: lock_path.display().to_string(),
+            .any(|d| d.code == blue_lang_check::Code::B0019);
+        let stale = matches!(
+            blue_lang_pkg::lock::confirm_dir(&dir)?,
+            Freshness::Stale { reason } if reason != blue_lang_pkg::lock::Staleness::Missing
+        );
+        if disagrees || stale {
+            let bluefile = dir.join(blue_lang_pkg::MANIFEST_FILE);
+            let removed = match blue_lang_pkg::needs::prune(&dir).map_err(CliError::Pkg)? {
+                Some(p) => {
+                    std::fs::write(&bluefile, &p.bluefile).map_err(|source| CliError::Write {
+                        path: bluefile.display().to_string(),
                         source,
-                    },
-                )?;
-                eprintln!(
-                    "blue: {}: needs added {:?}, removed {:?}; relocked {}",
-                    bluefile.display(),
-                    r.added,
-                    r.removed,
-                    lock_path.display()
-                );
-                checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
-                project = project_pass(&checked);
-            }
+                    })?;
+                    p.removed
+                }
+                None => Vec::new(),
+            };
+            let lock = blue_lang_pkg::lock::lock_dir(&dir, &prefetch::NixPrefetch)?;
+            let lock_path = dir.join(LOCK_FILE);
+            std::fs::write(&lock_path, blue_lang_pkg::lock::render(&lock)?).map_err(|source| {
+                CliError::Write {
+                    path: lock_path.display().to_string(),
+                    source,
+                }
+            })?;
+            eprintln!(
+                "blue: {}: unused needs rows removed {removed:?}; relocked {} (needs {:?})",
+                bluefile.display(),
+                lock_path.display(),
+                lock.manifest.needs.keys().collect::<Vec<_>>()
+            );
+            checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+            project = project_pass(&checked);
         }
     }
     if fix {

@@ -31,7 +31,7 @@ it; `blue explain --list` lists them.
 | B0016 | unused-import | error | every `use` is reached, and every name it lists is read |
 | B0017 | duplicate-definition | error | a namespace defines a function or macro once |
 | B0018 | redundant-qualifier | error | a qualifier changes what its name means |
-| B0019 | needs-mismatch | error | the bidamas a bidama `use`s are exactly the ones its Bluefile `needs` |
+| B0019 | needs-mismatch | error | the bidamas a bidama `use`s are exactly the `needs` its Bluefile.lock records (`blue lock` derives them from the `use`s; a Bluefile `needs` row only narrows a range) |
 | B0020 | package-as-value | error | a bidama's name is written as a qualifier, never as a value |
 | B0021 | legacy-name | error | a renamed or moved definition is called by its new name; the old one is a bridge that closes at the next minor version |
 | B0022 | legacy-misuse | error | a `legacy_names` declaration is one of each form per bidama, dated from a version it has reached, names no name twice, and moves a name only to a definition a loaded bidama holds |

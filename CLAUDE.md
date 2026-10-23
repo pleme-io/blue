@@ -313,7 +313,9 @@ Each of these is a defect that shipped, not a style preference.
   computed `needs` was invisible to it — a facade closure one package short,
   with nothing red. It now reads the committed `Bluefile.lock` (`blue lock`),
   and `bidama-locks-fresh` + `granularity.rs` fail on a stale one. **Edit a
-  Bluefile, run `blue lock <dir>`, commit both.** A new manifest word is a row
+  Bluefile or a bidama's `use` forms, run `blue lock <dir>`, commit both**: a
+  bidama's locked `needs` derive from its `use`s, a hand row only narrows a
+  range. A new manifest word is a row
   in `bluefile.rs`'s `WORDS` and a name in `MANIFEST_NAMES`; a gate fails if
   the two disagree. **It is also a row in `nix/project.nix`** (`known` plus its
   lowering): the engine refuses every lock key it does not lower, so a new word
@@ -377,9 +379,12 @@ working tree: `cargo fmt --check`, every `Bluefile.lock` confirmed, `regen` in
 every project that generates (each red names the file it rewrote; commit it),
 `gen --version` against substrate's one gen pin (red names the nix lock bump),
 `gen confirm` (red runs `gen build .` and names the files to commit),
-and the `registry_graph`, `check_corpus`, `distribution` and `verb_graph` tests. These caught
-four `main` reds on 2026-10-22 that CI found only after the push. About 2 min
-warm, mostly the catalogue (40 s) and `distribution`. A project whose declared
+each member's test targets compiled alone (`cargo test -p M --no-run`, since
+`--workspace` unifies features and hid a break), and the `registry_graph`,
+`check_corpus`, `distribution` and `verb_graph` tests. These caught
+four `main` reds on 2026-10-22 that CI found only after the push. About 4.5 min
+warm (2026-10-23): regen of the root 71 s, the per-member compile 44 s, the
+tests 136 s. A project whose declared
 `tool` is not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never
 green. The hook first calls the global `core.hooksPath` hook of the same
 name, so the fleet's commit gates still run. Off: `BLUE_PREPUSH_OFF=1`.

@@ -86,7 +86,8 @@ pub trait Loader {
         None
     }
 
-    /// The bidamas `package`'s Bluefile `needs`, when the loader can read it.
+    /// The bidamas `package`'s Bluefile.lock records as `needs` (with no lock,
+    /// its Bluefile's rows), when the loader can read it.
     /// `None` when it cannot, and the check stage then has nothing to compare
     /// the package's `use` forms against (B0019).
     ///

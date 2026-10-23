@@ -175,10 +175,7 @@ fn bidama_name(name: &str) -> Result<String, String> {
 
 /// `blue lock DIR`, which for a Bluefile with no `source` reaches no network.
 fn lock(dir: &Path) -> Result<(), String> {
-    let bluefile = dir.join(blue_lang_pkg::MANIFEST_FILE);
-    let src =
-        std::fs::read_to_string(&bluefile).map_err(|e| format!("{}: {e}", bluefile.display()))?;
-    let lock = blue_lang_pkg::lock::lock(&src, &crate::prefetch::NixPrefetch)
+    let lock = blue_lang_pkg::lock::lock_dir(dir, &crate::prefetch::NixPrefetch)
         .map_err(|e| e.to_string())?;
     let text = blue_lang_pkg::lock::render(&lock).map_err(|e| e.to_string())?;
     write(&dir.join(blue_lang_pkg::lock::LOCK_FILE), &text)

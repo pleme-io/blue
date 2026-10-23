@@ -43,7 +43,11 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use std::path::Path;
+
 use crate::bluefile::{read_bluefile, when_label, Bluefile, BluefileError, Project};
+use crate::needs::NeedsError;
+use crate::version::Range;
 
 /// The lock file, beside the Bluefile it locks.
 pub const LOCK_FILE: &str = "Bluefile.lock";
@@ -82,13 +86,16 @@ impl ManifestRecord {
     /// The record of an evaluated Bluefile.
     #[must_use]
     pub fn of(bluefile: &Bluefile) -> Self {
+        Self::with_needs(bluefile, &bluefile.manifest.needs)
+    }
+
+    #[must_use]
+    pub fn with_needs(bluefile: &Bluefile, needs: &BTreeMap<String, Range>) -> Self {
         ManifestRecord {
             schema: MANIFEST_SCHEMA,
             name: bluefile.name.clone(),
             version: bluefile.version.to_string(),
-            needs: bluefile
-                .manifest
-                .needs
+            needs: needs
                 .iter()
                 .map(|(name, range)| (name.clone(), range.to_string()))
                 .collect(),
@@ -175,6 +182,10 @@ pub enum LockError {
     },
     #[error("could not serialize the lock: {0}")]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Needs(#[from] NeedsError),
+    #[error("cannot read {path}: {error}")]
+    Read { path: String, error: String },
 }
 
 /// Where the pin's revision lives in `nix flake prefetch --json` output.
@@ -237,8 +248,97 @@ pub fn pin_of(name: &str, url: &str, json: &str) -> Result<Pin, LockError> {
     })
 }
 
+pub fn locked_needs(dir: &Path) -> Option<BTreeMap<String, Range>> {
+    let text = std::fs::read_to_string(dir.join(LOCK_FILE)).ok()?;
+    let lock: Lock = serde_json::from_str(&text).ok()?;
+    Some(
+        lock.manifest
+            .needs
+            .into_iter()
+            .filter_map(|(k, r)| Range::parse(&r).ok().map(|r| (k, r)))
+            .collect(),
+    )
+}
+
+fn read_text(path: &Path) -> Result<Option<String>, LockError> {
+    match std::fs::read_to_string(path) {
+        Ok(t) => Ok(Some(t)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(LockError::Read {
+            path: path.display().to_string(),
+            error: e.to_string(),
+        }),
+    }
+}
+
+fn bluefile_at(dir: &Path) -> Result<(String, Bluefile), LockError> {
+    let path = dir.join(crate::MANIFEST_FILE);
+    let src = read_text(&path)?.ok_or_else(|| LockError::Read {
+        path: path.display().to_string(),
+        error: "no such file".to_string(),
+    })?;
+    let bf = read_bluefile(&src)?;
+    Ok((src, bf))
+}
+
+fn derived_needs(dir: &Path, bf: &Bluefile) -> Result<BTreeMap<String, Range>, NeedsError> {
+    let loader = crate::load_path::LoadPath::for_dir(dir).unpinned();
+    crate::needs::derive(dir, bf, &loader)
+}
+
+pub fn manifest_at(dir: &Path) -> Result<ManifestRecord, LockError> {
+    let (_, bf) = bluefile_at(dir)?;
+    let needs = derived_needs(dir, &bf)?;
+    Ok(ManifestRecord::with_needs(&bf, &needs))
+}
+
+pub fn lock_dir(dir: &Path, prefetch: &dyn Prefetch) -> Result<Lock, LockError> {
+    let (src, bf) = bluefile_at(dir)?;
+    let needs = derived_needs(dir, &bf)?;
+    if crate::load_path::bidama_of(&bf).is_some() {
+        let loader = crate::load_path::LoadPath::for_dir(dir).unpinned();
+        let absent: Vec<String> = needs
+            .keys()
+            .filter(|n| loader.select(n).found.is_none())
+            .cloned()
+            .collect();
+        if !absent.is_empty() {
+            return Err(NeedsError {
+                bluefile: dir.join(crate::MANIFEST_FILE),
+                unused: Vec::new(),
+                absent,
+            }
+            .into());
+        }
+    }
+    lock(&src, &needs, prefetch)
+}
+
+pub fn confirm_dir(dir: &Path) -> Result<Freshness, LockError> {
+    let (src, bf) = bluefile_at(dir)?;
+    let Some(lock_text) = read_text(&dir.join(LOCK_FILE))? else {
+        return Ok(Freshness::Stale {
+            reason: Staleness::Missing,
+        });
+    };
+    let lock_text = Some(lock_text);
+    match derived_needs(dir, &bf) {
+        Ok(needs) => confirm(&src, &needs, lock_text.as_deref()),
+        Err(e) => Ok(Freshness::Stale {
+            reason: Staleness::Needs {
+                unused: e.unused,
+                absent: e.absent,
+            },
+        }),
+    }
+}
+
 /// Evaluate a Bluefile and pin its sources — what `blue lock` writes.
-pub fn lock(bluefile_src: &str, prefetch: &dyn Prefetch) -> Result<Lock, LockError> {
+pub fn lock(
+    bluefile_src: &str,
+    needs: &BTreeMap<String, Range>,
+    prefetch: &dyn Prefetch,
+) -> Result<Lock, LockError> {
     let bluefile = read_bluefile(bluefile_src)?;
     let mut sources = BTreeMap::new();
     for (name, source) in &bluefile.project.sources {
@@ -254,7 +354,7 @@ pub fn lock(bluefile_src: &str, prefetch: &dyn Prefetch) -> Result<Lock, LockErr
     Ok(Lock {
         schema: LOCK_SCHEMA,
         bluefile_b3: blue_lang_runtime::Inputs::hash_of(bluefile_src.as_bytes()),
-        manifest: ManifestRecord::of(&bluefile),
+        manifest: ManifestRecord::with_needs(&bluefile, needs),
         sources,
     })
 }
@@ -311,6 +411,11 @@ pub enum Staleness {
         stray: Vec<String>,
         moved: Vec<String>,
     },
+    #[error("{}", crate::needs::refusal(unused, absent))]
+    Needs {
+        unused: Vec<String>,
+        absent: Vec<String>,
+    },
 }
 
 /// Check a committed lock against the Bluefile beside it, **offline**.
@@ -323,7 +428,11 @@ pub enum Staleness {
 /// offline; what is checked is that they cover exactly the declared sources.
 ///
 /// `lock_text` is `None` when there is no lock file.
-pub fn confirm(bluefile_src: &str, lock_text: Option<&str>) -> Result<Freshness, LockError> {
+pub fn confirm(
+    bluefile_src: &str,
+    needs: &BTreeMap<String, Range>,
+    lock_text: Option<&str>,
+) -> Result<Freshness, LockError> {
     let stale = |reason| Ok(Freshness::Stale { reason });
     let Some(text) = lock_text else {
         return stale(Staleness::Missing);
@@ -363,7 +472,7 @@ pub fn confirm(bluefile_src: &str, lock_text: Option<&str>) -> Result<Freshness,
     }
 
     let bluefile = read_bluefile(bluefile_src)?;
-    let evaluated = serde_json::to_value(ManifestRecord::of(&bluefile))?;
+    let evaluated = serde_json::to_value(ManifestRecord::with_needs(&bluefile, needs))?;
     let written = recorded
         .get("manifest")
         .cloned()
@@ -420,6 +529,36 @@ fn differing_keys(a: &serde_json::Value, b: &serde_json::Value) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rows(src: &str) -> BTreeMap<String, Range> {
+        read_bluefile(src)
+            .map(|b| b.manifest.needs)
+            .unwrap_or_default()
+    }
+
+    fn lock(src: &str, p: &dyn Prefetch) -> Result<Lock, LockError> {
+        super::lock(src, &rows(src), p)
+    }
+
+    fn confirm(src: &str, text: Option<&str>) -> Result<Freshness, LockError> {
+        super::confirm(src, &rows(src), text)
+    }
+
+    #[test]
+    fn a_lock_whose_needs_disagree_with_the_derived_set_is_stale() {
+        let text = render(&lock(WITH_SOURCE, &canned()).expect("lock")).expect("render");
+        let mut derived = rows(WITH_SOURCE);
+        derived.insert("moji".to_string(), Range::parse("^0.1").unwrap());
+        let verdict = super::confirm(WITH_SOURCE, &derived, Some(&text)).expect("confirm");
+        assert_eq!(
+            verdict,
+            Freshness::Stale {
+                reason: Staleness::Manifest {
+                    differing: vec!["needs".to_string()]
+                }
+            }
+        );
+    }
 
     /// A prefetcher that answers from a table and records nothing else — the
     /// network is never touched.

@@ -898,6 +898,7 @@ fn manifest_json(name: &str, body: &str) -> serde_json::Value {
 
 #[test]
 fn bluefile_json_reads_back_identity_needs_and_posture() {
+    write_at("json-identity/proj.b", "use(\"kazu\")\n");
     let v = manifest_json("identity", "needs(\"kazu\", \"^0.1\")\nposture(:preceding)");
     assert_eq!(v["schema"], 1);
     assert_eq!(v["name"], "proj");
@@ -1040,6 +1041,7 @@ fn lockable(name: &str, src: &str) -> PathBuf {
     let _ = std::fs::remove_file(dir.join("Bluefile.lock"));
     std::fs::create_dir_all(&dir).expect("create package dir");
     std::fs::write(dir.join("Bluefile"), src).expect("write Bluefile");
+    std::fs::write(dir.join("lockme.b"), "use(\"kazu\")\n").expect("write source");
     dir
 }
 

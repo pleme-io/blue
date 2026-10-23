@@ -7,8 +7,8 @@
 # Per file, every bare name that reaches another bidama's definition only
 # because one global environment holds every loaded definition (B0012) is
 # listed in that bidama's `use` (`use("retsu", [:first])`). A `use` is added
-# where the file had none, and inside a bidama the matching `needs` goes into
-# its Bluefile and the lock is refreshed. The file's imports are written in
+# where the file had none, and inside a bidama the lock is refreshed, which
+# derives the matching `needs` from the `use`. The file's imports are written in
 # their canonical order (B0015).
 #
 # The proof: `blue ast --resolved --json` resolves the file before and after.
@@ -158,33 +158,17 @@ def rewrite(text, doc, block)
   )
 end
 
-# The bidamas a Bluefile `needs`.
-def needs_of(bluefile)
-  r = run_blue(["bluefile", "--json", bluefile])
-  if status_of(r) != 0
-    raise(:migrate, "blue bluefile #{bluefile}: #{stderr_of(r)}")
+# The bidamas a bidama's Bluefile.lock records as `needs`.
+def needs_of(dir)
+  lock = path_join(dir, "Bluefile.lock")
+  needs = if path_exists(lock)
+    json_get(json_get(json_parse(read_file(lock)), "manifest"), "needs")
   end
-  needs = json_get(json_parse(stdout_of(r)), "needs")
   if needs.nil?
     []
   else
     map((kv) -> first(kv), needs)
   end
-end
-
-# Add `needs(p, "^0.1")` after the Bluefile's last `needs` or `package` line.
-def add_needs(text, packages)
-  lines = split(text, "\n")
-  numbered = zip(range(0, length(lines)), lines)
-  anchors = filter(
-    fn(nl)
-      starts_with?(nth(1, nl), "needs(") or starts_with?(nth(1, nl), "package(")
-    end,
-    numbered
-  )
-  at = first(last(anchors)) + 1
-  added = map((p) -> "needs(\"#{p}\", \"^0.1\")", packages)
-  join(append(take(at, lines), added, drop(at, lines)), "\n")
 end
 
 def relock(dir)
@@ -212,13 +196,12 @@ def migrate(file)
       read_file(bluefile)
     end
     if bidama
-      needed = needs_of(bluefile)
+      needed = needs_of(path_dirname(file))
       missing = filter(
         (p) -> p != own and not member?(p, needed),
         map((u) -> first(u), uses)
       )
       if not empty?(missing)
-        write_file(bluefile, add_needs(old_bluefile, missing))
         relock(path_dirname(file))
       end
     end

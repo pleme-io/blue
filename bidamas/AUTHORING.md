@@ -175,7 +175,8 @@ the other, or a builtin, for anyone else.
   a higher tier won.
 - **`use` forms come first, one per bidama, sorted, each list sorted**
   (B0015); every `use` must be reached and every listed name read (B0016);
-  inside a bidama the `use`s are exactly its Bluefile's `needs` (B0019).
+  inside a bidama the `use`s are exactly its Bluefile.lock's `needs` (B0019),
+  which `blue lock` derives from them.
 - **Do not prefix your definitions** with your bidama's name or a short tag
   (`kueri_join`, `q_join`): the namespace already says whose it is, and
   callers write `kueri::join`. B0013 and B0014 refuse it; `blue migrate
@@ -434,11 +435,14 @@ one. Every one of these caught a real bug in this distribution:
 1. **Run `/naming` first** — before the code. Sweep the word, its
    near-homophones and **its gloss** against the fleet. See `NAMES.md`.
 2. Add the `NAMES.md` row in the same commit, or the build goes red.
-3. `Bluefile`: `package("name", "0.1.0")` plus a `needs(...)` per dependency —
-   and every `needs` must have a matching `use(...)` in the source, and the
-   other way round: B0019 refuses a mismatch, and `mkBidama` runs the check
-   stage, so a package that does not check does not build. Then `blue lock <dir>` and commit the `Bluefile.lock` with
-   it: nix reads the lock, and `bidama-locks-fresh` fails on a stale one.
+3. `Bluefile`: `package("name", "0.1.0")`. `blue lock <dir>` derives the
+   lock's `needs` from the source's `use(...)` forms; a `needs(...)` row is
+   optional and only narrows a used package's range (an unused row, or a
+   `use` of a package no root holds, fails `blue lock` by name). B0019
+   refuses a lock that disagrees with the `use`s, and `mkBidama` runs the
+   check stage, so a package that does not check does not build. Commit the
+   `Bluefile.lock`: nix reads it, and `bidama-locks-fresh` fails on a stale
+   one.
 4. Raise the package floor in `bidamas/flake.nix`, the package and test floors
    in `distribution.rs`, and regenerate `CATALOG.md` with `nix run .#regen`.
 5. Add the matching `needs(...)`/`use(...)` pair to **`zenbu`** — the facade

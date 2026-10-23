@@ -222,28 +222,14 @@ impl Scopes for Environment {
 }
 
 fn required_by(dir: &Path) -> BTreeMap<String, Range> {
-    let from_lock = std::fs::read_to_string(dir.join(crate::lock::LOCK_FILE))
-        .ok()
-        .and_then(|t| serde_json::from_str::<crate::lock::Lock>(&t).ok())
-        .map(|l| l.manifest.needs);
-    let needs: BTreeMap<String, String> = match from_lock {
-        Some(n) => n,
-        None => std::fs::read_to_string(dir.join(crate::MANIFEST_FILE))
-            .ok()
-            .and_then(|t| crate::bluefile::read_bluefile(&t).ok())
-            .map(|bf| {
-                bf.manifest
-                    .needs
-                    .iter()
-                    .map(|(k, r)| (k.clone(), r.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default(),
-    };
-    needs
-        .into_iter()
-        .filter_map(|(k, r)| Range::parse(&r).ok().map(|r| (k, r)))
-        .collect()
+    crate::lock::locked_needs(dir)
+        .or_else(|| {
+            std::fs::read_to_string(dir.join(crate::MANIFEST_FILE))
+                .ok()
+                .and_then(|t| crate::bluefile::read_bluefile(&t).ok())
+                .map(|bf| bf.manifest.needs)
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -293,6 +279,12 @@ impl LoadPath {
     #[must_use]
     pub fn with_standard(mut self) -> Self {
         self.standard = true;
+        self
+    }
+
+    #[must_use]
+    pub fn unpinned(mut self) -> Self {
+        self.required.clear();
         self
     }
 
@@ -508,7 +500,7 @@ fn relative(root: &Path, project: &Path) -> String {
 /// `blue-repository`, is not) and it holds no `packages` roots, which only a
 /// project does. A project may be named like a bidama (`nupastel`); its
 /// `packages` still say it is the project.
-fn bidama_of(bf: &crate::Bluefile) -> Option<&str> {
+pub(crate) fn bidama_of(bf: &crate::Bluefile) -> Option<&str> {
     let one_identifier =
         blue_lang_syntax::qualified(&blue_lang_syntax::qualify(&bf.name, "x")).is_some();
     (one_identifier && bf.project.packages.is_empty()).then_some(bf.name.as_str())
@@ -632,6 +624,9 @@ impl Loader for LoadPath {
             (None, Some(Found::Dir(d))) => d,
             (None, None) => return None,
         };
+        if let Some(locked) = crate::lock::locked_needs(&dir) {
+            return Some(locked.into_keys().collect());
+        }
         let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
         let bf = crate::bluefile::read_bluefile(&text).ok()?;
         Some(bf.manifest.needs.keys().cloned().collect())

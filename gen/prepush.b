@@ -62,6 +62,26 @@ def absent_tools(dir)
   reject((t) -> exec_ok?("which", t), get(manifest(dir), "tools") or [])
 end
 
+def members()
+  meta = exec_capture("cargo", "metadata", "--no-deps", "--format-version", "1")
+  map((p) -> get(p, "name"), get(json_read(stdout_of(meta)), "packages"))
+end
+
+def test_targets()
+  red = reject(
+    (r) -> status_of(last(r)) == 0,
+    map(
+      (m) -> [m, exec_capture("cargo", "test", "-q", "-p", m, "--no-run")],
+      members
+    )
+  )
+  if red == []
+    [:green, ""]
+  else
+    [:red, join(map((r) -> "#{first(r)}:\n#{stderr_of(last(r))}", red), "\n")]
+  end
+end
+
 def changed()
   "#{git(["status", "--porcelain", "--untracked-files=all"])}#{git(["diff"])}"
 end
@@ -192,6 +212,7 @@ results = append(
   [
     gate("gen is substrate's pin", gen_pin),
     gate("Cargo.gen.lock tied", gen_tie),
+    gate("every member's test targets compile alone", () -> test_targets),
     gate(
       "registry_graph, check_corpus, distribution, verb_graph",
       fn()

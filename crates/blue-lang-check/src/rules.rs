@@ -488,7 +488,7 @@ qualifier.",
         slug: "needs-mismatch",
         severity: Error,
         fix: Machine,
-        law: "the bidamas a bidama `use`s are exactly the ones its Bluefile `needs`",
+        law: "the bidamas a bidama `use`s are exactly the `needs` its Bluefile.lock records",
         witness: "use(\"kagi_b\")\n\nkagi_b::kagi\n",
         imports: [
             ("kagi_a", "def kagi()\n  1\nend\n"),
@@ -497,12 +497,16 @@ qualifier.",
         waivable: false,
         ratchet: 0,
         explanation: "\
-`needs` is what nix builds a bidama against; `use` is what its code reaches.
-A `use` with no `needs` compiles here and fails in the sandbox, where the
-package is absent; a `needs` with no `use` is a dependency nothing uses.
-`blue check --fix FILE` derives the rows from the bidama's `use` forms (a
-hand row keeps its range, a new one takes the caret of the version the load
-path resolves, an unused one goes) and rewrites `Bluefile.lock`.",
+The lock's `needs` is what nix builds a bidama against; `use` is what its
+code reaches. `blue lock DIR` derives the lock's `needs` from the bidama's
+`use` forms: a Bluefile `needs` row only narrows a used package's range, and
+a used package with no row takes the caret of the version the load path
+resolves. So
+this fires when a `use` changed after the last lock (or, with no lock, when
+the Bluefile's rows disagree with the `use` forms). A `use` with no locked
+`needs` compiles here and fails in the sandbox, where the package is absent.
+`blue check --fix FILE` deletes any row naming an unused package and
+relocks.",
     }
     B0020 {
         slug: "package-as-value",

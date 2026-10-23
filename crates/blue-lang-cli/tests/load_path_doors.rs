@@ -255,12 +255,40 @@ fn check_fix_derives_a_bidamas_needs_from_its_uses_and_relocks() {
     let (ok, fixed) = door(&["check", "--fix", f.as_str()], &[], &root);
     assert!(ok, "{fixed}");
     let bluefile = std::fs::read_to_string(root.join("proj/bidamas/user/Bluefile")).unwrap();
-    assert_eq!(
-        bluefile,
-        "package(\"user\", \"0.1.0\")\nneeds(\"onlyhere\", \"^0.4\")\n"
-    );
+    assert_eq!(bluefile, "package(\"user\", \"0.1.0\")\n");
     let lock = std::fs::read_to_string(root.join("proj/bidamas/user/Bluefile.lock")).unwrap();
-    assert!(lock.contains("\"onlyhere\": \"^0.4"), "{lock}");
+    assert!(lock.contains("\"onlyhere\": \"^0.4.0\""), "{lock}");
     let (ok, after) = door(&["check", f.as_str()], &[], &root);
     assert!(ok, "{after}");
+    let user = root.join("proj/bidamas/user");
+    let u = user.display().to_string();
+    let bf = user.join("Bluefile").display().to_string();
+    let (ok, fresh) = door(&["bluefile", "--confirm", bf.as_str()], &[], &root);
+    assert!(ok, "{fresh}");
+    std::fs::write(
+        user.join("user.b"),
+        "use(\"onlyhere\", [:marker])\nuse(\"gone\")\n\ndef shown()\n  marker\nend\n",
+    )
+    .unwrap();
+    let (ok, stale) = door(&["bluefile", "--confirm", bf.as_str()], &[], &root);
+    assert!(!ok && stale.contains("\"gone\""), "{stale}");
+    let (ok, refused) = door(&["lock", u.as_str()], &[], &root);
+    assert!(!ok && refused.contains("remove the `use`"), "{refused}");
+    std::fs::write(
+        user.join("Bluefile"),
+        "package(\"user\", \"0.1.0\")\nneeds(\"onlyhere\", \"=0.4.1\")\nneeds(\"stray\", \"^0.1\")\n",
+    )
+    .unwrap();
+    std::fs::write(
+        user.join("user.b"),
+        "use(\"onlyhere\", [:marker])\n\ndef shown()\n  marker\nend\n",
+    )
+    .unwrap();
+    let (ok, refused) = door(&["lock", u.as_str()], &[], &root);
+    assert!(!ok && refused.contains("needs(\"stray\""), "{refused}");
+    let (ok, fixed) = door(&["check", "--fix", f.as_str()], &[], &root);
+    assert!(ok, "{fixed}");
+    let lock = std::fs::read_to_string(user.join("Bluefile.lock")).unwrap();
+    assert!(lock.contains("\"onlyhere\": \"=0.4.1\""), "{lock}");
+    assert!(!lock.contains("stray"), "{lock}");
 }

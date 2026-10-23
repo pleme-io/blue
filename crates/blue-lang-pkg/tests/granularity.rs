@@ -43,7 +43,7 @@ use std::path::PathBuf;
 
 use blue_lang_pkg::git_registry::GitRegistry;
 use blue_lang_pkg::load_path::LoadPath;
-use blue_lang_pkg::lock::{confirm, Freshness, Lock, LOCK_FILE};
+use blue_lang_pkg::lock::{confirm_dir, manifest_at, Freshness, Lock, LOCK_FILE};
 use blue_lang_pkg::{Manifest, Range, Registry, Solver, MANIFEST_FILE};
 
 /// The facade bidama — one `needs`, the whole standard distribution.
@@ -382,22 +382,24 @@ fn locked_needs(name: &str) -> BTreeMap<String, Range> {
 /// committed; it cannot pass this test or the `bidama-locks-fresh` flake check.
 #[test]
 fn the_locked_and_evaluated_dependency_views_agree() {
-    let registry = GitRegistry::scan(dist()).expect("scan");
     let mut disagreed = Vec::new();
     let mut stale = Vec::new();
 
     for name in every_bidama() {
-        let evaluated = evaluated_needs(&registry, &name);
+        let dir = dist().join(&name);
+        let derived: BTreeMap<String, Range> = manifest_at(&dir)
+            .unwrap_or_else(|e| panic!("{name}: {e}"))
+            .needs
+            .iter()
+            .map(|(k, r)| (k.clone(), Range::parse(r).expect("range")))
+            .collect();
         let locked = locked_needs(&name);
-        if evaluated != locked {
-            disagreed.push((name.clone(), locked.len(), evaluated.len()));
+        if derived != locked {
+            disagreed.push((name.clone(), locked.len(), derived.len()));
         }
 
-        let dir = dist().join(&name);
-        let src = std::fs::read_to_string(dir.join(MANIFEST_FILE)).expect("Bluefile");
-        let lock_text = std::fs::read_to_string(dir.join(LOCK_FILE)).ok();
         if let Freshness::Stale { reason } =
-            confirm(&src, lock_text.as_deref()).unwrap_or_else(|e| panic!("{name}: {e}"))
+            confirm_dir(&dir).unwrap_or_else(|e| panic!("{name}: {e}"))
         {
             stale.push((name, reason.to_string()));
         }
@@ -406,8 +408,8 @@ fn the_locked_and_evaluated_dependency_views_agree() {
     assert!(
         disagreed.is_empty(),
         "nix reads each package's dependencies from its Bluefile.lock and blue \
-         resolves them by EVALUATING the Bluefile; these disagree, so their nix \
-         closure differs from blue's resolution — (package, locked, evaluated): \
+         derives them from the package's `use` forms; these disagree, so their nix \
+         closure differs from what the code reaches — (package, locked, derived): \
          {disagreed:?}"
     );
     assert!(

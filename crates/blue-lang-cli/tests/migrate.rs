@@ -1,8 +1,8 @@
 //! **`blue migrate` makes a file's cross-bidama references explicit, and
 //! proves it changed nothing.** A three-bidama distribution in a temporary
 //! directory: `mk_c` uses `mk_b`, and reaches `mk_a`'s `one` only because
-//! `mk_b` loaded it. The migration must list both names, add `mk_a` to
-//! `mk_c`'s Bluefile and lock, leave B0012 with nothing to report, keep the
+//! `mk_b` loaded it. The migration must list both names, relock so `mk_c`'s
+//! lock derives `mk_a`, leave B0012 with nothing to report, keep the
 //! package's tests passing, and be a no-op the second time.
 //!
 //! Red run (2026-09-29): the proof in `blue/migrate.b` made to compare the
@@ -74,8 +74,8 @@ fn a_transitive_reference_is_listed_needed_and_proven() {
         src.starts_with("use(\"mk_a\", [:one])\nuse(\"mk_b\", [:two])\n"),
         "{src}"
     );
-    let bf = std::fs::read_to_string(dist.join("mk_c/Bluefile")).expect("read");
-    assert!(bf.contains("needs(\"mk_a\", \"^0.1\")"), "{bf}");
+    let lock = std::fs::read_to_string(dist.join("mk_c/Bluefile.lock")).expect("read");
+    assert!(lock.contains("\"mk_a\": \"^0.1.0\""), "{lock}");
     let (fresh, _, err) = run(blue(&dist)
         .args(["bluefile", "--confirm"])
         .arg(dist.join("mk_c/Bluefile")));
@@ -105,7 +105,7 @@ fn swap_dist(tag: &str, caller: &str) -> (PathBuf, PathBuf, PathBuf) {
         &[],
         "def apply_all(f, xs)\n  map(f, xs)\nend\n",
     );
-    let user = package(&dist, "mk_b", &["mk_a"], caller);
+    let user = package(&dist, "mk_b", &[], caller);
     for p in ["mk_a", "mk_b"] {
         let (ok, _, err) = run(blue(&dist).arg("lock").arg(dist.join(p)));
         assert!(ok, "lock {p}: {err}");

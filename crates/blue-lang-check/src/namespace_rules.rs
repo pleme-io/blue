@@ -298,7 +298,7 @@ fn unused_imports(
 }
 
 /// B0019: inside a bidama, the packages its source `use`s are exactly the
-/// ones its Bluefile `needs`.
+/// `needs` its Bluefile.lock records.
 fn needs_agree(
     files: &BTreeMap<usize, FileUses>,
     table: &NameTable,
@@ -332,14 +332,14 @@ fn needs_agree(
                     Diagnostic::new(
                         Code::B0019,
                         format!(
-                            "bidama `{pkg}` uses `{}`, and its Bluefile does not `needs` it",
+                            "bidama `{pkg}` uses `{}`, and its Bluefile.lock does not record it",
                             u.package
                         ),
                         u.span,
                     )
                     .at_top_level(*i)
                     .with_help(format!(
-                        "run `blue check --fix` on the file: it adds `needs(\"{}\", …)` to {pkg}/Bluefile and relocks",
+                        "run `blue check --fix` on the file, or `blue lock` in {pkg}'s directory: the lock derives `{}` from the `use`",
                         u.package
                     )),
                 );
@@ -349,12 +349,12 @@ fn needs_agree(
             out.push(
                 Diagnostic::new(
                     Code::B0019,
-                    format!("bidama `{pkg}`'s Bluefile needs `{n}`, and no file of it uses `{n}`"),
+                    format!("bidama `{pkg}`'s Bluefile.lock needs `{n}`, and no file of it uses `{n}`"),
                     Span::synthetic(),
                 )
                 .at_top_level(anchor)
                 .with_help(format!(
-                    "run `blue check --fix` on a file of {pkg}: it removes the `needs` from {pkg}/Bluefile and relocks, or `use` it"
+                    "run `blue check --fix` on a file of {pkg}: it removes any `needs(\"{n}\", …)` row from {pkg}/Bluefile and relocks, or `use` it"
                 )),
             );
         }

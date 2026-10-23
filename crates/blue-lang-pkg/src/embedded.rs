@@ -74,14 +74,10 @@ impl Loader for Standard {
     }
 
     fn needs(&self, package: &str, _entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
-        Some(
-            self.bluefile(package)?
-                .manifest
-                .needs
-                .keys()
-                .cloned()
-                .collect(),
-        )
+        let (_, _, files) = PACKAGES.iter().find(|(n, _, _)| *n == package)?;
+        let mut used = crate::needs::uses_in(files.iter().map(|(_, t)| *t));
+        used.remove(package);
+        Some(used)
     }
 
     fn version(&self, package: &str, _entry_dir: Option<&Path>) -> Option<String> {
@@ -113,22 +109,22 @@ mod tests {
     }
 
     /// The compiled-in Bluefile is the one on disk: kazu needs nothing and
-    /// shuugou needs retsu, read back from each package's own manifest.
+    /// shuugou needs retsu, read back from each package's own lock.
     #[test]
     fn each_package_carries_its_own_bluefile() {
-        let on_disk = |pkg: &str| {
-            let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let dir = |pkg: &str| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../../bidamas")
                 .join(pkg)
-                .join("Bluefile");
-            crate::read_bluefile(&std::fs::read_to_string(path).unwrap()).unwrap()
         };
         for pkg in ["kazu", "shuugou"] {
-            let disk = on_disk(pkg);
+            let disk =
+                crate::read_bluefile(&std::fs::read_to_string(dir(pkg).join("Bluefile")).unwrap())
+                    .unwrap();
             assert_eq!(Standard.version(pkg, None), Some(disk.version.to_string()));
             assert_eq!(
                 Standard.needs(pkg, None),
-                Some(disk.manifest.needs.keys().cloned().collect())
+                crate::lock::locked_needs(&dir(pkg)).map(|n| n.into_keys().collect())
             );
         }
         assert!(Standard.needs("no-such-bidama", None).is_none());

@@ -82,3 +82,18 @@ row(
 )
 
 row("errors.uncaught_value", "x = raise(:boom, \"why\")", fails(:eval, "boom"))
+
+row(
+  "errors.enforce.sound",
+  "use(\"kyohi\", [:check, :enforce])\n[check(1, []), enforce(1, [], {})]",
+  value("[[], nil]"),
+  pending("G16", "wasm")
+)
+
+row(
+  "errors.enforce.raises_the_findings",
+  "use(\"kyohi\", [:check, :enforce, :refusal])\nrules = [(x) -> [refusal(:b, \"one\"), refusal(:a, \"two\")]]\ncaught = begin\n  enforce(0, rules, {kind: :first})\nrescue e\n  [e.kind, e.message]\nend\n[check(0, rules), caught]",
+  value("[[[:b, \"one\"], [:a, \"two\"]], [:b, \"one; two\"]]"),
+  covers("okite:D0014"),
+  pending("G16", "wasm")
+)

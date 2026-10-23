@@ -16,12 +16,11 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `[1, "a"]` | `(list 1 "a")` | A list. Indexing is nth(i, xs); blue has no xs[i]. |
 | `{a: 1, "k" => 2}` | `(hash-map :a 1 "k" 2)` | A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v). |
 | `{a:, b:}` | `(hash-map :a a :b b)` | A map whose values are the variables of the same names: `{a:}` is `{a: a}`. Mix it with `{a:, n: 1}`. |
-| `{**a, b: 1}` | `(blue-merge (blue-splice a) (hash-map :b 1))` | A map that inherits every key of a map, `**a`, and lets a later entry override it. nil spreads as an empty map; anything else that is not a map is a type error. The map sibling of the splat `*xs`. |
-| `f(x, **a, b: 1)` | `(f x (blue-kwargs (blue-splice a) (hash-map :b 1)))` | A call whose last argument is the map built from `**` spreads and entries, `f(x, {**a, b: 1})` without the braces. Entries after a `**` are the call's last argument, so it cannot also carry a splat `*xs`. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
 | `(a, *rest) -> rest` | `(lambda (a &rest rest) rest)` | A rest parameter: `*name` last in a def, fn or arrow parameter list collects the remaining arguments into a list, the signature-side sibling of the call-side splat. A call passes every fixed parameter and any number more. |
+| `def f(a, b?) b end` | `(define (f a &optional b) b)` | An optional parameter: `name?` after the required ones in a def is nil when the call leaves it out. A call passes every required parameter and up to the optional ones; more raises, naming the range. A required or rest parameter cannot follow an optional one. |
 | `cap.status` | `(blue-field cap :status)` | A field read: a map's keyword or string key, a keyed list such as exec_capture's result or a parsed JSON object, or an error's kind, message, data, cause or trace. A missing field raises naming the fields there are; get(m, :k) reads one that may be absent. |
 | `x == nil` | `(blue-field x :nil?)` | A nil test: x.nil? is true of nil and of nothing else. Read, and written x.nil?, from nil?(x), x == nil and nil == x (B0047). |
 | `x.f(y)` | `(f x y)` | A method-style call: the receiver becomes the first argument. Read, and written f(x, y) (B0028). |
@@ -88,7 +87,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 182 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 181 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -158,7 +157,7 @@ Higher binding power binds tighter.
 | `text_index` | `text_index(s, sub, from)` | 3 | The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it. |
 | `text_last_index` | `text_last_index(s, sub, from)` | 3 | The character index of the last sub in s starting at or before from, or -1. One linear pass. |
 | `to_s` | `to_s(x)` | 1 | Text for any value (okite D0005, D0006): nil is "", 1.0 is "1.0", a list or map its blue literal, a keyword its name. |
-| `trim` | `trim(s)` | 1 | The string without leading and trailing whitespace. |
+| `trim` | `trim(s[, opts])` | 1..2 | The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option. |
 | `upcase` | `upcase(s)` | 1 | The string in upper case. Raises on nil. |
 
 ### Lists

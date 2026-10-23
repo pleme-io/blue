@@ -179,7 +179,7 @@ def suppress(count, k)
 end
 
 test "epsilon is nil where every answer is the truth"
-  assert epsilon(1) == nil
+  assert epsilon(1).nil?
   assert abs(epsilon(0.5) - log(3)) < 0.000001
   assert epsilon(0) == 0
 end
@@ -203,8 +203,8 @@ test "laplace is the same draw for the same seed and scale"
 end
 
 test "suppress hides a count below k and keeps the rest"
-  assert suppress(3, 5) == nil
+  assert suppress(3, 5).nil?
   assert suppress(5, 5) == 5
-  assert suppress(0, 1) == nil
+  assert suppress(0, 1).nil?
   assert suppress(9, 0) == 9
 end

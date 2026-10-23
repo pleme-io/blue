@@ -174,6 +174,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "retsu.partition",
             "retsu.rest",
             "retsu.zip",
+            "rogu.error",
             "shuugou.frequencies",
             "shuugou.remove",
             "tsuushin.join",

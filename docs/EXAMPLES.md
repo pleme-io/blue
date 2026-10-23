@@ -108,7 +108,7 @@ def orders_of(text)
 end
 
 def bad_orders(orders)
-  filter((o) -> get(o, :qty) == nil, orders)
+  filter((o) -> get(o, :qty).nil?, orders)
 end
 
 def total_qty(orders)
@@ -175,20 +175,20 @@ end
 test "the total list words accept the empty list"
   assert size([]) == 0
   assert size(nil) == 0
-  assert first([]) == nil
+  assert first([]).nil?
   assert rest([7]) == []
   assert is_empty([])
 end
 
 test "nth takes the index first, and answers nil past the end"
   assert nth(1, [:a, :b, :c]) == :b
-  assert nth(9, [:a]) == nil
+  assert nth(9, [:a]).nil?
 end
 
 test "a map built up and read back"
   m = tally(["a", "b", "a"])
   assert get(m, "a") == 2
-  assert get(m, "z") == nil
+  assert get(m, "z").nil?
   assert dissoc(m, "b") == {"a" => 2}
   assert {a: 1, b: 2} == {b: 2, a: 1}
 end
@@ -267,7 +267,7 @@ use("retsu", [:first, :is_empty, :last])
 
 def port_refusals(text)
   n = to_int(text)
-  if n == nil
+  if n.nil?
     [[:not_a_number, "#{text} is not a port number"]]
   elsif n < 1 or n > 65535
     [[:out_of_range, "#{n} is outside 1..65535"]]
@@ -335,7 +335,7 @@ end
 
 def variance(xs)
   m = mean(xs)
-  if m == nil
+  if m.nil?
     nil
   else
     mean(map((x) -> (x - m) * (x - m), xs))
@@ -343,7 +343,7 @@ def variance(xs)
 end
 
 test "the mean of nothing is nil, not zero"
-  assert mean([]) == nil
+  assert mean([]).nil?
 end
 
 test "a value anyone can check"
@@ -579,7 +579,7 @@ test "the package's words are available after use"
 end
 
 test "an empty text has no top word"
-  assert top_word("") == nil
+  assert top_word("").nil?
 end
 ```
 
@@ -621,7 +621,7 @@ end
 # One turn of the daemon's loop: the next message applied, or nil when quiet.
 def serve_once(sub, base, token)
   m = nats_next_message(sub, 1000)
-  if m == nil
+  if m.nil?
     nil
   else
     cmd = command_of(m)

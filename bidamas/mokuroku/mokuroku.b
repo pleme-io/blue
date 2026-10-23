@@ -1585,7 +1585,7 @@ def finds_unbound(g, unbound)
 end
 
 def unbound_probe(g, exe)
-  if exe == nil
+  if exe.nil?
     raise(:probe, "no blue to run the unbound-name probe: self_exe is nil")
   end
   src = probe_source(g)

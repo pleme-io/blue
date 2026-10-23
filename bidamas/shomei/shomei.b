@@ -728,7 +728,7 @@ test "the hash chain binds under its graph names"
   assert trail(g, []) == []
   assert intact?(g, ["a", "b"], b)
   assert not intact?(g, ["a", "c"], b)
-  assert first_break(g, ["a", "b"], [a, b]) == nil
+  assert first_break(g, ["a", "b"], [a, b]).nil?
   assert first_break(g, ["a", "x"], [a, b]) == 1
   assert first_break(g, ["a"], [a, b]) == 1
 end

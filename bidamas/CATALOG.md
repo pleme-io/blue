@@ -385,7 +385,7 @@ chokkan (直感) — System One judgment: typed questions in, calibrated answers
 | `danpen::name_at(p, i)` |  |  |  |  |
 | `danpen::mark(p, i, node)` |  |  |  |  |
 | `danpen::many(p, i, item, close, acc)` |  |  |  |  |
-| `danpen::some(p, i, open, item, close)` |  | yes |  |  |
+| `danpen::one_or_more(p, i, open, item, close)` |  |  |  |  |
 | `danpen::optional_list(p, i, open, item, close)` |  |  |  |  |
 | `danpen::document_of(p, i, acc)` |  |  |  |  |
 | `danpen::definition(p, i)` |  |  |  |  |

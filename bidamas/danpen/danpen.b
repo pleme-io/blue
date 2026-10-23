@@ -941,7 +941,7 @@ def many(p, i, item, close, acc)
   end
 end
 
-def some(p, i, open, item, close)
+def one_or_more(p, i, open, item, close)
   j = expect(p, i, open)
   if punct?(p, j, close)
     fail(p, j, "an item before #{json_stringify(close)}")
@@ -951,7 +951,7 @@ end
 
 def optional_list(p, i, open, item, close)
   if punct?(p, i, open)
-    some(p, i, open, item, close)
+    one_or_more(p, i, open, item, close)
   else
     [[], i]
   end
@@ -1161,7 +1161,7 @@ def object_field(p, i, constant)
 end
 
 def selection_set(p, i)
-  some(p, i, "{", selection, "}")
+  one_or_more(p, i, "{", selection, "}")
 end
 
 def selection(p, i)

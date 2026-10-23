@@ -256,7 +256,7 @@ Higher binding power binds tighter.
 | `pipe` | `pipe(fs...)` | 0+ | Left to right: pipe(f, g)(x) is g(f(x)). Also defined by `kansuu` (`kansuu::pipe`): a file that lists it gets that one. |
 | `reduce` | `reduce(f, [init, ]xs)` | 2..3 | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |
 | `remove` | `remove(f, xs)` | 2 | The elements f rejects. Also defined by `shuugou` (`shuugou::remove`): a file that lists it gets that one. |
-| `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). Also defined by `danpen` (`danpen::some`): a file that lists it gets that one. |
+| `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). |
 | `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
 | `visit` | `visit(f, x)` | 2 | f(x). |
 

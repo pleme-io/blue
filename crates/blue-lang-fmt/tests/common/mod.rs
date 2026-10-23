@@ -1,7 +1,31 @@
 //! Shared by the corpus laws and the property laws: the width, and the one
 //! exception to it.
 
+#![allow(dead_code)]
+
+pub mod gen;
+
 use blue_lang_syntax::{lex, TokenKind};
+use proptest::prelude::*;
+use proptest::test_runner::FileFailurePersistence;
+
+/// The property-test configuration every law file shares: a case count that
+/// `PROPTEST_CASES` raises for a deeper run, and failures persisted beside the
+/// test file that found them. The default persistence looks for `lib.rs` or
+/// `main.rs` above the test and finds neither for an integration test, so it
+/// warned and saved nothing; `WithSource` writes `<test>.proptest-regressions`.
+pub fn config(default_cases: u32) -> ProptestConfig {
+    ProptestConfig {
+        cases: std::env::var("PROPTEST_CASES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default_cases),
+        failure_persistence: Some(Box::new(FileFailurePersistence::WithSource(
+            "proptest-regressions",
+        ))),
+        ..ProptestConfig::default()
+    }
+}
 
 /// The width the law holds lines to — the operator's 80, stated here as well
 /// as in the crate so that moving [`blue_lang_fmt::WIDTH`] is a red test rather

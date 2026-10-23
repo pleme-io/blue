@@ -162,15 +162,20 @@ pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
 pub fn format_tree_lossless(src: &str, tree: &[Spanned]) -> Result<String, FormatError> {
     let r = Renderer::lossless(src)?;
     let out = r.program(tree);
-    let unplaced = r.unplaced();
-    if unplaced.is_empty() {
+    let mut at: std::collections::BTreeSet<usize> =
+        r.unplaced().iter().map(|c| c.span.start).collect();
+    at.extend(r.dropped(&out).iter().map(|c| c.span.start));
+    let mut lost: Vec<usize> = at.iter().map(|a| line_of(src, *a)).collect();
+    lost.extend(hidden_comments(src).into_iter().map(|a| line_of(src, a)));
+    if lost.is_empty() {
         return Ok(out);
     }
+    lost.sort_unstable();
     Err(FormatError::UnplaceableComments {
-        count: unplaced.len(),
-        lines: unplaced
+        count: lost.len(),
+        lines: lost
             .iter()
-            .map(|c| line_of(src, c.span.start).to_string())
+            .map(usize::to_string)
             .collect::<Vec<_>>()
             .join(", "),
     })
@@ -191,7 +196,34 @@ fn line_of(src: &str, offset: usize) -> usize {
 /// literal is not a comment, and a scanner that thought so would refuse to
 /// format a perfectly good file.
 pub fn comment_count(src: &str) -> usize {
-    blue_lang_syntax::comments(src).len()
+    blue_lang_syntax::comments(src).len() + hidden_comments(src).len()
+}
+
+/// The comments the lexer cannot see: those inside `#{}` code, which it keeps
+/// as text for the parser to read. Each is reported as the offset of the
+/// string literal holding it, once per comment, nested strings included.
+/// Formatting re-parses that text alone and drops its trivia, so a comment
+/// there has no place to go and is refused like any other unplaceable one.
+fn hidden_comments(src: &str) -> Vec<usize> {
+    fn walk(src: &str, at: Option<usize>, out: &mut Vec<usize>) {
+        let Ok(toks) = blue_lang_syntax::lex(src) else {
+            return;
+        };
+        for t in toks {
+            match t.kind {
+                TokenKind::Comment(_) => out.extend(at),
+                TokenKind::InterpolatedStr { exprs, .. } => {
+                    for e in &exprs {
+                        walk(e, Some(at.unwrap_or(t.span.start)), out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(src, None, &mut out);
+    out
 }
 
 /// Render already-parsed forms. Exposed so a caller holding a tree does
@@ -268,6 +300,41 @@ impl<'s> Renderer<'s> {
         })
     }
 
+    /// The comments `out` does not carry, though placement counted them: the
+    /// flags say a comment was claimed, not that its text reached the output.
+    /// A lost one is found by its text; if the texts are all there but out of
+    /// order, every comment is reported.
+    fn dropped(&self, out: &str) -> Vec<&Comment> {
+        let mut have: Vec<String> = blue_lang_syntax::comments(out)
+            .into_iter()
+            .map(|c| c.text.trim_end().to_string())
+            .collect();
+        let want: Vec<&Comment> = self.comments.iter().collect();
+        if want
+            .iter()
+            .map(|c| c.text.trim_end())
+            .eq(have.iter().map(String::as_str))
+        {
+            return Vec::new();
+        }
+        let missing: Vec<&Comment> = want
+            .iter()
+            .copied()
+            .filter(|c| match have.iter().position(|h| h == c.text.trim_end()) {
+                Some(i) => {
+                    have.swap_remove(i);
+                    false
+                }
+                None => true,
+            })
+            .collect();
+        if missing.is_empty() {
+            want
+        } else {
+            missing
+        }
+    }
+
     fn unplaced(&self) -> Vec<&Comment> {
         let used = self.used.borrow();
         self.comments
@@ -296,6 +363,16 @@ impl<'s> Renderer<'s> {
                 out.push(i);
             }
         }
+        out
+    }
+
+    /// Run `build` and give back every comment it claimed. A document built
+    /// only to be measured must not keep the comments it took: the document
+    /// that is printed instead claims them again.
+    fn probe<T>(&self, build: impl FnOnce() -> T) -> T {
+        let saved = self.used.borrow().clone();
+        let out = build();
+        *self.used.borrow_mut() = saved;
         out
     }
 
@@ -719,6 +796,24 @@ impl<'s> Renderer<'s> {
 
     fn list(&self, s: &Spanned, items: &[Spanned], min_prec: u8) -> Doc {
         let head = items[0].as_symbol();
+        if items.len() == 2 && matches!(items[0].form, SpannedForm::Quasiquote(_)) {
+            let d = parenthesize_below(
+                self.expr(&items[1], 0)
+                    .concat(Doc::text(" |> ("))
+                    .concat(self.expr(&items[0], 0))
+                    .concat(Doc::text(")")),
+                min_prec,
+                0,
+            );
+            if self.probe(|| self.spells_back(s, &d)) {
+                return d;
+            }
+        }
+        if head.is_some_and(|h| pipe_built(h, items.len()))
+            && self.probe(|| self.spells_back(s, &self.piped(items, min_prec)))
+        {
+            return self.piped(items, min_prec);
+        }
         match head {
             // (if c t [e])
             Some("if") if items.len() == 3 || items.len() == 4 => {
@@ -922,16 +1017,19 @@ impl<'s> Renderer<'s> {
         callee.concat(self.seq_of("(", ")", &items[1..], lo, hi))
     }
 
+    /// Does `d`, printed, parse back to the tree of `s`?
+    fn spells_back(&self, s: &Spanned, d: &Doc) -> bool {
+        blue_lang_syntax::parse_program(&flat_text(d))
+            .is_ok_and(|forms| forms.len() == 1 && forms[0] == s.to_sexp())
+    }
+
     /// `first |> (rest)` for a list the pipeline built: `items[1]` is what was
     /// piped in, and the list without it is what it was piped into.
     fn piped(&self, items: &[Spanned], min_prec: u8) -> Doc {
         let mut rest = vec![items[0].clone()];
         rest.extend(items[2..].iter().cloned());
         let into = Spanned::new(Span::synthetic(), SpannedForm::List(rest));
-        let lhs_prec = u8::from(matches!(
-            sym_name_of(&items[1]),
-            Some("lambda" | blue_lang_syntax::LOWERED_ASSERT)
-        ));
+        let lhs_prec = u8::from(swallows_tail(&items[1]));
         let d = self
             .expr(&items[1], lhs_prec)
             .concat(Doc::text(" |> ("))
@@ -1044,7 +1142,11 @@ impl<'s> Renderer<'s> {
             .map(|(k, a)| {
                 let d = self.expr(a, 0);
                 if k == last {
-                    Doc::text("*").concat(d)
+                    if flat_text(&d).starts_with('-') {
+                        Doc::text("*(").concat(d).concat(Doc::text(")"))
+                    } else {
+                        Doc::text("*").concat(d)
+                    }
                 } else {
                     d
                 }
@@ -1055,15 +1157,33 @@ impl<'s> Renderer<'s> {
 
     fn rescue_form(&self, s: &Spanned, min_prec: u8) -> Option<Doc> {
         if let Some((body, fallback)) = inline_rescue(s) {
-            let lhs = self.expr(body, 0);
+            let saved = self.used.borrow().clone();
+            let lhs = self.expr(body, u8::from(swallows_tail(body)));
             let rhs = self.expr(fallback, 1);
             if !flat_text(&lhs).contains('\n') && !flat_text(&rhs).contains('\n') {
+                let gap = if self.real(body.span) && self.real(fallback.span) {
+                    self.take(body.span.end, fallback.span.start)
+                } else {
+                    Vec::new()
+                };
+                let mut tail = Doc::text(" rescue");
+                let mut leading = Doc::nil();
+                let mut trailed = false;
+                for c in gap {
+                    if !self.comments[c].own_line && !trailed {
+                        tail = tail.concat(self.trailing(c));
+                        trailed = true;
+                    } else {
+                        leading = leading.concat(self.own_line(c)).concat(Doc::hardline());
+                    }
+                }
                 let d = lhs
-                    .concat(Doc::text(" rescue"))
-                    .concat(Doc::line().concat(rhs).nest(2))
+                    .concat(tail)
+                    .concat(Doc::line().concat(leading).concat(rhs).nest(2))
                     .group();
                 return Some(parenthesize_below(d, min_prec, 0));
             }
+            *self.used.borrow_mut() = saved;
         }
         let parts = self.rescue_parts(s)?;
         Some(
@@ -1281,8 +1401,10 @@ impl<'s> Renderer<'s> {
 
     fn def_block(&self, s: &Spanned, header: Doc, body: &Spanned) -> Doc {
         let inline = inline_rescue(body).is_some_and(|(x, h)| {
-            !flat_text(&self.expr(x, 0)).contains('\n')
-                && !flat_text(&self.expr(h, 1)).contains('\n')
+            self.probe(|| {
+                !flat_text(&self.expr(x, u8::from(swallows_tail(x)))).contains('\n')
+                    && !flat_text(&self.expr(h, 1)).contains('\n')
+            })
         });
         if !inline {
             if let Some(parts) = self.rescue_parts(body) {
@@ -1333,15 +1455,13 @@ impl<'s> Renderer<'s> {
         // enclosing sequence, and `body` must not take it as the block doc is
         // built beside the inline one.
         let own_end = self.closer(s).unwrap_or(s.span.end);
+        let commented = self.real(s.span) && self.has_comments(s.span.start, own_end);
+        let one_expression = self.statements(&items[2]).len() == 1;
         let block = Doc::text("fn")
             .concat(self.params(params, None))
             .concat(self.body(&items[2], Some(own_end), Doc::hardline()))
             .concat(Doc::hardline())
             .concat(Doc::text("end"));
-        let one_expression = self.statements(&items[2]).len() == 1;
-        // A comment inside the lambda keeps it the block alone: building both
-        // spellings would hand the comment to the one that is not printed.
-        let commented = self.real(s.span) && self.has_comments(s.span.start, own_end);
         if !one_expression || commented {
             return block;
         }
@@ -1461,6 +1581,40 @@ impl<'s> Renderer<'s> {
         }
         doc.concat(Doc::hardline()).concat(Doc::text("end"))
     }
+}
+
+/// Is a list with this head and this many items the shape `x |> (form)` builds
+/// from a `form` of one item fewer? The pipeline inserts its left side as the
+/// first argument of ANY list, so a block form or an operator gets an extra
+/// item: `x |> (a % b)` is `(mod x a b)`, `x |> begin a rescue e b end` a
+/// four-item `try`. Printed as a call such a list either leaks the lowered
+/// name (`mod(x, a, b)`) or reads back as another tree (`try(x, …)`).
+fn pipe_built(head: &str, len: usize) -> bool {
+    let arity = match head {
+        "lambda" | "define" | "deftest" | "try" => 3,
+        "define-typed" | "defmacro" => 4,
+        "not" => 2,
+        h if h != "and"
+            && h != "or"
+            && blue_lang_syntax::is_callable_name(h)
+            && infix_render(h).is_some() =>
+        {
+            3
+        }
+        _ => return false,
+    };
+    len == arity + 1
+}
+
+/// Does `s`, printed bare, read everything to its right as part of itself? An
+/// inline lambda takes `a rescue b` and `a |> f` into its body, and `assert`
+/// takes a whole expression, so as the left side of one of those operators
+/// each is parenthesized.
+fn swallows_tail(s: &Spanned) -> bool {
+    matches!(
+        sym_name_of(s),
+        Some("lambda" | blue_lang_syntax::LOWERED_ASSERT)
+    )
 }
 
 fn flat_text(d: &Doc) -> String {
@@ -1650,7 +1804,7 @@ fn is_typed_signature(sig: &Spanned, ret: &Spanned) -> bool {
 fn is_type(t: &Spanned) -> bool {
     is_name(t)
         || t.as_list()
-            .is_some_and(|c| c.len() == 2 && is_name(&c[0]) && is_type(&c[1]))
+            .is_some_and(|c| !c.is_empty() && is_name(&c[0]) && c[1..].iter().all(is_type))
 }
 
 /// `doc`, parenthesized when the context demands a tighter binding than the
@@ -1792,16 +1946,15 @@ fn render_ty(t: &Sexp) -> Option<String> {
     match t {
         Sexp::Atom(Atom::Symbol(n)) if &**n == "dyn" => None,
         Sexp::Atom(Atom::Symbol(n)) => Some(n.to_string()),
-        // A constructor: (List Int) -> List(Int)
-        Sexp::List(items) if items.len() == 2 => {
+        // A constructor of any arity: (List Int) -> List(Int),
+        // (Map Str Int) -> Map(Str, Int), (Unit) -> Unit()
+        Sexp::List(items) if !items.is_empty() => {
             let head = sym_name(&items[0])?;
-            let arg = render_ty(&items[1]).unwrap_or_else(|| "dyn".to_string());
-            let mut out = String::with_capacity(head.len() + arg.len() + 2);
-            out.push_str(head);
-            out.push('(');
-            out.push_str(&arg);
-            out.push(')');
-            Some(out)
+            let args: Vec<String> = items[1..]
+                .iter()
+                .map(|a| render_ty(a).unwrap_or_else(|| "dyn".to_string()))
+                .collect();
+            Some(format!("{head}({})", args.join(", ")))
         }
         other => Some(other.to_string()),
     }

@@ -1632,17 +1632,6 @@ impl Parser {
         list_at(span, list)
     }
 
-    fn paren_args(&mut self) -> Result<Vec<Spanned>, Fail> {
-        let (args, splat) = self.call_args()?;
-        if let Some(at) = splat {
-            return Err(fail(
-                "a splat `*xs` passes a list as a call's last arguments, and this is not a call",
-                at,
-            ));
-        }
-        Ok(args)
-    }
-
     fn call_args(&mut self) -> Result<(Vec<Spanned>, Option<Span>), Fail> {
         self.expect(&TokenKind::LParen, "`(`")?;
         let mut args = Vec::new();
@@ -2194,6 +2183,7 @@ impl Parser {
                 ))
             }
         };
+        self.not_reserved(&name, name_span, "a `defmacro` name")?;
         let mut params: Vec<Spanned> = Vec::new();
         if self.at(&TokenKind::LParen) {
             self.bump();
@@ -2495,6 +2485,7 @@ impl Parser {
                 ))
             }
         };
+        self.not_reserved(&name, name_span, "a `def` name")?;
         let mut params: Vec<(String, Span, Option<Spanned>)> = Vec::new();
         let mut rest: Vec<Spanned> = Vec::new();
         if !self.at(&TokenKind::LParen) {
@@ -2520,9 +2511,13 @@ impl Parser {
                     }
                     match self.bump() {
                         // `a` — unannotated
-                        TokenKind::Ident(p) => params.push((p, p_span, None)),
+                        TokenKind::Ident(p) => {
+                            self.not_reserved(&p, p_span, "a parameter name")?;
+                            params.push((p, p_span, None));
+                        }
                         // `a:` came through as one token, so a type follows
                         TokenKind::Label(p) => {
+                            self.not_reserved(&p, p_span, "a parameter name")?;
                             self.skip_newlines();
                             let ty = self.type_expr()?;
                             params.push((p, p_span, Some(ty)));
@@ -2616,8 +2611,13 @@ impl Parser {
         ))
     }
 
-    /// A type expression. Currently a bare name (`Int`, `Str`, `dyn`) or a
-    /// one-argument constructor (`List(Int)`).
+    /// A type expression: a name (`Int`, `Str`, `dyn`) or a constructor over
+    /// types, of any arity (`List(Int)`, `Map(Str, Int)`, `Unit()`).
+    ///
+    /// Each argument is itself a type. They were read as expressions, so
+    /// `List(1 + 2)` parsed to a signature no `def` line can spell, and a
+    /// reserved word was accepted as a type name: `def a(x) -> not` followed
+    /// by a newline read `not` as the return type and the next line as the body.
     fn type_expr(&mut self) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
@@ -2629,13 +2629,41 @@ impl Parser {
                 ))
             }
         };
+        self.not_reserved(&name, name_span, "a type name")?;
         if self.at(&TokenKind::LParen) {
-            let args = self.paren_args()?;
+            self.bump();
+            self.skip_newlines();
             let mut list = vec![sym_at(name_span, &name)];
-            list.extend(args);
+            if !self.eat(&TokenKind::RParen) {
+                loop {
+                    self.skip_newlines();
+                    list.push(self.type_expr()?);
+                    self.skip_newlines();
+                    if self.eat(&TokenKind::Comma) {
+                        if self.trailing_comma(&TokenKind::RParen) {
+                            break;
+                        }
+                        continue;
+                    }
+                    self.expect(&TokenKind::RParen, "`,` or `)`")?;
+                    break;
+                }
+            }
             return Ok(list_at(self.span_since(name_span.start), list));
         }
         Ok(sym_at(name_span, &name))
+    }
+
+    /// A word a form binds or names must not be one the parser reserves: it
+    /// would be accepted here and could never be written back.
+    fn not_reserved(&self, name: &str, at: Span, what: &str) -> Result<(), Fail> {
+        if is_reserved_word(name) {
+            return Err(fail(
+                format!("`{name}` is a reserved word and cannot be {what}"),
+                at,
+            ));
+        }
+        Ok(())
     }
 
     /// Consume `name` if it is the next token, else leave the position alone.

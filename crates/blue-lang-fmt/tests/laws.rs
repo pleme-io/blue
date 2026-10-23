@@ -708,7 +708,7 @@ fn with_comments(src: &str, notes: &[(usize, bool)]) -> String {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+    #![proptest_config(common::config(256))]
 
     /// Width, idempotence and round-trip over generated programs.
     #[test]

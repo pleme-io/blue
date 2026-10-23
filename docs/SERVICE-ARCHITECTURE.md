@@ -197,6 +197,7 @@ signals and protocols go in Rust.**
 | Rate limit | blue (bougyo `rate` posture) | a leaky bucket is arithmetic over `now_ms` |
 | OIDC | Rust verify (kensa's `Verifier` lifted into tsunagu), blue claims policy | RS256 and JWKS fetch are crypto and network |
 | Cache client | Rust (RESP in Rust, CONTAIN THE C) | protocol |
+| HTTP/2 and gRPC | blue (`heddaa`, `tajuu`), over Rust readiness and TLS | operator, 2026-10-23: the protocol is blue; `docs/HTTP2.md` |
 | Cache keys | blue (from the model) | shape |
 | Migrations, CRs, schemas | blue renderers | shape |
 | Introspection | blue stance, served over kanshou's socket protocol | the stance is data, and the socket is Rust |

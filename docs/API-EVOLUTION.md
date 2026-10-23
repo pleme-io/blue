@@ -524,7 +524,7 @@ No handler changes. No hand-written OpenAPI, SDL or proto changes.
 
 | Question | Type |
 |---|---|
-| Can a blue-led service serve gRPC? It needs HTTP/2 framing | world fact: HTTP/2 needs a Rust stack in the host surface; Rust-led only until then |
+| Can a blue-led service serve gRPC? It needs HTTP/2 framing | ours, not a world fact: HTTP/2 framing, HPACK and gRPC are protocol, written in blue (`docs/HTTP2.md`; HPACK and the frame codec are built); only readiness and TLS are host primitives. Rust-led until HTTP2.md P5 |
 | Can a blue-led service serve GraphQL? No blue executor exists | ours: a GraphQL executor bidama, or Rust-led only (`async_graphql` dynamic schema, to measure) |
 | Multi-replica coverage: is a period complete when every replica that took traffic sent a heartbeat? | ours, with a world fact inside: replicas come and go, so "every replica" needs the replica set at that time |
 | Do we add AIP-185 channels (`v1beta`) for unstable surfaces? | ours; skipped until a surface needs it |

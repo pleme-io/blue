@@ -143,7 +143,7 @@ edge("mokuroku::list", :generalizes, "mokuroku::check", "the set checked")
 edge(
   "mokuroku::diff",
   :guards,
-  "hakkou?::breaking?",
+  "rirezu?::breaking?",
   "interface change feeds it"
 )
 
@@ -163,13 +163,6 @@ edge("mokuroku::render", :pairs, "chishiki?::publish", "docs are published")
 edge("mokuroku::coverage", :pairs, "hadome::judge", "doc coverage cannot fall")
 
 edge(
-  "mokuroku::diff",
-  :pairs,
-  "hakkou?::changelog",
-  "interface changes in the notes"
-)
-
-edge(
   "mokuroku::extract",
   :pairs,
   "hinagata?::generate",
@@ -184,6 +177,14 @@ edge(
 )
 
 edge("mokuroku::check", :pairs, "kenshutsu?::check", "doc gaps are findings")
+
+edge(
+  "mokuroku::diff",
+  :pairs,
+  "rirezu?::changelog",
+  "interface changes in the notes"
+)
+
 edge("mokuroku::run", :pairs, "tesuto?::snapshot", "examples compare outputs")
 edge("mokuroku::get", :refines, "mokuroku::catalog", "one entry")
 edge("mokuroku::extract", :requires, "koubun?::parse", "reads definitions")

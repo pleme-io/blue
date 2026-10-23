@@ -462,7 +462,7 @@ edge(
   "followers replay the log"
 )
 
-edge("goui?::elect", :pairs, "shigoto?::every", "one leader runs the schedule")
+edge("goui?::elect", :pairs, "shigoto::every", "one leader runs the schedule")
 edge("goui?::members", :pairs, "toutatsu?::find", "both answer who is there")
 edge("goui?::acquire", :pairs, "toutatsu?::register", "registration is a lease")
 edge("goui?::fence", :requires, "goui?::acquire", "token comes from the lease")

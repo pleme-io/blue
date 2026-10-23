@@ -69,7 +69,7 @@ vocab(
     kind: :effect,
     meaning: "move a world, run or clock forward",
     ref: nil,
-    status: :open
+    status: :decided
   }
 )
 
@@ -172,9 +172,9 @@ vocab(
     returns: "result",
     raises: ["conflict"],
     kind: :effect,
-    meaning: "carry out a reviewed plan, patch or delta",
+    meaning: "carry out a reviewed plan, patch or delta; behind a reconciler, raises conflict",
     ref: "§3.3",
-    status: :open
+    status: :decided
   }
 )
 
@@ -429,7 +429,7 @@ vocab(
     kind: :effect,
     meaning: "invoke one remote operation and wait for its reply",
     ref: nil,
-    status: :open
+    status: :decided
   }
 )
 
@@ -547,9 +547,9 @@ vocab(
     returns: "[finding]",
     raises: [],
     kind: :any,
-    meaning: "findings of a subject against rules; empty when sound",
+    meaning: "findings of a subject against rules; empty when sound; kyohi::enforce is the raising form",
     ref: "§4.9",
-    status: :open
+    status: :decided
   }
 )
 
@@ -849,7 +849,7 @@ vocab(
     kind: :pure,
     meaning: "a value in another unit, format or space",
     ref: nil,
-    status: :open
+    status: :decided
   }
 )
 
@@ -1345,6 +1345,21 @@ vocab(
     meaning: "bytes to text in an encoding",
     ref: "§3.4",
     status: :stdlib
+  }
+)
+
+vocab(
+  "enforce",
+  {
+    subject: "subject",
+    args: ["subject", "rules?"],
+    opts: true,
+    returns: "nil",
+    raises: ["refused"],
+    kind: :effect,
+    meaning: "check a subject, then raise one error carrying every finding; nil when sound",
+    ref: nil,
+    status: :decided
   }
 )
 
@@ -2124,7 +2139,7 @@ vocab(
     kind: :effect,
     meaning: "current state of the subject as a record",
     ref: "§3.1,§3.5",
-    status: :open
+    status: :decided
   }
 )
 
@@ -2542,9 +2557,9 @@ vocab(
     returns: "value",
     raises: ["conflict"],
     kind: :any,
-    meaning: "combine b into a",
+    meaning: "combine b into a; one master verb for every space, gitto::merge refines it",
     ref: "§3.4",
-    status: :open
+    status: :decided
   }
 )
 
@@ -2769,7 +2784,7 @@ vocab(
     kind: :pure,
     meaning: "attach a handler to an event",
     ref: nil,
-    status: :open
+    status: :decided
   }
 )
 
@@ -4044,7 +4059,7 @@ vocab(
     kind: :effect,
     meaning: "deliver a message or event to a target",
     ref: nil,
-    status: :open
+    status: :decided
   }
 )
 
@@ -4987,9 +5002,9 @@ vocab(
     returns: "verdict",
     raises: ["tampered"],
     kind: :any,
-    meaning: "check integrity against a record or policy",
+    meaning: "check integrity against a record or policy; raises tampered on a bad verdict, verify? is the predicate pair",
     ref: nil,
-    status: :open
+    status: :decided
   }
 )
 

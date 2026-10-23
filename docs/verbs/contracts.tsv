@@ -3,14 +3,14 @@ acquire	source	~source,name	yes	lease	timeout	effect	take a lease or credential	
 add	a	a,b	no	value		pure	a moved or summed by b	§3.5	stdlib
 address	data	data,algorithm?	yes	oid		pure	content address of a value	-	decided
 admit	subject	subject,policy,event?	yes	decision		any	decide whether a thing may pass	-	decided
-advance	subject	subject,by	yes	state		effect	move a world, run or clock forward	-	open
+advance	subject	subject,by	yes	state		effect	move a world, run or clock forward	-	decided
 alive?	subject	subject,now?	no	Bool		any	whether a process, link or session is alive	-	decided
 all	fs	fs	yes	[value]	first error	effect	run functions concurrently; values in order	§3.3	stdlib
 all?	xs	xs,f	no	Bool		pure	whether f holds for every item	§3.6	stdlib
 analyze	subject	subject,by?	yes	verdict		pure	derive findings from a subject	-	decided
 any?	xs	xs,f	no	Bool		pure	whether f holds for at least one item	§3.6	stdlib
 append	target	target,content	yes	nil	permission_denied	effect	add to the end of a target	§3.1	stdlib
-apply	target	target,change?	yes	result	conflict	effect	carry out a reviewed plan, patch or delta	§3.3	open
+apply	target	target,change?	yes	result	conflict	effect	carry out a reviewed plan, patch or delta; behind a reconciler, raises conflict	§3.3	decided
 approve	subject	subject,gate?	yes	decision		effect	record approval of a request or gate	-	decided
 arrange	systems	systems	no	order		pure	order systems so no two clash on a write	-	decided
 assemble	ast	ast,board	no	image		pure	link emitted code into an image	-	decided
@@ -27,7 +27,7 @@ bounds	shape	shape	no	box		pure	the smallest box holding a shape	-	decided
 budget	scope	scope?,amount?,period?	yes	budget		pure	a limit on spend, error or work	-	decided
 build	project	project,targets?	yes	artifact	command_failed	effect	produce outputs from a project	-	decided
 build_log	installable	installable	no	text		effect	the build log of a derivation	-	decided
-call	target	target,input	yes	reply	timeout	effect	invoke one remote operation and wait for its reply	-	open
+call	target	target,input	yes	reply	timeout	effect	invoke one remote operation and wait for its reply	-	decided
 cancel	handle	handle,reason?	yes	nil		effect	ask a running thing to stop	-	decided
 capture	command	command,args?	yes	text	command_not_found,command_failed	effect	run and return stdout without its trailing newline	§3.3	stdlib
 case	name	name,f	no	test		pure	declare one named test	-	decided
@@ -35,7 +35,7 @@ catchup	review	review	yes	nil		effect	bring a branch up to its base	-	decided
 centroid	shape	shape	no	point		pure	the centre of a shape	-	decided
 chain	prev	prev,payload	no	hash		pure	the hash that follows prev when payload is appended	-	decided
 chain_of	chain	chain,roots	yes	[cert]		pure	a valid chain from a leaf to a trusted root	-	decided
-check	subject	subject,rules?	yes	[finding]		any	findings of a subject against rules; empty when sound	§4.9	open
+check	subject	subject,rules?	yes	[finding]		any	findings of a subject against rules; empty when sound; kyohi::enforce is the raising form	§4.9	decided
 checksum	data	data,algorithm?	yes	integer		pure	a short integrity number over data	-	decided
 choice	instructions	instructions,options?	no	question		pure	a closed question with a fixed set of answers	-	decided
 choose	items	items	yes	item or nil		effect	a human picks from a list	-	decided
@@ -55,7 +55,7 @@ compress	data	data,algorithm?	yes	bytes		pure	bytes made smaller	-	decided
 connect	address	address	yes	conn	timeout	effect	open a connection to an address	-	decided
 constraint	text	text	no	constraint		pure	a version constraint as a value	-	decided
 contains?	xs	xs,x	no	Bool		pure	whether x is among the items or the text	§3.6	stdlib
-convert	value	value,to,from?	yes	value		pure	a value in another unit, format or space	-	open
+convert	value	value,to,from?	yes	value		pure	a value in another unit, format or space	-	decided
 copy	from	from,to	yes	nil	not_found,exists	effect	place a copy at a destination	§3.1	stdlib
 correlate	a	a,b	yes	[record]		pure	link records that share an identity or window	-	decided
 count	xs	xs,f?	yes	int		any	how many items, or how many match	§3.6	stdlib
@@ -89,6 +89,7 @@ embed	model	~model,input	yes	vector		effect	text or items as vectors	-	decided
 empty?	xs	xs	no	Bool		pure	whether there are no items	§3.6	stdlib
 enclose	data	data,key_id	yes	envelope		effect	envelope encryption with a fresh data key wrapped by a managed key	-	decided
 encode	data	data,encoding	no	text		pure	bytes to text in an encoding	§3.4	stdlib
+enforce	subject	subject,rules?	yes	nil	refused	effect	check a subject, then raise one error carrying every finding; nil when sound	-	decided
 enter	group	group,member?	no	view		effect	join a group	-	decided
 entries	m	m	no	[pair]		pure	the key and value pairs of a map	§3.6	stdlib
 entry	fields	fields	no	record		pure	build one record value with its links	-	decided
@@ -140,7 +141,7 @@ identity	x	x	no	x		pure	the value unchanged	-	decided
 import	store	store,entries	yes	count		effect	bring entries into a store	-	decided
 index	store	store,field?	yes	index		effect	build or declare an index	-	decided
 index_of	xs	xs,x	no	int or nil		pure	the position of the first x	§3.6	stdlib
-info	subject	subject	yes	record	not_found	effect	current state of the subject as a record	§3.1,§3.5	open
+info	subject	subject	yes	record	not_found	effect	current state of the subject as a record	§3.1,§3.5	decided
 initial	state	state	no	decl		pure	declare the state an instance begins in	-	decided
 insert	xs	xs,at?,item	no	xs		pure	xs with an item placed at a position	-	decided
 interleave	logs	logs	no	[record]		pure	several logs merged into one ordered list	-	decided
@@ -168,7 +169,7 @@ map	xs	xs,f	yes	list		pure	a list of f applied to each item	§3.6	stdlib
 matches?	subject	subject,pattern	no	Bool		pure	whether a subject matches a pattern	-	decided
 max_by	xs	xs,f	no	item or nil		pure	the item with the greatest f	§3.6	stdlib
 measure	subject	subject,metric?	yes	number		any	a size or a rate of a subject	-	decided
-merge	a	a,b	yes	value	conflict	any	combine b into a	§3.4	open
+merge	a	a,b	yes	value	conflict	any	combine b into a; one master verb for every space, gitto::merge refines it	§3.4	decided
 min_by	xs	xs,f	no	item or nil		pure	the item with the least f	§3.6	stdlib
 mirror	from	from,to	yes	report		effect	make a destination equal a source	-	decided
 move	from	from,to	yes	nil	not_found,exists	effect	move or rename atomically	§3.1	stdlib
@@ -183,7 +184,7 @@ now			no	instant		effect	the current instant	§3.5	stdlib
 nth_root	n	n,degree	no	number		pure	the n-th root of a number	-	decided
 observe	subject	~subject,value?,labels?	yes	nil or state		effect	record or read one measurement	-	decided
 offset	subject	subject,key	no	number or nil		pure	a position relative to a reference	-	decided
-on	subject	subject,event,handler	no	subject		pure	attach a handler to an event	-	open
+on	subject	subject,event,handler	no	subject		pure	attach a handler to an event	-	decided
 open	spec	spec	yes	handle	not_found,permission_denied	effect	open or connect a store, log or session	-	decided
 order	subject	subject	no	[x]		pure	the sequence a collection takes	-	decided
 outline	tree	tree,span,name	no	[edit]		pure	edits that move a span into a new definition	-	decided
@@ -268,7 +269,7 @@ seal	subject	subject,key?	yes	envelope		effect	close a thing so later change is 
 search	index	index,query	yes	[hit]		effect	ranked hits for a query	-	decided
 segment	source	source	yes	spans		pure	a source cut into spans	-	decided
 select	x	x,keys	no	x		pure	only the listed parts of a value	-	decided
-send	target	target,message	yes	receipt		effect	deliver a message or event to a target	-	open
+send	target	target,message	yes	receipt		effect	deliver a message or event to a target	-	decided
 serve	address	address,handler	yes	nil		effect	answer requests at an address	-	decided
 shape	fields	fields	no	shape		pure	the shape of a record with named typed fields	-	decided
 shield	key	key,wrapping_key	no	text		pure	encrypt one key under another key	-	decided
@@ -331,7 +332,7 @@ upgrade	subject	subject,names?	yes	[change]		effect	move to a newer allowed vers
 validate	value	value,schema	yes	value	bad_option	pure	the value if valid, else the problems	-	decided
 values	m	m	no	[value]		pure	the values of a map	§3.6	stdlib
 variance	xs	xs	yes	number		pure	how spread out numbers are	-	decided
-verify	subject	subject,policy?	yes	verdict	tampered	any	check integrity against a record or policy	-	open
+verify	subject	subject,policy?	yes	verdict	tampered	any	check integrity against a record or policy; raises tampered on a bad verdict, verify? is the predicate pair	-	decided
 verify?	data	data,signature?,key?	no	Bool		pure	whether a signature or proof holds	§3.4	stdlib
 version	subject	subject	no	version		pure	the version of a subject	-	decided
 versions	function	function	no	[version]		effect	published versions of a function	-	decided

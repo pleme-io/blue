@@ -82,13 +82,13 @@ Each phase ends when its gates are green and the coverage ratchet has moved. A p
 
 **H5. Horizon.** The 64 wave-4 verbs (replicated log, gossip, hardware seams) and the Rust-only spaces that keep a blue surface (GPU passes, codecs, font shaping, the MMIO seam).
 
-## 5. Decisions only the operator can make
+## 5. Operator decisions (made 2026-10-22: the recommended defaults)
 
-1. **TLS.** Three regions (C, G, and the HTTP client) are blocked on `https://`. Blue has none (`blue/CLAUDE.md`, "What is not built"). Options: a pure-Rust TLS behind the `net` layer, or a process boundary to a TLS proxy.
-2. **About 14 new master verbs** proposed by region G for STDLIB §3: `check`, `advance`, `send`, `on`, `call`, `convert`, and others. Each becomes a core word in every space.
-3. **Entropy.** `kagi?` needs a new `Capability::Entropy` and RustCrypto crates behind the crypto layer.
-4. **Space counts.** E has 29 spaces and G has 36, against a brief of 6 to 14. Some are one space split too fine. A review at merge time, region by region.
-5. **Scope of `blue_today: rust:<crate>`.** Whether a Rust-owned verb counts toward coverage before it has a blue surface.
+1. **TLS.** Build TLS wave 2 as a pure-Rust provider behind `Capability::Network`: no C, rustls with a RustCrypto provider. No process boundary to a TLS proxy. Not started; it belongs to H1.
+2. **Master verbs.** `check`, `advance`, `send`, `on`, `call` and `convert` are master verbs as written in `contracts.tsv`; the ten open contract rows are `decided` (`info` keeps both forms, `merge` is one verb with `gitto::merge` refining it, `apply` stays behind the reconciler, `verify` raises `tampered` and `verify?` is its Bool pair). `check` returns `[finding]`; its raising form is `kyohi::enforce`. Details: `verbs/names/RULINGS.md`.
+3. **Entropy.** `Capability::Entropy` is approved. The implementation (RustCrypto crates behind the crypto layer, then `kagi?`) is H1 and is not done.
+4. **Space counts.** The naming rulings merge `assaku` into `asshuku` and `hakkou` into `rirezu`; the other overlapping pairs stay split with a stated split (`verbs/names/RULINGS.md`). The remaining review of E and G stays open.
+5. **Scope of `blue_today: rust:<crate>`.** Still open.
 
 ## 6. How this stays honest
 

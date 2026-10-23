@@ -1,0 +1,5 @@
+from	rel	to	why
+kyohi::enforce	composes	core::check	the findings come from the master check
+kyohi::check	pairs	kyohi::enforce	check raises today; enforce is the raising form of the master contract
+gitto::merge	refines	core::merge	git merge is the master merge on commits
+core::verify	pairs	core::verify?	verify raises tampered; verify? answers Bool

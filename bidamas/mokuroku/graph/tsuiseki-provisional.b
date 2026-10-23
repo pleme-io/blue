@@ -297,7 +297,7 @@ edge(
 edge(
   "tsuiseki?::critical_path",
   :generalizes,
-  "keikaku?::critical_path",
+  "puran?::critical_path",
   "same law on spans"
 )
 

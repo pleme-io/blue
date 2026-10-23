@@ -1,7 +1,7 @@
-space("tegata?", {status: :provisional})
+space("tegata", {status: :ratified})
 
 verb(
-  "tegata?",
+  "tegata",
   "acquire",
   {
     kind: :effect,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "api_key",
   {
     kind: :effect,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "api_key_valid?",
   {
     kind: :pure,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "assertion",
   {
     kind: :pure,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "attenuate",
   {
     kind: :pure,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "discover",
   {
     kind: :effect,
@@ -91,7 +91,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "exchange",
   {
     kind: :effect,
@@ -106,7 +106,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "expired?",
   {
     kind: :pure,
@@ -121,7 +121,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "flow_finish",
   {
     kind: :effect,
@@ -136,7 +136,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "flow_start",
   {
     kind: :effect,
@@ -151,7 +151,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "introspect",
   {
     kind: :effect,
@@ -166,7 +166,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "issue",
   {
     kind: :effect,
@@ -181,7 +181,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "keys",
   {
     kind: :effect,
@@ -196,7 +196,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "pkce",
   {
     kind: :pure,
@@ -211,7 +211,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "read",
   {
     kind: :effect,
@@ -226,7 +226,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "refresh",
   {
     kind: :effect,
@@ -241,7 +241,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "revoke",
   {
     kind: :effect,
@@ -256,7 +256,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "revoked?",
   {
     kind: :effect,
@@ -271,7 +271,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "tie",
   {
     kind: :pure,
@@ -286,7 +286,7 @@ verb(
 )
 
 verb(
-  "tegata?",
+  "tegata",
   "unverified",
   {
     kind: :pure,
@@ -300,216 +300,193 @@ verb(
   }
 )
 
-edge("tegata?::api_key", :composes, "shomei::hash", "store hash, not secret")
-edge("tegata?::pkce", :composes, "shomei::hash", "SHA-256 of the verifier")
+edge("tegata::api_key", :composes, "shomei::hash", "store hash, not secret")
+edge("tegata::pkce", :composes, "shomei::hash", "SHA-256 of the verifier")
 
 edge(
-  "tegata?::api_key_valid?",
+  "tegata::api_key_valid?",
   :composes,
   "shomei::same?",
   "equal-time comparison"
 )
 
 edge(
-  "tegata?::issue",
+  "tegata::issue",
   :composes,
   "shomei::sign",
   "signature over header and claims"
 )
 
-edge("tegata?::read", :composes, "shomei::verify?", "signature check")
+edge("tegata::read", :composes, "shomei::verify?", "signature check")
 
 edge(
-  "tegata?::keys",
+  "tegata::keys",
   :composes,
-  "tegata?::discover",
+  "tegata::discover",
   "key set URL from discovery"
 )
 
 edge(
-  "tegata?::acquire",
+  "tegata::acquire",
   :composes,
-  "tegata?::issue",
+  "tegata::issue",
   "assertion for client credentials"
 )
 
-edge(
-  "tegata?::exchange",
-  :composes,
-  "tegata?::issue",
-  "mint the narrower token"
-)
-
-edge("tegata?::refresh", :composes, "tegata?::issue", "new pair")
-edge("tegata?::read", :composes, "tegata?::keys", "find the verification key")
+edge("tegata::exchange", :composes, "tegata::issue", "mint the narrower token")
+edge("tegata::refresh", :composes, "tegata::issue", "new pair")
+edge("tegata::read", :composes, "tegata::keys", "find the verification key")
+edge("tegata::flow_start", :composes, "tegata::pkce", "challenge from verifier")
+edge("tegata::exchange", :composes, "tegata::read", "check the incoming token")
 
 edge(
-  "tegata?::flow_start",
+  "tegata::flow_finish",
   :composes,
-  "tegata?::pkce",
-  "challenge from verifier"
-)
-
-edge(
-  "tegata?::exchange",
-  :composes,
-  "tegata?::read",
-  "check the incoming token"
-)
-
-edge(
-  "tegata?::flow_finish",
-  :composes,
-  "tegata?::read",
+  "tegata::read",
   "check the returned ID token"
 )
 
 edge(
-  "tegata?::refresh",
+  "tegata::refresh",
   :composes,
-  "tegata?::revoke",
+  "tegata::revoke",
   "old refresh token retired"
 )
 
 edge(
-  "tegata?::assertion",
+  "tegata::assertion",
   :generalizes,
-  "tegata?::read",
+  "tegata::read",
   "same checks on a SAML document"
 )
 
 edge(
-  "tegata?::introspect",
+  "tegata::introspect",
   :generalizes,
-  "tegata?::read",
+  "tegata::read",
   "asks the issuer instead of verifying locally"
 )
 
 edge(
-  "tegata?::read",
+  "tegata::read",
   :guards,
   "ninshou?::caller",
   "token is one source of identity"
 )
 
-edge("tegata?::revoke", :guards, "tegata?::read", "revoked tokens fail reading")
-edge("tegata?::tie", :guards, "tegata?::read", "reader checks the holder proof")
+edge("tegata::revoke", :guards, "tegata::read", "revoked tokens fail reading")
+edge("tegata::tie", :guards, "tegata::read", "reader checks the holder proof")
 
 edge(
-  "tegata?::unverified",
+  "tegata::unverified",
   :guards,
-  "tegata?::read",
+  "tegata::read",
   "peek at key id before verifying"
 )
 
 edge(
-  "tegata?::api_key_valid?",
+  "tegata::api_key_valid?",
   :inverse,
-  "tegata?::api_key",
+  "tegata::api_key",
   "checks a presented key"
 )
 
 edge(
-  "tegata?::api_key",
+  "tegata::api_key",
   :inverse,
-  "tegata?::api_key_valid?",
+  "tegata::api_key_valid?",
   "checks a presented key"
 )
 
 edge(
-  "tegata?::read",
+  "tegata::read",
   :inverse,
-  "tegata?::issue",
+  "tegata::issue",
   "checks and opens what issue made"
 )
 
-edge("tegata?::revoke", :inverse, "tegata?::issue", "withdraws an issued token")
+edge("tegata::revoke", :inverse, "tegata::issue", "withdraws an issued token")
 
 edge(
-  "tegata?::issue",
+  "tegata::issue",
   :inverse,
-  "tegata?::read",
+  "tegata::read",
   "checks and opens what issue made"
 )
 
-edge("tegata?::issue", :inverse, "tegata?::revoke", "withdraws an issued token")
-edge("tegata?::api_key", :pairs, "tegata?::api_key_valid?", "issue and check")
+edge("tegata::issue", :inverse, "tegata::revoke", "withdraws an issued token")
+edge("tegata::api_key", :pairs, "tegata::api_key_valid?", "issue and check")
 
 edge(
-  "tegata?::flow_finish",
+  "tegata::flow_finish",
   :pairs,
-  "tegata?::flow_start",
+  "tegata::flow_start",
   "redeems what start prepared"
 )
 
 edge(
-  "tegata?::refresh",
+  "tegata::refresh",
   :pairs,
-  "tegata?::issue",
+  "tegata::issue",
   "refresh mints a pair like issue"
 )
 
-edge("tegata?::issue", :pairs, "tegata?::read", "every token has a check")
-edge("tegata?::keys", :pairs, "tegata?::read", "read needs the issuer keys")
-edge("tegata?::revoked?", :pairs, "tegata?::revoke", "the list revoke writes")
+edge("tegata::issue", :pairs, "tegata::read", "every token has a check")
+edge("tegata::keys", :pairs, "tegata::read", "read needs the issuer keys")
+edge("tegata::revoked?", :pairs, "tegata::revoke", "the list revoke writes")
 
 edge(
-  "tegata?::introspect",
+  "tegata::introspect",
   :pairs,
-  "tegata?::revoked?",
+  "tegata::revoked?",
   "remote versus local state"
 )
 
 edge(
-  "tegata?::attenuate",
+  "tegata::attenuate",
   :pairs,
   "waku::narrow",
   "same law: narrow cannot widen"
 )
 
 edge(
-  "tegata?::attenuate",
+  "tegata::attenuate",
   :refines,
-  "tegata?::issue",
+  "tegata::issue",
   "adds a caveat, never removes"
 )
 
-edge("tegata?::expired?", :refines, "tegata?::read", "expiry check alone")
-edge("tegata?::api_key", :requires, "fuuin?::random", "key from entropy")
+edge("tegata::expired?", :refines, "tegata::read", "expiry check alone")
+edge("tegata::api_key", :requires, "fuuin?::random", "key from entropy")
 
 edge(
-  "tegata?::flow_start",
+  "tegata::flow_start",
   :requires,
   "fuuin?::random",
   "state and verifier from entropy"
 )
 
-edge("tegata?::tie", :requires, "shomei::keypair", "holder owns a key")
+edge("tegata::tie", :requires, "shomei::keypair", "holder owns a key")
 
 edge(
-  "tegata?::acquire",
+  "tegata::acquire",
   :requires,
-  "tegata?::discover",
+  "tegata::discover",
   "token endpoint from discovery"
 )
 
 edge(
-  "tegata?::flow_finish",
+  "tegata::flow_finish",
   :requires,
-  "tegata?::discover",
+  "tegata::discover",
   "endpoints come from discovery"
 )
 
-edge(
-  "tegata?::discover",
-  :requires,
-  "tegata?::keys",
-  "keys come after discovery"
-)
+edge("tegata::discover", :requires, "tegata::keys", "keys come after discovery")
 
 edge(
-  "tegata?::unverified",
+  "tegata::unverified",
   :requires,
-  "tegata?::keys",
+  "tegata::keys",
   "key id picks the verification key"
 )

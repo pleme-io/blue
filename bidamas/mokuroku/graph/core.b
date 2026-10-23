@@ -2,6 +2,21 @@ space("core", {status: :ratified})
 
 verb(
   "core",
+  "check",
+  {
+    kind: :effect,
+    shape: "check(subject, rules?, opts) -> [finding]",
+    laterals: [],
+    fleet: nil,
+    today: "absent",
+    meaning: "findings of a subject against rules; empty when sound; kyohi::enforce is the raising form",
+    wave: 0,
+    origin: "H"
+  }
+)
+
+verb(
+  "core",
   "copy",
   {
     kind: :effect,
@@ -167,6 +182,21 @@ verb(
 
 verb(
   "core",
+  "merge",
+  {
+    kind: :effect,
+    shape: "merge(a, b, opts) -> value",
+    laterals: [],
+    fleet: nil,
+    today: "absent",
+    meaning: "combine b into a; one master verb for every space, gitto::merge refines it",
+    wave: 0,
+    origin: "H"
+  }
+)
+
+verb(
+  "core",
   "move",
   {
     kind: :effect,
@@ -298,4 +328,41 @@ verb(
     wave: 0,
     origin: "H"
   }
+)
+
+verb(
+  "core",
+  "verify",
+  {
+    kind: :effect,
+    shape: "verify(subject, policy?, opts) -> verdict",
+    laterals: [],
+    fleet: nil,
+    today: "absent",
+    meaning: "check integrity against a record or policy; raises tampered on a bad verdict, verify? is the predicate pair",
+    wave: 0,
+    origin: "H"
+  }
+)
+
+verb(
+  "core",
+  "verify?",
+  {
+    kind: :pure,
+    shape: "verify?(data, signature?, key?) -> Bool",
+    laterals: [],
+    fleet: nil,
+    today: "absent",
+    meaning: "whether a signature or proof holds",
+    wave: 0,
+    origin: "H"
+  }
+)
+
+edge(
+  "core::verify",
+  :pairs,
+  "core::verify?",
+  "verify raises tampered; verify? answers Bool"
 )

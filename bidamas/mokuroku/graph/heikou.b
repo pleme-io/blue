@@ -419,7 +419,7 @@ edge(
   "concurrency bound per resource"
 )
 
-edge("heikou::timeout", :pairs, "shigoto?::after", "deadline versus timer")
+edge("heikou::timeout", :pairs, "shigoto::after", "deadline versus timer")
 
 edge(
   "heikou::timeout",

@@ -220,7 +220,7 @@ edge("fuka?::blast", :guards, "fuka?::fault", "bounds the targets")
 edge(
   "fuka?::judge",
   :guards,
-  "hakkou?::promote",
+  "rirezu?::promote",
   "failing load stops promotion"
 )
 

@@ -1,7 +1,7 @@
-space("haichi?", {status: :provisional})
+space("uwagaki?", {status: :provisional})
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "diff",
   {
     kind: :pure,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "freeze",
   {
     kind: :effect,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "get",
   {
     kind: :effect,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "list",
   {
     kind: :effect,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "need",
   {
     kind: :effect,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "path",
   {
     kind: :pure,
@@ -92,7 +92,7 @@ verb(
 )
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "promote",
   {
     kind: :effect,
@@ -108,7 +108,7 @@ verb(
 )
 
 verb(
-  "haichi?",
+  "uwagaki?",
   "resolve",
   {
     kind: :pure,
@@ -122,19 +122,19 @@ verb(
   }
 )
 
-edge("haichi?::need", :composes, "haichi?::get", "get then raise")
-edge("haichi?::get", :composes, "haichi?::list", "lookup by name")
-edge("haichi?::path", :composes, "haichi?::list", "ordered list")
-edge("haichi?::diff", :composes, "haichi?::resolve", "resolve both sides")
-edge("haichi?::resolve", :composes, "settei::read", "layered config")
-edge("haichi?::freeze", :guards, "tenkai?::freeze", "environment-wide freeze")
-edge("haichi?::promote", :guards, "tenkai?::start", "pin carried forward")
-edge("haichi?::promote", :inverse, "haichi?::freeze", "freezes versus moves")
-edge("haichi?::freeze", :inverse, "haichi?::promote", "freezes versus moves")
-edge("haichi?::resolve", :pairs, "haichi?::diff", "compare resolved records")
-edge("haichi?::diff", :refines, "core::diff", "between environments")
-edge("haichi?::get", :refines, "core::get", "nil when absent")
-edge("haichi?::list", :refines, "core::list", "environments")
-edge("haichi?::need", :refines, "core::need", "raises when absent")
-edge("haichi?::resolve", :requires, "haichi?::need", "environment must exist")
-edge("haichi?::promote", :requires, "haichi?::path", "next environment")
+edge("uwagaki?::resolve", :composes, "settei::read", "layered config")
+edge("uwagaki?::need", :composes, "uwagaki?::get", "get then raise")
+edge("uwagaki?::get", :composes, "uwagaki?::list", "lookup by name")
+edge("uwagaki?::path", :composes, "uwagaki?::list", "ordered list")
+edge("uwagaki?::diff", :composes, "uwagaki?::resolve", "resolve both sides")
+edge("uwagaki?::freeze", :guards, "tenkai?::freeze", "environment-wide freeze")
+edge("uwagaki?::promote", :guards, "tenkai?::start", "pin carried forward")
+edge("uwagaki?::promote", :inverse, "uwagaki?::freeze", "freezes versus moves")
+edge("uwagaki?::freeze", :inverse, "uwagaki?::promote", "freezes versus moves")
+edge("uwagaki?::resolve", :pairs, "uwagaki?::diff", "compare resolved records")
+edge("uwagaki?::diff", :refines, "core::diff", "between environments")
+edge("uwagaki?::get", :refines, "core::get", "nil when absent")
+edge("uwagaki?::list", :refines, "core::list", "environments")
+edge("uwagaki?::need", :refines, "core::need", "raises when absent")
+edge("uwagaki?::resolve", :requires, "uwagaki?::need", "environment must exist")
+edge("uwagaki?::promote", :requires, "uwagaki?::path", "next environment")

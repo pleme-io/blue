@@ -333,17 +333,17 @@ edge(
 )
 
 edge(
-  "shougai?::mitigate",
-  :pairs,
-  "hakkou?::rollback",
-  "rollback is a mitigation"
-)
-
-edge(
   "shougai?::postmortem",
   :pairs,
   "kadai?::create",
   "action items become issues"
+)
+
+edge(
+  "shougai?::mitigate",
+  :pairs,
+  "rirezu?::rollback",
+  "rollback is a mitigation"
 )
 
 edge("shougai?::classify", :pairs, "shihyou::burn", "burn suggests severity")

@@ -1,7 +1,7 @@
-space("tsuuchi?", {status: :provisional})
+space("tsuuchi", {status: :ratified})
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "channel",
   {
     kind: :decl,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "compose",
   {
     kind: :pure,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "parse",
   {
     kind: :pure,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "register",
   {
     kind: :effect,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "render",
   {
     kind: :pure,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "send",
   {
     kind: :effect,
@@ -92,7 +92,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "sign",
   {
     kind: :pure,
@@ -107,7 +107,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "status",
   {
     kind: :effect,
@@ -122,7 +122,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "subscribe",
   {
     kind: :effect,
@@ -138,7 +138,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "suppress",
   {
     kind: :effect,
@@ -153,7 +153,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "suppressed?",
   {
     kind: :effect,
@@ -168,7 +168,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "template",
   {
     kind: :decl,
@@ -183,7 +183,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "validate",
   {
     kind: :pure,
@@ -198,7 +198,7 @@ verb(
 )
 
 verb(
-  "tsuuchi?",
+  "tsuuchi",
   "verify?",
   {
     kind: :pure,
@@ -212,106 +212,87 @@ verb(
   }
 )
 
-edge("tsuuchi?::send", :composes, "tsuuchi?::render", "render then deliver")
+edge("tsuuchi::send", :composes, "tsuuchi::render", "render then deliver")
 
 edge(
-  "tsuuchi?::validate",
+  "tsuuchi::validate",
   :guards,
-  "tsuuchi?::send",
+  "tsuuchi::send",
   "bad addresses refused early"
 )
 
-edge(
-  "tsuuchi?::parse",
-  :inverse,
-  "tsuuchi?::compose",
-  "build and read a message"
-)
+edge("tsuuchi::parse", :inverse, "tsuuchi::compose", "build and read a message")
+edge("tsuuchi::compose", :inverse, "tsuuchi::parse", "build and read a message")
+edge("tsuuchi::render", :inverse, "tsuuchi::parse", "text out versus text in")
+edge("tsuuchi::suppress", :inverse, "tsuuchi::register", "enrol versus stop")
+edge("tsuuchi::parse", :inverse, "tsuuchi::render", "text out versus text in")
 
 edge(
-  "tsuuchi?::compose",
+  "tsuuchi::verify?",
   :inverse,
-  "tsuuchi?::parse",
-  "build and read a message"
-)
-
-edge("tsuuchi?::render", :inverse, "tsuuchi?::parse", "text out versus text in")
-edge("tsuuchi?::suppress", :inverse, "tsuuchi?::register", "enrol versus stop")
-edge("tsuuchi?::parse", :inverse, "tsuuchi?::render", "text out versus text in")
-
-edge(
-  "tsuuchi?::verify?",
-  :inverse,
-  "tsuuchi?::sign",
+  "tsuuchi::sign",
   "check and make a signature"
 )
 
-edge("tsuuchi?::register", :inverse, "tsuuchi?::suppress", "enrol versus stop")
+edge("tsuuchi::register", :inverse, "tsuuchi::suppress", "enrol versus stop")
 
 edge(
-  "tsuuchi?::sign",
+  "tsuuchi::sign",
   :inverse,
-  "tsuuchi?::verify?",
+  "tsuuchi::verify?",
   "check and make a signature"
 )
 
-edge("tsuuchi?::parse", :pairs, "deeta::parse", "a message is data")
-edge("tsuuchi?::send", :pairs, "kyoujin?::bucket", "senders are rate limited")
+edge("tsuuchi::parse", :pairs, "deeta::parse", "a message is data")
+edge("tsuuchi::send", :pairs, "kyoujin?::bucket", "senders are rate limited")
 
 edge(
-  "tsuuchi?::send",
+  "tsuuchi::send",
   :pairs,
   "kyoujin?::once",
   "a key makes a send safe to retry"
 )
 
-edge("tsuuchi?::send", :pairs, "messeeji?::publish", "delivery can be queued")
-edge("tsuuchi?::status", :pairs, "nisshi::append", "receipts are logged")
-edge("tsuuchi?::channel", :pairs, "tsuuchi?::send", "declaration and use")
+edge("tsuuchi::send", :pairs, "messeeji?::publish", "delivery can be queued")
+edge("tsuuchi::status", :pairs, "nisshi::append", "receipts are logged")
+edge("tsuuchi::channel", :pairs, "tsuuchi::send", "declaration and use")
 
 edge(
-  "tsuuchi?::suppress",
+  "tsuuchi::suppress",
   :pairs,
-  "tsuuchi?::suppressed?",
+  "tsuuchi::suppressed?",
   "write and read of the stop list"
 )
 
 edge(
-  "tsuuchi?::send",
+  "tsuuchi::send",
   :pairs,
   "tsuushin::request",
   "webhook delivery is a request"
 )
 
 edge(
-  "tsuuchi?::subscribe",
+  "tsuuchi::subscribe",
   :refines,
   "messeeji?::subscribe",
   "topic list for humans"
 )
 
-edge("tsuuchi?::sign", :refines, "shomei::sign", "webhook form of sign")
-edge("tsuuchi?::verify?", :refines, "shomei::verify?", "webhook form of verify")
+edge("tsuuchi::sign", :refines, "shomei::sign", "webhook form of sign")
+edge("tsuuchi::verify?", :refines, "shomei::verify?", "webhook form of verify")
+edge("tsuuchi::send", :requires, "tsuuchi::channel", "delivery needs a channel")
+edge("tsuuchi::status", :requires, "tsuuchi::send", "status of a receipt")
 
 edge(
-  "tsuuchi?::send",
+  "tsuuchi::send",
   :requires,
-  "tsuuchi?::channel",
-  "delivery needs a channel"
-)
-
-edge("tsuuchi?::status", :requires, "tsuuchi?::send", "status of a receipt")
-
-edge(
-  "tsuuchi?::send",
-  :requires,
-  "tsuuchi?::suppressed?",
+  "tsuuchi::suppressed?",
   "stop-list checked first"
 )
 
 edge(
-  "tsuuchi?::render",
+  "tsuuchi::render",
   :requires,
-  "tsuuchi?::template",
+  "tsuuchi::template",
   "fills a declared template"
 )

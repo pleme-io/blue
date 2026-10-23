@@ -18,8 +18,8 @@ create or replace table gk as select space || '::' || verb as k from gv;
 
 create or replace table gcl as
 select verb,
-  len(list_filter(list_transform(string_split(args, ','), x -> trim(x)), x -> x <> '')) as hi,
-  len(list_filter(list_transform(string_split(args, ','), x -> trim(x)), x -> x <> '' and not (x like '~%' or x like '%?'))) as lo,
+  len(list_filter(list_transform(string_split(coalesce(args, ''), ','), x -> trim(x)), x -> x <> '')) as hi,
+  len(list_filter(list_transform(string_split(coalesce(args, ''), ','), x -> trim(x)), x -> x <> '' and not (x like '~%' or x like '%?'))) as lo,
   opts
 from gc;
 

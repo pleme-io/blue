@@ -67,7 +67,7 @@ edge("wariate::explain", :pairs, "joutai::segment", "reason shown in status")
 edge(
   "wariate::eligible",
   :requires,
-  "moderu?::info",
+  "mokei?::info",
   "window and price per route"
 )
 

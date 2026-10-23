@@ -1,7 +1,7 @@
-space("moderu?", {status: :provisional})
+space("mokei?", {status: :provisional})
 
 verb(
-  "moderu?",
+  "mokei?",
   "ask",
   {
     kind: :effect,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "classify",
   {
     kind: :effect,
@@ -32,7 +32,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "cost",
   {
     kind: :pure,
@@ -47,7 +47,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "embed",
   {
     kind: :effect,
@@ -62,7 +62,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "example",
   {
     kind: :decl,
@@ -77,7 +77,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "extract",
   {
     kind: :effect,
@@ -93,7 +93,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "fit",
   {
     kind: :pure,
@@ -108,7 +108,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "info",
   {
     kind: :pure,
@@ -123,7 +123,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "ledger",
   {
     kind: :decl,
@@ -138,7 +138,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "list",
   {
     kind: :pure,
@@ -153,7 +153,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "message",
   {
     kind: :decl,
@@ -168,7 +168,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "model",
   {
     kind: :decl,
@@ -183,7 +183,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "prefix",
   {
     kind: :pure,
@@ -198,7 +198,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "prompt",
   {
     kind: :decl,
@@ -213,7 +213,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "render",
   {
     kind: :pure,
@@ -228,7 +228,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "stream",
   {
     kind: :stream,
@@ -243,7 +243,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "tokens",
   {
     kind: :pure,
@@ -258,7 +258,7 @@ verb(
 )
 
 verb(
-  "moderu?",
+  "mokei?",
   "total",
   {
     kind: :pure,
@@ -272,44 +272,44 @@ verb(
   }
 )
 
-edge("moderu?::total", :composes, "moderu?::cost", "sum of costs")
-edge("moderu?::prompt", :composes, "moderu?::example", "plus worked cases")
-edge("moderu?::prompt", :composes, "moderu?::message", "a prompt is turns")
-edge("moderu?::list", :generalizes, "moderu?::info", "catalog of models")
-edge("moderu?::ask", :guards, "moderu?::fit", "window checked first")
-edge("moderu?::stream", :lifts, "moderu?::ask", "ask as deltas")
-edge("moderu?::render", :pairs, "bunsho?::fill", "templates fill slots")
-edge("moderu?::classify", :pairs, "chokkan::choice", "same job, two surfaces")
-edge("moderu?::embed", :pairs, "kensaku?::similarity", "vectors then closeness")
-edge("moderu?::fit", :pairs, "moderu?::prefix", "cut after the cached prefix")
-edge("moderu?::ledger", :pairs, "moderu?::total", "record and sum")
-edge("moderu?::classify", :refines, "moderu?::ask", "ask with labels")
-edge("moderu?::extract", :refines, "moderu?::ask", "ask with a shape")
-edge("moderu?::ask", :requires, "dairi?::budget", "spend is capped")
-edge("moderu?::prefix", :requires, "moderu?::ask", "provider caches the prefix")
-edge("moderu?::ledger", :requires, "moderu?::cost", "entries carry cost")
-edge("moderu?::cost", :requires, "moderu?::info", "price comes from the model")
-edge("moderu?::model", :requires, "moderu?::info", "a model has facts")
-edge("moderu?::info", :requires, "moderu?::list", "facts from the catalog")
-edge("moderu?::embed", :requires, "moderu?::model", "embedding model")
+edge("mokei?::total", :composes, "mokei?::cost", "sum of costs")
+edge("mokei?::prompt", :composes, "mokei?::example", "plus worked cases")
+edge("mokei?::prompt", :composes, "mokei?::message", "a prompt is turns")
+edge("mokei?::list", :generalizes, "mokei?::info", "catalog of models")
+edge("mokei?::ask", :guards, "mokei?::fit", "window checked first")
+edge("mokei?::stream", :lifts, "mokei?::ask", "ask as deltas")
+edge("mokei?::render", :pairs, "bunsho?::fill", "templates fill slots")
+edge("mokei?::classify", :pairs, "chokkan::choice", "same job, two surfaces")
+edge("mokei?::embed", :pairs, "kensaku?::similarity", "vectors then closeness")
+edge("mokei?::fit", :pairs, "mokei?::prefix", "cut after the cached prefix")
+edge("mokei?::ledger", :pairs, "mokei?::total", "record and sum")
+edge("mokei?::classify", :refines, "mokei?::ask", "ask with labels")
+edge("mokei?::extract", :refines, "mokei?::ask", "ask with a shape")
+edge("mokei?::ask", :requires, "dairi?::budget", "spend is capped")
+edge("mokei?::prefix", :requires, "mokei?::ask", "provider caches the prefix")
+edge("mokei?::ledger", :requires, "mokei?::cost", "entries carry cost")
+edge("mokei?::cost", :requires, "mokei?::info", "price comes from the model")
+edge("mokei?::model", :requires, "mokei?::info", "a model has facts")
+edge("mokei?::info", :requires, "mokei?::list", "facts from the catalog")
+edge("mokei?::embed", :requires, "mokei?::model", "embedding model")
 
 edge(
-  "moderu?::tokens",
+  "mokei?::tokens",
   :requires,
-  "moderu?::model",
+  "mokei?::model",
   "tokenizer belongs to a model"
 )
 
-edge("moderu?::example", :requires, "moderu?::prompt", "part of a prompt")
-edge("moderu?::message", :requires, "moderu?::prompt", "part of a prompt")
-edge("moderu?::prefix", :requires, "moderu?::prompt", "marks a prompt prefix")
-edge("moderu?::render", :requires, "moderu?::prompt", "needs a prompt")
-edge("moderu?::ask", :requires, "moderu?::render", "wire form of the prompt")
-edge("moderu?::fit", :requires, "moderu?::tokens", "count before cut")
-edge("moderu?::stream", :requires, "moderu?::tokens", "usage counted per delta")
+edge("mokei?::example", :requires, "mokei?::prompt", "part of a prompt")
+edge("mokei?::message", :requires, "mokei?::prompt", "part of a prompt")
+edge("mokei?::prefix", :requires, "mokei?::prompt", "marks a prompt prefix")
+edge("mokei?::render", :requires, "mokei?::prompt", "needs a prompt")
+edge("mokei?::ask", :requires, "mokei?::render", "wire form of the prompt")
+edge("mokei?::fit", :requires, "mokei?::tokens", "count before cut")
+edge("mokei?::stream", :requires, "mokei?::tokens", "usage counted per delta")
 
 edge(
-  "moderu?::extract",
+  "mokei?::extract",
   :requires,
   "saiten?::check",
   "shape check of the record"

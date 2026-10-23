@@ -544,7 +544,7 @@ edge(
 
 edge("kyuuji::upgrade", :composes, "sokketto?::handshake", "websocket opening")
 edge("kyuuji::serve", :composes, "sokketto?::listen", "binds a listener")
-edge("kyuuji::hook", :composes, "tsuuchi?::verify?", "signature checked first")
+edge("kyuuji::hook", :composes, "tsuuchi::verify?", "signature checked first")
 edge("kyuuji::wrap", :generalizes, "kyuuji::recover", "middleware in general")
 edge("kyuuji::wrap", :generalizes, "kyuuji::throttle", "middleware in general")
 edge("kyuuji::wrap", :generalizes, "kyuuji::timeout", "middleware in general")

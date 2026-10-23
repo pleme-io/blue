@@ -1,7 +1,7 @@
-space("keikaku?", {status: :provisional})
+space("puran?", {status: :provisional})
 
 verb(
-  "keikaku?",
+  "puran?",
   "burndown",
   {
     kind: :pure,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "capacity",
   {
     kind: :pure,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "checkin",
   {
     kind: :effect,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "critical_path",
   {
     kind: :pure,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "estimate",
   {
     kind: :pure,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "forecast",
   {
     kind: :pure,
@@ -91,7 +91,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "goal",
   {
     kind: :decl,
@@ -106,7 +106,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "milestone",
   {
     kind: :decl,
@@ -121,7 +121,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "retro",
   {
     kind: :pure,
@@ -136,7 +136,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "risk",
   {
     kind: :decl,
@@ -151,7 +151,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "roadmap",
   {
     kind: :pure,
@@ -166,7 +166,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "schedule",
   {
     kind: :pure,
@@ -181,7 +181,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "sprint",
   {
     kind: :decl,
@@ -196,7 +196,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "variance",
   {
     kind: :pure,
@@ -212,7 +212,7 @@ verb(
 )
 
 verb(
-  "keikaku?",
+  "puran?",
   "velocity",
   {
     kind: :pure,
@@ -226,118 +226,49 @@ verb(
   }
 )
 
-edge("keikaku?::schedule", :composes, "keikaku?::estimate", "uses sizes")
+edge("puran?::checkin", :composes, "nisshi::append", "progress is an event")
+edge("puran?::schedule", :composes, "puran?::estimate", "uses sizes")
+edge("puran?::roadmap", :composes, "puran?::milestone", "ordered milestones")
+edge("puran?::variance", :composes, "puran?::schedule", "plan against actual")
+edge("puran?::forecast", :composes, "puran?::velocity", "backlog over velocity")
+edge("puran?::estimate", :pairs, "kadai?::update", "sizes are stored on issues")
+edge("puran?::sprint", :pairs, "puran?::burndown", "a sprint is burned down")
+edge("puran?::goal", :pairs, "puran?::checkin", "target and progress")
+edge("puran?::schedule", :pairs, "puran?::critical_path", "order and chain")
+edge("puran?::milestone", :pairs, "puran?::roadmap", "dated sets")
+edge("puran?::capacity", :pairs, "puran?::schedule", "places items by capacity")
+edge("puran?::forecast", :pairs, "puran?::variance", "forecast then compare")
+edge("puran?::risk", :pairs, "puran?::variance", "risk turns into variance")
+edge("puran?::estimate", :pairs, "puran?::velocity", "size over speed")
 
 edge(
-  "keikaku?::roadmap",
-  :composes,
-  "keikaku?::milestone",
-  "ordered milestones"
-)
-
-edge(
-  "keikaku?::variance",
-  :composes,
-  "keikaku?::schedule",
-  "plan against actual"
-)
-
-edge(
-  "keikaku?::forecast",
-  :composes,
-  "keikaku?::velocity",
-  "backlog over velocity"
-)
-
-edge("keikaku?::checkin", :composes, "nisshi::append", "progress is an event")
-
-edge(
-  "keikaku?::estimate",
-  :pairs,
-  "kadai?::update",
-  "sizes are stored on issues"
-)
-
-edge(
-  "keikaku?::sprint",
-  :pairs,
-  "keikaku?::burndown",
-  "a sprint is burned down"
-)
-
-edge("keikaku?::goal", :pairs, "keikaku?::checkin", "target and progress")
-edge("keikaku?::schedule", :pairs, "keikaku?::critical_path", "order and chain")
-edge("keikaku?::milestone", :pairs, "keikaku?::roadmap", "dated sets")
-
-edge(
-  "keikaku?::capacity",
-  :pairs,
-  "keikaku?::schedule",
-  "places items by capacity"
-)
-
-edge(
-  "keikaku?::forecast",
-  :pairs,
-  "keikaku?::variance",
-  "forecast then compare"
-)
-
-edge("keikaku?::risk", :pairs, "keikaku?::variance", "risk turns into variance")
-edge("keikaku?::estimate", :pairs, "keikaku?::velocity", "size over speed")
-
-edge(
-  "keikaku?::goal",
+  "puran?::goal",
   :pairs,
   "shihyou::objective",
   "goals are objectives for people"
 )
 
-edge(
-  "keikaku?::velocity",
-  :pairs,
-  "shihyou::throughput",
-  "history versus metric"
-)
+edge("puran?::velocity", :pairs, "shihyou::throughput", "history versus metric")
+edge("puran?::risk", :pairs, "shougai?::classify", "a risk met is an incident")
+edge("puran?::capacity", :pairs, "shougai?::oncall", "on-call reduces capacity")
 
 edge(
-  "keikaku?::risk",
-  :pairs,
-  "shougai?::classify",
-  "a risk met is an incident"
-)
-
-edge(
-  "keikaku?::capacity",
-  :pairs,
-  "shougai?::oncall",
-  "on-call reduces capacity"
-)
-
-edge(
-  "keikaku?::retro",
+  "puran?::retro",
   :pairs,
   "shougai?::postmortem",
   "retro covers a period, postmortem an event"
 )
 
-edge("keikaku?::sprint", :refines, "keikaku?::milestone", "time-boxed")
+edge("puran?::sprint", :refines, "puran?::milestone", "time-boxed")
 
 edge(
-  "keikaku?::critical_path",
+  "puran?::critical_path",
   :refines,
   "tsuiseki?::critical_path",
   "same law on a task graph"
 )
 
-edge("keikaku?::milestone", :requires, "kadai?::list", "a set of issues")
-edge("keikaku?::velocity", :requires, "kadai?::list", "from finished issues")
-
-edge(
-  "keikaku?::burndown",
-  :requires,
-  "keikaku?::sprint",
-  "work left in a sprint"
-)
-
-edge("keikaku?::retro", :requires, "nisshi::read", "facts from events")
+edge("puran?::milestone", :requires, "kadai?::list", "a set of issues")
+edge("puran?::velocity", :requires, "kadai?::list", "from finished issues")
+edge("puran?::retro", :requires, "nisshi::read", "facts from events")
+edge("puran?::burndown", :requires, "puran?::sprint", "work left in a sprint")

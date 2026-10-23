@@ -319,15 +319,6 @@ edge(
   "a ratchet is a budget that shrinks"
 )
 
-edge("shihyou::dora", :pairs, "hakkou?::promote", "deploys are the events")
-
-edge(
-  "shihyou::runway",
-  :pairs,
-  "keikaku?::forecast",
-  "both predict an end date"
-)
-
 edge("shihyou::dashboard", :pairs, "keisoku?::query", "panels run queries")
 
 edge(
@@ -344,6 +335,8 @@ edge(
   "ratio of what observe counted"
 )
 
+edge("shihyou::runway", :pairs, "puran?::forecast", "both predict an end date")
+edge("shihyou::dora", :pairs, "rirezu?::promote", "deploys are the events")
 edge("shihyou::burn", :pairs, "shihyou::alerts", "alerts fire on burn")
 
 edge(

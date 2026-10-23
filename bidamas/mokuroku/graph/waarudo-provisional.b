@@ -1,7 +1,7 @@
-space("sekai?", {status: :provisional})
+space("waarudo?", {status: :provisional})
 
 verb(
-  "sekai?",
+  "waarudo?",
   "advance",
   {
     kind: :effect,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "arrange",
   {
     kind: :pure,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "body",
   {
     kind: :decl,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "check",
   {
     kind: :pure,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "collide",
   {
     kind: :pure,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "delete",
   {
     kind: :effect,
@@ -91,7 +91,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "field",
   {
     kind: :pure,
@@ -106,7 +106,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "generate",
   {
     kind: :pure,
@@ -121,7 +121,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "get",
   {
     kind: :pure,
@@ -137,7 +137,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "grammar",
   {
     kind: :decl,
@@ -152,7 +152,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "hit",
   {
     kind: :pure,
@@ -167,7 +167,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "on",
   {
     kind: :decl,
@@ -182,7 +182,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "path",
   {
     kind: :pure,
@@ -197,7 +197,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "put",
   {
     kind: :effect,
@@ -212,7 +212,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "query",
   {
     kind: :pure,
@@ -227,7 +227,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "read",
   {
     kind: :effect,
@@ -242,7 +242,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "replay",
   {
     kind: :effect,
@@ -257,7 +257,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "rollback",
   {
     kind: :effect,
@@ -273,7 +273,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "send",
   {
     kind: :effect,
@@ -288,7 +288,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "simulate",
   {
     kind: :effect,
@@ -303,7 +303,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "spawn",
   {
     kind: :effect,
@@ -318,7 +318,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "system",
   {
     kind: :decl,
@@ -333,7 +333,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "world",
   {
     kind: :decl,
@@ -348,7 +348,7 @@ verb(
 )
 
 verb(
-  "sekai?",
+  "waarudo?",
   "write",
   {
     kind: :effect,
@@ -362,45 +362,66 @@ verb(
   }
 )
 
-edge("sekai?::generate", :composes, "ran::pick", "seeded choice")
-edge("sekai?::simulate", :composes, "sekai?::advance", "ticks in a row")
-edge("sekai?::advance", :composes, "sekai?::arrange", "runs the order")
-edge("sekai?::advance", :composes, "sekai?::system", "each system once")
-edge("sekai?::world", :composes, "sekai?::system", "a world runs systems")
-edge("sekai?::query", :generalizes, "sekai?::get", "many entities, not one")
-edge("sekai?::arrange", :guards, "sekai?::advance", "no write clash")
-edge("sekai?::check", :guards, "sekai?::advance", "laws hold each tick")
-edge("sekai?::spawn", :inverse, "sekai?::delete", "add and remove an entity")
-edge("sekai?::write", :inverse, "sekai?::read", "load what was saved")
-edge("sekai?::delete", :inverse, "sekai?::spawn", "add and remove an entity")
-edge("sekai?::read", :inverse, "sekai?::write", "load what was saved")
-edge("sekai?::field", :pairs, "sekai?::generate", "noise feeds generation")
-edge("sekai?::put", :pairs, "sekai?::get", "component write and read")
-edge("sekai?::send", :pairs, "sekai?::on", "an event needs a handler")
-edge("sekai?::body", :pairs, "sekai?::put", "a body is a component")
-edge("sekai?::get", :pairs, "sekai?::put", "component read and write")
-edge("sekai?::rollback", :pairs, "sekai?::write", "snapshots to rewind to")
+edge("waarudo?::generate", :composes, "ran::pick", "seeded choice")
+edge("waarudo?::simulate", :composes, "waarudo?::advance", "ticks in a row")
+edge("waarudo?::advance", :composes, "waarudo?::arrange", "runs the order")
+edge("waarudo?::advance", :composes, "waarudo?::system", "each system once")
+edge("waarudo?::world", :composes, "waarudo?::system", "a world runs systems")
+edge("waarudo?::query", :generalizes, "waarudo?::get", "many entities, not one")
+edge("waarudo?::arrange", :guards, "waarudo?::advance", "no write clash")
+edge("waarudo?::check", :guards, "waarudo?::advance", "laws hold each tick")
 
 edge(
-  "sekai?::simulate",
+  "waarudo?::spawn",
+  :inverse,
+  "waarudo?::delete",
+  "add and remove an entity"
+)
+
+edge("waarudo?::write", :inverse, "waarudo?::read", "load what was saved")
+
+edge(
+  "waarudo?::delete",
+  :inverse,
+  "waarudo?::spawn",
+  "add and remove an entity"
+)
+
+edge("waarudo?::read", :inverse, "waarudo?::write", "load what was saved")
+
+edge(
+  "waarudo?::simulate",
   :pairs,
   "ugoki?::play",
   "a fixed step under a frame clock"
 )
 
-edge("sekai?::hit", :refines, "byouga?::hit", "first thing a ray meets")
-edge("sekai?::collide", :requires, "kikagaku::intersect", "shape overlap")
-edge("sekai?::field", :requires, "ran::draw", "seeded values")
-edge("sekai?::replay", :requires, "ran::fork", "same seed, same world")
-edge("sekai?::replay", :requires, "sekai?::advance", "inputs drive steps")
-edge("sekai?::world", :requires, "sekai?::arrange", "systems are ordered")
-edge("sekai?::body", :requires, "sekai?::collide", "bodies touch")
-edge("sekai?::grammar", :requires, "sekai?::generate", "rules need a runner")
-edge("sekai?::generate", :requires, "sekai?::grammar", "runs rules")
-edge("sekai?::check", :requires, "sekai?::query", "reads every entity")
-edge("sekai?::hit", :requires, "sekai?::query", "searches bodies")
-edge("sekai?::path", :requires, "sekai?::query", "graph from the world")
-edge("sekai?::system", :requires, "sekai?::query", "a system reads a query")
-edge("sekai?::rollback", :requires, "sekai?::replay", "rewind then replay")
-edge("sekai?::on", :requires, "sekai?::system", "handlers are systems")
-edge("sekai?::send", :requires, "sekai?::world", "events live in a world")
+edge("waarudo?::field", :pairs, "waarudo?::generate", "noise feeds generation")
+edge("waarudo?::put", :pairs, "waarudo?::get", "component write and read")
+edge("waarudo?::send", :pairs, "waarudo?::on", "an event needs a handler")
+edge("waarudo?::body", :pairs, "waarudo?::put", "a body is a component")
+edge("waarudo?::get", :pairs, "waarudo?::put", "component read and write")
+edge("waarudo?::rollback", :pairs, "waarudo?::write", "snapshots to rewind to")
+edge("waarudo?::hit", :refines, "byouga?::hit", "first thing a ray meets")
+edge("waarudo?::collide", :requires, "kikagaku::intersect", "shape overlap")
+edge("waarudo?::field", :requires, "ran::draw", "seeded values")
+edge("waarudo?::replay", :requires, "ran::fork", "same seed, same world")
+edge("waarudo?::replay", :requires, "waarudo?::advance", "inputs drive steps")
+edge("waarudo?::world", :requires, "waarudo?::arrange", "systems are ordered")
+edge("waarudo?::body", :requires, "waarudo?::collide", "bodies touch")
+
+edge(
+  "waarudo?::grammar",
+  :requires,
+  "waarudo?::generate",
+  "rules need a runner"
+)
+
+edge("waarudo?::generate", :requires, "waarudo?::grammar", "runs rules")
+edge("waarudo?::check", :requires, "waarudo?::query", "reads every entity")
+edge("waarudo?::hit", :requires, "waarudo?::query", "searches bodies")
+edge("waarudo?::path", :requires, "waarudo?::query", "graph from the world")
+edge("waarudo?::system", :requires, "waarudo?::query", "a system reads a query")
+edge("waarudo?::rollback", :requires, "waarudo?::replay", "rewind then replay")
+edge("waarudo?::on", :requires, "waarudo?::system", "handlers are systems")
+edge("waarudo?::send", :requires, "waarudo?::world", "events live in a world")

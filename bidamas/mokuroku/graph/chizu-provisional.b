@@ -335,7 +335,7 @@ edge(
 
 edge("chizu?::contains?", :refines, "kikagaku::contains?", "on a sphere")
 edge("chizu?::centroid", :refines, "rittai::measure", "center of a shape")
-edge("chizu?::path", :refines, "sekai?::path", "a route over a road graph")
+edge("chizu?::path", :refines, "waarudo?::path", "a route over a road graph")
 edge("chizu?::intersects?", :requires, "chizu?::bounds", "test boxes first")
 edge("chizu?::neighbors", :requires, "chizu?::cell", "beside a cell")
 

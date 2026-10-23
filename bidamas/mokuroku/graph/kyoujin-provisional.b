@@ -446,7 +446,7 @@ edge("kyoujin?::pressure", :pairs, "messeeji?::lag", "queue depth beside lag")
 edge(
   "kyoujin?::bucket",
   :pairs,
-  "shigoto?::budget",
+  "shigoto::budget",
   "rate and parallelism bounds"
 )
 

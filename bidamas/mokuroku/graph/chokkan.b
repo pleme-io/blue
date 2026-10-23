@@ -72,6 +72,6 @@ edge(
 
 edge("chokkan::ask", :pairs, "chokkan::request", "questions go in a request")
 edge("chokkan::choice", :refines, "chokkan::ask", "a closed question")
-edge("chokkan::choice", :refines, "moderu?::classify", "closed answers")
+edge("chokkan::choice", :refines, "mokei?::classify", "closed answers")
 edge("chokkan::score", :refines, "saiten?::score", "numbered levels")
-edge("chokkan::request", :requires, "moderu?::ask", "the call that carries it")
+edge("chokkan::request", :requires, "mokei?::ask", "the call that carries it")

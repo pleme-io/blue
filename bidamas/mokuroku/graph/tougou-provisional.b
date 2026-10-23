@@ -1,7 +1,7 @@
-space("yuugou?", {status: :provisional})
+space("tougou?", {status: :provisional})
 
 verb(
-  "yuugou?",
+  "tougou?",
   "apply",
   {
     kind: :pure,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "clock",
   {
     kind: :pure,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "compare",
   {
     kind: :pure,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "concurrent?",
   {
     kind: :pure,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "converge",
   {
     kind: :effect,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "counter",
   {
     kind: :pure,
@@ -91,7 +91,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "delete",
   {
     kind: :pure,
@@ -106,7 +106,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "delta",
   {
     kind: :pure,
@@ -121,7 +121,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "erase",
   {
     kind: :pure,
@@ -136,7 +136,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "get",
   {
     kind: :pure,
@@ -151,7 +151,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "has?",
   {
     kind: :pure,
@@ -166,7 +166,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "increment",
   {
     kind: :pure,
@@ -181,7 +181,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "insert",
   {
     kind: :pure,
@@ -196,7 +196,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "map",
   {
     kind: :pure,
@@ -212,7 +212,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "merge",
   {
     kind: :pure,
@@ -227,7 +227,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "put",
   {
     kind: :pure,
@@ -242,7 +242,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "register",
   {
     kind: :pure,
@@ -257,7 +257,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "set",
   {
     kind: :pure,
@@ -272,7 +272,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "text",
   {
     kind: :pure,
@@ -288,7 +288,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "tick",
   {
     kind: :pure,
@@ -303,7 +303,7 @@ verb(
 )
 
 verb(
-  "yuugou?",
+  "tougou?",
   "value",
   {
     kind: :pure,
@@ -318,63 +318,63 @@ verb(
 )
 
 edge(
-  "yuugou?::converge",
+  "tougou?::converge",
   :composes,
-  "yuugou?::apply",
+  "tougou?::apply",
   "applies them everywhere"
 )
 
-edge("yuugou?::compare", :composes, "yuugou?::clock", "orders two vectors")
+edge("tougou?::compare", :composes, "tougou?::clock", "orders two vectors")
 
 edge(
-  "yuugou?::delta",
+  "tougou?::delta",
   :composes,
-  "yuugou?::compare",
+  "tougou?::compare",
   "what the other side lacks"
 )
 
-edge("yuugou?::converge", :composes, "yuugou?::delta", "exchanges deltas")
-edge("yuugou?::apply", :composes, "yuugou?::merge", "delta is merged in")
-edge("yuugou?::put", :inverse, "yuugou?::delete", "removes what put set")
-edge("yuugou?::insert", :inverse, "yuugou?::erase", "removes inserted text")
-edge("yuugou?::erase", :inverse, "yuugou?::insert", "removes inserted text")
-edge("yuugou?::delete", :inverse, "yuugou?::put", "removes what put set")
-edge("yuugou?::converge", :lifts, "yuugou?::merge", "many replicas")
-edge("yuugou?::delta", :pairs, "yuugou?::clock", "delta since a vector")
-edge("yuugou?::tick", :pairs, "yuugou?::compare", "advance then order")
-edge("yuugou?::apply", :pairs, "yuugou?::delta", "delta out and delta in")
-edge("yuugou?::map", :pairs, "yuugou?::get", "keyed read")
-edge("yuugou?::put", :pairs, "yuugou?::get", "write and read of a key")
-edge("yuugou?::set", :pairs, "yuugou?::has?", "membership test")
-edge("yuugou?::counter", :pairs, "yuugou?::increment", "its only operation")
-edge("yuugou?::text", :pairs, "yuugou?::insert", "sequence edit")
-edge("yuugou?::value", :pairs, "yuugou?::merge", "merged state read as plain")
-edge("yuugou?::register", :pairs, "yuugou?::put", "its only operation")
-edge("yuugou?::value", :pairs, "yuugou?::text", "plain text of the sequence")
-edge("yuugou?::clock", :pairs, "yuugou?::tick", "empty then advanced")
-edge("yuugou?::get", :pairs, "yuugou?::value", "one key against the whole")
-edge("yuugou?::increment", :pairs, "yuugou?::value", "reads the total")
+edge("tougou?::converge", :composes, "tougou?::delta", "exchanges deltas")
+edge("tougou?::apply", :composes, "tougou?::merge", "delta is merged in")
+edge("tougou?::put", :inverse, "tougou?::delete", "removes what put set")
+edge("tougou?::insert", :inverse, "tougou?::erase", "removes inserted text")
+edge("tougou?::erase", :inverse, "tougou?::insert", "removes inserted text")
+edge("tougou?::delete", :inverse, "tougou?::put", "removes what put set")
+edge("tougou?::converge", :lifts, "tougou?::merge", "many replicas")
+edge("tougou?::delta", :pairs, "tougou?::clock", "delta since a vector")
+edge("tougou?::tick", :pairs, "tougou?::compare", "advance then order")
+edge("tougou?::apply", :pairs, "tougou?::delta", "delta out and delta in")
+edge("tougou?::map", :pairs, "tougou?::get", "keyed read")
+edge("tougou?::put", :pairs, "tougou?::get", "write and read of a key")
+edge("tougou?::set", :pairs, "tougou?::has?", "membership test")
+edge("tougou?::counter", :pairs, "tougou?::increment", "its only operation")
+edge("tougou?::text", :pairs, "tougou?::insert", "sequence edit")
+edge("tougou?::value", :pairs, "tougou?::merge", "merged state read as plain")
+edge("tougou?::register", :pairs, "tougou?::put", "its only operation")
+edge("tougou?::value", :pairs, "tougou?::text", "plain text of the sequence")
+edge("tougou?::clock", :pairs, "tougou?::tick", "empty then advanced")
+edge("tougou?::get", :pairs, "tougou?::value", "one key against the whole")
+edge("tougou?::increment", :pairs, "tougou?::value", "reads the total")
 
 edge(
-  "yuugou?::merge",
+  "tougou?::merge",
   :refines,
   "rekishi?::merge",
   "conflict-free kind of merge"
 )
 
 edge(
-  "yuugou?::concurrent?",
+  "tougou?::concurrent?",
   :refines,
-  "yuugou?::compare",
+  "tougou?::compare",
   "the concurrent case only"
 )
 
-edge("yuugou?::has?", :refines, "yuugou?::get", "existence only")
-edge("yuugou?::tick", :requires, "yuugou?::clock", "needs a vector")
+edge("tougou?::has?", :refines, "tougou?::get", "existence only")
+edge("tougou?::tick", :requires, "tougou?::clock", "needs a vector")
 
 edge(
-  "yuugou?::merge",
+  "tougou?::merge",
   :requires,
-  "yuugou?::compare",
+  "tougou?::compare",
   "causal order of the inputs"
 )

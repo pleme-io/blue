@@ -415,14 +415,6 @@ edge("tesuto?::conforms?", :pairs, "habu::get", "checks a remote provider")
 edge("tesuto?::parse", :pairs, "habu::list", "CI reports come from runs")
 edge("tesuto?::rerun", :pairs, "habu::rerun", "CI rerun versus test rerun")
 edge("tesuto?::run", :pairs, "hadome::judge", "runs report ratcheted counts")
-
-edge(
-  "tesuto?::contract",
-  :pairs,
-  "hakkou?::breaking?",
-  "breaking changes break contracts"
-)
-
 edge("tesuto?::cover", :pairs, "heni::run", "coverage and mutation score")
 
 edge(
@@ -444,6 +436,14 @@ edge(
 )
 
 edge("tesuto?::render", :pairs, "rebyuu?::ready?", "reports feed readiness")
+
+edge(
+  "tesuto?::contract",
+  :pairs,
+  "rirezu?::breaking?",
+  "breaking changes break contracts"
+)
+
 edge("tesuto?::list", :pairs, "tesuto?::affected", "list what is selected")
 edge("tesuto?::uncovered", :pairs, "tesuto?::affected", "gaps versus impact")
 edge("tesuto?::spy", :pairs, "tesuto?::calls", "spy records, calls reads")

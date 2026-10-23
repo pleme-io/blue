@@ -16,4 +16,4 @@ verb(
 )
 
 edge("seimei::advance", :pairs, "ran::draw", "seeded rules")
-edge("seimei::advance", :refines, "sekai?::advance", "a grid world step")
+edge("seimei::advance", :refines, "waarudo?::advance", "a grid world step")

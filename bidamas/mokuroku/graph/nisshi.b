@@ -807,8 +807,6 @@ edge(
   "incremental form with a checkpoint"
 )
 
-edge("nisshi::watch", :pairs, "keikaku?::checkin", "progress events follow")
-
 edge(
   "nisshi::append",
   :pairs,
@@ -868,6 +866,7 @@ edge(
 )
 
 edge("nisshi::open", :pairs, "nisshi::verify?", "open, then verify the chain")
+edge("nisshi::watch", :pairs, "puran?::checkin", "progress events follow")
 
 edge(
   "nisshi::append",

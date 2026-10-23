@@ -180,18 +180,18 @@ edge(
   "decisions link to deprecations"
 )
 
-edge(
-  "ketsugi?::due?",
-  :pairs,
-  "keikaku?::milestone",
-  "revisit dates are milestones"
-)
-
 edge("ketsugi?::revisit", :pairs, "ketsugi?::due?", "trigger and its test")
 edge("ketsugi?::list", :pairs, "ketsugi?::get", "many versus one")
 edge("ketsugi?::supersede", :pairs, "ketsugi?::link", "supersession is a link")
 edge("ketsugi?::render", :pairs, "mokuroku::render", "both render docs")
 edge("ketsugi?::decide", :pairs, "nisshi::append", "decisions are logged")
+
+edge(
+  "ketsugi?::due?",
+  :pairs,
+  "puran?::milestone",
+  "revisit dates are milestones"
+)
 
 edge(
   "ketsugi?::revisit",

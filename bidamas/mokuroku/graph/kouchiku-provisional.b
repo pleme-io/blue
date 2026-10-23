@@ -346,4 +346,4 @@ edge(
 )
 
 edge("kouchiku?::apply", :requires, "kouchiku?::plan", "apply a reviewed plan")
-edge("kouchiku?::import", :requires, "kumo?::need", "resource must exist")
+edge("kouchiku?::import", :requires, "kuraudo?::need", "resource must exist")

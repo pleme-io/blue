@@ -137,6 +137,21 @@ verb(
 
 verb(
   "asshuku?",
+  "ratio",
+  {
+    kind: :pure,
+    shape: "ratio(bytes, algorithm) -> number",
+    laterals: [],
+    fleet: nil,
+    today: "absent",
+    meaning: "compressed size over original size",
+    wave: 3,
+    origin: "A"
+  }
+)
+
+verb(
+  "asshuku?",
   "read",
   {
     kind: :pure,
@@ -198,6 +213,21 @@ verb(
 
 verb(
   "asshuku?",
+  "verify",
+  {
+    kind: :pure,
+    shape: "verify(archive) -> nil",
+    laterals: ["error", "validate"],
+    fleet: nil,
+    today: "absent",
+    meaning: "check checksums and structure",
+    wave: 3,
+    origin: "A"
+  }
+)
+
+verb(
+  "asshuku?",
   "verify?",
   {
     kind: :pure,
@@ -214,16 +244,27 @@ verb(
 edge("asshuku?::pack", :composes, "asshuku?::compress", "archive then compress")
 
 edge(
+  "asshuku?::ratio",
+  :composes,
+  "asshuku?::compress",
+  "compressed size over original"
+)
+
+edge(
   "asshuku?::unpack",
   :composes,
   "asshuku?::decompress",
   "decompress then split"
 )
 
+edge("asshuku?::read", :composes, "asshuku?::list", "entry must be listed")
 edge("asshuku?::archive", :composes, "asshuku?::pack", "packs the walked files")
+edge("asshuku?::unpack", :composes, "asshuku?::read", "write each entry out")
 edge("asshuku?::unpack_to", :composes, "asshuku?::unpack", "entries to write")
 edge("asshuku?::verify?", :composes, "asshuku?::unpack", "decodes every entry")
 edge("asshuku?::archive", :composes, "fairu::walk", "finds the files")
+edge("asshuku?::pack", :composes, "fairu::write", "archive file is written")
+edge("asshuku?::unpack", :composes, "fairu::write", "entries become files")
 edge("asshuku?::unpack_to", :composes, "fairu::write", "writes each entry")
 
 edge(
@@ -233,12 +274,17 @@ edge(
   "checks entry checksums"
 )
 
+edge("asshuku?::verify", :composes, "shomei::hash", "checksum per entry")
+
 edge(
   "asshuku?::detect",
   :guards,
   "asshuku?::decompress",
   "pick the algorithm first"
 )
+
+edge("asshuku?::list", :guards, "asshuku?::unpack", "inspect before unpacking")
+edge("asshuku?::verify", :guards, "asshuku?::unpack", "check before unpacking")
 
 edge(
   "asshuku?::verify?",
@@ -254,27 +300,15 @@ edge(
   "tree back from the archive"
 )
 
-edge(
-  "asshuku?::decompress",
-  :inverse,
-  "asshuku?::compress",
-  "restores the original bytes"
-)
-
-edge(
-  "asshuku?::compress",
-  :inverse,
-  "asshuku?::decompress",
-  "restores the original bytes"
-)
-
+edge("asshuku?::decompress", :inverse, "asshuku?::compress", "bytes round-trip")
+edge("asshuku?::compress", :inverse, "asshuku?::decompress", "bytes round-trip")
 edge("asshuku?::patch", :inverse, "asshuku?::delta", "applies the difference")
 
 edge(
   "asshuku?::unpack",
   :inverse,
   "asshuku?::pack",
-  "entries back out of the archive"
+  "archive and files round-trip"
 )
 
 edge("asshuku?::delta", :inverse, "asshuku?::patch", "applies the difference")
@@ -283,7 +317,7 @@ edge(
   "asshuku?::pack",
   :inverse,
   "asshuku?::unpack",
-  "entries back out of the archive"
+  "archive and files round-trip"
 )
 
 edge(
@@ -311,14 +345,22 @@ edge(
 )
 
 edge("asshuku?::list", :pairs, "asshuku?::read", "headers then one entry")
+edge("asshuku?::compress", :pairs, "deeta::pack", "compress after serializing")
 edge("asshuku?::delta", :pairs, "genbo?::chunk", "both feed deduplication")
 
 edge(
   "asshuku?::append",
   :refines,
   "asshuku?::pack",
-  "adds entries to an archive"
+  "add to an existing archive"
 )
 
 edge("asshuku?::list", :refines, "asshuku?::unpack", "headers only")
 edge("asshuku?::read", :refines, "asshuku?::unpack", "one named entry")
+
+edge(
+  "asshuku?::read",
+  :refines,
+  "fairu::read",
+  "an entry is a file in an archive"
+)

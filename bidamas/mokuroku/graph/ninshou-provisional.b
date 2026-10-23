@@ -413,7 +413,7 @@ edge(
   "assertion signature check"
 )
 
-edge("ninshou?::caller", :composes, "tegata?::read", "identity from a token")
+edge("ninshou?::caller", :composes, "tegata::read", "identity from a token")
 
 edge(
   "ninshou?::caller",

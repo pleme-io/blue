@@ -11,6 +11,9 @@ create or replace table edgefix as
 create or replace table added as
   select * from read_csv('docs/verbs/merged/added.tsv', delim='\t', header=true, quote='', escape='', all_varchar=true);
 
+create or replace table addedge as
+  select * from read_csv('docs/verbs/merged/added-edges.tsv', delim='\t', header=true, quote='', escape='', all_varchar=true);
+
 create or replace table bidamas as
   select split_part(file, '/', 2) as name from glob('bidamas/*/Bluefile');
 
@@ -101,13 +104,17 @@ where coalesce(x.action, '') <> 'drop';
 create or replace table edges_inv as
 select "from", rel, "to", why from edges_fixed
 union all
+select "from", rel, "to", why from addedge
+union all
 select "to", rel, "from", why from edges_fixed where rel = 'inverse';
 
 create or replace table edges1 as
 select "from", rel, "to", min(why) as why from edges_inv group by 1, 2, 3;
 
 create or replace table core_targets as
-select distinct split_part("to", '::', 2) as verb from edges1 where "to" like 'core::%';
+select distinct split_part(k, '::', 2) as verb
+from (select "to" as k from edges1 union all select "from" as k from edges1)
+where k like 'core::%';
 
 create or replace table core_rows as
 select 'H' as region, 'core' as space, c.verb,
@@ -138,8 +145,8 @@ from verbs1 v;
 
 create or replace table cparsed as
 select verb, opts as copts, returns,
-  list_transform(string_split(args, ','), x -> trim(x)) as raw,
-  list_filter(list_transform(string_split(args, ','), x -> trim(x)), x -> x <> '') as items
+  list_transform(string_split(coalesce(args, ''), ','), x -> trim(x)) as raw,
+  list_filter(list_transform(string_split(coalesce(args, ''), ','), x -> trim(x)), x -> x <> '') as items
 from contracts;
 
 create or replace table cshape as
@@ -170,7 +177,7 @@ from shaped0;
 create or replace table shaped as
 select region, space, verb, kind, shape, laterals, fleet, blue_today, meaning, wave,
   case when not has_contract then ''
-       else verb || '(' || array_to_string(case when add_opts then list_append(np, 'opts') else np end, ', ') || ') -> ' || ret end as contract_shape,
+       else verb || '(' || coalesce(array_to_string(case when add_opts then list_append(np, 'opts') else np end, ', '), '') || ') -> ' || ret end as contract_shape,
   case when not has_contract then 'na' when ok then 'yes' else 'no' end as conforms
 from shaped1;
 
@@ -178,18 +185,26 @@ create or replace table srn as
   select * from read_csv('docs/verbs/merged/space-renames.tsv', delim='\t', header=true, quote='', escape='', all_varchar=true);
 
 copy (
-  select s.region, coalesce(r.new, s.space) as space, s.verb, s.kind, s.shape, s.laterals, s.fleet, s.blue_today, s.meaning, s.wave, s.contract_shape, s.conforms
-  from shaped s left join srn r on r.old = s.space order by 2, s.verb
+  select region, space, verb, kind, shape, laterals, fleet, blue_today, meaning, wave, contract_shape, conforms
+  from (
+    select s.region, coalesce(r.new, s.space) as space, s.verb, s.kind, s.shape, s.laterals, s.fleet, s.blue_today, s.meaning, s.wave, s.contract_shape, s.conforms,
+      row_number() over (partition by coalesce(r.new, s.space), s.verb order by (r.old is null) desc, length(s.meaning) desc, s.space) as rk
+    from shaped s left join srn r on r.old = s.space
+  ) where rk = 1
+  order by space, verb
 ) to 'docs/verbs/merged/verbs.tsv' (delimiter '\t', header true, quote '', escape '');
 
 copy (
-  select
-    case when a.old is not null then a.new || substr(e."from", length(a.old) + 1) else e."from" end as "from",
-    e.rel,
-    case when b.old is not null then b.new || substr(e."to", length(b.old) + 1) else e."to" end as "to",
-    e.why
-  from edges1 e
-  left join srn a on split_part(e."from", '::', 1) = a.old
-  left join srn b on split_part(e."to", '::', 1) = b.old
+  select "from", rel, "to", min(why) as why from (
+    select
+      case when a.old is not null then a.new || substr(e."from", length(a.old) + 1) else e."from" end as "from",
+      e.rel,
+      case when b.old is not null then b.new || substr(e."to", length(b.old) + 1) else e."to" end as "to",
+      e.why
+    from edges1 e
+    left join srn a on split_part(e."from", '::', 1) = a.old
+    left join srn b on split_part(e."to", '::', 1) = b.old
+  ) where "from" <> "to"
+  group by 1, 2, 3
   order by 1, 2, 3
 ) to 'docs/verbs/merged/edges.tsv' (delimiter '\t', header true, quote '', escape '');

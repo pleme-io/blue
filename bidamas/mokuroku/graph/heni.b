@@ -97,7 +97,7 @@ edge("heni::run", :composes, "tesuto?::run", "runs the package tests")
 edge(
   "heni::ok?",
   :guards,
-  "hakkou?::build",
+  "rirezu?::build",
   "surviving mutants block a release"
 )
 

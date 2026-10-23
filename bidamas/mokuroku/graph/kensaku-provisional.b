@@ -289,8 +289,8 @@ edge("kensaku?::ground", :composes, "kensaku?::cite", "show sources")
 edge("kensaku?::sync", :composes, "kensaku?::delete", "removes gone")
 edge("kensaku?::sync", :composes, "kensaku?::put", "adds changes")
 edge("kensaku?::ground", :composes, "kensaku?::search", "find sources")
-edge("kensaku?::ground", :composes, "moderu?::ask", "answer from them")
-edge("kensaku?::search", :composes, "moderu?::embed", "vector mode")
+edge("kensaku?::ground", :composes, "mokei?::ask", "answer from them")
+edge("kensaku?::search", :composes, "mokei?::embed", "vector mode")
 edge("kensaku?::index", :generalizes, "kensaku?::put", "documents go in")
 edge("kensaku?::support?", :guards, "kensaku?::ground", "check claims")
 
@@ -328,7 +328,7 @@ edge(
   "score from closeness"
 )
 
-edge("kensaku?::expand", :requires, "moderu?::ask", "a model rewrites")
-edge("kensaku?::rerank", :requires, "moderu?::ask", "a stronger model")
-edge("kensaku?::support?", :requires, "moderu?::ask", "a judge model")
-edge("kensaku?::similarity", :requires, "moderu?::embed", "vectors to compare")
+edge("kensaku?::expand", :requires, "mokei?::ask", "a model rewrites")
+edge("kensaku?::rerank", :requires, "mokei?::ask", "a stronger model")
+edge("kensaku?::support?", :requires, "mokei?::ask", "a judge model")
+edge("kensaku?::similarity", :requires, "mokei?::embed", "vectors to compare")

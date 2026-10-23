@@ -17,6 +17,21 @@ verb(
 
 verb(
   "kyohi",
+  "enforce",
+  {
+    kind: :effect,
+    shape: "enforce(subject, rules, opts) -> nil",
+    laterals: ["error"],
+    fleet: nil,
+    today: "absent",
+    meaning: "raise one error carrying every finding of the master check; nil when sound",
+    wave: 0,
+    origin: "H"
+  }
+)
+
+verb(
+  "kyohi",
   "exit_status",
   {
     kind: :pure,
@@ -135,6 +150,13 @@ verb(
   }
 )
 
+edge(
+  "kyohi::enforce",
+  :composes,
+  "core::check",
+  "the findings come from the master check"
+)
+
 edge("kyohi::check", :composes, "kyohi::kinds", "one error carries all kinds")
 
 edge(
@@ -146,6 +168,14 @@ edge(
 
 edge("kyohi::ledger", :guards, "kengen?::permit", "denied is a ledger kind")
 edge("kyohi::kinds", :lifts, "kyohi::kind", "kind of each refusal")
+
+edge(
+  "kyohi::check",
+  :pairs,
+  "kyohi::enforce",
+  "check raises today; enforce is the raising form of the master contract"
+)
+
 edge("kyohi::refusal", :pairs, "kyohi::kind", "a refusal has a kind")
 edge("kyohi::standing", :refines, "kyohi::check", "entries left standing")
 

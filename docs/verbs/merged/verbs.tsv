@@ -45,17 +45,6 @@ D	angou	power_mod	pure	power_mod(base, exponent, modulus) -> int	validate	-	exis
 D	angou	prime?	pure	prime?(n) -> Bool	validate	-	exists:angou	n is prime by trial division	0		na
 D	angou	primitive_root	pure	primitive_root(prime) -> int	validate	-	exists:angou	smallest generator of the units modulo a prime	0		na
 D	angou	totient	pure	totient(n) -> int	validate	-	exists:angou	count of integers below n coprime to it	0		na
-A	assaku?	append	effect	append(archive, entries) -> nil	capability,error	-	absent	add entries to an archive	3	append(archive, entries) -> nil	yes
-A	assaku?	compress	pure	compress(bytes, algorithm, opts) -> bytes	error	caixa-flate2	absent	bytes shrunk by gzip, zstd, xz or deflate	3	compress(bytes, algorithm, opts) -> bytes	yes
-A	assaku?	decompress	pure	decompress(bytes, algorithm, opts) -> bytes	error,resource	caixa-flate2	absent	compressed bytes back to the original	3		na
-A	assaku?	detect	pure	detect(bytes) -> algorithm or nil	-	-	absent	which codec a header announces	3	detect(bytes) -> algorithm or nil	yes
-A	assaku?	list	effect	list(archive) -> [entry]	capability,error	-	absent	names, sizes and kinds inside an archive	3	list(archive) -> [entry]	yes
-A	assaku?	pack	effect	pack(path, entries, opts) -> nil	capability,error,idempotent	-	absent	write a tar or zip archive of named entries	3	pack(path, entries, opts) -> nil	yes
-A	assaku?	ratio	pure	ratio(bytes, algorithm) -> number	-	-	absent	compressed size over original size	3		na
-A	assaku?	read	effect	read(archive, entry) -> bytes	capability,error	-	absent	one entry's content	3	read(archive, opts) -> bytes	no
-A	assaku?	stream	stream	stream(source, algorithm, f, opts) -> nil	cancel,error,resource	-	absent	compress or decompress chunk by chunk	4	stream(source, algorithm, f, opts) -> nil	yes
-A	assaku?	unpack	effect	unpack(archive, destination, opts) -> [path]	capability,error,resource	-	absent	unpack entries; paths that escape the target raise	3	unpack(archive, destination, opts) -> [path]	yes
-A	assaku?	verify	pure	verify(archive) -> nil	error,validate	-	absent	check checksums and structure	3	verify(archive) -> nil	yes
 B	asshuku?	append	pure	append(archive, entries) -> bytes	error	-	absent	add entries to the end of an archive	3	append(archive, entries) -> bytes	yes
 B	asshuku?	archive	effect	archive(root, to, opts) -> nil	capability,deadline,error	-	absent	pack a directory tree into an archive file	2		na
 B	asshuku?	compress	pure	compress(data, opts) -> bytes	error	-	absent	shrink bytes with an algorithm named in opts	2	compress(data, opts) -> bytes	yes
@@ -65,10 +54,12 @@ B	asshuku?	detect	pure	detect(data) -> algorithm or nil	-	-	absent	name the comp
 B	asshuku?	list	pure	list(archive, opts) -> [{name, size, mode}]	error	hozon	absent	the entry headers of an archive without their content	2	list(archive, opts) -> [{name, size, mode}]	yes
 B	asshuku?	pack	pure	pack(entries, opts) -> bytes	error	-	absent	bundle named entries into one tar or zip archive	2	pack(entries, opts) -> bytes	yes
 B	asshuku?	patch	pure	patch(base, delta) -> bytes	error	-	absent	apply a binary delta to base	3	patch(base, delta) -> bytes	yes
+A	asshuku?	ratio	pure	ratio(bytes, algorithm) -> number	-	-	absent	compressed size over original size	3		na
 B	asshuku?	read	pure	read(archive, name, opts) -> bytes	error	hozon	absent	one entry of an archive by name	2	read(archive, opts) -> bytes	no
 B	asshuku?	stream	stream	stream(source, f, opts) -> nil	cancel,deadline,error	-	absent	compress or decompress chunk by chunk, calling f per chunk	3	stream(source, f, opts) -> nil	yes
 B	asshuku?	unpack	pure	unpack(archive, opts) -> [entry]	error,validate	-	absent	every entry of an archive in memory, paths checked	2	unpack(archive, opts) -> [entry]	yes
 B	asshuku?	unpack_to	effect	unpack_to(archive, to, opts) -> [path]	capability,error,validate	-	absent	write an archive under a directory; traversal refused	2	unpack_to(archive, to, opts) -> [path]	yes
+A	asshuku?	verify	pure	verify(archive) -> nil	error,validate	-	absent	check checksums and structure	3	verify(archive) -> nil	yes
 B	asshuku?	verify?	pure	verify?(archive) -> Bool	validate	-	absent	whether every entry of an archive decodes and checks	2	verify?(archive) -> Bool	yes
 E	bajon?	bump	pure	bump(version, part) -> version	-	-	absent	next major, minor, patch or prerelease	1		na
 E	bajon?	change	pure	change(a, b) -> :major, :minor, :patch or :none	-	-	absent	how big a step between two versions is	2		na
@@ -305,6 +296,7 @@ G	chuuzou	assemble	effect	assemble(ast, board) -> image	process	blue-native	rust
 G	chuuzou	build	effect	build(program, board) -> image	process,resource	blue-native	rust:chuuzou	emit, link and measure one board image	2	build(program, board) -> image	yes
 G	chuuzou	emit	pure	emit(program) -> Rust AST	validate	blue-native	rust:chuuzou	a checked program as a typed Rust AST	2		na
 G	chuuzou	measure	pure	measure(image) -> {text, data, ram}	-	blue-native	rust:chuuzou	code and data size of an image	0	measure(image) -> {text, data, ram}	yes
+H	core	check	effect	check(subject, rules?, opts) -> [finding]	-	-	absent	findings of a subject against rules; empty when sound; kyohi::enforce is the raising form	0	check(subject, rules?, opts) -> [finding]	yes
 H	core	copy	effect	copy(from, to, opts) -> nil	-	-	absent	place a copy at a destination	0	copy(from, to, opts) -> nil	yes
 H	core	create	effect	create(store, key, value, opts) -> value	-	-	absent	add a new entry; refuse to overwrite	0	create(store, key, value, opts) -> value	yes
 H	core	diff	effect	diff(a, b, opts) -> [change]	-	-	absent	differences between two values as change records	0	diff(a, b, opts) -> [change]	yes
@@ -316,6 +308,7 @@ H	core	group_by	pure	group_by(xs, f) -> map	-	-	absent	items grouped under f of 
 H	core	has?	effect	has?(store, key) -> Bool	-	-	absent	whether the key is present	0	has?(store, key) -> Bool	yes
 H	core	info	effect	info(subject, opts) -> record	-	-	absent	current state of the subject as a record	0	info(subject, opts) -> record	yes
 H	core	list	effect	list(store, opts) -> [record]	-	-	absent	every entry, all pages, sorted	0	list(store, opts) -> [record]	yes
+H	core	merge	effect	merge(a, b, opts) -> value	-	-	absent	combine b into a; one master verb for every space, gitto::merge refines it	0	merge(a, b, opts) -> value	yes
 H	core	move	effect	move(from, to, opts) -> nil	-	-	absent	move or rename atomically	0	move(from, to, opts) -> nil	yes
 H	core	need	effect	need(store, key, opts) -> value	-	-	absent	one entry, raising when absent	0	need(store, key, opts) -> value	yes
 H	core	parse	pure	parse(text, format?, opts) -> value	-	-	absent	text to a value	0	parse(text, format?, opts) -> value	yes
@@ -325,6 +318,8 @@ H	core	read	effect	read(source, opts) -> content	-	-	absent	whole content of a s
 H	core	render	pure	render(value, format?, opts) -> text	-	-	absent	a value to canonical stable text	0	render(value, format?, opts) -> text	yes
 H	core	run	effect	run(subject, input?, opts) -> result	-	-	absent	run to completion and return the result	0	run(subject, input?, opts) -> result	yes
 H	core	update	effect	update(store, key, f, opts) -> value	-	-	absent	replace an entry with f of the old value	0	update(store, key, f, opts) -> value	yes
+H	core	verify	effect	verify(subject, policy?, opts) -> verdict	-	-	absent	check integrity against a record or policy; raises tampered on a bad verdict, verify? is the predicate pair	0	verify(subject, policy?, opts) -> verdict	yes
+H	core	verify?	pure	verify?(data, signature?, key?) -> Bool	-	-	absent	whether a signature or proof holds	0	verify?(data, signature?, key?) -> Bool	yes
 G	dairi?	advance	effect	advance(agent, state) -> state	trace	arnes-loop	absent	one turn: ask, run tool calls, observe	2	advance(agent, state) -> state	yes
 G	dairi?	agent	decl	agent(spec) -> agent	config,validate	arnes-loop	absent	declare an agent: model, tools, policy, limits	1		na
 G	dairi?	approve	effect	approve(request) -> decision	capability,log	arnes-loop	absent	let a person or policy allow one effect	1	approve(request) -> decision	yes
@@ -735,28 +730,6 @@ E	haibi	check	pure	check(service, row) -> [refusal]	validate	haibi	exists:haibi	
 E	haibi	ddl	pure	ddl(service) -> text	serialize	haibi	exists:haibi	database schema statements from declared tables	0		na
 E	haibi	render	pure	render(service, opts) -> [file]	serialize,validate	haibi	exists:haibi	chart, values, schema and rules from one service spec	0	render(service, opts) -> [file]	yes
 E	haibi	schema	pure	schema(service) -> schema	validate	haibi	exists:haibi	values.schema.json from the service defaults	0	schema(service) -> schema	yes
-E	haichi?	diff	pure	diff(a, b) -> [change]	config	-	absent	how two environments differ in resolved config	1	diff(a, b) -> [change]	yes
-E	haichi?	freeze	effect	freeze(name, reason) -> nil	capability,idempotent,log	-	absent	stop changes to an environment	3	freeze(name, reason) -> nil	yes
-E	haichi?	get	effect	get(name) -> environment or nil	config	-	absent	one environment's record	1	get(name) -> environment or nil	yes
-E	haichi?	list	effect	list() -> [environment]	config	-	absent	named deploy targets	1	list() -> [environment]	yes
-E	haichi?	need	effect	need(name) -> environment	config	-	absent	one environment, raises when absent	1	need(name) -> environment	yes
-E	haichi?	path	pure	path(name) -> [environment]	-	-	absent	environments a change passes through in order	2	path(name, from, to, opts) -> [environment]	no
-E	haichi?	promote	effect	promote(change, from, to) -> change	log,switch	-	absent	carry a pinned change to the next environment	2	promote(change, from, opts) -> change	no
-E	haichi?	resolve	pure	resolve(spec, environment) -> record	config,validate	-	absent	a spec with this environment's overlay applied	1	resolve(spec, environment) -> record	yes
-F	hakkou?	breaking?	pure	breaking?(old, new) -> Bool	validate	-	absent	whether the interface lost or changed an entry	2		na
-F	hakkou?	build	effect	build(project, opts) -> artifact	cache,process	-	absent	make the release artifact reproducibly	1	build(project, opts) -> artifact	yes
-F	hakkou?	canary	effect	canary(release, share, opts) -> verdict	cancel,test,time	-	absent	send a share of traffic to a release and judge it	3		na
-F	hakkou?	changelog	pure	changelog(changes, opts) -> text	serialize	releaser	absent	release notes from changes, grouped by kind	1		na
-F	hakkou?	diff	pure	diff(a, b) -> [change]	-	-	absent	the changes between two releases	2	diff(a, b) -> [change]	yes
-F	hakkou?	next	pure	next(project, changes) -> version	-	releaser	absent	the next version from the kinds of change since the last	1	next(project, changes) -> version	yes
-F	hakkou?	pin	effect	pin(env, release) -> nil	idempotent	-	absent	set which release an environment runs	2	pin(env, release) -> nil	yes
-F	hakkou?	plan	pure	plan(project, opts) -> [action]	-	releaser	absent	what a release would do, changing nothing	1	plan(project, opts) -> [action]	yes
-F	hakkou?	promote	effect	promote(release, env, opts) -> nil	error,idempotent	-	absent	move a release to the next environment after its gates	2	promote(release, env, opts) -> nil	yes
-F	hakkou?	publish	effect	publish(artifact, registry, opts) -> release	idempotent,retry	cartorio	absent	upload an artifact and record its provenance	2	publish(artifact, registry, opts) -> release	yes
-F	hakkou?	released?	effect	released?(project, version) -> Bool	-	releaser	absent	whether a version is already published	1		na
-F	hakkou?	rollback	effect	rollback(env, opts) -> nil	idempotent	-	absent	return an environment to its previous release	2	rollback(env, opts) -> nil	yes
-F	hakkou?	sbom	pure	sbom(artifact) -> doc	serialize	tameshi	absent	the list of parts inside an artifact	3		na
-F	hakkou?	yank	effect	yank(release, reason) -> nil	idempotent	-	absent	withdraw a published version without deleting it	3	yank(release, reason) -> nil	yes
 A	hani?	clamp	pure	clamp(x, range) -> value	-	-	partial:kazu	nearest point inside a range	2		na
 A	hani?	coalesce	pure	coalesce(ranges) -> [range]	-	-	absent	join overlapping ranges into disjoint ones	2	coalesce(ranges) -> [range]	yes
 A	hani?	contains?	pure	contains?(range, x) -> Bool	-	-	absent	whether a point or range lies inside	2	contains?(range, x) -> Bool	yes
@@ -1177,21 +1150,6 @@ A	kazu	sqrt	pure	sqrt(n) -> number	error	-	absent	square root; negative raises d
 A	kazu	sum	pure	sum(numbers) -> number	-	-	exists:kazu	total of a list	0	sum(numbers) -> number	yes
 A	kazu	tan	pure	tan(radians) -> number	-	-	absent	tangent	1		na
 A	kazu	whole	pure	whole(n) -> int	-	-	absent	integer part of n, toward zero	1	whole(n) -> int	yes
-F	keikaku?	burndown	pure	burndown(items, window) -> series	time	-	absent	work left over time	3		na
-F	keikaku?	capacity	pure	capacity(team, window) -> number	time	-	absent	work a team can take on in a window	3		na
-F	keikaku?	checkin	effect	checkin(goal, progress) -> nil	log,time	-	absent	record progress against a goal	3		na
-F	keikaku?	critical_path	pure	critical_path(items) -> [item]	time	-	absent	the chain of dependent items that sets the end date	3		na
-F	keikaku?	estimate	pure	estimate(item, method) -> estimate	-	-	absent	a size or duration for an item, with its range	3	estimate(item, method) -> estimate	yes
-F	keikaku?	forecast	pure	forecast(backlog, velocity, opts) -> distribution	time	-	absent	when a backlog finishes, as dates with odds	3	forecast(backlog, velocity, opts) -> distribution	yes
-F	keikaku?	goal	decl	goal(owner, target, window) -> goal	config,time	-	absent	declare an outcome target for a person or team	3		na
-F	keikaku?	milestone	decl	milestone(name, due, items) -> milestone	time	-	absent	declare a dated set of items	3		na
-F	keikaku?	retro	pure	retro(events, window) -> record	time	-	absent	facts from a period: what changed, slipped and repeated	4		na
-F	keikaku?	risk	decl	risk(name, odds, impact) -> risk	config	-	absent	declare something that may go wrong, with odds and cost	4		na
-F	keikaku?	roadmap	pure	roadmap(milestones) -> roadmap	serialize	-	absent	milestones in time order, by theme	3		na
-F	keikaku?	schedule	pure	schedule(items, capacity) -> plan	time	-	absent	items placed in periods by order, size and capacity	3	schedule(items, capacity) -> plan	yes
-F	keikaku?	sprint	decl	sprint(window, items) -> sprint	time	-	absent	declare a time-boxed set of items	3		na
-F	keikaku?	variance	pure	variance(plan, actual) -> record	time	-	absent	how far reality moved from the plan	3	variance(plan, opts) -> record	no
-F	keikaku?	velocity	pure	velocity(history, window) -> distribution	time	-	absent	work finished per period, as a distribution	3		na
 F	keisoku?	bench	effect	bench(f, opts) -> stats	deadline,time	tundra-gwbench	absent	run f many times; report spread, not one number	1		na
 F	keisoku?	cardinality	pure	cardinality(samples) -> [row]	validate	-	absent	distinct series per metric, to catch label explosions	2		na
 F	keisoku?	counter	decl	counter(name, opts) -> instrument	config	metrics-go	absent	declare a value that only goes up	0		na
@@ -1297,7 +1255,7 @@ F	kenshutsu?	scan	effect	scan(subject, opts) -> [finding]	capability,deadline	cs
 F	kenshutsu?	unused	pure	unused(project) -> [name]	-	blue-lang-check	rust:blue-lang-check	definitions nothing reaches	1		na
 F	ketsugi?	decide	effect	decide(record, outcome, why) -> record	log	okite	partial:okite	accept, reject or defer a record, with the reason	3	decide(record, outcome, why) -> record	yes
 F	ketsugi?	due?	pure	due?(record, facts) -> Bool	time	-	absent	whether a revisit trigger has fired	3	due?(record, facts) -> Bool	yes
-F	ketsugi?	enforce	decl	enforce(record, laws) -> row	test	okite	partial:okite	bind a decision to the laws that keep it true	2		na
+F	ketsugi?	enforce	decl	enforce(record, laws) -> row	test	okite	partial:okite	bind a decision to the laws that keep it true	2	enforce(record, laws) -> row	yes
 F	ketsugi?	get	effect	get(store, id) -> record or nil	-	-	partial:okite	one decision record or nil	3	get(store, id) -> record or nil	yes
 F	ketsugi?	link	effect	link(record, to, kind) -> nil	-	-	absent	relate a decision to code, tests or another record	3	link(record, to, kind) -> nil	yes
 F	ketsugi?	list	effect	list(store, filter) -> [record]	-	-	absent	decisions by state, area or date, sorted	3	list(store, opts) -> [record]	no
@@ -1461,18 +1419,6 @@ A	kumiawase	combinations	pure	combinations(list, k) -> [list]	-	-	exists:kumiawa
 A	kumiawase	factorial	pure	factorial(n) -> big	error	-	exists:kumiawase	product of 1 up to n	0		na
 A	kumiawase	partitions	pure	partitions(n) -> [list]	-	-	exists:kumiawase	every way to write n as a sum	0		na
 A	kumiawase	permutations	pure	permutations(list, k) -> [list]	-	-	exists:kumiawase	every ordered pick of k items	0		na
-E	kumo?	events	effect	events(opts) -> [event]	error,time	-	absent	the audit trail of changes	3	events(opts) -> [event]	yes
-E	kumo?	find	effect	find(query, opts) -> [resource]	error	-	absent	resources by tag or attribute across kinds	2	find(query, query, opts) -> [resource]	no
-E	kumo?	get	effect	get(kind, id, opts) -> resource or nil	error,ratelimit	cordel	absent	one cloud resource, nil when absent	1	get(kind, id, opts) -> resource or nil	yes
-E	kumo?	has?	effect	has?(kind, id, opts) -> Bool	-	-	absent	whether a resource exists	1	has?(kind, id) -> Bool	no
-E	kumo?	list	effect	list(kind, opts) -> [resource]	deadline,error,ratelimit	cordel	absent	cloud resources of a kind, all pages	1	list(kind, opts) -> [resource]	yes
-E	kumo?	need	effect	need(kind, id, opts) -> resource	error	cordel	absent	one cloud resource, raises when absent	1	need(kind, id, opts) -> resource	yes
-E	kumo?	quota	effect	quota(kind, opts) -> {used:, limit:}	resource	-	absent	how much of a limit is spent	2	quota(kind, key) -> {used:, limit:}	no
-E	kumo?	regions	effect	regions(opts) -> [region]	cache	-	absent	regions available to the account	3		na
-E	kumo?	tag	effect	tag(resource, tags) -> nil	capability,idempotent	-	absent	set tags on a resource	3	tag(resource, tags) -> nil	yes
-E	kumo?	tags	effect	tags(resource) -> record	error	-	absent	the tags on a resource	2		na
-E	kumo?	wait	effect	wait(resource, state, opts) -> resource	cancel,deadline	-	absent	block until a resource reaches a state	2	wait(resource, state, opts) -> resource	yes
-E	kumo?	whoami	effect	whoami(opts) -> identity	capability	-	absent	the account and role the credential acts as	1		na
 E	kurasuta	can?	effect	can?(verb, kind, opts) -> Bool	capability	banken	absent	whether the credential may do that	1		na
 E	kurasuta	describe	pure	describe(kind) -> schema	-	-	absent	fields a kind accepts	2	describe(kind) -> schema	yes
 E	kurasuta	diff	effect	diff(desired, opts) -> [change]	error,validate	-	absent	live objects against rendered manifests	1	diff(desired, b, opts) -> [change]	no
@@ -1487,6 +1433,18 @@ E	kurasuta	render	pure	render(chart, values) -> [object]	serialize,validate	-	ab
 E	kurasuta	top	effect	top(kind, opts) -> [usage]	resource	-	absent	cpu and memory in use	1	top(kind, opts) -> [usage]	yes
 E	kurasuta	wait	effect	wait(kind, name, condition, opts) -> object	cancel,deadline	-	absent	block until a condition holds	1	wait(kind, name, opts) -> object	no
 E	kurasuta	watch	stream	watch(kind, f, opts) -> nil	cancel,deadline	banken	absent	call f per change until it returns stop	1	watch(kind, f, opts) -> nil	yes
+E	kuraudo?	events	effect	events(opts) -> [event]	error,time	-	absent	the audit trail of changes	3	events(opts) -> [event]	yes
+E	kuraudo?	find	effect	find(query, opts) -> [resource]	error	-	absent	resources by tag or attribute across kinds	2	find(query, query, opts) -> [resource]	no
+E	kuraudo?	get	effect	get(kind, id, opts) -> resource or nil	error,ratelimit	cordel	absent	one cloud resource, nil when absent	1	get(kind, id, opts) -> resource or nil	yes
+E	kuraudo?	has?	effect	has?(kind, id, opts) -> Bool	-	-	absent	whether a resource exists	1	has?(kind, id) -> Bool	no
+E	kuraudo?	list	effect	list(kind, opts) -> [resource]	deadline,error,ratelimit	cordel	absent	cloud resources of a kind, all pages	1	list(kind, opts) -> [resource]	yes
+E	kuraudo?	need	effect	need(kind, id, opts) -> resource	error	cordel	absent	one cloud resource, raises when absent	1	need(kind, id, opts) -> resource	yes
+E	kuraudo?	quota	effect	quota(kind, opts) -> {used:, limit:}	resource	-	absent	how much of a limit is spent	2	quota(kind, key) -> {used:, limit:}	no
+E	kuraudo?	regions	effect	regions(opts) -> [region]	cache	-	absent	regions available to the account	3		na
+E	kuraudo?	tag	effect	tag(resource, tags) -> nil	capability,idempotent	-	absent	set tags on a resource	3	tag(resource, tags) -> nil	yes
+E	kuraudo?	tags	effect	tags(resource) -> record	error	-	absent	the tags on a resource	2		na
+E	kuraudo?	wait	effect	wait(resource, state, opts) -> resource	cancel,deadline	-	absent	block until a resource reaches a state	2	wait(resource, state, opts) -> resource	yes
+E	kuraudo?	whoami	effect	whoami(opts) -> identity	capability	-	absent	the account and role the credential acts as	1		na
 B	kyasshu?	clear	effect	clear(cache) -> nil	cache	-	absent	drop every entry	1	clear(cache) -> nil	yes
 B	kyasshu?	delete	effect	delete(cache, key) -> nil	cache,idempotent	pleme-redis	absent	drop one entry; absent counts as done	1	delete(cache, key) -> nil	yes
 B	kyasshu?	flush	effect	flush(cache) -> count	cache,error	-	absent	push pending write-behind entries to the backing store	3		na
@@ -1507,6 +1465,7 @@ B	kyasshu?	sweep	effect	sweep(cache) -> count	cache,time	-	absent	remove every e
 B	kyasshu?	tier	pure	tier(caches) -> cache	cache	-	absent	layer caches so a miss falls to the next and fills upward	2		na
 B	kyasshu?	warm	effect	warm(cache, source, keys) -> count	cache,cancel	-	absent	fill entries ahead of demand	3		na
 D	kyohi	check	pure	check(refusals) -> nil	error,validate	-	partial:kyohi	raise one error carrying every refusal, or return nil	0	check(refusals) -> nil	yes
+H	kyohi	enforce	effect	enforce(subject, rules, opts) -> nil	error	-	absent	raise one error carrying every finding of the master check; nil when sound	0	enforce(subject, rules, opts) -> nil	yes
 D	kyohi	exit_status	pure	exit_status(kind) -> int	error	-	absent	exit status the ledger gives a kind	0	exit_status(kind) -> int	yes
 D	kyohi	kind	pure	kind(refusal) -> keyword	error	-	exists:kyohi	what was refused	0	kind(refusal) -> keyword	yes
 D	kyohi	kinds	pure	kinds(refusals) -> [keyword]	error	-	exists:kyohi	the kind of each refusal, in order	0		na
@@ -1665,24 +1624,6 @@ D	mimoto?	revoked?	effect	revoked?(cert, opts) -> Bool	cache,deadline,resource	o
 D	mimoto?	roots	effect	roots(opts) -> [cert]	cache,resource	webpki	absent	trusted root certificates in force	2		na
 D	mimoto?	self_sign	effect	self_sign(subject, key, opts) -> cert	capability,time	-	absent	certificate signed by its own key, for tests and roots	2		na
 D	mimoto?	watch	stream	watch(source, f, opts) -> nil	cancel,resource	kakuin-workload-api	absent	call f on each rotated workload certificate	3	watch(source, f, opts) -> nil	yes
-G	moderu?	ask	effect	ask(model, prompt, opts) -> reply	cache,deadline,ratelimit,retry,trace	arnes-anthropic	partial:chokkan	one call to a model; reply holds text, tool uses, usage	2		na
-G	moderu?	classify	effect	classify(model, input, labels, opts) -> {label, confidence}	cache,deadline,retry	chokkan	partial:chokkan	one label from a closed set, with confidence	2	classify(model, input, opts) -> {label, confidence}	no
-G	moderu?	cost	pure	cost(usage, price) -> money	-	arnes-loop	absent	what a usage record costs at a price	1		na
-G	moderu?	embed	effect	embed(model, texts, opts) -> vectors	cache,deadline,ratelimit,retry	codesearch	absent	vectors for texts, one per text	2	embed(model, texts, opts) -> vectors	yes
-G	moderu?	example	decl	example(input, output) -> example	-	-	absent	declare one worked case for few-shot prompting	1		na
-G	moderu?	extract	effect	extract(model, text, shape) -> record	deadline,retry,validate	-	absent	a record of the given shape pulled from text	2	extract(model, text, opts) -> record	no
-G	moderu?	fit	pure	fit(prompt, window, opts) -> prompt	-	-	absent	cut a prompt to a token budget, newest kept	1	fit(prompt, window, opts) -> prompt	yes
-G	moderu?	info	pure	info(model) -> {window, price, tier, tools?}	-	arnes-anthropic	absent	what a model can take and costs	1	info(model) -> {window, price, tier, tools?}	yes
-G	moderu?	ledger	decl	ledger(path, opts) -> ledger	serialize	arnes-loop	absent	declare the append-only record of usage	1	ledger(path, opts) -> ledger	yes
-G	moderu?	list	pure	list(catalog) -> models	-	arnes-anthropic	absent	the models a catalog serves	1	list(catalog) -> models	yes
-G	moderu?	message	decl	message(role, content) -> message	-	arnes-core	absent	declare one turn: user, assistant or tool	1		na
-G	moderu?	model	decl	model(provider, id, opts) -> model	config,validate	arnes-anthropic	absent	declare a model: window, price, tier	1		na
-G	moderu?	prefix	pure	prefix(prompt, prefix) -> prompt	cache	arnes-loop	absent	mark the stable prefix that a provider may cache	1	prefix(prompt, prefix) -> prompt	yes
-G	moderu?	prompt	decl	prompt(parts) -> prompt	validate	arnes-core	absent	declare a prompt from system, messages and examples	1		na
-G	moderu?	render	pure	render(prompt, format) -> text or messages	serialize	arnes-core	absent	a prompt in a provider wire form	1	render(prompt, format) -> text or messages	yes
-G	moderu?	stream	stream	stream(model, prompt, f, opts) -> reply	cancel,deadline,trace	arnes-anthropic	absent	call f for each delta of a reply	2	stream(model, prompt, f, opts) -> reply	yes
-G	moderu?	tokens	pure	tokens(model, text) -> number	-	-	absent	how many tokens a text costs in a model	1		na
-G	moderu?	total	pure	total(ledger, by) -> totals	-	arnes-loop	absent	tokens, cost and cache hits per model or session	1		na
 A	moji	bytes	pure	bytes(text, opts) -> bytes	-	tatara-lisp-script	rust:blue-lang-runtime	the UTF-8 bytes of the text	1		na
 A	moji	case	pure	case(text, style) -> text	-	-	partial:moji	convert to snake, kebab, camel, pascal or title case	1	case(text, style) -> text	yes
 A	moji	casefold	pure	casefold(text) -> text	-	-	absent	caseless-comparison form of the text	2		na
@@ -1727,6 +1668,24 @@ A	moji	upper	pure	upper(text) -> text	-	tatara-lisp-script	rust:blue-lang-runtim
 A	moji	width	pure	width(text) -> int	-	caixa-unicode-width	absent	terminal columns the text takes	3		na
 A	moji	words	pure	words(text) -> [text]	-	-	exists:moji	text cut at runs of space	0		na
 A	moji	wrap	pure	wrap(text, width) -> [text]	-	-	exists:moji	break text into lines of at most a width	0	wrap(text, width) -> [text]	yes
+G	mokei?	ask	effect	ask(model, prompt, opts) -> reply	cache,deadline,ratelimit,retry,trace	arnes-anthropic	partial:chokkan	one call to a model; reply holds text, tool uses, usage	2		na
+G	mokei?	classify	effect	classify(model, input, labels, opts) -> {label, confidence}	cache,deadline,retry	chokkan	partial:chokkan	one label from a closed set, with confidence	2	classify(model, input, opts) -> {label, confidence}	no
+G	mokei?	cost	pure	cost(usage, price) -> money	-	arnes-loop	absent	what a usage record costs at a price	1		na
+G	mokei?	embed	effect	embed(model, texts, opts) -> vectors	cache,deadline,ratelimit,retry	codesearch	absent	vectors for texts, one per text	2	embed(model, texts, opts) -> vectors	yes
+G	mokei?	example	decl	example(input, output) -> example	-	-	absent	declare one worked case for few-shot prompting	1		na
+G	mokei?	extract	effect	extract(model, text, shape) -> record	deadline,retry,validate	-	absent	a record of the given shape pulled from text	2	extract(model, text, opts) -> record	no
+G	mokei?	fit	pure	fit(prompt, window, opts) -> prompt	-	-	absent	cut a prompt to a token budget, newest kept	1	fit(prompt, window, opts) -> prompt	yes
+G	mokei?	info	pure	info(model) -> {window, price, tier, tools?}	-	arnes-anthropic	absent	what a model can take and costs	1	info(model) -> {window, price, tier, tools?}	yes
+G	mokei?	ledger	decl	ledger(path, opts) -> ledger	serialize	arnes-loop	absent	declare the append-only record of usage	1	ledger(path, opts) -> ledger	yes
+G	mokei?	list	pure	list(catalog) -> models	-	arnes-anthropic	absent	the models a catalog serves	1	list(catalog) -> models	yes
+G	mokei?	message	decl	message(role, content) -> message	-	arnes-core	absent	declare one turn: user, assistant or tool	1		na
+G	mokei?	model	decl	model(provider, id, opts) -> model	config,validate	arnes-anthropic	absent	declare a model: window, price, tier	1		na
+G	mokei?	prefix	pure	prefix(prompt, prefix) -> prompt	cache	arnes-loop	absent	mark the stable prefix that a provider may cache	1	prefix(prompt, prefix) -> prompt	yes
+G	mokei?	prompt	decl	prompt(parts) -> prompt	validate	arnes-core	absent	declare a prompt from system, messages and examples	1		na
+G	mokei?	render	pure	render(prompt, format) -> text or messages	serialize	arnes-core	absent	a prompt in a provider wire form	1	render(prompt, format) -> text or messages	yes
+G	mokei?	stream	stream	stream(model, prompt, f, opts) -> reply	cancel,deadline,trace	arnes-anthropic	absent	call f for each delta of a reply	2	stream(model, prompt, f, opts) -> reply	yes
+G	mokei?	tokens	pure	tokens(model, text) -> number	-	-	absent	how many tokens a text costs in a model	1		na
+G	mokei?	total	pure	total(ledger, by) -> totals	-	arnes-loop	absent	tokens, cost and cache hits per model or session	1		na
 F	mokuroku	catalog	pure	catalog(roots) -> catalog	serialize	-	exists:mokuroku	every package and definition under some roots	0		na
 G	mokuroku	check	pure	check(catalog) -> findings	validate	-	exists:mokuroku	find name collisions and shadowed names	0	check(catalog) -> findings	yes
 F	mokuroku	coverage	pure	coverage(catalog) -> ratio	-	-	absent	the share of entries that are documented	1	coverage(catalog) -> ratio	yes
@@ -1877,6 +1836,21 @@ E	paketto?	vendor	effect	vendor(lock, dir) -> nil	idempotent	-	absent	copy sourc
 E	paketto?	verify	effect	verify(lock) -> [mismatch]	validate	gen	rust:gen	lockfile against manifest and stored hashes	0	verify(lock) -> [mismatch]	yes
 E	paketto?	why	pure	why(lock, name) -> [path]	-	gen	absent	every chain that pulls a package in	1	why(lock, name) -> [path]	yes
 E	paketto?	yank	effect	yank(name, version, registry) -> nil	error,idempotent	-	absent	mark a version unfit without deleting it	3	yank(name, version, registry) -> nil	yes
+F	puran?	burndown	pure	burndown(items, window) -> series	time	-	absent	work left over time	3		na
+F	puran?	capacity	pure	capacity(team, window) -> number	time	-	absent	work a team can take on in a window	3		na
+F	puran?	checkin	effect	checkin(goal, progress) -> nil	log,time	-	absent	record progress against a goal	3		na
+F	puran?	critical_path	pure	critical_path(items) -> [item]	time	-	absent	the chain of dependent items that sets the end date	3		na
+F	puran?	estimate	pure	estimate(item, method) -> estimate	-	-	absent	a size or duration for an item, with its range	3	estimate(item, method) -> estimate	yes
+F	puran?	forecast	pure	forecast(backlog, velocity, opts) -> distribution	time	-	absent	when a backlog finishes, as dates with odds	3	forecast(backlog, velocity, opts) -> distribution	yes
+F	puran?	goal	decl	goal(owner, target, window) -> goal	config,time	-	absent	declare an outcome target for a person or team	3		na
+F	puran?	milestone	decl	milestone(name, due, items) -> milestone	time	-	absent	declare a dated set of items	3		na
+F	puran?	retro	pure	retro(events, window) -> record	time	-	absent	facts from a period: what changed, slipped and repeated	4		na
+F	puran?	risk	decl	risk(name, odds, impact) -> risk	config	-	absent	declare something that may go wrong, with odds and cost	4		na
+F	puran?	roadmap	pure	roadmap(milestones) -> roadmap	serialize	-	absent	milestones in time order, by theme	3		na
+F	puran?	schedule	pure	schedule(items, capacity) -> plan	time	-	absent	items placed in periods by order, size and capacity	3	schedule(items, capacity) -> plan	yes
+F	puran?	sprint	decl	sprint(window, items) -> sprint	time	-	absent	declare a time-boxed set of items	3		na
+F	puran?	variance	pure	variance(plan, actual) -> record	time	-	absent	how far reality moved from the plan	3	variance(plan, opts) -> record	no
+F	puran?	velocity	pure	velocity(history, window) -> distribution	time	-	absent	work finished per period, as a distribution	3		na
 B	raifusaikuru	admit	pure	admit(definition, state, event) -> verdict	validate	-	partial:raifusaikuru	whether an event is allowed in a state, with the refusal	0	admit(definition, state, event) -> verdict	yes
 B	raifusaikuru	advance	effect	advance(engine, id) -> state	deadline,error,retry	-	absent	run an instance until it rests or ends	2	advance(engine, id) -> state	yes
 B	raifusaikuru	cancel	effect	cancel(engine, id, opts) -> state	cancel,idempotent	-	absent	end an instance and run its compensations	3	cancel(engine, id, opts) -> state	yes
@@ -1985,16 +1959,24 @@ A	retsu	unzip	pure	unzip(pairs) -> record	-	-	exists:retsu	a list of pairs split
 A	retsu	update	pure	update(list, index, f) -> list	error	-	exists:retsu	new list with f applied at an index	0	update(list, index, f) -> list	yes
 A	retsu	windows	pure	windows(list, n) -> [list]	-	-	exists:retsu	every run of n adjacent items	0	windows(list, n) -> [list]	yes
 A	retsu	zip	pure	zip(a, b) -> [pair]	-	tatara-lisp-script	exists:retsu	items of two lists paired by position	0	zip(a, b) -> [pair]	yes
+F	rirezu?	breaking?	pure	breaking?(old, new) -> Bool	validate	-	absent	whether the interface lost or changed an entry	2		na
+F	rirezu?	build	effect	build(project, opts) -> artifact	cache,process	-	absent	make the release artifact reproducibly	1	build(project, opts) -> artifact	yes
+F	rirezu?	canary	effect	canary(release, share, opts) -> verdict	cancel,test,time	-	absent	send a share of traffic to a release and judge it	3		na
 E	rirezu?	changelog	effect	changelog(repo, plan) -> nil	idempotent,serialize	-	absent	insert notes into the changelog file	2		na
 E	rirezu?	cut	effect	cut(repo, plan, opts) -> release	idempotent,log	-	absent	bump, tag and record a release	1	cut(repo, plan, to) -> release	no
 E	rirezu?	diff	effect	diff(repo, a, b) -> [change]	error	-	absent	changes between two releases	1	diff(repo, a, opts) -> [change]	no
 E	rirezu?	get	effect	get(repo, tag) -> release or nil	error	-	absent	one release, nil when absent	1	get(repo, tag) -> release or nil	yes
 E	rirezu?	latest	effect	latest(repo, channel) -> release or nil	error	-	absent	newest release on a channel	1		na
 E	rirezu?	list	effect	list(repo, opts) -> [release]	error	-	absent	releases, newest first	1	list(repo, opts) -> [release]	yes
+F	rirezu?	next	pure	next(project, changes) -> version	-	releaser	absent	the next version from the kinds of change since the last	1	next(project, changes) -> version	yes
 E	rirezu?	notes	pure	notes(changes) -> text	serialize	-	absent	changelog text from commits	1	notes(changes, kind) -> text	no
+F	rirezu?	pin	effect	pin(env, release) -> nil	idempotent	-	absent	set which release an environment runs	2	pin(env, release) -> nil	yes
 E	rirezu?	plan	pure	plan(repo, changes, opts) -> release plan	validate	-	absent	next version, notes and targets from changes	1	plan(repo, changes, opts) -> release plan	yes
 E	rirezu?	promote	effect	promote(release, to) -> release	log,switch	-	absent	move a release to the next channel	2	promote(release, to) -> release	yes
 E	rirezu?	publish	effect	publish(release, targets, opts) -> [record]	error,idempotent,retry	-	absent	send artifacts to registries and hosts	2	publish(release, targets, opts) -> [record]	yes
+F	rirezu?	released?	effect	released?(project, version) -> Bool	-	releaser	absent	whether a version is already published	1		na
+F	rirezu?	rollback	effect	rollback(env, opts) -> nil	idempotent	-	absent	return an environment to its previous release	2	rollback(env, opts) -> nil	yes
+F	rirezu?	sbom	pure	sbom(artifact) -> doc	serialize	tameshi	absent	the list of parts inside an artifact	3		na
 E	rirezu?	verify	effect	verify(release) -> [mismatch]	validate	-	absent	assets match recorded hashes and signatures	2	verify(release) -> [mismatch]	yes
 E	rirezu?	yank	effect	yank(release, reason) -> nil	idempotent,log	-	absent	withdraw a release, keeping the record	3	yank(release, reason) -> nil	yes
 G	rittai	boolean	pure	boolean(a, b, op) -> mesh	-	-	absent	union, difference or intersection of solids	4		na
@@ -2129,30 +2111,6 @@ A	seimitsu?	ratio	pure	ratio(numerator, denominator) -> ratio	error	-	absent	exa
 A	seimitsu?	rescale	pure	rescale(decimal, places, mode) -> decimal	error	-	absent	decimal with a new scale by a rounding mode	3		na
 A	seimitsu?	to_float	pure	to_float(number) -> float	-	-	absent	nearest float of an exact number	3		na
 A	seimitsu?	to_int	pure	to_int(number, mode) -> big	error	-	absent	whole number by a rounding mode	3		na
-G	sekai?	advance	effect	advance(world, dt) -> world	time	asobi-ecs	partial:seimei	one fixed time step of every system	1	advance(world, dt) -> world	yes
-G	sekai?	arrange	pure	arrange(systems) -> order	validate	asobi-ecs	absent	order systems so no two clash on a write	1	arrange(systems) -> order	yes
-G	sekai?	body	decl	body(shape, mass, opts) -> body	validate	zairyo	absent	declare a rigid body: shape, mass, material	3		na
-G	sekai?	check	pure	check(world, invariants) -> findings	test,validate	zairyo	absent	find a broken law: leaked energy, mass or entity	2	check(world, invariants) -> findings	yes
-G	sekai?	collide	pure	collide(a, b) -> contact or nil	-	-	absent	the contact of two bodies, if they touch	3		na
-G	sekai?	delete	effect	delete(world, entity) -> nil	idempotent	asobi-ecs	absent	remove an entity; absent counts as done	1	delete(world, entity) -> nil	yes
-G	sekai?	field	pure	field(kind, seed, point) -> number	-	-	absent	smooth value noise at a point: gradient, simplex, cell	1		na
-G	sekai?	generate	pure	generate(grammar, seed, opts) -> content	-	-	absent	build a level, name or map from rules and a seed	2	generate(grammar, seed, opts) -> content	yes
-G	sekai?	get	pure	get(world, entity, kind) -> component or nil	-	asobi-ecs	absent	read one component; nil if absent	1	get(world, entity, opts) -> component or nil	no
-G	sekai?	grammar	decl	grammar(rules) -> grammar	validate	-	absent	declare production rules or tile constraints	2	grammar(rules) -> grammar	yes
-G	sekai?	hit	pure	hit(world, ray) -> entity or nil	-	-	absent	the first entity that a ray meets	3		na
-G	sekai?	on	decl	on(world, event, handler) -> world	-	asobi-ecs	absent	bind a handler to a world event	1	on(world, event, handler) -> world	yes
-G	sekai?	path	pure	path(graph, from, to, opts) -> steps	-	-	absent	the cheapest steps from one cell to another	1	path(graph, from, to, opts) -> steps	yes
-G	sekai?	put	effect	put(world, entity, component) -> nil	-	asobi-ecs	absent	set one component on an entity	1	put(world, entity, component) -> nil	yes
-G	sekai?	query	pure	query(world, shape) -> rows	-	asobi-ecs	absent	entities that carry the listed components	1	query(world, shape) -> rows	yes
-G	sekai?	read	effect	read(src, opts) -> world	resource	asobi-save	absent	load a saved world, version and checksum checked	2	read(src, opts) -> world	yes
-G	sekai?	replay	effect	replay(world, log) -> world	test,trace	asobi-net-rollback	absent	re-run recorded inputs; same seed, same world	2	replay(world, log) -> world	yes
-G	sekai?	rollback	effect	rollback(world, tick, inputs) -> world	-	asobi-net-rollback	absent	return to an earlier tick and replay the inputs	3	rollback(world, tick, opts) -> world	no
-G	sekai?	send	effect	send(world, event) -> nil	-	asobi-ecs	absent	deliver one event to the systems that read it	1	send(world, event) -> nil	yes
-G	sekai?	simulate	effect	simulate(world, ticks, opts) -> world	deadline	asobi-ecs	absent	advance a world a number of ticks	1	simulate(world, ticks, opts) -> world	yes
-G	sekai?	spawn	effect	spawn(world, components) -> entity	-	asobi-ecs	absent	bring a new entity into the world	1	spawn(world, components) -> entity	yes
-G	sekai?	system	decl	system(name, reads, writes, f) -> system	validate	asobi-ecs	absent	declare a rule over components, with its reads and writes	1		na
-G	sekai?	world	decl	world(spec) -> world	validate	asobi-ecs	absent	declare components, systems and resources	1		na
-G	sekai?	write	effect	write(world, target, opts) -> nil	resource,serialize	asobi-save	absent	save a world, versioned and checksummed	2	write(world, target, opts) -> nil	yes
 B	settei	defaults	pure	defaults(app) -> record	config	shikumi	partial:settei	the built-in default record of an app	0	defaults(app) -> record	yes
 B	settei	diff	pure	diff(a, b) -> [change]	config	-	absent	the settings that differ between two records	1	diff(a, b) -> [change]	yes
 B	settei	explain	pure	explain(config, path) -> {value, tier, source}	config	shikumi	absent	which tier and file a setting value came from	1	explain(config, path) -> {value, tier, source}	yes
@@ -2168,34 +2126,34 @@ B	settei	reload	effect	reload(app) -> record	config,error	shikumi	absent	read th
 B	settei	schema	pure	schema(defaults) -> schema	config,validate	shikumi	absent	the schema a defaults record implies	1	schema(defaults) -> schema	yes
 B	settei	validate	pure	validate(config, schema) -> [problem]	config,validate	shikumi	absent	check a record against a schema, naming each fault	1	validate(config, schema) -> [problem]	yes
 B	settei	watch	stream	watch(app, f, opts) -> nil	cancel,config,time	shikumi	absent	call f with the new record whenever a tier changes	2	watch(app, f, opts) -> nil	yes
-C	shigoto?	after	effect	after(duration, f) -> timer	cancel,time	-	absent	Call f once after a duration.	1		na
-C	shigoto?	backfill	effect	backfill(schedule, range, f) -> count	idempotent,time	-	absent	Run f for every firing in a past range.	2		na
-C	shigoto?	budget	decl	budget(opts) -> budget	config,resource	shigoto-budget	absent	Bound parallelism on three axes.	2	budget(opts) -> budget	yes
-C	shigoto?	cancel	effect	cancel(run, reason) -> nil	cancel	-	absent	End a run and compensate completed steps.	3	cancel(run, reason) -> nil	yes
-C	shigoto?	claim	effect	claim(queue, opts) -> job or nil	deadline,resource	shigoto	absent	Take the next job under a lease.	1	claim(queue, opts) -> job or nil	yes
-C	shigoto?	compensate	effect	compensate(saga, from) -> nil	error,retry	-	absent	Run undos for completed steps in reverse order.	3		na
-C	shigoto?	complete	effect	complete(job, result) -> nil	idempotent	shigoto	absent	Mark a claimed job finished.	1		na
-C	shigoto?	dag	decl	dag(jobs, deps) -> graph	validate	shigoto-dag	absent	Declare jobs with dependencies; cycles are refused.	1		na
-C	shigoto?	defer	effect	defer(job, duration) -> nil	time	-	absent	Hand a job back to run later.	2		na
-C	shigoto?	enqueue	effect	enqueue(queue, job, opts) -> id	error,idempotent	shigoto	absent	Add a job to a queue; a duplicate key is one job.	1		na
-C	shigoto?	every	effect	every(schedule, f, opts) -> timer	cancel,process,time	-	absent	Call f on each firing until cancelled.	1		na
-C	shigoto?	fail	effect	fail(job, error) -> nil	error,retry	shigoto-retry	absent	Mark a claimed job failed; the policy decides to retry.	1		na
-C	shigoto?	gate	decl	gate(job, precondition) -> job	validate	shigoto-gate	absent	Hold a job until a precondition passes.	2	gate(job, precondition) -> job	yes
-C	shigoto?	info	effect	info(run) -> record	-	-	absent	A run's state, step and history.	3	info(run) -> record	yes
-C	shigoto?	missed	pure	missed(schedule, since, now) -> [instant]	time	-	absent	Firings that fell between two instants.	2		na
-C	shigoto?	next	pure	next(schedule, from) -> instant	time	-	absent	The next time a schedule fires.	1	next(schedule, from) -> instant	yes
-C	shigoto?	parse	pure	parse(text, :cron) -> schedule	error,time	lava-cron	absent	Read a cron or interval expression into a schedule.	1	parse(text, :cron) -> schedule	yes
-C	shigoto?	pause	effect	pause(run) -> nil	switch	-	absent	Stop taking steps; keep state.	3	pause(run) -> nil	yes
-C	shigoto?	plan	pure	plan(graph, opts) -> [step]	-	shigoto	absent	The order and parallelism a run would use.	1	plan(graph, opts) -> [step]	yes
-C	shigoto?	rank	pure	rank(jobs, opts) -> [job]	-	shigoto-rank	absent	Order jobs so none starves.	2	rank(jobs, opts) -> [job]	yes
-C	shigoto?	resume	effect	resume(run) -> nil	switch	-	absent	Continue a paused run.	3	resume(run) -> nil	yes
-C	shigoto?	run	effect	run(graph, opts) -> record	cancel,error,process	shigoto	absent	Run a graph in dependency order within a budget.	1	run(graph, opts) -> record	yes
-C	shigoto?	saga	decl	saga(steps) -> saga	error	-	absent	Steps each paired with an undo.	3		na
-C	shigoto?	signal	effect	signal(run, name, payload) -> nil	idempotent	-	absent	Send an outside event to a waiting run.	3	signal(run, name, payload) -> nil	yes
-C	shigoto?	start	effect	start(workflow, input, opts) -> run	idempotent,resource	-	absent	Begin a workflow run under a key.	3	start(workflow, input, opts) -> run	yes
-C	shigoto?	timer	effect	timer(instant, f) -> timer	cancel,time	-	absent	Call f once at an instant.	1	timer(instant, f) -> timer	yes
-C	shigoto?	wait	effect	wait(run, opts) -> result	deadline	-	absent	Block until a run ends.	3	wait(run, opts) -> result	yes
-C	shigoto?	workflow	decl	workflow(name, steps) -> workflow	validate	-	absent	Declare a durable multi-step flow.	3		na
+C	shigoto	after	effect	after(duration, f) -> timer	cancel,time	-	absent	Call f once after a duration.	1		na
+C	shigoto	backfill	effect	backfill(schedule, range, f) -> count	idempotent,time	-	absent	Run f for every firing in a past range.	2		na
+C	shigoto	budget	decl	budget(opts) -> budget	config,resource	shigoto-budget	absent	Bound parallelism on three axes.	2	budget(opts) -> budget	yes
+C	shigoto	cancel	effect	cancel(run, reason) -> nil	cancel	-	absent	End a run and compensate completed steps.	3	cancel(run, reason) -> nil	yes
+C	shigoto	claim	effect	claim(queue, opts) -> job or nil	deadline,resource	shigoto	absent	Take the next job under a lease.	1	claim(queue, opts) -> job or nil	yes
+C	shigoto	compensate	effect	compensate(saga, from) -> nil	error,retry	-	absent	Run undos for completed steps in reverse order.	3		na
+C	shigoto	complete	effect	complete(job, result) -> nil	idempotent	shigoto	absent	Mark a claimed job finished.	1		na
+C	shigoto	dag	decl	dag(jobs, deps) -> graph	validate	shigoto-dag	absent	Declare jobs with dependencies; cycles are refused.	1		na
+C	shigoto	defer	effect	defer(job, duration) -> nil	time	-	absent	Hand a job back to run later.	2		na
+C	shigoto	enqueue	effect	enqueue(queue, job, opts) -> id	error,idempotent	shigoto	absent	Add a job to a queue; a duplicate key is one job.	1		na
+C	shigoto	every	effect	every(schedule, f, opts) -> timer	cancel,process,time	-	absent	Call f on each firing until cancelled.	1		na
+C	shigoto	fail	effect	fail(job, error) -> nil	error,retry	shigoto-retry	absent	Mark a claimed job failed; the policy decides to retry.	1		na
+C	shigoto	gate	decl	gate(job, precondition) -> job	validate	shigoto-gate	absent	Hold a job until a precondition passes.	2	gate(job, precondition) -> job	yes
+C	shigoto	info	effect	info(run) -> record	-	-	absent	A run's state, step and history.	3	info(run) -> record	yes
+C	shigoto	missed	pure	missed(schedule, since, now) -> [instant]	time	-	absent	Firings that fell between two instants.	2		na
+C	shigoto	next	pure	next(schedule, from) -> instant	time	-	absent	The next time a schedule fires.	1	next(schedule, from) -> instant	yes
+C	shigoto	parse	pure	parse(text, :cron) -> schedule	error,time	lava-cron	absent	Read a cron or interval expression into a schedule.	1	parse(text, :cron) -> schedule	yes
+C	shigoto	pause	effect	pause(run) -> nil	switch	-	absent	Stop taking steps; keep state.	3	pause(run) -> nil	yes
+C	shigoto	plan	pure	plan(graph, opts) -> [step]	-	shigoto	absent	The order and parallelism a run would use.	1	plan(graph, opts) -> [step]	yes
+C	shigoto	rank	pure	rank(jobs, opts) -> [job]	-	shigoto-rank	absent	Order jobs so none starves.	2	rank(jobs, opts) -> [job]	yes
+C	shigoto	resume	effect	resume(run) -> nil	switch	-	absent	Continue a paused run.	3	resume(run) -> nil	yes
+C	shigoto	run	effect	run(graph, opts) -> record	cancel,error,process	shigoto	absent	Run a graph in dependency order within a budget.	1	run(graph, opts) -> record	yes
+C	shigoto	saga	decl	saga(steps) -> saga	error	-	absent	Steps each paired with an undo.	3		na
+C	shigoto	signal	effect	signal(run, name, payload) -> nil	idempotent	-	absent	Send an outside event to a waiting run.	3	signal(run, name, payload) -> nil	yes
+C	shigoto	start	effect	start(workflow, input, opts) -> run	idempotent,resource	-	absent	Begin a workflow run under a key.	3	start(workflow, input, opts) -> run	yes
+C	shigoto	timer	effect	timer(instant, f) -> timer	cancel,time	-	absent	Call f once at an instant.	1	timer(instant, f) -> timer	yes
+C	shigoto	wait	effect	wait(run, opts) -> result	deadline	-	absent	Block until a run ends.	3	wait(run, opts) -> result	yes
+C	shigoto	workflow	decl	workflow(name, steps) -> workflow	validate	-	absent	Declare a durable multi-step flow.	3		na
 F	shihyou	alerts	pure	alerts(slo) -> [rule]	-	-	exists:shihyou	multi-window burn alerts for an objective	0		na
 F	shihyou	budget	pure	budget(slo, window) -> ratio	time	-	exists:shihyou	the error budget left in a window	0	budget(slo, window) -> ratio	yes
 F	shihyou	burn	pure	burn(slo, window) -> number	time	-	absent	how fast the budget is spent, as a multiple of even use	1		na
@@ -2456,26 +2414,26 @@ B	teeburu	tables	effect	tables(conn) -> [name]	error	-	absent	the table names vi
 B	teeburu	update	effect	update(conn, table, key, f) -> row	error,idempotent,retry	pleme-database	absent	replace a row with f(old); conflict if it changed	1	update(conn, table, key, opts) -> row	no
 B	teeburu	with_connection	effect	with_connection(pool, f) -> value	cancel,error,resource	pleme-database	absent	lend a pooled connection to f and take it back	2		na
 B	teeburu	with_transaction	effect	with_transaction(conn, f, opts) -> value	cancel,error,resource,retry	pleme-database	absent	run f in one transaction; commit, or roll back on raise	1		na
-D	tegata?	acquire	effect	acquire(provider, opts) -> token	cache,resource,retry	-	absent	machine token by client credentials, reused until near expiry	2	acquire(provider, opts) -> token	yes
-D	tegata?	api_key	effect	api_key(prefix, opts) -> record	capability,validate	-	absent	long-lived key: id, secret shown once, stored hash	2		na
-D	tegata?	api_key_valid?	pure	api_key_valid?(secret, record) -> Bool	validate	-	absent	presented key matches the stored hash in equal time	2		na
-D	tegata?	assertion	pure	assertion(xml, trust, opts) -> record	error,time,validate	-	absent	SAML assertion with signature, conditions and audience checked	4		na
-D	tegata?	attenuate	pure	attenuate(token, caveat) -> token	validate	-	absent	add a restriction to a token; it can never widen	3		na
-D	tegata?	discover	effect	discover(issuer) -> record	cache,deadline,resource	-	absent	an issuer's OpenID configuration document	2		na
-D	tegata?	exchange	effect	exchange(token, audience, opts) -> token	resource,validate	-	absent	trade a token for one narrower or for another service	3		na
-D	tegata?	expired?	pure	expired?(token, now) -> Bool	time	-	absent	token is past its expiry, signature unchecked	1		na
-D	tegata?	flow_finish	effect	flow_finish(provider, callback, saved) -> tokens	error,resource,validate	-	absent	check the callback and trade its code for tokens	2		na
-D	tegata?	flow_start	effect	flow_start(provider, opts) -> record	capability,time	-	absent	OAuth2 sign-in URL with state and PKCE verifier	2		na
-D	tegata?	introspect	effect	introspect(token, opts) -> record	cache,deadline,resource	-	absent	ask the issuer whether a token is still active	3		na
-D	tegata?	issue	effect	issue(claims, key, opts) -> token	capability,time,validate	pleme-auth-tokens	absent	mint a signed token with expiry and audience	1		na
-D	tegata?	keys	effect	keys(issuer, opts) -> [key]	cache,deadline,resource	-	absent	issuer's published verification keys, cached (JWKS)	2	keys(issuer, opts) -> [key]	yes
-D	tegata?	pkce	pure	pkce(verifier) -> text	validate	-	absent	code challenge derived from a verifier (S256)	2		na
-D	tegata?	read	effect	read(token, opts) -> claims	error,time,validate	pleme-auth-tokens	absent	check signature, expiry, issuer, audience; return claims	1	read(token, opts) -> claims	yes
-D	tegata?	refresh	effect	refresh(refresh_token, opts) -> pair	error,idempotent,time	pleme-auth-tokens	absent	swap a refresh token for a new pair, retiring the old	2	refresh(refresh_token, opts) -> pair	yes
-D	tegata?	revoke	effect	revoke(token, opts) -> nil	idempotent,log	-	absent	make a token unacceptable before its expiry	2	revoke(token, opts) -> nil	yes
-D	tegata?	revoked?	effect	revoked?(token) -> Bool	cache,resource	-	absent	token is on the revocation list	2		na
-D	tegata?	tie	pure	tie(token, key) -> token	validate	-	absent	bind a token to the holder's key so theft is useless	3		na
-D	tegata?	unverified	pure	unverified(token) -> record	validate	-	absent	header and claims with no checks; never decide on these	1		na
+D	tegata	acquire	effect	acquire(provider, opts) -> token	cache,resource,retry	-	absent	machine token by client credentials, reused until near expiry	2	acquire(provider, opts) -> token	yes
+D	tegata	api_key	effect	api_key(prefix, opts) -> record	capability,validate	-	absent	long-lived key: id, secret shown once, stored hash	2		na
+D	tegata	api_key_valid?	pure	api_key_valid?(secret, record) -> Bool	validate	-	absent	presented key matches the stored hash in equal time	2		na
+D	tegata	assertion	pure	assertion(xml, trust, opts) -> record	error,time,validate	-	absent	SAML assertion with signature, conditions and audience checked	4		na
+D	tegata	attenuate	pure	attenuate(token, caveat) -> token	validate	-	absent	add a restriction to a token; it can never widen	3		na
+D	tegata	discover	effect	discover(issuer) -> record	cache,deadline,resource	-	absent	an issuer's OpenID configuration document	2		na
+D	tegata	exchange	effect	exchange(token, audience, opts) -> token	resource,validate	-	absent	trade a token for one narrower or for another service	3		na
+D	tegata	expired?	pure	expired?(token, now) -> Bool	time	-	absent	token is past its expiry, signature unchecked	1		na
+D	tegata	flow_finish	effect	flow_finish(provider, callback, saved) -> tokens	error,resource,validate	-	absent	check the callback and trade its code for tokens	2		na
+D	tegata	flow_start	effect	flow_start(provider, opts) -> record	capability,time	-	absent	OAuth2 sign-in URL with state and PKCE verifier	2		na
+D	tegata	introspect	effect	introspect(token, opts) -> record	cache,deadline,resource	-	absent	ask the issuer whether a token is still active	3		na
+D	tegata	issue	effect	issue(claims, key, opts) -> token	capability,time,validate	pleme-auth-tokens	absent	mint a signed token with expiry and audience	1		na
+D	tegata	keys	effect	keys(issuer, opts) -> [key]	cache,deadline,resource	-	absent	issuer's published verification keys, cached (JWKS)	2	keys(issuer, opts) -> [key]	yes
+D	tegata	pkce	pure	pkce(verifier) -> text	validate	-	absent	code challenge derived from a verifier (S256)	2		na
+D	tegata	read	effect	read(token, opts) -> claims	error,time,validate	pleme-auth-tokens	absent	check signature, expiry, issuer, audience; return claims	1	read(token, opts) -> claims	yes
+D	tegata	refresh	effect	refresh(refresh_token, opts) -> pair	error,idempotent,time	pleme-auth-tokens	absent	swap a refresh token for a new pair, retiring the old	2	refresh(refresh_token, opts) -> pair	yes
+D	tegata	revoke	effect	revoke(token, opts) -> nil	idempotent,log	-	absent	make a token unacceptable before its expiry	2	revoke(token, opts) -> nil	yes
+D	tegata	revoked?	effect	revoked?(token) -> Bool	cache,resource	-	absent	token is on the revocation list	2		na
+D	tegata	tie	pure	tie(token, key) -> token	validate	-	absent	bind a token to the holder's key so theft is useless	3		na
+D	tegata	unverified	pure	unverified(token) -> record	validate	-	absent	header and claims with no checks; never decide on these	1		na
 E	tehai	list	effect	list(declared, opts) -> [state]	deadline,time	tehai	exists:tehai	every builder with live or stale state	0	list(declared, opts) -> [state]	yes
 E	tehai	parse	pure	parse(text) -> [machine]	validate	tehai	exists:tehai	declared remote builders from the machines file	0	parse(text) -> [machine]	yes
 E	tehai	probe	effect	probe(machine, opts) -> checked	deadline,process	tehai	exists:tehai	whether one builder takes work right now	0	probe(machine, opts) -> checked	yes
@@ -2554,6 +2512,27 @@ D	tokumei	spot	pure	spot(text, kinds) -> [match]	validate	-	absent	locate person
 D	tokumei	suppress	pure	suppress(count, k) -> number or nil	validate	-	exists:tokumei	the count, or nil below the threshold	0		na
 D	tokumei	tokenize	effect	tokenize(value, vault) -> token	idempotent,resource	-	absent	swap a value for a random token kept in a vault	3		na
 D	tokumei	unique_share	pure	unique_share(group_size, cells) -> number	validate	-	exists:tokumei	chance a person is alone in a cell	0		na
+B	tougou?	apply	pure	apply(crdt, delta) -> crdt	-	crdt-doc	absent	merge a delta received from another replica	3	apply(crdt, delta) -> crdt	yes
+B	tougou?	clock	pure	clock() -> vclock	time	-	absent	an empty version vector	3		na
+B	tougou?	compare	pure	compare(a, b) -> before, after, equal or concurrent	time	-	absent	the causal order of two version vectors	3	compare(a, b) -> before, after, equal or concurrent	yes
+B	tougou?	concurrent?	pure	concurrent?(a, b) -> Bool	time	-	absent	whether neither version vector happened before the other	3		na
+B	tougou?	converge	effect	converge(replicas, opts) -> crdt	cancel,deadline,retry	crdt-doc	absent	exchange deltas among replicas until all agree	4		na
+B	tougou?	counter	pure	counter(replica) -> crdt	-	-	absent	a grow and shrink counter owned by one replica	3		na
+B	tougou?	delete	pure	delete(crdt, x) -> crdt	-	-	absent	remove x from a set or map; later adds can win	3	delete(crdt, x) -> crdt	yes
+B	tougou?	delta	pure	delta(crdt, since) -> delta	-	crdt-doc	absent	only the updates a replica has not yet seen	3	delta(crdt, since) -> delta	yes
+B	tougou?	erase	pure	erase(crdt, from, to) -> crdt	-	crdt-doc	absent	remove a range of a text crdt	3		na
+B	tougou?	get	pure	get(crdt, key) -> value or nil	-	-	absent	read a register or map key from the merged state	3	get(crdt, key) -> value or nil	yes
+B	tougou?	has?	pure	has?(crdt, x) -> Bool	-	-	absent	whether a set holds x or a map holds the key	3	has?(crdt, x) -> Bool	yes
+B	tougou?	increment	pure	increment(crdt, by) -> crdt	-	-	absent	add to a counter, negative to subtract	3		na
+B	tougou?	insert	pure	insert(crdt, pos, text) -> crdt	-	crdt-doc	absent	put text at a position in a text crdt	3	insert(crdt, pos, text) -> crdt	yes
+B	tougou?	map	pure	map(replica) -> crdt	-	-	absent	a map of keys to crdt values	3	map(replica, f, opts) -> crdt	no
+B	tougou?	merge	pure	merge(a, b) -> crdt	-	crdt-doc	absent	the join of two states: commutative, associative, idempotent	3	merge(a, b) -> crdt	yes
+B	tougou?	put	pure	put(crdt, key, value) -> crdt	-	-	absent	set a register or map key, returning the new state	3	put(crdt, key, value) -> crdt	yes
+B	tougou?	register	pure	register(replica, value) -> crdt	-	-	absent	a single value where the latest write wins	3	register(replica, value) -> crdt	yes
+B	tougou?	set	pure	set(replica) -> crdt	-	-	absent	a set where adds and removes both converge	3		na
+B	tougou?	text	pure	text(replica, initial) -> crdt	-	crdt-doc	absent	a sequence of characters edited by many replicas	3	text(replica) -> crdt	no
+B	tougou?	tick	pure	tick(vclock, replica) -> vclock	time	-	absent	advance one replica counter in a version vector	3	tick(vclock, replica) -> vclock	yes
+B	tougou?	value	pure	value(crdt) -> plain	-	crdt-doc	absent	the ordinary value the state currently stands for	3		na
 A	toukei	autocorrelation	pure	autocorrelation(numbers, lag) -> number	error	-	absent	how a series relates to itself later	3		na
 G	toukei	bootstrap	pure	bootstrap(xs, f, n, seed) -> interval	-	-	absent	a confidence interval by seeded resampling	1	bootstrap(xs, f, n, seed) -> interval	yes
 G	toukei	correlate	pure	correlate(xs, ys) -> number	-	-	exists:toukei	how two series move together	0	correlate(xs, ys) -> number	yes
@@ -2635,20 +2614,20 @@ E	tsumini?	render	pure	render(spec) -> text	serialize	-	absent	image spec in the
 E	tsumini?	resolve	effect	resolve(ref) -> digest	cache,error	-	absent	turn a tag into its digest	1	resolve(ref) -> digest	yes
 E	tsumini?	run	effect	run(ref, args, opts) -> result	capability,deadline,process	-	absent	run an image once and return its result	3	run(ref, args, opts) -> result	yes
 E	tsumini?	tag	effect	tag(ref, name) -> nil	idempotent	-	absent	add a tag to a digest	1	tag(ref, name) -> nil	yes
-C	tsuuchi?	channel	decl	channel(kind, config) -> channel	capability,config	-	absent	Declare how one delivery kind is reached.	1		na
-C	tsuuchi?	compose	pure	compose(parts) -> message	validate	-	absent	Build a MIME or payload message from parts.	2	compose(parts) -> message	yes
-C	tsuuchi?	parse	pure	parse(text, :email) -> message	error	-	absent	Read a raw email into headers, body and parts.	3	parse(text, :email) -> message	yes
-C	tsuuchi?	register	effect	register(device or address, opts) -> record	idempotent	-	absent	Enrol a device token or address for delivery.	3	register(device or address, opts) -> record	yes
-C	tsuuchi?	render	pure	render(template, data) -> message	serialize	-	absent	Fill a template; a missing hole is refused.	1	render(template, data) -> message	yes
-C	tsuuchi?	send	effect	send(message, opts) -> receipt	error,idempotent,ratelimit,retry	-	absent	Deliver to a person by email, SMS, push or webhook.	1	send(message, message, opts) -> receipt	no
-C	tsuuchi?	sign	pure	sign(payload, secret) -> signature	capability	-	absent	Sign an outgoing webhook payload.	1	sign(payload, secret) -> signature	yes
-C	tsuuchi?	status	effect	status(receipt) -> record	-	-	absent	Delivery state: queued, sent, delivered, bounced.	2	status(receipt) -> record	yes
-C	tsuuchi?	subscribe	effect	subscribe(topic, address) -> nil	idempotent	-	absent	Put an address on a topic's list.	3	subscribe(topic, address, f, opts) -> nil	no
-C	tsuuchi?	suppress	effect	suppress(address, reason) -> nil	idempotent	-	absent	Stop sending to an address.	3		na
-C	tsuuchi?	suppressed?	effect	suppressed?(address) -> Bool	-	-	absent	Whether an address is on the stop list.	3		na
-C	tsuuchi?	template	decl	template(name, body) -> template	-	-	absent	Declare a message body with named holes.	1		na
-C	tsuuchi?	validate	pure	validate(address, kind) -> address	error,validate	-	absent	Check an email or phone number's form.	2	validate(address, kind) -> address	yes
-C	tsuuchi?	verify?	pure	verify?(request, secret) -> Bool	capability,validate	-	absent	Whether a webhook signature and timestamp are good.	1	verify?(request, secret) -> Bool	yes
+C	tsuuchi	channel	decl	channel(kind, config) -> channel	capability,config	-	absent	Declare how one delivery kind is reached.	1		na
+C	tsuuchi	compose	pure	compose(parts) -> message	validate	-	absent	Build a MIME or payload message from parts.	2	compose(parts) -> message	yes
+C	tsuuchi	parse	pure	parse(text, :email) -> message	error	-	absent	Read a raw email into headers, body and parts.	3	parse(text, :email) -> message	yes
+C	tsuuchi	register	effect	register(device or address, opts) -> record	idempotent	-	absent	Enrol a device token or address for delivery.	3	register(device or address, opts) -> record	yes
+C	tsuuchi	render	pure	render(template, data) -> message	serialize	-	absent	Fill a template; a missing hole is refused.	1	render(template, data) -> message	yes
+C	tsuuchi	send	effect	send(message, opts) -> receipt	error,idempotent,ratelimit,retry	-	absent	Deliver to a person by email, SMS, push or webhook.	1	send(message, message, opts) -> receipt	no
+C	tsuuchi	sign	pure	sign(payload, secret) -> signature	capability	-	absent	Sign an outgoing webhook payload.	1	sign(payload, secret) -> signature	yes
+C	tsuuchi	status	effect	status(receipt) -> record	-	-	absent	Delivery state: queued, sent, delivered, bounced.	2	status(receipt) -> record	yes
+C	tsuuchi	subscribe	effect	subscribe(topic, address) -> nil	idempotent	-	absent	Put an address on a topic's list.	3	subscribe(topic, address, f, opts) -> nil	no
+C	tsuuchi	suppress	effect	suppress(address, reason) -> nil	idempotent	-	absent	Stop sending to an address.	3		na
+C	tsuuchi	suppressed?	effect	suppressed?(address) -> Bool	-	-	absent	Whether an address is on the stop list.	3		na
+C	tsuuchi	template	decl	template(name, body) -> template	-	-	absent	Declare a message body with named holes.	1		na
+C	tsuuchi	validate	pure	validate(address, kind) -> address	error,validate	-	absent	Check an email or phone number's form.	2	validate(address, kind) -> address	yes
+C	tsuuchi	verify?	pure	verify?(request, secret) -> Bool	capability,validate	-	absent	Whether a webhook signature and timestamp are good.	1	verify?(request, secret) -> Bool	yes
 C	tsuushin	authenticate	effect	authenticate(client, flow, opts) -> token	cache,capability,error	-	absent	Run an auth flow (OAuth2, basic) and keep the token.	3		na
 C	tsuushin	cache_key	pure	cache_key(request) -> text	cache	-	absent	The key a cache stores a request under.	2		na
 C	tsuushin	create	effect	create(base, key, value, opts) -> value	error,idempotent	-	absent	POST a new entry; refuses to overwrite.	1	create(base, key, value, opts) -> value	yes
@@ -2700,6 +2679,38 @@ D	ukai	apply	effect	apply(plan, opts) -> record	idempotent,log,process	-	partial
 D	ukai	decide	pure	decide(state) -> outcome	validate	-	exists:ukai	noop, bypass, refused or blind, over a total state	0	decide(state) -> outcome	yes
 D	ukai	observe	effect	observe(opts) -> state	process,resource	-	partial:ukai	read routes and overlay status into one typed state	0	observe(opts) -> state	yes
 D	ukai	plan	pure	plan(outcome) -> [action]	validate	-	exists:ukai	host routes or policy rules an outcome needs	0	plan(outcome) -> [action]	yes
+E	uwagaki?	diff	pure	diff(a, b) -> [change]	config	-	absent	how two environments differ in resolved config	1	diff(a, b) -> [change]	yes
+E	uwagaki?	freeze	effect	freeze(name, reason) -> nil	capability,idempotent,log	-	absent	stop changes to an environment	3	freeze(name, reason) -> nil	yes
+E	uwagaki?	get	effect	get(name) -> environment or nil	config	-	absent	one environment's record	1	get(name) -> environment or nil	yes
+E	uwagaki?	list	effect	list() -> [environment]	config	-	absent	named deploy targets	1	list() -> [environment]	yes
+E	uwagaki?	need	effect	need(name) -> environment	config	-	absent	one environment, raises when absent	1	need(name) -> environment	yes
+E	uwagaki?	path	pure	path(name) -> [environment]	-	-	absent	environments a change passes through in order	2	path(name, from, to, opts) -> [environment]	no
+E	uwagaki?	promote	effect	promote(change, from, to) -> change	log,switch	-	absent	carry a pinned change to the next environment	2	promote(change, from, opts) -> change	no
+E	uwagaki?	resolve	pure	resolve(spec, environment) -> record	config,validate	-	absent	a spec with this environment's overlay applied	1	resolve(spec, environment) -> record	yes
+G	waarudo?	advance	effect	advance(world, dt) -> world	time	asobi-ecs	partial:seimei	one fixed time step of every system	1	advance(world, dt) -> world	yes
+G	waarudo?	arrange	pure	arrange(systems) -> order	validate	asobi-ecs	absent	order systems so no two clash on a write	1	arrange(systems) -> order	yes
+G	waarudo?	body	decl	body(shape, mass, opts) -> body	validate	zairyo	absent	declare a rigid body: shape, mass, material	3		na
+G	waarudo?	check	pure	check(world, invariants) -> findings	test,validate	zairyo	absent	find a broken law: leaked energy, mass or entity	2	check(world, invariants) -> findings	yes
+G	waarudo?	collide	pure	collide(a, b) -> contact or nil	-	-	absent	the contact of two bodies, if they touch	3		na
+G	waarudo?	delete	effect	delete(world, entity) -> nil	idempotent	asobi-ecs	absent	remove an entity; absent counts as done	1	delete(world, entity) -> nil	yes
+G	waarudo?	field	pure	field(kind, seed, point) -> number	-	-	absent	smooth value noise at a point: gradient, simplex, cell	1		na
+G	waarudo?	generate	pure	generate(grammar, seed, opts) -> content	-	-	absent	build a level, name or map from rules and a seed	2	generate(grammar, seed, opts) -> content	yes
+G	waarudo?	get	pure	get(world, entity, kind) -> component or nil	-	asobi-ecs	absent	read one component; nil if absent	1	get(world, entity, opts) -> component or nil	no
+G	waarudo?	grammar	decl	grammar(rules) -> grammar	validate	-	absent	declare production rules or tile constraints	2	grammar(rules) -> grammar	yes
+G	waarudo?	hit	pure	hit(world, ray) -> entity or nil	-	-	absent	the first entity that a ray meets	3		na
+G	waarudo?	on	decl	on(world, event, handler) -> world	-	asobi-ecs	absent	bind a handler to a world event	1	on(world, event, handler) -> world	yes
+G	waarudo?	path	pure	path(graph, from, to, opts) -> steps	-	-	absent	the cheapest steps from one cell to another	1	path(graph, from, to, opts) -> steps	yes
+G	waarudo?	put	effect	put(world, entity, component) -> nil	-	asobi-ecs	absent	set one component on an entity	1	put(world, entity, component) -> nil	yes
+G	waarudo?	query	pure	query(world, shape) -> rows	-	asobi-ecs	absent	entities that carry the listed components	1	query(world, shape) -> rows	yes
+G	waarudo?	read	effect	read(src, opts) -> world	resource	asobi-save	absent	load a saved world, version and checksum checked	2	read(src, opts) -> world	yes
+G	waarudo?	replay	effect	replay(world, log) -> world	test,trace	asobi-net-rollback	absent	re-run recorded inputs; same seed, same world	2	replay(world, log) -> world	yes
+G	waarudo?	rollback	effect	rollback(world, tick, inputs) -> world	-	asobi-net-rollback	absent	return to an earlier tick and replay the inputs	3	rollback(world, tick, opts) -> world	no
+G	waarudo?	send	effect	send(world, event) -> nil	-	asobi-ecs	absent	deliver one event to the systems that read it	1	send(world, event) -> nil	yes
+G	waarudo?	simulate	effect	simulate(world, ticks, opts) -> world	deadline	asobi-ecs	absent	advance a world a number of ticks	1	simulate(world, ticks, opts) -> world	yes
+G	waarudo?	spawn	effect	spawn(world, components) -> entity	-	asobi-ecs	absent	bring a new entity into the world	1	spawn(world, components) -> entity	yes
+G	waarudo?	system	decl	system(name, reads, writes, f) -> system	validate	asobi-ecs	absent	declare a rule over components, with its reads and writes	1		na
+G	waarudo?	world	decl	world(spec) -> world	validate	asobi-ecs	absent	declare components, systems and resources	1		na
+G	waarudo?	write	effect	write(world, target, opts) -> nil	resource,serialize	asobi-save	absent	save a world, versioned and checksummed	2	write(world, target, opts) -> nil	yes
 D	waku	allows?	pure	allows?(frame, name) -> Bool	capability,validate	blue-lang-waku	absent	frame grants one name	1		na
 D	waku	escapes	pure	escapes(frame, program) -> [escape]	capability,validate	blue-lang-waku	rust:waku	names a program uses that its frame does not grant	0		na
 D	waku	frame	decl	frame(reach, when, where) -> frame	capability,config	blue-lang-waku	rust:waku	what a computation may name, depend on and own	0		na
@@ -2742,27 +2753,6 @@ E	youryou?	plan	pure	plan(band, usage) -> action	resource	breathe	absent	the lim
 E	youryou?	put	effect	put(band, spec) -> band	idempotent,log	breathe	absent	create or replace a band declaration	2	put(band, spec) -> band	yes
 E	youryou?	resize	effect	resize(workload, n, opts) -> workload	log,resource,switch	-	absent	set the replica count	3	resize(workload, n, opts) -> workload	yes
 G	yushutsu	exports	decl	exports() -> rows	-	arnes	rust:yushutsu	what a hosted package tells arnes it serves	0		na
-B	yuugou?	apply	pure	apply(crdt, delta) -> crdt	-	crdt-doc	absent	merge a delta received from another replica	3	apply(crdt, delta) -> crdt	yes
-B	yuugou?	clock	pure	clock() -> vclock	time	-	absent	an empty version vector	3		na
-B	yuugou?	compare	pure	compare(a, b) -> before, after, equal or concurrent	time	-	absent	the causal order of two version vectors	3	compare(a, b) -> before, after, equal or concurrent	yes
-B	yuugou?	concurrent?	pure	concurrent?(a, b) -> Bool	time	-	absent	whether neither version vector happened before the other	3		na
-B	yuugou?	converge	effect	converge(replicas, opts) -> crdt	cancel,deadline,retry	crdt-doc	absent	exchange deltas among replicas until all agree	4		na
-B	yuugou?	counter	pure	counter(replica) -> crdt	-	-	absent	a grow and shrink counter owned by one replica	3		na
-B	yuugou?	delete	pure	delete(crdt, x) -> crdt	-	-	absent	remove x from a set or map; later adds can win	3	delete(crdt, x) -> crdt	yes
-B	yuugou?	delta	pure	delta(crdt, since) -> delta	-	crdt-doc	absent	only the updates a replica has not yet seen	3	delta(crdt, since) -> delta	yes
-B	yuugou?	erase	pure	erase(crdt, from, to) -> crdt	-	crdt-doc	absent	remove a range of a text crdt	3		na
-B	yuugou?	get	pure	get(crdt, key) -> value or nil	-	-	absent	read a register or map key from the merged state	3	get(crdt, key) -> value or nil	yes
-B	yuugou?	has?	pure	has?(crdt, x) -> Bool	-	-	absent	whether a set holds x or a map holds the key	3	has?(crdt, x) -> Bool	yes
-B	yuugou?	increment	pure	increment(crdt, by) -> crdt	-	-	absent	add to a counter, negative to subtract	3		na
-B	yuugou?	insert	pure	insert(crdt, pos, text) -> crdt	-	crdt-doc	absent	put text at a position in a text crdt	3	insert(crdt, pos, text) -> crdt	yes
-B	yuugou?	map	pure	map(replica) -> crdt	-	-	absent	a map of keys to crdt values	3	map(replica, f, opts) -> crdt	no
-B	yuugou?	merge	pure	merge(a, b) -> crdt	-	crdt-doc	absent	the join of two states: commutative, associative, idempotent	3	merge(a, b) -> crdt	yes
-B	yuugou?	put	pure	put(crdt, key, value) -> crdt	-	-	absent	set a register or map key, returning the new state	3	put(crdt, key, value) -> crdt	yes
-B	yuugou?	register	pure	register(replica, value) -> crdt	-	-	absent	a single value where the latest write wins	3	register(replica, value) -> crdt	yes
-B	yuugou?	set	pure	set(replica) -> crdt	-	-	absent	a set where adds and removes both converge	3		na
-B	yuugou?	text	pure	text(replica, initial) -> crdt	-	crdt-doc	absent	a sequence of characters edited by many replicas	3	text(replica) -> crdt	no
-B	yuugou?	tick	pure	tick(vclock, replica) -> vclock	time	-	absent	advance one replica counter in a version vector	3	tick(vclock, replica) -> vclock	yes
-B	yuugou?	value	pure	value(crdt) -> plain	-	crdt-doc	absent	the ordinary value the state currently stands for	3		na
 G	zumen	check	pure	check(sheet) -> findings	validate	-	absent	find overlaps, clipped text and low contrast	2	check(sheet) -> findings	yes
 G	zumen	diagram	decl	diagram(kind, spec) -> sheet	validate	-	absent	declare a flow, sequence or architecture diagram	2		na
 G	zumen	layout	pure	layout(nodes, edges, opts) -> placed graph	-	-	absent	place a graph in layers with routed edges	2		na

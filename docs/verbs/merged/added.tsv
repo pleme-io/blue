@@ -6,3 +6,4 @@ H	saishikou	retrying	effect	retrying(policy, step) -> value	retry,error	-	exists
 H	shisutemu	run	effect	run(command, args, opts) -> result	process,capability,error	-	partial:shisutemu	run a command to completion; exec primitives exist, the verb does not	0
 H	shuusei	deep_merge	pure	deep_merge(a, b) -> value	-	-	exists:shuusei	maps merge key by key and b replaces the rest	0
 H	shuusei	put	pure	put(doc, path, value) -> doc	-	-	exists:shuusei	doc with value at path; absent map keys are created	0
+H	kyohi	enforce	effect	enforce(subject, rules, opts) -> nil	error	-	absent	raise one error carrying every finding of the master check; nil when sound	0

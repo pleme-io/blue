@@ -127,7 +127,6 @@ edge("youken?::trace", :composes, "youken?::satisfies", "follows the bindings")
 edge("youken?::covered?", :composes, "youken?::trace", "all evidence passes")
 edge("youken?::list", :generalizes, "youken?::requirement", "declared needs")
 edge("youken?::list", :pairs, "kadai?::list", "needs become issues")
-edge("youken?::gaps", :pairs, "keikaku?::risk", "uncovered needs are risks")
 
 edge(
   "youken?::requirement",
@@ -138,6 +137,7 @@ edge(
 
 edge("youken?::diff", :pairs, "mokuroku::diff", "both diff declared surfaces")
 edge("youken?::trace", :pairs, "mokuroku::get", "trace to docs")
+edge("youken?::gaps", :pairs, "puran?::risk", "uncovered needs are risks")
 edge("youken?::covered?", :pairs, "rebyuu?::ready?", "coverage gates landing")
 
 edge(

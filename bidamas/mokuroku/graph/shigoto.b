@@ -1,7 +1,7 @@
-space("shigoto?", {status: :provisional})
+space("shigoto", {status: :ratified})
 
 verb(
-  "shigoto?",
+  "shigoto",
   "after",
   {
     kind: :effect,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "backfill",
   {
     kind: :effect,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "budget",
   {
     kind: :decl,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "cancel",
   {
     kind: :effect,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "claim",
   {
     kind: :effect,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "compensate",
   {
     kind: :effect,
@@ -91,7 +91,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "complete",
   {
     kind: :effect,
@@ -106,7 +106,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "dag",
   {
     kind: :decl,
@@ -121,7 +121,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "defer",
   {
     kind: :effect,
@@ -136,7 +136,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "enqueue",
   {
     kind: :effect,
@@ -151,7 +151,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "every",
   {
     kind: :effect,
@@ -166,7 +166,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "fail",
   {
     kind: :effect,
@@ -181,7 +181,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "gate",
   {
     kind: :decl,
@@ -196,7 +196,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "info",
   {
     kind: :effect,
@@ -211,7 +211,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "missed",
   {
     kind: :pure,
@@ -226,7 +226,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "next",
   {
     kind: :pure,
@@ -241,7 +241,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "parse",
   {
     kind: :pure,
@@ -256,7 +256,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "pause",
   {
     kind: :effect,
@@ -271,7 +271,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "plan",
   {
     kind: :pure,
@@ -286,7 +286,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "rank",
   {
     kind: :pure,
@@ -301,7 +301,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "resume",
   {
     kind: :effect,
@@ -316,7 +316,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "run",
   {
     kind: :effect,
@@ -331,7 +331,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "saga",
   {
     kind: :decl,
@@ -346,7 +346,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "signal",
   {
     kind: :effect,
@@ -361,7 +361,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "start",
   {
     kind: :effect,
@@ -376,7 +376,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "timer",
   {
     kind: :effect,
@@ -391,7 +391,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "wait",
   {
     kind: :effect,
@@ -406,7 +406,7 @@ verb(
 )
 
 verb(
-  "shigoto?",
+  "shigoto",
   "workflow",
   {
     kind: :decl,
@@ -420,175 +420,130 @@ verb(
   }
 )
 
-edge("shigoto?::run", :composes, "heikou::map", "parallel by level")
-edge("shigoto?::fail", :composes, "heikou::retry", "policy decides redelivery")
-edge("shigoto?::after", :composes, "jikan::sleep", "sleep then call")
-edge("shigoto?::every", :composes, "jikan::sleep", "waits between firings")
-edge("shigoto?::start", :composes, "nisshi::append", "each step is logged")
+edge("shigoto::run", :composes, "heikou::map", "parallel by level")
+edge("shigoto::fail", :composes, "heikou::retry", "policy decides redelivery")
+edge("shigoto::after", :composes, "jikan::sleep", "sleep then call")
+edge("shigoto::every", :composes, "jikan::sleep", "waits between firings")
+edge("shigoto::start", :composes, "nisshi::append", "each step is logged")
 
 edge(
-  "shigoto?::info",
+  "shigoto::info",
   :composes,
   "nisshi::replay",
   "state is folded from the log"
 )
 
 edge(
-  "shigoto?::cancel",
+  "shigoto::cancel",
   :composes,
-  "shigoto?::compensate",
+  "shigoto::compensate",
   "undo completed steps"
 )
 
 edge(
-  "shigoto?::backfill",
+  "shigoto::backfill",
   :composes,
-  "shigoto?::missed",
+  "shigoto::missed",
   "runs each missed firing"
 )
 
-edge("shigoto?::every", :composes, "shigoto?::next", "sleep to each firing")
+edge("shigoto::every", :composes, "shigoto::next", "sleep to each firing")
 
 edge(
-  "shigoto?::missed",
+  "shigoto::missed",
   :composes,
-  "shigoto?::next",
+  "shigoto::next",
   "firings between two instants"
 )
 
 edge(
-  "shigoto?::workflow",
+  "shigoto::workflow",
   :generalizes,
-  "shigoto?::dag",
+  "shigoto::dag",
   "durable and signal-aware graph"
 )
 
-edge("shigoto?::gate", :guards, "shigoto?::claim", "held until precondition")
+edge("shigoto::gate", :guards, "shigoto::claim", "held until precondition")
+edge("shigoto::budget", :guards, "shigoto::run", "bounds parallelism of a run")
+edge("shigoto::enqueue", :inverse, "shigoto::claim", "add and take")
+edge("shigoto::claim", :inverse, "shigoto::enqueue", "add and take")
 
 edge(
-  "shigoto?::budget",
-  :guards,
-  "shigoto?::run",
-  "bounds parallelism of a run"
-)
-
-edge("shigoto?::enqueue", :inverse, "shigoto?::claim", "add and take")
-edge("shigoto?::claim", :inverse, "shigoto?::enqueue", "add and take")
-
-edge(
-  "shigoto?::parse",
+  "shigoto::parse",
   :inverse,
-  "shigoto?::next",
+  "shigoto::next",
   "text to schedule, schedule to time"
 )
 
 edge(
-  "shigoto?::next",
+  "shigoto::next",
   :inverse,
-  "shigoto?::parse",
+  "shigoto::parse",
   "text to schedule, schedule to time"
 )
 
-edge("shigoto?::resume", :inverse, "shigoto?::pause", "stop and continue")
-edge("shigoto?::run", :inverse, "shigoto?::plan", "the plan changes nothing")
-edge("shigoto?::pause", :inverse, "shigoto?::resume", "stop and continue")
-edge("shigoto?::plan", :inverse, "shigoto?::run", "the plan changes nothing")
+edge("shigoto::resume", :inverse, "shigoto::pause", "stop and continue")
+edge("shigoto::run", :inverse, "shigoto::plan", "the plan changes nothing")
+edge("shigoto::pause", :inverse, "shigoto::resume", "stop and continue")
+edge("shigoto::plan", :inverse, "shigoto::run", "the plan changes nothing")
+edge("shigoto::every", :pairs, "goui?::with_lock", "run one copy of a schedule")
+edge("shigoto::cancel", :pairs, "heikou::cancel", "run-level cancel")
+edge("shigoto::compensate", :pairs, "heikou::retry", "undos retried until done")
+edge("shigoto::enqueue", :pairs, "kyoujin?::key", "duplicate key is one job")
+edge("shigoto::backfill", :pairs, "kyoujin?::once", "each firing runs once")
 
 edge(
-  "shigoto?::every",
-  :pairs,
-  "goui?::with_lock",
-  "run one copy of a schedule"
-)
-
-edge("shigoto?::cancel", :pairs, "heikou::cancel", "run-level cancel")
-
-edge(
-  "shigoto?::compensate",
-  :pairs,
-  "heikou::retry",
-  "undos retried until done"
-)
-
-edge("shigoto?::enqueue", :pairs, "kyoujin?::key", "duplicate key is one job")
-edge("shigoto?::backfill", :pairs, "kyoujin?::once", "each firing runs once")
-
-edge(
-  "shigoto?::fail",
+  "shigoto::fail",
   :pairs,
   "messeeji?::park",
   "exhausted jobs go to a dead queue"
 )
 
-edge("shigoto?::enqueue", :pairs, "messeeji?::publish", "a queue over a log")
-edge("shigoto?::run", :pairs, "nisshi::append", "runs are recorded")
-edge("shigoto?::rank", :pairs, "shigoto?::claim", "claim order")
-edge("shigoto?::dag", :pairs, "shigoto?::run", "declare then run")
+edge("shigoto::enqueue", :pairs, "messeeji?::publish", "a queue over a log")
+edge("shigoto::run", :pairs, "nisshi::append", "runs are recorded")
+edge("shigoto::rank", :pairs, "shigoto::claim", "claim order")
+edge("shigoto::dag", :pairs, "shigoto::run", "declare then run")
 
 edge(
-  "shigoto?::timer",
+  "shigoto::timer",
   :refines,
-  "shigoto?::after",
+  "shigoto::after",
   "absolute instead of relative"
 )
 
-edge(
-  "shigoto?::defer",
-  :refines,
-  "shigoto?::fail",
-  "failure with a chosen delay"
-)
+edge("shigoto::defer", :refines, "shigoto::fail", "failure with a chosen delay")
+edge("shigoto::every", :refines, "shigoto::timer", "at repeated by a schedule")
+edge("shigoto::saga", :refines, "shigoto::workflow", "steps each with an undo")
+edge("shigoto::claim", :requires, "goui?::acquire", "a claim is a lease")
+edge("shigoto::parse", :requires, "jikan::parse", "schedules use time parsing")
 
 edge(
-  "shigoto?::every",
-  :refines,
-  "shigoto?::timer",
-  "at repeated by a schedule"
-)
-
-edge(
-  "shigoto?::saga",
-  :refines,
-  "shigoto?::workflow",
-  "steps each with an undo"
-)
-
-edge("shigoto?::claim", :requires, "goui?::acquire", "a claim is a lease")
-edge("shigoto?::parse", :requires, "jikan::parse", "schedules use time parsing")
-
-edge(
-  "shigoto?::complete",
+  "shigoto::complete",
   :requires,
-  "shigoto?::claim",
+  "shigoto::claim",
   "only the claimant completes"
 )
 
-edge(
-  "shigoto?::defer",
-  :requires,
-  "shigoto?::claim",
-  "hands back a claimed job"
-)
-
-edge("shigoto?::fail", :requires, "shigoto?::claim", "only the claimant fails")
-edge("shigoto?::plan", :requires, "shigoto?::dag", "plans a declared graph")
-edge("shigoto?::run", :requires, "shigoto?::dag", "runs a declared graph")
-edge("shigoto?::next", :requires, "shigoto?::parse", "computed from a schedule")
+edge("shigoto::defer", :requires, "shigoto::claim", "hands back a claimed job")
+edge("shigoto::fail", :requires, "shigoto::claim", "only the claimant fails")
+edge("shigoto::plan", :requires, "shigoto::dag", "plans a declared graph")
+edge("shigoto::run", :requires, "shigoto::dag", "runs a declared graph")
+edge("shigoto::next", :requires, "shigoto::parse", "computed from a schedule")
 
 edge(
-  "shigoto?::compensate",
+  "shigoto::compensate",
   :requires,
-  "shigoto?::saga",
+  "shigoto::saga",
   "undoes a declared saga"
 )
 
-edge("shigoto?::info", :requires, "shigoto?::start", "inspects a run")
-edge("shigoto?::signal", :requires, "shigoto?::start", "targets a run")
-edge("shigoto?::wait", :requires, "shigoto?::start", "waits on a run")
+edge("shigoto::info", :requires, "shigoto::start", "inspects a run")
+edge("shigoto::signal", :requires, "shigoto::start", "targets a run")
+edge("shigoto::wait", :requires, "shigoto::start", "waits on a run")
 
 edge(
-  "shigoto?::start",
+  "shigoto::start",
   :requires,
-  "shigoto?::workflow",
+  "shigoto::workflow",
   "runs a declared workflow"
 )

@@ -92,7 +92,7 @@ verb(
 )
 
 edge("kinji::zero", :generalizes, "kinyuu?::irr", "a root of a function")
-edge("kinji::advance", :refines, "sekai?::advance", "an ODE step")
+edge("kinji::advance", :refines, "waarudo?::advance", "an ODE step")
 
 edge(
   "kinji::advance",

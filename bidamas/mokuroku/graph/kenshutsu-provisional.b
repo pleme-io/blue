@@ -211,13 +211,6 @@ edge(
 edge(
   "kenshutsu?::scan",
   :pairs,
-  "hakkou?::sbom",
-  "advisories on the parts list"
-)
-
-edge(
-  "kenshutsu?::scan",
-  :pairs,
   "himitsu::list",
   "secret scanning versus stored secrets"
 )
@@ -250,6 +243,14 @@ edge(
 
 edge("kenshutsu?::list", :pairs, "kenshutsu?::explain", "rule table")
 edge("kenshutsu?::census", :pairs, "kenshutsu?::list", "rules with ratchets")
+
+edge(
+  "kenshutsu?::scan",
+  :pairs,
+  "rirezu?::sbom",
+  "advisories on the parts list"
+)
+
 edge("kenshutsu?::complexity", :pairs, "tesuto?::cover", "risky and untested")
 
 edge(

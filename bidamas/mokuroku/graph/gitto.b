@@ -490,9 +490,6 @@ edge("gitto::list", :pairs, "gitto::get", "many versus one")
 edge("gitto::fetch", :pairs, "gitto::merge", "house rule fetch then ff merge")
 edge("gitto::fetch", :pairs, "gitto::push", "fetch before push")
 edge("gitto::rebase", :pairs, "gitto::push", "rebased branches push")
-edge("gitto::commit", :pairs, "hakkou?::next", "commit kind drives the version")
-edge("gitto::graft", :pairs, "hakkou?::pin", "backports pick fixes")
-edge("gitto::revert", :pairs, "hakkou?::rollback", "revert or roll back")
 edge("gitto::clone", :pairs, "kaihatsu?::bootstrap", "clone then bootstrap")
 
 edge(
@@ -505,6 +502,9 @@ edge(
 edge("gitto::conflicts", :pairs, "rebyuu?::ready?", "conflicts block landing")
 edge("gitto::create", :pairs, "rebyuu?::request", "a branch opens a review")
 edge("gitto::tag", :pairs, "rirezu?::cut", "release marks a tag")
+edge("gitto::commit", :pairs, "rirezu?::next", "commit kind drives the version")
+edge("gitto::graft", :pairs, "rirezu?::pin", "backports pick fixes")
+edge("gitto::revert", :pairs, "rirezu?::rollback", "revert or roll back")
 edge("gitto::worktree", :pairs, "tesuto?::run", "isolated runs per ref")
 edge("gitto::clone", :refines, "core::copy", "remote to local")
 edge("gitto::create", :refines, "core::create", "branch or tag")
@@ -513,6 +513,14 @@ edge("gitto::exists?", :refines, "core::exists?", "ref resolves")
 edge("gitto::get", :refines, "core::get", "nil when ref absent")
 edge("gitto::info", :refines, "core::info", "repo state")
 edge("gitto::list", :refines, "core::list", "refs, commits or worktrees")
+
+edge(
+  "gitto::merge",
+  :refines,
+  "core::merge",
+  "git merge is the master merge on commits"
+)
+
 edge("gitto::need", :refines, "core::need", "raises when ref absent")
 edge("gitto::read", :refines, "core::read", "file at a ref")
 edge("gitto::merge_base", :refines, "gitto::ancestor?", "returns the commit")

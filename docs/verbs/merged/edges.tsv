@@ -72,51 +72,40 @@ angou::power_mod	composes	angou::totient	exponent reduces modulo totient
 angou::prime?	refines	angou::factor	prime when only itself factors
 angou::primitive_root	composes	angou::period	order equals totient
 angou::totient	composes	angou::factor	product over prime factors
-assaku?::append	refines	assaku?::pack	add to an existing archive
-assaku?::compress	inverse	assaku?::decompress	bytes round-trip
-assaku?::compress	pairs	deeta::pack	compress after serializing
-assaku?::decompress	inverse	assaku?::compress	bytes round-trip
-assaku?::detect	guards	assaku?::decompress	pick the codec first
-assaku?::list	guards	assaku?::unpack	inspect before unpacking
-assaku?::list	pairs	assaku?::read	names then content
-assaku?::pack	composes	assaku?::compress	entries compressed into the archive
-assaku?::pack	composes	fairu::write	archive file is written
-assaku?::pack	inverse	assaku?::unpack	archive and files round-trip
-assaku?::ratio	composes	assaku?::compress	compressed size over original
-assaku?::read	composes	assaku?::list	entry must be listed
-assaku?::read	refines	fairu::read	an entry is a file in an archive
-assaku?::stream	lifts	assaku?::compress	chunked form
-assaku?::stream	lifts	assaku?::decompress	chunked form
-assaku?::unpack	composes	assaku?::decompress	inflate each entry
-assaku?::unpack	composes	assaku?::read	write each entry out
-assaku?::unpack	composes	fairu::write	entries become files
-assaku?::unpack	inverse	assaku?::pack	archive and files round-trip
-assaku?::verify	composes	shomei::hash	checksum per entry
-assaku?::verify	guards	assaku?::unpack	check before unpacking
-asshuku?::append	refines	asshuku?::pack	adds entries to an archive
+asshuku?::append	refines	asshuku?::pack	add to an existing archive
 asshuku?::archive	composes	asshuku?::pack	packs the walked files
 asshuku?::archive	composes	fairu::walk	finds the files
 asshuku?::archive	inverse	asshuku?::unpack_to	tree back from the archive
-asshuku?::compress	inverse	asshuku?::decompress	restores the original bytes
+asshuku?::compress	inverse	asshuku?::decompress	bytes round-trip
 asshuku?::compress	pairs	asshuku?::detect	detect names what compress used
-asshuku?::decompress	inverse	asshuku?::compress	restores the original bytes
+asshuku?::compress	pairs	deeta::pack	compress after serializing
+asshuku?::decompress	inverse	asshuku?::compress	bytes round-trip
 asshuku?::delta	inverse	asshuku?::patch	applies the difference
 asshuku?::delta	pairs	asshuku?::patch	difference and its application
 asshuku?::delta	pairs	genbo?::chunk	both feed deduplication
 asshuku?::detect	guards	asshuku?::decompress	pick the algorithm first
+asshuku?::list	guards	asshuku?::unpack	inspect before unpacking
 asshuku?::list	pairs	asshuku?::read	headers then one entry
 asshuku?::list	refines	asshuku?::unpack	headers only
 asshuku?::pack	composes	asshuku?::compress	archive then compress
-asshuku?::pack	inverse	asshuku?::unpack	entries back out of the archive
+asshuku?::pack	composes	fairu::write	archive file is written
+asshuku?::pack	inverse	asshuku?::unpack	archive and files round-trip
 asshuku?::patch	inverse	asshuku?::delta	applies the difference
+asshuku?::ratio	composes	asshuku?::compress	compressed size over original
+asshuku?::read	composes	asshuku?::list	entry must be listed
 asshuku?::read	refines	asshuku?::unpack	one named entry
+asshuku?::read	refines	fairu::read	an entry is a file in an archive
 asshuku?::stream	lifts	asshuku?::compress	chunked form
 asshuku?::stream	lifts	asshuku?::decompress	chunked form
 asshuku?::unpack	composes	asshuku?::decompress	decompress then split
-asshuku?::unpack	inverse	asshuku?::pack	entries back out of the archive
+asshuku?::unpack	composes	asshuku?::read	write each entry out
+asshuku?::unpack	composes	fairu::write	entries become files
+asshuku?::unpack	inverse	asshuku?::pack	archive and files round-trip
 asshuku?::unpack_to	composes	asshuku?::unpack	entries to write
 asshuku?::unpack_to	composes	fairu::write	writes each entry
 asshuku?::unpack_to	inverse	asshuku?::archive	tree back from the archive
+asshuku?::verify	composes	shomei::hash	checksum per entry
+asshuku?::verify	guards	asshuku?::unpack	check before unpacking
 asshuku?::verify?	composes	asshuku?::unpack	decodes every entry
 asshuku?::verify?	composes	shinsuu::checksum	checks entry checksums
 asshuku?::verify?	guards	asshuku?::unpack_to	check before writing files
@@ -466,7 +455,7 @@ chizu?::measure	requires	chizu?::distance	length is summed distance
 chizu?::neighbors	pairs	chizu?::cell	cell and its ring
 chizu?::neighbors	requires	chizu?::cell	beside a cell
 chizu?::parse	inverse	chizu?::render	geometry to text
-chizu?::path	refines	sekai?::path	a route over a road graph
+chizu?::path	refines	waarudo?::path	a route over a road graph
 chizu?::path	requires	chizu?::distance	cost of a leg
 chizu?::point	generalizes	chizu?::distance	distance of points
 chizu?::point	pairs	chizu?::project	geo and flat
@@ -479,8 +468,8 @@ chizu?::unproject	inverse	chizu?::project	flat to geo
 chokkan::ask	composes	chokkan::choice	a question is a choice or a score
 chokkan::ask	pairs	chokkan::request	questions go in a request
 chokkan::choice	refines	chokkan::ask	a closed question
-chokkan::choice	refines	moderu?::classify	closed answers
-chokkan::request	requires	moderu?::ask	the call that carries it
+chokkan::choice	refines	mokei?::classify	closed answers
+chokkan::request	requires	mokei?::ask	the call that carries it
 chokkan::score	composes	chokkan::ask	a scored question
 chokkan::score	refines	saiten?::score	numbered levels
 chuukai?::authorize	guards	chuukai?::forward	decision before forwarding
@@ -518,8 +507,9 @@ chuuzou::build	composes	chuuzou::emit	emit first
 chuuzou::build	composes	chuuzou::measure	then measure
 chuuzou::emit	requires	kiban::board	specialised to a board
 chuuzou::measure	guards	chuuzou::build	size within the region
+core::verify	pairs	core::verify?	verify raises tampered; verify? answers Bool
 dairi?::advance	composes	dairi?::call	the tool turn
-dairi?::advance	composes	moderu?::ask	the model turn
+dairi?::advance	composes	mokei?::ask	the model turn
 dairi?::agent	composes	dairi?::budget	and limits
 dairi?::agent	composes	dairi?::tool	an agent has tools
 dairi?::approve	requires	dairi?::call	guards a call
@@ -527,9 +517,9 @@ dairi?::approve	requires	gamen?::prompt	ask a person
 dairi?::budget	guards	dairi?::run	stops a runaway loop
 dairi?::call	requires	dairi?::list	call a listed tool
 dairi?::call	requires	dairi?::screen	rules before effect
-dairi?::call	requires	moderu?::tokens	result size is bounded
+dairi?::call	requires	mokei?::tokens	result size is bounded
 dairi?::compact	guards	dairi?::advance	fit the window each turn
-dairi?::compact	requires	moderu?::fit	shared budget rule
+dairi?::compact	requires	mokei?::fit	shared budget rule
 dairi?::connect	pairs	dairi?::serve	client and server
 dairi?::connect	requires	gamen?::start	a client may need a surface
 dairi?::delegate	composes	dairi?::spawn	start
@@ -545,7 +535,7 @@ dairi?::plan	guards	dairi?::run	show before doing
 dairi?::plan	requires	dairi?::tool	tools a plan would call
 dairi?::put	pairs	dairi?::get	memory write and read
 dairi?::replay	requires	dairi?::resume	trace is a stored run
-dairi?::replay	requires	moderu?::ask	replies are recorded, not asked
+dairi?::replay	requires	mokei?::ask	replies are recorded, not asked
 dairi?::resume	inverse	dairi?::run	continue a stored run
 dairi?::run	composes	dairi?::advance	a loop of turns
 dairi?::run	inverse	dairi?::resume	continue a stored run
@@ -747,7 +737,7 @@ fuka?::guard	pairs	shihyou::burn	stop when burn is high
 fuka?::heal	inverse	fuka?::fault	inject and undo
 fuka?::heal	requires	fuka?::fault	only an injected fault
 fuka?::judge	composes	shihyou::meets?	limits mirror objectives
-fuka?::judge	guards	hakkou?::promote	failing load stops promotion
+fuka?::judge	guards	rirezu?::promote	failing load stops promotion
 fuka?::judge	requires	fuka?::threshold	checks the limits
 fuka?::mirror	pairs	tsuiseki?::carry	shadow requests keep context
 fuka?::mirror	refines	fuka?::run	real traffic as load
@@ -912,7 +902,7 @@ gazou?::info	requires	gazou?::read	facts before decode
 gazou?::measure	requires	gazou?::decode	reads pixels
 gazou?::mux	inverse	gazou?::demux	streams into a container
 gazou?::ocr	requires	gazou?::treat	clean before reading
-gazou?::ocr	requires	moderu?::ask	a vision model
+gazou?::ocr	requires	mokei?::ask	a vision model
 gazou?::overlay	refines	byouga?::composite	image form of layering
 gazou?::palette	requires	gamen?::theme	colors feed a theme
 gazou?::palette	requires	gazou?::measure	color stats
@@ -1008,7 +998,7 @@ genin?::step	refines	genin?::resume	resume by one step
 genin?::step	requires	genin?::pause	steps from a paused frame
 genin?::stuck	pairs	genin?::dump	a dump shows the wait
 genin?::stuck	refines	genin?::diagnose	hang-specific evidence
-genin?::symbolize	requires	hakkou?::build	needs the build symbols
+genin?::symbolize	requires	rirezu?::build	needs the build symbols
 genin?::tape	inverse	genin?::replay	capture and rerun
 genin?::tape	pairs	shougai?::drill	drills may record a crash
 genin?::trace	pairs	tsuiseki?::span	call trace versus request trace
@@ -1025,7 +1015,7 @@ gitto::clone	inverse	gitto::delete	make and remove a copy
 gitto::clone	pairs	kaihatsu?::bootstrap	clone then bootstrap
 gitto::clone	refines	core::copy	remote to local
 gitto::commit	inverse	gitto::revert	undo by a new commit
-gitto::commit	pairs	hakkou?::next	commit kind drives the version
+gitto::commit	pairs	rirezu?::next	commit kind drives the version
 gitto::commit	requires	gitto::info	needs a dirty tree
 gitto::conflicts	pairs	rebyuu?::ready?	conflicts block landing
 gitto::conflicts	requires	gitto::merge	only after a merge
@@ -1048,7 +1038,7 @@ gitto::fetch	pairs	gitto::push	fetch before push
 gitto::get	generalizes	gitto::exists?	returns the commit
 gitto::get	refines	core::get	nil when ref absent
 gitto::graft	inverse	gitto::revert	undo versus apply
-gitto::graft	pairs	hakkou?::pin	backports pick fixes
+gitto::graft	pairs	rirezu?::pin	backports pick fixes
 gitto::graft	refines	gitto::commit	copies a commit
 gitto::graft	requires	gitto::need	commit must exist
 gitto::hook	guards	gitto::commit	runs before commit
@@ -1062,6 +1052,7 @@ gitto::list	composes	gitto::need	refs resolve to commits
 gitto::list	generalizes	gitto::get	many refs
 gitto::list	pairs	gitto::get	many versus one
 gitto::list	refines	core::list	refs, commits or worktrees
+gitto::merge	refines	core::merge	git merge is the master merge on commits
 gitto::merge	requires	gitto::ancestor?	fast-forward needs ancestry
 gitto::merge	requires	gitto::fetch	merge needs fresh refs
 gitto::merge	requires	gitto::info	clean tree needed
@@ -1081,7 +1072,7 @@ gitto::rebase	refines	gitto::merge	linear history form
 gitto::rebase	requires	gitto::conflicts	stop on conflict
 gitto::revert	inverse	gitto::commit	undo by a new commit
 gitto::revert	inverse	gitto::graft	undo versus apply
-gitto::revert	pairs	hakkou?::rollback	revert or roll back
+gitto::revert	pairs	rirezu?::rollback	revert or roll back
 gitto::stage	pairs	gitto::commit	stage then commit
 gitto::stage	requires	gitto::info	changes are seen first
 gitto::tag	pairs	rirezu?::cut	release marks a tag
@@ -1099,7 +1090,7 @@ goui?::compare	requires	goui?::tick	orders ticked clocks
 goui?::elect	composes	goui?::acquire	leadership is a lease on a group
 goui?::elect	inverse	goui?::resign	give up what elect takes
 goui?::elect	pairs	goui?::resign	take and give up
-goui?::elect	pairs	shigoto?::every	one leader runs the schedule
+goui?::elect	pairs	shigoto::every	one leader runs the schedule
 goui?::enter	inverse	goui?::leave	enter and leave a group
 goui?::fence	guards	goui?::with_lock	the resource checks the token
 goui?::fence	requires	goui?::acquire	token comes from the lease
@@ -1271,51 +1262,6 @@ haibi::render	composes	haibi::schema	chart ships its schema
 haibi::render	requires	haibi::check	validated spec renders
 haibi::schema	pairs	kurasuta::render	schema guards chart values
 haibi::schema	refines	core::render	values schema from defaults
-haichi?::diff	composes	haichi?::resolve	resolve both sides
-haichi?::diff	refines	core::diff	between environments
-haichi?::freeze	guards	tenkai?::freeze	environment-wide freeze
-haichi?::freeze	inverse	haichi?::promote	freezes versus moves
-haichi?::get	composes	haichi?::list	lookup by name
-haichi?::get	refines	core::get	nil when absent
-haichi?::list	refines	core::list	environments
-haichi?::need	composes	haichi?::get	get then raise
-haichi?::need	refines	core::need	raises when absent
-haichi?::path	composes	haichi?::list	ordered list
-haichi?::promote	guards	tenkai?::start	pin carried forward
-haichi?::promote	inverse	haichi?::freeze	freezes versus moves
-haichi?::promote	requires	haichi?::path	next environment
-haichi?::resolve	composes	settei::read	layered config
-haichi?::resolve	pairs	haichi?::diff	compare resolved records
-haichi?::resolve	requires	haichi?::need	environment must exist
-hakkou?::breaking?	guards	hakkou?::next	a break needs a major
-hakkou?::breaking?	requires	mokuroku::diff	interface changes
-hakkou?::build	pairs	hakkou?::sbom	build then its parts list
-hakkou?::build	requires	hakkou?::next	version is set first
-hakkou?::canary	composes	shihyou::meets?	judged by objectives
-hakkou?::canary	pairs	hakkou?::rollback	a bad canary rolls back
-hakkou?::canary	refines	hakkou?::promote	partial, judged promotion
-hakkou?::changelog	pairs	hakkou?::next	notes and version agree
-hakkou?::changelog	requires	gitto::list	groups commits by kind
-hakkou?::diff	pairs	hakkou?::changelog	same range, two views
-hakkou?::diff	requires	gitto::diff	commits between releases
-hakkou?::next	pairs	hakkou?::breaking?	major only on a break
-hakkou?::next	requires	gitto::list	reads commits since last tag
-hakkou?::pin	pairs	hakkou?::promote	environment pins
-hakkou?::pin	requires	hakkou?::publish	only published releases
-hakkou?::plan	guards	hakkou?::publish	preview before upload
-hakkou?::plan	pairs	hakkou?::promote	promotion is planned
-hakkou?::promote	composes	hakkou?::pin	sets the next environment
-hakkou?::promote	inverse	hakkou?::rollback	forward and back
-hakkou?::publish	guards	hakkou?::released?	publish once per version
-hakkou?::publish	pairs	hakkou?::pin	publish then pin
-hakkou?::publish	pairs	nisshi::append	release events are logged
-hakkou?::publish	requires	hakkou?::build	publishes what was built
-hakkou?::released?	pairs	hakkou?::publish	check before publish keeps it once
-hakkou?::rollback	composes	hakkou?::pin	pins the previous release
-hakkou?::rollback	inverse	hakkou?::promote	forward and back
-hakkou?::sbom	requires	hakkou?::build	parts of the artifact
-hakkou?::yank	pairs	shougai?::mitigate	yank is a mitigation
-hakkou?::yank	refines	hakkou?::rollback	withdraws a published version
 hani?::clamp	composes	hani?::contains?	pull the point inside
 hani?::clamp	generalizes	kazu::clamp	any range, not two numbers
 hani?::coalesce	composes	hani?::hull	each joined pair becomes a hull
@@ -1377,14 +1323,14 @@ heikou::spawn	pairs	akutaa?::spawn	task level over process level
 heikou::stop	composes	heikou::cancel	cancel then wait
 heikou::stop	inverse	heikou::spawn	start and end
 heikou::throttle	composes	kyoujin?::bucket	rate cap from a bucket
-heikou::timeout	pairs	shigoto?::after	deadline versus timer
+heikou::timeout	pairs	shigoto::after	deadline versus timer
 heikou::timeout	refines	heikou::deadline	relative form of a deadline
 heikou::token	inverse	heikou::cancel	make and fire a token
 heikou::wait	requires	heikou::spawn	waits on a handle
 heni::apply	pairs	kakikae?::apply	both write a changed tree
 heni::apply	requires	heni::mutations	applies one of them
 heni::mutations	requires	koubun?::parse	mutations come from the tree
-heni::ok?	guards	hakkou?::build	surviving mutants block a release
+heni::ok?	guards	rirezu?::build	surviving mutants block a release
 heni::ok?	refines	heni::score	score is 1
 heni::run	composes	heni::apply	one fresh copy per mutation
 heni::run	composes	tesuto?::run	runs the package tests
@@ -1474,13 +1420,13 @@ hinagata?::regen	pairs	kaihatsu?::gate	gate runs regen
 hinagata?::scaffold	composes	hinagata?::fill	fills each file
 hinagata?::scaffold	pairs	kaihatsu?::new	new project is a scaffold
 hinagata?::scaffold	requires	hinagata?::list	picks an archetype
-hiyou?::attribute	requires	kumo?::tags	tags name owners
+hiyou?::attribute	requires	kuraudo?::tags	tags name owners
 hiyou?::breach?	requires	hiyou?::cost	compares real spend
 hiyou?::budget	guards	hiyou?::breach?	limit it checks
 hiyou?::budget	pairs	hiyou?::forecast	budget compared to forecast
 hiyou?::check	guards	hiyou?::attribute	untagged cannot attribute
 hiyou?::check	refines	kijun::check	tag policy as rules
-hiyou?::cost	composes	kumo?::list	resources carry price
+hiyou?::cost	composes	kuraudo?::list	resources carry price
 hiyou?::cost	refines	core::list	spend lines
 hiyou?::forecast	refines	core::plan	spend ahead
 hiyou?::recommend	composes	youryou?::observe	usage drives sizing
@@ -1491,7 +1437,7 @@ hiyou?::showback	refines	core::render	report
 hiyou?::unit	composes	hiyou?::attribute	per measure
 hiyou?::unit	requires	hiyou?::cost	spend first
 hiyou?::waste	composes	hiyou?::cost	priced idle
-hiyou?::waste	composes	kumo?::list	idle resources
+hiyou?::waste	composes	kuraudo?::list	idle resources
 hizuke::add_business_days	composes	hizuke::business_day?	skip non-working days
 hizuke::add_business_days	inverse	hizuke::business_days_between	count versus step
 hizuke::business_day?	composes	hizuke::holiday?	not a holiday
@@ -2002,31 +1948,6 @@ kazu::sum	refines	retsu::reduce	fold with add
 kazu::tan	composes	kazu::cos	sin over cos
 kazu::tan	composes	kazu::sin	sin over cos
 kazu::whole	refines	kazu::round	mode toward zero
-keikaku?::burndown	requires	keikaku?::sprint	work left in a sprint
-keikaku?::capacity	pairs	keikaku?::schedule	places items by capacity
-keikaku?::capacity	pairs	shougai?::oncall	on-call reduces capacity
-keikaku?::checkin	composes	nisshi::append	progress is an event
-keikaku?::critical_path	refines	tsuiseki?::critical_path	same law on a task graph
-keikaku?::estimate	pairs	kadai?::update	sizes are stored on issues
-keikaku?::estimate	pairs	keikaku?::velocity	size over speed
-keikaku?::forecast	composes	keikaku?::velocity	backlog over velocity
-keikaku?::forecast	pairs	keikaku?::variance	forecast then compare
-keikaku?::goal	pairs	keikaku?::checkin	target and progress
-keikaku?::goal	pairs	shihyou::objective	goals are objectives for people
-keikaku?::milestone	pairs	keikaku?::roadmap	dated sets
-keikaku?::milestone	requires	kadai?::list	a set of issues
-keikaku?::retro	pairs	shougai?::postmortem	retro covers a period, postmortem an event
-keikaku?::retro	requires	nisshi::read	facts from events
-keikaku?::risk	pairs	keikaku?::variance	risk turns into variance
-keikaku?::risk	pairs	shougai?::classify	a risk met is an incident
-keikaku?::roadmap	composes	keikaku?::milestone	ordered milestones
-keikaku?::schedule	composes	keikaku?::estimate	uses sizes
-keikaku?::schedule	pairs	keikaku?::critical_path	order and chain
-keikaku?::sprint	pairs	keikaku?::burndown	a sprint is burned down
-keikaku?::sprint	refines	keikaku?::milestone	time-boxed
-keikaku?::variance	composes	keikaku?::schedule	plan against actual
-keikaku?::velocity	pairs	shihyou::throughput	history versus metric
-keikaku?::velocity	requires	kadai?::list	from finished issues
 keisoku?::bench	pairs	hadome::judge	bench results get a ratchet
 keisoku?::bench	refines	keisoku?::measure	repeated, with statistics
 keisoku?::cardinality	guards	keisoku?::increase	catches label explosions
@@ -2155,13 +2076,13 @@ kensaku?::chunk	requires	bunsho?::outline	split on structure
 kensaku?::cite	requires	kensaku?::search	from hits
 kensaku?::delete	inverse	kensaku?::put	removes what put added
 kensaku?::expand	pairs	kensaku?::fuse	variants merged back
-kensaku?::expand	requires	moderu?::ask	a model rewrites
+kensaku?::expand	requires	mokei?::ask	a model rewrites
 kensaku?::explain	pairs	kensaku?::cite	why and from where
 kensaku?::explain	requires	kensaku?::search	about a hit
 kensaku?::fuse	requires	kensaku?::search	merge lists of hits
 kensaku?::ground	composes	kensaku?::cite	show sources
 kensaku?::ground	composes	kensaku?::search	find sources
-kensaku?::ground	composes	moderu?::ask	answer from them
+kensaku?::ground	composes	mokei?::ask	answer from them
 kensaku?::index	generalizes	kensaku?::put	documents go in
 kensaku?::info	guards	kensaku?::search	check the index is not empty
 kensaku?::info	requires	kensaku?::index	reads an index
@@ -2172,12 +2093,12 @@ kensaku?::query	refines	kensaku?::search	exact language, no rank
 kensaku?::query	requires	kensaku?::index	asks an index
 kensaku?::rank	requires	kensaku?::similarity	score from closeness
 kensaku?::rerank	refines	kensaku?::rank	model scoring
-kensaku?::rerank	requires	moderu?::ask	a stronger model
-kensaku?::search	composes	moderu?::embed	vector mode
+kensaku?::rerank	requires	mokei?::ask	a stronger model
+kensaku?::search	composes	mokei?::embed	vector mode
 kensaku?::search	requires	kensaku?::index	searches an index
-kensaku?::similarity	requires	moderu?::embed	vectors to compare
+kensaku?::similarity	requires	mokei?::embed	vectors to compare
 kensaku?::support?	guards	kensaku?::ground	check claims
-kensaku?::support?	requires	moderu?::ask	a judge model
+kensaku?::support?	requires	mokei?::ask	a judge model
 kensaku?::sync	composes	kensaku?::delete	removes gone
 kensaku?::sync	composes	kensaku?::put	adds changes
 kensaku?::watch	lifts	kensaku?::sync	sync per change
@@ -2202,15 +2123,15 @@ kenshutsu?::format	requires	koubun?::parse	layout from the tree
 kenshutsu?::formatted?	pairs	kaihatsu?::gate	format check in the gate
 kenshutsu?::formatted?	refines	kenshutsu?::format	format equals source
 kenshutsu?::list	pairs	kenshutsu?::explain	rule table
-kenshutsu?::scan	pairs	hakkou?::sbom	advisories on the parts list
 kenshutsu?::scan	pairs	himitsu::list	secret scanning versus stored secrets
+kenshutsu?::scan	pairs	rirezu?::sbom	advisories on the parts list
 kenshutsu?::scan	refines	kenshutsu?::check	checks data, not rules
 kenshutsu?::unused	composes	kenshutsu?::call_graph	no incoming edge
 kenshutsu?::unused	pairs	kakikae?::inline	dead code or inline it
 ketsugi?::decide	inverse	ketsugi?::propose	opens and closes a record
 ketsugi?::decide	pairs	nisshi::append	decisions are logged
 ketsugi?::decide	requires	ketsugi?::propose	only a proposed record
-ketsugi?::due?	pairs	keikaku?::milestone	revisit dates are milestones
+ketsugi?::due?	pairs	puran?::milestone	revisit dates are milestones
 ketsugi?::enforce	composes	okite::law	decisions held by laws
 ketsugi?::enforce	requires	ketsugi?::decide	enforce accepted records
 ketsugi?::get	generalizes	ketsugi?::list	one record
@@ -2271,7 +2192,7 @@ kikagaku::turn	composes	kazu::cos	rotation matrix terms
 kikagaku::turn	composes	kazu::sin	rotation matrix terms
 kikagaku::turn	pairs	kikagaku::shift	turn and move
 kikagaku::union	pairs	kikagaku::difference	add and subtract area
-kinji::advance	refines	sekai?::advance	an ODE step
+kinji::advance	refines	waarudo?::advance	an ODE step
 kinji::advance	requires	gyouretsu::solve	implicit steps solve systems
 kinji::fit	requires	kinji::minimize	least squares
 kinji::integrate	requires	gyouretsu::solve	quadrature weights
@@ -2423,7 +2344,7 @@ kouchiku?::get	refines	core::get	one state entry
 kouchiku?::graph	composes	kouchiku?::list	edges between entries
 kouchiku?::import	inverse	kouchiku?::destroy	adopt versus remove
 kouchiku?::import	pairs	kouchiku?::drift	adopt what drift found
-kouchiku?::import	requires	kumo?::need	resource must exist
+kouchiku?::import	requires	kuraudo?::need	resource must exist
 kouchiku?::list	refines	core::list	state entries
 kouchiku?::move	refines	core::move	rename in state
 kouchiku?::output	composes	kouchiku?::get	reads state
@@ -2493,25 +2414,6 @@ kumiawase::factorial	requires	seimitsu?::big	results exceed 64 bits
 kumiawase::partitions	pairs	kumiawase::permutations	both enumerate arrangements
 kumiawase::permutations	pairs	kumiawase::factorial	n! orders of n items
 kumiawase::permutations	pairs	retsu::shuffle	one random permutation
-kumo?::events	pairs	kouchiku?::drift	who changed what
-kumo?::events	refines	core::list	audit trail
-kumo?::find	composes	kumo?::tags	tag query
-kumo?::find	generalizes	kumo?::list	across kinds
-kumo?::get	refines	core::get	nil when absent
-kumo?::has?	refines	core::has?	resource exists
-kumo?::list	refines	core::list	cloud resources
-kumo?::need	composes	kumo?::get	get then raise
-kumo?::need	refines	core::need	raises when absent
-kumo?::quota	guards	kouchiku?::apply	capacity before creating
-kumo?::quota	refines	core::info	limit and use
-kumo?::regions	pairs	kumo?::quota	quota per region
-kumo?::regions	refines	core::list	available regions
-kumo?::tag	inverse	kumo?::tags	write versus read
-kumo?::tag	requires	kumo?::whoami	acts under an identity
-kumo?::tags	inverse	kumo?::tag	write versus read
-kumo?::tags	refines	core::get	resource tags
-kumo?::wait	composes	kumo?::get	poll state
-kumo?::whoami	guards	kumo?::list	know the account first
 kurasuta::can?	guards	kurasuta::read	check access first
 kurasuta::describe	pairs	kurasuta::render	schema explains manifests
 kurasuta::diff	composes	kurasuta::get	compare with live
@@ -2533,6 +2435,25 @@ kurasuta::top	refines	kurasuta::list	usage metrics
 kurasuta::wait	composes	kurasuta::watch	watch until condition
 kurasuta::watch	composes	kurasuta::get	keyed by object
 kurasuta::watch	lifts	kurasuta::list	stream of changes
+kuraudo?::events	pairs	kouchiku?::drift	who changed what
+kuraudo?::events	refines	core::list	audit trail
+kuraudo?::find	composes	kuraudo?::tags	tag query
+kuraudo?::find	generalizes	kuraudo?::list	across kinds
+kuraudo?::get	refines	core::get	nil when absent
+kuraudo?::has?	refines	core::has?	resource exists
+kuraudo?::list	refines	core::list	cloud resources
+kuraudo?::need	composes	kuraudo?::get	get then raise
+kuraudo?::need	refines	core::need	raises when absent
+kuraudo?::quota	guards	kouchiku?::apply	capacity before creating
+kuraudo?::quota	refines	core::info	limit and use
+kuraudo?::regions	pairs	kuraudo?::quota	quota per region
+kuraudo?::regions	refines	core::list	available regions
+kuraudo?::tag	inverse	kuraudo?::tags	write versus read
+kuraudo?::tag	requires	kuraudo?::whoami	acts under an identity
+kuraudo?::tags	inverse	kuraudo?::tag	write versus read
+kuraudo?::tags	refines	core::get	resource tags
+kuraudo?::wait	composes	kuraudo?::get	poll state
+kuraudo?::whoami	guards	kuraudo?::list	know the account first
 kyasshu?::clear	lifts	kyasshu?::delete	every entry
 kyasshu?::delete	inverse	kyasshu?::put	drops what put stored
 kyasshu?::flush	composes	kakunou?::put	write-behind target
@@ -2562,7 +2483,9 @@ kyasshu?::sweep	lifts	kyasshu?::delete	many at once
 kyasshu?::tier	composes	kyasshu?::remember	miss falls to the next layer
 kyasshu?::warm	lifts	kyasshu?::remember	many keys ahead of demand
 kyohi::check	composes	kyohi::kinds	one error carries all kinds
+kyohi::check	pairs	kyohi::enforce	check raises today; enforce is the raising form of the master contract
 kyohi::check	requires	kyohi::refusal	collects refusals
+kyohi::enforce	composes	core::check	the findings come from the master check
 kyohi::exit_status	requires	kyohi::ledger	reads the status column
 kyohi::kind	requires	kyohi::refusal	reads a refusal
 kyohi::kinds	lifts	kyohi::kind	kind of each refusal
@@ -2601,7 +2524,7 @@ kyoujin?::admit	requires	kyoujin?::bucket	takes from a bucket
 kyoujin?::breaker	pairs	chuukai?::eject	breaker locally, eject at the edge
 kyoujin?::breaker	pairs	kyoujin?::protect	declare and use
 kyoujin?::bucket	pairs	kyoujin?::admit	declare and use
-kyoujin?::bucket	pairs	shigoto?::budget	rate and parallelism bounds
+kyoujin?::bucket	pairs	shigoto::budget	rate and parallelism bounds
 kyoujin?::bulkhead	pairs	kyoujin?::enter	declare and use
 kyoujin?::drain	inverse	kyoujin?::slow	stop intake fully versus slow it
 kyoujin?::drain	pairs	heikou::cancel	drain waits where cancel stops
@@ -2715,7 +2638,7 @@ kyuuji::health	guards	kyuuji::serve	readiness answers before traffic
 kyuuji::health	pairs	fuka?::guard	health is a stop condition
 kyuuji::health	pairs	kaihatsu?::doctor	probe versus environment
 kyuuji::hook	composes	kyoujin?::once	one effect per delivery id
-kyuuji::hook	composes	tsuuchi?::verify?	signature checked first
+kyuuji::hook	composes	tsuuchi::verify?	signature checked first
 kyuuji::hook	refines	kyuuji::route	a route for signed callbacks
 kyuuji::json	refines	kyuuji::response	JSON content type preset
 kyuuji::match	requires	kyuuji::router	matching needs the app
@@ -2842,35 +2765,6 @@ mimoto?::revoked?	pairs	mimoto?::revoke	the list revoke writes
 mimoto?::roots	guards	mimoto?::chain_of	supplies the trust anchors
 mimoto?::self_sign	refines	mimoto?::issue	issuer is the subject
 mimoto?::watch	lifts	mimoto?::principal	stream of rotated identities
-moderu?::ask	guards	moderu?::fit	window checked first
-moderu?::ask	requires	dairi?::budget	spend is capped
-moderu?::ask	requires	moderu?::render	wire form of the prompt
-moderu?::classify	pairs	chokkan::choice	same job, two surfaces
-moderu?::classify	refines	moderu?::ask	ask with labels
-moderu?::cost	requires	moderu?::info	price comes from the model
-moderu?::embed	pairs	kensaku?::similarity	vectors then closeness
-moderu?::embed	requires	moderu?::model	embedding model
-moderu?::example	requires	moderu?::prompt	part of a prompt
-moderu?::extract	refines	moderu?::ask	ask with a shape
-moderu?::extract	requires	saiten?::check	shape check of the record
-moderu?::fit	pairs	moderu?::prefix	cut after the cached prefix
-moderu?::fit	requires	moderu?::tokens	count before cut
-moderu?::info	requires	moderu?::list	facts from the catalog
-moderu?::ledger	pairs	moderu?::total	record and sum
-moderu?::ledger	requires	moderu?::cost	entries carry cost
-moderu?::list	generalizes	moderu?::info	catalog of models
-moderu?::message	requires	moderu?::prompt	part of a prompt
-moderu?::model	requires	moderu?::info	a model has facts
-moderu?::prefix	requires	moderu?::ask	provider caches the prefix
-moderu?::prefix	requires	moderu?::prompt	marks a prompt prefix
-moderu?::prompt	composes	moderu?::example	plus worked cases
-moderu?::prompt	composes	moderu?::message	a prompt is turns
-moderu?::render	pairs	bunsho?::fill	templates fill slots
-moderu?::render	requires	moderu?::prompt	needs a prompt
-moderu?::stream	lifts	moderu?::ask	ask as deltas
-moderu?::stream	requires	moderu?::tokens	usage counted per delta
-moderu?::tokens	requires	moderu?::model	tokenizer belongs to a model
-moderu?::total	composes	moderu?::cost	sum of costs
 moji::bytes	inverse	moji::from_bytes	text and UTF-8 round-trip
 moji::bytes	pairs	deeta::encode	bytes then a text encoding
 moji::case	composes	moji::join	rejoin in the target style
@@ -2939,6 +2833,35 @@ moji::width	pairs	moji::size	columns versus code points
 moji::words	refines	moji::split	cut at runs of space
 moji::wrap	composes	moji::width	lines stay within a width
 moji::wrap	composes	moji::words	break between words
+mokei?::ask	guards	mokei?::fit	window checked first
+mokei?::ask	requires	dairi?::budget	spend is capped
+mokei?::ask	requires	mokei?::render	wire form of the prompt
+mokei?::classify	pairs	chokkan::choice	same job, two surfaces
+mokei?::classify	refines	mokei?::ask	ask with labels
+mokei?::cost	requires	mokei?::info	price comes from the model
+mokei?::embed	pairs	kensaku?::similarity	vectors then closeness
+mokei?::embed	requires	mokei?::model	embedding model
+mokei?::example	requires	mokei?::prompt	part of a prompt
+mokei?::extract	refines	mokei?::ask	ask with a shape
+mokei?::extract	requires	saiten?::check	shape check of the record
+mokei?::fit	pairs	mokei?::prefix	cut after the cached prefix
+mokei?::fit	requires	mokei?::tokens	count before cut
+mokei?::info	requires	mokei?::list	facts from the catalog
+mokei?::ledger	pairs	mokei?::total	record and sum
+mokei?::ledger	requires	mokei?::cost	entries carry cost
+mokei?::list	generalizes	mokei?::info	catalog of models
+mokei?::message	requires	mokei?::prompt	part of a prompt
+mokei?::model	requires	mokei?::info	a model has facts
+mokei?::prefix	requires	mokei?::ask	provider caches the prefix
+mokei?::prefix	requires	mokei?::prompt	marks a prompt prefix
+mokei?::prompt	composes	mokei?::example	plus worked cases
+mokei?::prompt	composes	mokei?::message	a prompt is turns
+mokei?::render	pairs	bunsho?::fill	templates fill slots
+mokei?::render	requires	mokei?::prompt	needs a prompt
+mokei?::stream	lifts	mokei?::ask	ask as deltas
+mokei?::stream	requires	mokei?::tokens	usage counted per delta
+mokei?::tokens	requires	mokei?::model	tokenizer belongs to a model
+mokei?::total	composes	mokei?::cost	sum of costs
 mokuroku::catalog	composes	mokuroku::extract	over every package
 mokuroku::catalog	inverse	mokuroku::render	catalog to a document
 mokuroku::catalog	pairs	chishiki?::index	catalog entries are indexed
@@ -2947,8 +2870,8 @@ mokuroku::check	requires	mokuroku::catalog	gaps in entries
 mokuroku::check	requires	mokuroku::list	checks the whole set
 mokuroku::coverage	composes	mokuroku::check	share without gaps
 mokuroku::coverage	pairs	hadome::judge	doc coverage cannot fall
-mokuroku::diff	guards	hakkou?::breaking?	interface change feeds it
-mokuroku::diff	pairs	hakkou?::changelog	interface changes in the notes
+mokuroku::diff	guards	rirezu?::breaking?	interface change feeds it
+mokuroku::diff	pairs	rirezu?::changelog	interface changes in the notes
 mokuroku::diff	requires	mokuroku::catalog	two catalogs
 mokuroku::extract	pairs	hinagata?::generate	docs are generated output
 mokuroku::extract	requires	koubun?::parse	reads definitions
@@ -2975,7 +2898,7 @@ ninshou?::alive?	requires	ninshou?::start	only sessions that started
 ninshou?::answer?	composes	shomei::verify?	response is a signature
 ninshou?::answer?	pairs	ninshou?::challenge	each challenge answered once
 ninshou?::backup_codes	requires	fuuin?::random	codes need entropy
-ninshou?::caller	composes	tegata?::read	identity from a token
+ninshou?::caller	composes	tegata::read	identity from a token
 ninshou?::caller	guards	kengen?::permit	identity comes before permission
 ninshou?::caller	requires	ninshou?::alive?	identity from a live session
 ninshou?::challenge	guards	ninshou?::passkey_ask	same fresh nonce rule
@@ -3108,8 +3031,8 @@ nisshi::verify?	pairs	nisshi::seal	proof of a frozen segment
 nisshi::watch	lifts	nisshi::append	appends as events
 nisshi::watch	lifts	nisshi::get	each new record
 nisshi::watch	lifts	nisshi::read	follows appended records
-nisshi::watch	pairs	keikaku?::checkin	progress events follow
 nisshi::watch	pairs	nisshi::append	appenders feed watchers
+nisshi::watch	pairs	puran?::checkin	progress events follow
 nisshi::watch	refines	nisshi::stream	keeps going after the end
 nisshi::witness	composes	nisshi::checkpoint	publish the signed head
 okite::counterexample	refines	okite::holds?	returns the failing value
@@ -3152,14 +3075,14 @@ onsei?::resample	requires	onsei?::info	rate comes from info
 onsei?::segment	composes	onsei?::measure	speech by energy
 onsei?::segment	pairs	onsei?::transcribe	spans feed transcription
 onsei?::speak	inverse	onsei?::transcribe	text to speech and back
-onsei?::speak	requires	moderu?::ask	a speech model
+onsei?::speak	requires	mokei?::ask	a speech model
 onsei?::spectrum	requires	onsei?::resample	fixed rate input
 onsei?::stream	lifts	onsei?::read	chunks of read
 onsei?::stream	requires	onsei?::info	chunk size from the rate
 onsei?::tone	pairs	onsei?::overlay	tones mixed into a clip
 onsei?::tone	requires	ongaku::hz	pitch from a note
 onsei?::transcribe	inverse	onsei?::speak	text to speech and back
-onsei?::transcribe	requires	moderu?::ask	a speech model
+onsei?::transcribe	requires	mokei?::ask	a speech model
 onsei?::transcribe	requires	onsei?::segment	split long audio first
 onsei?::treat	requires	gazou?::treat	same verb on images
 onsei?::treat	requires	onsei?::resample	effects need one rate
@@ -3235,6 +3158,31 @@ paketto?::verify	guards	paketto?::install	lock matches manifest
 paketto?::verify	inverse	paketto?::lock	write versus check
 paketto?::why	requires	paketto?::closure	paths through the graph
 paketto?::yank	inverse	paketto?::publish	withdraw a version
+puran?::burndown	requires	puran?::sprint	work left in a sprint
+puran?::capacity	pairs	puran?::schedule	places items by capacity
+puran?::capacity	pairs	shougai?::oncall	on-call reduces capacity
+puran?::checkin	composes	nisshi::append	progress is an event
+puran?::critical_path	refines	tsuiseki?::critical_path	same law on a task graph
+puran?::estimate	pairs	kadai?::update	sizes are stored on issues
+puran?::estimate	pairs	puran?::velocity	size over speed
+puran?::forecast	composes	puran?::velocity	backlog over velocity
+puran?::forecast	pairs	puran?::variance	forecast then compare
+puran?::goal	pairs	puran?::checkin	target and progress
+puran?::goal	pairs	shihyou::objective	goals are objectives for people
+puran?::milestone	pairs	puran?::roadmap	dated sets
+puran?::milestone	requires	kadai?::list	a set of issues
+puran?::retro	pairs	shougai?::postmortem	retro covers a period, postmortem an event
+puran?::retro	requires	nisshi::read	facts from events
+puran?::risk	pairs	puran?::variance	risk turns into variance
+puran?::risk	pairs	shougai?::classify	a risk met is an incident
+puran?::roadmap	composes	puran?::milestone	ordered milestones
+puran?::schedule	composes	puran?::estimate	uses sizes
+puran?::schedule	pairs	puran?::critical_path	order and chain
+puran?::sprint	pairs	puran?::burndown	a sprint is burned down
+puran?::sprint	refines	puran?::milestone	time-boxed
+puran?::variance	composes	puran?::schedule	plan against actual
+puran?::velocity	pairs	shihyou::throughput	history versus metric
+puran?::velocity	requires	kadai?::list	from finished issues
 raifusaikuru::admit	composes	raifusaikuru::gate	evaluates the conditions
 raifusaikuru::admit	composes	raifusaikuru::permit	evaluates the limits
 raifusaikuru::advance	composes	raifusaikuru::signal	signals until it rests
@@ -3277,7 +3225,7 @@ ran::pick	requires	ran::draw	one draw per pick
 ran::shuffle	composes	ran::pick	pick without repeat
 ran::shuffle	requires	ran::draw	one draw per slot
 ran::walk	composes	ran::draw	a draw per step
-ran::walk	requires	sekai?::field	walks over a field
+ran::walk	requires	waarudo?::field	walks over a field
 rebyuu?::approve	pairs	rebyuu?::ready?	approvals count
 rebyuu?::approve	requires	rebyuu?::read	approves what was read
 rebyuu?::assign	requires	rebyuu?::owners	picks reviewers
@@ -3410,31 +3358,60 @@ retsu::windows	composes	retsu::slice	slice at each offset
 retsu::windows	pairs	retsu::chunk	overlapping versus not
 retsu::zip	inverse	retsu::unzip	pairs and two lists round-trip
 retsu::zip	pairs	retsu::interleave	pair versus alternate
+rirezu?::breaking?	guards	rirezu?::next	a break needs a major
+rirezu?::breaking?	requires	mokuroku::diff	interface changes
+rirezu?::build	pairs	rirezu?::sbom	build then its parts list
+rirezu?::build	requires	rirezu?::next	version is set first
+rirezu?::canary	composes	shihyou::meets?	judged by objectives
+rirezu?::canary	pairs	rirezu?::rollback	a bad canary rolls back
+rirezu?::canary	refines	rirezu?::promote	partial, judged promotion
 rirezu?::changelog	composes	rirezu?::notes	write notes to file
 rirezu?::changelog	inverse	rirezu?::notes	write versus render
+rirezu?::changelog	pairs	rirezu?::next	notes and version agree
+rirezu?::changelog	requires	gitto::list	groups commits by kind
 rirezu?::cut	composes	gitto::tag	tag marks the release
 rirezu?::cut	composes	rirezu?::plan	plan then tag
 rirezu?::cut	guards	rirezu?::publish	tag exists first
 rirezu?::diff	composes	gitto::diff	changes between tags
+rirezu?::diff	pairs	rirezu?::changelog	same range, two views
+rirezu?::diff	requires	gitto::diff	commits between releases
 rirezu?::get	composes	gitto::get	one tag
 rirezu?::get	refines	core::get	one release
 rirezu?::latest	composes	rirezu?::list	newest of the list
 rirezu?::list	composes	gitto::list	releases are tags
 rirezu?::list	refines	core::list	releases
+rirezu?::next	pairs	rirezu?::breaking?	major only on a break
+rirezu?::next	requires	gitto::list	reads commits since last tag
 rirezu?::notes	inverse	rirezu?::changelog	write versus render
 rirezu?::notes	refines	core::render	commits to text
+rirezu?::pin	pairs	rirezu?::promote	environment pins
+rirezu?::pin	requires	rirezu?::publish	only published releases
 rirezu?::plan	composes	bajon?::next	next version
 rirezu?::plan	composes	rirezu?::notes	notes in the plan
+rirezu?::plan	guards	rirezu?::publish	preview before upload
+rirezu?::plan	pairs	rirezu?::promote	promotion is planned
 rirezu?::plan	requires	gitto::list	reads commits
+rirezu?::promote	composes	rirezu?::pin	sets the next environment
+rirezu?::promote	inverse	rirezu?::rollback	forward and back
 rirezu?::promote	requires	rirezu?::verify	verify before moving on
 rirezu?::publish	composes	ryuutsuu?::publish	binaries to a channel
 rirezu?::publish	composes	tsumini?::push	images to a registry
 rirezu?::publish	guards	rirezu?::promote	published before promoted
+rirezu?::publish	guards	rirezu?::released?	publish once per version
 rirezu?::publish	inverse	rirezu?::yank	withdraw
+rirezu?::publish	pairs	nisshi::append	release events are logged
+rirezu?::publish	pairs	rirezu?::pin	publish then pin
+rirezu?::publish	requires	rirezu?::build	publishes what was built
 rirezu?::publish	requires	rirezu?::cut	cut first
+rirezu?::released?	pairs	rirezu?::publish	check before publish keeps it once
+rirezu?::rollback	composes	rirezu?::pin	pins the previous release
+rirezu?::rollback	inverse	rirezu?::promote	forward and back
+rirezu?::sbom	requires	rirezu?::build	parts of the artifact
 rirezu?::verify	composes	ryuutsuu?::verify	assets match record
 rirezu?::yank	inverse	rirezu?::publish	withdraw
 rirezu?::yank	pairs	paketto?::yank	withdraw in registry and host
+rirezu?::yank	pairs	shougai?::mitigate	yank is a mitigation
+rirezu?::yank	refines	rirezu?::rollback	withdraws a published version
 rittai::boolean	requires	rittai::merge	combine solids
 rittai::bounds	pairs	rittai::centroid	box and centre
 rittai::bounds	refines	kikagaku::bounds	in three dimensions
@@ -3565,14 +3542,14 @@ saiten?::diff	pairs	saiten?::gate	diff then gate
 saiten?::diff	requires	saiten?::run	against a baseline
 saiten?::drift	pairs	saiten?::gate	drift can gate
 saiten?::drift	requires	toukei::describe	compare summaries
-saiten?::estimate	composes	moderu?::cost	price them
-saiten?::estimate	composes	moderu?::tokens	count tokens
+saiten?::estimate	composes	mokei?::cost	price them
+saiten?::estimate	composes	mokei?::tokens	count tokens
 saiten?::gate	guards	saiten?::run	stop a merge on a drop
 saiten?::gate	requires	toukei::hypothesis	significance, not luck
 saiten?::holdout	requires	saiten?::dedupe	no leak into test
 saiten?::judge	refines	saiten?::score	a model grades
 saiten?::judge	requires	chokkan::choice	a typed question
-saiten?::label	requires	moderu?::classify	model labels
+saiten?::label	requires	mokei?::classify	model labels
 saiten?::run	composes	saiten?::score	grade each output
 saiten?::run	requires	saiten?::suite	runs a suite
 saiten?::score	requires	saiten?::case	against the expected
@@ -3625,7 +3602,7 @@ sakuin::suggest	refines	sakuin::search	prefix completions
 sanshou::paths	pairs	dairi?::call	mentions become tool calls
 sanshou::paths	refines	bunsho?::extract	mentions as parts
 seimei::advance	pairs	ran::draw	seeded rules
-seimei::advance	refines	sekai?::advance	a grid world step
+seimei::advance	refines	waarudo?::advance	a grid world step
 seimitsu?::big	guards	seimitsu?::mod_pow	exact exponent math
 seimitsu?::big	pairs	seimitsu?::to_int	build and convert
 seimitsu?::decimal	pairs	seimitsu?::places	digits and their count
@@ -3641,41 +3618,6 @@ seimitsu?::rescale	refines	kazu::round	round to places
 seimitsu?::to_float	inverse	seimitsu?::exact	float and its exact value
 seimitsu?::to_float	pairs	kazu::parse	exact to inexact
 seimitsu?::to_int	refines	kazu::round	round to a whole number
-sekai?::advance	composes	sekai?::arrange	runs the order
-sekai?::advance	composes	sekai?::system	each system once
-sekai?::arrange	guards	sekai?::advance	no write clash
-sekai?::body	pairs	sekai?::put	a body is a component
-sekai?::body	requires	sekai?::collide	bodies touch
-sekai?::check	guards	sekai?::advance	laws hold each tick
-sekai?::check	requires	sekai?::query	reads every entity
-sekai?::collide	requires	kikagaku::intersect	shape overlap
-sekai?::delete	inverse	sekai?::spawn	add and remove an entity
-sekai?::field	pairs	sekai?::generate	noise feeds generation
-sekai?::field	requires	ran::draw	seeded values
-sekai?::generate	composes	ran::pick	seeded choice
-sekai?::generate	requires	sekai?::grammar	runs rules
-sekai?::get	pairs	sekai?::put	component read and write
-sekai?::grammar	requires	sekai?::generate	rules need a runner
-sekai?::hit	refines	byouga?::hit	first thing a ray meets
-sekai?::hit	requires	sekai?::query	searches bodies
-sekai?::on	requires	sekai?::system	handlers are systems
-sekai?::path	requires	sekai?::query	graph from the world
-sekai?::put	pairs	sekai?::get	component write and read
-sekai?::query	generalizes	sekai?::get	many entities, not one
-sekai?::read	inverse	sekai?::write	load what was saved
-sekai?::replay	requires	ran::fork	same seed, same world
-sekai?::replay	requires	sekai?::advance	inputs drive steps
-sekai?::rollback	pairs	sekai?::write	snapshots to rewind to
-sekai?::rollback	requires	sekai?::replay	rewind then replay
-sekai?::send	pairs	sekai?::on	an event needs a handler
-sekai?::send	requires	sekai?::world	events live in a world
-sekai?::simulate	composes	sekai?::advance	ticks in a row
-sekai?::simulate	pairs	ugoki?::play	a fixed step under a frame clock
-sekai?::spawn	inverse	sekai?::delete	add and remove an entity
-sekai?::system	requires	sekai?::query	a system reads a query
-sekai?::world	composes	sekai?::system	a world runs systems
-sekai?::world	requires	sekai?::arrange	systems are ordered
-sekai?::write	inverse	sekai?::read	load what was saved
 settei::defaults	pairs	settei::schema	values and their types
 settei::diff	composes	settei::list	compares path lists
 settei::diff	pairs	settei::merge	compare then combine
@@ -3704,54 +3646,54 @@ settei::validate	guards	settei::reload	refuse a bad record on reload
 settei::watch	composes	fairu::watch	file change events
 settei::watch	lifts	settei::reload	each change reloads
 settei::watch	pairs	settei::reload	change and refresh
-shigoto?::after	composes	jikan::sleep	sleep then call
-shigoto?::backfill	composes	shigoto?::missed	runs each missed firing
-shigoto?::backfill	pairs	kyoujin?::once	each firing runs once
-shigoto?::budget	guards	shigoto?::run	bounds parallelism of a run
-shigoto?::cancel	composes	shigoto?::compensate	undo completed steps
-shigoto?::cancel	pairs	heikou::cancel	run-level cancel
-shigoto?::claim	inverse	shigoto?::enqueue	add and take
-shigoto?::claim	requires	goui?::acquire	a claim is a lease
-shigoto?::compensate	pairs	heikou::retry	undos retried until done
-shigoto?::compensate	requires	shigoto?::saga	undoes a declared saga
-shigoto?::complete	requires	shigoto?::claim	only the claimant completes
-shigoto?::dag	pairs	shigoto?::run	declare then run
-shigoto?::defer	refines	shigoto?::fail	failure with a chosen delay
-shigoto?::defer	requires	shigoto?::claim	hands back a claimed job
-shigoto?::enqueue	inverse	shigoto?::claim	add and take
-shigoto?::enqueue	pairs	kyoujin?::key	duplicate key is one job
-shigoto?::enqueue	pairs	messeeji?::publish	a queue over a log
-shigoto?::every	composes	jikan::sleep	waits between firings
-shigoto?::every	composes	shigoto?::next	sleep to each firing
-shigoto?::every	pairs	goui?::with_lock	run one copy of a schedule
-shigoto?::every	refines	shigoto?::timer	at repeated by a schedule
-shigoto?::fail	composes	heikou::retry	policy decides redelivery
-shigoto?::fail	pairs	messeeji?::park	exhausted jobs go to a dead queue
-shigoto?::fail	requires	shigoto?::claim	only the claimant fails
-shigoto?::gate	guards	shigoto?::claim	held until precondition
-shigoto?::info	composes	nisshi::replay	state is folded from the log
-shigoto?::info	requires	shigoto?::start	inspects a run
-shigoto?::missed	composes	shigoto?::next	firings between two instants
-shigoto?::next	inverse	shigoto?::parse	text to schedule, schedule to time
-shigoto?::next	requires	shigoto?::parse	computed from a schedule
-shigoto?::parse	inverse	shigoto?::next	text to schedule, schedule to time
-shigoto?::parse	requires	jikan::parse	schedules use time parsing
-shigoto?::pause	inverse	shigoto?::resume	stop and continue
-shigoto?::plan	inverse	shigoto?::run	the plan changes nothing
-shigoto?::plan	requires	shigoto?::dag	plans a declared graph
-shigoto?::rank	pairs	shigoto?::claim	claim order
-shigoto?::resume	inverse	shigoto?::pause	stop and continue
-shigoto?::run	composes	heikou::map	parallel by level
-shigoto?::run	inverse	shigoto?::plan	the plan changes nothing
-shigoto?::run	pairs	nisshi::append	runs are recorded
-shigoto?::run	requires	shigoto?::dag	runs a declared graph
-shigoto?::saga	refines	shigoto?::workflow	steps each with an undo
-shigoto?::signal	requires	shigoto?::start	targets a run
-shigoto?::start	composes	nisshi::append	each step is logged
-shigoto?::start	requires	shigoto?::workflow	runs a declared workflow
-shigoto?::timer	refines	shigoto?::after	absolute instead of relative
-shigoto?::wait	requires	shigoto?::start	waits on a run
-shigoto?::workflow	generalizes	shigoto?::dag	durable and signal-aware graph
+shigoto::after	composes	jikan::sleep	sleep then call
+shigoto::backfill	composes	shigoto::missed	runs each missed firing
+shigoto::backfill	pairs	kyoujin?::once	each firing runs once
+shigoto::budget	guards	shigoto::run	bounds parallelism of a run
+shigoto::cancel	composes	shigoto::compensate	undo completed steps
+shigoto::cancel	pairs	heikou::cancel	run-level cancel
+shigoto::claim	inverse	shigoto::enqueue	add and take
+shigoto::claim	requires	goui?::acquire	a claim is a lease
+shigoto::compensate	pairs	heikou::retry	undos retried until done
+shigoto::compensate	requires	shigoto::saga	undoes a declared saga
+shigoto::complete	requires	shigoto::claim	only the claimant completes
+shigoto::dag	pairs	shigoto::run	declare then run
+shigoto::defer	refines	shigoto::fail	failure with a chosen delay
+shigoto::defer	requires	shigoto::claim	hands back a claimed job
+shigoto::enqueue	inverse	shigoto::claim	add and take
+shigoto::enqueue	pairs	kyoujin?::key	duplicate key is one job
+shigoto::enqueue	pairs	messeeji?::publish	a queue over a log
+shigoto::every	composes	jikan::sleep	waits between firings
+shigoto::every	composes	shigoto::next	sleep to each firing
+shigoto::every	pairs	goui?::with_lock	run one copy of a schedule
+shigoto::every	refines	shigoto::timer	at repeated by a schedule
+shigoto::fail	composes	heikou::retry	policy decides redelivery
+shigoto::fail	pairs	messeeji?::park	exhausted jobs go to a dead queue
+shigoto::fail	requires	shigoto::claim	only the claimant fails
+shigoto::gate	guards	shigoto::claim	held until precondition
+shigoto::info	composes	nisshi::replay	state is folded from the log
+shigoto::info	requires	shigoto::start	inspects a run
+shigoto::missed	composes	shigoto::next	firings between two instants
+shigoto::next	inverse	shigoto::parse	text to schedule, schedule to time
+shigoto::next	requires	shigoto::parse	computed from a schedule
+shigoto::parse	inverse	shigoto::next	text to schedule, schedule to time
+shigoto::parse	requires	jikan::parse	schedules use time parsing
+shigoto::pause	inverse	shigoto::resume	stop and continue
+shigoto::plan	inverse	shigoto::run	the plan changes nothing
+shigoto::plan	requires	shigoto::dag	plans a declared graph
+shigoto::rank	pairs	shigoto::claim	claim order
+shigoto::resume	inverse	shigoto::pause	stop and continue
+shigoto::run	composes	heikou::map	parallel by level
+shigoto::run	inverse	shigoto::plan	the plan changes nothing
+shigoto::run	pairs	nisshi::append	runs are recorded
+shigoto::run	requires	shigoto::dag	runs a declared graph
+shigoto::saga	refines	shigoto::workflow	steps each with an undo
+shigoto::signal	requires	shigoto::start	targets a run
+shigoto::start	composes	nisshi::append	each step is logged
+shigoto::start	requires	shigoto::workflow	runs a declared workflow
+shigoto::timer	refines	shigoto::after	absolute instead of relative
+shigoto::wait	requires	shigoto::start	waits on a run
+shigoto::workflow	generalizes	shigoto::dag	durable and signal-aware graph
 shihyou::alerts	composes	shihyou::burn	alerts fire on burn
 shihyou::alerts	composes	shihyou::error_ratio	burn alerts use ratios
 shihyou::alerts	refines	shihyou::rules	alert rules are rules
@@ -3766,7 +3708,7 @@ shihyou::dashboard	composes	shihyou::rules	panels show the same rules
 shihyou::dashboard	pairs	keisoku?::query	panels run queries
 shihyou::dashboard	requires	shihyou::objectives	panels per objective
 shihyou::dora	composes	shihyou::cycle_time	lead time is a cycle time
-shihyou::dora	pairs	hakkou?::promote	deploys are the events
+shihyou::dora	pairs	rirezu?::promote	deploys are the events
 shihyou::dora	requires	nisshi::read	reads change and deploy events
 shihyou::error_ratio	pairs	kyuuji::observe	ratio of what observe counted
 shihyou::error_ratio	pairs	shihyou::slow_ratio	two indicators
@@ -3783,7 +3725,7 @@ shihyou::review_time	requires	rebyuu?::list	reads review timestamps
 shihyou::rules	composes	shihyou::indicator	recording rules per indicator
 shihyou::rules	pairs	shougai?::route	alerts go to routes
 shihyou::runway	composes	shihyou::burn	budget over burn
-shihyou::runway	pairs	keikaku?::forecast	both predict an end date
+shihyou::runway	pairs	puran?::forecast	both predict an end date
 shihyou::slow_ratio	pairs	shihyou::error_ratio	two indicators
 shihyou::throughput	pairs	shihyou::cycle_time	flow measures
 shihyou::throughput	requires	kadai?::list	counts finished items
@@ -3931,7 +3873,7 @@ shougai?::get	pairs	shougai?::timeline	record and its events
 shougai?::get	refines	shougai?::list	one record, or nil
 shougai?::list	requires	shihyou::alerts	alerts come from rules
 shougai?::mitigate	composes	shougai?::note	every action is noted
-shougai?::mitigate	pairs	hakkou?::rollback	rollback is a mitigation
+shougai?::mitigate	pairs	rirezu?::rollback	rollback is a mitigation
 shougai?::note	composes	nisshi::append	one timeline entry
 shougai?::oncall	pairs	shougai?::route	schedule feeds routing
 shougai?::oncall	requires	shougai?::list	reads the schedule
@@ -4203,49 +4145,49 @@ teeburu::with_connection	requires	teeburu::pool	lends from the pool
 teeburu::with_transaction	composes	teeburu::begin	opens the unit
 teeburu::with_transaction	composes	teeburu::commit	on normal return
 teeburu::with_transaction	composes	teeburu::rollback	on any raise
-tegata?::acquire	composes	tegata?::issue	assertion for client credentials
-tegata?::acquire	requires	tegata?::discover	token endpoint from discovery
-tegata?::api_key	composes	shomei::hash	store hash, not secret
-tegata?::api_key	inverse	tegata?::api_key_valid?	checks a presented key
-tegata?::api_key	pairs	tegata?::api_key_valid?	issue and check
-tegata?::api_key	requires	fuuin?::random	key from entropy
-tegata?::api_key_valid?	composes	shomei::same?	equal-time comparison
-tegata?::api_key_valid?	inverse	tegata?::api_key	checks a presented key
-tegata?::assertion	generalizes	tegata?::read	same checks on a SAML document
-tegata?::attenuate	pairs	waku::narrow	same law: narrow cannot widen
-tegata?::attenuate	refines	tegata?::issue	adds a caveat, never removes
-tegata?::discover	requires	tegata?::keys	keys come after discovery
-tegata?::exchange	composes	tegata?::issue	mint the narrower token
-tegata?::exchange	composes	tegata?::read	check the incoming token
-tegata?::expired?	refines	tegata?::read	expiry check alone
-tegata?::flow_finish	composes	tegata?::read	check the returned ID token
-tegata?::flow_finish	pairs	tegata?::flow_start	redeems what start prepared
-tegata?::flow_finish	requires	tegata?::discover	endpoints come from discovery
-tegata?::flow_start	composes	tegata?::pkce	challenge from verifier
-tegata?::flow_start	requires	fuuin?::random	state and verifier from entropy
-tegata?::introspect	generalizes	tegata?::read	asks the issuer instead of verifying locally
-tegata?::introspect	pairs	tegata?::revoked?	remote versus local state
-tegata?::issue	composes	shomei::sign	signature over header and claims
-tegata?::issue	inverse	tegata?::read	checks and opens what issue made
-tegata?::issue	inverse	tegata?::revoke	withdraws an issued token
-tegata?::issue	pairs	tegata?::read	every token has a check
-tegata?::keys	composes	tegata?::discover	key set URL from discovery
-tegata?::keys	pairs	tegata?::read	read needs the issuer keys
-tegata?::pkce	composes	shomei::hash	SHA-256 of the verifier
-tegata?::read	composes	shomei::verify?	signature check
-tegata?::read	composes	tegata?::keys	find the verification key
-tegata?::read	guards	ninshou?::caller	token is one source of identity
-tegata?::read	inverse	tegata?::issue	checks and opens what issue made
-tegata?::refresh	composes	tegata?::issue	new pair
-tegata?::refresh	composes	tegata?::revoke	old refresh token retired
-tegata?::refresh	pairs	tegata?::issue	refresh mints a pair like issue
-tegata?::revoke	guards	tegata?::read	revoked tokens fail reading
-tegata?::revoke	inverse	tegata?::issue	withdraws an issued token
-tegata?::revoked?	pairs	tegata?::revoke	the list revoke writes
-tegata?::tie	guards	tegata?::read	reader checks the holder proof
-tegata?::tie	requires	shomei::keypair	holder owns a key
-tegata?::unverified	guards	tegata?::read	peek at key id before verifying
-tegata?::unverified	requires	tegata?::keys	key id picks the verification key
+tegata::acquire	composes	tegata::issue	assertion for client credentials
+tegata::acquire	requires	tegata::discover	token endpoint from discovery
+tegata::api_key	composes	shomei::hash	store hash, not secret
+tegata::api_key	inverse	tegata::api_key_valid?	checks a presented key
+tegata::api_key	pairs	tegata::api_key_valid?	issue and check
+tegata::api_key	requires	fuuin?::random	key from entropy
+tegata::api_key_valid?	composes	shomei::same?	equal-time comparison
+tegata::api_key_valid?	inverse	tegata::api_key	checks a presented key
+tegata::assertion	generalizes	tegata::read	same checks on a SAML document
+tegata::attenuate	pairs	waku::narrow	same law: narrow cannot widen
+tegata::attenuate	refines	tegata::issue	adds a caveat, never removes
+tegata::discover	requires	tegata::keys	keys come after discovery
+tegata::exchange	composes	tegata::issue	mint the narrower token
+tegata::exchange	composes	tegata::read	check the incoming token
+tegata::expired?	refines	tegata::read	expiry check alone
+tegata::flow_finish	composes	tegata::read	check the returned ID token
+tegata::flow_finish	pairs	tegata::flow_start	redeems what start prepared
+tegata::flow_finish	requires	tegata::discover	endpoints come from discovery
+tegata::flow_start	composes	tegata::pkce	challenge from verifier
+tegata::flow_start	requires	fuuin?::random	state and verifier from entropy
+tegata::introspect	generalizes	tegata::read	asks the issuer instead of verifying locally
+tegata::introspect	pairs	tegata::revoked?	remote versus local state
+tegata::issue	composes	shomei::sign	signature over header and claims
+tegata::issue	inverse	tegata::read	checks and opens what issue made
+tegata::issue	inverse	tegata::revoke	withdraws an issued token
+tegata::issue	pairs	tegata::read	every token has a check
+tegata::keys	composes	tegata::discover	key set URL from discovery
+tegata::keys	pairs	tegata::read	read needs the issuer keys
+tegata::pkce	composes	shomei::hash	SHA-256 of the verifier
+tegata::read	composes	shomei::verify?	signature check
+tegata::read	composes	tegata::keys	find the verification key
+tegata::read	guards	ninshou?::caller	token is one source of identity
+tegata::read	inverse	tegata::issue	checks and opens what issue made
+tegata::refresh	composes	tegata::issue	new pair
+tegata::refresh	composes	tegata::revoke	old refresh token retired
+tegata::refresh	pairs	tegata::issue	refresh mints a pair like issue
+tegata::revoke	guards	tegata::read	revoked tokens fail reading
+tegata::revoke	inverse	tegata::issue	withdraws an issued token
+tegata::revoked?	pairs	tegata::revoke	the list revoke writes
+tegata::tie	guards	tegata::read	reader checks the holder proof
+tegata::tie	requires	shomei::keypair	holder owns a key
+tegata::unverified	guards	tegata::read	peek at key id before verifying
+tegata::unverified	requires	tegata::keys	key id picks the verification key
 tehai::list	composes	tehai::parse	declared set first
 tehai::list	composes	tehai::probe	probe each declared machine
 tehai::list	inverse	tehai::write	write versus read of the live set
@@ -4267,10 +4209,10 @@ tenkai?::list	refines	core::list	rollouts
 tenkai?::pause	guards	tenkai?::step	held rollouts do not step
 tenkai?::pause	inverse	tenkai?::resume	hold versus continue
 tenkai?::plan	refines	core::plan	steps as data
-tenkai?::plan	requires	haichi?::resolve	environment config
+tenkai?::plan	requires	uwagaki?::resolve	environment config
 tenkai?::promote	composes	tenkai?::step	final step
 tenkai?::promote	inverse	tenkai?::rollback	undo the move
-tenkai?::promote	pairs	haichi?::promote	app and environment
+tenkai?::promote	pairs	uwagaki?::promote	app and environment
 tenkai?::resume	inverse	tenkai?::pause	hold versus continue
 tenkai?::resume	requires	tenkai?::pause	only a held rollout
 tenkai?::rollback	composes	tenkai?::shift	weight back to old
@@ -4296,7 +4238,7 @@ tesuto?::case	pairs	okite::law	a law is a generated test
 tesuto?::case	requires	tesuto?::assert	a test holds assertions
 tesuto?::conforms?	pairs	habu::get	checks a remote provider
 tesuto?::conforms?	refines	tesuto?::assert	a contract is an assertion
-tesuto?::contract	pairs	hakkou?::breaking?	breaking changes break contracts
+tesuto?::contract	pairs	rirezu?::breaking?	breaking changes break contracts
 tesuto?::contract	requires	tesuto?::conforms?	declared to be checked
 tesuto?::cover	pairs	heni::run	coverage and mutation score
 tesuto?::cover	refines	tesuto?::run	run with instruments
@@ -4386,6 +4328,35 @@ tokumei::tokenize	composes	fuuin?::random	random token
 tokumei::tokenize	inverse	tokumei::detokenize	returns the original value
 tokumei::tokenize	requires	tokumei::pseudonym	stand-in may be random instead
 tokumei::unique_share	guards	tokumei::k_anonymous?	estimate before checking
+tougou?::apply	composes	tougou?::merge	delta is merged in
+tougou?::apply	pairs	tougou?::delta	delta out and delta in
+tougou?::clock	pairs	tougou?::tick	empty then advanced
+tougou?::compare	composes	tougou?::clock	orders two vectors
+tougou?::concurrent?	refines	tougou?::compare	the concurrent case only
+tougou?::converge	composes	tougou?::apply	applies them everywhere
+tougou?::converge	composes	tougou?::delta	exchanges deltas
+tougou?::converge	lifts	tougou?::merge	many replicas
+tougou?::counter	pairs	tougou?::increment	its only operation
+tougou?::delete	inverse	tougou?::put	removes what put set
+tougou?::delta	composes	tougou?::compare	what the other side lacks
+tougou?::delta	pairs	tougou?::clock	delta since a vector
+tougou?::erase	inverse	tougou?::insert	removes inserted text
+tougou?::get	pairs	tougou?::value	one key against the whole
+tougou?::has?	refines	tougou?::get	existence only
+tougou?::increment	pairs	tougou?::value	reads the total
+tougou?::insert	inverse	tougou?::erase	removes inserted text
+tougou?::map	pairs	tougou?::get	keyed read
+tougou?::merge	refines	rekishi?::merge	conflict-free kind of merge
+tougou?::merge	requires	tougou?::compare	causal order of the inputs
+tougou?::put	inverse	tougou?::delete	removes what put set
+tougou?::put	pairs	tougou?::get	write and read of a key
+tougou?::register	pairs	tougou?::put	its only operation
+tougou?::set	pairs	tougou?::has?	membership test
+tougou?::text	pairs	tougou?::insert	sequence edit
+tougou?::tick	pairs	tougou?::compare	advance then order
+tougou?::tick	requires	tougou?::clock	needs a vector
+tougou?::value	pairs	tougou?::merge	merged state read as plain
+tougou?::value	pairs	tougou?::text	plain text of the sequence
 toukei::autocorrelation	refines	toukei::correlation	a series against itself
 toukei::bootstrap	requires	ran::draw	seeded resampling
 toukei::bootstrap	requires	toukei::describe	statistic of each resample
@@ -4466,7 +4437,7 @@ tsuiseki?::carry	inverse	tsuiseki?::adopt	context out and in
 tsuiseki?::carry	pairs	tsuiseki?::current	carries the active span
 tsuiseki?::correlate	composes	rogu::query	finds logs sharing the trace id
 tsuiseki?::correlate	composes	tsuiseki?::get	joins the trace to them
-tsuiseki?::critical_path	generalizes	keikaku?::critical_path	same law on spans
+tsuiseki?::critical_path	generalizes	puran?::critical_path	same law on spans
 tsuiseki?::critical_path	requires	tsuiseki?::tree	walks the parent-child tree
 tsuiseki?::current	requires	tsuiseki?::start	a span must be open
 tsuiseki?::diff	pairs	keisoku?::diff	latency compared both ways
@@ -4526,31 +4497,31 @@ tsumini?::run	requires	tsumini?::pull	image must be local
 tsumini?::tag	inverse	tsumini?::delete	remove a name
 tsumini?::tag	refines	core::put	name a digest
 tsumini?::tag	requires	tsumini?::resolve	target digest must exist
-tsuuchi?::channel	pairs	tsuuchi?::send	declaration and use
-tsuuchi?::compose	inverse	tsuuchi?::parse	build and read a message
-tsuuchi?::parse	inverse	tsuuchi?::compose	build and read a message
-tsuuchi?::parse	inverse	tsuuchi?::render	text out versus text in
-tsuuchi?::parse	pairs	deeta::parse	a message is data
-tsuuchi?::register	inverse	tsuuchi?::suppress	enrol versus stop
-tsuuchi?::render	inverse	tsuuchi?::parse	text out versus text in
-tsuuchi?::render	requires	tsuuchi?::template	fills a declared template
-tsuuchi?::send	composes	tsuuchi?::render	render then deliver
-tsuuchi?::send	pairs	kyoujin?::bucket	senders are rate limited
-tsuuchi?::send	pairs	kyoujin?::once	a key makes a send safe to retry
-tsuuchi?::send	pairs	messeeji?::publish	delivery can be queued
-tsuuchi?::send	pairs	tsuushin::request	webhook delivery is a request
-tsuuchi?::send	requires	tsuuchi?::channel	delivery needs a channel
-tsuuchi?::send	requires	tsuuchi?::suppressed?	stop-list checked first
-tsuuchi?::sign	inverse	tsuuchi?::verify?	check and make a signature
-tsuuchi?::sign	refines	shomei::sign	webhook form of sign
-tsuuchi?::status	pairs	nisshi::append	receipts are logged
-tsuuchi?::status	requires	tsuuchi?::send	status of a receipt
-tsuuchi?::subscribe	refines	messeeji?::subscribe	topic list for humans
-tsuuchi?::suppress	inverse	tsuuchi?::register	enrol versus stop
-tsuuchi?::suppress	pairs	tsuuchi?::suppressed?	write and read of the stop list
-tsuuchi?::validate	guards	tsuuchi?::send	bad addresses refused early
-tsuuchi?::verify?	inverse	tsuuchi?::sign	check and make a signature
-tsuuchi?::verify?	refines	shomei::verify?	webhook form of verify
+tsuuchi::channel	pairs	tsuuchi::send	declaration and use
+tsuuchi::compose	inverse	tsuuchi::parse	build and read a message
+tsuuchi::parse	inverse	tsuuchi::compose	build and read a message
+tsuuchi::parse	inverse	tsuuchi::render	text out versus text in
+tsuuchi::parse	pairs	deeta::parse	a message is data
+tsuuchi::register	inverse	tsuuchi::suppress	enrol versus stop
+tsuuchi::render	inverse	tsuuchi::parse	text out versus text in
+tsuuchi::render	requires	tsuuchi::template	fills a declared template
+tsuuchi::send	composes	tsuuchi::render	render then deliver
+tsuuchi::send	pairs	kyoujin?::bucket	senders are rate limited
+tsuuchi::send	pairs	kyoujin?::once	a key makes a send safe to retry
+tsuuchi::send	pairs	messeeji?::publish	delivery can be queued
+tsuuchi::send	pairs	tsuushin::request	webhook delivery is a request
+tsuuchi::send	requires	tsuuchi::channel	delivery needs a channel
+tsuuchi::send	requires	tsuuchi::suppressed?	stop-list checked first
+tsuuchi::sign	inverse	tsuuchi::verify?	check and make a signature
+tsuuchi::sign	refines	shomei::sign	webhook form of sign
+tsuuchi::status	pairs	nisshi::append	receipts are logged
+tsuuchi::status	requires	tsuuchi::send	status of a receipt
+tsuuchi::subscribe	refines	messeeji?::subscribe	topic list for humans
+tsuuchi::suppress	inverse	tsuuchi::register	enrol versus stop
+tsuuchi::suppress	pairs	tsuuchi::suppressed?	write and read of the stop list
+tsuuchi::validate	guards	tsuuchi::send	bad addresses refused early
+tsuuchi::verify?	inverse	tsuuchi::sign	check and make a signature
+tsuuchi::verify?	refines	shomei::verify?	webhook form of verify
 tsuushin::authenticate	composes	tsuushin::sign	a flow yields what sign applies
 tsuushin::create	composes	tsuushin::request	POST with exists check
 tsuushin::create	inverse	tsuushin::delete	create adds what delete removes
@@ -4636,6 +4607,57 @@ ukai::decide	requires	ukai::observe	decides over observed state
 ukai::observe	pairs	ukai::decide	observed then decided
 ukai::observe	requires	shisutemu::run	reads routes through a process
 ukai::plan	requires	ukai::decide	actions from an outcome
+uwagaki?::diff	composes	uwagaki?::resolve	resolve both sides
+uwagaki?::diff	refines	core::diff	between environments
+uwagaki?::freeze	guards	tenkai?::freeze	environment-wide freeze
+uwagaki?::freeze	inverse	uwagaki?::promote	freezes versus moves
+uwagaki?::get	composes	uwagaki?::list	lookup by name
+uwagaki?::get	refines	core::get	nil when absent
+uwagaki?::list	refines	core::list	environments
+uwagaki?::need	composes	uwagaki?::get	get then raise
+uwagaki?::need	refines	core::need	raises when absent
+uwagaki?::path	composes	uwagaki?::list	ordered list
+uwagaki?::promote	guards	tenkai?::start	pin carried forward
+uwagaki?::promote	inverse	uwagaki?::freeze	freezes versus moves
+uwagaki?::promote	requires	uwagaki?::path	next environment
+uwagaki?::resolve	composes	settei::read	layered config
+uwagaki?::resolve	pairs	uwagaki?::diff	compare resolved records
+uwagaki?::resolve	requires	uwagaki?::need	environment must exist
+waarudo?::advance	composes	waarudo?::arrange	runs the order
+waarudo?::advance	composes	waarudo?::system	each system once
+waarudo?::arrange	guards	waarudo?::advance	no write clash
+waarudo?::body	pairs	waarudo?::put	a body is a component
+waarudo?::body	requires	waarudo?::collide	bodies touch
+waarudo?::check	guards	waarudo?::advance	laws hold each tick
+waarudo?::check	requires	waarudo?::query	reads every entity
+waarudo?::collide	requires	kikagaku::intersect	shape overlap
+waarudo?::delete	inverse	waarudo?::spawn	add and remove an entity
+waarudo?::field	pairs	waarudo?::generate	noise feeds generation
+waarudo?::field	requires	ran::draw	seeded values
+waarudo?::generate	composes	ran::pick	seeded choice
+waarudo?::generate	requires	waarudo?::grammar	runs rules
+waarudo?::get	pairs	waarudo?::put	component read and write
+waarudo?::grammar	requires	waarudo?::generate	rules need a runner
+waarudo?::hit	refines	byouga?::hit	first thing a ray meets
+waarudo?::hit	requires	waarudo?::query	searches bodies
+waarudo?::on	requires	waarudo?::system	handlers are systems
+waarudo?::path	requires	waarudo?::query	graph from the world
+waarudo?::put	pairs	waarudo?::get	component write and read
+waarudo?::query	generalizes	waarudo?::get	many entities, not one
+waarudo?::read	inverse	waarudo?::write	load what was saved
+waarudo?::replay	requires	ran::fork	same seed, same world
+waarudo?::replay	requires	waarudo?::advance	inputs drive steps
+waarudo?::rollback	pairs	waarudo?::write	snapshots to rewind to
+waarudo?::rollback	requires	waarudo?::replay	rewind then replay
+waarudo?::send	pairs	waarudo?::on	an event needs a handler
+waarudo?::send	requires	waarudo?::world	events live in a world
+waarudo?::simulate	composes	waarudo?::advance	ticks in a row
+waarudo?::simulate	pairs	ugoki?::play	a fixed step under a frame clock
+waarudo?::spawn	inverse	waarudo?::delete	add and remove an entity
+waarudo?::system	requires	waarudo?::query	a system reads a query
+waarudo?::world	composes	waarudo?::system	a world runs systems
+waarudo?::world	requires	waarudo?::arrange	systems are ordered
+waarudo?::write	inverse	waarudo?::read	load what was saved
 waku::allows?	refines	waku::escapes	one name instead of a program
 waku::escapes	requires	waku::frame	checked against a frame
 waku::frame	pairs	waku::narrow	frames form a lattice
@@ -4644,7 +4666,7 @@ waku::imports	requires	waku::frame	derived from a frame
 waku::narrow	guards	waku::frame	narrowing never widens
 waku::narrow	inverse	bunri?::elevate	the only widening, root only
 wariate::decide	requires	wariate::eligible	choose among eligible routes
-wariate::eligible	requires	moderu?::info	window and price per route
+wariate::eligible	requires	mokei?::info	window and price per route
 wariate::explain	pairs	joutai::segment	reason shown in status
 wariate::explain	requires	wariate::decide	says why
 wariate::gate	guards	wariate::decide	admit or refuse a change
@@ -4671,7 +4693,7 @@ youken?::covered?	pairs	rebyuu?::ready?	coverage gates landing
 youken?::diff	pairs	mokuroku::diff	both diff declared surfaces
 youken?::diff	requires	youken?::list	two versions
 youken?::gaps	composes	youken?::covered?	the not covered
-youken?::gaps	pairs	keikaku?::risk	uncovered needs are risks
+youken?::gaps	pairs	puran?::risk	uncovered needs are risks
 youken?::impact	pairs	tesuto?::affected	impact on needs and tests
 youken?::impact	requires	youken?::trace	from code to needs
 youken?::list	generalizes	youken?::requirement	declared needs
@@ -4706,35 +4728,6 @@ youryou?::resize	guards	tenkai?::step	capacity before rollout
 youryou?::resize	refines	youryou?::put	replica band write
 yushutsu::exports	pairs	dairi?::serve	what a package serves
 yushutsu::exports	pairs	meirei::help	exports list commands
-yuugou?::apply	composes	yuugou?::merge	delta is merged in
-yuugou?::apply	pairs	yuugou?::delta	delta out and delta in
-yuugou?::clock	pairs	yuugou?::tick	empty then advanced
-yuugou?::compare	composes	yuugou?::clock	orders two vectors
-yuugou?::concurrent?	refines	yuugou?::compare	the concurrent case only
-yuugou?::converge	composes	yuugou?::apply	applies them everywhere
-yuugou?::converge	composes	yuugou?::delta	exchanges deltas
-yuugou?::converge	lifts	yuugou?::merge	many replicas
-yuugou?::counter	pairs	yuugou?::increment	its only operation
-yuugou?::delete	inverse	yuugou?::put	removes what put set
-yuugou?::delta	composes	yuugou?::compare	what the other side lacks
-yuugou?::delta	pairs	yuugou?::clock	delta since a vector
-yuugou?::erase	inverse	yuugou?::insert	removes inserted text
-yuugou?::get	pairs	yuugou?::value	one key against the whole
-yuugou?::has?	refines	yuugou?::get	existence only
-yuugou?::increment	pairs	yuugou?::value	reads the total
-yuugou?::insert	inverse	yuugou?::erase	removes inserted text
-yuugou?::map	pairs	yuugou?::get	keyed read
-yuugou?::merge	refines	rekishi?::merge	conflict-free kind of merge
-yuugou?::merge	requires	yuugou?::compare	causal order of the inputs
-yuugou?::put	inverse	yuugou?::delete	removes what put set
-yuugou?::put	pairs	yuugou?::get	write and read of a key
-yuugou?::register	pairs	yuugou?::put	its only operation
-yuugou?::set	pairs	yuugou?::has?	membership test
-yuugou?::text	pairs	yuugou?::insert	sequence edit
-yuugou?::tick	pairs	yuugou?::compare	advance then order
-yuugou?::tick	requires	yuugou?::clock	needs a vector
-yuugou?::value	pairs	yuugou?::merge	merged state read as plain
-yuugou?::value	pairs	yuugou?::text	plain text of the sequence
 zumen::check	requires	gamen?::contrast	chart colors
 zumen::diagram	composes	zumen::layout	a diagram is laid out
 zumen::layout	requires	zumen::diagram	places a diagram

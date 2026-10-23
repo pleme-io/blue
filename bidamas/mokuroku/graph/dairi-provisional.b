@@ -366,7 +366,7 @@ edge("dairi?::advance", :composes, "dairi?::call", "the tool turn")
 edge("dairi?::delegate", :composes, "dairi?::spawn", "start")
 edge("dairi?::agent", :composes, "dairi?::tool", "an agent has tools")
 edge("dairi?::delegate", :composes, "dairi?::wait", "join")
-edge("dairi?::advance", :composes, "moderu?::ask", "the model turn")
+edge("dairi?::advance", :composes, "mokei?::ask", "the model turn")
 edge("dairi?::compact", :guards, "dairi?::advance", "fit the window each turn")
 
 edge(
@@ -424,9 +424,9 @@ edge("dairi?::find", :requires, "kensaku?::search", "memory is an index")
 edge(
   "dairi?::replay",
   :requires,
-  "moderu?::ask",
+  "mokei?::ask",
   "replies are recorded, not asked"
 )
 
-edge("dairi?::compact", :requires, "moderu?::fit", "shared budget rule")
-edge("dairi?::call", :requires, "moderu?::tokens", "result size is bounded")
+edge("dairi?::compact", :requires, "mokei?::fit", "shared budget rule")
+edge("dairi?::call", :requires, "mokei?::tokens", "result size is bounded")

@@ -411,15 +411,15 @@ edge("genin?::step", :requires, "genin?::pause", "steps from a paused frame")
 edge("genin?::replay", :requires, "genin?::tape", "needs the trace file")
 
 edge(
-  "genin?::symbolize",
-  :requires,
-  "hakkou?::build",
-  "needs the build symbols"
-)
-
-edge(
   "genin?::attach",
   :requires,
   "kaihatsu?::doctor",
   "access is checked first"
+)
+
+edge(
+  "genin?::symbolize",
+  :requires,
+  "rirezu?::build",
+  "needs the build symbols"
 )

@@ -1,7 +1,7 @@
-space("kumo?", {status: :provisional})
+space("kuraudo?", {status: :provisional})
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "events",
   {
     kind: :effect,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "find",
   {
     kind: :effect,
@@ -32,7 +32,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "get",
   {
     kind: :effect,
@@ -47,7 +47,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "has?",
   {
     kind: :effect,
@@ -63,7 +63,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "list",
   {
     kind: :effect,
@@ -78,7 +78,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "need",
   {
     kind: :effect,
@@ -93,7 +93,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "quota",
   {
     kind: :effect,
@@ -109,7 +109,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "regions",
   {
     kind: :effect,
@@ -124,7 +124,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "tag",
   {
     kind: :effect,
@@ -139,7 +139,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "tags",
   {
     kind: :effect,
@@ -154,7 +154,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "wait",
   {
     kind: :effect,
@@ -169,7 +169,7 @@ verb(
 )
 
 verb(
-  "kumo?",
+  "kuraudo?",
   "whoami",
   {
     kind: :effect,
@@ -183,22 +183,22 @@ verb(
   }
 )
 
-edge("kumo?::need", :composes, "kumo?::get", "get then raise")
-edge("kumo?::wait", :composes, "kumo?::get", "poll state")
-edge("kumo?::find", :composes, "kumo?::tags", "tag query")
-edge("kumo?::find", :generalizes, "kumo?::list", "across kinds")
-edge("kumo?::quota", :guards, "kouchiku?::apply", "capacity before creating")
-edge("kumo?::whoami", :guards, "kumo?::list", "know the account first")
-edge("kumo?::tags", :inverse, "kumo?::tag", "write versus read")
-edge("kumo?::tag", :inverse, "kumo?::tags", "write versus read")
-edge("kumo?::events", :pairs, "kouchiku?::drift", "who changed what")
-edge("kumo?::regions", :pairs, "kumo?::quota", "quota per region")
-edge("kumo?::get", :refines, "core::get", "nil when absent")
-edge("kumo?::tags", :refines, "core::get", "resource tags")
-edge("kumo?::has?", :refines, "core::has?", "resource exists")
-edge("kumo?::quota", :refines, "core::info", "limit and use")
-edge("kumo?::events", :refines, "core::list", "audit trail")
-edge("kumo?::list", :refines, "core::list", "cloud resources")
-edge("kumo?::regions", :refines, "core::list", "available regions")
-edge("kumo?::need", :refines, "core::need", "raises when absent")
-edge("kumo?::tag", :requires, "kumo?::whoami", "acts under an identity")
+edge("kuraudo?::need", :composes, "kuraudo?::get", "get then raise")
+edge("kuraudo?::wait", :composes, "kuraudo?::get", "poll state")
+edge("kuraudo?::find", :composes, "kuraudo?::tags", "tag query")
+edge("kuraudo?::find", :generalizes, "kuraudo?::list", "across kinds")
+edge("kuraudo?::quota", :guards, "kouchiku?::apply", "capacity before creating")
+edge("kuraudo?::whoami", :guards, "kuraudo?::list", "know the account first")
+edge("kuraudo?::tags", :inverse, "kuraudo?::tag", "write versus read")
+edge("kuraudo?::tag", :inverse, "kuraudo?::tags", "write versus read")
+edge("kuraudo?::events", :pairs, "kouchiku?::drift", "who changed what")
+edge("kuraudo?::regions", :pairs, "kuraudo?::quota", "quota per region")
+edge("kuraudo?::get", :refines, "core::get", "nil when absent")
+edge("kuraudo?::tags", :refines, "core::get", "resource tags")
+edge("kuraudo?::has?", :refines, "core::has?", "resource exists")
+edge("kuraudo?::quota", :refines, "core::info", "limit and use")
+edge("kuraudo?::events", :refines, "core::list", "audit trail")
+edge("kuraudo?::list", :refines, "core::list", "cloud resources")
+edge("kuraudo?::regions", :refines, "core::list", "available regions")
+edge("kuraudo?::need", :refines, "core::need", "raises when absent")
+edge("kuraudo?::tag", :requires, "kuraudo?::whoami", "acts under an identity")

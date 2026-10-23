@@ -1,6 +1,7 @@
 use(
   "mokuroku",
   [
+    :blue_path_roots,
     :edges_tsv,
     :graph_baseline,
     :graph_findings,
@@ -11,6 +12,7 @@ use(
     :graph_verdict,
     :graph_writes,
     :import_refusals,
+    :untested_probe,
     :verbs_tsv,
     :vocab_tsv
   ]
@@ -216,6 +218,26 @@ def do_findings(args)
   end
 end
 
+def do_untested(args)
+  dir = or_else(flag_value(args, "--dir"), graph_dir_default)
+  g = graph_load(dir)
+  if not is_empty(get(g, :refusals))
+    show_refusals(get(g, :refusals))
+    false
+  else
+    write_stdout(
+      join(
+        map(
+          finding_line,
+          untested_probe(g, blue_path_roots(getenv("BLUE_PATH", "")))
+        ),
+        ""
+      )
+    )
+    true
+  end
+end
+
 def do_check(args)
   dir = or_else(flag_value(args, "--dir"), graph_dir_default)
   baseline = or_else(
@@ -273,8 +295,10 @@ def main(args)
     do_check(rest_args)
   elsif cmd == "findings"
     do_findings(rest_args)
+  elsif cmd == "untested"
+    do_untested(rest_args)
   else
-    raise(:usage, "usage: blue verbs import|export|check|findings ...")
+    raise(:usage, "usage: blue verbs import|export|check|findings|untested ...")
   end
 end
 

@@ -1,0 +1,6 @@
+verb	subject	args	opts	returns	raises	kind	meaning	stdlib_ref	status
+lower	text	text	no	text		pure	text in lower case	-	decided
+upper	text	text	no	text		pure	text in upper case	-	decided
+title	text	text	no	text		pure	text in title case	-	decided
+snake	text	text	no	text		pure	text in snake case	-	decided
+gauge	text	text	no	text		pure	a gauge	-	decided

@@ -1591,6 +1591,163 @@ def finds_unbound(g, unbound)
   )
 end
 
+def token_glue()
+  "\u{1}"
+end
+
+def token_gaps()
+  [
+    "(",
+    ")",
+    "[",
+    "]",
+    "{",
+    "}",
+    ",",
+    ".",
+    ":",
+    ";",
+    "=",
+    "+",
+    "-",
+    "*",
+    "/",
+    "<",
+    ">",
+    "|",
+    "&",
+    "#",
+    "'",
+    "%",
+    "^",
+    "~",
+    "\\",
+    "`",
+    "@",
+    "$",
+    "\t",
+    "\n",
+    "\r"
+  ]
+end
+
+def uncommented(line)
+  first(split(unquoted(line), "#"))
+end
+
+def unquoted(line)
+  parts = split(line, "\"")
+  at_end = length(parts) - 1
+  join(
+    map(
+      (i) -> nth(i, parts),
+      filter((i) -> even?(i) or i == at_end, range(length(parts)))
+    ),
+    " "
+  )
+end
+
+def code_tokens(text)
+  spaced = reduce(
+    (acc, c) -> replace(acc, c, " "),
+    replace(text, "::", token_glue),
+    token_gaps
+  )
+  filter((t) -> t != "", split(spaced, " "))
+end
+
+def test_tokens(text)
+  lines = flat_map(test_blocks_of_text(text), (b) -> last(b))
+  code_tokens(join(map(uncommented, lines), "\n"))
+end
+
+def qualified_token(space, verb)
+  concat(space, token_glue, verb)
+end
+
+def legacy_prefixes(packages)
+  reduce(
+    fn(acc, p)
+      prefix = legacy_prefix_of_text(nth(1, p))
+      if string?(prefix)
+        assoc(acc, first(p), prefix)
+      else
+        acc
+      end
+    end,
+    {},
+    packages
+  )
+end
+
+def test_corpus(packages)
+  toks = map((p) -> [first(p), test_tokens(nth(1, p))], packages)
+  {
+    own: reduce(
+      (acc, t) -> assoc(acc, first(t), blue::frequencies(nth(1, t))),
+      {},
+      toks
+    ),
+    qualified: blue::frequencies(
+      filter((t) -> contains?(t, token_glue), flat_map(toks, (t) -> nth(1, t)))
+    ),
+    prefixes: legacy_prefixes(packages)
+  }
+end
+
+def counted?(counts, key)
+  map?(counts) and get(counts, key) != nil
+end
+
+def tested?(corpus, space, verb)
+  own = get(get(corpus, :own), space)
+  prefix = get(get(corpus, :prefixes), space)
+  counted?(own, verb) or
+    string?(prefix) and counted?(own, concat(prefix, "_", verb)) or
+    counted?(get(corpus, :qualified), qualified_token(space, verb))
+end
+
+def finds_untested(g, corpus)
+  map(
+    (r) -> finding("g11-untested", get(r, :space), row_node(r)),
+    sort_by(
+      row_node,
+      filter(
+        (r) -> not tested?(corpus, get(r, :space), get(r, :verb)),
+        exists_rows(g)
+      )
+    )
+  )
+end
+
+def corpus_packages(roots)
+  flat_map(
+    roots,
+    fn(root)
+      map(
+        fn(dir)
+          [
+            first(parse_manifest(read_file(concat(dir, "/Bluefile")))),
+            package_text(dir)
+          ]
+        end,
+        package_dirs(root)
+      )
+    end
+  )
+end
+
+def untested_probe(g, roots)
+  packages = corpus_packages(roots)
+  if is_empty(packages)
+    raise(
+      :probe,
+      "no bidama found under BLUE_PATH: the test probe would call every verb untested"
+    )
+  end
+  finds_untested(g, test_corpus(packages))
+end
+
 def unbound_probe(g, exe)
   if exe.nil?
     raise(:probe, "no blue to run the unbound-name probe: self_exe is nil")
@@ -1626,7 +1783,10 @@ end
 def graph_findings_live(g, exe)
   sort_keyed(
     (f) -> "#{get(f, :kind)} #{get(f, :subject)}",
-    concat_lists(graph_findings(g), finds_unbound(g, unbound_probe(g, exe)))
+    concat_lists(
+      concat_lists(graph_findings(g), finds_unbound(g, unbound_probe(g, exe))),
+      untested_probe(g, blue_path_roots(getenv("BLUE_PATH", "")))
+    )
   )
 end
 
@@ -1639,7 +1799,8 @@ def finding_kinds()
     "g7-inverse",
     "g9-dangling",
     "g9-relation",
-    "g10-unbound"
+    "g10-unbound",
+    "g11-untested"
   ]
 end
 
@@ -2841,4 +3002,166 @@ test "g10-unbound is a kind the baseline measures"
   found = finds_unbound(ux_graph(ux_rows), ["moji::lower"])
   assert map((m) -> get(m, :key), finding_measurements(found, "g10-unbound")) ==
     ["moji"]
+end
+
+def ut_package(name, body)
+  [name, "package(\"#{name}\", \"0.1.0\")\n\ndef lower(s)\n  s\nend\n\n#{body}"]
+end
+
+def ut_corpus()
+  test_corpus(
+    [
+      ut_package(
+        "moji",
+        "test \"lower folds\"\n  assert lower(\"A\") == \"a\"\nend\n\ntest \"upper is named only in text\"\n  assert \"upper(x)\" == \"upper(x)\"\nend\n"
+      ),
+      ut_package(
+        "kazu",
+        "test \"abs reaches across\"\n  assert moji::lower(\"A\") == \"a\"\nend\n"
+      )
+    ]
+  )
+end
+
+def ut_graph()
+  ux_graph(
+    [
+      ["moji", "lower", "exists:moji", "one"],
+      ["moji", "upper", "exists:moji", "two"],
+      ["moji", "title", "partial:moji", "three"],
+      ["moji", "snake", "absent", "four"],
+      ["kazu", "abs", "exists:kazu", "five"],
+      ["kazu", "neg", "exists:kazu", "six"],
+      ["gauge?", "gauge", "exists:moji", "seven"]
+    ]
+  )
+end
+
+test "code_tokens splits on punctuation and keeps ? and ! and a qualified name whole"
+  assert code_tokens("a.b(c, d) + e?(f!)") == ["a", "b", "c", "d", "e?", "f!"]
+  assert code_tokens("moji::lower(x)") ==
+    [qualified_token("moji", "lower"), "x"]
+  assert code_tokens("") == []
+  assert code_tokens("(),.") == []
+end
+
+test "unquoted drops a string literal and keeps the code around it"
+  assert code_tokens(unquoted("f(\"g(x)\") + h")) == ["f", "h"]
+  assert code_tokens(unquoted("f(\"a\", \"b\", c)")) == ["f", "c"]
+  assert code_tokens(unquoted("\"\"")) == []
+end
+
+test "an unmatched quote leaves the text after it as code"
+  assert code_tokens(unquoted("f(\"a\\\" g")) == ["f", "g"]
+end
+
+test "test_tokens reads test blocks only, and no string inside them"
+  text = "def helper()\n  secret(1)\nend\n\ntest \"t\"\n  assert shown(\"hidden(1)\") == 1\nend\n"
+  assert test_tokens(text) == ["assert", "shown", "1"]
+  assert test_tokens("def only()\n  1\nend\n") == []
+  assert test_tokens("") == []
+end
+
+test "a verb is tested by a call in its own package's test, by a qualified call anywhere, and by nothing else"
+  c = ut_corpus
+  assert tested?(c, "moji", "lower")
+  assert not tested?(c, "moji", "upper")
+  assert tested?(c, "kazu", "abs") == false
+  assert tested?(c, "moji", "absent_name") == false
+  assert tested?(test_corpus([]), "moji", "lower") == false
+end
+
+test "a name that appears only in a def body or a string is not a test"
+  c = ut_corpus
+  assert not tested?(c, "moji", "s")
+  assert not tested?(c, "kazu", "lower")
+end
+
+test "g11 names every exists row with no test, once, sorted, and no other row"
+  found = finds_untested(ut_graph, ut_corpus)
+  assert map((f) -> get(f, :subject), found) ==
+    ["kazu::abs", "kazu::neg", "moji::upper"]
+  assert map((f) -> get(f, :kind), found) ==
+    ["g11-untested", "g11-untested", "g11-untested"]
+  assert map((f) -> get(f, :scope), found) == ["kazu", "kazu", "moji"]
+end
+
+test "g11 is silent when every exists row has a test, and for an empty graph"
+  g = ux_graph([["moji", "lower", "exists:moji", "one"]])
+  assert finds_untested(g, ut_corpus) == []
+  assert finds_untested(ux_graph([]), ut_corpus) == []
+end
+
+test "g11-untested is a kind the baseline measures"
+  assert member?("g11-untested", finding_kinds)
+  found = finds_untested(ut_graph, ut_corpus)
+  assert map(
+    (m) -> get(m, :key),
+    finding_measurements(found, "g11-untested")
+  ) == ["kazu", "moji"]
+  assert map(
+    (m) -> get(m, :size),
+    finding_measurements(found, "g11-untested")
+  ) == [2, 1]
+end
+
+test "corpus_packages reads each package's name and text from a root, and the probe refuses an empty root"
+  root = path_join(getenv("TMPDIR", "/tmp"), "mokuroku-ut-#{blake3_hex("g11")}")
+  rm_rf(root)
+  mkdir_p(path_join(root, "zed"))
+  write_file(path_join(root, "zed/Bluefile"), "package(\"zed\", \"0.1.0\")\n")
+  write_file(
+    path_join(root, "zed/zed.b"),
+    "def go(x)\n  x\nend\n\ntest \"go\"\n  assert go(1) == 1\nend\n"
+  )
+  pkgs = corpus_packages([root])
+  assert map(first, pkgs) == ["zed"]
+  g = ux_graph(
+    [["zed", "go", "exists:zed", "one"], ["zed", "stop", "exists:zed", "two"]]
+  )
+  assert map((f) -> get(f, :subject), untested_probe(g, [root])) ==
+    ["zed::stop"]
+  rm_rf(root)
+  r = untested_probe(g, []) rescue "caught"
+  assert r == "caught"
+end
+
+test "a comment after code, or alone on a line, names no token"
+  assert code_tokens(uncommented("f(x) # g(y)")) == ["f", "x"]
+  assert code_tokens(uncommented("# only(this)")) == []
+  assert code_tokens(uncommented("f(\"#\", x)")) == ["f", "x"]
+  assert code_tokens(uncommented("")) == []
+  text = "test \"t\"\n  # hidden(1)\n  shown(2) # also(3)\nend\n"
+  assert test_tokens(text) == ["shown", "2"]
+end
+
+def ut_prefixed()
+  test_corpus(
+    [
+      [
+        "wen",
+        "legacy_names(\"0.1.1\", \"wn\")\n\ndef wn_put(s)\n  s\nend\n\ntest \"put\"\n  assert wn_put(1) == 1\nend\n"
+      ],
+      [
+        "pla",
+        "legacy_names(\"0.1.1\", [[\"old\", \"pla::new\"]])\n\ntest \"t\"\n  assert pla_put(1) == 1\nend\n"
+      ],
+      ["bar", "test \"t\"\n  assert wn_put(1) == 1\nend\n"]
+    ]
+  )
+end
+
+test "a package's legacy prefix spells its verb in a test, and no other package's does"
+  c = ut_prefixed
+  assert tested?(c, "wen", "put")
+  assert not tested?(c, "wen", "get")
+  assert not tested?(c, "bar", "put")
+  assert not tested?(c, "pla", "put")
+end
+
+test "legacy_prefixes reads the two-string form only"
+  assert get(get(ut_prefixed, :prefixes), "wen") == "wn"
+  assert is_empty(map_entries(get(ut_prefixed, :prefixes))) == false
+  assert size(map_entries(get(ut_prefixed, :prefixes))) == 1
+  assert legacy_prefixes([]) == {}
 end

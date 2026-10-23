@@ -7,7 +7,8 @@ use(
     :graph_from_tsv,
     :graph_load,
     :graph_verdict,
-    :unbound_probe
+    :unbound_probe,
+    :untested_probe
   ]
 )
 
@@ -87,7 +88,8 @@ test "every exists row of the committed graph resolves in a live interpreter"
 end
 
 test "one exists row no bidama defines is named by the live probe, and no other row is"
-  assert live_lines_of(fixture("unbound")) == ["g10-unbound\tmoji::nothere"]
+  assert live_lines_of(fixture("unbound")) ==
+    ["g10-unbound\tmoji::nothere", "g11-untested\tmoji::nothere"]
 end
 
 test "the same fixture with its unbound row removed breaks no gate"
@@ -105,4 +107,63 @@ test "a probe with no blue to run it raises instead of reporting nothing"
   assert r == "caught"
   s = unbound_probe(fixture("unbound"), "/nonexistent/blue") rescue "caught"
   assert s == "caught"
+end
+
+def zed_root(tested)
+  root = path_join(
+    getenv("TMPDIR", "/tmp"),
+    "verb-graph-zed-#{blake3_hex(tested)}"
+  )
+  rm_rf(root)
+  mkdir_p(path_join(root, "zed"))
+  write_file(path_join(root, "zed/Bluefile"), "package(\"zed\", \"0.1.0\")\n")
+  write_file(
+    path_join(root, "zed/zed.b"),
+    "def lower(s)\n  s\nend\n\ndef upper(s)\n  s\nend\n\ndef title(s)\n  s\nend\n\n#{tested}"
+  )
+  root
+end
+
+def untested_lines(tested)
+  root = zed_root(tested)
+  found = untested_probe(fixture("untested"), [root])
+  rm_rf(root)
+  map((f) -> "#{get(f, :kind)}\t#{get(f, :subject)}", found)
+end
+
+test "one exists row with no unit test is named by the test probe, and no other row is"
+  assert untested_lines("test \"lower\"\n  assert lower(\"A\") == \"a\"\nend\n") ==
+    ["g11-untested\tzed::upper"]
+  assert untested_lines("") ==
+    ["g11-untested\tzed::lower", "g11-untested\tzed::upper"]
+end
+
+test "the same package with a test for each exists row breaks no gate"
+  assert untested_lines("test \"both\"\n  assert lower(\"A\") == \"a\"\n  assert upper(\"a\") == \"A\"\nend\n") ==
+    []
+end
+
+test "a verb named only in a string, a comment or a def body is not tested"
+  assert untested_lines("test \"words\"\n  # lower(x)\n  assert \"lower(x) upper(x)\" == \"lower(x) upper(x)\" # upper(y)\nend\n") ==
+    ["g11-untested\tzed::lower", "g11-untested\tzed::upper"]
+end
+
+test "an untested exists row is debt the baseline holds and never lets grow"
+  found = untested_probe(fixture("untested"), [zed_root("")])
+  assert size(found) == 2
+  assert size(graph_verdict(found, "")) > 0
+  assert graph_verdict(found, "g11-untested: zed 2\n") == []
+  assert size(graph_verdict(found, "g11-untested: zed 1\n")) > 0
+end
+
+test "every exists row of the committed graph is tested, beyond the debt recorded"
+  g = graph_load(graph_home)
+  baseline = read_file(path_join(graph_home, "graph.baseline"))
+  found = untested_probe(g, blue_path_roots(getenv("BLUE_PATH", "")))
+  assert graph_verdict(found, baseline) == []
+end
+
+test "a probe with no bidama to read raises instead of calling every verb untested"
+  r = untested_probe(fixture("untested"), []) rescue "caught"
+  assert r == "caught"
 end

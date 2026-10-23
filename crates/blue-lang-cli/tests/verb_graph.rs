@@ -192,3 +192,48 @@ fn the_committed_graph_holds_its_baseline() {
         String::from_utf8_lossy(&o.stderr)
     );
 }
+
+#[test]
+fn the_untested_query_and_the_gate_name_the_same_rows() {
+    let scratch = std::env::temp_dir().join(format!("verb-graph-untested-{}", std::process::id()));
+    std::fs::remove_dir_all(&scratch).ok();
+    let out = scratch.join("out");
+    let exported = blue(&["export", "--out", out.to_str().expect("utf8")]);
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let mut child = Command::new("duckdb")
+        .args(["-noheader", "-list"])
+        .current_dir(repo())
+        .env("VERBS_TSV", out.join("verbs.tsv"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("duckdb is on PATH: the devShell carries it");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b".read docs/verbs/queries/untested.sql\n")
+        .expect("write");
+    let queried = child.wait_with_output().expect("wait");
+    assert!(
+        queried.status.success(),
+        "duckdb: {}",
+        String::from_utf8_lossy(&queried.stderr)
+    );
+    let theirs = lines(&String::from_utf8_lossy(&queried.stdout));
+    let gated = blue(&["untested"]);
+    assert!(
+        gated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&gated.stderr)
+    );
+    let ours = lines(&String::from_utf8_lossy(&gated.stdout));
+    std::fs::remove_dir_all(&scratch).ok();
+    assert!(!theirs.is_empty(), "a vacuous comparison");
+    assert_eq!(ours, theirs);
+}

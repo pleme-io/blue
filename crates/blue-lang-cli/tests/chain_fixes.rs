@@ -25,7 +25,7 @@ fn text(file: &PathBuf) -> String {
     std::fs::read_to_string(file).expect("read")
 }
 
-const MISSING_USE: &str = "use(\"moji\", [:lines])\n\ndef go(xs)\n  t = now_ms()\n  [last(xs), size(xs), t, lines(\"a\")]\nend\n";
+const MISSING_USE: &str = "use(\"moji\", [:lines])\n\ndef go(xs)\n  t = now_ms()\n  [last(xs), rest(xs), t, lines(\"a\")]\nend\n";
 
 #[test]
 fn check_fix_adds_the_use_a_bare_name_needs_and_keeps_the_uses_sorted() {
@@ -38,7 +38,7 @@ fn check_fix_adds_the_use_a_bare_name_needs_and_keeps_the_uses_sorted() {
     );
     assert_eq!(
         text(&f),
-        "use(\"moji\", [:lines])\nuse(\"retsu\", [:last, :size])\n\ndef go(xs)\n  t = now_ms\n  [last(xs), size(xs), t, lines(\"a\")]\nend\n"
+        "use(\"moji\", [:lines])\nuse(\"retsu\", [:last, :rest])\n\ndef go(xs)\n  t = now_ms\n  [last(xs), rest(xs), t, lines(\"a\")]\nend\n"
     );
 }
 

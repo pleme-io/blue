@@ -8,7 +8,7 @@ verb(
     shape: "defaults(app) -> record",
     laterals: ["config"],
     fleet: "shikumi",
-    today: "partial:settei",
+    today: "exists:settei",
     meaning: "the built-in default record of an app",
     wave: 0,
     origin: "B"
@@ -53,7 +53,7 @@ verb(
     shape: "file(app, tier) -> path",
     laterals: ["capability", "config"],
     fleet: "okiba",
-    today: "partial:settei",
+    today: "exists:settei",
     meaning: "where the config file of an app tier lives",
     wave: 0,
     origin: "B"
@@ -83,7 +83,7 @@ verb(
     shape: "has?(config, path) -> Bool",
     laterals: ["config"],
     fleet: "shikumi",
-    today: "absent",
+    today: "exists:settei",
     meaning: "whether a setting is defined",
     wave: 0,
     origin: "B"
@@ -113,7 +113,7 @@ verb(
     shape: "merge(a, b) -> record",
     laterals: ["config"],
     fleet: "shikumi",
-    today: "partial:settei",
+    today: "exists:settei",
     meaning: "combine two records, b winning, deep for maps",
     wave: 0,
     origin: "B"
@@ -128,7 +128,7 @@ verb(
     shape: "need(config, path) -> value",
     laterals: ["config", "error"],
     fleet: "shikumi",
-    today: "absent",
+    today: "exists:settei",
     meaning: "one setting by dotted path, raising not_found",
     wave: 0,
     origin: "B"

@@ -159,31 +159,37 @@ def resolve(app, defaults, doc, lookup)
   first(from_env)
 end
 
-def discovered_path(app, lookup)
-  explicit = lookup("#{env_prefix(app)}CONFIG")
-  xdg = lookup("XDG_CONFIG_HOME")
-  home = lookup("HOME")
-  candidates = filter(
-    (p) -> p != nil,
-    [
-      explicit,
-      if xdg == nil
-        nil
-      else
-        "#{xdg}/#{app}/#{app}.yaml"
-      end,
-      if home == nil
-        nil
-      else
-        "#{home}/.config/#{app}/#{app}.yaml"
-      end
-    ]
-  )
-  find((p) -> is_file?(p), candidates)
+def file(app, tier)
+  if tier == :explicit
+    getenv("#{env_prefix(app)}CONFIG")
+  elsif tier == :xdg
+    xdg = getenv("XDG_CONFIG_HOME")
+    if xdg == nil
+      nil
+    else
+      "#{xdg}/#{app}/#{app}.yaml"
+    end
+  elsif tier == :home
+    home = getenv("HOME")
+    if home == nil
+      nil
+    else
+      "#{home}/.config/#{app}/#{app}.yaml"
+    end
+  else
+    raise(:unknown_tier, "#{to_s(tier)} is not a tier")
+  end
 end
 
-def defaults_of(app, lookup)
-  path = lookup("#{env_prefix(app)}DEFAULTS")
+def discovered_path(app)
+  find(
+    (p) -> p != nil and is_file?(p),
+    map((t) -> file(app, t), [:explicit, :xdg, :home])
+  )
+end
+
+def defaults(app)
+  path = getenv("#{env_prefix(app)}DEFAULTS")
   if path == nil
     raise(
       :no_defaults,
@@ -193,15 +199,61 @@ def defaults_of(app, lookup)
   json_read(read_file(path))
 end
 
-def load(app)
-  lookup = (name) -> getenv(name)
-  path = discovered_path(app, lookup)
+def read(app, defaults)
+  path = discovered_path(app)
   doc = if path == nil
     nil
   else
     json_read(read_file(path))
   end
-  resolve(app, defaults_of(app, lookup), doc, lookup)
+  resolve(app, defaults, doc, (name) -> getenv(name))
+end
+
+def load(app)
+  read(app, defaults(app))
+end
+
+def merge(a, b)
+  reduce(
+    fn(acc, e)
+      key = first(e)
+      v = second(e)
+      cur = get(acc, key)
+      if kind_of(cur) == :map and kind_of(v) == :map
+        assoc(acc, key, merge(cur, v))
+      else
+        assoc(acc, key, v)
+      end
+    end,
+    a,
+    map_entries(b)
+  )
+end
+
+def lookup_path(config, parts)
+  reduce(
+    fn(acc, k)
+      if acc == nil or kind_of(acc) != :map
+        nil
+      else
+        get(acc, k)
+      end
+    end,
+    config,
+    parts
+  )
+end
+
+def has?(config, path)
+  lookup_path(config, split(path, ".")) != nil
+end
+
+def need(config, path)
+  v = lookup_path(config, split(path, "."))
+  if v == nil
+    raise(:not_found, "no setting #{path}")
+  end
+  v
 end
 
 def serving?()
@@ -303,6 +355,47 @@ test "an undeclared flag or setting is refused, not read as off"
     rescue e
       e
     end
+  ) ==
+    true
+end
+
+test "merge lets b win and is deep for maps"
+  assert merge(
+    {"a" => 1, "n" => {"x" => 1, "y" => 2}},
+    {"n" => {"y" => 3}, "b" => 4}
+  ) ==
+    {"a" => 1, "n" => {"x" => 1, "y" => 3}, "b" => 4}
+  assert merge({"n" => {"x" => 1}}, {"n" => 5}) == {"n" => 5}
+  assert merge({}, {}) == {}
+end
+
+test "has? and need read a dotted path and need raises not_found"
+  c = {"port" => 80, "flags" => {"shout" => false}}
+  assert has?(c, "port") == true
+  assert has?(c, "flags.shout") == true
+  assert has?(c, "flags.whisper") == false
+  assert has?(c, "port.x") == false
+  assert need(c, "flags.shout") == false
+  assert contains?(
+    begin
+      need(c, "flags.whisper")
+    rescue e
+      e.message
+    end,
+    "no setting flags.whisper"
+  ) ==
+    true
+end
+
+test "file refuses an unknown tier and the explicit tier is nil when unset"
+  assert file("zz-no-such-app", :explicit) == nil
+  assert contains?(
+    begin
+      file("x", :nope)
+    rescue e
+      e.message
+    end,
+    "nope is not a tier"
   ) ==
     true
 end

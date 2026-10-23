@@ -213,6 +213,7 @@ fn list(items: Vec<Value>) -> Value {
 pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::errors::install(interp);
     crate::paths::install(interp);
+    crate::spread::install(interp);
     // ── text ──────────────────────────────────────────────────────────
 
     // `length` counts CHARACTERS, per Ruby. Also accepts a list, where it is

@@ -730,9 +730,24 @@ impl<'s> Renderer<'s> {
                     .concat(Doc::text(close.to_string()));
             }
         }
-        let spans: Vec<Span> = items.iter().map(|i| i.span).collect();
+        let mut spans: Vec<Span> = Vec::new();
+        let mut docs = Vec::new();
+        for item in items {
+            let kwargs = item.as_list().filter(|l| {
+                l.first().and_then(Spanned::as_symbol) == Some(blue_lang_syntax::LOWERED_KWARGS)
+            });
+            match kwargs.and_then(|l| self.spread_entries(&l[1..])) {
+                Some((s, d)) => {
+                    spans.extend(s);
+                    docs.extend(d);
+                }
+                None => {
+                    spans.push(item.span);
+                    docs.push(self.expr(item, 0));
+                }
+            }
+        }
         let u = self.units(lo, hi, &spans);
-        let docs = items.iter().map(|i| self.expr(i, 0)).collect();
         self.seq(open, close, &u, docs)
     }
 
@@ -931,6 +946,11 @@ impl<'s> Renderer<'s> {
             }
             Some(n) if n == blue_lang_syntax::LOWERED_MAP && items.len() % 2 == 1 => {
                 return self.map_form(s, &items[1..])
+            }
+            Some(n) if n == blue_lang_syntax::LOWERED_MERGE && items.len() >= 2 => {
+                if let Some(d) = self.spread_map(s, &items[1..]) {
+                    return d;
+                }
             }
             Some("not") if items.len() == 2 => return self.unary("not ", &items[1], min_prec),
             // (- 0 x) is unary minus — the shape the parser emits.
@@ -1288,6 +1308,41 @@ impl<'s> Renderer<'s> {
     /// other key has no shorthand, so the rocket appears — because it is the
     /// only spelling of that tree, never as a style choice.
     fn map_form(&self, s: &Spanned, kvs: &[Spanned]) -> Doc {
+        let (spans, docs) = self.map_pairs(kvs);
+        let (lo, hi) = self.inside(s, b'{', b'}');
+        let u = self.units(lo, hi, &spans);
+        self.seq("{", "}", &u, docs)
+    }
+
+    fn spread_entries(&self, segments: &[Spanned]) -> Option<(Vec<Span>, Vec<Doc>)> {
+        let mut spans = Vec::new();
+        let mut docs = Vec::new();
+        for seg in segments {
+            let items = seg.as_list()?;
+            match items.first().and_then(Spanned::as_symbol) {
+                Some(h) if h == blue_lang_syntax::LOWERED_MAP && items.len() % 2 == 1 => {
+                    let (s, d) = self.map_pairs(&items[1..]);
+                    spans.extend(s);
+                    docs.extend(d);
+                }
+                Some(h) if h == blue_lang_syntax::LOWERED_SPLICE && items.len() == 2 => {
+                    spans.push(seg.span);
+                    docs.push(Doc::text("**").concat(self.expr(&items[1], 0)));
+                }
+                _ => return None,
+            }
+        }
+        Some((spans, docs))
+    }
+
+    fn spread_map(&self, s: &Spanned, segments: &[Spanned]) -> Option<Doc> {
+        let (spans, docs) = self.spread_entries(segments)?;
+        let (lo, hi) = self.inside(s, b'{', b'}');
+        let u = self.units(lo, hi, &spans);
+        Some(self.seq("{", "}", &u, docs))
+    }
+
+    fn map_pairs(&self, kvs: &[Spanned]) -> (Vec<Span>, Vec<Doc>) {
         let mut spans = Vec::new();
         let mut docs = Vec::new();
         for pair in kvs.chunks(2) {
@@ -1326,9 +1381,7 @@ impl<'s> Renderer<'s> {
             spans.push(sp);
             docs.push(d);
         }
-        let (lo, hi) = self.inside(s, b'{', b'}');
-        let u = self.units(lo, hi, &spans);
-        self.seq("{", "}", &u, docs)
+        (spans, docs)
     }
 
     /// `header`, the body, `end` — the shape of every block but `if`/`case`.
@@ -2105,6 +2158,14 @@ mod tests {
         }
         assert_eq!(f("a != nil").trim(), "a != nil");
         assert_eq!(f("nil == nil").trim(), "nil == nil");
+    }
+
+    #[test]
+    fn a_map_spread_keeps_its_place_among_the_entries() {
+        assert_eq!(f("{a: 1,**c,b:}").trim(), "{a: 1, **c, b:}");
+        assert_eq!(f("{**c}").trim(), "{**c}");
+        assert_eq!(f("g(1,**c,b: 2)").trim(), "g(1, **c, b: 2)");
+        assert_eq!(f("g(1, {**c})").trim(), "g(1, {**c})");
     }
 
     #[test]

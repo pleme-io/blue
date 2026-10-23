@@ -170,3 +170,53 @@ row(
   "facts = [[[:a, :b], 1], [[:a, :c], 2], [[:d], 3]]\nt = reduce((acc, f) -> bury(*append([acc], first(f), [last(f)])), {}, facts)\n[t, map((f) -> dig(*cons(t, first(f))) == last(f), facts)]",
   value("[{a: {b: 1, c: 2}, d: 3}, [true, true, true]]")
 )
+
+row(
+  "maps.spread",
+  "ctx = {x: 1, y: 2}\n{**ctx, y: 3}",
+  value("{x: 1, y: 3}"),
+  covers("form:{**a, b: 1}")
+)
+
+row(
+  "maps.spread.later_wins",
+  "ctx = {x: 1, y: 2}\ny = 9\n[{y:, **ctx}, {**ctx, y:}]",
+  value("[{x: 1, y: 2}, {x: 1, y: 9}]")
+)
+
+row(
+  "maps.spread.nil_and_literals",
+  "ctx = {x: 1}\n[{**nil}, {**ctx, **{z: 1}, \"k\" => 2}, {a: 1, **ctx, b: 2}]",
+  value("[{}, {\"k\" => 2, x: 1, z: 1}, {a: 1, b: 2, x: 1}]")
+)
+
+row(
+  "maps.spread.not_a_map",
+  "{**[1, 2]}",
+  fails(:eval, "expected a map to spread with `**`")
+)
+
+row(
+  "maps.spread.call",
+  "def show(a, opts)\n  [a, opts]\nend\n\nctx = {x: 1, y: 2}\n[show(1, **ctx, y: 5), show(0, **ctx)]",
+  value("[[1, {x: 1, y: 5}], [0, {x: 1, y: 2}]]"),
+  covers("form:f(x, **a, b: 1)")
+)
+
+row(
+  "maps.spread.call.entries_need_a_spread",
+  "f(a: 1)",
+  fails(:parse, "a keyword entry in a call needs a `**` spread")
+)
+
+row(
+  "fmt.spread",
+  "a = {x: 1}\n{**a,b: 1,**a}",
+  formats("a = {x: 1}\n{**a, b: 1, **a}\n")
+)
+
+row(
+  "fmt.spread.call",
+  "a = {x: 1}\nf(1,**a,b: 2)",
+  formats("a = {x: 1}\nf(1, **a, b: 2)\n")
+)

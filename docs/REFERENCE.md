@@ -16,6 +16,8 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `[1, "a"]` | `(list 1 "a")` | A list. Indexing is nth(i, xs); blue has no xs[i]. |
 | `{a: 1, "k" => 2}` | `(hash-map :a 1 "k" 2)` | A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v). |
 | `{a:, b:}` | `(hash-map :a a :b b)` | A map whose values are the variables of the same names: `{a:}` is `{a: a}`. Mix it with `{a:, n: 1}`. |
+| `{**a, b: 1}` | `(blue-merge (blue-splice a) (hash-map :b 1))` | A map that inherits every key of a map, `**a`, and lets a later entry override it. nil spreads as an empty map; anything else that is not a map is a type error. The map sibling of the splat `*xs`. |
+| `f(x, **a, b: 1)` | `(f x (blue-kwargs (blue-splice a) (hash-map :b 1)))` | A call whose last argument is the map built from `**` spreads and entries, `f(x, {**a, b: 1})` without the braces. Entries after a `**` are the call's last argument, so it cannot also carry a splat `*xs`. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
@@ -86,7 +88,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 179 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 182 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 

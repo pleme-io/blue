@@ -458,6 +458,12 @@ pub const LOWERED_CONCAT: &str = "concat";
 
 pub const LOWERED_FIELD: &str = "blue-field";
 
+pub const LOWERED_MERGE: &str = "blue-merge";
+
+pub const LOWERED_SPLICE: &str = "blue-splice";
+
+pub const LOWERED_KWARGS: &str = "blue-kwargs";
+
 pub const LOWERED_ERROR_MATCH: &str = "blue-rescues?";
 
 pub const LOWERED_ENSURE: &str = "blue-ensure";
@@ -1647,6 +1653,18 @@ impl Parser {
                     self.error("a splat `*xs` passes a list as the LAST arguments: write it last")
                 );
             }
+            if self.at_spread() || matches!(self.peek(), TokenKind::Label(_)) {
+                let open = self.peek_span();
+                let (segments, spread) = self.map_entries(open, &TokenKind::RParen)?;
+                if !spread {
+                    return Err(fail(
+                        "a keyword entry in a call needs a `**` spread: pass a map, f({a: 1})",
+                        open,
+                    ));
+                }
+                args.push(self.merged(open, LOWERED_KWARGS, segments));
+                return Ok((args, splat));
+            }
             if matches!(self.peek(), TokenKind::Op(o) if o == "*") {
                 splat = Some(self.peek_span());
                 self.bump();
@@ -1708,65 +1726,117 @@ impl Parser {
     /// formatter may always choose the shorthand. The rocket survives only
     /// where the key is not a plain symbol.
     fn map_literal(&mut self, open: Span) -> Result<Spanned, Fail> {
-        let mut items = vec![sym_at(open, LOWERED_MAP)];
         self.skip_newlines();
         if self.eat(&TokenKind::RBrace) {
-            return Ok(list_at(self.span_since(open.start), items));
+            return Ok(list_at(
+                self.span_since(open.start),
+                vec![sym_at(open, LOWERED_MAP)],
+            ));
         }
+        let (mut segments, spread) = self.map_entries(open, &TokenKind::RBrace)?;
+        if !spread {
+            return Ok(segments.remove(0));
+        }
+        Ok(self.merged(open, LOWERED_MERGE, segments))
+    }
+
+    fn merged(&self, open: Span, head: &str, segments: Vec<Spanned>) -> Spanned {
+        let mut items = vec![sym_at(open, head)];
+        items.extend(segments);
+        list_at(self.span_since(open.start), items)
+    }
+
+    fn at_spread(&self) -> bool {
+        matches!(self.peek(), TokenKind::Op(o) if o == "**")
+    }
+
+    fn map_entries(
+        &mut self,
+        open: Span,
+        closer: &TokenKind,
+    ) -> Result<(Vec<Spanned>, bool), Fail> {
+        let mut segments = Vec::new();
+        let mut items = vec![sym_at(open, LOWERED_MAP)];
+        let mut spread = false;
         loop {
             self.skip_newlines();
-            match self.peek().clone() {
-                TokenKind::Label(name) => {
-                    let label_span = self.peek_span();
-                    self.bump();
-                    self.skip_newlines();
-                    items.push(atom_at(label_span, Atom::Keyword(name.clone())));
-                    if matches!(self.peek(), TokenKind::Comma | TokenKind::RBrace) {
-                        items.push(sym_at(label_span, &name));
-                    } else {
-                        let value = self.expr(0)?;
-                        if matches!(&value.form, SpannedForm::Atom(Atom::Symbol(s)) if *s == name)
-                            && label_name(&name)
-                        {
-                            let written = format!("{name}: {name}");
-                            let canonical = format!("{name}:");
-                            self.note(
-                                Spelling::MapPun,
-                                label_span.merge(value.span),
-                                &written,
-                                &canonical,
-                            );
-                        }
-                        items.push(value);
-                    }
+            if self.at_spread() {
+                let star = self.peek_span();
+                self.bump();
+                let value = self.expr(0)?;
+                if items.len() > 1 {
+                    let span = items[1].span.merge(items[items.len() - 1].span);
+                    segments.push(list_at(span, std::mem::take(&mut items)));
+                    items = vec![sym_at(open, LOWERED_MAP)];
                 }
-                _ => {
-                    let k = self.expr(0)?;
-                    self.skip_newlines();
-                    if let SpannedForm::Atom(Atom::Keyword(name)) = &k.form {
-                        if blue_lang_name(name) {
-                            let written = format!(":{name} =>");
-                            let canonical = format!("{name}:");
-                            self.note(Spelling::KeywordRocket, k.span, &written, &canonical);
-                        }
-                    }
-                    self.expect(&TokenKind::Rocket, "`=>` in a map literal")?;
-                    self.skip_newlines();
-                    items.push(k);
-                    items.push(self.expr(0)?);
-                }
+                segments.push(list_at(
+                    star.merge(value.span),
+                    vec![sym_at(star, LOWERED_SPLICE), value],
+                ));
+                spread = true;
+            } else {
+                self.map_entry(&mut items, closer)?;
             }
             self.skip_newlines();
             if self.eat(&TokenKind::Comma) {
-                if self.trailing_comma(&TokenKind::RBrace) {
+                if self.trailing_comma(closer) {
                     break;
                 }
                 continue;
             }
-            self.expect(&TokenKind::RBrace, "`,` or `}`")?;
+            self.expect(closer, "`,` or the end of the entries")?;
             break;
         }
-        Ok(list_at(self.span_since(open.start), items))
+        if items.len() > 1 || !spread {
+            let whole = self.span_since(open.start);
+            segments.push(list_at(whole, items));
+        }
+        Ok((segments, spread))
+    }
+
+    fn map_entry(&mut self, items: &mut Vec<Spanned>, closer: &TokenKind) -> Result<(), Fail> {
+        match self.peek().clone() {
+            TokenKind::Label(name) => {
+                let label_span = self.peek_span();
+                self.bump();
+                self.skip_newlines();
+                items.push(atom_at(label_span, Atom::Keyword(name.clone())));
+                if matches!(self.peek(), TokenKind::Comma) || self.at(closer) {
+                    items.push(sym_at(label_span, &name));
+                } else {
+                    let value = self.expr(0)?;
+                    if matches!(&value.form, SpannedForm::Atom(Atom::Symbol(s)) if *s == name)
+                        && label_name(&name)
+                    {
+                        let written = format!("{name}: {name}");
+                        let canonical = format!("{name}:");
+                        self.note(
+                            Spelling::MapPun,
+                            label_span.merge(value.span),
+                            &written,
+                            &canonical,
+                        );
+                    }
+                    items.push(value);
+                }
+            }
+            _ => {
+                let k = self.expr(0)?;
+                self.skip_newlines();
+                if let SpannedForm::Atom(Atom::Keyword(name)) = &k.form {
+                    if blue_lang_name(name) {
+                        let written = format!(":{name} =>");
+                        let canonical = format!("{name}:");
+                        self.note(Spelling::KeywordRocket, k.span, &written, &canonical);
+                    }
+                }
+                self.expect(&TokenKind::Rocket, "`=>` in a map literal")?;
+                self.skip_newlines();
+                items.push(k);
+                items.push(self.expr(0)?);
+            }
+        }
+        Ok(())
     }
 
     /// `if c ... [else ...] end`, and `unless` as its negation.

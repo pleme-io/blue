@@ -54,6 +54,7 @@ pub mod paths;
 pub mod pipeline;
 pub mod project_rules;
 pub mod session;
+pub mod spread;
 pub mod stdlib;
 #[cfg(feature = "sys")]
 pub mod sys;

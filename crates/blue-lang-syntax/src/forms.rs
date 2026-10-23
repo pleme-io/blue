@@ -66,6 +66,16 @@ pub const FORMS: &[Form] = &[
         doc: "A map whose values are the variables of the same names: `{a:}` is `{a: a}`. Mix it with `{a:, n: 1}`.",
     },
     Form {
+        example: "{**a, b: 1}",
+        lowers_to: "(blue-merge (blue-splice a) (hash-map :b 1))",
+        doc: "A map that inherits every key of a map, `**a`, and lets a later entry override it. nil spreads as an empty map; anything else that is not a map is a type error. The map sibling of the splat `*xs`.",
+    },
+    Form {
+        example: "f(x, **a, b: 1)",
+        lowers_to: "(f x (blue-kwargs (blue-splice a) (hash-map :b 1)))",
+        doc: "A call whose last argument is the map built from `**` spreads and entries, `f(x, {**a, b: 1})` without the braces. Entries after a `**` are the call's last argument, so it cannot also carry a splat `*xs`.",
+    },
+    Form {
         example: "x = 5",
         lowers_to: "(define x 5)",
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",

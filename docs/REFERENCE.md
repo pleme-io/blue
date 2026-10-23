@@ -146,7 +146,7 @@ Higher binding power binds tighter.
 | `contains?` | `contains?(s, sub)` | 2 | Whether the STRING s contains sub. On a list it raises: use member?(x, xs). |
 | `downcase` | `downcase(s)` | 1 | The string in lower case. Raises on nil. |
 | `ends_with?` | `ends_with?(s, suffix)` | 2 | Whether s ends with suffix. |
-| `join` | `join(xs, sep)` | 2 | The elements' text with sep between. The LIST comes first here, and the string first in split. |
+| `join` | `join(xs, sep)` | 2 | The elements' text with sep between. The LIST comes first here, and the string first in split. Also defined by `tsuushin` (`tsuushin::join`): a file that lists it gets that one. |
 | `replace` | `replace(s, from, to)` | 3 | Every occurrence of from replaced by to. |
 | `split` | `split(s, sep)` | 2 | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. |
 | `starts_with?` | `starts_with?(s, prefix)` | 2 | Whether s begins with prefix. |

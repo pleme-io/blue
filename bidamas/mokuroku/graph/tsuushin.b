@@ -143,7 +143,7 @@ verb(
     shape: "join(base, path) -> url",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:tsuushin",
     meaning: "Resolve a path against a base URL.",
     wave: 0,
     origin: "C"
@@ -218,7 +218,7 @@ verb(
     shape: "parse(text, :url) -> url record",
     laterals: ["error", "validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:tsuushin",
     meaning: "URL text to scheme, host, path, query record.",
     wave: 0,
     origin: "C"
@@ -263,7 +263,7 @@ verb(
     shape: "render(url record, :url) -> text",
     laterals: ["serialize"],
     fleet: nil,
-    today: "absent",
+    today: "exists:tsuushin",
     meaning: "URL record to canonical text.",
     wave: 0,
     origin: "C"

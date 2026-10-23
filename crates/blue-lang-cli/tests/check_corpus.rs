@@ -176,6 +176,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "retsu.zip",
             "shuugou.frequencies",
             "shuugou.remove",
+            "tsuushin.join",
         ],
         "a bidama definition that replaces a builtin program-wide was added or removed; \
          update this list deliberately"

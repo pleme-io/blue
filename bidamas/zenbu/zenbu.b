@@ -109,6 +109,7 @@ use("teeburu")
 use("tehai")
 use("tokumei", [:suppress_small])
 use("toukei", [:mean, :median])
+use("tsuushin")
 use("ukai", [:decide])
 use("zumen")
 
@@ -185,6 +186,7 @@ test "every bidama in the distribution answers through this one import"
   assert bougyo::safe_id?("abc-1", 64)
   assert fairu::stem("a/b.txt") == "b"
   assert gitto::ref_of("v1", :tag) == "refs/tags/v1"
+  assert tsuushin::join("http://a.com/b/c", "../d") == "http://a.com/d"
   assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}
 end
 

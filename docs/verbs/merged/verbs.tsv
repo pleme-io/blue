@@ -2637,15 +2637,15 @@ C	tsuushin	etag	pure	etag(body) -> text	cache	-	absent	The strong validator for 
 C	tsuushin	exists?	effect	exists?(url, opts) -> Bool	deadline	-	absent	HEAD probe; never raises for the condition.	1	exists?(url, opts) -> Bool	yes
 C	tsuushin	fresh?	pure	fresh?(response, now) -> Bool	cache,time	-	absent	Whether a cached response may be used unchecked.	2	fresh?(response, now) -> Bool	yes
 C	tsuushin	get	effect	get(base, key, opts) -> value or nil	deadline,error	-	absent	One REST entry as parsed JSON; nil on 404.	1	get(base, key, opts) -> value or nil	yes
-C	tsuushin	join	pure	join(base, path) -> url	-	-	absent	Resolve a path against a base URL.	0	join(base, path) -> url	yes
+C	tsuushin	join	pure	join(base, path) -> url	-	-	exists	Resolve a path against a base URL.	0	join(base, path) -> url	yes
 C	tsuushin	list	effect	list(base, opts) -> [record]	deadline,error,retry	-	absent	Every entry, following next-page links to the end.	1	list(base, opts) -> [record]	yes
 C	tsuushin	mock	decl	mock(routes) -> client	test	-	absent	A client that answers from declared routes.	2		na
 C	tsuushin	need	effect	need(base, key, opts) -> value	deadline,error	-	absent	One REST entry; raises when absent.	1	need(base, key, opts) -> value	yes
 C	tsuushin	negotiate	pure	negotiate(accept, offered) -> choice or nil	-	-	absent	Pick the best offered type for an Accept header.	2	negotiate(accept, offered) -> choice or nil	yes
-C	tsuushin	parse	pure	parse(text, :url) -> url record	error,validate	-	absent	URL text to scheme, host, path, query record.	0	parse(text, :url) -> url record	yes
+C	tsuushin	parse	pure	parse(text, :url) -> url record	error,validate	-	exists	URL text to scheme, host, path, query record.	0	parse(text, :url) -> url record	yes
 C	tsuushin	put	effect	put(base, key, value, opts) -> value	error,idempotent	-	absent	PUT: create or replace an entry.	1	put(base, key, value, opts) -> value	yes
 C	tsuushin	read	effect	read(url, opts) -> body	deadline,error,retry	blue-lang-runtime	rust:blue-lang-runtime	GET the body; raises outside 2xx.	0	read(url, opts) -> body	yes
-C	tsuushin	render	pure	render(url record, :url) -> text	serialize	-	absent	URL record to canonical text.	0	render(url record, :url) -> text	yes
+C	tsuushin	render	pure	render(url record, :url) -> text	serialize	-	exists	URL record to canonical text.	0	render(url record, :url) -> text	yes
 C	tsuushin	request	effect	request(method, url, opts) -> response	capability,deadline,error,retry,trace	blue-lang-runtime	rust:blue-lang-runtime	Send one HTTP request; any status is data.	0	request(method, url, opts) -> response	yes
 C	tsuushin	revalidate	effect	revalidate(request, cached) -> response	cache,error	-	absent	Conditional GET with ETag; reuse body on 304.	2		na
 C	tsuushin	sign	pure	sign(request, credentials) -> request	capability,serialize	-	absent	Add a signature or bearer header to a request.	2	sign(request, credentials) -> request	yes

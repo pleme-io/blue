@@ -3849,3 +3849,70 @@ test "a model carries its columns, so a model built on it (plain or composed) se
     end
   )
 end
+
+def lj_model(from, stage)
+  model({name: :lj, from:, pipeline: [stage]})
+end
+
+test "left_join builds a left join node on a source or model, with its keys as text"
+  j = left_join(example_curve_cells, [:cell, "rounds"])
+  assert blue::get(j, :kind) == :join
+  assert blue::get(j, :how) == :left
+  assert blue::get(j, :keys) == ["cell", "rounds"]
+  assert blue::get(j, :rel) == rel(example_curve_cells)
+  assert blue::get(left_join(example_curve_cells, []), :keys) == []
+end
+
+test "left_join differs from the inner join only in how, and renders LEFT JOIN"
+  l = left_join(example_curve_cells, [:cell])
+  i = q_join(example_curve_cells, [:cell])
+  assert assoc(i, :how, :left) == l
+  assert contains?(render(lj_model(example_curve_keep, l), :core), "LEFT JOIN")
+  assert contains?(
+    render(lj_model(example_curve_keep, i), :core),
+    "LEFT JOIN"
+  ) == false
+  assert contains?(
+    render(lj_model(example_curve_keep, i), :core),
+    "JOIN curve_cells"
+  )
+end
+
+test "left_join refuses a relation that is not a source, model, ref or raw node"
+  r = left_join(5, [:a]) rescue "caught"
+  assert r == "caught"
+  s = left_join(:horizons, [:a]) rescue "caught"
+  assert s == "caught"
+end
+
+test "window builds a window node: function, arguments, partition and order keys"
+  w = window("rank", [], [:g], [:t, desc(:u)])
+  assert blue::get(w, :kind) == :win
+  assert blue::get(w, :fn) == "rank"
+  assert blue::get(w, :args) == []
+  assert blue::get(w, :partition) == ["g"]
+  assert blue::get(w, :order) == [key(:t), desc(:u)]
+end
+
+test "window with no partition and no order has both empty, and an argument is kept"
+  w = window("ntile", [expr(4)], ["g", :h], ["t"])
+  assert blue::get(w, :partition) == ["g", "h"]
+  assert blue::get(w, :order) == [key("t")]
+  assert size(blue::get(w, :args)) == 1
+  e = window("row_number", [], [], [])
+  assert blue::get(e, :partition) == []
+  assert blue::get(e, :order) == []
+end
+
+test "window renders as OVER with its partition and its order"
+  m = lj_model(
+    example_steps,
+    derive(:r, window("row_number", [], [:entity], [desc(:seq)]))
+  )
+  assert contains?(
+    render(m, :core),
+    "row_number() OVER (PARTITION BY entity ORDER BY seq DESC) AS r"
+  )
+  n = lj_model(example_steps, derive(:r, window("rank", [], [], [])))
+  assert contains?(render(n, :core), "rank() OVER () AS r")
+end

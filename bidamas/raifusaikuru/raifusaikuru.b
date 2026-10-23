@@ -2927,3 +2927,52 @@ test "a span is declared, checked when built, read back, and folds nothing"
     end
   )
 end
+
+test "rule is a named predicate with no task, and rule_task carries its own task"
+  assert rule(:r, below(:n, 3)) == [:lc_rule, :r, below(:n, 3), nil]
+  t = task(:fix, [:scan], 60)
+  assert rule_task(:r, below(:n, 3), t) == [:lc_rule, :r, below(:n, 3), t]
+  assert nth(3, rule(:r, present(:n))).nil?
+  assert nth(1, rule(:other, present(:n))) == :other
+end
+
+test "gate lays a capability on every edge of its rows, flattening nested rows"
+  e1 = on(:a, :go, :b, [])
+  e2 = on(:a, :tick, :stay, [])
+  assert gate(:g, e1) == [[:lc_edge, :a, :go, :b, [], :g]]
+  assert gate(:g, [e1, e2]) ==
+    [[:lc_edge, :a, :go, :b, [], :g], [:lc_edge, :a, :tick, :a, [], :g]]
+  assert gate(:g, [[e1], [[e2]]]) == gate(:g, [e1, e2])
+  assert gate(:g, on_each([:a, :b], :tick, :stay, [])) ==
+    [[:lc_edge, :a, :tick, :a, [], :g], [:lc_edge, :b, :tick, :b, [], :g]]
+end
+
+test "gate marks a clause that is not an edge, and an empty gate has no row"
+  assert gate(:g, field(:z, 0)) == [[:lc_misgated, :g, :lc_field]]
+  assert gate(:g, []) == []
+  assert gate(:g, [7]) == [[:lc_misgated, :g, :lc_not_a_clause]]
+end
+
+test "check is empty for a sound definition and names each kind of fault"
+  assert check(parse(:base, example_base)) == []
+  bad = push(example_base, on(:x, :go, :b, []))
+  assert map(problem_kind, check(parse(:base, bad))) == [:unknown_state]
+  twice = push(example_base, states([:a]))
+  assert contains(
+    map(problem_kind, check(parse(:base, twice))),
+    :duplicate_state
+  )
+end
+
+test "check agrees with problems, and a gate on a field is a bad_gate"
+  assert check(parse(:base, example_base)) == problems(:base, example_base)
+  g = push(example_base, gate(:g, field(:z, 0)))
+  assert contains(map(problem_kind, check(parse(:base, g))), :bad_gate)
+  assert check(parse(:base, g)) == problems(:base, g)
+end
+
+test "check on a definition with no clause at all reports the missing states and start"
+  kinds = map(problem_kind, check(parse(:empty, [])))
+  assert contains(kinds, :no_states)
+  assert contains(kinds, :no_start)
+end

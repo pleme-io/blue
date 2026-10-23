@@ -643,3 +643,33 @@ test "a List document reads into objects and shows back as the same List"
   assert read_objects(json_stringify(web)) == [web]
   assert json_at(json_read(text), "kind") == "List"
 end
+
+test "deep_merge merges maps key by key and lets b win everywhere else"
+  assert deep_merge({"a" => 1, "b" => 2}, {"b" => 3, "c" => 4}) ==
+    {"a" => 1, "b" => 3, "c" => 4}
+  assert deep_merge(
+    {"a" => {"x" => 1, "y" => 2}},
+    {"a" => {"y" => 9, "z" => 3}}
+  ) == {"a" => {"x" => 1, "y" => 9, "z" => 3}}
+  assert deep_merge({"a" => {"x" => 1}}, {"a" => 5}) == {"a" => 5}
+  assert deep_merge({"a" => 5}, {"a" => {"x" => 1}}) == {"a" => {"x" => 1}}
+  assert deep_merge({"l" => [1, 2]}, {"l" => [3]}) == {"l" => [3]}
+end
+
+test "deep_merge with an empty side returns the other, and a scalar b replaces a map"
+  assert deep_merge({}, {"a" => 1}) == {"a" => 1}
+  assert deep_merge({"a" => 1}, {}) == {"a" => 1}
+  assert deep_merge({}, {}) == {}
+  assert deep_merge({"a" => 1}, 7) == 7
+  assert deep_merge(7, {"a" => 1}) == {"a" => 1}
+  assert deep_merge(1, 2) == 2
+end
+
+test "deep_merge leaves both inputs as they were"
+  a = {"a" => {"x" => 1}}
+  b = {"a" => {"y" => 2}}
+  m = deep_merge(a, b)
+  assert a == {"a" => {"x" => 1}}
+  assert b == {"a" => {"y" => 2}}
+  assert m == {"a" => {"x" => 1, "y" => 2}}
+end

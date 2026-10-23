@@ -240,3 +240,60 @@ test "redeclaring a default is refused as a duplicate and the default stands"
   assert get(extra, :refusals) == []
   assert size(get(extra, :accepted)) == 2
 end
+
+test "posture names its kind and carries its table, its defaults and its layer"
+  p = tag("X-A", "1")
+  assert name_of(p) == :tag
+  assert get(p, :defaults) == {value: "1"}
+  assert size(table_of(p)) == 1
+  assert get(posture(:k, [], {}, :layer), :layer) == :layer
+  assert posture(:k, [], {}, nil) ==
+    {name: :k, table: [], defaults: {}, layer: nil}
+end
+
+test "defaults has one entry per posture, named default, holding that posture's defaults"
+  es = defaults([tag("X-A", "1"), veto("audit")])
+  assert map(kind_of, es) == [:tag, :veto]
+  assert map(value_of, es) == [{value: "1"}, {mode: "audit", path: "/no"}]
+  assert defaults([]) == []
+end
+
+test "defaults follow the posture's own settings, so a different default is a different entry"
+  assert map(value_of, defaults([veto("enforce")])) ==
+    [{mode: "enforce", path: "/no"}]
+  assert map(value_of, defaults([tag("X-B", "2")])) == [{value: "2"}]
+end
+
+def gate_probe(mode)
+  seen = [[]]
+  note = (name, why) -> set!(seen, [append(first(seen), [[name, why]])])
+  out = gated(mode, note, :veto, "why", "denied", () -> "allowed")
+  [out, first(seen)]
+end
+
+test "gated in audit records the violation and goes on"
+  assert gate_probe("audit") == ["allowed", [[:veto, "why"]]]
+end
+
+test "gated in enforce refuses and records nothing"
+  assert gate_probe("enforce") == ["denied", []]
+end
+
+test "gated treats any mode but audit as a refusal, and allow is not called when refusing"
+  assert gate_probe("") == ["denied", []]
+  assert gate_probe("off") == ["denied", []]
+  called = [false]
+  r = gated(
+    "enforce",
+    silent,
+    :veto,
+    "why",
+    "denied",
+    fn()
+      set!(called, [true])
+      "allowed"
+    end
+  )
+  assert r == "denied"
+  assert first(called) == false
+end

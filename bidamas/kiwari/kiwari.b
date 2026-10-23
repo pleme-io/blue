@@ -1878,3 +1878,43 @@ test "render names the artifacts it makes when asked for another"
   end == true
   assert starts_with?(render(blue, "folds.scm"), "; Generated")
 end
+
+test "choice and rep build the node their name says and expose their parts"
+  assert choice([lit("a"), ref("b")]) ==
+    {kind: :choice, items: [lit("a"), ref("b")]}
+  assert choice([]) == {kind: :choice, items: []}
+  assert rep(lit("a")) == {kind: :rep, item: lit("a")}
+  assert parts(choice([lit("a"), ref("b")])) == [lit("a"), ref("b")]
+  assert parts(choice([])) == []
+  assert parts(rep(ref("x"))) == [ref("x")]
+end
+
+test "choice and rep render as the tree-sitter calls they are named for"
+  assert js(choice([lit("a"), ref("b")])) == "choice('a', $.b)"
+  assert js(rep(lit("a"))) == "repeat('a')"
+  assert js(rep(choice([lit("a"), lit("b")]))) == "repeat(choice('a', 'b'))"
+  assert js(choice([lit("a")])) == "choice('a')"
+end
+
+test "literals lists each literal the rules use once, in first-use order"
+  g = {
+    rules: [
+      rule("a", seq([lit("x"), lit("y"), lit("x")]), nil),
+      rule("b", choice([lit("y"), pat("p"), opt(lit("z"))]), nil),
+      rule("c", rep(field("f", prec_left(1, lit("w")))), nil)
+    ]
+  }
+  assert literals(g) == ["x", "y", "z", "w"]
+end
+
+test "literals of a grammar with no rule, or only patterns and refs, is empty"
+  assert literals({rules: []}) == []
+  assert literals({rules: [rule("a", seq([pat("p"), ref("b")]), nil)]}) == []
+end
+
+test "blue's grammar uses its keywords as literals"
+  ls = literals(blue)
+  assert member?("def", ls)
+  assert member?("end", ls)
+  assert distinct(ls) == ls
+end

@@ -378,3 +378,68 @@ test "a missing ssh binary is named, and the state records which ssh ran"
     "ssh could not be started: ssh"
   rm_rf(dir)
 end
+
+def fake_ssh(dir, name, body)
+  path = path_join(dir, name)
+  write_file(path, "#!/bin/sh\n#{body}\n")
+  exec_check("chmod", "+x", path)
+  path
+end
+
+def probe_dir(label)
+  dir = path_join(
+    getenv("TMPDIR", "/tmp"),
+    "tehai-probe-#{label}-#{to_s(now_ns)}"
+  )
+  mkdir_p(dir)
+  dir
+end
+
+def probe_target()
+  {host: "h", user: "u", key: nil}
+end
+
+test "probe is up with nix's own answer when the far side prints it"
+  dir = probe_dir("up")
+  ssh = fake_ssh(dir, "ssh", "echo 'nix-store (Nix) 2.24.0'")
+  assert probe(probe_target, 2, ssh) == [true, "nix-store (Nix) 2.24.0"]
+  rm_rf(dir)
+end
+
+test "probe is down with the last non-empty line of stderr when ssh fails"
+  dir = probe_dir("denied")
+  ssh = fake_ssh(
+    dir,
+    "ssh",
+    "echo 'first' >&2; echo 'Permission denied' >&2; echo >&2; exit 255"
+  )
+  assert probe(probe_target, 2, ssh) == [false, "Permission denied"]
+  rm_rf(dir)
+end
+
+test "probe is down when ssh succeeds but nix does not answer, and when it prints nothing"
+  dir = probe_dir("other")
+  other = fake_ssh(dir, "other", "echo 'hello'")
+  assert probe(probe_target, 2, other) == [false, ""]
+  near = fake_ssh(dir, "near", "echo 'nixos'")
+  assert probe(probe_target, 2, near) == [false, ""]
+  quiet = fake_ssh(dir, "quiet", "exit 0")
+  assert probe(probe_target, 2, quiet) == [false, ""]
+  rm_rf(dir)
+end
+
+test "probe names an ssh it could not start and never raises"
+  assert probe(probe_target, 2, "/nonexistent/ssh") ==
+    [false, "ssh could not be started: /nonexistent/ssh"]
+  assert probe(probe_target, 2, "") == [false, "ssh could not be started: "]
+end
+
+test "probe hands ssh the argv that probe_argv builds"
+  dir = probe_dir("argv")
+  ssh = fake_ssh(dir, "ssh", "echo \"nix-store $*\"")
+  r = probe({host: "h", user: "u", key: "/k"}, 3, ssh)
+  assert first(r) == true
+  assert contains?(nth(1, r), "ConnectTimeout=3")
+  assert contains?(nth(1, r), "-i /k u@h nix-store --version")
+  rm_rf(dir)
+end

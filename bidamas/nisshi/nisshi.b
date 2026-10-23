@@ -2531,3 +2531,45 @@ test "canon takes back every value json_parse gives, the empty object included"
   assert canon(json_parse("[]")) == "[]"
   assert (canon({a: 1}) rescue :raised) == :raised
 end
+
+test "entry is the lifecycle start at seq 0 for an entity never seen"
+  d = raifusaikuru::example_consumable
+  p = test_path("entry-unseen")
+  log = read(p, "nisshi-test", d)
+  assert entry(log, "item-1") == [raifusaikuru::initial(d), 0]
+  assert entry(log, "") == [raifusaikuru::initial(d), 0]
+  assert path_exists(p) == false
+end
+
+test "entry is an entity's state and next seq, and agrees with state and seq_of"
+  d = raifusaikuru::example_consumable
+  p = test_path("entry-seen")
+  log = append_all(
+    read(p, "nisshi-test", d),
+    [
+      ["a", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+      ["b", raifusaikuru::ev(:reading, 1010, [[:value, 10]]), []],
+      ["a", raifusaikuru::ev(:open, 1020, []), []]
+    ]
+  )
+  rm(p)
+  assert nth(1, entry(log, "a")) == 2
+  assert nth(1, entry(log, "b")) == 1
+  assert first(entry(log, "a")) == state(log, "a")
+  assert nth(1, entry(log, "a")) == seq_of(log, "a")
+  assert first(entry(log, "a")) != first(entry(log, "b"))
+  assert entry(log, "c") == [raifusaikuru::initial(d), 0]
+end
+
+test "entry counts a refused event in seq and leaves the state as it was"
+  d = raifusaikuru::example_consumable
+  p = test_path("entry-refused")
+  log = el_append(
+    read(p, "nisshi-test", d),
+    "a",
+    raifusaikuru::ev(:fly, 1000, []),
+    []
+  )
+  rm(p)
+  assert entry(log, "a") == [raifusaikuru::initial(d), 1]
+end

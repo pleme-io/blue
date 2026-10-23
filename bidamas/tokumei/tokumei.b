@@ -208,3 +208,31 @@ test "suppress hides a count below k and keeps the rest"
   assert suppress(0, 1).nil?
   assert suppress(9, 0) == 9
 end
+
+test "private_count is the count plus a Laplace draw of scale 1 / epsilon"
+  assert private_count(10, 0.5, 7) == 10 + laplace_draw(2, 7)
+  assert private_count(10, 2, 7) == 10 + laplace_draw(0.5, 7)
+  assert private_count(0, 1, 7) == laplace_draw(1, 7)
+  assert private_count(10, 1, 7) == private_count(10, 1, 7)
+  assert private_count(10, 1, 7) != private_count(10, 1, 8)
+end
+
+test "private_count noise is centred on the count and shrinks as epsilon grows"
+  draws = map((i) -> private_count(50, 1, stream_seed(5, i)), range(0, 400))
+  assert abs(mean(draws) - 50) < 0.4
+  tight = map(
+    (i) -> abs(private_count(50, 1000, stream_seed(5, i)) - 50),
+    range(0, 100)
+  )
+  loose = map(
+    (i) -> abs(private_count(50, 0.1, stream_seed(5, i)) - 50),
+    range(0, 100)
+  )
+  assert every?((d) -> d < 0.1, tight)
+  assert mean(loose) > mean(tight)
+end
+
+test "private_count refuses an epsilon of zero, which would be no privacy and an infinite scale"
+  r = private_count(10, 0, 7) rescue "caught"
+  assert r == "caught"
+end

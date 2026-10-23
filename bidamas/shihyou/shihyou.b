@@ -370,3 +370,67 @@ test "the dashboard and the catalog entry read the same objectives"
     "owner"
   ) == "edge"
 end
+
+test "budget is the share of requests an objective lets fail"
+  assert budget(99.5) == 0.005
+  assert budget(99) == 0.01
+  assert budget(100) == 0
+  assert budget(0) == 1
+  assert budget(50) == 0.5
+end
+
+test "error_ratio is the 5xx rate over the total rate of one service in one window"
+  assert error_ratio("hello", "5m") ==
+    "sum(rate(http_requests_total{service=\"hello\",code=\"5xx\"}[5m])) / sum(rate(http_requests_total{service=\"hello\"}[5m]))"
+  assert contains?(error_ratio("a-b", "3d"), "service=\"a-b\"")
+  assert contains?(error_ratio("a-b", "3d"), "[3d]")
+  assert contains?(error_ratio("a", "1h"), "service=\"b\"") == false
+end
+
+test "slow_ratio is one minus the share of requests within the bucket bound"
+  assert slow_ratio("hello", "0.25", "1h") ==
+    "1 - sum(rate(http_request_duration_seconds_bucket{service=\"hello\",le=\"0.25\"}[1h])) / sum(rate(http_request_duration_seconds_count{service=\"hello\"}[1h]))"
+  assert contains?(slow_ratio("x", "1", "6h"), "le=\"1\"")
+  assert contains?(slow_ratio("x", "1", "6h"), "[6h]")
+end
+
+test "alerts has a burn alert per window for each of the two indicators, in order"
+  al = alerts("hello", objectives(sample))
+  assert count(al) == 8
+  assert map((a) -> get(a, "alert"), al) ==
+    [
+      "SloAvailabilityBurn1h",
+      "SloAvailabilityBurn6h",
+      "SloAvailabilityBurn1d",
+      "SloAvailabilityBurn3d",
+      "SloLatencyBurn1h",
+      "SloLatencyBurn6h",
+      "SloLatencyBurn1d",
+      "SloLatencyBurn3d"
+    ]
+  assert map((a) -> get(get(a, "labels"), "severity"), take(4, al)) ==
+    ["page", "page", "ticket", "ticket"]
+end
+
+test "alerts carry the service, the indicator and the objective they spend"
+  al = alerts("hello", objectives(sample))
+  a = first(al)
+  assert get(get(a, "labels"), "service") == "hello"
+  assert get(get(a, "labels"), "slo") == "availability"
+  assert get(get(a, "annotations"), "objective") == "99.5% over 30d"
+  assert get(get(nth(4, al), "annotations"), "objective") == "99% over 30d"
+  assert contains?(
+    get(get(a, "annotations"), "summary"),
+    "hello is spending its availability error budget 14.4x too fast over 1h and 5m"
+  )
+end
+
+test "alerts threshold follows the declared objective and window"
+  o = objectives(
+    assoc(sample, "slo", {"availability" => 99, "window_days" => 7})
+  )
+  a = first(alerts("hello", o))
+  assert contains?(get(a, "expr"), "> (14.4 * 0.01)")
+  assert get(get(a, "annotations"), "objective") == "99% over 7d"
+  assert contains?(get(a, "expr"), "service=\"hello\"")
+end

@@ -308,3 +308,66 @@ test "the metrics path answers the exposition and is not itself counted"
   assert get(first(b), :status) == 500
   assert get(second(b), "errors") == 1
 end
+
+def served(path, health, handler)
+  l = http_listen("127.0.0.1:0")
+  me = self
+  port = http_listener_port(l)
+  spawn(
+    fn()
+      r = begin
+        http_request(
+          "GET",
+          "http://127.0.0.1:#{to_s(port)}#{path}",
+          nil,
+          nil,
+          100
+        )
+      rescue _e
+        "gave up"
+      end
+      send(me, r)
+    end
+  )
+  receive(:_, 2000, :none)
+  serve_once(l, health, handler, 2000)
+end
+
+test "response is a status, a Content-Type header and a body"
+  assert response(201, "text/x", "b") ==
+    {status: 201, headers: {"Content-Type" => "text/x"}, body: "b"}
+  assert response(204, "", "") ==
+    {status: 204, headers: {"Content-Type" => ""}, body: ""}
+end
+
+test "not_found is a 404 plain text naming the method and the path"
+  r = not_found(request("POST", "/a/b", ""))
+  assert get(r, :status) == 404
+  assert get(r, :body) == "no route for POST /a/b\n"
+  assert get(get(r, :headers), "Content-Type") == "text/plain; charset=utf-8"
+  assert get(not_found(request("GET", "", "")), :body) == "no route for GET \n"
+end
+
+test "serve_once returns nil when no request arrives in the time given"
+  l = http_listen("127.0.0.1:0")
+  assert serve_once(l, "/healthz", hello, 20).nil?
+  assert serve_once(l, "/healthz", hello, 0).nil?
+end
+
+test "serve refuses an address it cannot listen on"
+  r = serve("no-port-here", "/healthz", hello) rescue "caught"
+  assert r == "caught"
+  s = serve("", "/healthz", hello) rescue "caught"
+  assert s == "caught"
+end
+
+test "serve_once answers a queued request with the handler's status and returns it"
+  assert served("/?who=z", "/healthz", hello) == 200
+  assert served("/other", "/healthz", hello) == 404
+end
+
+test "serve_once answers the health path before the handler, and turns a raise or a non-response into a 500"
+  assert served("/healthz", "/healthz", (_) -> raise(:x, "unreached")) == 200
+  assert served("/boom", "/healthz", hello) == 500
+  assert served("/nil", "/healthz", hello) == 500
+end

@@ -1050,3 +1050,37 @@ test "STL: one facet per face, with outward normals"
   assert size(filter((l) -> starts_with?(l, "facet normal"), split(s, "\n"))) ==
     12
 end
+
+def square_points()
+  [[0, 0], [1, 0], [1, 1], [0, 1]]
+end
+
+test "turn is 1 at every corner of a counter-clockwise square, wrapping at both ends"
+  assert map((k) -> turn(square_points, [0, 1, 2, 3], k), range(0, 4)) ==
+    [1, 1, 1, 1]
+  assert turn(square_points, [1, 2, 3, 0], 0) == 1
+end
+
+test "turn is -1 at every corner of a clockwise square"
+  assert map((k) -> turn(square_points, [3, 2, 1, 0], k), range(0, 4)) ==
+    [-1, -1, -1, -1]
+end
+
+test "turn is -1 at a reflex corner and 1 at the rest of an L"
+  pts = [[0, 0], [2, 0], [2, 2], [1, 2], [1, 1], [0, 1]]
+  assert map((k) -> turn(pts, [0, 1, 2, 3, 4, 5], k), range(0, 6)) ==
+    [1, 1, 1, 1, -1, 1]
+end
+
+test "turn is 0 on a straight run and within the tolerance of one, and not beyond it"
+  assert turn([[0, 0], [1, 0], [2, 0]], [0, 1, 2], 1) == 0
+  assert turn([[0, 0], [1, 0], [2, 0.00000000001]], [0, 1, 2], 1) == 0
+  assert turn([[0, 0], [1, 0], [2, 0.001]], [0, 1, 2], 1) == 1
+  assert turn([[0, 0], [1, 0], [2, -0.001]], [0, 1, 2], 1) == -1
+  assert turn([[0, 0], [0, 0], [0, 0]], [0, 1, 2], 1) == 0
+end
+
+test "turn reads the polygon's own order, not the point list's"
+  assert turn(square_points, [0, 2, 1], 1) == -1
+  assert turn(square_points, [0, 1, 2], 1) == 1
+end

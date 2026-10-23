@@ -192,8 +192,7 @@ def discovered_path(app)
   )
 end
 
-def defaults(app)
-  path = getenv("#{env_prefix(app)}DEFAULTS")
+def prescribed(app, path)
   if path.nil?
     raise(
       :no_defaults,
@@ -201,6 +200,10 @@ def defaults(app)
     )
   end
   json_read(read_file(path))
+end
+
+def defaults(app)
+  prescribed(app, getenv("#{env_prefix(app)}DEFAULTS"))
 end
 
 def read(app, defaults)
@@ -403,4 +406,61 @@ test "file refuses an unknown tier and the explicit tier is nil when unset"
     end,
     "nope is not a tier"
   ) == true
+end
+
+def defaults_dir()
+  dir = path_join(getenv("TMPDIR", "/tmp"), "settei-defs-#{to_s(now_ns)}")
+  mkdir_p(dir)
+  dir
+end
+
+test "prescribed reads the file as JSON settings"
+  dir = defaults_dir
+  p = path_join(dir, "defaults.json")
+  write_file(p, "{\"port\":8080,\"name\":\"x\",\"nested\":{\"on\":true}}")
+  s = prescribed("zz-app", p)
+  assert get(s, "port") == 8080
+  assert get(s, "name") == "x"
+  assert get(get(s, "nested"), "on") == true
+  write_file(p, "{}")
+  assert prescribed("zz-app", p) == {}
+  rm_rf(dir)
+end
+
+test "prescribed raises no_defaults, naming the app's variable, when there is no path"
+  r = begin
+    prescribed("zz-app", nil)
+  rescue e
+    e.message
+  end
+  assert contains?(r, "ZZ_APP_DEFAULTS names no file of prescribed settings")
+end
+
+test "prescribed raises when the file is missing or is not JSON"
+  gone = prescribed("zz-app", "/nonexistent/defaults.json") rescue "caught"
+  assert gone == "caught"
+  dir = defaults_dir
+  p = path_join(dir, "defaults.json")
+  write_file(p, "not json")
+  bad = prescribed("zz-app", p) rescue "caught"
+  assert bad == "caught"
+  rm_rf(dir)
+end
+
+test "defaults raises no_defaults, naming the variable, when none is set"
+  r = begin
+    defaults("zz-unset-app")
+  rescue e
+    e.message
+  end
+  assert contains?(
+    r,
+    "ZZ_UNSET_APP_DEFAULTS names no file of prescribed settings"
+  )
+end
+
+test "defaults reads the variable of the app it is given: a hyphen is an underscore, case is upper"
+  assert env_prefix("zz-unset-app") == "ZZ_UNSET_APP_"
+  r = defaults("zz-unset-app") rescue "caught"
+  assert r == "caught"
 end

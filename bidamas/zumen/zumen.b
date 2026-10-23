@@ -713,3 +713,21 @@ test "a sheet adds a frame and one title line per field"
   assert size(filter((e) -> layer(e) == "TEXT", es)) == 4
   assert size(filter((e) -> layer(e) == "FRAME", es)) == 1
 end
+
+test "project drops the axis a view looks along: top keeps x and y, front x and z, side y and z"
+  assert project([1, 2, 3], :top) == [1, 2]
+  assert project([1, 2, 3], :front) == [1, 3]
+  assert project([1, 2, 3], :side) == [2, 3]
+end
+
+test "project keeps the sign and the fraction of a coordinate, and the origin stays put"
+  assert project([-1.5, 0.25, -7], :top) == [-1.5, 0.25]
+  assert project([-1.5, 0.25, -7], :front) == [-1.5, -7]
+  assert project([-1.5, 0.25, -7], :side) == [0.25, -7]
+  assert project([0, 0, 0], :side) == [0, 0]
+end
+
+test "project of a top view needs no third coordinate, and an empty point has nothing to keep"
+  assert project([1, 2], :top) == [1, 2]
+  assert project([], :top) == [nil, nil]
+end

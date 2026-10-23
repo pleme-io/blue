@@ -497,8 +497,8 @@ end
 # j holds original character rail_order[j].
 def rail_order(n, rails)
   flat_map(
-    (r) -> filter((i) -> rail_of(i, rails) == r, range(0, n)),
-    range(0, rails)
+    range(0, rails),
+    (r) -> filter((i) -> rail_of(i, rails) == r, range(0, n))
   )
 end
 

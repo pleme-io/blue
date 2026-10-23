@@ -172,6 +172,7 @@ def table(rows, columns, widths, origin, h)
     map((r) -> map((c) -> cell(get(r, c)), columns), rows)
   )
   flat_map(
+    indexes(lines),
     fn(i)
       table_row(
         nth(i, lines),
@@ -179,8 +180,7 @@ def table(rows, columns, widths, origin, h)
         [px(origin), py(origin) - i * h * 1.8],
         h
       )
-    end,
-    indexes(lines)
+    end
   )
 end
 
@@ -227,7 +227,7 @@ end
 
 # [[min x, min y], [max x, max y]] over every entity; nil for none.
 def bounds(entities)
-  bounding_box(flat_map(entity_points, entities))
+  bounding_box(flat_map(entities, entity_points))
 end
 
 # ── sheets ───────────────────────────────────────────────────────────
@@ -434,6 +434,7 @@ def dxf(entities)
     [[0, "TABLE"], [2, "LAYER"], [70, size(zumen::layers)]],
     concat_lists(
       flat_map(
+        zumen::layers,
         fn(l)
           [
             [0, "LAYER"],
@@ -442,8 +443,7 @@ def dxf(entities)
             [62, nth(1, l)],
             [6, nth(2, l)]
           ]
-        end,
-        zumen::layers
+        end
       ),
       [[0, "ENDTAB"]]
     )
@@ -454,7 +454,7 @@ def dxf(entities)
   )
   body = concat_lists(
     [[0, "SECTION"], [2, "ENTITIES"]],
-    concat_lists(flat_map(dxf_entity, entities), [[0, "ENDSEC"], [0, "EOF"]])
+    concat_lists(flat_map(entities, dxf_entity), [[0, "ENDSEC"], [0, "EOF"]])
   )
   dxf_pairs(concat_lists(header, concat_lists(tables, body)))
 end
@@ -502,8 +502,8 @@ def dxf_entity(e)
       ],
       concat_lists(
         flat_map(
-          (p) -> concat_lists([[0, "VERTEX"], l], xy(10, p)),
-          get(e, :pts)
+          get(e, :pts),
+          (p) -> concat_lists([[0, "VERTEX"], l], xy(10, p))
         ),
         [[0, "SEQEND"], l]
       )

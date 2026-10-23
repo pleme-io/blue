@@ -396,14 +396,14 @@ end
 # Every effect of every row: [:set f k], [:put f v], [:add f n], [:add_key f
 # k], [:stamp f].
 def effects(d)
-  flat_map((e) -> nth(4, e), raifusaikuru::d_edges(d))
+  flat_map(raifusaikuru::d_edges(d), (e) -> nth(4, e))
 end
 
 # Every atomic predicate of every rule of every guard.
 def atoms(d)
   flat_map(
-    (g) -> flat_map((r) -> raifusaikuru::atoms(nth(2, r)), nth(2, g)),
-    raifusaikuru::d_guards(d)
+    raifusaikuru::d_guards(d),
+    (g) -> flat_map(nth(2, g), (r) -> raifusaikuru::atoms(nth(2, r)))
   )
 end
 
@@ -472,8 +472,8 @@ end
 def permit_key_types(d)
   logged = map((l) -> nth(1, l), raifusaikuru::d_permit_logs(d))
   keys = flat_map(
-    (e) -> as_list(nth(1, e)),
-    filter((e) -> contains(logged, first(e)), raifusaikuru::d_events(d))
+    filter((e) -> contains(logged, first(e)), raifusaikuru::d_events(d)),
+    (e) -> as_list(nth(1, e))
   )
   map((k) -> [raifusaikuru::text(k), permit_key_type(k)], keys)
 end
@@ -500,7 +500,7 @@ def key_type(d, k)
       :double
     else
       t = merge(
-        flat_map((f) -> field_evidence(d, f), targets),
+        flat_map(targets, (f) -> field_evidence(d, f)),
         "payload key #{raifusaikuru::show(k)}"
       )
       if t.nil?
@@ -539,7 +539,7 @@ end
 def keys(d)
   unique_by(
     (k) -> raifusaikuru::text(k),
-    flat_map((e) -> as_list(nth(1, e)), raifusaikuru::d_events(d))
+    flat_map(raifusaikuru::d_events(d), (e) -> as_list(nth(1, e)))
   )
 end
 
@@ -777,8 +777,8 @@ end
 # neither names one).
 def rules_rel(d)
   rows = flat_map(
-    (g) -> map((r) -> rule_row(g, r), nth(2, g)),
-    raifusaikuru::d_guards(d)
+    raifusaikuru::d_guards(d),
+    (g) -> map((r) -> rule_row(g, r), nth(2, g))
   )
   kueri::values(
     {
@@ -818,13 +818,14 @@ end
 # Every task any rule may ask for, one row per evidence kind that closes it.
 def task_evidence_rel(d)
   tasks = flat_map(
+    raifusaikuru::d_guards(d),
     fn(g)
       filter((t) -> t != nil, cons(nth(3, g), map((r) -> nth(3, r), nth(2, g))))
-    end,
-    raifusaikuru::d_guards(d)
+    end
   )
   rows = unique(
     flat_map(
+      tasks,
       fn(t)
         map(
           fn(k)
@@ -835,8 +836,7 @@ def task_evidence_rel(d)
           end,
           raifusaikuru::task_evidence(t)
         )
-      end,
-      tasks
+      end
     )
   )
   kueri::values(
@@ -1624,13 +1624,13 @@ def lifecycle_models(b, now)
   closes = task_closes_model(d, asks, evidence_events)
   tasks = tasks_model(d, closes, now)
   permits = flat_map(
-    (l) -> permit_models(d, l, events, steps, gates),
-    raifusaikuru::d_permit_logs(d)
+    raifusaikuru::d_permit_logs(d),
+    (l) -> permit_models(d, l, events, steps, gates)
   )
   current = current_state_model(d, steps)
   spans = flat_map(
-    (sp) -> span_models(d, sp, steps, current, now),
-    raifusaikuru::d_spans(d)
+    raifusaikuru::d_spans(d),
+    (sp) -> span_models(d, sp, steps, current, now)
   )
   flatten1(
     [
@@ -1894,28 +1894,28 @@ def models(bindings, now)
       "now is a whole-number time on the lifecycles' clock, not #{raifusaikuru::show(now)}"
     )
   end
-  own = flat_map((b) -> lifecycle_models(b, now), bs)
+  own = flat_map(bs, (b) -> lifecycle_models(b, now))
   links = flat_map(
+    bs,
     fn(b)
       flat_map(
-        (l) -> link_models(bs, own, b, l),
-        raifusaikuru::d_links(la_def(b))
+        raifusaikuru::d_links(la_def(b)),
+        (l) -> link_models(bs, own, b, l)
       )
-    end,
-    bs
+    end
   )
   both = concat_lists(own, links)
   chains = flat_map(
+    bs,
     fn(b)
       flat_map(
-        (l1) -> chains_from(bs, both, b, l1),
-        raifusaikuru::d_links(la_def(b))
+        raifusaikuru::d_links(la_def(b)),
+        (l1) -> chains_from(bs, both, b, l1)
       )
-    end,
-    bs
+    end
   )
   all = concat_lists(both, chains)
-  check_unique(all, flat_map((b) -> source_names(la_def(b)), bs))
+  check_unique(all, flat_map(bs, (b) -> source_names(la_def(b))))
   all
 end
 
@@ -1927,8 +1927,8 @@ end
 def chains_from(bindings, models, a, l1)
   bd = la_def(target(bindings, a, first(l1), nth(1, l1)))
   flat_map(
-    (l2) -> chain_models(bindings, models, a, l1, l2),
-    raifusaikuru::d_links(bd)
+    raifusaikuru::d_links(bd),
+    (l2) -> chain_models(bindings, models, a, l1, l2)
   )
 end
 

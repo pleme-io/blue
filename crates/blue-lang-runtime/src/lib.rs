@@ -35,6 +35,7 @@
 //!    interpreter's own, so the program is that node's root process.
 
 pub mod alloc;
+pub mod collection;
 pub mod crypto;
 pub mod dispatch;
 pub mod docs;

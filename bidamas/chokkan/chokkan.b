@@ -96,7 +96,7 @@ def problems(questions)
     else
       []
     end
-    append(dup_err, flat_map(question_problems, questions))
+    append(dup_err, flat_map(questions, question_problems))
   end
 end
 

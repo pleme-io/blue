@@ -624,14 +624,14 @@ end
 
 def flat(entries)
   flat_map(
+    entries,
     fn(x)
       if map?(x)
         [x]
       else
         flat(x)
       end
-    end,
-    entries
+    end
   )
 end
 
@@ -861,7 +861,7 @@ def apply_tunes(es)
   base = filter((e) -> kind_of(e) != :tune, es)
   bad = map((t) -> tune_refusals(t, base), tunes)
   good = kyohi::standing(tunes, bad)
-  {entries: map((e) -> tuned(e, good), base), refusals: flat_map((r) -> r, bad)}
+  {entries: map((e) -> tuned(e, good), base), refusals: flat_map(bad, (r) -> r)}
 end
 
 def tuned(e, tunes)
@@ -933,7 +933,6 @@ def mood_needs(m, es)
   tone_name = get(s or {}, :tone)
   deaf = missing(get(s or {}, :speakers) or [], names_of_kind(es, :speaker))
   flat_map(
-    (g) -> g,
     [
       refused_if(
         s != nil and not contains(names_of_kind(es, :tone), tone_name),
@@ -979,7 +978,8 @@ def mood_needs(m, es)
         m,
         "an earlier phone button already says #{label_of(m)}"
       )
-    ]
+    ],
+    (g) -> g
   )
 end
 
@@ -1004,7 +1004,7 @@ end
 # nothing more falls: a mood handing over to a refused mood falls with it.
 def settle(standing, refused)
   fresh = map((e) -> needs(e, standing), standing)
-  falls = flat_map((r) -> r, fresh)
+  falls = flat_map(fresh, (r) -> r)
   if is_empty(falls)
     {accepted: standing, refusals: refused}
   else
@@ -1024,7 +1024,7 @@ def judge(entries)
   first_pass = kyohi::standing(es, marks)
   settled = settle(
     first_pass,
-    append(get(t, :refusals), flat_map((r) -> r, marks))
+    append(get(t, :refusals), flat_map(marks, (r) -> r))
   )
   site_missing = if has_kind?(get(settled, :accepted), :site)
     []

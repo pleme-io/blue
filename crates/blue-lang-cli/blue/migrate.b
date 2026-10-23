@@ -772,10 +772,370 @@ def strip(prefix, file, callers)
   end
 end
 
-# `write_stdout`, not `println`: the report is text for a person, unquoted.
+def blank_char?(c)
+  member?(c, [" ", "\n", "\t", "\r"])
+end
+
+def leading_blanks(cs)
+  first(
+    reduce(
+      fn(st, c)
+        if nth(1, st) or not blank_char?(c)
+          [first(st), true]
+        else
+          [first(st) + 1, false]
+        end
+      end,
+      [0, false],
+      cs
+    )
+  )
+end
+
+def padded(seg)
+  lead = leading_blanks(seg)
+  trail = leading_blanks(reverse(drop(lead, seg)))
+  core = length(seg) - lead - trail
+  [take(lead, seg), take(core, drop(lead, seg)), drop(lead + core, seg)]
+end
+
+def swap_args_at(cs, plan)
+  open = first(plan)
+  a = open + 1
+  b = open + nth(1, plan)
+  c = open + nth(2, plan)
+  one = padded(take(b - a, drop(a, cs)))
+  two = padded(take(c - b - 1, drop(b + 1, cs)))
+  append(
+    take(a, cs),
+    first(one),
+    nth(1, two),
+    nth(2, one),
+    [","],
+    first(two),
+    nth(1, one),
+    nth(2, two),
+    drop(c, cs)
+  )
+end
+
+def scan_step(st, c)
+  stack = first(st)
+  comma = nth(1, st)
+  commas = nth(2, st)
+  close = nth(3, st)
+  comment = nth(4, st)
+  esc = nth(5, st)
+  i = nth(6, st)
+  prev = nth(7, st)
+  top = first(stack)
+  if close != nil
+    st
+  elsif top == "str"
+    if esc
+      [stack, comma, commas, close, comment, false, i + 1, ""]
+    elsif c == "\\"
+      [stack, comma, commas, close, comment, true, i + 1, c]
+    elsif c == "\""
+      [rest(stack), comma, commas, close, comment, false, i + 1, c]
+    elsif c == "{" and prev == "#"
+      [cons("code", stack), comma, commas, close, comment, false, i + 1, c]
+    else
+      [stack, comma, commas, close, comment, false, i + 1, c]
+    end
+  elsif c == "\""
+    [cons("str", stack), comma, commas, close, comment, false, i + 1, c]
+  elsif c == "#"
+    [stack, comma, commas, close, true, false, i + 1, c]
+  elsif member?(c, ["(", "[", "{"])
+    [cons(c, stack), comma, commas, close, comment, false, i + 1, c]
+  elsif member?(c, [")", "]", "}"])
+    left = rest(stack)
+    if first(left) == "root"
+      [left, comma, commas, i, comment, false, i + 1, c]
+    else
+      [left, comma, commas, close, comment, false, i + 1, c]
+    end
+  elsif c == "," and length(stack) == 2
+    at = if comma.nil?
+      i
+    else
+      comma
+    end
+    [stack, at, commas + 1, close, comment, false, i + 1, c]
+  else
+    [stack, comma, commas, close, comment, false, i + 1, c]
+  end
+end
+
+def scan_call(window)
+  st = reduce(scan_step, [["root"], nil, 0, nil, false, false, 0, ""], window)
+  [nth(1, st), nth(2, st), nth(3, st), nth(4, st)]
+end
+
+def scan_at(cs, open)
+  reduce(
+    fn(found, width)
+      if found != nil
+        found
+      else
+        s = scan_call(take(width, drop(open, cs)))
+        if nth(2, s).nil?
+          nil
+        else
+          s
+        end
+      end
+    end,
+    nil,
+    [4000, 16000, 64000, 1_000_000]
+  )
+end
+
+def starts_of(lines)
+  reverse(
+    first(
+      reduce(
+        (st, l) -> [cons(nth(1, st), first(st)), nth(1, st) + length(l) + 1],
+        [[], 0],
+        lines
+      )
+    )
+  )
+end
+
+def offset_of(starts, line, column)
+  nth(line - 1, starts) + column - 1
+end
+
+def flag(why)
+  ["flag", why]
+end
+
+def site_plan(cs, starts, r)
+  line = json_get(r, "line")
+  name = surface(json_get(r, "written"))
+  at = "line #{line}, `#{name}`"
+  ns_key = json_get_or(json_get(r, "ns"), "key", "")
+  flat_key = json_get_or(json_get(r, "flat"), "key", "")
+  begin_at = offset_of(starts, line, json_get(r, "column"))
+  end_at = offset_of(starts, json_get(r, "end_line"), json_get(r, "end_column"))
+  if json_get(r, "position") != "call"
+    flag("#{at}: not called here (#{json_get(r, "position")})")
+  elsif ns_key != flat_key
+    flag("#{at}: reached only because every definition is global (B0012)")
+  elsif json_get(r, "argc") != 2
+    flag("#{at}: called with #{json_get(r, "argc")} arguments")
+  elsif join(take(end_at - begin_at, drop(begin_at, cs)), "") != name
+    flag("#{at}: the source at its span does not read `#{name}`")
+  elsif nth(end_at, cs) != "("
+    flag("#{at}: no `(` follows the name")
+  else
+    s = scan_at(cs, end_at)
+    if s.nil?
+      flag("#{at}: the call does not close")
+    elsif nth(3, s)
+      flag("#{at}: a comment inside the call")
+    elsif nth(1, s) != 1
+      flag(
+        "#{at}: #{nth(1, s) + 1} arguments written (a pipe, method or splat form)"
+      )
+    else
+      ["plan", [end_at, first(s), nth(2, s)]]
+    end
+  end
+end
+
+def occurrences(t, needle, from)
+  at = text_index(t, needle, from)
+  if at < 0
+    []
+  else
+    cons(at, occurrences(t, needle, at + 1))
+  end
+end
+
+def begun(began, depth, i)
+  if began.nil? and depth == 1
+    i
+  else
+    began
+  end
+end
+
+def sexp_step(st, c)
+  i = first(st)
+  depth = nth(1, st)
+  str = nth(2, st)
+  esc = nth(3, st)
+  began = nth(4, st)
+  items = nth(5, st)
+  done = nth(6, st)
+  if done
+    st
+  elsif str
+    if esc
+      [i + 1, depth, true, false, began, items, false]
+    elsif c == "\\"
+      [i + 1, depth, true, true, began, items, false]
+    elsif c == "\"" and depth == 1
+      [i + 1, depth, false, false, nil, cons([began, i + 1], items), false]
+    else
+      [i + 1, depth, c != "\"", false, began, items, false]
+    end
+  elsif c == "\""
+    [i + 1, depth, true, false, begun(began, depth, i), items, false]
+  elsif c == "("
+    [i + 1, depth + 1, false, false, begun(began, depth, i), items, false]
+  elsif c == ")"
+    if depth == 2
+      [i + 1, 1, false, false, nil, cons([began, i + 1], items), false]
+    elsif depth == 1
+      more = if began.nil?
+        items
+      else
+        cons([began, i], items)
+      end
+      [i + 1, 0, false, false, nil, more, true]
+    else
+      [i + 1, depth - 1, false, false, began, items, false]
+    end
+  elsif blank_char?(c)
+    if depth == 1 and began != nil
+      [i + 1, 1, false, false, nil, cons([began, i], items), false]
+    else
+      [i + 1, depth, false, false, began, items, false]
+    end
+  elsif began.nil? and depth == 1
+    [i + 1, depth, false, false, i, items, false]
+  else
+    [i + 1, depth, false, false, began, items, false]
+  end
+end
+
+def sexp_items(cs, at)
+  st = reduce(sexp_step, [at, 0, false, false, nil, [], false], drop(at, cs))
+  reverse(nth(5, st))
+end
+
+def swap_sexp_at(cs, at)
+  items = sexp_items(cs, at)
+  if length(items) != 3
+    nil
+  else
+    one = nth(1, items)
+    two = nth(2, items)
+    append(
+      take(first(one), cs),
+      take(nth(1, two) - first(two), drop(first(two), cs)),
+      take(first(two) - nth(1, one), drop(nth(1, one), cs)),
+      take(nth(1, one) - first(one), drop(first(one), cs)),
+      drop(nth(1, two), cs)
+    )
+  end
+end
+
+def swap_heads(form, key)
+  needle = "(#{key} "
+  cs = chars(form)
+  heads = reverse(
+    filter(
+      (p) -> p < 8 or join(take(8, drop(p - 8, cs)), "") != "(define ",
+      occurrences(form, needle, 0)
+    )
+  )
+  reduce(
+    fn(st, p)
+      moved = swap_sexp_at(first(st), p)
+      if moved.nil?
+        [first(st), nth(1, st) + 1_000_000]
+      else
+        [moved, nth(1, st) + 1]
+      end
+    end,
+    [cs, 0],
+    heads
+  )
+end
+
+def swap_form(form, keys)
+  st = reduce(
+    fn(acc, key)
+      r = swap_heads(join(first(acc), ""), key)
+      [first(r), nth(1, acc) + nth(1, r)]
+    end,
+    [chars(form), 0],
+    keys
+  )
+  [join(first(st), ""), nth(1, st)]
+end
+
+def swap_proof(before, after, keys, planned)
+  moved = map((f) -> swap_form(unquoted(f), keys), settled_forms(before, "ns"))
+  want = map((m) -> first(m), moved)
+  count = reduce((n, m) -> n + nth(1, m), 0, moved)
+  got = map(unquoted, settled_forms(after, "ns"))
+  if count != planned
+    "#{planned} call(s) rewritten but #{count} head(s) found in the resolved tree"
+  elsif got != want
+    pairs = filter((p) -> first(p) != nth(1, p), zip(want, got))
+    if empty?(pairs)
+      "#{length(want)} forms expected, #{length(got)} found"
+    else
+      "expected #{first(first(pairs))}, found #{nth(1, first(pairs))}"
+    end
+  end
+end
+
+def swap_file(file, keys)
+  before = resolved(file)
+  sites = filter(
+    fn(r)
+      member?(json_get_or(json_get(r, "ns"), "key", ""), keys) or
+        member?(json_get_or(json_get(r, "flat"), "key", ""), keys)
+    end,
+    json_get(before, "references")
+  )
+  if empty?(sites)
+    [true, "unchanged #{file}"]
+  else
+    text = read_file(file)
+    cs = chars(text)
+    starts = starts_of(split(text, "\n"))
+    plans = map((r) -> site_plan(cs, starts, r), sites)
+    flags = map((p) -> nth(1, p), filter((p) -> first(p) == "flag", plans))
+    if not empty?(flags)
+      [false, "flagged #{file}: #{join(flags, "; ")}"]
+    else
+      spots = distinct(map((p) -> nth(1, p), plans))
+      ordered = sort_keyed((p) -> -first(p), spots)
+      write_file(file, join(reduce(swap_args_at, cs, ordered), ""))
+      run_blue(["fmt", "--write", file])
+      after = resolved(file) rescue nil
+      why = if after.nil?
+        "the rewritten file does not resolve"
+      else
+        swap_proof(before, after, keys, length(spots))
+      end
+      if why.nil?
+        [true, "swapped #{file}: #{length(spots)} call(s)"]
+      else
+        write_file(file, text)
+        [false, "refused #{file}: #{why}; restored"]
+      end
+    end
+  end
+end
+
 args = argv
 
-if not empty?(args) and first(args) == "--strip"
+if not empty?(args) and first(args) == "--swap"
+  results = map((f) -> swap_file(f, split(nth(1, args), ",")), drop(2, args))
+  map((r) -> write_stdout("#{nth(1, r)}\n"), results)
+  if any?((r) -> not first(r), results)
+    exit_with(1)
+  end
+elsif not empty?(args) and first(args) == "--strip"
   write_stdout("#{strip(nth(1, args), nth(2, args), drop(3, args))}\n")
 else
   map((f) -> write_stdout("#{migrate(f)}\n"), args)

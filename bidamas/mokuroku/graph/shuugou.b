@@ -53,7 +53,7 @@ verb(
     shape: "empty?(set) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "whether the set has no member",
     wave: 0,
     origin: "A"

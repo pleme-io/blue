@@ -187,8 +187,8 @@ end
 
 def discovered_path(app)
   find(
-    (p) -> p != nil and is_file?(p),
-    map((t) -> file(app, t), [:explicit, :xdg, :home])
+    map((t) -> file(app, t), [:explicit, :xdg, :home]),
+    (p) -> p != nil and is_file?(p)
   )
 end
 

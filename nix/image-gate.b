@@ -40,7 +40,7 @@ def findings(paths, tier)
   else
     map(
       (s) -> "#{s}: a shell, and the image declares none",
-      flat_map(shells_in, paths)
+      flat_map(paths, shells_in)
     )
   end
   libc = if tier == "distroless-static"

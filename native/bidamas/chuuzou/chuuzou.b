@@ -312,7 +312,7 @@ def cz_compare()
 end
 
 def cz_lookup(key, pairs)
-  hit = find((p) -> first(p) == key, pairs)
+  hit = find(pairs, (p) -> first(p) == key)
   if hit.nil?
     nil
   else
@@ -662,7 +662,7 @@ end
 # section in RAM, the stack at the top of RAM. Generated, never hand-written
 # (BLUE-NATIVE.md §1.6); a board with no `ram` region is refused.
 def cz_link_script(board)
-  ram = find((r) -> get(r, :name) == :ram, get(board, :memory))
+  ram = find(get(board, :memory), (r) -> get(r, :name) == :ram)
   if ram.nil?
     cz_refuse("#{get(board, :name)} declares no ram region")
   end
@@ -804,7 +804,7 @@ end
 # One section's size from `llvm-size -A` output, read by name (0 when the
 # image has no such section).
 def cz_section(size_text, section)
-  row = find((l) -> starts_with?(l, "#{section} "), split(size_text, "\n"))
+  row = find(split(size_text, "\n"), (l) -> starts_with?(l, "#{section} "))
   if row.nil?
     0
   else

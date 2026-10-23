@@ -99,7 +99,7 @@ def example_sections()
       pending = first(acc)
       now = filter((d) -> uses?(text, path_basename(d)), pending)
       later = filter((d) -> not member?(d, now), pending)
-      shown = flat_map(package_section, now)
+      shown = flat_map(now, package_section)
       [
         later,
         concat_lists(last(acc), concat_lists(shown, example_section(path)))
@@ -108,7 +108,7 @@ def example_sections()
     [packages, []],
     files
   )
-  concat_lists(last(step), flat_map(package_section, first(step)))
+  concat_lists(last(step), flat_map(first(step), package_section))
 end
 
 def render()

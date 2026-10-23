@@ -151,7 +151,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
     // Measured 2026-09-29: 17 definitions in 5 bidamas; `moji.trim` since 2026-10-23, whose one-argument call is the builtin's, so replacing it changes no program. retsu's are what
     // AUTHORING.md calls its "total replacements" (`retsu.first` is nil on an
     // empty list) — deliberate, and deliberately program-wide today.
-    // The ten master verbs (`read`, `need`, `has?`, `put`, `update`, `delete`, `create`, `diff`, `info`, `exists?`) since 2026-10-23: each space's definition is keyed `pkg/name`, the bare name is the dispatcher (STDLIB 3.7), so 24 rows join the list. `raifusaikuru.link` since 2026-10-10: the bidama's link predates the
+    // The ten master verbs (`read`, `need`, `has?`, `put`, `update`, `delete`, `create`, `diff`, `info`, `exists?`) since 2026-10-23: each space's definition is keyed `pkg/name`, the bare name is the dispatcher (STDLIB 3.7), so 24 rows join the list. `retsu.flat_map` and `shuugou.group_by` since 2026-10-23, when the prelude gained `flat_map(xs, f)` and `group_by(xs, f)` (STDLIB 3.6): retsu's is the same list, shuugou's keeps its pair-list result. `raifusaikuru.link` since 2026-10-10: the bidama's link predates the
     // process word `link(pid)`, and a file that lists it gets the bidama's.
     assert_eq!(
         replaces_value,
@@ -191,6 +191,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "raifusaikuru.link",
             "raifusaikuru.put",
             "retsu.first",
+            "retsu.flat_map",
             "retsu.interleave",
             "retsu.last",
             "retsu.partition",
@@ -202,6 +203,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "settei.need",
             "settei.read",
             "shuugou.frequencies",
+            "shuugou.group_by",
             "shuugou.remove",
             "shuusei.delete",
             "shuusei.put",

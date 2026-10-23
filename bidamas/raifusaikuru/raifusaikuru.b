@@ -488,7 +488,7 @@ end
 # A clause is a list headed by a keyword; anything else is a list of clauses
 # (as lc_on_each and lc_gate return), flattened.
 def flat(clauses)
-  flat_map(flat_one, as_list(clauses))
+  flat_map(as_list(clauses), flat_one)
 end
 
 def flat_one(c)
@@ -531,10 +531,10 @@ end
 # validation, so they are checked like any the author wrote.
 def parse(name, clauses)
   flat = raifusaikuru::flat(clauses)
-  states = flat_map((c) -> nth(1, c), tagged(flat, :lc_states))
+  states = flat_map(tagged(flat, :lc_states), (c) -> nth(1, c))
   starts = map((c) -> nth(1, c), tagged(flat, :lc_start))
-  terminals = flat_map((c) -> nth(1, c), tagged(flat, :lc_terminals))
-  rests = flat_map((c) -> nth(1, c), tagged(flat, :lc_rests))
+  terminals = flat_map(tagged(flat, :lc_terminals), (c) -> nth(1, c))
+  rests = flat_map(tagged(flat, :lc_rests), (c) -> nth(1, c))
   fields = map((c) -> [nth(1, c), nth(2, c)], tagged(flat, :lc_field))
   permits = tagged(flat, :lc_permit)
   logs = map((c) -> [nth(1, c), nth(2, c)], tagged(flat, :lc_permit_log))
@@ -546,8 +546,8 @@ def parse(name, clauses)
   edges = concat_lists(
     tagged(flat, :lc_edge),
     flat_map(
-      (l) -> map((s) -> [:lc_edge, s, nth(1, l), s, [], nil], open),
-      logs
+      logs,
+      (l) -> map((s) -> [:lc_edge, s, nth(1, l), s, [], nil], open)
     )
   )
   links = map((c) -> [nth(1, c), nth(2, c)], tagged(flat, :lc_link))
@@ -776,7 +776,7 @@ def pb_spans(p)
     end,
     dupes(map(span_name, spans))
   )
-  concat_lists(flat_map((s) -> pb_span(p, s), spans), dup)
+  concat_lists(flat_map(spans, (s) -> pb_span(p, s)), dup)
 end
 
 def pb_span(p, s)
@@ -945,7 +945,7 @@ def pb_names(p)
     filter(
       (x) -> name?(x) == false,
       flatten1(
-        [states, fields, events, flat_map((e) -> nth(1, e), d_events(p))]
+        [states, fields, events, flat_map(d_events(p), (e) -> nth(1, e))]
       )
     )
   )
@@ -977,6 +977,7 @@ def pb_names(p)
     dupes(events)
   )
   dk = flat_map(
+    d_events(p),
     fn(e)
       map(
         fn(k)
@@ -987,8 +988,7 @@ def pb_names(p)
         end,
         dupes(nth(1, e))
       )
-    end,
-    d_events(p)
+    end
   )
   flatten1([empty, bad, reserved, ds, df, de, dk])
 end
@@ -1020,8 +1020,8 @@ def pb_start(p)
   flatten1(
     [
       count,
-      flat_map((s) -> pb_state(s, states, "lc_terminals"), d_terminals(p)),
-      flat_map((s) -> pb_state(s, states, "lc_rests"), d_rests(p))
+      flat_map(d_terminals(p), (s) -> pb_state(s, states, "lc_terminals")),
+      flat_map(d_rests(p), (s) -> pb_state(s, states, "lc_rests"))
     ]
   )
 end
@@ -1043,7 +1043,7 @@ def pb_edges(p)
     end,
     dupes(keys)
   )
-  concat_lists(flat_map((e) -> pb_edge(p, e), edges), dup)
+  concat_lists(flat_map(edges, (e) -> pb_edge(p, e)), dup)
 end
 
 def pb_edge(p, e)
@@ -1076,7 +1076,7 @@ def pb_edge(p, e)
   else
     []
   end
-  effects = flat_map((f) -> pb_effect(p, f, keys, where), nth(4, e))
+  effects = flat_map(nth(4, e), (f) -> pb_effect(p, f, keys, where))
   gate = if nth(5, e).nil? or contains(d_capabilities(p), nth(5, e))
     []
   else
@@ -1296,7 +1296,7 @@ def pb_pred(pr, fields, states, where)
       if is_empty(nth(1, pr))
         [problem(:bad_predicate, "#{where}: lc_in_phase([]) holds of nothing")]
       else
-        flat_map((s) -> pb_state(s, states, where), nth(1, pr))
+        flat_map(nth(1, pr), (s) -> pb_state(s, states, where))
       end
     elsif op == :all or op == :any
       if is_empty(nth(1, pr))
@@ -1307,7 +1307,7 @@ def pb_pred(pr, fields, states, where)
           )
         ]
       else
-        flat_map((c) -> pb_pred(c, fields, states, where), nth(1, pr))
+        flat_map(nth(1, pr), (c) -> pb_pred(c, fields, states, where))
       end
     elsif op == :not
       pb_pred(nth(1, pr), fields, states, where)
@@ -1371,7 +1371,7 @@ def pb_guards(p)
     end,
     dupes(caps)
   )
-  concat_lists(flat_map((g) -> pb_guard(p, g), d_guards(p)), dup)
+  concat_lists(flat_map(d_guards(p), (g) -> pb_guard(p, g)), dup)
 end
 
 def pb_guard(p, g)
@@ -1413,6 +1413,7 @@ def pb_guard(p, g)
     dupes(map((r) -> nth(1, r), shaped))
   )
   preds = flat_map(
+    shaped,
     fn(r)
       pb_pred(
         nth(2, r),
@@ -1420,12 +1421,11 @@ def pb_guard(p, g)
         d_states(p),
         "#{where}, rule #{show(nth(1, r))}"
       )
-    end,
-    shaped
+    end
   )
   tasks = flat_map(
-    (r) -> pb_task(nth(3, r), "#{where}, rule #{show(nth(1, r))}"),
-    filter((r) -> nth(3, r) != nil, shaped)
+    filter((r) -> nth(3, r) != nil, shaped),
+    (r) -> pb_task(nth(3, r), "#{where}, rule #{show(nth(1, r))}")
   )
   default = if nth(3, g).nil?
     []
@@ -1439,7 +1439,7 @@ end
 # inside lc_all, recursively. Only these may bound a permit.
 def conjuncts(pr)
   if first(pr) == :all
-    flat_map(conjuncts, nth(1, pr))
+    flat_map(nth(1, pr), conjuncts)
   else
     [pr]
   end
@@ -1448,7 +1448,7 @@ end
 def atoms(pr)
   op = first(pr)
   if op == :all or op == :any
-    flat_map(atoms, nth(1, pr))
+    flat_map(nth(1, pr), atoms)
   elsif op == :not
     atoms(nth(1, pr))
   else
@@ -1460,7 +1460,7 @@ end
 def hidden_atoms(pr)
   op = first(pr)
   if op == :all
-    flat_map(hidden_atoms, nth(1, pr))
+    flat_map(nth(1, pr), hidden_atoms)
   elsif op == :any or op == :not
     atoms(pr)
   else
@@ -1492,7 +1492,7 @@ def pb_permits(p)
     end,
     dupes(caps)
   )
-  concat_lists(flat_map((pm) -> pb_permit(p, pm), d_permits(p)), dup)
+  concat_lists(flat_map(d_permits(p), (pm) -> pb_permit(p, pm)), dup)
 end
 
 def pb_permit(p, pm)
@@ -2107,7 +2107,7 @@ end
 def pred_fields(pr)
   op = first(pr)
   if op == :all or op == :any
-    unique(flat_map(pred_fields, nth(1, pr)))
+    unique(flat_map(nth(1, pr), pred_fields))
   elsif op == :not
     pred_fields(nth(1, pr))
   elsif op == :in

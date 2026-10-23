@@ -89,7 +89,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-288 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+290 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -242,10 +242,12 @@ Higher binding power binds tighter.
 | `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
 | `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
 | `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. |
-| `find` | `find(f, xs)` | 2 | The first element f accepts, or nil. |
+| `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. |
+| `flat_map` | `flat_map(xs, f)` | 2 | f applied to each element, the lists it returns joined in order (one level); f may return nil for none. The COLLECTION comes first. Also defined by `retsu` (`retsu::flat_map`): a file that lists it gets that one. |
 | `flip` | `flip(f)` | 1 | f with its two arguments swapped. Also defined by `kansuu` (`kansuu::flip`): a file that lists it gets that one. |
 | `foldl` | `foldl(f, init, xs)` | 3 | reduce with an init: f(acc, x) from the left. |
 | `foldr` | `foldr(f, init, xs)` | 3 | Fold from the right: f(x, acc). |
+| `group_by` | `group_by(xs, f)` | 2 | A map from f(x) to the list of the elements with that key, each list in order. The key must be a scalar. The COLLECTION comes first. Also defined by `shuugou` (`shuugou::group_by`): a file that lists it gets that one. |
 | `identity` | `identity(x)` | 1 | x. Also defined by `kansuu` (`kansuu::identity`): a file that lists it gets that one. |
 | `juxt` | `juxt(fs...)` | 0+ | The function x -> [f(x), g(x), …]. Also defined by `kansuu` (`kansuu::juxt`): a file that lists it gets that one. |
 | `map` | `map(f, xs, more...)` | 2+ | f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to []. |

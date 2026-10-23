@@ -123,7 +123,7 @@ end
 
 def closure_whys(ns)
   have = sorted(ns)
-  flat_map((n) -> name_whys(have, n), have)
+  flat_map(have, (n) -> name_whys(have, n))
 end
 
 def name_whys(have, n)
@@ -152,8 +152,8 @@ end
 
 def teams_whys(ns)
   have = sorted(ns)
-  covered = flat_map((b) -> nth(1, b), bundles)
-  partial = flat_map((b) -> bundle_whys(have, b), bundles)
+  covered = flat_map(bundles, (b) -> nth(1, b))
+  partial = flat_map(bundles, (b) -> bundle_whys(have, b))
   stray = map(
     (n) -> "\"#{n}\" is not part of any Teams bundle",
     filter((n) -> not contains(covered, n), have)
@@ -383,7 +383,7 @@ def judge(a)
       tier:,
       vaults: kept,
       grants: standing(gs, gmarks),
-      refusals: append(flat_map((r) -> r, vmarks), flat_map((r) -> r, gmarks))
+      refusals: append(flat_map(vmarks, (r) -> r), flat_map(gmarks, (r) -> r))
     }
   end
 end

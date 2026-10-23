@@ -57,13 +57,13 @@ end
 # The middlewares of every accepted entry, in the order the postures are given.
 def layers(postures, accepted, sink)
   flat_map(
+    postures,
     fn(p)
       map(
         (e) -> get(p, :layer)(value_of(e), sink),
         filter((e) -> kind_of(e) == name_of(p), accepted)
       )
-    end,
-    postures
+    end
   )
 end
 

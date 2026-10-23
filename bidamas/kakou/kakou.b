@@ -350,7 +350,7 @@ end
 def blank_entities(part, text_h)
   fp = flat_pattern(part)
   blank = get(fp, :blank)
-  bends = flat_map((b) -> bend_entities(b, text_h), get(fp, :bends))
+  bends = flat_map(get(fp, :bends), (b) -> bend_entities(b, text_h))
   bb = bounding_box(region_outline(blank))
   lo = nth(0, bb)
   hi = nth(1, bb)
@@ -401,10 +401,10 @@ def folded_mesh(part)
     get(part, :holes)
   )
   walls = flat_map(
+    get(part, :flanges),
     fn(f)
       rittai::extrude_wall_faces(base_region, 0, index_of(sides, get(f, :side)))
-    end,
-    get(part, :flanges)
+    end
   )
   base = rittai::drop_faces(rittai::extrude(base_region, t), walls)
   rittai::weld(
@@ -568,10 +568,8 @@ def hole_refusals(part, rules)
     nth(3, b) - nth(1, b)
   )
   flat_map(
-    fn(i)
-      one_hole_refusals(part, rules, b, base, i, nth(i, get(part, :holes)))
-    end,
-    indexes(get(part, :holes))
+    indexes(get(part, :holes)),
+    (i) -> one_hole_refusals(part, rules, b, base, i, nth(i, get(part, :holes)))
   )
 end
 
@@ -585,7 +583,7 @@ def one_hole_refusals(part, rules, b, base, i, hole)
       ]
     ]
   else
-    flat_map((side) -> hole_side_refusals(part, rules, b, i, hole, side), sides)
+    flat_map(sides, (side) -> hole_side_refusals(part, rules, b, i, hole, side))
   end
 end
 

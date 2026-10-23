@@ -214,6 +214,7 @@ def check_nodes(repo)
   files = get(repo, :files)
   declared = declared_nodes(repo)
   flat_map(
+    node_dirs(files),
     fn(n)
       dir = "nodes/#{n}"
       missing_default = if member?("#{dir}/default.nix", files)
@@ -244,8 +245,7 @@ def check_nodes(repo)
         []
       end
       append(missing_default, missing_layers)
-    end,
-    node_dirs(files)
+    end
   )
 end
 
@@ -670,6 +670,7 @@ end
 def check_pleme_declarations(tree, repo)
   declarers = get(get(repo, :config), :declarers)
   flat_map(
+    get(tree, :pleme),
     fn(o)
       map(
         fn(d)
@@ -699,13 +700,13 @@ def check_pleme_declarations(tree, repo)
           get(o, :declarations)
         )
       )
-    end,
-    get(tree, :pleme)
+    end
   )
 end
 
 def check_hostname(tree, _repo)
   flat_map(
+    get(tree, :hostname),
     fn(o)
       map(
         fn(d)
@@ -736,8 +737,7 @@ def check_hostname(tree, _repo)
           get(o, :definitions)
         )
       )
-    end,
-    get(tree, :hostname)
+    end
   )
 end
 
@@ -748,7 +748,7 @@ def declared_at(tree, option)
   )
   rels = filter(
     (r) -> r != nil,
-    map((d) -> own_file(tree, d), flat_map((o) -> get(o, :declarations), hit))
+    map((d) -> own_file(tree, d), flat_map(hit, (o) -> get(o, :declarations)))
   )
   if is_empty(rels)
     "(external)"
@@ -830,6 +830,14 @@ end
 
 def overlay_units(repo)
   flat_map(
+    filter(
+      fn(p)
+        size(segments(p)) == 2 and
+          p != "overlays/default.nix" and
+          ends_with?(p, ".nix")
+      end,
+      nix_under(get(repo, :files), "overlays/")
+    ),
     fn(p)
       set = returned_set(get(nikkusu::read(source_of(repo, p)), :root))
       if set.nil?
@@ -848,15 +856,7 @@ def overlay_units(repo)
           )
         )
       end
-    end,
-    filter(
-      fn(p)
-        size(segments(p)) == 2 and
-          p != "overlays/default.nix" and
-          ends_with?(p, ".nix")
-      end,
-      nix_under(get(repo, :files), "overlays/")
-    )
+    end
   )
 end
 
@@ -956,14 +956,14 @@ def concept_facts(repo)
     trio_files: map((f) -> get(f, :path), trio),
     names: unique(
       flat_map(
+        trio,
         fn(f)
-          flat_map(spec_names, named(get(f, :calls), get(cfg, :trio_factory)))
-        end,
-        trio
+          flat_map(named(get(f, :calls), get(cfg, :trio_factory)), spec_names)
+        end
       )
     ),
-    trio_imports: unique(flat_map(imported_files, trio)),
-    consumed: unique(flat_map(imported_files, consumers))
+    trio_imports: unique(flat_map(trio, imported_files)),
+    consumed: unique(flat_map(consumers, imported_files))
   }
 end
 
@@ -1229,26 +1229,26 @@ end
 def expression_findings(repo)
   rs = active(get(repo, :config), :expression)
   flat_map(
+    filter((p) -> ends_with?(p, ".nix"), get(repo, :files)),
     fn(p)
       mine = filter((r) -> in_scope?(r, p), rs)
       if is_empty(mine)
         []
       else
         f = file_facts(p, source_of(repo, p))
-        flat_map((r) -> get(r, :check)(f, repo), mine)
+        flat_map(mine, (r) -> get(r, :check)(f, repo))
       end
-    end,
-    filter((p) -> ends_with?(p, ".nix"), get(repo, :files))
+    end
   )
 end
 
 def layout_findings(repo)
-  flat_map((r) -> get(r, :check)(repo), active(get(repo, :config), :layout))
+  flat_map(active(get(repo, :config), :layout), (r) -> get(r, :check)(repo))
 end
 
 def tree_findings(repo, trees)
   rs = active(get(repo, :config), :tree)
-  flat_map((t) -> flat_map((r) -> get(r, :check)(t, repo), rs), trees)
+  flat_map(trees, (t) -> flat_map(rs, (r) -> get(r, :check)(t, repo)))
 end
 
 def waiver_refusal(w)
@@ -1350,7 +1350,7 @@ def ran_ids(cfg, tree)
   else
     [:layout, :expression]
   end
-  map((r) -> get(r, :id), flat_map((p) -> active(cfg, p), planes))
+  map((r) -> get(r, :id), flat_map(planes, (p) -> active(cfg, p)))
 end
 
 def split_rows(rows, ids)
@@ -1388,20 +1388,20 @@ def judge(gates, rows)
     ids
   )
   {
-    new: flat_map((p) -> get(p, :new), per),
-    failures: flat_map((p) -> get(p, :failures), per),
+    new: flat_map(per, (p) -> get(p, :new)),
+    failures: flat_map(per, (p) -> get(p, :failures)),
     orphans: flat_map(
-      (p) -> map((k) -> "#{get(p, :rule)}: #{k}", get(p, :orphans)),
-      per
+      per,
+      (p) -> map((k) -> "#{get(p, :rule)}: #{k}", get(p, :orphans))
     ),
     shrunk: flat_map(
+      per,
       fn(p)
         map(
           (m) -> "#{get(p, :rule)}: #{get(m, :key)} #{to_s(get(m, :size))}",
           get(p, :shrunk)
         )
-      end,
-      per
+      end
     )
   }
 end

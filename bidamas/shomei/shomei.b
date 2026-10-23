@@ -191,7 +191,7 @@ end
 def chain_first_break(genesis, payloads, hashes)
   computed = chain_hashes(genesis, payloads)
   n = max(size(computed), size(hashes))
-  find((i) -> chain_at(i, computed) != chain_at(i, hashes), range(0, n))
+  find(range(0, n), (i) -> chain_at(i, computed) != chain_at(i, hashes))
 end
 
 # The most recent link in a reversed accumulator, or the genesis when empty.

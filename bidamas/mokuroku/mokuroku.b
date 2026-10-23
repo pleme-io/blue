@@ -286,7 +286,7 @@ end
 # Every package under the roots, sorted by name. When two roots hold the same
 # package, the earlier root wins, as it does for the loader.
 def catalog_of(roots)
-  records = flat_map((root) -> map(package_record, package_dirs(root)), roots)
+  records = flat_map(roots, (root) -> map(package_record, package_dirs(root)))
   firsts = reduce(
     fn(acc, r)
       if contains(map((x) -> first(x), acc), first(r))
@@ -355,10 +355,10 @@ end
 # [def_name, owner] for every definition, once per package.
 def definition_owners(records)
   flat_map(
+    records,
     fn(r)
       map((n) -> [n, pkg_name(r)], unique(map((e) -> first(e), pkg_entries(r))))
-    end,
-    records
+    end
   )
 end
 
@@ -387,14 +387,14 @@ end
 # name and one package may not.
 def namespace_duplicates(records)
   flat_map(
+    records,
     fn(r)
       names = map((e) -> first(e), pkg_entries(r))
       map(
         (n) -> [pkg_name(r), n],
         filter((n) -> size(filter((m) -> m == n, names)) > 1, unique(names))
       )
-    end,
-    records
+    end
   )
 end
 
@@ -869,6 +869,7 @@ def row_problems(word, spec, args)
     ["#{word} takes #{to_s(want)} arguments, not #{to_s(size(args))}"]
   else
     bad_pos = flat_map(
+      range(0, size(pos)),
       fn(i)
         p = nth(i, pos)
         if row_fits(nth(1, p), nth(i, args))
@@ -876,8 +877,7 @@ def row_problems(word, spec, args)
         else
           ["#{nth(0, p)} must be #{row_type_name(nth(1, p))}"]
         end
-      end,
-      range(0, size(pos))
+      end
     )
     if is_empty(fields)
       bad_pos
@@ -891,16 +891,17 @@ def row_problems(word, spec, args)
         reject((k) -> member?(k, known), map(first, map_entries(m)))
       )
       absent = flat_map(
+        fields,
         fn(f)
           if nth(2, f) and not member?(nth(0, f), map(first, map_entries(m)))
             ["`#{nth(0, f)}` is missing"]
           else
             []
           end
-        end,
-        fields
+        end
       )
       wrong = flat_map(
+        fields,
         fn(f)
           present = member?(nth(0, f), map(first, map_entries(m)))
           if present and not row_fits(nth(1, f), get(m, nth(0, f)))
@@ -908,8 +909,7 @@ def row_problems(word, spec, args)
           else
             []
           end
-        end,
-        fields
+        end
       )
       concat_lists(concat_lists(bad_pos, stray), concat_lists(absent, wrong))
     end
@@ -1112,14 +1112,14 @@ def graph_files(dir)
 end
 
 def graph_assemble(parts)
-  rows = flat_map((p) -> get(p, :rows), parts)
+  rows = flat_map(parts, (p) -> get(p, :rows))
   {
     spaces: filter((r) -> get(r, :word) == "space", rows),
     verbs: filter((r) -> get(r, :word) == "verb", rows),
     edges: filter((r) -> get(r, :word) == "edge", rows),
     vocab: filter((r) -> get(r, :word) == "vocab", rows),
     laterals: filter((r) -> get(r, :word) == "lateral", rows),
-    refusals: flat_map((p) -> get(p, :refusals), parts)
+    refusals: flat_map(parts, (p) -> get(p, :refusals))
   }
 end
 
@@ -1362,11 +1362,14 @@ def finds_meaning(g)
     keyed
   )
   flat_map(
+    filter((e) -> size(nth(1, e)) > 1, map_entries(groups)),
     fn(entry)
       ids = sort_keyed((x) -> x, nth(1, entry))
       flat_map(
+        range(0, size(ids)),
         fn(i)
           flat_map(
+            range(i + 1, size(ids)),
             fn(j)
               a = nth(i, ids)
               b = nth(j, ids)
@@ -1375,14 +1378,11 @@ def finds_meaning(g)
               else
                 [finding("g1-meaning", node_space(a), "#{a} #{b}")]
               end
-            end,
-            range(i + 1, size(ids))
+            end
           )
-        end,
-        range(0, size(ids))
+        end
       )
-    end,
-    filter((e) -> size(nth(1, e)) > 1, map_entries(groups))
+    end
   )
 end
 
@@ -1447,7 +1447,7 @@ def reaches(adj, live, frontier, seen)
     nexts = distinct(
       filter(
         (t) -> get(live, t) == true and get(seen, t) != true,
-        flat_map((f) -> get_or(adj, f, []), frontier)
+        flat_map(frontier, (f) -> get_or(adj, f, []))
       )
     )
     reaches(
@@ -1478,6 +1478,7 @@ end
 def finds_wave(g)
   nodes = graph_nodes(g)
   flat_map(
+    needs_edges(g),
     fn(e)
       f = get(nodes, get(e, :from))
       t = get(nodes, get(e, :to))
@@ -1492,8 +1493,7 @@ def finds_wave(g)
       else
         []
       end
-    end,
-    needs_edges(g)
+    end
   )
 end
 
@@ -1536,7 +1536,7 @@ end
 
 def finds_edges(g)
   nodes = graph_nodes(g)
-  ends = distinct(flat_map((e) -> [get(e, :from), get(e, :to)], get(g, :edges)))
+  ends = distinct(flat_map(get(g, :edges), (e) -> [get(e, :from), get(e, :to)]))
   dangling = map(
     (x) -> finding("g9-dangling", node_space(x), x),
     sort_keyed((x) -> x, filter((x) -> get(nodes, x).nil?, ends))
@@ -1665,21 +1665,21 @@ end
 def graph_verdict(findings, baseline_text)
   rows = parse(baseline_text)
   flat_map(
-    (k) -> failures(rows, k, finding_measurements(findings, k)),
-    finding_kinds
+    finding_kinds,
+    (k) -> failures(rows, k, finding_measurements(findings, k))
   )
 end
 
 def graph_shrunk(findings, baseline_text)
   rows = parse(baseline_text)
   flat_map(
+    finding_kinds,
     fn(k)
       map(
         (m) -> "#{k}: #{get(m, :key)}",
         shrunk(rows, k, finding_measurements(findings, k))
       )
-    end,
-    finding_kinds
+    end
   )
 end
 

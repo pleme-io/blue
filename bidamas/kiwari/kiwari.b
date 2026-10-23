@@ -146,13 +146,13 @@ def literals_of(e)
   if get(e, :kind) == :lit
     [get(e, :text)]
   else
-    flat_map(literals_of, parts(e))
+    flat_map(parts(e), literals_of)
   end
 end
 
 # Every literal token the grammar's rules use, once each.
 def literals(g)
-  distinct(flat_map((r) -> literals_of(get(r, :body)), get(g, :rules)))
+  distinct(flat_map(get(g, :rules), (r) -> literals_of(get(r, :body))))
 end
 
 def fields_of(e)
@@ -161,7 +161,7 @@ def fields_of(e)
   else
     []
   end
-  concat_lists(here, flat_map(fields_of, parts(e)))
+  concat_lists(here, flat_map(parts(e), fields_of))
 end
 
 # The named node kinds a field's item can be: a visible rule it refers to, or
@@ -179,7 +179,7 @@ def kinds_of(e)
   elsif k == :lit or k == :pat
     []
   else
-    flat_map(kinds_of, parts(e))
+    flat_map(parts(e), kinds_of)
   end
 end
 
@@ -189,7 +189,7 @@ def aliases_of(e)
   else
     []
   end
-  concat_lists(here, flat_map(aliases_of, parts(e)))
+  concat_lists(here, flat_map(parts(e), aliases_of))
 end
 
 # The name a rule's node carries in a tree: its own, or for a hidden rule the
@@ -198,7 +198,7 @@ def node_name(g, r)
   if hidden?(get(r, :name))
     found = filter(
       (a) -> first(a) == get(r, :name),
-      flat_map((x) -> aliases_of(get(x, :body)), get(g, :rules))
+      flat_map(get(g, :rules), (x) -> aliases_of(get(x, :body)))
     )
     if is_empty(found)
       nil
@@ -214,18 +214,18 @@ end
 def field_patterns(g, key, line)
   distinct(
     flat_map(
+      get(g, :rules),
       fn(r)
         name = node_name(g, r)
         if name.nil?
           []
         else
           flat_map(
-            (f) -> map((kind) -> line(name, f, kind), painted_kinds(f)),
-            filter((f) -> get(f, key) != "", fields_of(get(r, :body)))
+            filter((f) -> get(f, key) != "", fields_of(get(r, :body))),
+            (f) -> map((kind) -> line(name, f, kind), painted_kinds(f))
           )
         end
-      end,
-      get(g, :rules)
+      end
     )
   )
 end
@@ -275,8 +275,8 @@ end
 def operator_spellings(g)
   concat_lists(
     flat_map(
-      (row) -> concat_lists([get(row, :op)], get(row, :aliases)),
-      concat_lists(get(g, :infix), get(g, :unary))
+      concat_lists(get(g, :infix), get(g, :unary)),
+      (row) -> concat_lists([get(row, :op)], get(row, :aliases))
     ),
     [get(get(g, :pipe), :op)]
   )
@@ -627,7 +627,7 @@ def binary_rule(rows)
   choice(
     map(
       fn(p)
-        ops = flat_map(spellings, filter((r) -> get(r, :power) == p, rows))
+        ops = flat_map(filter((r) -> get(r, :power) == p, rows), spellings)
         body = seq(
           [
             field("left", ref("_expression")),
@@ -861,7 +861,7 @@ end
 def blue()
   aliases = filter(
     (a) -> not member?(a, ["||", "&&", "!"]),
-    flat_map((r) -> get(r, :aliases), concat_lists(infix_rows, unary_rows))
+    flat_map(concat_lists(infix_rows, unary_rows), (r) -> get(r, :aliases))
   )
   ident = ident_pattern(aliases)
   powers = map((r) -> get(r, :power), infix_rows)
@@ -1094,7 +1094,7 @@ def blue()
             [
               field(
                 "operator",
-                choice(map(lit, flat_map(spellings, unary_rows)))
+                choice(map(lit, flat_map(unary_rows, spellings)))
               ),
               field("operand", ref("_operand"))
             ]

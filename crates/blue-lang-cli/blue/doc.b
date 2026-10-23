@@ -204,14 +204,14 @@ def lookup(name, file, records)
     )
   end
   from_bidamas = flat_map(
+    filter((r) -> qualifier.nil? or qualifier == pkg_name(r), records),
     fn(r)
       text = package_text(pkg_dir(r))
       map(
         (e) -> def_entry(r, e, text, tier_in(ctx, pkg_name(r), bare)),
         filter((e) -> first(e) == bare, pkg_entries(r))
       )
-    end,
-    filter((r) -> qualifier.nil? or qualifier == pkg_name(r), records)
+    end
   )
   from_builtins = if qualifier.nil? or qualifier == "blue"
     map(

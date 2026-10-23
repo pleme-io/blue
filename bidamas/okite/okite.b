@@ -247,7 +247,7 @@ def law_empty_list_is_brackets()
     split("", ""),
     sort([]),
     distinct([]),
-    flat_map((_x) -> [], [1])
+    flat_map([1], (_x) -> [])
   ]
   all((r) -> r == [] and not r.nil?, results)
 end
@@ -373,7 +373,7 @@ def chain_case_counterexamples(c)
 end
 
 def chain_counterexamples(rule)
-  flat_map(chain_case_counterexamples, nth(4, rule))
+  flat_map(nth(4, rule), chain_case_counterexamples)
 end
 
 def chain_covered(rule)
@@ -561,7 +561,7 @@ end
 
 # Every law that does not hold, as "id: law", and every decision with no law.
 def failures()
-  flat_map(decision_failures, decisions)
+  flat_map(decisions, decision_failures)
 end
 
 def decision_failures(d)

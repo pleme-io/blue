@@ -284,6 +284,16 @@ dispatch on the value.
 `reverse` · `each` · `tally` · `min_by` · `max_by` · `index_of` · `join` · `split` ·
 `contains?` · `empty?` · `any?` · `all?` · `none?` · `keys` · `values` · `entries`
 
+**Built, collection first (decision D2, 2026-10-23):** `find(xs, f)`, `flat_map(xs, f)` and
+`group_by(xs, f)` are builtins in `blue-lang-runtime` (`collection.rs`). `find` also answers the old
+`find(f, xs)`, because tatara-lisp's `defsm` and bus forms call it so; `flat_map` and `group_by` have no
+old order. `group_by` returns a map from the scalar key to the list of members, in element order.
+`retsu::flat_map(xs, f)` and `shuugou::group_by(xs, key)` follow; shuugou's keeps its first-seen
+pair-list result. Every call site in this repository moved with `blue migrate --swap KEY,KEY FILE...`
+(180 calls in 33 files), which flags and leaves alone any call it cannot read as two written
+arguments or that holds a comment, and keeps a file only when its resolved tree equals the old tree
+with those calls' arguments swapped. The map-and-filter family still takes the function first.
+
 `contains?(subject, x)` replaces four spellings in use today: retsu `contains` (126 sites),
 `member?` (84), the string-only `contains?` (76) and shuugou `member` (14), for 313 external sites in
 49 files. `empty?` replaces `retsu::is_empty` and `null?` (414 sites in 57 files).

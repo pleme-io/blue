@@ -94,3 +94,112 @@ fn a_transitive_reference_is_listed_needed_and_proven() {
     assert!(out.contains("unchanged"), "{out}");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+fn swap_dist(tag: &str, caller: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let root = std::env::temp_dir().join(format!("blue-swap-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    let lib = package(
+        &dist,
+        "mk_a",
+        &[],
+        "def apply_all(f, xs)\n  map(f, xs)\nend\n",
+    );
+    let user = package(&dist, "mk_b", &["mk_a"], caller);
+    for p in ["mk_a", "mk_b"] {
+        let (ok, _, err) = run(blue(&dist).arg("lock").arg(dist.join(p)));
+        assert!(ok, "lock {p}: {err}");
+    }
+    (dist, lib, user)
+}
+
+const CALLER: &str = "use(\"mk_a\", [:apply_all])
+
+def twice(xs)
+  apply_all(
+    (x) -> x * 2,
+    xs
+  )
+end
+
+def nested(xs)
+  apply_all(
+    (s) -> \"a,)#{s}\",
+    apply_all(
+      (x) -> [x, x],
+      xs
+    )
+  )
+end
+
+test \"twice and nested\"
+  assert twice([1, 2]) == [2, 4]
+  assert nested([1]) == [\"a,)[1, 1]\"]
+end
+";
+
+#[test]
+fn a_swap_rewrites_every_call_and_proves_the_tree_moved_only_that_way() {
+    let (dist, lib, user) = swap_dist("ok", CALLER);
+    let (ok, out, err) = run(blue(&dist)
+        .args(["migrate", "--swap", "mk_a/apply_all"])
+        .arg(&user));
+    assert!(ok, "{out}{err}");
+    assert!(out.contains("swapped"), "{out}");
+    assert!(out.contains("3 call(s)"), "{out}");
+    let src = std::fs::read_to_string(&user).expect("read");
+    assert!(!src.contains("(x) -> x * 2,\n    xs"), "{src}");
+
+    std::fs::write(&lib, "def apply_all(xs, f)\n  map(f, xs)\nend\n").expect("write");
+    let (ok, out, err) = run(blue(&dist).arg("test").arg(&user));
+    assert!(ok, "{out}{err}");
+}
+
+#[test]
+fn a_swap_flags_a_comment_inside_a_call_and_leaves_the_file_alone() {
+    let caller = "use(\"mk_a\", [:apply_all])
+
+def twice(xs)
+  apply_all(
+    (x) -> x * 2, # keep this
+    xs
+  )
+end
+";
+    let (dist, _, user) = swap_dist("comment", caller);
+    let (ok, out, err) = run(blue(&dist)
+        .args(["migrate", "--swap", "mk_a/apply_all"])
+        .arg(&user));
+    assert!(!ok, "{out}{err}");
+    assert!(out.contains("flagged"), "{out}");
+    assert!(out.contains("a comment inside the call"), "{out}");
+    assert_eq!(std::fs::read_to_string(&user).expect("read"), caller);
+}
+
+#[test]
+fn a_swap_flags_a_splat_call_and_leaves_the_file_alone() {
+    let caller = "use(\"mk_a\", [:apply_all])
+
+def twice(xs)
+  args = [(x) -> x * 2, xs]
+  apply_all(*args)
+end
+";
+    let (dist, _, user) = swap_dist("pipe", caller);
+    let (ok, out, err) = run(blue(&dist)
+        .args(["migrate", "--swap", "mk_a/apply_all"])
+        .arg(&user));
+    assert!(!ok, "{out}{err}");
+    assert!(out.contains("flagged"), "{out}");
+    assert_eq!(std::fs::read_to_string(&user).expect("read"), caller);
+}
+
+#[test]
+fn a_swap_leaves_a_file_that_calls_nothing_it_names_unchanged() {
+    let (dist, _, user) = swap_dist("none", "def one()\n  1\nend\n");
+    let (ok, out, err) = run(blue(&dist)
+        .args(["migrate", "--swap", "mk_a/apply_all"])
+        .arg(&user));
+    assert!(ok, "{out}{err}");
+    assert!(out.contains("unchanged"), "{out}");
+}

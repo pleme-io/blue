@@ -1039,7 +1039,7 @@ end
 
 # Every node of an expression, the root first.
 def nodes(e)
-  cons(e, flat_map(nodes, kids(e)))
+  cons(e, flat_map(kids(e), nodes))
 end
 
 def nodes_of(e, kind)
@@ -1061,20 +1061,20 @@ end
 
 # The column names an expression reads.
 def refs(e)
-  unique(flat_map(node_refs, nodes(e)))
+  unique(flat_map(nodes(e), node_refs))
 end
 
 def outside_aggs(e)
   if blue::get(e, :kind) == :agg
     []
   else
-    cons(e, flat_map(outside_aggs, kids(e)))
+    cons(e, flat_map(kids(e), outside_aggs))
   end
 end
 
 # The column names read OUTSIDE any aggregate — in a group, each must be a key.
 def bare_refs(e)
-  unique(flat_map(node_refs, outside_aggs(e)))
+  unique(flat_map(outside_aggs(e), node_refs))
 end
 
 def has?(e, kind)
@@ -1084,7 +1084,7 @@ end
 def nested_agg?(e)
   is_empty(
     blue::filter(
-      (a) -> is_empty(flat_map((c) -> nodes_of(c, :agg), kids(a))) == false,
+      (a) -> is_empty(flat_map(kids(a), (c) -> nodes_of(c, :agg))) == false,
       nodes_of(e, :agg)
     )
   ) == false
@@ -1256,13 +1256,13 @@ def stage_refusals(stage, cols, where, next_kind)
   elsif k == :select
     items = blue::get(stage, :items)
     per = flat_map(
+      items,
       fn(i)
         concat_lists(
           expr_refusals(blue::get(i, :expr), where, false, false),
           unknown_refusals(refs(blue::get(i, :expr)), cols, where)
         )
-      end,
-      items
+      end
     )
     concat_lists(
       per,
@@ -1276,8 +1276,8 @@ def stage_refusals(stage, cols, where, next_kind)
     else
       []
     end
-    reads = concat_lists(keys, flat_map((a) -> refs(blue::get(a, :expr)), aggs))
-    per = flat_map((a) -> group_item_refusals(a, keys, where), aggs)
+    reads = concat_lists(keys, flat_map(aggs, (a) -> refs(blue::get(a, :expr))))
+    per = flat_map(aggs, (a) -> group_item_refusals(a, keys, where))
     concat_lists(
       empty,
       concat_lists(
@@ -1440,14 +1440,14 @@ end
 def duckdb_uses(model)
   from_uses = rel_uses(blue::get(model, :from), "the from relation")
   stage_uses = flat_map(
-    (ix) -> kueri::stage_uses(last(ix), label(first(ix), last(ix))),
-    enumerate(blue::get(model, :pipeline))
+    enumerate(blue::get(model, :pipeline)),
+    (ix) -> kueri::stage_uses(last(ix), label(first(ix), last(ix)))
   )
   concat_lists(from_uses, stage_uses)
 end
 
 def stage_uses(stage, where)
-  nodes = flat_map((e) -> kueri::nodes(e), stage_exprs(stage))
+  nodes = flat_map(stage_exprs(stage), (e) -> kueri::nodes(e))
   only = blue::filter(duckdb_node?, nodes)
   uses = map((n) -> [node_label(n), where], only)
   k = blue::get(stage, :kind)
@@ -1543,6 +1543,7 @@ def locked_refusals(model, out)
     []
   end
   unordered = flat_map(
+    enumerate(stages),
     fn(ix)
       map(
         fn(n)
@@ -1556,15 +1557,14 @@ def locked_refusals(model, out)
             contains(order_sensitive_fns, blue::get(n, :fn)) and
               is_empty(blue::get(n, :order))
           end,
-          flat_map(nodes, stage_exprs(last(ix)))
+          flat_map(stage_exprs(last(ix)), nodes)
         )
       )
-    end,
-    enumerate(stages)
+    end
   )
   limits = flat_map(
-    (ix) -> locked_limit(stages, first(ix), last(ix)),
-    enumerate(stages)
+    enumerate(stages),
+    (ix) -> locked_limit(stages, first(ix), last(ix))
   )
   concat_lists(contract, concat_lists(unordered, limits))
 end
@@ -2326,7 +2326,7 @@ end
 def render_script(models, dialect, source)
   nodes = unique_by(
     (n) -> blue::get(n, :name),
-    flat_map((m) -> push(closure(m), m), as_list(models))
+    flat_map(as_list(models), (m) -> push(closure(m), m))
   )
   sources = blue::filter((n) -> blue::get(n, :kind) == :source, nodes)
   ms = blue::filter((n) -> blue::get(n, :kind) == :model, nodes)
@@ -2377,7 +2377,7 @@ end
 
 # Every upstream source and model, each before anything that reads it.
 def closure(model)
-  unique_by((n) -> blue::get(n, :name), flat_map(closure_of, targets(model)))
+  unique_by((n) -> blue::get(n, :name), flat_map(targets(model), closure_of))
 end
 
 def closure_of(t)

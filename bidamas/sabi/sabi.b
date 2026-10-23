@@ -271,13 +271,13 @@ def render_item(item)
     )
   elsif k == :enum
     variants = flat_map(
+      get(item, :variants),
       fn(v)
         concat_lists(
           doc_lines(get(v, :doc), 1, "///"),
           ["    #{get(v, :name)},"]
         )
-      end,
-      get(item, :variants)
+      end
     )
     join(
       concat_lists(
@@ -291,13 +291,13 @@ def render_item(item)
     )
   elsif k == :struct
     fields = flat_map(
+      get(item, :fields),
       fn(f)
         concat_lists(
           doc_lines(get(f, :doc), 1, "///"),
           ["    pub #{get(f, :name)}: #{render_ty(get(f, :ty))},"]
         )
-      end,
-      get(item, :fields)
+      end
     )
     join(
       concat_lists(
@@ -415,7 +415,7 @@ end
 def invalid_names(file)
   filter(
     (n) -> valid_ident?(n) == false,
-    flat_map(item_names, get(file, :items))
+    flat_map(get(file, :items), item_names)
   )
 end
 

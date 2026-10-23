@@ -89,9 +89,11 @@ end
 # Every candidate peel from `box`: [box', inside', density'].
 def peel_candidates(box, ids, points, ys, alpha)
   flat_map(
+    range(0, size(box)),
     fn(j)
       values = map((i) -> nth(j, nth(i, points)), ids)
       flat_map(
+        [:lo, :hi],
         fn(side)
           edge = peeled_edge(values, side, alpha)
           if edge.nil?
@@ -116,11 +118,9 @@ def peel_candidates(box, ids, points, ys, alpha)
               [[narrowed, kept, mean_target(kept, ys)]]
             end
           end
-        end,
-        [:lo, :hi]
+        end
       )
-    end,
-    range(0, size(box))
+    end
   )
 end
 
@@ -194,6 +194,7 @@ end
 # inputs the box actually restricts relative to `full`.
 def box_text(names, box, full)
   parts = flat_map(
+    range(0, size(box)),
     fn(j)
       if nth(j, box) == nth(j, full)
         []
@@ -208,8 +209,7 @@ def box_text(names, box, full)
           )
         ]
       end
-    end,
-    range(0, size(box))
+    end
   )
   if is_empty(parts)
     "everywhere"
@@ -221,7 +221,7 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 def grid(k)
-  flat_map((x) -> map((y) -> [x, y], range(0, k)), range(0, k))
+  flat_map(range(0, k), (x) -> map((y) -> [x, y], range(0, k)))
 end
 
 test "the empty case: no points, no trajectory"

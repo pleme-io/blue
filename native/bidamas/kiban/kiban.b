@@ -62,12 +62,12 @@ end
 
 # The board named `name`, or nil.
 def kb_board(name)
-  find((b) -> get(b, :name) == name, kb_boards)
+  find(kb_boards, (b) -> get(b, :name) == name)
 end
 
 # The base address of the board's device named `name`, or nil.
 def kb_device_base(board, name)
-  d = find((x) -> get(x, :name) == name, get(board, :devices))
+  d = find(get(board, :devices), (x) -> get(x, :name) == name)
   if d.nil?
     nil
   else

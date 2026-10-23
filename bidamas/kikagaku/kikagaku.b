@@ -868,7 +868,7 @@ def region_refusals(r)
   )
   pairs = filter(
     (ij) -> nth(0, ij) < nth(1, ij),
-    flat_map((i) -> map((j) -> [i, j], indexes(holes)), indexes(holes))
+    flat_map(indexes(holes), (i) -> map((j) -> [i, j], indexes(holes)))
   )
   overlapping = map(
     fn(ij)

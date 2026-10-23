@@ -561,7 +561,7 @@ def enumerate(xs)
   zip(indexes(xs), xs)
 end
 
-def flat_map(f, xs)
+def flat_map(xs, f)
   as_list(flatten1(map(f, xs)))
 end
 
@@ -631,10 +631,10 @@ end
 test "enumerate, flat_map and unzip"
   assert enumerate([7, 8]) == [[0, 7], [1, 8]]
   assert enumerate([]) == []
-  assert flat_map((x) -> [x, x], [1, 2]) == [1, 1, 2, 2]
+  assert flat_map([1, 2], (x) -> [x, x]) == [1, 1, 2, 2]
   # A function returning an empty list contributes nothing rather than a hole.
-  assert flat_map((_x) -> [], [1, 2]) == []
-  assert flat_map((x) -> [x], []) == []
+  assert flat_map([1, 2], (_x) -> []) == []
+  assert flat_map([], (x) -> [x]) == []
   assert unzip([[1, 3], [2, 4]]) == [[1, 2], [3, 4]]
   assert unzip([]) == [[], []]
   # unzip undoes zip — the identity that catches a transposed implementation.

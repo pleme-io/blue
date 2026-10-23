@@ -290,9 +290,75 @@ row("fn.filter.empty", "filter(fn(_x) false end, [1])", value("[]"))
 
 row(
   "fn.find",
-  "find(fn(x) x > 1 end, [1, 2, 3])",
+  "find([1, 2, 3], fn(x) x > 1 end)",
   value("2"),
   covers("builtin:find")
+)
+
+row("fn.find.absent", "find([1, 2, 3], fn(x) x > 9 end)", value("nil"))
+
+row("fn.find.empty", "find([], fn(_x) true end)", value("nil"))
+
+row("fn.find.nil_is_empty", "find(nil, fn(_x) true end)", value("nil"))
+
+row(
+  "fn.find.function_first_is_bridged",
+  "find(fn(x) x > 1 end, [1, 2, 3])",
+  value("2")
+)
+
+row(
+  "fn.find.not_a_list",
+  "find(5, fn(_x) true end)",
+  fails(:eval, "a list")
+)
+
+row(
+  "fn.flat_map",
+  "flat_map([1, 2, 3], fn(x) [x, x * 10] end)",
+  value("[1, 10, 2, 20, 3, 30]"),
+  covers("builtin:flat_map")
+)
+
+row(
+  "fn.flat_map.nil_result_adds_nothing",
+  "flat_map([1, 2], fn(x) if x == 1\n  nil\nelse\n  [x]\nend end)",
+  value("[2]")
+)
+
+row("fn.flat_map.empty", "flat_map([], fn(x) [x] end)", value("[]"))
+
+row(
+  "fn.flat_map.function_first_is_refused",
+  "flat_map(fn(x) [x] end, [1])",
+  fails(:eval, "takes the collection first")
+)
+
+row(
+  "fn.flat_map.result_not_a_list",
+  "flat_map([1], fn(x) x end)",
+  fails(:eval, "a list from f")
+)
+
+row(
+  "fn.group_by",
+  "group_by([1, 2, 3, 4, 5], fn(n) n % 2 end)",
+  value("{0 => [2, 4], 1 => [1, 3, 5]}"),
+  covers("builtin:group_by")
+)
+
+row("fn.group_by.empty", "group_by([], fn(x) x end)", value("{}"))
+
+row(
+  "fn.group_by.function_first_is_refused",
+  "group_by(fn(x) x end, [1])",
+  fails(:eval, "takes the collection first")
+)
+
+row(
+  "fn.group_by.key_not_a_scalar",
+  "group_by([1], fn(x) [x] end)",
+  fails(:eval, "a group key must be a scalar")
 )
 
 row(

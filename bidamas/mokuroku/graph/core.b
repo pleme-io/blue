@@ -98,7 +98,7 @@ verb(
     shape: "find(subject, query, opts) -> item or nil",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "the first match of a query or predicate, else nil",
     wave: 0,
     origin: "H"
@@ -113,7 +113,7 @@ verb(
     shape: "flat_map(xs, f) -> list",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "map then flatten one level",
     wave: 0,
     origin: "H"
@@ -143,7 +143,7 @@ verb(
     shape: "group_by(xs, f) -> map",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "items grouped under f of each",
     wave: 0,
     origin: "H"

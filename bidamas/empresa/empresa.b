@@ -442,7 +442,7 @@ def trim_team(names, t)
 end
 
 def flat(marks)
-  flat_map((r) -> r, marks)
+  flat_map(marks, (r) -> r)
 end
 
 def org_refusals(org, repos, teams)
@@ -508,7 +508,7 @@ def judge(a)
       flat(rmarks),
       flat(tmarks),
       value_refusals(mail_rows(mj.kept)),
-      flat_map((t) -> grant_refusals(names, t), ts)
+      flat_map(ts, (t) -> grant_refusals(names, t))
     )
   }
 end
@@ -595,6 +595,7 @@ end
 
 def value_refusals(rows)
   flat_map(
+    rows,
     fn(r)
       if unsafe_value?(get(r, :value))
         [
@@ -606,8 +607,7 @@ def value_refusals(rows)
       else
         []
       end
-    end,
-    rows
+    end
   )
 end
 
@@ -675,6 +675,7 @@ end
 
 def alias_rows(ds, ss)
   flat_map(
+    ss,
     fn(s)
       map(
         fn(h)
@@ -687,8 +688,7 @@ def alias_rows(ds, ss)
         end,
         get(s, :hosts)
       )
-    end,
-    ss
+    end
   )
 end
 
@@ -766,6 +766,7 @@ end
 def grant_rows(rs, ts)
   names = map((r) -> get(r, :name), rs)
   flat_map(
+    ts,
     fn(t)
       targets = if team_repos(t) == :all
         names
@@ -784,8 +785,7 @@ def grant_rows(rs, ts)
         end,
         targets
       )
-    end,
-    ts
+    end
   )
 end
 

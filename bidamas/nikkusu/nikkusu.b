@@ -189,15 +189,15 @@ def bindings_in(n, prefix, scope, outer)
     )
     body = last(parts)
     append(
-      flat_map((c) -> bindings_in(c, [], :let, nil), lets),
+      flat_map(lets, (c) -> bindings_in(c, [], :let, nil)),
       bindings_in(body, prefix, scope, outer)
     )
   elsif k == "NODE_ATTR_SET"
-    flat_map((c) -> bindings_in(c, prefix, :attrs, outer), nodes_of(n))
+    flat_map(nodes_of(n), (c) -> bindings_in(c, prefix, :attrs, outer))
   elsif passes_path?(k)
-    flat_map((c) -> bindings_in(c, prefix, scope, outer), nodes_of(n))
+    flat_map(nodes_of(n), (c) -> bindings_in(c, prefix, scope, outer))
   else
-    flat_map((c) -> bindings_in(c, [], :nested, outer), nodes_of(n))
+    flat_map(nodes_of(n), (c) -> bindings_in(c, [], :nested, outer))
   end
 end
 
@@ -255,7 +255,7 @@ def calls_in(n, as_head)
     parts = nodes_of(n)
     inner = append(
       calls_in(first(parts), true),
-      flat_map((c) -> calls_in(c, false), rest(parts))
+      flat_map(rest(parts), (c) -> calls_in(c, false))
     )
     if as_head
       inner
@@ -263,7 +263,7 @@ def calls_in(n, as_head)
       cons(call(n), inner)
     end
   else
-    flat_map((c) -> calls_in(c, false), nodes_of(n))
+    flat_map(nodes_of(n), (c) -> calls_in(c, false))
   end
 end
 
@@ -332,7 +332,7 @@ end
 def attr(set, name)
   hit = filter(
     (b) -> get(b, :path) == [name],
-    flat_map((c) -> bindings_in(c, [], :attrs, nil), nodes_of(set))
+    flat_map(nodes_of(set), (c) -> bindings_in(c, [], :attrs, nil))
   )
   if is_empty(hit)
     nil

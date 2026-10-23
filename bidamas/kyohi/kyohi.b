@@ -86,7 +86,7 @@ def retryable?(k)
 end
 
 def check(subject, rules)
-  flat_map((rule) -> rule(subject), rules)
+  flat_map(rules, (rule) -> rule(subject))
 end
 
 def raised_kind(want, found)

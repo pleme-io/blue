@@ -281,7 +281,9 @@ pub const NAMES: &[NameDoc] = names! {
     Function: "reduce" "reduce(f, [init, ]xs)" "Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start.";
     Function: "foldl" "foldl(f, init, xs)" "reduce with an init: f(acc, x) from the left.";
     Function: "foldr" "foldr(f, init, xs)" "Fold from the right: f(x, acc).";
-    Function: "find" "find(f, xs)" "The first element f accepts, or nil.";
+    Function: "find" "find(xs, f)" "The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so.";
+    Function: "flat_map" "flat_map(xs, f)" "f applied to each element, the lists it returns joined in order (one level); f may return nil for none. The COLLECTION comes first.";
+    Function: "group_by" "group_by(xs, f)" "A map from f(x) to the list of the elements with that key, each list in order. The key must be a scalar. The COLLECTION comes first.";
     Function: "some" "some(f, xs)" "true when f accepts an element, else nil (not false).";
     Function: "any?" "any?(f, xs)" "Whether f accepts some element; false for [].";
     Function: "every?" "every?(f, xs)" "Whether f accepts every element; true for [].";

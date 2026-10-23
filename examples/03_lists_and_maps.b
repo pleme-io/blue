@@ -46,7 +46,7 @@ end
 
 test "grouping and counting return pairs"
   assert frequencies([:x, :y, :x]) == [[:x, 2], [:y, 1]]
-  assert group_by((n) -> n % 2, [1, 2, 3]) == [[1, [1, 3]], [0, [2]]]
+  assert group_by([1, 2, 3], (n) -> n % 2) == [[1, [1, 3]], [0, [2]]]
   assert lookup(frequencies([:x, :y, :x]), :x) == 2
 end
 

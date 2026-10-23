@@ -155,7 +155,7 @@ end
 # are ordinary lists, which every function in the distribution already handles.
 # Key order is first-seen, not sorted: the keys need no ordering relation, so
 # sorting them would demand one the caller may not have.
-def group_by(key, xs)
+def group_by(xs, key)
   map((k) -> [k, filter((x) -> key(x) == k, xs)], unique(map(key, xs)))
 end
 
@@ -298,6 +298,16 @@ test "union, intersection, difference"
   assert symmetric_difference([1, 2], [2, 3]) == [1, 3]
 end
 
+test "empty? is true of the empty set and of nil, false of any member"
+  assert empty?([])
+  assert empty?(nil)
+  assert empty?(difference([1, 2], [2, 1]))
+  assert empty?(intersection([1], [2]))
+  assert not empty?([1])
+  assert not empty?([nil])
+  assert not empty?(union([], [3]))
+end
+
 test "the empty-set laws"
   # The empty set is a subset of everything and disjoint from everything —
   # the two laws an implementation built from a loop usually gets wrong.
@@ -375,11 +385,11 @@ end
 test "group_by partitions, in first-seen key order"
   # Key 1 is seen before key 0, so it comes first — a sorted-key
   # implementation returns the pairs the other way round.
-  assert group_by((n) -> n % 2, [1, 2, 3, 4]) == [[1, [1, 3]], [0, [2, 4]]]
-  assert group_by((x) -> x, []) == []
+  assert group_by([1, 2, 3, 4], (n) -> n % 2) == [[1, [1, 3]], [0, [2, 4]]]
+  assert group_by([], (x) -> x) == []
   # A partition loses nothing and duplicates nothing: the group sizes sum
   # back to the input size.
-  gs = group_by((n) -> n % 3, [1, 2, 3, 4, 5, 6, 7])
+  gs = group_by([1, 2, 3, 4, 5, 6, 7], (n) -> n % 3)
   assert reduce((a, p) -> a + size(nth(1, p)), 0, gs) == 7
 end
 
@@ -394,7 +404,7 @@ end
 
 test "lookup reads a pair list, and reports absence as nil"
   assert lookup(frequencies([1, 1, 2]), 1) == 2
-  assert lookup(group_by((n) -> n % 2, [1, 2, 3]), 0) == [2]
+  assert lookup(group_by([1, 2, 3], (n) -> n % 2), 0) == [2]
   assert lookup(frequencies([1]), 9).nil?
   assert lookup([], 1).nil?
 end

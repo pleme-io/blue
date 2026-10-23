@@ -252,10 +252,10 @@ def judge(schema, entries)
     off: filter(is_off, sound),
     refusals: append(
       malformed,
-      flat_map((r) -> r, marks),
-      flat_map((r) -> r, tune_bad),
-      flat_map((r) -> r, after),
-      flat_map((r) -> r, off_bad)
+      flat_map(marks, (r) -> r),
+      flat_map(tune_bad, (r) -> r),
+      flat_map(after, (r) -> r),
+      flat_map(off_bad, (r) -> r)
     )
   }
 end

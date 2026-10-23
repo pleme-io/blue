@@ -333,14 +333,14 @@ end
 
 def directed_edges(m)
   flat_map(
+    faces(m),
     fn(f)
       [
         edge_key(nth(0, f), nth(1, f)),
         edge_key(nth(1, f), nth(2, f)),
         edge_key(nth(2, f), nth(0, f))
       ]
-    end,
-    faces(m)
+    end
   )
 end
 
@@ -550,7 +550,7 @@ end
 
 # All of a region's points, outline first, and each loop's index range.
 def region_points(r)
-  concat_lists(region_outline(r), flat_map((h) -> h, region_holes(r)))
+  concat_lists(region_outline(r), flat_map(region_holes(r), (h) -> h))
 end
 
 def region_loops(r)
@@ -594,7 +594,7 @@ end
 def bridge(pts, poly, h, holes)
   m = rightmost(pts, h)
   cands = sort_by((i) -> distance_squared(nth(i, pts), nth(m, pts)), poly)
-  edges = concat_lists(index_edges(poly), flat_map(index_edges, holes))
+  edges = concat_lists(index_edges(poly), flat_map(holes, index_edges))
   p = find_first((i) -> visible(pts, m, i, edges), cands)
   at = index_of(poly, p)
   k = index_of(h, m)
@@ -752,7 +752,7 @@ def extrude(r, h)
   end
   bottom = map((p) -> lift(p, 0), pts)
   top = map((p) -> lift(p, h), pts)
-  sides = flat_map((l) -> loop_sides(l, n), region_loops(r))
+  sides = flat_map(region_loops(r), (l) -> loop_sides(l, n))
   caps_top = map((t) -> map((i) -> i + n, t), get(tri, :triangles))
   caps_bottom = map((t) -> reverse(t), get(tri, :triangles))
   mesh(
@@ -769,13 +769,13 @@ end
 # a, bottom b, top b, then bottom a, top b, top a.
 def loop_sides(loop, n)
   flat_map(
+    index_edges(loop),
     fn(e)
       [
         [nth(0, e), nth(1, e), nth(1, e) + n],
         [nth(0, e), nth(1, e) + n, nth(0, e) + n]
       ]
-    end,
-    index_edges(loop)
+    end
   )
 end
 
@@ -797,8 +797,8 @@ def sweep(profile, path)
   frames = sweep_frames(path)
   rings = map((i) -> ring(prof, path, frames, i), indexes(path))
   np = size(prof)
-  verts = flat_map((ring) -> ring, rings)
-  walls = flat_map((s) -> ring_walls(s, np), range(0, size(path) - 1))
+  verts = flat_map(rings, (ring) -> ring)
+  walls = flat_map(range(0, size(path) - 1), (s) -> ring_walls(s, np))
   tri = triangulate(region(prof, []))
   last_base = (size(path) - 1) * np
   start_cap = map((t) -> reverse(t), get(tri, :triangles))
@@ -875,13 +875,13 @@ def ring_walls(s, np)
   a0 = s * np
   b0 = (s + 1) * np
   flat_map(
+    range(0, np),
     fn(k)
       [
         [a0 + k, a0 + (k + 1) % np, b0 + (k + 1) % np],
         [a0 + k, b0 + (k + 1) % np, b0 + k]
       ]
-    end,
-    range(0, np)
+    end
   )
 end
 

@@ -154,7 +154,7 @@ end
 def rust_survey(roots, hours)
   map(
     (d) -> {path: d, kib: size_kib(d), active: active?(d, hours)},
-    flat_map((r) -> targets(r, 4), roots)
+    flat_map(roots, (r) -> targets(r, 4))
   )
 end
 

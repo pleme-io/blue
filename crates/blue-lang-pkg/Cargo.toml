@@ -7,12 +7,13 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+include = ["build.rs", "src/**", "tests/**", "bidamas/*/Bluefile", "bidamas/*/*.b"]
 
 [features]
 # The standard distribution (`bidamas/`) compiled into the crate, served by
-# `embedded::Standard`, for a host that runs blue with no BLUE_PATH (arnes).
-# Only a git checkout carries `bidamas/`; a registry build of this crate
-# has none, and the set is then empty (`embedded::Standard::is_empty`).
+# `embedded::Standard`, for a host that runs blue with no BLUE_PATH (arnes,
+# hanabi). `bidamas` here is a link to the workspace's, so the registry
+# package carries every Bluefile and `.b` file and the set is the same.
 embedded = []
 
 [dependencies]

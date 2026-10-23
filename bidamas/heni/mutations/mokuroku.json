@@ -1,0 +1,14 @@
+[
+  {
+    "name": "the ledger filter keeps every record",
+    "file": "mokuroku.b",
+    "find": "filter((r) -> contains?(ledger, \"| `#{first(r)}` |\"), records)",
+    "replace": "records"
+  },
+  {
+    "name": "the ledger filter keeps the records the ledger lacks",
+    "file": "mokuroku.b",
+    "find": "filter((r) -> contains?(ledger, \"| `#{first(r)}` |\"), records)",
+    "replace": "filter((r) -> not contains?(ledger, \"| `#{first(r)}` |\"), records)"
+  }
+]

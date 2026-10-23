@@ -65,3 +65,4 @@ check("project-rules", "rules/conventions.b")
 # G2, G4, G7 and G9 over its rows, held by a hadome baseline of recorded debt,
 # each with a fixture that names its bad row.
 check("verb-graph", "gen/verb-graph.b")
+check("heni-mutations", "gen/heni-gate.b")

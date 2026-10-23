@@ -1,0 +1,32 @@
+[
+  {
+    "name": "a path splits on a comma, not a dot",
+    "file": "shuusei.b",
+    "find": "split(path, \".\")",
+    "replace": "split(path, \",\")"
+  },
+  {
+    "name": "an index one past the end counts as in range",
+    "file": "shuusei.b",
+    "find": "i >= 0 and i < size(xs)",
+    "replace": "i >= 0 and i <= size(xs)"
+  },
+  {
+    "name": "an index out of range is no longer refused",
+    "file": "shuusei.b",
+    "find": "raise(:path, \"list index #{k} is out of range\")",
+    "replace": "v"
+  },
+  {
+    "name": "put writes the value at the first key",
+    "file": "shuusei.b",
+    "find": "assoc(base, k, put_keys(get(base, k), rest(keys), value))",
+    "replace": "assoc(base, k, value)"
+  },
+  {
+    "name": "delete treats a two-key path as the last key",
+    "file": "shuusei.b",
+    "find": "elsif size(keys) == 1",
+    "replace": "elsif size(keys) == 2"
+  }
+]

@@ -49,6 +49,7 @@ use("anaritikusu")
 use("angou", [:is_prime])
 use("bougyo")
 use("chokkan")
+use("danpen")
 use("deeta", [:get_str])
 use("empresa")
 use("fairu")
@@ -139,6 +140,7 @@ test "every bidama in the distribution answers through this one import"
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kiwari::unpainted(kiwari::blue) == []
+  assert danpen::render(danpen::parse("{a}")) == "{\n  a\n}\n"
   assert kousei::name_of(kousei::entry(:plane, "edge", {})) == "edge"
   assert kueri::ident("order") == "\"order\""
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late

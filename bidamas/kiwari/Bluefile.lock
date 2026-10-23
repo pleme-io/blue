@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c845128871c71e6d9c15a6f7915c84c24bfcc7838ab9fb9c4592995ae929949a",
+  "bluefile_b3": "b3:e5d9771b09d908a079963af744460fcba617e7e8a33c8a89d2fba2609a5cdbca",
   "manifest": {
     "schema": 1,
     "name": "kiwari",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "retsu": "^0.1.0"
     },

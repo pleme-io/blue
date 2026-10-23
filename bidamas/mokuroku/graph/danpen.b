@@ -8,7 +8,7 @@ verb(
     shape: "check(subject, rules, opts) -> [finding]",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "partial:danpen",
     meaning: "masking, composition and entity-backed law findings for a program",
     wave: 1,
     origin: "I"
@@ -23,7 +23,7 @@ verb(
     shape: "compose(first, second) -> operation",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:danpen",
     meaning: "one operation from the union of the fragments a view uses",
     wave: 1,
     origin: "I"
@@ -38,7 +38,7 @@ verb(
     shape: "fragment(name, spec) -> fragment",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:danpen",
     meaning: "declare a named field selection on one schema type",
     wave: 1,
     origin: "I"
@@ -53,7 +53,7 @@ verb(
     shape: "hash(operation, algorithm) -> hex",
     laterals: ["cache"],
     fleet: "hanabi",
-    today: "absent",
+    today: "exists:danpen",
     meaning: "the persisted-operation id of an operation's canonical text",
     wave: 1,
     origin: "I"
@@ -68,7 +68,7 @@ verb(
     shape: "parse(text, opts) -> document",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:danpen",
     meaning: "GraphQL SDL or operation text to a document tree",
     wave: 1,
     origin: "I"
@@ -83,7 +83,7 @@ verb(
     shape: "render(document, format, opts) -> text",
     laterals: ["serialize"],
     fleet: nil,
-    today: "absent",
+    today: "exists:danpen",
     meaning: "a document tree to canonical GraphQL text",
     wave: 1,
     origin: "I"
@@ -98,7 +98,7 @@ verb(
     shape: "select(value, fragment) -> value",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:danpen",
     meaning: "only the fields a fragment declares, read from a value",
     wave: 1,
     origin: "I"
@@ -113,7 +113,7 @@ verb(
     shape: "validate(document, schema, opts) -> document",
     laterals: ["validate", "error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:danpen",
     meaning: "the document if every field and type is in the schema",
     wave: 1,
     origin: "I"
@@ -141,7 +141,12 @@ edge(
   "fields absent from the schema"
 )
 
-edge("danpen::hash", :composes, "shomei::hash", "blake3 digest")
+edge(
+  "danpen::hash",
+  :composes,
+  "shomei::hash",
+  "sha256 by default, what persisted queries send"
+)
 
 edge(
   "danpen::check",

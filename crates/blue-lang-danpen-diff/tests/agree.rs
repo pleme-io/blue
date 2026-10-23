@@ -29,7 +29,9 @@ struct Blue {
 
 impl Blue {
     fn load() -> Self {
-        let text = std::fs::read_to_string(root().join("crates/blue-lang-danpen-diff/tests/agree.b")).unwrap();
+        let text =
+            std::fs::read_to_string(root().join("crates/blue-lang-danpen-diff/tests/agree.b"))
+                .unwrap();
         let loader = LoadPath::new([root().join("bidamas")]);
         let program = Program::<()>::builder(Entry::anonymous(Box::leak(text.into_boxed_str())))
             .loader(Box::leak(Box::new(loader)))
@@ -59,7 +61,11 @@ impl Blue {
 
     fn document_findings(&mut self, text: &str, schema: &Value) -> Vec<String> {
         self.program
-            .call::<Vec<String>>("document_findings", (text.to_owned(), schema.clone()), &mut ())
+            .call::<Vec<String>>(
+                "document_findings",
+                (text.to_owned(), schema.clone()),
+                &mut (),
+            )
             .expect("document_findings answers")
     }
 }
@@ -97,8 +103,13 @@ impl Tally {
         if faults.is_empty() {
             self.agreed += 1;
         } else {
-            let name = path.strip_prefix(fixtures()).unwrap_or(path).display().to_string();
-            self.faults.extend(faults.into_iter().map(|f| format!("{name}: {f}")));
+            let name = path
+                .strip_prefix(fixtures())
+                .unwrap_or(path)
+                .display()
+                .to_string();
+            self.faults
+                .extend(faults.into_iter().map(|f| format!("{name}: {f}")));
         }
     }
 }
@@ -114,7 +125,9 @@ fn print_faults(blue: &mut Blue, text: &str, path: &Path) -> Vec<String> {
                 if compact { "compact" } else { "graphql" }
             )),
             None if ours.starts_with("!parse_error") => {}
-            None => faults.push("apollo-compiler refuses to parse it and blue printed it".to_owned()),
+            None => {
+                faults.push("apollo-compiler refuses to parse it and blue printed it".to_owned())
+            }
         }
     }
     faults
@@ -123,8 +136,14 @@ fn print_faults(blue: &mut Blue, text: &str, path: &Path) -> Vec<String> {
 fn verdict_faults(theirs: &[String], ours: &[String]) -> Vec<String> {
     match (theirs.is_empty(), ours.is_empty()) {
         (true, true) | (false, false) => Vec::new(),
-        (true, false) => vec![format!("apollo-compiler finds it valid, blue finds: {}", ours.join("; "))],
-        (false, true) => vec![format!("blue finds it valid, apollo-compiler finds: {}", theirs.join("; "))],
+        (true, false) => vec![format!(
+            "apollo-compiler finds it valid, blue finds: {}",
+            ours.join("; ")
+        )],
+        (false, true) => vec![format!(
+            "blue finds it valid, apollo-compiler finds: {}",
+            theirs.join("; ")
+        )],
     }
 }
 
@@ -134,7 +153,11 @@ fn agreement() -> Tally {
     let mut schemas = BTreeMap::new();
     for path in graphql_files(&fixtures().join("schema")) {
         let text = std::fs::read_to_string(&path).unwrap();
-        let theirs = apollo_errors(Schema::parse_and_validate(&text, &path).map(|_| ()).map_err(|e| e.errors.to_string()));
+        let theirs = apollo_errors(
+            Schema::parse_and_validate(&text, &path)
+                .map(|_| ())
+                .map_err(|e| e.errors.to_string()),
+        );
         let ours = blue.schema_findings(&text);
         let mut faults = print_faults(&mut blue, &text, &path);
         faults.extend(verdict_faults(&theirs, &ours));
@@ -142,7 +165,10 @@ fn agreement() -> Tally {
         if theirs.is_empty() {
             let valid = Schema::parse_and_validate(&text, &path).unwrap();
             let prepared = blue.prepared(&text);
-            schemas.insert(path.file_stem().unwrap().to_string_lossy().to_string(), (valid, prepared));
+            schemas.insert(
+                path.file_stem().unwrap().to_string_lossy().to_string(),
+                (valid, prepared),
+            );
         }
     }
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(fixtures().join("executable"))
@@ -178,7 +204,11 @@ fn blue_and_apollo_compiler_agree_on_every_document() {
         "danpen agreement: {} documents ({} valid), {} agree",
         tally.documents, tally.valid, tally.agreed
     );
-    assert!(tally.documents >= 200, "the corpus shrank to {} documents", tally.documents);
+    assert!(
+        tally.documents >= 200,
+        "the corpus shrank to {} documents",
+        tally.documents
+    );
     assert!(
         tally.faults.is_empty(),
         "{} fault(s):\n{}",

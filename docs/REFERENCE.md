@@ -237,7 +237,7 @@ Higher binding power binds tighter.
 | `any?` | `any?(f, xs)` | 2 | Whether f accepts some element; false for []. |
 | `apply` | `apply(f, args..., xs)` | 2+ | Call f with the elements of the last list as its arguments. With f a name it is written as a splat, max(*xs) (B0042); apply stays for a function computed by an expression. |
 | `comp` | `comp(f, g)` | 2 | The function x -> f(g(x)). |
-| `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `kansuu` (`kansuu::compose`): a file that lists it gets that one. |
+| `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `danpen` (`danpen::compose`), `kansuu` (`kansuu::compose`): a file that lists it gets that one. |
 | `const` | `const(x)` | 1 | A function that ignores its argument and returns x. |
 | `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
 | `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
@@ -256,7 +256,7 @@ Higher binding power binds tighter.
 | `pipe` | `pipe(fs...)` | 0+ | Left to right: pipe(f, g)(x) is g(f(x)). Also defined by `kansuu` (`kansuu::pipe`): a file that lists it gets that one. |
 | `reduce` | `reduce(f, [init, ]xs)` | 2..3 | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |
 | `remove` | `remove(f, xs)` | 2 | The elements f rejects. Also defined by `shuugou` (`shuugou::remove`): a file that lists it gets that one. |
-| `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). |
+| `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). Also defined by `danpen` (`danpen::some`): a file that lists it gets that one. |
 | `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
 | `visit` | `visit(f, x)` | 2 | f(x). |
 

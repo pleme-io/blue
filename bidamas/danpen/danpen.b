@@ -5,29 +5,6 @@ use("retsu", [:first, :is_empty, :last, :rest])
 use("shomei")
 use("tesuto", [:raises?])
 
-# danpen (断片, fragment): GraphQL in blue.
-#
-# One grammar, the October 2021 specification, written once as a kiwari spec
-# (`graphql`), and the parser that reads it: SDL and executable documents
-# become plain blue records. Over those records sit the verbs a frontend
-# needs: `validate` and `check` against a schema, `fragment` to declare data,
-# `compose` to join an operation with the fragments it spreads, `select` to
-# read only what a fragment declares, `render` for the canonical text, and
-# `hash` for the persisted-operation id of that text.
-#
-# The canonical text is apollo-compiler's: two-space indent, one blank line
-# between definitions, arguments and variables on one line, descriptions as
-# block strings where the value allows. `crates/blue-lang-danpen-diff` holds
-# blue's verdicts and prints to apollo-compiler's on every document in
-# `fixtures/`, so the two implementations cannot drift apart unseen.
-#
-# A record carries a `kind`; selections, definitions and values are told apart
-# by it, field and argument definitions by where they sit. `parse(text,
-# {spans: true})` adds `at: [line, column]` to definitions, selections,
-# arguments and variables, which findings then quote.
-
-# ── the grammar ────────────────────────────────────────────────────────────
-
 def graphql()
   {
     name: "graphql",
@@ -493,14 +470,11 @@ def graphql_rules()
   ]
 end
 
-# The record kinds the grammar's rules lower to, each once.
 def kinds()
   distinct(
     filter((k) -> k != nil, map((x) -> get(x, :lower), get(graphql, :rules)))
   )
 end
-
-# ── the lexer ──────────────────────────────────────────────────────────────
 
 def table(keys)
   reduce((m, k) -> assoc(m, k, true), {}, keys)
@@ -871,8 +845,6 @@ def drop_blank(lines)
     lines
   end
 end
-
-# ── the parser ─────────────────────────────────────────────────────────────
 
 def eof()
   {kind: :eof, value: "end of input", line: 0, col: 0}
@@ -1548,8 +1520,6 @@ def directive_definition(p, i)
   ]
 end
 
-# ── the printer ────────────────────────────────────────────────────────────
-
 def pad(ind)
   join(map((_) -> "  ", range(ind)), "")
 end
@@ -1936,12 +1906,6 @@ def document_text(ind, doc)
   end
 end
 
-# ── the verbs ──────────────────────────────────────────────────────────────
-
-# A document tree from GraphQL text, SDL or executable. opts: spans: true
-# adds `at: [line, column]` to definitions, selections, arguments and
-# variables. Malformed text raises :parse_error with the line and column in
-# its message and data.
 def parse(text, opts?)
   opts = checked(opts, [:spans])
   toks = tokens(text)
@@ -1949,8 +1913,6 @@ def parse(text, opts?)
   document_of(p, 0, [])
 end
 
-# A document tree as canonical GraphQL text: apollo-compiler's layout for
-# :graphql (the default), or everything on one line for :compact.
 def render(document, format?, opts?)
   checked(opts, [])
   f = format or :graphql
@@ -1965,8 +1927,6 @@ def render(document, format?, opts?)
     )
   end
 end
-
-# ── the schema ─────────────────────────────────────────────────────────────
 
 def builtin_sdl()
   join(
@@ -2122,9 +2082,6 @@ def implicit_roots(types)
   )
 end
 
-# The schema a document defines, with every extension merged in, the
-# built-in scalars, directives and introspection types added, and the
-# problems found while building it.
 def schema_index(schema)
   defs = definitions_of(schema)
   user = filter(
@@ -2231,8 +2188,6 @@ end
 def duplicates(names)
   distinct(filter((n) -> length(filter((m) -> m == n, names)) > 1, names))
 end
-
-# ── schema rules ───────────────────────────────────────────────────────────
 
 def schema_problems(s)
   user = get(s, :user)
@@ -2422,8 +2377,6 @@ def input_value_problems(s, a, location, owner)
     directive_problems(s, get(a, :directives), location, {}, nil)
   )
 end
-
-# ── values, arguments and directives ───────────────────────────────────────
 
 def int32?(text)
   n = to_int(text)
@@ -2687,8 +2640,6 @@ def directive_problems(s, dirs, location, vars, _ctx)
   )
   append(each, repeated)
 end
-
-# ── executable rules ───────────────────────────────────────────────────────
 
 def string_type()
   {kind: :non_null, of: {kind: :named, name: "String"}}
@@ -3358,8 +3309,6 @@ def executable_problems(s, doc)
   )
 end
 
-# ── the rest of the verbs ──────────────────────────────────────────────────
-
 def as_document(x)
   if string?(x)
     parse(x)
@@ -3370,12 +3319,6 @@ def as_document(x)
   end
 end
 
-# A schema document prepared once for many checks: its types, directives and
-# roots, with the schema's own problems already found.
-#
-# opts: defaults: true also checks each default value an SDL argument or
-# input field declares against its type. apollo-compiler leaves them
-# unchecked, so the default is off and the two agree.
 def schema_of(schema, opts?)
   opts = checked(opts, [:defaults])
   if get(schema, :kind) == :schema_of
@@ -3390,11 +3333,6 @@ def schema_of(schema, opts?)
   end
 end
 
-# The findings of a document: with no schema, those of the document as a
-# schema; with one, the schema's own findings if it has any, else those of
-# the executable document against it. Empty when sound. Each finding is
-# {rule:, message:, at:}, `at` set when the document was parsed with spans.
-# opts are schema_of's.
 def check(subject, rules?, opts?)
   opts = checked(opts, [:defaults])
   doc = as_document(subject)
@@ -3410,8 +3348,6 @@ def check(subject, rules?, opts?)
   end
 end
 
-# The document when check finds nothing; otherwise raises :invalid, the
-# findings in its data and the first three in its message.
 def validate(document, schema?, opts?)
   found = check(document, schema, opts)
   if is_empty(found)
@@ -3473,9 +3409,6 @@ def flat_selections(items)
   )
 end
 
-# A fragment declared in blue: fragment(:user_card, {on: "User", fields:
-# [:id, :name, {avatar: [:url]}, "...Other"]}) is the record `parse` gives
-# for `fragment user_card on User { id name avatar { url } ...Other }`.
 def fragment(name, spec)
   spec = checked(spec, [:on, :fields])
   on = get(spec, :on)
@@ -3502,10 +3435,6 @@ def fragments_of(x)
   end
 end
 
-# One executable document: the operations of `first` and every fragment they
-# spread, directly or through another fragment, taken from `second` (a list
-# of fragments or a document), each once and ordered by name. A spread of a
-# fragment `second` lacks raises :unknown_fragment.
 def compose(first, second)
   ops = filter(
     (d) -> get(d, :kind) == :operation,
@@ -3603,25 +3532,14 @@ def select_into(value, sels)
   end
 end
 
-# Only the fields a fragment declares, read from a response value (string
-# keys, as json_read gives them): aliases are the keys, a list is read
-# element by element, an inline fragment applies when the value's
-# __typename matches or is absent, and a spread stays masked.
 def select(value, fragment)
   select_into(value, get(fragment, :selections))
 end
 
-# The persisted-operation id of an operation: the digest of its canonical
-# text, :sha256 (what automatic persisted queries send) unless another of
-# shomei's algorithms is named.
 def hash(operation, algorithm?)
   shomei::hash(render(as_document(operation)), algorithm or :sha256)
 end
 
-# ── the corpus ─────────────────────────────────────────────────────────────
-
-# Every fixture under `fixtures/<dir>`, as [path, text] pairs sorted by path,
-# found beside this package on BLUE_PATH or under ./bidamas.
 def fixtures(dir)
   roots = append(
     split(getenv("BLUE_PATH", ""), ":"),
@@ -3732,8 +3650,6 @@ def documents_named(prefix, dirs)
     end
   )
 end
-
-# ── tests ──────────────────────────────────────────────────────────────────
 
 test "the grammar paints every literal it uses and renders for tree-sitter"
   g = graphql

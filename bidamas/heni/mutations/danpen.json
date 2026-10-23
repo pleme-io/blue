@@ -1,0 +1,110 @@
+[
+  {
+    "name": "the spread punctuator loses its paint",
+    "file": "danpen.b",
+    "find": "[\"...\", \"punctuation.special\"]",
+    "replace": "[\"..\", \"punctuation.special\"]"
+  },
+  {
+    "name": "a rule lowers to a kind the parser never makes",
+    "file": "danpen.b",
+    "find": "\"spread\"",
+    "replace": "\"splat\""
+  },
+  {
+    "name": "query reads as a mutation",
+    "file": "danpen.b",
+    "find": "when \"query\"\n    :query",
+    "replace": "when \"query\"\n    :mutation"
+  },
+  {
+    "name": "a leading zero is accepted",
+    "file": "danpen.b",
+    "find": "lex_error(line, col, \"an integer cannot start with 0\")",
+    "replace": "nil"
+  },
+  {
+    "name": "escapes are left undecoded",
+    "file": "danpen.b",
+    "find": "json_read(\"\\\"#{json}\\\"\")",
+    "replace": "json"
+  },
+  {
+    "name": "list items are joined with two spaces",
+    "file": "danpen.b",
+    "find": "\",#{nl(inner, true)}\"",
+    "replace": "\", #{nl(inner, true)}\""
+  },
+  {
+    "name": "a quote inside a string is printed bare",
+    "file": "danpen.b",
+    "find": "replace(replace(text, \"\\\\\", \"\\\\\\\\\"), \"\\\"\", \"\\\\\\\"\")",
+    "replace": "replace(text, \"\\\\\", \"\\\\\\\\\")"
+  },
+  {
+    "name": "an object implementing an interface is refused",
+    "file": "danpen.b",
+    "find": "kind_of(s, i) != :interface",
+    "replace": "kind_of(s, i) != :object"
+  },
+  {
+    "name": "two operations beside an anonymous one pass",
+    "file": "danpen.b",
+    "find": "if length(ops) > 1 and",
+    "replace": "if length(ops) > 9 and"
+  },
+  {
+    "name": "an extension of another kind merges",
+    "file": "danpen.b",
+    "find": "elsif get(base, :kind) != k",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a rule is named that no fixture exercises",
+    "file": "danpen.b",
+    "find": "    \"lone-anonymous\",\n    \"operation-unique\",",
+    "replace": "    \"lone-anonymous\",\n    \"phantom-rule\",\n    \"operation-unique\","
+  },
+  {
+    "name": "spans are never recorded",
+    "file": "danpen.b",
+    "find": "if get(p, :spans)",
+    "replace": "if false"
+  },
+  {
+    "name": "SDL defaults are always checked",
+    "file": "danpen.b",
+    "find": "if get(s, :defaults) and",
+    "replace": "if true and"
+  },
+  {
+    "name": "validate raises the wrong kind",
+    "file": "danpen.b",
+    "find": "raise(:invalid,",
+    "replace": "raise(:refused,"
+  },
+  {
+    "name": "a declared nested field loses its selection",
+    "file": "danpen.b",
+    "find": "selections: flat_selections(second(e))",
+    "replace": "selections: []"
+  },
+  {
+    "name": "compose keeps the order fragments are reached in",
+    "file": "danpen.b",
+    "find": "sort_keyed((n) -> n, names)",
+    "replace": "names"
+  },
+  {
+    "name": "an inline fragment applies to the other type",
+    "file": "danpen.b",
+    "find": "typename == get(sel, :on)",
+    "replace": "typename != get(sel, :on)"
+  },
+  {
+    "name": "the default digest is sha512",
+    "file": "danpen.b",
+    "find": "algorithm or :sha256",
+    "replace": "algorithm or :sha512"
+  }
+]

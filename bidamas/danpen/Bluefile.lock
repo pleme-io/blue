@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:596bbfc39bd4526510151cf37c1c798dad7ab721392897c59031108a0a460a5e",
+  "manifest": {
+    "schema": 1,
+    "name": "danpen",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kiwari": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shomei": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

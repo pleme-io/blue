@@ -282,7 +282,6 @@ def operator_spellings(g)
   )
 end
 
-# A grammar with no pipe operator (GraphQL's) says `pipe: nil`.
 def pipe_spellings(pipe)
   if pipe.nil?
     []

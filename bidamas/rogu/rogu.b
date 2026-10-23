@@ -23,7 +23,7 @@ def rank(lvl)
 end
 
 def level_of(raw)
-  if raw == nil or raw == ""
+  if raw.nil? or raw == ""
     :info
   else
     named = filter((l) -> to_s(l) == raw, levels)
@@ -47,7 +47,7 @@ def enabled?(lvl)
 end
 
 def plain(fields)
-  if fields == nil
+  if fields.nil?
     {}
   else
     e = get(fields, :error)

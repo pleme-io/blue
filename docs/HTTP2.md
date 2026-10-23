@@ -2,7 +2,7 @@
 
 Status: DESIGN, 2026-10-23, with phase 1 built (§13). Paths are under
 `~/code/github/pleme-io/`. Line numbers were read on 2026-10-23 at blue
-`4bc6a5f` plus this change.
+`7141b26` plus this change.
 
 Operator, 2026-10-23: blue has its own HTTP/2 stack, with gRPC on it, built
 in blue. "That should be the direction." The patterns are public: they live

@@ -89,6 +89,7 @@ use("raifusaikuru")
 use("ran", [:take_ints])
 use("retsu", [:contains, :size])
 use("rittai")
+use("rogu")
 use("ronri", [:every])
 use("ryouiki", [:box_around])
 use("sabi")
@@ -150,6 +151,7 @@ test "every bidama in the distribution answers through this one import"
   assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert rittai::z([1, 2, 3]) == 3
+  assert rogu::levels == [:debug, :info, :warn, :error]
   assert size([1, 2, 3]) == 3
   assert every((v) -> v > 0, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]

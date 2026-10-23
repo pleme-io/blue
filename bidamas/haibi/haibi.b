@@ -120,6 +120,21 @@ def resources_of(svc)
   )
 end
 
+def cache?(svc)
+  get(svc, "cache") != nil
+end
+
+def cache_values(svc)
+  c = get_or(svc, "cache", {})
+  {
+    "enabled" => false,
+    "host" => "",
+    "port" => get_or(c, "port", 6379),
+    "passwordSecret" => "",
+    "passwordKey" => "password"
+  }
+end
+
 def tables(svc)
   entries_of(get_or(svc, "schema", {}))
 end
@@ -189,11 +204,16 @@ def values_with(svc, mode)
       {"create" => true, "automountServiceAccountToken" => false}
     )
   end
-  if tables(svc) == []
+  with_cache = if cache?(svc)
+    assoc(with_sa, "cache", cache_values(svc))
+  else
     with_sa
+  end
+  if tables(svc) == []
+    with_cache
   else
     assoc(
-      with_sa,
+      with_cache,
       "database",
       {
         "enabled" => false,
@@ -493,90 +513,151 @@ def service(n)
 end
 
 def deployment(n, h)
+  deployment_with(n, h, {})
+end
+
+def cache_env(p, n)
+  [
+    "            {{- if and .Values.cache .Values.cache.enabled }}",
+    "            - name: #{p}CACHE__HOST",
+    "              value: {{ required \"cache.host is required when cache.enabled is true\" .Values.cache.host | quote }}",
+    "            - name: #{p}CACHE__PORT",
+    "              value: {{ .Values.cache.port | quote }}",
+    "            - name: #{p}CACHE__PASSWORD_FILE",
+    "              value: #{cache_mount(n)}/password",
+    "            {{- end }}"
+  ]
+end
+
+def cache_mount(n)
+  "/var/run/secrets/#{n}-valkey"
+end
+
+def cache_mounts(n)
+  [
+    "          {{- if and .Values.cache .Values.cache.enabled }}",
+    "          volumeMounts:",
+    "            - name: #{n}-valkey",
+    "              mountPath: #{cache_mount(n)}",
+    "              readOnly: true",
+    "          {{- end }}"
+  ]
+end
+
+def cache_volumes(n)
+  [
+    "      {{- if and .Values.cache .Values.cache.enabled }}",
+    "      volumes:",
+    "        - name: #{n}-valkey",
+    "          secret:",
+    "            secretName: {{ required \"cache.passwordSecret is required when cache.enabled is true\" .Values.cache.passwordSecret | quote }}",
+    "            items:",
+    "              - key: {{ .Values.cache.passwordKey | quote }}",
+    "                path: password",
+    "      {{- end }}"
+  ]
+end
+
+def deployment_with(n, h, svc)
   p = env_prefix(n)
+  cached = cache?(svc)
   lines(
-    [
-      "apiVersion: apps/v1",
-      "kind: Deployment",
-      "metadata:",
-      "  name: {{ include \"#{h}.fullname\" . }}",
-      "  namespace: {{ .Release.Namespace }}",
-      "  labels:",
-      "    {{- include \"#{h}.labels\" . | nindent 4 }}",
-      "spec:",
-      "  replicas: {{ .Values.replicaCount }}",
-      "  selector:",
-      "    matchLabels:",
-      "      {{- include \"#{h}.selectorLabels\" . | nindent 6 }}",
-      "  template:",
-      "    metadata:",
-      "      labels:",
-      "        {{- include \"#{h}.selectorLabels\" . | nindent 8 }}",
-      "      {{- with .Values.podAnnotations }}",
-      "      annotations:",
-      "        {{- toYaml . | nindent 8 }}",
-      "      {{- end }}",
-      "    spec:",
-      "      serviceAccountName: {{ include \"#{h}.fullname\" . }}",
-      "      automountServiceAccountToken: false",
-      "      {{- with .Values.podSecurityContext }}",
-      "      securityContext:",
-      "        {{- toYaml . | nindent 8 }}",
-      "      {{- end }}",
-      "      containers:",
-      "        - name: #{n}",
-      "          image: \"{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}\"",
-      "          imagePullPolicy: {{ .Values.image.pullPolicy }}",
-      "          {{- with .Values.command }}",
-      "          command:",
-      "            {{- toYaml . | nindent 12 }}",
-      "          {{- end }}",
-      "          {{- with .Values.args }}",
-      "          args:",
-      "            {{- toYaml . | nindent 12 }}",
-      "          {{- end }}",
-      "          env:",
-      "            - name: BLUE_SERVICE",
-      "              value: \"#{n}\"",
-      "            - name: #{p}LISTEN__HOST",
-      "              value: {{ .Values.listen.host | quote }}",
-      "            - name: #{p}LISTEN__PORT",
-      "              value: {{ .Values.listen.port | quote }}",
-      "            - name: #{p}HEALTH",
-      "              value: {{ .Values.health | quote }}",
-      "            {{- if and .Values.database .Values.database.enabled }}",
-      "            - name: #{p}DATABASE__URL",
-      "              value: {{ printf \"postgres://%s@%s:%v/%s\" .Values.database.username .Values.database.host .Values.database.port .Values.database.name | quote }}",
-      "            {{- end }}",
-      "            {{- range $k, $v := .Values.config }}",
-      "            - name: {{ printf \"#{p}%s\" (upper $k) }}",
-      "              value: {{ $v | toString | quote }}",
-      "            {{- end }}",
-      "            {{- range $k, $v := .Values.flags }}",
-      "            - name: {{ printf \"#{p}FLAGS__%s\" (upper $k) }}",
-      "              value: {{ $v | toString | quote }}",
-      "            {{- end }}",
-      "          ports:",
-      "            - name: http",
-      "              containerPort: {{ .Values.listen.port }}",
-      "              protocol: TCP",
-      "          livenessProbe:",
-      "            httpGet:",
-      "              path: {{ .Values.health | quote }}",
-      "              port: http",
-      "          readinessProbe:",
-      "            httpGet:",
-      "              path: {{ .Values.health | quote }}",
-      "              port: http",
-      "          {{- with .Values.resources }}",
-      "          resources:",
-      "            {{- toYaml . | nindent 12 }}",
-      "          {{- end }}",
-      "          {{- with .Values.securityContext }}",
-      "          securityContext:",
-      "            {{- toYaml . | nindent 12 }}",
-      "          {{- end }}"
-    ]
+    append(
+      [
+        "apiVersion: apps/v1",
+        "kind: Deployment",
+        "metadata:",
+        "  name: {{ include \"#{h}.fullname\" . }}",
+        "  namespace: {{ .Release.Namespace }}",
+        "  labels:",
+        "    {{- include \"#{h}.labels\" . | nindent 4 }}",
+        "spec:",
+        "  replicas: {{ .Values.replicaCount }}",
+        "  selector:",
+        "    matchLabels:",
+        "      {{- include \"#{h}.selectorLabels\" . | nindent 6 }}",
+        "  template:",
+        "    metadata:",
+        "      labels:",
+        "        {{- include \"#{h}.selectorLabels\" . | nindent 8 }}",
+        "      {{- with .Values.podAnnotations }}",
+        "      annotations:",
+        "        {{- toYaml . | nindent 8 }}",
+        "      {{- end }}",
+        "    spec:",
+        "      serviceAccountName: {{ include \"#{h}.fullname\" . }}",
+        "      automountServiceAccountToken: false",
+        "      {{- with .Values.podSecurityContext }}",
+        "      securityContext:",
+        "        {{- toYaml . | nindent 8 }}",
+        "      {{- end }}",
+        "      containers:",
+        "        - name: #{n}",
+        "          image: \"{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}\"",
+        "          imagePullPolicy: {{ .Values.image.pullPolicy }}",
+        "          {{- with .Values.command }}",
+        "          command:",
+        "            {{- toYaml . | nindent 12 }}",
+        "          {{- end }}",
+        "          {{- with .Values.args }}",
+        "          args:",
+        "            {{- toYaml . | nindent 12 }}",
+        "          {{- end }}",
+        "          env:",
+        "            - name: BLUE_SERVICE",
+        "              value: \"#{n}\"",
+        "            - name: #{p}LISTEN__HOST",
+        "              value: {{ .Values.listen.host | quote }}",
+        "            - name: #{p}LISTEN__PORT",
+        "              value: {{ .Values.listen.port | quote }}",
+        "            - name: #{p}HEALTH",
+        "              value: {{ .Values.health | quote }}",
+        "            {{- if and .Values.database .Values.database.enabled }}",
+        "            - name: #{p}DATABASE__URL",
+        "              value: {{ printf \"postgres://%s@%s:%v/%s\" .Values.database.username .Values.database.host .Values.database.port .Values.database.name | quote }}",
+        "            {{- end }}"
+      ],
+      if cached
+        cache_env(p, n)
+      else
+        []
+      end,
+      [
+        "            {{- range $k, $v := .Values.config }}",
+        "            - name: {{ printf \"#{p}%s\" (upper $k) }}",
+        "              value: {{ $v | toString | quote }}",
+        "            {{- end }}",
+        "            {{- range $k, $v := .Values.flags }}",
+        "            - name: {{ printf \"#{p}FLAGS__%s\" (upper $k) }}",
+        "              value: {{ $v | toString | quote }}",
+        "            {{- end }}",
+        "          ports:",
+        "            - name: http",
+        "              containerPort: {{ .Values.listen.port }}",
+        "              protocol: TCP",
+        "          livenessProbe:",
+        "            httpGet:",
+        "              path: {{ .Values.health | quote }}",
+        "              port: http",
+        "          readinessProbe:",
+        "            httpGet:",
+        "              path: {{ .Values.health | quote }}",
+        "              port: http",
+        "          {{- with .Values.resources }}",
+        "          resources:",
+        "            {{- toYaml . | nindent 12 }}",
+        "          {{- end }}",
+        "          {{- with .Values.securityContext }}",
+        "          securityContext:",
+        "            {{- toYaml . | nindent 12 }}",
+        "          {{- end }}"
+      ],
+      if cached
+        append(cache_mounts(n), cache_volumes(n))
+      else
+        []
+      end
+    )
   )
 end
 
@@ -712,7 +793,7 @@ def files_with(name, version, svc, mode)
     ["chart/Chart.yaml", chart_yaml(name, version, mode)],
     ["chart/values.yaml", yaml(values_with(svc, mode))],
     ["chart/values.schema.json", pretty(values_schema_with(name, svc, mode))],
-    ["chart/templates/deployment.yaml", deployment(name, h)],
+    ["chart/templates/deployment.yaml", deployment_with(name, h, svc)],
     ["chart/templates/NOTES.txt", notes(name, h)],
     ["chart/templates/slo-rules.yaml", slo_rules(name, svc)],
     ["chart/templates/dashboard.yaml", dashboard_map(name)],
@@ -918,6 +999,32 @@ test "a service with tables names its schema and a database setting"
     "OLA_MUNDO_DATABASE__URL"
   ) ==
     true
+end
+
+test "a service with a cache mounts its password Secret as a file and names it in the environment"
+  svc = assoc(sample, "cache", {})
+  v = values_with(svc, :pleme_lib)
+  assert get(v, "cache") ==
+    {
+      "enabled" => false,
+      "host" => "",
+      "port" => 6379,
+      "passwordSecret" => "",
+      "passwordKey" => "password"
+    }
+  assert get(values_with(sample, :pleme_lib), "cache").nil?
+  d = deployment_with("ola-mundo", "pleme-lib", svc)
+  assert contains?(d, "OLA_MUNDO_CACHE__PASSWORD_FILE") == true
+  assert contains?(d, "value: /var/run/secrets/ola-mundo-valkey/password") ==
+    true
+  assert contains?(d, "mountPath: /var/run/secrets/ola-mundo-valkey") == true
+  assert contains?(d, "secretName: {{ required") == true
+  plain = deployment("ola-mundo", "pleme-lib")
+  assert contains?(plain, "valkey") == false
+  assert contains?(plain, "volumes:") == false
+  schema = values_schema("ola-mundo", svc)
+  assert get(get(get(schema, "properties"), "cache"), "additionalProperties") ==
+    false
 end
 
 test "the chart carries the service's SLO rules, its dashboard and a scrape annotation"

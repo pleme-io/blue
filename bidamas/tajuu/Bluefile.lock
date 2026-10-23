@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:e61b7978554b12080d371bb99dfb44cdef18766b015ec876b40022b3d053aa04",
+  "manifest": {
+    "schema": 1,
+    "name": "tajuu",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shinsuu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

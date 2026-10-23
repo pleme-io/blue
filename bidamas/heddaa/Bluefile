@@ -1,0 +1,4 @@
+package("heddaa", "0.1.0")
+needs("kyohi", "^0.1")
+needs("retsu", "^0.1")
+needs("shinsuu", "^0.1")

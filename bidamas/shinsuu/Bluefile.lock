@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:46c31269802c5a59bf5cc288a7963942a17d58d06bf64cf062b8517b8d294a90",
+  "bluefile_b3": "b3:b172a55c9e7668f70d01c7b31bf313fe6bcf86d15d71fc694c9f36fab4626645",
   "manifest": {
     "schema": 1,
     "name": "shinsuu",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "kazu": "^0.1.0",
       "retsu": "^0.1.0"

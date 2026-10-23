@@ -58,6 +58,7 @@ use("gitto")
 use("gyouretsu", [:dot])
 use("hadome")
 use("haibi")
+use("heddaa")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
 use("hizuke", [:is_leap])
@@ -109,6 +110,7 @@ use("shomei", [:hash_message])
 use("shuugou")
 use("shuusei")
 use("souji")
+use("tajuu")
 use("teeburu")
 use("tehai")
 use("tesuto")
@@ -202,6 +204,8 @@ test "every bidama in the distribution answers through this one import"
   assert tesuto::raises?(:probe, () -> raise(:probe, "m")) == true
   assert tsuiseki::span("probe", (_s) -> 1, {sink: (_r) -> nil}) == 1
   assert ugoki::sample(ugoki::tween(0, 10, {seconds: 2}), 1) == 5
+  assert heddaa::encode_int(1337, 5, 0) == [31, 154, 10]
+  assert tajuu::error_code(:cancel) == 8
 end
 
 test "four packages compose without the consumer naming any of them"

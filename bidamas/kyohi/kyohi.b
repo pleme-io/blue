@@ -143,6 +143,23 @@ def refusal_of(result)
   end
 end
 
+def and_then(result, f)
+  if ok?(result)
+    f(get(result, :value))
+  else
+    result
+  end
+end
+
+test "and_then runs the next step on a value and passes a refusal through untouched"
+  assert and_then(ok(2), (v) -> ok(v * 3)) == ok(6)
+  assert and_then(ok(2), (_v) -> refused(refusal(:late, "x"))) ==
+    refused(refusal(:late, "x"))
+  r = refused(refusal(:bad, "first"))
+  assert and_then(r, (v) -> ok(v + 1)) == r
+  assert and_then(assoc(r, :scope, :stream), ok) == assoc(r, :scope, :stream)
+end
+
 def standing(xs, marks)
   map(
     (i) -> nth(i, xs),

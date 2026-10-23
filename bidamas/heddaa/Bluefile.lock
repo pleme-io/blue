@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:f85cddffb717d3dd03ca766a33b2e217c484756dde72c22d02481edee0513372",
+  "manifest": {
+    "schema": 1,
+    "name": "heddaa",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shinsuu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

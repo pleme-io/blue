@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:643e2a2d596c1710d502b116c4ca55490da1db29cb64f37fa436a22282522c67",
+  "bluefile_b3": "b3:dcbb92c005e986e1b49342ed51fcb02717e15b4c46ff716065d42cce7ae19590",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -19,6 +19,7 @@
       "gyouretsu": "^0.1.0",
       "hadome": "^0.1.0",
       "haibi": "^0.1.0",
+      "heddaa": "^0.1.0",
       "heni": "^0.1.0",
       "hizuke": "^0.1.0",
       "hyouka": "^0.1.0",
@@ -67,6 +68,7 @@
       "shuugou": "^0.1.0",
       "shuusei": "^0.1.0",
       "souji": "^0.1.0",
+      "tajuu": "^0.1.0",
       "teeburu": "^0.1.0",
       "tehai": "^0.1.0",
       "tesuto": "^0.1.0",

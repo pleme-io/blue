@@ -1139,6 +1139,51 @@ def luhn?(n)
   luhn_valid(n)
 end
 
+def be_bytes(n, width)
+  map((i) -> shift_right(n, 8 * (width - 1 - i)) % 256, range(0, width))
+end
+
+def be_value(bytes, pos, width)
+  reduce((a, i) -> a * 256 + nth(pos + i, bytes), 0, range(0, width))
+end
+
+test "big-endian integers of a fixed width"
+  assert be_bytes(0, 3) == [0, 0, 0]
+  assert be_bytes(16384, 3) == [0, 64, 0]
+  assert be_bytes(2_147_483_647, 4) == [127, 255, 255, 255]
+  assert be_bytes(258, 1) == [2]
+  assert be_bytes(5, 0) == []
+  assert be_value([9, 0, 64, 0, 7], 1, 3) == 16384
+  assert be_value(be_bytes(4_294_967_295, 4), 0, 4) == 4_294_967_295
+  assert be_value([], 0, 0) == 0
+end
+
+def bytes_hex(bytes)
+  join(map((b) -> to_hex_width(b, 2), bytes), "")
+end
+
+def hex_bytes(text)
+  cs = filter((c) -> c != " " and c != "\n", chars(downcase(text)))
+  if size(cs) % 2 != 0 or not all_digits_in_base(cs, 16)
+    nil
+  else
+    map(
+      (i) -> digit_value(nth(2 * i, cs)) * 16 + digit_value(nth(2 * i + 1, cs)),
+      range(0, size(cs) / 2)
+    )
+  end
+end
+
+test "hex dumps read back as the bytes they print"
+  assert hex_bytes("") == []
+  assert hex_bytes("8286 8441\n0f") == [130, 134, 132, 65, 15]
+  assert hex_bytes("FF00") == [255, 0]
+  assert bytes_hex([0, 15, 255]) == "000fff"
+  assert hex_bytes(bytes_hex([1, 2, 254])) == [1, 2, 254]
+  assert hex_bytes("abc").nil?
+  assert hex_bytes("zz").nil?
+end
+
 test "luhn? accepts a valid number and rejects a changed digit"
   assert luhn?(79_927_398_713)
   assert not luhn?(79_927_398_710)

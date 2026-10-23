@@ -1,0 +1,22 @@
+[
+  {"name": "C.1 prefix boundary", "file": "heddaa.b", "find": "if n < top", "replace": "if n <= top"},
+  {"name": "C.1 continuation bit", "file": "heddaa.b", "find": "cons(n % 128 + 128", "replace": "cons(n % 128 + 0"},
+  {"name": "C.1 continuation shift", "file": "heddaa.b", "find": "v = acc + shift_left(b % 128, m)", "replace": "v = acc + shift_left(b % 128, m + 1)"},
+  {"name": "integer length cap", "file": "heddaa.b", "find": "if m > 28", "replace": "if m > 99"},
+  {"name": "C.4 Huffman code of w", "file": "heddaa.b", "find": "[120, 7],", "replace": "[121, 7],"},
+  {"name": "C.4 Huffman padding is ones", "file": "heddaa.b", "find": "shift_left(first(st), pad) + expt(2, pad) - 1", "replace": "shift_left(first(st), pad)"},
+  {"name": "EOS refused", "file": "heddaa.b", "find": "elsif sym == 256", "replace": "elsif sym == 999"},
+  {"name": "padding over 7 bits refused", "file": "heddaa.b", "find": "elsif len > 7", "replace": "elsif len > 8"},
+  {"name": "Appendix A static row", "file": "heddaa.b", "find": "[\"accept-encoding\", \"gzip, deflate\"],", "replace": "[\"accept-encoding\", \"gzip\"],"},
+  {"name": "C.2.4 static exact match", "file": "heddaa.b", "find": "s = get(static_exact, to_s([name, value]))", "replace": "s = nil"},
+  {"name": "C.3 entry overhead 32", "file": "heddaa.b", "find": "size(octets(value)) + 32", "replace": "size(octets(value)) + 31"},
+  {"name": "C.5 eviction makes room", "file": "heddaa.b", "find": "get(t, :max) - s", "replace": "get(t, :max)"},
+  {"name": "eviction drops the oldest", "file": "heddaa.b", "find": "if nth(2, acc) and total <= room", "replace": "if total <= room"},
+  {"name": "C.5 static name is the first row", "file": "heddaa.b", "find": "reverse(range(1, 62))", "replace": "range(1, 62)"},
+  {"name": "dynamic index base 62", "file": "heddaa.b", "find": "e = nth(index - 62, es)", "replace": "e = nth(index - 61, es)"},
+  {"name": "size update only at block start", "file": "heddaa.b", "find": "if get(st, :open)", "replace": "if true"},
+  {"name": "C.2.3 never indexed is marked", "file": "heddaa.b", "find": "add_field(st, f, next, how == :never)", "replace": "add_field(st, f, next, false)"},
+  {"name": "C.3 incremental inserts on decode", "file": "heddaa.b", "find": "if how == :incremental", "replace": "if how == :plain"},
+  {"name": "resize signals the smallest size", "file": "heddaa.b", "find": "elsif low < get(t, :max)", "replace": "elsif false"},
+  {"name": "string literal slice", "file": "heddaa.b", "find": "raw = slice(bytes, start, len)", "replace": "raw = slice(bytes, start + 1, len)"}
+]

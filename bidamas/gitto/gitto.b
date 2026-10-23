@@ -2,22 +2,19 @@ use("deeta", [:get_or])
 
 use(
   "moji",
-  [:char_index, :drop_chars, :ends_with, :lines, :starts_with, :take_chars]
+  [
+    :char_index,
+    :checked,
+    :drop_chars,
+    :ends_with,
+    :lines,
+    :starts_with,
+    :take_chars
+  ]
 )
 
 use("retsu", [:first, :is_empty, :last])
 use("shisutemu")
-
-def checked(opts, allowed)
-  bad = filter((e) -> member?(first(e), allowed) == false, map_entries(opts))
-  if is_empty(bad) == false
-    raise(
-      :bad_option,
-      "unknown option #{first(first(bad))}; this verb takes #{join(map(to_s, allowed), ", ")}"
-    )
-  end
-  opts
-end
 
 def run(repo, args)
   exec_with_env(

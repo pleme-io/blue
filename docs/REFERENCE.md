@@ -135,7 +135,7 @@ Higher binding power binds tighter.
 | `to_float` | `to_float(x)` | 1 | A Float from a number or a numeric string. |
 | `to_int` | `to_int(x)` | 1 | An Int from a string or a number, truncating a Float; nil for text that is not an integer ("3.7" too). |
 | `to_int!` | `to_int!(x)` | 1 | Like to_int, but raises instead of returning nil. |
-| `truncate` | `truncate(x)` | 1 | The Int part of x, toward zero: truncate(-2.7) is -2. |
+| `truncate` | `truncate(x)` | 1 | The Int part of x, toward zero: truncate(-2.7) is -2. Also defined by `moji` (`moji::truncate`): a file that lists it gets that one. |
 
 ### Strings
 

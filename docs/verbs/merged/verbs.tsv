@@ -1644,7 +1644,7 @@ A	moji	graphemes	pure	graphemes(text) -> [text]	-	-	absent	the user-perceived ch
 A	moji	indent	pure	indent(text, prefix) -> text	-	-	absent	prefix every line	1		na
 A	moji	join	pure	join(list, separator) -> text	-	tatara-lisp-script	rust:blue-lang-runtime	list of text joined with a separator	0	join(list, separator) -> text	yes
 A	moji	lines	pure	lines(text) -> [text]	-	-	exists:moji	text cut at line ends	0		na
-A	moji	lower	pure	lower(text) -> text	-	-	absent	every letter in lower case	0		na
+A	moji	lower	pure	lower(text) -> text	-	-	exists:moji	every letter in lower case	0		na
 A	moji	matches?	pure	matches?(text, pattern) -> Bool	-	tatara-lisp-script	rust:blue-lang-runtime	whether the pattern matches the whole text	1	matches?(text, pattern) -> Bool	yes
 A	moji	normalize	pure	normalize(text, form) -> text	-	-	absent	Unicode form NFC, NFD, NFKC or NFKD	3	normalize(text, form) -> text	yes
 A	moji	pad	pure	pad(text, width, opts) -> text	-	-	exists:moji	extend text to a width on a chosen side	0		na
@@ -1653,7 +1653,7 @@ A	moji	repeat	pure	repeat(text, n) -> text	-	tatara-lisp-script	exists:moji	text
 A	moji	replace	pure	replace(text, pattern, with, opts) -> text	-	tatara-lisp-script	rust:blue-lang-runtime	replace matches by text or by f(match)	1		na
 A	moji	reverse	pure	reverse(text) -> text	-	tatara-lisp-script	absent	code points in reverse order	1	reverse(text) -> text	yes
 A	moji	similarity	pure	similarity(a, b, opts) -> number	-	-	absent	likeness from 0 to 1 by a chosen metric	2		na
-A	moji	size	pure	size(text) -> int	-	-	absent	number of code points	0	size(text) -> int	yes
+A	moji	size	pure	size(text) -> int	-	-	exists:moji	number of code points	0	size(text) -> int	yes
 A	moji	slots	pure	slots(template) -> [name]	-	-	absent	slot names a template uses	2		na
 A	moji	slug	pure	slug(text, opts) -> text	-	tatara-lisp-script	rust:blue-lang-runtime	lowercase ASCII words joined by hyphens	1		na
 A	moji	split	pure	split(text, pattern, opts) -> [text]	-	tatara-lisp-script	rust:blue-lang-runtime	cut text at each match	1	split(text, pattern, opts) -> [text]	yes
@@ -1662,7 +1662,7 @@ A	moji	template	pure	template(text, opts) -> template	error,validate	-	absent	co
 A	moji	tokenize	pure	tokenize(text, opts) -> [token]	-	-	absent	text to words or sentences with offsets	3		na
 A	moji	transliterate	pure	transliterate(text, script) -> text	-	-	absent	text in another script, or folded to ASCII	3		na
 A	moji	trim	pure	trim(text, opts) -> text	-	-	partial:moji	drop space from both ends	0	trim(text, opts) -> text	yes
-A	moji	truncate	pure	truncate(text, width, opts) -> text	-	-	partial:moji	cut text to a width with an ellipsis	0	truncate(text, width, opts) -> text	yes
+A	moji	truncate	pure	truncate(text, width, opts) -> text	-	-	exists:moji	cut text to a width with an ellipsis	0	truncate(text, width, opts) -> text	yes
 A	moji	unescape	pure	unescape(text, target) -> text	error	-	absent	undo escape for the same target	1		na
 A	moji	upper	pure	upper(text) -> text	-	tatara-lisp-script	rust:blue-lang-runtime	every letter in upper case	0		na
 A	moji	width	pure	width(text) -> int	-	caixa-unicode-width	absent	terminal columns the text takes	3		na

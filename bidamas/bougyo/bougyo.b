@@ -1,4 +1,5 @@
 use("kousei", [:field, :int_in, :list_of, :off, :one_of, :text, :tune])
+use("moji", [:lower])
 use("retsu", [:contains, :first, :size])
 use("shisei", [:gated, :posture, :serving])
 
@@ -13,10 +14,6 @@ use("shisei", [:gated, :posture, :serving])
 # response headers are a map. The posture builders take no arguments, so a
 # service lists them as `[headers_posture, request_id_posture, limits_posture]`.
 
-def lowered(s)
-  downcase(s)
-end
-
 # The value of a request header, or nil.
 def request_header(req, name)
   hit = filter((p) -> nth(0, p) == name, get(req, :headers))
@@ -29,7 +26,7 @@ end
 
 # Whether the response already sets a header, whatever the case of its name.
 def has_header?(headers, name)
-  any?((p) -> lowered(nth(0, p)) == lowered(name), map_entries(headers))
+  any?((p) -> lower(nth(0, p)) == lower(name), map_entries(headers))
 end
 
 def with_missing(headers, additions)
@@ -134,7 +131,7 @@ def request_id_posture()
       counter = [0]
       fn(handler)
         fn(req)
-          inbound = request_header(req, lowered(get(settings, :header)))
+          inbound = request_header(req, lower(get(settings, :header)))
           id = if safe_id?(inbound, get(settings, :max_length))
             inbound
           else

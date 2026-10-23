@@ -309,7 +309,7 @@ verb(
     shape: "lower(text) -> text",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:moji",
     meaning: "every letter in lower case",
     wave: 0,
     origin: "A"
@@ -444,7 +444,7 @@ verb(
     shape: "size(text) -> int",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:moji",
     meaning: "number of code points",
     wave: 0,
     origin: "A"
@@ -579,7 +579,7 @@ verb(
     shape: "truncate(text, width, opts) -> text",
     laterals: [],
     fleet: nil,
-    today: "partial:moji",
+    today: "exists:moji",
     meaning: "cut text to a width with an ellipsis",
     wave: 0,
     origin: "A"

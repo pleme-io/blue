@@ -166,6 +166,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "kazu.abs",
             "kazu.max",
             "kazu.min",
+            "moji.truncate",
             "raifusaikuru.link",
             "retsu.first",
             "retsu.interleave",

@@ -1,5 +1,5 @@
 use("kazu", [:min])
-use("retsu", [:first, :is_empty, :repeat, :rest, :size])
+use("retsu", [:first, :is_empty, :repeat, :rest])
 
 # moji (文字) — strings.
 #
@@ -80,7 +80,7 @@ end
 # "" flows through concat, length and the predicates unchanged.
 def char_at(s, i)
   cs = chars(s)
-  if i < 0 or i >= size(cs)
+  if i < 0 or i >= length(cs)
     ""
   else
     nth(i, cs)
@@ -169,7 +169,7 @@ def occurrences(s, sub)
   if length(sub) == 0
     0
   else
-    size(split(s, sub)) - 1
+    length(split(s, sub)) - 1
   end
 end
 
@@ -356,13 +356,37 @@ end
 # overflows the column it was called to fit. Below four columns there is no room
 # for a marker at all, so it degrades to a plain cut.
 def ellipsize(s, width)
-  if length(s) <= width
-    s
-  elsif width < 4
-    take_chars(s, width)
+  truncate(s, width, {})
+end
+
+def truncate(text, width, opts)
+  marker = get(checked(opts, [:marker]), :marker) or "..."
+  if length(text) <= width
+    text
+  elsif width <= length(marker)
+    take_chars(text, width)
   else
-    concat(take_chars(s, width - 3), "...")
+    concat(take_chars(text, width - length(marker)), marker)
   end
+end
+
+def checked(opts, allowed)
+  bad = filter((e) -> member?(first(e), allowed) == false, map_entries(opts))
+  if is_empty(bad) == false
+    raise(
+      :bad_option,
+      "unknown option #{first(first(bad))}; this verb takes #{join(map(to_s, allowed), ", ")}"
+    )
+  end
+  opts
+end
+
+def lower(text)
+  downcase(text)
+end
+
+def size(text)
+  length(chars(text))
 end
 
 # ── whitespace, words and lines ────────────────────────────────────
@@ -503,7 +527,7 @@ def made_of(s, set)
   if length(s) == 0
     false
   else
-    size(filter((c) -> includes(set, c), chars(s))) == length(s)
+    length(filter((c) -> includes(set, c), chars(s))) == length(s)
   end
 end
 
@@ -614,6 +638,19 @@ end
 
 test "split and join round-trip"
   assert join(split("a,b,c", ","), ",") == "a,b,c"
+end
+
+test "lower, size and truncate"
+  assert lower("ABC dE") == "abc de"
+  assert lower("") == ""
+  assert size("héllo") == 5
+  assert size("") == 0
+  assert truncate("hello world", 8, {}) == "hello..."
+  assert truncate("hello world", 8, {marker: "~"}) == "hello w~"
+  assert truncate("hello", 5, {}) == "hello"
+  assert truncate("hello", 2, {}) == "he"
+  bad = truncate("hello", 3, {cut: 1}) rescue "caught"
+  assert bad == "caught"
 end
 
 test "the two builtins this package deliberately does NOT wrap"
@@ -731,7 +768,7 @@ test "includes agrees with char_index"
     end,
     cases
   ) ==
-    repeat(true, size(cases))
+    repeat(true, length(cases))
 end
 
 test "occurrences counts non-overlapping copies"
@@ -912,7 +949,7 @@ test "wrap_text fills each line without exceeding the width"
   # half — a broken URL is worse than a ragged margin.
   assert wrap_text("hi enormousword ok", 4) == ["hi", "enormousword", "ok"]
   # Every line either fits, or is a single unbreakable word.
-  assert size(wrap_text("a b c d e f", 3)) == 3
+  assert length(wrap_text("a b c d e f", 3)) == 3
 end
 
 test "capitalize lowercases the tail, and is idempotent"

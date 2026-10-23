@@ -86,6 +86,14 @@ list makes `x::name` reachable and no bare name; a bidama the file does not
 (two lists naming it). A qualified name — `retsu::first`, or `blue::first`
 for the builtin — bypasses the tiers and is exact.
 
+The words the parser lowers its own syntax to (`blue_lang_syntax::LOWERED_HEADS`:
+`list` for `[…]`, `concat` for interpolation, `not`, `and`, `or`, `mod`,
+`equal?`, `not=`, `apply`) skip the own and listed tiers: a bare one is always
+the builtin, so a bidama may define `list` and its literals still build lists.
+Its own definition is reached qualified (`gitto::list`), and `B0018` does not
+call that qualifier redundant. `get` is not among them: field access lowers to
+`blue-field`, so a bidama may define `get` and use `x.name` freely.
+
 The runtime evaluates the tree resolution produced: every definition keyed
 `pkg/name` (`%root/name` for a script), every reference to it as that key, a
 builtin bare. So the runtime binds exactly what the check resolved.

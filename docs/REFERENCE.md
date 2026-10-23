@@ -178,7 +178,7 @@ Higher binding power binds tighter.
 | `iterate` | `iterate(f, x, n)` | 3 | [x, f(x), f(f(x)), …], n elements. |
 | `last` | `last(xs)` | 1 | The last element; raises on []. retsu's last answers nil. Also defined by `retsu` (`retsu::last`): a file that lists it gets that one. |
 | `length` | `length(xs)` | 1 | The length of a list or string. Raises on nil: retsu's size(xs) is total. |
-| `list` | `list(xs...)` | any | A list of the arguments. Written [a, b]. |
+| `list` | `list(xs...)` | any | A list of the arguments. Written [a, b]. Also defined by `gitto` (`gitto::list`): a file that lists it gets that one. |
 | `member?` | `member?(x, xs)` | 2 | Whether some element == x. The ELEMENT comes first. |
 | `next` | `next(xs)` | 1 | All but the first; raises on []. |
 | `nth` | `nth(i, xs)` | 2 | The element at index i, from 0; nil past either end. The INDEX comes first. |
@@ -200,7 +200,7 @@ Higher binding power binds tighter.
 |---|---|---|---|
 | `assoc` | `assoc(m, k, v)` | 3 | A new map with k set to v. Copies m; raises on nil. |
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
-| `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. |
+| `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
 | `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |
 

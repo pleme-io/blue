@@ -317,3 +317,45 @@ fn resolution_does_not_depend_on_import_order() {
         vec!["[Keyword(:b), Keyword(:a), Keyword(:c)]".to_string()]
     );
 }
+
+#[test]
+fn a_bidama_may_define_list_and_get_without_capturing_its_own_lowerings() {
+    const P: &[(&str, &str)] = &[(
+        "spacey",
+        "def list(x)\n  :defined\nend\n\ndef get(m, k)\n  m.name\nend\n\ndef literal()\n  [1, 2]\nend\n\ndef field(m)\n  m.name\nend\n\ndef own_list()\n  spacey::list(1)\nend\n",
+    )];
+    let run = |tail: &str| {
+        let src = format!("use(\"spacey\")\n{tail}\n");
+        format!("{:?}", value(&src, &Mem(P)))
+    };
+    assert_eq!(run("spacey::literal()"), "[Int(1), Int(2)]");
+    assert_eq!(run("spacey::field({name: 7})"), "Int(7)");
+    assert_eq!(run("spacey::get({name: 5}, :a)"), "Int(5)");
+    assert_eq!(run("spacey::list(1)"), "Keyword(:defined)");
+    assert_eq!(run("spacey::own_list()"), "Keyword(:defined)");
+    assert_eq!(run("[spacey::list(0), 3]"), "[Keyword(:defined), Int(3)]");
+}
+
+#[test]
+fn an_imported_list_does_not_capture_the_importers_literal() {
+    const P: &[(&str, &str)] = &[("spacey", "def list(x)\n  :defined\nend\n")];
+    let src = "use(\"spacey\")\n[1, 2]\n";
+    assert_eq!(format!("{:?}", value(src, &Mem(P))), "[Int(1), Int(2)]");
+    let own = Namespace::File("<anonymous>".into());
+    let checked =
+        check_entry(Entry::anonymous(src), &Mem(P), None, Checking::Program).expect("check");
+    let last = checked.program.forms().len() - 1;
+    assert!(matches!(
+        checked.names.resolve_from("list", &own, last),
+        Resolution::Found {
+            tier: Tier::Builtin,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn an_own_list_does_not_capture_the_entrys_literal() {
+    let src = "def list(x)\n  :defined\nend\n\n[1, 2]\n";
+    assert_eq!(format!("{:?}", value(src, &Mem(&[]))), "[Int(1), Int(2)]");
+}

@@ -601,8 +601,8 @@ shisutemu, and `souji::nix_argv`. **Runtime:** none (a process boundary).
 
 ### 4.17 gitto (ギット), git, *new*
 
-**Verbs:** `info(repo)` (`{branch:, head:, ahead:, behind:, clean?:, changes:}`), `get(repo, ref)`
-(a commit record or nil), `list(repo, :branches | :tags | :commits | :remotes, opts)`, `read(repo,
+**Verbs:** `info(repo)` (`{branch:, head:, ahead:, behind:, clean?:, changes:}`), `get(repo, ref, opts)`
+(a commit record or nil), `list(repo, {of: :branches | :tags | :commits | :remotes | :worktrees, limit:, ref:})`, `read(repo,
 path, {at: ref})`, `exists?(repo, ref)`, `diff(repo, a, b)`, `commit(repo, message, {paths:,
 author:})`, `fetch(repo)`, `merge(repo, ref, {fast_forward_only: true})`, `push(repo, opts)` (a
 rebase-or-refuse shape, never a force by default), `clone(url, dir)`, and `create`/`delete` for

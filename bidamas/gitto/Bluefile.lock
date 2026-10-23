@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:6a574b2f0a430c85a1ed78cfca6e7f63dfb891ff7504cd61f476636b4c7f7534",
+  "bluefile_b3": "b3:f91d04996000726a74151bb8d45a6e6af24b919d18fe633997a9f3dd9a084e06",
   "manifest": {
     "schema": 1,
     "name": "gitto",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "deeta": "^0.1.0",
       "moji": "^0.1.0",

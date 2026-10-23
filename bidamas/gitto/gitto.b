@@ -72,14 +72,15 @@ def exists?(repo, ref)
   resolves(repo, ref)
 end
 
-def commit_at(repo, ref)
+def get(repo, ref, opts)
+  checked(opts, [])
   if resolves(repo, ref)
     commit_of(out(repo, ["log", "-1", commit_format, ref, "--"]))
   end
 end
 
 def head_of(repo)
-  commit_at(repo, "HEAD")
+  get(repo, "HEAD", {})
 end
 
 def ancestor?(repo, a, b)
@@ -108,10 +109,14 @@ def counts(repo)
   end
 end
 
-def info(repo)
+def require_repo(repo)
   if succeeds(repo, ["rev-parse", "--git-dir"]) == false
     raise(:not_found, "#{repo} is not a git repository")
   end
+end
+
+def info(repo)
+  require_repo(repo)
   head = head_of(repo)
   c = counts(repo)
   changes = map(change_of, lines(raw(repo, ["status", "--porcelain"])))
@@ -160,8 +165,19 @@ def worktree_of(block)
   }
 end
 
-def entries(repo, what, opts)
-  checked(opts, [:limit, :ref])
+def limit_args(opts)
+  n = get_or(opts, :limit, nil)
+  if n.nil?
+    []
+  else
+    ["-n", to_s(n)]
+  end
+end
+
+def list(repo, opts)
+  checked(opts, [:of, :limit, :ref])
+  require_repo(repo)
+  what = get_or(opts, :of, :commits)
   if what == :branches
     map(
       branch_of,
@@ -191,22 +207,25 @@ def entries(repo, what, opts)
       )
     )
   elsif what == :commits
-    map(
-      commit_of,
-      lines(
-        raw(
-          repo,
-          [
-            "log",
-            commit_format,
-            "-n",
-            to_s(get_or(opts, :limit, 50)),
-            get_or(opts, :ref, "HEAD"),
-            "--"
-          ]
+    ref = get_or(opts, :ref, "HEAD")
+    if resolves(repo, ref)
+      map(
+        commit_of,
+        lines(
+          raw(
+            repo,
+            append(
+              append(["log", commit_format], limit_args(opts)),
+              [ref, "--"]
+            )
+          )
         )
       )
-    )
+    elsif ref == "HEAD"
+      []
+    else
+      raise(:not_found, "#{ref} in #{repo}")
+    end
   elsif what == :remotes
     map(
       remote_of,
@@ -223,7 +242,7 @@ def entries(repo, what, opts)
   else
     raise(
       :bad_option,
-      "list takes :branches, :tags, :commits, :remotes or :worktrees, not #{what}"
+      "list takes of: :branches, :tags, :commits, :remotes or :worktrees, not #{what}"
     )
   end
 end
@@ -459,15 +478,16 @@ test "a repository is read as commits, refs and files"
   assert second.author == "Tester"
   assert exists?(r, "HEAD") == true
   assert exists?(r, "nope") == false
-  assert commit_at(r, "nope").nil?
-  assert commit_at(r, "HEAD~1").oid == first_commit.oid
+  assert get(r, "nope", {}).nil?
+  assert get(r, "HEAD~1", {}).oid == first_commit.oid
   assert ancestor?(r, first_commit.oid, second.oid) == true
   assert ancestor?(r, second.oid, first_commit.oid) == false
   assert read(r, "a.txt", {}) == "two\n"
   assert read(r, "a.txt", {at: first_commit.oid}) == "one\n"
   assert raised(() -> read(r, "gone.txt", {})) != nil
-  assert entries(r, :commits, {limit: 1}) == [second]
-  assert map((c) -> c.subject, entries(r, :commits, {})) == ["second", "first"]
+  assert gitto::list(r, {of: :commits, limit: 1}) == [second]
+  assert map((c) -> c.subject, gitto::list(r, {of: :commits})) ==
+    ["second", "first"]
   assert diff(r, first_commit.oid, second.oid, {}) ==
     [{path: "a.txt", state: :modified}]
   assert diff(r, first_commit.oid, first_commit.oid, {}) == []
@@ -494,23 +514,24 @@ test "branches and tags are created once and deleted idempotently"
   c = save(r, "a.txt", "one\n", "first")
   assert create(r, "topic", c.oid, {}) == c.oid
   assert create(r, "v1", c.oid, {kind: :tag}) == c.oid
-  assert map((b) -> b.name, entries(r, :branches, {})) == ["main", "topic"]
-  assert map((t) -> t.name, entries(r, :tags, {})) == ["v1"]
-  assert first(entries(r, :branches, {})).current == true
+  assert map((b) -> b.name, gitto::list(r, {of: :branches})) ==
+    ["main", "topic"]
+  assert map((t) -> t.name, gitto::list(r, {of: :tags})) == ["v1"]
+  assert first(gitto::list(r, {of: :branches})).current == true
   assert raised(() -> create(r, "topic", c.oid, {})) == :exists
   assert raised(() -> create(r, "other", "no-such-ref", {})) == :not_found
   assert delete(r, "topic").nil?
   assert delete(r, "topic").nil?
   assert delete(r, "refs/tags/v1").nil?
-  assert entries(r, :tags, {}) == []
-  assert map((b) -> b.name, entries(r, :branches, {})) == ["main"]
+  assert gitto::list(r, {of: :tags}) == []
+  assert map((b) -> b.name, gitto::list(r, {of: :branches})) == ["main"]
 end
 
 test "an unknown option or list kind is refused by name"
   r = fixture("options")
   save(r, "a.txt", "one\n", "first")
-  assert raised(() -> entries(r, :commits, {limt: 2})) == :bad_option
-  assert raised(() -> entries(r, :stashes, {})) == :bad_option
+  assert raised(() -> gitto::list(r, {of: :commits, limt: 2})) == :bad_option
+  assert raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
   assert raised(() -> fetch(r, {force: true})) == :bad_option
 end
 
@@ -537,7 +558,7 @@ test "clone, fetch, merge and push follow the house rule"
   assert clone(origin, work, {}) == work
   out(work, ["config", "user.name", "Tester"])
   out(work, ["config", "user.email", "tester@example.invalid"])
-  assert map((x) -> x.name, entries(work, :remotes, {})) == ["origin"]
+  assert map((x) -> x.name, gitto::list(work, {of: :remotes})) == ["origin"]
   assert info(work).head == base.oid
   ahead = save(origin, "a.txt", "two\n", "second")
   assert fetch(work, {}).nil?
@@ -546,9 +567,9 @@ test "clone, fetch, merge and push follow the house rule"
   local = save(work, "b.txt", "local\n", "third")
   assert info(work).ahead == 1
   assert push(work, {}).nil?
-  assert commit_at(origin, "main").oid == local.oid
-  assert first(entries(work, :worktrees, {})).path == "/private#{work}" or
-    first(entries(work, :worktrees, {})).path == work
+  assert get(origin, "main", {}).oid == local.oid
+  assert first(gitto::list(work, {of: :worktrees})).path == "/private#{work}" or
+    first(gitto::list(work, {of: :worktrees})).path == work
 end
 
 test "a diverged push rebases once and a diverged merge is refused"
@@ -566,6 +587,79 @@ test "a diverged push rebases once and a diverged merge is refused"
   assert raised(() -> merge(work, "origin/main", {})) == :conflict
   assert raised(() -> push(work, {rebase: false})) == :diverged
   assert push(work, {}).nil?
-  assert map((c) -> c.subject, entries(origin, :commits, {})) ==
+  assert map((c) -> c.subject, gitto::list(origin, {of: :commits})) ==
     ["local", "remote", "first"]
+end
+
+test "get returns one commit by ref or oid and nil when absent"
+  r = fixture("get")
+  assert get(r, "HEAD", {}).nil?
+  first_commit = save(r, "a.txt", "one\n", "first")
+  second = save(r, "a.txt", "two\n", "second")
+  assert get(r, "HEAD", {}) == second
+  assert get(r, "main", {}) == second
+  assert get(r, first_commit.oid, {}) == first_commit
+  assert get(r, "HEAD~1", {}) == first_commit
+  assert get(r, "HEAD~5", {}).nil?
+  assert get(r, "nope", {}).nil?
+  assert get("/tmp/blue-gitto-not-a-repo-at-all", "HEAD", {}).nil?
+end
+
+test "get refuses an option it does not take"
+  r = fixture("get-option")
+  save(r, "a.txt", "one\n", "first")
+  assert raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
+end
+
+test "list defaults to every commit, newest first, and takes of, limit and ref"
+  r = fixture("list-commits")
+  first_commit = save(r, "a.txt", "one\n", "first")
+  save(r, "a.txt", "two\n", "second")
+  third = save(r, "a.txt", "three\n", "third")
+  assert map((c) -> c.subject, gitto::list(r, {})) ==
+    ["third", "second", "first"]
+  assert gitto::list(r, {}) == gitto::list(r, {of: :commits})
+  assert gitto::list(r, {limit: 1}) == [third]
+  assert map((c) -> c.subject, gitto::list(r, {limit: 2})) ==
+    ["third", "second"]
+  assert map((c) -> c.subject, gitto::list(r, {ref: first_commit.oid})) ==
+    ["first"]
+  assert gitto::list(r, {limit: 0}) == []
+end
+
+test "list reads every commit past the old default page of fifty"
+  r = fixture("list-many")
+  map((i) -> save(r, "a.txt", "#{i}\n", "c#{i}"), range(0, 55))
+  assert length(gitto::list(r, {})) == 55
+  assert length(gitto::list(r, {limit: 7})) == 7
+end
+
+test "list reads branches, tags, remotes and worktrees by of"
+  r = fixture("list-refs")
+  head = save(r, "a.txt", "one\n", "first")
+  out(r, ["branch", "topic"])
+  out(r, ["tag", "v1"])
+  assert map((b) -> b.name, gitto::list(r, {of: :branches})) ==
+    ["main", "topic"]
+  assert map((t) -> t.name, gitto::list(r, {of: :tags})) == ["v1"]
+  assert first(gitto::list(r, {of: :tags})).oid == head.oid
+  assert gitto::list(r, {of: :remotes}) == []
+  assert length(gitto::list(r, {of: :worktrees})) == 1
+end
+
+test "list of an empty repository is empty, and of a missing one is not_found"
+  r = fixture("list-empty")
+  assert gitto::list(r, {}) == []
+  assert gitto::list(r, {of: :branches}) == []
+  assert gitto::list(r, {of: :tags}) == []
+  assert raised(() -> gitto::list("/tmp/blue-gitto-not-a-repo-at-all", {})) ==
+    :not_found
+  assert raised(() -> gitto::list(r, {ref: "nope"})) == :not_found
+end
+
+test "list refuses an unknown of and an unknown option"
+  r = fixture("list-bad")
+  save(r, "a.txt", "one\n", "first")
+  assert raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
+  assert raised(() -> gitto::list(r, {limt: 2})) == :bad_option
 end

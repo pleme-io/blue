@@ -202,10 +202,10 @@ verb(
   "get",
   {
     kind: :effect,
-    shape: "get(repo, ref) -> commit or nil",
+    shape: "get(repo, ref, opts) -> commit or nil",
     laterals: ["error", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists:gitto",
     meaning: "one commit, nil when the ref is absent",
     wave: 0,
     origin: "E"
@@ -277,14 +277,13 @@ verb(
   "list",
   {
     kind: :effect,
-    shape: "list(repo, what, opts) -> [record]",
+    shape: "list(repo, opts) -> [record]",
     laterals: ["error", "process"],
     fleet: nil,
-    today: "absent",
-    meaning: "branches, tags, commits, remotes or worktrees",
+    today: "exists:gitto",
+    meaning: "branches, tags, commits, remotes or worktrees, chosen by of:",
     wave: 0,
-    origin: "E",
-    contract: "list(repo, opts) -> [record]"
+    origin: "E"
   }
 )
 

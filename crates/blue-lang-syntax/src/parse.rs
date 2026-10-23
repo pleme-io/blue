@@ -468,6 +468,10 @@ pub const LOWERED_ATTEMPTED: &str = "blue-attempted";
 
 pub const LOWERED_FAILED: &str = "blue-failed";
 
+pub const LOWERED_HEADS: &[&str] = &[
+    "list", "concat", "not", "apply", "equal?", "not=", "and", "or", "mod",
+];
+
 pub const RESCUED: &str = "rescued-error";
 
 pub const SURFACE_KEYWORDS: &[&str] = &[

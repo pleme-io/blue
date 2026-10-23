@@ -142,7 +142,7 @@ test "every bidama in the distribution answers through this one import"
   assert haibi::column_sql("text?") == ["double precision", true] or
     haibi::column_sql("text?") == ["text", true]
   assert settei::env_prefix("a-b") == "A_B_"
-  assert get(shihyou::defaults, "availability") == 99.5
+  assert blue::get(shihyou::defaults, "availability") == 99.5
   assert teeburu::quoted("t") == "\"t\""
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
@@ -166,22 +166,22 @@ test "every bidama in the distribution answers through this one import"
   assert suppress_small(3, 5).nil?
   assert near(mean([2, 4, 6]), 4) == true
   assert zumen::num(1.5) == "1.5"
-  assert get(
+  assert blue::get(
     tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
     :host
   ) ==
     "plo"
-  assert get(souji::parse(["nix"]), :days) == 14
-  assert get(decide({corp: :absent}), :kind) == :noop
+  assert blue::get(souji::parse(["nix"]), :days) == 14
+  assert blue::get(decide({corp: :absent}), :kind) == :noop
   assert size(relay_env("socks5h://r:1")) == 6
   assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
   assert jitaku::to_json([]) == "{\"enable\":true}"
   assert kinko::interval_s("families", 16) == 2765
   assert empresa::slug?("acme-org")
-  assert get(shinchoku::agents_allowed(29, 14, 4000, 0), :allowed) == 0
-  assert get(kijun::fleet_repo(1), :standard) == "fleet-repo"
-  assert nikkusu::kind(get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
+  assert blue::get(shinchoku::agents_allowed(29, 14, 4000, 0), :allowed) == 0
+  assert blue::get(kijun::fleet_repo(1), :standard) == "fleet-repo"
+  assert nikkusu::kind(blue::get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
   assert hyouka::installable(".", "x") == ".#x"
   assert kirikae::attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
   assert shisei::stack([], (r) -> r)(1) == 1

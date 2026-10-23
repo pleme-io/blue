@@ -107,6 +107,10 @@ pub const RESOLUTION_ORDER: [Tier; 4] = [Tier::Local, Tier::Own, Tier::Imported,
 
 pub use blue_lang_syntax::BUILTIN_QUALIFIER;
 
+fn captured_by_lowering(name: &str, tier: Tier) -> bool {
+    matches!(tier, Tier::Own | Tier::Imported) && blue_lang_syntax::LOWERED_HEADS.contains(&name)
+}
+
 /// Where a name lives. The unit a qualified name selects.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Namespace {
@@ -767,6 +771,9 @@ impl NameTable {
     #[must_use]
     pub fn flat_target(&self, name: &str) -> Target {
         let bare = blue_lang_syntax::qualified(name).map_or(name, |(_, n)| n);
+        if blue_lang_syntax::LOWERED_HEADS.contains(&bare) && self.builtin(bare) {
+            return Target::Builtin(bare.to_string());
+        }
         if let Some((_, ns)) = self.last_definer.get(bare) {
             return Target::Def(ns.clone(), bare.to_string());
         }
@@ -833,6 +840,10 @@ impl NameTable {
     ) -> Vec<(Tier, Vec<Namespace>)> {
         let mut out = Vec::new();
         for tier in RESOLUTION_ORDER {
+            if captured_by_lowering(name, tier) {
+                out.push((tier, Vec::new()));
+                continue;
+            }
             let nss: Vec<Namespace> = match tier {
                 Tier::Local => continue,
                 Tier::Own => self
@@ -873,6 +884,9 @@ impl NameTable {
     #[must_use]
     pub fn resolve_from(&self, name: &str, own: &Namespace, top_level: usize) -> Resolution<'_> {
         for tier in RESOLUTION_ORDER {
+            if captured_by_lowering(name, tier) {
+                continue;
+            }
             let hits: Vec<(&Scope, &Binding)> = match tier {
                 Tier::Local => continue,
                 Tier::Own => self
@@ -1982,7 +1996,8 @@ impl Walker<'_> {
         }
         if self.table.bidama(pkg).is_some_and(|s| s.get(n).is_some()) {
             self.resolved += 1;
-            let shadowed_by_local = self.locals_in_scope().contains(&n);
+            let shadowed_by_local =
+                self.locals_in_scope().contains(&n) || blue_lang_syntax::LOWERED_HEADS.contains(&n);
             if shadowed_by_local {
                 // Bare, it would be the local: the qualifier is the only way
                 // to reach the definition here.

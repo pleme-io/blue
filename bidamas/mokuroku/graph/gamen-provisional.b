@@ -215,7 +215,7 @@ verb(
   "layout",
   {
     kind: :pure,
-    shape: "layout(tree, size, opts) -> placed tree",
+    shape: "layout(kind, children, opts) -> tree",
     laterals: [],
     fleet: "egaku",
     today: "exists:gamen",

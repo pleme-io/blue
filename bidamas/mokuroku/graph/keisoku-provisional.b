@@ -38,7 +38,7 @@ verb(
     shape: "counter(name, opts) -> instrument",
     laterals: ["config"],
     fleet: "metrics-go",
-    today: "absent",
+    today: "exists:keisoku",
     meaning: "declare a value that only goes up",
     wave: 0,
     origin: "F"
@@ -68,7 +68,7 @@ verb(
     shape: "gauge(name, opts) -> instrument",
     laterals: ["config"],
     fleet: "metrics-go",
-    today: "absent",
+    today: "exists:keisoku",
     meaning: "declare a value that goes up and down",
     wave: 0,
     origin: "F"
@@ -83,7 +83,7 @@ verb(
     shape: "histogram(name, bounds, opts) -> instrument",
     laterals: ["config"],
     fleet: "metrics-go",
-    today: "partial:kyuuji",
+    today: "exists:keisoku",
     meaning: "declare a value recorded into buckets",
     wave: 0,
     origin: "F"
@@ -98,7 +98,7 @@ verb(
     shape: "increase(counter, by, labels) -> nil",
     laterals: ["idempotent"],
     fleet: "metrics-go",
-    today: "absent",
+    today: "exists:keisoku",
     meaning: "add to a counter",
     wave: 0,
     origin: "F"
@@ -110,14 +110,13 @@ verb(
   "measure",
   {
     kind: :effect,
-    shape: "measure(histogram, f, labels) -> value",
+    shape: "measure(histogram, f, opts) -> value",
     laterals: ["error", "time"],
     fleet: "metrics-go",
-    today: "absent",
+    today: "exists:keisoku",
     meaning: "run f and record how long it took",
     wave: 0,
-    origin: "F",
-    contract: "measure(histogram, f, opts) -> value"
+    origin: "F"
   }
 )
 
@@ -129,7 +128,7 @@ verb(
     shape: "observe(histogram, value, labels) -> nil",
     laterals: ["time"],
     fleet: "metrics-go",
-    today: "exists:kyuuji",
+    today: "exists:keisoku",
     meaning: "record one value into a histogram",
     wave: 0,
     origin: "F"
@@ -189,7 +188,7 @@ verb(
     shape: "put(gauge, value, labels) -> nil",
     laterals: ["idempotent"],
     fleet: "metrics-go",
-    today: "absent",
+    today: "exists:keisoku",
     meaning: "set a gauge to a value",
     wave: 0,
     origin: "F"
@@ -249,7 +248,7 @@ verb(
     shape: "read(source, opts) -> [sample]",
     laterals: ["deadline", "serialize"],
     fleet: nil,
-    today: "absent",
+    today: "partial:keisoku",
     meaning: "scrape samples from an endpoint or exposition text",
     wave: 1,
     origin: "F"

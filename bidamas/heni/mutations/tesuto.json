@@ -1,0 +1,62 @@
+[
+  {
+    "name": "raises true always",
+    "file": "tesuto.b",
+    "find": "  e.kind == kind\nend\n\ndef literal",
+    "replace": "  true\nend\n\ndef literal"
+  },
+  {
+    "name": "raises ignores no-error",
+    "file": "tesuto.b",
+    "find": "  f()\n  false\nrescue e\n  e.kind == kind",
+    "replace": "  f()\n  true\nrescue e\n  e.kind == kind"
+  },
+  {
+    "name": "literal string unquoted",
+    "file": "tesuto.b",
+    "find": "    json_stringify(value)",
+    "replace": "    to_s(value)"
+  },
+  {
+    "name": "slash allowed",
+    "file": "tesuto.b",
+    "find": " or contains?(name, \"/\")",
+    "replace": ""
+  },
+  {
+    "name": "default dir",
+    "file": "tesuto.b",
+    "find": "or \"snapshots\"",
+    "replace": "or \"snaps\""
+  },
+  {
+    "name": "update flag ignored",
+    "file": "tesuto.b",
+    "find": "if get(opts, :update) == true",
+    "replace": "if false"
+  },
+  {
+    "name": "missing passes",
+    "file": "tesuto.b",
+    "find": "  elsif not path_exists(path)",
+    "replace": "  elsif false"
+  },
+  {
+    "name": "mismatch passes",
+    "file": "tesuto.b",
+    "find": "    if expected != actual",
+    "replace": "    if false"
+  },
+  {
+    "name": "checked dropped",
+    "file": "tesuto.b",
+    "find": "  checked(opts, [:name, :dir, :update])\n",
+    "replace": ""
+  },
+  {
+    "name": "newline dropped",
+    "file": "tesuto.b",
+    "find": "  actual = \"#{literal(value)}\\n\"",
+    "replace": "  actual = \"#{literal(value)}\""
+  }
+]

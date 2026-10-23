@@ -52,6 +52,7 @@ use("chokkan")
 use("deeta", [:get_str])
 use("empresa")
 use("fairu")
+use("gamen")
 use("gitto")
 use("gyouretsu", [:dot])
 use("hadome")
@@ -66,6 +67,7 @@ use("junjo", [:is_sorted, :sort])
 use("kakou")
 use("kansuu", [:identity])
 use("kazu", [:clamp, :near])
+use("keisoku")
 use("keiyu", [:relay_env])
 use("kijun")
 use("kikagaku", [:manhattan])
@@ -108,9 +110,12 @@ use("shuusei")
 use("souji")
 use("teeburu")
 use("tehai")
+use("tesuto")
 use("tokumei", [:suppress_small])
 use("toukei", [:mean, :median])
+use("tsuiseki")
 use("tsuushin")
+use("ugoki")
 use("ukai", [:decide])
 use("zumen")
 
@@ -191,6 +196,11 @@ test "every bidama in the distribution answers through this one import"
   assert rogu::level_of("warn") == :warn
   assert tsuushin::join("http://a.com/b/c", "../d") == "http://a.com/d"
   assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}
+  assert gamen::contrast("#000000", "#ffffff") > 20
+  assert keisoku::read(keisoku::counter("probe", {}), {}) == []
+  assert tesuto::raises?(:probe, () -> raise(:probe, "m")) == true
+  assert tsuiseki::span("probe", (_s) -> 1, {sink: (_r) -> nil}) == 1
+  assert ugoki::sample(ugoki::tween(0, 10, {seconds: 2}), 1) == 5
 end
 
 test "four packages compose without the consumer naming any of them"

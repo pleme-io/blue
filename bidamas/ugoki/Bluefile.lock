@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:56b568d469998ee25ed360e19bcfe86e9d96a07a2ea1b82256780509bd938954",
+  "manifest": {
+    "schema": 1,
+    "name": "ugoki",
+    "version": "0.1.0",
+    "needs": {
+      "jisho": "^0.1.0",
+      "kazu": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

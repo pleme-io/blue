@@ -1,0 +1,6 @@
+package("ugoki", "0.1.0")
+needs("jisho", "^0.1")
+needs("kazu", "^0.1")
+needs("moji", "^0.1")
+needs("retsu", "^0.1")
+needs("tesuto", "^0.1")

@@ -1,0 +1,218 @@
+[
+  {
+    "name": "name empty",
+    "file": "keisoku.b",
+    "find": "string?(name) and name != \"\" and",
+    "replace": "string?(name) and"
+  },
+  {
+    "name": "name space",
+    "file": "keisoku.b",
+    "find": " and not contains?(name, \" \")",
+    "replace": ""
+  },
+  {
+    "name": "labels list",
+    "file": "keisoku.b",
+    "find": "elsif list?(declared) and",
+    "replace": "elsif true and"
+  },
+  {
+    "name": "labels names",
+    "file": "keisoku.b",
+    "find": "count_where(name_ok?, map(to_s, declared)) == retsu::size(declared)",
+    "replace": "true"
+  },
+  {
+    "name": "instrument checked",
+    "file": "keisoku.b",
+    "find": "  checked(opts, [:help, :labels])\n",
+    "replace": ""
+  },
+  {
+    "name": "help default",
+    "file": "keisoku.b",
+    "find": "help: get(opts, :help) or \"\"",
+    "replace": "help: get(opts, :help) or \"-\""
+  },
+  {
+    "name": "strictly increasing",
+    "file": "keisoku.b",
+    "find": "nth(0, xs) < nth(1, xs) and",
+    "replace": "nth(0, xs) <= nth(1, xs) and"
+  },
+  {
+    "name": "bounds numbers",
+    "file": "keisoku.b",
+    "find": "count_where(number?, bounds) != retsu::size(bounds) or",
+    "replace": ""
+  },
+  {
+    "name": "bounds nonempty",
+    "file": "keisoku.b",
+    "find": "is_empty(bounds) or",
+    "replace": ""
+  },
+  {
+    "name": "declared label check",
+    "file": "keisoku.b",
+    "find": "if declared != nil and",
+    "replace": "if false and"
+  },
+  {
+    "name": "label value text",
+    "file": "keisoku.b",
+    "find": "to_s(nth(1, e))",
+    "replace": "nth(1, e)"
+  },
+  {
+    "name": "bucket edge",
+    "file": "keisoku.b",
+    "find": "count_where((b) -> value > b, bounds)",
+    "replace": "count_where((b) -> value >= b, bounds)"
+  },
+  {
+    "name": "bump",
+    "file": "keisoku.b",
+    "find": "nth(1, p) + 1",
+    "replace": "nth(1, p) + 2"
+  },
+  {
+    "name": "add",
+    "file": "keisoku.b",
+    "find": "assoc(entry, :value, get(entry, :value) + nth(3, msg))",
+    "replace": "assoc(entry, :value, nth(3, msg))"
+  },
+  {
+    "name": "set",
+    "file": "keisoku.b",
+    "find": "  elsif op == :set\n    assoc(entry, :value, nth(3, msg))",
+    "replace": "  elsif op == :set\n    assoc(entry, :value, get(entry, :value) + nth(3, msg))"
+  },
+  {
+    "name": "sum",
+    "file": "keisoku.b",
+    "find": "sum: get(entry, :sum) + value",
+    "replace": "sum: get(entry, :sum)"
+  },
+  {
+    "name": "count",
+    "file": "keisoku.b",
+    "find": "count: get(entry, :count) + 1",
+    "replace": "count: get(entry, :count)"
+  },
+  {
+    "name": "series keyed by labels",
+    "file": "keisoku.b",
+    "find": "[op, to_s(clean), clean, value]",
+    "replace": "[op, \"x\", clean, value]"
+  },
+  {
+    "name": "kind check",
+    "file": "keisoku.b",
+    "find": "  if get(i, :kind) != kind\n",
+    "replace": "  if false\n"
+  },
+  {
+    "name": "counter only up",
+    "file": "keisoku.b",
+    "find": "  if by < 0\n",
+    "replace": "  if by < -5\n"
+  },
+  {
+    "name": "increase number",
+    "file": "keisoku.b",
+    "find": "  need_number(by, \"increase\")\n",
+    "replace": ""
+  },
+  {
+    "name": "put number",
+    "file": "keisoku.b",
+    "find": "  need_number(value, \"put\")\n",
+    "replace": ""
+  },
+  {
+    "name": "observe number",
+    "file": "keisoku.b",
+    "find": "  need_number(value, \"observe\")\n",
+    "replace": ""
+  },
+  {
+    "name": "measure checked",
+    "file": "keisoku.b",
+    "find": "  checked(opts, [:labels, :clock])\n",
+    "replace": ""
+  },
+  {
+    "name": "measure seconds",
+    "file": "keisoku.b",
+    "find": "(tick(opts) - started) / 1000",
+    "replace": "(tick(opts) - started)"
+  },
+  {
+    "name": "measure reraise",
+    "file": "keisoku.b",
+    "find": "  if first(outcome) == :raised\n    raise(nth(1, outcome))\n  end\n",
+    "replace": ""
+  },
+  {
+    "name": "measure labels",
+    "file": "keisoku.b",
+    "find": "get(opts, :labels))\n  if first(outcome)",
+    "replace": "nil)\n  if first(outcome)"
+  },
+  {
+    "name": "cumulative",
+    "file": "keisoku.b",
+    "find": "(acc, c) -> [first(acc) + c, append(nth(1, acc), [first(acc) + c])]",
+    "replace": "(acc, c) -> [first(acc) + c, append(nth(1, acc), [c])]"
+  },
+  {
+    "name": "inf bucket",
+    "file": "keisoku.b",
+    "find": "[\"+Inf\"]",
+    "replace": "[\"inf\"]"
+  },
+  {
+    "name": "read filter",
+    "file": "keisoku.b",
+    "find": "get(labels, first(e)) == nth(1, e)",
+    "replace": "true"
+  },
+  {
+    "name": "read checked",
+    "file": "keisoku.b",
+    "find": "checked(opts, [:labels, :wait_ms])\n",
+    "replace": ""
+  },
+  {
+    "name": "fetch timeout",
+    "file": "keisoku.b",
+    "find": "raise(:timeout, ",
+    "replace": "raise(:other, "
+  },
+  {
+    "name": "sum name",
+    "file": "keisoku.b",
+    "find": "\"#{name}_sum\"",
+    "replace": "\"#{name}_total\""
+  },
+  {
+    "name": "count name",
+    "file": "keisoku.b",
+    "find": "\"#{name}_count\"",
+    "replace": "\"#{name}_n\""
+  },
+  {
+    "name": "bucket name",
+    "file": "keisoku.b",
+    "find": "\"#{name}_bucket\"",
+    "replace": "\"#{name}_b\""
+  },
+  {
+    "name": "wait option",
+    "file": "keisoku.b",
+    "find": "get(opts, :wait_ms) or 5000",
+    "replace": "5000"
+  }
+]

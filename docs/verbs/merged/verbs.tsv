@@ -493,7 +493,7 @@ G	gamen?	apply	effect	apply(app, patches) -> nil	idempotent	madori	absent	make a
 G	gamen?	check	pure	check(tree, rules) -> findings	validate	-	absent	find accessibility and layout faults in a tree	1	check(tree, rules) -> findings	yes
 G	gamen?	choose	effect	choose(items, opts) -> item or nil	deadline	egaku	absent	the human picks from a list	1	choose(items, opts) -> item or nil	yes
 G	gamen?	component	decl	component(name, spec) -> component	switch,validate	pleme-widget-spec	absent	declare a reusable view: props, state, events	1		na
-G	gamen?	contrast	pure	contrast(a, b) -> ratio	-	-	absent	WCAG contrast ratio of two colors	0		na
+G	gamen?	contrast	pure	contrast(a, b) -> ratio	-	-	exists:gamen	WCAG contrast ratio of two colors	0		na
 G	gamen?	coverage	pure	coverage(bundles) -> report	validate	namimado	absent	keys that a locale still lacks	2	coverage(bundles) -> report	yes
 G	gamen?	describe	pure	describe(node) -> {role, name, state}	-	namimado	absent	the accessibility meaning of a node	1	describe(node) -> {role, name, state}	yes
 G	gamen?	diff	pure	diff(old, new) -> patches	-	egaku	absent	changes between two trees, as patches	2	diff(old, new) -> patches	yes
@@ -513,12 +513,12 @@ G	gamen?	prompt	effect	prompt(question, opts) -> answer	deadline	egaku	absent	as
 G	gamen?	put	effect	put(subject, key, value) -> value	validate	egaku	absent	set a state value, theme token or key binding	1	put(subject, key, value) -> value	yes
 G	gamen?	render	pure	render(tree, target, opts) -> output	serialize	pleme-widget-gen	absent	tree to html, ansi, svg or widget spec text	1	render(tree, target, opts) -> output	yes
 G	gamen?	send	effect	send(app, event) -> nil	-	madori	absent	deliver one event to a running app	2	send(app, event) -> nil	yes
-G	gamen?	show	effect	show(node, opts) -> nil	-	kazari	absent	put a node on the terminal as styled output	0		na
+G	gamen?	show	effect	show(node, opts) -> nil	-	kazari	exists:gamen	put a node on the terminal as styled output	0		na
 G	gamen?	start	effect	start(app, surface, opts) -> handle	process,resource	madori	absent	run an app on a terminal, window or page	2	start(app, surface, opts) -> handle	yes
 G	gamen?	state	decl	state(initial, opts) -> store	serialize	egaku	absent	declare the store that holds a view state	1		na
 G	gamen?	stop	effect	stop(handle, opts) -> nil	cancel,resource	madori	absent	end a running app and free its surface	2	stop(handle, opts) -> nil	yes
 G	gamen?	style	pure	style(node, theme) -> styled node	-	ishou	absent	resolve semantic tokens on a node to colors and sizes	1		na
-G	gamen?	theme	decl	theme(tokens, mode) -> theme	config	irodori	absent	declare a theme: Nord tokens for light and dark	0		na
+G	gamen?	theme	decl	theme(tokens, mode) -> theme	config	irodori	exists:gamen	declare a theme: Nord tokens for light and dark	0		na
 G	gamen?	translate	pure	translate(key, locale, args) -> text	-	pleme-i18n	absent	the message for a key in a locale	1	translate(key, locale, args) -> text	yes
 G	gamen?	update	effect	update(store, key, f) -> value	idempotent	egaku	absent	change a state value to f of the old value	1	update(store, key, f) -> value	yes
 G	gamen?	view	decl	view(kind, props, children) -> node	validate	egaku	absent	declare one UI node with props and children	1		na
@@ -602,12 +602,12 @@ E	gitto	describe	effect	describe(repo, ref) -> {tag:, distance:}	error	-	absent	
 E	gitto	diff	effect	diff(repo, a, b, opts) -> [change]	error,process	-	exists	changes between two refs	0	diff(repo, a, opts) -> [change]	no
 E	gitto	exists?	effect	exists?(repo, ref) -> Bool	process	-	exists	whether a ref resolves	0	exists?(repo, opts) -> Bool	no
 E	gitto	fetch	effect	fetch(repo, opts) -> nil	deadline,error,process,retry	-	exists	update remote refs without touching the tree	0	fetch(repo, opts) -> nil	yes
-E	gitto	get	effect	get(repo, ref) -> commit or nil	error,process	-	absent	one commit, nil when the ref is absent	0	get(repo, ref) -> commit or nil	yes
+E	gitto	get	effect	get(repo, ref, opts) -> commit or nil	error,process	-	exists:gitto	one commit, nil when the ref is absent	0	get(repo, ref, opts) -> commit or nil	yes
 E	gitto	graft	effect	graft(repo, ref) -> commit	error,process	-	absent	apply one commit onto the current branch	2	graft(repo, ref) -> commit	yes
 F	gitto	hook	decl	hook(event, step) -> hook	switch,test	blue	absent	declare a step git runs before commit or push	1		na
 F	gitto	ignore?	effect	ignore?(repo, path) -> Bool	process	-	absent	whether ignore rules hide a path	2		na
 E	gitto	info	effect	info(repo) -> record	error,process	-	exists	branch, head, ahead, behind, changes	0	info(repo) -> record	yes
-E	gitto	list	effect	list(repo, what, opts) -> [record]	error,process	-	absent	branches, tags, commits, remotes or worktrees	0	list(repo, opts) -> [record]	no
+E	gitto	list	effect	list(repo, opts) -> [record]	error,process	-	exists:gitto	branches, tags, commits, remotes or worktrees, chosen by of:	0	list(repo, opts) -> [record]	yes
 E	gitto	merge	effect	merge(repo, ref, opts) -> commit	error,process	-	exists	fast-forward only by default	0	merge(repo, ref, opts) -> commit	yes
 F	gitto	merge_base	effect	merge_base(repo, a, b) -> commit	process	-	absent	the newest commit that both refs contain	1		na
 E	gitto	need	effect	need(repo, ref) -> commit	error	-	absent	one commit, raises when absent	1	need(repo, ref) -> commit	yes
@@ -1152,21 +1152,21 @@ A	kazu	tan	pure	tan(radians) -> number	-	-	absent	tangent	1		na
 A	kazu	whole	pure	whole(n) -> int	-	-	absent	integer part of n, toward zero	1	whole(n) -> int	yes
 F	keisoku?	bench	effect	bench(f, opts) -> stats	deadline,time	tundra-gwbench	absent	run f many times; report spread, not one number	1		na
 F	keisoku?	cardinality	pure	cardinality(samples) -> [row]	validate	-	absent	distinct series per metric, to catch label explosions	2		na
-F	keisoku?	counter	decl	counter(name, opts) -> instrument	config	metrics-go	absent	declare a value that only goes up	0		na
+F	keisoku?	counter	decl	counter(name, opts) -> instrument	config	metrics-go	exists:keisoku	declare a value that only goes up	0		na
 F	keisoku?	diff	pure	diff(a, b, opts) -> [change]	-	-	absent	compare two profiles or bench runs, with significance	2	diff(a, b, opts) -> [change]	yes
-F	keisoku?	gauge	decl	gauge(name, opts) -> instrument	config	metrics-go	absent	declare a value that goes up and down	0		na
-F	keisoku?	histogram	decl	histogram(name, bounds, opts) -> instrument	config	metrics-go	partial:kyuuji	declare a value recorded into buckets	0		na
-F	keisoku?	increase	effect	increase(counter, by, labels) -> nil	idempotent	metrics-go	absent	add to a counter	0		na
-F	keisoku?	measure	effect	measure(histogram, f, labels) -> value	error,time	metrics-go	absent	run f and record how long it took	0	measure(histogram, f, opts) -> value	no
-F	keisoku?	observe	effect	observe(histogram, value, labels) -> nil	time	metrics-go	exists:kyuuji	record one value into a histogram	0	observe(histogram, value, labels) -> nil	yes
+F	keisoku?	gauge	decl	gauge(name, opts) -> instrument	config	metrics-go	exists:keisoku	declare a value that goes up and down	0		na
+F	keisoku?	histogram	decl	histogram(name, bounds, opts) -> instrument	config	metrics-go	exists:keisoku	declare a value recorded into buckets	0		na
+F	keisoku?	increase	effect	increase(counter, by, labels) -> nil	idempotent	metrics-go	exists:keisoku	add to a counter	0		na
+F	keisoku?	measure	effect	measure(histogram, f, opts) -> value	error,time	metrics-go	exists:keisoku	run f and record how long it took	0	measure(histogram, f, opts) -> value	yes
+F	keisoku?	observe	effect	observe(histogram, value, labels) -> nil	time	metrics-go	exists:keisoku	record one value into a histogram	0	observe(histogram, value, labels) -> nil	yes
 F	keisoku?	parse	pure	parse(text, format) -> [sample]	serialize	-	absent	exposition text (Prometheus, OpenMetrics) to samples	1	parse(text, format) -> [sample]	yes
 F	keisoku?	profile	effect	profile(f, opts) -> profile	resource,time	-	rust:blue-lang-cli	run f and report calls, time and allocation per function	0	profile(f, opts) -> profile	yes
 F	keisoku?	push	effect	push(sink, samples, opts) -> nil	deadline,retry	-	absent	send samples to a remote store	2	push(sink, samples, opts) -> nil	yes
-F	keisoku?	put	effect	put(gauge, value, labels) -> nil	idempotent	metrics-go	absent	set a gauge to a value	0	put(gauge, value, labels) -> nil	yes
+F	keisoku?	put	effect	put(gauge, value, labels) -> nil	idempotent	metrics-go	exists:keisoku	set a gauge to a value	0	put(gauge, value, labels) -> nil	yes
 F	keisoku?	quantile	pure	quantile(histogram, q) -> number	-	-	absent	estimate a quantile from buckets	1		na
 F	keisoku?	query	effect	query(store, expr, opts) -> [series]	deadline	-	absent	ask a metrics store with its query language	2	query(store, expr, opts) -> [series]	yes
 F	keisoku?	rate	pure	rate(series, window) -> series	time	-	absent	per-second change of a counter over a window	1		na
-F	keisoku?	read	effect	read(source, opts) -> [sample]	deadline,serialize	-	absent	scrape samples from an endpoint or exposition text	1	read(source, opts) -> [sample]	yes
+F	keisoku?	read	effect	read(source, opts) -> [sample]	deadline,serialize	-	partial:keisoku	scrape samples from an endpoint or exposition text	1	read(source, opts) -> [sample]	yes
 F	keisoku?	render	pure	render(samples, format) -> text	serialize	metrics-go	exists:kyuuji	samples to exposition text, stable order	0	render(samples, format) -> text	yes
 F	keisoku?	top	pure	top(profile, n, by) -> [row]	-	-	absent	the n costliest functions of a profile	1	top(profile, n, by) -> [row]	yes
 F	keisoku?	watch	stream	watch(source, f, opts) -> nil	cancel	-	absent	call f per scrape until it returns stop	2	watch(source, f, opts) -> nil	yes
@@ -2474,12 +2474,12 @@ F	tesuto?	list	effect	list(target, opts) -> [test]	test	blue-lang-test	absent	th
 F	tesuto?	merge	pure	merge(a, b) -> coverage	test	-	absent	combine coverage from several runs or shards	3	merge(a, b) -> coverage	yes
 F	tesuto?	parse	pure	parse(text, format) -> report	serialize,test	-	absent	a JUnit or TAP report to a record	3	parse(text, format) -> report	yes
 F	tesuto?	quarantine	effect	quarantine(test, reason, until) -> nil	switch,test	-	absent	skip a flaky test by a dated, counted entry	2		na
-F	tesuto?	raises?	pure	raises?(kind, f) -> Bool	error,test	blue-lang-test	absent	whether f raises that kind of error	0		na
+F	tesuto?	raises?	pure	raises?(kind, f) -> Bool	error,test	blue-lang-test	exists:tesuto	whether f raises that kind of error	0		na
 F	tesuto?	render	pure	render(report, format) -> text	serialize,test	-	absent	a test report as text, JUnit or TAP	2	render(report, format) -> text	yes
 F	tesuto?	rerun	effect	rerun(test, n) -> [result]	retry,test	-	absent	run one test again n times and keep every result	2		na
 F	tesuto?	run	effect	run(target, opts) -> report	deadline,process,test	blue-lang-test	rust:blue-lang-test	run every test under a target in parallel	0	run(target, opts) -> report	yes
 F	tesuto?	shard	pure	shard(tests, n, i) -> [test]	test	-	absent	the i-th of n balanced groups of tests	2		na
-F	tesuto?	snapshot	effect	snapshot(value, name) -> nil	serialize,test	blue-lang-test	absent	compare a value with its stored copy; update on request	0	snapshot(value, opts) -> nil	no
+F	tesuto?	snapshot	effect	snapshot(value, opts) -> nil	serialize,test	blue-lang-test	exists:tesuto	compare a value with its stored copy; update on request	0	snapshot(value, opts) -> nil	yes
 F	tesuto?	spy	effect	spy(target, f) -> spy	test	-	absent	wrap a function so its calls are recorded	2		na
 F	tesuto?	uncovered	pure	uncovered(coverage) -> [span]	test	-	absent	code that no test reached	3		na
 F	tesuto?	watch	stream	watch(paths, opts) -> nil	cancel,test	blue-lang-cli	rust:blue-lang-cli	rerun tests when a watched file changes	0	watch(paths, f, opts) -> nil	no
@@ -2595,7 +2595,7 @@ F	tsuiseki?	put	effect	put(span, key, value) -> nil	trace	-	absent	set an attrib
 F	tsuiseki?	query	effect	query(store, question, opts) -> [trace]	deadline	-	absent	find traces by service, duration or attribute	2	query(store, question, opts) -> [trace]	yes
 F	tsuiseki?	read	effect	read(source, opts) -> [span]	serialize	-	absent	spans from a file or collector export	2	read(source, opts) -> [span]	yes
 F	tsuiseki?	sample?	pure	sample?(rule, context) -> Bool	ratelimit,trace	-	absent	decide whether a trace is recorded	2		na
-F	tsuiseki?	span	effect	span(name, f, attrs) -> value	error,time,trace	pleme-observability	absent	run f inside a named span	0		na
+F	tsuiseki?	span	effect	span(name, f, attrs) -> value	error,time,trace	pleme-observability	exists:tsuiseki	run f inside a named span	0		na
 F	tsuiseki?	start	effect	start(name, attrs) -> span	trace	pleme-observability	absent	open a span by hand	1	start(name, attrs) -> span	yes
 F	tsuiseki?	stop	effect	stop(span, opts) -> nil	trace	pleme-observability	absent	close a span by hand; records an error status if given	1	stop(span, opts) -> nil	yes
 F	tsuiseki?	tree	pure	tree(spans) -> tree	-	-	absent	assemble spans into a parent-child tree	2	tree(spans) -> tree	yes
@@ -2655,28 +2655,28 @@ C	tsuushin	stream	stream	stream(url, f, opts) -> response	cancel,deadline,error	
 C	tsuushin	update	effect	update(base, key, f, opts) -> value	error,retry	-	absent	GET, apply f, conditional PATCH; raises conflict.	1	update(base, key, f, opts) -> value	yes
 C	tsuushin	upload	effect	upload(url, source, opts) -> response	deadline,error,retry	-	absent	Send a file or multipart form as the body.	2		na
 C	tsuushin	wait	effect	wait(url, opts) -> response	deadline,retry,time	-	absent	Poll until the URL answers a wanted status.	1	wait(url, opts) -> response	yes
-G	ugoki?	advance	pure	advance(motion, state, dt) -> state	-	-	absent	move a motion state forward by dt	0	advance(motion, state, opts) -> state	no
+G	ugoki?	advance	pure	advance(motion, state, opts) -> state	-	-	exists:ugoki	move a motion state forward by dt	0	advance(motion, state, opts) -> state	yes
 G	ugoki?	bake	pure	bake(motion, fps) -> samples	serialize	-	absent	sample a motion at a fixed frame rate	1		na
 G	ugoki?	check	pure	check(motion, limits) -> findings	validate	ishou-batente	absent	find a motion that breaks its time or distance budget	1	check(motion, limits) -> findings	yes
 G	ugoki?	clock	decl	clock(kind, opts) -> clock	time	madori	absent	declare a frame clock: fixed step or display sync	2		na
-G	ugoki?	curve	decl	curve(kind, params) -> curve	validate	ishou-batente	absent	declare an easing curve: bezier, steps or named	0		na
-G	ugoki?	duration	pure	duration(motion) -> duration	time	ishou-batente	absent	how long a motion runs; nil for a spring	0		na
-G	ugoki?	ease	pure	ease(curve, t) -> number	-	ishou-batente	absent	progress from 0 to 1 along a curve at t	0		na
-G	ugoki?	mix	pure	mix(a, b, t) -> value	-	-	absent	blend two numbers, vectors, colors or rotations at t	0		na
+G	ugoki?	curve	decl	curve(kind, params) -> curve	validate	ishou-batente	exists:ugoki	declare an easing curve: bezier, steps or named	0		na
+G	ugoki?	duration	pure	duration(motion) -> duration	time	ishou-batente	exists:ugoki	how long a motion runs; nil for a spring	0		na
+G	ugoki?	ease	pure	ease(curve, t) -> number	-	ishou-batente	exists:ugoki	progress from 0 to 1 along a curve at t	0		na
+G	ugoki?	mix	pure	mix(a, b, t) -> value	-	-	exists:ugoki	blend two numbers, vectors, colors or rotations at t	0		na
 G	ugoki?	parallel	pure	parallel(motions) -> motion	-	ishou-batente	absent	motions that run together	1		na
 G	ugoki?	pause	effect	pause(handle) -> nil	-	-	absent	hold a playing motion where it is	2	pause(handle) -> nil	yes
 G	ugoki?	play	stream	play(motion, f, opts) -> handle	cancel,time	madori	absent	call f with the motion value on every frame	2		na
 G	ugoki?	repeat	pure	repeat(motion, n) -> motion	-	ishou-batente	absent	a motion run n times, or forever	1		na
 G	ugoki?	retime	pure	retime(motion, factor) -> motion	time	-	absent	a motion made faster or slower	1		na
-G	ugoki?	sample	pure	sample(motion, t) -> value	-	-	absent	the value of a motion at time t	0	sample(motion, t) -> value	yes
+G	ugoki?	sample	pure	sample(motion, t) -> value	-	-	exists:ugoki	the value of a motion at time t	0	sample(motion, t) -> value	yes
 G	ugoki?	seek	effect	seek(handle, t) -> nil	-	-	absent	jump a playing motion to time t	2		na
 G	ugoki?	sequence	pure	sequence(motions) -> motion	-	ishou-batente	absent	motions that run one after another	1		na
-G	ugoki?	settled?	pure	settled?(motion, state) -> Bool	-	-	absent	whether a motion has come to rest	0		na
+G	ugoki?	settled?	pure	settled?(motion, state) -> Bool	-	-	exists:ugoki	whether a motion has come to rest	0		na
 G	ugoki?	soften	pure	soften(motion, preference) -> motion	config	-	absent	a motion reduced for people who prefer less motion	1		na
-G	ugoki?	spring	decl	spring(stiffness, damping, mass) -> motion	validate	-	absent	declare a damped spring motion	0		na
+G	ugoki?	spring	decl	spring(stiffness, damping, mass) -> motion	validate	-	exists:ugoki	declare a damped spring motion	0		na
 G	ugoki?	stagger	pure	stagger(motions, delay) -> motion	time	ishou-batente	absent	motions that start one delay apart	1		na
 G	ugoki?	timeline	decl	timeline(tracks) -> motion	validate	ishou-batente	absent	declare keyframe tracks on one clock	1		na
-G	ugoki?	tween	decl	tween(from, to, opts) -> motion	validate	caixa-bevy_tweening	absent	declare a change of value over a duration	0		na
+G	ugoki?	tween	decl	tween(from, to, opts) -> motion	validate	caixa-bevy_tweening	exists:ugoki	declare a change of value over a duration	0		na
 D	ukai	apply	effect	apply(plan, opts) -> record	idempotent,log,process	-	partial:ukai	install the planned routes; same plan twice changes nothing	1	apply(plan, opts) -> record	yes
 D	ukai	decide	pure	decide(state) -> outcome	validate	-	exists:ukai	noop, bypass, refused or blind, over a total state	0	decide(state) -> outcome	yes
 D	ukai	observe	effect	observe(opts) -> state	process,resource	-	partial:ukai	read routes and overlay status into one typed state	0	observe(opts) -> state	yes

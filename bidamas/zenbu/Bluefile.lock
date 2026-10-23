@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f10c4151081e55f7bfb0bb7bf575ce2459fea59205b78be02e4d7eb55c3f8317",
+  "bluefile_b3": "b3:44f76d50569f8b47f737b6c7f6e895be0c2705baef54ec6e47dadf64f6f90924",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -13,6 +13,7 @@
       "deeta": "^0.1.0",
       "empresa": "^0.1.0",
       "fairu": "^0.1.0",
+      "gamen": "^0.1.0",
       "gitto": "^0.1.0",
       "gyouretsu": "^0.1.0",
       "hadome": "^0.1.0",
@@ -26,6 +27,7 @@
       "kakou": "^0.1.0",
       "kansuu": "^0.1.0",
       "kazu": "^0.1.0",
+      "keisoku": "^0.1.0",
       "keiyu": "^0.1.0",
       "kijun": "^0.1.0",
       "kikagaku": "^0.1.0",
@@ -66,9 +68,12 @@
       "souji": "^0.1.0",
       "teeburu": "^0.1.0",
       "tehai": "^0.1.0",
+      "tesuto": "^0.1.0",
       "tokumei": "^0.1.0",
       "toukei": "^0.1.0",
+      "tsuiseki": "^0.1.0",
       "tsuushin": "^0.1.0",
+      "ugoki": "^0.1.0",
       "ukai": "^0.1.0",
       "zumen": "^0.1.0"
     },

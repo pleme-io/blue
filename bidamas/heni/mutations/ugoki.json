@@ -1,0 +1,200 @@
+[
+  {
+    "name": "ease clamp low",
+    "file": "ugoki.b",
+    "find": "u = clamp(t, 0, 1)",
+    "replace": "u = min(t, 1)"
+  },
+  {
+    "name": "ease clamp high",
+    "file": "ugoki.b",
+    "find": "u = clamp(t, 0, 1)",
+    "replace": "u = max(t, 0)"
+  },
+  {
+    "name": "steps floor to round",
+    "file": "ugoki.b",
+    "find": "floor(u * get(c, :count))",
+    "replace": "round(u * get(c, :count))"
+  },
+  {
+    "name": "bezier branch inverted",
+    "file": "ugoki.b",
+    "find": "if bezier_at(x1, x2, mid) < target",
+    "replace": "if bezier_at(x1, x2, mid) > target"
+  },
+  {
+    "name": "bezier few rounds",
+    "file": "ugoki.b",
+    "find": "0.0, 1.0, 48)",
+    "replace": "0.0, 1.0, 2)"
+  },
+  {
+    "name": "bezier endpoints",
+    "file": "ugoki.b",
+    "find": "  elsif u == 0 or u == 1\n    u",
+    "replace": "  elsif u == 0\n    u"
+  },
+  {
+    "name": "named ease_in swapped",
+    "file": "ugoki.b",
+    "find": "ease_in: [0.42, 0.0, 1.0, 1.0]",
+    "replace": "ease_in: [0.0, 0.0, 0.58, 1.0]"
+  },
+  {
+    "name": "bezier arity",
+    "file": "ugoki.b",
+    "find": "retsu::size(points) != 4 or",
+    "replace": "retsu::size(points) != 5 or"
+  },
+  {
+    "name": "steps whole",
+    "file": "ugoki.b",
+    "find": "if not whole?(params) or params < 1",
+    "replace": "if params < 1"
+  },
+  {
+    "name": "linear params",
+    "file": "ugoki.b",
+    "find": "    if params != nil\n      raise(:bad_option, \"a linear curve takes no params\")\n    end\n",
+    "replace": ""
+  },
+  {
+    "name": "mix lerp",
+    "file": "ugoki.b",
+    "find": "  if number?(a) and number?(b)\n    lerp(a, b, t)",
+    "replace": "  if number?(a) and number?(b)\n    lerp(b, a, t)"
+  },
+  {
+    "name": "mix list size",
+    "file": "ugoki.b",
+    "find": " and retsu::size(a) == retsu::size(b)",
+    "replace": ""
+  },
+  {
+    "name": "mix alpha",
+    "file": "ugoki.b",
+    "find": "if jisho::has?(a, :a) and jisho::has?(b, :a)",
+    "replace": "if jisho::has?(a, :a) or jisho::has?(b, :a)"
+  },
+  {
+    "name": "slerp flip",
+    "file": "ugoki.b",
+    "find": "  sign = if d < 0\n    -1",
+    "replace": "  sign = if d < 0\n    1"
+  },
+  {
+    "name": "slerp near",
+    "file": "ugoki.b",
+    "find": "cosine > 0.9995",
+    "replace": "cosine > 2"
+  },
+  {
+    "name": "slerp weight",
+    "file": "ugoki.b",
+    "find": "sin((1 - t) * theta) / sin(theta)",
+    "replace": "sin(t * theta) / sin(theta)"
+  },
+  {
+    "name": "tween seconds required",
+    "file": "ugoki.b",
+    "find": "not number?(seconds) or seconds <= 0",
+    "replace": "not number?(seconds)"
+  },
+  {
+    "name": "tween declared mix check",
+    "file": "ugoki.b",
+    "find": "  mix(from, to, 0)\n",
+    "replace": ""
+  },
+  {
+    "name": "tween checked",
+    "file": "ugoki.b",
+    "find": "  checked(opts, [:seconds, :curve])\n",
+    "replace": ""
+  },
+  {
+    "name": "spring stiffness",
+    "file": "ugoki.b",
+    "find": "not number?(stiffness) or stiffness <= 0",
+    "replace": "not number?(stiffness)"
+  },
+  {
+    "name": "spring damping",
+    "file": "ugoki.b",
+    "find": "not number?(damping) or damping < 0",
+    "replace": "not number?(damping)"
+  },
+  {
+    "name": "spring mass",
+    "file": "ugoki.b",
+    "find": "not number?(mass) or mass <= 0",
+    "replace": "not number?(mass)"
+  },
+  {
+    "name": "critical test",
+    "file": "ugoki.b",
+    "find": "  elsif zeta == 1\n",
+    "replace": "  elsif zeta == 2\n"
+  },
+  {
+    "name": "underdamped velocity",
+    "file": "ugoki.b",
+    "find": "decay * w0 * w0 / wd * sin(wd * t)",
+    "replace": "decay * w0 * wd * sin(wd * t)"
+  },
+  {
+    "name": "overdamped",
+    "file": "ugoki.b",
+    "find": "[1 - (s2 * e1 - s1 * e2) / (s2 - s1),",
+    "replace": "[1 - (s1 * e1 - s2 * e2) / (s2 - s1),"
+  },
+  {
+    "name": "advance negative",
+    "file": "ugoki.b",
+    "find": "not number?(dt) or dt < 0",
+    "replace": "not number?(dt)"
+  },
+  {
+    "name": "advance nil state",
+    "file": "ugoki.b",
+    "find": "  if state.nil?\n    0\n  else",
+    "replace": "  if false\n    0\n  else"
+  },
+  {
+    "name": "settled tween",
+    "file": "ugoki.b",
+    "find": "    t >= get(m, :seconds)",
+    "replace": "    t > get(m, :seconds)"
+  },
+  {
+    "name": "settled velocity",
+    "file": "ugoki.b",
+    "find": "abs(first(at) - 1) < 0.001 and abs(nth(1, at)) < 0.001",
+    "replace": "abs(first(at) - 1) < 0.001"
+  },
+  {
+    "name": "settled position",
+    "file": "ugoki.b",
+    "find": "abs(first(at) - 1) < 0.001 and abs(nth(1, at)) < 0.001",
+    "replace": "abs(nth(1, at)) < 0.001"
+  },
+  {
+    "name": "bezier x2 range",
+    "file": "ugoki.b",
+    "find": "nth(2, points) > 1",
+    "replace": "nth(2, points) > 5"
+  },
+  {
+    "name": "bezier x1 range",
+    "file": "ugoki.b",
+    "find": "nth(0, points) > 1 or",
+    "replace": "nth(0, points) > 5 or"
+  },
+  {
+    "name": "steps count read",
+    "file": "ugoki.b",
+    "find": "floor(u * get(c, :count)) / get(c, :count)",
+    "replace": "floor(u * get(c, :count)) / (get(c, :count) + 1)"
+  }
+]

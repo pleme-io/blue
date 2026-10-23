@@ -68,7 +68,7 @@ verb(
     shape: "contrast(a, b) -> ratio",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:gamen",
     meaning: "WCAG contrast ratio of two colors",
     wave: 0,
     origin: "G"
@@ -368,7 +368,7 @@ verb(
     shape: "show(node, opts) -> nil",
     laterals: [],
     fleet: "kazari",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "put a node on the terminal as styled output",
     wave: 0,
     origin: "G"
@@ -443,7 +443,7 @@ verb(
     shape: "theme(tokens, mode) -> theme",
     laterals: ["config"],
     fleet: "irodori",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "declare a theme: Nord tokens for light and dark",
     wave: 0,
     origin: "G"

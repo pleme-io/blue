@@ -218,7 +218,7 @@ verb(
     shape: "span(name, f, attrs) -> value",
     laterals: ["error", "time", "trace"],
     fleet: "pleme-observability",
-    today: "absent",
+    today: "exists:tsuiseki",
     meaning: "run f inside a named span",
     wave: 0,
     origin: "F"

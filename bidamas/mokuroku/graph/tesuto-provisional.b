@@ -248,7 +248,7 @@ verb(
     shape: "raises?(kind, f) -> Bool",
     laterals: ["error", "test"],
     fleet: "blue-lang-test",
-    today: "absent",
+    today: "exists:tesuto",
     meaning: "whether f raises that kind of error",
     wave: 0,
     origin: "F"
@@ -320,14 +320,13 @@ verb(
   "snapshot",
   {
     kind: :effect,
-    shape: "snapshot(value, name) -> nil",
+    shape: "snapshot(value, opts) -> nil",
     laterals: ["serialize", "test"],
     fleet: "blue-lang-test",
-    today: "absent",
+    today: "exists:tesuto",
     meaning: "compare a value with its stored copy; update on request",
     wave: 0,
-    origin: "F",
-    contract: "snapshot(value, opts) -> nil"
+    origin: "F"
   }
 )
 

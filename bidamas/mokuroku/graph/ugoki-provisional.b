@@ -5,14 +5,13 @@ verb(
   "advance",
   {
     kind: :pure,
-    shape: "advance(motion, state, dt) -> state",
+    shape: "advance(motion, state, opts) -> state",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "move a motion state forward by dt",
     wave: 0,
-    origin: "G",
-    contract: "advance(motion, state, opts) -> state"
+    origin: "G"
   }
 )
 
@@ -69,7 +68,7 @@ verb(
     shape: "curve(kind, params) -> curve",
     laterals: ["validate"],
     fleet: "ishou-batente",
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "declare an easing curve: bezier, steps or named",
     wave: 0,
     origin: "G"
@@ -84,7 +83,7 @@ verb(
     shape: "duration(motion) -> duration",
     laterals: ["time"],
     fleet: "ishou-batente",
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "how long a motion runs; nil for a spring",
     wave: 0,
     origin: "G"
@@ -99,7 +98,7 @@ verb(
     shape: "ease(curve, t) -> number",
     laterals: [],
     fleet: "ishou-batente",
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "progress from 0 to 1 along a curve at t",
     wave: 0,
     origin: "G"
@@ -114,7 +113,7 @@ verb(
     shape: "mix(a, b, t) -> value",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "blend two numbers, vectors, colors or rotations at t",
     wave: 0,
     origin: "G"
@@ -204,7 +203,7 @@ verb(
     shape: "sample(motion, t) -> value",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "the value of a motion at time t",
     wave: 0,
     origin: "G"
@@ -249,7 +248,7 @@ verb(
     shape: "settled?(motion, state) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "whether a motion has come to rest",
     wave: 0,
     origin: "G"
@@ -279,7 +278,7 @@ verb(
     shape: "spring(stiffness, damping, mass) -> motion",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "declare a damped spring motion",
     wave: 0,
     origin: "G"
@@ -324,7 +323,7 @@ verb(
     shape: "tween(from, to, opts) -> motion",
     laterals: ["validate"],
     fleet: "caixa-bevy_tweening",
-    today: "absent",
+    today: "exists:ugoki",
     meaning: "declare a change of value over a duration",
     wave: 0,
     origin: "G"

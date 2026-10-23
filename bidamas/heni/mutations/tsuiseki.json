@@ -1,0 +1,134 @@
+[
+  {
+    "name": "reserved parent",
+    "file": "tsuiseki.b",
+    "find": "[:parent, :sink]",
+    "replace": "[:sink]"
+  },
+  {
+    "name": "reserved sink",
+    "file": "tsuiseki.b",
+    "find": "[:parent, :sink]",
+    "replace": "[:parent]"
+  },
+  {
+    "name": "attrs record",
+    "file": "tsuiseki.b",
+    "find": "  if not map?(given)\n",
+    "replace": "  if false\n"
+  },
+  {
+    "name": "trace shared",
+    "file": "tsuiseki.b",
+    "find": "    get(parent, :trace_id)",
+    "replace": "    take_chars(blake3_hex(name), 32)"
+  },
+  {
+    "name": "trace length",
+    "file": "tsuiseki.b",
+    "find": "take_chars(blake3_hex(\"#{name}/#{to_s(started)}\"), 32)",
+    "replace": "take_chars(blake3_hex(\"#{name}/#{to_s(started)}\"), 31)"
+  },
+  {
+    "name": "id length",
+    "file": "tsuiseki.b",
+    "find": "      16\n    ),",
+    "replace": "      15\n    ),"
+  },
+  {
+    "name": "parent id",
+    "file": "tsuiseki.b",
+    "find": "    get(parent, :id)\n",
+    "replace": "    get(parent, :trace_id)\n"
+  },
+  {
+    "name": "parent shape id",
+    "file": "tsuiseki.b",
+    "find": " and has?(parent, :id)",
+    "replace": ""
+  },
+  {
+    "name": "parent shape trace",
+    "file": "tsuiseki.b",
+    "find": "has?(parent, :trace_id) and",
+    "replace": ""
+  },
+  {
+    "name": "parent map",
+    "file": "tsuiseki.b",
+    "find": "not (map?(parent) and",
+    "replace": "not (true and"
+  },
+  {
+    "name": "status ok",
+    "file": "tsuiseki.b",
+    "find": "merge(base, {status: :ok})",
+    "replace": "merge(base, {status: :error})"
+  },
+  {
+    "name": "status error",
+    "file": "tsuiseki.b",
+    "find": "{status: :error, error:",
+    "replace": "{status: :ok, error:"
+  },
+  {
+    "name": "error kind",
+    "file": "tsuiseki.b",
+    "find": "error: {kind: error.kind, message: error.message}",
+    "replace": "error: {kind: error.message, message: error.message}"
+  },
+  {
+    "name": "duration",
+    "file": "tsuiseki.b",
+    "find": "{duration_ns: elapsed_since(get(s, :started_ns))}",
+    "replace": "{duration_ns: -1}"
+  },
+  {
+    "name": "sink used",
+    "file": "tsuiseki.b",
+    "find": "  if sink.nil?\n    rogu::info",
+    "replace": "  if true\n    rogu::info"
+  },
+  {
+    "name": "reraise",
+    "file": "tsuiseki.b",
+    "find": "  if failure != nil\n    raise(failure)\n  end\n",
+    "replace": ""
+  },
+  {
+    "name": "emit before reraise",
+    "file": "tsuiseki.b",
+    "find": "  emit(closed(s, failure), attrs)\n",
+    "replace": ""
+  },
+  {
+    "name": "name check",
+    "file": "tsuiseki.b",
+    "find": "not string?(name) or name == \"\"",
+    "replace": "not string?(name)"
+  },
+  {
+    "name": "name type",
+    "file": "tsuiseki.b",
+    "find": "not string?(name) or name == \"\"",
+    "replace": "name == \"\""
+  },
+  {
+    "name": "function gets span",
+    "file": "tsuiseki.b",
+    "find": "[:returned, f(s)]",
+    "replace": "[:returned, f(nil)]"
+  },
+  {
+    "name": "returns value",
+    "file": "tsuiseki.b",
+    "find": "  nth(1, outcome)\nend",
+    "replace": "  nil\nend"
+  },
+  {
+    "name": "validate before run",
+    "file": "tsuiseki.b",
+    "find": "  s = opened(name, attrs, now_ns)\n",
+    "replace": "  s = {name: name, attrs: {}, started_ns: now_ns, trace_id: \"t\", id: \"i\", parent_id: nil}\n"
+  }
+]

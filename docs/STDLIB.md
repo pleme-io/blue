@@ -497,8 +497,9 @@ With `raise`/`rescue` in the language, kyohi stops being a parallel error model 
 `:not_found` (exit 66), `:usage` (64), `:hold` (75, EX_TEMPFAIL), `:timeout` (retryable),
 `:command_failed`, `:parse_error` (65), `:conflict` (retryable). `main` maps an uncaught kind to its
 exit status. `heikou::retry` reads `retryable` by default. Every `raise` in a space package must
-name a ledger kind (§5.4). Collect-every-problem validation keeps one verb, `kyohi::check(refusals)`,
-which raises a single error carrying the list. **Absorbs:** `refusal`, `refuse` → `check`, `ok`,
+name a ledger kind (§5.4). Collect-every-problem validation keeps one verb, `kyohi::check(subject, rules)`,
+which returns every finding as a list (empty when sound); `kyohi::enforce(subject, rules, opts)` is its
+raising form and throws a single error carrying the list (`kind: :first` takes the first finding's kind). **Absorbs:** `refusal`, `refuse` → `enforce`, `ok`,
 `refused`, `ok?`, `value`, `refusal_of` (the result-wrapper half is retired, since rescue does that
 job) and the per-package refusal families (kueri 16, nisshi 12, raifusaikuru 12, kinji 8, …;
 `theory/BLUE-GAPS.md` G4).
@@ -824,7 +825,7 @@ caller still on it), and `blue check --fix` applies the machine-applicable cases
 | `shomei::hash_message`, `sign_message`, `verify_message`, `signing_keypair` | `hash(_, :blake3)`, `sign`, `verify?`, `keypair` | machine-applicable |
 | `hyouka::eval_json`, `plan_build` | `eval`, `plan` | machine-applicable |
 | `settei::load` | `settei::read` | machine-applicable |
-| `kyohi::refuse(rs)` | `kyohi::check(rs)` | machine-applicable |
+| `kyohi::refuse(rs)` | `kyohi::enforce(rs, [(r) -> r], {kind: :first})` | machine-applicable |
 
 The raw builtins are **switched off for programs, never deleted**: `exec_capture`, `read_file` and the
 rest stay bound, because the space packages are built on them, and outside those packages a rule

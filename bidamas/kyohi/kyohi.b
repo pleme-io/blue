@@ -1,16 +1,16 @@
-use("retsu", [:find_first, :first, :flat_map, :is_empty, :size])
+use("retsu", [:contains, :find_first, :first, :flat_map, :is_empty, :size])
 
 # kyohi (拒否) — refusals, as data.
 #
 # A refusal is `[kind, why]`: a keyword naming what was refused and the reason,
 # usually text. A check that can fail several ways at once returns EVERY
 # refusal it finds, as a list, instead of throwing on the first, so a caller
-# sees the whole picture and can test for one kind. `refuse` turns that list
-# into one thrown error when the caller wants to stop.
+# sees the whole picture and can test for one kind. `check` returns that list
+# (empty when the subject is sound); `enforce` is its raising form and turns
+# the list into one thrown error when the caller wants to stop.
 #
-# kueri, kinji and nisshi each wrote this vocabulary, and kueri's `refuse` and
-# kinji's were the same definition. It lives here once; their names are
-# bridges to these (`legacy_names`) until each package's 0.2.0.
+# kueri, kinji and nisshi each wrote this vocabulary. It lives here once;
+# their names are bridges to these (`legacy_names`) until each package's 0.2.0.
 
 # A refusal of `kind`, because `why`.
 def refusal(kind, why)
@@ -30,15 +30,6 @@ end
 # The kind of each refusal, in order.
 def kinds(refusals)
   map(kind, refusals)
-end
-
-# nil when there is nothing to refuse; otherwise throws one error whose kind
-# is the first refusal's and whose message joins every refusal's why.
-def refuse(refusals)
-  if is_empty(refusals) == false
-    raise(kind(first(refusals)), join(map(why, refusals), "; "))
-  end
-  nil
 end
 
 def ledger_row(k, meaning, status, retry)
@@ -94,15 +85,23 @@ def retryable?(k)
   get(ledger_entry(k), :retryable)
 end
 
-def findings(subject, rules)
+def check(subject, rules)
   flat_map((rule) -> rule(subject), rules)
 end
 
+def raised_kind(want, found)
+  if want == :first
+    kind(first(found))
+  else
+    want or :refused
+  end
+end
+
 def enforce(subject, rules, opts)
-  found = findings(subject, rules)
+  found = check(subject, rules)
   if is_empty(found) == false
     raise(
-      get(opts, :kind) or :refused,
+      raised_kind(get(opts, :kind), found),
       join(map(why, found), "; "),
       {data: found}
     )
@@ -172,16 +171,6 @@ test "a refusal is its kind and its why"
   assert kinds([]) == []
 end
 
-test "refuse passes nothing and throws everything, kind first"
-  assert refuse([]).nil?
-  caught = begin
-    refuse([refusal(:a, "one"), refusal(:b, "two")])
-  rescue e
-    e
-  end
-  assert error?(caught) == true
-end
-
 test "the ledger is closed: one row per kind, each with a status and a retry mark"
   rows = ledger
   assert size(rows) == size(kinds(map((r) -> [get(r, :kind), ""], rows)))
@@ -207,23 +196,90 @@ test "a retryable kind is the transient ones, and an unknown kind is refused"
   assert caught.kind == :not_found
 end
 
-test "enforce passes a sound subject and raises every finding at once"
+test "check returns every finding of every rule, in rule order, and never raises"
+  small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
+  odd = (n) -> filter((_) -> n % 2 == 1, [refusal(:odd, "#{n} is odd")])
+  assert check(2, [small, odd]) == []
+  assert check(2, []) == []
+  assert check(5, []) == []
+  assert check(1, [small, odd]) == [refusal(:odd, "1 is odd")]
+  assert check(5, [small, odd]) ==
+    [refusal(:too_big, "5 > 2"), refusal(:odd, "5 is odd")]
+  assert check(5, [odd, small]) ==
+    [refusal(:odd, "5 is odd"), refusal(:too_big, "5 > 2")]
+  assert check(5, [small, small]) ==
+    [refusal(:too_big, "5 > 2"), refusal(:too_big, "5 > 2")]
+  assert kinds(check(4, [small])) == [:too_big]
+  assert check([], [(xs) -> xs]) == []
+end
+
+test "enforce passes a sound subject and returns nil"
   small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
   odd = (n) -> filter((_) -> n % 2 == 1, [refusal(:odd, "#{n} is odd")])
   assert enforce(2, [small, odd], {}).nil?
   assert enforce(2, [], {}).nil?
-  caught = begin
-    enforce(5, [small, odd], {})
-  rescue e
-    e
+  assert enforce(7, [], {kind: :usage}).nil?
+  assert enforce(2, [small], {kind: :first}).nil?
+end
+
+test "enforce raises refused with every finding joined and carried as data"
+  small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
+  odd = (n) -> filter((_) -> n % 2 == 1, [refusal(:odd, "#{n} is odd")])
+  caught_by = fn(f)
+    begin
+      f()
+    rescue e
+      e
+    end
   end
+  caught = caught_by(() -> enforce(5, [small, odd], {}))
+  assert error?(caught) == true
   assert caught.kind == :refused
   assert caught.message == "5 > 2; 5 is odd"
   assert kinds(caught.data) == [:too_big, :odd]
-  named = begin
-    enforce(5, [small], {kind: :usage})
-  rescue e
-    e
+  assert caught.data == check(5, [small, odd])
+  single = caught_by(() -> enforce(4, [small], {}))
+  assert single.kind == :refused
+  assert single.message == "4 > 2"
+end
+
+test "enforce takes the kind from opts, or the first finding's with :first"
+  small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
+  odd = (n) -> filter((_) -> n % 2 == 1, [refusal(:odd, "#{n} is odd")])
+  caught_by = fn(f)
+    begin
+      f()
+    rescue e
+      e
+    end
   end
+  named = caught_by(() -> enforce(5, [small], {kind: :usage}))
   assert named.kind == :usage
+  assert named.message == "5 > 2"
+  nil_kind = caught_by(() -> enforce(5, [small], {kind: nil}))
+  assert nil_kind.kind == :refused
+  first_kind = caught_by(() -> enforce(5, [odd, small], {kind: :first}))
+  assert first_kind.kind == :odd
+  assert first_kind.message == "5 is odd; 5 > 2"
+  assert kinds(first_kind.data) == [:odd, :too_big]
+  other = caught_by(() -> enforce(5, [small, odd], {kind: :first}))
+  assert other.kind == :too_big
+end
+
+test "enforce raises exactly when check finds something"
+  small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
+  odd = (n) -> filter((_) -> n % 2 == 1, [refusal(:odd, "#{n} is odd")])
+  caught_by = fn(f)
+    begin
+      f()
+    rescue e
+      e
+    end
+  end
+  every = [-3, 0, 1, 2, 3, 4, 5, 8]
+  sound = map((n) -> is_empty(check(n, [small, odd])), every)
+  quiet = map((n) -> caught_by(() -> enforce(n, [small, odd], {})).nil?, every)
+  assert sound == quiet
+  assert contains(sound, true) == true
+  assert contains(sound, false) == true
 end

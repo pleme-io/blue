@@ -343,7 +343,13 @@ edge(
   "bad text never becomes a policy"
 )
 
-edge("kengen?::permit", :guards, "kyohi::check", "denial is a ledger refusal")
+edge(
+  "kengen?::permit",
+  :guards,
+  "kyohi::enforce",
+  "denial raises a ledger refusal"
+)
+
 edge("kengen?::revoke", :inverse, "kengen?::grant", "removes the tuple")
 edge("kengen?::grant", :inverse, "kengen?::revoke", "removes the tuple")
 

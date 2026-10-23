@@ -1,6 +1,6 @@
 use("deeta", [:as_json])
 use("kazu")
-use("kyohi", [:refuse])
+use("kyohi", [:enforce])
 use("moji", [:char_at, :made_of, :strip_suffix])
 
 use(
@@ -30,11 +30,7 @@ legacy_names("0.1.1", "q")
 
 legacy_names(
   "0.1.2",
-  [
-    ["refusal_kind", "kyohi::kind"],
-    ["refusal_why", "kyohi::why"],
-    ["refuse", "kyohi::refuse"]
-  ]
+  [["refusal_kind", "kyohi::kind"], ["refusal_why", "kyohi::why"]]
 )
 
 # kueri (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
@@ -1609,7 +1605,7 @@ end
 
 # The model, or a thrown error naming every violation (its kind is the first's).
 def check(model)
-  refuse(refusals(model))
+  enforce(model, [refusals], {kind: :first})
   model
 end
 
@@ -2188,7 +2184,7 @@ def render(model, dialect)
     raise(:kueri_shape, "a dialect is :core or :duckdb")
   end
   check(model)
-  refuse(dialect_refusals(model, dialect))
+  enforce(model, [(m) -> dialect_refusals(m, dialect)], {kind: :first})
   render_query(model, dialect)
 end
 
@@ -2864,6 +2860,19 @@ test "a duckdb-only construct in a :portable model is refused, and q_check throw
     {name: :names, from: plays, posture: [:portable], pipeline: stages}
   )
   assert refusal_kinds(held) == [:kueri_reach]
+  thrown = begin
+    check(held)
+  rescue e
+    e
+  end
+  assert thrown.kind == :kueri_reach
+  assert thrown.message == blue::join(map(kyohi::why, refusals(held)), "; ")
+  rendered = begin
+    render(held, :duckdb)
+  rescue e
+    e
+  end
+  assert rendered.kind == :kueri_reach
   assert error?(
     begin
       check(held)
@@ -3101,6 +3110,14 @@ test "the renderer holds the floor on its own: no door leads a duckdb form into 
     }
   )
   assert is_empty(refusals(m)) == true
+  floor = begin
+    render(m, :core)
+  rescue e
+    e
+  end
+  assert floor.kind == kyohi::kind(first(dialect_refusals(m, :core)))
+  assert floor.message ==
+    blue::join(map(kyohi::why, dialect_refusals(m, :core)), "; ")
   assert error?(
     begin
       render(m, :core)

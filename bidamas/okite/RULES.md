@@ -19,3 +19,4 @@ the build.
 - **D0011** The empty list is always []: no list operation returns nil for an empty result.
 - **D0012** `split` keeps every field: n separators give n + 1 fields, and join undoes split. Deviation from Ruby.
 - **D0013** A conversion chain is simplified only by a row of chain_rules, and a row gives the chain's own value, or its refusal, for every value.
+- **D0014** `kyohi::check` returns every finding and never raises; `kyohi::enforce` raises them as one error: kind from opts (`:first` or `:refused`), whys joined.

@@ -1,4 +1,4 @@
-use("kyohi", [:refusal, :refuse])
+use("kyohi", [:enforce, :refusal])
 use("retsu", [:first])
 
 def env_prefix(app)
@@ -155,7 +155,11 @@ def resolve(app, defaults, doc, lookup)
     [defaults, [refusal(:not_a_map, "the config file must hold one object")]]
   end
   from_env = env_tier(app, first(from_file), lookup, [])
-  refuse(append(second(from_file), second(from_env)))
+  enforce(
+    [from_file, from_env],
+    [(tiers) -> append(second(first(tiers)), second(second(tiers)))],
+    {kind: :first}
+  )
   first(from_env)
 end
 
@@ -333,6 +337,12 @@ test "an unknown key and a wrong type are each refused, all at once"
   rescue e
     e.message
   end
+  thrown = begin
+    resolve("x", d, doc, env_of({"X_PORT" => "eighty"}))
+  rescue e
+    e
+  end
+  assert thrown.kind == :wrong_type
   assert contains?(caught, "prot is not a setting") == true
   assert contains?(caught, "flags.shout must be bool, got text") == true
   assert contains?(caught, "X_PORT=eighty is not a int") == true

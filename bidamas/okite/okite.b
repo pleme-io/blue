@@ -1,7 +1,8 @@
 use("junjo", [:sort])
+use("kyohi")
 use("moji", [:lines])
 use("ran", [:next_bool, :next_seed, :next_uniform, :pick])
-use("retsu", [:contains, :flat_map, :index_of, :is_empty, :rest, :size])
+use("retsu", [:contains, :first, :flat_map, :index_of, :is_empty, :rest, :size])
 
 legacy_names("0.1.1", "ok")
 
@@ -395,6 +396,54 @@ def chain_law(rule)
   ]
 end
 
+# ── the raising form of a check ────────────────────────────────────────────
+
+def refusal_lists_from(s, n, acc)
+  if n < 1
+    reverse(acc)
+  else
+    count = next_uniform(s, 4)
+    refusals = map(
+      fn(i)
+        kyohi::refusal(
+          pick(next_seed(s) + i, [:a, :b, :c]),
+          pick(next_seed(next_seed(s)) + i, ["", "x", "x y", "日本"])
+        )
+      end,
+      range(0, count)
+    )
+    refusal_lists_from(next_seed(next_seed(s)), n - 1, cons(refusals, acc))
+  end
+end
+
+def refuse_outcome(rs)
+  if is_empty(rs)
+    [:value, nil, nil]
+  else
+    [:refused, kyohi::kind(first(rs)), join(map(kyohi::why, rs), "; ")]
+  end
+end
+
+def enforce_outcome(rs)
+  kyohi::enforce(rs, [(r) -> r], {kind: :first})
+  [:value, nil, nil]
+rescue e
+  [:refused, e.kind, e.message]
+end
+
+def law_enforce_is_the_old_refuse()
+  fixed = [
+    [],
+    [kyohi::refusal(:a, "one")],
+    [kyohi::refusal(:b, "two"), kyohi::refusal(:a, "one")],
+    [kyohi::refusal(:a, ""), kyohi::refusal(:a, "")]
+  ]
+  cases = append(fixed, refusal_lists_from(77, 120, []))
+  all((rs) -> enforce_outcome(rs) == refuse_outcome(rs), cases) and
+    some((rs) -> size(rs) > 1, cases) and
+    some((rs) -> is_empty(rs), cases)
+end
+
 # ── the ledger ─────────────────────────────────────────────────────────────
 
 def decisions()
@@ -497,6 +546,13 @@ def decisions()
       rule: "A conversion chain is simplified only by a row of chain_rules, and a row gives the chain's own value, or its refusal, for every value.",
       why: "to_s(to_s(x)) is to_s(x), but to_int(to_int(x)) is not to_int(x); the check stage, the formatter and the evaluator read one table, and every row carries a law.",
       laws: map(chain_law, chain_rules)
+    },
+    {
+      id: "D0014",
+      date: "2026-10-23",
+      rule: "`kyohi::check` returns every finding and never raises; `kyohi::enforce` raises them as one error: kind from opts (`:first` or `:refused`), whys joined.",
+      why: "`kyohi::refuse` raised and returned nil, which is the enforce meaning under the name the master check contract gives to the list; its callers now call enforce with `kind: :first` and raise what they raised.",
+      laws: [["enforce is the old refuse", () -> law_enforce_is_the_old_refuse]]
     }
   ]
 end

@@ -33,7 +33,7 @@ The three crate alternatives were checked on 2026-10-22: no file in six org dire
 `contracts.tsv` has no `open` row left (10 became `decided`):
 
 - `info` keeps both forms. No field changed.
-- `check` returns `[finding]`, empty when sound. Its raising form is `kyohi::enforce` (new contract row `enforce`, new verb row, edge `kyohi::enforce composes core::check`). The shipped `kyohi::check(refusals) -> nil` raises today, which is the `enforce` meaning: its migration is code work, not done here.
+- `check` returns `[finding]`, empty when sound. Its raising form is `kyohi::enforce` (new contract row `enforce`, new verb row, edge `kyohi::enforce composes core::check`). The shipped `kyohi::refuse(refusals) -> nil` raised, which is the `enforce` meaning; its callers (kinji, kueri, settei, chokkan) call `enforce` with `kind: :first` since 2026-10-23, `kyohi::check(subject, rules)` returns the findings, and okite D0014 pins the equality.
 - `merge` is one master verb; `gitto::merge` refines it (`edges`: `gitto::merge refines core::merge`).
 - `apply` stays behind the reconciler: an effect that raises `conflict`.
 - `call(target, input, opts)` stays.

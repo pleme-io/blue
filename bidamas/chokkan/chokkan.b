@@ -1,5 +1,5 @@
 use("deeta", [:as_json, :get_number, :get_str, :is_doc])
-use("kyohi", [:kinds, :refusal, :refuse])
+use("kyohi", [:enforce, :kinds, :refusal])
 use("moji", [:drop_chars, :is_blank])
 use("retsu", [:first, :flat_map, :is_empty, :last, :size])
 
@@ -120,7 +120,7 @@ def wire(q)
 end
 
 def request(model, state, questions)
-  refuse(problems(questions))
+  enforce(questions, [problems], {kind: :first})
   wired = reduce(
     (acc, nq) -> assoc(acc, first(nq), wire(last(nq))),
     {},
@@ -240,6 +240,12 @@ end
 
 test "a request with nothing to ask is refused, and an empty answer is blind"
   assert kinds(problems([])) == [:no_questions]
+  empty = begin
+    request("jev-latest", "s", [])
+  rescue e
+    e
+  end
+  assert empty.kind == :no_questions
   assert error?(
     begin
       request("jev-latest", "s", [])
@@ -293,6 +299,13 @@ test "every problem is named at once, not only the first"
   ]
   assert kinds(problems(qs)) ==
     [:duplicate_question, :empty_instructions, :duplicate_option, :unknown_type]
+  thrown = begin
+    request("jev-latest", "s", qs)
+  rescue e
+    e
+  end
+  assert thrown.kind == :duplicate_question
+  assert thrown.message == join(map(kyohi::why, problems(qs)), "; ")
 end
 
 test "an answered body reads as typed answers"

@@ -328,7 +328,7 @@ edge(
 edge(
   "sukiima?::validate",
   :composes,
-  "kyohi::check",
+  "kyohi::enforce",
   "one error carrying every problem"
 )
 

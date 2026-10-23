@@ -5,11 +5,11 @@ verb(
   "check",
   {
     kind: :pure,
-    shape: "check(refusals) -> nil",
+    shape: "check(subject, rules) -> [finding]",
     laterals: ["error", "validate"],
     fleet: nil,
-    today: "partial:kyohi",
-    meaning: "raise one error carrying every refusal, or return nil",
+    today: "exists:kyohi",
+    meaning: "findings of a subject against rules; empty when sound",
     wave: 0,
     origin: "D"
   }
@@ -24,7 +24,7 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "raise one error carrying every finding of the master check; nil when sound",
+    meaning: "raise one error carrying every finding of check; nil when sound",
     wave: 0,
     origin: "H"
   }
@@ -157,7 +157,7 @@ edge(
   "the findings come from the master check"
 )
 
-edge("kyohi::check", :composes, "kyohi::kinds", "one error carries all kinds")
+edge("kyohi::check", :composes, "kyohi::kinds", "the kinds of the findings")
 
 edge(
   "kyohi::ledger",
@@ -173,7 +173,7 @@ edge(
   "kyohi::check",
   :pairs,
   "kyohi::enforce",
-  "check raises today; enforce is the raising form of the master contract"
+  "enforce is the raising form of check"
 )
 
 edge("kyohi::refusal", :pairs, "kyohi::kind", "a refusal has a kind")
@@ -187,6 +187,6 @@ edge(
 )
 
 edge("kyohi::retryable?", :requires, "kyohi::ledger", "reads the retry column")
-edge("kyohi::check", :requires, "kyohi::refusal", "collects refusals")
+edge("kyohi::check", :requires, "kyohi::refusal", "a finding is a refusal")
 edge("kyohi::kind", :requires, "kyohi::refusal", "reads a refusal")
 edge("kyohi::why", :requires, "kyohi::refusal", "reads a refusal")

@@ -19,7 +19,7 @@ use(
 use("junjo", [:is_strictly_sorted, :sort_stable_by, :upper_bound])
 use("kazu", [:abs, :clamp, :lerp, :max, :min, :near, :near_within, :square])
 
-use("kyohi", [:refusal, :refuse])
+use("kyohi", [:enforce, :refusal])
 
 use(
   "retsu",
@@ -45,8 +45,7 @@ legacy_names(
     ["opt", "deeta::get_or"],
     ["refusal", "kyohi::refusal"],
     ["refusal_kind", "kyohi::kind"],
-    ["refusal_why", "kyohi::why"],
-    ["refuse", "kyohi::refuse"]
+    ["refusal_why", "kyohi::why"]
   ]
 )
 
@@ -72,7 +71,7 @@ end
 
 # A result's value, or a thrown error naming its refusals.
 def value(result, key)
-  refuse(get(result, :refusals))
+  enforce(result, [(r) -> get(r, :refusals)], {kind: :first})
   get(result, key)
 end
 
@@ -818,7 +817,7 @@ end
 
 # Linear interpolation; outside the data it throws rather than extrapolate.
 def interp(xs, ys, x)
-  refuse(interp_refusals(xs, ys, x))
+  enforce(x, [(v) -> interp_refusals(xs, ys, v)], {kind: :first})
   i = segment(xs, x)
   lerp(
     nth(i, ys),
@@ -949,6 +948,13 @@ test "an ODE that blows up is refused, not answered"
     end
   ) ==
     true
+  blown = begin
+    final(r)
+  rescue e
+    e
+  end
+  assert blown.kind == kyohi::kind(first(get(r, :refusals)))
+  assert blown.message == join(map(kyohi::why, get(r, :refusals)), "; ")
   rk = rk4(blowup, 0.0, [1.0], 0.1, 30)
   assert refusal_kinds(rk) == [:kinji_diverged]
 end
@@ -1031,6 +1037,14 @@ test "interpolation: at nodes, between them, and refused outside"
     end
   ) ==
     true
+  outside = begin
+    interp(xs, ys, 25)
+  rescue e
+    e
+  end
+  assert outside.kind == :kinji_out_of_range
+  assert outside.message ==
+    join(map(kyohi::why, interp_refusals(xs, ys, 25)), "; ")
   assert kyohi::kind(first(interp_refusals(xs, ys, -1))) == :kinji_out_of_range
   assert kyohi::kind(first(interp_refusals([0, 0, 1], ys, 0))) == :kinji_data
   assert near(interp_clamped(xs, ys, 25), 130) == true

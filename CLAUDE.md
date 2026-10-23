@@ -68,8 +68,11 @@ shortest that stays distinct from every other meaning. A new form or shorthand l
 that already exists (`x++` → `x += 1` → `x = x + 1`), and it ships whole or not at all: a
 `Spelling` note and formatter arm, a `RULES` row with a witness and autofix, a
 `CANONICAL-FORMS.md` row, spec rows, and an okite law per lowering link that the two spellings
-agree on every input class. The library follows the same law (§V.28): one verb per meaning, and
-one battery per cross-cutting concern (§V.28.1), extended rather than rewritten. A Rust program
+agree on every input class. The library follows the same law (§V.28): one verb per meaning, with one argument shape,
+return shape and error behaviour in every space that has it (`docs/verbs/contracts.tsv`), larger
+verbs built from smaller ones. A capability is done when its verbs are rows in the graph
+(`blue verbs check`) and each has a unit test. One battery per cross-cutting concern (§V.28.1),
+extended rather than rewritten. A Rust program
 runs blue through `blue-lang-host`.
 
 ## Compose first: a reusable component is the unit of development
@@ -402,11 +405,6 @@ ties the delta to bytes about to change, and can quietly revert an in-flight
 `Cargo.lock` edit. Verify the tie afterwards by comparing
 `shasum -a 256 Cargo.lock` against the delta's `cargo_lock_sha256`.
 
-**Corrected 2026-08-12.** This section said "git deps pinned by rev" and had
-said so since before `ffbe667` (*deps: pleme-io dependencies to crates.io,
-never git*) made it false. Stale in the worst direction — it instructed the
-next author to do the exact thing `Cargo.toml`'s own comment explains would
-make this workspace unpublishable.
 
 ## `Cargo.gen.lock` is committed, and that is a trade
 

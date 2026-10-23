@@ -100,6 +100,14 @@ meaning, and one bidama for each cross-cutting concern (errors and refusals in
 for that bidama before writing the concern by hand. Why: `theory/BLUE.md` §0
 and §V.28.1.
 
+Before you name a function, look for its verb: the graph rows in
+`bidamas/mokuroku/graph/` (one file per space) and the contract for each verb in
+`docs/verbs/contracts.tsv`. A verb that exists is called as `space::verb` with that
+contract. A verb that is only a row is the work to do: build it to its contract. A
+meaning with no row gets a row first (TSV, then `blue verbs import`), named in plain
+English as `read`, `put`, `need` (raises) or `get` (nil), never a `_or` variant.
+The plan and the waves are `docs/VERB-ROADMAP.md`.
+
 ## The traps that cost the most
 
 Each one was checked against the runtime.

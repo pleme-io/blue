@@ -16,6 +16,7 @@ use(
 
 use("retsu", [:first, :is_empty, :last])
 use("shisutemu")
+use("tesuto", [:scratch])
 
 def run(repo, args)
   exec_with_env(
@@ -446,7 +447,7 @@ def push(repo, opts?)
 end
 
 def fixture(name)
-  path = "/tmp/blue-gitto-#{name}"
+  path = "#{scratch}-gitto-#{name}"
   rm_rf(path)
   out(".", ["init", "-q", "-b", "main", path])
   out(path, ["config", "user.name", "Tester"])
@@ -558,7 +559,7 @@ test "clone, fetch, merge and push follow the house rule"
   origin = fixture("origin")
   base = save(origin, "a.txt", "one\n", "first")
   out(origin, ["config", "receive.denyCurrentBranch", "ignore"])
-  work = "/tmp/blue-gitto-work"
+  work = "#{scratch}-gitto-work"
   rm_rf(work)
   assert clone(origin, work, {}) == work
   out(work, ["config", "user.name", "Tester"])
@@ -581,7 +582,7 @@ test "a diverged push rebases once and a diverged merge is refused"
   origin = fixture("diverge-origin")
   save(origin, "a.txt", "one\n", "first")
   out(origin, ["config", "receive.denyCurrentBranch", "ignore"])
-  work = "/tmp/blue-gitto-diverge-work"
+  work = "#{scratch}-gitto-diverge-work"
   rm_rf(work)
   clone(origin, work, {})
   out(work, ["config", "user.name", "Tester"])
@@ -706,7 +707,7 @@ test "clone, fetch, merge and push run with their options left out"
   origin = fixture("optional-origin")
   base = save(origin, "a.txt", "one\n", "first")
   out(origin, ["config", "receive.denyCurrentBranch", "ignore"])
-  work = "/tmp/blue-gitto-optional-work"
+  work = "#{scratch}-gitto-optional-work"
   rm_rf(work)
   assert clone(origin, work) == work
   out(work, ["config", "user.name", "Tester"])

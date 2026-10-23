@@ -19,6 +19,14 @@ row(
 )
 
 row(
+  "modules.kyohi.enforce",
+  "use(\"kyohi\", [:check, :enforce, :refusal])\nrule = (x) -> [refusal(:bad, \"x is bad\")]\n[length(check(1, [rule])), enforce(1, [rule], {kind: :first}) rescue 0]",
+  value("[1, 0]"),
+  covers("okite:D0014"),
+  pending("G16", "wasm")
+)
+
+row(
   "modules.use.missing",
   "use(\"sp_no_such_package\")\n1",
   fails(:import, "no bidama named \"sp_no_such_package\"")

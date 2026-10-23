@@ -369,7 +369,7 @@ hit:
 `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b` on the
 working tree: `cargo fmt --check`, every `Bluefile.lock` confirmed, `regen` in
 every project that generates (each red names the file it rewrote; commit it),
-and the `registry_graph`, `check_corpus` and `distribution` tests. These caught
+and the `registry_graph`, `check_corpus`, `distribution` and `verb_graph` tests. These caught
 four `main` reds on 2026-10-22 that CI found only after the push. About 2 min
 warm, mostly the catalogue (40 s) and `distribution`. A project whose declared
 `tool` is not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never

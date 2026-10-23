@@ -1559,7 +1559,7 @@ C	kyuuji	hook	decl	hook(path, secret, f) -> route	capability,idempotent	-	absent
 C	kyuuji	json	pure	json(status, value) -> response	serialize	blue	exists:kyuuji	A JSON response.	0		na
 C	kyuuji	match	pure	match(app, req) -> route and params or nil	-	-	absent	Find the route that serves a request.	1		na
 F	kyuuji	metered	effect	metered(request, health, handler, metrics) -> response	time	-	exists:kyuuji	answer a request and record its status and latency	0		na
-C	kyuuji	mount	decl	mount(app, prefix, sub) -> app	-	-	absent	Place a sub-app under a path prefix.	1		na
+C	kyuuji	mount	decl	mount(app, prefix, sub) -> app	-	-	absent	Place a sub-app under a path prefix.	1	mount(app, prefix, sub) -> app	yes
 C	kyuuji	not_found	pure	not_found(req) -> response	-	blue	exists:kyuuji	The 404 response for a request.	0		na
 C	kyuuji	observe	effect	observe(m, status, seconds) -> m	log,trace	blue	exists:kyuuji	Count one request in the metrics.	0	observe(m, status, seconds) -> m	yes
 C	kyuuji	param	pure	param(req, name) -> text or nil	-	blue	partial:kyuuji	One query or path parameter.	0		na
@@ -1822,7 +1822,7 @@ E	paketto?	depend	effect	depend(project, dep, opts) -> [changed pin]	idempotent	
 E	paketto?	explain	pure	explain(conflict) -> text	-	-	absent	the minimal clash behind an unsolvable set	2	explain(conflict) -> text	yes
 E	paketto?	fetch	effect	fetch(pin, opts) -> bytes	cache,deadline,retry,validate	gen	absent	download one package and verify its hash	1	fetch(pin, opts) -> bytes	yes
 E	paketto?	info	effect	info(name, registry) -> record	cache,error	-	absent	versions, yanks and metadata of a package	1	info(name, opts) -> record	no
-E	paketto?	install	effect	install(lock, opts) -> nil	cache,idempotent,process	gen	absent	place every locked package where the build reads it	1		na
+E	paketto?	install	effect	install(lock, opts) -> nil	cache,idempotent,process	gen	absent	place every locked package where the build reads it	1	install(lock, opts) -> nil	yes
 E	paketto?	lock	effect	lock(project, opts) -> [changed pin]	idempotent,serialize	gen	rust:blue-lang-bidama	write the lockfile from the manifest	0	lock(project, opts) -> [changed pin]	yes
 E	paketto?	outdated	effect	outdated(project) -> [record]	error	gen	absent	pins behind the newest allowed version	1		na
 E	paketto?	parse	pure	parse(text, format) -> manifest	serialize,validate	gen	absent	a package manifest into a record	1	parse(text, format) -> manifest	yes
@@ -2041,7 +2041,7 @@ A	ronri	table	pure	table(f, arity) -> [row]	-	-	absent	truth table of a predicat
 A	ronri	xor	pure	xor(a, b) -> Bool	-	-	exists:ronri	whether exactly one of a and b holds	0		na
 E	ryuutsuu?	channels	effect	channels(name) -> [channel]	error	-	absent	stable, beta and nightly pointers	3		na
 E	ryuutsuu?	fetch	effect	fetch(name, channel, opts) -> archive	cache,deadline,retry,validate	-	absent	download and verify a distributable	3	fetch(name, channel, opts) -> archive	yes
-E	ryuutsuu?	install	effect	install(archive, dest, opts) -> installed	capability,idempotent	-	absent	put a program where the user runs it	3		na
+E	ryuutsuu?	install	effect	install(archive, dest, opts) -> installed	capability,idempotent	-	absent	put a program where the user runs it	3	install(archive, dest, opts) -> installed	yes
 E	ryuutsuu?	installed	effect	installed(opts) -> [record]	error	-	absent	programs installed and their versions	3		na
 E	ryuutsuu?	manifest	pure	manifest(artifacts) -> record	serialize	-	absent	names, sizes and hashes of a release	2		na
 E	ryuutsuu?	mirror	effect	mirror(from, to) -> nil	idempotent,retry	-	absent	copy releases to another host	4	mirror(from, to) -> nil	yes

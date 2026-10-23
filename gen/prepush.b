@@ -147,7 +147,7 @@ results = append(
   ),
   [
     gate(
-      "registry_graph, check_corpus, distribution",
+      "registry_graph, check_corpus, distribution, verb_graph",
       fn()
         verdict(
           exec_capture(
@@ -164,7 +164,9 @@ results = append(
             "--test",
             "check_corpus",
             "--test",
-            "distribution"
+            "distribution",
+            "--test",
+            "verb_graph"
           )
         )
       end

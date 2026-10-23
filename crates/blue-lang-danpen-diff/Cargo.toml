@@ -14,5 +14,5 @@ publish = false
 [dev-dependencies]
 apollo-compiler = "1.33.1"
 blue-lang-host = { path = "../blue-lang-host" }
-blue-lang-pkg = { path = "../blue-lang-pkg" }
+blue-lang-pkg = { path = "../blue-lang-pkg", features = ["fixture"] }
 blue-lang-runtime = { path = "../blue-lang-runtime", features = ["sys"] }

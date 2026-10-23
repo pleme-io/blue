@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:6a574b2f0a430c85a1ed78cfca6e7f63dfb891ff7504cd61f476636b4c7f7534",
+  "manifest": {
+    "schema": 1,
+    "name": "gitto",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [
+      "git"
+    ],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

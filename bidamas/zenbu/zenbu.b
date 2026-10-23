@@ -52,6 +52,7 @@ use("chokkan")
 use("deeta", [:get_str])
 use("empresa")
 use("fairu")
+use("gitto")
 use("gyouretsu", [:dot])
 use("hadome")
 use("haibi")
@@ -183,6 +184,7 @@ test "every bidama in the distribution answers through this one import"
   assert shisei::stack([], (r) -> r)(1) == 1
   assert bougyo::safe_id?("abc-1", 64)
   assert fairu::stem("a/b.txt") == "b"
+  assert gitto::exists?("/definitely/not/a/repo", "HEAD") == false
   assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}
 end
 

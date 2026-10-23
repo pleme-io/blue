@@ -8,7 +8,7 @@ verb(
     shape: "ancestor?(repo, a, b) -> Bool",
     laterals: ["process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "whether a is reachable from b",
     wave: 0,
     origin: "F"
@@ -68,7 +68,7 @@ verb(
     shape: "clone(url, dir, opts) -> repo",
     laterals: ["deadline", "error", "process", "resource", "retry"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "copy a remote repository",
     wave: 0,
     origin: "E"
@@ -83,7 +83,7 @@ verb(
     shape: "commit(repo, message, opts) -> commit",
     laterals: ["error", "idempotent", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "record staged paths as a commit",
     wave: 0,
     origin: "E"
@@ -113,7 +113,7 @@ verb(
     shape: "create(repo, key, value, opts) -> value",
     laterals: ["error", "idempotent", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "make a branch or tag that must not exist",
     wave: 0,
     origin: "E"
@@ -128,7 +128,7 @@ verb(
     shape: "delete(repo, key) -> nil",
     laterals: ["error", "idempotent", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "remove a branch or tag, absent counts done",
     wave: 0,
     origin: "E"
@@ -158,7 +158,7 @@ verb(
     shape: "diff(repo, a, b, opts) -> [change]",
     laterals: ["error", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "changes between two refs",
     wave: 0,
     origin: "E",
@@ -174,7 +174,7 @@ verb(
     shape: "exists?(repo, ref) -> Bool",
     laterals: ["process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "whether a ref resolves",
     wave: 0,
     origin: "E",
@@ -190,7 +190,7 @@ verb(
     shape: "fetch(repo, opts) -> nil",
     laterals: ["deadline", "error", "process", "retry"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "update remote refs without touching the tree",
     wave: 0,
     origin: "E"
@@ -265,7 +265,7 @@ verb(
     shape: "info(repo) -> record",
     laterals: ["error", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "branch, head, ahead, behind, changes",
     wave: 0,
     origin: "E"
@@ -296,7 +296,7 @@ verb(
     shape: "merge(repo, ref, opts) -> commit",
     laterals: ["error", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "fast-forward only by default",
     wave: 0,
     origin: "E"
@@ -356,7 +356,7 @@ verb(
     shape: "push(repo, opts) -> nil",
     laterals: ["error", "process", "retry"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "publish refs, rebase or refuse, never force",
     wave: 0,
     origin: "E"
@@ -371,7 +371,7 @@ verb(
     shape: "read(repo, path, {at:}) -> bytes",
     laterals: ["error", "process"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "a file's content at a ref",
     wave: 0,
     origin: "E",

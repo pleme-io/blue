@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f5fe0a233cd2dee764c774a6dffa98746eca4fa316cbce20e12cfbfe1d87711d",
+  "bluefile_b3": "b3:f23cca5542e2b6ab2dfae246ecc9fb2c033f0260e7c68ca44a0cdac3e3e44afb",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -13,6 +13,7 @@
       "deeta": "^0.1.0",
       "empresa": "^0.1.0",
       "fairu": "^0.1.0",
+      "gitto": "^0.1.0",
       "gyouretsu": "^0.1.0",
       "hadome": "^0.1.0",
       "haibi": "^0.1.0",

@@ -589,31 +589,31 @@ F	genin?	symbolize	pure	symbolize(addresses, binary) -> [frame]	-	-	absent	turn 
 F	genin?	tape	effect	tape(f, opts) -> trace	resource,trace	-	rust:blue-lang-proc	run f and keep the host reads needed to replay it	0	tape(f, opts) -> trace	yes
 F	genin?	trace	stream	trace(program, def, opts) -> nil	trace	-	rust:blue-lang-cli	print each call of a definition with arguments and result	0	trace(program, opts) -> nil	no
 F	genin?	watch	stream	watch(session, expr, f) -> nil	cancel	-	absent	call f when an expression changes value	3	watch(session, expr, opts) -> nil	no
-F	gitto	ancestor?	effect	ancestor?(repo, a, b) -> Bool	process	-	absent	whether a is reachable from b	0		na
+F	gitto	ancestor?	effect	ancestor?(repo, a, b) -> Bool	process	-	exists	whether a is reachable from b	0		na
 E	gitto	bisect	effect	bisect(repo, good, bad, f) -> commit	error,process	-	absent	first commit where a test fails	2	bisect(repo, good, bad, f) -> commit	yes
 E	gitto	blame	effect	blame(repo, path, {at:}) -> [line record]	error,process	-	absent	who last changed each line	2		na
 E	gitto	changed	effect	changed(repo, a, b) -> [path]	error	-	absent	paths touched between two refs	1		na
-E	gitto	clone	effect	clone(url, dir, opts) -> repo	deadline,error,process,resource,retry	-	absent	copy a remote repository	0		na
-E	gitto	commit	effect	commit(repo, message, opts) -> commit	error,idempotent,process	-	absent	record staged paths as a commit	0	commit(repo, message, opts) -> commit	yes
+E	gitto	clone	effect	clone(url, dir, opts) -> repo	deadline,error,process,resource,retry	-	exists	copy a remote repository	0		na
+E	gitto	commit	effect	commit(repo, message, opts) -> commit	error,idempotent,process	-	exists	record staged paths as a commit	0	commit(repo, message, opts) -> commit	yes
 F	gitto	conflicts	effect	conflicts(repo) -> [file]	process	-	absent	files left unmerged after a merge or rebase	1		na
-E	gitto	create	effect	create(repo, key, value, opts) -> value	error,idempotent,process	-	absent	make a branch or tag that must not exist	0	create(repo, key, value, opts) -> value	yes
-E	gitto	delete	effect	delete(repo, key) -> nil	error,idempotent,process	-	absent	remove a branch or tag, absent counts done	0	delete(repo, key) -> nil	yes
+E	gitto	create	effect	create(repo, key, value, opts) -> value	error,idempotent,process	-	exists	make a branch or tag that must not exist	0	create(repo, key, value, opts) -> value	yes
+E	gitto	delete	effect	delete(repo, key) -> nil	error,idempotent,process	-	exists	remove a branch or tag, absent counts done	0	delete(repo, key) -> nil	yes
 E	gitto	describe	effect	describe(repo, ref) -> {tag:, distance:}	error	-	absent	nearest tag and distance from it	1	describe(repo, ref) -> {tag:, distance:}	yes
-E	gitto	diff	effect	diff(repo, a, b, opts) -> [change]	error,process	-	absent	changes between two refs	0	diff(repo, a, opts) -> [change]	no
-E	gitto	exists?	effect	exists?(repo, ref) -> Bool	process	-	absent	whether a ref resolves	0	exists?(repo, opts) -> Bool	no
-E	gitto	fetch	effect	fetch(repo, opts) -> nil	deadline,error,process,retry	-	absent	update remote refs without touching the tree	0	fetch(repo, opts) -> nil	yes
+E	gitto	diff	effect	diff(repo, a, b, opts) -> [change]	error,process	-	exists	changes between two refs	0	diff(repo, a, opts) -> [change]	no
+E	gitto	exists?	effect	exists?(repo, ref) -> Bool	process	-	exists	whether a ref resolves	0	exists?(repo, opts) -> Bool	no
+E	gitto	fetch	effect	fetch(repo, opts) -> nil	deadline,error,process,retry	-	exists	update remote refs without touching the tree	0	fetch(repo, opts) -> nil	yes
 E	gitto	get	effect	get(repo, ref) -> commit or nil	error,process	-	absent	one commit, nil when the ref is absent	0	get(repo, ref) -> commit or nil	yes
 E	gitto	graft	effect	graft(repo, ref) -> commit	error,process	-	absent	apply one commit onto the current branch	2	graft(repo, ref) -> commit	yes
 F	gitto	hook	decl	hook(event, step) -> hook	switch,test	blue	absent	declare a step git runs before commit or push	1		na
 F	gitto	ignore?	effect	ignore?(repo, path) -> Bool	process	-	absent	whether ignore rules hide a path	2		na
-E	gitto	info	effect	info(repo) -> record	error,process	-	absent	branch, head, ahead, behind, changes	0	info(repo) -> record	yes
+E	gitto	info	effect	info(repo) -> record	error,process	-	exists	branch, head, ahead, behind, changes	0	info(repo) -> record	yes
 E	gitto	list	effect	list(repo, what, opts) -> [record]	error,process	-	absent	branches, tags, commits, remotes or worktrees	0	list(repo, opts) -> [record]	no
-E	gitto	merge	effect	merge(repo, ref, opts) -> commit	error,process	-	absent	fast-forward only by default	0	merge(repo, ref, opts) -> commit	yes
+E	gitto	merge	effect	merge(repo, ref, opts) -> commit	error,process	-	exists	fast-forward only by default	0	merge(repo, ref, opts) -> commit	yes
 F	gitto	merge_base	effect	merge_base(repo, a, b) -> commit	process	-	absent	the newest commit that both refs contain	1		na
 E	gitto	need	effect	need(repo, ref) -> commit	error	-	absent	one commit, raises when absent	1	need(repo, ref) -> commit	yes
 E	gitto	patch	pure	patch(repo, change) -> text	serialize	-	absent	a change rendered as an applicable patch	2	patch(repo, change) -> text	yes
-E	gitto	push	effect	push(repo, opts) -> nil	error,process,retry	-	absent	publish refs, rebase or refuse, never force	0	push(repo, opts) -> nil	yes
-E	gitto	read	effect	read(repo, path, {at:}) -> bytes	error,process	-	absent	a file's content at a ref	0	read(repo, opts) -> bytes	no
+E	gitto	push	effect	push(repo, opts) -> nil	error,process,retry	-	exists	publish refs, rebase or refuse, never force	0	push(repo, opts) -> nil	yes
+E	gitto	read	effect	read(repo, path, {at:}) -> bytes	error,process	-	exists	a file's content at a ref	0	read(repo, opts) -> bytes	no
 F	gitto	rebase	effect	rebase(repo, onto, opts) -> nil	error,process	-	absent	replay local commits on a new base; refuse on conflict	1		na
 E	gitto	revert	effect	revert(repo, ref) -> commit	error,process	-	absent	a commit that undoes another	1		na
 F	gitto	stage	effect	stage(repo, paths) -> nil	process	-	absent	choose paths for the next commit	1		na

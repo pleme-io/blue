@@ -28,5 +28,6 @@ pkgs.runCommand "project-fixture" { } ''
   GREET_OUT=$PWD/greet ${fx.apps.greet.program}
   ${fx.runner}/bin/project-fixture test ${src + "/bidamas/fixture/fixture.b"} > runner.log
   FIRST=${fx.packages.first} SECOND=${fx.packages.second} GREET=$PWD/greet \
+    FRONTEND=${fx.checks.frontend-console-declared} \
     BLUE_PATH=${fx.bluePath} ${blue}/bin/blue test ${./gate.b} > $out
 ''

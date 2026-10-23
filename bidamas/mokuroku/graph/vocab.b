@@ -1784,6 +1784,21 @@ vocab(
 )
 
 vocab(
+  "fragment",
+  {
+    subject: "name",
+    args: ["name", "spec"],
+    opts: false,
+    returns: "fragment",
+    raises: [],
+    kind: :pure,
+    meaning: "declare a named field selection on one type; nothing runs",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "frames",
   {
     subject: "session",
@@ -2069,6 +2084,21 @@ vocab(
 )
 
 vocab(
+  "hydrate",
+  {
+    subject: "tree",
+    args: ["tree", "root"],
+    opts: true,
+    returns: "app",
+    raises: [],
+    kind: :effect,
+    meaning: "attach behaviour to output another stage already rendered",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "hypothesis",
   {
     subject: "a",
@@ -2189,6 +2219,21 @@ vocab(
 )
 
 vocab(
+  "install",
+  {
+    subject: "package",
+    args: ["package", "dest?"],
+    opts: true,
+    returns: "installed",
+    raises: ["not_found"],
+    kind: :effect,
+    meaning: "put a package in place so it can run",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "interleave",
   {
     subject: "logs",
@@ -2228,6 +2273,21 @@ vocab(
     raises: [],
     kind: :pure,
     meaning: "the opposite of a value",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "island",
+  {
+    subject: "view",
+    args: ["view"],
+    opts: true,
+    returns: "node",
+    raises: [],
+    kind: :pure,
+    meaning: "mark a subtree that activates on its own; nothing runs",
     ref: nil,
     status: :decided
   }
@@ -2303,6 +2363,21 @@ vocab(
     raises: [],
     kind: :pure,
     meaning: "the kind or scheme a value belongs to",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "labels",
+  {
+    subject: "set",
+    args: ["set", "entries"],
+    opts: false,
+    returns: "table",
+    raises: ["bad_option"],
+    kind: :pure,
+    meaning: "display text keyed by each value of a closed set; nothing runs",
     ref: nil,
     status: :decided
   }
@@ -2618,6 +2693,21 @@ vocab(
     raises: [],
     kind: :effect,
     meaning: "make a destination equal a source",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "mount",
+  {
+    subject: "parent",
+    args: ["parent", "at", "child"],
+    opts: true,
+    returns: "parent",
+    raises: [],
+    kind: :any,
+    meaning: "place a child under a parent at a named point",
     ref: nil,
     status: :decided
   }
@@ -4103,6 +4193,21 @@ vocab(
     raises: [],
     kind: :effect,
     meaning: "answer requests at an address",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "settle",
+  {
+    subject: "store",
+    args: ["store", "change", "outcome"],
+    opts: false,
+    returns: "state",
+    raises: ["conflict"],
+    kind: :effect,
+    meaning: "end a pending change as kept or rolled back",
     ref: nil,
     status: :decided
   }

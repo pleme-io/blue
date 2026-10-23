@@ -51,6 +51,7 @@
 # | `image(name, spec)` | Linux only: `packages.image-<name>` through `mkHardenedImageSet` (`nix/image.nix`; the direct `mkPackageImage` / `mkDistrolessImage` path is configured off, revived by `legacy.directImages = true`), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
 # | `workload(name, spec)` | configured off (refused) unless `legacy.rawWorkloads = true`; then `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
 # | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
+# | `frontend(name, spec)` | `checks.frontend-<name>-declared`: every `views`, `tokens` and `schema` path must exist in the project, and the declaration is written out as JSON; the renderers it lowers to come with FRONTEND-PLAN F11 |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
 # | `posture(when)` | nothing: a runtime floor, not a build fact |
 #
@@ -100,7 +101,7 @@ let
   known = [
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
-    "images" "workloads" "rules" "services"
+    "images" "workloads" "rules" "services" "frontends"
   ];
 
   readLock = src:
@@ -385,6 +386,18 @@ let
 
       lockFile = builtins.path { path = src + "/Bluefile.lock"; name = "Bluefile.lock"; };
 
+      frontendChecks = lib.mapAttrs'
+        (fname: spec:
+          let
+            paths = spec.views ++ lib.optional (spec ? tokens) spec.tokens ++ lib.optional (spec ? schema) spec.schema;
+            missing = lib.filter (p: !pathExists (src + "/${p}")) paths;
+          in
+          lib.nameValuePair "frontend-${fname}-declared" (
+            if missing != [ ] then
+              throw "lib.project: frontend(\"${fname}\") names ${lib.concatStringsSep ", " missing}, which the project does not have"
+            else pkgs.writeText "frontend-${fname}-declared.json" (builtins.toJSON spec)))
+        (m.frontends or { });
+
       lowered = import ./service.nix {
         inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio chartLibraries;
       };
@@ -455,6 +468,7 @@ let
           generated
         // imageChecks
         // workloadChecks
+        // frontendChecks
         // lowered.checks;
 
       # `rule`: the project's rules hold over its own code. `blue check` finds

@@ -81,12 +81,12 @@ g2-vocab: kueri 11
 g2-vocab: kumiawase 4
 g2-vocab: kurasuta 1
 g2-vocab: kuraudo? 3
-g2-vocab: kyasshu? 6
+g2-vocab: kyasshu 6
 g2-vocab: kyohi 4
 g2-vocab: kyoui? 13
 g2-vocab: kyoujin? 12
 g2-vocab: kyoukyuu? 16
-g2-vocab: kyuuji 20
+g2-vocab: kyuuji 19
 g2-vocab: meirei 1
 g2-vocab: messeeji? 8
 g2-vocab: mimoto? 6
@@ -99,7 +99,7 @@ g2-vocab: okite 3
 g2-vocab: ongaku 3
 g2-vocab: onsei? 10
 g2-vocab: paipurain? 3
-g2-vocab: paketto? 3
+g2-vocab: paketto? 2
 g2-vocab: puran? 11
 g2-vocab: raifusaikuru 4
 g2-vocab: ran 2
@@ -111,7 +111,7 @@ g2-vocab: rittai 7
 g2-vocab: rogu 3
 g2-vocab: rokku? 7
 g2-vocab: ronri 11
-g2-vocab: ryuutsuu? 5
+g2-vocab: ryuutsuu? 4
 g2-vocab: saishikou 1
 g2-vocab: saiten? 7
 g2-vocab: sakuin 7
@@ -212,7 +212,7 @@ g4-wave: kiwari 1
 g4-wave: koubun? 1
 g4-wave: kouchiku? 1
 g4-wave: kumiawase 1
-g4-wave: kyasshu? 1
+g4-wave: kyasshu 1
 g4-wave: kyoukyuu? 7
 g4-wave: kyuuji 4
 g4-wave: moji 8

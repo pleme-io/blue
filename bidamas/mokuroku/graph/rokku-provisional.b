@@ -248,7 +248,7 @@ edge(
 edge(
   "rokku?::renew",
   :generalizes,
-  "kyasshu?::renew",
+  "kyasshu::renew",
   "one meaning for every lifetime"
 )
 

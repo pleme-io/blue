@@ -42,6 +42,12 @@ row(
 row("modules.use.unbound_without", "sp_twice(4)", fails(:check, "B0001"))
 
 row(
+  "modules.manifest.frontend_is_a_bluefile_word",
+  "frontend(\"console\", {views: [\"views\"]})",
+  fails(:check, "B0001")
+)
+
+row(
   "modules.use.transitive",
   "use(\"sp_uses\", [:sp_quad])\nsp_quad(1)",
   value("4"),

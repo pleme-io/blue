@@ -1,7 +1,7 @@
-space("kyasshu?", {status: :provisional})
+space("kyasshu", {status: :ratified})
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "clear",
   {
     kind: :effect,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "delete",
   {
     kind: :effect,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "flush",
   {
     kind: :effect,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "fresh?",
   {
     kind: :pure,
@@ -61,7 +61,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "get",
   {
     kind: :effect,
@@ -76,7 +76,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "has?",
   {
     kind: :effect,
@@ -91,7 +91,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "info",
   {
     kind: :effect,
@@ -106,7 +106,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "invalidate",
   {
     kind: :effect,
@@ -121,7 +121,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "key",
   {
     kind: :pure,
@@ -136,7 +136,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "memoize",
   {
     kind: :pure,
@@ -151,7 +151,22 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
+  "normalize",
+  {
+    kind: :pure,
+    shape: "normalize(response, schema, opts) -> entities",
+    laterals: ["cache"],
+    fleet: "hanabi",
+    today: "absent",
+    meaning: "split a response into entities keyed by Type:id",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
   "open",
   {
     kind: :effect,
@@ -166,7 +181,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "put",
   {
     kind: :effect,
@@ -181,7 +196,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "refresh",
   {
     kind: :effect,
@@ -196,7 +211,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "remember",
   {
     kind: :effect,
@@ -211,7 +226,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "renew",
   {
     kind: :effect,
@@ -227,7 +242,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "save",
   {
     kind: :effect,
@@ -242,7 +257,22 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
+  "settle",
+  {
+    kind: :effect,
+    shape: "settle(cache, write, outcome) -> state",
+    laterals: ["cache", "error"],
+    fleet: nil,
+    today: "absent",
+    meaning: "end an optimistic write as confirmed or rolled back",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
   "sweep",
   {
     kind: :effect,
@@ -257,7 +287,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "tier",
   {
     kind: :pure,
@@ -272,7 +302,7 @@ verb(
 )
 
 verb(
-  "kyasshu?",
+  "kyasshu",
   "warm",
   {
     kind: :effect,
@@ -286,83 +316,121 @@ verb(
   }
 )
 
-edge("kyasshu?::save", :composes, "fairu::write", "persists entries")
-edge("kyasshu?::open", :composes, "kakunou?::open", "optional shared tier")
-edge("kyasshu?::flush", :composes, "kakunou?::put", "write-behind target")
+verb(
+  "kyasshu",
+  "watch",
+  {
+    kind: :stream,
+    shape: "watch(cache, f, opts) -> nil",
+    laterals: ["cache", "cancel"],
+    fleet: "hanabi",
+    today: "absent",
+    meaning: "call f per entity event that patches or drops a key",
+    wave: 2,
+    origin: "I"
+  }
+)
+
+edge("kyasshu::save", :composes, "fairu::write", "persists entries")
+edge("kyasshu::open", :composes, "kakunou?::open", "optional shared tier")
+edge("kyasshu::flush", :composes, "kakunou?::put", "write-behind target")
 
 edge(
-  "kyasshu?::get",
+  "kyasshu::get",
   :composes,
-  "kyasshu?::fresh?",
+  "kyasshu::fresh?",
   "expired entries read as absent"
 )
 
 edge(
-  "kyasshu?::remember",
+  "kyasshu::remember",
   :composes,
-  "kyasshu?::fresh?",
+  "kyasshu::fresh?",
   "stale entries are recomputed"
 )
 
-edge("kyasshu?::sweep", :composes, "kyasshu?::fresh?", "finds expired entries")
-edge("kyasshu?::remember", :composes, "kyasshu?::get", "hit path")
+edge("kyasshu::sweep", :composes, "kyasshu::fresh?", "finds expired entries")
+edge("kyasshu::remember", :composes, "kyasshu::get", "hit path")
 
 edge(
-  "kyasshu?::refresh",
+  "kyasshu::watch",
   :composes,
-  "kyasshu?::put",
+  "kyasshu::invalidate",
+  "an event drops its key"
+)
+
+edge("kyasshu::normalize", :composes, "kyasshu::key", "Type:id per entity")
+edge("kyasshu::normalize", :composes, "kyasshu::put", "each entity stored once")
+
+edge(
+  "kyasshu::refresh",
+  :composes,
+  "kyasshu::put",
   "stores the recomputed value"
 )
 
 edge(
-  "kyasshu?::remember",
+  "kyasshu::remember",
   :composes,
-  "kyasshu?::put",
+  "kyasshu::put",
   "miss path stores the result"
 )
 
+edge("kyasshu::settle", :composes, "kyasshu::put", "keeps or restores entries")
+
 edge(
-  "kyasshu?::memoize",
+  "kyasshu::memoize",
   :composes,
-  "kyasshu?::remember",
+  "kyasshu::remember",
   "function results cached by argument"
 )
 
 edge(
-  "kyasshu?::tier",
+  "kyasshu::tier",
   :composes,
-  "kyasshu?::remember",
+  "kyasshu::remember",
   "miss falls to the next layer"
 )
 
-edge("kyasshu?::key", :composes, "shomei::hash", "stable digest of parts")
-edge("kyasshu?::put", :inverse, "kyasshu?::delete", "drops what put stored")
-edge("kyasshu?::delete", :inverse, "kyasshu?::put", "drops what put stored")
-edge("kyasshu?::clear", :lifts, "kyasshu?::delete", "every entry")
-edge("kyasshu?::sweep", :lifts, "kyasshu?::delete", "many at once")
+edge("kyasshu::key", :composes, "shomei::hash", "stable digest of parts")
+edge("kyasshu::put", :inverse, "kyasshu::delete", "drops what put stored")
+edge("kyasshu::delete", :inverse, "kyasshu::put", "drops what put stored")
+edge("kyasshu::clear", :lifts, "kyasshu::delete", "every entry")
+edge("kyasshu::sweep", :lifts, "kyasshu::delete", "many at once")
+edge("kyasshu::warm", :lifts, "kyasshu::remember", "many keys ahead of demand")
+edge("kyasshu::watch", :pairs, "burauza::listen", "live page and live data")
 
 edge(
-  "kyasshu?::warm",
-  :lifts,
-  "kyasshu?::remember",
-  "many keys ahead of demand"
+  "kyasshu::normalize",
+  :pairs,
+  "danpen::select",
+  "fragments read normalized entities"
 )
 
-edge("kyasshu?::info", :pairs, "kyasshu?::get", "counters beside lookups")
-edge("kyasshu?::key", :pairs, "kyasshu?::get", "the lookup subject")
-edge("kyasshu?::memoize", :pairs, "kyasshu?::key", "argument digest as key")
-edge("kyasshu?::save", :pairs, "kyasshu?::open", "persist then reload")
-edge("kyasshu?::flush", :pairs, "kyasshu?::put", "write-behind drains puts")
-edge("kyasshu?::get", :pairs, "kyasshu?::put", "read and write sides")
-edge("kyasshu?::invalidate", :pairs, "kyasshu?::put", "staleness and refill")
+edge("kyasshu::info", :pairs, "kyasshu::get", "counters beside lookups")
+edge("kyasshu::key", :pairs, "kyasshu::get", "the lookup subject")
+edge("kyasshu::memoize", :pairs, "kyasshu::key", "argument digest as key")
+edge("kyasshu::save", :pairs, "kyasshu::open", "persist then reload")
+edge("kyasshu::flush", :pairs, "kyasshu::put", "write-behind drains puts")
+edge("kyasshu::get", :pairs, "kyasshu::put", "read and write sides")
+edge("kyasshu::invalidate", :pairs, "kyasshu::put", "staleness and refill")
 
 edge(
-  "kyasshu?::invalidate",
+  "kyasshu::invalidate",
   :refines,
-  "kyasshu?::delete",
+  "kyasshu::delete",
   "by prefix, tag or dependency"
 )
 
-edge("kyasshu?::has?", :refines, "kyasshu?::get", "no hit counted")
-edge("kyasshu?::refresh", :refines, "kyasshu?::remember", "forced recompute")
-edge("kyasshu?::renew", :requires, "kyasshu?::has?", "entry must be live")
+edge("kyasshu::has?", :refines, "kyasshu::get", "no hit counted")
+edge("kyasshu::refresh", :refines, "kyasshu::remember", "forced recompute")
+
+edge(
+  "kyasshu::normalize",
+  :requires,
+  "danpen::parse",
+  "the schema as a document"
+)
+
+edge("kyasshu::settle", :requires, "kyasshu::get", "the prior entry to restore")
+edge("kyasshu::renew", :requires, "kyasshu::has?", "entry must be live")

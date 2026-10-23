@@ -41,3 +41,25 @@ The three crate alternatives were checked on 2026-10-22: no file in six org dire
 - `convert`, `advance`, `send` and `on` are master verbs as written.
 
 Generated rows: `merged/added.tsv` (`kyohi::enforce`) and `merged/added-edges.tsv` (four edges), read by `queries/repair.sql`.
+
+## Decided 2026-10-23, operator delegated: the frontend spaces (F0)
+The operator delegated the names on one condition: no conflict in the fleet, on crates.io or among the bidamas and spaces. Each name below passed and carries no `?`.
+
+| Subject | Decision | Gloss |
+|---|---|---|
+| `yokyuu?` (working name) | named `danpen` | 断片, fragment: GraphQL documents, fragments, composition, masking, persisted hashes. `yokyuu` is a wrong romanization of 要求 (`youkyuu`), and "requirement" is the sense the space `youken?` already holds |
+| `burauza?` (working name) | named `burauza` | ブラウザ, browser: the browser runtime (mount, apply, listen, request, save, install) |
+| `kyasshu?` | promoted to `kyasshu` | キャッシュ, cache. The `ky-` head ruling above already kept it; it gains `normalize`, `settle`, `watch` |
+| `gamen?` | unchanged | F1 owns its rows; it gains `labels`, `island`, `hydrate` |
+
+Collision check, 2026-10-23: `rg --no-ignore -l -w -i` over the pleme-io root found 0 files for `danpen` and `etsuran`, and for `burauza` only the two design docs that proposed it (`FRONTEND-PLAN.md`, `BLUE-FRONTEND.md`). No repo directory. crates.io 404 for both with the User-Agent `pleme-io-ci`. Controls: `shikumi` 1859 files, 138 `caixa` directories, `serde` crates.io 200, a nonsense word 404. Near names checked: `handan` and `shindan` (repos, a different head), `furagu?` (rules out the loanword `furagumento`), `kueri` and `mondou` (rule out a query word), `youken?` (rules out "requirement").
+
+Verbs: one verb per meaning, so four plan words take the existing verb.
+
+- `print` is `danpen::render` (master `render`: a value to canonical text).
+- `mask` is `danpen::select` (vocab `select`: only the listed parts of a value). `tokumei::mask` keeps its meaning, hide characters.
+- `patch` is `burauza::apply`, which refines `gamen?::apply` (make a surface show the patches). Master `patch` returns a value; this changes a live page.
+- `fetch` is `burauza::request`, which refines `tsuushin::request`. Master `fetch` brings a remote thing to local disk.
+- `persist` is `burauza::save`, which refines `kyasshu::save` (vocab `save`: write a held state to storage).
+
+New vocab rows: `fragment`, `settle`, `labels`, `island`, `hydrate`, `mount`, `install`. `mount` and `install` also give `kyuuji::mount`, `paketto?::install` and `ryuutsuu?::install` a contract, so the g2 baseline shrank by three (banked with `blue verbs check --record`).

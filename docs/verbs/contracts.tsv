@@ -118,6 +118,7 @@ flatten	xs	xs	no	list		pure	nested lists as one list	§3.6	stdlib
 fold	log	log,projection	yes	view		effect	keep a read model current from a log	-	decided
 forecast	series	series,horizon	yes	series		pure	a series continued forward	-	decided
 fork	rng	rng,label?	no	rng		pure	an independent stream from one	-	decided
+fragment	name	name,spec	no	fragment		pure	declare a named field selection on one type; nothing runs	-	decided
 frames	session	session	no	[frame]		effect	the frames of a paused program or a dump	-	decided
 freeze	name	name,reason	no	nil		effect	stop changes to an environment	-	decided
 fresh?	subject	subject,now	no	Bool		pure	whether a thing is still within its lifetime	-	decided
@@ -137,6 +138,7 @@ has?	store	~store,key	no	Bool		any	whether the key is present	§3.2	stdlib
 hash	data	data,algorithm?	yes	hex	bad_option	pure	a digest in lowercase hex	§3.4	stdlib
 highlight	code	code,language?	no	spans		pure	the spans of text worth marking	-	decided
 history	subject	subject,range?	no	[record]		effect	past records of a subject, in order	-	decided
+hydrate	tree	tree,root	yes	app		effect	attach behaviour to output another stage already rendered	-	decided
 hypothesis	a	a,b,kind	no	record		pure	a statistical test: statistic and p-value	-	decided
 identity	x	x	no	x		pure	the value unchanged	-	decided
 import	store	store,entries	yes	count		effect	bring entries into a store	-	decided
@@ -145,14 +147,17 @@ index_of	xs	xs,x	no	int or nil		pure	the position of the first x	§3.6	stdlib
 info	subject	subject	yes	record	not_found	effect	current state of the subject as a record	§3.1,§3.5	decided
 initial	state	state	no	decl		pure	declare the state an instance begins in	-	decided
 insert	xs	xs,at?,item	no	xs		pure	xs with an item placed at a position	-	decided
+install	package	package,dest?	yes	installed	not_found	effect	put a package in place so it can run	-	decided
 interleave	logs	logs	no	[record]		pure	several logs merged into one ordered list	-	decided
 intersect	a	a,b	no	x or nil		pure	what two values have in common	-	decided
 invert	x	x	yes	x		pure	the opposite of a value	-	decided
+island	view	view	yes	node		pure	mark a subtree that activates on its own; nothing runs	-	decided
 join	xs	xs,sep?	no	text		pure	items joined into one value with a separator	§3.6	stdlib
 judge	subject	subject,criteria,b?	yes	verdict		pure	a verdict from criteria	-	decided
 key	parts	parts	no	key		pure	one canonical key built from ordered parts	-	decided
 keys	m	m	yes	[key]		pure	the keys of a map	§3.6	stdlib
 kind	node	node	no	name		pure	the kind or scheme a value belongs to	-	decided
+labels	set	set,entries	no	table	bad_option	pure	display text keyed by each value of a closed set; nothing runs	-	decided
 lag	consumer	consumer,log?	no	number		effect	how far behind a consumer is	-	decided
 land	change	change	yes	record	conflict	effect	merge a reviewed change into its base	-	decided
 last	xs	xs	no	item or nil		pure	the last item	§3.6	stdlib
@@ -174,6 +179,7 @@ measure	subject	subject,metric?	yes	number		any	a size or a rate of a subject	-	
 merge	a	a,b	yes	value	conflict	any	combine b into a; one master verb for every space, gitto::merge refines it	§3.4	decided
 min_by	xs	xs,f	no	item or nil		pure	the item with the least f	§3.6	stdlib
 mirror	from	from,to	yes	report		effect	make a destination equal a source	-	decided
+mount	parent	parent,at,child	yes	parent		any	place a child under a parent at a named point	-	decided
 move	from	from,to	yes	nil	not_found,exists	effect	move or rename atomically	§3.1	stdlib
 need	store	~store,key	yes	value	not_found	any	one entry, raising when absent	§3.2	stdlib
 negotiate	client	client,server	no	version		pure	pick the highest version both sides speak	-	decided
@@ -273,6 +279,7 @@ segment	source	source	yes	spans		pure	a source cut into spans	-	decided
 select	x	x,keys	no	x		pure	only the listed parts of a value	-	decided
 send	target	target,message	yes	receipt		effect	deliver a message or event to a target	-	decided
 serve	address	address,handler	yes	nil		effect	answer requests at an address	-	decided
+settle	store	store,change,outcome	no	state	conflict	effect	end a pending change as kept or rolled back	-	decided
 shape	fields	fields	no	shape		pure	the shape of a record with named typed fields	-	decided
 shield	key	key,wrapping_key	no	text		pure	encrypt one key under another key	-	decided
 shift	shape	shape,by	no	shape		pure	a shape moved by a vector	-	decided

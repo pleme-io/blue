@@ -41,9 +41,11 @@
 //! checks [`image_of`] and [`workload_of`] run before a value is built.
 
 pub mod diff;
+pub mod frontend;
 pub mod render;
 pub mod service;
 
+pub use frontend::{frontend_of, Frontend};
 pub use service::{service_of, Service, Setting};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -182,6 +184,8 @@ pub enum SpecError {
     },
     #[error("`{field}` is required")]
     Missing { field: &'static str },
+    #[error("`{field}` is empty")]
+    Empty { field: &'static str },
     #[error("`{field}` must be {expected}, got {got}")]
     Type {
         field: &'static str,

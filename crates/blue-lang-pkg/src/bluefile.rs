@@ -168,6 +168,8 @@ pub struct Project {
     /// keyed by code. Skipped when empty, as `generated` is.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub rules: BTreeMap<String, Rule>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub frontends: BTreeMap<String, crate::deploy::Frontend>,
 }
 
 /// A project check rule: a blue definition `blue check` calls on every
@@ -650,6 +652,20 @@ const WORDS: &[Word] = &[
             }
         },
     },
+    Word {
+        name: "frontend",
+        signature: "frontend(name, spec)",
+        doc: "A web frontend: `views` (the project paths of its view programs), `tokens` (the design-token program), `schema` (the GraphQL SDL its fragments are checked against) and `pwa` (true to install as a PWA). Recorded in the lock; the engine checks every path exists and records the declaration as `checks.frontend-<name>-declared` until the renderers land.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            match crate::deploy::frontend_of(&name, &c.args[1]) {
+                Ok(frontend) => insert_once(&mut into.project.frontends, c.word, name, frontend),
+                Err(error) => refuse(into, c.word, name, error),
+            }
+        },
+    },
 ];
 
 /// Record a refused entry and let the manifest go on, so the next refused
@@ -1065,6 +1081,7 @@ mod tests {
             .chain(["service"])
             // `rule`, 2026-10-10: a project's own check rules, written in blue.
             .chain(["rule"])
+            .chain(["frontend"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

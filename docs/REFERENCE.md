@@ -530,6 +530,7 @@ A Bluefile is a blue program that may call only these words.
 | `image(name, spec)` | An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`. |
 | `workload(name, spec)` | A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster. |
 | `service(name, spec)` | An HTTP service from one of the project's programs: its runnable closure `packages.<name>`, its image through substrate's mkHardenedImageSet, its module trio, and the committed `output` tree (default `deploy/<name>`) of a Helm chart with a generated values.schema.json, its settings' defaults and schema, and with a `schema`, its additive SQL and shinka migration; every file gated fresh. |
+| `frontend(name, spec)` | A web frontend: `views` (the project paths of its view programs), `tokens` (the design-token program), `schema` (the GraphQL SDL its fragments are checked against) and `pwa` (true to install as a PWA). Recorded in the lock; the engine checks every path exists and records the declaration as `checks.frontend-<name>-declared` until the renderers land. |
 
 ## Rules
 

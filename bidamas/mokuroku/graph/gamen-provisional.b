@@ -167,6 +167,51 @@ verb(
 
 verb(
   "gamen?",
+  "hydrate",
+  {
+    kind: :effect,
+    shape: "hydrate(tree, root, opts) -> app",
+    laterals: ["capability"],
+    fleet: nil,
+    today: "absent",
+    meaning: "attach handlers and state to server-rendered markup",
+    wave: 2,
+    origin: "I"
+  }
+)
+
+verb(
+  "gamen?",
+  "island",
+  {
+    kind: :decl,
+    shape: "island(view, opts) -> node",
+    laterals: ["switch"],
+    fleet: nil,
+    today: "absent",
+    meaning: "mark a subtree that hydrates on its own in the browser",
+    wave: 2,
+    origin: "I"
+  }
+)
+
+verb(
+  "gamen?",
+  "labels",
+  {
+    kind: :decl,
+    shape: "labels(enum, entries) -> table",
+    laterals: ["validate"],
+    fleet: "lilitu",
+    today: "absent",
+    meaning: "display text keyed by each backend enum value",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "gamen?",
   "layout",
   {
     kind: :pure,
@@ -510,6 +555,13 @@ verb(
   }
 )
 
+edge(
+  "gamen?::hydrate",
+  :composes,
+  "burauza::listen",
+  "handlers on server markup"
+)
+
 edge("gamen?::check", :composes, "gamen?::contrast", "color pairs")
 edge("gamen?::check", :composes, "gamen?::describe", "labels and roles")
 edge("gamen?::update", :composes, "gamen?::get", "reads the old value")
@@ -550,9 +602,19 @@ edge("gamen?::stop", :inverse, "gamen?::start", "ends the app")
 edge("gamen?::start", :inverse, "gamen?::stop", "ends the app")
 edge("gamen?::watch", :lifts, "gamen?::get", "get as a stream of changes")
 edge("gamen?::progress", :lifts, "gamen?::show", "show as a stream of updates")
+
+edge(
+  "gamen?::labels",
+  :pairs,
+  "danpen::check",
+  "enum mirrors refused, labels allowed"
+)
+
 edge("gamen?::diff", :pairs, "gamen?::apply", "patches go to a surface")
 edge("gamen?::describe", :pairs, "gamen?::check", "facts then rules")
 edge("gamen?::prompt", :pairs, "gamen?::choose", "ask in two forms")
+edge("gamen?::hydrate", :pairs, "gamen?::island", "islands hydrate alone")
+edge("gamen?::labels", :pairs, "gamen?::localize", "labels per locale")
 edge("gamen?::send", :pairs, "gamen?::on", "an event needs a handler")
 edge("gamen?::get", :pairs, "gamen?::put", "read and write of one key")
 edge("gamen?::focus", :pairs, "gamen?::send", "focus changes are events")
@@ -562,6 +624,7 @@ edge("gamen?::choose", :refines, "gamen?::prompt", "a prompt with a closed set")
 edge("gamen?::show", :refines, "gamen?::render", "render to the terminal")
 edge("gamen?::notify", :refines, "gamen?::send", "an event for the person")
 edge("gamen?::paint", :refines, "gamen?::style", "style applied to text")
+edge("gamen?::island", :refines, "gamen?::view", "a view hydrated alone")
 edge("gamen?::translate", :requires, "bunsho?::fill", "messages are templates")
 edge("gamen?::apply", :requires, "byouga?::draw", "the GPU path of apply")
 
@@ -595,6 +658,14 @@ edge(
 
 edge("gamen?::choose", :requires, "gamen?::order", "choices keep an order")
 edge("gamen?::focus", :requires, "gamen?::order", "focus moves along tab order")
+
+edge(
+  "gamen?::hydrate",
+  :requires,
+  "gamen?::render",
+  "the server markup to attach to"
+)
+
 edge("gamen?::prompt", :requires, "gamen?::show", "a question is output first")
 edge("gamen?::view", :requires, "gamen?::state", "a view reads state")
 edge("gamen?::style", :requires, "gamen?::theme", "needs a theme")

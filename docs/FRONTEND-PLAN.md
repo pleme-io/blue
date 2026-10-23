@@ -44,7 +44,8 @@ witness and an autofix where one exists.
 - Naming sweep (`naming` skill) for: the GraphQL/requirement space (working
   name `yokyuu?`), the browser-runtime space (working name `burauza?`), and
   the web words added to `gamen?` (`fragment`, `island`, `hydrate`, `labels`).
-  Cache stays `kyasshu?`; promote it.
+  Cache stays `kyasshu?`; promote it. Decided 2026-10-23: `danpen` (requirement
+  space), `burauza` (browser runtime), `kyasshu` promoted; `docs/verbs/names/RULINGS.md`.
 - Rows in `bidamas/mokuroku/graph/`, contracts in `docs/verbs/contracts.tsv`,
   `blue verbs check` rc 0, hadome baseline not grown.
 - Bluefile word `frontend(name, {views:, tokens:, schema:, pwa:})`: a `WORDS`
@@ -75,7 +76,7 @@ witness and an autofix where one exists.
 - Tests: each verb against `request(...)` fixtures, no socket; one socket test.
 - Done when: a multi-route SSR site runs from `blue run`, behind hanabi.
 
-### F3 — GraphQL in blue (`yokyuu?`)
+### F3 — GraphQL in blue (`danpen`)
 
 - A GraphQL grammar as a `kiwari` spec → the blue parser for SDL and
   executable documents.
@@ -101,7 +102,7 @@ witness and an autofix where one exists.
 - Done when: the four laws hold on the corpus and the ratchet for undeclared
   reads starts at 0.
 
-### F5 — Normalized cache and the data runtime (`kyasshu?`)
+### F5 — Normalized cache and the data runtime (`kyasshu`)
 
 - `normalize(response, schema)` → `Type:id` entities; fragment reads from the
   store; one key function, generated, also emitted for hanabi's entity cache.
@@ -141,7 +142,7 @@ witness and an autofix where one exists.
 - Tests: each surface has a Rust test that loads a `.b` fixture and a red run;
   the YAML and blue spellings of the same config produce the same `AppConfig`.
 
-### F8 — Browser runtime (`blue-lang-wasm` + `burauza?`)
+### F8 — Browser runtime (`blue-lang-wasm` + `burauza`)
 
 - `Capability::Dom` (E0004 at the four sites); `imports_of` derives the import
   table; `blue-lang-wasm` gains the imports behind the frame. Zero-import build

@@ -287,6 +287,17 @@ fn found_cases_round_trip() {
         "[define(x, 1)]",
         "fn(y) define(x, y) end",
         "define(x, define(y, 1))",
+        "(assert a) |> if a\na\nelse\na\nend",
+        "(assert a) |> f",
+        "(assert a) |> f(1)",
+        "(assert a) |> fn(x) x end",
+        "(assert a) + b",
+        "(assert a) == b",
+        "(assert a) and b",
+        "(assert a).m(1)",
+        "f((assert a))",
+        "(not a) |> f",
+        "(-a) |> f",
     ] {
         round_trips(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
     }

@@ -923,7 +923,10 @@ impl<'s> Renderer<'s> {
         let mut rest = vec![items[0].clone()];
         rest.extend(items[2..].iter().cloned());
         let into = Spanned::new(Span::synthetic(), SpannedForm::List(rest));
-        let lhs_prec = u8::from(sym_name_of(&items[1]) == Some("lambda"));
+        let lhs_prec = u8::from(matches!(
+            sym_name_of(&items[1]),
+            Some("lambda" | blue_lang_syntax::LOWERED_ASSERT)
+        ));
         let d = self
             .expr(&items[1], lhs_prec)
             .concat(Doc::text(" |> ("))

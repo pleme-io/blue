@@ -212,6 +212,7 @@ fn list(items: Vec<Value>) -> Value {
 /// Install blue's string and number core.
 pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::errors::install(interp);
+    crate::paths::install(interp);
     // ── text ──────────────────────────────────────────────────────────
 
     // `length` counts CHARACTERS, per Ruby. Also accepts a list, where it is

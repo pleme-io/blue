@@ -86,7 +86,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-268 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 179 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 179 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -201,6 +201,8 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `assoc` | `assoc(m, k, v)` | 3 | A new map with k set to v. Copies m; raises on nil. |
+| `bury` | `bury(tree, keys..., value)` | 2+ | A new tree with value at the path of keys, every missing level made as a map. Refuses with :bad_path when a value on the way is neither nil, a map nor a list, so data is never replaced silently; a list index may be one past the end; bury(tree, value) is value. |
+| `dig` | `dig(tree, keys...)` | 1+ | The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree. |
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
 | `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise. |

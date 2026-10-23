@@ -102,3 +102,71 @@ row(
   value("[[:a, 1], [:b, 2]]"),
   covers("builtin:map_entries")
 )
+
+row(
+  "maps.dig",
+  "m = {a: {b: [10, 20, {c: 3}]}}\n[dig(m, :a, :b, 2, :c), dig(m, :a, :b, -1, :c), dig(m)]",
+  value("[3, 3, {a: {b: [10, 20, {c: 3}]}}]"),
+  covers("builtin:dig")
+)
+
+row(
+  "maps.dig.total",
+  "m = {a: {b: [10]}}\n[dig(m, :a, :q, :c), dig(m, :a, :b, 9), dig(m, :a, :b, 0, :x), dig(nil, :a), dig(5, :a)]",
+  value("[nil, nil, nil, nil, nil]")
+)
+
+row(
+  "maps.dig.keys_are_data",
+  "m = {\"app.kubernetes.io/name\" => {1 => :one}}\n[dig(m, \"app.kubernetes.io/name\", 1), dig(m, :app)]",
+  value("[:one, nil]")
+)
+
+row(
+  "maps.dig.splatted",
+  "path = [:a, :b]\ndig(*cons({a: {b: 1}}, path))",
+  value("1")
+)
+
+row(
+  "maps.bury",
+  "bury({}, :a, :b, :c, 1)",
+  value("{a: {b: {c: 1}}}"),
+  covers("builtin:bury")
+)
+
+row(
+  "maps.bury.returns_a_new_tree",
+  "m = {a: {b: 1}}\nn = bury(m, :a, :c, 2)\n[m, n]",
+  value("[{a: {b: 1}}, {a: {b: 1, c: 2}}]")
+)
+
+row(
+  "maps.bury.lists",
+  "m = {a: [1, 2]}\n[bury(m, :a, 0, 9), bury(m, :a, 2, 3), bury(m, :a, -1, 7)]",
+  value("[{a: [9, 2]}, {a: [1, 2, 3]}, {a: [1, 7]}]")
+)
+
+row(
+  "maps.bury.refuses_a_leaf",
+  "bury({a: 1}, :a, :b, 2)",
+  fails(:eval, "bad_path: the value at step 1 is int")
+)
+
+row(
+  "maps.bury.refuses_an_index_past_the_end",
+  "bury({a: [1]}, :a, 5, 2)",
+  fails(:eval, "5 is not an index of a list of 1 elements")
+)
+
+row(
+  "maps.bury.replaces_a_leaf_at_the_end",
+  "bury({a: 1}, :a, 2)",
+  value("{a: 2}")
+)
+
+row(
+  "maps.dig_bury_round_trip",
+  "facts = [[[:a, :b], 1], [[:a, :c], 2], [[:d], 3]]\nt = reduce((acc, f) -> bury(*append([acc], first(f), [last(f)])), {}, facts)\n[t, map((f) -> dig(*cons(t, first(f))) == last(f), facts)]",
+  value("[{a: {b: 1, c: 2}, d: 3}, [true, true, true]]")
+)

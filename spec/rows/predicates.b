@@ -25,7 +25,7 @@ row("eq.eq_p", "eq?(:a, :a)", value("true"), covers("builtin:eq?"))
 
 row(
   "pred.one_kind",
-  "# waive B0036: the row covers this name itself\n[nil?(nil), bool?(true), integer?(1), float?(1.0), string?(\"s\"), keyword?(:k), list?([]), map?({})]",
+  "# waive B0036: the row covers this name itself\n[first(map(nil?, [nil])), bool?(true), integer?(1), float?(1.0), string?(\"s\"), keyword?(:k), list?([]), map?({})]",
   value("[true, true, true, true, true, true, true, true]"),
   covers(
     "builtin:nil?",

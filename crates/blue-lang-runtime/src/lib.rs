@@ -50,6 +50,7 @@ pub mod messages;
 pub mod net;
 pub mod nix;
 pub mod observe;
+pub mod paths;
 pub mod pipeline;
 pub mod project_rules;
 pub mod session;

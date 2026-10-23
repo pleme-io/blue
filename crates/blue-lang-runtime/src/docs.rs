@@ -252,6 +252,8 @@ pub const NAMES: &[NameDoc] = names! {
     Map: "get" "get(m, k)" "The value at key k, or nil. Raises on nil and on a list.";
     Map: "assoc" "assoc(m, k, v)" "A new map with k set to v. Copies m; raises on nil.";
     Map: "dissoc" "dissoc(m, k)" "A new map without k; unchanged when k is absent.";
+    Map: "dig" "dig(tree, keys...)" "The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree.";
+    Map: "bury" "bury(tree, keys..., value)" "A new tree with value at the path of keys, every missing level made as a map. Refuses with :bad_path when a value on the way is neither nil, a map nor a list, so data is never replaced silently; a list index may be one past the end; bury(tree, value) is value.";
     Map: "zipmap" "zipmap(keys, values)" "A map pairing keys with values, as long as the shorter list.";
     Map: "map_entries" "map_entries(m)" "Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise.";
     // ── functions ─────────────────────────────────────────────────────────

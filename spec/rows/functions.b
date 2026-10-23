@@ -55,7 +55,8 @@ row(
 row(
   "fn.rest.too_few",
   "def pack(a, b, *rest)\n  rest\nend\n\npack(1)",
-  fails(:run, "expects at least 2 arguments, got 1")
+  fails(:eval, "expects at least 2 arguments, got 1"),
+  pending("G19", "vm")
 )
 
 row(
@@ -362,6 +363,5 @@ row(
 row(
   "fn.rest_params",
   "def f(a, *rest)\n  rest\nend\n\nf(1, 2, 3)",
-  value("[2, 3]"),
-  pending("G13")
+  value("[2, 3]")
 )

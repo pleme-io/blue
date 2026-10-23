@@ -83,7 +83,7 @@ fn mentions(t: &Template, sym: &str) -> bool {
         Template::Field {
             default: Some(d), ..
         } => mentions(d, sym),
-        Template::Each { each, .. } => mentions(each, sym),
+        Template::Each { each, .. } | Template::EachParam { each, .. } => mentions(each, sym),
         Template::Quote(t)
         | Template::Quasiquote(t)
         | Template::Unquote(t)

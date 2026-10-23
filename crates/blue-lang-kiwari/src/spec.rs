@@ -166,6 +166,11 @@ pub enum Template {
     Unquote(Box<Template>),
     UnquoteSplice(Box<Template>),
     Symbol,
+    ParamSymbol,
+    EachParam {
+        path: Vec<String>,
+        each: Box<Template>,
+    },
     SymbolOf(String),
     Keyword,
     Lexeme,
@@ -304,6 +309,17 @@ impl Template {
             "symbol" => {
                 arity(0)?;
                 Self::Symbol
+            }
+            "param_symbol" => {
+                arity(0)?;
+                Self::ParamSymbol
+            }
+            "each_param" => {
+                arity(2)?;
+                Self::EachParam {
+                    path: path(arg(0)?)?,
+                    each: sub(1)?,
+                }
             }
             "symbol_of" => {
                 arity(1)?;

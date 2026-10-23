@@ -1491,13 +1491,17 @@ def blue()
                 "list",
                 ["field", "name"],
                 [
-                  "each",
+                  "each_param",
                   ["parameters", "*"],
                   [
                     "if_kind",
                     "identifier",
-                    ["list", ["symbol"], ["sym", "dyn"]],
-                    ["list", ["each", ["name"], ["symbol"]], ["field", "type"]]
+                    ["list", ["param_symbol"], ["sym", "dyn"]],
+                    [
+                      "list",
+                      ["each", ["name"], ["param_symbol"]],
+                      ["field", "type"]
+                    ]
                   ]
                 ]
               ],
@@ -1507,7 +1511,11 @@ def blue()
             [
               "list",
               ["sym", "define"],
-              ["list", ["field", "name"], ["field?", "parameters"]],
+              [
+                "list",
+                ["field", "name"],
+                ["each_param", ["parameters", "*"], ["param_symbol"]]
+              ],
               def_body
             ]
           ]

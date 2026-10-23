@@ -13,7 +13,7 @@
 //! has exactly one decoder. Where the grammar put the token's edges is still
 //! the grammar's claim, and the differential checks it.
 
-use blue_lang_syntax::{lex, TokenKind};
+use blue_lang_syntax::{lex, TokenKind, OPTIONAL_MARKER};
 use tatara_lisp::{Atom, Sexp};
 
 use crate::spec::{Spec, Template};
@@ -100,6 +100,15 @@ impl<'a> Lowerer<'a> {
 
     fn text<N: Cst>(&self, node: N) -> &'a str {
         &self.src[node.start()..node.end()]
+    }
+
+    fn param_name<N: Cst>(&self, node: N) -> (&'a str, bool) {
+        let named = Self::field(node, "name").unwrap_or(node);
+        let text = self.text(named).trim_end_matches(':');
+        match text.strip_suffix('?').filter(|bare| !bare.is_empty()) {
+            Some(bare) => (bare, true),
+            None => (text, false),
+        }
     }
 
     fn named<N: Cst>(node: N) -> Vec<N> {
@@ -210,6 +219,22 @@ impl<'a> Lowerer<'a> {
                 vec![Sexp::UnquoteSplice(Box::new(self.eval_one(inner, node)?))]
             }
             Template::Symbol => vec![sym(self.text(node).trim_end_matches(':'))],
+            Template::ParamSymbol => {
+                let (name, _) = self.param_name(node);
+                vec![sym(name)]
+            }
+            Template::EachParam { path, each } => {
+                let mut out = Vec::new();
+                let mut marked = false;
+                for n in Self::walk(node, path) {
+                    if !marked && self.param_name(n).1 {
+                        marked = true;
+                        out.push(sym(OPTIONAL_MARKER));
+                    }
+                    out.extend(self.eval(each, n)?);
+                }
+                out
+            }
             Template::SymbolOf(name) => match Self::field(node, name) {
                 Some(child) => vec![sym(self.text(child).trim_end_matches(':'))],
                 None => return Err(self.err(node, format!("no `{name}` field"))),
@@ -352,5 +377,163 @@ fn one(mut v: Vec<Sexp>) -> Result<Sexp, usize> {
         Ok(v.pop().expect("checked len"))
     } else {
         Err(v.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Mock {
+        kind: &'static str,
+        start: usize,
+        end: usize,
+        children: Vec<(Option<&'static str>, Mock)>,
+    }
+
+    #[derive(Clone, Copy)]
+    struct N<'a>(&'a Mock);
+
+    impl<'a> Cst for N<'a> {
+        fn kind(&self) -> &str {
+            self.0.kind
+        }
+        fn start(&self) -> usize {
+            self.0.start
+        }
+        fn end(&self) -> usize {
+            self.0.end
+        }
+        fn is_named(&self) -> bool {
+            true
+        }
+        fn is_extra(&self) -> bool {
+            false
+        }
+        fn fields(&self) -> Vec<(Option<&str>, Self)> {
+            self.0.children.iter().map(|(f, m)| (*f, N(m))).collect()
+        }
+    }
+
+    fn ident(src: &str, word: &str) -> Mock {
+        let start = src.find(word).expect("word in source");
+        Mock {
+            kind: "identifier",
+            start,
+            end: start + word.len(),
+            children: vec![],
+        }
+    }
+
+    fn typed(src: &str, label: &str, ty: &str) -> Mock {
+        let start = src.find(label).expect("label in source");
+        let t = src.find(ty).expect("type in source");
+        Mock {
+            kind: "typed_parameter",
+            start,
+            end: t + ty.len(),
+            children: vec![
+                (
+                    Some("name"),
+                    Mock {
+                        kind: "label",
+                        start,
+                        end: start + label.len(),
+                        children: vec![],
+                    },
+                ),
+                (Some("type"), ident(src, ty)),
+            ],
+        }
+    }
+
+    fn holder(src: &str, params: Vec<Mock>) -> Mock {
+        Mock {
+            kind: "def",
+            start: 0,
+            end: src.len(),
+            children: vec![(
+                Some("parameters"),
+                Mock {
+                    kind: "parameters",
+                    start: 0,
+                    end: src.len(),
+                    children: params.into_iter().map(|m| (None, m)).collect(),
+                },
+            )],
+        }
+    }
+
+    fn lowered(spec_json: &str, src: &str, params: Vec<Mock>) -> String {
+        let spec = Spec::parse(spec_json).expect("spec");
+        let lowerer = Lowerer::new(&spec, src);
+        let root = holder(src, params);
+        let template = Template::from_value(
+            &serde_json::from_str::<serde_json::Value>(
+                r#"["list", ["each_param", ["parameters", "*"], ["param_symbol"]]]"#,
+            )
+            .expect("json"),
+        )
+        .expect("template");
+        lowerer
+            .eval(&template, N(&root))
+            .expect("lowers")
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn minimal() -> &'static str {
+        r#"{"name":"t","infix":[],"pipe":{"op":"|>","power":[1,2]},"unary":[],"keywords":{"surface":[],"block":[]},"lower":{"identifier":["symbol"]}}"#
+    }
+
+    #[test]
+    fn plain_parameters_lower_to_their_names_with_no_marker() {
+        let src = "a, b";
+        let got = lowered(minimal(), src, vec![ident(src, "a"), ident(src, "b")]);
+        assert_eq!(got, "(a b)");
+    }
+
+    #[test]
+    fn a_question_mark_parameter_lowers_bare_behind_one_marker() {
+        let src = "a, b?, c?";
+        let got = lowered(
+            minimal(),
+            src,
+            vec![ident(src, "a"), ident(src, "b?"), ident(src, "c?")],
+        );
+        assert_eq!(got, "(a &optional b c)");
+    }
+
+    #[test]
+    fn only_optional_parameters_start_with_the_marker() {
+        let src = "a?";
+        let got = lowered(minimal(), src, vec![ident(src, "a?")]);
+        assert_eq!(got, "(&optional a)");
+    }
+
+    #[test]
+    fn a_label_parameter_loses_its_colon_and_its_question_mark() {
+        let src = "a: Int, b?: Str";
+        let spec = Spec::parse(minimal()).expect("spec");
+        let lowerer = Lowerer::new(&spec, src);
+        let root = holder(src, vec![typed(src, "a:", "Int"), typed(src, "b?:", "Str")]);
+        let template = Template::from_value(
+            &serde_json::from_str::<serde_json::Value>(
+                r#"["list", ["each_param", ["parameters", "*"], ["list", ["each", ["name"], ["param_symbol"]], ["field", "type"]]]]"#,
+            )
+            .expect("json"),
+        )
+        .expect("template");
+        let got = lowerer.eval(&template, N(&root)).expect("lowers");
+        assert_eq!(got[0].to_string(), "((a Int) &optional (b Str))");
+    }
+
+    #[test]
+    fn a_lone_question_mark_is_not_an_optional_marker() {
+        let src = "a, ?";
+        let got = lowered(minimal(), src, vec![ident(src, "a"), ident(src, "?")]);
+        assert_eq!(got, "(a ?)");
     }
 }

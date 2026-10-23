@@ -307,11 +307,7 @@ row(
   value("2")
 )
 
-row(
-  "fn.find.not_a_list",
-  "find(5, fn(_x) true end)",
-  fails(:eval, "a list")
-)
+row("fn.find.not_a_list", "find(5, fn(_x) true end)", fails(:eval, "a list"))
 
 row(
   "fn.flat_map",

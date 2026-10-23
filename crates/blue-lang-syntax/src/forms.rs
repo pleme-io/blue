@@ -81,6 +81,11 @@ pub const FORMS: &[Form] = &[
         doc: "A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042).",
     },
     Form {
+        example: "(a, *rest) -> rest",
+        lowers_to: "(lambda (a &rest rest) rest)",
+        doc: "A rest parameter: `*name` last in a def, fn or arrow parameter list collects the remaining arguments into a list, the signature-side sibling of the call-side splat. A call passes every fixed parameter and any number more.",
+    },
+    Form {
         example: "cap.status",
         lowers_to: "(blue-field cap :status)",
         doc: "A field read: a map's keyword or string key, a keyed list such as exec_capture's result or a parsed JSON object, or an error's kind, message, data, cause or trace. A missing field raises naming the fields there are; get(m, :k) reads one that may be absent.",

@@ -19,6 +19,9 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
+| `def f(a, *rest)
+  rest
+end` | `(define (f a &rest rest) rest)` | A rest parameter: `*name` last in a def, fn or arrow parameter list collects the remaining arguments into a list, the signature-side sibling of the call-side splat. A call may pass fewer than the fixed parameters never; it may pass any number more. |
 | `cap.status` | `(blue-field cap :status)` | A field read: a map's keyword or string key, a keyed list such as exec_capture's result or a parsed JSON object, or an error's kind, message, data, cause or trace. A missing field raises naming the fields there are; get(m, :k) reads one that may be absent. |
 | `x == nil` | `(blue-field x :nil?)` | A nil test: x.nil? is true of nil and of nothing else. Read, and written x.nil?, from nil?(x), x == nil and nil == x (B0047). |
 | `x.f(y)` | `(f x y)` | A method-style call: the receiver becomes the first argument. Read, and written f(x, y) (B0028). |

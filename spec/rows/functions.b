@@ -27,6 +27,49 @@ row(
   covers("keyword:def", "form:f(x, y)")
 )
 
+row(
+  "fn.rest",
+  "def pack(a, *rest)\n  [a, rest]\nend\n\n[pack(1), pack(1, 2, 3), pack(*[1, 2])]",
+  value("[[1, []], [1, [2, 3]], [1, [2]]]"),
+  covers("form:(a, *rest) -> rest")
+)
+
+row(
+  "fn.rest.only",
+  "def all(*xs)\n  xs\nend\n\n[all(), all(1, 2)]",
+  value("[[], [1, 2]]")
+)
+
+row(
+  "fn.rest.lambda",
+  "f = (h, *t) -> [h, t]\ng = fn(*xs)\n  xs\nend\n[f(1, 2, 3), g(4, 5)]",
+  value("[[1, [2, 3]], [4, 5]]")
+)
+
+row(
+  "fn.rest.typed",
+  "def typed(a: Int, *rest) -> dyn\n  [a, rest]\nend\n\ntyped(1, 2)",
+  value("[1, [2]]")
+)
+
+row(
+  "fn.rest.too_few",
+  "def pack(a, b, *rest)\n  rest\nend\n\npack(1)",
+  fails(:run, "expects at least 2 arguments, got 1")
+)
+
+row(
+  "fn.rest.not_last",
+  "def pack(*rest, a)\n  rest\nend",
+  fails(:parse, "a rest parameter `*name` comes last")
+)
+
+row(
+  "fmt.rest",
+  "def pack(a,*rest)\n  rest\nend",
+  formats("def pack(a, *rest)\n  rest\nend\n")
+)
+
 row("fn.def.bare_call", "def f()\n  41\nend\n\nf + 1", value("42"))
 
 row(

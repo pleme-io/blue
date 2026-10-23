@@ -1222,13 +1222,29 @@ impl<'s> Renderer<'s> {
     /// A parameter list `(a, b)`, broken one per line when it is too long.
     /// `region` is the inside of the parentheses when the source has them.
     fn params(&self, params: &[Spanned], region: Option<(usize, usize)>) -> Doc {
-        let spans: Vec<Span> = params.iter().map(|p| p.span).collect();
+        let marker = |p: &Spanned| p.as_symbol() == Some("&rest");
+        let rest_name = params.iter().position(marker).map(|i| i + 1);
+        let kept: Vec<(usize, &Spanned)> = params
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| !marker(p))
+            .collect();
+        let spans: Vec<Span> = kept.iter().map(|(_, p)| p.span).collect();
         let (lo, hi) = region.unwrap_or_else(|| match (spans.first(), spans.last()) {
             (Some(a), Some(b)) if self.real(*a) && self.real(*b) => (a.start, b.end),
             _ => (0, 0),
         });
         let u = self.units(lo, hi, &spans);
-        let docs = params.iter().map(|p| self.param(p)).collect();
+        let docs = kept
+            .iter()
+            .map(|(i, p)| {
+                if Some(*i) == rest_name {
+                    Doc::text(format!("*{}", p.as_symbol().unwrap_or("_")))
+                } else {
+                    self.param(p)
+                }
+            })
+            .collect();
         self.seq("(", ")", &u, docs)
     }
 
@@ -1591,20 +1607,37 @@ fn sym_name_of(s: &Spanned) -> Option<&str> {
     s.as_list()?.first()?.as_symbol()
 }
 
+fn without_rest(ps: &[Spanned]) -> Option<&[Spanned]> {
+    match ps {
+        [head @ .., marker, name]
+            if marker.as_symbol() == Some("&rest")
+                && is_name(name)
+                && !head.iter().any(|p| p.as_symbol() == Some("&rest")) =>
+        {
+            Some(head)
+        }
+        _ if ps.iter().any(|p| p.as_symbol() == Some("&rest")) => None,
+        _ => Some(ps),
+    }
+}
+
 fn is_params(s: &Spanned) -> bool {
-    s.as_list().is_some_and(|ps| ps.iter().all(is_name))
+    s.as_list()
+        .and_then(without_rest)
+        .is_some_and(|ps| ps.iter().all(is_name))
 }
 
 /// `(name a b …)` — an untyped `def` signature.
 fn is_signature(s: &Spanned) -> bool {
     s.as_list()
+        .and_then(without_rest)
         .is_some_and(|sig| !sig.is_empty() && sig.iter().all(is_name))
 }
 
 /// `(name (a T) …)` and a return type: the shape an annotated `def` lowers to,
 /// every parameter a `(name type)` pair.
 fn is_typed_signature(sig: &Spanned, ret: &Spanned) -> bool {
-    sig.as_list().is_some_and(|sig| {
+    sig.as_list().and_then(without_rest).is_some_and(|sig| {
         sig.first().is_some_and(is_name)
             && sig[1..].iter().all(|p| {
                 p.as_list()

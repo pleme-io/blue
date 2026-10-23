@@ -214,7 +214,6 @@ def law_division_is_float()
   7 / 2 == 3.5 and 4 / 2 == 2 and 1 / 4 == 0.25
 end
 
-# waive R0001: D0010 is one predicate per kind, so the law names nil? itself
 # waive B0036: the law states what nil? and bool? themselves answer
 def kinds(v)
   [
@@ -229,14 +228,12 @@ def kinds(v)
   ]
 end
 
-# waive R0001: the law states that nil? is false for []
 def law_one_kind_each()
   all((v) -> size(filter((k) -> k, kinds(v))) == 1, values(15, 300)) and
     not list?(nil) and
     not [].nil?
 end
 
-# waive R0001: the law states that nil? is false for every empty list
 # waive B0036: the law states what cdr and nil? themselves answer
 def law_empty_list_is_brackets()
   results = [

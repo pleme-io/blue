@@ -222,8 +222,8 @@ def nil_predicate(form)
   map(
     fn(p)
       arg = nth(1, last(p))
-      {at: first(p), message: "write `x == nil`", fix: quote
-        unquote(arg) == nil
+      {at: first(p), message: "write `x.nil?`", fix: quote
+        unquote(arg).nil?
       end}
     end,
     hits

@@ -1977,6 +1977,9 @@ impl Parser {
         let kind = |i: usize| self.toks.get(i).map(|t| &t.kind);
         if !matches!(kind(i), Some(TokenKind::RParen)) {
             loop {
+                if matches!(kind(i), Some(TokenKind::Op(o)) if o == "*") {
+                    i += 1;
+                }
                 if !matches!(kind(i), Some(TokenKind::Ident(_))) {
                     return false;
                 }
@@ -2001,6 +2004,10 @@ impl Parser {
         let mut params: Vec<Spanned> = Vec::new();
         while !self.at(&TokenKind::RParen) {
             let p_span = self.peek_span();
+            if self.at_star() {
+                params.extend(self.rest_parameter()?);
+                break;
+            }
             match self.bump() {
                 TokenKind::Ident(p) => params.push(sym_at(p_span, &p)),
                 other => {
@@ -2021,6 +2028,34 @@ impl Parser {
             self.span_since(head.start),
             vec![sym_at(head, "lambda"), list_at(params_span, params), body],
         ))
+    }
+
+    fn rest_parameter(&mut self) -> Result<[Spanned; 2], Fail> {
+        let star = self.peek_span();
+        self.bump();
+        let name_span = self.peek_span();
+        match self.bump() {
+            TokenKind::Ident(p) => {
+                let whole = star.merge(name_span);
+                Ok([sym_at(whole, "&rest"), sym_at(whole, &p)])
+            }
+            other => Err(fail(
+                format!("expected a parameter name after `*`, found {other}"),
+                name_span,
+            )),
+        }
+    }
+
+    fn at_star(&self) -> bool {
+        matches!(self.peek(), TokenKind::Op(o) if o == "*")
+    }
+
+    fn rest_is_last(&mut self) -> Result<(), Fail> {
+        self.skip_newlines();
+        if self.at(&TokenKind::Comma) {
+            return Err(self.error("a rest parameter `*name` comes last".to_string()));
+        }
+        Ok(())
     }
 
     /// `fn(a, b) ... end` => `(lambda (a b) body)`
@@ -2044,6 +2079,12 @@ impl Parser {
                 loop {
                     self.skip_newlines();
                     let p_span = self.peek_span();
+                    if self.at_star() {
+                        params.extend(self.rest_parameter()?);
+                        self.rest_is_last()?;
+                        self.expect(&TokenKind::RParen, "`)` after the rest parameter")?;
+                        break;
+                    }
                     match self.bump() {
                         TokenKind::Ident(p) => params.push(sym_at(p_span, &p)),
                         other => {
@@ -2455,6 +2496,7 @@ impl Parser {
             }
         };
         let mut params: Vec<(String, Span, Option<Spanned>)> = Vec::new();
+        let mut rest: Vec<Spanned> = Vec::new();
         if !self.at(&TokenKind::LParen) {
             self.note(
                 Spelling::ParameterList,
@@ -2470,6 +2512,12 @@ impl Parser {
                 loop {
                     self.skip_newlines();
                     let p_span = self.peek_span();
+                    if self.at_star() {
+                        rest = self.rest_parameter()?.to_vec();
+                        self.rest_is_last()?;
+                        self.expect(&TokenKind::RParen, "`)` after the rest parameter")?;
+                        break;
+                    }
                     match self.bump() {
                         // `a` — unannotated
                         TokenKind::Ident(p) => params.push((p, p_span, None)),
@@ -2537,6 +2585,7 @@ impl Parser {
         if !annotated {
             let mut sig = vec![sym_at(name_span, &name)];
             sig.extend(params.into_iter().map(|(p, s, _)| sym_at(s, &p)));
+            sig.extend(rest);
             return Ok(list_at(
                 whole,
                 vec![sym_at(head, "define"), list_at(sig_span, sig), body],
@@ -2555,6 +2604,7 @@ impl Parser {
             let ty = t.unwrap_or_else(|| sym_at(s, "dyn"));
             sig.push(list_at(s.merge(ty.span), vec![sym_at(s, &p), ty]));
         }
+        sig.extend(rest);
         Ok(list_at(
             whole,
             vec![

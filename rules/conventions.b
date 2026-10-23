@@ -35,8 +35,8 @@ def call?(node, name, arity)
     to_s(first(node)) == name
 end
 
-# `x == nil` over `nil?(x)` (AGENTS.md, Conventions). They mean the same:
-# nil equals only nil (okite D0001), so the fix is machine-applicable.
+# `x.nil?` over `nil?(x)` (B0047). They mean the same, so the fix is
+# machine-applicable.
 def nil_predicate(form)
   hits = filter((p) -> call?(last(p), "nil?", 1), nodes(form, []))
   map(
@@ -44,8 +44,8 @@ def nil_predicate(form)
       arg = nth(1, last(p))
       {
         at: first(p),
-        message: "write `x == nil`, not `nil?(x)`",
-        help: "blue's convention (AGENTS.md); == compares structurally and nil equals only nil",
+        message: "write `x.nil?`, not `nil?(x)`",
+        help: "blue's convention (B0047); .nil? is true of nil and of nothing else",
         fix: quote
           unquote(arg).nil?
         end
@@ -67,7 +67,7 @@ test "a nil? call anywhere in a form is found, with its path"
   assert map((f) -> get(f, :at), found) == [[2, 1], [2, 2, 1]]
 end
 
-test "the fix is the same test written with =="
+test "the fix is the same test written as the predicate"
   form = quote
     nil?(y)
   end

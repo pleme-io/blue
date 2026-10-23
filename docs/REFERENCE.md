@@ -20,6 +20,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
 | `cap.status` | `(blue-field cap :status)` | A field read: a map's keyword or string key, a keyed list such as exec_capture's result or a parsed JSON object, or an error's kind, message, data, cause or trace. A missing field raises naming the fields there are; get(m, :k) reads one that may be absent. |
+| `x == nil` | `(blue-field x :nil?)` | A nil test: x.nil? is true of nil and of nothing else. Read, and written x.nil?, from nil?(x), x == nil and nil == x (B0047). |
 | `x.f(y)` | `(f x y)` | A method-style call: the receiver becomes the first argument. Read, and written f(x, y) (B0028). |
 | `xs \|> f(a)` | `(f xs a)` | A pipe: the value becomes the FIRST argument. Read, and written f(xs, a) (B0028). map(f, xs) is function-first: xs \|> map(f) is map(xs, f), an error. |
 | `not x` | `(not x)` | Negation; `!x` is read and written `not x` (B0025). |
@@ -254,7 +255,7 @@ Higher binding power binds tighter.
 | `list?` | `list?(x)` | 1 | Whether x is a list. list?(nil) is true, so test x == nil first. |
 | `map?` | `map?(x)` | 1 | Whether x is a map. A parsed JSON object is not one. |
 | `negative?` | `negative?(n)` | 1 | Whether n < 0. |
-| `nil?` | `nil?(x)` | 1 | Whether x is nil (okite D0010). x == nil says the same. |
+| `nil?` | `nil?(x)` | 1 | Whether x is nil (okite D0010). x.nil? says the same and is the spelling blue writes (B0047). |
 | `null?` | `null?(x)` | 1 | Whether x is nil or []. The Lisp word; prefer retsu's is_empty. |
 | `number?` | `number?(x)` | 1 | Whether x is an Int or a Float. |
 | `odd?` | `odd?(n)` | 1 | Whether n is odd. |

@@ -1030,7 +1030,13 @@ impl Parser {
     }
 
     #[inline(never)]
-    fn nil_test(&mut self, start: usize, op_span: Span, lhs: &Spanned, rhs: &Spanned) -> Option<Spanned> {
+    fn nil_test(
+        &mut self,
+        start: usize,
+        op_span: Span,
+        lhs: &Spanned,
+        rhs: &Spanned,
+    ) -> Option<Spanned> {
         let (subject, written) = match (&lhs.form, &rhs.form) {
             (_, SpannedForm::Nil) if !matches!(lhs.form, SpannedForm::Nil) => (lhs, "x == nil"),
             (SpannedForm::Nil, _) if !matches!(rhs.form, SpannedForm::Nil) => (rhs, "nil == x"),

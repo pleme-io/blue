@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:5f64b92df06c3fa2e5b976daa0e5abec6498bbb92251c7a389151bb2ebfcc3b9",
+  "manifest": {
+    "schema": 1,
+    "name": "fairu",
+    "version": "0.1.0",
+    "needs": {
+      "moji": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

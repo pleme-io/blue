@@ -395,7 +395,7 @@ A	deeta	unpack	pure	unpack(bytes, format, opts) -> value	error,validate	bencode	
 A	deeta	update	pure	update(doc, path, f) -> doc	error	-	absent	new doc with f applied at the path	1	update(doc, path, f) -> doc	yes
 A	deeta	walk	pure	walk(doc, f) -> doc	-	-	absent	apply f to every node, children first	2	walk(doc, opts) -> doc	no
 A	deeta	write	effect	write(path, value, opts) -> nil	capability,error,idempotent,serialize	-	absent	value to file atomically, format from extension	1	write(path, value, opts) -> nil	yes
-B	fairu	absolute	effect	absolute(path) -> path	capability	-	absent	the path made absolute against the current directory	0		na
+B	fairu	absolute	effect	absolute(path) -> path	capability	-	exists:fairu	the path made absolute against the current directory	0		na
 B	fairu	append	effect	append(path, content) -> nil	capability,error	-	partial:shisutemu	add to the end of a file, creating it	0	append(path, content) -> nil	yes
 B	fairu	copy	effect	copy(from, to, opts) -> nil	capability,deadline,error	-	partial:shisutemu	place a copy of a file or tree at a destination	0	copy(from, to, opts) -> nil	yes
 B	fairu	current	effect	current() -> path	capability	-	partial:shisutemu	the current working directory	0		na
@@ -405,7 +405,7 @@ B	fairu	exists?	effect	exists?(path) -> Bool	capability	-	partial:shisutemu	whet
 B	fairu	extension	pure	extension(path) -> text	-	-	partial:shisutemu	the final extension of a name, or empty	0		na
 B	fairu	file?	effect	file?(path) -> Bool	capability	-	partial:shisutemu	whether the path is a regular file	0		na
 B	fairu	glob	effect	glob(pattern, opts) -> [path]	capability	-	partial:shisutemu	the paths matching a pattern, sorted	0	glob(pattern, opts) -> [path]	yes
-B	fairu	home	effect	home() -> path	capability	-	absent	the home directory of the user	0		na
+B	fairu	home	effect	home() -> path	capability	-	exists:fairu	the home directory of the user	0		na
 B	fairu	info	effect	info(path) -> {kind, size, modified, mode}	capability,error,time	-	partial:shisutemu	the current state of a path as a record	0	info(path) -> {kind, size, modified, mode}	yes
 B	fairu	join	pure	join(*parts) -> path	-	-	partial:shisutemu	join path parts with one separator	0	join(*parts) -> path	yes
 B	fairu	link	effect	link(target, path, opts) -> nil	capability,error	-	absent	make a symbolic link; configured off by default	3	link(target, path, opts) -> nil	yes
@@ -417,14 +417,14 @@ B	fairu	move	effect	move(from, to, opts) -> nil	capability,error,idempotent	-	pa
 B	fairu	name	pure	name(path) -> text	-	-	partial:shisutemu	the last part of a path	0		na
 B	fairu	normalize	pure	normalize(path) -> path	-	-	absent	the path with dot parts and doubled separators removed	1	normalize(path) -> path	yes
 B	fairu	parent	pure	parent(path) -> path	-	-	partial:shisutemu	the directory part of a path	0	parent(path) -> path	yes
-B	fairu	parts	pure	parts(path) -> [text]	-	-	absent	the path split into its parts	0		na
+B	fairu	parts	pure	parts(path) -> [text]	-	-	exists:fairu	the path split into its parts	0		na
 B	fairu	place	effect	place(app, tier) -> path	capability,config	okiba	absent	the absolute config, state, data or cache path of an app	1		na
 B	fairu	read	effect	read(path, opts) -> text	capability,deadline,error	-	partial:shisutemu	the whole text of a file	0	read(path, opts) -> text	yes
 B	fairu	read_bytes	effect	read_bytes(path, opts) -> bytes	capability,error	-	absent	the whole content of a file as bytes	1		na
 B	fairu	relative	pure	relative(path, base) -> path	-	-	absent	the path expressed relative to a base	1		na
 B	fairu	same?	effect	same?(a, b) -> Bool	capability	-	absent	whether two paths are one file on disk	2		na
 B	fairu	space	effect	space(path) -> {total, free}	capability	-	absent	free and total bytes of the volume holding a path	2		na
-B	fairu	stem	pure	stem(path) -> text	-	-	absent	the name without its final extension	0		na
+B	fairu	stem	pure	stem(path) -> text	-	-	exists:fairu	the name without its final extension	0		na
 B	fairu	stream	stream	stream(path, f, opts) -> nil	cancel,deadline,error	-	absent	call f per line or chunk without holding the file	1	stream(path, f, opts) -> nil	yes
 B	fairu	sync	effect	sync(path) -> nil	capability,error	-	absent	flush a file to stable storage	2	sync(path) -> nil	yes
 B	fairu	touch	effect	touch(path, opts) -> nil	capability,idempotent,time	-	absent	create an empty file or bump its modified time	2		na

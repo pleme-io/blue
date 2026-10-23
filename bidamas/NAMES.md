@@ -199,3 +199,4 @@ disagree.
    a package the facade silently stops covering.
    `granularity.rs::the_facade_is_an_ordinary_bidama_with_many_needs` fails the
    build if you forget.
+| `fairu` | ファイル | files — paths and the files they name: the path properties (`absolute`, `parts`, `stem`) and the home directory, with the file verbs that are runtime primitives named by the same space | 2026-10-22 | KEEP | The katakana loanword for the subject, as `deeta`, `kueri` and `nikkusu` are. Swept 2026-10-22 with `rg --no-ignore -w -i` over pleme-io, controls firing (`shikumi` 2,067 files): `fairu` occurs only in blue's own verb-graph documents and rows, which are this space's declaration; 0 repo dirs, 0 theory files. |

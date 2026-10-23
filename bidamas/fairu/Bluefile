@@ -1,0 +1,2 @@
+package("fairu", "0.1.0")
+needs("moji", "^0.1")

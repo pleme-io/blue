@@ -323,7 +323,7 @@ verb(
     shape: "proof(payloads, index) -> [step]",
     laterals: ["serialize"],
     fleet: "cartorio",
-    today: "partial:shomei",
+    today: "exists:shomei",
     meaning: "the sibling path that shows a payload is in the tree",
     wave: 0,
     origin: "B"
@@ -428,7 +428,7 @@ verb(
     shape: "sign(data, secret) -> hex",
     laterals: ["error", "validate"],
     fleet: "tameshi",
-    today: "partial:shomei",
+    today: "exists:shomei",
     meaning: "signature over data",
     wave: 0,
     origin: "D"
@@ -458,7 +458,7 @@ verb(
     shape: "verify?(data, signature, public) -> Bool",
     laterals: ["error", "validate"],
     fleet: "tameshi",
-    today: "partial:shomei",
+    today: "exists:shomei",
     meaning: "signature is valid; malformed input raises",
     wave: 0,
     origin: "D"
@@ -473,7 +473,7 @@ verb(
     shape: "verify_chain(genesis, payloads, head) -> Bool",
     laterals: ["validate"],
     fleet: nil,
-    today: "partial:shomei",
+    today: "exists:shomei",
     meaning: "whether the payloads reproduce the stated head",
     wave: 0,
     origin: "B"
@@ -488,7 +488,7 @@ verb(
     shape: "verify_proof?(root, payload, proof) -> Bool",
     laterals: ["validate"],
     fleet: "cartorio",
-    today: "partial:shomei",
+    today: "exists:shomei",
     meaning: "whether a proof climbs from a payload to the root",
     wave: 0,
     origin: "B"

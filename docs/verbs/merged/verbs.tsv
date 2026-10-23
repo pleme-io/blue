@@ -2230,18 +2230,18 @@ D	shomei	keypair	pure	keypair(seed) -> record	error,validate	tameshi	exists:shom
 D	shomei	mac	pure	mac(data, key, algorithm) -> hex	error,validate	-	absent	keyed digest proving data came from a key holder	1		na
 D	shomei	opens?	pure	opens?(commitment, value, nonce) -> Bool	validate	tameshi	absent	commitment matches the revealed value	2		na
 D	shomei	pledge	pure	pledge(value, nonce) -> hex	validate	tameshi	absent	hiding, binding commitment to a value	2	pledge(value, nonce) -> hex	yes
-B	shomei	proof	pure	proof(payloads, index) -> [step]	serialize	cartorio	partial:shomei	the sibling path that shows a payload is in the tree	0		na
+B	shomei	proof	pure	proof(payloads, index) -> [step]	serialize	cartorio	exists:shomei	the sibling path that shows a payload is in the tree	0		na
 D	shomei	prove	pure	prove(payloads, index) -> [step]	error,validate	tameshi	exists:shomei	inclusion proof for one payload	0		na
 D	shomei	proves?	pure	proves?(root, payload, proof) -> Bool	validate	tameshi	exists:shomei	proof climbs from payload to root	0		na
 D	shomei	public	pure	public(keypair) -> hex	validate	-	exists:shomei	the half a verifier holds	0		na
 B	shomei	random	effect	random(n) -> bytes	capability	-	absent	n bytes from the system entropy source	1		na
 D	shomei	root	pure	root(payloads) -> hex	serialize,validate	tameshi	exists:shomei	Merkle root over payloads in order	0	root(payloads) -> hex	yes
 D	shomei	same?	pure	same?(a, b) -> Bool	validate	-	absent	equality that takes equal time for every input	0		na
-D	shomei	sign	pure	sign(data, secret) -> hex	error,validate	tameshi	partial:shomei	signature over data	0	sign(data, secret) -> hex	yes
+D	shomei	sign	pure	sign(data, secret) -> hex	error,validate	tameshi	exists:shomei	signature over data	0	sign(data, secret) -> hex	yes
 D	shomei	trail	pure	trail(genesis, payloads) -> [hex]	validate	-	exists:shomei	every link hash in order	0		na
-D	shomei	verify?	pure	verify?(data, signature, public) -> Bool	error,validate	tameshi	partial:shomei	signature is valid; malformed input raises	0	verify?(data, signature, public) -> Bool	yes
-B	shomei	verify_chain	pure	verify_chain(genesis, payloads, head) -> Bool	validate	-	partial:shomei	whether the payloads reproduce the stated head	0		na
-B	shomei	verify_proof?	pure	verify_proof?(root, payload, proof) -> Bool	validate	cartorio	partial:shomei	whether a proof climbs from a payload to the root	0		na
+D	shomei	verify?	pure	verify?(data, signature, public) -> Bool	error,validate	tameshi	exists:shomei	signature is valid; malformed input raises	0	verify?(data, signature, public) -> Bool	yes
+B	shomei	verify_chain	pure	verify_chain(genesis, payloads, head) -> Bool	validate	-	exists:shomei	whether the payloads reproduce the stated head	0		na
+B	shomei	verify_proof?	pure	verify_proof?(root, payload, proof) -> Bool	validate	cartorio	exists:shomei	whether a proof climbs from a payload to the root	0		na
 F	shougai?	acknowledge	effect	acknowledge(alert, who) -> nil	idempotent	-	absent	say that a person has taken an alert	2		na
 F	shougai?	announce	effect	announce(audience, message) -> nil	log	-	absent	publish a status message to an audience	3		na
 F	shougai?	assign	effect	assign(incident, who) -> nil	idempotent	-	absent	name the person who leads an incident	2	assign(incident, who) -> nil	yes

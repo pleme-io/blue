@@ -344,6 +344,46 @@ def merkle_climb(h, step)
   end
 end
 
+# ── verbs ──────────────────────────────────────────────────────────
+
+# The hash of data as lowercase hex under a named algorithm; only :blake3 is
+# built, any other raises :bad_option.
+def hash(data, algorithm)
+  if algorithm == :blake3
+    hash_message(data)
+  else
+    raise(:bad_option, "hash: the algorithm must be :blake3, got #{algorithm}")
+  end
+end
+
+# The Ed25519 signature of data under a secret, in hex; a malformed secret
+# raises :bad_key.
+def sign(data, secret)
+  sign_message(secret, data) rescue
+    raise(:bad_key, "sign: the secret must be 64 lowercase hex characters")
+end
+
+# Whether the signature holds for the data under the public key; false only
+# for a well-formed signature that does not verify.
+def verify?(data, signature, public)
+  verify_message(public, data, signature)
+end
+
+# Whether the payloads reproduce the stated head from the genesis.
+def verify_chain(genesis, payloads, head)
+  chain_verify(genesis, payloads, head)
+end
+
+# The sibling path, leaf up, that shows payload `index` is in the tree.
+def proof(payloads, index)
+  merkle_proof(payloads, index)
+end
+
+# Whether a proof climbs from the payload to the root.
+def verify_proof?(root, payload, proof)
+  merkle_verify(root, payload, proof)
+end
+
 # ── tests ──────────────────────────────────────────────────────────
 #
 # Oracles, all outside this package: RFC 8032 §7.1 (Ed25519), BLAKE3's official
@@ -559,4 +599,79 @@ test "merkle refuses what it cannot place"
   ) rescue
     :raised) ==
     :raised
+end
+
+test "hash names its algorithm and refuses the ones that are not built"
+  assert hash("", :blake3) ==
+    "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+  assert hash("x", :blake3) == hash_message("x")
+  assert hash([120], :blake3) == hash("x", :blake3)
+  assert hash("x", :blake3) != hash("y", :blake3)
+  assert (hash("x", :sha256) rescue :raised) == :raised
+  assert (hash("x", nil) rescue :raised) == :raised
+end
+
+test "sign and verify? agree with RFC 8032 and fail for a changed input"
+  seed = "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
+  pub = "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
+  sig = "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
+  assert sign("r", seed) == sig
+  assert sign([114], seed) == sig
+  assert verify?("r", sig, pub) == true
+  assert verify?("s", sig, pub) == false
+  assert verify?(
+    "r",
+    sign(
+      "r",
+      "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+    ),
+    pub
+  ) ==
+    false
+end
+
+test "sign refuses a secret it cannot place and verify? refuses garbage"
+  pub = "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
+  assert (sign("m", "00") rescue :bad) == :bad
+  assert (verify?("m", "not hex", pub) rescue :raised) == :raised
+  assert (verify?("m", "00", "abcd") rescue :raised) == :raised
+  assert error?(
+    begin
+      sign("m", 42)
+    rescue e
+      e
+    end
+  )
+end
+
+test "verify_chain and proof follow the chain and the tree"
+  g = chain_genesis("test-log")
+  events = ["event-1", "event-2"]
+  head_hash = "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"
+  assert verify_chain(g, events, head_hash)
+  assert verify_chain(g, [], g)
+  assert not verify_chain(g, ["event-2", "event-1"], head_hash)
+  assert not verify_chain(g, ["event-1"], head_hash)
+  assert (verify_chain(g, events, "nope") rescue :raised) == :raised
+  nab = "f5a5d8aff2c96f3abd9d097277b4dde881f23bae1f05ee31b2d3e064c6d9c81b"
+  assert proof(["a", "b", "c"], 2) == [["L", nab]]
+  assert proof(["a"], 0) == []
+  assert (proof(["a"], 1) rescue :raised) == :raised
+  assert verify_proof?(
+    merkle_root(["a", "b", "c"]),
+    "c",
+    proof(["a", "b", "c"], 2)
+  )
+  assert verify_proof?(merkle_root(["a"]), "a", [])
+  assert not verify_proof?(
+    merkle_root(["a", "b", "c"]),
+    "b",
+    proof(["a", "b", "c"], 2)
+  )
+  assert not verify_proof?(
+    merkle_root(["a", "b", "c"]),
+    "X",
+    proof(["a", "b", "c"], 0)
+  )
+  assert (verify_proof?("nope", "a", []) rescue :raised) == :raised
 end

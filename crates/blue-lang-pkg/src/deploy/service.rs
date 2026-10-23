@@ -41,9 +41,33 @@ pub struct Service {
     pub schema: BTreeMap<String, BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache: Option<Cache>,
     #[serde(default, skip_serializing_if = "Slo::is_empty")]
     pub slo: Slo,
     pub output: String,
+}
+
+pub const DEFAULT_CACHE_PORT: u16 = 6379;
+
+pub const CACHE_FIELDS: &[&str] = &["port"];
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Cache {
+    pub port: u16,
+}
+
+fn cache_of(v: Option<&Value>) -> Result<Option<Cache>, SpecError> {
+    let Some(v) = v else {
+        return Ok(None);
+    };
+    let s = Spec::of(v, CACHE_FIELDS)?;
+    let port = match s.get("port") {
+        None => DEFAULT_CACHE_PORT,
+        Some(p) => port_of("port", p)?,
+    };
+    Ok(Some(Cache { port }))
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -150,12 +174,13 @@ pub const SERVICE_FIELDS: &[&str] = &[
     "flags",
     "schema",
     "owner",
+    "cache",
     "slo",
     "output",
 ];
 
 pub const RESERVED_SETTINGS: &[&str] = &[
-    "listen", "health", "flags", "config", "tier", "defaults", "database",
+    "listen", "health", "flags", "config", "tier", "defaults", "database", "cache",
 ];
 
 pub const COLUMN_TYPES: &[&str] = &[
@@ -330,6 +355,7 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
         check_name(o)?;
     }
     let slo = slo_of(s.get("slo"))?;
+    let cache = cache_of(s.get("cache"))?;
 
     let output = match s.text("output")? {
         Some(o) => project_path("output", o)?,
@@ -351,6 +377,7 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
         flags,
         schema,
         owner,
+        cache,
         slo,
         output,
     })
@@ -474,6 +501,26 @@ mod tests {
         let json = serde_json::to_string(s).unwrap();
         let back: Service = serde_json::from_str(&json).unwrap();
         assert_eq!(&back, s);
+    }
+
+    #[test]
+    fn a_cache_entry_is_recorded_with_its_port() {
+        let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
+        let none = read(&["service(\"hello\", {", base, "})\n"].concat()).unwrap();
+        assert_eq!(none.services["hello"].cache, None);
+        let bare = read(&["service(\"hello\", {", base, ", cache: {}})\n"].concat()).unwrap();
+        assert_eq!(bare.services["hello"].cache, Some(Cache { port: 6379 }));
+        let set =
+            read(&["service(\"hello\", {", base, ", cache: {port: 6380}})\n"].concat()).unwrap();
+        let s = &set.services["hello"];
+        assert_eq!(s.cache, Some(Cache { port: 6380 }));
+        let back: Service = serde_json::from_str(&serde_json::to_string(s).unwrap()).unwrap();
+        assert_eq!(&back, s);
+        assert!(
+            refused(&["service(\"hello\", {", base, ", cache: {host: \"x\"}})\n"].concat())
+                .iter()
+                .any(|m| m.contains("is not a field here"))
+        );
     }
 
     #[test]

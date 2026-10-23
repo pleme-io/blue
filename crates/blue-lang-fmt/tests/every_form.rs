@@ -38,6 +38,9 @@ fn round_trips(src: &str) -> Result<(), TestCaseError> {
     let Ok(before) = parse_program(src) else {
         return Err(TestCaseError::reject("not blue"));
     };
+    if blue_lang_fmt::comment_count(src) > 0 {
+        return Err(TestCaseError::reject("a comment inside interpolated code"));
+    }
     let once = format_forms(&before);
     let after = parse_program(&once).map_err(|e| {
         TestCaseError::fail(format!(

@@ -967,16 +967,34 @@ impl<'s> Renderer<'s> {
         // Infix operators.
         if let Some((_, prec)) = head.and_then(infix_render) {
             if items.len() == 3 {
-                let chain = self.chain(s, prec, prec < min_prec);
-                return if prec < min_prec {
-                    Doc::text("(")
-                        .concat(Doc::softline().concat(chain).nest(2))
-                        .concat(Doc::softline())
-                        .concat(Doc::text(")"))
-                        .group()
-                } else {
-                    chain
-                };
+                if prec >= min_prec {
+                    return self.chain(s, prec, false);
+                }
+                let (opening, closing) = self.paren_comments(s);
+                let mut open = Doc::text("(");
+                let mut lead = Doc::nil();
+                let mut trailed = false;
+                for c in opening {
+                    if !self.comments[c].own_line && !trailed {
+                        open = open.concat(self.trailing(c));
+                        trailed = true;
+                    } else {
+                        lead = lead.concat(self.own_line(c)).concat(Doc::hardline());
+                    }
+                }
+                let mut inner = lead.concat(self.chain(s, prec, true));
+                for c in closing {
+                    if !self.comments[c].own_line {
+                        inner = inner.concat(self.trailing(c));
+                    } else {
+                        inner = inner.concat(Doc::hardline()).concat(self.own_line(c));
+                    }
+                }
+                return open
+                    .concat(Doc::softline().concat(inner).nest(2))
+                    .concat(Doc::softline())
+                    .concat(Doc::text(")"))
+                    .group();
             }
         }
 
@@ -1050,6 +1068,21 @@ impl<'s> Renderer<'s> {
             .is_ok_and(|forms| forms.len() == 1 && forms[0] == s.to_sexp())
     }
 
+    fn paren_comments(&self, s: &Spanned) -> (Vec<usize>, Vec<usize>) {
+        if !self.real(s.span) {
+            return (Vec::new(), Vec::new());
+        }
+        let before = self.toks.iter().rev().find(|t| t.span.end <= s.span.start);
+        let after = self.toks.iter().find(|t| t.span.start >= s.span.end);
+        match (before, after) {
+            (Some(l), Some(r)) if l.kind == TokenKind::LParen && r.kind == TokenKind::RParen => (
+                self.take(l.span.end, s.span.start),
+                self.take(s.span.end, r.span.start),
+            ),
+            _ => (Vec::new(), Vec::new()),
+        }
+    }
+
     /// `first |> (rest)` for a list the pipeline built: `items[1]` is what was
     /// piped in, and the list without it is what it was piped into.
     fn piped(&self, items: &[Spanned], min_prec: u8) -> Doc {
@@ -1108,6 +1141,7 @@ impl<'s> Renderer<'s> {
         links.reverse();
 
         let indent = if enclosed { 0 } else { 2 };
+        let first_doc = self.operand(first, prec);
         let mut tail = Doc::nil();
         let mut hug = Doc::nil();
         let mut commented = false;
@@ -1147,7 +1181,7 @@ impl<'s> Renderer<'s> {
                 prev_end = rhs.span.end;
             }
         }
-        let first = self.operand(first, prec);
+        let first = first_doc;
         let all = first.clone().concat(tail.nest(indent)).group();
         if commented {
             return all;

@@ -355,6 +355,11 @@ fn a_name_that_is_not_reserved_still_parses_where_a_reserved_one_is_refused() {
 }
 
 const HIDDEN: &[(&str, &str, usize)] = &[
+    (
+        "interpolation-comment-after-a-nested-string",
+        "\"#{\"a\"#}\"",
+        1,
+    ),
     ("interpolation-comment-dropped", "\"#{a # n\n}\"", 1),
     ("interpolation-comment-dropped", "x = \"a#{b # c\n}\"", 1),
     (
@@ -611,6 +616,21 @@ const LAID_OUT: &[(&str, &str, &str)] = &[
         "paren-group-hanging-closer",
         "def f(a)\n  z = 2 * (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb + cccccccccccc)\nend\n",
         "def f(a)\n  z = 2 *\n    (\n      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa +\n      bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb +\n      cccccccccccc\n    )\nend\n",
+    ),
+    (
+        "paren-group-comment-has-no-line",
+        "x = ( # c\n  a and b\n) + a\n",
+        "x = ( # c\n  a and b\n) + a\n",
+    ),
+    (
+        "paren-group-comment-has-no-line",
+        "x = (a and b # c\n) + a\n",
+        "x = (\n  a and b # c\n) + a\n",
+    ),
+    (
+        "paren-group-comment-has-no-line",
+        "x = (\n  a and b\n  # last\n) + a\n",
+        "x = (\n  a and b\n  # last\n) + a\n",
     ),
     (
         "paren-group-hanging-closer",

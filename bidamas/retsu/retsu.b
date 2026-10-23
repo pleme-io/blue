@@ -734,3 +734,26 @@ test "flatten_n unwraps exactly the depth asked for"
   assert flatten_n([], 3) == []
   assert flatten_n([[], []], 1) == []
 end
+
+def prepend(xs, item)
+  append([item], as_list(xs))
+end
+
+def at(xs, index)
+  if index < 0
+    nth(size(xs) + index, xs)
+  else
+    nth(index, xs)
+  end
+end
+
+test "prepend and at stay total on nil and out-of-range"
+  assert prepend([2, 3], 1) == [1, 2, 3]
+  assert prepend(nil, 1) == [1]
+  assert prepend([1], [2]) == [[2], 1]
+  assert at([10, 20, 30], 0) == 10
+  assert at([10, 20, 30], -1) == 30
+  assert at([10, 20, 30], 3) == nil
+  assert at([10, 20, 30], -4) == nil
+  assert at(nil, 0) == nil
+end

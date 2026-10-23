@@ -1917,7 +1917,7 @@ B	rekishi?	squash	effect	squash(repo, from, to, opts) -> oid	error	-	absent	fold
 B	rekishi?	three_way	pure	three_way(base, ours, theirs) -> {merged, conflicts}	-	-	absent	merge two edits of one base, marking overlaps	2		na
 B	rekishi?	update	effect	update(repo, name, f) -> oid	error,idempotent,retry	-	absent	move a ref with f(old) and refuse a concurrent move	2	update(repo, name, f) -> oid	yes
 A	retsu	append	pure	append(list, item) -> list	-	-	partial:retsu	new list with an item at the end	0	append(list, item) -> list	yes
-A	retsu	at	pure	at(list, index) -> item or nil	-	tatara-lisp-script	partial:retsu	item at an index; negative counts from the end	0	at(list, index) -> item or nil	yes
+A	retsu	at	pure	at(list, index) -> item or nil	-	tatara-lisp-script	exists:retsu	item at an index; negative counts from the end	0	at(list, index) -> item or nil	yes
 A	retsu	chunk	pure	chunk(list, n) -> [list]	-	-	exists:retsu	consecutive groups of n items	0	chunk(list, n) -> [list]	yes
 A	retsu	concat	pure	concat(lists) -> list	-	tatara-lisp-script	exists:retsu	lists joined end to end	0		na
 A	retsu	contains?	pure	contains?(list, item) -> Bool	-	-	exists:retsu	whether an equal item is in the list	0	contains?(list, item) -> Bool	yes
@@ -1938,7 +1938,7 @@ A	retsu	interleave	pure	interleave(a, b) -> list	-	-	exists:retsu	items of two l
 A	retsu	last	pure	last(list) -> item or nil	-	-	exists:retsu	last item, nil when empty	0	last(list) -> item or nil	yes
 A	retsu	map	pure	map(list, f) -> list	-	-	rust:blue-lang-runtime	apply f to each item	0	map(list, f) -> list	yes
 A	retsu	partition	pure	partition(list, f) -> record	-	-	exists:retsu	items split by whether f holds	0	partition(list, f) -> record	yes
-A	retsu	prepend	pure	prepend(list, item) -> list	-	-	absent	new list with an item at the front	0		na
+A	retsu	prepend	pure	prepend(list, item) -> list	-	-	exists:retsu	new list with an item at the front	0		na
 A	retsu	range	pure	range(from, to, step) -> list	-	tatara-lisp-script	absent	numbers from a start up to an end	0	range(from, to, step) -> list	yes
 A	retsu	reduce	pure	reduce(list, start, f) -> value	-	-	rust:blue-lang-runtime	fold items into one value	0	reduce(list, start, f) -> value	yes
 A	retsu	reject	pure	reject(list, f) -> list	-	-	exists:retsu	items where f does not hold	0	reject(list, f) -> list	yes

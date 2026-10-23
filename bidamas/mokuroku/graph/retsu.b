@@ -23,7 +23,7 @@ verb(
     shape: "at(list, index) -> item or nil",
     laterals: [],
     fleet: "tatara-lisp-script",
-    today: "partial:retsu",
+    today: "exists:retsu",
     meaning: "item at an index; negative counts from the end",
     wave: 0,
     origin: "A"
@@ -340,7 +340,7 @@ verb(
     shape: "prepend(list, item) -> list",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:retsu",
     meaning: "new list with an item at the front",
     wave: 0,
     origin: "A"

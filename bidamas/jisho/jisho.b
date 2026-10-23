@@ -66,6 +66,13 @@ def merge(a, b)
   reduce((acc, e) -> assoc(acc, first(e), nth(1, e)), a, map_entries(b))
 end
 
+space_for(:map, "jisho")
+verb_for("jisho", "has?", has?)
+verb_for("jisho", "need", need)
+verb_for("jisho", "put", put)
+verb_for("jisho", "update", update)
+verb_for("jisho", "delete", delete)
+
 test "keys values entries and size read a map in key order"
   m = {"b" => 2, "a" => 1}
   assert keys(m) == ["a", "b"]
@@ -122,4 +129,40 @@ test "from_entries inverts entries"
   m = {"a" => 1, "b" => 2}
   assert from_entries(entries(m)) == m
   assert from_entries([]) == {}
+end
+
+test "the master verbs reach jisho for a plain map"
+  m = {"a" => 1, "b" => nil}
+  assert blue::has?(m, "b") == true
+  assert blue::has?(m, "z") == false
+  assert blue::has?({}, "a") == false
+  assert blue::need(m, "a") == 1
+  assert blue::put(m, "c", 3) == put(m, "c", 3)
+  assert blue::put({}, "a", 1) == {"a" => 1}
+  assert blue::update(m, "a", (x) -> x + 1) == {"a" => 2, "b" => nil}
+  assert blue::delete(m, "a") == {"b" => nil}
+  assert blue::delete({}, "a") == {}
+end
+
+test "a master verb on a map raises what jisho raises"
+  caught = begin
+    blue::need({}, "z")
+  rescue e
+    e.kind
+  end
+  assert caught == :not_found
+  caught = begin
+    blue::update({}, "z", (x) -> x)
+  rescue e
+    e.kind
+  end
+  assert caught == :not_found
+end
+
+test "a map is owned by jisho and a tagged map by its own space"
+  assert space_of({}) == "jisho"
+  assert space_of({"a" => 1}) == "jisho"
+  assert space_of(in_space("gitto", {})) == "gitto"
+  assert space_of([]).nil?
+  assert space_of(nil).nil?
 end

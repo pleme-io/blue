@@ -1461,6 +1461,8 @@ impl<'t> Walker<'t> {
                 && self.table.use_closure(self.top_level).contains(owner);
             if foreign
                 && blue_lang_syntax::qualified(name).is_none()
+                && !(blue_lang_syntax::MASTER_VERBS.contains(&name)
+                    && matches!(ns, Target::Builtin(_)))
                 && matches!(ns, Target::Builtin(_) | Target::Unbound)
             {
                 let uses = self

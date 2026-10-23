@@ -288,6 +288,40 @@ dispatch on the value.
 `member?` (84), the string-only `contains?` (76) and shuugou `member` (14), for 313 external sites in
 49 files. `empty?` replaces `retsu::is_empty` and `null?` (414 sites in 57 files).
 
+### 3.7 Master verb dispatch (built 2026-10-23)
+
+A bare `read`, `need`, `has?`, `put`, `update`, `delete`, `create`, `diff`, `info` or `exists?` calls
+the handler that its subject's space registered. The runtime owns the table (`blue-lang-runtime`,
+`dispatch.rs`); `MASTER_VERBS` in `blue-lang-syntax` is the one list of the verbs.
+
+**The choice: per-space registration, with the space named by a tag or by a kind.** A protocol (a
+value that carries its own methods) needs a value type blue lacks. Dispatch on the value's kind alone
+fails for strings, which are a path in `fairu`, a repository in `gitto` and text everywhere. So:
+
+- `verb_for("gitto", "read", read)` at the top of the space's bidama registers a handler. The verb is
+  one of the ten above; anything else raises `:usage`.
+- `in_space("gitto", repo)` makes a subject: the map `{space: "gitto", of: repo}`. The handler gets
+  `repo` itself, then the other arguments, so `gitto::read(repo, path, opts)` is the handler as it is.
+- `space_for(:map, "jisho")` gives untagged values of one kind to a space. Kinds are `:map`, `:list`,
+  `:string`, `:int`, `:float`, `:bool`, `:keyword`, `:function`; a kind has one owner.
+- `space_of(value)` answers which space a call would use, or nil.
+
+A tag wins over a kind. A subject with no space raises `:usage` and names `in_space`. A space with no
+handler raises `:usage` naming the bidama to `use` and the spaces that do have one. Registrations are
+copied at each fork and private after it, so one program's `use` never reaches another's.
+
+**Limits.** A bidama registers when it is loaded, so a program must `use("jisho")` before a bare `put`
+reaches jisho (no prelude yet). A process started with `spawn` has its own empty table. A bare master
+verb after `use` is not B0012, because the verb is the dispatcher in every space that defines it.
+Inside a space's own file the bare name is that space's definition; write `blue::put` for the
+dispatcher.
+
+**Landed handlers (2026-10-23):** jisho (`has?` `need` `put` `update` `delete`, owner of `:map`),
+gitto (`exists?` `info` `read` `diff` `create` `delete`, by tag). Not landed: `write`, `copy`, `move`,
+`run`, `plan`, `parse`, `render` (no space has a handler that meets its contract), and `get`, `list`,
+`find` (the names are builtins of another shape, and tatara-lisp-eval 0.4.8 cannot keep a native under
+a second name to fall back to).
+
 ## 4. The spaces
 
 Each space below gives the bidama, its closed verb set, what the set covers and what it leaves out

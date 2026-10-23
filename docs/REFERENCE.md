@@ -89,7 +89,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-270 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 184 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+284 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -210,6 +210,25 @@ Higher binding power binds tighter.
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
 | `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |
+
+### Master verbs
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `create` | `create(store, key, value, more...)` | 3+ | Add a new entry, refusing to overwrite; in_space("gitto", repo) makes a branch or tag. Also defined by `gitto` (`gitto::create`): a file that lists it gets that one. |
+| `delete` | `delete(store, key, more...)` | 2+ | Make an entry absent; absent counts as done. A plain map goes to jisho; in_space("gitto", repo) deletes a branch or tag. Also defined by `gitto` (`gitto::delete`), `jisho` (`jisho::delete`), `shuusei` (`shuusei::delete`): a file that lists it gets that one. |
+| `diff` | `diff(a, b, more...)` | 2+ | The differences between two values as change records, by the space of a: diff(in_space("gitto", repo), from, to) compares two refs. Also defined by `gitto` (`gitto::diff`): a file that lists it gets that one. |
+| `exists?` | `exists?(subject, more...)` | 1+ | Whether the subject is there; in_space("gitto", repo) asks about a ref. Also defined by `gitto` (`gitto::exists?`): a file that lists it gets that one. |
+| `has?` | `has?(store, key, more...)` | 2+ | Whether the key is present. A plain map goes to jisho. Also defined by `jisho` (`jisho::has?`), `kueri` (`kueri::has?`), `settei` (`settei::has?`): a file that lists it gets that one. |
+| `in_space` | `in_space(space, value)` | 2 | The value as a subject of a space: {space: s, of: value}. Master verbs call the space's handler with the value itself. A value already in another space raises :usage. |
+| `info` | `info(subject, more...)` | 1+ | The current state of the subject as a record: in_space("gitto", repo) is the repository's state. Also defined by `gitto` (`gitto::info`), `rogu` (`rogu::info`): a file that lists it gets that one. |
+| `need` | `need(store, key, more...)` | 2+ | One entry, raising :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::need`), `settei` (`settei::need`): a file that lists it gets that one. |
+| `put` | `put(store, key, value, more...)` | 3+ | Create or replace an entry; a plain map goes to jisho, which returns a new map. Also defined by `jisho` (`jisho::put`), `keisoku` (`keisoku::put`), `raifusaikuru` (`raifusaikuru::put`), `shuusei` (`shuusei::put`): a file that lists it gets that one. |
+| `read` | `read(source, more...)` | 1+ | The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler. Also defined by `anaritikusu` (`anaritikusu::read`), `chokkan` (`chokkan::read`), `gitto` (`gitto::read`), `keisoku` (`keisoku::read`), `nikkusu` (`nikkusu::read`), `nisshi` (`nisshi::read`), `settei` (`settei::read`): a file that lists it gets that one. |
+| `space_for` | `space_for(kind, space)` | 2 | Name the space that owns untagged values of a kind: :map, :list, :string, :int, :float, :bool, :keyword or :function. A kind already owned by another space raises :usage. |
+| `space_of` | `space_of(value)` | 1 | The space a master verb would dispatch the value to (its tag, else the owner of its kind), or nil. |
+| `update` | `update(store, key, f, more...)` | 3+ | Replace an entry with f of the old value; raises :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::update`): a file that lists it gets that one. |
+| `verb_for` | `verb_for(space, verb, f)` | 3 | Register f as the handler of a master verb for a space. The verb is one of read, need, has?, put, update, delete, create, diff, info, exists?; another name raises :usage. Registering again replaces. Spaces call it at the top of their bidama. |
 
 ### Functions
 

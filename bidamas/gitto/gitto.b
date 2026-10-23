@@ -466,6 +466,13 @@ def save(repo, name, text, message)
   commit(repo, message, {paths: [name]})
 end
 
+verb_for("gitto", "exists?", exists?)
+verb_for("gitto", "info", info)
+verb_for("gitto", "read", read)
+verb_for("gitto", "diff", diff)
+verb_for("gitto", "create", create)
+verb_for("gitto", "delete", delete)
+
 test "a repository is read as commits, refs and files"
   r = fixture("read")
   first_commit = save(r, "a.txt", "one\n", "first")
@@ -711,4 +718,35 @@ test "clone, fetch, merge and push run with their options left out"
   local = save(work, "b.txt", "local\n", "third")
   assert push(work).nil?
   assert get(origin, "main").oid == local.oid
+end
+
+test "the master verbs reach gitto for a subject tagged with its space"
+  r = fixture("dispatch")
+  c = save(r, "a.txt", "one\n", "first")
+  d = save(r, "a.txt", "two\n", "second")
+  s = in_space("gitto", r)
+  assert blue::info(s) == info(r)
+  assert blue::exists?(s, c.oid) == true
+  assert blue::exists?(s, "no-such-ref") == false
+  assert blue::read(s, "a.txt", {}) == read(r, "a.txt", {})
+  assert blue::diff(s, c.oid, d.oid, {}) == [{path: "a.txt", state: :modified}]
+  assert blue::diff(s, c.oid, c.oid) == []
+  assert blue::create(s, "topic", c.oid, {}) == c.oid
+  assert blue::delete(s, "topic").nil?
+  assert blue::delete(s, "topic").nil?
+  assert space_of(s) == "gitto"
+end
+
+test "a master verb on a gitto subject raises what gitto raises"
+  r = fixture("dispatch-raise")
+  c = save(r, "a.txt", "one\n", "first")
+  s = in_space("gitto", r)
+  assert raised(() -> blue::create(s, "other", "no-such-ref", {})) == :not_found
+  assert blue::create(s, "topic", c.oid, {}) == c.oid
+  assert raised(() -> blue::create(s, "topic", c.oid, {})) == :exists
+  assert raised(
+    () -> blue::info(in_space("gitto", "/tmp/blue-gitto-not-a-repo"))
+  ) != nil
+  assert raised(() -> has?(s, "topic")) == :usage
+  assert raised(() -> need(s, "topic")) == :usage
 end

@@ -151,14 +151,27 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
     // Measured 2026-09-29: 17 definitions in 5 bidamas; `moji.trim` since 2026-10-23, whose one-argument call is the builtin's, so replacing it changes no program. retsu's are what
     // AUTHORING.md calls its "total replacements" (`retsu.first` is nil on an
     // empty list) — deliberate, and deliberately program-wide today.
-    // `raifusaikuru.link` since 2026-10-10: the bidama's link predates the
+    // The ten master verbs (`read`, `need`, `has?`, `put`, `update`, `delete`, `create`, `diff`, `info`, `exists?`) since 2026-10-23: each space's definition is keyed `pkg/name`, the bare name is the dispatcher (STDLIB 3.7), so 24 rows join the list. `raifusaikuru.link` since 2026-10-10: the bidama's link predates the
     // process word `link(pid)`, and a file that lists it gets the bidama's.
     assert_eq!(
         replaces_value,
         [
+            "anaritikusu.read",
+            "chokkan.read",
+            "gitto.create",
+            "gitto.delete",
+            "gitto.diff",
+            "gitto.exists?",
             "gitto.get",
+            "gitto.info",
             "gitto.list",
+            "gitto.read",
+            "jisho.delete",
             "jisho.empty?",
+            "jisho.has?",
+            "jisho.need",
+            "jisho.put",
+            "jisho.update",
             "kansuu.compose",
             "kansuu.flip",
             "kansuu.identity",
@@ -168,9 +181,15 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "kazu.abs",
             "kazu.max",
             "kazu.min",
+            "keisoku.put",
+            "keisoku.read",
+            "kueri.has?",
             "moji.trim",
             "moji.truncate",
+            "nikkusu.read",
+            "nisshi.read",
             "raifusaikuru.link",
+            "raifusaikuru.put",
             "retsu.first",
             "retsu.interleave",
             "retsu.last",
@@ -178,8 +197,14 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "retsu.rest",
             "retsu.zip",
             "rogu.error",
+            "rogu.info",
+            "settei.has?",
+            "settei.need",
+            "settei.read",
             "shuugou.frequencies",
             "shuugou.remove",
+            "shuusei.delete",
+            "shuusei.put",
             "tsuushin.join",
         ],
         "a bidama definition that replaces a builtin program-wide was added or removed; \

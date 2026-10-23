@@ -437,6 +437,11 @@ pub const INFIX: &[Infix] = &[
 ///
 /// `do` and `end` are absent deliberately: they are block delimiters, not
 /// expression heads, and have no standalone rendering to test.
+/// The master verbs a bare call dispatches on the subject's space.
+pub const MASTER_VERBS: &[&str] = &[
+    "read", "need", "has?", "put", "update", "delete", "create", "diff", "info", "exists?",
+];
+
 /// The callee `assert e` lowers to.
 ///
 /// **Owned here, by the lowering itself, and read by every consumer.** It was

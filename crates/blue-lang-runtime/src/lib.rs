@@ -36,6 +36,7 @@
 
 pub mod alloc;
 pub mod crypto;
+pub mod dispatch;
 pub mod docs;
 pub mod domain;
 pub mod erase;
@@ -123,6 +124,7 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
 /// share processes. A door that forks an interpreter per unit of work (a test
 /// per fork) calls it on each fork for the same reason.
 pub fn attach_node<H: 'static>(interp: &mut Interpreter<H>) {
+    dispatch::install(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(node_config()));
 }
 
@@ -155,6 +157,7 @@ pub fn attach_node_in_frame<H: 'static>(interp: &mut Interpreter<H>, frame: &blu
         }
         child
     });
+    dispatch::install(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
 }
 

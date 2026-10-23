@@ -38,8 +38,23 @@ verb(
     shape: "create(store, key, value, opts) -> value",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "add a new entry; refuse to overwrite",
+    wave: 0,
+    origin: "H"
+  }
+)
+
+verb(
+  "core",
+  "delete",
+  {
+    kind: :effect,
+    shape: "delete(store, key, opts) -> nil",
+    laterals: [],
+    fleet: nil,
+    today: "rust:blue-lang-runtime",
+    meaning: "make the entry absent; absent counts as done",
     wave: 0,
     origin: "H"
   }
@@ -53,7 +68,7 @@ verb(
     shape: "diff(a, b, opts) -> [change]",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "differences between two values as change records",
     wave: 0,
     origin: "H"
@@ -68,7 +83,7 @@ verb(
     shape: "exists?(subject, opts) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "whether the subject is there; never raises",
     wave: 0,
     origin: "H"
@@ -143,7 +158,7 @@ verb(
     shape: "has?(store, key) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "whether the key is present",
     wave: 0,
     origin: "H"
@@ -158,7 +173,7 @@ verb(
     shape: "info(subject, opts) -> record",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "current state of the subject as a record",
     wave: 0,
     origin: "H"
@@ -218,7 +233,7 @@ verb(
     shape: "need(store, key, opts) -> value",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "one entry, raising when absent",
     wave: 0,
     origin: "H"
@@ -263,7 +278,7 @@ verb(
     shape: "put(store, key, value, opts) -> value",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "create or replace an entry",
     wave: 0,
     origin: "H"
@@ -278,7 +293,7 @@ verb(
     shape: "read(source, opts) -> content",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "whole content of a source",
     wave: 0,
     origin: "H"
@@ -323,7 +338,7 @@ verb(
     shape: "update(store, key, f, opts) -> value",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-runtime",
     meaning: "replace an entry with f of the old value",
     wave: 0,
     origin: "H"

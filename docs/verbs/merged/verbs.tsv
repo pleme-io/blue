@@ -298,26 +298,26 @@ G	chuuzou	emit	pure	emit(program) -> Rust AST	validate	blue-native	rust:chuuzou	
 G	chuuzou	measure	pure	measure(image) -> {text, data, ram}	-	blue-native	rust:chuuzou	code and data size of an image	0	measure(image) -> {text, data, ram}	yes
 H	core	check	effect	check(subject, rules?, opts) -> [finding]	-	-	absent	findings of a subject against rules; empty when sound; kyohi::enforce is the raising form	0	check(subject, rules?, opts) -> [finding]	yes
 H	core	copy	effect	copy(from, to, opts) -> nil	-	-	absent	place a copy at a destination	0	copy(from, to, opts) -> nil	yes
-H	core	create	effect	create(store, key, value, opts) -> value	-	-	absent	add a new entry; refuse to overwrite	0	create(store, key, value, opts) -> value	yes
-H	core	diff	effect	diff(a, b, opts) -> [change]	-	-	absent	differences between two values as change records	0	diff(a, b, opts) -> [change]	yes
-H	core	exists?	effect	exists?(subject, opts) -> Bool	-	-	absent	whether the subject is there; never raises	0	exists?(subject, opts) -> Bool	yes
+H	core	create	effect	create(store, key, value, opts) -> value	-	-	rust:blue-lang-runtime	add a new entry; refuse to overwrite	0	create(store, key, value, opts) -> value	yes
+H	core	diff	effect	diff(a, b, opts) -> [change]	-	-	rust:blue-lang-runtime	differences between two values as change records	0	diff(a, b, opts) -> [change]	yes
+H	core	exists?	effect	exists?(subject, opts) -> Bool	-	-	rust:blue-lang-runtime	whether the subject is there; never raises	0	exists?(subject, opts) -> Bool	yes
 H	core	find	effect	find(subject, query, opts) -> item or nil	-	-	absent	the first match of a query or predicate, else nil	0	find(subject, query, opts) -> item or nil	yes
 H	core	flat_map	pure	flat_map(xs, f) -> list	-	-	absent	map then flatten one level	0	flat_map(xs, f) -> list	yes
 H	core	get	effect	get(store, key, opts) -> value or nil	-	-	absent	one entry, nil when absent	0	get(store, key, opts) -> value or nil	yes
 H	core	group_by	pure	group_by(xs, f) -> map	-	-	absent	items grouped under f of each	0	group_by(xs, f) -> map	yes
-H	core	has?	effect	has?(store, key) -> Bool	-	-	absent	whether the key is present	0	has?(store, key) -> Bool	yes
-H	core	info	effect	info(subject, opts) -> record	-	-	absent	current state of the subject as a record	0	info(subject, opts) -> record	yes
+H	core	has?	effect	has?(store, key) -> Bool	-	-	rust:blue-lang-runtime	whether the key is present	0	has?(store, key) -> Bool	yes
+H	core	info	effect	info(subject, opts) -> record	-	-	rust:blue-lang-runtime	current state of the subject as a record	0	info(subject, opts) -> record	yes
 H	core	list	effect	list(store, opts) -> [record]	-	-	absent	every entry, all pages, sorted	0	list(store, opts) -> [record]	yes
 H	core	merge	effect	merge(a, b, opts) -> value	-	-	absent	combine b into a; one master verb for every space, gitto::merge refines it	0	merge(a, b, opts) -> value	yes
 H	core	move	effect	move(from, to, opts) -> nil	-	-	absent	move or rename atomically	0	move(from, to, opts) -> nil	yes
-H	core	need	effect	need(store, key, opts) -> value	-	-	absent	one entry, raising when absent	0	need(store, key, opts) -> value	yes
+H	core	need	effect	need(store, key, opts) -> value	-	-	rust:blue-lang-runtime	one entry, raising when absent	0	need(store, key, opts) -> value	yes
 H	core	parse	pure	parse(text, format?, opts) -> value	-	-	absent	text to a value	0	parse(text, format?, opts) -> value	yes
 H	core	plan	pure	plan(subject, target?, opts) -> [action]	-	-	absent	what the verb would do, as data, changing nothing	0	plan(subject, target?, opts) -> [action]	yes
-H	core	put	effect	put(store, key, value, opts) -> value	-	-	absent	create or replace an entry	0	put(store, key, value, opts) -> value	yes
-H	core	read	effect	read(source, opts) -> content	-	-	absent	whole content of a source	0	read(source, opts) -> content	yes
+H	core	put	effect	put(store, key, value, opts) -> value	-	-	rust:blue-lang-runtime	create or replace an entry	0	put(store, key, value, opts) -> value	yes
+H	core	read	effect	read(source, opts) -> content	-	-	rust:blue-lang-runtime	whole content of a source	0	read(source, opts) -> content	yes
 H	core	render	pure	render(value, format?, opts) -> text	-	-	absent	a value to canonical stable text	0	render(value, format?, opts) -> text	yes
 H	core	run	effect	run(subject, input?, opts) -> result	-	-	absent	run to completion and return the result	0	run(subject, input?, opts) -> result	yes
-H	core	update	effect	update(store, key, f, opts) -> value	-	-	absent	replace an entry with f of the old value	0	update(store, key, f, opts) -> value	yes
+H	core	update	effect	update(store, key, f, opts) -> value	-	-	rust:blue-lang-runtime	replace an entry with f of the old value	0	update(store, key, f, opts) -> value	yes
 H	core	verify	effect	verify(subject, policy?, opts) -> verdict	-	-	absent	check integrity against a record or policy; raises tampered on a bad verdict, verify? is the predicate pair	0	verify(subject, policy?, opts) -> verdict	yes
 H	core	verify?	pure	verify?(data, signature?, key?) -> Bool	-	-	absent	whether a signature or proof holds	0	verify?(data, signature?, key?) -> Bool	yes
 G	dairi?	advance	effect	advance(agent, state) -> state	trace	arnes-loop	absent	one turn: ask, run tool calls, observe	2	advance(agent, state) -> state	yes
@@ -2762,3 +2762,4 @@ G	zumen	parse	pure	parse(text, format) -> sheet	validate	-	absent	DXF text to en
 G	zumen	plot	pure	plot(series, opts) -> sheet	-	-	absent	a chart from series: line, bar, scatter	1		na
 G	zumen	project	pure	project(mesh, view) -> sheet	-	-	exists:zumen	feature-edge view of a solid	0	project(mesh, view) -> sheet	yes
 G	zumen	render	pure	render(sheet, format) -> text	serialize	-	partial:zumen	a sheet as SVG or DXF text	0	render(sheet, format) -> text	yes
+H	core	delete	effect	delete(store, key, opts) -> nil	-	-	rust:blue-lang-runtime	make the entry absent; absent counts as done	0	delete(store, key, opts) -> nil	yes

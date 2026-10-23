@@ -61,6 +61,8 @@ pub enum Topic {
     Actor,
     /// Printing to the terminal.
     Output,
+    /// The master verbs, dispatched on the subject's space.
+    Dispatch,
 }
 
 impl Topic {
@@ -71,6 +73,7 @@ impl Topic {
         Topic::Text,
         Topic::List,
         Topic::Map,
+        Topic::Dispatch,
         Topic::Function,
         Topic::Predicate,
         Topic::Error,
@@ -114,6 +117,7 @@ impl Topic {
             Topic::Concurrency => "Channels and fibers",
             Topic::Actor => "Blue processes and supervision",
             Topic::Output => "Terminal output",
+            Topic::Dispatch => "Master verbs",
         }
     }
 }
@@ -252,6 +256,20 @@ pub const NAMES: &[NameDoc] = names! {
     Map: "get" "get(m, k)" "The value at key k, or nil. Raises on nil and on a list.";
     Map: "assoc" "assoc(m, k, v)" "A new map with k set to v. Copies m; raises on nil.";
     Map: "dissoc" "dissoc(m, k)" "A new map without k; unchanged when k is absent.";
+    Dispatch: "verb_for" "verb_for(space, verb, f)" "Register f as the handler of a master verb for a space. The verb is one of read, need, has?, put, update, delete, create, diff, info, exists?; another name raises :usage. Registering again replaces. Spaces call it at the top of their bidama.";
+    Dispatch: "space_for" "space_for(kind, space)" "Name the space that owns untagged values of a kind: :map, :list, :string, :int, :float, :bool, :keyword or :function. A kind already owned by another space raises :usage.";
+    Dispatch: "in_space" "in_space(space, value)" "The value as a subject of a space: {space: s, of: value}. Master verbs call the space's handler with the value itself. A value already in another space raises :usage.";
+    Dispatch: "space_of" "space_of(value)" "The space a master verb would dispatch the value to (its tag, else the owner of its kind), or nil.";
+    Dispatch: "read" "read(source, more...)" "The whole content of a source, by the source's space: in_space(\"gitto\", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler.";
+    Dispatch: "need" "need(store, key, more...)" "One entry, raising :not_found when absent. A plain map goes to jisho.";
+    Dispatch: "has?" "has?(store, key, more...)" "Whether the key is present. A plain map goes to jisho.";
+    Dispatch: "put" "put(store, key, value, more...)" "Create or replace an entry; a plain map goes to jisho, which returns a new map.";
+    Dispatch: "update" "update(store, key, f, more...)" "Replace an entry with f of the old value; raises :not_found when absent. A plain map goes to jisho.";
+    Dispatch: "delete" "delete(store, key, more...)" "Make an entry absent; absent counts as done. A plain map goes to jisho; in_space(\"gitto\", repo) deletes a branch or tag.";
+    Dispatch: "create" "create(store, key, value, more...)" "Add a new entry, refusing to overwrite; in_space(\"gitto\", repo) makes a branch or tag.";
+    Dispatch: "diff" "diff(a, b, more...)" "The differences between two values as change records, by the space of a: diff(in_space(\"gitto\", repo), from, to) compares two refs.";
+    Dispatch: "info" "info(subject, more...)" "The current state of the subject as a record: in_space(\"gitto\", repo) is the repository's state.";
+    Dispatch: "exists?" "exists?(subject, more...)" "Whether the subject is there; in_space(\"gitto\", repo) asks about a ref.";
     Map: "dig" "dig(tree, keys...)" "The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree.";
     Map: "bury" "bury(tree, keys..., value)" "A new tree with value at the path of keys, every missing level made as a map. Refuses with :bad_path when a value on the way is neither nil, a map nor a list, so data is never replaced silently; a list index may be one past the end; bury(tree, value) is value.";
     Map: "zipmap" "zipmap(keys, values)" "A map pairing keys with values, as long as the shorter list.";

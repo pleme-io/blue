@@ -80,11 +80,11 @@ def record_whys(table, m)
     known = map(
       fn(f)
         v = get(m, get(f, :key))
-        if v == nil
+        if v.nil?
           verdict(not get(f, :required), "#{get(f, :key)} is required")
         else
           w = get(f, :check)(v)
-          verdict(w == nil, "#{get(f, :key)}: #{w}")
+          verdict(w.nil?, "#{get(f, :key)}: #{w}")
         end
       end,
       table
@@ -166,7 +166,7 @@ def entry_marks(schema, es)
   map(
     fn(e)
       table = get(schema, kind_of(e))
-      if table == nil
+      if table.nil?
         [refuse(:unknown_kind, e, "no such kind")]
       else
         map((w) -> refuse(:invalid, e, w), record_whys(table, value_of(e)))

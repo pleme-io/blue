@@ -544,7 +544,7 @@ test "the degenerate weightings answer rather than error"
   # Documented, not desirable: with nothing to weigh, the walk runs off the
   # end. Pinned so a future change to weight_walk has to notice.
   assert weighted_choice(4, ["a", "b"], [0, 0]) == "b"
-  assert weighted_choice(4, [], []) == nil
+  assert weighted_choice(4, [], []).nil?
 end
 
 test "gaussians have the right centre AND the right spread"

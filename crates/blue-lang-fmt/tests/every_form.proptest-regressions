@@ -11,3 +11,5 @@ cc f148c5b205985183a044fa74191a297c165a656eb9084b33d721f534d50d6a98 # shrinks to
 cc b7490158b87b5032755bf223f743aaa96da430ea6ce6b12e55e5ced71d210a13 # shrinks to src = "a = a == a |> not()"
 cc d4c0f364a1ce8cd0d0ac9a4652ab2359ff35349eeba77f60571d0cc0982b10b5 # shrinks to src = "a |> if a\nnil\nend"
 cc 59d156801515e7bd06d57844a6dcac1fcfbb43bab57b9861d381e525fe5a3037 # shrinks to src = "fn()\na\nend |> assert a"
+cc 774d5083636fa2eaea84d72351fdd42915321e686a51f96067bc68eba559ce43 # shrinks to src = "a = a |> equal?(nil)"
+cc 218836eb4e9c63745977cf34260be89ef1187c6dff0b0faeb74cf2cff2dc46b7 # shrinks to src = "a = [equal?(nil, a)()]"

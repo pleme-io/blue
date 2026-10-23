@@ -261,7 +261,7 @@ def rs_tail(e)
 end
 
 def rs_if(c, t, e)
-  if e == nil
+  if e.nil?
     {kind: "if", cond: c, then_branch: t}
   else
     {kind: "if", cond: c, then_branch: t, else_branch: e}
@@ -282,7 +282,7 @@ end
 
 def rs_fn(vis, name, params, ret, body)
   sig = {name:, generics: rs_generics, params: append([rs_io_param], params)}
-  sig_ = if ret == nil
+  sig_ = if ret.nil?
     sig
   else
     assoc(sig, :return_type, ret)
@@ -313,7 +313,7 @@ end
 
 def cz_lookup(key, pairs)
   hit = find((p) -> first(p) == key, pairs)
-  if hit == nil
+  if hit.nil?
     nil
   else
     second(hit)
@@ -347,7 +347,7 @@ def cz_call(n, ctx)
   args = rest(n)
   arith = cz_lookup(h, cz_arith)
   cmp = cz_lookup(h, cz_compare)
-  if h == nil
+  if h.nil?
     cz_refuse("a call through a computed function has no native form (every call is direct at the monomorphic position)")
   elsif arith != nil
     if count(args) < 2
@@ -634,7 +634,7 @@ end
 # that does not check produces no Rust.
 def cz_emit(path, board_name)
   board = kb_board(board_name)
-  if board == nil
+  if board.nil?
     cz_refuse("no board named #{board_name}")
   end
   blue = self_exe
@@ -663,7 +663,7 @@ end
 # (BLUE-NATIVE.md §1.6); a board with no `ram` region is refused.
 def cz_link_script(board)
   ram = find((r) -> get(r, :name) == :ram, get(board, :memory))
-  if ram == nil
+  if ram.nil?
     cz_refuse("#{get(board, :name)} declares no ram region")
   end
   lines = [
@@ -805,7 +805,7 @@ end
 # image has no such section).
 def cz_section(size_text, section)
   row = find((l) -> starts_with?(l, "#{section} "), split(size_text, "\n"))
-  if row == nil
+  if row.nil?
     0
   else
     to_int!(second(filter((f) -> f != "", split(row, " "))))

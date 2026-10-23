@@ -3,7 +3,7 @@ use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def off?()
   v = getenv("BLUE_PREPUSH_OFF")
-  if v == nil
+  if v.nil?
     false
   elsif v == "1"
     true

@@ -30,7 +30,7 @@ end
 
 def text(obj, key)
   v = json_get(obj, key)
-  if v == nil
+  if v.nil?
     ""
   else
     to_s(v)
@@ -108,7 +108,7 @@ end
 
 def note(redefined, name)
   hit = find_first((r) -> first(r) == name, redefined)
-  if hit == nil or is_empty(last(hit))
+  if hit.nil? or is_empty(last(hit))
     ""
   else
     " Also defined by #{join(map((p) -> "`#{p}` (`#{p}::#{name}`)", last(hit)), ", ")}: a file that lists it gets that one."

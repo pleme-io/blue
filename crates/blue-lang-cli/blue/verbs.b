@@ -36,7 +36,7 @@ def flag_value(args, flag)
 end
 
 def or_else(v, d)
-  if v == nil
+  if v.nil?
     d
   else
     v
@@ -120,7 +120,7 @@ def do_import(args)
     raise(:usage, "usage: blue verbs import [--dir DIR] TSV...")
   end
   tables = map((p) -> [table_kind(read_file(p)), read_file(p)], files)
-  unknown = filter((i) -> first(nth(i, tables)) == nil, range(length(tables)))
+  unknown = filter((i) -> first(nth(i, tables)).nil?, range(length(tables)))
   if not is_empty(unknown)
     show_refusals(
       map(
@@ -173,7 +173,7 @@ end
 def do_export(args)
   dir = or_else(flag_value(args, "--dir"), graph_dir_default)
   out = flag_value(args, "--out")
-  if out == nil
+  if out.nil?
     raise(:usage, "usage: blue verbs export [--dir DIR] --out DIR")
   end
   g = graph_load(dir)
@@ -198,7 +198,7 @@ end
 
 def do_findings(args)
   tsv = flag_value(args, "--tsv")
-  if tsv == nil
+  if tsv.nil?
     raise(:usage, "usage: blue verbs findings --tsv DIR")
   end
   g = graph_from_tsv(

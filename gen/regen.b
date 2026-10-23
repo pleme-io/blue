@@ -19,7 +19,7 @@ end
 # [name, output, program] for every `generate` in the Bluefile.
 def generated()
   g = json_get(manifest, "generated")
-  if g == nil
+  if g.nil?
     []
   else
     map(
@@ -60,7 +60,7 @@ end
 # its own packages (the flake renders the same roots; nix/project.nix).
 catalog = json_get(manifest, "catalog")
 
-written = if catalog == nil
+written = if catalog.nil?
   []
 else
   write_file(
@@ -75,7 +75,7 @@ written = concat_lists(written, map(regenerate, generated))
 # Every `workload` file, rendered from the same lock by blue itself.
 workloads = json_get(manifest, "workloads")
 
-written = if workloads == nil
+written = if workloads.nil?
   written
 else
   if exec_check("blue", "workload", "render", "--write") != 0
@@ -86,7 +86,7 @@ end
 
 lock_manifest = get(json_read(read_file("Bluefile.lock")), "manifest")
 
-written = if get(lock_manifest, "services") == nil
+written = if get(lock_manifest, "services").nil?
   written
 else
   concat_lists(

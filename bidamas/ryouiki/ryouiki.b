@@ -95,7 +95,7 @@ def peel_candidates(box, ids, points, ys, alpha)
       flat_map(
         fn(side)
           edge = peeled_edge(values, side, alpha)
-          if edge == nil
+          if edge.nil?
             []
           else
             narrowed = map(
@@ -270,5 +270,5 @@ test "a control: a target with no structure finds no dense box with real coverag
     range(0, size(pts))
   )
   b = prim_box(prim(pts, ys, 0.05, 0.1), 0.9)
-  assert b == nil or nth(2, b) < 0.25
+  assert b.nil? or nth(2, b) < 0.25
 end

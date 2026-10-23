@@ -5,7 +5,7 @@ manifest = get(lock, "manifest")
 name = argv_get(1)
 svc = get(get(manifest, "services"), name)
 
-if svc == nil
+if svc.nil?
   raise(:no_service, "the lock declares no service #{name}")
 end
 

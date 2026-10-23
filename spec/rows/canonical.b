@@ -146,6 +146,44 @@ row(
 )
 
 row(
+  "canon.B0047",
+  "name = 1\nname == nil",
+  diagnoses(["B0047"]),
+  covers("rule:B0047")
+)
+
+row(
+  "canon.B0047.writes",
+  "name = 1\nname == nil",
+  formats("name = 1\nname.nil?\n")
+)
+
+row(
+  "canon.B0047.reversed",
+  "name = 1\nnil == name",
+  formats("name = 1\nname.nil?\n")
+)
+
+row(
+  "canon.B0047.call",
+  "name = 1\nnil?(name)",
+  formats("name = 1\nname.nil?\n")
+)
+
+row(
+  "canon.B0047.keeps",
+  "name = 1\nname != nil",
+  formats("name = 1\nname != nil\n")
+)
+
+row(
+  "canon.B0047.eval",
+  "[nil.nil?, 1.nil?, [].nil?, \"\".nil?, {a: 1}.nil?]",
+  value("[true, false, false, false, false]"),
+  covers("form:x == nil")
+)
+
+row(
   "canon.B0042",
   "apply(max, [1, 2])",
   diagnoses(["B0042"]),

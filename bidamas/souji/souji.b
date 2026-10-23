@@ -73,7 +73,7 @@ def parse_flags(args, acc)
       v = if size(args) > 1
         to_int(nth(1, args))
       end
-      if v == nil or v < 0
+      if v.nil? or v < 0
         assoc(acc, :error, "#{a} needs a whole number of 0 or more")
       else
         key = if a == "--min-age-hours"
@@ -125,7 +125,7 @@ end
 def size_kib(dir)
   cap = exec_capture("du", "-sk", dir)
   n = to_int(first(split(trim(stdout_of(cap)), "\t")))
-  if n == nil
+  if n.nil?
     0
   else
     n
@@ -190,7 +190,7 @@ end
 
 def nix(opts)
   cap = exec_capture(*nix_argv(opts)) rescue nil
-  if cap == nil
+  if cap.nil?
     {ok: false, summary: "nix-collect-garbage could not be started"}
   else
     out = concat(stdout_of(cap), stderr_of(cap))

@@ -540,7 +540,7 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0033` | literal-spelling | a literal is written as `blue fmt` writes its value: digits of six or more grouped `1_000_000`, an invisible character escaped `\u{1b}` | autofix |
 | `B0034` | negated-comparison | a negated equality is written with the other operator: `a != b`, never `not (a == b)` | autofix |
 | `B0035` | else-nil | an `if` has no `else` whose body is empty or `nil` | autofix |
-| `B0036` | builtin-synonym | a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x == nil` not `nil?(x)`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message` | autofix |
+| `B0036` | builtin-synonym | a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message` | autofix |
 | `B0037` | error-spelling | an error is raised with `raise` and caught with `rescue`: never `throw(error(…))` or `try(…, catch(…))` | autofix |
 | `B0038` | swallowed-error | a `rescue` that catches every error and does nothing names the error `_` | refused |
 | `B0039` | duplicate-test-name | the tests of a file have distinct names | refused |
@@ -551,3 +551,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0044` | eta-reduction | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` | autofix |
 | `B0045` | redundant-conversion | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain | autofix |
 | `B0046` | map-pun | a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}` | autofix |
+| `B0047` | nil-test | a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x` | autofix |

@@ -254,7 +254,7 @@ test "read_or reads a real file"
 end
 
 test "file_age_ms answers nil for a missing file and a small age for a real one"
-  assert file_age_ms("/definitely/not/here/blue-test") == nil
+  assert file_age_ms("/definitely/not/here/blue-test").nil?
   p = "/tmp/blue-shisutemu-age.txt"
   write_file(p, "x")
   age = file_age_ms(p)

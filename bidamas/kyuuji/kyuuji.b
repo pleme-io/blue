@@ -16,7 +16,7 @@ end
 
 def query_params(req)
   q = get(req, :query)
-  if q == nil or q == ""
+  if q.nil? or q == ""
     {}
   else
     reduce(
@@ -61,7 +61,7 @@ end
 
 def serve_once(l, health, handler, wait_ms)
   req = http_next_request(l, wait_ms)
-  if req == nil
+  if req.nil?
     nil
   else
     resp = answer(req, health, handler)
@@ -111,7 +111,7 @@ def observe(m, status, seconds)
     "codes" => assoc(
       codes,
       c,
-      if seen == nil
+      if seen.nil?
         1
       else
         seen + 1
@@ -179,7 +179,7 @@ end
 
 def serve_metered_once(l, health, handler, wait_ms, m, service)
   req = http_next_request(l, wait_ms)
-  if req == nil
+  if req.nil?
     m
   else
     out = metered(req, health, handler, m, service)
@@ -255,7 +255,7 @@ test "query parameters are split once on = and empty ones dropped"
   assert query_params(request("GET", "/", "")) == {}
   assert query_params(request("GET", "/", "a=1&b=x=y&&c")) ==
     {"a" => "1", "b" => "x=y", "c" => ""}
-  assert query_param(request("GET", "/", "a=1"), "z") == nil
+  assert query_param(request("GET", "/", "a=1"), "z").nil?
 end
 
 test "a json response carries its content type"

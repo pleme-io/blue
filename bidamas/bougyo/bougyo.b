@@ -195,7 +195,7 @@ def limits_posture()
       fn(handler)
         fn(req)
           hit = broken_limit(settings, req)
-          if hit == nil
+          if hit.nil?
             handler(req)
           else
             gated(
@@ -261,14 +261,14 @@ test "a bare service gets the seven security headers and keeps its own"
   )
   r2 = get(own, :handler)(get_req("/", [], ""))
   assert hdr(r2, "cache-control") == "max-age=60"
-  assert hdr(r2, "Cache-Control") == nil
+  assert hdr(r2, "Cache-Control").nil?
 end
 
 test "the headers posture can be configured off or tuned, and a bad tune is refused alone"
   off_d = defended([off(:headers, "default")], quiet, ok)
   assert size(get(off_d, :off)) == 1
   r = get(off_d, :handler)(get_req("/", [], ""))
-  assert hdr(r, "X-Frame-Options") == nil
+  assert hdr(r, "X-Frame-Options").nil?
   assert hdr(r, "X-Request-Id") != nil
   tuned = defended(
     [tune(:headers, "default", {frame_options: "SAMEORIGIN"})],

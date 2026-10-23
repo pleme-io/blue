@@ -186,8 +186,14 @@ fn raise_with(
     Err(EvalError::User { value, at: sp })
 }
 
+const NIL_TEST: &str = "nil?";
+
 fn field(v: &Value, name: &str, sp: tatara_lisp::Span) -> Result<Value, EvalError> {
     let missing = |what: String| Err(EvalError::native_fn(format!(".{name}"), what, sp));
+    if name == NIL_TEST && !matches!(v, Value::Map(m) if m.iter().any(|(k, _)| matches!(k, MapKey::Keyword(s) | MapKey::Str(s) if &**s == name)))
+    {
+        return Ok(Value::Bool(matches!(v, Value::Nil)));
+    }
     match v {
         Value::Map(m) => {
             let found = m

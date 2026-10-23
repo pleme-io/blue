@@ -23,7 +23,7 @@ rescue e
 end
 
 def retryable?(e, kinds)
-  kinds == nil or member?(e.kind, kinds)
+  kinds.nil? or member?(e.kind, kinds)
 end
 
 def pause(wait_ms, n)

@@ -222,7 +222,7 @@ end
 def min_of(xs)
   reduce(
     fn(acc, x)
-      if acc == nil
+      if acc.nil?
         x
       else
         min(acc, x)
@@ -236,7 +236,7 @@ end
 def max_of(xs)
   reduce(
     fn(acc, x)
-      if acc == nil
+      if acc.nil?
         x
       else
         max(acc, x)
@@ -475,10 +475,10 @@ test "min_of and max_of report nothing for nothing"
   assert max_of([5]) == 5
   assert min_of([3, -7, 2]) == -7
   # A fold seeded with a big/small sentinel answers that sentinel here.
-  assert min_of([]) == nil
-  assert max_of([]) == nil
-  assert min_of(nil) == nil
-  assert max_of(nil) == nil
+  assert min_of([]).nil?
+  assert max_of([]).nil?
+  assert min_of(nil).nil?
+  assert max_of(nil).nil?
 end
 
 test "gcd_of and lcm_of are seeded with the right identity"

@@ -161,7 +161,7 @@ test "every bidama in the distribution answers through this one import"
   assert hash_message("") ==
     "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
   assert contains([1, 2, 3], 2) == true
-  assert suppress_small(3, 5) == nil
+  assert suppress_small(3, 5).nil?
   assert near(mean([2, 4, 6]), 4) == true
   assert zumen::num(1.5) == "1.5"
   assert get(

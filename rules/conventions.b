@@ -11,7 +11,7 @@
 # quote nil? as input, and without this it reported them.
 def nodes(tree, path)
   here = [[path, tree]]
-  if tree == nil or not list?(tree) or quoted?(tree)
+  if tree.nil? or not list?(tree) or quoted?(tree)
     here
   else
     children = map(
@@ -47,7 +47,7 @@ def nil_predicate(form)
         message: "write `x == nil`, not `nil?(x)`",
         help: "blue's convention (AGENTS.md); == compares structurally and nil equals only nil",
         fix: quote
-          unquote(arg) == nil
+          unquote(arg).nil?
         end
       }
     end,
@@ -74,7 +74,7 @@ test "the fix is the same test written with =="
   fix = get(first(nil_predicate(form)), :fix)
   assert fix ==
     quote
-      y == nil
+      y.nil?
     end
 end
 
@@ -82,7 +82,7 @@ test "an empty form and one with no nil? find nothing"
   assert nil_predicate(nil) == []
   assert nil_predicate(
     quote
-      f(x == nil)
+      f(x.nil?)
     end
   ) ==
     []

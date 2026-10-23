@@ -26,20 +26,20 @@ end
 test "the total list words accept the empty list"
   assert size([]) == 0
   assert size(nil) == 0
-  assert first([]) == nil
+  assert first([]).nil?
   assert rest([7]) == []
   assert is_empty([])
 end
 
 test "nth takes the index first, and answers nil past the end"
   assert nth(1, [:a, :b, :c]) == :b
-  assert nth(9, [:a]) == nil
+  assert nth(9, [:a]).nil?
 end
 
 test "a map built up and read back"
   m = tally(["a", "b", "a"])
   assert get(m, "a") == 2
-  assert get(m, "z") == nil
+  assert get(m, "z").nil?
   assert dissoc(m, "b") == {"a" => 2}
   assert {a: 1, b: 2} == {b: 2, a: 1}
 end

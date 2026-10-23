@@ -36,5 +36,5 @@ end
 
 test "to_int is nil on garbage, not zero"
   assert to_int("42") == 42
-  assert to_int("banana") == nil
+  assert to_int("banana").nil?
 end

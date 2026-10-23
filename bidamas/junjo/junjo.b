@@ -452,8 +452,8 @@ test "min_by and max_by"
   assert max_by((x) -> x, [3, 1, 2]) == 3
   # The vacuous case: the extreme of nothing is nil rather than an error,
   # because sort_by of [] is [] and retsu's first/last are total over it.
-  assert min_by((x) -> x, []) == nil
-  assert max_by((x) -> x, []) == nil
+  assert min_by((x) -> x, []).nil?
+  assert max_by((x) -> x, []).nil?
   # A key that is not the value, which is the only reason these exist at all.
   assert min_by((p) -> nth(1, p), [["a", 9], ["b", 2]]) == ["b", 2]
 end
@@ -640,10 +640,10 @@ test "nth_smallest and nth_largest are positional, and total"
   assert nth_smallest(1, [5, 5, 1]) == 5
   assert nth_largest(1, [5, 5, 1]) == 5
   # Out of range answers nil rather than erroring, in both directions.
-  assert nth_smallest(3, xs) == nil
-  assert nth_smallest(-1, xs) == nil
-  assert nth_largest(9, xs) == nil
-  assert nth_smallest(0, []) == nil
+  assert nth_smallest(3, xs).nil?
+  assert nth_smallest(-1, xs).nil?
+  assert nth_largest(9, xs).nil?
+  assert nth_smallest(0, []).nil?
 end
 
 test "top_n and bottom_n"

@@ -79,7 +79,7 @@ def decide(desired, current, history, now_ms, pol)
     {action: :noop, why: "the system already runs #{store_name(desired)}"}
   else
     h = hold_for(desired, history, now_ms, pol)
-    if h == nil
+    if h.nil?
       {action: :switch, why: "#{label(desired)} differs from #{label(current)}"}
     else
       h
@@ -118,7 +118,7 @@ end
 
 def parse_entry(line)
   d = json_parse(line) rescue nil
-  if d == nil
+  if d.nil?
     nil
   else
     entry(
@@ -170,7 +170,7 @@ def plan(flake, host, kind, current_link, hist, now_ms, pol)
   early = if pinned?(flake)
     hold_for(inst, hist, now_ms, pol)
   end
-  if early == nil
+  if early.nil?
     evaluated(flake, inst, current_link, hist, now_ms, pol)
   else
     assoc(early, :plan_ms, 0)
@@ -265,7 +265,7 @@ def git_out(dir, args)
     *args
   ) rescue
     nil
-  if cap == nil or shisutemu::status_of(cap) != 0
+  if cap.nil? or shisutemu::status_of(cap) != 0
     nil
   else
     trim(stdout_of(cap))
@@ -277,7 +277,7 @@ def checkout_of(dir, branch)
   {
     head: git_out(dir, ["rev-parse", "HEAD"]),
     dirty: git_out(dir, ["status", "--porcelain", "--untracked-files=no"]),
-    remote: if remote == nil
+    remote: if remote.nil?
       nil
     else
       first(split(remote, "\t"))
@@ -287,11 +287,11 @@ def checkout_of(dir, branch)
 end
 
 def checkout_refusal(c)
-  if get(c, :head) == nil
+  if get(c, :head).nil?
     [:not_a_checkout, "the flake is not a git checkout kirikae can read"]
   elsif get(c, :dirty) != nil and get(c, :dirty) != ""
     [:dirty, "the checkout has uncommitted changes; plan a committed rev"]
-  elsif get(c, :remote) == nil or get(c, :remote) == ""
+  elsif get(c, :remote).nil? or get(c, :remote) == ""
     [
       :remote_unknown,
       "origin's #{get(c, :branch)} could not be read, so the checkout cannot be shown to be the published rev"
@@ -347,7 +347,7 @@ end
 
 def heartbeat_noop(hb_text, head, current)
   d = json_parse(hb_text) rescue nil
-  if d == nil or head == nil
+  if d.nil? or head.nil?
     nil
   elsif get_str(d, "outcome", "") == "unchanged" and
     get_str(d, "head_rev", "") == head
@@ -374,12 +374,12 @@ end
 
 def guard(s)
   dir = checkout_path(get(s, :flake))
-  c = if dir == nil
+  c = if dir.nil?
     nil
   else
     checkout_of(dir, getenv("KIRIKAE_BRANCH", "main"))
   end
-  stale = if c == nil or getenv("KIRIKAE_ALLOW_UNPUBLISHED", "") != ""
+  stale = if c.nil? or getenv("KIRIKAE_ALLOW_UNPUBLISHED", "") != ""
     nil
   else
     checkout_refusal(c)
@@ -435,7 +435,7 @@ def plan_unguarded(s)
 end
 
 def summary(p)
-  work = if get(p, :build) == nil
+  work = if get(p, :build).nil?
     ""
   else
     " (planned in #{to_s(get(p, :plan_ms))} ms; #{to_s(get(p, :build))} to build, #{to_s(get(p, :fetch))} to fetch)"
@@ -464,7 +464,7 @@ end
 
 def settings_for(cmd)
   n = node_arg(cmd)
-  if n == nil
+  if n.nil?
     settings
   else
     assoc(settings, :host, n)
@@ -701,12 +701,12 @@ test "the history file round-trips and keeps only its tail"
 end
 
 test "the node a rebuild names is the host it plans for"
-  assert node_arg(["fleet", "rebuild"]) == nil
+  assert node_arg(["fleet", "rebuild"]).nil?
   assert node_arg(["/x/bin/fleet", "rebuild", "--show-trace", "plo"]) == "plo"
   assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8", "rio"]) ==
     "rio"
-  assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8"]) == nil
-  assert node_arg(["darwin-rebuild"]) == nil
+  assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8"]).nil?
+  assert node_arg(["darwin-rebuild"]).nil?
 end
 
 test "a switch names both systems by hash, since their names agree"
@@ -731,8 +731,8 @@ test "a refusal of a pinned revision holds before anything evaluates; a moving r
   assert get(d, :action) == :hold
   assert get(d, :key) == inst
   assert get(d, :plan_ms) == 0
-  assert hold_for(inst, h, 2000 + 600_000, pol) == nil
-  assert hold_for(inst, [], 3000, pol) == nil
+  assert hold_for(inst, h, 2000 + 600_000, pol).nil?
+  assert hold_for(inst, [], 3000, pol).nil?
 end
 
 test "only a clean checkout at origin's rev is planned"
@@ -740,8 +740,7 @@ test "only a clean checkout at origin's rev is planned"
   old = "cb22456a00000000000000000000000000000000"
   assert checkout_refusal(
     {head: pub, dirty: "", remote: pub, branch: "main"}
-  ) ==
-    nil
+  ).nil?
   assert first(
     checkout_refusal({head: old, dirty: "", remote: pub, branch: "main"})
   ) ==
@@ -763,8 +762,8 @@ test "only a clean checkout at origin's rev is planned"
   assert checkout_path(".") == "."
   assert checkout_path("/x/nix") == "/x/nix"
   assert checkout_path("git+file:///x/nix?ref=main") == "/x/nix"
-  assert checkout_path("github:pleme-io/nix/#{pub}") == nil
-  assert checkout_path("github:pleme-io/nix") == nil
+  assert checkout_path("github:pleme-io/nix/#{pub}").nil?
+  assert checkout_path("github:pleme-io/nix").nil?
 end
 
 test "a running evaluation or rebuild of this machine refuses the plan; others do not"
@@ -794,7 +793,7 @@ test "a running evaluation or rebuild of this machine refuses the plan; others d
     )
   ) ==
     1
-  assert busy_refusal([]) == nil
+  assert busy_refusal([]).nil?
   h = busy_hold([:busy, "x"], 1000)
   assert get(h, :action) == :hold
   assert get(h, :until_ms) == 61000
@@ -806,15 +805,13 @@ test "a loop that already runs the checkout's rev answers the plan without evalu
   n = heartbeat_noop(hb, head, a)
   assert get(n, :action) == :noop
   assert get(n, :desired) == a
-  assert heartbeat_noop(hb, "cb22456a00000000000000000000000000000000", a) ==
-    nil
+  assert heartbeat_noop(hb, "cb22456a00000000000000000000000000000000", a).nil?
   assert heartbeat_noop(
     "{\"outcome\":\"building\",\"head_rev\":\"#{head}\"}",
     head,
     a
-  ) ==
-    nil
-  assert heartbeat_noop("", head, a) == nil
+  ).nil?
+  assert heartbeat_noop("", head, a).nil?
 end
 
 test "a plan that evaluated nothing says so without empty counts"

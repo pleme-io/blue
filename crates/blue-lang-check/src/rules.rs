@@ -609,7 +609,7 @@ blue source.
 `blue run`, `blue test` and `blue check` rewrite a writable file to the
 layout before compiling it and say so; a read-only file is refused, naming
 the rule. `blue fmt --write` applies it. The more specific spelling rules
-(B0025 to B0035, B0042, B0046) are reported instead when one of them explains the
+(B0025 to B0035, B0042, B0046, B0047) are reported instead when one of them explains the
 difference.",
     }
     B0025 {
@@ -759,7 +759,7 @@ comment keeps its line.",
         slug: "builtin-synonym",
         severity: Error,
         fix: Machine,
-        law: "a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x == nil` not `nil?(x)`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message`",
+        law: "a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message`",
         witness: "car([1])\n",
         explanation: "\
 Each pair computes the same value; blue keeps the name a reader who has
@@ -937,6 +937,22 @@ called `to_s` is never rewritten.",
 same name, so a map built from locals names each one once. blue reads the long
 spelling and writes the short one, and a mixed map keeps its explicit values:
 `{name:, size: 3}`.",
+    }
+    B0047 {
+        slug: "nil-test",
+        severity: Error,
+        fix: Machine,
+        law: "a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x`",
+        witness: "name = 1\nname == nil\n",
+        waivable: false,
+        explanation: "\
+`x.nil?` is true of nil and of nothing else, so the test reads as a question
+put to the value. blue reads `nil?(x)`, `x == nil` and `nil == x` and writes
+`x.nil?`; the three build the same answer on every value.
+
+The opposite test stays `x != nil`, and `not x.nil?` is read as written.
+A program's own `nil?` is left alone, and a map that holds a `nil?` key
+answers `.nil?` with that key's value.",
     }
 }
 

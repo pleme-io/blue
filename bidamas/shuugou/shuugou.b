@@ -69,7 +69,7 @@ end
 # reach one of those returns through here, which is why the empty-input
 # assertions in this file are exact equalities rather than size checks.
 def as_set(xs)
-  if xs == nil
+  if xs.nil?
     []
   else
     xs
@@ -395,13 +395,13 @@ end
 test "lookup reads a pair list, and reports absence as nil"
   assert lookup(frequencies([1, 1, 2]), 1) == 2
   assert lookup(group_by((n) -> n % 2, [1, 2, 3]), 0) == [2]
-  assert lookup(frequencies([1]), 9) == nil
-  assert lookup([], 1) == nil
+  assert lookup(frequencies([1]), 9).nil?
+  assert lookup([], 1).nil?
 end
 
 test "most_common, including the tie and the empty input"
   assert most_common([1, 2, 2, 3]) == 2
-  assert most_common([]) == nil
+  assert most_common([]).nil?
   assert most_common([7]) == 7
   # A tie resolves to the first-seen value; `>=` in the fold returns 2.
   assert most_common([1, 1, 2, 2]) == 1

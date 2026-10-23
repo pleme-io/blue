@@ -393,19 +393,19 @@ mod tests {
         let text = "def f(x)\n  nil?(x)\nend\n";
         let f = tree(text);
         let node = node_at(&f, &[2]).unwrap();
-        let want = tree("x == nil\n").to_sexp();
+        let want = tree("x.nil?\n").to_sexp();
         let fix = fix_for(text, 0, &[2], node.span, &want);
         assert_eq!(fix.applicability, Applicability::MachineApplicable);
-        assert_eq!(fix.edits[0].replacement, "x == nil");
+        assert_eq!(fix.edits[0].replacement, "x.nil?");
         assert_eq!(fix.edits[0].original, "nil?(x)");
 
-        let text = "def f()\n  nil?([]) * 2\nend\n";
+        let text = "def f(a, b)\n  nil?(a == b) and true\nend\n";
         let f = tree(text);
         let node = node_at(&f, &[2, 1]).unwrap();
-        let want = tree("[] == nil\n").to_sexp();
+        let want = tree("(a == b).nil?\n").to_sexp();
         let fix = fix_for(text, 0, &[2, 1], node.span, &want);
         assert_eq!(fix.applicability, Applicability::MachineApplicable);
-        assert_eq!(fix.edits[0].replacement, "([] == nil)");
+        assert_eq!(fix.edits[0].replacement, "(a == b).nil?");
     }
 
     #[test]

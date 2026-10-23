@@ -121,7 +121,7 @@ end
 # (`legacy_names`) until their 0.2.0.
 def get_or(m, key, default)
   v = get(m, key)
-  if v == nil
+  if v.nil?
     default
   else
     v
@@ -136,7 +136,7 @@ end
 def path_from(v, keys)
   if null?(keys)
     v
-  elsif v == nil
+  elsif v.nil?
     nil
   else
     path_from(step_into(v, first(keys)), rest(keys))
@@ -167,15 +167,15 @@ end
 
 test "json_at answers nil for every path that is not there"
   doc = json_parse("{\"spec\":{\"n\":1,\"s\":\"x\"}}")
-  assert json_at(doc, "spec.variables") == nil
-  assert json_at(doc, "spec.n.deeper") == nil
-  assert json_at(doc, "spec.s.deeper") == nil
-  assert json_at(nil, "a") == nil
-  assert json_at(doc, "spec.items.9") == nil
+  assert json_at(doc, "spec.variables").nil?
+  assert json_at(doc, "spec.n.deeper").nil?
+  assert json_at(doc, "spec.s.deeper").nil?
+  assert json_at(nil, "a").nil?
+  assert json_at(doc, "spec.items.9").nil?
 end
 
 test "json_at of the empty path is the document"
-  assert json_at([1], "") == nil
+  assert json_at([1], "").nil?
   assert json_at(json_parse("{\"\":5}"), "") == 5
 end
 
@@ -230,7 +230,7 @@ test "the accessors are total over non-documents"
   assert get_int(nil, "k", 7) == 7
   assert get_number(42, "k", 0) == 0
   assert get_str(json_parse("[]"), "k", "d") == "d"
-  assert as_json("not a doc", "k") == nil
+  assert as_json("not a doc", "k").nil?
 end
 
 test "as_json returns the raw value, objects included, for one-level reads"
@@ -240,9 +240,9 @@ test "as_json returns the raw value, objects included, for one-level reads"
   sub = as_json(doc, "a")
   assert is_doc(sub) == true
   assert get_int(sub, "b", 0) == 7
-  assert as_json(doc, "n") == nil
+  assert as_json(doc, "n").nil?
   assert as_json(doc, "s") == "x"
-  assert as_json(doc, "missing") == nil
+  assert as_json(doc, "missing").nil?
 end
 
 test "json_get_or's default is NOT reached for a present null"
@@ -250,7 +250,7 @@ test "json_get_or's default is NOT reached for a present null"
   # only for a MISSING key; a key present with null returns nil and bypasses
   # it. That is why the typed accessors re-check the value's type.
   doc = json_parse("{\"a\":null,\"b\":1}")
-  assert json_get_or(doc, "a", 42) == nil
+  assert json_get_or(doc, "a", 42).nil?
   assert json_get_or(doc, "b", 42) == 1
   assert json_get_or(doc, "missing", 42) == 42
   assert get_int(doc, "a", 42) == 42
@@ -286,7 +286,7 @@ def plain_key?(k)
 end
 
 def scalar_text(v)
-  if v == nil
+  if v.nil?
     "null"
   elsif v == true
     "true"

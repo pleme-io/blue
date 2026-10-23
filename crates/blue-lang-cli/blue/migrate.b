@@ -165,7 +165,7 @@ def needs_of(bluefile)
     raise(:migrate, "blue bluefile #{bluefile}: #{stderr_of(r)}")
   end
   needs = json_get(json_parse(stdout_of(r)), "needs")
-  if needs == nil
+  if needs.nil?
     []
   else
     map((kv) -> first(kv), needs)
@@ -227,7 +227,7 @@ def migrate(file)
     after = resolved(file) rescue nil
     same = after != nil and
       forms_under(after, "ns") == forms_under(before, "flat")
-    left = if after == nil
+    left = if after.nil?
       []
     else
       wanted(after)
@@ -240,7 +240,7 @@ def migrate(file)
         write_file(bluefile, old_bluefile)
         relock(path_dirname(file))
       end
-      why = if after == nil
+      why = if after.nil?
         "the rewritten file does not resolve"
       elsif same
         "#{length(left)} reference(s) still implicit"
@@ -295,8 +295,8 @@ def replace_word(s, old, new)
         else
           first(chars(piece))
         end
-        whole = (before == nil or not ident_char?(before)) and
-          (after == nil or not ident_char?(after))
+        whole = (before.nil? or not ident_char?(before)) and
+          (after.nil? or not ident_char?(after))
         if whole
           "#{acc}#{new}#{piece}"
         else
@@ -734,7 +734,7 @@ def strip(prefix, file, callers)
   # nil when `f` proves out; otherwise why, with the first difference.
   proof = fn(f, old_doc)
     now = resolved(f) rescue nil
-    if now == nil
+    if now.nil?
       "#{f}: does not resolve"
     else
       want = map(

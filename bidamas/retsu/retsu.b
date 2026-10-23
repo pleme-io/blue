@@ -25,7 +25,7 @@ use("kazu", [:clamp, :min])
 
 # Total length: nil counts as empty rather than erroring.
 def size(xs)
-  if xs == nil
+  if xs.nil?
     0
   else
     length(xs)
@@ -73,7 +73,7 @@ def concat_lists(a, b)
 end
 
 def flatten1(xss)
-  if xss == nil
+  if xss.nil?
     []
   else
     append(*xss)
@@ -138,8 +138,8 @@ end
 test "first and last, including the empty case"
   assert first([1, 2]) == 1
   assert last([1, 2]) == 2
-  assert first([]) == nil
-  assert last([]) == nil
+  assert first([]).nil?
+  assert last([]).nil?
 end
 
 test "structural recursion terminates over every list"
@@ -572,10 +572,10 @@ end
 
 test "find_first returns the element, not its position"
   assert find_first((x) -> x > 1, [1, 2, 3]) == 2
-  assert find_first((x) -> x > 9, [1, 2]) == nil
+  assert find_first((x) -> x > 9, [1, 2]).nil?
   # Nothing satisfies anything in an empty list — including a predicate that is
   # true of everything, which is where a vacuous implementation shows up.
-  assert find_first((_x) -> true, []) == nil
+  assert find_first((_x) -> true, []).nil?
 end
 
 test "reject, count_where and partition"
@@ -753,7 +753,7 @@ test "prepend and at stay total on nil and out-of-range"
   assert prepend([1], [2]) == [[2], 1]
   assert at([10, 20, 30], 0) == 10
   assert at([10, 20, 30], -1) == 30
-  assert at([10, 20, 30], 3) == nil
-  assert at([10, 20, 30], -4) == nil
-  assert at(nil, 0) == nil
+  assert at([10, 20, 30], 3).nil?
+  assert at([10, 20, 30], -4).nil?
+  assert at(nil, 0).nil?
 end

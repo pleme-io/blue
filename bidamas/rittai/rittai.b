@@ -375,7 +375,7 @@ def closed_refusals(m)
   present = key_set(seen)
   doubled = size(filter((kv) -> nth(1, kv) > 1, seen))
   unmatched = size(
-    filter((kv) -> get(present, reverse_key(nth(0, kv))) == nil, seen)
+    filter((kv) -> get(present, reverse_key(nth(0, kv))).nil?, seen)
   )
   crowded = size(
     filter((kv) -> nth(1, kv) > 2, count_keys(map(undirected_key, directed)))
@@ -464,7 +464,7 @@ end
 def weld_step(acc, p)
   k = position_key(p)
   at = get(get(acc, :index), k)
-  if at == nil
+  if at.nil?
     n = get(acc, :count)
     {
       index: assoc(get(acc, :index), k, n),
@@ -515,7 +515,7 @@ end
 
 def count_of(table, k)
   v = get(table, k)
-  if v == nil
+  if v.nil?
     0
   else
     v
@@ -528,7 +528,7 @@ def rt_distinct(keys, _table)
 end
 
 def distinct_step(acc, k)
-  if get(get(acc, :seen), k) == nil
+  if get(get(acc, :seen), k).nil?
     {
       seen: assoc(get(acc, :seen), k, true),
       out: concat_lists([k], get(acc, :out))

@@ -80,7 +80,7 @@ end
 
 def ledger_entry(k)
   e = find_first((r) -> get(r, :kind) == k, ledger)
-  if e == nil
+  if e.nil?
     raise(:not_found, "no ledger kind #{k}")
   end
   e
@@ -154,13 +154,13 @@ test "a result carries a value or a refusal, never both"
   a = ok(3)
   assert ok?(a) == true
   assert value(a) == 3
-  assert refusal_of(a) == nil
+  assert refusal_of(a).nil?
   b = refused(refusal(:late, "after noon"))
   assert ok?(b) == false
-  assert value(b) == nil
+  assert value(b).nil?
   assert kind(refusal_of(b)) == :late
   assert ok?({}) == false
-  assert value(ok(nil)) == nil
+  assert value(ok(nil)).nil?
 end
 
 test "a refusal is its kind and its why"
@@ -173,7 +173,7 @@ test "a refusal is its kind and its why"
 end
 
 test "refuse passes nothing and throws everything, kind first"
-  assert refuse([]) == nil
+  assert refuse([]).nil?
   caught = begin
     refuse([refusal(:a, "one"), refusal(:b, "two")])
   rescue e
@@ -210,8 +210,8 @@ end
 test "enforce passes a sound subject and raises every finding at once"
   small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
   odd = (n) -> filter((_) -> n % 2 == 1, [refusal(:odd, "#{n} is odd")])
-  assert enforce(2, [small, odd], {}) == nil
-  assert enforce(2, [], {}) == nil
+  assert enforce(2, [small, odd], {}).nil?
+  assert enforce(2, [], {}).nil?
   caught = begin
     enforce(5, [small, odd], {})
   rescue e

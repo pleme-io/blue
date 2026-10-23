@@ -19,7 +19,7 @@ def objectives(svc)
   o = reduce(
     (acc, e) -> assoc(acc, first(e), second(e)),
     defaults,
-    if given == nil
+    if given.nil?
       []
     else
       map_entries(given)

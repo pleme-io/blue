@@ -908,6 +908,11 @@ impl<'s> Renderer<'s> {
         // A hand-written `begin(a, b)` lands here too, and must: rendering it
         // as two statements outside a body would re-parse as two forms.
         let callee = self.expr(&items[0], 12);
+        let callee = if is_field_read(&items[0]) {
+            Doc::text("(").concat(callee).concat(Doc::text(")"))
+        } else {
+            callee
+        };
         let (lo, hi) = if self.real(s.span) && self.real(items[0].span) {
             let (_, hi) = self.inside(s, b'(', b')');
             (items[0].span.end, hi)
@@ -1446,6 +1451,14 @@ fn flat_text(d: &Doc) -> String {
     pretty(d, usize::MAX / 4)
 }
 
+fn is_field_read(s: &Spanned) -> bool {
+    s.as_list().is_some_and(|i| {
+        i.len() == 3
+            && i[0].as_symbol() == Some(blue_lang_syntax::LOWERED_FIELD)
+            && i[2].as_keyword().is_some_and(plain_field)
+    })
+}
+
 fn plain_field(k: &str) -> bool {
     blue_lang_syntax::is_callable_name(k) && blue_lang_syntax::qualified(k).is_none()
 }
@@ -1897,6 +1910,20 @@ mod tests {
         let chained = "if a\n  1\nelsif b\n  2\nelse\n  3\nend";
         assert_eq!(f(nested).trim(), chained);
         assert_eq!(f(chained).trim(), chained);
+    }
+
+    #[test]
+    fn a_nil_test_is_written_as_the_predicate_from_each_spelling() {
+        for src in ["a == nil", "nil == a", "a |> equal?(nil)", "not (a != nil)"] {
+            assert_eq!(f(src).trim(), "a.nil?", "{src}");
+        }
+        assert_eq!(f("a != nil").trim(), "a != nil");
+        assert_eq!(f("nil == nil").trim(), "nil == nil");
+    }
+
+    #[test]
+    fn a_called_field_read_keeps_its_parentheses() {
+        assert_eq!(f("(e.kind)()").trim(), "(e.kind)()");
     }
 
     // ---- structure ---------------------------------------------------

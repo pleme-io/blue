@@ -166,7 +166,7 @@ def legacy_prefix_of_text(text)
     (l) -> starts_with?(l, "legacy_names(") and size(split(l, "\"")) == 5,
     split(text, "\n")
   )
-  if line == nil
+  if line.nil?
     nil
   else
     nth(3, split(line, "\""))
@@ -206,7 +206,7 @@ end
 # The package's gloss: the first comment line of its source.
 def gloss_of_text(text)
   comment = find_first((l) -> starts_with?(l, "#"), split(text, "\n"))
-  if comment == nil
+  if comment.nil?
     ""
   else
     comment_text(comment)
@@ -220,7 +220,7 @@ def test_blocks_of_text(text)
     fn(acc, line)
       open = first(acc)
       found = last(acc)
-      if open == nil and starts_with?(line, "test \"")
+      if open.nil? and starts_with?(line, "test \"")
         [[nth(1, split(line, "\"")), []], found]
       elsif open != nil and line == "end"
         [nil, push(found, open)]
@@ -429,7 +429,7 @@ end
 def other_name(r, e)
   prefix = pkg_legacy_prefix(r)
   name = first(e)
-  if prefix == nil
+  if prefix.nil?
     ""
   else
     p = "#{prefix}_"
@@ -820,7 +820,7 @@ def row_fits(type, v)
   elsif type == "bool"
     boolean?(v)
   elsif type == "strnil"
-    v == nil or string?(v)
+    v.nil? or string?(v)
   elsif type == "strs"
     v != nil and list?(v) and every?(string?, v)
   elsif starts_with?(type, "sym:")
@@ -990,7 +990,7 @@ end
 def row_of(form)
   word = get(form, :word)
   spec = get(row_specs, word)
-  if spec == nil
+  if spec.nil?
     [
       :unknown_word,
       "`#{word}` is no row word: the words are #{join(map(first, map_entries(row_specs)), ", ")}"
@@ -1225,7 +1225,7 @@ def vocab_most(v)
 end
 
 def verb_conforms(shape, v)
-  if v == nil
+  if v.nil?
     "na"
   else
     n = shape_positionals(shape)
@@ -1242,7 +1242,7 @@ end
 def verb_contract_shape(row, v)
   if get(row, :contract) != nil
     get(row, :contract)
-  elsif v == nil
+  elsif v.nil?
     ""
   else
     get(row, :shape)
@@ -1250,7 +1250,7 @@ def verb_contract_shape(row, v)
 end
 
 def verb_contract_default(row, v)
-  if v == nil
+  if v.nil?
     ""
   else
     get(row, :shape)
@@ -1384,7 +1384,7 @@ def finds_vocab(g)
   map(
     (r) -> finding("g2-vocab", get(r, :space), row_node(r)),
     filter(
-      (r) -> get(r, :enabled) and get(known, get(r, :verb)) == nil,
+      (r) -> get(r, :enabled) and get(known, get(r, :verb)).nil?,
       get(g, :verbs)
     )
   )
@@ -1532,7 +1532,7 @@ def finds_edges(g)
   ends = distinct(flat_map((e) -> [get(e, :from), get(e, :to)], get(g, :edges)))
   dangling = map(
     (x) -> finding("g9-dangling", node_space(x), x),
-    sort_keyed((x) -> x, filter((x) -> get(nodes, x) == nil, ends))
+    sort_keyed((x) -> x, filter((x) -> get(nodes, x).nil?, ends))
   )
   unknown = map(
     fn(e)
@@ -1740,14 +1740,14 @@ def tsv_verb(label, c, vocab)
     replaced_by: nil
   }
   given = get(c, "contract_shape")
-  if wave == nil
+  if wave.nil?
     refusal(
       :tsv_value,
       "#{label} #{id}: wave `#{get(c, "wave")}` is no whole number"
     )
   elsif not member?(get(row, :kind), ["pure", "effect", "stream", "decl"])
     refusal(:tsv_value, "#{label} #{id}: kind `#{get(row, :kind)}` is no kind")
-  elsif given == nil
+  elsif given.nil?
     row
   elsif get(c, "conforms") != verb_conforms(get(row, :shape), v)
     refusal(
@@ -1865,7 +1865,7 @@ def verbs_tsv(g)
           else
             join(get(r, :laterals), ",")
           end,
-          if get(r, :fleet) == nil
+          if get(r, :fleet).nil?
             "-"
           else
             get(r, :fleet)
@@ -1913,7 +1913,7 @@ def vocab_tsv(g)
           join(get(v, :raises), ","),
           get(v, :kind),
           get(v, :meaning),
-          if get(v, :ref) == nil
+          if get(v, :ref).nil?
             "-"
           else
             get(v, :ref)
@@ -1931,7 +1931,7 @@ def row_strings(xs)
 end
 
 def row_scalar(v)
-  if v == nil
+  if v.nil?
     "nil"
   elsif boolean?(v) or integer?(v)
     to_s(v)
@@ -1945,7 +1945,7 @@ def row_fields(pairs)
 end
 
 def optional_field(name, value)
-  if value == nil
+  if value.nil?
     []
   else
     [[name, value]]
@@ -1967,7 +1967,7 @@ def verb_fields(r)
     concat_lists(
       optional_field(
         "contract",
-        if get(r, :contract) == nil
+        if get(r, :contract).nil?
           nil
         else
           scm_string(get(r, :contract))
@@ -1981,7 +1981,7 @@ def verb_fields(r)
         end,
         optional_field(
           "replaced_by",
-          if get(r, :replaced_by) == nil
+          if get(r, :replaced_by).nil?
             nil
           else
             scm_string(get(r, :replaced_by))
@@ -1999,7 +1999,7 @@ def row_source(r)
       [["status", ":#{get(r, :status)}"]],
       optional_field(
         "gloss",
-        if get(r, :gloss) == nil
+        if get(r, :gloss).nil?
           nil
         else
           scm_string(get(r, :gloss))

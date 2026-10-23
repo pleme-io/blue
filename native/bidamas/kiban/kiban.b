@@ -68,7 +68,7 @@ end
 # The base address of the board's device named `name`, or nil.
 def kb_device_base(board, name)
   d = find((x) -> get(x, :name) == name, get(board, :devices))
-  if d == nil
+  if d.nil?
     nil
   else
     get(d, :base)
@@ -124,14 +124,14 @@ end
 test "the virt32 board is found by name and an unknown one is nil"
   assert get(kb_board("qemu-virt32"), :rust_target) ==
     "riscv32imac-unknown-none-elf"
-  assert kb_board("no-such-board") == nil
+  assert kb_board("no-such-board").nil?
 end
 
 test "device bases are the virt machine's"
   b = kb_qemu_virt32
   assert kb_device_base(b, :uart0) == 268_435_456
   assert kb_device_base(b, :finisher) == 1_048_576
-  assert kb_device_base(b, :gpio) == nil
+  assert kb_device_base(b, :gpio).nil?
 end
 
 test "the UART model prints ASCII and newline, and refuses other bytes"

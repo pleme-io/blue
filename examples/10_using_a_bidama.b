@@ -19,5 +19,5 @@ test "the package's words are available after use"
 end
 
 test "an empty text has no top word"
-  assert top_word("") == nil
+  assert top_word("").nil?
 end

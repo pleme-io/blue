@@ -183,7 +183,7 @@ test "a posture runs by default and the declaration can configure it off"
   disabled = serving(postures, [off(:tag, "default")], silent, echo)
   assert get(disabled, :refusals) == []
   assert size(get(disabled, :off)) == 1
-  assert get(get(get(disabled, :handler)(req_at("/")), :headers), "X-A") == nil
+  assert get(get(get(disabled, :handler)(req_at("/")), :headers), "X-A").nil?
 end
 
 test "a tune lays fields over the default, and a bad tune is refused alone"

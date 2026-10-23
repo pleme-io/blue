@@ -873,11 +873,11 @@ test "parse_int refuses what from_base would have swallowed"
   assert parse_int("-ff", 16) == -255
   # A digit outside the base is nil rather than a plausible number — the
   # distinguishing case, since from_base("zz", 16) returns a number here.
-  assert parse_int("zz", 16) == nil
-  assert parse_int("9", 8) == nil
-  assert parse_int("", 10) == nil
-  assert parse_int("-", 16) == nil
-  assert parse_int("12x4", 10) == nil
+  assert parse_int("zz", 16).nil?
+  assert parse_int("9", 8).nil?
+  assert parse_int("", 10).nil?
+  assert parse_int("-", 16).nil?
+  assert parse_int("12x4", 10).nil?
   # The same digit is legal one base higher.
   assert parse_int("9", 10) == 9
   assert parse_int("g", 17) == 16
@@ -1030,7 +1030,7 @@ end
 def isbn10_complete(first9)
   cs = isbn10_chars(first9)
   c = isbn10_check_char(first9)
-  if c == nil
+  if c.nil?
     nil
   else
     join(push(cs, c), "")
@@ -1119,9 +1119,9 @@ test "the ISBN-10 check character, including the X case"
   assert isbn10_check_char("030640615") == "2"
   assert isbn10_check_char("080442957") == "X"
   # Not nine characters, or not all digits, is nil rather than a guess.
-  assert isbn10_check_char("0306406152") == nil
-  assert isbn10_check_char("03064061X") == nil
-  assert isbn10_check_char("") == nil
+  assert isbn10_check_char("0306406152").nil?
+  assert isbn10_check_char("03064061X").nil?
+  assert isbn10_check_char("").nil?
 
   assert isbn10_complete("030640615") == "0306406152"
   assert isbn10_complete("080442957") == "080442957X"

@@ -3,7 +3,7 @@ use("settei")
 
 def greeting(s, req)
   who = kyuuji::query_param(req, "who")
-  subject = if who == nil
+  subject = if who.nil?
     settei::setting(s, "subject")
   else
     who

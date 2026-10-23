@@ -772,7 +772,7 @@ test "mode does not depend on input order"
   assert mode([1, 1, 2, 2]) == 1
   assert mode([1, 2, 2, 3]) == 2
   assert mode([5]) == 5
-  assert mode([]) == nil
+  assert mode([]).nil?
   # The mode really is the most frequent value.
   xs = [4, 7, 4, 9, 4, 7]
   assert tally(mode(xs), xs) == 3

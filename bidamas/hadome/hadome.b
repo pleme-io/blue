@@ -21,7 +21,7 @@ def sized(kind, rest)
   r = replace(rest, "\t", " ")
   if includes(r, " ")
     n = to_int(trim(after_last(r, " ")))
-    if n == nil or n < 0
+    if n.nil? or n < 0
       nil
     else
       row(kind, trim(before_last(r, " ")), n)
@@ -53,7 +53,7 @@ end
 
 def judge(rows, kind, key, measured)
   r = recorded(rows, kind, key)
-  if r == nil
+  if r.nil?
     {verdict: :unrecorded}
   elsif measured > r
     {verdict: :grew, recorded: r, grew: measured - r}

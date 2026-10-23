@@ -361,7 +361,8 @@ fn lsp_diagnostic(d: &blue_lang_check::Diagnostic, index: &LineIndex) -> Diagnos
         c if c.rule().slug == "layout"
             || (Code::B0024..=Code::B0035).contains(&c)
             || c == Code::B0042
-            || c == Code::B0046 =>
+            || c == Code::B0046
+            || c == Code::B0047 =>
         {
             "form"
         }

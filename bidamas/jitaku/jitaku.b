@@ -125,7 +125,7 @@ def applied(f, v)
 end
 
 def passes?(check, v)
-  applied(check, v) == nil
+  applied(check, v).nil?
 end
 
 def first_why(check, xs)
@@ -197,11 +197,11 @@ end
 
 def field_why(f, m)
   v = get(m, get(f, :key))
-  if v == nil
+  if v.nil?
     verdict(not get(f, :required), "#{key_text(f)} is required")
   else
     why = applied(get(f, :check), v)
-    if why == nil
+    if why.nil?
       nil
     else
       "#{key_text(f)}: #{why}"
@@ -210,7 +210,7 @@ def field_why(f, m)
 end
 
 def record_whys(table, m)
-  if m == nil or not map?(m)
+  if m.nil? or not map?(m)
     ["#{m} is not a record"]
   else
     known = map(key_text, table)
@@ -241,7 +241,7 @@ end
 
 def projected(acc, f, m)
   v = get(m, get(f, :key))
-  if v == nil or get(f, :json) == nil
+  if v.nil? or get(f, :json).nil?
     acc
   else
     assoc(acc, get(f, :json), applied(get(f, :render), v))
@@ -602,7 +602,7 @@ end
 def mood_set(group, moods)
   map(
     fn(m)
-      if get(value_of(m), :group) == nil
+      if get(value_of(m), :group).nil?
         with(m, :group, group)
       else
         m
@@ -657,7 +657,7 @@ end
 
 def check_why(check, v)
   w = check(v)
-  if w == nil
+  if w.nil?
     []
   else
     [w]
@@ -710,9 +710,9 @@ def tone_refusals(e)
     whys_to_refusals(e, whys)
   else
     refused_if(
-      get(v, :frequency) == nil and
+      get(v, :frequency).nil? and
         is_empty(get(v, :frequencies)) and
-        get(v, :noise) == nil,
+        get(v, :noise).nil?,
       :silent,
       e,
       "a tone needs a frequency, frequencies or a noise"
@@ -757,7 +757,7 @@ end
 def component_refusals(e)
   row = component_row(component_key(e))
   v = value_of(e)
-  if row == nil
+  if row.nil?
     [
       refuse_entry(
         :unknown_component,
@@ -827,7 +827,7 @@ end
 def overlay(table, base, fields)
   reduce(
     fn(acc, f)
-      if get(fields, get(f, :key)) == nil
+      if get(fields, get(f, :key)).nil?
         acc
       else
         assoc(acc, get(f, :key), get(fields, get(f, :key)))
@@ -844,7 +844,7 @@ def tune_refusals(t, es)
     (e) -> kind_of(e) == get(t, :target) and name_of(e) == get(t, :of),
     es
   )
-  if table == nil
+  if table.nil?
     [refuse_entry(:invalid, t, "only a mood or a tone is tuned")]
   elsif is_empty(hits)
     [refuse_entry(:unknown_entry, t, "nothing declared to tune")]
@@ -898,7 +898,7 @@ end
 
 def label_of(m)
   l = get(value_of(m), :label)
-  if l == nil
+  if l.nil?
     name_of(m)
   else
     l
@@ -1052,7 +1052,7 @@ end
 # A role-addressed mood's lights become the role's lights.
 def resolved(m, es)
   l = get(value_of(m), :lights)
-  if l == nil or get(l, :role) == nil
+  if l.nil? or get(l, :role).nil?
     value_of(m)
   else
     assoc(value_of(m), :lights, assoc(l, :only, role_lights(es, get(l, :role))))
@@ -1089,7 +1089,7 @@ def slot_into(acc, s, hits)
     acc
   else
     rendered = applied(last(s), hits)
-    if rendered == nil
+    if rendered.nil?
       acc
     else
       assoc(acc, first(s), rendered)
@@ -1282,7 +1282,7 @@ test "a role-addressed mood takes the role's lights, and hands over by name"
   glow = mood_doc(example_home, "glow")
   assert json_get(json_get(glow, "lights"), "only") == ["light.hallway"]
   assert json_get(first(json_get(glow, "then")), "afterMinutes") == 5
-  assert json_get(json_get(glow, "lights"), "role") == nil
+  assert json_get(json_get(glow, "lights"), "role").nil?
 end
 
 test "a bad entry is refused alone, and what names it falls with it"
@@ -1331,9 +1331,9 @@ test "a bad entry is refused alone, and what names it falls with it"
     ]
   moods = json_get(json_get(home_doc(h), "homeAssistant"), "moods")
   assert json_get(moods, "warm") != nil
-  assert json_get(moods, "hot") == nil
-  assert json_get(moods, "rumble") == nil
-  assert json_get(moods, "after") == nil
+  assert json_get(moods, "hot").nil?
+  assert json_get(moods, "rumble").nil?
+  assert json_get(moods, "after").nil?
   assert json_get(moods, "relax") != nil
   assert json_get(
     json_get(
@@ -1343,7 +1343,7 @@ test "a bad entry is refused alone, and what names it falls with it"
     "frequency"
   ) ==
     432
-  assert json_get(json_get(home_doc(h), "components"), "zigbee2mqtt") == nil
+  assert json_get(json_get(home_doc(h), "components"), "zigbee2mqtt").nil?
   assert json_get(
     json_get(json_get(home_doc(h), "components"), "mosquitto"),
     "enable"
@@ -1401,7 +1401,7 @@ test "a mood plays only where a base url and speakers stand"
     [media_base_url_from_host, speaker("k", "media_player.k")]
   )
   assert kinds(refusals(hosted)) == []
-  assert get(get(lareira(hosted), "homeAssistant"), "mediaBaseUrl") == nil
+  assert get(get(lareira(hosted), "homeAssistant"), "mediaBaseUrl").nil?
   assert get(get(get(lareira(hosted), "homeAssistant"), "moods"), "m") != nil
 end
 

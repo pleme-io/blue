@@ -37,7 +37,7 @@ end
 # One turn of the daemon's loop: the next message applied, or nil when quiet.
 def serve_once(sub, base, token)
   m = nats_next_message(sub, 1000)
-  if m == nil
+  if m.nil?
     nil
   else
     cmd = command_of(m)

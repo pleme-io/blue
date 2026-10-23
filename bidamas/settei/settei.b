@@ -62,7 +62,7 @@ def file_tier(defaults, doc, path)
       v = second(e)
       at = append(path, [key])
       d = get(defaults, key)
-      if d == nil
+      if d.nil?
         [
           first(acc),
           append(
@@ -118,11 +118,11 @@ def env_tier(app, defaults, lookup, path)
       else
         name = env_name(app, at)
         text = lookup(name)
-        if text == nil
+        if text.nil?
           acc
         else
           v = coerce(d, text)
-          if v == nil
+          if v.nil?
             [
               first(acc),
               append(
@@ -147,7 +147,7 @@ def env_tier(app, defaults, lookup, path)
 end
 
 def resolve(app, defaults, doc, lookup)
-  from_file = if doc == nil
+  from_file = if doc.nil?
     [defaults, []]
   elsif kind_of(doc) == :map
     file_tier(defaults, doc, [])
@@ -164,14 +164,14 @@ def file(app, tier)
     getenv("#{env_prefix(app)}CONFIG")
   elsif tier == :xdg
     xdg = getenv("XDG_CONFIG_HOME")
-    if xdg == nil
+    if xdg.nil?
       nil
     else
       "#{xdg}/#{app}/#{app}.yaml"
     end
   elsif tier == :home
     home = getenv("HOME")
-    if home == nil
+    if home.nil?
       nil
     else
       "#{home}/.config/#{app}/#{app}.yaml"
@@ -190,7 +190,7 @@ end
 
 def defaults(app)
   path = getenv("#{env_prefix(app)}DEFAULTS")
-  if path == nil
+  if path.nil?
     raise(
       :no_defaults,
       "#{env_prefix(app)}DEFAULTS names no file of prescribed settings"
@@ -201,7 +201,7 @@ end
 
 def read(app, defaults)
   path = discovered_path(app)
-  doc = if path == nil
+  doc = if path.nil?
     nil
   else
     json_read(read_file(path))
@@ -233,7 +233,7 @@ end
 def lookup_path(config, parts)
   reduce(
     fn(acc, k)
-      if acc == nil or kind_of(acc) != :map
+      if acc.nil? or kind_of(acc) != :map
         nil
       else
         get(acc, k)
@@ -250,7 +250,7 @@ end
 
 def need(config, path)
   v = lookup_path(config, split(path, "."))
-  if v == nil
+  if v.nil?
     raise(:not_found, "no setting #{path}")
   end
   v
@@ -266,12 +266,12 @@ end
 
 def flag(settings, name)
   flags = get(settings, "flags")
-  v = if flags == nil
+  v = if flags.nil?
     nil
   else
     get(flags, name)
   end
-  if v == nil
+  if v.nil?
     raise(:unknown_flag, "#{name} is not a declared flag")
   end
   v == true
@@ -279,7 +279,7 @@ end
 
 def setting(settings, name)
   v = get(settings, name)
-  if v == nil
+  if v.nil?
     raise(:unknown_setting, "#{name} is not a declared setting")
   end
   v
@@ -320,7 +320,7 @@ test "env names are the app upcased, nested keys joined by two underscores"
   assert coerce(1, "42") == 42
   assert coerce(1.5, "2") == 2.0
   assert coerce(true, "OFF") == false
-  assert coerce(true, "maybe") == nil
+  assert coerce(true, "maybe").nil?
   assert coerce(false, "1") == true
   assert coerce(true, "0") == false
 end
@@ -388,7 +388,7 @@ test "has? and need read a dotted path and need raises not_found"
 end
 
 test "file refuses an unknown tier and the explicit tier is nil when unset"
-  assert file("zz-no-such-app", :explicit) == nil
+  assert file("zz-no-such-app", :explicit).nil?
   assert contains?(
     begin
       file("x", :nope)

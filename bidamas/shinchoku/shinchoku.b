@@ -48,7 +48,7 @@ def trailing_since(samples)
   reduce(
     fn(acc, s)
       if get(s, :value) == last_value
-        if acc == nil
+        if acc.nil?
           get(s, :at_ms)
         else
           acc
@@ -98,7 +98,7 @@ end
 
 def bucket(resources, name)
   b = get(resources, name)
-  if b == nil
+  if b.nil?
     blind("rate_limit names no #{name} bucket")
   else
     {
@@ -116,7 +116,7 @@ def budget_of(text)
   resources = if doc != nil and map?(doc)
     get(doc, "resources")
   end
-  if resources == nil
+  if resources.nil?
     blind("gh api rate_limit answered no resources")
   else
     {
@@ -130,7 +130,7 @@ end
 
 def run_capture(argv)
   cap = exec_capture(*argv) rescue nil
-  if cap == nil
+  if cap.nil?
     {ok: false, why: "#{first(argv)} could not be started"}
   elsif status_of(cap) != 0
     {
@@ -176,7 +176,7 @@ def agents_allowed_with(s, load1, cores, gh_remaining, agents_running)
       0,
       "load #{to_s(load1)} is above #{to_s(get(s, "load_factor"))}x #{to_s(cores)} cores"
     )
-  elsif gh_remaining == nil
+  elsif gh_remaining.nil?
     admission(0, "the GitHub budget could not be read")
   elsif gh_remaining < get(s, "gh_floor")
     admission(
@@ -219,14 +219,14 @@ end
 
 def job_from_cronjob(cronjob_json, name)
   cj = json_read(cronjob_json) rescue nil
-  if cj == nil or map?(cj) == false
+  if cj.nil? or map?(cj) == false
     {ok: false, why: "not a JSON object"}
   elsif get(cj, "kind") != "CronJob"
     {ok: false, why: "kind is #{to_s(get(cj, "kind"))}, not CronJob"}
   else
     meta = get(cj, "metadata") or {}
     tmpl = get(get(cj, "spec") or {}, "jobTemplate")
-    if tmpl == nil or get(tmpl, "spec") == nil
+    if tmpl.nil? or get(tmpl, "spec").nil?
       {ok: false, why: "the CronJob has no spec.jobTemplate.spec"}
     else
       tmeta = get(tmpl, "metadata") or {}
@@ -252,7 +252,7 @@ def job_from_cronjob(cronjob_json, name)
         job: {
           "apiVersion" => "batch/v1",
           "kind" => "Job",
-          "metadata" => if get(meta, "uid") == nil
+          "metadata" => if get(meta, "uid").nil?
             job_meta
           else
             assoc(job_meta, "ownerReferences", [owner])
@@ -314,9 +314,9 @@ end
 def latest(xs)
   reduce(
     fn(acc, x)
-      if x == nil
+      if x.nil?
         acc
-      elsif acc == nil or compare(x, acc) > 0
+      elsif acc.nil? or compare(x, acc) > 0
         x
       else
         acc
@@ -336,7 +336,7 @@ def cursor_rate(a, b, window_s)
 end
 
 def liveness(a, b, window_s)
-  if a == nil or b == nil
+  if a.nil? or b.nil?
     blind("a status read failed")
   else
     gen = at(b, ["metadata", "generation"])
@@ -407,7 +407,7 @@ def reconcile_liveness_over(template, window_s)
   a = read_template(first(t), second(t))
   sleep(window_s)
   b = read_template(first(t), second(t))
-  if a == nil or b == nil
+  if a.nil? or b.nil?
     blind("k-ryn could not read infrastructuretemplate #{template}")
   else
     liveness(a, b, window_s)
@@ -424,7 +424,7 @@ def counter_sample(argv)
     failed_sample(now_ms, get(r, :why))
   else
     v = to_float(trim(get(r, :stdout))) rescue nil
-    if v == nil
+    if v.nil?
       failed_sample(now_ms, "#{first(argv)} printed no number")
     else
       sample(now_ms, v)
@@ -460,7 +460,7 @@ end
 
 def flag(args, name, default)
   i = index_of(args, name)
-  if i == nil
+  if i.nil?
     default
   else
     nth(i + 1, args)
@@ -548,7 +548,7 @@ end
 
 def main()
   out = command(argv)
-  if out == nil
+  if out.nil?
     write_stderr(usage)
     exit_with(2)
   end
@@ -765,7 +765,7 @@ test "reconcile_liveness: the operator's own stalled pass is stalled, with its r
 end
 
 test "the command: an unknown subcommand is a usage error, a known one answers"
-  assert command([]) == nil
-  assert command(["nope"]) == nil
-  assert command(["job-from-cronjob"]) == nil
+  assert command([]).nil?
+  assert command(["nope"]).nil?
+  assert command(["job-from-cronjob"]).nil?
 end

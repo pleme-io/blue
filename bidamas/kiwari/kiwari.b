@@ -81,7 +81,7 @@ end
 
 # The kinds a field's role or definition applies to.
 def painted_kinds(f)
-  if get(f, :kinds) == nil
+  if get(f, :kinds).nil?
     kinds_of(get(f, :item))
   else
     get(f, :kinds)
@@ -216,7 +216,7 @@ def field_patterns(g, key, line)
     flat_map(
       fn(r)
         name = node_name(g, r)
-        if name == nil
+        if name.nil?
           []
         else
           flat_map(
@@ -292,7 +292,7 @@ def role_of_literal(g, text)
 end
 
 def unpainted(g)
-  filter((t) -> role_of_literal(g, t) == nil, literals(g))
+  filter((t) -> role_of_literal(g, t).nil?, literals(g))
 end
 
 def checked(g)
@@ -350,7 +350,7 @@ def generated_by(comment)
 end
 
 def conflict_lines(conflicts)
-  if conflicts == nil or is_empty(conflicts)
+  if conflicts.nil? or is_empty(conflicts)
     []
   else
     sets = map((c) -> "[#{join(map((n) -> "$.#{n}", c), ", ")}]", conflicts)
@@ -1831,7 +1831,7 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
   g = blue
   parts = map(
     (r) -> get(r, :name),
-    filter((r) -> get(r, :lower) == nil, visible(g))
+    filter((r) -> get(r, :lower).nil?, visible(g))
   )
   assert parts ==
     [

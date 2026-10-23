@@ -16,7 +16,7 @@ def graph_home()
     (r) -> path_exists(path_join(r, "mokuroku/graph")),
     blue_path_roots(getenv("BLUE_PATH", ""))
   )
-  if here == nil
+  if here.nil?
     "bidamas/mokuroku/graph"
   else
     path_join(here, "mokuroku/graph")

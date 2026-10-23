@@ -85,12 +85,12 @@ end
 # to run, by absolute path when the caller has one (services.tehai passes
 # /usr/bin/ssh on macOS, openssh on NixOS), so the state can name which ssh ran.
 def probe_argv(m, timeout_s, ssh)
-  key = if get(m, :key) == nil
+  key = if get(m, :key).nil?
     []
   else
     ["-i", get(m, :key)]
   end
-  dest = if get(m, :user) == nil
+  dest = if get(m, :user).nil?
     get(m, :host)
   else
     "#{get(m, :user)}@#{get(m, :host)}"
@@ -115,7 +115,7 @@ end
 # machine with the reason, never an uncaught error for the whole run.
 def probe(m, timeout_s, ssh)
   cap = exec_capture(*probe_argv(m, timeout_s, ssh)) rescue nil
-  if cap == nil
+  if cap.nil?
     [false, "ssh could not be started: #{ssh}"]
   elsif status_of(cap) == 0 and starts_with?(trim(stdout_of(cap)), "nix-store")
     [true, trim(stdout_of(cap))]
@@ -170,7 +170,7 @@ def read_previous(path)
     []
   else
     parsed = json_parse(text) rescue nil
-    if parsed == nil
+    if parsed.nil?
       []
     else
       or_empty(as_json(parsed, "machines"))
@@ -181,7 +181,7 @@ end
 # A parsed JSON object is a key/value list, not a map, so its fields are read
 # through deeta (as_json, get_str, get_int), never `get`.
 def or_empty(xs)
-  if xs == nil
+  if xs.nil?
     []
   else
     map(
@@ -269,7 +269,7 @@ test "the machines format: comments and blanks skipped, fields read, a bad line 
   assert get(q, :user) == "builder"
   assert get(q, :key) == "/Users/x/.ssh/key"
   # "-" is an empty field: no key.
-  assert get(nth(1, ms), :key) == nil
+  assert get(nth(1, ms), :key).nil?
   assert get(nth(1, ms), :host) == "plo"
   # The control: one malformed line is refused, and its siblings are not.
   assert get(nth(2, ms), :ok) == false

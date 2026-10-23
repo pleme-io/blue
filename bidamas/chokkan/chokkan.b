@@ -112,7 +112,7 @@ end
 def wire(q)
   c = criteria_of(q)
   base = {type: get(q, :type), instructions: get(q, :instructions)}
-  if c == nil
+  if c.nil?
     base
   else
     assoc(base, :criteria, c)
@@ -139,7 +139,7 @@ def keep_tail(text, max_chars)
 end
 
 def parsed(body)
-  if body == nil
+  if body.nil?
     nil
   else
     json_parse(body) rescue nil
@@ -259,7 +259,7 @@ test "a request carries every question's name, type and criteria"
   assert json_get(doc, "model") == "jev-latest"
   assert json_get(doc, "state") == "state"
   assert json_get(json_get(qs, "is_refund"), "type") == "noul"
-  assert json_get(json_get(qs, "is_refund"), "criteria") == nil
+  assert json_get(json_get(qs, "is_refund"), "criteria").nil?
   assert json_get(json_get(json_get(qs, "route"), "criteria"), "opus") == "deep"
   assert json_get(json_get(qs, "difficulty"), "criteria") ==
     ["easy", "middling", "hard"]
@@ -307,7 +307,7 @@ test "an answered body reads as typed answers"
   assert margin(probabilities(r, "route")) == 0.5
   assert confident(r, "route", 0.8) == true
   assert confident(r, "route", 0.9) == false
-  assert chosen(r, "absent") == nil
+  assert chosen(r, "absent").nil?
   assert probabilities(r, "absent") == []
 end
 
@@ -326,7 +326,7 @@ test "a refusal and a failure are told apart, and neither answers"
   assert get(read(429, ""), :kind) == :blind
   assert get(read(503, ""), :kind) == :blind
   assert get(read(0, nil), :kind) == :blind
-  assert chosen(read(429, example_body), "route") == nil
+  assert chosen(read(429, example_body), "route").nil?
   assert confident(read(429, example_body), "route", 0) == false
 end
 

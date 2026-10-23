@@ -223,14 +223,14 @@ def kind_whys(s)
   if get(s, :kind) == :service
     append(
       fault(
-        get(s, :flake) == nil,
+        get(s, :flake).nil?,
         ["a service needs a flake (github:owner/repo#package)"]
       ),
       fault(
         get(s, :flake) != nil and not flake?(get(s, :flake)),
         ["flake is github:owner/repo#package"]
       ),
-      fault(get(s, :port) == nil, ["a service needs a port"]),
+      fault(get(s, :port).nil?, ["a service needs a port"]),
       fault(
         get(s, :port) != nil and not port?(get(s, :port)),
         ["port is a number from 1 to 65535"]
@@ -268,7 +268,7 @@ end
 def host_refusals(ds, claimed, at, h)
   if not domain?(h)
     [refusal(:bad_site, "#{at}: #{h} is not a hostname")]
-  elsif zone_for(ds, h) == nil
+  elsif zone_for(ds, h).nil?
     [
       refusal(
         :host_outside_domains,
@@ -323,7 +323,7 @@ def site_fold(ds, st, s)
 end
 
 def mail_judge(ds, m)
-  if m == nil
+  if m.nil?
     {kept: nil, refusals: []}
   elsif get(m, :provider) == :undecided
     {kept: m, refusals: []}
@@ -446,7 +446,7 @@ def flat(marks)
 end
 
 def org_refusals(org, repos, teams)
-  if org == nil
+  if org.nil?
     fault(
       not (is_empty(repos) and is_empty(teams)),
       [refusal(:no_github_org, "repos and teams need a github_org")]
@@ -564,7 +564,7 @@ def verify_rows(z, d, p)
 end
 
 def mail_rows(m)
-  if m == nil or get(m, :provider) == :undecided
+  if m.nil? or get(m, :provider) == :undecided
     []
   else
     d = get(m, :domain)
@@ -822,7 +822,7 @@ def step(id, where, what)
 end
 
 def mail_steps(m, rows)
-  if m == nil
+  if m.nil?
     []
   elsif get(m, :provider) == :undecided
     [
@@ -856,7 +856,7 @@ def mail_steps(m, rows)
 end
 
 def github_steps(org)
-  if org == nil
+  if org.nil?
     []
   else
     [
@@ -1199,7 +1199,7 @@ end
 test "a bad company slug is refused and the rest stands"
   j = judge(assoc(example, :company, "Acme Corp"))
   assert kinds(j.refused) == [:bad_slug]
-  assert j.accepted.company == nil
+  assert j.accepted.company.nil?
   assert size(j.accepted.domains) == 2
   assert kinds(judge(assoc(example, :github_org, "Bad Org")).refused) ==
     [:bad_slug]
@@ -1284,7 +1284,7 @@ test "an unknown mail preset is refused and nothing else falls"
   a = assoc(example, :mail, {provider: :hotmail, domain: "acme.example"})
   j = judge(a)
   assert kinds(j.refused) == [:unknown_mail_preset]
-  assert j.accepted.mail == nil
+  assert j.accepted.mail.nil?
   assert size(j.accepted.sites) == 1
   assert variables(a).dns_records == []
 end

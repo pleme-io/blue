@@ -10,7 +10,7 @@ end
 
 def home()
   dir = getenv("HOME")
-  if dir == nil or dir == ""
+  if dir.nil? or dir == ""
     error(:not_found, "fairu::home: HOME is not set")
   else
     dir
@@ -46,7 +46,7 @@ test "absolute of absolute is a fixed point"
 end
 
 test "home is the HOME of the process and raises when it is empty"
-  if getenv("HOME") == nil or getenv("HOME") == ""
+  if getenv("HOME").nil? or getenv("HOME") == ""
     assert (home rescue :refused) == :refused
   else
     assert home == getenv("HOME")

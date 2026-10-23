@@ -459,7 +459,7 @@ test "a repository is read as commits, refs and files"
   assert second.author == "Tester"
   assert exists?(r, "HEAD") == true
   assert exists?(r, "nope") == false
-  assert commit_at(r, "nope") == nil
+  assert commit_at(r, "nope").nil?
   assert commit_at(r, "HEAD~1").oid == first_commit.oid
   assert ancestor?(r, first_commit.oid, second.oid) == true
   assert ancestor?(r, second.oid, first_commit.oid) == false
@@ -499,9 +499,9 @@ test "branches and tags are created once and deleted idempotently"
   assert first(entries(r, :branches, {})).current == true
   assert raised(() -> create(r, "topic", c.oid, {})) == :exists
   assert raised(() -> create(r, "other", "no-such-ref", {})) == :not_found
-  assert delete(r, "topic") == nil
-  assert delete(r, "topic") == nil
-  assert delete(r, "refs/tags/v1") == nil
+  assert delete(r, "topic").nil?
+  assert delete(r, "topic").nil?
+  assert delete(r, "refs/tags/v1").nil?
   assert entries(r, :tags, {}) == []
   assert map((b) -> b.name, entries(r, :branches, {})) == ["main"]
 end
@@ -540,12 +540,12 @@ test "clone, fetch, merge and push follow the house rule"
   assert map((x) -> x.name, entries(work, :remotes, {})) == ["origin"]
   assert info(work).head == base.oid
   ahead = save(origin, "a.txt", "two\n", "second")
-  assert fetch(work, {}) == nil
+  assert fetch(work, {}).nil?
   assert info(work).behind == 1
   assert merge(work, "origin/main", {}).oid == ahead.oid
   local = save(work, "b.txt", "local\n", "third")
   assert info(work).ahead == 1
-  assert push(work, {}) == nil
+  assert push(work, {}).nil?
   assert commit_at(origin, "main").oid == local.oid
   assert first(entries(work, :worktrees, {})).path == "/private#{work}" or
     first(entries(work, :worktrees, {})).path == work
@@ -565,7 +565,7 @@ test "a diverged push rebases once and a diverged merge is refused"
   fetch(work, {})
   assert raised(() -> merge(work, "origin/main", {})) == :conflict
   assert raised(() -> push(work, {rebase: false})) == :diverged
-  assert push(work, {}) == nil
+  assert push(work, {}).nil?
   assert map((c) -> c.subject, entries(origin, :commits, {})) ==
     ["local", "remote", "first"]
 end

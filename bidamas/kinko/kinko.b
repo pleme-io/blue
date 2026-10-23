@@ -400,7 +400,7 @@ end
 
 def reconcile_interval_s(a)
   j = judge(a)
-  if get(j, :tier) == nil
+  if get(j, :tier).nil?
     nil
   else
     interval_s(get(j, :tier), reads(a))
@@ -559,7 +559,7 @@ end
 
 def main()
   root = first(argv)
-  if root == nil
+  if root.nil?
     raise(:usage, "kinko <onepassword-admin checkout>")
   end
   write_outputs(root)
@@ -583,7 +583,7 @@ test "an empty account on a known tier stands, empty, with only the providers"
   a = account("families", [], [])
   assert judge(a).refusals == []
   assert get(accepted(a), :vaults) == []
-  assert get(terraform(a), :resource) == nil
+  assert get(terraform(a), :resource).nil?
   assert to_json(a) ==
     "{\"provider\":{\"onepassword\":{},\"opadmin\":{}},\"terraform\":{\"required_providers\":{\"onepassword\":{\"source\":\"1Password/onepassword\"},\"opadmin\":{\"source\":\"registry.opentofu.org/pleme-io/opadmin\"}}}}"
   assert kinds(judge(account("enterprise", [], [])).refusals) == [:unknown_tier]
@@ -704,7 +704,7 @@ test "the reconcile interval follows the tier's daily quota with half in reserve
   assert interval_s("families", 16) == 2765
   assert interval_s("business", 16) == 56
   assert interval_s("teams", 1) == 35
-  assert reconcile_interval_s(account("nope", [], [])) == nil
+  assert reconcile_interval_s(account("nope", [], [])).nil?
   assert reconcile_interval_s(example) == 14
 end
 

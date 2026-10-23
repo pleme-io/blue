@@ -85,7 +85,7 @@ end
 def run_nix(args)
   argv = concat_lists([nix_bin], args)
   cap = capture(argv)
-  if cap == nil
+  if cap.nil?
     {status: -1, stdout: "", stderr: "could not start #{nix_bin}"}
   else
     {status: status_of(cap), stdout: stdout_of(cap), stderr: stderr_of(cap)}
@@ -204,7 +204,7 @@ def info_pairs(parsed)
 end
 
 def path_info(paths, store)
-  where = if store == nil
+  where = if store.nil?
     []
   else
     ["--store", store]
@@ -219,7 +219,7 @@ end
 
 def resolve(link)
   cap = capture(["readlink", "-f", link])
-  if cap == nil or status_of(cap) != 0
+  if cap.nil? or status_of(cap) != 0
     nil
   else
     trim(stdout_of(cap))
@@ -243,7 +243,7 @@ test "store paths are read by their fixed layout and nothing else is one"
   assert store_path?("/nix/store/short-x") == false
   assert store_path?("/run/current-system") == false
   assert store_path?(nil) == false
-  assert store_hash("") == nil
+  assert store_hash("").nil?
 end
 
 test "a dry run's targets and its work are read from nix's own output"
@@ -266,7 +266,7 @@ test "nothing to do is empty work, not an error"
   assert get(w, :build) == []
   assert get(w, :fetch) == []
   assert targets("[]") == []
-  assert first_out({targets: []}) == nil
+  assert first_out({targets: []}).nil?
   assert work("warning: Git tree is dirty\n") == {build: [], fetch: []}
 end
 

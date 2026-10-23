@@ -323,7 +323,7 @@ end
 
 def get_or_empty(m, key)
   v = get(m, key)
-  if v == nil
+  if v.nil?
     []
   else
     v

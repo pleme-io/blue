@@ -203,7 +203,7 @@ def show(x)
     ":#{to_s(x)}"
   elsif string?(x)
     "\"#{x}\""
-  elsif x == nil
+  elsif x.nil?
     "nil"
   else
     to_s(x)
@@ -578,7 +578,7 @@ end
 # basis, and one per counted field of its lc_permit (none when it has none).
 def permit_log_keys(permits, capability)
   pm = find_first((p) -> nth(1, p) == capability, permits)
-  counted = if pm == nil
+  counted = if pm.nil?
     []
   else
     map(
@@ -798,7 +798,7 @@ def pb_span(p, s)
     pb_state(from, states, where),
     pb_state(to, states, where)
   )
-  limit = if span_limit(s) == nil or positive_int?(span_limit(s))
+  limit = if span_limit(s).nil? or positive_int?(span_limit(s))
     []
   else
     [
@@ -1078,7 +1078,7 @@ def pb_edge(p, e)
     []
   end
   effects = flat_map((f) -> pb_effect(p, f, keys, where), nth(4, e))
-  gate = if nth(5, e) == nil or contains(d_capabilities(p), nth(5, e))
+  gate = if nth(5, e).nil? or contains(d_capabilities(p), nth(5, e))
     []
   else
     [
@@ -1428,7 +1428,7 @@ def pb_guard(p, g)
     (r) -> pb_task(nth(3, r), "#{where}, rule #{show(nth(1, r))}"),
     filter((r) -> nth(3, r) != nil, shaped)
   )
-  default = if nth(3, g) == nil
+  default = if nth(3, g).nil?
     []
   else
     pb_task(nth(3, g), where)
@@ -1500,7 +1500,7 @@ def pb_permit(p, pm)
   cap = nth(1, pm)
   where = "permit #{show(cap)}"
   g = find_first((x) -> nth(1, x) == cap, d_guards(p))
-  if g == nil
+  if g.nil?
     [
       problem(
         :unknown_capability,
@@ -1764,7 +1764,7 @@ def judge(d, s, ev)
     [:refuse, :unknown_event, nil]
   else
     e = edge_for(d, phase(s), t)
-    if e == nil
+    if e.nil?
       [:refuse, :no_edge, legal_events(d, phase(s))]
     else
       judge_row(d, s, ev, e)
@@ -1795,7 +1795,7 @@ def judge_row(d, s, ev, e)
     [:refuse, :bad_payload, first(bad_keys)]
   elsif is_empty(bad_fields) == false
     [:refuse, :bad_field, first(bad_fields)]
-  elsif nth(5, e) == nil
+  elsif nth(5, e).nil?
     [:ok, e]
   else
     v = allowed(d, s, nth(5, e), ev_time(ev))
@@ -1996,7 +1996,7 @@ def lc_eval(pr, s, now)
     end
   elsif op == :eq
     v = value(s, nth(1, pr))
-    if v == nil
+    if v.nil?
       :unknown
     else
       k(v == nth(2, pr))
@@ -2022,7 +2022,7 @@ def lc_eval(pr, s, now)
 end
 
 def task_or(rule, default)
-  if nth(3, rule) == nil
+  if nth(3, rule).nil?
     default
   else
     nth(3, rule)
@@ -2039,7 +2039,7 @@ end
 def allowed(d, s, capability, now)
   lc_require(d)
   g = guard_for(d, capability)
-  if g == nil
+  if g.nil?
     [
       :refused,
       capability,
@@ -2156,7 +2156,7 @@ def pred_text(pr)
 end
 
 def observed_text(kv)
-  if nth(1, kv) == nil
+  if nth(1, kv).nil?
     "#{text(first(kv))} is absent"
   else
     "#{text(first(kv))} = #{show(nth(1, kv))}"
@@ -2164,7 +2164,7 @@ def observed_text(kv)
 end
 
 def reason_text(r)
-  if nth(2, r) == nil
+  if nth(2, r).nil?
     "#{text(first(r))}: no guard declares this capability"
   else
     pr = nth(2, r)
@@ -2244,7 +2244,7 @@ end
 def permit_for(d, s, capability, now)
   lc_require(d)
   spec = permit_spec_for(d, capability)
-  if spec == nil
+  if spec.nil?
     [:no_permit, capability, :no_permit_declared, nil]
   else
     v = allowed(d, s, capability, now)
@@ -2269,8 +2269,8 @@ def permit_limits(d, s, spec, now)
     (t) -> [nth(1, t), count_bound(g, s, nth(1, t))],
     filter((t) -> first(t) == :counted, terms)
   )
-  unbounded = filter((c) -> nth(1, c) == nil, counts)
-  if not_after == nil
+  unbounded = filter((c) -> nth(1, c).nil?, counts)
+  if not_after.nil?
     [:no_permit, capability, :unbounded, nil]
   elsif is_empty(unbounded) == false
     [:no_permit, capability, :unbounded_count, first(first(unbounded))]
@@ -2360,7 +2360,7 @@ def permit_event(d, p, subject)
     raise(:raifusaikuru_use, "there is no permit to log: #{show(nth(2, p))}")
   end
   log = find_first((l) -> first(l) == permit_capability(p), d_permit_logs(d))
-  if log == nil
+  if log.nil?
     raise(
       :raifusaikuru_use,
       "capability #{show(permit_capability(p))} declares no lc_permit_log, so its permits are not logged"
@@ -2460,7 +2460,7 @@ test "the empty case: no events give the initial state, which may not be used"
   assert fields(s) ==
     [[:uses, 0], [:opened_at, nil], [:quality, nil], [:read_at, nil]]
   assert seq(s) == 0
-  assert as_of(s) == nil
+  assert as_of(s).nil?
   assert is_empty(refused(s))
   assert is_empty(breaches(s))
   # Sealed, never read, never opened: every rule but the counter refuses, and

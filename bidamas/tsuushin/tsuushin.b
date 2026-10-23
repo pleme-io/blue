@@ -131,7 +131,7 @@ end
 
 def authority_text(u)
   port = get(u, "port")
-  shown = if port == nil or port == default_port(get(u, "scheme"))
+  shown = if port.nil? or port == default_port(get(u, "scheme"))
     ""
   else
     ":#{port}"
@@ -259,7 +259,7 @@ end
 test "parse of a bare host has an empty path and no port"
   u = parse("http://example.com", :url)
   assert get(u, "path") == ""
-  assert get(u, "port") == nil
+  assert get(u, "port").nil?
   assert get(u, "query") == ""
 end
 

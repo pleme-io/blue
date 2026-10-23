@@ -86,6 +86,11 @@ pub const FORMS: &[Form] = &[
         doc: "A field read: a map's keyword or string key, a keyed list such as exec_capture's result or a parsed JSON object, or an error's kind, message, data, cause or trace. A missing field raises naming the fields there are; get(m, :k) reads one that may be absent.",
     },
     Form {
+        example: "x == nil",
+        lowers_to: "(blue-field x :nil?)",
+        doc: "A nil test: x.nil? is true of nil and of nothing else. Read, and written x.nil?, from nil?(x), x == nil and nil == x (B0047).",
+    },
+    Form {
         example: "x.f(y)",
         lowers_to: "(f x y)",
         doc: "A method-style call: the receiver becomes the first argument. Read, and written f(x, y) (B0028).",

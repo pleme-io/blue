@@ -17,7 +17,7 @@ def read(source)
 end
 
 def kind(n)
-  if n == nil
+  if n.nil?
     nil
   else
     get(n, :kind)
@@ -30,7 +30,7 @@ end
 
 def kids(n)
   cs = get(n, :children)
-  if cs == nil
+  if cs.nil?
     []
   else
     cs
@@ -166,7 +166,7 @@ def bindings_in(n, prefix, scope, outer)
     parts = nodes_of(n)
     path = append(prefix, attrpath(first(parts)))
     value = nth(1, parts)
-    if value == nil
+    if value.nil?
       [binding(n, path, scope, nil, outer)]
     else
       cons(
@@ -309,7 +309,7 @@ def options_roots(root)
       o = get(b, :outer)
       get(b, :scope) == :attrs and
         first(get(b, :path)) == "options" and
-        (o == nil or first(o) != "options") and
+        (o.nil? or first(o) != "options") and
         (size(get(b, :path)) > 1 or kind(get(b, :value)) == "NODE_ATTR_SET")
     end,
     bindings(root)
@@ -370,7 +370,7 @@ test "read: the tree is lossless, error-free, and lines count from one"
 end
 
 test "read on empty source is a root with one error and no bindings"
-  assert kind(nil) == nil
+  assert kind(nil).nil?
   d = read("")
   assert kind(get(d, :root)) == "NODE_ROOT"
   assert size(get(d, :errors)) == 1
@@ -438,7 +438,7 @@ test "attr reads one attribute of a set literal, and module_function? a module"
   d = read("{ url = \"u\"; sha256 = \"h\"; }")
   set = first(nodes_of(get(d, :root)))
   assert string_content(attr(set, "url")) == "u"
-  assert attr(set, "hash") == nil
+  assert attr(set, "hash").nil?
   m = first(nodes_of(get(read(sample), :root)))
   assert module_function?(m) == true
   assert module_function?(first(nodes_of(get(read("{ lib }: { }"), :root)))) ==

@@ -134,14 +134,14 @@ end
 # package `pkg` (a mokuroku record, or nil for the file's own script).
 def def_entry(pkg, e, text, tier)
   name = first(e)
-  qualifier = if pkg == nil
+  qualifier = if pkg.nil?
     ""
   else
     "#{pkg_name(pkg)}::"
   end
   {
     name: "#{qualifier}#{name}",
-    namespace: if pkg == nil
+    namespace: if pkg.nil?
       nil
     else
       pkg_name(pkg)
@@ -159,7 +159,7 @@ end
 
 # How the file described by `ctx` reaches `name` in package `pkg`.
 def tier_in(ctx, pkg, name)
-  if ctx == nil
+  if ctx.nil?
     "qualified"
   elsif json_get(ctx, "namespace") == pkg
     "own"
@@ -181,7 +181,7 @@ end
 # ── lookup ─────────────────────────────────────────────────────────────────
 
 def lookup(name, file, records)
-  ctx = if file == nil
+  ctx = if file.nil?
     nil
   else
     json_parse(captured(["ast", "--resolved", "--json", file]))
@@ -191,7 +191,7 @@ def lookup(name, file, records)
     first(parts)
   end
   bare = last(parts)
-  own = if file == nil or json_get(ctx, "namespace") != nil
+  own = if file.nil? or json_get(ctx, "namespace") != nil
     []
   else
     text = read_file(file)
@@ -208,9 +208,9 @@ def lookup(name, file, records)
         filter((e) -> first(e) == bare, pkg_entries(r))
       )
     end,
-    filter((r) -> qualifier == nil or qualifier == pkg_name(r), records)
+    filter((r) -> qualifier.nil? or qualifier == pkg_name(r), records)
   )
-  from_builtins = if qualifier == nil or qualifier == "blue"
+  from_builtins = if qualifier.nil? or qualifier == "blue"
     map(
       (b) -> builtin_entry(b, "builtin"),
       filter((b) -> json_get(b, "name") == bare, builtins)
@@ -226,7 +226,7 @@ end
 def entry_text(e)
   where = if get(e, :namespace) == "blue"
     "builtin #{get(e, :kind)} · #{get(e, :topic)}"
-  elsif get(e, :namespace) == nil
+  elsif get(e, :namespace).nil?
     "defined in the file"
   else
     "bidama #{get(e, :namespace)}"
@@ -235,7 +235,7 @@ def entry_text(e)
   lines = append(
     [get(e, :signature), "  #{where} · tier: #{get(e, :tier)}"],
     map((l) -> "  #{l}", get(e, :doc)),
-    if example == nil
+    if example.nil?
       []
     else
       append(

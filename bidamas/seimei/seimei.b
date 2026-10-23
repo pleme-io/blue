@@ -501,7 +501,7 @@ end
 
 def rule_name(rule)
   hit = find_first((p) -> first(p) == rule, rule_catalog)
-  if hit == nil
+  if hit.nil?
     "unnamed"
   else
     last(hit)

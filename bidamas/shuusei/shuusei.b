@@ -110,7 +110,7 @@ def drop_keys(v, keys)
     end
   else
     below = path_below(v, first(keys))
-    if below == nil
+    if below.nil?
       v
     else
       put_keys(v, [first(keys)], drop_keys(below, rest(keys)))
@@ -162,7 +162,7 @@ end
 # The list at `path` with `item` in it: it replaces the element whose `key` field matches, or is appended. Doing it twice is doing it once.
 def upsert(doc, path, key, item)
   current = json_at(doc, path)
-  xs = if current == nil
+  xs = if current.nil?
     []
   else
     current
@@ -171,7 +171,7 @@ def upsert(doc, path, key, item)
     raise(:path, "#{path} is not a list")
   else
     at = position_of(xs, key, item)
-    if at == nil
+    if at.nil?
       put(doc, path, append(xs, [item]))
     else
       put(doc, path, replace_at(xs, at, item))
@@ -186,7 +186,7 @@ def object_key(obj)
   ns = json_at(obj, "metadata.namespace")
   [
     json_at(obj, "kind"),
-    if ns == nil
+    if ns.nil?
       ""
     else
       ns
@@ -219,7 +219,7 @@ def target_of(v)
   ns = get(v, :namespace)
   [
     get(v, :kind),
-    if ns == nil
+    if ns.nil?
       ""
     else
       ns
@@ -231,9 +231,9 @@ end
 # What the field table cannot say: the ops that need a value or a key.
 def shape_whys(v)
   op = get(v, :op)
-  if (op == "set" or op == "merge" or op == "upsert") and get(v, :value) == nil
+  if (op == "set" or op == "merge" or op == "upsert") and get(v, :value).nil?
     ["#{op} needs a value"]
-  elsif op == "upsert" and get(v, :key) == nil
+  elsif op == "upsert" and get(v, :key).nil?
     ["upsert needs a key"]
   elsif op == "merge" and not map?(get(v, :value))
     ["merge needs a map value"]
@@ -276,7 +276,7 @@ def one_step(keyer, state, e)
   claimed = get(state, :claims)
   if size(shape) > 0
     refused_step(state, refuse(:invalid, e, first(shape)))
-  elsif at == nil
+  elsif at.nil?
     refused_step(
       state,
       refuse(:unknown_target, e, "no object #{target_of(v)} in the set")
@@ -350,9 +350,9 @@ def changed(before, after, keyer)
     (r) -> nth(1, r) != nil,
     map(
       fn(k)
-        if get(b, k) == nil
+        if get(b, k).nil?
           [k, :added]
-        elsif get(a, k) == nil
+        elsif get(a, k).nil?
           [k, :removed]
         elsif get(b, k) == get(a, k)
           [k, nil]
@@ -583,7 +583,7 @@ test "a bad patch is refused alone by name and its siblings still apply"
   assert json_at(nth(0, get(r, :objects)), "spec.replicas") == 3
   assert kinds(get(r, :refusals)) ==
     [:invalid, :invalid, :invalid, :invalid, :unknown_target, :path]
-  assert json_at(nth(0, get(r, :objects)), "spec.paused") == nil
+  assert json_at(nth(0, get(r, :objects)), "spec.paused").nil?
 end
 
 test "two patches to one path collide and the first stands"

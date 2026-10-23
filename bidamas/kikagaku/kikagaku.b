@@ -637,7 +637,7 @@ end
 
 def circumradius(a, b, c)
   o = circumcenter(a, b, c)
-  if o == nil
+  if o.nil?
     nil
   else
     distance(o, a)
@@ -650,7 +650,7 @@ end
 def nearest_point(p, pts)
   reduce(
     fn(best, q)
-      if best == nil
+      if best.nil?
         q
       elsif distance_squared(p, q) < distance_squared(p, best)
         q
@@ -947,7 +947,7 @@ test "slope, and the vertical line that has none"
   assert slope([0, 0], [4, 2]) == 0.5
   assert slope([0, 5], [3, 5]) == 0
   # A vertical line answers nil rather than raising on the division.
-  assert slope([2, 0], [2, 9]) == nil
+  assert slope([2, 0], [2, 9]).nil?
   # Reversing the two points cannot change the slope.
   assert slope([2, 4], [0, 0]) == slope([0, 0], [2, 4])
 end
@@ -979,7 +979,7 @@ test "bounding box and rectangle containment"
   pts = [[1, 5], [-2, 3], [4, -1]]
   assert bounding_box(pts) == [[-2, -1], [4, 5]]
   # No points, no box — nil rather than a fabricated one.
-  assert bounding_box([]) == nil
+  assert bounding_box([]).nil?
   box = bounding_box(pts)
   assert point_in_rect([0, 0], box) == true
   assert point_in_rect([9, 9], box) == false
@@ -1071,7 +1071,7 @@ test "the area centroid is not the vertex mean"
   assert near(px(centroid(reverse(square))), 1) == true
   # A flat "polygon" has no area to balance and falls back to the vertex mean.
   assert centroid([[0, 0], [2, 0], [4, 0]]) == [2, 0]
-  assert vertex_centroid([]) == nil
+  assert vertex_centroid([]).nil?
 end
 
 test "convexity, including the collinear vertex that must not break it"
@@ -1195,7 +1195,7 @@ test "segments: crossing, touching, parallel and merely collinear"
   assert near(py(x), 2) == true
   # Same infinite lines, but the segments stop short of each other.
   assert segments_intersect([0, 0], [1, 1], [3, 0], [4, -1]) == false
-  assert segment_intersection([0, 0], [1, 1], [3, 0], [4, -1]) == nil
+  assert segment_intersection([0, 0], [1, 1], [3, 0], [4, -1]).nil?
   # Touching at an endpoint counts as intersecting; the orientation test alone
   # would say no.
   assert segments_intersect([0, 0], [2, 0], [2, 0], [2, 2]) == true
@@ -1206,10 +1206,10 @@ test "segments: crossing, touching, parallel and merely collinear"
   assert near(py(t), 0) == true
   # Parallel and distinct: no crossing and no single point.
   assert segments_intersect([0, 0], [4, 0], [0, 1], [4, 1]) == false
-  assert segment_intersection([0, 0], [4, 0], [0, 1], [4, 1]) == nil
+  assert segment_intersection([0, 0], [4, 0], [0, 1], [4, 1]).nil?
   # Collinear and overlapping: they DO touch, but at no single point.
   assert segments_intersect([0, 0], [4, 0], [2, 0], [6, 0]) == true
-  assert segment_intersection([0, 0], [4, 0], [2, 0], [6, 0]) == nil
+  assert segment_intersection([0, 0], [4, 0], [2, 0], [6, 0]).nil?
 end
 
 test "circumcircle: the centre is equidistant from all three vertices"
@@ -1229,8 +1229,8 @@ test "circumcircle: the centre is equidistant from all three vertices"
   # And every vertex is on the circle, not merely near it.
   assert in_circle(a, o, circumradius(a, b, c)) == true
   # Three points on a line lie on no circle.
-  assert circumcenter([0, 0], [1, 1], [2, 2]) == nil
-  assert circumradius([0, 0], [1, 1], [2, 2]) == nil
+  assert circumcenter([0, 0], [1, 1], [2, 2]).nil?
+  assert circumradius([0, 0], [1, 1], [2, 2]).nil?
 end
 
 test "nearest point in a set"
@@ -1238,7 +1238,7 @@ test "nearest point in a set"
   assert nearest_point([0, 0], pts) == [0, 3]
   assert nearest_point([9, 1], pts) == [10, 0]
   # No candidates, no answer — nil rather than a fabricated point.
-  assert nearest_point([0, 0], []) == nil
+  assert nearest_point([0, 0], []).nil?
   assert nearest_point([5, 5], [[5, 5]]) == [5, 5]
 end
 

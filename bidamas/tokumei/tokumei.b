@@ -125,7 +125,7 @@ end
 test "control: a truthful answer at p = 1 is the truth, and costs all privacy"
   assert forced_response(true, 1, 5) == true
   assert forced_response(false, 1, 5) == false
-  assert forced_response_epsilon(1) == nil
+  assert forced_response_epsilon(1).nil?
 end
 
 test "the privacy budget and the exposure of a forced-response answer"
@@ -148,7 +148,7 @@ test "a private share stays a share"
 end
 
 test "small counts are suppressed, and the threshold is inclusive"
-  assert suppress_small(3, 5) == nil
+  assert suppress_small(3, 5).nil?
   assert suppress_small(5, 5) == 5
 end
 

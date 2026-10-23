@@ -31,7 +31,7 @@ test "no match and no else is nil, as in Ruby"
   when 1
     "one"
   end
-  assert result == nil
+  assert result.nil?
 end
 
 test "matching is structural, not numeric"

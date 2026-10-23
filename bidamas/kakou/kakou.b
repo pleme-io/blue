@@ -119,7 +119,7 @@ end
 def density(material)
   table = {ss316l: 7.99, ss304: 7.93, al6061: 2.7, steel: 7.85}
   d = get(table, material)
-  if d == nil
+  if d.nil?
     raise(
       :kakou_material,
       "no density for #{to_s(material)}; known: ss316l, ss304, al6061, steel"
@@ -146,7 +146,7 @@ end
 
 def rule(rules, key)
   v = get(rules, key)
-  if v == nil
+  if v.nil?
     get(default_rules, key)
   else
     v
@@ -192,7 +192,7 @@ end
 # The setback a flange takes off its side of the flat base; 0 unflanged.
 def side_setback(part, side)
   f = flange_on(part, side)
-  if f == nil
+  if f.nil?
     0
   else
     outside_setback(get(f, :angle), get(f, :radius), get(part, :thickness))
@@ -203,7 +203,7 @@ end
 # allowance, then the flange's straight run.
 def side_extension(part, side)
   f = flange_on(part, side)
-  if f == nil
+  if f.nil?
     0
   else
     bend_allowance(
@@ -595,7 +595,7 @@ def hole_side_refusals(part, rules, b, i, hole, side)
   t = get(part, :thickness)
   gap = boundary_gap(hole, base_edge(b, side))
   f = flange_on(part, side)
-  if f == nil
+  if f.nil?
     need = rule(rules, :hole_edge_t) * t
     if gap < need
       [

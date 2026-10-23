@@ -290,7 +290,7 @@ end
 # The parent of the pair starting at 2i, or the lone node when it has no pair.
 def merkle_pair(level, i)
   right = chain_at(2 * i + 1, level)
-  if right == nil
+  if right.nil?
     nth(2 * i, level)
   else
     merkle_node(nth(2 * i, level), right)
@@ -326,7 +326,7 @@ def merkle_side(side, h)
 end
 
 def merkle_push(step, acc)
-  if step == nil
+  if step.nil?
     acc
   else
     cons(step, acc)
@@ -506,7 +506,7 @@ test "an empty chain is its genesis, and two labels never share one"
   assert chain_head(g, []) == g
   assert is_empty(chain_hashes(g, []))
   assert chain_verify(g, [], g)
-  assert chain_first_break(g, [], []) == nil
+  assert chain_first_break(g, [], []).nil?
   assert chain_genesis("other-log") != g
   assert chain_genesis("") != hash_message("")
 end
@@ -517,7 +517,7 @@ test "a changed, dropped, added or reordered payload breaks the chain"
   head_hash = chain_head(g, events)
   stored = chain_hashes(g, events)
   assert chain_verify(g, events, head_hash)
-  assert chain_first_break(g, events, stored) == nil
+  assert chain_first_break(g, events, stored).nil?
   assert not chain_verify(g, ["event-1", "event-X", "event-3"], head_hash)
   assert not chain_verify(g, ["event-1", "event-3"], head_hash)
   assert not chain_verify(

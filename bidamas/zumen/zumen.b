@@ -196,7 +196,7 @@ end
 # A cell's text: numbers to one decimal (a cut list is read at a saw), nil
 # as empty, anything else as itself.
 def cell(v)
-  if v == nil
+  if v.nil?
     ""
   elsif number?(v)
     num(round(v * 10) / 10)
@@ -327,7 +327,7 @@ end
 
 def add_face(t, k, i)
   prev = get(t, k)
-  if prev == nil
+  if prev.nil?
     assoc(t, k, [i])
   else
     assoc(t, k, concat_lists(prev, [i]))
@@ -352,7 +352,7 @@ def distinct_keys(faces)
 end
 
 def note_key(acc, k)
-  if get(get(acc, :seen), k) == nil
+  if get(get(acc, :seen), k).nil?
     {
       seen: assoc(get(acc, :seen), k, true),
       keys: concat_lists([k], get(acc, :keys))

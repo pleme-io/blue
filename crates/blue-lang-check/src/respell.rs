@@ -79,9 +79,9 @@ pub const SYNONYMS: &[Synonym] = &[
     Synonym {
         name: "nil?",
         argc: 1,
-        respell: Respell::CompareNil("equal?"),
-        code: Code::B0036,
-        written: "x == nil",
+        respell: Respell::Field("nil?"),
+        code: Code::B0047,
+        written: "x.nil?",
     },
     Synonym {
         name: "some?",

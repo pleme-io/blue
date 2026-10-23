@@ -25,7 +25,7 @@ def orders_of(text)
 end
 
 def bad_orders(orders)
-  filter((o) -> get(o, :qty) == nil, orders)
+  filter((o) -> get(o, :qty).nil?, orders)
 end
 
 def total_qty(orders)

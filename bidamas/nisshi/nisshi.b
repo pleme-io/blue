@@ -393,7 +393,7 @@ end
 # would not give back as itself: a keyword, a map, a float that is not
 # finite, a key given twice.
 def canon(v)
-  if v == nil
+  if v.nil?
     "null"
   elsif list?(v)
     canon_list(v)
@@ -512,7 +512,7 @@ end
 # The type named by text `t`: the definition's own name, or the text itself.
 def type_named(names, t)
   hit = get(names, t)
-  if hit == nil
+  if hit.nil?
     t
   else
     first(hit)
@@ -523,12 +523,12 @@ end
 # declares, or the text itself.
 def key_named(names, ty, k)
   hit = get(names, raifusaikuru::text(ty))
-  key = if hit == nil
+  key = if hit.nil?
     nil
   else
     get(nth(1, hit), k)
   end
-  if key == nil
+  if key.nil?
     k
   else
     key
@@ -550,7 +550,7 @@ end
 # JSON changes about a value that survives it. Keys keep their kind, so a
 # keyword key still fails the round trip it cannot survive.
 def normal_value(v)
-  if v == nil
+  if v.nil?
     nil
   elsif object?(v)
     map((p) -> [first(p), normal_value(nth(1, p))], sorted_pairs(v))
@@ -583,7 +583,7 @@ end
 def detail_texts(kind, detail)
   if kind == :guard
     map((r) -> raifusaikuru::text(r), raifusaikuru::refused_rules(detail))
-  elsif detail == nil
+  elsif detail.nil?
     []
   elsif list?(detail)
     map((x) -> raifusaikuru::text(x), detail)
@@ -593,7 +593,7 @@ def detail_texts(kind, detail)
 end
 
 def refusal_text(rf)
-  if rf == nil
+  if rf.nil?
     "null"
   else
     "{\"detail\":#{canon(nth(1, rf))},\"kind\":#{json_stringify(raifusaikuru::text(first(rf)))}}"
@@ -655,7 +655,7 @@ def line_text(t, prev, hash, sig)
 end
 
 def sig_text(sig)
-  if sig == nil
+  if sig.nil?
     "null"
   else
     json_stringify(sig)
@@ -663,7 +663,7 @@ def sig_text(sig)
 end
 
 def status_for(refusal)
-  if refusal == nil
+  if refusal.nil?
     :admitted
   else
     :refused
@@ -906,7 +906,7 @@ def status_of(t)
 end
 
 def refusal_from(v)
-  if v == nil
+  if v.nil?
     nil
   else
     [
@@ -967,7 +967,7 @@ def natural?(v)
 end
 
 def sig_shape?(v)
-  v == nil or string?(v)
+  v.nil? or string?(v)
 end
 
 def links_shape?(v)
@@ -982,7 +982,7 @@ end
 
 def refusal_shape?(status, v)
   if status == "admitted"
-    v == nil
+    v.nil?
   else
     object?(v) and
       contains(
@@ -1078,7 +1078,7 @@ end
 # value has been appended to: a writer keeps no history, so read again.
 def records(log)
   require_log(log)
-  if nth(10, log) == nil
+  if nth(10, log).nil?
     raise(
       :eventlog_use,
       "this log value has been appended to, and a writer keeps no records; read the stream again"
@@ -1103,7 +1103,7 @@ end
 # An entity's [state, next seq]; an unseen entity is at its lifecycle's start.
 def entry(log, entity)
   have = get(index(log), entity)
-  if have == nil
+  if have.nil?
     [raifusaikuru::initial(el_def(log)), 0]
   else
     have
@@ -1182,7 +1182,7 @@ def absorb_record(log, r, state)
 end
 
 def next_seq(have)
-  if have == nil
+  if have.nil?
     1
   else
     nth(1, have) + 1
@@ -1190,7 +1190,7 @@ def next_seq(have)
 end
 
 def absorb_bad(log, b)
-  fault = if nisshi::fault(log) == nil
+  fault = if nisshi::fault(log).nil?
     el_position(b)
   else
     nisshi::fault(log)
@@ -1369,7 +1369,7 @@ end
 # The entity's state after an append: the step's when admitted, unchanged
 # when refused.
 def state_after(state, judged, refusal)
-  if refusal == nil
+  if refusal.nil?
     nth(1, judged)
   else
     state
@@ -1377,7 +1377,7 @@ def state_after(state, judged, refusal)
 end
 
 def sign(secret, hash)
-  if secret == nil
+  if secret.nil?
     nil
   else
     sign_message(secret, hash)
@@ -1394,7 +1394,7 @@ end
 
 def require_writable(log)
   require_log(log)
-  if path(log) == nil
+  if path(log).nil?
     raise(
       :eventlog_use,
       "this log value was read from text, not a file, so it cannot be appended to"
@@ -1496,7 +1496,7 @@ def verify(log, public_hex, expected_head)
 end
 
 def before_bad(records, bad)
-  if bad == nil
+  if bad.nil?
     records
   else
     take_n(records, el_position(bad))
@@ -1512,7 +1512,7 @@ def head_of(g, good)
 end
 
 def earlier(best, b)
-  if best == nil or first(b) < first(best)
+  if best.nil? or first(b) < first(best)
     b
   else
     best
@@ -1520,7 +1520,7 @@ def earlier(best, b)
 end
 
 def break_bad(bad)
-  if bad == nil
+  if bad.nil?
     nil
   else
     [el_position(bad), :unparseable, bad_why(bad)]
@@ -1532,7 +1532,7 @@ end
 # out of order) and :hash when its content changed.
 def break_chain(g, good, texts)
   p = chain_first_break(g, map(body_text, texts), map(rec_hash, good))
-  if p == nil
+  if p.nil?
     nil
   elsif rec_prev(nth(p, good)) != head_of(g, take_n(good, p))
     [
@@ -1554,7 +1554,7 @@ def break_canon(good, texts)
     (k) -> canonical_at?(nth(k, good), nth(k, texts)) == false,
     range(0, size(good))
   )
-  if i == nil
+  if i.nil?
     nil
   else
     [
@@ -1578,7 +1578,7 @@ def seq_step(acc, r)
     acc
   else
     seen = get(first(acc), rec_entity(r))
-    expect = if seen == nil
+    expect = if seen.nil?
       0
     else
       seen
@@ -1599,7 +1599,7 @@ def seq_step(acc, r)
 end
 
 def break_sig(good, public_hex)
-  if public_hex == nil
+  if public_hex.nil?
     nil
   else
     sig_break(find_first((r) -> sig_ok?(r, public_hex) == false, good))
@@ -1607,9 +1607,9 @@ def break_sig(good, public_hex)
 end
 
 def sig_break(r)
-  if r == nil
+  if r.nil?
     nil
-  elsif rec_sig(r) == nil
+  elsif rec_sig(r).nil?
     [el_position(r), :unsigned, "the record carries no signature"]
   else
     [
@@ -1664,7 +1664,7 @@ end
 def history_step(d, acc, r)
   e = rec_entity(r)
   have = get(first(acc), e)
-  before = if have == nil
+  before = if have.nil?
     raifusaikuru::initial(d)
   else
     have
@@ -1707,7 +1707,7 @@ end
 def group_add(a, r)
   e = rec_entity(r)
   have = get(nth(1, a), e)
-  if have == nil
+  if have.nil?
     [push(first(a), e), assoc(nth(1, a), e, [r])]
   else
     [first(a), assoc(nth(1, a), e, cons(r, have))]
@@ -1775,7 +1775,7 @@ test "the empty stream: no file, an empty file and empty text all read as no rec
   assert head(log) == g
   assert records(log) == []
   assert entities(log) == []
-  assert el_last(log) == nil
+  assert el_last(log).nil?
   assert state(log, "item-1") == raifusaikuru::initial(d)
   assert seq_of(log, "item-1") == 0
   assert verify(log, nil, nil) == [:el_intact, 0, g]
@@ -2437,7 +2437,7 @@ test "an observed event is a fact: a guard refusal is written admitted and repla
   )
   r = el_last(seen)
   assert rec_status(r) == :admitted
-  assert rec_refusal(r) == nil
+  assert rec_refusal(r).nil?
   assert raifusaikuru::value(state(seen, "item-1"), :uses) == 1
   assert raifusaikuru::breaches(state(seen, "item-1")) ==
     [[2, :use, :use, [:quality_ok]]]

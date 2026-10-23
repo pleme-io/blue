@@ -177,7 +177,7 @@ fn a_file_with_no_project_rules_is_checked_as_before() {
     let file = dir.join("plain.b");
     std::fs::write(
         &file,
-        "# waive R0001: the root's rule\ndef f()\n  1 == nil\nend\n",
+        "# waive R0001: the root's rule\ndef f()\n  1 == 2\nend\n",
     )
     .expect("write");
     let o = check(&file, &[]);

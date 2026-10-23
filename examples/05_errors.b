@@ -9,7 +9,7 @@ use("retsu", [:first, :is_empty, :last])
 
 def port_refusals(text)
   n = to_int(text)
-  if n == nil
+  if n.nil?
     [[:not_a_number, "#{text} is not a port number"]]
   elsif n < 1 or n > 65535
     [[:out_of_range, "#{n} is outside 1..65535"]]

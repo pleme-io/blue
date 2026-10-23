@@ -279,7 +279,7 @@ pub const NAMES: &[NameDoc] = names! {
     Function: "decorate" "decorate(f, keys-and-values...)" "f with metadata attached; it still calls as f.";
     Function: "visit" "visit(f, x)" "f(x).";
     // ── predicates ────────────────────────────────────────────────────────
-    Predicate: "nil?" "nil?(x)" "Whether x is nil (okite D0010). x == nil says the same.";
+    Predicate: "nil?" "nil?(x)" "Whether x is nil (okite D0010). x.nil? says the same and is the spelling blue writes (B0047).";
     Predicate: "bool?" "bool?(x)" "Whether x is true or false.";
     Predicate: "boolean?" "boolean?(x)" "The same as bool?.";
     Predicate: "integer?" "integer?(x)" "Whether x is an Int; integer?(1.0) is false.";

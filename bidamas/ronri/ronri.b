@@ -478,12 +478,12 @@ end
 test "find_by returns the element, and nil for a miss"
   even_p = (x) -> x % 2 == 0
   assert find_by(even_p, [1, 2, 3, 4]) == 2
-  assert find_by(even_p, [1, 3]) == nil
-  assert find_by(even_p, []) == nil
+  assert find_by(even_p, [1, 3]).nil?
+  assert find_by(even_p, []).nil?
   # find_by and find_index_by agree about whether there IS a hit.
   probes = [[], [1], [2], [1, 2, 3], [1, 3]]
   assert every(
-    (xs) -> find_by(even_p, xs) == nil == (find_index_by(even_p, xs) == -1),
+    (xs) -> find_by(even_p, xs).nil? == (find_index_by(even_p, xs) == -1),
     probes
   ) ==
     true

@@ -5,7 +5,7 @@ use("settei", [:env_prefix])
 use("shihyou")
 
 def entries_of(m)
-  if m == nil
+  if m.nil?
     []
   else
     map_entries(m)
@@ -42,7 +42,7 @@ def type_name(v)
     "string"
   elsif v != nil and map?(v)
     "object"
-  elsif v == nil
+  elsif v.nil?
     "null"
   else
     "array"
@@ -288,7 +288,7 @@ def column_sql(spec)
     },
     t
   )
-  if sql == nil
+  if sql.nil?
     raise(:column_type, "#{spec} is not a column type")
   end
   [sql, nullable]
@@ -303,7 +303,7 @@ def table_sql(t)
 end
 
 def table_sql_in(schema, t)
-  name = if schema == nil
+  name = if schema.nil?
     quoted(first(t))
   else
     "#{quoted(schema)}.#{quoted(first(t))}"
@@ -343,17 +343,17 @@ end
 
 def row_refusals(svc, table, row)
   cols = get(get_or(svc, "schema", {}), table)
-  if cols == nil
+  if cols.nil?
     [[:unknown_table, "#{table} is not a declared table"]]
   else
     unknown = map(
       (e) -> [:unknown_column, "#{table}.#{first(e)} is not a declared column"],
-      filter((e) -> get(cols, first(e)) == nil, map_entries(row))
+      filter((e) -> get(cols, first(e)).nil?, map_entries(row))
     )
     missing = map(
       (e) -> [:missing_column, "#{table}.#{first(e)} is required"],
       filter(
-        (e) -> not ends_with?(second(e), "?") and get(row, first(e)) == nil,
+        (e) -> not ends_with?(second(e), "?") and get(row, first(e)).nil?,
         map_entries(cols)
       )
     )
@@ -362,7 +362,7 @@ def row_refusals(svc, table, row)
 end
 
 def literal(v)
-  if v == nil
+  if v.nil?
     "NULL"
   elsif v == true
     "TRUE"
@@ -794,7 +794,7 @@ test "the values schema closes what blue owns and opens what Kubernetes owns"
   assert get(get(get(get(vs, "flags"), "properties"), "shout"), "type") ==
     "boolean"
   assert get(get(vs, "podSecurityContext"), "type") == "object"
-  assert get(get(vs, "podSecurityContext"), "additionalProperties") == nil
+  assert get(get(vs, "podSecurityContext"), "additionalProperties").nil?
   assert get(get(vs, "replicaCount"), "minimum") == 0
   assert get(
     get(get(get(vs, "database"), "properties"), "enabled"),
@@ -802,7 +802,7 @@ test "the values schema closes what blue owns and opens what Kubernetes owns"
   ) ==
     false
   bare = values_schema("hello", {"port" => 1, "repository" => "r/x"})
-  assert get(get(bare, "properties"), "database") == nil
+  assert get(get(bare, "properties"), "database").nil?
 end
 
 test "the DDL is additive, keyed by id, with nullable columns marked"
@@ -900,7 +900,7 @@ end
 test "a service with tables names its schema and a database setting"
   d = service_defaults("ola-mundo", sample)
   assert get(d, "database") == {"url" => "", "schema" => "ola_mundo"}
-  assert get(service_defaults("x", {"port" => 1}), "database") == nil
+  assert get(service_defaults("x", {"port" => 1}), "database").nil?
   sql = ddl_in("ola_mundo", sample)
   assert starts_with?(sql, "CREATE SCHEMA IF NOT EXISTS \"ola_mundo\";") == true
   assert contains?(

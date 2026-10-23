@@ -218,7 +218,7 @@ end
 # waive B0036: the law states what nil? and bool? themselves answer
 def kinds(v)
   [
-    nil?(v),
+    v.nil?,
     bool?(v),
     integer?(v),
     float?(v),
@@ -230,11 +230,10 @@ def kinds(v)
 end
 
 # waive R0001: the law states that nil? is false for []
-# waive B0036: the law states what nil? itself answers
 def law_one_kind_each()
   all((v) -> size(filter((k) -> k, kinds(v))) == 1, values(15, 300)) and
     not list?(nil) and
-    not nil?([])
+    not [].nil?
 end
 
 # waive R0001: the law states that nil? is false for every empty list
@@ -256,7 +255,7 @@ def law_empty_list_is_brackets()
     distinct([]),
     flat_map((_x) -> [], [1])
   ]
-  all((r) -> r == [] and not nil?(r), results)
+  all((r) -> r == [] and not r.nil?, results)
 end
 
 def law_split_keeps_every_field()
@@ -285,7 +284,7 @@ end
 
 def law_map_keys_are_exact()
   m = assoc({}, 1, :int)
-  get(m, 1) == :int and get(m, 1.0) == nil
+  get(m, 1) == :int and get(m, 1.0).nil?
 end
 
 def chain_values()
@@ -329,7 +328,7 @@ def chain_values()
 end
 
 def chain_kind_matches(kind, v)
-  if kind == nil
+  if kind.nil?
     true
   elsif kind == :text
     string?(v)
@@ -575,7 +574,7 @@ test "the generator covers every kind (anti-vacuity)"
   assert some((v) -> integer?(v), vs)
   assert some((v) -> float?(v), vs)
   assert some((v) -> string?(v), vs)
-  assert some((v) -> v == nil, vs)
+  assert some((v) -> v.nil?, vs)
   assert some((v) -> list?(v) and not is_empty(v), vs)
   assert some((v) -> map?(v), vs)
 end
@@ -593,7 +592,7 @@ test "the chain values cover every kind a conversion can see"
   assert some((v) -> v == "", vs)
   assert some((v) -> v == "007", vs)
   assert some((v) -> keyword?(v), vs)
-  assert some((v) -> v == nil, vs)
+  assert some((v) -> v.nil?, vs)
   assert some((v) -> float?(v), vs)
   assert some((v) -> integer?(v), vs)
   assert some((v) -> list?(v), vs)

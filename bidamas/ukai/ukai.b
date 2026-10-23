@@ -153,11 +153,11 @@ def matrix_findings(text, states)
   seen = reduce((m, r) -> assoc(m, first(r), last(r)), {}, rows)
   missing = map(
     (s) -> [:missing_row, row_key(s)],
-    filter((s) -> get(seen, row_key(s)) == nil, states)
+    filter((s) -> get(seen, row_key(s)).nil?, states)
   )
   extra = map(
     (r) -> [:row_without_variant, first(r)],
-    filter((r) -> get(want, first(r)) == nil, rows)
+    filter((r) -> get(want, first(r)).nil?, rows)
   )
   dup = duplicates(rows)
   wrong = map(
@@ -173,7 +173,7 @@ end
 def duplicates(rows)
   r = reduce(
     fn(acc, row)
-      if get(first(acc), first(row)) == nil
+      if get(first(acc), first(row)).nil?
         [assoc(first(acc), first(row), true), last(acc)]
       else
         [first(acc), append(last(acc), [[:duplicate_row, first(row)]])]
@@ -199,7 +199,7 @@ end
 
 def capture(argv)
   cap = exec_capture(*argv) rescue nil
-  if cap == nil
+  if cap.nil?
     {
       argv:,
       started: false,
@@ -360,7 +360,7 @@ def parse_ip_route(text)
     (l) -> ip_route_row(fields(l)),
     filter((l) -> not is_empty(trim(l)), split(text, "\n"))
   )
-  if not is_empty(filter((r) -> r == nil, rows))
+  if not is_empty(filter((r) -> r.nil?, rows))
     bad("ip route: a line with no dev")
   else
     ok(rows)
@@ -369,7 +369,7 @@ end
 
 def ip_route_row(fs)
   d = after_word(fs, "dev")
-  if d == nil
+  if d.nil?
     nil
   else
     dest = if first(fs) == "0.0.0.0/1"
@@ -382,12 +382,12 @@ def ip_route_row(fs)
     via = after_word(fs, "via")
     {
       dest:,
-      gateway: if via == nil
+      gateway: if via.nil?
         d
       else
         via
       end,
-      flags: if via == nil
+      flags: if via.nil?
         "U"
       else
         "UG"
@@ -436,7 +436,7 @@ def overlay_iface(routes)
       routes
     )
   )
-  if r == nil
+  if r.nil?
     ""
   else
     get(r, :iface)
@@ -500,7 +500,7 @@ end
 def parse_derp_map(text)
   doc = json_parse(text) rescue nil
   regions = as_json(doc, "Regions")
-  if regions == nil or not list?(regions)
+  if regions.nil? or not list?(regions)
     bad("derp-map: no Regions object")
   else
     ips = unique(
@@ -519,7 +519,7 @@ end
 
 def region_ips(reg)
   nodes = as_json(reg, "Nodes")
-  if nodes == nil or not list?(nodes)
+  if nodes.nil? or not list?(nodes)
     []
   else
     map((n) -> get_str(n, "IPv4", ""), nodes)
@@ -528,7 +528,7 @@ end
 
 def parse_netcheck(text)
   doc = json_parse(text) rescue nil
-  if doc == nil or not list?(doc)
+  if doc.nil? or not list?(doc)
     bad("netcheck: not a JSON object")
   else
     udp = as_json(doc, "UDP")
@@ -783,7 +783,7 @@ end
 def read_applied(path)
   doc = json_parse(read_or(path, "")) rescue nil
   xs = as_json(doc, "applied")
-  if xs == nil or not list?(xs)
+  if xs.nil? or not list?(xs)
     []
   else
     filter((x) -> string?(x), xs)
@@ -1170,7 +1170,7 @@ test "dry-run plans and runs nothing; a real capture keeps status and stdout apa
     true
   )
   assert get(first(rs), :stderr) == "dry-run"
-  assert get(first(rs), :status) == nil
+  assert get(first(rs), :status).nil?
   ok_cap = {
     argv: ["/sbin/x"],
     started: true,

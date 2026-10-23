@@ -57,7 +57,7 @@ end
 def verdict(applied, status)
   if get(applied, :error) != nil
     :refused
-  elsif status == nil
+  elsif status.nil?
     :blind
   elsif status == 0
     :survived
@@ -70,7 +70,7 @@ end
 
 # Mutations from parsed JSON: [{name, file, find, replace}].
 def mutations(parsed)
-  if parsed == nil
+  if parsed.nil?
     []
   else
     map(
@@ -133,7 +133,7 @@ def hn_test(blue, root, name, test_file)
 end
 
 def status(cap)
-  if cap == nil
+  if cap.nil?
     nil
   else
     status_of(cap)
@@ -146,13 +146,13 @@ end
 def run(spec)
   pkg = get(spec, :package)
   name = package_name(pkg)
-  test_file = if get(spec, :test) == nil
+  test_file = if get(spec, :test).nil?
     "#{name}.b"
   else
     get(spec, :test)
   end
   blue = get(spec, :blue)
-  if blue == nil
+  if blue.nil?
     raise(
       :heni_no_blue,
       "heni runs each mutation's tests with the blue CLI, and none is running this program (self_exe() is nil); run heni through blue, or pass --blue"
@@ -184,7 +184,7 @@ def one(spec, name, test_file, i, m)
   root = fresh(get(spec, :package), get(spec, :tmp), to_s(i))
   file = path_join(path_join(root, name), get(m, :file))
   applied = hn_apply(read_or(file, ""), get(m, :find), get(m, :replace))
-  status = if get(applied, :error) == nil
+  status = if get(applied, :error).nil?
     write_file(file, get(applied, :text))
     heni::status(hn_test(get(spec, :blue), root, name, test_file))
   end
@@ -217,7 +217,7 @@ def report_text(r)
 end
 
 def detail(x)
-  if get(x, :detail) == nil
+  if get(x, :detail).nil?
     ""
   else
     "  (#{get(x, :detail)})"
@@ -319,7 +319,7 @@ test "arguments"
   a = parse(["/p/kazu", "m.json", "--blue", "/bin/blue"])
   assert get(a, :package) == "/p/kazu"
   assert get(a, :blue) == "/bin/blue"
-  assert get(a, :test) == nil
+  assert get(a, :test).nil?
   assert get(parse(["/p"]), :error) != nil
   assert get(parse(["/p", "m", "--nope"]), :error) == "unknown argument --nope"
   assert package_name("/a/b/kazu/") == "kazu"

@@ -18,7 +18,7 @@ end
 
 def variance(xs)
   m = mean(xs)
-  if m == nil
+  if m.nil?
     nil
   else
     mean(map((x) -> (x - m) * (x - m), xs))
@@ -26,7 +26,7 @@ def variance(xs)
 end
 
 test "the mean of nothing is nil, not zero"
-  assert mean([]) == nil
+  assert mean([]).nil?
 end
 
 test "a value anyone can check"

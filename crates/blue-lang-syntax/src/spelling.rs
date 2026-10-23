@@ -15,6 +15,7 @@ pub enum Spelling {
     TryCatch,
     Apply,
     MapPun,
+    NilTest,
 }
 
 impl Spelling {
@@ -32,6 +33,7 @@ impl Spelling {
         Spelling::TryCatch,
         Spelling::Apply,
         Spelling::MapPun,
+        Spelling::NilTest,
     ];
 }
 

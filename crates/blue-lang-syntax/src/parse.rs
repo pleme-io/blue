@@ -1026,6 +1026,25 @@ impl Parser {
     }
 
     #[inline(never)]
+    fn nil_test(&mut self, start: usize, op_span: Span, lhs: &Spanned, rhs: &Spanned) -> Option<Spanned> {
+        let (subject, written) = match (&lhs.form, &rhs.form) {
+            (_, SpannedForm::Nil) if !matches!(lhs.form, SpannedForm::Nil) => (lhs, "x == nil"),
+            (SpannedForm::Nil, _) if !matches!(rhs.form, SpannedForm::Nil) => (rhs, "nil == x"),
+            _ => return None,
+        };
+        let span = self.span_since(start);
+        self.note(Spelling::NilTest, span, written, "x.nil?");
+        Some(list_at(
+            span,
+            vec![
+                sym_at(op_span, LOWERED_FIELD),
+                subject.clone(),
+                atom_at(op_span, Atom::Keyword("nil?".to_string())),
+            ],
+        ))
+    }
+
+    #[inline(never)]
     fn infix_node(
         &mut self,
         start: usize,
@@ -1041,6 +1060,12 @@ impl Parser {
                 "0 - x",
                 "-x",
             );
+        }
+
+        if callee == Some("equal?") {
+            if let Some(test) = self.nil_test(start, op_span, &lhs, &rhs) {
+                return test;
+            }
         }
 
         if callee.is_none() {
@@ -1072,6 +1097,15 @@ impl Parser {
                         && matches!(items[3].form, SpannedForm::Nil) =>
                 {
                     list_at(threaded.span, items[..3].to_vec())
+                }
+                SpannedForm::List(items)
+                    if items.len() == 3 && items[0].as_symbol() == Some("equal?") =>
+                {
+                    let (op, a, b) = (items[0].span, items[1].clone(), items[2].clone());
+                    match self.nil_test(start, op, &a, &b) {
+                        Some(test) => test,
+                        None => threaded,
+                    }
                 }
                 _ => threaded,
             }
@@ -1390,6 +1424,13 @@ impl Parser {
                 self.note(Spelling::NegatedComparison, whole, written, canonical);
                 let mut out = items.clone();
                 out[0] = sym_at(items[0].span, to);
+                if to == "equal?" {
+                    if let Some(test) =
+                        self.nil_test(whole.start, items[0].span, &items[1], &items[2])
+                    {
+                        return test;
+                    }
+                }
                 return list_at(whole, out);
             }
         }
@@ -1405,6 +1446,12 @@ impl Parser {
             return call;
         };
         let argc = items.len() - 1;
+        if head == "equal?" && argc == 2 {
+            let (op_span, start) = (items[0].span, call.span.start);
+            if let Some(test) = self.nil_test(start, op_span, &items[1], &items[2]) {
+                return test;
+            }
+        }
         let operator = match (head, argc) {
             ("and" | "or" | "mod" | "equal?", 2) => Some(head),
             ("list", _) => Some("list"),

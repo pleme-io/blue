@@ -195,7 +195,7 @@ def declared_nodes(repo)
           a = first(args_of(get(c, :node)))
           if a != nil and kind(a) == "NODE_ATTR_SET"
             v = attr(a, "nodeDir")
-            if v == nil
+            if v.nil?
               nil
             else
               node_dir_of(code(v))
@@ -276,7 +276,7 @@ def spec_kind(c)
   end
   if v != nil and literal_string?(v)
     string_content(v)
-  elsif v == nil
+  elsif v.nil?
     "binary"
   else
     "computed"
@@ -483,7 +483,7 @@ end
 
 def emits_platform?(b)
   o = get(b, :outer)
-  platform_path?(get(b, :path)) and (o == nil or not platform_path?(o))
+  platform_path?(get(b, :path)) and (o.nil? or not platform_path?(o))
 end
 
 def check_shared_emission(f, _repo)
@@ -561,7 +561,7 @@ end
 
 def unpinned?(c)
   a = first(get(c, :args))
-  if a == nil
+  if a.nil?
     false
   elsif kind(a) == "NODE_ATTR_SET"
     is_empty(filter((k) -> attr(a, k) != nil, pin_attrs))
@@ -604,7 +604,7 @@ def script_body(c)
 end
 
 def script_lines(body)
-  if body == nil or kind(body) != "NODE_STRING"
+  if body.nil? or kind(body) != "NODE_STRING"
     0
   else
     size(filter((l) -> trim(l) != "", lines(string_content(body))))
@@ -674,14 +674,14 @@ def check_pleme_declarations(tree, repo)
       map(
         fn(d)
           rel = own_file(tree, d)
-          where = if rel == nil
+          where = if rel.nil?
             "outside this repository (#{d})"
           else
             rel
           end
           finding(
             "tree/pleme-options-declared-in-shared",
-            if rel == nil
+            if rel.nil?
               "(external)"
             else
               rel
@@ -694,8 +694,7 @@ def check_pleme_declarations(tree, repo)
         filter(
           fn(d)
             rel = own_file(tree, d)
-            rel == nil or
-              is_empty(filter((g) -> glob_match?(g, rel), declarers))
+            rel.nil? or is_empty(filter((g) -> glob_match?(g, rel), declarers))
           end,
           get(o, :declarations)
         )
@@ -711,12 +710,12 @@ def check_hostname(tree, _repo)
       map(
         fn(d)
           rel = own_file(tree, d)
-          file = if rel == nil
+          file = if rel.nil?
             "(external)"
           else
             rel
           end
-          shown = if rel == nil
+          shown = if rel.nil?
             d
           else
             rel
@@ -732,7 +731,7 @@ def check_hostname(tree, _repo)
         filter(
           fn(d)
             rel = own_file(tree, d)
-            rel == nil or not glob_match?("nodes/**", rel)
+            rel.nil? or not glob_match?("nodes/**", rel)
           end,
           get(o, :definitions)
         )
@@ -818,7 +817,7 @@ end
 
 def returned_set(n)
   k = kind(n)
-  if n == nil
+  if n.nil?
     nil
   elsif k == "NODE_ATTR_SET"
     n
@@ -833,7 +832,7 @@ def overlay_units(repo)
   flat_map(
     fn(p)
       set = returned_set(get(nikkusu::read(source_of(repo, p)), :root))
-      if set == nil
+      if set.nil?
         []
       else
         map(
@@ -842,7 +841,7 @@ def overlay_units(repo)
             map(
               (b) -> first(get(b, :path)),
               filter(
-                (b) -> get(b, :scope) == :attrs and get(b, :outer) == nil,
+                (b) -> get(b, :scope) == :attrs and get(b, :outer).nil?,
                 bindings(set)
               )
             )
@@ -903,7 +902,7 @@ end
 
 def spec_names(c)
   a = last(get(c, :args))
-  if a == nil or kind(a) != "NODE_ATTR_SET"
+  if a.nil? or kind(a) != "NODE_ATTR_SET"
     []
   else
     filter(
@@ -1261,7 +1260,7 @@ def waiver_refusal(w)
 end
 
 def valid_waivers(cfg)
-  filter((w) -> waiver_refusal(w) == nil, get(cfg, :waivers))
+  filter((w) -> waiver_refusal(w).nil?, get(cfg, :waivers))
 end
 
 def config_refusals(cfg)
@@ -1445,7 +1444,7 @@ def own_source(root)
 end
 
 def entries(xs)
-  if xs == nil
+  if xs.nil?
     []
   else
     map(
@@ -1463,7 +1462,7 @@ def entries(xs)
 end
 
 def or_list(xs)
-  if xs == nil or not list?(xs)
+  if xs.nil? or not list?(xs)
     []
   else
     xs
@@ -1590,7 +1589,7 @@ def evaluate_timed(cfg, source, trees, clock)
       (e) -> e != nil,
       map(
         fn(t)
-          if get(t, :error) == nil
+          if get(t, :error).nil?
             nil
           else
             "#{get(t, :configuration)}: #{get(t, :error)}"
@@ -1789,7 +1788,7 @@ def run(cfg, args)
     started = now_ms
     root = get(a, :root)
     files = tracked(root)
-    if files == nil
+    if files.nil?
       write_stderr("kijun: #{root} is not a git work tree\n")
       raise(:kijun_usage, "not a git work tree")
     end
@@ -1802,7 +1801,7 @@ def run(cfg, args)
     end
     tree_ms = now_ms - before_tree
     result = evaluate_timed(cfg, on_disk(root, files), trees, () -> now_ms)
-    base = if get(a, :baseline) == nil
+    base = if get(a, :baseline).nil?
       path_join(root, get(cfg, :baseline))
     else
       get(a, :baseline)
@@ -1935,7 +1934,7 @@ def concept_sources(declared)
 end
 
 def trio_source(name, kind_of)
-  k = if kind_of == nil
+  k = if kind_of.nil?
     ""
   else
     "kind = \"#{kind_of}\"; "
@@ -2342,7 +2341,7 @@ test "an uncatchable failure is located at its option's tag, and the error is it
   err = "error:\n       … while evaluating the attribute 'definitions'\n       … kijun-option pleme.fleet.nixRepo\n       … while evaluating the attribute 'default'\n       error: attribute 'darwinUser' missing\n"
   assert failing_option(err) == "pleme.fleet.nixRepo"
   assert last_error(err) == "attribute 'darwinUser' missing"
-  assert failing_option("error: flake has no attribute\n") == nil
+  assert failing_option("error: flake has no attribute\n").nil?
   assert last_error("error: flake has no attribute\n") ==
     "flake has no attribute"
   assert nix_string("a\"b${c}\\") == "\"a\\\"b\\${c}\\\\\""

@@ -358,7 +358,7 @@ end
 
 # A constant's column type, or nil for nil. A keyword is written as its text.
 def lit_type(v)
-  if v == nil
+  if v.nil?
     nil
   elsif boolean?(v)
     :boolean
@@ -505,7 +505,7 @@ def key_type(d, k)
         flat_map((f) -> field_evidence(d, f), targets),
         "payload key #{raifusaikuru::show(k)}"
       )
-      if t == nil
+      if t.nil?
         :varchar
       else
         t
@@ -739,7 +739,7 @@ end
 # ── the definition, as rows ────────────────────────────────────────────────
 
 def text_or_nil(x)
-  if x == nil
+  if x.nil?
     nil
   else
     raifusaikuru::text(x)
@@ -799,7 +799,7 @@ end
 
 def rule_row(g, r)
   t = raifusaikuru::task_or(r, nth(3, g))
-  task = if t == nil
+  task = if t.nil?
     [nil, nil]
   else
     [
@@ -1528,7 +1528,7 @@ def span_models(d, sp, steps, current, now)
     "done",
     q_if(ended, "abandoned", "open")
   )
-  over = if limit == nil
+  over = if limit.nil?
     q_cast(kueri::null, :boolean)
   else
     kueri::gt(:elapsed, limit)
@@ -1673,7 +1673,7 @@ def target(bindings, a, role, target)
     end,
     bindings
   )
-  if hit == nil
+  if hit.nil?
     raise(
       :anaritikusu_schema,
       "#{raifusaikuru::show(raifusaikuru::name(la_def(a)))} links #{raifusaikuru::show(role)} to lifecycle #{raifusaikuru::show(target)}, which is not among the lifecycles given (#{join(map((b) -> raifusaikuru::text(raifusaikuru::name(la_def(b))), bindings), ", ")})"
@@ -1686,7 +1686,7 @@ end
 # waive B0013: `find` is a builtin anaritikusu also uses, so the prefix stays; anaritikusu::find names it too
 def la_find(models, name)
   hit = find_first((m) -> get(m, :name) == name, models)
-  if hit == nil
+  if hit.nil?
     raise(:anaritikusu_schema, "no generated relation is named #{name}")
   end
   hit
@@ -1958,7 +1958,7 @@ end
 
 # A value as JSON data: a keyword becomes its text, everywhere inside.
 def json_value(v)
-  if v == nil
+  if v.nil?
     nil
   elsif keyword?(v)
     raifusaikuru::text(v)
@@ -1985,12 +1985,12 @@ def history_line(r, s)
     raifusaikuru::refusal_position(rf) == pos
     raifusaikuru::text(raifusaikuru::refusal_kind(rf))
   end
-  rules = if breach == nil
+  rules = if breach.nil?
     nil
   else
     map((x) -> raifusaikuru::text(x), raifusaikuru::breach_rules(breach))
   end
-  capability = if breach == nil
+  capability = if breach.nil?
     nil
   else
     raifusaikuru::text(raifusaikuru::breach_capability(breach))

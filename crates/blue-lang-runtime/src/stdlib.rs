@@ -566,6 +566,33 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         ))
     });
 
+    interp.register_fn(
+        "text_bytes",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| {
+            Ok(list(
+                as_str(&a[0], s)?
+                    .as_bytes()
+                    .iter()
+                    .map(|b| Value::Int(i64::from(*b)))
+                    .collect(),
+            ))
+        },
+    );
+
+    interp.register_fn(
+        "bytes_text",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| {
+            let bytes = crate::crypto::message_bytes(&a[0])
+                .map_err(|e| EvalError::native_fn("bytes_text", e.to_string(), s))?;
+            Ok(match String::from_utf8(bytes) {
+                Ok(text) => Value::Str(text.into()),
+                Err(_) => Value::Nil,
+            })
+        },
+    );
+
     // ── numbers ───────────────────────────────────────────────────────
 
     // `to_int` RETURNS NIL on unparseable input rather than raising. Ruby's
@@ -1054,6 +1081,21 @@ mod tests {
             Ok(v) => panic!("{src:?} should fail, produced {:?}", v.value),
             Err(e) => e.to_string(),
         }
+    }
+
+    #[test]
+    fn text_bytes_and_bytes_text_are_utf8_both_ways() {
+        assert_eq!(ints("text_bytes(\"abc\")"), vec![97, 98, 99]);
+        assert_eq!(ints("text_bytes(\"é\")"), vec![195, 169]);
+        assert!(ints("text_bytes(\"\")").is_empty());
+        assert_eq!(s("bytes_text([104, 195, 169])"), "hé");
+        assert_eq!(s("bytes_text(text_bytes(\"€ x\"))"), "€ x");
+        assert_eq!(s("bytes_text([])"), "");
+        assert!(matches!(eval("bytes_text([195])"), Value::Nil));
+        assert!(matches!(eval("bytes_text([255, 97])"), Value::Nil));
+        assert!(refused("bytes_text([256])").contains("outside 0..=255"));
+        assert!(refused("bytes_text(nil)").contains("string or a list of bytes"));
+        assert!(refused("text_bytes(5)").contains("string"));
     }
 
     #[test]

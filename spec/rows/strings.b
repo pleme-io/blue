@@ -113,6 +113,27 @@ row(
 )
 
 row(
+  "strings.text_bytes",
+  "[text_bytes(\"é a\"), text_bytes(\"\")]",
+  value("[[195, 169, 32, 97], []]"),
+  covers("builtin:text_bytes")
+)
+
+row(
+  "strings.bytes_text",
+  "[bytes_text([104, 195, 169]), bytes_text([195]), bytes_text(\"ok\")]",
+  value("[\"hé\", nil, \"ok\"]"),
+  covers("builtin:bytes_text")
+)
+
+row(
+  "strings.bytes_text.not_a_byte",
+  "bytes_text([256])",
+  fails(:eval, "outside 0..=255"),
+  covers("builtin:bytes_text")
+)
+
+row(
   "strings.text_last_index",
   "text_last_index(\"aaa\", \"aa\", 9)",
   value("1"),

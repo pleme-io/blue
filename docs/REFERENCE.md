@@ -89,7 +89,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-290 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+292 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -146,6 +146,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
+| `bytes_text` | `bytes_text(bytes)` | 1 | The string whose UTF-8 bytes these are (a byte list or a string); nil when they are not UTF-8. An element outside 0..255 raises. |
 | `chars` | `chars(s)` | 1 | The characters as one-character strings. |
 | `concat` | `concat(x, more...)` | 1+ | The text of every argument joined, each rendered with to_s. What interpolation lowers to. |
 | `contains?` | `contains?(s, sub)` | 2 | Whether the STRING s contains sub. On a list it raises: use member?(x, xs). |
@@ -156,6 +157,7 @@ Higher binding power binds tighter.
 | `split` | `split(s, sep)` | 2 | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. |
 | `starts_with?` | `starts_with?(s, prefix)` | 2 | Whether s begins with prefix. |
 | `string` | `string(x)` | 1 | tatara-lisp's rendering: :a stays ":a" and a list prints as (1). Use to_s. |
+| `text_bytes` | `text_bytes(s)` | 1 | The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes("é") is [195, 169]. |
 | `text_index` | `text_index(s, sub, from)` | 3 | The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it. |
 | `text_last_index` | `text_last_index(s, sub, from)` | 3 | The character index of the last sub in s starting at or before from, or -1. One linear pass. |
 | `to_s` | `to_s(x)` | 1 | Text for any value (okite D0005, D0006): nil is "", 1.0 is "1.0", a list or map its blue literal, a keyword its name. |

@@ -219,6 +219,8 @@ pub const NAMES: &[NameDoc] = names! {
     Text: "contains?" "contains?(s, sub)" "Whether the STRING s contains sub. On a list it raises: use member?(x, xs).";
     Text: "text_index" "text_index(s, sub, from)" "The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it.";
     Text: "text_last_index" "text_last_index(s, sub, from)" "The character index of the last sub in s starting at or before from, or -1. One linear pass.";
+    Text: "text_bytes" "text_bytes(s)" "The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes(\"é\") is [195, 169].";
+    Text: "bytes_text" "bytes_text(bytes)" "The string whose UTF-8 bytes these are (a byte list or a string); nil when they are not UTF-8. An element outside 0..255 raises.";
     // ── lists ─────────────────────────────────────────────────────────────
     List: "list" "list(xs...)" "A list of the arguments. Written [a, b].";
     List: "length" "length(xs)" "The length of a list or string. Raises on nil: retsu's size(xs) is total.";

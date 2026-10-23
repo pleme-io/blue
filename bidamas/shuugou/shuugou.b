@@ -479,3 +479,32 @@ test "union_all and intersection_all fold a family of sets"
   assert intersection_all([[1, 2], [3]]) == []
   assert intersection_all([]) == []
 end
+
+def disjoint?(a, b)
+  disjoint(a, b)
+end
+
+def product(a, b)
+  cartesian_product(a, b)
+end
+
+def subset?(a, b)
+  subset(a, b)
+end
+
+test "disjoint? and subset? answer for the empty set"
+  assert disjoint?([1, 2], [3])
+  assert not disjoint?([1, 2], [2])
+  assert disjoint?([], [])
+  assert subset?([1], [1, 2])
+  assert not subset?([3], [1, 2])
+  assert subset?([], [])
+  assert subset?([], [1])
+end
+
+test "product pairs every item of the first set with every item of the second"
+  assert product([1, 2], ["a"]) == [[1, "a"], [2, "a"]]
+  assert product([], [1]) == []
+  assert product([1], []) == []
+  assert size(product([1, 2], [3, 4])) == 4
+end

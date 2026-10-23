@@ -8,7 +8,7 @@ verb(
     shape: "catalog(roots) -> catalog",
     laterals: ["serialize"],
     fleet: nil,
-    today: "exists:mokuroku",
+    today: "partial:mokuroku",
     meaning: "every package and definition under some roots",
     wave: 0,
     origin: "F"
@@ -23,7 +23,7 @@ verb(
     shape: "check(catalog) -> findings",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:mokuroku",
+    today: "partial:mokuroku",
     meaning: "find name collisions and shadowed names",
     wave: 0,
     origin: "G"
@@ -68,7 +68,7 @@ verb(
     shape: "extract(source) -> [entry]",
     laterals: ["serialize"],
     fleet: "pleme-doc-gen",
-    today: "exists:mokuroku",
+    today: "partial:mokuroku",
     meaning: "signature, gloss, tests and waivers from source text",
     wave: 0,
     origin: "F"
@@ -98,7 +98,7 @@ verb(
     shape: "list(roots) -> packages",
     laterals: [],
     fleet: nil,
-    today: "exists:mokuroku",
+    today: "partial:mokuroku",
     meaning: "every package on a path",
     wave: 0,
     origin: "G"
@@ -113,7 +113,7 @@ verb(
     shape: "render(catalog, format) -> text",
     laterals: ["serialize"],
     fleet: "pleme-doc-gen",
-    today: "exists:mokuroku",
+    today: "partial:mokuroku",
     meaning: "a catalog as a document, stable order",
     wave: 0,
     origin: "F"

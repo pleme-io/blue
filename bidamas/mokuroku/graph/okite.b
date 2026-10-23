@@ -23,7 +23,7 @@ verb(
     shape: "generate(shape, seed, n) -> [value]",
     laterals: ["test"],
     fleet: "caixa-proptest",
-    today: "exists:okite",
+    today: "partial:okite",
     meaning: "n values of a shape from a seed, same every time",
     wave: 0,
     origin: "F",
@@ -39,7 +39,7 @@ verb(
     shape: "holds?(law, opts) -> Bool",
     laterals: ["test"],
     fleet: "caixa-proptest",
-    today: "exists:okite",
+    today: "partial:okite",
     meaning: "whether a law holds over generated cases",
     wave: 0,
     origin: "F"
@@ -54,7 +54,7 @@ verb(
     shape: "law(name, shape, f) -> law",
     laterals: ["test"],
     fleet: nil,
-    today: "exists:okite",
+    today: "partial:okite",
     meaning: "declare a property that must hold for all generated values",
     wave: 0,
     origin: "F"

@@ -68,7 +68,7 @@ verb(
     shape: "has?(set, item) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:shuugou",
+    today: "partial:shuugou",
     meaning: "whether the item is a member",
     wave: 0,
     origin: "A"
@@ -158,7 +158,7 @@ verb(
     shape: "set(items) -> set",
     laterals: [],
     fleet: nil,
-    today: "exists:shuugou",
+    today: "partial:shuugou",
     meaning: "set built from a list",
     wave: 0,
     origin: "A"
@@ -173,7 +173,7 @@ verb(
     shape: "size(set) -> int",
     laterals: [],
     fleet: nil,
-    today: "exists:shuugou",
+    today: "partial:shuugou",
     meaning: "number of members",
     wave: 0,
     origin: "A"

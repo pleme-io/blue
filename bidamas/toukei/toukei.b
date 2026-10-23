@@ -813,3 +813,25 @@ test "five_number_summary is the boxplot, in drawing order"
   # Empty in, empty out — never a list with nils hiding inside it.
   assert five_number_summary([]) == []
 end
+
+def correlate(xs, ys)
+  correlation(xs, ys)
+end
+
+def zscore(numbers)
+  z_scores(numbers)
+end
+
+test "correlate is one for a straight line and zero for a constant"
+  assert abs(correlate([1, 2, 3], [2, 4, 6]) - 1) < 0.000001
+  assert abs(correlate([1, 2, 3], [6, 4, 2]) + 1) < 0.000001
+  assert correlate([1, 1], [1, 2]) == 0
+end
+
+test "zscore centres the list on zero"
+  z = zscore([1, 2, 3])
+  assert size(z) == 3
+  assert abs(total(z)) < 0.000001
+  assert nth(1, z) == 0
+  assert zscore([]) == []
+end

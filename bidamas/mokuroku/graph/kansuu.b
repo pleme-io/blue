@@ -38,7 +38,7 @@ verb(
     shape: "curry(f, arity) -> function",
     laterals: [],
     fleet: nil,
-    today: "exists:kansuu",
+    today: "partial:kansuu",
     meaning: "function that takes arguments one at a time",
     wave: 0,
     origin: "A"
@@ -53,7 +53,7 @@ verb(
     shape: "fixpoint(f, x, opts) -> value",
     laterals: ["error"],
     fleet: nil,
-    today: "exists:kansuu",
+    today: "partial:kansuu",
     meaning: "apply f until the result stops changing",
     wave: 0,
     origin: "A"
@@ -98,7 +98,7 @@ verb(
     shape: "iterate(f, x, n) -> value",
     laterals: [],
     fleet: nil,
-    today: "exists:kansuu",
+    today: "partial:kansuu",
     meaning: "apply f to x n times",
     wave: 0,
     origin: "A"

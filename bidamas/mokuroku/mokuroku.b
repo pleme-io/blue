@@ -1547,6 +1547,62 @@ def finds_edges(g)
   concat_lists(dangling, unknown)
 end
 
+def exists_rows(g)
+  filter(
+    fn(r)
+      get(r, :enabled) and
+        starts_with?(get(r, :today), "exists") and
+        not ends_with?(get(r, :space), "?")
+    end,
+    get(g, :verbs)
+  )
+end
+
+def probe_source(g)
+  rows = exists_rows(g)
+  spaces = sort_keyed((s) -> s, distinct(map((r) -> get(r, :space), rows)))
+  uses = join(map((s) -> "use(\"#{s}\")\n", spaces), "")
+  names = join(map(row_node, rows), ", ")
+  "#{uses}\ndef probe()\n  [#{names}]\nend\n"
+end
+
+def unbound_names(output)
+  map(
+    fn(l)
+      parts = split(l, "`")
+      "#{nth(1, parts)}::#{nth(3, parts)}"
+    end,
+    filter((l) -> contains?(l, "error[B0011]"), split(output, "\n"))
+  )
+end
+
+def finds_unbound(g, unbound)
+  rows = map(row_node, exists_rows(g))
+  map(
+    (n) -> finding("g10-unbound", node_space(n), n),
+    sort_keyed((n) -> n, distinct(filter((n) -> member?(n, rows), unbound)))
+  )
+end
+
+def unbound_probe(g, exe)
+  if exe == nil
+    raise(:probe, "no blue to run the unbound-name probe: self_exe is nil")
+  end
+  src = probe_source(g)
+  path = path_join(
+    getenv("TMPDIR", "/tmp"),
+    "blue-unbound-#{blake3_hex(src)}.b"
+  )
+  write_file(path, src)
+  cap = exec_capture(exe, "check", path)
+  rm_rf(path)
+  out = "#{json_get(cap, :stdout)}#{json_get(cap, :stderr)}"
+  if not contains?(out, "names resolved:")
+    raise(:probe, "blue check could not run the unbound-name probe: #{out}")
+  end
+  unbound_names(out)
+end
+
 def graph_findings(g)
   sort_keyed(
     (f) -> "#{get(f, :kind)} #{get(f, :subject)}",
@@ -1560,6 +1616,13 @@ def graph_findings(g)
   )
 end
 
+def graph_findings_live(g, exe)
+  sort_keyed(
+    (f) -> "#{get(f, :kind)} #{get(f, :subject)}",
+    concat_lists(graph_findings(g), finds_unbound(g, unbound_probe(g, exe)))
+  )
+end
+
 def finding_kinds()
   [
     "g1-meaning",
@@ -1568,7 +1631,8 @@ def finding_kinds()
     "g4-wave",
     "g7-inverse",
     "g9-dangling",
-    "g9-relation"
+    "g9-relation",
+    "g10-unbound"
   ]
 end
 
@@ -2682,4 +2746,90 @@ test "a graph is written as one file per space, edges in the file of their from,
   assert get(b, :refusals) == []
   assert map((r) -> get(r, :word), get(b, :rows)) == ["space", "verb", "edge"]
   assert get(first(get(b, :rows)), :status) == "provisional"
+end
+
+def ux_graph(rows)
+  graph_from_tsv(
+    tsv_text(
+      verb_header_region,
+      map(
+        fn(r)
+          [
+            "T",
+            nth(0, r),
+            nth(1, r),
+            "pure",
+            "#{nth(1, r)}(value) -> value",
+            "-",
+            "-",
+            nth(2, r),
+            nth(3, r),
+            "0"
+          ]
+        end,
+        rows
+      )
+    ),
+    tsv_text(edge_header, []),
+    tsv_text(vocab_header, [])
+  )
+end
+
+def ux_rows()
+  [
+    ["moji", "lower", "exists:moji", "one"],
+    ["moji", "ghost", "partial:moji", "two"],
+    ["moji", "void", "absent", "three"],
+    ["kazu", "abs", "exists", "four"],
+    ["gauge?", "gauge", "exists:moji", "five"]
+  ]
+end
+
+test "the probe names every exists row of a named space, once, and nothing else"
+  src = probe_source(ux_graph(ux_rows))
+  assert contains?(src, "use(\"kazu\")\nuse(\"moji\")\n")
+  assert contains?(src, "kazu::abs")
+  assert contains?(src, "moji::lower")
+  assert not contains?(src, "ghost")
+  assert not contains?(src, "void")
+  assert not contains?(src, "gauge")
+  assert size(split(src, "moji::lower")) == 2
+end
+
+test "the probe of a graph with no exists row is an empty list"
+  src = probe_source(ux_graph([["moji", "ghost", "partial:moji", "two"]]))
+  assert src == "\ndef probe()\n  []\nend\n"
+end
+
+test "unbound_names reads the B0011 lines and nothing else"
+  out = "typed declarations: 0\nnames resolved:     9\n/p/probe.b:3:4: error[B0011]: bidama `moji` defines no `nothere`\n  help: nothing in `moji` is close to `nothere`\n/p/probe.b:3:9: error[B0011]: bidama `retsu` defines no `zzz`\n/p/probe.b:1:1: error[B0015]: `use(\"kijun\")` is out of order\n/p/probe.b:3:2: error[B0010]: `retsu::first` is qualified by `retsu`, which this file does not `use`\n"
+  assert unbound_names(out) == ["moji::nothere", "retsu::zzz"]
+  assert unbound_names("") == []
+  assert unbound_names("names resolved:     9\n") == []
+end
+
+test "finds_unbound reports an exists row once and ignores any other row"
+  g = ux_graph(ux_rows)
+  found = finds_unbound(
+    g,
+    [
+      "moji::lower",
+      "kazu::abs",
+      "moji::lower",
+      "moji::ghost",
+      "moji::void",
+      "zzz::none"
+    ]
+  )
+  assert map((f) -> get(f, :subject), found) == ["kazu::abs", "moji::lower"]
+  assert map((f) -> get(f, :kind), found) == ["g10-unbound", "g10-unbound"]
+  assert map((f) -> get(f, :scope), found) == ["kazu", "moji"]
+  assert finds_unbound(g, []) == []
+end
+
+test "g10-unbound is a kind the baseline measures"
+  assert member?("g10-unbound", finding_kinds)
+  found = finds_unbound(ux_graph(ux_rows), ["moji::lower"])
+  assert map((m) -> get(m, :key), finding_measurements(found, "g10-unbound")) ==
+    ["moji"]
 end

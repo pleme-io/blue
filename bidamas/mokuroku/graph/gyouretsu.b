@@ -8,7 +8,7 @@ verb(
     shape: "add(a, b) -> matrix",
     laterals: ["error"],
     fleet: nil,
-    today: "exists:gyouretsu",
+    today: "partial:gyouretsu",
     meaning: "entrywise sum; shape mismatch raises",
     wave: 0,
     origin: "A"
@@ -188,7 +188,7 @@ verb(
     shape: "norm(v, order) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:gyouretsu",
+    today: "partial:gyouretsu",
     meaning: "length of a vector in a chosen norm",
     wave: 0,
     origin: "A"
@@ -308,7 +308,7 @@ verb(
     shape: "solve(a, b) -> vector",
     laterals: ["error"],
     fleet: nil,
-    today: "exists:gyouretsu",
+    today: "partial:gyouretsu",
     meaning: "vector x with a times x equal to b",
     wave: 0,
     origin: "A"

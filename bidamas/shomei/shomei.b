@@ -371,17 +371,17 @@ end
 
 # Whether the payloads reproduce the stated head from the genesis.
 def verify_chain(genesis, payloads, head)
-  chain_verify(genesis, payloads, head)
+  intact?(genesis, payloads, head)
 end
 
 # The sibling path, leaf up, that shows payload `index` is in the tree.
 def proof(payloads, index)
-  merkle_proof(payloads, index)
+  prove(payloads, index)
 end
 
 # Whether a proof climbs from the payload to the root.
 def verify_proof?(root, payload, proof)
-  merkle_verify(root, payload, proof)
+  proves?(root, payload, proof)
 end
 
 # ── tests ──────────────────────────────────────────────────────────
@@ -674,4 +674,88 @@ test "verify_chain and proof follow the chain and the tree"
     proof(["a", "b", "c"], 0)
   )
   assert (verify_proof?("nope", "a", []) rescue :raised) == :raised
+end
+
+def genesis(label)
+  chain_genesis(label)
+end
+
+def chain(previous, payload)
+  chain_link(previous, payload)
+end
+
+def head(genesis, payloads)
+  chain_head(genesis, payloads)
+end
+
+def trail(genesis, payloads)
+  chain_hashes(genesis, payloads)
+end
+
+def intact?(genesis, payloads, head)
+  chain_verify(genesis, payloads, head)
+end
+
+def first_break(genesis, payloads, hashes)
+  chain_first_break(genesis, payloads, hashes)
+end
+
+def root(payloads)
+  merkle_root(payloads)
+end
+
+def prove(payloads, index)
+  merkle_proof(payloads, index)
+end
+
+def proves?(root, payload, proof)
+  merkle_verify(root, payload, proof)
+end
+
+def public(keypair)
+  keypair_public(keypair)
+end
+
+test "the hash chain binds under its graph names"
+  g = genesis("log")
+  a = chain(g, "a")
+  b = chain(a, "b")
+  assert g == chain_genesis("log")
+  assert a == chain_link(g, "a")
+  assert head(g, []) == g
+  assert head(g, ["a", "b"]) == b
+  assert trail(g, ["a", "b"]) == [a, b]
+  assert trail(g, []) == []
+  assert intact?(g, ["a", "b"], b)
+  assert not intact?(g, ["a", "c"], b)
+  assert first_break(g, ["a", "b"], [a, b]) == nil
+  assert first_break(g, ["a", "x"], [a, b]) == 1
+  assert first_break(g, ["a"], [a, b]) == 1
+end
+
+test "the chain verbs refuse what is not a string or a hash"
+  bad_label = genesis(1) rescue "caught"
+  bad_payload = chain(genesis("log"), 1) rescue "caught"
+  bad_previous = chain("nothex", "a") rescue "caught"
+  assert bad_label == "caught"
+  assert bad_payload == "caught"
+  assert bad_previous == "caught"
+end
+
+test "root, prove and proves? agree on one entry of the tree"
+  ps = ["a", "b", "c"]
+  r = root(ps)
+  assert r == merkle_root(ps)
+  assert root([]) == merkle_root([])
+  assert proves?(r, "b", prove(ps, 1))
+  assert proves?(r, "c", prove(ps, 2))
+  assert not proves?(r, "z", prove(ps, 1))
+  assert not proves?(root(["a", "b"]), "c", prove(ps, 2))
+end
+
+test "public is the second half of the keypair"
+  kp = signing_keypair("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
+  assert public(kp) == nth(1, kp)
+  assert public(kp) ==
+    "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
 end

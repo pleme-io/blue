@@ -757,3 +757,15 @@ test "prepend and at stay total on nil and out-of-range"
   assert at([10, 20, 30], -4).nil?
   assert at(nil, 0).nil?
 end
+
+def insert(list, index, item)
+  insert_at(list, index, item)
+end
+
+test "insert places an item at an index"
+  assert insert([1, 2, 3], 1, 9) == [1, 9, 2, 3]
+  assert insert([1, 2, 3], 0, 9) == [9, 1, 2, 3]
+  assert insert([1, 2, 3], 3, 9) == [1, 2, 3, 9]
+  assert insert([], 0, 1) == [1]
+  assert insert([1], 5, 2) == [1, 2]
+end

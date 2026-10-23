@@ -53,7 +53,7 @@ verb(
     shape: "count(xs, epsilon, seed) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:tokumei",
+    today: "partial:tokumei",
     meaning: "a count with noise that hides one person",
     wave: 0,
     origin: "G",
@@ -279,7 +279,7 @@ verb(
     shape: "perturb(value, epsilon, seed) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:tokumei",
+    today: "partial:tokumei",
     meaning: "add Laplace noise to a value",
     wave: 0,
     origin: "G"
@@ -354,7 +354,7 @@ verb(
     shape: "randomize(truth, p, seed) -> Bool",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:tokumei",
+    today: "partial:tokumei",
     meaning: "forced-response answer: truth or a fair coin",
     wave: 0,
     origin: "D"

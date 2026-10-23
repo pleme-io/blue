@@ -130,7 +130,7 @@ verb(
     shape: "health(request, check) -> response",
     laterals: ["test"],
     fleet: nil,
-    today: "exists:kyuuji",
+    today: "partial:kyuuji",
     meaning: "answer a liveness or readiness probe from a check",
     wave: 0,
     origin: "F"
@@ -265,7 +265,7 @@ verb(
     shape: "plain(status, body) -> response",
     laterals: [],
     fleet: "blue",
-    today: "exists:kyuuji",
+    today: "partial:kyuuji",
     meaning: "A plain-text response.",
     wave: 0,
     origin: "C"

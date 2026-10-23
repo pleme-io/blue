@@ -157,3 +157,54 @@ test "uniqueness: alone is unique, and a small group of four in four cells is 42
   assert abs(unique_share(4, 4) - 0.421875) < 0.000001
   assert unique_share(100, 4) < 0.001
 end
+
+def epsilon(p)
+  forced_response_epsilon(p)
+end
+
+def estimate(yes_share, p)
+  forced_response_estimate(yes_share, p)
+end
+
+def exposure(prevalence, p)
+  forced_response_exposure(prevalence, p)
+end
+
+def laplace(scale, seed)
+  laplace_draw(scale, seed)
+end
+
+def suppress(count, k)
+  suppress_small(count, k)
+end
+
+test "epsilon is nil where every answer is the truth"
+  assert epsilon(1) == nil
+  assert abs(epsilon(0.5) - log(3)) < 0.000001
+  assert epsilon(0) == 0
+end
+
+test "estimate recovers the share and clamps it to the unit interval"
+  assert estimate(0.5, 1) == 0.5
+  assert estimate(0, 0.5) == 0
+  assert estimate(1, 0.5) == 1
+end
+
+test "exposure rises with the prevalence"
+  assert abs(exposure(0.5, 0.5) - 0.75) < 0.000001
+  assert exposure(0, 0.5) == 0
+  assert exposure(1, 0.5) == 1
+end
+
+test "laplace is the same draw for the same seed and scale"
+  assert laplace(1, 42) == laplace_draw(1, 42)
+  assert laplace(1, 42) == laplace(1, 42)
+  assert laplace(0, 42) == 0
+end
+
+test "suppress hides a count below k and keeps the rest"
+  assert suppress(3, 5) == nil
+  assert suppress(5, 5) == 5
+  assert suppress(0, 1) == nil
+  assert suppress(9, 0) == 9
+end

@@ -173,7 +173,7 @@ verb(
     shape: "gcd(a, b) -> int",
     laterals: [],
     fleet: nil,
-    today: "exists:kazu",
+    today: "partial:kazu",
     meaning: "greatest common divisor",
     wave: 0,
     origin: "A"
@@ -188,7 +188,7 @@ verb(
     shape: "lcm(a, b) -> int",
     laterals: [],
     fleet: nil,
-    today: "exists:kazu",
+    today: "partial:kazu",
     meaning: "least common multiple",
     wave: 0,
     origin: "A"
@@ -263,7 +263,7 @@ verb(
     shape: "mod(a, b) -> int",
     laterals: ["error"],
     fleet: nil,
-    today: "exists:kazu",
+    today: "partial:kazu",
     meaning: "remainder that takes the sign of b",
     wave: 0,
     origin: "A"
@@ -278,7 +278,7 @@ verb(
     shape: "near?(a, b, tolerance) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:kazu",
+    today: "partial:kazu",
     meaning: "whether two numbers differ by at most a tolerance",
     wave: 0,
     origin: "A"

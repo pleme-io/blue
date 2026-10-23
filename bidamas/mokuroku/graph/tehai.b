@@ -8,7 +8,7 @@ verb(
     shape: "list(declared, opts) -> [state]",
     laterals: ["deadline", "time"],
     fleet: "tehai",
-    today: "exists:tehai",
+    today: "partial:tehai",
     meaning: "every builder with live or stale state",
     wave: 0,
     origin: "E"
@@ -53,7 +53,7 @@ verb(
     shape: "write(path, machines) -> nil",
     laterals: ["idempotent", "serialize"],
     fleet: "tehai",
-    today: "exists:tehai",
+    today: "partial:tehai",
     meaning: "write the live set atomically where nix reads it",
     wave: 0,
     origin: "E"

@@ -54,7 +54,7 @@ verb(
     shape: "broken(settings, request) -> record or nil",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:bougyo",
+    today: "partial:bougyo",
     meaning: "first limit a request breaks, as status and reason",
     wave: 0,
     origin: "D"
@@ -129,7 +129,7 @@ verb(
     shape: "headers(opts) -> posture",
     laterals: ["config", "switch"],
     fleet: nil,
-    today: "exists:bougyo",
+    today: "partial:bougyo",
     meaning: "security response headers, added when missing",
     wave: 0,
     origin: "D"
@@ -144,7 +144,7 @@ verb(
     shape: "limits(opts) -> posture",
     laterals: ["config", "validate"],
     fleet: nil,
-    today: "exists:bougyo",
+    today: "partial:bougyo",
     meaning: "caps on method, path, headers and body",
     wave: 0,
     origin: "D"
@@ -174,7 +174,7 @@ verb(
     shape: "request_id(opts) -> posture",
     laterals: ["config", "log"],
     fleet: nil,
-    today: "exists:bougyo",
+    today: "partial:bougyo",
     meaning: "request id that cannot forge a log line",
     wave: 0,
     origin: "D"

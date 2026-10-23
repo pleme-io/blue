@@ -8,7 +8,7 @@ verb(
     shape: "advance(grid, rule) -> grid",
     laterals: [],
     fleet: nil,
-    today: "exists:seimei",
+    today: "partial:seimei",
     meaning: "one generation of a cellular automaton",
     wave: 0,
     origin: "G"

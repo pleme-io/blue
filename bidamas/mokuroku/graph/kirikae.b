@@ -24,7 +24,7 @@ verb(
     shape: "hold(key, history, now, policy) -> record or nil",
     laterals: ["retry", "time"],
     fleet: "kirikae",
-    today: "exists:kirikae",
+    today: "partial:kirikae",
     meaning: "back-off window after repeated failure",
     wave: 0,
     origin: "E"
@@ -115,7 +115,7 @@ verb(
     shape: "verify(desired, opts) -> Bool",
     laterals: ["switch", "validate"],
     fleet: "kirikae",
-    today: "exists:kirikae",
+    today: "partial:kirikae",
     meaning: "current system resolves to the one built",
     wave: 0,
     origin: "E"

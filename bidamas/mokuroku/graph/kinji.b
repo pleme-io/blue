@@ -8,7 +8,7 @@ verb(
     shape: "advance(ode, state, span) -> state",
     laterals: [],
     fleet: nil,
-    today: "exists:kinji",
+    today: "partial:kinji",
     meaning: "move an ODE state forward over a span",
     wave: 0,
     origin: "G",
@@ -39,7 +39,7 @@ verb(
     shape: "integrate(f, a, b) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:kinji",
+    today: "partial:kinji",
     meaning: "area under f from a to b",
     wave: 0,
     origin: "G"
@@ -54,7 +54,7 @@ verb(
     shape: "interpolate(points, x) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:kinji",
+    today: "partial:kinji",
     meaning: "a value between known points",
     wave: 0,
     origin: "G"
@@ -69,7 +69,7 @@ verb(
     shape: "minimize(f, start) -> point",
     laterals: [],
     fleet: nil,
-    today: "exists:kinji",
+    today: "partial:kinji",
     meaning: "a point where f is least",
     wave: 0,
     origin: "G"
@@ -84,7 +84,7 @@ verb(
     shape: "zero(f, bracket) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:kinji",
+    today: "partial:kinji",
     meaning: "where f is zero in a bracket",
     wave: 0,
     origin: "G"

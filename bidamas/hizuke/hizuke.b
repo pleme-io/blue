@@ -883,3 +883,36 @@ test "ISO formatting is fixed width"
   assert format_iso_date(easter(2024)) == "2024-03-31"
   assert format_iso_date(add_days(2023, 12, 31, 1)) == "2024-01-01"
 end
+
+def leap?(year)
+  is_leap(year)
+end
+
+def days_in(year, month)
+  days_in_month(year, month)
+end
+
+def nth_weekday(year, month, weekday, n)
+  nth_weekday_of_month(year, month, weekday, n)
+end
+
+test "leap? follows the century rule"
+  assert leap?(2000)
+  assert leap?(2024)
+  assert not leap?(1900)
+  assert not leap?(2023)
+end
+
+test "days_in gives each month its length"
+  assert days_in(2024, 2) == 29
+  assert days_in(2023, 2) == 28
+  assert days_in(2023, 4) == 30
+  assert days_in(2023, 1) == 31
+end
+
+test "nth_weekday counts weekdays from the first of the month"
+  assert nth_weekday(2024, 5, 1, 1) == [2024, 5, 6]
+  assert nth_weekday(2024, 5, 1, 2) == [2024, 5, 13]
+  assert nth_weekday(2024, 5, 3, 1) == [2024, 5, 1]
+  assert nth_weekday(2024, 5, 1, 1) == nth_weekday_of_month(2024, 5, 1, 1)
+end

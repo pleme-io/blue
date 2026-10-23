@@ -188,7 +188,7 @@ verb(
     shape: "hash?(text, algorithm) -> Bool",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:shomei",
+    today: "partial:shomei",
     meaning: "text has the shape of a digest",
     wave: 0,
     origin: "D"
@@ -263,7 +263,7 @@ verb(
     shape: "keypair(seed) -> record",
     laterals: ["error", "validate"],
     fleet: "tameshi",
-    today: "exists:shomei",
+    today: "partial:shomei",
     meaning: "signing key and public key from a seed",
     wave: 0,
     origin: "D"

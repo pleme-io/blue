@@ -53,7 +53,7 @@ verb(
     shape: "concat(lists) -> list",
     laterals: [],
     fleet: "tatara-lisp-script",
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "lists joined end to end",
     wave: 0,
     origin: "A"
@@ -68,7 +68,7 @@ verb(
     shape: "contains?(list, item) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "whether an equal item is in the list",
     wave: 0,
     origin: "A"
@@ -83,7 +83,7 @@ verb(
     shape: "count(list, f) -> int",
     laterals: [],
     fleet: nil,
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "number of items where f holds",
     wave: 0,
     origin: "A"
@@ -98,7 +98,7 @@ verb(
     shape: "drop(list, n) -> list",
     laterals: [],
     fleet: "tatara-lisp-script",
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "all but the first n items",
     wave: 0,
     origin: "A"
@@ -143,7 +143,7 @@ verb(
     shape: "empty?(list) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "whether the list has no items",
     wave: 0,
     origin: "A"
@@ -173,7 +173,7 @@ verb(
     shape: "find(list, f) -> item or nil",
     laterals: [],
     fleet: nil,
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "first item where f holds",
     wave: 0,
     origin: "A"
@@ -218,7 +218,7 @@ verb(
     shape: "flatten(list, depth) -> list",
     laterals: [],
     fleet: "tatara-lisp-script",
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "nested lists to one level",
     wave: 0,
     origin: "A",
@@ -234,7 +234,7 @@ verb(
     shape: "group_by(list, f) -> map",
     laterals: [],
     fleet: nil,
-    today: "exists:shuugou",
+    today: "partial:shuugou",
     meaning: "items grouped under the key f gives",
     wave: 0,
     origin: "A"
@@ -400,7 +400,7 @@ verb(
     shape: "remove(list, index) -> list",
     laterals: [],
     fleet: nil,
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "new list without the item at an index",
     wave: 0,
     origin: "A"
@@ -522,7 +522,7 @@ verb(
     shape: "take(list, n) -> list",
     laterals: [],
     fleet: "tatara-lisp-script",
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "the first n items",
     wave: 0,
     origin: "A"
@@ -552,7 +552,7 @@ verb(
     shape: "tally(list) -> map",
     laterals: [],
     fleet: nil,
-    today: "exists:toukei",
+    today: "partial:toukei",
     meaning: "how often each item occurs",
     wave: 0,
     origin: "A"
@@ -567,7 +567,7 @@ verb(
     shape: "turn(list, n) -> list",
     laterals: [],
     fleet: nil,
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "items moved n places, wrapping around",
     wave: 0,
     origin: "A"
@@ -582,7 +582,7 @@ verb(
     shape: "unique(list) -> list",
     laterals: [],
     fleet: "tatara-lisp-script",
-    today: "exists:shuugou",
+    today: "partial:shuugou",
     meaning: "first of each equal item, order kept",
     wave: 0,
     origin: "A"
@@ -612,7 +612,7 @@ verb(
     shape: "update(list, index, f) -> list",
     laterals: ["error"],
     fleet: nil,
-    today: "exists:retsu",
+    today: "partial:retsu",
     meaning: "new list with f applied at an index",
     wave: 0,
     origin: "A"

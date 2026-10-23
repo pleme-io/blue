@@ -83,7 +83,7 @@ verb(
     shape: "measure(mesh, metric) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:rittai",
+    today: "partial:rittai",
     meaning: "volume, surface area or mass of a mesh",
     wave: 0,
     origin: "G"
@@ -143,7 +143,7 @@ verb(
     shape: "render(mesh, format) -> text",
     laterals: ["serialize"],
     fleet: nil,
-    today: "exists:rittai",
+    today: "partial:rittai",
     meaning: "a mesh as STL text",
     wave: 0,
     origin: "G"
@@ -158,7 +158,7 @@ verb(
     shape: "shift(mesh, by) -> mesh",
     laterals: [],
     fleet: nil,
-    today: "exists:rittai",
+    today: "partial:rittai",
     meaning: "mesh moved by a vector",
     wave: 0,
     origin: "A"

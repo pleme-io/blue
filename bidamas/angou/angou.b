@@ -947,3 +947,53 @@ test "caesar falls to a frequency attack with no key at all"
   assert nth(0, caesar_candidates("abc")) == "abc"
   assert nth(1, caesar_candidates("abc")) == "zab"
 end
+
+def prime?(n)
+  is_prime(n)
+end
+
+def power_mod(base, exponent, modulus)
+  mod_pow(base, exponent, modulus)
+end
+
+def factor(n)
+  prime_factors(n)
+end
+
+def frequency(text)
+  letter_counts(text)
+end
+
+def period(a, modulus)
+  multiplicative_order(a, modulus)
+end
+
+test "prime? and factor answer for the edge numbers"
+  assert prime?(7)
+  assert not prime?(9)
+  assert not prime?(1)
+  assert not prime?(0)
+  assert factor(12) == [2, 2, 3]
+  assert factor(13) == [13]
+  assert factor(1) == []
+  assert factor(0) == []
+end
+
+test "power_mod and period take the modular route"
+  assert power_mod(2, 10, 1000) == 24
+  assert power_mod(5, 0, 7) == 1
+  assert power_mod(3, 200, 13) == mod_pow(3, 200, 13)
+  assert period(2, 7) == 3
+  assert period(2, 4) == -1
+  assert period(3, 1) == 1
+end
+
+test "frequency counts a to z and nothing else"
+  f = frequency("aAb!")
+  assert size(f) == 26
+  assert nth(0, f) == 2
+  assert nth(1, f) == 1
+  assert nth(2, f) == 0
+  assert frequency("") == frequency("123")
+  assert nth(0, frequency("")) == 0
+end

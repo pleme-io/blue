@@ -1,0 +1,6 @@
+region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave	contract_shape	conforms
+T	moji	lower	pure	lower(text) -> text	-	-	exists:moji	text in lower case	0	lower(text) -> text	yes
+T	moji	nothere	pure	nothere(text) -> text	-	-	exists:moji	a name no bidama defines	0	nothere(text) -> text	yes
+T	moji	ghost	pure	ghost(text) -> text	-	-	partial:moji	an unbound row marked partial	0	ghost(text) -> text	yes
+T	moji	void	pure	void(text) -> text	-	-	absent	an unbound row marked absent	0	void(text) -> text	yes
+T	gauge?	gauge	pure	gauge(text) -> text	-	-	exists:moji	a provisional space is never probed	0	gauge(text) -> text	yes

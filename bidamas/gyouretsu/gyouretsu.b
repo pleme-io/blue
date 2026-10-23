@@ -833,3 +833,37 @@ test "replace_col"
   # Replacing a column with itself is the identity.
   assert replace_col(m, 1, col(m, 1)) == m
 end
+
+def cross(a, b)
+  cross_product(a, b)
+end
+
+def power(m, n)
+  matrix_power(m, n)
+end
+
+def multiply(a, b)
+  matmul(a, b)
+end
+
+def eye(n)
+  identity_matrix(n)
+end
+
+def diagsum(m)
+  trace(m)
+end
+
+test "cross, power, multiply, eye and diagsum bind the matrix verbs"
+  assert cross([1, 0, 0], [0, 1, 0]) == [0, 0, 1]
+  assert cross([0, 1, 0], [1, 0, 0]) == [0, 0, -1]
+  assert cross([2, 2, 2], [2, 2, 2]) == [0, 0, 0]
+  assert power([[1, 1], [0, 1]], 3) == [[1, 3], [0, 1]]
+  assert power([[1, 1], [0, 1]], 0) == [[1, 0], [0, 1]]
+  assert multiply([[1, 2], [3, 4]], [[5, 6], [7, 8]]) == [[19, 22], [43, 50]]
+  assert multiply([[1, 2], [3, 4]], eye(2)) == [[1, 2], [3, 4]]
+  assert eye(3) == [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+  assert eye(0) == []
+  assert diagsum([[1, 2], [3, 4]]) == 5
+  assert diagsum(eye(4)) == 4
+end

@@ -8,7 +8,7 @@ verb(
     shape: "find(tree, query) -> [node]",
     laterals: [],
     fleet: "nikkusu",
-    today: "exists:nikkusu",
+    today: "partial:nikkusu",
     meaning: "nodes matching a call head, attrpath or path",
     wave: 0,
     origin: "E"
@@ -23,7 +23,7 @@ verb(
     shape: "get(tree, attrpath) -> node or nil",
     laterals: [],
     fleet: "nikkusu",
-    today: "exists:nikkusu",
+    today: "partial:nikkusu",
     meaning: "the binding at an attribute path",
     wave: 0,
     origin: "E"
@@ -38,7 +38,7 @@ verb(
     shape: "parse(text) -> tree",
     laterals: ["error"],
     fleet: "nikkusu",
-    today: "exists:nikkusu",
+    today: "partial:nikkusu",
     meaning: "nix source as a lossless tree",
     wave: 0,
     origin: "E"

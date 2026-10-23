@@ -8,7 +8,7 @@ verb(
     shape: "check(repo, config) -> [finding]",
     laterals: ["test", "validate"],
     fleet: "kijun",
-    today: "exists:kijun",
+    today: "partial:kijun",
     meaning: "hold a repo to its standard, findings as data",
     wave: 0,
     origin: "E"
@@ -53,7 +53,7 @@ verb(
     shape: "ratchet(findings, baseline) -> verdict",
     laterals: ["serialize", "validate"],
     fleet: "hadome",
-    today: "exists:hadome",
+    today: "partial:hadome",
     meaning: "recorded debt may shrink or hold, never grow",
     wave: 0,
     origin: "E"

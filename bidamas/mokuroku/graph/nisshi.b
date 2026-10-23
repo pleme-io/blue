@@ -38,7 +38,7 @@ verb(
     shape: "at(log, entity, seq) -> state",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:nisshi",
+    today: "partial:nisshi",
     meaning: "an entity's state after a given record",
     wave: 0,
     origin: "D",
@@ -204,7 +204,7 @@ verb(
     shape: "first_break(log) -> break or nil",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:nisshi",
+    today: "partial:nisshi",
     meaning: "the first line where the chain fails, with why",
     wave: 0,
     origin: "B"
@@ -445,7 +445,7 @@ verb(
     shape: "replay(log, definition) -> states",
     laterals: ["deadline", "error", "migrate", "validate"],
     fleet: nil,
-    today: "exists:nisshi",
+    today: "partial:nisshi",
     meaning: "fold records into the states they imply",
     wave: 0,
     origin: "D"
@@ -611,7 +611,7 @@ verb(
     shape: "verify?(log) -> Bool",
     laterals: ["error", "serialize", "validate"],
     fleet: nil,
-    today: "exists:nisshi",
+    today: "partial:nisshi",
     meaning: "whether every hash link and signature holds",
     wave: 0,
     origin: "B"

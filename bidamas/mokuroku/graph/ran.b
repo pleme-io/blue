@@ -8,7 +8,7 @@ verb(
     shape: "draw(seed, kind) -> {value, seed}",
     laterals: [],
     fleet: nil,
-    today: "exists:ran",
+    today: "partial:ran",
     meaning: "the next random value and the next seed",
     wave: 0,
     origin: "G"
@@ -23,7 +23,7 @@ verb(
     shape: "fork(seed, label) -> seed",
     laterals: [],
     fleet: nil,
-    today: "exists:ran",
+    today: "partial:ran",
     meaning: "a new independent seed from a parent seed",
     wave: 0,
     origin: "G"
@@ -83,7 +83,7 @@ verb(
     shape: "walk(seed, steps, opts) -> path",
     laterals: [],
     fleet: nil,
-    today: "exists:ran",
+    today: "partial:ran",
     meaning: "a seeded random walk",
     wave: 0,
     origin: "G",

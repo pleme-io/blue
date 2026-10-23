@@ -750,3 +750,15 @@ test "keyed sorts order by string keys as well as numbers"
   # merge_sort had the same `<=` and the same failure on words.
   assert merge_sort(["kazu", "angou", "retsu"]) == ["angou", "kazu", "retsu"]
 end
+
+def merge(a, b)
+  merge_sorted(a, b)
+end
+
+test "merge joins two sorted lists and keeps the left on ties"
+  assert merge([1, 3], [2, 4]) == [1, 2, 3, 4]
+  assert merge([], [1]) == [1]
+  assert merge([1], []) == [1]
+  assert merge([], []) == []
+  assert merge([1, 1], [1]) == [1, 1, 1]
+end

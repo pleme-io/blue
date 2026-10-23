@@ -23,7 +23,7 @@ verb(
     shape: "chord(root, kind) -> notes",
     laterals: [],
     fleet: nil,
-    today: "exists:ongaku",
+    today: "partial:ongaku",
     meaning: "the notes of a chord from a root",
     wave: 0,
     origin: "G"
@@ -38,7 +38,7 @@ verb(
     shape: "hz(note) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:ongaku",
+    today: "partial:ongaku",
     meaning: "the frequency of a MIDI note",
     wave: 0,
     origin: "G"
@@ -53,7 +53,7 @@ verb(
     shape: "notes(root, kind) -> notes",
     laterals: [],
     fleet: nil,
-    today: "exists:ongaku",
+    today: "partial:ongaku",
     meaning: "the notes of a scale from a root",
     wave: 0,
     origin: "G"

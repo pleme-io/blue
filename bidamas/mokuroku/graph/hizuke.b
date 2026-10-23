@@ -23,7 +23,7 @@ verb(
     shape: "business_day?(date, calendar) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:hizuke",
+    today: "partial:hizuke",
     meaning: "whether work happens on the date",
     wave: 0,
     origin: "A"
@@ -218,7 +218,7 @@ verb(
     shape: "weekday_of(date) -> symbol",
     laterals: [],
     fleet: nil,
-    today: "exists:hizuke",
+    today: "partial:hizuke",
     meaning: "day of the week of a date",
     wave: 0,
     origin: "A"
@@ -233,7 +233,7 @@ verb(
     shape: "weekend?(date) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:hizuke",
+    today: "partial:hizuke",
     meaning: "whether the date is Saturday or Sunday",
     wave: 0,
     origin: "A"

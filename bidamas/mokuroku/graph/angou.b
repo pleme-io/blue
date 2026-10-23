@@ -8,7 +8,7 @@ verb(
     shape: "bezout(a, b) -> record",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:angou",
+    today: "partial:angou",
     meaning: "gcd with the coefficients that build it",
     wave: 0,
     origin: "D"
@@ -53,7 +53,7 @@ verb(
     shape: "decipher(text, key, cipher) -> text",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:angou",
+    today: "partial:angou",
     meaning: "classical cipher backward",
     wave: 0,
     origin: "D"
@@ -83,7 +83,7 @@ verb(
     shape: "encipher(text, key, cipher) -> text",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:angou",
+    today: "partial:angou",
     meaning: "classical cipher forward: caesar, vigenere, atbash, rail fence, substitution",
     wave: 0,
     origin: "D"
@@ -128,7 +128,7 @@ verb(
     shape: "inverse_mod(a, modulus) -> int or nil",
     laterals: ["validate"],
     fleet: nil,
-    today: "exists:angou",
+    today: "partial:angou",
     meaning: "multiplicative inverse, nil when none exists",
     wave: 0,
     origin: "D"

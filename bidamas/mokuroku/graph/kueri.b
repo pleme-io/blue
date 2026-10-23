@@ -8,7 +8,7 @@ verb(
     shape: "asof_join(left, right, on) -> plan",
     laterals: ["validate"],
     fleet: "kueri",
-    today: "exists:kueri",
+    today: "partial:kueri",
     meaning: "join each left row to the nearest earlier right row",
     wave: 0,
     origin: "A"
@@ -143,7 +143,7 @@ verb(
     shape: "from(source, opts) -> plan",
     laterals: ["validate"],
     fleet: "kueri",
-    today: "exists:kueri",
+    today: "partial:kueri",
     meaning: "start a plan from a table, file or plan",
     wave: 0,
     origin: "A"
@@ -371,7 +371,7 @@ verb(
     shape: "take(plan, n, opts) -> plan",
     laterals: ["validate"],
     fleet: "kueri",
-    today: "exists:kueri",
+    today: "partial:kueri",
     meaning: "keep the first n rows",
     wave: 0,
     origin: "A",

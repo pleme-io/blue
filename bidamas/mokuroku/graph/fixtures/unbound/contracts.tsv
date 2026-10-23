@@ -1,0 +1,6 @@
+verb	subject	args	opts	returns	raises	kind	meaning	stdlib_ref	status
+lower	text	text	no	text		pure	text in lower case	-	decided
+nothere	text	text	no	text		pure	a name	-	decided
+ghost	text	text	no	text		pure	a ghost	-	decided
+void	text	text	no	text		pure	a void	-	decided
+gauge	text	text	no	text		pure	a gauge	-	decided

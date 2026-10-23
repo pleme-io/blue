@@ -98,7 +98,7 @@ verb(
     shape: "render(sheet, format) -> text",
     laterals: ["serialize"],
     fleet: nil,
-    today: "exists:zumen",
+    today: "partial:zumen",
     meaning: "a sheet as SVG or DXF text",
     wave: 0,
     origin: "G"

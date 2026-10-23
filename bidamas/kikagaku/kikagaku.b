@@ -1325,3 +1325,26 @@ test "invalid regions are refused, naming the hole"
   ok = region(outline, [rect_polygon(2, 2, 10, 10)])
   assert is_empty(region_refusals(ok)) == true
 end
+
+def hull(points)
+  convex_hull(points)
+end
+
+def overlap?(a, b)
+  polygons_overlap(a, b)
+end
+
+test "hull drops interior points and leaves short lists alone"
+  assert hull([]) == []
+  assert hull([[0, 0], [1, 0]]) == [[0, 0], [1, 0]]
+  assert size(hull([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2]])) == 4
+  assert hull(hull([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2]])) ==
+    hull([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2]])
+end
+
+test "overlap? is true for shared area and false for a gap"
+  square = [[0, 0], [2, 0], [2, 2], [0, 2]]
+  assert overlap?(square, [[1, 1], [3, 1], [3, 3], [1, 3]])
+  assert overlap?(square, [[0.5, 0.5], [1, 0.5], [1, 1], [0.5, 1]])
+  assert not overlap?(square, [[5, 5], [6, 5], [6, 6], [5, 6]])
+end

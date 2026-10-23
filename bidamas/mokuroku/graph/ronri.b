@@ -113,7 +113,7 @@ verb(
     shape: "not(f) -> function",
     laterals: [],
     fleet: nil,
-    today: "exists:ronri",
+    today: "partial:ronri",
     meaning: "predicate that holds when f does not",
     wave: 0,
     origin: "A"

@@ -98,7 +98,7 @@ verb(
     shape: "contains?(text, needle) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:moji",
+    today: "partial:moji",
     meaning: "whether a string or pattern occurs in the text",
     wave: 0,
     origin: "A"
@@ -113,7 +113,7 @@ verb(
     shape: "count(text, needle) -> int",
     laterals: [],
     fleet: nil,
-    today: "exists:moji",
+    today: "partial:moji",
     meaning: "number of non-overlapping occurrences",
     wave: 0,
     origin: "A"
@@ -158,7 +158,7 @@ verb(
     shape: "ends_with?(text, suffix) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:moji",
+    today: "partial:moji",
     meaning: "whether the text ends with the suffix",
     wave: 0,
     origin: "A"
@@ -354,7 +354,7 @@ verb(
     shape: "pad(text, width, opts) -> text",
     laterals: [],
     fleet: nil,
-    today: "exists:moji",
+    today: "partial:moji",
     meaning: "extend text to a width on a chosen side",
     wave: 0,
     origin: "A"
@@ -384,7 +384,7 @@ verb(
     shape: "repeat(text, n) -> text",
     laterals: [],
     fleet: "tatara-lisp-script",
-    today: "exists:moji",
+    today: "partial:moji",
     meaning: "text repeated n times",
     wave: 0,
     origin: "A"
@@ -504,7 +504,7 @@ verb(
     shape: "starts_with?(text, prefix) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:moji",
+    today: "partial:moji",
     meaning: "whether the text begins with the prefix",
     wave: 0,
     origin: "A"
@@ -654,7 +654,7 @@ verb(
     shape: "wrap(text, width) -> [text]",
     laterals: [],
     fleet: nil,
-    today: "exists:moji",
+    today: "partial:moji",
     meaning: "break text into lines of at most a width",
     wave: 0,
     origin: "A"

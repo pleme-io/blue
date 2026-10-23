@@ -83,7 +83,7 @@ verb(
     shape: "describe(xs) -> summary",
     laterals: [],
     fleet: nil,
-    today: "exists:toukei",
+    today: "partial:toukei",
     meaning: "count, mean, spread and quartiles",
     wave: 0,
     origin: "G"
@@ -324,7 +324,7 @@ verb(
     shape: "summary(numbers) -> record",
     laterals: [],
     fleet: nil,
-    today: "exists:toukei",
+    today: "partial:toukei",
     meaning: "count, extremes, quartiles, mean and spread",
     wave: 0,
     origin: "A"

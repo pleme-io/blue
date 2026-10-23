@@ -68,7 +68,7 @@ verb(
     shape: "search(list, item) -> int or nil",
     laterals: [],
     fleet: nil,
-    today: "exists:junjo",
+    today: "partial:junjo",
     meaning: "binary search in a sorted list",
     wave: 0,
     origin: "A"
@@ -114,7 +114,7 @@ verb(
     shape: "sorted?(list, opts) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:junjo",
+    today: "partial:junjo",
     meaning: "whether the list is in order",
     wave: 0,
     origin: "A"
@@ -129,7 +129,7 @@ verb(
     shape: "top(list, n, opts) -> list",
     laterals: [],
     fleet: nil,
-    today: "exists:junjo",
+    today: "partial:junjo",
     meaning: "the n greatest items",
     wave: 0,
     origin: "A"

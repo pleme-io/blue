@@ -8,7 +8,7 @@ verb(
     shape: "check(service, row) -> [refusal]",
     laterals: ["validate"],
     fleet: "haibi",
-    today: "exists:haibi",
+    today: "partial:haibi",
     meaning: "refuse a row that breaks the declared table",
     wave: 0,
     origin: "E"
@@ -38,7 +38,7 @@ verb(
     shape: "render(service, opts) -> [file]",
     laterals: ["serialize", "validate"],
     fleet: "haibi",
-    today: "exists:haibi",
+    today: "partial:haibi",
     meaning: "chart, values, schema and rules from one service spec",
     wave: 0,
     origin: "E"
@@ -53,7 +53,7 @@ verb(
     shape: "schema(service) -> schema",
     laterals: ["validate"],
     fleet: "haibi",
-    today: "exists:haibi",
+    today: "partial:haibi",
     meaning: "values.schema.json from the service defaults",
     wave: 0,
     origin: "E"

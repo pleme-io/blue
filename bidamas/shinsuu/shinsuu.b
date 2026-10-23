@@ -1141,3 +1141,13 @@ test "the ISBN-10 check character, including the X case"
   ) ==
     0
 end
+
+def luhn?(n)
+  luhn_valid(n)
+end
+
+test "luhn? accepts a valid number and rejects a changed digit"
+  assert luhn?(79_927_398_713)
+  assert not luhn?(79_927_398_710)
+  assert luhn?(0)
+end

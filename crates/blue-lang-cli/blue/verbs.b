@@ -4,6 +4,7 @@ use(
     :edges_tsv,
     :graph_baseline,
     :graph_findings,
+    :graph_findings_live,
     :graph_from_tsv,
     :graph_load,
     :graph_shrunk,
@@ -226,7 +227,7 @@ def do_check(args)
     show_refusals(get(g, :refusals))
     false
   else
-    findings = graph_findings(g)
+    findings = graph_findings_live(g, self_exe)
     if has_flag(args, "--record")
       write_file(baseline, graph_baseline(findings))
       write_stdout("recorded #{to_s(size(findings))} findings in #{baseline}\n")

@@ -8,7 +8,7 @@ verb(
     shape: "angle(a, b, c) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "angle at b between a and c",
     wave: 0,
     origin: "A"
@@ -23,7 +23,7 @@ verb(
     shape: "area(shape) -> number",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "area of a polygon, circle or region",
     wave: 0,
     origin: "A"
@@ -38,7 +38,7 @@ verb(
     shape: "bounds(shape) -> box",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "smallest axis-aligned box around a shape",
     wave: 0,
     origin: "A"
@@ -68,7 +68,7 @@ verb(
     shape: "closest(shape, point) -> point",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "point of a shape nearest to a point",
     wave: 0,
     origin: "A"
@@ -83,7 +83,7 @@ verb(
     shape: "contains?(shape, point) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "whether a point is inside a shape",
     wave: 0,
     origin: "A"
@@ -158,7 +158,7 @@ verb(
     shape: "intersect(a, b) -> point or nil",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "where two segments cross",
     wave: 0,
     origin: "A"
@@ -218,7 +218,7 @@ verb(
     shape: "scale(shape, factor, about) -> shape",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "shape grown or shrunk about a point",
     wave: 0,
     origin: "A",
@@ -234,7 +234,7 @@ verb(
     shape: "shift(shape, by) -> shape",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "shape moved by a vector",
     wave: 0,
     origin: "A"
@@ -249,7 +249,7 @@ verb(
     shape: "turn(shape, angle, about) -> shape",
     laterals: [],
     fleet: nil,
-    today: "exists:kikagaku",
+    today: "partial:kikagaku",
     meaning: "shape turned about a point",
     wave: 0,
     origin: "A"

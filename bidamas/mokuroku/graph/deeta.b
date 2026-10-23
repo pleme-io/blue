@@ -144,7 +144,7 @@ verb(
     shape: "get(doc, path, opts) -> value or nil",
     laterals: [],
     fleet: nil,
-    today: "exists:deeta",
+    today: "partial:deeta",
     meaning: "value at a dotted path, nil when absent",
     wave: 0,
     origin: "A"

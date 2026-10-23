@@ -534,3 +534,14 @@ test "percent and percent_change, where the denominator is the trap"
   assert percent_change(100, 100) == 0
   assert percent_change(100, 200) == 100
 end
+
+def signum(n)
+  sign(n)
+end
+
+test "signum is minus one, zero or one"
+  assert signum(-5) == -1
+  assert signum(0) == 0
+  assert signum(7) == 1
+  assert signum(-0.5) == -1
+end

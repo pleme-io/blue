@@ -3,13 +3,15 @@ use(
   [
     :blue_path_roots,
     :graph_findings,
+    :graph_findings_live,
     :graph_from_tsv,
     :graph_load,
-    :graph_verdict
+    :graph_verdict,
+    :unbound_probe
   ]
 )
 
-use("retsu", [:find_first, :size])
+use("retsu", [:find_first, :reject, :size])
 
 def graph_home()
   here = find_first(
@@ -48,7 +50,7 @@ end
 test "the committed graph breaks no gate beyond the debt it recorded"
   g = graph_load(graph_home)
   baseline = read_file(path_join(graph_home, "graph.baseline"))
-  found = graph_findings(g)
+  found = graph_findings_live(g, self_exe)
   assert size(found) > 0
   assert graph_verdict(found, baseline) == []
 end
@@ -70,4 +72,37 @@ end
 test "the same fixture with its bad rows removed breaks no gate"
   assert lines_of(fixture("green")) == []
   assert get(fixture("green"), :refusals) == []
+end
+
+def live_lines_of(g)
+  map(
+    (f) -> "#{get(f, :kind)}\t#{get(f, :subject)}",
+    graph_findings_live(g, self_exe)
+  )
+end
+
+test "every exists row of the committed graph resolves in a live interpreter"
+  g = graph_load(graph_home)
+  assert unbound_probe(g, self_exe) == []
+end
+
+test "one exists row no bidama defines is named by the live probe, and no other row is"
+  assert live_lines_of(fixture("unbound")) == ["g10-unbound\tmoji::nothere"]
+end
+
+test "the same fixture with its unbound row removed breaks no gate"
+  g = fixture("unbound")
+  kept = assoc(
+    g,
+    :verbs,
+    reject((r) -> get(r, :verb) == "nothere", get(g, :verbs))
+  )
+  assert live_lines_of(kept) == []
+end
+
+test "a probe with no blue to run it raises instead of reporting nothing"
+  r = unbound_probe(fixture("unbound"), nil) rescue "caught"
+  assert r == "caught"
+  s = unbound_probe(fixture("unbound"), "/nonexistent/blue") rescue "caught"
+  assert s == "caught"
 end

@@ -1325,3 +1325,14 @@ test "the commas — why twelve pure fifths cannot close the circle"
   # Twelve TEMPERED fifths close exactly. That is the whole trade.
   assert near(cents_of_ratio(expt(equal_ratio(7), 12) / expt(2, 7)), 0) == true
 end
+
+def transpose(notes, semitones)
+  transpose_all(notes, semitones)
+end
+
+test "transpose moves every note and wraps the octave"
+  assert transpose([0, 4, 7], 2) == [2, 6, 9]
+  assert transpose([], 3) == []
+  assert transpose([10], 5) == [3]
+  assert transpose([0, 4, 7], 0) == [0, 4, 7]
+end

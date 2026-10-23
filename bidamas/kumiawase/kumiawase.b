@@ -770,3 +770,15 @@ test "pascal triangle rows, and the recurrence between them"
   assert combinations(2, 2) + combinations(3, 2) + combinations(4, 2) ==
     combinations(5, 3)
 end
+
+def choose(n, k)
+  binomial(n, k)
+end
+
+test "choose is the binomial coefficient"
+  assert choose(5, 2) == 10
+  assert choose(5, 0) == 1
+  assert choose(5, 5) == 1
+  assert choose(0, 0) == 1
+  assert choose(5, 6) == 0
+end

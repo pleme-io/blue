@@ -3543,7 +3543,7 @@ end
 def fixtures(dir)
   roots = append(
     split(getenv("BLUE_PATH", ""), ":"),
-    [path_join(cwd, "bidamas"), cwd]
+    [path_join(cwd, "bidamas"), path_join(cwd, "../../bidamas"), cwd]
   )
   hits = filter(
     (p) -> is_dir?(p),

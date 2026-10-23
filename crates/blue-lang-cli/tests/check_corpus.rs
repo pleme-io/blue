@@ -158,6 +158,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
         [
             "anaritikusu.read",
             "chokkan.read",
+            "danpen.compose",
             "gitto.create",
             "gitto.delete",
             "gitto.diff",

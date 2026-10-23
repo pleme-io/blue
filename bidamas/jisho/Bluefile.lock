@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:c0003f5c1d7893f77456178a6fd847f2c54215a927f69bc191d1fd90366d65b6",
+  "manifest": {
+    "schema": 1,
+    "name": "jisho",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -156,6 +156,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
     assert_eq!(
         replaces_value,
         [
+            "jisho.empty?",
             "kansuu.compose",
             "kansuu.flip",
             "kansuu.identity",

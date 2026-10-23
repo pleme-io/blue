@@ -241,7 +241,7 @@ Higher binding power binds tighter.
 | `boolean?` | `boolean?(x)` | 1 | The same as bool?. |
 | `cast` | `cast(type, x)` | 2 | x checked against, or narrowed to, the type a keyword names: cast(:float, 5) is 5.0. Type first. |
 | `chan?` | `chan?(x)` | 1 | Whether x is a channel. |
-| `empty?` | `empty?(xs)` | 1 | Whether xs is nil or has no elements. |
+| `empty?` | `empty?(xs)` | 1 | Whether xs is nil or has no elements. Also defined by `jisho` (`jisho::empty?`): a file that lists it gets that one. |
 | `eq?` | `eq?(a, b)` | 2 | Identity: true for the same keyword or string, false for two equal lists. Use ==. |
 | `equal?` | `equal?(a, b)` | 2 | Structural equality; what == lowers to. |
 | `even?` | `even?(n)` | 1 | Whether n is even. |

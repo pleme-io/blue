@@ -8,7 +8,7 @@ verb(
     shape: "delete(map, key) -> map",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "new map without the key",
     wave: 0,
     origin: "A"
@@ -23,7 +23,7 @@ verb(
     shape: "empty?(map) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "whether the map has no entries",
     wave: 0,
     origin: "A"
@@ -38,7 +38,7 @@ verb(
     shape: "entries(map) -> [pair]",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "key and value pairs in key order",
     wave: 0,
     origin: "A"
@@ -68,7 +68,7 @@ verb(
     shape: "from_entries(pairs) -> map",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "map built from key and value pairs",
     wave: 0,
     origin: "A"
@@ -98,7 +98,7 @@ verb(
     shape: "has?(map, key) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "whether the key is present",
     wave: 0,
     origin: "A"
@@ -128,7 +128,7 @@ verb(
     shape: "keys(map) -> [key]",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "keys in sorted order",
     wave: 0,
     origin: "A"
@@ -173,7 +173,7 @@ verb(
     shape: "merge(a, b, opts) -> map",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "partial",
     meaning: "new map from a and b; b wins",
     wave: 0,
     origin: "A"
@@ -188,7 +188,7 @@ verb(
     shape: "need(map, key) -> value",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "value at key, raises not_found when absent",
     wave: 0,
     origin: "A"
@@ -218,7 +218,7 @@ verb(
     shape: "put(map, key, value) -> map",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "new map with key set",
     wave: 0,
     origin: "A"
@@ -248,7 +248,7 @@ verb(
     shape: "select(map, keys) -> map",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "keep only the listed keys",
     wave: 0,
     origin: "A"
@@ -263,7 +263,7 @@ verb(
     shape: "size(map) -> int",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "number of entries",
     wave: 0,
     origin: "A"
@@ -278,7 +278,7 @@ verb(
     shape: "update(map, key, f) -> map",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "new map with f applied to the value at key",
     wave: 0,
     origin: "A"
@@ -293,7 +293,7 @@ verb(
     shape: "values(map) -> [value]",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists",
     meaning: "values in key order",
     wave: 0,
     origin: "A"

@@ -1,13 +1,12 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "8145b5dc0ab57fb0d4619a4f4ec7ee6f381b834f2d6063103c3f3f7b10996c5f",
+  "cargo_lock_sha256": "1e6ab18ff6116760dadc72191c3ae689e20723f803fd7ac80e80f816e5335f25",
   "manifest_sha256": {
-    "Cargo.toml": "31ee9e6bf7016cd322f1765cec9aee21221b423034e640c4dd86e63afa3a9bc3",
+    "Cargo.toml": "81273398867ed99d01e98b6100303aee22a23d8830b59f3aeaed4054b04a5dab",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
     "crates/blue-lang-cli/Cargo.toml": "05f3347b2d57026af0f7e20aa21a8db9b17c4cb787c02709bfd2630684d03e1c",
-    "crates/blue-lang-danpen-diff/Cargo.toml": "f18179507ad07c53971b1b39bec38ccb9f4b8db78e3ba5e2444933f32a8508b7",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-host-macros/Cargo.toml": "f8efb27bcf0512036b610e3c3d54b0d237f00c812e8a29e0c3adaaa662e74d60",
     "crates/blue-lang-host/Cargo.toml": "515be2b89363222cc6fc71b8f74adfe6fa56b92a3f013cac979909eb6a2ecaa2",
@@ -24,91 +23,6 @@
   },
   "target_resolves": {
     "base": {
-      "ahash-0.8.12": {
-        "runtime_dependencies": [
-          {
-            "name": "cfg_if",
-            "package_key": "cfg-if-1.0.4",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "getrandom",
-            "package_key": "getrandom-0.3.4",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "once_cell",
-            "package_key": "once_cell-1.21.4",
-            "kind": "normal",
-            "features": [
-              "alloc"
-            ],
-            "uses_default_features": false,
-            "optional": false,
-            "target": "cfg(not(all(target_arch = \"arm\", target_os = \"none\")))",
-            "tree": "target"
-          },
-          {
-            "name": "zerocopy",
-            "package_key": "zerocopy-0.8.55",
-            "kind": "normal",
-            "features": [
-              "simd"
-            ],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [
-          {
-            "name": "version_check",
-            "package_key": "version_check-0.9.5",
-            "kind": "build",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "host"
-          }
-        ],
-        "features": [
-          "default",
-          "getrandom",
-          "runtime-rng",
-          "std"
-        ]
-      },
-      "aho-corasick-1.1.5": {
-        "runtime_dependencies": [
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "perf-literal",
-          "std"
-        ]
-      },
       "anstream-1.0.0": {
         "runtime_dependencies": [
           {
@@ -211,164 +125,6 @@
         "build_dependencies": [],
         "features": []
       },
-      "apollo-compiler-1.33.1": {
-        "runtime_dependencies": [
-          {
-            "name": "ahash",
-            "package_key": "ahash-0.8.12",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "apollo_parser",
-            "package_key": "apollo-parser-0.8.7",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "ariadne",
-            "package_key": "ariadne-0.6.0",
-            "kind": "normal",
-            "features": [
-              "auto-color"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures",
-            "package_key": "futures-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "indexmap",
-            "package_key": "indexmap-2.14.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "rowan",
-            "package_key": "rowan-0.16.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde",
-            "package_key": "serde-1.0.229",
-            "kind": "normal",
-            "features": [
-              "derive"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde_json_bytes",
-            "package_key": "serde_json_bytes-0.2.6",
-            "kind": "normal",
-            "features": [
-              "preserve_order"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "thiserror",
-            "package_key": "thiserror-2.0.19",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "triomphe",
-            "package_key": "triomphe-0.1.17",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "typed_arena",
-            "package_key": "typed-arena-2.0.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
-      "apollo-parser-0.8.7": {
-        "runtime_dependencies": [
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "rowan",
-            "package_key": "rowan-0.16.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "thiserror",
-            "package_key": "thiserror-2.0.19",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "ar_archive_writer-0.5.3": {
         "runtime_dependencies": [
           {
@@ -408,45 +164,6 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
-      },
-      "ariadne-0.6.0": {
-        "runtime_dependencies": [
-          {
-            "name": "concolor",
-            "package_key": "concolor-0.1.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "unicode_width",
-            "package_key": "unicode-width-0.2.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "yansi",
-            "package_key": "yansi-1.0.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "auto-color",
-          "concolor"
-        ]
       },
       "arrayref-0.3.9": {
         "runtime_dependencies": [],
@@ -540,13 +257,6 @@
           "std"
         ]
       },
-      "bitflags-1.3.2": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "default"
-        ]
-      },
       "bitflags-2.13.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -570,7 +280,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-art-0.0.100": {
+      "blue-lang-art-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "irodori",
@@ -596,11 +306,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-bidama-0.0.100": {
+      "blue-lang-bidama-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.100",
+            "package_key": "blue-lang-waku-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -612,11 +322,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-check-0.0.100": {
+      "blue-lang-check-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -638,11 +348,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-cli-0.0.100": {
+      "blue-lang-cli-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_art",
-            "package_key": "blue-lang-art-0.0.100",
+            "package_key": "blue-lang-art-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -652,7 +362,7 @@
           },
           {
             "name": "blue_lang_bidama",
-            "package_key": "blue-lang-bidama-0.0.100",
+            "package_key": "blue-lang-bidama-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -662,7 +372,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.100",
+            "package_key": "blue-lang-check-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -672,7 +382,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.100",
+            "package_key": "blue-lang-fmt-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -682,7 +392,7 @@
           },
           {
             "name": "blue_lang_lsp",
-            "package_key": "blue-lang-lsp-0.0.100",
+            "package_key": "blue-lang-lsp-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -692,7 +402,7 @@
           },
           {
             "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.100",
+            "package_key": "blue-lang-pkg-0.0.101",
             "kind": "normal",
             "features": [
               "embedded"
@@ -704,7 +414,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.100",
+            "package_key": "blue-lang-proc-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -714,7 +424,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.100",
+            "package_key": "blue-lang-runtime-0.0.101",
             "kind": "normal",
             "features": [
               "sys"
@@ -726,7 +436,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -736,7 +446,7 @@
           },
           {
             "name": "blue_lang_test",
-            "package_key": "blue-lang-test-0.0.100",
+            "package_key": "blue-lang-test-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -746,7 +456,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.100",
+            "package_key": "blue-lang-waku-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -844,16 +554,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-danpen-diff-0.0.100": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": []
-      },
-      "blue-lang-fmt-0.0.100": {
+      "blue-lang-fmt-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -885,11 +590,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-host-0.0.100": {
+      "blue-lang-host-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_host_macros",
-            "package_key": "blue-lang-host-macros-0.0.100",
+            "package_key": "blue-lang-host-macros-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -899,7 +604,7 @@
           },
           {
             "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.100",
+            "package_key": "blue-lang-pkg-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -909,7 +614,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.100",
+            "package_key": "blue-lang-runtime-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -919,7 +624,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.100",
+            "package_key": "blue-lang-waku-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -964,7 +669,7 @@
           "packages"
         ]
       },
-      "blue-lang-host-macros-0.0.100": {
+      "blue-lang-host-macros-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -1002,11 +707,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-kiwari-0.0.100": {
+      "blue-lang-kiwari-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1070,11 +775,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-lsp-0.0.100": {
+      "blue-lang-lsp-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.100",
+            "package_key": "blue-lang-check-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1084,7 +789,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.100",
+            "package_key": "blue-lang-fmt-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1094,7 +799,7 @@
           },
           {
             "name": "blue_lang_mondou",
-            "package_key": "blue-lang-mondou-0.0.100",
+            "package_key": "blue-lang-mondou-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1104,7 +809,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.100",
+            "package_key": "blue-lang-runtime-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1114,7 +819,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1148,7 +853,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-mondou-0.0.100": {
+      "blue-lang-mondou-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1165,7 +870,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.100",
+            "package_key": "blue-lang-check-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1175,7 +880,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.100",
+            "package_key": "blue-lang-fmt-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1185,7 +890,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.100",
+            "package_key": "blue-lang-runtime-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1195,7 +900,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1207,11 +912,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-pkg-0.0.100": {
+      "blue-lang-pkg-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_bidama",
-            "package_key": "blue-lang-bidama-0.0.100",
+            "package_key": "blue-lang-bidama-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1221,7 +926,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.100",
+            "package_key": "blue-lang-check-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1231,7 +936,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.100",
+            "package_key": "blue-lang-fmt-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1241,7 +946,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.100",
+            "package_key": "blue-lang-runtime-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1251,7 +956,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1261,7 +966,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.100",
+            "package_key": "blue-lang-waku-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1328,11 +1033,11 @@
           "fixture"
         ]
       },
-      "blue-lang-proc-0.0.100": {
+      "blue-lang-proc-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.100",
+            "package_key": "blue-lang-waku-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1374,7 +1079,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-runtime-0.0.100": {
+      "blue-lang-runtime-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1391,7 +1096,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.100",
+            "package_key": "blue-lang-check-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1401,7 +1106,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.100",
+            "package_key": "blue-lang-fmt-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1411,7 +1116,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.100",
+            "package_key": "blue-lang-proc-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1421,7 +1126,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1431,7 +1136,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.100",
+            "package_key": "blue-lang-waku-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1553,7 +1258,7 @@
           "sys"
         ]
       },
-      "blue-lang-syntax-0.0.100": {
+      "blue-lang-syntax-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "tatara_lisp",
@@ -1569,11 +1274,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-test-0.0.100": {
+      "blue-lang-test-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.100",
+            "package_key": "blue-lang-fmt-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1583,7 +1288,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.100",
+            "package_key": "blue-lang-runtime-0.0.101",
             "kind": "normal",
             "features": [
               "sys"
@@ -1595,7 +1300,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1627,11 +1332,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-waku-0.0.100": {
+      "blue-lang-waku-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.100",
+            "package_key": "blue-lang-syntax-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1653,11 +1358,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-wasm-0.0.100": {
+      "blue-lang-wasm-0.0.101": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.100",
+            "package_key": "blue-lang-runtime-0.0.101",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1683,14 +1388,6 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
-      },
-      "bytes-1.12.1": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "std"
-        ]
       },
       "cc-1.4.0": {
         "runtime_dependencies": [
@@ -1919,56 +1616,6 @@
         "features": []
       },
       "colorchoice-1.0.5": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": []
-      },
-      "concolor-0.1.1": {
-        "runtime_dependencies": [
-          {
-            "name": "bitflags",
-            "package_key": "bitflags-1.3.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "concolor_query",
-            "package_key": "concolor-query-0.3.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "is_terminal",
-            "package_key": "is-terminal-0.4.17",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "auto",
-          "clicolor",
-          "core",
-          "interactive",
-          "no_color",
-          "std",
-          "term",
-          "windows"
-        ]
-      },
-      "concolor-query-0.3.3": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -2313,345 +1960,6 @@
         "build_dependencies": [],
         "features": [
           "default",
-          "std"
-        ]
-      },
-      "futures-0.3.34": {
-        "runtime_dependencies": [
-          {
-            "name": "futures_channel",
-            "package_key": "futures-channel-0.3.34",
-            "kind": "normal",
-            "features": [
-              "sink"
-            ],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_core",
-            "package_key": "futures-core-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_executor",
-            "package_key": "futures-executor-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_io",
-            "package_key": "futures-io-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_sink",
-            "package_key": "futures-sink-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_task",
-            "package_key": "futures-task-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_util",
-            "package_key": "futures-util-0.3.34",
-            "kind": "normal",
-            "features": [
-              "sink"
-            ],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "alloc",
-          "async-await",
-          "default",
-          "executor",
-          "futures-executor",
-          "std"
-        ]
-      },
-      "futures-channel-0.3.34": {
-        "runtime_dependencies": [
-          {
-            "name": "futures_core",
-            "package_key": "futures-core-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_sink",
-            "package_key": "futures-sink-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "alloc",
-          "futures-sink",
-          "sink",
-          "std"
-        ]
-      },
-      "futures-core-0.3.34": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "alloc",
-          "std"
-        ]
-      },
-      "futures-executor-0.3.34": {
-        "runtime_dependencies": [
-          {
-            "name": "futures_core",
-            "package_key": "futures-core-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_task",
-            "package_key": "futures-task-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_util",
-            "package_key": "futures-util-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "std"
-        ]
-      },
-      "futures-io-0.3.34": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "std"
-        ]
-      },
-      "futures-macro-0.3.34": {
-        "runtime_dependencies": [
-          {
-            "name": "proc_macro2",
-            "package_key": "proc-macro2-1.0.107",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "quote",
-            "package_key": "quote-1.0.47",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "syn",
-            "package_key": "syn-3.0.3",
-            "kind": "normal",
-            "features": [
-              "full"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
-      "futures-sink-0.3.34": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "alloc",
-          "std"
-        ]
-      },
-      "futures-task-0.3.34": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "alloc",
-          "std"
-        ]
-      },
-      "futures-util-0.3.34": {
-        "runtime_dependencies": [
-          {
-            "name": "futures_channel",
-            "package_key": "futures-channel-0.3.34",
-            "kind": "normal",
-            "features": [
-              "std"
-            ],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_core",
-            "package_key": "futures-core-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_io",
-            "package_key": "futures-io-0.3.34",
-            "kind": "normal",
-            "features": [
-              "std"
-            ],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_macro",
-            "package_key": "futures-macro-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "host"
-          },
-          {
-            "name": "futures_sink",
-            "package_key": "futures-sink-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_task",
-            "package_key": "futures-task-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "pin_project_lite",
-            "package_key": "pin-project-lite-0.2.17",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "slab",
-            "package_key": "slab-0.4.12",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "alloc",
-          "async-await",
-          "async-await-macro",
-          "channel",
-          "futures-channel",
-          "futures-io",
-          "futures-macro",
-          "futures-sink",
-          "io",
-          "memchr",
-          "sink",
-          "slab",
           "std"
         ]
       },
@@ -3293,22 +2601,6 @@
         "build_dependencies": [],
         "features": []
       },
-      "is-terminal-0.4.17": {
-        "runtime_dependencies": [
-          {
-            "name": "libc",
-            "package_key": "libc-0.2.189",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": "cfg(any(unix, target_os = \"wasi\"))",
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "is_terminal_polyfill-1.70.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -3318,62 +2610,6 @@
       },
       "itoa-1.0.18": {
         "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": []
-      },
-      "jsonpath-rust-0.3.5": {
-        "runtime_dependencies": [
-          {
-            "name": "pest",
-            "package_key": "pest-2.9.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "pest_derive",
-            "package_key": "pest_derive-2.9.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "host"
-          },
-          {
-            "name": "regex",
-            "package_key": "regex-1.13.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde_json",
-            "package_key": "serde_json-1.0.151",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "thiserror",
-            "package_key": "thiserror-1.0.69",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
         "build_dependencies": [],
         "features": []
       },
@@ -3400,7 +2636,6 @@
         "build_dependencies": [],
         "features": [
           "alloc",
-          "default",
           "std"
         ]
       },
@@ -3568,141 +2803,6 @@
         ],
         "build_dependencies": [],
         "features": []
-      },
-      "pest-2.9.2": {
-        "runtime_dependencies": [
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "ucd_trie",
-            "package_key": "ucd-trie-0.1.7",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "memchr",
-          "std"
-        ]
-      },
-      "pest_derive-2.9.2": {
-        "runtime_dependencies": [
-          {
-            "name": "pest",
-            "package_key": "pest-2.9.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "pest_generator",
-            "package_key": "pest_generator-2.9.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "std"
-        ]
-      },
-      "pest_generator-2.9.2": {
-        "runtime_dependencies": [
-          {
-            "name": "pest",
-            "package_key": "pest-2.9.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "pest_meta",
-            "package_key": "pest_meta-2.9.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "proc_macro2",
-            "package_key": "proc-macro2-1.0.107",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "quote",
-            "package_key": "quote-1.0.47",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "syn",
-            "package_key": "syn-2.0.119",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "std"
-        ]
-      },
-      "pest_meta-2.9.2": {
-        "runtime_dependencies": [
-          {
-            "name": "pest",
-            "package_key": "pest-2.9.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default"
-        ]
       },
       "pin-project-lite-0.2.17": {
         "runtime_dependencies": [],
@@ -4139,134 +3239,6 @@
         "build_dependencies": [],
         "features": []
       },
-      "regex-1.13.1": {
-        "runtime_dependencies": [
-          {
-            "name": "aho_corasick",
-            "package_key": "aho-corasick-1.1.5",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "regex_automata",
-            "package_key": "regex-automata-0.4.18",
-            "kind": "normal",
-            "features": [
-              "alloc",
-              "meta",
-              "nfa-pikevm",
-              "syntax"
-            ],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "regex_syntax",
-            "package_key": "regex-syntax-0.8.11",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "perf",
-          "perf-backtrack",
-          "perf-cache",
-          "perf-dfa",
-          "perf-inline",
-          "perf-literal",
-          "perf-onepass",
-          "std",
-          "unicode",
-          "unicode-age",
-          "unicode-bool",
-          "unicode-case",
-          "unicode-gencat",
-          "unicode-perl",
-          "unicode-script",
-          "unicode-segment"
-        ]
-      },
-      "regex-automata-0.4.18": {
-        "runtime_dependencies": [
-          {
-            "name": "aho_corasick",
-            "package_key": "aho-corasick-1.1.5",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "regex_syntax",
-            "package_key": "regex-syntax-0.8.11",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "alloc",
-          "dfa-onepass",
-          "hybrid",
-          "meta",
-          "nfa-backtrack",
-          "nfa-pikevm",
-          "nfa-thompson",
-          "perf-inline",
-          "perf-literal",
-          "perf-literal-multisubstring",
-          "perf-literal-substring",
-          "std",
-          "syntax",
-          "unicode",
-          "unicode-age",
-          "unicode-bool",
-          "unicode-case",
-          "unicode-gencat",
-          "unicode-perl",
-          "unicode-script",
-          "unicode-segment",
-          "unicode-word-boundary"
-        ]
-      },
       "regex-syntax-0.8.11": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -4602,89 +3574,6 @@
           "std"
         ]
       },
-      "serde_json_bytes-0.2.6": {
-        "runtime_dependencies": [
-          {
-            "name": "ahash",
-            "package_key": "ahash-0.8.12",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "bytes",
-            "package_key": "bytes-1.12.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "indexmap",
-            "package_key": "indexmap-2.14.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "jsonpath_rust",
-            "package_key": "jsonpath-rust-0.3.5",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "regex",
-            "package_key": "regex-1.13.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde",
-            "package_key": "serde-1.0.229",
-            "kind": "normal",
-            "features": [
-              "derive"
-            ],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde_json",
-            "package_key": "serde_json-1.0.151",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "indexmap",
-          "preserve_order",
-          "std"
-        ]
-      },
       "serde_spanned-0.6.9": {
         "runtime_dependencies": [
           {
@@ -5000,13 +3889,6 @@
           "std"
         ]
       },
-      "slab-0.4.12": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "std"
-        ]
-      },
       "spki-0.7.3": {
         "runtime_dependencies": [
           {
@@ -5027,11 +3909,6 @@
           "alloc",
           "std"
         ]
-      },
-      "stable_deref_trait-1.2.1": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": []
       },
       "stacker-0.1.25": {
         "runtime_dependencies": [
@@ -5468,22 +4345,6 @@
         "build_dependencies": [],
         "features": []
       },
-      "thiserror-1.0.69": {
-        "runtime_dependencies": [
-          {
-            "name": "thiserror_impl",
-            "package_key": "thiserror-impl-1.0.69",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "host"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "thiserror-2.0.19": {
         "runtime_dependencies": [
           {
@@ -5502,42 +4363,6 @@
           "default",
           "std"
         ]
-      },
-      "thiserror-impl-1.0.69": {
-        "runtime_dependencies": [
-          {
-            "name": "proc_macro2",
-            "package_key": "proc-macro2-1.0.107",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "quote",
-            "package_key": "quote-1.0.47",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "syn",
-            "package_key": "syn-2.0.119",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
       },
       "thiserror-impl-2.0.19": {
         "runtime_dependencies": [
@@ -5836,56 +4661,10 @@
           "std"
         ]
       },
-      "triomphe-0.1.17": {
-        "runtime_dependencies": [
-          {
-            "name": "serde",
-            "package_key": "serde-1.0.229",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "stable_deref_trait",
-            "package_key": "stable_deref_trait-1.2.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "serde",
-          "stable_deref_trait",
-          "std"
-        ]
-      },
-      "typed-arena-2.0.2": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "std"
-        ]
-      },
       "typenum-1.20.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
-      },
-      "ucd-trie-0.1.7": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "std"
-        ]
       },
       "unarray-0.1.4": {
         "runtime_dependencies": [],
@@ -5915,14 +4694,6 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
-      },
-      "unicode-width-0.2.2": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "cjk",
-          "default"
-        ]
       },
       "unsafe-libyaml-0.2.11": {
         "runtime_dependencies": [],
@@ -8692,13 +7463,6 @@
     }
   },
   "per_crate": {
-    "ahash-0.8.12": {
-      "edition": "2018",
-      "build_script": "build.rs"
-    },
-    "aho-corasick-1.1.5": {
-      "edition": "2021"
-    },
     "anstream-1.0.0": {
       "edition": "2021"
     },
@@ -8711,12 +7475,6 @@
     "anstyle-query-1.1.5": {
       "edition": "2021"
     },
-    "apollo-compiler-1.33.1": {
-      "edition": "2021"
-    },
-    "apollo-parser-0.8.7": {
-      "edition": "2021"
-    },
     "ar_archive_writer-0.5.3": {
       "edition": "2024"
     },
@@ -8725,9 +7483,6 @@
     },
     "archery-1.2.3": {
       "edition": "2024"
-    },
-    "ariadne-0.6.0": {
-      "edition": "2018"
     },
     "arrayref-0.3.9": {
       "edition": "2015"
@@ -8751,9 +7506,6 @@
     "bit-vec-0.8.0": {
       "edition": "2015"
     },
-    "bitflags-1.3.2": {
-      "edition": "2018"
-    },
     "bitflags-2.13.1": {
       "edition": "2021"
     },
@@ -8764,28 +7516,28 @@
     "block-buffer-0.10.4": {
       "edition": "2018"
     },
-    "blue-lang-art-0.0.100": {
+    "blue-lang-art-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_art",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-bidama-0.0.100": {
+    "blue-lang-bidama-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_bidama",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-check-0.0.100": {
+    "blue-lang-check-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_check",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-cli-0.0.100": {
+    "blue-lang-cli-0.0.101": {
       "edition": "2021",
       "build_script": "build.rs",
       "binaries": [
@@ -8795,28 +7547,21 @@
         }
       ]
     },
-    "blue-lang-danpen-diff-0.0.100": {
-      "edition": "2021",
-      "lib_target": {
-        "name": "blue_lang_danpen_diff",
-        "path": "src/lib.rs"
-      }
-    },
-    "blue-lang-fmt-0.0.100": {
+    "blue-lang-fmt-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_fmt",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-host-0.0.100": {
+    "blue-lang-host-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_host",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-host-macros-0.0.100": {
+    "blue-lang-host-macros-0.0.101": {
       "edition": "2021",
       "proc_macro": true,
       "lib_target": {
@@ -8824,28 +7569,28 @@
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-kiwari-0.0.100": {
+    "blue-lang-kiwari-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_kiwari",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-lsp-0.0.100": {
+    "blue-lang-lsp-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_lsp",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-mondou-0.0.100": {
+    "blue-lang-mondou-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_mondou",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-pkg-0.0.100": {
+    "blue-lang-pkg-0.0.101": {
       "edition": "2021",
       "build_script": "build.rs",
       "lib_target": {
@@ -8853,42 +7598,42 @@
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-proc-0.0.100": {
+    "blue-lang-proc-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_proc",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-runtime-0.0.100": {
+    "blue-lang-runtime-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_runtime",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-syntax-0.0.100": {
+    "blue-lang-syntax-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_syntax",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-test-0.0.100": {
+    "blue-lang-test-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_test",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-waku-0.0.100": {
+    "blue-lang-waku-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_waku",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-wasm-0.0.100": {
+    "blue-lang-wasm-0.0.101": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_wasm",
@@ -8897,9 +7642,6 @@
     },
     "bytemuck-1.25.2": {
       "edition": "2018"
-    },
-    "bytes-1.12.1": {
-      "edition": "2021"
     },
     "cc-1.4.0": {
       "edition": "2018"
@@ -8930,12 +7672,6 @@
       "edition": "2024"
     },
     "colorchoice-1.0.5": {
-      "edition": "2021"
-    },
-    "concolor-0.1.1": {
-      "edition": "2021"
-    },
-    "concolor-query-0.3.3": {
       "edition": "2021"
     },
     "const-oid-0.9.6": {
@@ -9005,34 +7741,6 @@
     "fsevent-sys-4.1.0": {
       "edition": "2018"
     },
-    "futures-0.3.34": {
-      "edition": "2018"
-    },
-    "futures-channel-0.3.34": {
-      "edition": "2018"
-    },
-    "futures-core-0.3.34": {
-      "edition": "2018"
-    },
-    "futures-executor-0.3.34": {
-      "edition": "2018"
-    },
-    "futures-io-0.3.34": {
-      "edition": "2018"
-    },
-    "futures-macro-0.3.34": {
-      "edition": "2018",
-      "proc_macro": true
-    },
-    "futures-sink-0.3.34": {
-      "edition": "2018"
-    },
-    "futures-task-0.3.34": {
-      "edition": "2018"
-    },
-    "futures-util-0.3.34": {
-      "edition": "2018"
-    },
     "gen-macros-0.1.34": {
       "edition": "2024",
       "proc_macro": true
@@ -9098,17 +7806,11 @@
     "irodori-0.2.0": {
       "edition": "2024"
     },
-    "is-terminal-0.4.17": {
-      "edition": "2018"
-    },
     "is_terminal_polyfill-1.70.2": {
       "edition": "2021"
     },
     "itoa-1.0.18": {
       "edition": "2021"
-    },
-    "jsonpath-rust-0.3.5": {
-      "edition": "2018"
     },
     "katsuji-0.1.1": {
       "edition": "2024"
@@ -9155,19 +7857,6 @@
     "pear_codegen-0.2.9": {
       "edition": "2018",
       "proc_macro": true
-    },
-    "pest-2.9.2": {
-      "edition": "2021"
-    },
-    "pest_derive-2.9.2": {
-      "edition": "2021",
-      "proc_macro": true
-    },
-    "pest_generator-2.9.2": {
-      "edition": "2021"
-    },
-    "pest_meta-2.9.2": {
-      "edition": "2021"
     },
     "pin-project-lite-0.2.17": {
       "edition": "2018"
@@ -9216,12 +7905,6 @@
       "edition": "2021"
     },
     "rand_xoshiro-0.7.0": {
-      "edition": "2021"
-    },
-    "regex-1.13.1": {
-      "edition": "2021"
-    },
-    "regex-automata-0.4.18": {
       "edition": "2021"
     },
     "regex-syntax-0.8.11": {
@@ -9279,9 +7962,6 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "serde_json_bytes-0.2.6": {
-      "edition": "2021"
-    },
     "serde_spanned-0.6.9": {
       "edition": "2021"
     },
@@ -9303,14 +7983,8 @@
     "signature-2.2.0": {
       "edition": "2021"
     },
-    "slab-0.4.12": {
-      "edition": "2018"
-    },
     "spki-0.7.3": {
       "edition": "2021"
-    },
-    "stable_deref_trait-1.2.1": {
-      "edition": "2015"
     },
     "stacker-0.1.25": {
       "edition": "2021",
@@ -9351,17 +8025,9 @@
     "text-size-1.1.1": {
       "edition": "2018"
     },
-    "thiserror-1.0.69": {
-      "edition": "2021",
-      "build_script": "build.rs"
-    },
     "thiserror-2.0.19": {
       "edition": "2021",
       "build_script": "build.rs"
-    },
-    "thiserror-impl-1.0.69": {
-      "edition": "2021",
-      "proc_macro": true
     },
     "thiserror-impl-2.0.19": {
       "edition": "2021",
@@ -9389,17 +8055,8 @@
     "tracing-core-0.1.36": {
       "edition": "2018"
     },
-    "triomphe-0.1.17": {
-      "edition": "2021"
-    },
-    "typed-arena-2.0.2": {
-      "edition": "2015"
-    },
     "typenum-1.20.1": {
       "edition": "2018"
-    },
-    "ucd-trie-0.1.7": {
-      "edition": "2021"
     },
     "unarray-0.1.4": {
       "edition": "2018"
@@ -9409,9 +8066,6 @@
       "build_script": "build.rs"
     },
     "unicode-ident-1.0.24": {
-      "edition": "2021"
-    },
-    "unicode-width-0.2.2": {
       "edition": "2021"
     },
     "unsafe-libyaml-0.2.11": {

@@ -23,7 +23,7 @@ verb(
     shape: "check(tree, rules) -> findings",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:gamen",
     meaning: "find accessibility and layout faults in a tree",
     wave: 1,
     origin: "G"
@@ -53,7 +53,7 @@ verb(
     shape: "component(name, spec) -> component",
     laterals: ["switch", "validate"],
     fleet: "pleme-widget-spec",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "declare a reusable view: props, state, events",
     wave: 1,
     origin: "G"
@@ -218,7 +218,7 @@ verb(
     shape: "layout(tree, size, opts) -> placed tree",
     laterals: [],
     fleet: "egaku",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "place nodes in a size: stack, flex or grid",
     wave: 1,
     origin: "G"
@@ -383,7 +383,7 @@ verb(
     shape: "render(tree, target, opts) -> output",
     laterals: ["serialize"],
     fleet: "pleme-widget-gen",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "tree to html, ansi, svg or widget spec text",
     wave: 1,
     origin: "G"
@@ -473,7 +473,7 @@ verb(
     shape: "style(node, theme) -> styled node",
     laterals: [],
     fleet: "ishou",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "resolve semantic tokens on a node to colors and sizes",
     wave: 1,
     origin: "G"
@@ -533,7 +533,7 @@ verb(
     shape: "view(kind, props, children) -> node",
     laterals: ["validate"],
     fleet: "egaku",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "declare one UI node with props and children",
     wave: 1,
     origin: "G"

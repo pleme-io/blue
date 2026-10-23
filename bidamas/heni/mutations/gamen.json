@@ -2,8 +2,8 @@
   {
     "name": "short hex",
     "file": "gamen.b",
-    "find": "retsu::size(chars(digits)) == 3",
-    "replace": "retsu::size(chars(digits)) == 4"
+    "find": "size(chars(digits)) == 3",
+    "replace": "size(chars(digits)) == 4"
   },
   {
     "name": "hex prefix required",
@@ -14,7 +14,7 @@
   {
     "name": "hex length",
     "file": "gamen.b",
-    "find": "retsu::size(chars(full)) != 6 or",
+    "find": "size(chars(full)) != 6 or",
     "replace": ""
   },
   {
@@ -244,5 +244,149 @@
     "file": "gamen.b",
     "find": "(text) -> write_stderr(text)",
     "replace": "(text) -> write_stdout(text)"
+  },
+  {
+    "name": "html text escape",
+    "file": "gamen.b",
+    "find": "\"<\", \"&lt;\"",
+    "replace": "\"<\", \"<\""
+  },
+  {
+    "name": "url scheme javascript",
+    "file": "gamen.b",
+    "find": "scheme == \"mailto\"",
+    "replace": "scheme == \"mailto\" or scheme == \"javascript\""
+  },
+  {
+    "name": "url protocol relative",
+    "file": "gamen.b",
+    "find": "elsif starts_with?(url, \"//\")",
+    "replace": "elsif false"
+  },
+  {
+    "name": "url character allowlist",
+    "file": "gamen.b",
+    "find": "elsif not every?((c) -> contains?(url_chars, c), chars(url))",
+    "replace": "elsif false"
+  },
+  {
+    "name": "refusal marker dropped",
+    "file": "gamen.b",
+    "find": "\"<!--gamen:refused #{join(map(to_s, distinct(kinds(faults))), \",\")} at #{where(path)}-->\"",
+    "replace": "\"\""
+  },
+  {
+    "name": "refusal scoped to the page by default",
+    "file": "gamen.b",
+    "find": "refuse = get(o, :refuse) or :node",
+    "replace": "refuse = get(o, :refuse) or :page"
+  },
+  {
+    "name": "page refusal off",
+    "file": "gamen.b",
+    "find": "refuse == :page and",
+    "replace": "false and"
+  },
+  {
+    "name": "script tag in the table",
+    "file": "gamen.b",
+    "find": "tag_row(:div, false, []),",
+    "replace": "tag_row(:div, false, []),\n    tag_row(:script, false, []),"
+  },
+  {
+    "name": "onclick in the table",
+    "file": "gamen.b",
+    "find": "attr_row(:id, \"id\", :text, true),",
+    "replace": "attr_row(:id, \"id\", :text, true),\n    attr_row(:onclick, \"onclick\", :text, true),"
+  },
+  {
+    "name": "event attribute message",
+    "file": "gamen.b",
+    "find": "if event_key?(key) and not allowed?(tag, key)",
+    "replace": "if false"
+  },
+  {
+    "name": "void element closed",
+    "file": "gamen.b",
+    "find": "\"#{doctype}#{open_tag(node)}\"",
+    "replace": "\"#{doctype}#{open_tag(node)}</#{to_s(tag)}>\""
+  },
+  {
+    "name": "bool attribute value",
+    "file": "gamen.b",
+    "find": "\" #{name}\"",
+    "replace": "\" #{name}=\\\"true\\\"\""
+  },
+  {
+    "name": "literal color allowed",
+    "file": "gamen.b",
+    "find": "elsif kind == :color and not member?(v, color_roles)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "css variable name",
+    "file": "gamen.b",
+    "find": "\"--color-#{",
+    "replace": "\"--colour-#{"
+  },
+  {
+    "name": "layout kind ignored",
+    "file": "gamen.b",
+    "find": "{layout: kind},",
+    "replace": "{layout: :stack},"
+  },
+  {
+    "name": "variant values unchecked",
+    "file": "gamen.b",
+    "find": "not member?(nth(1, e), get(variants, k))",
+    "replace": "false"
+  },
+  {
+    "name": "required prop unchecked",
+    "file": "gamen.b",
+    "find": "elsif d == :required",
+    "replace": "elsif false"
+  },
+  {
+    "name": "component events unchecked",
+    "file": "gamen.b",
+    "find": "if not member?(first(e), get(c, :events))",
+    "replace": "if false"
+  },
+  {
+    "name": "a11y label dropped",
+    "file": "gamen.b",
+    "find": "[[:role, role], [:aria_label, label]]",
+    "replace": "[[:role, role]]"
+  },
+  {
+    "name": "missing alt unchecked",
+    "file": "gamen.b",
+    "find": "get(n, :tag) == :img and prop(n, :alt).nil?",
+    "replace": "get(n, :tag) == :img and false"
+  },
+  {
+    "name": "wrapping label ignored",
+    "file": "gamen.b",
+    "find": "not wrapped and",
+    "replace": "true and"
+  },
+  {
+    "name": "missing role ignores a role",
+    "file": "gamen.b",
+    "find": "role.nil?",
+    "replace": "true"
+  },
+  {
+    "name": "focus order threshold",
+    "file": "gamen.b",
+    "find": "integer?(t) and t > 0",
+    "replace": "integer?(t) and t > 5"
+  },
+  {
+    "name": "check without render refusals",
+    "file": "gamen.b",
+    "find": "append([refusals], a11y_rules)",
+    "replace": "a11y_rules"
   }
 ]

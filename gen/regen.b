@@ -1,5 +1,5 @@
 use("haibi", [:files, :write_tree])
-use("mokuroku", [:catalog_of, :render_markdown])
+use("mokuroku", [:catalog_of, :registered_only, :render_markdown])
 use("retsu", [:concat_lists, :first, :last])
 
 # regen: rewrite every file blue generates for this repository, in place.
@@ -60,13 +60,20 @@ end
 # its own packages (the flake renders the same roots; nix/project.nix).
 catalog = json_get(manifest, "catalog")
 
+def registered_catalog(catalog)
+  records = catalog_of(json_get(manifest, "packages"))
+  ledger = path_join(path_dirname(catalog), "NAMES.md")
+  if path_exists(ledger)
+    registered_only(read_file(ledger), records)
+  else
+    records
+  end
+end
+
 written = if catalog.nil?
   []
 else
-  write_file(
-    catalog,
-    render_markdown(catalog_of(json_get(manifest, "packages")))
-  )
+  write_file(catalog, render_markdown(registered_catalog(catalog)))
   [catalog]
 end
 

@@ -301,6 +301,13 @@ def catalog_of(roots)
   sort_by((r) -> first(r), firsts)
 end
 
+# The records whose package has a row in the name ledger (NAMES.md), so a
+# package that is untracked or still being named does not enter a catalogue
+# the ledger has not adjudicated.
+def registered_only(ledger, records)
+  filter((r) -> contains?(ledger, "| `#{first(r)}` |"), records)
+end
+
 def pkg_name(r)
   nth(0, r)
 end
@@ -2345,6 +2352,19 @@ end
 
 def fx_kinds(g)
   map((f) -> "#{get(f, :kind)} #{get(f, :subject)}", graph_findings(g))
+end
+
+test "a catalogue keeps the packages the ledger names and skips the rest"
+  ledger = "| `alpha` | a |\n| `beta` | b |\n"
+  records = [["alpha", "0.1.0"], ["gamma", "0.1.0"], ["beta", "0.2.0"]]
+  assert registered_only(ledger, records) ==
+    [["alpha", "0.1.0"], ["beta", "0.2.0"]]
+  assert registered_only(ledger, []) == []
+end
+
+test "a name that only appears inside another row's text is not registered"
+  ledger = "| `alpha` | gamma and `gamma` are mentioned here |\n"
+  assert registered_only(ledger, [["gamma", "0.1.0"]]) == []
 end
 
 test "a graph that breaks no gate has no finding"

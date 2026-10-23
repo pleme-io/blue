@@ -96,6 +96,50 @@ def regen(bin, root, dir)
   end
 end
 
+def gen_pin()
+  pin = exec_capture(
+    "nix",
+    "eval",
+    "--raw",
+    "github:pleme-io/substrate#genPin.version"
+  )
+  if not exec_ok?("which", "gen")
+    [:blind, "gen is not on PATH\n"]
+  elsif status_of(pin) != 0
+    [:blind, "could not read substrate's gen pin:\n#{stderr_of(pin)}"]
+  else
+    installed = blue::trim(stdout_of(exec_capture("gen", "--version")))
+    if installed == "gen #{stdout_of(pin)}"
+      [:green, ""]
+    else
+      [
+        :red,
+        "#{installed} is installed; substrate pins gen #{stdout_of(pin)}. Run:\n  nix flake update substrate --flake ~/code/github/pleme-io/nix\n  nix run ~/code/github/pleme-io/nix#rebuild\n"
+      ]
+    end
+  end
+end
+
+def gen_tie()
+  if not exec_ok?("which", "gen")
+    [:blind, "gen is not on PATH\n"]
+  elsif status_of(exec_capture("gen", "confirm")) == 0
+    [:green, ""]
+  else
+    was = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
+    built = exec_capture("gen", "build", ".")
+    now = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
+    if status_of(built) != 0
+      [:red, stderr_of(built)]
+    else
+      [
+        :red,
+        "Cargo.gen.lock was not tied to Cargo.lock and the manifests; gen build rewrote it. Commit:\n#{join(reject((l) -> member?(l, was), now), "\n")}\n"
+      ]
+    end
+  end
+end
+
 def report(r)
   mark = get({green: "✅", red: "❌", blind: "➖"}, nth(1, r))
   write_stderr("#{mark} #{nth(0, r)} (#{to_s(nth(2, r) / 1000)}s)\n")
@@ -146,6 +190,8 @@ results = append(
     filter(regenerates?, dirs)
   ),
   [
+    gate("gen is substrate's pin", gen_pin),
+    gate("Cargo.gen.lock tied", gen_tie),
     gate(
       "registry_graph, check_corpus, distribution, verb_graph",
       fn()

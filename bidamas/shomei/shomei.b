@@ -130,8 +130,7 @@ def is_hash_hex(s)
           "e",
           "f"
         ]
-      ) ==
-        ""
+      ) == ""
   else
     false
   end
@@ -450,13 +449,11 @@ test "RFC 8032 TEST 2 (the one byte 0x72, written as r) and TEST 3 (bytes af 82)
   sig2 = "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
   assert keypair_public(
     signing_keypair("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb")
-  ) ==
-    pub2
+  ) == pub2
   assert sign_message(
     "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb",
     "r"
-  ) ==
-    sig2
+  ) == sig2
   assert verify_message(pub2, "r", sig2) == true
   assert verify_message(pub2, [114], sig2) == true
   pub3 = "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025"
@@ -464,8 +461,7 @@ test "RFC 8032 TEST 2 (the one byte 0x72, written as r) and TEST 3 (bytes af 82)
   assert sign_message(
     "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7",
     [175, 130]
-  ) ==
-    sig3
+  ) == sig3
   assert verify_message(pub3, [175, 130], sig3) == true
 end
 
@@ -477,27 +473,23 @@ test "a signature round-trips, and fails for a changed message, key or signature
     keypair_public(kp),
     "permit: door 3, until 18:00",
     sig
-  ) ==
-    true
+  ) == true
   assert verify_message(
     keypair_public(kp),
     "permit: door 3, until 19:00",
     sig
-  ) ==
-    false
+  ) == false
   assert verify_message(
     keypair_public(other),
     "permit: door 3, until 18:00",
     sig
-  ) ==
-    false
+  ) == false
   forged = sign_message(keypair_secret(other), "permit: door 3, until 18:00")
   assert verify_message(
     keypair_public(kp),
     "permit: door 3, until 18:00",
     forged
-  ) ==
-    false
+  ) == false
 end
 
 test "malformed input raises instead of answering false"
@@ -634,8 +626,7 @@ test "merkle refuses what it cannot place"
     "a",
     [["X", merkle_leaf("b")]]
   ) rescue
-    :raised) ==
-    :raised
+    :raised) == :raised
 end
 
 test "hash names its algorithm and refuses the ones that are not built"
@@ -758,8 +749,7 @@ test "sign and verify? agree with RFC 8032 and fail for a changed input"
       "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
     ),
     pub
-  ) ==
-    false
+  ) == false
 end
 
 test "sign refuses a secret it cannot place and verify? refuses garbage"

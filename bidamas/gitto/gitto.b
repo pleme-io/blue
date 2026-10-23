@@ -408,7 +408,7 @@ def merge(repo, ref, opts?)
       run(repo, ["merge", "--abort"])
     end
     if contains?(shisutemu::stdout_of(cap), "CONFLICT") or
-      contains?(shisutemu::stderr_of(cap), "fast-forward")
+        contains?(shisutemu::stderr_of(cap), "fast-forward")
       raise(
         :conflict,
         "#{ref} into #{repo}: #{trim(shisutemu::stderr_of(cap))}"
@@ -747,8 +747,7 @@ test "a master verb on a gitto subject raises what gitto raises"
   assert raised(() -> blue::create(s, "topic", c.oid, {})) == :exists
   assert raised(
     () -> blue::info(in_space("gitto", "/tmp/blue-gitto-not-a-repo"))
-  ) !=
-    nil
+  ) != nil
   assert raised(() -> has?(s, "topic")) == :usage
   assert raised(() -> need(s, "topic")) == :usage
 end

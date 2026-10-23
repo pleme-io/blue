@@ -1,0 +1,11 @@
+mutation BanEmail($input: BanEmailInput!) {
+    banEmail(input: $input) {
+      id
+      targetType
+      targetValue
+      banType
+      reason
+      expiresAt
+      createdAt
+    }
+  }

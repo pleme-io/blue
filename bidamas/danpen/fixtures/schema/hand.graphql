@@ -1,0 +1,111 @@
+"""
+A small schema that uses every kind of definition, written by hand for the
+rules a corpus taken from real services does not reach.
+"""
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+"An instant, as RFC 3339 text."
+scalar DateTime @specifiedBy(url: "https://www.rfc-editor.org/rfc/rfc3339")
+
+directive @cached(ttl: Int = 60) on QUERY | FIELD
+
+directive @tag(name: String!) repeatable on FIELD | FIELD_DEFINITION | OBJECT
+
+interface Node {
+  id: ID!
+}
+
+interface Character implements Node {
+  id: ID!
+  name: String!
+  friends(first: Int = 10, after: String): [Character!]!
+  appearsIn: [Episode!]!
+}
+
+type Human implements Character & Node @tag(name: "people") {
+  id: ID!
+  name: String!
+  friends(first: Int = 10, after: String): [Character!]!
+  appearsIn: [Episode!]!
+  height(unit: LengthUnit = METER): Float
+  starships: [Starship]
+}
+
+type Droid implements Character & Node {
+  id: ID!
+  name: String!
+  friends(first: Int = 10, after: String): [Character!]!
+  appearsIn: [Episode!]!
+  primaryFunction: String @deprecated(reason: "Use \"role\" instead.")
+  role: String
+}
+
+type Starship implements Node {
+  id: ID!
+  name: String!
+  length(unit: LengthUnit = METER): Float
+  launched: DateTime
+}
+
+union SearchResult = Human | Droid | Starship
+
+"""
+The films.
+
+Each value is one release.
+"""
+enum Episode {
+  "The first film."
+  NEWHOPE
+  EMPIRE
+  JEDI @deprecated
+}
+
+enum LengthUnit {
+  METER
+  FOOT
+}
+
+input ReviewInput {
+  stars: Int!
+  commentary: String
+  tags: [String!] = ["fresh", "new"]
+  when: DateTime
+}
+
+type Review {
+  episode: Episode
+  stars: Int!
+  commentary: String
+}
+
+type Query {
+  hero(episode: Episode): Character
+  human(id: ID!): Human
+  droid(id: ID!): Droid
+  node(id: ID!): Node
+  search(text: String!, limit: Int = 20): [SearchResult!]!
+  reviews(episode: Episode!, since: DateTime): [Review!]!
+}
+
+type Mutation {
+  createReview(episode: Episode!, review: ReviewInput!): Review
+  deleteReview(id: ID!): Boolean!
+}
+
+type Subscription {
+  reviewAdded(episode: Episode): Review
+  tick: Int!
+}
+
+extend type Query {
+  starship(id: ID!): Starship
+}
+
+extend enum LengthUnit {
+  PARSEC
+}

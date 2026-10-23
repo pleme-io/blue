@@ -1,0 +1,3 @@
+mutation GrantRole($userId: String!, $role: String!, $expiresAt: DateTime) {
+    grantRole(userId: $userId, role: $role, expiresAt: $expiresAt)
+  }

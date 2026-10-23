@@ -1,0 +1,15 @@
+mutation UpdateProviderProfile($input: UpdateProfileInput!) {
+		updateProfile(input: $input) {
+			id
+			name
+			age
+			city
+			neighborhood
+			whatsapp
+			interests
+			pricePerHourCents
+			visibility
+			moderationStatus
+			updatedAt
+		}
+	}

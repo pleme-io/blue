@@ -1,0 +1,22 @@
+query Me {
+    me {
+      
+  id
+  name
+  email
+  emailVerified
+  avatarUrl
+  whatsapp
+  userType
+  roles
+  staffRole
+  permissions
+  roleLevel
+  homeCity
+  homeNeighborhood
+  needsReonboarding
+  createdAt
+  updatedAt
+
+    }
+  }

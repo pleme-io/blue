@@ -1,0 +1,31 @@
+query GetProfileBySlug($slug: String!) {
+		profileBySlug(slug: $slug) {
+			id
+			username
+			name
+			age
+			city
+			neighborhood
+			photos
+			interests
+			pricePerHourCents
+			visibility
+			moderationStatus
+			contactWhatsapp
+			showsWhatsapp
+			requiresApplication
+			isStealthed
+			averageRating
+			totalReviews
+			favorites
+			isBoosted
+			isNewProvider
+			createdAt
+			weeklySchedule {
+				days {
+					day
+					slots
+				}
+			}
+		}
+	}

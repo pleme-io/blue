@@ -1,0 +1,36 @@
+fragment InboxMessageFields on InboxMessage {
+		id
+		senderId
+		recipientId
+		parentId
+		messageType
+		allowsReply
+		title
+		body
+		card {
+			imageUrl
+			actions {
+				actionType
+				label
+				target
+				mutationInput
+				style
+			}
+		}
+		delivered
+		deliveredAt
+		read
+		readAt
+		messageMetadata
+		isActive
+		isSystemMessage
+		isReply
+		createdAt
+		updatedAt
+	}
+
+	query InboxMessage($id: ID!) {
+		inboxMessage(id: $id) {
+			...InboxMessageFields
+		}
+	}

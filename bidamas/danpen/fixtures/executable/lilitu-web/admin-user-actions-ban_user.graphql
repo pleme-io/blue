@@ -1,0 +1,10 @@
+mutation BanUser($input: BanUserActionInput!) {
+    banUser(input: $input) {
+      id
+      reason
+      banType
+      expiresAt
+      createdAt
+      bannedBy
+    }
+  }

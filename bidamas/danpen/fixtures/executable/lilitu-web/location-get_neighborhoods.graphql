@@ -1,0 +1,10 @@
+fragment NeighborhoodSimpleFields on NeighborhoodSimple {
+    value
+    label
+  }
+
+  query GetNeighborhoods($city: String!) {
+    neighborhoods(city: $city) {
+      ...NeighborhoodSimpleFields
+    }
+  }

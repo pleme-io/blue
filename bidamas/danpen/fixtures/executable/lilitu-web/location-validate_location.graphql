@@ -1,0 +1,6 @@
+query ValidateLocation($city: String!, $neighborhood: String) {
+    validateLocation(city: $city, neighborhood: $neighborhood) {
+      cityValid
+      neighborhoodValid
+    }
+  }

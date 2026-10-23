@@ -1,0 +1,8 @@
+mutation ReviewKycVerification($input: ReviewKycVerificationInput!) {
+		reviewKycVerification(input: $input) {
+			id
+			status
+			reviewedAt
+			rejectionReason
+		}
+	}

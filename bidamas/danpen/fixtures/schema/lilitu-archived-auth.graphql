@@ -1,0 +1,63 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable", "@external"])
+
+type User @key(fields: "id") {
+  id: ID!
+  product: String!
+  email: String!
+  name: String!
+  cpfVerified: Boolean!
+  subscriptionTier: SubscriptionTier!
+  role: UserRole!
+  createdAt: DateTime!
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+  VIP
+}
+
+enum UserRole {
+  VISITOR
+  USER
+  VERIFIED_USER
+  MODERATOR
+  SUPPORT
+  ADMIN
+  SUPERADMIN
+}
+
+type AuthPayload {
+  accessToken: String!
+  user: User!
+}
+
+input RegisterInput {
+  email: String!
+  password: String!
+  name: String!
+  phone: String!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Query {
+  me: User
+  user(id: ID!): User
+}
+
+type Mutation {
+  register(input: RegisterInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+  verifyCpf(cpf: String!): User!
+}
+
+scalar DateTime
+
+directive @key(fields: String!) on OBJECT
+directive @shareable on OBJECT | FIELD_DEFINITION
+directive @external on FIELD_DEFINITION

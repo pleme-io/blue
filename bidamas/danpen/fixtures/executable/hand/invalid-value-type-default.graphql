@@ -1,0 +1,7 @@
+query Hero($first: Int = "ten") {
+  hero {
+    friends(first: $first) {
+      name
+    }
+  }
+}

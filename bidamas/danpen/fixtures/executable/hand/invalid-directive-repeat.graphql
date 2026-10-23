@@ -1,0 +1,1 @@
+query { hero @cached @cached { name } }

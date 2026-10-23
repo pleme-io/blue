@@ -1,0 +1,3 @@
+query CheckCityExists($city: String!) {
+    cityExists(city: $city)
+  }

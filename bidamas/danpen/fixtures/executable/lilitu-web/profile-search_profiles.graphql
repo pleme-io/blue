@@ -1,0 +1,27 @@
+fragment SearchItemFields on ProfileSearchItem {
+		profile {
+			id
+			username
+			name
+			age
+			city
+			neighborhood
+			photos
+			interests
+			pricePerHourCents
+			isBoosted
+		}
+		matchType
+		relevanceScore
+	}
+
+	query SearchProfiles($input: ProfileSearchInput!) {
+		searchProfiles(input: $input) {
+			items {
+				...SearchItemFields
+			}
+			total
+			cursor
+			source
+		}
+	}

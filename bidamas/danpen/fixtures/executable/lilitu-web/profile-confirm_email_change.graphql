@@ -1,0 +1,18 @@
+fragment UserFields on User {
+		id
+		email
+		emailVerified
+		name
+		avatarUrl
+		whatsapp
+		userType
+		staffRole
+		createdAt
+		updatedAt
+	}
+
+	mutation ConfirmEmailChange($token: String!) {
+		confirmEmailChange(token: $token) {
+			...UserFields
+		}
+	}

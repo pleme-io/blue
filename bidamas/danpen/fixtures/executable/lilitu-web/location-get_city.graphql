@@ -1,0 +1,19 @@
+fragment NeighborhoodSimpleFields on NeighborhoodSimple {
+    value
+    label
+  }
+
+  fragment CityFullFields on CityFull {
+    value
+    label
+    state
+    neighborhoods {
+      ...NeighborhoodSimpleFields
+    }
+  }
+
+  query GetCity($value: String!) {
+    city(value: $value) {
+      ...CityFullFields
+    }
+  }

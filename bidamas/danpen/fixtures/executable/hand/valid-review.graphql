@@ -1,0 +1,7 @@
+mutation AddReview($episode: Episode!, $stars: Int!, $when: DateTime) {
+  createReview(episode: $episode, review: {stars: $stars, commentary: "Line one\nline two \"quoted\"", tags: ["a", "b"], when: $when}) {
+    stars
+    commentary
+  }
+  deleteReview(id: 4)
+}

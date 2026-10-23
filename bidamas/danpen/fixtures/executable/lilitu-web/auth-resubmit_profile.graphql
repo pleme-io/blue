@@ -1,0 +1,7 @@
+mutation ResubmitProfile($profileId: UUID!) {
+    resubmitProfile(profileId: $profileId) {
+      id
+      email
+      moderationStatus
+    }
+  }

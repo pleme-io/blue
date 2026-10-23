@@ -1,0 +1,5 @@
+query CheckPermission($relation: String!, $objectType: String!, $objectId: String!) {
+    checkPermission(relation: $relation, objectType: $objectType, objectId: $objectId) {
+      allowed
+    }
+  }

@@ -1,0 +1,4 @@
+query Types {
+  __schema { queryType { name } types { name kind } }
+  __type(name: "Human") { fields { name type { name ofType { name } } } }
+}

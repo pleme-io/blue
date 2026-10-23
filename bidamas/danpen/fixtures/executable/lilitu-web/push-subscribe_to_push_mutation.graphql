@@ -1,0 +1,7 @@
+mutation SubscribeToPush($input: SubscribeToPushInput!) {
+		subscribeToPush(input: $input) {
+			success
+			subscriptionId
+			subscriptionCount
+		}
+	}

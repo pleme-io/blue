@@ -1,0 +1,15 @@
+mutation UpdateUserPreferences($input: UpdateUserPreferencesInput!) {
+		updateUserPreferences(input: $input) {
+			id
+			userId
+			pushEnabled
+			emailEnabled
+			soundEnabled
+			messagesEnabled
+			adStatusEnabled
+			systemUpdatesEnabled
+			marketingEnabled
+			createdAt
+			updatedAt
+		}
+	}

@@ -1,0 +1,17 @@
+query RevenueAnalytics($period: AnalyticsPeriod!) {
+    revenueAnalytics(period: $period) {
+      totalCents
+      pixCents
+      cardCents
+      transactionCount
+      averageTransactionCents
+      trendPercentage
+      dailyBreakdown {
+        date
+        totalCents
+        pixCents
+        cardCents
+        transactionCount
+      }
+    }
+  }

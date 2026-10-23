@@ -1,0 +1,6 @@
+mutation AdminSendTestNotification($input: AdminSendTestNotificationInput!) {
+    adminSendTestNotification(input: $input) {
+      success
+      message
+    }
+  }

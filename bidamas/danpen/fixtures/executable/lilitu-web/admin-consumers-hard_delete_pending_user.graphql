@@ -1,0 +1,3 @@
+mutation HardDeletePendingUser($userId: UUID!) {
+    hardDeletePendingUser(userId: $userId)
+  }

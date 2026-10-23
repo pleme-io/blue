@@ -1,0 +1,9 @@
+mutation AdminSendInboxMessage($input: AdminSendInboxMessageInput!) {
+    adminSendInboxMessage(input: $input) {
+      success
+      recipientsCount
+      jobsPublished
+      message
+      dryRun
+    }
+  }

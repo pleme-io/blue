@@ -1,0 +1,11 @@
+mutation BanIp($input: BanIpInput!) {
+    banIp(input: $input) {
+      id
+      targetType
+      targetValue
+      banType
+      reason
+      expiresAt
+      createdAt
+    }
+  }

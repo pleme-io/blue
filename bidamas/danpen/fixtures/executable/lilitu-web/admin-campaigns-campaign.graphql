@@ -1,0 +1,28 @@
+fragment CampaignFields on BoostCampaignGql {
+    id
+    name
+    description
+    boostExpiresAt
+    reason
+    createdBy
+    createdAt
+    isActive
+    profileCount
+    profileIds
+  }
+
+  fragment CampaignWithAdminFields on BoostCampaignGql {
+    ...CampaignFields
+    createdByAdmin {
+      id
+      name
+      email
+      staffRole
+    }
+  }
+
+  query Campaign($id: UUID!) {
+    campaign(id: $id) {
+      ...CampaignWithAdminFields
+    }
+  }

@@ -1,0 +1,21 @@
+fragment ConsumerFavoriteFields on ConsumerFavorite {
+		id
+		consumerId
+		providerId
+		createdAt
+		updatedAt
+	}
+
+	fragment FavoriteResponseFields on FavoriteResponse {
+		success
+		favorite {
+			...ConsumerFavoriteFields
+		}
+		previousProviderId
+	}
+
+	mutation UnfavoriteProvider {
+		unfavoriteProvider {
+			...FavoriteResponseFields
+		}
+	}

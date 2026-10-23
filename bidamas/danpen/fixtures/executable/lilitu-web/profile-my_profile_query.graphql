@@ -1,0 +1,40 @@
+query MyProfile {
+		myProfile {
+			id
+			email
+			emailVerified
+			name
+			age
+			whatsapp
+			username
+			shareUrl
+			shareSlug
+			visibility
+			moderationStatus
+			completeness
+			rejectionReason
+			photos
+			city
+			neighborhood
+			interests
+			pricePerHourCents
+			isBoosted
+			boostDaysRemaining
+			canChangeUsername
+			usernameChangeAvailableAt
+			canChangeAge
+			ageChangeAvailableAt
+			whatsappIsMutable
+			autoStealthEnabled
+			hasActiveSchedule
+			effectiveTimezone
+			weeklySchedule {
+				days {
+					day
+					slots
+				}
+			}
+			createdAt
+			updatedAt
+		}
+	}

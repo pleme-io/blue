@@ -1,0 +1,56 @@
+query AdminConsumerUsersCursor(
+    $after: String
+    $first: Int = 20
+    $search: String
+    $role: UserRoleEnum
+  ) {
+    adminConsumerUsersCursor(
+      after: $after
+      first: $first
+      search: $search
+      role: $role
+    ) {
+      edges {
+        cursor
+        node {
+          id
+          email
+          emailVerified
+          name
+          avatarUrl
+          roles
+          isProvider
+          isActive
+          isEncantado
+          createdAt
+          lastLoginAt
+          accountStatus
+          isStealthed
+          activeBan {
+            id
+            banType
+            reason
+            expiresAt
+            createdAt
+          }
+          providerProfile {
+            id
+            username
+            visibility
+            moderationStatus
+            adminStealthLocked
+            city
+            neighborhood
+            boostExpiresAt
+            boostCampaignId
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+        hasPreviousPage
+        startCursor
+      }
+    }
+  }

@@ -1,0 +1,17 @@
+fragment PhotoModerationFields on PhotoModeration {
+    id
+    adId
+    photoKey
+    photoUrl
+    status
+    moderatorId
+    rejectionReason
+    createdAt
+    processedAt
+  }
+
+  mutation ApprovePhoto($input: ApprovePhotoInput!) {
+    approvePhoto(input: $input) {
+      ...PhotoModerationFields
+    }
+  }

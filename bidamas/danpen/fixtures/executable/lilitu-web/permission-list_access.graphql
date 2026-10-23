@@ -1,0 +1,7 @@
+query ListAccess($objectType: String!, $objectId: String!, $relation: String!) {
+    listAccess(objectType: $objectType, objectId: $objectId, relation: $relation) {
+      subjectType
+      subjectId
+      subjectRelation
+    }
+  }

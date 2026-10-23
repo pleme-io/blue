@@ -1,0 +1,3 @@
+type Query { a: Int }
+
+type Thing implements Query { a: Int }

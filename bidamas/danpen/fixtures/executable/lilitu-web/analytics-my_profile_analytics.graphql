@@ -1,0 +1,13 @@
+query MyProfileAnalytics {
+		myProfileAnalytics {
+			profileId
+			totalViews
+			totalClicks
+			totalImpressions
+			viewsLast7Days
+			clicksLast7Days
+			ctrLast7Days
+			viewsLast30Days
+			clicksLast30Days
+		}
+	}

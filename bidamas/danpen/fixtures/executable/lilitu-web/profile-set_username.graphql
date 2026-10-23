@@ -1,0 +1,8 @@
+mutation SetUsername($username: String!) {
+		setUsername(username: $username) {
+			id
+			username
+			shareUrl
+			shareSlug
+		}
+	}

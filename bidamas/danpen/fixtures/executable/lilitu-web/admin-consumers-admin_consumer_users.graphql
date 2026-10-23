@@ -1,0 +1,38 @@
+query AdminConsumerUsers(
+    $search: String
+    $role: UserRoleEnum
+    $limit: Int = 20
+    $offset: Int = 0
+  ) {
+    adminConsumerUsers(
+      search: $search
+      role: $role
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        email
+        emailVerified
+        name
+        avatarUrl
+        roles
+        isProvider
+        isActive
+        isEncantado
+        createdAt
+        lastLoginAt
+        accountStatus
+        isStealthed
+        activeBan {
+          id
+          banType
+          reason
+          expiresAt
+          createdAt
+        }
+      }
+      total
+      hasMore
+    }
+  }

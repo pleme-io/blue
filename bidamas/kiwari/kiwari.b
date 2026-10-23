@@ -278,8 +278,17 @@ def operator_spellings(g)
       concat_lists(get(g, :infix), get(g, :unary)),
       (row) -> concat_lists([get(row, :op)], get(row, :aliases))
     ),
-    [get(get(g, :pipe), :op)]
+    pipe_spellings(get(g, :pipe))
   )
+end
+
+# A grammar with no pipe operator (GraphQL's) says `pipe: nil`.
+def pipe_spellings(pipe)
+  if pipe.nil?
+    []
+  else
+    [get(pipe, :op)]
+  end
 end
 
 def role_of_literal(g, text)
@@ -1917,4 +1926,15 @@ test "blue's grammar uses its keywords as literals"
   assert member?("def", ls)
   assert member?("end", ls)
   assert distinct(ls) == ls
+end
+
+test "a grammar with no pipe operator paints its literals without one"
+  g = assoc(
+    tiny([rule("word", lit("x"), nil)], [["x", "punctuation"]]),
+    :pipe,
+    nil
+  )
+  assert operator_spellings(g) == []
+  assert unpainted(g) == []
+  assert operator_spellings(tiny([], [])) == ["|>"]
 end

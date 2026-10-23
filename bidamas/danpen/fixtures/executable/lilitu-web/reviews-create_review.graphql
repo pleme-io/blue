@@ -1,0 +1,15 @@
+fragment ReviewFields on Review {
+		id
+		providerId
+		reviewerId
+		rating
+		reviewMonth
+		isActive
+		createdAt
+	}
+
+	mutation CreateReview($input: CreateReviewInput!) {
+		createReview(input: $input) {
+			...ReviewFields
+		}
+	}

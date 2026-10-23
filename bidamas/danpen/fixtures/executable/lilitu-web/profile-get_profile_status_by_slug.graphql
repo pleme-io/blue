@@ -1,0 +1,7 @@
+query GetProfileStatusBySlug($slug: String!) {
+		profileStatusBySlug(slug: $slug) {
+			status
+			name
+			shareUrl
+		}
+	}

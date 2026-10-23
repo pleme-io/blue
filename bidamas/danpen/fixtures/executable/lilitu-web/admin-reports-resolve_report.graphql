@@ -1,0 +1,8 @@
+mutation ResolveReport($reportId: UUID!, $notes: String) {
+    resolveReport(reportId: $reportId, notes: $notes) {
+      id
+      resolved
+      resolutionNotes
+      resolvedAt
+    }
+  }

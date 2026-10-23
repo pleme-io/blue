@@ -1,0 +1,19 @@
+fragment ReviewFields on Review {
+		id
+		providerId
+		reviewerId
+		rating
+		reviewMonth
+		isActive
+		createdAt
+	}
+
+	query MyReviews($pagination: PaginationInput) {
+		myReviews(pagination: $pagination) {
+			items {
+				...ReviewFields
+			}
+			total
+			hasMore
+		}
+	}

@@ -1,0 +1,12 @@
+query MyQuotaStatus($featureType: FeatureType!) {
+    myQuotaStatus(featureType: $featureType) {
+      featureType
+      featureMode
+      canUseFree
+      usesRemaining
+      usesTotal
+      usesConsumed
+      periodResetsAt
+      priceCentsIfPaid
+    }
+  }

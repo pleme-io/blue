@@ -1,0 +1,21 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable", "@external"])
+
+type SearchResult {
+  totalCount: Int!
+  advertisements: [AdSummary!]!
+}
+
+type AdSummary {
+  id: ID!
+  title: String!
+  location: String!
+}
+
+type Query {
+  searchAdvertisements(query: String!): SearchResult!
+}
+
+type Mutation {
+  placeholder: Boolean!
+}

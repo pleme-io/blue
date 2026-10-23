@@ -1,0 +1,3 @@
+query { hero { ...Bits } }
+
+fragment Bits on Episode { name }

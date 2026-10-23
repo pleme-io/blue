@@ -1,0 +1,3 @@
+mutation SoftDeleteUser($input: SoftDeleteUserInput!) {
+    softDeleteUser(input: $input)
+  }

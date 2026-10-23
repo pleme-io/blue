@@ -1,0 +1,10 @@
+query Report($format: String = "oscal") {
+  report(format: $format) {
+    format
+    data
+  }
+  results {
+    id
+    performedAt
+  }
+}

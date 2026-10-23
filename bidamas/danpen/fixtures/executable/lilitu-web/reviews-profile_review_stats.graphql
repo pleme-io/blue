@@ -1,0 +1,11 @@
+fragment ReviewStatsFields on ReviewStats {
+		averageRating
+		totalReviews
+		ratingDistribution
+	}
+
+	query ProfileReviewStats($profileId: UUID!) {
+		profileReviewStats(profileId: $profileId) {
+			...ReviewStatsFields
+		}
+	}

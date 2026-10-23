@@ -1,0 +1,3 @@
+mutation RemoveProfilesFromCampaign($input: RemoveProfilesFromCampaignInput!) {
+    removeProfilesFromCampaign(input: $input)
+  }

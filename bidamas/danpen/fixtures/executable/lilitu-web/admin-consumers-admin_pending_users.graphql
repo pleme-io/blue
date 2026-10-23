@@ -1,0 +1,26 @@
+query AdminPendingUsers(
+    $search: String
+    $limit: Int = 20
+    $offset: Int = 0
+  ) {
+    adminPendingUsers(
+      search: $search
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        email
+        emailVerified
+        name
+        avatarUrl
+        roles
+        isProvider
+        isActive
+        createdAt
+        onboardingCompletedAt
+      }
+      total
+      hasMore
+    }
+  }

@@ -1,0 +1,17 @@
+query Latest {
+  latestResult {
+    id
+    environment
+    baseline
+    complianceHash
+    allSatisfied
+    totalControls
+    satisfied
+    notSatisfied
+    performedAt
+  }
+  complianceHash {
+    hash
+    computedAt
+  }
+}

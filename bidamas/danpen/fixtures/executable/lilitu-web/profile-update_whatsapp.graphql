@@ -1,0 +1,18 @@
+fragment UserFields on User {
+		id
+		email
+		emailVerified
+		name
+		avatarUrl
+		whatsapp
+		userType
+		staffRole
+		createdAt
+		updatedAt
+	}
+
+	mutation UpdateWhatsapp($whatsapp: String!) {
+		updateWhatsapp(whatsapp: $whatsapp) {
+			...UserFields
+		}
+	}

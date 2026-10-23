@@ -1,0 +1,26 @@
+fragment ProfileFields on ProviderProfile {
+		id
+		userId
+		email
+		emailVerified
+		whatsapp
+		username
+		name
+		age
+		city
+		neighborhood
+		photos
+		interests
+		pricePerHourCents
+		moderationStatus
+		rejectionReason
+		visibility
+		createdAt
+		updatedAt
+	}
+
+  mutation ConfirmPixPayment($paymentId: UUID!) {
+    confirmPixPayment(paymentId: $paymentId) {
+      ...ProfileFields
+    }
+  }

@@ -1,0 +1,12 @@
+mutation UpdateFeatureFlag($input: UpdateFeatureFlagInput!) {
+		updateFeatureFlag(input: $input) {
+			id
+			key
+			name
+			description
+			isEnabled
+			scope
+			createdAt
+			updatedAt
+		}
+	}

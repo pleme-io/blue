@@ -1,0 +1,3 @@
+mutation PromoteToStaff($input: PromoteToStaffInput!) {
+    promoteToStaff(input: $input)
+  }

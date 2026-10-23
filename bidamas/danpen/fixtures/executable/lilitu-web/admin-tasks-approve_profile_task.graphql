@@ -1,0 +1,52 @@
+fragment AdminTaskFields on AdminTask {
+    id
+    taskType
+    status
+    adId
+    profileId
+    photoKey
+    photoUrl
+    userId
+    resolvedBy
+    resolvedAt
+    rejectionReason
+    rejectionReasonCodes
+    priority
+    createdAt
+    updatedAt
+    isActive
+    isResolved
+    typeLabel
+    typeDescription
+    isPhotoTask
+    isProfileTask
+    isInitialApproval
+    includesPhotos
+    waitTimeSeconds
+    taskMetadata
+    inboxThreadId
+    rejectionCount
+    hasUserReply
+    profile {
+      id
+      username
+      name
+      age
+      city
+      neighborhood
+      whatsapp
+      photos
+      interests
+      pricePerHourCents
+      moderationStatus
+      rejectionReason
+      userId
+      createdAt
+    }
+  }
+
+  mutation ApproveProfileTask($input: ApproveProfileTaskInput!) {
+    approveProfileTask(input: $input) {
+      ...AdminTaskFields
+    }
+  }

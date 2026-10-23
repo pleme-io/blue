@@ -1,0 +1,10 @@
+mutation WarnUser($input: WarnUserInput!) {
+    warnUser(input: $input) {
+      id
+      reason
+      banType
+      expiresAt
+      createdAt
+      bannedBy
+    }
+  }

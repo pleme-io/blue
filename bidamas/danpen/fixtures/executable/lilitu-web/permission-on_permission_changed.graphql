@@ -1,0 +1,11 @@
+subscription OnPermissionChanged($objectType: String, $objectId: String) {
+    onPermissionChanged(objectType: $objectType, objectId: $objectId) {
+      objectType
+      objectId
+      relation
+      subjectType
+      subjectId
+      action
+      changedAt
+    }
+  }

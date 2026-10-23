@@ -1,0 +1,3 @@
+query CheckWhatsappExists($whatsapp: String!) {
+    whatsappExists(whatsapp: $whatsapp)
+  }

@@ -1,0 +1,10 @@
+mutation SuspendUser($input: SuspendUserInput!) {
+    suspendUser(input: $input) {
+      id
+      reason
+      banType
+      expiresAt
+      createdAt
+      bannedBy
+    }
+  }

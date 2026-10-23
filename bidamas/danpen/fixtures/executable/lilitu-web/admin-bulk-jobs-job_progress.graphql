@@ -1,0 +1,15 @@
+query JobProgress($jobId: UUID!) {
+    jobProgress(jobId: $jobId) {
+      id
+      jobType
+      status
+      totalItems
+      processedItems
+      failedItems
+      triggeredBy
+      errorMessage
+      startedAt
+      completedAt
+      createdAt
+    }
+  }

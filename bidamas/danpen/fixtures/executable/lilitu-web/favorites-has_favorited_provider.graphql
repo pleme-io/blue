@@ -1,0 +1,3 @@
+query HasFavoritedProvider($providerId: UUID!) {
+		hasFavoritedProvider(providerId: $providerId)
+	}

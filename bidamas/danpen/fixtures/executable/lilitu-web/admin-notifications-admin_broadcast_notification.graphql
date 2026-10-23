@@ -1,0 +1,9 @@
+mutation AdminBroadcastNotification($input: AdminBroadcastNotificationInput!) {
+    adminBroadcastNotification(input: $input) {
+      success
+      totalUsers
+      jobsPublished
+      message
+      dryRun
+    }
+  }

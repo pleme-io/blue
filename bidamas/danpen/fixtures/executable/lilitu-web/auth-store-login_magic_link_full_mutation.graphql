@@ -1,0 +1,24 @@
+mutation LoginWithMagicLinkFull($token: String!) {
+    loginWithMagicLink(token: $token) {
+      user {
+        
+  id
+  name
+  email
+  emailVerified
+  avatarUrl
+  whatsapp
+  userType
+  roles
+  staffRole
+  permissions
+  roleLevel
+  homeCity
+  homeNeighborhood
+  needsReonboarding
+  createdAt
+  updatedAt
+
+      }
+    }
+  }

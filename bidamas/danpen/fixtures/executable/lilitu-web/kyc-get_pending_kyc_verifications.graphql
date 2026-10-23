@@ -1,0 +1,11 @@
+query GetPendingKycVerifications($limit: Int!, $offset: Int!) {
+		pendingKycVerifications(limit: $limit, offset: $offset) {
+			id
+			userId
+			providerProfileId
+			photoUrl
+			expectedCode
+			status
+			submittedAt
+		}
+	}

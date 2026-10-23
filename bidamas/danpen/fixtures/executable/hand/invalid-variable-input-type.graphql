@@ -1,0 +1,5 @@
+query Hero($who: Human) {
+  hero {
+    name
+  }
+}

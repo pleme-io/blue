@@ -1,0 +1,3 @@
+mutation SetEncantado($input: SetEncantadoInput!) {
+    setEncantado(input: $input)
+  }

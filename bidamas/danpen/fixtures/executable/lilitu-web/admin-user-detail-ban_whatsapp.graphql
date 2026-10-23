@@ -1,0 +1,11 @@
+mutation BanWhatsApp($input: BanWhatsAppInput!) {
+    banWhatsapp(input: $input) {
+      id
+      targetType
+      targetValue
+      banType
+      reason
+      expiresAt
+      createdAt
+    }
+  }

@@ -1,0 +1,15 @@
+fragment CityWithStateFields on CityWithState {
+    id
+    value: value
+    label: label
+    state
+    population
+    isCapital
+    sortOrder
+  }
+
+  query GetCitiesByState($state: String!) {
+    citiesByState(state: $state) {
+      ...CityWithStateFields
+    }
+  }

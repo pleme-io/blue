@@ -1,0 +1,6 @@
+mutation UnsubscribeAllFromPush {
+		unsubscribeAllFromPush {
+			success
+			subscriptionCount
+		}
+	}

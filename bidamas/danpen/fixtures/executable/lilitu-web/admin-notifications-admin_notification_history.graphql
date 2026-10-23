@@ -1,0 +1,17 @@
+query AdminNotificationHistory($limit: Int = 20, $offset: Int = 0) {
+    adminNotificationHistory(limit: $limit, offset: $offset) {
+      items {
+        id
+        adminUserId
+        adminName
+        action
+        resourceType
+        resourceId
+        changes
+        ipAddress
+        createdAt
+      }
+      total
+      hasMore
+    }
+  }

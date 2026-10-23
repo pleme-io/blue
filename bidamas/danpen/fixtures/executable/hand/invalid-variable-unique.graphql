@@ -1,0 +1,1 @@
+query Hero($episode: Episode, $episode: Episode) { hero(episode: $episode) { name } }

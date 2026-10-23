@@ -1,0 +1,1 @@
+query Hero($episode: Episode, $spare: Int) { hero(episode: $episode) { name } }

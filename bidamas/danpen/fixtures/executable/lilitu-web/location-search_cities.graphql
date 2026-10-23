@@ -1,0 +1,15 @@
+fragment CityWithStateFields on CityWithState {
+    id
+    value: value
+    label: label
+    state
+    population
+    isCapital
+    sortOrder
+  }
+
+  query SearchCities($query: String!, $limit: Int = 20) {
+    searchCities(query: $query, limit: $limit) {
+      ...CityWithStateFields
+    }
+  }

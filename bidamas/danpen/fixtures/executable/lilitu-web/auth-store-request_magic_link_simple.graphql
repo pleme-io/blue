@@ -1,0 +1,3 @@
+mutation RequestMagicLinkSimple($email: String!) {
+    requestMagicLink(email: $email)
+  }

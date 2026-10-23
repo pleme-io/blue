@@ -1,0 +1,17 @@
+query AdminUserActivity($userId: UUID!, $limit: Int = 20, $offset: Int = 0) {
+    adminUserActivity(userId: $userId, limit: $limit, offset: $offset) {
+      items {
+        id
+        adminUserId
+        adminName
+        action
+        resourceType
+        resourceId
+        changes
+        ipAddress
+        createdAt
+      }
+      total
+      hasMore
+    }
+  }

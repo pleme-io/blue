@@ -1,0 +1,13 @@
+query GetKycVerificationByProfile($providerProfileId: UUID!) {
+		kycVerificationByProfile(providerProfileId: $providerProfileId) {
+			id
+			userId
+			providerProfileId
+			photoUrl
+			expectedCode
+			status
+			submittedAt
+			reviewedAt
+			rejectionReason
+		}
+	}

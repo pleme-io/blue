@@ -1,0 +1,15 @@
+mutation RevokeAccess(
+    $objectType: String!
+    $objectId: String!
+    $relation: String!
+    $subjectType: String!
+    $subjectId: String!
+  ) {
+    revokeAccess(
+      objectType: $objectType
+      objectId: $objectId
+      relation: $relation
+      subjectType: $subjectType
+      subjectId: $subjectId
+    )
+  }

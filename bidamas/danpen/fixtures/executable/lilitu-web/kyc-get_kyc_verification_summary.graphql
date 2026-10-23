@@ -1,0 +1,7 @@
+query GetKycVerificationSummary {
+		kycVerificationSummary {
+			pendingCount
+			approvedCount
+			rejectedCount
+		}
+	}

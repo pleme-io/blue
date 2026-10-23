@@ -1,0 +1,488 @@
+scalar BigInt
+
+"""
+A content manifest — the chunk-set a CID addresses. Bytes live in Garage;
+this row tracks the manifest's size + chunk count so the service can issue
+presigned URLs and report dedup.
+"""
+type Blob {
+	cid: String!
+	sizeBytes: Int!
+	chunkCount: Int!
+	createdAt: DateTime!
+}
+
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+"""
+A registered sync client (one per member per device).
+"""
+type Device {
+	id: UUID!
+	memberId: UUID!
+	name: String!
+	platform: DevicePlatform!
+	lastSeenAt: DateTime!
+	createdAt: DateTime!
+}
+
+"""
+The platform a registered sync device runs on. Mobile is File-Provider /
+DocumentsProvider + opportunistic background sync (theory/GAVETA.md §II).
+"""
+enum DevicePlatform {
+	DESKTOP
+	IOS
+	ANDROID
+}
+
+"""
+A top-level drive — a member's personal drive or a shared family drive.
+"""
+type Drive {
+	id: UUID!
+	name: String!
+	"""
+	The member who owns the drive (the saguão `x-user-*` identity, projected
+	into the local `members` table).
+	"""
+	ownerId: UUID!
+	createdAt: DateTime!
+	updatedAt: DateTime!
+}
+
+"""
+Where a caller's quota came from — surfaced in GraphQL so the user knows
+whether they're on a live fair-share grant or the pre-pool default.
+"""
+enum GrantSourceKind {
+	"""
+	A live `QuinhaoPool` grant (the fair-share band).
+	"""
+	QUINHAO_POOL
+	"""
+	The configured `default_user_quota_bytes` — no pool grant for this user.
+	"""
+	DEFAULT
+}
+
+"""
+A member — a cousin. The local projection of a saguão identity; the service
+never authenticates, it reads `x-user-*` headers (Urdume L8 / §V).
+"""
+type Member {
+	id: UUID!
+	"""
+	Stable external subject (saguão `x-user-id`).
+	"""
+	subject: String!
+	handle: String!
+	displayName: String!
+	createdAt: DateTime!
+}
+
+type Mutation {
+	"""
+	Create a drive owned by the caller. Requires the `drives.create`
+	permission (every user holds it); grants the caller `owner` on the new
+	`drive:<id>` so every later resource check against it resolves.
+	"""
+	createDrive(name: String!): Drive!
+	"""
+	Create a folder node. `parentId = null` creates a drive root folder.
+	Requires editor-or-better on the drive, or the admin nodes-manage
+	permission.
+	"""
+	createFolder(driveId: UUID!, parentId: UUID, name: String!): Node!
+	"""
+	Phase 1 of upload: register the content manifest + return a presigned
+	Garage PUT URL. Idempotent on CID (content-addressed dedup). Requires
+	the base `files.write` permission.
+	"""
+	requestUpload(cid: String!, sizeBytes: Int!, chunkCount: Int!): UploadTicket!
+	"""
+	Phase 2 of upload: record a new file node pointing at an uploaded blob.
+	Requires editor-or-better on the target drive, or the admin nodes-manage
+	permission.
+	"""
+	registerFile(driveId: UUID!, parentId: UUID, name: String!, contentCid: String!, sizeBytes: Int!, mime: String): Node!
+	"""
+	Phase 2 of the CHUNKED / gigs-across upload: record a file node from a
+	transport-piece manifest. Each piece was PUT individually
+	(`PUT /blob/piece/{cid}`, BLAKE3-verified, one bounded body) so a
+	multi-gigabyte file crossed Cloudflare's ~100 MiB cap and never buffered
+	whole in the pod. This commits the node IFF every listed piece is present.
+	
+	EXTENDS `register_file`'s atomic machine (does NOT replace it):
+	`register_chunked_file_txn` runs the SAME owner FOR UPDATE → S4 parent →
+	in-txn quota SUM → idempotent ON CONFLICT insert → commit, with an in-txn
+	PRESENCE LEDGER (one set query over `blobs`, NOT N S3 HEADs) + the ordered
+	`blob_chunks` manifest write folded into the one transaction. A torn
+	upload (a manifest naming a piece never PUT) is REJECTED with no node —
+	structurally absent, not mitigated (★★ UNREPRESENTABILITY). Idempotency
+	considers `manifestCid`: a resumed re-register returns the SAME node.
+	
+	`totalSize` is `BigInt` (i64) — the size that exceeds the `Int` 2 GiB
+	ceiling on this path. The server independently re-derives the manifest cid
+	from the pieces and refuses a `manifestCid` that disagrees (the manifest
+	is content-addressed; a client-claimed cid that doesn't hash the pieces is
+	rejected, never trusted).
+	"""
+	registerChunkedFile(driveId: UUID!, parentId: UUID, name: String!, manifestCid: String!, pieces: [PieceInput!]!, totalSize: BigInt!, mime: String): Node!
+	"""
+	Update a file node to a new content version (bumps its version).
+	Requires editor-or-better on the node's drive, or the admin nodes-manage
+	permission.
+	"""
+	setFileContent(nodeId: UUID!, contentCid: String!, sizeBytes: Int!, mime: String): Node!
+	"""
+	Rename a node. Requires editor-or-better on the node's drive, or the
+	admin nodes-manage permission.
+	"""
+	renameNode(id: UUID!, name: String!): Node!
+	"""
+	Move a node to a new parent. Requires editor-or-better on the node's
+	drive, or the admin nodes-manage permission.
+	"""
+	moveNode(id: UUID!, newParentId: UUID): Node!
+	"""
+	Soft-delete (tombstone) a node — never a hard delete. Requires
+	editor-or-better on the node's drive, or the admin nodes-manage
+	permission.
+	"""
+	deleteNode(id: UUID!): Node!
+	"""
+	Share a node (subtree) with a member — the consent grant. Requires
+	owner on the node's drive (only an owner shares), or the admin
+	shares-manage permission.
+	"""
+	createShare(nodeId: UUID!, memberId: UUID!, permission: SharePermission!): Share!
+	"""
+	Register a sync device for the caller. Requires the base `devices.manage`
+	permission.
+	"""
+	registerDevice(name: String!, platform: DevicePlatform!): Device!
+	"""
+	Advance a device's sync cursor for a drive (monotonic — never regresses).
+	Requires editor-or-better on the drive (a sync write), or the admin
+	nodes-manage permission.
+	"""
+	advanceSyncCursor(deviceId: UUID!, driveId: UUID!, cursor: Int!): SyncCursor!
+	"""
+	Register a synced file version (`gaveta_sync_core::GavetaApi::register_file`).
+	The chunk BYTES are already in Garage (the client put them there); this
+	records the ordered manifest + appends to the drive's change feed +
+	updates current state, in one transaction. Quota-gated against the DRIVE
+	OWNER's fair-share band. Requires editor-or-better on the drive. Returns
+	the new feed seq (the change's version).
+	"""
+	syncRegisterFile(driveId: UUID!, path: String!, contentCid: String!, chunkCids: [String!]!, sizeBytes: Int!): Int!
+	"""
+	Tombstone a synced path (the client's delete push). Add-only — a new feed
+	change, never a hard delete. Requires editor-or-better on the drive.
+	Returns the new feed seq.
+	"""
+	syncDeleteNode(driveId: UUID!, path: String!): Int!
+	"""
+	Seal a generation at the drive's current feed head — a named restore
+	point (the nix-generations window). Requires editor-or-better. Returns
+	the generation id.
+	"""
+	syncSealGeneration(driveId: UUID!, rootCid: String!, device: String!): Int!
+	"""
+	Checkpoint a client device's server-side cursor (informational — the
+	authoritative cursor lives in the client's local index). Monotonic.
+	Requires editor-or-better on the drive.
+	"""
+	syncAdvanceCursor(driveId: UUID!, device: String!, cursor: Int!): Boolean!
+}
+
+"""
+A file-tree node (folder or file). `parent_id == None` is a drive root.
+`content_cid`/`size_bytes`/`mime` are set for `File` nodes. `deleted_at`
+is the row-level soft-delete tombstone (add-only discipline — never hard
+delete).
+"""
+type Node {
+	id: UUID!
+	driveId: UUID!
+	parentId: UUID
+	name: String!
+	kind: NodeKind!
+	"""
+	For a `File`: the BLAKE3 manifest CID of its content in Garage.
+	"""
+	contentCid: String
+	sizeBytes: Int!
+	mime: String
+	"""
+	Monotonic version, bumped on every content/metadata mutation — the
+	per-node sync clock the client reconciles against.
+	"""
+	version: Int!
+	createdAt: DateTime!
+	updatedAt: DateTime!
+	deletedAt: DateTime
+}
+
+"""
+A tree node is either a folder (an interior node) or a file (a leaf that
+points at a content manifest). One unified table models the whole tree.
+"""
+enum NodeKind {
+	FOLDER
+	FILE
+}
+
+"""
+One transport piece of a chunked file, as the client lists it in
+`registerChunkedFile.pieces`: the piece's content cid + its byte length. The
+`len` is `BigInt` (i64) so a piece never truncates on the gigs-across path.
+Maps 1:1 onto `gaveta_manifest::PieceRef`.
+"""
+input PieceInput {
+	"""
+	BLAKE3 of the piece bytes (the `blobs/<cid>` key the client PUT it to).
+	"""
+	cid: String!
+	"""
+	The piece's byte length.
+	"""
+	len: BigInt!
+}
+
+type Query {
+	"""
+	The calling member (the saguão identity projected locally). Any
+	authenticated caller may read their own projection.
+	"""
+	me: Member!
+	"""
+	The caller's storage picture — bytes used vs their fair-share storage
+	quota, and whether that quota is a live `QuinhaoPool` grant or the
+	pre-pool default. Scoped to the caller; any authenticated cousin may read
+	their own usage.
+	"""
+	myStorage: StorageUsage!
+	"""
+	The drives the caller owns. Scoped to the caller — no guard needed beyond
+	authentication (the query itself filters to `owner_id == me`).
+	"""
+	drives: [Drive!]!
+	"""
+	The member directory (the cousins) — used to pick a share recipient.
+	Any authenticated member may list it; sharing a node still requires owner
+	on that node's drive (enforced in `createShare`).
+	"""
+	members: [Member!]!
+	"""
+	EVERY drive across all users — admin-only fleet view.
+	"""
+	allDrives: [Drive!]!
+	"""
+	One drive by id. Requires viewer-or-better on the drive, or the admin
+	list-all permission.
+	"""
+	drive(id: UUID!): Drive!
+	"""
+	One tree node by id. Requires read on its drive (viewer-or-better), or
+	the admin nodes-manage permission.
+	"""
+	node(id: UUID!): Node!
+	"""
+	The live children of a folder; `parentId = null` lists the drive roots.
+	Requires viewer-or-better on the drive, or the admin nodes-manage
+	permission.
+	"""
+	children(driveId: UUID!, parentId: UUID): [Node!]!
+	"""
+	Nodes in a drive that changed past a version cursor — the maré
+	want/have delta a device pulls to catch up. Requires viewer-or-better on
+	the drive, or the admin nodes-manage permission.
+	"""
+	nodesSince(driveId: UUID!, since: Int!): [Node!]!
+	"""
+	A content manifest by CID (dedup lookup before an upload). Any
+	authenticated caller with the base files.read permission.
+	"""
+	blob(cid: String!): Blob
+	"""
+	Shares granted TO the caller (folders cousins shared with them). Scoped
+	to the caller.
+	"""
+	shares: [Share!]!
+	"""
+	The caller's registered sync devices. Scoped to the caller.
+	"""
+	devices: [Device!]!
+	"""
+	A device's sync cursor for a drive (where it last caught up to).
+	Requires viewer-or-better on the drive, or the admin nodes-manage
+	permission.
+	"""
+	syncCursor(deviceId: UUID!, driveId: UUID!): SyncCursor
+	"""
+	A presigned GET URL to download a blob's bytes directly from Garage.
+	Requires the base files.read permission (every user holds it; a
+	non-user/unauthenticated caller is refused).
+	"""
+	downloadUrl(cid: String!): String!
+	"""
+	The flat-path sync change feed since a cursor — the headless client's
+	pull (`gaveta_sync_core::GavetaApi::nodes_since`). Returns the changes +
+	the new cursor to persist. Requires viewer-or-better on the drive, or the
+	admin nodes-manage permission.
+	"""
+	syncNodesSince(driveId: UUID!, cursor: Int!): SyncDelta!
+	"""
+	The ordered chunk cids of a content manifest, so a download reassembles
+	the file in order. `driveId` scopes the authz check; chunks themselves are
+	global (content-addressed). Requires viewer-or-better on the drive.
+	"""
+	syncFileChunks(driveId: UUID!, contentCid: String!): [String!]!
+	"""
+	A sealed generation's reconstructed tree — the rollback/restore surface
+	(`recover.rs` on the client). Requires viewer-or-better on the drive.
+	"""
+	syncGenerationTree(driveId: UUID!, generationId: Int!): [SyncFileEntry!]!
+	"""
+	The caller's fair-share grant in bytes — the daemon reads its own budget.
+	Self-only by default; an admin (`drives.list_all`) may read another
+	subject's grant.
+	"""
+	syncQuotaGrant(subject: String!): Int!
+}
+
+"""
+A sharing grant — "share this node (subtree) with member X" (the mutirão
+colmeia consent projection). Consent is the only path to cross-member
+access (theory/GAVETA.md §0).
+"""
+type Share {
+	id: UUID!
+	nodeId: UUID!
+	memberId: UUID!
+	permission: SharePermission!
+	createdBy: UUID!
+	createdAt: DateTime!
+}
+
+"""
+What a share grants its recipient on the shared subtree.
+"""
+enum SharePermission {
+	READ
+	WRITE
+}
+
+"""
+The caller's storage picture for GraphQL — usage vs the fair-share quota,
+plus where the quota came from. Returned by the `myStorage` query so the
+UI/user can render "X of Y used".
+"""
+type StorageUsage {
+	"""
+	Bytes the caller currently owns (live file nodes across their drives).
+	"""
+	storageUsedBytes: Int!
+	"""
+	The caller's quota (bytes) — the live `QuinhaoPool` grant, or the default.
+	"""
+	storageQuotaBytes: Int!
+	"""
+	Whether `storageQuotaBytes` is a live pool grant or the configured default.
+	"""
+	storageGrantSource: GrantSourceKind!
+}
+
+"""
+One entry in a drive's change feed — a flat-path file create/update, or a
+delete (`deleted = true`, `content_cid = None`). `version` is the change's
+global feed sequence (`node_changes.seq`), the monotonic sync clock.
+"""
+type SyncChange {
+	path: String!
+	contentCid: String
+	sizeBytes: Int!
+	deleted: Boolean!
+	version: Int!
+}
+
+"""
+Per-device sync state for a drive — the opaque cursor (the last-reconciled
+DAG head / max version the device has caught up to). The maré want/have
+reconciliation advances this.
+"""
+type SyncCursor {
+	id: UUID!
+	deviceId: UUID!
+	driveId: UUID!
+	cursor: Int!
+	updatedAt: DateTime!
+}
+
+"""
+The delta a device pulls from a cursor: the changes since it + the new
+cursor to persist (the drive's current feed head, so an empty pull still
+advances past already-seen history).
+"""
+type SyncDelta {
+	cursor: Int!
+	changed: [SyncChange!]!
+}
+
+"""
+A live file in a generation's reconstructed tree (the rollback/restore
+surface — recover.rs on the client). `version` is the feed seq of the file's
+last change at or before the generation.
+"""
+type SyncFileEntry {
+	path: String!
+	contentCid: String!
+	sizeBytes: Int!
+	version: Int!
+}
+
+"""
+A UUID is a unique 128-bit number, stored as 16 octets. UUIDs are parsed as
+Strings within GraphQL. UUIDs are used to assign unique identifiers to
+entities without requiring a central allocating authority.
+
+# References
+
+* [Wikipedia: Universally Unique Identifier](http://en.wikipedia.org/wiki/Universally_unique_identifier)
+* [RFC4122: A Universally Unique Identifier (UUID) URN Namespace](http://tools.ietf.org/html/rfc4122)
+"""
+scalar UUID
+
+"""
+A presigned upload grant — the content id + the Garage PUT URL the client
+streams the blob to.
+"""
+type UploadTicket {
+	cid: String!
+	url: String!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+extend schema @link(
+	url: "https://specs.apollo.dev/federation/v2.5",
+	import: ["@key", "@tag", "@shareable", "@inaccessible", "@override", "@external", "@provides", "@requires", "@composeDirective", "@interfaceObject", "@requiresScopes"]
+)
+

@@ -1,0 +1,3 @@
+mutation AddProfilesToCampaign($input: AddProfilesToCampaignInput!) {
+    addProfilesToCampaign(input: $input)
+  }

@@ -1,0 +1,23 @@
+fragment PendingPhotoFields on PendingPhoto {
+    id
+    adId
+    photoKey
+    photoUrl
+    createdAt
+    profile {
+      id
+      name
+      city
+      whatsapp
+    }
+  }
+
+  query PendingPhotos($limit: Int = 20, $offset: Int = 0) {
+    pendingPhotos(limit: $limit, offset: $offset) {
+      items {
+        ...PendingPhotoFields
+      }
+      total
+      hasMore
+    }
+  }

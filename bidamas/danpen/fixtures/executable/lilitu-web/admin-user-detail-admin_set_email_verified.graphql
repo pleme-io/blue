@@ -1,0 +1,3 @@
+mutation AdminSetEmailVerified($input: AdminSetEmailVerifiedInput!) {
+    adminSetEmailVerified(input: $input)
+  }

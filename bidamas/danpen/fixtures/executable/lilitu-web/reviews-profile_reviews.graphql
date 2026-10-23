@@ -1,0 +1,19 @@
+fragment ReviewFields on Review {
+		id
+		providerId
+		reviewerId
+		rating
+		reviewMonth
+		isActive
+		createdAt
+	}
+
+	query ProfileReviews($profileId: UUID!, $pagination: PaginationInput) {
+		profileReviews(profileId: $profileId, pagination: $pagination) {
+			items {
+				...ReviewFields
+			}
+			total
+			hasMore
+		}
+	}

@@ -1,0 +1,12 @@
+query FeatureFlags {
+		featureFlags {
+			id
+			key
+			name
+			description
+			isEnabled
+			scope
+			createdAt
+			updatedAt
+		}
+	}

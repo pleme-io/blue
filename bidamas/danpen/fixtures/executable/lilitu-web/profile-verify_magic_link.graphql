@@ -1,0 +1,22 @@
+mutation VerifyMagicLink($token: String!) {
+		verifyMagicLink(token: $token) {
+			isNewProfile
+			userId
+			profile {
+				id
+				email
+				emailVerified
+				name
+				age
+				whatsapp
+				username
+				visibility
+				moderationStatus
+				completeness
+				photos
+				city
+				neighborhood
+				interests
+			}
+		}
+	}

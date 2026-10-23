@@ -1,0 +1,3 @@
+mutation ReplyToInboxMessage($input: ReplyToInboxMessageInput!) {
+		replyToInboxMessage(input: $input)
+	}

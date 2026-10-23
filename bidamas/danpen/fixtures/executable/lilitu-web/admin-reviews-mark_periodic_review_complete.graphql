@@ -1,0 +1,17 @@
+fragment PeriodicReviewTaskFields on PeriodicReviewTask {
+    id
+    providerId
+    providerName
+    daysSinceReview
+    createdAt
+    completedAt
+    completedBy
+    actionTaken
+    notes
+  }
+
+  mutation MarkPeriodicReviewComplete($input: CompleteReviewInput!) {
+    markPeriodicReviewComplete(input: $input) {
+      ...PeriodicReviewTaskFields
+    }
+  }

@@ -1,0 +1,29 @@
+query AdminReports(
+    $resolved: Boolean
+    $reason: ReportReason
+    $search: String
+    $limit: Int = 20
+    $offset: Int = 0
+  ) {
+    adminReports(
+      resolved: $resolved
+      reason: $reason
+      search: $search
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        profileId
+        reporterWhatsapp
+        reason
+        details
+        resolved
+        resolutionNotes
+        createdAt
+        resolvedAt
+      }
+      total
+      hasMore
+    }
+  }

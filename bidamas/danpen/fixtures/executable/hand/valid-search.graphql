@@ -1,0 +1,8 @@
+query Search($text: String!) {
+  results: search(text: $text, limit: 5) {
+    __typename
+    ... on Node { id }
+    ... on Human { name height }
+    ... on Starship { name launched }
+  }
+}

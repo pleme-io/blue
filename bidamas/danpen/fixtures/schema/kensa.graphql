@@ -1,0 +1,174 @@
+"""
+Compliance hash response.
+"""
+type ComplianceHashGql {
+	"""
+	The compliance hash.
+	"""
+	hash: String!
+	"""
+	Environment.
+	"""
+	environment: String!
+	"""
+	Baseline level.
+	"""
+	baseline: String!
+	"""
+	When computed.
+	"""
+	computedAt: DateTime!
+}
+
+"""
+Compliance result summary.
+"""
+type ComplianceResultGql {
+	"""
+	Result UUID.
+	"""
+	id: String!
+	"""
+	Environment assessed.
+	"""
+	environment: String!
+	"""
+	NIST baseline level.
+	"""
+	baseline: String!
+	"""
+	Compliance hash.
+	"""
+	complianceHash: String!
+	"""
+	Whether all controls are satisfied.
+	"""
+	allSatisfied: Boolean!
+	"""
+	Total number of controls assessed.
+	"""
+	totalControls: Int!
+	"""
+	Number of satisfied controls.
+	"""
+	satisfied: Int!
+	"""
+	Number of not-satisfied controls.
+	"""
+	notSatisfied: Int!
+	"""
+	When the assessment was performed.
+	"""
+	performedAt: DateTime!
+}
+
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+"""
+GraphQL Mutation root.
+"""
+type MutationRoot {
+	"""
+	Run compliance checks and store the result.
+	"""
+	runCompliance: RunComplianceGql!
+	"""
+	Verify a compliance hash against the latest results.
+	"""
+	verifyHash(hash: String!): VerifyHashGql!
+}
+
+"""
+GraphQL Query root.
+"""
+type QueryRoot {
+	"""
+	List all compliance results.
+	"""
+	results: [ComplianceResultGql!]!
+	"""
+	Get the latest compliance result.
+	"""
+	latestResult: ComplianceResultGql!
+	"""
+	Get the current compliance hash from the latest result.
+	"""
+	complianceHash: ComplianceHashGql!
+	"""
+	Generate a compliance report.
+	"""
+	report(format: String): ReportGql!
+}
+
+"""
+Report response.
+"""
+type ReportGql {
+	"""
+	Report format ("oscal" or "nist").
+	"""
+	format: String!
+	"""
+	Report data as JSON string.
+	"""
+	data: String!
+}
+
+"""
+Run compliance response.
+"""
+type RunComplianceGql {
+	"""
+	Result UUID.
+	"""
+	id: String!
+	"""
+	Compliance hash.
+	"""
+	complianceHash: String!
+	"""
+	Whether all controls passed.
+	"""
+	allSatisfied: Boolean!
+}
+
+"""
+Empty subscription root (kensa doesn't need subscriptions yet).
+"""
+type SubscriptionRoot {
+	"""
+	Placeholder subscription.
+	"""
+	healthTick: String!
+}
+
+"""
+Verify hash response.
+"""
+type VerifyHashGql {
+	"""
+	Whether the hash is valid.
+	"""
+	valid: Boolean!
+	"""
+	The hash that was checked.
+	"""
+	hash: String!
+	"""
+	Message.
+	"""
+	message: String!
+}
+
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+schema {
+	query: QueryRoot
+	mutation: MutationRoot
+	subscription: SubscriptionRoot
+}

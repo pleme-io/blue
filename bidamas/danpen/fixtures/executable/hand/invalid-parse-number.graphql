@@ -1,0 +1,1 @@
+query { hero { friends(first: 01) { name } } }

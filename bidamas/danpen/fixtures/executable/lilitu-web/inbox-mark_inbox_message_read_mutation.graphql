@@ -1,0 +1,3 @@
+mutation MarkInboxMessageRead($id: ID!) {
+		markInboxMessageRead(id: $id)
+	}

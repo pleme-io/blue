@@ -1,0 +1,3 @@
+mutation ReactivateUser($input: ReactivateUserInput!) {
+    reactivateUser(input: $input)
+  }

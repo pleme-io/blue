@@ -1,0 +1,3 @@
+mutation RemoveUserFeatureFlagOverride($input: RemoveUserFeatureFlagOverrideInput!) {
+		removeUserFeatureFlagOverride(input: $input)
+	}

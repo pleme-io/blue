@@ -1,0 +1,10 @@
+mutation ModifyBanDuration($input: ModifyBanDurationInput!) {
+    modifyBanDuration(input: $input) {
+      id
+      banType
+      expiresAt
+      reason
+      createdAt
+      updatedAt
+    }
+  }

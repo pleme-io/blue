@@ -1,0 +1,3 @@
+query IsFeatureEnabled($key: String!, $userId: UUID) {
+		isFeatureEnabled(key: $key, userId: $userId)
+	}

@@ -1,0 +1,3 @@
+subscription OnReview($episode: Episode) {
+  reviewAdded(episode: $episode) { episode stars }
+}

@@ -1,0 +1,22 @@
+mutation UpdateProfileHome($input: UpdateUserProfileInput!) {
+    updateProfile(input: $input) {
+      
+  id
+  name
+  email
+  emailVerified
+  avatarUrl
+  whatsapp
+  userType
+  roles
+  staffRole
+  permissions
+  roleLevel
+  homeCity
+  homeNeighborhood
+  needsReonboarding
+  createdAt
+  updatedAt
+
+    }
+  }

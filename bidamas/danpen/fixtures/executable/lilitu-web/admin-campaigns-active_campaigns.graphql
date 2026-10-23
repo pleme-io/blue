@@ -1,0 +1,18 @@
+fragment CampaignFields on BoostCampaignGql {
+    id
+    name
+    description
+    boostExpiresAt
+    reason
+    createdBy
+    createdAt
+    isActive
+    profileCount
+    profileIds
+  }
+
+  query ActiveCampaigns {
+    activeCampaigns {
+      ...CampaignFields
+    }
+  }

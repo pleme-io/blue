@@ -1,0 +1,25 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable", "@external"])
+
+type Report {
+  id: ID!
+  advertisementId: ID!
+  reporterId: ID!
+  category: String!
+  status: String!
+  createdAt: DateTime!
+}
+
+type Query {
+  placeholder: Boolean!
+}
+
+type Mutation {
+  reportAdvertisement(
+    advertisementId: ID!,
+    category: String!,
+    description: String
+  ): Report!
+}
+
+scalar DateTime

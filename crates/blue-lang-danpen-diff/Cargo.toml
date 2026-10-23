@@ -1,0 +1,18 @@
+[package]
+name = "blue-lang-danpen-diff"
+description = "The second implementation of danpen: apollo-compiler on the same GraphQL corpus, verdicts and canonical prints compared with blue's."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+apollo-compiler = "1.33.1"
+blue-lang-host = { path = "../blue-lang-host" }
+blue-lang-pkg = { path = "../blue-lang-pkg" }
+blue-lang-runtime = { path = "../blue-lang-runtime", features = ["sys"] }

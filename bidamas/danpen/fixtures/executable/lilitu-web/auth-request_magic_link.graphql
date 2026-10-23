@@ -1,0 +1,7 @@
+mutation RequestMagicLink($email: String!) {
+    requestMagicLink(email: $email) {
+      sent
+      emailMasked
+      retryAfterSeconds
+    }
+  }

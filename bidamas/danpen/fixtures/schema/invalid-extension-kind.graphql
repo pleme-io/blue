@@ -1,0 +1,5 @@
+type Query { a: Int }
+
+enum Color { RED }
+
+extend type Color { b: Int }

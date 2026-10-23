@@ -1,0 +1,19 @@
+fragment PaymentFields on Payment {
+    id
+    profileId
+    amountCents
+    discountCents
+    pixCode
+    pixQrCode
+    stripePaymentIntentId
+    status
+    createdAt
+    paidAt
+    expiresAt
+  }
+
+  query GetPaymentForProfile($profileId: UUID!) {
+    paymentForProfile(profileId: $profileId) {
+      ...PaymentFields
+    }
+  }

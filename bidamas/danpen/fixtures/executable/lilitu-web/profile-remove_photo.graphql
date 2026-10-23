@@ -1,0 +1,6 @@
+mutation RemovePhoto($photoUrl: String!) {
+		removePhoto(photoUrl: $photoUrl) {
+			id
+			photos
+		}
+	}

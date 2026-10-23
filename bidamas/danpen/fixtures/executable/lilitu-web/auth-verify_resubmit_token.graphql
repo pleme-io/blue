@@ -1,0 +1,15 @@
+mutation VerifyResubmitToken($token: String!) {
+    verifyResubmitToken(token: $token) {
+      id
+      email
+      username
+      name
+      age
+      city
+      whatsapp
+      photos
+      interests
+      visibility
+      moderationStatus
+    }
+  }

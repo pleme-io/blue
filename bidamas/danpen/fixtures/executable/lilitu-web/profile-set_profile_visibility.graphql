@@ -1,0 +1,7 @@
+mutation SetProfileVisibility($visibility: ProfileVisibility!) {
+		setVisibility(visibility: $visibility) {
+			id
+			visibility
+			moderationStatus
+		}
+	}

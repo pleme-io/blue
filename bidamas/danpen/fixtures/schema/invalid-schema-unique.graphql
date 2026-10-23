@@ -1,0 +1,5 @@
+schema { query: Query }
+
+schema { query: Query }
+
+type Query { a: Int }

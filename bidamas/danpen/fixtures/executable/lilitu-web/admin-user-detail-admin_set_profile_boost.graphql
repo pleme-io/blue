@@ -1,0 +1,36 @@
+fragment AdminProfileFields on ProviderProfile {
+    id
+    userId
+    email
+    emailVerified
+    whatsapp
+    username
+    name
+    age
+    city
+    neighborhood
+    photos
+    interests
+    pricePerHourCents
+    moderationStatus
+    rejectionReason
+    moderatedAt
+    moderatedBy
+    visibility
+    adminStealthLocked
+    autoStealthEnabled
+    boostExpiresAt
+    boostCampaignId
+    createdAt
+    updatedAt
+    deletedAt
+    approvedAt
+    lastLoginAt
+    lastActiveAt
+  }
+
+  mutation AdminSetProfileBoost($input: AdminSetProfileBoostInput!) {
+    adminSetProfileBoost(input: $input) {
+      ...AdminProfileFields
+    }
+  }

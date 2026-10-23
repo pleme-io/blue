@@ -1,0 +1,3 @@
+query InboxUnreadCount {
+		inboxUnreadCount
+	}

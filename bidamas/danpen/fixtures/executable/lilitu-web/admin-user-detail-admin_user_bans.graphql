@@ -1,0 +1,21 @@
+query AdminUserBans($userId: UUID!, $limit: Int = 20, $offset: Int = 0) {
+    adminUserBans(userId: $userId, limit: $limit, offset: $offset) {
+      items {
+        id
+        targetType
+        targetId
+        targetValue
+        banType
+        reason
+        expiresAt
+        bannedBy
+        unbannedBy
+        unbannedAt
+        unbanReason
+        createdAt
+        updatedAt
+      }
+      total
+      hasMore
+    }
+  }

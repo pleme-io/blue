@@ -1,0 +1,10 @@
+query MyProfileAnalyticsTrend($metric: String!, $days: Int) {
+		myProfileAnalyticsTrend(metric: $metric, days: $days) {
+			profileId
+			metric
+			data {
+				date
+				value
+			}
+		}
+	}

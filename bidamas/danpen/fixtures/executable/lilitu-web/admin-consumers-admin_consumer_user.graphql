@@ -1,0 +1,24 @@
+query AdminConsumerUser($id: UUID!) {
+    adminConsumerUser(id: $id) {
+      id
+      email
+      emailVerified
+      name
+      avatarUrl
+      roles
+      isProvider
+      isActive
+      isEncantado
+      createdAt
+      lastLoginAt
+      accountStatus
+      isStealthed
+      activeBan {
+        id
+        banType
+        reason
+        expiresAt
+        createdAt
+      }
+    }
+  }

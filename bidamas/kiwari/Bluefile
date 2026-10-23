@@ -1,2 +1,2 @@
-package("kiwari", "0.1.0")
+package("kiwari", "0.1.1")
 needs("retsu", "^0.1")

@@ -1,0 +1,7 @@
+mutation SubmitKycVerification($input: SubmitKycVerificationInput!) {
+		submitKycVerification(input: $input) {
+			id
+			status
+			submittedAt
+		}
+	}

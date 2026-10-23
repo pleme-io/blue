@@ -1,0 +1,686 @@
+# Lilith Platform GraphQL Schema
+# Unified platform for dating, content creation, and service provision
+
+scalar DateTime
+scalar Upload
+scalar Money
+scalar CPF
+scalar PhoneNumber
+scalar URL
+scalar GeoPoint
+
+# ==================== ENUMS ====================
+
+enum ProfileType {
+  DATING      # Sinner - Dating profiles
+  CREATOR     # Succubus - Content creators
+  PROVIDER    # Demon - Service providers
+}
+
+enum VerificationLevel {
+  NONE        # No verification
+  EMAIL       # Email verified
+  PHONE       # Phone verified
+  CPF         # Brazilian CPF verified
+  ID          # Government ID verified
+  FACE        # Face verification completed
+}
+
+enum ContentType {
+  PHOTO
+  PHOTO_SET
+  VIDEO
+  LIVE_STREAM
+  STORY
+}
+
+enum ContentVisibility {
+  PUBLIC      # Free for all
+  FOLLOWERS   # Free for followers
+  SUBSCRIBERS # Paid subscribers only
+  PPV         # Pay per view
+  PRIVATE     # Direct messages only
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  DISPUTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  TOKENS
+}
+
+enum SubscriptionTier {
+  BASIC
+  PREMIUM
+  VIP
+  CUSTOM
+}
+
+enum MessageType {
+  TEXT
+  PHOTO
+  VIDEO
+  VOICE
+  TIP
+  PAID_CONTENT
+  GIFT
+}
+
+enum PanicEventStatus {
+  ACTIVE
+  RESOLVED
+  FALSE_ALARM
+}
+
+enum SwipeAction {
+  LIKE
+  PASS
+  SUPER_LIKE
+}
+
+# ==================== USER & AUTH ====================
+
+type User {
+  id: ID!
+  email: String!
+  profiles: [ProfileType!]!
+  verificationLevel: VerificationLevel!
+  ageVerified: Boolean!
+  cpfVerified: Boolean!
+  cpf: CPF
+  phone: PhoneNumber
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Profile data
+  profile: Profile!
+
+  # Safety
+  emergencyContacts: [EmergencyContact!]!
+  lastCheckIn: DateTime
+  panicHistory: [PanicEvent!]!
+}
+
+type Profile {
+  id: ID!
+  displayName: String!
+  bio: String!
+  age: Int!
+  location: String!
+  avatar: String!
+  photos: [Photo!]!
+
+  # Stats
+  views: Int!
+  likes: Int!
+  rating: Float
+
+  # Profile type specific
+  datingProfile: DatingProfile
+  creatorProfile: CreatorProfile
+  providerProfile: ProviderProfile
+}
+
+type DatingProfile {
+  lookingFor: [ProfileType!]!
+  interests: [String!]!
+  verified: Boolean!
+  lastActive: DateTime!
+}
+
+type CreatorProfile {
+  subscriptionTiers: [SubscriptionTier!]!
+  subscriberCount: Int!
+  contentCount: Int!
+  monthlyEarnings: Money!
+  totalEarnings: Money!
+  specialties: [String!]!
+}
+
+type ProviderProfile {
+  services: [Service!]!
+  availability: [AvailabilitySlot!]!
+  minimumBookingHours: Int!
+  advanceBookingRequired: Int! # hours
+  completedBookings: Int!
+  rating: Float!
+  responseTime: Int! # minutes
+}
+
+# ==================== DISCOVERY & MATCHING ====================
+
+type DiscoveryProfile {
+  id: ID!
+  user: User!
+  distance: Float # km
+  lastActive: DateTime!
+  isOnline: Boolean!
+  commonInterests: [String!]!
+  photos: [Photo!]!
+
+  # Profile specific
+  subscriptionPrice: Money # For creators
+  hourlyRate: Money # For providers
+  nextAvailable: DateTime # For providers
+}
+
+type Match {
+  id: ID!
+  users: [User!]!
+  createdAt: DateTime!
+  lastMessageAt: DateTime
+  isActive: Boolean!
+}
+
+type Swipe {
+  id: ID!
+  swiper: User!
+  swiped: User!
+  action: SwipeAction!
+  createdAt: DateTime!
+}
+
+# ==================== CONTENT ====================
+
+type Content {
+  id: ID!
+  creator: User!
+  type: ContentType!
+  title: String!
+  description: String
+  visibility: ContentVisibility!
+  price: Money
+
+  # Media
+  thumbnail: String!
+  mediaUrl: String
+  mediaCount: Int
+  duration: Int # seconds for video
+
+  # Stats
+  views: Int!
+  likes: Int!
+  comments: Int!
+  earnings: Money!
+
+  # Metadata
+  tags: [String!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Photo {
+  id: ID!
+  url: String!
+  thumbnail: String!
+  isNSFW: Boolean!
+  isFaceVerified: Boolean!
+}
+
+type LiveStream {
+  id: ID!
+  creator: User!
+  title: String!
+  thumbnail: String!
+  viewerCount: Int!
+  startedAt: DateTime!
+  endedAt: DateTime
+  totalEarnings: Money!
+  isActive: Boolean!
+}
+
+# ==================== SUBSCRIPTIONS ====================
+
+type Subscription {
+  id: ID!
+  subscriber: User!
+  creator: User!
+  tier: SubscriptionTier!
+  price: Money!
+  startedAt: DateTime!
+  expiresAt: DateTime!
+  autoRenew: Boolean!
+  totalSpent: Money!
+}
+
+type SubscriptionTierDetails {
+  id: ID!
+  name: String!
+  price: Money!
+  features: [String!]!
+  subscriberCount: Int!
+  monthlyRevenue: Money!
+  icon: String!
+  color: String!
+}
+
+# ==================== MESSAGING ====================
+
+type Conversation {
+  id: ID!
+  participants: [User!]!
+  lastMessage: Message
+  lastMessageAt: DateTime!
+  unreadCount: Int!
+  isPinned: Boolean!
+  isArchived: Boolean!
+}
+
+type Message {
+  id: ID!
+  conversation: Conversation!
+  sender: User!
+  type: MessageType!
+  content: String
+
+  # Paid content
+  price: Money
+  isLocked: Boolean!
+  unlockedBy: [User!]!
+
+  # Media
+  mediaUrl: String
+  thumbnail: String
+
+  # Metadata
+  createdAt: DateTime!
+  readAt: DateTime
+  tip: Money
+}
+
+# ==================== BOOKINGS ====================
+
+type Booking {
+  id: ID!
+  client: User!
+  provider: User!
+  service: Service!
+
+  # Details
+  date: DateTime!
+  duration: Int! # hours
+  location: String!
+  notes: String
+
+  # Pricing
+  price: Money!
+  deposit: Money
+
+  # Status
+  status: BookingStatus!
+  confirmedAt: DateTime
+  completedAt: DateTime
+  cancelledAt: DateTime
+  cancellationReason: String
+}
+
+type Service {
+  id: ID!
+  name: String!
+  description: String!
+  price: Money!
+  duration: Int! # hours
+  isActive: Boolean!
+}
+
+type AvailabilitySlot {
+  dayOfWeek: Int! # 0-6
+  startTime: String! # HH:MM
+  endTime: String! # HH:MM
+}
+
+# ==================== PAYMENTS ====================
+
+type Payment {
+  id: ID!
+  user: User!
+  amount: Money!
+  method: PaymentMethod!
+  status: PaymentStatus!
+
+  # PIX specific
+  pixKey: String
+  qrCode: String
+
+  # Details
+  description: String!
+  reference: String!
+
+  # Timestamps
+  createdAt: DateTime!
+  processedAt: DateTime
+  expiresAt: DateTime
+}
+
+type Token {
+  balance: Int!
+  exchangeRate: Float! # 1 token = X BRL
+}
+
+type Transaction {
+  id: ID!
+  user: User!
+  type: TransactionType!
+  amount: Money!
+  tokenAmount: Int
+  description: String!
+  reference: String
+  createdAt: DateTime!
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TIP_SENT
+  TIP_RECEIVED
+  CONTENT_PURCHASE
+  CONTENT_SALE
+  SUBSCRIPTION_PAYMENT
+  SUBSCRIPTION_RECEIVED
+  SERVICE_PAYMENT
+  SERVICE_RECEIVED
+  TOKEN_PURCHASE
+  TOKEN_SPENT
+}
+
+# ==================== SAFETY ====================
+
+type EmergencyContact {
+  id: ID!
+  name: String!
+  phone: PhoneNumber!
+  relationship: String!
+  priority: Int!
+}
+
+type PanicEvent {
+  id: ID!
+  user: User!
+  location: GeoPoint
+  status: PanicEventStatus!
+  triggeredAt: DateTime!
+  resolvedAt: DateTime
+  notifiedContacts: [EmergencyContact!]!
+}
+
+type SafetySettings {
+  locationSharing: Boolean!
+  autoCheckIn: Boolean!
+  checkInInterval: Int! # hours
+  panicAlerts: Boolean!
+  requireVerifiedClients: Boolean!
+}
+
+type LocationShare {
+  id: ID!
+  user: User!
+  sharedWith: [User!]!
+  location: GeoPoint!
+  expiresAt: DateTime!
+  isActive: Boolean!
+}
+
+# ==================== QUERIES ====================
+
+type Query {
+  # Auth
+  me: User!
+
+  # Discovery
+  discover(
+    profileType: ProfileType
+    radius: Int
+    minAge: Int
+    maxAge: Int
+  ): [DiscoveryProfile!]!
+
+  # Content
+  content(id: ID!): Content!
+  contentFeed(
+    creatorId: ID
+    type: ContentType
+    visibility: ContentVisibility
+  ): [Content!]!
+
+  # Messages
+  conversations: [Conversation!]!
+  conversation(id: ID!): Conversation!
+  messages(conversationId: ID!, limit: Int, before: DateTime): [Message!]!
+
+  # Bookings
+  bookings(
+    status: BookingStatus
+    role: BookingRole
+  ): [Booking!]!
+  booking(id: ID!): Booking!
+
+  # Subscriptions
+  mySubscriptions: [Subscription!]!
+  mySubscribers: [Subscription!]!
+  subscriptionTiers(creatorId: ID!): [SubscriptionTierDetails!]!
+
+  # Payments
+  paymentHistory(limit: Int): [Transaction!]!
+  tokenBalance: Token!
+
+  # Safety
+  safetySettings: SafetySettings!
+  emergencyContacts: [EmergencyContact!]!
+  panicHistory: [PanicEvent!]!
+}
+
+enum BookingRole {
+  CLIENT
+  PROVIDER
+}
+
+# ==================== MUTATIONS ====================
+
+type Mutation {
+  # Auth
+  register(input: RegisterInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+  verifyEmail(code: String!): User!
+  verifyPhone(code: String!): User!
+  updateProfile(input: UpdateProfileInput!): User!
+
+  # Discovery
+  swipe(userId: ID!, action: SwipeAction!): Match
+
+  # Content
+  createContent(input: CreateContentInput!): Content!
+  updateContent(id: ID!, input: UpdateContentInput!): Content!
+  deleteContent(id: ID!): Boolean!
+  likeContent(id: ID!): Content!
+  unlockContent(id: ID!, paymentMethod: PaymentMethod!): Content!
+
+  # Live Streaming
+  startStream(input: StartStreamInput!): LiveStream!
+  endStream(id: ID!): LiveStream!
+
+  # Messages
+  sendMessage(input: SendMessageInput!): Message!
+  unlockMessage(id: ID!, paymentMethod: PaymentMethod!): Message!
+  markAsRead(conversationId: ID!): Conversation!
+
+  # Bookings
+  createBooking(input: CreateBookingInput!): Booking!
+  confirmBooking(id: ID!): Booking!
+  cancelBooking(id: ID!, reason: String!): Booking!
+  completeBooking(id: ID!): Booking!
+
+  # Subscriptions
+  subscribe(creatorId: ID!, tier: SubscriptionTier!): Subscription!
+  unsubscribe(subscriptionId: ID!): Subscription!
+  createSubscriptionTier(input: CreateSubscriptionTierInput!): SubscriptionTierDetails!
+
+  # Payments
+  createPayment(input: CreatePaymentInput!): Payment!
+  confirmPayment(id: ID!): Payment!
+  purchaseTokens(amount: Money!): Transaction!
+  sendTip(userId: ID!, amount: Money!): Transaction!
+
+  # Safety
+  updateSafetySettings(input: UpdateSafetySettingsInput!): SafetySettings!
+  addEmergencyContact(input: EmergencyContactInput!): EmergencyContact!
+  removeEmergencyContact(id: ID!): Boolean!
+  triggerPanic(location: GeoPoint): PanicEvent!
+  resolvePanic(id: ID!): PanicEvent!
+  checkIn: User!
+  shareLocation(userIds: [ID!]!, duration: Int!): LocationShare!
+}
+
+# ==================== SUBSCRIPTIONS ====================
+
+type Subscription {
+  # Messages
+  messageReceived(conversationId: ID!): Message!
+  typing(conversationId: ID!): TypingIndicator!
+
+  # Live Streaming
+  streamUpdated(streamId: ID!): LiveStream!
+  viewerJoined(streamId: ID!): StreamViewer!
+  tipReceived(streamId: ID!): Tip!
+
+  # Bookings
+  bookingUpdated(bookingId: ID!): Booking!
+
+  # Safety
+  panicTriggered(userId: ID!): PanicEvent!
+  locationUpdated(shareId: ID!): GeoPoint!
+}
+
+# ==================== INPUT TYPES ====================
+
+input RegisterInput {
+  email: String!
+  password: String!
+  profiles: [ProfileType!]!
+  phone: PhoneNumber
+  cpf: CPF
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input UpdateProfileInput {
+  displayName: String
+  bio: String
+  age: Int
+  location: String
+  avatar: Upload
+  photos: [Upload!]
+}
+
+input CreateContentInput {
+  type: ContentType!
+  title: String!
+  description: String
+  visibility: ContentVisibility!
+  price: Money
+  media: [Upload!]!
+  tags: [String!]
+}
+
+input UpdateContentInput {
+  title: String
+  description: String
+  visibility: ContentVisibility
+  price: Money
+  tags: [String!]
+}
+
+input SendMessageInput {
+  conversationId: ID
+  recipientId: ID
+  type: MessageType!
+  content: String
+  media: Upload
+  price: Money
+}
+
+input CreateBookingInput {
+  providerId: ID!
+  serviceId: ID!
+  date: DateTime!
+  duration: Int!
+  location: String!
+  notes: String
+}
+
+input CreatePaymentInput {
+  amount: Money!
+  method: PaymentMethod!
+  description: String!
+  reference: String!
+}
+
+input CreateSubscriptionTierInput {
+  name: String!
+  price: Money!
+  features: [String!]!
+  icon: String
+  color: String
+}
+
+input UpdateSafetySettingsInput {
+  locationSharing: Boolean
+  autoCheckIn: Boolean
+  checkInInterval: Int
+  panicAlerts: Boolean
+  requireVerifiedClients: Boolean
+}
+
+input EmergencyContactInput {
+  name: String!
+  phone: PhoneNumber!
+  relationship: String!
+  priority: Int
+}
+
+input StartStreamInput {
+  title: String!
+  description: String
+  thumbnail: Upload
+}
+
+# ==================== RESPONSE TYPES ====================
+
+type AuthPayload {
+  user: User!
+  accessToken: String!
+  refreshToken: String!
+}
+
+type TypingIndicator {
+  userId: ID!
+  isTyping: Boolean!
+}
+
+type StreamViewer {
+  user: User!
+  joinedAt: DateTime!
+}
+
+type Tip {
+  from: User!
+  amount: Money!
+  message: String
+}

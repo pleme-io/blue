@@ -1,0 +1,3 @@
+query { hero { name } }
+
+fragment Unused on Human { height }

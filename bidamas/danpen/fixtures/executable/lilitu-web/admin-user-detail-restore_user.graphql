@@ -1,0 +1,3 @@
+mutation RestoreUser($input: RestoreUserInput!) {
+    restoreUser(input: $input)
+  }

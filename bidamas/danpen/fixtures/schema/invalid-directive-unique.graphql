@@ -1,0 +1,5 @@
+type Query { a: Int }
+
+directive @d on FIELD
+
+directive @d on QUERY

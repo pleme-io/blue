@@ -1,0 +1,8 @@
+mutation SubmitForReview {
+		submitForReview {
+			id
+			visibility
+			moderationStatus
+			lifecycleState
+		}
+	}

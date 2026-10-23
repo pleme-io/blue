@@ -1,0 +1,6 @@
+query PeriodicReviewStats($days: Int = 30) {
+    periodicReviewStats(days: $days) {
+      action
+      count
+    }
+  }

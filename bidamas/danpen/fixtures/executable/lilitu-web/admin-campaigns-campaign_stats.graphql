@@ -1,0 +1,8 @@
+query CampaignStats {
+    campaignStats {
+      total
+      active
+      expired
+      totalBoostedProfiles
+    }
+  }

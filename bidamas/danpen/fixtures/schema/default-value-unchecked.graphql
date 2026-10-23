@@ -1,0 +1,1 @@
+type Query { a(n: Int = "ten"): Int }

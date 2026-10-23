@@ -1,0 +1,8 @@
+mutation VerifyEmailForRegistration($token: String!) {
+    verifyEmailForRegistration(token: $token) {
+      success
+      email
+      verificationToken
+      expiresAt
+    }
+  }

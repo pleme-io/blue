@@ -1,0 +1,32 @@
+fragment ProfileListFields on ProviderProfile {
+		id
+		username
+		name
+		age
+		city
+		neighborhood
+		photos
+		interests
+		pricePerHourCents
+		visibility
+		moderationStatus
+		isBoosted
+		isNewProvider
+		createdAt
+		weeklySchedule {
+			days {
+				day
+				slots
+			}
+		}
+	}
+
+	query GetProfiles($filter: ProfileFilterInput, $pagination: PaginationInput) {
+		profiles(filter: $filter, pagination: $pagination) {
+			items {
+				...ProfileListFields
+			}
+			total
+			hasMore
+		}
+	}

@@ -1,0 +1,3 @@
+query MyFavoriteCount {
+		myFavoriteCount
+	}

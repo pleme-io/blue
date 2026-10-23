@@ -1,0 +1,3 @@
+query RequiresPaymentForFeature($featureType: FeatureType!) {
+    requiresPaymentForFeature(featureType: $featureType)
+  }

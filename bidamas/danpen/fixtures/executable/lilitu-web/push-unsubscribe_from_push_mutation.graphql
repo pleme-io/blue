@@ -1,0 +1,6 @@
+mutation UnsubscribeFromPush($endpoint: String!) {
+		unsubscribeFromPush(endpoint: $endpoint) {
+			success
+			subscriptionCount
+		}
+	}

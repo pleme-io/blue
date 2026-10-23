@@ -1,0 +1,3 @@
+query HasRole($role: String!) {
+    hasRole(role: $role)
+  }

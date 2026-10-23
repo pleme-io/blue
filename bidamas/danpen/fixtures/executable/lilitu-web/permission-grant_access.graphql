@@ -1,0 +1,17 @@
+mutation GrantAccess(
+    $objectType: String!
+    $objectId: String!
+    $relation: String!
+    $subjectType: String!
+    $subjectId: String!
+    $expiresAt: DateTime
+  ) {
+    grantAccess(
+      objectType: $objectType
+      objectId: $objectId
+      relation: $relation
+      subjectType: $subjectType
+      subjectId: $subjectId
+      expiresAt: $expiresAt
+    )
+  }

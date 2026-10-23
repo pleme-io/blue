@@ -1,0 +1,8 @@
+mutation TriggerPeriodicReviewCheck {
+    triggerPeriodicReviewCheck {
+      success
+      profilesChecked
+      tasksCreated
+      message
+    }
+  }

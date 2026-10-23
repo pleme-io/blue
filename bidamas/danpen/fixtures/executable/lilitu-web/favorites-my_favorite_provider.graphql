@@ -1,0 +1,13 @@
+fragment ConsumerFavoriteFields on ConsumerFavorite {
+		id
+		consumerId
+		providerId
+		createdAt
+		updatedAt
+	}
+
+	query MyFavoriteProvider {
+		myFavoriteProvider {
+			...ConsumerFavoriteFields
+		}
+	}

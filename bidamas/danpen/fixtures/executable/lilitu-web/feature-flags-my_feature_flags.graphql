@@ -1,0 +1,7 @@
+query MyFeatureFlags($userId: UUID!) {
+		myFeatureFlags(userId: $userId) {
+			key
+			isEnabled
+			hasOverride
+		}
+	}

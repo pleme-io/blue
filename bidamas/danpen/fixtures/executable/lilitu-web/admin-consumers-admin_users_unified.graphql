@@ -1,0 +1,48 @@
+query AdminUsersUnified($input: AdminUsersUnifiedInput!) {
+    adminUsersUnified(input: $input) {
+      edges {
+        cursor
+        node {
+          id
+          email
+          emailVerified
+          name
+          avatarUrl
+          roles
+          staffRole
+          isProvider
+          isActive
+          isEncantado
+          createdAt
+          deletedAt
+          lastLoginAt
+          accountStatus
+          isStealthed
+          activeBan {
+            id
+            banType
+            reason
+            expiresAt
+            createdAt
+          }
+          providerProfile {
+            id
+            username
+            visibility
+            moderationStatus
+            adminStealthLocked
+            city
+            neighborhood
+            boostExpiresAt
+            boostCampaignId
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+        hasPreviousPage
+        startCursor
+      }
+    }
+  }

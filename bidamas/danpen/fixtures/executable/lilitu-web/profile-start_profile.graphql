@@ -1,0 +1,9 @@
+mutation StartProfile($input: StartProfileInput!) {
+		startProfile(input: $input) {
+			sent
+			emailMasked
+			retryAfterSeconds
+			alreadyVerified
+			userId
+		}
+	}

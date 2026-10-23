@@ -1,0 +1,3 @@
+mutation DeleteCampaign($id: UUID!) {
+    deleteCampaign(id: $id)
+  }

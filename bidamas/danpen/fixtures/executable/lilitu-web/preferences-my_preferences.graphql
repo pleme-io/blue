@@ -1,0 +1,15 @@
+query MyPreferences {
+		myPreferences {
+			id
+			userId
+			pushEnabled
+			emailEnabled
+			soundEnabled
+			messagesEnabled
+			adStatusEnabled
+			systemUpdatesEnabled
+			marketingEnabled
+			createdAt
+			updatedAt
+		}
+	}

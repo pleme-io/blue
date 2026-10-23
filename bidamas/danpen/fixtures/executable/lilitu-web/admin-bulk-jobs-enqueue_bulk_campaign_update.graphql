@@ -1,0 +1,7 @@
+mutation EnqueueBulkCampaignUpdate($input: BulkCampaignUpdateInput!) {
+    enqueueBulkCampaignUpdate(input: $input) {
+      jobId
+      status
+      totalItems
+    }
+  }

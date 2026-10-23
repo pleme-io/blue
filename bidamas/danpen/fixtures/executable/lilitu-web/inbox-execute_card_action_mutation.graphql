@@ -1,0 +1,7 @@
+mutation ExecuteCardAction($messageId: ID!, $actionIndex: Int!) {
+		executeCardAction(messageId: $messageId, actionIndex: $actionIndex) {
+			success
+			message
+			data
+		}
+	}

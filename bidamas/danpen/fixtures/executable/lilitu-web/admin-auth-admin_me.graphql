@@ -1,0 +1,12 @@
+query AdminMe {
+    adminMe {
+      id
+      email
+      name
+      staffRole
+      staffPermissions
+      isActive
+      lastLoginAt
+      createdAt
+    }
+  }

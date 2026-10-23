@@ -1,0 +1,12 @@
+fragment StateFields on State {
+    id
+    code
+    name
+    region
+  }
+
+  query GetStates {
+    states {
+      ...StateFields
+    }
+  }

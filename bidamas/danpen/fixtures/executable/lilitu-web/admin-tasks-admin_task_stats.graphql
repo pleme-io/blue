@@ -1,0 +1,11 @@
+query AdminTaskStats {
+    adminTaskStats {
+      pendingTotal
+      pendingProfiles
+      pendingPhotos
+      inProgress
+      approvedToday
+      rejectedToday
+      avgWaitTimeSeconds
+    }
+  }

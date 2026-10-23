@@ -1,0 +1,4 @@
+{
+  human(id: "1000") { name @tag(name: "a") @tag(name: "b") }
+  starship(id: "3000") { length }
+}

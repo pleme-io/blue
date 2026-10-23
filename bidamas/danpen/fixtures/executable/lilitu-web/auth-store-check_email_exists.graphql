@@ -1,0 +1,3 @@
+query CheckEmailExists($email: String!, $onlyCompleteAccounts: Boolean) {
+    checkEmailExists(email: $email, onlyCompleteAccounts: $onlyCompleteAccounts)
+  }

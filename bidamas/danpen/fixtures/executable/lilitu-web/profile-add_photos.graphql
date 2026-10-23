@@ -1,0 +1,7 @@
+mutation AddPhotos($photoUrls: [String!]!) {
+		addPhotos(photoUrls: $photoUrls) {
+			id
+			photos
+			completeness
+		}
+	}

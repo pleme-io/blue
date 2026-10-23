@@ -1,0 +1,22 @@
+query HeroWithFriends($episode: Episode = JEDI, $first: Int, $withFriends: Boolean!) @cached(ttl: 30) {
+  hero(episode: $episode) {
+    __typename
+    id
+    name
+    ...CharacterBits
+    friends(first: $first) @include(if: $withFriends) {
+      name
+      ... on Droid {
+        primaryFunction
+      }
+    }
+  }
+}
+
+fragment CharacterBits on Character {
+  appearsIn
+  ... on Human {
+    height(unit: FOOT)
+    starships { name length }
+  }
+}

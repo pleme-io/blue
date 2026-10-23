@@ -1,0 +1,21 @@
+fragment PeriodicReviewTaskFields on PeriodicReviewTask {
+    id
+    providerId
+    providerName
+    daysSinceReview
+    createdAt
+    completedAt
+    completedBy
+    actionTaken
+    notes
+  }
+
+  query PendingPeriodicReviews($limit: Int = 20, $offset: Int = 0) {
+    pendingPeriodicReviews(pagination: { limit: $limit, offset: $offset }) {
+      items {
+        ...PeriodicReviewTaskFields
+      }
+      total
+      hasMore
+    }
+  }

@@ -1,0 +1,17 @@
+mutation SetProfileSchedule($input: SetProfileScheduleInput!) {
+		setProfileSchedule(input: $input) {
+			profile {
+				id
+				autoStealthEnabled
+				hasActiveSchedule
+				effectiveTimezone
+				weeklySchedule {
+					days {
+						day
+						slots
+					}
+				}
+			}
+			scheduleActive
+		}
+	}

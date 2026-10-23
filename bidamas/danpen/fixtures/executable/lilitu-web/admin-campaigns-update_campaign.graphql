@@ -1,0 +1,18 @@
+fragment CampaignFields on BoostCampaignGql {
+    id
+    name
+    description
+    boostExpiresAt
+    reason
+    createdBy
+    createdAt
+    isActive
+    profileCount
+    profileIds
+  }
+
+  mutation UpdateCampaign($id: UUID!, $input: UpdateCampaignInput!) {
+    updateCampaign(id: $id, input: $input) {
+      ...CampaignFields
+    }
+  }

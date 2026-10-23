@@ -1,0 +1,3 @@
+mutation DemoteStaff($userId: UUID!) {
+    demoteStaff(userId: $userId)
+  }

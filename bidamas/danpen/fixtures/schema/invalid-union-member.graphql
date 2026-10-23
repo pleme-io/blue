@@ -1,0 +1,3 @@
+type Query { a: Int }
+
+union U = Query | Int

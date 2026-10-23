@@ -1,0 +1,40 @@
+fragment InboxMessageFields on InboxMessage {
+		id
+		senderId
+		recipientId
+		parentId
+		messageType
+		allowsReply
+		title
+		body
+		card {
+			imageUrl
+			actions {
+				actionType
+				label
+				target
+				mutationInput
+				style
+			}
+		}
+		delivered
+		deliveredAt
+		read
+		readAt
+		messageMetadata
+		isActive
+		isSystemMessage
+		isReply
+		createdAt
+		updatedAt
+	}
+
+	query InboxMessageReplies($parentId: ID!, $pagination: PaginationInput) {
+		inboxMessageReplies(parentId: $parentId, pagination: $pagination) {
+			items {
+				...InboxMessageFields
+			}
+			total
+			hasMore
+		}
+	}

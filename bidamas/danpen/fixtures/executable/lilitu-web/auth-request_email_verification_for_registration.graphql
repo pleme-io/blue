@@ -1,0 +1,7 @@
+mutation RequestEmailVerificationForRegistration($email: String!) {
+    requestEmailVerificationForRegistration(email: $email) {
+      success
+      expiresAt
+      resendAvailableAt
+    }
+  }

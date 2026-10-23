@@ -1,0 +1,3 @@
+mutation DeleteInboxMessage($id: ID!) {
+		deleteInboxMessage(id: $id)
+	}

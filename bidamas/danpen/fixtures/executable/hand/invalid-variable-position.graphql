@@ -1,0 +1,1 @@
+query Reviews($episode: Episode) { reviews(episode: $episode) { stars } }

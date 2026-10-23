@@ -1,0 +1,11 @@
+query AdminDashboardStats {
+    adminDashboardStats {
+      totalProfiles
+      pendingProfiles
+      activeProfiles
+      stealthProfiles
+      pendingPhotos
+      boostedProfiles
+      activeUsers
+    }
+  }

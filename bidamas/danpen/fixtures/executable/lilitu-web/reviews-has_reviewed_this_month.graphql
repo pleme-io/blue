@@ -1,0 +1,3 @@
+query HasReviewedThisMonth($providerId: UUID!) {
+		hasReviewedThisMonth(providerId: $providerId)
+	}

@@ -1,0 +1,113 @@
+mutation UpdatePlatformSettings($input: UpdatePlatformSettingsInput!) {
+    updatePlatformSettings(input: $input) {
+      # General
+      adExpirationDays
+      maxPhotosPerAd
+
+      # Age Constraints (SSoT)
+      ageMin
+      ageMax
+
+      # Moderation
+      autoApproveVerifiedUsers
+      requirePhotoModeration
+      minDescriptionLength
+
+      # Password Reset
+      passwordResetDailyLimit
+      passwordResetTokenTtlMinutes
+
+      # Notifications
+      emailOnNewReport
+      emailOnNewClaim
+      emailOnPendingQueue
+      pendingQueueThreshold
+
+      # Feature Modes
+      boostFeatureMode
+      priviModeFeatureMode
+      cityChangeFeatureMode
+      stealthToggleFeatureMode
+
+      # Pricing - Boost Tiers (D005)
+      boost1DPriceCents
+      boost7DPriceCents
+      boost30DPriceCents
+      boost90DPriceCents
+      boost365DPriceCents
+
+      # Pricing - Subscriptions
+      priviModePriceCents
+      priviModeDurationDays
+      priviModeYearlyPriceCents
+      cityChangePriceCents
+      stealthTogglePriceCents
+
+      # Quotas
+      cityChangeFreeQuota
+      cityChangeQuotaPeriodDays
+      stealthToggleFreeQuota
+      stealthToggleQuotaPeriodDays
+
+      # Trust Algorithm
+      trustVerifiedEmailWeight
+      trustVerifiedPhoneWeight
+      trustApprovedProfileWeight
+      trustReviewWeight
+      trustDecayConstant
+      trustMinThreshold
+      trustHighThreshold
+
+      # Scoring Algorithm
+      scoringViewWeight
+      scoringClickWeight
+      scoringFavoriteWeight
+      scoringDecayDays
+
+      # Job Toggles (Tarefas Automaticas)
+      jobOrphanedPhotoCleanupEnabled
+      jobOrphanedOnboardingCleanupEnabled
+      jobInboxCleanupEnabled
+      jobSessionCleanupEnabled
+      jobBoostExpirationEnabled
+      jobProviderScoringEnabled
+      jobAdExpirationEnabled
+      jobAdminReportEnabled
+      jobAdminTaskCreationEnabled
+      jobAutoStealthEnabled
+      jobBoostRenewalEnabled
+      jobEmailNotificationEnabled
+      jobFavoriteProviderNotificationEnabled
+      jobImageProcessEnabled
+      jobInboxDeliveryEnabled
+      jobInboxNotificationEnabled
+      jobPaymentWebhookEnabled
+      jobReportCleanupEnabled
+      jobSearchWarmupEnabled
+      jobTrendingAdsEnabled
+
+      # Rate Limiting (Controle de Trafego)
+      rateLimitBffEnabled
+      rateLimitBffRps
+      rateLimitBffBurst
+      rateLimitFedEnabled
+      rateLimitFedDefaultRps
+      rateLimitFedDefaultBurst
+      rateLimitExemptRoles
+      rateLimitOperationLimits {
+        pattern
+        rps
+        burst
+      }
+      rateLimitSubgraphLimits {
+        subgraph
+        rps
+        burst
+      }
+
+      # Loading (Carregamento)
+      loadingSplashMinDurationMs
+      loadingRouteTransitionEnabled
+      loadingSkeletonAnimation
+    }
+  }

@@ -1,0 +1,6 @@
+mutation ReorderPhotos($photoUrls: [String!]!) {
+		reorderPhotos(photoUrls: $photoUrls) {
+			id
+			photos
+		}
+	}

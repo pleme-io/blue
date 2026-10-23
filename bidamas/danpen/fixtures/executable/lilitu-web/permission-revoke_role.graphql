@@ -1,0 +1,3 @@
+mutation RevokeRole($userId: String!, $role: String!) {
+    revokeRole(userId: $userId, role: $role)
+  }

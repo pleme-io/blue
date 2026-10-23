@@ -1,0 +1,7 @@
+mutation EnqueueBulkAdminAction($input: BulkAdminActionInput!) {
+    enqueueBulkAdminAction(input: $input) {
+      jobId
+      status
+      totalItems
+    }
+  }

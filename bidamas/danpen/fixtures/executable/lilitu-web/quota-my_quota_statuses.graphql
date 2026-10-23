@@ -1,0 +1,44 @@
+query MyQuotaStatuses {
+    myQuotaStatuses {
+      cityChange {
+        featureType
+        featureMode
+        canUseFree
+        usesRemaining
+        usesTotal
+        usesConsumed
+        periodResetsAt
+        priceCentsIfPaid
+      }
+      stealthToggle {
+        featureType
+        featureMode
+        canUseFree
+        usesRemaining
+        usesTotal
+        usesConsumed
+        periodResetsAt
+        priceCentsIfPaid
+      }
+      boost {
+        featureType
+        featureMode
+        canUseFree
+        usesRemaining
+        usesTotal
+        usesConsumed
+        periodResetsAt
+        priceCentsIfPaid
+      }
+      priviMode {
+        featureType
+        featureMode
+        canUseFree
+        usesRemaining
+        usesTotal
+        usesConsumed
+        periodResetsAt
+        priceCentsIfPaid
+      }
+    }
+  }

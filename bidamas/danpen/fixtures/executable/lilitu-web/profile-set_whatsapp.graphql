@@ -1,0 +1,7 @@
+mutation SetWhatsApp($whatsapp: String!) {
+		setWhatsApp(whatsapp: $whatsapp) {
+			id
+			whatsapp
+			completeness
+		}
+	}

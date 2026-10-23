@@ -1,0 +1,20 @@
+query AdminPushSubscriptions(
+    $search: String
+    $limit: Int = 20
+    $offset: Int = 0
+  ) {
+    adminPushSubscriptions(search: $search, limit: $limit, offset: $offset) {
+      items {
+        id
+        userId
+        endpoint
+        userAgent
+        createdAt
+        lastUsedAt
+        userEmail
+        userName
+      }
+      total
+      hasMore
+    }
+  }

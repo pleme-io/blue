@@ -1,0 +1,19 @@
+mutation Verify($hash: String!) {
+  verifyHash(hash: $hash) {
+    valid
+    hash
+    message
+  }
+}
+
+mutation Run {
+  runCompliance {
+    id
+    complianceHash
+    allSatisfied
+  }
+}
+
+subscription Tick {
+  healthTick
+}

@@ -1,0 +1,3 @@
+query CheckUsernameExists($username: String!) {
+    usernameExists(username: $username)
+  }

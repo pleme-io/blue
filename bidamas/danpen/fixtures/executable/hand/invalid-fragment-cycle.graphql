@@ -1,0 +1,5 @@
+query { hero { ...A } }
+
+fragment A on Character { name ...B }
+
+fragment B on Character { id ...A }

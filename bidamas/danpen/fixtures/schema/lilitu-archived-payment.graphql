@@ -1,0 +1,73 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable", "@external"])
+
+type Payment {
+  id: ID!
+  advertisementId: ID!
+  amountCents: Int!
+  currency: String!
+  status: PaymentStatus!
+  paymentMethod: PaymentMethod!
+  provider: PaymentProvider!
+  providerTransactionId: String
+  pixQrCode: String
+  pixQrCodeText: String
+  expiresAt: DateTime
+  cardBrand: String
+  lastFourDigits: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  AUTHORIZED
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+type Query {
+  payment(id: ID!): Payment
+  paymentByAdvertisement(advertisementId: ID!): Payment
+}
+
+type Mutation {
+  createPixPayment(input: CreatePixPaymentInput!): Payment!
+  createCardPayment(input: CreateCardPaymentInput!): Payment!
+}
+
+input CreatePixPaymentInput {
+  advertisementId: ID!
+  amountCents: Int!
+  customerName: String!
+  customerDocument: String!
+  customerEmail: String!
+  expirationMinutes: Int
+  product: String!
+}
+
+input CreateCardPaymentInput {
+  advertisementId: ID!
+  amountCents: Int!
+  paymentMethodId: String!
+  cardholderName: String!
+  cardholderDocument: String!
+  cardholderEmail: String!
+  product: String!
+}
+
+scalar DateTime

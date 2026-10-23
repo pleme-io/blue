@@ -534,7 +534,7 @@ A Bluefile is a blue program that may call only these words.
 
 ## Rules
 
-Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write`, `blue run`, `blue test` and `blue check --fix` rewrite it where the fix is `autofix`. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).
+Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write` and `blue check --fix` rewrite it where the fix is `autofix`; `blue test` and `blue check` never write, and name that command. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).
 
 | code | rule | law | fix |
 |---|---|---|---|

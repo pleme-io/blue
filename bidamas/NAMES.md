@@ -96,7 +96,10 @@ Definitions moved to one home instead of being copied: each moved-from
 bidama's `legacy_names(since, [[old, "home::new"], …])` is the source, and
 keeps the old name resolving as a bridge until its next minor version;
 `every_moved_name_is_in_the_ledger` fails when this table and the declarations
-disagree.
+disagree. A RETIRED word is a row whose declaration carries a third string,
+the replacement's arguments (`kyohi::refuse(x)` is `kyohi::enforce(x, [(fs) ->
+fs], {kind: :first})`): it never resolves, and `blue check --fix` writes the
+replacement (`docs/COMPOUNDING.md`).
 
 | bidama | old | new | since |
 |---|---|---|---|
@@ -108,6 +111,7 @@ disagree.
 | `kinji` | `refusal_why` | `kyohi::why` | 0.1.2 |
 | `kueri` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
 | `kueri` | `refusal_why` | `kyohi::why` | 0.1.2 |
+| `kyohi` | `refuse` | `kyohi::enforce` | 0.1.2 |
 | `nisshi` | `refusal_detail` | `kyohi::why` | 0.1.2 |
 | `nisshi` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
 | `zumen` | `opt_lines` | `shuugou::as_set` | 0.1.2 |

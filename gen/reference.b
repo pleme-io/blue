@@ -170,7 +170,7 @@ def rules(data)
     end,
     field(data, "rules")
   )
-  "Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write`, `blue run`, `blue test` and `blue check --fix` rewrite it where the fix is `autofix`. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).\n\n#{table(["code", "rule", "law", "fix"], rows)}"
+  "Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write` and `blue check --fix` rewrite it where the fix is `autofix`; `blue test` and `blue check` never write, and name that command. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).\n\n#{table(["code", "rule", "law", "fix"], rows)}"
 end
 
 def render(data)

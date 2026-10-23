@@ -167,9 +167,10 @@ enum Cmd {
     /// Check a program against every rule in the registry — unbound names,
     /// unused bindings, types, waivers — and report the typing analysis.
     ///
-    /// Like `run` and `test`, this compiles only canonical source: a writable
-    /// file that is not canonically formatted is REWRITTEN IN PLACE first
-    /// (`blue: formatted <path>` on stderr), and a read-only one is refused.
+    /// Like `run` and `test`, this compiles only canonical source and writes
+    /// nothing: a file that is not canonically formatted is refused, naming
+    /// `blue fmt --write`. Only `--fix` writes. A loaded dependency's form is
+    /// its producer's (`BLUE_FORM`, docs/COMPOUNDING.md).
     ///
     /// Exits non-zero when any error-severity diagnostic remains. Test blocks
     /// are checked too. `blue explain CODE` says what a code means.
@@ -456,12 +457,25 @@ struct Confirmation<'a> {
     verdict: &'a Freshness,
 }
 
-/// The source of a file blue is about to COMPILE: canonical, or formatted in
-/// place first, or refused (`blue_lang_pkg::canonical`). Every door that
-/// compiles its entry file reads it here; the ones that only look at a file
-/// (`fmt`, `ast`, `erase`) read it with [`read`].
+/// The source of a file blue is about to COMPILE without writing it:
+/// canonical, or refused naming `blue fmt --write` (`blue_lang_pkg::canonical`).
+/// `test` reads it here; a door that only looks (`fmt`, `ast`, `erase`,
+/// `explain-name`) reads it with [`read`], as written.
 fn read_compiled(path: &Path) -> Result<String, CliError> {
-    Ok(blue_lang_pkg::canonical::read_source(path)?)
+    Ok(blue_lang_pkg::canonical::read_source(
+        path,
+        blue_lang_pkg::canonical::Policy::from_env(),
+    )?)
+}
+
+/// The source of a file blue is about to RUN: canonical, or formatted in
+/// place first (`BLUE_LAYOUT=judge` refuses instead). `run`, `profile` and
+/// `trace` read it here.
+pub(crate) fn read_run(path: &Path) -> Result<String, CliError> {
+    Ok(blue_lang_pkg::canonical::read_source(
+        path,
+        blue_lang_pkg::canonical::Policy::run(),
+    )?)
 }
 
 fn read(path: &Path) -> Result<String, CliError> {
@@ -544,6 +558,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // and the pipeline's own lesson (one place owns the order) applies to the
     // bounds the pipeline runs under just as much.
     let cfg = config::resolve();
+    blue_lang_check::evolution::FormJudge::from_env().map_err(CliError::Pkg)?;
+    blue_lang_check::evolution::Layout::from_env().map_err(CliError::Pkg)?;
     // Before any interpreter is built, so every evaluating door — run, test,
     // the LSP, a Bluefile — runs under the configured bounds.
     blue_lang_runtime::set_execution_bounds(cfg.execution_bounds());
@@ -573,7 +589,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // English — the common case under a pt or de locale — and is held
             // to the rule like any other.
             let src = match &surface {
-                None => read_compiled(&file)?,
+                None => read_run(&file)?,
                 Some(pack) => {
                     let text = read(&file)?;
                     let english = blue_lang_syntax::parse_program(&text).ok();
@@ -697,7 +713,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Ast { file, json, .. } => {
             use blue_lang_runtime::pipeline::{check_entry, Checking};
             let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
-            let src = read_compiled(&file)?;
+            let src = read(&file)?;
             let checked = check_entry(
                 blue_lang_runtime::uses::Entry {
                     path: Some(&file),
@@ -817,7 +833,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 .rsplit_once(':')
                 .and_then(|(p, l)| l.parse::<usize>().ok().map(|l| (PathBuf::from(p), l)))
                 .ok_or_else(|| CliError::Pkg(format!("expected FILE:LINE, got `{at}`")))?;
-            let src = read_compiled(&path)?;
+            let src = read(&path)?;
             let checked = blue_lang_runtime::pipeline::check_entry(
                 blue_lang_runtime::uses::Entry {
                     path: Some(&path),
@@ -1308,7 +1324,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
                 source,
             })?;
             eprintln!("blue: applied {applied} fix(es) to {}", file.display());
-            // Re-format (the compile door rewrites a non-canonical file) and
+            // Re-format (`--fix` is an explicit write) and
             // re-check what is now on disk.
             src = blue_lang_pkg::canonical::read_layout(file)?;
             checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;

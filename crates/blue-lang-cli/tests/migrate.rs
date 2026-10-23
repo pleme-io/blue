@@ -59,7 +59,7 @@ fn a_transitive_reference_is_listed_needed_and_proven() {
         &dist,
         "mk_c",
         &["mk_b"],
-        "use(\"mk_b\")\n\ndef three()\n  two() + one()\nend\n\ntest \"three\"\n  assert three() == 3\nend\n",
+        "use(\"mk_b\")\n\ndef three()\n  two + one\nend\n\ntest \"three\"\n  assert three == 3\nend\n",
     );
     for p in ["mk_a", "mk_b", "mk_c"] {
         let (ok, _, err) = run(blue(&dist).arg("lock").arg(dist.join(p)));

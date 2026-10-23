@@ -36,7 +36,7 @@
 # | Word | Lowers to |
 # |---|---|
 # | `package(name, v)` | `packages.<name>` and `default`: `blue` as `<name>`, with the project's BLUE_PATH and tools; a service of the project's name takes `packages.<name>` and the runner keeps `default` |
-# | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `bidama-collisions` (touching the project's packages), `bidama-locks-fresh` and `bidama-deps-resolve` (the version solver) |
+# | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `checks.bidama-form-<pkg>` (the producer's form: `blue fmt --check` and `BLUE_FORM=own blue check`, under the blue this project pins; the build judges meaning only), `bidama-collisions` (touching the project's packages), `bidama-locks-fresh` and `bidama-deps-resolve` (the version solver) |
 # | the root lock itself | `checks.repository-lock-fresh` |
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
 # | `tool(name)` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps |
@@ -441,6 +441,9 @@ let
             name = "bidama-test-${n}";
             file = "${own.${n}}/${n}/${n}.b";
           })))
+          ownNames)
+        // lib.listToAttrs (map
+          (n: lib.nameValuePair "bidama-form-${n}" own.${n}.formCheck)
           ownNames))
         // {
           repository-lock-fresh = bl.mkBluefileCheck {

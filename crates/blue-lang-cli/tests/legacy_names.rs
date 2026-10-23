@@ -226,3 +226,77 @@ fn a_move_that_cannot_mean_one_thing_is_refused() {
     assert!(json.contains("which is not loaded"), "{json}");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// **A retired word ships its fixer** (R2 in docs/COMPOUNDING.md). `rk`
+/// retired `refuse(found)` for `enforce(found, [(fs) -> fs], {kind: :first})`
+/// and declared the row. A caller still writing `rk::refuse(x)`, qualified or
+/// imported, is refused at once (no window: the break is the upgrade's), the
+/// error names `blue check --fix`, and the fix writes the replacement with
+/// its arguments, after which the file checks and its test passes.
+///
+/// Red run (2026-10-23): the append edit dropped from `retired_edits`; the
+/// fixed file read `rk::enforce(found)` and the assertion on its arguments
+/// failed.
+#[test]
+fn a_retired_word_is_refused_and_fixed_with_its_new_arguments() {
+    let root: PathBuf = std::env::temp_dir().join(format!("blue-retire-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    write(&dist.join("rk/Bluefile"), "package(\"rk\", \"0.1.2\")\n");
+    write(
+        &dist.join("rk/rk.b"),
+        "legacy_names(\n  \"0.1.2\",\n  [[\"refuse\", \"rk::enforce\", \"[(fs) -> fs], {kind: :first}\"]]\n)\n\ndef enforce(subject, rules, opts)\n  found = flat_map(rules, (rule) -> rule(subject))\n  if found == []\n    nil\n  else\n    raise(get(opts, :kind), \"refused\")\n  end\nend\n",
+    );
+    let out = blue(&dist)
+        .arg("lock")
+        .arg(dist.join("rk"))
+        .output()
+        .expect("lock");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    for (tag, src) in [
+        (
+            "qualified",
+            "use(\"rk\")\n\ndef go(found)\n  rk::refuse(found)\nend\n\ntest \"go\"\n  assert go([]).nil?\nend\n",
+        ),
+        (
+            "imported",
+            "use(\"rk\", [:refuse])\n\ndef go(found)\n  refuse(found)\nend\n\ntest \"go\"\n  assert go([]).nil?\nend\n",
+        ),
+    ] {
+        let file = root.join(format!("app/{tag}.b"));
+        write(&file, src);
+        let out = blue(&dist).arg("check").arg(&file).output().expect("check");
+        let shown = String::from_utf8_lossy(&out.stderr).into_owned();
+        assert!(!out.status.success(), "{tag}: a retired word must not check");
+        assert!(shown.contains("retired"), "{tag}: {shown}");
+        assert!(
+            shown.contains(&format!("fix: blue check --fix {}", file.display())),
+            "{tag}: {shown}"
+        );
+        let out = blue(&dist)
+            .args(["check", "--fix"])
+            .arg(&file)
+            .output()
+            .expect("fix");
+        let fixed = std::fs::read_to_string(&file).expect("read");
+        assert!(
+            out.status.success(),
+            "{tag}: {}\n{fixed}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            fixed.contains("enforce(found, [(fs) -> fs], {kind: :first})"),
+            "{tag}: {fixed}"
+        );
+        let out = blue(&dist).arg("test").arg(&file).output().expect("test");
+        assert!(
+            out.status.success(),
+            "{tag}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}

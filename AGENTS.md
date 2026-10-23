@@ -87,9 +87,11 @@ the compiled-in ones from `BLUE_PATH`:
 
 blue reads every older or borrowed spelling and writes one: `a and b`, `not x`,
 `if not c`, `f(x, y)`, `x.field`, `f(a, *xs)`, `raise(:kind, "why")`,
-`x rescue fallback`, `def main()`. `blue run`, `blue test` and `blue check
---fix` rewrite a writable file to it and name each rule; a read-only file is
-refused naming them. The rules are the table at the end of
+`x rescue fallback`, `def main()`. `blue fmt --write` and `blue check --fix`
+rewrite a file to it and name each rule; `blue run` formats its entry in
+place; `blue test` and `blue check` never write a file, and refuse naming the
+command that fixes it. A loaded dependency compiles as written: its form is
+its producer's ([`docs/COMPOUNDING.md`](docs/COMPOUNDING.md)). The rules are the table at the end of
 [`docs/REFERENCE.md`](docs/REFERENCE.md) (generated from the registry the
 check stage runs); why each spelling won is
 [`docs/CANONICAL-FORMS.md`](docs/CANONICAL-FORMS.md). Write the canonical

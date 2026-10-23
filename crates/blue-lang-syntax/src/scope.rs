@@ -146,15 +146,22 @@ pub enum LegacyKind {
 
 /// One moved definition: `old` in the declaring bidama is `home::new` now.
 /// `home` is empty when the target was not written `home::new`.
+///
+/// A third string retires a word whose replacement takes more arguments:
+/// `["refuse", "kyohi::enforce", "[(fs) -> fs], {kind: :first}"]` says
+/// `refuse(x)` is written `kyohi::enforce(x, [(fs) -> fs], {kind: :first})`.
+/// A retired word never resolves; its callers' fix is read from this row.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Moved {
     pub old: String,
     pub home: String,
     pub new: String,
+    pub append: Option<String>,
 }
 
 /// Is this form a `legacy_names` declaration? A version string, then a
-/// prefix string or a list of `[old, "home::new"]` string pairs, or it is not
+/// prefix string or a list of `[old, "home::new"]` string pairs (or
+/// `[old, "home::new", "args"]` retirements), or it is not
 /// one (and `legacy_names` is then an unbound call).
 #[must_use]
 pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
@@ -178,8 +185,10 @@ pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
         let moves = list_items(what)?
             .iter()
             .map(|pair| {
-                let [old, target] = list_items(pair)? else {
-                    return None;
+                let (old, target, append) = match list_items(pair)? {
+                    [old, target] => (old, target, None),
+                    [old, target, append] => (old, target, Some(str_of(append)?)),
+                    _ => return None,
                 };
                 let (old, target) = (str_of(old)?, str_of(target)?);
                 let (home, new) = target
@@ -187,7 +196,12 @@ pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
                     .map_or((String::new(), target.clone()), |(h, n)| {
                         (h.to_string(), n.to_string())
                     });
-                Some(Moved { old, home, new })
+                Some(Moved {
+                    old,
+                    home,
+                    new,
+                    append,
+                })
             })
             .collect::<Option<Vec<_>>>()?;
         LegacyKind::Moved(moves)

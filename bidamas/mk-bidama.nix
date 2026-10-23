@@ -48,20 +48,18 @@
 # every lock against blue's resolver from `cargo test`.
 
 #
-# ## A bidama is built only from canonical source
+# ## Form is the producer's check; meaning is the build
 #
-# blue compiles only canonical source (`blue_lang_pkg::canonical`), and a store
-# path is read-only, so a non-canonical file in a built bidama could never be
-# compiled by anyone who loads it. `mkBidama` therefore REFUSES a package whose
-# `.b` files are not `blue fmt` canonical, naming each file — it does not
-# format a copy, which would put a second author between the file a human
-# reads and the file a program loads. So every bidama in the store is canonical
-# by construction, private distributions included, and the loader's check on it
-# always passes. That needs a `blue` to say what canonical is: pass it here
-# (`blue.lib.bidamas`, `overlays.bidamas` and `lib.project` all do) or per call.
-# Red run, 2026-09-27: a misformatted def appended to angou.b → the angou
-# derivation failed with `angou.b: not formatted; run blue fmt --write angou.b`;
-# restored, it built.
+# A bidama's layout and its machine-fixable rules (form) are judged by the
+# blue its producer pins, in the producer's own `checks` (`passthru.formCheck`,
+# `checks.bidama-form-<pkg>` under `lib.project`). The build judges meaning
+# only (`BLUE_FORM=none`), because a consumer whose flake makes the producer
+# follow its blue builds the producer's bidamas with the CONSUMER's blue, and
+# that blue's newer formatter must never fail the consumer (R1 in
+# `docs/COMPOUNDING.md`: three ryn builds failed on one afternoon this way).
+# The loader compiles a store dependency as written, so a bidama built by an
+# older or newer blue still loads. Red run, 2026-10-23: `mkCheckRefusalCheck`
+# with the build's step put back on `form = "own"` failed on its form fixture.
 
 { lib, runCommand, symlinkJoin ? null, makeWrapper ? null, makeBinaryWrapper ? null, blue ? null }:
 
@@ -146,9 +144,12 @@ rec {
   # imports and needs), so a package whose code does not check does not
   # BUILD, not only fail a separate test. One fragment, so the gate that
   # proves it refuses (`mkCheckRefusalCheck`) runs exactly what mkBidama runs.
-  checkStep = { blue, name, src, bluePath }: ''
+  # `form` is BLUE_FORM: "none" in the build, which judges meaning only,
+  # because a consumer's blue may build a producer's bidama; "own" in the
+  # producer's form check.
+  checkStep = { blue, name, src, bluePath, form ? "none" }: ''
       for f in ${src}/*.b; do
-        if ! BLUE_PATH=${bluePath} ${blue} check "$f" > check.log 2>&1; then
+        if ! BLUE_FORM=${form} BLUE_PATH=${bluePath} ${blue} check "$f" > check.log 2>&1; then
           cat check.log >&2
           echo "bidama ${name}: the check stage refuses $f (above); a bidama that does not check does not build" >&2
           exit 1
@@ -188,17 +189,20 @@ rec {
       {
         inherit version;
         buildInputs = resolved;
-        passthru = { bidamaDeps = deps; bidamaName = name; };
+        passthru = {
+          bidamaDeps = deps;
+          bidamaName = name;
+          formCheck = runCommand "bidama-form-${name}-${version}" { } ''
+            if ! (cd ${src} && BLUE_PATH=${bluePath} ${fmt} fmt --check *.b); then
+              echo "bidama ${name}: the file(s) above are not canonical under this blue; run blue fmt --write on each and commit" >&2
+              exit 1
+            fi
+            ${checkStep { blue = fmt; inherit name src bluePath; form = "own"; }}
+            touch $out
+          '';
+        };
         meta.description = "blue bidama: ${name}";
       } ''
-      # Canonical, or refused: `blue fmt --check` names every file that is not
-      # (`<file>: not formatted; run blue fmt --write <file>`), in one command.
-      # The package's own top-level `.b` files are the ones the loader reads.
-      if ! (cd ${src} && BLUE_PATH=${bluePath} ${fmt} fmt --check *.b); then
-        echo "bidama ${name}: blue compiles only canonical source, and the file(s) above are not; run blue fmt --write on each and commit" >&2
-        exit 1
-      fi
-
       ${checkStep { blue = fmt; inherit name src bluePath; }}
 
       mkdir -p $out/${name}
@@ -579,11 +583,14 @@ rec {
       done
     '';
 
-  # Proves mkBidama's check step refuses: a bidama that reaches its
-  # dependency's `one` only through flat visibility (B0012) must not build.
-  # The fixture is written here, not committed, so the repository's own
-  # corpus stays free of errors. The positive control is the dependency,
-  # built by mkBidama itself.
+  # Proves the split between the producer's form and everyone's meaning. A
+  # bidama whose `use` follows its definitions (B0015, a form rule) is refused
+  # by the producer's form check and still BUILDS, because a consumer must
+  # never fail on a dependency's form. A bidama that reaches its dependency's
+  # `one` only through flat visibility (B0012) does not build: the runtime's
+  # namespaces do not bind that name, so it is meaning. The fixtures are
+  # written here, not committed, so the repository's own corpus stays free of
+  # errors. The positive control is the dependency, built by mkBidama itself.
   mkCheckRefusalCheck = { blue, name ? "bidama-check-refuses" }:
     let
       bin = "${blue}/bin/blue";
@@ -599,8 +606,13 @@ rec {
       };
       bad = runCommand "refusal-bad-src" { } ''
         mkdir -p $out
-        printf 'use("refusal_dep")\n\ndef two()\n  one() + one()\nend\n' > $out/refusal_bad.b
+        printf 'use("refusal_dep")\n\ndef two()\n  one + one\nend\n' > $out/refusal_bad.b
         printf 'package("refusal_bad", "0.1.0")\nneeds("refusal_dep", "^0.1")\n' > $out/Bluefile
+      '';
+      formy = runCommand "refusal-form-src" { } ''
+        mkdir -p $out
+        printf 'def two()\n  refusal_dep::one + refusal_dep::one\nend\n\nuse("refusal_dep")\n' > $out/refusal_form.b
+        printf 'package("refusal_form", "0.1.0")\nneeds("refusal_dep", "^0.1")\n' > $out/Bluefile
       '';
     in
     runCommand name { } ''
@@ -609,7 +621,17 @@ rec {
         exit 1
       fi
       grep -q 'B0012' refused.log
-      cp refused.log $out
+      if (${checkStep { blue = bin; name = "refusal_form"; src = formy; bluePath = "${dep}"; form = "own"; }}) 2> form.log; then
+        echo "${name}: the form check passed a bidama with a B0015 in it" >&2
+        exit 1
+      fi
+      grep -q 'B0015' form.log
+      if ! (${checkStep { blue = bin; name = "refusal_form"; src = formy; bluePath = "${dep}"; }}) 2> built.log; then
+        cat built.log >&2
+        echo "${name}: the build refused a bidama for its form, which is its producer's" >&2
+        exit 1
+      fi
+      cat refused.log form.log > $out
     '';
 
   # Fails when any `.b` file under `root` is not `blue fmt` canonical, naming

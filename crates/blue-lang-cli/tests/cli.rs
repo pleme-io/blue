@@ -1195,13 +1195,26 @@ fn run_formats_a_messy_writable_file_in_place_and_runs_it() {
     assert!(!stderr(&again).contains("formatted"), "{}", stderr(&again));
 }
 
+/// **A test never writes** (2026-10-23, R3 in docs/COMPOUNDING.md): `blue
+/// test` refuses a messy file naming the command, and leaves it as it was.
+/// Red run: `admit_with` made to skip the judge (the old rewrite path), and
+/// the file came back formatted.
 #[test]
-fn test_formats_the_file_under_test() {
-    let f = fresh(
-        "canon-test-messy",
-        "test   \"adds\"\n  assert 1+1 == 2\nend\n",
-    );
+fn test_refuses_a_messy_file_under_test_and_never_writes_it() {
+    let messy = "test   \"adds\"\n  assert 1+1 == 2\nend\n";
+    let f = fresh("canon-test-messy", messy);
     let o = run(&["test", f.to_str().unwrap()]);
+    assert!(!o.status.success(), "a messy file must not test");
+    assert!(
+        stderr(&o).contains(&format!("run blue fmt --write {}", f.display())),
+        "{}",
+        stderr(&o)
+    );
+    assert_eq!(std::fs::read_to_string(&f).expect("read back"), messy);
+    let o = run_env(
+        &["test", f.to_str().unwrap()],
+        &[("BLUE_LAYOUT", "rewrite")],
+    );
     assert!(o.status.success(), "{}", stderr(&o));
     assert_eq!(
         std::fs::read_to_string(&f).expect("read back"),
@@ -1234,28 +1247,50 @@ fn run_refuses_a_read_only_messy_file_and_leaves_it_alone() {
     assert_eq!(std::fs::read_to_string(&f).expect("read back"), messy);
 }
 
+/// **A dependency is compiled as written, and never written** (2026-10-23,
+/// R1 and R3 in docs/COMPOUNDING.md): its form is its producer's. `blue
+/// test` and `blue check` through it leave it byte for byte. The importer
+/// judging it is `BLUE_FORM=all`; formatting it in place is that plus
+/// `BLUE_LAYOUT=rewrite`. Red run: the loader door put back on `admit` (the
+/// entry's judge), and `blue check` refused the package.
 #[test]
-fn a_messy_writable_package_loaded_by_use_is_formatted() {
+fn a_messy_writable_package_loaded_by_use_is_compiled_as_written() {
     let root = std::env::temp_dir().join("blue-cli-test-canon-dist");
     let pkg = root.join("canonpkg");
     std::fs::create_dir_all(&pkg).expect("mkdir");
     let file = pkg.join("canonpkg.b");
-    std::fs::write(&file, "def twice(x)\n        x*2\nend\n").expect("write pkg");
+    let messy = "def twice(x)\n        x*2\nend\n";
+    std::fs::write(&file, messy).expect("write pkg");
     let entry = fresh(
         "canon-pkg-entry",
-        "use(\"canonpkg\", [:twice])\ntwice(21)\n",
+        "use(\"canonpkg\", [:twice])\n\ntest \"twice\"\n  assert twice(21) == 42\nend\n",
     );
+    let dist = [("BLUE_PATH", root.to_str().unwrap())];
+    for door in ["run", "test", "check"] {
+        let o = run_env(&[door, entry.to_str().unwrap()], &dist);
+        assert!(o.status.success(), "{door}: {}", stderr(&o));
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("read back"),
+            messy,
+            "{door} wrote the dependency"
+        );
+    }
     let o = run_env(
-        &["run", entry.to_str().unwrap()],
-        &[("BLUE_PATH", root.to_str().unwrap())],
+        &["check", entry.to_str().unwrap()],
+        &[dist[0], ("BLUE_FORM", "all")],
     );
-    assert!(o.status.success(), "{}", stderr(&o));
-    assert_eq!(stdout(&o).trim(), "42");
+    assert!(!o.status.success(), "the importer judges under all");
     assert!(
-        stderr(&o).contains(&format!("blue: formatted {}", file.display())),
+        stderr(&o).contains("run blue fmt --write"),
         "{}",
         stderr(&o)
     );
+    assert_eq!(std::fs::read_to_string(&file).expect("read back"), messy);
+    let o = run_env(
+        &["run", entry.to_str().unwrap()],
+        &[dist[0], ("BLUE_FORM", "all"), ("BLUE_LAYOUT", "rewrite")],
+    );
+    assert!(o.status.success(), "{}", stderr(&o));
     assert_eq!(
         std::fs::read_to_string(&file).expect("read back"),
         "def twice(x)\n  x * 2\nend\n"
@@ -1379,4 +1414,58 @@ fn a_run_past_fifty_million_steps_completes_under_the_default_config() {
     let o = run(&["run", f.to_str().unwrap()]);
     assert!(o.status.success(), "{}", stderr(&o));
     assert_eq!(stdout(&o).trim(), ":done");
+}
+
+/// **A dependency's form rules are its producer's** (R1, R2 in
+/// docs/COMPOUNDING.md). A canonical package whose `use` comes after its
+/// definitions (B0015, a rule promoted after much code was written) still
+/// loads for its importer, whose own check and tests pass; the producer's
+/// own check holds it, and `BLUE_FORM=all` judges it as the importer did
+/// before. Red run: `FormJudge::reports` answering true for every file, and
+/// the importer's check failed on the dependency's B0015.
+#[test]
+fn a_dependencys_form_rules_do_not_fail_its_importer() {
+    let root = std::env::temp_dir().join(format!("blue-cli-test-form-dist-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    for (name, needs, src) in [
+        ("fda", "", "def one()\n  1\nend\n"),
+        (
+            "fdb",
+            "needs(\"fda\", \"^0.1\")\n",
+            "def two()\n  fda::one + fda::one\nend\n\nuse(\"fda\")\n",
+        ),
+    ] {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(
+            dir.join("Bluefile"),
+            format!("package(\"{name}\", \"0.1.0\")\n{needs}"),
+        )
+        .expect("bluefile");
+        std::fs::write(dir.join(format!("{name}.b")), src).expect("src");
+    }
+    let entry = fresh(
+        "form-entry",
+        "use(\"fdb\", [:two])\n\ntest \"two\"\n  assert two == 2\nend\n",
+    );
+    let dist = ("BLUE_PATH", root.to_str().unwrap());
+    let own = run_env(
+        &["check", root.join("fdb/fdb.b").to_str().unwrap()],
+        &[dist],
+    );
+    assert!(
+        !own.status.success(),
+        "the producer's own check holds B0015"
+    );
+    assert!(stderr(&own).contains("B0015"), "{}", stderr(&own));
+    for door in ["check", "test"] {
+        let o = run_env(&[door, entry.to_str().unwrap()], &[dist]);
+        assert!(o.status.success(), "{door}: {}", stderr(&o));
+    }
+    let all = run_env(
+        &["check", entry.to_str().unwrap()],
+        &[dist, ("BLUE_FORM", "all")],
+    );
+    assert!(!all.status.success(), "the importer judges under all");
+    assert!(stderr(&all).contains("B0015"), "{}", stderr(&all));
 }

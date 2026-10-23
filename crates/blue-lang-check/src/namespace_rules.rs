@@ -234,6 +234,21 @@ fn unused_imports(
             reached.insert((p.to_string(), n.to_string()));
         }
     }
+    // A listed name the producer's ledger still names (a closed bridge, a
+    // retired word) is reached by a reference to it: its own fix rewrites
+    // both, and removing the `use` would race that fix.
+    for (_, u) in &fu.uses {
+        let ledger = table.bidama(&u.package);
+        for (n, _) in &u.names {
+            let named = ledger.is_some_and(|s| s.alias_of(n).is_some());
+            let read = references
+                .iter()
+                .any(|r| table.file_of(r.top_level) == file && r.written == *n);
+            if named && read {
+                reached.insert((u.package.clone(), n.clone()));
+            }
+        }
+    }
     for (i, u) in &fu.uses {
         let via = table.imports_of(*i).map(|fi| &fi.via);
         let any = reached

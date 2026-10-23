@@ -220,6 +220,9 @@ pub struct Alias {
     /// The bidama the definition moved to, when it moved: `canonical` is
     /// that bidama's name, and this one no longer defines it.
     pub home: Option<String>,
+    /// A retired word's replacement arguments, appended after the caller's:
+    /// the alias never resolves, and every call's fix writes them.
+    pub append: Option<String>,
 }
 
 impl Alias {
@@ -560,9 +563,10 @@ impl NameTable {
                                 let alias = Alias {
                                     canonical: m.new.clone(),
                                     bridge: true,
-                                    open,
+                                    open: open && m.append.is_none(),
                                     since: decl.since.clone(),
                                     home: Some(m.home.clone()),
+                                    append: m.append.clone(),
                                 };
                                 self.scope_mut(Namespace::Bidama(pkg.clone())).alias_moved(
                                     m.old.clone(),
@@ -616,6 +620,7 @@ impl NameTable {
                                 open: open || !bridge,
                                 since: decl.since.clone(),
                                 home: None,
+                                append: None,
                             },
                         ));
                     }
@@ -647,6 +652,23 @@ impl NameTable {
                 "`{}` moved to `{}`: write the new home `bidama::name`",
                 m.old, m.new
             ));
+        }
+        if m.home == pkg && m.append.is_some() {
+            let own = self.bidama(pkg);
+            if own.is_some_and(|s| s.bindings.contains_key(&m.old)) {
+                return Err(format!(
+                    "`{}` is still defined in `{pkg}`, so it cannot also be retired",
+                    m.old
+                ));
+            }
+            return own
+                .and_then(|s| s.bindings.get(&m.new).cloned())
+                .ok_or_else(|| {
+                    format!(
+                        "`{}` retires to `{pkg}::{}`, and `{pkg}` defines no `{}`",
+                        m.old, m.new, m.new
+                    )
+                });
         }
         if m.home == pkg {
             return Err(format!(
@@ -1330,6 +1352,9 @@ struct Walker<'t> {
     resolved: usize,
     references: Vec<Reference>,
     position: Position,
+    /// Where the call being walked ends its last argument: a retired word's
+    /// fix appends the replacement's arguments there.
+    call_tail: Option<usize>,
     respellings: Vec<(usize, crate::respell::Respelling)>,
     missing_uses: Vec<MissingUse>,
 }
@@ -1414,6 +1439,7 @@ impl<'t> Walker<'t> {
             resolved: 0,
             references: Vec::new(),
             position: Position::Value,
+            call_tail: None,
             respellings: Vec::new(),
             missing_uses: Vec::new(),
         }
@@ -1578,6 +1604,37 @@ impl<'t> Walker<'t> {
 
     /// A moved name's fix spells its new home qualified, so the file must
     /// `use` that home: every fix of `d` also adds the `use` it lacks.
+    /// The fix that writes `replacement` for the name at `span`, and, for a
+    /// retired word, its replacement's arguments after the call's own. None
+    /// when the word is retired and the reference is not a call with
+    /// arguments: there is nowhere to put them.
+    fn retired_edits(
+        &self,
+        span: Span,
+        original: String,
+        replacement: String,
+        alias: &Alias,
+    ) -> Option<Fix> {
+        let mut edits = vec![Edit {
+            span,
+            original,
+            replacement: replacement.clone(),
+        }];
+        if let Some(args) = &alias.append {
+            let at = self.call_tail?;
+            edits.push(Edit {
+                span: Span::new(at, at),
+                original: String::new(),
+                replacement: format!(", {args}"),
+            });
+        }
+        Some(Fix {
+            message: format!("write `{replacement}`"),
+            edits,
+            applicability: Applicability::MachineApplicable,
+        })
+    }
+
     fn using_home(&self, mut d: Diagnostic, alias: &Alias) -> Diagnostic {
         let Some(home) = &alias.home else {
             return d;
@@ -1746,22 +1803,27 @@ impl<'t> Walker<'t> {
             })
             .collect();
         if let [(pkg, alias)] = renamed.as_slice() {
-            let (replacement, since) = (alias.spelled(pkg), &alias.since);
+            let since = &alias.since;
+            let replacement = if alias.home.as_deref() == Some(pkg.as_str()) {
+                alias.canonical.clone()
+            } else {
+                alias.spelled(pkg)
+            };
+            let help = match &alias.append {
+                Some(args) => format!(
+                    "`{name}` retired from bidama `{pkg}` at {since}: `{name}(x)` is `{replacement}(x, {args})`; `blue check --fix` writes it"
+                ),
+                None => format!(
+                    "`{name}` was bidama `{pkg}`'s, `{replacement}` since {since}, and the bridge has closed"
+                ),
+            };
             let d = Diagnostic::new(Code::B0001, format!("unbound name `{name}`"), span)
                 .at_top_level(self.top_level)
-                .with_help(format!(
-                    "`{name}` was bidama `{pkg}`'s, `{replacement}` since {since}, and the bridge has closed"
-                ))
-                .with_fix(Fix {
-                    message: format!("write `{replacement}`"),
-                    edits: vec![Edit {
-                        span,
-                        original: name.to_string(),
-                        replacement,
-                    }],
-                    applicability: Applicability::MachineApplicable,
-                });
-            let d = self.using_home(d, alias);
+                .with_help(help);
+            let d = match self.retired_edits(span, name.to_string(), replacement, alias) {
+                Some(fix) => self.using_home(d.with_fix(fix), alias),
+                None => d,
+            };
             self.diagnostics.push(d);
             return;
         }
@@ -2098,27 +2160,44 @@ impl Walker<'_> {
         .at_top_level(self.top_level);
         // A closed bridge: the ledger still says what it was renamed to.
         if let Some(a) = self.table.bidama(pkg).and_then(|s| s.alias_of(n)) {
-            let d = d.with_help(format!(
-                "`{n}` is `{}` since {} (`legacy_names`), and the bridge has closed",
-                a.spelled(pkg),
-                a.since
-            ));
+            let a = a.clone();
+            let d = d.with_help(match &a.append {
+                Some(args) => format!(
+                    "`{n}` retired at {}: `{pkg}::{n}(x)` is `{}(x, {args})`; `blue check --fix` writes it",
+                    a.since,
+                    a.spelled(pkg)
+                ),
+                None => format!(
+                    "`{n}` is `{}` since {} (`legacy_names`), and the bridge has closed",
+                    a.spelled(pkg),
+                    a.since
+                ),
+            });
+            let retired_here = a.append.is_some() && a.home.as_deref() == Some(pkg);
             let (original, replacement) = match (qualified, &a.home) {
                 (true, _) => (format!("{pkg}::{n}"), a.spelled(pkg)),
                 (false, None) => (format!(":{n}"), format!(":{}", a.canonical)),
+                (false, Some(_)) if retired_here => (format!(":{n}"), format!(":{}", a.canonical)),
                 // A moved name leaves the import list: its home is another `use`.
                 (false, Some(_)) => return d,
             };
-            let d = d.with_fix(Fix {
-                message: format!("write `{replacement}`"),
-                edits: vec![Edit {
-                    span,
-                    original,
-                    replacement,
-                }],
-                applicability: Applicability::MachineApplicable,
-            });
-            return self.using_home(d, a);
+            let fix = if qualified {
+                self.retired_edits(span, original, replacement, &a)
+            } else {
+                Some(Fix {
+                    message: format!("write `{replacement}`"),
+                    edits: vec![Edit {
+                        span,
+                        original,
+                        replacement,
+                    }],
+                    applicability: Applicability::MachineApplicable,
+                })
+            };
+            return match fix {
+                Some(fix) => self.using_home(d.with_fix(fix), &a),
+                None => d,
+            };
         }
         let mut offers: Vec<String> = owners.iter().map(|o| format!("{o}::{n}")).collect();
         offers.extend(near.iter().map(|(_, c)| format!("{pkg}::{c}")));
@@ -2265,9 +2344,15 @@ impl Scopes for Walker<'_> {
     fn call(&mut self, node: &Spanned, whole: &Spanned, name: &str, opaque: bool) {
         let argc = whole.as_list().map_or(0, |items| items.len() - 1);
         self.position = Position::Call(argc);
+        self.call_tail = whole
+            .as_list()
+            .filter(|items| items.len() > 1)
+            .and_then(|items| items.last())
+            .map(|a| a.span.end);
         let before = self.references.len();
         self.reference_at(node, name, opaque);
         self.position = Position::Value;
+        self.call_tail = None;
         let parenthesized = argc == 0
             && !opaque
             && self.report_unused

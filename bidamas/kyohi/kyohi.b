@@ -11,6 +11,13 @@ use("retsu", [:contains, :find_first, :first, :flat_map, :is_empty, :size])
 #
 # kueri, kinji and nisshi each wrote this vocabulary. It lives here once;
 # their names are bridges to these (`legacy_names`) until each package's 0.2.0.
+#
+# `refuse(found)` retired at 0.1.2: it is `enforce(found, [(fs) -> fs],
+# {kind: :first})`, and the row below is the fixer `blue check --fix` reads.
+legacy_names(
+  "0.1.2",
+  [["refuse", "kyohi::enforce", "[(fs) -> fs], {kind: :first}"]]
+)
 
 # A refusal of `kind`, because `why`.
 def refusal(kind, why)

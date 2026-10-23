@@ -140,7 +140,7 @@ const TESTED: &str =
                       def unused(x)\n  x\nend\n\ndef boom()\n  1 / 0\nend\n\n\
                       test \"fib small\"\n  assert fib(5) == 5\nend\n\n\
                       test \"fib zero\"\n  assert fib(0) == 0\nend\n\n\
-                      test \"boom\"\n  assert boom() == 1\nend\n";
+                      test \"boom\"\n  assert boom == 1\nend\n";
 
 /// **An error inside a test names its line and its stack**, the same shape
 /// `blue run` prints.

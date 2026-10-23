@@ -468,6 +468,10 @@ pub(crate) fn check_stage(
             )
         });
     }
+    let judge = blue_lang_check::evolution::FormJudge::from_env().unwrap_or_default();
+    outcome
+        .diagnostics
+        .retain(|d| judge.reports(d.code, is_entry(d.top_level)));
     // A rule whose census has not reached zero is computed, and counted, but
     // not enforced: its findings move to `census` (see `RULES`' `ratchet`).
     let (enforced, census): (Vec<_>, Vec<_>) = std::mem::take(&mut outcome.diagnostics)
@@ -892,7 +896,8 @@ pub fn nullary_value(value: &tatara_lisp_eval::Value) -> bool {
 }
 
 /// A diagnostic as a person reads it: `file:line:col: error[B0001]: message`,
-/// then an indented `help:` line when it has one.
+/// then an indented `help:` line when it has one, and a `fix:` line naming
+/// the one command that applies blue's fixer for it.
 #[must_use]
 pub fn render(program: &crate::uses::ResolvedProgram, d: &blue_lang_check::Diagnostic) -> String {
     let head = d.to_string();
@@ -900,6 +905,16 @@ pub fn render(program: &crate::uses::ResolvedProgram, d: &blue_lang_check::Diagn
     if let Some(help) = &d.help {
         out.push_str("\n  help: ");
         out.push_str(help);
+    }
+    let file = program
+        .owner_of(d.top_level)
+        .and_then(|id| program.file(id))
+        .and_then(|f| f.path.as_ref());
+    if let Some(cmd) =
+        file.and_then(|p| blue_lang_check::evolution::fix_command(d, &p.display().to_string()))
+    {
+        out.push_str("\n  fix: ");
+        out.push_str(&cmd);
     }
     out
 }
@@ -1129,7 +1144,7 @@ pub fn form_diagnostics_against(text: &str, formatted: &str) -> Vec<blue_lang_ch
     if formatted.trim_end() == text.trim_end() {
         return Vec::new();
     }
-    let help = "`blue fmt --write` writes it; `blue run`, `blue test` and `blue check` rewrite a writable file before compiling it";
+    let help = "`blue fmt --write FILE` writes it; no compile door writes a file (`BLUE_LAYOUT=rewrite` restores formatting in place)";
     let mut out: Vec<Diagnostic> = blue_lang_syntax::spelling_notes(text)
         .unwrap_or_default()
         .into_iter()

@@ -287,7 +287,7 @@ fn run_watched(
     watch: impl FnOnce(&Arc<Definitions>) -> Arc<dyn CallObserver>,
 ) -> Result<blue_lang_runtime::pipeline::Observed, CliError> {
     blue_lang_runtime::sys::set_program_args(args);
-    let src = read_compiled(file)?;
+    let src = crate::read_run(file)?;
     let inputs = crate::bind_inputs(&src, &[], cfg)?;
     Ok(blue_lang_runtime::pipeline::run_observed(
         Entry {
@@ -439,7 +439,7 @@ pub(crate) fn trace(
 ) -> Result<ExitCode, CliError> {
     // Refused before anything runs: a trace of a name the program does not
     // define would run the program for nothing.
-    let src = read_compiled(file)?;
+    let src = crate::read_run(file)?;
     let checked = blue_lang_runtime::pipeline::check_entry(
         Entry {
             path: Some(file),

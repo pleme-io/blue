@@ -75,6 +75,12 @@ verbs built from smaller ones. A capability is done when its verbs are rows in t
 extended rather than rewritten. A Rust program
 runs blue through `blue-lang-host`.
 
+Every break blue's evolution causes (a new rule, a retired word) ships its fixer, and the error
+names the one command: a rule row with `fix: Machine` or a row in `evolution::GAPS`, a word with
+its `legacy_names` row (a three-string row for a retired word). Form is the producer's: a
+dependency compiles as written, a bidama build judges meaning only, and `blue test` and `blue
+check` never write. The ledger and the receipts are `docs/COMPOUNDING.md`.
+
 ## Compose first: a reusable component is the unit of development
 
 Every capability starts as the smallest reusable component, and a service is a declaration that

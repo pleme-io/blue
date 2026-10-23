@@ -28,8 +28,8 @@ file:
 | door | what happens to a non-canonical spelling |
 |---|---|
 | `blue fmt --write` | writes the canonical spelling |
-| `blue run`, `blue test`, `blue check` | rewrite a writable file before compiling it, naming the rules (`blue: formatted x.b (B0025 logical-words ×3; …)`); a read-only file (the nix store) is refused naming the rules |
-| `blue fmt --check`, mkBidama's gate | fail naming the file, the rules and the first place |
+| `blue run`, `blue test`, `blue check` | refuse a non-canonical entry naming the rules and `blue fmt --write x.b`; they never write a file (`BLUE_LAYOUT=rewrite` restores formatting in place). A loaded dependency is compiled as written: its form is judged by its producer (`BLUE_FORM`, `docs/COMPOUNDING.md`) |
+| `blue fmt --check`, a bidama's form check | fail naming the file, the rules and the first place |
 | `blue check`, the LSP | report each finding with its code; `blue check --fix` applies the fixes |
 | a session, `blue eval`, a string | accepted as written: it has no canonical text to hold |
 

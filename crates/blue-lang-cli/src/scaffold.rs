@@ -62,7 +62,7 @@ const BIDAMA: &str = r##"use("retsu", [:first])
 # The greeting for a program's arguments: the first one, or the world.
 def greeting(args)
   who = first(args)
-  if who == nil
+  if who.nil?
     "hello, world"
   else
     "hello, #{who}"

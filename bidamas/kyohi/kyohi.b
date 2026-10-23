@@ -1,4 +1,4 @@
-use("retsu", [:first, :is_empty, :size])
+use("retsu", [:find_first, :first, :flat_map, :is_empty, :size])
 
 # kyohi (拒否) — refusals, as data.
 #
@@ -37,6 +37,75 @@ end
 def refuse(refusals)
   if is_empty(refusals) == false
     raise(kind(first(refusals)), join(map(why, refusals), "; "))
+  end
+  nil
+end
+
+def ledger_row(k, meaning, status, retry)
+  {kind: k, meaning:, exit_status: status, retryable: retry}
+end
+
+def ledger()
+  [
+    ledger_row(:usage, "the call or command line is wrong", 64, false),
+    ledger_row(
+      :bad_option,
+      "an option is unknown or has a bad value",
+      64,
+      false
+    ),
+    ledger_row(:bad_key, "a key is malformed", 64, false),
+    ledger_row(:parse_error, "text does not parse", 65, false),
+    ledger_row(:decode_error, "bytes do not decode", 65, false),
+    ledger_row(:render_error, "a value does not render", 65, false),
+    ledger_row(:query_error, "a query is malformed", 65, false),
+    ledger_row(:tampered, "a verdict or digest does not match", 65, false),
+    ledger_row(:not_found, "the thing asked for is absent", 66, false),
+    ledger_row(:breaker_open, "a circuit breaker is open", 69, true),
+    ledger_row(:exists, "the thing to create is already there", 73, false),
+    ledger_row(:conflict, "a concurrent change won", 75, true),
+    ledger_row(:timeout, "the deadline passed", 75, true),
+    ledger_row(:hold, "held for now; try again later", 75, true),
+    ledger_row(:denied, "the caller may not do this", 77, false),
+    ledger_row(:permission_denied, "the system refused access", 77, false),
+    ledger_row(:expired, "the grant is past its time", 77, false),
+    ledger_row(:revoked, "the grant was withdrawn", 77, false),
+    ledger_row(:untrusted, "the source is not trusted", 77, false),
+    ledger_row(:escapes_root, "a path leaves its root", 77, false),
+    ledger_row(:refused, "one or more rules found fault", 1, false),
+    ledger_row(:command_failed, "a command exited non-zero", 1, false),
+    ledger_row(:command_not_found, "a command is not on the path", 127, false)
+  ]
+end
+
+def ledger_entry(k)
+  e = find_first((r) -> get(r, :kind) == k, ledger)
+  if e == nil
+    raise(:not_found, "no ledger kind #{k}")
+  end
+  e
+end
+
+def exit_status(k)
+  get(ledger_entry(k), :exit_status)
+end
+
+def retryable?(k)
+  get(ledger_entry(k), :retryable)
+end
+
+def findings(subject, rules)
+  flat_map((rule) -> rule(subject), rules)
+end
+
+def enforce(subject, rules, opts)
+  found = findings(subject, rules)
+  if is_empty(found) == false
+    raise(
+      get(opts, :kind) or :refused,
+      join(map(why, found), "; "),
+      {data: found}
+    )
   end
   nil
 end
@@ -111,4 +180,50 @@ test "refuse passes nothing and throws everything, kind first"
     e
   end
   assert error?(caught) == true
+end
+
+test "the ledger is closed: one row per kind, each with a status and a retry mark"
+  rows = ledger
+  assert size(rows) == size(kinds(map((r) -> [get(r, :kind), ""], rows)))
+  assert size(filter((r) -> get(r, :kind) == :refused, rows)) == 1
+  assert size(filter((r) -> is_empty(get(r, :meaning)), rows)) == 0
+  assert exit_status(:not_found) == 66
+  assert exit_status(:usage) == 64
+  assert exit_status(:hold) == 75
+  assert exit_status(:command_not_found) == 127
+end
+
+test "a retryable kind is the transient ones, and an unknown kind is refused"
+  assert retryable?(:timeout) == true
+  assert retryable?(:conflict) == true
+  assert retryable?(:not_found) == false
+  assert retryable?(:tampered) == false
+  caught = begin
+    exit_status(:nonesuch)
+  rescue e
+    e
+  end
+  assert error?(caught) == true
+  assert caught.kind == :not_found
+end
+
+test "enforce passes a sound subject and raises every finding at once"
+  small = (n) -> filter((_) -> n > 2, [refusal(:too_big, "#{n} > 2")])
+  odd = (n) -> filter((_) -> n % 2 == 1, [refusal(:odd, "#{n} is odd")])
+  assert enforce(2, [small, odd], {}) == nil
+  assert enforce(2, [], {}) == nil
+  caught = begin
+    enforce(5, [small, odd], {})
+  rescue e
+    e
+  end
+  assert caught.kind == :refused
+  assert caught.message == "5 > 2; 5 is odd"
+  assert kinds(caught.data) == [:too_big, :odd]
+  named = begin
+    enforce(5, [small], {kind: :usage})
+  rescue e
+    e
+  end
+  assert named.kind == :usage
 end

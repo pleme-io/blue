@@ -23,7 +23,7 @@ verb(
     shape: "enforce(subject, rules, opts) -> nil",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyohi",
     meaning: "raise one error carrying every finding of the master check; nil when sound",
     wave: 0,
     origin: "H"
@@ -38,7 +38,7 @@ verb(
     shape: "exit_status(kind) -> int",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyohi",
     meaning: "exit status the ledger gives a kind",
     wave: 0,
     origin: "D"
@@ -83,7 +83,7 @@ verb(
     shape: "ledger() -> [record]",
     laterals: ["config", "error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyohi",
     meaning: "the closed list of error kinds with status and retry",
     wave: 0,
     origin: "D"
@@ -113,7 +113,7 @@ verb(
     shape: "retryable?(kind) -> Bool",
     laterals: ["error", "retry"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyohi",
     meaning: "the ledger marks the kind worth retrying",
     wave: 0,
     origin: "D"

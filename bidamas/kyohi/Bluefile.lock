@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c82a10329cb25395e6ec29734ce9551ea26d0da68d0815401be5f014078bcc21",
+  "bluefile_b3": "b3:ef02822f67079d18cea75ff0441cbcdaa6590f706dff77b530e9a246f49b260d",
   "manifest": {
     "schema": 1,
     "name": "kyohi",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "needs": {
       "retsu": "^0.1.0"
     },

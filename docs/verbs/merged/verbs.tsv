@@ -1465,13 +1465,13 @@ B	kyasshu?	sweep	effect	sweep(cache) -> count	cache,time	-	absent	remove every e
 B	kyasshu?	tier	pure	tier(caches) -> cache	cache	-	absent	layer caches so a miss falls to the next and fills upward	2		na
 B	kyasshu?	warm	effect	warm(cache, source, keys) -> count	cache,cancel	-	absent	fill entries ahead of demand	3		na
 D	kyohi	check	pure	check(refusals) -> nil	error,validate	-	partial:kyohi	raise one error carrying every refusal, or return nil	0	check(refusals) -> nil	yes
-H	kyohi	enforce	effect	enforce(subject, rules, opts) -> nil	error	-	absent	raise one error carrying every finding of the master check; nil when sound	0	enforce(subject, rules, opts) -> nil	yes
-D	kyohi	exit_status	pure	exit_status(kind) -> int	error	-	absent	exit status the ledger gives a kind	0	exit_status(kind) -> int	yes
+H	kyohi	enforce	effect	enforce(subject, rules, opts) -> nil	error	-	exists:kyohi	raise one error carrying every finding of the master check; nil when sound	0	enforce(subject, rules, opts) -> nil	yes
+D	kyohi	exit_status	pure	exit_status(kind) -> int	error	-	exists:kyohi	exit status the ledger gives a kind	0	exit_status(kind) -> int	yes
 D	kyohi	kind	pure	kind(refusal) -> keyword	error	-	exists:kyohi	what was refused	0	kind(refusal) -> keyword	yes
 D	kyohi	kinds	pure	kinds(refusals) -> [keyword]	error	-	exists:kyohi	the kind of each refusal, in order	0		na
-D	kyohi	ledger	decl	ledger() -> [record]	config,error	-	absent	the closed list of error kinds with status and retry	0	ledger() -> [record]	yes
+D	kyohi	ledger	decl	ledger() -> [record]	config,error	-	exists:kyohi	the closed list of error kinds with status and retry	0	ledger() -> [record]	yes
 D	kyohi	refusal	pure	refusal(kind, why) -> refusal	error	-	exists:kyohi	a refusal of one kind with its reason	0		na
-D	kyohi	retryable?	pure	retryable?(kind) -> Bool	error,retry	-	absent	the ledger marks the kind worth retrying	0		na
+D	kyohi	retryable?	pure	retryable?(kind) -> Bool	error,retry	-	exists:kyohi	the ledger marks the kind worth retrying	0		na
 D	kyohi	standing	pure	standing(entries, marks) -> [entry]	error	-	exists:kyohi	entries not refused	0		na
 D	kyohi	why	pure	why(refusal) -> text	error	-	exists:kyohi	why it was refused	0	why(refusal) -> text	yes
 D	kyoui?	alert	effect	alert(hit, sink, opts) -> nil	idempotent,log,ratelimit	tameshi	absent	send a deduplicated alert	2		na

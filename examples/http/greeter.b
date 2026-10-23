@@ -49,6 +49,5 @@ test "anything but the root is not found"
   assert get(
     handle(settings(false), kyuuji::request("GET", "/x", "")),
     :status
-  ) ==
-    404
+  ) == 404
 end

@@ -357,24 +357,21 @@ test "an undeclared flag or setting is refused, not read as off"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       setting(r, "nope")
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
 end
 
 test "merge lets b win and is deep for maps"
   assert merge(
     {"a" => 1, "n" => {"x" => 1, "y" => 2}},
     {"n" => {"y" => 3}, "b" => 4}
-  ) ==
-    {"a" => 1, "n" => {"x" => 1, "y" => 3}, "b" => 4}
+  ) == {"a" => 1, "n" => {"x" => 1, "y" => 3}, "b" => 4}
   assert merge({"n" => {"x" => 1}}, {"n" => 5}) == {"n" => 5}
   assert merge({}, {}) == {}
 end
@@ -393,8 +390,7 @@ test "has? and need read a dotted path and need raises not_found"
       e.message
     end,
     "no setting flags.whisper"
-  ) ==
-    true
+  ) == true
 end
 
 test "file refuses an unknown tier and the explicit tier is nil when unset"
@@ -406,6 +402,5 @@ test "file refuses an unknown tier and the explicit tier is nil when unset"
       e.message
     end,
     "nope is not a tier"
-  ) ==
-    true
+  ) == true
 end

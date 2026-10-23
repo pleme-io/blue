@@ -53,6 +53,5 @@ test "unless is a negated if"
     7
   else
     8
-  end ==
-    7
+  end == 7
 end

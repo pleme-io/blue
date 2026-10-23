@@ -47,8 +47,7 @@ def in_box?(box, p)
       (j) -> nth(j, p) < first(nth(j, box)) or nth(j, p) > last(nth(j, box)),
       range(0, size(box))
     )
-  ) ==
-    0
+  ) == 0
 end
 
 def inside_of(box, points)

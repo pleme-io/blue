@@ -601,8 +601,7 @@ test "lower_bound and upper_bound bracket a run of duplicates"
       append(take(lower_bound(xs, 4), xs), [4]),
       drop(lower_bound(xs, 4), xs)
     )
-  ) ==
-    true
+  ) == true
 end
 
 test "contains_sorted"

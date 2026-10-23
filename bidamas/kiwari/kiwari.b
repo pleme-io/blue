@@ -1853,14 +1853,12 @@ test "a literal with no role is refused by every renderer"
     highlights(bad)
   rescue e
     error?(e)
-  end ==
-    true
+  end == true
   assert begin
     tree_sitter_js(bad)
   rescue e
     error?(e)
-  end ==
-    true
+  end == true
   assert unpainted(tiny([rule("word", lit("?!"), nil)], [["?!", ""]])) == []
 end
 
@@ -1869,7 +1867,6 @@ test "render names the artifacts it makes when asked for another"
     render(blue, "grammar.json")
   rescue e
     error?(e)
-  end ==
-    true
+  end == true
   assert starts_with?(render(blue, "folds.scm"), "; Generated")
 end

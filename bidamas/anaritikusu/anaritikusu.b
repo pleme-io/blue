@@ -446,13 +446,11 @@ def needs_number?(d, f)
   compared = count_where(
     (a) -> contains([:lt, :le, :gt, :ge], first(a)) and nth(1, a) == f,
     atoms(d)
-  ) >
-    0
+  ) > 0
   counted = count_where(
     (x) -> contains([:add, :add_key], first(x)) and nth(1, x) == f,
     effects(d)
-  ) >
-    0
+  ) > 0
   compared or
     counted or
     numeric?(merge(field_evidence(d, f), "field #{raifusaikuru::show(f)}"))
@@ -1981,8 +1979,8 @@ def history_line(r, s)
     b
   end
   refusal = if folded and
-    rf != nil and
-    raifusaikuru::refusal_position(rf) == pos
+      rf != nil and
+      raifusaikuru::refusal_position(rf) == pos
     raifusaikuru::text(raifusaikuru::refusal_kind(rf))
   end
   rules = if breach.nil?
@@ -2587,8 +2585,7 @@ test "the history is the fold's state after every record, and names what the rep
       contains?(l, "\"breach\":[\"uses_left\"],\"breach_capability\":\"use\"")
     end,
     strict
-  ) ==
-    [false, false, false, false, false, true]
+  ) == [false, false, false, false, false, true]
   rm_rf(dir)
 end
 
@@ -2629,8 +2626,7 @@ test "the database for a simulated day: every view's numbers, checked by hand, a
   assert map(
     (n) -> view("#{n}_unreplayed"),
     ["consumable", "portion", "order"]
-  ) ==
-    [[[0.0]], [[0.0]], [[0.0]]]
+  ) == [[[0.0]], [[0.0]], [[0.0]]]
   # Current state. item-1: four admitted uses (the refused one at 30100 is
   # not folded), quality 12 from the last reading, read at 31000. item-2:
   # two admitted uses; the refused open changed nothing (opened_at 29500).
@@ -3100,8 +3096,7 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   assert filter(
     (r) -> nth(1, r) == "quality_ok",
     view("consumable_rule_hits")
-  ) ==
-    norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
+  ) == norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
   assert view("consumable_tasks") ==
     norm_rows(
       [["item-a", "replace", "open", 6, 1600, nil, nil, 3, 18400, 1200, true]]
@@ -3149,8 +3144,7 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   assert filter(
     (r) -> nth(1, r) == "quality_ok",
     norm_rows(read(db2, la_find(ms2, "consumable_rule_hits")))
-  ) ==
-    norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
+  ) == norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
   rm_rf(dir)
   rm_rf(dir2)
 end
@@ -3335,7 +3329,6 @@ test "as of, with two records of the linked entity in one second: the state afte
   assert map(
     (r) -> [first(r), nth(6, r), nth(8, r)],
     norm_rows(read(db, la_find(ms, "portion_item")))
-  ) ==
-    norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
+  ) == norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
   rm_rf(dir)
 end

@@ -863,8 +863,7 @@ test "a schema is closed and typed from the values it describes"
   assert get(
     get(get(get(get(s, "properties"), "b"), "properties"), "c"),
     "type"
-  ) ==
-    "boolean"
+  ) == "boolean"
   assert get(get(get(get(s, "properties"), "l"), "items"), "type") == "string"
   assert schema_of([]) == {"type" => "array"}
 end
@@ -880,8 +879,7 @@ test "the values schema closes what blue owns and opens what Kubernetes owns"
   assert get(
     get(get(get(vs, "database"), "properties"), "enabled"),
     "default"
-  ) ==
-    false
+  ) == false
   bare = values_schema("hello", {"port" => 1, "repository" => "r/x"})
   assert get(get(bare, "properties"), "database").nil?
 end
@@ -891,13 +889,11 @@ test "the DDL is additive, keyed by id, with nullable columns marked"
   assert contains?(
     sql,
     "CREATE TABLE IF NOT EXISTS \"greetings\" (\n  \"id\" bigserial PRIMARY KEY,\n  \"note\" text,\n  \"text\" text NOT NULL\n);"
-  ) ==
-    true
+  ) == true
   assert contains?(
     sql,
     "ALTER TABLE \"greetings\" ADD COLUMN IF NOT EXISTS \"note\" text;"
-  ) ==
-    true
+  ) == true
   assert ddl({"port" => 1}) == ""
   assert error?(
     begin
@@ -905,8 +901,7 @@ test "the DDL is additive, keyed by id, with nullable columns marked"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert column_sql("double?") == ["double precision", true]
 end
 
@@ -919,8 +914,7 @@ test "a row is checked against its table before it becomes SQL"
     [[:unknown_table, "nope is not a declared table"]]
   assert first(
     first(row_refusals(sample, "greetings", {"text" => "a", "bad" => 1}))
-  ) ==
-    :unknown_column
+  ) == :unknown_column
 end
 
 test "the tree holds the chart, its schema, the config and, with a schema, the migration"
@@ -952,28 +946,23 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   assert contains?(
     second(first(files("hello", "0.1.0", sample))),
     "version: \"0.1.0\""
-  ) ==
-    true
+  ) == true
   assert contains?(
     deployment("ola-mundo", "pleme-lib"),
     "OLA_MUNDO_FLAGS__%s"
-  ) ==
-    true
+  ) == true
   assert contains?(
     deployment("ola-mundo", "pleme-lib"),
     "include \"pleme-lib.fullname\""
-  ) ==
-    true
+  ) == true
   assert contains?(
     second(first(files("hello", "0.1.0", sample))),
     "name: \"pleme-lib\""
-  ) ==
-    true
+  ) == true
   assert contains?(
     second(first(files_self("hello", "0.1.0", sample))),
     "pleme-lib"
-  ) ==
-    false
+  ) == false
   assert contains?(service("hello"), "  namespace: {{ .Release.Namespace }}") ==
     true
 end
@@ -987,18 +976,15 @@ test "a service with tables names its schema and a database setting"
   assert contains?(
     sql,
     "CREATE TABLE IF NOT EXISTS \"ola_mundo\".\"greetings\" ("
-  ) ==
-    true
+  ) == true
   assert contains?(
     sql,
     "ALTER TABLE \"ola_mundo\".\"greetings\" ADD COLUMN IF NOT EXISTS \"note\" text;"
-  ) ==
-    true
+  ) == true
   assert contains?(
     deployment("ola-mundo", "pleme-lib"),
     "OLA_MUNDO_DATABASE__URL"
-  ) ==
-    true
+  ) == true
 end
 
 test "a service with a cache mounts its password Secret as a file and names it in the environment"

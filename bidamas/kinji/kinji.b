@@ -857,8 +857,7 @@ def simpson(f, a, b, n)
           4
         else
           2
-        end *
-          f(a + i * h)
+        end * f(a + i * h)
     end,
     0.0,
     range(1, n)
@@ -905,8 +904,7 @@ test "decay matches exp(-t), by fixed and adaptive steps"
     nth(0, sample_y(last(get(rk, :samples)))),
     exp(-1.0),
     0.0000001
-  ) ==
-    true
+  ) == true
   dp = ode(decay, 0.0, [1.0], 1.0, {rtol: 0.000000001, atol: 0.000000000001})
   assert near_within(nth(0, final(dp)), exp(-1.0), 0.00000001) == true
   # The adaptive solver takes far fewer steps than the fixed one for this.
@@ -916,8 +914,7 @@ test "decay matches exp(-t), by fixed and adaptive steps"
     nth(0, state_at(get(dp, :samples), 0.5)),
     exp(-0.5),
     0.001
-  ) ==
-    true
+  ) == true
 end
 
 test "an oscillator keeps its energy"
@@ -946,8 +943,7 @@ test "an ODE that blows up is refused, not answered"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   blown = begin
     final(r)
   rescue e
@@ -975,8 +971,7 @@ test "roots: sqrt(2), the Dottie number, and a refused bracket"
     [:kinji_no_bracket]
   assert refusal_kinds(
     bisect((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 5)
-  ) ==
-    [:kinji_iterations]
+  ) == [:kinji_iterations]
 end
 
 test "Nelder–Mead finds the Rosenbrock minimum"
@@ -1035,8 +1030,7 @@ test "interpolation: at nodes, between them, and refused outside"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   outside = begin
     interp(xs, ys, 25)
   rescue e
@@ -1063,8 +1057,7 @@ test "quadrature: the area under sin, and Simpson exact for a cubic"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   # Sampled: a straight line's trapezoid area is exact.
   assert near(trapz([0, 1, 3], [0, 2, 6]), 9) == true
   # The empty case: one sample encloses no area.

@@ -690,13 +690,11 @@ test "every ISO week number is in range, all year"
           year_of(from_day_number(n)),
           month_of(from_day_number(n)),
           day_of(from_day_number(n))
-        ) >
-          0
+        ) > 0
       end,
       range(to_day_number(2024, 1, 1), to_day_number(2025, 1, 1))
     )
-  ) ==
-    366
+  ) == 366
   assert size(
     filter(
       fn(n)
@@ -704,13 +702,11 @@ test "every ISO week number is in range, all year"
           year_of(from_day_number(n)),
           month_of(from_day_number(n)),
           day_of(from_day_number(n))
-        ) <
-          54
+        ) < 54
       end,
       range(to_day_number(2024, 1, 1), to_day_number(2025, 1, 1))
     )
-  ) ==
-    366
+  ) == 366
 end
 
 test "age counts completed years only"
@@ -765,8 +761,7 @@ test "counting business days"
   # Half-open means a zero-length span is zero, and adjacent spans add up.
   assert business_days_between(2024, 1, 1, 2024, 1, 1) == 0
   assert business_days_between(2024, 1, 1, 2024, 1, 4) +
-    business_days_between(2024, 1, 4, 2024, 1, 8) ==
-    5
+    business_days_between(2024, 1, 4, 2024, 1, 8) == 5
   # Saturday to Sunday contains one day, and it is not a business day.
   assert business_days_between(2024, 1, 6, 2024, 1, 7) == 0
   # 2024 had 262 weekdays: 52 whole weeks plus the Monday and Tuesday that
@@ -795,8 +790,7 @@ test "Easter obeys its own invariants for two centuries"
       (yy) -> day_of_week(yy, month_of(easter(yy)), day_of(easter(yy))) == 0,
       range(1900, 2100)
     )
-  ) ==
-    200
+  ) == 200
   # And every one of them falls inside the 22 March .. 25 April window.
   assert size(
     filter(
@@ -810,13 +804,11 @@ test "Easter obeys its own invariants for two centuries"
             yy,
             4,
             25
-          ) <
-            1
+          ) < 1
       end,
       range(1900, 2100)
     )
-  ) ==
-    200
+  ) == 200
 end
 
 test "ordinal day round-trips through its own year"
@@ -831,8 +823,7 @@ test "ordinal day round-trips through its own year"
     2024,
     month_of(date_from_ordinal(2024, 200)),
     day_of(date_from_ordinal(2024, 200))
-  ) ==
-    200
+  ) == 200
 end
 
 test "the nth weekday of a month"
@@ -852,8 +843,7 @@ test "the nth weekday of a month"
     2024,
     11,
     day_of(nth_weekday_of_month(2024, 11, 4, 5))
-  ) ==
-    false
+  ) == false
   assert is_valid_date(2024, 8, day_of(nth_weekday_of_month(2024, 8, 4, 5))) ==
     true
 end

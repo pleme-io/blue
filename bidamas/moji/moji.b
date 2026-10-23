@@ -767,8 +767,7 @@ test "includes agrees with char_index"
       includes(first(c), nth(1, c)) == (char_index(first(c), nth(1, c)) >= 0)
     end,
     cases
-  ) ==
-    repeat(true, length(cases))
+  ) == repeat(true, length(cases))
 end
 
 test "occurrences counts non-overlapping copies"

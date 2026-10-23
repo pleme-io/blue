@@ -671,8 +671,7 @@ test "SVG: y is flipped, the scale is 1:1 in mm, text is escaped"
   assert starts_with?(
     s,
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120mm\""
-  ) ==
-    true
+  ) == true
   # (0, 0) is 10 in from the left and 10 up from the bottom of a 70 high box.
   assert includes(s, "x1=\"10\" y1=\"60\" x2=\"110\" y2=\"10\"") == true
   assert includes(s, "a&lt;b") == true

@@ -199,11 +199,6 @@ pub fn comment_count(src: &str) -> usize {
     blue_lang_syntax::comments(src).len() + hidden_comments(src).len()
 }
 
-/// The comments the lexer cannot see: those inside `#{}` code, which it keeps
-/// as text for the parser to read. Each is reported as the offset of the
-/// string literal holding it, once per comment, nested strings included.
-/// Formatting re-parses that text alone and drops its trivia, so a comment
-/// there has no place to go and is refused like any other unplaceable one.
 fn hidden_comments(src: &str) -> Vec<usize> {
     fn walk(src: &str, at: Option<usize>, out: &mut Vec<usize>) {
         let Ok(toks) = blue_lang_syntax::lex(src) else {
@@ -300,10 +295,6 @@ impl<'s> Renderer<'s> {
         })
     }
 
-    /// The comments `out` does not carry, though placement counted them: the
-    /// flags say a comment was claimed, not that its text reached the output.
-    /// A lost one is found by its text; if the texts are all there but out of
-    /// order, every comment is reported.
     fn dropped(&self, out: &str) -> Vec<&Comment> {
         let mut have: Vec<String> = blue_lang_syntax::comments(out)
             .into_iter()
@@ -366,9 +357,6 @@ impl<'s> Renderer<'s> {
         out
     }
 
-    /// Run `build` and give back every comment it claimed. A document built
-    /// only to be measured must not keep the comments it took: the document
-    /// that is printed instead claims them again.
     fn probe<T>(&self, build: impl FnOnce() -> T) -> T {
         let saved = self.used.borrow().clone();
         let out = build();
@@ -850,8 +838,24 @@ impl<'s> Renderer<'s> {
                     return d;
                 }
             }
-            Some("apply") if items.len() >= 3 && is_name(&items[1]) => {
-                return self.splat_call(s, items);
+            Some("apply") if items.len() >= 3 => {
+                let head_ok = is_call_head(&items[1]);
+                let spellable = head_ok
+                    && !items[2..].iter().any(|a| {
+                        a.as_symbol()
+                            .is_some_and(blue_lang_syntax::is_reserved_word)
+                    });
+                if spellable {
+                    return self.splat_call(s, items);
+                }
+                if items.len() >= 4
+                    && self.probe(|| self.spells_back(s, &self.piped(items, min_prec)))
+                {
+                    return self.piped(items, min_prec);
+                }
+                if head_ok {
+                    return self.splat_call(s, items);
+                }
             }
             Some("begin" | "and" | "or" | "not")
                 if items.len() >= 2
@@ -963,9 +967,13 @@ impl<'s> Renderer<'s> {
         // Infix operators.
         if let Some((_, prec)) = head.and_then(infix_render) {
             if items.len() == 3 {
-                let chain = self.chain(s, prec);
+                let chain = self.chain(s, prec, prec < min_prec);
                 return if prec < min_prec {
-                    Doc::text("(").concat(chain).concat(Doc::text(")"))
+                    Doc::text("(")
+                        .concat(Doc::softline().concat(chain).nest(2))
+                        .concat(Doc::softline())
+                        .concat(Doc::text(")"))
+                        .group()
                 } else {
                     chain
                 };
@@ -1037,7 +1045,6 @@ impl<'s> Renderer<'s> {
         callee.concat(self.seq_of("(", ")", &items[1..], lo, hi))
     }
 
-    /// Does `d`, printed, parse back to the tree of `s`?
     fn spells_back(&self, s: &Spanned, d: &Doc) -> bool {
         blue_lang_syntax::parse_program(&flat_text(d))
             .is_ok_and(|forms| forms.len() == 1 && forms[0] == s.to_sexp())
@@ -1078,7 +1085,7 @@ impl<'s> Renderer<'s> {
 
     /// A left-leaning chain of one precedence level, `a + b - c`, broken after
     /// each operator when it does not fit, continuations indented one level.
-    fn chain(&self, s: &Spanned, prec: u8) -> Doc {
+    fn chain(&self, s: &Spanned, prec: u8, enclosed: bool) -> Doc {
         // Walk down the left spine while it stays at this precedence.
         let mut links: Vec<(&str, &Spanned)> = Vec::new();
         let mut node = s;
@@ -1100,17 +1107,26 @@ impl<'s> Renderer<'s> {
         };
         links.reverse();
 
+        let indent = if enclosed { 0 } else { 2 };
         let mut tail = Doc::nil();
+        let mut hug = Doc::nil();
+        let mut commented = false;
+        let mut first_op = String::new();
         let mut prev_end = first.span.end;
         for (op, rhs) in links {
             let mut t = String::from(" ");
             t.push_str(op);
-            tail = tail.concat(Doc::text(t));
+            if first_op.is_empty() {
+                first_op.clone_from(&t);
+            }
+            tail = tail.concat(Doc::text(t.clone()));
+            hug = hug.concat(Doc::text(t));
             let gap = if self.real(first.span) && self.real(rhs.span) {
                 self.take(prev_end, rhs.span.start)
             } else {
                 Vec::new()
             };
+            commented |= !gap.is_empty();
             let mut leading = Doc::nil();
             let mut trailed = false;
             for c in gap {
@@ -1121,15 +1137,23 @@ impl<'s> Renderer<'s> {
                     leading = leading.concat(self.own_line(c)).concat(Doc::hardline());
                 }
             }
+            let operand = self.operand(rhs, prec + 1);
             tail = tail
                 .concat(Doc::line())
                 .concat(leading)
-                .concat(self.operand(rhs, prec + 1));
+                .concat(operand.clone());
+            hug = hug.concat(Doc::line().concat(operand).group().nest(indent));
             if self.real(rhs.span) {
                 prev_end = rhs.span.end;
             }
         }
-        self.operand(first, prec).concat(tail.nest(2)).group()
+        let first = self.operand(first, prec);
+        let all = first.clone().concat(tail.nest(indent)).group();
+        if commented {
+            return all;
+        }
+        let head = first.clone().concat(Doc::text(first_op));
+        Doc::choice(all.clone(), Doc::pick(head, all, first.concat(hug)))
     }
 
     fn operand(&self, s: &Spanned, prec: u8) -> Doc {
@@ -1489,10 +1513,19 @@ impl<'s> Renderer<'s> {
             return Doc::text(items[1].to_sexp().to_string());
         };
         let mut header = self.signature(&items[1], sig);
-        if let Some(r) = render_ty(&items[2].to_sexp()) {
-            let mut t = String::from(" -> ");
-            t.push_str(&r);
-            header = header.concat(Doc::text(t));
+        let annotated = sig[1..].iter().any(|p| {
+            p.as_list()
+                .and_then(|pair| pair.get(1))
+                .is_some_and(|ty| render_ty(&ty.to_sexp()).is_some())
+        });
+        match render_ty(&items[2].to_sexp()) {
+            Some(r) => {
+                let mut t = String::from(" -> ");
+                t.push_str(&r);
+                header = header.concat(Doc::text(t));
+            }
+            None if !annotated => header = header.concat(Doc::text(" -> dyn")),
+            None => {}
         }
         self.def_block(s, header, &items[3])
     }
@@ -1534,9 +1567,21 @@ impl<'s> Renderer<'s> {
         let items = s.as_list().unwrap_or(&[]);
         let mut head = String::from(kw);
         head.push(' ');
-        let mut d = Doc::text(head)
-            .concat(self.expr(&items[1], 0))
-            .concat(self.body(&items[2], None, Doc::hardline()));
+        let cond = self.expr(&items[1], 0);
+        let cond = if items[1]
+            .as_list()
+            .and_then(|c| c.first()?.as_symbol())
+            .and_then(infix_render)
+            .is_some()
+        {
+            cond.nest(2)
+        } else {
+            cond
+        };
+        let mut d =
+            Doc::text(head)
+                .concat(cond)
+                .concat(self.body(&items[2], None, Doc::hardline()));
         let Some(els) = items.get(3) else { return d };
         // Where the `else` / `elsif` keyword starts.
         let then_end = self
@@ -1636,12 +1681,6 @@ impl<'s> Renderer<'s> {
     }
 }
 
-/// Is a list with this head and this many items the shape `x |> (form)` builds
-/// from a `form` of one item fewer? The pipeline inserts its left side as the
-/// first argument of ANY list, so a block form or an operator gets an extra
-/// item: `x |> (a % b)` is `(mod x a b)`, `x |> begin a rescue e b end` a
-/// four-item `try`. Printed as a call such a list either leaks the lowered
-/// name (`mod(x, a, b)`) or reads back as another tree (`try(x, …)`).
 fn pipe_built(head: &str, len: usize) -> bool {
     let arity = match head {
         "lambda" | "define" | "deftest" | "try" => 3,
@@ -1659,10 +1698,6 @@ fn pipe_built(head: &str, len: usize) -> bool {
     len == arity + 1
 }
 
-/// Does `s`, printed bare, read everything to its right as part of itself? An
-/// inline lambda takes `a rescue b` and `a |> f` into its body, and `assert`
-/// takes a whole expression, so as the left side of one of those operators
-/// each is parenthesized.
 fn swallows_tail(s: &Spanned) -> bool {
     matches!(
         sym_name_of(s),
@@ -1798,6 +1833,12 @@ fn is_unspellable_as_call(items: &[Spanned]) -> bool {
         }
         _ => is_case(&rest),
     }
+}
+
+fn is_call_head(s: &Spanned) -> bool {
+    is_name(s)
+        || s.as_symbol()
+            .is_some_and(|n| n == "begin" || blue_lang_syntax::OPERATOR_KEYWORDS.contains(&n))
 }
 
 /// A symbol a surface name can spell.
@@ -1999,8 +2040,6 @@ fn render_ty(t: &Sexp) -> Option<String> {
     match t {
         Sexp::Atom(Atom::Symbol(n)) if &**n == "dyn" => None,
         Sexp::Atom(Atom::Symbol(n)) => Some(n.to_string()),
-        // A constructor of any arity: (List Int) -> List(Int),
-        // (Map Str Int) -> Map(Str, Int), (Unit) -> Unit()
         Sexp::List(items) if !items.is_empty() => {
             let head = sym_name(&items[0])?;
             let args: Vec<String> = items[1..]

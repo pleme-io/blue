@@ -365,8 +365,7 @@ test "a missing ssh binary is named, and the state records which ssh ran"
   assert contains?(
     read_file(path_join(dir, "state.json")),
     "\"ssh\":\"/nonexistent/ssh\""
-  ) ==
-    true
+  ) == true
   # Control: a real ssh reaches the machine, so its failure is a different one.
   r2 = run(
     declared,

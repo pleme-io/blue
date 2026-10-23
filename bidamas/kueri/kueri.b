@@ -740,7 +740,7 @@ def values(opts)
     raise(:kueri_shape, "values #{name} declares no columns")
   end
   if is_empty(blue::filter((c) -> composite?(blue::get(c, :type)), cols)) ==
-    false
+      false
     raise(
       :kueri_shape,
       "values #{name}: a literal row holds scalars; a list is one row per element"
@@ -1087,8 +1087,7 @@ def nested_agg?(e)
       (a) -> is_empty(flat_map((c) -> nodes_of(c, :agg), kids(a))) == false,
       nodes_of(e, :agg)
     )
-  ) ==
-    false
+  ) == false
 end
 
 # ── refusals ───────────────────────────────────────────────────────────────
@@ -2021,7 +2020,7 @@ end
 def render_item(item, dialect)
   e = blue::get(item, :expr)
   if blue::get(e, :kind) == :col and
-    blue::get(e, :name) == blue::get(item, :name)
+      blue::get(e, :name) == blue::get(item, :name)
     ident(blue::get(item, :name))
   else
     "#{render_expr(e, dialect)} AS #{ident(blue::get(item, :name))}"
@@ -2879,16 +2878,14 @@ test "a duckdb-only construct in a :portable model is refused, and q_check throw
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       render(held, :duckdb)
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   # The control: the same stages at :duckdb reach hold, so the posture was the
   # whole of the refusal.
   free = model(
@@ -2962,8 +2959,7 @@ test "a locked model refuses what would make its output depend on luck"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   # The control: a sort right before the limit, and the order is completed
   # with the rest of the contract so ties cannot fall either way.
   top = model(
@@ -2981,15 +2977,13 @@ test "a locked model refuses what would make its output depend on luck"
     rescue e
       e
     end
-  ) ==
-    false
+  ) == false
   assert render(top, :duckdb) ==
     "SELECT *\nFROM plays\nORDER BY score DESC, game\nLIMIT 1"
   # :loose asks for none of it.
   assert is_empty(
     refusals(model({name: :top, from: src, pipeline: [limit(1)]}))
-  ) ==
-    true
+  ) == true
 end
 
 test "a declared contract is checked at any rigor, and a wrong one throws"
@@ -3008,8 +3002,7 @@ test "a declared contract is checked at any rigor, and a wrong one throws"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   right = model(
     {
       name: :w,
@@ -3028,12 +3021,10 @@ test "shape: unknown columns, a stray aggregate, a plain column in a group, and 
   h = example_horizons
   assert refusal_kinds(
     model({name: :a, from: h, pipeline: [q_filter(gt(:nope, 1))]})
-  ) ==
-    [:kueri_shape]
+  ) == [:kueri_shape]
   assert refusal_kinds(
     model({name: :b, from: h, pipeline: [derive(:m, q_max(:keep_mean))]})
-  ) ==
-    [:kueri_shape]
+  ) == [:kueri_shape]
   assert refusal_kinds(
     model(
       {
@@ -3047,8 +3038,7 @@ test "shape: unknown columns, a stray aggregate, a plain column in a group, and 
         ]
       }
     )
-  ) ==
-    [:kueri_shape]
+  ) == [:kueri_shape]
   assert refusal_kinds(
     model(
       {
@@ -3057,8 +3047,7 @@ test "shape: unknown columns, a stray aggregate, a plain column in a group, and 
         pipeline: [sort([:keep_mean]), q_filter(gt(:keep_mean, 0))]
       }
     )
-  ) ==
-    [:kueri_shape]
+  ) == [:kueri_shape]
   assert refusal_kinds(
     model(
       {
@@ -3069,12 +3058,10 @@ test "shape: unknown columns, a stray aggregate, a plain column in a group, and 
         ]
       }
     )
-  ) ==
-    [:kueri_shape]
+  ) == [:kueri_shape]
   assert refusal_kinds(
     model({name: :f, from: h, pipeline: [q_join(h, [:rounds_together])]})
-  ) ==
-    [:kueri_shape]
+  ) == [:kueri_shape]
   # The control: the same stages, well formed, hold.
   assert is_empty(
     refusals(
@@ -3086,8 +3073,7 @@ test "shape: unknown columns, a stray aggregate, a plain column in a group, and 
         }
       )
     )
-  ) ==
-    true
+  ) == true
 end
 
 test "the renderer holds the floor on its own: no door leads a duckdb form into core"
@@ -3124,24 +3110,21 @@ test "the renderer holds the floor on its own: no door leads a duckdb form into 
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       render_expr(string_agg(:x, ","), :core)
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       render_query(m, :core)
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   raw = model(
     {
       name: :r,
@@ -3156,32 +3139,28 @@ test "the renderer holds the floor on its own: no door leads a duckdb form into 
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       render(m, :duckdb)
     rescue e
       e
     end
-  ) ==
-    false
+  ) == false
   assert error?(
     begin
       render_load(example_horizons, "h.tsv", :core)
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       render(m, :postgres)
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
 end
 
 test "malformed nodes are refused where they are built"
@@ -3191,56 +3170,49 @@ test "malformed nodes are refused where they are built"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       raw({name: :r, sql: "SELECT 1"})
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       col(:x, :float)
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       model({name: :m, from: example_horizons, posture: [:strict]})
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       model({name: :m, from: example_horizons, posture: [:portable, :duckdb]})
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       limit(-1)
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       filtered(c(:x), gt(:x, 1))
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   # The control: a well-formed source is not an error.
   assert error?(
     begin
@@ -3248,8 +3220,7 @@ test "malformed nodes are refused where they are built"
     rescue e
       e
     end
-  ) ==
-    false
+  ) == false
 end
 
 test "refs are the DAG: direct deps, and a closure with every upstream before its readers"
@@ -3299,8 +3270,7 @@ test "a raw node is the escape hatch: its own CTE, its declared columns, and :du
   )
   assert is_empty(
     refusals(model({name: :v, from: vouched, posture: [:portable]}))
-  ) ==
-    true
+  ) == true
 end
 
 test "materialize: COPY to a file in DuckDB, CREATE TABLE AS in both, and no file COPY in core"
@@ -3314,8 +3284,7 @@ test "materialize: COPY to a file in DuckDB, CREATE TABLE AS in both, and no fil
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   as_table = assoc(m, :materialize, :table)
   assert render_materialize(as_table, :core, nil) ==
     "CREATE TABLE leverage AS\n#{render(m, :core)}"
@@ -3335,8 +3304,7 @@ test "q_write_sql writes the @generated file a consumer commits and gates fresh"
   assert contains?(
     render_file(example_leverage, :duckdb, "l.b"),
     ") TO 'leverage.parquet' (FORMAT parquet, COMPRESSION zstd);\n"
-  ) ==
-    true
+  ) == true
   rm(path)
 end
 
@@ -3415,8 +3383,7 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
   assert row_values(
     duckdb("SELECT * FROM read_parquet(#{quote_str(pq)})"),
     lev_names
-  ) ==
-    lev_known
+  ) == lev_known
   map((f) -> rm(path_join(dir, "kueri-e2e-#{first(f)}")), files)
   rm(pq)
 end
@@ -3549,8 +3516,7 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
   assert example_run(
     model({name: :n, from: none, pipeline: [group([], [agg(:n, count_all)])]}),
     [:n]
-  ) ==
-    [[0]]
+  ) == [[0]]
   # Controls: a value that is not its column's type fails the load, loudly,
   # and q_rows throws rather than answer no rows; no door renders these
   # constructs as core.
@@ -3832,8 +3798,7 @@ test "q_rows reads values by conversion, so a DuckDB display change never change
   assert script_rows(
     ["CREATE TEMP TABLE k AS SELECT 2 AS n"],
     "SELECT sum(n) AS n FROM k"
-  ) ==
-    kueri::rows("SELECT 2 AS n")
+  ) == kueri::rows("SELECT 2 AS n")
   # The control: a script that fails throws, it never reads as done.
   db = path_join(getenv("TMPDIR", "."), "kueri-run-#{to_s(now_ns)}.duckdb")
   assert error?(

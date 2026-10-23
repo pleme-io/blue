@@ -159,7 +159,7 @@ def teams_whys(ns)
     filter((n) -> not contains(covered, n), have)
   )
   edit_alone = if contains(have, "create_items") and
-    not contains(have, "read_items")
+      not contains(have, "read_items")
     ["the \"edit\" bundle requires the \"view\" bundle"]
   else
     []
@@ -597,8 +597,7 @@ test "the table covers every SDK bit once and round-trips"
   assert decode(0) == []
   assert encode(
     ["read_items", "reveal_item_password", "update_items", "delete_items"]
-  ) ==
-    624
+  ) == 624
   assert decode(624) ==
     ["delete_items", "read_items", "reveal_item_password", "update_items"]
   assert every((p) -> every((r) -> contains(names, r), p.requires), permissions)
@@ -612,8 +611,7 @@ test "closure refuses a permission without what it requires, and names what is m
     ["\"delete_items\" requires read_items, reveal_item_password, update_items"]
   assert closure_whys(
     ["read_items", "reveal_item_password", "update_items", "delete_items"]
-  ) ==
-    []
+  ) == []
   assert size(closure_whys(["recover_vault"])) == 1
   assert size(closure_whys(["bogus"])) == 1
   assert every(

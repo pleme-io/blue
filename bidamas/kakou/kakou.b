@@ -211,8 +211,7 @@ def side_extension(part, side)
       get(f, :radius),
       get(part, :thickness),
       get(part, :k)
-    ) +
-      flange_run(part, f)
+    ) + flange_run(part, f)
   end
 end
 
@@ -440,10 +439,9 @@ def flange_mesh(part, b, f)
   up = [0, 0, 1]
   along = cross_product(out, up)
   start = if dot(
-    along,
-    [px(nth(1, seg)) - px(nth(0, seg)), py(nth(1, seg)) - py(nth(0, seg)), 0]
-  ) >
-    0
+      along,
+      [px(nth(1, seg)) - px(nth(0, seg)), py(nth(1, seg)) - py(nth(0, seg)), 0]
+    ) > 0
     nth(0, seg)
   else
     nth(1, seg)
@@ -836,8 +834,7 @@ test "a test bend gives back the K that made it"
   assert near(
     k_from_test_bend(100, 50 + bd / 2, 50 + bd / 2, 90, 1.5, 1.5),
     0.4
-  ) ==
-    true
+  ) == true
 end
 
 test "a U channel's flat length is the sum of its outside legs less two bend deductions"
@@ -891,15 +888,13 @@ test "a flat pattern: the blank's outline, its bend lines, and its mass"
   assert near(
     sheet_mass_g(tray),
     region_area(get(fp, :blank)) * 1.5 * 7.99 / 1000
-  ) ==
-    true
+  ) == true
   # Each bend's zone is one bend allowance wide.
   bl = first(get(fp, :bends))
   assert near(
     vdistance(first(get(bl, :start)), first(get(bl, :finish))),
     bend_allowance(90, 1.5, 1.5, 0.44)
-  ) ==
-    true
+  ) == true
 end
 
 test "a blank's drawing: outline, holes, one labelled bend line per flange, two dimensions"
@@ -914,8 +909,7 @@ test "a blank's drawing: outline, holes, one labelled bend line per flange, two 
   assert contains(
     map((e) -> get(e, :s), filter((e) -> zumen::kind(e) == :text, es)),
     "UP 90 DEG R1.5"
-  ) ==
-    true
+  ) == true
   # The dimensions read the blank's size, to one decimal.
   s = blank_size(tray)
   texts = map(
@@ -1016,6 +1010,5 @@ test "a bent wire: its developed length by hand, and a refused radius"
   assert map(
     (r) -> nth(0, r),
     wire_refusals(wire("kink", 3, [[0, 0, 0], [0, 0, 10], [10, 0, 10]], 1))
-  ) ==
-    [:kakou_radius]
+  ) == [:kakou_radius]
 end

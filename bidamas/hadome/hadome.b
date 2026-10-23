@@ -129,15 +129,13 @@ test "recorded debt may hold or shrink"
     "entry",
     "wf/image-push.yml::push/Build and push",
     60
-  ) ==
-    {verdict: :held}
+  ) == {verdict: :held}
   assert judge(
     example_baseline,
     "entry",
     "wf/image-push.yml::push/Build and push",
     12
-  ) ==
-    {verdict: :held}
+  ) == {verdict: :held}
 end
 
 test "recorded debt that grows by one fails"
@@ -146,8 +144,7 @@ test "recorded debt that grows by one fails"
     "entry",
     "wf/image-push.yml::push/Build and push",
     61
-  ) ==
-    {verdict: :grew, recorded: 60, grew: 1}
+  ) == {verdict: :grew, recorded: 60, grew: 1}
 end
 
 test "a row covers only its own kind"
@@ -156,8 +153,7 @@ test "a row covers only its own kind"
     "host",
     "wf/image-push.yml::push/Build and push",
     1
-  ) ==
-    {verdict: :unrecorded}
+  ) == {verdict: :unrecorded}
 end
 
 test "parse keeps keys containing spaces"
@@ -179,8 +175,7 @@ test "a row whose subject is gone is an orphan"
     example_baseline,
     "entry",
     ["docs/CLAUDE.md::The Tendril Method"]
-  ) ==
-    ["wf/image-push.yml::push/Build and push"]
+  ) == ["wf/image-push.yml::push/Build and push"]
   assert orphans(
     example_baseline,
     "entry",
@@ -188,8 +183,7 @@ test "a row whose subject is gone is an orphan"
       "docs/CLAUDE.md::The Tendril Method",
       "wf/image-push.yml::push/Build and push"
     ]
-  ) ==
-    []
+  ) == []
 end
 
 test "orphans does not simply return everything"

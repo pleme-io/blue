@@ -458,8 +458,7 @@ def corp_of(routes, pattern)
   if is_empty(mine)
     :absent
   elsif size(unique(map(r_dest, filter((r) -> half?(r_dest(r)), halves)))) >=
-    2 or
-    not is_empty(filter((r) -> r_dest(r) == "default", halves))
+      2 or not is_empty(filter((r) -> r_dest(r) == "default", halves))
     :full
   else
     :split
@@ -824,8 +823,8 @@ def run(cfg)
     results
   )
   applied = if get(cfg2, :dry_run) or
-    get(o, :kind) != :bypass or
-    not is_empty(failed)
+      get(o, :kind) != :bypass or
+      not is_empty(failed)
     get(cfg2, :applied)
   else
     sorted(unique(append(get(cfg2, :applied), get(get(o, :routes), :hosts))))
@@ -930,8 +929,7 @@ test "the matrix gate goes red on a missing row, a stray row and a wrong decisio
       text,
       append(states, [assoc(first(states), :platform, :plan9)])
     )
-  ) ==
-    1
+  ) == 1
 end
 
 test "the measured live row: full tunnel, permissive, relay, gateway present, darwin is a bypass"
@@ -951,13 +949,11 @@ test "blind is never noop: an unread axis wins over every other answer"
   assert get(
     decide(assoc(assoc(s, :corp, :absent), :targets, :unread)),
     :unread
-  ) ==
-    [:targets]
+  ) == [:targets]
   assert get(decide(assoc(s, :corp, :absent)), :kind) == :noop
   assert size(
     filter((x) -> get(decide(fill(x)), :kind) == :blind, every_state)
-  ) ==
-    1200 - 3 * 4 * 4 * 2 * 1 * 2
+  ) == 1200 - 3 * 4 * 4 * 2 * 1 * 2
 end
 
 test "a state with a value outside its axis is refused, not decided"
@@ -1003,8 +999,7 @@ test "derp-map: the real map yields 88 IPv4 nodes, never 0"
   assert get(
     parse_derp_map("{\"Regions\": {\"1\": {\"Nodes\": [{\"IPv4\": \"\"}]}}}"),
     :ok
-  ) ==
-    false
+  ) == false
   assert get(parse_derp_map("not json"), :ok) == false
   assert get(parse_derp_map(""), :ok) == false
 end
@@ -1016,8 +1011,7 @@ test "netcheck: blocked reads none, bypassed reads direct, a DERP-only reply rea
   assert get(
     parse_netcheck("{\"UDP\": false, \"RegionLatency\": {\"1\": 5}}"),
     :value
-  ) ==
-    :relay
+  ) == :relay
   assert get(parse_netcheck("{}"), :ok) == false
   assert get(parse_netcheck("nope"), :ok) == false
 end
@@ -1033,8 +1027,7 @@ test "control plane resolution and status"
   assert get(
     parse_getent("192.200.0.102   STREAM controlplane.tailscale.com\n192.200.0.102   DGRAM\n"),
     :value
-  ) ==
-    ["192.200.0.102"]
+  ) == ["192.200.0.102"]
 end
 
 test "end to end over the measured state before the bypass: enforcement unknown, so bypass every target"
@@ -1121,8 +1114,7 @@ test "nixos is policy routing: a table route and a rule per host"
   assert get(
     parse_ip_rules("5200:\tfrom all to 192.200.0.102/32 lookup 5280\n5210:\tfrom all fwmark 0x80000/0xff0000 lookup main\n"),
     :value
-  ) ==
-    ["192.200.0.102"]
+  ) == ["192.200.0.102"]
   obs = {
     routes: parse_ip_route(text),
     rules: parse_ip_rules("5200:\tfrom all to 192.200.0.102/32 lookup 5280\n"),

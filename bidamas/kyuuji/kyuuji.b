@@ -240,8 +240,7 @@ test "a route answers, an unknown path is 404, a raise is 500"
   assert get(
     answer(request("GET", "/", "who=blue"), "/healthz", hello),
     :body
-  ) ==
-    "hi blue"
+  ) == "hi blue"
   assert get(answer(request("GET", "/x", ""), "/healthz", hello), :status) ==
     404
   r = answer(request("GET", "/boom", ""), "/healthz", hello)
@@ -275,15 +274,13 @@ test "an empty registry exposes every series at zero"
   assert contains?(
     text,
     "http_requests_total{service=\"svc\",code=\"5xx\"} 0\n"
-  ) ==
-    true
+  ) == true
   assert contains?(text, "http_request_errors_total{service=\"svc\"} 0\n") ==
     true
   assert contains?(
     text,
     "http_request_duration_seconds_bucket{service=\"svc\",le=\"+Inf\"} 0\n"
-  ) ==
-    true
+  ) == true
   assert contains?(text, "# TYPE http_request_duration_seconds histogram\n") ==
     true
 end

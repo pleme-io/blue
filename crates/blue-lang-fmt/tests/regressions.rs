@@ -1,10 +1,3 @@
-//! Every formatter defect found by the 2026-10-23 fuzz, corpus, precedence and
-//! comment audits, pinned by class. Each row is a minimal source, the exact
-//! text the formatter must print for it, and the laws every output obeys.
-//!
-//! The rows read the OUTPUT. A round-trip law measures the tree, and several of
-//! these classes held every law while printing text nobody would write.
-
 use blue_lang_fmt::{comment_count, format_source, format_source_lossless, FormatError};
 use blue_lang_syntax::{comments, parse_program, INFIX, SURFACE_KEYWORDS};
 
@@ -230,7 +223,69 @@ const FIXED: &[(&str, &str, &str)] = &[
         "f(*(-(a + b)))",
         "f(*(-(a + b)))\n",
     ),
+    (
+        "all-dyn-typed-def-prints-as-untyped",
+        "def a(a: dyn) -> dyn\n  a\nend",
+        "def a(a) -> dyn\n  a\nend\n",
+    ),
+    (
+        "all-dyn-typed-def-prints-as-untyped",
+        "def a(a: dyn)\n  a\nend",
+        "def a(a) -> dyn\n  a\nend\n",
+    ),
+    (
+        "all-dyn-typed-def-prints-as-untyped",
+        "def a(a) -> dyn\n  a\nend",
+        "def a(a) -> dyn\n  a\nend\n",
+    ),
+    (
+        "all-dyn-typed-def-prints-as-untyped",
+        "def a(a: Int, b) -> dyn\n  a\nend",
+        "def a(a: Int, b)\n  a\nend\n",
+    ),
+    (
+        "brace-in-string-inside-interpolation",
+        "\"a#{\"{\" |> \"}\"}b\"",
+        "\"a#{\"}\"(\"{\")}b\"\n",
+    ),
+    (
+        "brace-in-string-inside-interpolation",
+        "\"a#{f(\"}\")}b\"",
+        "\"a#{f(\"}\")}b\"\n",
+    ),
+    (
+        "pipe-into-splat-call",
+        "a::a |> and(a, *a)",
+        "a::a |> (and(a, *a))\n",
+    ),
+    (
+        "pipe-into-splat-call",
+        "a |> and(a, *a)",
+        "a |> (and(a, *a))\n",
+    ),
     ("splat-before-unary-minus", "f(1, *xs)", "f(1, *xs)\n"),
+    (
+        "splat-call-of-a-reserved-head",
+        "not(a, *b)",
+        "not(a, *b)\n",
+    ),
+    ("splat-call-of-a-reserved-head", "not(*b)", "not(*b)\n"),
+    (
+        "splat-call-of-a-reserved-head",
+        "and(a, *b)",
+        "and(a, *b)\n",
+    ),
+    ("splat-call-of-a-reserved-head", "or(a, *b)", "or(a, *b)\n"),
+    (
+        "splat-call-of-a-reserved-head",
+        "begin(a, *b)",
+        "begin(a, *b)\n",
+    ),
+    (
+        "splat-call-of-a-reserved-head",
+        "a = if not(a, *a)\na\nend",
+        "a = if not(a, *a)\n  a\nend\n",
+    ),
 ];
 
 #[test]
@@ -340,10 +395,6 @@ fn a_hash_in_a_string_or_a_plain_interpolation_is_not_a_hidden_comment() {
     }
 }
 
-/// A comment placement that claims a comment but drops its text is caught by
-/// the door itself, so the lossless door cannot return `Ok` for text that has
-/// lost one. The rows above are the placements that used to; this is the
-/// guard for the next one.
 #[test]
 fn the_lossless_door_never_returns_text_with_fewer_comments() {
     for (class, src, _) in FIXED {
@@ -404,6 +455,11 @@ fn contexts() -> Vec<String> {
         "({}).m",
         "({}).m(1)",
         "({})(1)",
+        "(({}).m)(1)",
+        "(({}).m.n)(1)",
+        "(({}).m(1).n)(1)",
+        "({}).m.n",
+        "({}).m(1).n",
         "f(*({}))",
         "f(1, *({}))",
         "-({})",
@@ -486,5 +542,98 @@ fn the_operand_matrix_reaches_every_surface_keyword_and_every_operator() {
             "operator {} has no context",
             i.op
         );
+    }
+}
+
+#[test]
+fn the_width_counts_scalar_values_not_terminal_columns() {
+    let wide = "😀".repeat(30);
+    let src = format!("x = f(\"{wide}\", \"{}\")", "a".repeat(30));
+    let out = format_source_lossless(&src).expect("formats");
+    assert_eq!(
+        out.lines().count(),
+        1,
+        "60 emoji columns and 30 letters is 60 characters: one line\n{out}"
+    );
+    let marks = "e\u{301}".repeat(19);
+    let src = format!("x = f(\"{marks}\", \"{}\")", "a".repeat(40));
+    let out = format_source_lossless(&src).expect("formats");
+    assert!(
+        out.lines().count() > 1,
+        "38 marked letters and 40 letters is 82 characters: it breaks\n{out}"
+    );
+}
+
+#[test]
+fn a_leading_byte_order_mark_is_a_signature_and_one_inside_the_text_is_refused() {
+    let out = holds_every_law("bom-before-comment", "\u{feff}# c\nx = 1\n");
+    assert_eq!(out, "# c\nx = 1\n");
+    let out = holds_every_law("bom-before-comment", "\u{feff}x = 1 # c\n");
+    assert_eq!(out, "x = 1 # c\n");
+    for src in ["x = 1\n\u{feff}# c\ny = 2\n", "x = \u{feff}1\n"] {
+        assert!(parse_program(src).is_err(), "{src:?} parsed");
+    }
+    assert!(parse_program("x = \"a\u{feff}b\"").is_ok());
+}
+
+const LAID_OUT: &[(&str, &str, &str)] = &[
+    (
+        "if-condition-continuation-same-indent-as-body",
+        "def f(aaaaaaaaaaaa, bbbbbbbbbbbbb)\n  if contains(aaaaaaaaaaaa, \"create_items\") and not contains(bbbbbbbbbbbbb, \"read_items\")\n    1\n  else\n    2\n  end\nend\n",
+        "def f(aaaaaaaaaaaa, bbbbbbbbbbbbb)\n  if contains(aaaaaaaaaaaa, \"create_items\") and\n      not contains(bbbbbbbbbbbbb, \"read_items\")\n    1\n  else\n    2\n  end\nend\n",
+    ),
+    (
+        "if-condition-continuation-same-indent-as-body",
+        "if aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa == bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  1\nelsif cccccccccccccccccccccccccccccccccccccc && dddddddddddddddddddddddddddddddddddddddddd\n  2\nend\n",
+        "if aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ==\n    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  1\nelsif cccccccccccccccccccccccccccccccccccccc and\n    dddddddddddddddddddddddddddddddddddddddddd\n  2\nend\n",
+    ),
+    (
+        "infix-orphan-rhs-after-broken-lhs",
+        "def f(a)\n  x = contains(map(problem_kind, problems(:base, push(example_base, first(row)))), nth(1, row)) == false\nend\n",
+        "def f(a)\n  x = contains(\n    map(problem_kind, problems(:base, push(example_base, first(row)))),\n    nth(1, row)\n  ) == false\nend\n",
+    ),
+    (
+        "infix-orphan-rhs-after-broken-lhs",
+        "def f(a)\n  assert count_where(aaaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbbbb) + size(cccccccccccccccccccccc, ddddddddddddddddd) == 4\nend\n",
+        "def f(a)\n  assert count_where(aaaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbbbb) +\n    size(cccccccccccccccccccccc, ddddddddddddddddd) == 4\nend\n",
+    ),
+    (
+        "infix-orphan-rhs-after-broken-lhs",
+        "def f(a)\n  w = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb + cccccccccccc\nend\n",
+        "def f(a)\n  w = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa +\n    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb +\n    cccccccccccc\nend\n",
+    ),
+    (
+        "paren-group-hanging-closer",
+        "x = not (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa && bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb && c)\n",
+        "x = not (\n  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa and\n  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb and\n  c\n)\n",
+    ),
+    (
+        "paren-group-hanging-closer",
+        "def f(a)\n  z = 2 * (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb + cccccccccccc)\nend\n",
+        "def f(a)\n  z = 2 *\n    (\n      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa +\n      bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb +\n      cccccccccccc\n    )\nend\n",
+    ),
+    (
+        "paren-group-hanging-closer",
+        "y = !(a && # c\n  b)\n",
+        "y = not (\n  a and # c\n  b\n)\n",
+    ),
+];
+
+#[test]
+fn each_laid_out_class_prints_its_pinned_layout_and_holds_every_law() {
+    for (class, src, want) in LAID_OUT {
+        let out = holds_every_law(class, src);
+        assert_eq!(&out, want, "[{class}] {src:?}");
+    }
+}
+
+#[test]
+fn a_short_chain_and_a_short_paren_group_stay_on_one_line() {
+    for src in [
+        "x = a + b * c\n",
+        "x = 2 * (a + b)\n",
+        "if a == b\n  1\nend\n",
+    ] {
+        assert_eq!(holds_every_law("flat-chain", src), src);
     }
 }

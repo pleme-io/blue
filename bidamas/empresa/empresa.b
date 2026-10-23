@@ -1053,8 +1053,7 @@ test "a service without a flake or a port, or a static site with a flake, is ref
         sites: [service_site("a", ["a.acme.example"])]
       }
     ).refused
-  ) ==
-    0
+  ) == 0
 end
 
 test "edge rows carry the comma-joined hosts, a host slug and the zone name"
@@ -1414,6 +1413,5 @@ test "a site row names the validation record of each of its hosts"
   assert map(
     (a) -> "aws_route53_record.#{a.slug}-validation.fqdn",
     variables(example).edge_aliases
-  ) ==
-    split(s.validation_fqdns, ",")
+  ) == split(s.validation_fqdns, ",")
 end

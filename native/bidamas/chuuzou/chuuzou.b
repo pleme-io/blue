@@ -896,8 +896,7 @@ test "outside the N0 subset is refused, naming the rule"
   assert (cz_lower(cz_read("(define (%root/f x) x)"), board) rescue :refused) ==
     :refused
   assert (cz_lower(cz_read("(use \"retsu\" (list :first))"), board) rescue
-    :refused) ==
-    :refused
+    :refused) == :refused
   assert (cz_lower(cz_read("(eval 1)"), board) rescue :refused) == :refused
 end
 

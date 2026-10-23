@@ -174,8 +174,7 @@ test "every bidama in the distribution answers through this one import"
   assert blue::get(
     tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
     :host
-  ) ==
-    "plo"
+  ) == "plo"
   assert blue::get(souji::parse(["nix"]), :days) == 14
   assert blue::get(decide({corp: :absent}), :kind) == :noop
   assert size(relay_env("socks5h://r:1")) == 6

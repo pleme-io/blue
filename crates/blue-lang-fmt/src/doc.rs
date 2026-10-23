@@ -61,6 +61,11 @@ pub enum Doc {
     /// Two spellings of one thing: the first when it fits flat on the rest of
     /// the line, else the second. Measured by `fits` as its first branch.
     Choice(Rc<Doc>, Rc<Doc>),
+    Pick {
+        test: Rc<Doc>,
+        yes: Rc<Doc>,
+        no: Rc<Doc>,
+    },
 }
 
 impl Doc {
@@ -111,6 +116,14 @@ impl Doc {
 
     pub fn choice(flat: Doc, broken: Doc) -> Self {
         Doc::Choice(Rc::new(flat), Rc::new(broken))
+    }
+
+    pub fn pick(test: Doc, yes: Doc, no: Doc) -> Self {
+        Doc::Pick {
+            test: Rc::new(test),
+            yes: Rc::new(yes),
+            no: Rc::new(no),
+        }
     }
 
     pub fn group(self) -> Self {
@@ -189,6 +202,14 @@ pub fn pretty(doc: &Doc, width: usize) -> String {
                     stack.push((indent, Mode::Break, (*broken).clone()));
                 }
             }
+            Doc::Pick { test, yes, no } => {
+                let chosen = if fits(width.saturating_sub(col), &test, &[]) {
+                    yes
+                } else {
+                    no
+                };
+                stack.push((indent, Mode::Break, (*chosen).clone()));
+            }
             Doc::Group(inner) => {
                 // The single decision: does this group fit flat? A group
                 // inside a flat group is flat already — its parent fit, and
@@ -257,6 +278,10 @@ fn fits(space: usize, doc: &Doc, rest: &[(isize, Mode, Doc)]) -> bool {
             // Oppen's linear algorithm rather than Wadler's exponential one.
             Doc::Group(inner) => local.push((Mode::Flat, (*inner).clone())),
             Doc::Choice(flat, _) => local.push((Mode::Flat, (*flat).clone())),
+            Doc::Pick { test, .. } => {
+                local.push((Mode::Break, Doc::Line { flat: " " }));
+                local.push((Mode::Flat, (*test).clone()));
+            }
         }
     }
 }
@@ -370,6 +395,13 @@ mod tests {
 
     /// Determinism is the load-bearing property: one document plus one
     /// width yields exactly one string, always.
+    #[test]
+    fn a_pick_chooses_by_its_prefix_alone() {
+        let d = Doc::pick(tight("aaaa"), tight("yes"), tight("no"));
+        assert_eq!(pretty(&d, 4), "yes");
+        assert_eq!(pretty(&d, 3), "no");
+    }
+
     #[test]
     fn rendering_is_deterministic() {
         let d = tight("x").concat(Doc::line()).concat(tight("y")).group();

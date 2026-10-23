@@ -587,8 +587,7 @@ test "reject, count_where and partition"
   assert partition((x) -> x > 2, [1, 3, 2, 4]) == [[3, 4], [1, 2]]
   # The two halves account for every element exactly once, whatever the predicate.
   assert count_where((x) -> x > 2, [1, 3, 2, 4]) +
-    size(reject((x) -> x > 2, [1, 3, 2, 4])) ==
-    4
+    size(reject((x) -> x > 2, [1, 3, 2, 4])) == 4
   assert partition((_x) -> true, []) == [[], []]
 end
 
@@ -605,8 +604,7 @@ test "take_while and drop_while stop at the first failure"
   assert append(
     take_while((x) -> x < 3, [1, 2, 3, 1]),
     drop_while((x) -> x < 3, [1, 2, 3, 1])
-  ) ==
-    [1, 2, 3, 1]
+  ) == [1, 2, 3, 1]
 end
 
 test "scan keeps every intermediate accumulator"

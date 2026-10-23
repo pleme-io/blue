@@ -368,6 +368,5 @@ test "the dashboard and the catalog entry read the same objectives"
   assert get(
     entry("hello", "0.1.0", assoc(sample, "owner", "edge")),
     "owner"
-  ) ==
-    "edge"
+  ) == "edge"
 end

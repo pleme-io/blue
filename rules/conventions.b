@@ -84,6 +84,5 @@ test "an empty form and one with no nil? find nothing"
     quote
       f(x.nil?)
     end
-  ) ==
-    []
+  ) == []
 end

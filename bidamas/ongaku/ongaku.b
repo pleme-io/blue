@@ -798,8 +798,7 @@ test "the two definitions of a mode agree"
   assert map(
     (d) -> contains(major_scale(0), first(mode_of_major(0, d))),
     range(0, 7)
-  ) ==
-    repeat(true, 7)
+  ) == repeat(true, 7)
 end
 
 test "harmonic and melodic minor differ from natural minor at named degrees"
@@ -827,8 +826,7 @@ test "pentatonics and the blues scale"
   assert count_where(
     (pc) -> is_in_scale(pc, minor_scale(9)),
     scale_tones(minor_pentatonic_scale(9))
-  ) ==
-    5
+  ) == 5
   assert is_in_scale(3, blues_scale(9)) == true
   assert is_in_scale(3, minor_pentatonic_scale(9)) == false
 end
@@ -844,13 +842,11 @@ test "chromatic and whole-tone scales"
   assert count_where(
     (pc) -> is_in_scale(pc, whole_tone_scale(0)),
     transpose_all(scale_tones(whole_tone_scale(0)), 2)
-  ) ==
-    6
+  ) == 6
   assert count_where(
     (pc) -> is_in_scale(pc, whole_tone_scale(0)),
     transpose_all(scale_tones(whole_tone_scale(0)), 1)
-  ) ==
-    0
+  ) == 0
 end
 
 test "scale membership and degree"
@@ -950,8 +946,7 @@ test "the qualities of a major key are not chosen, they fall out"
   assert count_of(
     scale_seventh_qualities(major_scale(0)),
     "dominant seventh"
-  ) ==
-    1
+  ) == 1
 end
 
 test "chords on scale degrees are real chords in the scale"
@@ -965,8 +960,7 @@ test "chords on scale degrees are real chords in the scale"
   assert count_where(
     (pc) -> is_in_scale(pc, major_scale(3)),
     scale_seventh(major_scale(3), 5)
-  ) ==
-    4
+  ) == 4
   assert scale_triad([], 0) == []
   assert scale_seventh([], 0) == []
 end
@@ -1034,16 +1028,14 @@ test "the accidental count is derivable from the notes, not just from the table"
       )
     end,
     agree
-  ) ==
-    map((k) -> abs(key_signature(k)), agree)
+  ) == map((k) -> abs(key_signature(k)), agree)
   # F# major is the one key where they part company, because its sixth sharp is
   # E# — a sharp on a white key. Pinned so the boundary is documented, not lost.
   assert abs(key_signature(6)) == 6
   assert count_where(
     (pc) -> not is_in_scale(pc, major_scale(0)),
     scale_tones(major_scale(6))
-  ) ==
-    5
+  ) == 5
 end
 
 test "accidentals come in a fixed order, and flats reverse the sharps"
@@ -1220,8 +1212,7 @@ test "MIDI numbers and octave names round-trip"
   assert map(
     (n) -> note_to_midi(midi_pitch_class(n), midi_octave(n)),
     range(0, 128)
-  ) ==
-    range(0, 128)
+  ) == range(0, 128)
   assert midi_octave(-1) == -2
   assert midi_note_name(60) == "C4"
   assert midi_note_name(69) == "A4"
@@ -1237,14 +1228,12 @@ test "hz_to_midi inverts midi_to_hz"
   assert count_where(
     (n) -> near(hz_to_midi(midi_to_hz(n)), n),
     range(21, 109)
-  ) ==
-    88
+  ) == 88
   assert near_within(
     midi_to_hz(hz_to_midi(261.6255653)),
     261.6255653,
     0.000001
-  ) ==
-    true
+  ) == true
   # Middle C, a number anyone can look up.
   assert near_within(midi_to_hz(60), 261.6255653, 0.000001) == true
   assert near_within(note_to_hz(0, 4), 261.6255653, 0.000001) == true
@@ -1273,8 +1262,7 @@ test "cents are logarithmic, so intervals add"
     cents_of_ratio(1.5) + cents_of_ratio(1.5) - 1200,
     cents_of_ratio(1.5 * 1.5 / 2),
     0.000001
-  ) ==
-    true
+  ) == true
 end
 
 test "just ratios are exact small integers, and extend past the octave"
@@ -1317,8 +1305,7 @@ test "the commas — why twelve pure fifths cannot close the circle"
     cents_of_ratio(expt(1.5, 12) / expt(2, 7)),
     23.46,
     0.001
-  ) ==
-    true
+  ) == true
   # The syntonic comma, the other famous one: four just fifths against a just
   # major third.
   assert near_within(cents_of_ratio(81 / 80), 21.5063, 0.001) == true

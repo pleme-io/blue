@@ -615,8 +615,7 @@ test "derangements, where the two seeds are the whole difficulty"
   # produces plausible-looking numbers and fails here.
   assert sum(
     map((k) -> combinations(5, k) * derangements(5 - k), range(0, 6))
-  ) ==
-    factorial(5)
+  ) == factorial(5)
 end
 
 test "stirling numbers of the second kind"
@@ -755,8 +754,7 @@ test "coprime, including the two cases people argue about"
   assert coprime(
     nth(0, simplify_ratio(24, 36)),
     nth(1, simplify_ratio(24, 36))
-  ) ==
-    true
+  ) == true
 end
 
 test "pascal triangle rows, and the recurrence between them"

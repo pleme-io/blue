@@ -66,14 +66,12 @@ test "a database is configured only when its url is set"
   assert enabled?({"database" => {"url" => "", "schema" => "s"}}) == false
   assert enabled?(
     {"database" => {"url" => "postgres://u@h/d", "schema" => "s"}}
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       open({})
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
 end

@@ -427,8 +427,7 @@ test "put sets a value, creates missing map keys, indexes lists, and never touch
   assert json_at(
     put(d, "metadata.annotations.owner", "shop"),
     "metadata.annotations.owner"
-  ) ==
-    "shop"
+  ) == "shop"
   p = put(d, "spec.template.spec.containers.1.image", "side:2")
   assert json_at(p, "spec.template.spec.containers.1.image") == "side:2"
   assert json_at(p, "spec.template.spec.containers.0.image") == "web:1"
@@ -448,8 +447,7 @@ test "put sets a value, creates missing map keys, indexes lists, and never touch
   assert json_at(
     put(d, "spec.template.spec.containers.1.image", "x"),
     "spec.template.spec.containers.1.image"
-  ) ==
-    "x"
+  ) == "x"
 end
 
 test "delete removes a map key or a list element, and deleting what is absent is no change"
@@ -458,8 +456,7 @@ test "delete removes a map key or a list element, and deleting what is absent is
   assert json_at(
     delete(d, "spec.template.spec.containers.0"),
     "spec.template.spec.containers"
-  ) ==
-    [{"name" => "side", "image" => "side:1"}]
+  ) == [{"name" => "side", "image" => "side:1"}]
   assert delete(d, "spec.nothing.here") == d
   assert delete(d, "spec.template.spec.containers.7") == d
   assert delete(delete(d, "spec.replicas"), "spec.replicas") ==
@@ -508,8 +505,7 @@ test "object_key is kind, namespace and name, with an empty namespace when there
   assert object_key(web) == ["Deployment", "shop", "web"]
   assert object_key(
     {"kind" => "Namespace", "metadata" => {"name" => "shop"}}
-  ) ==
-    ["Namespace", "", "shop"]
+  ) == ["Namespace", "", "shop"]
 end
 
 test "amend applies the patches that stand, in order, and leaves every other object alone"

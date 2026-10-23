@@ -594,11 +594,6 @@ impl<'a> Lexer<'a> {
 // XID_Start/XID_Continue would need real char decoding through the whole
 // lexer. Accepting too much is a surface question; rejecting every non-Latin
 // script was a correctness one.
-/// Where the `#{` code whose body starts at `i` ends: the index after its
-/// closing `}`. Braces nest (`"#{ {a: 1} }"`), and a string inside the code is
-/// skipped whole, so a brace in it is text: `"#{f("}")}"` closes on the right
-/// brace, and printing code back into `#{}` can never end the interpolation
-/// early.
 fn skip_interpolation(bytes: &[u8], mut i: usize) -> Option<usize> {
     let mut depth = 1usize;
     loop {
@@ -620,8 +615,6 @@ fn skip_interpolation(bytes: &[u8], mut i: usize) -> Option<usize> {
     }
 }
 
-/// The index after the string literal that opens at `i`, an escape and a
-/// nested `#{}` skipped as the string lexer reads them.
 fn skip_code_string(bytes: &[u8], mut i: usize) -> Option<usize> {
     i += 1;
     loop {

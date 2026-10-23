@@ -1,15 +1,3 @@
-//! A comment is the one part of a program a machine cannot rebuild, so the
-//! lossless door has a stricter contract than the tree laws: for ANY place a
-//! comment can sit, the output either carries it or the door refuses by line.
-//! It never returns `Ok` for text that lost one.
-//!
-//! The sweep injects a comment at every line boundary of formatted programs, as
-//! a trailing note and as an own-line one, and holds the contract over each.
-//! The classes this file exists for (a lambda printed inline, a rescue
-//! modifier re-spelled as `begin`, interpolated code) all dropped comments with
-//! a green round-trip law, because the comment-count law only counted
-//! comments the lexer could see.
-
 use blue_lang_fmt::{comment_count, format_source, format_source_lossless};
 use blue_lang_syntax::{comments, parse_program};
 use proptest::prelude::*;
@@ -135,7 +123,10 @@ fn a_comment_at_every_line_of_every_shape_is_kept_or_refused() {
 }
 
 proptest! {
-    #![proptest_config(common::config(512))]
+    #![proptest_config(ProptestConfig {
+        max_global_rejects: 1 << 20,
+        ..common::config(512)
+    })]
 
     #[test]
     fn a_comment_in_a_generated_program_is_kept_or_refused(

@@ -581,8 +581,7 @@ test "arccos on acos agrees with the bisection it replaced"
     end,
     true,
     xs
-  ) ==
-    true
+  ) == true
   # At the ends they do not, and the bisection is the one that is wrong: cos
   # is flat at 0 and pi, so bisecting on it stalls near sqrt of the float
   # epsilon. Measured: arccos_bisect(-1) is off pi by 1.05e-8. The closed forms
@@ -593,8 +592,7 @@ test "arccos on acos agrees with the bisection it replaced"
     arccos_bisect(-1, 0, 3.141592653589793, 60),
     3.141592653589793,
     0.000000001
-  ) ==
-    false
+  ) == false
   # The saturation the bisection gave for free, now stated as a clamp.
   assert near(arccos(1.0000000002), 0) == true
   assert near(arccos(-1.0000000002), 3.141592653589793) == true
@@ -726,8 +724,7 @@ test "determinant at 1x1, 2x2, 3x3 and 4x4"
   # error anywhere in the expansion shows up here.
   assert determinant(
     [[2, 9, 9, 9], [0, 3, 9, 9], [0, 0, 4, 9], [0, 0, 0, 5]]
-  ) ==
-    120
+  ) == 120
 end
 
 test "determinant is multiplicative and transpose-invariant"

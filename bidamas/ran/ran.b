@@ -356,15 +356,13 @@ test "split_seed gives two streams that do not replay each other"
   # The failure this catches: b = next_seed(a), which shares 19 of these 20.
   assert is_empty(
     intersection(take_ints(a, 1_000_000, 20), take_ints(b, 1_000_000, 20))
-  ) ==
-    true
+  ) == true
   assert is_empty(
     intersection(
       take_ints(a, 1_000_000, 20),
       take_ints(next_seed(a), 1_000_000, 20)
     )
-  ) ==
-    false
+  ) == false
   assert split_seed(1) == split_seed(1)
   assert split_seed(1) != split_seed(2)
 end
@@ -386,8 +384,7 @@ test "streams are independent, not merely distinct"
   assert abs(
     reduce((a, v) -> a + v, 0, low) / size(low) -
       reduce((a, v) -> a + v, 0, high) / size(high)
-  ) <
-    0.12
+  ) < 0.12
 end
 
 test "the affine derivation fails that test (positive control)"
@@ -513,18 +510,15 @@ test "a weight of zero is never chosen"
   assert every(
     (s) -> weighted_choice(s, ["a", "b"], [1, 0]) == "a",
     seeds(2, 40)
-  ) ==
-    true
+  ) == true
   assert every(
     (s) -> weighted_choice(s, ["a", "b"], [0, 1]) == "b",
     seeds(2, 40)
-  ) ==
-    true
+  ) == true
   assert every(
     (s) -> weighted_choice(s, ["a", "b", "c"], [0, 1, 0]) == "b",
     seeds(9, 40)
-  ) ==
-    true
+  ) == true
 end
 
 test "weighted_choice follows the weights it was given"
@@ -535,8 +529,7 @@ test "weighted_choice follows the weights it was given"
   # Equal weights must reach every option, including the last.
   assert size(
     unique(map((s) -> weighted_choice(s, [1, 2, 3], [1, 1, 1]), seeds(5, 100)))
-  ) ==
-    3
+  ) == 3
   assert weighted_choice(4, ["only"], [1]) == "only"
 end
 
@@ -568,8 +561,7 @@ test "next_normal is next_gaussian shifted and scaled"
   assert every(
     (s) -> near(next_normal(s, 10, 2), 10 + 2 * next_gaussian(s)),
     seeds(6, 20)
-  ) ==
-    true
+  ) == true
   # Shifting by 100 must move the whole cloud, not widen it.
   ns = map((s) -> next_normal(s, 100, 1), seeds(17, 200))
   assert every((n) -> n > 94 and n < 106, ns) == true

@@ -327,8 +327,7 @@ test "all_of, any_of and none_of over a list of predicates"
   assert every(
     (x) -> none_of([pos, even_p])(x) == (not any_of([pos, even_p])(x)),
     probes
-  ) ==
-    true
+  ) == true
 end
 
 test "all_of, any_of and none_of stop at the first decisive predicate"
@@ -383,8 +382,7 @@ test "at_least_n and at_most_n recover any and every at the boundaries"
   assert every(
     (xs) -> exactly_n(size(xs), even_p, xs) == every(even_p, xs),
     probes
-  ) ==
-    true
+  ) == true
 end
 
 test "majority needs strictly more than half"
@@ -447,16 +445,14 @@ test "take_while_pred and drop_while_pred split a list in two"
       append(take_while_pred(small, xs), drop_while_pred(small, xs)) == xs
     end,
     probes
-  ) ==
-    true
+  ) == true
   assert is_empty(take_while_pred(small, [])) == true
   assert is_empty(drop_while_pred(small, [])) == true
   # take_until is take_while_pred of the complement, on the same probes plus [].
   assert every(
     (xs) -> take_until(small, xs) == take_while_pred(complement(small), xs),
     probes
-  ) ==
-    true
+  ) == true
   assert take_until(small, []) == take_while_pred(complement(small), [])
   assert prefix_len(small, [1, 2, 9, 1]) == 2
   assert prefix_len(small, []) == 0
@@ -485,8 +481,7 @@ test "find_by returns the element, and nil for a miss"
   assert every(
     (xs) -> find_by(even_p, xs).nil? == (find_index_by(even_p, xs) == -1),
     probes
-  ) ==
-    true
+  ) == true
 end
 
 test "indexes_where agrees with count_if and starts at find_index_by"
@@ -498,8 +493,7 @@ test "indexes_where agrees with count_if and starts at find_index_by"
   assert every(
     (xs) -> size(indexes_where(even_p, xs)) == count_if(even_p, xs),
     probes
-  ) ==
-    true
+  ) == true
   assert first(indexes_where(even_p, [1, 2, 4])) ==
     find_index_by(even_p, [1, 2, 4])
 end

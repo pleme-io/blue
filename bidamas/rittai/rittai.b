@@ -266,8 +266,7 @@ def face_area(m, f)
       vsub(nth(1, pts), nth(0, pts)),
       vsub(nth(2, pts), nth(0, pts))
     )
-  ) /
-    2
+  ) / 2
 end
 
 def surface_area(m)
@@ -732,8 +731,8 @@ end
 def blocks_ear(pts, poly, j, a, b, c)
   q = nth(nth(j, poly), pts)
   if near(distance_squared(q, a), 0) or
-    near(distance_squared(q, b), 0) or
-    near(distance_squared(q, c), 0)
+      near(distance_squared(q, b), 0) or
+      near(distance_squared(q, c), 0)
     false
   else
     cross(a, b, q) >= 0 and cross(b, c, q) >= 0 and cross(c, a, q) >= 0
@@ -945,8 +944,7 @@ test "a drilled plate extrudes to its region's area times its thickness"
     ),
     region_area(plate),
     0.0001
-  ) ==
-    true
+  ) == true
 end
 
 test "a non-convex outline triangulates and extrudes"
@@ -972,16 +970,14 @@ test "poses: rotation, composition, inverse, and standing a part on a segment"
   assert vector_near(
     mvmul(rot_axis([0, 0, 1], pi / 2), [1, 0, 0]),
     [0, 1, 0]
-  ) ==
-    true
+  ) == true
   assert is_orthogonal(rot_axis([1, 2, 3], 0.7)) == true
   along = pose_along([0, 0, 0], [0, 100, 0])
   assert vector_near(rt_apply(along, [0, 0, 100]), [0, 100, 0]) == true
   assert vector_near(
     mvmul(rot_between([0, 0, 1], [0, 0, -1]), [0, 0, 1]),
     [0, 0, -1]
-  ) ==
-    true
+  ) == true
   # A transformed solid keeps its volume and moves its centroid.
   b = transform(p, box(2, 2, 2))
   assert near(volume(b), 8) == true

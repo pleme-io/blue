@@ -412,8 +412,7 @@ test "calls: a curried call is one call with its head and every argument"
   assert map(
     (c) -> get(c, :head),
     calls_named(get(d, :root), ["nixosSystem", "darwinSystem"])
-  ) ==
-    ["lib.nixosSystem"]
+  ) == ["lib.nixosSystem"]
   assert calls_named(get(d, :root), ["darwinSystem"]) == []
 end
 

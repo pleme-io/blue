@@ -201,6 +201,10 @@ fn the_width_law_tells_a_long_token_from_a_missed_break() {
     let long = "x".repeat(90);
     let s = format!("\"{long}\"");
     for ok in [
+        format!("  k: assert {s}"),
+        format!("  k: -{s}"),
+        format!("  x = {s} and"),
+        format!("  x = {s} or"),
         format!("  {s},"),
         format!("  why: {s}"),
         format!("  msg = {s}"),
@@ -214,6 +218,8 @@ fn the_width_law_tells_a_long_token_from_a_missed_break() {
         assert!(lawful_overflow(&ok), "must be lawful: {ok}");
     }
     for bad in [
+        format!("  k: assert f(x, {s})"),
+        format!("  x = {s} and y and"),
         format!("  f(x, {s})"),
         format!("  a: {s}, b: 1"),
         format!("  {}", "abc, ".repeat(20)),

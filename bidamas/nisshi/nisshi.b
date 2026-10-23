@@ -607,9 +607,9 @@ end
 
 def normal_link(l)
   if list?(l) and
-    size(l) == 2 and
-    raifusaikuru::name?(first(l)) and
-    string?(nth(1, l))
+      size(l) == 2 and
+      raifusaikuru::name?(first(l)) and
+      string?(nth(1, l))
     [raifusaikuru::text(first(l)), nth(1, l)]
   else
     raise(
@@ -1358,8 +1358,8 @@ end
 # step lc_admit_step took applied it and recorded the breach).
 def refusal_as(verdict, observed)
   if observed and
-    raifusaikuru::admitted?(verdict) == false and
-    raifusaikuru::reject_kind(verdict) == :guard
+      raifusaikuru::admitted?(verdict) == false and
+      raifusaikuru::reject_kind(verdict) == :guard
     nil
   else
     refusal_of(verdict)
@@ -1418,12 +1418,13 @@ def require_entity(entity)
 end
 
 def require_event(ev)
-  if (list?(ev) and
-    size(ev) == 3 and
-    raifusaikuru::name?(raifusaikuru::ev_type(ev)) and
-    integer?(raifusaikuru::ev_time(ev)) and
-    list?(nth(2, ev))) ==
-    false
+  if (
+      list?(ev) and
+      size(ev) == 3 and
+      raifusaikuru::name?(raifusaikuru::ev_type(ev)) and
+      integer?(raifusaikuru::ev_time(ev)) and
+      list?(nth(2, ev))
+    ) == false
     raise(
       :eventlog_value,
       "an event is lc_ev(type, time, payload): a name, a whole-number time and [key, value] pairs, not #{raifusaikuru::show(ev)}"
@@ -1827,8 +1828,7 @@ test "an identity: append then read gives back every record and every state, and
       ]
     end,
     by_entity(records(r1))
-  ) ==
-    states(r1)
+  ) == states(r1)
   assert intact?(verify(r1, nil, head(log)))
 end
 
@@ -1927,8 +1927,7 @@ test "values checked independently: the genesis and every hash by b3sum, the sig
     read_back,
     "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
     head(log)
-  ) ==
-    [:el_intact, 3, head(log)]
+  ) == [:el_intact, 3, head(log)]
 end
 
 # A signed stream of five records over two items, as its lines: the base the
@@ -2148,8 +2147,7 @@ test "append raises before writing on what JSON cannot hold, and on a malformed 
       )
     end,
     bad_calls
-  ) ==
-    repeat(true, size(bad_calls))
+  ) == repeat(true, size(bad_calls))
   assert path_exists(p) == false
   # The control: the same call with a JSON value goes through.
   l1 = el_append(
@@ -2258,8 +2256,7 @@ test "links are carried faithfully: kinds as text, ids, order and duplicates, in
   swapped = replace(first(lines), "O-3", "O-4")
   assert break_kind(
     verify(from_text(unlines([swapped]), nil, 0, "nisshi-test", d), nil, nil)
-  ) ==
-    :hash
+  ) == :hash
 end
 
 test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde writes the same bytes"
@@ -2339,8 +2336,7 @@ test "history: the state after every record, from read's own fold"
       [e, nth(1, retsu::last(filter((x) -> rec_entity(first(x)) == e, rows)))]
     end,
     entities(many)
-  ) ==
-    states(many)
+  ) == states(many)
   assert count_where(
     fn(x)
       nth(1, x) !=
@@ -2360,8 +2356,7 @@ test "history: the state after every record, from read's own fold"
         )
     end,
     rows
-  ) ==
-    0
+  ) == 0
   # The control: a value that was appended to keeps no records to replay.
   assert error?(
     begin
@@ -2500,8 +2495,7 @@ test "the state as of a time: the records at or before it, folded as read folds 
     raifusaikuru::phase(at1000),
     raifusaikuru::value(at1000, :quality),
     raifusaikuru::value(at1000, :read_at)
-  ] ==
-    [:sealed, 10, 1000]
+  ] == [:sealed, 10, 1000]
   assert state_at(log, "item-1", 1500) == at1000
   assert raifusaikuru::phase(state_at(log, "item-1", 2000)) == :open
   # The identity: at the last record's time it is el_state; at each record's
@@ -2510,8 +2504,7 @@ test "the state as of a time: the records at or before it, folded as read folds 
   assert map(
     (x) -> state_at(log, rec_entity(first(x)), rec_time(first(x))),
     history(log)
-  ) ==
-    map((x) -> nth(1, x), history(log))
+  ) == map((x) -> nth(1, x), history(log))
   # The control: a value that was appended to keeps no records.
   q = test_path("state-at-writer")
   w = el_append(

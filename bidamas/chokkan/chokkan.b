@@ -252,8 +252,7 @@ test "a request with nothing to ask is refused, and an empty answer is blind"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert get(read(200, "{}"), :kind) == :blind
   assert get(read(200, "not json"), :kind) == :blind
   assert get(read(200, nil), :kind) == :blind
@@ -283,12 +282,10 @@ test "option and level counts are bounded exactly at their limits"
   assert problems([ask("s", score("rate", ["a", "b"]))]) == []
   assert problems(
     [ask("s", score("rate", map((i) -> to_s(i), range(0, 10))))]
-  ) ==
-    []
+  ) == []
   assert kinds(
     problems([ask("s", score("rate", map((i) -> to_s(i), range(0, 11))))])
-  ) ==
-    [:levels_out_of_range]
+  ) == [:levels_out_of_range]
 end
 
 test "every problem is named at once, not only the first"

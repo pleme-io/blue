@@ -267,6 +267,25 @@ Each of these is a defect that shipped, not a style preference.
   `textDocument/formatting` returned 707 bytes for 1010 and **deleted all six
   comments in the buffer**. Everything that shows a user their own file goes
   through `format_source_lossless`; `format_source` is for comparing trees.
+- **A document built to be measured must give its comments back.** The
+  formatter claims a comment when a document takes it, and a lambda is built
+  as its inline and its block spelling while only one is printed; the rescue
+  modifier measures its operands before it picks `begin`. Each dropped its
+  comments with `Ok` and a green law, because the claim flag says a document
+  took the comment, not that it was printed. Measure through `Renderer::probe`,
+  decide on comments before building, and rely on the door's output check
+  (`format_tree_lossless` compares the comment texts it prints with the ones it
+  was given). A comment inside `#{}` code is invisible to the lexer's comment
+  list; `comment_count` counts it and the door refuses it by line.
+- **Printing code inside `#{}` can end the interpolation early.** The lexer
+  closed `#{` on the first unbalanced brace, strings included, so a printed
+  `"}"` cut the code short. It now reads a nested string whole; keep it that
+  way when touching `skip_interpolation`.
+- **A layout change is a change to every `.b` file.** `canonical::admit` refuses
+  or rewrites a file that is not what the formatter prints, so a new layout
+  lands with the reformatted corpus in the same commit (`tests/corpus.rs`
+  reports the drift). `PROPTEST_CASES=20000 cargo test -p blue-lang-fmt` is the
+  deep run; a failure it finds is saved beside the test file.
 - **`interpreter_hostless` is not hostless when the `sys` feature is on.** It
   forks a base built by `interpreter(&mut ())`, and `interpreter` installs the
   host layer under `#[cfg(feature = "sys")]` — so in `blue-lang-cli`, and in

@@ -650,8 +650,7 @@ test "job_from_cronjob: the Job carries the template spec unchanged and is owned
   assert at(
     j,
     ["metadata", "annotations", "cronjob.kubernetes.io/instantiate"]
-  ) ==
-    "manual"
+  ) == "manual"
   assert get(j, "spec") ==
     at(json_read(cronjob_text), ["spec", "jobTemplate", "spec"])
   assert at(first(at(j, ["metadata", "ownerReferences"])), ["uid"]) == "u-1"
@@ -667,13 +666,11 @@ test "job_from_cronjob: anything but a CronJob with a jobTemplate is refused"
       "x"
     ),
     :ok
-  ) ==
-    false
+  ) == false
   assert get(
     job_from_cronjob("{\"kind\":\"CronJob\",\"spec\":{}}", "x"),
     :ok
-  ) ==
-    false
+  ) == false
 end
 
 def tmpl(gen, observed, phase, entered, extra)
@@ -704,8 +701,7 @@ test "reconcile_liveness: an advancing apply cursor is moving"
   assert get(
     liveness(a, tmpl(22, 21, "Applying", "t1", {"applyCursorCount" => 40}), 30),
     :queued_generation
-  ) ==
-    22
+  ) == 22
 end
 
 test "reconcile_liveness: a still heartbeat in Planning is stalled since the latest evidence"
@@ -731,8 +727,7 @@ test "reconcile_liveness: Planning with no progress field is blind, never stalle
       tmpl(4, 4, "Compiling", "t", {}),
       60
     )
-  ) ==
-    "blind"
+  ) == "blind"
 end
 
 test "reconcile_liveness: a settled pass with a newer generation is queued behind it"
@@ -743,8 +738,7 @@ test "reconcile_liveness: a settled pass with a newer generation is queued behin
   assert get(v, :observed) == 20
   assert verdict(
     liveness(tmpl(21, 21, "Ready", "t", {}), tmpl(21, 21, "Ready", "t", {}), 60)
-  ) ==
-    "settled"
+  ) == "settled"
 end
 
 test "reconcile_liveness: the operator's own stalled pass is stalled, with its reason"

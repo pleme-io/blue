@@ -1237,8 +1237,8 @@ def verb_conforms(shape, v)
   else
     n = shape_positionals(shape)
     if n >= vocab_least(v) and
-      n <= vocab_most(v) and
-      (get(v, :opts) or not shape_takes_opts?(shape))
+        n <= vocab_most(v) and
+        (get(v, :opts) or not shape_takes_opts?(shape))
       "yes"
     else
       "no"
@@ -1700,9 +1700,9 @@ def tsv_list(s)
 end
 
 def text_safe?(s)
-  not (contains?(s, "\n") or
-    contains?(s, "\t") or
-    contains?(s, concat("#", "{")))
+  not (
+    contains?(s, "\n") or contains?(s, "\t") or contains?(s, concat("#", "{"))
+  )
 end
 
 def tsv_table(label, text, header_sets)
@@ -2408,20 +2408,16 @@ test "g1 is silenced by a refines, generalizes or inverse edge, and by nothing e
   assert fx_kinds(fx_graph(rows, [], known)) == ["g1-meaning a::read a::slurp"]
   assert fx_kinds(
     fx_graph(rows, [["a::slurp", "refines", "a::read", "x"]], known)
-  ) ==
-    []
+  ) == []
   assert fx_kinds(
     fx_graph(rows, [["a::read", "generalizes", "a::slurp", "x"]], known)
-  ) ==
-    []
+  ) == []
   assert fx_kinds(
     fx_graph(rows, [["a::read", "inverse", "a::slurp", "x"]], known)
-  ) ==
-    []
+  ) == []
   assert fx_kinds(
     fx_graph(rows, [["a::read", "pairs", "a::slurp", "x"]], known)
-  ) ==
-    ["g1-meaning a::read a::slurp"]
+  ) == ["g1-meaning a::read a::slurp"]
 end
 
 test "g2 names a verb with no vocabulary row"
@@ -2465,8 +2461,7 @@ test "g4 names an edge to a later wave, and only for composes and requires"
       [["a::p", "pairs", "a::q", "x"]],
       ["p", "q"]
     )
-  ) ==
-    []
+  ) == []
 end
 
 test "g7 names a verb with two inverse partners, however the edges are written"
@@ -2485,8 +2480,7 @@ test "g7 names a verb with two inverse partners, however the edges are written"
       ],
       known
     )
-  ) ==
-    ["g7-inverse a::put"]
+  ) == ["g7-inverse a::put"]
   assert fx_kinds(
     fx_graph(
       rows,
@@ -2496,8 +2490,7 @@ test "g7 names a verb with two inverse partners, however the edges are written"
       ],
       known
     )
-  ) ==
-    []
+  ) == []
 end
 
 test "g9 names an endpoint that is no verb and a relation outside the closed set"
@@ -2587,20 +2580,16 @@ end
 test "a row file holds only literals: a name, a call or an operator in a value is a syntax refusal"
   assert kinds(
     get(file_graph("a.b", "space(\"a\", {status: ratified})\n"), :refusals)
-  ) ==
-    [:row_syntax]
+  ) == [:row_syntax]
   assert kinds(
     get(file_graph("a.b", "space(\"a\", {status: 1 + 2})\n"), :refusals)
-  ) ==
-    [:row_syntax]
+  ) == [:row_syntax]
   assert kinds(
     get(file_graph("a.b", "space(\"a\", {status: f(1)})\n"), :refusals)
-  ) ==
-    [:row_syntax]
+  ) == [:row_syntax]
   assert kinds(
     get(file_graph("a.b", "space(\"a\", {status: \"x\n"), :refusals)
-  ) ==
-    [:row_syntax]
+  ) == [:row_syntax]
 end
 
 test "a bad row is refused alone: its siblings load"

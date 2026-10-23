@@ -123,6 +123,22 @@ pub fn string() -> impl Strategy<Value = String> {
     .prop_map(|parts| format!("\"{}\"", parts.concat()))
 }
 
+/// A type as the surface writes it: a name, or a constructor of any arity.
+pub fn ty() -> impl Strategy<Value = String> {
+    let name = prop_oneof![
+        Just("Int".to_string()),
+        Just("Str".to_string()),
+        Just("dyn".to_string())
+    ];
+    name.prop_recursive(2, 6, 3, |inner| {
+        (
+            prop_oneof![Just("List"), Just("Map"), Just("Unit")],
+            prop::collection::vec(inner, 0..3),
+        )
+            .prop_map(|(c, args)| format!("{c}({})", args.join(", ")))
+    })
+}
+
 pub fn leaf() -> impl Strategy<Value = String> {
     prop_oneof![
         ident(),
@@ -197,6 +213,16 @@ pub fn expr() -> impl Strategy<Value = String> {
             // and builds a tree no call can spell.
             (e.clone(), e.clone()).prop_map(|(x, y)| format!("{x} |> {y}")),
             e.clone().prop_map(|x| format!("({x})")),
+            (e.clone(), e.clone()).prop_map(|(a, b)| format!("({a}) rescue ({b})")),
+            (body(e.clone()), ident(), body(e.clone()))
+                .prop_map(|(b, v, h)| format!("begin\n{b}\nrescue {v}\n{h}\nend")),
+            (body(e.clone()), body(e.clone()))
+                .prop_map(|(b, c)| format!("begin\n{b}\nensure\n{c}\nend")),
+            (ident(), ty(), ty(), body(e.clone()))
+                .prop_map(|(n, p, r, b)| format!("def {n}(a: {p}) -> {r}\n{b}\nend")),
+            (head(), args(e.clone()), e.clone()).prop_map(|(f, a, s)| format!("{f}({a}, *{s})")),
+            (prop::collection::vec(ident(), 0..3), e.clone())
+                .prop_map(|(p, b)| format!("({}) -> {b}", p.join(", "))),
         ]
     })
 }

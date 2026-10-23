@@ -2685,13 +2685,7 @@ impl Parser {
         ))
     }
 
-    /// A type expression: a name (`Int`, `Str`, `dyn`) or a constructor over
-    /// types, of any arity (`List(Int)`, `Map(Str, Int)`, `Unit()`).
-    ///
-    /// Each argument is itself a type. They were read as expressions, so
-    /// `List(1 + 2)` parsed to a signature no `def` line can spell, and a
-    /// reserved word was accepted as a type name: `def a(x) -> not` followed
-    /// by a newline read `not` as the return type and the next line as the body.
+    /// A type expression: a name, or a constructor over types of any arity.
     fn type_expr(&mut self) -> Result<Spanned, Fail> {
         let name_span = self.peek_span();
         let name = match self.bump() {
@@ -2728,8 +2722,6 @@ impl Parser {
         Ok(sym_at(name_span, &name))
     }
 
-    /// A word a form binds or names must not be one the parser reserves: it
-    /// would be accepted here and could never be written back.
     fn not_reserved(&self, name: &str, at: Span, what: &str) -> Result<(), Fail> {
         if is_reserved_word(name) {
             return Err(fail(

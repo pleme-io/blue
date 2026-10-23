@@ -13,3 +13,7 @@ cc d4c0f364a1ce8cd0d0ac9a4652ab2359ff35349eeba77f60571d0cc0982b10b5 # shrinks to
 cc 59d156801515e7bd06d57844a6dcac1fcfbb43bab57b9861d381e525fe5a3037 # shrinks to src = "fn()\na\nend |> assert a"
 cc 774d5083636fa2eaea84d72351fdd42915321e686a51f96067bc68eba559ce43 # shrinks to src = "a = a |> equal?(nil)"
 cc 218836eb4e9c63745977cf34260be89ef1187c6dff0b0faeb74cf2cff2dc46b7 # shrinks to src = "a = [equal?(nil, a)()]"
+cc 12dd6ddfdb9ec8c11a7ebb952056be3a686cace044620fdda80b96ba080ee1f8 # shrinks to src = "a = if not(a, *a)\na\nend"
+cc ef8d6742841bc6986d3f5f60652bd94a6182698ac997acadb528ad79c97d179d # shrinks to src = "a = begin\na\nrescue a\ndef a(a: dyn) -> dyn\na\nend\nend"
+cc 505c851ca982b77841309906b78636bdad9db61d13dd7b70de0803bd38203a53 # shrinks to src = "\"a#{\"{\" |> \"}\"}b\""
+cc 32d6774c469c796020386f141224b20fcfc43369d38213521b279b8d10a8d237 # shrinks to src = "a |> and(a, *a)"

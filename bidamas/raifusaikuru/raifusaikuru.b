@@ -818,14 +818,13 @@ def pb_span(p, s)
       )
     ]
   elsif contains(
-    forward(
-      map((e) -> [nth(1, e), nth(3, e)], d_edges(p)),
-      [from],
-      size(unique(states))
-    ),
-    to
-  ) ==
-    false
+      forward(
+        map((e) -> [nth(1, e), nth(3, e)], d_edges(p)),
+        [from],
+        size(unique(states))
+      ),
+      to
+    ) == false
     [
       problem(
         :bad_span,
@@ -1101,8 +1100,8 @@ end
 
 def pb_effect(p, eff, keys, where)
   if list?(eff) == false or
-    size(eff) != 3 and size(eff) != 2 or
-    contains([:set, :put, :add, :add_key, :stamp], first(eff)) == false
+      size(eff) != 3 and size(eff) != 2 or
+      contains([:set, :put, :add, :add_key, :stamp], first(eff)) == false
     [
       problem(
         :bad_effect,
@@ -1114,7 +1113,7 @@ def pb_effect(p, eff, keys, where)
     f = nth(1, eff)
     known = pb_field(f, d_field_names(p), where)
     key = if (op == :set or op == :add_key) and
-      contains(keys, nth(2, eff)) == false
+        contains(keys, nth(2, eff)) == false
       [
         problem(
           :unknown_payload,
@@ -1125,8 +1124,8 @@ def pb_effect(p, eff, keys, where)
       []
     end
     counter = if (op == :add or op == :add_key) and
-      is_empty(known) and
-      number?(lookup(d_fields(p), f)) == false
+        is_empty(known) and
+        number?(lookup(d_fields(p), f)) == false
       [
         problem(
           :bad_effect,
@@ -1181,8 +1180,8 @@ end
 def pb_graph(p)
   states = unique(d_states(p))
   if is_empty(states) or
-    size(d_starts(p)) != 1 or
-    contains(states, d_start(p)) == false
+      size(d_starts(p)) != 1 or
+      contains(states, d_start(p)) == false
     []
   else
     pb_graph_of(p, states)
@@ -1333,7 +1332,7 @@ def pb_task(t, where)
       [problem(:bad_task, "#{where}: a task is named by a keyword or a string")]
     end
     evidence = if is_empty(nth(2, t)) or
-      is_empty(filter((k) -> name?(k) == false, nth(2, t))) == false
+        is_empty(filter((k) -> name?(k) == false, nth(2, t))) == false
       [
         problem(
           :bad_task,
@@ -1531,8 +1530,7 @@ def pb_permit_terms(p, pm, g, where)
   )
   conj = conjuncts(guard_pred(g))
   timed = is_empty(filter((t) -> list?(t) and first(t) == :valid_for, terms)) ==
-    false or
-    is_empty(filter((a) -> first(a) == :age_lt, conj)) == false
+    false or is_empty(filter((a) -> first(a) == :age_lt, conj)) == false
   unbounded = if timed
     []
   else
@@ -2483,8 +2481,7 @@ test "an identity: replaying a state's own events reproduces it, and a fold resu
   assert map(
     (k) -> resume(d, state_of(d, take_n(log, k)), drop_n(log, k)) == s,
     range(0, size(log) + 1)
-  ) ==
-    repeat(true, size(log) + 1)
+  ) == repeat(true, size(log) + 1)
   assert permit_for(d, s, :use, 3000) ==
     permit_for(d, state_of(d, log), :use, 3000)
 end
@@ -2686,8 +2683,7 @@ test "every kind of bad definition is refused when built, one row per kind"
       contains(
         map(problem_kind, problems(:base, push(example_base, first(row)))),
         nth(1, row)
-      ) ==
-        false
+      ) == false
     end,
     rows
   )
@@ -2775,8 +2771,7 @@ test "lc_admit_step answers exactly as lc_admit and lc_step do, for admitted, re
         [admit(d, first(c), nth(1, c)), step(d, first(c), nth(1, c))]
     end,
     cases
-  ) ==
-    repeat(true, size(cases))
+  ) == repeat(true, size(cases))
   # The breach case is in the list: rejected by admission, applied by the step.
   b = admit_step(d, high, ev(:use, 4100, []))
   assert reject_kind(first(b)) == :guard
@@ -2804,8 +2799,7 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
   assert map(
     (e) -> [nth(1, e), nth(3, e), nth(4, e), nth(5, e)],
     filter((e) -> nth(2, e) == :permit, d_edges(d))
-  ) ==
-    [[:sealed, :sealed, [], nil], [:open, :open, [], nil]]
+  ) == [[:sealed, :sealed, [], nil], [:open, :open, [], nil]]
   # A value checked by hand: the worked log's permit at 3000 (not_after 10200,
   # 37 uses left, basis 5, as the worked-lifecycle test computes).
   s = state_of(d, example_log)
@@ -2842,8 +2836,7 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
         )
       )
     )
-  ) ==
-    :no_edge
+  ) == :no_edge
   assert error?(
     begin
       permit_event(plain, permit_for(plain, s, :use, 3000), "device-7")

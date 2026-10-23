@@ -72,8 +72,8 @@ def port_of(text)
   if text == ""
     nil
   elsif every(is_digit, chars(text)) and
-    length(text) <= 5 and
-    to_int(text) <= 65535
+      length(text) <= 5 and
+      to_int(text) <= 65535
     to_int(text)
   else
     raise(:parse_error, "tsuushin::parse: bad port #{text}")

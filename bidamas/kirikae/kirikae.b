@@ -350,7 +350,7 @@ def heartbeat_noop(hb_text, head, current)
   if d.nil? or head.nil?
     nil
   elsif get_str(d, "outcome", "") == "unchanged" and
-    get_str(d, "head_rev", "") == head
+      get_str(d, "head_rev", "") == head
     {
       action: :noop,
       why: "the gitops loop already runs #{take_chars(head, 8)} (#{label(current)}); nothing evaluated",
@@ -662,8 +662,7 @@ test "an exact system that keeps failing waits longer each time, and only that s
   assert get(
     decide(sys("00000000000000000000000000000000"), a, h, 3000, pol),
     :action
-  ) ==
-    :switch
+  ) == :switch
   assert backoff_ms(0, pol) == 0
   assert backoff_ms(1, pol) == 300_000
   assert backoff_ms(5, pol) == 3_600_000
@@ -678,8 +677,7 @@ test "a success clears the streak, and a zero base never holds"
   assert get(
     decide(b, a, [entry(b, "failed", 1000, "x")], 1001, off),
     :action
-  ) ==
-    :switch
+  ) == :switch
   assert get(streak([], b), :n) == 0
 end
 
@@ -743,22 +741,18 @@ test "only a clean checkout at origin's rev is planned"
   ).nil?
   assert first(
     checkout_refusal({head: old, dirty: "", remote: pub, branch: "main"})
-  ) ==
-    :unpublished
+  ) == :unpublished
   assert first(
     checkout_refusal(
       {head: pub, dirty: " M flake.nix", remote: pub, branch: "main"}
     )
-  ) ==
-    :dirty
+  ) == :dirty
   assert first(
     checkout_refusal({head: pub, dirty: "", remote: nil, branch: "main"})
-  ) ==
-    :remote_unknown
+  ) == :remote_unknown
   assert first(
     checkout_refusal({head: nil, dirty: nil, remote: pub, branch: "main"})
-  ) ==
-    :not_a_checkout
+  ) == :not_a_checkout
   assert checkout_path(".") == "."
   assert checkout_path("/x/nix") == "/x/nix"
   assert checkout_path("git+file:///x/nix?ref=main") == "/x/nix"
@@ -773,26 +767,22 @@ test "a running evaluation or rebuild of this machine refuses the plan; others d
   assert writers(
     "nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel\n",
     "rio"
-  ) !=
-    []
+  ) != []
   assert writers(
     "nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel\n",
     "plo"
-  ) ==
-    []
+  ) == []
   assert writers("blue run kirikae plan darwin-rebuild switch\n", "ryn") == []
   assert writers(
     "zsh -c pgrep -lf 'darwin-rebuild ' ; nix build #ryn\n",
     "ryn"
-  ) ==
-    []
+  ) == []
   assert size(
     writers(
       "/nix/store/x-nix-2.31.5/bin/nix build --no-link github:o/r/abc#ryn\n",
       "ryn"
     )
-  ) ==
-    1
+  ) == 1
   assert busy_refusal([]).nil?
   h = busy_hold([:busy, "x"], 1000)
   assert get(h, :action) == :hold
@@ -819,8 +809,7 @@ test "a plan that evaluated nothing says so without empty counts"
   assert ends_with?(
     summary({action: :noop, why: "same", plan_ms: 5, build: 0, fetch: 0}),
     "0 to fetch)\n"
-  ) ==
-    true
+  ) == true
 end
 
 test "an outcome carries the exit status a caller branches on"
@@ -839,16 +828,14 @@ test "a command's answer is text it can print, and a wrong verb is a usage error
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
   assert error?(
     begin
       answer(["run"])
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
 end
 
 test "a switch is verified against the system it built, naming both on a mismatch"
@@ -886,8 +873,7 @@ test "the verify switch is 0 or 1 and nothing else"
     rescue e
       e
     end
-  ) ==
-    true
+  ) == true
 end
 
 test "the toplevel attribute follows the platform"

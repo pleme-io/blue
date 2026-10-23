@@ -540,8 +540,7 @@ test "Gray code is a bijection whose successive values differ by one bit"
       (n) -> popcount(bit_xor(gray_encode(n), gray_encode(n + 1))) != 1,
       range(0, 128)
     )
-  ) ==
-    0
+  ) == 0
 end
 
 # ---------------------------------------------------------------------------
@@ -711,8 +710,7 @@ test "every numeral from 1 to 3999 survives the round trip"
     end,
     0,
     [1, 401, 801, 1201, 1601, 2001, 2401, 2801, 3201, 3601]
-  ) ==
-    0
+  ) == 0
 end
 
 test "canonical spelling is stricter than parseable spelling"
@@ -949,8 +947,7 @@ def luhn_valid_digits(ds)
   else
     rs = reverse(ds)
     reduce((acc, i) -> acc + luhn_digit(nth(i, rs), i), 0, range(0, size(rs))) %
-      10 ==
-      0
+      10 == 0
   end
 end
 
@@ -1053,15 +1050,13 @@ test "the mod-N checksum and its check digit are inverses"
       (n) -> not mod_check_valid(n * 10 + mod_check_digit(n, 7), 7),
       range(1, 256)
     )
-  ) ==
-    0
+  ) == 0
   assert size(
     filter(
       (n) -> not mod_check_valid(n * 10 + mod_check_digit(n, 9), 9),
       range(1, 256)
     )
-  ) ==
-    0
+  ) == 0
 end
 
 test "the Luhn check digit is the one the Luhn checker wants"
@@ -1072,8 +1067,7 @@ test "the Luhn check digit is the one the Luhn checker wants"
   # position fails on roughly half of all inputs.
   assert size(
     filter((n) -> not luhn_valid(n * 10 + luhn_check_digit(n)), range(1, 256))
-  ) ==
-    0
+  ) == 0
 end
 
 test "Luhn over digit lists and over written text"
@@ -1138,8 +1132,7 @@ test "the ISBN-10 check character, including the X case"
       (n) -> not isbn10_valid(isbn10_complete(to_base_width(n, 10, 9))),
       range(1, 128)
     )
-  ) ==
-    0
+  ) == 0
 end
 
 def luhn?(n)

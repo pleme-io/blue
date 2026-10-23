@@ -167,9 +167,7 @@ def law_membership_is_equality()
   all(
     (p) -> contains([nth(0, p)], nth(1, p)) == (nth(0, p) == nth(1, p)),
     pairs
-  ) and
-    contains([1], 1.0) and
-    index_of([{a: 1}], {a: 1}) == 0
+  ) and contains([1], 1.0) and index_of([{a: 1}], {a: 1}) == 0
 end
 
 def law_to_s_literals()
@@ -206,9 +204,7 @@ def law_concat_any_arity()
         concat(concat(nth(0, t), nth(1, t)), nth(2, t))
     end,
     triples
-  ) and
-    concat("a") == "a" and
-    concat("a", "b", "c", "d") == "abcd"
+  ) and concat("a") == "a" and concat("a", "b", "c", "d") == "abcd"
 end
 
 def law_division_is_float()
@@ -275,9 +271,9 @@ def law_split_keeps_every_field()
     end,
     cases
   ) and
-    split("", ",") == [""] and
-    split("a,b,,", ",") == ["a", "b", "", ""] and
-    size(split(",,", ",")) == 3
+    split("", ",") ==
+      [""] and
+    split("a,b,,", ",") == ["a", "b", "", ""] and size(split(",,", ",")) == 3
 end
 
 def law_map_keys_are_exact()

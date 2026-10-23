@@ -409,7 +409,7 @@ def merge(repo, ref, opts)
       run(repo, ["merge", "--abort"])
     end
     if contains?(shisutemu::stdout_of(cap), "CONFLICT") or
-      contains?(shisutemu::stderr_of(cap), "fast-forward")
+        contains?(shisutemu::stderr_of(cap), "fast-forward")
       raise(
         :conflict,
         "#{ref} into #{repo}: #{trim(shisutemu::stderr_of(cap))}"

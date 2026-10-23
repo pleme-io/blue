@@ -59,8 +59,10 @@ def polygon_area(pts)
   s = reduce(
     fn(acc, i)
       acc +
-        (px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
-          px(nth((i + 1) % n, pts)) * py(nth(i, pts)))
+        (
+          px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
+          px(nth((i + 1) % n, pts)) * py(nth(i, pts))
+        )
     end,
     0,
     range(0, n)
@@ -121,8 +123,10 @@ def signed_area(pts)
   s = reduce(
     fn(acc, i)
       acc +
-        (px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
-          px(nth((i + 1) % n, pts)) * py(nth(i, pts)))
+        (
+          px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
+          px(nth((i + 1) % n, pts)) * py(nth(i, pts))
+        )
     end,
     0,
     range(0, n)
@@ -621,9 +625,11 @@ def circumcenter(a, b, c)
     nil
   else
     d = 2 *
-      (px(a) * (py(b) - py(c)) +
+      (
+        px(a) * (py(b) - py(c)) +
         px(b) * (py(c) - py(a)) +
-        px(c) * (py(a) - py(b)))
+        px(c) * (py(a) - py(b))
+      )
     sa = px(a) * px(a) + py(a) * py(a)
     sb = px(b) * px(b) + py(b) * py(b)
     sc = px(c) * px(c) + py(c) * py(c)
@@ -764,8 +770,7 @@ def boundaries_cross(a, b)
       )
     end,
     polygon_edges(a)
-  ) ==
-    true
+  ) == true
 end
 
 # The least distance between two boundaries: 0 when they cross, otherwise the

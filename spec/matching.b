@@ -40,14 +40,12 @@ test "matching is structural, not numeric"
     1
   when "b"
     2
-  end ==
-    2
+  end == 2
 end
 
 test "a list matches by value"
   assert case [1, 2]
   when [1, 2]
     "matched"
-  end ==
-    "matched"
+  end == "matched"
 end

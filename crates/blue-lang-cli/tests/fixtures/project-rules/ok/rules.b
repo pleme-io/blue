@@ -6,9 +6,9 @@ def loud_call(form)
     nth(2, form)
   end
   if list?(body) and
-    body != nil and
-    symbol?(first(body)) and
-    to_s(first(body)) == "loud"
+      body != nil and
+      symbol?(first(body)) and
+      to_s(first(body)) == "loud"
     [
       {
         at: [2],
@@ -26,9 +26,9 @@ end
 # A top-level `todo()` call, reported with no fix.
 def todo_call(form)
   if list?(form) and
-    form != nil and
-    symbol?(first(form)) and
-    to_s(first(form)) == "todo"
+      form != nil and
+      symbol?(first(form)) and
+      to_s(first(form)) == "todo"
     [{at: [0], message: "a todo is left", help: "finish it"}]
   else
     []

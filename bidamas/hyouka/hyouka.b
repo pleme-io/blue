@@ -41,31 +41,31 @@ end
 
 def failure_class(text)
   if includes(text, "HTTP error 401") or
-    includes(text, "HTTP error 403") or
-    includes(text, "HTTP error 404") or
-    includes(text, "Bad credentials")
+      includes(text, "HTTP error 403") or
+      includes(text, "HTTP error 404") or
+      includes(text, "Bad credentials")
     :credential
   elsif includes(text, "unable to download") or
-    includes(text, "Could not resolve host") or
-    includes(text, "Couldn't resolve host") or
-    includes(text, "HTTP error")
+      includes(text, "Could not resolve host") or
+      includes(text, "Couldn't resolve host") or
+      includes(text, "HTTP error")
     :fetch
   elsif includes(text, "error: builder for") or
-    includes(text, "Cannot build '") or
-    includes(text, "failed with exit code")
+      includes(text, "Cannot build '") or
+      includes(text, "failed with exit code")
     :builder
   elsif includes(text, "timed out")
     :timeout
   elsif includes(text, "out of memory") or
-    includes(text, "GC Warning: Out of Memory") or
-    includes(text, "std::bad_alloc")
+      includes(text, "GC Warning: Out of Memory") or
+      includes(text, "std::bad_alloc")
     :memory
   elsif includes(text, "Failed assertions:")
     :assertion
   elsif includes(text, "while evaluating") or
-    includes(text, "while calling") or
-    includes(text, "error: attribute") or
-    includes(text, "undefined variable")
+      includes(text, "while calling") or
+      includes(text, "error: attribute") or
+      includes(text, "undefined variable")
     :eval
   elsif includes(text, "No space left on device")
     :disk
@@ -144,10 +144,10 @@ end
 def section_of(line)
   t = trim(line)
   if starts_with?(t, "this derivation will be built") or
-    starts_with?(t, "these ") and includes(t, "derivations will be built")
+      starts_with?(t, "these ") and includes(t, "derivations will be built")
     :build
   elsif starts_with?(t, "this path will be fetched") or
-    starts_with?(t, "these ") and includes(t, "paths will be fetched")
+      starts_with?(t, "these ") and includes(t, "paths will be fetched")
     :fetch
   elsif store_path?(t)
     :member

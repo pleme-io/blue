@@ -374,8 +374,7 @@ def end_to_end()
   assert contains?(
     report_text(r),
     "1 caught, 1 survived, 1 refused, 0 blind"
-  ) ==
-    true
+  ) == true
   # Control: a package whose own tests fail stops the run before any mutation.
   write_file(
     path_join(pkg, "hnprobe.b"),

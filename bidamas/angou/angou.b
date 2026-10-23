@@ -322,8 +322,7 @@ def is_carmichael(n)
         (a) -> is_coprime(a, n) and fermat_probable_prime(n, a) == false,
         range(2, n)
       )
-    ) ==
-      0
+    ) == 0
   end
 end
 

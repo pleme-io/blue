@@ -71,11 +71,6 @@ pub fn classify(ch: char) -> Class {
     // A control character or an unpaired combining mark cannot begin anything
     // and is almost always an invisible paste artefact — the class of bug that
     // costs an hour because the source *looks* correct.
-    //
-    // The byte order mark is invisible too. At the very start of a file it is an
-    // encoding signature and the lexer steps over it; anywhere else it was
-    // classed a word, so it began an identifier and the formatter printed it as
-    // a statement of its own.
     if ch.is_control() || ch.is_whitespace() || ch == '\u{feff}' {
         return Class::Reject;
     }

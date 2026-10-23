@@ -230,7 +230,7 @@ def check_nodes(repo)
         ]
       end
       missing_layers = if member?(n, declared) and
-        not member?("#{dir}/layers.nix", files)
+          not member?("#{dir}/layers.nix", files)
         [
           finding(
             "layout/node-shape",
@@ -926,11 +926,13 @@ def concept_facts(repo)
   wanted = filter(
     fn(p)
       ends_with?(p, ".nix") and
-        (starts_with?(p, "modules/") or
+        (
+          starts_with?(p, "modules/") or
           starts_with?(p, "profiles/") or
           starts_with?(p, "pkgs/") or
           starts_with?(p, "overlays/") or
-          starts_with?(p, "lib/"))
+          starts_with?(p, "lib/")
+        )
     end,
     files
   )
@@ -1001,7 +1003,10 @@ def covered?(u, facts)
   not is_empty(
     filter((p) -> member?(p, get(facts, :trio_files)), get(u, :files))
   ) or
-    member?(get(u, :name), get(facts, :names)) or
+    member?(
+      get(u, :name),
+      get(facts, :names)
+    ) or
     get(u, :kind) == :registry and
       member?(get(u, :file), get(facts, :trio_imports))
 end
@@ -1756,7 +1761,7 @@ def report_text(cfg, result, verdict, timing)
     "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:\n#{join(map(finding_line, get(verdict, :new)), "")}"
   end
   shrink = if is_empty(get(verdict, :orphans)) and
-    is_empty(get(verdict, :shrunk))
+      is_empty(get(verdict, :shrunk))
     ""
   else
     "the baseline can shrink (run kijun baseline): #{to_s(size(get(verdict, :orphans)))} gone, #{to_s(size(get(verdict, :shrunk)))} smaller\n"
@@ -2243,8 +2248,7 @@ test "every rule has a violating and a clean fixture, so a rule cannot land with
   assert filter(
     (id) -> is_empty(filter((f) -> get(f, :rule) == id, covered)),
     ids
-  ) ==
-    []
+  ) == []
   assert filter((f) -> not member?(get(f, :rule), ids), fixtures) == []
   assert size(ids) == size(unique(ids))
 end
@@ -2299,8 +2303,7 @@ test "a package directory with no nix of its own is still a concept, covered by 
   assert map(
     (x) -> get(x, :subject),
     fired(fleet_repo(1), example(rust, []), "trio/every-concept")
-  ) ==
-    ["package q"]
+  ) == ["package q"]
   named_q = append(
     rust,
     [
@@ -2333,8 +2336,7 @@ test "a trio file renders itself, and the factory proves every kind but a regist
   assert subjects("layout/shared-has-proof") == ["r", "x"]
   assert spec_kind(
     first(calls(get(nikkusu::read("f { kind = k; }"), :root)))
-  ) ==
-    "computed"
+  ) == "computed"
 end
 
 test "an uncatchable failure is located at its option's tag, and the error is its last line"
@@ -2348,8 +2350,7 @@ test "an uncatchable failure is located at its option's tag, and the error is it
   assert contains?(
     tree_expr(["pleme.a", "pleme.b"]),
     "excluded = [ \"pleme.a\" \"pleme.b\" ]"
-  ) ==
-    true
+  ) == true
 end
 
 test "a blind option is one advice finding at its declaration, and the plane keeps every other option"
@@ -2385,13 +2386,11 @@ test "check --json carries the wall time and one count per plane"
   assert map(
     (p) -> [json_get(p, "plane"), json_get(p, "findings"), json_get(p, "ms")],
     json_get(doc, "planes")
-  ) ==
-    [["layout", 0, 1], ["expression", 1, 2], ["tree", 0, 3]]
+  ) == [["layout", 0, 1], ["expression", 1, 2], ["tree", 0, 3]]
   assert contains?(
     report_text(fleet_repo(1), r, judge(get(r, :gates), []), timing),
     "wall 7 ms"
-  ) ==
-    true
+  ) == true
 end
 
 test "trio/every-concept is the first rule the standard lists"
@@ -2454,8 +2453,7 @@ test "a waiver without its typed skip reason is refused and covers nothing"
   assert size(get(r, :refusals)) == 1
   assert size(
     filter((x) -> get(x, :rule) == "expr/no-angle-paths", get(r, :findings))
-  ) ==
-    1
+  ) == 1
   bogus = waive(fleet_repo(1), "expr/nope", "**", "skip-expr/nope: x")
   assert size(get(evaluate(bogus, in_memory([]), []), :refusals)) == 1
 end
@@ -2470,8 +2468,7 @@ test "a disabled rule runs nowhere, and an unknown one is refused"
       evaluate(disable(fleet_repo(1), "x/y", "r"), in_memory([]), []),
       :refusals
     )
-  ) ==
-    1
+  ) == 1
 end
 
 test "allow_top extends the top-level allowlist for an instance"

@@ -367,8 +367,10 @@ def camera_row()
         size(r) == 2 and
         passes?(name_text, first(r)) and
         string?(last(r)) and
-        (strip_prefix(last(r), "rtsp://") != last(r) or
-          strip_prefix(last(r), "rtsps://") != last(r)),
+        (
+          strip_prefix(last(r), "rtsp://") != last(r) or
+          strip_prefix(last(r), "rtsps://") != last(r)
+        ),
       "#{r} is not [name, rtsp(s)://stream]"
     )
   end
@@ -1341,14 +1343,12 @@ test "a bad entry is refused alone, and what names it falls with it"
       "hz432"
     ),
     "frequency"
-  ) ==
-    432
+  ) == 432
   assert json_get(json_get(home_doc(h), "components"), "zigbee2mqtt").nil?
   assert json_get(
     json_get(json_get(home_doc(h), "components"), "mosquitto"),
     "enable"
-  ) ==
-    true
+  ) == true
 end
 
 test "a tune configures a set's mood off without forking the set"
@@ -1372,8 +1372,7 @@ test "a tune configures a set's mood off without forking the set"
         ]
       )
     )
-  ) ==
-    [:unknown_mood]
+  ) == [:unknown_mood]
 end
 
 test "a mood plays only where a base url and speakers stand"
@@ -1385,8 +1384,7 @@ test "a mood plays only where a base url and speakers stand"
   assert kinds(refusals(bare)) == [:no_media_base_url, :no_speakers]
   assert kinds(
     refusals(append(bare, [media_base_url("ftp://x"), speaker("k", "light.k")]))
-  ) ==
-    [:invalid, :invalid, :no_media_base_url, :no_speakers]
+  ) == [:invalid, :invalid, :no_media_base_url, :no_speakers]
   assert kinds(
     refusals(
       append(
@@ -1394,8 +1392,7 @@ test "a mood plays only where a base url and speakers stand"
         [media_base_url("http://x:8123"), speaker("k", "media_player.k")]
       )
     )
-  ) ==
-    []
+  ) == []
   hosted = append(
     bare,
     [media_base_url_from_host, speaker("k", "media_player.k")]
@@ -1415,6 +1412,5 @@ test "a field the table does not know is refused, never dropped"
   assert kinds(refusals(typo)) == [:invalid]
   assert kinds(
     refusals([site("natal"), tone("t", {frequency: 432, volume: 1})])
-  ) ==
-    [:invalid]
+  ) == [:invalid]
 end

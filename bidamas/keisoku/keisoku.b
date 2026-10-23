@@ -12,7 +12,7 @@ def label_names(opts)
   if declared.nil?
     nil
   elsif list?(declared) and
-    count_where(name_ok?, map(to_s, declared)) == retsu::size(declared)
+      count_where(name_ok?, map(to_s, declared)) == retsu::size(declared)
     map(to_s, declared)
   else
     raise(:bad_option, "labels: takes a list of label names")
@@ -49,9 +49,9 @@ end
 
 def histogram(name, bounds, opts)
   if not list?(bounds) or
-    is_empty(bounds) or
-    count_where(number?, bounds) != retsu::size(bounds) or
-    not increasing?(bounds)
+      is_empty(bounds) or
+      count_where(number?, bounds) != retsu::size(bounds) or
+      not increasing?(bounds)
     raise(
       :bad_option,
       "a histogram takes bounds: numbers, increasing, at least one"
@@ -65,7 +65,7 @@ def labels_of(i, labels)
   declared = get(i, :labels)
   names = map(to_s, jisho::keys(given))
   if declared != nil and
-    count_where((n) -> member?(n, declared), names) != retsu::size(names)
+      count_where((n) -> member?(n, declared), names) != retsu::size(names)
     raise(
       :bad_option,
       "#{get(i, :name)} takes the labels #{join(declared, ", ")}"

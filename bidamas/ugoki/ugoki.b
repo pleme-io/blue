@@ -19,14 +19,14 @@ end
 
 def bezier_points(points)
   if not list?(points) or
-    retsu::size(points) != 4 or
-    count_where(number?, points) != 4
+      retsu::size(points) != 4 or
+      count_where(number?, points) != 4
     raise(:bad_option, "a bezier curve takes four numbers: x1, y1, x2, y2")
   end
   if nth(0, points) < 0 or
-    nth(0, points) > 1 or
-    nth(2, points) < 0 or
-    nth(2, points) > 1
+      nth(0, points) > 1 or
+      nth(2, points) < 0 or
+      nth(2, points) > 1
     raise(:bad_option, "a bezier curve keeps x1 and x2 within 0 and 1")
   end
   points
@@ -299,13 +299,11 @@ test "ease is the identity on linear and pins both ends on every curve"
   assert map(
     (c) -> ease(c, 0),
     [lin, curve(:named, :ease), curve(:steps, 3)]
-  ) ==
-    [0, 0, 0]
+  ) == [0, 0, 0]
   assert map(
     (c) -> ease(c, 1),
     [lin, curve(:named, :ease), curve(:steps, 3)]
-  ) ==
-    [1, 1, 1]
+  ) == [1, 1, 1]
   assert ease(curve(:named, :ease), -1) == 0
   assert ease(curve(:named, :ease), 2) == 1
 end
@@ -521,8 +519,7 @@ test "the spring velocity is the slope of its position in every damping regime"
   assert count_where(
     (p) -> blue::abs(first(p) - nth(1, p)) < 0.001,
     zip(append(*slopes), append(*speeds))
-  ) ==
-    9
+  ) == 9
 end
 
 test "an overdamped spring creeps up from 0 and never overshoots"

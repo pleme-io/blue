@@ -41,7 +41,7 @@ def opened(name, attrs, started)
   clean = attributes(attrs)
   parent = get(attrs or {}, :parent)
   if parent != nil and
-    not (map?(parent) and has?(parent, :trace_id) and has?(parent, :id))
+      not (map?(parent) and has?(parent, :trace_id) and has?(parent, :id))
     raise(:bad_option, "span parent: is the span record its function was given")
   end
   merge(

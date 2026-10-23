@@ -17,8 +17,8 @@ def hex_channels(text)
     range(0, 3)
   )
   if text == digits or
-    retsu::size(chars(full)) != 6 or
-    count_where(number?, values) != 3
+      retsu::size(chars(full)) != 6 or
+      count_where(number?, values) != 3
     raise(:bad_option, "#{text} is not #rgb or #rrggbb")
   end
   {r: nth(0, values), g: nth(1, values), b: nth(2, values)}
@@ -28,9 +28,9 @@ def rgb(color)
   if string?(color)
     hex_channels(color)
   elsif map?(color) and
-    jisho::has?(color, :r) and
-    jisho::has?(color, :g) and
-    jisho::has?(color, :b)
+      jisho::has?(color, :r) and
+      jisho::has?(color, :g) and
+      jisho::has?(color, :b)
     parts = map((k) -> get(color, k), [:r, :g, :b])
     if count_where((v) -> number?(v) and v >= 0 and v <= 255, parts) != 3
       raise(:bad_option, "a color record takes r, g and b from 0 to 255")
@@ -79,8 +79,8 @@ end
 
 def token_color(name, value, mode)
   picked = if map?(value) and
-    jisho::has?(value, :light) and
-    jisho::has?(value, :dark)
+      jisho::has?(value, :light) and
+      jisho::has?(value, :dark)
     get(value, mode)
   else
     value
@@ -331,8 +331,7 @@ test "styled wraps text in SGR codes: flags first, then foreground and backgroun
   assert styled(
     {text: "x", fg: "#010203", bg: {r: 4, g: 5, b: 6}, bold: true},
     ctx
-  ) ==
-    "#{esc}[1;38;2;1;2;3;48;2;4;5;6mx#{esc}[0m"
+  ) == "#{esc}[1;38;2;1;2;3;48;2;4;5;6mx#{esc}[0m"
   assert styled({text: "x", bold: false}, ctx) == "x"
 end
 

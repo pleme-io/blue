@@ -193,7 +193,11 @@ impl<'a> Lexer<'a> {
         Self {
             src,
             bytes: src.as_bytes(),
-            pos: 0,
+            pos: if src.starts_with('\u{feff}') {
+                '\u{feff}'.len_utf8()
+            } else {
+                0
+            },
             out: Vec::new(),
         }
     }
@@ -344,24 +348,10 @@ impl<'a> Lexer<'a> {
             if self.peek() == Some(b'#') && self.src.as_bytes().get(self.pos + 1) == Some(&b'{') {
                 self.pos += 2;
                 let expr_start = self.pos;
-                // Track nesting so `"#{ {a: 1} }"` closes on the right brace.
-                let mut depth = 1usize;
-                while let Some(c) = self.peek() {
-                    match c {
-                        b'{' => depth += 1,
-                        b'}' => {
-                            depth -= 1;
-                            if depth == 0 {
-                                break;
-                            }
-                        }
-                        _ => {}
-                    }
-                    self.pos += 1;
-                }
-                if self.peek() != Some(b'}') {
+                let Some(after) = skip_interpolation(self.bytes, self.pos) else {
                     return Err(self.err("unterminated `#{` interpolation", start));
-                }
+                };
+                self.pos = after - 1;
                 exprs.push(self.src[expr_start..self.pos].to_string());
                 self.pos += 1; // past '}'
                 parts.push(std::mem::take(&mut buf));
@@ -604,6 +594,46 @@ impl<'a> Lexer<'a> {
 // XID_Start/XID_Continue would need real char decoding through the whole
 // lexer. Accepting too much is a surface question; rejecting every non-Latin
 // script was a correctness one.
+/// Where the `#{` code whose body starts at `i` ends: the index after its
+/// closing `}`. Braces nest (`"#{ {a: 1} }"`), and a string inside the code is
+/// skipped whole, so a brace in it is text: `"#{f("}")}"` closes on the right
+/// brace, and printing code back into `#{}` can never end the interpolation
+/// early.
+fn skip_interpolation(bytes: &[u8], mut i: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    loop {
+        match *bytes.get(i)? {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i + 1);
+                }
+            }
+            b'"' => {
+                i = skip_code_string(bytes, i)?;
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+}
+
+/// The index after the string literal that opens at `i`, an escape and a
+/// nested `#{}` skipped as the string lexer reads them.
+fn skip_code_string(bytes: &[u8], mut i: usize) -> Option<usize> {
+    i += 1;
+    loop {
+        match *bytes.get(i)? {
+            b'"' => return Some(i + 1),
+            b'\\' => i += 2,
+            b'#' if bytes.get(i + 1) == Some(&b'{') => i = skip_interpolation(bytes, i + 2)?,
+            _ => i += 1,
+        }
+    }
+}
+
 fn is_ident_start(c: u8) -> bool {
     c.is_ascii_alphabetic() || c == b'_'
 }
@@ -623,6 +653,32 @@ mod tests {
             .filter(|t| !t.is_trivia() && t.kind != TokenKind::Eof)
             .map(|t| t.kind)
             .collect()
+    }
+
+    #[test]
+    fn a_brace_inside_a_string_inside_interpolated_code_is_text() {
+        for (src, code) in [
+            ("\"a#{f(\"}\")}b\"", "f(\"}\")"),
+            ("\"a#{\"{\" |> \"}\"}b\"", "\"{\" |> \"}\""),
+            ("\"#{ {a: \"}\"} }\"", " {a: \"}\"} "),
+            ("\"#{f(\"x\\\"}\")}\"", "f(\"x\\\"}\")"),
+            ("\"#{\"in#{\"}\"}ner\"}\"", "\"in#{\"}\"}ner\""),
+        ] {
+            match kinds(src).as_slice() {
+                [TokenKind::InterpolatedStr { exprs, .. }] => assert_eq!(exprs, &[code], "{src}"),
+                other => panic!("{src}: {other:?}"),
+            }
+        }
+        assert!(lex("\"#{\"}\"").is_err());
+    }
+
+    #[test]
+    fn a_leading_byte_order_mark_is_stepped_over_and_one_inside_the_text_is_refused() {
+        assert_eq!(kinds("\u{feff}x"), kinds("x"));
+        let at = lex("\u{feff}x").expect("lex")[0].span;
+        assert_eq!(at.start, 3, "spans still index the source bytes");
+        assert!(lex("x\n\u{feff}y").is_err());
+        assert!(lex("\"a\u{feff}b\"").is_ok());
     }
 
     #[test]

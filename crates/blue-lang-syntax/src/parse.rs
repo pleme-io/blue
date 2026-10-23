@@ -284,7 +284,11 @@ fn line_before_is_blank(src: &str, start: usize) -> bool {
     src[..start.min(src.len())]
         .rsplit('\n')
         .next()
-        .is_some_and(|prefix| prefix.trim().is_empty())
+        .is_some_and(|prefix| {
+            prefix
+                .trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+                .is_empty()
+        })
 }
 
 /// Parse a single blue expression. Convenience for tests and the REPL.
@@ -2903,6 +2907,29 @@ mod tests {
         parse_expr(src)
             .map(|s| s.to_string())
             .unwrap_or_else(|e| panic!("{src:?}: {e}"))
+    }
+
+    #[test]
+    fn a_reserved_word_is_not_a_def_name_a_parameter_or_a_type() {
+        for src in [
+            "def def a(x)\n  x\nend",
+            "def end()\n  1\nend",
+            "def f(end)\n  1\nend",
+            "def f(a: not)\n  1\nend",
+            "def f(a) -> not a\n  a\nend",
+            "def f(a: List(1 + 2))\n  a\nend",
+            "defmacro defmacro m(a)\n  quote\n    a\n  end\nend",
+        ] {
+            assert!(parse_program(src).is_err(), "{src:?} parsed");
+        }
+    }
+
+    #[test]
+    fn a_type_application_takes_types_of_any_arity() {
+        assert_eq!(
+            q("def f(a: Map(Str, List(Int))) -> Unit()\n  a\nend"),
+            "(define-typed (f (a (Map Str (List Int)))) (Unit) a)"
+        );
     }
 
     // ---- the thesis: Ruby-shaped source becomes tatara-lisp ----------

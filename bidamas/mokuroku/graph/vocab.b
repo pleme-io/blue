@@ -1319,6 +1319,21 @@ vocab(
 )
 
 vocab(
+  "enabled?",
+  {
+    subject: "level",
+    args: ["level"],
+    opts: false,
+    returns: "Bool",
+    raises: ["bad_option"],
+    kind: :pure,
+    meaning: "whether a line at this level would be written",
+    ref: "§3.5",
+    status: :decided
+  }
+)
+
+vocab(
   "enclose",
   {
     subject: "data",
@@ -2349,6 +2364,21 @@ vocab(
     kind: :any,
     meaning: "a closed list or record of entries",
     ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "level",
+  {
+    subject: "",
+    args: [],
+    opts: false,
+    returns: "keyword",
+    raises: ["bad_option"],
+    kind: :effect,
+    meaning: "the active log level from the environment",
+    ref: "§3.5",
     status: :decided
   }
 )
@@ -5215,6 +5245,21 @@ vocab(
     meaning: "every run of n consecutive items",
     ref: "§3.6",
     status: :stdlib
+  }
+)
+
+vocab(
+  "with",
+  {
+    subject: "fields",
+    args: ["fields"],
+    opts: false,
+    returns: "logger",
+    raises: [],
+    kind: :pure,
+    meaning: "a logger that adds fields to every line",
+    ref: "§3.5",
+    status: :decided
   }
 )
 

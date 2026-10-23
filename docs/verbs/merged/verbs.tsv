@@ -949,7 +949,7 @@ A	jisho	size	pure	size(map) -> int	-	-	absent	number of entries	0	size(map) -> i
 A	jisho	update	pure	update(map, key, f) -> map	error	-	absent	new map with f applied to the value at key	0	update(map, key, f) -> map	yes
 A	jisho	values	pure	values(map) -> [value]	-	-	absent	values in key order	0	values(map) -> [value]	yes
 E	joujuu	active?	effect	active?(unit) -> Bool	-	-	absent	whether a unit is running now	1		na
-E	joujuu	enabled?	effect	enabled?(unit) -> Bool	config	-	absent	whether a unit starts at boot or login	1		na
+E	joujuu	enabled?	effect	enabled?(unit) -> Bool	config	-	absent	whether a unit starts at boot or login	1	enabled?(unit) -> Bool	yes
 E	joujuu	info	effect	info(unit) -> record	error	-	absent	state, pid, last exit, since	1	info(unit) -> record	yes
 E	joujuu	limits	effect	limits(unit) -> record	resource	-	absent	memory, cpu and file limits in force	2		na
 E	joujuu	list	effect	list(opts) -> [unit]	error	-	absent	every service with state	1	list(opts) -> [unit]	yes
@@ -1783,7 +1783,7 @@ G	onsei?	decode	pure	decode(bytes, codec) -> clip	-	oto	absent	encoded bytes to 
 G	onsei?	encode	pure	encode(clip, codec) -> bytes	-	eizou	absent	samples to encoded bytes	2	encode(clip, codec) -> bytes	yes
 G	onsei?	gain	pure	gain(clip, decibels) -> clip	-	-	absent	a clip made louder or quieter	2		na
 G	onsei?	info	effect	info(src) -> {codec, rate, channels, duration}	-	oto	absent	facts about an audio source	2	info(src) -> {codec, rate, channels, duration}	yes
-G	onsei?	level	pure	level(clip, target) -> clip	-	-	absent	a clip set to a target loudness	3		na
+G	onsei?	level	pure	level(clip, target) -> clip	-	-	absent	a clip set to a target loudness	3	level(clip, target) -> clip	no
 G	onsei?	list	effect	list(devices) -> devices	-	oto	absent	the audio devices that exist now	3	list(devices) -> devices	yes
 G	onsei?	listen	effect	listen(device, opts) -> handle	cancel,resource	oto	absent	capture audio from an input device	3	listen(device, opts) -> handle	yes
 G	onsei?	measure	pure	measure(clip, metric) -> number	-	-	absent	peak, RMS, loudness or pitch of a clip	2	measure(clip, metric) -> number	yes
@@ -1997,10 +1997,11 @@ A	rittai	turn	pure	turn(mesh, axis, angle) -> mesh	-	-	exists:rittai	mesh turned
 A	rittai	volume	pure	volume(mesh) -> number	error	-	exists:rittai	enclosed volume of a closed mesh	0		na
 A	rittai	weld	pure	weld(mesh, tolerance) -> mesh	-	-	exists:rittai	merge vertices closer than a tolerance	0		na
 F	rogu	collapse	pure	collapse(lines, window) -> [line]	log,ratelimit	-	absent	merge repeated lines into one with a count	2		na
-F	rogu	debug	effect	debug(message, fields) -> nil	log,switch	logging-go	absent	write a structured line at debug level	0	debug(message, fields) -> nil	yes
-F	rogu	enabled?	pure	enabled?(level) -> Bool	log,switch	-	absent	whether a line at this level would be written	0		na
-F	rogu	error	effect	error(message, fields) -> nil	error,log	logging-go	absent	write a structured line at error level; carries an error record	0	error(message, fields) -> nil	yes
-F	rogu	info	effect	info(message, fields) -> nil	log	logging-go	absent	write a structured line at info level	0	info(message, opts) -> nil	no
+F	rogu	debug	effect	debug(message, fields) -> nil	log,switch	logging-go	exists:rogu	write a structured line at debug level	0	debug(message, fields) -> nil	yes
+F	rogu	enabled?	pure	enabled?(level) -> Bool	log,switch	-	exists:rogu	whether a line at this level would be written	0	enabled?(level) -> Bool	yes
+F	rogu	error	effect	error(message, fields) -> nil	error,log	logging-go	exists:rogu	write a structured line at error level; carries an error record	0	error(message, fields) -> nil	yes
+F	rogu	info	effect	info(message, fields) -> nil	log	logging-go	exists:rogu	write a structured line at info level	0	info(message, opts) -> nil	no
+F	rogu	level	pure	level() -> keyword	log,switch	-	exists:rogu	the active level from BLUE_LOG; info when unset	0	level() -> keyword	yes
 F	rogu	parse	pure	parse(line, format) -> record	log,serialize	-	absent	a log line (json, logfmt, syslog) to a record	1	parse(line, format) -> record	yes
 F	rogu	query	effect	query(source, question, opts) -> [record]	deadline,log	-	absent	ask a log store a question in its own language	2	query(source, question, opts) -> [record]	yes
 F	rogu	read	effect	read(source, opts) -> [record]	log,serialize	-	absent	all log records from a file, journal or cluster source	1	read(source, opts) -> [record]	yes
@@ -2010,8 +2011,9 @@ F	rogu	rotate	effect	rotate(file, policy) -> nil	log,resource	-	absent	start a n
 F	rogu	sample?	pure	sample?(rule, line) -> Bool	log,ratelimit	-	absent	decide whether to keep a line under a rate or key rule	2		na
 F	rogu	scope	effect	scope(fields, f) -> value	log,trace	pleme-observability	absent	run f with extra fields on every line it logs	1	scope(fields) -> value	no
 F	rogu	sink	decl	sink(target, opts) -> sink	config,log,resource	-	absent	choose where lines go: stderr, file, NATS, journal	1		na
-F	rogu	warn	effect	warn(message, fields) -> nil	log	logging-go	absent	write a structured line at warn level	0	warn(message, fields) -> nil	yes
+F	rogu	warn	effect	warn(message, fields) -> nil	log	logging-go	exists:rogu	write a structured line at warn level	0	warn(message, fields) -> nil	yes
 F	rogu	watch	stream	watch(source, f, opts) -> nil	cancel,log	-	absent	call f per new record until it returns stop	1	watch(source, f, opts) -> nil	yes
+F	rogu	with	pure	with(fields) -> logger	log	-	exists:rogu	a logger that adds fields to every line	0	with(fields) -> logger	yes
 B	rokku?	acquire	effect	acquire(locks, name, opts) -> lease	deadline,error,resource,retry	pleme-redis	absent	take a named lock with a time limit, waiting up to wait	2	acquire(locks, name, opts) -> lease	yes
 B	rokku?	barrier	effect	barrier(locks, name, n, opts) -> nil	cancel,deadline	-	absent	wait until n parties have arrived	4		na
 B	rokku?	close	effect	close(locks) -> nil	resource	-	absent	release the backend connection	2	close(locks) -> nil	yes

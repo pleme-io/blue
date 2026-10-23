@@ -3447,6 +3447,7 @@ rogu::error	pairs	shougai?::note	errors feed incident notes
 rogu::error	refines	rogu::info	highest level, carries error record
 rogu::info	guards	rogu::enabled?	skips work when level is off
 rogu::info	pairs	nisshi::append	operator lines versus audit records
+rogu::level	pairs	rogu::enabled?	level then ask
 rogu::parse	inverse	rogu::render	line to record and back
 rogu::parse	pairs	rogu::collapse	parsed lines are collapsed
 rogu::query	composes	rogu::parse	store answers become records
@@ -3465,6 +3466,7 @@ rogu::sink	pairs	rogu::redact	sink applies redaction
 rogu::sink	requires	rogu::info	lines need a destination
 rogu::warn	refines	rogu::info	higher level, same shape
 rogu::watch	lifts	rogu::read	follows new records
+rogu::with	composes	rogu::info	adds fields to each line
 rokku?::acquire	inverse	rokku?::release	gives the lock back
 rokku?::acquire	pairs	rokku?::release	take and give back
 rokku?::barrier	composes	rokku?::acquire	counts arrivals under a lock

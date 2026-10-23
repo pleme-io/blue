@@ -23,7 +23,7 @@ verb(
     shape: "debug(message, fields) -> nil",
     laterals: ["log", "switch"],
     fleet: "logging-go",
-    today: "absent",
+    today: "exists:rogu",
     meaning: "write a structured line at debug level",
     wave: 0,
     origin: "F"
@@ -38,7 +38,7 @@ verb(
     shape: "enabled?(level) -> Bool",
     laterals: ["log", "switch"],
     fleet: nil,
-    today: "absent",
+    today: "exists:rogu",
     meaning: "whether a line at this level would be written",
     wave: 0,
     origin: "F"
@@ -53,7 +53,7 @@ verb(
     shape: "error(message, fields) -> nil",
     laterals: ["error", "log"],
     fleet: "logging-go",
-    today: "absent",
+    today: "exists:rogu",
     meaning: "write a structured line at error level; carries an error record",
     wave: 0,
     origin: "F"
@@ -68,11 +68,26 @@ verb(
     shape: "info(message, fields) -> nil",
     laterals: ["log"],
     fleet: "logging-go",
-    today: "absent",
+    today: "exists:rogu",
     meaning: "write a structured line at info level",
     wave: 0,
     origin: "F",
     contract: "info(message, opts) -> nil"
+  }
+)
+
+verb(
+  "rogu",
+  "level",
+  {
+    kind: :pure,
+    shape: "level() -> keyword",
+    laterals: ["log", "switch"],
+    fleet: nil,
+    today: "exists:rogu",
+    meaning: "the active level from BLUE_LOG; info when unset",
+    wave: 0,
+    origin: "F"
   }
 )
 
@@ -220,7 +235,7 @@ verb(
     shape: "warn(message, fields) -> nil",
     laterals: ["log"],
     fleet: "logging-go",
-    today: "absent",
+    today: "exists:rogu",
     meaning: "write a structured line at warn level",
     wave: 0,
     origin: "F"
@@ -242,7 +257,23 @@ verb(
   }
 )
 
+verb(
+  "rogu",
+  "with",
+  {
+    kind: :pure,
+    shape: "with(fields) -> logger",
+    laterals: ["log"],
+    fleet: nil,
+    today: "exists:rogu",
+    meaning: "a logger that adds fields to every line",
+    wave: 0,
+    origin: "F"
+  }
+)
+
 edge("rogu::scope", :composes, "rogu::info", "adds fields to each line")
+edge("rogu::with", :composes, "rogu::info", "adds fields to each line")
 edge("rogu::query", :composes, "rogu::parse", "store answers become records")
 edge("rogu::read", :composes, "rogu::parse", "each source line is parsed")
 edge("rogu::collapse", :composes, "rogu::sample?", "both limit repeated lines")
@@ -264,6 +295,7 @@ edge(
 )
 
 edge("rogu::parse", :pairs, "rogu::collapse", "parsed lines are collapsed")
+edge("rogu::level", :pairs, "rogu::enabled?", "level then ask")
 edge("rogu::sink", :pairs, "rogu::redact", "sink applies redaction")
 edge("rogu::enabled?", :pairs, "rogu::sample?", "level then sample")
 edge("rogu::rotate", :pairs, "rogu::sink", "file sinks need rotation")

@@ -272,7 +272,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `error` | `error(kind, message[, data])` | 2..3 | An error VALUE, raising nothing. throw(error(k, m)) is written raise(k, m) (B0037). |
+| `error` | `error(kind, message[, data])` | 2..3 | An error VALUE, raising nothing. throw(error(k, m)) is written raise(k, m) (B0037). Also defined by `rogu` (`rogu::error`): a file that lists it gets that one. |
 | `error?` | `error?(x)` | 1 | Whether x is an error value; true inside a catch handler. |
 | `error_kind` | `error_kind(e)` | 1 | The kind of an error value, a keyword. Written e.kind (B0036). |
 | `error_message` | `error_message(e)` | 1 | The message of an error value. Written e.message (B0036). |

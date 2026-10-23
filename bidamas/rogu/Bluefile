@@ -1,0 +1,4 @@
+package("rogu", "0.1.0")
+needs("jisho", "^0.1")
+needs("retsu", "^0.1")
+needs("shisutemu", "^0.1")

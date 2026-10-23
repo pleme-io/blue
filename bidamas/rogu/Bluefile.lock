@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:42a1b8c6a83ea90017646f06ef0c135de3f85c6a99d86e7202a5b3ef59767973",
+  "manifest": {
+    "schema": 1,
+    "name": "rogu",
+    "version": "0.1.0",
+    "needs": {
+      "jisho": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

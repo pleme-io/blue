@@ -87,6 +87,7 @@ due?	subject	subject,now,last?	no	Bool		pure	whether a time, key or trigger has 
 each	xs	xs,f	no	nil		effect	call f on each item for its effect	§3.6	stdlib
 embed	model	~model,input	yes	vector		effect	text or items as vectors	-	decided
 empty?	xs	xs	no	Bool		pure	whether there are no items	§3.6	stdlib
+enabled?	level	level	no	Bool	bad_option	pure	whether a line at this level would be written	§3.5	decided
 enclose	data	data,key_id	yes	envelope		effect	envelope encryption with a fresh data key wrapped by a managed key	-	decided
 encode	data	data,encoding	no	text		pure	bytes to text in an encoding	§3.4	stdlib
 enforce	subject	subject,rules?	yes	nil	refused	effect	check a subject, then raise one error carrying every finding; nil when sound	-	decided
@@ -156,6 +157,7 @@ lag	consumer	consumer,log?	no	number		effect	how far behind a consumer is	-	deci
 land	change	change	yes	record	conflict	effect	merge a reviewed change into its base	-	decided
 last	xs	xs	no	item or nil		pure	the last item	§3.6	stdlib
 ledger	accounts	accounts?,rules?	yes	ledger		any	a closed list or record of entries	-	decided
+level			no	keyword	bad_option	effect	the active log level from the environment	§3.5	decided
 limit	subject	subject,amount?	yes	limit		pure	a cap on a resource or a flow	-	decided
 limiter	count	count,duration	no	limiter		pure	declare a sliding-window limiter	-	decided
 link	from	from,to,kind?	yes	nil		effect	relate two things	-	decided
@@ -347,6 +349,7 @@ which	name	name	no	path or nil		effect	absolute path of a command on PATH, or ni
 whole	n	n	no	int		pure	the integer part of n toward zero	-	decided
 why	decision	subject,name?	no	text		pure	the rules or path behind a decision	-	decided
 windows	xs	xs,n	no	[list]		pure	every run of n consecutive items	§3.6	stdlib
+with	fields	fields	no	logger		pure	a logger that adds fields to every line	§3.5	decided
 with_lock	name	name,f	yes	value	timeout	effect	run f while holding a named lease	-	decided
 wrap	x	x,with	no	x		pure	surround a value with another layer	-	decided
 write	target	target,content	yes	nil	permission_denied	effect	replace the whole content atomically	§3.1	stdlib

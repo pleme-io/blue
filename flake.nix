@@ -443,7 +443,7 @@
           tools = c.tools pkgs;
         }) commands;
 
-      bidamasOverlay = final: _prev: blueSetFor { pkgs = final; blue = final.blue; };
+      bidamasOverlay = final: _prev: blueSetFor { pkgs = final; blue = blueFor final.stdenv.hostPlatform.system; };
 
       # blue's tree-sitter grammar, built from the grammar.js that kiwari emits
       # (bidamas/kiwari, gen/kiwari/); its version is the one the emitted
@@ -590,6 +590,17 @@
 
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
           blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
+
+          # The installed distribution never shadows the file's own project.
+          blue-project-first = bl.mkProjectFirstCheck { inherit blue; inherit (repository.${system}) bidamas; };
+
+          # The distribution the wrapper ships is this binary's revision: the
+          # overlay's wrapper must wrap the blue this flake builds.
+          distribution-is-the-binarys =
+            let wrapped = (bidamasOverlay (pkgsFor system) (pkgsFor system)).blue-with-bidamas; in
+            if wrapped.passthru.blue.outPath == blue.outPath
+            then pkgs.runCommand "distribution-is-the-binarys" { } "touch $out"
+            else throw "overlays.bidamas wraps ${wrapped.passthru.blue.outPath}, not this flake's blue ${blue.outPath}: the distribution and the binary come from different revisions";
 
           # The binary nix builds runs a bare script with no Bluefile and no
           # BLUE_PATH, and the script's `use("retsu")` reaches the standard

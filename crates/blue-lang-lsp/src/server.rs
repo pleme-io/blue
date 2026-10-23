@@ -105,6 +105,14 @@ impl Server {
         }
     }
 
+    #[must_use]
+    pub fn with_scopes(scopes: Box<dyn blue_lang_runtime::uses::Scopes>) -> Self {
+        Self {
+            engine: Engine::with_scopes(scopes),
+            shutting_down: false,
+        }
+    }
+
     pub fn is_shutting_down(&self) -> bool {
         self.shutting_down
     }
@@ -128,7 +136,10 @@ impl Server {
         let uri = str_at(&req.params, &["textDocument", "uri"]).unwrap_or_default();
 
         match req.method.as_str() {
-            "initialize" => reply(&id, capabilities()),
+            "initialize" => {
+                self.engine.set_workspace(workspace_folders(&req.params));
+                reply(&id, capabilities())
+            }
 
             "initialized" => Response::None,
 
@@ -776,6 +787,34 @@ fn format_code(sig: &str) -> String {
     out.push_str(sig);
     out.push_str("\n```");
     out
+}
+
+fn workspace_folders(params: &Value) -> Vec<PathBuf> {
+    let listed: Vec<PathBuf> = params
+        .get("workspaceFolders")
+        .and_then(Value::as_array)
+        .map(|fs| {
+            fs.iter()
+                .filter_map(|f| f.get("uri").and_then(Value::as_str))
+                .filter_map(path_of)
+                .collect()
+        })
+        .unwrap_or_default();
+    if !listed.is_empty() {
+        return listed;
+    }
+    params
+        .get("rootUri")
+        .and_then(Value::as_str)
+        .and_then(path_of)
+        .or_else(|| {
+            params
+                .get("rootPath")
+                .and_then(Value::as_str)
+                .map(PathBuf::from)
+        })
+        .into_iter()
+        .collect()
 }
 
 /// The file a `file://` uri names; `None` for any other scheme.

@@ -229,7 +229,12 @@ def do_untested(args)
       join(
         map(
           finding_line,
-          untested_probe(g, blue_path_roots(getenv("BLUE_PATH", "")))
+          untested_probe(
+            g,
+            blue_path_roots(
+              "#{getenv("BLUE_PATH", "")}:#{getenv("BLUE_DIST", "")}"
+            )
+          )
         ),
         ""
       )

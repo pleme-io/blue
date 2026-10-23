@@ -1,6 +1,6 @@
 //! The in-process memo, and the [`Loader`] the check stage reads it through.
 
-use std::cell::{OnceCell, RefCell};
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -27,15 +27,18 @@ pub struct Stats {
     pub analyses: usize,
 }
 
+type Scope = Vec<PathBuf>;
+type Asked<V> = RefCell<BTreeMap<(Scope, String, Option<PathBuf>), V>>;
+
 #[derive(Default)]
 pub(crate) struct Memo {
     parses: RefCell<HashMap<u64, Vec<(Rc<str>, Rc<Parsed>)>>>,
     live: RefCell<VecDeque<(u64, Rc<str>)>>,
-    packages: RefCell<BTreeMap<String, Rc<Package>>>,
-    needs: RefCell<BTreeMap<(String, Option<PathBuf>), Option<BTreeSet<String>>>>,
-    versions: RefCell<BTreeMap<(String, Option<PathBuf>), Option<String>>>,
+    packages: RefCell<BTreeMap<(Scope, String), Rc<Package>>>,
+    needs: Asked<Option<BTreeSet<String>>>,
+    versions: Asked<Option<String>>,
     entry_packages: RefCell<BTreeMap<PathBuf, Option<String>>>,
-    available: OnceCell<Vec<String>>,
+    available: RefCell<BTreeMap<Scope, Vec<String>>>,
     items: RefCell<HashMap<u64, Vec<(Rc<str>, Rc<Vec<crate::Item>>)>>>,
     stats: RefCell<Stats>,
 }
@@ -124,10 +127,12 @@ impl Memo {
     pub(crate) fn package(
         &self,
         loader: &dyn Loader,
+        scope: &[PathBuf],
         name: &str,
         overlay: &dyn Fn(&Path) -> Option<(PathBuf, Rc<str>)>,
     ) -> Result<Rc<Package>, String> {
-        if let Some(p) = self.packages.borrow().get(name) {
+        let k = (scope.to_vec(), name.to_string());
+        if let Some(p) = self.packages.borrow().get(&k) {
             return Ok(p.clone());
         }
         *self
@@ -157,9 +162,7 @@ impl Memo {
             files,
             canonical: paths,
         });
-        self.packages
-            .borrow_mut()
-            .insert(name.to_string(), package.clone());
+        self.packages.borrow_mut().insert(k, package.clone());
         Ok(package)
     }
 
@@ -174,8 +177,15 @@ impl Memo {
         packages.len() != before
     }
 
-    pub(crate) fn available(&self, loader: &dyn Loader) -> Vec<String> {
-        self.available.get_or_init(|| loader.available()).clone()
+    pub(crate) fn available(&self, loader: &dyn Loader, scope: &[PathBuf]) -> Vec<String> {
+        if let Some(hit) = self.available.borrow().get(scope) {
+            return hit.clone();
+        }
+        let found = loader.available();
+        self.available
+            .borrow_mut()
+            .insert(scope.to_vec(), found.clone());
+        found
     }
 }
 
@@ -184,11 +194,12 @@ impl Memo {
 pub(crate) struct MemoLoader<'e> {
     pub(crate) engine: &'e Engine,
     pub(crate) entry: &'e str,
+    pub(crate) scope: &'e [PathBuf],
 }
 
 impl Loader for MemoLoader<'_> {
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
-        let package = self.engine.package(name)?;
+        let package = self.engine.package(self.scope, name)?;
         Ok(package
             .files
             .iter()
@@ -209,7 +220,7 @@ impl Loader for MemoLoader<'_> {
         if let Some(hit) = self.engine.memo.entry_packages.borrow().get(&dir) {
             return hit.clone();
         }
-        let found = self.engine.loader.entry_package(path);
+        let found = self.engine.loader(self.scope).entry_package(path);
         self.engine
             .memo
             .entry_packages
@@ -219,21 +230,29 @@ impl Loader for MemoLoader<'_> {
     }
 
     fn needs(&self, package: &str, entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
-        let k = (package.to_string(), entry_dir.map(Path::to_path_buf));
+        let k = (
+            self.scope.to_vec(),
+            package.to_string(),
+            entry_dir.map(Path::to_path_buf),
+        );
         if let Some(hit) = self.engine.memo.needs.borrow().get(&k) {
             return hit.clone();
         }
-        let found = self.engine.loader.needs(package, entry_dir);
+        let found = self.engine.loader(self.scope).needs(package, entry_dir);
         self.engine.memo.needs.borrow_mut().insert(k, found.clone());
         found
     }
 
     fn version(&self, package: &str, entry_dir: Option<&Path>) -> Option<String> {
-        let k = (package.to_string(), entry_dir.map(Path::to_path_buf));
+        let k = (
+            self.scope.to_vec(),
+            package.to_string(),
+            entry_dir.map(Path::to_path_buf),
+        );
         if let Some(hit) = self.engine.memo.versions.borrow().get(&k) {
             return hit.clone();
         }
-        let found = self.engine.loader.version(package, entry_dir);
+        let found = self.engine.loader(self.scope).version(package, entry_dir);
         self.engine
             .memo
             .versions
@@ -243,6 +262,6 @@ impl Loader for MemoLoader<'_> {
     }
 
     fn available(&self) -> Vec<String> {
-        self.engine.available()
+        self.engine.available(self.scope)
     }
 }

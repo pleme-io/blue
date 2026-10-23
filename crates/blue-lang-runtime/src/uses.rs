@@ -139,6 +139,24 @@ impl Loader for NoLoader {
     }
 }
 
+pub trait Scopes {
+    fn scope(&self, entry: Option<&Path>) -> Vec<PathBuf>;
+    fn loader(&self, scope: &[PathBuf]) -> std::rc::Rc<dyn Loader>;
+    fn set_workspace(&mut self, _folders: Vec<PathBuf>) {}
+}
+
+pub struct OneScope(pub std::rc::Rc<dyn Loader>);
+
+impl Scopes for OneScope {
+    fn scope(&self, _entry: Option<&Path>) -> Vec<PathBuf> {
+        Vec::new()
+    }
+
+    fn loader(&self, _scope: &[PathBuf]) -> std::rc::Rc<dyn Loader> {
+        self.0.clone()
+    }
+}
+
 /// Identity of one source file inside a [`ResolvedProgram`].
 ///
 /// Opaque on purpose. It means nothing outside the program that minted it, and

@@ -69,5 +69,5 @@ pub fn load_path(root: &Path, files: &[PathBuf]) -> LoadPath {
     roots.sort();
     roots.dedup();
     roots.sort_by_key(|r| r != &root.join("bidamas"));
-    LoadPath::new(roots)
+    LoadPath::over(roots)
 }

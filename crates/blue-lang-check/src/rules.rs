@@ -487,7 +487,7 @@ qualifier.",
     B0019 {
         slug: "needs-mismatch",
         severity: Error,
-        fix: None,
+        fix: Machine,
         law: "the bidamas a bidama `use`s are exactly the ones its Bluefile `needs`",
         witness: "use(\"kagi_b\")\n\nkagi_b::kagi\n",
         imports: [
@@ -500,7 +500,9 @@ qualifier.",
 `needs` is what nix builds a bidama against; `use` is what its code reaches.
 A `use` with no `needs` compiles here and fails in the sandbox, where the
 package is absent; a `needs` with no `use` is a dependency nothing uses.
-Edit the Bluefile, then run `blue lock <dir>`.",
+`blue check --fix FILE` derives the rows from the bidama's `use` forms (a
+hand row keeps its range, a new one takes the caret of the version the load
+path resolves, an unused one goes) and rewrites `Bluefile.lock`.",
     }
     B0020 {
         slug: "package-as-value",

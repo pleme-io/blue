@@ -46,6 +46,7 @@ pub mod load_path;
 /// `Bluefile.lock` — the evaluated manifest, committed so nix reads blue's
 /// evaluation instead of re-deriving it. `theory/BLUE-STRUCTURE.md` §5.1.
 pub mod lock;
+pub mod needs;
 /// The project pass of `blue check`: the rules a project writes in blue.
 pub mod project_rules;
 pub mod solve;

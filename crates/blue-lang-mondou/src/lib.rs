@@ -38,7 +38,7 @@ use std::rc::Rc;
 use blue_lang_check::names::Resolved;
 use blue_lang_check::{NameTable, Namespace};
 use blue_lang_runtime::pipeline::{check_entry, Checked, Checking};
-use blue_lang_runtime::uses::{Entry, Loader, ResolvedProgram};
+use blue_lang_runtime::uses::{Entry, Loader, OneScope, ResolvedProgram, Scopes};
 use blue_lang_syntax::{ParseError, Span, Spanned};
 
 pub use complete::{Completion, CompletionKind, Tier};
@@ -79,7 +79,8 @@ struct Document {
 /// The engine: the open documents, the loader, and the memo every query
 /// reads through.
 pub struct Engine {
-    loader: Box<dyn Loader>,
+    scopes: Box<dyn Scopes>,
+    loaders: RefCell<BTreeMap<Vec<PathBuf>, Rc<dyn Loader>>>,
     memo: memo::Memo,
     documents: BTreeMap<String, Document>,
     revision: u64,
@@ -93,8 +94,14 @@ pub struct Engine {
 impl Engine {
     #[must_use]
     pub fn new(loader: Box<dyn Loader>) -> Self {
+        Self::with_scopes(Box::new(OneScope(Rc::from(loader))))
+    }
+
+    #[must_use]
+    pub fn with_scopes(scopes: Box<dyn Scopes>) -> Self {
         Self {
-            loader,
+            scopes,
+            loaders: RefCell::new(BTreeMap::new()),
             memo: memo::Memo::default(),
             documents: BTreeMap::new(),
             revision: 0,
@@ -156,6 +163,27 @@ impl Engine {
             .map(|(id, _)| id.clone())
     }
 
+    pub fn set_workspace(&mut self, folders: Vec<PathBuf>) {
+        self.scopes.set_workspace(folders);
+        self.loaders.borrow_mut().clear();
+        self.memo = memo::Memo::default();
+        self.generation.set(self.generation.get() + 1);
+    }
+
+    #[must_use]
+    pub fn scope_of(&self, path: Option<&Path>) -> Vec<PathBuf> {
+        self.scopes.scope(path)
+    }
+
+    fn loader(&self, scope: &[PathBuf]) -> Rc<dyn Loader> {
+        if let Some(l) = self.loaders.borrow().get(scope) {
+            return l.clone();
+        }
+        let l = self.scopes.loader(scope);
+        self.loaders.borrow_mut().insert(scope.to_vec(), l.clone());
+        l
+    }
+
     /// Forget every loaded bidama holding the file at `path`: it changed on
     /// disk or in a buffer, so its next load reads it again.
     pub fn invalidate_path(&mut self, path: &Path) {
@@ -181,7 +209,7 @@ impl Engine {
     /// # Errors
     ///
     /// The loader's reason it could not be loaded.
-    pub fn package(&self, name: &str) -> Result<Rc<Package>, String> {
+    pub fn package(&self, scope: &[PathBuf], name: &str) -> Result<Rc<Package>, String> {
         let overlay = |path: &Path| {
             let c = canonical(path);
             if let Some(text) = self.overlay.borrow().get(&c) {
@@ -192,13 +220,14 @@ impl Engine {
                 .find(|d| d.canonical.as_deref() == Some(c.as_path()))
                 .map(|d| (c.clone(), d.text.clone()))
         };
-        self.memo.package(self.loader.as_ref(), name, &overlay)
+        self.memo
+            .package(self.loader(scope).as_ref(), scope, name, &overlay)
     }
 
     /// The bidamas the loader can enumerate.
     #[must_use]
-    pub fn available(&self) -> Vec<String> {
-        self.memo.available(self.loader.as_ref())
+    pub fn available(&self, scope: &[PathBuf]) -> Vec<String> {
+        self.memo.available(self.loader(scope).as_ref(), scope)
     }
 
     /// The analysis of document `id` at its current revision: computed once,
@@ -263,10 +292,12 @@ impl Engine {
     fn analyse(&self, id: Option<&str>, path: Option<PathBuf>, text: Rc<str>) -> Analysis {
         self.memo.count_analysis();
         let parsed = self.memo.parse(&text, false);
+        let scope = self.scope_of(path.as_deref());
         let checked = parsed.as_ref().as_ref().ok().map(|_| {
             let loader = memo::MemoLoader {
                 engine: self,
                 entry: &text,
+                scope: &scope,
             };
             check_entry(
                 Entry {
@@ -285,6 +316,7 @@ impl Engine {
             generation: self.generation.get(),
             text,
             path,
+            scope,
             parsed,
             checked,
             resolved: OnceCell::new(),
@@ -381,6 +413,7 @@ pub struct Analysis {
     generation: u64,
     pub text: Rc<str>,
     pub path: Option<PathBuf>,
+    pub scope: Vec<PathBuf>,
     pub parsed: Rc<Parsed>,
     /// `None` when the text does not parse; `Some(Err)` when its imports do
     /// not load.

@@ -1,23 +1,23 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "39f9b92df1a0fb3f350456c0ca6070176287b67e2b3f40f1537b51081f229b9e",
+  "cargo_lock_sha256": "47253f16b55a4bd46f54a3f7d58432e502de41526565beb605522b356845db7a",
   "manifest_sha256": {
     "Cargo.toml": "ea19a01ca6f3a5c4a6a393284e9668594abba770943a55cadf563d21e2037491",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "e5ec2e0d527343aacfd6ea3cf2e861016eb2dd6f253b1d23d10679345c2be969",
+    "crates/blue-lang-cli/Cargo.toml": "05f3347b2d57026af0f7e20aa21a8db9b17c4cb787c02709bfd2630684d03e1c",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-host-macros/Cargo.toml": "f8efb27bcf0512036b610e3c3d54b0d237f00c812e8a29e0c3adaaa662e74d60",
     "crates/blue-lang-host/Cargo.toml": "515be2b89363222cc6fc71b8f74adfe6fa56b92a3f013cac979909eb6a2ecaa2",
     "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
-    "crates/blue-lang-lsp/Cargo.toml": "30bf68843371f73f426bb85bf8b183394cadce53bd42261dd46c4001a0b287b5",
+    "crates/blue-lang-lsp/Cargo.toml": "5125ccc67133d1db214f30a272e9f01bfc496db6efece3768a3bcf130b934b5e",
     "crates/blue-lang-mondou/Cargo.toml": "21bcf1305dd95a070e7b8940be3cbfb17477d8bd7cdc05d6c17d17bdf55c4614",
-    "crates/blue-lang-pkg/Cargo.toml": "2aef83e353544a34be1ade68bf28666c651d9ce25aadda57f097c42318405749",
+    "crates/blue-lang-pkg/Cargo.toml": "9d1301b763cf8dacae5214f8fbe3993578256f0b75a50c26a1fd12473241ce29",
     "crates/blue-lang-proc/Cargo.toml": "a9702f9f855394147b0651eb89ae07fd8c787f8d1df4d47f1194fb858bce2fc1",
-    "crates/blue-lang-runtime/Cargo.toml": "873cb48a99f66cbfb0225acf629bf3d203d7196d923bf0bcbcdfd082fd8ad82a",
+    "crates/blue-lang-runtime/Cargo.toml": "4dfde5e04450c7c7d28f1aaaed196c225cfd76a74f5bad1c7f98720e11938422",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
-    "crates/blue-lang-test/Cargo.toml": "b5adfaccbe0253624d6ee8eca0164adfa1a3675023e0bb5275a6e2d7614ef042",
+    "crates/blue-lang-test/Cargo.toml": "94cc8f3cb56a4cb8f7b9cbe57c23f9bf8120b665f8a59340b95f73276f5f34ad",
     "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
     "crates/blue-lang-wasm/Cargo.toml": "7ab5e1b7832f36ce7932147f98e193c0d626813528f2d85280ac1aa8b070a1a0"
   },
@@ -1029,7 +1029,8 @@
         ],
         "build_dependencies": [],
         "features": [
-          "embedded"
+          "embedded",
+          "fixture"
         ]
       },
       "blue-lang-proc-0.0.100": {

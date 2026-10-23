@@ -32,101 +32,307 @@
 //!
 //! ## Where a program looks, in order
 //!
-//! [`LoadPath::for_entry`] is the load path of every door that runs or checks
-//! a file (`blue FILE`, `run`, `test`, `check`, `ast`, `explain-name`):
+//! [`Environment::load_path`] is the one constructor of a load path. Every
+//! door that runs, checks or reads a file (`blue FILE`, `run`, `test`,
+//! `check`, `ast`, `explain-name`, `lsp`, `repl`) gets its loader from it,
+//! through [`LoadPath::for_entry`] or, in the editor, per document through
+//! the [`Scopes`] it implements:
 //!
-//! 1. **`BLUE_PATH`**, left to right: the caller's choice, and where the
-//!    fleet's wrapper appends the pinned distribution.
+//! 1. **`BLUE_PATH`**, left to right: the caller's explicit override.
 //! 2. **The project the file sits in**: walking up from the file, the first
 //!    Bluefile that is a project's contributes its `packages(dir)` roots; a
 //!    bidama's own Bluefile on the way contributes the directory that holds
-//!    it (its distribution) and the walk goes on.
-//! 3. **The standard distribution compiled into the binary**
+//!    it (its distribution) and the walk goes on. In the editor, a document
+//!    outside every project takes the projects of the workspace folders.
+//! 3. **`BLUE_DIST`**, left to right: the installed distribution, which the
+//!    fleet's wrapper (`mkBlueWithBidamas`) sets. It is not a caller's
+//!    choice, so it never shadows the project: a bidama newer than the pin
+//!    resolves in the repository that defines it.
+//! 4. **The standard distribution compiled into the binary**
 //!    ([`crate::embedded`], feature `embedded`, which the `blue` CLI turns
 //!    on), so a bare script with no Bluefile and no `BLUE_PATH` can
 //!    `use("retsu")`.
 //!
 //! First match wins, so a checkout on `BLUE_PATH` still overrides a project's
-//! package, and either overrides the compiled-in copy.
+//! package, the project overrides the installed distribution, and every root
+//! overrides the compiled-in copy. A wrapper built before `BLUE_DIST` existed
+//! appended the distribution to `BLUE_PATH`; that form is still read, with
+//! its old meaning (an override).
+//!
+//! A bidama that is not found names every root searched, in order and by
+//! channel, and when a directory near the file holds it off the path, says
+//! which Bluefile line puts it there.
 //!
 //! ## What this deliberately does NOT do
 //!
 //! It does not resolve versions. A root holds one directory per name, so the
 //! *choice* of which version to expose is made when the root is built — by
-//! nix, from a flake input, with a lock. Putting a solver here as well would
+//! nix, from a flake input, with a lock. Selection only refuses: outside the
+//! project, a copy whose version falls outside the range the file's
+//! `Bluefile.lock` records is skipped with a note, never chosen silently. Putting a solver here as well would
 //! be a second resolution mechanism disagreeing with the first, which is the
 //! failure mode `docs/COMPETING-LANGUAGES.md` §1 takes from Go: resolve in one
 //! place, pin in another, never both in both.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use blue_lang_runtime::uses::Loader;
+use blue_lang_runtime::uses::{Loader, Scopes};
 
-/// The environment variable that names the search roots.
+use crate::version::{Range, Version};
+
+/// The environment variable that names the caller's override roots.
 pub const BLUE_PATH: &str = "BLUE_PATH";
 
-/// An ordered list of directories to find bidamas in.
-#[derive(Debug, Clone, Default)]
-pub struct LoadPath {
-    roots: Vec<PathBuf>,
-    /// Whether the compiled-in standard distribution answers after `roots`.
-    standard: bool,
+/// The environment variable that names the installed distribution's roots.
+pub const BLUE_DIST: &str = "BLUE_DIST";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    Project,
+    Override,
+    Distribution,
+    Given,
 }
 
-impl LoadPath {
-    /// A load path over the given roots, searched in order.
+impl Channel {
     #[must_use]
-    pub fn new(roots: impl IntoIterator<Item = PathBuf>) -> Self {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Project => "the project",
+            Self::Override => BLUE_PATH,
+            Self::Distribution => BLUE_DIST,
+            Self::Given => "roots",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Environment {
+    overrides: Vec<PathBuf>,
+    distribution: Vec<PathBuf>,
+    workspace: Vec<PathBuf>,
+}
+
+fn split_roots(var: &std::ffi::OsStr) -> Vec<PathBuf> {
+    var.to_string_lossy()
+        .split(':')
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
+
+fn dir_of(entry: &Path) -> PathBuf {
+    let dir = entry
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf())
+}
+
+fn manifest_dir(entry: &Path) -> PathBuf {
+    let dir = dir_of(entry);
+    dir.ancestors()
+        .find(|at| at.join(crate::MANIFEST_FILE).is_file())
+        .map_or(dir.clone(), Path::to_path_buf)
+}
+
+impl Environment {
+    #[must_use]
+    pub fn from_env() -> Self {
+        Self::from_vars(
+            std::env::var_os(BLUE_PATH).unwrap_or_default().as_os_str(),
+            std::env::var_os(BLUE_DIST).unwrap_or_default().as_os_str(),
+        )
+    }
+
+    #[must_use]
+    pub fn from_vars(blue_path: &std::ffi::OsStr, blue_dist: &std::ffi::OsStr) -> Self {
         Self {
-            roots: roots.into_iter().collect(),
-            standard: false,
+            overrides: split_roots(blue_path),
+            distribution: split_roots(blue_dist),
+            workspace: Vec::new(),
         }
     }
 
-    /// The load path of a program at `entry`: `BLUE_PATH`, then the roots of
-    /// the project around it ([`project_roots`]), then the standard
-    /// distribution compiled into the binary. The module docs state the order.
     #[must_use]
-    pub fn for_entry(entry: &Path) -> Self {
-        let mut lp = Self::from_env();
-        lp.roots.extend(project_roots(entry));
-        lp.with_standard()
+    pub fn with_workspace(mut self, folders: Vec<PathBuf>) -> Self {
+        self.workspace = folders;
+        self
     }
 
-    /// This load path, falling back to the standard distribution compiled into
-    /// the binary when no root holds a package. Without the `embedded` feature
-    /// nothing is compiled in and the fallback finds nothing.
+    #[must_use]
+    pub fn installed_roots(&self) -> Vec<PathBuf> {
+        self.overrides
+            .iter()
+            .chain(&self.distribution)
+            .cloned()
+            .collect()
+    }
+
+    #[must_use]
+    pub fn project(&self, entry: Option<&Path>) -> Vec<PathBuf> {
+        let own = entry.map(project_roots).unwrap_or_default();
+        if !own.is_empty() {
+            return own;
+        }
+        let mut roots: Vec<PathBuf> = Vec::new();
+        for folder in &self.workspace {
+            for r in project_roots(&folder.join(crate::MANIFEST_FILE)) {
+                if !roots.contains(&r) {
+                    roots.push(r);
+                }
+            }
+        }
+        roots
+    }
+
+    #[must_use]
+    pub fn load_path(&self, entry: Option<&Path>) -> LoadPath {
+        let mut lp = LoadPath::default();
+        lp.push(Channel::Project, &self.project(entry));
+        lp.push(Channel::Override, &self.overrides);
+        lp.push(Channel::Distribution, &self.distribution);
+        match entry {
+            Some(e) => {
+                lp.origin = vec![dir_of(e)];
+                lp.required = required_by(&manifest_dir(e));
+            }
+            None => lp.origin = lp.roots_of(Channel::Project),
+        }
+        lp.standard = true;
+        lp
+    }
+}
+
+impl Scopes for Environment {
+    fn scope(&self, entry: Option<&Path>) -> Vec<PathBuf> {
+        entry.map(|e| vec![manifest_dir(e)]).unwrap_or_default()
+    }
+
+    fn loader(&self, scope: &[PathBuf]) -> Rc<dyn Loader> {
+        let entry = scope.first().map(|d| d.join(crate::MANIFEST_FILE));
+        Rc::new(self.load_path(entry.as_deref()))
+    }
+
+    fn set_workspace(&mut self, folders: Vec<PathBuf>) {
+        self.workspace = folders;
+    }
+}
+
+fn required_by(dir: &Path) -> BTreeMap<String, Range> {
+    let from_lock = std::fs::read_to_string(dir.join(crate::lock::LOCK_FILE))
+        .ok()
+        .and_then(|t| serde_json::from_str::<crate::lock::Lock>(&t).ok())
+        .map(|l| l.manifest.needs);
+    let needs: BTreeMap<String, String> = match from_lock {
+        Some(n) => n,
+        None => std::fs::read_to_string(dir.join(crate::MANIFEST_FILE))
+            .ok()
+            .and_then(|t| crate::bluefile::read_bluefile(&t).ok())
+            .map(|bf| {
+                bf.manifest
+                    .needs
+                    .iter()
+                    .map(|(k, r)| (k.clone(), r.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    };
+    needs
+        .into_iter()
+        .filter_map(|(k, r)| Range::parse(&r).ok().map(|r| (k, r)))
+        .collect()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Found {
+    Dir(PathBuf),
+    Standard,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Selection {
+    pub found: Option<Found>,
+    pub skipped: Vec<String>,
+}
+
+/// An ordered list of directories to find bidamas in, with where each came
+/// from. Built by [`Environment::load_path`]; a fixed list of roots is a
+/// test fixture (feature `fixture`).
+#[derive(Debug, Clone, Default)]
+pub struct LoadPath {
+    roots: Vec<PathBuf>,
+    channels: Vec<Channel>,
+    standard: bool,
+    origin: Vec<PathBuf>,
+    required: BTreeMap<String, Range>,
+}
+
+impl LoadPath {
+    pub(crate) fn over(roots: impl IntoIterator<Item = PathBuf>) -> Self {
+        let mut lp = Self::default();
+        lp.push(Channel::Given, &roots.into_iter().collect::<Vec<_>>());
+        lp
+    }
+
+    #[cfg(any(test, feature = "fixture"))]
+    #[must_use]
+    pub fn new(roots: impl IntoIterator<Item = PathBuf>) -> Self {
+        Self::over(roots)
+    }
+
+    #[cfg(any(test, feature = "fixture"))]
+    #[must_use]
+    pub fn from_var(var: &std::ffi::OsStr) -> Self {
+        Self::over(split_roots(var))
+    }
+
+    #[cfg(any(test, feature = "fixture"))]
     #[must_use]
     pub fn with_standard(mut self) -> Self {
         self.standard = true;
         self
     }
 
-    /// The load path `BLUE_PATH` describes, or an empty one if it is unset.
-    ///
-    /// Empty rather than an error: a program with no imports must run with no
-    /// packaging configured at all, and forcing every caller to handle a
-    /// "BLUE_PATH unset" error would make the common case pay for the rare
-    /// one. An import against an empty path fails then, naming the package.
+    #[cfg(any(test, feature = "fixture"))]
     #[must_use]
-    pub fn from_env() -> Self {
-        Self::from_var(std::env::var_os(BLUE_PATH).unwrap_or_default().as_os_str())
+    pub fn requiring(mut self, name: &str, range: &str) -> Self {
+        if let Ok(r) = Range::parse(range) {
+            self.required.insert(name.to_string(), r);
+        }
+        self
     }
 
-    /// Parse a `:`-separated root list.
-    ///
-    /// Empty segments are dropped, because `"a::b"` and a trailing `:` are what
-    /// shell string-building produces by accident, and an empty segment would
-    /// otherwise resolve as the process's current directory — a surprising,
-    /// cwd-dependent root nobody asked for.
+    fn push(&mut self, channel: Channel, roots: &[PathBuf]) {
+        for r in roots {
+            if !self.roots.contains(r) {
+                self.roots.push(r.clone());
+                self.channels.push(channel);
+            }
+        }
+    }
+
+    fn roots_of(&self, channel: Channel) -> Vec<PathBuf> {
+        self.roots
+            .iter()
+            .zip(&self.channels)
+            .filter(|(_, c)| **c == channel)
+            .map(|(r, _)| r.clone())
+            .collect()
+    }
+
+    /// The load path of a program at `entry`, from [`Environment::load_path`].
+    /// The module docs state the order.
     #[must_use]
-    pub fn from_var(var: &std::ffi::OsStr) -> Self {
-        Self::new(
-            var.to_string_lossy()
-                .split(':')
-                .filter(|s| !s.is_empty())
-                .map(PathBuf::from),
-        )
+    pub fn for_entry(entry: &Path) -> Self {
+        Environment::from_env().load_path(Some(entry))
+    }
+
+    #[must_use]
+    pub fn for_dir(dir: &Path) -> Self {
+        Self::for_entry(&dir.join(crate::MANIFEST_FILE))
     }
 
     /// The roots, in search order.
@@ -135,22 +341,166 @@ impl LoadPath {
         &self.roots
     }
 
-    /// The directory holding `name`, or `None`.
-    ///
-    /// A root only counts as holding the package if the directory actually
-    /// exists; an entry that is a file, or a name that is absent, is skipped
-    /// so a later root still gets its chance.
     #[must_use]
-    pub fn resolve(&self, name: &str) -> Option<PathBuf> {
-        self.roots.iter().map(|r| r.join(name)).find(|p| p.is_dir())
+    pub fn channels(&self) -> &[Channel] {
+        &self.channels
     }
 
-    /// The compiled-in standard distribution, when this path falls back to it
-    /// and no root holds `name`.
-    fn standard_for(&self, name: &str) -> Option<crate::embedded::Standard> {
+    #[must_use]
+    pub fn select(&self, name: &str) -> Selection {
+        let mut skipped = Vec::new();
+        let range = self.required.get(name);
+        for (root, channel) in self.roots.iter().zip(&self.channels) {
+            let dir = root.join(name);
+            if !dir.is_dir() {
+                continue;
+            }
+            if *channel == Channel::Project {
+                return Selection {
+                    found: Some(Found::Dir(dir)),
+                    skipped,
+                };
+            }
+            match (range, version_at(&dir)) {
+                (Some(r), Some(v)) if !r.contains(v) => skipped.push(format!(
+                    "{} is {name} {v}, outside the lock's {r}",
+                    dir.display()
+                )),
+                _ => {
+                    return Selection {
+                        found: Some(Found::Dir(dir)),
+                        skipped,
+                    }
+                }
+            }
+        }
         let s = crate::embedded::Standard;
-        (self.standard && self.resolve(name).is_none() && s.has(name)).then_some(s)
+        if self.standard && s.has(name) {
+            let v = s.version(name, None).and_then(|v| Version::parse(&v).ok());
+            match (range, v) {
+                (Some(r), Some(v)) if !r.contains(v) => skipped.push(format!(
+                    "the standard distribution compiled into blue has {name} {v}, outside the lock's {r}"
+                )),
+                _ => {
+                    return Selection {
+                        found: Some(Found::Standard),
+                        skipped,
+                    }
+                }
+            }
+        }
+        Selection {
+            found: None,
+            skipped,
+        }
     }
+
+    /// The directory holding `name`, or `None` (also when the compiled-in
+    /// standard answers).
+    #[must_use]
+    pub fn resolve(&self, name: &str) -> Option<PathBuf> {
+        match self.select(name).found {
+            Some(Found::Dir(d)) => Some(d),
+            _ => None,
+        }
+    }
+
+    fn not_found(&self, name: &str, skipped: &[String]) -> String {
+        let mut where_looked = if self.roots.is_empty() {
+            format!("the project, {BLUE_PATH} and {BLUE_DIST} name no root")
+        } else {
+            let mut parts: Vec<String> = Vec::new();
+            let mut i = 0;
+            while i < self.roots.len() {
+                let channel = self.channels[i];
+                let mut group = Vec::new();
+                while i < self.roots.len() && self.channels[i] == channel {
+                    group.push(self.roots[i].display().to_string());
+                    i += 1;
+                }
+                parts.push(format!("{} {}", channel.label(), group.join(", ")));
+            }
+            format!("searched: {}", parts.join(", then "))
+        };
+        if self.standard {
+            where_looked.push_str(", then the standard distribution compiled into blue");
+        }
+        let mut msg = format!("no bidama named \"{name}\" ({where_looked})");
+        for note in skipped {
+            msg.push_str("; skipped ");
+            msg.push_str(note);
+        }
+        if let Some(fix) = self.nearby(name) {
+            msg.push_str(". ");
+            msg.push_str(&fix);
+        }
+        msg
+    }
+
+    fn nearby(&self, name: &str) -> Option<String> {
+        let mut seen = BTreeSet::new();
+        for origin in &self.origin {
+            let origin = origin.canonicalize().unwrap_or_else(|_| origin.clone());
+            for at in origin.ancestors() {
+                for root in [at.to_path_buf(), at.join("bidamas")] {
+                    let dir = root.join(name);
+                    if !seen.insert(dir.clone()) || !dir.join(crate::MANIFEST_FILE).is_file() {
+                        continue;
+                    }
+                    return Some(match project_of(&origin) {
+                        Some(project) => format!(
+                            "fix: {} holds it and is not on this path; add `packages(\"{}\")` to {}",
+                            dir.display(),
+                            relative(&root, &project),
+                            project.join(crate::MANIFEST_FILE).display()
+                        ),
+                        None => format!(
+                            "fix: {} holds it and no project Bluefile around the file names it; add a Bluefile with `packages(\"{}\")` above the file, or put {} on {BLUE_PATH}",
+                            dir.display(),
+                            root.display(),
+                            root.display()
+                        ),
+                    });
+                }
+                if at.join(".git").exists() {
+                    break;
+                }
+            }
+        }
+        None
+    }
+}
+
+fn version_at(dir: &Path) -> Option<Version> {
+    let text = std::fs::read_to_string(dir.join(crate::MANIFEST_FILE)).ok()?;
+    Some(crate::bluefile::read_bluefile(&text).ok()?.version)
+}
+
+fn project_of(dir: &Path) -> Option<PathBuf> {
+    dir.ancestors()
+        .find(|at| {
+            std::fs::read_to_string(at.join(crate::MANIFEST_FILE))
+                .ok()
+                .and_then(|t| crate::bluefile::read_bluefile(&t).ok())
+                .is_some_and(|bf| bidama_of(&bf).is_none())
+        })
+        .map(Path::to_path_buf)
+}
+
+fn relative(root: &Path, project: &Path) -> String {
+    let mut up = PathBuf::new();
+    for at in project.ancestors() {
+        if let Ok(rest) = root.strip_prefix(at) {
+            let rel = up.join(rest);
+            return if rel.as_os_str().is_empty() {
+                ".".to_string()
+            } else {
+                rel.display().to_string()
+            };
+        }
+        up.push("..");
+    }
+    root.display().to_string()
 }
 
 /// The bidama a Bluefile declares, if it declares one: its name is one
@@ -237,29 +587,11 @@ fn read_sources(dir: &Path) -> Result<Vec<(String, String)>, String> {
 
 impl Loader for LoadPath {
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
-        if let Some(s) = self.standard_for(name) {
-            return s.load(name);
-        }
-        let Some(dir) = self.resolve(name) else {
-            // Name the roots that were searched. "package not found" alone
-            // leaves the reader unable to tell an empty BLUE_PATH from a
-            // misspelled package — two problems with opposite fixes.
-            let mut where_looked = if self.roots.is_empty() {
-                format!("{BLUE_PATH} is empty or unset")
-            } else {
-                format!(
-                    "searched: {}",
-                    self.roots
-                        .iter()
-                        .map(|r| r.display().to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            };
-            if self.standard {
-                where_looked.push_str(", then the standard distribution compiled into blue");
-            }
-            return Err(format!("no bidama named \"{name}\" ({where_looked})"));
+        let selection = self.select(name);
+        let dir = match selection.found {
+            Some(Found::Standard) => return crate::embedded::Standard.load(name),
+            Some(Found::Dir(d)) => d,
+            None => return Err(self.not_found(name, &selection.skipped)),
         };
 
         // A package is what its Bluefile says it is: `use("x")` loading a
@@ -294,19 +626,12 @@ impl Loader for LoadPath {
         Ok(sources)
     }
 
-    fn needs(
-        &self,
-        package: &str,
-        entry_dir: Option<&Path>,
-    ) -> Option<std::collections::BTreeSet<String>> {
-        if entry_dir.is_none() {
-            if let Some(s) = self.standard_for(package) {
-                return s.needs(package, None);
-            }
-        }
-        let dir = match entry_dir {
-            Some(d) => d.to_path_buf(),
-            None => self.resolve(package)?,
+    fn needs(&self, package: &str, entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
+        let dir = match (entry_dir, self.select(package).found) {
+            (Some(d), _) => d.to_path_buf(),
+            (None, Some(Found::Standard)) => return crate::embedded::Standard.needs(package, None),
+            (None, Some(Found::Dir(d))) => d,
+            (None, None) => return None,
         };
         let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
         let bf = crate::bluefile::read_bluefile(&text).ok()?;
@@ -314,28 +639,21 @@ impl Loader for LoadPath {
     }
 
     fn version(&self, package: &str, entry_dir: Option<&Path>) -> Option<String> {
-        if entry_dir.is_none() {
-            if let Some(s) = self.standard_for(package) {
-                return s.version(package, None);
+        let dir = match (entry_dir, self.select(package).found) {
+            (Some(d), _) => d.to_path_buf(),
+            (None, Some(Found::Standard)) => {
+                return crate::embedded::Standard.version(package, None)
             }
-        }
-        let dir = match entry_dir {
-            Some(d) => d.to_path_buf(),
-            None => self.resolve(package)?,
+            (None, Some(Found::Dir(d))) => d,
+            (None, None) => return None,
         };
-        let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
-        Some(
-            crate::bluefile::read_bluefile(&text)
-                .ok()?
-                .version
-                .to_string(),
-        )
+        version_at(&dir).map(|v| v.to_string())
     }
 
     /// Every bidama a root holds (a directory with a Bluefile), then, when
     /// the standard distribution answers after the roots, every one of its.
     fn available(&self) -> Vec<String> {
-        let mut out = std::collections::BTreeSet::new();
+        let mut out = BTreeSet::new();
         for root in &self.roots {
             let Ok(entries) = std::fs::read_dir(root) else {
                 continue;
@@ -628,5 +946,129 @@ mod tests {
         let e = lp.load("blue").expect_err("blue is reserved");
         assert!(e.contains("no bidama may be named"), "{e}");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    fn two_copies(name: &str) -> PathBuf {
+        tree(
+            name,
+            &[
+                (
+                    "proj/Bluefile",
+                    "package(\"sel-proj\", \"0.1.0\")\npackages(\"bidamas\")\n",
+                ),
+                (
+                    "proj/bidamas/pick/Bluefile",
+                    "package(\"pick\", \"0.2.0\")\n",
+                ),
+                ("proj/bidamas/pick/pick.b", "def p()\n  2\nend\n"),
+                ("stale/pick/Bluefile", "package(\"pick\", \"0.0.9\")\n"),
+                ("stale/pick/pick.b", "def p()\n  0\nend\n"),
+                ("good/pick/Bluefile", "package(\"pick\", \"0.1.4\")\n"),
+                ("good/pick/pick.b", "def p()\n  1\nend\n"),
+                (
+                    "user/Bluefile",
+                    "package(\"user\", \"0.1.0\")\nneeds(\"pick\", \"^0.1\")\n",
+                ),
+                ("user/user.b", "use(\"pick\")\n"),
+            ],
+        )
+    }
+
+    fn env(path: &[&Path], dist: &[&Path]) -> Environment {
+        let join = |ps: &[&Path]| {
+            ps.iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(":")
+        };
+        Environment::from_vars(
+            std::ffi::OsStr::new(&join(path)),
+            std::ffi::OsStr::new(&join(dist)),
+        )
+    }
+
+    #[test]
+    fn the_files_project_wins_over_every_installed_copy() {
+        let root = two_copies("sel-project");
+        let lp = env(&[&root.join("stale")], &[&root.join("good")])
+            .load_path(Some(&root.join("proj/main.b")));
+        assert_eq!(
+            lp.select("pick").found,
+            Some(Found::Dir(root.join("proj/bidamas/pick")))
+        );
+        assert_eq!(lp.channels()[0], Channel::Project);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_copy_outside_the_lock_is_skipped_with_a_note_never_chosen() {
+        let root = two_copies("sel-lock");
+        let entry = root.join("user/user.b");
+        let lp = env(&[&root.join("stale")], &[&root.join("good")]).load_path(Some(&entry));
+        let sel = lp.select("pick");
+        assert_eq!(sel.found, Some(Found::Dir(root.join("good/pick"))));
+        assert_eq!(sel.skipped.len(), 1, "{sel:?}");
+        assert!(sel.skipped[0].contains("0.0.9"), "{sel:?}");
+        let only_stale = env(&[&root.join("stale")], &[]).load_path(Some(&entry));
+        let err = only_stale.load("pick").expect_err("only a stale copy");
+        assert!(err.contains("skipped"), "{err}");
+        assert!(err.contains("outside the lock's ^0.1"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn with_no_project_and_no_lock_the_first_root_answers() {
+        let root = two_copies("sel-none");
+        let lp = env(&[&root.join("stale")], &[&root.join("good")])
+            .load_path(Some(&root.join("loose.b")));
+        assert_eq!(
+            lp.select("pick").found,
+            Some(Found::Dir(root.join("stale/pick")))
+        );
+        assert!(lp.select("pick").skipped.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(feature = "embedded")]
+    #[test]
+    fn the_compiled_in_copy_outside_the_lock_is_skipped_too() {
+        let lp = LoadPath::default().with_standard().requiring("retsu", "^9");
+        let err = lp.load("retsu").expect_err("compiled-in retsu is not 9.x");
+        assert!(err.contains("compiled into blue has retsu"), "{err}");
+    }
+
+    #[test]
+    fn each_document_scope_resolves_through_its_own_project() {
+        let a = two_copies("scope-a");
+        let b = tree(
+            "scope-b",
+            &[
+                (
+                    "proj/Bluefile",
+                    "package(\"sel-other\", \"0.1.0\")\npackages(\"libs\")\n",
+                ),
+                ("proj/libs/pick/Bluefile", "package(\"pick\", \"0.3.0\")\n"),
+                ("proj/libs/pick/pick.b", "def p()\n  3\nend\n"),
+            ],
+        );
+        let e = Environment::default();
+        let sa = e.scope(Some(&a.join("proj/x.b")));
+        let sb = e.scope(Some(&b.join("proj/y.b")));
+        assert_ne!(sa, sb);
+        assert_eq!(
+            e.loader(&sa).version("pick", None),
+            Some("0.2.0".to_string())
+        );
+        assert_eq!(
+            e.loader(&sb).version("pick", None),
+            Some("0.3.0".to_string())
+        );
+        let ws = Environment::default().with_workspace(vec![b.join("proj")]);
+        assert_eq!(
+            ws.load_path(None).select("pick").found,
+            Some(Found::Dir(b.join("proj/libs/pick")))
+        );
+        let _ = std::fs::remove_dir_all(&a);
+        let _ = std::fs::remove_dir_all(&b);
     }
 }

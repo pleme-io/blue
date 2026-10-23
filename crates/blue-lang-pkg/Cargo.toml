@@ -15,6 +15,7 @@ include = ["build.rs", "src/**", "tests/**", "bidamas/*/Bluefile", "bidamas/*/*.
 # hanabi). `bidamas` here is a link to the workspace's, so the registry
 # package carries every Bluefile and `.b` file and the set is the same.
 embedded = []
+fixture = []
 
 [dependencies]
 blue-lang-runtime = { workspace = true }
@@ -33,6 +34,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
+blue-lang-pkg = { path = ".", features = ["fixture"] }
 # PATH ONLY — a sibling dev-dep never carries a version. See the rule in
 # `blue-lang-runtime`'s dev-dep block and the gate in `blue-lang-cli`'s
 # `tests/registry_graph.rs`. blue-lang-test depends on blue-lang-runtime,

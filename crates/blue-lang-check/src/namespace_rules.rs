@@ -324,7 +324,7 @@ fn needs_agree(
                     )
                     .at_top_level(*i)
                     .with_help(format!(
-                        "add `needs(\"{}\", \"^0.1\")` to {pkg}/Bluefile and run `blue lock {pkg}`",
+                        "run `blue check --fix` on the file: it adds `needs(\"{}\", …)` to {pkg}/Bluefile and relocks",
                         u.package
                     )),
                 );
@@ -339,7 +339,7 @@ fn needs_agree(
                 )
                 .at_top_level(anchor)
                 .with_help(format!(
-                    "remove the `needs` from {pkg}/Bluefile (and run `blue lock {pkg}`), or `use` it"
+                    "run `blue check --fix` on a file of {pkg}: it removes the `needs` from {pkg}/Bluefile and relocks, or `use` it"
                 )),
             );
         }

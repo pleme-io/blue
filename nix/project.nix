@@ -16,7 +16,7 @@
 # | Need | Exists | Move |
 # |---|---|---|
 # | one bidama, one derivation; the graph under `lib.fix` | `bidamas/mk-bidama.nix` `mkBidama`, `mkDistribution` | reuse |
-# | a BLUE_PATH root; `blue` wrapped with it (`--suffix`) | `mkBluePath`, `mkBlueWithBidamas`, `mkBlueApp` | extend: a binary name, tools on PATH |
+# | a BLUE_PATH root; `blue` wrapped with it as `BLUE_DIST` (`--suffix`) | `mkBluePath`, `mkBlueWithBidamas`, `mkBlueApp` | extend: a binary name, tools on PATH |
 # | lock freshness; generated files; the catalogue; collisions | `mkLockCheck`, `mkBluefileCheck`, `mkGenerated`, `mkFreshCheck`, `mkCatalog`, `mkCollisionCheck` | extend: several roots; the catalogue of the project's own roots; a positive control in the collision scan |
 # | lowering a root `Bluefile.lock` (`generate`, `catalog`, the lock gates) | blue's own `flake.nix`, by hand | **move here**; blue's flake becomes this engine's first caller |
 # | private bidamas composed over the public distribution; a runner; per-bidama tests; one derivation per program, each program alone in the store | makoto's `flake.nix` (333 hand-written lines) | **extract here**; makoto migrates later |

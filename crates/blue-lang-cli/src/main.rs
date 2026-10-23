@@ -519,8 +519,8 @@ impl std::fmt::Display for Located {
 /// `use(...)` cannot disagree about which distribution is in effect.
 fn scan_registry() -> Result<Option<blue_lang_pkg::git_registry::GitRegistry>, CliError> {
     use blue_lang_pkg::git_registry::{GitRegistry, GitRegistryError};
-    for root in blue_lang_pkg::load_path::LoadPath::from_env().roots() {
-        let registry = match GitRegistry::scan(root) {
+    for root in blue_lang_pkg::load_path::Environment::from_env().installed_roots() {
+        let registry = match GitRegistry::scan(&root) {
             Ok(r) => r,
             // A stale entry in a `PATH`-shaped list is normal, so an unreadable
             // root is skipped. A Bluefile that EXISTS and does not parse is a
@@ -780,7 +780,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     text: doc::PROGRAM,
                 },
                 blue_lang_runtime::inputs::Inputs::new(),
-                &blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),
+                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
                 None,
             )?;
             Ok(
@@ -800,7 +800,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     text: VERBS,
                 },
                 blue_lang_runtime::inputs::Inputs::new(),
-                &blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),
+                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
                 None,
             )?;
             Ok(
@@ -1226,9 +1226,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Lsp => {
             let stdin = std::io::stdin();
             let stdout = std::io::stdout();
-            // The editor sees the distribution `blue check` does: BLUE_PATH.
-            blue_lang_lsp::Server::with_loader(Box::new(
-                blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),
+            blue_lang_lsp::Server::with_scopes(Box::new(
+                blue_lang_pkg::load_path::Environment::from_env(),
             ))
             .serve(stdin.lock(), stdout.lock())
             .map_err(|source| CliError::Write {
@@ -1314,6 +1313,48 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             src = blue_lang_pkg::canonical::read_layout(file)?;
             checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
             project = project_pass(&checked);
+        }
+    }
+    if fix
+        && checked
+            .outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.code == blue_lang_check::Code::B0019)
+    {
+        if let Some(dir) = file
+            .parent()
+            .filter(|_| blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some())
+        {
+            let dir = if dir.as_os_str().is_empty() {
+                Path::new(".")
+            } else {
+                dir
+            };
+            if let Some(r) = blue_lang_pkg::needs::reconcile(dir, &loader).map_err(CliError::Pkg)? {
+                let bluefile = dir.join(blue_lang_pkg::MANIFEST_FILE);
+                std::fs::write(&bluefile, &r.bluefile).map_err(|source| CliError::Write {
+                    path: bluefile.display().to_string(),
+                    source,
+                })?;
+                let lock = blue_lang_pkg::lock::lock(&r.bluefile, &prefetch::NixPrefetch)?;
+                let lock_path = dir.join(LOCK_FILE);
+                std::fs::write(&lock_path, blue_lang_pkg::lock::render(&lock)?).map_err(
+                    |source| CliError::Write {
+                        path: lock_path.display().to_string(),
+                        source,
+                    },
+                )?;
+                eprintln!(
+                    "blue: {}: needs added {:?}, removed {:?}; relocked {}",
+                    bluefile.display(),
+                    r.added,
+                    r.removed,
+                    lock_path.display()
+                );
+                checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
+                project = project_pass(&checked);
+            }
         }
     }
     if fix {

@@ -255,7 +255,7 @@ rec {
       "mkBluePath needs symlinkJoin; pass the full pkgs set";
     symlinkJoin { inherit name; paths = lib.attrValues bidamas; };
 
-  # `blue`, with a `BLUE_PATH` baked in.
+  # `blue`, with the distribution baked in as `BLUE_DIST`.
   #
   # The reason to wrap rather than document an export: an operator who has to
   # set an environment variable to make imports work will one day not set it,
@@ -263,24 +263,28 @@ rec {
   # rather than a missing variable. A wrapper makes the working configuration
   # the only one that ships.
   #
-  # `--suffix`, not `--prefix` or `--set`: the loader searches BLUE_PATH left
-  # to right and the first match wins, so appending puts a caller's own roots
-  # FIRST and these pinned ones after. A local checkout stays overridable,
-  # which is the difference between a default and a cage. Until 2026-09-23
-  # this said `--prefix` and claimed the same thing; it was false — a prefixed
-  # distribution shadows every same-named package a caller supplies (measured:
-  # a checkout's newer `ran` resolved to the pinned older one). mkOverrideCheck
-  # below is the gate that caught it.
+  # The distribution goes on `BLUE_DIST`, not `BLUE_PATH`: BLUE_PATH is the
+  # caller's override, BLUE_DIST the installed distribution, and the loader
+  # searches the file's project before either (`blue_lang_pkg::load_path`).
+  # Until 2026-10-23 this suffixed BLUE_PATH, and a pin older than the
+  # repository an editor had open answered "no bidama named" for a package the
+  # repository defines. `--suffix`, so a caller's own BLUE_DIST roots still
+  # come first. mkOverrideCheck and mkProjectFirstCheck below are the gates.
   #
   # `bin` names the executable (a project's runner is its own name, so it can
   # sit on a PATH beside `blue`), and `tools` are appended to PATH — appended,
-  # like BLUE_PATH, so a node's own copy of a tool wins over the pinned one.
+  # so a node's own copy of a tool wins over the pinned one.
   mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas", bin ? "blue", tools ? [ ] }:
     assert wrapperGiven "mkBlueWithBidamas";
-    runCommand name { nativeBuildInputs = [ wrapper.pkg ]; meta.mainProgram = bin; } ''
+    let distribution = mkBluePath { inherit bidamas; }; in
+    runCommand name {
+      nativeBuildInputs = [ wrapper.pkg ];
+      meta.mainProgram = bin;
+      passthru = { inherit blue distribution; };
+    } ''
       mkdir -p $out/bin
       ${wrapper.fn} ${blue}/bin/blue $out/bin/${bin} ${lib.concatStringsSep " " (
-        [ ''--suffix BLUE_PATH : "${mkBluePath { inherit bidamas; }}"'' ]
+        [ ''--suffix BLUE_DIST : "${distribution}"'' ]
         ++ lib.optional (tools != [ ]) ''--suffix PATH : "${lib.makeBinPath tools}"''
       )}
     '';
@@ -300,6 +304,23 @@ rec {
         echo "negative control passed: the distribution's retsu defines the marker"; exit 1
       fi
       BLUE_PATH=$PWD/override MARK=$out ${wrapped}/bin/blue run prog.b
+      test "$(cat $out)" = 42
+    '';
+
+  # Proves the installed distribution never shadows the project a file sits
+  # in: a project whose own `retsu` defines a marker the pinned retsu lacks
+  # runs it through the wrapper, under BLUE_PATH holding a stale retsu too.
+  mkProjectFirstCheck = { blue, bidamas, name ? "blue-project-first" }:
+    let wrapped = mkBlueWithBidamas { inherit blue bidamas; }; in
+    runCommand name { } ''
+      mkdir -p proj/pkgs/retsu stale/retsu
+      printf 'package("pf-proj", "0.1.0")\npackages("pkgs")\n' > proj/Bluefile
+      printf 'package("retsu", "0.1.0")\n' > proj/pkgs/retsu/Bluefile
+      printf 'def precedence_marker()\n  42\nend\n' > proj/pkgs/retsu/retsu.b
+      printf 'use("retsu", [:precedence_marker])\nwrite_file(getenv("MARK", "mark"), to_s(precedence_marker()))\n' > proj/prog.b
+      printf 'package("retsu", "0.1.0")\n' > stale/retsu/Bluefile
+      printf 'def stale()\n  0\nend\n' > stale/retsu/retsu.b
+      BLUE_PATH=$PWD/stale MARK=$out ${wrapped}/bin/blue run proj/prog.b
       test "$(cat $out)" = 42
     '';
 

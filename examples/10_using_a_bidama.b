@@ -5,8 +5,8 @@
 # examples/10_using_a_bidama.b` finds kazoe there with no BLUE_PATH, and the
 # standard bidamas kazoe uses come compiled into blue. Under nix the same
 # declaration builds kazoe, runs its tests, gates its names against the whole
-# public distribution, and puts it on BLUE_PATH for this file. BLUE_PATH is
-# searched first, so a checkout on it overrides either.
+# public distribution, and puts it on BLUE_PATH for this file. The project's
+# own packages are searched first, so no installed copy shadows them.
 use("kazoe", [:kz_counts])
 use("retsu", [:first])
 

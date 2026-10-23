@@ -245,12 +245,12 @@ impl Engine {
         let imports = a.imports();
         let own = a.own_namespace();
         let mut out = Vec::new();
-        for pkg in self.available() {
+        for pkg in self.available(&a.scope) {
             if own == Namespace::Bidama(pkg.clone()) {
                 continue;
             }
             let import = imports.iter().find(|i| i.package == pkg);
-            let Ok(package) = self.package(&pkg) else {
+            let Ok(package) = self.package(&a.scope, &pkg) else {
                 continue;
             };
             for (_, text) in &package.files {
@@ -311,7 +311,7 @@ impl Engine {
             }
             return;
         }
-        let Ok(package) = self.package(pkg) else {
+        let Ok(package) = self.package(&current.scope, pkg) else {
             return;
         };
         let a = base.or(good).unwrap_or(current);

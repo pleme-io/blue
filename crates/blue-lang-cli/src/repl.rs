@@ -53,9 +53,9 @@ impl SessionArgs {
                 }
             }
         }
-        let mut config = Config::new(Box::new(
-            blue_lang_pkg::load_path::LoadPath::from_env().with_standard(),
-        ));
+        let mut config = Config::new(Box::new(blue_lang_pkg::load_path::LoadPath::for_dir(
+            &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        )));
         config.frame = frame_granting(&granted);
         config.budget = self.budget;
         Ok(config)

@@ -59,4 +59,4 @@ sys = []
 # Cargo DROPS a path-only dev-dependency when packaging, so the cycle exists
 # for local `cargo test` (where it is legal and useful — the tests need the
 # real filesystem loader) and does not exist in the published manifest.
-blue-lang-pkg = { path = "../blue-lang-pkg" }
+blue-lang-pkg = { path = "../blue-lang-pkg", features = ["fixture"] }

@@ -34,9 +34,12 @@ with `packages("bidamas")`, its lock, the stub `flake.nix`, the code and tests
 in `bidamas/NAME/NAME.b`, and `main.b` calling it. `blue new --bidama NAME`
 writes a package alone, inside a distribution's directory.
 
-`use("pkg")` looks in order: the roots on `BLUE_PATH`, then the `packages`
-roots of the project the file sits in (the nearest Bluefile above it that
-declares them), then the distribution compiled into `blue`. First match wins.
+`use("pkg")` looks in order: the `packages` roots of the project the file
+sits in (the nearest Bluefile above it that declares them), then the roots on
+`BLUE_PATH` (your override), then `BLUE_DIST` (the installed distribution the
+fleet's `blue` wrapper sets), then the distribution compiled into `blue`. The
+project always wins; outside it, a copy whose version is outside the range the
+file's `Bluefile.lock` records is skipped and named, never chosen.
 
 ## Commands
 

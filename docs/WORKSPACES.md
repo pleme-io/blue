@@ -41,7 +41,7 @@ no crates, and its lock and versions are per member.
 | `bidama(...)` as a Bluefile word | ABSENT. A bidama is a directory, not a word | `bluefile.rs:423` |
 | `workspace(...)`, a member list, member globs | ABSENT | `bluefile.rs:423` |
 | Sibling resolution | by layout. Walking up from a file, a bidama's Bluefile adds its parent dir, a project's adds its `packages` roots and stops | `crates/blue-lang-pkg/src/load_path.rs:183-210` |
-| Resolution order | `BLUE_PATH`, then project roots, then the compiled-in standard. First match wins, so `BLUE_PATH` shadows a project package | `load_path.rs:33-48` |
+| Resolution order | project roots, then `BLUE_PATH`, then `BLUE_DIST`, then the compiled-in standard. The project always wins; outside it, a copy outside the lock's range is skipped and named (2026-10-23) | `load_path.rs`, `Environment::load_path`, `LoadPath::select` |
 | Version choice | not in the loader; nix picks the version when it builds a root | `load_path.rs:50-59` |
 | Version solver | SHIPPED, backtracking with conflict chains; `checks.bidama-deps-resolve` | `src/solve.rs:1-27`, `bidamas/mk-bidama.nix:551` |
 | Lock | one `Bluefile.lock` per Bluefile: the project's, and one per member bidama. `bidama-locks-fresh` checks every member lock | `src/lock.rs:24-29`, `mk-bidama.nix:610`, `project.nix:419` |
@@ -196,8 +196,8 @@ flowchart TD
   STD -- no --> R2[refused: unknown package, names the roots searched]
 ```
 
-Member-first is the change. Today `BLUE_PATH` wins over a project package
-(`load_path.rs:33-48`). In a workspace a member is source in this tree. An
+Member-first shipped for every project on 2026-10-23: project roots are
+searched before `BLUE_PATH` (`LoadPath::select`). In a workspace a member is source in this tree. An
 override of it from outside is a second copy, and a second copy that silently
 wins is the bad state. The old order stays for a `packages(dir)` project that
 declares no `workspace`.
@@ -353,7 +353,7 @@ one file becomes a member, not a longer file.
 | How members are declared | explicit globs in one `workspace(...)` entry | **Discovery by layout alone** (any dir with a manifest): a stray directory silently becomes a member, and deleting one is a silent change of kind. This is the argument `BLUE-STRUCTURE.md` §3.4 makes for declared `library()`. **One entry per member**: a second list to keep in step with the tree. Globs are what `packages(dir)` already means, so the old form is sugar, not a second mechanism |
 | One lock or one per member | one root lock; per-member locks only rendered at publish | **Per-member locks** (today): N files that can disagree about one shared need, and N freshness checks for one fact. Cargo learned this; we take it |
 | Sibling resolution | by name, member-first, no range | **Path deps in `needs`**: the workspace already knows the path; writing it twice drifts. **Version ranges between siblings**: siblings move together at one version, so a range can only be wrong |
-| `BLUE_PATH` over a member | refused | **First match wins** (today): a checkout on `BLUE_PATH` silently replaces code that is in this tree. It stays for distribution packages and for plain `packages(dir)` projects |
+| `BLUE_PATH` over a member | the project wins | **First match wins** (before 2026-10-23): a checkout on `BLUE_PATH` silently replaced code that is in this tree. `BLUE_PATH` still overrides distribution packages |
 | Who owns crate membership | Cargo reads `Cargo.toml`; the Bluefile is the source, and W8 renders the `[workspace]` table | **Blue wraps cargo**: a second build tool around cargo. **Cargo stays the only source**: then the Bluefile is not the source of the workspace, against blue-is-the-source |
 | The host embed | one function in `blue-lang-host`, fed a root by nix | **`include_str!` per file** (kensa today): one hand list per host. **A proc macro over paths**: cannot see a nix store root |
 | Nested projects (`blue/native`) | stay separate workspaces | **Members of the outer one**: two roots would claim one directory |

@@ -49,3 +49,5 @@ shikumi = { version = "0.1", features = ["cli"] }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[dev-dependencies]
+blue-lang-pkg = { path = "../blue-lang-pkg", features = ["embedded", "fixture"] }

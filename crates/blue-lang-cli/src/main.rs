@@ -80,6 +80,7 @@ mod repl;
 mod replay;
 mod scaffold;
 mod script;
+mod sigint;
 mod watch;
 
 use std::path::{Path, PathBuf};
@@ -611,6 +612,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             format,
             args,
         } => {
+            sigint::stop();
             let frame = if allow.is_empty() {
                 None
             } else {

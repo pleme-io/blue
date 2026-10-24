@@ -189,7 +189,7 @@ pub fn repl(args: &SessionArgs) -> Result<ExitCode, String> {
     config.live = Some(Box::new(Stdout));
     let mut session = Session::new(config);
     let flag = session.interrupt_flag();
-    sigint::install(&flag);
+    crate::sigint::interrupt(&flag);
     let interactive = std::io::stdin().is_terminal();
     let mut history = history();
     let mut context: Option<PathBuf> = None;
@@ -324,38 +324,6 @@ fn history() -> Option<std::fs::File> {
         .append(true)
         .open(dir.join("history"))
         .ok()
-}
-
-/// Ctrl-C sets the session's interrupt flag instead of ending the process.
-mod sigint {
-    #![deny(unsafe_code)]
-
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Arc, OnceLock};
-
-    static FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-
-    #[cfg(unix)]
-    extern "C" fn on_sigint(_: libc::c_int) {
-        if let Some(flag) = FLAG.get() {
-            flag.store(true, Ordering::SeqCst);
-        }
-    }
-
-    pub fn install(flag: &Arc<AtomicBool>) {
-        if FLAG.set(Arc::clone(flag)).is_err() {
-            return;
-        }
-        #[cfg(unix)]
-        // The one seam: registering a handler that only stores to an atomic.
-        #[allow(unsafe_code)]
-        unsafe {
-            libc::signal(
-                libc::SIGINT,
-                on_sigint as extern "C" fn(libc::c_int) as libc::sighandler_t,
-            );
-        }
-    }
 }
 
 #[cfg(test)]

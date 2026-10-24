@@ -71,7 +71,8 @@ document lands.
   `#[allow]`, `tests/seam.rs` the gate), `blue-lang-runtime`
   (`src/alloc.rs:114`, the counting `GlobalAlloc`), `blue-lang-wasm` (three
   `extern "C"` exports, `src/lib.rs:76,84,123`) and `blue-lang-cli`
-  (`src/repl.rs:340`, the SIGINT handler, under a module `deny`). No
+  (`src/sigint.rs`, the SIGINT handlers of `repl` and `run`, under a module
+  `deny`; an inherited ignore stays ignored). No
   workspace `[lints]` table exists. Only kiwari denies `unsafe_code` at its
   crate root, so 17 of 18 crates accept a new `unsafe` block silently.
 - **Absence.** Another agent writes `docs/ABSENCE.md` (an `Option` bidama and

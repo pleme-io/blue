@@ -1429,6 +1429,7 @@ struct Walker<'t> {
     call_tail: Option<usize>,
     respellings: Vec<(usize, crate::respell::Respelling)>,
     missing_uses: Vec<MissingUse>,
+    suggested: BTreeMap<(String, Vec<String>), Vec<Candidate>>,
 }
 
 /// Names the parser synthesizes. Never reported unused: the author did not
@@ -1514,7 +1515,24 @@ impl<'t> Walker<'t> {
             call_tail: None,
             respellings: Vec::new(),
             missing_uses: Vec::new(),
+            suggested: BTreeMap::new(),
         }
+    }
+
+    fn suggestions(&mut self, name: &str) -> Vec<Candidate> {
+        let locals: Vec<String> = self
+            .locals_in_scope()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let table = self.table;
+        self.suggested
+            .entry((name.to_string(), locals))
+            .or_insert_with_key(|(name, locals)| {
+                let locals: Vec<&str> = locals.iter().map(String::as_str).collect();
+                table.candidates(name, &locals, 3)
+            })
+            .clone()
     }
 
     /// Start top-level form `i`.
@@ -1902,8 +1920,7 @@ impl<'t> Walker<'t> {
             self.diagnostics.push(d);
             return;
         }
-        let locals = self.locals_in_scope();
-        let candidates = self.table.candidates(name, &locals, 3);
+        let candidates = self.suggestions(name);
         let mut d = Diagnostic::new(Code::B0001, format!("unbound name `{name}`"), span)
             .at_top_level(self.top_level);
         d = match candidates.as_slice() {

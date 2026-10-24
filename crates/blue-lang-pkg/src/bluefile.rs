@@ -900,7 +900,29 @@ fn parse_when(text: &str) -> Option<When> {
 }
 
 /// Read a Bluefile from blue source.
+///
+/// A manifest is a pure function of its text, so a process evaluates each
+/// distinct text once: a door that walks many files of one project (`fmt
+/// --check`, `check`, `run`'s formatter and pipeline) reads its Bluefile once.
 pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
+    static READ: std::sync::LazyLock<Mutex<std::collections::HashMap<String, Bluefile>>> =
+        std::sync::LazyLock::new(Mutex::default);
+    if let Some(hit) = READ.lock().ok().and_then(|m| m.get(src).cloned()) {
+        return Ok(hit);
+    }
+    let read = evaluate_bluefile(src)?;
+    if let Ok(mut m) = READ.lock() {
+        m.insert(src.to_string(), read.clone());
+    }
+    Ok(read)
+}
+
+thread_local! {
+    static EVALUATED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn evaluate_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
+    EVALUATED.with(|n| n.set(n.get() + 1));
     // The SPANNED door, because erasure runs on spans now. A manifest reports
     // no positions of its own, so nothing here spends them — but taking the
     // spanless door would mean lifting back to `Spanned` before evaluation,
@@ -916,7 +938,7 @@ pub fn read_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
         let own = blue_lang_check::Namespace::File("Bluefile".to_string());
         let mut table = blue_lang_check::NameTable::new();
         table.add_program(&forms, |_| own.clone());
-        for scope in blue_lang_runtime::pipeline::builtin_names(&interp).scopes() {
+        for scope in manifest_names(&interp).scopes() {
             table.push(scope.clone());
         }
         blue_lang_check::names::resolve_program(&forms, &table, &|_| own.clone())
@@ -1044,6 +1066,25 @@ fn check_project(project: &Project) -> Result<(), BluefileError> {
     Ok(())
 }
 
+/// The names a manifest resolves against: the interpreter's builtins and the
+/// manifest words, which are registered on a fork that `builtin_names` cannot
+/// see.
+fn manifest_names(interp: &Interpreter<()>) -> blue_lang_check::NameTable {
+    let mut table = blue_lang_runtime::pipeline::builtin_names(interp);
+    let mut scope = blue_lang_check::Scope::new(blue_lang_check::Namespace::Builtin);
+    for word in WORDS {
+        scope.bind(blue_lang_check::Binding {
+            name: word.name.to_string(),
+            kind: blue_lang_check::ScopeKind::Value,
+            span: None,
+            top_level: None,
+            nullary: false,
+        });
+    }
+    table.push(scope);
+    table
+}
+
 /// Bind every word in [`WORDS`] into the manifest interpreter.
 ///
 /// Registered with `Arity::Any` and checked here instead, against the word's
@@ -1091,6 +1132,30 @@ fn install_manifest_primitives(interp: &mut Interpreter<()>, collected: &Shared)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_bluefile_text_is_evaluated_once_per_process() {
+        let src = "package(\"read-once-probe\", \"0.1.0\")\n";
+        let before = EVALUATED.with(std::cell::Cell::get);
+        let first = read_bluefile(src).expect("reads");
+        let second = read_bluefile(src).expect("reads");
+        assert_eq!(first, second);
+        assert_eq!(EVALUATED.with(std::cell::Cell::get) - before, 1);
+    }
+
+    #[test]
+    fn every_manifest_word_resolves_without_a_suggestion_search() {
+        let collected: Shared = Arc::new(Mutex::new(Collected::default()));
+        let mut interp = blue_lang_runtime::interpreter_hostless();
+        install_manifest_primitives(&mut interp, &collected);
+        let table = manifest_names(&interp);
+        let unbound: Vec<&str> = WORDS
+            .iter()
+            .map(|w| w.name)
+            .filter(|n| !table.all().any(|(_, b)| b.name == *n))
+            .collect();
+        assert!(unbound.is_empty(), "unbound manifest words: {unbound:?}");
+    }
     use std::collections::BTreeSet;
 
     const SIMPLE: &str = "package(\"myapp\", \"0.1.0\")\nneeds(\"gaming\", \"^1.2\")";

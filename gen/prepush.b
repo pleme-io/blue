@@ -354,11 +354,12 @@ def regen(bin, root, dir)
   end
 end
 
-def pinned(root, installable)
+def pinned(root, installable, link)
   r = exec_capture(
     "nix",
     "build",
-    "--no-link",
+    "--out-link",
+    link,
     "--print-out-paths",
     "--inputs-from",
     root,
@@ -375,18 +376,11 @@ def tool_path(root, installable)
   dir = "#{store}/tools"
   mkdir_p(dir)
   lock = blue::trim(git(["rev-parse", "HEAD:flake.lock"]))
-  memo = "#{dir}/#{digest_hex(:sha256, "#{installable}\n#{lock}")}"
-  held = if path_exists(memo)
-    blue::trim(read_file(memo))
-  end
-  if not held.nil? and path_exists(held)
-    [:green, held]
+  link = "#{dir}/#{digest_hex(:sha256, "#{installable}\n#{lock}")}"
+  if path_exists("#{link}/bin")
+    [:green, link]
   else
-    r = pinned(root, installable)
-    if first(r) == :green
-      write_file(memo, "#{last(r)}\n")
-    end
-    r
+    pinned(root, installable, link)
   end
 end
 

@@ -392,14 +392,24 @@ hash of their index entries plus the tool that judges them, and a key that was
 green in this clone (`.git/blue-prepush/`) or in the fleet's sui cache (a
 content-addressed marker path, `BLUE_PREPUSH_SUI`, default `http://rio:5000`,
 `off` to stop asking; written when `BLUE_PREPUSH_SUI_KEY` names a signing key)
-is skipped. Prose (`*.md` at the root and under `docs/`) is no gate's input, so
-a docs-only push checks nothing. Numbers: `docs/COMPOUNDING.md`, R5 to R7. A
-project whose declared `tool` is not on PATH (`native`: `tatara-rust-emit`) is
-reported `➖`, never green. The hook first calls the global `core.hooksPath`
-hook of the same name, so the fleet's commit gates still run. Off:
-`BLUE_PREPUSH_OFF=1` (every gate), `BLUE_PREPUSH_SKIP=fmt,tests` (the gates
-named; the ids are `fmt`, `locks`, `regen`, `gen-pin`, `gen-tie`,
-`test-targets`, `tests`), `BLUE_PREPUSH_CACHE=off` (run every gate).
+is skipped. sui that does not answer `nix-cache-info` in 2 s is not asked
+again in that run, and every gate is judged locally. Prose (`*.md` at the root
+and under `docs/`) is no gate's input, so a docs-only push checks nothing. The
+gates that miss run in three lanes at once (`exec_all`): the quick lane (`fmt`,
+`locks`, `gen-pin`), the tree lane (every `regen`, `gen-tie`: they write the
+tree, so they run in turn) and the cargo lane (`test-targets`, `tests`). Each
+lane is the same program (`gen/prepush.b -- lane ...`) under a copy of the
+running blue, so a cargo build in one lane cannot replace the blue another lane
+runs. A pinned tool is a nix out-link in `.git/blue-prepush/tools/`, named by
+the installable and the `flake.lock` blob, so `nix store gc` cannot take it.
+Numbers: `docs/COMPOUNDING.md`, R5 to R9. A project whose declared `tool` is
+not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never green. The
+hook first calls the global `core.hooksPath` hook of the same name, so the
+fleet's commit gates still run. Off: `BLUE_PREPUSH_OFF=1` (every gate),
+`BLUE_PREPUSH_SKIP=fmt,tests` (the gates named; the ids are `fmt`, `locks`,
+`regen`, `gen-pin`, `gen-tie`, `test-targets`, `tests`),
+`BLUE_PREPUSH_CACHE=off` (run every gate), `BLUE_PREPUSH_PARALLEL=off` (one
+gate at a time).
 
 **A generated file never needs a human merge.** `.gitattributes` (itself
 generated from `Bluefile.lock` by `gen/gitattributes.b`) marks every

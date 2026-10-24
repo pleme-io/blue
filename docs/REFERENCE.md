@@ -149,11 +149,11 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `append` | `append(lists...)` | any | The lists joined, in order; nil counts as []. Copies, so growing a list one element at a time is quadratic. |
+| `append` | `append(lists...)` | any | The lists joined, in order; nil counts as []. Persistent: O(log n), sharing structure with the operands, and in place when the first list is held nowhere else (an accumulator in a tail call), so building a list one element at a time is linear. |
 | `butlast` | `butlast(xs)` | 1 | All but the last; raises on []. |
 | `car` | `car(xs)` | 1 | The first element. Prefer first. |
 | `cdr` | `cdr(xs)` | 1 | All but the first ([] for a one-element list); raises on []. Prefer rest. |
-| `cons` | `cons(x, xs)` | 2 | A new list with x in front. Copies xs. |
+| `cons` | `cons(x, xs)` | 2 | A new list with x in front. Shares xs rather than copying it, and is in place when xs is held nowhere else. |
 | `count` | `count(xs)` | 1 | The number of elements; 0 for nil. |
 | `distinct` | `distinct(xs)` | 1 | The elements with repeats removed, first occurrence kept, compared with ==. |
 | `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. |
@@ -186,7 +186,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `assoc` | `assoc(m, k, v)` | 3 | A new map with k set to v. Copies m; raises on nil. |
+| `assoc` | `assoc(m, k, v)` | 3 | A new map with k set to v; m is unchanged. Persistent: O(log n), and in place when m is held nowhere else (an accumulator in a tail call). Raises on nil. |
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |

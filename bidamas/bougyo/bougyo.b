@@ -378,7 +378,7 @@ test "a safe inbound request id is echoed and an unsafe one is replaced"
   long = h(
     get_req(
       "/",
-      [["x-request-id", blue::join(map((_) -> "a", range(0, 65)), "")]],
+      [["x-request-id", join(map((_) -> "a", range(0, 65)), "")]],
       ""
     )
   )

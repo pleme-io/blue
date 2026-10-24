@@ -1,3 +1,5 @@
+use("kyuuji", [:route_methods])
+
 use(
   "moji",
   [
@@ -17,7 +19,6 @@ use(
   ]
 )
 
-use("kyuuji", [:route_methods])
 use("retsu", [:all_but_last, :first, :is_empty, :last, :push, :rest])
 use("ronri", [:every])
 use("tesuto", [:raises?])

@@ -743,7 +743,9 @@ def main()
     []
   end
   guess = expected(timings, map(first, gates))
-  why = if get(chosen, :reason) != ""
+  why = if full
+    "BLUE_PREPUSH_FULL=1 runs every gate"
+  elsif get(chosen, :reason) != ""
     get(chosen, :reason)
   elsif paths == []
     "the push changes no path"

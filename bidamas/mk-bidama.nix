@@ -514,6 +514,7 @@ rec {
         assert is_empty(found) == true
       end
       EOF
+      ${blue}/bin/blue fmt --write gate.b
       BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue test gate.b
       touch $out
     '';

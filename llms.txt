@@ -12,6 +12,7 @@ Start with AGENTS.md, then copy the closest program in docs/EXAMPLES.md. REFEREN
 - [bidamas/CATALOG.md](bidamas/CATALOG.md): every bidama and each of its definitions
 - [bidamas/okite/RULES.md](bidamas/okite/RULES.md): where blue's semantics differ from Ruby's, each rule enforced by laws
 - [docs/SAFETY.md](docs/SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
+- [docs/TESTING.md](docs/TESTING.md): every kind of test and its one place beside what it tests, the hard block on untested definitions, and the Bluefile as the one pipeline the blue binary runs
 
 ## Optional
 

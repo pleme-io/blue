@@ -219,6 +219,11 @@ the file reads, and names without a prefix in a bidama (B0013/B0014) or a
 program (B0043). Tests go in the same
 file, named for the behaviour, with the empty input among the cases.
 
+Tests live beside what they test, and the Bluefile is the pipeline
+(`docs/TESTING.md`). A bidama definition no test reaches fails
+`checks.test-beside` beyond its package's recorded debt; waive one with
+`waive(name, why, until)` in `gen/test-beside.b`, never by deleting the gate.
+
 ## More
 
 - [`bidamas/AUTHORING.md`](bidamas/AUTHORING.md): writing and testing a

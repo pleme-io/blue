@@ -1,4 +1,10 @@
-use("moji", [:checked])
+@moduledoc """
+tesuto (テスト) — testing: errors and snapshots as assertions, and the policy that holds every definition to a test beside it.
+
+    uncovered({"uncovered" => []}) #=> []
+"""
+
+use("moji", [:checked, :trim])
 
 @doc """
 raises?: whether f raises that kind of error.
@@ -65,6 +71,145 @@ def caught(f)
   nil
 rescue e
   e
+end
+
+@doc """
+uncovered: The definitions no test reached, from one record of
+`blue test --coverage --json`. A record with no uncovered list is refused:
+absent coverage is not full coverage.
+
+    uncovered({"uncovered" => []}) #=> []
+"""
+def uncovered(coverage)
+  names = if map?(coverage)
+    get(coverage, "uncovered")
+  end
+  if not list?(names)
+    raise(:coverage, "a coverage record carries no uncovered list")
+  end
+  names
+end
+
+def levels()
+  [:off, :audit, :enforce]
+end
+
+@doc """
+level: A policy entry: definitions in `scope` (a package name, or "*" for every
+package) are held at `value`, one of `levels`.
+"""
+def level(scope, value, why)
+  {entry: :level, scope:, level: value, why:}
+end
+
+@doc """
+waive: A policy entry: the qualified definition `name` may go untested until the
+date `until` (YYYY-MM-DD), for the reason `why`.
+"""
+def waive(name, why, until)
+  {entry: :waive, name:, why:, until:}
+end
+
+def iso_date?(s)
+  cs = if string?(s)
+    chars(s)
+  else
+    []
+  end
+  length(cs) == 10 and nth(4, cs) == "-" and nth(7, cs) == "-"
+end
+
+def before?(a, b)
+  a != b and nth(0, sort_keyed((x) -> x, [a, b])) == a
+end
+
+@doc """
+entry_refusal: Why one policy entry is refused, or nil when it stands. `today` is passed
+in (YYYY-MM-DD); nil skips the expiry judgement.
+"""
+def entry_refusal(e, today)
+  kind = if map?(e)
+    get(e, :entry)
+  end
+  why = if map?(e)
+    get(e, :why)
+  end
+  if kind != :level and kind != :waive
+    "is not a level or a waive entry"
+  elsif not string?(why) or trim(why) == ""
+    "gives no why"
+  elsif kind == :level and not string?(get(e, :scope))
+    "names no scope"
+  elsif kind == :level and not member?(get(e, :level), levels)
+    "names a level that is not off, audit or enforce"
+  elsif kind == :waive and
+      not (string?(get(e, :name)) and contains?(get(e, :name), "::"))
+    "names no qualified definition"
+  elsif kind == :waive and not iso_date?(get(e, :until))
+    "gives no until date (YYYY-MM-DD)"
+  elsif kind == :waive and today != nil and before?(get(e, :until), today)
+    "expired on #{get(e, :until)}"
+  end
+end
+
+@doc """
+settle: Every entry judged alone: a refused entry is listed with its reason and
+takes no effect, and its siblings stand.
+"""
+def settle(entries, today)
+  judged = map((e) -> [e, entry_refusal(e, today)], entries)
+  kept = map((j) -> nth(0, j), filter((j) -> nth(1, j).nil?, judged))
+  {
+    levels: filter((e) -> get(e, :entry) == :level, kept),
+    waivers: filter((e) -> get(e, :entry) == :waive, kept),
+    refused: map(
+      (j) -> {entry: nth(0, j), why: nth(1, j)},
+      filter((j) -> nth(1, j) != nil, judged)
+    )
+  }
+end
+
+@doc """
+level_of: The level a package is held at: its own entry, else the "*" entry, else
+enforce. The last matching entry wins.
+
+    level_of(settle([], nil), "q") #=> :enforce
+"""
+def level_of(settled, package)
+  own = filter((e) -> get(e, :scope) == package, get(settled, :levels))
+  all = filter((e) -> get(e, :scope) == "*", get(settled, :levels))
+  if own != []
+    get(nth(length(own) - 1, own), :level)
+  elsif all != []
+    get(nth(length(all) - 1, all), :level)
+  else
+    :enforce
+  end
+end
+
+def waived?(settled, name)
+  member?(name, map((w) -> get(w, :name), get(settled, :waivers)))
+end
+
+@doc """
+beside: One package's judgement: its level, the untested names no waiver covers,
+and the names a waiver covers.
+"""
+def beside(settled, package, names)
+  {
+    package:,
+    level: level_of(settled, package),
+    untested: filter((n) -> not waived?(settled, n), names),
+    waived: filter((n) -> waived?(settled, n), names)
+  }
+end
+
+@doc """
+stale: Waivers that cover no untested name: a stale waiver would hide the next
+real gap, so it is a finding of its own.
+"""
+def stale(settled, names)
+  filter((w) -> not member?(get(w, :name), names), get(settled, :waivers))
 end
 
 test "raises? is true for the kind raised and false for no error"
@@ -146,4 +291,66 @@ end
 test "snapshot defaults its directory to snapshots"
   assert snapshot_path({name: "n"}) == "snapshots/n.b"
   assert snapshot_path({name: "n", dir: "d/e"}) == "d/e/n.b"
+end
+
+test "uncovered reads the names no test reached and refuses a record without them"
+  rec = {"covered" => 1, "uncovered" => ["p::b"], "total" => 2}
+  assert uncovered(rec) == ["p::b"]
+  assert uncovered({"uncovered" => []}) == []
+  assert raises?(:coverage, () -> uncovered({"covered" => 1}))
+  assert raises?(:coverage, () -> uncovered(nil))
+end
+
+test "settle keeps good entries and refuses each bad one alone"
+  s = settle(
+    [
+      level("*", :enforce, "on by default"),
+      level("p", :loud, "no such level"),
+      level("q", :audit, ""),
+      waive("p::b", "a process entry", "2026-12-31"),
+      waive("b", "unqualified", "2026-12-31"),
+      waive("p::c", "no date", "soon"),
+      waive("p::d", "old", "2026-01-01"),
+      {entry: :other, why: "x"}
+    ],
+    "2026-10-24"
+  )
+  assert map((e) -> get(e, :scope), get(s, :levels)) == ["*"]
+  assert map((e) -> get(e, :name), get(s, :waivers)) == ["p::b"]
+  assert map((r) -> get(r, :why), get(s, :refused)) ==
+    [
+      "names a level that is not off, audit or enforce",
+      "gives no why",
+      "names no qualified definition",
+      "gives no until date (YYYY-MM-DD)",
+      "expired on 2026-01-01",
+      "is not a level or a waive entry"
+    ]
+end
+
+test "a waiver due today still stands, and no today skips expiry"
+  assert entry_refusal(waive("p::b", "x", "2026-10-24"), "2026-10-24").nil?
+  assert entry_refusal(waive("p::b", "x", "2020-01-01"), nil).nil?
+end
+
+test "a package's own level wins over the star, and enforce is the default"
+  s = settle([level("*", :audit, "all"), level("p", :off, "p is off")], nil)
+  assert level_of(s, "p") == :off
+  assert level_of(s, "q") == :audit
+  assert level_of(settle([], nil), "q") == :enforce
+end
+
+test "beside splits untested names from waived ones, and stale finds idle waivers"
+  s = settle(
+    [
+      waive("p::b", "a reason", "2027-01-01"),
+      waive("p::z", "gone", "2027-01-01")
+    ],
+    "2026-10-24"
+  )
+  r = beside(s, "p", ["p::a", "p::b"])
+  assert get(r, :level) == :enforce
+  assert get(r, :untested) == ["p::a"]
+  assert get(r, :waived) == ["p::b"]
+  assert map((w) -> get(w, :name), stale(s, ["p::a", "p::b"])) == ["p::z"]
 end

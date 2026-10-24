@@ -1,2 +1,2 @@
-package("tesuto", "0.1.0")
+package("tesuto", "0.1.1")
 needs("moji", "^0.1")

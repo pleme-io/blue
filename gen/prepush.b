@@ -249,6 +249,14 @@ gates = append(
     ["Cargo.gen.lock tied", () -> gen_tie],
     ["every member's test targets compile alone", () -> test_targets],
     [
+      "tests beside every bidama definition",
+      fn()
+        verdict(
+          exec_capture("#{bin}/blue", "test", "#{root}/gen/test-beside.b")
+        )
+      end
+    ],
+    [
       "registry_graph, check_corpus, distribution, verb_graph",
       fn()
         verdict(

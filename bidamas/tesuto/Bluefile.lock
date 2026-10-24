@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:9533f84ce252037f1ebce553fe99465ecff308597a6b978fea6595fc0112277b",
+  "bluefile_b3": "b3:ab446112b91fd8855dd8376b093a31354501634d4fa35329708dc292cc82b919",
   "manifest": {
     "schema": 1,
     "name": "tesuto",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "moji": "^0.1.0"
     },

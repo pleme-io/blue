@@ -359,3 +359,29 @@ fn an_own_list_does_not_capture_the_entrys_literal() {
     let src = "def list(x)\n  :defined\nend\n\n[1, 2]\n";
     assert_eq!(format!("{:?}", value(src, &Mem(&[]))), "[Int(1), Int(2)]");
 }
+
+#[test]
+fn a_loader_without_versions_keeps_a_flat_era_window_open_and_nothing_else() {
+    const P: &[(&str, &str)] = &[(
+        "era",
+        "legacy_names(\"0.1.0\", [:first])\n\ndef first(xs)\n  :era\nend\n\ndef last(xs)\n  :era\nend\n",
+    )];
+    let codes = |src: &str| -> Vec<String> {
+        check_entry(Entry::anonymous(src), &Mem(P), None, Checking::Program)
+            .expect("check")
+            .outcome
+            .diagnostics
+            .iter()
+            .map(|d| format!("{:?}", d.code))
+            .collect()
+    };
+    assert_eq!(codes("use(\"era\")\n\nfirst([1, 2])\n"), ["B0012"]);
+    assert_eq!(
+        codes("use(\"era\")\n\nlast([1, 2])\n"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        format!("{:?}", value("use(\"era\")\n\nlast([1, 2])\n", &Mem(P))),
+        "Int(2)"
+    );
+}

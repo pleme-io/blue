@@ -43,24 +43,27 @@ fn check(dist: &Path, file: &Path, extra: &[&str]) -> (i32, String) {
     )
 }
 
-fn lk(dist: &Path, version: &str) {
-    write(
-        &dist.join("lk/Bluefile"),
-        &format!("package(\"lk\", \"{version}\")\n"),
-    );
-    write(
-        &dist.join("lk/lk.b"),
-        "legacy_names(\"0.1.1\", \"lk\")\n\ndef hours()\n  1\nend\n",
-    );
+fn bidama(dist: &Path, name: &str, bluefile: &str, source: &str) {
+    write(&dist.join(name).join("Bluefile"), bluefile);
+    write(&dist.join(name).join(format!("{name}.b")), source);
     let out = blue(dist)
         .arg("lock")
-        .arg(dist.join("lk"))
+        .arg(dist.join(name))
         .output()
         .expect("lock");
     assert!(
         out.status.success(),
         "{}",
         String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn lk(dist: &Path, version: &str) {
+    bidama(
+        dist,
+        "lk",
+        &format!("package(\"lk\", \"{version}\")\n"),
+        "legacy_names(\"0.1.1\", \"lk\")\n\ndef hours()\n  1\nend\n",
     );
 }
 
@@ -115,31 +118,18 @@ fn the_bridge_warns_outside_refuses_inside_and_closes_at_the_next_minor() {
 }
 
 fn moved(dist: &Path, version: &str) {
-    write(&dist.join("hm/Bluefile"), "package(\"hm\", \"0.1.0\")\n");
-    write(
-        &dist.join("hm/hm.b"),
+    bidama(
+        dist,
+        "hm",
+        "package(\"hm\", \"0.1.0\")\n",
         "def hours()\n  1\nend\n\ndef minutes()\n  60\nend\n",
     );
-    write(
-        &dist.join("mv/Bluefile"),
+    bidama(
+        dist,
+        "mv",
         &format!("package(\"mv\", \"{version}\")\nneeds(\"hm\", \"^0.1\")\n"),
-    );
-    write(
-        &dist.join("mv/mv.b"),
         "use(\"hm\")\n\nlegacy_names(\"0.1.1\", \"mv\")\n\nlegacy_names(\"0.1.2\", [[\"hours\", \"hm::hours\"], [\"mins\", \"hm::minutes\"]])\n\ndef days()\n  hm::hours() * 24\nend\n",
     );
-    for p in ["hm", "mv"] {
-        let out = blue(dist)
-            .arg("lock")
-            .arg(dist.join(p))
-            .output()
-            .expect("lock");
-        assert!(
-            out.status.success(),
-            "{}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
 }
 
 /// **A moved definition keeps its old name as a bridge.** Bidama `mv` moved
@@ -299,4 +289,105 @@ fn a_retired_word_is_refused_and_fixed_with_its_new_arguments() {
             String::from_utf8_lossy(&out.stderr)
         );
     }
+}
+
+fn shadowing(dist: &Path, version: &str, declared: &str) {
+    bidama(
+        dist,
+        "sh",
+        &format!("package(\"sh\", \"{version}\")\n"),
+        &format!(
+            "{declared}def trim(s)\n  :sh\nend\n\ndef first(xs)\n  :sh\nend\n\ndef read(x)\n  :sh\nend\n\ndef inner(s)\n  [trim(s), first([s]), read(s)]\nend\n"
+        ),
+    );
+}
+
+fn run(dist: &Path, file: &Path) -> Vec<String> {
+    let out = blue(dist).arg("run").arg(file).output().expect("run");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
+#[test]
+fn a_bidama_definition_never_changes_an_importers_builtin_call() {
+    let root: PathBuf = std::env::temp_dir().join(format!("blue-shadow-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    shadowing(&dist, "0.1.0", "");
+    let caller = root.join("app/main.b");
+    write(
+        &caller,
+        "use(\"sh\")\n\nprint([trim(\"  a  \"), first([1, 2]), sh::inner(\"x\")])\nprint(read(42) rescue :dispatched)\n",
+    );
+    let (code, json) = check(&dist, &caller, &[]);
+    assert_eq!(code, 0, "{json}");
+    assert!(!json.contains("\"code\":\"B0012\""), "{json}");
+    assert_eq!(
+        run(&dist, &caller)[..2],
+        ["(\"a\" 1 (:sh :sh :sh))", ":dispatched"]
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_flat_era_name_keeps_the_implicit_reference_error_only_inside_its_window() {
+    let root: PathBuf = std::env::temp_dir().join(format!("blue-flat-era-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    let declared = "legacy_names(\"0.1.0\", [:first])\n\n";
+    shadowing(&dist, "0.1.0", declared);
+    let caller = root.join("app/main.b");
+    let text = "use(\"sh\")\n\nprint([trim(\"  a  \"), first([1, 2])])\n";
+    write(&caller, text);
+    let (code, json) = check(&dist, &caller, &[]);
+    assert_eq!(code, 1, "{json}");
+    assert_eq!(json.matches("\"code\":\"B0012\"").count(), 1, "{json}");
+    assert!(json.contains("`first` is bidama `sh`'s"), "{json}");
+    let (code, _) = check(&dist, &caller, &["--fix"]);
+    assert_eq!(code, 0);
+    assert_eq!(
+        std::fs::read_to_string(&caller).expect("read"),
+        "use(\"sh\")\n\nprint([trim(\"  a  \"), sh::first([1, 2])])\n"
+    );
+
+    write(&caller, text);
+    shadowing(&dist, "0.2.0", declared);
+    let (code, json) = check(&dist, &caller, &[]);
+    assert_eq!(code, 0, "{json}");
+    assert!(!json.contains("\"code\":\"B0012\""), "{json}");
+    assert_eq!(run(&dist, &caller)[..1], ["(\"a\" 1)"]);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_flat_era_entry_that_cannot_mean_one_thing_is_refused_alone() {
+    let root: PathBuf =
+        std::env::temp_dir().join(format!("blue-flat-era-bad-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    shadowing(&dist, "0.1.0", "");
+    let source = std::fs::read_to_string(dist.join("sh/sh.b")).expect("read");
+    write(
+        &dist.join("sh/sh.b"),
+        &format!("legacy_names(\"0.1.0\", [:first, :inner, :nope, :read, :first])\n\n{source}"),
+    );
+    let (code, json) = check(&dist, &dist.join("sh/sh.b"), &[]);
+    assert_eq!(code, 1, "{json}");
+    assert_eq!(json.matches("\"code\":\"B0022\"").count(), 4, "{json}");
+    assert!(json.contains("shares no builtin's name"), "{json}");
+    assert!(json.contains("defines no `nope`"), "{json}");
+    assert!(json.contains("`read` is a master verb"), "{json}");
+    assert!(json.contains("`:first` is listed twice"), "{json}");
+    let caller = root.join("app/main.b");
+    write(&caller, "use(\"sh\")\n\nprint(first([1, 2]))\n");
+    let (_, json) = check(&dist, &caller, &[]);
+    assert!(json.contains("`first` is bidama `sh`'s"), "{json}");
+    let _ = std::fs::remove_dir_all(&root);
 }

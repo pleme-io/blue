@@ -12,6 +12,8 @@ function in the distribution and none of the forks would be better.
 use("retsu", [:first, :is_empty, :push, :rest, :size, :without])
 use("ronri", [:any, :count_if, :every])
 
+legacy_names("0.1.0", [:frequencies, :group_by, :remove])
+
 def member(xs, v)
   any((x) -> x == v, xs)
 end

@@ -86,9 +86,7 @@ row(
   "modules.ns.builtin_not_replaced",
   "use(\"sp_over\")\nfirst([1, 2])",
   value("1"),
-  # B0012 refuses a bare name a used bidama defines while callers migrate
-  # from flat visibility; the destination is the builtin, once that closes.
-  pending("legacy-window")
+  pending("G16", "wasm")
 )
 
 row(

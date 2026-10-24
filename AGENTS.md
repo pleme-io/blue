@@ -165,7 +165,9 @@ Each one was checked against the runtime.
   qualified, `kueri::join(a, b)` after `use("kueri")`, or list it,
   `use("retsu", [:first, :size])`, then call `first(xs)` bare. Nothing else
   is visible: a name another bidama defines, reached bare without a list, is
-  an error (B0012), and `blue migrate FILE` adds the lists. A bare name is a
+  an error (B0012), and `blue migrate FILE` adds the lists. When that name is
+  also a builtin, the builtin answers; B0012 then fires only for the
+  flat-era names a bidama lists in `legacy_names` (docs/NAMESPACES.md). A bare name is a
   local, else your bidama's own definition, else a listed one, else a
   builtin; `blue::first` names the builtin past a same-named definition. A
   listed name can replace a builtin for your file only: kazu's `max(a, b)`

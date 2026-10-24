@@ -389,13 +389,18 @@ is checked against the interpreter's own names.",
         waivable: false,
         ratchet: 0,
         explanation: "\
-Today every definition of every loaded bidama lands in one global
-environment, so a bare `first` reaches retsu's `first` from any file that
-something loaded retsu into, including through a dependency's dependency.
-Per-bidama namespaces bind a bare name to the file's own definitions, then
-the names its `use` forms list, then builtins, so that same `first` would
-quietly become the builtin. This rule finds every such reference before
-that can happen.
+Each bidama is a namespace: a bare name binds to the file's own
+definitions, then the names its `use` forms list, then builtins. Under the
+flat runtime before 2026-09-29, a bare `first` reached retsu's `first` from
+any file that something loaded retsu into. This rule finds the references
+whose meaning that change moves:
+
+- a bare name another bidama defines that binds to nothing here (it was
+  reached only through a load), always;
+- a bare name that binds to a builtin, only when the defining bidama lists
+  it as flat-era, `legacy_names(\"0.1.0\", [:first])`, and its version is
+  inside that window. A definition not listed never changes an importer's
+  bare call: the builtin answers, and nothing is refused.
 
 The fix writes `retsu::first` when the file already `use`s retsu. When it does
 not, and the file is a script, `blue check --fix` adds one `use(\"retsu\",

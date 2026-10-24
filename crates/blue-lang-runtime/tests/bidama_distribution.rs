@@ -33,7 +33,8 @@ fn bidama(name: &str) -> String {
 /// Run a bidama's source followed by an expression, and return the value's
 /// debug form.
 fn eval_with(name: &str, expr: &str) -> String {
-    let src = format!("{}\n{expr}", bidama(name));
+    bidama(name);
+    let src = format!("use(\"{name}\")\n{name}::{expr}");
     // Through a real LoadPath, not the default NoLoader: a bidama may `use`
     // another one, and running the distribution with imports disabled would
     // fail on exactly the dependency edge this distribution exists to have.
@@ -118,8 +119,8 @@ fn moji_counts_characters_not_bytes() {
     // The property blue's own stdlib exists to provide. A byte-length
     // implementation returns 3 for a CJK character and 4 for an emoji —
     // exactly the bug the UTF-8 crash in the LSP came from.
-    assert_eq!(eval_with("moji", "length(\"日本語\")"), "Int(3)");
-    assert_eq!(eval_with("moji", "length(\"🔥\")"), "Int(1)");
+    assert_eq!(eval_with("moji", "size(\"日本語\")"), "Int(3)");
+    assert_eq!(eval_with("moji", "size(\"🔥\")"), "Int(1)");
 }
 
 /// The cross-package call — the whole point of a distribution.

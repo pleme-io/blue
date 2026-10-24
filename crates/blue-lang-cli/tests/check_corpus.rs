@@ -92,21 +92,9 @@ fn the_check_stage_reports_no_error_on_the_corpus() {
     );
 }
 
-/// **Measured: which distribution definitions replace a builtin.** The
-/// runtime binds a name to the definition evaluated last, program-wide, so a
-/// bidama `def` whose name a builtin also binds replaces the builtin for
-/// every file of every program that imports it (`blue-lang-runtime`'s
-/// `tests/resolution_order.rs` pins the mechanism). This lists them, over the
-/// whole distribution (`zenbu`, the facade that needs every package), and
-/// pins the list, so a new one is a decision someone sees rather than a
-/// silent program-wide rebinding.
-///
-/// Definitions named like a MACRO or SPECIAL FORM are a separate, harsher
-/// case: the macro expands the definition's own signature, so it cannot be
-/// made at all. There are none, and the second assertion keeps it that way.
 #[test]
-fn distribution_definitions_that_replace_builtins_are_pinned() {
-    use blue_lang_check::names::ScopeKind;
+fn distribution_definitions_that_share_a_builtins_name_stay_in_their_bidama() {
+    use blue_lang_check::names::{ScopeKind, Target};
     use blue_lang_check::Namespace;
     let root = root();
     let loader = blue_lang_pkg::load_path::LoadPath::new([root.join("bidamas")]);
@@ -124,8 +112,11 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             )
         })
         .collect();
-    let mut replaces_value = Vec::new();
-    let mut replaces_head = Vec::new();
+    let entry = Namespace::File("<anonymous>".into());
+    let last = checked.program.forms().len() - 1;
+    let mut shared = Vec::new();
+    let mut heads = Vec::new();
+    let mut flat_era = Vec::new();
     for scope in table.scopes() {
         let Namespace::Bidama(pkg) = &scope.namespace else {
             continue;
@@ -135,44 +126,36 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
                 if let Some(builtin) = bs.get(&b.name) {
                     let row = format!("{pkg}.{}", b.name);
                     match builtin.kind {
-                        ScopeKind::Value => replaces_value.push(row),
-                        _ => replaces_head.push(row),
+                        ScopeKind::Value => shared.push((row, b.name.clone())),
+                        _ => heads.push(row),
+                    }
+                    if table.flat_era_open(pkg, &b.name) {
+                        flat_era.push(format!("{pkg}.{}", b.name));
                     }
                 }
             }
         }
     }
-    replaces_value.sort();
     assert_eq!(
-        replaces_head,
+        heads,
         Vec::<String>::new(),
         "a definition named like a macro or special form cannot be made"
     );
-    // Measured 2026-09-29: 17 definitions in 5 bidamas; `moji.trim` since 2026-10-23, whose one-argument call is the builtin's, so replacing it changes no program. retsu's are what
-    // AUTHORING.md calls its "total replacements" (`retsu.first` is nil on an
-    // empty list) — deliberate, and deliberately program-wide today.
-    // The ten master verbs (`read`, `need`, `has?`, `put`, `update`, `delete`, `create`, `diff`, `info`, `exists?`) since 2026-10-23: each space's definition is keyed `pkg/name`, the bare name is the dispatcher (STDLIB 3.7), so 24 rows join the list. `retsu.flat_map` and `shuugou.group_by` since 2026-10-23, when the prelude gained `flat_map(xs, f)` and `group_by(xs, f)` (STDLIB 3.6): retsu's is the same list, shuugou's keeps its pair-list result. `raifusaikuru.link` since 2026-10-10: the bidama's link predates the
-    // process word `link(pid)`, and a file that lists it gets the bidama's.
+    assert!(shared.len() >= 50, "only {} shared names", shared.len());
+    let escaped: Vec<String> = shared
+        .iter()
+        .filter(|(_, name)| table.ns_target(name, &entry, last) != Target::Builtin(name.clone()))
+        .map(|(row, _)| row.clone())
+        .collect();
     assert_eq!(
-        replaces_value,
+        escaped,
+        Vec::<String>::new(),
+        "a bidama definition reached an importer's bare name"
+    );
+    flat_era.sort();
+    assert_eq!(
+        flat_era,
         [
-            "anaritikusu.read",
-            "chokkan.read",
-            "danpen.compose",
-            "gitto.create",
-            "gitto.delete",
-            "gitto.diff",
-            "gitto.exists?",
-            "gitto.get",
-            "gitto.info",
-            "gitto.list",
-            "gitto.read",
-            "jisho.delete",
-            "jisho.empty?",
-            "jisho.has?",
-            "jisho.need",
-            "jisho.put",
-            "jisho.update",
             "kansuu.compose",
             "kansuu.flip",
             "kansuu.identity",
@@ -182,16 +165,6 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "kazu.abs",
             "kazu.max",
             "kazu.min",
-            "keisoku.put",
-            "keisoku.read",
-            "kueri.has?",
-            "kyasshu.read",
-            "moji.trim",
-            "moji.truncate",
-            "nikkusu.read",
-            "nisshi.read",
-            "raifusaikuru.link",
-            "raifusaikuru.put",
             "retsu.first",
             "retsu.flat_map",
             "retsu.interleave",
@@ -199,20 +172,11 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "retsu.partition",
             "retsu.rest",
             "retsu.zip",
-            "rogu.error",
-            "rogu.info",
-            "settei.has?",
-            "settei.need",
-            "settei.read",
             "shuugou.frequencies",
             "shuugou.group_by",
             "shuugou.remove",
-            "shuusei.delete",
-            "shuusei.put",
-            "tsuushin.join",
         ],
-        "a bidama definition that replaces a builtin program-wide was added or removed; \
-         update this list deliberately"
+        "the flat-era names are the definitions an importer reached bare before 2026-09-29; the list only shrinks"
     );
 }
 

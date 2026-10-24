@@ -9,6 +9,8 @@ caller build a transformation without naming an intermediate.
     identity(7) #=> 7
 """
 
+legacy_names("0.1.0", [:compose, :flip, :identity, :juxt, :pipe, :tap])
+
 @doc """
 identity: return the argument unchanged.
 

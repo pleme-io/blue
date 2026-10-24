@@ -125,6 +125,10 @@ pub const LEGACY_NAMES: &str = "legacy_names";
 /// - `legacy_names(since, [["old", "home::new"], …])`: definitions the
 ///   bidama MOVED to another bidama. `old` stays a bridge to `home::new`
 ///   over the same window, so a twin is moved, not copied.
+/// - `legacy_names(since, [:first, …])`: definitions that share a builtin's
+///   name and were reached bare under the flat runtime. Over the same window
+///   an importer's bare call of one is B0012; outside it, and for every
+///   definition not listed, the importer's bare name is the builtin.
 ///
 /// Like `use`, it is consumed by the resolver and evaluates to nothing; an
 /// expired ledger stays in the source, and powers the fix for a late caller.
@@ -142,6 +146,7 @@ pub enum LegacyKind {
     Prefix(String),
     /// Definitions moved out of the bidama, in source order.
     Moved(Vec<Moved>),
+    Flat(Vec<(String, Span)>),
 }
 
 /// One moved definition: `old` in the declaring bidama is `home::new` now.
@@ -160,8 +165,9 @@ pub struct Moved {
 }
 
 /// Is this form a `legacy_names` declaration? A version string, then a
-/// prefix string or a list of `[old, "home::new"]` string pairs (or
-/// `[old, "home::new", "args"]` retirements), or it is not
+/// prefix string, a list of `[old, "home::new"]` string pairs (or
+/// `[old, "home::new", "args"]` retirements), or a list of flat-era
+/// `:name` keywords, or it is not
 /// one (and `legacy_names` is then an unbound call).
 #[must_use]
 pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
@@ -179,8 +185,17 @@ pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
         SpannedForm::Atom(Atom::Str(x)) => Some(x.clone()),
         _ => None,
     };
+    let keyword_of = |s: &Spanned| match &s.form {
+        SpannedForm::Atom(Atom::Keyword(k)) => Some((k.clone(), s.span)),
+        _ => None,
+    };
     let kind = if let Some(prefix) = str_of(what) {
         LegacyKind::Prefix(prefix)
+    } else if let Some(flat) = list_items(what)
+        .filter(|items| !items.is_empty())
+        .and_then(|items| items.iter().map(keyword_of).collect::<Option<Vec<_>>>())
+    {
+        LegacyKind::Flat(flat)
     } else {
         let moves = list_items(what)?
             .iter()

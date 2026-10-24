@@ -334,6 +334,7 @@ pub struct NameTable {
     pkg_uses: BTreeMap<String, BTreeSet<String>>,
     /// Each bidama's declared legacy prefix (`legacy_names`).
     legacy_prefix: BTreeMap<String, String>,
+    flat_era: BTreeMap<String, BTreeMap<String, bool>>,
     /// Each file's path, and each bidama's distribution root: whether a
     /// reference is inside the distribution a bidama ships in (B0021).
     file_paths: BTreeMap<usize, String>,
@@ -501,6 +502,65 @@ impl NameTable {
         self.legacy_prefix.get(pkg).map(String::as_str)
     }
 
+    #[must_use]
+    pub fn flat_era_open(&self, pkg: &str, name: &str) -> bool {
+        self.flat_era
+            .get(pkg)
+            .and_then(|names| names.get(name))
+            .copied()
+            .unwrap_or(false)
+    }
+
+    fn apply_flat_era(
+        &mut self,
+        pkg: &str,
+        names: &[(String, Span)],
+        open: bool,
+        top_level: usize,
+    ) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        let refuse = |msg: String, span: Span| {
+            Diagnostic::new(Code::B0022, msg, span).at_top_level(top_level)
+        };
+        let mut era = BTreeMap::new();
+        for (name, span) in names {
+            let span = *span;
+            if era.contains_key(name) {
+                out.push(refuse(format!("`:{name}` is listed twice"), span));
+                continue;
+            }
+            if !self
+                .bidama(pkg)
+                .is_some_and(|s| s.bindings.contains_key(name))
+            {
+                out.push(refuse(
+                    format!(
+                        "bidama `{pkg}` defines no `{name}`, so no caller ever reached it bare"
+                    ),
+                    span,
+                ));
+                continue;
+            }
+            if !self.builtin(name) {
+                out.push(refuse(
+                    format!("`{pkg}::{name}` shares no builtin's name: an importer's bare `{name}` is unbound or listed, never a builtin"),
+                    span,
+                ));
+                continue;
+            }
+            if blue_lang_syntax::MASTER_VERBS.contains(&name.as_str()) {
+                out.push(refuse(
+                    format!("`{name}` is a master verb: an importer's bare `{name}` dispatches on its subject's space, so `{pkg}::{name}` is never its flat meaning"),
+                    span,
+                ));
+                continue;
+            }
+            era.insert(name.clone(), open);
+        }
+        self.flat_era.insert(pkg.to_string(), era);
+        out
+    }
+
     /// Read every `legacy_names` declaration in `forms` into aliases. A
     /// prefix declaration gives a bridge `prefix_x` for each definition `x`
     /// (open while the bidama's version is at least `since` and below the
@@ -531,9 +591,11 @@ impl NameTable {
                 out.push(bad("`legacy_names` declares a bidama's old names, and this file is not in a bidama".into()));
                 continue;
             };
+            let flat = matches!(decl.kind, scope::LegacyKind::Flat(_));
+            let measured = version_of(&pkg).as_deref().and_then(version);
             let (Some(since), Some(now)) = (
                 version(&decl.since),
-                version_of(&pkg).as_deref().and_then(version),
+                measured.or_else(|| flat.then(|| version(&decl.since)).flatten()),
             ) else {
                 out.push(bad(format!(
                     "`legacy_names(\"{}\", …)`: `since` must be a version `a.b.c`, and {pkg}'s Bluefile must state one",
@@ -550,6 +612,16 @@ impl NameTable {
             }
             let open = now < (since.0, since.1 + 1, 0);
             match &decl.kind {
+                scope::LegacyKind::Flat(names) => {
+                    if self.flat_era.contains_key(&pkg) {
+                        out.push(bad(format!(
+                            "bidama `{pkg}` declares its flat-era names twice"
+                        )));
+                        continue;
+                    }
+                    let found = self.apply_flat_era(&pkg, names, open, i);
+                    out.extend(found);
+                }
                 scope::LegacyKind::Moved(moves) => {
                     if !moved_by.insert(pkg.clone()) {
                         out.push(bad(format!(
@@ -1485,12 +1557,15 @@ impl<'t> Walker<'t> {
             // this file meant, and must not make its builtin call an error.
             let foreign = &Namespace::Bidama(owner.clone()) != &self.own
                 && self.table.use_closure(self.top_level).contains(owner);
-            if foreign
-                && blue_lang_syntax::qualified(name).is_none()
-                && !(blue_lang_syntax::MASTER_VERBS.contains(&name)
-                    && matches!(ns, Target::Builtin(_)))
-                && matches!(ns, Target::Builtin(_) | Target::Unbound)
-            {
+            let bridged = match &ns {
+                Target::Unbound => true,
+                Target::Builtin(_) => {
+                    !blue_lang_syntax::MASTER_VERBS.contains(&name)
+                        && self.table.flat_era_open(owner, n)
+                }
+                _ => false,
+            };
+            if foreign && blue_lang_syntax::qualified(name).is_none() && bridged {
                 let uses = self
                     .table
                     .imports_of(self.top_level)

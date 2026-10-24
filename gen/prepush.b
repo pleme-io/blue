@@ -1,6 +1,15 @@
 use("retsu", [:all_but_last, :enumerate, :first, :last, :reject])
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
+def gate_ids()
+  ["fmt", "locks", "regen", "gen-pin", "gen-tie", "test-targets", "tests"]
+end
+
+def refuse(text)
+  write_stderr("prepush: #{text}\n")
+  exit_with(2)
+end
+
 def off?()
   v = getenv("BLUE_PREPUSH_OFF")
   if v.nil?
@@ -8,10 +17,28 @@ def off?()
   elsif v == "1"
     true
   else
-    write_stderr(
-      "prepush: BLUE_PREPUSH_OFF is \"#{v}\"; the one value it takes is 1\n"
+    refuse("BLUE_PREPUSH_OFF is \"#{v}\"; the one value it takes is 1")
+  end
+end
+
+def skipped()
+  v = getenv("BLUE_PREPUSH_SKIP", "")
+  ids = reject((s) -> s == "", map((s) -> blue::trim(s), split(v, ",")))
+  bad = reject((s) -> member?(s, gate_ids), ids)
+  if bad != []
+    refuse(
+      "BLUE_PREPUSH_SKIP names #{join(bad, ", ")}; the gates are #{join(gate_ids, ", ")}"
     )
-    exit_with(2)
+  end
+  ids
+end
+
+def cache_on?()
+  v = getenv("BLUE_PREPUSH_CACHE", "on")
+  if member?(v, ["on", "off"])
+    v == "on"
+  else
+    refuse("BLUE_PREPUSH_CACHE is \"#{v}\"; it takes on or off")
   end
 end
 
@@ -44,18 +71,164 @@ def seconds(ms)
   "#{to_s(round(ms / 100) / 10)}s"
 end
 
-def run_gate(g, i, total)
-  step = "[#{to_s(i + 1)}/#{to_s(total)}] #{first(g)}"
-  write_stderr("⏳ #{step} …\n")
-  t = now_ms
-  f = last(g)
-  r = f()
-  mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
-  write_stderr("#{mark} #{step} (#{seconds(now_ms - t)})\n")
-  if first(r) != :green
-    write_stderr(last(r))
+def store()
+  "#{blue::trim(git(["rev-parse", "--path-format=absolute", "--git-common-dir"]))}/blue-prepush"
+end
+
+def wire()
+  have = lines_of(git(["config", "--local", "--get-all", "include.path"]))
+  if not member?("../.githooks/config", have)
+    git(["config", "--local", "--add", "include.path", "../.githooks/config"])
   end
-  [first(g), first(r)]
+end
+
+def source()
+  [".", ":(exclude,glob)*.md", ":(exclude,glob)docs/**/*.md"]
+end
+
+def key_of(id, groups, tools)
+  dirty = join(
+    map(
+      fn(g)
+        git(append(["status", "--porcelain", "--untracked-files=all", "--"], g))
+      end,
+      groups
+    ),
+    ""
+  )
+  if dirty != ""
+    nil
+  else
+    listing = join(
+      map((g) -> git(append(["ls-files", "-s", "--"], g)), groups),
+      ""
+    )
+    digest_hex(:sha256, "#{id}\n#{tools}\n#{listing}")
+  end
+end
+
+def ledger(id)
+  "#{store}/#{id}"
+end
+
+def local_green?(id, key)
+  path_exists(ledger(id)) and member?(key, lines_of(read_file(ledger(id))))
+end
+
+def sui_url()
+  getenv("BLUE_PREPUSH_SUI", "http://rio:5000")
+end
+
+def marker(id, key)
+  dir = "#{store}/markers/#{key}"
+  mkdir_p(dir)
+  write_file("#{dir}/blue-gate-#{id}", "#{key}\n")
+  r = exec_capture("nix", "store", "add-file", "#{dir}/blue-gate-#{id}")
+  if status_of(r) == 0
+    blue::trim(stdout_of(r))
+  end
+end
+
+def curl()
+  if path_exists("/usr/bin/curl")
+    "/usr/bin/curl"
+  else
+    "curl"
+  end
+end
+
+def fleet_green?(id, key)
+  if sui_url == "off"
+    false
+  else
+    path = marker(id, key)
+    if path.nil?
+      false
+    else
+      hash = first(split(path_basename(path), "-"))
+      r = exec_capture(
+        curl,
+        "-s",
+        "-o",
+        "/dev/null",
+        "-m",
+        "3",
+        "-w",
+        "%{http_code}",
+        "#{sui_url}/#{hash}.narinfo"
+      )
+      stdout_of(r) == "200"
+    end
+  end
+end
+
+def remember(id, key)
+  mkdir_p(store)
+  append_file(ledger(id), "#{key}\n")
+  signing = getenv("BLUE_PREPUSH_SUI_KEY")
+  if sui_url != "off" and not signing.nil?
+    path = marker(id, key)
+    if not path.nil?
+      pushed = exec_capture(
+        "sui",
+        "cache",
+        "push",
+        "--cache-url",
+        sui_url,
+        "--signing-key",
+        signing,
+        path
+      )
+      if status_of(pushed) != 0
+        write_stderr(
+          "prepush: sui did not take the green mark for #{id}; it stays local\n"
+        )
+      end
+    end
+  end
+end
+
+def run_gate(g, i, total, skip, cache)
+  id = first(g)
+  step = "[#{to_s(i + 1)}/#{to_s(total)}] #{nth(1, g)}"
+  if member?(id, skip)
+    write_stderr("➖ #{step} (off: BLUE_PREPUSH_SKIP names #{id})\n")
+    [nth(1, g), :off, :off]
+  else
+    t = now_ms
+    key = if cache
+      f = nth(2, g)
+      f()
+    end
+    where = if key.nil?
+      nil
+    elsif local_green?(id, key)
+      "this clone"
+    elsif fleet_green?(id, key)
+      "the fleet's cache"
+    end
+    if not where.nil?
+      if where != "this clone"
+        remember(id, key)
+      end
+      write_stderr(
+        "✅ #{step} (#{seconds(now_ms - t)}; green in #{where} for these inputs)\n"
+      )
+      [nth(1, g), :green, :cached]
+    else
+      write_stderr("⏳ #{step} …\n")
+      f = last(g)
+      r = f()
+      mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
+      write_stderr("#{mark} #{step} (#{seconds(now_ms - t)})\n")
+      if first(r) != :green
+        write_stderr(last(r))
+      elsif not key.nil?
+        remember(id, key)
+      end
+      [nth(1, g), first(r), :ran]
+    end
+  end
 end
 
 def manifest(dir)
@@ -68,6 +241,19 @@ def regenerates?(dir)
     (k) -> get(m, k) != nil,
     ["catalog", "generated", "workloads", "services"]
   )
+end
+
+def outputs(dir)
+  m = manifest(dir)
+  generated = map(
+    (e) -> path_join(dir, get(last(e), "output")),
+    map_entries(get(m, "generated") or {})
+  )
+  if get(m, "catalog").nil?
+    generated
+  else
+    append([path_join(dir, get(m, "catalog"))], generated)
+  end
 end
 
 def absent_tools(dir)
@@ -128,38 +314,64 @@ def regen(bin, root, dir)
   end
 end
 
-def gen_pin()
-  pin = exec_capture(
+def pinned(root, installable)
+  r = exec_capture(
     "nix",
-    "eval",
-    "--raw",
-    "github:pleme-io/substrate#genPin.version"
+    "build",
+    "--no-link",
+    "--print-out-paths",
+    "--inputs-from",
+    root,
+    installable
   )
-  if not exec_ok?("which", "gen")
-    [:blind, "gen is not on PATH\n"]
-  elsif status_of(pin) != 0
-    [:blind, "could not read substrate's gen pin:\n#{stderr_of(pin)}"]
+  if status_of(r) == 0
+    [:green, last(lines_of(stdout_of(r)))]
   else
-    installed = blue::trim(stdout_of(exec_capture("gen", "--version")))
-    if installed == "gen #{stdout_of(pin)}"
-      [:green, ""]
-    else
-      [
-        :red,
-        "#{installed} is installed; substrate pins gen #{stdout_of(pin)}. Run:\n  nix flake update substrate --flake ~/code/github/pleme-io/nix\n  nix run ~/code/github/pleme-io/nix#rebuild\n"
-      ]
-    end
+    [:blind, "could not build #{installable} from flake.lock:\n#{stderr_of(r)}"]
   end
 end
 
-def gen_tie()
-  if not exec_ok?("which", "gen")
-    [:blind, "gen is not on PATH\n"]
-  elsif status_of(exec_capture("gen", "confirm")) == 0
+def tool_path(root, installable)
+  dir = "#{store}/tools"
+  mkdir_p(dir)
+  lock = blue::trim(git(["rev-parse", "HEAD:flake.lock"]))
+  memo = "#{dir}/#{digest_hex(:sha256, "#{installable}\n#{lock}")}"
+  held = if path_exists(memo)
+    blue::trim(read_file(memo))
+  end
+  if not held.nil? and path_exists(held)
+    [:green, held]
+  else
+    r = pinned(root, installable)
+    if first(r) == :green
+      write_file(memo, "#{last(r)}\n")
+    end
+    r
+  end
+end
+
+def gen_pin(root)
+  r = tool_path(root, "substrate#gen")
+  if first(r) == :green
+    v = blue::trim(stdout_of(exec_capture("#{last(r)}/bin/gen", "--version")))
+    write_stderr("   #{v} from the substrate flake.lock pins, not PATH\n")
+    [:green, ""]
+  else
+    r
+  end
+end
+
+def gen_bin(root)
+  "#{last(tool_path(root, "substrate#gen"))}/bin/gen"
+end
+
+def gen_tie(root)
+  gen = gen_bin(root)
+  if status_of(exec_capture(gen, "confirm")) == 0
     [:green, ""]
   else
     was = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
-    built = exec_capture("gen", "build", ".")
+    built = exec_capture(gen, "build", ".")
     now = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
     if status_of(built) != 0
       [:red, stderr_of(built)]
@@ -172,10 +384,36 @@ def gen_tie()
   end
 end
 
+def fmt(root)
+  r = tool_path(root, "substrate#rustToolchain")
+  if first(r) != :green
+    r
+  else
+    verdict(
+      exec_with_env(
+        [["PATH", "#{last(r)}/bin:#{getenv("PATH")}"]],
+        "#{last(r)}/bin/cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      )
+    )
+  end
+end
+
+def toolchain()
+  "#{stdout_of(exec_capture("cargo", "--version"))}#{stdout_of(exec_capture("uname", "-sm"))}"
+end
+
 if off?
   write_stderr("prepush: off (BLUE_PREPUSH_OFF=1); nothing checked\n")
   exit_with(0)
 end
+
+skip = skipped
+cache = cache_on?
+wire
 
 root = blue::trim(git(["rev-parse", "--show-toplevel"]))
 dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
@@ -192,11 +430,27 @@ dirs = map(dir_of, lines_of(git(["ls-files", "*Bluefile.lock"])))
 gates = append(
   [
     [
+      "fmt",
       "cargo fmt",
-      () -> verdict(exec_capture("cargo", "fmt", "--all", "--", "--check"))
+      fn()
+        key_of(
+          "fmt",
+          [["*.rs", "*rustfmt.toml", "*Cargo.toml"]],
+          last(tool_path(root, "substrate#rustToolchain"))
+        )
+      end,
+      () -> fmt(root)
     ],
     [
+      "locks",
       "Bluefile.lock fresh",
+      fn()
+        key_of(
+          "locks",
+          [["*Bluefile", "*Bluefile.lock", "crates", "Cargo.lock"]],
+          ""
+        )
+      end,
       fn()
         verdict(
           exec_capture(
@@ -210,15 +464,45 @@ gates = append(
     ]
   ],
   map(
-    (d) -> ["regen #{d}", () -> regen(bin, root, d)],
+    fn(d)
+      groups = if d == "."
+        [source, outputs(d)]
+      else
+        [[d, "bidamas", "crates", "Cargo.lock", "gen/regen.b"]]
+      end
+      [
+        "regen",
+        "regen #{d}",
+        () -> key_of("regen #{d}", groups, ""),
+        () -> regen(bin, root, d)
+      ]
+    end,
     filter(regenerates?, dirs)
   ),
   [
-    ["gen is substrate's pin", () -> gen_pin],
-    ["Cargo.gen.lock tied", () -> gen_tie],
-    ["every member's test targets compile alone", () -> test_targets],
+    ["gen-pin", "gen is substrate's pin", () -> nil, () -> gen_pin(root)],
     [
+      "gen-tie",
+      "Cargo.gen.lock tied",
+      fn()
+        key_of(
+          "gen-tie",
+          [["Cargo.lock", "Cargo.gen.lock", "*Cargo.toml"]],
+          gen_bin(root)
+        )
+      end,
+      () -> gen_tie(root)
+    ],
+    [
+      "test-targets",
+      "every member's test targets compile alone",
+      () -> key_of("test-targets", [source], toolchain),
+      () -> test_targets
+    ],
+    [
+      "tests",
       "registry_graph, check_corpus, distribution, verb_graph",
+      () -> key_of("tests", [source], toolchain),
       fn()
         verdict(
           exec_capture(
@@ -248,15 +532,23 @@ gates = append(
 total = count(gates)
 
 write_stderr(
-  "prepush: #{to_s(total)} gates, a few minutes; ctrl-c stops it, BLUE_PREPUSH_OFF=1 git push skips it\n"
+  "prepush: #{to_s(total)} gates; a gate green before for the same inputs is skipped. BLUE_PREPUSH_OFF=1 skips all, BLUE_PREPUSH_SKIP=<ids> skips some, BLUE_PREPUSH_CACHE=off runs every one\n"
 )
 
 started = now_ms
-results = map((p) -> run_gate(last(p), first(p), total), enumerate(gates))
-red = map(first, filter((r) -> last(r) == :red, results))
+
+results = map(
+  (p) -> run_gate(last(p), first(p), total, skip, cache),
+  enumerate(gates)
+)
+
+red = map(first, filter((r) -> nth(1, r) == :red, results))
+cached = count(filter((r) -> last(r) == :cached, results))
 
 if red == []
-  write_stderr("🟢 prepush: no gate red (#{seconds(now_ms - started)})\n")
+  write_stderr(
+    "🟢 prepush: no gate red (#{seconds(now_ms - started)}; #{to_s(cached)} of #{to_s(total)} skipped as already green)\n"
+  )
 else
   write_stderr(
     "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push\n"

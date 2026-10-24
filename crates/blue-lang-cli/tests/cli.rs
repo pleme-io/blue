@@ -1305,7 +1305,7 @@ fn run_refuses_a_read_only_file_with_fixes_due_and_leaves_it_alone() {
     );
     assert!(
         stderr(&o).contains(&format!(
-            "{} has 1 fix(es) to apply before it compiles; run blue check --fix {}",
+            "{} has 1 fix(es) to apply before it compiles (B0023); run blue check --fix {}",
             f.display(),
             f.display()
         )),

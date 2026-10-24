@@ -489,7 +489,10 @@ pub(crate) fn read_checked(
         if applied.is_empty() {
             break;
         }
-        blue_lang_pkg::canonical::fix_in_place(path, &fixed, applied.len())?;
+        let mut codes: Vec<&str> = applied.iter().map(|f| f.code).collect();
+        codes.sort_unstable();
+        codes.dedup();
+        blue_lang_pkg::canonical::fix_in_place(path, &fixed, applied.len(), &codes.join(", "))?;
         reported.extend(applied);
         src = read_compiled(path)?;
         checked = check_entry(entry(path, &src), loader, None, Checking::WithTests)?;

@@ -389,6 +389,7 @@ pub fn apply_machine_fixes(
 /// it was found in is still at hand: as `--format json` writes it (with
 /// `"fixed": true`) and as text.
 pub struct Fixed {
+    pub code: &'static str,
     pub json: String,
     pub text: String,
 }
@@ -417,6 +418,7 @@ pub fn apply_canonical_fixes(
             let mut j = to_json(program, d, None);
             j.fixed = true;
             Ok(Fixed {
+                code: d.code.as_str(),
                 json: serde_json::to_string(&j)?,
                 text: format!(
                     "{} (fixed)",

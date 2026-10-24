@@ -319,7 +319,7 @@ rec {
   mkCatalog = { blue, bidamas, root ? null, name ? "bidama-catalog" }:
     let
       program = builtins.toFile "catalog.b" ''
-        use("mokuroku", [:blue_path_roots, :catalog_of, :render_markdown])
+        use("mokuroku", %i[blue_path_roots catalog_of render_markdown])
         roots = blue_path_roots(getenv("CATALOG_ROOTS", getenv("BLUE_PATH", "")))
         write_file(getenv("GEN_OUT", ""), render_markdown(catalog_of(roots)))
       '';
@@ -433,6 +433,12 @@ rec {
         mkdir -p $out/bin
         ${lib.optionalString (source != null) ''mkdir -p $out/share/blue && cp "$sourcePath" "${file}"''}
         ${wrapper.fn} ${blue}/bin/blue $out/bin/${name} ${lib.concatStringsSep " " flags}
+        # Admitted here, not at its first run: `blue run` refuses a store file
+        # that is not canonical (formatted, its canonical fixes applied) or
+        # does not check, and the store is read-only, so a program a new blue
+        # formats differently would build green and fail where it runs.
+        HOME=$TMPDIR BLUE_PATH="${mkBluePath { inherit bidamas; }}" \
+          ${blue}/bin/blue check ${file} > /dev/null
       '';
 
   # Fails when two packages define the same name.

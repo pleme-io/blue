@@ -69,7 +69,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -80,7 +80,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -746,7 +746,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1130,7 +1130,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1233,9 +1233,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.7"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a905b71c94364d84e4f99ec342405e3a878e51f3a9ae5c5ff2c29994024b39"
+checksum = "1b0b7489df8c353143c1d8e7e39a4745da8e664a2faeb03db1a2036e886411ea"
 
 [[package]]
 name = "notify"
@@ -1593,7 +1593,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1813,7 +1813,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1852,18 +1852,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.7"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6f46a7bbe9ca748566a3fad56189d5a3db9c124e8ffc6adca34d42e46db7d35"
+checksum = "b218856bd6451057eebc2abb1e01ca7f80ee2a9a13b87b47e3debfd0a6232bea"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.7"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4553fec4477cf6b6605b89d7900f42a1881befee87e39b2747bd0615629d09a0"
+checksum = "64b42b93bbb2b11bb63c159756739b0a98d7c241d40e38e9cf5e633ed6036e06"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1872,9 +1872,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.7"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "134531d1a8e1e49f8e8a081183fb99284bc542ff6008070eed4e33f5c3780933"
+checksum = "05a1714ef7c3da2a0c0a0aa893b8907fff268fb2556dc0bcce414a096a5a9f14"
 dependencies = [
  "blake3",
  "serde",
@@ -1886,9 +1886,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.7"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ddc49e00e3cfe029d7624b9c1b31a4d19c449468b8ca2ce2b7ef0278ee0432a"
+checksum = "ee03c93f9f06f62a3e346f0219b0e61ebeac24e59f06a1b2cc77418dd3490e42"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1897,9 +1897,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.7"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf0c25d3ea2c209419bb47f04a61d81f068158c98e4473dc7949329461c8336e"
+checksum = "144e5b1c89492eeb1b2f66a6506c49e799aa184f064367c36d108b63fb23fbd2"
 dependencies = [
  "imbl",
  "monosashi",
@@ -1919,7 +1919,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2208,7 +2208,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

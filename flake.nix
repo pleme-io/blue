@@ -215,6 +215,7 @@
       packageName = "blue-lang-cli";
       src = self;
       repo = "pleme-io/blue";
+      memberSource = "own";
 
       # `lld`, because a test needs it and the shell is where that belongs.
       #

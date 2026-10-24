@@ -1,4 +1,4 @@
-use("retsu", [:all_but_last, :first, :last, :reject])
+use("retsu", [:all_but_last, :enumerate, :first, :last, :reject])
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def off?()
@@ -40,10 +40,22 @@ def verdict(cap)
   end
 end
 
-def gate(name, f)
+def seconds(ms)
+  "#{to_s(round(ms / 100) / 10)}s"
+end
+
+def run_gate(g, i, total)
+  step = "[#{to_s(i + 1)}/#{to_s(total)}] #{first(g)}"
+  write_stderr("⏳ #{step} …\n")
   t = now_ms
+  f = last(g)
   r = f()
-  [name, first(r), now_ms - t, last(r)]
+  mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
+  write_stderr("#{mark} #{step} (#{seconds(now_ms - t)})\n")
+  if first(r) != :green
+    write_stderr(last(r))
+  end
+  [first(g), first(r)]
 end
 
 def manifest(dir)
@@ -160,14 +172,6 @@ def gen_tie()
   end
 end
 
-def report(r)
-  mark = get({green: "✅", red: "❌", blind: "➖"}, nth(1, r))
-  write_stderr("#{mark} #{nth(0, r)} (#{to_s(nth(2, r) / 1000)}s)\n")
-  if nth(1, r) != :green
-    write_stderr(nth(3, r))
-  end
-end
-
 if off?
   write_stderr("prepush: off (BLUE_PREPUSH_OFF=1); nothing checked\n")
   exit_with(0)
@@ -185,13 +189,13 @@ end
 bin = dir_of(self_exe)
 dirs = map(dir_of, lines_of(git(["ls-files", "*Bluefile.lock"])))
 
-results = append(
+gates = append(
   [
-    gate(
+    [
       "cargo fmt",
       () -> verdict(exec_capture("cargo", "fmt", "--all", "--", "--check"))
-    ),
-    gate(
+    ],
+    [
       "Bluefile.lock fresh",
       fn()
         verdict(
@@ -203,17 +207,17 @@ results = append(
           )
         )
       end
-    )
+    ]
   ],
   map(
-    (d) -> gate("regen #{d}", () -> regen(bin, root, d)),
+    (d) -> ["regen #{d}", () -> regen(bin, root, d)],
     filter(regenerates?, dirs)
   ),
   [
-    gate("gen is substrate's pin", () -> gen_pin),
-    gate("Cargo.gen.lock tied", () -> gen_tie),
-    gate("every member's test targets compile alone", () -> test_targets),
-    gate(
+    ["gen is substrate's pin", () -> gen_pin],
+    ["Cargo.gen.lock tied", () -> gen_tie],
+    ["every member's test targets compile alone", () -> test_targets],
+    [
       "registry_graph, check_corpus, distribution, verb_graph",
       fn()
         verdict(
@@ -237,18 +241,25 @@ results = append(
           )
         )
       end
-    )
+    ]
   ]
 )
 
-map(report, results)
-red = filter((r) -> nth(1, r) == :red, results)
+total = count(gates)
+
+write_stderr(
+  "prepush: #{to_s(total)} gates, a few minutes; ctrl-c stops it, BLUE_PREPUSH_OFF=1 git push skips it\n"
+)
+
+started = now_ms
+results = map((p) -> run_gate(last(p), first(p), total), enumerate(gates))
+red = map(first, filter((r) -> last(r) == :red, results))
 
 if red == []
-  write_stderr("🟢 prepush: no gate red\n")
+  write_stderr("🟢 prepush: no gate red (#{seconds(now_ms - started)})\n")
 else
   write_stderr(
-    "🔴 prepush: #{to_s(count(red))} red; fix it, or push with BLUE_PREPUSH_OFF=1\n"
+    "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push\n"
   )
   exit_with(1)
 end

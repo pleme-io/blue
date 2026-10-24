@@ -196,6 +196,19 @@ gates = append(
       () -> verdict(exec_capture("cargo", "fmt", "--all", "--", "--check"))
     ],
     [
+      "blue fmt, every .b as checks.blue-fmt reads it",
+      fn()
+        verdict(
+          exec_capture(
+            "#{bin}/blue",
+            "fmt",
+            "--check",
+            *lines_of(git(["ls-files", "*.b"]))
+          )
+        )
+      end
+    ],
+    [
       "Bluefile.lock fresh",
       fn()
         verdict(

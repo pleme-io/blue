@@ -658,6 +658,9 @@ fn cli_failure(stderr: &str) -> Obs {
 /// Whether `ev` observes rows of this kind at all (so a blind reading is the
 /// design, not a gap).
 pub fn observes(ev: Ev, row: &Row) -> bool {
+    if row.frontend.is_some() {
+        return ev == Ev::Static;
+    }
     match (&row.expect, ev) {
         (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm) => true,
         (Expect::Fails(..), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli) => true,

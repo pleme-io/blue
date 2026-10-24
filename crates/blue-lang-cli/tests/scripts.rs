@@ -118,13 +118,24 @@ fn a_shebang_script_runs_directly() {
         std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
     ))
     .unwrap();
-    let o = Command::new(&script)
-        .args(["x", "y"])
-        .env("PATH", path)
-        .env_remove("BLUE_PATH")
-        .env_remove("BLUE_CONFIG")
-        .env_remove("BLUE_TIER")
-        .output()
+    let run = || {
+        Command::new(&script)
+            .args(["x", "y"])
+            .env("PATH", &path)
+            .env_remove("BLUE_PATH")
+            .env_remove("BLUE_CONFIG")
+            .env_remove("BLUE_TIER")
+            .output()
+    };
+    let o = (0..50)
+        .find_map(|_| match run() {
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                None
+            }
+            r => Some(r),
+        })
+        .expect("the script stayed busy for a second")
         .expect("the OS runs the script");
     assert!(o.status.success(), "{}", err(&o));
     assert_eq!(out(&o), "2 10\n");

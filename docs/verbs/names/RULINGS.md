@@ -63,3 +63,8 @@ Verbs: one verb per meaning, so four plan words take the existing verb.
 - `persist` is `burauza::save`, which refines `kyasshu::save` (vocab `save`: write a held state to storage).
 
 New vocab rows: `fragment`, `settle`, `labels`, `island`, `hydrate`, `mount`, `install`. `mount` and `install` also give `kyuuji::mount`, `paketto?::install` and `ryuutsuu?::install` a contract, so the g2 baseline shrank by three (banked with `blue verbs check --record`).
+
+## Decided 2026-10-24: `kyuuji::match` is `kyuuji::resolve` (F2)
+
+- The plan named the wave 1 verb `match`. `match` is a tatara special form, and a special form is a `match` arm in no environment, so a bidama definition of that name can never be called. F2 shipped it as `kyuuji::resolve(app, req) -> route and params or nil`; the row is in `bidamas/mokuroku/graph/kyuuji.b`.
+- `resolve` takes a request to the route that answers it, and its params. There is no master verb `resolve` to refine, so the row stands alone.

@@ -41,11 +41,10 @@ witness and an autofix where one exists.
 
 ### F0 — Names, rows, contracts (gate for everything)
 
-- Naming sweep (`naming` skill) for: the GraphQL/requirement space (working
-  name `yokyuu?`), the browser-runtime space (working name `burauza?`), and
-  the web words added to `gamen?` (`fragment`, `island`, `hydrate`, `labels`).
-  Cache stays `kyasshu?`; promote it. Decided 2026-10-23: `danpen` (requirement
-  space), `burauza` (browser runtime), `kyasshu` promoted; `docs/verbs/names/RULINGS.md`.
+- Names, decided 2026-10-23 (`docs/verbs/names/RULINGS.md`): `danpen` is the
+  GraphQL document space, `burauza` the browser runtime, and `kyasshu` the
+  cache, promoted. The web words `fragment`, `island`, `hydrate` and `labels`
+  are added to `gamen?`.
 - Rows in `bidamas/mokuroku/graph/`, contracts in `docs/verbs/contracts.tsv`,
   `blue verbs check` rc 0, hadome baseline not grown.
 - Bluefile word `frontend(name, {views:, tokens:, schema:, pwa:})`: a `WORDS`
@@ -69,7 +68,7 @@ witness and an autofix where one exists.
 
 ### F2 — Server: kyuuji wave 1 and 2
 
-- `route`, `router`, `match`, `mount`, `header`, `redirect`, `guard`, `body`,
+- `route`, `router`, `resolve`, `mount`, `header`, `redirect`, `guard`, `body`,
   `recover`, `timeout`, then `stream`, `file`, `cors`, `upgrade`.
 - `serve` answers a view route with rendered HTML; `bougyo` sets CSP (no
   inline script, the hydrate module by hash) and the security headers.

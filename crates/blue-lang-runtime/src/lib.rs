@@ -137,31 +137,50 @@ pub fn attach_node<H: 'static>(interp: &mut Interpreter<H>) {
 /// the full runtime and a frame would be one `spawn` away from meaningless.
 pub fn attach_node_in_frame<H: 'static>(interp: &mut Interpreter<H>, frame: &blue_lang_waku::Waku) {
     let mut config = node_config();
-    let refused: Vec<(&'static str, &'static str)> = blue_lang_waku::Capability::host_effects()
-        .into_iter()
-        .filter(|cap| !frame.reach.grants(*cap))
-        .flat_map(|cap| cap.names().into_iter().map(move |n| (n, cap.label())))
-        .collect();
+    let refused = ungranted_host_names(frame);
     config.child = std::sync::Arc::new(move || {
         let mut child = child_interpreter();
-        for (name, label) in &refused {
-            if child.lookup_global(name).is_none() {
-                continue;
-            }
-            let name: &'static str = name;
-            let label: &'static str = label;
-            child.register_fn(name, tatara_lisp_eval::ffi::Arity::Any, move |_: &[tatara_lisp_eval::Value], _: &mut (), span| {
-                Err(tatara_lisp_eval::EvalError::native_fn(
-                    name,
-                    format!("refused: `{name}` reaches the host ({label}), which this process's frame does not grant"),
-                    span,
-                ))
-            });
-        }
+        refuse_host_names(&mut child, &refused, "this process's frame");
         child
     });
     dispatch::install(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
+}
+
+/// Every host name `frame` does not grant, with the label of its capability.
+#[must_use]
+pub fn ungranted_host_names(frame: &blue_lang_waku::Waku) -> Vec<(&'static str, &'static str)> {
+    blue_lang_waku::Capability::host_effects()
+        .into_iter()
+        .filter(|cap| !frame.reach.grants(*cap))
+        .flat_map(|cap| cap.names().into_iter().map(move |n| (n, cap.label())))
+        .collect()
+}
+
+/// Bind each of `refused` that `interp` defines to a refusal naming `who`.
+pub fn refuse_host_names<H: 'static>(
+    interp: &mut Interpreter<H>,
+    refused: &[(&'static str, &'static str)],
+    who: &'static str,
+) {
+    for &(name, label) in refused {
+        if interp.lookup_global(name).is_none() {
+            continue;
+        }
+        interp.register_fn(
+            name,
+            tatara_lisp_eval::ffi::Arity::Any,
+            move |_: &[tatara_lisp_eval::Value], _: &mut H, span| {
+                Err(tatara_lisp_eval::EvalError::native_fn(
+                    name,
+                    format!(
+                        "refused: `{name}` reaches the host ({label}), which {who} does not grant"
+                    ),
+                    span,
+                ))
+            },
+        );
+    }
 }
 
 /// The node every interpreter's processes run under: the execution bounds

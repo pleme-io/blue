@@ -179,6 +179,25 @@ pub fn run_in_surface(
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
 ) -> Result<Run, RunError> {
+    run_framed(entry, inputs, loader, surface, None)
+}
+
+/// [`run_in_surface`] held to `frame` when one is given: a host name the
+/// frame does not grant, written in the entry file, refuses the program
+/// before it runs, and one reached through a bidama or a spawned process is
+/// refused where it is called. `None` runs with every capability.
+///
+/// # Errors
+///
+/// As [`run_with_loader`], and [`RunError::Types`] naming each host name the
+/// entry file writes that `frame` does not grant.
+pub fn run_framed(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    frame: Option<&blue_lang_waku::Waku>,
+) -> Result<Run, RunError> {
     // The interpreter is built BEFORE the check stage, because it is the check
     // stage's name oracle: every builtin, macro and special form a program may
     // name is read off the interpreter that will run it, never off a list.
@@ -186,6 +205,15 @@ pub fn run_in_surface(
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, inputs);
     let prepared = prepare(entry, loader, surface, &builtin_names(&interp))?;
+    if let Some(frame) = frame {
+        let refused = crate::ungranted_host_names(frame);
+        let escapes = entry_escapes(&prepared.program, &refused);
+        if !escapes.is_empty() {
+            return Err(RunError::Types(escapes));
+        }
+        crate::refuse_host_names(&mut interp, &refused, "this run's --allow");
+        crate::attach_node_in_frame(&mut interp, frame);
+    }
     let mut value = eval_prepared(&mut interp, &prepared, &mut ())?;
     if let Some(v) = call_main(&mut interp, &prepared, &mut ())? {
         value = v;
@@ -196,6 +224,34 @@ pub fn run_in_surface(
         typed_decls: prepared.typed_decls,
         seams: prepared.seams,
     })
+}
+
+fn entry_escapes(
+    program: &crate::uses::ResolvedProgram,
+    refused: &[(&'static str, &'static str)],
+) -> Vec<String> {
+    use crate::uses::ResolvedProgram;
+    let forms: Vec<tatara_lisp::Spanned> = program
+        .forms()
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| program.owner_of(*i) == Some(ResolvedProgram::ENTRY))
+        .map(|(_, f)| f.clone())
+        .collect();
+    let label = |name: &str| refused.iter().find(|(n, _)| *n == name).map(|(_, l)| *l);
+    blue_lang_waku::free_names(&forms, &|name| label(name).is_none())
+        .into_iter()
+        .filter_map(|name| {
+            let cap = label(&name)?;
+            let at = program
+                .file(ResolvedProgram::ENTRY)
+                .and_then(|f| f.path.clone())
+                .map_or_else(|| "<entry>".to_string(), |p| p.display().to_string());
+            Some(format!(
+                "{at}: refused: `{name}` reaches the host ({cap}), which this run does not allow; pass --allow {cap} to grant it"
+            ))
+        })
+        .collect()
 }
 
 /// A run watched by a call observer, and the definitions the observer was

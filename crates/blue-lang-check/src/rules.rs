@@ -1079,6 +1079,29 @@ To comply, declare a fragment on the root type and let `danpen::compose` and
 `danpen::hash` produce the operation and its id. GraphQL text in danpen's own
 tests and in fixtures is not a view and is not reported.",
     }
+    B0053 {
+        slug: "discarded-value",
+        severity: Error,
+        fix: None,
+        law: "the value of a word that only returns a value is read: `assoc`, `append`, `to_s` and their kin are never a statement",
+        witness: "def put(m)\n  assoc(m, :a, 1)\n  m\nend\n",
+        waivable: true,
+        explanation: "\
+blue's values do not change. `assoc(m, :a, 1)` returns a new map and leaves
+`m` as it was, so a line that calls it and drops the result does nothing: the
+author meant `m = assoc(m, :a, 1)`, or the line is dead. Rust marks such
+functions `#[must_use]`; this is the same law for the first-order words that
+only return a value (`append`, `assoc`, `concat`, `cons`, `dissoc`,
+`distinct`, `downcase`, `drop`, `flatten`, `join`, `range`, `remove`,
+`replace`, `reverse`, `split`, `string`, `take`, `to_float`, `to_int`, `to_s`,
+`trim`, `upcase`, `zip`). `map`, `filter` and `reduce` are not in the list:
+the function they call may write, so dropping their value is not dead code.
+
+It fires on a statement that is not the last of its body. A name the file
+defines or lists in a `use` is that definition, not the builtin, and is not
+reported. Bind the value or return it. `# waive B0053: reason` keeps a line
+that is there only for the error it may raise. docs/SAFETY.md, row 2.",
+    }
 }
 
 impl Code {

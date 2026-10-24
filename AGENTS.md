@@ -29,6 +29,13 @@ are compiled into `blue`. Run this way a script prints only what it writes, and
 every argument after the file reaches `argv` as given. A subcommand wins over
 a file of the same name; `blue ./test` runs the file.
 
+**Safety first is the default posture.** A script states the host
+capabilities it needs in its shebang, `#!/usr/bin/env -S blue --allow
+filesystem`, and a name outside them is refused (`none`, `host`, or
+`process`, `filesystem`, `environment`, `clock`, `network`, `entropy`). Every
+Rust guarantee, the blue gate that matches it and its off switch:
+[`docs/SAFETY.md`](docs/SAFETY.md).
+
 When a script outgrows one file, `blue new NAME` starts a project: a Bluefile
 with `packages("bidamas")`, its lock, the stub `flake.nix`, the code and tests
 in `bidamas/NAME/NAME.b`, and `main.b` calling it. `blue new --bidama NAME`
@@ -46,7 +53,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | | |
 |---|---|
 | `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv` |
-| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; a runtime error prints the blue call stack, and `--format json` prints it as one object |
+| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; a runtime error prints the blue call stack, and `--format json` prints it as one object |
 | `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
 | `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones |

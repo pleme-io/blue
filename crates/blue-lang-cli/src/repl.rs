@@ -17,8 +17,9 @@ use blue_lang_waku::Capability;
 /// budget of a request that names none.
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct SessionArgs {
-    /// Let evaluation reach a host capability: `host` for all of them, or one
-    /// of `process`, `filesystem`, `environment`, `clock`, `network`.
+    /// Let evaluation reach a host capability: `host` for all of them, `none`
+    /// for none, or one of `process`, `filesystem`, `environment`, `clock`,
+    /// `network`, `entropy`.
     /// Repeatable. Without it, code that reaches the host is refused as
     /// volatile.
     #[arg(long = "allow", value_name = "CAPABILITY")]
@@ -30,29 +31,7 @@ pub struct SessionArgs {
 
 impl SessionArgs {
     fn config(&self) -> Result<Config, String> {
-        let mut granted = Vec::new();
-        for name in &self.allow {
-            if name == "host" {
-                granted.extend(Capability::host_effects());
-                continue;
-            }
-            match Capability::host_effects()
-                .into_iter()
-                .find(|c| c.label() == name)
-            {
-                Some(c) => granted.push(c),
-                None => {
-                    return Err(format!(
-                        "--allow {name}: the host capabilities are host, {}",
-                        Capability::host_effects()
-                            .iter()
-                            .map(|c| c.label())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ))
-                }
-            }
-        }
+        let granted = granted(&self.allow)?;
         let mut config = Config::new(Box::new(blue_lang_pkg::load_path::LoadPath::for_dir(
             &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
         )));
@@ -60,6 +39,38 @@ impl SessionArgs {
         config.budget = self.budget;
         Ok(config)
     }
+}
+
+/// The host capabilities `--allow` names: `host` for all, `none` for no
+/// host capability, or one label per flag.
+pub fn granted(allow: &[String]) -> Result<Vec<Capability>, String> {
+    let mut granted = Vec::new();
+    for name in allow {
+        if name == "host" {
+            granted.extend(Capability::host_effects());
+            continue;
+        }
+        if name == "none" {
+            continue;
+        }
+        match Capability::host_effects()
+            .into_iter()
+            .find(|c| c.label() == name)
+        {
+            Some(c) => granted.push(c),
+            None => {
+                return Err(format!(
+                    "--allow {name}: the host capabilities are host, none, {}",
+                    Capability::host_effects()
+                        .iter()
+                        .map(|c| c.label())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ))
+            }
+        }
+    }
+    Ok(granted)
 }
 
 /// `blue serve`.

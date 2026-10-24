@@ -116,6 +116,15 @@ enum Cmd {
         /// mismatch is refused — see `blue_lang_runtime::inputs`.
         #[arg(long = "input", value_name = "NAME=PATH")]
         inputs: Vec<String>,
+        /// Hold the run to these host capabilities: `none`, `host`, or one of
+        /// `process`, `filesystem`, `environment`, `clock`, `network`,
+        /// `entropy`. Repeatable. A host name the file writes outside them
+        /// refuses the program before it runs; one reached through a bidama
+        /// or a process is refused where it is called. Without the flag the
+        /// run has every capability. A script states it in its shebang:
+        /// `#!/usr/bin/env -S blue --allow filesystem`.
+        #[arg(long = "allow", value_name = "CAPABILITY")]
+        allow: Vec<String>,
         /// Do not print the program's final value. An installed command's
         /// output is what it writes (`write_stdout`), not the value its last
         /// expression happens to leave; `mkBlueApp` passes this, so a blue
@@ -581,10 +590,18 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Run {
             file,
             inputs,
+            allow,
             quiet,
             format,
             args,
         } => {
+            let frame = if allow.is_empty() {
+                None
+            } else {
+                Some(blue_lang_runtime::session::frame_granting(
+                    &repl::granted(&allow).map_err(CliError::Fmt)?,
+                ))
+            };
             blue_lang_runtime::sys::set_program_args(args);
             // The SURFACE the program is written in: BLUE_LANG wins, else the
             // host locale. An explicit choice must beat a detected one.
@@ -632,7 +649,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // type error in the file the user named would report against
             // `<anonymous>` while an imported package's reported its real path
             // — the entry file being the one file the CLI always knows.
-            let out = match blue_lang_runtime::pipeline::run_in_surface(
+            let out = match blue_lang_runtime::pipeline::run_framed(
                 blue_lang_runtime::uses::Entry {
                     path: Some(&file),
                     text: &src,
@@ -640,6 +657,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 bind_inputs(&src, &inputs, &cfg)?,
                 &loader,
                 surface.as_ref(),
+                frame.as_ref(),
             ) {
                 Err(e) if format == Format::Json => {
                     println!("{}", serde_json::to_string(&observe::error_json(&e))?);

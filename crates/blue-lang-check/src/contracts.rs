@@ -800,10 +800,8 @@ pub fn check<'t>(
     for form in forms {
         if let Some([head, name, value]) = form.as_list() {
             if let (Some("define"), Some(n)) = (head.as_symbol(), name.as_symbol()) {
-                globals
-                    .entry(n.to_string())
-                    .and_modify(|v| *v = None)
-                    .or_insert(literal_kind(value));
+                let function = literal_kind(value) == Some(Kind::Fn);
+                *globals.entry(n.to_string()).or_insert(false) |= function;
             }
         }
     }
@@ -857,7 +855,7 @@ struct Site<'s> {
     program: &'s Program<'s>,
     locals: &'s BTreeSet<String>,
     known: &'s BTreeMap<String, Kind>,
-    globals: &'s BTreeMap<String, Option<Kind>>,
+    globals: &'s BTreeMap<String, bool>,
     text: Option<&'s str>,
 }
 
@@ -1086,10 +1084,7 @@ fn may_be_function(s: &Spanned, cx: &Site<'_>) -> bool {
             let def = &cx.program.defs[d];
             !def.params.is_empty() || def.rest_at.is_some() || !def.returns_value
         }
-        Callee::Builtin(b) => cx
-            .globals
-            .get(b)
-            .is_none_or(|k| k.is_none_or(|k| k == Kind::Fn)),
+        Callee::Builtin(b) => cx.globals.get(b).is_none_or(|function| *function),
         Callee::Unknown => true,
     }
 }
@@ -1216,6 +1211,10 @@ mod tests {
         assert_eq!(
             fixed("ys = [1]\nfind((x) -> x, ys)\n"),
             "ys = [1]\nfind(ys, (x) -> x)\n"
+        );
+        assert_eq!(
+            fixed("zs = get({a: [1]}, :a)\nfind((x) -> x, zs)\n"),
+            "zs = get({a: [1]}, :a)\nfind(zs, (x) -> x)\n"
         );
     }
 

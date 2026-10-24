@@ -1,0 +1,93 @@
+# pleme-namespace default values
+# Namespace governance: LimitRange, ResourceQuota, PriorityClasses
+
+nameOverride: ""
+fullnameOverride: ""
+additionalLabels: {}
+
+# -- LimitRange for the namespace
+limitRange:
+  enabled: true
+  container:
+    default:
+      cpu: "1"
+      memory: 1Gi
+    defaultRequest:
+      cpu: 50m
+      memory: 64Mi
+    max:
+      cpu: "2"
+      memory: 2Gi
+    min:
+      cpu: 10m
+      memory: 16Mi
+  pod:
+    max:
+      cpu: "4"
+      memory: 4Gi
+  pvc:
+    max:
+      storage: 500Gi
+    min:
+      storage: 1Gi
+
+# -- ResourceQuota for the namespace
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "16"
+    requests.memory: 24Gi
+    limits.cpu: "32"
+    limits.memory: 48Gi
+    pods: "20"
+    persistentvolumeclaims: "10"
+    services: "10"
+    configmaps: "20"
+    secrets: "20"
+
+# -- PriorityClasses (cluster-scoped)
+priorityClasses:
+  prefix: ""
+  classes: []
+
+# Required by pleme-lib helpers but unused by namespace chart
+image:
+  repository: ""
+  tag: latest
+ports: []
+service:
+  ports: []
+monitoring:
+  enabled: false
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+startupProbe:
+  enabled: false
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+networkPolicy:
+  enabled: false
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false

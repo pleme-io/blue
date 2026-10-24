@@ -1,0 +1,42 @@
+# ── Autobump subscription: gaveta ────────────────────────────────────
+# Private-service autobump subscriber (org directive: pleme-io/CLAUDE.md
+# ★★ AUTO-RELEASE → "★ AUTOBUMP — exact-pin continuous delivery; never
+# :latest"). gaveta's release.yml publishes a SORTABLE exact tag
+# `amd64-r<run_number>-<sha>` on every merge to main (built natively on
+# rio's self-hosted ARC runner). This ImagePolicy tracks the highest run
+# number = the latest autobump build, and the shared rio-autobump
+# ImageUpdateAutomation writes that EXACT tag into the committed
+# `# {"$imagepolicy": "flux-system:gaveta:tag"}` marker in
+# clusters/rio/apps/drive/gaveta.yaml — so the cluster always runs a
+# known, pinned, traceable image and NEVER `:latest`.
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: gaveta
+  namespace: flux-system
+spec:
+  image: ghcr.io/pleme-io/gaveta
+  interval: 5m0s
+  # gaveta is a PRIVATE pleme-io package; ghcr-charts-secret carries the
+  # ghcr.io read:packages credential the registry scan needs.
+  secretRef:
+    name: ghcr-charts-secret
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: gaveta
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: gaveta
+  # Only the native-amd64 autobump stream is selectable. The `r<n>` run
+  # number is the sortable key; arm64-*, *-latest, and bare-sha tags are
+  # structurally excluded — a non-conforming tag can never be selected.
+  filterTags:
+    pattern: '^amd64-r(?P<n>[0-9]+)-[0-9a-f]+$'
+    extract: '$n'
+  policy:
+    numerical:
+      order: asc   # highest run number = newest build

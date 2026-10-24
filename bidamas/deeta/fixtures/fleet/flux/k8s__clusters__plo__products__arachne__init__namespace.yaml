@@ -1,0 +1,12 @@
+---
+# Arachne namespace
+# Created in init phase so all subsequent phases have namespace available
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arachne-system
+  labels:
+    product: arachne
+    environment: staging
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled

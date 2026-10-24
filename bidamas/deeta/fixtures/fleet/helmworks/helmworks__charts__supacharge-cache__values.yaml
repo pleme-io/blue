@@ -1,0 +1,276 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# supacharge-cache — the OPTION-A parked-cache umbrella (strict no-sharing)
+#
+# This file is the SINGLE Option-A shape. It sets, once, the isolation triple
+# every workload obeys, then hands each subchart exactly the values it needs to
+# run ONLY on our own tainted nodes and share NOTHING of the resident cluster's.
+#
+# The three Option-A invariants, made concrete here:
+#   (a) ISOLATION TRIPLE — every pod carries nodeSelector `role: supacharge` +
+#       toleration `supacharge-only:NoSchedule`; the node group carries the
+#       matching taint (authored in pangea-architectures SupachargeNodeGroup).
+#       No pod ever tolerates a resident runner taint, so nothing leaks either
+#       way. Set once in `isolation.*` below and fanned out to every subchart.
+#   (b) OWN NAMESPACE — `supacharge-cache`; everything lives here.
+#   (c) SHADOW-FIRST bands — every subchart already defaults its breathe bands
+#       to dryRun:true; this umbrella keeps them shadow-first (never flips a
+#       band to write). A human flips dryRun:false per band after watching the
+#       ShadowWouldApply decisions.
+#   (d) EGRESS-SCOPED NetworkPolicy — every subchart ships a default-deny netpol
+#       opening only ghcr/public-GitHub-API/DNS/in-namespace-store; kept on.
+#
+# THE OPTION-B DOOR — `nodeCache.enabled: false` (below). Off = NO DaemonSet on
+# the resident runner nodes. Runners use Spegel P2P (our nodes) + the LAN serve
+# endpoint, sharing nothing. On = the L0 host-socket DaemonSet (a pod on THEIR
+# nodes) — gated externally on a warmth benchmark + a human gate + the resident
+# team's buy-in. Typed-open, shut.
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ── (a) THE ISOLATION TRIPLE — the single source of truth ────────────────────
+# Fanned out to every subchart's nodeSelector/tolerations below. Change it once
+# here; it propagates. (The node-side TAINT is authored in the
+# SupachargeNodeGroup InfrastructureTemplate, not here — this is the POD side.)
+isolation:
+  nodeSelector:
+    role: supacharge
+  tolerations:
+    - key: supacharge-only
+      operator: Exists
+      effect: NoSchedule
+  # A guest ownership marker stamped on our namespace + objects so a broad
+  # resident ArgoCD/Flux selector can EXCLUDE ours (and so ownership is never
+  # ambiguous). Advisory; the real isolation is the triple + the namespace.
+  guestLabel:
+    key: pleme.io/guest
+    value: "true"
+
+# global — Helm propagates this into every subchart's `.Values.global`.
+# pleme-lib.deployment/statefulset read `.Values.nodeSelector | default
+# global.nodeSelector`, so this is a belt-and-suspenders fallback; the explicit
+# per-subchart values below are the load-bearing pins (the hand-authored
+# DaemonSet + CNPG templates read `.Values.nodeSelector` directly, NOT global).
+global:
+  nodeSelector:
+    role: supacharge
+  tolerations:
+    - key: supacharge-only
+      operator: Exists
+      effect: NoSchedule
+
+# ── (b) OWN NAMESPACE ────────────────────────────────────────────────────────
+# Deploy this release into `supacharge-cache`. The super-cache-ci subchart's DNS
+# contract (`redis.super-cache-ci.svc` / `postgres.super-cache-ci.svc`) is fixed
+# to the `super-cache-ci` namespace by the consumers' egress netpol — so the
+# STORE keystone keeps its own namespace; the umbrella's own resources
+# (namespace stamp, the InfraTemplate, the Flux Kustomization) live in
+# `supacharge-cache`. See namespaces.* below.
+namespaces:
+  # The umbrella's own namespace (InfraTemplate, netpol stamp, Kustomization).
+  own: supacharge-cache
+  # The store keystone's fixed namespace (the DNS contract the consumers dial).
+  # Do NOT change without updating the prewarmer/node-cache egress selectors.
+  store: super-cache-ci
+
+# ═════════════════════════════════════════════════════════════════════════════
+# THE OPTION-B TOGGLE — nodeCache.enabled
+#
+# false (DEFAULT, Option A): the sui-dockerfile-node-cache-daemon subchart is
+#   NOT rendered at all (Chart.yaml condition: nodeCache.enabled). No DaemonSet,
+#   no pod on the resident runner nodes, no hostPath on their disks. Runners
+#   reach the cache over the in-cluster LAN — pleme-spegel P2P across OUR nodes
+#   + the sui serve endpoint. Shares NOTHING.
+#
+# true (Option B, gated): the L0 host-socket DaemonSet renders. It runs on the
+#   RESIDENT runner nodes (tolerating THEIR taint), giving runner pods a
+#   host-socket-local read. This is a pod on their nodes + a bounded slice of
+#   their disk/cpu/mem — the higher-trust-bar increment, gated externally on a
+#   measured warmth benchmark + a human gate + the resident team's buy-in. Never
+#   flip this silently.
+# ═════════════════════════════════════════════════════════════════════════════
+nodeCache:
+  enabled: false
+
+# ═════════════════════════════════════════════════════════════════════════════
+# (isolation-floor) THE SUPACHARGE NODE GROUP — an InfrastructureTemplate CR
+# calling pangea-architectures SupachargeNodeGroup (Option A: own tainted nodes,
+# 100% spot, scale-from-zero; the Option-B DaemonSet arm off). PENDING re-auth.
+# Off by default in the chart: rendered only when infraTemplate.enabled, because
+# the live topology (subnets/AZs) is PENDING a read-only re-auth against the
+# resident account — a REQUIRED value that must not be guessed. Set the topology
+# in values-cicd.yaml and flip infraTemplate.enabled after re-auth.
+# ═════════════════════════════════════════════════════════════════════════════
+infraTemplate:
+  # Render the InfrastructureTemplate CR? Off until the live topology is
+  # supplied post-re-auth (subnets are a REQUIRED, un-guessable value).
+  enabled: false
+  # pangea-operator plumbing.
+  pangeaNamespace: cicd
+  executor: magma
+  # The resident cluster + region + account. PLACEHOLDERS — supply the real
+  # environment identity in an environment values file (values-cicd.yaml),
+  # never here. The chart never ships a live account id.
+  cluster: resident-cicd-eks
+  region: us-east-1
+  awsProfile: resident-cicd
+  accountId: "000000000000"
+  # ── PENDING re-auth — OUR OWN isolated private subnets ─────────────────────
+  # REQUIRED before infraTemplate.enabled=true. These MUST be OUR OWN isolated
+  # subnet(s) in the resident VPC, chosen after re-auth — NEVER a runner subnet
+  # reused blindly. Single-AZ preferred (the store keystone rides gp3 EBS).
+  # Empty here on purpose: the template guards on non-empty + refuses to render
+  # a node group with no subnets.
+  subnetIds: []          # PENDING re-auth — e.g. [subnet-OUR-isolated-aaa]
+  # Mint our own least-privilege node role (guest posture). Set to reuse a role
+  # WE own only after re-auth; never guess an ARN.
+  nodeRoleArn: ""
+  # Option-A scale-from-zero sizing (near-free at rest). floor 0.
+  minSize: 0
+  desiredSize: 0
+  maxSize: 8
+  # 100%-spot diversified families (the arch forces SPOT; widen only if re-auth
+  # shows shallow spot depth in the chosen AZ — never on-demand). Empty = the
+  # architecture's default family set.
+  instanceTypes: []
+  # SCOPED retirada spot-drain — OFF by default (an unscoped account-wide rule
+  # would fire on THEIR host interruptions). Opt in only after re-auth confirms
+  # the scoping. "" = off; "graceful_terminate" | "drain_k8s_node" to opt in.
+  spotInterruption: ""
+  # AWS provider credentials Secret the operator reads (PENDING — supplied in
+  # the CICD values after re-auth). Empty = no providerCredentials block.
+  aws:
+    credentialsSecret:
+      name: ""
+      namespace: ""
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PREPARED-NOT-LIVE — the Flux Kustomization ships suspend: true.
+# Even a present Flux will NOT reconcile this. Combined with never applying the
+# node group + never bootstrapping Flux into the cicd cluster, committing to
+# main is safe + inert.
+# ═════════════════════════════════════════════════════════════════════════════
+fluxKustomization:
+  # Render a Flux Kustomization that reconciles this umbrella from OUR OWN
+  # branch? Off by default (the umbrella is usually a subchart of a
+  # HelmRelease); when on it is SUSPENDED.
+  enabled: false
+  # STRUCTURAL prepared-not-live: suspend:true means Flux ignores it entirely.
+  # Keep true until the operator explicitly un-suspends post-confidence.
+  suspend: true
+  interval: "10m"
+  prune: true
+  targetNamespace: supacharge-cache
+  sourceRef:
+    kind: GitRepository
+    # OUR OWN source — never a resident-owned repo, never their ArgoCD/Flux.
+    name: supacharge-cache
+    namespace: flux-system
+  path: "./clusters/resident-cicd-eks/supacharge-cache"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SUBCHART VALUES — each pinned to the isolation triple + Option-A posture.
+# The isolation.* triple is repeated explicitly per subchart (belt-and-
+# suspenders over the global fallback) because the hand-authored DaemonSet +
+# CNPG templates read `.Values.nodeSelector` directly, not global.
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ── super-cache-ci — the STORE keystone (L1 Redis + L2 Postgres + serve) ─────
+# Key is the Chart.yaml alias `store-keystone` (hyphenated so the derived
+# resource names stay RFC1123-valid).
+store-keystone:
+  enabled: true
+  # The store keeps its own fixed namespace (the DNS contract). Its subcharts
+  # (pleme-cnpg/pleme-cache/pleme-sui) each get the isolation triple below.
+  serve:
+    # sui serve Deployment → pin to supacharge nodes.
+    nodeSelector:
+      role: supacharge
+    tolerations:
+      - key: supacharge-only
+        operator: Exists
+        effect: NoSchedule
+  redis:
+    # pleme-cache StatefulSet → pin to supacharge nodes.
+    nodeSelector:
+      role: supacharge
+    tolerations:
+      - key: supacharge-only
+        operator: Exists
+        effect: NoSchedule
+  postgres:
+    # pleme-cnpg Cluster → CNPG pins the pods via spec.affinity.{nodeSelector,
+    # tolerations} (the gap this umbrella's chart-plumbing PR fixed in
+    # pleme-cnpg). Heaviest tier — pinning it is the load-bearing Option-A move.
+    nodeSelector:
+      role: supacharge
+    tolerations:
+      - key: supacharge-only
+        operator: Exists
+        effect: NoSchedule
+  # Every store band stays SHADOW-FIRST (dryRun:true) — inherited from the
+  # super-cache-ci defaults; the umbrella does not flip any band to write.
+
+# ── pleme-spegel — the co-located P2P SERVE tier (OUR nodes only) ────────────
+# CRITICAL Option-A scoping: upstream Spegel defaults to run on EVERY node
+# (tolerate-everything). Here it runs ONLY on supacharge nodes — the P2P mesh
+# forms across OUR nodes and serves the runners over LAN. It tolerates ONLY the
+# supacharge taint, never a resident runner taint, so it never lands on their
+# nodes. registryMirror stays OFF (the shadow-first containerd-reroute gate).
+spegel:
+  enabled: true
+  nodeSelector:
+    kubernetes.io/os: linux
+    role: supacharge
+  tolerations:
+    - key: supacharge-only
+      operator: Exists
+      effect: NoSchedule
+  # Serve OUR layers only — scope the mirror to the registries super-cache-ci
+  # pushes/pulls (ghcr) so Spegel stays out of everything else's pull path.
+  spegel:
+    mirroredRegistries:
+      - https://ghcr.io
+  # SHADOW-FIRST: the containerd mirror reroute stays OFF (advertise/serve only).
+  registryMirror:
+    enabled: false
+  # breathe bands stay dryRun:true (the pleme-spegel default).
+
+# ── sui-dockerfile-prewarmer — the standing pre-warmer (public GitHub API) ───
+# Zero cluster access (reads public Dockerfiles over the GitHub REST API), warms
+# OUR store on OUR nodes. Pin to supacharge nodes.
+prewarmer:
+  enabled: true
+  nodeSelector:
+    role: supacharge
+  tolerations:
+    - key: supacharge-only
+      operator: Exists
+      effect: NoSchedule
+  # The egress-scoped netpol (default-deny + DNS + GitHub API/raw + the store
+  # tiers) is the pleme-prewarmer default — kept on.
+  networkPolicy:
+    enabled: true
+  # breathe bands stay dryRun:true (the prewarmer default).
+
+# ── sui-dockerfile-node-cache-daemon — the L0 DaemonSet, GATED OFF ───────────
+# Rendered ONLY when nodeCache.enabled=true (Chart.yaml condition). Off (Option
+# A default) ⇒ NO DaemonSet, no pod on the resident runner nodes. When ON
+# (Option B, gated externally) the DaemonSet must run on the RESIDENT runner
+# nodes — so its nodeSelector/tolerations here are LEFT for the operator to
+# supply against the real runner topology (PENDING re-auth), NOT the supacharge
+# triple (the whole point of L0 is to be node-local to the RUNNER pods). Kept
+# empty here so an accidental enable does not silently land it on OUR nodes.
+# Key is the Chart.yaml alias `node-cache` (hyphenated → RFC1123-valid names).
+node-cache:
+  # These apply to the L0 DaemonSet ONLY when nodeCache.enabled=true. They are
+  # DELIBERATELY the runner-node selector/toleration — PENDING re-auth — because
+  # L0 is only useful ON the runner nodes. Empty until re-auth + a human gate.
+  nodeSelector: {}       # PENDING re-auth — the resident runner-node selector
+  tolerations: []        # PENDING re-auth — the resident runner-node taint
+  # Bound the L0 hostPath HARD when it IS enabled (can't ENOSPC their prod
+  # build). These are native-k8s caps (no breathe operator assumed on their
+  # cluster). Tune against the real node disk (PENDING re-auth).
+  cacheDir:
+    hostPath: /var/lib/sui-dockerfile-cache
+  socketDir:
+    hostPath: /var/run/sui-dockerfile-cache
+  # breathe bands stay dryRun:true (the daemon default).

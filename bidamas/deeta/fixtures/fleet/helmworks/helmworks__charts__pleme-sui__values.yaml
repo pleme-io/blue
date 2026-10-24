@@ -1,0 +1,263 @@
+# pleme-sui — unified Nix build + cache platform (ro)
+# One binary: sui agent (NATS consumer) + sui cache serve (HTTP binary cache)
+
+image:
+  repository: ghcr.io/pleme-io/sui
+  tag: amd64-latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+# --- sui modes ---
+# Both agent and cache run in the same pod.
+# sui agent consumes NATS builds; sui cache serves HTTP.
+mode:
+  # Build agent — consumes from NATS, builds, pushes to S3
+  agent:
+    enabled: true
+    strategy: lockfile  # lockfile | eval | nix
+    nats:
+      url: "nats://nats.nats.svc:4222"
+      stream: BUILD
+      consumer: sui-agent
+  # Cache server — serves nix binary cache HTTP protocol
+  cache:
+    enabled: true
+    listen: "0.0.0.0:5000"
+    priority: 40
+    backend: s3
+    s3:
+      bucket: ""
+      region: us-east-1
+      endpoint: ""
+    signing:
+      secretName: ""
+      secretKey: signing-key
+    # Cache-only (non-agent) deployment mode's on-disk store. Without
+    # this, `sui cache serve` writes into the container's unmanaged
+    # root filesystem — no sizing, no eviction floor. Consumed by
+    # templates/deployment.yaml's cache-only args + cache-store volume.
+    storePath: "/var/lib/sui/cache"
+    storeSizeLimit: "20Gi"
+    # emptyDir.medium override -- "" (default) is disk-backed, node-local
+    # storage (the original, backward-compatible shape). "Memory" makes the
+    # cache-store volume a tmpfs RAM disk: substitute/save round-trips avoid
+    # disk I/O entirely, at the cost of consuming node RAM equal to whatever
+    # is actually written (kubelet counts it against the pod's memory limit,
+    # capped by storeSizeLimit above as the volume's own ceiling). Size
+    # storeSizeLimit conservatively when enabling this -- it must fit
+    # comfortably under the node's real allocatable memory alongside every
+    # other resident workload, not just under the raw instance RAM.
+    storeMedium: ""
+    # Raw sui_cache::BackendConfig JSON for the cache-only daemon — the
+    # {"type":"tiered","l1":{"type":"redis","url":…},"l2":{"type":"pg","url":…},
+    # "l3":{"type":"local","path":…},"write_policy":"write-through"} shape. When
+    # set, the chart renders it into a ConfigMap, mounts it at /etc/sui/backend.json,
+    # and passes `--backend-config=/etc/sui/backend.json` (which the `cache serve`
+    # daemon honors over --store-path — main.rs Serve). Empty (default) keeps the
+    # --store-path local/tmpfs floor, backward-compatible. This is how the
+    # never-touch-disk tiered posture (Redis L1 + Postgres L2) is selected on a
+    # cache-only deployment.
+    backendConfig: ""
+
+# --- Extra environment ---
+# Additional container env vars appended to the fixed set. The super-cache-ci
+# umbrella uses this to inject SUI_CACHE_BACKEND_CONFIG (the JSON-encoded
+# sui_cache::BackendConfig the serve daemon fronts — the Redis L1 + Postgres L2
+# tiered posture). Standard k8s EnvVar list shape (name/value or valueFrom).
+extraEnv: []
+# Extra envFrom sources (configMapRef / secretRef). Use for a
+# cofre/ESO-materialized Secret carrying the backend config or credentials.
+extraEnvFrom: []
+
+# --- Extra volumes ---
+# Additional pod volumes + container volume mounts, appended to whichever
+# fixed set the enabled mode already renders (nix-store/tmp for nixAgent,
+# tmp/eval-cache for agent, cache-store + the backend-config and signing-key
+# mounts for cache-only). Standard k8s Volume / VolumeMount list shapes.
+# Empty (the default) renders byte-identically to a chart without these keys.
+#
+# ★ WHY A CONSUMER WANTS THIS: the ingest spool needs DISK, not RAM.
+#
+# sui's HTTP ingest path spools an incoming NAR through
+# `std::env::temp_dir()` — $TMPDIR if set, else /tmp. This container runs
+# `readOnlyRootFilesystem: true`, so /tmp is NOT writable unless something is
+# mounted over it. Every spool attempt then fails and ingest silently falls
+# back to a 256MiB in-memory buffer: bounded, but ~30x the peak of the
+# streaming path (sui fc2a929 made NAR read/write stream at 32x/42x below the
+# NAR size). Nothing goes red — the pod just carries a much higher memory
+# peak than the streaming work was supposed to leave it with.
+#
+# ★ DO NOT reuse the cache-store volume, and DO NOT put `medium: Memory` on
+# the volume you add for this. A `medium: Memory` emptyDir is a tmpfs, and
+# kubelet counts every byte written to it against the pod's own memory cgroup
+# limit. Spooling there IS the cgroup memory consumption the streaming path
+# exists to escape — it converts a disk write straight back into the OOMKill
+# it was meant to prevent. An emptyDir with NO `medium:` key is node-local
+# disk. That distinction is the entire reason this knob exists; a future
+# reader who "tidies" it into the existing tmpfs undoes the fix.
+#
+# The disk-backed /tmp a cache-only deployment wants:
+#
+#   extraVolumes:
+#     - name: spool
+#       emptyDir:
+#         sizeLimit: 10Gi      # NO `medium:` — node disk, deliberately
+#   extraVolumeMounts:
+#     - name: spool
+#       mountPath: /tmp
+#   extraEnv:
+#     - name: TMPDIR
+#       value: /tmp
+extraVolumes: []
+extraVolumeMounts: []
+
+# --- Resources ---
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 4000m
+    memory: 8Gi
+
+# breathe resource-homeostasis bands (breathe.pleme.io) — carves
+# resources.limits.{memory,cpu} to hold this Deployment at a target
+# utilization band. See helmworks/charts/pleme-lib/templates/
+# _breatheband.tpl for the full field set.
+#
+# ⚠️ CORRECTION 2026-07-26 — this block previously claimed "Shadow-first
+# (dryRun: true): the controller decides + reports but never mutates until
+# an operator flips it live". That was FALSE. `spec.dryRun` is DEAD CODE for
+# MemoryBand/CpuBand — `promotion_mode()` is
+# `mode_spec().unwrap_or(ShadowConfirmEffect)` and never reads `dry_run()`,
+# so the band shadow-confirms and then carves live. Measured on one cluster
+# 2026-07-26: sui-cpu had taken 104 carves. (Its live CR also renders
+# `dryRun: false` — the consumer HelmRelease overrides this default — which
+# changes exactly nothing, since the field is inert either way. That is the
+# clearest possible demonstration of why it must not be trusted.)
+#
+# postureRef: `standard` — successor to the retired `platform-default` tuple
+# these bands were pinned to; shrinkBelow 0.70 → 0.60 so a downward write
+# needs meaningfully more demonstrated idle, damping the shrink/grow
+# oscillation that produced the carve count above.
+#
+# Left deliberately LIVE (no `mode: shadow`): sui is a rebuildable build
+# cache, not a database or the control plane — a bad carve costs cache
+# warmth, not durable state. Set `mode: shadow` (NOT `dryRun`) to
+# observe-only.
+breathe:
+  enabled: true
+  postureRef: standard
+  memory:
+    dryRun: true
+    disruptionPolicy: restartFreeOnly
+  cpu:
+    enabled: true
+    dryRun: true
+    disruptionPolicy: restartFreeOnly
+
+# --- Ports ---
+ports:
+  - name: cache
+    containerPort: 5000
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: cache
+      port: 80
+      targetPort: cache
+
+# --- Health ---
+health:
+  path: /nix-cache-info
+  port: cache
+  startupFailureThreshold: 5
+  startupPeriodSeconds: 10
+  livenessPeriodSeconds: 30
+  readinessPeriodSeconds: 10
+
+# --- Breathability (KEDA zero-scale + HPA serving) ---
+breathability:
+  enabled: true
+  targetKind: Deployment
+  min: 0
+  max: 4
+  cooldown: 300
+  pollingInterval: 15
+  trigger:
+    type: nats-jetstream
+    nats:
+      serverURL: "nats://nats.nats.svc:4222"
+      stream: BUILD
+      consumer: sui-agent
+      lagThreshold: "1"
+      activationLagThreshold: "0"
+  hpa:
+    enabled: true
+    min: 1
+    max: 3
+    targetCPU: 70
+
+# --- Delivery ---
+delivery:
+  enabled: true
+  tier: durable
+  nats:
+    url: "nats://nats.nats.svc:4222"
+    stream: BUILD
+    consumer: sui-agent
+
+# --- Alerts ---
+alerts:
+  enabled: true
+  podRestarting:
+    enabled: true
+    threshold: 3
+    severity: critical
+  highMemory:
+    enabled: true
+    threshold: 85
+    severity: warning
+
+# --- PDB ---
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# --- Nix build agent ---
+# Phase 1: sui shells out to `nix build`. Needs writable /nix/store, root user.
+# Phase 2 (sui-eval + sui-build): can re-lock to nonRoot.
+nixAgent:
+  enabled: false  # override in cluster patch when agent mode runs nix
+  storageSize: 50Gi  # PVC for /nix/store (persists built paths between restarts)
+
+# --- Security ---
+# When nixAgent.enabled, podSecurityContext/securityContext are overridden
+# in the deployment template to allow nix builds.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# --- Scheduling ---
+nodeSelector: {}
+tolerations: []
+affinity: {}
+terminationGracePeriodSeconds: 30

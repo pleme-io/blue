@@ -1,0 +1,106 @@
+# pleme-tatara-pool-reconciler — typed values overlay over pleme-operator.
+
+pleme-operator:
+  nameOverride: tatara-pool-reconciler
+  fullnameOverride: ""
+
+  image:
+    repository: ghcr.io/pleme-io/tatara-pool-reconciler
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+  strategy: { type: Recreate }
+
+  # ─── RBAC ────────────────────────────────────────────────────────
+  rbac:
+    create: true
+    rules:
+      # Watch + mutate the pool CRDs
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["ephemeralpools", "ephemeralallocations"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["ephemeralpools/status", "ephemeralallocations/status"]
+        verbs: ["get", "update", "patch"]
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["ephemeralpools/finalizers", "ephemeralallocations/finalizers"]
+        verbs: ["update"]
+      # Mutate Processes (flip lifetime on bind, annotate with requestor)
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["processes"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      # Leader-election
+      - apiGroups: ["coordination.k8s.io"]
+        resources: ["leases"]
+        verbs: ["get", "list", "watch", "create", "update", "patch"]
+      # Events for allocation transitions
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["create", "patch"]
+
+  # ─── Health ──────────────────────────────────────────────────────
+  ports:
+    - name: health
+      containerPort: 8080
+      protocol: TCP
+  service:
+    type: ClusterIP
+    ports:
+      - name: health
+        port: 8080
+        targetPort: health
+
+  health:
+    path: /healthz
+    readyPath: /readyz
+    port: health
+    livenessInitialDelay: 10
+    livenessPeriod: 30
+    readyInitialDelay: 2
+    readyPeriod: 10
+
+  # ─── Resources ───────────────────────────────────────────────────
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    fsGroup: 65532
+    seccompProfile: { type: RuntimeDefault }
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    capabilities: { drop: [ALL] }
+
+  monitoring:
+    enabled: true
+    port: health
+    path: /metrics
+    interval: 30s
+  networkPolicy:
+    enabled: true
+    allowPrometheus: true
+    allowDns: true
+    allowEgressToKubeApi: true
+
+  pdb:
+    enabled: false
+  autoscaling:
+    enabled: false
+
+  extraArgs:
+    - "--heartbeat-seconds=30"
+    - "--spawn-timeout=10m"
+  extraEnv:
+    - name: RUST_LOG
+      value: "info,tatara_pool_reconciler=debug,kube=warn"
+
+  compliance:
+    overlays: []
+    enforce: true
+  attestation:
+    enabled: true

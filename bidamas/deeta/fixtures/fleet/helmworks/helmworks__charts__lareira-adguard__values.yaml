@@ -1,0 +1,142 @@
+# AdGuard Home — DNS-level ad/tracker blocker.
+#
+# IMPORTANT: AdGuard binds :53 (DNS). On rio, dnsmasq via the K3s-server
+# profile owns :53 today — flip k3s dns OFF in nodes/rio config before
+# enabling this chart. See nodes/rio/CLAUDE.md "AdGuard Home" capability
+# row.
+
+enabled: false
+
+image:
+  repository: docker.io/adguard/adguardhome
+  tag: "v0.107.55"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: dns-udp
+    containerPort: 53
+    protocol: UDP
+  - name: dns-tcp
+    containerPort: 53
+    protocol: TCP
+  - name: ui
+    containerPort: 80
+    protocol: TCP
+  - name: setup
+    containerPort: 3000
+    protocol: TCP
+  - name: dot
+    containerPort: 853
+    protocol: TCP
+
+service:
+  # AdGuard typically wants LoadBalancer/NodePort/hostNetwork to be
+  # reachable on :53 from clients. With single-node K3s, simplest is
+  # type: NodePort with hostPort fallback. Default ClusterIP here keeps
+  # the chart safe to install; flip to NodePort in HelmRelease overrides.
+  type: ClusterIP
+  ports:
+    - name: dns-udp
+      port: 53
+      targetPort: dns-udp
+      protocol: UDP
+    - name: dns-tcp
+      port: 53
+      targetPort: dns-tcp
+      protocol: TCP
+    - name: ui
+      port: 80
+      targetPort: ui
+      protocol: TCP
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 1Gi
+  mountPath: /opt/adguardhome/work
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: adguard.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+
+authentik:
+  enabled: false   # AdGuard has its own auth
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/opt/adguardhome/work"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false   # AdGuard exposes /stats but not OpenMetrics
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-adguard
+
+networkPolicy:
+  # AdGuard is the DNS resolver — needs broad ingress on :53.
+  enabled: true
+  allowDns: true
+  additionalIngress:
+    - from: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE

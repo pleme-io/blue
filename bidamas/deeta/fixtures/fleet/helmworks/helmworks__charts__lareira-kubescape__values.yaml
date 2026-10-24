@@ -1,0 +1,35 @@
+enabled: false
+kubescape:
+  enabled: true
+  clusterName: ""    # cluster sets this in its release.yaml
+  capabilities:
+    configurationScan: enable
+    continuousScan: enable
+    vulnerabilityScan: enable
+    runtimeObservability: disable
+    relevancy: enable
+    networkPolicyService: disable
+    runtimeDetection: disable
+  operator:
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+  nodeAgent:
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+  scheduledScans:
+    configurationScan:
+      schedule: "0 5 * * *"
+    vulnerabilityScan:
+      schedule: "0 6 * * *"
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: KubescapeComplianceFailing
+        expr: |
+          sum(kubescape_compliance_failed_controls) > 10
+        for: 1h
+        labels: { severity: warning, component: lareira-kubescape }
+        annotations:
+          summary: "Kubescape reporting >10 failed controls for 1h"
+          description: "Compliance posture has degraded. Check ConfigurationScan + ApplicationProfile CRDs for the failing controls."
+          runbook_url: "https://runbooks.pleme.io/lareira-kubescape/failing-controls"

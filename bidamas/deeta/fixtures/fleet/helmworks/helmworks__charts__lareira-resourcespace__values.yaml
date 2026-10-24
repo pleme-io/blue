@@ -1,0 +1,77 @@
+# ResourceSpace — open-source DAM (Digital Asset Management). Catalog
+# of the cousin's shot footage tagged by camera/scene/take/keywords.
+#
+# Note: ResourceSpace's upstream Docker image is community-maintained
+# and somewhat fragile. This chart pins to bytewave/resourcespace as a
+# starting point — verify upstream image of choice before enabling.
+# Requires a MariaDB/MySQL DB (separate chart or external).
+
+enabled: false
+
+image:
+  repository: docker.io/bytewave/resourcespace
+  tag: "10.6"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 80, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 80, targetPort: http, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: resourcespace-env, optional: true }
+
+env:
+  - { name: TZ, value: America/New_York }
+  - { name: RS_BASE_URL, value: "https://dam.rio.lan" }
+
+resources:
+  requests: { cpu: 100m, memory: 512Mi }
+  limits:   { cpu: 2000m, memory: 2Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 100Gi
+  mountPath: /var/www/resourcespace/filestore
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: dam.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "5g"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/var/www/resourcespace/filestore"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 7, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-resourcespace }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

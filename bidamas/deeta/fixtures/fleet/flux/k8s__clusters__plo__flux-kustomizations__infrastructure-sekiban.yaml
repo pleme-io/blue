@@ -1,0 +1,28 @@
+---
+# FluxCD Kustomization for Sekiban integrity attestation controller
+# Validates sekiban.pleme.io/* annotations via ValidatingAdmissionWebhook
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-sekiban
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./clusters/plo/infrastructure/sekiban
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  retryInterval: 1m0s
+  timeout: 5m0s
+  wait: true
+  dependsOn:
+    - name: platform-config
+    - name: infrastructure-pleme-charts
+    - name: infrastructure-prometheus-operator
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: sekiban
+      namespace: sekiban-system

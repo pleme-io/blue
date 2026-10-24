@@ -1,0 +1,36 @@
+---
+# FluxCD Kustomization for platform configuration
+# ClusterIssuers and other resources that depend on platform services being ready
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-config
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./clusters/orion/platform-config
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  retryInterval: 1m0s
+  timeout: 5m0s
+  force: false
+  wait: true
+  dependsOn:
+    - name: platform
+  healthChecks:
+    # Wait for cert-manager to be fully ready before applying ClusterIssuers
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cert-manager
+      namespace: cert-manager
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cert-manager-webhook
+      namespace: cert-manager
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cert-manager-cainjector
+      namespace: cert-manager

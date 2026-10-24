@@ -1,0 +1,146 @@
+# hanabi default values
+# BFF (Backend-for-Frontend) — dual port, GraphQL federation, WebSocket proxy
+
+image:
+  repository: ghcr.io/pleme-io/hanabi
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Dual ports: HTTP for app traffic, health for probes/metrics
+ports:
+  - name: http
+    containerPort: 80
+    protocol: TCP
+  - name: health
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: health
+      port: 8080
+      targetPort: health
+      protocol: TCP
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Health probes on dedicated health port
+health:
+  path: /health/live
+  readyPath: /health/ready
+  port: health
+  livenessInitialDelay: 10
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: true
+  path: /health/startup
+  port: health
+  initialDelaySeconds: 2
+  periodSeconds: 2
+  failureThreshold: 15
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+strategy:
+  type: RollingUpdate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+initContainers: []
+sidecars: []
+
+# Downward API for pod identity + Vector metrics host
+downwardApi:
+  enabled: true
+
+# Monitoring on health port
+monitoring:
+  enabled: true
+  port: health
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+pdb:
+  enabled: false
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+# Istio with WebSocket-safe DestinationRule
+istio:
+  enabled: false
+  inject: true
+  holdApplicationUntilProxyStarts: true
+
+configMaps: []
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false
+  groups: []
+
+command: []
+args: []
+additionalLabels: {}
+lifecycle: {}

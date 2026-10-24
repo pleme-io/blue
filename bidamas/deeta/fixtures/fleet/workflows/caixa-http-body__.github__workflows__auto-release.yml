@@ -1,0 +1,44 @@
+name: auto-release
+# ── crates.io publish disabled by pleme-io, 2026-08-08 ──────────────────────
+# This repo vendors an UPSTREAM crate. Its workspace members keep upstream's
+# package names, and pleme-io owns none of them on crates.io — measured on
+# caixa-url, whose `percent-encoding` is owned by SimonSapin / servo. So this
+# workflow pushed a publish that could not succeed with ANY token, while still
+# version-bumping the fork on every run (2.3.2 -> 2.3.8 on caixa-url alone).
+#
+# It only became visible on 2026-08-08 because two upstream defects masked it,
+# both failing BEFORE any step ran and so reporting nothing: a metered
+# `runs-on` in the reusable (blocked by the org's exhausted spending limit)
+# and a `required: true` secret (rejected at call-graph startup). With both
+# fixed the job finally ran and said what was actually wrong:
+# `please provide a non-empty token`.
+#
+# The 111 sibling caixa repos on `cargo-auto-release.yml` are the standard and
+# are healthy — they resolve, bump-check, and SKIP the ship step when there is
+# nothing to release. Only these 14 forced an unconditional publish.
+#
+# The file is KEPT and stays runnable on demand (MODULARIZE, DON'T DELETE).
+# The original trigger is preserved verbatim below.
+#
+# ORIGINAL TRIGGER:
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
+#     inputs:
+#       bump-type:
+#         description: "patch | minor | major"
+#         required: false
+#         default: patch
+on:
+  workflow_dispatch:
+jobs:
+  release:
+    uses: pleme-io/substrate/.github/workflows/cargo-publish-each-member-auto-release.yml@main
+    with:
+      # DECLARED-BUT-DISCARDED: the dispatch input above never reached
+      # the reusable, so an operator choosing minor/major silently got
+      # patch. The canonical shim (pleme-io/shikumi) always had this.
+      bump-type: ${{ inputs.bump-type || 'patch' }}
+    secrets: inherit

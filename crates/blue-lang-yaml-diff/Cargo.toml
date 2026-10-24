@@ -1,0 +1,19 @@
+[package]
+name = "blue-lang-yaml-diff"
+description = "The second implementation of deeta's YAML reader: yaml-rust2 on the yaml-test-suite and fleet files, documents compared with blue's."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+yaml-rust2 = "0.13"
+serde_json = { workspace = true }
+blue-lang-host = { path = "../blue-lang-host" }
+blue-lang-pkg = { path = "../blue-lang-pkg", features = ["fixture"] }
+blue-lang-runtime = { path = "../blue-lang-runtime", features = ["sys"] }

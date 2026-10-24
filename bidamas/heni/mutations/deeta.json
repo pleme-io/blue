@@ -1,0 +1,56 @@
+[
+  {
+    "name": "folded lines join without a space",
+    "file": "deeta.b",
+    "find": "[\"#{out} #{l}\", l, 0]",
+    "replace": "[\"#{out}#{l}\", l, 0]"
+  },
+  {
+    "name": "clip chomping drops the final line break",
+    "file": "deeta.b",
+    "find": "  elsif has_body\n    \"#{text}\\n\"\n",
+    "replace": "  elsif has_body\n    text\n"
+  },
+  {
+    "name": "true reads as false",
+    "file": "deeta.b",
+    "find": "if member?(t, true_words)\n    true",
+    "replace": "if member?(t, true_words)\n    false"
+  },
+  {
+    "name": "a double-quoted scalar loses its trailing blanks",
+    "file": "deeta.b",
+    "find": "    {text: \"#{out}#{ws}\", r:, c: c + 1}\n  elsif not double",
+    "replace": "    {text: out, r:, c: c + 1}\n  elsif not double"
+  },
+  {
+    "name": "a repeated key is refused for the wrong reason",
+    "file": "deeta.b",
+    "find": "          :duplicate_key,",
+    "replace": "          :parse_error,"
+  },
+  {
+    "name": "one document reads as a stream of documents",
+    "file": "deeta.b",
+    "find": "elsif count(docs) == 1",
+    "replace": "elsif count(docs) == 2"
+  },
+  {
+    "name": "an anchor names nothing",
+    "file": "deeta.b",
+    "find": "assoc(second(out), name, [first(out)])",
+    "replace": "second(out)"
+  },
+  {
+    "name": "a flow sequence key may end on the next line",
+    "file": "deeta.b",
+    "find": "r2 == get(k, :r)",
+    "replace": "true"
+  },
+  {
+    "name": "an octal integer reads as text",
+    "file": "deeta.b",
+    "find": "if starts_with?(t, \"0o\") and",
+    "replace": "if starts_with?(t, \"0q\") and"
+  }
+]

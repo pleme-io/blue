@@ -1,0 +1,23 @@
+---
+# FluxCD Kustomization for fleet update policies.
+#
+# Reconciles clusters/rio/apps/fleet-policies/ — FlakeUpdatePolicy
+# CRs (and future HelmUpdatePolicy / CargoUpdatePolicy) consumed by
+# the tend operator. Depends on `infrastructure` (where tend-operator
+# lives) so the fleet.pleme.io CRDs are served before policies try
+# to apply.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-fleet-policies
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./clusters/rio/apps/fleet-policies
+  retryInterval: 1m0s
+  timeout: 2m0s
+  wait: false
+  dependsOn:
+    # tend-operator HelmRelease installs the fleet.pleme.io CRDs;
+    # without them, policy CRs hit "no matches for kind" errors.
+    - name: infrastructure

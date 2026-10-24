@@ -1,0 +1,24 @@
+# lareira-zfs-localpv — ZFS-backed CSI + a carvable StorageClass for rio.
+
+# The `zfs` StorageClass: one ZFS dataset per PVC under `poolname`, with a
+# refquota = the requested size. allowVolumeExpansion grows the refquota →
+# breathe StorageBand can carve it, and kubelet_volume_stats reports the real
+# per-dataset usage. Not the cluster default (local-path stays default; opt in
+# per-PVC with storageClassName: zfs, or label-driven later).
+storageClass:
+  create: true
+  name: zfs
+  default: false
+  # Parent dataset created on the node (sudo zfs create pool/k8s-volumes).
+  poolname: "pool/k8s-volumes"
+  compression: "lz4"
+  recordsize: "128k"
+  reclaimPolicy: Delete
+
+# Upstream openebs zfs-localpv subchart. k3s uses the standard kubelet dir.
+zfs-localpv:
+  enabled: true
+  zfsNode:
+    kubeletDir: "/var/lib/kubelet/"
+  analytics:
+    enabled: false

@@ -1,0 +1,82 @@
+# pleme-computeunit — values surface for any tatara-lisp program.
+# Consumer charts override these in their own values.yaml.
+
+enabled: false
+
+# ── module — where the WASM bytes come from ─────────────────────────
+module:
+  # github URL grammar from theory/WASM-PACKAGING.md §II.
+  source: ""                   # github:pleme-io/programs/<name>/main.tlisp?ref=<tag>
+  blake3: ""                   # optional content-pin for reproducibility
+  # OR: an OCI ref to pre-compiled WASM
+  oci: ""                      # oci://ghcr.io/pleme-io/programs:<name>-<tag>
+
+# ── trigger — which shape to dispatch as ────────────────────────────
+# Exactly one of these must be set when enabled: true.
+trigger:
+  oneShot: {}                  # { args: [...] }
+  cron: ""                     # "*/5 * * * *"
+  service: {}                  # { port: 8080, paths: ["/v1/*"], hosts: [], breathability: {...} }
+  event: {}                    # { source: "nats:subject", batch_size: 10, cooldown: "60s" }
+  watch: {}                    # { group, kind, crd } — controller shape
+
+# ── capabilities — explicit list, no wildcards ──────────────────────
+capabilities: []
+
+# ── resources ───────────────────────────────────────────────────────
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits:   { cpu: 500m, memory: 256Mi }
+
+# ── runtime config (passed to the WASM module on startup) ───────────
+config: {}
+
+# ── elasticity per-shape (overrides operator defaults) ──────────────
+# Most programs use the operator's defaults; only specify when the
+# program needs different cooldown / replica behaviour.
+elasticity: {}
+
+# ── policy CRD (optional, controller-shape only) ────────────────────
+# When set, the chart also renders a policy CR with the schema the
+# controller expects. Operators edit this to drive controller behaviour
+# without rebuilding the WASM module.
+policy:
+  enabled: false
+  apiVersion: ""               # e.g. dns.pleme.io/v1alpha1
+  kind: ""                     # e.g. DnsReconciler
+  name: ""                     # CR name
+  spec: {}                     # the policy spec — schema defined by the controller
+
+# ── observability ───────────────────────────────────────────────────
+observability:
+  serviceMonitor:
+    enabled: true              # only takes effect for service-shape programs
+    interval: 30s
+  prometheusRule:
+    enabled: true
+    rules: []                  # consumer-supplied; library has no defaults
+
+# ── service-shape extras ────────────────────────────────────────────
+service:
+  enabled: false               # auto-true when trigger.service is set
+  type: ClusterIP
+  annotations: {}
+
+# ── function-shape extras ───────────────────────────────────────────
+# When trigger.event is set, the chart renders a KEDA TriggerAuthentication
+# (if needed) and a ScaledObject for the matching event source.
+function:
+  scaling:
+    minReplicas: 0
+    maxReplicas: 10
+    pollingInterval: 15
+    cooldownPeriod: 60
+
+# ── pod scheduling — passed through to the operator ─────────────────
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ── pod security ────────────────────────────────────────────────────
+podSecurity:
+  level: restricted

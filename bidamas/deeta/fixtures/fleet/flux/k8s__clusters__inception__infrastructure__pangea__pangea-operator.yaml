@@ -1,0 +1,53 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pangea-operator
+  namespace: pangea-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: pangea-operator
+      version: "0.1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
+  values:
+    replicaCount: 1
+
+    image:
+      tag: "0.3.0"
+
+    imagePullSecrets:
+      - name: ghcr-pull
+
+    env:
+      - name: TOFU_BINARY
+        value: tofu
+      - name: PANGEA_WORKSPACE_BASE
+        value: /var/pangea/workspaces
+      - name: RUST_LOG
+        value: pangea_operator=info
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+
+    sidecars: []
+
+    nodeSelector:
+      kubernetes.io/arch: arm64
+
+    monitoring:
+      enabled: false
+    prometheusRules:
+      enabled: false

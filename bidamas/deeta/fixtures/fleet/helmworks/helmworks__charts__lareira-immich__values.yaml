@@ -1,0 +1,144 @@
+# Immich — Google Photos alternative. The biggest single household win.
+#
+# This chart deploys ONLY the immich-server. The companion services
+# (immich-machine-learning, postgres, redis) belong in their own charts:
+#   - lareira-postgresql (TODO)
+#   - lareira-redis (TODO)
+#   - lareira-immich-ml (TODO; optional, GPU-friendly when added)
+#
+# Required secret (SOPS-rendered): immich-env with
+#   DB_HOSTNAME=...
+#   DB_USERNAME=...
+#   DB_PASSWORD=...
+#   DB_DATABASE_NAME=immich
+#   REDIS_HOSTNAME=...
+
+enabled: false
+
+image:
+  repository: ghcr.io/immich-app/immich-server
+  tag: "v1.124.2"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 2283
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 2283
+      targetPort: http
+      protocol: TCP
+
+envFrom:
+  - secretRef:
+      name: immich-env
+      optional: true
+
+env:
+  - name: NODE_ENV
+    value: production
+  - name: IMMICH_LOG_LEVEL
+    value: log
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 4000m
+    memory: 4Gi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 100Gi
+  mountPath: /usr/src/app/upload
+  zfsDataset: pool/photos
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: photos.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "5g"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+
+authentik:
+  enabled: false
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  # Backups for photos go to plo via syncoid (zfs send) at the cluster
+  # level, not via restic. This restic CronJob is opt-in for the metadata
+  # DB only. Default off.
+  schedule: "0 3 * * *"
+  paths: ["/usr/src/app/upload/library"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-immich
+
+networkPolicy:
+  enabled: true
+  # Immich talks to its own postgres + redis Services
+  additionalEgress: []
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# ML inference is heavy; bigger workloads benefit from breathability.
+breathability:
+  enabled: false
+  cron:
+    enabled: false
+    timezone: America/New_York
+    start: "0 7 * * *"
+    end: "0 23 * * *"
+    desiredReplicas: 1

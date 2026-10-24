@@ -1,0 +1,277 @@
+# sekiban default values
+# Integrity attestation controller — ValidatingAdmissionWebhook + CRD reconcilers
+
+image:
+  repository: ghcr.io/pleme-io/sekiban
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 2
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC for CRD management, resource reading, and webhook registration
+rbac:
+  create: true
+  rules:
+    # Full access to Sekiban CRDs
+    - apiGroups: ["sekiban.pleme.io"]
+      resources:
+        - signaturegates
+        - signaturegates/status
+        - certifications
+        - certifications/status
+        - compliancepolicies
+        - compliancepolicies/status
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Read access to core resources for signature collection
+    - apiGroups: [""]
+      resources: ["namespaces", "pods", "services", "configmaps", "secrets", "serviceaccounts"]
+      verbs: ["get", "list", "watch"]
+    # Read access to workload resources
+    - apiGroups: ["apps"]
+      resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      verbs: ["get", "list", "watch"]
+    # Read access to networking
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["ingresses", "networkpolicies"]
+      verbs: ["get", "list", "watch"]
+    # Read access to FluxCD resources
+    - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+      resources: ["kustomizations"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["helm.toolkit.fluxcd.io"]
+      resources: ["helmreleases"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["source.toolkit.fluxcd.io"]
+      resources: ["gitrepositories", "helmrepositories", "ocirepositories"]
+      verbs: ["get", "list", "watch"]
+    # Create pods for compliance test runners
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["create", "delete"]
+    - apiGroups: [""]
+      resources: ["pods/log"]
+      verbs: ["get"]
+    # Events for recording controller actions
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create", "patch"]
+    # Admission webhook configuration (for dynamic registration)
+    - apiGroups: ["admissionregistration.k8s.io"]
+      resources: ["validatingwebhookconfigurations"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+# Container ports
+ports:
+  - name: webhook
+    containerPort: 8443
+    protocol: TCP
+  - name: api
+    containerPort: 8080
+    protocol: TCP
+  - name: health
+    containerPort: 8081
+    protocol: TCP
+  - name: metrics
+    containerPort: 9090
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: webhook
+      port: 443
+      targetPort: webhook
+      protocol: TCP
+    - name: api
+      port: 8080
+      targetPort: api
+      protocol: TCP
+    - name: health
+      port: 8081
+      targetPort: health
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+
+env:
+  - name: SEKIBAN_WEBHOOK_ADDR
+    value: "0.0.0.0:8443"
+  - name: SEKIBAN_API_ADDR
+    value: "0.0.0.0:8080"
+  - name: SEKIBAN_HEALTH_ADDR
+    value: "0.0.0.0:8081"
+  - name: SEKIBAN_METRICS_PORT
+    value: "9090"
+  - name: SEKIBAN_LOG_LEVEL
+    value: "info"
+  - name: SEKIBAN_LOG_FORMAT
+    value: "json"
+  - name: SEKIBAN_TLS_CERT_PATH
+    value: "/certs/tls.crt"
+  - name: SEKIBAN_TLS_KEY_PATH
+    value: "/certs/tls.key"
+
+envFrom: []
+
+volumeMounts:
+  - name: webhook-certs
+    mountPath: /certs
+    readOnly: true
+
+volumes:
+  - name: webhook-certs
+    secret:
+      secretName: sekiban-webhook-cert
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: health
+  livenessInitialDelay: 5
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# HA: spread across nodes
+strategy:
+  type: RollingUpdate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: sekiban
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress:
+    # Allow webhook traffic from kube-apiserver
+    - ports:
+        - port: 8443
+          protocol: TCP
+  additionalEgress:
+    # Allow access to kube-apiserver
+    - ports:
+        - port: 6443
+          protocol: TCP
+
+# --- Webhook configuration ---
+webhook:
+  # Enable the ValidatingWebhookConfiguration
+  enabled: true
+  # failurePolicy: Ignore for PoC safety, Fail for enforcement
+  failurePolicy: Ignore
+  # Timeout for admission review
+  timeoutSeconds: 10
+  # Only enforce on namespaces with this label
+  namespaceSelector:
+    matchLabels:
+      sekiban.pleme.io/enforce: "true"
+  # Resource types to gate
+  rules:
+    - apiGroups: ["helm.toolkit.fluxcd.io"]
+      apiVersions: ["*"]
+      resources: ["helmreleases"]
+      operations: ["CREATE", "UPDATE", "PATCH"]
+    - apiGroups: ["apps"]
+      apiVersions: ["v1"]
+      resources: ["deployments"]
+      operations: ["CREATE", "UPDATE", "PATCH"]
+
+# --- TLS certificate via cert-manager ---
+certificate:
+  enabled: true
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+  duration: 8760h
+  renewBefore: 720h
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+
+command: []
+args: []
+additionalLabels: {}
+sidecars: []
+initContainers: []
+priorityClassName: ""
+
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 5"]
+
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false
+  groups: []

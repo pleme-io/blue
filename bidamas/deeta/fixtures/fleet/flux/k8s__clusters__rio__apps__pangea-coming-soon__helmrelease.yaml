@@ -1,0 +1,276 @@
+# pangea.quero.cloud — coming-soon teaser, served by HANABI (the BFF), NO nginx.
+# Static-only now (no backend); hanabi proxies the backend GraphQL once it lands.
+# readOnlyRootFilesystem:false + enable_metrics:false to rule out startup-crash
+# classes on the (stale f8f5faa) base image; rio logs aren't MCP-reachable so we
+# bisect by deploy. Brand page: bold-black/metallic/dark-depth (ishou PlemeDark).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pangea-coming-soon
+  namespace: pangea-coming-soon
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: pleme-web
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
+  install: {remediation: {retries: 3}}
+  upgrade: {remediation: {retries: 3}}
+  values:
+    fullnameOverride: pangea-coming-soon
+    replicaCount: 1
+    # ghcr.io/pleme-io/hanabi is a PRIVATE package; pull with the fleet ghcr-pull
+    # secret (copied into this ns, as pangea-operator/breathe-controller use it).
+    imagePullSecrets:
+      - name: ghcr-pull
+    image:
+      repository: ghcr.io/pleme-io/hanabi
+      # ★ AUTOBUMP subscriber: the marker below makes ImageUpdateAutomation
+      # pin the latest amd64-r<run>-<sha> build (flux-system:hanabi policy)
+      # into this exact line on every merge — an EXACT tag, never :latest.
+      # The current value waits for the first conforming build to publish.
+      tag: "amd64-r120-81eacaa338f99b15ec4f741a4084d030892b7812" # {"$imagepolicy": "flux-system:hanabi:tag"}
+      pullPolicy: IfNotPresent
+    ports:
+      - {name: http, containerPort: 8081, protocol: TCP}
+      - {name: health, containerPort: 8080, protocol: TCP}
+    service:
+      type: ClusterIP
+      ports:
+        - {name: http, port: 80, targetPort: http, protocol: TCP}
+        - {name: health, port: 8080, targetPort: health, protocol: TCP}
+    health:
+      path: /health/startup
+      readyPath: /health/ready
+      port: health
+    monitoring:
+      enabled: true
+      port: health
+      path: /metrics
+      interval: 30s
+    pdb: {enabled: false}
+    networkPolicy: {enabled: true, allowDns: true, allowPrometheus: true}
+    podSecurityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000}
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: false # DIAGNOSTIC: rule out write-on-readonly
+      capabilities: {drop: [ALL]}
+    env:
+      - {name: CONFIG_PATH, value: /etc/hanabi/config.yaml}
+      - {name: ENVIRONMENT, value: production}
+    volumes:
+      - {name: cfg, configMap: {name: pangea-coming-soon-config}}
+      - {name: web, configMap: {name: pangea-coming-soon-content}}
+      - {name: tmp, emptyDir: {}}
+    volumeMounts:
+      - {name: cfg, mountPath: /etc/hanabi, readOnly: true}
+      - {name: web, mountPath: /app/static, readOnly: true}
+      - {name: tmp, mountPath: /tmp}
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      # limits ceded to breathe (curated bands pangea-coming-soon/{MemoryBand,CpuBand}) —
+      # breathe is sole writer of resources.limits.{cpu,memory}. This is the exact
+      # go-live handoff named in memoryband-pangea-coming-soon.yaml: cede the limit
+      # so breathe holds the 64Mi/256Mi mem + 50m/500m cpu band. Safe: a static nginx
+      # splash page, stateless + restart-tolerant; a wrong carve self-heals.
+    configMaps:
+      - name: pangea-coming-soon-config
+        data:
+          config.yaml: |
+            # Pangea Cloud BFF (hanabi) — static-only TODAY (no backend yet); NO federation.
+            # When the GraphQL layer lands: enable_bff:true + bff.mode:proxy + BACKEND_GRAPHQL_URL.
+            environment: production
+            features:
+              enable_bff: false
+              enable_metrics: false      # rule out a metrics-emit startup issue (interim)
+              enable_detailed_health_checks: false
+              enable_bug_reports: false
+            bff:
+              mode: disabled
+              federation:
+                enabled: false
+            preflight:
+              verify_react_bundle: false # hand-authored static page, not a React bundle
+              critical_files:
+                - index.html
+                - env.js
+            server:
+              static_dir: /app/static
+              http_port: 8081
+              health_port: 8080
+              bind_address: "0.0.0.0"
+              service_name: pangea-cloud-web
+              service_version: "0.1.0"
+            security:
+              cors:
+                allowed_origins:
+                  - https://pangea.quero.cloud
+                allow_credentials: true
+                max_age_secs: 3600
+      - name: pangea-coming-soon-content
+        data:
+          env.js: |
+            // Pangea Cloud — static coming-soon teaser; no runtime env injected.
+            window.ENV = {};
+          index.html: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8"/>
+              <meta name="viewport" content="width=device-width, initial-scale=1"/>
+              <meta name="theme-color" content="#0A0A0A"/>
+              <meta name="color-scheme" content="dark"/>
+              <title>Pangea — coming soon</title>
+              <meta name="description" content="Pangea — cloud infrastructure, declared and observed. The operator does the rest. Coming soon."/>
+              <meta property="og:type" content="website"/>
+              <meta property="og:title" content="Pangea — coming soon"/>
+              <meta property="og:description" content="Cloud infrastructure, declared and observed. The operator does the rest."/>
+              <meta property="og:url" content="https://pangea.quero.cloud/"/>
+              <meta property="og:site_name" content="Pangea"/>
+              <meta name="twitter:card" content="summary_large_image"/>
+              <meta name="twitter:title" content="Pangea — coming soon"/>
+              <meta name="twitter:description" content="Cloud infrastructure, declared and observed. The operator does the rest."/>
+              <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230A0A0A'/%3E%3Cpath d='M 8 10 C 14 46, 30 52, 32 32 C 34 12, 50 18, 56 54' fill='none' stroke='%2388C0D0' stroke-width='10' stroke-linecap='round'/%3E%3C/svg%3E"/>
+              <link rel="stylesheet" href="style.css"/>
+            </head>
+            <body>
+              <!-- single shared metallic gradient def for the swerve stroke -->
+              <svg width="0" height="0" aria-hidden="true" class="defs">
+                <defs>
+                  <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#ECEFF4"/>
+                    <stop offset="50%" stop-color="#88C0D0"/>
+                    <stop offset="100%" stop-color="#81A1C1"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="vignette" aria-hidden="true"></div>
+              <main class="hero">
+                <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="pleme-io mark">
+                  <path d="M 8 10 C 14 46, 30 52, 32 32 C 34 12, 50 18, 56 54"/>
+                </svg>
+                <p class="eyebrow">Pangea&nbsp;Cloud</p>
+                <h1 class="wordmark">Pangea</h1>
+                <p class="valueprop"><b>Cloud infrastructure, declared and observed.</b> The&nbsp;operator does the rest.</p>
+                <p class="status"><span class="dot" aria-hidden="true"></span>Coming soon &middot; early access</p>
+              </main>
+              <footer class="footer">pleme-io &middot; typed infrastructure for the next decade</footer>
+            </body>
+            </html>
+          style.css: |
+            /* Pangea coming-soon — pleme-io brand: bold black / metallic / paper-white / dark-depth.
+               INTERIM: values hand-resolved from ishou TokenSet::pleme(); destination = `ishou render --target css`
+               + the graphite/steel brand-extension landed in ishou-tokens/src/color.rs. Zero external requests:
+               system font stacks, data-URI favicon, inline SVG only. */
+            :root{
+              --ink:#0A0A0A; --void:#0A0A0B; --shadow-tone:#141822;
+              --paper:#F5F5F0; --snow-2:#ECEFF4; --text-muted:#D8DEE9; --text-dim:#4C566A;
+              --steel:#6B7280; --silver:#9AA3B2; --platinum:#C8CDD8;
+              --frost-0:#8FBCBB; --frost-1:#88C0D0; --frost-2:#81A1C1; --frost-3:#5E81AC;
+              --font-display:'Inter',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+              --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+              --font-mono:'JetBrains Mono','SF Mono','Menlo','Consolas',monospace;
+              --ease-standard:cubic-bezier(.4,0,.2,1);
+              --ease-decelerate:cubic-bezier(0,0,.2,1);
+              --dur-hero:800ms;
+            }
+            *{box-sizing:border-box;margin:0;padding:0;}
+            html,body{height:100%;}
+            body{
+              background:var(--ink);
+              color:var(--paper);
+              font-family:var(--font-sans);
+              -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+              min-height:100vh; min-height:100dvh;
+              display:flex; align-items:center; justify-content:center;
+              overflow:hidden; position:relative;
+            }
+            /* dark-depth ground: shadow-tone core rising from below-center → ink at edges + a faint frost bloom */
+            body::before{
+              content:""; position:absolute; inset:0; z-index:0;
+              background:
+                radial-gradient(120% 90% at 50% 38%, var(--shadow-tone) 0%, var(--ink) 60%),
+                radial-gradient(60% 50% at 50% 50%, rgba(136,192,208,.06) 0%, transparent 70%);
+              animation:depth-glow 14s ease-in-out infinite alternate;
+            }
+            /* inner vignette for depth */
+            .vignette{
+              position:absolute; inset:0; z-index:0; pointer-events:none;
+              box-shadow:inset 0 0 220px 40px rgba(0,0,0,.85);
+            }
+            .hero{
+              position:relative; z-index:1;
+              width:100%; max-width:720px; padding:0 24px;
+              text-align:center;
+              display:flex; flex-direction:column; align-items:center; gap:28px;
+            }
+            /* swerve mark — exact ishou brand.rs path, stroked in the metal gradient */
+            .mark{
+              width:76px; height:76px;
+              opacity:0; animation:rise var(--dur-hero) var(--ease-decelerate) 120ms forwards;
+              filter:drop-shadow(0 0 18px rgba(136,192,208,.25));
+            }
+            .mark path{ stroke:url(#metal); stroke-width:10; stroke-linecap:round; fill:none; }
+            .eyebrow{
+              opacity:0; animation:rise var(--dur-hero) var(--ease-decelerate) 220ms forwards;
+              font-family:var(--font-mono);
+              font-size:.78rem; letter-spacing:.42em; text-transform:uppercase;
+              color:var(--frost-2);
+              padding-left:.42em; /* optical: absorb trailing letter-spacing */
+            }
+            /* metallic sheen wordmark: a 300%-wide frost↔paper gradient dragged across clipped text */
+            .wordmark{
+              opacity:0;
+              font-family:var(--font-display);
+              font-weight:600; font-size:clamp(3.2rem,12vw,6.5rem);
+              line-height:1; letter-spacing:-.02em;
+              background:linear-gradient(100deg,
+                var(--snow-2) 0%, var(--frost-0) 18%, var(--paper) 32%,
+                var(--snow-2) 46%, var(--frost-1) 60%, var(--paper) 74%, var(--snow-2) 100%);
+              background-size:300% 100%;
+              -webkit-background-clip:text; background-clip:text;
+              -webkit-text-fill-color:transparent; color:transparent;
+              animation:rise var(--dur-hero) var(--ease-decelerate) 300ms forwards,
+                        sheen 8s var(--ease-standard) 1.2s infinite;
+            }
+            .valueprop{
+              opacity:0; animation:rise var(--dur-hero) var(--ease-decelerate) 420ms forwards;
+              font-size:clamp(1.05rem,2.4vw,1.4rem);
+              line-height:1.55; font-weight:400;
+              color:var(--text-muted);
+              max-width:38ch;
+            }
+            .valueprop b{ color:var(--paper); font-weight:500; }
+            .status{
+              opacity:0; animation:rise var(--dur-hero) var(--ease-decelerate) 540ms forwards;
+              margin-top:8px;
+              display:inline-flex; align-items:center; gap:10px;
+              font-family:var(--font-mono); font-size:.8rem; letter-spacing:.12em;
+              text-transform:uppercase; color:var(--text-dim);
+            }
+            .status .dot{
+              width:7px; height:7px; border-radius:999px;
+              background:var(--frost-1); box-shadow:0 0 10px 1px rgba(136,192,208,.7);
+              animation:pulse 2.6s var(--ease-standard) infinite;
+            }
+            .footer{
+              position:absolute; bottom:28px; left:0; right:0; z-index:1;
+              text-align:center;
+              font-family:var(--font-mono); font-size:.72rem; letter-spacing:.18em;
+              text-transform:uppercase; color:var(--text-dim);
+              opacity:0; animation:rise var(--dur-hero) var(--ease-decelerate) 700ms forwards;
+            }
+            @keyframes rise{ from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:translateY(0);} }
+            @keyframes sheen{ 0%{background-position:160% 50%;} 100%{background-position:-60% 50%;} }
+            @keyframes depth-glow{ 0%{opacity:.85;transform:scale(1);} 100%{opacity:1;transform:scale(1.06);} }
+            @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+            @media (max-width:640px){ .footer{ font-size:.66rem; } .hero{ gap:22px; } }
+            @media (prefers-reduced-motion:reduce){
+              *,*::before,*::after{ animation:none!important; }
+              .mark,.eyebrow,.wordmark,.valueprop,.status,.footer{ opacity:1!important; transform:none!important; }
+              .wordmark{ background-position:0 50%; }
+            }

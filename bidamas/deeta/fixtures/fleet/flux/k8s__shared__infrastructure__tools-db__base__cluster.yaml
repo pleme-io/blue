@@ -1,0 +1,63 @@
+---
+# CloudNativePG Cluster for internal tools
+# Shared PostgreSQL 16 instance for Outline, Plausible, Linkwarden, n8n
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tools-postgres
+  namespace: tools-db
+  labels:
+    app: tools-db
+    component: database
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  inheritedMetadata:
+    annotations:
+      sidecar.istio.io/inject: "false"
+      kustomize.toolkit.fluxcd.io/prune: disabled
+
+  instances: 1
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+
+  enableSuperuserAccess: true
+
+  primaryUpdateStrategy: unsupervised
+
+  storage:
+    size: 10Gi
+    storageClass: local-path-retain
+    resizeInUseVolumes: false
+
+  postgresql:
+    parameters:
+      log_statement: "ddl"
+      log_checkpoints: "on"
+      log_lock_waits: "on"
+      log_min_duration_statement: "1000"
+      shared_buffers: "128MB"
+      effective_cache_size: "256MB"
+      work_mem: "8MB"
+    pg_hba:
+      - host all all 10.0.0.0/8 scram-sha-256
+      - host all all 172.16.0.0/12 scram-sha-256
+      - host all all 192.168.0.0/16 scram-sha-256
+
+  bootstrap:
+    initdb:
+      database: postgres
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        - CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  monitoring:
+    enablePodMonitor: true

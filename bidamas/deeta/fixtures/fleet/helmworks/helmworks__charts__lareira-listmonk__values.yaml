@@ -1,0 +1,122 @@
+# Listmonk — newsletter / mailing-list service for the wife's
+# children's-book launches.
+#
+# Required secret (SOPS-rendered): listmonk-env with
+#   LISTMONK_db__host=...
+#   LISTMONK_db__user=...
+#   LISTMONK_db__password=...
+#   LISTMONK_db__database=listmonk
+#   LISTMONK_app__admin_username=...
+#   LISTMONK_app__admin_password=...
+
+enabled: false
+
+image:
+  repository: docker.io/listmonk/listmonk
+  tag: "v3.0.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 9000
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+      protocol: TCP
+
+envFrom:
+  - secretRef:
+      name: listmonk-env
+      optional: true
+
+env:
+  - name: TZ
+    value: America/New_York
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /listmonk/uploads
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: newsletter.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+
+authentik:
+  enabled: false
+
+cloudflared:
+  # Listmonk has a public signup form — Cloudflare Tunnel exposure is
+  # the typical way for the wife's readers to subscribe.
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/listmonk/uploads"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-listmonk
+
+networkPolicy:
+  enabled: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

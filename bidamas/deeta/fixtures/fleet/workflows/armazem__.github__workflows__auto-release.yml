@@ -1,0 +1,37 @@
+name: auto-release
+
+# armazem is a SERVICE whose artifact is a Nix-built `dockerTools` image —
+# NOT a crate. The correct AUTO-RELEASE (★★ org directive) for a Rust service
+# image is substrate's image-push.yml, building the Nix image on a NATIVE
+# x86_64 runner (the substrate default `ubuntu-24.04`, GitHub's FREE hosted
+# x86_64 runner) so `dockerImage-amd64` — an x86_64-linux derivation — is built
+# natively into a correct amd64 binary (no cross-arch `exec format error`).
+# Pillar 8: Nix-built, no Dockerfile.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  image-amd64:
+    name: armazem amd64 image → ghcr.io
+    uses: pleme-io/substrate/.github/workflows/image-push.yml@main
+    with:
+      imageAttr: dockerImage-amd64
+      imageName: pleme-io/armazem
+      # AUTOBUMP-friendly: `r<run_number>` makes the tag numerically SORTABLE so
+      # Flux ImagePolicy (the env-subscription side) can auto-track the latest
+      # build; the sha keeps it traceable.
+      tag: amd64-r${{ github.run_number }}-${{ github.sha }}
+      additionalTags: amd64-latest
+      # No `runner:` override → substrate image-push.yml's default `ubuntu-24.04`
+      # (GitHub's free hosted x86_64 runner = native amd64). armazem is
+      # public/open-source, so it must NOT couple its build to private rio infra
+      # (tool-distribution rule).
+    secrets: inherit

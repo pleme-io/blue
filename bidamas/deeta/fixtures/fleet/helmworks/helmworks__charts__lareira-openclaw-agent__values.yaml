@@ -1,0 +1,160 @@
+# lareira-openclaw-agent — the openclaw gateway, gated by cartorio.
+#
+# Inherits the fedramp-high compliance overlay via pleme-microservice;
+# all hardening (digest-pinned image, runAsNonRoot, default-deny network,
+# PDB + topology spread, ServiceMonitor, attestation gating) is mechanical.
+#
+# Image is the rewrap variant: same upstream openclaw layers, repackaged
+# with the OCI annotations the FedRAMP-High image pack requires (created,
+# source, revision, version, SLSA provenance). Real digest, real
+# admission to cartorio, real pull through lacre.
+
+# Master enable/disable knob. Flip to false in the HelmRelease values
+# to render NOTHING — supports "bring this workload down" without
+# deleting the HelmRelease / GitOps source. Gates both the pleme-
+# microservice subchart (via Chart.yaml condition) and the local
+# digest/attestation validation templates.
+enabled: true
+
+# sekiban gating — bind the deployment to a CompliancePolicy +
+# SignatureGate so admission requires NIST 800-53 high pass + valid
+# tameshi composite signature.
+sekiban:
+  enabled: true
+  framework: NIST_800_53
+  baseline: high
+  testRunner:
+    runnerType: kensa
+    image: "ghcr.io/pleme-io/kensa@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    profile: nist-800-53-high
+    timeoutSecs: 600
+  schedule: "0 */6 * * *"
+  signatureGate:
+    layers: ["image", "config", "rbac", "network"]
+    signatureOverride: ""
+    verificationIntervalSecs: 3600
+
+# ─────────────────────────────────────────────────────────────────────
+# pleme-microservice subchart values
+# ─────────────────────────────────────────────────────────────────────
+
+pleme-microservice:
+  compliance:
+    overlays: [fedramp-high]
+    enforce: true
+    audit:
+      logLevel: info
+      retentionDays: 365
+    authn:
+      oidc:
+        provider: authentik
+    authz:
+      role:
+        rules:
+          - apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get", "watch"]
+
+  # The real openclaw image — rewrap of upstream amd64 with FedRAMP-
+  # required OCI annotations. Admitted to cartorio at this digest with
+  # pack_hash 553e63bc3904bdb5903985d3add076aee1e314c06a5c3e3783bee771e592483e
+  # against fedramp-high-openclaw-image@2 (all 13 tests pass).
+  image:
+    repository: openclaw-stack-backing-registry.openclaw.svc.cluster.local:5000/pleme-io/openclaw-fedramp-rewrap
+    tag: "sha256:f405deaf766640bf8fe8f418aa4c9fe6dbe057cdfd9d5450ad20e607d2556111"
+    pullPolicy: IfNotPresent
+
+  # FedRAMP CP-2 minimum: 2 replicas. openclaw gateway is stateless in
+  # --allow-unconfigured mode (no per-replica session state), so HA is
+  # safe. Above this, set HPA below.
+  replicaCount: 2
+
+  resources:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits:   { cpu: 1000m, memory: 768Mi }
+
+  ports:
+    - name: http
+      containerPort: 8080
+      protocol: TCP
+
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 8080
+        targetPort: http
+        protocol: TCP
+
+  # Health probes — openclaw gateway exposes a heartbeat at /health
+  # by default. If unavailable, fall back to TCP probe.
+  health:
+    path: /health
+    readyPath: /health
+    port: http
+
+  # `--allow-unconfigured` lets the gateway start without an LLM
+  # provider key wired in. Demo-mode: visitors can hit the gateway and
+  # see it responds, but actual chat requires further config.
+  args:
+    - gateway
+    - --allow-unconfigured
+    - --host=0.0.0.0
+    - --port=8080
+
+  env:
+    - name: NODE_ENV
+      value: production
+    - name: OPENCLAW_GATEWAY_DISABLE_TELEMETRY
+      value: "1"
+
+  monitoring:
+    enabled: true
+    port: http
+    path: /metrics
+    interval: 30s
+
+  # Public ingress — this is the demonstration surface visitors hit
+  # from the SPA's "Where to go next" link.
+  ingress:
+    enabled: true
+    className: nginx
+    host: openclaw-agent-dev.quero.cloud
+    tls:
+      enabled: true
+      issuer: letsencrypt-prod
+
+  # Default-deny + explicit allowlist. Public ingress is allowed in via
+  # the ingress controller pod selector; gateway can call out to the
+  # publisher-PKI for skill verification.
+  networkPolicy:
+    enabled: true
+    additionalIngress:
+      - name: allow-from-ingress-controller
+        rules:
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: ingress-nginx
+            ports:
+              - port: 8080
+                protocol: TCP
+
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+  # Attestation hashes injected by forge at release time.
+  attestation:
+    enabled: true
+    signature: ""
+    certificationHash: ""
+    complianceHash: ""
+    changesetHash: ""
+
+  # Override the chart name so all rendered resources are tagged
+  # `app.kubernetes.io/name: openclaw-agent` (not pleme-microservice).
+  nameOverride: openclaw-agent
+
+  podLabels:
+    app.kubernetes.io/component: openclaw-agent

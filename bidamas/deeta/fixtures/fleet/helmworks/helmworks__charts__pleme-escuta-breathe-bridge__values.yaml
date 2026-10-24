@@ -1,0 +1,84 @@
+# Master toggle — enabled=false renders no resources.
+enabled: true
+
+# ─── Image ──────────────────────────────────────────────────────────
+# NAMED BLOCKER (tier-honest, 2026-07-11): this image does NOT exist yet.
+# escuta/flake.nix names the confirmed cause — gen's Cargo.build-spec.json
+# only ever resolves the workspace's DEFAULT feature set, and the
+# escuta-breathe-bridge [[bin]] lives behind the non-default `bridge`
+# feature, so gen's own crates map never sees kube/k8s-openapi/breathe-crd/
+# futures/tracing at all. A hand-rolled dockerTools image (the pattern
+# `pleme-io/tend/flake.nix` uses) would silently fail to compile against
+# that spec. This HelmRelease/Deployment is real and committed, matching
+# this cluster's OWN precedent for a chart authored ahead of a publishable
+# image (`pleme-breathe`/`lareira-lookout` in the private GitOps repo) —
+# installing it today would ImagePullBackOff, safely, not silently.
+image:
+  repository: ghcr.io/pleme-io/escuta-breathe-bridge
+  tag: amd64-dev
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-pull
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  name: "escuta-breathe-bridge"
+
+# ─── Bridge config (env — matches src/bin/escuta_breathe_bridge.rs) ──
+# Helm fullname of the pleme-nats release in the GitOps repo's infrastructure/nats
+# is "nats-pleme-nats" (release name "nats" + chart name "pleme-nats" — the
+# chart's own `pleme-lib.fullname` helper concatenates them since "pleme-nats"
+# does not contain "nats" as a prefix). Matches the fleet's own live precedent
+# in k8s/clusters/rio/infrastructure/{tend-throttle,tend-operator}/release.yaml.
+natsUrl: "nats://nats-pleme-nats.nats.svc:4222"
+logLevel: "info,escuta=debug,kube=info"
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ─── JetStream declaration (consumed by pleme-lib.jetstream) ────────
+# This chart OWNS the BREATHE_EVENTS stream — it is the producer. Piece 3
+# (breathe-controller's event-reactive extension) deliberately does NOT
+# declare a durable consumer here: it subscribes via plain core-NATS
+# (a "nudge, don't guarantee" trigger — see breathe-controller/src/
+# nats_trigger.rs), so no consumer entry is needed for that path. The stream
+# itself still buys durability/replay for any FUTURE subscriber.
+jetstream:
+  enabled: true
+  serverUrl: "nats://nats-pleme-nats.nats.svc:4222"
+  streams:
+    BREATHE_EVENTS:
+      subjects:
+        - "escuta.>"
+      # Limits, not workqueue: multiple independent subscribers may read the
+      # same message (breathe-controller's trigger today; any future
+      # consumer tomorrow), never "exactly one consumer removes it".
+      retention: limits
+      storage: file
+      replicas: 1
+      maxMsgs: 100000
+      maxBytes: "256MB"
+      maxAge: "24h"
+      duplicateWindow: "2m"
+      discard: old
+
+jetstreamInit:
+  image:
+    repository: natsio/nats-box
+    tag: "0.14.5"
+  serverWaitSeconds: 120

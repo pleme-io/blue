@@ -1,0 +1,13 @@
+---
+# RustFS namespace - object storage
+# IMPORTANT: Prune disabled to preserve namespace during decommission/reprovision cycles
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rustfs
+  labels:
+    app: rustfs
+  annotations:
+    # Prevent FluxCD from deleting namespace during prune operations
+    # RustFS contains all product files/uploads - critical for recovery
+    kustomize.toolkit.fluxcd.io/prune: disabled

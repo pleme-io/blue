@@ -1,0 +1,898 @@
+# pleme-lib default values (documentation only — library charts are not installed directly)
+#
+# These defaults are inherited by application charts that depend on pleme-lib.
+# Override them in the application chart's values.yaml or at install time.
+
+# -- Container image configuration
+image:
+  # -- Image repository (e.g., ghcr.io/pleme-io/releases)
+  repository: ""
+  # -- Image tag (overridden by kustomize overlays or HelmRelease patches)
+  tag: latest
+  # -- Image pull policy
+  pullPolicy: Always
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+
+# -- Number of replicas
+replicaCount: 1
+
+# -- Service account configuration
+serviceAccount:
+  # -- Create a service account
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- Name override (defaults to fullname)
+  name: ""
+
+# -- Container ports
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+# -- Service configuration
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service ports
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+# -- Environment variables
+env: []
+
+# -- Environment variables from ConfigMaps/Secrets
+envFrom: []
+
+# -- Volume mounts
+volumeMounts: []
+
+# -- Volumes
+volumes: []
+
+# -- Resource requests and limits
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# -- Health check configuration
+health:
+  # -- Liveness probe path
+  path: /healthz
+  # -- Readiness probe path
+  readyPath: /readyz
+  # -- Port name for probes
+  port: http
+  # -- Initial delay for liveness probe
+  livenessInitialDelay: 5
+  # -- Period for liveness probe
+  livenessPeriod: 10
+  # -- Failure threshold for liveness probe
+  livenessFailureThreshold: 3
+  # -- Initial delay for readiness probe
+  readinessInitialDelay: 5
+  # -- Period for readiness probe
+  readinessPeriod: 5
+  # -- Failure threshold for readiness probe
+  readinessFailureThreshold: 2
+
+# -- Startup probe configuration (disabled by default)
+startupProbe:
+  enabled: false
+  path: /healthz
+  port: http
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  failureThreshold: 30
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# -- Container security context (enforced baseline — not overridable without explicit opt-out)
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Deployment strategy
+strategy:
+  type: RollingUpdate
+
+# -- Termination grace period
+terminationGracePeriodSeconds: 30
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Init containers
+initContainers: []
+
+# -- Sidecar containers
+sidecars: []
+
+# -- Shinka DatabaseMigration CRD (renders shinka.pleme.io/v1alpha1 DatabaseMigration)
+shinkaMigration:
+  enabled: false
+  database:
+    cnpgClusterRef:
+      name: ""
+      database: ""
+  migrator:
+    name: ""
+    type: sqlx
+    deploymentRef:
+      name: ""
+    command: []
+    env: {}
+    envFrom: []
+    resources:
+      memoryLimit: "512Mi"
+      cpuLimit: "500m"
+      memoryRequest: "128Mi"
+      cpuRequest: "100m"
+    serviceAccountName: ""
+  safety:
+    requireHealthyCluster: true
+    maxRetries: 3
+    checksumMode: auto-reconcile
+    continueOnFailure: false
+  timeouts:
+    migration: "5m"
+
+# -- Shinka wait init container (polls for migration completion before app starts)
+shinkaWait:
+  enabled: false
+  image: ghcr.io/pleme-io/shinka:amd64-latest
+  migrationName: ""
+  timeoutSeconds: 300
+  retryIntervalSeconds: 5
+  logLevel: info
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 32Mi
+
+# -- Preflight init container (verifies declared come-up requirements before the app starts)
+preflight:
+  enabled: false
+  image: ghcr.io/pleme-io/preflight:amd64-latest
+  imagePullPolicy: IfNotPresent
+  spec: {}
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 32Mi
+
+# -- Monitoring configuration
+monitoring:
+  # -- Enable ServiceMonitor creation
+  enabled: true
+  # -- Metrics port name
+  port: http
+  # -- Metrics path
+  path: /metrics
+  # -- Scrape interval
+  interval: 30s
+  # -- Scrape timeout
+  scrapeTimeout: 10s
+
+# -- VMServiceScrape configuration (VictoriaMetrics-operator-native scrape).
+# Rendered by pleme-lib.vmServiceScrape. The native ALTERNATIVE to the
+# Prometheus-operator ServiceMonitor above — not a replacement. The
+# ServiceMonitor still works via vmagent's selectAllByDefault (cross-CR
+# conversion); set vmScrape.enabled to emit an explicit
+# operator.victoriametrics.com/v1beta1 VMServiceScrape instead.
+vmScrape:
+  # -- Enable VMServiceScrape creation
+  enabled: false
+  # -- Metrics port NAME on the Service to scrape
+  port: http
+  # -- Metrics path
+  path: /metrics
+  # -- Scrape interval
+  interval: 30s
+  # -- Scrape timeout
+  scrapeTimeout: 10s
+
+# -- breathe resource-homeostasis bands (breathe.pleme.io/v1).
+# Rendered by pleme-lib.breatheBand. Emits ZERO, ONE, or TWO documents — a
+# MemoryBand and/or a CpuBand — that the breathe controller reconciles by
+# carving resources.limits.{memory,cpu} on the targetRef workload to hold
+# utilization at the band's setpoint (the band center; default 0.8, the 80/20
+# law). A band is a NAMESPACED CR. No-op unless breathe.enabled.
+breathe:
+  # -- Master toggle for this chart's bands. When false, no band is emitted.
+  enabled: false
+  # -- OPTIONAL explicit target workload {apiVersion, kind, name}. When EMPTY,
+  # the band targets the chart's OWN workload: {apiVersion: apps/v1,
+  # kind: Deployment, name: <pleme-lib.fullname>}. This dual mode is
+  # load-bearing: inline charts band their own deployment (leave this empty);
+  # lareira-observe passes an explicit EXTERNAL targetRef here.
+  targetRef: {}
+  #   apiVersion: apps/v1
+  #   kind: Deployment
+  #   name: some-external-workload
+  memory:
+    # -- Emit a MemoryBand (default true when breathe.enabled)
+    enabled: true
+    # -- Band center utilization (0.0-1.0). The 80/20 law default.
+    setpoint: 0.8
+    # -- Lower bound the controller will never carve below (memory quantity)
+    floor: 256Mi
+    # -- Upper bound the controller will never carve above (memory quantity)
+    ceiling: 2Gi
+    # -- Grow limits when observed utilization exceeds this (0.0-1.0)
+    growAbove: 0.85
+    # -- Multiplier applied to limits when growing
+    growFactor: 1.25
+    # -- Shrink limits when observed utilization drops below this (0.0-1.0)
+    shrinkBelow: 0.7
+    # -- Multiplier applied to limits when shrinking
+    shrinkFactor: 0.9
+    # -- Seconds the controller waits between carve actions
+    cooldownSeconds: 600
+    # -- How the controller may apply a carve: allowRestart | inPlaceOnly
+    disruptionPolicy: allowRestart
+    # -- When true, the controller computes but does not apply carves
+    dryRun: false
+    # -- Reject metric samples older than this many seconds
+    maxStalenessSeconds: 120
+  cpu:
+    # -- Emit a CpuBand. Off by default (M2Typed maturity). Same field shape as
+    # memory; floor/ceiling are CPU quantities in millicores (e.g. 200m / 2000m).
+    enabled: false
+    # -- Band center utilization (0.0-1.0). The 80/20 law default.
+    setpoint: 0.8
+    # -- Lower bound the controller will never carve below (millicores)
+    floor: 200m
+    # -- Upper bound the controller will never carve above (millicores)
+    ceiling: 2000m
+    # -- Grow limits when observed utilization exceeds this (0.0-1.0)
+    growAbove: 0.85
+    # -- Multiplier applied to limits when growing
+    growFactor: 1.25
+    # -- Shrink limits when observed utilization drops below this (0.0-1.0)
+    shrinkBelow: 0.7
+    # -- Multiplier applied to limits when shrinking
+    shrinkFactor: 0.9
+    # -- Seconds the controller waits between carve actions
+    cooldownSeconds: 600
+    # -- How the controller may apply a carve: allowRestart | inPlaceOnly
+    disruptionPolicy: allowRestart
+    # -- When true, the controller computes but does not apply carves
+    dryRun: false
+    # -- Reject metric samples older than this many seconds
+    maxStalenessSeconds: 120
+  storage:
+    # -- Emit a StorageBand. Off by default (M2Typed maturity). Unlike the
+    # memory/cpu bands (which carve a workload's resources.limits), a StorageBand
+    # carves a PVC's spec.resources.requests.storage — GROW-ONLY: EBS online-
+    # expand (PVC resize → CSI → aws ec2 modify-volume where the driver supports
+    # it). A shrink is mechanically unrepresentable (the down-cliff has no code
+    # path; EBS cannot shrink in place). The shape is provision-minimal FLOOR +
+    # grow-on-demand-to-SETPOINT: the PVC is created/held at `floor` and the band
+    # expands it online toward `ceiling` as `used/capacity` crosses `growAbove`.
+    enabled: false
+    # -- The PVC this band carves. REQUIRED when storage.enabled — a PVC name has
+    # no fullname default (a StatefulSet PVC is <vct>-<sts>-<ordinal>, an operator
+    # PVC is its own shape), so the operator names it explicitly. Empty ⇒ no
+    # StorageBand is emitted even when enabled.
+    pvcName: ""
+    # -- Band center utilization (0.0-1.0). Grow to hold used/capacity here.
+    setpoint: 0.8
+    # -- Provision-minimal floor — the smallest the PVC is ever held at (storage
+    # quantity, e.g. 1Gi). The one-time reset to this floor is a recreate (EBS
+    # can't shrink in place); thereafter the band only ever grows from it.
+    floor: 1Gi
+    # -- Grow cap — the band never expands the PVC beyond this (storage quantity).
+    ceiling: 100Gi
+    # -- Grow the PVC when observed used/capacity exceeds this (0.0-1.0).
+    growAbove: 0.8
+    # -- Multiplier applied to the request when growing. Storage grows in larger
+    # steps than memory/cpu (EBS modify-volume rate-limits to ~1/6h per volume),
+    # so pre-grow generously rather than chase.
+    growFactor: 1.5
+    # -- Seconds the controller waits between carves. Kept well above the EBS
+    # modify-volume rate limit (~6h per volume).
+    cooldownSeconds: 3600
+    # -- Online EBS expand resizes the mounted filesystem with no restart.
+    disruptionPolicy: allowRestart
+    # -- Shadow-first: observe the would-grow decision before any live PVC expand.
+    # Default TRUE for storage (grow is cheap+safe, but a live PVC mutation is
+    # observed first; flip to false to arm live grow-on-demand).
+    dryRun: true
+    # -- Reject volume-stat samples older than this many seconds (PromQL
+    # kubelet_volume_stats has no metrics-server analog; a wider window is safe).
+    maxStalenessSeconds: 300
+  request:
+    # -- Emit a RequestBand — the RESERVATION dimension. Every band above carves
+    # a LIMIT; this one carves resources.requests.<r>, which is what sets
+    # oom_score_adj and the QoS class. A limit bounds blast radius but does not
+    # decide who the kernel picks: sui-cache-pg took 34 OOMKills at a 202.8Mi
+    # high-water against a 1Gi limit with cgroup failcnt=0 — the limit was never
+    # binding, and no MemoryBand setting at any value could have saved it.
+    # Off by default.
+    enabled: false
+    # -- REQUIRED when enabled: memory | cpu. No default on purpose — guessing
+    # between the OOM lever (memory) and the scheduling lever (cpu) is exactly
+    # the ambiguity this dimension exists to remove. Empty ⇒ nothing emitted.
+    resource: ""
+    # -- The container within the target whose request is carved. Empty ⇒ the
+    # target's sole/first container.
+    container: ""
+    # -- Criticality class: critical | standard | batch. Drives the default
+    # qosTarget and the isolation seal. Unset ⇒ the posture's, else standard.
+    workloadClass: ""
+    # -- Desired QoS class: guaranteed | burstable | bestEffort. A gap between
+    # this and the OBSERVED class is reported and, when a durable writer exists,
+    # proposed as a manifest edit — NEVER actuated in place, because Kubernetes
+    # refuses a QoS-class change through the resize subresource unconditionally
+    # (validation.go, ValidatePodResize — no feature gate, no way around it).
+    qosTarget: ""
+    # -- The demand statistic the reservation tracks: a stable high percentile,
+    # NOT the peak. Reserving the peak wastes node allocatable linearly in
+    # replica count, and past allocatable the pod never schedules.
+    # e.g. {quantile: 0.95, windowSeconds: 604800, headroom: 0.15}
+    demand: {}
+    # -- committed | ephemeral. Where a converged value must land.
+    # `ephemeral` = in-place only: fast and reversible, but LOST on the next
+    # rollout and invisible in git. `committed` (the default) = the value must
+    # reach the committed manifest, which for a request is the only honest
+    # setting — a reverted request silently drops the QoS protection at exactly
+    # the moment (a rollout) when things are already moving.
+    durability: committed
+    # -- WHERE in git the converged value lands. {path, marker}: a repo-relative
+    # manifest path plus the marker id that must appear in a
+    # `# {"$breathe": "<marker>"}` comment on the value line. Both are authored
+    # by a human; neither is inferred — breathe never walks a document looking
+    # for a likely field, so a manifest nobody marked cannot be written to.
+    # Absent ⇒ breathe reports Blocked(noManifestCoordinate); it does NOT
+    # silently downgrade to ephemeral.
+    manifestRef: {}
+    #   path: clusters/<cluster>/apps/<app>/release.yaml
+    #   marker: <group>/<request-id>
+    # -- Advisory lower bound (e.g. 256Mi / 250m). The band never reserves below.
+    floor: ""
+    # -- Advisory upper bound. NOT the binding ceiling — that is always the LIVE
+    # limit, because k8s rejects request > limit at admission.
+    ceiling: ""
+    # -- Seconds the controller waits between carves.
+    cooldownSeconds: 600
+    # -- Requests are raised in place without a restart where the API allows it.
+    disruptionPolicy: restartFreeOnly
+    # -- Reject metric samples older than this many seconds.
+    maxStalenessSeconds: 120
+    # -- shadow | effect | shadowConfirmEffect. Defaults to `shadow`.
+    # NOTE this band emits NO `dryRun` key, unlike memory/cpu/storage above.
+    # breathe RETIRED dryRun: it is inert for 8 of 10 band kinds and decides
+    # nothing. `mode` is the gate that is actually read, so this band ships the
+    # switch that works rather than the one that reads reassuringly — emitting
+    # an inert field that LOOKS like a safety gate is worse than emitting none.
+    mode: shadow
+
+# -- costGuard: default-on, shadow-first cost-leak prevention. Composes WITH
+# breathe + the 100%-spot auction + the intentional time-floor supercharge
+# pools — it forbids the leak SHAPES, it never disables breathability.
+# Enforcement lives in autorevivy (the cost-guard CLEAN maintenance jobs + the
+# CostBudget promessa, shadow-first) and in pangea-architectures (the
+# build-time WorkloadPlacement invariant: a persistent-service pinned to a
+# transient-build-supercharge pool is refused at render/spec time). This
+# section is the DECLARED fleet default — pleme-lib is a library chart, so these
+# are documentation-only defaults inherited by app charts, not a rendered CR.
+costGuard:
+  # -- Master toggle. Default ON — cost-leak prevention is a fleet default, like
+  # breathe. Forbids leak shapes; never disables breathe/auction/supercharge.
+  enabled: true
+  # -- Shadow-first (mirrors breathe dryRun): observe the would-reap decision
+  # before any enforcement. NEVER reaps live by default — flip to false only
+  # after a workload's cost-guard decisions have been observed as correct.
+  dryRun: true
+  # -- Leak class 1 — a persistent service riding a transient-build-supercharge
+  # pool (the sui-on-timefloor leak: a small always-on service scheduled onto a
+  # huge, expensive transient time-floor build node). Runtime detector; the
+  # build-time catch is the pangea-architectures WorkloadPlacement invariant.
+  # This value is THIS workload's placement class.
+  workloadClass: persistent-service        # persistent-service | transient-build-job
+  # -- The pool-lifecycle class a workload REQUIRES / a pool ADVERTISES via the
+  # `pleme.io/pool-lifecycle` node label (always-on-service | transient-build |
+  # transient-build-supercharge). Empty = inherit / not asserted. A
+  # persistent-service SHOULD anti-select (nodeAffinity NotIn) the
+  # transient-build-supercharge class so it can never ride a supercharge node.
+  requiredPoolLifecycle: ""
+  # -- Leak class 2 — a build pool node left idle with no active build. The
+  # idle-node reaper drains it toward desired=0 (composes with breathe
+  # scale-to-zero; it forbids the idle SHAPE, it does not fight the auction).
+  idleNodeReap:
+    # -- Enable the idle-build-node reaper (shadow-first via costGuard.dryRun).
+    enabled: true
+    # -- Reap toward desired=0 after a build pool node is idle this long.
+    idleAfterSeconds: 900
+  # -- Leak class 3 — orphaned cloud cost-residue (unattached EBS volumes,
+  # orphaned LB/NLB, stale PVC, old snapshot) left behind after a workload or
+  # pool is gone. The orphan reaper is an autorevivy CLEAN maintenance job.
+  orphanCostReap:
+    # -- Enable orphan cost-residue reaping (shadow-first via costGuard.dryRun).
+    enabled: true
+    # -- Cloud residue classes the reaper considers.
+    targets: [ebs, lb, pvc, snapshot]
+  # -- The Viggy CostBudget (defpromessa) that proves "no leak class present" —
+  # a continuously-attested cost theorem (OutcomeChain). Empty = not yet wired
+  # to a promessa; set to the CostBudget promessa name to bind enforcement proof.
+  costBudget:
+    # -- Name/ref of the CostBudget (defpromessa) proving no leak class present.
+    promessaRef: ""
+
+# -- NetworkPolicy configuration
+networkPolicy:
+  # -- Enable NetworkPolicy creation
+  enabled: true
+  # -- Allow ingress from Prometheus for scraping
+  allowPrometheus: true
+  # -- Allow DNS egress
+  allowDns: true
+  # -- Additional ingress rules
+  additionalIngress: []
+  # -- Additional egress rules
+  additionalEgress: []
+
+# -- PodDisruptionBudget configuration
+pdb:
+  # -- Enable PDB creation
+  enabled: false
+  # -- Minimum available pods
+  minAvailable: 1
+  # -- Maximum unavailable pods (alternative to minAvailable)
+  # maxUnavailable: 1
+
+# -- HorizontalPodAutoscaler configuration
+autoscaling:
+  # -- Enable HPA creation
+  enabled: false
+  # -- Minimum replicas
+  minReplicas: 1
+  # -- Maximum replicas
+  maxReplicas: 5
+  # -- Target CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+  # -- Target memory utilization percentage
+  # targetMemoryUtilizationPercentage: 80
+
+# -- Container command override
+command: []
+
+# -- Container args override
+args: []
+
+# -- Additional labels for all resources
+additionalLabels: {}
+
+# -- Lifecycle hooks
+lifecycle: {}
+
+# -- ConfigMaps to create
+# Each entry: name (optional, defaults to {fullname}-config), data, labels, annotations
+configMaps: []
+
+# -- Downward API environment variables (POD_NAME, POD_NAMESPACE, NODE_NAME)
+downwardApi:
+  enabled: false
+
+# -- Resource-level annotations (applied to Deployment, Service, etc. metadata)
+annotations: {}
+
+# -- Compliance baseline. The single value that drives every K8s-side
+#    FedRAMP-mappable invariant on. Choose one:
+#
+#      ""                  — no baseline (legacy; explicit values only)
+#      "fedramp-low"       — NIST 800-53 Low subset
+#      "fedramp-moderate"  — NIST 800-53 Moderate subset (recommended for prod)
+#      "fedramp-high"      — NIST 800-53 High subset (regulated workloads)
+#
+#    Selecting a baseline:
+#      - forces seccompProfile=RuntimeDefault at moderate+
+#      - forces automountServiceAccountToken=false at moderate+
+#      - forces image.tag != "latest" at moderate+, image digest at high
+#      - emits default-deny + allow-dns + allow-tls-egress NetworkPolicies at moderate+
+#      - emits a mandatory PodDisruptionBudget at high
+#      - emits topology-spread constraints at high
+#      - emits a compliance-manifest ConfigMap describing controls covered
+#      - adds compliance.pleme.io/* labels and annotations to every resource
+#      - runs validators that fail() at template time on non-compliant values
+#
+#    See the canonical mapping:
+#      pangea-architectures/lib/pangea/architectures/generated/compliance/fedramp_high.rb
+#      kensa/src/mapping/fedramp.rs
+#      tameshi/src/compliance/dimensions.rs
+compliance:
+  # -- Active baseline. Empty string disables the compliance layer entirely.
+  baseline: ""
+  # -- When false, compliance metadata is still rendered but template-time
+  #    validators do not fail() on violations. Use only for migration runs.
+  enforce: true
+  # -- Audit-pipeline metadata. Surfaced as audit.pleme.io/* annotations.
+  audit:
+    logLevel: "info"
+    retentionDays: 365
+  # -- Compliance NetworkPolicy controls.
+  network:
+    # When false, the cluster-edge TLS-only egress allow rule is omitted
+    # (use only when the workload has no public-internet egress need).
+    allowTlsEgress: true
+  # -- Storage POSTURE. `durable` (the default) | `ephemeral`.
+  #    An ephemeral environment should be memory-backed — not for speed, but
+  #    because a drive is where UNDECLARED STATE HIDES; remove it and the
+  #    declaration is the only thing left that can put a byte on the substrate.
+  #    That argument holds only while storage is INCIDENTAL to what is under
+  #    test: when storage BEHAVIOUR is under test (a restore rehearsal, a soak
+  #    measuring IO) a ramdisk is incoherent — you cannot rehearse recovery on a
+  #    substrate that cannot fail the way production fails, tmpfs is unthrottled
+  #    so an IO regression is invisible, and an overflow is an OOMKill rather
+  #    than an ENOSPC. Hence `durable` by default; `ephemeral` is opted into.
+  #
+  #    Under `ephemeral` the render REFUSES: persistence.enabled, a non-empty
+  #    volumeClaimTemplates, a volumes[] entry referencing a PVC, an emptyDir
+  #    without medium=Memory, and a memory-backed emptyDir without a sizeLimit.
+  storage:
+    posture: durable
+    # -- What this workload declares it NEEDS, in a closed set:
+    #    none (default) | outlivesPod | snapshottable.
+    #    `outlivesPod` and `snapshottable` cannot combine with an ephemeral
+    #    posture — that is two declarations contradicting each other, not a
+    #    misconfigured value, so it is refused rather than reconciled.
+    durability: none
+    ephemeral:
+      # -- Declare {name, sizeLimit} and get BOTH the memory-backed volume and
+      #    its contribution to the pod's memory ceiling from the same list, so
+      #    the size cannot drift from the ceiling:
+      #      volumes:
+      #        {{- include "pleme-lib.compliance.storage.ephemeral.volumes" . | nindent 8 }}
+      #      resources:
+      #        limits:
+      #          memory: {{ include "pleme-lib.compliance.storage.ephemeral.memoryCeiling" . }}
+      #    A memory-backed emptyDir is charged to the pod's memory cgroup, so a
+      #    hand-maintained sum is one full scratch dir away from an OOMKill that
+      #    nothing in the manifest predicted.
+      volumes: []
+  # -- Namespace-scope compliance primitives (used by pleme-compliance chart
+  #    and any application chart that owns its own namespace).
+  namespace:
+    resourceQuota:
+      enabled: false
+    limitRange:
+      enabled: false
+  # -- Layer 1: generic egress allowlist primitive. Foundation for any
+  #    "this workload talks only to X" pattern.
+  egress:
+    # toService: workload egresses ONLY to a specific Service in the cluster.
+    # Useful for: workload→database, workload→auth, workload→registry.
+    toService:
+      # name: ""                  # Service name (required)
+      # namespace: ""             # defaults to this chart's namespace
+      # ports:                    # default [{ port: 443, protocol: TCP }]
+      #   - port: 443
+      #     protocol: TCP
+    # toUpstream: workload egresses ONLY to specific external hosts.
+    # Useful for: registry-mirror, package-mirror, helm-mirror, sbom-mirror.
+    toUpstream:
+      # allowedCidrs:             # CIDR allowlist (CNI-agnostic)
+      #   - "140.82.112.0/20"     # GitHub
+      #   - "104.16.0.0/13"       # Cloudflare (ghcr.io/quay.io front)
+      # allowedHosts:             # FQDN allowlist (Cilium only; opt in)
+      #   - "ghcr.io"
+      #   - "*.amazonaws.com"
+      # useCilium: false          # set true to emit CiliumNetworkPolicy
+      # ports:
+      #   - port: 443
+      #     protocol: TCP
+  # -- Layer 1: RBAC primitives. Use compliance.authz.role.rules to declare
+  #    namespace-scoped permissions; the validator forbids wildcards.
+  authz:
+    role:
+      # rules:
+      #   - apiGroups: [""]
+      #     resources: ["configmaps"]
+      #     verbs: ["get", "list", "watch"]
+    roleBinding:
+      # subjects:                  # default: this chart's SA
+      #   - kind: ServiceAccount
+      #     name: my-sa
+      #     namespace: my-ns
+    clusterRole:
+      # rules: []                  # discouraged; ClusterRoles need justification
+    clusterRoleBinding:
+      # subjects: []
+    allowList:
+      # clusterWildcardVerbs: false       # opt-in for ClusterRole verbs:["*"]
+      # clusterWildcardApiGroups: false   # opt-in for ClusterRole apiGroups:["*"]
+      # bindingGroups: []                 # opt-in Group subjects (e.g. allow ["system:authenticated"])
+  # -- Layer 1: authentication primitives.
+  authn:
+    # OIDC forward-auth via Authentik (the pleme-io standard).
+    oidc:
+      # provider: "authentik"
+      # outpostHost: "authentik.identity.svc.cluster.local"
+      # outpostPort: 9000
+      # group: ""                  # required Authentik group, optional
+    # Istio mTLS PeerAuthentication=STRICT for service-to-service.
+    istio:
+      mtls:
+        # required: null           # null = auto (true at fedramp-high); true / false to override
+        # mode: "STRICT"
+    # Projected SA token with explicit audience for downstream auth.
+    token:
+      # audience: ""               # e.g. "zot.cluster.local"
+      # expirationSeconds: 3600    # ≤ 3600 at fedramp-high
+    allowList:
+      # unauthenticatedIngress: false  # opt-in for public ingress (marketing pages)
+  # -- Layer 2: air-gap pattern. Workload-image traffic constrained to a
+  #    cluster-local registry (consumer role) or a curated upstream allowlist
+  #    (registry-mirror role).
+  airgap:
+    enabled: false
+    # role: "consumer"             # or "registry-mirror"
+    # allowedRegistries:           # auto-derived from registryService if not set
+    #   - "zot.registry.svc.cluster.local"
+    #   - "zot.registry.svc"
+    registryService:
+      # name: zot
+      # namespace: registry
+      # port: 5000
+      # protocol: TCP
+    imagePullSecret: ""           # name of the pull-creds Secret to inject
+    # requireSignedImages: true   # required at fedramp-high; cosign at the registry boundary
+    upstream:                     # for registry-mirror role only
+      # allowedCidrs:              # CIDRs of upstream registries
+      #   - "140.82.112.0/20"
+      # allowedHosts:              # FQDN allowlist (Cilium only)
+      #   - "ghcr.io"
+      # useCilium: false
+      # credentialSecret: ""       # required at fedramp-high
+  # -- Layer 2: scheduled-sync primitive (image-sync, helm-mirror, etc.).
+  mirror:
+    # schedule: "*/15 8-18 * * 1-5"
+    # upstreams:
+    #   - host: "ghcr.io"
+    #     credentialSecret: "ghcr-pull"
+    #     repos:
+    #       - "pleme-io/example-service"
+    # cosignVerify: true           # required at fedramp-high
+    # cosignKeyRef:
+    #   name: cosign-pub
+    #   key: cosign.pub
+    audit:
+      # required: true             # default true at moderate+
+    allowList:
+      # anonymousUpstream: false   # opt-in for unauthenticated upstreams
+
+# -- Per-derivation security (the enjulho LAYERED surface for super-cache-ci).
+# ONE umbrella toggle (security.perDerivation.enabled) composes the shipped
+# compliance.supplychain.* verdict surface into six ordered layers. The
+# engines are the industry standards (Nix ed25519 / Sigstore cosign+rekor /
+# sbomnix / Trivy / SLSA-in-toto / Kyverno verifyImages) behind typed config;
+# pleme-io content is reserved for the four tested voids (offline inclusion,
+# re-derivable proof, BLAKE3 store-binding, eBPF kernel-enforcement).
+# See theory/SUPER-CACHE-CI-SECURITY.md + _compliance_perderivation.tpl.
+# Because super-cache-ci is content-addressed (PDC clause 4), every verdict
+# is per-derivation build-once-reuse: sign/SBOM/scan/attest each content hash
+# ONCE; every consumer of the hash inherits the verdict.
+security:
+  perDerivation:
+    # -- Umbrella. true FORCES compliance.supplychain.enabled=true.
+    enabled: false
+    # -- Content-addressed verdict store (§4.4): a ContentHash-keyed sibling
+    #    table in sui's Postgres. NOT pod disk (MAGMA-NATIVE).
+    verdictStore:
+      backend: "sui-postgres"      # the durable verdict tier
+      contentKey: "blake3"         # the PDC clause-4 shared key
+    layers:
+      # L-sign — the store-path foundation (biggest native win).
+      sign:
+        storePathSigning: true     # sui ed25519 NAR signing; required at high
+        # cosignKeyRef is a cofre/ESO SecretRef — name + key, NEVER inline.
+        cosignKeyRef: {}           # { name: cosign-key, key: cosign.key }
+      # L-sbom — CM-8 inventory; closure-driven so it dedups per content hash.
+      sbom:
+        tool: "sbomnix"            # sbomnix (closure-driven) | syft
+        closureDriven: true
+      # L-cve/vex — RA-5; the ONE non-timeless verdict (§4.3 db-epoch TTL).
+      cve:
+        scanner: "trivy"           # trivy | grype | anchore
+        dbEpochTtlHours: 24
+      # L-provenance/vsa — SR-3/4 (new in Rev5); the SLSA maturity metric.
+      provenance:
+        slsaLevel: 3
+        vsaRef: ""                 # verification-summary attestation, optional
+      # L-transparency — AU-2/12. rekor online OR the offline air-gap void.
+      transparency:
+        mode: "rekor"              # rekor | offline-tameshi (IL6 forces offline)
+        offlineReceiptRef: ""      # cartorio offline inclusion proof
+      # L-admission — Enforce (not Audit); un-suspend Kyverno verifyImages.
+      admission:
+        enforce: true
+        mode: "kyverno"            # kyverno | policy-controller
+
+# -- Attestation framework integration (sekiban integrity verification)
+# When enabled, produces sekiban.pleme.io/* annotations on all resources.
+# These are verified by sekiban's ValidatingAdmissionWebhook before resources
+# are admitted to the cluster.
+#
+# Hashes are computed by tameshi and injected by CI/CD (forge) during release.
+# Do NOT set these manually — they are populated by the build pipeline.
+attestation:
+  # -- Enable attestation annotations
+  enabled: false
+  # -- Master signature hash (blake3:hex) — Merkle root of all layer signatures
+  signature: ""
+  # -- Product certification hash (blake3:hex) — end-to-end certification result
+  certificationHash: ""
+  # -- Compliance hash (blake3:hex) — NIST/OSCAL compliance test result
+  complianceHash: ""
+  # -- Changeset hash (blake3:hex) — resource changeset integrity
+  changesetHash: ""
+
+# -- Istio sidecar configuration
+istio:
+  # -- Enable Istio annotations and resources
+  enabled: false
+  # -- Inject sidecar proxy
+  inject: true
+  # -- Exclude outbound ports from proxy
+  excludeOutboundPorts: ""
+  # -- Exclude inbound ports from proxy
+  excludeInboundPorts: ""
+  # -- Hold app startup until proxy is ready
+  holdApplicationUntilProxyStarts: false
+  # -- PeerAuthentication resources (list)
+  # peerAuthentication:
+  #   - name: my-service
+  #     mtls: STRICT
+  # -- DestinationRule resources (list)
+  # destinationRules: []
+
+# -- PodMonitor configuration (for pods not behind a Service)
+podMonitor:
+  enabled: false
+  port: metrics
+  path: /metrics
+  interval: 30s
+  # -- Custom endpoints (overrides port/path/interval)
+  # endpoints: []
+  # -- Namespace selector
+  # namespaceSelector:
+  #   matchNames: []
+
+# -- PrometheusRule configuration
+prometheusRules:
+  enabled: false
+  # -- Alert/recording rule groups
+  groups: []
+
+# -- LimitRange configuration (governance)
+limitRange:
+  enabled: false
+  container:
+    default:
+      cpu: "1"
+      memory: 1Gi
+    defaultRequest:
+      cpu: 50m
+      memory: 64Mi
+    max:
+      cpu: "2"
+      memory: 2Gi
+    min:
+      cpu: 10m
+      memory: 16Mi
+  pod:
+    max:
+      cpu: "4"
+      memory: 4Gi
+  pvc:
+    max:
+      storage: 500Gi
+    min:
+      storage: 1Gi
+
+# -- ResourceQuota configuration (governance)
+resourceQuota:
+  enabled: false
+  hard:
+    requests.cpu: "16"
+    requests.memory: 24Gi
+    limits.cpu: "32"
+    limits.memory: 48Gi
+    pods: "20"
+    persistentvolumeclaims: "10"
+    services: "10"
+    configmaps: "20"
+    secrets: "20"
+
+# -- Karpenter primitives (NodePool + EC2NodeClass)
+# Rendered by pleme-lib.karpenterNodePool / pleme-lib.karpenterEC2NodeClass.
+# A no-op when nodePools / ec2NodeClasses are empty / absent.
+karpenter:
+  # -- Map of NodePool name → NodePool spec (see _karpenter.tpl docstring)
+  nodePools: {}
+  # -- Map of EC2NodeClass name → EC2NodeClass spec (Bottlerocket / AMI / subnets / SGs)
+  ec2NodeClasses: {}
+
+# -- Namespace-scoped RBAC (Role + RoleBinding)
+# Rendered by pleme-lib.namespacedRBAC. A no-op when roles is empty.
+rbac:
+  # -- Map of Role name → { rules: [...], subjects: [...] }
+  roles: {}
+
+# -- External Secrets Operator integration
+# Rendered by pleme-lib.externalSecret. A no-op when secrets is empty.
+externalSecret:
+  # -- Default ClusterSecretStore for all entries (override per-entry via spec.clusterSecretStoreName).
+  # Common names: cluster-secret-store, vault-cluster-secret-store, aws-secrets-manager-store.
+  clusterSecretStoreName: cluster-secret-store
+  # -- Default refresh interval (override per-entry)
+  refreshInterval: 30m
+  # -- Map of K8s Secret name → ExternalSecret spec (dataFrom OR data; see _externalsecret.tpl)
+  secrets: {}
+
+# -- PriorityClass configuration (governance)
+priorityClasses:
+  # -- Prefix for priority class names
+  prefix: ""
+  # -- Priority class definitions
+  classes: []
+  # Default 4-tier example:
+  # - name: critical
+  #   value: 10000000
+  #   description: "Critical platform services"
+  # - name: data
+  #   value: 10500000
+  #   description: "Data services (databases, caches)"
+  # - name: background
+  #   value: 1000000
+  #   description: "Background workers"
+  # - name: batch
+  #   value: 100000
+  #   preemptionPolicy: Never
+  #   description: "Batch jobs (non-preempting)"

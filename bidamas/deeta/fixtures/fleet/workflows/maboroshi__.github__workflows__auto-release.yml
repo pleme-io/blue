@@ -1,0 +1,25 @@
+name: auto-release
+
+# Three-line consumer shim. Every push to main runs the pleme-io
+# substrate per-member auto-release pipeline. This workspace has NO
+# [workspace.package].version and each member carries its own, so each
+# bumps, tags (<member>-v<version>) and publishes independently. The
+# reusable workflow lives at
+# pleme-io/substrate/.github/workflows/cargo-publish-each-member-auto-release.yml.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: "patch | minor | major"
+        required: false
+        default: patch
+
+jobs:
+  release:
+    uses: pleme-io/substrate/.github/workflows/cargo-publish-each-member-auto-release.yml@main
+    with:
+      bump-type: ${{ inputs.bump-type || 'patch' }}
+    secrets: inherit

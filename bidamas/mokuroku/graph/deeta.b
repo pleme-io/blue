@@ -219,7 +219,7 @@ verb(
     shape: "parse(text, format, opts) -> value",
     laterals: ["error", "serialize", "validate"],
     fleet: "tatara-lisp-script",
-    today: "rust:blue-lang-runtime",
+    today: "exists:deeta",
     meaning: "text to value; the format is an argument",
     wave: 1,
     origin: "A"

@@ -1,0 +1,146 @@
+# pleme-tend-throttle — rate-limited GitHub API consumer for rio.
+#
+# Pulls jobs from the TEND_GITHUB_JOBS NATS stream and dispatches at
+# ≤8 req/min, with adaptive halving when X-RateLimit-Remaining drops
+# below 50% / 25% / 10%. Single-replica enforced (the rate-limit
+# invariant breaks if multiple workers each pace independently).
+#
+# Initially suspended — depends on:
+#   1. pleme-nats deployed and reconciled
+#   2. `tend throttle` subcommand released in ghcr.io/pleme-io/tend
+#   3. tend-operator running with `throttle.enabled: true`
+#
+# Resume sequence:
+#   a) Verify pleme-nats is up: `kubectl get hr nats -n nats`
+#   b) Verify operator image has the `throttle` subcommand
+#   c) Flip suspend → false here AND in tend-operator/release.yaml
+#      values.throttle.enabled → true (in lockstep)
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tend-throttle
+  namespace: tend-system
+spec:
+  interval: 10m
+  # Phase 2 — RESUMED. NATS is up + the tend image with the throttle
+  # subcommand is published as ghcr.io/pleme-io/tend:amd64-237985e.
+  # Worker will idle until the operator publishes refresh jobs (Phase 4).
+  suspend: false
+  # Wait for nats HR to reconcile before applying our values
+  # (especially the post-install Job that creates the consumer).
+  dependsOn:
+    - name: nats
+      namespace: nats
+  chart:
+    spec:
+      chart: pleme-tend-throttle
+      # 0.4.0 adds top-level `enabled` master toggle.
+      version: "0.4.0"
+      sourceRef:
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    enabled: false  # 2026-05-03 paused fleet — set true to resume
+    imagePullSecrets:
+      - name: ghcr-credentials
+
+    # The chart's new values surface: a single queueWorker block
+    # consumed by pleme-lib.rate-limit-worker.* templates.
+    queueWorker:
+      enabled: true
+
+      image:
+        repository: ghcr.io/pleme-io/tend
+        tag: amd64-9919f31
+        pullPolicy: IfNotPresent
+
+      subcommand: "throttle"
+      logLevel: "info,tend=debug,samba=debug"
+      healthPort: 8080
+
+      upstream:
+        kind: github
+        budgetPerHour: 5000
+        budgetPctMax: 10
+
+      rateLimit:
+        # ★ THE LOAD-BEARING KNOB. Single percent value drives everything.
+        # 0.01 = 1% of GitHub's 5000/hr authenticated quota = 50 req/hr
+        # ≈ 0.83 req/min (period ≈ 72s). samba derives target_rpm
+        # automatically; LeakyBucket admits at fractional pace.
+        # Bump to 0.10 to restore prior 10% (~8 req/min) behavior.
+        quotaPct: 0.01
+        pressureWarnPct: 50
+        pressureCriticalPct: 25
+        jitterPct: 0.30
+        burst: 1
+        honorEtag: true
+
+      nats:
+        serverUrl: "nats://nats-pleme-nats.nats.svc:4222"
+        stream: "TEND_GITHUB_JOBS"
+        consumer: "tend-github-throttle"
+        resultSubject: "tend.github.jobs.results"
+        failedSubject: "tend.github.jobs.failed"
+        fetchTimeout: "5s"
+
+      auth:
+        existingSecret: github-token
+        secretKey: token
+        envName: GITHUB_TOKEN
+
+      service:
+        metricsPort: 9090
+
+      serviceMonitor:
+        interval: "30s"
+        scrapeTimeout: "10s"
+
+      networkPolicy:
+        natsNamespace: nats
+        allowUpstreamHttps: true
+        prometheusNamespaces:
+          - monitoring
+
+    # JetStream stream + consumer DECLARED BY THIS CHART (not the
+    # broker). Removing this chart removes the stream — Cilium-style
+    # identity. Init Job runs as a Helm post-install hook.
+    jetstream:
+      enabled: true
+      serverUrl: "nats://nats-pleme-nats.nats.svc:4222"
+      streams:
+        TEND_GITHUB_JOBS:
+          subjects: ["tend.github.jobs.>"]
+          retention: workqueue
+          storage: file
+          replicas: 1
+          maxMsgs: 10000
+          maxBytes: "100MB"
+          maxAge: "24h"
+          duplicateWindow: "10m"
+          discard: old
+      consumers:
+        TEND_GITHUB_JOBS:
+          tend-github-throttle:
+            type: pull
+            ackPolicy: explicit
+            ackWait: "60s"
+            maxAckPending: 1
+            maxDeliver: 5
+            filterSubject: "tend.github.jobs.refresh.>"
+            replayPolicy: instant
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi

@@ -1,0 +1,177 @@
+# lareira-openclaw-store — attested skill registry HTTP API.
+#
+# Inherits the fedramp-high compliance overlay via pleme-microservice;
+# all hardening is mechanical. The store talks to lareira-openclaw-pki
+# for org-root pinning + revocation lookups.
+
+# ─────────────────────────────────────────────────────────────────────
+# openclaw-store specific values
+# ─────────────────────────────────────────────────────────────────────
+
+# Reference to the PKI service this store trusts. The store fetches
+# /org-root at startup and pins it.
+pki:
+  # Service DNS name of the lareira-openclaw-pki workload.
+  serviceHost: openclaw-pki-lareira-openclaw-pki
+  port: 8090
+
+# Persistence — the merkle ledger is durable. SQLite backend is the
+# default; for HA, switch to postgres + a CloudNativePG cluster.
+persistence:
+  backend: sqlite
+  sqlite:
+    enabled: true
+    storageClass: encrypted-default
+    size: 20Gi
+  postgres:
+    enabled: false
+    host: ""
+    port: 5432
+    database: openclaw_store
+    sslMode: require
+    secretRef:
+      name: openclaw-store-postgres
+      passwordKey: password
+
+# sekiban gating.
+sekiban:
+  enabled: true
+  framework: NIST_800_53
+  baseline: high
+  testRunner:
+    runnerType: kensa
+    # Pinned by digest — FedRAMP-High SI-7. CI updates per kensa release.
+    image: "ghcr.io/pleme-io/kensa@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    profile: nist-800-53-high
+    timeoutSecs: 600
+  schedule: "0 */6 * * *"
+  signatureGate:
+    layers: ["image", "config", "rbac", "network", "data-plane"]
+    # Defaults to pleme-microservice.attestation.signature; override for
+    # emergency manual pinning only.
+    signatureOverride: ""
+    verificationIntervalSecs: 3600
+
+# ─────────────────────────────────────────────────────────────────────
+# pleme-microservice subchart values
+# ─────────────────────────────────────────────────────────────────────
+
+pleme-microservice:
+  compliance:
+    overlays: [fedramp-high]
+    enforce: true
+    audit:
+      logLevel: info
+      retentionDays: 365
+    authn:
+      oidc:
+        provider: authentik
+    authz:
+      role:
+        rules:
+          - apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get", "watch"]
+
+  image:
+    repository: ghcr.io/pleme-io/openclaw-skill-store
+    tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    pullPolicy: Always
+
+  replicaCount: 3
+
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+  ports:
+    - name: http
+      containerPort: 8080
+      protocol: TCP
+
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 8080
+        targetPort: http
+        protocol: TCP
+
+  health:
+    path: /health
+    readyPath: /health
+    port: http
+
+  args:
+    - --listen-addr=0.0.0.0
+    - --port=8080
+
+  env:
+    - name: OPENCLAW_PKI_HOST
+      value: "openclaw-pki-lareira-openclaw-pki"
+    - name: OPENCLAW_PKI_PORT
+      value: "8090"
+    - name: RUST_LOG
+      value: "info,openclaw_skill_store=debug"
+
+  monitoring:
+    enabled: true
+    port: http
+    path: /metrics
+    interval: 30s
+
+  # Egress allowlist — store must reach the PKI for /org-root and /crl.
+  networkPolicy:
+    enabled: true
+    additionalIngress:
+      - name: allow-from-scanner
+        rules:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openclaw-scanner
+            ports:
+              - port: 8080
+                protocol: TCP
+    additionalEgress:
+      - name: allow-to-pki
+        rules:
+          - to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openclaw-publisher-pki
+            ports:
+              - port: 8090
+                protocol: TCP
+
+  pdb:
+    enabled: true
+    minAvailable: 2
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  attestation:
+    enabled: true
+    signature: ""
+    certificationHash: ""
+    complianceHash: ""
+    changesetHash: ""
+
+  nameOverride: openclaw-skill-store
+
+  additionalLabels:
+    pleme.io/part-of: openclaw
+
+  # The merkle ledger is a stateful concern; mount the SQLite PVC.
+  # When persistence.backend=postgres, this is unused.
+  volumeMounts:
+    - name: data
+      mountPath: /var/lib/openclaw-store
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: openclaw-store-data

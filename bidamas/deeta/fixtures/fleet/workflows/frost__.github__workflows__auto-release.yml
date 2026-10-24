@@ -1,0 +1,91 @@
+name: auto-release
+
+# The three-line consumer shim of ★★ AUTO-RELEASE: every push to main runs
+# substrate's Rust-workspace pipeline (bump workspace version → commit → tag →
+# push → publish each member to crates.io in dependency order).
+#
+# ── WHY THIS DID NOT EXIST UNTIL 2026-08-08 ────────────────────────────────
+#
+# frost was a PRIVATE repo, and a private repo cannot publish to crates.io —
+# so the doctrine's "a packaged artifact publishes on merge" had nothing to
+# attach to and the gap read as deliberate. It was not: it made `frost-lisp`
+# unpublishable, and `frost-lisp` is a real dependency of other repos.
+#
+# The receipt is estante, which consumed it the only way left — by git:
+#
+#   frost-lisp = { git = "https://github.com/pleme-io/frost", branch = "main" }
+#
+# That fails crates.io's rule that "all dependencies must have a version
+# specified when publishing", so estante could not publish EITHER. One
+# unpublished crate had propagated unpublishability downstream. frost is
+# public as of 2026-08-08, which removes the only real blocker.
+#
+# `secrets: inherit` is load-bearing and now actually works: pleme-io is on
+# GitHub Free, where an ORG secret reaches PUBLIC repos only — so
+# CRATES_API_TOKEN arrives here precisely because the repo is public.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: "patch | minor | major"
+        required: false
+        default: patch
+
+jobs:
+  release:
+    uses: pleme-io/substrate/.github/workflows/rust-auto-release.yml@main
+    with:
+      bump-type: ${{ inputs.bump-type || 'patch' }}
+    # ── BOT_PAT WITHHELD — the same call ci.yml already made on 2026-08-22,
+    #    now made here too, because this file is the half that still 401s.
+    #
+    # ci.yml omits `secrets: inherit` and is GREEN. This file inherited it and
+    # is RED, at the same commit, in the same minute. That is the whole diff.
+    #
+    # WHY IT IS THIS REPO AND NOT THE FLEET. The org BOT_PAT was dead
+    # fleet-wide from 2026-08-22T00:25-00:33Z, but it has since been rotated
+    # and is LIVE again. Measured 2026-08-23T00:47:33-00:48:40Z — five repos,
+    # same reusable, same `secrets: inherit`, inside 67 seconds:
+    #
+    #   omoya 00:47:33  routed via bot-pat  checkout OK  Resolve test env OK
+    #   gen   00:47:44  routed via bot-pat  checkout OK  Resolve test env OK
+    #   frost 00:47:57  ---                 checkout 401 Resolve test env 401
+    #   mado  00:48:16  routed via bot-pat  full success, tag re-triggered
+    #   mukae 00:48:40  routed via bot-pat  checkout OK  Resolve test env OK
+    #
+    # An org secret has ONE value, so four repos cannot authenticate with it
+    # while a fifth is told "Bad credentials". And frost is not merely missing
+    # it: an ABSENT BOT_PAT makes nix-installer-action write no `access-tokens`
+    # line at all, which fetches PUBLIC substrate anonymously and PASSES. Only
+    # a present-and-invalid token produces a 401 against a public repo.
+    #
+    # So frost resolves a DIFFERENT value than its siblings, and the only
+    # mechanism that does that is a REPOSITORY-level `BOT_PAT` shadowing the
+    # org one (repo secrets win) and still holding the revoked classic PAT.
+    # Deleting that repo-level secret is the real fix and needs operator
+    # access; withholding here is correct regardless, because every input this
+    # repo resolves is PUBLIC (ishou, reedline included). The binary release
+    # does not depend on a PAT either: the `binaries` job below dispatches it
+    # with the workflow token, which GitHub allows where a tag push is not.
+    secrets:
+      CRATES_API_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
+
+  binaries:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: dispatch the binary release for a tag that has none
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          gh release view "$tag" >/dev/null 2>&1 || gh workflow run release-binaries.yml --ref "$tag"

@@ -1,0 +1,2 @@
+# Bare values: nothing here. Tests provide every value via `set:` so we can
+# exercise validators against true-empty inputs (no chart-default merge).

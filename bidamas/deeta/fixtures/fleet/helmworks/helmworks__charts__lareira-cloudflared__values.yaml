@@ -1,0 +1,98 @@
+# lareira-cloudflared — cloudflared tunnel agent.
+#
+# Renders a Deployment + ServiceAccount. The TUNNEL_TOKEN is sourced
+# from an externally-managed Secret (typically an SOPS-encrypted
+# manifest in the GitOps repo). The Tunnel itself is created out of
+# band by `pangea apply cloudflare_tunnel.rb` against the cloudflare
+# workspace; the token from that apply is loaded here.
+
+# Master enable/disable knob. Flip to false in the HelmRelease values
+# to render NOTHING — supports "bring this workload down" without
+# deleting the HelmRelease / GitOps source.
+enabled: true
+
+# Resource naming. fullnameOverride pins resource names so subsequent
+# chart upgrades / SOPS secret references don't drift.
+fullnameOverride: cloudflared
+nameOverride: ""
+
+image:
+  repository: cloudflare/cloudflared
+  tag: "2026.3.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Tunnel token. References an existing Secret in the release namespace.
+# Recommended shape: SOPS-encrypted manifest committed alongside the
+# HelmRelease, or External Secrets Operator pulling from borealis.
+tunnel:
+  # Secret name + key carrying the connector token.
+  tokenSecretName: cloudflared-token
+  tokenSecretKey: token
+
+  # Transport selection. pleme-dev runs in a private EC2 subnet whose
+  # default Security Group + NACL block outbound UDP/7844 (cloudflared's
+  # QUIC port). HTTP/2 over TCP/443 is allowed by the same path that
+  # lets the cluster pull images from ghcr.
+  transportProtocol: "http2"
+
+  # Metrics bind address. cloudflared exposes Prometheus metrics on
+  # this address; the same port also serves the /ready healthcheck.
+  metricsAddress: "0.0.0.0:2000"
+
+  # Extra args after `tunnel ... run`. The default `--no-autoupdate`
+  # forbids cloudflared from upgrading itself; image bumps come
+  # through GitOps.
+  extraArgs:
+    - --no-autoupdate
+
+# Pod mesh integration. enxerto sidecar injection is opt-in per pod
+# via labels + annotations; cloudflared egresses to in-cluster
+# Services (cartorio, openclaw-web) through aresta-out, but CF edge
+# egress (port 443) bypasses cleanly via the ARESTA_OUTBOUND --dport
+# 443 RETURN rule.
+mesh:
+  # Label that enxerto's MutatingWebhookConfiguration selects on.
+  inject: true
+  # Skip PREROUTING REDIRECT for these inbound ports so the kubelet's
+  # plaintext probe to /ready on :2000 reaches cloudflared directly,
+  # not the aresta-in mTLS-only listener.
+  skipInboundPorts: "2000"
+
+# ServiceAccount. cloudflared runs under its own SA so SPIRE issues
+# the right SPIFFE-ID when the mesh layer enrols it via ClusterSPIFFEID.
+serviceAccount:
+  create: true
+  name: cloudflared
+
+# Container port for the metrics+/ready endpoint. The port number
+# must equal the host:port pair in tunnel.metricsAddress above.
+metrics:
+  port: 2000
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Standard probe shape. cloudflared's native /ready endpoint reports
+# tunnel connection health.
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 30
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+# Optional pod overrides.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+podLabels: {}

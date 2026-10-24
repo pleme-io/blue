@@ -1,0 +1,18 @@
+---
+# Immich — Google Photos alternative. Requires PostgreSQL + Redis;
+# flip those (lareira-postgres, redis) on first.
+# Immich — Google Photos alternative. Requires PostgreSQL + Redis;
+# flip those (lareira-postgres, redis) on first.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich
+  namespace: immich
+spec:
+  chart:
+    spec:
+      chart: lareira-immich
+      # Pinned HERE, not injected: the Component used to supply this,
+      # so no app could show its own version. Immutable in the registry
+      # since forge 29866d3, so this pin now fixes the bytes.
+      version: "0.1.0"

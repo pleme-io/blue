@@ -1,0 +1,24 @@
+---
+# FluxCD Kustomization for Lilitu staging password rotation
+# Deploys a suspended CronJob that can be triggered manually for password rotation
+#
+# To rotate passwords:
+#   kubectl create job rotate-$(date +%s) --from=cronjob/lilitu-rotation -n lilitu-staging
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: lilitu-staging-rotation
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./clusters/plo/products/lilitu/staging/rotation
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  retryInterval: 1m0s
+  timeout: 5m0s
+  dependsOn:
+    - name: lilitu-staging
+      namespace: flux-system

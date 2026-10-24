@@ -1,0 +1,14 @@
+[
+  {
+    "name": "the file tier defaults to JSON",
+    "file": "settei.b",
+    "find": "  format = if chosen.nil?\n    :yaml",
+    "replace": "  format = if chosen.nil?\n    :json"
+  },
+  {
+    "name": "the chosen format is ignored",
+    "file": "settei.b",
+    "find": "deeta::parse(read_file(path), format)",
+    "replace": "deeta::parse(read_file(path), :json)"
+  }
+]

@@ -1,0 +1,71 @@
+# pleme-karpenter-nodepool — thin wrapper exposing pleme-lib's Karpenter
+# NodePool + EC2NodeClass helpers (templates/_karpenter.tpl) as a
+# standalone, independently-versioned release. Ships empty by default; a
+# consumer HelmRelease supplies its own karpenter.nodePools /
+# karpenter.ec2NodeClasses values.
+#
+# Sibling of pleme-arc-runner-pool's own (ARC-specific) inline use of the
+# same _karpenter.tpl helpers — this chart is the ARC-agnostic, generic
+# form: any workload that needs a dedicated Karpenter-backed pool (not
+# just a GitHub Actions runner scale set) depends on THIS chart instead of
+# re-declaring the two-line `{{- include "pleme-lib.karpenterEC2NodeClass" . }}`
+# / `{{- include "pleme-lib.karpenterNodePool" . }}` pattern inline.
+karpenter:
+  nodePools: {}
+  ec2NodeClasses: {}
+  # See pleme-lib's templates/_karpenter.tpl header for the full values
+  # shape. Example:
+  #
+  # karpenter:
+  #   nodePools:
+  #     example:
+  #       weight: 50
+  #       limits: { cpu: "100", memory: "400Gi" }
+  #       disruption:
+  #         consolidationPolicy: WhenEmptyOrUnderutilized
+  #         consolidateAfter: 10m
+  #       template:
+  #         metadata:
+  #           labels: { pleme.io/pool: example }
+  #         spec:
+  #           taints: []
+  #           requirements:
+  #             - { key: kubernetes.io/arch, operator: In, values: ["amd64"] }
+  #             - { key: karpenter.sh/capacity-type, operator: In, values: ["spot"] }
+  #           nodeClassRef:
+  #             group: karpenter.k8s.aws
+  #             kind: EC2NodeClass
+  #             name: example
+  #           expireAfter: 720h
+  #           terminationGracePeriod: 10m
+  #   ec2NodeClasses:
+  #     example:
+  #       instanceProfile: example-node-profile
+  #       amiFamily: AL2023
+  #       subnetSelectorTerms:
+  #         - id: subnet-xxxxxxxx
+  #       securityGroupSelectorTerms:
+  #         - id: sg-xxxxxxxx
+  #       blockDeviceMappings:
+  #         - deviceName: /dev/xvda
+  #           ebs:
+  #             volumeSize: 80Gi
+  #             volumeType: gp3
+  #             deleteOnTermination: true
+  #       metadataOptions:
+  #         httpEndpoint: enabled
+  #         httpProtocolIPv6: disabled
+  #         httpPutResponseHopLimit: 2
+  #         httpTokens: required
+
+# ---------- Attestation framework (sekiban) ----------
+attestation:
+  enabled: false
+  signature: ""
+  certificationHash: ""
+  complianceHash: ""
+  changesetHash: ""
+
+# ---------- Resource-level annotations ----------
+annotations: {}
+additionalLabels: {}

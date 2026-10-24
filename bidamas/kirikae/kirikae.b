@@ -390,7 +390,14 @@ writer_of: a writer's process line, shortened to its command and the rev it buil
     writer_of("/nix/store/x-nix/bin/nix build --no-link github:o/r/b548e3a24f88a08d1c673ad27ac494293ac5cac1#ryn") #=> "nix build at b548e3a2"
 """
 def writer_of(line)
-  ws = filter((w) -> w != "", split(trim(line), " "))
+  all = filter((w) -> w != "", split(trim(line), " "))
+  tools = ["darwin-rebuild", "nixos-rebuild", "nix"]
+  found = drop_while((w) -> not member?(base_name(w), tools), all)
+  ws = if is_empty(found)
+    all
+  else
+    found
+  end
   verb = filter((w) -> not starts_with?(w, "-"), take_n(rest(ws), 1))
   rev = writer_rev(line)
   at = if rev.nil?
@@ -758,7 +765,7 @@ end
 @doc """
 follow: tell the gitops loop's log as it builds a revision, until the log says it deployed, failed or deferred it, the build ends, or the wait's ceiling passes.
 
-    get(follow({narrate: :off, gitops_log: "/nonexistent", wait_s: 0, poll_s: 0, flake: "/nonexistent", host: "kirikae-no-such-host"}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1"), :action) #=> :handoff
+    get(follow({narrate: :off, gitops_log: "/nonexistent", heartbeat: "/nonexistent", wait_s: 0, poll_s: 0}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1"), :action) #=> :handoff
 """
 def follow(s, rev)
   ceiling = if get(s, :wait_s) > 0
@@ -776,9 +783,9 @@ def follow(s, rev)
 end
 
 @doc """
-following: one poll of a followed gitops build: tell the log lines after the first seen ones, and stop on a verdict, on the build's end or at the deadline.
+following: one poll of a followed gitops build: tell the log lines after the first seen ones, and stop on a verdict, when the heartbeat no longer says it builds the rev, or at the deadline.
 
-    get(following({narrate: :off, gitops_log: "/nonexistent", poll_s: 0, flake: "/nonexistent", host: "kirikae-no-such-host"}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1", 0, 0, 0), :followed) #=> :warn
+    get(following({narrate: :off, gitops_log: "/nonexistent", heartbeat: "/nonexistent", poll_s: 0}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1", 0, 0, 0), :followed) #=> :warn
 """
 def following(s, rev, seen, deadline_ms, started)
   all = lines(read_or(get(s, :gitops_log), ""))
@@ -795,14 +802,17 @@ def following(s, rev, seen, deadline_ms, started)
     tell(s, :running, :wait, join(said, " · "), now_ms - started)
   end
   v = gitops_verdict(fresh, rev)
-  still = get(survey(s), :busy) != nil
+  hb = json_parse(read_or(get(s, :heartbeat) or heartbeat_path, "")) rescue nil
+  still = hb != nil and
+    get_str(hb, "outcome", "") == "building" and
+    get_str(hb, "head_rev", "") == rev
   if v != nil or not still or now_ms >= deadline_ms
     verdict = if v != nil
       v
     elsif not still
       [
         :warn,
-        "the build of #{take_chars(rev, 8)} ended without a verdict in the log; the gitops heartbeat says what came of it"
+        "the gitops loop stopped building #{take_chars(rev, 8)} without a verdict in its log; its heartbeat and receipts say what came of it"
       ]
     else
       [
@@ -1977,6 +1987,8 @@ test "a writer is named by its command and the rev it builds, and by its command
     "nix build"
   assert writer_of("darwin-rebuild --flake .#ryn") == "darwin-rebuild"
   assert writer_of("") == ""
+  assert writer_of("/nix/store/x-bash-5.3/bin/bash /run/current-system/sw/bin/darwin-rebuild build --flake github:pleme-io/nix/860202aad66bb04de5a05b648fcc27596ff4c81d#cid") ==
+    "darwin-rebuild build at 860202aa"
   assert nth(
     2,
     busy_refusal(
@@ -2099,13 +2111,7 @@ test "following a gitops build tells its new log lines and stops on the deploy"
     log,
     "t0  INFO sentinela: deployed rev=\"b548e3a\" generation=1\nt1  INFO sentinela_core::fsm: build started rev=\"b548e3a\"\nt2  INFO sentinela: deployed rev=\"b548e3a\" generation=2\n"
   )
-  s = {
-    narrate: :off,
-    gitops_log: log,
-    poll_s: 0,
-    flake: "/nonexistent",
-    host: "kirikae-no-such-host"
-  }
+  s = {narrate: :off, gitops_log: log, heartbeat: "/nonexistent", poll_s: 0}
   r = following(s, rev, 1, now_ms + 60000, now_ms)
   assert get(r, :action) == :handoff
   assert get(r, :followed) == :done

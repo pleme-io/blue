@@ -1,0 +1,15 @@
+# Mesh-system HelmRepository — points at the same OCI catalog as
+# openclaw's, but namespaced here so HelmReleases in mesh-system can
+# reference it locally.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: pleme-charts
+  namespace: mesh-system
+spec:
+  type: oci
+  interval: 5m
+  url: oci://ghcr.io/pleme-io/charts
+  provider: generic
+  secretRef:
+    name: flux-ghcr-auth

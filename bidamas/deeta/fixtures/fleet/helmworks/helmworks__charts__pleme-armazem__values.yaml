@@ -1,0 +1,188 @@
+# pleme-armazem default values
+# armázem — the any-storage→S3 gateway (theory/ARMAZEM.md). M0 ships the fs
+# (PVC) backend: a dedicated PersistentVolume becomes an S3 endpoint. The
+# gateway is a Rust binary over the s3s crate; the bytes hanabi serves the
+# frontend from and the bytes any pod needs are the same typed S3 surface.
+
+image:
+  repository: ghcr.io/pleme-io/armazem
+  # ★ AUTOBUMP: exact tag pinned by Flux image-automation, never :latest.
+  tag: "amd64-latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# --- armázem gateway configuration ----------------------------------------
+# Rendered into /etc/armazem/config.yaml (CONFIG_PATH). The typed backend sum
+# selects exactly one arm; M0 ships `fs`. M1 adds upstream_s3/cnpg_blob/
+# node_disk/cas — each a new `type:` arm, no chart restructure.
+armazem:
+  listen: "0.0.0.0:9000"
+  healthListen: "0.0.0.0:9001"
+  # The active backend. type ∈ {fs} for M0.
+  backend:
+    type: fs
+    # fs: a PVC/filesystem rooted here (mounted from persistence below).
+    root: /data
+  # Log filter (RUST_LOG).
+  logLevel: info
+
+# --- Persistence ----------------------------------------------------------
+# The fs backend's S3 store. Durability is the StorageClass's (armázem does
+# not replicate — that's the FullS3-single-writer tier, theory/ARMAZEM.md §IV).
+persistence:
+  enabled: true
+  # storageClass: local-path   # rio uses local-path-provisioner
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+# --- Services -------------------------------------------------------------
+# Two logical endpoints: the S3 data API (consumers: hanabi, rclone, AWS CLI)
+# and the health/metrics port.
+services:
+  s3:
+    enabled: true
+    port: 9000
+  health:
+    enabled: true
+    port: 9001
+
+# --- Resources ------------------------------------------------------------
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# --- Probes ---------------------------------------------------------------
+# The gateway's dual-port runtime serves /health/live + /health/ready on the
+# health port; /metrics exposes armazem_up.
+health:
+  port: health
+  livenessPath: /health/live
+  readinessPath: /health/ready
+  livenessInitialDelay: 5
+  livenessPeriod: 20
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 3
+  readinessPeriod: 10
+  readinessFailureThreshold: 3
+
+# --- Pod placement --------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+updateStrategy:
+  type: RollingUpdate
+podManagementPolicy: OrderedReady
+
+# --- ServiceMonitor (Prometheus operator) ---------------------------------
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  # additionalLabels: {}
+
+# --- helm test ------------------------------------------------------------
+# `helm test` runs a Pod that drives the full S3 lifecycle against the live
+# gateway (CreateBucket→Put→Get→List→Delete→404). Gates the release on a
+# working gateway. Uses a curl image (anonymous M0 data plane needs no SigV4).
+tests:
+  enabled: true
+  image: curlimages/curl:8.11.1
+
+# --- Breathability / carving (theory/BREATHABILITY.md) --------------------
+# What makes armázem a fully breathable, infinitely-expandable S3 interface.
+# breathe holds the gateway in the 80/20 utilization band by carving its
+# limits (memory/cpu) and GROWS the fs-backend PVC before it fills (storage).
+# SHADOW-first (dryRun: true) — observe + attest, then promote per band.
+# Requires the breathe controller + breathe.pleme.io/v1 CRDs.
+breathe:
+  enabled: true
+  memory:
+    enabled: true
+    dryRun: true            # SHADOW; flip false to let breathe own limits.memory
+    setpoint: 0.80
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    growFactor: 1.25
+    shrinkFactor: 0.90
+    floor: "64Mi"
+    ceiling: "512Mi"
+    cooldownSeconds: 300
+    maxStalenessSeconds: 120
+    disruptionPolicy: allowRestart
+    promotion: promote-candidate
+  cpu:
+    enabled: true
+    dryRun: true
+    setpoint: 0.80
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    growFactor: 1.25
+    shrinkFactor: 0.90
+    floor: "25m"
+    ceiling: "2000m"
+    cooldownSeconds: 300
+    maxStalenessSeconds: 120
+    disruptionPolicy: allowRestart
+    promotion: promote-candidate
+  storage:
+    # GrowOnly: the PVC claims a bigger slice of the node disk as the S3 store
+    # fills — the "infinitely expandable" lever. Needs allowVolumeExpansion on
+    # the StorageClass. floor defaults to persistence.size; ceiling caps growth.
+    enabled: true
+    dryRun: true
+    setpoint: 0.80
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    growFactor: 1.25
+    shrinkFactor: 0.90
+    floor: ""               # default: persistence.size
+    ceiling: "500Gi"
+    cooldownSeconds: 600
+    maxStalenessSeconds: 300
+    disruptionPolicy: restartFreeOnly
+    promotion: promote-candidate
+
+# --- Node-level expansion (how the storage band reaches "infinitely
+#     expandable even at the node level") ---------------------------------
+# The StorageBand above grows the fs-backend PVC GrowOnly, which claims a
+# bigger slice of the *node's* disk (local-path) — that IS the node-level
+# expansion lever. Its hard ceiling is the cluster's per-node BreatheNodePool
+# charter (breathe.pleme.io/v1 BreatheNodePool, one per node, owned by the
+# cluster infra layer — NOT shipped per-app to avoid charter conflicts). To
+# expand further at the node level, raise the node's disk / the BreatheNodePool
+# ceiling in the cluster infra, and the StorageBand carves into the new
+# headroom automatically. For multi-node horizontal growth, front a distributed
+# FullS3 backend (Garage) via the M1 `upstream_s3` backend arm — then add nodes
+# (Karpenter / cluster-autoscaler) and the gateway scales out.
+
+# --- NetworkPolicy --------------------------------------------------------
+# pleme-lib baseline (deny-all + DNS + Prometheus). Add ingress allowlist for
+# the namespaces whose pods consume the S3 API (e.g. a hanabi/frontend ns).
+networkPolicy:
+  enabled: true
+  # Extra ingress — list of {from: [...], ports: [...]}. Example: allow a
+  # frontend namespace to reach the S3 API:
+  #   - from:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: pangea-coming-soon
+  #     ports:
+  #       - protocol: TCP
+  #         port: 9000
+  extraIngress: []

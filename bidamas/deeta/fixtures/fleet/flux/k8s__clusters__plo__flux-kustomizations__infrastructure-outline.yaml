@@ -1,0 +1,26 @@
+---
+# FluxCD Kustomization for Outline Wiki
+# Knowledge base with Kanidm SSO at wiki.lilitu.io
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-outline
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./clusters/plo/infrastructure/outline
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  retryInterval: 1m0s
+  timeout: 5m0s
+  wait: false
+  dependsOn:
+    - name: infrastructure-tools-db
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: outline
+      namespace: outline

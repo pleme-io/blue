@@ -1,0 +1,56 @@
+---
+# FluxCD Kustomization for Lilith staging environment
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: lilith-staging
+  namespace: flux-system
+spec:
+  interval: 3m0s
+  path: ./clusters/zek/environments/staging/lilith
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  retryInterval: 1m0s
+  timeout: 15m0s
+  force: false
+  wait: true
+  dependsOn:
+    - name: infrastructure
+      namespace: flux-system
+  postBuild:
+    substitute:
+      environment: "staging"
+      product: "lilith"
+      cluster: "zek"
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: lilith-frontend
+      namespace: lilith-staging
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: gateway-lambda-rie
+      namespace: lilith-staging
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: auth-lambda-rie
+      namespace: lilith-staging
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: minio
+      namespace: lilith-staging
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dynamodb-gateway
+      namespace: lilith-staging
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dynamodb-auth
+      namespace: lilith-staging
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dynamodb-user
+      namespace: lilith-staging

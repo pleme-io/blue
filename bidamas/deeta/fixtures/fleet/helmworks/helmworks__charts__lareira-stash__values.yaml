@@ -1,0 +1,89 @@
+# Stash — media-cataloguing UI. We use it as a pragmatic Frame.io-style
+# review surface for the cousin's cuts (tag scenes, scrub, comment via
+# notes). Stash's primary upstream use case is adult-media organisation;
+# in our setup it indexes the cousin's footage proxies.
+
+enabled: false
+
+image:
+  repository: docker.io/stashapp/stash
+  tag: "v0.27.2"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 9999, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 9999, targetPort: http, protocol: TCP }
+
+env:
+  - { name: TZ, value: America/New_York }
+  - { name: STASH_PORT, value: "9999" }
+  - { name: STASH_GENERATED, value: /generated }
+  - { name: STASH_METADATA, value: /metadata }
+  - { name: STASH_CACHE, value: /cache }
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 4000m, memory: 2Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /root/.stash
+  zfsDataset: pool/data
+
+# Source media from the cousin's project library (proxies preferred —
+# transcoding is CPU-only on rio).
+volumes:
+  - name: media
+    hostPath: { path: /srv/pool/media/projects, type: DirectoryOrCreate }
+  - name: generated
+    emptyDir: { sizeLimit: 20Gi }
+  - name: metadata
+    emptyDir: { sizeLimit: 5Gi }
+  - name: cache
+    emptyDir: { sizeLimit: 10Gi }
+
+volumeMounts:
+  - { name: media,     mountPath: /media, readOnly: true }
+  - { name: generated, mountPath: /generated }
+  - { name: metadata,  mountPath: /metadata }
+  - { name: cache,     mountPath: /cache }
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: cuts.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 4 * * 0"
+  paths: ["/root/.stash"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 0, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-stash }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

@@ -1,0 +1,125 @@
+# lareira-mesh-spec — per-Aplicacao mesh declaration.
+#
+# Authoring shape: one HelmRelease per mesh, values describe the
+# typed `(defmesh …)` participants.
+
+# Master enable/disable knob. Flip to false in the HelmRelease values
+# to render NOTHING — supports "bring this workload down" without
+# deleting the HelmRelease / GitOps source. Disabling tears down the
+# mesh's RBAC, ClusterSPIFFEIDs, and NetworkPolicies in lockstep.
+enabled: true
+
+mesh:
+  # Logical mesh name. Used for CR names and the shared aresta-config
+  # ConfigMap (`<name>-aresta-config`).
+  name: openclaw-mesh
+  # SPIRE trust domain — typically pleme.io fleet-wide.
+  trustDomain: pleme.io
+  # The home namespace for the mesh's Servicos. Cross-namespace
+  # participants are listed under `participants:`.
+  namespace: openclaw
+
+# SPIRE configuration. Matches what spire-controller-manager expects.
+spire:
+  # ClusterSPIFFEID className — `spire-system-spire` for the helm
+  # chart deployment of spiffe/spire-helm-charts-hardened in
+  # spire-system ns.
+  className: spire-system-spire
+
+# Resolver ClusterRole — defined by lareira-aresta-defaults.
+resolverClusterRole: aresta-resolver
+
+# The Servicos in this mesh's home namespace. Each gets:
+#   - a ClusterSPIFFEID matching its Pod label selector
+#   - inclusion in the peer + upstream allowlists
+#
+# `serviceAccount` defaults to `mesh.namespace`/`<name>` if omitted;
+# override when the chart-emitted SA name differs (e.g.
+# `openclaw-stack-cartorio` from the `lareira-openclaw-stack` chart).
+servicos:
+  - name: cartorio
+    serviceAccount: openclaw-stack-cartorio
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: cartorio
+  - name: lacre
+    serviceAccount: openclaw-stack-lacre
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: lacre
+  - name: openclaw-publisher-pki
+    serviceAccount: openclaw-stack-openclaw-publisher-pki
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-publisher-pki
+  - name: openclaw-scanner
+    serviceAccount: openclaw-stack-openclaw-scanner
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-scanner
+  - name: openclaw-skill-store
+    serviceAccount: openclaw-stack-openclaw-skill-store
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-skill-store
+  - name: openclaw-web
+    serviceAccount: openclaw-stack-openclaw-web
+    # The lareira-openclaw-stack chart doesn't emit an SA for
+    # openclaw-web; create one so SPIRE can issue a
+    # `…/sa/openclaw-stack-openclaw-web` SVID.
+    createServiceAccount: true
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-web
+  - name: backing-registry
+    serviceAccount: openclaw-stack-backing-registry
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: backing-registry
+
+# Cross-namespace mesh participants. Each gets:
+#   - its own SA (if `createServiceAccount: true`)
+#   - a ClusterSPIFFEID against its own ns
+#   - a copy of the aresta-config CM in its own ns (so its enxerto-
+#     injected aresta sidecar can mount the same allowlist)
+#   - a ClusterRoleBinding for the resolver in its own ns
+participants:
+  - name: cloudflared
+    namespace: cloudflared
+    serviceAccount: cloudflared
+    createServiceAccount: true
+    podSelector:
+      app: cloudflared
+
+# Aresta proxy config — one CM shared by every Servico (and copied
+# into each participant ns). Inbound forwarding is transparent via
+# SO_ORIGINAL_DST → 127.0.0.1:<orig_port>; the static `upstream_addr`
+# is a fallback only.
+arestaConfig:
+  inboundAddr: "0.0.0.0:15001"
+  outboundAddr: "0.0.0.0:15006"
+  probeAddr: "0.0.0.0:4191"
+  fallbackUpstreamAddr: "127.0.0.1:8080"
+  # SVID lifecycle. `oneshot` (default) is the v0 behaviour — fetch
+  # once at startup, never refresh; causes the daily cert-expiry
+  # restart cycle when SPIRE rotates SVIDs (~24h). `streaming`
+  # subscribes to the SPIFFE Workload API stream + hot-swaps the
+  # in-memory TLS contexts on every rotation update; no restart
+  # ever needed.
+  #
+  # Default stays `oneshot` while the streaming path soaks in
+  # staging; flip per-cluster once observed-good for at least one
+  # full rotation cycle.
+  svidRotation: oneshot
+  observability:
+    logFormat: json
+    metricsAddr: "0.0.0.0:9090"
+  policy:
+    circuitBreakerMaxFailures: 10
+    maxRetries: 3
+    requestTimeout: "30s"
+
+# Mesh-wide NetworkPolicy. Mesh authn is enforced at the SPIFFE-ID
+# layer; the L4 netpol just opens ingress on every meshed pod.
+networkPolicy:
+  enabled: true

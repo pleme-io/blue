@@ -1,3 +1,4 @@
-package("settei", "0.1.0")
+package("settei", "0.1.1")
+needs("deeta", "^0.1")
 needs("kyohi", "^0.1")
 needs("retsu", "^0.1")

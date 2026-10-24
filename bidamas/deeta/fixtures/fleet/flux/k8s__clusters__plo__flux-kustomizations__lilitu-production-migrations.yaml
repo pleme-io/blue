@@ -1,0 +1,35 @@
+---
+# FluxCD Kustomization for Lilitu production migrations
+# Uses Shinka operator to run sqlx migrations when deployment images change
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: lilitu-production-migrations
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  path: ./clusters/plo/products/lilitu/production/migrations
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  retryInterval: 1m0s
+  timeout: 10m0s
+  # NOTE: wait: false - App pods have wait-for-migrations init container
+  wait: false
+  dependsOn:
+    # CRITICAL: Staging must be fully reconciled before production migrations
+    # This ensures production can NEVER be ahead of staging
+    - name: lilitu-staging
+      namespace: flux-system
+    # Governance must complete (NetworkPolicies for DB connectivity)
+    # Shinka operator (T3) is transitively ready long before governance (T8)
+    - name: lilitu-production-governance
+      namespace: flux-system
+  # NOTE: Removed healthChecks - wait-for-migrations init container provides this
+  postBuild:
+    substitute:
+      environment: "production"
+      product: "lilitu"
+      cluster: "plo"

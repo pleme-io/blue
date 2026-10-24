@@ -1,0 +1,51 @@
+---
+# Bootstrap inception gate.
+#
+# This Kustomization is NOT ready until ALL bootstrap infrastructure
+# templates have been imported, applied, and confirmed drift-free.
+# Only then has the operator fully taken ownership of the infra it
+# runs on — the local bootstrap layer is disconnected.
+#
+# Downstream Kustomizations that dependsOn this one will not fire
+# until the inception is complete.
+#
+# Lifecycle:
+#   1. Templates deployed suspended (destroyProtection=true)
+#   2. `pangea import` creates ConfigMaps + imports state
+#   3. Unsuspend templates → operator reconciles → reaches Ready
+#   4. FluxCD healthChecks detect Ready=True on all 3
+#   5. This Kustomization goes Ready → inception complete
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: workloads-pangea-managed
+  namespace: flux-system
+spec:
+  # Suspended until pangea inception (import + unsuspend templates) is completed.
+  # See lifecycle steps in header comment.
+  suspend: true
+  interval: 5m0s
+  path: ./clusters/scale-test/workloads/pangea-managed
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  timeout: 10m0s
+  dependsOn:
+    - name: infrastructure-pangea
+  healthChecks:
+    # All three bootstrap templates must reach Ready (state imported,
+    # applied, no drift, destroy-protected) for inception to complete.
+    - apiVersion: pangea.pleme.io/v1alpha1
+      kind: InfrastructureTemplate
+      name: bootstrap-vpc
+      namespace: pangea-self-manage
+    - apiVersion: pangea.pleme.io/v1alpha1
+      kind: InfrastructureTemplate
+      name: bootstrap-eks
+      namespace: pangea-self-manage
+    - apiVersion: pangea.pleme.io/v1alpha1
+      kind: InfrastructureTemplate
+      name: bootstrap-rds
+      namespace: pangea-self-manage

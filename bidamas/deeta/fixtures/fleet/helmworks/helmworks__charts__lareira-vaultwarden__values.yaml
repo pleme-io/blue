@@ -1,0 +1,130 @@
+# Vaultwarden — Bitwarden-compatible password manager.
+# Default disabled; flip enabled=true in the rio HelmRelease to deploy.
+#
+# Required secret (SOPS-rendered): {fullname}-env containing
+#   ADMIN_TOKEN=...
+#   DATABASE_URL=postgres://...   (optional; sqlite by default)
+
+enabled: false
+
+image:
+  repository: docker.io/vaultwarden/server
+  tag: "1.36.0-alpine"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 80
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+
+envFrom:
+  - secretRef:
+      name: vaultwarden-env
+      optional: true
+
+env:
+  - name: DOMAIN
+    value: "https://vault.rio.lan"
+  - name: SIGNUPS_ALLOWED
+    value: "false"
+  - name: WEBSOCKET_ENABLED
+    value: "true"
+  - name: ROCKET_PORT
+    value: "80"
+  - name: DATA_FOLDER
+    value: "/data"
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Vaultwarden writes a sqlite DB + attachments to /data
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 1Gi
+  mountPath: /data
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: vault.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+
+authentik:
+  enabled: false   # Vaultwarden has its own auth — don't double-gate
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/data"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false   # Vaultwarden doesn't expose /metrics natively
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-vaultwarden
+
+networkPolicy:
+  enabled: true
+
+# vaultwarden's container needs to write to /data and emit /tmp; relax
+# the read-only-root that pleme-lib enforces.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+volumes: []
+volumeMounts: []

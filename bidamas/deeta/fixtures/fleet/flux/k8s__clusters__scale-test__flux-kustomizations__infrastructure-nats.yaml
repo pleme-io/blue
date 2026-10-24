@@ -1,0 +1,23 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-nats
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infrastructure-pleme-charts
+  interval: 5m0s
+  path: ./clusters/scale-test/infrastructure/nats
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  timeout: 5m0s
+  wait: true
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: nats
+      namespace: nats

@@ -1,0 +1,183 @@
+# arachne default values
+# Classifieds scraper with headless Chrome sidecar — browser automation, photo pipeline
+
+image:
+  repository: ghcr.io/pleme-io/arachne
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+health:
+  path: /healthz
+  readyPath: /healthz
+  port: http
+  livenessInitialDelay: 15
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 10
+  readinessPeriod: 10
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: true
+  path: /healthz
+  port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 12
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+strategy:
+  type: RollingUpdate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+initContainers: []
+
+# Chrome headless sidecar
+chrome:
+  enabled: true
+  wsUrl: "http://localhost:9222"
+  port: 9222
+  shmSize: "256Mi"
+  image:
+    repository: chromedp/headless-shell
+    tag: "latest"
+    pullPolicy: Always
+  args:
+    - "--no-sandbox"
+    - "--disable-gpu"
+    - "--disable-dev-shm-usage"
+    - "--headless"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+configMaps: []
+prometheusRules:
+  enabled: false
+  groups: []
+
+command: []
+args:
+  - "serve"
+additionalLabels: {}
+priorityClassName: ""
+lifecycle: {}
+
+# Istio disabled — Chrome sidecar incompatible with Istio proxy
+istio:
+  enabled: false
+downwardApi:
+  enabled: false
+podMonitor:
+  enabled: false
+autoscaling:
+  enabled: false
+pdb:
+  enabled: false
+sidecars: []
+topologySpreadConstraints: []
+
+# Scraper CronJobs — each key becomes a CronJob resource
+# Chrome native sidecar is automatically injected when chrome.enabled is true
+cronjobs: {}
+  # fatal-model:
+  #   schedule: "0 3 * * *"
+  #   site: fatal_model
+  #   city: sao-paulo
+  #   pages: 10
+  # skokka:
+  #   schedule: "0 4 * * *"
+  #   site: skokka
+  #   city: sao-paulo
+  #   pages: 10
+
+# Shared CronJob defaults
+cronjobDefaults:
+  concurrencyPolicy: Forbid
+  suspend: false
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 2
+  activeDeadlineSeconds: 3600
+  restartPolicy: Never
+  persist: true
+  photos: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi

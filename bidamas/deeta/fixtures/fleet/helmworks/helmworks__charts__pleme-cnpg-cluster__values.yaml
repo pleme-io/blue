@@ -1,0 +1,136 @@
+# Master toggle. Default `false` because the chart requires several
+# fields (clusterName, bootstrap.{database,owner,secretName}) that
+# can't have meaningful defaults — consumers explicitly set both
+# `enabled: true` AND those required values together. Flipping back
+# to `false` deprovisions the cluster (CNPG cascades Cluster deletion
+# into pod + PVC removal — pause the operator + drain WAL archive
+# FIRST).
+enabled: false
+
+# REQUIRED: name of the CNPG Cluster. Becomes metadata.name; CNPG
+# derives the per-instance ServiceAccount name from it.
+clusterName: ""
+
+# Cluster topology
+instances: 2
+imageName: ghcr.io/cloudnative-pg/postgresql:16.6
+storage:
+  size: 10Gi
+  storageClass: local-path
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# Allow break-glass via the cnpg-generated `<cluster>-superuser`
+# Secret. CNPG always creates the replication user.
+enableSuperuserAccess: true
+
+# postgresql.parameters — sane CNPG-aligned defaults; override per
+# environment.
+postgresql:
+  parameters:
+    max_connections: "100"
+    shared_buffers: "256MB"
+    effective_cache_size: "768MB"
+    maintenance_work_mem: "64MB"
+    checkpoint_completion_target: "0.9"
+    wal_buffers: "16MB"
+    default_statistics_target: "100"
+    random_page_cost: "1.1"
+    effective_io_concurrency: "200"
+    work_mem: "8MB"
+    min_wal_size: "1GB"
+    max_wal_size: "4GB"
+
+monitoring:
+  enabled: true
+
+affinity:
+  enabled: true
+  topologyKey: kubernetes.io/hostname
+
+# Pod tolerations for the CNPG instance pods (rendered into
+# spec.affinity.tolerations on the Cluster CR — CNPG's own API, not a
+# chart invention). Empty by default; most fleet clusters have no
+# tainted nodes. Needed on a single-node cluster carrying a workload-
+# gating taint (e.g. a breathe auction-pool NoSchedule taint) where
+# core cluster machinery like this database must still schedule.
+tolerations: []
+
+# Top-level metadata labels stamped onto every emitted resource. Use
+# this to surface fleet-wide identity (cluster=rio, owner=…) without
+# polluting the chart's own templating labels.
+clusterLabels: {}
+
+# ── Bootstrap (initdb) ─────────────────────────────────────────────
+#
+# Fresh-install path. For recovery from a barman-cloud archive use
+# `pleme-cnpg-restore` instead.
+#
+# database/owner: name + role created at first startup. Owner is given
+# CREATEDB+CREATEROLE via postInitSQL by default so consumer apps can
+# author their own per-app DBs (cracha pattern: pangea → cracha).
+#
+# secretName: an EXTERNAL Secret holding `username` + `password` keys
+# for the owner. Reusing an existing Secret means consumers can keep
+# pointing at the same credentials across cluster recreations.
+bootstrap:
+  database: ""        # required
+  owner: ""           # required
+  secretName: ""      # required: existing Secret with username+password
+  postInitSQL:
+    # `pangea` (or whatever owner) needs CREATEDB+CREATEROLE so app
+    # bootstrap Jobs (cracha-bootstrap, etc.) can create per-app
+    # databases. CNPG defaults the owner to plain LOGIN.
+    - ALTER ROLE __OWNER__ WITH CREATEDB CREATEROLE;
+    - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+  postInitTemplateSQL:
+    - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+# ── WAL archive backend ────────────────────────────────────────────
+#
+# Continuous WAL archive to garage S3. Mirrors the layout used by
+# `pleme-cnpg-restore` so cluster + restore charts speak the same
+# bucket layout.
+walArchive:
+  enabled: true
+  bucket: pangea-wal
+  endpointURL: http://garage-s3.drive.svc.cluster.local:3900
+  region: garage
+  addressingStyle: path
+  credentialsSecretName: pangea-database-wal-archive
+  retentionPolicy: 30d
+  wal:
+    compression: gzip
+    maxParallel: 8
+
+# ── Scheduled base backup ──────────────────────────────────────────
+#
+# Anchors the WAL archive's retentionPolicy. Without this, the archive
+# grows unbounded — barman-cloud-backup-delete needs a base-backup
+# reference point to drop expired data.
+scheduledBackup:
+  enabled: true
+  schedule: "0 13 2 * * *"      # 02:13 UTC daily
+  target: prefer-standby
+  immediate: true                # take the first backup ASAP
+
+# ── Garage NetworkPolicy patch ─────────────────────────────────────
+#
+# Owns the cnpg.io/cluster=<clusterName> ingress entry on the
+# garage NetworkPolicy. Lifting this into the chart means the seam is
+# co-located with the Cluster CR — a future un-install cleanly takes
+# the NetPol entry with it (vs. the current state where the
+# extraIngress lives in apps/drive/garage.yaml's HelmRelease values).
+garageNetworkPolicy:
+  enabled: true
+  namespace: drive
+  port: 3900
+  garagePodLabels:
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/name: pleme-garage

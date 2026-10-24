@@ -1,0 +1,133 @@
+# observe-pangea-operator — lareira-observe attached to the pangea-operator.
+#
+# The attachable observability + breathability abstraction (helmworks
+# charts/lareira-observe, consuming pleme-lib.breatheBand + .servicemonitor +
+# .prometheusrule + the AlertmanagerConfig→ntfy route). One HelmRelease wires
+# the operator's telemetry + 80/20 homeostasis + alert delivery:
+#   - ServiceMonitor scraping pangea-operator :metrics /metrics (33 metrics,
+#     incl. the new pangea_magma_* apply-outcome family)
+#   - MemoryBand holding the operator Deployment in the 80/20 band (dryRun:true,
+#     SHADOW-first — prove convergence before LIVE, exactly like the
+#     pangea-database band)
+#   - PrometheusRule alerting on pangea_magma_resources_failed > 0 (THE signal
+#     that surfaces a failed magma apply — the '14 failed' the operator
+#     currently buries in status.lastError) + a stuck-Initializing alert
+#   - AlertmanagerConfig routing those alerts → ntfy topic rio-critical
+#
+# SUSPENDED: spec.suspend:true joins the 2026-05-03 paused fleet. It is also
+# inert until victoria-metrics-k8s-stack + lareira-ntfy unpause (nothing to
+# scrape / no alert sink). Flip suspend:false WITH the observability fleet.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: observe-pangea-operator
+  namespace: pangea-system
+spec:
+  interval: 30m
+  suspend: true  # 2026-05-03 paused fleet — flip to false with the observability stack
+  chart:
+    spec:
+      chart: lareira-observe
+      version: "0.1.2"
+      sourceRef:
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
+  values:
+    target:
+      name: pangea-operator
+      namespace: pangea-system
+      deployment: pangea-operator
+      labelSelector:
+        app: pangea-operator
+
+    monitoring:
+      enabled: true
+      port: metrics
+      path: /metrics
+      interval: 30s
+
+    # 80/20 resource homeostasis on the operator Deployment. dryRun:true ships
+    # SHADOW: the band observes + computes carves and reports them in status
+    # without writing resources.limits — promote to LIVE (dryRun:false) only
+    # after the shadow decisions look right, the same ladder the
+    # pangea-database band followed.
+    breathe:
+      enabled: true
+      dryRun: true
+      disruptionPolicy: RestartFreeOnly
+      memory:
+        enabled: true
+        setpoint: 0.8
+        floor: 256Mi
+        ceiling: 2Gi
+      cpu:
+        enabled: false
+
+    alerts:
+      enabled: true
+      groups:
+        - name: pangea-operator.observe
+          rules:
+            # THE signal the 2026-06-10 incident lacked: a magma apply with
+            # failed>0 now pages instead of hiding in status.lastError.
+            - alert: PangeaMagmaApplyFailing
+              expr: max by (template) (pangea_magma_resources_failed) > 0
+              for: 10m
+              labels:
+                severity: critical
+              annotations:
+                summary: "pangea-operator: magma apply has failed resources on {{ $labels.template }}"
+                description: >-
+                  pangea_magma_resources_failed > 0 for 10m on template
+                  {{ $labels.template }} — the last magma apply left resources in
+                  a Failed bundle. Inspect `kubectl get infrastructuretemplate
+                  {{ $labels.template }} -o jsonpath='{.status.lastError}'`.
+            - alert: PangeaTemplateStuckInitializing
+              expr: max by (template) (pangea_templates_by_phase{phase="Initializing"}) > 0
+              for: 30m
+              labels:
+                severity: warning
+              annotations:
+                summary: "pangea-operator: InfrastructureTemplate stuck Initializing >30m"
+                description: >-
+                  A template has sat in Initializing for 30m — likely a failed
+                  apply or an unreachable state backend (Postgres 5432). Check
+                  the operator /readyz and status.lastError.
+            # THE signal the 2026-06-15 incident lacked: pleme-io-opensource sat
+            # in PLANNING for 5 days (lastApplied frozen at 05-18) and NOTHING
+            # paged — the only alert (PangeaMagmaApplyFailing) watches APPLY
+            # failures, but a template wedged in plan never reaches apply, so
+            # failed=0 and it hid. This catches ANY template that fails to
+            # converge to Ready, regardless of which phase it's stuck in.
+            - alert: PangeaTemplateNotConverging
+              expr: max by (template) (pangea_templates_by_phase{phase!~"Ready|Settled|Failed"}) > 0
+              for: 1h
+              labels:
+                severity: critical
+              annotations:
+                summary: "pangea-operator: template {{ $labels.template }} not converging (non-Ready >1h)"
+                description: >-
+                  {{ $labels.template }} has sat in a non-terminal phase for over
+                  an hour without reaching Ready — the reconcile loop is wedged
+                  (a failing plan, a crashed provider plugin, or a missing
+                  rendered-config artifact). Inspect `kubectl get
+                  infrastructuretemplate {{ $labels.template }} -o
+                  jsonpath='{.status.phase}{.status.lastError}'`.
+            - alert: PangeaTemplateStuckPlanning
+              expr: max by (template) (pangea_templates_by_phase{phase="Planning"}) > 0
+              for: 30m
+              labels:
+                severity: warning
+              annotations:
+                summary: "pangea-operator: InfrastructureTemplate stuck Planning >30m"
+                description: >-
+                  A template has sat in Planning for 30m — the plan isn't
+                  completing (e.g. the provider plugin is crashing mid-refresh
+                  on a large workspace, or the rendered-config artifact is
+                  missing). Check status.lastError.
+
+    ntfyRouting:
+      enabled: true
+      topic: rio-critical
+      ntfyUrl: http://lareira-ntfy.ntfy.svc.cluster.local/rio-critical

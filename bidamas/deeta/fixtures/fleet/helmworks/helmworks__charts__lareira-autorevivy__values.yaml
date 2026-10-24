@@ -1,0 +1,105 @@
+# lareira-autorevivy — the camelot-scoped self-maintenance layer.
+#
+# CAMELOT-SCOPED NOW; fleet-wide is the destination. This chart ships the
+# declarative surface (the Autorevivy CRD + one Autorevivy CR + RBAC). The closed
+# coordinator controller is a STUB, DISABLED by default (controller.enabled=false):
+# the loop runs MANUALLY today over the shipped MCPs (breathe / grafana / engenho /
+# escuta). Do not round the stub up to a running controller. See theory/AUTOREVIVY.md.
+
+# ── The Autorevivy CR this chart renders (templates/autorevivy.yaml) ──────────
+autorevivy:
+  create: true
+  name: camelot-self-maintenance
+
+  # THE GATE. The shipped controller accepts `camelot` only; `fleet` is the
+  # DESTINATION (off today). Widening the scope is a deliberate, gated act.
+  scope: camelot
+
+  # Shadow-first (footgun-safe; mirrors breathe bands). Never default live.
+  dryRun: true
+
+  schedule:
+    sweep: "*/5 * * * *"   # the systematic sweep
+    deep:  "0 3 * * *"     # nightly deep: GC, PITR drill, attestation completeness
+
+  reactive:
+    nervousSystem: true    # escuta/NATS event → a single seven-beat tick NOW
+
+  faces:
+    # PROTECT (was breathability) — alive + correct.
+    protect:
+      breatheCatalogRef: camelot
+      haFloor: 2
+      retirada: true
+      lapidar: true
+      pitrDrillRef: ""     # optional: a function-pitr-drill ref
+    # DEFEND (was auto-remediation) — secure.
+    defend:
+      cofreRotationMaxAgeDays: 30
+      certExpiryHorizonDays: 14
+      cvePinPolicy: sustainable   # pin choice is a judgement call ⇒ may Escalate
+      attestation: required
+    # CLEAN (was auto-remediation) — tidy, incl. active cache maintenance.
+    clean:
+      orphanReap: true
+      superCacheCiRef: camelot-super-cache-ci   # evict-cold / GC-store / warm-L1 / retune
+      retentionPolicyRef: enjulho-camelot
+
+  # The escalating-by-discoverability ladder (§V). DESIGN — rung chosen by the
+  # operator today; R4 Escalate always surfaces to a human.
+  discoverability:
+    startRung: Observe        # R0
+    maxAutoRung: Structural   # R3 (R4 never auto)
+
+  attest:
+    outcomeChain: true
+
+# ── The coordinator controller (STUB / LiveTODO — disabled by default) ────────
+# The closed loop (cron → shigoto Dag → autonomous Viggy seven-beat) is DESIGN.
+# Flip enabled=true only once the controller binary exists (M1, theory §VIII.2).
+controller:
+  enabled: false
+  image:
+    repository: ghcr.io/pleme-io/autorevivy
+    tag: ""                 # defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+  replicaCount: 1           # singleton; never two coordinators racing
+  logLevel: info
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits:   { cpu: 250m, memory: 256Mi }
+
+serviceAccount:
+  create: true
+  name: autorevivy-controller
+
+rbac:
+  create: true
+
+# ── Camelot posture (CAMELOT §III non-negotiables) ────────────────────────────
+nodeSelector:
+  role: camelot
+tolerations:
+  - key: camelot-only
+    operator: Exists
+    effect: NoSchedule
+imagePullSecrets: []
+
+# Breathe the controller itself (dogfood — CAMELOT §III #4: every workload carries
+# a band with EXPLICIT dryRun). Only rendered when controller.enabled (no band
+# pointing at a non-existent target). Shape matches breathe.pleme.io/v1 MemoryBand.
+breatheBand:
+  enabled: true
+  # dryRun — INERT for MemoryBand; NOT the footgun guard it was labelled as.
+  # promotion_mode() is mode_spec().unwrap_or(ShadowConfirmEffect) and never
+  # consults dry_run(), so this band was in fact born LIVE and self-promoting.
+  dryRun: true
+  # mode — the ACTUAL guard: shadow = never carves (born shadowed).
+  mode: shadow
+  setpoint: 0.8           # the 80/20 band
+  growAbove: 0.85
+  shrinkBelow: 0.70
+  floor: "64Mi"
+  ceiling: "512Mi"
+  cooldownSeconds: 600
+  maxStalenessSeconds: 120

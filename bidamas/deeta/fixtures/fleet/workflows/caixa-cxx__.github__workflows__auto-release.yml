@@ -1,0 +1,21 @@
+name: auto-release
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: "patch | minor | major"
+        required: false
+        default: patch
+jobs:
+  release:
+    if: vars.RELEASE_MODE == 'on'
+    uses: pleme-io/substrate/.github/workflows/cargo-auto-release.yml@main
+    with:
+      # DECLARED-BUT-DISCARDED: the dispatch input above never reached
+      # the reusable, so an operator choosing minor/major silently got
+      # patch. The canonical shim (pleme-io/shikumi) always had this.
+      bump-type: ${{ inputs.bump-type || 'patch' }}
+    secrets: inherit

@@ -1,0 +1,87 @@
+# lareira-fleet-programs — declare every program the cluster runs.
+#
+# Each entry in `programs` becomes one ComputeUnit + per-shape sidecars,
+# rendered through the pleme-computeunit library chart's templates.
+#
+# Operators add / remove programs by editing this file in their cluster's
+# pleme-io/k8s overlay.
+
+enabled: false
+
+# Library subchart — never directly enabled; we render programs ourselves.
+pleme-computeunit:
+  enabled: false
+
+# Default namespace for ComputeUnits — programs override per-entry.
+defaultNamespace: tatara-system
+
+# The fleet's program inventory.
+#
+# Each entry must include:
+#   name        unique within the cluster
+#   module      { source: "github:..." } OR { oci: "..." }
+#   trigger     exactly one of { oneShot, cron, service, event, watch }
+#   capabilities  list of capability tokens
+#
+# Optional:
+#   namespace        override defaultNamespace
+#   resources        override pleme-computeunit defaults
+#   config           runtime config passed to the WASM module
+#   elasticity       per-shape scaling overrides
+#   policy           controller-shape only — emit a paired CR
+#   observability    per-program ServiceMonitor + PrometheusRule rules
+programs: []
+
+# Example shape (commented out — clusters set their own list):
+#
+# programs:
+#   - name: pvc-autoresizer
+#     module:
+#       source: github:pleme-io/programs/pvc-autoresizer/main.tlisp?ref=v0.1.0
+#     trigger:
+#       cron: "*/5 * * * *"
+#     capabilities:
+#       - kube-pvc-list
+#       - kube-pvc-patch
+#       - prom-query@vmsingle-vm.monitoring.svc:8429
+#     config:
+#       triggerAt: 0.80
+#       maxSize: "100Gi"
+#
+#   - name: dns-reconciler
+#     module:
+#       source: github:pleme-io/programs/dns-reconciler/main.tlisp?ref=v0.1.0
+#     trigger:
+#       watch:
+#         crd: dns.pleme.io/DnsReconciler
+#         and:
+#           - { group: "v1",                kind: "Service" }
+#           - { group: "networking.k8s.io", kind: "Ingress" }
+#     capabilities:
+#       - kube-cr-watch@dns.pleme.io/dnsreconcilers
+#       - kube-cr-watch@v1/services
+#       - kube-cr-watch@networking.k8s.io/ingresses
+#       - kube-secret-read@dns-system/cloudflare-pangea
+#       - http-out:api.cloudflare.com
+#
+#   - name: thumbnail-fn
+#     module:
+#       source: github:pleme-io/programs/thumbnail-fn/main.tlisp?ref=v0.1.0
+#     trigger:
+#       event:
+#         source: nats:rio.events.photo.uploaded
+#         batch_size: 10
+#     capabilities:
+#       - nats-subscribe@rio.events.photo.uploaded
+#       - s3-read@rio-photos-originals
+#       - s3-write@rio-photos-thumbnails
+#     config:
+#       variants:
+#         - { name: small,  width: 200, ... }
+
+# Global per-program defaults (applied to every entry unless overridden).
+defaults:
+  namespace: tatara-system
+  resources:
+    requests: { cpu: 50m,  memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }

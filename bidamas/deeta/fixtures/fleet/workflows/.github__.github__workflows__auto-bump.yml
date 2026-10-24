@@ -1,0 +1,87 @@
+name: auto-bump
+
+# Self-bump for the org-profile repo. Tags every push to main with content
+# changes so consumers can pin a revision to the org's public-facing
+# README/profile content and to the workflow templates.
+#
+# ── ABSORBED 2026-08-19 ───────────────────────────────────────────────────
+# This was 23 lines of shell across two `run:` blocks: a hand-rolled semver
+# walk (`IFS='.' read -r maj min pat`, a `case` on the bump type) and a
+# hand-rolled tag+push. Both are now `uses:` into the catalog, which is the
+# whole point of the catalog — and the swap is not merely cosmetic:
+#
+#   * `next-tag` exists BECAUSE of this file. The same shape was hand-rolled
+#     here, in substrate and in pleme-io/actions, and the third hand-wiring of
+#     a shape is a primitive rather than a task.
+#   * `git-commit-tag` refuses to cut a tag that is not above the highest
+#     already-released version, and refuses one that already exists. The shell
+#     it replaces had neither guard, so a re-run could quietly re-tag or walk
+#     the version backwards.
+#
+# Runner routing goes through `runner-resolve` for the same reason theory's
+# naming-gate did: this repo is PRIVATE and `ubuntu-latest` is a METERED
+# runner, which is the org standing invariant `runner-policy` enforces and the
+# violation that exhausted the org's Actions spending limit on 2026-08-08.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: "patch | minor | major"
+        required: false
+        default: patch
+
+permissions:
+  contents: write
+
+jobs:
+  # Bootstrapping the resolver cannot call the resolver, so THIS job's runs-on
+  # is the one place a visibility-only ternary stays correct.
+  resolve-runner:
+    name: resolve runner
+    runs-on: ${{ github.event.repository.private && 'camelot-builder-pleme-eks' || 'ubuntu-latest' }}
+    outputs:
+      runner: ${{ steps.resolve.outputs.runner }}
+    steps:
+      - id: resolve
+        uses: pleme-io/actions/runner-resolve@main
+        with:
+          public-runner-default: "ubuntu-latest"
+
+  bump:
+    needs: resolve-runner
+    runs-on: ${{ needs.resolve-runner.outputs.runner }}
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history, because the next tag is derived from it.
+          fetch-depth: 0
+
+      - name: Compute the next tag from content changes
+        id: next
+        uses: pleme-io/actions/next-tag@main
+        with:
+          bump-type: ${{ inputs.bump-type || 'patch' }}
+          # Only content changes earn a tag. A push touching nothing here
+          # emits skip=true rather than minting a version for no reader.
+          source-paths: "profile .github workflow-templates"
+
+      - name: Tag
+        if: steps.next.outputs.skip == 'false'
+        uses: pleme-io/actions/git-commit-tag@main
+        with:
+          version: ${{ steps.next.outputs.version }}
+          commit-message-template: "release: pleme-io/.github {tag}"
+          # This repo's release IS the tag (no version file): tag HEAD. The
+          # commit path refused the empty commit (failing since 2026-08-19).
+          commit: "false"
+
+      - name: Push the tag
+        if: steps.next.outputs.skip == 'false'
+        uses: pleme-io/actions/git-push-with-token@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          push-tags: "true"

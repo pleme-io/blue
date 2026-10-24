@@ -1,3 +1,4 @@
+use("deeta")
 use("kyohi", [:enforce, :refusal])
 use("retsu", [:first])
 
@@ -206,18 +207,46 @@ def defaults(app)
   prescribed(app, getenv("#{env_prefix(app)}DEFAULTS"))
 end
 
-def read(app, defaults)
+def formats()
+  {"yaml" => :yaml, "json" => :json}
+end
+
+def file_format(app, opts)
+  chosen = if opts.nil? or get(opts, :format).nil?
+    getenv("#{env_prefix(app)}CONFIG_FORMAT")
+  else
+    get(opts, :format)
+  end
+  format = if chosen.nil?
+    :yaml
+  else
+    get(formats, to_s(chosen))
+  end
+  if format.nil?
+    raise(
+      :bad_option,
+      "#{to_s(chosen)} is not a config file format; the formats are yaml and json"
+    )
+  end
+  format
+end
+
+def file_doc(path, format)
+  deeta::parse(read_file(path), format)
+end
+
+def read(app, defaults, opts?)
   path = discovered_path(app)
   doc = if path.nil?
     nil
   else
-    json_read(read_file(path))
+    file_doc(path, file_format(app, opts))
   end
   resolve(app, defaults, doc, (name) -> getenv(name))
 end
 
-def load(app)
-  read(app, defaults(app))
+def load(app, opts?)
+  read(app, defaults(app), opts)
 end
 
 def merge(a, b)
@@ -463,4 +492,31 @@ test "defaults reads the variable of the app it is given: a hyphen is an undersc
   assert env_prefix("zz-unset-app") == "ZZ_UNSET_APP_"
   r = defaults("zz-unset-app") rescue "caught"
   assert r == "caught"
+end
+
+test "the file tier reads YAML unless the format is chosen"
+  assert file_format("zz-no-such-app", nil) == :yaml
+  assert file_format("zz-no-such-app", {format: :json}) == :json
+  assert file_format("zz-no-such-app", {format: "yaml"}) == :yaml
+  r = begin
+    file_format("zz-no-such-app", {format: :toml})
+  rescue e
+    e.kind
+  end
+  assert r == :bad_option
+end
+
+test "a YAML file and a JSON file resolve to the same settings"
+  dir = defaults_dir
+  y = path_join(dir, "app.yaml")
+  j = path_join(dir, "app.json")
+  write_file(y, "greeting: oi\nflags:\n  shout: true\n")
+  write_file(j, "{\"greeting\": \"oi\", \"flags\": {\"shout\": true}}")
+  d = {"greeting" => "hello", "port" => 8080, "flags" => {"shout" => false}}
+  want = {"greeting" => "oi", "port" => 8080, "flags" => {"shout" => true}}
+  assert resolve("x", d, file_doc(y, :yaml), no_env) == want
+  assert resolve("x", d, file_doc(j, :json), no_env) == want
+  assert resolve("x", d, file_doc(j, :yaml), no_env) == want
+  assert (file_doc(y, :json) rescue :refused) == :refused
+  rm_rf(dir)
 end

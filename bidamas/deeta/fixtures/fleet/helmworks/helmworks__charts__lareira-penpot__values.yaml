@@ -1,0 +1,90 @@
+# Penpot — open-source Figma alternative. Multi-process upstream
+# (frontend, backend, exporter, redis, postgres). This chart deploys
+# ONLY the frontend ingress + a backend pod; redis / postgres are
+# expected as separate charts (lareira-postgres + lareira-redis).
+# Exporter (penpot/exporter) is a sidecar started in extra deployments.
+#
+# Practical note: penpot's full reference deployment is more complex
+# than the lareira default-shape; for production-grade penpot, use the
+# upstream community chart instead. This chart is "minimum viable to
+# bring a single-instance Penpot up for the wife's illustration work".
+#
+# Required Secret: penpot-env with
+#   PENPOT_DATABASE_URI=postgresql://...
+#   PENPOT_DATABASE_USERNAME=...
+#   PENPOT_DATABASE_PASSWORD=...
+#   PENPOT_REDIS_URI=redis://...
+#   PENPOT_SECRET_KEY=... (openssl rand -hex 32)
+
+enabled: false
+
+image:
+  # The "all-in-one" backend image; frontend is reverse-proxied to it.
+  repository: docker.io/penpotapp/backend
+  tag: "2.4.3"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 6060, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 6060, targetPort: http, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: penpot-env, optional: true }
+
+env:
+  - { name: PENPOT_PUBLIC_URI, value: "https://design.rio.lan" }
+  - { name: PENPOT_FLAGS, value: "enable-registration enable-login-with-password" }
+
+resources:
+  requests: { cpu: 200m, memory: 512Mi }
+  limits:   { cpu: 4000m, memory: 4Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 20Gi
+  mountPath: /opt/penpot/assets
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: design.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # Penpot WebSocket
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/opt/penpot/assets"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 7, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-penpot }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

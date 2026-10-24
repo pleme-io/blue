@@ -1,0 +1,86 @@
+---
+# CloudNativePG operator — the Kubernetes-native PostgreSQL lifecycle
+# manager. This is the operator that watches the Cluster/Backup/Pooler
+# CRDs; the actual Postgres cluster is a `pleme-cnpg-cluster` HelmRelease
+# in ../cnpg-cluster/.
+#
+# On engenho-local, Postgres is the pangea-operator's state backend
+# (magma writes `pangea_meta.artifacts` + `{schema}_{template}_states`
+# rows here per ★★ MAGMA-NATIVE EXECUTION). The operator phase (gated on
+# pleme-lib >= 0.39.0, see ../pending/) slots in on top of this CNPG
+# cluster once it publishes.
+#
+# The operator chart is the UPSTREAM cloudnative-pg chart, not a pleme-io
+# chart — matching clusters/rio/infrastructure/cnpg-operator. The
+# pleme-io `pleme-cnpg-cluster` chart declares the Cluster CR; the
+# upstream operator reconciles it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cnpg-system
+  labels:
+    kubernetes.io/metadata.name: cnpg-system
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+    pleme.io/cluster: engenho-local
+    pleme.io/owner: platform
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: cnpg
+  namespace: flux-system
+spec:
+  interval: 24h
+  type: default
+  url: https://cloudnative-pg.github.io/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: cnpg-operator
+  namespace: cnpg-system
+  labels:
+    pleme.io/cluster: engenho-local
+    pleme.io/owner: platform
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: cloudnative-pg
+      version: "0.22.x"
+      sourceRef:
+        kind: HelmRepository
+        name: cnpg
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    # Resource-tight for the single constrained VM: the operator is a
+    # watcher, not a workload. One small CNPG Cluster fits well under
+    # 128Mi.
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: "250m"
+        memory: 128Mi
+
+    # No observability stack on engenho-local yet (no VictoriaMetrics /
+    # Prometheus) — disable the PodMonitor + bundled Grafana dashboard so
+    # the chart doesn't emit ServiceMonitor CRDs the cluster can't scrape.
+    monitoring:
+      podMonitorEnabled: false
+      grafanaDashboard:
+        create: false
+
+    leaderElection:
+      enabled: true

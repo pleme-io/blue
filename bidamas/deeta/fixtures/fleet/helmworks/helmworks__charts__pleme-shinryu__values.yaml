@@ -1,0 +1,112 @@
+image:
+  repository: ghcr.io/pleme-io/shinryu-mcp
+  tag: latest
+  pullPolicy: Always
+
+replicaCount: 1
+
+# ── Breathing Mode (Scale-to-Zero) ────────────────────────────────
+# When enabled, shinryu-mcp scales to 0 when idle.
+# KEDA wakes it 0→1 when new analytics data arrives (NATS event).
+# Matches the Vector transmission stack breathing pattern.
+breathing:
+  enabled: false
+  min_replicas: 0
+  max_replicas: 3
+  sleep_after_secs: 900      # 15 min idle → sleep
+  nats:
+    server_monitoring: "nats-vector.observability.svc:8222"
+    stream: "VECTOR_DELIVERY"
+    consumer: "shinryu-analytics"
+
+# ── Analytics Data ────────────────────────────────────────────────
+# Path where Vector writes analytics data (Bronze tier NDJSON).
+# shinryu-mcp reads Bronze, writes Silver (Parquet) and Gold (materialized views).
+analytics:
+  path: /var/lib/vector/analytics
+  pvc:
+    enabled: true
+    claimName: shinryu-analytics
+    size: 100Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+
+# ── DataFusion Configuration ──────────────────────────────────────
+datafusion:
+  memory_limit_mb: 1024
+  sql_timeout_secs: 300
+
+# ── Refiner (Bronze → Silver Parquet) ─────────────────────────────
+refiner:
+  enabled: true
+  interval_secs: 60
+
+# ── Materializer (Silver → Gold Views) ────────────────────────────
+materializer:
+  enabled: true
+  interval_secs: 300
+
+# ── Data Lifecycle ────────────────────────────────────────────────
+lifecycle:
+  bronze_retention_days: 7
+  silver_retention_days: 30
+  gold_retention_days: 90
+
+# ── Custom UDFs ───────────────────────────────────────────────────
+udfs:
+  burst_forge: true     # tumbling_window, asof_nearest, table functions
+
+# ── Standard pleme-lib values ─────────────────────────────────────
+ports:
+  - name: mcp
+    containerPort: 9999
+    protocol: TCP
+  - name: health
+    containerPort: 8081
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: mcp
+      port: 9999
+      targetPort: mcp
+      protocol: TCP
+    - name: health
+      port: 8081
+      targetPort: health
+      protocol: TCP
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
+health:
+  path: /health
+  readyPath: /health
+  port: health
+  livenessInitialDelay: 10
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 10
+  readinessFailureThreshold: 2
+
+monitoring:
+  enabled: true
+  port: mcp
+  path: /metrics
+  interval: 30s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalEgress: []
+
+attestation:
+  enabled: false

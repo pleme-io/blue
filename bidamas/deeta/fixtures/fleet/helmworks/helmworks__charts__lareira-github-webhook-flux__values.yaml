@@ -1,0 +1,45 @@
+pleme-computeunit:
+  enabled: false
+
+  module:
+    source: "github:pleme-io/programs/github-webhook-flux/main.tlisp?ref=v0.1.0"
+
+  trigger:
+    service:
+      port: 8080
+      paths: ["/git-webhook"]
+      hosts: ["git-webhook.flux-system.svc.cluster.local"]
+      breathability:
+        enabled: true
+        minReplicas: 0
+        maxReplicas: 3
+        cooldownPeriod: 600           # webhooks burst then quiet
+
+  capabilities:
+    - http-in:0.0.0.0:8080
+    - kube-resource-list@source.toolkit.fluxcd.io/gitrepositories
+    - kube-resource-patch@source.toolkit.fluxcd.io/gitrepositories
+    - kube-secret-read@flux-system/github-webhook-secret
+
+  resources:
+    requests: { cpu: 50m,  memory: 64Mi }
+    limits:   { cpu: 500m, memory: 128Mi }
+
+  service:
+    type: ClusterIP
+
+  observability:
+    serviceMonitor:
+      enabled: true
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: GitHubWebhookSignatureFailures
+          expr: |
+            increase(github_webhook_signature_failed_total[10m]) > 3
+          for: 0m
+          labels: { severity: warning, component: lareira-github-webhook-flux }
+          annotations:
+            summary: "GitHub webhook signature failures detected"
+            description: "Either the webhook secret is rotating or somebody is probing the endpoint with bad signatures. Check {{ $labels.exported_namespace }}'s logs."
+            runbook_url: "https://runbooks.pleme.io/lareira-github-webhook-flux/sig-failures"

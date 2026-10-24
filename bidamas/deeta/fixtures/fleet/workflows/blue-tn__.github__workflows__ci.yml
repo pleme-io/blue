@@ -1,0 +1,65 @@
+name: ci
+
+# Thin shim onto substrate's reusable cargo-ci.yml — the fleet standard
+# (★ pleme-actions: "a hand-authored composite action inside a workflow is
+# drift"; a consumer is a 5-line shim). Modelled on magma's, 2026-08-01.
+#
+# ── WHY THIS EXISTS: 464 GREEN TESTS AND NOTHING RAN THEM ──────────────
+#
+# Until this file, blue's only workflow was `auto-release.yml`, which
+# delegates to substrate's cargo-auto-release.yml and contains **zero**
+# `cargo test`. It asserts that publishing succeeds and nothing about
+# whether the code is correct.
+#
+# The gap was not what it looked like from the outside, and the difference
+# matters for anyone tempted to "fix CI" the obvious way:
+#
+#   - Actions on this repo were already ENABLED
+#     (`gh api repos/pleme-io/blue/actions/permissions` -> enabled: true).
+#   - The flake ALREADY exposes checks. Measured, not assumed:
+#     `nix eval blue#checks.aarch64-darwin --apply builtins.attrNames`
+#     -> [ "build" "gen-confirm" ], inherited from substrate's
+#     workspace-release -> tool-release (`tool-release.nix:587`).
+#
+# So the missing piece was never "blue has no checks". It is that
+# **`checks.tests` does not exist anywhere in the fleet**:
+# `tool-release.nix:193` resolves buildMode to "lockfile", and
+# `test-check.nix:110-129` returns `ok = false` for lockfile — so
+# `nix flake check` COMPILES the workspace and never runs a test. Adding a
+# `checks` output to this flake would therefore have armed nothing.
+#
+# `cargo-ci.yml` is what closes it: one job runs `nix flake check` (the
+# compile gate that already existed), the other runs `cargo test` in the
+# devShell (the 464 that did not).
+#
+# ── WHAT THIS DOES NOT COVER, said out loud ────────────────────────────
+#
+# `cargo test --workspace` does not run the `spec/*.b` conformance corpus
+# through the CLI, only through `blue-lang-test`'s harness. And nothing
+# here gates the formatter against real files the way `fmt --write` would —
+# the laws are property tests over trees, and this repo has three separate
+# receipts of a formatting law passing over output no human would write.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    uses: pleme-io/substrate/.github/workflows/cargo-ci.yml@main
+    with:
+      # blue git-deps tatara-lisp by rev over https. The reusable carries
+      # `pleme-io/actions/git-credentials`, which is the reason to use it
+      # rather than hand-write the job: a hand-written cargo job touching a
+      # private pleme-io git dep dies on `failed to acquire username/password
+      # from local configuration`, and that is a fleet class, not a quirk.
+      test-args: "--workspace --no-fail-fast"
+    secrets: inherit

@@ -1,0 +1,64 @@
+# lareira-tatara-runtime — tatara-lisp evaluator on K8s.
+
+enabled: false
+
+image:
+  repository: ghcr.io/pleme-io/tatara-lisp-script
+  tag: ""
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 1000m, memory: 1Gi }
+
+config:
+  # The openclaw URL the runtime fetches programs from + publishes
+  # compiled WASM modules to. In-cluster default → the lareira-openclaw
+  # Service.
+  openclawUrl: http://lareira-openclaw.openclaw.svc:8080
+
+  # Where to look for typed-domain plugins. The runtime can dlopen
+  # additional Rust-side TataraDomain crates at startup. PVC-backed
+  # plugin dir; populated by the chart's optional initContainer.
+  pluginDir: /var/lib/tatara-runtime/plugins
+
+  # Compile cache — content-addressed; survives pod restarts.
+  cacheDir: /var/lib/tatara-runtime/cache
+
+persistence:
+  plugins:
+    enabled: true
+    storageClass: local-path
+    size: 1Gi
+    annotations: { pleme.pleme.io/breathable: "true" }
+  cache:
+    enabled: true
+    storageClass: local-path
+    size: 5Gi
+    annotations: { pleme.pleme.io/breathable: "true" }
+
+# When enabled, programs published to openclaw with a `:trigger` block
+# auto-create a ComputeUnit CR in the cluster (no manual kubectl apply).
+autoSubmit:
+  enabled: true
+  # Watch the openclaw event stream + create CRs in this namespace.
+  computeUnitNamespace: tatara-programs
+
+observability:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: TataraRuntimeCompileErrors
+        expr: |
+          increase(tatara_runtime_compile_errors_total[15m]) > 5
+        for: 5m
+        labels: { severity: warning, component: lareira-tatara-runtime }
+        annotations:
+          summary: "tatara-runtime rejecting >5 compiles in 15m"
+          description: "Either an author is publishing malformed scripts or a domain plugin is outdated. Check tatara-runtime logs."
+          runbook_url: "https://runbooks.pleme.io/lareira-tatara-runtime/compile-errors"

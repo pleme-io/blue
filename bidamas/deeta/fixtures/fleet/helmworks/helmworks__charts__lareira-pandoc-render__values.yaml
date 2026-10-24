@@ -1,0 +1,77 @@
+# pandoc-render — small HTTP service that:
+#   1. Receives POST { markdown, template } (or pulls from git)
+#   2. Runs `pandoc --pdf-engine=xelatex` with the chosen template
+#      (tufte-book, novel, etc.)
+#   3. Returns the PDF
+#
+# The image is `pandoc/latex` plus a thin Rust HTTP wrapper (TBD: build
+# via repo-forge, ghcr.io/pleme-io/pandoc-render). Until that ships, the
+# placeholder image lets helm template render but the pod won't function.
+#
+# Used by the wife to convert her manuscripts (markdown in Forgejo) to
+# typeset PDF previews for read-throughs. The cousin can also use it for
+# script breakdowns / call sheets.
+
+enabled: false
+
+image:
+  repository: ghcr.io/pleme-io/pandoc-render
+  tag: "0.1.0-placeholder"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 8080, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP }
+
+env:
+  - { name: RUST_LOG, value: info }
+  - { name: PANDOC_RENDER_PORT, value: "8080" }
+
+resources:
+  requests: { cpu: 50m, memory: 256Mi }
+  limits:   { cpu: 4000m, memory: 2Gi }
+
+# Stateless — no PVC. Output PDFs go back via the HTTP response.
+persistence: { enabled: false }
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: render.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup: { enabled: false }   # stateless
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-pandoc-render }
+networkPolicy: { enabled: true }
+
+# pandoc + xelatex want to write to /tmp; relax read-only-root.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }
+
+# Memory-hungry workload — breathability cron is a strong fit.
+breathability:
+  enabled: false
+  cron:
+    enabled: false
+    timezone: America/New_York
+    start: "0 7 * * *"
+    end: "0 23 * * *"
+    desiredReplicas: 1

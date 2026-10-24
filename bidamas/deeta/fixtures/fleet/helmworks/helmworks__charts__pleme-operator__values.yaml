@@ -1,0 +1,143 @@
+# pleme-operator default values
+# Kubernetes operator: Deployment + RBAC + CRDs
+
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC for the operator
+rbac:
+  # -- Create ClusterRole and ClusterRoleBinding
+  create: true
+  # -- RBAC rules (must be specified per operator)
+  rules: []
+  # Example for a CRD operator:
+  # - apiGroups: ["shinka.pleme.io"]
+  #   resources: ["databasemigrations"]
+  #   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # - apiGroups: [""]
+  #   resources: ["pods", "configmaps", "secrets", "events"]
+  #   verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # - apiGroups: ["batch"]
+  #   resources: ["jobs"]
+  #   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+ports:
+  - name: health
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: health
+      port: 8080
+      targetPort: health
+      protocol: TCP
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: health
+  livenessInitialDelay: 5
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: false
+  path: /healthz
+  port: health
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  failureThreshold: 30
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Operators typically use Recreate to avoid dual-reconciliation
+strategy:
+  type: Recreate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+monitoring:
+  enabled: true
+  port: health
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+pdb:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+command: []
+args: []
+additionalLabels: {}
+
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 15"]
+
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false
+  groups: []

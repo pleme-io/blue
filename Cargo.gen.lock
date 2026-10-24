@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "32ff0d1602f85a3cade0ce254211e28b58b9f170b0561405cb16408798648c4d",
+  "cargo_lock_sha256": "b5efb9461b3221aa366fa9d46ad53beb5c671b577b92e8d19ea67ed9eadde9cb",
   "manifest_sha256": {
-    "Cargo.toml": "ead898221f8f17eacf7f5f99c87e8142b2350eee8a4218daa6d2a7784877b71c",
+    "Cargo.toml": "56fb4ddbd53f46ad23fca45bdeed7ae365a135f703a4e8ce85f4de900b5ca687",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
@@ -20,7 +20,8 @@
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "94cc8f3cb56a4cb8f7b9cbe57c23f9bf8120b665f8a59340b95f73276f5f34ad",
     "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
-    "crates/blue-lang-wasm/Cargo.toml": "7ab5e1b7832f36ce7932147f98e193c0d626813528f2d85280ac1aa8b070a1a0"
+    "crates/blue-lang-wasm/Cargo.toml": "7ab5e1b7832f36ce7932147f98e193c0d626813528f2d85280ac1aa8b070a1a0",
+    "crates/blue-lang-yaml-diff/Cargo.toml": "2aaacab66724df4d7d7e6065adcfa1d6c2aa330596abd1012f3c3e38a16eedbf"
   },
   "target_resolves": {
     "base": {
@@ -446,6 +447,14 @@
         "features": [
           "auto-color",
           "concolor"
+        ]
+      },
+      "arraydeque-0.5.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "std"
         ]
       },
       "arrayref-0.3.9": {
@@ -1679,6 +1688,11 @@
         "build_dependencies": [],
         "features": []
       },
+      "blue-lang-yaml-diff-0.0.106": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "bytemuck-1.25.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -2177,6 +2191,25 @@
           "zeroize"
         ]
       },
+      "encoding_rs-0.8.35": {
+        "runtime_dependencies": [
+          {
+            "name": "cfg_if",
+            "package_key": "cfg-if-1.0.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "default"
+        ]
+      },
       "equivalent-1.0.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -2315,6 +2348,11 @@
           "default",
           "std"
         ]
+      },
+      "foldhash-0.2.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
       },
       "futures-0.3.34": {
         "runtime_dependencies": [
@@ -3103,7 +3141,38 @@
         ]
       },
       "hashbrown-0.17.1": {
-        "runtime_dependencies": [],
+        "runtime_dependencies": [
+          {
+            "name": "foldhash",
+            "package_key": "foldhash-0.2.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default-hasher"
+        ]
+      },
+      "hashlink-0.12.2": {
+        "runtime_dependencies": [
+          {
+            "name": "hashbrown",
+            "package_key": "hashbrown-0.17.1",
+            "kind": "normal",
+            "features": [
+              "default-hasher"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
         "build_dependencies": [],
         "features": []
       },
@@ -6013,6 +6082,45 @@
           "std"
         ]
       },
+      "yaml-rust2-0.13.0": {
+        "runtime_dependencies": [
+          {
+            "name": "arraydeque",
+            "package_key": "arraydeque-0.5.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "encoding_rs",
+            "package_key": "encoding_rs-0.8.35",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "hashlink",
+            "package_key": "hashlink-0.12.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "encoding"
+        ]
+      },
       "yansi-1.0.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -8729,6 +8837,9 @@
     "ariadne-0.6.0": {
       "edition": "2018"
     },
+    "arraydeque-0.5.1": {
+      "edition": "2021"
+    },
     "arrayref-0.3.9": {
       "edition": "2015"
     },
@@ -8895,6 +9006,13 @@
         "path": "src/lib.rs"
       }
     },
+    "blue-lang-yaml-diff-0.0.106": {
+      "edition": "2021",
+      "lib_target": {
+        "name": "blue_lang_yaml_diff",
+        "path": "src/lib.rs"
+      }
+    },
     "bytemuck-1.25.2": {
       "edition": "2018"
     },
@@ -8979,6 +9097,9 @@
     "ed25519-dalek-2.2.0": {
       "edition": "2021"
     },
+    "encoding_rs-0.8.35": {
+      "edition": "2018"
+    },
     "equivalent-1.0.2": {
       "edition": "2015"
     },
@@ -9001,6 +9122,9 @@
         "name": "fnv",
         "path": "lib.rs"
       }
+    },
+    "foldhash-0.2.0": {
+      "edition": "2021"
     },
     "fsevent-sys-4.1.0": {
       "edition": "2018"
@@ -9062,6 +9186,9 @@
       "edition": "2021"
     },
     "hashbrown-0.17.1": {
+      "edition": "2024"
+    },
+    "hashlink-0.12.2": {
       "edition": "2024"
     },
     "heck-0.5.0": {
@@ -9457,6 +9584,9 @@
       "edition": "2018"
     },
     "winnow-0.7.15": {
+      "edition": "2021"
+    },
+    "yaml-rust2-0.13.0": {
       "edition": "2021"
     },
     "yansi-1.0.1": {

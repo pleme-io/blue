@@ -1,0 +1,60 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nix-builder
+  namespace: nix-builder
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: pleme-nix-builder
+      version: ">=0.2.0"
+      sourceRef:
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # Breathability: KEDA zero-scale when enabled
+    breathability:
+      enabled: true
+      targetKind: StatefulSet
+      min: 0
+      max: 4
+      cooldown: 300
+      pollingInterval: 15
+      trigger:
+        type: nats-jetstream
+        nats:
+          serverURL: "nats://nats.nats.svc:4222"
+          stream: BUILD
+          consumer: builder
+          lagThreshold: "1"
+          activationLagThreshold: "0"
+
+    # Builder resources — real compute for nix builds
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 12Gi
+
+    storage:
+      size: 100Gi
+
+    builder:
+      nix:
+        substituters:
+          - "http://attic.nix-cache.svc:80/main"
+          - "https://cache.nixos.org"
+        postBuildHook:
+          enabled: true
+          atticServer: "http://attic.nix-cache.svc:80"
+          cacheName: main

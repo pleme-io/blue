@@ -1,0 +1,94 @@
+# yaml-synthesizer CI — runs the test suite on every push and PR.
+#
+# WHY THIS IS NOT THE 3-LINE `cargo-ci.yml` SHIM (do not "simplify" it back):
+#
+#   1. `pleme-io/substrate/.github/workflows/cargo-ci.yml` runs `nix flake
+#      check`. THIS REPO HAS NO `flake.nix` AT ALL — `git ls-files | grep
+#      flake` returns nothing — so the shim errored out in ~5 seconds having
+#      run ZERO of the 109 tests below. That left this repo's five test
+#      files, including the `no_raw_invariant` and
+#      `synthesizer_core_conformance` proofs that helm-synthesizer,
+#      kustomize-synthesizer and pangea-forge build on, with no CI coverage
+#      at all — and a permanently-red gate nobody reads also masks any NEW
+#      failure landing behind it (pleme-io CLAUDE.md, Tier ⊥ — "a gate never
+#      observed to fail may be checking nothing", subclass "Abandoned Red").
+#
+#   2. DEP SHAPE DECIDES THE SHAPE, and it puts this repo between the two
+#      fleet precedents:
+#        * NOT `pangea-forge`'s shape — no sibling `path = "../…"` deps, so
+#          none of its 18 sibling checkouts and no `working-directory`.
+#        * NOT `magma`'s bare `cargo test` either — `synthesizer-core` is a
+#          PRIVATE pleme-io GIT dependency the default `GITHUB_TOKEN` cannot
+#          fetch. (The other deps — proptest, tree-sitter, tree-sitter-yaml
+#          — are all crates.io and need nothing.)
+#      So: magma's simplicity, plus exactly one block borrowed verbatim from
+#      `pleme-io/pangea-forge` — BOT_PAT + `url.insteadOf`. Nothing else.
+#
+#   3. `--all-targets` is load-bearing, not decoration — the lesson
+#      pangea-forge paid 59 days for: `cargo build --lib` stays green while
+#      a TEST target does not compile, so a plain `cargo test` can pass over
+#      a suite that never built. Its sibling repo ruby-synthesizer was in
+#      exactly that state when this workflow was written (4 of its test
+#      targets did not compile).
+#
+#   4. `--all-features` is a no-op TODAY — this repo declares no `[features]`
+#      — and is here deliberately anyway, so that the first optional feature
+#      anyone adds does not silently take its tests out of CI. That is the
+#      precise failure ruby-synthesizer had: four test targets hidden behind
+#      a non-default feature, never compiled, never run.
+#
+# NOT GATED HERE, deliberately: `cargo fmt --check` is currently red (~479
+# diff lines). Reformatting is a separate change; wiring a known-red
+# cosmetic gate now would re-create the exact "nobody reads it" condition
+# this workflow exists to remove.
+
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Cargo pulls `synthesizer-core` as a PRIVATE git dependency. Force the
+      # real git binary so the url.insteadOf rewrite below is honored —
+      # cargo's bundled libgit2 backend ignores it.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+    steps:
+      - name: Checkout yaml-synthesizer
+        uses: actions/checkout@v4
+        with:
+          # This workflow never pushes, and a persisted this-repo credential
+          # would otherwise shadow the BOT_PAT rewrite below by prefix match.
+          persist-credentials: false
+
+      - name: Configure git credentials for private cargo git dependencies
+        # The BOT_PAT > GITHUB_TOKEN order and the load-bearing
+        # extraheader-unset live in the action, once, which is what its own
+        # description says it exists for.
+        uses: pleme-io/actions/git-credentials@main
+        with:
+          bot-pat: ${{ secrets.BOT_PAT }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: rustc / cargo version
+        run: cargo --version && rustc --version
+
+      - name: cargo test --all-targets --all-features
+        run: cargo test --all-targets --all-features
+
+      # `--all-targets` EXCLUDES doctests. There are 0 doctests in this repo
+      # today, so this step is a fast no-op — it is here so that the first
+      # doc example anyone writes actually gets compiled and run, rather than
+      # silently skipped by the flag above.
+      - name: cargo test --doc --all-features
+        run: cargo test --doc --all-features

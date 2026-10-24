@@ -1,5 +1,6 @@
-package("bougyo", "0.1.0")
+package("bougyo", "0.1.1")
 needs("kousei", "^0.1")
 needs("moji", "^0.1")
 needs("retsu", "^0.1")
 needs("shisei", "^0.1")
+needs("tsuushin", "^0.1")

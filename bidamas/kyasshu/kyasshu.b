@@ -1310,22 +1310,55 @@ test "request posts the persisted hash and no query text through tsuushin"
   assert raises?(:bad_option, () -> request("http://h.example/graphql", {}))
 end
 
-test "an SSR page with nested fragments renders from one request"
-  dir = hanabi_double(json_stringify(response))
-  port = waited(path_join(dir, "port"), 400)
-  got = request(
-    "http://127.0.0.1:#{port}/graphql",
-    {operation: page_query, variables: {"id" => "p1"}}
-  )
+def page_html()
+  "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta content=\"width=device-width, initial-scale=1\" name=\"viewport\"><title>Fragments</title></head><body><main><article><h1>Fragments</h1><p>by <span>Ada</span></p><ul><li><span>Ada</span>: Agreed</li><li><span>Lin</span>: Why?</li></ul></article></main></body></html>"
+end
+
+def ssr(url, opts)
+  got = request(url, {operation: page_query, variables: {"id" => "p1"}}, opts)
   store = normalize(got, sdl, {now: 0})
-  html = gamen::render(page_of(store), :html, {refuse: :page})
-  assert html ==
-    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta content=\"width=device-width, initial-scale=1\" name=\"viewport\"><title>Fragments</title></head><body><main><article><h1>Fragments</h1><p>by <span>Ada</span></p><ul><li><span>Ada</span>: Agreed</li><li><span>Lin</span>: Why?</li></ul></article></main></body></html>"
-  body = json_read(waited(path_join(dir, "seen.json"), 400))
-  assert get(get(get(body, "extensions"), "persistedQuery"), "sha256Hash") ==
-    danpen::hash(page_query)
-  assert get(body, "query").nil?
-  assert waited(path_join(dir, "more"), 400) == "false"
-  assert gamen::check(page_of(store)) == []
-  rm_rf(dir)
+  [
+    gamen::render(page_of(store), :html, {refuse: :page}),
+    gamen::check(page_of(store))
+  ]
+end
+
+def mailbox(acc)
+  m = receive(:_, 0, :none)
+  if m == :none
+    acc
+  else
+    mailbox(push(acc, m))
+  end
+end
+
+def persisted?(body)
+  get(get(get(body, "extensions"), "persistedQuery"), "sha256Hash") ==
+    danpen::hash(page_query) and get(body, "query").nil?
+end
+
+test "an SSR page with nested fragments renders from one request"
+  me = self
+  counted = fn(_method, _url, _headers, body, _timeout_ms)
+    send(me, [:sent, body])
+    {status: 200, headers: [], body: json_stringify(response)}
+  end
+  out = ssr("http://hanabi.test/graphql", {transport: counted})
+  sent = mailbox([])
+  assert first(out) == page_html
+  assert second(out) == []
+  assert size(sent) == 1
+  assert persisted?(json_read(second(first(sent))))
+end
+
+test "the SSR request crosses a real socket to a separate server"
+  if self_exe != nil
+    dir = hanabi_double(json_stringify(response))
+    port = waited(path_join(dir, "port"), 400)
+    out = ssr("http://127.0.0.1:#{port}/graphql", {})
+    assert first(out) == page_html
+    assert persisted?(json_read(waited(path_join(dir, "seen.json"), 400)))
+    assert waited(path_join(dir, "more"), 400) == "false"
+    rm_rf(dir)
+  end
 end

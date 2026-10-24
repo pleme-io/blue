@@ -196,6 +196,73 @@ witness and an autofix where one exists.
   offline). The old `ui/index.html` stays, configured off.
 - Done when: an auditor flow (open, filter, verify, export) runs on the stack.
 
+### S — The service side, complete (decided 2026-10-24)
+
+The frontend renders from a blue service, so the backend is closed with it. The
+gap rows are `theory/FUEKI.md` §IV G, H and I; each closes there, not here.
+
+| ID | Closes | Work |
+|---|---|---|
+| S1 | G1, H1 | concurrent requests and keep-alive in blue's serve loop |
+| S2 | G3 | a YAML reader (a bidama on kiwari, or the runtime) |
+| S3 | I3 | `settei` rebuilt on `kousei`; `{tier, source}` per key |
+| S4 | I4 | readiness distinct from liveness; drain on a signal |
+| S5 | I5 | `kiroku`: JSON-line log layer; `nisshi` events when on |
+| S6 | I7 | cofre's `SecretRef`; a `show` that redacts by construction |
+| S7 | H2 | a RESP client under `Capability::Network`; a `cache` field on `service` |
+| S8 | I2 | authn (RS256 JWT verify, OIDC) and authz layers; rate limit as a `shisei` posture |
+| S9 | H1 | a PDF writer, so kensa's host form can be configured off |
+
+TLS stays at hanabi (the "no TLS" row in blue's CLAUDE.md is unchanged).
+Done when every G, H and I row is `exists` and kensa runs as a pure blue service.
+
+### F14 — The design language (after F12)
+
+A blue design system that takes its principles from Material Design 3 and the
+other mature systems, and its look from the house theme (Nord). Principles, not
+branding: no Google marks, names or assets.
+
+- CSS, HTML, JS loaders, icons and fonts are build outputs, never authored. A
+  view states style as token roles; `frontend` in the Bluefile lowers through
+  `nix/project.nix` to one stylesheet holding only the rules the views use
+  (atomic, content-hashed class names), the component tables and the assets,
+  each with its `-fresh` check. A `.css`, `.js` or `.html` file authored in a
+  blue project is a rule, so the abstraction cannot be bypassed.
+- Tokens in three tiers, reference → system → component, as one blue table;
+  every renderer (HTML/CSS custom properties, terminal `irodori`, mado) is
+  generated from it.
+- Colour roles from tonal palettes built from a seed, each pair contrast-checked
+  as a rule (`gamen::check`).
+- Elevation is tonal surface, never a shadow. Shape and type scales; state
+  layers (hover, focus, pressed, dragged) as one table; density levels.
+- Motion tokens (duration, easing) are `ugoki` springs and tweens.
+- Adaptive layout by window size class (compact, medium, expanded) with the
+  canonical layouts (list-detail, supporting pane, feed).
+- From Carbon: dense data views, tables and filters for kensa. From Radix and
+  the WAI-ARIA patterns: behaviour separated from style, keyboard and focus
+  rules per component. From Apple HIG and Fluent: motion that follows input.
+- Each component carries an anatomy, states, a11y rows and tree tests.
+- Done when the kensa console is rebuilt on it, with no literal colour, size or
+  duration in any view.
+
+### F15 — Phone and desktop from the same code
+
+One blue app, unchanged, renders to web, desktop and phone; the target is a
+placement datum (`theory/FUEKI.md`), never a fork of the views.
+
+- The element tree, tokens, store and data laws are target-free; only the
+  renderer and the import table change per target.
+- Desktop: a GPU renderer for the element tree on the mado stack (Nord, no
+  shadows, `ugoki` motion), packaged by nix for macOS and Linux.
+- Phone: an iOS and an Android shell that host `blue-lang-wasm` with a native
+  import table (the asobi and recanto iOS loop is the first host), and the PWA
+  (F10) as the zero-install path.
+- Adaptive layout (F14 window size classes) is how one view fits each screen.
+- Renderer agreement is a gate: every spec row renders the same tree on every
+  target.
+- Done when the kensa console runs as web, desktop and iOS builds from one
+  Bluefile.
+
 ## 3. Order and dependencies
 
 ```
@@ -212,6 +279,8 @@ F0 ─┬─ F1 ── F2 ──────────────┬─ F13 (
 | C | F13 SSR, F6, F12 (console set) | the kensa console, server-rendered |
 | D | F8, F9 | hydrated, live pages |
 | E | F10, F11 dev loop, F7 remaining surfaces | installable PWA; hanabi policy in blue |
+| S | S1–S9, beside waves B–E, three agents at a time | kensa as a pure blue service |
+| F | F14, F15 | the design language; the console on web, desktop and phone |
 
 ## 4. How the agents run it
 
@@ -235,6 +304,7 @@ From the H1 receipts (2026-10-22/23):
 | components reading an undeclared field | 0 | stays 0 |
 | hand-written query strings in `.b` | measured at F4 | down |
 | literal colours, literal enum mirrors | measured at F1/F4 | down |
+| authored `.css`/`.js`/`.html` in a blue project | measured at F11 | 0 |
 | a11y rows uncovered by a component | measured at F12 | down |
 | wasm bytes, time to interactive, idle redraws | measured at F8 | down |
 | `Hosted::call` p99 on hanabi's request path | measured at F7 | not up |

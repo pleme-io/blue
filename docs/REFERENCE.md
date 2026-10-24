@@ -592,3 +592,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0050` | field-not-in-schema | every fragment's type and field, and every `labels` enum and key, is in the frontend's schema | refused |
 | `B0051` | enum-mirror | a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels` | refused |
 | `B0052` | query-text | a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash | refused |
+| `B0053` | discarded-value | the value of a word that only returns a value is read: `assoc`, `append`, `to_s` and their kin are never a statement | refused |

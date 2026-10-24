@@ -316,3 +316,22 @@ row(
   diagnoses([]),
   frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
 )
+
+row(
+  "safety.B0053",
+  "def put(m)\n  assoc(m, :a, 1)\n  m\nend",
+  diagnoses(["B0053"]),
+  covers("rule:B0053")
+)
+
+row(
+  "safety.B0053.bound_or_last",
+  "def put(m)\n  n = assoc(m, :a, 1)\n  assoc(n, :b, 2)\nend",
+  diagnoses([])
+)
+
+row(
+  "safety.B0053.waived",
+  "# waive B0053: the join raises on a list that is not text\ndef put(xs)\n  join(xs, \",\")\n  xs\nend",
+  diagnoses([])
+)

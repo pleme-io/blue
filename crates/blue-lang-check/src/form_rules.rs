@@ -13,6 +13,10 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
         .enumerate()
         .filter(|(i, _)| is_entry(*i))
         .collect();
+    let shadowed = shadowed_names(&entry);
+    for (i, form) in &entry {
+        discarded(form, *i, &shadowed, &mut out);
+    }
     for (i, form) in &entry {
         swallowed(form, *i, &mut out);
         if !is_constant(form) {
@@ -239,6 +243,73 @@ fn swallowed(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
     }
     for i in items {
         swallowed(i, top, out);
+    }
+}
+
+const VALUE_ONLY: &[&str] = &[
+    "append", "assoc", "concat", "cons", "dissoc", "distinct", "downcase", "drop", "flatten",
+    "join", "range", "remove", "replace", "reverse", "split", "string", "take", "to_float",
+    "to_int", "to_s", "trim", "upcase", "zip",
+];
+
+fn shadowed_names(entry: &[(usize, &Spanned)]) -> BTreeSet<String> {
+    fn atoms(s: &Spanned, out: &mut BTreeSet<String>) {
+        if let Some(name) = s.as_symbol().or_else(|| s.as_keyword()) {
+            out.insert(name.to_string());
+        }
+        if let Some(items) = s.as_list() {
+            for i in items {
+                atoms(i, out);
+            }
+        }
+    }
+    let mut out = BTreeSet::new();
+    for (_, form) in entry {
+        if let Some(name) = defined_name(form) {
+            out.insert(name.to_string());
+        }
+        if form
+            .as_list()
+            .and_then(|l| l.first())
+            .and_then(Spanned::as_symbol)
+            == Some("use")
+        {
+            atoms(form, &mut out);
+        }
+    }
+    out
+}
+
+fn discarded(form: &Spanned, top: usize, shadowed: &BTreeSet<String>, out: &mut Vec<Diagnostic>) {
+    let SpannedForm::List(items) = &form.form else {
+        return;
+    };
+    let head = items.first().and_then(Spanned::as_symbol);
+    if matches!(head, Some("quote" | "quasiquote")) {
+        return;
+    }
+    if head == Some("begin") && items.len() > 2 {
+        for statement in &items[1..items.len() - 1] {
+            let callee = statement
+                .as_list()
+                .and_then(|l| l.first())
+                .and_then(Spanned::as_symbol)
+                .filter(|c| VALUE_ONLY.contains(c) && !shadowed.contains(*c));
+            if let Some(callee) = callee {
+                out.push(
+                    Diagnostic::new(
+                        Code::B0053,
+                        format!("the value of `{callee}` is discarded; `{callee}` changes nothing, it returns a new value"),
+                        statement.span,
+                    )
+                    .at_top_level(top)
+                    .with_help(format!("bind it (`x = {callee}(…)`) or return it; a value nobody reads is a bug or dead code")),
+                );
+            }
+        }
+    }
+    for i in items {
+        discarded(i, top, shadowed, out);
     }
 }
 

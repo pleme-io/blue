@@ -65,6 +65,7 @@ it; `blue explain --list` lists them.
 | B0050 | field-not-in-schema | error | every fragment's type and field, and every `labels` enum and key, is in the frontend's schema |
 | B0051 | enum-mirror | error | a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels` |
 | B0052 | query-text | error | a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash |
+| B0053 | discarded-value | error | the value of a word that only returns a value is read: `assoc`, `append`, `to_s` and their kin are never a statement |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

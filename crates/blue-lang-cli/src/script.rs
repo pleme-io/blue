@@ -34,7 +34,23 @@ use std::path::Path;
 /// The argument vector clap should parse: `argv` itself, or, when its first
 /// argument is a script, the `run --quiet` form of it.
 pub fn route(argv: Vec<OsString>, cli: &clap::Command) -> Vec<OsString> {
-    let Some(first) = argv.get(1) else {
+    let mut at = 1;
+    let mut allow = Vec::new();
+    while let Some(word) = argv.get(at).and_then(|a| a.to_str()) {
+        if word == "--allow" {
+            let Some(cap) = argv.get(at + 1) else {
+                return argv;
+            };
+            allow.extend([OsString::from("--allow"), cap.clone()]);
+            at += 2;
+        } else if word.starts_with("--allow=") {
+            allow.push(argv[at].clone());
+            at += 1;
+        } else {
+            break;
+        }
+    }
+    let Some(first) = argv.get(at) else {
         return argv;
     };
     let Some(name) = first.to_str() else {
@@ -47,9 +63,10 @@ pub fn route(argv: Vec<OsString>, cli: &clap::Command) -> Vec<OsString> {
     let mut out = Vec::with_capacity(argv.len() + 3);
     out.push(argv[0].clone());
     out.extend(["run", "--quiet"].map(OsString::from));
+    out.extend(allow);
     out.push(first.clone());
     out.push(OsString::from("--"));
-    out.extend(argv.into_iter().skip(2));
+    out.extend(argv.into_iter().skip(at + 1));
     out
 }
 
@@ -93,6 +110,38 @@ mod tests {
         assert_eq!(
             routed(&["blue", "x.b", "-q", "--", "a"]),
             ["blue", "run", "--quiet", "x.b", "--", "-q", "--", "a"]
+        );
+    }
+
+    #[test]
+    fn allow_before_the_file_holds_the_script_to_those_capabilities() {
+        assert_eq!(
+            routed(&[
+                "blue",
+                "--allow",
+                "filesystem",
+                "--allow=clock",
+                "x.b",
+                "--allow",
+                "a"
+            ]),
+            [
+                "blue",
+                "run",
+                "--quiet",
+                "--allow",
+                "filesystem",
+                "--allow=clock",
+                "x.b",
+                "--",
+                "--allow",
+                "a"
+            ]
+        );
+        assert_eq!(routed(&["blue", "--allow"]), ["blue", "--allow"]);
+        assert_eq!(
+            routed(&["blue", "--allow", "none", "test", "x.b"]),
+            ["blue", "--allow", "none", "test", "x.b"]
         );
     }
 

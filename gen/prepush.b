@@ -1,4 +1,8 @@
-use("retsu", [:all_but_last, :enumerate, :first, :last, :reject])
+use(
+  "retsu",
+  [:all_but_last, :enumerate, :first, :flat_map, :last, :reject, :zip]
+)
+
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
 def gate_ids()
@@ -33,12 +37,12 @@ def skipped()
   ids
 end
 
-def cache_on?()
-  v = getenv("BLUE_PREPUSH_CACHE", "on")
+def switch_on?(name)
+  v = getenv(name, "on")
   if member?(v, ["on", "off"])
     v == "on"
   else
-    refuse("BLUE_PREPUSH_CACHE is \"#{v}\"; it takes on or off")
+    refuse("#{name} is \"#{v}\"; it takes on or off")
   end
 end
 
@@ -108,7 +112,7 @@ def key_of(id, groups, tools)
 end
 
 def ledger(id)
-  "#{store}/#{id}"
+  "#{store}/#{digest_hex(:sha256, id)}"
 end
 
 def local_green?(id, key)
@@ -119,16 +123,6 @@ def sui_url()
   getenv("BLUE_PREPUSH_SUI", "http://rio:5000")
 end
 
-def marker(id, key)
-  dir = "#{store}/markers/#{key}"
-  mkdir_p(dir)
-  write_file("#{dir}/blue-gate-#{id}", "#{key}\n")
-  r = exec_capture("nix", "store", "add-file", "#{dir}/blue-gate-#{id}")
-  if status_of(r) == 0
-    blue::trim(stdout_of(r))
-  end
-end
-
 def curl()
   if path_exists("/usr/bin/curl")
     "/usr/bin/curl"
@@ -137,37 +131,61 @@ def curl()
   end
 end
 
-def fleet_green?(id, key)
+def http_code(url)
+  stdout_of(
+    exec_capture(
+      curl,
+      "-s",
+      "-o",
+      "/dev/null",
+      "-m",
+      "2",
+      "-w",
+      "%{http_code}",
+      url
+    )
+  )
+end
+
+def fleet()
   if sui_url == "off"
     false
+  elsif http_code("#{sui_url}/nix-cache-info") == "200"
+    true
   else
-    path = marker(id, key)
-    if path.nil?
-      false
-    else
-      hash = first(split(path_basename(path), "-"))
-      r = exec_capture(
-        curl,
-        "-s",
-        "-o",
-        "/dev/null",
-        "-m",
-        "3",
-        "-w",
-        "%{http_code}",
-        "#{sui_url}/#{hash}.narinfo"
-      )
-      stdout_of(r) == "200"
-    end
+    write_stderr(
+      "prepush: sui at #{sui_url} did not answer; every gate is judged here\n"
+    )
+    false
   end
 end
 
-def remember(id, key)
+def marker(key)
+  dir = "#{store}/markers/#{key}"
+  mkdir_p(dir)
+  write_file("#{dir}/blue-gate", "#{key}\n")
+  r = exec_capture("nix", "store", "add-file", "#{dir}/blue-gate")
+  if status_of(r) == 0
+    blue::trim(stdout_of(r))
+  end
+end
+
+def fleet_green?(key)
+  path = marker(key)
+  if path.nil?
+    false
+  else
+    hash = first(split(path_basename(path), "-"))
+    http_code("#{sui_url}/#{hash}.narinfo") == "200"
+  end
+end
+
+def remember(id, key, ctx)
   mkdir_p(store)
   append_file(ledger(id), "#{key}\n")
   signing = getenv("BLUE_PREPUSH_SUI_KEY")
-  if sui_url != "off" and not signing.nil?
-    path = marker(id, key)
+  if get(ctx, :fleet) and not signing.nil?
+    path = marker(key)
     if not path.nil?
       pushed = exec_capture(
         "sui",
@@ -188,47 +206,69 @@ def remember(id, key)
   end
 end
 
-def run_gate(g, i, total, skip, cache)
-  id = first(g)
-  step = "[#{to_s(i + 1)}/#{to_s(total)}] #{nth(1, g)}"
-  if member?(id, skip)
-    write_stderr("➖ #{step} (off: BLUE_PREPUSH_SKIP names #{id})\n")
-    [nth(1, g), :off, :off]
+def gate_id(g)
+  nth(0, g)
+end
+
+def gate_label(g)
+  nth(1, g)
+end
+
+def gate_lane(g)
+  nth(2, g)
+end
+
+def step(g, i, total)
+  "[#{to_s(i + 1)}/#{to_s(total)}] #{gate_label(g)}"
+end
+
+def hit(g, i, total, ctx)
+  id = gate_id(g)
+  if member?(id, get(ctx, :skip))
+    write_stderr(
+      "➖ #{step(g, i, total)} (off: BLUE_PREPUSH_SKIP names #{id})\n"
+    )
+    [:off, nil]
+  elsif not get(ctx, :cache)
+    [:miss, nil]
   else
     t = now_ms
-    key = if cache
-      f = nth(2, g)
-      f()
-    end
+    f = nth(3, g)
+    key = f()
     where = if key.nil?
       nil
-    elsif local_green?(id, key)
+    elsif local_green?(gate_label(g), key)
       "this clone"
-    elsif fleet_green?(id, key)
-      "the fleet's cache"
+    elsif get(ctx, :fleet) and fleet_green?(key)
+      "the fleet's sui cache"
     end
-    if not where.nil?
+    if where.nil?
+      [:miss, key]
+    else
       if where != "this clone"
-        remember(id, key)
+        remember(gate_label(g), key, ctx)
       end
       write_stderr(
-        "✅ #{step} (#{seconds(now_ms - t)}; green in #{where} for these inputs)\n"
+        "✅ #{step(g, i, total)} (#{seconds(now_ms - t)}; green in #{where} for these inputs)\n"
       )
-      [nth(1, g), :green, :cached]
-    else
-      write_stderr("⏳ #{step} …\n")
-      f = last(g)
-      r = f()
-      mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
-      write_stderr("#{mark} #{step} (#{seconds(now_ms - t)})\n")
-      if first(r) != :green
-        write_stderr(last(r))
-      elsif not key.nil?
-        remember(id, key)
-      end
-      [nth(1, g), first(r), :ran]
+      [:cached, key]
     end
   end
+end
+
+def judge(g, i, total, key, ctx)
+  t = now_ms
+  write_stderr("⏳ #{step(g, i, total)} …\n")
+  f = nth(4, g)
+  r = f()
+  mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
+  write_stderr("#{mark} #{step(g, i, total)} (#{seconds(now_ms - t)})\n")
+  if first(r) != :green
+    write_stderr(last(r))
+  elsif not key.nil?
+    remember(gate_label(g), key, ctx)
+  end
+  first(r)
 end
 
 def manifest(dir)
@@ -406,25 +446,49 @@ def toolchain()
   "#{stdout_of(exec_capture("cargo", "--version"))}#{stdout_of(exec_capture("uname", "-sm"))}"
 end
 
+def snapshot(exe)
+  dir = "#{store}/bin"
+  mkdir_p(dir)
+  copy = "#{dir}/blue"
+  exec_capture("/bin/cp", "-f", exe, copy)
+  dir
+end
+
 if off?
   write_stderr("prepush: off (BLUE_PREPUSH_OFF=1); nothing checked\n")
   exit_with(0)
 end
 
-skip = skipped
-cache = cache_on?
-wire
+lane_mode = argv_get(0) == "lane"
 
 root = blue::trim(git(["rev-parse", "--show-toplevel"]))
-dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
 
-if dirty != []
-  write_stderr(
-    "⚠️ prepush reads the working tree, and #{to_s(count(dirty))} tracked files differ from HEAD\n"
-  )
+if not lane_mode
+  wire
+  dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
+  if dirty != []
+    write_stderr(
+      "⚠️ prepush reads the working tree, and #{to_s(count(dirty))} tracked files differ from HEAD\n"
+    )
+  end
 end
 
-bin = dir_of(self_exe)
+bin = if lane_mode
+  argv_get(1)
+else
+  snapshot(self_exe)
+end
+
+ctx = if lane_mode
+  {skip: [], cache: true, fleet: argv_get(2) == "fleet"}
+else
+  {
+    skip: skipped,
+    cache: switch_on?("BLUE_PREPUSH_CACHE"),
+    fleet: switch_on?("BLUE_PREPUSH_CACHE") and fleet
+  }
+end
+
 dirs = map(dir_of, lines_of(git(["ls-files", "*Bluefile.lock"])))
 
 gates = append(
@@ -432,6 +496,7 @@ gates = append(
     [
       "fmt",
       "cargo fmt",
+      :quick,
       fn()
         key_of(
           "fmt",
@@ -444,6 +509,7 @@ gates = append(
     [
       "locks",
       "Bluefile.lock fresh",
+      :quick,
       fn()
         key_of(
           "locks",
@@ -473,6 +539,7 @@ gates = append(
       [
         "regen",
         "regen #{d}",
+        :tree,
         () -> key_of("regen #{d}", groups, ""),
         () -> regen(bin, root, d)
       ]
@@ -480,10 +547,17 @@ gates = append(
     filter(regenerates?, dirs)
   ),
   [
-    ["gen-pin", "gen is substrate's pin", () -> nil, () -> gen_pin(root)],
+    [
+      "gen-pin",
+      "gen is substrate's pin",
+      :quick,
+      () -> nil,
+      () -> gen_pin(root)
+    ],
     [
       "gen-tie",
       "Cargo.gen.lock tied",
+      :tree,
       fn()
         key_of(
           "gen-tie",
@@ -496,12 +570,14 @@ gates = append(
     [
       "test-targets",
       "every member's test targets compile alone",
+      :cargo,
       () -> key_of("test-targets", [source], toolchain),
       () -> test_targets
     ],
     [
       "tests",
       "registry_graph, check_corpus, distribution, verb_graph",
+      :cargo,
       () -> key_of("tests", [source], toolchain),
       fn()
         verdict(
@@ -531,19 +607,118 @@ gates = append(
 
 total = count(gates)
 
+if lane_mode
+  picks = map((s) -> to_int(s), drop(3, argv))
+  verdicts = map(
+    fn(i)
+      g = nth(i, gates)
+      k = if get(ctx, :cache)
+        f = nth(3, g)
+        f()
+      end
+      "#{to_s(i)} #{to_s(judge(g, i, total, k, ctx))}"
+    end,
+    picks
+  )
+  write_stdout("#{join(verdicts, "\n")}\n")
+  exit_with(0)
+end
+
 write_stderr(
-  "prepush: #{to_s(total)} gates; a gate green before for the same inputs is skipped. BLUE_PREPUSH_OFF=1 skips all, BLUE_PREPUSH_SKIP=<ids> skips some, BLUE_PREPUSH_CACHE=off runs every one\n"
+  "prepush: #{to_s(total)} gates; a gate green before for the same inputs is skipped, the rest run in parallel lanes. BLUE_PREPUSH_OFF=1 skips all, BLUE_PREPUSH_SKIP=<ids> skips some, BLUE_PREPUSH_CACHE=off runs every one, BLUE_PREPUSH_PARALLEL=off runs them in turn\n"
 )
 
 started = now_ms
 
-results = map(
-  (p) -> run_gate(last(p), first(p), total, skip, cache),
+seen = map(
+  (p) -> [first(p), hit(last(p), first(p), total, ctx)],
   enumerate(gates)
 )
 
-red = map(first, filter((r) -> nth(1, r) == :red, results))
-cached = count(filter((r) -> last(r) == :cached, results))
+misses = filter((s) -> first(last(s)) == :miss, seen)
+cached = count(filter((s) -> first(last(s)) == :cached, seen))
+
+lanes = reject(
+  (l) -> last(l) == [],
+  map(
+    fn(lane)
+      [
+        lane,
+        map(
+          first,
+          filter((s) -> gate_lane(nth(first(s), gates)) == lane, misses)
+        )
+      ]
+    end,
+    [:quick, :tree, :cargo]
+  )
+)
+
+judged = if count(lanes) < 2 or not switch_on?("BLUE_PREPUSH_PARALLEL")
+  map(
+    fn(s)
+      [
+        first(s),
+        judge(nth(first(s), gates), first(s), total, last(last(s)), ctx)
+      ]
+    end,
+    misses
+  )
+else
+  fleet_word = if get(ctx, :fleet)
+    "fleet"
+  else
+    "local"
+  end
+  runs = exec_all(
+    map(
+      fn(l)
+        append(
+          [
+            "#{bin}/blue",
+            "run",
+            "--quiet",
+            "#{root}/gen/prepush.b",
+            "--",
+            "lane",
+            bin,
+            fleet_word
+          ],
+          map((i) -> to_s(i), last(l))
+        )
+      end,
+      lanes
+    )
+  )
+  flat_map(
+    zip(lanes, runs),
+    fn(pair)
+      lane = first(pair)
+      r = last(pair)
+      said = map((l) -> split(l, " "), lines_of(stdout_of(r)))
+      if status_of(r) != 0 or count(said) != count(last(lane))
+        map((i) -> [i, :red], last(lane))
+      else
+        map(
+          fn(w)
+            v = if last(w) == to_s(:red)
+              :red
+            else
+              :seen
+            end
+            [to_int(first(w)), v]
+          end,
+          said
+        )
+      end
+    end
+  )
+end
+
+red = map(
+  (j) -> gate_label(nth(first(j), gates)),
+  filter((j) -> last(j) == :red, judged)
+)
 
 if red == []
   write_stderr(

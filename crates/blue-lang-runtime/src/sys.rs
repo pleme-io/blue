@@ -184,6 +184,62 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
+        "exec_all",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let jobs = match &args[0] {
+                Value::List(items) => items
+                    .iter()
+                    .map(|job| match job {
+                        Value::List(words) => {
+                            split_cmd(&words.iter().cloned().collect::<Vec<_>>(), "exec_all", span)
+                        }
+                        _ => Err(EvalError::native_fn(
+                            "exec_all",
+                            "each job must be a list [cmd, args...]",
+                            span,
+                        )),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                _ => {
+                    return Err(EvalError::native_fn(
+                        "exec_all",
+                        "the argument must be a list of jobs",
+                        span,
+                    ));
+                }
+            };
+            let children = jobs
+                .iter()
+                .map(|(cmd, rest)| {
+                    Command::new(&**cmd)
+                        .args(rest.iter().map(|s| s.as_ref()))
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::inherit())
+                        .spawn()
+                        .map_err(|e| EvalError::native_fn("exec_all", format!("{cmd}: {e}"), span))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let waiting = children
+                .into_iter()
+                .map(|child| std::thread::spawn(move || child.wait_with_output()))
+                .collect::<Vec<_>>();
+            let mut results = Vec::with_capacity(waiting.len());
+            for w in waiting {
+                let out = w
+                    .join()
+                    .map_err(|_| {
+                        EvalError::native_fn("exec_all", "a waiting thread panicked", span)
+                    })?
+                    .map_err(|e| EvalError::native_fn("exec_all", e.to_string(), span))?;
+                results.push(capture_result(&out));
+            }
+            Ok(Value::list(results))
+        },
+    );
+
+    interp.register_fn(
         "exec_into",
         Arity::AtLeast(2),
         |args: &[Value], _h: &mut H, span| {

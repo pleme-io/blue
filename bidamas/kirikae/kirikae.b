@@ -778,16 +778,17 @@ def follow(s, rev)
     rev,
     size(lines(read_or(get(s, :gitops_log), ""))),
     now_ms + ceiling * 1000,
+    now_ms,
     now_ms
   )
 end
 
 @doc """
-following: one poll of a followed gitops build: tell the log lines after the first seen ones, and stop on a verdict, when the heartbeat no longer says it builds the rev, or at the deadline.
+following: one poll of a followed gitops build: tell the log lines after the first seen ones, or once a minute that the build goes on while its log is quiet, and stop on a verdict, when the heartbeat no longer says it builds the rev, or at the deadline.
 
-    get(following({narrate: :off, gitops_log: "/nonexistent", heartbeat: "/nonexistent", poll_s: 0}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1", 0, 0, 0), :followed) #=> :warn
+    get(following({narrate: :off, gitops_log: "/nonexistent", heartbeat: "/nonexistent", poll_s: 0}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1", 0, 0, 0, 0), :followed) #=> :warn
 """
-def following(s, rev, seen, deadline_ms, started)
+def following(s, rev, seen, deadline_ms, started, said_ms)
   all = lines(read_or(get(s, :gitops_log), ""))
   fresh = map(
     log_line,
@@ -798,8 +799,22 @@ def following(s, rev, seen, deadline_ms, started)
     end
   )
   said = filter((l) -> l != "", fresh)
+  quiet = is_empty(said) and say_wait?("", "", now_ms, said_ms)
   if not is_empty(said)
     tell(s, :running, :wait, join(said, " · "), now_ms - started)
+  elsif quiet
+    tell(
+      s,
+      :running,
+      :wait,
+      "still building #{take_chars(rev, 8)}; the gitops log is quiet until the build ends",
+      now_ms - started
+    )
+  end
+  spoke = if is_empty(said) and not quiet
+    said_ms
+  else
+    now_ms
   end
   v = gitops_verdict(fresh, rev)
   hb = json_parse(read_or(get(s, :heartbeat) or heartbeat_path, "")) rescue nil
@@ -829,7 +844,7 @@ def following(s, rev, seen, deadline_ms, started)
     }
   else
     sleep(get(s, :poll_s))
-    following(s, rev, size(all), deadline_ms, started)
+    following(s, rev, size(all), deadline_ms, started, spoke)
   end
 end
 
@@ -2112,7 +2127,7 @@ test "following a gitops build tells its new log lines and stops on the deploy"
     "t0  INFO sentinela: deployed rev=\"b548e3a\" generation=1\nt1  INFO sentinela_core::fsm: build started rev=\"b548e3a\"\nt2  INFO sentinela: deployed rev=\"b548e3a\" generation=2\n"
   )
   s = {narrate: :off, gitops_log: log, heartbeat: "/nonexistent", poll_s: 0}
-  r = following(s, rev, 1, now_ms + 60000, now_ms)
+  r = following(s, rev, 1, now_ms + 60000, now_ms, now_ms)
   assert get(r, :action) == :handoff
   assert get(r, :followed) == :done
   assert get(r, :why) == "the gitops loop deployed b548e3a2"

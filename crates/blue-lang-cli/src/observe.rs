@@ -154,15 +154,19 @@ fn hermetic() -> Result<(), CliError> {
 /// Hidden directories, `target` and nix `result` links are not walked.
 fn test_files(root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     let mut dirs = vec![root.to_path_buf()];
     while let Some(dir) = dirs.pop() {
+        if !std::fs::canonicalize(&dir).is_ok_and(|c| seen.insert(c)) {
+            continue;
+        }
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
         };
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
-            let Ok(kind) = entry.file_type() else {
+            let Ok(kind) = std::fs::metadata(&path).map(|m| m.file_type()) else {
                 continue;
             };
             if kind.is_dir() {
@@ -577,5 +581,25 @@ pub(crate) fn error_json(e: &blue_lang_runtime::RunError) -> serde_json::Value {
         RunError::Types(lines) => stage("check", lines.join("\n")),
         RunError::Import(m) => stage("import", m.clone()),
         RunError::Lower(m) => stage("lower", m.clone()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_files;
+
+    #[test]
+    fn a_bidama_of_symlinks_is_walked_as_its_files() {
+        let base = std::env::temp_dir().join(format!("blue-test-files-{}", std::process::id()));
+        let real = base.join("real");
+        let linked = base.join("linked");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::create_dir_all(&linked).unwrap();
+        std::fs::write(real.join("k.b"), "test \"one\"\n  assert true\nend\n").unwrap();
+        std::os::unix::fs::symlink(real.join("k.b"), linked.join("k.b")).unwrap();
+        std::os::unix::fs::symlink(&linked, linked.join("loop")).unwrap();
+        let found = test_files(&linked);
+        std::fs::remove_dir_all(&base).unwrap();
+        assert_eq!(found, vec![linked.join("k.b")]);
     }
 }

@@ -1,3 +1,5 @@
+# Map spread: `{**a, b: 1}` and its call form `f(x, **a, b: 1)`.
+
 def show(a, opts)
   [a, opts]
 end

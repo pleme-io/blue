@@ -1781,6 +1781,7 @@ impl Parser {
                 let value = self.expr(0)?;
                 if items.len() > 1 {
                     let span = items[1].span.merge(items[items.len() - 1].span);
+                    items[0] = sym_at(items[1].span, LOWERED_MAP);
                     segments.push(list_at(span, std::mem::take(&mut items)));
                     items = vec![sym_at(open, LOWERED_MAP)];
                 }

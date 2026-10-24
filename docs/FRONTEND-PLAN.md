@@ -203,7 +203,7 @@ gap rows are `theory/FUEKI.md` §IV G, H and I; each closes there, not here.
 
 | ID | Closes | Work |
 |---|---|---|
-| S1 | G1, H1 | concurrent requests and keep-alive in blue's serve loop |
+| S1 | G1, H1 | concurrent requests, keep-alive, HTTP/2, TLS, gRPC: owned by `docs/HTTP2.md` P2–P6 (`net_wait` poll loop, rustls), not a second plan |
 | S2 | G3 | a YAML reader (a bidama on kiwari, or the runtime) |
 | S3 | I3 | `settei` rebuilt on `kousei`; `{tier, source}` per key |
 | S4 | I4 | readiness distinct from liveness; drain on a signal |
@@ -213,7 +213,6 @@ gap rows are `theory/FUEKI.md` §IV G, H and I; each closes there, not here.
 | S8 | I2 | authn (RS256 JWT verify, OIDC) and authz layers; rate limit as a `shisei` posture |
 | S9 | H1 | a PDF writer, so kensa's host form can be configured off |
 
-TLS stays at hanabi (the "no TLS" row in blue's CLAUDE.md is unchanged).
 Done when every G, H and I row is `exists` and kensa runs as a pure blue service.
 
 ### F14 — The design language (after F12)

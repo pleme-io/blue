@@ -236,8 +236,8 @@ pub const NAMES: &[NameDoc] = names! {
     List: "butlast" "butlast(xs)" "All but the last; raises on [].";
     List: "car" "car(xs)" "The first element. Prefer first.";
     List: "cdr" "cdr(xs)" "All but the first ([] for a one-element list); raises on []. Prefer rest.";
-    List: "cons" "cons(x, xs)" "A new list with x in front. Copies xs.";
-    List: "append" "append(lists...)" "The lists joined, in order; nil counts as []. Copies, so growing a list one element at a time is quadratic.";
+    List: "cons" "cons(x, xs)" "A new list with x in front. Shares xs rather than copying it, and is in place when xs is held nowhere else.";
+    List: "append" "append(lists...)" "The lists joined, in order; nil counts as []. Persistent: O(log n), sharing structure with the operands, and in place when the first list is held nowhere else (an accumulator in a tail call), so building a list one element at a time is linear.";
     List: "take" "take(n, xs)" "The first n elements, or all of them. The COUNT comes first.";
     List: "drop" "drop(n, xs)" "All but the first n. The COUNT comes first.";
     List: "reverse" "reverse(xs)" "The list or string backwards. Raises on nil.";
@@ -256,7 +256,7 @@ pub const NAMES: &[NameDoc] = names! {
     List: "repeatedly" "repeatedly(f, n)" "A list of n calls to the zero-argument function f. The FUNCTION comes first.";
     // ── maps ──────────────────────────────────────────────────────────────
     Map: "get" "get(m, k)" "The value at key k, or nil. Raises on nil and on a list.";
-    Map: "assoc" "assoc(m, k, v)" "A new map with k set to v. Copies m; raises on nil.";
+    Map: "assoc" "assoc(m, k, v)" "A new map with k set to v; m is unchanged. Persistent: O(log n), and in place when m is held nowhere else (an accumulator in a tail call). Raises on nil.";
     Map: "dissoc" "dissoc(m, k)" "A new map without k; unchanged when k is absent.";
     Dispatch: "verb_for" "verb_for(space, verb, f)" "Register f as the handler of a master verb for a space. The verb is one of read, need, has?, put, update, delete, create, diff, info, exists?; another name raises :usage. Registering again replaces. Spaces call it at the top of their bidama.";
     Dispatch: "space_for" "space_for(kind, space)" "Name the space that owns untagged values of a kind: :map, :list, :string, :int, :float, :bool, :keyword or :function. A kind already owned by another space raises :usage.";

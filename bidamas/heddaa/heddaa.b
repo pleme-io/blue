@@ -1,19 +1,23 @@
+@moduledoc """
+heddaa (ヘッダー) — header fields as HTTP/2 carries them: HPACK (RFC 7541).
+
+A field is [name, value]. Each is a string, or the byte list it arrived as
+when its octets are not UTF-8, so a decoder never refuses a field HPACK
+allows and never loses a byte. A table is the dynamic table plus its sizes:
+`max` is the size in force, `limit` the most the peer may raise it to
+(SETTINGS_HEADER_TABLE_SIZE). `encode` and `decode` are pure: each takes a
+table and returns the next one, so the two ends of a connection stay in step
+only by threading what they return. A malformed block is refused as data,
+kind :compression_error, which RFC 9113 §4.3 makes a connection error.
+Sources: RFC 7541 §4 (tables), §5 (integers, strings), §6 (representations),
+Appendix A (static table), Appendix B (Huffman code), Appendix C (examples).
+
+    huffman_encode("") #=> []
+"""
+
 use("kyohi", [:and_then, :ok, :ok?, :refusal, :refusal_of, :refused, :value])
 use("retsu", [:first, :is_empty, :size, :slice])
 use("shinsuu", [:bit_at, :bytes_hex, :hex_bytes, :shift_left, :shift_right])
-
-# heddaa (ヘッダー) — header fields as HTTP/2 carries them: HPACK (RFC 7541).
-#
-# A field is [name, value]. Each is a string, or the byte list it arrived as
-# when its octets are not UTF-8, so a decoder never refuses a field HPACK
-# allows and never loses a byte. A table is the dynamic table plus its sizes:
-# `max` is the size in force, `limit` the most the peer may raise it to
-# (SETTINGS_HEADER_TABLE_SIZE). `encode` and `decode` are pure: each takes a
-# table and returns the next one, so the two ends of a connection stay in step
-# only by threading what they return. A malformed block is refused as data,
-# kind :compression_error, which RFC 9113 §4.3 makes a connection error.
-# Sources: RFC 7541 §4 (tables), §5 (integers, strings), §6 (representations),
-# Appendix A (static table), Appendix B (Huffman code), Appendix C (examples).
 
 huffman_codes = [
   [8184, 13],

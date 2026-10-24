@@ -9,7 +9,6 @@ verb(
     laterals: ["test"],
     fleet: nil,
     today: "exists:hadome",
-    meaning: "every key that grew or is new",
     wave: 0,
     origin: "F"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: ["test"],
     fleet: nil,
     today: "exists:hadome",
-    meaning: "whether a measure grew past its recorded size",
     wave: 0,
     origin: "F",
     contract: "judge(rows, kind, key, opts) -> verdict"
@@ -40,7 +38,6 @@ verb(
     laterals: ["test"],
     fleet: nil,
     today: "exists:hadome",
-    meaning: "recorded keys that no longer exist",
     wave: 0,
     origin: "F"
   }
@@ -55,7 +52,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:hadome",
-    meaning: "a baseline file to rows",
     wave: 0,
     origin: "F"
   }
@@ -70,7 +66,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:hadome",
-    meaning: "measurements as a baseline file, stable order",
     wave: 0,
     origin: "F"
   }
@@ -85,7 +80,6 @@ verb(
     laterals: ["test"],
     fleet: nil,
     today: "exists:hadome",
-    meaning: "keys that fell below their record and can be tightened",
     wave: 0,
     origin: "F"
   }

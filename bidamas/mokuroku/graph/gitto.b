@@ -206,7 +206,6 @@ verb(
     laterals: ["error", "process"],
     fleet: nil,
     today: "exists:gitto",
-    meaning: "one commit, nil when the ref is absent",
     wave: 0,
     origin: "E"
   }
@@ -281,7 +280,6 @@ verb(
     laterals: ["error", "process"],
     fleet: nil,
     today: "exists:gitto",
-    meaning: "branches, tags, commits, remotes or worktrees, chosen by of:",
     wave: 0,
     origin: "E"
   }

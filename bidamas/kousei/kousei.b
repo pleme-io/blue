@@ -1,13 +1,19 @@
+@moduledoc """
+kousei (構成) — a system composed entry by entry: each entry checked, configured off, tuned or refused alone, then judged into what stands.
+
+A declaration is a list of entries. A schema maps each kind to a field
+table. `judge` refuses each bad entry on its own and lets its valid siblings
+stand, so one typo never takes a whole declaration down.
+
+    record_whys(get(schema_fixture, :plane), "x") #=> ["the value is not a record"]
+"""
+
 use("kyohi", [:refusal, :standing])
 use("retsu", [:contains, :flat_map, :index_of, :is_empty, :size])
 
-# kousei (構成) — a system composed entry by entry: each entry checked, configured off, tuned or refused alone, then judged into what stands.
-#
-# A declaration is a list of entries. A schema maps each kind to a field
-# table. `judge` refuses each bad entry on its own and lets its valid siblings
-# stand, so one typo never takes a whole declaration down.
-
-# nil when ok, else why.
+@doc """
+verdict: nil when ok, else why.
+"""
 def verdict(ok, why)
   if ok
     nil
@@ -42,7 +48,9 @@ def int_in(lo, hi)
   end
 end
 
-# Every element passes `check`; the first failure is the why.
+@doc """
+list_of: Every element passes `check`; the first failure is the why.
+"""
 def list_of(check)
   fn(v)
     if not list?(v)
@@ -62,7 +70,9 @@ def first_why(check, xs)
   end
 end
 
-# A field of a record: its key and its check, optional unless `required`.
+@doc """
+field: A field of a record: its key and its check, optional unless `required`.
+"""
 def field(key, check)
   {key:, check:, required: false}
 end
@@ -71,7 +81,11 @@ def required(f)
   assoc(f, :required, true)
 end
 
-# Why a record breaks its table: missing required fields, bad values, and keys the table does not know.
+@doc """
+record_whys: Why a record breaks its table: missing required fields, bad values, and keys the table does not know.
+
+    record_whys(get(schema_fixture, :plane), "x") #=> ["the value is not a record"]
+"""
 def record_whys(table, m)
   if not map?(m)
     ["the value is not a record"]
@@ -97,7 +111,9 @@ def record_whys(table, m)
   end
 end
 
-# A record table that checks only the fields it is given.
+@doc """
+loosened: A record table that checks only the fields it is given.
+"""
 def loosened(table)
   map((f) -> assoc(f, :required, false), table)
 end
@@ -118,12 +134,16 @@ def value_of(e)
   get(e, :value)
 end
 
-# Declared, and configured off: it stays in the declaration and does nothing.
+@doc """
+off: Declared, and configured off: it stays in the declaration and does nothing.
+"""
 def off(kind, name)
   entry(:off, name, {target: kind})
 end
 
-# Fields laid over an entry declared earlier.
+@doc """
+tune: Fields laid over an entry declared earlier.
+"""
 def tune(kind, name, fields)
   entry(:tune, name, {target: kind, fields:})
 end
@@ -210,7 +230,9 @@ def zipped(xs, ys)
   map((i) -> append(nth(i, xs), nth(i, ys)), range(0, size(xs)))
 end
 
-# The declaration judged against `schema`: `accepted` (tuned, not off), `off`, and `refusals`, each refusal scoped to its entry.
+@doc """
+judge: The declaration judged against `schema`: `accepted` (tuned, not off), `off`, and `refusals`, each refusal scoped to its entry.
+"""
 def judge(schema, entries)
   shaped = filter((e) -> map?(e) and kind_of(e) != nil, entries)
   malformed = map(
@@ -260,7 +282,9 @@ def judge(schema, entries)
   }
 end
 
-# The accepted entries of one kind.
+@doc """
+of_kind: The accepted entries of one kind.
+"""
 def of_kind(judged, kind)
   filter((e) -> kind_of(e) == kind, get(judged, :accepted))
 end

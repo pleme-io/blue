@@ -39,7 +39,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "working days from a to b",
     wave: 0,
     origin: "A"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "day of the month of a date",
     wave: 0,
     origin: "A"
   }
@@ -69,7 +67,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "days in a month",
     wave: 0,
     origin: "A"
   }
@@ -84,7 +81,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "date of Western Easter",
     wave: 0,
     origin: "A"
   }
@@ -144,7 +140,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "ISO week number and week year",
     wave: 0,
     origin: "A"
   }
@@ -159,7 +154,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "whether the year has 366 days",
     wave: 0,
     origin: "A"
   }
@@ -174,7 +168,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "calendar month of a date",
     wave: 0,
     origin: "A"
   }
@@ -189,7 +182,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "the n-th given weekday of a month",
     wave: 0,
     origin: "A"
   }
@@ -204,7 +196,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "calendar quarter, 1 to 4",
     wave: 0,
     origin: "A"
   }
@@ -249,7 +240,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:hizuke",
-    meaning: "calendar year of a date",
     wave: 0,
     origin: "A"
   }

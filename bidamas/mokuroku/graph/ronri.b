@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "whether f holds for some item",
     wave: 0,
     origin: "A"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "predicate that holds when f and g hold",
     wave: 0,
     origin: "A"
   }
@@ -39,7 +37,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "predicate that holds when f or g holds",
     wave: 0,
     origin: "A"
   }
@@ -54,7 +51,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "whether f holds for all items",
     wave: 0,
     origin: "A"
   }
@@ -69,7 +65,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "false only when a holds and b does not",
     wave: 0,
     origin: "A"
   }
@@ -84,7 +79,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "whether f holds for most items",
     wave: 0,
     origin: "A"
   }
@@ -99,7 +93,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "whether f holds for no item",
     wave: 0,
     origin: "A"
   }
@@ -159,7 +152,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ronri",
-    meaning: "whether exactly one of a and b holds",
     wave: 0,
     origin: "A"
   }

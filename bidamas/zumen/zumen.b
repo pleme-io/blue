@@ -1,3 +1,19 @@
+@moduledoc """
+zumen (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.
+
+A drawing is data first: a list of entities, each on a layer, in the
+units of the part (millimetres in the design pipeline). The writers are
+rendered bridges (the kueri rule): DXF R12 for the cutting shop (the
+oldest version, the one every CAM program and laser controller reads), and
+SVG for people, turned into PDF or PNG by rsvg-convert at a process
+boundary. Every number is written by zu_num, to six decimals at most, so
+the same drawing always produces the same bytes and the same hash.
+
+Written for nupastel docs/plans/design-pipeline.md, step 6.
+
+    num(2) #=> "2"
+"""
+
 use("gyouretsu", [:dot, :magnitude, :scale, :vadd, :vector_near, :vsub])
 use("kazu", [:abs, :max, :min, :mod_positive, :near, :sum])
 
@@ -42,22 +58,14 @@ legacy_names("0.1.1", "zu")
 
 legacy_names("0.1.2", [["opt_lines", "shuugou::as_set"]])
 
-# zumen (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.
-#
-# A drawing is data first: a list of entities, each on a layer, in the
-# units of the part (millimetres in the design pipeline). The writers are
-# rendered bridges (the kueri rule): DXF R12 for the cutting shop (the
-# oldest version, the one every CAM program and laser controller reads), and
-# SVG for people, turned into PDF or PNG by rsvg-convert at a process
-# boundary. Every number is written by zu_num, to six decimals at most, so
-# the same drawing always produces the same bytes and the same hash.
-#
-# Written for nupastel docs/plans/design-pipeline.md, step 6.
-
 # ── numbers ──────────────────────────────────────────────────────────
 
-# A number to at most six decimals, trailing zeros dropped, never an
-# exponent, and never "-0".
+@doc """
+num: A number to at most six decimals, trailing zeros dropped, never an
+exponent, and never "-0".
+
+    num(2) #=> "2"
+"""
 def num(x)
   n = round(x * 1_000_000)
   a = abs(n)
@@ -94,7 +102,9 @@ def circle(c, r, layer)
   {kind: :circle, c:, r:, layer:}
 end
 
-# An arc counter-clockwise from a0 to a1, in degrees (DXF's convention).
+@doc """
+arc: An arc counter-clockwise from a0 to a1, in degrees (DXF's convention).
+"""
 def arc(c, r, a0, a1, layer)
   {kind: :arc, c:, r:, a0:, a1:, layer:}
 end
@@ -115,8 +125,10 @@ def layer(e)
   get(e, :layer)
 end
 
-# The layers a drawing uses, each [name, DXF colour number, linetype].
-# Bend lines are dashed, as a shop expects.
+@doc """
+layers: The layers a drawing uses, each [name, DXF colour number, linetype].
+Bend lines are dashed, as a shop expects.
+"""
 def layers()
   [
     ["OUTLINE", 7, "CONTINUOUS"],
@@ -133,7 +145,9 @@ def layer_names()
   map((l) -> first(l), layers)
 end
 
-# A kikagaku region as entities: the outline, and each hole.
+@doc """
+region: A kikagaku region as entities: the outline, and each hole.
+"""
 def region(r)
   concat_lists(
     [polyline(region_outline(r), true, "OUTLINE")],
@@ -141,9 +155,11 @@ def region(r)
   )
 end
 
-# A linear dimension between a and b, drawn offset to the left of a -> b:
-# two extension lines, the dimension line with tick marks, and the length
-# as text to one decimal.
+@doc """
+dim: A linear dimension between a and b, drawn offset to the left of a -> b:
+two extension lines, the dimension line with tick marks, and the length
+as text to one decimal.
+"""
 def dim(a, b, offset, text_h)
   d = vsub(b, a)
   len = magnitude(d)
@@ -163,9 +179,11 @@ def dim(a, b, offset, text_h)
   ]
 end
 
-# A table as text entities, one row per line from origin downward: the
-# header, then each row's cells in the given columns, each column width
-# wide. Rows are maps (a cut list, a bill of materials).
+@doc """
+table: A table as text entities, one row per line from origin downward: the
+header, then each row's cells in the given columns, each column width
+wide. Rows are maps (a cut list, a bill of materials).
+"""
 def table(rows, columns, widths, origin, h)
   lines = concat_lists(
     [map((c) -> upcase(to_s(c)), columns)],
@@ -193,8 +211,10 @@ def table_row(cells, widths, p, h)
   )
 end
 
-# A cell's text: numbers to one decimal (a cut list is read at a saw), nil
-# as empty, anything else as itself.
+@doc """
+cell: A cell's text: numbers to one decimal (a cut list is read at a saw), nil
+as empty, anything else as itself.
+"""
 def cell(v)
   if v.nil?
     ""
@@ -225,7 +245,9 @@ def entity_points(e)
   end
 end
 
-# [[min x, min y], [max x, max y]] over every entity; nil for none.
+@doc """
+bounds: [[min x, min y], [max x, max y]] over every entity; nil for none.
+"""
 def bounds(entities)
   bounding_box(flat_map(entities, entity_points))
 end
@@ -249,7 +271,9 @@ def title_rows(title)
   )
 end
 
-# Every entity of the sheet, the frame and title block included.
+@doc """
+sheet_entities: Every entity of the sheet, the frame and title block included.
+"""
 def sheet_entities(sheet)
   ents = get(sheet, :entities)
   bb = bounds(ents)
@@ -284,6 +308,11 @@ end
 # tessellated curve shows its facets. Hidden edges are drawn too (there is
 # no hidden-line removal yet).
 
+@doc """
+project: feature-edge view of a solid.
+
+    project([1, 2], :top) #=> [1, 2]
+"""
 def project(p, view)
   if view == :top
     [rittai::x(p), rittai::y(p)]
@@ -598,10 +627,12 @@ end
 
 # ── tests ────────────────────────────────────────────────────────────
 
-# How many (0, kind) pairs the DXF text holds: group code 0 starts a
-# record, so this counts records of that kind and not the same word used as a
-# layer name or a value.
 # waive B0013: `count` is a builtin zumen also uses, so the prefix stays; zumen::count names it too
+@doc """
+zu_count: How many (0, kind) pairs the DXF text holds: group code 0 starts a
+record, so this counts records of that kind and not the same word used as a
+layer name or a value.
+"""
 def zu_count(text, kind)
   ls = split(text, "\n")
   size(

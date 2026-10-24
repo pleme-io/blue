@@ -219,7 +219,6 @@ verb(
     laterals: ["error", "time", "trace"],
     fleet: "pleme-observability",
     today: "exists:tsuiseki",
-    meaning: "run f inside a named span",
     wave: 0,
     origin: "F"
   }

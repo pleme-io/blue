@@ -9,7 +9,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "partial:danpen",
-    meaning: "masking, composition and entity-backed law findings for a program",
     wave: 1,
     origin: "I"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:danpen",
-    meaning: "one operation from the union of the fragments a view uses",
     wave: 1,
     origin: "I"
   }
@@ -39,7 +37,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:danpen",
-    meaning: "declare a named field selection on one schema type",
     wave: 1,
     origin: "I"
   }
@@ -54,7 +51,6 @@ verb(
     laterals: ["cache"],
     fleet: "hanabi",
     today: "exists:danpen",
-    meaning: "the persisted-operation id of an operation's canonical text",
     wave: 1,
     origin: "I"
   }
@@ -69,7 +65,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:danpen",
-    meaning: "GraphQL SDL or operation text to a document tree",
     wave: 1,
     origin: "I"
   }
@@ -84,7 +79,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:danpen",
-    meaning: "a document tree to canonical GraphQL text",
     wave: 1,
     origin: "I"
   }
@@ -99,7 +93,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:danpen",
-    meaning: "only the fields a fragment declares, read from a value",
     wave: 1,
     origin: "I"
   }
@@ -114,7 +107,6 @@ verb(
     laterals: ["validate", "error"],
     fleet: nil,
     today: "exists:danpen",
-    meaning: "the document if every field and type is in the schema",
     wave: 1,
     origin: "I"
   }

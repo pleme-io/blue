@@ -1,32 +1,40 @@
+@moduledoc """
+ryouiki (領域) — region: which region of the inputs produces an outcome.
+
+Scenario discovery by PRIM, the Patient Rule Induction Method (Friedman &
+Fisher 1999; as used for robust decision making by Bryant & Lempert 2010):
+given many runs, each a point of input values with a target (1 where the
+outcome of interest happened, else 0 — or any number to maximise), find a
+box — a range per input — inside which the target is dense, while it still
+holds much of the target.
+
+The algorithm peels. Start with the box around every point. At each step,
+try removing a thin slice (the `alpha` share, or the lowest or highest
+level when inputs sit on a grid) from the low or high end of each input,
+and keep the one peel that leaves the highest mean target inside. Stop when
+fewer than `min_support` of the points remain. Every step is kept: the
+trajectory trades COVERAGE (the share of all target inside the box) against
+DENSITY (the mean target inside), and the caller picks the box — usually
+the one with the most coverage at a density it can defend.
+
+A box is a list of [lo, hi] per input, inclusive. A trajectory row is
+[step, support, coverage, density, box]. Everything is deterministic: no
+randomness is used, so the same runs give the same boxes.
+
+    box_around([]) #=> []
+"""
+
 use("junjo", [:sort, :sort_by])
 use("kazu", [:max, :sum])
 use("ran", [:next_float, :stream_seed])
 use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :last, :size])
 use("toukei", [:largest, :mean, :percentile, :smallest])
 
-# ryouiki (領域) — region: which region of the inputs produces an outcome.
-#
-# Scenario discovery by PRIM, the Patient Rule Induction Method (Friedman &
-# Fisher 1999; as used for robust decision making by Bryant & Lempert 2010):
-# given many runs, each a point of input values with a target (1 where the
-# outcome of interest happened, else 0 — or any number to maximise), find a
-# box — a range per input — inside which the target is dense, while it still
-# holds much of the target.
-#
-# The algorithm peels. Start with the box around every point. At each step,
-# try removing a thin slice (the `alpha` share, or the lowest or highest
-# level when inputs sit on a grid) from the low or high end of each input,
-# and keep the one peel that leaves the highest mean target inside. Stop when
-# fewer than `min_support` of the points remain. Every step is kept: the
-# trajectory trades COVERAGE (the share of all target inside the box) against
-# DENSITY (the mean target inside), and the caller picks the box — usually
-# the one with the most coverage at a density it can defend.
-#
-# A box is a list of [lo, hi] per input, inclusive. A trajectory row is
-# [step, support, coverage, density, box]. Everything is deterministic: no
-# randomness is used, so the same runs give the same boxes.
+@doc """
+box_around: The box around every point: [min, max] of each input.
 
-# The box around every point: [min, max] of each input.
+    box_around([]) #=> []
+"""
 def box_around(points)
   if is_empty(points)
     []
@@ -62,9 +70,11 @@ def mean_target(ids, ys)
   end
 end
 
-# The narrower edge for one input and side: the alpha-quantile of the values
-# inside, or — where that removes nothing (tied grid levels) — the next
-# distinct level. Returns nil when the input has only one level left.
+@doc """
+peeled_edge: The narrower edge for one input and side: the alpha-quantile of the values
+inside, or — where that removes nothing (tied grid levels) — the next
+distinct level. Returns nil when the input has only one level left.
+"""
 def peeled_edge(values, side, alpha)
   levels = sort(distinct(values))
   if size(levels) < 2
@@ -86,7 +96,9 @@ def peeled_edge(values, side, alpha)
   end
 end
 
-# Every candidate peel from `box`: [box', inside', density'].
+@doc """
+peel_candidates: Every candidate peel from `box`: [box', inside', density'].
+"""
 def peel_candidates(box, ids, points, ys, alpha)
   flat_map(
     range(0, size(box)),
@@ -124,8 +136,12 @@ def peel_candidates(box, ids, points, ys, alpha)
   )
 end
 
-# The peeling trajectory. alpha: the share peeled per step (0.05 is PRIM's
-# usual); min_support: stop when fewer than this share of points remain.
+@doc """
+prim: The peeling trajectory. alpha: the share peeled per step (0.05 is PRIM's
+usual); min_support: stop when fewer than this share of points remain.
+
+    prim([], [], 0.05, 0.05) #=> []
+"""
 def prim(points, ys, alpha, min_support)
   n = size(points)
   if n == 0
@@ -179,8 +195,10 @@ def if_zero_total(total, value)
   end
 end
 
-# The box to report: the most coverage among steps at or above `density`,
-# or nil when no step reaches it.
+@doc """
+prim_box: The box to report: the most coverage among steps at or above `density`,
+or nil when no step reaches it.
+"""
 def prim_box(trajectory, density)
   ok = filter((r) -> nth(3, r) >= density, trajectory)
   if is_empty(ok)
@@ -190,8 +208,10 @@ def prim_box(trajectory, density)
   end
 end
 
-# A box as text over named inputs: "x in [5, 9], y in [0, 3]" — only the
-# inputs the box actually restricts relative to `full`.
+@doc """
+box_text: A box as text over named inputs: "x in [5, 9], y in [0, 3]" — only the
+inputs the box actually restricts relative to `full`.
+"""
 def box_text(names, box, full)
   parts = flat_map(
     range(0, size(box)),

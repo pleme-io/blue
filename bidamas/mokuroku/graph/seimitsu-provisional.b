@@ -69,7 +69,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:angou",
-    meaning: "power modulo a number without overflow",
     wave: 3,
     origin: "A"
   }

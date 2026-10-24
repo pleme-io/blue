@@ -69,7 +69,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "every divisor in ascending order",
     wave: 0,
     origin: "D"
   }
@@ -99,7 +98,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "prime factors with multiplicity",
     wave: 0,
     origin: "D"
   }
@@ -114,7 +112,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "letter counts a to z, case folded",
     wave: 0,
     origin: "D"
   }
@@ -144,7 +141,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "smallest power of a that equals one",
     wave: 0,
     origin: "D"
   }
@@ -159,7 +155,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "modular exponentiation by repeated squaring",
     wave: 0,
     origin: "D"
   }
@@ -174,7 +169,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "n is prime by trial division",
     wave: 0,
     origin: "D"
   }
@@ -189,7 +183,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "smallest generator of the units modulo a prime",
     wave: 0,
     origin: "D"
   }
@@ -204,7 +197,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:angou",
-    meaning: "count of integers below n coprime to it",
     wave: 0,
     origin: "D"
   }

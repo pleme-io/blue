@@ -9,7 +9,6 @@ verb(
     laterals: ["capability"],
     fleet: nil,
     today: "exists:fairu",
-    meaning: "the path made absolute against the current directory",
     wave: 0,
     origin: "B"
   }
@@ -159,7 +158,6 @@ verb(
     laterals: ["capability"],
     fleet: nil,
     today: "exists:fairu",
-    meaning: "the home directory of the user",
     wave: 0,
     origin: "B"
   }
@@ -339,7 +337,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:fairu",
-    meaning: "the path split into its parts",
     wave: 0,
     origin: "B"
   }
@@ -444,7 +441,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:fairu",
-    meaning: "the name without its final extension",
     wave: 0,
     origin: "B"
   }

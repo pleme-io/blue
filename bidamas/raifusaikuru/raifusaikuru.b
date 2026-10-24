@@ -1,3 +1,164 @@
+@moduledoc """
+raifusaikuru (ライフサイクル) — lifecycles: event-sourced states, guards that name the rule and the task, and permit limits.
+
+One lifecycle definition per KIND of entity declares its states, the events
+that move it, the fields its events fold into, and GUARDS: named rules over the
+folded state that allow or refuse a capability ("may use"). The engine is
+pure. It returns data and performs no side effects, so the same events always
+give the same state, and any state can be rebuilt and audited from its log.
+Nothing here knows any domain: a consumer declares its own lifecycles on top.
+
+## The operations
+
+  build   lc_define(name, clauses)     validate, or throw :raifusaikuru_definition
+          lc_problems(name, clauses)   the same findings as data, [kind, why]
+  fold    lc_state_of(def, events)     replay an entity's events, in order
+          lc_resume(def, state, events), lc_step(def, state, event), lc_initial(def)
+  admit   lc_admit(def, state, event)  would this event be accepted now?
+          lc_admit_step(def, state, event)   [lc_admit, lc_step] from one judgement
+  guard   lc_allowed(def, state, capability, now)
+          allowed, or refused with the rules that refused, why, and the
+          task specs to create
+  permit  lc_permit_for(def, state, capability, now)
+          the limits (not-after time, remaining counts) as data;
+          lc_permit_payload(permit, subject) is the signing seam;
+          lc_permit_event(def, permit, subject) is the issuance as an event
+          to log, when the definition declares lc_permit_log
+
+## Clauses (a definition is a list of these, nested freely)
+
+  lc_states lc_start lc_terminals lc_rests lc_field lc_event
+  lc_on(from, event, to, effects)   one transition row; `to` may be :stay
+  lc_on_each(froms, event, to, effects)   the same row from several states
+  lc_gate(capability, rows)        the event USES the capability
+  lc_guard(capability, rules, task)   rules: lc_rule / lc_rule_task
+  lc_permit(capability, terms)     terms: lc_valid_for, lc_counted
+  lc_permit_log(capability, event) an issued permit is logged as `event`, a
+                                   no-op accepted in every non-terminal state
+  lc_link(role, target)            records may carry links of kind `role`,
+                                   each naming an entity of lifecycle `target`
+  lc_span(name, from, to, limit)   a duration that matters: first entry into
+                                   `from` to first entry into `to` after it,
+                                   with its limit (or nil)
+effects   lc_set lc_put lc_add lc_add_from lc_stamp
+predicates  lc_below lc_at_most lc_above lc_at_least lc_equals lc_present
+            lc_fresh lc_in_phase lc_all lc_any lc_not
+tasks     lc_task(name, evidence_kinds, escalate_after)
+
+`lc_example_consumable()` is a worked definition (a consumable with a use
+counter, an age limit and a quality reading); read it first.
+
+## Recon: the shape two Rust FSMs already agree on
+
+Two typed lifecycle FSMs were written independently and converge on one
+shape: breathe's cloud-node FSM (breathe-lifecycle/src/fsm.rs, `FaseNode`)
+and pangea-operator's template lifecycle (controller/lifecycle.rs, `Phase` +
+`TRANSITIONS`); shigoto-fsm is the convergence harness breathe consumes and
+pangea hand-rolls. Adopted here:
+
+  - a closed, enumerated state set, where a transition exists iff a row
+    exists (pangea's TRANSITIONS; breathe's legal_successors): lc_on rows;
+  - an illegal (state, event) is a typed refusal naming the events that ARE
+    legal there (pangea's TransitionError::Illegal { legal }): :no_edge;
+  - edges shared by many states expanded into rows by one function, not
+    repeated by hand (pangea's universal_edges_for): lc_on_each;
+  - declared terminals with no exit, and shigoto-fsm's convergence checks:
+    a non-empty state space, no dangling edge, no trap (a non-terminal with no
+    exit), terminal soundness, and every state reaching a good resting state
+    (lc_rests is shigoto's is_good_resting_state, for cyclic lifecycles);
+  - a step that needs evidence cannot be claimed bare (breathe's
+    confirm_reaped requires its witness): declared payload keys are required,
+    and a task names the evidence kinds that close it.
+
+Not adopted: breathe's phantom typestate, where an illegal transition is an
+absent method. blue is dynamically typed, so this is pangea's tier instead:
+rejected at the parse boundary, a bad definition when it is built and an
+illegal event when it is folded. Added beyond both: guards over folded field
+data, tasks and permits. Neither FSM carries data-dependent guards.
+
+Adjacent, not merged: `utsuroi` (ensaio/utsuroi-lifecycle, theory/UTSUROI.md)
+is a Rust stage PROJECTION for ephemeral resources (spawn → ready → keep →
+drain → reaped) that existing domain FSMs map onto. It declares no
+lifecycles and folds no events. Its named-M1 `(deflifecycle …)` keyword stays
+its own.
+
+## Tiers
+
+REFUSED WHEN BUILT (lc_define throws; lc_problems lists each with its kind):
+an undeclared state, event, field or payload key anywhere; a transition from
+a missing state; two rows for one (state, event), which would make the fold
+ambiguous; a trap, an unreachable state, a state that cannot reach a terminal
+or resting state, a terminal with an exit; an empty guard or an empty lc_all /
+lc_any (a vacuous truth); a task with no evidence or no escalation; a permit
+with no time bound, a counted field its guard does not bound, or a time or
+count condition under lc_any / lc_not in a permitted guard, where the limits
+would not be sound; a permit log for a capability with no lc_permit, or two
+for one capability; two links with one role; a span on an undeclared state,
+from a state to itself, to a state no event reaches from its start, or with
+a limit that is not a positive whole duration, and two spans with one name.
+`lc_problem_kinds()` is the closed list, and a test row exercises every kind.
+RECORDED BY THE FOLD, never thrown: an event the definition does not know,
+an event with no row from the current state, one missing a declared payload
+key, or one whose counter or added amount is not a number is REFUSED. It is
+kept in lc_refused(state) and changes nothing else. An event on a gated row while its guard refuses still happened, so it
+is APPLIED and kept in lc_breaches(state).
+FAIL CLOSED: a comparison over an absent or non-numeric field is UNKNOWN,
+and a rule holds only when it is known to hold (three-valued logic). An
+undeclared capability is refused, never allowed.
+NOT CHECKED: the clock. Event times and `now` are integers on one clock the
+caller chooses (lc_minutes / lc_hours / lc_days assume seconds). Events fold
+in list order, never sorted by time: order is the log's sequence.
+
+## Permits
+
+A permit is valid only while its guard would still allow the capability.
+not_after is the earliest moment an lc_fresh conjunct of the guard expires,
+or now + lc_valid_for(d) if that is sooner. The remaining count of an
+lc_counted(field) is how many more uses (one unit of the field each) keep
+every lc_below / lc_at_most / lc_equals conjunct on it true. The limits are
+read from the guard, so they are never restated and cannot drift from it.
+Fields that only events change (a reading) are frozen at the permit's basis,
+the state's sequence number: a consumer re-derives on every event and revokes
+when the guard refuses. Signing is NOT here: lc_permit_payload renders the
+canonical text a signer signs, the seam for a crypto bidama.
+
+An issued permit is a fact an auditor asks about, and an event log records
+only events. lc_permit_log(capability, event) makes issuance an event: the
+definition gains `event`, whose payload keys are the permit's limits
+(subject, not_after, basis, and `<field>_left` per counted field, named by
+lc_permit_count_key), and a :stay row with no effects from every
+non-terminal state. So logging a permit changes no field and no phase, only
+the sequence, and a terminal entity cannot be issued one. lc_permit_event
+renders an issued permit as that event.
+
+## Links
+
+lc_link(role, target) declares that this lifecycle's records may link, with
+link kind `role` (the kind an event log writes beside each link's id), to an
+entity of lifecycle `target`. The shape is the one declared relations
+already agree on: declared on the referring side, a role plus the target's
+kind, with the id carried by the referring record (a Kubernetes
+ownerReference's {kind, name}; Rails `belongs_to`; dbt's `relationships`
+test). The engine folds no link: the declaration is for what reads the log
+(joins generated across lifecycles). Only this definition is checked here
+(names, one row per role); whether `target` exists is checked where the
+lifecycles are read together.
+
+## Spans
+
+lc_span(name, from, to, limit) declares a duration the lifecycle is
+measured by: from an entity's first entry into `from` to its first entry
+into `to` after that (an order's fryer-to-mouth: fried → delivered), and the
+longest it should take. A recipe's timed record is part of the lifecycle's
+definition, as a link is, so the definition stays the one source every
+reader derives from; the engine folds nothing for it, and anaritikusu
+generates a view per span. Added 2026-09-25 for NuPastel's measures (plan:
+nupastel docs/plans/measures.md); red-run: a problem row per new kind, and
+the span test red when the reachability check was dropped.
+
+    gate(:g, []) #=> []
+"""
+
 use("kazu", [:min])
 
 use(
@@ -26,166 +187,11 @@ use("shuugou", [:lookup, :set_equal, :union, :unique, :unique_by])
 
 legacy_names("0.1.1", "lc")
 
-# raifusaikuru (ライフサイクル) — lifecycles: event-sourced states, guards that name the rule and the task, and permit limits.
-#
-# One lifecycle definition per KIND of entity declares its states, the events
-# that move it, the fields its events fold into, and GUARDS: named rules over the
-# folded state that allow or refuse a capability ("may use"). The engine is
-# pure. It returns data and performs no side effects, so the same events always
-# give the same state, and any state can be rebuilt and audited from its log.
-# Nothing here knows any domain: a consumer declares its own lifecycles on top.
-#
-# ## The operations
-#
-#   build   lc_define(name, clauses)     validate, or throw :raifusaikuru_definition
-#           lc_problems(name, clauses)   the same findings as data, [kind, why]
-#   fold    lc_state_of(def, events)     replay an entity's events, in order
-#           lc_resume(def, state, events), lc_step(def, state, event), lc_initial(def)
-#   admit   lc_admit(def, state, event)  would this event be accepted now?
-#           lc_admit_step(def, state, event)   [lc_admit, lc_step] from one judgement
-#   guard   lc_allowed(def, state, capability, now)
-#           allowed, or refused with the rules that refused, why, and the
-#           task specs to create
-#   permit  lc_permit_for(def, state, capability, now)
-#           the limits (not-after time, remaining counts) as data;
-#           lc_permit_payload(permit, subject) is the signing seam;
-#           lc_permit_event(def, permit, subject) is the issuance as an event
-#           to log, when the definition declares lc_permit_log
-#
-# ## Clauses (a definition is a list of these, nested freely)
-#
-#   lc_states lc_start lc_terminals lc_rests lc_field lc_event
-#   lc_on(from, event, to, effects)   one transition row; `to` may be :stay
-#   lc_on_each(froms, event, to, effects)   the same row from several states
-#   lc_gate(capability, rows)        the event USES the capability
-#   lc_guard(capability, rules, task)   rules: lc_rule / lc_rule_task
-#   lc_permit(capability, terms)     terms: lc_valid_for, lc_counted
-#   lc_permit_log(capability, event) an issued permit is logged as `event`, a
-#                                    no-op accepted in every non-terminal state
-#   lc_link(role, target)            records may carry links of kind `role`,
-#                                    each naming an entity of lifecycle `target`
-#   lc_span(name, from, to, limit)   a duration that matters: first entry into
-#                                    `from` to first entry into `to` after it,
-#                                    with its limit (or nil)
-# effects   lc_set lc_put lc_add lc_add_from lc_stamp
-# predicates  lc_below lc_at_most lc_above lc_at_least lc_equals lc_present
-#             lc_fresh lc_in_phase lc_all lc_any lc_not
-# tasks     lc_task(name, evidence_kinds, escalate_after)
-#
-# `lc_example_consumable()` is a worked definition (a consumable with a use
-# counter, an age limit and a quality reading); read it first.
-#
-# ## Recon: the shape two Rust FSMs already agree on
-#
-# Two typed lifecycle FSMs were written independently and converge on one
-# shape: breathe's cloud-node FSM (breathe-lifecycle/src/fsm.rs, `FaseNode`)
-# and pangea-operator's template lifecycle (controller/lifecycle.rs, `Phase` +
-# `TRANSITIONS`); shigoto-fsm is the convergence harness breathe consumes and
-# pangea hand-rolls. Adopted here:
-#
-#   - a closed, enumerated state set, where a transition exists iff a row
-#     exists (pangea's TRANSITIONS; breathe's legal_successors): lc_on rows;
-#   - an illegal (state, event) is a typed refusal naming the events that ARE
-#     legal there (pangea's TransitionError::Illegal { legal }): :no_edge;
-#   - edges shared by many states expanded into rows by one function, not
-#     repeated by hand (pangea's universal_edges_for): lc_on_each;
-#   - declared terminals with no exit, and shigoto-fsm's convergence checks:
-#     a non-empty state space, no dangling edge, no trap (a non-terminal with no
-#     exit), terminal soundness, and every state reaching a good resting state
-#     (lc_rests is shigoto's is_good_resting_state, for cyclic lifecycles);
-#   - a step that needs evidence cannot be claimed bare (breathe's
-#     confirm_reaped requires its witness): declared payload keys are required,
-#     and a task names the evidence kinds that close it.
-#
-# Not adopted: breathe's phantom typestate, where an illegal transition is an
-# absent method. blue is dynamically typed, so this is pangea's tier instead:
-# rejected at the parse boundary, a bad definition when it is built and an
-# illegal event when it is folded. Added beyond both: guards over folded field
-# data, tasks and permits. Neither FSM carries data-dependent guards.
-#
-# Adjacent, not merged: `utsuroi` (ensaio/utsuroi-lifecycle, theory/UTSUROI.md)
-# is a Rust stage PROJECTION for ephemeral resources (spawn → ready → keep →
-# drain → reaped) that existing domain FSMs map onto. It declares no
-# lifecycles and folds no events. Its named-M1 `(deflifecycle …)` keyword stays
-# its own.
-#
-# ## Tiers
-#
-# REFUSED WHEN BUILT (lc_define throws; lc_problems lists each with its kind):
-# an undeclared state, event, field or payload key anywhere; a transition from
-# a missing state; two rows for one (state, event), which would make the fold
-# ambiguous; a trap, an unreachable state, a state that cannot reach a terminal
-# or resting state, a terminal with an exit; an empty guard or an empty lc_all /
-# lc_any (a vacuous truth); a task with no evidence or no escalation; a permit
-# with no time bound, a counted field its guard does not bound, or a time or
-# count condition under lc_any / lc_not in a permitted guard, where the limits
-# would not be sound; a permit log for a capability with no lc_permit, or two
-# for one capability; two links with one role; a span on an undeclared state,
-# from a state to itself, to a state no event reaches from its start, or with
-# a limit that is not a positive whole duration, and two spans with one name.
-# `lc_problem_kinds()` is the closed list, and a test row exercises every kind.
-# RECORDED BY THE FOLD, never thrown: an event the definition does not know,
-# an event with no row from the current state, one missing a declared payload
-# key, or one whose counter or added amount is not a number is REFUSED. It is
-# kept in lc_refused(state) and changes nothing else. An event on a gated row while its guard refuses still happened, so it
-# is APPLIED and kept in lc_breaches(state).
-# FAIL CLOSED: a comparison over an absent or non-numeric field is UNKNOWN,
-# and a rule holds only when it is known to hold (three-valued logic). An
-# undeclared capability is refused, never allowed.
-# NOT CHECKED: the clock. Event times and `now` are integers on one clock the
-# caller chooses (lc_minutes / lc_hours / lc_days assume seconds). Events fold
-# in list order, never sorted by time: order is the log's sequence.
-#
-# ## Permits
-#
-# A permit is valid only while its guard would still allow the capability.
-# not_after is the earliest moment an lc_fresh conjunct of the guard expires,
-# or now + lc_valid_for(d) if that is sooner. The remaining count of an
-# lc_counted(field) is how many more uses (one unit of the field each) keep
-# every lc_below / lc_at_most / lc_equals conjunct on it true. The limits are
-# read from the guard, so they are never restated and cannot drift from it.
-# Fields that only events change (a reading) are frozen at the permit's basis,
-# the state's sequence number: a consumer re-derives on every event and revokes
-# when the guard refuses. Signing is NOT here: lc_permit_payload renders the
-# canonical text a signer signs, the seam for a crypto bidama.
-#
-# An issued permit is a fact an auditor asks about, and an event log records
-# only events. lc_permit_log(capability, event) makes issuance an event: the
-# definition gains `event`, whose payload keys are the permit's limits
-# (subject, not_after, basis, and `<field>_left` per counted field, named by
-# lc_permit_count_key), and a :stay row with no effects from every
-# non-terminal state. So logging a permit changes no field and no phase, only
-# the sequence, and a terminal entity cannot be issued one. lc_permit_event
-# renders an issued permit as that event.
-#
-# ## Links
-#
-# lc_link(role, target) declares that this lifecycle's records may link, with
-# link kind `role` (the kind an event log writes beside each link's id), to an
-# entity of lifecycle `target`. The shape is the one declared relations
-# already agree on: declared on the referring side, a role plus the target's
-# kind, with the id carried by the referring record (a Kubernetes
-# ownerReference's {kind, name}; Rails `belongs_to`; dbt's `relationships`
-# test). The engine folds no link: the declaration is for what reads the log
-# (joins generated across lifecycles). Only this definition is checked here
-# (names, one row per role); whether `target` exists is checked where the
-# lifecycles are read together.
-#
-# ## Spans
-#
-# lc_span(name, from, to, limit) declares a duration the lifecycle is
-# measured by: from an entity's first entry into `from` to its first entry
-# into `to` after that (an order's fryer-to-mouth: fried → delivered), and the
-# longest it should take. A recipe's timed record is part of the lifecycle's
-# definition, as a link is, so the definition stays the one source every
-# reader derives from; the engine folds nothing for it, and anaritikusu
-# generates a view per span. Added 2026-09-25 for NuPastel's measures (plan:
-# nupastel docs/plans/measures.md); red-run: a problem row per new kind, and
-# the span test red when the reachability check was dropped.
-
 # ── names and time ─────────────────────────────────────────────────────────
 
-# A name as text: a keyword's name, a string itself, anything else via to_s.
+@doc """
+text: A name as text: a keyword's name, a string itself, anything else via to_s.
+"""
 def text(x)
   if keyword?(x)
     to_s(x)
@@ -196,8 +202,10 @@ def text(x)
   end
 end
 
-# A value as it reads in a message: keywords keep their colon, strings their
-# quotes.
+@doc """
+show: A value as it reads in a message: keywords keep their colon, strings their
+quotes.
+"""
 def show(x)
   if keyword?(x)
     ":#{to_s(x)}"
@@ -214,7 +222,9 @@ def name?(x)
   keyword?(x) or string?(x)
 end
 
-# Durations on a seconds clock.
+@doc """
+minutes: Durations on a seconds clock.
+"""
 def minutes(n)
   n * 60
 end
@@ -229,41 +239,55 @@ end
 
 # ── clauses: what a definition is written in ───────────────────────────────
 
-# Declare states. May appear more than once; the mentions accumulate.
+@doc """
+states: Declare states. May appear more than once; the mentions accumulate.
+"""
 def states(names)
   [:lc_states, as_list(names)]
 end
 
-# The state a new entity starts in: exactly one per definition.
+@doc """
+start: The state a new entity starts in: exactly one per definition.
+"""
 def start(state)
   [:lc_start, state]
 end
 
-# Terminal states: an entity rests there for good, and no event leaves them.
+@doc """
+terminals: Terminal states: an entity rests there for good, and no event leaves them.
+"""
 def terminals(names)
   [:lc_terminals, as_list(names)]
 end
 
-# Resting states that are not sinks (an asset in service): an entity may stay
-# in one indefinitely, and events still move it. Every state must be able to
-# reach a terminal or a resting state.
+@doc """
+rests: Resting states that are not sinks (an asset in service): an entity may stay
+in one indefinitely, and events still move it. Every state must be able to
+reach a terminal or a resting state.
+"""
 def rests(names)
   [:lc_rests, as_list(names)]
 end
 
-# A field the events fold into, with its value before any event.
+@doc """
+field: A field the events fold into, with its value before any event.
+"""
 def field(name, initial)
   [:lc_field, name, initial]
 end
 
-# An event type and the payload keys it must carry. A declared key is
-# required: the fold refuses an event that lacks one.
+@doc """
+event: An event type and the payload keys it must carry. A declared key is
+required: the fold refuses an event that lacks one.
+"""
 def event(name, keys)
   [:lc_event, name, as_list(keys)]
 end
 
-# One transition row: in `from`, event `event` moves the entity to `to` and
-# applies `effects` in order. `to` may be :stay, a self-loop.
+@doc """
+on: One transition row: in `from`, event `event` moves the entity to `to` and
+applies `effects` in order. `to` may be :stay, a self-loop.
+"""
 def on(from, event, to, effects)
   [:lc_edge, from, event, stay_to(from, to), as_list(effects), nil]
 end
@@ -276,15 +300,21 @@ def stay_to(from, to)
   end
 end
 
-# The same row from each of several states. With :stay each row loops on its
-# own state.
+@doc """
+on_each: The same row from each of several states. With :stay each row loops on its
+own state.
+"""
 def on_each(froms, event, to, effects)
   map((f) -> on(f, event, to, effects), as_list(froms))
 end
 
-# Gate rows by a capability: the event is a USE of it. The fold evaluates the
-# capability's guard at the event's time and records a breach when it
-# refuses; lc_admit rejects such an event before it is appended.
+@doc """
+gate: Gate rows by a capability: the event is a USE of it. The fold evaluates the
+capability's guard at the event's time and records a breach when it
+refuses; lc_admit rejects such an event before it is appended.
+
+    gate(:g, []) #=> []
+"""
 def gate(capability, rows)
   map((c) -> gated_row(capability, c), flat_one(rows))
 end
@@ -299,34 +329,46 @@ end
 
 # ── effects: what an accepted event does to the fields ─────────────────────
 
-# Set a field from a payload key of the event.
+@doc """
+set: Set a field from a payload key of the event.
+"""
 def set(field, key)
   [:set, field, key]
 end
 
-# Set a field to a constant.
+@doc """
+put: Set a field to a constant.
+"""
 def put(field, value)
   [:put, field, value]
 end
 
-# Add a constant to a numeric field: a counter.
+@doc """
+add: Add a constant to a numeric field: a counter.
+"""
 def add(field, n)
   [:add, field, n]
 end
 
-# Add a numeric payload value to a numeric field.
+@doc """
+add_from: Add a numeric payload value to a numeric field.
+"""
 def add_from(field, key)
   [:add_key, field, key]
 end
 
-# Set a field to the event's time.
+@doc """
+stamp: Set a field to the event's time.
+"""
 def stamp(field)
   [:stamp, field]
 end
 
 # ── predicates: what a rule says about the folded state ────────────────────
 
-# The field is a number below the limit.
+@doc """
+below: The field is a number below the limit.
+"""
 def below(field, limit)
   [:lt, field, limit]
 end
@@ -343,47 +385,63 @@ def at_least(field, limit)
   [:ge, field, limit]
 end
 
-# The field equals the value. A float never equals an int: 1.0 is not 1.
+@doc """
+equals: The field equals the value. A float never equals an int: 1.0 is not 1.
+"""
 def equals(field, value)
   [:eq, field, value]
 end
 
-# The field has a value (is not nil). Never unknown.
+@doc """
+present: The field has a value (is not nil). Never unknown.
+"""
 def present(field)
   [:present, field]
 end
 
-# The field holds a time less than `max_age` before now: a reading still
-# fresh, an item not yet too old.
+@doc """
+fresh: The field holds a time less than `max_age` before now: a reading still
+fresh, an item not yet too old.
+"""
 def fresh(field, max_age)
   [:age_lt, field, max_age]
 end
 
-# The entity is in one of these states.
+@doc """
+in_phase: The entity is in one of these states.
+"""
 def in_phase(states)
   [:in, as_list(states)]
 end
 
-# Every predicate holds. Unknown when none refuses and one is unknown.
+@doc """
+all: Every predicate holds. Unknown when none refuses and one is unknown.
+"""
 def all(preds)
   [:all, as_list(preds)]
 end
 
-# Some predicate holds. Unknown when none holds and one is unknown.
+@doc """
+any: Some predicate holds. Unknown when none holds and one is unknown.
+"""
 def any(preds)
   [:any, as_list(preds)]
 end
 
-# The predicate does not hold. The negation of unknown is unknown.
 # waive B0013: `not` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::not names it too
+@doc """
+lc_not: The predicate does not hold. The negation of unknown is unknown.
+"""
 def lc_not(pred)
   [:not, pred]
 end
 
 # ── guards, tasks and permits ──────────────────────────────────────────────
 
-# A task spec: its name, the evidence kinds that close it, and how long it may
-# stay open before it escalates. Only data: the engine creates nothing.
+@doc """
+task: A task spec: its name, the evidence kinds that close it, and how long it may
+stay open before it escalates. Only data: the engine creates nothing.
+"""
 def task(name, evidence, escalate_after)
   [:lc_task, name, as_list(evidence), escalate_after]
 end
@@ -400,73 +458,97 @@ def task_escalate_after(t)
   nth(3, t)
 end
 
-# A named rule. A guard allows its capability only when every rule holds.
+@doc """
+rule: A named rule. A guard allows its capability only when every rule holds.
+
+    rule(:r, below(:n, 3)) #=> [:lc_rule, :r, below(:n, 3), nil]
+"""
 def rule(name, pred)
   [:lc_rule, name, pred, nil]
 end
 
-# A named rule whose refusal asks for its own task.
+@doc """
+rule_task: A named rule whose refusal asks for its own task.
+"""
 def rule_task(name, pred, task)
   [:lc_rule, name, pred, task]
 end
 
-# The guard for a capability: its rules, all of which must hold, and the task
-# a refusing rule asks for when it names none (nil: no task).
+@doc """
+guard: The guard for a capability: its rules, all of which must hold, and the task
+a refusing rule asks for when it names none (nil: no task).
+"""
 def guard(capability, rules, task)
   [:lc_guard, capability, as_list(rules), task]
 end
 
-# A permit lives at most `duration` from its issue: the renewal cadence.
+@doc """
+valid_for: A permit lives at most `duration` from its issue: the renewal cadence.
+"""
 def valid_for(duration)
   [:valid_for, duration]
 end
 
-# The device counts one unit of `field` per use, so the permit carries how many
-# uses remain.
+@doc """
+counted: The device counts one unit of `field` per use, so the permit carries how many
+uses remain.
+"""
 def counted(field)
   [:counted, field]
 end
 
-# A capability enforced away from the engine, by a device, gets a permit. Its
-# limits are derived from the capability's guard.
+@doc """
+permit: A capability enforced away from the engine, by a device, gets a permit. Its
+limits are derived from the capability's guard.
+"""
 def permit(capability, terms)
   [:lc_permit, capability, as_list(terms)]
 end
 
-# An issued permit for `capability` is logged as `event`: the definition gains
-# the event (its keys are the permit's limits) and a no-op :stay row from every
-# non-terminal state. lc_permit_event renders a permit as the event.
+@doc """
+permit_log: An issued permit for `capability` is logged as `event`: the definition gains
+the event (its keys are the permit's limits) and a no-op :stay row from every
+non-terminal state. lc_permit_event renders a permit as the event.
+"""
 def permit_log(capability, event)
   [:lc_permit_log, capability, event]
 end
 
-# The payload key a logged permit carries a counted field's remaining uses
-# under: "<field>_left".
+@doc """
+permit_count_key: The payload key a logged permit carries a counted field's remaining uses
+under: "<field>_left".
+"""
 def permit_count_key(field)
   "#{text(field)}_left"
 end
 
 # ── links ──────────────────────────────────────────────────────────────────
 
-# This lifecycle's records may carry links of kind `role`, each naming an
-# entity of lifecycle `target`. Declared here, folded nowhere: it is for what
-# reads the log (joins across lifecycles).
+@doc """
+link: This lifecycle's records may carry links of kind `role`, each naming an
+entity of lifecycle `target`. Declared here, folded nowhere: it is for what
+reads the log (joins across lifecycles).
+"""
 def link(role, target)
   [:lc_link, role, target]
 end
 
 # ── spans ──────────────────────────────────────────────────────────────────
 
-# A span: the time from an entity's first entry into state `from` to its
-# first entry into state `to` after that, a duration that matters on its own
-# (an order's fryer-to-mouth). `limit` is the longest it should take, on the
-# caller's clock, or nil for none. Declared here, folded nowhere, like a link:
-# it is for what reads the log (anaritikusu generates a view per span).
+@doc """
+span: A span: the time from an entity's first entry into state `from` to its
+first entry into state `to` after that, a duration that matters on its own
+(an order's fryer-to-mouth). `limit` is the longest it should take, on the
+caller's clock, or nil for none. Declared here, folded nowhere, like a link:
+it is for what reads the log (anaritikusu generates a view per span).
+"""
 def span(name, from, to, limit)
   [:lc_span, name, from, to, limit]
 end
 
-# A declared span's parts, as lc_d_spans returns them: [name, from, to, limit].
+@doc """
+span_name: A declared span's parts, as lc_d_spans returns them: [name, from, to, limit].
+"""
 def span_name(s)
   nth(0, s)
 end
@@ -485,8 +567,10 @@ end
 
 # ── reading clauses ────────────────────────────────────────────────────────
 
-# A clause is a list headed by a keyword; anything else is a list of clauses
-# (as lc_on_each and lc_gate return), flattened.
+@doc """
+flat: A clause is a list headed by a keyword; anything else is a list of clauses
+(as lc_on_each and lc_gate return), flattened.
+"""
 def flat(clauses)
   flat_map(as_list(clauses), flat_one)
 end
@@ -522,13 +606,15 @@ def known_tags()
   ]
 end
 
-# The parsed form, which lc_define seals as the definition once it validates:
-# [tag, name, flat, states, starts, terminals, rests, fields, events, edges,
-# guards, permits, links, permit_logs, spans]. fields are [name, initial];
-# events are [name, keys]; links are [role, target]; permit_logs are
-# [capability, event]; spans are [name, from, to, limit].
-# A permit log's event and rows are added to events and edges here, before
-# validation, so they are checked like any the author wrote.
+@doc """
+parse: The parsed form, which lc_define seals as the definition once it validates:
+[tag, name, flat, states, starts, terminals, rests, fields, events, edges,
+guards, permits, links, permit_logs, spans]. fields are [name, initial];
+events are [name, keys]; links are [role, target]; permit_logs are
+[capability, event]; spans are [name, from, to, limit].
+A permit log's event and rows are added to events and edges here, before
+validation, so they are checked like any the author wrote.
+"""
 def parse(name, clauses)
   flat = raifusaikuru::flat(clauses)
   states = flat_map(tagged(flat, :lc_states), (c) -> nth(1, c))
@@ -574,8 +660,10 @@ def parse(name, clauses)
   ]
 end
 
-# The payload keys of a logged permit for `capability`: subject, not_after,
-# basis, and one per counted field of its lc_permit (none when it has none).
+@doc """
+permit_log_keys: The payload keys of a logged permit for `capability`: subject, not_after,
+basis, and one per counted field of its lc_permit (none when it has none).
+"""
 def permit_log_keys(permits, capability)
   pm = find_first((p) -> nth(1, p) == capability, permits)
   counted = if pm.nil?
@@ -649,25 +737,35 @@ def d_permits(d)
   nth(11, d)
 end
 
-# The declared links, [role, target], in declaration order.
+@doc """
+d_links: The declared links, [role, target], in declaration order.
+"""
 def d_links(d)
   nth(12, d)
 end
 
-# The permit logs, [capability, event], in declaration order.
+@doc """
+d_permit_logs: The permit logs, [capability, event], in declaration order.
+"""
 def d_permit_logs(d)
   nth(13, d)
 end
 
-# The declared spans, [name, from, to, limit], in declaration order.
+@doc """
+d_spans: The declared spans, [name, from, to, limit], in declaration order.
+
+    d_spans(example_consumable) #=> []
+"""
 def d_spans(d)
   nth(14, d)
 end
 
 # ── validation: every finding, as data ─────────────────────────────────────
 
-# Every kind of problem the builder reports. Closed: lc_problem refuses any
-# other, and a test row exercises each.
+@doc """
+problem_kinds: Every kind of problem the builder reports. Closed: lc_problem refuses any
+other, and a test row exercises each.
+"""
 def problem_kinds()
   [
     :bad_name,
@@ -718,12 +816,16 @@ def problem(kind, why)
   [kind, why]
 end
 
-# A problem's kind, one of lc_problem_kinds().
+@doc """
+problem_kind: A problem's kind, one of lc_problem_kinds().
+"""
 def problem_kind(p)
   first(p)
 end
 
-# A problem's explanation, naming what is wrong and where.
+@doc """
+problem_why: A problem's explanation, naming what is wrong and where.
+"""
 def problem_why(p)
   nth(1, p)
 end
@@ -732,7 +834,9 @@ def problem_text(p)
   "#{to_s(first(p))}: #{nth(1, p)}"
 end
 
-# Every value that occurs more than once, once each, in first-seen order.
+@doc """
+dupes: Every value that occurs more than once, once each, in first-seen order.
+"""
 def dupes(xs)
   unique(filter((x) -> count_of(xs, x) > 1, xs))
 end
@@ -741,12 +845,21 @@ def positive_int?(x)
   integer?(x) and x > 0
 end
 
-# Why a definition would be refused: a list of [kind, why], empty when it is
-# sound. lc_define throws exactly these.
+@doc """
+problems: Why a definition would be refused: a list of [kind, why], empty when it is
+sound. lc_define throws exactly these.
+
+    problems(:base, example_base) #=> []
+"""
 def problems(name, clauses)
   check(parse(name, clauses))
 end
 
+@doc """
+check: find unreachable states, duplicates and bad guards.
+
+    check(parse(:base, example_base)) #=> []
+"""
 def check(p)
   as_list(
     flatten1(
@@ -766,8 +879,10 @@ def check(p)
   )
 end
 
-# A span names two declared states, `to` reachable from `from`, with a limit
-# that is a positive whole duration or nil; one row per name.
+@doc """
+pb_spans: A span names two declared states, `to` reachable from `from`, with a limit
+that is a positive whole duration or nil; one row per name.
+"""
 def pb_spans(p)
   spans = d_spans(p)
   dup = map(
@@ -837,7 +952,9 @@ def pb_span(p, s)
   flatten1([named, known, limit, shape])
 end
 
-# A permit log names a capability that has an lc_permit, once.
+@doc """
+pb_permit_logs: A permit log names a capability that has an lc_permit, once.
+"""
 def pb_permit_logs(p)
   logs = d_permit_logs(p)
   caps = map((pm) -> nth(1, pm), d_permits(p))
@@ -871,7 +988,9 @@ def pb_permit_logs(p)
   flatten1([bad, unknown, dup])
 end
 
-# A link names a role and a target lifecycle, one row per role.
+@doc """
+pb_links: A link names a role and a target lifecycle, one row per role.
+"""
 def pb_links(p)
   links = d_links(p)
   bad = map(
@@ -1149,7 +1268,9 @@ def pb_effect(p, eff, keys, where)
   end
 end
 
-# States reachable from `seeds` along `pairs` ([from, to]), within n rounds.
+@doc """
+forward: States reachable from `seeds` along `pairs` ([from, to]), within n rounds.
+"""
 def forward(pairs, seeds, n)
   reduce(
     fn(acc, _i)
@@ -1163,7 +1284,9 @@ def forward(pairs, seeds, n)
   )
 end
 
-# States that can reach `goals` along `pairs`, within n rounds.
+@doc """
+backward: States that can reach `goals` along `pairs`, within n rounds.
+"""
 def backward(pairs, goals, n)
   reduce(
     fn(acc, _i)
@@ -1435,8 +1558,10 @@ def pb_guard(p, g)
   flatten1([named, empty, malformed, dup, preds, tasks, default])
 end
 
-# The atoms in positive conjunctive position: each rule's predicate, and
-# inside lc_all, recursively. Only these may bound a permit.
+@doc """
+conjuncts: The atoms in positive conjunctive position: each rule's predicate, and
+inside lc_all, recursively. Only these may bound a permit.
+"""
 def conjuncts(pr)
   if first(pr) == :all
     flat_map(nth(1, pr), conjuncts)
@@ -1456,7 +1581,9 @@ def atoms(pr)
   end
 end
 
-# Every atom beneath an lc_any or an lc_not.
+@doc """
+hidden_atoms: Every atom beneath an lc_any or an lc_not.
+"""
 def hidden_atoms(pr)
   op = first(pr)
   if op == :all
@@ -1468,13 +1595,17 @@ def hidden_atoms(pr)
   end
 end
 
-# The guard as one predicate: the conjunction of its rules.
+@doc """
+guard_pred: The guard as one predicate: the conjunction of its rules.
+"""
 def guard_pred(g)
   all(map((r) -> nth(2, r), nth(2, g)))
 end
 
-# An atom that changes as a permit is used: any lc_fresh (time passes), or a
-# comparison over a counted field (uses accumulate).
+@doc """
+drifts?: An atom that changes as a permit is used: any lc_fresh (time passes), or a
+comparison over a counted field (uses accumulate).
+"""
 def drifts?(atom, counted)
   first(atom) == :age_lt or
     contains([:lt, :le, :gt, :ge, :eq], first(atom)) and
@@ -1585,10 +1716,12 @@ end
 
 # ── the definition ─────────────────────────────────────────────────────────
 
-# Build a lifecycle definition from clauses, or throw :raifusaikuru_definition
-# naming every problem. Only a built definition is accepted by the fold, the
-# guards and the permits.
 # waive B0013: `define` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::define names it too
+@doc """
+lc_define: Build a lifecycle definition from clauses, or throw :raifusaikuru_definition
+naming every problem. Only a built definition is accepted by the fold, the
+guards and the permits.
+"""
 def lc_define(name, clauses)
   p = parse(name, clauses)
   problems = check(p)
@@ -1612,7 +1745,9 @@ def lc_require(d)
   d
 end
 
-# The definition's name.
+@doc """
+name: The definition's name.
+"""
 def name(d)
   d_name(lc_require(d))
 end
@@ -1621,8 +1756,10 @@ def edge_for(d, phase, event)
   find_first((e) -> nth(1, e) == phase and nth(2, e) == event, d_edges(d))
 end
 
-# The events accepted in a state, in declaration order: what an illegal
-# event's refusal names.
+@doc """
+legal_events: The events accepted in a state, in declaration order: what an illegal
+event's refusal names.
+"""
 def legal_events(d, phase)
   unique(
     map(
@@ -1642,8 +1779,10 @@ end
 
 # ── events ─────────────────────────────────────────────────────────────────
 
-# An event: its type, its time on the caller's clock, and its payload as
-# [key, value] pairs.
+@doc """
+ev: An event: its type, its time on the caller's clock, and its payload as
+[key, value] pairs.
+"""
 def ev(type, time, payload)
   [type, time, as_list(payload)]
 end
@@ -1660,7 +1799,9 @@ def ev_payload(ev)
   as_list(nth(2, ev))
 end
 
-# A payload value, or nil when the key is absent.
+@doc """
+ev_get: A payload value, or nil when the key is absent.
+"""
 def ev_get(ev, key)
   lookup(ev_payload(ev), key)
 end
@@ -1671,44 +1812,58 @@ end
 
 # ── state and the fold ─────────────────────────────────────────────────────
 
-# The state before any event. A state is
-# [:lc_state, phase, fields, seq, as_of, refused, breaches]; fields are
-# [name, value] pairs in declaration order, so two states compare with ==.
+@doc """
+initial: The state before any event. A state is
+[:lc_state, phase, fields, seq, as_of, refused, breaches]; fields are
+[name, value] pairs in declaration order, so two states compare with ==.
+"""
 def initial(d)
   lc_require(d)
   [:lc_state, d_start(d), d_fields(d), 0, nil, [], []]
 end
 
-# The state the entity is in.
+@doc """
+phase: The state the entity is in.
+"""
 def phase(s)
   nth(1, s)
 end
 
-# Every field as [name, value], in declaration order.
+@doc """
+fields: Every field as [name, value], in declaration order.
+"""
 def fields(s)
   nth(2, s)
 end
 
-# A field's value, or nil.
+@doc """
+value: A field's value, or nil.
+"""
 def value(s, field)
   lookup(fields(s), field)
 end
 
-# How many events the state has consumed, accepted or refused: the position
-# the next event will have, and a permit's basis.
+@doc """
+seq: How many events the state has consumed, accepted or refused: the position
+the next event will have, and a permit's basis.
+"""
 def seq(s)
   nth(3, s)
 end
 
-# The time of the last applied event, or nil before any.
+@doc """
+as_of: The time of the last applied event, or nil before any.
+"""
 def as_of(s)
   nth(4, s)
 end
 
-# Refused events, oldest first: [position, type, kind, detail]. kind is
-# :unknown_event, :no_edge (detail: the legal events), :missing_payload
-# (detail: the missing keys), :bad_payload (detail: the key whose value is not
-# a number) or :bad_field (detail: the counter that holds no number).
+@doc """
+refused: Refused events, oldest first: [position, type, kind, detail]. kind is
+:unknown_event, :no_edge (detail: the legal events), :missing_payload
+(detail: the missing keys), :bad_payload (detail: the key whose value is not
+a number) or :bad_field (detail: the counter that holds no number).
+"""
 def refused(s)
   nth(5, s)
 end
@@ -1729,9 +1884,11 @@ def refusal_detail(r)
   nth(3, r)
 end
 
-# Breaches, oldest first: [position, type, capability, refusing rules]. A gated
-# event that happened while its guard refused: it was applied, and this is the
-# record of it.
+@doc """
+breaches: Breaches, oldest first: [position, type, capability, refusing rules]. A gated
+event that happened while its guard refused: it was applied, and this is the
+record of it.
+"""
 def breaches(s)
   nth(6, s)
 end
@@ -1752,10 +1909,12 @@ def breach_rules(b)
   nth(3, b)
 end
 
-# The one decision about an event in a state:
-#   [:ok, row]              accepted
-#   [:breach, row, verdict] a gated row whose guard refuses
-#   [:refuse, kind, detail]
+@doc """
+judge: The one decision about an event in a state:
+  [:ok, row]              accepted
+  [:breach, row, verdict] a gated row whose guard refuses
+  [:refuse, kind, detail].
+"""
 def judge(d, s, ev)
   t = ev_type(ev)
   if contains(d_event_names(d), t) == false
@@ -1833,16 +1992,20 @@ def effect(fs, eff, ev)
   end
 end
 
-# One event, folded. Total: a refused event is recorded and changes nothing
-# else, and every event advances the sequence.
+@doc """
+step: One event, folded. Total: a refused event is recorded and changes nothing
+else, and every event advances the sequence.
+"""
 def step(d, s, ev)
   lc_require(d)
   lc_apply(d, s, ev, judge(d, s, ev))
 end
 
-# The state after an event lc_judge has already decided: the second half of
-# lc_step, shared with lc_admit_step so a judgement is made once.
 # waive B0013: `apply` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::apply names it too
+@doc """
+lc_apply: The state after an event lc_judge has already decided: the second half of
+lc_step, shared with lc_admit_step so a judgement is made once.
+"""
 def lc_apply(_d, s, ev, j)
   pos = seq(s)
   if first(j) == :refuse
@@ -1874,27 +2037,35 @@ def lc_apply(_d, s, ev, j)
   end
 end
 
-# Continue a fold from a state.
+@doc """
+resume: Continue a fold from a state.
+"""
 def resume(d, s, events)
   lc_require(d)
   reduce((acc, ev) -> step(d, acc, ev), s, as_list(events))
 end
 
-# Replay an entity's events, in order, into its state.
+@doc """
+state_of: Replay an entity's events, in order, into its state.
+"""
 def state_of(d, events)
   resume(d, initial(d), events)
 end
 
-# Would `ev` be accepted in `s`? [:admit], or [:reject, kind, detail] with the
-# fold's refusal kinds plus :guard (detail: the verdict) for a gated event
-# whose guard refuses at the event's time. Check before appending: the fold
-# would record the same event as refused, or as a breach.
+@doc """
+admit: Would `ev` be accepted in `s`? [:admit], or [:reject, kind, detail] with the
+fold's refusal kinds plus :guard (detail: the verdict) for a gated event
+whose guard refuses at the event's time. Check before appending: the fold
+would record the same event as refused, or as a breach.
+"""
 def admit(d, s, ev)
   lc_require(d)
   admission(judge(d, s, ev))
 end
 
-# lc_judge's decision as lc_admit answers it.
+@doc """
+admission: lc_judge's decision as lc_admit answers it.
+"""
 def admission(j)
   if first(j) == :ok
     [:admit]
@@ -1905,10 +2076,12 @@ def admission(j)
   end
 end
 
-# lc_admit and lc_step from ONE judgement: [admission, state after]. An
-# appender that checks an event and then folds it needs both, and the
-# judgement is most of a step's cost (nisshi's profile, 2026-09-24: lc_admit
-# 181 µs and lc_step 202 µs on one event, each judging it).
+@doc """
+admit_step: lc_admit and lc_step from ONE judgement: [admission, state after]. An
+appender that checks an event and then folds it needs both, and the
+judgement is most of a step's cost (nisshi's profile, 2026-09-24: lc_admit
+181 µs and lc_step 202 µs on one event, each judging it).
+"""
 def admit_step(d, s, ev)
   lc_require(d)
   j = judge(d, s, ev)
@@ -1980,9 +2153,11 @@ def lc_compare(op, v, limit)
   end
 end
 
-# A predicate over a state at time `now`: :yes, :no or :unknown. A comparison
-# over an absent or non-numeric field is :unknown, never :yes or :no.
 # waive B0013: `eval` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::eval names it too
+@doc """
+lc_eval: A predicate over a state at time `now`: :yes, :no or :unknown. A comparison
+over an absent or non-numeric field is :unknown, never :yes or :no.
+"""
 def lc_eval(pr, s, now)
   op = first(pr)
   if contains([:lt, :le, :gt, :ge], op)
@@ -2027,13 +2202,15 @@ def task_or(rule, default)
   end
 end
 
-# Is `capability` allowed in `s` at time `now`? The verdict is data:
-#   [:allowed, capability]
-#   [:refused, capability, reasons, tasks]
-# reasons: [rule, status, predicate, observed, now, phase] for each refusing
-# rule, in the guard's order; status is :no, or :unknown when a field it reads
-# is absent. tasks: the task specs those rules ask for, once per name. An
-# undeclared capability is refused, never allowed.
+@doc """
+allowed: Is `capability` allowed in `s` at time `now`? The verdict is data:
+  [:allowed, capability]
+  [:refused, capability, reasons, tasks]
+reasons: [rule, status, predicate, observed, now, phase] for each refusing
+rule, in the guard's order; status is :no, or :unknown when a field it reads
+is absent. tasks: the task specs those rules ask for, once per name. An
+undeclared capability is refused, never allowed.
+"""
 def allowed(d, s, capability, now)
   lc_require(d)
   g = guard_for(d, capability)
@@ -2080,7 +2257,9 @@ def verdict_capability(v)
   nth(1, v)
 end
 
-# The refusing rules' names, in the guard's order; [] when allowed.
+@doc """
+refused_rules: The refusing rules' names, in the guard's order; [] when allowed.
+"""
 def refused_rules(v)
   if is_allowed(v)
     []
@@ -2089,12 +2268,16 @@ def refused_rules(v)
   end
 end
 
-# The rule that refused (the first, in the guard's order), or nil when allowed.
+@doc """
+refused_rule: The rule that refused (the first, in the guard's order), or nil when allowed.
+"""
 def refused_rule(v)
   first(refused_rules(v))
 end
 
-# The task specs a refusal asks for; [] when allowed.
+@doc """
+verdict_tasks: The task specs a refusal asks for; [] when allowed.
+"""
 def verdict_tasks(v)
   if is_allowed(v)
     []
@@ -2103,7 +2286,9 @@ def verdict_tasks(v)
   end
 end
 
-# The fields a predicate reads, once each, in first-seen order.
+@doc """
+pred_fields: The fields a predicate reads, once each, in first-seen order.
+"""
 def pred_fields(pr)
   op = first(pr)
   if op == :all or op == :any
@@ -2125,7 +2310,9 @@ def pred_has?(pr, target)
   contains(map((a) -> first(a), atoms(pr)), target)
 end
 
-# A predicate as words: "quality below 24".
+@doc """
+pred_text: A predicate as words: "quality below 24".
+"""
 def pred_text(pr)
   op = first(pr)
   if op == :lt
@@ -2181,8 +2368,10 @@ def reason_text(r)
   end
 end
 
-# Each refusal as a sentence a person can act on:
-# "quality_ok: needs quality below 24; quality = 26". [] when allowed.
+@doc """
+why: Each refusal as a sentence a person can act on:
+"quality_ok: needs quality below 24; quality = 26". [] when allowed.
+"""
 def why(v)
   if is_allowed(v)
     []
@@ -2202,17 +2391,21 @@ def min_known(xs)
   end
 end
 
-# The moment the guard could first stop holding as time passes: the earliest
-# expiry of an lc_fresh conjunct (its field's time + its max age), or nil when
-# no conjunct ages. Read only on an allowed state, where every conjunct holds.
+@doc """
+time_bound: The moment the guard could first stop holding as time passes: the earliest
+expiry of an lc_fresh conjunct (its field's time + its max age), or nil when
+no conjunct ages. Read only on an allowed state, where every conjunct holds.
+"""
 def time_bound(g, s)
   ages = filter((a) -> first(a) == :age_lt, conjuncts(guard_pred(g)))
   min_known(map((a) -> value(s, nth(1, a)) + nth(2, a), ages))
 end
 
-# How many more uses (one unit of `field` each) keep every conjunct on it
-# true: below L allows ceil(L - v), at most L allows floor(L - v) + 1, equal
-# allows 1. nil when nothing bounds it.
+@doc """
+count_bound: How many more uses (one unit of `field` each) keep every conjunct on it
+true: below L allows ceil(L - v), at most L allows floor(L - v) + 1, equal
+allows 1. nil when nothing bounds it.
+"""
 def count_bound(g, s, field)
   v = value(s, field)
   atoms = filter(
@@ -2232,13 +2425,15 @@ def uses_left(op, v, limit)
   end
 end
 
-# The permit for `capability` in `s` at `now`, as data:
-#   [:permit, lifecycle, capability, issued_at, not_after, counts, basis]
-#   [:no_permit, capability, why, detail]
-# counts: [field, remaining] for each lc_counted field; basis: lc_seq(s), the
-# state the limits were derived from. why: :no_permit_declared, :refused
-# (detail: the verdict), :unbounded or :unbounded_count (detail: the field).
-# The engine signs nothing; see lc_permit_payload.
+@doc """
+permit_for: The permit for `capability` in `s` at `now`, as data:
+  [:permit, lifecycle, capability, issued_at, not_after, counts, basis]
+  [:no_permit, capability, why, detail]
+counts: [field, remaining] for each lc_counted field; basis: lc_seq(s), the
+state the limits were derived from. why: :no_permit_declared, :refused
+(detail: the verdict), :unbounded or :unbounded_count (detail: the field).
+The engine signs nothing; see lc_permit_payload.
+"""
 def permit_for(d, s, capability, now)
   lc_require(d)
   spec = permit_spec_for(d, capability)
@@ -2301,7 +2496,9 @@ def permit_counts(p)
   nth(5, p)
 end
 
-# The remaining count of one counted field.
+@doc """
+permit_count: The remaining count of one counted field.
+"""
 def permit_count(p, field)
   lookup(nth(5, p), field)
 end
@@ -2310,8 +2507,10 @@ def permit_basis(p)
   nth(6, p)
 end
 
-# Why there is no permit (:no_permit_declared, :refused, :unbounded,
-# :unbounded_count), and its detail.
+@doc """
+no_permit_why: Why there is no permit (:no_permit_declared, :refused, :unbounded,
+:unbounded_count), and its detail.
+"""
 def no_permit_why(p)
   nth(2, p)
 end
@@ -2320,10 +2519,12 @@ def no_permit_detail(p)
   nth(3, p)
 end
 
-# THE SIGNING SEAM. The canonical text of a permit issued to `subject` (the
-# device or entity that enforces it): one key=value per line in a fixed order,
-# for a signer to sign and a device to verify byte for byte. Signing belongs
-# to a crypto bidama; this engine depends on none.
+@doc """
+permit_payload: THE SIGNING SEAM. The canonical text of a permit issued to `subject` (the
+device or entity that enforces it): one key=value per line in a fixed order,
+for a signer to sign and a device to verify byte for byte. Signing belongs
+to a crypto bidama; this engine depends on none.
+"""
 def permit_payload(p, subject)
   if has_permit?(p) == false
     raise(:raifusaikuru_use, "there is no permit to render: #{show(nth(2, p))}")
@@ -2347,11 +2548,13 @@ def permit_payload(p, subject)
   join(lines, "\n")
 end
 
-# The issuance of permit `p` to `subject` as the event the definition's
-# lc_permit_log declares: at the permit's issue time, with its limits as the
-# payload (subject as text, not_after, basis, and lc_permit_count_key(field)
-# per counted field). Throws :raifusaikuru_use when there is no permit or the
-# capability's issuance is not logged.
+@doc """
+permit_event: The issuance of permit `p` to `subject` as the event the definition's
+lc_permit_log declares: at the permit's issue time, with its limits as the
+payload (subject as text, not_after, basis, and lc_permit_count_key(field)
+per counted field). Throws :raifusaikuru_use when there is no permit or the
+capability's issuance is not logged.
+"""
 def permit_event(d, p, subject)
   lc_require(d)
   if has_permit?(p) == false
@@ -2381,17 +2584,21 @@ end
 
 # ── a worked example: a consumable ─────────────────────────────────────────
 
-# A consumable, generic: sealed until opened, then used until spent or
-# discarded. A use needs the item open, a quality reading under 4 h old and
-# below 24, fewer than 40 uses, and under 72 h since opening. `use` is gated,
-# so a use while refused is recorded as a breach. A device enforcing `use`
-# holds a permit of at most 2 h that counts uses. Time is in seconds.
+@doc """
+example_consumable: A consumable, generic: sealed until opened, then used until spent or
+discarded. A use needs the item open, a quality reading under 4 h old and
+below 24, fewer than 40 uses, and under 72 h since opening. `use` is gated,
+so a use while refused is recorded as a breach. A device enforcing `use`
+holds a permit of at most 2 h that counts uses. Time is in seconds.
+"""
 def example_consumable()
   lc_define(:consumable, example_consumable_clauses)
 end
 
-# The example's clauses, before lc_define: a consumer extends the example by
-# adding clauses (a permit log, a link) rather than restating it.
+@doc """
+example_consumable_clauses: The example's clauses, before lc_define: a consumer extends the example by
+adding clauses (a permit log, a link) rather than restating it.
+"""
 def example_consumable_clauses()
   replace = task(:replace, [:reading, :scan], minutes(20))
   rules = [
@@ -2437,7 +2644,9 @@ def example_consumable_clauses()
   ]
 end
 
-# The example's log: a reading of 10 at 1000, opened at 2000, three uses.
+@doc """
+example_log: The example's log: a reading of 10 at 1000, opened at 2000, three uses.
+"""
 def example_log()
   [
     ev(:reading, 1000, [[:value, 10]]),
@@ -2587,8 +2796,10 @@ test "a control: a definition with an undeclared state is refused when built"
   )
 end
 
-# One row per problem kind: [defect, kind]. Each defect is added to a sound
-# base definition; lc_example_problem_rows() covers lc_problem_kinds().
+@doc """
+example_base: One row per problem kind: [defect, kind]. Each defect is added to a sound
+base definition; lc_example_problem_rows() covers lc_problem_kinds().
+"""
 def example_base()
   [
     states([:a, :b]),

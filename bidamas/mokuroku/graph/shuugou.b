@@ -24,7 +24,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "members of a that are not in b",
     wave: 0,
     origin: "A"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "whether the sets share no member",
     wave: 0,
     origin: "A"
   }
@@ -84,7 +82,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "set with the item added",
     wave: 0,
     origin: "A"
   }
@@ -99,7 +96,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "members of both sets",
     wave: 0,
     origin: "A"
   }
@@ -114,7 +110,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "every subset of a set",
     wave: 0,
     origin: "A"
   }
@@ -129,7 +124,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "every pair of one member from each set",
     wave: 0,
     origin: "A"
   }
@@ -144,7 +138,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "set without the item",
     wave: 0,
     origin: "A"
   }
@@ -189,7 +182,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "whether every member of a is in b",
     wave: 0,
     origin: "A"
   }
@@ -204,7 +196,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "members of exactly one of the sets",
     wave: 0,
     origin: "A"
   }
@@ -219,7 +210,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shuugou",
-    meaning: "members of either set",
     wave: 0,
     origin: "A"
   }

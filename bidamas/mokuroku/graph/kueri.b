@@ -39,7 +39,6 @@ verb(
     laterals: ["validate"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "add computed columns",
     wave: 0,
     origin: "A"
   }
@@ -114,7 +113,6 @@ verb(
     laterals: ["validate"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "one row per item of a list column",
     wave: 0,
     origin: "A"
   }
@@ -159,7 +157,6 @@ verb(
     laterals: ["validate"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "one row per key with aggregate columns",
     wave: 0,
     origin: "A",
     contract: "group(plan, keys, opts) -> plan"
@@ -175,7 +172,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kueri",
-    meaning: "an identifier as SQL, quoted when unsafe",
     wave: 0,
     origin: "H"
   }
@@ -206,7 +202,6 @@ verb(
     laterals: ["validate"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "join that keeps every left row",
     wave: 0,
     origin: "A"
   }
@@ -266,7 +261,6 @@ verb(
     laterals: ["serialize"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "the plan as SQL text in a dialect",
     wave: 0,
     origin: "A"
   }
@@ -341,7 +335,6 @@ verb(
     laterals: ["validate"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "choose and name output columns",
     wave: 0,
     origin: "A"
   }
@@ -356,7 +349,6 @@ verb(
     laterals: ["validate"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "order rows by keys",
     wave: 0,
     origin: "A",
     contract: "sort(plan, opts) -> plan"
@@ -418,7 +410,6 @@ verb(
     laterals: ["validate"],
     fleet: "kueri",
     today: "exists:kueri",
-    meaning: "columns computed over ordered partitions",
     wave: 0,
     origin: "A"
   }

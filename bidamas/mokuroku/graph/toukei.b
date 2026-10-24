@@ -39,7 +39,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "how two series move together",
     wave: 0,
     origin: "G"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "strength of a linear link, -1 to 1",
     wave: 0,
     origin: "A"
   }
@@ -69,7 +67,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "how two series vary together",
     wave: 0,
     origin: "A"
   }
@@ -160,7 +157,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "arithmetic average; empty raises",
     wave: 0,
     origin: "A"
   }
@@ -175,7 +171,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "middle value",
     wave: 0,
     origin: "A"
   }
@@ -190,7 +185,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "most frequent value",
     wave: 0,
     origin: "A"
   }
@@ -205,7 +199,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "average over a sliding window",
     wave: 0,
     origin: "A"
   }
@@ -235,7 +228,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "values beyond the quartile fences",
     wave: 0,
     origin: "A"
   }
@@ -250,7 +242,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "value below which a share p falls",
     wave: 0,
     origin: "A"
   }
@@ -310,7 +301,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "square root of the variance",
     wave: 0,
     origin: "A"
   }
@@ -340,7 +330,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "mean squared distance from the mean",
     wave: 0,
     origin: "A"
   }
@@ -355,7 +344,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:toukei",
-    meaning: "distance from the mean in standard deviations",
     wave: 0,
     origin: "A"
   }

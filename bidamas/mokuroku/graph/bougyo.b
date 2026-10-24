@@ -190,7 +190,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:bougyo",
-    meaning: "inbound id is short and made of safe characters",
     wave: 0,
     origin: "D"
   }

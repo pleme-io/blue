@@ -1,3 +1,285 @@
+@moduledoc """
+anaritikusu (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
+
+Give it raifusaikuru definitions and the nisshi streams they were logged to,
+and it builds one DuckDB database: every stream's records, every entity's
+state after every record, the definition's own rules and tasks as tables,
+and a standard set of views per lifecycle (current state, time in each
+state, refusals and breaches per rule, tasks opened, closed and overdue,
+permits issued and their limits used), plus a join view per declared link.
+A new lifecycle gets all of it with no new code. Nothing here knows any
+domain.
+
+## The plan (stage 1 of the blue development cycle, written before the code)
+
+Reuse map, read from source on 2026-09-24:
+
+  states, edges, gates, guards, rules,  raifusaikuru  lc_d_*, lc_atoms,
+  tasks, permits                                     lc_pred_text, lc_task_*
+  the state after every record          nisshi        el_read + el_history
+                                                      (NEW: the fold read uses,
+                                                      kept per record)
+  canonical JSON text                   nisshi        el_canon_object
+  links declared per lifecycle          raifusaikuru  NEW clause lc_link
+  a permit's issuance, as a record      raifusaikuru  NEW clause lc_permit_log
+                                                      + lc_permit_event
+  queries as data, one renderer         kueri         EXTENDED: JSON Lines
+                                                      sources, literal-row
+                                                      relations, struct and
+                                                      list types, explode,
+                                                      lead/lag, coalesce, if,
+                                                      null tests, asof joins,
+                                                      views, a database script,
+                                                      a strict seam
+  a failed query must fail              makoto's private bunseki.strict_rows
+                                        → the same guarantee as kueri's q_rows
+                                        (public blue cannot need a private
+                                        package; bunseki's run_sql already
+                                        duplicates q_duckdb)
+  tidy records → one DuckDB database    makoto's lab (lab/lab.sql over tidy
+  of typed views                        TSVs, built by nix into lab.duckdb):
+                                        the SECOND instance, so its shape —
+                                        one script of loads then views, run
+                                        into one .duckdb file — is taken, and
+                                        the script is rendered by kueri,
+                                        never hand-written (lab.sql is
+                                        `pending-blue-sql`)
+
+The shape, and the one decision it rests on — facts from DuckDB, state from
+the one fold:
+
+  FACTS   DuckDB reads each stream as JSON Lines, with every column
+          declared (a value of the wrong type fails the load; it never reads
+          as NULL).
+  STATE   raifusaikuru's fold, through nisshi's replay, writes the state
+          after every record as JSON Lines beside the database. SQL never
+          folds: phases and fields come from the fold that append and read
+          share, so the analytics cannot disagree with the engine. SQL does
+          what it is for: windows, joins and aggregation.
+  RULES   the definition's own tables (edges, rules, task evidence) are
+          literal-row relations, so the database describes itself, and the
+          models join against them rather than restating them.
+  TYPES   derived from the definition, never declared (below).
+  LINKS   `lc_link(role, target)` on the referring lifecycle. The shape
+          declared relations already agree on (raifusaikuru's header): the
+          role is the link kind nisshi writes beside each id, the target a
+          lifecycle; one row per link, however many a record carries.
+
+Idioms: the `la_` prefix; typed errors (:anaritikusu_schema for a set of
+definitions the database cannot be generated from, :anaritikusu_broken for
+a stream whose chain is broken); pure, with `now` passed in (the models that
+reach the present read it as a literal); I/O only in la_write_history,
+la_build and la_read. The four tests and a differential end-to-end test
+(a simulated day, every number computed by hand in a comment), each red-run.
+
+Dependency order: the raifusaikuru clauses, then nisshi's history, then
+kueri's extensions, then this; each step shipped with its tests before the
+next.
+
+## Types, derived
+
+A field's or payload key's column type is read off the definition:
+constants (a field's initial value, lc_put, lc_add, lc_equals) give their
+own type; lc_stamp and lc_fresh make a time, BIGINT on the caller's clock; a
+comparison (lc_below …) or a counter makes a field numeric; lc_set and
+lc_add_from carry a key's values into a field, so a key flowing into a
+numeric field is a number, and DOUBLE, because a payload is written from
+outside and may be fractional. A permit log's keys are subject (VARCHAR) and
+BIGINT limits. Numbers widen (BIGINT with DOUBLE is DOUBLE); any other two
+types on one column are refused. What nothing constrains is VARCHAR, the
+value's JSON text — honest, not guessed.
+
+## The database, per lifecycle `n` (every name is a view)
+
+  n_records        the stream, as read (nested payload, refusal, links)
+  n_history        the fold's state after each record, as written here
+  n_edges n_rules n_task_evidence      the definition, as rows
+  n_events         one row per record: entity seq time type status
+                   refusal_kind refusal_detail links <payload keys> prev
+                   hash sig — the telemetry schema's event table
+  n_states         one row per record: entity seq phase <fields> breach
+                   breach_capability replay_refusal — the state table
+  n_steps          the two joined, plus phase_before
+  n_unreplayed     records with no state row (0 when the history is current)
+  n_current_state  one row per entity: its phase and fields now
+  n_state_intervals, n_time_in_state   seconds in each phase, up to `now`
+  n_refusals       refused records by type and kind
+  n_gates n_guard_hits n_rule_hit_counts n_rule_hits
+                   every declared rule with how often it refused an event
+                   and how often an applied event breached it
+  n_rule_tasks n_task_asks n_task_evidence_events n_task_closes n_tasks
+  n_task_summary   a task opens when a refusing rule asks for it (its own
+                   task, or its guard's), closes at the entity's first later
+                   admitted event of one of its evidence kinds, and is
+                   overdue when it stayed open longer than it may
+  n_permits_<c> n_uses_<c> n_permit_use_<c>, for a logged capability c:
+                   each permit issued, the uses of c after it (before its
+                   not_after and before the next permit), and uses past
+                   not_after (an overrun)
+  n_granted_<c> n_unpermitted_<c>
+                   every use no permit covered, and why: none issued before
+                   it (no_permit), its not_after passed (lapsed), or it broke
+                   the guard inside the window (breach) — permit_use counts
+                   by window alone
+  n_span_<s> n_span_<s>_summary (with n_span_<s>_from, n_span_<s>_to), for
+                   a declared lc_span s: per entity, the first entry into
+                   `from`, the first entry into `to` after it, the seconds
+                   between, the time elapsed to `now` while open, done / open
+                   / abandoned (ended in a terminal without reaching `to`),
+                   and whether it passed its limit; then one summary row
+
+and per declared link, A's role r to lifecycle B:
+
+  a_r_links        A's records carrying an r link: one row per link
+  a_r_state        B's states, keyed for the join
+  a_r              each link with B's state AS OF the record's time: the
+                   latest B record at or before it (NULL when B has none:
+                   a dangling or premature link stays visible)
+  a_r_coverage     links, and how many are unresolved
+  a_r_s            per pair A –r→ B –s→ C: each A link with B's latest s
+                   link at or before it and C's state as of that B record
+                   (an order's portion, and the consumable the portion was
+                   made with, as it was when the portion was made)
+
+## Tiers
+
+REFUSED WHEN GENERATED (:anaritikusu_schema): a link to a lifecycle not
+given; two lifecycles with one name; a payload key or field whose name is a
+generated column, or two whose names share a text; a column with two
+incompatible types; any two generated relations with one name.
+REFUSED WHEN BUILT (:anaritikusu_broken): a stream whose chain el_verify
+breaks (unsigned: signatures are the caller's, through el_open).
+LOUD AT LOAD: a payload value not of its derived type fails DuckDB's load.
+NOT CHECKED: that times within an entity's stream never decrease (a task's
+close is its first later evidence by seq, its time the evidence's own);
+"as of" is at-or-before by time, so a target record at the same second as
+the event counts as before it.
+
+## Tests, and the red run that turned each one red (2026-09-24)
+
+34 of 34 mutations red across this package and the three it extended, each
+applied by a driver that refuses a target not present exactly once. Here:
+
+  the telemetry schema               A12 a numeric key typed as text
+  the history                        A15 the last record dropped · A16 a
+                                     constant phase · A20 refused records
+                                     folded (nisshi's fold; also the day)
+  the simulated day (every number    A1 current state from the oldest record ·
+    by hand, and the fold as the     A2 open intervals ending at 0 · A3
+    differential)                    refusals counting admitted records · A4
+                                     guard refusals missed · A5 tasks closed by
+                                     earlier evidence · A6 overdue reversed ·
+                                     A7 an overrun counted as a use · A8 a link
+                                     joined exactly · A9 the link kind ignored ·
+                                     A10 coverage inverted · A11 a chain joined
+                                     exactly · A14 open tasks not measured to
+                                     now · A18 a link to a missing lifecycle
+  the stricter reader                A13 a breach marked on every later record
+  refusals where generated or built  A17 a broken stream built on · A19
+                                     generated names unchecked
+
+A20 is the reason the numbers are computed by hand: it corrupts the fold
+both sides of the differential share, so the two still agree, and only the
+hand-computed uses (4, not 5) go red.
+
+Added 2026-09-25 (spans and uses no permit covered, for NuPastel's measures,
+nupastel docs/plans/measures.md), 7 of 7 mutations red:
+
+  the simulated day: spans by hand   A21 a span starting where it ends · A22
+                                     an abandoned span read as open · A23 an
+                                     open span's time ending at 0 · A24 the
+                                     limit ignored · A26 (also below)
+  observed breaches and uncovered    A25 a breach inside a window counted as
+    uses, and the attempted control  covered · A26 the permit in force found by
+                                     equal seq, not as of · A27 a use before
+                                     any permit counted as covered
+
+Not covered, so not claimed: dropping the "after `from`" filter on a span's
+end changes nothing in an acyclic lifecycle, and no example has a cycle.
+
+Fixed 2026-09-25, found by NuPastel's bench day (9 orders joined to their
+oil's state before their own load, 132 pack links to a pack before its
+takes): the one-hop link's as-of join matched on time alone, so with two
+records of the linked entity in one second it took either. Now the state
+after the LAST record in that second. Red: A28 the tie-break dropped, A29
+the tie broken toward the earlier record; both turn the tie test red. The
+chain view (a_r_s) can still meet two links of one record, which is
+inherent in "B's latest s link" and left as it is.
+
+## The benchmark (2026-09-24)
+
+nisshi's worked stream, 10,000 events over 100 consumables (5,500 refused
+by the guard), built with la_build; Apple M4 Pro, release blue 0.0.39,
+single runs:
+
+                       first version   hot path fixed
+  el_history           1.02 s          1.02 s    102 µs a record
+  la_history_text      4.59 s          2.30 s    (includes el_history)
+  la_build             8.39 s          6.07 s    read 1.9 s, verify ~1.8 s,
+                                                 history 2.3 s, DuckDB <0.1 s
+  a query              62 ms           69 ms     (count, over the views)
+
+DuckDB, over the generated views, counts the same 10,000 records, 5,500
+refused and 100 entities nisshi measured. What moved it: the history line
+was canonical JSON sorted per line; its keys are fixed, so they are now
+written in order (the same 1,724,600 bytes). What remains, in order:
+nisshi's read and verify, then el_history (its push is quadratic, 102 µs a
+record at 10,000) and each line's fields object.
+
+## Words blue is missing (stage 5 candidates, not built here)
+
+Where this package wrote repetition by hand, the word that would remove it.
+The first five were listed by nisshi; this build adds evidence to each.
+
+- A RECORD: la_binding and la_stream are maps with hand accessors, and
+  raifusaikuru's definition grew two positional slots (links, permit logs)
+  read by nth(12, d) and nth(13, d).
+- A CLOSED KIND SET: lc_problem_kinds grew by two, each with its
+  hand-written row in the every-kind test.
+- A GUARD: this file raises in 12 places, 10 of them in the shape
+  `if … throw(error(:anaritikusu_…, "…")) end`.
+- DEFAULT ARGUMENTS: la_build_history passes el_verify(log, nil, nil).
+- A RED-RUN WORD, now EARNED: this build's driver (34 mutations, [label,
+  file, old, new, test file] → red or green with the failing tests) and
+  nisshi's (18 mutations) were written independently and agree on the shape
+  and on the one constant, a target must occur exactly once. Not small once
+  gated (a Bluefile word and a check that runs it), so listed, not built.
+- AN O(1) APPEND: el_history grows its rows with push (see the benchmark).
+- A NIL DEFAULT (`v`, or `fallback` when nil): written by hand 12 times in
+  5 packages (7 as `if v == nil … else v end`, one of them el_history's; 5
+  as `if v == nil v = … end` in kueri; counted 2026-09-24), and defined once
+  as makoto's private jikken.if_nil, a second, independent derivation. A
+  public one would turn makoto's collision gate red, so it lands with makoto
+  deleting its copy in the same change.
+- A KEYWORD FROM TEXT: kueri reads a keyword as a column and a string as a
+  value, so a column name this package computes (`"#{role}_seq"`) renders as
+  a quoted literal inside an expression unless wrapped in q_c. Four sites
+  here; two were bugs, found only by reading the rendered SQL. With a way to
+  make a keyword from text (BLUE-BATTERIES blocker 2), generated names would
+  be keywords and the trap would not exist.
+- A RENAME-WITH-PREFIX STAGE: putting a relation's columns under a prefix
+  is written by hand in la_link_state_model (`q_as("#{r}_#{f}", q_c(f))`
+  per field), again as bare names in la_link_state_names, and as five
+  one-by-one renames in the chain's via.
+- CONTENT IDENTITY FOR QUERY NODES: kueri identifies a node by its name, so
+  two different relations with one name collapse silently; la_check_unique
+  exists only to stop that. A node hashed by its rendering (shomei is
+  there) would refuse it in kueri itself.
+- A RAW STRING: a string literal holding `#{` is always interpolated, so a
+  program carrying blue source text builds the opener as concat("#", "{").
+- A DECLARED KEY TYPE: `grams` reads as a number only because its field
+  starts at 0; a key nothing in the definition constrains reads as text. A
+  type on lc_event's keys, enforced by the fold (:bad_payload for a
+  mistyped value), would make it declared and checked.
+- MOVE bunseki.strict_rows and run_sql to kueri's q_rows / q_duckdb (makoto,
+  private): the public seam now gives the same guarantee.
+(Closed 2026-09-25: NESTED VALUES READ BACK TYPED. kueri's q_rows now reads
+through `to_json`, so a LIST column such as the breach column of
+n_unpermitted_<c> comes back as a list, not as its text "[quality_ok]".)
+
+    field_types(example_portion) #=> [["grams", :double], ["made_at", :bigint], ["served_at", :bigint]]
+"""
+
 use("deeta", [:as_json])
 
 use(
@@ -33,292 +315,18 @@ use("shuugou", [:lookup, :set_equal, :unique, :unique_by])
 
 legacy_names("0.1.1", "la")
 
-# anaritikusu (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
-#
-# Give it raifusaikuru definitions and the nisshi streams they were logged to,
-# and it builds one DuckDB database: every stream's records, every entity's
-# state after every record, the definition's own rules and tasks as tables,
-# and a standard set of views per lifecycle (current state, time in each
-# state, refusals and breaches per rule, tasks opened, closed and overdue,
-# permits issued and their limits used), plus a join view per declared link.
-# A new lifecycle gets all of it with no new code. Nothing here knows any
-# domain.
-#
-# ## The plan (stage 1 of the blue development cycle, written before the code)
-#
-# Reuse map, read from source on 2026-09-24:
-#
-#   states, edges, gates, guards, rules,  raifusaikuru  lc_d_*, lc_atoms,
-#   tasks, permits                                     lc_pred_text, lc_task_*
-#   the state after every record          nisshi        el_read + el_history
-#                                                       (NEW: the fold read uses,
-#                                                       kept per record)
-#   canonical JSON text                   nisshi        el_canon_object
-#   links declared per lifecycle          raifusaikuru  NEW clause lc_link
-#   a permit's issuance, as a record      raifusaikuru  NEW clause lc_permit_log
-#                                                       + lc_permit_event
-#   queries as data, one renderer         kueri         EXTENDED: JSON Lines
-#                                                       sources, literal-row
-#                                                       relations, struct and
-#                                                       list types, explode,
-#                                                       lead/lag, coalesce, if,
-#                                                       null tests, asof joins,
-#                                                       views, a database script,
-#                                                       a strict seam
-#   a failed query must fail              makoto's private bunseki.strict_rows
-#                                         → the same guarantee as kueri's q_rows
-#                                         (public blue cannot need a private
-#                                         package; bunseki's run_sql already
-#                                         duplicates q_duckdb)
-#   tidy records → one DuckDB database    makoto's lab (lab/lab.sql over tidy
-#   of typed views                        TSVs, built by nix into lab.duckdb):
-#                                         the SECOND instance, so its shape —
-#                                         one script of loads then views, run
-#                                         into one .duckdb file — is taken, and
-#                                         the script is rendered by kueri,
-#                                         never hand-written (lab.sql is
-#                                         `pending-blue-sql`)
-#
-# The shape, and the one decision it rests on — facts from DuckDB, state from
-# the one fold:
-#
-#   FACTS   DuckDB reads each stream as JSON Lines, with every column
-#           declared (a value of the wrong type fails the load; it never reads
-#           as NULL).
-#   STATE   raifusaikuru's fold, through nisshi's replay, writes the state
-#           after every record as JSON Lines beside the database. SQL never
-#           folds: phases and fields come from the fold that append and read
-#           share, so the analytics cannot disagree with the engine. SQL does
-#           what it is for: windows, joins and aggregation.
-#   RULES   the definition's own tables (edges, rules, task evidence) are
-#           literal-row relations, so the database describes itself, and the
-#           models join against them rather than restating them.
-#   TYPES   derived from the definition, never declared (below).
-#   LINKS   `lc_link(role, target)` on the referring lifecycle. The shape
-#           declared relations already agree on (raifusaikuru's header): the
-#           role is the link kind nisshi writes beside each id, the target a
-#           lifecycle; one row per link, however many a record carries.
-#
-# Idioms: the `la_` prefix; typed errors (:anaritikusu_schema for a set of
-# definitions the database cannot be generated from, :anaritikusu_broken for
-# a stream whose chain is broken); pure, with `now` passed in (the models that
-# reach the present read it as a literal); I/O only in la_write_history,
-# la_build and la_read. The four tests and a differential end-to-end test
-# (a simulated day, every number computed by hand in a comment), each red-run.
-#
-# Dependency order: the raifusaikuru clauses, then nisshi's history, then
-# kueri's extensions, then this; each step shipped with its tests before the
-# next.
-#
-# ## Types, derived
-#
-# A field's or payload key's column type is read off the definition:
-# constants (a field's initial value, lc_put, lc_add, lc_equals) give their
-# own type; lc_stamp and lc_fresh make a time, BIGINT on the caller's clock; a
-# comparison (lc_below …) or a counter makes a field numeric; lc_set and
-# lc_add_from carry a key's values into a field, so a key flowing into a
-# numeric field is a number, and DOUBLE, because a payload is written from
-# outside and may be fractional. A permit log's keys are subject (VARCHAR) and
-# BIGINT limits. Numbers widen (BIGINT with DOUBLE is DOUBLE); any other two
-# types on one column are refused. What nothing constrains is VARCHAR, the
-# value's JSON text — honest, not guessed.
-#
-# ## The database, per lifecycle `n` (every name is a view)
-#
-#   n_records        the stream, as read (nested payload, refusal, links)
-#   n_history        the fold's state after each record, as written here
-#   n_edges n_rules n_task_evidence      the definition, as rows
-#   n_events         one row per record: entity seq time type status
-#                    refusal_kind refusal_detail links <payload keys> prev
-#                    hash sig — the telemetry schema's event table
-#   n_states         one row per record: entity seq phase <fields> breach
-#                    breach_capability replay_refusal — the state table
-#   n_steps          the two joined, plus phase_before
-#   n_unreplayed     records with no state row (0 when the history is current)
-#   n_current_state  one row per entity: its phase and fields now
-#   n_state_intervals, n_time_in_state   seconds in each phase, up to `now`
-#   n_refusals       refused records by type and kind
-#   n_gates n_guard_hits n_rule_hit_counts n_rule_hits
-#                    every declared rule with how often it refused an event
-#                    and how often an applied event breached it
-#   n_rule_tasks n_task_asks n_task_evidence_events n_task_closes n_tasks
-#   n_task_summary   a task opens when a refusing rule asks for it (its own
-#                    task, or its guard's), closes at the entity's first later
-#                    admitted event of one of its evidence kinds, and is
-#                    overdue when it stayed open longer than it may
-#   n_permits_<c> n_uses_<c> n_permit_use_<c>, for a logged capability c:
-#                    each permit issued, the uses of c after it (before its
-#                    not_after and before the next permit), and uses past
-#                    not_after (an overrun)
-#   n_granted_<c> n_unpermitted_<c>
-#                    every use no permit covered, and why: none issued before
-#                    it (no_permit), its not_after passed (lapsed), or it broke
-#                    the guard inside the window (breach) — permit_use counts
-#                    by window alone
-#   n_span_<s> n_span_<s>_summary (with n_span_<s>_from, n_span_<s>_to), for
-#                    a declared lc_span s: per entity, the first entry into
-#                    `from`, the first entry into `to` after it, the seconds
-#                    between, the time elapsed to `now` while open, done / open
-#                    / abandoned (ended in a terminal without reaching `to`),
-#                    and whether it passed its limit; then one summary row
-#
-# and per declared link, A's role r to lifecycle B:
-#
-#   a_r_links        A's records carrying an r link: one row per link
-#   a_r_state        B's states, keyed for the join
-#   a_r              each link with B's state AS OF the record's time: the
-#                    latest B record at or before it (NULL when B has none:
-#                    a dangling or premature link stays visible)
-#   a_r_coverage     links, and how many are unresolved
-#   a_r_s            per pair A –r→ B –s→ C: each A link with B's latest s
-#                    link at or before it and C's state as of that B record
-#                    (an order's portion, and the consumable the portion was
-#                    made with, as it was when the portion was made)
-#
-# ## Tiers
-#
-# REFUSED WHEN GENERATED (:anaritikusu_schema): a link to a lifecycle not
-# given; two lifecycles with one name; a payload key or field whose name is a
-# generated column, or two whose names share a text; a column with two
-# incompatible types; any two generated relations with one name.
-# REFUSED WHEN BUILT (:anaritikusu_broken): a stream whose chain el_verify
-# breaks (unsigned: signatures are the caller's, through el_open).
-# LOUD AT LOAD: a payload value not of its derived type fails DuckDB's load.
-# NOT CHECKED: that times within an entity's stream never decrease (a task's
-# close is its first later evidence by seq, its time the evidence's own);
-# "as of" is at-or-before by time, so a target record at the same second as
-# the event counts as before it.
-#
-# ## Tests, and the red run that turned each one red (2026-09-24)
-#
-# 34 of 34 mutations red across this package and the three it extended, each
-# applied by a driver that refuses a target not present exactly once. Here:
-#
-#   the telemetry schema               A12 a numeric key typed as text
-#   the history                        A15 the last record dropped · A16 a
-#                                      constant phase · A20 refused records
-#                                      folded (nisshi's fold; also the day)
-#   the simulated day (every number    A1 current state from the oldest record ·
-#     by hand, and the fold as the     A2 open intervals ending at 0 · A3
-#     differential)                    refusals counting admitted records · A4
-#                                      guard refusals missed · A5 tasks closed by
-#                                      earlier evidence · A6 overdue reversed ·
-#                                      A7 an overrun counted as a use · A8 a link
-#                                      joined exactly · A9 the link kind ignored ·
-#                                      A10 coverage inverted · A11 a chain joined
-#                                      exactly · A14 open tasks not measured to
-#                                      now · A18 a link to a missing lifecycle
-#   the stricter reader                A13 a breach marked on every later record
-#   refusals where generated or built  A17 a broken stream built on · A19
-#                                      generated names unchecked
-#
-# A20 is the reason the numbers are computed by hand: it corrupts the fold
-# both sides of the differential share, so the two still agree, and only the
-# hand-computed uses (4, not 5) go red.
-#
-# Added 2026-09-25 (spans and uses no permit covered, for NuPastel's measures,
-# nupastel docs/plans/measures.md), 7 of 7 mutations red:
-#
-#   the simulated day: spans by hand   A21 a span starting where it ends · A22
-#                                      an abandoned span read as open · A23 an
-#                                      open span's time ending at 0 · A24 the
-#                                      limit ignored · A26 (also below)
-#   observed breaches and uncovered    A25 a breach inside a window counted as
-#     uses, and the attempted control  covered · A26 the permit in force found by
-#                                      equal seq, not as of · A27 a use before
-#                                      any permit counted as covered
-#
-# Not covered, so not claimed: dropping the "after `from`" filter on a span's
-# end changes nothing in an acyclic lifecycle, and no example has a cycle.
-#
-# Fixed 2026-09-25, found by NuPastel's bench day (9 orders joined to their
-# oil's state before their own load, 132 pack links to a pack before its
-# takes): the one-hop link's as-of join matched on time alone, so with two
-# records of the linked entity in one second it took either. Now the state
-# after the LAST record in that second. Red: A28 the tie-break dropped, A29
-# the tie broken toward the earlier record; both turn the tie test red. The
-# chain view (a_r_s) can still meet two links of one record, which is
-# inherent in "B's latest s link" and left as it is.
-#
-# ## The benchmark (2026-09-24)
-#
-# nisshi's worked stream, 10,000 events over 100 consumables (5,500 refused
-# by the guard), built with la_build; Apple M4 Pro, release blue 0.0.39,
-# single runs:
-#
-#                        first version   hot path fixed
-#   el_history           1.02 s          1.02 s    102 µs a record
-#   la_history_text      4.59 s          2.30 s    (includes el_history)
-#   la_build             8.39 s          6.07 s    read 1.9 s, verify ~1.8 s,
-#                                                  history 2.3 s, DuckDB <0.1 s
-#   a query              62 ms           69 ms     (count, over the views)
-#
-# DuckDB, over the generated views, counts the same 10,000 records, 5,500
-# refused and 100 entities nisshi measured. What moved it: the history line
-# was canonical JSON sorted per line; its keys are fixed, so they are now
-# written in order (the same 1,724,600 bytes). What remains, in order:
-# nisshi's read and verify, then el_history (its push is quadratic, 102 µs a
-# record at 10,000) and each line's fields object.
-#
-# ## Words blue is missing (stage 5 candidates, not built here)
-#
-# Where this package wrote repetition by hand, the word that would remove it.
-# The first five were listed by nisshi; this build adds evidence to each.
-#
-# - A RECORD: la_binding and la_stream are maps with hand accessors, and
-#   raifusaikuru's definition grew two positional slots (links, permit logs)
-#   read by nth(12, d) and nth(13, d).
-# - A CLOSED KIND SET: lc_problem_kinds grew by two, each with its
-#   hand-written row in the every-kind test.
-# - A GUARD: this file raises in 12 places, 10 of them in the shape
-#   `if … throw(error(:anaritikusu_…, "…")) end`.
-# - DEFAULT ARGUMENTS: la_build_history passes el_verify(log, nil, nil).
-# - A RED-RUN WORD, now EARNED: this build's driver (34 mutations, [label,
-#   file, old, new, test file] → red or green with the failing tests) and
-#   nisshi's (18 mutations) were written independently and agree on the shape
-#   and on the one constant, a target must occur exactly once. Not small once
-#   gated (a Bluefile word and a check that runs it), so listed, not built.
-# - AN O(1) APPEND: el_history grows its rows with push (see the benchmark).
-# - A NIL DEFAULT (`v`, or `fallback` when nil): written by hand 12 times in
-#   5 packages (7 as `if v == nil … else v end`, one of them el_history's; 5
-#   as `if v == nil v = … end` in kueri; counted 2026-09-24), and defined once
-#   as makoto's private jikken.if_nil, a second, independent derivation. A
-#   public one would turn makoto's collision gate red, so it lands with makoto
-#   deleting its copy in the same change.
-# - A KEYWORD FROM TEXT: kueri reads a keyword as a column and a string as a
-#   value, so a column name this package computes (`"#{role}_seq"`) renders as
-#   a quoted literal inside an expression unless wrapped in q_c. Four sites
-#   here; two were bugs, found only by reading the rendered SQL. With a way to
-#   make a keyword from text (BLUE-BATTERIES blocker 2), generated names would
-#   be keywords and the trap would not exist.
-# - A RENAME-WITH-PREFIX STAGE: putting a relation's columns under a prefix
-#   is written by hand in la_link_state_model (`q_as("#{r}_#{f}", q_c(f))`
-#   per field), again as bare names in la_link_state_names, and as five
-#   one-by-one renames in the chain's via.
-# - CONTENT IDENTITY FOR QUERY NODES: kueri identifies a node by its name, so
-#   two different relations with one name collapse silently; la_check_unique
-#   exists only to stop that. A node hashed by its rendering (shomei is
-#   there) would refuse it in kueri itself.
-# - A RAW STRING: a string literal holding `#{` is always interpolated, so a
-#   program carrying blue source text builds the opener as concat("#", "{").
-# - A DECLARED KEY TYPE: `grams` reads as a number only because its field
-#   starts at 0; a key nothing in the definition constrains reads as text. A
-#   type on lc_event's keys, enforced by the fold (:bad_payload for a
-#   mistyped value), would make it declared and checked.
-# - MOVE bunseki.strict_rows and run_sql to kueri's q_rows / q_duckdb (makoto,
-#   private): the public seam now gives the same guarantee.
-# (Closed 2026-09-25: NESTED VALUES READ BACK TYPED. kueri's q_rows now reads
-# through `to_json`, so a LIST column such as the breach column of
-# n_unpermitted_<c> comes back as a list, not as its text "[quality_ok]".)
-
 # ── names ──────────────────────────────────────────────────────────────────
 
-# A generated relation's name: the lifecycle's name, then `suffix`.
+@doc """
+n: A generated relation's name: the lifecycle's name, then `suffix`.
+"""
 def n(d, suffix)
   "#{raifusaikuru::text(raifusaikuru::name(d))}_#{suffix}"
 end
 
-# The record columns an event log writes, as the events view names them.
+@doc """
+record_names: The record columns an event log writes, as the events view names them.
+"""
 def record_names()
   [
     "entity",
@@ -335,8 +343,10 @@ def record_names()
   ]
 end
 
-# The columns a state row carries besides the fields, and the ones the steps
-# view adds: no field may take one of these names.
+@doc """
+state_names: The columns a state row carries besides the fields, and the ones the steps
+view adds: no field may take one of these names.
+"""
 def state_names()
   [
     "entity",
@@ -356,7 +366,9 @@ end
 
 # ── types, derived from the definition ─────────────────────────────────────
 
-# A constant's column type, or nil for nil. A keyword is written as its text.
+@doc """
+lit_type: A constant's column type, or nil for nil. A keyword is written as its text.
+"""
 def lit_type(v)
   if v.nil?
     nil
@@ -375,8 +387,10 @@ def numeric?(t)
   t == :bigint or t == :double
 end
 
-# One type from several, nil for none: numbers widen to DOUBLE, and anything
-# else must agree.
+@doc """
+merge: One type from several, nil for none: numbers widen to DOUBLE, and anything
+else must agree.
+"""
 def merge(ts, what)
   known = unique(filter((t) -> t != nil, ts))
   if is_empty(known)
@@ -393,13 +407,17 @@ def merge(ts, what)
   end
 end
 
-# Every effect of every row: [:set f k], [:put f v], [:add f n], [:add_key f
-# k], [:stamp f].
+@doc """
+effects: Every effect of every row: [:set f k], [:put f v], [:add f n], [:add_key f
+k], [:stamp f].
+"""
 def effects(d)
   flat_map(raifusaikuru::d_edges(d), (e) -> nth(4, e))
 end
 
-# Every atomic predicate of every rule of every guard.
+@doc """
+atoms: Every atomic predicate of every rule of every guard.
+"""
 def atoms(d)
   flat_map(
     raifusaikuru::d_guards(d),
@@ -407,7 +425,9 @@ def atoms(d)
   )
 end
 
-# The types the definition's constants and clocks give field `f`.
+@doc """
+field_evidence: The types the definition's constants and clocks give field `f`.
+"""
 def field_evidence(d, f)
   effects = map(
     effect_type,
@@ -441,7 +461,9 @@ def atom_type(a)
   end
 end
 
-# Field `f` holds a number: compared, counted, or given a numeric constant.
+@doc """
+needs_number?: Field `f` holds a number: compared, counted, or given a numeric constant.
+"""
 def needs_number?(d, f)
   compared = count_where(
     (a) -> contains([:lt, :le, :gt, :ge], first(a)) and nth(1, a) == f,
@@ -456,7 +478,9 @@ def needs_number?(d, f)
     numeric?(merge(field_evidence(d, f), "field #{raifusaikuru::show(f)}"))
 end
 
-# The effects that carry payload key `k` (by its text) into a field.
+@doc """
+flows_of_key: The effects that carry payload key `k` (by its text) into a field.
+"""
 def flows_of_key(d, k)
   filter(
     fn(x)
@@ -467,8 +491,10 @@ def flows_of_key(d, k)
   )
 end
 
-# A logged permit's key types by text: subject is text, the limits are whole
-# numbers.
+@doc """
+permit_key_types: A logged permit's key types by text: subject is text, the limits are whole
+numbers.
+"""
 def permit_key_types(d)
   logged = map((l) -> nth(1, l), raifusaikuru::d_permit_logs(d))
   keys = flat_map(
@@ -486,7 +512,9 @@ def permit_key_type(k)
   end
 end
 
-# A payload key's column type (see "Types, derived").
+@doc """
+key_type: A payload key's column type (see "Types, derived").
+"""
 def key_type(d, k)
   fixed = lookup(permit_key_types(d), raifusaikuru::text(k))
   if fixed != nil
@@ -512,7 +540,9 @@ def key_type(d, k)
   end
 end
 
-# A field's column type (see "Types, derived").
+@doc """
+field_type: A field's column type (see "Types, derived").
+"""
 def field_type(d, f)
   keys = map(
     (x) -> key_type(d, nth(2, x)),
@@ -534,8 +564,10 @@ def field_type(d, f)
   end
 end
 
-# Every payload key any event declares, once by its text, first-declared
-# first: the event table's columns after the record's.
+@doc """
+keys: Every payload key any event declares, once by its text, first-declared
+first: the event table's columns after the record's.
+"""
 def keys(d)
   unique_by(
     (k) -> raifusaikuru::text(k),
@@ -543,12 +575,18 @@ def keys(d)
   )
 end
 
-# [name, type] for every payload key, the name as text.
+@doc """
+key_types: [name, type] for every payload key, the name as text.
+"""
 def key_types(d)
   map((k) -> [raifusaikuru::text(k), key_type(d, k)], keys(d))
 end
 
-# [name, type] for every field, in declaration order, the name as text.
+@doc """
+field_types: [name, type] for every field, in declaration order, the name as text.
+
+    field_types(example_portion) #=> [["grams", :double], ["made_at", :bigint], ["served_at", :bigint]]
+"""
 def field_types(d)
   map(
     (f) -> [raifusaikuru::text(f), field_type(d, f)],
@@ -562,7 +600,9 @@ def link_type()
   kueri::struct_of([kueri::col(:id, :varchar), kueri::col(:kind, :varchar)])
 end
 
-# The event table's columns, as q_col: the record's, then every payload key.
+@doc """
+event_columns: The event table's columns, as q_col: the record's, then every payload key.
+"""
 def event_columns(d)
   check_names(d)
   keys = map((kt) -> kueri::col(first(kt), nth(1, kt)), key_types(d))
@@ -588,8 +628,10 @@ def event_columns(d)
   )
 end
 
-# The state table's columns, as q_col: which record, the phase, every field,
-# and what the replay found (a breach, or a refusal of an admitted record).
+@doc """
+state_columns: The state table's columns, as q_col: which record, the phase, every field,
+and what the replay found (a breach, or a refusal of an admitted record).
+"""
 def state_columns(d)
   check_names(d)
   fields = map((ft) -> kueri::col(first(ft), nth(1, ft)), field_types(d))
@@ -610,13 +652,17 @@ def state_columns(d)
   )
 end
 
-# [column, type] pairs of a q_col list, types as SQL: what a reader checks.
+@doc """
+columns_text: [column, type] pairs of a q_col list, types as SQL: what a reader checks.
+"""
 def columns_text(cols)
   map((c) -> [get(c, :name), kueri::type_sql(get(c, :type), :duckdb)], cols)
 end
 
-# Refuse a definition whose keys or fields would take a generated column's
-# name, or share a text with each other.
+@doc """
+check_names: Refuse a definition whose keys or fields would take a generated column's
+name, or share a text with each other.
+"""
 def check_names(d)
   keys = map((k) -> raifusaikuru::text(k), anaritikusu::keys(d))
   fields = map((f) -> raifusaikuru::text(f), raifusaikuru::d_field_names(d))
@@ -646,8 +692,10 @@ end
 
 # ── bindings: a definition, its stream, and where its history is written ──
 
-# One lifecycle to analyse: its definition, the path of its nisshi stream,
-# and the path its history (the state after every record) is written to.
+@doc """
+binding: One lifecycle to analyse: its definition, the path of its nisshi stream,
+and the path its history (the state after every record) is written to.
+"""
 def binding(d, stream, history)
   raifusaikuru::name(d)
   {def: d, stream:, history:}
@@ -660,8 +708,10 @@ end
 
 # ── sources: what is loaded ────────────────────────────────────────────────
 
-# The stream as nisshi writes it, every column declared (the payload as a
-# struct of the derived key types; no payload column when no event has keys).
+@doc """
+records_source: The stream as nisshi writes it, every column declared (the payload as a
+struct of the derived key types; no payload column when no event has keys).
+"""
 def records_source(d, path)
   keys = key_types(d)
   payload = if is_empty(keys)
@@ -701,7 +751,9 @@ def records_source(d, path)
   )
 end
 
-# The history la_write_history writes: the state after each record.
+@doc """
+history_source: The history la_write_history writes: the state after each record.
+"""
 def history_source(d, path)
   fields = field_types(d)
   struct = if is_empty(fields)
@@ -744,8 +796,10 @@ def text_or_nil(x)
   end
 end
 
-# Every row: the phase it leaves, the event, the phase it enters, and the
-# capability that gates it (NULL when none).
+@doc """
+edges_rel: Every row: the phase it leaves, the event, the phase it enters, and the
+capability that gates it (NULL when none).
+"""
 def edges_rel(d)
   rows = map(
     fn(e)
@@ -772,9 +826,11 @@ def edges_rel(d)
   )
 end
 
-# Every rule of every guard: what it needs, in the engine's own words, and
-# the task it asks for when it refuses (its own, else its guard's; NULL when
-# neither names one).
+@doc """
+rules_rel: Every rule of every guard: what it needs, in the engine's own words, and
+the task it asks for when it refuses (its own, else its guard's; NULL when
+neither names one).
+"""
 def rules_rel(d)
   rows = flat_map(
     raifusaikuru::d_guards(d),
@@ -815,7 +871,9 @@ def rule_row(g, r)
   )
 end
 
-# Every task any rule may ask for, one row per evidence kind that closes it.
+@doc """
+task_evidence_rel: Every task any rule may ask for, one row per evidence kind that closes it.
+"""
 def task_evidence_rel(d)
   tasks = flat_map(
     raifusaikuru::d_guards(d),
@@ -858,7 +916,9 @@ def field_names(d)
   map((ft) -> first(ft), field_types(d))
 end
 
-# The event table: one row per record, the payload's keys as columns.
+@doc """
+events_model: The event table: one row per record, the payload's keys as columns.
+"""
 def events_model(d, records)
   keys = map(
     (kt) -> kueri::as(first(kt), q_get(:payload, first(kt))),
@@ -883,7 +943,9 @@ def events_model(d, records)
   view(d, "events", records, [kueri::select(items)])
 end
 
-# The state table: one row per record, the fields as columns.
+@doc """
+states_model: The state table: one row per record, the fields as columns.
+"""
 def states_model(d, history)
   fields = map((f) -> kueri::as(f, q_get(:fields, f)), field_names(d))
   items = concat_lists(
@@ -893,7 +955,9 @@ def states_model(d, history)
   view(d, "states", history, [kueri::select(items)])
 end
 
-# Records and states joined, with the phase each record found its entity in.
+@doc """
+steps_model: Records and states joined, with the phase each record found its entity in.
+"""
 def steps_model(d, events, states)
   start = raifusaikuru::text(raifusaikuru::phase(raifusaikuru::initial(d)))
   view(
@@ -913,8 +977,10 @@ def steps_model(d, events, states)
   )
 end
 
-# Records the history has no state for: 0 when it was written from this
-# stream.
+@doc """
+unreplayed_model: Records the history has no state for: 0 when it was written from this
+stream.
+"""
 def unreplayed_model(d, events, states)
   view(
     d,
@@ -929,7 +995,9 @@ def unreplayed_model(d, events, states)
   )
 end
 
-# One row per entity: its phase and fields after its last record.
+@doc """
+current_state_model: One row per entity: its phase and fields after its last record.
+"""
 def current_state_model(d, steps)
   items = concat_lists(
     concat_lists([:entity, :phase], field_names(d)),
@@ -950,8 +1018,10 @@ def current_state_model(d, steps)
   )
 end
 
-# Each record's phase held from its time until the entity's next record, or
-# until `now` for the last.
+@doc """
+intervals_model: Each record's phase held from its time until the entity's next record, or
+until `now` for the last.
+"""
 def intervals_model(d, steps, now)
   view(
     d,
@@ -967,8 +1037,10 @@ def intervals_model(d, steps, now)
   )
 end
 
-# Seconds per entity in each phase it has been in; ongoing is 1 for the
-# phase it is in now.
+@doc """
+time_in_state_model: Seconds per entity in each phase it has been in; ongoing is 1 for the
+phase it is in now.
+"""
 def time_in_state_model(d, intervals)
   view(
     d,
@@ -986,7 +1058,9 @@ def time_in_state_model(d, intervals)
   )
 end
 
-# Refused records by event type and refusal kind.
+@doc """
+refusals_model: Refused records by event type and refusal kind.
+"""
 def refusals_model(d, events)
   view(
     d,
@@ -1002,7 +1076,9 @@ def refusals_model(d, events)
   )
 end
 
-# The gated rows: which capability an event in a phase uses.
+@doc """
+gates_model: The gated rows: which capability an event in a phase uses.
+"""
 def gates_model(d, edges)
   view(
     d,
@@ -1015,10 +1091,12 @@ def gates_model(d, edges)
   )
 end
 
-# One row per rule a guard applied against a record: refused (the log
-# refused the event) or breach (the replay applied it while the guard
-# refused, which happens when the definition read is stricter than the one
-# that wrote).
+@doc """
+guard_hits_model: One row per rule a guard applied against a record: refused (the log
+refused the event) or breach (the replay applied it while the guard
+refused, which happens when the definition read is stricter than the one
+that wrote).
+"""
 def guard_hits_model(d, steps, gates)
   view(
     d,
@@ -1092,8 +1170,10 @@ def rule_hit_counts_model(d, hits)
   )
 end
 
-# Every declared rule, with how often it refused and was breached (0 when
-# never: a rule that never fired is information too).
+@doc """
+rule_hits_model: Every declared rule, with how often it refused and was breached (0 when
+never: a rule that never fired is information too).
+"""
 def rule_hits_model(d, rules, counts)
   view(
     d,
@@ -1127,7 +1207,9 @@ def rule_tasks_model(d, rules)
   )
 end
 
-# Each record's asks: one row per task a refusal or breach asked for.
+@doc """
+task_asks_model: Each record's asks: one row per task a refusal or breach asked for.
+"""
 def task_asks_model(d, hits, rule_tasks)
   view(
     d,
@@ -1143,7 +1225,9 @@ def task_asks_model(d, hits, rule_tasks)
   )
 end
 
-# Admitted events that are evidence for a task.
+@doc """
+task_evidence_events_model: Admitted events that are evidence for a task.
+"""
 def task_evidence_events_model(d, steps, evidence)
   view(
     d,
@@ -1167,7 +1251,9 @@ def task_evidence_events_model(d, steps, evidence)
   )
 end
 
-# Each ask with the first later evidence of its task on its entity.
+@doc """
+task_closes_model: Each ask with the first later evidence of its task on its entity.
+"""
 def task_closes_model(d, asks, evidence_events)
   later = kueri::gt(:evidence_seq, :seq)
   view(
@@ -1187,9 +1273,11 @@ def task_closes_model(d, asks, evidence_events)
   )
 end
 
-# One row per task: the asks one evidence closes are one task, opened at the
-# first; still open (no evidence yet) until `now`; overdue when it stayed
-# open longer than its escalate_after.
+@doc """
+tasks_model: One row per task: the asks one evidence closes are one task, opened at the
+first; still open (no evidence yet) until `now`; overdue when it stayed
+open longer than its escalate_after.
+"""
 def tasks_model(d, closes, now)
   view(
     d,
@@ -1261,7 +1349,9 @@ def task_summary_model(d, tasks)
   )
 end
 
-# The counted fields of a capability's permit, as their log keys.
+@doc """
+count_keys: The counted fields of a capability's permit, as their log keys.
+"""
 def count_keys(d, capability)
   pm = find_first((p) -> nth(1, p) == capability, raifusaikuru::d_permits(d))
   map(
@@ -1270,8 +1360,10 @@ def count_keys(d, capability)
   )
 end
 
-# The permit models of one logged capability: issued, used, and the two
-# joined.
+@doc """
+permit_models: The permit models of one logged capability: issued, used, and the two
+joined.
+"""
 def permit_models(d, log, events, steps, gates)
   cap = first(log)
   c = raifusaikuru::text(cap)
@@ -1393,14 +1485,16 @@ def permit_models(d, log, events, steps, gates)
   )
 end
 
-# Every use of a logged capability that no permit covered, and why: the
-# permit in force at a use is the entity's latest permit before it (an as-of
-# join on seq); there is none (`no_permit`: a use before any was issued), its
-# not_after had passed (`lapsed`), or the use broke the guard (`breach`: a
-# permit derived from a guard cannot cover a use that guard refused, which is
-# a permit revoked by a later reading). permit_use counts a use by its window
-# only; this is where a use outside every window, and a breach inside one, are
-# seen. The first reason that applies, in that order.
+@doc """
+unpermitted_models: Every use of a logged capability that no permit covered, and why: the
+permit in force at a use is the entity's latest permit before it (an as-of
+join on seq); there is none (`no_permit`: a use before any was issued), its
+not_after had passed (`lapsed`), or the use broke the guard (`breach`: a
+permit derived from a guard cannot cover a use that guard refused, which is
+a permit revoked by a later reading). permit_use counts a use by its window
+only; this is where a use outside every window, and a breach inside one, are
+seen. The first reason that applies, in that order.
+"""
 def unpermitted_models(d, log, events, steps, gates)
   c = raifusaikuru::text(first(log))
   granted = view(
@@ -1459,13 +1553,15 @@ end
 
 # ── spans: a declared duration, per entity ─────────────────────────────────
 
-# The views of one lc_span of lifecycle `d`: where each entity's span starts
-# (its first record after which it is in `from`), where it ends (its first
-# record after that in `to`), the two joined, and a one-row summary. A span
-# is `done` when it reached `to`; `abandoned` when the entity is in a
-# terminal state it never reached `to` by (it never will); `open` otherwise,
-# and then its elapsed time runs to `now`, like an open task's. over_limit is
-# the elapsed time past the declared limit (NULL with no limit, or abandoned).
+@doc """
+span_models: The views of one lc_span of lifecycle `d`: where each entity's span starts
+(its first record after which it is in `from`), where it ends (its first
+record after that in `to`), the two joined, and a one-row summary. A span
+is `done` when it reached `to`; `abandoned` when the entity is in a
+terminal state it never reached `to` by (it never will); `open` otherwise,
+and then its elapsed time runs to `now`, like an open task's. over_limit is
+the elapsed time past the declared limit (NULL with no limit, or abandoned).
+"""
 def span_models(d, sp, steps, current, now)
   s = raifusaikuru::text(raifusaikuru::span_name(sp))
   limit = raifusaikuru::span_limit(sp)
@@ -1602,7 +1698,9 @@ def span_models(d, sp, steps, current, now)
   [starts, ends, span, summary]
 end
 
-# Every model of one lifecycle, upstream first.
+@doc """
+lifecycle_models: Every model of one lifecycle, upstream first.
+"""
 def lifecycle_models(b, now)
   d = la_def(b)
   check_names(d)
@@ -1662,7 +1760,9 @@ end
 
 # ── links: joins generated from the declarations ───────────────────────────
 
-# The binding whose lifecycle is named `target`, or a refusal naming the link.
+@doc """
+target: The binding whose lifecycle is named `target`, or a refusal naming the link.
+"""
 def target(bindings, a, role, target)
   hit = find_first(
     fn(b)
@@ -1680,8 +1780,10 @@ def target(bindings, a, role, target)
   hit
 end
 
-# A model of this set, by name.
 # waive B0013: `find` is a builtin anaritikusu also uses, so the prefix stays; anaritikusu::find names it too
+@doc """
+la_find: A model of this set, by name.
+"""
 def la_find(models, name)
   hit = find_first((m) -> get(m, :name) == name, models)
   if hit.nil?
@@ -1690,8 +1792,10 @@ def la_find(models, name)
   hit
 end
 
-# A's records carrying a link of kind `role`: one row per link, the linked
-# id in the column named for the role.
+@doc """
+link_rows_model: A's records carrying a link of kind `role`: one row per link, the linked
+id in the column named for the role.
+"""
 def link_rows_model(ad, role, a_events)
   r = raifusaikuru::text(role)
   view(
@@ -1716,12 +1820,14 @@ def link_rows_model(ad, role, a_events)
   )
 end
 
-# B's states keyed for an asof join on the role: the id in the role's column,
-# the state's columns prefixed with it. One row per entity per second: the
-# state after its LAST record in that second, because an asof join matches on
-# time alone, and with two records in one second (a permit and the load it
-# covers) it would take either. Measured 2026-09-25: NuPastel's bench day had
-# 9 orders joined to the state before their own load.
+@doc """
+link_state_model: B's states keyed for an asof join on the role: the id in the role's column,
+the state's columns prefixed with it. One row per entity per second: the
+state after its LAST record in that second, because an asof join matches on
+time alone, and with two records in one second (a permit and the load it
+covers) it would take either. Measured 2026-09-25: NuPastel's bench day had
+9 orders joined to the state before their own load.
+"""
 def link_state_model(ad, role, bd, b_steps)
   r = raifusaikuru::text(role)
   fields = map((f) -> kueri::as("#{r}_#{f}", kueri::c(f)), field_names(bd))
@@ -1750,7 +1856,9 @@ def link_state_model(ad, role, bd, b_steps)
   )
 end
 
-# The columns a one-hop link view returns, after A's own.
+@doc """
+link_state_names: The columns a one-hop link view returns, after A's own.
+"""
 def link_state_names(role, bd)
   r = raifusaikuru::text(role)
   concat_lists(
@@ -1759,7 +1867,9 @@ def link_state_names(role, bd)
   )
 end
 
-# Each link with the linked entity's state as of the record's time.
+@doc """
+link_model: Each link with the linked entity's state as of the record's time.
+"""
 def link_model(ad, role, bd, rows, state)
   r = raifusaikuru::text(role)
   view(
@@ -1800,7 +1910,9 @@ def link_coverage_model(ad, role, link)
   )
 end
 
-# The four models of one declared link of A.
+@doc """
+link_models: The four models of one declared link of A.
+"""
 def link_models(bindings, models, a, link)
   ad = la_def(a)
   role = first(link)
@@ -1812,8 +1924,10 @@ def link_models(bindings, models, a, link)
   [rows, state, joined, link_coverage_model(ad, role, joined)]
 end
 
-# A chain A –r1→ B –r2→ C: each A link with B's latest r2 link at or before
-# the A record's time, and C's state as of that B record.
+@doc """
+chain_models: A chain A –r1→ B –r2→ C: each A link with B's latest r2 link at or before
+the A record's time, and C's state as of that B record.
+"""
 def chain_models(bindings, models, a, l1, l2)
   ad = la_def(a)
   bd = la_def(target(bindings, a, first(l1), nth(1, l1)))
@@ -1877,10 +1991,12 @@ end
 
 # ── the whole set ──────────────────────────────────────────────────────────
 
-# Every model for these lifecycles, upstream first: each lifecycle's, then a
-# join per declared link, then a chain per pair of links end to start.
-# Refuses (:anaritikusu_schema) two lifecycles with one name, a link to a
-# lifecycle not given, and any two generated relations with one name.
+@doc """
+models: Every model for these lifecycles, upstream first: each lifecycle's, then a
+join per declared link, then a chain per pair of links end to start.
+Refuses (:anaritikusu_schema) two lifecycles with one name, a link to a
+lifecycle not given, and any two generated relations with one name.
+"""
 def models(bindings, now)
   bs = as_list(bindings)
   names = map((b) -> raifusaikuru::text(raifusaikuru::name(la_def(b))), bs)
@@ -1919,7 +2035,9 @@ def models(bindings, now)
   all
 end
 
-# The relations a lifecycle loads rather than derives.
+@doc """
+source_names: The relations a lifecycle loads rather than derives.
+"""
 def source_names(d)
   map((x) -> n(d, x), ["records", "history", "edges", "rules", "task_evidence"])
 end
@@ -1932,9 +2050,11 @@ def chains_from(bindings, models, a, l1)
   )
 end
 
-# Every generated relation (the models and the loaded sources) by name: two
-# with one name would collapse into one in the database, since kueri
-# identifies a node by its name.
+@doc """
+check_unique: Every generated relation (the models and the loaded sources) by name: two
+with one name would collapse into one in the database, since kueri
+identifies a node by its name.
+"""
 def check_unique(models, sources)
   names = concat_lists(map((m) -> get(m, :name), models), sources)
   dup = unique(filter((n) -> count_of(names, n) > 1, names))
@@ -1947,14 +2067,18 @@ def check_unique(models, sources)
   models
 end
 
-# The script that builds the database: every load, then every view.
+@doc """
+script: The script that builds the database: every load, then every view.
+"""
 def script(bindings, now)
   kueri::render_script(models(bindings, now), :duckdb, "anaritikusu")
 end
 
 # ── the history: the state after every record ──────────────────────────────
 
-# A value as JSON data: a keyword becomes its text, everywhere inside.
+@doc """
+json_value: A value as JSON data: a keyword becomes its text, everywhere inside.
+"""
 def json_value(v)
   if v.nil?
     nil
@@ -1967,9 +2091,11 @@ def json_value(v)
   end
 end
 
-# One history line: the record, the state after it, and what the replay
-# found on it — a breach (the guard refused an event it applied) or a
-# refusal of an admitted record. Canonical JSON, keys in code-point order.
+@doc """
+history_line: One history line: the record, the state after it, and what the replay
+found on it — a breach (the guard refused an event it applied) or a
+refusal of an admitted record. Canonical JSON, keys in code-point order.
+"""
 def history_line(r, s)
   pos = raifusaikuru::seq(s) - 1
   folded = nisshi::rec_admitted?(r)
@@ -2004,14 +2130,18 @@ def history_line(r, s)
   "{\"breach\":#{nisshi::canon(rules)},\"breach_capability\":#{nisshi::canon(capability)},\"entity\":#{json_stringify(nisshi::rec_entity(r))}#{fields},\"phase\":#{json_stringify(raifusaikuru::text(raifusaikuru::phase(s)))},\"replay_refusal\":#{nisshi::canon(refusal)},\"seq\":#{to_s(nisshi::rec_seq(r))}}"
 end
 
-# The history of a log value that was read: one line per record. Pure.
+@doc """
+history_text: The history of a log value that was read: one line per record. Pure.
+"""
 def history_text(log)
   nisshi::unlines(
     map((x) -> history_line(first(x), nth(1, x)), nisshi::history(log))
   )
 end
 
-# Write a log's history to `path`; returns the path.
+@doc """
+write_history: Write a log's history to `path`; returns the path.
+"""
 def write_history(log, path)
   write_file(path, history_text(log))
   path
@@ -2019,14 +2149,18 @@ end
 
 # ── building and reading the database ──────────────────────────────────────
 
-# A stream to analyse: its definition, its path and its label (the genesis
-# nisshi hashes it under).
+@doc """
+stream: A stream to analyse: its definition, its path and its label (the genesis
+nisshi hashes it under).
+"""
 def stream(d, path, label)
   raifusaikuru::name(d)
   {def: d, path:, label:}
 end
 
-# The bindings la_build uses: each stream's history under `dir`.
+@doc """
+bindings: The bindings la_build uses: each stream's history under `dir`.
+"""
 def bindings(dir, streams)
   map(
     fn(s)
@@ -2043,10 +2177,12 @@ def bindings(dir, streams)
   )
 end
 
-# Build the database under `dir`: read and verify every stream (a broken
-# chain throws :anaritikusu_broken), write each history, write the script
-# (lifecycles.sql, for a reader or a nix build), and run it into a fresh
-# lifecycles.duckdb. Returns the database's path.
+@doc """
+build: Build the database under `dir`: read and verify every stream (a broken
+chain throws :anaritikusu_broken), write each history, write the script
+(lifecycles.sql, for a reader or a nix build), and run it into a fresh
+lifecycles.duckdb. Returns the database's path.
+"""
 def build(dir, streams, now)
   bindings = anaritikusu::bindings(dir, streams)
   script = anaritikusu::script(bindings, now)
@@ -2076,10 +2212,12 @@ def build_history(dir, s)
   )
 end
 
-# A model's rows from the database at `db`, as value lists in its column
-# order, sorted by every column; a failed query throws (:kueri_query). A
-# generated view is read from the database; any other model over them (a
-# question of its own) runs its query there.
+@doc """
+read: A model's rows from the database at `db`, as value lists in its column
+order, sorted by every column; a failed query throws (:kueri_query). A
+generated view is read from the database; any other model over them (a
+question of its own) runs its query there.
+"""
 def read(db, model)
   cols = kueri::output(model)
   query = if get(model, :materialize) == :view
@@ -2095,7 +2233,9 @@ end
 
 # ── worked examples: three lifecycles and a day ────────────────────────────
 
-# raifusaikuru's example consumable, with its permits logged as `permit`.
+@doc """
+example_consumable: raifusaikuru's example consumable, with its permits logged as `permit`.
+"""
 def example_consumable()
   lc_define(
     :consumable,
@@ -2106,8 +2246,10 @@ def example_consumable()
   )
 end
 
-# The same consumable read by a stricter definition: fewer than 3 uses. Built
-# from the example's clauses with the one rule replaced, as data.
+@doc """
+example_consumable_strict: The same consumable read by a stricter definition: fewer than 3 uses. Built
+from the example's clauses with the one rule replaced, as data.
+"""
 def example_consumable_strict()
   clauses = map(
     example_tighten,
@@ -2135,7 +2277,9 @@ def example_tighten_rule(r)
   end
 end
 
-# A portion made with a consumable: its make event links the item.
+@doc """
+example_portion: A portion made with a consumable: its make event links the item.
+"""
 def example_portion()
   lc_define(
     :portion,
@@ -2167,7 +2311,9 @@ def example_portion()
   )
 end
 
-# An order of portions: each add_portion links one.
+@doc """
+example_order: An order of portions: each add_portion links one.
+"""
 def example_order()
   lc_define(
     :order,
@@ -2210,9 +2356,11 @@ def example_order()
   )
 end
 
-# A simulated day, in time order: [lifecycle, entity, event, links]. An event
-# [:la_permit, time, subject] is a permit the engine issues at that moment
-# (lc_permit_for on the entity's state) and logs (lc_permit_event).
+@doc """
+example_day: A simulated day, in time order: [lifecycle, entity, event, links]. An event
+[:la_permit, time, subject] is a permit the engine issues at that moment
+(lc_permit_for on the entity's state) and logs (lc_permit_event).
+"""
 def example_day()
   [
     [
@@ -2317,8 +2465,10 @@ def example_day()
   ]
 end
 
-# The day's three streams under `dir`: [la_stream …], after appending every
-# event to its lifecycle's stream through nisshi.
+@doc """
+example_streams: The day's three streams under `dir`: [la_stream …], after appending every
+event to its lifecycle's stream through nisshi.
+"""
 def example_streams(dir)
   defs = [example_consumable, example_portion, example_order]
   streams = map(
@@ -2366,7 +2516,9 @@ def example_event(log, entity, ev)
   end
 end
 
-# A fresh directory under TMPDIR for a test.
+@doc """
+test_dir: A fresh directory under TMPDIR for a test.
+"""
 def test_dir(name)
   dir = path_join(
     getenv("TMPDIR", "/tmp"),
@@ -2376,8 +2528,10 @@ def test_dir(name)
   dir
 end
 
-# A value as the tests compare it: numbers as floats (DuckDB answers 12.0
-# where the fold holds 12).
+@doc """
+norm: A value as the tests compare it: numbers as floats (DuckDB answers 12.0
+where the fold holds 12).
+"""
 def norm(v)
   if number?(v)
     to_float(v)
@@ -3149,7 +3303,9 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   rm_rf(dir2)
 end
 
-# nisshi's replay and the database agree on every entity's phase and fields.
+@doc """
+example_differential: nisshi's replay and the database agree on every entity's phase and fields.
+"""
 def example_differential(db, ms, s)
   d = get(s, :def)
   nf = size(raifusaikuru::d_field_names(d))

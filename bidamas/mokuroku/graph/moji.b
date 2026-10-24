@@ -295,7 +295,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:moji",
-    meaning: "text cut at line ends",
     wave: 0,
     origin: "A"
   }
@@ -310,7 +309,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:moji",
-    meaning: "every letter in lower case",
     wave: 0,
     origin: "A"
   }
@@ -445,7 +443,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:moji",
-    meaning: "number of code points",
     wave: 0,
     origin: "A"
   }
@@ -565,7 +562,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:moji",
-    meaning: "drop space from both ends",
     wave: 0,
     origin: "A"
   }
@@ -580,7 +576,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:moji",
-    meaning: "cut text to a width with an ellipsis",
     wave: 0,
     origin: "A"
   }
@@ -640,7 +635,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:moji",
-    meaning: "text cut at runs of space",
     wave: 0,
     origin: "A"
   }

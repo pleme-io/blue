@@ -24,7 +24,6 @@ verb(
     laterals: ["test"],
     fleet: nil,
     today: "exists:heni",
-    meaning: "every one-literal change a package admits",
     wave: 0,
     origin: "F"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: ["test"],
     fleet: nil,
     today: "exists:heni",
-    meaning: "whether every mutation was caught",
     wave: 0,
     origin: "F"
   }
@@ -54,7 +52,6 @@ verb(
     laterals: ["process", "test"],
     fleet: nil,
     today: "exists:heni",
-    meaning: "mutate a fresh copy per change and run its tests",
     wave: 0,
     origin: "F"
   }

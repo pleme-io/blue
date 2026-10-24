@@ -1,84 +1,98 @@
-# deeta (データ) — JSON data, read safely.
-#
-# The runtime's JSON surface (`json_parse`, `json_stringify`, `json_get`,
-# `json_get_or`) is installed unconditionally and is not total: `json_get` on a
-# value that is not a document raises a type error, and its success value is
-# nil for BOTH a missing key and a key whose value is null. A widget that reads
-# a heartbeat or a config every thirty seconds should not be in the business of
-# guarding `is this a list` at every read — that is this package's job.
-#
-# This package deliberately depends on nothing. Everything it needs is the
-# runtime's own surface — layer 4's json primitives and the tatara type-check
-# predicates — so there are no `use()` lines and nothing for the distribution
-# gate to resolve. An accessor package that pulled in the list and string
-# libraries would make its seam depend on their whole surface for a few lines
-# of guards.
-#
-# # The one rule this package holds
-#
-# **Total where the primitive is not.** Every accessor answers its `default`
-# for every non-value: a non-document, a missing key, a key whose value is
-# null, and a value of the wrong type are all "this field is not a usable
-# <type>" and all answer the same thing. `as_json` is the raw reader for the
-# caller who wants the value whole, null and all.
-#
-# # What is deliberately absent
-#
-# **No missing-vs-null distinction, and it is named rather than buried.** The
-# runtime returns `Value::Nil` for a missing key AND for a present null, so
-# `as_json` cannot tell them apart and neither can a caller. (The one primitive
-# that differs is `json_get_or`, whose default is reached for a MISSING key but
-# NOT for a present null — a trap, which is why the typed accessors re-check
-# the value's type instead of trusting any default. The test below pins it.)
-# The sentinela widget's `head_rev` can be absent or null and both read as the
-# em dash, so conflation is fine there; a caller who genuinely needs the
-# difference must walk the alist itself with car/cdr before reaching an
-# accessor.
-#
-# **No re-wrap of `json_parse` / `json_stringify`.** They already carry blue's
-# names, and raising is their contract: a doc that will not parse is a bug in
-# the producer, and fabricating a default here would turn that bug into a
-# plausible answer.
-#
-# **No error handling, because blue has none.** `json_get` raises only on a
-# non-document, and `is_doc` is checked before every call, so the raising path
-# is unreachable from the document accessors — the guards are what remove it.
-# `get_or`, the Map reader, is `get` with a default and raises where `get` does.
-#
-# **`get_bool` is not here.** Nothing the fleet's widgets read emits a boolean
-# field; the heartbeat carries a string, an int, and a number. Add it when a
-# caller needs it, guarding on whatever boolean predicate the runtime offers.
+@moduledoc """
+deeta (データ) — JSON data, read safely.
 
-# True when `v` is a JSON object read for its fields.
-#
-# A non-empty object parses to an association list, so the test is `list?`.
-# nil is excluded first, and the exclusion does double duty: `null?` is also
-# true of the empty list, so a document with no entries — nil, `[]` — is not a
-# doc. (An empty OBJECT parses to a Map, which is not a list at all; it has no
-# fields, so reading it as not-a-doc and answering the default is correct.)
+The runtime's JSON surface (`json_parse`, `json_stringify`, `json_get`,
+`json_get_or`) is installed unconditionally and is not total: `json_get` on a
+value that is not a document raises a type error, and its success value is
+nil for BOTH a missing key and a key whose value is null. A widget that reads
+a heartbeat or a config every thirty seconds should not be in the business of
+guarding `is this a list` at every read — that is this package's job.
+
+This package deliberately depends on nothing. Everything it needs is the
+runtime's own surface — layer 4's json primitives and the tatara type-check
+predicates — so there are no `use()` lines and nothing for the distribution
+gate to resolve. An accessor package that pulled in the list and string
+libraries would make its seam depend on their whole surface for a few lines
+of guards.
+
+# The one rule this package holds
+
+**Total where the primitive is not.** Every accessor answers its `default`
+for every non-value: a non-document, a missing key, a key whose value is
+null, and a value of the wrong type are all "this field is not a usable
+<type>" and all answer the same thing. `as_json` is the raw reader for the
+caller who wants the value whole, null and all.
+
+# What is deliberately absent
+
+**No missing-vs-null distinction, and it is named rather than buried.** The
+runtime returns `Value::Nil` for a missing key AND for a present null, so
+`as_json` cannot tell them apart and neither can a caller. (The one primitive
+that differs is `json_get_or`, whose default is reached for a MISSING key but
+NOT for a present null — a trap, which is why the typed accessors re-check
+the value's type instead of trusting any default. The test below pins it.)
+The sentinela widget's `head_rev` can be absent or null and both read as the
+em dash, so conflation is fine there; a caller who genuinely needs the
+difference must walk the alist itself with car/cdr before reaching an
+accessor.
+
+**No re-wrap of `json_parse` / `json_stringify`.** They already carry blue's
+names, and raising is their contract: a doc that will not parse is a bug in
+the producer, and fabricating a default here would turn that bug into a
+plausible answer.
+
+**No error handling, because blue has none.** `json_get` raises only on a
+non-document, and `is_doc` is checked before every call, so the raising path
+is unreachable from the document accessors — the guards are what remove it.
+`get_or`, the Map reader, is `get` with a default and raises where `get` does.
+
+**`get_bool` is not here.** Nothing the fleet's widgets read emits a boolean
+field; the heartbeat carries a string, an int, and a number. Add it when a
+caller needs it, guarding on whatever boolean predicate the runtime offers.
+
+    yaml([]) #=> "[]\n"
+"""
+
+@doc """
+is_doc: True when `v` is a JSON object read for its fields.
+
+A non-empty object parses to an association list, so the test is `list?`.
+nil is excluded first, and the exclusion does double duty: `null?` is also
+true of the empty list, so a document with no entries — nil, `[]` — is not a
+doc. (An empty OBJECT parses to a Map, which is not a list at all; it has no
+fields, so reading it as not-a-doc and answering the default is correct.)
+
+    is_doc(42) #=> false
+"""
 def is_doc(v)
   list?(v) and not null?(v)
 end
 
-# The raw value at `key`, or nil when there is none to give.
-#
-# nil answers for a non-document, a missing key, AND a key whose value is null
-# — `json_get` returns the same nil for the last two, and this pass-through
-# cannot distinguish them. Branch on nil first, and do not try to tell
-# "absent" from "null" through the result; the caller who needs that difference
-# walks the alist itself.
+@doc """
+as_json: The raw value at `key`, or nil when there is none to give.
+
+nil answers for a non-document, a missing key, AND a key whose value is null
+— `json_get` returns the same nil for the last two, and this pass-through
+cannot distinguish them. Branch on nil first, and do not try to tell
+"absent" from "null" through the result; the caller who needs that difference
+walks the alist itself.
+"""
 def as_json(doc, key)
   if is_doc(doc)
     json_get(doc, key)
   end
 end
 
-# The string at `key`, or `default` when the field is not a string.
-#
-# Missing, null, wrong type, and a non-document all answer the default — the
-# accessor is total, which is its whole reason to exist. `json_get_or` is NOT
-# enough for this (see the header): its default is bypassed by a present null,
-# so the value's type is checked here instead.
+@doc """
+get_str: The string at `key`, or `default` when the field is not a string.
+
+Missing, null, wrong type, and a non-document all answer the default — the
+accessor is total, which is its whole reason to exist. `json_get_or` is NOT
+enough for this (see the header): its default is bypassed by a present null,
+so the value's type is checked here instead.
+
+    get_str("not a doc", "k", "d") #=> "d"
+"""
 def get_str(doc, key, default)
   v = as_json(doc, key)
   if string?(v)
@@ -88,10 +102,14 @@ def get_str(doc, key, default)
   end
 end
 
-# The integer at `key`, or `default` when the field is not an integer.
-#
-# A float is not an integer and answers the default; `get_number` is the form
-# that accepts both.
+@doc """
+get_int: The integer at `key`, or `default` when the field is not an integer.
+
+A float is not an integer and answers the default; `get_number` is the form
+that accepts both.
+
+    get_int(nil, "k", 7) #=> 7
+"""
 def get_int(doc, key, default)
   v = as_json(doc, key)
   if integer?(v)
@@ -101,8 +119,12 @@ def get_int(doc, key, default)
   end
 end
 
-# The number at `key` — integer or float — or `default` when the field is not
-# a number.
+@doc """
+get_number: The number at `key` — integer or float — or `default` when the field is not
+a number.
+
+    get_number(42, "k", 0) #=> 0
+"""
 def get_number(doc, key, default)
   v = as_json(doc, key)
   if number?(v)
@@ -112,13 +134,17 @@ def get_number(doc, key, default)
   end
 end
 
-# The value of a blue Map (`{max_iter: 3}`) at `key`, or `default` when the
-# key is missing or nil: the one reader here of a Map rather than a document,
-# for option maps. It is `get` with a default, so like `get` it refuses a value
-# that is not a Map; it does not share the documents' totality.
-#
-# kinji's and kakou's `opt` were this definition, twice; both are bridges to it
-# (`legacy_names`) until their 0.2.0.
+@doc """
+get_or: The value of a blue Map (`{max_iter: 3}`) at `key`, or `default` when the
+key is missing or nil: the one reader here of a Map rather than a document,
+for option maps. It is `get` with a default, so like `get` it refuses a value
+that is not a Map; it does not share the documents' totality.
+
+kinji's and kakou's `opt` were this definition, twice; both are bridges to it
+(`legacy_names`) until their 0.2.0.
+
+    get_or({a: 1}, :a, 9) #=> 1
+"""
 def get_or(m, key, default)
   v = get(m, key)
   if v.nil?
@@ -128,7 +154,11 @@ def get_or(m, key, default)
   end
 end
 
-# The value at a dotted path, `json_at(doc, "spec.items.0.name")`, or nil when any step is absent.
+@doc """
+json_at: The value at a dotted path, `json_at(doc, "spec.items.0.name")`, or nil when any step is absent.
+
+    json_at(json_parse("{\"\":5}"), "") #=> 5
+"""
 def json_at(doc, path)
   path_from(doc, split(path, "."))
 end
@@ -431,6 +461,11 @@ test "a key is plain only when YAML cannot read it as something else"
   assert plain_key?("") == false
 end
 
+@doc """
+parse: text to value; the format is an argument.
+
+    parse("", :yaml, {documents: :all}) #=> []
+"""
 def parse(text, format, opts?)
   options = if opts.nil?
     {}

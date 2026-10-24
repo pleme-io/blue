@@ -1,8 +1,15 @@
+@moduledoc """
+nikkusu (ニックス) — Nix source as data: rnix's lossless tree from nix_parse, and the queries a linter asks of it (attrpath bindings, calls by head, with scopes, angle paths, option declarations).
+
+    withs(get(read("{ a = 1; }"), :root)) #=> []
+"""
+
 use("junjo", [:upper_bound])
 use("retsu", [:first, :flat_map, :is_empty, :last, :rest, :running_sum, :size])
 
-# nikkusu (ニックス) — Nix source as data: rnix's lossless tree from nix_parse, and the queries a linter asks of it (attrpath bindings, calls by head, with scopes, angle paths, option declarations).
-
+@doc """
+read: The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler.
+"""
 def read(source)
   t = nix_parse(source)
   {

@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:junjo",
-    meaning: "item with the greatest key",
     wave: 0,
     origin: "A"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:junjo",
-    meaning: "two sorted lists joined in order",
     wave: 0,
     origin: "A"
   }
@@ -39,7 +37,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:junjo",
-    meaning: "item with the least key",
     wave: 0,
     origin: "A"
   }
@@ -54,7 +51,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:junjo",
-    meaning: "position each item would take when sorted",
     wave: 0,
     origin: "A"
   }
@@ -84,7 +80,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:junjo",
-    meaning: "items in ascending order; stable",
     wave: 0,
     origin: "A"
   }
@@ -99,7 +94,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:junjo",
-    meaning: "items ordered by the key f gives",
     wave: 0,
     origin: "A",
     contract: "sort_by(list, f) -> list"

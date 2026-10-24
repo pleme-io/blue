@@ -1,12 +1,21 @@
+@moduledoc """
+kumiawase (組み合わせ) — counting without enumerating.
+
+`combinations(52, 5)` is 2598960, and computing it by building the hands
+would allocate 2.6 million lists to return one number. Every function here
+counts arithmetically, which is the difference between a combinatorics
+library and a very slow list library.
+
+    bell(0) #=> 1
+"""
+
 use("kazu", [:abs, :is_zero, :max_of, :sum])
 
-# kumiawase (組み合わせ) — counting without enumerating.
-#
-# `combinations(52, 5)` is 2598960, and computing it by building the hands
-# would allocate 2.6 million lists to return one number. Every function here
-# counts arithmetically, which is the difference between a combinatorics
-# library and a very slow list library.
+@doc """
+factorial: product of 1 up to n.
 
+    factorial(0) #=> 1
+"""
 def factorial(n)
   if n < 2
     1
@@ -15,7 +24,11 @@ def factorial(n)
   end
 end
 
-# Falling factorial: n * (n-1) * ... * (n-k+1) — permutations of k from n.
+@doc """
+permutations: Falling factorial: n * (n-1) * ... * (n-k+1) — permutations of k from n.
+
+    permutations(2, 5) #=> 0
+"""
 def permutations(n, k)
   if k < 1
     1
@@ -26,7 +39,11 @@ def permutations(n, k)
   end
 end
 
-# Binomial coefficient, computed by the multiplicative formula.
+@doc """
+combinations: Binomial coefficient, computed by the multiplicative formula.
+
+    combinations(3, 5) #=> 0
+"""
 def combinations(n, k)
   if k < 0
     0
@@ -41,25 +58,37 @@ def binomial(n, k)
   combinations(n, k)
 end
 
-# The nth row of Pascal's triangle.
+@doc """
+pascal_row: The nth row of Pascal's triangle.
+
+    pascal_row(4) #=> [1, 4, 6, 4, 1]
+"""
 def pascal_row(n)
   map((k) -> combinations(n, k), range(0, n + 1))
 end
 
-# Catalan number — the count that shows up in balanced parentheses, binary
-# trees, and triangulations of a polygon.
+@doc """
+catalan: Catalan number — the count that shows up in balanced parentheses, binary
+trees, and triangulations of a polygon.
+
+    catalan(0) #=> 1
+"""
 def catalan(n)
   combinations(2 * n, n) / (n + 1)
 end
 
 # --- the rest of the factorial family ---------------------------------------
 
-# Double factorial: n * (n-2) * (n-4) * ... down to 2 or 1.
-#
-# Not factorial(n) doubled and not factorial(factorial(n)) — it is the product
-# of every OTHER term, so 8!! is 384 where 8! is 40320. Both 0!! and (-1)!!
-# are 1, the empty product, which is what lets the odd and even chains bottom
-# out on the same branch.
+@doc """
+double_factorial: Double factorial: n * (n-2) * (n-4) * ... down to 2 or 1.
+
+Not factorial(n) doubled and not factorial(factorial(n)) — it is the product
+of every OTHER term, so 8!! is 384 where 8! is 40320. Both 0!! and (-1)!!
+are 1, the empty product, which is what lets the odd and even chains bottom
+out on the same branch.
+
+    double_factorial(0) #=> 1
+"""
 def double_factorial(n)
   if n < 2
     1
@@ -68,11 +97,15 @@ def double_factorial(n)
   end
 end
 
-# Rising factorial (Pochhammer): n * (n+1) * ... * (n+k-1).
-#
-# The mirror of `permutations`, which falls. They agree only for k < 2:
-# rising_factorial(5, 3) is 210 where permutations(5, 3) is 60. No k > n cutoff
-# here — rising never runs out of terms, so nothing forces it to zero.
+@doc """
+rising_factorial: Rising factorial (Pochhammer): n * (n+1) * ... * (n+k-1).
+
+The mirror of `permutations`, which falls. They agree only for k < 2:
+rising_factorial(5, 3) is 210 where permutations(5, 3) is 60. No k > n cutoff
+here — rising never runs out of terms, so nothing forces it to zero.
+
+    rising_factorial(7, 0) #=> 1
+"""
 def rising_factorial(n, k)
   if k < 1
     1
@@ -81,29 +114,41 @@ def rising_factorial(n, k)
   end
 end
 
-# C(2n, n) — the middle and largest entry of an even Pascal row, and the term
-# catalan divides down.
+@doc """
+central_binomial: C(2n, n) — the middle and largest entry of an even Pascal row, and the term
+catalan divides down.
+
+    central_binomial(0) #=> 1
+"""
 def central_binomial(n)
   combinations(2 * n, n)
 end
 
-# Monotonic paths across a w-by-h grid, moving only right or up.
-#
-# A path is w rights and h ups in some order, so the count is which of the
-# w+h steps are the rights — one binomial, not a search. This is the shape
-# behind most "how many ways through" questions, which is why it gets a name
-# instead of being spelled out at each call site.
+@doc """
+lattice_paths: Monotonic paths across a w-by-h grid, moving only right or up.
+
+A path is w rights and h ups in some order, so the count is which of the
+w+h steps are the rights — one binomial, not a search. This is the shape
+behind most "how many ways through" questions, which is why it gets a name
+instead of being spelled out at each call site.
+
+    lattice_paths(0, 0) #=> 1
+"""
 def lattice_paths(w, h)
   combinations(w + h, w)
 end
 
-# Multinomial coefficient: how many distinct orderings a multiset with element
-# counts `ks` has. (n; k1..km) = n! / (k1! * ... * km!).
-#
-# Built as a running product of binomials rather than from that quotient
-# directly, because the quotient computes several factorials far larger than
-# the answer while the binomial chain never exceeds it. MISSISSIPPI is
-# multinomial([1, 4, 4, 2]) == 34650. The empty multiset has one ordering.
+@doc """
+multinomial: Multinomial coefficient: how many distinct orderings a multiset with element
+counts `ks` has. (n; k1..km) = n! / (k1! * ... * km!).
+
+Built as a running product of binomials rather than from that quotient
+directly, because the quotient computes several factorials far larger than
+the answer while the binomial chain never exceeds it. MISSISSIPPI is
+multinomial([1, 4, 4, 2]) == 34650. The empty multiset has one ordering.
+
+    multinomial([]) #=> 1
+"""
 def multinomial(ks)
   nth(
     1,
@@ -117,13 +162,17 @@ def multinomial(ks)
   )
 end
 
-# Choose k from n with repetition allowed and order ignored — "n multichoose k",
-# the stars-and-bars count C(n+k-1, k).
-#
-# Three scoops from five flavours is 35, not the 10 `combinations` gives,
-# because a repeat is legal. k=0 is guarded rather than left to the formula:
-# C(n-1, 0) is 0 for n=0 under this file's k>n rule, and the empty selection
-# is one way, not none.
+@doc """
+combinations_with_repetition: Choose k from n with repetition allowed and order ignored — "n multichoose k",
+the stars-and-bars count C(n+k-1, k).
+
+Three scoops from five flavours is 35, not the 10 `combinations` gives,
+because a repeat is legal. k=0 is guarded rather than left to the formula:
+C(n-1, 0) is 0 for n=0 under this file's k>n rule, and the empty selection
+is one way, not none.
+
+    combinations_with_repetition(0, 0) #=> 1
+"""
 def combinations_with_repetition(n, k)
   if k < 1
     1
@@ -136,20 +185,28 @@ def multichoose(n, k)
   combinations_with_repetition(n, k)
 end
 
-# Ordered selections of k from n WITH repetition: n^k.
-#
-# The "how many 4-digit PINs" count — 10^4 = 10000, not permutations(10, 4).
-# One arithmetic step rather than a fold, since that is all the identity is.
+@doc """
+permutations_with_repetition: Ordered selections of k from n WITH repetition: n^k.
+
+The "how many 4-digit PINs" count — 10^4 = 10000, not permutations(10, 4).
+One arithmetic step rather than a fold, since that is all the identity is.
+
+    permutations_with_repetition(2, 3) #=> 8
+"""
 def permutations_with_repetition(n, k)
   expt(n, k)
 end
 
-# The sum of Pascal's nth row, which is also the number of subsets of an n-set.
-#
-# Returned as 2^n rather than by summing pascal_row(n): the closed form IS the
-# identity, and summing would be counting by accumulation in the one place a
-# single expt answers. The test checks the two against each other, so the
-# shortcut stays honest.
+@doc """
+binomial_row_sum: The sum of Pascal's nth row, which is also the number of subsets of an n-set.
+
+Returned as 2^n rather than by summing pascal_row(n): the closed form IS the
+identity, and summing would be counting by accumulation in the one place a
+single expt answers. The test checks the two against each other, so the
+shortcut stays honest.
+
+    binomial_row_sum(0) #=> 1
+"""
 def binomial_row_sum(n)
   expt(2, n)
 end
@@ -159,24 +216,40 @@ end
 # All four are closed forms, never a running sum: triangular(1000) is one
 # multiply, not a thousand additions.
 
-# 1 + 2 + ... + n, equivalently C(n+1, 2) — the handshake count.
+@doc """
+triangular: 1 + 2 + ... + n, equivalently C(n+1, 2) — the handshake count.
+
+    triangular(0) #=> 0
+"""
 def triangular(n)
   n * (n + 1) / 2
 end
 
-# n * (3n - 1) / 2: 1, 5, 12, 22, 35. The numbers Euler's partition recurrence
-# steps by, which is why they live here rather than in a geometry package.
+@doc """
+pentagonal: n * (3n - 1) / 2: 1, 5, 12, 22, 35. The numbers Euler's partition recurrence
+steps by, which is why they live here rather than in a geometry package.
+
+    pentagonal(0) #=> 0
+"""
 def pentagonal(n)
   n * (3 * n - 1) / 2
 end
 
-# n * (2n - 1): 1, 6, 15, 28. Every hexagonal number is a triangular one —
-# hexagonal(n) == triangular(2n - 1) — which the test pins.
+@doc """
+hexagonal: n * (2n - 1): 1, 6, 15, 28. Every hexagonal number is a triangular one —
+hexagonal(n) == triangular(2n - 1) — which the test pins.
+
+    hexagonal(1) #=> 1
+"""
 def hexagonal(n)
   n * (2 * n - 1)
 end
 
-# C(n+2, 3) — the triangular numbers stacked, i.e. cannonballs in a pyramid.
+@doc """
+tetrahedral: C(n+2, 3) — the triangular numbers stacked, i.e. cannonballs in a pyramid.
+
+    tetrahedral(0) #=> 0
+"""
 def tetrahedral(n)
   combinations(n + 2, 3)
 end
@@ -194,7 +267,9 @@ def fibonacci(n)
   fib_onward(n, 0, 1)
 end
 
-# `a` is F(i) and `b` is F(i+1); each step slides the window one place right.
+@doc """
+fib_onward: `a` is F(i) and `b` is F(i+1); each step slides the window one place right.
+"""
 def fib_onward(n, a, b)
   if n < 1
     a
@@ -203,8 +278,12 @@ def fib_onward(n, a, b)
   end
 end
 
-# Lucas numbers: the same recurrence as fibonacci, seeded 2, 1 instead of 0, 1.
-# The seeds are the entire difference, which is why they share a step shape.
+@doc """
+lucas: Lucas numbers: the same recurrence as fibonacci, seeded 2, 1 instead of 0, 1.
+The seeds are the entire difference, which is why they share a step shape.
+
+    lucas(0) #=> 2
+"""
 def lucas(n)
   lucas_onward(n, 2, 1)
 end
@@ -217,11 +296,15 @@ def lucas_onward(n, a, b)
   end
 end
 
-# Derangements (subfactorial !n): permutations that leave NOTHING in place.
-#
-# D(n) = (n-1) * (D(n-1) + D(n-2)), so 4 people can misdeliver 4 hats 9 ways.
-# D(0) is 1 — the empty permutation moves everything it has — and D(1) is 0,
-# which is the pair of seeds a plain n!/e rounding gets wrong at the bottom.
+@doc """
+derangements: Derangements (subfactorial !n): permutations that leave NOTHING in place.
+
+D(n) = (n-1) * (D(n-1) + D(n-2)), so 4 people can misdeliver 4 hats 9 ways.
+D(0) is 1 — the empty permutation moves everything it has — and D(1) is 0,
+which is the pair of seeds a plain n!/e rounding gets wrong at the bottom.
+
+    derangements(0) #=> 1
+"""
 def derangements(n)
   if n < 1
     1
@@ -230,7 +313,9 @@ def derangements(n)
   end
 end
 
-# `prev` is D(k-1) and `cur` is D(k), walked up to k = n.
+@doc """
+derangements_onward: `prev` is D(k-1) and `cur` is D(k), walked up to k = n.
+"""
 def derangements_onward(n, k, prev, cur)
   if k >= n
     cur
@@ -243,15 +328,19 @@ def subfactorial(n)
   derangements(n)
 end
 
-# Stirling numbers of the second kind: ways to split an n-set into exactly k
-# non-empty unlabelled blocks.
-#
-# Computed from the inclusion-exclusion closed form rather than the
-# S(n,k) = k*S(n-1,k) + S(n-1,k-1) recurrence, because that recurrence has two
-# recursive calls and no memo to share them — exponential for the same answer
-# this sum reaches in k+1 terms. The division by k! is exact by construction:
-# the sum counts ORDERED block assignments and k! is how many orderings each
-# unordered partition was counted under.
+@doc """
+stirling2: Stirling numbers of the second kind: ways to split an n-set into exactly k
+non-empty unlabelled blocks.
+
+Computed from the inclusion-exclusion closed form rather than the
+S(n,k) = k*S(n-1,k) + S(n-1,k-1) recurrence, because that recurrence has two
+recursive calls and no memo to share them — exponential for the same answer
+this sum reaches in k+1 terms. The division by k! is exact by construction:
+the sum counts ORDERED block assignments and k! is how many orderings each
+unordered partition was counted under.
+
+    stirling2(0, 0) #=> 1
+"""
 def stirling2(n, k)
   if n < 0 or k < 0
     0
@@ -279,31 +368,43 @@ def stirling2_terms(n, k, j)
   end
 end
 
-# Bell number: partitions of an n-set into ANY number of blocks, which is the
-# Stirling row summed. Defined this way rather than by its own recurrence so
-# that the two cannot drift apart.
+@doc """
+bell: Bell number: partitions of an n-set into ANY number of blocks, which is the
+Stirling row summed. Defined this way rather than by its own recurrence so
+that the two cannot drift apart.
+
+    bell(0) #=> 1
+"""
 def bell(n)
   sum(map((k) -> stirling2(n, k), range(0, n + 1)))
 end
 
-# Surjections: functions from an n-set ONTO all k elements of a k-set.
-#
-# k! * S(n,k) — a partition into k blocks, then a labelling of the blocks.
-# The reason it is written on top of stirling2 rather than by its own
-# inclusion-exclusion sum is that the two would then be independent formulas
-# for one fact, free to disagree.
+@doc """
+surjections: Surjections: functions from an n-set ONTO all k elements of a k-set.
+
+k! * S(n,k) — a partition into k blocks, then a labelling of the blocks.
+The reason it is written on top of stirling2 rather than by its own
+inclusion-exclusion sum is that the two would then be independent formulas
+for one fact, free to disagree.
+
+    surjections(0, 0) #=> 1
+"""
 def surjections(n, k)
   factorial(k) * stirling2(n, k)
 end
 
 # --- partitions of an integer -----------------------------------------------
 
-# Partitions of n using no part larger than m.
-#
-# The split is on the largest part: either m is not used at all (n, m-1) or it
-# is used at least once (n-m, m). That is a count of two subproblems, never a
-# list of partitions — p(50) is 204226, and enumerating them to size the list
-# is exactly what this package exists not to do.
+@doc """
+partitions_with_max: Partitions of n using no part larger than m.
+
+The split is on the largest part: either m is not used at all (n, m-1) or it
+is used at least once (n-m, m). That is a count of two subproblems, never a
+list of partitions — p(50) is 204226, and enumerating them to size the list
+is exactly what this package exists not to do.
+
+    partitions_with_max(4, 1) #=> 1
+"""
 def partitions_with_max(n, m)
   if n < 0
     0
@@ -316,8 +417,12 @@ def partitions_with_max(n, m)
   end
 end
 
-# p(n): 1, 1, 2, 3, 5, 7, 11 — the number of ways to write n as a sum of
-# positive integers, order disregarded. p(0) is 1, the empty sum.
+@doc """
+partitions: p(n): 1, 1, 2, 3, 5, 7, 11 — the number of ways to write n as a sum of
+positive integers, order disregarded. p(0) is 1, the empty sum.
+
+    partitions(0) #=> 1
+"""
 def partitions(n)
   if n < 0
     0
@@ -326,11 +431,15 @@ def partitions(n)
   end
 end
 
-# Partitions of n into EXACTLY k parts.
-#
-# Split on whether the smallest part is 1 (drop it: n-1 into k-1 parts) or
-# every part exceeds 1 (subtract one from each: n-k into k parts). Summing
-# this over k recovers partitions(n), which is the test below.
+@doc """
+partitions_into: Partitions of n into EXACTLY k parts.
+
+Split on whether the smallest part is 1 (drop it: n-1 into k-1 parts) or
+every part exceeds 1 (subtract one from each: n-k into k parts). Summing
+this over k recovers partitions(n), which is the test below.
+
+    partitions_into(0, 0) #=> 1
+"""
 def partitions_into(n, k)
   if n < 0 or k < 0
     0
@@ -349,11 +458,15 @@ end
 
 # --- compositions -----------------------------------------------------------
 
-# Compositions: n written as an ORDERED sum of exactly k positive parts.
-#
-# The counterpart to partitions_into, and the pair is worth holding side by
-# side: 4 = 3+1 and 4 = 1+3 are two compositions but one partition. Counted by
-# choosing where to cut a row of n items, hence C(n-1, k-1).
+@doc """
+compositions: Compositions: n written as an ORDERED sum of exactly k positive parts.
+
+The counterpart to partitions_into, and the pair is worth holding side by
+side: 4 = 3+1 and 4 = 1+3 are two compositions but one partition. Counted by
+choosing where to cut a row of n items, hence C(n-1, k-1).
+
+    compositions(0, 0) #=> 1
+"""
 def compositions(n, k)
   if n < 1
     if k < 1
@@ -368,9 +481,13 @@ def compositions(n, k)
   end
 end
 
-# Compositions of n into any number of parts: 2^(n-1), one binary choice at
-# each of the n-1 gaps. Zero has the empty composition and no gaps at all,
-# which the formula would answer with a half.
+@doc """
+compositions_total: Compositions of n into any number of parts: 2^(n-1), one binary choice at
+each of the n-1 gaps. Zero has the empty composition and no gaps at all,
+which the formula would answer with a half.
+
+    compositions_total(0) #=> 1
+"""
 def compositions_total(n)
   if n < 1
     1
@@ -385,12 +502,16 @@ end
 # where its float quotient is not: the chance of a given four-of-a-kind is
 # 1/649740 exactly and 0.0000015390... approximately. These keep the pair.
 
-# Reduce [numerator, denominator] to lowest terms, sign carried on the
-# numerator so that a value has exactly one reduced form.
-#
-# A zero denominator is handed back untouched rather than divided by: there is
-# no lowest term for an undefined ratio, and erroring would make this unusable
-# in a fold over counts that can legitimately be zero.
+@doc """
+simplify_ratio: Reduce [numerator, denominator] to lowest terms, sign carried on the
+numerator so that a value has exactly one reduced form.
+
+A zero denominator is handed back untouched rather than divided by: there is
+no lowest term for an undefined ratio, and erroring would make this unusable
+in a fold over counts that can legitimately be zero.
+
+    simplify_ratio(0, 0) #=> [0, 0]
+"""
 def simplify_ratio(n, d)
   if is_zero(d)
     [n, d]
@@ -399,9 +520,11 @@ def simplify_ratio(n, d)
   end
 end
 
-# Divide both terms by g, flipping both signs when the denominator is the one
-# carrying the minus. Split out because the sign branch needs g named, and an
-# assignment inside the caller's else-branch would bury the guard above it.
+@doc """
+simplify_by_gcd: Divide both terms by g, flipping both signs when the denominator is the one
+carrying the minus. Split out because the sign branch needs g named, and an
+assignment inside the caller's else-branch would bury the guard above it.
+"""
 def simplify_by_gcd(n, d, g)
   if d < 0
     [-n / g, -d / g]
@@ -410,20 +533,28 @@ def simplify_by_gcd(n, d, g)
   end
 end
 
-# Whether two counts share no factor. gcd(0, 0) is 0, so nothing is coprime to
-# itself at zero — but 1 is coprime to everything, zero included.
+@doc """
+coprime: Whether two counts share no factor. gcd(0, 0) is 0, so nothing is coprime to
+itself at zero — but 1 is coprime to everything, zero included.
+
+    coprime(1, 0) #=> true
+"""
 def coprime(a, b)
   gcd(abs(a), abs(b)) == 1
 end
 
 # --- the triangle itself ----------------------------------------------------
 
-# Rows 0 through n of Pascal's triangle.
-#
-# Each row is computed from the binomial formula rather than from the row above
-# it. That is slower per entry and the right trade here: a row built by adding
-# its predecessor cannot be asked for on its own, and pascal_row(40) with no
-# preamble is the call a caller actually makes.
+@doc """
+pascal_triangle: Rows 0 through n of Pascal's triangle.
+
+Each row is computed from the binomial formula rather than from the row above
+it. That is slower per entry and the right trade here: a row built by adding
+its predecessor cannot be asked for on its own, and pascal_row(40) with no
+preamble is the call a caller actually makes.
+
+    pascal_triangle(0) #=> [[1]]
+"""
 def pascal_triangle(n)
   map(pascal_row, range(0, n + 1))
 end
@@ -769,6 +900,11 @@ test "pascal triangle rows, and the recurrence between them"
     combinations(5, 3)
 end
 
+@doc """
+choose: number of ways to pick k of n.
+
+    choose(0, 0) #=> 1
+"""
 def choose(n, k)
   binomial(n, k)
 end

@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: "arnes",
     today: "exists:chokkan",
-    meaning: "declare one typed question for a judge",
     wave: 0,
     origin: "G"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: [],
     fleet: "arnes",
     today: "exists:chokkan",
-    meaning: "a question with a closed set of answers",
     wave: 0,
     origin: "G"
   }
@@ -39,7 +37,6 @@ verb(
     laterals: [],
     fleet: "arnes",
     today: "exists:chokkan",
-    meaning: "the wire request that carries the questions",
     wave: 0,
     origin: "G",
     contract: "request(model, state, opts) -> request"
@@ -55,7 +52,6 @@ verb(
     laterals: [],
     fleet: "arnes",
     today: "exists:chokkan",
-    meaning: "a question answered on a numbered scale",
     wave: 0,
     origin: "G"
   }

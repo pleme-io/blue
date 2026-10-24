@@ -1,12 +1,16 @@
+@moduledoc """
+hizuke (日付) — the proleptic Gregorian calendar, as arithmetic.
+
+No clock. Every function here is a pure function of numbers, which is what
+makes a calendar testable: "what day was 2000-01-01" has one answer forever,
+whereas anything reading a system clock has a different answer every run and
+can only be tested against itself.
+
+    quarter(1) #=> 1
+"""
+
 use("kazu", [:min])
 use("retsu", [:size])
-
-# hizuke (日付) — the proleptic Gregorian calendar, as arithmetic.
-#
-# No clock. Every function here is a pure function of numbers, which is what
-# makes a calendar testable: "what day was 2000-01-01" has one answer forever,
-# whereas anything reading a system clock has a different answer every run and
-# can only be tested against itself.
 
 def is_leap(y)
   if y % 400 == 0
@@ -40,17 +44,25 @@ def days_in_year(y)
   end
 end
 
-# Day of the year, 1-based.
+@doc """
+ordinal_day: Day of the year, 1-based.
+
+    ordinal_day(2023, 1, 1) #=> 1
+"""
 def ordinal_day(y, m, d)
   d + reduce((acc, mm) -> acc + days_in_month(y, mm), 0, range(1, m))
 end
 
-# Day of week by Zeller's congruence: 0 = Sunday.
-#
-# Zeller counts January and February as months 13 and 14 of the PREVIOUS year,
-# which is the step every from-scratch implementation forgets and which makes
-# every January date wrong by a fixed offset — a bug that looks like a
-# timezone problem and is not.
+@doc """
+day_of_week: Day of week by Zeller's congruence: 0 = Sunday.
+
+Zeller counts January and February as months 13 and 14 of the PREVIOUS year,
+which is the step every from-scratch implementation forgets and which makes
+every January date wrong by a fixed offset — a bug that looks like a
+timezone problem and is not.
+
+    day_of_week(2000, 1, 1) #=> 6
+"""
 def day_of_week(y, m, d)
   mm = if m < 3
     m + 12
@@ -91,15 +103,19 @@ def day_name(w)
   )
 end
 
-# A serial day number: 0001-01-01 is day 1, counting proleptic Gregorian days
-# with no gaps. This is THE missing primitive — the gap between two dates, the
-# date n days later, and "did the month roll over" are all subtraction once a
-# date is a single number, and none of them need a calendar table.
-#
-# Howard Hinnant's civil-from-days algebra. It shifts the year to begin in
-# March so the 31/30 month pattern is regular and February's variable length
-# falls off the END of the year, where a leap day cannot disturb any month
-# after it — the trick that makes the whole thing branch-free.
+@doc """
+to_day_number: A serial day number: 0001-01-01 is day 1, counting proleptic Gregorian days
+with no gaps. This is THE missing primitive — the gap between two dates, the
+date n days later, and "did the month roll over" are all subtraction once a
+date is a single number, and none of them need a calendar table.
+
+Howard Hinnant's civil-from-days algebra. It shifts the year to begin in
+March so the 31/30 month pattern is regular and February's variable length
+falls off the END of the year, where a leap day cannot disturb any month
+after it — the trick that makes the whole thing branch-free.
+
+    to_day_number(1, 1, 1) #=> 1
+"""
 def to_day_number(y, m, d)
   ys = if m < 3
     y - 1
@@ -119,10 +135,14 @@ def to_day_number(y, m, d)
   era * 146_097 + doe - 305
 end
 
-# The exact inverse of to_day_number, as [year, month, day].
-#
-# Returning a three-element list rather than three values is what lets
-# add_days/next_day/easter compose: their result is itself a date.
+@doc """
+from_day_number: The exact inverse of to_day_number, as [year, month, day].
+
+Returning a three-element list rather than three values is what lets
+add_days/next_day/easter compose: their result is itself a date.
+
+    from_day_number(0) #=> [0, 12, 31]
+"""
 def from_day_number(n)
   z = n + 305
   era = floor(z / 146_097)
@@ -147,21 +167,39 @@ def from_day_number(n)
   [y, m, d]
 end
 
-# Named accessors, so a caller never has to remember that month is index 1.
+@doc """
+year_of: Named accessors, so a caller never has to remember that month is index 1.
+
+    year_of([2024, 2, 29]) #=> 2024
+"""
 def year_of(dt)
   nth(0, dt)
 end
 
+@doc """
+month_of: calendar month of a date.
+
+    month_of([2024, 2, 29]) #=> 2
+"""
 def month_of(dt)
   nth(1, dt)
 end
 
+@doc """
+day_of: day of the month of a date.
+
+    day_of([2024, 2, 29]) #=> 29
+"""
 def day_of(dt)
   nth(2, dt)
 end
 
-# Positive when the SECOND date is the later one, matching how "days between
-# now and the deadline" is asked in prose.
+@doc """
+days_between: Positive when the SECOND date is the later one, matching how "days between
+now and the deadline" is asked in prose.
+
+    days_between(2024, 1, 1, 2024, 1, 1) #=> 0
+"""
 def days_between(y1, m1, d1, y2, m2, d2)
   to_day_number(y2, m2, d2) - to_day_number(y1, m1, d1)
 end
@@ -178,14 +216,22 @@ def prev_day(y, m, d)
   add_days(y, m, d, -1)
 end
 
-# add_days for a date that is already a list — the form that chains, because
-# every date-returning function here hands back exactly what this takes.
+@doc """
+shift_days: add_days for a date that is already a list — the form that chains, because
+every date-returning function here hands back exactly what this takes.
+
+    shift_days([2024, 2, 27], 40) #=> [2024, 4, 7]
+"""
 def shift_days(dt, n)
   add_days(year_of(dt), month_of(dt), day_of(dt), n)
 end
 
-# Months are 1-based, matching every other function in this file, so the list
-# index is m - 1. Defined for 1..12.
+@doc """
+month_name: Months are 1-based, matching every other function in this file, so the list
+index is m - 1. Defined for 1..12.
+
+    month_name(1) #=> "January"
+"""
 def month_name(m)
   nth(
     m - 1,
@@ -210,13 +256,22 @@ def day_of_week_name(y, m, d)
   day_name(day_of_week(y, m, d))
 end
 
+@doc """
+quarter: calendar quarter, 1 to 4.
+
+    quarter(1) #=> 1
+"""
 def quarter(m)
   floor((m - 1) / 3) + 1
 end
 
-# The guard that stops 2023-02-29 and 2024-13-01 from silently becoming a real
-# day number: to_day_number happily normalises nonsense, so anything parsing
-# user input must ask this FIRST.
+@doc """
+is_valid_date: The guard that stops 2023-02-29 and 2024-13-01 from silently becoming a real
+day number: to_day_number happily normalises nonsense, so anything parsing
+user input must ask this FIRST.
+
+    is_valid_date(2024, 0, 1) #=> false
+"""
 def is_valid_date(y, m, d)
   m >= 1 and m <= 12 and d >= 1 and d <= days_in_month(y, m)
 end
@@ -225,8 +280,12 @@ def is_month_end(y, m, d)
   d == days_in_month(y, m)
 end
 
-# Returns a DATE, not a count — days_in_month already answers the count, and a
-# date is what add_days/day_of_week/is_weekend can be handed next.
+@doc """
+last_day_of_month: Returns a DATE, not a count — days_in_month already answers the count, and a
+date is what add_days/day_of_week/is_weekend can be handed next.
+
+    last_day_of_month(2023, 2) #=> [2023, 2, 28]
+"""
 def last_day_of_month(y, m)
   [y, m, days_in_month(y, m)]
 end
@@ -239,25 +298,37 @@ def is_business_day(y, m, d)
   not is_weekend(y, m, d)
 end
 
-# 0001-01-01 was a Monday and day numbers have no gaps, so the day number mod 7
-# IS the weekday on the same 0=Sunday scale day_of_week uses — no offset table.
-# That coincidence is what makes counting weekdays over a span cheap.
+@doc """
+weekday_of_day_number: 0001-01-01 was a Monday and day numbers have no gaps, so the day number mod 7
+IS the weekday on the same 0=Sunday scale day_of_week uses — no offset table.
+That coincidence is what makes counting weekdays over a span cheap.
+
+    weekday_of_day_number(1) #=> 1
+"""
 def weekday_of_day_number(n)
   n % 7
 end
 
-# The plain "which week of this year" count: weeks start on Sunday and week 1
-# is whatever week contains 1 January, so week 1 is usually a partial week and
-# a long year can reach week 53. This is deliberately NOT iso_week — the two
-# disagree at both ends of the year, and picking the wrong one silently shifts
-# every report by a week.
+@doc """
+week_of_year: The plain "which week of this year" count: weeks start on Sunday and week 1
+is whatever week contains 1 January, so week 1 is usually a partial week and
+a long year can reach week 53. This is deliberately NOT iso_week — the two
+disagree at both ends of the year, and picking the wrong one silently shifts
+every report by a week.
+
+    week_of_year(2000, 1, 1) #=> 1
+"""
 def week_of_year(y, m, d)
   floor((ordinal_day(y, m, d) + day_of_week(y, 1, 1) - 1) / 7) + 1
 end
 
-# ISO 8601 numbers weekdays 1..7 starting MONDAY, unlike day_of_week's 0=Sunday.
-# That is not gratuitous: an ISO week belongs to the year containing its
-# Thursday, which is only the midpoint if the week starts on Monday.
+@doc """
+iso_weekday: ISO 8601 numbers weekdays 1..7 starting MONDAY, unlike day_of_week's 0=Sunday.
+That is not gratuitous: an ISO week belongs to the year containing its
+Thursday, which is only the midpoint if the week starts on Monday.
+
+    iso_weekday(2000, 1, 1) #=> 6
+"""
 def iso_weekday(y, m, d)
   w = day_of_week(y, m, d)
   if w == 0
@@ -267,9 +338,13 @@ def iso_weekday(y, m, d)
   end
 end
 
-# A 53-week ISO year is exactly one starting on Thursday, or a leap year
-# starting on Wednesday — in both cases 1 January's week has its Thursday in
-# this year AND 31 December's does too.
+@doc """
+iso_weeks_in_year: A 53-week ISO year is exactly one starting on Thursday, or a leap year
+starting on Wednesday — in both cases 1 January's week has its Thursday in
+this year AND 31 December's does too.
+
+    iso_weeks_in_year(2000) #=> 52
+"""
 def iso_weeks_in_year(y)
   j = iso_weekday(y, 1, 1)
   if j == 4 or is_leap(y) and j == 3
@@ -279,15 +354,22 @@ def iso_weeks_in_year(y)
   end
 end
 
-# The raw ISO week index, which may fall OFF either end of its own year: 0 or
-# less means the date belongs to the last week of the previous year, and more
-# than iso_weeks_in_year means it belongs to week 1 of the next. iso_week and
-# iso_week_year resolve the same overflow in the two different directions, so
-# they are computed from this one shared expression.
+@doc """
+iso_week_raw: The raw ISO week index, which may fall OFF either end of its own year: 0 or
+less means the date belongs to the last week of the previous year, and more
+than iso_weeks_in_year means it belongs to week 1 of the next. iso_week and
+iso_week_year resolve the same overflow in the two different directions, so
+they are computed from this one shared expression.
+"""
 def iso_week_raw(y, m, d)
   floor((ordinal_day(y, m, d) - iso_weekday(y, m, d) + 10) / 7)
 end
 
+@doc """
+iso_week: ISO week number and week year.
+
+    iso_week(2000, 1, 1) #=> 52
+"""
 def iso_week(y, m, d)
   w = iso_week_raw(y, m, d)
   if w < 1
@@ -299,8 +381,12 @@ def iso_week(y, m, d)
   end
 end
 
-# The year an ISO week belongs to, which is NOT always the calendar year — the
-# reason an ISO week number is meaningless without it.
+@doc """
+iso_week_year: The year an ISO week belongs to, which is NOT always the calendar year — the
+reason an ISO week number is meaningless without it.
+
+    iso_week_year(2000, 1, 1) #=> 1999
+"""
 def iso_week_year(y, m, d)
   w = iso_week_raw(y, m, d)
   if w < 1
@@ -312,10 +398,14 @@ def iso_week_year(y, m, d)
   end
 end
 
-# Completed years between a birth date and a given date. "Today" is an argument
-# because hizuke has no clock — which is also what makes the answer testable.
-# A birthday that has not yet arrived this year does not count, so someone born
-# on 29 February is 0 years older on 28 February of a non-leap year.
+@doc """
+age_in_years: Completed years between a birth date and a given date. "Today" is an argument
+because hizuke has no clock — which is also what makes the answer testable.
+A birthday that has not yet arrived this year does not count, so someone born
+on 29 February is 0 years older on 28 February of a non-leap year.
+
+    age_in_years(2024, 2, 29, 2025, 3, 1) #=> 1
+"""
 def age_in_years(by, bm, bd, y, m, d)
   n = y - by
   if m < bm or m == bm and d < bd
@@ -325,11 +415,15 @@ def age_in_years(by, bm, bd, y, m, d)
   end
 end
 
-# Adding a month is not adding 30 days, and the trap is the SHORT target month:
-# 31 January plus one month has no 31 February to land on, so the day clamps to
-# the month end. Clamping is what every calendar UI does, and it makes this
-# lossy — add one month then subtract one and 31 January comes back as 28/29
-# February, not 31 January.
+@doc """
+add_months: Adding a month is not adding 30 days, and the trap is the SHORT target month:
+31 January plus one month has no 31 February to land on, so the day clamps to
+the month end. Clamping is what every calendar UI does, and it makes this
+lossy — add one month then subtract one and 31 January comes back as 28/29
+February, not 31 January.
+
+    add_months(2023, 1, 31, 1) #=> [2023, 2, 28]
+"""
 def add_months(y, m, d, n)
   t = y * 12 + (m - 1) + n
   ny = floor(t / 12)
@@ -337,13 +431,21 @@ def add_months(y, m, d, n)
   [ny, nm, min(d, days_in_month(ny, nm))]
 end
 
-# The same clamp one dimension up: 29 February plus a year is 28 February.
+@doc """
+add_years: The same clamp one dimension up: 29 February plus a year is 28 February.
+
+    add_years(1896, 2, 29, 4) #=> [1900, 2, 28]
+"""
 def add_years(y, m, d, n)
   add_months(y, m, d, n * 12)
 end
 
-# -1 / 0 / 1, so it can drive a sort. Comparing day numbers instead of
-# year-then-month-then-day leaves only one thing that can be wrong.
+@doc """
+compare_dates: -1 / 0 / 1, so it can drive a sort. Comparing day numbers instead of
+year-then-month-then-day leaves only one thing that can be wrong.
+
+    compare_dates(2024, 1, 1, 2024, 1, 1) #=> 0
+"""
 def compare_dates(y1, m1, d1, y2, m2, d2)
   n = days_between(y1, m1, d1, y2, m2, d2)
   if n > 0
@@ -355,9 +457,11 @@ def compare_dates(y1, m1, d1, y2, m2, d2)
   end
 end
 
-# Counts at the DAY-NUMBER level and tests the weekday with a single mod,
-# rather than converting each day back into a calendar date — over a year that
-# is one subtraction per day instead of 365 full from_day_number inversions.
+@doc """
+business_days_in_span: Counts at the DAY-NUMBER level and tests the weekday with a single mod,
+rather than converting each day back into a calendar date — over a year that
+is one subtraction per day instead of 365 full from_day_number inversions.
+"""
 def business_days_in_span(a, b)
   size(
     filter(
@@ -367,13 +471,17 @@ def business_days_in_span(a, b)
   )
 end
 
-# Business days in the HALF-OPEN span [start, end) — start counted, end
-# excluded — so adjacent spans add up and a zero-length span is 0. Negative
-# when the end precedes the start, matching days_between's sign convention.
-#
-# Holidays are deliberately absent: which days a jurisdiction observes is data
-# about a place, not arithmetic about the calendar, and baking one country's
-# list in here would make the function wrong everywhere else.
+@doc """
+business_days_between: Business days in the HALF-OPEN span [start, end) — start counted, end
+excluded — so adjacent spans add up and a zero-length span is 0. Negative
+when the end precedes the start, matching days_between's sign convention.
+
+Holidays are deliberately absent: which days a jurisdiction observes is data
+about a place, not arithmetic about the calendar, and baking one country's
+list in here would make the function wrong everywhere else.
+
+    business_days_between(2024, 1, 1, 2024, 1, 1) #=> 0
+"""
 def business_days_between(y1, m1, d1, y2, m2, d2)
   a = to_day_number(y1, m1, d1)
   b = to_day_number(y2, m2, d2)
@@ -384,14 +492,18 @@ def business_days_between(y1, m1, d1, y2, m2, d2)
   end
 end
 
-# Easter Sunday, by the anonymous Gregorian algorithm (Meeus/Jones/Butcher).
-#
-# There is no closed form: Easter is the first Sunday after the ecclesiastical
-# full moon falling on or after 21 March, so this is a table of corrections to
-# a lunar cycle rather than a derivation, and the constants cannot be sanity-
-# checked by reading them. The only honest verification is published dates plus
-# the two invariants — it is always a Sunday, and it always falls between
-# 22 March and 25 April.
+@doc """
+easter: Easter Sunday, by the anonymous Gregorian algorithm (Meeus/Jones/Butcher).
+
+There is no closed form: Easter is the first Sunday after the ecclesiastical
+full moon falling on or after 21 March, so this is a table of corrections to
+a lunar cycle rather than a derivation, and the constants cannot be sanity-
+checked by reading them. The only honest verification is published dates plus
+the two invariants — it is always a Sunday, and it always falls between
+22 March and 25 April.
+
+    easter(1818) #=> [1818, 3, 22]
+"""
 def easter(y)
   a = y % 19
   b = floor(y / 100)
@@ -409,40 +521,58 @@ def easter(y)
   [y, floor(n / 31), n % 31 + 1]
 end
 
-# The inverse of ordinal_day. Day 60 is 29 February in 2024 and 1 March in
-# 2023, which is the pair showing an ordinal means nothing without its year.
+@doc """
+date_from_ordinal: The inverse of ordinal_day. Day 60 is 29 February in 2024 and 1 March in
+2023, which is the pair showing an ordinal means nothing without its year.
+
+    date_from_ordinal(2024, 1) #=> [2024, 1, 1]
+"""
 def date_from_ordinal(y, n)
   from_day_number(to_day_number(y, 1, 1) + n - 1)
 end
 
-# "The fourth Thursday of November" — how holiday and meeting rules are
-# actually written. w is on day_of_week's 0=Sunday scale; n is 1-based.
-#
-# The trap is the gap to the first matching weekday: subtracting goes negative
-# half the time, so it has to be taken modulo 7. Nothing here bounds n, so a
-# fifth weekday a month does not have yields a day past the month end — ask
-# is_valid_date before using the result for anything.
+@doc """
+nth_weekday_of_month: "The fourth Thursday of November" — how holiday and meeting rules are
+actually written. w is on day_of_week's 0=Sunday scale; n is 1-based.
+
+The trap is the gap to the first matching weekday: subtracting goes negative
+half the time, so it has to be taken modulo 7. Nothing here bounds n, so a
+fifth weekday a month does not have yields a day past the month end — ask
+is_valid_date before using the result for anything.
+
+    nth_weekday_of_month(2024, 9, 1, 1) #=> [2024, 9, 2]
+"""
 def nth_weekday_of_month(y, m, w, n)
   offset = (w - day_of_week(y, m, 1)) % 7
   [y, m, 1 + offset + 7 * (n - 1)]
 end
 
-# "The last Monday in May" — the other half of the holiday vocabulary, and the
-# half that cannot be rewritten as an nth: some Mays have five Mondays and some
-# four, so counting from the END is the only rule that is stable year to year.
+@doc """
+last_weekday_of_month: "The last Monday in May" — the other half of the holiday vocabulary, and the
+half that cannot be rewritten as an nth: some Mays have five Mondays and some
+four, so counting from the END is the only rule that is stable year to year.
+
+    last_weekday_of_month(2023, 5, 1) #=> [2023, 5, 29]
+"""
 def last_weekday_of_month(y, m, w)
   ld = days_in_month(y, m)
   [y, m, ld - (day_of_week(y, m, ld) - w) % 7]
 end
 
-# Left-pads with zeros to a fixed width, returning the number unchanged if it
-# is already wider.
+@doc """
+zero_pad: Left-pads with zeros to a fixed width, returning the number unchanged if it
+is already wider.
+
+    zero_pad(7, 2) #=> "07"
+"""
 def zero_pad(n, width)
   pad_to(to_s(n), width)
 end
 
-# The recursive worker: one zero per pass, so the width is a stop condition
-# rather than a computed count that could go negative.
+@doc """
+pad_to: The recursive worker: one zero per pass, so the width is a stop condition
+rather than a computed count that could go negative.
+"""
 def pad_to(s, width)
   if size(chars(s)) >= width
     s
@@ -451,16 +581,24 @@ def pad_to(s, width)
   end
 end
 
-# ISO 8601 is FIXED WIDTH: "2024-02-09", never "2024-2-9". The padding is the
-# only reason this is not a bare join — an unpadded date string sorts wrong,
-# and sorting correctly as text is the entire point of writing dates this way.
-# Defined for years 0..9999, the range the basic format covers.
+@doc """
+format_iso: ISO 8601 is FIXED WIDTH: "2024-02-09", never "2024-2-9". The padding is the
+only reason this is not a bare join — an unpadded date string sorts wrong,
+and sorting correctly as text is the entire point of writing dates this way.
+Defined for years 0..9999, the range the basic format covers.
+
+    format_iso(1, 1, 1) #=> "0001-01-01"
+"""
 def format_iso(y, m, d)
   join([zero_pad(y, 4), zero_pad(m, 2), zero_pad(d, 2)], "-")
 end
 
-# The same, for a date that is already a list — so easter, add_days and the
-# weekday-of-month rules can be printed without being taken apart first.
+@doc """
+format_iso_date: The same, for a date that is already a list — so easter, add_days and the
+weekday-of-month rules can be printed without being taken apart first.
+
+    format_iso_date(easter(2024)) #=> "2024-03-31"
+"""
 def format_iso_date(dt)
   format_iso(year_of(dt), month_of(dt), day_of(dt))
 end
@@ -874,14 +1012,27 @@ test "ISO formatting is fixed width"
   assert format_iso_date(add_days(2023, 12, 31, 1)) == "2024-01-01"
 end
 
+@doc """
+leap?: whether the year has 366 days.
+"""
 def leap?(year)
   is_leap(year)
 end
 
+@doc """
+days_in: days in a month.
+
+    days_in(2023, 1) #=> 31
+"""
 def days_in(year, month)
   days_in_month(year, month)
 end
 
+@doc """
+nth_weekday: the n-th given weekday of a month.
+
+    nth_weekday(2024, 5, 1, 1) #=> [2024, 5, 6]
+"""
 def nth_weekday(year, month, weekday, n)
   nth_weekday_of_month(year, month, weekday, n)
 end

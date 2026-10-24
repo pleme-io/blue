@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shihyou",
-    meaning: "multi-window burn alerts for an objective",
     wave: 0,
     origin: "F"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: ["time"],
     fleet: nil,
     today: "exists:shihyou",
-    meaning: "the error budget left in a window",
     wave: 0,
     origin: "F"
   }
@@ -69,7 +67,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:shihyou",
-    meaning: "panels showing an objective, built from the same rules",
     wave: 0,
     origin: "F"
   }
@@ -99,7 +96,6 @@ verb(
     laterals: [],
     fleet: "blue",
     today: "exists:shihyou",
-    meaning: "The failing-request ratio over a window.",
     wave: 0,
     origin: "C"
   }
@@ -174,7 +170,6 @@ verb(
     laterals: [],
     fleet: "blue",
     today: "exists:shihyou",
-    meaning: "The objectives declared for a service.",
     wave: 0,
     origin: "C"
   }
@@ -204,7 +199,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:shihyou",
-    meaning: "recording and alert rules derived from an objective",
     wave: 0,
     origin: "F"
   }
@@ -234,7 +228,6 @@ verb(
     laterals: [],
     fleet: "blue",
     today: "exists:shihyou",
-    meaning: "The ratio of requests slower than a bound.",
     wave: 0,
     origin: "C"
   }

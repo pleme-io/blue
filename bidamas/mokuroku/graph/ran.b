@@ -39,7 +39,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ran",
-    meaning: "one random element, weighted if asked",
     wave: 0,
     origin: "G"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ran",
-    meaning: "a random order of a list",
     wave: 0,
     origin: "G"
   }
@@ -69,7 +67,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ran",
-    meaning: "the seed of stream i from one experiment seed",
     wave: 0,
     origin: "H"
   }

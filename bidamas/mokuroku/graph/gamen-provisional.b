@@ -24,7 +24,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:gamen",
-    meaning: "find accessibility and layout faults in a tree",
     wave: 1,
     origin: "G"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: ["switch", "validate"],
     fleet: "pleme-widget-spec",
     today: "exists:gamen",
-    meaning: "declare a reusable view: props, state, events",
     wave: 1,
     origin: "G"
   }
@@ -69,7 +67,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:gamen",
-    meaning: "WCAG contrast ratio of two colors",
     wave: 0,
     origin: "G"
   }
@@ -204,7 +201,6 @@ verb(
     laterals: ["validate"],
     fleet: "lilitu",
     today: "exists:gamen",
-    meaning: "display text keyed by each backend enum value",
     wave: 1,
     origin: "I"
   }
@@ -219,7 +215,6 @@ verb(
     laterals: [],
     fleet: "egaku",
     today: "exists:gamen",
-    meaning: "place nodes in a size: stack, flex or grid",
     wave: 1,
     origin: "G"
   }
@@ -384,7 +379,6 @@ verb(
     laterals: ["serialize"],
     fleet: "pleme-widget-gen",
     today: "exists:gamen",
-    meaning: "tree to html, ansi, svg or widget spec text",
     wave: 1,
     origin: "G"
   }
@@ -414,7 +408,6 @@ verb(
     laterals: [],
     fleet: "kazari",
     today: "exists:gamen",
-    meaning: "put a node on the terminal as styled output",
     wave: 0,
     origin: "G"
   }
@@ -474,7 +467,6 @@ verb(
     laterals: [],
     fleet: "ishou",
     today: "exists:gamen",
-    meaning: "resolve semantic tokens on a node to colors and sizes",
     wave: 1,
     origin: "G"
   }
@@ -489,7 +481,6 @@ verb(
     laterals: ["config"],
     fleet: "irodori",
     today: "exists:gamen",
-    meaning: "declare a theme: Nord tokens for light and dark",
     wave: 0,
     origin: "G"
   }
@@ -534,7 +525,6 @@ verb(
     laterals: ["validate"],
     fleet: "egaku",
     today: "exists:gamen",
-    meaning: "declare one UI node with props and children",
     wave: 1,
     origin: "G"
   }

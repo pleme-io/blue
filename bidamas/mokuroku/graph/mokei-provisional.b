@@ -9,7 +9,6 @@ verb(
     laterals: ["cache", "deadline", "ratelimit", "retry", "trace"],
     fleet: "arnes-anthropic",
     today: "partial:chokkan",
-    meaning: "one call to a model; reply holds text, tool uses, usage",
     wave: 2,
     origin: "G"
   }

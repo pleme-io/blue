@@ -491,26 +491,18 @@ fn closed(s: &str) -> String {
     out
 }
 
-/// The source's first line, starting with the name.
+/// The source's first line, starting with the name; the source keeps its
+/// case, so a proper noun (`GraphQL`, `Euler`) is never lowered.
 fn named(name: &str, source: &str) -> Option<String> {
     let s = source.trim();
     if s.is_empty() || is_placeholder(s) {
         return None;
     }
-    let out = if after_name(s, name).is_some() {
+    Some(if after_name(s, name).is_some() {
         s.to_string()
     } else {
-        let mut chars = s.chars();
-        let first = chars.next()?;
-        let second = chars.next();
-        let lowered = if second.is_some_and(char::is_uppercase) {
-            s.to_string()
-        } else {
-            format!("{}{}", first.to_lowercase(), &s[first.len_utf8()..])
-        };
-        format!("{name}: {lowered}")
-    };
-    Some(out)
+        format!("{name}: {s}")
+    })
 }
 
 fn fill_definition(
@@ -878,7 +870,7 @@ mod tests {
         let out = fixed(src);
         assert_eq!(
             out,
-            "@moduledoc \"\"\"\nm: the f package.\nIt adds.\n\n    f(1) #=> 2\n\"\"\"\n\nuse(\"retsu\", [:first])\n\n# waive B0002: kept\n@doc \"\"\"\nf: the successor of a number.\n\n    f(1) #=> 2\n\"\"\"\ndef f(n)\n  n + 1\nend\n\n@doc \"\"\"\ng: its own line.\n\"\"\"\ndef g()\n  1\nend\n\ndef h()\n  2\nend\n\ntest \"f\"\n  x = 3\n  assert f(x) == 4\n  assert f(10) == 11\n  assert f(1) == 2\nend\n",
+            "@moduledoc \"\"\"\nm: the f package.\nIt adds.\n\n    f(1) #=> 2\n\"\"\"\n\nuse(\"retsu\", [:first])\n\n# waive B0002: kept\n@doc \"\"\"\nf: The successor of a number.\n\n    f(1) #=> 2\n\"\"\"\ndef f(n)\n  n + 1\nend\n\n@doc \"\"\"\ng: Its own line.\n\"\"\"\ndef g()\n  1\nend\n\ndef h()\n  2\nend\n\ntest \"f\"\n  x = 3\n  assert f(x) == 4\n  assert f(10) == 11\n  assert f(1) == 2\nend\n",
             "\n{out}"
         );
     }

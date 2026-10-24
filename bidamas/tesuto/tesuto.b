@@ -1,5 +1,8 @@
 use("moji", [:checked])
 
+@doc """
+raises?: whether f raises that kind of error.
+"""
 def raises?(kind, f)
   f()
   false
@@ -23,6 +26,9 @@ def snapshot_path(opts)
   path_join(get(opts, :dir) or "snapshots", "#{name}.b")
 end
 
+@doc """
+snapshot: compare a value with its stored copy; update on request.
+"""
 def snapshot(value, opts)
   checked(opts, [:name, :dir, :update])
   path = snapshot_path(opts)

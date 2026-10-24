@@ -1,25 +1,33 @@
+@moduledoc """
+shuugou (集合) — sets, over plain lists.
+
+No new data structure: a set is a list with no duplicates, so every list
+function keeps working on one. Membership is linear rather than constant —
+a deliberate trade, because a second container type would fork every
+function in the distribution and none of the forks would be better.
+
+    pairs([]) #=> []
+"""
+
 use("retsu", [:first, :is_empty, :push, :rest, :size, :without])
 use("ronri", [:any, :count_if, :every])
-
-# shuugou (集合) — sets, over plain lists.
-#
-# No new data structure: a set is a list with no duplicates, so every list
-# function keeps working on one. Membership is linear rather than constant —
-# a deliberate trade, because a second container type would fork every
-# function in the distribution and none of the forks would be better.
 
 def member(xs, v)
   any((x) -> x == v, xs)
 end
 
-# Keeps the FIRST occurrence of each element.
-#
-# Written as a left fold rather than the obvious tail-recursion, because the
-# tail-recursive shape — unique the rest, then decide about the head — silently
-# keeps the LAST occurrence instead: for [1,2,1,3,2] it yields [1,3,2]. Both
-# are "duplicates removed"; only one matches what a caller reading
-# first-seen-order expects, and the difference is invisible until a test names
-# an ordered expectation. This one did.
+@doc """
+unique: Keeps the FIRST occurrence of each element.
+
+Written as a left fold rather than the obvious tail-recursion, because the
+tail-recursive shape — unique the rest, then decide about the head — silently
+keeps the LAST occurrence instead: for [1,2,1,3,2] it yields [1,3,2]. Both
+are "duplicates removed"; only one matches what a caller reading
+first-seen-order expects, and the difference is invisible until a test names
+an ordered expectation. This one did.
+
+    unique([]) #=> []
+"""
 def unique(xs)
   reduce(
     fn(acc, x)
@@ -34,14 +42,29 @@ def unique(xs)
   )
 end
 
+@doc """
+union: members of either set.
+
+    union([1, 2], [2, 3]) #=> [1, 2, 3]
+"""
 def union(a, b)
   unique(append(a, b))
 end
 
+@doc """
+intersection: members of both sets.
+
+    intersection([1, 2, 3], [2, 3, 4]) #=> [2, 3]
+"""
 def intersection(a, b)
   unique(filter((x) -> member(b, x), a))
 end
 
+@doc """
+difference: members of a that are not in b.
+
+    difference([1, 2, 3], [2]) #=> [1, 3]
+"""
 def difference(a, b)
   unique(filter((x) -> not member(b, x), a))
 end
@@ -54,20 +77,27 @@ def disjoint(a, b)
   is_empty(intersection(a, b))
 end
 
+@doc """
+symmetric_difference: members of exactly one of the sets.
+
+    symmetric_difference([1, 2], [2, 3]) #=> [1, 3]
+"""
 def symmetric_difference(a, b)
   union(difference(a, b), difference(b, a))
 end
 
-# The runtime has TWO empties and only one of them is `[]`:
-#
-#   append([], [])   => nil        range(3, 3)  => nil        nil == []  => false
-#
-# so a set operation that empties out through an append chain compares UNEQUAL
-# to the empty set it obviously is, and `pairs([]) == []` fails while every
-# non-empty case passes. `map`, `filter` and a `reduce` with a `[]` seed are
-# already total; `append` and `range` are not. Every constructor below that can
-# reach one of those returns through here, which is why the empty-input
-# assertions in this file are exact equalities rather than size checks.
+@doc """
+as_set: The runtime has TWO empties and only one of them is `[]`:
+
+  append([], [])   => nil        range(3, 3)  => nil        nil == []  => false
+
+so a set operation that empties out through an append chain compares UNEQUAL
+to the empty set it obviously is, and `pairs([]) == []` fails while every
+non-empty case passes. `map`, `filter` and a `reduce` with a `[]` seed are
+already total; `append` and `range` are not. Every constructor below that can
+reach one of those returns through here, which is why the empty-input
+assertions in this file are exact equalities rather than size checks.
+"""
 def as_set(xs)
   if xs.nil?
     []
@@ -76,10 +106,14 @@ def as_set(xs)
   end
 end
 
-# Cardinality counts DISTINCT elements, so it is not `size`.
-#
-# The distinction is the whole reason it is named: callers hand these functions
-# plain lists, and a list is only a set once the duplicates are gone.
+@doc """
+cardinality: Cardinality counts DISTINCT elements, so it is not `size`.
+
+The distinction is the whole reason it is named: callers hand these functions
+plain lists, and a list is only a set once the duplicates are gone.
+
+    cardinality([]) #=> 0
+"""
 def cardinality(xs)
   size(unique(xs))
 end
@@ -88,10 +122,14 @@ def is_singleton(xs)
   cardinality(xs) == 1
 end
 
-# Set equality ignores both order and multiplicity — [1,2,2] and [2,1] are the
-# same set. Written as mutual inclusion rather than `unique(a) == unique(b)`
-# because unique preserves first-seen ORDER, so the list comparison would call
-# those two unequal.
+@doc """
+set_equal: Set equality ignores both order and multiplicity — [1,2,2] and [2,1] are the
+same set. Written as mutual inclusion rather than `unique(a) == unique(b)`
+because unique preserves first-seen ORDER, so the list comparison would call
+those two unequal.
+
+    set_equal([], []) #=> true
+"""
 def set_equal(a, b)
   subset(a, b) and subset(b, a)
 end
@@ -100,8 +138,12 @@ def superset(a, b)
   subset(b, a)
 end
 
-# Proper = contained AND not equal. The case worth stating: no set is a proper
-# subset of itself, which is what separates this from `subset`.
+@doc """
+proper_subset: Proper = contained AND not equal. The case worth stating: no set is a proper
+subset of itself, which is what separates this from `subset`.
+
+    proper_subset([], [1]) #=> true
+"""
 def proper_subset(a, b)
   subset(a, b) and not set_equal(a, b)
 end
@@ -110,9 +152,13 @@ def proper_superset(a, b)
   proper_subset(b, a)
 end
 
-# Idempotent by construction: inserting a member returns the set unchanged
-# rather than growing it, which is what makes this a set operation and not
-# retsu's `push`.
+@doc """
+insert: Idempotent by construction: inserting a member returns the set unchanged
+rather than growing it, which is what makes this a set operation and not
+retsu's `push`.
+
+    insert([], 1) #=> [1]
+"""
 def insert(xs, v)
   if member(xs, v)
     as_set(xs)
@@ -121,19 +167,25 @@ def insert(xs, v)
   end
 end
 
-# Removes EVERY occurrence, not the first.
-#
-# A set has no notion of "the first 1", so a remove that deletes one copy and
-# leaves another would hand back a value that still `member` what was just
-# removed — the postcondition every caller assumes.
+@doc """
+remove: Removes EVERY occurrence, not the first.
+
+A set has no notion of "the first 1", so a remove that deletes one copy and
+leaves another would hand back a value that still `member` what was just
+removed — the postcondition every caller assumes.
+
+    remove([], 1) #=> []
+"""
 def remove(xs, v)
   without(xs, v)
 end
 
-# unique, but on a derived key — keeps the first element per key, and keeps
-# the ELEMENT rather than the key. Same first-seen rule as `unique`, and for
-# the same reason: the tail-recursive shape keeps the last one instead, and
-# nothing but an ordered expectation notices.
+@doc """
+unique_by: unique, but on a derived key — keeps the first element per key, and keeps
+the ELEMENT rather than the key. Same first-seen rule as `unique`, and for
+the same reason: the tail-recursive shape keeps the last one instead, and
+nothing but an ordered expectation notices.
+"""
 def unique_by(key, xs)
   reduce(
     fn(acc, x)
@@ -148,30 +200,40 @@ def unique_by(key, xs)
   )
 end
 
-# Returns [key, members] PAIRS rather than a map, in first-seen key order.
-#
-# A pair list, because blue's map literal has no reachable key-enumeration
-# builtin — so a map return would be a value a caller could not walk. The pairs
-# are ordinary lists, which every function in the distribution already handles.
-# Key order is first-seen, not sorted: the keys need no ordering relation, so
-# sorting them would demand one the caller may not have.
+@doc """
+group_by: Returns [key, members] PAIRS rather than a map, in first-seen key order.
+
+A pair list, because blue's map literal has no reachable key-enumeration
+builtin — so a map return would be a value a caller could not walk. The pairs
+are ordinary lists, which every function in the distribution already handles.
+Key order is first-seen, not sorted: the keys need no ordering relation, so
+sorting them would demand one the caller may not have.
+"""
 def group_by(xs, key)
   map((k) -> [k, filter((x) -> key(x) == k, xs)], unique(map(key, xs)))
 end
 
-# [value, count] pairs, in first-seen order. Same representation as group_by,
-# and the counts sum back to size(xs) — the invariant a double-counting
-# implementation breaks.
+@doc """
+frequencies: [value, count] pairs, in first-seen order. Same representation as group_by,
+and the counts sum back to size(xs) — the invariant a double-counting
+implementation breaks.
+
+    frequencies([]) #=> []
+"""
 def frequencies(xs)
   map((v) -> [v, count_if((x) -> x == v, xs)], unique(xs))
 end
 
-# The value for a key in a pair list, or nil when absent.
-#
-# It exists because group_by and frequencies return pair lists: without it
-# every caller writes the same filter-then-nth by hand, and gets the missing
-# case wrong the first time. nil rather than an error, for the same reason
-# junjo's binary search returns -1 — absence is an ordinary answer.
+@doc """
+lookup: The value for a key in a pair list, or nil when absent.
+
+It exists because group_by and frequencies return pair lists: without it
+every caller writes the same filter-then-nth by hand, and gets the missing
+case wrong the first time. nil rather than an error, for the same reason
+junjo's binary search returns -1 — absence is an ordinary answer.
+
+    lookup(frequencies([1, 1, 2]), 1) #=> 2
+"""
 def lookup(ps, k)
   hit = filter((p) -> first(p) == k, ps)
   if is_empty(hit)
@@ -181,11 +243,15 @@ def lookup(ps, k)
   end
 end
 
-# The most frequent value; nil for the empty input.
-#
-# Ties go to the first-seen value, because the fold replaces only on a STRICT
-# improvement. A `>=` there returns the LAST of the tied values instead, and no
-# test with a single clear winner would ever catch the difference.
+@doc """
+most_common: The most frequent value; nil for the empty input.
+
+Ties go to the first-seen value, because the fold replaces only on a STRICT
+improvement. A `>=` there returns the LAST of the tied values instead, and no
+test with a single clear winner would ever catch the difference.
+
+    most_common([7]) #=> 7
+"""
 def most_common(xs)
   fs = frequencies(xs)
   if is_empty(fs)
@@ -208,15 +274,21 @@ def most_common(xs)
   end
 end
 
-# A list is a set exactly when it carries no duplicate — the precondition every
-# function above states informally, made checkable.
+@doc """
+is_set: A list is a set exactly when it carries no duplicate — the precondition every
+function above states informally, made checkable.
+
+    is_set([]) #=> true
+"""
 def is_set(xs)
   size(xs) == cardinality(xs)
 end
 
-# The power set of an already-deduplicated list. Split out from `power_set` so
-# the size bound is checked ONCE, at the top, rather than on every one of the
-# 2^n recursive calls.
+@doc """
+power_set_of: The power set of an already-deduplicated list. Split out from `power_set` so
+the size bound is checked ONCE, at the top, rather than on every one of the
+2^n recursive calls.
+"""
 def power_set_of(xs)
   if is_empty(xs)
     [[]]
@@ -226,14 +298,18 @@ def power_set_of(xs)
   end
 end
 
-# All subsets, INCLUDING the empty set and the set itself.
-#
-# Bounded at 12 distinct elements — 4096 subsets — because 2^n stops being a
-# value and becomes an outage: 20 elements is a million allocated lists, and
-# the caller who typed that meant to pass something smaller. Over the bound it
-# returns [], which is distinguishable from every real answer: a genuine power
-# set always member at least [], so `is_empty(power_set(xs))` means refused
-# and never means computed.
+@doc """
+power_set: All subsets, INCLUDING the empty set and the set itself.
+
+Bounded at 12 distinct elements — 4096 subsets — because 2^n stops being a
+value and becomes an outage: 20 elements is a million allocated lists, and
+the caller who typed that meant to pass something smaller. Over the bound it
+returns [], which is distinguishable from every real answer: a genuine power
+set always member at least [], so `is_empty(power_set(xs))` means refused
+and never means computed.
+
+    power_set([]) #=> [[]]
+"""
 def power_set(xs)
   s = unique(xs)
   if size(s) > 12
@@ -243,17 +319,25 @@ def power_set(xs)
   end
 end
 
-# All [a, b] pairs with a from the first set and b from the second. ORDERED
-# pairs — [1,2] and [2,1] are different elements — which is what separates this
-# from `pairs` below.
+@doc """
+cartesian_product: All [a, b] pairs with a from the first set and b from the second. ORDERED
+pairs — [1,2] and [2,1] are different elements — which is what separates this
+from `pairs` below.
+
+    cartesian_product([], []) #=> []
+"""
 def cartesian_product(a, b)
   as_set(reduce((acc, x) -> append(acc, map((y) -> [x, y], b)), [], a))
 end
 
-# Every UNORDERED pair of distinct members: [1,2] appears, [2,1] does not, and
-# [1,1] never does. Indexing j from i+1 is what buys all three at once — a
-# double loop over the whole set would produce n^2 entries including the
-# reversals and the self-pairs.
+@doc """
+pairs: Every UNORDERED pair of distinct members: [1,2] appears, [2,1] does not, and
+[1,1] never does. Indexing j from i+1 is what buys all three at once — a
+double loop over the whole set would produce n^2 entries including the
+reversals and the self-pairs.
+
+    pairs([]) #=> []
+"""
 def pairs(xs)
   s = unique(xs)
   as_set(
@@ -271,12 +355,16 @@ def union_all(xss)
   reduce(union, [], xss)
 end
 
-# The intersection of a FAMILY of sets. Seeded with the first member rather
-# than with [], because [] is the identity for union and the annihilator for
-# intersection — folding intersection from [] returns [] for every input.
-#
-# The empty family returns [] rather than the universe, which is the only total
-# answer available: there is no universe to return.
+@doc """
+intersection_all: The intersection of a FAMILY of sets. Seeded with the first member rather
+than with [], because [] is the identity for union and the annihilator for
+intersection — folding intersection from [] returns [] for every input.
+
+The empty family returns [] rather than the universe, which is the only total
+answer available: there is no universe to return.
+
+    intersection_all([]) #=> []
+"""
 def intersection_all(xss)
   if is_empty(xss)
     []
@@ -490,14 +578,25 @@ test "union_all and intersection_all fold a family of sets"
   assert intersection_all([]) == []
 end
 
+@doc """
+disjoint?: whether the sets share no member.
+"""
 def disjoint?(a, b)
   disjoint(a, b)
 end
 
+@doc """
+product: every pair of one member from each set.
+
+    product([1], []) #=> []
+"""
 def product(a, b)
   cartesian_product(a, b)
 end
 
+@doc """
+subset?: whether every member of a is in b.
+"""
 def subset?(a, b)
   subset(a, b)
 end

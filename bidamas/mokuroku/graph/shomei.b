@@ -69,7 +69,6 @@ verb(
     laterals: ["serialize", "validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "hash that follows when a payload is appended",
     wave: 0,
     origin: "D"
   }
@@ -144,7 +143,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "index of the first stored hash the payloads miss",
     wave: 0,
     origin: "D"
   }
@@ -159,7 +157,6 @@ verb(
     laterals: ["serialize", "validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "first hash of a named chain",
     wave: 0,
     origin: "D"
   }
@@ -174,7 +171,6 @@ verb(
     laterals: ["error", "serialize", "validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "digest of bytes or text under a named algorithm",
     wave: 0,
     origin: "D",
     contract: "hash(data, algorithm) -> hex"
@@ -235,7 +231,6 @@ verb(
     laterals: ["serialize", "validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "hash after all payloads are linked",
     wave: 0,
     origin: "D"
   }
@@ -250,7 +245,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "re-linking the payloads reproduces the head",
     wave: 0,
     origin: "D"
   }
@@ -280,7 +274,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "keyed digest proving data came from a key holder",
     wave: 1,
     origin: "D"
   }
@@ -325,7 +318,6 @@ verb(
     laterals: ["serialize"],
     fleet: "cartorio",
     today: "exists:shomei",
-    meaning: "the sibling path that shows a payload is in the tree",
     wave: 0,
     origin: "B"
   }
@@ -340,7 +332,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "inclusion proof for one payload",
     wave: 0,
     origin: "D"
   }
@@ -355,7 +346,6 @@ verb(
     laterals: ["validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "proof climbs from payload to root",
     wave: 0,
     origin: "D"
   }
@@ -370,7 +360,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "the half a verifier holds",
     wave: 0,
     origin: "D"
   }
@@ -385,7 +374,6 @@ verb(
     laterals: ["capability"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "n bytes from the system entropy source",
     wave: 1,
     origin: "B"
   }
@@ -400,7 +388,6 @@ verb(
     laterals: ["serialize", "validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "Merkle root over payloads in order",
     wave: 0,
     origin: "D"
   }
@@ -415,7 +402,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "equality that takes equal time for every input",
     wave: 0,
     origin: "D"
   }
@@ -445,7 +431,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "every link hash in order",
     wave: 0,
     origin: "D"
   }
@@ -460,7 +445,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: "tameshi",
     today: "exists:shomei",
-    meaning: "signature is valid; malformed input raises",
     wave: 0,
     origin: "D"
   }
@@ -475,7 +459,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shomei",
-    meaning: "whether the payloads reproduce the stated head",
     wave: 0,
     origin: "B"
   }
@@ -490,7 +473,6 @@ verb(
     laterals: ["validate"],
     fleet: "cartorio",
     today: "exists:shomei",
-    meaning: "whether a proof climbs from a payload to the root",
     wave: 0,
     origin: "B"
   }

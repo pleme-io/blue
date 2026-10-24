@@ -54,7 +54,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kikagaku",
-    meaning: "centre of mass of a shape",
     wave: 0,
     origin: "A"
   }
@@ -114,7 +113,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kikagaku",
-    meaning: "straight-line distance between points",
     wave: 0,
     origin: "A"
   }
@@ -144,7 +142,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kikagaku",
-    meaning: "smallest convex polygon around the points",
     wave: 0,
     origin: "A"
   }
@@ -174,7 +171,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kikagaku",
-    meaning: "point halfway between two points",
     wave: 0,
     origin: "A"
   }
@@ -189,7 +185,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kikagaku",
-    meaning: "whether two shapes share area",
     wave: 0,
     origin: "A"
   }
@@ -204,7 +199,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kikagaku",
-    meaning: "length around a shape",
     wave: 0,
     origin: "A"
   }

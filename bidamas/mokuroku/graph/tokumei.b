@@ -85,7 +85,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "privacy cost of one forced-response answer",
     wave: 0,
     origin: "D"
   }
@@ -115,7 +114,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "true share recovered from randomized answers",
     wave: 0,
     origin: "D"
   }
@@ -130,7 +128,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "how sure an observer is about a yes answer",
     wave: 0,
     origin: "D"
   }
@@ -190,7 +187,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "one draw of Laplace noise",
     wave: 0,
     origin: "D"
   }
@@ -295,7 +291,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "a count published with differential privacy",
     wave: 0,
     origin: "D"
   }
@@ -325,7 +320,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "a share published with differential privacy, kept in range",
     wave: 0,
     origin: "D"
   }
@@ -431,7 +425,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "the count, or nil below the threshold",
     wave: 0,
     origin: "D"
   }
@@ -461,7 +454,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:tokumei",
-    meaning: "chance a person is alone in a cell",
     wave: 0,
     origin: "D"
   }

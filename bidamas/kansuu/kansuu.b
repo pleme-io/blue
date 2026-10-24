@@ -1,39 +1,58 @@
-# kansuu (関数) — functions about functions.
-#
-# The smallest bidama with the widest reach: every other package here composes
-# through these. Clojure's argument that one abstraction carries a library
-# applies to combinators before it applies to sequences — `pipe` is what lets a
-# caller build a transformation without naming an intermediate.
+@moduledoc """
+kansuu (関数) — functions about functions.
 
+The smallest bidama with the widest reach: every other package here composes
+through these. Clojure's argument that one abstraction carries a library
+applies to combinators before it applies to sequences — `pipe` is what lets a
+caller build a transformation without naming an intermediate.
+
+    identity(7) #=> 7
+"""
+
+@doc """
+identity: return the argument unchanged.
+
+    identity(7) #=> 7
+"""
 def identity(x)
   x
 end
 
-# The constant function. Useful wherever a callback is required and ignored.
+@doc """
+constantly: The constant function. Useful wherever a callback is required and ignored.
+"""
 def constantly(x)
   (_ignored) -> x
 end
 
-# compose(f, g) applies g FIRST, then f — the mathematical order.
-#
-# Named for the maths rather than for reading order on purpose: `compose` is
-# the word people reach for expecting f∘g, and quietly reversing it would make
-# every use site subtly wrong. `pipe` below is the left-to-right one.
+@doc """
+compose(f, g) applies g FIRST, then f — the mathematical order.
+
+Named for the maths rather than for reading order on purpose: `compose` is
+the word people reach for expecting f∘g, and quietly reversing it would make
+every use site subtly wrong. `pipe` below is the left-to-right one.
+"""
 def compose(f, g)
   (x) -> f(g(x))
 end
 
-# pipe(f, g) applies f FIRST — reading order.
+@doc """
+pipe(f, g) applies f FIRST — reading order.
+"""
 def pipe(f, g)
   (x) -> g(f(x))
 end
 
-# flip a two-argument function's arguments.
+@doc """
+flip a two-argument function's arguments.
+"""
 def flip(f)
   (a, b) -> f(b, a)
 end
 
-# Apply f to x, n times.
+@doc """
+iterate_n: Apply f to x, n times.
+"""
 def iterate_n(f, x, n)
   if n < 1
     x
@@ -42,9 +61,11 @@ def iterate_n(f, x, n)
   end
 end
 
-# Three-place versions of the two orders. Written out rather than expressed as
-# compose(f, compose(g, h)) so the argument order is visible at the definition
-# instead of having to be re-derived from a nesting.
+@doc """
+compose3: Three-place versions of the two orders. Written out rather than expressed as
+compose(f, compose(g, h)) so the argument order is visible at the definition
+instead of having to be re-derived from a nesting.
+"""
 def compose3(f, g, h)
   (x) -> f(g(h(x)))
 end
@@ -53,25 +74,31 @@ def pipe3(f, g, h)
   (x) -> h(g(f(x)))
 end
 
-# pipe_all folds a LIST of functions into one, left to right.
-#
-# The fold seeds with the identity function, which is why the empty list is not
-# a special case: pipe_all([]) is `identity`, the unit of composition. A caller
-# building a pipeline from data (a config, a list of enabled transforms) can
-# therefore hand over an empty list without a guard at the call site.
+@doc """
+pipe_all folds a LIST of functions into one, left to right.
+
+The fold seeds with the identity function, which is why the empty list is not
+a special case: pipe_all([]) is `identity`, the unit of composition. A caller
+building a pipeline from data (a config, a list of enabled transforms) can
+therefore hand over an empty list without a guard at the call site.
+"""
 def pipe_all(fs)
   reduce((acc, f) -> (x) -> f(acc(x)), identity, fs)
 end
 
-# The mathematical order: compose_all([f, g, h]) is f∘g∘h, so h runs first.
-# Equivalent to pipe_all(reverse(fs)), and the tests pin that equivalence.
+@doc """
+compose_all: The mathematical order: compose_all([f, g, h]) is f∘g∘h, so h runs first.
+Equivalent to pipe_all(reverse(fs)), and the tests pin that equivalence.
+"""
 def compose_all(fs)
   reduce((acc, f) -> (x) -> acc(f(x)), identity, fs)
 end
 
-# curry2 turns f(a, b) into f(a)(b), so the first argument can be fixed and the
-# result reused. That partial application is the point: it is how a binary
-# operator becomes something `map` or `pipe_all` will accept.
+@doc """
+curry2 turns f(a, b) into f(a)(b), so the first argument can be fixed and the
+result reused. That partial application is the point: it is how a binary
+operator becomes something `map` or `pipe_all` will accept.
+"""
 def curry2(f)
   (a) -> (b) -> f(a, b)
 end
@@ -80,63 +107,79 @@ def uncurry2(g)
   (a, b) -> g(a)(b)
 end
 
-# f(f(x)). The general form is iterate_n; this exists because doubling up is
-# common enough that spelling the 2 is noise, and because f∘f is the shape the
-# involution tests in this distribution assert (rot13, transpose, reverse).
+@doc """
+apply_twice: f(f(x)). The general form is iterate_n; this exists because doubling up is
+common enough that spelling the 2 is noise, and because f∘f is the shape the
+involution tests in this distribution assert (rot13, transpose, reverse).
+
+    apply_twice(reverse, [1, 2, 3]) #=> [1, 2, 3]
+"""
 def apply_twice(f, x)
   f(f(x))
 end
 
-# The combinator form of iterate_n: n is fixed, the value is not.
-#
-# iterate_n takes the value, so it cannot be dropped into pipe_all. This can —
-# pipe_all([iterated(dbl, 3), inc]) is a pipeline stage that repeats.
+@doc """
+iterated: The combinator form of iterate_n: n is fixed, the value is not.
+
+iterate_n takes the value, so it cannot be dropped into pipe_all. This can —
+pipe_all([iterated(dbl, 3), inc]) is a pipeline stage that repeats.
+"""
 def iterated(f, n)
   (x) -> iterate_n(f, x, n)
 end
 
-# Haskell's `on`: compare/combine two values THROUGH a key function.
-#
-# op comes first to match `on op key` and to keep the higher-order argument
-# leftmost, as map/filter/reduce do here. The classic use is a comparator that
-# orders by a derived value without the caller ever naming that value.
+@doc """
+on: Haskell's `on`: compare/combine two values THROUGH a key function.
+
+op comes first to match `on op key` and to keep the higher-order argument
+leftmost, as map/filter/reduce do here. The classic use is a comparator that
+orders by a derived value without the caller ever naming that value.
+"""
 def on(op, key)
   (a, b) -> op(key(a), key(b))
 end
 
-# juxt(fs) applies EVERY function to ONE value and collects the results.
-#
-# The dual of pipe_all: pipe_all threads one value through many functions in
-# series, juxt fans it out in parallel. Returns a function rather than taking
-# the value so it can be handed straight to `map` — building a row per element
-# from a list of column functions is the reason it exists.
+@doc """
+juxt(fs) applies EVERY function to ONE value and collects the results.
+
+The dual of pipe_all: pipe_all threads one value through many functions in
+series, juxt fans it out in parallel. Returns a function rather than taking
+the value so it can be handed straight to `map` — building a row per element
+from a list of column functions is the reason it exists.
+"""
 def juxt(fs)
   (x) -> map((f) -> f(x), fs)
 end
 
-# The two-function case, named, because a pair is what most callers want and
-# [f, g] spelled as a list is one bracket of noise per use site.
+@doc """
+both_results: The two-function case, named, because a pair is what most callers want and
+[f, g] spelled as a list is one bracket of noise per use site.
+"""
 def both_results(f, g)
   (x) -> [f(x), g(x)]
 end
 
-# fork is both_results with the pair already combined: op(f(x), g(x)).
-#
-# It exists because blue has no destructuring, so a caller handed [f(x), g(x)]
-# has to go back through nth to use it. Anything of the shape "compute two
-# things from one input and put them together" — a ratio, a difference, a span
-# — is a fork, and written this way the intermediate pair is never built.
+@doc """
+fork is both_results with the pair already combined: op(f(x), g(x)).
+
+It exists because blue has no destructuring, so a caller handed [f(x), g(x)]
+has to go back through nth to use it. Anything of the shape "compute two
+things from one input and put them together" — a ratio, a difference, a span
+— is a fork, and written this way the intermediate pair is never built.
+"""
 def fork(op, f, g)
   (x) -> op(f(x), g(x))
 end
 
-# tap runs f for its effect and hands the ORIGINAL value on.
-#
-# The point is that it is spliceable: pipe_all([a, tap(log), b]) leaves the
-# pipeline's value untouched, whereas dropping `log` in directly would replace
-# it with log's return. blue has no observable side effects today, so tap earns
-# its place as the shape that keeps a stage from contaminating the value — and
-# the test asserts exactly that discarding, since that is the whole contract.
+@doc """
+tap runs f for its effect and hands the ORIGINAL value on.
+
+The point is that it is spliceable: pipe_all([a, tap(log), b]) leaves the
+pipeline's value untouched, whereas dropping `log` in directly would replace
+it with log's return. blue has no observable side effects today, so tap earns
+its place as the shape that keeps a stage from contaminating the value — and
+the test asserts exactly that discarding, since that is the whole contract.
+"""
 def tap(f)
   fn(x)
     f(x)
@@ -144,11 +187,13 @@ def tap(f)
   end
 end
 
-# Apply f only where p holds; elsewhere pass the value through unchanged.
-#
-# This is what makes a transform safe to iterate: apply_when's result is the
-# identity on everything outside p, so it reaches a fixed point exactly when p
-# stops holding. until_stable below is its natural partner.
+@doc """
+apply_when: Apply f only where p holds; elsewhere pass the value through unchanged.
+
+This is what makes a transform safe to iterate: apply_when's result is the
+identity on everything outside p, so it reaches a fixed point exactly when p
+stops holding. until_stable below is its natural partner.
+"""
 def apply_when(p, f)
   fn(x)
     if p(x)
@@ -171,11 +216,15 @@ def is_fixed_point(f, x)
   f(x) == x
 end
 
-# Apply f until the value stops changing, or until max_steps applications.
-#
-# THE TRAP: on exhausting the bound this returns the last value it saw, which
-# is indistinguishable from a settled one. When the difference matters, ask
-# `converges` — that is the only reason it is a separate function.
+@doc """
+until_stable: Apply f until the value stops changing, or until max_steps applications.
+
+THE TRAP: on exhausting the bound this returns the last value it saw, which
+is indistinguishable from a settled one. When the difference matters, ask
+`converges` — that is the only reason it is a separate function.
+
+    until_stable(identity, 7, 10) #=> 7
+"""
 def until_stable(f, x, max_steps)
   if max_steps < 1
     x
@@ -189,12 +238,14 @@ def until_stable(f, x, max_steps)
   end
 end
 
-# Did it actually settle within the bound? The question until_stable's return
-# value cannot answer.
-#
-# Nested if rather than elsif on purpose: `elsif` parses in this runtime and
-# then dies at evaluation with `unbound symbol: elsif`, so no package in this
-# distribution uses it.
+@doc """
+converges: Did it actually settle within the bound? The question until_stable's return
+value cannot answer.
+
+Nested if rather than elsif on purpose: `elsif` parses in this runtime and
+then dies at evaluation with `unbound symbol: elsif`, so no package in this
+distribution uses it.
+"""
 def converges(f, x, max_steps)
   if is_fixed_point(f, x)
     true
@@ -205,8 +256,12 @@ def converges(f, x, max_steps)
   end
 end
 
-# How many applications until stable; max_steps if it never got there.
-# Already-stable is 0, not 1 — no application was needed.
+@doc """
+stable_steps: How many applications until stable; max_steps if it never got there.
+Already-stable is 0, not 1 — no application was needed.
+
+    stable_steps(identity, 7, 10) #=> 0
+"""
 def stable_steps(f, x, max_steps)
   if is_fixed_point(f, x)
     0

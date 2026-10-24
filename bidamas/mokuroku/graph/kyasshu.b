@@ -24,7 +24,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "declare a mutation and the entity types it touches",
     wave: 1,
     origin: "I"
   }
@@ -144,7 +143,6 @@ verb(
     laterals: ["cache"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "one canonical cache key built from ordered parts",
     wave: 1,
     origin: "B"
   }
@@ -174,7 +172,6 @@ verb(
     laterals: ["cache"],
     fleet: "hanabi",
     today: "exists:kyasshu",
-    meaning: "combine two stores keeping one copy per entity",
     wave: 1,
     origin: "I"
   }
@@ -189,7 +186,6 @@ verb(
     laterals: ["cache"],
     fleet: "hanabi",
     today: "exists:kyasshu",
-    meaning: "split a response into entities keyed by Type:id",
     wave: 1,
     origin: "I"
   }
@@ -219,7 +215,6 @@ verb(
     laterals: ["cache", "config"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "per fragment ttl, stale, persist and evict rules from kousei entries",
     wave: 1,
     origin: "I"
   }
@@ -249,7 +244,6 @@ verb(
     laterals: ["cache", "time"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "the masked fields of one fragment read from the store",
     wave: 1,
     origin: "I"
   }
@@ -310,7 +304,6 @@ verb(
     laterals: ["cache", "error", "deadline"],
     fleet: "hanabi",
     today: "exists:kyasshu",
-    meaning: "run an operation on a server by its persisted hash only",
     wave: 1,
     origin: "I"
   }
@@ -340,7 +333,6 @@ verb(
     laterals: ["cache"],
     fleet: "hanabi",
     today: "exists:kyasshu",
-    meaning: "the entity key table a GraphQL schema implies",
     wave: 1,
     origin: "I"
   }
@@ -355,7 +347,6 @@ verb(
     laterals: ["cache", "error"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "end an optimistic write as confirmed or rolled back",
     wave: 1,
     origin: "I"
   }
@@ -370,7 +361,6 @@ verb(
     laterals: ["cache", "serialize"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "the entities persisted fragments read, to keep across restarts",
     wave: 1,
     origin: "I"
   }
@@ -385,7 +375,6 @@ verb(
     laterals: ["cache", "time"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "whether a fragment read is older than its ttl",
     wave: 1,
     origin: "I"
   }
@@ -400,7 +389,6 @@ verb(
     laterals: ["cache", "time"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "drop the entities older than their fragment evict limit",
     wave: 2,
     origin: "B"
   }
@@ -460,7 +448,6 @@ verb(
     laterals: ["cache", "idempotent"],
     fleet: nil,
     today: "exists:kyasshu",
-    meaning: "lay a pending optimistic write over the store",
     wave: 1,
     origin: "I"
   }

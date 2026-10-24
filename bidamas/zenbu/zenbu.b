@@ -1,49 +1,51 @@
-# zenbu (全部) — the whole distribution, as ONE dependency.
-#
-# ## What this is for
-#
-# Distribution granularity is the CONSUMER's choice, not something the language
-# imposes. Depend on `kazu` and you get numbers; depend on `zenbu` and you get
-# everything. Both are ordinary bidamas resolved by the same solver — the only
-# difference is how many `needs(...)` the manifest declares.
-#
-# Rust's `futures` is the precedent: `futures-core` and `futures-util` are
-# usable on their own, and `futures` re-exports them so a consumer who does not
-# want to think about the split does not have to. Neither granularity is the
-# "real" one.
-#
-# ## Why it defines nothing of its own
-#
-# A facade that added a function would stop being a facade — it would be an
-# eighteenth package with a bundle attached, and the next author would have to
-# ask which of its two jobs a change belongs to. Everything here is `use`, and
-# the only code is the test that proves every arm of the bundle is live.
-#
-# ## The one thing that would make this a lie
-#
-# A `needs(...)` without its `use(...)` — the manifest claiming a dependency the
-# import does not deliver. Two gates hold it, and they hold it from opposite
-# sides: `distribution.rs::every_declared_dependency_is_actually_imported`
-# checks manifest→source, and the reachability test below checks that the
-# import actually BINDS something from each package. A dropped line fails one
-# or the other.
-#
-# ## Do not compute this list, however much you want to
-#
-# Twenty-three literal `needs` lines are exactly the shape that invites
-# `map(fn(d) needs(d, "^0.1") end, siblings())` — and a Bluefile is blue code,
-# so that would *work*. It would also silently halve the package: `mk-bidama.nix`
-# reads the dependency graph by splitting the manifest text on `needs("`, so a
-# computed argument is invisible to nix while blue resolves it fine.
-#
-# Measured 2026-08-02, one entry rewritten as `computed = "moji"` /
-# `needs(computed, "^0.1")`: blue's resolver still reported 17 dependencies,
-# nix's saw 16, and the built closure came back with 17 bidamas instead of 18 —
-# `moji` recorded and not delivered, with nothing red anywhere.
-# `granularity.rs::the_regex_and_evaluated_dependency_views_agree` now fails on
-# that divergence, which makes it loud; it does not make it impossible. The real
-# fix is the `blue bluefile --deps --json` subcommand `mk-bidama.nix` names, so
-# nix consumes blue's own evaluation instead of re-deriving it.
+@moduledoc """
+zenbu (全部) — the whole distribution, as ONE dependency.
+
+## What this is for
+
+Distribution granularity is the CONSUMER's choice, not something the language
+imposes. Depend on `kazu` and you get numbers; depend on `zenbu` and you get
+everything. Both are ordinary bidamas resolved by the same solver — the only
+difference is how many `needs(...)` the manifest declares.
+
+Rust's `futures` is the precedent: `futures-core` and `futures-util` are
+usable on their own, and `futures` re-exports them so a consumer who does not
+want to think about the split does not have to. Neither granularity is the
+"real" one.
+
+## Why it defines nothing of its own
+
+A facade that added a function would stop being a facade — it would be an
+eighteenth package with a bundle attached, and the next author would have to
+ask which of its two jobs a change belongs to. Everything here is `use`, and
+the only code is the test that proves every arm of the bundle is live.
+
+## The one thing that would make this a lie
+
+A `needs(...)` without its `use(...)` — the manifest claiming a dependency the
+import does not deliver. Two gates hold it, and they hold it from opposite
+sides: `distribution.rs::every_declared_dependency_is_actually_imported`
+checks manifest→source, and the reachability test below checks that the
+import actually BINDS something from each package. A dropped line fails one
+or the other.
+
+## Do not compute this list, however much you want to
+
+Twenty-three literal `needs` lines are exactly the shape that invites
+`map(fn(d) needs(d, "^0.1") end, siblings())` — and a Bluefile is blue code,
+so that would *work*. It would also silently halve the package: `mk-bidama.nix`
+reads the dependency graph by splitting the manifest text on `needs("`, so a
+computed argument is invisible to nix while blue resolves it fine.
+
+Measured 2026-08-02, one entry rewritten as `computed = "moji"` /
+`needs(computed, "^0.1")`: blue's resolver still reported 17 dependencies,
+nix's saw 16, and the built closure came back with 17 bidamas instead of 18 —
+`moji` recorded and not delivered, with nothing red anywhere.
+`granularity.rs::the_regex_and_evaluated_dependency_views_agree` now fails on
+that divergence, which makes it loud; it does not make it impossible. The real
+fix is the `blue bluefile --deps --json` subcommand `mk-bidama.nix` names, so
+nix consumes blue's own evaluation instead of re-deriving it.
+"""
 
 use("anaritikusu")
 use("angou", [:is_prime])

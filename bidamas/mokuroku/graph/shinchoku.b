@@ -24,7 +24,6 @@ verb(
     laterals: ["time"],
     fleet: "shinchoku",
     today: "exists:shinchoku",
-    meaning: "moving, stalled or blind from counter samples",
     wave: 0,
     origin: "E"
   }

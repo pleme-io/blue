@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "distance from zero",
     wave: 0,
     origin: "A"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "number held between two bounds",
     wave: 0,
     origin: "A"
   }
@@ -204,7 +202,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "point t of the way from a to b",
     wave: 0,
     origin: "A"
   }
@@ -234,7 +231,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "the greater of two numbers",
     wave: 0,
     origin: "A"
   }
@@ -249,7 +245,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "the lesser of two numbers",
     wave: 0,
     origin: "A"
   }
@@ -324,7 +319,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "base raised to an exponent",
     wave: 0,
     origin: "A"
   }
@@ -339,7 +333,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "product of a list",
     wave: 0,
     origin: "A"
   }
@@ -399,7 +392,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "-1, 0 or 1 by the sign",
     wave: 0,
     origin: "A"
   }
@@ -444,7 +436,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kazu",
-    meaning: "total of a list",
     wave: 0,
     origin: "A"
   }

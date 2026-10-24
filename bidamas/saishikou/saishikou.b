@@ -1,12 +1,21 @@
-# saishikou (再試行) — retrying a step that can fail for a moment.
-#
-# retrying(policy, step) calls step, a zero-parameter function, and returns its
-# value. When step raises, it is called again after a pause, until it has been
-# called policy.times times; then the last error is raised unchanged. The
-# policy is a record: times (how many calls in all), wait_ms (the pause before
-# the second call, doubled before each later one) and, optionally, on (the
-# error kinds worth retrying; any other kind is raised at once).
+@moduledoc """
+saishikou (再試行) — retrying a step that can fail for a moment.
 
+retrying(policy, step) calls step, a zero-parameter function, and returns its
+value. When step raises, it is called again after a pause, until it has been
+called policy.times times; then the last error is raised unchanged. The
+policy is a record: times (how many calls in all), wait_ms (the pause before
+the second call, doubled before each later one) and, optionally, on (the
+error kinds worth retrying; any other kind is raised at once).
+
+    retrying({times: 3, wait_ms: 0}, flaky(2)) #=> 3
+"""
+
+@doc """
+retrying: call step again under a policy while it fails.
+
+    retrying({times: 3, wait_ms: 0}, flaky(2)) #=> 3
+"""
 def retrying(policy, step)
   attempt(step, policy.times, get(policy, :wait_ms), get(policy, :on), 1)
 end

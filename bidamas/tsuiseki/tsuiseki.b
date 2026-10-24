@@ -78,6 +78,9 @@ rescue e
   [:raised, e]
 end
 
+@doc """
+span: run f inside a named span.
+"""
 def span(name, f, attrs)
   if not string?(name) or name == ""
     raise(:bad_option, "a span takes a name: non-empty text")

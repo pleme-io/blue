@@ -9,7 +9,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Parse the request body into a value.",
     wave: 1,
     origin: "C"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: ["config"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Add cross-origin headers by policy.",
     wave: 2,
     origin: "C"
   }
@@ -70,7 +68,6 @@ verb(
     laterals: ["serialize"],
     fleet: "blue",
     today: "exists:kyuuji",
-    meaning: "Metrics rendered in Prometheus text form.",
     wave: 0,
     origin: "C"
   }
@@ -85,7 +82,6 @@ verb(
     laterals: ["cache", "resource"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "A response serving a file with validators and ranges.",
     wave: 2,
     origin: "C",
     contract: "file(path, opts?) -> response"
@@ -101,7 +97,6 @@ verb(
     laterals: ["capability", "error"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Refuse requests that fail a check before the handler.",
     wave: 1,
     origin: "C"
   }
@@ -116,7 +111,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "One request header.",
     wave: 1,
     origin: "C"
   }
@@ -161,7 +155,6 @@ verb(
     laterals: ["serialize"],
     fleet: "blue",
     today: "exists:kyuuji",
-    meaning: "A JSON response.",
     wave: 0,
     origin: "C"
   }
@@ -176,7 +169,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Find the route that serves a request.",
     wave: 1,
     origin: "C"
   }
@@ -191,7 +183,6 @@ verb(
     laterals: ["time"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "answer a request and record its status and latency",
     wave: 0,
     origin: "F"
   }
@@ -206,7 +197,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Place a sub-app under a path prefix.",
     wave: 1,
     origin: "C"
   }
@@ -221,7 +211,6 @@ verb(
     laterals: [],
     fleet: "blue",
     today: "exists:kyuuji",
-    meaning: "The 404 response for a request.",
     wave: 0,
     origin: "C"
   }
@@ -236,7 +225,6 @@ verb(
     laterals: ["log", "trace"],
     fleet: "blue",
     today: "exists:kyuuji",
-    meaning: "Count one request in the metrics.",
     wave: 0,
     origin: "C"
   }
@@ -281,7 +269,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Turn a raised kind into its status response.",
     wave: 1,
     origin: "C"
   }
@@ -296,7 +283,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "A redirect response.",
     wave: 1,
     origin: "C"
   }
@@ -311,7 +297,6 @@ verb(
     laterals: [],
     fleet: "blue",
     today: "exists:kyuuji",
-    meaning: "Build a response record.",
     wave: 0,
     origin: "C"
   }
@@ -326,7 +311,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Declare one method and path pattern with a handler.",
     wave: 1,
     origin: "C",
     contract: "route(method, pattern, handler) -> route"
@@ -342,7 +326,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:kyuuji",
-    meaning: "Compose routes into one app; overlap is refused.",
     wave: 1,
     origin: "C"
   }
@@ -365,7 +348,6 @@ verb(
     ],
     fleet: "blue",
     today: "exists:kyuuji",
-    meaning: "Listen and answer requests until stopped.",
     wave: 0,
     origin: "C"
   }
@@ -380,7 +362,6 @@ verb(
     laterals: ["deadline", "error"],
     fleet: "blue",
     today: "exists:kyuuji",
-    meaning: "Answer one request; the test door.",
     wave: 0,
     origin: "C"
   }
@@ -410,7 +391,6 @@ verb(
     laterals: ["cancel", "deadline"],
     fleet: nil,
     today: "partial:kyuuji",
-    meaning: "Send chunks as f produces them.",
     wave: 2,
     origin: "C"
   }
@@ -440,7 +420,6 @@ verb(
     laterals: ["deadline"],
     fleet: nil,
     today: "partial:kyuuji",
-    meaning: "Answer 503 when the handler runs past a deadline.",
     wave: 1,
     origin: "C"
   }
@@ -455,7 +434,6 @@ verb(
     laterals: ["cancel", "capability"],
     fleet: nil,
     today: "partial:kyuuji",
-    meaning: "Switch to a WebSocket and hand it to f.",
     wave: 2,
     origin: "C"
   }

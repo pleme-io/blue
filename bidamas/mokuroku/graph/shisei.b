@@ -9,7 +9,6 @@ verb(
     laterals: ["config"],
     fleet: nil,
     today: "exists:shisei",
-    meaning: "the stance of a bare service",
     wave: 0,
     origin: "D"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: ["log", "switch"],
     fleet: "sekiban",
     today: "exists:shisei",
-    meaning: "audit-or-enforce ladder for a refusing posture",
     wave: 0,
     origin: "D"
   }
@@ -39,7 +37,6 @@ verb(
     laterals: ["config"],
     fleet: nil,
     today: "exists:shisei",
-    meaning: "one named behaviour of a service with its fields",
     wave: 0,
     origin: "D"
   }
@@ -85,7 +82,6 @@ verb(
     laterals: ["config", "switch"],
     fleet: nil,
     today: "exists:shisei",
-    meaning: "the whole composition: stance, refusals, handler",
     wave: 0,
     origin: "D"
   }
@@ -100,7 +96,6 @@ verb(
     laterals: ["config"],
     fleet: nil,
     today: "exists:shisei",
-    meaning: "layers around a handler; first is outermost",
     wave: 0,
     origin: "D"
   }
@@ -115,7 +110,6 @@ verb(
     laterals: ["config", "validate"],
     fleet: nil,
     today: "exists:shisei",
-    meaning: "declaration over defaults, judged into accepted, off, refused",
     wave: 0,
     origin: "D"
   }

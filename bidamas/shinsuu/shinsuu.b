@@ -1,11 +1,15 @@
+@moduledoc """
+shinsuu (進数) — base conversion and checksums.
+
+Encoding is where a library's edge cases live: zero, the empty input, and
+the digit that is a letter. Each has a test here, because each is a place an
+implementation looks right and is wrong for exactly one input.
+
+    popcount(0) #=> 0
+"""
+
 use("kazu", [:max, :min])
 use("retsu", [:first, :is_empty, :push, :repeat, :rest, :size])
-
-# shinsuu (進数) — base conversion and checksums.
-#
-# Encoding is where a library's edge cases live: zero, the empty input, and
-# the digit that is a letter. Each has a test here, because each is a place an
-# implementation looks right and is wrong for exactly one input.
 
 def digits()
   [
@@ -28,6 +32,9 @@ def digits()
   ]
 end
 
+@doc """
+to_base: write a number in a base.
+"""
 def to_base(n, base)
   if n == 0
     "0"
@@ -70,11 +77,20 @@ def value_index(xs, v, i)
   end
 end
 
+@doc """
+from_base: read a number written in a base.
+
+    from_base("ff", 16) #=> 255
+"""
 def from_base(text, base)
   reduce((acc, ch) -> acc * base + digit_value(ch), 0, chars(text))
 end
 
-# Digits of a number in base 10, most significant first.
+@doc """
+digits_of: Digits of a number in base 10, most significant first.
+
+    digits_of(0) #=> [0]
+"""
 def digits_of(n)
   if n < 10
     [n]
@@ -87,7 +103,11 @@ def digit_sum(n)
   reduce((a, b) -> a + b, 0, digits_of(n))
 end
 
-# The Luhn checksum, which every credit-card number satisfies.
+@doc """
+luhn_valid: The Luhn checksum, which every credit-card number satisfies.
+
+    luhn_valid(79_927_398_713) #=> true
+"""
 def luhn_valid(n)
   ds = reverse(digits_of(n))
   total = reduce(
@@ -158,19 +178,27 @@ def base_digits(n, base)
   end
 end
 
-# The inverse of base_digits. Horner's rule, so no `expt` and no float.
-#
-# The empty list answers 0 rather than erroring, which is what makes it safe to
-# feed the result of a filter or a `rest` straight back in.
+@doc """
+from_digits: The inverse of base_digits. Horner's rule, so no `expt` and no float.
+
+The empty list answers 0 rather than erroring, which is what makes it safe to
+feed the result of a filter or a `rest` straight back in.
+
+    from_digits([], 10) #=> 0
+"""
 def from_digits(ds, base)
   reduce((acc, d) -> acc * base + d, 0, ds)
 end
 
-# Left-pad a digit list to a fixed width with zeros.
-#
-# This is the alignment step every pairwise bit operation needs: 5 is [1,0,1]
-# and 12 is [1,1,0,0], and zipping those without padding pairs the 1 of 5 with
-# the 1 of 12 — off by one place, silently.
+@doc """
+pad_digits: Left-pad a digit list to a fixed width with zeros.
+
+This is the alignment step every pairwise bit operation needs: 5 is [1,0,1]
+and 12 is [1,1,0,0], and zipping those without padding pairs the 1 of 5 with
+the 1 of 12 — off by one place, silently.
+
+    pad_digits([], 3) #=> [0, 0, 0]
+"""
 def pad_digits(ds, width)
   if size(ds) >= width
     ds
@@ -231,15 +259,24 @@ def bit_xor(a, b)
   from_bits(bits_xor(bits_of(a), bits_of(b)))
 end
 
-# NOT takes a width, and that is not an oversight.
-#
-# The complement of 5 is 250 in eight bits and 65530 in sixteen; there is no
-# answer without a word size. AND/OR/XOR need no width because they cannot set
-# a bit above the wider operand, so their result is width-independent.
+@doc """
+bit_not: NOT takes a width, and that is not an oversight.
+
+The complement of 5 is 250 in eight bits and 65530 in sixteen; there is no
+answer without a word size. AND/OR/XOR need no width because they cannot set
+a bit above the wider operand, so their result is width-independent.
+
+    bit_not(5, 8) #=> 250
+"""
 def bit_not(n, width)
   from_bits(bits_not(pad_digits(bits_of(n), width)))
 end
 
+@doc """
+bit_at: the bit at a position.
+
+    bit_at(5, 0) #=> 1
+"""
 def bit_at(n, i)
   floor(n / expt(2, i)) % 2
 end
@@ -252,15 +289,24 @@ def shift_right(n, k)
   floor(n / expt(2, k))
 end
 
+@doc """
+popcount: how many bits are set in a number.
+
+    popcount(0) #=> 0
+"""
 def popcount(n)
   reduce((a, b) -> a + b, 0, bits_of(n))
 end
 
-# Bits needed to write n, with zero needing none.
-#
-# `size(bits_of(0))` is 1, not 0 — base_digits stops at `n < base` and hands
-# back [0], because a digit list has to have a digit. So the zero case is taken
-# out by hand here, and both power-of-two functions lean on that.
+@doc """
+bit_length: Bits needed to write n, with zero needing none.
+
+`size(bits_of(0))` is 1, not 0 — base_digits stops at `n < base` and hands
+back [0], because a digit list has to have a digit. So the zero case is taken
+out by hand here, and both power-of-two functions lean on that.
+
+    bit_length(0) #=> 0
+"""
 def bit_length(n)
   if n < 1
     0
@@ -273,10 +319,14 @@ def is_power_of_two(n)
   n > 0 and popcount(n) == 1
 end
 
-# The smallest power of two that is not less than n.
-#
-# An exact power must answer itself — the `2^bit_length` shortcut alone would
-# turn 8 into 16 — and 0 answers 1, since 1 is the smallest power of two.
+@doc """
+next_power_of_two: The smallest power of two that is not less than n.
+
+An exact power must answer itself — the `2^bit_length` shortcut alone would
+turn 8 into 16 — and 0 answers 1, since 1 is the smallest power of two.
+
+    next_power_of_two(0) #=> 1
+"""
 def next_power_of_two(n)
   if n < 1
     1
@@ -393,12 +443,16 @@ def pad_digits_left(s, width, pad)
   end
 end
 
-# A base rendering that is exactly `width` characters wide.
-#
-# Byte and word dumps need this: to_hex(10) is "a", and a hex dump that prints
-# "a" where every other byte prints two characters is unreadable and unparsable.
-# Over-wide input is NOT truncated — silently dropping the high digits of a
-# number is worse than a ragged column.
+@doc """
+to_base_width: A base rendering that is exactly `width` characters wide.
+
+Byte and word dumps need this: to_hex(10) is "a", and a hex dump that prints
+"a" where every other byte prints two characters is unreadable and unparsable.
+Over-wide input is NOT truncated — silently dropping the high digits of a
+number is worse than a ragged column.
+
+    to_base_width(0, 16, 4) #=> "0000"
+"""
 def to_base_width(n, base, width)
   pad_digits_left(to_base(n, base), width, "0")
 end
@@ -414,11 +468,15 @@ end
 # ---------------------------------------------------------------------------
 # Properties of the decimal representation.
 
-# Repeated digit sum until one digit is left.
-#
-# The closed form n % 9 is the usual shortcut and it is wrong twice: it gives 0
-# for 9, and 9 for 0 if written as ((n - 1) % 9) + 1. Iterating is slower and
-# right for both.
+@doc """
+digital_root: Repeated digit sum until one digit is left.
+
+The closed form n % 9 is the usual shortcut and it is wrong twice: it gives 0
+for 9, and 9 for 0 if written as ((n - 1) % 9) + 1. Iterating is slower and
+right for both.
+
+    digital_root(0) #=> 0
+"""
 def digital_root(n)
   if n < 10
     n
@@ -427,12 +485,16 @@ def digital_root(n)
   end
 end
 
-# The digits read backwards, as a number.
-#
-# Trailing zeros do not survive — 1200 reverses to 21, not to "0021" — because
-# the result is a number and a number has no leading zeros. That is the reason
-# reverse_digits is not an involution, and why the palindrome test below
-# compares digit LISTS instead of calling this twice.
+@doc """
+reverse_digits: The digits read backwards, as a number.
+
+Trailing zeros do not survive — 1200 reverses to 21, not to "0021" — because
+the result is a number and a number has no leading zeros. That is the reason
+reverse_digits is not an involution, and why the palindrome test below
+compares digit LISTS instead of calling this twice.
+
+    reverse_digits(0) #=> 0
+"""
 def reverse_digits(n)
   from_digits(reverse(digits_of(n)), 10)
 end
@@ -441,20 +503,27 @@ def is_palindrome_number(n)
   digits_of(n) == reverse(digits_of(n))
 end
 
-# The same question asked in another base, where the answer often differs:
-# 5 is 101 in binary and a palindrome there, while 6 is 110 and is not.
+@doc """
+is_palindrome_in_base: The same question asked in another base, where the answer often differs:
+5 is 101 in binary and a palindrome there, while 6 is 110 and is not.
+
+    is_palindrome_in_base(5, 2) #=> true
+"""
 def is_palindrome_in_base(n, base)
   base_digits(n, base) == reverse(base_digits(n, base))
 end
 
-# ---------------------------------------------------------------------------
-# Gray code — a numeral system where counting changes one bit at a time.
-#
-# Included because it is base conversion that is not positional: the value of a
-# digit depends on the digits left of it. Encoding is one XOR; decoding is not
-# its own inverse and needs the running fold, which is the asymmetry that makes
-# a naive `gray_decode = gray_encode` implementation pass for 0, 1, 2 and 3 and
-# then fail.
+@doc """
+gray_encode: Gray code — a numeral system where counting changes one bit at a time.
+
+Included because it is base conversion that is not positional: the value of a
+digit depends on the digits left of it. Encoding is one XOR; decoding is not
+its own inverse and needs the running fold, which is the asymmetry that makes
+a naive `gray_decode = gray_encode` implementation pass for 0, 1, 2 and 3 and
+then fail.
+
+    gray_encode(0) #=> 0
+"""
 def gray_encode(n)
   bit_xor(n, shift_right(n, 1))
 end
@@ -564,19 +633,25 @@ def roman_symbols()
   ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"]
 end
 
-# Zero and anything below it render as the empty string.
-#
-# There is no Roman zero, so there is nothing honest to return; "" is the one
-# answer that stays consistent under from_roman, which reads "" as 0.
+@doc """
+to_roman: Zero and anything below it render as the empty string.
+
+There is no Roman zero, so there is nothing honest to return; "" is the one
+answer that stays consistent under from_roman, which reads "" as 0.
+
+    to_roman(0) #=> ""
+"""
 def to_roman(n)
   to_roman_from(n, roman_values, roman_symbols, 0)
 end
 
-# The two tables are carried down the recursion rather than re-read from the
-# functions above. `roman_values()` builds a fresh thirteen-element list every
-# time it is named, and the naive version names it three times per step of a
-# recursion that runs fifteen deep — building the tables once per numeral
-# instead of forty-five times is most of this package's test-suite runtime.
+@doc """
+to_roman_from: The two tables are carried down the recursion rather than re-read from the
+functions above. `roman_values()` builds a fresh thirteen-element list every
+time it is named, and the naive version names it three times per step of a
+recursion that runs fifteen deep — building the tables once per numeral
+instead of forty-five times is most of this package's test-suite runtime.
+"""
 def to_roman_from(n, vs, ss, i)
   if n < 1 or i >= size(vs)
     ""
@@ -614,17 +689,23 @@ def roman_value_of(c)
   end
 end
 
-# Read a numeral by looking one symbol ahead: a symbol worth less than the one
-# after it is subtracted, otherwise added. That single rule covers all six
-# subtractive pairs without listing them, which is why the ASYMMETRY with
-# to_roman is deliberate — the reader is permissive, the writer is not.
+@doc """
+from_roman: Read a numeral by looking one symbol ahead: a symbol worth less than the one
+after it is subtracted, otherwise added. That single rule covers all six
+subtractive pairs without listing them, which is why the ASYMMETRY with
+to_roman is deliberate — the reader is permissive, the writer is not.
+
+    from_roman("") #=> 0
+"""
 def from_roman(text)
   from_roman_at(chars(upcase(trim(text))), 0)
 end
 
-# These call roman_value_of, not roman_value: from_roman has already upcased the
-# whole string, and upcasing each character a second time is a string
-# allocation per symbol per lookahead for no change in the answer.
+@doc """
+from_roman_at: These call roman_value_of, not roman_value: from_roman has already upcased the
+whole string, and upcasing each character a second time is a string
+allocation per symbol per lookahead for no change in the answer.
+"""
 def from_roman_at(cs, i)
   if i >= size(cs)
     0
@@ -646,11 +727,15 @@ def roman_next(cs, i)
   end
 end
 
-# Does this text spell exactly the canonical numeral for the number it reads as?
-#
-# "IIII" and "IC" both parse, to 4 and 99; neither is what a Roman wrote. The
-# check is round-tripping through the encoder, which is the only definition of
-# canonical that cannot drift from the encoder's own table.
+@doc """
+is_canonical_roman: Does this text spell exactly the canonical numeral for the number it reads as?
+
+"IIII" and "IC" both parse, to 4 and 99; neither is what a Roman wrote. The
+check is round-tripping through the encoder, which is the only definition of
+canonical that cannot drift from the encoder's own table.
+
+    is_canonical_roman("") #=> false
+"""
 def is_canonical_roman(text)
   n = from_roman(text)
   n > 0 and to_roman(n) == upcase(trim(text))
@@ -801,25 +886,33 @@ def all_digits_in_base(cs, base)
   is_empty(filter((c) -> digit_value36(c) < 0 or digit_value36(c) >= base, cs))
 end
 
-# Is every character of `text` a digit of `base`?
-#
-# Emptiness is false, not vacuously true: "" is not a number in any base, and a
-# caller reaching for this is about to parse.
+@doc """
+is_valid_in_base: Is every character of `text` a digit of `base`?
+
+Emptiness is false, not vacuously true: "" is not a number in any base, and a
+caller reaching for this is about to parse.
+
+    is_valid_in_base("", 10) #=> false
+"""
 def is_valid_in_base(text, base)
   cs = chars(downcase(trim(text)))
   size(cs) > 0 and all_digits_in_base(cs, base)
 end
 
-# Parse, answering nil when the text is not a numeral in this base.
-#
-# `from_base` above cannot fail: digit_value returns 0 - 1 for an unknown
-# character and the Horner fold happily folds it in, so from_base("zz", 16)
-# returns a number that looks like an answer and is not one. That is the trap
-# this function exists to close — nil is not a number, so a caller cannot use
-# the result by accident.
-#
-# Surface whitespace and letter case are not errors; a sign, a digit outside the
-# base, and the empty string are.
+@doc """
+parse_int: Parse, answering nil when the text is not a numeral in this base.
+
+`from_base` above cannot fail: digit_value returns 0 - 1 for an unknown
+character and the Horner fold happily folds it in, so from_base("zz", 16)
+returns a number that looks like an answer and is not one. That is the trap
+this function exists to close — nil is not a number, so a caller cannot use
+the result by accident.
+
+Surface whitespace and letter case are not errors; a sign, a digit outside the
+base, and the empty string are.
+
+    parse_int("0", 10) #=> 0
+"""
 def parse_int(text, base)
   cs = chars(downcase(trim(text)))
   if is_empty(cs)
@@ -907,15 +1000,23 @@ end
 # it valid" is an identity that has to hold for every input, and a swapped
 # weight or an off-by-one in the position breaks it immediately.
 
-# The simplest checksum there is: the digit sum, modulo m.
+@doc """
+mod_checksum: The simplest checksum there is: the digit sum, modulo m.
+
+    mod_checksum(1234, 9) #=> 1
+"""
 def mod_checksum(n, m)
   digit_sum(n) % m
 end
 
-# The digit to append so that the result checksums to zero.
-#
-# Only meaningful for m up to 10, because the answer has to BE a digit — and
-# the outer % m is what turns the m case back into 0 rather than emitting "m".
+@doc """
+mod_check_digit: The digit to append so that the result checksums to zero.
+
+Only meaningful for m up to 10, because the answer has to BE a digit — and
+the outer % m is what turns the m case back into 0 rather than emitting "m".
+
+    mod_check_digit(9, 9) #=> 0
+"""
 def mod_check_digit(n, m)
   (m - mod_checksum(n, m)) % m
 end
@@ -924,10 +1025,14 @@ def mod_check_valid(n, m)
   mod_checksum(n, m) == 0
 end
 
-# The Luhn digit to append. Note the `i + 1`: appending shifts every existing
-# digit one place further from the right, so the doubling alternates the other
-# way round from luhn_valid's. Reusing luhn_digit with the same index would
-# produce a check digit that fails the checker it was computed for.
+@doc """
+luhn_check_digit: The Luhn digit to append. Note the `i + 1`: appending shifts every existing
+digit one place further from the right, so the doubling alternates the other
+way round from luhn_valid's. Reusing luhn_digit with the same index would
+produce a check digit that fails the checker it was computed for.
+
+    luhn_check_digit(7_992_739_871) #=> 3
+"""
 def luhn_check_digit(n)
   ds = reverse(digits_of(n))
   total = reduce(
@@ -938,9 +1043,13 @@ def luhn_check_digit(n)
   (10 - total % 10) % 10
 end
 
-# Luhn over a digit LIST rather than a number, so a card number with leading
-# zeros can be represented at all. Empty is false, not vacuously true: the
-# checksum of no digits is not a passing checksum.
+@doc """
+luhn_valid_digits: Luhn over a digit LIST rather than a number, so a card number with leading
+zeros can be represented at all. Empty is false, not vacuously true: the
+checksum of no digits is not a passing checksum.
+
+    luhn_valid_digits([]) #=> false
+"""
 def luhn_valid_digits(ds)
   if is_empty(ds)
     false
@@ -951,9 +1060,13 @@ def luhn_valid_digits(ds)
   end
 end
 
-# Luhn on the form a card number is actually written in. Spaces and hyphens are
-# grouping, not data; anything else is a rejection rather than a skipped
-# character, since silently ignoring a stray letter would validate a typo.
+@doc """
+luhn_valid_text: Luhn on the form a card number is actually written in. Spaces and hyphens are
+grouping, not data; anything else is a rejection rather than a skipped
+character, since silently ignoring a stray letter would validate a typo.
+
+    luhn_valid_text("") #=> false
+"""
 def luhn_valid_text(text)
   cs = chars(replace(replace(trim(text), " ", ""), "-", ""))
   size(cs) > 0 and
@@ -992,8 +1105,10 @@ def isbn10_ok_chars(cs)
   is_empty(filter((i) -> not isbn10_char_ok(nth(i, cs), i), range(0, size(cs))))
 end
 
-# Weights run 10, 9, 8 … down to 1, so this is also the partial sum over a
-# nine-character prefix — which is what isbn10_check_char needs.
+@doc """
+isbn10_weighted: Weights run 10, 9, 8 … down to 1, so this is also the partial sum over a
+nine-character prefix — which is what isbn10_check_char needs.
+"""
 def isbn10_weighted(cs)
   reduce(
     (acc, i) -> acc + (10 - i) * isbn10_char_value(nth(i, cs)),
@@ -1135,6 +1250,9 @@ test "the ISBN-10 check character, including the X case"
   ) == 0
 end
 
+@doc """
+luhn?: whether a number passes the Luhn check.
+"""
 def luhn?(n)
   luhn_valid(n)
 end

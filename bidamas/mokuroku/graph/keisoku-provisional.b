@@ -39,7 +39,6 @@ verb(
     laterals: ["config"],
     fleet: "metrics-go",
     today: "exists:keisoku",
-    meaning: "declare a value that only goes up",
     wave: 0,
     origin: "F"
   }
@@ -69,7 +68,6 @@ verb(
     laterals: ["config"],
     fleet: "metrics-go",
     today: "exists:keisoku",
-    meaning: "declare a value that goes up and down",
     wave: 0,
     origin: "F"
   }
@@ -84,7 +82,6 @@ verb(
     laterals: ["config"],
     fleet: "metrics-go",
     today: "exists:keisoku",
-    meaning: "declare a value recorded into buckets",
     wave: 0,
     origin: "F"
   }
@@ -99,7 +96,6 @@ verb(
     laterals: ["idempotent"],
     fleet: "metrics-go",
     today: "exists:keisoku",
-    meaning: "add to a counter",
     wave: 0,
     origin: "F"
   }
@@ -114,7 +110,6 @@ verb(
     laterals: ["error", "time"],
     fleet: "metrics-go",
     today: "exists:keisoku",
-    meaning: "run f and record how long it took",
     wave: 0,
     origin: "F"
   }
@@ -129,7 +124,6 @@ verb(
     laterals: ["time"],
     fleet: "metrics-go",
     today: "exists:keisoku",
-    meaning: "record one value into a histogram",
     wave: 0,
     origin: "F"
   }
@@ -189,7 +183,6 @@ verb(
     laterals: ["idempotent"],
     fleet: "metrics-go",
     today: "exists:keisoku",
-    meaning: "set a gauge to a value",
     wave: 0,
     origin: "F"
   }
@@ -249,7 +242,6 @@ verb(
     laterals: ["deadline", "serialize"],
     fleet: nil,
     today: "partial:keisoku",
-    meaning: "scrape samples from an endpoint or exposition text",
     wave: 1,
     origin: "F"
   }

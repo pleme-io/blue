@@ -237,3 +237,42 @@ fn the_untested_query_and_the_gate_name_the_same_rows() {
     assert!(!theirs.is_empty(), "a vacuous comparison");
     assert_eq!(ours, theirs);
 }
+
+/// **The committed tables are the graph's export.** An existing verb's
+/// meaning lives in its bidama's `@doc`, a planned verb's in its row, and the
+/// merged TSVs are generated from both; a doc edit not re-exported is red
+/// here, so the tables cannot drift from the docs they are made from.
+///
+/// Red run (2026-10-24): with the TSVs as committed before `@doc` held the
+/// meanings, `verbs.tsv: committed minus export` was 145.
+#[test]
+fn the_committed_tables_are_the_graphs_export() {
+    let out = std::env::temp_dir().join(format!("verb-graph-fresh-{}", std::process::id()));
+    std::fs::remove_dir_all(&out).ok();
+    let exported = blue(&["export", "--out", out.to_str().expect("utf8")]);
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    for (committed, written) in [
+        ("docs/verbs/merged/verbs.tsv", "verbs.tsv"),
+        ("docs/verbs/merged/edges.tsv", "edges.tsv"),
+        ("docs/verbs/contracts.tsv", "contracts.tsv"),
+    ] {
+        let c = repo().join(committed);
+        let w = out.join(written);
+        assert_eq!(
+            except_rows(&c, &w),
+            "0",
+            "{written}: committed minus export"
+        );
+        assert_eq!(
+            except_rows(&w, &c),
+            "0",
+            "{written}: export minus committed"
+        );
+        assert_eq!(row_count(&c), row_count(&w), "{written}: row count");
+    }
+    std::fs::remove_dir_all(&out).ok();
+}

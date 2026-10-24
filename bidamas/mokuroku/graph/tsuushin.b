@@ -144,7 +144,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:tsuushin",
-    meaning: "Resolve a path against a base URL.",
     wave: 0,
     origin: "C"
   }
@@ -219,7 +218,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: nil,
     today: "exists:tsuushin",
-    meaning: "URL text to scheme, host, path, query record.",
     wave: 0,
     origin: "C"
   }
@@ -264,7 +262,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:tsuushin",
-    meaning: "URL record to canonical text.",
     wave: 0,
     origin: "C"
   }
@@ -279,7 +276,6 @@ verb(
     laterals: ["capability", "deadline", "error", "retry", "trace"],
     fleet: "blue-lang-runtime",
     today: "exists:tsuushin",
-    meaning: "Send one HTTP request; any status is data.",
     wave: 0,
     origin: "C"
   }

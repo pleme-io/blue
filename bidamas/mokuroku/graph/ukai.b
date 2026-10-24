@@ -24,7 +24,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:ukai",
-    meaning: "noop, bypass, refused or blind, over a total state",
     wave: 0,
     origin: "D"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: ["process", "resource"],
     fleet: nil,
     today: "partial:ukai",
-    meaning: "read routes and overlay status into one typed state",
     wave: 0,
     origin: "D"
   }
@@ -54,7 +52,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:ukai",
-    meaning: "host routes or policy rules an outcome needs",
     wave: 0,
     origin: "D"
   }

@@ -220,7 +220,6 @@ verb(
     laterals: ["error", "serialize", "validate"],
     fleet: "tatara-lisp-script",
     today: "exists:deeta",
-    meaning: "text to value; the format is an argument",
     wave: 1,
     origin: "A"
   }

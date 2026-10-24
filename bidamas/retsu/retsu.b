@@ -1,29 +1,37 @@
+@moduledoc """
+retsu (列) — lists, made TOTAL.
+
+This package exists because the underlying primitives are not total, and a
+standard library's first job is to close that. Measured on the runtime this
+distribution targets:
+
+  cdr([1])        => nil          -- not [], a DIFFERENT empty
+  nil == []       => false        -- the two empties are distinguishable
+  length(nil)     => runtime error: expected a string, got nil
+
+So the obvious recursive shape — `if length(xs) < 1 … else f(cdr(xs))` —
+crashes on every list, at the last element, in every package that writes it.
+It is not a rare edge: it is the base case of structural recursion.
+
+`size` / `first` / `rest` / `is_empty` are the total replacements, and every
+other bidama in this distribution is written against them rather than against
+`length` / `car` / `cdr`. That is the trade a stdlib makes on purpose: one
+indirection, in exchange for a recursion that terminates.
+
+The upstream fix is `length` accepting nil in tatara-lisp-eval. Until that
+lands this is a WORKAROUND at the library layer, not a repair of the cause —
+`length` is still reachable and still wrong.
+
+    size([]) #=> 0
+"""
+
 use("kazu", [:clamp, :min])
 
-# retsu (列) — lists, made TOTAL.
-#
-# This package exists because the underlying primitives are not total, and a
-# standard library's first job is to close that. Measured on the runtime this
-# distribution targets:
-#
-#   cdr([1])        => nil          -- not [], a DIFFERENT empty
-#   nil == []       => false        -- the two empties are distinguishable
-#   length(nil)     => runtime error: expected a string, got nil
-#
-# So the obvious recursive shape — `if length(xs) < 1 … else f(cdr(xs))` —
-# crashes on every list, at the last element, in every package that writes it.
-# It is not a rare edge: it is the base case of structural recursion.
-#
-# `size` / `first` / `rest` / `is_empty` are the total replacements, and every
-# other bidama in this distribution is written against them rather than against
-# `length` / `car` / `cdr`. That is the trade a stdlib makes on purpose: one
-# indirection, in exchange for a recursion that terminates.
-#
-# The upstream fix is `length` accepting nil in tatara-lisp-eval. Until that
-# lands this is a WORKAROUND at the library layer, not a repair of the cause —
-# `length` is still reachable and still wrong.
+@doc """
+size: Total length: nil counts as empty rather than erroring.
 
-# Total length: nil counts as empty rather than erroring.
+    size([]) #=> 0
+"""
 def size(xs)
   if xs.nil?
     0
@@ -36,6 +44,11 @@ def is_empty(xs)
   size(xs) == 0
 end
 
+@doc """
+first item, nil when empty.
+
+    first([1, 2]) #=> 1
+"""
 def first(xs)
   if is_empty(xs)
     nil
@@ -44,10 +57,14 @@ def first(xs)
   end
 end
 
-# The tail, NORMALISED to a list.
-#
-# `cdr` hands back nil at the last element; this hands back [] so a caller can
-# keep treating the result as a list without a nil check at every step.
+@doc """
+rest: The tail, NORMALISED to a list.
+
+`cdr` hands back nil at the last element; this hands back [] so a caller can
+keep treating the result as a list without a nil check at every step.
+
+    rest([]) #=> []
+"""
 def rest(xs)
   if size(xs) < 2
     []
@@ -56,6 +73,11 @@ def rest(xs)
   end
 end
 
+@doc """
+last item, nil when empty.
+
+    last([1, 2]) #=> 2
+"""
 def last(xs)
   if is_empty(xs)
     nil
@@ -88,6 +110,11 @@ def zip_with(f, a, b)
   map((i) -> f(nth(i, a), nth(i, b)), range(0, min(size(a), size(b))))
 end
 
+@doc """
+zip: items of two lists paired by position.
+
+    zip([1], [1, 2, 3]) #=> [[1, 1]]
+"""
 def zip(a, b)
   zip_with((x, y) -> [x, y], a, b)
 end
@@ -112,7 +139,11 @@ def count_down(n)
   end
 end
 
-# The cross-package call: clamp comes from kazu.
+@doc """
+clamped_sum: The cross-package call: clamp comes from kazu.
+
+    clamped_sum(3, 1, 100) #=> 6
+"""
 def clamped_sum(n, lo, hi)
   clamp(sum_to(n), lo, hi)
 end
@@ -178,14 +209,18 @@ end
 # language and neither one covers both halves, so the split is the honest
 # answer; what a package cannot afford is to be inconsistent inside itself.
 
-# take/drop, total and data-first.
-#
-# The `_n` suffix is the warning sign, not decoration: the builtins are
-# `take(n, xs)` — COUNT first — and these are the other way round. Two orders
-# for one operation is a real hazard, so the two spellings differ visibly.
-#
-# On top of the order they close the partial edges: a negative count, a count
-# past the end, and nil for the list all answer with a list instead of an error.
+@doc """
+take_n: take/drop, total and data-first.
+
+The `_n` suffix is the warning sign, not decoration: the builtins are
+`take(n, xs)` — COUNT first — and these are the other way round. Two orders
+for one operation is a real hazard, so the two spellings differ visibly.
+
+On top of the order they close the partial edges: a negative count, a count
+past the end, and nil for the list all answer with a list instead of an error.
+
+    take_n([1, 2], -1) #=> []
+"""
 def take_n(xs, n)
   if is_empty(xs) or n < 1
     []
@@ -204,8 +239,12 @@ def drop_n(xs, n)
   end
 end
 
-# A window by position and length. Out-of-range in either argument yields the
-# overlap, which is empty when there is none — never an error.
+@doc """
+slice: A window by position and length. Out-of-range in either argument yields the
+overlap, which is empty when there is none — never an error.
+
+    slice([], 0, 3) #=> []
+"""
 def slice(xs, start, count)
   take_n(drop_n(xs, start), count)
 end
@@ -214,19 +253,23 @@ def all_but_last(xs)
   take_n(xs, size(xs) - 1)
 end
 
-# Position of the first `v`, or 0 - 1 when absent.
-#
-# The sentinel is negative rather than nil so a caller can compare it — `nil < 0`
-# is not a comparison this runtime will make. `contains` is the predicate to
-# reach for when the position itself is not wanted.
-#
-# Both are the runtime's `position` and `member?` (native iterations, `==` as
-# `equal?`), not index_of_from's recursion, which copied the tail at every
-# element and so was quadratic: measured 2026-09-24, finding the last of
-# 20,000 elements took 664 ms and of 100,000 took 15.3 s, now 5 ms and 27 ms;
-# a lookup among five names went from 14.7 µs to 3.7 µs. (The recursion is a
-# tail call and never overflowed; the cost was the copying.) Found by nisshi's
-# profile of raifusaikuru's judgement, which calls contains on every event.
+@doc """
+index_of: Position of the first `v`, or 0 - 1 when absent.
+
+The sentinel is negative rather than nil so a caller can compare it — `nil < 0`
+is not a comparison this runtime will make. `contains` is the predicate to
+reach for when the position itself is not wanted.
+
+Both are the runtime's `position` and `member?` (native iterations, `==` as
+`equal?`), not index_of_from's recursion, which copied the tail at every
+element and so was quadratic: measured 2026-09-24, finding the last of
+20,000 elements took 664 ms and of 100,000 took 15.3 s, now 5 ms and 27 ms;
+a lookup among five names went from 14.7 µs to 3.7 µs. (The recursion is a
+tail call and never overflowed; the cost was the copying.) Found by nisshi's
+profile of raifusaikuru's judgement, which calls contains on every event.
+
+    index_of([], 5) #=> -1
+"""
 def index_of(xs, v)
   position(v, as_list(xs))
 end
@@ -330,12 +373,14 @@ end
 # returns the list, because the alternative in a language with no exceptions is
 # a caller that must bounds-check before every call and gets it wrong once.
 
-# nil-to-[] normalisation, in one place.
-#
-# The two empties again, and this time from an operation whose arguments were
-# BOTH lists: `append([], [])` hands back nil, so `remove_at([1], 0) == []` is
-# false without this. Every constructor below that can produce an empty result
-# funnels through it, so a caller never has to ask which empty it got.
+@doc """
+as_list: nil-to-[] normalisation, in one place.
+
+The two empties again, and this time from an operation whose arguments were
+BOTH lists: `append([], [])` hands back nil, so `remove_at([1], 0) == []` is
+false without this. Every constructor below that can produce an empty result
+funnels through it, so a caller never has to ask which empty it got.
+"""
 def as_list(xs)
   if is_empty(xs)
     []
@@ -352,8 +397,12 @@ def remove_at(xs, i)
   as_list(append(take_n(xs, i), drop_n(xs, i + 1)))
 end
 
-# Replace, rather than remove-and-insert, so size is preserved and an
-# out-of-range index changes nothing.
+@doc """
+update_at: Replace, rather than remove-and-insert, so size is preserved and an
+out-of-range index changes nothing.
+
+    update_at([], 0, 9) #=> []
+"""
 def update_at(xs, i, v)
   map(
     fn(j)
@@ -371,10 +420,14 @@ def partition_at(xs, i)
   [take_n(xs, i), drop_n(xs, i)]
 end
 
-# Fixed-size groups, last one short.
-#
-# The `n < 1` guard is load-bearing: without it a chunk size of zero drops
-# nothing each pass and the recursion never reaches the empty list.
+@doc """
+chunk: Fixed-size groups, last one short.
+
+The `n < 1` guard is load-bearing: without it a chunk size of zero drops
+nothing each pass and the recursion never reaches the empty list.
+
+    chunk([], 2) #=> []
+"""
 def chunk(xs, n)
   if is_empty(xs) or n < 1
     []
@@ -383,10 +436,14 @@ def chunk(xs, n)
   end
 end
 
-# Overlapping windows of width n — chunk's sliding sibling.
-#
-# A width wider than the list has no windows at all, which is why this answers
-# [] rather than one short window: a caller asking for pairs wants pairs.
+@doc """
+windows: Overlapping windows of width n — chunk's sliding sibling.
+
+A width wider than the list has no windows at all, which is why this answers
+[] rather than one short window: a caller asking for pairs wants pairs.
+
+    windows([], 1) #=> []
+"""
 def windows(xs, n)
   if n < 1 or size(xs) < n
     []
@@ -395,8 +452,12 @@ def windows(xs, n)
   end
 end
 
-# Rotate left by n, wrapping. Negative n rotates right, and n past the end
-# wraps, because `modulo` here floors rather than truncating.
+@doc """
+rotate: Rotate left by n, wrapping. Negative n rotates right, and n past the end
+wraps, because `modulo` here floors rather than truncating.
+
+    rotate([], 2) #=> []
+"""
 def rotate(xs, n)
   if is_empty(xs)
     []
@@ -406,6 +467,11 @@ def rotate(xs, n)
   end
 end
 
+@doc """
+interleave: items of two lists taken in turn.
+
+    interleave([], [1, 2]) #=> []
+"""
 def interleave(a, b)
   as_list(flatten1(zip(a, b)))
 end
@@ -486,10 +552,12 @@ end
 # Predicates and folds. These take the FUNCTION first, matching
 # `map`/`filter`/`reduce`, and not the data-first order used above.
 
-# The first element satisfying f, or nil.
-#
-# nil doubles as "no match", which is only ambiguous for a list that itself
-# holds nil; `index_of` and a numeric sentinel is the way out when that matters.
+@doc """
+find_first: The first element satisfying f, or nil.
+
+nil doubles as "no match", which is only ambiguous for a list that itself
+holds nil; `index_of` and a numeric sentinel is the way out when that matters.
+"""
 def find_first(f, xs)
   if is_empty(xs)
     nil
@@ -500,6 +568,9 @@ def find_first(f, xs)
   end
 end
 
+@doc """
+reject: items where f does not hold.
+"""
 def reject(f, xs)
   filter((x) -> not f(x), xs)
 end
@@ -508,13 +579,17 @@ def count_where(f, xs)
   size(filter(f, xs))
 end
 
-# Both halves of one pass, in the order [kept, rejected].
+@doc """
+partition: Both halves of one pass, in the order [kept, rejected].
+"""
 def partition(f, xs)
   [filter(f, xs), reject(f, xs)]
 end
 
-# take_while stops at the FIRST failure and does not resume — the difference
-# from `filter`, and the only reason both exist.
+@doc """
+take_while stops at the FIRST failure and does not resume — the difference
+from `filter`, and the only reason both exist.
+"""
 def take_while(f, xs)
   if is_empty(xs)
     []
@@ -525,6 +600,9 @@ def take_while(f, xs)
   end
 end
 
+@doc """
+drop_while: skip leading items while f holds.
+"""
 def drop_while(f, xs)
   if is_empty(xs)
     []
@@ -535,8 +613,10 @@ def drop_while(f, xs)
   end
 end
 
-# Every intermediate accumulator of a `reduce`, init included, so the result is
-# one longer than the input and `last(scan(...)) == reduce(...)`.
+@doc """
+scan: Every intermediate accumulator of a `reduce`, init included, so the result is
+one longer than the input and `last(scan(...)) == reduce(...)`.
+"""
 def scan(f, init, xs)
   cons(init, scan_from(f, init, xs))
 end
@@ -550,9 +630,13 @@ def scan_from(f, acc, xs)
   end
 end
 
-# Running totals in the usual sense — same length as the input, no leading
-# zero. That is `scan` with its seed dropped, which is what "running total"
-# means to everyone who is not thinking about folds.
+@doc """
+running_sum: Running totals in the usual sense — same length as the input, no leading
+zero. That is `scan` with its seed dropped, which is what "running total"
+means to everyone who is not thinking about folds.
+
+    running_sum([]) #=> []
+"""
 def running_sum(xs)
   rest(scan((a, b) -> a + b, 0, xs))
 end
@@ -561,11 +645,18 @@ def enumerate(xs)
   zip(indexes(xs), xs)
 end
 
+@doc """
+flat_map: map then flatten one level.
+"""
 def flat_map(xs, f)
   as_list(flatten1(map(f, xs)))
 end
 
-# The inverse of zip: a list of pairs back into [firsts, seconds].
+@doc """
+unzip: The inverse of zip: a list of pairs back into [firsts, seconds].
+
+    unzip([]) #=> [[], []]
+"""
 def unzip(ps)
   [map((p) -> nth(0, p), ps), map((p) -> nth(1, p), ps)]
 end
@@ -644,9 +735,13 @@ end
 # ---------------------------------------------------------------------------
 # Comparison.
 
-# Element-wise equality. Written when `cdr([1]) == []` was false (a computed
-# tail was nil); since okite D0011 the empty list is always [], so this agrees
-# with `==` everywhere and stays as vocabulary. Prefer `==`.
+@doc """
+equal_lists: Element-wise equality. Written when `cdr([1]) == []` was false (a computed
+tail was nil); since okite D0011 the empty list is always [], so this agrees
+with `==` everywhere and stays as vocabulary. Prefer `==`.
+
+    equal_lists([], []) #=> true
+"""
 def equal_lists(a, b)
   if is_empty(a) or is_empty(b)
     is_empty(a) and is_empty(b)
@@ -657,7 +752,11 @@ def equal_lists(a, b)
   end
 end
 
-# Read as "p is a prefix of xs" — the subject comes first, as in the name.
+@doc """
+is_prefix_of: Read as "p is a prefix of xs" — the subject comes first, as in the name.
+
+    is_prefix_of([], [1, 2]) #=> true
+"""
 def is_prefix_of(p, xs)
   equal_lists(p, take_n(xs, size(p)))
 end
@@ -666,17 +765,21 @@ def is_suffix_of(s, xs)
   equal_lists(s, drop_n(xs, size(xs) - size(s)))
 end
 
-# Flatten exactly `depth` levels.
-#
-# There is deliberately no depth-unlimited `flatten`, and it is not an omission
-# of convenience: it cannot be written here. Deciding whether an element is a
-# list or a leaf needs a list predicate, and the only one the runtime has is
-# spelled `list?` — a name blue's lexer rejects, so it is unreachable. Every
-# alternative probe is partial: `length`, `nth`, `map` and `append` all raise on
-# a non-list, `to_s` erases the structure it would have to reveal
-# (`to_s([[1],[2]])` and `to_s([1,2])` are the same string), and there is no
-# way to catch the raise. So the depth is the caller's to state, and a level
-# whose elements are not all lists is an error rather than a silent pass.
+@doc """
+flatten_n: Flatten exactly `depth` levels.
+
+There is deliberately no depth-unlimited `flatten`, and it is not an omission
+of convenience: it cannot be written here. Deciding whether an element is a
+list or a leaf needs a list predicate, and the only one the runtime has is
+spelled `list?` — a name blue's lexer rejects, so it is unreachable. Every
+alternative probe is partial: `length`, `nth`, `map` and `append` all raise on
+a non-list, `to_s` erases the structure it would have to reveal
+(`to_s([[1],[2]])` and `to_s([1,2])` are the same string), and there is no
+way to catch the raise. So the depth is the caller's to state, and a level
+whose elements are not all lists is an error rather than a silent pass.
+
+    flatten_n([], 3) #=> []
+"""
 def flatten_n(xss, depth)
   if depth < 1 or is_empty(xss)
     as_list(xss)
@@ -733,10 +836,20 @@ test "flatten_n unwraps exactly the depth asked for"
   assert flatten_n([[], []], 1) == []
 end
 
+@doc """
+prepend: new list with an item at the front.
+
+    prepend(nil, 1) #=> [1]
+"""
 def prepend(xs, item)
   append([item], as_list(xs))
 end
 
+@doc """
+at: item at an index; negative counts from the end.
+
+    at([10, 20, 30], 0) #=> 10
+"""
 def at(xs, index)
   if index < 0
     nth(size(xs) + index, xs)
@@ -756,6 +869,11 @@ test "prepend and at stay total on nil and out-of-range"
   assert at(nil, 0).nil?
 end
 
+@doc """
+insert: new list with an item placed at an index.
+
+    insert([], 0, 1) #=> [1]
+"""
 def insert(list, index, item)
   insert_at(list, index, item)
 end

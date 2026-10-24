@@ -70,7 +70,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "the canonical JSON text of a value",
     wave: 0,
     origin: "B"
   }
@@ -175,7 +174,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "build a record value with its body, links and status",
     wave: 0,
     origin: "B"
   }
@@ -250,7 +248,6 @@ verb(
     laterals: ["serialize"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "the first hash of the stream named by a label",
     wave: 0,
     origin: "B"
   }
@@ -280,7 +277,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "hash of the last record",
     wave: 0,
     origin: "D"
   }
@@ -295,7 +291,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "one entity's records in order",
     wave: 0,
     origin: "D"
   }
@@ -310,7 +305,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "no break anywhere in the log",
     wave: 0,
     origin: "D"
   }
@@ -370,7 +364,6 @@ verb(
     laterals: ["capability", "config", "idempotent", "resource"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "open or create an append-only event log",
     wave: 0,
     origin: "F"
   }
@@ -431,7 +424,6 @@ verb(
     laterals: ["deadline", "error", "resource", "serialize"],
     fleet: "blue",
     today: "exists:nisshi",
-    meaning: "The events of a stream, in order.",
     wave: 0,
     origin: "C"
   }
@@ -522,7 +514,6 @@ verb(
     laterals: ["time"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "an entity state as of an instant",
     wave: 0,
     origin: "F"
   }
@@ -597,7 +588,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: nil,
     today: "exists:nisshi",
-    meaning: "first break in hashes, sequence or signature, named",
     wave: 0,
     origin: "D"
   }

@@ -24,7 +24,6 @@ verb(
     laterals: [],
     fleet: "tatara-lisp-script",
     today: "exists:retsu",
-    meaning: "item at an index; negative counts from the end",
     wave: 0,
     origin: "A"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "consecutive groups of n items",
     wave: 0,
     origin: "A"
   }
@@ -114,7 +112,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "skip leading items while f holds",
     wave: 0,
     origin: "A"
   }
@@ -189,7 +186,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "first item, nil when empty",
     wave: 0,
     origin: "A"
   }
@@ -204,7 +200,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "map then flatten one level",
     wave: 0,
     origin: "A"
   }
@@ -235,7 +230,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "partial:shuugou",
-    meaning: "items grouped under the key f gives",
     wave: 0,
     origin: "A"
   }
@@ -250,7 +244,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "index of the first equal item",
     wave: 0,
     origin: "A"
   }
@@ -265,7 +258,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "new list with an item placed at an index",
     wave: 0,
     origin: "A"
   }
@@ -280,7 +272,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "items of two lists taken in turn",
     wave: 0,
     origin: "A",
     contract: "interleave(a) -> list"
@@ -296,7 +287,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "last item, nil when empty",
     wave: 0,
     origin: "A"
   }
@@ -326,7 +316,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "items split by whether f holds",
     wave: 0,
     origin: "A"
   }
@@ -341,7 +330,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "new list with an item at the front",
     wave: 0,
     origin: "A"
   }
@@ -386,7 +374,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "items where f does not hold",
     wave: 0,
     origin: "A"
   }
@@ -416,7 +403,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "every item after the first",
     wave: 0,
     origin: "A"
   }
@@ -461,7 +447,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "every running result of a fold",
     wave: 0,
     origin: "A",
     contract: "scan(list, start, opts) -> list"
@@ -492,7 +477,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "number of items",
     wave: 0,
     origin: "A"
   }
@@ -507,7 +491,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "items from an index up to another",
     wave: 0,
     origin: "A",
     contract: "slice(list, from, to, to) -> list"
@@ -538,7 +521,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "leading items while f holds",
     wave: 0,
     origin: "A"
   }
@@ -553,7 +535,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "partial:toukei",
-    meaning: "how often each item occurs",
     wave: 0,
     origin: "A"
   }
@@ -583,7 +564,6 @@ verb(
     laterals: [],
     fleet: "tatara-lisp-script",
     today: "partial:shuugou",
-    meaning: "first of each equal item, order kept",
     wave: 0,
     origin: "A"
   }
@@ -598,7 +578,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "a list of pairs split into two lists",
     wave: 0,
     origin: "A"
   }
@@ -628,7 +607,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:retsu",
-    meaning: "every run of n adjacent items",
     wave: 0,
     origin: "A"
   }
@@ -643,7 +621,6 @@ verb(
     laterals: [],
     fleet: "tatara-lisp-script",
     today: "exists:retsu",
-    meaning: "items of two lists paired by position",
     wave: 0,
     origin: "A"
   }

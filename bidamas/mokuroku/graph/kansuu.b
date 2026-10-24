@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kansuu",
-    meaning: "apply functions right to left",
     wave: 0,
     origin: "A"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kansuu",
-    meaning: "function that always returns x",
     wave: 0,
     origin: "A"
   }
@@ -69,7 +67,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kansuu",
-    meaning: "function with its first two arguments swapped",
     wave: 0,
     origin: "A"
   }
@@ -84,7 +81,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kansuu",
-    meaning: "return the argument unchanged",
     wave: 0,
     origin: "A"
   }
@@ -114,7 +110,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kansuu",
-    meaning: "function returning every f's result as a list",
     wave: 0,
     origin: "A"
   }
@@ -174,7 +169,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kansuu",
-    meaning: "pass a value through functions left to right",
     wave: 0,
     origin: "A",
     contract: "pipe(x, opts) -> value"
@@ -190,7 +184,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kansuu",
-    meaning: "call f for its effect, return x",
     wave: 0,
     origin: "A"
   }

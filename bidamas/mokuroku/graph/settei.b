@@ -9,7 +9,6 @@ verb(
     laterals: ["config"],
     fleet: "shikumi",
     today: "exists:settei",
-    meaning: "the built-in default record of an app",
     wave: 0,
     origin: "B"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: ["capability", "config"],
     fleet: "okiba",
     today: "exists:settei",
-    meaning: "where the config file of an app tier lives",
     wave: 0,
     origin: "B"
   }
@@ -84,7 +82,6 @@ verb(
     laterals: ["config"],
     fleet: "shikumi",
     today: "exists:settei",
-    meaning: "whether a setting is defined",
     wave: 0,
     origin: "B"
   }
@@ -114,7 +111,6 @@ verb(
     laterals: ["config"],
     fleet: "shikumi",
     today: "exists:settei",
-    meaning: "combine two records, b winning, deep for maps",
     wave: 0,
     origin: "B"
   }
@@ -129,7 +125,6 @@ verb(
     laterals: ["config", "error"],
     fleet: "shikumi",
     today: "exists:settei",
-    meaning: "one setting by dotted path, raising not_found",
     wave: 0,
     origin: "B"
   }
@@ -160,7 +155,6 @@ verb(
     laterals: ["config", "error", "validate"],
     fleet: "shikumi",
     today: "partial:settei",
-    meaning: "resolve defaults, then file, then environment into one record",
     wave: 0,
     origin: "B",
     contract: "read(app, opts) -> record"

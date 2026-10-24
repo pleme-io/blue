@@ -24,7 +24,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "smallest axis-aligned box around a mesh",
     wave: 0,
     origin: "A"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "centre of mass of a mesh",
     wave: 0,
     origin: "A"
   }
@@ -69,7 +67,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "outline pulled into a solid",
     wave: 0,
     origin: "A"
   }
@@ -99,7 +96,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "two meshes as one",
     wave: 0,
     origin: "G"
   }
@@ -114,7 +110,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "solid made of triangles",
     wave: 0,
     origin: "A"
   }
@@ -190,7 +185,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "total area of all faces",
     wave: 0,
     origin: "A"
   }
@@ -205,7 +199,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "mesh moved and turned by a pose",
     wave: 0,
     origin: "A"
   }
@@ -220,7 +213,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "mesh turned about an axis",
     wave: 0,
     origin: "A"
   }
@@ -235,7 +227,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "enclosed volume of a closed mesh",
     wave: 0,
     origin: "A"
   }
@@ -250,7 +241,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:rittai",
-    meaning: "merge vertices closer than a tolerance",
     wave: 0,
     origin: "A"
   }

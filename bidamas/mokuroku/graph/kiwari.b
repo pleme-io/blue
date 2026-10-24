@@ -24,7 +24,6 @@ verb(
     laterals: [],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "exactly one of the items",
     wave: 0,
     origin: "F"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: [],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "name a part of a node",
     wave: 0,
     origin: "F"
   }
@@ -54,7 +52,6 @@ verb(
     laterals: [],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "a fixed piece of text",
     wave: 0,
     origin: "F"
   }
@@ -69,7 +66,6 @@ verb(
     laterals: [],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "every fixed token a grammar uses",
     wave: 0,
     origin: "F"
   }
@@ -84,7 +80,6 @@ verb(
     laterals: [],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "an item or nothing",
     wave: 0,
     origin: "F"
   }
@@ -99,7 +94,6 @@ verb(
     laterals: ["serialize"],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "a syntax artifact for a target: parser, highlights, tables",
     wave: 0,
     origin: "F"
   }
@@ -114,7 +108,6 @@ verb(
     laterals: [],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "zero or more of an item",
     wave: 0,
     origin: "F"
   }
@@ -129,7 +122,6 @@ verb(
     laterals: ["validate"],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "declare one grammar production",
     wave: 0,
     origin: "F"
   }
@@ -144,7 +136,6 @@ verb(
     laterals: [],
     fleet: "blue-lang-kiwari",
     today: "exists:kiwari",
-    meaning: "items in order",
     wave: 0,
     origin: "F"
   }

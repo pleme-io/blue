@@ -84,7 +84,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:zumen",
-    meaning: "feature-edge view of a solid",
     wave: 0,
     origin: "G"
   }

@@ -24,7 +24,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shinsuu",
-    meaning: "the bit at a position",
     wave: 0,
     origin: "B"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shinsuu",
-    meaning: "read a number written in a base",
     wave: 0,
     origin: "B"
   }
@@ -114,7 +112,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:shinsuu",
-    meaning: "whether a number passes the Luhn check",
     wave: 0,
     origin: "B"
   }
@@ -129,7 +126,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shinsuu",
-    meaning: "how many bits are set in a number",
     wave: 0,
     origin: "B"
   }
@@ -144,7 +140,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:shinsuu",
-    meaning: "write a number in a base",
     wave: 0,
     origin: "B"
   }

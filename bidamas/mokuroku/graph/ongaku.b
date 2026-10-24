@@ -99,7 +99,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ongaku",
-    meaning: "notes moved by semitones",
     wave: 0,
     origin: "G"
   }

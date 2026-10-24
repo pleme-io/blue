@@ -9,7 +9,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "findings of a subject against rules; empty when sound",
     wave: 0,
     origin: "D"
   }
@@ -24,7 +23,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "raise one error carrying every finding of check; nil when sound",
     wave: 0,
     origin: "H"
   }
@@ -39,7 +37,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "exit status the ledger gives a kind",
     wave: 0,
     origin: "D"
   }
@@ -54,7 +51,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "what was refused",
     wave: 0,
     origin: "D"
   }
@@ -69,7 +65,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "the kind of each refusal, in order",
     wave: 0,
     origin: "D"
   }
@@ -84,7 +79,6 @@ verb(
     laterals: ["config", "error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "the closed list of error kinds with status and retry",
     wave: 0,
     origin: "D"
   }
@@ -99,7 +93,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "a refusal of one kind with its reason",
     wave: 0,
     origin: "D"
   }
@@ -114,7 +107,6 @@ verb(
     laterals: ["error", "retry"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "the ledger marks the kind worth retrying",
     wave: 0,
     origin: "D"
   }
@@ -129,7 +121,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "entries not refused",
     wave: 0,
     origin: "D"
   }
@@ -144,7 +135,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kyohi",
-    meaning: "why it was refused",
     wave: 0,
     origin: "D"
   }

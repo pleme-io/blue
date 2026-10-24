@@ -69,7 +69,6 @@ verb(
     laterals: ["config"],
     fleet: "kijun",
     today: "exists:kijun",
-    meaning: "exempt one path from one rule with a reason",
     wave: 0,
     origin: "E",
     contract: "waive(config, rule, glob) -> config"

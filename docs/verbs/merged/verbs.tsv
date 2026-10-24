@@ -35,7 +35,7 @@ D	angou	bezout	pure	bezout(a, b) -> record	validate	-	partial:angou	gcd with the
 D	angou	crack	pure	crack(text, cipher) -> [candidate]	validate	-	partial:angou	plaintext guesses ranked by letter frequency	0		na
 D	angou	crt	pure	crt(congruences) -> int	validate	-	partial:angou	number matching several remainders at once	0		na
 D	angou	decipher	pure	decipher(text, key, cipher) -> text	validate	-	partial:angou	classical cipher backward	0		na
-D	angou	divisors	pure	divisors(n) -> [int]	validate	-	exists:angou	every divisor in ascending order	0		na
+D	angou	divisors	pure	divisors(n) -> [int]	validate	-	exists:angou	Every divisor of n, ascending, n included	0		na
 D	angou	encipher	pure	encipher(text, key, cipher) -> text	validate	-	partial:angou	classical cipher forward: caesar, vigenere, atbash, rail fence, substitution	0		na
 D	angou	factor	pure	factor(n) -> [int]	validate	-	exists:angou	prime factors with multiplicity	0		na
 D	angou	frequency	pure	frequency(text) -> [count]	validate	-	exists:angou	letter counts a to z, case folded	0		na
@@ -43,8 +43,8 @@ D	angou	inverse_mod	pure	inverse_mod(a, modulus) -> int or nil	validate	-	partia
 D	angou	period	pure	period(a, modulus) -> int	validate	-	exists:angou	smallest power of a that equals one	0	period(a, modulus) -> int	yes
 D	angou	power_mod	pure	power_mod(base, exponent, modulus) -> int	validate	-	exists:angou	modular exponentiation by repeated squaring	0		na
 D	angou	prime?	pure	prime?(n) -> Bool	validate	-	exists:angou	n is prime by trial division	0		na
-D	angou	primitive_root	pure	primitive_root(prime) -> int	validate	-	exists:angou	smallest generator of the units modulo a prime	0		na
-D	angou	totient	pure	totient(n) -> int	validate	-	exists:angou	count of integers below n coprime to it	0		na
+D	angou	primitive_root	pure	primitive_root(prime) -> int	validate	-	exists:angou	The smallest generator of the units mod a prime p — where Diffie-Hellman gets its base	0		na
+D	angou	totient	pure	totient(n) -> int	validate	-	exists:angou	Euler's totient: how many integers below n are coprime to it	0		na
 B	asshuku?	append	pure	append(archive, entries) -> bytes	error	-	absent	add entries to the end of an archive	3	append(archive, entries) -> bytes	yes
 B	asshuku?	archive	effect	archive(root, to, opts) -> nil	capability,deadline,error	-	absent	pack a directory tree into an archive file	2		na
 B	asshuku?	compress	pure	compress(data, opts) -> bytes	error	-	absent	shrink bytes with an algorithm named in opts	2	compress(data, opts) -> bytes	yes
@@ -123,7 +123,7 @@ D	bougyo	headers	decl	headers(opts) -> posture	config,switch	-	partial:bougyo	se
 D	bougyo	limits	decl	limits(opts) -> posture	config,validate	-	partial:bougyo	caps on method, path, headers and body	0		na
 D	bougyo	rate	decl	rate(opts) -> posture	config,ratelimit	pleme-middleware-rate-limit	absent	requests per window per client	1		na
 D	bougyo	request_id	decl	request_id(opts) -> posture	config,log	-	partial:bougyo	request id that cannot forge a log line	0		na
-D	bougyo	safe_id?	pure	safe_id?(text, max) -> Bool	validate	-	exists:bougyo	inbound id is short and made of safe characters	0		na
+D	bougyo	safe_id?	pure	safe_id?(text, max) -> Bool	validate	-	exists:bougyo	An inbound id is echoed only when it is short and made of safe characters, so it cannot forge a log line or split a header	0		na
 D	bougyo	tls	decl	tls(opts) -> posture	config,switch	-	absent	require TLS and send strict transport security	2		na
 D	bougyo	trusted_proxy	decl	trusted_proxy(opts) -> posture	config	-	absent	which forwarding hops to believe for client address	2		na
 F	bunmyaku?	actions	pure	actions(document, range) -> [action]	migrate	blue-lang-lsp	absent	fixes and refactors offered for a range	2		na
@@ -276,10 +276,10 @@ G	chizu?	project	pure	project(point, crs) -> xy	-	-	absent	a point in a flat sys
 G	chizu?	render	pure	render(geometry, format) -> text	serialize	-	absent	a geometry as GeoJSON or WKT text	1	render(geometry, format) -> text	yes
 G	chizu?	simplify	pure	simplify(line, tolerance) -> line	-	-	absent	a line with fewer points, same shape	1		na
 G	chizu?	unproject	pure	unproject(xy, crs) -> point	-	-	absent	a flat coordinate as latitude and longitude	1	unproject(xy, crs) -> point	yes
-G	chokkan	ask	decl	ask(name, question) -> question	-	arnes	exists:chokkan	declare one typed question for a judge	0		na
+G	chokkan	ask	decl	ask(name, question) -> question	-	arnes	exists:chokkan	one call to a model; reply holds text, tool uses, usage	0		na
 G	chokkan	choice	decl	choice(instructions, options) -> question	-	arnes	exists:chokkan	a question with a closed set of answers	0	choice(instructions, options) -> question	yes
 G	chokkan	request	pure	request(model, state, questions) -> request	-	arnes	exists:chokkan	the wire request that carries the questions	0	request(model, state, opts) -> request	no
-G	chokkan	score	decl	score(instructions, levels) -> question	-	arnes	exists:chokkan	a question answered on a numbered scale	0	score(instructions, levels) -> question	yes
+G	chokkan	score	decl	score(instructions, levels) -> question	-	arnes	exists:chokkan	grade an output: exact, pattern, similarity or judge	0	score(instructions, levels) -> question	yes
 C	chuukai?	authorize	pure	authorize(request, policy) -> decision	capability,error	-	absent	Decide whether a caller may reach a route.	3		na
 C	chuukai?	drain	effect	drain(target) -> nil	cancel,deadline	-	absent	Stop new traffic to a target; finish in-flight.	2	drain(target) -> nil	yes
 C	chuukai?	eject	effect	eject(upstream, target, duration) -> nil	switch	-	absent	Remove an unhealthy target for a while.	2		na
@@ -701,12 +701,12 @@ A	gyouretsu	add	pure	add(a, b) -> matrix	error	-	partial:gyouretsu	entrywise sum
 G	gyouretsu	compile	pure	compile(graph) -> compiled graph	validate	ml-forge	absent	compile a tensor graph; shapes proved before any run	3	compile(graph) -> compiled graph	yes
 A	gyouretsu	cross	pure	cross(a, b) -> vector	error	-	exists:gyouretsu	cross product of two 3-vectors	0		na
 A	gyouretsu	decompose	pure	decompose(m, kind) -> record	error	-	absent	LU, QR, Cholesky or SVD factors	3		na
-A	gyouretsu	determinant	pure	determinant(m) -> number	error	-	exists:gyouretsu	signed volume factor of a square matrix	0		na
+A	gyouretsu	determinant	pure	determinant(m) -> number	error	-	exists:gyouretsu	Laplace expansion along the first row, so this is general rather than a pair of hard-coded 2-by-2 and 3-by-3 formulas	0		na
 A	gyouretsu	diagsum	pure	diagsum(m) -> number	error	-	exists:gyouretsu	sum of the diagonal	0	diagsum(m) -> number	yes
 A	gyouretsu	dot	pure	dot(a, b) -> number	error	-	exists:gyouretsu	inner product of two vectors	0		na
 A	gyouretsu	eigen	pure	eigen(m) -> record	error	-	absent	eigenvalues and eigenvectors	4		na
 A	gyouretsu	eye	pure	eye(n) -> matrix	-	-	exists:gyouretsu	n by n identity matrix	0	eye(n) -> matrix	yes
-A	gyouretsu	inverse	pure	inverse(m) -> matrix	error	-	exists:gyouretsu	matrix that multiplies to identity; singular raises	0		na
+A	gyouretsu	inverse	pure	inverse(m) -> matrix	error	-	exists:gyouretsu	The empty list means "no inverse", not "the empty matrix": a singular matrix has no inverse to return, and returning one anyway — or dividing by the zero determinant — is the alternative	0		na
 A	gyouretsu	matrix	pure	matrix(rows) -> matrix	error,validate	-	partial:gyouretsu	build a matrix from rows of numbers	0		na
 A	gyouretsu	multiply	pure	multiply(a, b) -> matrix	error	-	exists:gyouretsu	matrix product	0		na
 A	gyouretsu	norm	pure	norm(v, order) -> number	-	-	partial:gyouretsu	length of a vector in a chosen norm	0		na
@@ -716,7 +716,7 @@ A	gyouretsu	rank	pure	rank(m, opts) -> int	-	-	absent	number of independent rows
 A	gyouretsu	reshape	pure	reshape(m, rows, cols) -> matrix	error	-	absent	same entries in a new shape	2		na
 G	gyouretsu	run	effect	run(compiled, inputs) -> tensors	deadline,resource	ml-forge	absent	run a compiled graph on CPU or GPU	4	run(compiled, inputs) -> tensors	yes
 A	gyouretsu	scale	pure	scale(m, k) -> matrix	-	-	exists:gyouretsu	every entry multiplied by a number	0	scale(m, k) -> matrix	yes
-A	gyouretsu	shape	pure	shape(m) -> record	-	-	exists:gyouretsu	row and column counts	0	shape(m) -> record	yes
+A	gyouretsu	shape	pure	shape(m) -> record	-	-	exists:gyouretsu	`rows`/`cols` above are the fast path and both go through `length`/`car`, which abort on an empty matrix	0	shape(m) -> record	yes
 A	gyouretsu	solve	pure	solve(a, b) -> vector	error	-	partial:gyouretsu	vector x with a times x equal to b	0		na
 A	gyouretsu	stack	pure	stack(matrices, axis) -> matrix	error	-	absent	matrices joined side by side or one above another	2	stack(matrices, axis) -> matrix	yes
 G	gyouretsu	tensor	decl	tensor(shape, dtype) -> tensor	validate	ml-forge	absent	declare an n-dimensional array with symbolic shape	3		na
@@ -748,7 +748,7 @@ E	haibi	check	pure	check(service, row) -> [refusal]	validate	haibi	partial:haibi
 E	haibi	ddl	pure	ddl(service) -> text	serialize	haibi	exists:haibi	database schema statements from declared tables	0		na
 E	haibi	render	pure	render(service, opts) -> [file]	serialize,validate	haibi	partial:haibi	chart, values, schema and rules from one service spec	0	render(service, opts) -> [file]	yes
 E	haibi	schema	pure	schema(service) -> schema	validate	haibi	partial:haibi	values.schema.json from the service defaults	0	schema(service) -> schema	yes
-A	hani?	clamp	pure	clamp(x, range) -> value	-	-	partial:kazu	nearest point inside a range	2		na
+A	hani?	clamp	pure	clamp(x, range) -> value	-	-	partial:kazu	Clamp into [lo, hi]	2		na
 A	hani?	coalesce	pure	coalesce(ranges) -> [range]	-	-	absent	join overlapping ranges into disjoint ones	2	coalesce(ranges) -> [range]	yes
 A	hani?	contains?	pure	contains?(range, x) -> Bool	-	-	absent	whether a point or range lies inside	2	contains?(range, x) -> Bool	yes
 A	hani?	gaps	pure	gaps(ranges, within) -> [range]	-	-	absent	parts of a range that no range covers	2		na
@@ -785,9 +785,9 @@ C	heikou	timeout	effect	timeout(f, duration) -> value	deadline	-	absent	Run f; r
 C	heikou	token	decl	token() -> cancel token	cancel	-	absent	Make a token that signals cancellation.	1		na
 C	heikou	wait	effect	wait(handle, opts) -> value	deadline,process	-	absent	Wait for a handle's result.	1	wait(handle, opts) -> value	yes
 F	heni	apply	pure	apply(text, mutation) -> text	test	-	exists:heni	text with one mutation applied, or an error	0	apply(text, mutation) -> text	yes
-F	heni	mutations	pure	mutations(parsed) -> [mutation]	test	-	exists:heni	every one-literal change a package admits	0		na
+F	heni	mutations	pure	mutations(parsed) -> [mutation]	test	-	exists:heni	Mutations from parsed JSON: [{name, file, find, replace}]	0		na
 F	heni	ok?	pure	ok?(report) -> Bool	test	-	exists:heni	whether every mutation was caught	0		na
-F	heni	run	effect	run(package, opts) -> report	process,test	-	exists:heni	mutate a fresh copy per change and run its tests	0	run(package, opts) -> report	yes
+F	heni	run	effect	run(package, opts) -> report	process,test	-	exists:heni	spec: {package, mutations, blue, test, tmp}	0	run(package, opts) -> report	yes
 F	heni	score	pure	score(report) -> ratio	test	-	partial:heni	the share of mutations the tests caught	1	score(report) -> ratio	yes
 F	heni	survivors	pure	survivors(report) -> [mutation]	test	-	partial:heni	the mutations no test caught	0		na
 D	himitsu	connect	effect	connect(backend, opts) -> vault	deadline,error,resource	akeyless-auth	absent	authenticate to a secret backend, gated on the user	2	connect(backend, opts) -> vault	yes
@@ -844,10 +844,10 @@ E	hiyou?	unit	pure	unit(lines, measure) -> record	-	unit-econ-forge	absent	cost 
 E	hiyou?	waste	effect	waste(scope) -> [resource]	resource	-	absent	idle resources still costing money	4		na
 A	hizuke	add_business_days	pure	add_business_days(date, n, calendar) -> date	-	-	partial:hizuke	date moved by n working days	1		na
 A	hizuke	business_day?	pure	business_day?(date, calendar) -> Bool	-	-	partial:hizuke	whether work happens on the date	0		na
-A	hizuke	business_days_between	pure	business_days_between(a, b, calendar) -> int	-	-	exists:hizuke	working days from a to b	0		na
+A	hizuke	business_days_between	pure	business_days_between(a, b, calendar) -> int	-	-	exists:hizuke	Business days in the HALF-OPEN span [start, end) — start counted, end excluded — so adjacent spans add up and a zero-length span is 0	0		na
 A	hizuke	day_of	pure	day_of(date) -> int	-	-	exists:hizuke	day of the month of a date	0		na
 A	hizuke	days_in	pure	days_in(year, month) -> int	-	-	exists:hizuke	days in a month	0		na
-A	hizuke	easter	pure	easter(year) -> date	-	-	exists:hizuke	date of Western Easter	0		na
+A	hizuke	easter	pure	easter(year) -> date	-	-	exists:hizuke	Easter Sunday, by the anonymous Gregorian algorithm (Meeus/Jones/Butcher)	0		na
 A	hizuke	fiscal_year	pure	fiscal_year(date, start_month) -> int	-	-	absent	fiscal year a date belongs to	2		na
 A	hizuke	holiday?	pure	holiday?(date, calendar) -> Bool	-	-	absent	whether the date is a public holiday	3		na
 A	hizuke	holidays	pure	holidays(calendar, year) -> [date]	-	-	absent	public holidays of a calendar for a year	3		na
@@ -858,7 +858,7 @@ A	hizuke	nth_weekday	pure	nth_weekday(year, month, weekday, n) -> date	-	-	exist
 A	hizuke	quarter	pure	quarter(date) -> int	-	-	exists:hizuke	calendar quarter, 1 to 4	0		na
 A	hizuke	weekday_of	pure	weekday_of(date) -> symbol	-	-	partial:hizuke	day of the week of a date	0		na
 A	hizuke	weekend?	pure	weekend?(date) -> Bool	-	-	partial:hizuke	whether the date is Saturday or Sunday	0		na
-A	hizuke	year_of	pure	year_of(date) -> int	-	-	exists:hizuke	calendar year of a date	0		na
+A	hizuke	year_of	pure	year_of(date) -> int	-	-	exists:hizuke	Named accessors, so a caller never has to remember that month is index 1	0		na
 E	hosuto?	converge	effect	converge(host, opts) -> outcome	log,process,switch	kirikae	partial:kirikae	bring a host to its declared system	1		na
 E	hosuto?	drain	effect	drain(host, opts) -> nil	deadline,idempotent,switch	-	absent	move work off a host	3	drain(host, opts) -> nil	yes
 E	hosuto?	drift	effect	drift(host) -> [difference]	validate	-	absent	declared system against the running one	2	drift(host) -> [difference]	yes
@@ -1011,10 +1011,10 @@ A	junban?	unload	pure	unload(queue) -> list	-	-	absent	every item in pop order	2
 A	junjo	max_by	pure	max_by(list, f) -> item or nil	-	-	exists:junjo	item with the greatest key	0	max_by(list, f) -> item or nil	yes
 A	junjo	merge	pure	merge(a, b) -> list	-	-	exists:junjo	two sorted lists joined in order	0	merge(a, b) -> list	yes
 A	junjo	min_by	pure	min_by(list, f) -> item or nil	-	-	exists:junjo	item with the least key	0	min_by(list, f) -> item or nil	yes
-A	junjo	rank	pure	rank(list) -> [int]	-	-	exists:junjo	position each item would take when sorted	0	rank(list) -> [int]	yes
+A	junjo	rank	pure	rank(list) -> [int]	-	-	exists:junjo	Where each element LANDS in sorted order — the inverse permutation of argsort, and the answer to "what position is this one in?"	0	rank(list) -> [int]	yes
 A	junjo	search	pure	search(list, item) -> int or nil	-	-	partial:junjo	binary search in a sorted list	0	search(list, item) -> int or nil	yes
 A	junjo	sort	pure	sort(list, opts) -> list	-	-	exists:junjo	items in ascending order; stable	0	sort(list, opts) -> list	yes
-A	junjo	sort_by	pure	sort_by(list, f, opts) -> list	-	-	exists:junjo	items ordered by the key f gives	0	sort_by(list, f) -> list	no
+A	junjo	sort_by	pure	sort_by(list, f, opts) -> list	-	-	exists:junjo	NOT stable, unlike `sort` above — the header's stability claim covers the insertion sort, and this is a partition sort	0	sort_by(list, f) -> list	no
 A	junjo	sorted?	pure	sorted?(list, opts) -> Bool	-	-	partial:junjo	whether the list is in order	0		na
 A	junjo	top	pure	top(list, n, opts) -> list	-	-	partial:junjo	the n greatest items	0	top(list, n, opts) -> list	yes
 D	junshu?	assess	effect	assess(target, pack, opts) -> [result]	process,resource,test	kensa	absent	run a pack of compliance tests against a target	1		na
@@ -1123,23 +1123,23 @@ A	kakuritsu?	seed	pure	seed(value) -> rng	-	-	absent	a random stream fixed by a 
 A	kakuritsu?	variance	pure	variance(dist) -> number	-	-	absent	spread of a distribution	2	variance(dist) -> number	yes
 A	kakuritsu?	weighted	pure	weighted(rng, items, weights) -> record	error	-	absent	one item chosen by weight	2		na
 H	kankyou	get	effect	get(name) -> text or nil	capability	-	rust:blue-lang-runtime	one environment variable, nil when unset	0	get(name) -> text or nil	yes
-A	kansuu	compose	pure	compose(fs) -> function	-	-	exists:kansuu	apply functions right to left	0	compose(fs) -> function	yes
-A	kansuu	constantly	pure	constantly(x) -> function	-	-	exists:kansuu	function that always returns x	0		na
+A	kansuu	compose	pure	compose(fs) -> function	-	-	exists:kansuu	compose(f, g) applies g FIRST, then f — the mathematical order	0	compose(fs) -> function	yes
+A	kansuu	constantly	pure	constantly(x) -> function	-	-	exists:kansuu	The constant function	0		na
 A	kansuu	curry	pure	curry(f, arity) -> function	-	-	partial:kansuu	function that takes arguments one at a time	0		na
 A	kansuu	fixpoint	pure	fixpoint(f, x, opts) -> value	error	-	partial:kansuu	apply f until the result stops changing	0		na
-A	kansuu	flip	pure	flip(f) -> function	-	-	exists:kansuu	function with its first two arguments swapped	0		na
+A	kansuu	flip	pure	flip(f) -> function	-	-	exists:kansuu	flip a two-argument function's arguments	0		na
 A	kansuu	identity	pure	identity(x) -> x	-	-	exists:kansuu	return the argument unchanged	0	identity(x) -> x	yes
 A	kansuu	iterate	pure	iterate(f, x, n) -> value	-	-	partial:kansuu	apply f to x n times	0		na
-A	kansuu	juxt	pure	juxt(fs) -> function	-	-	exists:kansuu	function returning every f's result as a list	0		na
+A	kansuu	juxt	pure	juxt(fs) -> function	-	-	exists:kansuu	juxt(fs) applies EVERY function to ONE value and collects the results	0		na
 A	kansuu	memoize	pure	memoize(f) -> function	cache	-	absent	function that remembers results per argument	2		na
 A	kansuu	once	pure	once(f) -> function	idempotent	-	absent	function that runs f only the first time	2		na
 A	kansuu	partial	pure	partial(f, args) -> function	-	-	absent	function with leading arguments fixed	1		na
-A	kansuu	pipe	pure	pipe(x, fs) -> value	-	-	exists:kansuu	pass a value through functions left to right	0	pipe(x, opts) -> value	no
-A	kansuu	tap	pure	tap(x, f) -> x	-	-	exists:kansuu	call f for its effect, return x	0		na
+A	kansuu	pipe	pure	pipe(x, fs) -> value	-	-	exists:kansuu	pipe(f, g) applies f FIRST — reading order	0	pipe(x, opts) -> value	no
+A	kansuu	tap	pure	tap(x, f) -> x	-	-	exists:kansuu	tap runs f for its effect and hands the ORIGINAL value on	0		na
 A	kazu	abs	pure	abs(n) -> number	-	-	exists:kazu	distance from zero	0		na
 A	kazu	atan2	pure	atan2(y, x) -> number	-	-	absent	angle of a point from the x axis	1		na
 A	kazu	ceil	pure	ceil(n) -> int	-	-	absent	least integer not below n	1		na
-A	kazu	clamp	pure	clamp(n, low, high) -> number	-	-	exists:kazu	number held between two bounds	0		na
+A	kazu	clamp	pure	clamp(n, low, high) -> number	-	-	exists:kazu	Clamp into [lo, hi]	0		na
 G	kazu	convert	pure	convert(quantity, unit) -> quantity	validate	-	absent	a quantity in another unit of the same dimension	1	convert(quantity, unit) -> quantity	yes
 A	kazu	cos	pure	cos(radians) -> number	-	-	absent	cosine	1		na
 G	kazu	dimension	pure	dimension(expr) -> dimension	validate	-	absent	prove that units add up: meters plus seconds is refused	1	dimension(expr) -> dimension	yes
@@ -1149,7 +1149,7 @@ A	kazu	finite?	pure	finite?(n) -> Bool	-	-	absent	whether a number is neither in
 A	kazu	floor	pure	floor(n) -> int	-	-	absent	greatest integer not above n	1		na
 A	kazu	gcd	pure	gcd(a, b) -> int	-	-	partial:kazu	greatest common divisor	0		na
 A	kazu	lcm	pure	lcm(a, b) -> int	-	-	partial:kazu	least common multiple	0		na
-A	kazu	lerp	pure	lerp(a, b, t) -> number	-	-	exists:kazu	point t of the way from a to b	0		na
+A	kazu	lerp	pure	lerp(a, b, t) -> number	-	-	exists:kazu	Linear interpolation, written `a + (b - a) * t` rather than `a * (1 - t) + b * t` because this form returns `a` and `b` EXACTLY at t=0 and t=1 — no float creeps into an endpoint — and t outside [0,1] extrapolates rather than being clamped, which is what callers reach for	0		na
 A	kazu	logarithm	pure	logarithm(n, base) -> number	error	-	absent	logarithm in a base; natural by default	1	logarithm(n, base) -> number	yes
 A	kazu	max	pure	max(a, b) -> number	-	-	exists:kazu	the greater of two numbers	0		na
 A	kazu	min	pure	min(a, b) -> number	-	-	exists:kazu	the lesser of two numbers	0		na
@@ -1158,7 +1158,7 @@ A	kazu	near?	pure	near?(a, b, tolerance) -> Bool	-	-	partial:kazu	whether two nu
 A	kazu	nth_root	pure	nth_root(n, degree) -> number	error	-	absent	n-th root	2	nth_root(n, degree) -> number	yes
 A	kazu	parse	pure	parse(text, opts) -> number	error	-	absent	text to integer or float; junk raises	1	parse(text, opts) -> number	yes
 A	kazu	pow	pure	pow(base, exponent) -> number	-	-	exists:kazu	base raised to an exponent	0		na
-A	kazu	product	pure	product(numbers) -> number	-	-	exists:kazu	product of a list	0		na
+A	kazu	product	pure	product(numbers) -> number	-	-	exists:kazu	Seeded with 1, not 0 — the empty product is one, and a 0 seed makes every answer zero	0		na
 G	kazu	quantity	decl	quantity(n, unit) -> quantity	validate	-	absent	a number with a physical unit and dimension	1		na
 A	kazu	render	pure	render(n, format) -> text	serialize	-	absent	number to text: fixed, scientific, percent, grouped	1	render(n, format) -> text	yes
 A	kazu	round	pure	round(n, opts) -> number	-	-	partial:kazu	round to places by a named mode	0	round(n, opts) -> number	yes
@@ -1292,7 +1292,7 @@ E	kijun	waive	decl	waive(config, rule, glob, reason) -> config	config	kijun	exis
 A	kikagaku	angle	pure	angle(a, b, c) -> number	-	-	partial:kikagaku	angle at b between a and c	0		na
 A	kikagaku	area	pure	area(shape) -> number	-	-	partial:kikagaku	area of a polygon, circle or region	0		na
 A	kikagaku	bounds	pure	bounds(shape) -> box	-	-	partial:kikagaku	smallest axis-aligned box around a shape	0	bounds(shape) -> box	yes
-A	kikagaku	centroid	pure	centroid(shape) -> point	-	-	exists:kikagaku	centre of mass of a shape	0	centroid(shape) -> point	yes
+A	kikagaku	centroid	pure	centroid(shape) -> point	-	-	exists:kikagaku	The AREA centroid — the balance point of the enclosed region	0	centroid(shape) -> point	yes
 A	kikagaku	closest	pure	closest(shape, point) -> point	-	-	partial:kikagaku	point of a shape nearest to a point	0		na
 A	kikagaku	contains?	pure	contains?(shape, point) -> Bool	-	-	partial:kikagaku	whether a point is inside a shape	0	contains?(shape, point) -> Bool	yes
 A	kikagaku	difference	pure	difference(a, b) -> region	-	-	absent	area of a not covered by b	3		na
@@ -1308,7 +1308,7 @@ A	kikagaku	shift	pure	shift(shape, by) -> shape	-	-	partial:kikagaku	shape moved
 A	kikagaku	turn	pure	turn(shape, angle, about) -> shape	-	-	partial:kikagaku	shape turned about a point	0	turn(shape, angle, about) -> shape	yes
 A	kikagaku	union	pure	union(a, b) -> region	-	-	absent	area covered by either polygon	3	union(a, b) -> region	yes
 G	kinji	advance	pure	advance(ode, state, span) -> state	-	-	partial:kinji	move an ODE state forward over a span	0	advance(ode, state, opts) -> state	no
-G	kinji	fit	pure	fit(model, data) -> params	-	-	exists:kinji	least-squares parameters for a model	0	fit(model, data) -> params	yes
+G	kinji	fit	pure	fit(model, data) -> params	-	-	exists:kinji	Fit a model's parameters to data by minimising the SSE with Nelder–Mead	0	fit(model, data) -> params	yes
 G	kinji	integrate	pure	integrate(f, a, b) -> number	-	-	partial:kinji	area under f from a to b	0		na
 G	kinji	interpolate	pure	interpolate(points, x) -> number	-	-	partial:kinji	a value between known points	0		na
 G	kinji	minimize	pure	minimize(f, start) -> point	-	-	partial:kinji	a point where f is least	0		na
@@ -1348,12 +1348,12 @@ E	kirikae	verify	effect	verify(desired, opts) -> Bool	switch,validate	kirikae	pa
 F	kiwari	check	pure	check(grammar) -> [problem]	validate	blue-lang-kiwari	partial:kiwari	ambiguity, unused rules and missing closers	1	check(grammar) -> [problem]	yes
 F	kiwari	choice	decl	choice(items) -> expr	-	blue-lang-kiwari	exists:kiwari	exactly one of the items	0	choice(items) -> expr	yes
 F	kiwari	field	decl	field(name, item) -> expr	-	blue-lang-kiwari	exists:kiwari	name a part of a node	0		na
-F	kiwari	lit	decl	lit(text) -> expr	-	blue-lang-kiwari	exists:kiwari	a fixed piece of text	0		na
-F	kiwari	literals	pure	literals(grammar) -> [text]	-	blue-lang-kiwari	exists:kiwari	every fixed token a grammar uses	0		na
+F	kiwari	lit	decl	lit(text) -> expr	-	blue-lang-kiwari	exists:kiwari	A literal token: the exact text	0		na
+F	kiwari	literals	pure	literals(grammar) -> [text]	-	blue-lang-kiwari	exists:kiwari	Every literal token the grammar's rules use, once each	0		na
 F	kiwari	opt	decl	opt(item) -> expr	-	blue-lang-kiwari	exists:kiwari	an item or nothing	0		na
-F	kiwari	render	pure	render(grammar, target) -> text	serialize	blue-lang-kiwari	exists:kiwari	a syntax artifact for a target: parser, highlights, tables	0	render(grammar, target) -> text	yes
+F	kiwari	render	pure	render(grammar, target) -> text	serialize	blue-lang-kiwari	exists:kiwari	The artifact a file named `file` holds, or a refusal naming the ones there are	0	render(grammar, target) -> text	yes
 F	kiwari	rep	decl	rep(item) -> expr	-	blue-lang-kiwari	exists:kiwari	zero or more of an item	0		na
-F	kiwari	rule	decl	rule(name, body, lower) -> rule	validate	blue-lang-kiwari	exists:kiwari	declare one grammar production	0	rule(name, body, lower) -> rule	yes
+F	kiwari	rule	decl	rule(name, body, lower) -> rule	validate	blue-lang-kiwari	exists:kiwari	A rule: its name, its body, and how its node lowers (nil for a hidden rule, whose node never appears, or for a part only its parent's template reads)	0	rule(name, body, lower) -> rule	yes
 F	kiwari	seq	decl	seq(items) -> expr	-	blue-lang-kiwari	exists:kiwari	items in order	0		na
 A	kokusai?	catalog	decl	catalog(entries) -> catalog	validate	pleme-i18n	absent	declare message texts per locale	3		na
 A	kokusai?	collate	pure	collate(locale, a, b) -> int	-	-	absent	order two texts by a locale's alphabet	3		na
@@ -1406,37 +1406,37 @@ E	kouchiku?	test	effect	test(stack, suite) -> report	test	kensa	absent	prove a s
 E	kouchiku?	unlock	effect	unlock(lease) -> nil	idempotent	-	absent	give up a state claim	2		na
 A	kueri	asof_join	pure	asof_join(left, right, on) -> plan	validate	kueri	partial:kueri	join each left row to the nearest earlier right row	0		na
 A	kueri	count	pure	count(plan) -> plan	validate	kueri	absent	a plan that yields the row count	1	count(plan) -> plan	yes
-A	kueri	derive	pure	derive(plan, items) -> plan	validate	kueri	exists:kueri	add computed columns	0	derive(plan, items) -> plan	yes
+A	kueri	derive	pure	derive(plan, items) -> plan	validate	kueri	exists:kueri	Add one computed column; every row stays	0	derive(plan, items) -> plan	yes
 A	kueri	describe	pure	describe(plan) -> plan	validate	kueri	absent	per-column type, nulls and summary figures	2	describe(plan) -> plan	yes
 A	kueri	distinct	pure	distinct(plan, keys) -> plan	validate	kueri	absent	one row per distinct key	1		na
 A	kueri	except	pure	except(a, b) -> plan	validate	kueri	absent	rows of a that are not in b	1		na
 A	kueri	explain	pure	explain(plan) -> text	-	kueri	absent	the engine's execution plan as text	2	explain(plan) -> text	yes
-A	kueri	explode	pure	explode(plan, column) -> plan	validate	kueri	exists:kueri	one row per item of a list column	0		na
+A	kueri	explode	pure	explode(plan, column) -> plan	validate	kueri	exists:kueri	One row per element of a list: each row repeats once per element of `list_expr`, the element in the new column `name`, and a row whose list is empty or NULL is dropped (unnest)	0		na
 A	kueri	filter	pure	filter(plan, predicate) -> plan	validate	kueri	exists:kueri	keep rows where the predicate holds	0	filter(plan, predicate) -> plan	yes
 A	kueri	from	pure	from(source, opts) -> plan	validate	kueri	partial:kueri	start a plan from a table, file or plan	0		na
-A	kueri	group	pure	group(plan, keys, aggregates) -> plan	validate	kueri	exists:kueri	one row per key with aggregate columns	0	group(plan, keys, opts) -> plan	no
-H	kueri	ident	pure	ident(name) -> text	-	-	exists:kueri	an identifier as SQL, quoted when unsafe	0		na
+A	kueri	group	pure	group(plan, keys, aggregates) -> plan	validate	kueri	exists:kueri	One row per distinct key; `aggs` are q_agg / q_agg_where outputs	0	group(plan, keys, opts) -> plan	no
+H	kueri	ident	pure	ident(name) -> text	-	-	exists:kueri	An identifier as SQL: bare when safe, otherwise double-quoted with any embedded quote doubled	0		na
 A	kueri	join	pure	join(left, right, on, opts) -> plan	validate	kueri	exists:kueri	rows paired across two plans by a condition	0	join(left, right) -> plan	no
 A	kueri	left_join	pure	left_join(left, right, on) -> plan	validate	kueri	exists:kueri	join that keeps every left row	0		na
 A	kueri	load	effect	load(path, opts) -> plan	capability,error	-	absent	a file of CSV, JSON or Parquet as a source	1		na
 A	kueri	pivot	pure	pivot(plan, on, value, agg) -> plan	validate	kueri	absent	row values turned into columns	2		na
 A	kueri	query	effect	query(store, sql, params) -> [record]	capability,deadline,error	kueri	partial:kueri	raw SQL against a store, returning records	1	query(store, sql, params) -> [record]	yes
-A	kueri	render	pure	render(plan, dialect) -> text	serialize	kueri	exists:kueri	the plan as SQL text in a dialect	0	render(plan, dialect) -> text	yes
+A	kueri	render	pure	render(plan, dialect) -> text	serialize	kueri	exists:kueri	A model as one SQL query in `dialect` (:core or :duckdb), with no trailing semicolon	0	render(plan, dialect) -> text	yes
 A	kueri	run	effect	run(plan, opts) -> [record]	capability,deadline,error,resource	kueri	partial:kueri	execute a plan in memory or in DuckDB	1	run(plan, opts) -> [record]	yes
 A	kueri	sample	pure	sample(plan, n, rng) -> plan	validate	kueri	absent	n rows chosen with a seeded stream	2	sample(plan, n, rng) -> plan	yes
 A	kueri	save	effect	save(plan, path, opts) -> nil	capability,error,idempotent	-	absent	write a plan's rows to a file	2	save(plan, path, opts) -> nil	yes
 A	kueri	schema	pure	schema(plan) -> schema	validate	kueri	absent	column names and types a plan yields	1	schema(plan) -> schema	yes
-A	kueri	select	pure	select(plan, items) -> plan	validate	kueri	exists:kueri	choose and name output columns	0	select(plan, items) -> plan	yes
+A	kueri	select	pure	select(plan, items) -> plan	validate	kueri	exists:kueri	Keep these columns (keywords) and computed ones (q_as), in this order	0	select(plan, items) -> plan	yes
 A	kueri	sort	pure	sort(plan, keys) -> plan	validate	kueri	exists:kueri	order rows by keys	0	sort(plan, opts) -> plan	no
 A	kueri	take	pure	take(plan, n, opts) -> plan	validate	kueri	partial:kueri	keep the first n rows	0	take(plan, n) -> plan	no
 A	kueri	union	pure	union(a, b, opts) -> plan	validate	kueri	absent	rows of both plans	1	union(a, b, opts) -> plan	yes
 A	kueri	unpivot	pure	unpivot(plan, columns, opts) -> plan	validate	kueri	absent	columns turned into row values	2		na
 A	kueri	window	pure	window(plan, items, opts) -> plan	validate	kueri	exists:kueri	columns computed over ordered partitions	0		na
 A	kumiawase	choose	pure	choose(n, k) -> big	error	-	exists:kumiawase	number of ways to pick k of n	0	choose(n, opts) -> big	no
-A	kumiawase	combinations	pure	combinations(list, k) -> [list]	-	-	exists:kumiawase	every unordered pick of k items	0		na
+A	kumiawase	combinations	pure	combinations(list, k) -> [list]	-	-	exists:kumiawase	Binomial coefficient, computed by the multiplicative formula	0		na
 A	kumiawase	factorial	pure	factorial(n) -> big	error	-	exists:kumiawase	product of 1 up to n	0		na
-A	kumiawase	partitions	pure	partitions(n) -> [list]	-	-	exists:kumiawase	every way to write n as a sum	0		na
-A	kumiawase	permutations	pure	permutations(list, k) -> [list]	-	-	exists:kumiawase	every ordered pick of k items	0		na
+A	kumiawase	partitions	pure	partitions(n) -> [list]	-	-	exists:kumiawase	p(n): 1, 1, 2, 3, 5, 7, 11 — the number of ways to write n as a sum of positive integers, order disregarded	0		na
+A	kumiawase	permutations	pure	permutations(list, k) -> [list]	-	-	exists:kumiawase	Falling factorial: n * (n-1) * .	0		na
 E	kurasuta	can?	effect	can?(verb, kind, opts) -> Bool	capability	banken	absent	whether the credential may do that	1		na
 E	kurasuta	describe	pure	describe(kind) -> schema	-	-	absent	fields a kind accepts	2	describe(kind) -> schema	yes
 E	kurasuta	diff	effect	diff(desired, opts) -> [change]	error,validate	-	absent	live objects against rendered manifests	1	diff(desired, b, opts) -> [change]	no
@@ -1497,13 +1497,13 @@ I	kyasshu	write	effect	write(store, change) -> store	cache,idempotent	-	exists:k
 D	kyohi	check	pure	check(subject, rules) -> [finding]	error,validate	-	exists:kyohi	findings of a subject against rules; empty when sound	0	check(subject, rules) -> [finding]	yes
 H	kyohi	enforce	effect	enforce(subject, rules, opts) -> nil	error	-	exists:kyohi	raise one error carrying every finding of check; nil when sound	0	enforce(subject, rules, opts) -> nil	yes
 D	kyohi	exit_status	pure	exit_status(kind) -> int	error	-	exists:kyohi	exit status the ledger gives a kind	0	exit_status(kind) -> int	yes
-D	kyohi	kind	pure	kind(refusal) -> keyword	error	-	exists:kyohi	what was refused	0	kind(refusal) -> keyword	yes
-D	kyohi	kinds	pure	kinds(refusals) -> [keyword]	error	-	exists:kyohi	the kind of each refusal, in order	0		na
+D	kyohi	kind	pure	kind(refusal) -> keyword	error	-	exists:kyohi	What was refused: the refusal's keyword	0	kind(refusal) -> keyword	yes
+D	kyohi	kinds	pure	kinds(refusals) -> [keyword]	error	-	exists:kyohi	The kind of each refusal, in order	0		na
 D	kyohi	ledger	decl	ledger() -> [record]	config,error	-	exists:kyohi	the closed list of error kinds with status and retry	0	ledger() -> [record]	yes
-D	kyohi	refusal	pure	refusal(kind, why) -> refusal	error	-	exists:kyohi	a refusal of one kind with its reason	0		na
+D	kyohi	refusal	pure	refusal(kind, why) -> refusal	error	-	exists:kyohi	A refusal of `kind`, because `why`	0		na
 D	kyohi	retryable?	pure	retryable?(kind) -> Bool	error,retry	-	exists:kyohi	the ledger marks the kind worth retrying	0		na
 D	kyohi	standing	pure	standing(entries, marks) -> [entry]	error	-	exists:kyohi	entries not refused	0		na
-D	kyohi	why	pure	why(refusal) -> text	error	-	exists:kyohi	why it was refused	0	why(refusal) -> text	yes
+D	kyohi	why	pure	why(refusal) -> text	error	-	exists:kyohi	Why it was refused	0	why(refusal) -> text	yes
 D	kyoui?	alert	effect	alert(hit, sink, opts) -> nil	idempotent,log,ratelimit	tameshi	absent	send a deduplicated alert	2		na
 D	kyoui?	baseline	pure	baseline(events, opts) -> profile	validate	-	absent	learn normal behaviour of an actor or service	3		na
 D	kyoui?	correlate	pure	correlate(alerts, window) -> [incident]	time	-	absent	group alerts of one actor or asset in a window	3	correlate(alerts, window) -> [incident]	yes
@@ -1576,36 +1576,36 @@ D	kyoukyuu?	trust	decl	trust(name, keys, scope) -> root	config	tameshi	absent	wh
 E	kyoukyuu?	verify	effect	verify(subject, policy) -> verdict	capability,validate	sekiban	absent	check signatures and attestations against a policy	2	verify(subject, policy) -> verdict	yes
 D	kyoukyuu?	verify?	effect	verify?(artifact, signature, trust) -> Bool	resource,time,validate	tameshi-sigstore	absent	artifact signature checks against the trusted identities	2	verify?(artifact, signature, trust) -> Bool	yes
 D	kyoukyuu?	vex	decl	vex(finding, status, why) -> statement	config	security-contract	absent	a finding judged exploitable or not, with reason	2		na
-C	kyuuji	body	pure	body(req, format) -> value	error,validate	-	exists:kyuuji	Parse the request body into a value.	1		na
+C	kyuuji	body	pure	body(req, format) -> value	error,validate	-	exists:kyuuji	Parse the request body into a value	1		na
 C	kyuuji	compress	pure	compress(handler, opts) -> handler	-	-	absent	Compress bodies by the client's Accept-Encoding.	3	compress(handler, opts) -> handler	yes
-C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	exists:kyuuji	Add cross-origin headers by policy.	2	cors(handler, policy) -> handler	yes
+C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	exists:kyuuji	Add cross-origin headers by policy	2	cors(handler, policy) -> handler	yes
 C	kyuuji	events	stream	events(req, f) -> response	cancel	-	absent	Answer as a server-sent event stream.	2	events(req, opts) -> response	no
-C	kyuuji	exposition	pure	exposition(m, service) -> text	serialize	blue	exists:kyuuji	Metrics rendered in Prometheus text form.	0		na
-C	kyuuji	file	effect	file(path, opts) -> response	cache,resource	-	exists:kyuuji	A response serving a file with validators and ranges.	2	file(path, opts?) -> response	no
-C	kyuuji	guard	pure	guard(handler, check) -> handler	capability,error	-	exists:kyuuji	Refuse requests that fail a check before the handler.	1	guard(handler, check) -> handler	yes
-C	kyuuji	header	pure	header(req, name) -> text or nil	-	-	exists:kyuuji	One request header.	1	header(req, name) -> text or nil	yes
+C	kyuuji	exposition	pure	exposition(m, service) -> text	serialize	blue	exists:kyuuji	Metrics rendered in Prometheus text form	0		na
+C	kyuuji	file	effect	file(path, opts) -> response	cache,resource	-	exists:kyuuji	A response serving a file with validators and ranges	2	file(path, opts?) -> response	no
+C	kyuuji	guard	pure	guard(handler, check) -> handler	capability,error	-	exists:kyuuji	Refuse requests that fail a check before the handler	1	guard(handler, check) -> handler	yes
+C	kyuuji	header	pure	header(req, name) -> text or nil	-	-	exists:kyuuji	One request header	1	header(req, name) -> text or nil	yes
 F	kyuuji	health	pure	health(request, check) -> response	test	-	partial:kyuuji	answer a liveness or readiness probe from a check	0		na
 C	kyuuji	hook	decl	hook(path, secret, f) -> route	capability,idempotent	-	absent	Receive a signed webhook and call f once per delivery.	2		na
-C	kyuuji	json	pure	json(status, value) -> response	serialize	blue	exists:kyuuji	A JSON response.	0		na
+C	kyuuji	json	pure	json(status, value) -> response	serialize	blue	exists:kyuuji	A JSON response	0		na
 F	kyuuji	metered	effect	metered(request, health, handler, metrics) -> response	time	-	exists:kyuuji	answer a request and record its status and latency	0		na
-C	kyuuji	mount	decl	mount(app, prefix, sub) -> app	-	-	exists:kyuuji	Place a sub-app under a path prefix.	1	mount(app, prefix, sub) -> app	yes
-C	kyuuji	not_found	pure	not_found(req) -> response	-	blue	exists:kyuuji	The 404 response for a request.	0		na
-C	kyuuji	observe	effect	observe(m, status, seconds) -> m	log,trace	blue	exists:kyuuji	Count one request in the metrics.	0	observe(m, status, seconds) -> m	yes
+C	kyuuji	mount	decl	mount(app, prefix, sub) -> app	-	-	exists:kyuuji	Place a sub-app under a path prefix	1	mount(app, prefix, sub) -> app	yes
+C	kyuuji	not_found	pure	not_found(req) -> response	-	blue	exists:kyuuji	The 404 response for a request	0		na
+C	kyuuji	observe	effect	observe(m, status, seconds) -> m	log,trace	blue	exists:kyuuji	Count one request in the metrics	0	observe(m, status, seconds) -> m	yes
 C	kyuuji	param	pure	param(req, name) -> text or nil	-	blue	exists:kyuuji	One query or path parameter.	0		na
 C	kyuuji	plain	pure	plain(status, body) -> response	-	blue	partial:kyuuji	A plain-text response.	0	plain(status, body) -> response	yes
-C	kyuuji	recover	pure	recover(handler) -> handler	error	-	exists:kyuuji	Turn a raised kind into its status response.	1	recover(handler) -> handler	yes
-C	kyuuji	redirect	pure	redirect(status, location) -> response	-	-	exists:kyuuji	A redirect response.	1	redirect(status, location) -> response	yes
-C	kyuuji	resolve	pure	resolve(app, req) -> route and params or nil	-	-	exists:kyuuji	Find the route that serves a request.	1	resolve(app, req) -> route and params or nil	yes
-C	kyuuji	response	pure	response(status, content_type, body) -> response	-	blue	exists:kyuuji	Build a response record.	0		na
-C	kyuuji	route	decl	route(method, pattern, handler) -> route	validate	-	exists:kyuuji	Declare one method and path pattern with a handler.	1	route(method, pattern, handler) -> route	no
-C	kyuuji	router	decl	router(routes, opts?) -> app	validate	-	exists:kyuuji	Compose routes into one app; overlap is refused.	1	router(routes, opts?) -> app	no
-C	kyuuji	serve	effect	serve(addr, app, opts) -> nil	cancel,capability,deadline,error,log,resource,trace	blue	exists:kyuuji	Listen and answer requests until stopped.	0	serve(addr, app, opts) -> nil	yes
-C	kyuuji	serve_once	effect	serve_once(listener, app, opts) -> nil	deadline,error	blue	exists:kyuuji	Answer one request; the test door.	0		na
+C	kyuuji	recover	pure	recover(handler) -> handler	error	-	exists:kyuuji	Turn a raised kind into its status response	1	recover(handler) -> handler	yes
+C	kyuuji	redirect	pure	redirect(status, location) -> response	-	-	exists:kyuuji	A redirect response	1	redirect(status, location) -> response	yes
+C	kyuuji	resolve	pure	resolve(app, req) -> route and params or nil	-	-	exists:kyuuji	Find the route that serves a request	1	resolve(app, req) -> route and params or nil	yes
+C	kyuuji	response	pure	response(status, content_type, body) -> response	-	blue	exists:kyuuji	Build a response record	0		na
+C	kyuuji	route	decl	route(method, pattern, handler) -> route	validate	-	exists:kyuuji	Declare one method and path pattern with a handler	1	route(method, pattern, handler) -> route	no
+C	kyuuji	router	decl	router(routes, opts?) -> app	validate	-	exists:kyuuji	Compose routes into one app; overlap is refused	1	router(routes, opts?) -> app	no
+C	kyuuji	serve	effect	serve(addr, app, opts) -> nil	cancel,capability,deadline,error,log,resource,trace	blue	exists:kyuuji	Listen and answer requests until stopped	0	serve(addr, app, opts) -> nil	yes
+C	kyuuji	serve_once	effect	serve_once(listener, app, opts) -> nil	deadline,error	blue	exists:kyuuji	Answer one request; the test door	0		na
 C	kyuuji	shutdown	effect	shutdown(server, opts) -> nil	cancel,deadline	-	absent	Stop accepting, drain in-flight requests, then close.	2		na
-C	kyuuji	stream	stream	stream(req, f, opts) -> response	cancel,deadline	-	partial:kyuuji	Send chunks as f produces them.	2	stream(req, f, opts) -> response	yes
+C	kyuuji	stream	stream	stream(req, f, opts) -> response	cancel,deadline	-	partial:kyuuji	Send chunks as f produces them	2	stream(req, f, opts) -> response	yes
 C	kyuuji	throttle	pure	throttle(handler, bucket) -> handler	ratelimit	pleme-middleware-rate-limit	absent	Answer 429 past a kyoujin bucket.	1	throttle(handler, bucket) -> handler	yes
-C	kyuuji	timeout	pure	timeout(handler, duration) -> handler	deadline	-	partial:kyuuji	Answer 503 when the handler runs past a deadline.	1		na
-C	kyuuji	upgrade	effect	upgrade(req, f) -> response	cancel,capability	-	partial:kyuuji	Switch to a WebSocket and hand it to f.	2	upgrade(req, f) -> response	yes
+C	kyuuji	timeout	pure	timeout(handler, duration) -> handler	deadline	-	partial:kyuuji	Answer 503 when the handler runs past a deadline	1		na
+C	kyuuji	upgrade	effect	upgrade(req, f) -> response	cancel,capability	-	partial:kyuuji	Switch to a WebSocket and hand it to f	2	upgrade(req, f) -> response	yes
 C	kyuuji	wrap	pure	wrap(handler, middleware) -> handler	-	-	absent	Surround a handler with a middleware.	1	wrap(handler, middleware) -> handler	yes
 G	meirei	help	effect	help(args) -> nil	-	arnes	rust:meirei	a built-in slash command that lists commands	0		na
 C	messeeji?	ack	effect	ack(message) -> nil	idempotent	-	absent	Confirm the message is done; it is not redelivered.	1		na
@@ -1673,7 +1673,7 @@ A	moji	from_bytes	pure	from_bytes(bytes, opts) -> text	error	-	absent	UTF-8 byte
 A	moji	graphemes	pure	graphemes(text) -> [text]	-	-	absent	the user-perceived characters of the text	3		na
 A	moji	indent	pure	indent(text, prefix) -> text	-	-	absent	prefix every line	1		na
 A	moji	join	pure	join(list, separator) -> text	-	tatara-lisp-script	rust:blue-lang-runtime	list of text joined with a separator	0	join(list, separator) -> text	yes
-A	moji	lines	pure	lines(text) -> [text]	-	-	exists:moji	text cut at line ends	0		na
+A	moji	lines	pure	lines(text) -> [text]	-	-	exists:moji	One entry per line, with "\r\n" normalised and NO phantom last line	0		na
 A	moji	lower	pure	lower(text) -> text	-	-	exists:moji	every letter in lower case	0		na
 A	moji	matches?	pure	matches?(text, pattern) -> Bool	-	tatara-lisp-script	rust:blue-lang-runtime	whether the pattern matches the whole text	1	matches?(text, pattern) -> Bool	yes
 A	moji	normalize	pure	normalize(text, form) -> text	-	-	absent	Unicode form NFC, NFD, NFKC or NFKD	3	normalize(text, form) -> text	yes
@@ -1696,7 +1696,7 @@ A	moji	truncate	pure	truncate(text, width, opts) -> text	-	-	exists:moji	cut tex
 A	moji	unescape	pure	unescape(text, target) -> text	error	-	absent	undo escape for the same target	1		na
 A	moji	upper	pure	upper(text) -> text	-	tatara-lisp-script	rust:blue-lang-runtime	every letter in upper case	0		na
 A	moji	width	pure	width(text) -> int	-	caixa-unicode-width	absent	terminal columns the text takes	3		na
-A	moji	words	pure	words(text) -> [text]	-	-	exists:moji	text cut at runs of space	0		na
+A	moji	words	pure	words(text) -> [text]	-	-	exists:moji	Split on RUNS of whitespace, dropping the empties	0		na
 A	moji	wrap	pure	wrap(text, width) -> [text]	-	-	partial:moji	break text into lines of at most a width	0	wrap(text, width) -> [text]	yes
 G	mokei?	ask	effect	ask(model, prompt, opts) -> reply	cache,deadline,ratelimit,retry,trace	arnes-anthropic	partial:chokkan	one call to a model; reply holds text, tool uses, usage	2		na
 G	mokei?	classify	effect	classify(model, input, labels, opts) -> {label, confidence}	cache,deadline,retry	chokkan	partial:chokkan	one label from a closed set, with confidence	2	classify(model, input, opts) -> {label, confidence}	no
@@ -1757,42 +1757,42 @@ F	nisshi	append	effect	append(log, event, opts) -> record	error,idempotent,log,s
 B	nisshi	append_all	effect	append_all(log, events, opts) -> [record]	error,idempotent	-	absent	add many events atomically or none	2		na
 D	nisshi	at	pure	at(log, entity, seq) -> state	validate	-	partial:nisshi	an entity's state after a given record	0	at(log, entity) -> state	no
 D	nisshi	audit	effect	audit(actor, action, target, outcome, opts) -> record	idempotent,log,time	tameshi	absent	append who did what to what, with the result	1	audit(actor, action, target, outcome, opts) -> record	yes
-B	nisshi	canon	pure	canon(value) -> text	serialize	-	exists:nisshi	the canonical JSON text of a value	0		na
+B	nisshi	canon	pure	canon(value) -> text	serialize	-	exists:nisshi	The canonical JSON text of a value	0		na
 B	nisshi	capture	stream	capture(source, f, opts) -> nil	cancel,deadline,retry	-	absent	turn a store changes into events, as change data capture	3	capture(source, f, opts) -> nil	yes
 B	nisshi	checkpoint	effect	checkpoint(log, consumer, seq) -> nil	capability,idempotent,log	-	absent	record how far a named consumer has read	1		na
 B	nisshi	close	effect	close(log) -> nil	resource	-	absent	release the log and its writer	1	close(log) -> nil	yes
 B	nisshi	compact	effect	compact(log, keyer) -> count	error,idempotent,resource	-	absent	keep only the latest record per key	2	compact(log, keyer) -> count	yes
 B	nisshi	correlate	effect	correlate(log, id) -> [record]	trace	-	absent	every record linked to a correlation or cause id	2	correlate(log, id) -> [record]	yes
 B	nisshi	diff	pure	diff(a, b) -> break or nil	-	-	absent	the first sequence where two logs disagree	3	diff(a, b) -> break or nil	yes
-B	nisshi	entry	pure	entry(fields) -> record	validate	-	exists:nisshi	build a record value with its body, links and status	0	entry(fields) -> record	yes
+B	nisshi	entry	pure	entry(fields) -> record	validate	-	exists:nisshi	An entity's [state, next seq]; an unseen entity is at its lifecycle's start	0	entry(fields) -> record	yes
 F	nisshi	export	effect	export(log, target, opts) -> nil	serialize	-	absent	write a sealed bundle of a log for another party	2	export(log, target, opts) -> nil	yes
 B	nisshi	first_break	effect	first_break(log) -> break or nil	validate	-	partial:nisshi	the first line where the chain fails, with why	0		na
 B	nisshi	fold	effect	fold(log, projection, opts) -> view	cancel,error	-	absent	keep a read model current from the log, from a checkpoint	2	fold(log, projection, opts) -> view	yes
 B	nisshi	forget	effect	forget(log, subject) -> count	error,validate	-	absent	make one subject payloads unreadable while the chain holds	4		na
-B	nisshi	genesis	pure	genesis(label) -> hash	serialize	-	exists:nisshi	the first hash of the stream named by a label	0		na
+B	nisshi	genesis	pure	genesis(label) -> hash	serialize	-	exists:nisshi	The first hash of the stream named `label`	0		na
 B	nisshi	get	effect	get(log, seq) -> record or nil	error	-	absent	one record by sequence number, or nil	1	get(log, seq) -> record or nil	yes
-D	nisshi	head	pure	head(log) -> hex	error,validate	-	exists:nisshi	hash of the last record	0		na
-D	nisshi	history	pure	history(log, entity) -> [record]	validate	-	exists:nisshi	one entity's records in order	0	history(log, entity) -> [record]	yes
-D	nisshi	intact?	pure	intact?(log) -> Bool	validate	-	exists:nisshi	no break anywhere in the log	0		na
+D	nisshi	head	pure	head(log) -> hex	error,validate	-	exists:nisshi	The hash of the last record: what the next record's prev will be	0		na
+D	nisshi	history	pure	history(log, entity) -> [record]	validate	-	exists:nisshi	Every record with its entity's state after it, [record, state], in stream order; bad lines are left out	0	history(log, entity) -> [record]	yes
+D	nisshi	intact?	pure	intact?(log) -> Bool	validate	-	exists:nisshi	True for a report of an intact stream	0		na
 B	nisshi	interleave	pure	interleave(logs) -> [record]	time	-	absent	interleave several logs by time into one ordered list	3	interleave(logs) -> [record]	yes
 B	nisshi	lag	effect	lag(log, consumer) -> number	time	-	absent	how many records a consumer is behind the head	2	lag(log, consumer) -> number	yes
 B	nisshi	offset	effect	offset(log, consumer) -> seq or nil	-	-	absent	where a named consumer last stopped	2	offset(log, consumer) -> seq or nil	yes
-F	nisshi	open	effect	open(path, opts) -> log	capability,config,idempotent,resource	-	exists:nisshi	open or create an append-only event log	0	open(path, opts) -> log	yes
+F	nisshi	open	effect	open(path, opts) -> log	capability,config,idempotent,resource	-	exists:nisshi	The writer's door: read the stream, verify it (signatures too, given a public key), and return the log ready to append to	0	open(path, opts) -> log	yes
 D	nisshi	prove	pure	prove(log, seq) -> proof	validate	tameshi	absent	proof that a record is in the log up to a head	2		na
 B	nisshi	publish	effect	publish(bus, topic, event, opts) -> nil	error,retry,serialize,trace	pleme-redis	absent	send an event to the live readers of a topic	2	publish(bus, topic, opts) -> nil	no
 D	nisshi	query	effect	query(log, question, params) -> [record]	resource,validate	-	absent	ask a log a question in SQL via kueri	2	query(log, question, params) -> [record]	yes
-C	nisshi	read	effect	read(stream, opts) -> [event]	deadline,error,resource,serialize	blue	exists:nisshi	The events of a stream, in order.	0	read(stream, opts) -> [event]	yes
+C	nisshi	read	effect	read(stream, opts) -> [event]	deadline,error,resource,serialize	blue	exists:nisshi	Read the stream at `path` (a missing file is an empty stream) and replay every record into its entity's state	0	read(stream, opts) -> [event]	yes
 D	nisshi	replay	pure	replay(log, definition) -> states	deadline,error,migrate,validate	-	partial:nisshi	fold records into the states they imply	0	replay(log, definition) -> states	yes
 D	nisshi	roll	effect	roll(log, opts) -> nil	idempotent,resource	-	absent	start a new segment linked to the old head	2		na
 B	nisshi	rotate	effect	rotate(log) -> segment	resource	-	absent	close the current segment and start a new one	3	rotate(log) -> segment	yes
 B	nisshi	seal	effect	seal(log, segment) -> hash	idempotent,validate	-	absent	freeze a segment against further writes and hash it	3	seal(log, segment) -> hash	yes
 B	nisshi	snapshot	effect	snapshot(log, state, opts) -> nil	idempotent,serialize	-	absent	save folded state at a sequence so replay can start there	2	snapshot(log, opts) -> nil	no
-F	nisshi	state_at	pure	state_at(log, entity, at) -> state	time	-	exists:nisshi	an entity state as of an instant	0		na
+F	nisshi	state_at	pure	state_at(log, entity, at) -> state	time	-	exists:nisshi	An entity's state AS OF `time`: its records at or before `time`, folded the way read folds them (el_fold_record: admitted records step, refused ones do not)	0		na
 B	nisshi	stream	stream	stream(log, f, opts) -> nil	cancel,deadline,error	-	absent	call f per record from a sequence onward, then return	2	stream(log, f, opts) -> nil	yes
 B	nisshi	subscribe	stream	subscribe(log, consumer, f, opts) -> nil	cancel,deadline,retry	pleme-redis	absent	durable delivery to f from the consumer offset, at least once	2	subscribe(log, consumer, f, opts) -> nil	yes
 B	nisshi	truncate	effect	truncate(log, before) -> count	error,idempotent	-	absent	drop records older than a sequence under a retention rule	3	truncate(log, before) -> count	yes
 B	nisshi	upcast	pure	upcast(record, version) -> record	migrate,validate	-	absent	raise an old record to the current event shape	3		na
-D	nisshi	verify	pure	verify(log) -> report	error,validate	-	exists:nisshi	first break in hashes, sequence or signature, named	0	verify(log) -> report	yes
+D	nisshi	verify	pure	verify(log) -> report	error,validate	-	exists:nisshi	Walk the stream and report the first break, or that it is intact:	0	verify(log) -> report	yes
 B	nisshi	verify?	effect	verify?(log) -> Bool	error,serialize,validate	-	partial:nisshi	whether every hash link and signature holds	0	verify?(log) -> Bool	yes
 B	nisshi	watch	stream	watch(log, f, opts) -> nil	cancel,deadline,resource,time	-	absent	call f per new record as it lands until f says stop	1	watch(log, f, opts) -> nil	yes
 D	nisshi	witness	effect	witness(log, ledger) -> receipt	idempotent,resource	cartorio	absent	publish the head to an outside ledger	3		na
@@ -1881,33 +1881,33 @@ F	puran?	schedule	pure	schedule(items, capacity) -> plan	time	-	absent	items pla
 F	puran?	sprint	decl	sprint(window, items) -> sprint	time	-	absent	declare a time-boxed set of items	3		na
 F	puran?	variance	pure	variance(plan, actual) -> record	time	-	absent	how far reality moved from the plan	3	variance(plan, opts) -> record	no
 F	puran?	velocity	pure	velocity(history, window) -> distribution	time	-	absent	work finished per period, as a distribution	3		na
-B	raifusaikuru	admit	pure	admit(definition, state, event) -> verdict	validate	-	partial:raifusaikuru	whether an event is allowed in a state, with the refusal	0	admit(definition, state, event) -> verdict	yes
+B	raifusaikuru	admit	pure	admit(definition, state, event) -> verdict	validate	-	partial:raifusaikuru	Would `ev` be accepted in `s`? [:admit], or [:reject, kind, detail] with the fold's refusal kinds plus :guard (detail: the verdict) for a gated event whose guard refuses at the event's time	0	admit(definition, state, event) -> verdict	yes
 B	raifusaikuru	advance	effect	advance(engine, id) -> state	deadline,error,retry	-	absent	run an instance until it rests or ends	2	advance(engine, id) -> state	yes
 B	raifusaikuru	cancel	effect	cancel(engine, id, opts) -> state	cancel,idempotent	-	absent	end an instance and run its compensations	3	cancel(engine, id, opts) -> state	yes
 B	raifusaikuru	check	pure	check(definition) -> [problem]	validate	-	exists:raifusaikuru	find unreachable states, duplicates and bad guards	0	check(definition) -> [problem]	yes
 B	raifusaikuru	compensate	effect	compensate(engine, id) -> state	error,idempotent,retry	-	absent	undo completed steps in reverse order, as a saga	3		na
 B	raifusaikuru	create	effect	create(engine, definition, input) -> instance	error,idempotent,trace	-	absent	start a persisted instance of a lifecycle	2	create(engine, definition, input) -> instance	yes
-B	raifusaikuru	event	decl	event(name, fields) -> decl	validate	-	exists:raifusaikuru	declare an event type and its payload fields	0		na
-B	raifusaikuru	gate	decl	gate(transition, predicate) -> decl	validate	-	exists:raifusaikuru	declare a condition a transition must meet	0	gate(transition, predicate) -> decl	yes
+B	raifusaikuru	event	decl	event(name, fields) -> decl	validate	-	exists:raifusaikuru	An event type and the payload keys it must carry	0		na
+B	raifusaikuru	gate	decl	gate(transition, predicate) -> decl	validate	-	exists:raifusaikuru	Gate rows by a capability: the event is a USE of it	0	gate(transition, predicate) -> decl	yes
 B	raifusaikuru	get	effect	get(engine, id) -> instance or nil	error	-	absent	one instance with its state, or nil	2	get(engine, id) -> instance or nil	yes
 B	raifusaikuru	history	effect	history(engine, id) -> [record]	trace	-	absent	the event records an instance has seen	2	history(engine, id) -> [record]	yes
-B	raifusaikuru	initial	decl	initial(state) -> decl	validate	-	exists:raifusaikuru	declare the state an instance begins in	0	initial(state) -> decl	yes
+B	raifusaikuru	initial	decl	initial(state) -> decl	validate	-	exists:raifusaikuru	The state before any event	0	initial(state) -> decl	yes
 B	raifusaikuru	list	effect	list(engine, opts) -> [instance]	error	-	absent	instances filtered by state, sorted	2	list(engine, opts) -> [instance]	yes
-B	raifusaikuru	on	decl	on(state, event, to) -> decl	validate	pleme-state-machines	exists:raifusaikuru	declare a transition from a state on an event	0	on(state, event, to) -> decl	yes
-B	raifusaikuru	permit	decl	permit(name, limit, window) -> decl	ratelimit,validate	-	exists:raifusaikuru	declare a count limit on a kind of event	0		na
+B	raifusaikuru	on	decl	on(state, event, to) -> decl	validate	pleme-state-machines	exists:raifusaikuru	One transition row: in `from`, event `event` moves the entity to `to` and applies `effects` in order	0	on(state, event, to) -> decl	yes
+B	raifusaikuru	permit	decl	permit(name, limit, window) -> decl	ratelimit,validate	-	exists:raifusaikuru	A capability enforced away from the engine, by a device, gets a permit	0		na
 B	raifusaikuru	render	pure	render(definition, format) -> text	serialize	-	absent	draw the machine as a diagram or table	2	render(definition, format) -> text	yes
 B	raifusaikuru	replay	pure	replay(definition, events) -> state	-	-	partial:raifusaikuru	fold events from the start into the current state	0	replay(definition, events) -> state	yes
 B	raifusaikuru	resume	effect	resume(engine, opts) -> count	cancel,error	-	absent	continue every unfinished instance after a restart	3	resume(engine, opts) -> count	yes
-B	raifusaikuru	rule	decl	rule(name, predicate, task) -> decl	validate	-	exists:raifusaikuru	declare a guard that names the rule and the task	0	rule(name, predicate, task) -> decl	yes
+B	raifusaikuru	rule	decl	rule(name, predicate, task) -> decl	validate	-	exists:raifusaikuru	A named rule	0	rule(name, predicate, task) -> decl	yes
 B	raifusaikuru	signal	effect	signal(engine, id, event, payload) -> state	error,idempotent,trace	-	absent	deliver an event to an instance and persist the result	2	signal(engine, id, event, opts) -> state	no
-B	raifusaikuru	states	decl	states(names) -> decl	validate	pleme-state-machines	exists:raifusaikuru	declare the states of a lifecycle	0		na
+B	raifusaikuru	states	decl	states(names) -> decl	validate	pleme-state-machines	exists:raifusaikuru	Declare states	0		na
 B	raifusaikuru	timer	decl	timer(state, duration, event) -> decl	time,validate	-	absent	declare an event raised after a state lasts too long	3	timer(state, duration, opts) -> decl	no
 B	raifusaikuru	wait	effect	wait(engine, id, opts) -> state	cancel,deadline	-	absent	block until an instance reaches a terminal state	2	wait(engine, id, opts) -> state	yes
 G	ran	draw	pure	draw(seed, kind) -> {value, seed}	-	-	partial:ran	the next random value and the next seed	0	draw(seed, kind) -> {value, seed}	yes
 G	ran	fork	pure	fork(seed, label) -> seed	-	-	partial:ran	a new independent seed from a parent seed	0	fork(seed, label) -> seed	yes
-G	ran	pick	pure	pick(seed, xs, opts) -> {value, seed}	-	-	exists:ran	one random element, weighted if asked	0	pick(seed, xs, opts) -> {value, seed}	yes
-G	ran	shuffle	pure	shuffle(seed, xs) -> {value, seed}	-	-	exists:ran	a random order of a list	0		na
-H	ran	stream_seed	pure	stream_seed(seed, i) -> seed	-	-	exists:ran	the seed of stream i from one experiment seed	0		na
+G	ran	pick	pure	pick(seed, xs, opts) -> {value, seed}	-	-	exists:ran	`choice` off the top of the word	0	pick(seed, xs, opts) -> {value, seed}	yes
+G	ran	shuffle	pure	shuffle(seed, xs) -> {value, seed}	-	-	exists:ran	Fisher-Yates, written as select-and-remove because there is no mutable array to swap inside: draw a position, take that element out, recurse on the rest	0		na
+H	ran	stream_seed	pure	stream_seed(seed, i) -> seed	-	-	exists:ran	The seed of stream i from one experiment seed	0		na
 G	ran	walk	pure	walk(seed, steps, opts) -> path	-	-	partial:ran	a seeded random walk	0	walk(seed, opts) -> path	no
 F	rebyuu?	approve	effect	approve(review, opts) -> nil	capability,idempotent	-	absent	record that the reviewer accepts the change	2	approve(review, opts) -> nil	yes
 F	rebyuu?	assign	effect	assign(review, who) -> nil	idempotent	-	absent	name the reviewers who must answer	2	assign(review, who) -> nil	yes
@@ -1948,7 +1948,7 @@ B	rekishi?	three_way	pure	three_way(base, ours, theirs) -> {merged, conflicts}	-
 B	rekishi?	update	effect	update(repo, name, f) -> oid	error,idempotent,retry	-	absent	move a ref with f(old) and refuse a concurrent move	2	update(repo, name, f) -> oid	yes
 A	retsu	append	pure	append(list, item) -> list	-	-	partial:retsu	new list with an item at the end	0	append(list, item) -> list	yes
 A	retsu	at	pure	at(list, index) -> item or nil	-	tatara-lisp-script	exists:retsu	item at an index; negative counts from the end	0	at(list, index) -> item or nil	yes
-A	retsu	chunk	pure	chunk(list, n) -> [list]	-	-	exists:retsu	consecutive groups of n items	0	chunk(list, n) -> [list]	yes
+A	retsu	chunk	pure	chunk(list, n) -> [list]	-	-	exists:retsu	Fixed-size groups, last one short	0	chunk(list, n) -> [list]	yes
 A	retsu	concat	pure	concat(lists) -> list	-	tatara-lisp-script	partial:retsu	lists joined end to end	0		na
 A	retsu	contains?	pure	contains?(list, item) -> Bool	-	-	partial:retsu	whether an equal item is in the list	0	contains?(list, item) -> Bool	yes
 A	retsu	count	pure	count(list, f) -> int	-	-	partial:retsu	number of items where f holds	0	count(list, f) -> int	yes
@@ -1961,33 +1961,33 @@ A	retsu	find	pure	find(list, f) -> item or nil	-	-	partial:retsu	first item wher
 A	retsu	first	pure	first(list) -> item or nil	-	-	exists:retsu	first item, nil when empty	0	first(list) -> item or nil	yes
 A	retsu	flat_map	pure	flat_map(list, f) -> list	-	-	exists:retsu	map then flatten one level	0	flat_map(list, f) -> list	yes
 A	retsu	flatten	pure	flatten(list, depth) -> list	-	tatara-lisp-script	partial:retsu	nested lists to one level	0	flatten(list) -> list	no
-A	retsu	group_by	pure	group_by(list, f) -> map	-	-	partial:shuugou	items grouped under the key f gives	0	group_by(list, f) -> map	yes
-A	retsu	index_of	pure	index_of(list, item) -> int or nil	-	-	exists:retsu	index of the first equal item	0	index_of(list, item) -> int or nil	yes
+A	retsu	group_by	pure	group_by(list, f) -> map	-	-	partial:shuugou	Returns [key, members] PAIRS rather than a map, in first-seen key order	0	group_by(list, f) -> map	yes
+A	retsu	index_of	pure	index_of(list, item) -> int or nil	-	-	exists:retsu	Position of the first `v`, or 0 - 1 when absent	0	index_of(list, item) -> int or nil	yes
 A	retsu	insert	pure	insert(list, index, item) -> list	-	-	exists:retsu	new list with an item placed at an index	0	insert(list, index, item) -> list	yes
 A	retsu	interleave	pure	interleave(a, b) -> list	-	-	exists:retsu	items of two lists taken in turn	0	interleave(a) -> list	no
 A	retsu	last	pure	last(list) -> item or nil	-	-	exists:retsu	last item, nil when empty	0	last(list) -> item or nil	yes
 A	retsu	map	pure	map(list, f) -> list	-	-	rust:blue-lang-runtime	apply f to each item	0	map(list, f) -> list	yes
-A	retsu	partition	pure	partition(list, f) -> record	-	-	exists:retsu	items split by whether f holds	0	partition(list, f) -> record	yes
+A	retsu	partition	pure	partition(list, f) -> record	-	-	exists:retsu	Both halves of one pass, in the order [kept, rejected]	0	partition(list, f) -> record	yes
 A	retsu	prepend	pure	prepend(list, item) -> list	-	-	exists:retsu	new list with an item at the front	0		na
 A	retsu	range	pure	range(from, to, step) -> list	-	tatara-lisp-script	absent	numbers from a start up to an end	0	range(from, to, step) -> list	yes
 A	retsu	reduce	pure	reduce(list, start, f) -> value	-	-	rust:blue-lang-runtime	fold items into one value	0	reduce(list, start, f) -> value	yes
 A	retsu	reject	pure	reject(list, f) -> list	-	-	exists:retsu	items where f does not hold	0	reject(list, f) -> list	yes
 A	retsu	remove	pure	remove(list, index) -> list	-	-	partial:retsu	new list without the item at an index	0	remove(list, index) -> list	yes
-A	retsu	rest	pure	rest(list) -> list	-	-	exists:retsu	every item after the first	0	rest(list) -> list	yes
+A	retsu	rest	pure	rest(list) -> list	-	-	exists:retsu	The tail, NORMALISED to a list	0	rest(list) -> list	yes
 A	retsu	reverse	pure	reverse(list) -> list	-	-	absent	items in opposite order	0	reverse(list) -> list	yes
 A	retsu	sample	pure	sample(list, rng, n) -> record	-	-	absent	n items chosen with a seeded stream	2	sample(list, rng, n) -> record	yes
-A	retsu	scan	pure	scan(list, start, f) -> list	-	-	exists:retsu	every running result of a fold	0	scan(list, start, opts) -> list	no
+A	retsu	scan	pure	scan(list, start, f) -> list	-	-	exists:retsu	Every intermediate accumulator of a `reduce`, init included, so the result is one longer than the input and `last(scan(...)) == reduce(...)`	0	scan(list, start, opts) -> list	no
 A	retsu	shuffle	pure	shuffle(list, rng) -> record	-	-	absent	items in random order from a seeded stream	2		na
-A	retsu	size	pure	size(list) -> int	-	-	exists:retsu	number of items	0	size(list) -> int	yes
-A	retsu	slice	pure	slice(list, from, to) -> list	-	-	exists:retsu	items from an index up to another	0	slice(list, from, to, to) -> list	no
+A	retsu	size	pure	size(list) -> int	-	-	exists:retsu	Total length: nil counts as empty rather than erroring	0	size(list) -> int	yes
+A	retsu	slice	pure	slice(list, from, to) -> list	-	-	exists:retsu	A window by position and length	0	slice(list, from, to, to) -> list	no
 A	retsu	take	pure	take(list, n) -> list	-	tatara-lisp-script	partial:retsu	the first n items	0	take(list, n) -> list	yes
-A	retsu	take_while	pure	take_while(list, f) -> list	-	-	exists:retsu	leading items while f holds	0	take_while(list, f) -> list	yes
-A	retsu	tally	pure	tally(list) -> map	-	-	partial:toukei	how often each item occurs	0	tally(list) -> map	yes
+A	retsu	take_while	pure	take_while(list, f) -> list	-	-	exists:retsu	take_while stops at the FIRST failure and does not resume — the difference from `filter`, and the only reason both exist	0	take_while(list, f) -> list	yes
+A	retsu	tally	pure	tally(list) -> map	-	-	partial:toukei	How many times x occurs	0	tally(list) -> map	yes
 A	retsu	turn	pure	turn(list, n) -> list	-	-	partial:retsu	items moved n places, wrapping around	0	turn(list, n) -> list	yes
-A	retsu	unique	pure	unique(list) -> list	-	tatara-lisp-script	partial:shuugou	first of each equal item, order kept	0	unique(list) -> list	yes
-A	retsu	unzip	pure	unzip(pairs) -> record	-	-	exists:retsu	a list of pairs split into two lists	0	unzip(pairs) -> record	yes
+A	retsu	unique	pure	unique(list) -> list	-	tatara-lisp-script	partial:shuugou	Keeps the FIRST occurrence of each element	0	unique(list) -> list	yes
+A	retsu	unzip	pure	unzip(pairs) -> record	-	-	exists:retsu	The inverse of zip: a list of pairs back into [firsts, seconds]	0	unzip(pairs) -> record	yes
 A	retsu	update	pure	update(list, index, f) -> list	error	-	partial:retsu	new list with f applied at an index	0	update(list, index, f) -> list	yes
-A	retsu	windows	pure	windows(list, n) -> [list]	-	-	exists:retsu	every run of n adjacent items	0	windows(list, n) -> [list]	yes
+A	retsu	windows	pure	windows(list, n) -> [list]	-	-	exists:retsu	Overlapping windows of width n — chunk's sliding sibling	0	windows(list, n) -> [list]	yes
 A	retsu	zip	pure	zip(a, b) -> [pair]	-	tatara-lisp-script	exists:retsu	items of two lists paired by position	0	zip(a, b) -> [pair]	yes
 F	rirezu?	breaking?	pure	breaking?(old, new) -> Bool	validate	-	absent	whether the interface lost or changed an entry	2		na
 F	rirezu?	build	effect	build(project, opts) -> artifact	cache,process	-	absent	make the release artifact reproducibly	1	build(project, opts) -> artifact	yes
@@ -2013,9 +2013,9 @@ G	rittai	boolean	pure	boolean(a, b, op) -> mesh	-	-	absent	union, difference or 
 A	rittai	bounds	pure	bounds(mesh) -> box	-	-	exists:rittai	smallest axis-aligned box around a mesh	0	bounds(mesh) -> box	yes
 A	rittai	centroid	pure	centroid(mesh) -> point	-	-	exists:rittai	centre of mass of a mesh	0	centroid(mesh) -> point	yes
 G	rittai	check	pure	check(mesh) -> findings	validate	-	partial:rittai	find open edges and flipped faces	0	check(mesh) -> findings	yes
-A	rittai	extrude	pure	extrude(outline, height) -> mesh	-	-	exists:rittai	outline pulled into a solid	0		na
+A	rittai	extrude	pure	extrude(outline, height) -> mesh	-	-	exists:rittai	A kikagaku region extruded from z = 0 to z = h: a sheet part's blank, or a tube's cross-section run out to its length	0		na
 G	rittai	measure	pure	measure(mesh, metric) -> number	-	-	partial:rittai	volume, surface area or mass of a mesh	0	measure(mesh, metric) -> number	yes
-G	rittai	merge	pure	merge(a, b) -> mesh	-	-	exists:rittai	two meshes as one	0	merge(a, b) -> mesh	yes
+G	rittai	merge	pure	merge(a, b) -> mesh	-	-	exists:rittai	Several meshes as one, the later faces re-indexed past the earlier vertices	0	merge(a, b) -> mesh	yes
 A	rittai	mesh	pure	mesh(vertices, faces) -> mesh	error	-	exists:rittai	solid made of triangles	0		na
 G	rittai	parse	pure	parse(text, format) -> mesh	validate	-	absent	STL or OBJ text to a mesh	1	parse(text, format) -> mesh	yes
 G	rittai	render	pure	render(mesh, format) -> text	serialize	-	partial:rittai	a mesh as STL text	0	render(mesh, format) -> text	yes
@@ -2023,9 +2023,9 @@ A	rittai	shift	pure	shift(mesh, by) -> mesh	-	-	partial:rittai	mesh moved by a v
 G	rittai	slice	pure	slice(mesh, height) -> region	-	-	absent	the cut of a mesh at a height	1	slice(mesh, height, from, to) -> region	no
 A	rittai	surface_area	pure	surface_area(mesh) -> number	-	-	exists:rittai	total area of all faces	0		na
 A	rittai	transform	pure	transform(mesh, pose) -> mesh	-	-	exists:rittai	mesh moved and turned by a pose	0		na
-A	rittai	turn	pure	turn(mesh, axis, angle) -> mesh	-	-	exists:rittai	mesh turned about an axis	0	turn(mesh, axis, angle) -> mesh	yes
+A	rittai	turn	pure	turn(mesh, axis, angle) -> mesh	-	-	exists:rittai	The sign of the turn at position k: 1 convex (counter-clockwise), -1 reflex, 0 straight	0	turn(mesh, axis, angle) -> mesh	yes
 A	rittai	volume	pure	volume(mesh) -> number	error	-	exists:rittai	enclosed volume of a closed mesh	0		na
-A	rittai	weld	pure	weld(mesh, tolerance) -> mesh	-	-	exists:rittai	merge vertices closer than a tolerance	0		na
+A	rittai	weld	pure	weld(mesh, tolerance) -> mesh	-	-	exists:rittai	Vertices at the same position merged into one, faces re-indexed	0		na
 F	rogu	collapse	pure	collapse(lines, window) -> [line]	log,ratelimit	-	absent	merge repeated lines into one with a count	2		na
 F	rogu	debug	effect	debug(message, fields) -> nil	log,switch	logging-go	exists:rogu	write a structured line at debug level	0	debug(message, fields) -> nil	yes
 F	rogu	enabled?	pure	enabled?(level) -> Bool	log,switch	-	exists:rogu	whether a line at this level would be written	0	enabled?(level) -> Bool	yes
@@ -2062,13 +2062,13 @@ A	ronri	any	pure	any(list, f) -> Bool	-	-	exists:ronri	whether f holds for some 
 A	ronri	both	pure	both(f, g) -> function	-	-	exists:ronri	predicate that holds when f and g hold	0		na
 A	ronri	either	pure	either(f, g) -> function	-	-	exists:ronri	predicate that holds when f or g holds	0		na
 A	ronri	every	pure	every(list, f) -> Bool	-	-	exists:ronri	whether f holds for all items	0		na
-A	ronri	implies	pure	implies(a, b) -> Bool	-	-	exists:ronri	false only when a holds and b does not	0		na
-A	ronri	majority	pure	majority(list, f) -> Bool	-	-	exists:ronri	whether f holds for most items	0		na
+A	ronri	implies	pure	implies(a, b) -> Bool	-	-	exists:ronri	Material implication — FALSE antecedent makes it TRUE	0		na
+A	ronri	majority	pure	majority(list, f) -> Bool	-	-	exists:ronri	Strictly MORE than half — a tie is not a majority	0		na
 A	ronri	none	pure	none(list, f) -> Bool	-	-	exists:ronri	whether f holds for no item	0		na
 A	ronri	not	pure	not(f) -> function	-	-	partial:ronri	predicate that holds when f does not	0		na
 A	ronri	satisfiable?	pure	satisfiable?(formula) -> Bool	-	-	absent	whether some assignment makes a formula true	4		na
 A	ronri	table	pure	table(f, arity) -> [row]	-	-	absent	truth table of a predicate	3		na
-A	ronri	xor	pure	xor(a, b) -> Bool	-	-	exists:ronri	whether exactly one of a and b holds	0		na
+A	ronri	xor	pure	xor(a, b) -> Bool	-	-	exists:ronri	The rest of the connectives, so a caller never has to spell one out by hand	0		na
 E	ryuutsuu?	channels	effect	channels(name) -> [channel]	error	-	absent	stable, beta and nightly pointers	3		na
 E	ryuutsuu?	fetch	effect	fetch(name, channel, opts) -> archive	cache,deadline,retry,validate	-	absent	download and verify a distributable	3	fetch(name, channel, opts) -> archive	yes
 E	ryuutsuu?	install	effect	install(archive, dest, opts) -> installed	capability,idempotent	-	absent	put a program where the user runs it	3	install(archive, dest, opts) -> installed	yes
@@ -2136,7 +2136,7 @@ A	seimitsu?	big	pure	big(value) -> big	error	-	absent	integer without a size lim
 A	seimitsu?	decimal	pure	decimal(text, opts) -> decimal	error	-	absent	exact base-ten number with a scale	3		na
 A	seimitsu?	denominator	pure	denominator(ratio) -> big	-	-	absent	bottom of a fraction	3		na
 A	seimitsu?	exact	pure	exact(float) -> ratio	-	-	absent	the exact fraction a float stores	3		na
-A	seimitsu?	mod_pow	pure	mod_pow(base, exponent, modulus) -> big	-	-	exists:angou	power modulo a number without overflow	3		na
+A	seimitsu?	mod_pow	pure	mod_pow(base, exponent, modulus) -> big	-	-	exists:angou	Modular exponentiation by repeated squaring	3		na
 A	seimitsu?	numerator	pure	numerator(ratio) -> big	-	-	absent	top of a fraction	3		na
 A	seimitsu?	places	pure	places(decimal) -> int	-	-	absent	digits after the decimal point	3	places(decimal) -> int	yes
 A	seimitsu?	ratio	pure	ratio(numerator, denominator) -> ratio	error	-	absent	exact fraction in lowest terms	3		na
@@ -2192,16 +2192,16 @@ F	shihyou	burn	pure	burn(slo, window) -> number	time	-	absent	how fast the budge
 F	shihyou	cycle_time	pure	cycle_time(items, window) -> stats	time	-	absent	time from work started to done, as a distribution	2		na
 F	shihyou	dashboard	pure	dashboard(slo) -> panels	serialize	-	exists:shihyou	panels showing an objective, built from the same rules	0		na
 F	shihyou	dora	pure	dora(events, window) -> record	time	-	absent	deploy frequency, lead time, failure rate and restore time	2		na
-C	shihyou	error_ratio	pure	error_ratio(name, w) -> query	-	blue	exists:shihyou	The failing-request ratio over a window.	0		na
+C	shihyou	error_ratio	pure	error_ratio(name, w) -> query	-	blue	exists:shihyou	The failing-request ratio over a window	0		na
 C	shihyou	exhausted?	effect	exhausted?(objective) -> Bool	-	-	absent	Whether the error budget is spent.	1		na
 F	shihyou	indicator	decl	indicator(name, good, total) -> sli	config	-	partial:shihyou	declare what counts as good events over all events	0		na
 F	shihyou	meets?	pure	meets?(slo, samples) -> Bool	-	-	absent	whether samples satisfy the objective	1		na
 F	shihyou	objective	decl	objective(name, target, window) -> slo	config	-	partial:shihyou	declare a service level objective	0		na
-C	shihyou	objectives	pure	objectives(svc) -> [objective]	-	blue	exists:shihyou	The objectives declared for a service.	0		na
+C	shihyou	objectives	pure	objectives(svc) -> [objective]	-	blue	exists:shihyou	The objectives declared for a service	0		na
 F	shihyou	review_time	pure	review_time(reviews, window) -> stats	time	-	absent	time a change waits for and spends in review	3		na
 F	shihyou	rules	pure	rules(slo) -> [rule]	serialize	-	exists:shihyou	recording and alert rules derived from an objective	0		na
 F	shihyou	runway	pure	runway(slo) -> duration	time	-	absent	how long until the budget runs out at this burn	2		na
-C	shihyou	slow_ratio	pure	slow_ratio(name, le, w) -> query	-	blue	exists:shihyou	The ratio of requests slower than a bound.	0		na
+C	shihyou	slow_ratio	pure	slow_ratio(name, le, w) -> query	-	blue	exists:shihyou	The ratio of requests slower than a bound	0		na
 F	shihyou	throughput	pure	throughput(items, window) -> number	time	-	absent	items finished per unit of time	2		na
 A	shikibetsu?	compare	pure	compare(a, b) -> int	-	-	absent	order two ids; time-ordered ids sort by time	1	compare(a, b) -> int	yes
 A	shikibetsu?	derive	pure	derive(kind, namespace, name) -> id	-	-	absent	same id every time for the same name	1	derive(kind, namespace, name) -> id	yes
@@ -2232,14 +2232,14 @@ B	shinsuu	to_base	pure	to_base(n, base) -> text	-	-	exists:shinsuu	write a numbe
 B	shinsuu	to_bytes	pure	to_bytes(n, width, order) -> bytes	-	-	absent	an integer as fixed-width bytes, big or little endian	1		na
 B	shinsuu	to_size	pure	to_size(n) -> text	-	-	absent	bytes written as text such as 4.2 GiB	1		na
 B	shinsuu	to_varint	pure	to_varint(n) -> bytes	-	-	absent	an integer in variable-length LEB128 bytes	2		na
-D	shisei	defaults	pure	defaults(postures) -> entries	config	-	exists:shisei	the stance of a bare service	0	defaults(postures) -> entries	yes
-D	shisei	gated	pure	gated(mode, sink, name, why, deny, allow) -> response	log,switch	sekiban	exists:shisei	audit-or-enforce ladder for a refusing posture	0		na
+D	shisei	defaults	pure	defaults(postures) -> entries	config	-	exists:shisei	One entry per posture, running its defaults: the stance of a bare service	0	defaults(postures) -> entries	yes
+D	shisei	gated	pure	gated(mode, sink, name, why, deny, allow) -> response	log,switch	sekiban	exists:shisei	The ladder	0		na
 D	shisei	posture	decl	posture(name, table, defaults, layer) -> posture	config	-	exists:shisei	one named behaviour of a service with its fields	0		na
 D	shisei	promote	effect	promote(posture, mode, evidence) -> declaration	log,switch	sekiban	absent	move a posture from audit to enforce on evidence	2	promote(posture, mode, opts) -> declaration	no
 D	shisei	rehearse	effect	rehearse(posture, window) -> record	log,switch,time	-	absent	what enforcing would have refused in a past window	2		na
-D	shisei	serving	pure	serving(postures, declaration, sink, handler) -> handler	config,switch	-	exists:shisei	the whole composition: stance, refusals, handler	0		na
-D	shisei	stack	pure	stack(layers, handler) -> handler	config	-	exists:shisei	layers around a handler; first is outermost	0	stack(layers, handler) -> handler	yes
-D	shisei	stance	pure	stance(postures, declaration) -> record	config,validate	-	exists:shisei	declaration over defaults, judged into accepted, off, refused	0		na
+D	shisei	serving	pure	serving(postures, declaration, sink, handler) -> handler	config,switch	-	exists:shisei	The whole composition: the stance, its refusals and the handler it makes	0		na
+D	shisei	stack	pure	stack(layers, handler) -> handler	config	-	exists:shisei	The first layer is outermost: it sees the request first and the response last	0	stack(layers, handler) -> handler	yes
+D	shisei	stance	pure	stance(postures, declaration) -> record	config,validate	-	exists:shisei	The declaration laid over the defaults and judged: accepted, off and refusals	0		na
 H	shisutemu	run	effect	run(command, args, opts) -> result	process,capability,error	-	partial:shisutemu	run a command to completion; exec primitives exist, the verb does not	0	run(command, args, opts) -> result	yes
 B	shomei	accumulate	pure	accumulate(acc, payload) -> acc	serialize	reduto	absent	add a leaf to a merkle accumulator without a rebuild	3		na
 B	shomei	address	pure	address(bytes, opts) -> oid	serialize	daicho	absent	a self-describing content id: algorithm plus digest	2	address(bytes, opts) -> oid	yes
@@ -2252,28 +2252,28 @@ B	shomei	equal?	pure	equal?(a, b) -> Bool	validate	-	absent	compare two secrets 
 D	shomei	fingerprint	pure	fingerprint(key) -> hex	validate	-	absent	short stable id of a public key	1	fingerprint(key) -> hex	yes
 D	shomei	first_break	pure	first_break(genesis, payloads, hashes) -> index or nil	validate	-	exists:shomei	index of the first stored hash the payloads miss	0		na
 D	shomei	genesis	pure	genesis(label) -> hex	serialize,validate	tameshi	exists:shomei	first hash of a named chain	0		na
-D	shomei	hash	pure	hash(data, algorithm, opts) -> hex	error,serialize,validate	tameshi	exists:shomei	digest of bytes or text under a named algorithm	0	hash(data, algorithm) -> hex	yes
+D	shomei	hash	pure	hash(data, algorithm, opts) -> hex	error,serialize,validate	tameshi	exists:shomei	The hash of data as lowercase hex under a named algorithm: :sha1, :sha256, :sha512 or :blake3; any other raises :bad_option	0	hash(data, algorithm) -> hex	yes
 D	shomei	hash?	pure	hash?(text, algorithm) -> Bool	validate	-	partial:shomei	text has the shape of a digest	0		na
 D	shomei	hash_file	effect	hash_file(path, algorithm) -> hex	error,resource	-	absent	digest of a file, read in chunks	1		na
 B	shomei	hash_stream	stream	hash_stream(source, algorithm) -> text	cancel,deadline,error	-	absent	a digest of a file or stream without holding it whole	1		na
 D	shomei	head	pure	head(genesis, payloads) -> hex	serialize,validate	tameshi	exists:shomei	hash after all payloads are linked	0		na
 D	shomei	intact?	pure	intact?(genesis, payloads, head) -> Bool	validate	-	exists:shomei	re-linking the payloads reproduces the head	0		na
 D	shomei	keypair	pure	keypair(seed) -> record	error,validate	tameshi	partial:shomei	signing key and public key from a seed	0		na
-D	shomei	mac	pure	mac(data, key, algorithm) -> hex	error,validate	-	exists:shomei	keyed digest proving data came from a key holder	1		na
+D	shomei	mac	pure	mac(data, key, algorithm) -> hex	error,validate	-	exists:shomei	The keyed digest (HMAC) of data under key, in lowercase hex, for :sha1, :sha256 or :sha512; any other algorithm raises :bad_option	1		na
 D	shomei	opens?	pure	opens?(commitment, value, nonce) -> Bool	validate	tameshi	absent	commitment matches the revealed value	2		na
 D	shomei	pledge	pure	pledge(value, nonce) -> hex	validate	tameshi	absent	hiding, binding commitment to a value	2	pledge(value, nonce) -> hex	yes
-B	shomei	proof	pure	proof(payloads, index) -> [step]	serialize	cartorio	exists:shomei	the sibling path that shows a payload is in the tree	0		na
+B	shomei	proof	pure	proof(payloads, index) -> [step]	serialize	cartorio	exists:shomei	The sibling path, leaf up, that shows payload `index` is in the tree	0		na
 D	shomei	prove	pure	prove(payloads, index) -> [step]	error,validate	tameshi	exists:shomei	inclusion proof for one payload	0		na
 D	shomei	proves?	pure	proves?(root, payload, proof) -> Bool	validate	tameshi	exists:shomei	proof climbs from payload to root	0		na
 D	shomei	public	pure	public(keypair) -> hex	validate	-	exists:shomei	the half a verifier holds	0		na
-B	shomei	random	effect	random(n) -> bytes	capability	-	exists:shomei	n bytes from the system entropy source	1		na
+B	shomei	random	effect	random(n) -> bytes	capability	-	exists:shomei	n random bytes from the system entropy source, as a list of integers 0..255; n is an integer from 0 to 1048576	1		na
 D	shomei	root	pure	root(payloads) -> hex	serialize,validate	tameshi	exists:shomei	Merkle root over payloads in order	0	root(payloads) -> hex	yes
-D	shomei	same?	pure	same?(a, b) -> Bool	validate	-	exists:shomei	equality that takes equal time for every input	0		na
+D	shomei	same?	pure	same?(a, b) -> Bool	validate	-	exists:shomei	Whether two strings or byte lists hold the same bytes	0		na
 D	shomei	sign	pure	sign(data, secret) -> hex	error,validate	tameshi	exists:shomei	signature over data	0	sign(data, secret) -> hex	yes
 D	shomei	trail	pure	trail(genesis, payloads) -> [hex]	validate	-	exists:shomei	every link hash in order	0		na
-D	shomei	verify?	pure	verify?(data, signature, public) -> Bool	error,validate	tameshi	exists:shomei	signature is valid; malformed input raises	0	verify?(data, signature, public) -> Bool	yes
-B	shomei	verify_chain	pure	verify_chain(genesis, payloads, head) -> Bool	validate	-	exists:shomei	whether the payloads reproduce the stated head	0		na
-B	shomei	verify_proof?	pure	verify_proof?(root, payload, proof) -> Bool	validate	cartorio	exists:shomei	whether a proof climbs from a payload to the root	0		na
+D	shomei	verify?	pure	verify?(data, signature, public) -> Bool	error,validate	tameshi	exists:shomei	Whether the signature holds for the data under the public key; false only for a well-formed signature that does not verify	0	verify?(data, signature, public) -> Bool	yes
+B	shomei	verify_chain	pure	verify_chain(genesis, payloads, head) -> Bool	validate	-	exists:shomei	Whether the payloads reproduce the stated head from the genesis	0		na
+B	shomei	verify_proof?	pure	verify_proof?(root, payload, proof) -> Bool	validate	cartorio	exists:shomei	Whether a proof climbs from the payload to the root	0		na
 F	shougai?	acknowledge	effect	acknowledge(alert, who) -> nil	idempotent	-	absent	say that a person has taken an alert	2		na
 F	shougai?	announce	effect	announce(audience, message) -> nil	log	-	absent	publish a status message to an audience	3		na
 F	shougai?	assign	effect	assign(incident, who) -> nil	idempotent	-	absent	name the person who leads an incident	2	assign(incident, who) -> nil	yes
@@ -2297,18 +2297,18 @@ A	shuugou	difference	pure	difference(a, b) -> set	-	-	exists:shuugou	members of 
 A	shuugou	disjoint?	pure	disjoint?(a, b) -> Bool	-	-	exists:shuugou	whether the sets share no member	0		na
 A	shuugou	empty?	pure	empty?(set) -> Bool	-	-	rust:blue-lang-runtime	whether the set has no member	0	empty?(set) -> Bool	yes
 A	shuugou	has?	pure	has?(set, item) -> Bool	-	-	partial:shuugou	whether the item is a member	0	has?(set, item) -> Bool	yes
-A	shuugou	insert	pure	insert(set, item) -> set	-	-	exists:shuugou	set with the item added	0	insert(set, item) -> set	yes
+A	shuugou	insert	pure	insert(set, item) -> set	-	-	exists:shuugou	Idempotent by construction: inserting a member returns the set unchanged rather than growing it, which is what makes this a set operation and not retsu's `push`	0	insert(set, item) -> set	yes
 A	shuugou	intersection	pure	intersection(a, b) -> set	-	-	exists:shuugou	members of both sets	0		na
-A	shuugou	power_set	pure	power_set(set) -> [set]	-	-	exists:shuugou	every subset of a set	0		na
+A	shuugou	power_set	pure	power_set(set) -> [set]	-	-	exists:shuugou	All subsets, INCLUDING the empty set and the set itself	0		na
 A	shuugou	product	pure	product(a, b) -> [pair]	-	-	exists:shuugou	every pair of one member from each set	0		na
-A	shuugou	remove	pure	remove(set, item) -> set	-	-	exists:shuugou	set without the item	0	remove(set, item) -> set	yes
+A	shuugou	remove	pure	remove(set, item) -> set	-	-	exists:shuugou	Removes EVERY occurrence, not the first	0	remove(set, item) -> set	yes
 A	shuugou	set	pure	set(items) -> set	-	-	partial:shuugou	set built from a list	0		na
 A	shuugou	size	pure	size(set) -> int	-	-	partial:shuugou	number of members	0	size(set) -> int	yes
 A	shuugou	subset?	pure	subset?(a, b) -> Bool	-	-	exists:shuugou	whether every member of a is in b	0		na
 A	shuugou	symmetric_difference	pure	symmetric_difference(a, b) -> set	-	-	exists:shuugou	members of exactly one of the sets	0		na
 A	shuugou	union	pure	union(a, b) -> set	-	-	exists:shuugou	members of either set	0	union(a, b) -> set	yes
-H	shuusei	deep_merge	pure	deep_merge(a, b) -> value	-	-	exists:shuusei	maps merge key by key and b replaces the rest	0		na
-H	shuusei	put	pure	put(doc, path, value) -> doc	-	-	exists:shuusei	doc with value at path; absent map keys are created	0	put(doc, path, value) -> doc	yes
+H	shuusei	deep_merge	pure	deep_merge(a, b) -> value	-	-	exists:shuusei	Maps merge key by key and everything else is replaced by `b`	0		na
+H	shuusei	put	pure	put(doc, path, value) -> doc	-	-	exists:shuusei	`doc` with `value` at `path`; absent map keys on the way are created	0	put(doc, path, value) -> doc	yes
 C	sokketto?	accept	effect	accept(listener, opts) -> conn	cancel,deadline	blue-lang-runtime	rust:blue-lang-runtime	Take the next incoming connection.	1		na
 C	sokketto?	bind	effect	bind(addr, opts) -> conn	capability,error	-	absent	Bind a datagram socket to receive on.	2	bind(addr, role, scope, opts) -> conn	no
 C	sokketto?	certificate	effect	certificate(host, opts) -> record	error,time	-	absent	The peer certificate chain, expiry and names.	2		na
@@ -2468,7 +2468,7 @@ D	tegata	tie	pure	tie(token, key) -> token	validate	-	absent	bind a token to the
 D	tegata	unverified	pure	unverified(token) -> record	validate	-	absent	header and claims with no checks; never decide on these	1		na
 E	tehai	list	effect	list(declared, opts) -> [state]	deadline,time	tehai	partial:tehai	every builder with live or stale state	0	list(declared, opts) -> [state]	yes
 E	tehai	parse	pure	parse(text) -> [machine]	validate	tehai	exists:tehai	declared remote builders from the machines file	0	parse(text) -> [machine]	yes
-E	tehai	probe	effect	probe(machine, opts) -> checked	deadline,process	tehai	exists:tehai	whether one builder takes work right now	0	probe(machine, opts) -> checked	yes
+E	tehai	probe	effect	probe(machine, opts) -> checked	deadline,process	tehai	exists:tehai	[up?, detail] for one machine	0	probe(machine, opts) -> checked	yes
 E	tehai	write	effect	write(path, machines) -> nil	idempotent,serialize	tehai	partial:tehai	write the live set atomically where nix reads it	0	write(path, machines) -> nil	yes
 E	tenkai?	abort	effect	abort(rollout, reason) -> rollout	cancel,idempotent,log	-	absent	stop and keep the current mix	2		na
 E	tenkai?	analyze	effect	analyze(rollout, window) -> verdict	time,validate	-	absent	compare new against old on live metrics	3	analyze(rollout, window) -> verdict	yes
@@ -2532,9 +2532,9 @@ D	tokumei	mark	pure	mark(value, kind) -> value	validate	-	absent	tag a value per
 D	tokumei	mask	pure	mask(text, keep) -> text	validate	-	absent	hide all but a few characters, such as the last four	1		na
 D	tokumei	permitted?	pure	permitted?(subject, purpose, consents, now) -> Bool	time,validate	-	absent	a consent covers this use right now	3		na
 G	tokumei	perturb	pure	perturb(value, epsilon, seed) -> number	-	-	partial:tokumei	add Laplace noise to a value	0		na
-D	tokumei	private_count	pure	private_count(count, epsilon, seed) -> number	validate	-	exists:tokumei	a count published with differential privacy	0		na
+D	tokumei	private_count	pure	private_count(count, epsilon, seed) -> number	validate	-	exists:tokumei	A count published with epsilon-differential privacy	0		na
 D	tokumei	private_mean	pure	private_mean(values, bounds, epsilon, seed) -> number	validate	-	absent	a mean published with differential privacy	2		na
-D	tokumei	private_share	pure	private_share(count, n, epsilon, seed) -> number	validate	-	exists:tokumei	a share published with differential privacy, kept in range	0		na
+D	tokumei	private_share	pure	private_share(count, n, epsilon, seed) -> number	validate	-	exists:tokumei	A share of n published with epsilon-differential privacy, kept in [0, 1]	0		na
 D	tokumei	pseudonym	pure	pseudonym(value, key) -> text	validate	-	absent	stable keyed stand-in; same input gives same output	2		na
 D	tokumei	randomize	pure	randomize(truth, p, seed) -> Bool	validate	-	partial:tokumei	forced-response answer: truth or a fair coin	0		na
 D	tokumei	redact	pure	redact(value, kinds, opts) -> value	log,validate	-	absent	replace personal data with fixed marks	1	redact(value, kinds) -> value	no
@@ -2543,7 +2543,7 @@ D	tokumei	spend	effect	spend(budget, epsilon) -> budget	error,log	-	absent	use p
 D	tokumei	spot	pure	spot(text, kinds) -> [match]	validate	-	absent	locate personal data inside free text	1		na
 D	tokumei	suppress	pure	suppress(count, k) -> number or nil	validate	-	exists:tokumei	the count, or nil below the threshold	0		na
 D	tokumei	tokenize	effect	tokenize(value, vault) -> token	idempotent,resource	-	absent	swap a value for a random token kept in a vault	3		na
-D	tokumei	unique_share	pure	unique_share(group_size, cells) -> number	validate	-	exists:tokumei	chance a person is alone in a cell	0		na
+D	tokumei	unique_share	pure	unique_share(group_size, cells) -> number	validate	-	exists:tokumei	The chance a person is alone in their cell when a group of `group_size` falls uniformly into `cells` attribute combinations: (1 - 1/cells)^(size - 1)	0		na
 B	tougou?	apply	pure	apply(crdt, delta) -> crdt	-	crdt-doc	absent	merge a delta received from another replica	3	apply(crdt, delta) -> crdt	yes
 B	tougou?	clock	pure	clock() -> vclock	time	-	absent	an empty version vector	3		na
 B	tougou?	compare	pure	compare(a, b) -> before, after, equal or concurrent	time	-	absent	the causal order of two version vectors	3	compare(a, b) -> before, after, equal or concurrent	yes
@@ -2568,8 +2568,8 @@ B	tougou?	value	pure	value(crdt) -> plain	-	crdt-doc	absent	the ordinary value t
 A	toukei	autocorrelation	pure	autocorrelation(numbers, lag) -> number	error	-	absent	how a series relates to itself later	3		na
 G	toukei	bootstrap	pure	bootstrap(xs, f, n, seed) -> interval	-	-	absent	a confidence interval by seeded resampling	1	bootstrap(xs, f, n, seed) -> interval	yes
 G	toukei	correlate	pure	correlate(xs, ys) -> number	-	-	exists:toukei	how two series move together	0	correlate(xs, ys) -> number	yes
-A	toukei	correlation	pure	correlation(xs, ys) -> number	error	-	exists:toukei	strength of a linear link, -1 to 1	0		na
-A	toukei	covariance	pure	covariance(xs, ys) -> number	error	-	exists:toukei	how two series vary together	0		na
+A	toukei	correlation	pure	correlation(xs, ys) -> number	error	-	exists:toukei	Pearson r — covariance divided by both spreads, so it is unitless and lands in [-1, 1]	0		na
+A	toukei	covariance	pure	covariance(xs, ys) -> number	error	-	exists:toukei	Population covariance: the mean product of paired deviations	0		na
 G	toukei	describe	pure	describe(xs) -> summary	-	-	partial:toukei	count, mean, spread and quartiles	0	describe(xs) -> summary	yes
 A	toukei	ewma	pure	ewma(numbers, alpha) -> [number]	-	-	absent	exponentially weighted moving average	2		na
 A	toukei	histogram	pure	histogram(numbers, bins) -> [bin]	-	-	absent	counts of values per equal-width bin	2		na
@@ -2577,11 +2577,11 @@ A	toukei	hypothesis	pure	hypothesis(kind, samples, opts) -> record	error	-	absen
 A	toukei	interval	pure	interval(numbers, level) -> range	error	-	absent	confidence interval for the mean	3		na
 A	toukei	mean	pure	mean(numbers) -> number	error	-	exists:toukei	arithmetic average; empty raises	0		na
 A	toukei	median	pure	median(numbers) -> number	error	-	exists:toukei	middle value	0		na
-A	toukei	mode	pure	mode(items) -> item	-	-	exists:toukei	most frequent value	0		na
-A	toukei	moving_average	pure	moving_average(numbers, n) -> [number]	-	-	exists:toukei	average over a sliding window	0		na
+A	toukei	mode	pure	mode(items) -> item	-	-	exists:toukei	The most frequent value; nil for the empty list	0		na
+A	toukei	moving_average	pure	moving_average(numbers, n) -> [number]	-	-	exists:toukei	Simple moving average, one value per COMPLETE window	0		na
 A	toukei	normalize	pure	normalize(numbers, opts) -> [number]	-	-	partial:toukei	rescale to a range or to unit variance	1	normalize(numbers, opts) -> [number]	yes
-A	toukei	outliers	pure	outliers(numbers, opts) -> [number]	-	-	exists:toukei	values beyond the quartile fences	0		na
-A	toukei	percentile	pure	percentile(numbers, p) -> number	error	-	exists:toukei	value below which a share p falls	0		na
+A	toukei	outliers	pure	outliers(numbers, opts) -> [number]	-	-	exists:toukei	Points outside the fences, in input order	0		na
+A	toukei	percentile	pure	percentile(numbers, p) -> number	error	-	exists:toukei	The value below which the given fraction of the data falls	0		na
 A	toukei	predict	pure	predict(model, x) -> number	-	-	absent	value a fitted model gives at x	2		na
 A	toukei	regression	pure	regression(xs, ys, opts) -> model	error	kinji	partial:kinji	best-fit line or polynomial and its error	2		na
 A	toukei	rolling	pure	rolling(numbers, n, f) -> [number]	-	-	absent	f over a sliding window	2		na
@@ -2669,16 +2669,16 @@ C	tsuushin	etag	pure	etag(body) -> text	cache	-	absent	The strong validator for 
 C	tsuushin	exists?	effect	exists?(url, opts) -> Bool	deadline	-	absent	HEAD probe; never raises for the condition.	1	exists?(url, opts) -> Bool	yes
 C	tsuushin	fresh?	pure	fresh?(response, now) -> Bool	cache,time	-	absent	Whether a cached response may be used unchecked.	2	fresh?(response, now) -> Bool	yes
 C	tsuushin	get	effect	get(base, key, opts) -> value or nil	deadline,error	-	absent	One REST entry as parsed JSON; nil on 404.	1	get(base, key, opts) -> value or nil	yes
-C	tsuushin	join	pure	join(base, path) -> url	-	-	exists:tsuushin	Resolve a path against a base URL.	0	join(base, path) -> url	yes
+C	tsuushin	join	pure	join(base, path) -> url	-	-	exists:tsuushin	Resolve a path against a base URL	0	join(base, path) -> url	yes
 C	tsuushin	list	effect	list(base, opts) -> [record]	deadline,error,retry	-	absent	Every entry, following next-page links to the end.	1	list(base, opts) -> [record]	yes
 C	tsuushin	mock	decl	mock(routes) -> client	test	-	absent	A client that answers from declared routes.	2		na
 C	tsuushin	need	effect	need(base, key, opts) -> value	deadline,error	-	absent	One REST entry; raises when absent.	1	need(base, key, opts) -> value	yes
 C	tsuushin	negotiate	pure	negotiate(accept, offered) -> choice or nil	-	-	absent	Pick the best offered type for an Accept header.	2	negotiate(accept, offered) -> choice or nil	yes
-C	tsuushin	parse	pure	parse(text, :url) -> url record	error,validate	-	exists:tsuushin	URL text to scheme, host, path, query record.	0	parse(text, :url) -> url record	yes
+C	tsuushin	parse	pure	parse(text, :url) -> url record	error,validate	-	exists:tsuushin	URL text to scheme, host, path, query record	0	parse(text, :url) -> url record	yes
 C	tsuushin	put	effect	put(base, key, value, opts) -> value	error,idempotent	-	absent	PUT: create or replace an entry.	1	put(base, key, value, opts) -> value	yes
 C	tsuushin	read	effect	read(url, opts) -> body	deadline,error,retry	blue-lang-runtime	rust:blue-lang-runtime	GET the body; raises outside 2xx.	0	read(url, opts) -> body	yes
-C	tsuushin	render	pure	render(url record, :url) -> text	serialize	-	exists:tsuushin	URL record to canonical text.	0	render(url record, :url) -> text	yes
-C	tsuushin	request	effect	request(method, url, opts) -> response	capability,deadline,error,retry,trace	blue-lang-runtime	exists:tsuushin	Send one HTTP request; any status is data.	0	request(method, url, opts) -> response	yes
+C	tsuushin	render	pure	render(url record, :url) -> text	serialize	-	exists:tsuushin	URL record to canonical text	0	render(url record, :url) -> text	yes
+C	tsuushin	request	effect	request(method, url, opts) -> response	capability,deadline,error,retry,trace	blue-lang-runtime	exists:tsuushin	Send one HTTP request; any status is data	0	request(method, url, opts) -> response	yes
 C	tsuushin	revalidate	effect	revalidate(request, cached) -> response	cache,error	-	absent	Conditional GET with ETag; reuse body on 304.	2		na
 C	tsuushin	sign	pure	sign(request, credentials) -> request	capability,serialize	-	absent	Add a signature or bearer header to a request.	2	sign(request, credentials) -> request	yes
 C	tsuushin	stream	stream	stream(url, f, opts) -> response	cancel,deadline,error	blue-lang-runtime	absent	Call f per chunk or line as the body arrives.	1	stream(url, f, opts) -> response	yes

@@ -24,7 +24,6 @@ verb(
     laterals: ["serialize"],
     fleet: "haibi",
     today: "exists:haibi",
-    meaning: "database schema statements from declared tables",
     wave: 0,
     origin: "E"
   }

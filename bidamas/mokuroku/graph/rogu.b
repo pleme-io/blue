@@ -24,7 +24,6 @@ verb(
     laterals: ["log", "switch"],
     fleet: "logging-go",
     today: "exists:rogu",
-    meaning: "write a structured line at debug level",
     wave: 0,
     origin: "F"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: ["log", "switch"],
     fleet: nil,
     today: "exists:rogu",
-    meaning: "whether a line at this level would be written",
     wave: 0,
     origin: "F"
   }
@@ -54,7 +52,6 @@ verb(
     laterals: ["error", "log"],
     fleet: "logging-go",
     today: "exists:rogu",
-    meaning: "write a structured line at error level; carries an error record",
     wave: 0,
     origin: "F"
   }
@@ -69,7 +66,6 @@ verb(
     laterals: ["log"],
     fleet: "logging-go",
     today: "exists:rogu",
-    meaning: "write a structured line at info level",
     wave: 0,
     origin: "F",
     contract: "info(message, opts) -> nil"
@@ -85,7 +81,6 @@ verb(
     laterals: ["log", "switch"],
     fleet: nil,
     today: "exists:rogu",
-    meaning: "the active level from BLUE_LOG; info when unset",
     wave: 0,
     origin: "F"
   }
@@ -236,7 +231,6 @@ verb(
     laterals: ["log"],
     fleet: "logging-go",
     today: "exists:rogu",
-    meaning: "write a structured line at warn level",
     wave: 0,
     origin: "F"
   }
@@ -266,7 +260,6 @@ verb(
     laterals: ["log"],
     fleet: nil,
     today: "exists:rogu",
-    meaning: "a logger that adds fields to every line",
     wave: 0,
     origin: "F"
   }

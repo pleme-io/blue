@@ -39,7 +39,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "cross product of two 3-vectors",
     wave: 0,
     origin: "A"
   }
@@ -69,7 +68,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "signed volume factor of a square matrix",
     wave: 0,
     origin: "A"
   }
@@ -84,7 +82,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "sum of the diagonal",
     wave: 0,
     origin: "A"
   }
@@ -99,7 +96,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "inner product of two vectors",
     wave: 0,
     origin: "A"
   }
@@ -129,7 +125,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "n by n identity matrix",
     wave: 0,
     origin: "A"
   }
@@ -144,7 +139,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "matrix that multiplies to identity; singular raises",
     wave: 0,
     origin: "A"
   }
@@ -174,7 +168,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "matrix product",
     wave: 0,
     origin: "A"
   }
@@ -204,7 +197,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "vector scaled to length one",
     wave: 0,
     origin: "A"
   }
@@ -219,7 +211,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "matrix times itself n times",
     wave: 0,
     origin: "A"
   }
@@ -279,7 +270,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "every entry multiplied by a number",
     wave: 0,
     origin: "A"
   }
@@ -294,7 +284,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "row and column counts",
     wave: 0,
     origin: "A"
   }
@@ -354,7 +343,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "rows and columns swapped",
     wave: 0,
     origin: "A"
   }
@@ -369,7 +357,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:gyouretsu",
-    meaning: "matrix of zeros",
     wave: 0,
     origin: "A"
   }

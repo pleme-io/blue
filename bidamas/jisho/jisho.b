@@ -16,22 +16,39 @@ def size(m)
   retsu::size(map_entries(m))
 end
 
+@doc """
+empty?: Whether xs is nil or has no elements.
+
+    empty?({}) #=> true
+"""
 def empty?(m)
   is_empty(map_entries(m))
 end
 
+@doc """
+has?: Whether the key is present. A plain map goes to jisho.
+"""
 def has?(m, key)
   member?(key, keys(m))
 end
 
+@doc """
+put: Create or replace an entry; a plain map goes to jisho, which returns a new map.
+"""
 def put(m, key, value)
   merge(m, {key => value})
 end
 
+@doc """
+delete: Make an entry absent; absent counts as done. A plain map goes to jisho; in_space("gitto", repo) deletes a branch or tag.
+"""
 def delete(m, key)
   dissoc(m, key)
 end
 
+@doc """
+need: One entry, raising :not_found when absent. A plain map goes to jisho.
+"""
 def need(m, key)
   if has?(m, key)
     get(m, key)
@@ -40,6 +57,9 @@ def need(m, key)
   end
 end
 
+@doc """
+update: Replace an entry with f of the old value; raises :not_found when absent. A plain map goes to jisho.
+"""
 def update(m, key, f)
   put(m, key, f(need(m, key)))
 end

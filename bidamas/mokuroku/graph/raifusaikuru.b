@@ -9,7 +9,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "partial:raifusaikuru",
-    meaning: "whether an event is allowed in a state, with the refusal",
     wave: 0,
     origin: "B"
   }
@@ -54,7 +53,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:raifusaikuru",
-    meaning: "find unreachable states, duplicates and bad guards",
     wave: 0,
     origin: "B"
   }
@@ -99,7 +97,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:raifusaikuru",
-    meaning: "declare an event type and its payload fields",
     wave: 0,
     origin: "B"
   }
@@ -114,7 +111,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:raifusaikuru",
-    meaning: "declare a condition a transition must meet",
     wave: 0,
     origin: "B"
   }
@@ -159,7 +155,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:raifusaikuru",
-    meaning: "declare the state an instance begins in",
     wave: 0,
     origin: "B"
   }
@@ -189,7 +184,6 @@ verb(
     laterals: ["validate"],
     fleet: "pleme-state-machines",
     today: "exists:raifusaikuru",
-    meaning: "declare a transition from a state on an event",
     wave: 0,
     origin: "B"
   }
@@ -204,7 +198,6 @@ verb(
     laterals: ["ratelimit", "validate"],
     fleet: nil,
     today: "exists:raifusaikuru",
-    meaning: "declare a count limit on a kind of event",
     wave: 0,
     origin: "B"
   }
@@ -264,7 +257,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:raifusaikuru",
-    meaning: "declare a guard that names the rule and the task",
     wave: 0,
     origin: "B"
   }
@@ -295,7 +287,6 @@ verb(
     laterals: ["validate"],
     fleet: "pleme-state-machines",
     today: "exists:raifusaikuru",
-    meaning: "declare the states of a lifecycle",
     wave: 0,
     origin: "B"
   }

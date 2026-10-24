@@ -250,7 +250,6 @@ verb(
     laterals: [],
     fleet: "chokkan",
     today: "partial:chokkan",
-    meaning: "grade an output: exact, pattern, similarity or judge",
     wave: 1,
     origin: "G"
   }

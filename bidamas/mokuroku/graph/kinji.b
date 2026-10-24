@@ -25,7 +25,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kinji",
-    meaning: "least-squares parameters for a model",
     wave: 0,
     origin: "G"
   }

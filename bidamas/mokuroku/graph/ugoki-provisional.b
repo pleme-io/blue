@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ugoki",
-    meaning: "move a motion state forward by dt",
     wave: 0,
     origin: "G"
   }
@@ -69,7 +68,6 @@ verb(
     laterals: ["validate"],
     fleet: "ishou-batente",
     today: "exists:ugoki",
-    meaning: "declare an easing curve: bezier, steps or named",
     wave: 0,
     origin: "G"
   }
@@ -84,7 +82,6 @@ verb(
     laterals: ["time"],
     fleet: "ishou-batente",
     today: "exists:ugoki",
-    meaning: "how long a motion runs; nil for a spring",
     wave: 0,
     origin: "G"
   }
@@ -99,7 +96,6 @@ verb(
     laterals: [],
     fleet: "ishou-batente",
     today: "exists:ugoki",
-    meaning: "progress from 0 to 1 along a curve at t",
     wave: 0,
     origin: "G"
   }
@@ -114,7 +110,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ugoki",
-    meaning: "blend two numbers, vectors, colors or rotations at t",
     wave: 0,
     origin: "G"
   }
@@ -204,7 +199,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ugoki",
-    meaning: "the value of a motion at time t",
     wave: 0,
     origin: "G"
   }
@@ -249,7 +243,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:ugoki",
-    meaning: "whether a motion has come to rest",
     wave: 0,
     origin: "G"
   }
@@ -279,7 +272,6 @@ verb(
     laterals: ["validate"],
     fleet: nil,
     today: "exists:ugoki",
-    meaning: "declare a damped spring motion",
     wave: 0,
     origin: "G"
   }
@@ -324,7 +316,6 @@ verb(
     laterals: ["validate"],
     fleet: "caixa-bevy_tweening",
     today: "exists:ugoki",
-    meaning: "declare a change of value over a duration",
     wave: 0,
     origin: "G"
   }

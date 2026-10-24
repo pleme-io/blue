@@ -1,3 +1,9 @@
+@moduledoc """
+hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
+
+    render("rust", []) #=> ""
+"""
+
 use("kyohi", [:kinds, :refusal])
 
 use(
@@ -14,8 +20,6 @@ use(
 )
 
 use("retsu", [:is_empty, :last])
-
-# hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
 
 def row(kind, key, size)
   {kind:, key:, size:}
@@ -46,6 +50,11 @@ def parse_line(line)
   end
 end
 
+@doc """
+parse: a baseline file to rows.
+
+    parse("# a comment\n\nentry: no-size-here\nnocolon 12\nentry: bad-size xyz\nentry: negative -3\n") #=> []
+"""
 def parse(text)
   filter((r) -> r != nil, map(parse_line, lines(text)))
 end
@@ -59,6 +68,11 @@ def recorded(rows, kind, key)
   end
 end
 
+@doc """
+judge: whether a measure grew past its recorded size.
+
+    judge([], "entry", "anything", 0) #=> {verdict: :unrecorded}
+"""
 def judge(rows, kind, key, measured)
   r = recorded(rows, kind, key)
   if r.nil?
@@ -88,6 +102,11 @@ def failure(rows, kind, m)
   end
 end
 
+@doc """
+failures: every key that grew or is new.
+
+    failures(example_baseline, "entry", []) #=> []
+"""
 def failures(rows, kind, measurements)
   filter((f) -> f != nil, map((m) -> failure(rows, kind, m), measurements))
 end
@@ -97,10 +116,18 @@ def keys_of(rows, kind)
   distinct(sort_keyed((k) -> k, ks))
 end
 
+@doc """
+orphans: recorded keys that no longer exist.
+
+    orphans([], "entry", []) #=> []
+"""
 def orphans(rows, kind, live)
   filter((k) -> not member?(k, live), keys_of(rows, kind))
 end
 
+@doc """
+shrunk: keys that fell below their record and can be tightened.
+"""
 def shrunk(rows, kind, measurements)
   filter(
     fn(m)
@@ -111,6 +138,11 @@ def shrunk(rows, kind, measurements)
   )
 end
 
+@doc """
+render: measurements as a baseline file, stable order.
+
+    render("rust", []) #=> ""
+"""
 def render(kind, measurements)
   sorted = sort_keyed((m) -> get(m, :key), measurements)
   join(

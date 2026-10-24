@@ -10,6 +10,11 @@ use("retsu", [:first, :is_empty, :last, :rest])
 use("shinsuu", [:bytes_base64, :hex_bytes])
 use("tesuto", [:raises?])
 
+@doc """
+response: Build a response record.
+
+    response(204, "", "") #=> {status: 204, headers: {"Content-Type" => ""}, body: ""}
+"""
 def response(status, content_type, body)
   {status:, headers: {"Content-Type" => content_type}, body:}
 end
@@ -18,10 +23,16 @@ def text(status, body)
   response(status, "text/plain; charset=utf-8", body)
 end
 
+@doc """
+json: A JSON response.
+"""
 def json(status, value)
   response(status, "application/json", json_stringify(value))
 end
 
+@doc """
+not_found: The 404 response for a request.
+"""
 def not_found(req)
   text(404, "no route for #{get(req, :method)} #{get(req, :path)}\n")
 end
@@ -71,6 +82,9 @@ def answer(req, health, handler)
   end
 end
 
+@doc """
+serve_once: Answer one request; the test door.
+"""
 def serve_once(l, health, handler, wait_ms)
   req = http_next_request(l, wait_ms)
   if req.nil?
@@ -85,6 +99,9 @@ def serve_once(l, health, handler, wait_ms)
   end
 end
 
+@doc """
+serve: Listen and answer requests until stopped.
+"""
 def serve(addr, health, handler)
   serve_metered(addr, health, handler, getenv("BLUE_SERVICE", "blue"))
 end
@@ -115,6 +132,9 @@ def metrics_empty()
   }
 end
 
+@doc """
+observe: Count one request in the metrics.
+"""
 def observe(m, status, seconds)
   codes = get(m, "codes")
   c = status_class(status)
@@ -150,6 +170,9 @@ def observe(m, status, seconds)
   }
 end
 
+@doc """
+exposition: Metrics rendered in Prometheus text form.
+"""
 def exposition(m, service)
   l = "service=\"#{service}\""
   codes = get(m, "codes")
@@ -174,6 +197,9 @@ def metrics_response(m, service)
   )
 end
 
+@doc """
+metered: answer a request and record its status and latency.
+"""
 def metered(req, health, handler, m, service)
   path = get(req, :path)
   if path == metrics_path
@@ -384,6 +410,11 @@ test "serve_once answers the health path before the handler, and turns a raise o
   assert served("/nil", "/healthz", hello) == 500
 end
 
+@doc """
+header: One request header.
+
+    header(text(200, ""), "content-type") #=> "text/plain; charset=utf-8"
+"""
 def header(req, name)
   n = downcase(name)
   hs = get(req, :headers)
@@ -475,6 +506,9 @@ def drop_last(xs)
   take(blue::max(0, count(xs) - 1), xs)
 end
 
+@doc """
+route: Declare one method and path pattern with a handler.
+"""
 def route(method, pattern, handler)
   segs = if string?(pattern)
     map(segment, segments(pattern))
@@ -516,6 +550,9 @@ def clash(kept, r)
   )
 end
 
+@doc """
+router: Compose routes into one app; overlap is refused.
+"""
 def router(routes, opts?)
   o = opts or {}
   stray = filter(
@@ -610,6 +647,9 @@ def bound(routes, method, parts)
   )
 end
 
+@doc """
+resolve: Find the route that serves a request.
+"""
 def resolve(app, req)
   parts = segments(get(req, :path))
   hit = bound(get(app, :routes), get(req, :method), parts)
@@ -699,6 +739,9 @@ def dispatch(handler, req)
   end
 end
 
+@doc """
+mount: Place a sub-app under a path prefix.
+"""
 def mount(app, prefix, sub)
   why = route_fault(route("GET", prefix, () -> nil))
   if why != nil or prefix == "/"
@@ -731,6 +774,9 @@ def mount(app, prefix, sub)
   end
 end
 
+@doc """
+redirect: A redirect response.
+"""
 def redirect(status, location)
   if not member?(status, [301, 302, 303, 307, 308])
     raise(
@@ -747,6 +793,9 @@ def redirect(status, location)
   {status:, headers: {"Location" => location}, body: ""}
 end
 
+@doc """
+guard: Refuse requests that fail a check before the handler.
+"""
 def guard(handler, check)
   fn(req)
     verdict = check(req)
@@ -765,6 +814,11 @@ def guard(handler, check)
   end
 end
 
+@doc """
+body: Parse the request body into a value.
+
+    body(request("POST", "/", ""), :form) #=> {}
+"""
 def body(req, format)
   raw = get(req, :body) or ""
   kind = if format == :auto
@@ -823,6 +877,9 @@ def recover_statuses()
   }
 end
 
+@doc """
+recover: Turn a raised kind into its status response.
+"""
 def recover(handler)
   fn(req)
     begin
@@ -842,6 +899,9 @@ def recovered(kind, message)
   end
 end
 
+@doc """
+timeout: Answer 503 when the handler runs past a deadline.
+"""
 def timeout(handler, ms)
   if not integer?(ms) or ms <= 0
     raise(
@@ -860,6 +920,9 @@ def timeout(handler, ms)
   end
 end
 
+@doc """
+stream: Send chunks as f produces them.
+"""
 def stream(_req, f, opts?)
   o = opts or {}
   chunks = [[]]
@@ -968,6 +1031,9 @@ def ranged(content, spec, base)
   end
 end
 
+@doc """
+file: A response serving a file with validators and ranges.
+"""
 def file(path, opts?)
   o = opts or {}
   if member?("..", split(path, "/"))
@@ -1061,6 +1127,9 @@ def cors_headers(p, origin)
   end
 end
 
+@doc """
+cors: Add cross-origin headers by policy.
+"""
 def cors(handler, policy)
   p = cors_policy(policy)
   fn(req)
@@ -1108,6 +1177,9 @@ def accept_key(key)
   bytes_base64(hex_bytes(digest_hex(:sha1, "#{key}#{websocket_guid}")))
 end
 
+@doc """
+upgrade: Switch to a WebSocket and hand it to f.
+"""
 def upgrade(req, f)
   key = header(req, "sec-websocket-key")
   up = downcase(header(req, "upgrade") or "")

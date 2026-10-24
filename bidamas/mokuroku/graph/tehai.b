@@ -24,7 +24,6 @@ verb(
     laterals: ["validate"],
     fleet: "tehai",
     today: "exists:tehai",
-    meaning: "declared remote builders from the machines file",
     wave: 0,
     origin: "E"
   }
@@ -39,7 +38,6 @@ verb(
     laterals: ["deadline", "process"],
     fleet: "tehai",
     today: "exists:tehai",
-    meaning: "whether one builder takes work right now",
     wave: 0,
     origin: "E"
   }

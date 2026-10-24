@@ -9,7 +9,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "partial:kazu",
-    meaning: "nearest point inside a range",
     wave: 2,
     origin: "A"
   }

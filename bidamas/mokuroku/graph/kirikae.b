@@ -9,7 +9,6 @@ verb(
     laterals: ["retry", "switch"],
     fleet: "kirikae",
     today: "exists:kirikae",
-    meaning: "switch, hold or no-op from state and backoff",
     wave: 0,
     origin: "E",
     contract: "decide(desired, current, history, now) -> verdict"
@@ -55,7 +54,6 @@ verb(
     laterals: ["error", "validate"],
     fleet: "kirikae",
     today: "exists:kirikae",
-    meaning: "what a system switch would do, as data",
     wave: 0,
     origin: "E"
   }
@@ -70,7 +68,6 @@ verb(
     laterals: ["idempotent", "serialize"],
     fleet: "kirikae",
     today: "exists:kirikae",
-    meaning: "append one outcome to the switch history",
     wave: 0,
     origin: "E"
   }
@@ -101,7 +98,6 @@ verb(
     laterals: ["error", "log", "process", "switch"],
     fleet: "kirikae",
     today: "exists:kirikae",
-    meaning: "build and activate the planned system",
     wave: 0,
     origin: "E"
   }

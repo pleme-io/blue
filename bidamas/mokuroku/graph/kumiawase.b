@@ -9,7 +9,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kumiawase",
-    meaning: "number of ways to pick k of n",
     wave: 0,
     origin: "A",
     contract: "choose(n, opts) -> big"
@@ -25,7 +24,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kumiawase",
-    meaning: "every unordered pick of k items",
     wave: 0,
     origin: "A"
   }
@@ -40,7 +38,6 @@ verb(
     laterals: ["error"],
     fleet: nil,
     today: "exists:kumiawase",
-    meaning: "product of 1 up to n",
     wave: 0,
     origin: "A"
   }
@@ -55,7 +52,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kumiawase",
-    meaning: "every way to write n as a sum",
     wave: 0,
     origin: "A"
   }
@@ -70,7 +66,6 @@ verb(
     laterals: [],
     fleet: nil,
     today: "exists:kumiawase",
-    meaning: "every ordered pick of k items",
     wave: 0,
     origin: "A"
   }

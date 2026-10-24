@@ -15,9 +15,7 @@
 
 use std::collections::BTreeSet;
 
-use blue_lang_syntax::{
-    keyword_doc, lex, TokenKind, BLOCK_KEYWORDS, FORMS, INFIX, SURFACE_KEYWORDS,
-};
+use blue_lang_syntax::{keyword_doc, BLOCK_KEYWORDS, FORMS, INFIX, SURFACE_KEYWORDS};
 use serde::Serialize;
 use tatara_lisp_eval::{Arity, HeadBinding, Interpreter, Value};
 
@@ -220,6 +218,7 @@ pub fn reference() -> Reference {
 /// `f(a, b)` is (2, 0, false); `f(a[, b])` is (1, 1, false); `f(a, more...)`
 /// is (1, 0, true). Only the text between the first `(` and the last `)` is
 /// read, and a bracketed group counts its names as optional.
+#[cfg(test)]
 fn declared_params(signature: &str) -> Option<(usize, usize, bool)> {
     if blue_lang_syntax::is_callable_name(signature) {
         return Some((0, 0, false));
@@ -250,6 +249,7 @@ fn declared_params(signature: &str) -> Option<(usize, usize, bool)> {
 }
 
 /// Whether a signature's counts are the arity the runtime declares.
+#[cfg(test)]
 fn agrees(arity: &str, (required, optional, variadic): (usize, usize, bool)) -> bool {
     let (min, max) = match arity.split_once("..") {
         Some((a, b)) => (a.parse().ok(), b.parse().ok()),

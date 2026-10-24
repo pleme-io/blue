@@ -114,9 +114,9 @@
     "replace": "acc"
   },
   {
-    "name": "a schema given as text is not read",
+    "name": "SDL text is read as a built schema",
     "file": "danpen.b",
-    "find": "if map?(schema) and get(schema, :kind) == :schema_of",
+    "find": "if not string?(schema) and get(schema, :kind) == :schema_of",
     "replace": "if get(schema, :kind) == :schema_of"
   }
 ]

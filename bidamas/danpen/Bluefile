@@ -1,4 +1,4 @@
-package("danpen", "0.1.1")
+package("danpen", "0.1.2")
 needs("deeta", "^0.1")
 needs("kiwari", "^0.1")
 needs("moji", "^0.1")

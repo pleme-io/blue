@@ -3323,7 +3323,7 @@ end
 
 def schema_of(schema, opts?)
   opts = checked(opts, [:defaults])
-  if map?(schema) and get(schema, :kind) == :schema_of
+  if not string?(schema) and get(schema, :kind) == :schema_of
     schema
   else
     s = assoc(
@@ -3860,6 +3860,14 @@ test "check carries the position of a finding when the document has spans"
   assert map((f) -> get(f, :at), found) == [[3, 5]]
   assert map((f) -> get(f, :at), check(parse("query { hero { mass } }"), s)) ==
     [nil]
+end
+
+test "check reads its rules from SDL text as from a parsed schema"
+  sdl = "type Query { hero: Hero } type Hero { name: String }"
+  assert check(parse("{ hero { name } }"), sdl) == []
+  assert map((f) -> get(f, :rule), check(parse("{ hero { mass } }"), sdl)) ==
+    map((f) -> get(f, :rule), check(parse("{ hero { mass } }"), parse(sdl)))
+  assert is_empty(check(parse("{ hero { mass } }"), sdl)) == false
 end
 
 test "SDL default values are checked only when asked"

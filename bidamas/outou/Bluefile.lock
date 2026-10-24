@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:1f25968a2178dd6b20a947eb11e4db61a80d0f4b4bfe9f6a1b1fc8b7d3702dae",
+  "manifest": {
+    "schema": 1,
+    "name": "outou",
+    "version": "0.1.0",
+    "needs": {
+      "danpen": "^0.1.0",
+      "jisho": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

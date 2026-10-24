@@ -1,0 +1,7 @@
+package("blue-frontend", "0.1.0")
+
+frontend("shop", {views: ["views"], schema: "schema.graphql"})
+
+generate("schema-table", "schema.table", "gen/schema.b", ["schema.graphql"])
+
+check("profile", "views/profile.b")

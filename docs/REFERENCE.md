@@ -587,3 +587,8 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0045` | redundant-conversion | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain | autofix |
 | `B0046` | map-pun | a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}` | autofix |
 | `B0047` | nil-test | a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x` | autofix |
+| `B0048` | undeclared-field-read | a fragment ref is read only for the fields its fragment declares; a parent never reads a child's field | suggested |
+| `B0049` | fragment-not-composed | a view's operation is the union of the fragments of the components it renders: a ref passed to a component comes from a selection that spreads its fragment, and every spread names a declared fragment | autofix |
+| `B0050` | field-not-in-schema | every fragment's type and field, and every `labels` enum and key, is in the frontend's schema | refused |
+| `B0051` | enum-mirror | a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels` | refused |
+| `B0052` | query-text | a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash | refused |

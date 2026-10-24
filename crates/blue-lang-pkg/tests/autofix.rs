@@ -5,7 +5,10 @@ use std::path::Path;
 
 const FIRST_SPELLING_RULE: &str = "B0023";
 
-struct Imports(&'static [(&'static str, &'static str)]);
+struct Imports(
+    &'static [(&'static str, &'static str)],
+    Option<&'static str>,
+);
 
 impl Loader for Imports {
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
@@ -26,6 +29,13 @@ impl Loader for Imports {
 
     fn version(&self, _package: &str, _entry_dir: Option<&Path>) -> Option<String> {
         Some("0.1.1".to_string())
+    }
+
+    fn frontend(&self, _entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
+        self.1.map(|t| blue_lang_runtime::uses::Frontend {
+            table: Some(("schema.table".to_string(), t.to_string())),
+            view: true,
+        })
     }
 }
 
@@ -57,11 +67,12 @@ fn codes(src: &str, loader: &Imports) -> Vec<Code> {
 #[test]
 fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
     let mut failures = Vec::new();
-    for r in RULES
-        .iter()
-        .filter(|r| r.fix == FixKind::Machine && r.code.as_str() >= FIRST_SPELLING_RULE)
-    {
-        let loader = Imports(r.imports);
+    for r in RULES.iter().filter(|r| {
+        r.fix == FixKind::Machine
+            && r.code.as_str() >= FIRST_SPELLING_RULE
+            && !blue_lang_check::data_laws::CODES.contains(&r.code)
+    }) {
+        let loader = Imports(r.imports, r.frontend);
         let path = Path::new("witness.b");
         let written = match blue_lang_pkg::canonical::format_with(&loader, path, r.witness) {
             Ok(w) => w,
@@ -99,7 +110,7 @@ fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
 #[test]
 fn a_refused_rule_offers_no_rewrite_of_its_witness() {
     for r in RULES.iter().filter(|r| r.fix == FixKind::None) {
-        let loader = Imports(r.imports);
+        let loader = Imports(r.imports, r.frontend);
         let Ok(written) =
             blue_lang_pkg::canonical::format_with(&loader, Path::new("witness.b"), r.witness)
         else {

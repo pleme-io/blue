@@ -219,3 +219,100 @@ row(
   diagnoses(["B0011"]),
   covers("rule:B0011")
 )
+
+row(
+  "data.B0048",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})\n\ndef user_card(user: UserCard)\n  user.tone\nend",
+  diagnoses(["B0048"]),
+  covers("rule:B0048")
+)
+
+row(
+  "data.B0048.child",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})\n\npage = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})\n\ndef page(data: Page)\n  data.me.name\nend",
+  diagnoses(["B0048"])
+)
+
+row(
+  "data.B0048.declared",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})\n\ndef user_card(user: UserCard)\n  [user.id, get(user, :name), user.__typename]\nend",
+  diagnoses([])
+)
+
+row(
+  "data.B0049",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})\n\npage = danpen::fragment(:page, {on: \"Query\", fields: [{me: [:id]}]})\n\ndef user_card(user: UserCard)\n  user.name\nend\n\ndef page(data: Page)\n  user_card(data.me)\nend",
+  diagnoses(["B0049"]),
+  covers("rule:B0049")
+)
+
+row(
+  "data.B0049.unknown",
+  "use(\"danpen\")\n\npage = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...nobody\"]}]})",
+  diagnoses(["B0049"])
+)
+
+row(
+  "data.B0049.composed",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})\n\npage = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})\n\ndef user_card(user: UserCard)\n  user.name\nend\n\ndef page(data: Page)\n  user_card(data.me)\nend",
+  diagnoses([])
+)
+
+row(
+  "data.B0050",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :nmae]})",
+  diagnoses(["B0050"]),
+  covers("rule:B0050"),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)
+
+row(
+  "data.B0050.type",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"Person\", fields: [:id]})",
+  diagnoses(["B0050"]),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)
+
+row(
+  "data.B0050.labels",
+  "use(\"gamen\", [:labels])\n\nTONES = labels(:Tone, {WARM: \"Warm\", HOT: \"Hot\"})",
+  diagnoses(["B0050"]),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)
+
+row(
+  "data.B0050.holds",
+  "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})",
+  diagnoses([]),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)
+
+row(
+  "data.B0051",
+  "TONES = [:WARM, :COOL]",
+  diagnoses(["B0051"]),
+  covers("rule:B0051"),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)
+
+row(
+  "data.B0051.labels",
+  "use(\"gamen\", [:labels])\n\nTONES = labels(:Tone, {WARM: \"Warm\", COOL: \"Cool\"})",
+  diagnoses([]),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)
+
+row(
+  "data.B0052",
+  "me = \"query Me { me { id } }\"",
+  diagnoses(["B0052"]),
+  covers("rule:B0052"),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)
+
+row(
+  "data.B0052.test",
+  "test \"text\"\n  assert \"query Me { me { id } }\" != \"\"\nend",
+  diagnoses([]),
+  frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")
+)

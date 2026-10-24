@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:2421c148abb4b2d6dafb6791290e74ce38ae85228484b15e21ee50da5d67c463",
+  "manifest": {
+    "schema": 1,
+    "name": "blue-frontend",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "profile": {
+        "file": "views/profile.b"
+      }
+    },
+    "apps": {},
+    "catalog": null,
+    "generated": {
+      "schema-table": {
+        "output": "schema.table",
+        "program": "gen/schema.b",
+        "inputs": [
+          "schema.graphql"
+        ]
+      }
+    },
+    "frontends": {
+      "shop": {
+        "views": [
+          "views"
+        ],
+        "schema": "schema.graphql"
+      }
+    }
+  },
+  "sources": {}
+}

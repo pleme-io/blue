@@ -409,7 +409,12 @@ pub(crate) fn check_stage(
     let is_entry = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
 
     // Rules B0003–B0005: the typing ladder.
-    let mut outcome = blue_lang_check::check_program(forms);
+    let mut outcome = blue_lang_check::check_program_in(forms, &|a, b| {
+        program.owner_of(a) == program.owner_of(b)
+    });
+    outcome
+        .diagnostics
+        .extend(data_law_diagnostics(program, &is_entry));
 
     // Rules B0001–B0002: names. The program's own scopes come first (the
     // entry file, then each bidama in import order), then the interpreter's.
@@ -483,6 +488,50 @@ pub(crate) fn check_stage(
         .diagnostics
         .sort_by_key(|d| (d.top_level, d.span.start, d.code));
     (outcome, table)
+}
+
+fn data_law_diagnostics(
+    program: &crate::uses::ResolvedProgram,
+    is_entry: &dyn Fn(usize) -> bool,
+) -> Vec<blue_lang_check::Diagnostic> {
+    use blue_lang_check::data_laws;
+    let forms = program.forms();
+    let fragments = data_laws::Fragments::collect(forms);
+    let frontend = program.frontend();
+    let mut out = Vec::new();
+    let schema = match frontend.and_then(|f| f.table.as_ref()) {
+        Some((label, text)) => match data_laws::Schema::read(text) {
+            Ok(s) => Some(s),
+            Err(why) => {
+                if let Some((i, first)) = forms.iter().enumerate().find(|(i, _)| is_entry(*i)) {
+                    out.push(
+                        blue_lang_check::Diagnostic::new(
+                            blue_lang_check::Code::B0050,
+                            format!("the generated schema table {label} does not read: {why}"),
+                            first.span,
+                        )
+                        .at_top_level(i)
+                        .with_help("regenerate it: `nix run .#regen`"),
+                    );
+                }
+                None
+            }
+        },
+        None => None,
+    };
+    if fragments.is_empty() && schema.is_none() && !frontend.is_some_and(|f| f.view) {
+        return out;
+    }
+    out.extend(data_laws::check(
+        forms,
+        &data_laws::Context {
+            fragments: &fragments,
+            schema: schema.as_ref(),
+            is_entry,
+            view: frontend.is_some_and(|f| f.view),
+        },
+    ));
+    out
 }
 
 /// The whole name table the check stage resolves against: the program's

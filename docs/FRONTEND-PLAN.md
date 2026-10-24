@@ -101,6 +101,14 @@ witness and an autofix where one exists.
   a mutation per rule seen red; the LSP shows each at its span.
 - Done when: the four laws hold on the corpus and the ratchet for undeclared
   reads starts at 0.
+- Built 2026-10-24: B0048 undeclared-field-read (law 1, ratchet 0),
+  B0049 fragment-not-composed (law 2, fix adds the spread), B0050
+  field-not-in-schema (law 2 and `labels`), B0051 enum-mirror (law 4), B0052
+  query-text (law 3's check-time half: no operation text in a view, ratchet
+  0; the hash table is F7). The table is `danpen::render(sdl, :table)` through
+  `generate(...)`; `examples/frontend` is the worked project;
+  `docs/DIAGNOSTICS.md` has the shape. `gamen::labels` and
+  `danpen::compose(root_fragment, fragments)` landed with them.
 
 ### F5 — Normalized cache and the data runtime (`kyasshu`)
 

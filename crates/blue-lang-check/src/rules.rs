@@ -91,6 +91,7 @@ pub struct Rule {
     pub fix: FixKind,
     pub waivable: bool,
     pub ratchet: Option<u32>,
+    pub frontend: Option<&'static str>,
 }
 
 impl Rule {
@@ -125,6 +126,15 @@ macro_rules! ratchet {
     };
 }
 
+macro_rules! frontend {
+    () => {
+        None
+    };
+    ($t:literal) => {
+        Some($t)
+    };
+}
+
 /// Build [`Code`], `Code::ALL` and [`RULES`] from one list of rows.
 macro_rules! rules {
     ($(
@@ -137,6 +147,7 @@ macro_rules! rules {
             $(imports: [$(($pkg:literal, $src:literal)),* $(,)?],)?
             $(waivable: $waivable:literal,)?
             $(ratchet: $ratchet:expr,)?
+            $(frontend: $frontend:literal,)?
             explanation: $expl:literal $(,)?
         }
     )*) => {
@@ -168,6 +179,7 @@ macro_rules! rules {
                 fix: FixKind::$fix,
                 waivable: waivable!($($waivable)?),
                 ratchet: ratchet!($($ratchet)?),
+                frontend: frontend!($($frontend)?),
             }
         ),*];
     };
@@ -959,6 +971,113 @@ put to the value. blue reads `nil?(x)`, `x == nil` and `nil == x` and writes
 The opposite test stays `x != nil`, and `not x.nil?` is read as written.
 A program's own `nil?` is left alone, and a map that holds a `nil?` key
 answers `.nil?` with that key's value.",
+    }
+    B0048 {
+        slug: "undeclared-field-read",
+        severity: Error,
+        fix: Suggested,
+        law: "a fragment ref is read only for the fields its fragment declares; a parent never reads a child's field",
+        witness: "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id]})\n\ndef user_card(user: UserCard)\n  user.name\nend\n",
+        imports: [("danpen", "def fragment(name, spec)\n  [name, spec]\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+A parameter whose type names a fragment receives a fragment ref:
+`danpen::fragment(:user_card, …)` declares the type `UserCard`, and
+`def user_card(user: UserCard)` reads `user` through it. Only the fields the
+fragment lists can be read, by `user.name` or `get(user, :name)`; a nested
+selection gives a ref to that selection.
+
+A field that comes in through a spread (`\"...user_card\"`) belongs to the child
+fragment. The parent passes the value on to the component that declared it
+and never reads the field itself: that is masking, and it is what lets a
+component change its data without breaking a parent.
+
+To comply, add the field to the fragment's `fields`, or move the read into
+the component whose fragment declares it. The suggestion adds the field.",
+    }
+    B0049 {
+        slug: "fragment-not-composed",
+        severity: Error,
+        fix: Machine,
+        law: "a view's operation is the union of the fragments of the components it renders: a ref passed to a component comes from a selection that spreads its fragment, and every spread names a declared fragment",
+        witness: "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id]})\n\npage = danpen::fragment(:profile, {on: \"Query\", fields: [{user: [:id]}]})\n\ndef user_card(user: UserCard)\n  user.id\nend\n\ndef profile(data: Profile)\n  user_card(data.user)\nend\n",
+        imports: [("danpen", "def fragment(name, spec)\n  [name, spec]\nend\n")],
+        waivable: false,
+        explanation: "\
+Nobody writes a query. A view declares a fragment on the root type, each
+component declares its own, and the view's operation is their union
+(`danpen::compose`). For the union to hold, the selection a view passes to a
+component must spread that component's fragment: `{user: [\"...user_card\"]}`
+before `user_card(data.user)`. Otherwise the component is handed data
+fetched for somebody else.
+
+A spread of a fragment nobody declared cannot be composed either, and is
+reported at the spread.
+
+The fix adds the spread to the selection the value comes from.",
+    }
+    B0050 {
+        slug: "field-not-in-schema",
+        severity: Error,
+        fix: None,
+        law: "every fragment's type and field, and every `labels` enum and key, is in the frontend's schema",
+        witness: "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :nmae]})\n",
+        imports: [("danpen", "def fragment(name, spec)\n  [name, spec]\nend\n")],
+        waivable: false,
+        frontend: "{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {}}\n",
+        explanation: "\
+A frontend names its GraphQL SDL (`frontend(name, {schema: \"schema.graphql\"})`)
+and generates a table from it (`generate(name, output, program,
+[\"schema.graphql\"])`, the program calling `danpen::table_text`). The check
+stage reads that table and refuses a fragment `on:` a type the SDL lacks, a
+field its type does not define, a `labels` call on an enum the SDL lacks and
+a label keyed by a value the enum does not have.
+
+`checks.generated-<name>-fresh` keeps the table equal to what the SDL makes,
+so the check never judges against an old schema. A file with no frontend
+around it has no table, and these checks do not run for it.
+
+To comply, select a field the type defines (the help names the nearest), or
+change the SDL and regenerate.",
+    }
+    B0051 {
+        slug: "enum-mirror",
+        severity: Error,
+        fix: None,
+        law: "a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels`",
+        witness: "TONES = [:WARM, :COOL]\n",
+        frontend: "{types: {}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}\n",
+        explanation: "\
+Frontend data is entity-backed: the set of values an enum holds belongs to
+the backend, and a copy of it in a view goes stale the day the backend adds a
+value. A literal list whose items are exactly an enum's values is that copy.
+
+The one frontend value is a display label, keyed by the backend value:
+`gamen::labels(:Tone, {WARM: \"Warm\", COOL: \"Cool\"})`. The labels are
+checked against the enum (B0050), so a value the backend drops is reported
+where it is labelled.
+
+A list that only happens to equal an enum can carry a waiver with the reason.",
+    }
+    B0052 {
+        slug: "query-text",
+        severity: Error,
+        fix: None,
+        law: "a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash",
+        witness: "me = \"query Me { me { id } }\"\n",
+        ratchet: 0,
+        frontend: "{types: {}, enums: {}}\n",
+        explanation: "\
+Law 3, persisted operations: each operation compiles to a hash, the browser
+sends the hash, and hanabi refuses one it does not hold. No query text ships.
+In a file a `frontend(...)` names as a view, a string that starts with
+`query`, `mutation` or `subscription` and holds a selection is hand-written
+operation text, which neither composition nor the hash table can see.
+
+To comply, declare a fragment on the root type and let `danpen::compose` and
+`danpen::hash` produce the operation and its id. GraphQL text in danpen's own
+tests and in fixtures is not a view and is not reported.",
     }
 }
 

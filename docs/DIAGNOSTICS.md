@@ -60,6 +60,11 @@ it; `blue explain --list` lists them.
 | B0046 | map-pun | error | a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}` |
 | B0047 | nil-test | error | a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x` |
 | B0045 | redundant-conversion | warning | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain |
+| B0048 | undeclared-field-read | error | a fragment ref is read only for the fields its fragment declares; a parent never reads a child's field |
+| B0049 | fragment-not-composed | error | a view's operation is the union of the fragments of the components it renders: a ref passed to a component comes from a selection that spreads its fragment, and every spread names a declared fragment |
+| B0050 | field-not-in-schema | error | every fragment's type and field, and every `labels` enum and key, is in the frontend's schema |
+| B0051 | enum-mirror | error | a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels` |
+| B0052 | query-text | error | a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash |
 
 The registry is the source of truth; a test fails if a code is missing here.
 
@@ -73,6 +78,27 @@ exactly, so every change to a count is a reviewed edit of the number. The
 commit that brings a count to zero sets the row to `Some(0)`, and from then
 on the rule is an error on every door. `blue census --findings` lists each
 finding.
+
+## The data laws (B0048–B0052)
+
+The frontend's data laws (`theory/BLUE-FRONTEND.md` §2) are rows like every
+other. A fragment declared with `danpen::fragment(:user_card, {on: "User",
+fields: […]})` is the type `UserCard`; a parameter annotated with it holds a
+fragment ref, and the typing ladder checks every read of it (B0048) and every
+ref passed on to a component (B0049, whose fix adds the spread). The schema
+enters through the project's Bluefile: `frontend(name, {views:, schema:})`
+names the SDL, and the `generate(...)` whose inputs hold that SDL writes the
+table the check reads (`danpen::render(sdl, :table)`), so
+`checks.generated-<name>-fresh` keeps it current. A file under a frontend's
+`views` is a view (B0052 applies); any other file of the project is checked
+against the same table (B0050, B0051). A file with no frontend around it has
+no table, and B0050–B0052 do not run for it. In nix a check program runs
+alone in the store, so only `blue check`, the language server, `blue census`
+and the corpus test read the table there.
+
+`blue_lang_check::data_laws::Fragments` is the fragment and composition table
+as data (each fragment's type, fields and spreads), for checks that build on
+it.
 
 ## Name resolution order
 

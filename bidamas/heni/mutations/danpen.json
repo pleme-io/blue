@@ -106,5 +106,11 @@
     "file": "danpen.b",
     "find": "algorithm or :sha256",
     "replace": "algorithm or :sha512"
+  },
+  {
+    "name": "SDL text is read as a built schema",
+    "file": "danpen.b",
+    "find": "if not string?(schema) and get(schema, :kind) == :schema_of",
+    "replace": "if get(schema, :kind) == :schema_of"
   }
 ]

@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:596bbfc39bd4526510151cf37c1c798dad7ab721392897c59031108a0a460a5e",
+  "bluefile_b3": "b3:cec1718945a576d3df93d96c1b4611a25e56da042cc1716e36e303f462f65762",
   "manifest": {
     "schema": 1,
     "name": "danpen",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "deeta": "^0.1.0",
       "kiwari": "^0.1.0",

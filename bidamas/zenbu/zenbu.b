@@ -89,6 +89,7 @@ use("nisshi")
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
 use("okite")
 use("ongaku", [:major_triad])
+use("outou")
 use("raifusaikuru")
 use("ran", [:take_ints])
 use("retsu", [:contains, :size])
@@ -206,6 +207,8 @@ test "every bidama in the distribution answers through this one import"
   assert ugoki::sample(ugoki::tween(0, 10, {seconds: 2}), 1) == 5
   assert heddaa::encode_int(1337, 5, 0) == [31, 154, 10]
   assert tajuu::error_code(:cancel) == 8
+  assert outou::request(outou::fixture, "{ hero { id } }") ==
+    {data: {"hero" => {"id" => "2001"}}}
 end
 
 test "four packages compose without the consumer naming any of them"

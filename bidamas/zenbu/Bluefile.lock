@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:dcbb92c005e986e1b49342ed51fcb02717e15b4c46ff716065d42cce7ae19590",
+  "bluefile_b3": "b3:339de8b435da19109dcd994f6f5318996f47620f78d9d5a551890e5a8d7e5e7d",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -48,6 +48,7 @@
       "nisshi": "^0.1.0",
       "okite": "^0.1.0",
       "ongaku": "^0.1.0",
+      "outou": "^0.1.0",
       "raifusaikuru": "^0.1.0",
       "ran": "^0.1.0",
       "retsu": "^0.1.0",

@@ -1094,6 +1094,34 @@ def instance(c, given, children)
   end
 end
 
+def labels(set, entries)
+  if not keyword?(set)
+    raise(:bad_option, "labels: the set is the enum's name, as a keyword")
+  elsif not map?(entries) or is_empty(map_entries(entries))
+    raise(:bad_option, "labels: entries map each value to its display text")
+  end
+  map(
+    fn(e)
+      if not string?(nth(1, e))
+        raise(
+          :bad_option,
+          "labels: the label of #{to_s(first(e))} is display text, a string"
+        )
+      end
+      nil
+    end,
+    map_entries(entries)
+  )
+  {
+    labels: set,
+    entries: reduce(
+      (m, e) -> assoc(m, to_s(first(e)), nth(1, e)),
+      {},
+      map_entries(entries)
+    )
+  }
+end
+
 def layout(kind, children, opts?)
   o = opts or {}
   checked(o, [:gap, :columns, :align, :tag, :props])
@@ -2201,4 +2229,13 @@ test "a static page of components renders to one html document"
   assert render(doc, :html, {theme: t, refuse: :page}) ==
     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta content=\"width=device-width, initial-scale=1\" name=\"viewport\"><title>Status &lt;ok&gt;</title><style>#{css(t)}</style></head><body><main><div style=\"display:flex;flex-direction:column;gap:var(--space-lg)\"><article aria-label=\"Build\" role=\"region\" style=\"padding:var(--space-md);background:var(--color-surface)\"><h2>Build</h2><p>green &amp; fast</p></article><article aria-label=\"Docs\" role=\"region\" style=\"padding:var(--space-md);background:var(--color-surface)\"><h2>Docs</h2><a href=\"https://blue.example/docs\">read</a></article></div></main></body></html>"
   assert raises?(:bad_option, () -> page({title: "x", body: [], theme: t}))
+end
+
+test "labels keys display text by each value of a closed set"
+  t = labels(:Tone, {WARM: "Warm", COOL: "Cool"})
+  assert t == {labels: :Tone, entries: {"WARM" => "Warm", "COOL" => "Cool"}}
+  assert get(t.entries, "WARM") == "Warm"
+  assert raises?(:bad_option, () -> labels("Tone", {WARM: "Warm"}))
+  assert raises?(:bad_option, () -> labels(:Tone, {}))
+  assert raises?(:bad_option, () -> labels(:Tone, {WARM: 1}))
 end

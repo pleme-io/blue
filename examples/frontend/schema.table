@@ -1,0 +1,10 @@
+{
+  types: {
+    "Image" => {"url" => "String"},
+    "Query" => {"user" => "User"},
+    "User" => {"avatar" => "Image", "id" => "ID", "name" => "String", "tone" => "Tone"}
+  },
+  enums: {
+    "Tone" => ["WARM", "COOL"]
+  }
+}

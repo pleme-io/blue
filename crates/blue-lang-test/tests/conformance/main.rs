@@ -188,6 +188,7 @@ fn controls(env: &mut Env) -> Vec<String> {
         covers: Vec::new(),
         host: false,
         isolate: false,
+        frontend: None,
     };
 
     let wrong = control(

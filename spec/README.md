@@ -86,6 +86,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | `position("checked")` | the blueshift rung the behaviour applies at; the runner refuses the row if the program measures elsewhere |
 | `host()` | the program reaches a host effect (files, processes, the clock) |
 | `isolate()` | run in a child process with a time limit |
+| `frontend("{types: …, enums: …}")` | the program is a view of a frontend whose generated schema table is this text (the data laws, B0048–B0052); the static door checks it, the cli door is blind to it |
 
 A malformed row is refused by name and fails the run; its valid siblings
 still run.

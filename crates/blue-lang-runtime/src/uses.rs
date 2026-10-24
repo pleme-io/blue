@@ -119,6 +119,16 @@ pub trait Loader {
     fn available(&self) -> Vec<String> {
         Vec::new()
     }
+
+    fn frontend(&self, _entry: &Path) -> Option<Frontend> {
+        None
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Frontend {
+    pub table: Option<(String, String)>,
+    pub view: bool,
 }
 
 /// A loader that resolves nothing, and says so.
@@ -259,6 +269,7 @@ pub struct ResolvedProgram {
     imports: Vec<(FileId, Import)>,
     needs: std::collections::BTreeMap<String, BTreeSet<String>>,
     versions: std::collections::BTreeMap<String, String>,
+    frontend: Option<Frontend>,
 }
 
 impl ResolvedProgram {
@@ -273,6 +284,7 @@ impl ResolvedProgram {
             imports: Vec::new(),
             needs: std::collections::BTreeMap::new(),
             versions: std::collections::BTreeMap::new(),
+            frontend: None,
         };
         let id = program.intern(
             entry.path.map(Path::to_path_buf),
@@ -301,6 +313,11 @@ impl ResolvedProgram {
     fn push(&mut self, form: Spanned, owner: FileId) {
         self.forms.push(form);
         self.owner.push(owner);
+    }
+
+    #[must_use]
+    pub fn frontend(&self) -> Option<&Frontend> {
+        self.frontend.as_ref()
     }
 
     /// Every top-level form, in evaluation order.
@@ -539,6 +556,7 @@ pub fn resolve_uses(
         seen.insert(p.clone());
     }
     let mut out = ResolvedProgram::new(entry, package.clone());
+    out.frontend = entry.path.and_then(|p| loader.frontend(p));
     if let Some(p) = &package {
         if let Some(n) = loader.needs(p, entry.path.and_then(Path::parent)) {
             out.needs.insert(p.clone(), n);

@@ -215,6 +215,10 @@ impl Loader for MemoLoader<'_> {
             .clone()
     }
 
+    fn frontend(&self, entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
+        self.engine.loader(self.scope).frontend(entry)
+    }
+
     fn entry_package(&self, path: &Path) -> Option<String> {
         let dir = path.parent().unwrap_or(Path::new("")).to_path_buf();
         if let Some(hit) = self.engine.memo.entry_packages.borrow().get(&dir) {

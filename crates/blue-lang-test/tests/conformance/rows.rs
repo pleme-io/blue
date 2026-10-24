@@ -154,6 +154,7 @@ pub struct Row {
     /// overflow aborts the OS process; a runaway never returns). The row runs
     /// in a child process with a time limit, and a death is an observation.
     pub isolate: bool,
+    pub frontend: Option<String>,
 }
 
 impl Row {
@@ -309,6 +310,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
         covers: Vec::new(),
         host: false,
         isolate: false,
+        frontend: None,
     };
     for option in options {
         let (name, args) = head_of(option).ok_or_else(|| label("an option is a call".into()))?;
@@ -355,6 +357,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
                     );
                 }
             }
+            "frontend" => row.frontend = Some(one_str("frontend", args).map_err(label)?.to_owned()),
             "host" if args.is_empty() => row.host = true,
             "isolate" if args.is_empty() => row.isolate = true,
             other => return Err(label(format!("`{other}(…)` is not a row option"))),

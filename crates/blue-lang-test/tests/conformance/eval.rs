@@ -319,7 +319,7 @@ pub fn project(obs: &Obs) -> Option<Abi> {
 
 pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
     match &row.expect {
-        Expect::Diagnoses(_) => Obs::Codes(static_codes(&row.src, roots)),
+        Expect::Diagnoses(_) => Obs::Codes(static_codes(&row.src, roots, row.frontend.as_deref())),
         Expect::Formats(_) => match blue_lang_pkg::canonical::format_with(
             &blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
             Path::new(ROW_FILE),
@@ -347,11 +347,51 @@ pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
 
 /// The codes `blue check` reports: a parse failure is `B0006`, otherwise
 /// every diagnostic the check stage finds, test blocks included.
-fn static_codes(src: &str, roots: &[PathBuf]) -> Vec<String> {
+struct View<'a> {
+    inner: blue_lang_pkg::load_path::LoadPath,
+    table: Option<&'a str>,
+}
+
+impl Loader for View<'_> {
+    fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+        self.inner.load(name)
+    }
+
+    fn entry_package(&self, path: &Path) -> Option<String> {
+        self.inner.entry_package(path)
+    }
+
+    fn needs(
+        &self,
+        package: &str,
+        entry_dir: Option<&Path>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        self.inner.needs(package, entry_dir)
+    }
+
+    fn version(&self, package: &str, entry_dir: Option<&Path>) -> Option<String> {
+        self.inner.version(package, entry_dir)
+    }
+
+    fn frontend(&self, entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
+        match self.table {
+            Some(t) => Some(blue_lang_runtime::uses::Frontend {
+                table: Some(("row.table".to_owned(), t.to_owned())),
+                view: true,
+            }),
+            None => self.inner.frontend(entry),
+        }
+    }
+}
+
+fn static_codes(src: &str, roots: &[PathBuf], frontend: Option<&str>) -> Vec<String> {
     if let Some(d) = blue_lang_runtime::pipeline::syntax_diagnostic(src) {
         return vec![d.code.as_str().to_owned()];
     }
-    let loader = blue_lang_pkg::load_path::LoadPath::new(roots.to_vec());
+    let loader = View {
+        inner: blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
+        table: frontend,
+    };
     let entry = Entry {
         path: Some(Path::new(ROW_FILE)),
         text: src,
@@ -385,6 +425,12 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         // value row read through it would measure the printer, not the row.
         // The printer has rows of its own (spec/rows/printing.b).
         return Obs::Blind("a value is not observable on stdout; see printing.b".into());
+    }
+    if row.frontend.is_some() {
+        return Obs::Blind(
+            "a frontend row is a view of a generated schema table, which only the static door is handed"
+                .into(),
+        );
     }
     let file = env.scratch.join(format!("row-{n}.b"));
     if let Err(e) = std::fs::write(&file, &row.src) {

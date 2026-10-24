@@ -676,6 +676,10 @@ impl Loader for LoadPath {
     /// The `package(name, …)` of the Bluefile beside `path`, when it
     /// declares a bidama ([`bidama_of`]). A file beside a project's Bluefile
     /// is in the root namespace.
+    fn frontend(&self, entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
+        crate::lock::frontend_of(entry)
+    }
+
     fn entry_package(&self, path: &Path) -> Option<String> {
         let dir = path
             .parent()

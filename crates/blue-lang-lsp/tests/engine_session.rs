@@ -702,3 +702,53 @@ fn hover_reads_a_bidamas_definition() {
     assert!(md.contains("bidama `retsu`"), "{md}");
     assert!(md.contains("Total length"), "{md}");
 }
+
+#[test]
+fn each_data_law_is_shown_at_its_span() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/frontend/views/profile.b")
+        .canonicalize()
+        .expect("the example view");
+    let uri = uri_of(&path);
+    let source = std::fs::read_to_string(&path).expect("profile.b");
+    let mut s = server();
+    open(&mut s, &uri, &source);
+    let cases = [
+        ("B0048", "#{user.name}", "#{user.id}", "#{user.id}"),
+        (
+            "B0049",
+            "[:id, \"...user_card\"]",
+            "[:id, \"...nobody\"]",
+            "\"...nobody\"",
+        ),
+        ("B0050", "on: \"User\"", "on: \"Person\"", "\"Person\""),
+        (
+            "B0051",
+            "def user_card",
+            "ALL = [:COOL, :WARM]\n\ndef user_card",
+            "[:COOL, :WARM]",
+        ),
+        (
+            "B0052",
+            "def user_card",
+            "ME = \"query Me { me }\"\n\ndef user_card",
+            "\"query Me { me }\"",
+        ),
+    ];
+    for (code, from, to, mark) in cases {
+        let text = source.replacen(from, to, 1);
+        let d = diagnostics(&change(&mut s, &uri, &text));
+        let found = d
+            .iter()
+            .find(|x| x["code"] == json!(code))
+            .unwrap_or_else(|| panic!("{code} not shown: {d:?}"));
+        assert_eq!(found["source"], json!("data"), "{code}");
+        let at = text.find(mark).expect("mark");
+        let start = &found["range"]["start"];
+        let line = text[..at].matches('\n').count();
+        assert_eq!(start["line"], json!(line), "{code}: {found}");
+        if code != "B0048" {
+            assert_eq!(start, &position(&text, at), "{code}: {found}");
+        }
+    }
+}

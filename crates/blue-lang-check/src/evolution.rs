@@ -200,6 +200,14 @@ pub const GAPS: &[Gap] = &[
         code: Code::B0022,
         why: "a malformed legacy_names declaration is the producer's own, fixed where it is declared",
     },
+    Gap {
+        code: Code::B0048,
+        why: "an undeclared read has two repairs, declare the field or move the read into the component that declares it; the declaration is offered as a suggestion",
+    },
+    Gap {
+        code: Code::B0052,
+        why: "operation text becomes a root fragment and its components' fragments, a restructuring no edit derives from the text",
+    },
 ];
 
 /// The evolution rules that block a program: ratcheted, error severity.

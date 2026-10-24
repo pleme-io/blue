@@ -260,6 +260,46 @@ pub fn locked_needs(dir: &Path) -> Option<BTreeMap<String, Range>> {
     )
 }
 
+#[must_use]
+pub fn frontend_of(entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
+    let entry = std::fs::canonicalize(entry).ok()?;
+    let mut fallback = None;
+    for dir in entry.ancestors().skip(1) {
+        if let Ok(text) = std::fs::read_to_string(dir.join(LOCK_FILE)) {
+            if let Ok(lock) = serde_json::from_str::<Lock>(&text) {
+                let project = &lock.manifest.project;
+                for frontend in project.frontends.values() {
+                    let table = frontend.schema.as_ref().and_then(|schema| {
+                        project
+                            .generated
+                            .values()
+                            .find(|g| g.inputs.iter().any(|i| i == schema))
+                            .and_then(|g| {
+                                let path = dir.join(&g.output);
+                                std::fs::read_to_string(&path)
+                                    .ok()
+                                    .map(|t| (path.display().to_string(), t))
+                            })
+                    });
+                    let view = frontend.views.iter().any(|v| {
+                        std::fs::canonicalize(dir.join(v)).is_ok_and(|v| entry.starts_with(v))
+                    });
+                    if view {
+                        return Some(blue_lang_runtime::uses::Frontend { table, view });
+                    }
+                    if fallback.is_none() && table.is_some() {
+                        fallback = Some(blue_lang_runtime::uses::Frontend { table, view });
+                    }
+                }
+            }
+        }
+        if dir.join(".git").exists() {
+            break;
+        }
+    }
+    fallback
+}
+
 fn read_text(path: &Path) -> Result<Option<String>, LockError> {
     match std::fs::read_to_string(path) {
         Ok(t) => Ok(Some(t)),

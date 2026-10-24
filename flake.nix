@@ -659,6 +659,12 @@
             in pkgs.runCommand "example-http" { } ''
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';
+
+          example-frontend =
+            let ex = engine.projectFor { inherit pkgs blue; src = ./examples/frontend; };
+            in pkgs.runCommand "example-frontend" { } ''
+              ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
+            '';
         } // lib.optionalAttrs (ociFor system != null) {
           # The distroless gate's positive control: an image built with a
           # shell must be refused as distroless-static, naming the shell, or

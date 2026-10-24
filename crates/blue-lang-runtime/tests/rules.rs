@@ -20,8 +20,12 @@ use blue_lang_check::{Code, Severity, RULES};
 use blue_lang_runtime::pipeline::{check_entry, run, syntax_diagnostic, Checking, RunError};
 use blue_lang_runtime::uses::{Entry, Loader};
 
-/// The witness's bidamas, in memory.
-struct Imports(&'static [(&'static str, &'static str)]);
+/// The witness's bidamas, in memory, and the schema table of the frontend
+/// a data-law witness is a view of.
+struct Imports(
+    &'static [(&'static str, &'static str)],
+    Option<&'static str>,
+);
 
 impl Loader for Imports {
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
@@ -47,9 +51,24 @@ impl Loader for Imports {
     fn version(&self, _package: &str, _entry_dir: Option<&std::path::Path>) -> Option<String> {
         Some("0.1.1".to_string())
     }
+
+    fn frontend(&self, _entry: &std::path::Path) -> Option<blue_lang_runtime::uses::Frontend> {
+        self.1.map(|t| blue_lang_runtime::uses::Frontend {
+            table: Some(("schema.table".to_string(), t.to_string())),
+            view: true,
+        })
+    }
 }
 
 fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Vec<Code> {
+    codes_in(src, imports, None)
+}
+
+fn codes_in(
+    src: &str,
+    imports: &'static [(&'static str, &'static str)],
+    frontend: Option<&'static str>,
+) -> Vec<Code> {
     if let Some(d) = syntax_diagnostic(src) {
         return vec![d.code];
     }
@@ -58,7 +77,7 @@ fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Ve
             path: Some(std::path::Path::new("witness.b")),
             text: src,
         },
-        &Imports(imports),
+        &Imports(imports, frontend),
         None,
         Checking::WithTests,
     )
@@ -83,7 +102,7 @@ fn codes_of(src: &str) -> Vec<Code> {
 fn every_rule_fires_on_its_witness_and_only_it() {
     let mut failures = Vec::new();
     for r in RULES {
-        let got = codes_with(r.witness, r.imports);
+        let got = codes_in(r.witness, r.imports, r.frontend);
         if got != vec![r.code] {
             failures.push(format!("{}: expected [{}], got {got:?}", r.code, r.code));
         }

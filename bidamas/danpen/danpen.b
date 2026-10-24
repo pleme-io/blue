@@ -1,6 +1,6 @@
 use("deeta", [:get_or])
 use("kiwari")
-use("moji", [:checked])
+use("moji", [:capitalize, :checked])
 use("retsu", [:first, :is_empty, :last, :rest])
 use("shomei")
 use("tesuto", [:raises?])
@@ -1920,10 +1920,12 @@ def render(document, format?, opts?)
     document_text(0, document)
   elsif f == :compact
     document_text(nil, document)
+  elsif f == :table
+    table_text(document)
   else
     raise(
       :bad_option,
-      "render: the format must be :graphql or :compact, got #{f}"
+      "render: the format must be :graphql, :compact or :table, got #{f}"
     )
   end
 end
@@ -3435,16 +3437,40 @@ def fragments_of(x)
   end
 end
 
-def compose(first, second)
-  ops = filter(
-    (d) -> get(d, :kind) == :operation,
-    get(as_document(first), :definitions)
+def operation_of(frag)
+  op = get(
+    {
+      "Query" => :query,
+      "Mutation" => :mutation,
+      "Subscription" => :subscription
+    },
+    get(frag, :on)
   )
+  if op.nil?
+    raise(
+      :bad_option,
+      "compose: fragment #{get(frag, :name)} is on #{get(frag, :on)}, not a root type"
+    )
+  end
+  {
+    kind: :operation,
+    operation: op,
+    name: join(map(capitalize, split(get(frag, :name), "_")), ""),
+    variables: [],
+    directives: [],
+    selections: [{kind: :spread, name: get(frag, :name), directives: []}]
+  }
+end
+
+def compose(first, second)
+  doc = if map?(first) and get(first, :kind) == :fragment
+    {kind: :document, definitions: [operation_of(first), first]}
+  else
+    as_document(first)
+  end
+  ops = filter((d) -> get(d, :kind) == :operation, get(doc, :definitions))
   pool = append(
-    filter(
-      (d) -> get(d, :kind) == :fragment,
-      get(as_document(first), :definitions)
-    ),
+    filter((d) -> get(d, :kind) == :fragment, get(doc, :definitions)),
     fragments_of(second)
   )
   frags = reduce((m, f) -> assoc(m, get(f, :name), f), {}, reverse(pool))
@@ -3538,6 +3564,61 @@ end
 
 def hash(operation, algorithm?)
   shomei::hash(render(as_document(operation)), algorithm or :sha256)
+end
+
+def schema_table(sdl)
+  s = schema_of(as_document(sdl))
+  found = get(s, :findings)
+  if not is_empty(found)
+    raise(
+      :invalid,
+      "the schema has #{length(found)} finding(s): #{get(first(found), :message)}",
+      {data: found}
+    )
+  end
+  user = filter(
+    (d) -> not get(d, :builtin),
+    map((e) -> second(e), map_entries(get(s, :types)))
+  )
+  {
+    types: reduce(
+      fn(m, d)
+        assoc(
+          m,
+          get(d, :name),
+          reduce(
+            (fm, f) -> assoc(fm, get(f, :name), base_name(get(f, :type))),
+            {},
+            get(d, :fields) or []
+          )
+        )
+      end,
+      {},
+      filter((d) -> composite?(get(d, :kind)), user)
+    ),
+    enums: reduce(
+      fn(m, d)
+        assoc(m, get(d, :name), map((v) -> get(v, :name), get(d, :values)))
+      end,
+      {},
+      filter((d) -> get(d, :kind) == :enum, user)
+    )
+  }
+end
+
+def table_entries(m)
+  join(
+    map(
+      (e) -> "    \"#{first(e)}\" => #{to_s(second(e))}",
+      sort_keyed(first, map_entries(m))
+    ),
+    ",\n"
+  )
+end
+
+def table_text(document)
+  t = schema_table(document)
+  "{\n  types: {\n#{table_entries(get(t, :types))}\n  },\n  enums: {\n#{table_entries(get(t, :enums))}\n  }\n}\n"
 end
 
 def fixtures(dir)
@@ -3834,6 +3915,18 @@ test "compose joins an operation with the fragments it reaches, by name"
     get(parse("{ hero { id } }"), :definitions)
 end
 
+test "compose writes a view's operation from its root fragment"
+  card = fragment(:user_card, {on: "User", fields: [:name]})
+  page = fragment(
+    :profile_page,
+    {on: "Query", fields: [{me: ["...user_card"]}]}
+  )
+  assert render(compose(page, [card]), :compact) ==
+    "query ProfilePage { ...profile_page } fragment profile_page on Query { me { ...user_card } } fragment user_card on User { name }"
+  assert raises?(:bad_option, () -> compose(card, []))
+  assert raises?(:unknown_fragment, () -> compose(page, []))
+end
+
 test "select reads only the fields a fragment declares"
   card = fragment(
     :card,
@@ -3895,6 +3988,27 @@ test "every record kind the parser makes is a kind a grammar rule lowers to"
   assert filter((k) -> not member?(k, kinds), seen) == []
   assert filter((k) -> not member?(k, seen), kinds) == []
   assert length(seen) == 24
+end
+
+test "the schema table is every composite type's fields and every enum's values"
+  sdl = "type Query { me: User }\ntype User { id: ID! tags: [Tone!]! friends: [User] }\nenum Tone { WARM COOL }\nunion Any = User\nscalar Day"
+  t = schema_table(sdl)
+  assert get(get(t, :types), "User") ==
+    {"id" => "ID", "tags" => "Tone", "friends" => "User"}
+  assert get(get(t, :types), "Any") == {}
+  assert get(get(t, :types), "Day").nil?
+  assert get(get(t, :types), "String").nil?
+  assert get(get(t, :enums), "Tone") == ["WARM", "COOL"]
+  assert raises?(:invalid, () -> schema_table("type Q { a: Nope }"))
+end
+
+test "render as a table is blue text that reads back as the table"
+  text = render(
+    parse("type Query { me: User }\ntype User { id: ID! }\nenum Tone { A B }"),
+    :table
+  )
+  assert text ==
+    "{\n  types: {\n    \"Query\" => {\"me\" => \"User\"},\n    \"User\" => {\"id\" => \"ID\"}\n  },\n  enums: {\n    \"Tone\" => [\"A\", \"B\"]\n  }\n}\n"
 end
 
 test "check finds nothing in a sound schema or document"

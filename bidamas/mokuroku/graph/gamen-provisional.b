@@ -203,7 +203,7 @@ verb(
     shape: "labels(enum, entries) -> table",
     laterals: ["validate"],
     fleet: "lilitu",
-    today: "absent",
+    today: "exists:gamen",
     meaning: "display text keyed by each backend enum value",
     wave: 1,
     origin: "I"

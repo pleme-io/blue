@@ -34,6 +34,7 @@ use std::collections::BTreeMap;
 use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 
 pub mod chains;
+pub mod data_laws;
 pub mod evolution;
 pub mod fixes;
 pub mod form_rules;
@@ -65,6 +66,7 @@ pub enum Ty {
     List(Box<Ty>),
     /// A name the checker does not know. Treated as opaque and nominal.
     Named(String),
+    Fragment(Box<data_laws::Selection>),
 }
 
 impl Ty {
@@ -103,6 +105,7 @@ impl Ty {
         match (self, want) {
             (Ty::Dyn, _) | (_, Ty::Dyn) => true,
             (Ty::List(a), Ty::List(b)) => a.accepts(b),
+            (Ty::Fragment(a), Ty::Fragment(b)) => a.fragment == b.fragment && a.path == b.path,
             (a, b) => a == b,
         }
     }
@@ -118,6 +121,7 @@ impl Ty {
             Ty::Nil => "Nil".into(),
             Ty::List(t) => format!("List({})", t.name()),
             Ty::Named(n) => n.clone(),
+            Ty::Fragment(sel) => sel.type_name(),
         }
     }
 }
@@ -376,14 +380,26 @@ struct Sig {
 /// editor given that has nothing to underline. That is not a hypothetical: it is
 /// exactly the state this function replaced.
 pub fn check_program(forms: &[Spanned]) -> Outcome {
+    check_program_in(forms, &|_, _| true)
+}
+
+pub fn check_program_in(forms: &[Spanned], same_file: &dyn Fn(usize, usize) -> bool) -> Outcome {
     let mut out = Outcome::default();
     let mut sigs: BTreeMap<String, Sig> = BTreeMap::new();
+    let frags = data_laws::Fragments::collect(forms);
 
     // Pass 1: collect declared signatures. Only typed heads are read, so
     // an entirely unannotated program leaves this map empty and pass 2
     // has nothing to walk.
     for form in forms {
-        if let Some((name, sig)) = read_typed_decl(form) {
+        if let Some((name, mut sig)) = read_typed_decl(form) {
+            for p in &mut sig.params {
+                if let Ty::Named(n) = p {
+                    if let Some(f) = frags.by_type(n) {
+                        *p = Ty::Fragment(Box::new(f.selection.clone()));
+                    }
+                }
+            }
             sigs.insert(name, sig);
             out.stats.typed_decls += 1;
         }
@@ -419,7 +435,13 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
             // property of WHICH top-level form is being walked, and only this
             // loop knows that, so it is recorded where it is known.
             let before = out.diagnostics.len();
-            let body_ty = infer(body, &env, &sigs, &mut out);
+            let cx = Cx {
+                sigs: &sigs,
+                frags: &frags,
+                top: top_level,
+                same_file,
+            };
+            let body_ty = infer(body, &env, &cx, &mut out);
             for d in &mut out.diagnostics[before..] {
                 d.top_level = top_level;
             }
@@ -497,12 +519,108 @@ fn op_sig(op: &str) -> Option<(Ty, Ty)> {
     })
 }
 
-fn infer(
-    s: &Spanned,
-    env: &BTreeMap<String, Ty>,
-    sigs: &BTreeMap<String, Sig>,
+struct Cx<'a> {
+    sigs: &'a BTreeMap<String, Sig>,
+    frags: &'a data_laws::Fragments,
+    top: usize,
+    same_file: &'a dyn Fn(usize, usize) -> bool,
+}
+
+fn literal_key(s: &Spanned) -> Option<&str> {
+    s.as_keyword().or_else(|| s.as_string())
+}
+
+fn read_field(
+    sel: &data_laws::Selection,
+    key: &str,
+    at: Span,
+    cx: &Cx<'_>,
     out: &mut Outcome,
 ) -> Ty {
+    if let Some(f) = sel.field(key) {
+        return f
+            .sub
+            .clone()
+            .map_or(Ty::Dyn, |sub| Ty::Fragment(Box::new(sub)));
+    }
+    if key == "__typename" {
+        return Ty::Dyn;
+    }
+    let owner = cx.frags.get(&sel.fragment).map(|f| f.top_level);
+    let editable = owner.is_some_and(|o| (cx.same_file)(o, cx.top));
+    let d = match cx.frags.declaring(sel, key) {
+        Some(child) => Diagnostic::new(
+            Code::B0048,
+            format!(
+                "`{key}` is declared by fragment `{child}`, not by {}: a parent cannot read a child's field",
+                sel.place()
+            ),
+            at,
+        )
+        .with_help(format!(
+            "pass the value to the component whose parameter is `{}`, or declare `{key}` here as well",
+            data_laws::type_name(&child)
+        )),
+        None => {
+            let d = Diagnostic::new(
+                Code::B0048,
+                format!("`{key}` is not declared by {}", sel.place()),
+                at,
+            )
+            .with_help(format!("declare `{key}` in the fragment's fields, or stop reading it"));
+            match sel.add_field(key).filter(|_| editable) {
+                Some(edit) => d.with_fix(Fix {
+                    message: format!("declare `{key}` in {}", sel.place()),
+                    edits: vec![edit],
+                    applicability: Applicability::MaybeIncorrect,
+                }),
+                None => d,
+            }
+        }
+    };
+    out.diagnostics.push(d);
+    Ty::Dyn
+}
+
+fn composed(
+    want: &data_laws::Selection,
+    got: &data_laws::Selection,
+    head: &str,
+    i: usize,
+    at: Span,
+    cx: &Cx<'_>,
+    out: &mut Outcome,
+) {
+    if (got.fragment == want.fragment && got.path == want.path) || got.spreads(&want.fragment) {
+        return;
+    }
+    let owner = cx.frags.get(&got.fragment).map(|f| f.top_level);
+    let editable = owner.is_some_and(|o| (cx.same_file)(o, cx.top));
+    let d = Diagnostic::new(
+        Code::B0049,
+        format!(
+            "`{head}` argument {} is a `{}` ref, and {} does not spread `...{}`: the operation is the union of the fragments of the components it renders",
+            i + 1,
+            want.type_name(),
+            got.place(),
+            want.fragment
+        ),
+        at,
+    )
+    .with_help(format!("spread `...{}` where the value is selected", want.fragment));
+    let d = match got.add_spread(&want.fragment).filter(|_| editable) {
+        Some(edit) => d.with_fix(Fix {
+            message: format!("spread `...{}` in {}", want.fragment, got.place()),
+            edits: vec![edit],
+            applicability: Applicability::MachineApplicable,
+        }),
+        None => d,
+    };
+    out.diagnostics.push(d);
+}
+
+fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome) -> Ty {
+    let sigs = cx.sigs;
     out.stats.visited += 1;
     match &s.form {
         SpannedForm::Nil => Ty::Nil,
@@ -520,7 +638,7 @@ fn infer(
                 Some(h) => h,
                 None => {
                     for i in items {
-                        infer(i, env, sigs, out);
+                        infer(i, env, cx, out);
                     }
                     return Ty::Dyn;
                 }
@@ -528,27 +646,65 @@ fn infer(
 
             // `if`
             if head == "if" && items.len() >= 3 {
-                infer(&items[1], env, sigs, out);
-                let t = infer(&items[2], env, sigs, out);
+                infer(&items[1], env, cx, out);
+                let t = infer(&items[2], env, cx, out);
                 if let Some(e) = items.get(3) {
-                    let f = infer(e, env, sigs, out);
+                    let f = infer(e, env, cx, out);
                     return if t.accepts(&f) { t } else { Ty::Dyn };
                 }
                 return Ty::Dyn;
             }
 
             if head == "begin" {
+                let mut local = env.clone();
                 let mut last = Ty::Nil;
                 for i in &items[1..] {
-                    last = infer(i, env, sigs, out);
+                    let bound = i.as_list().and_then(|d| match d {
+                        [h, name, value] if h.as_symbol() == Some("define") => {
+                            name.as_symbol().map(|n| (n, value))
+                        }
+                        _ => None,
+                    });
+                    last = match bound {
+                        Some((n, value)) => {
+                            let t = infer(value, &local, cx, out);
+                            local.insert(n.to_string(), t);
+                            Ty::Nil
+                        }
+                        None => infer(i, &local, cx, out),
+                    };
                 }
                 return last;
+            }
+
+            if matches!(head, "lambda" | "fn") && items.len() >= 3 {
+                let mut local = env.clone();
+                if let Some(params) = items[1].as_list() {
+                    for p in params {
+                        if let Some(n) = p.as_symbol() {
+                            local.remove(n);
+                        }
+                    }
+                }
+                for b in &items[2..] {
+                    infer(b, &local, cx, out);
+                }
+                return Ty::Dyn;
+            }
+
+            if (head == "blue-field" || head == "get") && items.len() == 3 {
+                let base = infer(&items[1], env, cx, out);
+                if let (Ty::Fragment(sel), Some(key)) = (&base, literal_key(&items[2])) {
+                    return read_field(sel, key, s.span, cx, out);
+                }
+                infer(&items[2], env, cx, out);
+                return Ty::Dyn;
             }
 
             // Operators
             if let Some((arg, ret)) = op_sig(head) {
                 for a in &items[1..] {
-                    let got = infer(a, env, sigs, out);
+                    let got = infer(a, env, cx, out);
                     if !got.accepts(&arg) {
                         out.diagnostics.push(Diagnostic::new(
                             Code::B0004,
@@ -571,11 +727,13 @@ fn infer(
             // A call to a DECLARED function: check the arguments.
             if let Some(sig) = sigs.get(head) {
                 for (i, a) in items[1..].iter().enumerate() {
-                    let got = infer(a, env, sigs, out);
+                    let got = infer(a, env, cx, out);
                     let Some(want) = sig.params.get(i) else {
                         continue;
                     };
-                    if got == Ty::Dyn && *want != Ty::Dyn {
+                    if let (Ty::Fragment(w), Ty::Fragment(g)) = (want, &got) {
+                        composed(w, g, head, i, a.span, cx, out);
+                    } else if got == Ty::Dyn && *want != Ty::Dyn {
                         // THE SEAM. The argument is undeclared and the
                         // callee is not. The obligation is discharged HERE
                         // with a runtime check — the checker does NOT walk
@@ -606,7 +764,7 @@ fn infer(
             // looking for the callee's definition** — that is the backward
             // inference the ladder forbids.
             for a in &items[1..] {
-                infer(a, env, sigs, out);
+                infer(a, env, cx, out);
             }
             Ty::Dyn
         }

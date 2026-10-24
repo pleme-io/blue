@@ -1,0 +1,19 @@
+type Query {
+  user(id: ID!): User
+}
+
+type User {
+  id: ID!
+  name: String!
+  tone: Tone!
+  avatar: Image
+}
+
+type Image {
+  url: String!
+}
+
+enum Tone {
+  WARM
+  COOL
+}

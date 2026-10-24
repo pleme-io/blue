@@ -376,6 +376,61 @@ fn a_silent_server_times_out() {
 }
 
 #[test]
+fn tcp_connect_ms_times_an_accepted_connect() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let v = run(&format!("tcp_connect_ms(\"127.0.0.1\", {port}, 1000)"));
+    let Value::Int(ms) = v else {
+        panic!("expected milliseconds, got {v:?}");
+    };
+    assert!((0..1000).contains(&ms), "{ms}");
+    let (_, peer) = listener.accept().expect("the connect reached the listener");
+    assert!(peer.ip().is_loopback());
+}
+
+#[test]
+fn tcp_connect_ms_answers_a_failed_connect_with_its_reason() {
+    let port = free_port();
+    let v = run(&format!("tcp_connect_ms(\"127.0.0.1\", {port}, 500)"));
+    let got = strs(&v);
+    assert_eq!(got.len(), 3, "{got:?}");
+    assert!(
+        matches!(&v, Value::List(xs) if matches!(&xs[0], Value::Keyword(k) if &**k == "error"))
+    );
+    assert!(
+        matches!(&v, Value::List(xs) if matches!(&xs[1], Value::Keyword(k) if &**k == "refused")),
+        "{v:?}"
+    );
+    assert!(got[2].contains(&port.to_string()), "{got:?}");
+    let v = run("tcp_connect_ms(\"no-such-host.invalid\", 22, 500)");
+    assert!(
+        matches!(&v, Value::List(xs) if matches!(&xs[1], Value::Keyword(k) if &**k == "unresolved")),
+        "{v:?}"
+    );
+}
+
+#[test]
+fn tcp_connect_ms_gives_up_at_its_timeout() {
+    let start = Instant::now();
+    let v = run("tcp_connect_ms(\"10.255.255.1\", 9, 300)");
+    assert!(
+        start.elapsed() < Duration::from_millis(1500),
+        "took {:?}",
+        start.elapsed()
+    );
+    assert!(
+        matches!(&v, Value::List(xs) if matches!(&xs[1], Value::Keyword(k) if matches!(&**k, "timeout" | "unreachable"))),
+        "{v:?}"
+    );
+}
+
+#[test]
+fn tcp_connect_ms_refuses_a_bad_port_or_timeout() {
+    assert!(run_err("tcp_connect_ms(\"127.0.0.1\", 70000, 500)").contains("port must be"));
+    assert!(run_err("tcp_connect_ms(\"127.0.0.1\", 22, 0)").contains("timeout must be"));
+}
+
+#[test]
 fn https_and_unreachable_hosts_raise() {
     let err = run_err("http_request(\"GET\", \"https://example.invalid/\", nil, nil, 500)");
     assert!(err.contains("https is not supported"), "{err}");

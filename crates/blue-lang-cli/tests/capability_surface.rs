@@ -210,8 +210,9 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             // daemon drives a message bus and calls an HTTP API; 12 with
             // http_listen, http_listener_port, http_next_request and
             // http_respond, so a blue service answers HTTP; 16 with the
-            // four pg_ words, so it reads and writes PostgreSQL.
-            ("network", 16),
+            // four pg_ words, so it reads and writes PostgreSQL; 17 since
+            // 2026-10-24 with tcp_connect_ms, so a prober times a path.
+            ("network", 17),
             // Since 2026-10-23: random_bytes, the one draw from the system
             // entropy source, so key material and nonces are generated here.
             ("entropy", 1)

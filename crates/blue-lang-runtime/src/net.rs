@@ -13,6 +13,7 @@
 //! nats_unsubscribe(sub)                       → nil
 //! nats_close(conn)                            → nil
 //! http_request(method, url, headers, body, ms) → {status:, headers:, body:}
+//! tcp_connect_ms(host, port, ms)              → connect time in ms, or [:error, why, detail]
 //! http_listen(addr)                           → listener
 //! http_listener_port(listener)                → the bound port
 //! http_next_request(listener, ms)             → {method:, path:, query:, headers:, body:, exchange:} or nil
@@ -34,7 +35,7 @@ pub mod serve;
 
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{EvalError, Interpreter, Map, MapKey, Value};
@@ -64,22 +65,83 @@ pub fn split_host_port(s: &str, default_port: u16) -> Result<(String, u16), Stri
     Ok((host.to_string(), port))
 }
 
-pub fn dial(host: &str, port: u16, timeout: Duration) -> Result<TcpStream, String> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialFailure {
+    Unresolved,
+    Timeout,
+    Refused,
+    Unreachable,
+    Failed,
+}
+
+impl DialFailure {
+    pub fn keyword(self) -> &'static str {
+        match self {
+            DialFailure::Unresolved => "unresolved",
+            DialFailure::Timeout => "timeout",
+            DialFailure::Refused => "refused",
+            DialFailure::Unreachable => "unreachable",
+            DialFailure::Failed => "failed",
+        }
+    }
+
+    fn of(e: &std::io::Error) -> Self {
+        use std::io::ErrorKind;
+        match e.kind() {
+            ErrorKind::TimedOut | ErrorKind::WouldBlock => DialFailure::Timeout,
+            ErrorKind::ConnectionRefused => DialFailure::Refused,
+            ErrorKind::HostUnreachable
+            | ErrorKind::NetworkUnreachable
+            | ErrorKind::AddrNotAvailable
+            | ErrorKind::NetworkDown => DialFailure::Unreachable,
+            _ => DialFailure::Failed,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Dialed {
+    pub stream: TcpStream,
+    pub elapsed: Duration,
+}
+
+pub fn dial_timed(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+) -> Result<Dialed, (DialFailure, String)> {
     let addrs: Vec<_> = (host, port)
         .to_socket_addrs()
-        .map_err(|e| format!("{host}:{port}: {e}"))?
+        .map_err(|e| (DialFailure::Unresolved, format!("{host}:{port}: {e}")))?
         .collect();
-    let mut last = format!("{host}:{port}: no address");
+    let mut last = (
+        DialFailure::Unresolved,
+        format!("{host}:{port}: no address"),
+    );
+    let deadline = Instant::now() + timeout;
     for addr in addrs {
-        match TcpStream::connect_timeout(&addr, timeout) {
-            Ok(s) => {
-                let _ = s.set_nodelay(true);
-                return Ok(s);
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            last = (DialFailure::Timeout, format!("{host}:{port}: timed out"));
+            break;
+        }
+        let start = Instant::now();
+        match TcpStream::connect_timeout(&addr, left) {
+            Ok(stream) => {
+                let elapsed = start.elapsed();
+                let _ = stream.set_nodelay(true);
+                return Ok(Dialed { stream, elapsed });
             }
-            Err(e) => last = format!("{host}:{port}: {e}"),
+            Err(e) => last = (DialFailure::of(&e), format!("{host}:{port}: {e}")),
         }
     }
     Err(last)
+}
+
+pub fn dial(host: &str, port: u16, timeout: Duration) -> Result<TcpStream, String> {
+    dial_timed(host, port, timeout)
+        .map(|d| d.stream)
+        .map_err(|(_, detail)| detail)
 }
 
 struct NatsConnection(Mutex<nats::Client>);
@@ -247,6 +309,7 @@ fn headers_arg(
 pub fn install_net<H: 'static>(interp: &mut Interpreter<H>) {
     install_nats(interp);
     install_http(interp);
+    install_tcp(interp);
     install_serve(interp);
     install_pg(interp);
 }
@@ -400,6 +463,39 @@ fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
                 ),
                 ("body", text(&resp.body)),
             ]))
+        },
+    );
+}
+
+fn install_tcp<H: 'static>(interp: &mut Interpreter<H>) {
+    interp.register_fn(
+        "tcp_connect_ms",
+        Arity::Exact(3),
+        |args: &[Value], _h: &mut H, span| {
+            let host = arg_str(&args[0], "tcp_connect_ms", span)?;
+            let port = arg_int(&args[1], "tcp_connect_ms", span)?;
+            let port = u16::try_from(port)
+                .ok()
+                .filter(|p| *p != 0)
+                .ok_or_else(|| {
+                    EvalError::native_fn(
+                        "tcp_connect_ms",
+                        format!("port must be 1..=65535, got {port}"),
+                        span,
+                    )
+                })?;
+            let timeout = arg_ms(&args[2], "tcp_connect_ms", span, false)?;
+            Ok(match dial_timed(&host, port, timeout) {
+                Ok(d) => {
+                    drop(d.stream);
+                    Value::Int(i64::try_from(d.elapsed.as_millis()).unwrap_or(i64::MAX))
+                }
+                Err((why, detail)) => Value::list(vec![
+                    Value::Keyword(Arc::from("error")),
+                    Value::Keyword(Arc::from(why.keyword())),
+                    Value::Str(Arc::from(detail)),
+                ]),
+            })
         },
     );
 }

@@ -102,7 +102,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-293 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+294 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -421,6 +421,7 @@ Higher binding power binds tighter.
 | `pg_connect` | `pg_connect(url[, timeout_ms])` | 1..2 | A PostgreSQL connection to postgres://user@host[:port]/database (a password, when the server asks for one, rides in the url's userinfo after a colon), speaking the wire protocol over plain TCP: trust, password and SCRAM-SHA-256 authentication; md5 and TLS are refused by name. Raises when it cannot connect. |
 | `pg_execute` | `pg_execute(conn, sql)` | 2 | A script of statements, unparameterised: the list of their command tags. Raises naming the first failure. |
 | `pg_query` | `pg_query(conn, sql, params)` | 3 | One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text. |
+| `tcp_connect_ms` | `tcp_connect_ms(host, port, timeout_ms)` | 3 | Open one TCP connection to host:port and close it at once: the milliseconds the connect took, the handshake only (name resolution is not counted). A failed connect is an answer, not a raise: [:error, why, detail], why one of :unresolved, :timeout, :refused, :unreachable or :failed. A bad port or timeout raises. |
 
 ### Hashing and signatures
 

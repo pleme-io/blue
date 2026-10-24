@@ -70,6 +70,21 @@ row(
 )
 
 row(
+  "network.tcp_connect_ms.refused_is_an_answer",
+  "take(2, tcp_connect_ms(\"127.0.0.1\", 1, 500))",
+  value("[:error, :refused]"),
+  covers("builtin:tcp_connect_ms"),
+  host()
+)
+
+row(
+  "network.tcp_connect_ms.bad_port",
+  "tcp_connect_ms(\"127.0.0.1\", 0, 500)",
+  fails(:eval, "port must be 1..=65535"),
+  host()
+)
+
+row(
   "network.http_listen.bad_address",
   "http_listen(\"no-port-here\")",
   fails(:eval, "cannot listen"),

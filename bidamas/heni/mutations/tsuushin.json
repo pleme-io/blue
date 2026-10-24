@@ -1,0 +1,20 @@
+[
+  {
+    "name": "a json body goes without its content type",
+    "file": "tsuushin.b",
+    "find": "[[\"content-type\", \"application/json\"], [\"accept\", \"application/json\"]]",
+    "replace": "[[\"accept\", \"application/json\"]]"
+  },
+  {
+    "name": "any method is sent",
+    "file": "tsuushin.b",
+    "find": "if not member?(method, methods)",
+    "replace": "if false"
+  },
+  {
+    "name": "the default deadline is a minute",
+    "file": "tsuushin.b",
+    "find": "get(o, :timeout_ms) or 10000",
+    "replace": "get(o, :timeout_ms) or 60000"
+  }
+]

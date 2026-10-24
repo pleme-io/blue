@@ -185,6 +185,7 @@ fn distribution_definitions_that_replace_builtins_are_pinned() {
             "keisoku.put",
             "keisoku.read",
             "kueri.has?",
+            "kyasshu.read",
             "moji.trim",
             "moji.truncate",
             "nikkusu.read",

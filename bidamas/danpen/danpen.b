@@ -3321,7 +3321,7 @@ end
 
 def schema_of(schema, opts?)
   opts = checked(opts, [:defaults])
-  if get(schema, :kind) == :schema_of
+  if map?(schema) and get(schema, :kind) == :schema_of
     schema
   else
     s = assoc(
@@ -3488,37 +3488,43 @@ def response_key(sel)
   get(sel, :alias) or get(sel, :name)
 end
 
-def select_into(value, sels)
-  if value.nil?
+def plain_hooks()
+  {resolve: (v) -> v, absent: (acc, _key) -> acc, start: (_v) -> {}}
+end
+
+def select_into(value, sels, hooks?)
+  h = hooks or plain_hooks
+  v = get(h, :resolve)(value)
+  if v.nil?
     nil
-  elsif list?(value)
-    map((v) -> select_into(v, sels), value)
-  elsif not map?(value)
-    value
+  elsif list?(v)
+    map((x) -> select_into(x, sels, h), v)
+  elsif not map?(v)
+    v
   else
     reduce(
       fn(acc, sel)
         k = get(sel, :kind)
         if k == :field
           key = response_key(sel)
-          if member?(key, map((e) -> first(e), map_entries(value)))
-            v = get(value, key)
+          if member?(key, map((e) -> first(e), map_entries(v)))
+            fv = get(v, key)
             assoc(
               acc,
               key,
               if is_empty(get(sel, :selections))
-                v
+                fv
               else
-                select_into(v, get(sel, :selections))
+                select_into(fv, get(sel, :selections), h)
               end
             )
           else
-            acc
+            get(h, :absent)(acc, key)
           end
         elsif k == :inline
-          typename = get(value, "__typename")
+          typename = get(v, "__typename")
           if get(sel, :on).nil? or typename.nil? or typename == get(sel, :on)
-            {**acc, **select_into(value, get(sel, :selections))}
+            {**acc, **select_into(v, get(sel, :selections), h)}
           else
             acc
           end
@@ -3526,7 +3532,7 @@ def select_into(value, sels)
           acc
         end
       end,
-      {},
+      get(h, :start)(v),
       sels
     )
   end
@@ -3862,6 +3868,34 @@ test "select reads only the fields a fragment declares"
     {"n" => "R", "role" => "x", "height" => 2, "__typename" => "Human"},
     aliased
   ) == {"n" => "R", "height" => 2}
+end
+
+test "select_into takes hooks that resolve a value, answer an absent field and start a record"
+  people = {"u1" => {"id" => "u1", "name" => "Ada"}}
+  hooks = {
+    resolve: fn(x)
+      if map?(x) and get(x, "ref") != nil
+        get(people, get(x, "ref"))
+      else
+        x
+      end
+    end,
+    absent: (_acc, key) -> raise(:absent, key),
+    start: (x) -> {"seen" => get(x, "id")}
+  }
+  sels = get(fragment(:f, {on: "Query", fields: [{who: [:name]}]}), :selections)
+  assert select_into({"who" => {"ref" => "u1"}}, sels, hooks) ==
+    {"seen" => nil, "who" => {"seen" => "u1", "name" => "Ada"}}
+  assert raises?(:absent, () -> select_into({}, sels, hooks))
+  assert select_into({}, sels) == {}
+  assert select_into({"who" => {"ref" => "u1"}}, sels) == {"who" => {}}
+end
+
+test "a schema given as text is read as a schema"
+  sdl = "type Query { a: Int }"
+  assert check("{ a }", sdl) == []
+  assert map((f) -> get(f, :rule), check("{ b }", sdl)) == ["field-exists"]
+  assert validate("{ a }", sdl) == parse("{ a }")
 end
 
 test "hash is the sha256 of the canonical text, as shasum computes it"

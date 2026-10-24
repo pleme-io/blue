@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:12e11906fded2e9dcc51915e70e51380d886cffda4eb029f08e9666c0edf95c4",
+  "bluefile_b3": "b3:f3299e8a1af78a3e6b20e0d33db43795358deb239dbf2a7ea7774cc246fdc69f",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -72,6 +72,13 @@
       "kiwari-spec": {
         "output": "crates/blue-lang-kiwari/blue.kiwari.json",
         "program": "gen/kiwari/spec.b"
+      },
+      "kyasshu-keys": {
+        "output": "bidamas/kyasshu/keys/kensa.json",
+        "program": "gen/kyasshu-keys.b",
+        "inputs": [
+          "bidamas/danpen/fixtures/schema/kensa.graphql"
+        ]
       },
       "okite-rules": {
         "output": "bidamas/okite/RULES.md",

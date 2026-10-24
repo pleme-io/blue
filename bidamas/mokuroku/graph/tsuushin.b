@@ -278,7 +278,7 @@ verb(
     shape: "request(method, url, opts) -> response",
     laterals: ["capability", "deadline", "error", "retry", "trace"],
     fleet: "blue-lang-runtime",
-    today: "rust:blue-lang-runtime",
+    today: "exists:tsuushin",
     meaning: "Send one HTTP request; any status is data.",
     wave: 0,
     origin: "C"

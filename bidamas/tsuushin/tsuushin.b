@@ -4,6 +4,7 @@ use(
     :after_first,
     :before_first,
     :char_index,
+    :checked,
     :drop_chars,
     :is_alnum,
     :is_alpha,
@@ -18,6 +19,7 @@ use(
 
 use("retsu", [:all_but_last, :first, :is_empty, :last, :push, :rest])
 use("ronri", [:every])
+use("tesuto", [:raises?])
 
 def default_port(scheme)
   if scheme == "http"
@@ -245,6 +247,55 @@ def join(base, path)
   end
 end
 
+def methods()
+  ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+end
+
+def header_pairs(headers)
+  if headers.nil?
+    []
+  elsif map?(headers)
+    map((e) -> [lower(to_s(first(e))), second(e)], map_entries(headers))
+  elsif list?(headers)
+    map((p) -> [lower(to_s(first(p))), second(p)], headers)
+  else
+    raise(:bad_option, "headers: a record or a list of [name, value] pairs")
+  end
+end
+
+def wire()
+  fn(method, url, headers, body, timeout_ms)
+    http_request(method, url, headers, body, timeout_ms)
+  end
+end
+
+def request(method, url, opts?)
+  o = checked(opts, [:headers, :body, :json, :timeout_ms, :transport])
+  if not member?(method, methods)
+    raise(:bad_option, "request: method #{to_s(method)} is not an HTTP method")
+  end
+  parse(url, :url)
+  json = get(o, :json)
+  if json != nil and get(o, :body) != nil
+    raise(:bad_option, "request: body: or json:, not both")
+  end
+  headers = append(
+    header_pairs(get(o, :headers)),
+    if json.nil?
+      []
+    else
+      [["content-type", "application/json"], ["accept", "application/json"]]
+    end
+  )
+  body = if json.nil?
+    get(o, :body)
+  else
+    json_stringify(json)
+  end
+  transport = get(o, :transport) or wire
+  transport(method, url, headers, body, get(o, :timeout_ms) or 10000)
+end
+
 test "parse reads every part of a url and lowercases scheme and host"
   u = parse("HTTPS://User:pw@Example.COM:8443/a/b?x=1&y=2#top", :url)
   assert get(u, "scheme") == "https"
@@ -313,4 +364,72 @@ end
 test "join keeps an absolute url and resolves against a bare host"
   assert join("http://a.com/x", "https://B.org/y") == "https://b.org/y"
   assert join("http://a.com", "g") == "http://a.com/g"
+end
+
+def recorder()
+  fn(method, url, headers, body, timeout_ms)
+    {
+      status: 200,
+      headers: [],
+      body: {method:, url:, headers:, body:, timeout_ms:}
+    }
+  end
+end
+
+test "request sends a json body with its content type through the transport"
+  r = request(
+    "POST",
+    "http://h.example/graphql",
+    {
+      json: {"b" => 2, "a" => 1},
+      headers: {"X-Product" => "kensa"},
+      transport: recorder
+    }
+  )
+  sent = get(r, :body)
+  assert get(r, :status) == 200
+  assert get(sent, :method) == "POST"
+  assert get(sent, :url) == "http://h.example/graphql"
+  assert get(sent, :body) == "{\"a\":1,\"b\":2}"
+  assert get(sent, :headers) ==
+    [
+      ["x-product", "kensa"],
+      ["content-type", "application/json"],
+      ["accept", "application/json"]
+    ]
+  assert get(sent, :timeout_ms) == 10000
+end
+
+test "request passes a plain body and refuses what it cannot send"
+  r = request(
+    "GET",
+    "http://h.example/",
+    {body: "x", timeout_ms: 5, transport: recorder}
+  )
+  sent = get(r, :body)
+  assert get(sent, :body) == "x"
+  assert get(sent, :headers) == []
+  assert get(sent, :timeout_ms) == 5
+  assert raises?(
+    :bad_option,
+    () -> request("FETCH", "http://h.example/", {transport: recorder})
+  )
+  assert raises?(
+    :parse_error,
+    () -> request("GET", "h.example/", {transport: recorder})
+  )
+  assert raises?(
+    :bad_option,
+    fn()
+      request(
+        "POST",
+        "http://h.example/",
+        {body: "x", json: {}, transport: recorder}
+      )
+    end
+  )
+  assert raises?(
+    :bad_option,
+    () -> request("GET", "http://h.example/", {retries: 3})
+  )
 end

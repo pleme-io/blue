@@ -53,6 +53,7 @@ generate("reference", "docs/REFERENCE.md", "gen/reference.b", ["bidamas"])
 # The golden corpus as one file of examples, from examples/ (a blue project of
 # its own, run by `checks.examples`).
 generate("examples", "docs/EXAMPLES.md", "gen/examples.b", ["examples"])
+generate("kyasshu-keys", "bidamas/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/danpen/fixtures/schema/kensa.graphql"])
 check("okite-laws", "gen/okite-laws.b")
 
 # The repository's own check rules, written in blue: `blue check` runs each

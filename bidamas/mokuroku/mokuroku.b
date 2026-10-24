@@ -366,10 +366,8 @@ end
 def name_collisions(records)
   pairs = definition_owners(records)
   names = unique(map((p) -> first(p), pairs))
-  groups = map(
-    (n) -> [n, map((p) -> last(p), filter((p) -> first(p) == n, pairs))],
-    names
-  )
+  owners = blue::group_by(pairs, (p) -> first(p))
+  groups = map((n) -> [n, map((p) -> last(p), get(owners, n))], names)
   filter((g) -> size(last(g)) > 1, groups)
 end
 

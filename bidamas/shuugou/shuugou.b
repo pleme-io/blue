@@ -12,26 +12,13 @@ def member(xs, v)
   any((x) -> x == v, xs)
 end
 
-# Keeps the FIRST occurrence of each element.
-#
-# Written as a left fold rather than the obvious tail-recursion, because the
-# tail-recursive shape — unique the rest, then decide about the head — silently
-# keeps the LAST occurrence instead: for [1,2,1,3,2] it yields [1,3,2]. Both
-# are "duplicates removed"; only one matches what a caller reading
-# first-seen-order expects, and the difference is invisible until a test names
-# an ordered expectation. This one did.
+# Keeps the FIRST occurrence of each element: the builtin distinct. The fold
+# this replaced copied the result list once per element, and the catalogue's
+# 4,103 definitions took 43 s in it (docs/COMPOUNDING.md, R7). A tail-recursive
+# shape would keep the LAST occurrence instead ([1,2,1,3,2] to [1,3,2]); the
+# ordered test below holds the first.
 def unique(xs)
-  reduce(
-    fn(acc, x)
-      if member(acc, x)
-        acc
-      else
-        push(acc, x)
-      end
-    end,
-    [],
-    xs
-  )
+  distinct(xs)
 end
 
 def union(a, b)

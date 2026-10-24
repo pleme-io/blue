@@ -12,6 +12,12 @@ use("retsu", [:concat_lists, :first, :last])
 # gate each file, so regen and the checks cannot disagree about what exists.
 # Bluefile.lock itself has its own command: `blue lock .`.
 
+only = argv
+
+def wanted?(path)
+  only == [] or member?(path, only)
+end
+
 def manifest()
   json_get(json_parse(read_file("Bluefile.lock")), "manifest")
 end
@@ -70,19 +76,22 @@ def registered_catalog(catalog)
   end
 end
 
-written = if catalog.nil?
+written = if catalog.nil? or not wanted?(catalog)
   []
 else
   write_file(catalog, render_markdown(registered_catalog(catalog)))
   [catalog]
 end
 
-written = concat_lists(written, map(regenerate, generated))
+written = concat_lists(
+  written,
+  map(regenerate, filter((g) -> wanted?(nth(1, g)), generated))
+)
 
 # Every `workload` file, rendered from the same lock by blue itself.
 workloads = json_get(manifest, "workloads")
 
-written = if workloads.nil?
+written = if workloads.nil? or only != []
   written
 else
   if exec_check("blue", "workload", "render", "--write") != 0
@@ -93,7 +102,7 @@ end
 
 lock_manifest = get(json_read(read_file("Bluefile.lock")), "manifest")
 
-written = if get(lock_manifest, "services").nil?
+written = if get(lock_manifest, "services").nil? or only != []
   written
 else
   concat_lists(

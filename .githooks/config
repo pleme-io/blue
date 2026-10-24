@@ -1,0 +1,5 @@
+[core]
+	hooksPath = .githooks
+[merge "blue-generated"]
+	name = regenerate a generated file from the merged tree
+	driver = .githooks/merge-generated %O %A %B %P

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec env -u GIT_DIR -u GIT_PREFIX -u GIT_INDEX_FILE -u GIT_WORK_TREE cargo run -q -p blue-lang-cli -- run --quiet gen/merge.b -- "$@"

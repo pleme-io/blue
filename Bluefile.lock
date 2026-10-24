@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f3299e8a1af78a3e6b20e0d33db43795358deb239dbf2a7ea7774cc246fdc69f",
+  "bluefile_b3": "b3:2137bbce8bea21753662f008a0c8f4d4a5b35885185c89982f55d2cb32d29ed2",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -39,6 +39,13 @@
         "program": "gen/examples.b",
         "inputs": [
           "examples"
+        ]
+      },
+      "gitattributes": {
+        "output": ".gitattributes",
+        "program": "gen/gitattributes.b",
+        "inputs": [
+          "Bluefile.lock"
         ]
       },
       "kigou-tables": {

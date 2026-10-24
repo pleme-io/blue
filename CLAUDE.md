@@ -388,8 +388,8 @@ possible.
 `nix develop` points `core.hooksPath` at, runs `gen/prepush.b`). The gates and
 the paths each one reads are one table, `gate_table`: a push runs only the
 light gates its changed paths select (`cargo fmt --check`, `blue fmt --check`
-on the changed `.b` files, `Bluefile.lock` of the changed lock dirs), in
-seconds. A path in `every_gate_paths` (`Cargo.lock`, `flake.lock`, the hooks)
+on the changed `.b` files, `Bluefile.lock` of the changed lock dirs,
+`gen/retired.b` against `origin/main`), in seconds. A path in `every_gate_paths` (`Cargo.lock`, `flake.lock`, the hooks)
 or a path no gate names selects every gate. The heavy gates (regen of every
 generating project, gen's pin and `Cargo.gen.lock` tie, each member's test
 targets alone, the `registry_graph`, `check_corpus`, `distribution` and

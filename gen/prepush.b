@@ -671,7 +671,12 @@ def main()
             verdict(tested)
           else
             verdict(
-              exec_capture("#{bin}/blue", "#{root}/gen/retired.b", trunk, "HEAD")
+              exec_capture(
+                "#{bin}/blue",
+                "#{root}/gen/retired.b",
+                trunk,
+                "HEAD"
+              )
             )
           end
         end

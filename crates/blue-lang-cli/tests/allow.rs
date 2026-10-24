@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+mod support;
+
 fn blue() -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_blue"));
     c.env_remove("BLUE_PATH")
@@ -180,13 +182,14 @@ fn a_shebang_states_the_capabilities_of_its_script() {
         std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
     ))
     .unwrap();
-    let o = Command::new(&script)
-        .env("PATH", path)
-        .env_remove("BLUE_PATH")
-        .env_remove("BLUE_CONFIG")
-        .env_remove("BLUE_TIER")
-        .output()
-        .expect("the OS runs the script");
+    let o = support::run_fresh_script(|| {
+        let mut c = Command::new(&script);
+        c.env("PATH", &path)
+            .env_remove("BLUE_PATH")
+            .env_remove("BLUE_CONFIG")
+            .env_remove("BLUE_TIER");
+        c
+    });
     assert!(!o.status.success(), "{}", out(&o));
     assert!(
         err(&o).contains("`read_file` reaches the host"),

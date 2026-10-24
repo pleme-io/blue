@@ -9,6 +9,8 @@ use std::process::{Command, Output, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
+mod support;
+
 /// The binary under test, with blue's environment inputs cleared so a
 /// developer's `BLUE_PATH` cannot make a test pass.
 fn blue() -> Command {
@@ -118,25 +120,15 @@ fn a_shebang_script_runs_directly() {
         std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
     ))
     .unwrap();
-    let run = || {
-        Command::new(&script)
-            .args(["x", "y"])
+    let o = support::run_fresh_script(|| {
+        let mut c = Command::new(&script);
+        c.args(["x", "y"])
             .env("PATH", &path)
             .env_remove("BLUE_PATH")
             .env_remove("BLUE_CONFIG")
-            .env_remove("BLUE_TIER")
-            .output()
-    };
-    let o = (0..50)
-        .find_map(|_| match run() {
-            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
-                std::thread::sleep(std::time::Duration::from_millis(20));
-                None
-            }
-            r => Some(r),
-        })
-        .expect("the script stayed busy for a second")
-        .expect("the OS runs the script");
+            .env_remove("BLUE_TIER");
+        c
+    });
     assert!(o.status.success(), "{}", err(&o));
     assert_eq!(out(&o), "2 10\n");
 }

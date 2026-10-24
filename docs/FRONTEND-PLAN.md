@@ -17,8 +17,8 @@ and hanabi's hot path.
 | Piece | State | Where |
 |---|---|---|
 | `gamen` bidama: theme, token colours, contrast, terminal `show` | built | `bidamas/gamen/` |
-| `gamen?` graph rows: 34 verbs (3 wave 0, 21 wave 1, 10 wave 2): `component`, `view`, `state`, `render`, `layout`, `on`, `check`, `diff`, `focus`, … | rows only | `bidamas/mokuroku/graph/gamen-provisional.b` |
-| `kyasshu?` graph rows: 19 cache verbs (`get`, `put`, `invalidate`, `memoize`, `remember`, `fresh?`, `refresh`, `tier`, …) | rows only | `graph/kyasshu-provisional.b` |
+| `gamen?` graph rows: 37 verbs: `component`, `view`, `state`, `render`, `layout`, `on`, `check`, `diff`, `focus`, `labels`, … | 10 built (`check`, `component`, `contrast`, `labels` (F4), `layout`, `render`, `show`, `style`, `theme`, `view`); the rest rows only | `bidamas/gamen/`, `bidamas/mokuroku/graph/gamen-provisional.b` |
+| `kyasshu`: the normalized entity store, 31 cache verbs | 13 built (F5): `declare`, `key`, `merge`, `normalize`, `policy`, `read`, `request`, `schema`, `settle`, `snapshot`, `stale?`, `sweep`, `write`; the rest rows only | `bidamas/kyasshu/`, `bidamas/mokuroku/graph/kyasshu.b` |
 | `kyuuji`: `serve`, `response`, `json`, `metered`, … (wave 0); `route`, `router`, `resolve` (was `match`, a special form's name), `mount`, `header`, `redirect`, `guard`, `body`, `recover`, `timeout` (wave 1); `stream`, `upgrade`, `file`, `cors` (wave 2) | waves 0–2 built (F2); `timeout` checks its deadline when the handler returns, `stream` buffers, `upgrade` answers the handshake and the wire refuses the hand-off with 501: each needs a host seam | `bidamas/kyuuji/` |
 | `ugoki`: spring, tween, ease, sample, settled? | built | `bidamas/ugoki/` |
 | `kousei`, `shisei`, `bougyo`: entries, postures, request defence | built | `bidamas/` |

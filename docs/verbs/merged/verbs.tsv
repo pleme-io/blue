@@ -184,6 +184,12 @@ G	bunsho?	render	pure	render(doc, format, opts) -> text or bytes	serialize	mojib
 G	bunsho?	slide	decl	slide(layout, content) -> slide	validate	-	absent	declare one slide: layout, text, figures, notes	2		na
 G	bunsho?	table	decl	table(columns, rows) -> table	validate	caixa-csv	absent	declare rows under typed columns	1		na
 G	bunsho?	write	effect	write(doc, target, opts) -> nil	resource	-	absent	a document tree written to a file	1	write(doc, target, opts) -> nil	yes
+I	burauza	apply	effect	apply(app, patches) -> nil	capability,idempotent	-	absent	change the live page by a patch list	2	apply(app, patches) -> nil	yes
+I	burauza	install	effect	install(app, opts) -> registration	capability,config	-	absent	register the service worker and manifest so the app installs	2	install(app, opts) -> registration	yes
+I	burauza	listen	effect	listen(root, opts) -> handle	capability,cancel	-	absent	forward page events under a root to the app	2	listen(root, opts) -> handle	yes
+I	burauza	mount	effect	mount(page, selector, tree) -> app	capability	-	absent	render a tree into the page element a selector names	2	mount(page, selector, tree) -> app	yes
+I	burauza	request	effect	request(url, input, opts) -> response	capability,deadline,error	-	absent	one HTTP request through the browser fetch import	2	request(url, input, opts) -> response	yes
+I	burauza	save	effect	save(cache, store, opts) -> nil	capability,cache,serialize	-	absent	keep cache entries in IndexedDB across reloads	2	save(cache, store, opts) -> nil	yes
 G	byouga?	camera	decl	camera(kind, params) -> camera	validate	recanto	absent	declare a view: flat, tilted or perspective	2		na
 G	byouga?	capture	effect	capture(surface, opts) -> image	resource	garasu	absent	draw without a window and return the pixels	3	capture(surface, opts) -> image	yes
 G	byouga?	check	pure	check(subject, rules) -> findings	validate	-	absent	find a fault in a graph, shader or scene before drawing	2	check(subject, rules) -> findings	yes
@@ -299,12 +305,13 @@ G	chuuzou	measure	pure	measure(image) -> {text, data, ram}	-	blue-native	rust:ch
 H	core	check	effect	check(subject, rules?, opts) -> [finding]	-	-	absent	findings of a subject against rules; empty when sound; kyohi::enforce is the raising form	0	check(subject, rules?, opts) -> [finding]	yes
 H	core	copy	effect	copy(from, to, opts) -> nil	-	-	absent	place a copy at a destination	0	copy(from, to, opts) -> nil	yes
 H	core	create	effect	create(store, key, value, opts) -> value	-	-	rust:blue-lang-runtime	add a new entry; refuse to overwrite	0	create(store, key, value, opts) -> value	yes
+H	core	delete	effect	delete(store, key, opts) -> nil	-	-	rust:blue-lang-runtime	make the entry absent; absent counts as done	0	delete(store, key, opts) -> nil	yes
 H	core	diff	effect	diff(a, b, opts) -> [change]	-	-	rust:blue-lang-runtime	differences between two values as change records	0	diff(a, b, opts) -> [change]	yes
 H	core	exists?	effect	exists?(subject, opts) -> Bool	-	-	rust:blue-lang-runtime	whether the subject is there; never raises	0	exists?(subject, opts) -> Bool	yes
-H	core	find	effect	find(subject, query, opts) -> item or nil	-	-	absent	the first match of a query or predicate, else nil	0	find(subject, query, opts) -> item or nil	yes
-H	core	flat_map	pure	flat_map(xs, f) -> list	-	-	absent	map then flatten one level	0	flat_map(xs, f) -> list	yes
+H	core	find	effect	find(subject, query, opts) -> item or nil	-	-	rust:blue-lang-runtime	the first match of a query or predicate, else nil	0	find(subject, query, opts) -> item or nil	yes
+H	core	flat_map	pure	flat_map(xs, f) -> list	-	-	rust:blue-lang-runtime	map then flatten one level	0	flat_map(xs, f) -> list	yes
 H	core	get	effect	get(store, key, opts) -> value or nil	-	-	absent	one entry, nil when absent	0	get(store, key, opts) -> value or nil	yes
-H	core	group_by	pure	group_by(xs, f) -> map	-	-	absent	items grouped under f of each	0	group_by(xs, f) -> map	yes
+H	core	group_by	pure	group_by(xs, f) -> map	-	-	rust:blue-lang-runtime	items grouped under f of each	0	group_by(xs, f) -> map	yes
 H	core	has?	effect	has?(store, key) -> Bool	-	-	rust:blue-lang-runtime	whether the key is present	0	has?(store, key) -> Bool	yes
 H	core	info	effect	info(subject, opts) -> record	-	-	rust:blue-lang-runtime	current state of the subject as a record	0	info(subject, opts) -> record	yes
 H	core	list	effect	list(store, opts) -> [record]	-	-	absent	every entry, all pages, sorted	0	list(store, opts) -> [record]	yes
@@ -344,6 +351,14 @@ G	dairi?	spawn	effect	spawn(agent, task) -> handle	process,resource	-	absent	sta
 G	dairi?	stop	effect	stop(handle) -> nil	cancel	arnes-loop	absent	end a run at the next safe point	2	stop(handle) -> nil	yes
 G	dairi?	tool	decl	tool(name, schema, f) -> tool	validate	arnes-tools	absent	declare a tool: name, input shape, body	1		na
 G	dairi?	wait	effect	wait(handle, opts) -> outcome	deadline	-	absent	wait for a sub-agent to end	3	wait(handle, opts) -> outcome	yes
+I	danpen	check	pure	check(subject, rules, opts) -> [finding]	validate	-	partial:danpen	masking, composition and entity-backed law findings for a program	1	check(subject, rules, opts) -> [finding]	yes
+I	danpen	compose	pure	compose(first, second) -> operation	validate	-	exists:danpen	one operation from the union of the fragments a view uses	1	compose(first, second) -> operation	yes
+I	danpen	fragment	decl	fragment(name, spec) -> fragment	validate	-	exists:danpen	declare a named field selection on one schema type	1	fragment(name, spec) -> fragment	yes
+I	danpen	hash	pure	hash(operation, algorithm) -> hex	cache	hanabi	exists:danpen	the persisted-operation id of an operation's canonical text	1	hash(operation, algorithm) -> hex	yes
+I	danpen	parse	pure	parse(text, opts) -> document	error	-	exists:danpen	GraphQL SDL or operation text to a document tree	1	parse(text, opts) -> document	yes
+I	danpen	render	pure	render(document, format, opts) -> text	serialize	-	exists:danpen	a document tree to canonical GraphQL text	1	render(document, format, opts) -> text	yes
+I	danpen	select	pure	select(value, fragment) -> value	validate	-	exists:danpen	only the fields a fragment declares, read from a value	1	select(value, fragment) -> value	yes
+I	danpen	validate	pure	validate(document, schema, opts) -> document	validate,error	-	exists:danpen	the document if every field and type is in the schema	1	validate(document, schema, opts) -> document	yes
 G	debaisu?	calibrate	pure	calibrate(sensor, points) -> model	-	-	absent	fit raw readings to known true values	3		na
 G	debaisu?	check	pure	check(board, program) -> findings	validate	kiban	absent	find a pin clash, a missing clock or a bad register use	2	check(board, program) -> findings	yes
 G	debaisu?	close	effect	close(handle) -> nil	idempotent,resource	-	absent	release a bus or device; closed counts as done	3	close(handle) -> nil	yes
@@ -381,7 +396,7 @@ A	deeta	has?	pure	has?(doc, path) -> Bool	-	-	partial:deeta	whether the path is 
 A	deeta	merge	pure	merge(a, b, opts) -> doc	error	-	absent	combine two docs deeply; b wins	1	merge(a, b, opts) -> doc	yes
 A	deeta	need	pure	need(doc, path) -> value	error	-	partial:deeta	value at a path, raises not_found when absent	0	need(doc, path) -> value	yes
 A	deeta	pack	pure	pack(value, format, opts) -> bytes	serialize	bencode	absent	value to a binary format: cbor, msgpack, bencode	3	pack(value, format, opts) -> bytes	yes
-A	deeta	parse	pure	parse(text, format, opts) -> value	error,serialize,validate	tatara-lisp-script	rust:blue-lang-runtime	text to value; the format is an argument	1	parse(text, format, opts) -> value	yes
+A	deeta	parse	pure	parse(text, format, opts) -> value	error,serialize,validate	tatara-lisp-script	exists:deeta	text to value; the format is an argument	1	parse(text, format, opts) -> value	yes
 A	deeta	patch	pure	patch(doc, changes) -> doc	error,idempotent	-	absent	apply change records (RFC 6902 JSON Patch)	2	patch(doc, changes) -> doc	yes
 A	deeta	paths	pure	paths(doc, opts) -> [path]	-	-	absent	every leaf path, sorted	2		na
 A	deeta	put	pure	put(doc, path, value) -> doc	-	-	absent	new doc with the value set at the path	1	put(doc, path, value) -> doc	yes
@@ -490,9 +505,9 @@ D	fuuin?	unseal	pure	unseal(envelope, key, opts) -> bytes	error,validate	-	absen
 D	fuuin?	unwrap	pure	unwrap(text, wrapping_key) -> key	error,validate	-	absent	recover a key wrapped under another key	2		na
 D	fuuin?	zeroize	effect	zeroize(secret) -> nil	resource	-	absent	overwrite secret bytes in memory (needs runtime support)	3		na
 G	gamen?	apply	effect	apply(app, patches) -> nil	idempotent	madori	absent	make a surface show the patches	2	apply(app, patches) -> nil	yes
-G	gamen?	check	pure	check(tree, rules) -> findings	validate	-	absent	find accessibility and layout faults in a tree	1	check(tree, rules) -> findings	yes
+G	gamen?	check	pure	check(tree, rules) -> findings	validate	-	exists:gamen	find accessibility and layout faults in a tree	1	check(tree, rules) -> findings	yes
 G	gamen?	choose	effect	choose(items, opts) -> item or nil	deadline	egaku	absent	the human picks from a list	1	choose(items, opts) -> item or nil	yes
-G	gamen?	component	decl	component(name, spec) -> component	switch,validate	pleme-widget-spec	absent	declare a reusable view: props, state, events	1		na
+G	gamen?	component	decl	component(name, spec) -> component	switch,validate	pleme-widget-spec	exists:gamen	declare a reusable view: props, state, events	1		na
 G	gamen?	contrast	pure	contrast(a, b) -> ratio	-	-	exists:gamen	WCAG contrast ratio of two colors	0		na
 G	gamen?	coverage	pure	coverage(bundles) -> report	validate	namimado	absent	keys that a locale still lacks	2	coverage(bundles) -> report	yes
 G	gamen?	describe	pure	describe(node) -> {role, name, state}	-	namimado	absent	the accessibility meaning of a node	1	describe(node) -> {role, name, state}	yes
@@ -500,7 +515,10 @@ G	gamen?	diff	pure	diff(old, new) -> patches	-	egaku	absent	changes between two 
 G	gamen?	direction	pure	direction(locale) -> ltr or rtl	-	pleme-i18n	absent	reading direction of a locale	1		na
 G	gamen?	focus	effect	focus(app, target) -> nil	-	egaku	absent	move keyboard focus to a node	2		na
 G	gamen?	get	pure	get(subject, key) -> value or nil	-	egaku	absent	read a state value, theme token or key binding; nil if absent	1	get(subject, key) -> value or nil	yes
-G	gamen?	layout	pure	layout(tree, size, opts) -> placed tree	-	egaku	absent	place nodes in a size: stack, flex or grid	1		na
+I	gamen?	hydrate	effect	hydrate(tree, root, opts) -> app	capability	-	absent	attach handlers and state to server-rendered markup	2	hydrate(tree, root, opts) -> app	yes
+I	gamen?	island	decl	island(view, opts) -> node	switch	-	absent	mark a subtree that hydrates on its own in the browser	2	island(view, opts) -> node	yes
+I	gamen?	labels	decl	labels(enum, entries) -> table	validate	lilitu	exists:gamen	display text keyed by each backend enum value	1	labels(enum, entries) -> table	yes
+G	gamen?	layout	pure	layout(kind, children, opts) -> tree	-	egaku	exists:gamen	place nodes in a size: stack, flex or grid	1		na
 G	gamen?	localize	pure	localize(value, locale, opts) -> text	-	pleme-i18n	absent	a number, date or money as a locale writes it	1		na
 G	gamen?	measure	pure	measure(subject, space) -> size or number	-	garasu	absent	natural size of a node, or a level of a signal	1	measure(subject, space) -> size or number	yes
 G	gamen?	notify	effect	notify(message, opts) -> nil	ratelimit	tsuuchi	absent	raise a desktop or phone notification	2		na
@@ -511,17 +529,17 @@ G	gamen?	plural	pure	plural(n, locale, forms) -> text	-	pleme-i18n	absent	the wo
 G	gamen?	progress	stream	progress(total, opts) -> handle	-	kazari	absent	a progress line that the program advances	2		na
 G	gamen?	prompt	effect	prompt(question, opts) -> answer	deadline	egaku	absent	ask the human: text, yes-no or secret	1		na
 G	gamen?	put	effect	put(subject, key, value) -> value	validate	egaku	absent	set a state value, theme token or key binding	1	put(subject, key, value) -> value	yes
-G	gamen?	render	pure	render(tree, target, opts) -> output	serialize	pleme-widget-gen	absent	tree to html, ansi, svg or widget spec text	1	render(tree, target, opts) -> output	yes
+G	gamen?	render	pure	render(tree, target, opts) -> output	serialize	pleme-widget-gen	exists:gamen	tree to html, ansi, svg or widget spec text	1	render(tree, target, opts) -> output	yes
 G	gamen?	send	effect	send(app, event) -> nil	-	madori	absent	deliver one event to a running app	2	send(app, event) -> nil	yes
 G	gamen?	show	effect	show(node, opts) -> nil	-	kazari	exists:gamen	put a node on the terminal as styled output	0		na
 G	gamen?	start	effect	start(app, surface, opts) -> handle	process,resource	madori	absent	run an app on a terminal, window or page	2	start(app, surface, opts) -> handle	yes
 G	gamen?	state	decl	state(initial, opts) -> store	serialize	egaku	absent	declare the store that holds a view state	1		na
 G	gamen?	stop	effect	stop(handle, opts) -> nil	cancel,resource	madori	absent	end a running app and free its surface	2	stop(handle, opts) -> nil	yes
-G	gamen?	style	pure	style(node, theme) -> styled node	-	ishou	absent	resolve semantic tokens on a node to colors and sizes	1		na
+G	gamen?	style	pure	style(node, theme) -> styled node	-	ishou	exists:gamen	resolve semantic tokens on a node to colors and sizes	1		na
 G	gamen?	theme	decl	theme(tokens, mode) -> theme	config	irodori	exists:gamen	declare a theme: Nord tokens for light and dark	0		na
 G	gamen?	translate	pure	translate(key, locale, args) -> text	-	pleme-i18n	absent	the message for a key in a locale	1	translate(key, locale, args) -> text	yes
 G	gamen?	update	effect	update(store, key, f) -> value	idempotent	egaku	absent	change a state value to f of the old value	1	update(store, key, f) -> value	yes
-G	gamen?	view	decl	view(kind, props, children) -> node	validate	egaku	absent	declare one UI node with props and children	1		na
+G	gamen?	view	decl	view(kind, props, children) -> node	validate	egaku	exists:gamen	declare one UI node with props and children	1		na
 G	gamen?	watch	stream	watch(store, f, opts) -> nil	cancel	egaku	absent	call f for every state change until stopped	2	watch(store, f, opts) -> nil	yes
 G	gazou?	convert	pure	convert(image, space) -> image	-	-	absent	an image in another pixel format or color space	2	convert(image, space) -> image	yes
 G	gazou?	crop	pure	crop(image, rect) -> image	-	-	absent	the part of an image inside a rectangle	2		na
@@ -1445,27 +1463,39 @@ E	kuraudo?	tag	effect	tag(resource, tags) -> nil	capability,idempotent	-	absent	
 E	kuraudo?	tags	effect	tags(resource) -> record	error	-	absent	the tags on a resource	2		na
 E	kuraudo?	wait	effect	wait(resource, state, opts) -> resource	cancel,deadline	-	absent	block until a resource reaches a state	2	wait(resource, state, opts) -> resource	yes
 E	kuraudo?	whoami	effect	whoami(opts) -> identity	capability	-	absent	the account and role the credential acts as	1		na
-B	kyasshu?	clear	effect	clear(cache) -> nil	cache	-	absent	drop every entry	1	clear(cache) -> nil	yes
-B	kyasshu?	delete	effect	delete(cache, key) -> nil	cache,idempotent	pleme-redis	absent	drop one entry; absent counts as done	1	delete(cache, key) -> nil	yes
-B	kyasshu?	flush	effect	flush(cache) -> count	cache,error	-	absent	push pending write-behind entries to the backing store	3		na
-B	kyasshu?	fresh?	pure	fresh?(entry, now) -> Bool	cache,time	token-cache-go	absent	whether an entry is still inside its lifetime	1	fresh?(entry, now) -> Bool	yes
-B	kyasshu?	get	effect	get(cache, key) -> value or nil	cache,time	pleme-redis	absent	the cached value, or nil when absent or expired	1	get(cache, key) -> value or nil	yes
-B	kyasshu?	has?	effect	has?(cache, key) -> Bool	cache	-	absent	whether a live entry exists, counting no hit	1	has?(cache, key) -> Bool	yes
-B	kyasshu?	info	effect	info(cache) -> {hits, misses, evictions, size}	cache	-	absent	counters and size of the cache as a record	1	info(cache) -> {hits, misses, evictions, size}	yes
-B	kyasshu?	invalidate	effect	invalidate(cache, subject) -> count	cache,idempotent	-	absent	mark stale by key, prefix, tag or dependency	1		na
-B	kyasshu?	key	pure	key(parts) -> text	cache	-	absent	one canonical cache key built from ordered parts	1	key(parts) -> text	yes
-B	kyasshu?	memoize	pure	memoize(f, opts) -> f	cache	-	absent	a function that remembers results by argument	1		na
-B	kyasshu?	open	effect	open(spec) -> cache	config,resource	almoxarifado	absent	make a cache with a size, policy and lifetime	1	open(spec) -> cache	yes
-B	kyasshu?	put	effect	put(cache, key, value, opts) -> value	cache,time	pleme-redis	absent	store a value, evicting by policy when full	1	put(cache, key, value, opts) -> value	yes
-B	kyasshu?	refresh	effect	refresh(cache, key, f) -> value	cache,error	-	absent	recompute one entry now, serving the old one meanwhile	2	refresh(cache, key, f) -> value	yes
-B	kyasshu?	remember	effect	remember(cache, key, f, opts) -> value	cache,deadline,error,idempotent	almoxarifado	absent	get, or compute with f once for concurrent callers and store	1	remember(cache, key, f, opts) -> value	yes
-B	kyasshu?	renew	effect	renew(cache, key, ttl) -> nil	cache,time	-	absent	lengthen the life of an entry without changing its value	2	renew(cache, key, opts) -> nil	no
-B	kyasshu?	save	effect	save(cache, path) -> nil	cache,serialize	token-cache-go	absent	persist entries to disk so a restart keeps them	3	save(cache, path) -> nil	yes
-B	kyasshu?	sweep	effect	sweep(cache) -> count	cache,time	-	absent	remove every expired entry now	2		na
-B	kyasshu?	tier	pure	tier(caches) -> cache	cache	-	absent	layer caches so a miss falls to the next and fills upward	2		na
-B	kyasshu?	warm	effect	warm(cache, source, keys) -> count	cache,cancel	-	absent	fill entries ahead of demand	3		na
-D	kyohi	check	pure	check(refusals) -> nil	error,validate	-	partial:kyohi	raise one error carrying every refusal, or return nil	0	check(refusals) -> nil	yes
-H	kyohi	enforce	effect	enforce(subject, rules, opts) -> nil	error	-	exists:kyohi	raise one error carrying every finding of the master check; nil when sound	0	enforce(subject, rules, opts) -> nil	yes
+B	kyasshu	clear	effect	clear(cache) -> nil	cache	-	absent	drop every entry	1	clear(cache) -> nil	yes
+I	kyasshu	declare	decl	declare(name, spec) -> mutation	validate	-	exists:kyasshu	declare a mutation and the entity types it touches	1	declare(name, spec) -> mutation	yes
+B	kyasshu	delete	effect	delete(cache, key) -> nil	cache,idempotent	pleme-redis	absent	drop one entry; absent counts as done	1	delete(cache, key) -> nil	yes
+B	kyasshu	flush	effect	flush(cache) -> count	cache,error	-	absent	push pending write-behind entries to the backing store	3		na
+B	kyasshu	fresh?	pure	fresh?(entry, now) -> Bool	cache,time	token-cache-go	absent	whether an entry is still inside its lifetime	1	fresh?(entry, now) -> Bool	yes
+B	kyasshu	get	effect	get(cache, key) -> value or nil	cache,time	pleme-redis	absent	the cached value, or nil when absent or expired	1	get(cache, key) -> value or nil	yes
+B	kyasshu	has?	effect	has?(cache, key) -> Bool	cache	-	absent	whether a live entry exists, counting no hit	1	has?(cache, key) -> Bool	yes
+B	kyasshu	info	effect	info(cache) -> {hits, misses, evictions, size}	cache	-	absent	counters and size of the cache as a record	1	info(cache) -> {hits, misses, evictions, size}	yes
+B	kyasshu	invalidate	effect	invalidate(cache, subject) -> count	cache,idempotent	-	absent	mark stale by key, prefix, tag or dependency	1		na
+B	kyasshu	key	pure	key(parts) -> text	cache	-	exists:kyasshu	one canonical cache key built from ordered parts	1	key(parts) -> text	yes
+B	kyasshu	memoize	pure	memoize(f, opts) -> f	cache	-	absent	a function that remembers results by argument	1		na
+I	kyasshu	merge	pure	merge(a, b) -> store	cache	hanabi	exists:kyasshu	combine two stores keeping one copy per entity	1	merge(a, b) -> store	yes
+I	kyasshu	normalize	pure	normalize(response, schema, opts) -> store	cache	hanabi	exists:kyasshu	split a response into entities keyed by Type:id	1	normalize(response, schema, opts) -> store	yes
+B	kyasshu	open	effect	open(spec) -> cache	config,resource	almoxarifado	absent	make a cache with a size, policy and lifetime	1	open(spec) -> cache	yes
+I	kyasshu	policy	decl	policy(fragments, entries) -> policy	cache,config	-	exists:kyasshu	per fragment ttl, stale, persist and evict rules from kousei entries	1	policy(fragments, entries) -> policy	yes
+B	kyasshu	put	effect	put(cache, key, value, opts) -> value	cache,time	pleme-redis	absent	store a value, evicting by policy when full	1	put(cache, key, value, opts) -> value	yes
+I	kyasshu	read	pure	read(store, opts) -> value or nil	cache,time	-	exists:kyasshu	the masked fields of one fragment read from the store	1	read(store, opts) -> value or nil	yes
+B	kyasshu	refresh	effect	refresh(cache, key, f) -> value	cache,error	-	absent	recompute one entry now, serving the old one meanwhile	2	refresh(cache, key, f) -> value	yes
+B	kyasshu	remember	effect	remember(cache, key, f, opts) -> value	cache,deadline,error,idempotent	almoxarifado	absent	get, or compute with f once for concurrent callers and store	1	remember(cache, key, f, opts) -> value	yes
+B	kyasshu	renew	effect	renew(cache, key, ttl) -> nil	cache,time	-	absent	lengthen the life of an entry without changing its value	2	renew(cache, key, opts) -> nil	no
+I	kyasshu	request	effect	request(target, input, opts) -> reply	cache,error,deadline	hanabi	exists:kyasshu	run an operation on a server by its persisted hash only	1	request(target, input, opts) -> reply	yes
+B	kyasshu	save	effect	save(cache, path) -> nil	cache,serialize	token-cache-go	absent	persist entries to disk so a restart keeps them	3	save(cache, path) -> nil	yes
+I	kyasshu	schema	pure	schema(subject) -> key table	cache	hanabi	exists:kyasshu	the entity key table a GraphQL schema implies	1	schema(subject) -> key table	yes
+I	kyasshu	settle	effect	settle(store, write, outcome) -> store	cache,error	-	exists:kyasshu	end an optimistic write as confirmed or rolled back	1	settle(store, write, outcome) -> store	yes
+I	kyasshu	snapshot	pure	snapshot(store, opts) -> store	cache,serialize	-	exists:kyasshu	the entities persisted fragments read, to keep across restarts	1	snapshot(store, opts) -> store	yes
+I	kyasshu	stale?	pure	stale?(store, opts) -> Bool	cache,time	-	exists:kyasshu	whether a fragment read is older than its ttl	1	stale?(store, opts) -> Bool	no
+B	kyasshu	sweep	effect	sweep(store, opts) -> store	cache,time	-	exists:kyasshu	drop the entities older than their fragment evict limit	2		na
+B	kyasshu	tier	pure	tier(caches) -> cache	cache	-	absent	layer caches so a miss falls to the next and fills upward	2		na
+B	kyasshu	warm	effect	warm(cache, source, keys) -> count	cache,cancel	-	absent	fill entries ahead of demand	3		na
+I	kyasshu	watch	stream	watch(cache, f, opts) -> nil	cache,cancel	hanabi	absent	call f per entity event that patches or drops a key	2	watch(cache, f, opts) -> nil	yes
+I	kyasshu	write	effect	write(store, change) -> store	cache,idempotent	-	exists:kyasshu	lay a pending optimistic write over the store	1	write(store, change) -> store	yes
+D	kyohi	check	pure	check(subject, rules) -> [finding]	error,validate	-	exists:kyohi	findings of a subject against rules; empty when sound	0	check(subject, rules) -> [finding]	yes
+H	kyohi	enforce	effect	enforce(subject, rules, opts) -> nil	error	-	exists:kyohi	raise one error carrying every finding of check; nil when sound	0	enforce(subject, rules, opts) -> nil	yes
 D	kyohi	exit_status	pure	exit_status(kind) -> int	error	-	exists:kyohi	exit status the ledger gives a kind	0	exit_status(kind) -> int	yes
 D	kyohi	kind	pure	kind(refusal) -> keyword	error	-	exists:kyohi	what was refused	0	kind(refusal) -> keyword	yes
 D	kyohi	kinds	pure	kinds(refusals) -> [keyword]	error	-	exists:kyohi	the kind of each refusal, in order	0		na
@@ -1546,36 +1576,36 @@ D	kyoukyuu?	trust	decl	trust(name, keys, scope) -> root	config	tameshi	absent	wh
 E	kyoukyuu?	verify	effect	verify(subject, policy) -> verdict	capability,validate	sekiban	absent	check signatures and attestations against a policy	2	verify(subject, policy) -> verdict	yes
 D	kyoukyuu?	verify?	effect	verify?(artifact, signature, trust) -> Bool	resource,time,validate	tameshi-sigstore	absent	artifact signature checks against the trusted identities	2	verify?(artifact, signature, trust) -> Bool	yes
 D	kyoukyuu?	vex	decl	vex(finding, status, why) -> statement	config	security-contract	absent	a finding judged exploitable or not, with reason	2		na
-C	kyuuji	body	pure	body(req, format) -> value	error,validate	-	absent	Parse the request body into a value.	1		na
+C	kyuuji	body	pure	body(req, format) -> value	error,validate	-	exists:kyuuji	Parse the request body into a value.	1		na
 C	kyuuji	compress	pure	compress(handler, opts) -> handler	-	-	absent	Compress bodies by the client's Accept-Encoding.	3	compress(handler, opts) -> handler	yes
-C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	absent	Add cross-origin headers by policy.	2	cors(handler, policy) -> handler	yes
+C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	exists:kyuuji	Add cross-origin headers by policy.	2	cors(handler, policy) -> handler	yes
 C	kyuuji	events	stream	events(req, f) -> response	cancel	-	absent	Answer as a server-sent event stream.	2	events(req, opts) -> response	no
 C	kyuuji	exposition	pure	exposition(m, service) -> text	serialize	blue	exists:kyuuji	Metrics rendered in Prometheus text form.	0		na
-C	kyuuji	file	effect	file(path, opts) -> response	cache,resource	-	absent	A response serving a file with validators and ranges.	2	file(path, tier) -> response	no
-C	kyuuji	guard	pure	guard(handler, check) -> handler	capability,error	-	absent	Refuse requests that fail a check before the handler.	1	guard(handler, check) -> handler	yes
-C	kyuuji	header	pure	header(req, name) -> text or nil	-	-	absent	One request header.	1	header(req, name) -> text or nil	yes
+C	kyuuji	file	effect	file(path, opts) -> response	cache,resource	-	exists:kyuuji	A response serving a file with validators and ranges.	2	file(path, opts?) -> response	no
+C	kyuuji	guard	pure	guard(handler, check) -> handler	capability,error	-	exists:kyuuji	Refuse requests that fail a check before the handler.	1	guard(handler, check) -> handler	yes
+C	kyuuji	header	pure	header(req, name) -> text or nil	-	-	exists:kyuuji	One request header.	1	header(req, name) -> text or nil	yes
 F	kyuuji	health	pure	health(request, check) -> response	test	-	partial:kyuuji	answer a liveness or readiness probe from a check	0		na
 C	kyuuji	hook	decl	hook(path, secret, f) -> route	capability,idempotent	-	absent	Receive a signed webhook and call f once per delivery.	2		na
 C	kyuuji	json	pure	json(status, value) -> response	serialize	blue	exists:kyuuji	A JSON response.	0		na
-C	kyuuji	match	pure	match(app, req) -> route and params or nil	-	-	absent	Find the route that serves a request.	1		na
 F	kyuuji	metered	effect	metered(request, health, handler, metrics) -> response	time	-	exists:kyuuji	answer a request and record its status and latency	0		na
-C	kyuuji	mount	decl	mount(app, prefix, sub) -> app	-	-	absent	Place a sub-app under a path prefix.	1	mount(app, prefix, sub) -> app	yes
+C	kyuuji	mount	decl	mount(app, prefix, sub) -> app	-	-	exists:kyuuji	Place a sub-app under a path prefix.	1	mount(app, prefix, sub) -> app	yes
 C	kyuuji	not_found	pure	not_found(req) -> response	-	blue	exists:kyuuji	The 404 response for a request.	0		na
 C	kyuuji	observe	effect	observe(m, status, seconds) -> m	log,trace	blue	exists:kyuuji	Count one request in the metrics.	0	observe(m, status, seconds) -> m	yes
-C	kyuuji	param	pure	param(req, name) -> text or nil	-	blue	partial:kyuuji	One query or path parameter.	0		na
+C	kyuuji	param	pure	param(req, name) -> text or nil	-	blue	exists:kyuuji	One query or path parameter.	0		na
 C	kyuuji	plain	pure	plain(status, body) -> response	-	blue	partial:kyuuji	A plain-text response.	0	plain(status, body) -> response	yes
-C	kyuuji	recover	pure	recover(handler) -> handler	error	-	absent	Turn a raised kind into its status response.	1	recover(handler) -> handler	yes
-C	kyuuji	redirect	pure	redirect(status, location) -> response	-	-	absent	A redirect response.	1	redirect(status, location) -> response	yes
+C	kyuuji	recover	pure	recover(handler) -> handler	error	-	exists:kyuuji	Turn a raised kind into its status response.	1	recover(handler) -> handler	yes
+C	kyuuji	redirect	pure	redirect(status, location) -> response	-	-	exists:kyuuji	A redirect response.	1	redirect(status, location) -> response	yes
+C	kyuuji	resolve	pure	resolve(app, req) -> route and params or nil	-	-	exists:kyuuji	Find the route that serves a request.	1	resolve(app, req) -> route and params or nil	yes
 C	kyuuji	response	pure	response(status, content_type, body) -> response	-	blue	exists:kyuuji	Build a response record.	0		na
-C	kyuuji	route	decl	route(method, pattern, handler) -> route	validate	-	absent	Declare one method and path pattern with a handler.	1	route(method, pattern) -> route	no
-C	kyuuji	router	decl	router(routes) -> app	validate	-	absent	Compose routes into one app; overlap is refused.	1	router(routes) -> app	yes
+C	kyuuji	route	decl	route(method, pattern, handler) -> route	validate	-	exists:kyuuji	Declare one method and path pattern with a handler.	1	route(method, pattern, handler) -> route	no
+C	kyuuji	router	decl	router(routes, opts?) -> app	validate	-	exists:kyuuji	Compose routes into one app; overlap is refused.	1	router(routes, opts?) -> app	no
 C	kyuuji	serve	effect	serve(addr, app, opts) -> nil	cancel,capability,deadline,error,log,resource,trace	blue	exists:kyuuji	Listen and answer requests until stopped.	0	serve(addr, app, opts) -> nil	yes
 C	kyuuji	serve_once	effect	serve_once(listener, app, opts) -> nil	deadline,error	blue	exists:kyuuji	Answer one request; the test door.	0		na
 C	kyuuji	shutdown	effect	shutdown(server, opts) -> nil	cancel,deadline	-	absent	Stop accepting, drain in-flight requests, then close.	2		na
-C	kyuuji	stream	stream	stream(req, f, opts) -> response	cancel,deadline	-	absent	Send chunks as f produces them.	2	stream(req, f, opts) -> response	yes
+C	kyuuji	stream	stream	stream(req, f, opts) -> response	cancel,deadline	-	partial:kyuuji	Send chunks as f produces them.	2	stream(req, f, opts) -> response	yes
 C	kyuuji	throttle	pure	throttle(handler, bucket) -> handler	ratelimit	pleme-middleware-rate-limit	absent	Answer 429 past a kyoujin bucket.	1	throttle(handler, bucket) -> handler	yes
-C	kyuuji	timeout	pure	timeout(handler, duration) -> handler	deadline	-	absent	Answer 503 when the handler runs past a deadline.	1		na
-C	kyuuji	upgrade	effect	upgrade(req, f) -> response	cancel,capability	-	absent	Switch to a WebSocket and hand it to f.	2	upgrade(req, f) -> response	yes
+C	kyuuji	timeout	pure	timeout(handler, duration) -> handler	deadline	-	partial:kyuuji	Answer 503 when the handler runs past a deadline.	1		na
+C	kyuuji	upgrade	effect	upgrade(req, f) -> response	cancel,capability	-	partial:kyuuji	Switch to a WebSocket and hand it to f.	2	upgrade(req, f) -> response	yes
 C	kyuuji	wrap	pure	wrap(handler, middleware) -> handler	-	-	absent	Surround a handler with a middleware.	1	wrap(handler, middleware) -> handler	yes
 G	meirei	help	effect	help(args) -> nil	-	arnes	rust:meirei	a built-in slash command that lists commands	0		na
 C	messeeji?	ack	effect	ack(message) -> nil	idempotent	-	absent	Confirm the message is done; it is not redelivered.	1		na
@@ -1661,7 +1691,7 @@ A	moji	starts_with?	pure	starts_with?(text, prefix) -> Bool	-	-	partial:moji	whe
 A	moji	template	pure	template(text, opts) -> template	error,validate	-	absent	compile text with named slots into a template	2		na
 A	moji	tokenize	pure	tokenize(text, opts) -> [token]	-	-	absent	text to words or sentences with offsets	3		na
 A	moji	transliterate	pure	transliterate(text, script) -> text	-	-	absent	text in another script, or folded to ASCII	3		na
-A	moji	trim	pure	trim(text, opts) -> text	-	-	partial:moji	drop space from both ends	0	trim(text, opts) -> text	yes
+A	moji	trim	pure	trim(text, opts) -> text	-	-	exists:moji	drop space from both ends	0	trim(text, opts) -> text	yes
 A	moji	truncate	pure	truncate(text, width, opts) -> text	-	-	exists:moji	cut text to a width with an ellipsis	0	truncate(text, width, opts) -> text	yes
 A	moji	unescape	pure	unescape(text, target) -> text	error	-	absent	undo escape for the same target	1		na
 A	moji	upper	pure	upper(text) -> text	-	tatara-lisp-script	rust:blue-lang-runtime	every letter in upper case	0		na
@@ -2222,23 +2252,23 @@ B	shomei	equal?	pure	equal?(a, b) -> Bool	validate	-	absent	compare two secrets 
 D	shomei	fingerprint	pure	fingerprint(key) -> hex	validate	-	absent	short stable id of a public key	1	fingerprint(key) -> hex	yes
 D	shomei	first_break	pure	first_break(genesis, payloads, hashes) -> index or nil	validate	-	exists:shomei	index of the first stored hash the payloads miss	0		na
 D	shomei	genesis	pure	genesis(label) -> hex	serialize,validate	tameshi	exists:shomei	first hash of a named chain	0		na
-D	shomei	hash	pure	hash(data, algorithm) -> hex	error,serialize,validate	tameshi	partial:shomei	digest of bytes or text under a named algorithm	0	hash(data, algorithm) -> hex	yes
+D	shomei	hash	pure	hash(data, algorithm, opts) -> hex	error,serialize,validate	tameshi	exists:shomei	digest of bytes or text under a named algorithm	0	hash(data, algorithm) -> hex	yes
 D	shomei	hash?	pure	hash?(text, algorithm) -> Bool	validate	-	partial:shomei	text has the shape of a digest	0		na
 D	shomei	hash_file	effect	hash_file(path, algorithm) -> hex	error,resource	-	absent	digest of a file, read in chunks	1		na
 B	shomei	hash_stream	stream	hash_stream(source, algorithm) -> text	cancel,deadline,error	-	absent	a digest of a file or stream without holding it whole	1		na
 D	shomei	head	pure	head(genesis, payloads) -> hex	serialize,validate	tameshi	exists:shomei	hash after all payloads are linked	0		na
 D	shomei	intact?	pure	intact?(genesis, payloads, head) -> Bool	validate	-	exists:shomei	re-linking the payloads reproduces the head	0		na
 D	shomei	keypair	pure	keypair(seed) -> record	error,validate	tameshi	partial:shomei	signing key and public key from a seed	0		na
-D	shomei	mac	pure	mac(data, key, algorithm) -> hex	error,validate	-	absent	keyed digest proving data came from a key holder	1		na
+D	shomei	mac	pure	mac(data, key, algorithm) -> hex	error,validate	-	exists:shomei	keyed digest proving data came from a key holder	1		na
 D	shomei	opens?	pure	opens?(commitment, value, nonce) -> Bool	validate	tameshi	absent	commitment matches the revealed value	2		na
 D	shomei	pledge	pure	pledge(value, nonce) -> hex	validate	tameshi	absent	hiding, binding commitment to a value	2	pledge(value, nonce) -> hex	yes
 B	shomei	proof	pure	proof(payloads, index) -> [step]	serialize	cartorio	exists:shomei	the sibling path that shows a payload is in the tree	0		na
 D	shomei	prove	pure	prove(payloads, index) -> [step]	error,validate	tameshi	exists:shomei	inclusion proof for one payload	0		na
 D	shomei	proves?	pure	proves?(root, payload, proof) -> Bool	validate	tameshi	exists:shomei	proof climbs from payload to root	0		na
 D	shomei	public	pure	public(keypair) -> hex	validate	-	exists:shomei	the half a verifier holds	0		na
-B	shomei	random	effect	random(n) -> bytes	capability	-	absent	n bytes from the system entropy source	1		na
+B	shomei	random	effect	random(n) -> bytes	capability	-	exists:shomei	n bytes from the system entropy source	1		na
 D	shomei	root	pure	root(payloads) -> hex	serialize,validate	tameshi	exists:shomei	Merkle root over payloads in order	0	root(payloads) -> hex	yes
-D	shomei	same?	pure	same?(a, b) -> Bool	validate	-	absent	equality that takes equal time for every input	0		na
+D	shomei	same?	pure	same?(a, b) -> Bool	validate	-	exists:shomei	equality that takes equal time for every input	0		na
 D	shomei	sign	pure	sign(data, secret) -> hex	error,validate	tameshi	exists:shomei	signature over data	0	sign(data, secret) -> hex	yes
 D	shomei	trail	pure	trail(genesis, payloads) -> [hex]	validate	-	exists:shomei	every link hash in order	0		na
 D	shomei	verify?	pure	verify?(data, signature, public) -> Bool	error,validate	tameshi	exists:shomei	signature is valid; malformed input raises	0	verify?(data, signature, public) -> Bool	yes
@@ -2265,7 +2295,7 @@ F	shougai?	timeline	pure	timeline(incident) -> [event]	time	-	absent	the ordered
 A	shuugou	dense	pure	dense(items, bound) -> set	-	-	absent	set of small integers kept as a bitset	3		na
 A	shuugou	difference	pure	difference(a, b) -> set	-	-	exists:shuugou	members of a that are not in b	0		na
 A	shuugou	disjoint?	pure	disjoint?(a, b) -> Bool	-	-	exists:shuugou	whether the sets share no member	0		na
-A	shuugou	empty?	pure	empty?(set) -> Bool	-	-	absent	whether the set has no member	0	empty?(set) -> Bool	yes
+A	shuugou	empty?	pure	empty?(set) -> Bool	-	-	rust:blue-lang-runtime	whether the set has no member	0	empty?(set) -> Bool	yes
 A	shuugou	has?	pure	has?(set, item) -> Bool	-	-	partial:shuugou	whether the item is a member	0	has?(set, item) -> Bool	yes
 A	shuugou	insert	pure	insert(set, item) -> set	-	-	exists:shuugou	set with the item added	0	insert(set, item) -> set	yes
 A	shuugou	intersection	pure	intersection(a, b) -> set	-	-	exists:shuugou	members of both sets	0		na
@@ -2648,7 +2678,7 @@ C	tsuushin	parse	pure	parse(text, :url) -> url record	error,validate	-	exists:ts
 C	tsuushin	put	effect	put(base, key, value, opts) -> value	error,idempotent	-	absent	PUT: create or replace an entry.	1	put(base, key, value, opts) -> value	yes
 C	tsuushin	read	effect	read(url, opts) -> body	deadline,error,retry	blue-lang-runtime	rust:blue-lang-runtime	GET the body; raises outside 2xx.	0	read(url, opts) -> body	yes
 C	tsuushin	render	pure	render(url record, :url) -> text	serialize	-	exists:tsuushin	URL record to canonical text.	0	render(url record, :url) -> text	yes
-C	tsuushin	request	effect	request(method, url, opts) -> response	capability,deadline,error,retry,trace	blue-lang-runtime	rust:blue-lang-runtime	Send one HTTP request; any status is data.	0	request(method, url, opts) -> response	yes
+C	tsuushin	request	effect	request(method, url, opts) -> response	capability,deadline,error,retry,trace	blue-lang-runtime	exists:tsuushin	Send one HTTP request; any status is data.	0	request(method, url, opts) -> response	yes
 C	tsuushin	revalidate	effect	revalidate(request, cached) -> response	cache,error	-	absent	Conditional GET with ETag; reuse body on 304.	2		na
 C	tsuushin	sign	pure	sign(request, credentials) -> request	capability,serialize	-	absent	Add a signature or bearer header to a request.	2	sign(request, credentials) -> request	yes
 C	tsuushin	stream	stream	stream(url, f, opts) -> response	cancel,deadline,error	blue-lang-runtime	absent	Call f per chunk or line as the body arrives.	1	stream(url, f, opts) -> response	yes
@@ -2762,4 +2792,3 @@ G	zumen	parse	pure	parse(text, format) -> sheet	validate	-	absent	DXF text to en
 G	zumen	plot	pure	plot(series, opts) -> sheet	-	-	absent	a chart from series: line, bar, scatter	1		na
 G	zumen	project	pure	project(mesh, view) -> sheet	-	-	exists:zumen	feature-edge view of a solid	0	project(mesh, view) -> sheet	yes
 G	zumen	render	pure	render(sheet, format) -> text	serialize	-	partial:zumen	a sheet as SVG or DXF text	0	render(sheet, format) -> text	yes
-H	core	delete	effect	delete(store, key, opts) -> nil	-	-	rust:blue-lang-runtime	make the entry absent; absent counts as done	0	delete(store, key, opts) -> nil	yes

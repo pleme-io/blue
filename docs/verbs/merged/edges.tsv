@@ -327,6 +327,18 @@ bunsho?::table	requires	bunsho?::extract	tables are extracted parts
 bunsho?::table	requires	gamen?::view	a table is a view
 bunsho?::write	composes	bunsho?::render	tree then file
 bunsho?::write	guards	bunsho?::redact	redact before write
+burauza::apply	composes	gamen?::diff	the patch list
+burauza::apply	refines	gamen?::apply	the browser surface
+burauza::apply	requires	burauza::mount	a live root
+burauza::install	pairs	burauza::save	offline shell and data
+burauza::install	requires	burauza::request	fetches the worker script
+burauza::listen	composes	gamen?::send	each page event to the app
+burauza::mount	composes	gamen?::render	tree to page nodes
+burauza::mount	pairs	burauza::listen	events from the mounted root
+burauza::request	pairs	danpen::hash	persisted id instead of text
+burauza::request	refines	tsuushin::request	the browser fetch import
+burauza::save	pairs	kyasshu::normalize	entities kept offline
+burauza::save	refines	kyasshu::save	IndexedDB as the disk
 byouga?::camera	generalizes	byouga?::project	projection comes from a camera
 byouga?::capture	pairs	gazou?::diff	screenshots compared
 byouga?::capture	refines	byouga?::draw	draw offscreen and read back
@@ -550,6 +562,22 @@ dairi?::stop	pairs	dairi?::wait	end then join
 dairi?::stop	requires	dairi?::budget	budget can stop
 dairi?::tool	requires	dairi?::screen	every call is screened
 dairi?::wait	pairs	dairi?::spawn	start and join
+danpen::check	composes	danpen::validate	fields absent from the schema
+danpen::check	guards	danpen::select	undeclared reads refused at check
+danpen::check	refines	core::check	the four data laws
+danpen::compose	composes	danpen::fragment	union of fragment selections
+danpen::compose	pairs	gamen?::view	a view's one operation
+danpen::compose	requires	danpen::validate	fragments checked against the schema
+danpen::fragment	pairs	gamen?::component	a component's declared data
+danpen::hash	composes	danpen::render	digest of the canonical text
+danpen::hash	composes	shomei::hash	sha256 by default, what persisted queries send
+danpen::parse	inverse	danpen::render	text back from a tree
+danpen::parse	refines	core::parse	GraphQL as the format
+danpen::render	inverse	danpen::parse	text back from a tree
+danpen::render	refines	core::render	GraphQL as the format
+danpen::select	refines	jisho::select	the keys come from a fragment
+danpen::select	requires	danpen::fragment	the declared selection
+danpen::validate	requires	danpen::parse	a document before a schema
 debaisu?::calibrate	pairs	saiten?::calibrate	fit raw to true
 debaisu?::calibrate	requires	debaisu?::sample	needs readings
 debaisu?::check	guards	chuuzou::build	catch faults before the image
@@ -850,6 +878,12 @@ gamen?::focus	pairs	gamen?::send	focus changes are events
 gamen?::focus	requires	gamen?::order	focus moves along tab order
 gamen?::get	inverse	gamen?::put	write is the other face of read
 gamen?::get	pairs	gamen?::put	read and write of one key
+gamen?::hydrate	composes	burauza::listen	handlers on server markup
+gamen?::hydrate	pairs	gamen?::island	islands hydrate alone
+gamen?::hydrate	requires	gamen?::render	the server markup to attach to
+gamen?::island	refines	gamen?::view	a view hydrated alone
+gamen?::labels	pairs	danpen::check	enum mirrors refused, labels allowed
+gamen?::labels	pairs	gamen?::localize	labels per locale
 gamen?::layout	requires	gamen?::direction	right to left flips layout
 gamen?::layout	requires	gamen?::measure	sizes before positions
 gamen?::localize	composes	gamen?::plural	counts in text
@@ -2043,7 +2077,7 @@ kengen?::parse	guards	kengen?::policy	bad text never becomes a policy
 kengen?::parse	requires	kengen?::policy	text becomes a policy
 kengen?::permission	generalizes	kengen?::grants?	a permission with wildcards
 kengen?::permit	composes	kengen?::allow?	raise :denied when false
-kengen?::permit	guards	kyohi::check	denial is a ledger refusal
+kengen?::permit	guards	kyohi::enforce	denial raises a ledger refusal
 kengen?::policy	composes	kengen?::rule	a named list of rules
 kengen?::powers	lifts	kengen?::allow?	all resources where allow? is true
 kengen?::powers	pairs	kengen?::holders	a subject's view and a resource's view
@@ -2454,37 +2488,56 @@ kuraudo?::tags	inverse	kuraudo?::tag	write versus read
 kuraudo?::tags	refines	core::get	resource tags
 kuraudo?::wait	composes	kuraudo?::get	poll state
 kuraudo?::whoami	guards	kuraudo?::list	know the account first
-kyasshu?::clear	lifts	kyasshu?::delete	every entry
-kyasshu?::delete	inverse	kyasshu?::put	drops what put stored
-kyasshu?::flush	composes	kakunou?::put	write-behind target
-kyasshu?::flush	pairs	kyasshu?::put	write-behind drains puts
-kyasshu?::get	composes	kyasshu?::fresh?	expired entries read as absent
-kyasshu?::get	pairs	kyasshu?::put	read and write sides
-kyasshu?::has?	refines	kyasshu?::get	no hit counted
-kyasshu?::info	pairs	kyasshu?::get	counters beside lookups
-kyasshu?::invalidate	pairs	kyasshu?::put	staleness and refill
-kyasshu?::invalidate	refines	kyasshu?::delete	by prefix, tag or dependency
-kyasshu?::key	composes	shomei::hash	stable digest of parts
-kyasshu?::key	pairs	kyasshu?::get	the lookup subject
-kyasshu?::memoize	composes	kyasshu?::remember	function results cached by argument
-kyasshu?::memoize	pairs	kyasshu?::key	argument digest as key
-kyasshu?::open	composes	kakunou?::open	optional shared tier
-kyasshu?::put	inverse	kyasshu?::delete	drops what put stored
-kyasshu?::refresh	composes	kyasshu?::put	stores the recomputed value
-kyasshu?::refresh	refines	kyasshu?::remember	forced recompute
-kyasshu?::remember	composes	kyasshu?::fresh?	stale entries are recomputed
-kyasshu?::remember	composes	kyasshu?::get	hit path
-kyasshu?::remember	composes	kyasshu?::put	miss path stores the result
-kyasshu?::renew	requires	kyasshu?::has?	entry must be live
-kyasshu?::save	composes	fairu::write	persists entries
-kyasshu?::save	pairs	kyasshu?::open	persist then reload
-kyasshu?::sweep	composes	kyasshu?::fresh?	finds expired entries
-kyasshu?::sweep	lifts	kyasshu?::delete	many at once
-kyasshu?::tier	composes	kyasshu?::remember	miss falls to the next layer
-kyasshu?::warm	lifts	kyasshu?::remember	many keys ahead of demand
-kyohi::check	composes	kyohi::kinds	one error carries all kinds
-kyohi::check	pairs	kyohi::enforce	check raises today; enforce is the raising form of the master contract
-kyohi::check	requires	kyohi::refusal	collects refusals
+kyasshu::clear	lifts	kyasshu::delete	every entry
+kyasshu::delete	inverse	kyasshu::put	drops what put stored
+kyasshu::flush	composes	kakunou?::put	write-behind target
+kyasshu::flush	pairs	kyasshu::put	write-behind drains puts
+kyasshu::get	composes	kyasshu::fresh?	expired entries read as absent
+kyasshu::get	pairs	kyasshu::put	read and write sides
+kyasshu::has?	refines	kyasshu::get	no hit counted
+kyasshu::info	pairs	kyasshu::get	counters beside lookups
+kyasshu::invalidate	pairs	kyasshu::put	staleness and refill
+kyasshu::invalidate	refines	kyasshu::delete	by prefix, tag or dependency
+kyasshu::key	pairs	kyasshu::get	the lookup subject
+kyasshu::memoize	composes	kyasshu::remember	function results cached by argument
+kyasshu::memoize	pairs	kyasshu::key	argument digest as key
+kyasshu::merge	pairs	kyasshu::normalize	fold a response into a store
+kyasshu::normalize	composes	kyasshu::key	Type:id per entity
+kyasshu::normalize	composes	kyasshu::put	each entity stored once
+kyasshu::normalize	composes	kyasshu::schema	which types are entities
+kyasshu::normalize	pairs	danpen::select	fragments read normalized entities
+kyasshu::normalize	requires	danpen::parse	the schema as a document
+kyasshu::open	composes	kakunou?::open	optional shared tier
+kyasshu::put	inverse	kyasshu::delete	drops what put stored
+kyasshu::read	composes	danpen::select	one masked walk, refs resolved
+kyasshu::read	pairs	kyasshu::normalize	normalize splits what read joins
+kyasshu::refresh	composes	kyasshu::put	stores the recomputed value
+kyasshu::refresh	refines	kyasshu::remember	forced recompute
+kyasshu::remember	composes	kyasshu::fresh?	stale entries are recomputed
+kyasshu::remember	composes	kyasshu::get	hit path
+kyasshu::remember	composes	kyasshu::put	miss path stores the result
+kyasshu::renew	requires	kyasshu::has?	entry must be live
+kyasshu::request	composes	danpen::hash	the persisted operation id
+kyasshu::request	composes	tsuushin::request	a POST carrying the persisted hash
+kyasshu::save	composes	fairu::write	persists entries
+kyasshu::save	pairs	kyasshu::open	persist then reload
+kyasshu::settle	composes	kyasshu::put	keeps or restores entries
+kyasshu::settle	composes	raifusaikuru::admit	the write machine decides the step
+kyasshu::settle	requires	kyasshu::get	the prior entry to restore
+kyasshu::snapshot	pairs	kyasshu::policy	persist rules pick the entities
+kyasshu::stale?	pairs	kyasshu::read	serve, or fetch again
+kyasshu::sweep	composes	kyasshu::fresh?	finds expired entries
+kyasshu::sweep	lifts	kyasshu::delete	many at once
+kyasshu::sweep	pairs	kyasshu::policy	evict rules set the limits
+kyasshu::tier	composes	kyasshu::remember	miss falls to the next layer
+kyasshu::warm	lifts	kyasshu::remember	many keys ahead of demand
+kyasshu::watch	composes	kyasshu::invalidate	an event drops its key
+kyasshu::watch	pairs	burauza::listen	live page and live data
+kyasshu::write	pairs	kyasshu::settle	a pending write ends kept or rolled back
+kyasshu::write	requires	kyasshu::declare	the mutation and what it touches
+kyohi::check	composes	kyohi::kinds	the kinds of the findings
+kyohi::check	pairs	kyohi::enforce	enforce is the raising form of check
+kyohi::check	requires	kyohi::refusal	a finding is a refusal
 kyohi::enforce	composes	core::check	the findings come from the master check
 kyohi::exit_status	requires	kyohi::ledger	reads the status column
 kyohi::kind	requires	kyohi::refusal	reads a refusal
@@ -2641,7 +2694,6 @@ kyuuji::hook	composes	kyoujin?::once	one effect per delivery id
 kyuuji::hook	composes	tsuuchi::verify?	signature checked first
 kyuuji::hook	refines	kyuuji::route	a route for signed callbacks
 kyuuji::json	refines	kyuuji::response	JSON content type preset
-kyuuji::match	requires	kyuuji::router	matching needs the app
 kyuuji::metered	composes	keisoku?::observe	records each request
 kyuuji::metered	composes	keisoku?::render	serves the exposition
 kyuuji::metered	pairs	shihyou::indicator	request metrics feed the indicator
@@ -2649,12 +2701,13 @@ kyuuji::mount	composes	kyuuji::router	nest one router in another
 kyuuji::not_found	refines	kyuuji::response	fixed 404 response
 kyuuji::observe	pairs	kyuuji::exposition	record then render
 kyuuji::observe	pairs	shihyou::slow_ratio	latency buckets feed indicators
-kyuuji::param	pairs	kyuuji::match	path params come from the match
+kyuuji::param	pairs	kyuuji::resolve	path params come from the match
 kyuuji::plain	refines	kyuuji::response	plain-text content type preset
 kyuuji::recover	refines	kyuuji::wrap	turns raised kinds to responses
 kyuuji::redirect	refines	kyuuji::response	3xx with Location
+kyuuji::resolve	requires	kyuuji::router	matching needs the app
 kyuuji::response	inverse	kyuuji::body	read a body in, write one out
-kyuuji::route	composes	kyuuji::match	a route is a match plus handler
+kyuuji::route	composes	kyuuji::resolve	a route is a match plus handler
 kyuuji::route	pairs	kyuuji::param	a pattern defines its params
 kyuuji::router	composes	kyuuji::route	a router is a set of routes
 kyuuji::serve	composes	kyuuji::metered	metered handler in the loop
@@ -3483,7 +3536,7 @@ rokku?::open	inverse	rokku?::close	releases the backend
 rokku?::open	pairs	rokku?::close	handle and its release
 rokku?::release	inverse	rokku?::acquire	gives the lock back
 rokku?::renew	generalizes	himitsu::renew	one meaning for every lease
-rokku?::renew	generalizes	kyasshu?::renew	one meaning for every lifetime
+rokku?::renew	generalizes	kyasshu::renew	one meaning for every lifetime
 rokku?::renew	generalizes	taiki?::renew	one meaning for every lease
 rokku?::renew	requires	rokku?::held?	only a valid lease
 rokku?::revoke	generalizes	himitsu::revoke	one meaning for every grant
@@ -4029,7 +4082,7 @@ sukiima?::schema	composes	sukiima?::shape	a name for a record shape
 sukiima?::schema	pairs	sukiima?::validate	declare then check
 sukiima?::shape	composes	sukiima?::optional	fields may be optional
 sukiima?::shape	pairs	sukiima?::fields	declare and read
-sukiima?::validate	composes	kyohi::check	one error carrying every problem
+sukiima?::validate	composes	kyohi::enforce	one error carrying every problem
 sukiima?::validate	composes	ronri::every	every item must conform
 sukiima?::validate	composes	sukiima?::explain	raise the problems explain finds
 sukiima?::validate	pairs	deeta::parse	parse, then validate

@@ -434,6 +434,9 @@ def plan_now(s)
 end
 
 def plan_unguarded(s)
+  write_stderr(
+    "kirikae: planning #{get(s, :host)}: evaluating its whole system (nix build --dry-run); this step prints nothing until it ends\n"
+  )
   plan(
     get(s, :flake),
     get(s, :host),
@@ -490,15 +493,30 @@ def keep_waiting?(p, now, deadline_ms)
   busy_hold?(p) and now < deadline_ms
 end
 
-def await_writers(s, p, deadline_ms, said)
+@doc """
+say_wait?: true when the waiting line changed or a minute passed since it was printed, so a long wait shows it is alive.
+
+    say_wait?("a", "a", 60000, 0) #=> true
+"""
+def say_wait?(why, said, now, said_ms)
+  why != said or now - said_ms >= 60000
+end
+
+def await_writers(s, p, deadline_ms, said, said_ms)
   if keep_waiting?(p, now_ms, deadline_ms)
-    if get(p, :why) != said
+    spoke = say_wait?(get(p, :why), said, now_ms, said_ms)
+    if spoke
       write_stderr(
-        "kirikae: waiting up to #{to_s(floor((deadline_ms - now_ms) / 1000))}s — #{get(p, :why)}\n"
+        "kirikae: waiting, #{to_s(floor((deadline_ms - now_ms) / 1000))}s left — #{get(p, :why)}\n"
       )
     end
+    at = if spoke
+      now_ms
+    else
+      said_ms
+    end
     sleep(get(s, :poll_s))
-    await_writers(s, plan_now(s), deadline_ms, get(p, :why))
+    await_writers(s, plan_now(s), deadline_ms, get(p, :why), at)
   else
     p
   end
@@ -509,7 +527,7 @@ run: build and activate the planned system.
 """
 def run(cmd)
   s = settings_for(cmd)
-  p = await_writers(s, plan_now(s), now_ms + get(s, :wait_s) * 1000, nil)
+  p = await_writers(s, plan_now(s), now_ms + get(s, :wait_s) * 1000, nil, 0)
   write_stderr(summary(p))
   a = get(p, :action)
   if a == :noop and getenv("KIRIKAE_FORCE", "") == ""
@@ -832,6 +850,10 @@ test "a run waits out another writer only while its wait lasts, and never a back
   assert keep_waiting?(h, 1000, 1000) == false
   assert keep_waiting?({action: :hold, why: "backoff"}, 1000, 2000) == false
   assert keep_waiting?({action: :switch}, 1000, 2000) == false
+  assert say_wait?("a", nil, 0, 0)
+  assert say_wait?("a", "a", 30000, 0) == false
+  assert say_wait?("a", "a", 60000, 0)
+  assert say_wait?("b", "a", 1000, 0)
 end
 
 test "a loop that already runs the checkout's rev answers the plan without evaluating"

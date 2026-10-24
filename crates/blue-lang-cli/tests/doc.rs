@@ -68,7 +68,7 @@ fn a_bidama_definition_has_its_doc_namespace_and_test_example() {
     assert_eq!(e["signature"], "retsu::size(xs)");
     assert_eq!(
         e["doc"][0],
-        "Total length: nil counts as empty rather than erroring."
+        "size: Total length: nil counts as empty rather than erroring."
     );
     assert!(
         e["example"]["code"].as_array().is_some_and(|c| c

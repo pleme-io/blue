@@ -701,7 +701,7 @@ fn hover_reads_a_bidamas_definition() {
         .unwrap_or_else(|| panic!("{r}"));
     assert!(md.contains("def size(xs)"), "{md}");
     assert!(md.contains("bidama `retsu`"), "{md}");
-    assert!(md.contains("size: total length"), "{md}");
+    assert!(md.contains("size: Total length"), "{md}");
     assert!(md.contains("size([]) #=> 0"), "{md}");
     assert!(
         md.contains("signature `def size(xs)` · rung dynamic"),

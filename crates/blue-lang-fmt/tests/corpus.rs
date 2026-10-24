@@ -23,12 +23,13 @@
 //! control (`>= 40` files) keeps it from passing because the walk found
 //! nothing.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 mod common;
 
 use blue_lang_fmt::format_source_lossless;
-use blue_lang_syntax::parse_program;
+use blue_lang_syntax::{lex, parse_program, TokenKind};
 use common::{lawful_overflow, WIDTH};
 
 #[test]
@@ -127,13 +128,14 @@ fn tally() -> Tally {
                 comment_texts(&once).len()
             ));
         }
+        let prose = string_body_lines(&once);
         for (i, line) in once.lines().enumerate() {
             let w = line.chars().count();
             t.widest = t.widest.max(w);
             if w > WIDTH {
                 t.over_raw += 1;
             }
-            if w > WIDTH && !lawful_overflow(line) {
+            if w > WIDTH && !prose.contains(&i) && !lawful_overflow(line) {
                 t.over.push(format!("{name}:{}: {w} cols: {line}", i + 1));
             }
         }
@@ -148,6 +150,21 @@ fn tally() -> Tally {
         t.widest
     );
     t
+}
+
+fn string_body_lines(src: &str) -> HashSet<usize> {
+    let line_of = |at: usize| src[..at].matches('\n').count();
+    lex(src)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|t| {
+            matches!(
+                t.kind,
+                TokenKind::Str(_) | TokenKind::InterpolatedStr { .. } | TokenKind::Doc { .. }
+            )
+        })
+        .flat_map(|t| line_of(t.span.start) + 1..=line_of(t.span.end.saturating_sub(1)))
+        .collect()
 }
 
 /// POSITIVE CONTROL. A walk that found nothing would pass every law below.

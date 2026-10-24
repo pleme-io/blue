@@ -14,6 +14,24 @@ row("bind.define", "define(y, 3)\ny", value("3"))
 row("bind.set", "x = 1\nset!(x, 5)\nx", value("5"))
 
 row(
+  "bind.local.callee_keeps_its_own",
+  "def inner()\n  k = 2\n  k\nend\n\ndef outer()\n  k = 1\n  inner\n  k\nend\n\nouter",
+  value("1")
+)
+
+row(
+  "bind.local.recursion_keeps_each_frame",
+  "def walk(n)\n  k = n\n  if n == 0\n    [k]\n  else\n    append(walk(n - 1), [k])\n  end\nend\n\nwalk(3)",
+  value("[0, 1, 2, 3]")
+)
+
+row(
+  "bind.local.top_level_unchanged",
+  "k = :top\n\ndef f()\n  k = 1\n  k\nend\n\n[f, k]",
+  value("[1, :top]")
+)
+
+row(
   "bind.no_let",
   "x = let([[y, 1]], y)",
   fails(:check, "B0001"),

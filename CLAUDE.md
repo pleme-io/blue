@@ -374,21 +374,34 @@ hit:
   the property. If the red run does not go red, the mutation is wrong or the
   gate is vacuous; find out which.
 
-**A push to `main` runs the local gates first.** `nix develop` sets
-`core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b` on the
-working tree: `cargo fmt --check`, every `Bluefile.lock` confirmed, `regen` in
-every project that generates (each red names the file it rewrote; commit it),
-`gen --version` against substrate's one gen pin (red names the nix lock bump),
-`gen confirm` (red runs `gen build .` and names the files to commit),
-each member's test targets compiled alone (`cargo test -p M --no-run`, since
-`--workspace` unifies features and hid a break), and the `registry_graph`,
-`check_corpus`, `distribution` and `verb_graph` tests. These caught
-four `main` reds on 2026-10-22 that CI found only after the push. About 4.5 min
-warm (2026-10-23): regen of the root 71 s, the per-member compile 44 s, the
-tests 136 s. A project whose declared
-`tool` is not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never
-green. The hook first calls the global `core.hooksPath` hook of the same
-name, so the fleet's commit gates still run. Off: `BLUE_PREPUSH_OFF=1`.
+**CI guards `main`; land with `git land`.** `git land [slug] [--watch]`
+(`gen/land.b`; `nix develop` sets the alias) pushes HEAD to `land/<slug>`.
+`.github/workflows/land.yml` runs the `ci` suite on that exact commit
+(`nix flake check`, strict conformance among its checks, and `cargo test
+--workspace`), and when it is green it fast-forwards `main` to it and deletes
+the branch. When `main` moved first, the push is refused, nothing merges, and
+you rebase and land again. `--dry` lands on `land/dry-<slug>`: the suite runs
+and the fast-forward is only rehearsed. A push straight to `main` stays
+possible.
+
+**Every push runs a fast local gate first** (`.githooks/pre-push`, which
+`nix develop` points `core.hooksPath` at, runs `gen/prepush.b`). The gates and
+the paths each one reads are one table, `gate_table`: a push runs only the
+light gates its changed paths select (`cargo fmt --check`, `blue fmt --check`
+on the changed `.b` files, `Bluefile.lock` of the changed lock dirs), in
+seconds. A path in `every_gate_paths` (`Cargo.lock`, `flake.lock`, the hooks)
+or a path no gate names selects every gate. The heavy gates (regen of every
+generating project, gen's pin and `Cargo.gen.lock` tie, each member's test
+targets alone, the `registry_graph`, `check_corpus`, `distribution` and
+`verb_graph` tests, strict conformance) run in CI, or here with
+`BLUE_PREPUSH_FULL=1`. The opening line names the gates, the paths that chose
+them and the time the last runs took. A clean tree that passed is recorded in
+`.git/prepush/green/<tree>`, and its next push skips; a dirty tree never
+skips. The hook builds blue through `.githooks/blue`, into one target per
+clone under `$XDG_CACHE_HOME/blue-target/` unless `CARGO_TARGET_DIR` is set,
+so a push never compiles a cold `./target`. It hands the pushed refs to the
+global hook of the same name first. ctrl-c ends it with one line. Off:
+`BLUE_PREPUSH_OFF=1`.
 
 ## Dependencies
 

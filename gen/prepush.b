@@ -1,5 +1,312 @@
-use("retsu", [:all_but_last, :enumerate, :first, :last, :reject])
+use("moji", [:glob_match?, :take_chars])
+
+use(
+  "retsu",
+  [:all_but_last, :enumerate, :first, :flat_map, :last, :reject, :rest]
+)
+
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+
+@doc """
+gate_table: Every gate the pre-push hook knows, as data. A gate has an id, a
+label, a weight and the paths it reads, as globs. A light gate runs on every
+push whose paths it reads; a heavy gate runs with BLUE_PREPUSH_FULL=1, and
+otherwise CI runs it when the push lands. The none weight names paths that no
+gate reads.
+
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks"]
+"""
+def gate_table()
+  [
+    {
+      id: "cargo-fmt",
+      label: "cargo fmt",
+      weight: :light,
+      inputs: ["**/*.rs", "**/rustfmt.toml", "**/Cargo.toml"]
+    },
+    {id: "blue-fmt", label: "blue fmt", weight: :light, inputs: ["**/*.b"]},
+    {
+      id: "locks",
+      label: "Bluefile.lock fresh",
+      weight: :light,
+      inputs: ["**/Bluefile", "**/Bluefile.lock", "**/*.b"]
+    },
+    {
+      id: "regen",
+      label: "regen",
+      weight: :heavy,
+      inputs: [
+        "**/*.b",
+        "**/Bluefile",
+        "**/Bluefile.lock",
+        "crates/**",
+        "docs/**",
+        "examples/**",
+        "spec/**"
+      ]
+    },
+    {
+      id: "gen-pin",
+      label: "gen is substrate's pin",
+      weight: :heavy,
+      inputs: ["flake.lock"]
+    },
+    {
+      id: "gen-tie",
+      label: "Cargo.gen.lock tied",
+      weight: :heavy,
+      inputs: ["Cargo.lock", "Cargo.gen.lock", "**/Cargo.toml"]
+    },
+    {
+      id: "test-targets",
+      label: "every member's test targets compile alone",
+      weight: :heavy,
+      inputs: ["crates/**", "**/Cargo.toml"]
+    },
+    {
+      id: "tests",
+      label: "registry_graph, check_corpus, distribution, verb_graph",
+      weight: :heavy,
+      inputs: [
+        "crates/**",
+        "bidamas/**",
+        "spec/**",
+        "gen/**",
+        "docs/verbs/**",
+        "examples/**",
+        "**/Cargo.toml"
+      ]
+    },
+    {
+      id: "conformance",
+      label: "conformance, strict as CI runs it",
+      weight: :heavy,
+      inputs: ["spec/**", "crates/**", "bidamas/**"]
+    },
+    {
+      id: "prose",
+      label: "prose",
+      weight: :none,
+      inputs: ["**/*.md", "LICENSE", "**/.gitignore"]
+    }
+  ]
+end
+
+@doc """
+every_gate_paths: The paths that select every gate when a push changes one:
+the locks every build reads, the toolchain, and the gate itself.
+
+    member?("Cargo.lock", every_gate_paths) #=> true
+"""
+def every_gate_paths()
+  [
+    "Cargo.lock",
+    "flake.lock",
+    "flake.nix",
+    "rust-toolchain*",
+    "nix/**",
+    ".githooks/**",
+    "gen/prepush.b"
+  ]
+end
+
+@doc """
+reads?: Whether a gate's globs match a path.
+
+    reads?({inputs: ["**/*.b"]}, "gen/regen.b") #=> true
+    reads?({inputs: ["**/*.b"]}, "Cargo.toml") #=> false
+"""
+def reads?(gate, path)
+  any?((p) -> glob_match?(p, path), get(gate, :inputs))
+end
+
+@doc """
+selection: Which gates a set of changed paths selects, and why. A path that
+selects every gate, or a path no gate names, selects every gate: an unknown
+path fails closed. The answer holds the gate ids in table order, and a reason
+that is empty when the paths chose the gates one by one.
+
+    get(selection(["bidamas/retsu/retsu.b"], gate_table), :ids) #=> ["blue-fmt", "locks", "regen", "tests", "conformance"]
+    get(selection(["README.md"], gate_table), :ids) #=> []
+"""
+def selection(changed, table)
+  ids = map((g) -> get(g, :id), filter((g) -> get(g, :weight) != :none, table))
+  every = filter(
+    (p) -> any?((g) -> glob_match?(g, p), every_gate_paths),
+    changed
+  )
+  unknown = reject((p) -> any?((g) -> reads?(g, p), table), changed)
+  if every != []
+    {ids:, reason: "#{first(every)} selects every gate"}
+  elsif unknown != []
+    {ids:, reason: "no gate names #{first(unknown)}, so every gate runs"}
+  else
+    {
+      ids: filter(
+        fn(id)
+          g = first(filter((t) -> get(t, :id) == id, table))
+          any?((p) -> reads?(g, p), changed)
+        end,
+        ids
+      ),
+      reason: ""
+    }
+  end
+end
+
+@doc """
+weight_of: A gate id's weight in the table.
+
+    weight_of("cargo-fmt", gate_table) #=> :light
+"""
+def weight_of(id, table)
+  get(first(filter((g) -> get(g, :id) == id, table)), :weight)
+end
+
+@doc """
+planned: The gate ids this run judges: every gate with BLUE_PREPUSH_FULL=1,
+else the light gates the selection holds.
+
+    planned(["blue-fmt", "regen"], false, gate_table) #=> ["blue-fmt"]
+    count(planned([], true, gate_table)) #=> 9
+"""
+def planned(ids, full, table)
+  if full
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) != :none, table))
+  else
+    filter((id) -> weight_of(id, table) == :light, ids)
+  end
+end
+
+@doc """
+zero_sha?: Whether a ref update names no commit, as git writes a new or a
+deleted ref.
+
+    zero_sha?("0000000000000000000000000000000000000000") #=> true
+    zero_sha?("8bd5119") #=> false
+"""
+def zero_sha?(sha)
+  sha != "" and replace(sha, "0", "") == ""
+end
+
+@doc """
+updates_of: The ref updates git writes to a pre-push hook's stdin, one per
+line as local ref, local sha, remote ref and remote sha; a deleted ref is no
+update to check.
+
+    updates_of("refs/heads/a 1111 refs/heads/a 0000") #=> [{local: "1111", remote: "0000"}]
+    updates_of("(delete) 0000 refs/heads/a 1111") #=> []
+"""
+def updates_of(text)
+  rows = filter((w) -> count(w) == 4, map((l) -> split(l, " "), lines_of(text)))
+  map(
+    (w) -> {local: nth(1, w), remote: nth(3, w)},
+    reject((w) -> zero_sha?(nth(1, w)), rows)
+  )
+end
+
+@doc """
+green_key: The base a green record names: a star when the run judged the
+whole tree, else the base trees the changed paths were read against.
+
+    green_key(true, ["b", "a"]) #=> "*"
+    green_key(false, ["b", "a", "b"]) #=> "a,b"
+"""
+def green_key(whole, bases)
+  if whole
+    "*"
+  else
+    join(sort_keyed((b) -> b, distinct(bases)), ",")
+  end
+end
+
+@doc """
+green_hit: The record that lets this push skip, or nil. A record is a line
+`mode key time seconds`; a full record covers every push of its tree, and a
+light record covers a light push with the same key. A dirty tree never
+skips, because the gates read the working tree and not the pushed commit.
+
+    green_hit(["light a,b 2026-10-24T12:00:00Z 4.1"], false, "a,b", false) #=> ["light", "a,b", "2026-10-24T12:00:00Z", "4.1"]
+    green_hit(["light a,b 2026-10-24T12:00:00Z 4.1"], false, "a,b", true) #=> nil
+    green_hit(["light a,b 2026-10-24T12:00:00Z 4.1"], true, "*", false) #=> nil
+"""
+def green_hit(records, full, key, dirty)
+  if dirty
+    nil
+  else
+    hits = filter(
+      fn(r)
+        if count(r) != 4
+          false
+        elsif first(r) == "full"
+          true
+        else
+          not full and (nth(1, r) == key or nth(1, r) == "*")
+        end
+      end,
+      map((l) -> split(l, " "), records)
+    )
+    if hits == []
+      nil
+    else
+      last(hits)
+    end
+  end
+end
+
+@doc """
+lock_dir_of: The directory of the nearest Bluefile.lock above a path.
+
+    lock_dir_of(["." , "bidamas/retsu"], "bidamas/retsu/retsu.b") #=> "bidamas/retsu"
+    lock_dir_of([".", "bidamas/retsu"], "gen/regen.b") #=> "."
+"""
+def lock_dir_of(dirs, path)
+  owners = filter((d) -> d != "." and starts_with?(path, "#{d}/"), dirs)
+  reduce(
+    fn(best, d)
+      if count(split(d, "/")) > count(split(best, "/"))
+        d
+      else
+        best
+      end
+    end,
+    ".",
+    owners
+  )
+end
+
+@doc """
+expected: The seconds the last runs took for these labels, from timing lines
+`ms label`; nil when a label has no timing yet.
+
+    expected(["1000 cargo fmt", "500 blue fmt", "1200 cargo fmt"], ["cargo fmt", "blue fmt"]) #=> 1.7
+    expected([], ["cargo fmt"]) #=> nil
+"""
+def expected(lines, labels)
+  rows = map(
+    fn(l)
+      w = split(l, " ")
+      [join(rest(w), " "), first(w)]
+    end,
+    lines
+  )
+  ms = map(
+    fn(label)
+      seen = filter((r) -> first(r) == label, rows)
+      if seen == []
+        nil
+      else
+        to_int(last(last(seen)))
+      end
+    end,
+    labels
+  )
+  if member?(nil, ms)
+    nil
+  else
+    round(reduce((a, b) -> a + b, 0, ms) / 100) / 10
+  end
+end
 
 def off?()
   v = getenv("BLUE_PREPUSH_OFF")
@@ -10,6 +317,25 @@ def off?()
   else
     write_stderr(
       "prepush: BLUE_PREPUSH_OFF is \"#{v}\"; the one value it takes is 1\n"
+    )
+    exit_with(2)
+  end
+end
+
+@doc """
+full?: Whether BLUE_PREPUSH_FULL asks for every gate; it takes 1 or nothing.
+
+    full?(nil) #=> false
+    full?("1") #=> true
+"""
+def full?(v)
+  if v.nil? or v == ""
+    false
+  elsif v == "1"
+    true
+  else
+    write_stderr(
+      "prepush: BLUE_PREPUSH_FULL is \"#{v}\"; the one value it takes is 1\n"
     )
     exit_with(2)
   end
@@ -42,20 +368,6 @@ end
 
 def seconds(ms)
   "#{to_s(round(ms / 100) / 10)}s"
-end
-
-def run_gate(g, i, total)
-  step = "[#{to_s(i + 1)}/#{to_s(total)}] #{first(g)}"
-  write_stderr("⏳ #{step} …\n")
-  t = now_ms
-  f = last(g)
-  r = f()
-  mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
-  write_stderr("#{mark} #{step} (#{seconds(now_ms - t)})\n")
-  if first(r) != :green
-    write_stderr(last(r))
-  end
-  [first(g), first(r)]
 end
 
 def manifest(dir)
@@ -140,7 +452,7 @@ def gen_pin()
   elsif status_of(pin) != 0
     [:blind, "could not read substrate's gen pin:\n#{stderr_of(pin)}"]
   else
-    installed = blue::trim(stdout_of(exec_capture("gen", "--version")))
+    installed = trim(stdout_of(exec_capture("gen", "--version")))
     if installed == "gen #{stdout_of(pin)}"
       [:green, ""]
     else
@@ -172,107 +484,356 @@ def gen_tie()
   end
 end
 
-if off?
-  write_stderr("prepush: off (BLUE_PREPUSH_OFF=1); nothing checked\n")
-  exit_with(0)
+def main()
+  hook = getenv("BLUE_PREPUSH_GLOBAL_HOOK", "")
+  fed = if getenv("BLUE_PREPUSH_HOOK") == "1"
+    read_file("/dev/stdin")
+  else
+    ""
+  end
+  if hook != "" and path_exists(hook)
+    g = exec_with_stdin(fed, hook, *argv)
+    write_stderr("#{stdout_of(g)}#{stderr_of(g)}")
+    if status_of(g) != 0
+      exit_with(status_of(g))
+    end
+  end
+  if off?
+    write_stderr("prepush: off (BLUE_PREPUSH_OFF=1); nothing checked\n")
+    exit_with(0)
+  end
+  full = full?(getenv("BLUE_PREPUSH_FULL"))
+  started = now_ms
+  common = trim(
+    git(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+  )
+  store = "#{common}/prepush"
+  remote = if count(argv) > 0
+    first(argv)
+  else
+    "origin"
+  end
+  trunk = "refs/remotes/#{remote}/main"
+  base_of = fn(sha, other)
+    known = not zero_sha?(other) and
+      exec_ok?("git", "cat-file", "-e", "#{other}^{commit}")
+    against = if known
+      other
+    else
+      trunk
+    end
+    m = exec_capture("git", "merge-base", sha, against)
+    if status_of(m) == 0
+      trim(stdout_of(m))
+    end
+  end
+  updates = if fed == ""
+    [{local: trim(git(["rev-parse", "HEAD"])), remote: ""}]
+  else
+    updates_of(fed)
+  end
+  if updates == []
+    write_stderr("prepush: the push only deletes refs; nothing to check\n")
+    exit_with(0)
+  end
+  pairs = map(
+    (u) -> [get(u, :local), base_of(get(u, :local), get(u, :remote))],
+    updates
+  )
+  blind = any?((p) -> last(p).nil?, pairs)
+  paths = distinct(
+    flat_map(
+      reject((p) -> last(p).nil?, pairs),
+      (p) -> lines_of(git(["diff", "--name-only", last(p), first(p)]))
+    )
+  )
+  table = gate_table
+  chosen = if blind
+    {
+      ids: map(
+        (g) -> get(g, :id),
+        filter((g) -> get(g, :weight) != :none, table)
+      ),
+      reason: "no base on #{trunk} for a pushed commit, so every gate runs"
+    }
+  else
+    selection(paths, table)
+  end
+  whole = full or get(chosen, :reason) != ""
+  dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
+  head_tree = trim(git(["rev-parse", "HEAD^{tree}"]))
+  trees = distinct(
+    map((p) -> trim(git(["rev-parse", "#{first(p)}^{tree}"])), pairs)
+  )
+  one_tree = trees == [head_tree]
+  key = green_key(
+    whole,
+    map((p) -> trim(git(["rev-parse", "#{last(p)}^{tree}"])), pairs)
+  )
+  mode = if full
+    "full"
+  else
+    "light"
+  end
+  record = "#{store}/green/#{head_tree}"
+  kept = if path_exists(record)
+    lines_of(read_file(record))
+  else
+    []
+  end
+  hit = green_hit(kept, full, key, dirty != [] or not one_tree)
+  if not hit.nil?
+    write_stderr(
+      "🟢 prepush: tree #{take_chars(head_tree, 10)} passed the #{first(hit)} gate at #{nth(2, hit)} (#{last(hit)}s); nothing to run\n"
+    )
+    exit_with(0)
+  end
+  if dirty != []
+    write_stderr(
+      "⚠️ prepush reads the working tree, and #{to_s(count(dirty))} tracked files differ from HEAD; a green run is not recorded\n"
+    )
+  elsif not one_tree
+    write_stderr("⚠️ prepush reads the working tree, and the push names a commit other than HEAD; a green run is not recorded\n")
+  end
+  root = trim(git(["rev-parse", "--show-toplevel"]))
+  bin = dir_of(self_exe)
+  dirs = map(dir_of, lines_of(git(["ls-files", "*Bluefile.lock"])))
+  scoped_b = filter((p) -> ends_with?(p, ".b") and path_exists(p), paths)
+  scoped_dirs = distinct(
+    map(
+      (p) -> lock_dir_of(dirs, p),
+      filter(
+        (p) -> reads?(first(filter((g) -> get(g, :id) == "locks", table)), p),
+        paths
+      )
+    )
+  )
+  bfiles = if whole
+    lines_of(git(["ls-files", "*.b"]))
+  else
+    scoped_b
+  end
+  ldirs = if whole
+    dirs
+  else
+    scoped_dirs
+  end
+  runners = {
+    "cargo-fmt" => [
+      [
+        "cargo fmt",
+        () -> verdict(exec_capture("cargo", "fmt", "--all", "--", "--check"))
+      ]
+    ],
+    "blue-fmt" => [
+      [
+        "blue fmt",
+        fn()
+          if bfiles == []
+            [:green, ""]
+          else
+            verdict(exec_capture("#{bin}/blue", "fmt", "--check", *bfiles))
+          end
+        end
+      ]
+    ],
+    "locks" => [
+      [
+        "Bluefile.lock fresh",
+        fn()
+          if ldirs == []
+            [:green, ""]
+          else
+            verdict(
+              exec_capture(
+                "#{bin}/blue",
+                "bluefile",
+                "--confirm",
+                *map((d) -> "#{d}/Bluefile", ldirs)
+              )
+            )
+          end
+        end
+      ]
+    ],
+    "regen" => map(
+      (d) -> ["regen #{d}", () -> regen(bin, root, d)],
+      filter(regenerates?, dirs)
+    ),
+    "gen-pin" => [["gen is substrate's pin", () -> gen_pin]],
+    "gen-tie" => [["Cargo.gen.lock tied", () -> gen_tie]],
+    "test-targets" => [
+      ["every member's test targets compile alone", () -> test_targets]
+    ],
+    "tests" => [
+      [
+        "registry_graph, check_corpus, distribution, verb_graph",
+        fn()
+          verdict(
+            exec_capture(
+              "cargo",
+              "test",
+              "-q",
+              "--no-fail-fast",
+              "-p",
+              "blue-lang-cli",
+              "-p",
+              "blue-lang-pkg",
+              "--test",
+              "registry_graph",
+              "--test",
+              "check_corpus",
+              "--test",
+              "distribution",
+              "--test",
+              "verb_graph"
+            )
+          )
+        end
+      ]
+    ],
+    "conformance" => [
+      [
+        "conformance, strict as CI runs it",
+        fn()
+          verdict(
+            exec_with_env(
+              [["BLUE_BIN", "#{bin}/blue"], ["BLUE_CONFORMANCE_STRICT", "1"]],
+              "cargo",
+              "test",
+              "-q",
+              "-p",
+              "blue-lang-test",
+              "--test",
+              "conformance"
+            )
+          )
+        end
+      ]
+    ]
+  }
+  ids = planned(get(chosen, :ids), full, table)
+  gates = flat_map(ids, (id) -> get(runners, id))
+  ci = reject((id) -> member?(id, ids), get(chosen, :ids))
+  timings_file = "#{store}/timings"
+  timings = if path_exists(timings_file)
+    lines_of(read_file(timings_file))
+  else
+    []
+  end
+  guess = expected(timings, map(first, gates))
+  why = if get(chosen, :reason) != ""
+    get(chosen, :reason)
+  elsif paths == []
+    "the push changes no path"
+  else
+    "#{to_s(count(paths))} changed paths since #{take_chars(last(first(pairs)), 10)}"
+  end
+  scope = if whole
+    ""
+  else
+    " (#{to_s(count(bfiles))} .b, #{to_s(count(ldirs))} lock dirs)"
+  end
+  ran = if gates == []
+    "no gate"
+  else
+    "#{join(map(first, gates), ", ")}#{scope}"
+  end
+  later = if ci == []
+    ""
+  else
+    "; CI runs #{join(ci, ", ")} when it lands (blue gen/land.b)"
+  end
+  took = if guess.nil?
+    "no timing yet"
+  else
+    "about #{to_s(guess)}s by the last runs"
+  end
+  write_stderr(
+    "prepush (#{mode}): #{why}: #{ran}#{later}; #{took}. BLUE_PREPUSH_FULL=1 runs every gate, BLUE_PREPUSH_OFF=1 none\n"
+  )
+  mkdir_p(store)
+  total = count(gates)
+  results = map(
+    fn(p)
+      i = first(p)
+      g = last(p)
+      step = "[#{to_s(i + 1)}/#{to_s(total)}] #{first(g)}"
+      write_stderr("⏳ #{step} …\n")
+      t = now_ms
+      f = last(g)
+      r = f()
+      spent = now_ms - t
+      append_file(timings_file, "#{to_s(spent)} #{first(g)}\n")
+      mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
+      write_stderr("#{mark} #{step} (#{seconds(spent)})\n")
+      if first(r) != :green
+        write_stderr(last(r))
+      end
+      [first(g), first(r)]
+    end,
+    enumerate(gates)
+  )
+  red = map(first, filter((r) -> last(r) == :red, results))
+  if red == []
+    if dirty == [] and one_tree
+      mkdir_p("#{store}/green")
+      append_file(
+        record,
+        "#{mode} #{key} #{now_rfc3339} #{to_s(round((now_ms - started) / 100) / 10)}\n"
+      )
+    end
+    write_stderr("🟢 prepush: no gate red (#{seconds(now_ms - started)})\n")
+  else
+    write_stderr(
+      "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push\n"
+    )
+    exit_with(1)
+  end
 end
 
-root = blue::trim(git(["rev-parse", "--show-toplevel"]))
-dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
-
-if dirty != []
-  write_stderr(
-    "⚠️ prepush reads the working tree, and #{to_s(count(dirty))} tracked files differ from HEAD\n"
-  )
+test "a .b-only change selects the .b gates and no Rust gate"
+  s = selection(["bidamas/shuugou/shuugou.b", "gen/regen.b"], gate_table)
+  assert get(s, :reason) == ""
+  assert planned(get(s, :ids), false, gate_table) == ["blue-fmt", "locks"]
+  assert not member?("test-targets", get(s, :ids))
 end
 
-bin = dir_of(self_exe)
-dirs = map(dir_of, lines_of(git(["ls-files", "*Bluefile.lock"])))
+test "a Cargo.lock change selects every gate"
+  s = selection(["Cargo.lock"], gate_table)
+  assert get(s, :reason) == "Cargo.lock selects every gate"
+  assert planned(get(s, :ids), false, gate_table) ==
+    ["cargo-fmt", "blue-fmt", "locks"]
+  assert count(get(s, :ids)) == 9
+end
 
-gates = append(
-  [
-    [
-      "cargo fmt",
-      () -> verdict(exec_capture("cargo", "fmt", "--all", "--", "--check"))
-    ],
-    [
-      "blue fmt, every .b as checks.blue-fmt reads it",
-      fn()
-        verdict(
-          exec_capture(
-            "#{bin}/blue",
-            "fmt",
-            "--check",
-            *lines_of(git(["ls-files", "*.b"]))
-          )
-        )
-      end
-    ],
-    [
-      "Bluefile.lock fresh",
-      fn()
-        verdict(
-          exec_capture(
-            "#{bin}/blue",
-            "bluefile",
-            "--confirm",
-            *map((d) -> "#{d}/Bluefile", dirs)
-          )
-        )
-      end
-    ]
-  ],
-  map(
-    (d) -> ["regen #{d}", () -> regen(bin, root, d)],
-    filter(regenerates?, dirs)
-  ),
-  [
-    ["gen is substrate's pin", () -> gen_pin],
-    ["Cargo.gen.lock tied", () -> gen_tie],
-    ["every member's test targets compile alone", () -> test_targets],
-    [
-      "registry_graph, check_corpus, distribution, verb_graph",
-      fn()
-        verdict(
-          exec_capture(
-            "cargo",
-            "test",
-            "-q",
-            "--no-fail-fast",
-            "-p",
-            "blue-lang-cli",
-            "-p",
-            "blue-lang-pkg",
-            "--test",
-            "registry_graph",
-            "--test",
-            "check_corpus",
-            "--test",
-            "distribution",
-            "--test",
-            "verb_graph"
-          )
-        )
-      end
-    ]
-  ]
-)
+test "an unknown path selects every gate"
+  s = selection(["bidamas/retsu/retsu.b", "tools/new.toml"], gate_table)
+  assert get(s, :reason) == "no gate names tools/new.toml, so every gate runs"
+  assert count(get(s, :ids)) == 9
+end
 
-total = count(gates)
+test "a Rust change selects cargo fmt and the heavy gates"
+  s = selection(["crates/blue-lang-fmt/src/lib.rs"], gate_table)
+  assert planned(get(s, :ids), false, gate_table) == ["cargo-fmt"]
+  assert member?("tests", get(s, :ids))
+end
 
-write_stderr(
-  "prepush: #{to_s(total)} gates, a few minutes; ctrl-c stops it, BLUE_PREPUSH_OFF=1 git push skips it\n"
-)
+test "a recorded green tree skips a push with the same base"
+  rs = ["light t1 2026-10-24T12:00:00Z 3.2"]
+  assert green_hit(rs, false, "t1", false) ==
+    ["light", "t1", "2026-10-24T12:00:00Z", "3.2"]
+  assert green_hit(rs, false, "t2", false).nil?
+  assert green_hit(["full * 2026-10-24T12:00:00Z 400.0"], false, "t2", false) !=
+    nil
+end
 
-started = now_ms
-results = map((p) -> run_gate(last(p), first(p), total), enumerate(gates))
-red = map(first, filter((r) -> last(r) == :red, results))
-
-if red == []
-  write_stderr("🟢 prepush: no gate red (#{seconds(now_ms - started)})\n")
-else
-  write_stderr(
-    "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push\n"
-  )
-  exit_with(1)
+test "a dirty tree never skips"
+  assert green_hit(["full * 2026-10-24T12:00:00Z 400.0"], true, "*", true).nil?
+  assert green_hit(
+    ["light t1 2026-10-24T12:00:00Z 3.2"],
+    false,
+    "t1",
+    true
+  ).nil?
 end

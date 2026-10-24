@@ -138,6 +138,48 @@ def sequence(prefix, value, theme)
   "#{prefix};2;#{to_s(round(get(c, :r)))};#{to_s(round(get(c, :g)))};#{to_s(round(get(c, :b)))}"
 end
 
+@doc """
+inks: the sixteen ANSI colour slots by name with their SGR codes, so a terminal paints text in its own theme (Nord on a pleme-io terminal) and blue carries no hex.
+
+    get(inks, :cyan) #=> "36"
+"""
+def inks()
+  {
+    black: "30",
+    red: "31",
+    green: "32",
+    yellow: "33",
+    blue: "34",
+    magenta: "35",
+    cyan: "36",
+    white: "37",
+    bright_black: "90",
+    bright_red: "91",
+    bright_green: "92",
+    bright_yellow: "93",
+    bright_blue: "94",
+    bright_magenta: "95",
+    bright_cyan: "96",
+    bright_white: "97"
+  }
+end
+
+@doc """
+ink_code: the SGR code of an ANSI slot name, refusing a name that is no slot.
+
+    ink_code(:bright_black) #=> "90"
+"""
+def ink_code(name)
+  code = get(inks, name)
+  if code.nil?
+    raise(
+      :bad_option,
+      "no ink #{to_s(name)}; an ink is one of the sixteen ANSI slots"
+    )
+  end
+  code
+end
+
 def codes(node, theme)
   flags = filter(
     (p) -> get(node, first(p)) == true,
@@ -146,6 +188,11 @@ def codes(node, theme)
   colors = filter(
     (x) -> x != nil,
     [
+      if get(node, :ink).nil?
+        nil
+      else
+        ink_code(get(node, :ink))
+      end,
       if get(node, :fg).nil?
         nil
       else
@@ -222,6 +269,114 @@ def show(node, opts)
     write("#{text}\n")
   end
   nil
+end
+
+@doc """
+terminal?: whether a file descriptor is a terminal, asked of `test -t`.
+
+    terminal?(9) #=> false
+"""
+def terminal?(fd)
+  exec_check("test", "-t", to_s(fd)) == 0 rescue false
+end
+
+@doc """
+step_marks: the symbol each state of a step shows.
+
+    get(step_marks, :done) #=> "✅"
+"""
+def step_marks()
+  {running: "⏳", done: "✅", failed: "❌", skipped: "➖", warn: "⚠️"}
+end
+
+@doc """
+duration_text: milliseconds as a person reads a duration: tenths of a second under a minute, minutes and seconds above.
+
+    duration_text(87240) #=> "1m 27s"
+"""
+def duration_text(ms)
+  if ms < 60000
+    "#{to_s(round(ms / 100) / 10)}s"
+  else
+    m = floor(ms / 60000)
+    sec = floor((ms - m * 60000) / 1000)
+    pad = if sec < 10
+      "0"
+    else
+      ""
+    end
+    "#{to_s(m)}m #{pad}#{to_s(sec)}s"
+  end
+end
+
+@doc """
+step: one step of a run as a node: the state's mark, its place as [at/of], its name in bold, an optional note after a dash, the duration once known, and an ellipsis while it runs.
+
+    styled(step({state: :done, at: 3, of: 11, name: "regen", ms: 87240}), {color: false, theme: nil}) #=> "✅ [3/11] regen (1m 27s)"
+"""
+def step(s)
+  checked(s, [:state, :at, :of, :name, :note, :ms])
+  state = get(s, :state)
+  mark = get(step_marks, state)
+  if mark.nil?
+    raise(
+      :bad_option,
+      "a step state is running, done, failed, skipped or warn, got #{to_s(state)}"
+    )
+  end
+  tone = get(
+    {running: :cyan, failed: :red, warn: :yellow, skipped: :bright_black},
+    state
+  )
+  name = if tone.nil?
+    {text: get(s, :name), bold: true}
+  else
+    {text: get(s, :name), bold: true, ink: tone}
+  end
+  note = if get(s, :note).nil?
+    []
+  else
+    [{text: " — ", ink: :bright_black}, get(s, :note)]
+  end
+  tail = if get(s, :ms) != nil
+    [{text: " (#{duration_text(get(s, :ms))})", ink: :bright_black}]
+  elsif state == :running
+    [{text: " …", ink: :bright_black}]
+  else
+    []
+  end
+  append(
+    [
+      "#{mark} ",
+      {text: "[#{to_s(get(s, :at))}/#{to_s(get(s, :of))}]", ink: :bright_black},
+      " ",
+      name
+    ],
+    note,
+    tail
+  )
+end
+
+@doc """
+show_step: write one step line, to stderr unless told otherwise, painted only when NO_COLOR is unset and the stream is a terminal.
+
+    show_step({state: :skipped, at: 1, of: 1, name: "x"}, {sink: (_t) -> nil}) #=> nil
+"""
+def show_step(s, opts)
+  to = get(opts, :to) or :stderr
+  color = if get(opts, :color).nil?
+    color_default and
+      terminal?(
+        if to == :stdout
+          1
+        else
+          2
+        end
+      )
+  else
+    get(opts, :color)
+  end
+  show(step(s), assoc(assoc(opts, :to, to), :color, color))
 end
 
 def close?(a, b)
@@ -2278,4 +2433,65 @@ test "labels keys display text by each value of a closed set"
   assert raises?(:bad_option, () -> labels("Tone", {WARM: "Warm"}))
   assert raises?(:bad_option, () -> labels(:Tone, {}))
   assert raises?(:bad_option, () -> labels(:Tone, {WARM: 1}))
+end
+
+test "an ink paints by ANSI slot, after the flags and before a hex colour, and an unknown ink is refused"
+  ctx = {color: true, theme: nil}
+  esc = esc_char
+  assert styled({text: "x", ink: :cyan}, ctx) == "#{esc}[36mx#{esc}[0m"
+  assert styled(
+    {text: "x", bold: true, ink: :bright_black, fg: "#ff0000"},
+    ctx
+  ) == "#{esc}[1;90;38;2;255;0;0mx#{esc}[0m"
+  assert styled({text: "x", ink: :cyan}, {color: false, theme: nil}) == "x"
+  assert size(map_entries(inks)) == 16
+  assert raises?(:bad_option, () -> styled({text: "x", ink: :teal}, ctx))
+end
+
+test "duration_text: tenths under a minute, minutes and padded seconds above"
+  assert duration_text(0) == "0s"
+  assert duration_text(87) == "0.1s"
+  assert duration_text(59940) == "59.9s"
+  assert duration_text(60000) == "1m 00s"
+  assert duration_text(551_000) == "9m 11s"
+end
+
+test "a step line reads mark, place, name, note and duration, and refuses an unknown state"
+  plain = {color: false, theme: nil}
+  assert styled(step({state: :running, at: 1, of: 5, name: "guard"}), plain) ==
+    "⏳ [1/5] guard …"
+  assert styled(
+    step(
+      {state: :running, at: 2, of: 5, name: "wait", note: "held", ms: 60000}
+    ),
+    plain
+  ) == "⏳ [2/5] wait — held (1m 00s)"
+  assert styled(
+    step({state: :skipped, at: 2, of: 5, name: "wait", note: "free"}),
+    plain
+  ) == "➖ [2/5] wait — free"
+  assert styled(
+    step({state: :failed, at: 4, of: 5, name: "switch"}),
+    {color: true, theme: nil}
+  ) ==
+    "❌ #{esc_char}[90m[4/5]#{esc_char}[0m #{esc_char}[1;31mswitch#{esc_char}[0m"
+  assert raises?(
+    :bad_option,
+    () -> step({state: :gone, at: 1, of: 1, name: "x"})
+  )
+  assert raises?(
+    :bad_option,
+    () -> step({state: :done, at: 1, of: 1, name: "x", eta: 1})
+  )
+end
+
+test "show_step writes one line through the sink and keeps colour off when told"
+  seen = [""]
+  sink = (t) -> set!(seen, [concat(first(seen), t)])
+  assert show_step(
+    {state: :done, at: 1, of: 2, name: "x", ms: 1500},
+    {sink:, color: false}
+  ).nil?
+  assert first(seen) == "✅ [1/2] x (1.5s)\n"
+  assert terminal?(9) == false
 end

@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:7643cc2365deb395978af90836908655dd3077ee0ae7326b9a1c467bd262317a",
+  "bluefile_b3": "b3:2420c826c547c2cf175918d536d78eb65a1f06d77e4407c69ae4812fb282c325",
   "manifest": {
     "schema": 1,
     "name": "kirikae",
     "version": "0.1.0",
     "needs": {
       "deeta": "^0.1.0",
+      "gamen": "^0.1.0",
       "hyouka": "^0.1.0",
       "kyohi": "^0.1.0",
       "moji": "^0.1.0",

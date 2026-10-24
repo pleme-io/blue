@@ -1,3 +1,4 @@
+use("gamen", [:duration_text, :show_step])
 use("retsu", [:all_but_last, :enumerate, :first, :last, :reject])
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
 
@@ -40,18 +41,21 @@ def verdict(cap)
   end
 end
 
-def seconds(ms)
-  "#{to_s(round(ms / 100) / 10)}s"
-end
-
 def run_gate(g, i, total)
-  step = "[#{to_s(i + 1)}/#{to_s(total)}] #{first(g)}"
-  write_stderr("⏳ #{step} …\n")
+  show_step({state: :running, at: i + 1, of: total, name: first(g)}, {})
   t = now_ms
   f = last(g)
   r = f()
-  mark = get({green: "✅", red: "❌", blind: "➖"}, first(r))
-  write_stderr("#{mark} #{step} (#{seconds(now_ms - t)})\n")
+  show_step(
+    {
+      state: get({green: :done, red: :failed, blind: :skipped}, first(r)),
+      at: i + 1,
+      of: total,
+      name: first(g),
+      ms: now_ms - t
+    },
+    {}
+  )
   if first(r) != :green
     write_stderr(last(r))
   end
@@ -295,7 +299,7 @@ results = map((p) -> run_gate(last(p), first(p), total), enumerate(gates))
 red = map(first, filter((r) -> last(r) == :red, results))
 
 if red == []
-  write_stderr("🟢 prepush: no gate red (#{seconds(now_ms - started)})\n")
+  write_stderr("🟢 prepush: no gate red (#{duration_text(now_ms - started)})\n")
 else
   write_stderr(
     "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push\n"

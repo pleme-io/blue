@@ -63,6 +63,7 @@ pub mod spread;
 pub mod stdlib;
 #[cfg(feature = "sys")]
 pub mod sys;
+pub mod timings;
 pub mod uses;
 
 pub use erase::{erase_types, to_sexps};
@@ -315,7 +316,11 @@ fn apply_execution_bounds<H: 'static>(interp: &mut Interpreter<H>) {
 /// against a future change that deep-copies (which would keep every
 /// correctness test green while silently restoring the cost this removes).
 static HOSTLESS_BASE: std::sync::LazyLock<std::sync::Mutex<Interpreter<()>>> =
-    std::sync::LazyLock::new(|| std::sync::Mutex::new(interpreter(&mut ())));
+    std::sync::LazyLock::new(|| {
+        std::sync::Mutex::new(timings::stage(timings::Stage::Runtime, || {
+            interpreter(&mut ())
+        }))
+    });
 
 /// The common host-free case.
 ///

@@ -127,7 +127,10 @@ pub fn admit_with(
     }
     let shown = path.display().to_string();
     let formatted =
-        blue_lang_fmt::format_source_lossless(&text).map_err(|e| Refusal::Unformattable {
+        blue_lang_runtime::timings::stage(blue_lang_runtime::timings::Stage::Format, || {
+            blue_lang_fmt::format_source_lossless(&text)
+        })
+        .map_err(|e| Refusal::Unformattable {
             path: shown.clone(),
             reason: e.to_string(),
         })?;
@@ -246,10 +249,10 @@ pub fn format_with(
     let tree = check_entry(entry, loader, None, Checking::WithTests)
         .ok()
         .and_then(|checked| checked.canonical_entry(src));
-    match tree {
+    blue_lang_runtime::timings::stage(blue_lang_runtime::timings::Stage::Format, || match tree {
         Some(tree) => blue_lang_fmt::format_tree_lossless(src, &tree),
         None => blue_lang_fmt::format_source_lossless(src),
-    }
+    })
 }
 
 /// Read `path` and admit it under `policy`: the entry of every CLI door

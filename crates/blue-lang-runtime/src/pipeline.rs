@@ -202,9 +202,11 @@ pub fn run_framed(
     // stage's name oracle: every builtin, macro and special form a program may
     // name is read off the interpreter that will run it, never off a list.
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
-    let mut interp = crate::interpreter_hostless();
+    let mut interp =
+        crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
     crate::inputs::install_input_primitives(&mut interp, inputs);
-    let prepared = prepare(entry, loader, surface, &builtin_names(&interp))?;
+    let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
+    let prepared = prepare(entry, loader, surface, &builtins)?;
     if let Some(frame) = frame {
         let refused = crate::ungranted_host_names(frame);
         let escapes = entry_escapes(&prepared.program, &refused);
@@ -214,8 +216,12 @@ pub fn run_framed(
         crate::refuse_host_names(&mut interp, &refused, "this run's --allow");
         crate::attach_node_in_frame(&mut interp, frame);
     }
-    let mut value = eval_prepared(&mut interp, &prepared, &mut ())?;
-    if let Some(v) = call_main(&mut interp, &prepared, &mut ())? {
+    let mut value = crate::timings::stage(crate::timings::Stage::Eval, || {
+        eval_prepared(&mut interp, &prepared, &mut ())
+    })?;
+    if let Some(v) = crate::timings::stage(crate::timings::Stage::Main, || {
+        call_main(&mut interp, &prepared, &mut ())
+    })? {
         value = v;
     }
     Ok(Run {
@@ -380,7 +386,9 @@ pub(crate) fn prepare(
     // the string that produced them, which the caller is responsible for
     // holding onto"). blue holds onto it BESIDE the span, per top-level form —
     // see `uses::ResolvedProgram`.
-    let (outcome, names) = check_stage(&program, builtins, false);
+    let (outcome, names) = crate::timings::stage(crate::timings::Stage::Check, || {
+        check_stage(&program, builtins, false)
+    });
     if !outcome.ok() {
         return Err(RunError::Types(
             outcome
@@ -405,7 +413,9 @@ pub(crate) fn prepare(
     //
     // No lowering step follows. The tree the evaluator receives IS the tree the
     // parser built, minus annotations, with the author's byte offsets intact.
-    let erased = erase_types(&lower(&program, &names));
+    let erased = crate::timings::stage(crate::timings::Stage::Erase, || {
+        erase_types(&lower(&program, &names))
+    });
 
     Ok(Prepared {
         program,
@@ -422,21 +432,24 @@ pub(crate) fn parse_and_resolve(
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
 ) -> Result<crate::uses::ResolvedProgram, RunError> {
-    let mut forms = match surface {
-        Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
-            .map_err(|e| RunError::Parse(e.to_string()))?,
-        None => loader
-            .parse(entry.text)
-            .map_err(|e| RunError::Parse(e.to_string()))?,
-    };
-    // Every `@doc` example is a `test` block of the entry file: checked with
-    // the file's names, run by `blue test`, dropped by `run` with the others.
-    if surface.is_none() {
-        forms.extend(
-            blue_lang_syntax::doc::doctests(entry.text)
+    let forms = crate::timings::stage(crate::timings::Stage::Parse, || {
+        let mut forms = match surface {
+            Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
                 .map_err(|e| RunError::Parse(e.to_string()))?,
-        );
-    }
+            None => loader
+                .parse(entry.text)
+                .map_err(|e| RunError::Parse(e.to_string()))?,
+        };
+        // Every `@doc` example is a `test` block of the entry file: checked with
+        // the file's names, run by `blue test`, dropped by `run` with the others.
+        if surface.is_none() {
+            forms.extend(
+                blue_lang_syntax::doc::doctests(entry.text)
+                    .map_err(|e| RunError::Parse(e.to_string()))?,
+            );
+        }
+        Ok::<_, RunError>(forms)
+    })?;
 
     // RESOLVE imports first, so everything below sees ONE program.
     //
@@ -448,7 +461,9 @@ pub(crate) fn parse_and_resolve(
     // One program, but not one FILE: the result records which file each
     // top-level form came from, which is what lets a diagnostic below name a
     // place instead of only a problem.
-    crate::uses::resolve_uses(forms, entry, loader).map_err(RunError::Import)
+    crate::timings::stage(crate::timings::Stage::Resolve, || {
+        crate::uses::resolve_uses(forms, entry, loader).map_err(RunError::Import)
+    })
 }
 
 /// **The check stage**: every rule in `blue_lang_check::RULES`, over a
@@ -1263,10 +1278,15 @@ pub fn check_entry(
             .unwrap_or_default(),
         None => Vec::new(),
     };
-    let mut interp = crate::interpreter_hostless();
+    let mut interp =
+        crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
     crate::inputs::install_input_primitives(&mut interp, Inputs::new());
-    let builtins = builtin_names_with(&interp, &host);
-    let (outcome, names) = check_stage(&program, &builtins, checking == Checking::WithTests);
+    let builtins = crate::timings::stage(crate::timings::Stage::Names, || {
+        builtin_names_with(&interp, &host)
+    });
+    let (outcome, names) = crate::timings::stage(crate::timings::Stage::Check, || {
+        check_stage(&program, &builtins, checking == Checking::WithTests)
+    });
     Ok(Checked {
         program,
         outcome,

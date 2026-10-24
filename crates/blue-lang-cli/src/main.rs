@@ -137,6 +137,9 @@ enum Cmd {
         /// its position and blue call stack.
         #[arg(long, value_enum, default_value_t = Format::Text)]
         format: Format,
+        /// Print the wall time of each pipeline stage to stderr after the run.
+        #[arg(long)]
+        timings: bool,
         /// The program's own arguments, after the file (use `--` before any
         /// that start with a dash): what `argv()` returns. Before 2026-09-27
         /// `run` refused any, so no blue program could take arguments.
@@ -611,8 +614,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             allow,
             quiet,
             format,
+            timings,
             args,
         } => {
+            if timings {
+                blue_lang_runtime::timings::enable();
+            }
             let frame = if allow.is_empty() {
                 None
             } else {
@@ -631,7 +638,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // English — the common case under a pt or de locale — and is held
             // to the rule like any other.
             let src = match &surface {
-                None => read_run(&file)?,
+                None => blue_lang_runtime::timings::stage(
+                    blue_lang_runtime::timings::Stage::Read,
+                    || read_run(&file),
+                )?,
                 Some(pack) => {
                     let text = read(&file)?;
                     let english = blue_lang_syntax::parse_program(&text).ok();
@@ -685,6 +695,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             };
             if !quiet {
                 println!("{}", render(&out.value));
+            }
+            if timings {
+                eprint!("{}", blue_lang_runtime::timings::report());
             }
             Ok(ExitCode::SUCCESS)
         }

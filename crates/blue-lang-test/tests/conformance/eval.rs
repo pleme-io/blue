@@ -416,6 +416,7 @@ fn static_codes(
             .outcome
             .diagnostics
             .iter()
+            .chain(&c.outcome.census)
             .chain(&blue_lang_runtime::pipeline::form_diagnostics(src))
             .map(|d| d.code.as_str().to_owned())
             .collect(),

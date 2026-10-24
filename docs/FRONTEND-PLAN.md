@@ -19,7 +19,7 @@ and hanabi's hot path.
 | `gamen` bidama: theme, token colours, contrast, terminal `show` | built | `bidamas/gamen/` |
 | `gamen?` graph rows: 34 verbs (3 wave 0, 21 wave 1, 10 wave 2): `component`, `view`, `state`, `render`, `layout`, `on`, `check`, `diff`, `focus`, … | rows only | `bidamas/mokuroku/graph/gamen-provisional.b` |
 | `kyasshu?` graph rows: 19 cache verbs (`get`, `put`, `invalidate`, `memoize`, `remember`, `fresh?`, `refresh`, `tier`, …) | rows only | `graph/kyasshu-provisional.b` |
-| `kyuuji`: `serve`, `response`, `json`, `metered`, … (wave 0); `route`, `router`, `match`, `mount`, `header`, `redirect`, `guard`, `body` (wave 1); `stream`, `upgrade`, `file`, `cors` (wave 2) | wave 0 built | `bidamas/kyuuji/` |
+| `kyuuji`: `serve`, `response`, `json`, `metered`, … (wave 0); `route`, `router`, `resolve` (was `match`, a special form's name), `mount`, `header`, `redirect`, `guard`, `body`, `recover`, `timeout` (wave 1); `stream`, `upgrade`, `file`, `cors` (wave 2) | waves 0–2 built (F2); `timeout` checks its deadline when the handler returns, `stream` buffers, `upgrade` answers the handshake and the wire refuses the hand-off with 501: each needs a host seam | `bidamas/kyuuji/` |
 | `ugoki`: spring, tween, ease, sample, settled? | built | `bidamas/ugoki/` |
 | `kousei`, `shisei`, `bougyo`: entries, postures, request defence | built | `bidamas/` |
 | `kiwari`: one grammar spec, every syntax artifact emitted | built | `bidamas/kiwari/` |

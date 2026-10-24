@@ -58,6 +58,7 @@ contains?	xs	xs,x	no	Bool		pure	whether x is among the items or the text	§3.6	s
 convert	value	value,to,from?	yes	value		pure	a value in another unit, format or space	-	decided
 copy	from	from,to	yes	nil	not_found,exists	effect	place a copy at a destination	§3.1	stdlib
 correlate	a	a,b	yes	[record]		pure	link records that share an identity or window	-	decided
+cors	handler	handler,policy	no	handler		pure	add cross-origin headers to a handler's answers by policy	-	decided
 count	xs	xs,f?	yes	int		any	how many items, or how many match	§3.6	stdlib
 coverage	subject	subject,locales?	no	ratio		pure	how much of a whole is covered	-	decided
 create	store	~store,key,value	yes	value	exists	any	add a new entry; refuse to overwrite	§3.2	stdlib
@@ -134,8 +135,10 @@ graph	edges	edges	yes	graph		pure	build or read a graph of nodes and edges	-	dec
 group	subject	subject,keys?	yes	group		any	a set of things taken together	-	decided
 group_by	xs	xs,f	no	map		pure	items grouped under f of each	§3.6	stdlib
 grow	polygon	polygon,distance	no	polygon		pure	a polygon grown or shrunk by a distance	-	decided
+guard	handler	handler,check	no	handler		pure	refuse what fails a check before the handler runs	-	decided
 has?	store	~store,key	no	Bool		any	whether the key is present	§3.2	stdlib
 hash	data	data,algorithm?	yes	hex	bad_option	pure	a digest in lowercase hex	§3.4	stdlib
+header	message	message,name	no	text?		pure	one header of a request or response, its name in any case	-	decided
 highlight	code	code,language?	no	spans		pure	the spans of text worth marking	-	decided
 history	subject	subject,range?	no	[record]		effect	past records of a subject, in order	-	decided
 hydrate	tree	tree,root	yes	app		effect	attach behaviour to output another stage already rendered	-	decided
@@ -234,7 +237,9 @@ read	source	source	yes	content	not_found,permission_denied,parse_error	effect	wh
 ready?	subject	subject	no	Bool		any	whether a thing is ready to use	-	decided
 receive	source	source,subject?	yes	message or nil		effect	take the next message from a source	-	decided
 record	subject	subject,entry	yes	receipt		effect	append an outcome to a history or ledger	-	decided
+recover	handler	handler	no	handler		pure	turn what a handler raises into an answer	-	decided
 redact	doc	doc,rules	no	doc		pure	a value with sensitive parts hidden	-	decided
+redirect	status	status,location	no	response		pure	an answer that sends the client to another location	-	decided
 reduce	xs	xs,f,init?	no	value		pure	fold the items into one value	§3.6	stdlib
 refresh	subject	subject,key?,f?	yes	value		effect	replace a held value with a fresh one	-	decided
 register	subject	subject,target?	yes	registration		effect	enter a name or device in a registry	-	decided
@@ -262,6 +267,7 @@ root	tree	tree	no	node		pure	the top node of a tree	-	decided
 rotate	secret	secret,policy?	yes	secret		effect	replace a credential or log segment with a fresh one	-	decided
 round	n	n,unit?	yes	number		pure	a value to the nearest whole unit	-	decided
 route	subject	subject,rules	no	[target]		pure	choose targets for a subject by rules	-	decided
+router	routes	routes	yes	app		decl	compose routes into one app, refusing each overlap alone	-	decided
 rule	name	name,match,body?	yes	rule		pure	declare one rule	-	decided
 run	subject	subject,input?	yes	result	command_not_found,command_failed,timeout	effect	run to completion and return the result	§3.3	stdlib
 sample	dist	dist,rng?,n?	no	record		pure	draws from a distribution or a source	-	decided

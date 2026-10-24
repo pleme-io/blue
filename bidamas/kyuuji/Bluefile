@@ -1,1 +1,7 @@
-package("kyuuji", "0.1.0")
+package("kyuuji", "0.1.1")
+needs("gamen", "^0.1")
+needs("kousei", "^0.1")
+needs("kyohi", "^0.1")
+needs("retsu", "^0.1")
+needs("shinsuu", "^0.1")
+needs("tesuto", "^0.1")

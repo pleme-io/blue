@@ -1,14 +1,17 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:7196ab25ebcb77f267a88607316cca90f0f12f51a72946c4c25c46c4d82bfe25",
+  "bluefile_b3": "b3:fd7d9b1b4f82bf829a82c0e1bdd720b40eeb549f03fc1ae9cb1727be694bff88",
   "manifest": {
     "schema": 1,
     "name": "bougyo",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
+      "gamen": "^0.1.0",
       "kousei": "^0.1.0",
+      "kyuuji": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
+      "shinsuu": "^0.1.0",
       "shisei": "^0.1.0"
     },
     "when": "anytime",

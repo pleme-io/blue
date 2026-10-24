@@ -8,7 +8,7 @@ verb(
     shape: "body(req, format) -> value",
     laterals: ["error", "validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Parse the request body into a value.",
     wave: 1,
     origin: "C"
@@ -38,7 +38,7 @@ verb(
     shape: "cors(handler, policy) -> handler",
     laterals: ["config"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Add cross-origin headers by policy.",
     wave: 2,
     origin: "C"
@@ -84,11 +84,11 @@ verb(
     shape: "file(path, opts) -> response",
     laterals: ["cache", "resource"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "A response serving a file with validators and ranges.",
     wave: 2,
     origin: "C",
-    contract: "file(path, tier) -> response"
+    contract: "file(path, opts?) -> response"
   }
 )
 
@@ -100,7 +100,7 @@ verb(
     shape: "guard(handler, check) -> handler",
     laterals: ["capability", "error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Refuse requests that fail a check before the handler.",
     wave: 1,
     origin: "C"
@@ -115,7 +115,7 @@ verb(
     shape: "header(req, name) -> text or nil",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "One request header.",
     wave: 1,
     origin: "C"
@@ -169,13 +169,13 @@ verb(
 
 verb(
   "kyuuji",
-  "match",
+  "resolve",
   {
     kind: :pure,
-    shape: "match(app, req) -> route and params or nil",
+    shape: "resolve(app, req) -> route and params or nil",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Find the route that serves a request.",
     wave: 1,
     origin: "C"
@@ -205,7 +205,7 @@ verb(
     shape: "mount(app, prefix, sub) -> app",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Place a sub-app under a path prefix.",
     wave: 1,
     origin: "C"
@@ -250,7 +250,7 @@ verb(
     shape: "param(req, name) -> text or nil",
     laterals: [],
     fleet: "blue",
-    today: "partial:kyuuji",
+    today: "exists:kyuuji",
     meaning: "One query or path parameter.",
     wave: 0,
     origin: "C"
@@ -280,7 +280,7 @@ verb(
     shape: "recover(handler) -> handler",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Turn a raised kind into its status response.",
     wave: 1,
     origin: "C"
@@ -295,7 +295,7 @@ verb(
     shape: "redirect(status, location) -> response",
     laterals: [],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "A redirect response.",
     wave: 1,
     origin: "C"
@@ -325,11 +325,11 @@ verb(
     shape: "route(method, pattern, handler) -> route",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Declare one method and path pattern with a handler.",
     wave: 1,
     origin: "C",
-    contract: "route(method, pattern) -> route"
+    contract: "route(method, pattern, handler) -> route"
   }
 )
 
@@ -338,10 +338,10 @@ verb(
   "router",
   {
     kind: :decl,
-    shape: "router(routes) -> app",
+    shape: "router(routes, opts?) -> app",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyuuji",
     meaning: "Compose routes into one app; overlap is refused.",
     wave: 1,
     origin: "C"
@@ -409,7 +409,7 @@ verb(
     shape: "stream(req, f, opts) -> response",
     laterals: ["cancel", "deadline"],
     fleet: nil,
-    today: "absent",
+    today: "partial:kyuuji",
     meaning: "Send chunks as f produces them.",
     wave: 2,
     origin: "C"
@@ -439,7 +439,7 @@ verb(
     shape: "timeout(handler, duration) -> handler",
     laterals: ["deadline"],
     fleet: nil,
-    today: "absent",
+    today: "partial:kyuuji",
     meaning: "Answer 503 when the handler runs past a deadline.",
     wave: 1,
     origin: "C"
@@ -454,7 +454,7 @@ verb(
     shape: "upgrade(req, f) -> response",
     laterals: ["cancel", "capability"],
     fleet: nil,
-    today: "absent",
+    today: "partial:kyuuji",
     meaning: "Switch to a WebSocket and hand it to f.",
     wave: 2,
     origin: "C"
@@ -501,7 +501,7 @@ edge("kyuuji::wrap", :composes, "kyuuji::guard", "guard is wrap with a check")
 edge(
   "kyuuji::route",
   :composes,
-  "kyuuji::match",
+  "kyuuji::resolve",
   "a route is a match plus handler"
 )
 
@@ -579,7 +579,7 @@ edge("kyuuji::serve", :pairs, "kyuuji::health", "a server answers probes")
 edge(
   "kyuuji::param",
   :pairs,
-  "kyuuji::match",
+  "kyuuji::resolve",
   "path params come from the match"
 )
 
@@ -682,6 +682,6 @@ edge(
   "format comes from Content-Type"
 )
 
-edge("kyuuji::match", :requires, "kyuuji::router", "matching needs the app")
+edge("kyuuji::resolve", :requires, "kyuuji::router", "matching needs the app")
 edge("kyuuji::serve", :requires, "kyuuji::router", "serving needs an app")
 edge("kyuuji::shutdown", :requires, "kyuuji::serve", "stops a running server")

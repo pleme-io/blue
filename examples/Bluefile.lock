@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:4aaf5b8ac7e19e34ac1fae0ee117dd6b631bab4a40414f6e3d83555068c3b9ae",
+  "bluefile_b3": "b3:d0046f9cdcb94167491c2724ba2d40bfa01bb906588397fb9e106ed191aab467",
   "manifest": {
     "schema": 1,
     "name": "blue-examples",
@@ -52,6 +52,9 @@
       },
       "using-a-bidama": {
         "file": "10_using_a_bidama.b"
+      },
+      "web-site": {
+        "file": "13_web_site.b"
       }
     },
     "apps": {},

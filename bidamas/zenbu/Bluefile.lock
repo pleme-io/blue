@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:dcbb92c005e986e1b49342ed51fcb02717e15b4c46ff716065d42cce7ae19590",
+  "bluefile_b3": "b3:889baaaf9516f561380e84d2ced92daeb4020d4295d380899820466b9801bfbf",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -40,6 +40,7 @@
       "kousei": "^0.1.0",
       "kueri": "^0.1.0",
       "kumiawase": "^0.1.0",
+      "kyasshu": "^0.1.0",
       "kyohi": "^0.1.0",
       "kyuuji": "^0.1.0",
       "moji": "^0.1.0",

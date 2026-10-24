@@ -106,5 +106,17 @@
     "file": "danpen.b",
     "find": "algorithm or :sha256",
     "replace": "algorithm or :sha512"
+  },
+  {
+    "name": "an absent field is dropped whatever the hooks say",
+    "file": "danpen.b",
+    "find": "get(h, :absent)(acc, key)",
+    "replace": "acc"
+  },
+  {
+    "name": "a schema given as text is not read",
+    "file": "danpen.b",
+    "find": "if map?(schema) and get(schema, :kind) == :schema_of",
+    "replace": "if get(schema, :kind) == :schema_of"
   }
 ]

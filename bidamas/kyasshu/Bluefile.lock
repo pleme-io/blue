@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:86c0fc0bf57755bbd919f37fbfd44465245ce596dba34eb79b80d12e9e041a24",
+  "manifest": {
+    "schema": 1,
+    "name": "kyasshu",
+    "version": "0.1.0",
+    "needs": {
+      "danpen": "^0.1.0",
+      "deeta": "^0.1.0",
+      "gamen": "^0.1.0",
+      "kousei": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "raifusaikuru": "^0.1.0",
+      "ran": "^0.1.0",
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0",
+      "tsuushin": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

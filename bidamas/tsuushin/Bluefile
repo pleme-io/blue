@@ -1,4 +1,6 @@
-package("tsuushin", "0.1.0")
+package("tsuushin", "0.1.1")
+needs("kyuuji", "^0.1")
 needs("moji", "^0.1")
 needs("retsu", "^0.1")
 needs("ronri", "^0.1")
+needs("tesuto", "^0.1")

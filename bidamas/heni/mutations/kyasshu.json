@@ -1,0 +1,92 @@
+[
+  {
+    "name": "the key separator is a slash",
+    "file": "kyasshu.b",
+    "find": "def separator()\n  \":\"",
+    "replace": "def separator()\n  \"/\""
+  },
+  {
+    "name": "an entity type needs a uuid, not an id",
+    "file": "kyasshu.b",
+    "find": "get(f, :name) == \"id\"",
+    "replace": "get(f, :name) == \"uuid\""
+  },
+  {
+    "name": "a normalized entity forgets its type",
+    "file": "kyasshu.b",
+    "find": "assoc(first(r), \"__typename\", t)",
+    "replace": "assoc(first(r), \"__typenam\", t)"
+  },
+  {
+    "name": "merge keeps the old entities",
+    "file": "kyasshu.b",
+    "find": "entities: entities_merged(get(a, :entities), get(b, :entities))",
+    "replace": "entities: get(a, :entities)"
+  },
+  {
+    "name": "a list is normalized in reverse",
+    "file": "kyasshu.b",
+    "find": "push(first(acc), first(w))",
+    "replace": "cons(first(w), first(acc))"
+  },
+  {
+    "name": "an absent field is no miss",
+    "file": "kyasshu.b",
+    "find": "absent: (_acc, field) -> raise(:miss, \"#{field} is not in the store\")",
+    "replace": "absent: (acc, _field) -> acc"
+  },
+  {
+    "name": "an explicit nil at reads the root",
+    "file": "kyasshu.b",
+    "find": "any?((e) -> first(e) == :at and second(e).nil?, map_entries(o))",
+    "replace": "false"
+  },
+  {
+    "name": "a rule for an unknown fragment is refused as invalid",
+    "file": "kyasshu.b",
+    "find": ":unknown_fragment,",
+    "replace": ":invalid,"
+  },
+  {
+    "name": "a read at its ttl is still fresh",
+    "file": "kyasshu.b",
+    "find": "now - t >= ttl",
+    "replace": "now - t > ttl"
+  },
+  {
+    "name": "a snapshot keeps the pending writes",
+    "file": "kyasshu.b",
+    "find": "kept(store, (_k, e)",
+    "replace": "kept(overlay(store), (_k, e)"
+  },
+  {
+    "name": "an entity at its evict limit is kept",
+    "file": "kyasshu.b",
+    "find": "now - t < limit",
+    "replace": "now - t <= limit"
+  },
+  {
+    "name": "a rollback drops every pending write",
+    "file": "kyasshu.b",
+    "find": "assoc(store, :writes, rest)",
+    "replace": "assoc(store, :writes, [])"
+  },
+  {
+    "name": "a rolled back write can still be confirmed",
+    "file": "kyasshu.b",
+    "find": "raifusaikuru::on(:pending, :confirm, :confirmed, [])",
+    "replace": "raifusaikuru::on_each([:pending, :rolled_back], :confirm, :confirmed, [])"
+  },
+  {
+    "name": "declare keeps a repeated type",
+    "file": "kyasshu.b",
+    "find": "distinct(touches)",
+    "replace": "touches"
+  },
+  {
+    "name": "the query text ships with the hash",
+    "file": "kyasshu.b",
+    "find": "\"variables\" => variables or {}",
+    "replace": "\"query\" => danpen::render(doc)"
+  }
+]

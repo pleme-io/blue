@@ -188,10 +188,6 @@ end
 
 # --- limits ---------------------------------------------------------------
 
-def limit_methods()
-  route_methods
-end
-
 def refusal_response(status, why)
   {status:, headers: {}, body: "#{why}\n"}
 end
@@ -217,14 +213,14 @@ def limits_posture()
       field(:max_body, int_in(0, 1_073_741_824)),
       field(:max_headers, int_in(1, 1000)),
       field(:max_path, int_in(1, 65536)),
-      field(:methods, list_of(one_of(limit_methods))),
+      field(:methods, list_of(one_of(route_methods))),
       field(:mode, one_of(["audit", "enforce"]))
     ],
     {
       max_body: 1_048_576,
       max_headers: 100,
       max_path: 2048,
-      methods: limit_methods,
+      methods: route_methods,
       mode: "audit"
     },
     fn(settings, sink)
@@ -382,7 +378,7 @@ test "a safe inbound request id is echoed and an unsafe one is replaced"
   long = h(
     get_req(
       "/",
-      [["x-request-id", join(map((_) -> "a", range(0, 65)), "")]],
+      [["x-request-id", blue::join(map((_) -> "a", range(0, 65)), "")]],
       ""
     )
   )

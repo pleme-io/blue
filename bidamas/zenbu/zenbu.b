@@ -80,6 +80,7 @@ use("kiwari")
 use("kousei")
 use("kueri")
 use("kumiawase", [:combinations])
+use("kyasshu")
 use("kyohi")
 use("kyuuji")
 use("moji", [:empty])
@@ -145,6 +146,7 @@ test "every bidama in the distribution answers through this one import"
   assert danpen::render(danpen::parse("{a}")) == "{\n  a\n}\n"
   assert kousei::name_of(kousei::entry(:plane, "edge", {})) == "edge"
   assert kueri::ident("order") == "\"order\""
+  assert kyasshu::key(["User", 7]) == "User:7"
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2_598_960
   assert kyuuji::address({"listen" => {"host" => "h", "port" => 1}}) == "h:1"

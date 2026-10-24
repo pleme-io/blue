@@ -17,6 +17,21 @@ verb(
 
 verb(
   "kyasshu",
+  "declare",
+  {
+    kind: :decl,
+    shape: "declare(name, spec) -> mutation",
+    laterals: ["validate"],
+    fleet: nil,
+    today: "exists:kyasshu",
+    meaning: "declare a mutation and the entity types it touches",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
   "delete",
   {
     kind: :effect,
@@ -128,7 +143,7 @@ verb(
     shape: "key(parts) -> text",
     laterals: ["cache"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyasshu",
     meaning: "one canonical cache key built from ordered parts",
     wave: 1,
     origin: "B"
@@ -152,13 +167,28 @@ verb(
 
 verb(
   "kyasshu",
+  "merge",
+  {
+    kind: :pure,
+    shape: "merge(a, b) -> store",
+    laterals: ["cache"],
+    fleet: "hanabi",
+    today: "exists:kyasshu",
+    meaning: "combine two stores keeping one copy per entity",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
   "normalize",
   {
     kind: :pure,
-    shape: "normalize(response, schema, opts) -> entities",
+    shape: "normalize(response, schema, opts) -> store",
     laterals: ["cache"],
     fleet: "hanabi",
-    today: "absent",
+    today: "exists:kyasshu",
     meaning: "split a response into entities keyed by Type:id",
     wave: 1,
     origin: "I"
@@ -182,6 +212,21 @@ verb(
 
 verb(
   "kyasshu",
+  "policy",
+  {
+    kind: :decl,
+    shape: "policy(fragments, entries) -> policy",
+    laterals: ["cache", "config"],
+    fleet: nil,
+    today: "exists:kyasshu",
+    meaning: "per fragment ttl, stale, persist and evict rules from kousei entries",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
   "put",
   {
     kind: :effect,
@@ -192,6 +237,21 @@ verb(
     meaning: "store a value, evicting by policy when full",
     wave: 1,
     origin: "B"
+  }
+)
+
+verb(
+  "kyasshu",
+  "read",
+  {
+    kind: :pure,
+    shape: "read(store, opts) -> value or nil",
+    laterals: ["cache", "time"],
+    fleet: nil,
+    today: "exists:kyasshu",
+    meaning: "the masked fields of one fragment read from the store",
+    wave: 1,
+    origin: "I"
   }
 )
 
@@ -243,6 +303,21 @@ verb(
 
 verb(
   "kyasshu",
+  "request",
+  {
+    kind: :effect,
+    shape: "request(target, input, opts) -> reply",
+    laterals: ["cache", "error", "deadline"],
+    fleet: "hanabi",
+    today: "exists:kyasshu",
+    meaning: "run an operation on a server by its persisted hash only",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
   "save",
   {
     kind: :effect,
@@ -258,14 +333,59 @@ verb(
 
 verb(
   "kyasshu",
+  "schema",
+  {
+    kind: :pure,
+    shape: "schema(subject) -> key table",
+    laterals: ["cache"],
+    fleet: "hanabi",
+    today: "exists:kyasshu",
+    meaning: "the entity key table a GraphQL schema implies",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
   "settle",
   {
     kind: :effect,
-    shape: "settle(cache, write, outcome) -> state",
+    shape: "settle(store, write, outcome) -> store",
     laterals: ["cache", "error"],
     fleet: nil,
-    today: "absent",
+    today: "exists:kyasshu",
     meaning: "end an optimistic write as confirmed or rolled back",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
+  "snapshot",
+  {
+    kind: :pure,
+    shape: "snapshot(store, opts) -> store",
+    laterals: ["cache", "serialize"],
+    fleet: nil,
+    today: "exists:kyasshu",
+    meaning: "the entities persisted fragments read, to keep across restarts",
+    wave: 1,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
+  "stale?",
+  {
+    kind: :pure,
+    shape: "stale?(store, opts) -> Bool",
+    laterals: ["cache", "time"],
+    fleet: nil,
+    today: "exists:kyasshu",
+    meaning: "whether a fragment read is older than its ttl",
     wave: 1,
     origin: "I"
   }
@@ -276,11 +396,11 @@ verb(
   "sweep",
   {
     kind: :effect,
-    shape: "sweep(cache) -> count",
+    shape: "sweep(store, opts) -> store",
     laterals: ["cache", "time"],
     fleet: nil,
-    today: "absent",
-    meaning: "remove every expired entry now",
+    today: "exists:kyasshu",
+    meaning: "drop the entities older than their fragment evict limit",
     wave: 2,
     origin: "B"
   }
@@ -327,6 +447,21 @@ verb(
     today: "absent",
     meaning: "call f per entity event that patches or drops a key",
     wave: 2,
+    origin: "I"
+  }
+)
+
+verb(
+  "kyasshu",
+  "write",
+  {
+    kind: :effect,
+    shape: "write(store, change) -> store",
+    laterals: ["cache", "idempotent"],
+    fleet: nil,
+    today: "exists:kyasshu",
+    meaning: "lay a pending optimistic write over the store",
+    wave: 1,
     origin: "I"
   }
 )
@@ -392,7 +527,6 @@ edge(
   "miss falls to the next layer"
 )
 
-edge("kyasshu::key", :composes, "shomei::hash", "stable digest of parts")
 edge("kyasshu::put", :inverse, "kyasshu::delete", "drops what put stored")
 edge("kyasshu::delete", :inverse, "kyasshu::put", "drops what put stored")
 edge("kyasshu::clear", :lifts, "kyasshu::delete", "every entry")
@@ -434,3 +568,77 @@ edge(
 
 edge("kyasshu::settle", :requires, "kyasshu::get", "the prior entry to restore")
 edge("kyasshu::renew", :requires, "kyasshu::has?", "entry must be live")
+
+edge(
+  "kyasshu::read",
+  :composes,
+  "danpen::select",
+  "one masked walk, refs resolved"
+)
+
+edge(
+  "kyasshu::read",
+  :pairs,
+  "kyasshu::normalize",
+  "normalize splits what read joins"
+)
+
+edge("kyasshu::stale?", :pairs, "kyasshu::read", "serve, or fetch again")
+
+edge(
+  "kyasshu::write",
+  :pairs,
+  "kyasshu::settle",
+  "a pending write ends kept or rolled back"
+)
+
+edge(
+  "kyasshu::write",
+  :requires,
+  "kyasshu::declare",
+  "the mutation and what it touches"
+)
+
+edge(
+  "kyasshu::settle",
+  :composes,
+  "raifusaikuru::admit",
+  "the write machine decides the step"
+)
+
+edge(
+  "kyasshu::request",
+  :composes,
+  "tsuushin::request",
+  "a POST carrying the persisted hash"
+)
+
+edge(
+  "kyasshu::request",
+  :composes,
+  "danpen::hash",
+  "the persisted operation id"
+)
+
+edge(
+  "kyasshu::merge",
+  :pairs,
+  "kyasshu::normalize",
+  "fold a response into a store"
+)
+
+edge(
+  "kyasshu::normalize",
+  :composes,
+  "kyasshu::schema",
+  "which types are entities"
+)
+
+edge(
+  "kyasshu::snapshot",
+  :pairs,
+  "kyasshu::policy",
+  "persist rules pick the entities"
+)
+
+edge("kyasshu::sweep", :pairs, "kyasshu::policy", "evict rules set the limits")

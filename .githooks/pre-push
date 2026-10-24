@@ -1,4 +1,4 @@
 #!/bin/sh
 h="$(git config --global --type=path core.hooksPath)/${0##*/}"
 [ ! -x "$h" ] || "$h" "$@" || exit
-[ "${0##*/}" != pre-push ] || exec env -u GIT_DIR -u GIT_PREFIX -u GIT_INDEX_FILE -u GIT_WORK_TREE cargo run -q -p blue-lang-cli -- run gen/prepush.b
+[ "${0##*/}" != pre-push ] || [ -n "$BLUE_PREPUSH_OFF" ] || exec env -u GIT_DIR -u GIT_PREFIX -u GIT_INDEX_FILE -u GIT_WORK_TREE cargo run -q -p blue-lang-cli -- run gen/prepush.b

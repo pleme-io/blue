@@ -156,7 +156,20 @@ pub fn defined(form: &Spanned) -> Option<(&str, DefKind)> {
 /// [`blue_lang_runtime::pipeline::lower`] produces them.
 #[must_use]
 pub fn hash_program(lowered: &[Spanned]) -> DefHashes {
+    hash_program_documented(lowered, &|_| None)
+}
+
+/// [`hash_program`], each definition's `@doc` text hashed with its tree:
+/// `doc_of(i)` is the text documenting top-level form `i`. A doc that
+/// changes changes the definition's hash and every caller's, so a doc that
+/// drifts from its subject is a hash change, not a silent one.
+#[must_use]
+pub fn hash_program_documented(
+    lowered: &[Spanned],
+    doc_of: &dyn Fn(usize) -> Option<String>,
+) -> DefHashes {
     let mut out = DefHashes::default();
+    let mut docs = Vec::new();
     let mut forms = Vec::new();
     for (i, form) in lowered.iter().enumerate() {
         let Some((key, kind)) = defined(form) else {
@@ -174,6 +187,7 @@ pub fn hash_program(lowered: &[Spanned]) -> DefHashes {
             unit: Vec::new(),
         });
         forms.push(form);
+        docs.push(doc_of(i));
     }
     let unique: HashMap<&str, usize> = out
         .by_key
@@ -196,6 +210,7 @@ pub fn hash_program(lowered: &[Spanned]) -> DefHashes {
     for unit in components(&graph) {
         let mut hasher = Unit {
             forms: &forms,
+            docs: &docs,
             defs: &out.defs,
             unique: &unique,
         };
@@ -320,6 +335,8 @@ mod tag {
     pub const UNIT: u8 = 13;
     /// A reference into the unit, before the unit's order is fixed.
     pub const UNIT_UNORDERED: u8 = 14;
+    /// A definition's `@doc` text: its bytes follow.
+    pub const DOC: u8 = 15;
 }
 
 /// The domain of every hash this module writes, so a `def_hash` can never
@@ -328,6 +345,7 @@ const DOMAIN: &str = "blue def_hash v1";
 
 struct Unit<'a> {
     forms: &'a [&'a Spanned],
+    docs: &'a [Option<String>],
     defs: &'a [HashedDef],
     unique: &'a HashMap<&'a str, usize>,
 }
@@ -387,6 +405,11 @@ impl Unit<'_> {
         h.update(&(items.len() as u64).to_le_bytes());
         for item in items {
             self.node(h, item, own, unit, order);
+        }
+        if let Some(doc) = &self.docs[member] {
+            h.update(&[tag::DOC]);
+            h.update(&(doc.len() as u64).to_le_bytes());
+            h.update(doc.as_bytes());
         }
     }
 
@@ -501,6 +524,39 @@ mod tests {
         for name in ["f", "g", "h"] {
             assert_eq!(hash_of(BASE, name), hash_of(moved, name), "{name}");
         }
+    }
+
+    fn documented_hash_of(src: &str, name: &str) -> DefHash {
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            blue_lang_runtime::uses::Entry::anonymous(src),
+            &blue_lang_runtime::uses::NoLoader,
+            None,
+            blue_lang_runtime::pipeline::Checking::Program,
+        )
+        .expect("checks");
+        let docs = crate::program_docs(&checked.program);
+        let key = format!("%root/{name}");
+        hash_program_documented(
+            &blue_lang_runtime::pipeline::lower(&checked.program, &checked.names),
+            &|i| docs.get(&i).cloned(),
+        )
+        .of_key(&key)
+        .unwrap_or_else(|| panic!("{key} is not defined"))
+        .hash
+    }
+
+    /// Red run (2026-10-24): with the `tag::DOC` block removed from
+    /// `encode`, the first assertion failed: both texts hashed alike.
+    #[test]
+    fn a_doc_is_in_its_definitions_hash_and_every_callers() {
+        let doc = |t: &str| format!("@doc \"\"\"\n{t}\n\"\"\"\n{BASE}");
+        let a = doc("g doubles a number.");
+        let b = doc("g triples a number.");
+        assert_ne!(documented_hash_of(&a, "g"), documented_hash_of(&b, "g"));
+        assert_ne!(documented_hash_of(&a, "f"), documented_hash_of(&b, "f"));
+        assert_eq!(documented_hash_of(&a, "h"), documented_hash_of(&b, "h"));
+        assert_ne!(documented_hash_of(&a, "g"), documented_hash_of(BASE, "g"));
+        assert_eq!(documented_hash_of(BASE, "g"), hash_of(BASE, "g"));
     }
 
     #[test]

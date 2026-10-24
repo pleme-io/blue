@@ -189,6 +189,7 @@ fn controls(env: &mut Env) -> Vec<String> {
         host: false,
         isolate: false,
         frontend: None,
+        bidama: None,
     };
 
     let wrong = control(

@@ -8,6 +8,7 @@ const FIRST_SPELLING_RULE: &str = "B0023";
 struct Imports(
     &'static [(&'static str, &'static str)],
     Option<&'static str>,
+    Option<&'static str>,
 );
 
 impl Loader for Imports {
@@ -29,6 +30,10 @@ impl Loader for Imports {
 
     fn version(&self, _package: &str, _entry_dir: Option<&Path>) -> Option<String> {
         Some("0.1.1".to_string())
+    }
+
+    fn entry_package(&self, _path: &Path) -> Option<String> {
+        self.2.map(str::to_string)
     }
 
     fn frontend(&self, _entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
@@ -71,8 +76,9 @@ fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
         r.fix == FixKind::Machine
             && r.code.as_str() >= FIRST_SPELLING_RULE
             && !blue_lang_check::data_laws::CODES.contains(&r.code)
+            && r.package.is_none()
     }) {
-        let loader = Imports(r.imports, r.frontend);
+        let loader = Imports(r.imports, r.frontend, None);
         let path = Path::new("witness.b");
         let written = match blue_lang_pkg::canonical::format_with(&loader, path, r.witness) {
             Ok(w) => w,
@@ -110,7 +116,7 @@ fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
 #[test]
 fn a_refused_rule_offers_no_rewrite_of_its_witness() {
     for r in RULES.iter().filter(|r| r.fix == FixKind::None) {
-        let loader = Imports(r.imports, r.frontend);
+        let loader = Imports(r.imports, r.frontend, r.package);
         let Ok(written) =
             blue_lang_pkg::canonical::format_with(&loader, Path::new("witness.b"), r.witness)
         else {

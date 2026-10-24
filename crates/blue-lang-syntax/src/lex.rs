@@ -95,6 +95,14 @@ pub enum TokenKind {
     /// Any operator run: `+ - * / == != < <= > >= && || = ! %`.
     Op(String),
 
+    /// `@doc """ … """` or `@moduledoc """ … """`: documentation text, its
+    /// indentation and trailing whitespace stripped at lex time
+    /// ([`crate::doc`]). Not trivia: the parser puts it in the tree.
+    Doc {
+        module: bool,
+        text: String,
+    },
+
     // trivia — emitted, never skipped
     Comment(String),
     Newline,
@@ -135,6 +143,8 @@ impl fmt::Display for TokenKind {
             Self::Rocket => f.write_str("`=>`"),
             Self::Pipe => f.write_str("`|>`"),
             Self::Op(o) => write!(f, "`{o}`"),
+            Self::Doc { module: false, .. } => f.write_str("`@doc`"),
+            Self::Doc { module: true, .. } => f.write_str("`@moduledoc`"),
             Self::Comment(_) => f.write_str("a comment"),
             Self::Newline => f.write_str("the end of the line"),
             Self::Eof => f.write_str("the end of the file"),
@@ -263,6 +273,7 @@ impl<'a> Lexer<'a> {
                     self.push(TokenKind::Comment(text), start);
                 }
                 b'"' => self.lex_string(start)?,
+                b'@' => self.lex_doc(start)?,
                 b'0'..=b'9' => self.lex_number(start)?,
                 b':' => self.lex_colon(start),
                 b'(' => self.one(TokenKind::LParen, start),
@@ -434,6 +445,98 @@ impl<'a> Lexer<'a> {
             parts.push(buf);
             self.push(TokenKind::InterpolatedStr { parts, exprs }, start);
         }
+        Ok(())
+    }
+
+    fn lex_doc(&mut self, start: usize) -> Result<(), LexError> {
+        self.pos += 1;
+        let word_start = self.pos;
+        while self.peek().is_some_and(is_ident_continue) {
+            self.pos += 1;
+        }
+        let module = match &self.src[word_start..self.pos] {
+            "doc" => false,
+            "moduledoc" => true,
+            other => {
+                return Err(self.err(
+                    format!("unexpected `@{other}`: blue's attributes are `@doc` and `@moduledoc`"),
+                    start,
+                ))
+            }
+        };
+        let word = if module { "@moduledoc" } else { "@doc" };
+        while matches!(self.peek(), Some(b' ' | b'\t')) {
+            self.pos += 1;
+        }
+        let opens = self.src[self.pos..].starts_with("\"\"\"");
+        let rest_of_line = self.src[self.pos..]
+            .split('\n')
+            .next()
+            .unwrap_or("")
+            .get(3..)
+            .unwrap_or("x");
+        if !opens || !rest_of_line.trim().is_empty() {
+            return Err(self.err(
+                format!(
+                    "`{word}` takes a heredoc: `{word} \"\"\"` alone on its line, the text, \
+                     then `\"\"\"` alone on a line"
+                ),
+                start,
+            ));
+        }
+        self.pos += 3 + rest_of_line.len();
+        let body_start = (self.pos + 1).min(self.src.len());
+        let mut lines: Vec<&str> = Vec::new();
+        let mut at = body_start;
+        let closer = loop {
+            if at >= self.src.len() {
+                self.pos = self.src.len();
+                return Err(self.err(
+                    format!("unterminated `{word}`: no `\"\"\"` line closes it"),
+                    start,
+                ));
+            }
+            let end = self.src[at..].find('\n').map_or(self.src.len(), |i| at + i);
+            let line = &self.src[at..end];
+            if line.trim() == "\"\"\"" {
+                break (line, end);
+            }
+            lines.push(line);
+            at = (end + 1).min(self.src.len() + 1);
+        };
+        let indent = &closer.0[..closer.0.len() - closer.0.trim_start().len()];
+        let mut kept: Vec<&str> = Vec::with_capacity(lines.len());
+        for line in lines {
+            let line = line.trim_end();
+            if line.is_empty() {
+                kept.push("");
+                continue;
+            }
+            match line.strip_prefix(indent) {
+                Some(l) => kept.push(l),
+                None => {
+                    return Err(self.err(
+                        format!(
+                            "a line of this `{word}` is indented less than its closing `\"\"\"`"
+                        ),
+                        start,
+                    ))
+                }
+            }
+        }
+        while kept.first() == Some(&"") {
+            kept.remove(0);
+        }
+        while kept.last() == Some(&"") {
+            kept.pop();
+        }
+        let text = kept.join("\n");
+        if text.contains("\"\"\"") {
+            return Err(self.err(format!("a `{word}` text cannot hold `\"\"\"`"), start));
+        }
+        let close_at = closer.1 - closer.0.trim_start().len() + 3;
+        self.pos = close_at;
+        self.push(TokenKind::Doc { module, text }, start);
         Ok(())
     }
 

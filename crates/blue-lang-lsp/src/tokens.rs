@@ -267,6 +267,9 @@ fn classify(tokens: &[Token], i: usize) -> Option<(SemanticTokenType, u32)> {
         | TokenKind::PathSep => return None,
 
         TokenKind::Comment(_) => T::Comment,
+        // A doc spans lines, and a semantic token is one line long; the
+        // editor's grammar paints it.
+        TokenKind::Doc { .. } => return None,
         TokenKind::Newline | TokenKind::Eof => return None,
     };
 

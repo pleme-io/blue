@@ -25,6 +25,7 @@ use blue_lang_runtime::uses::{Entry, Loader};
 struct Imports(
     &'static [(&'static str, &'static str)],
     Option<&'static str>,
+    Option<&'static str>,
 );
 
 impl Loader for Imports {
@@ -52,6 +53,12 @@ impl Loader for Imports {
         Some("0.1.1".to_string())
     }
 
+    /// A rule that judges a bidama's own file has its witness checked as
+    /// that bidama's source.
+    fn entry_package(&self, _path: &std::path::Path) -> Option<String> {
+        self.2.map(str::to_string)
+    }
+
     fn frontend(&self, _entry: &std::path::Path) -> Option<blue_lang_runtime::uses::Frontend> {
         self.1.map(|t| blue_lang_runtime::uses::Frontend {
             table: Some(("schema.table".to_string(), t.to_string())),
@@ -61,23 +68,25 @@ impl Loader for Imports {
 }
 
 fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Vec<Code> {
-    codes_in(src, imports, None)
+    codes_in(src, imports, None, None)
 }
 
 fn codes_in(
     src: &str,
     imports: &'static [(&'static str, &'static str)],
     frontend: Option<&'static str>,
+    package: Option<&'static str>,
 ) -> Vec<Code> {
     if let Some(d) = syntax_diagnostic(src) {
         return vec![d.code];
     }
+    let path = package.map_or_else(|| "witness.b".to_string(), |p| format!("{p}.b"));
     let checked = check_entry(
         Entry {
-            path: Some(std::path::Path::new("witness.b")),
+            path: Some(std::path::Path::new(&path)),
             text: src,
         },
-        &Imports(imports, frontend),
+        &Imports(imports, frontend, package),
         None,
         Checking::WithTests,
     )
@@ -102,7 +111,7 @@ fn codes_of(src: &str) -> Vec<Code> {
 fn every_rule_fires_on_its_witness_and_only_it() {
     let mut failures = Vec::new();
     for r in RULES {
-        let got = codes_in(r.witness, r.imports, r.frontend);
+        let got = codes_in(r.witness, r.imports, r.frontend, r.package);
         if got != vec![r.code] {
             failures.push(format!("{}: expected [{}], got {got:?}", r.code, r.code));
         }

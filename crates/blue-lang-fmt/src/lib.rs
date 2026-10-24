@@ -132,6 +132,24 @@ onto its own line above the nearest statement — dropping it silently would los
 only part of a program a machine cannot reconstruct."
     )]
     UnplaceableComments { count: usize, lines: String },
+    /// The rendering does not carry every `@doc` and `@moduledoc` text the
+    /// source does. A tree that lost its documentation must not overwrite the
+    /// file that has it.
+    #[error("refusing to format: the rendering would lose a `@doc` or `@moduledoc` text")]
+    LostDocumentation,
+}
+
+fn doc_texts(src: &str) -> Vec<String> {
+    blue_lang_syntax::lex(src)
+        .map(|toks| {
+            toks.into_iter()
+                .filter_map(|t| match t.kind {
+                    TokenKind::Doc { text, .. } => Some(text),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Format, preserving comments and the author's blank lines.
@@ -152,16 +170,24 @@ only part of a program a machine cannot reconstruct."
 /// forms, so every comment inside a `def` was refused: 31 of the repository's
 /// 52 files on 2026-09-27.
 pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
-    let tree = blue_lang_syntax::parse_program_tree(src)?;
+    let tree = blue_lang_syntax::parse_program_documented(src)?;
     format_tree_lossless(src, &tree)
 }
 
 /// [`format_source_lossless`] for a caller that already holds `src`'s tree,
 /// so a text parsed once is formatted without parsing it again. `tree` must
-/// be the parse of `src`: comments are placed by its spans.
+/// be the parse of `src`: comments are placed by its spans. A tree without
+/// its documentation (every `parse_program*` door but the documented one) has
+/// it put back from `src` ([`blue_lang_syntax::doc::redocument`]), and an
+/// output that does not carry every doc text of `src` is refused, as a lost
+/// comment is.
 pub fn format_tree_lossless(src: &str, tree: &[Spanned]) -> Result<String, FormatError> {
+    let tree = blue_lang_syntax::doc::redocument(src, tree.to_vec());
     let r = Renderer::lossless(src)?;
-    let out = r.program(tree);
+    let out = r.program(&tree);
+    if doc_texts(src) != doc_texts(&out) {
+        return Err(FormatError::LostDocumentation);
+    }
     let mut at: std::collections::BTreeSet<usize> =
         r.unplaced().iter().map(|c| c.span.start).collect();
     at.extend(r.dropped(&out).iter().map(|c| c.span.start));
@@ -219,6 +245,16 @@ fn hidden_comments(src: &str) -> Vec<usize> {
     let mut out = Vec::new();
     walk(src, None, &mut out);
     out
+}
+
+fn heredoc(word: &str, text: &str) -> Doc {
+    let mut d = Doc::text(format!("{word} \"\"\""));
+    for line in text.lines() {
+        d = d
+            .concat(Doc::hardline())
+            .concat(Doc::text(line.to_string()));
+    }
+    d.concat(Doc::hardline()).concat(Doc::text("\"\"\""))
 }
 
 /// Render already-parsed forms. Exposed so a caller holding a tree does
@@ -751,6 +787,14 @@ impl<'s> Renderer<'s> {
     /// an expression: the two positions are two renderers, not one with a
     /// guess.
     fn stmt(&self, s: &Spanned) -> Doc {
+        if let Some((text, def)) = blue_lang_syntax::doc::documented(s) {
+            return heredoc("@doc", text)
+                .concat(Doc::hardline())
+                .concat(self.stmt(def));
+        }
+        if let Some(text) = blue_lang_syntax::doc::moduledoc_text(s) {
+            return heredoc("@moduledoc", text);
+        }
         if let SpannedForm::List(items) = &s.form {
             if items.len() == 3
                 && items[0].as_symbol() == Some("define")

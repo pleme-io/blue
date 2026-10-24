@@ -56,8 +56,21 @@ fn every_spec_file_passes() {
 
     for path in &files {
         let src = std::fs::read_to_string(path).expect("read spec");
+        let doctests = match blue_lang_syntax::doc::doctests(&src) {
+            Ok(t) => t,
+            Err(e) => {
+                failures.push(format!(
+                    "{}: an example does not parse: {e}",
+                    path.display()
+                ));
+                continue;
+            }
+        };
         let forms = match blue_lang_syntax::parse_program(&src) {
-            Ok(f) => f,
+            Ok(mut f) => {
+                f.extend(doctests.iter().map(blue_lang_syntax::Spanned::to_sexp));
+                f
+            }
             Err(e) => {
                 failures.push(format!("{}: parse error: {e}", path.display()));
                 continue;

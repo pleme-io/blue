@@ -150,18 +150,30 @@ pub const FORMS: &[Form] = &[
         lowers_to: "(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))",
         doc: "Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin.",
     },
+    Form {
+        example: "@doc \"\"\"\ninc adds one to a number.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend",
+        lowers_to: "(blue-doc \"inc adds one to a number.\\n\\n    inc(1) #=> 2\" (define (inc n) (+ n 1)))",
+        doc: "Documents the definition below it: one sentence of intent starting with its name, then an indented example whose `expr #=> value` lines `blue test` runs as tests. A heredoc: no escapes, no interpolation. Everything else about a definition is derived (B0056–B0060).",
+    },
+    Form {
+        example: "@moduledoc \"\"\"\nkazu holds the number verbs.\n\n    kazu::clamp(9, 1, 5) #=> 5\n\"\"\"",
+        lowers_to: "(blue-moduledoc \"kazu holds the number verbs.\\n\\n    kazu::clamp(9, 1, 5) #=> 5\")",
+        doc: "Documents a whole file, a bidama: its purpose and one whole example. The first form of the file.",
+    },
 ];
 
 #[cfg(test)]
 mod tests {
     use super::FORMS;
-    use crate::parse::{keyword_doc, parse_program, BLOCK_KEYWORDS, INFIX, SURFACE_KEYWORDS};
+    use crate::parse::{
+        keyword_doc, parse_program_documented, BLOCK_KEYWORDS, INFIX, SURFACE_KEYWORDS,
+    };
 
     fn lowered(src: &str) -> String {
-        parse_program(src)
+        parse_program_documented(src)
             .unwrap_or_else(|e| panic!("`{src}` does not parse: {e}"))
             .iter()
-            .map(ToString::to_string)
+            .map(|f| f.to_sexp().to_string())
             .collect::<Vec<_>>()
             .join(" ")
     }

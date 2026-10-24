@@ -71,6 +71,7 @@ and the refusals. `blue explain CODE` prints each row.
 | a `use` out of order, twice, or unread | sorted, once, read | (shipped) | check stage | B0015, B0016 | list sort and `use` form order: autofix; unused: refused |
 | a bare name reached only through a bidama another `use` loaded; `retsu::first` with no `use("retsu")` | `use("retsu", [:first, :last])` added in package order; `use("retsu")` added | the file says what it reads | check stage | B0012, B0010 | autofix in a script (a bidama's Bluefile `needs` is the author's) |
 | `blue::name` where the bare name is the builtin | `name` | (shipped) | resolution | B0018 | autofix |
+| a `#` comment block documenting a `def`; a heredoc indented, with trailing spaces or edge blank lines; a blank line between `@doc` and its `def` | `@doc """` … `"""` at column 0 directly above the `def`; `@moduledoc` as the file's first form | documentation is a typed child of the definition, not a comment: it is in the tree, in `def_hash`, and its `expr #=> value` lines run as tests. The text is data (no escapes, no interpolation); its indentation is presentation, stripped at lex time. Corpus: 0 `@doc` before 2026-10-24 | parser (lexes the heredoc, builds `blue-doc`), formatter | B0024; B0056 lifts the `#` line | autofix |
 
 ## New forms these rules write
 

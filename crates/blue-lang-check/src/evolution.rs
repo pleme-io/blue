@@ -205,6 +205,10 @@ pub const GAPS: &[Gap] = &[
         why: "an undeclared read has two repairs, declare the field or move the read into the component that declares it; the declaration is offered as a suggestion",
     },
     Gap {
+        code: Code::B0059,
+        why: "a placeholder doc's intent is the one thing no source holds; `check --fix` never writes text it cannot source",
+    },
+    Gap {
         code: Code::B0052,
         why: "operation text becomes a root fragment and its components' fragments, a restructuring no edit derives from the text",
     },

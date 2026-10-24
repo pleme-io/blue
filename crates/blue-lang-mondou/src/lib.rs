@@ -368,8 +368,15 @@ impl Engine {
             let Some(Ok(checked)) = &current.checked else {
                 break;
             };
+            let all: Vec<blue_lang_check::Diagnostic> = checked
+                .outcome
+                .diagnostics
+                .iter()
+                .chain(&checked.outcome.census)
+                .cloned()
+                .collect();
             let (fixed, applied) = blue_lang_check::fixes::apply_machine_fixes(
-                &checked.outcome.diagnostics,
+                &all,
                 &|i| checked.program.owner_of(i) == Some(ResolvedProgram::ENTRY),
                 &text,
             );
@@ -452,9 +459,11 @@ impl Analysis {
         self.def_hashes
             .get_or_init(|| {
                 self.checked().map(|c| {
-                    def_hash::hash_program(&blue_lang_runtime::pipeline::lower(
-                        &c.program, &c.names,
-                    ))
+                    let docs = program_docs(&c.program);
+                    def_hash::hash_program_documented(
+                        &blue_lang_runtime::pipeline::lower(&c.program, &c.names),
+                        &|i| docs.get(&i).cloned(),
+                    )
                 })
             })
             .as_ref()
@@ -556,6 +565,34 @@ impl Analysis {
             Err(_) => Vec::new(),
         }
     }
+}
+
+/// The `@doc` text of every documented top-level form of `program`, by its
+/// index: each file's documented parse, matched to the program's forms by
+/// span (a stripped definition spans its documentation).
+#[must_use]
+pub fn program_docs(program: &ResolvedProgram) -> HashMap<usize, String> {
+    let mut out = HashMap::new();
+    for file in program.files() {
+        let Ok(documented) = blue_lang_syntax::parse_program_documented(&file.text) else {
+            continue;
+        };
+        let texts: HashMap<Span, &str> = documented
+            .iter()
+            .filter_map(|f| blue_lang_syntax::doc::documented(f).map(|(t, _)| (f.span, t)))
+            .collect();
+        if texts.is_empty() {
+            continue;
+        }
+        for (i, form) in program.forms().iter().enumerate() {
+            if program.owner_of(i) == Some(file.id) {
+                if let Some(t) = texts.get(&form.span) {
+                    out.insert(i, (*t).to_string());
+                }
+            }
+        }
+    }
+    out
 }
 
 fn canonical(path: &Path) -> PathBuf {

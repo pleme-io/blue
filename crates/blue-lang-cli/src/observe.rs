@@ -131,8 +131,13 @@ fn test_files(root: &Path) -> Vec<PathBuf> {
                 }
             } else if kind.is_file()
                 && path.extension().is_some_and(|e| e == "b")
-                && std::fs::read_to_string(&path)
-                    .is_ok_and(|t| t.lines().any(|l| l.starts_with("test \"")))
+                && std::fs::read_to_string(&path).is_ok_and(|t| {
+                    t.lines().any(|l| {
+                        l.starts_with("test \"")
+                            || l.starts_with("@doc ")
+                            || l.starts_with("@moduledoc ")
+                    })
+                })
             {
                 out.push(path);
             }

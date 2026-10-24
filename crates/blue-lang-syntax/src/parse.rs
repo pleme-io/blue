@@ -75,7 +75,7 @@ impl ParseError {
     /// An error at `span`, not yet located: the parser sees tokens, not text,
     /// so the line and column are filled by [`Self::located`] at the entry
     /// point that holds the source.
-    fn new(message: impl Into<String>, span: Span) -> Self {
+    pub(crate) fn new(message: impl Into<String>, span: Span) -> Self {
         Self {
             message: message.into(),
             span,
@@ -85,7 +85,7 @@ impl ParseError {
     }
 
     /// Resolve `line`/`col` against the source this error's span indexes.
-    fn located(mut self, src: &str) -> Self {
+    pub(crate) fn located(mut self, src: &str) -> Self {
         let (line, col) = Span::line_col(src, self.span.start.min(src.len()));
         self.line = line;
         self.col = col;
@@ -140,13 +140,55 @@ pub fn parse_program_tree_with_depth(
     src: &str,
     max_depth: usize,
 ) -> Result<Vec<Spanned>, ParseError> {
+    parse_program_documented_with_depth(src, max_depth).map(crate::doc::strip)
+}
+
+/// Parse keeping the documentation nodes `@doc` and `@moduledoc` lower to
+/// ([`crate::doc`]). Every other `parse_program*` door strips them.
+pub fn parse_program_documented(src: &str) -> Result<Vec<Spanned>, ParseError> {
+    parse_program_documented_with_depth(src, MAX_EXPR_DEPTH)
+}
+
+/// [`parse_program_documented`] with the nesting bound supplied by the caller.
+pub fn parse_program_documented_with_depth(
+    src: &str,
+    max_depth: usize,
+) -> Result<Vec<Spanned>, ParseError> {
+    if let Some(hit) = RECENT.with(|r| {
+        r.borrow()
+            .iter()
+            .find(|(d, s, _)| *d == max_depth && s.as_str() == src)
+            .map(|(_, _, t)| t.clone())
+    }) {
+        return hit;
+    }
     PARSES.with(|n| n.set(n.get() + 1));
-    let mut p = Parser::over(
-        src,
-        lex(src).map_err(|e| ParseError::from(e).located(src))?,
-        max_depth,
-    );
-    p.program().map_err(|e| e.located(src))
+    let parsed = lex(src)
+        .map_err(|e| ParseError::from(e).located(src))
+        .and_then(|toks| {
+            Parser::over(src, toks, max_depth)
+                .program()
+                .map_err(|e| e.located(src))
+        });
+    RECENT.with(|r| {
+        let mut r = r.borrow_mut();
+        if r.len() == RECENT_TEXTS {
+            drop(r.remove(0));
+        }
+        r.push((max_depth, src.to_string(), parsed.clone()));
+    });
+    parsed
+}
+
+/// How many recent texts each thread keeps the parse of. One text is read
+/// by several views in one check (the stripped tree, its documentation, its
+/// doctests, the doc rules); they share one parse.
+const RECENT_TEXTS: usize = 4;
+
+type Recent = Vec<(usize, String, Result<Vec<Spanned>, ParseError>)>;
+
+thread_local! {
+    static RECENT: std::cell::RefCell<Recent> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 pub fn spelling_notes(src: &str) -> Result<Vec<Note>, ParseError> {
@@ -201,7 +243,9 @@ pub fn parse_program_tree_in(
         crate::yakugo::canonical_tokens(src, pack).map_err(|e| ParseError::from(e).located(src))?;
     PARSES.with(|n| n.set(n.get() + 1));
     let mut p = Parser::over(src, toks, MAX_EXPR_DEPTH);
-    p.program().map_err(|e| e.located(src))
+    p.program()
+        .map(crate::doc::strip)
+        .map_err(|e| e.located(src))
 }
 
 /// [`parse_program`] with the nesting bound supplied by the caller.
@@ -830,10 +874,61 @@ impl Parser {
             if matches!(self.peek(), TokenKind::Eof) {
                 break;
             }
+            if let TokenKind::Doc { module, text } = self.peek().clone() {
+                out.push(self.documentation(module, text, out.is_empty())?);
+                continue;
+            }
             out.push(self.statement()?);
             self.end_of_statement(&[])?;
         }
         Ok(out)
+    }
+
+    /// `@moduledoc """…"""` as the first form, or `@doc """…"""` over the
+    /// definition it documents ([`crate::doc`]).
+    fn documentation(&mut self, module: bool, text: String, first: bool) -> Result<Spanned, Fail> {
+        let span = self.peek_span();
+        self.bump();
+        let word = if module { "@moduledoc" } else { "@doc" };
+        let head = sym_at(
+            Span::new(span.start, span.start + word.len()),
+            if module {
+                crate::doc::MODULEDOC_HEAD
+            } else {
+                crate::doc::DOC_HEAD
+            },
+        );
+        let text = crate::doc::text_node(span, text);
+        self.end_of_statement(&[])?;
+        if module {
+            if !first {
+                return Err(fail(
+                    "`@moduledoc` is the first form of a file: it documents the whole file",
+                    span,
+                ));
+            }
+            return Ok(list_at(span, vec![head, text]));
+        }
+        self.skip_newlines();
+        if matches!(self.peek(), TokenKind::Doc { .. } | TokenKind::Eof) {
+            return Err(fail(
+                "`@doc` documents the definition below it, and none follows",
+                span,
+            ));
+        }
+        let def = self.statement()?;
+        self.end_of_statement(&[])?;
+        if !crate::doc::is_definition(&def) {
+            return Err(fail(
+                "`@doc` documents the definition below it: a `def`, a `defmacro` or a \
+                 top-level `name = value`",
+                span,
+            ));
+        }
+        Ok(list_at(
+            Span::new(span.start, def.span.end),
+            vec![head, text, def],
+        ))
     }
 
     /// **A statement ends at the end of its line.** Refuse anything else.
@@ -1292,6 +1387,14 @@ impl Parser {
             TokenKind::Int(v) => Ok(atom_at(span, Atom::Int(v))),
             TokenKind::Float(v) => Ok(atom_at(span, Atom::Float(v))),
             TokenKind::Str(s) => Ok(atom_at(span, Atom::Str(s))),
+            TokenKind::Doc { module, .. } => Err(fail(
+                format!(
+                    "`{}` sits at the top level, above the definition it documents, never \
+                     inside a form",
+                    if module { "@moduledoc" } else { "@doc" }
+                ),
+                span,
+            )),
 
             // `"a#{x}b"` → `(concat (concat "a" x) "b")`.
             //

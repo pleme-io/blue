@@ -352,7 +352,8 @@ pub fn syntax_json(path: &Path, text: &str, d: &Diagnostic) -> serde_json::Resul
 }
 
 /// Apply every MACHINE-APPLICABLE fix whose edits land in the entry file,
-/// the registry's and the project rules': [`blue_lang_check::fixes`], the one
+/// the registry's (a rule still ratcheting in included: fill before refuse)
+/// and the project rules': [`blue_lang_check::fixes`], the one
 /// rewrite an editor's "fix all" applies too.
 #[must_use]
 pub fn apply_machine_fixes(
@@ -365,6 +366,7 @@ pub fn apply_machine_fixes(
         outcome
             .diagnostics
             .iter()
+            .chain(&outcome.census)
             .map(|d| (d.top_level, d.fixes.as_slice()))
             .chain(
                 project

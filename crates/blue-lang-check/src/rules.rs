@@ -92,6 +92,10 @@ pub struct Rule {
     pub waivable: bool,
     pub ratchet: Option<u32>,
     pub frontend: Option<&'static str>,
+    /// The bidama the witness is the source of, when the rule judges a
+    /// bidama's own file (the documentation rules): the witness is checked as
+    /// `<package>.b` of that bidama.
+    pub package: Option<&'static str>,
 }
 
 impl Rule {
@@ -135,6 +139,15 @@ macro_rules! frontend {
     };
 }
 
+macro_rules! package {
+    () => {
+        None
+    };
+    ($t:literal) => {
+        Some($t)
+    };
+}
+
 /// Build [`Code`], `Code::ALL` and [`RULES`] from one list of rows.
 macro_rules! rules {
     ($(
@@ -148,6 +161,7 @@ macro_rules! rules {
             $(waivable: $waivable:literal,)?
             $(ratchet: $ratchet:expr,)?
             $(frontend: $frontend:literal,)?
+            $(package: $package:literal,)?
             explanation: $expl:literal $(,)?
         }
     )*) => {
@@ -180,6 +194,7 @@ macro_rules! rules {
                 waivable: waivable!($($waivable)?),
                 ratchet: ratchet!($($ratchet)?),
                 frontend: frontend!($($frontend)?),
+                package: package!($($package)?),
             }
         ),*];
     };
@@ -1101,6 +1116,102 @@ It fires on a statement that is not the last of its body. A name the file
 defines or lists in a `use` is that definition, not the builtin, and is not
 reported. Bind the value or return it. `# waive B0053: reason` keeps a line
 that is there only for the error it may raise. docs/SAFETY.md, row 2.",
+    }
+    B0056 {
+        slug: "undocumented-definition",
+        severity: Error,
+        fix: Machine,
+        law: "a bidama's public definition has a `@doc` whose first sentence starts with its name",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\ndef kagi()\n  1\nend\n",
+        ratchet: 4184,
+        package: "kagi",
+        explanation: "\
+A reader of one bidama should be proficient in it, so every definition a `use`
+can name (each top-level `def`, `defmacro` and `name = value` of a bidama;
+blue has no private definition) says what it is for: `@doc` above it, its
+first sentence starting with the definition's name.
+
+    @doc \"\"\"
+    clamp keeps a number inside a range.
+
+        clamp(99, 1, 10) #=> 10
+    \"\"\"
+    def clamp(x, lo, hi)
+
+Only intent and examples are written. The signature, types, rung, contract
+row, space, callers and refusals are derived when asked (`blue doc`, hover).
+
+`blue check --fix` writes the `@doc` from what a source holds: the `#` block
+directly above the `def`, else the verb graph row's `meaning`, else the
+builtin reference line, with the simplest assertion of the file's own tests as
+the example. It writes nothing it cannot source; what stays is counted by
+`blue census` until the count reaches zero.",
+    }
+    B0057 {
+        slug: "doc-without-example",
+        severity: Error,
+        fix: Machine,
+        law: "a `@doc` holds at least one example, an indented `expr #=> value` line",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\"\"\"\ndef kagi()\n  1\nend\n",
+        ratchet: 1,
+        package: "kagi",
+        explanation: "\
+An example shows how a definition is called and what it answers, and blue
+runs it: each indented paragraph of a `@doc` holding a line `expr #=> value`
+is a test (`blue test`), its other lines run first. An example that stops
+holding is a red build, not a stale snippet.
+
+`blue check --fix` adds the shortest assertion of the file's own tests that
+calls the definition and reads no local of its test.",
+    }
+    B0058 {
+        slug: "undocumented-bidama",
+        severity: Error,
+        fix: Machine,
+        law: "a bidama's file opens with a `@moduledoc` holding its purpose and one whole example",
+        witness: "@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
+        ratchet: 80,
+        package: "kagi",
+        explanation: "\
+`@moduledoc` is the first form of a bidama's file: what the bidama is for,
+then one whole example a reader can run in their head and `blue test` runs
+for real. The mental model, invariants and see-also follow when they help.
+
+`blue check --fix` lifts the comment block that heads the file (its first
+line is the bidama's CATALOG line) into `@moduledoc`, and adds the shortest
+assertion of the file's own tests as the example.",
+    }
+    B0059 {
+        slug: "placeholder-doc",
+        severity: Error,
+        fix: None,
+        law: "a `@doc` or `@moduledoc` says something: no empty text and no placeholder (`TODO`, `TBD`, `...`)",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi: TODO\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
+        ratchet: 0,
+        package: "kagi",
+        explanation: "\
+A placeholder passes a presence check and tells the reader nothing, so it is
+refused: an empty text, an intent that is only a placeholder word, or one
+holding `TODO`, `FIXME`, `TBD` or `XXX`. A fake doc cannot pass.
+
+There is no fix: the intent is the one thing no source holds.",
+    }
+    B0060 {
+        slug: "restated-doc",
+        severity: Error,
+        fix: Machine,
+        law: "a `@doc` never restates a type, a signature or a contract field: blue derives them",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\nReturns: an Int.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
+        ratchet: 0,
+        package: "kagi",
+        explanation: "\
+One meaning, one place. The signature and types come from the checker and the
+blueshift, the arguments, options, returns and raises from the contract row
+(`docs/verbs/contracts.tsv`), and `blue doc` and the editor show them. A
+`Returns:`, `Args:`, `@param` or `f(a) -> T` line in a `@doc` is a second copy
+that drifts the day the code changes.
+
+`blue check --fix` deletes the line; say what the definition is for instead.",
     }
 }
 

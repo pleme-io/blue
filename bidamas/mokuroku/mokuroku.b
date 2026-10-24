@@ -14,6 +14,7 @@ use(
     :concat_lists,
     :contains,
     :count_where,
+    :drop_while,
     :find_first,
     :first,
     :flat_map,
@@ -35,8 +36,8 @@ use("shuugou", [:unique])
 # Before anyone writes blue, the first question is "what do we already have?".
 # Without this, the answer was a grep, and a grep cannot say what a function is
 # for. mokuroku reads every package under the given roots: its manifest
-# (package, version, needs), its gloss (the first comment line of its source),
-# its tests, and every top-level `def` with the comment block directly above it.
+# (package, version, needs), its gloss (the first line of its `@moduledoc`), its
+# tests, and every top-level `def` with its `@doc`.
 # The same scan serves three consumers:
 #
 #   render_markdown   the catalogue a person or agent reads. Committed as
@@ -107,21 +108,25 @@ def waived_code(line)
   end
 end
 
-# [def_name, signature, doc_lines, waived_codes] for every top-level def in a
-# source text. A comment block documents a def only when it sits directly
-# above it; a blank line or any code in between resets it, so section banners
-# attach to nothing. A `# waive CODE:` line in that block is not
-# documentation: its code is recorded as the definition's waiver.
 def entries_of_text(text)
   state = reduce(
     fn(acc, line)
-      pending = first(acc)
+      pending = nth(0, acc)
       waivers = nth(1, acc)
-      found = last(acc)
-      if starts_with?(line, "#") and waived_code(line) != nil
-        [pending, push(waivers, waived_code(line)), found]
+      found = nth(2, acc)
+      open = nth(3, acc)
+      if open != nil
+        if blue::trim(line) == "\"\"\""
+          [open, waivers, found, nil]
+        else
+          [pending, waivers, found, push(open, line)]
+        end
+      elsif starts_with?(line, "@doc ") or starts_with?(line, "@moduledoc ")
+        [[], waivers, found, []]
+      elsif starts_with?(line, "#") and waived_code(line) != nil
+        [pending, push(waivers, waived_code(line)), found, nil]
       elsif starts_with?(line, "#")
-        [push(pending, comment_text(line)), waivers, found]
+        [pending, waivers, found, nil]
       elsif starts_with?(line, "def ")
         [
           [],
@@ -137,16 +142,17 @@ def entries_of_text(text)
               pending,
               waivers
             ]
-          )
+          ),
+          nil
         ]
       else
-        [[], [], found]
+        [[], [], found, nil]
       end
     end,
-    [[], [], []],
+    [[], [], [], nil],
     joined_header_lines(split(text, "\n"))
   )
-  last(state)
+  nth(2, state)
 end
 
 def bare_signature(signature, name)
@@ -203,13 +209,15 @@ def joined_header_lines(lines)
   first(state)
 end
 
-# The package's gloss: the first comment line of its source.
 def gloss_of_text(text)
-  comment = find_first((l) -> starts_with?(l, "#"), split(text, "\n"))
-  if comment.nil?
+  after = drop_while(
+    (l) -> not starts_with?(l, "@moduledoc "),
+    split(text, "\n")
+  )
+  if size(after) < 2 or nth(1, after) == "\"\"\""
     ""
   else
-    comment_text(comment)
+    nth(1, after)
   end
 end
 
@@ -2351,9 +2359,9 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "a def header broken over lines is catalogued as one signature"
-  src = "# Does it.\ndef long_one(\n  alpha,\n  beta\n) -> Int\n  1\nend\n"
+  src = "@doc \"\"\"\nlong_one does it.\n\"\"\"\ndef long_one(\n  alpha,\n  beta\n) -> Int\n  1\nend\n"
   assert entries_of_text(src) ==
-    [["long_one", "long_one(alpha, beta) -> Int", ["Does it."], []]]
+    [["long_one", "long_one(alpha, beta) -> Int", ["long_one does it."], []]]
 end
 
 test "a definition with no parameters is catalogued bare"
@@ -2373,18 +2381,19 @@ test "a manifest with no needs has an empty needs list"
   assert nth(0, m) == "deeta"
 end
 
-test "a comment documents a def only when it sits directly above it"
-  text = "# ── section ──\n\n# Adds one.\n# Twice as useful.\ndef inc(x)\n  x + 1\nend\n\ndef bare(y)\n  y\nend\n"
+test "a def's doc is its @doc; a comment documents nothing"
+  text = "# ── section ──\n\n@doc \"\"\"\ninc adds one.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(x)\n  x + 1\nend\n\n# Bare.\ndef bare(y)\n  y\nend\n"
   es = entries_of_text(text)
   assert size(es) == 2
-  assert first(es) == ["inc", "inc(x)", ["Adds one.", "Twice as useful."], []]
-  assert is_empty(last(last(es))) == true
+  assert first(es) ==
+    ["inc", "inc(x)", ["inc adds one.", "", "    inc(1) #=> 2"], []]
+  assert is_empty(nth(2, last(es))) == true
 end
 
-test "the gloss is the first comment line"
-  assert gloss_of_text("use(\"retsu\")\n# kazu (数): numbers.\n# more\n") ==
+test "the gloss is the first line of the @moduledoc"
+  assert gloss_of_text("@moduledoc \"\"\"\nkazu (数): numbers.\nmore\n\"\"\"\n\nuse(\"retsu\")\n") ==
     "kazu (数): numbers."
-  assert gloss_of_text("def f()\n  1\nend\n") == ""
+  assert gloss_of_text("# kazu: a comment.\ndef f()\n  1\nend\n") == ""
 end
 
 test "tests are counted by their opening line"
@@ -2446,9 +2455,9 @@ test "the rendered catalogue names every package and counts its definitions"
 end
 
 test "a waiver is recorded, not documented; a legacy prefix names the other spelling"
-  text = "legacy_names(\"0.1.1\", \"q\")\n\n# Counts.\n# waive B0013: count is a builtin\ndef q_count(xs)\n  0\nend\n\n# Joins.\ndef join_all(xs)\n  xs\nend\n"
+  text = "legacy_names(\"0.1.1\", \"q\")\n\n# waive B0013: count is a builtin\n@doc \"\"\"\nq_count counts.\n\"\"\"\ndef q_count(xs)\n  0\nend\n\n@doc \"\"\"\njoin_all joins.\n\"\"\"\ndef join_all(xs)\n  xs\nend\n"
   es = entries_of_text(text)
-  assert first(es) == ["q_count", "q_count(xs)", ["Counts."], ["B0013"]]
+  assert first(es) == ["q_count", "q_count(xs)", ["q_count counts."], ["B0013"]]
   assert legacy_prefix_of_text(text) == "q"
   r = ["kueri", "0.1.1", [], "", es, 0, "q"]
   assert other_name(r, first(es)) == "`kueri::count`"

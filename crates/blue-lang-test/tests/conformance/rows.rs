@@ -155,6 +155,10 @@ pub struct Row {
     /// in a child process with a time limit, and a death is an observation.
     pub isolate: bool,
     pub frontend: Option<String>,
+    /// `bidama("kagi")`: the program is the source of that bidama, as the
+    /// rules that judge a bidama's own file (B0056–B0060) see it; the static
+    /// door checks it, the cli door is blind to it.
+    pub bidama: Option<String>,
 }
 
 impl Row {
@@ -282,6 +286,36 @@ fn expect_of(s: &Sexp) -> Result<Expect, String> {
     })
 }
 
+/// `doctests()`: the program's `@doc` and `@moduledoc` examples, appended
+/// so the program's value is the list of their checks, `[true, …]` when every
+/// example holds. Each evaluator runs the examples as it runs the program.
+fn with_doctests(src: &str) -> Result<String, String> {
+    use blue_lang_syntax::doc::{documented, examples, moduledoc_text, Step};
+    let forms = blue_lang_syntax::parse_program_documented(src).map_err(|e| e.to_string())?;
+    let mut setup = String::new();
+    let mut checks = Vec::new();
+    for f in &forms {
+        let Some(text) = documented(f).map(|(t, _)| t).or_else(|| moduledoc_text(f)) else {
+            continue;
+        };
+        for example in examples(text) {
+            for (_, step) in example.steps {
+                match step {
+                    Step::Run(code) => {
+                        setup.push_str(&code);
+                        setup.push('\n');
+                    }
+                    Step::Check { expr, value } => checks.push(format!("({expr}) == ({value})")),
+                }
+            }
+        }
+    }
+    if checks.is_empty() {
+        return Err("doctests(): the program has no example".into());
+    }
+    Ok(format!("{src}\n{setup}[{}]\n", checks.join(", ")))
+}
+
 const RUNGS: [&str; 4] = ["dynamic", "annotated", "checked", "restricted"];
 
 fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
@@ -311,6 +345,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
         host: false,
         isolate: false,
         frontend: None,
+        bidama: None,
     };
     for option in options {
         let (name, args) = head_of(option).ok_or_else(|| label("an option is a call".into()))?;
@@ -358,6 +393,8 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
                 }
             }
             "frontend" => row.frontend = Some(one_str("frontend", args).map_err(label)?.to_owned()),
+            "bidama" => row.bidama = Some(one_str("bidama", args).map_err(label)?.to_owned()),
+            "doctests" if args.is_empty() => row.src = with_doctests(&row.src).map_err(label)?,
             "host" if args.is_empty() => row.host = true,
             "isolate" if args.is_empty() => row.isolate = true,
             other => return Err(label(format!("`{other}(…)` is not a row option"))),

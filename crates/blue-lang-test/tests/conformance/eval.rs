@@ -319,7 +319,12 @@ pub fn project(obs: &Obs) -> Option<Abi> {
 
 pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
     match &row.expect {
-        Expect::Diagnoses(_) => Obs::Codes(static_codes(&row.src, roots, row.frontend.as_deref())),
+        Expect::Diagnoses(_) => Obs::Codes(static_codes(
+            &row.src,
+            roots,
+            row.frontend.as_deref(),
+            row.bidama.as_deref(),
+        )),
         Expect::Formats(_) => match blue_lang_pkg::canonical::format_with(
             &blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
             Path::new(ROW_FILE),
@@ -350,6 +355,7 @@ pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
 struct View<'a> {
     inner: blue_lang_pkg::load_path::LoadPath,
     table: Option<&'a str>,
+    bidama: Option<&'a str>,
 }
 
 impl Loader for View<'_> {
@@ -358,7 +364,10 @@ impl Loader for View<'_> {
     }
 
     fn entry_package(&self, path: &Path) -> Option<String> {
-        self.inner.entry_package(path)
+        match self.bidama {
+            Some(b) => Some(b.to_owned()),
+            None => self.inner.entry_package(path),
+        }
     }
 
     fn needs(
@@ -384,13 +393,19 @@ impl Loader for View<'_> {
     }
 }
 
-fn static_codes(src: &str, roots: &[PathBuf], frontend: Option<&str>) -> Vec<String> {
+fn static_codes(
+    src: &str,
+    roots: &[PathBuf],
+    frontend: Option<&str>,
+    bidama: Option<&str>,
+) -> Vec<String> {
     if let Some(d) = blue_lang_runtime::pipeline::syntax_diagnostic(src) {
         return vec![d.code.as_str().to_owned()];
     }
     let loader = View {
         inner: blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
         table: frontend,
+        bidama,
     };
     let entry = Entry {
         path: Some(Path::new(ROW_FILE)),
@@ -430,6 +445,11 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         return Obs::Blind(
             "a frontend row is a view of a generated schema table, which only the static door is handed"
                 .into(),
+        );
+    }
+    if row.bidama.is_some() {
+        return Obs::Blind(
+            "a bidama row is a bidama's own file, which only the static door is handed".into(),
         );
     }
     let file = env.scratch.join(format!("row-{n}.b"));

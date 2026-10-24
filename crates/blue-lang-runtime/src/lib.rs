@@ -38,6 +38,7 @@ pub mod alloc;
 pub mod collection;
 pub mod crypto;
 pub mod dispatch;
+pub mod doc_sources;
 pub mod docs;
 pub mod domain;
 #[cfg(feature = "sys")]

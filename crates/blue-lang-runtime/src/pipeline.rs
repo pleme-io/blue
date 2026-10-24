@@ -422,13 +422,21 @@ pub(crate) fn parse_and_resolve(
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
 ) -> Result<crate::uses::ResolvedProgram, RunError> {
-    let forms = match surface {
+    let mut forms = match surface {
         Some(pack) => blue_lang_syntax::parse_program_tree_in(entry.text, pack)
             .map_err(|e| RunError::Parse(e.to_string()))?,
         None => loader
             .parse(entry.text)
             .map_err(|e| RunError::Parse(e.to_string()))?,
     };
+    // Every `@doc` example is a `test` block of the entry file: checked with
+    // the file's names, run by `blue test`, dropped by `run` with the others.
+    if surface.is_none() {
+        forms.extend(
+            blue_lang_syntax::doc::doctests(entry.text)
+                .map_err(|e| RunError::Parse(e.to_string()))?,
+        );
+    }
 
     // RESOLVE imports first, so everything below sees ONE program.
     //
@@ -504,6 +512,8 @@ pub(crate) fn check_stage(
         outcome.diagnostics.extend(found);
     }
 
+    outcome.diagnostics.extend(doc_diagnostics(program));
+
     // Waivers, per file: B0007 for a malformed one, B0008 for one that
     // suppresses nothing.
     let mut waivers = Vec::new();
@@ -544,6 +554,44 @@ pub(crate) fn check_stage(
         .diagnostics
         .sort_by_key(|d| (d.top_level, d.span.start, d.code));
     (outcome, table)
+}
+
+/// The documentation rules (B0056–B0060) over the entry file, when it is a
+/// bidama's: a bidama is judged at its own check, as its form is; an importer
+/// is not answerable for a dependency's documentation.
+fn doc_diagnostics(program: &crate::uses::ResolvedProgram) -> Vec<blue_lang_check::Diagnostic> {
+    use crate::uses::ResolvedProgram;
+    let Some(file) = program.file(ResolvedProgram::ENTRY) else {
+        return Vec::new();
+    };
+    let Some(package) = file.package.as_deref() else {
+        return Vec::new();
+    };
+    let forms: Vec<(usize, &tatara_lisp::Spanned)> = program
+        .forms()
+        .iter()
+        .enumerate()
+        .filter(|(i, f)| {
+            program.owner_of(*i) == Some(ResolvedProgram::ENTRY)
+                && !blue_lang_syntax::doc::is_doctest(f)
+        })
+        .collect();
+    let graph = file.path.as_deref().map(crate::doc_sources::graph_meanings);
+    let meaning = |name: &str| {
+        graph
+            .as_ref()
+            .and_then(|g| g.get(&(package.to_string(), name.to_string())).cloned())
+    };
+    let names_line = |name: &str| crate::docs::doc_of(name).map(|d| d.doc.to_string());
+    blue_lang_check::doc_rules::check_file(
+        &file.text,
+        &forms,
+        true,
+        &blue_lang_check::doc_rules::Sources {
+            meaning: &meaning,
+            names_line: &names_line,
+        },
+    )
 }
 
 fn data_law_diagnostics(
@@ -1088,6 +1136,7 @@ impl Checked {
             .enumerate()
             .filter(|(i, _)| program.owner_of(*i) == Some(ResolvedProgram::ENTRY))
             .map(|(_, f)| f)
+            .filter(|f| !blue_lang_syntax::doc::is_doctest(f))
             .collect();
         let written = blue_lang_syntax::parse_program_tree(src).ok()?;
         let same = written.len() == entry.len()

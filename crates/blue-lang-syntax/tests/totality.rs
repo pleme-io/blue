@@ -457,7 +457,7 @@ fn span_violation(
 fn every_node_sits_inside_its_parents_span() {
     let mut nodes = 0usize;
     for (name, src) in corpus() {
-        let forms = blue_lang_syntax::parse_program_tree(&src)
+        let forms = blue_lang_syntax::parse_program_documented(&src)
             .unwrap_or_else(|e| panic!("{name} must parse: {e}"));
         assert!(
             !forms.is_empty(),

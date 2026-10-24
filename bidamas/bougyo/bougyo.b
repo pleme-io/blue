@@ -1,7 +1,12 @@
+use("gamen")
 use("kousei", [:field, :int_in, :list_of, :off, :one_of, :text, :tune])
+use("kyuuji", [:header, :route_methods])
 use("moji", [:lower])
-use("retsu", [:contains, :first, :size])
+use("retsu", [:contains, :first, :is_empty, :size])
+use("shinsuu", [:bytes_base64, :hex_bytes])
 use("shisei", [:gated, :posture, :serving])
+
+legacy_names("0.1.1", [["request_header", "kyuuji::header"]])
 
 # bougyo (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
 #
@@ -13,16 +18,6 @@ use("shisei", [:gated, :posture, :serving])
 # Request headers arrive as a list of [name, value] pairs with lowercase names;
 # response headers are a map. The posture builders take no arguments, so a
 # service lists them as `[headers_posture, request_id_posture, limits_posture]`.
-
-# The value of a request header, or nil.
-def request_header(req, name)
-  hit = filter((p) -> nth(0, p) == name, get(req, :headers))
-  if size(hit) == 0
-    nil
-  else
-    nth(1, nth(0, hit))
-  end
-end
 
 # Whether the response already sets a header, whatever the case of its name.
 def has_header?(headers, name)
@@ -51,10 +46,15 @@ def header_defaults()
     frame_options: "DENY",
     referrer_policy: "no-referrer",
     content_security_policy: "default-src 'none'; frame-ancestors 'none'",
+    page_security_policy: page_policy_default,
     strict_transport_security: "max-age=31536000; includeSubDomains",
     cache_control: "no-store",
     cross_origin_resource_policy: "same-origin"
   }
+end
+
+def page_policy_default()
+  "default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self'; style-src-attr 'unsafe-inline'"
 end
 
 def header_table()
@@ -66,18 +66,54 @@ def header_table()
       :content_type_options,
       :cross_origin_resource_policy,
       :frame_options,
+      :page_security_policy,
       :referrer_policy,
       :strict_transport_security
     ]
   )
 end
 
-def header_pairs(s)
+def hash_source(content)
+  "'sha256-#{bytes_base64(hex_bytes(digest_hex(:sha256, content)))}'"
+end
+
+def hashed(directive, contents)
+  if is_empty(contents)
+    []
+  else
+    ["#{directive} #{join(map(hash_source, contents), " ")}"]
+  end
+end
+
+def page_policy(base, inline)
+  join(
+    append(
+      [base],
+      hashed("style-src-elem", get(inline, :styles) or []),
+      hashed("script-src", get(inline, :scripts) or [])
+    ),
+    "; "
+  )
+end
+
+def page?(r)
+  starts_with?(downcase(header(r, "content-type") or ""), "text/html")
+end
+
+def policy_for(s, r)
+  if page?(r)
+    page_policy(get(s, :page_security_policy), get(r, :inline) or {})
+  else
+    get(s, :content_security_policy)
+  end
+end
+
+def header_pairs(s, r)
   [
     ["X-Content-Type-Options", get(s, :content_type_options)],
     ["X-Frame-Options", get(s, :frame_options)],
     ["Referrer-Policy", get(s, :referrer_policy)],
-    ["Content-Security-Policy", get(s, :content_security_policy)],
+    ["Content-Security-Policy", policy_for(s, r)],
     ["Strict-Transport-Security", get(s, :strict_transport_security)],
     ["Cache-Control", get(s, :cache_control)],
     ["Cross-Origin-Resource-Policy", get(s, :cross_origin_resource_policy)]
@@ -96,7 +132,7 @@ def headers_posture()
           assoc(
             r,
             :headers,
-            with_missing(get(r, :headers), header_pairs(settings))
+            with_missing(get(r, :headers), header_pairs(settings, r))
           )
         end
       end
@@ -131,7 +167,7 @@ def request_id_posture()
       counter = [0]
       fn(handler)
         fn(req)
-          inbound = request_header(req, lower(get(settings, :header)))
+          inbound = header(req, get(settings, :header))
           id = if safe_id?(inbound, get(settings, :max_length))
             inbound
           else
@@ -153,7 +189,7 @@ end
 # --- limits ---------------------------------------------------------------
 
 def limit_methods()
-  ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  route_methods
 end
 
 def refusal_response(status, why)
@@ -262,6 +298,59 @@ test "a bare service gets the seven security headers and keeps its own"
   r2 = get(own, :handler)(get_req("/", [], ""))
   assert hdr(r2, "cache-control") == "max-age=60"
   assert hdr(r2, "Cache-Control").nil?
+end
+
+test "an html page gets the page policy: its inline style and module allowed by hash, inline script never"
+  page = fn(_req)
+    {
+      status: 200,
+      headers: {"Content-Type" => "text/html; charset=utf-8"},
+      body: "<p>x</p>",
+      inline: {styles: ["a"], scripts: ["abc"]}
+    }
+  end
+  r = get(defended([], quiet, page), :handler)(get_req("/", [], ""))
+  assert hdr(r, "Content-Security-Policy") ==
+    "#{page_policy_default}; style-src-elem 'sha256-ypeBEsobvcr6wjGzmiPcTaeG7/gUfE5yuYB3ha/uSLs='; script-src 'sha256-ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0='"
+  bare = fn(_req)
+    {status: 200, headers: {"content-type" => "TEXT/HTML"}, body: ""}
+  end
+  b = get(defended([], quiet, bare), :handler)(get_req("/", [], ""))
+  assert hdr(b, "Content-Security-Policy") == page_policy_default
+  assert not contains?(page_policy_default, "script-src")
+  assert hdr(
+    get(defended([], quiet, ok), :handler)(get_req("/", [], "")),
+    "Content-Security-Policy"
+  ) == "default-src 'none'; frame-ancestors 'none'"
+  tuned = defended(
+    [tune(:headers, "default", {page_security_policy: "default-src 'self'"})],
+    quiet,
+    bare
+  )
+  assert hdr(
+    get(tuned, :handler)(get_req("/", [], "")),
+    "Content-Security-Policy"
+  ) == "default-src 'self'"
+end
+
+test "a kyuuji view route served through bougyo carries the hash of its theme's style"
+  t = gamen::theme({text: "#2e3440"}, :light)
+  app = kyuuji::router(
+    [
+      kyuuji::route(
+        "GET",
+        "/",
+        (_req) -> gamen::page({title: "x", body: [gamen::view(:p, {}, ["hi"])]})
+      )
+    ],
+    {theme: t}
+  )
+  h = get(defended([], quiet, (req) -> kyuuji::dispatch(app, req)), :handler)
+  r = h(get_req("/", [], ""))
+  assert get(r, :status) == 200
+  assert contains?(get(r, :body), "<p>hi</p>")
+  assert hdr(r, "Content-Security-Policy") ==
+    "#{page_policy_default}; style-src-elem #{hash_source(gamen::css(t))}"
 end
 
 test "the headers posture can be configured off or tuned, and a bad tune is refused alone"

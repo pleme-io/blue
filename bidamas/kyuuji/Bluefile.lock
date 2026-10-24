@@ -1,11 +1,18 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ac72ab69543de37e0c1af969ed69fd0866db8e6199d344db385812af035e25dc",
+  "bluefile_b3": "b3:66c90986c05d6379d86afc2d70ac965a9498ff49d3c45034194c72d40f3e2928",
   "manifest": {
     "schema": 1,
     "name": "kyuuji",
-    "version": "0.1.0",
-    "needs": {},
+    "version": "0.1.1",
+    "needs": {
+      "gamen": "^0.1.0",
+      "kousei": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shinsuu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
     "when": "anytime",
     "sources": {},
     "packages": [],

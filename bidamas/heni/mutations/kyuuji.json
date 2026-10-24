@@ -1,0 +1,182 @@
+[
+  {
+    "name": "header ignores case",
+    "file": "kyuuji.b",
+    "find": "downcase(first(p)) == n)",
+    "replace": "first(p) == name)"
+  },
+  {
+    "name": "router refuses overlap",
+    "file": "kyuuji.b",
+    "find": "overlapping?(get(k, :segments), get(r, :segments))",
+    "replace": "false"
+  },
+  {
+    "name": "route method table",
+    "file": "kyuuji.b",
+    "find": "if not member?(get(r, :method), route_methods)",
+    "replace": "if false"
+  },
+  {
+    "name": "route repeated parameter",
+    "file": "kyuuji.b",
+    "find": "count(names) != count(distinct(names))",
+    "replace": "false"
+  },
+  {
+    "name": "match decodes parameters",
+    "file": "kyuuji.b",
+    "find": "assoc(params, get(s, :param), decoded(first(parts)))",
+    "replace": "assoc(params, get(s, :param), first(parts))"
+  },
+  {
+    "name": "match takes a tail",
+    "file": "kyuuji.b",
+    "find": "assoc(params, get(s, :rest), join(map(decoded, parts), \"/\"))",
+    "replace": "assoc(params, get(s, :rest), first(parts))"
+  },
+  {
+    "name": "head falls back to get",
+    "file": "kyuuji.b",
+    "find": "if hit.nil? and get(req, :method) == \"HEAD\"",
+    "replace": "if false"
+  },
+  {
+    "name": "405 names the allowed methods",
+    "file": "kyuuji.b",
+    "find": "\"Allow\", join(allow, \", \")",
+    "replace": "\"Allow\", \"GET\""
+  },
+  {
+    "name": "a view route renders html",
+    "file": "kyuuji.b",
+    "find": "resp = if element?(out)",
+    "replace": "resp = if false"
+  },
+  {
+    "name": "path parameter before query",
+    "file": "kyuuji.b",
+    "find": "get(get(req, :params) or {}, name) or query_param(req, name)",
+    "replace": "query_param(req, name)"
+  },
+  {
+    "name": "mount prefixes routes",
+    "file": "kyuuji.b",
+    "find": "\"#{prefix}#{get(r, :pattern)}\"",
+    "replace": "get(r, :pattern)"
+  },
+  {
+    "name": "mount refuses a bad prefix",
+    "file": "kyuuji.b",
+    "find": "if why != nil or prefix == \"/\"",
+    "replace": "if prefix == \"/\""
+  },
+  {
+    "name": "redirect status",
+    "file": "kyuuji.b",
+    "find": "if not member?(status, [301, 302, 303, 307, 308])",
+    "replace": "if false"
+  },
+  {
+    "name": "redirect location",
+    "file": "kyuuji.b",
+    "find": "if not url_ok?(location)",
+    "replace": "if false"
+  },
+  {
+    "name": "guard false is 403",
+    "file": "kyuuji.b",
+    "find": "elsif verdict == false",
+    "replace": "elsif verdict == 0"
+  },
+  {
+    "name": "form values decoded",
+    "file": "kyuuji.b",
+    "find": "form_decoded(join(rest(kv), \"=\"))",
+    "replace": "join(rest(kv), \"=\")"
+  },
+  {
+    "name": "bad json is a bad request",
+    "file": "kyuuji.b",
+    "find": "raise(:bad_request, \"the body is not JSON\")",
+    "replace": "nil"
+  },
+  {
+    "name": "recover status table",
+    "file": "kyuuji.b",
+    "find": "unsupported: 415,",
+    "replace": "unsupported: 400,"
+  },
+  {
+    "name": "recover hides an unknown fault",
+    "file": "kyuuji.b",
+    "find": "text(500, \"internal error\\n\")",
+    "replace": "text(500, \"#{message}\\n\")"
+  },
+  {
+    "name": "timeout deadline",
+    "file": "kyuuji.b",
+    "find": "if now_ms - started > ms",
+    "replace": "if false"
+  },
+  {
+    "name": "stream keeps every chunk",
+    "file": "kyuuji.b",
+    "find": "[append(first(chunks), [to_s(chunk)])]",
+    "replace": "[[to_s(chunk)]]"
+  },
+  {
+    "name": "file validator",
+    "file": "kyuuji.b",
+    "find": "member?(tag, map((t) -> blue::trim(t), split(asked, \",\")))",
+    "replace": "false"
+  },
+  {
+    "name": "suffix range",
+    "file": "kyuuji.b",
+    "find": "[blue::max(0, total - n), total - 1]",
+    "replace": "[0, total - 1]"
+  },
+  {
+    "name": "file refuses dot dot",
+    "file": "kyuuji.b",
+    "find": "if member?(\"..\", split(path, \"/\"))",
+    "replace": "if false"
+  },
+  {
+    "name": "cors wildcard with credentials",
+    "file": "kyuuji.b",
+    "find": "[\"a wildcard origin cannot carry credentials\"]",
+    "replace": "[]"
+  },
+  {
+    "name": "cors preflight method",
+    "file": "kyuuji.b",
+    "find": "if allowed and member?(asked, get(p, :methods))",
+    "replace": "if allowed"
+  },
+  {
+    "name": "cors marks only allowed origins",
+    "file": "kyuuji.b",
+    "find": "if allowed and well_formed?(resp)",
+    "replace": "if well_formed?(resp)"
+  },
+  {
+    "name": "websocket accept key",
+    "file": "kyuuji.b",
+    "find": "\"#{key}#{websocket_guid}\"",
+    "replace": "\"#{key}\""
+  },
+  {
+    "name": "websocket version",
+    "file": "kyuuji.b",
+    "find": "header(req, \"sec-websocket-version\") != \"13\"",
+    "replace": "false"
+  },
+  {
+    "name": "wire refuses a socket hand-off",
+    "file": "kyuuji.b",
+    "find": "if get(resp, :socket) != nil",
+    "replace": "if false"
+  }
+]

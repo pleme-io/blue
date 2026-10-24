@@ -1,5 +1,6 @@
 use("deeta", [:get_or])
 use("kyuuji")
+use("retsu", [:first, :rest])
 
 def defaults()
   {

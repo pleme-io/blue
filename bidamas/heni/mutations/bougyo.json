@@ -1,0 +1,32 @@
+[
+  {
+    "name": "page style hash",
+    "file": "bougyo.b",
+    "find": "hashed(\"style-src-elem\", get(inline, :styles) or [])",
+    "replace": "[]"
+  },
+  {
+    "name": "page module hash",
+    "file": "bougyo.b",
+    "find": "hashed(\"script-src\", get(inline, :scripts) or [])",
+    "replace": "[]"
+  },
+  {
+    "name": "html is a page",
+    "file": "bougyo.b",
+    "find": "starts_with?(downcase(header(r, \"content-type\") or \"\"), \"text/html\")",
+    "replace": "false"
+  },
+  {
+    "name": "page policy is tunable",
+    "file": "bougyo.b",
+    "find": "page_policy(get(s, :page_security_policy),",
+    "replace": "page_policy(page_policy_default,"
+  },
+  {
+    "name": "request id read through kyuuji header",
+    "file": "bougyo.b",
+    "find": "inbound = header(req, get(settings, :header))",
+    "replace": "inbound = nil"
+  }
+]

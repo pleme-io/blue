@@ -1,0 +1,14 @@
+[
+  {
+    "name": "base64 padding",
+    "file": "shinsuu.b",
+    "find": "if k <= have",
+    "replace": "if k < have"
+  },
+  {
+    "name": "base64 sextet",
+    "file": "shinsuu.b",
+    "find": "shift_right(v, 6 * (3 - k)) % 64",
+    "replace": "shift_right(v, 6 * (3 - k)) % 63"
+  }
+]

@@ -884,6 +884,21 @@ vocab(
 )
 
 vocab(
+  "cors",
+  {
+    subject: "handler",
+    args: ["handler", "policy"],
+    opts: false,
+    returns: "handler",
+    raises: [],
+    kind: :pure,
+    meaning: "add cross-origin headers to a handler's answers by policy",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "count",
   {
     subject: "xs",
@@ -2024,6 +2039,21 @@ vocab(
 )
 
 vocab(
+  "guard",
+  {
+    subject: "handler",
+    args: ["handler", "check"],
+    opts: false,
+    returns: "handler",
+    raises: [],
+    kind: :pure,
+    meaning: "refuse what fails a check before the handler runs",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "has?",
   {
     subject: "store",
@@ -2050,6 +2080,21 @@ vocab(
     meaning: "a digest in lowercase hex",
     ref: "§3.4",
     status: :stdlib
+  }
+)
+
+vocab(
+  "header",
+  {
+    subject: "message",
+    args: ["message", "name"],
+    opts: false,
+    returns: "text?",
+    raises: [],
+    kind: :pure,
+    meaning: "one header of a request or response, its name in any case",
+    ref: nil,
+    status: :decided
   }
 )
 
@@ -3524,6 +3569,21 @@ vocab(
 )
 
 vocab(
+  "recover",
+  {
+    subject: "handler",
+    args: ["handler"],
+    opts: false,
+    returns: "handler",
+    raises: [],
+    kind: :pure,
+    meaning: "turn what a handler raises into an answer",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "redact",
   {
     subject: "doc",
@@ -3533,6 +3593,21 @@ vocab(
     raises: [],
     kind: :pure,
     meaning: "a value with sensitive parts hidden",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "redirect",
+  {
+    subject: "status",
+    args: ["status", "location"],
+    opts: false,
+    returns: "response",
+    raises: [],
+    kind: :pure,
+    meaning: "an answer that sends the client to another location",
     ref: nil,
     status: :decided
   }
@@ -3938,6 +4013,21 @@ vocab(
     raises: [],
     kind: :pure,
     meaning: "choose targets for a subject by rules",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "router",
+  {
+    subject: "routes",
+    args: ["routes"],
+    opts: true,
+    returns: "app",
+    raises: [],
+    kind: :decl,
+    meaning: "compose routes into one app, refusing each overlap alone",
     ref: nil,
     status: :decided
   }

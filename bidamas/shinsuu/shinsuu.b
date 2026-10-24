@@ -1184,6 +1184,56 @@ test "hex dumps read back as the bytes they print"
   assert hex_bytes("zz").nil?
 end
 
+def base64_alphabet()
+  chars("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
+end
+
+def bytes_base64(bytes)
+  n = size(bytes)
+  join(
+    map(
+      fn(g)
+        i = 3 * g
+        have = min(3, n - i)
+        v = reduce(
+          (acc, k) -> acc * 256 + (nth(i + k, bytes) or 0),
+          0,
+          range(0, 3)
+        )
+        sextets = map((k) -> shift_right(v, 6 * (3 - k)) % 64, range(0, 4))
+        join(
+          map(
+            fn(k)
+              if k <= have
+                nth(nth(k, sextets), base64_alphabet)
+              else
+                "="
+              end
+            end,
+            range(0, 4)
+          ),
+          ""
+        )
+      end,
+      range(0, floor((n + 2) / 3))
+    ),
+    ""
+  )
+end
+
+test "base64 matches the RFC 4648 vectors and pads to four characters"
+  assert bytes_base64([]) == ""
+  assert bytes_base64(text_bytes("f")) == "Zg=="
+  assert bytes_base64(text_bytes("fo")) == "Zm8="
+  assert bytes_base64(text_bytes("foo")) == "Zm9v"
+  assert bytes_base64(text_bytes("foob")) == "Zm9vYg=="
+  assert bytes_base64(text_bytes("fooba")) == "Zm9vYmE="
+  assert bytes_base64(text_bytes("foobar")) == "Zm9vYmFy"
+  assert bytes_base64([255, 254, 253]) == "//79"
+  assert bytes_base64(hex_bytes(digest_hex(:sha256, ""))) ==
+    "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+end
+
 test "luhn? accepts a valid number and rejects a changed digit"
   assert luhn?(79_927_398_713)
   assert not luhn?(79_927_398_710)

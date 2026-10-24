@@ -115,7 +115,7 @@ D	bougyo	audit	decl	audit(opts) -> posture	config,log	-	absent	record each decis
 D	bougyo	authenticate	decl	authenticate(opts) -> posture	config,switch	pleme-auth-sdk	absent	attach the caller identity to each request	2		na
 D	bougyo	authorize	decl	authorize(opts) -> posture	config,switch	pleme-rbac	absent	permit or deny each request by policy	2		na
 D	bougyo	broken	pure	broken(settings, request) -> record or nil	validate	-	partial:bougyo	first limit a request breaks, as status and reason	0		na
-D	bougyo	cors	decl	cors(opts) -> posture	config,switch	-	absent	cross-origin rules as an explicit allow-list	1		na
+D	bougyo	cors	decl	cors(opts) -> posture	config,switch	-	absent	cross-origin rules as an explicit allow-list	1	cors(opts) -> posture	no
 D	bougyo	csp	decl	csp(opts) -> posture	config,switch	-	absent	content security policy with a fresh nonce per response	1		na
 D	bougyo	csrf	decl	csrf(opts) -> posture	config,switch	-	absent	state-changing requests carry a token or same-site proof	2		na
 D	bougyo	deadlines	decl	deadlines(opts) -> posture	config,deadline	-	absent	header, body and idle time limits against slow clients	2		na
@@ -439,7 +439,7 @@ B	fairu	write	effect	write(path, content, opts) -> nil	capability,error,idempote
 F	fuka?	blast	pure	blast(target, radius) -> scope	capability	-	absent	bound which targets a fault may touch	3		na
 F	fuka?	experiment	effect	experiment(spec) -> verdict	cancel,capability,test	vendaval	absent	test a steady-state claim under a fault and always heal	3		na
 F	fuka?	fault	effect	fault(target, kind, opts) -> handle	capability,resource,time	vendaval	absent	inject a failure: kill, delay, loss, partition or corrupt	3		na
-F	fuka?	guard	decl	guard(probe, limit) -> guard	cancel,deadline	-	absent	declare a stop condition that aborts an experiment	3		na
+F	fuka?	guard	decl	guard(probe, limit) -> guard	cancel,deadline	-	absent	declare a stop condition that aborts an experiment	3	guard(probe, limit) -> guard	yes
 F	fuka?	heal	effect	heal(handle) -> nil	idempotent,resource	vendaval	absent	undo an injected fault	3		na
 F	fuka?	judge	pure	judge(report, thresholds) -> verdict	test	-	absent	whether a load report stays within every threshold	2	judge(report, thresholds) -> verdict	yes
 F	fuka?	mirror	stream	mirror(source, target, opts) -> report	capability	-	absent	copy live requests to a shadow target and compare answers	4	mirror(source, target, opts) -> report	yes
@@ -1548,12 +1548,12 @@ D	kyoukyuu?	verify?	effect	verify?(artifact, signature, trust) -> Bool	resource,
 D	kyoukyuu?	vex	decl	vex(finding, status, why) -> statement	config	security-contract	absent	a finding judged exploitable or not, with reason	2		na
 C	kyuuji	body	pure	body(req, format) -> value	error,validate	-	absent	Parse the request body into a value.	1		na
 C	kyuuji	compress	pure	compress(handler, opts) -> handler	-	-	absent	Compress bodies by the client's Accept-Encoding.	3	compress(handler, opts) -> handler	yes
-C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	absent	Add cross-origin headers by policy.	2		na
+C	kyuuji	cors	pure	cors(handler, policy) -> handler	config	-	absent	Add cross-origin headers by policy.	2	cors(handler, policy) -> handler	yes
 C	kyuuji	events	stream	events(req, f) -> response	cancel	-	absent	Answer as a server-sent event stream.	2	events(req, opts) -> response	no
 C	kyuuji	exposition	pure	exposition(m, service) -> text	serialize	blue	exists:kyuuji	Metrics rendered in Prometheus text form.	0		na
 C	kyuuji	file	effect	file(path, opts) -> response	cache,resource	-	absent	A response serving a file with validators and ranges.	2	file(path, tier) -> response	no
-C	kyuuji	guard	pure	guard(handler, check) -> handler	capability,error	-	absent	Refuse requests that fail a check before the handler.	1		na
-C	kyuuji	header	pure	header(req, name) -> text or nil	-	-	absent	One request header.	1		na
+C	kyuuji	guard	pure	guard(handler, check) -> handler	capability,error	-	absent	Refuse requests that fail a check before the handler.	1	guard(handler, check) -> handler	yes
+C	kyuuji	header	pure	header(req, name) -> text or nil	-	-	absent	One request header.	1	header(req, name) -> text or nil	yes
 F	kyuuji	health	pure	health(request, check) -> response	test	-	partial:kyuuji	answer a liveness or readiness probe from a check	0		na
 C	kyuuji	hook	decl	hook(path, secret, f) -> route	capability,idempotent	-	absent	Receive a signed webhook and call f once per delivery.	2		na
 C	kyuuji	json	pure	json(status, value) -> response	serialize	blue	exists:kyuuji	A JSON response.	0		na
@@ -1564,11 +1564,11 @@ C	kyuuji	not_found	pure	not_found(req) -> response	-	blue	exists:kyuuji	The 404 
 C	kyuuji	observe	effect	observe(m, status, seconds) -> m	log,trace	blue	exists:kyuuji	Count one request in the metrics.	0	observe(m, status, seconds) -> m	yes
 C	kyuuji	param	pure	param(req, name) -> text or nil	-	blue	partial:kyuuji	One query or path parameter.	0		na
 C	kyuuji	plain	pure	plain(status, body) -> response	-	blue	partial:kyuuji	A plain-text response.	0	plain(status, body) -> response	yes
-C	kyuuji	recover	pure	recover(handler) -> handler	error	-	absent	Turn a raised kind into its status response.	1		na
-C	kyuuji	redirect	pure	redirect(status, location) -> response	-	-	absent	A redirect response.	1		na
+C	kyuuji	recover	pure	recover(handler) -> handler	error	-	absent	Turn a raised kind into its status response.	1	recover(handler) -> handler	yes
+C	kyuuji	redirect	pure	redirect(status, location) -> response	-	-	absent	A redirect response.	1	redirect(status, location) -> response	yes
 C	kyuuji	response	pure	response(status, content_type, body) -> response	-	blue	exists:kyuuji	Build a response record.	0		na
 C	kyuuji	route	decl	route(method, pattern, handler) -> route	validate	-	absent	Declare one method and path pattern with a handler.	1	route(method, pattern) -> route	no
-C	kyuuji	router	decl	router(routes) -> app	validate	-	absent	Compose routes into one app; overlap is refused.	1		na
+C	kyuuji	router	decl	router(routes) -> app	validate	-	absent	Compose routes into one app; overlap is refused.	1	router(routes) -> app	yes
 C	kyuuji	serve	effect	serve(addr, app, opts) -> nil	cancel,capability,deadline,error,log,resource,trace	blue	exists:kyuuji	Listen and answer requests until stopped.	0	serve(addr, app, opts) -> nil	yes
 C	kyuuji	serve_once	effect	serve_once(listener, app, opts) -> nil	deadline,error	blue	exists:kyuuji	Answer one request; the test door.	0		na
 C	kyuuji	shutdown	effect	shutdown(server, opts) -> nil	cancel,deadline	-	absent	Stop accepting, drain in-flight requests, then close.	2		na

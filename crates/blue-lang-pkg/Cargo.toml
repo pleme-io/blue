@@ -9,6 +9,9 @@ license.workspace = true
 repository.workspace = true
 include = ["build.rs", "src/**", "tests/**", "bidamas/*/Bluefile", "bidamas/*/*.b"]
 
+[package.metadata.substrate]
+sources = ["../../bidamas"]
+
 [features]
 # The standard distribution (`bidamas/`) compiled into the crate, served by
 # `embedded::Standard`, for a host that runs blue with no BLUE_PATH (arnes,

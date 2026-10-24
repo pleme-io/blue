@@ -8,6 +8,9 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[package.metadata.substrate]
+sources = ["../../spec/rows"]
+
 [[bin]]
 name = "blue"
 path = "src/main.rs"

@@ -46,7 +46,7 @@ use(
   ]
 )
 
-use("shisutemu", [:read_or, :stdout_of])
+use("shisutemu", [:read_or, :stdout_of, :strip_ansi])
 
 def attr_for(kind, host)
   if kind == "nixos"
@@ -258,7 +258,14 @@ def settings()
       to_int(getenv("KIRIKAE_BACKOFF_CAP_S", "21600"))
     ),
     wait_s: to_int(getenv("KIRIKAE_WAIT_S", "0")),
-    poll_s: to_int(getenv("KIRIKAE_POLL_S", "15"))
+    poll_s: to_int(getenv("KIRIKAE_POLL_S", "15")),
+    events: getenv(
+      "KIRIKAE_EVENTS",
+      path_join(getenv("HOME", "/tmp"), ".local/state/kirikae/events.jsonl")
+    ),
+    events_keep: to_int(getenv("KIRIKAE_EVENTS_KEEP", "1000")),
+    follow: getenv("KIRIKAE_FOLLOW", "") == "1",
+    gitops_log: getenv("KIRIKAE_GITOPS_LOG", "/var/log/pleme-gitops/stdout.log")
   }
 end
 
@@ -371,7 +378,8 @@ def busy_refusal(ws)
     [
       :busy,
       "another evaluation or rebuild of this machine is running: #{take_chars(trim(first(ws)), 160)}",
-      writer_of(first(ws))
+      writer_of(first(ws)),
+      writer_rev(first(ws))
     ]
   end
 end
@@ -384,18 +392,61 @@ writer_of: a writer's process line, shortened to its command and the rev it buil
 def writer_of(line)
   ws = filter((w) -> w != "", split(trim(line), " "))
   verb = filter((w) -> not starts_with?(w, "-"), take_n(rest(ws), 1))
+  rev = writer_rev(line)
+  at = if rev.nil?
+    ""
+  else
+    " at #{take_chars(rev, 8)}"
+  end
+  "#{join(concat_lists(map(base_name, take_n(ws, 1)), verb), " ")}#{at}"
+end
+
+@doc """
+writer_rev: the pinned revision a writer's process line builds, or nil when it builds a moving ref or a path.
+
+    writer_rev("darwin-rebuild build --flake github:pleme-io/nix/b548e3a24f88a08d1c673ad27ac494293ac5cac1#ryn") #=> "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+"""
+def writer_rev(line)
+  ws = filter((w) -> w != "", split(trim(line), " "))
   parts = reduce(
     (acc, w) -> concat_lists(acc, split(w, "/")),
     [],
     map((w) -> last(split(first(split(w, "#")), "=")), ws)
   )
   revs = filter(hex40?, parts)
-  at = if is_empty(revs)
-    ""
-  else
-    " at #{take_chars(first(revs), 8)}"
+  if not is_empty(revs)
+    first(revs)
   end
-  "#{join(concat_lists(map(base_name, take_n(ws, 1)), verb), " ")}#{at}"
+end
+
+@doc """
+gitops_handoff: the revision the gitops loop is building when it is the busy writer and builds the checkout's published rev or one after it, so kirikae can leave the switch to it; nil otherwise.
+
+    gitops_handoff({busy: nil}, {}, "") #=> nil
+"""
+def gitops_handoff(f, s, hb_text)
+  rev = if get(f, :busy) != nil
+    nth(3, get(f, :busy))
+  end
+  hb = json_parse(hb_text) rescue nil
+  c = get(f, :checkout)
+  head = if c != nil
+    get(c, :head)
+  else
+    first(filter(hex40?, split(first(split(get(s, :flake) or "", "#")), "/")))
+  end
+  dir = checkout_path(get(s, :flake) or "")
+  building = hb != nil and
+    get_str(hb, "outcome", "") == "building" and
+    get_str(hb, "head_rev", "") == rev
+  if rev.nil? or head.nil? or not building
+    nil
+  elsif rev == head
+    rev
+  elsif dir != nil and
+      git_out(dir, ["merge-base", "--is-ancestor", head, rev]) != nil
+    rev
+  end
 end
 
 def heartbeat_noop(hb_text, head, current)
@@ -496,7 +547,7 @@ def judged(s)
 end
 
 @doc """
-planned: guard, wait and plan, each told as a phase when the narration is full, and the plan they reach.
+planned: guard, wait and plan, each told as a phase when the narration is full, and the plan they reach with each phase's time and the fix for a refusal.
 
     get(planned({narrate: :off, flake: "/nonexistent/kirikae", host: "kirikae-no-such-host"}), :action) #=> :refuse
 """
@@ -507,12 +558,34 @@ def planned(s)
     wait_s: get(s, :wait_s),
     current: get(s, :current)
   }
-  g0 = get(phase(s, :guard, d, () -> judged(s)), :verdict)
-  g = if g0 != nil and busy_hold?(g0)
+  gp = phase(s, :guard, d, () -> judged(s))
+  f = get(gp, :result)
+  g0 = get(f, :verdict)
+  busy = g0 != nil and busy_hold?(g0)
+  rev = if busy and get(s, :handoff)
+    gitops_handoff(f, s, read_or(heartbeat_path, ""))
+  end
+  wd = assoc(
+    assoc(
+      d,
+      :writer,
+      if busy
+        nth(2, get(g0, :refusal))
+      end
+    ),
+    :rev,
+    rev
+  )
+  wp = if rev != nil and get(s, :follow)
+    phase(s, :wait, assoc(wd, :follow, true), () -> follow(s, rev))
+  elsif rev != nil
+    tell(s, :skipped, :wait, handoff_note(rev, get(s, :host)), nil)
+    nil
+  elsif busy
     phase(
       s,
       :wait,
-      assoc(d, :writer, nth(2, get(g0, :refusal))),
+      wd,
       () -> await_writers(s, g0, now_ms + get(s, :wait_s) * 1000, nil, 0)
     )
   else
@@ -523,9 +596,16 @@ def planned(s)
       "no other writer of #{get(s, :host)} is running; nothing to wait for",
       nil
     )
-    g0
+    nil
   end
-  if g.nil?
+  g = if rev != nil and wp.nil?
+    {action: :handoff, why: handoff_note(rev, get(s, :host)), rev:, plan_ms: 0}
+  elsif wp.nil?
+    g0
+  else
+    get(wp, :result)
+  end
+  pp = if g.nil?
     phase(
       s,
       :plan,
@@ -540,7 +620,206 @@ def planned(s)
       "the guard decided before any evaluation: #{to_s(get(g, :action))}",
       nil
     )
+    nil
+  end
+  p = if pp.nil?
     g
+  else
+    get(pp, :result)
+  end
+  timed = assoc(
+    p,
+    :phase_ms,
+    {
+      guard: get(gp, :ms),
+      wait: if wp.nil?
+        0
+      else
+        get(wp, :ms)
+      end,
+      plan: if pp.nil?
+        0
+      else
+        get(pp, :ms)
+      end
+    }
+  )
+  fix = fix_for(p, s)
+  if fix.nil?
+    timed
+  else
+    assoc(timed, :fix, fix)
+  end
+end
+
+@doc """
+handoff_note: why kirikae leaves a switch to the gitops loop: it already builds the published rev and activates the machine itself.
+
+    handoff_note("b548e3a24f88a08d1c673ad27ac494293ac5cac1", "ryn") #=> "the gitops loop is building b548e3a2 and will activate ryn itself; nothing to do (KIRIKAE_FOLLOW=1 follows it)"
+"""
+def handoff_note(rev, host)
+  "the gitops loop is building #{take_chars(rev, 8)} and will activate #{host} itself; nothing to do (KIRIKAE_FOLLOW=1 follows it)"
+end
+
+@doc """
+switch_skip: why the switch phase does not run, by the action the plan reached.
+
+    switch_skip(:handoff, "ryn") #=> "the gitops loop switches ryn itself"
+"""
+def switch_skip(action, host)
+  if action == :handoff
+    "the gitops loop switches #{host} itself"
+  else
+    "nothing to switch (#{to_s(action)})"
+  end
+end
+
+@doc """
+heartbeat_path: where the gitops loop writes its heartbeat, KIRIKAE_GITOPS_HEARTBEAT when set.
+
+    ends_with?(heartbeat_path, ".json") #=> true
+"""
+def heartbeat_path()
+  getenv("KIRIKAE_GITOPS_HEARTBEAT", "/var/log/pleme-gitops/heartbeat.json")
+end
+
+@doc """
+fix_for: what to do about a plan that refuses or holds, as the command or setting that clears it, or nil when there is nothing to fix.
+
+    fix_for({action: :refuse, refusal: [:not_a_checkout, "x"]}, {}) #=> "set KIRIKAE_FLAKE to a git checkout or a pinned github: flake, or run kirikae from the nix checkout"
+"""
+def fix_for(p, s)
+  kind = if list?(get(p, :refusal))
+    first(get(p, :refusal))
+  end
+  dir = checkout_path(get(s, :flake) or ".") or "."
+  branch = getenv("KIRIKAE_BRANCH", "main")
+  a = get(p, :action)
+  if kind == :dirty
+    "commit the change and push it (git -C #{dir} status shows it), then run again"
+  elsif kind == :unpublished
+    "make HEAD origin's #{branch}: git -C #{dir} push origin HEAD:#{branch}, or git -C #{dir} pull --ff-only; KIRIKAE_ALLOW_UNPUBLISHED=1 plans it anyway"
+  elsif kind == :remote_unknown
+    "check the network and git -C #{dir} ls-remote origin #{branch}; KIRIKAE_ALLOW_UNPUBLISHED=1 skips the check"
+  elsif kind == :not_a_checkout
+    "set KIRIKAE_FLAKE to a git checkout or a pinned github: flake, or run kirikae from the nix checkout"
+  elsif kind == :busy
+    "wait it out (KIRIKAE_WAIT_S sets the ceiling), or run beside it with KIRIKAE_ALLOW_CONCURRENT=1"
+  elsif a == :hold
+    "clear the failure the history names, then KIRIKAE_FORCE=1 tries now; KIRIKAE_BACKOFF_BASE_S=0 turns the backoff off"
+  elsif a == :refuse
+    "read the evaluation error: nix build --dry-run '#{get(p, :key) or installable(get(s, :flake) or ".", attr_for(get(s, :kind) or "darwin", get(s, :host)))}' --show-trace"
+  end
+end
+
+@doc """
+gitops_verdict: what the gitops loop's log says became of a revision it was building: deployed, failed or deferred, or nil while it says nothing final.
+
+    gitops_verdict(["INFO sentinela: deployed rev=\"b548e3a\" generation=7"], "b548e3a24f88a08d1c673ad27ac494293ac5cac1") #=> [:done, "the gitops loop deployed b548e3a2"]
+"""
+def gitops_verdict(log_lines, rev)
+  short = take_chars(rev, 7)
+  hits = filter(
+    fn(l)
+      includes(l, short) or includes(l, "deferred") or includes(l, "failed")
+    end,
+    log_lines
+  )
+  deployed = any?(
+    (l) -> includes(l, "deployed rev") and includes(l, short),
+    hits
+  )
+  failed = filter(
+    (l) -> includes(l, "build failed") or includes(l, "switch failed"),
+    hits
+  )
+  if deployed
+    [:done, "the gitops loop deployed #{take_chars(rev, 8)}"]
+  elsif not is_empty(failed)
+    [:failed, "the gitops loop failed: #{take_chars(trim(first(failed)), 200)}"]
+  elsif any?((l) -> includes(l, "deferred"), hits)
+    [
+      :warn,
+      "the gitops loop deferred #{take_chars(rev, 8)}: origin moved during the build, and it builds the newer rev next"
+    ]
+  end
+end
+
+@doc """
+log_line: a gitops log line as it reads in the narration: colour codes and the timestamp removed.
+
+    log_line("2026-10-24T16:57:49Z  INFO sentinela: deployed rev=x") #=> "sentinela: deployed rev=x"
+"""
+def log_line(l)
+  ws = filter((w) -> w != "", split(strip_ansi(l), " "))
+  join(drop_n(ws, 2), " ")
+end
+
+@doc """
+follow: tell the gitops loop's log as it builds a revision, until the log says it deployed, failed or deferred it, the build ends, or the wait's ceiling passes.
+
+    get(follow({narrate: :off, gitops_log: "/nonexistent", wait_s: 0, poll_s: 0, flake: "/nonexistent", host: "kirikae-no-such-host"}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1"), :action) #=> :handoff
+"""
+def follow(s, rev)
+  ceiling = if get(s, :wait_s) > 0
+    get(s, :wait_s)
+  else
+    5400
+  end
+  following(
+    s,
+    rev,
+    size(lines(read_or(get(s, :gitops_log), ""))),
+    now_ms + ceiling * 1000,
+    now_ms
+  )
+end
+
+@doc """
+following: one poll of a followed gitops build: tell the log lines after the first seen ones, and stop on a verdict, on the build's end or at the deadline.
+
+    get(following({narrate: :off, gitops_log: "/nonexistent", poll_s: 0, flake: "/nonexistent", host: "kirikae-no-such-host"}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1", 0, 0, 0), :followed) #=> :warn
+"""
+def following(s, rev, seen, deadline_ms, started)
+  all = lines(read_or(get(s, :gitops_log), ""))
+  fresh = map(
+    log_line,
+    if size(all) < seen
+      all
+    else
+      drop_n(all, seen)
+    end
+  )
+  said = filter((l) -> l != "", fresh)
+  if not is_empty(said)
+    tell(s, :running, :wait, join(said, " · "), now_ms - started)
+  end
+  v = gitops_verdict(fresh, rev)
+  still = get(survey(s), :busy) != nil
+  if v != nil or not still or now_ms >= deadline_ms
+    verdict = if v != nil
+      v
+    elsif not still
+      [
+        :warn,
+        "the build of #{take_chars(rev, 8)} ended without a verdict in the log; the gitops heartbeat says what came of it"
+      ]
+    else
+      [
+        :warn,
+        "the ceiling passed while the gitops loop still builds #{take_chars(rev, 8)}; it activates the machine itself when done"
+      ]
+    end
+    {
+      action: :handoff,
+      why: nth(1, verdict),
+      followed: first(verdict),
+      rev:,
+      plan_ms: 0
+    }
+  else
+    sleep(get(s, :poll_s))
+    following(s, rev, size(all), deadline_ms, started)
   end
 end
 
@@ -566,7 +845,12 @@ def summary(p)
   else
     " (planned in #{to_s(get(p, :plan_ms))} ms; #{to_s(get(p, :build))} to build, #{to_s(get(p, :fetch))} to fetch)"
   end
-  "kirikae: #{to_s(get(p, :action))} — #{get(p, :why)}#{work}\n"
+  fix = if get(p, :fix).nil?
+    ""
+  else
+    "; fix: #{get(p, :fix)}"
+  end
+  "kirikae: #{to_s(get(p, :action))} — #{get(p, :why)}#{work}#{fix}\n"
 end
 
 def node_step(acc, a)
@@ -652,9 +936,13 @@ run: build and activate the planned system.
 """
 def run(cmd)
   s = assoc(
-    settings_for(cmd),
-    :narrate,
-    narrate_level(getenv("KIRIKAE_NARRATE", "full"))
+    assoc(
+      settings_for(cmd),
+      :narrate,
+      narrate_level(getenv("KIRIKAE_NARRATE", "full"))
+    ),
+    :handoff,
+    true
   )
   started = now_ms
   say(s, opening(s))
@@ -664,7 +952,16 @@ def run(cmd)
   end
   a = get(p, :action)
   forced = getenv("KIRIKAE_FORCE", "") != ""
-  out = if a == :noop and not forced
+  out = if a == :handoff
+    outcome_of(
+      if get(p, :followed) == :failed
+        1
+      else
+        0
+      end,
+      "handoff"
+    )
+  elsif a == :noop and not forced
     outcome_of(0, "noop")
   elsif a == :hold and not forced
     outcome_of(exit_hold, "hold")
@@ -682,17 +979,9 @@ def run(cmd)
     outcome_of(exit_refused, "refuse")
   end
   if out != nil
-    tell(s, :skipped, :switch, "nothing to switch: #{get(p, :why)}", nil)
+    tell(s, :skipped, :switch, switch_skip(a, get(s, :host)), nil)
     tell(s, :skipped, :verify, "nothing was switched", nil)
-    say(
-      s,
-      closing(
-        "#{text_of(out)} — #{get(p, :why)}",
-        get(out, :status),
-        now_ms - started
-      )
-    )
-    out
+    finish(s, "run", p, out, "#{text_of(out)} — #{get(p, :why)}", started)
   else
     switched(s, p, cmd, started)
   end
@@ -701,7 +990,7 @@ end
 @doc """
 switched: hand the planned switch to the rebuild command, verify it, record the outcome, and close the run.
 
-    text_of(switched({narrate: :off, history: path_join(getenv("TMPDIR", "/tmp"), "kirikae-doc", "history.jsonl"), current: "/nonexistent", verify: false}, {desired: "x"}, ["false"], 0)) #=> "failed"
+    text_of(switched({narrate: :off, history: path_join(getenv("TMPDIR", "/tmp"), "kirikae-doc", "history.jsonl"), events: path_join(getenv("TMPDIR", "/tmp"), "kirikae-doc", "events.jsonl"), events_keep: 5, current: "/nonexistent", verify: false}, {desired: "x"}, ["false"], 0)) #=> "failed"
 """
 def switched(s, p, cmd, started)
   d = {
@@ -711,8 +1000,9 @@ def switched(s, p, cmd, started)
     plan: p,
     target: label(get(p, :desired))
   }
-  status = phase(s, :switch, d, () -> exec_check(*cmd))
-  v = if status == 0 and get(s, :verify)
+  sp = phase(s, :switch, d, () -> exec_check(*cmd))
+  status = get(sp, :result)
+  vp = if status == 0 and get(s, :verify)
     phase(
       s,
       :verify,
@@ -733,16 +1023,108 @@ def switched(s, p, cmd, started)
     )
     nil
   end
+  v = if vp != nil
+    get(vp, :result)
+  end
   out = settle(s, p, status, v, last(cmd))
-  say(
-    s,
-    closing(
-      "#{text_of(out)} #{label(get(p, :desired))}",
-      get(out, :status),
-      now_ms - started
-    )
+  ms = assoc(
+    assoc(get(p, :phase_ms) or {}, :switch, get(sp, :ms)),
+    :verify,
+    if vp.nil?
+      0
+    else
+      get(vp, :ms)
+    end
   )
+  tried = assoc(
+    assoc(p, :phase_ms, ms),
+    :fix,
+    if get(out, :status) == 0
+      nil
+    elsif v != nil
+      "read the activation output above; #{get(s, :current) or "/run/current-system"} did not move to the built system"
+    else
+      "read #{last(cmd)}'s output above for the first error"
+    end
+  )
+  finish(
+    s,
+    "run",
+    tried,
+    out,
+    "#{text_of(out)} #{label(get(p, :desired))}",
+    started
+  )
+end
+
+@doc """
+finish: close a plan or a run: append its event to the log, print the closing line with the fix and where the log is, and return the outcome.
+
+    text_of(finish({narrate: :off, events: path_join(getenv("TMPDIR", "/tmp"), "kirikae-doc", "events.jsonl"), events_keep: 5}, "run", {action: :noop}, outcome_of(0, "noop"), "noop", 0)) #=> "noop"
+"""
+def finish(s, verb, p, out, text, started)
+  ms = now_ms - started
+  log_event(
+    get(s, :events),
+    get(s, :events_keep),
+    event(s, verb, p, get(out, :text), get(out, :status), ms)
+  )
+  say(s, closing(text, get(out, :status), ms, get(p, :fix), get(s, :events)))
   out
+end
+
+@doc """
+event: one line of the event log: when, which verb and host, what was decided and why, the fix, the system and its work, each phase's time, and how it ended.
+
+    get(event({host: "ryn"}, "plan", {action: :hold, refusal: [:busy, "x"]}, "hold", 75, 12), :refusal) #=> "busy"
+"""
+def event(s, verb, p, outcome, status, ms)
+  r = get(p, :refusal)
+  {
+    at_ms: now_ms,
+    verb:,
+    host: get(s, :host),
+    action: to_s(get(p, :action)),
+    refusal: if list?(r)
+      to_s(first(r))
+    end,
+    why: get(p, :why),
+    fix: get(p, :fix),
+    desired: get(p, :desired),
+    rev: get(p, :rev),
+    build: get(p, :build),
+    fetch: get(p, :fetch),
+    phase_ms: get(p, :phase_ms),
+    outcome:,
+    status:,
+    ms:
+  }
+end
+
+@doc """
+log_event: append one event to the log as a JSON line, keeping only the newest lines so the log stays bounded; a log that cannot be written is reported once on stderr and never stops the rebuild.
+
+    log_event(path_join(getenv("TMPDIR", "/tmp"), "kirikae-doc", "events.jsonl"), 3, {action: "noop"}) #=> nil
+"""
+def log_event(path, keep, ev)
+  begin
+    kept = keep_last(
+      concat_lists(
+        filter((l) -> trim(l) != "", lines(read_or(path, ""))),
+        [json_stringify(ev)]
+      ),
+      keep
+    )
+    mkdir_p(path_dirname(path))
+    tmp = "#{path}.kirikae-tmp"
+    write_file(tmp, concat(join(kept, "\n"), "\n"))
+    rename_file(tmp, path)
+  rescue e
+    write_stderr(
+      "kirikae: the event log #{path} could not be written: #{to_s(e)}\n"
+    )
+  end
+  nil
 end
 
 def settle(s, p, status, v, ran)
@@ -849,9 +1231,9 @@ def say(s, node)
 end
 
 @doc """
-phase: run one phase between the line that says what it will do and the line that says what it found, and return its result.
+phase: run one phase between the line that says what it will do and the line that says what it found, and return its result and the time it took.
 
-    phase({narrate: :off}, :switch, {ran: "x"}, () -> 0) #=> 0
+    get(phase({narrate: :off}, :switch, {ran: "x"}, () -> 0), :result) #=> 0
 """
 def phase(s, name, d, work)
   if get(s, :narrate) == :full
@@ -859,11 +1241,12 @@ def phase(s, name, d, work)
   end
   t = now_ms
   r = work()
+  ms = now_ms - t
   if get(s, :narrate) == :full
     f = finding(name, assoc(d, :result, r))
-    tell(s, first(f), name, nth(1, f), now_ms - t)
+    tell(s, first(f), name, nth(1, f), ms)
   end
-  r
+  {result: r, ms:}
 end
 
 @doc """
@@ -897,7 +1280,11 @@ def lesson(name, d)
   if name == :guard
     "is the checkout clean and at origin's rev, and is anything else evaluating or rebuilding #{host}? kirikae builds only a published rev, one writer at a time"
   elsif name == :wait
-    "#{get(d, :writer)} is writing #{host} (often the gitops loop, sentinela, building the same machine); two writers race for one profile, so kirikae asks again every #{to_s(get(d, :poll_s))}s for up to #{duration_text(get(d, :wait_s) * 1000)}, then plans"
+    if get(d, :follow)
+      "the gitops loop (sentinela) is building #{take_chars(get(d, :rev), 8)}, the published rev, and activates #{host} itself; kirikae follows its log until it deploys or fails"
+    else
+      "#{get(d, :writer)} is writing #{host}; two writers race for one profile, so kirikae asks again every #{to_s(get(d, :poll_s))}s; #{duration_text(get(d, :wait_s) * 1000)} is a ceiling, and the wait ends the moment the writer exits"
+    end
   elsif name == :plan
     e = get(d, :expect)
     usual = if e.nil?
@@ -945,7 +1332,9 @@ def finding(name, d)
       [:done, get(v, :why)]
     end
   elsif name == :wait
-    if r != nil and busy_hold?(r)
+    if r != nil and get(r, :action) == :handoff
+      [get(r, :followed) or :done, get(r, :why)]
+    elsif r != nil and busy_hold?(r)
       [:warn, "still held; kirikae holds (exit 75) and changes nothing"]
     else
       [:done, "#{host} is free"]
@@ -1000,11 +1389,11 @@ def opening(s)
 end
 
 @doc """
-closing: the last line of a narrated run: a coloured circle for the verdict, the outcome, and how long the whole run took.
+closing: the end of a narrated run: a coloured circle for the verdict, the outcome and how long the whole run took, then the fix when there is one and where the event log is.
 
-    styled(closing("activated", 0, 1051000), {color: false, theme: nil}) #=> "🟢 kirikae: activated (17m 31s)"
+    styled(closing("activated", 0, 1051000, nil, "/x/events.jsonl"), {color: false, theme: nil}) #=> "🟢 kirikae: activated (17m 31s)\n   log /x/events.jsonl"
 """
-def closing(text, status, ms)
+def closing(text, status, ms, fix, log)
   circle = if status == 0
     "🟢"
   elsif status == exit_hold
@@ -1012,12 +1401,23 @@ def closing(text, status, ms)
   else
     "🔴"
   end
-  [
-    "#{circle} ",
-    {text: "kirikae", bold: true, ink: :bright_cyan},
-    ": #{text} ",
-    {text: "(#{duration_text(ms)})", ink: :bright_black}
-  ]
+  told = if fix.nil?
+    []
+  else
+    ["\n   ", {text: "fix", bold: true, ink: :yellow}, " #{fix}"]
+  end
+  concat_lists(
+    concat_lists(
+      [
+        "#{circle} ",
+        {text: "kirikae", bold: true, ink: :bright_cyan},
+        ": #{text} ",
+        {text: "(#{duration_text(ms)})", ink: :bright_black}
+      ],
+      told
+    ),
+    ["\n   ", {text: "log", ink: :bright_black}, " #{log}"]
+  )
 end
 
 def verify_switch(desired, after)
@@ -1102,16 +1502,28 @@ def answer(args)
       :narrate,
       narrate_level(getenv("KIRIKAE_NARRATE", "brief"))
     )
+    started = now_ms
     p = planned(ps)
     if get(ps, :narrate) == :brief
       write_stderr(summary(p))
     end
+    log_event(
+      get(ps, :events),
+      get(ps, :events_keep),
+      event(ps, "plan", p, to_s(get(p, :action)), 0, now_ms - started)
+    )
     json_stringify(p)
   elsif verb == "demo"
     join(
       map(
         (n) -> styled(n, {color: color_default and terminal?(1), theme: nil}),
-        demo_lines
+        demo_lines(
+          if size(args) > 1
+            nth(1, args)
+          else
+            "switch"
+          end
+        )
       ),
       "\n"
     )
@@ -1142,23 +1554,30 @@ def answer(args)
   else
     raise(
       :usage,
-      "kirikae plan | run <command> [args...] | record <store-path> <outcome> [why] | demo"
+      "kirikae plan | run <command> [args...] | record <store-path> <outcome> [why] | demo [switch|handoff|follow|refuse]"
     )
   end
 end
 
 @doc """
-demo_lines: a whole narrated run on a scripted plan, line by line, built by the same words a real run prints with: a busy writer that clears, a plan with paths to build and fetch, a switch, and its verification.
+demo_lines: a whole narrated run on a scripted plan, line by line, built by the same words a real run prints with: a switch behind a writer that clears, a hand-off to the gitops loop, a followed gitops build, or a refusal with its fix.
 
-    size(demo_lines) #=> 13
+    size(demo_lines("switch")) #=> 13
 """
-def demo_lines()
+def demo_lines(kind)
   host = "ryn"
   s = {host:, kind: "darwin", flake: "."}
+  log = "~/.local/state/kirikae/events.jsonl"
+  rev = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
   desired = "/nix/store/8i7qwqjaxhlhb4k0n58i5yi96a7kw0h2-darwin-system-25.11.ebec37a"
   writer = "darwin-rebuild build at b548e3a2"
   busy = busy_hold(
-    [:busy, "another evaluation or rebuild of this machine is running", writer],
+    [
+      :busy,
+      "another evaluation or rebuild of this machine is running",
+      writer,
+      rev
+    ],
     0
   )
   d = {
@@ -1167,6 +1586,7 @@ def demo_lines()
     wait_s: 1800,
     current: "/run/current-system",
     writer:,
+    rev:,
     expect: {ms: 551_000, n: 5},
     ran: "fleet rebuild",
     target: label(desired),
@@ -1177,21 +1597,101 @@ def demo_lines()
     step(phase_line(first(f), name, nth(1, f), ms))
   end
   open = (name) -> step(phase_line(:running, name, lesson(name, d), nil))
-  [
-    opening(s),
-    open(:guard),
-    line(:guard, {checkout: nil, verdict: busy}, 412),
-    open(:wait),
-    step(phase_line(:running, :wait, waiting_note(writer, 1_740_000), 60000)),
-    line(:wait, nil, 135_000),
-    open(:plan),
-    line(:plan, get(d, :plan), 548_000),
-    open(:switch),
-    line(:switch, 0, 362_000),
-    open(:verify),
-    line(:verify, verify_switch(desired, desired), 3),
-    closing("activated #{label(desired)}", 0, 1_046_000)
+  skip = (name, why) -> step(phase_line(:skipped, name, why, nil))
+  rest_skipped = [
+    skip(:plan, "the guard decided before any evaluation: handoff"),
+    skip(:switch, switch_skip(:handoff, host)),
+    skip(:verify, "nothing was switched")
   ]
+  if kind == "handoff"
+    concat_lists(
+      [
+        opening(s),
+        open(:guard),
+        line(:guard, {checkout: nil, verdict: busy}, 380),
+        skip(:wait, handoff_note(rev, host))
+      ],
+      concat_lists(
+        rest_skipped,
+        [closing("handoff — #{handoff_note(rev, host)}", 0, 420, nil, log)]
+      )
+    )
+  elsif kind == "follow"
+    fd = assoc(d, :follow, true)
+    done = gitops_verdict(
+      [
+        log_line("2026-10-24T16:57:49Z  INFO sentinela: deployed rev=\"b548e3a\" generation=1963")
+      ],
+      rev
+    )
+    concat_lists(
+      [
+        opening(s),
+        open(:guard),
+        line(:guard, {checkout: nil, verdict: busy}, 380),
+        step(phase_line(:running, :wait, lesson(:wait, fd), nil)),
+        step(
+          phase_line(
+            :running,
+            :wait,
+            log_line("2026-10-24T16:51:48Z  INFO sentinela_core::fsm: build started rev=\"b548e3a\""),
+            15000
+          )
+        ),
+        step(
+          phase_line(
+            :running,
+            :wait,
+            log_line("2026-10-24T16:57:49Z  INFO sentinela: deployed rev=\"b548e3a\" generation=1963"),
+            376_000
+          )
+        ),
+        step(phase_line(first(done), :wait, nth(1, done), 376_000))
+      ],
+      concat_lists(
+        rest_skipped,
+        [closing("handoff — #{nth(1, done)}", 0, 377_000, nil, log)]
+      )
+    )
+  elsif kind == "refuse"
+    r = [
+      :unpublished,
+      "the checkout is at cb22456a but origin's main is b548e3a2; plan only the published rev"
+    ]
+    p = refused_plan(r)
+    [
+      opening(s),
+      open(:guard),
+      step(phase_line(:failed, :guard, nth(1, r), 640)),
+      skip(:wait, "no other writer of #{host} is running; nothing to wait for"),
+      skip(:plan, "the guard decided before any evaluation: refuse"),
+      skip(:switch, switch_skip(:refuse, host)),
+      skip(:verify, "nothing was switched"),
+      closing(
+        "refuse — #{nth(1, r)}",
+        exit_refused,
+        650,
+        fix_for(p, {flake: "/Users/you/code/github/pleme-io/nix"}),
+        log
+      )
+    ]
+  else
+    [
+      opening(s),
+      open(:guard),
+      line(:guard, {checkout: nil, verdict: busy}, 412),
+      open(:wait),
+      step(phase_line(:running, :wait, waiting_note(writer, 1_740_000), 60000)),
+      line(:wait, nil, 135_000),
+      open(:plan),
+      line(:plan, get(d, :plan), 548_000),
+      open(:switch),
+      line(:switch, 0, 362_000),
+      open(:verify),
+      line(:verify, verify_switch(desired, desired), 3),
+      closing("activated #{label(desired)}", 0, 1_046_000, nil, log)
+    ]
+  end
 end
 
 def sys(h)
@@ -1523,7 +2023,10 @@ test "each phase closes with the state its finding earns"
 end
 
 test "the demo renders every phase in order, plain when colour is off"
-  plain = map((n) -> styled(n, {color: false, theme: nil}), demo_lines)
+  plain = map(
+    (n) -> styled(n, {color: false, theme: nil}),
+    demo_lines("switch")
+  )
   assert first(plain) ==
     "kirikae · rebuilding ryn (darwin) from . — guard, wait, plan, switch, verify"
   assert nth(2, plain) ==
@@ -1532,7 +2035,132 @@ test "the demo renders every phase in order, plain when colour is off"
   assert nth(7, plain) ==
     "✅ [3/5] plan — switch to 8i7qwqja-darwin-system-25.11.ebec37a: 12 to build, 340 to fetch (9m 08s)"
   assert last(plain) ==
-    "🟢 kirikae: activated 8i7qwqja-darwin-system-25.11.ebec37a (17m 26s)"
+    "🟢 kirikae: activated 8i7qwqja-darwin-system-25.11.ebec37a (17m 26s)\n   log ~/.local/state/kirikae/events.jsonl"
   assert map((l) -> take_chars(l, 1), take_n(rest(plain), 11)) ==
     ["⏳", "⚠", "⏳", "⏳", "✅", "⏳", "✅", "⏳", "✅", "⏳", "✅"]
+end
+
+test "a gitops build of the published rev is handed off, and any other writer is waited for"
+  head = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  other = "cb22456a00000000000000000000000000000000"
+  building = (rev) -> "{\"outcome\":\"building\",\"head_rev\":\"#{rev}\"}"
+  f = {
+    checkout: {head:, branch: "main"},
+    busy: [:busy, "x", "darwin-rebuild build at b548e3a2", head]
+  }
+  s = {flake: "/nonexistent/kirikae"}
+  assert gitops_handoff(f, s, building(head)) == head
+  assert gitops_handoff(f, s, "").nil?
+  assert gitops_handoff(
+    f,
+    s,
+    "{\"outcome\":\"settling\",\"head_rev\":\"#{head}\"}"
+  ).nil?
+  assert gitops_handoff(
+    assoc(f, :busy, [:busy, "x", "darwin-rebuild build at cb22456a", other]),
+    s,
+    building(other)
+  ).nil?
+  assert gitops_handoff(
+    assoc(f, :busy, [:busy, "x", "darwin-rebuild", nil]),
+    s,
+    building(head)
+  ).nil?
+  assert writer_rev("darwin-rebuild switch --flake .#ryn").nil?
+end
+
+test "the gitops log's verdict on a build: deployed, failed, deferred, or still nothing"
+  rev = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  assert gitops_verdict([], rev).nil?
+  assert gitops_verdict(
+    ["sentinela_core::fsm: build started rev=\"b548e3a\""],
+    rev
+  ).nil?
+  assert first(
+    gitops_verdict(["sentinela: build failed rev=\"b548e3a\" error=x"], rev)
+  ) == :failed
+  assert first(
+    gitops_verdict(
+      ["sentinela: deferred (HEAD moved mid-build) built=b548e3a"],
+      rev
+    )
+  ) == :warn
+  assert gitops_verdict(["sentinela: deployed rev=\"cb22456\""], rev).nil?
+  assert log_line("\u{1b}[2m2026-10-24T16:57:49Z\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m sentinela: converged") ==
+    "sentinela: converged"
+end
+
+test "following a gitops build tells its new log lines and stops on the deploy"
+  rev = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-follow-#{to_s(now_ns)}")
+  mkdir_p(dir)
+  log = path_join(dir, "stdout.log")
+  write_file(
+    log,
+    "t0  INFO sentinela: deployed rev=\"b548e3a\" generation=1\nt1  INFO sentinela_core::fsm: build started rev=\"b548e3a\"\nt2  INFO sentinela: deployed rev=\"b548e3a\" generation=2\n"
+  )
+  s = {
+    narrate: :off,
+    gitops_log: log,
+    poll_s: 0,
+    flake: "/nonexistent",
+    host: "kirikae-no-such-host"
+  }
+  r = following(s, rev, 1, now_ms + 60000, now_ms)
+  assert get(r, :action) == :handoff
+  assert get(r, :followed) == :done
+  assert get(r, :why) == "the gitops loop deployed b548e3a2"
+  rm_rf(dir)
+end
+
+test "every refusal and hold names its fix, and a switch or no-op has none"
+  assert includes(
+    fix_for({action: :refuse, refusal: [:dirty, "x"]}, {flake: "/x/nix"}),
+    "git -C /x/nix status"
+  )
+  assert includes(
+    fix_for({action: :refuse, refusal: [:unpublished, "x"]}, {flake: "/x/nix"}),
+    "pull --ff-only"
+  )
+  assert includes(
+    fix_for({action: :refuse, refusal: [:remote_unknown, "x"]}, {}),
+    "ls-remote"
+  )
+  assert includes(
+    fix_for({action: :hold, refusal: [:busy, "x"]}, {}),
+    "KIRIKAE_WAIT_S"
+  )
+  assert includes(
+    fix_for({action: :hold, why: "backoff"}, {}),
+    "KIRIKAE_FORCE=1"
+  )
+  assert includes(
+    fix_for({action: :refuse, why: "eval", key: "github:o/r/x#y"}, {}),
+    "--show-trace"
+  )
+  assert fix_for({action: :switch}, {}).nil?
+  assert fix_for({action: :noop}, {}).nil?
+  assert ends_with?(summary({action: :hold, why: "w", fix: "f"}), "; fix: f\n")
+end
+
+test "the event log appends one line per decision and keeps only the newest"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-events-#{to_s(now_ns)}")
+  path = path_join(dir, "events.jsonl")
+  map(
+    fn(i)
+      log_event(
+        path,
+        3,
+        event({host: "ryn"}, "plan", {action: :noop}, "noop", 0, i)
+      )
+    end,
+    [1, 2, 3, 4, 5]
+  )
+  kept = map(json_parse, lines(read_file(path)))
+  assert size(kept) == 3
+  assert map((e) -> get_int(e, "ms", 0), kept) == [3, 4, 5]
+  assert get_str(first(kept), "action", "") == "noop"
+  assert get_str(first(kept), "host", "") == "ryn"
+  assert log_event("/dev/null/kirikae/events.jsonl", 3, {}).nil?
+  rm_rf(dir)
 end

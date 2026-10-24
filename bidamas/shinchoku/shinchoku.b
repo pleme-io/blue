@@ -70,9 +70,6 @@ def travelled(samples)
   )
 end
 
-@doc """
-progress: moving, stalled or blind from counter samples.
-"""
 def progress(samples, window_s)
   if size(samples) < 2
     blind("#{size(samples)} sample(s); progress needs two or more")

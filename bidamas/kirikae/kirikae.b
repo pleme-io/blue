@@ -72,9 +72,6 @@ def streak(history, out)
   reduce(streak_step, {out:, n: 0, last_ms: nil}, history)
 end
 
-@doc """
-decide: switch, hold or no-op from state and backoff.
-"""
 def decide(desired, current, history, now_ms, pol)
   if store_path?(desired) == false
     {action: :refuse, why: "no system to switch to: #{to_s(desired)}"}
@@ -159,9 +156,6 @@ def keep_last(xs, n)
   end
 end
 
-@doc """
-record: append one outcome to the switch history.
-"""
 def record(path, e)
   kept = keep_last(concat_lists(history(path), [e]), 200)
   mkdir_p(path_dirname(path))
@@ -171,9 +165,6 @@ def record(path, e)
   e
 end
 
-@doc """
-plan: what a system switch would do, as data.
-"""
 def plan(flake, host, kind, current_link, hist, now_ms, pol)
   inst = installable(flake, attr_for(kind, host))
   early = if pinned?(flake)
@@ -504,9 +495,6 @@ def await_writers(s, p, deadline_ms, said)
   end
 end
 
-@doc """
-run: build and activate the planned system.
-"""
 def run(cmd)
   s = settings_for(cmd)
   p = await_writers(s, plan_now(s), now_ms + get(s, :wait_s) * 1000, nil)

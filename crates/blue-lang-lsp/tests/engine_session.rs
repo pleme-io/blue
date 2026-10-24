@@ -678,12 +678,13 @@ fn signature_help_reads_the_open_call() {
     );
 }
 
-/// **Hover names where a name resolved and carries its doc line**, for a
-/// definition in a bidama.
+/// **Hover names where a name resolved and carries its `@doc` and the view
+/// blue derives**, for a definition in a bidama.
 ///
 /// Red run (2026-10-10): the same session against the pre-engine server,
 /// whose hover read the buffer's own declarations only —
-/// `{"id":1,"jsonrpc":"2.0","result":null}`.
+/// `{"id":1,"jsonrpc":"2.0","result":null}`. Red run (2026-10-24): with
+/// `derived` left empty, the `rung dynamic` and `contract:` assertions failed.
 #[test]
 fn hover_reads_a_bidamas_definition() {
     let mut s = server();
@@ -700,7 +701,13 @@ fn hover_reads_a_bidamas_definition() {
         .unwrap_or_else(|| panic!("{r}"));
     assert!(md.contains("def size(xs)"), "{md}");
     assert!(md.contains("bidama `retsu`"), "{md}");
-    assert!(md.contains("Total length"), "{md}");
+    assert!(md.contains("size: total length"), "{md}");
+    assert!(md.contains("size([]) #=> 0"), "{md}");
+    assert!(
+        md.contains("signature `def size(xs)` · rung dynamic"),
+        "{md}"
+    );
+    assert!(md.contains("contract: args xs"), "{md}");
 }
 
 #[test]

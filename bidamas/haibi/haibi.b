@@ -353,11 +353,6 @@ def table_sql_in(schema, t)
   "#{create}#{adds}"
 end
 
-@doc """
-ddl: database schema statements from declared tables.
-
-    ddl({"port" => 1}) #=> ""
-"""
 def ddl(svc)
   join(map(table_sql, tables(svc)), "\n")
 end

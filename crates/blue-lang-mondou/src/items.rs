@@ -28,17 +28,27 @@ pub struct Item {
     pub name_span: Span,
     /// The form's first line, as the formatter writes it.
     pub signature: String,
-    /// The comment block directly above the form, without its `#`s.
+    /// The form's `@doc` text.
     pub doc: Option<String>,
 }
 
-/// Every item of a file's forms.
+/// Every item of a file's documented parse: a documented definition is its
+/// definition, spanning its doc, with the doc's text.
 #[must_use]
-pub fn of(forms: &[Spanned], text: &str) -> Vec<Item> {
-    forms.iter().filter_map(|f| item(f, text)).collect()
+pub fn of(documented: &[Spanned]) -> Vec<Item> {
+    documented
+        .iter()
+        .filter_map(|f| match blue_lang_syntax::doc::documented(f) {
+            Some((text, def)) => item(
+                &Spanned::new(f.span, def.form.clone()),
+                Some(text.to_string()),
+            ),
+            None => item(f, None),
+        })
+        .collect()
 }
 
-fn item(form: &Spanned, text: &str) -> Option<Item> {
+fn item(form: &Spanned, doc: Option<String>) -> Option<Item> {
     let items = form.as_list()?;
     let head = items.first()?.as_symbol()?;
     let (name, kind, name_span) = match head {
@@ -74,7 +84,7 @@ fn item(form: &Spanned, text: &str) -> Option<Item> {
         span: form.span,
         name_span,
         signature: signature_of(form),
-        doc: doc_above(text, form.span.start),
+        doc,
     })
 }
 
@@ -86,54 +96,25 @@ pub fn signature_of(form: &Spanned) -> String {
     rendered.lines().next().unwrap_or_default().to_string()
 }
 
-/// The comment lines directly above byte `start`, joined, without their
-/// `#`. A waiver is a directive, not documentation, and is left out.
-#[must_use]
-pub fn doc_above(text: &str, start: usize) -> Option<String> {
-    let before = text.get(..start)?;
-    let mut lines: Vec<&str> = before.lines().collect();
-    if !before.ends_with('\n') {
-        let last = lines.pop()?;
-        if !last.trim().is_empty() {
-            return None;
-        }
-    }
-    let mut out = Vec::new();
-    while let Some(line) = lines.pop() {
-        let t = line.trim();
-        match t.strip_prefix('#') {
-            Some(c) if !c.trim_start().starts_with("waive ") => out.push(c.trim().to_string()),
-            Some(_) => {}
-            None => break,
-        }
-    }
-    out.reverse();
-    let joined = out.join(" ");
-    (!joined.trim().is_empty()).then_some(joined)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Red run (2026-10-24): with `doc` read from the comment above the
+    /// form, as it was, `f`'s doc was the `#` line and `g`'s was `None`.
     #[test]
-    fn the_doc_is_the_comment_block_directly_above_and_skips_a_waiver() {
-        let text = "x = 1\n\n# Adds.\n# Twice over.\n# waive B0002: kept for callers\ndef add(a, b)\n  a + b\nend\n";
-        let at = text.find("def add").expect("def");
-        assert_eq!(doc_above(text, at).as_deref(), Some("Adds. Twice over."));
-        assert_eq!(doc_above(text, 0), None);
-        let detached = "# a header\n\ndef f()\n  1\nend\n";
-        assert_eq!(
-            doc_above(detached, detached.find("def").expect("def")),
-            None
-        );
+    fn the_doc_is_the_doc_and_a_comment_is_not() {
+        let text = "# a comment, not a doc\ndef f()\n  1\nend\n\n@doc \"\"\"\ng is two.\n\"\"\"\ndef g()\n  2\nend\n";
+        let forms = blue_lang_syntax::parse_program_documented(text).expect("parses");
+        let docs: Vec<Option<String>> = of(&forms).into_iter().map(|i| i.doc).collect();
+        assert_eq!(docs, vec![None, Some("g is two.".to_string())]);
     }
 
     #[test]
     fn items_name_each_definition_test_and_use() {
         let text = "use(\"retsu\", [:size])\n\nlimit = 3\n\ndef f(xs)\n  size(xs)\nend\n\ntest \"f counts\"\n  assert f([1]) == 1\nend\n";
         let forms = blue_lang_syntax::parse_program_tree(text).expect("parses");
-        let got: Vec<(String, ItemKind, String)> = of(&forms, text)
+        let got: Vec<(String, ItemKind, String)> = of(&forms)
             .into_iter()
             .map(|i| (i.name, i.kind, i.signature))
             .collect();

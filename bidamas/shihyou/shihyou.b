@@ -15,11 +15,6 @@ def le_of(latency_ms)
   to_s(latency_ms / 1000)
 end
 
-@doc """
-objectives: the objectives declared for a service.
-
-    objectives(sample) #=> defaults
-"""
 def objectives(svc)
   given = get_or(svc, "slo", {})
   o = reduce(
@@ -42,11 +37,6 @@ def objectives(svc)
   end
 end
 
-@doc """
-budget: the error budget left in a window.
-
-    budget(0) #=> 1
-"""
 def budget(percent)
   (100 - percent) / 100
 end
@@ -68,20 +58,10 @@ def selector(name)
   "service=\"#{name}\""
 end
 
-@doc """
-error_ratio: the failing-request ratio over a window.
-
-    error_ratio("hello", "5m") #=> "sum(rate(http_requests_total{service=\"hello\",code=\"5xx\"}[5m])) / sum(rate(http_requests_total{service=\"hello\"}[5m]))"
-"""
 def error_ratio(name, w)
   "sum(rate(http_requests_total{#{selector(name)},code=\"5xx\"}[#{w}])) / sum(rate(http_requests_total{#{selector(name)}}[#{w}]))"
 end
 
-@doc """
-slow_ratio: the ratio of requests slower than a bound.
-
-    slow_ratio("hello", "0.25", "1h") #=> "1 - sum(rate(http_request_duration_seconds_bucket{service=\"hello\",le=\"0.25\"}[1h])) / sum(rate(http_request_duration_seconds_count{service=\"hello\"}[1h]))"
-"""
 def slow_ratio(name, le, w)
   "1 - sum(rate(http_request_duration_seconds_bucket{#{selector(name)},le=\"#{le}\"}[#{w}])) / sum(rate(http_request_duration_seconds_count{#{selector(name)}}[#{w}]))"
 end
@@ -129,9 +109,6 @@ def capitalized(s)
   "#{upcase(first(chars(s)))}#{join(rest(chars(s)), "")}"
 end
 
-@doc """
-alerts: multi-window burn alerts for an objective.
-"""
 def alerts(name, o)
   reduce(
     (acc, xs) -> append(acc, xs),
@@ -165,9 +142,6 @@ def alerts(name, o)
   )
 end
 
-@doc """
-rules: recording and alert rules derived from an objective.
-"""
 def rules(name, svc)
   o = objectives(svc)
   {
@@ -210,9 +184,6 @@ def panel(id, title, kind, x, y, targets, unit)
   }
 end
 
-@doc """
-dashboard: panels showing an objective, built from the same rules.
-"""
 def dashboard(name, svc)
   o = objectives(svc)
   s = selector(name)

@@ -54,6 +54,7 @@ pub use analysis::{
     CompletionKind, Declaration, Diagnostic, Hover, LineIndex, Position, QuickFix, Range, Severity,
     TextEdit,
 };
+pub use blue_lang_mondou::docview;
 pub use server::{handle, Response, Server};
 pub use shift::{shift_of, shift_of_tree, Factor, FactorKind, Rung, Shift};
 pub use tokens::{

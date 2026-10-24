@@ -1,59 +1,42 @@
-@moduledoc """
-kiwari (木割): one grammar spec, every syntax artifact emitted from it.
-
-木割 is the proportioning rule-book of Japanese carpentry: every member's
-dimensions derive from one base module, so no two pieces of the house can
-disagree. A grammar is the member most often cut twice: once in the
-compiler's parser and again in an editor's grammar, with nothing holding the
-two equal. Here it is cut once. A grammar is data, built with the vocabulary
-below; every artifact a tool wants is rendered from that one value:
-
-  grammar.js         tree_sitter_js(g)      the tree-sitter grammar
-  tree-sitter.json   tree_sitter_json(g)    its metadata
-  highlights.scm     highlights(g)          from rule and field roles
-  folds.scm          folds(g)               from the rules a closer ends
-  indents.scm        indents(g)             the same rules, closers, arms
-  locals.scm         locals(g)              from scopes and definitions
-  *.kiwari.json      spec_json(g)           operators, keywords and each
-                                            rule's lowering, for Rust
-
-Each rule carries how its node LOWERS to the language's tree (a template:
-`["list", ["sym", "define"], ["field", "name"], …]`), so the spec says what
-a construct means beside how it parses. blue's own grammar is `blue()`, and
-blue-lang-kiwari's differential holds the parser emitted from it to blue's
-parser on every corpus file and every prefix of one.
-
-Grammar nodes are maps with a `kind`, made only by the constructors here, so
-each renderer arm sits beside the constructor it reads.
-
-    parts(choice([])) #=> []
-"""
-
 use("retsu", [:concat_lists, :contains, :first, :flat_map, :is_empty, :last])
+
+# kiwari (木割): one grammar spec, every syntax artifact emitted from it.
+#
+# 木割 is the proportioning rule-book of Japanese carpentry: every member's
+# dimensions derive from one base module, so no two pieces of the house can
+# disagree. A grammar is the member most often cut twice: once in the
+# compiler's parser and again in an editor's grammar, with nothing holding the
+# two equal. Here it is cut once. A grammar is data, built with the vocabulary
+# below; every artifact a tool wants is rendered from that one value:
+#
+#   grammar.js         tree_sitter_js(g)      the tree-sitter grammar
+#   tree-sitter.json   tree_sitter_json(g)    its metadata
+#   highlights.scm     highlights(g)          from rule and field roles
+#   folds.scm          folds(g)               from the rules a closer ends
+#   indents.scm        indents(g)             the same rules, closers, arms
+#   locals.scm         locals(g)              from scopes and definitions
+#   *.kiwari.json      spec_json(g)           operators, keywords and each
+#                                             rule's lowering, for Rust
+#
+# Each rule carries how its node LOWERS to the language's tree (a template:
+# `["list", ["sym", "define"], ["field", "name"], …]`), so the spec says what
+# a construct means beside how it parses. blue's own grammar is `blue()`, and
+# blue-lang-kiwari's differential holds the parser emitted from it to blue's
+# parser on every corpus file and every prefix of one.
+#
+# Grammar nodes are maps with a `kind`, made only by the constructors here, so
+# each renderer arm sits beside the constructor it reads.
 
 # ── the vocabulary ─────────────────────────────────────────────────────────
 
-@doc """
-seq: items in order.
-"""
 def seq(items)
   {kind: :seq, items:}
 end
 
-@doc """
-choice: exactly one of the items.
-
-    choice([]) #=> {kind: :choice, items: []}
-"""
 def choice(items)
   {kind: :choice, items:}
 end
 
-@doc """
-rep: zero or more of an item.
-
-    rep(lit("a")) #=> {kind: :rep, item: lit("a")}
-"""
 def rep(item)
   {kind: :rep, item:}
 end
@@ -62,23 +45,16 @@ def rep1(item)
   {kind: :rep1, item:}
 end
 
-@doc """
-opt: an item or nothing.
-"""
 def opt(item)
   {kind: :opt, item:}
 end
 
-@doc """
-lit: a literal token: the exact text.
-"""
+# A literal token: the exact text.
 def lit(text)
   {kind: :lit, text:}
 end
 
-@doc """
-pat: a pattern token: a regular expression in tree-sitter's dialect.
-"""
+# A pattern token: a regular expression in tree-sitter's dialect.
 def pat(source)
   {kind: :pat, source:}
 end
@@ -87,32 +63,23 @@ def ref(name)
   {kind: :ref, name:}
 end
 
-@doc """
-field: name a part of a node.
-"""
 def field(name, item)
   {kind: :field, name:, item:, role: "", defines: ""}
 end
 
-@doc """
-painted: a field whose node is painted `role` (a tree-sitter capture name) and, when
-`defines` is not "", names a local of that kind.
-"""
+# A field whose node is painted `role` (a tree-sitter capture name) and, when
+# `defines` is not "", names a local of that kind.
 def painted(name, item, role, defines)
   {kind: :field, name:, item:, role:, defines:}
 end
 
-@doc """
-painted_as: a field painted `role` on the named kinds listed, for an item that is a
-hidden choice (a callee may be any postfix chain; only a name is painted).
-"""
+# A field painted `role` on the named kinds listed, for an item that is a
+# hidden choice (a callee may be any postfix chain; only a name is painted).
 def painted_as(name, item, kinds, role)
   {kind: :field, name:, item:, role:, defines: "", kinds:}
 end
 
-@doc """
-painted_kinds: the kinds a field's role or definition applies to.
-"""
+# The kinds a field's role or definition applies to.
 def painted_kinds(f)
   if get(f, :kinds).nil?
     kinds_of(get(f, :item))
@@ -145,19 +112,15 @@ def prec_right(n, item)
   {kind: :prec, assoc: :right, level: n, item:}
 end
 
-@doc """
-rule: a rule: its name, its body, and how its node lowers (nil for a hidden rule,
-whose node never appears, or for a part only its parent's template reads).
-"""
+# A rule: its name, its body, and how its node lowers (nil for a hidden rule,
+# whose node never appears, or for a part only its parent's template reads).
 def rule(name, body, lower)
   {name:, body:, lower:, role: "", arm: false, scope: false, reference: false}
 end
 
-@doc """
-with: the same rule, with `key` set: `role` (paint the whole node), `arm` (a
-branch of the form around it, as `else` is), `scope` (opens a local scope),
-`reference` (names a local).
-"""
+# The same rule, with `key` set: `role` (paint the whole node), `arm` (a
+# branch of the form around it, as `else` is), `scope` (opens a local scope),
+# `reference` (names a local).
 def with(r, key, value)
   assoc(r, key, value)
 end
@@ -187,11 +150,7 @@ def literals_of(e)
   end
 end
 
-@doc """
-literals: every literal token the grammar's rules use, once each.
-
-    literals({rules: []}) #=> []
-"""
+# Every literal token the grammar's rules use, once each.
 def literals(g)
   distinct(flat_map(get(g, :rules), (r) -> literals_of(get(r, :body))))
 end
@@ -205,10 +164,8 @@ def fields_of(e)
   concat_lists(here, flat_map(parts(e), fields_of))
 end
 
-@doc """
-kinds_of: the named node kinds a field's item can be: a visible rule it refers to, or
-the name it is aliased to.
-"""
+# The named node kinds a field's item can be: a visible rule it refers to, or
+# the name it is aliased to.
 def kinds_of(e)
   k = get(e, :kind)
   if k == :ref
@@ -235,10 +192,8 @@ def aliases_of(e)
   concat_lists(here, flat_map(parts(e), aliases_of))
 end
 
-@doc """
-node_name: the name a rule's node carries in a tree: its own, or for a hidden rule the
-name it is aliased to, or nil when it never appears as a node.
-"""
+# The name a rule's node carries in a tree: its own, or for a hidden rule the
+# name it is aliased to, or nil when it never appears as a node.
 def node_name(g, r)
   if hidden?(get(r, :name))
     found = filter(
@@ -255,9 +210,7 @@ def node_name(g, r)
   end
 end
 
-@doc """
-field_patterns: one pattern per field with `key` set, over every rule its node can carry.
-"""
+# One pattern per field with `key` set, over every rule its node can carry.
 def field_patterns(g, key, line)
   distinct(
     flat_map(
@@ -277,9 +230,7 @@ def field_patterns(g, key, line)
   )
 end
 
-@doc """
-bare: the body with precedence wrappers taken off.
-"""
+# The body with precedence wrappers taken off.
 def bare(e)
   if get(e, :kind) == :prec
     bare(get(e, :item))
@@ -295,10 +246,8 @@ def first_lit(r)
   end
 end
 
-@doc """
-closer: the literal that closes a rule, if its body opens with a literal and ends in
-one of `closers`.
-"""
+# The literal that closes a rule, if its body opens with a literal and ends in
+# one of `closers`.
 def closer(g, r)
   b = bare(get(r, :body))
   if get(b, :kind) == :seq and get(first(get(b, :items)), :kind) == :lit
@@ -313,11 +262,9 @@ def visible(g)
   filter((r) -> not hidden?(get(r, :name)), get(g, :rules))
 end
 
-@doc """
-literal_roles: the role of every literal: a keyword's, an operator's or punctuation's. A
-literal with no row is returned by `unpainted`, and the renderers refuse a
-grammar that has one, so a new token cannot ship without a decision.
-"""
+# The role of every literal: a keyword's, an operator's or punctuation's. A
+# literal with no row is returned by `unpainted`, and the renderers refuse a
+# grammar that has one, so a new token cannot ship without a decision.
 def literal_roles(g)
   concat_lists(
     concat_lists(get(g, :keywords_painted), get(g, :punctuation)),
@@ -474,9 +421,7 @@ def query_lines(header, body)
   )
 end
 
-@doc """
-literal_groups: one line per role, its literals in brackets, in the order roles first appear.
-"""
+# One line per role, its literals in brackets, in the order roles first appear.
 def literal_groups(g, roles)
   painted_lits = filter(
     (t) -> contains(roles, role_of_literal(g, t)),
@@ -592,9 +537,7 @@ def spec_json(grammar)
   )
 end
 
-@doc """
-artifacts: every artifact, by the file name it is written to.
-"""
+# Every artifact, by the file name it is written to.
 def artifacts(g)
   [
     ["grammar.js", () -> tree_sitter_js(g)],
@@ -607,9 +550,7 @@ def artifacts(g)
   ]
 end
 
-@doc """
-render: the artifact a file named `file` holds, or a refusal naming the ones there are.
-"""
+# The artifact a file named `file` holds, or a refusal naming the ones there are.
 def render(g, file)
   row = filter((a) -> first(a) == file, artifacts(g))
   if is_empty(row)
@@ -642,10 +583,8 @@ def positional()
   choice([ref("_expression"), ref("splat")])
 end
 
-@doc """
-lines: statements, one per line; the first may share the header's line
-(`fn(x) x * 2 end`), and the block may end on a statement's own line.
-"""
+# Statements, one per line; the first may share the header's line
+# (`fn(x) x * 2 end`), and the block may end on a statement's own line.
 def lines(stmt)
   choice([seq([rep1(seq([stmt, rep1(ref("_newline"))])), opt(stmt)]), stmt])
 end
@@ -654,11 +593,9 @@ def block(stmt)
   choice([seq([rep1(ref("_newline")), opt(lines(stmt))]), lines(stmt)])
 end
 
-@doc """
-ident_pattern: an identifier: an ASCII letter or `_`, or any character outside ASCII that
-is not an operator alias, whitespace or a control character (kigou), then
-letters, digits, `_` or anything outside ASCII, then one `?` or `!`.
-"""
+# An identifier: an ASCII letter or `_`, or any character outside ASCII that
+# is not an operator alias, whitespace or a control character (kigou), then
+# letters, digits, `_` or anything outside ASCII, then one `?` or `!`.
 def ident_pattern(aliases)
   "(?:[A-Za-z_]|[^\\x00-\\x7F\\p{White_Space}\\p{Cc}#{join(aliases, "")}])[A-Za-z0-9_\\u{80}-\\u{10FFFF}]*[?!]?"
 end
@@ -681,10 +618,8 @@ def infix_rows()
   ]
 end
 
-@doc """
-unary_rows: a prefix operator's operand is parsed at power 11 (`expr(11)`): above every
-infix row, so it is a postfix chain, never a binary.
-"""
+# A prefix operator's operand is parsed at power 11 (`expr(11)`): above every
+# infix row, so it is a postfix chain, never a binary.
 def unary_rows()
   [
     {
@@ -701,10 +636,8 @@ def spellings(row)
   concat_lists([get(row, :op)], get(row, :aliases))
 end
 
-@doc """
-binary_rule: one binary rule per binding power, left-associative when the right power is
-the higher, so the table above is the only statement of precedence.
-"""
+# One binary rule per binding power, left-associative when the right power is
+# the higher, so the table above is the only statement of precedence.
 def binary_rule(rows)
   powers = distinct(map((r) -> get(r, :power), rows))
   choice(

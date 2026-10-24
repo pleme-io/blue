@@ -22,11 +22,6 @@ def root_key()
   "ROOT"
 end
 
-@doc """
-key: one canonical cache key built from ordered parts.
-
-    key(["User", 7]) #=> "User:7"
-"""
 def key(parts)
   if not list?(parts) or is_empty(parts)
     raise(:bad_option, "key: parts is a list of at least one part")
@@ -63,9 +58,6 @@ def table_of(s)
   }
 end
 
-@doc """
-schema: the entity key table a GraphQL schema implies.
-"""
 def schema(subject)
   table_of(danpen::schema_of(subject))
 end
@@ -178,11 +170,6 @@ def payload(response)
   end
 end
 
-@doc """
-normalize: split a response into entities keyed by Type:id.
-
-    normalize({"data" => {}}, sdl) #=> {root: {}, entities: {}, stamps: {}, writes: []}
-"""
 def normalize(response, schema, opts?)
   o = checked(opts, [:now])
   ctx = context(schema)
@@ -209,9 +196,6 @@ def normalize(response, schema, opts?)
   {root: first(r), entities: second(r), stamps:, writes: []}
 end
 
-@doc """
-merge: combine two stores keeping one copy per entity.
-"""
 def merge(a, b)
   if a.nil?
     b
@@ -354,9 +338,6 @@ def read_options()
   [:fragment, :at, :now, :policy]
 end
 
-@doc """
-read: the masked fields of one fragment read from the store.
-"""
 def read(store, opts)
   o = checked(opts, read_options)
   if get(o, :fragment).nil?
@@ -377,9 +358,6 @@ def read(store, opts)
   end
 end
 
-@doc """
-stale?: whether a fragment read is older than its ttl.
-"""
 def stale?(store, opts)
   o = checked(opts, read_options)
   if store.nil? or get(o, :fragment).nil?
@@ -412,9 +390,6 @@ def rule_value(e)
   second(first(map_entries(kousei::value_of(e))))
 end
 
-@doc """
-policy: per fragment ttl, stale, persist and evict rules from kousei entries.
-"""
 def policy(fragments, entries)
   if not list?(fragments)
     raise(:bad_option, "policy: fragments is a list of danpen fragments")
@@ -502,9 +477,6 @@ def kept(store, keeps)
   }
 end
 
-@doc """
-snapshot: the entities persisted fragments read, to keep across restarts.
-"""
 def snapshot(store, opts?)
   o = checked(opts, [:policy])
   types = types_with(get(o, :policy), :persist)
@@ -517,9 +489,6 @@ def snapshot(store, opts?)
   }
 end
 
-@doc """
-sweep: drop the entities older than their fragment evict limit.
-"""
 def sweep(store, opts)
   o = checked(opts, [:now, :policy])
   now = get(o, :now)
@@ -538,9 +507,6 @@ def sweep(store, opts)
   )
 end
 
-@doc """
-declare a mutation and the entity types it touches.
-"""
 def declare(name, spec)
   s = checked(spec, [:touches, :operation])
   touches = get(s, :touches)
@@ -590,9 +556,6 @@ def blank()
   {root: {}, entities: {}, stamps: {}, writes: []}
 end
 
-@doc """
-write: lay a pending optimistic write over the store.
-"""
 def write(store, change)
   c = checked(change, [:id, :mutation, :patch])
   s = store or blank
@@ -633,9 +596,6 @@ def outcome_event(outcome)
   end
 end
 
-@doc """
-settle: end an optimistic write as confirmed or rolled back.
-"""
 def settle(store, id, outcome)
   event = outcome_event(outcome)
   writes = get(store or blank, :writes)
@@ -677,9 +637,6 @@ def persisted_body(doc, variables)
   end
 end
 
-@doc """
-request: run an operation on a server by its persisted hash only.
-"""
 def request(target, input, opts?)
   i = checked(input, [:operation, :variables])
   o = checked(opts, [:headers, :timeout_ms, :transport])

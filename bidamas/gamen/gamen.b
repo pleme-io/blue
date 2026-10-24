@@ -68,9 +68,6 @@ def luminance(color)
     0.0722 * linear(get(c, :b))
 end
 
-@doc """
-contrast: WCAG contrast ratio of two colors.
-"""
 def contrast(a, b)
   la = luminance(a)
   lb = luminance(b)
@@ -94,11 +91,6 @@ rescue :bad_option as e
   raise(:bad_option, "token #{to_s(name)}: #{e.message}")
 end
 
-@doc """
-theme: declare a theme: Nord tokens for light and dark.
-
-    theme({}, :light) #=> {mode: :light, tokens: {}}
-"""
 def theme(tokens, mode)
   if not member?(mode, modes)
     raise(:bad_option, "a theme mode is light or dark, got #{to_s(mode)}")
@@ -200,9 +192,6 @@ def writer(opts)
   end
 end
 
-@doc """
-show: put a node on the terminal as styled output.
-"""
 def show(node, opts)
   checked(opts, [:theme, :color, :sink, :to, :newline])
   write = writer(opts)
@@ -863,11 +852,6 @@ def css(theme)
   ":root{#{join(vars, ";")}}"
 end
 
-@doc """
-render: tree to html, ansi, svg or widget spec text.
-
-    render("a & b's", :html) #=> "a &amp; b&#39;s"
-"""
 def render(tree, target, opts?)
   o = opts or {}
   checked(o, [:theme, :refuse])
@@ -935,11 +919,6 @@ def component?(kind)
   map?(kind) and jisho::has?(kind, :component)
 end
 
-@doc """
-view: declare one UI node with props and children.
-
-    view(:br) #=> {tag: :br, props: {}, children: []}
-"""
 def view(kind, props?, children?)
   p = props or {}
   c = if children.nil?
@@ -963,9 +942,6 @@ def view(kind, props?, children?)
   end
 end
 
-@doc """
-component: declare a reusable view: props, state, events.
-"""
 def component(name, spec)
   checked(spec, [:props, :slots, :variants, :events, :a11y, :view])
   props = get(spec, :props) or {}
@@ -1118,9 +1094,6 @@ def instance(c, given, children)
   end
 end
 
-@doc """
-labels: display text keyed by each backend enum value.
-"""
 def labels(set, entries)
   if not keyword?(set)
     raise(:bad_option, "labels: the set is the enum's name, as a keyword")
@@ -1149,11 +1122,6 @@ def labels(set, entries)
   }
 end
 
-@doc """
-layout: place nodes in a size: stack, flex or grid.
-
-    layout(:row, []) #=> {tag: :div, props: {style: {layout: :row}}, children: []}
-"""
 def layout(kind, children, opts?)
   o = opts or {}
   checked(o, [:gap, :columns, :align, :tag, :props])
@@ -1190,9 +1158,6 @@ def resolved(theme, row, v)
   end
 end
 
-@doc """
-style: resolve semantic tokens on a node to colors and sizes.
-"""
 def style(node, theme)
   s = prop(node, :style)
   if s.nil?
@@ -1415,11 +1380,6 @@ def a11y_rules()
   [alt_rule, label_rule, role_rule, focus_rule]
 end
 
-@doc """
-check: find accessibility and layout faults in a tree.
-
-    check(view(:img, {src: "/a"}), [focus_rule]) #=> []
-"""
 def check(tree, rules?)
   kyohi::check(tree, rules or append([refusals], a11y_rules))
 end

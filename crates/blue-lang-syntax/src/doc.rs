@@ -196,7 +196,7 @@ pub fn examples(text: &str) -> Vec<Example> {
             continue;
         }
         let code = line.trim();
-        let step = match code.split_once(" #=> ") {
+        let step = match code.rsplit_once(" #=> ") {
             Some((expr, value)) => Step::Check {
                 expr: expr.trim().to_string(),
                 value: value.trim().to_string(),
@@ -254,92 +254,137 @@ pub fn doctests(src: &str) -> Result<Vec<Spanned>, ParseError> {
         } else {
             continue;
         };
+        let mut from = text_span.start;
         for (k, example) in examples(text).iter().enumerate() {
-            out.push(doctest(src, text_span, &subject, k + 1, example)?);
+            out.push(doctest(
+                src,
+                text,
+                &mut from,
+                text_span.end,
+                &subject,
+                k + 1,
+                example,
+            )?);
         }
     }
     Ok(out)
 }
 
+/// One example as a `test` block whose every node is spanned at the source
+/// it was written as, so a failure, a reference and a rename land on the
+/// example's own characters.
 fn doctest(
     src: &str,
-    within: Span,
+    text: &str,
+    from: &mut usize,
+    until: usize,
     subject: &str,
     k: usize,
     example: &Example,
 ) -> Result<Spanned, ParseError> {
-    let mut body = format!("test \"{DOCTEST_PREFIX}{subject} example {k}\"\n");
-    for (_, step) in &example.steps {
+    let fail = |at: Span, why: &str| {
+        ParseError::new(format!("{subject}'s example {k} {why}"), at).located(src)
+    };
+    let mut stmts = Vec::new();
+    for (line_no, step) in &example.steps {
+        let written = text.lines().nth(*line_no).unwrap_or("").trim();
+        let at = next_line(src, from, until, written)
+            .ok_or_else(|| fail(Span::new(*from, *from), "is not where its text is"))?;
         match step {
-            Step::Run(code) => body.push_str(&format!("  {code}\n")),
+            Step::Run(code) => {
+                stmts.push(snippet(src, code, at).map_err(|e| fail(e, "does not parse"))?)
+            }
             Step::Check { expr, value } => {
-                body.push_str(&format!("  assert ({expr}) == ({value})\n"));
+                let marker = at + written.rfind(" #=> ").unwrap_or(0);
+                let after = &written[written.rfind(" #=> ").map_or(0, |i| i + 5)..];
+                let value_at = marker + 5 + (after.len() - after.trim_start().len());
+                let e = snippet(src, expr, at).map_err(|e| fail(e, "does not parse"))?;
+                let v = snippet(src, value, value_at).map_err(|e| fail(e, "does not parse"))?;
+                let op = Span::new(marker + 1, marker + 4);
+                let compared = Span::new(e.span.start, v.span.end);
+                let cmp = Spanned::new(
+                    compared,
+                    SpannedForm::List(vec![symbol(op, "equal?"), e, v]),
+                );
+                let quoted = Spanned::new(compared, SpannedForm::Quote(Box::new(cmp.clone())));
+                stmts.push(Spanned::new(
+                    compared,
+                    SpannedForm::List(vec![symbol(op, crate::LOWERED_ASSERT), quoted, cmp]),
+                ));
             }
         }
     }
-    body.push_str("end\n");
-    let at = example_span(src, within, example);
-    let parsed = crate::parse_program_tree(&body).map_err(|e| {
-        ParseError::new(
-            format!("{subject}'s example {k} does not parse: {}", e.message),
-            at,
-        )
-        .located(src)
-    })?;
-    let test = parsed.into_iter().next().ok_or_else(|| {
-        ParseError::new(format!("{subject}'s example {k} is empty"), at).located(src)
-    })?;
-    Ok(respan(test, at))
+    let first = stmts.first().map_or(*from, |s| s.span.start);
+    let last = stmts.last().map_or(*from, |s| s.span.end);
+    let whole = Span::new(first, last);
+    let body = if stmts.len() == 1 {
+        stmts.remove(0)
+    } else {
+        let mut items = vec![symbol(Span::new(first, first), "begin")];
+        items.extend(stmts);
+        Spanned::new(whole, SpannedForm::List(items))
+    };
+    Ok(Spanned::new(
+        whole,
+        SpannedForm::List(vec![
+            symbol(Span::new(first, first), "deftest"),
+            text_node(
+                Span::new(first, first),
+                format!("{DOCTEST_PREFIX}{subject} example {k}"),
+            ),
+            body,
+        ]),
+    ))
 }
 
-/// The source lines an example was written on, inside `within`.
-fn example_span(src: &str, within: Span, example: &Example) -> Span {
-    let region = src
-        .get(within.start..within.end.min(src.len()))
-        .unwrap_or("");
-    let lines: Vec<&str> = example
-        .steps
-        .iter()
-        .map(|(_, s)| match s {
-            Step::Run(c) => c.as_str(),
-            Step::Check { .. } => "",
-        })
-        .collect();
-    let first_check = example.steps.iter().find_map(|(_, s)| match s {
-        Step::Check { expr, .. } => Some(expr.as_str()),
-        Step::Run(_) => None,
-    });
-    let needle = lines
-        .iter()
-        .copied()
-        .find(|l| !l.is_empty())
-        .or(first_check)
-        .unwrap_or("");
-    let mut offset = 0;
-    let mut start = None;
+/// Where the next source line reading `written` starts its code, at or
+/// after `from` and before `until`; `from` moves past it.
+fn next_line(src: &str, from: &mut usize, until: usize, written: &str) -> Option<usize> {
+    let region = src.get(*from..until.min(src.len()))?;
+    let mut offset = *from;
     for line in region.split_inclusive('\n') {
-        if start.is_none() && !needle.is_empty() && line.trim().starts_with(needle) {
-            start = Some(within.start + offset + (line.len() - line.trim_start().len()));
+        if line.trim() == written {
+            let code = offset + (line.len() - line.trim_start().len());
+            *from = offset + line.len();
+            return Some(code);
         }
         offset += line.len();
     }
-    let s = start.unwrap_or(within.start);
-    let line_end = src[s..].find('\n').map_or(src.len(), |i| s + i);
-    Span::new(s, line_end.max(s))
+    None
 }
 
-fn respan(node: Spanned, at: Span) -> Spanned {
+/// One expression or statement of an example, parsed as part of its text
+/// and spanned where it is written.
+fn snippet(src: &str, code: &str, at: usize) -> Result<Spanned, Span> {
+    let here = Span::new(at, at + code.len());
+    let mut forms = crate::parse::parse_snippet(code).map_err(|_| here)?;
+    if forms.len() != 1 || src.get(here.start..here.end) != Some(code) {
+        return Err(here);
+    }
+    Ok(shift(forms.remove(0), at))
+}
+
+fn symbol(span: Span, name: &str) -> Spanned {
+    Spanned::new(span, SpannedForm::Atom(Atom::Symbol(name.into())))
+}
+
+fn shift(node: Spanned, by: usize) -> Spanned {
+    let span = if node.span.is_synthetic() {
+        node.span
+    } else {
+        Span::new(node.span.start + by, node.span.end + by)
+    };
     let form = match node.form {
         SpannedForm::List(items) => {
-            SpannedForm::List(items.into_iter().map(|i| respan(i, at)).collect())
+            SpannedForm::List(items.into_iter().map(|i| shift(i, by)).collect())
         }
-        SpannedForm::Quote(x) => SpannedForm::Quote(Box::new(respan(*x, at))),
-        SpannedForm::Quasiquote(x) => SpannedForm::Quasiquote(Box::new(respan(*x, at))),
-        SpannedForm::Unquote(x) => SpannedForm::Unquote(Box::new(respan(*x, at))),
-        SpannedForm::UnquoteSplice(x) => SpannedForm::UnquoteSplice(Box::new(respan(*x, at))),
+        SpannedForm::Quote(x) => SpannedForm::Quote(Box::new(shift(*x, by))),
+        SpannedForm::Quasiquote(x) => SpannedForm::Quasiquote(Box::new(shift(*x, by))),
+        SpannedForm::Unquote(x) => SpannedForm::Unquote(Box::new(shift(*x, by))),
+        SpannedForm::UnquoteSplice(x) => SpannedForm::UnquoteSplice(Box::new(shift(*x, by))),
         other => other,
     };
-    Spanned::new(at, form)
+    Spanned::new(span, form)
 }
 
 /// A doc text node, as the parser builds it.
@@ -408,7 +453,26 @@ mod tests {
             "(deftest \"@doc `f` example 1\" (begin (define x 1) (blue-assert '(equal? (f x) 2) (equal? (f x) 2)) (blue-assert '(equal? (f 2) 3) (equal? (f 2) 3))))"
         );
         let at = tests[1].span;
-        assert_eq!(&SRC[at.start..at.end], "x = 1");
+        assert_eq!(
+            &SRC[at.start..at.end],
+            "x = 1\n    f(x) #=> 2\n    f(2) #=> 3"
+        );
+        fn refs(n: &Spanned, out: &mut Vec<Span>) {
+            if n.as_symbol() == Some("f") {
+                out.push(n.span);
+            }
+            if let Some(items) = n.as_list() {
+                for i in items {
+                    refs(i, out);
+                }
+            }
+        }
+        let mut found = Vec::new();
+        refs(&tests[1], &mut found);
+        assert!(!found.is_empty());
+        for s in found {
+            assert_eq!(&SRC[s.start..s.end], "f");
+        }
     }
 
     #[test]

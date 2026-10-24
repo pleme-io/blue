@@ -1,64 +1,56 @@
-@moduledoc """
-shisutemu (システム) — the system.
-
-Layered on the runtime's host-side sys surface (blue-lang-runtime's `sys`
-module, behind the `sys` cargo feature): process, filesystem, clock. The
-primitives there are exactly as honest as the OS — `read_file` raises when
-the file is not there — so this package is where the total wrappers live.
-A widget like the sentinela SwiftBar plugin must not die because a log is
-missing; that is the ordinary case, not the exceptional one.
-
-# Three rules this package holds
-
-**Total where the primitive is not.** `read_file` raises on a missing file;
-`read_or` answers a default. `file_mtime_ms` raises; `file_age_ms` answers
-nil. The capture alist accessors answer a sensible zero value rather than
-leaking json_get's type error. A caller should be able to read a file, an
-exit code or a clock without surrounding it in guards.
-
-**A capture is an alist, and the accessors read it without needing to know
-that.** `exec_capture` returns `((:status N) (:stdout "…") (:stderr "…"))`;
-`status_of`/`stdout_of`/`stderr_of` are the one place the shape is known, so
-the shape can change without touching a call site.
-
-**Formatting is deterministic.** `age_s` mirrors the sentinela display
-exactly: whole seconds under a minute, whole minutes under an hour, and
-`h`/`m` from there. `age_s(3600000)` is "1h0m", not "1h" and not "1h00m" —
-the exact string a human's eye is used to from the Rust original.
-
-# What is deliberately absent
-
-**No error handling, because blue has none.** There is no `rescue`; a
-fallible call is guarded *before* it is made (`read_or` checks `is_file?`
-first) or documented as raising (`json_parse` on garbage still raises — see
-`deeta`). The one un-guardable race, a file vanishing between the check and
-the read, is noted on `read_or` rather than pretended away.
-
-**No stdout writer.** Raw output is the *final value* of a program: `blue run`
-prints the last expression with `render`, which is the one path that does not
-quote strings (every `print`/`println` renders through Value's Debug Display,
-which quotes them). A multi-line widget is built as a list and joined with
-"\n" as the last expression — see the sentinela-sui.b consumer.
-
-`is_alpha` is delegated to moji, not re-derived: an ANSI final byte is any
-ASCII letter, which is exactly what the Rust original's `is_ascii_alphabetic`
-checks, and hand-rolling a character class here would drift from it.
-
-    age_s(0) #=> "0s"
-"""
-
 use("moji", [:is_alpha, :is_blank, :lines, :take_chars])
 use("retsu", [:first, :is_empty, :last, :rest])
 
+# shisutemu (システム) — the system.
+#
+# Layered on the runtime's host-side sys surface (blue-lang-runtime's `sys`
+# module, behind the `sys` cargo feature): process, filesystem, clock. The
+# primitives there are exactly as honest as the OS — `read_file` raises when
+# the file is not there — so this package is where the total wrappers live.
+# A widget like the sentinela SwiftBar plugin must not die because a log is
+# missing; that is the ordinary case, not the exceptional one.
+#
+# # Three rules this package holds
+#
+# **Total where the primitive is not.** `read_file` raises on a missing file;
+# `read_or` answers a default. `file_mtime_ms` raises; `file_age_ms` answers
+# nil. The capture alist accessors answer a sensible zero value rather than
+# leaking json_get's type error. A caller should be able to read a file, an
+# exit code or a clock without surrounding it in guards.
+#
+# **A capture is an alist, and the accessors read it without needing to know
+# that.** `exec_capture` returns `((:status N) (:stdout "…") (:stderr "…"))`;
+# `status_of`/`stdout_of`/`stderr_of` are the one place the shape is known, so
+# the shape can change without touching a call site.
+#
+# **Formatting is deterministic.** `age_s` mirrors the sentinela display
+# exactly: whole seconds under a minute, whole minutes under an hour, and
+# `h`/`m` from there. `age_s(3600000)` is "1h0m", not "1h" and not "1h00m" —
+# the exact string a human's eye is used to from the Rust original.
+#
+# # What is deliberately absent
+#
+# **No error handling, because blue has none.** There is no `rescue`; a
+# fallible call is guarded *before* it is made (`read_or` checks `is_file?`
+# first) or documented as raising (`json_parse` on garbage still raises — see
+# `deeta`). The one un-guardable race, a file vanishing between the check and
+# the read, is noted on `read_or` rather than pretended away.
+#
+# **No stdout writer.** Raw output is the *final value* of a program: `blue run`
+# prints the last expression with `render`, which is the one path that does not
+# quote strings (every `print`/`println` renders through Value's Debug Display,
+# which quotes them). A multi-line widget is built as a list and joined with
+# "\n" as the last expression — see the sentinela-sui.b consumer.
+#
+# `is_alpha` is delegated to moji, not re-derived: an ANSI final byte is any
+# ASCII letter, which is exactly what the Rust original's `is_ascii_alphabetic`
+# checks, and hand-rolling a character class here would drift from it.
+
 # ── process captures ───────────────────────────────────────────────
 
-@doc """
-status_of: the exit status of a capture alist; 0 when the shape is wrong or the status
-is missing. Total, because a capture should never make a caller choose
-between the value and the error.
-
-    status_of([1, 2]) #=> 0
-"""
+# The exit status of a capture alist; 0 when the shape is wrong or the status
+# is missing. Total, because a capture should never make a caller choose
+# between the value and the error.
 def status_of(cap)
   v = nil
   if not null?(cap) and list?(cap)
@@ -71,11 +63,7 @@ def status_of(cap)
   end
 end
 
-@doc """
-stdout_of: the captured stdout; "" when absent or not a capture.
-
-    stdout_of(nil) #=> ""
-"""
+# The captured stdout; "" when absent or not a capture.
 def stdout_of(cap)
   v = nil
   if not null?(cap) and list?(cap)
@@ -88,11 +76,7 @@ def stdout_of(cap)
   end
 end
 
-@doc """
-stderr_of: the captured stderr; "" when absent or not a capture.
-
-    stderr_of(42) #=> ""
-"""
+# The captured stderr; "" when absent or not a capture.
 def stderr_of(cap)
   v = nil
   if not null?(cap) and list?(cap)
@@ -107,17 +91,13 @@ end
 
 # ── filesystem ─────────────────────────────────────────────────────
 
-@doc """
-read_or: the file's contents, or `default` when it is not a readable file.
-
-The check is `is_file?`, not `path_exists`: a directory exists and is not
-readable as text, and answering a directory's contents as if they were text
-would be a lie. The residual race — the file being replaced between the check
-and the read — raises rather than fabricating a default, which is the honest
-direction for a file that existed a moment ago.
-
-    read_or("/tmp", "fallback") #=> "fallback"
-"""
+# The file's contents, or `default` when it is not a readable file.
+#
+# The check is `is_file?`, not `path_exists`: a directory exists and is not
+# readable as text, and answering a directory's contents as if they were text
+# would be a lie. The residual race — the file being replaced between the check
+# and the read — raises rather than fabricating a default, which is the honest
+# direction for a file that existed a moment ago.
 def read_or(path, default)
   if is_file?(path)
     read_file(path)
@@ -126,13 +106,11 @@ def read_or(path, default)
   end
 end
 
-@doc """
-file_age_ms: milliseconds since the file was last modified, or nil when it is not a file.
-
-nil, not a sentinel number: a missing log is a different question from a
-stalled one, and a caller that conflates them cannot tell "never started"
-from "stopped long ago". Branch on nil first.
-"""
+# Milliseconds since the file was last modified, or nil when it is not a file.
+#
+# nil, not a sentinel number: a missing log is a different question from a
+# stalled one, and a caller that conflates them cannot tell "never started"
+# from "stopped long ago". Branch on nil first.
 def file_age_ms(path)
   if is_file?(path)
     now_ms - file_mtime_ms(path)
@@ -141,15 +119,11 @@ end
 
 # ── text from the system ───────────────────────────────────────────
 
-@doc """
-last_nonempty_line: the last line of `text` that has content in it, or "" when there is none.
-
-Built on moji's `lines` (which invents no trailing line) and `is_blank`, so
-"\r\n" endings and trailing newlines are handled before this sees them. A
-log whose final line is a blank or a spinner echo answers the line before.
-
-    last_nonempty_line("") #=> ""
-"""
+# The last line of `text` that has content in it, or "" when there is none.
+#
+# Built on moji's `lines` (which invents no trailing line) and `is_blank`, so
+# "\r\n" endings and trailing newlines are handled before this sees them. A
+# log whose final line is a blank or a spinner echo answers the line before.
 def last_nonempty_line(text)
   ls = filter((l) -> not is_blank(l), lines(text))
   if is_empty(ls)
@@ -159,32 +133,26 @@ def last_nonempty_line(text)
   end
 end
 
-@doc """
-esc_char: the ESC character, spelled once. Blue strings accept `\u{1b}`.
-"""
+# The ESC character, spelled once. Blue strings accept `\u{1b}`.
 def esc_char()
   "\u{1b}"
 end
 
-@doc """
-ansi_final: true when `c` is the final byte of an ANSI escape sequence: any ASCII letter.
-This mirrors the Rust original's `is_ascii_alphabetic` — the sequences nix
-writes into log files all end in a letter (m, J, K, A, …).
-"""
+# True when `c` is the final byte of an ANSI escape sequence: any ASCII letter.
+# This mirrors the Rust original's `is_ascii_alphabetic` — the sequences nix
+# writes into log files all end in a letter (m, J, K, A, …).
 def ansi_final(c)
   is_alpha(c)
 end
 
-@doc """
-strip_ansi_from: walk the characters, dropping every ESC-prefixed sequence.
-
-The state machine: 0 = ordinary text, 1 = just saw ESC, 2 = inside a CSI
-sequence (ESC [ … final byte). An ESC followed by anything other than "[" is
-a two-character escape and is dropped whole; an ESC alone at the end is
-dropped rather than leaked. This is deliberately the same scope as the Rust
-original's strip_ansi — CSI SGR colouring — not a full VT parser (OSC title
-sequences are outside it and documented so).
-"""
+# Walk the characters, dropping every ESC-prefixed sequence.
+#
+# The state machine: 0 = ordinary text, 1 = just saw ESC, 2 = inside a CSI
+# sequence (ESC [ … final byte). An ESC followed by anything other than "[" is
+# a two-character escape and is dropped whole; an ESC alone at the end is
+# dropped rather than leaked. This is deliberately the same scope as the Rust
+# original's strip_ansi — CSI SGR colouring — not a full VT parser (OSC title
+# sequences are outside it and documented so).
 def strip_ansi_from(cs, state, acc)
   if is_empty(cs)
     acc
@@ -210,27 +178,19 @@ def strip_ansi_from(cs, state, acc)
   end
 end
 
-@doc """
-strip_ansi: remove ANSI escape sequences, matching the sentinela widget's strip_ansi.
-
-    strip_ansi("") #=> ""
-"""
+# Remove ANSI escape sequences, matching the sentinela widget's strip_ansi.
 def strip_ansi(s)
   strip_ansi_from(chars(s), 0, "")
 end
 
 # ── clock ──────────────────────────────────────────────────────────
 
-@doc """
-age_s: compact human age for a millisecond duration — the sentinela display.
-
-Whole seconds under a minute, whole minutes under an hour, hours and minutes
-from there. The exact boundaries and the "1h0m" at one hour mirror the Rust
-original byte for byte, which is what keeps the widget's text unchanged when
-the implementation language changes.
-
-    age_s(0) #=> "0s"
-"""
+# Compact human age for a millisecond duration — the sentinela display.
+#
+# Whole seconds under a minute, whole minutes under an hour, hours and minutes
+# from there. The exact boundaries and the "1h0m" at one hour mirror the Rust
+# original byte for byte, which is what keeps the widget's text unchanged when
+# the implementation language changes.
 def age_s(ms)
   if ms < 60000
     "#{floor(ms / 1000)}s"
@@ -243,16 +203,12 @@ end
 
 # ── git ────────────────────────────────────────────────────────────
 
-@doc """
-short_rev: a revision shortened to at most `n` characters; the em dash when it is absent.
-
-`take_chars` clamps over-asking, so a short or exactly-n rev comes through
-whole — the two cases a `substring(rev, 0, n)` on a short string would get
-wrong. "—" is the sentinela's spelling for "no revision known", kept here so
-a null head and an absent head cannot diverge.
-
-    short_rev("", 8) #=> "—"
-"""
+# A revision shortened to at most `n` characters; the em dash when it is absent.
+#
+# `take_chars` clamps over-asking, so a short or exactly-n rev comes through
+# whole — the two cases a `substring(rev, 0, n)` on a short string would get
+# wrong. "—" is the sentinela's spelling for "no revision known", kept here so
+# a null head and an absent head cannot diverge.
 def short_rev(rev, n)
   if null?(rev) or length(rev) == 0
     "—"

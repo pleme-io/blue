@@ -1,19 +1,3 @@
-@moduledoc """
-ran (乱) — deterministic pseudo-randomness.
-
-Every function takes a seed and returns the next seed alongside its value,
-so the whole package is pure. That is not a limitation worked around — it is
-the feature: a shuffle that cannot be reproduced cannot be debugged, and a
-test over random input is only useful if a failure can be replayed.
-
-The generator is a linear congruential one with the constants from Numerical
-Recipes. Adequate for simulation and sampling; NOT for anything where
-unpredictability matters. Use the word "random" here to mean "arbitrary and
-repeatable", never "secure".
-
-    shuffle(7, []) #=> []
-"""
-
 use("junjo", [:sort])
 use("kazu", [:abs, :max_of, :min_of, :near, :near_within])
 
@@ -37,6 +21,18 @@ use(
 use("ronri", [:any, :every])
 use("shuugou", [:intersection, :subset, :unique])
 
+# ran (乱) — deterministic pseudo-randomness.
+#
+# Every function takes a seed and returns the next seed alongside its value,
+# so the whole package is pure. That is not a limitation worked around — it is
+# the feature: a shuffle that cannot be reproduced cannot be debugged, and a
+# test over random input is only useful if a failure can be replayed.
+#
+# The generator is a linear congruential one with the constants from Numerical
+# Recipes. Adequate for simulation and sampling; NOT for anything where
+# unpredictability matters. Use the word "random" here to mean "arbitrary and
+# repeatable", never "secure".
+
 def next_seed(seed)
   (1_664_525 * seed + 1_013_904_223) % 4_294_967_296
 end
@@ -53,11 +49,7 @@ def next_range(seed, lo, hi)
   lo + next_seed(seed) % (hi - lo)
 end
 
-@doc """
-take_ints: a list of n values, threading the seed through so the sequence advances.
-
-    take_ints(42, 100, 5) #=> take_ints(42, 100, 5)
-"""
+# A list of n values, threading the seed through so the sequence advances.
 def take_ints(seed, bound, n)
   if n < 1
     []
@@ -75,33 +67,25 @@ def seeds(seed, n)
   end
 end
 
-@doc """
-choice: pick an element by index. Returns the element, not the seed — callers who
-need to keep drawing advance the seed themselves.
-"""
+# Pick an element by index. Returns the element, not the seed — callers who
+# need to keep drawing advance the seed themselves.
 def choice(seed, xs)
   nth(next_int(seed, size(xs)), xs)
 end
 
-@doc """
-next_uniform: a draw in [0, bound) taken from the TOP of the word rather than the bottom.
-
-This exists because `next_int` is wrong for small bounds and cannot be fixed
-without changing its answers. The multiplier and the increment are both odd,
-so s(n+1) = s(n) + 1 (mod 2) exactly — the low bit of this generator
-ALTERNATES. `take_ints(seed, 2, n)` is 0,1,0,1 forever, and every d6 stream
-drawn with `% 6` flips parity on every roll. Dividing by the modulus first
-throws the bad bits away instead of returning them.
-"""
+# A draw in [0, bound) taken from the TOP of the word rather than the bottom.
+#
+# This exists because `next_int` is wrong for small bounds and cannot be fixed
+# without changing its answers. The multiplier and the increment are both odd,
+# so s(n+1) = s(n) + 1 (mod 2) exactly — the low bit of this generator
+# ALTERNATES. `take_ints(seed, 2, n)` is 0,1,0,1 forever, and every d6 stream
+# drawn with `% 6` flips parity on every roll. Dividing by the modulus first
+# throws the bad bits away instead of returning them.
 def next_uniform(seed, bound)
   floor(next_float(seed) * bound)
 end
 
-@doc """
-next_bool: the top bit, for the same reason: `next_int(seed, 2)` would be a metronome.
-
-    next_bool(1) #=> false
-"""
+# The top bit, for the same reason: `next_int(seed, 2)` would be a metronome.
 def next_bool(seed)
   next_seed(seed) >= 2_147_483_648
 end
@@ -114,11 +98,7 @@ def take_bools(seed, n)
   end
 end
 
-@doc """
-take_floats: n floats in [0, 1). Never reaches 1: the largest seed is 2^32 - 1.
-
-    take_floats(21, 0) #=> []
-"""
+# n floats in [0, 1). Never reaches 1: the largest seed is 2^32 - 1.
 def take_floats(seed, n)
   if n < 1
     []
@@ -127,10 +107,8 @@ def take_floats(seed, n)
   end
 end
 
-@doc """
-roll: dice are 1-based, which is the whole reason these exist rather than callers
-writing next_uniform themselves and getting a 0 on the table.
-"""
+# Dice are 1-based, which is the whole reason these exist rather than callers
+# writing next_uniform themselves and getting a 0 on the table.
 def roll(seed, sides)
   1 + next_uniform(seed, sides)
 end
@@ -147,9 +125,7 @@ def roll_sum(seed, count, sides)
   reduce((a, b) -> a + b, 0, roll_dice(seed, count, sides))
 end
 
-@doc """
-roll_best: roll with advantage: the best of `count` dice, reproducibly.
-"""
+# Roll with advantage: the best of `count` dice, reproducibly.
 def roll_best(seed, count, sides)
   max_of(roll_dice(seed, count, sides))
 end
@@ -158,17 +134,13 @@ def roll_worst(seed, count, sides)
   min_of(roll_dice(seed, count, sides))
 end
 
-@doc """
-split_seed: two seeds whose streams do not overlap, for handing an independent source to
-a sub-computation without threading one seed through it.
-
-The naive split — [seed, next_seed(seed)] — gives two streams offset by ONE
-step, so the second replays the first nineteen values out of twenty. The
-offset is the 32-bit golden ratio, which lands the second stream far enough
-along the cycle that the overlap is a coincidence rather than a structure.
-
-    split_seed(1) #=> split_seed(1)
-"""
+# Two seeds whose streams do not overlap, for handing an independent source to
+# a sub-computation without threading one seed through it.
+#
+# The naive split — [seed, next_seed(seed)] — gives two streams offset by ONE
+# step, so the second replays the first nineteen values out of twenty. The
+# offset is the 32-bit golden ratio, which lands the second stream far enough
+# along the cycle that the overlap is a coincidence rather than a structure.
 def split_seed(seed)
   [stream_seed(seed, 0), stream_seed(seed, 1)]
 end
@@ -197,31 +169,21 @@ def mix_seed(x)
   (c + floor(c / 65536) * (c % 65536) * 22_695_477) % 4_294_967_296
 end
 
-@doc """
-stream_seed: the seed of stream i from one experiment seed. Streams for different i are
-statistically independent, not merely distinct.
-
-    stream_seed(3, 4) #=> stream_seed(3, 4)
-"""
+# The seed of stream i from one experiment seed. Streams for different i are
+# statistically independent, not merely distinct.
 def stream_seed(seed, i)
   mix_seed((mix_seed(seed) + (i + 1) * 2_654_435_769) % 4_294_967_296)
 end
 
-@doc """
-pick: `choice` off the top of the word. Kept separate rather than folded into
-`choice`, whose answers other packages already depend on: picking from a
-two-element list with `choice` alternates, and picking from an eight-element
-one cycles its low three bits, which is exactly how a shuffle stops shuffling.
-"""
+# `choice` off the top of the word. Kept separate rather than folded into
+# `choice`, whose answers other packages already depend on: picking from a
+# two-element list with `choice` alternates, and picking from an eight-element
+# one cycles its low three bits, which is exactly how a shuffle stops shuffling.
 def pick(seed, xs)
   nth(next_uniform(seed, size(xs)), xs)
 end
 
-@doc """
-choices: n picks WITH replacement — repeats are expected, and the list is not consumed.
-
-    choices(31, [1, 2, 3, 4], 20) #=> choices(31, [1, 2, 3, 4], 20)
-"""
+# n picks WITH replacement — repeats are expected, and the list is not consumed.
 def choices(seed, xs, n)
   if n < 1
     []
@@ -230,13 +192,9 @@ def choices(seed, xs, n)
   end
 end
 
-@doc """
-shuffle: fisher-Yates, written as select-and-remove because there is no mutable array
-to swap inside: draw a position, take that element out, recurse on the rest.
-Same distribution as the swapping form, and the seed threads visibly.
-
-    shuffle(7, []) #=> []
-"""
+# Fisher-Yates, written as select-and-remove because there is no mutable array
+# to swap inside: draw a position, take that element out, recurse on the rest.
+# Same distribution as the swapping form, and the seed threads visibly.
 def shuffle(seed, xs)
   if is_empty(xs)
     []
@@ -246,10 +204,8 @@ def shuffle(seed, xs)
   end
 end
 
-@doc """
-sample_n: n picks WITHOUT replacement. Asking for more than there is gives everything
-rather than an error, which is what a caller sampling a short list means.
-"""
+# n picks WITHOUT replacement. Asking for more than there is gives everything
+# rather than an error, which is what a caller sampling a short list means.
 def sample_n(seed, xs, n)
   take_n(shuffle(seed, xs), n)
 end
@@ -258,14 +214,12 @@ def total_weight(ws)
   reduce((a, b) -> a + b, 0, ws)
 end
 
-@doc """
-weight_walk: walk the weights subtracting as we go — the inverse-CDF pick.
-
-The subtraction is the piece that is easy to omit, and omitting it is
-invisible with two buckets: [1, 1, 1] is the smallest case where the middle
-option silently becomes unreachable. The comparison is strict, so a bucket
-of weight 0 is stepped over rather than matched at r = 0.
-"""
+# Walk the weights subtracting as we go — the inverse-CDF pick.
+#
+# The subtraction is the piece that is easy to omit, and omitting it is
+# invisible with two buckets: [1, 1, 1] is the smallest case where the middle
+# option silently becomes unreachable. The comparison is strict, so a bucket
+# of weight 0 is stepped over rather than matched at r = 0.
 def weight_walk(xs, ws, r)
   if is_empty(rest(ws))
     first(xs)
@@ -276,26 +230,20 @@ def weight_walk(xs, ws, r)
   end
 end
 
-@doc """
-weighted_choice: weights need not be normalised and need not be integers; they are divided by
-their own total. All-zero weights are a caller error rather than a meaning —
-the walk falls through to the LAST bucket, which is at least total and
-pinned by a test rather than left to be discovered.
-
-    weighted_choice(4, ["only"], [1]) #=> "only"
-"""
+# Weights need not be normalised and need not be integers; they are divided by
+# their own total. All-zero weights are a caller error rather than a meaning —
+# the walk falls through to the LAST bucket, which is at least total and
+# pinned by a test rather than left to be discovered.
 def weighted_choice(seed, xs, ws)
   weight_walk(xs, ws, next_float(seed) * total_weight(ws))
 end
 
-@doc """
-next_gaussian: box-Muller. Consumes TWO words of the stream, which is why take_gaussians
-advances twice per draw — reusing one word for both u1 and u2 correlates the
-radius with the angle and the result stops being normal.
-
-u1 is (s + 1) / (2^32 + 1) rather than s / 2^32 so it can never be exactly 0:
-log(0) is where this formula blows up, and seed 0 reaches it.
-"""
+# Box-Muller. Consumes TWO words of the stream, which is why take_gaussians
+# advances twice per draw — reusing one word for both u1 and u2 correlates the
+# radius with the angle and the result stops being normal.
+#
+# u1 is (s + 1) / (2^32 + 1) rather than s / 2^32 so it can never be exactly 0:
+# log(0) is where this formula blows up, and seed 0 reaches it.
 def next_gaussian(seed)
   s1 = next_seed(seed)
   s2 = next_seed(s1)
@@ -324,13 +272,9 @@ def next_step(seed)
   end
 end
 
-@doc """
-random_walk: positions, not steps: the caller wants the path. Each entry differs from the
-one before it by exactly 1, which is the property that separates a walk from
-a list of draws.
-
-    random_walk(23, 0) #=> []
-"""
+# Positions, not steps: the caller wants the path. Each entry differs from the
+# one before it by exactly 1, which is the property that separates a walk from
+# a list of draws.
 def random_walk(seed, n)
   running_sum(map(next_step, seeds(seed, n)))
 end

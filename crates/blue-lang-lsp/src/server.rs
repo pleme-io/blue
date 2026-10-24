@@ -562,6 +562,14 @@ impl Server {
             md.push_str("\n\n");
             md.push_str(doc);
         }
+        if !h.derived.is_empty() {
+            md.push_str("\n\n");
+            for line in &h.derived {
+                md.push_str("- ");
+                md.push_str(line);
+                md.push('\n');
+            }
+        }
         if let Some(reading) = self.shift(uri) {
             md.push_str("\n\n---\n\n");
             md.push_str(&reading.summary());

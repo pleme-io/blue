@@ -1,13 +1,3 @@
-@moduledoc """
-kikagaku (幾何学) — plane geometry on [x, y] points.
-
-A point is a two-element list, for the same reason a set is a list: no new
-type, so every list function keeps working. Areas come out of the shoelace
-formula, which handles any simple polygon rather than only triangles.
-
-    hull([]) #=> []
-"""
-
 use("kazu", [:abs, :clamp, :max, :max_of, :min, :min_of, :near, :sign, :sum])
 
 use(
@@ -26,6 +16,12 @@ use(
   ]
 )
 
+# kikagaku (幾何学) — plane geometry on [x, y] points.
+#
+# A point is a two-element list, for the same reason a set is a list: no new
+# type, so every list function keeps working. Areas come out of the shoelace
+# formula, which handles any simple polygon rather than only triangles.
+
 def px(p)
   nth(0, p)
 end
@@ -40,9 +36,6 @@ def distance_squared(a, b)
   dx * dx + dy * dy
 end
 
-@doc """
-distance: straight-line distance between points.
-"""
 def distance(a, b)
   sqrt(distance_squared(a, b))
 end
@@ -51,27 +44,16 @@ def manhattan(a, b)
   abs(px(a) - px(b)) + abs(py(a) - py(b))
 end
 
-@doc """
-midpoint: point halfway between two points.
-
-    midpoint([0, 0], [2, 4]) #=> [1, 2]
-"""
 def midpoint(a, b)
   [(px(a) + px(b)) / 2, (py(a) + py(b)) / 2]
 end
 
-@doc """
-cross: twice the signed area — positive for counter-clockwise winding.
-"""
+# Twice the signed area — positive for counter-clockwise winding.
 def cross(o, a, b)
   (px(a) - px(o)) * (py(b) - py(o)) - (py(a) - py(o)) * (px(b) - px(o))
 end
 
-@doc """
-polygon_area: shoelace formula: works for any simple polygon, convex or not.
-
-    polygon_area([[0, 0], [1, 0], [1, 1], [0, 1]]) #=> 1
-"""
+# Shoelace formula: works for any simple polygon, convex or not.
 def polygon_area(pts)
   n = size(pts)
   s = reduce(
@@ -88,9 +70,6 @@ def polygon_area(pts)
   abs(s) / 2
 end
 
-@doc """
-perimeter: length around a shape.
-"""
 def perimeter(pts)
   n = size(pts)
   reduce(
@@ -120,35 +99,25 @@ def pi()
   3.141592653589793
 end
 
-@doc """
-dot_at: dot product of the two vectors leaving `o`. The sign alone answers "is the
-corner at o acute, right or obtuse", which is what most callers want and what
-`angle_at` would otherwise cost a bisection to tell them.
-
-Named `dot_at`, not `dot`: gyouretsu exports a two-vector `dot`, and a program
-importing both packages silently keeps whichever it named last — so a plain
-`dot` here would break at the call site on arity, far from the cause.
-
-    dot_at([0, 0], [1, 0], [0, 1]) #=> 0
-"""
+# Dot product of the two vectors leaving `o`. The sign alone answers "is the
+# corner at o acute, right or obtuse", which is what most callers want and what
+# `angle_at` would otherwise cost a bisection to tell them.
+#
+# Named `dot_at`, not `dot`: gyouretsu exports a two-vector `dot`, and a program
+# importing both packages silently keeps whichever it named last — so a plain
+# `dot` here would break at the call site on arity, far from the cause.
 def dot_at(o, a, b)
   (px(a) - px(o)) * (px(b) - px(o)) + (py(a) - py(o)) * (py(b) - py(o))
 end
 
-@doc """
-orientation: 1 counter-clockwise, -1 clockwise, 0 collinear. The sign of `cross` and
-nothing else, so it stays exact on integer input where comparing areas drifts.
-
-    orientation([0, 0], [1, 0], [1, 1]) #=> 1
-"""
+# 1 counter-clockwise, -1 clockwise, 0 collinear. The sign of `cross` and
+# nothing else, so it stays exact on integer input where comparing areas drifts.
 def orientation(a, b, c)
   sign(cross(a, b, c))
 end
 
-@doc """
-signed_area: shoelace WITHOUT the abs. `polygon_area` throws the sign away; the winding it
-carries is exactly what centroid and is_convex need, so it is kept here.
-"""
+# Shoelace WITHOUT the abs. `polygon_area` throws the sign away; the winding it
+# carries is exactly what centroid and is_convex need, so it is kept here.
 def signed_area(pts)
   n = size(pts)
   s = reduce(
@@ -165,23 +134,15 @@ def signed_area(pts)
   s / 2
 end
 
-@doc """
-winding: 1 if the vertices run counter-clockwise, -1 clockwise, 0 for zero area.
-
-    winding([[0, 0], [1, 1], [2, 2]]) #=> 0
-"""
+# 1 if the vertices run counter-clockwise, -1 clockwise, 0 for zero area.
 def winding(pts)
   sign(signed_area(pts))
 end
 
-@doc """
-slope: nil for a vertical line: it has no slope, and dividing would raise rather than
-hand back something the caller can branch on. Verticality is tested with
-`near` because a coordinate that came through a midpoint or a rotation is a
-float, and an exact `==` would miss it and then divide by ~0.
-
-    slope([0, 0], [2, 4]) #=> 2
-"""
+# nil for a vertical line: it has no slope, and dividing would raise rather than
+# hand back something the caller can branch on. Verticality is tested with
+# `near` because a coordinate that came through a midpoint or a rotation is a
+# float, and an exact `==` would miss it and then divide by ~0.
 def slope(a, b)
   if near(px(a), px(b))
     nil
@@ -190,20 +151,16 @@ def slope(a, b)
   end
 end
 
-@doc """
-line_through: the line through a and b as [A, B, C] of Ax + By + C = 0.
-
-Coefficients rather than slope-intercept because a vertical line HAS a
-representation here, and because no division happens, so integer input gives
-an exact integer line.
-"""
+# The line through a and b as [A, B, C] of Ax + By + C = 0.
+#
+# Coefficients rather than slope-intercept because a vertical line HAS a
+# representation here, and because no division happens, so integer input gives
+# an exact integer line.
 def line_through(a, b)
   [py(b) - py(a), px(a) - px(b), px(b) * py(a) - px(a) * py(b)]
 end
 
-@doc """
-line_value: ax + By + C at p: zero on the line, and its sign tells which side p is on.
-"""
+# Ax + By + C at p: zero on the line, and its sign tells which side p is on.
 def line_value(line, p)
   nth(0, line) * px(p) + nth(1, line) * py(p) + nth(2, line)
 end
@@ -212,11 +169,9 @@ def on_line(line, p)
   line_value(line, p) == 0
 end
 
-@doc """
-point_line_distance: perpendicular distance from p to the INFINITE line ab. Degenerate ab (a == b)
-has no line, so it falls back to the distance to the point rather than
-dividing by zero.
-"""
+# Perpendicular distance from p to the INFINITE line ab. Degenerate ab (a == b)
+# has no line, so it falls back to the distance to the point rather than
+# dividing by zero.
 def point_line_distance(p, a, b)
   d = distance(a, b)
   if near(d, 0)
@@ -226,12 +181,8 @@ def point_line_distance(p, a, b)
   end
 end
 
-@doc """
-closest_point_on_segment: the point of segment ab nearest p — clamped to the segment, which is what
-makes it different from dropping a perpendicular onto the infinite line.
-
-    closest_point_on_segment([9, 3], [0, 0], [5, 0]) #=> [5, 0]
-"""
+# The point of segment ab nearest p — clamped to the segment, which is what
+# makes it different from dropping a perpendicular onto the infinite line.
 def closest_point_on_segment(p, a, b)
   d2 = distance_squared(a, b)
   if near(d2, 0)
@@ -246,10 +197,8 @@ def point_segment_distance(p, a, b)
   distance(p, closest_point_on_segment(p, a, b))
 end
 
-@doc """
-bounding_box: [[min x, min y], [max x, max y]], or nil for no points at all — an empty set
-has no box, and returning one would be a lie a caller cannot detect.
-"""
+# [[min x, min y], [max x, max y]], or nil for no points at all — an empty set
+# has no box, and returning one would be a lie a caller cannot detect.
 def bounding_box(pts)
   if is_empty(pts)
     nil
@@ -260,12 +209,8 @@ def bounding_box(pts)
   end
 end
 
-@doc """
-point_in_rect: inclusive on the boundary, and the two corners may arrive in either order —
-a hand-written rect is as likely to be [top-right, bottom-left] as not.
-
-    point_in_rect([1, 1], [[2, 2], [0, 0]]) #=> true
-"""
+# Inclusive on the boundary, and the two corners may arrive in either order —
+# a hand-written rect is as likely to be [top-right, bottom-left] as not.
 def point_in_rect(p, rect)
   a = nth(0, rect)
   b = nth(1, rect)
@@ -286,10 +231,8 @@ def degrees(rad)
   rad * 180 / pi
 end
 
-@doc """
-arc_length: theta in RADIANS throughout, like sin/cos — a package that mixed the two
-units would be a trap no test could make obvious.
-"""
+# theta in RADIANS throughout, like sin/cos — a package that mixed the two
+# units would be a trap no test could make obvious.
 def arc_length(r, theta)
   r * theta
 end
@@ -302,20 +245,16 @@ def chord_length(r, theta)
   2 * r * sin(theta / 2)
 end
 
-@doc """
-arc_cosine: the inverse of cos, by bisection on cos, which is monotone across [0, pi].
-
-The runtime's `acos` (tatara-lisp 0.3.59) computes it; outside [-1, 1] this
-saturates to 0 or pi, as it always has, where `acos` itself refuses.
-arc_cosine_between, the bisection this used before `acos` existed, stays for
-its callers.
-
-Spelled `arc_cosine` and not `arccos` on purpose: gyouretsu exports its own
-`arccos`, and a program importing both would silently keep whichever package
-it named last.
-
-    arc_cosine(2) #=> 0
-"""
+# The inverse of cos, by bisection on cos, which is monotone across [0, pi].
+#
+# The runtime's `acos` (tatara-lisp 0.3.59) computes it; outside [-1, 1] this
+# saturates to 0 or pi, as it always has, where `acos` itself refuses.
+# arc_cosine_between, the bisection this used before `acos` existed, stays for
+# its callers.
+#
+# Spelled `arc_cosine` and not `arccos` on purpose: gyouretsu exports its own
+# `arccos`, and a program importing both would silently keep whichever package
+# it named last.
 def arc_cosine(v)
   if v >= 1
     0
@@ -339,12 +278,10 @@ def arc_cosine_between(v, lo, hi, fuel)
   end
 end
 
-@doc """
-angle_at: the angle at vertex `o` between the arms oa and ob, in radians, always in
-[0, pi]. The cosine is clamped before the arc_cosine because a dot product
-divided by two square roots overshoots 1 by a rounding error on a straight
-arm, and the arc cosine of 1.0000000001 is not a number.
-"""
+# The angle at vertex `o` between the arms oa and ob, in radians, always in
+# [0, pi]. The cosine is clamped before the arc_cosine because a dot product
+# divided by two square roots overshoots 1 by a rounding error on a straight
+# arm, and the arc cosine of 1.0000000001 is not a number.
 def angle_at(o, a, b)
   da = distance(o, a)
   db = distance(o, b)
@@ -355,14 +292,10 @@ def angle_at(o, a, b)
   end
 end
 
-@doc """
-is_right_triangle: compared on SQUARED lengths so integer input never goes through sqrt: a 3-4-5
-triangle answers exactly rather than within a tolerance. Three collinear
-points are not a triangle, so they answer false rather than reporting the
-degenerate straight corner as a right angle.
-
-    is_right_triangle([0, 0], [3, 0], [0, 4]) #=> true
-"""
+# Compared on SQUARED lengths so integer input never goes through sqrt: a 3-4-5
+# triangle answers exactly rather than within a tolerance. Three collinear
+# points are not a triangle, so they answer false rather than reporting the
+# degenerate straight corner as a right angle.
 def is_right_triangle(a, b, c)
   if collinear(a, b, c)
     false
@@ -375,15 +308,11 @@ def is_right_triangle(a, b, c)
   end
 end
 
-@doc """
-triangle_kind: "equilateral" / "isosceles" / "scalene", plus "degenerate" for three points on
-a line. Without that fourth answer the collinear case reports as scalene,
-which reads as a real triangle and is the bug this classification usually has.
-Equilateral is checked first because every equilateral triangle also satisfies
-the isosceles test.
-
-    triangle_kind([0, 0], [4, 0], [0, 3]) #=> "scalene"
-"""
+# "equilateral" / "isosceles" / "scalene", plus "degenerate" for three points on
+# a line. Without that fourth answer the collinear case reports as scalene,
+# which reads as a real triangle and is the bug this classification usually has.
+# Equilateral is checked first because every equilateral triangle also satisfies
+# the isosceles test.
 def triangle_kind(a, b, c)
   if collinear(a, b, c)
     "degenerate"
@@ -401,11 +330,9 @@ def triangle_kind(a, b, c)
   end
 end
 
-@doc """
-vertex_centroid: the mean of the vertices. Cheap, total, and NOT the centroid of the shape —
-see `centroid`. Kept because it is the right answer for a point cloud, where
-there is no enclosed area to balance.
-"""
+# The mean of the vertices. Cheap, total, and NOT the centroid of the shape —
+# see `centroid`. Kept because it is the right answer for a point cloud, where
+# there is no enclosed area to balance.
 def vertex_centroid(pts)
   n = size(pts)
   if n == 0
@@ -421,17 +348,13 @@ def shoelace_term(pts, i)
   px(p) * py(q) - px(q) * py(p)
 end
 
-@doc """
-centroid: the AREA centroid — the balance point of the enclosed region.
-
-It is deliberately not the vertex mean: adding a redundant vertex halfway
-along an edge moves the vertex mean and must not move the centroid, and that
-is the difference every naive implementation gets wrong. A zero-area polygon
-has no area to balance, so it falls back to the vertex mean rather than
-dividing by zero.
-
-    centroid([[0, 0], [2, 0], [4, 0]]) #=> [2, 0]
-"""
+# The AREA centroid — the balance point of the enclosed region.
+#
+# It is deliberately not the vertex mean: adding a redundant vertex halfway
+# along an edge moves the vertex mean and must not move the centroid, and that
+# is the difference every naive implementation gets wrong. A zero-area polygon
+# has no area to balance, so it falls back to the vertex mean rather than
+# dividing by zero.
 def centroid(pts)
   a = signed_area(pts)
   if near(a, 0)
@@ -458,14 +381,10 @@ def centroid(pts)
   end
 end
 
-@doc """
-is_convex: every turn the same way round. Collinear triples are dropped rather than
-rejected, so a square carrying a redundant midpoint vertex still counts as
-convex; a polygon that is ALL collinear encloses nothing and counts as
-neither convex nor a polygon.
-
-    is_convex([[0, 0], [1, 1]]) #=> false
-"""
+# Every turn the same way round. Collinear triples are dropped rather than
+# rejected, so a square carrying a redundant midpoint vertex still counts as
+# convex; a polygon that is ALL collinear encloses nothing and counts as
+# neither convex nor a polygon.
 def is_convex(pts)
   n = size(pts)
   if n < 3
@@ -488,11 +407,9 @@ def is_convex(pts)
   end
 end
 
-@doc """
-crosses_ray: does a rightward ray from p cross edge ab? The straddle test comes first, and
-it is what makes the division safe: the two endpoints are on opposite sides of
-p's row, so their y values cannot be equal.
-"""
+# Does a rightward ray from p cross edge ab? The straddle test comes first, and
+# it is what makes the division safe: the two endpoints are on opposite sides of
+# p's row, so their y values cannot be equal.
 def crosses_ray(p, a, b)
   if py(a) > py(p) == (py(b) > py(p))
     false
@@ -511,14 +428,12 @@ def crossings_from(p, pts, i, n, inside)
   end
 end
 
-@doc """
-point_in_polygon: ray casting: an odd number of edge crossings means inside.
-
-Works on a non-convex polygon, which is the whole point — the cheaper "same
-side of every edge" test silently reports the notch of an L as inside. A point
-exactly ON an edge is genuinely ambiguous under crossing parity and is not
-classified here; ask `point_on_polygon` if the boundary matters.
-"""
+# Ray casting: an odd number of edge crossings means inside.
+#
+# Works on a non-convex polygon, which is the whole point — the cheaper "same
+# side of every edge" test silently reports the notch of an L as inside. A point
+# exactly ON an edge is genuinely ambiguous under crossing parity and is not
+# classified here; ask `point_on_polygon` if the boundary matters.
 def point_in_polygon(p, pts)
   crossings_from(p, pts, 0, size(pts), false)
 end
@@ -545,30 +460,24 @@ def rotate_point(p, theta)
   ]
 end
 
-@doc """
-rotate_point_about: rotation about an arbitrary centre, expressed as translate-rotate-translate
-rather than as its own matrix, so there is one rotation formula to be wrong.
-"""
+# Rotation about an arbitrary centre, expressed as translate-rotate-translate
+# rather than as its own matrix, so there is one rotation formula to be wrong.
 def rotate_point_about(p, centre, theta)
   r = rotate_point([px(p) - px(centre), py(p) - py(centre)], theta)
   [px(r) + px(centre), py(r) + py(centre)]
 end
 
-@doc """
-translate_polygon: the whole-shape transforms carry `_polygon` rather than the bare `translate`
-and `scale` a reader would reach for first, because seimei and gyouretsu
-already export those names for a grid and a vector. Import collisions here are
-silent last-wins, so the suffix is what keeps two packages from quietly
-swapping meanings under a caller.
-"""
+# The whole-shape transforms carry `_polygon` rather than the bare `translate`
+# and `scale` a reader would reach for first, because seimei and gyouretsu
+# already export those names for a grid and a vector. Import collisions here are
+# silent last-wins, so the suffix is what keeps two packages from quietly
+# swapping meanings under a caller.
 def translate_polygon(pts, dx, dy)
   map((p) -> [px(p) + dx, py(p) + dy], pts)
 end
 
-@doc """
-scale_polygon: scaling about the ORIGIN, which moves the shape as well as resizing it. Use
-`scale_polygon_about` to resize in place.
-"""
+# Scaling about the ORIGIN, which moves the shape as well as resizing it. Use
+# `scale_polygon_about` to resize in place.
 def scale_polygon(pts, k)
   map((p) -> [px(p) * k, py(p) * k], pts)
 end
@@ -589,10 +498,8 @@ def rotate_polygon(pts, theta)
   map((p) -> rotate_point(p, theta), pts)
 end
 
-@doc """
-hull_start: the lowest point, ties broken leftmost. It is provably on the hull, which is
-what lets the wrap below start somewhere and be sure of getting back there.
-"""
+# The lowest point, ties broken leftmost. It is provably on the hull, which is
+# what lets the wrap below start somewhere and be sure of getting back there.
 def hull_start(pts)
   reduce(
     fn(best, p)
@@ -607,16 +514,14 @@ def hull_start(pts)
   )
 end
 
-@doc """
-hull_next: the next hull vertex after p: the one that leaves every other point on its
-left.
-
-Seeded with p itself rather than with some other point, which looks wrong and
-is not: orientation(p, p, r) is 0 for every r, so the collinear branch takes
-over and picks the farthest candidate, and p can never win it back because
-nothing is farther from p than p. That removes the "pick any point that is not
-p" special case entirely.
-"""
+# The next hull vertex after p: the one that leaves every other point on its
+# left.
+#
+# Seeded with p itself rather than with some other point, which looks wrong and
+# is not: orientation(p, p, r) is 0 for every r, so the collinear branch takes
+# over and picks the farthest candidate, and p can never win it back because
+# nothing is farther from p than p. That removes the "pick any point that is not
+# p" special case entirely.
 def hull_next(p, pts)
   reduce(
     fn(q, r)
@@ -647,22 +552,18 @@ def hull_walk(pts, p, acc, fuel)
   end
 end
 
-@doc """
-convex_hull: convex hull by gift wrapping (Jarvis march), counter-clockwise from the lowest
-point.
-
-Gift wrapping rather than Graham scan because it needs no sort — this package
-would otherwise have to take on junjo for one — and because its inner test is
-the same `orientation` used everywhere else in this file, so there is one
-turn-direction rule here rather than two that can disagree.
-
-Points on a hull EDGE are dropped, not kept: the result is the minimal vertex
-set, so convex_hull(convex_hull(pts)) == convex_hull(pts). The distance
-tie-break in `hull_next` is what buys that, and it is also what stops the walk
-stalling between two collinear candidates.
-
-    convex_hull([]) #=> []
-"""
+# Convex hull by gift wrapping (Jarvis march), counter-clockwise from the lowest
+# point.
+#
+# Gift wrapping rather than Graham scan because it needs no sort — this package
+# would otherwise have to take on junjo for one — and because its inner test is
+# the same `orientation` used everywhere else in this file, so there is one
+# turn-direction rule here rather than two that can disagree.
+#
+# Points on a hull EDGE are dropped, not kept: the result is the minimal vertex
+# set, so convex_hull(convex_hull(pts)) == convex_hull(pts). The distance
+# tie-break in `hull_next` is what buys that, and it is also what stops the walk
+# stalling between two collinear candidates.
 def convex_hull(pts)
   n = size(pts)
   if n < 3
@@ -673,15 +574,11 @@ def convex_hull(pts)
   end
 end
 
-@doc """
-segments_intersect: do the two closed segments share at least one point?
-
-The orientation test alone answers the general crossing; the four endpoint
-checks after it are not redundancy but the touching and overlapping cases,
-which the general test deliberately reports as no.
-
-    segments_intersect([0, 0], [2, 0], [2, 0], [2, 2]) #=> true
-"""
+# Do the two closed segments share at least one point?
+#
+# The orientation test alone answers the general crossing; the four endpoint
+# checks after it are not redundancy but the touching and overlapping cases,
+# which the general test deliberately reports as no.
 def segments_intersect(p1, p2, p3, p4)
   o1 = orientation(p1, p2, p3)
   o2 = orientation(p1, p2, p4)
@@ -695,14 +592,12 @@ def segments_intersect(p1, p2, p3, p4)
   crossing or t1 or t2 or t3 or t4
 end
 
-@doc """
-segment_intersection: the single point two segments cross at, or nil.
-
-nil covers three different situations — parallel, collinear-and-overlapping,
-and simply missing — because none of them has a single crossing point to
-return. Ask `segments_intersect` if the question is whether they touch at all;
-an overlap touches everywhere and so has no answer here.
-"""
+# The single point two segments cross at, or nil.
+#
+# nil covers three different situations — parallel, collinear-and-overlapping,
+# and simply missing — because none of them has a single crossing point to
+# return. Ask `segments_intersect` if the question is whether they touch at all;
+# an overlap touches everywhere and so has no answer here.
 def segment_intersection(p1, p2, p3, p4)
   r = [px(p2) - px(p1), py(p2) - py(p1)]
   s = [px(p4) - px(p3), py(p4) - py(p3)]
@@ -721,12 +616,10 @@ def segment_intersection(p1, p2, p3, p4)
   end
 end
 
-@doc """
-circumcenter: the centre of the circle through all three points, or nil when they are
-collinear — three points on a line lie on no circle, and the denominator here
-is zero for exactly that case, so the guard is the geometry rather than a
-defensive check bolted on.
-"""
+# The centre of the circle through all three points, or nil when they are
+# collinear — three points on a line lie on no circle, and the denominator here
+# is zero for exactly that case, so the guard is the geometry rather than a
+# defensive check bolted on.
 def circumcenter(a, b, c)
   if collinear(a, b, c)
     nil
@@ -757,13 +650,9 @@ def circumradius(a, b, c)
   end
 end
 
-@doc """
-nearest_point: the member of pts closest to p, or nil for no candidates. Seeded with nil so
-that no point can be mistaken for the sentinel, and compared on SQUARED
-distance because the ordering is the same and the square roots are not free.
-
-    nearest_point([5, 5], [[5, 5]]) #=> [5, 5]
-"""
+# The member of pts closest to p, or nil for no candidates. Seeded with nil so
+# that no point can be mistaken for the sentinel, and compared on SQUARED
+# distance because the ordering is the same and the square roots are not free.
 def nearest_point(p, pts)
   reduce(
     fn(best, q)
@@ -780,15 +669,13 @@ def nearest_point(p, pts)
   )
 end
 
-@doc """
-interior_angles: the interior angle at each vertex, in order, in radians.
-
-Meaningful only for a CONVEX polygon: `angle_at` always answers in [0, pi], so
-a reflex corner comes back as its explement and the classic (n - 2) * pi sum
-quietly stops holding. Checking convexity is the caller's job and `is_convex`
-is right there — this function does not do it, because the per-vertex angles
-are still the right answer to a different question on a concave shape.
-"""
+# The interior angle at each vertex, in order, in radians.
+#
+# Meaningful only for a CONVEX polygon: `angle_at` always answers in [0, pi], so
+# a reflex corner comes back as its explement and the classic (n - 2) * pi sum
+# quietly stops holding. Checking convexity is the caller's job and `is_convex`
+# is right there — this function does not do it, because the per-vertex angles
+# are still the right answer to a different question on a concave shape.
 def interior_angles(pts)
   n = size(pts)
   map(
@@ -806,16 +693,12 @@ end
 # circles, and the shop's rules ("a hole at least 2T from the edge") are
 # distances to a polygon's boundary rather than to its vertices.
 
-@doc """
-rect_polygon: the axis-aligned rectangle with corner (x, y), counter-clockwise.
-"""
+# The axis-aligned rectangle with corner (x, y), counter-clockwise.
 def rect_polygon(x, y, w, h)
   [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
 end
 
-@doc """
-arc_points: n + 1 points along the arc from angle a0 to a1 (radians), both ends included.
-"""
+# n + 1 points along the arc from angle a0 to a1 (radians), both ends included.
 def arc_points(centre, r, a0, a1, n)
   map(
     fn(i)
@@ -828,12 +711,10 @@ def arc_points(centre, r, a0, a1, n)
   )
 end
 
-@doc """
-circle_polygon: a circle as a regular n-gon, counter-clockwise from angle 0, the closing
-point not repeated. Its area is (n / 2) r^2 sin(2 pi / n), slightly under
-pi r^2: a tessellated hole removes less material than the round one, which
-regular_polygon_area lets a caller account for exactly.
-"""
+# A circle as a regular n-gon, counter-clockwise from angle 0, the closing
+# point not repeated. Its area is (n / 2) r^2 sin(2 pi / n), slightly under
+# pi r^2: a tessellated hole removes less material than the round one, which
+# regular_polygon_area lets a caller account for exactly.
 def circle_polygon(centre, r, n)
   all_but_last(arc_points(centre, r, 0, 2 * pi, n))
 end
@@ -842,9 +723,7 @@ def regular_polygon_area(r, n)
   n / 2.0 * r * r * sin(2 * pi / n)
 end
 
-@doc """
-ccw_polygon: the same polygon wound counter-clockwise, or clockwise.
-"""
+# The same polygon wound counter-clockwise, or clockwise.
 def ccw_polygon(pts)
   if winding(pts) < 0
     reverse(pts)
@@ -861,19 +740,15 @@ def cw_polygon(pts)
   end
 end
 
-@doc """
-polygon_edges: the edges of a closed polygon as [a, b] pairs, the closing edge included.
-"""
+# The edges of a closed polygon as [a, b] pairs, the closing edge included.
 def polygon_edges(pts)
   n = size(pts)
   map((i) -> [nth(i, pts), nth((i + 1) % n, pts)], range(0, n))
 end
 
-@doc """
-polygon_edge_distance: distance from p to the polygon's BOUNDARY: 0 on an edge, and the same inside
-or outside. nearest_point measures to vertices, which is wrong for a point
-beside the middle of a long edge.
-"""
+# Distance from p to the polygon's BOUNDARY: 0 on an edge, and the same inside
+# or outside. nearest_point measures to vertices, which is wrong for a point
+# beside the middle of a long edge.
 def polygon_edge_distance(p, pts)
   min_of(
     map(
@@ -883,9 +758,7 @@ def polygon_edge_distance(p, pts)
   )
 end
 
-@doc """
-boundaries_cross: do two polygons' boundaries cross or touch?
-"""
+# Do two polygons' boundaries cross or touch?
 def boundaries_cross(a, b)
   some(
     fn(ea)
@@ -900,12 +773,10 @@ def boundaries_cross(a, b)
   ) == true
 end
 
-@doc """
-boundary_gap: the least distance between two boundaries: 0 when they cross, otherwise the
-least vertex-to-edge distance either way. It holds whether the polygons are
-apart or one sits inside the other, which is what a hole's clearance to the
-outline needs.
-"""
+# The least distance between two boundaries: 0 when they cross, otherwise the
+# least vertex-to-edge distance either way. It holds whether the polygons are
+# apart or one sits inside the other, which is what a hole's clearance to the
+# outline needs.
 def boundary_gap(a, b)
   if boundaries_cross(a, b)
     0
@@ -917,19 +788,15 @@ def boundary_gap(a, b)
   end
 end
 
-@doc """
-polygons_overlap: do two polygons share any area: boundaries crossing, or one inside the other?
-"""
+# Do two polygons share any area: boundaries crossing, or one inside the other?
 def polygons_overlap(a, b)
   boundaries_cross(a, b) or
     point_in_polygon(first(a), b) or
     point_in_polygon(first(b), a)
 end
 
-@doc """
-polygon_gap: the gap between two polygons: 0 when they overlap, otherwise the least
-distance between them.
-"""
+# The gap between two polygons: 0 when they overlap, otherwise the least
+# distance between them.
 def polygon_gap(a, b)
   if polygons_overlap(a, b)
     0
@@ -938,18 +805,14 @@ def polygon_gap(a, b)
   end
 end
 
-@doc """
-polygon_inside: is `inner` strictly inside `outer`: no boundary contact, and inside?
-"""
+# Is `inner` strictly inside `outer`: no boundary contact, and inside?
 def polygon_inside(inner, outer)
   boundary_gap(inner, outer) > 0 and point_in_polygon(first(inner), outer)
 end
 
-@doc """
-region: a region: an outline with holes, each a polygon. Stored with the outline
-counter-clockwise and every hole clockwise, the convention that makes the
-signed areas add up and an extrusion's faces point outward.
-"""
+# A region: an outline with holes, each a polygon. Stored with the outline
+# counter-clockwise and every hole clockwise, the convention that makes the
+# signed areas add up and an extrusion's faces point outward.
 def region(outline, holes)
   [ccw_polygon(outline), map(cw_polygon, holes)]
 end
@@ -966,9 +829,7 @@ def region_area(r)
   polygon_area(region_outline(r)) - sum(map(polygon_area, region_holes(r)))
 end
 
-@doc """
-region_centroid: the area centroid: the outline's, less each hole's, weighted by area.
-"""
+# The area centroid: the outline's, less each hole's, weighted by area.
 def region_centroid(r)
   parts = concat_lists(
     [[polygon_area(region_outline(r)), centroid(region_outline(r))]],
@@ -981,10 +842,8 @@ def region_centroid(r)
   ]
 end
 
-@doc """
-region_refusals: why a region is not a valid blank, as data: [kind, why]. Empty when valid.
-A hole must lie strictly inside the outline, and no two holes may overlap.
-"""
+# Why a region is not a valid blank, as data: [kind, why]. Empty when valid.
+# A hole must lie strictly inside the outline, and no two holes may overlap.
 def region_refusals(r)
   outline = region_outline(r)
   holes = region_holes(r)
@@ -1472,18 +1331,10 @@ test "invalid regions are refused, naming the hole"
   assert is_empty(region_refusals(ok)) == true
 end
 
-@doc """
-hull: smallest convex polygon around the points.
-
-    hull([]) #=> []
-"""
 def hull(points)
   convex_hull(points)
 end
 
-@doc """
-overlap?: whether two shapes share area.
-"""
 def overlap?(a, b)
   polygons_overlap(a, b)
 end

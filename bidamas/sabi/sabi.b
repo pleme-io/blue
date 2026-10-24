@@ -1,29 +1,3 @@
-@moduledoc """
-sabi (錆): Rust source from blue data. Build the items as values, render once.
-
-Blue generates Rust the way the fleet's typed-emission rule asks: a program
-builds a TREE of Rust items (constants, enums, structs, impls, match arms), and
-one renderer turns the tree into text. No caller ever pastes Rust together
-from strings, so escaping, indentation and identifier checks live in exactly
-one place (this file) and are tested once.
-
-The first consumer is blue itself: blue-lang-syntax's character tables are
-authored in blue (crates/blue-lang-syntax/gen/kigou.b) and rendered into the
-crate's Rust by this package, with a freshness gate in `nix flake check`.
-
-Every node is a map with a `kind` and named fields. Constructors below are the
-only way nodes are made, so a renderer arm and its constructor stay together.
-
-  types   rs_ty(name)  rs_ty_ref(t)  rs_ty_slice(t)  rs_ty_tuple(ts)
-  exprs   rs_str  rs_char  rs_int  rs_bool  rs_slice  rs_tuple  rs_path
-          rs_match(scrutinee, arms) with rs_arm(pattern, expr)
-  items   rs_const  rs_enum(+ rs_variant)  rs_struct(+ rs_field)
-          rs_impl(+ rs_fn, rs_param, rs_self_param)
-  file    rs_file(source, items), rendered by render_rust
-
-    valid_ident?("") #=> false
-"""
-
 use(
   "retsu",
   [
@@ -38,6 +12,28 @@ use(
 )
 
 legacy_names("0.1.1", "rs")
+
+# sabi (錆): Rust source from blue data. Build the items as values, render once.
+#
+# Blue generates Rust the way the fleet's typed-emission rule asks: a program
+# builds a TREE of Rust items (constants, enums, structs, impls, match arms), and
+# one renderer turns the tree into text. No caller ever pastes Rust together
+# from strings, so escaping, indentation and identifier checks live in exactly
+# one place (this file) and are tested once.
+#
+# The first consumer is blue itself: blue-lang-syntax's character tables are
+# authored in blue (crates/blue-lang-syntax/gen/kigou.b) and rendered into the
+# crate's Rust by this package, with a freshness gate in `nix flake check`.
+#
+# Every node is a map with a `kind` and named fields. Constructors below are the
+# only way nodes are made, so a renderer arm and its constructor stay together.
+#
+#   types   rs_ty(name)  rs_ty_ref(t)  rs_ty_slice(t)  rs_ty_tuple(ts)
+#   exprs   rs_str  rs_char  rs_int  rs_bool  rs_slice  rs_tuple  rs_path
+#           rs_match(scrutinee, arms) with rs_arm(pattern, expr)
+#   items   rs_const  rs_enum(+ rs_variant)  rs_struct(+ rs_field)
+#           rs_impl(+ rs_fn, rs_param, rs_self_param)
+#   file    rs_file(source, items), rendered by render_rust
 
 # ── types ──────────────────────────────────────────────────────────────────
 
@@ -88,9 +84,7 @@ def bool(b)
   {kind: :bool, value: b}
 end
 
-@doc """
-slice: `&[a, b, …]`, one element per line.
-"""
+# `&[a, b, …]`, one element per line.
 def slice(items)
   {kind: :slice, items:}
 end
@@ -99,9 +93,7 @@ def tuple(items)
   {kind: :tuple, items:}
 end
 
-@doc """
-path: `A::B::C`.
-"""
+# `A::B::C`.
 def path(segments)
   {kind: :path, segments:}
 end
@@ -115,10 +107,8 @@ def arm(pattern, expr)
   {kind: :arm, pattern:, expr:}
 end
 
-@doc """
-escape_str: a Rust string literal's body: backslash first, so the escapes added after it
-are not themselves escaped.
-"""
+# A Rust string literal's body: backslash first, so the escapes added after it
+# are not themselves escaped.
 def escape_str(s)
   replace(
     replace(
@@ -149,11 +139,7 @@ def pad(level)
   join(repeat("    ", level), "")
 end
 
-@doc """
-render_expr: an expression at an indentation level (the level of the line it starts on).
-
-    render_expr(char("'"), 0) #=> "'\\''"
-"""
+# An expression at an indentation level (the level of the line it starts on).
 def render_expr(e, level)
   k = get(e, :kind)
   if k == :str
@@ -216,9 +202,7 @@ def param(name, ty)
   {kind: :param, name:, ty:}
 end
 
-@doc """
-self_param: `&self`.
-"""
+# `&self`.
 def self_param()
   {kind: :self_param}
 end
@@ -399,11 +383,7 @@ def ident_chars()
   concat_lists(ident_start_chars, chars("0123456789"))
 end
 
-@doc """
-valid_ident?: an ASCII Rust identifier that is not a keyword.
-
-    valid_ident?("") #=> false
-"""
+# An ASCII Rust identifier that is not a keyword.
 def valid_ident?(s)
   cs = chars(s)
   if is_empty(cs)
@@ -417,9 +397,7 @@ def valid_ident?(s)
   end
 end
 
-@doc """
-item_names: every name an item declares.
-"""
+# Every name an item declares.
 def item_names(item)
   k = get(item, :kind)
   if k == :enum
@@ -433,9 +411,7 @@ def item_names(item)
   end
 end
 
-@doc """
-invalid_names: the names in a file that are not valid Rust identifiers. Empty when clean.
-"""
+# The names in a file that are not valid Rust identifiers. Empty when clean.
 def invalid_names(file)
   filter(
     (n) -> valid_ident?(n) == false,
@@ -445,9 +421,7 @@ end
 
 # ── files ──────────────────────────────────────────────────────────────────
 
-@doc """
-file: `source` names the blue program that generated the file, for the header.
-"""
+# `source` names the blue program that generated the file, for the header.
 def file(source, items)
   {kind: :file, source:, items:}
 end

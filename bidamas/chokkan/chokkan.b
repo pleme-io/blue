@@ -1,35 +1,22 @@
-@moduledoc """
-chokkan (直感) — System One judgment: typed questions in, calibrated answers out.
-
-    margin([]) #=> 0
-"""
-
 use("deeta", [:as_json, :get_number, :get_str, :is_doc])
 use("kyohi", [:enforce, :kinds, :refusal])
 use("moji", [:drop_chars, :is_blank])
 use("retsu", [:first, :flat_map, :is_empty, :last, :size])
 
+# chokkan (直感) — System One judgment: typed questions in, calibrated answers out.
+
 def noul(instructions)
   {type: "noul", instructions:}
 end
 
-@doc """
-choice: a question with a closed set of answers.
-"""
 def choice(instructions, options)
   {type: "choice", instructions:, options:}
 end
 
-@doc """
-score: grade an output: exact, pattern, similarity or judge.
-"""
 def score(instructions, levels)
   {type: "score", instructions:, levels:}
 end
 
-@doc """
-ask: one call to a model; reply holds text, tool uses, usage.
-"""
 def ask(name, question)
   [name, question]
 end
@@ -132,9 +119,6 @@ def wire(q)
   end
 end
 
-@doc """
-request: the wire request that carries the questions.
-"""
 def request(model, state, questions)
   enforce(questions, [problems], {kind: :first})
   wired = reduce(
@@ -162,9 +146,6 @@ def parsed(body)
   end
 end
 
-@doc """
-read: the whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler.
-"""
 def read(status, body)
   if status == 200
     doc = parsed(body)

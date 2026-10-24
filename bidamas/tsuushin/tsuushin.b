@@ -93,9 +93,6 @@ def split_userinfo(authority)
   end
 end
 
-@doc """
-parse: URL text to scheme, host, path, query record.
-"""
 def parse(text, format)
   if format != :url
     raise(:parse_error, "tsuushin::parse: format #{format} is not :url")
@@ -146,11 +143,6 @@ def authority_text(u)
   "#{marked("", get(u, "userinfo"), "@")}#{get(u, "host")}#{shown}"
 end
 
-@doc """
-render: URL record to canonical text.
-
-    render(parse("https://u@h:443", :url), :url) #=> "https://u@h"
-"""
 def render(u, format)
   if format != :url
     raise(:render_error, "tsuushin::render: format #{format} is not :url")
@@ -223,11 +215,6 @@ def query_or(b, ref, query)
   end
 end
 
-@doc """
-join: resolve a path against a base URL.
-
-    join("http://a.com", "g") #=> "http://a.com/g"
-"""
 def join(base, path)
   b = parse(base, :url)
   if absolute_url?(path)
@@ -280,9 +267,6 @@ def wire()
   end
 end
 
-@doc """
-request: send one HTTP request; any status is data.
-"""
 def request(method, url, opts?)
   o = checked(opts, [:headers, :body, :json, :timeout_ms, :transport])
   if not member?(method, route_methods)

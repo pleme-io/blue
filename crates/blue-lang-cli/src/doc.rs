@@ -79,3 +79,30 @@ pub fn rows_json() -> serde_json::Result<String> {
     }
     serde_json::to_string(&out)
 }
+
+/// mondou's derived view of one definition as one JSON object: the stored
+/// `doc`, and every row blue derives, with `lines` the same rendering hover
+/// shows.
+///
+/// # Errors
+///
+/// serde's, which these types cannot raise.
+pub fn derived_json(v: &blue_lang_lsp::docview::DocView) -> serde_json::Result<String> {
+    serde_json::to_string(&serde_json::json!({
+        "name": v.name,
+        "bidama": v.bidama,
+        "doc": v.doc,
+        "signature": v.signature,
+        "params": v.params.iter().map(|(n, t)| serde_json::json!({"name": n, "type": t})).collect::<Vec<_>>(),
+        "returns": v.returns,
+        "rung": v.rung,
+        "contract": v.contract,
+        "verb": v.verb.as_ref().map(|r| serde_json::json!({
+            "space": r.space, "kind": r.kind, "shape": r.shape, "laterals": r.laterals,
+        })),
+        "edges": v.edges,
+        "callers": v.callers,
+        "refusals": v.refusals.iter().map(|(k, m)| serde_json::json!({"kind": k, "meaning": m})).collect::<Vec<_>>(),
+        "lines": v.derived_lines(),
+    }))
+}

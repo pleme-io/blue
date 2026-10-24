@@ -24,6 +24,7 @@
 
 mod complete;
 pub mod def_hash;
+pub mod docview;
 mod items;
 mod locals;
 mod memo;
@@ -292,6 +293,7 @@ impl Engine {
     fn analyse(&self, id: Option<&str>, path: Option<PathBuf>, text: Rc<str>) -> Analysis {
         self.memo.count_analysis();
         let parsed = self.memo.parse(&text, false);
+        let documented = self.memo.documented(&text, false);
         let scope = self.scope_of(path.as_deref());
         let checked = parsed.as_ref().as_ref().ok().map(|_| {
             let loader = memo::MemoLoader {
@@ -318,6 +320,7 @@ impl Engine {
             path,
             scope,
             parsed,
+            documented,
             checked,
             resolved: OnceCell::new(),
             locals: OnceCell::new(),
@@ -422,6 +425,8 @@ pub struct Analysis {
     pub path: Option<PathBuf>,
     pub scope: Vec<PathBuf>,
     pub parsed: Rc<Parsed>,
+    /// The same parse with its `@doc` and `@moduledoc` nodes.
+    pub documented: Rc<Parsed>,
     /// `None` when the text does not parse; `Some(Err)` when its imports do
     /// not load.
     pub checked: Option<Result<Checked, String>>,
@@ -519,8 +524,8 @@ impl Analysis {
     /// The document's top-level items.
     #[must_use]
     pub fn items(&self) -> &[Item] {
-        self.items.get_or_init(|| match self.parsed.as_ref() {
-            Ok(forms) => items::of(forms, &self.text),
+        self.items.get_or_init(|| match self.documented.as_ref() {
+            Ok(forms) => items::of(forms),
             Err(_) => Vec::new(),
         })
     }

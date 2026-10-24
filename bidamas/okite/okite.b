@@ -1,20 +1,3 @@
-@moduledoc """
-okite (掟) — blue's decisions, each enforced by laws written in blue.
-
-Every decision about how blue behaves is a record in `ok_decisions()`: an id,
-the date, the rule in one line, why, and the laws that enforce it. A law is a
-blue function that returns true when the rule holds; the generative ones hold
-it over hundreds of seeded values, not just the cases someone thought of. The
-tests at the bottom fail the build when a decision has no law or a law fails,
-and RULES.md, the card a person or a model reads to learn blue, is generated
-from the same records (rules.b), so the card and the enforcement cannot drift.
-
-The meta-rule the card starts with: blue values behave like Ruby's, except
-where a decision here records a deviation. Knowing Ruby is knowing blue.
-
-    failures #=> []
-"""
-
 use("junjo", [:sort])
 use("kyohi")
 use("moji", [:lines])
@@ -22,6 +5,19 @@ use("ran", [:next_bool, :next_seed, :next_uniform, :pick])
 use("retsu", [:contains, :first, :flat_map, :index_of, :is_empty, :rest, :size])
 
 legacy_names("0.1.1", "ok")
+
+# okite (掟) — blue's decisions, each enforced by laws written in blue.
+#
+# Every decision about how blue behaves is a record in `ok_decisions()`: an id,
+# the date, the rule in one line, why, and the laws that enforce it. A law is a
+# blue function that returns true when the rule holds; the generative ones hold
+# it over hundreds of seeded values, not just the cases someone thought of. The
+# tests at the bottom fail the build when a decision has no law or a law fails,
+# and RULES.md, the card a person or a model reads to learn blue, is generated
+# from the same records (rules.b), so the card and the enforcement cannot drift.
+#
+# The meta-rule the card starts with: blue values behave like Ruby's, except
+# where a decision here records a deviation. Knowing Ruby is knowing blue.
 
 # ── generated values ───────────────────────────────────────────────────────
 #
@@ -100,9 +96,7 @@ def gen_map(s, n, depth, acc)
   end
 end
 
-@doc """
-values: `n` generated values from `seed`, each up to two levels deep.
-"""
+# `n` generated values from `seed`, each up to two levels deep.
 def values(seed, n)
   values_from(seed, n, [])
 end
@@ -116,9 +110,7 @@ def values_from(s, n, acc)
   end
 end
 
-@doc """
-pairs: consecutive pairs of generated values, so pairs mix kinds.
-"""
+# Consecutive pairs of generated values, so pairs mix kinds.
 def pairs(seed, n)
   vs = values(seed, n + 1)
   map((i) -> [nth(i, vs), nth(i + 1, vs)], range(0, n))
@@ -561,19 +553,13 @@ def decisions()
   ]
 end
 
-@doc """
-holds: a law holds when it returns true. One that throws does not hold: it is
-reported by its decision like any other failure, never aborting the check.
-"""
+# A law holds when it returns true. One that throws does not hold: it is
+# reported by its decision like any other failure, never aborting the check.
 def holds(law)
   law(*[]) == true rescue false
 end
 
-@doc """
-failures: every law that does not hold, as "id: law", and every decision with no law.
-
-    failures #=> []
-"""
+# Every law that does not hold, as "id: law", and every decision with no law.
 def failures()
   flat_map(decisions, decision_failures)
 end

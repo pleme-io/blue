@@ -32,7 +32,7 @@ type Asked<V> = RefCell<BTreeMap<(Scope, String, Option<PathBuf>), V>>;
 
 #[derive(Default)]
 pub(crate) struct Memo {
-    parses: RefCell<HashMap<u64, Vec<(Rc<str>, Rc<Parsed>)>>>,
+    parses: RefCell<HashMap<u64, Vec<(Rc<str>, Rc<Parsed>, Rc<Parsed>)>>>,
     live: RefCell<VecDeque<(u64, Rc<str>)>>,
     packages: RefCell<BTreeMap<(Scope, String), Rc<Package>>>,
     needs: Asked<Option<BTreeSet<String>>>,
@@ -61,23 +61,39 @@ impl Memo {
     /// The parse of `text`, verified on a hit by comparing the text itself:
     /// a 64-bit key alone would let a collision serve another file's tree.
     pub(crate) fn parse(&self, text: &str, durable: bool) -> Rc<Parsed> {
+        self.both(text, durable).0
+    }
+
+    /// The parse of `text` with its `@doc` and `@moduledoc` nodes: the same
+    /// parse as [`Self::parse`], before they are stripped.
+    pub(crate) fn documented(&self, text: &str, durable: bool) -> Rc<Parsed> {
+        self.both(text, durable).1
+    }
+
+    fn both(&self, text: &str, durable: bool) -> (Rc<Parsed>, Rc<Parsed>) {
         let k = key(text);
         if let Some(hit) = self
             .parses
             .borrow()
             .get(&k)
-            .and_then(|bucket| bucket.iter().find(|(t, _)| &**t == text))
+            .and_then(|bucket| bucket.iter().find(|(t, _, _)| &**t == text))
         {
-            return hit.1.clone();
+            return (hit.1.clone(), hit.2.clone());
         }
         self.stats.borrow_mut().parses += 1;
-        let parsed = Rc::new(blue_lang_syntax::parse_program_tree(text));
+        let documented = Rc::new(blue_lang_syntax::parse_program_documented(text));
+        let parsed = Rc::new(
+            documented
+                .as_ref()
+                .clone()
+                .map(blue_lang_syntax::doc::strip),
+        );
         let owned: Rc<str> = Rc::from(text);
-        self.parses
-            .borrow_mut()
-            .entry(k)
-            .or_default()
-            .push((owned.clone(), parsed.clone()));
+        self.parses.borrow_mut().entry(k).or_default().push((
+            owned.clone(),
+            parsed.clone(),
+            documented.clone(),
+        ));
         if !durable {
             let mut live = self.live.borrow_mut();
             live.push_back((k, owned));
@@ -90,14 +106,14 @@ impl Memo {
                 }
                 let mut parses = self.parses.borrow_mut();
                 if let Some(bucket) = parses.get_mut(&old) {
-                    bucket.retain(|(t, _)| *t != text);
+                    bucket.retain(|(t, _, _)| *t != text);
                     if bucket.is_empty() {
                         parses.remove(&old);
                     }
                 }
             }
         }
-        parsed
+        (parsed, documented)
     }
 
     /// The items of a package file's text, kept for the session.
@@ -111,9 +127,9 @@ impl Memo {
         {
             return hit.1.clone();
         }
-        let parsed = self.parse(text, true);
+        let parsed = self.documented(text, true);
         let items = Rc::new(match parsed.as_ref() {
-            Ok(forms) => crate::items::of(forms, text),
+            Ok(forms) => crate::items::of(forms),
             Err(_) => Vec::new(),
         });
         self.items

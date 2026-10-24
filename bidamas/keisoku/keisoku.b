@@ -35,16 +35,10 @@ def instrument(kind, name, bounds, opts)
   }
 end
 
-@doc """
-counter: declare a value that only goes up.
-"""
 def counter(name, opts)
   instrument(:counter, name, nil, opts)
 end
 
-@doc """
-gauge: declare a value that goes up and down.
-"""
 def gauge(name, opts)
   instrument(:gauge, name, nil, opts)
 end
@@ -53,9 +47,6 @@ def increasing?(xs)
   retsu::size(xs) < 2 or nth(0, xs) < nth(1, xs) and increasing?(drop(1, xs))
 end
 
-@doc """
-histogram: declare a value recorded into buckets.
-"""
 def histogram(name, bounds, opts)
   if not list?(bounds) or
       is_empty(bounds) or
@@ -166,9 +157,6 @@ def need_number(value, verb)
   end
 end
 
-@doc """
-increase: add to a counter.
-"""
 def increase(c, by, labels)
   need_kind(c, :counter, "increase")
   need_number(by, "increase")
@@ -181,18 +169,12 @@ def increase(c, by, labels)
   send_to(c, :add, labels, by)
 end
 
-@doc """
-put: set a gauge to a value.
-"""
 def put(g, value, labels)
   need_kind(g, :gauge, "put")
   need_number(value, "put")
   send_to(g, :set, labels, value)
 end
 
-@doc """
-observe: record one value into a histogram.
-"""
 def observe(h, value, labels)
   need_kind(h, :histogram, "observe")
   need_number(value, "observe")
@@ -214,9 +196,6 @@ rescue e
   [:raised, e]
 end
 
-@doc """
-measure: run f and record how long it took.
-"""
 def measure(h, f, opts)
   checked(opts, [:labels, :clock])
   need_kind(h, :histogram, "measure")
@@ -285,9 +264,6 @@ def wanted?(labels, want)
     retsu::size(map_entries(want))
 end
 
-@doc """
-read: scrape samples from an endpoint or exposition text.
-"""
 def read(i, opts)
   checked(opts, [:labels, :wait_ms])
   want = labels_of(i, get(opts, :labels))

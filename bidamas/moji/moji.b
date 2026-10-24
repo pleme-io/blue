@@ -1,60 +1,56 @@
-@moduledoc """
-moji (文字) — strings.
-
-Layered on blue's own `.length`, which the runtime installs because
-tatara-lisp carries no string operations at all (see blue-lang-runtime's
-stdlib module). These are the predicates a caller reaches for immediately
-after `length` and would otherwise hand-roll at every call site.
-
-# Three rules this package holds, because the layer beneath it does not
-
-**The string comes FIRST, always.** `join` takes the list first and `split`
-takes the string first; `take` and `nth` take the count and the index first.
-A caller cannot infer an argument order from a sibling, so every function
-here fixes one: subject, then everything else.
-
-**Every index is a CHARACTER index**, matching blue's `length` (which counts
-Unicode scalar values, not bytes — see the runtime's stdlib docs). Building
-on `chars()` rather than on byte offsets is what makes that true for free.
-
-**Out of range is a value, never an error.** `char_at` past the end answers
-`""`, `char_index` that finds nothing answers -1, a pad narrower than its input
-answers the input. A string library that raises on a short string forces a
-length check at every call site, which is the thing it was supposed to remove.
-
-# What is deliberately absent
-
-`replace_all` — blue's builtin `replace` already replaces every occurrence
-(Rust's `str::replace` semantics, pinned by a test below). The genuinely
-missing half is `replace_first`, which is here.
-
-`reverse_string` — the builtin `reverse` already reverses a string by
-character, and correctly (a byte-wise reverse would produce invalid UTF-8).
-Wrapping it would add a name and no behaviour; a test below pins it instead.
-
-# Why several names here are longer than they need to be
-
-`contains`, `repeat`, `index_of`, `slice` and `count_of` are all already
-taken in this distribution — by `shuugou` (set membership) and `retsu` (list
-repetition, position, window and tally) — and a string version of each would
-have had **the same arity as the list version**. `slice(x, 1, 3)` and
-`index_of(x, y)` would have type-punned silently: one definition shadows the
-other wherever both packages are used, and neither the runtime nor the tests
-would say a word. So the string forms are spelled `includes`, `repeated`,
-`char_index`, `slice_chars` and `occurrences`. That is collision avoidance,
-not taste — a language with no overloading makes one of the two yield, and
-the newer package is the one that should.
-
-The same reasoning renamed the internal `common_prefix_from`, which collided
-with `ronri.prefix_len`. `use()` inlines a package's forms into one flat
-namespace, so the sweep is over EVERY sibling's `def` list, not just the
-ones this package imports.
-
-    size("") #=> 0
-"""
-
 use("kazu", [:min])
 use("retsu", [:first, :is_empty, :repeat, :rest])
+
+# moji (文字) — strings.
+#
+# Layered on blue's own `.length`, which the runtime installs because
+# tatara-lisp carries no string operations at all (see blue-lang-runtime's
+# stdlib module). These are the predicates a caller reaches for immediately
+# after `length` and would otherwise hand-roll at every call site.
+#
+# # Three rules this package holds, because the layer beneath it does not
+#
+# **The string comes FIRST, always.** `join` takes the list first and `split`
+# takes the string first; `take` and `nth` take the count and the index first.
+# A caller cannot infer an argument order from a sibling, so every function
+# here fixes one: subject, then everything else.
+#
+# **Every index is a CHARACTER index**, matching blue's `length` (which counts
+# Unicode scalar values, not bytes — see the runtime's stdlib docs). Building
+# on `chars()` rather than on byte offsets is what makes that true for free.
+#
+# **Out of range is a value, never an error.** `char_at` past the end answers
+# `""`, `char_index` that finds nothing answers -1, a pad narrower than its input
+# answers the input. A string library that raises on a short string forces a
+# length check at every call site, which is the thing it was supposed to remove.
+#
+# # What is deliberately absent
+#
+# `replace_all` — blue's builtin `replace` already replaces every occurrence
+# (Rust's `str::replace` semantics, pinned by a test below). The genuinely
+# missing half is `replace_first`, which is here.
+#
+# `reverse_string` — the builtin `reverse` already reverses a string by
+# character, and correctly (a byte-wise reverse would produce invalid UTF-8).
+# Wrapping it would add a name and no behaviour; a test below pins it instead.
+#
+# # Why several names here are longer than they need to be
+#
+# `contains`, `repeat`, `index_of`, `slice` and `count_of` are all already
+# taken in this distribution — by `shuugou` (set membership) and `retsu` (list
+# repetition, position, window and tally) — and a string version of each would
+# have had **the same arity as the list version**. `slice(x, 1, 3)` and
+# `index_of(x, y)` would have type-punned silently: one definition shadows the
+# other wherever both packages are used, and neither the runtime nor the tests
+# would say a word. So the string forms are spelled `includes`, `repeated`,
+# `char_index`, `slice_chars` and `occurrences`. That is collision avoidance,
+# not taste — a language with no overloading makes one of the two yield, and
+# the newer package is the one that should.
+#
+# The same reasoning renamed the internal `common_prefix_from`, which collided
+# with `ronri.prefix_len`. `use()` inlines a package's forms into one flat
+# namespace, so the sweep is over EVERY sibling's `def` list, not just the
+# ones this package imports.
 
 def empty(s)
   length(s) == 0
@@ -64,13 +60,9 @@ def present(s)
   length(s) > 0
 end
 
-@doc """
-longer: longer of two strings, ties going to the first. Ties must resolve
-DETERMINISTICALLY or callers see different answers on different runs for
-equal-length input.
-
-    longer("a", "abc") #=> "abc"
-"""
+# Longer of two strings, ties going to the first. Ties must resolve
+# DETERMINISTICALLY or callers see different answers on different runs for
+# equal-length input.
 def longer(a, b)
   if length(b) > length(a)
     b
@@ -81,15 +73,11 @@ end
 
 # ── positional access ──────────────────────────────────────────────
 
-@doc """
-char_at: the character at index i, as a one-character string; "" past either end.
-
-"" rather than nil for the miss, because every other function here consumes
-strings — a nil would have to be checked before it could be passed on, and
-"" flows through concat, length and the predicates unchanged.
-
-    char_at("", 0) #=> ""
-"""
+# The character at index i, as a one-character string; "" past either end.
+#
+# "" rather than nil for the miss, because every other function here consumes
+# strings — a nil would have to be checked before it could be passed on, and
+# "" flows through concat, length and the predicates unchanged.
 def char_at(s, i)
   cs = chars(s)
   if i < 0 or i >= length(cs)
@@ -99,12 +87,8 @@ def char_at(s, i)
   end
 end
 
-@doc """
-take_chars: the first n characters. Asking for more than there are yields all of them,
-which is what makes `take_chars` safe to call on a string of unknown length.
-
-    take_chars("hi", 0) #=> ""
-"""
+# The first n characters. Asking for more than there are yields all of them,
+# which is what makes `take_chars` safe to call on a string of unknown length.
 def take_chars(s, n)
   if n < 1
     ""
@@ -123,22 +107,14 @@ def drop_chars(s, n)
   end
 end
 
-@doc """
-slice_chars: `len` characters starting at `start` — the LENGTH-based form.
-
-    slice_chars("abc", 9, 1) #=> ""
-"""
+# `len` characters starting at `start` — the LENGTH-based form.
 def slice_chars(s, start, len)
   take_chars(drop_chars(s, start), len)
 end
 
-@doc """
-substring: characters from `start` up to but NOT including `stop` — the ENDPOINT-based
-form. Both spellings exist because both appear in real calling code and
-converting between them by hand is where the off-by-one lives.
-
-    substring("abcdef", 2, 2) #=> ""
-"""
+# Characters from `start` up to but NOT including `stop` — the ENDPOINT-based
+# form. Both spellings exist because both appear in real calling code and
+# converting between them by hand is where the off-by-one lives.
 def substring(s, start, stop)
   slice_chars(s, start, stop - start)
 end
@@ -153,14 +129,10 @@ def ends_with(s, suffix)
   ends_with?(s, suffix)
 end
 
-@doc """
-char_index_from: first index of `sub` at or after `from`, or -1.
-
--1 rather than an error, and rather than nil: a search that does not find is
-an ordinary answer, and `char_index(s, x) >= 0` is the whole test.
-
-    char_index_from("abcabc", "b", -3) #=> 1
-"""
+# First index of `sub` at or after `from`, or -1.
+#
+# -1 rather than an error, and rather than nil: a search that does not find is
+# an ordinary answer, and `char_index(s, x) >= 0` is the whole test.
 def char_index_from(s, sub, from)
   text_index(s, sub, from)
 end
@@ -177,30 +149,22 @@ def last_char_index(s, sub)
   text_last_index(s, sub, length(s) - length(sub))
 end
 
-@doc """
-includes: whether `sub` occurs in `s`: exactly what char_index(s, sub) >= 0 answers,
-through the runtime's own substring search (contains?) rather than one blue
-call per position. Measured 2026-09-25: made_of over an 18-character name
-took 1.72 ms (about 95 µs per character against a 37-character set) and now
-15 µs; kueri's q_ident, which calls it per identifier, went from 1.86 ms to
-56 µs, and rendering NuPastel's 79 analytics views from 1.23 s to 0.09 s.
-
-    includes("", "a") #=> false
-"""
+# Whether `sub` occurs in `s`: exactly what char_index(s, sub) >= 0 answers,
+# through the runtime's own substring search (contains?) rather than one blue
+# call per position. Measured 2026-09-25: made_of over an 18-character name
+# took 1.72 ms (about 95 µs per character against a 37-character set) and now
+# 15 µs; kueri's q_ident, which calls it per identifier, went from 1.86 ms to
+# 56 µs, and rendering NuPastel's 79 analytics views from 1.23 s to 0.09 s.
 def includes(s, sub)
   contains?(s, sub)
 end
 
-@doc """
-occurrences: how many NON-OVERLAPPING copies of `sub` are in `s`.
-
-Non-overlapping is the choice `replace` already made, so the two agree:
-occurrences("aaa", "aa") is 1, and replacing "aa" in "aaa" leaves one "a".
-The empty needle answers 0 rather than recursing forever — there is no
-sensible count of an empty match, and a hang is the worst possible answer.
-
-    occurrences("", "a") #=> 0
-"""
+# How many NON-OVERLAPPING copies of `sub` are in `s`.
+#
+# Non-overlapping is the choice `replace` already made, so the two agree:
+# occurrences("aaa", "aa") is 1, and replacing "aa" in "aaa" leaves one "a".
+# The empty needle answers 0 rather than recursing forever — there is no
+# sensible count of an empty match, and a hang is the worst possible answer.
 def occurrences(s, sub)
   if length(sub) == 0
     0
@@ -211,21 +175,17 @@ end
 
 # ── splitting on ONE separator ─────────────────────────────────────
 
-@doc """
-before_first: the two halves either side of the FIRST separator.
-
-This is what `split` cannot do and what parsing actually needs.
-`split("PATH=/a=/b", "=")` yields three pieces and loses which "=" was the
-real one; after_first keeps the rest of the value intact, "=" and all.
-
-The asymmetry on a MISS is deliberate and is the interesting half: with no
-separator present, `before_first` answers the whole string and `after_first`
-answers "". A bare "KEY" is a key with no value, not a value with no key —
-so the two do NOT reassemble into the input, and that is the correct reading
-rather than an oversight.
-
-    before_first("", "=") #=> ""
-"""
+# The two halves either side of the FIRST separator.
+#
+# This is what `split` cannot do and what parsing actually needs.
+# `split("PATH=/a=/b", "=")` yields three pieces and loses which "=" was the
+# real one; after_first keeps the rest of the value intact, "=" and all.
+#
+# The asymmetry on a MISS is deliberate and is the interesting half: with no
+# separator present, `before_first` answers the whole string and `after_first`
+# answers "". A bare "KEY" is a key with no value, not a value with no key —
+# so the two do NOT reassemble into the input, and that is the correct reading
+# rather than an oversight.
 def before_first(s, sep)
   i = char_index(s, sep)
   if i < 0
@@ -244,13 +204,9 @@ def after_first(s, sep)
   end
 end
 
-@doc """
-before_last: the same split, anchored at the LAST separator — which is the one a filename
-or a dotted path is asking about. after_last("a.tar.gz", ".") is "gz", where
-after_first would have answered "tar.gz".
-
-    before_last("a.tar.gz", ".") #=> "a.tar"
-"""
+# The same split, anchored at the LAST separator — which is the one a filename
+# or a dotted path is asking about. after_last("a.tar.gz", ".") is "gz", where
+# after_first would have answered "tar.gz".
 def before_last(s, sep)
   i = last_char_index(s, sep)
   if i < 0
@@ -279,23 +235,15 @@ def common_prefix_from(a, b, i)
   end
 end
 
-@doc """
-common_prefix: the longest string both arguments start with.
-
-    common_prefix("", "abc") #=> ""
-"""
+# The longest string both arguments start with.
 def common_prefix(a, b)
   take_chars(a, common_prefix_from(a, b, 0))
 end
 
-@doc """
-chunk_chars: cut into fixed-width pieces, the last one short.
-
-The n < 1 guard is not decoration: chunking by zero would take "" off the
-front forever and never shorten the remainder.
-
-    chunk_chars("", 3) #=> []
-"""
+# Cut into fixed-width pieces, the last one short.
+#
+# The n < 1 guard is not decoration: chunking by zero would take "" off the
+# front forever and never shorten the remainder.
 def chunk_chars(s, n)
   if n < 1 or length(s) == 0
     []
@@ -306,15 +254,11 @@ end
 
 # ── building and trimming ──────────────────────────────────────────
 
-@doc """
-repeated: `s` written n times end to end; "" for n < 1.
-
-Named `repeated` and not `repeat` because `retsu.repeat(v, n)` builds a LIST
-of n copies, and repeat("ab", 2) would then mean ["ab","ab"] or "abab"
-depending on which package was used last. Two answers, no error.
-
-    repeated("", 5) #=> ""
-"""
+# `s` written n times end to end; "" for n < 1.
+#
+# Named `repeated` and not `repeat` because `retsu.repeat(v, n)` builds a LIST
+# of n copies, and repeat("ab", 2) would then mean ["ab","ab"] or "abab"
+# depending on which package was used last. Two answers, no error.
 def repeated(s, n)
   if n < 1
     ""
@@ -323,16 +267,12 @@ def repeated(s, n)
   end
 end
 
-@doc """
-fill_to: exactly n characters of `pad`, repeated and then cut. `pad` may be more than
-one character, in which case the last copy is truncated mid-pattern — that is
-what makes pad_left(s, w, "-=") produce a ruler of exactly w columns.
-
-An empty pad answers "" instead of looping forever. It is the one input that
-can never reach the requested width, and a hang is the worst way to say so.
-
-    fill_to(4, "") #=> ""
-"""
+# Exactly n characters of `pad`, repeated and then cut. `pad` may be more than
+# one character, in which case the last copy is truncated mid-pattern — that is
+# what makes pad_left(s, w, "-=") produce a ruler of exactly w columns.
+#
+# An empty pad answers "" instead of looping forever. It is the one input that
+# can never reach the requested width, and a hang is the worst way to say so.
 def fill_to(n, pad)
   if n < 1 or length(pad) == 0
     ""
@@ -349,14 +289,10 @@ def grow_to(acc, pad, n)
   end
 end
 
-@doc """
-pad_left: pad to `width` columns. A string already at or past `width` is returned
-UNCHANGED rather than truncated — padding and truncating are different
-intentions, and a pad that silently shortens is how a column of aligned text
-quietly loses data. Reach for `ellipsize` when shortening is what you meant.
-
-    pad_left("7", 3, "0") #=> "007"
-"""
+# Pad to `width` columns. A string already at or past `width` is returned
+# UNCHANGED rather than truncated — padding and truncating are different
+# intentions, and a pad that silently shortens is how a column of aligned text
+# quietly loses data. Reach for `ellipsize` when shortening is what you meant.
 def pad_left(s, width, pad)
   concat(fill_to(width - length(s), pad), s)
 end
@@ -365,13 +301,9 @@ def pad_right(s, width, pad)
   concat(s, fill_to(width - length(s), pad))
 end
 
-@doc """
-pad_center: centre, with the ODD character going to the RIGHT. Like `longer`'s tie rule,
-this has to be pinned: a caller centring a column needs the same answer every
-time, and "roughly centred" is not a specification.
-
-    pad_center("abc", 1, " ") #=> "abc"
-"""
+# Centre, with the ODD character going to the RIGHT. Like `longer`'s tie rule,
+# this has to be pinned: a caller centring a column needs the same answer every
+# time, and "roughly centred" is not a specification.
 def pad_center(s, width, pad)
   # Named `slack` and not `total` because `toukei` already defines `total` —
   # whether blue's `=` binds locally or globally, a name that is a function
@@ -385,12 +317,8 @@ def pad_center(s, width, pad)
   end
 end
 
-@doc """
-replace_first: replace only the FIRST occurrence — the half `replace` does not cover, since
-the builtin is already global.
-
-    replace_first("", "a", "X") #=> ""
-"""
+# Replace only the FIRST occurrence — the half `replace` does not cover, since
+# the builtin is already global.
 def replace_first(s, from, to)
   i = char_index(s, from)
   if i < 0 or length(from) == 0
@@ -400,14 +328,10 @@ def replace_first(s, from, to)
   end
 end
 
-@doc """
-strip_prefix: remove an affix IF it is there, and otherwise leave the string alone.
-
-The trap this closes is `drop_chars(s, length(p))`, which happily cuts
-length(p) characters off a string that never had the prefix.
-
-    strip_prefix("aab", "a") #=> "ab"
-"""
+# Remove an affix IF it is there, and otherwise leave the string alone.
+#
+# The trap this closes is `drop_chars(s, length(p))`, which happily cuts
+# length(p) characters off a string that never had the prefix.
 def strip_prefix(s, p)
   if starts_with(s, p)
     drop_chars(s, length(p))
@@ -424,35 +348,21 @@ def strip_suffix(s, p)
   end
 end
 
-@doc """
-ellipsize: shorten to at most `width` columns, marking the cut with "…" spelled as three
-dots.
-
-The invariant is `length(ellipsize(s, w)) <= w`, always — the common wrong
-version appends the marker to a `width`-long cut and returns width + 3, which
-overflows the column it was called to fit. Below four columns there is no room
-for a marker at all, so it degrades to a plain cut.
-
-    ellipsize("hello", 0) #=> ""
-"""
+# Shorten to at most `width` columns, marking the cut with "…" spelled as three
+# dots.
+#
+# The invariant is `length(ellipsize(s, w)) <= w`, always — the common wrong
+# version appends the marker to a `width`-long cut and returns width + 3, which
+# overflows the column it was called to fit. Below four columns there is no room
+# for a marker at all, so it degrades to a plain cut.
 def ellipsize(s, width)
   truncate(s, width, {})
 end
 
-@doc """
-trim: drop space from both ends.
-
-    trim("") #=> ""
-"""
 def trim(text, opts?)
   blue::trim(text, opts)
 end
 
-@doc """
-truncate: cut text to a width with an ellipsis.
-
-    truncate("hello", 5) #=> "hello"
-"""
 def truncate(text, width, opts?)
   marker = get(checked(opts, [:marker]), :marker) or "..."
   if length(text) <= width
@@ -476,63 +386,41 @@ def checked(opts, allowed)
   opts
 end
 
-@doc """
-lower: every letter in lower case.
-
-    lower("") #=> ""
-"""
 def lower(text)
   downcase(text)
 end
 
-@doc """
-size: number of code points.
-
-    size("") #=> 0
-"""
 def size(text)
   length(chars(text))
 end
 
 # ── whitespace, words and lines ────────────────────────────────────
 
-@doc """
-is_space: true when `s` is non-empty and every character in it is whitespace.
-
-Whitespace is defined by DELEGATION to `trim`, not by a hand-written set of
-" \t\n\r". trim is Rust's, so it knows the whole Unicode whitespace class —
-a non-breaking space, an ideographic space, a form feed — and a hand-written
-set is wrong the first time a user pastes text from a word processor.
-
-The empty string is NOT whitespace. Everything holds of nothing is exactly
-how a predicate library goes wrong, and "" is better answered by `is_blank`.
-
-    is_space(" ") #=> true
-"""
+# True when `s` is non-empty and every character in it is whitespace.
+#
+# Whitespace is defined by DELEGATION to `trim`, not by a hand-written set of
+# " \t\n\r". trim is Rust's, so it knows the whole Unicode whitespace class —
+# a non-breaking space, an ideographic space, a form feed — and a hand-written
+# set is wrong the first time a user pastes text from a word processor.
+#
+# The empty string is NOT whitespace. Everything holds of nothing is exactly
+# how a predicate library goes wrong, and "" is better answered by `is_blank`.
 def is_space(s)
   length(s) > 0 and length(trim(s)) == 0
 end
 
-@doc """
-is_blank: nothing there to read: empty, or whitespace only. The predicate a caller
-actually wants before deciding a field was filled in.
-
-    is_blank("") #=> true
-"""
+# Nothing there to read: empty, or whitespace only. The predicate a caller
+# actually wants before deciding a field was filled in.
 def is_blank(s)
   length(trim(s)) == 0
 end
 
-@doc """
-words: split on RUNS of whitespace, dropping the empties.
-
-`split(s, " ")` cannot do this: it splits on one literal space, so a double
-space yields a phantom "" between the words and a tab is not a separator at
-all. Folding over the characters is what makes any run of any whitespace one
-boundary.
-
-    words("") #=> []
-"""
+# Split on RUNS of whitespace, dropping the empties.
+#
+# `split(s, " ")` cannot do this: it splits on one literal space, so a double
+# space yields a phantom "" between the words and a tab is not a separator at
+# all. Folding over the characters is what makes any run of any whitespace one
+# boundary.
 def words(s)
   split_words(chars(s), "", [])
 end
@@ -555,17 +443,13 @@ def split_words(cs, cur, acc)
   end
 end
 
-@doc """
-lines: one entry per line, with "\r\n" normalised and NO phantom last line.
-
-The naive `split(s, "\n")` gets both halves wrong: "a\n" becomes ["a", ""],
-inventing a line nobody wrote, and a file with Windows endings keeps a "\r"
-glued to the end of every line where it is invisible and breaks every
-comparison. A truly empty string has no lines at all — but "\n" has one, and
-it is empty.
-
-    lines("") #=> []
-"""
+# One entry per line, with "\r\n" normalised and NO phantom last line.
+#
+# The naive `split(s, "\n")` gets both halves wrong: "a\n" becomes ["a", ""],
+# inventing a line nobody wrote, and a file with Windows endings keeps a "\r"
+# glued to the end of every line where it is invisible and breaks every
+# comparison. A truly empty string has no lines at all — but "\n" has one, and
+# it is empty.
 def lines(s)
   if length(s) == 0
     []
@@ -574,25 +458,17 @@ def lines(s)
   end
 end
 
-@doc """
-squish: trim, and collapse every internal whitespace run to a single space.
-
-    squish("") #=> ""
-"""
+# Trim, and collapse every internal whitespace run to a single space.
 def squish(s)
   join(words(s), " ")
 end
 
-@doc """
-wrap_text: greedy word wrap: the lines are as full as they can be without exceeding
-`width`, joined by single spaces.
-
-A word LONGER than the width gets its own over-long line rather than being
-broken. Breaking mid-word would mangle a URL or a path, which is most of what
-is too long in practice, and a caller that wants a hard cut has `ellipsize`.
-
-    wrap_text("", 10) #=> []
-"""
+# Greedy word wrap: the lines are as full as they can be without exceeding
+# `width`, joined by single spaces.
+#
+# A word LONGER than the width gets its own over-long line rather than being
+# broken. Breaking mid-word would mangle a URL or a path, which is most of what
+# is too long in practice, and a caller that wants a hard cut has `ellipsize`.
 def wrap_text(s, width)
   wrap_from(words(s), "", [], width)
 end
@@ -615,26 +491,18 @@ end
 
 # ── case ───────────────────────────────────────────────────────────
 
-@doc """
-capitalize: first character up, the REST DOWN — Ruby's `capitalize`, not "upcase the
-first character". "hELLO" becoming "Hello" rather than "HELLO" is the whole
-difference, and it is what makes capitalize idempotent.
-
-    capitalize("") #=> ""
-"""
+# First character up, the REST DOWN — Ruby's `capitalize`, not "upcase the
+# first character". "hELLO" becoming "Hello" rather than "HELLO" is the whole
+# difference, and it is what makes capitalize idempotent.
 def capitalize(s)
   concat(upcase(take_chars(s, 1)), downcase(drop_chars(s, 1)))
 end
 
-@doc """
-title_case: every word capitalised, joined by single spaces.
-
-Note that this NORMALISES whitespace, because it is built on `words`: runs
-collapse and leading/trailing space is dropped. Titles are being formatted,
-not text being preserved; use `words` + `capitalize` directly to keep layout.
-
-    title_case("") #=> ""
-"""
+# Every word capitalised, joined by single spaces.
+#
+# Note that this NORMALISES whitespace, because it is built on `words`: runs
+# collapse and leading/trailing space is dropped. Titles are being formatted,
+# not text being preserved; use `words` + `capitalize` directly to keep layout.
 def title_case(s)
   join(map(capitalize, words(s)), " ")
 end
@@ -647,27 +515,19 @@ def swap_char(c)
   end
 end
 
-@doc """
-swap_case: case inverted character by character. Caseless characters — digits,
-punctuation, kana — pass through, which is what makes it self-inverse.
-
-    swap_case("") #=> ""
-"""
+# Case inverted character by character. Caseless characters — digits,
+# punctuation, kana — pass through, which is what makes it self-inverse.
 def swap_case(s)
   join(map(swap_char, chars(s)), "")
 end
 
 # ── character-class predicates ─────────────────────────────────────
 
-@doc """
-made_of: true when `s` is non-empty and every character of it appears in `set`.
-
-NON-EMPTY is the load-bearing half. "every character of "" is a digit" is
-vacuously true, and a validator built on that accepts a blank form field as a
-valid number. The name says it: a string made of nothing is made of nothing.
-
-    made_of("a", "") #=> false
-"""
+# True when `s` is non-empty and every character of it appears in `set`.
+#
+# NON-EMPTY is the load-bearing half. "every character of "" is a digit" is
+# vacuously true, and a validator built on that accepts a blank form field as a
+# valid number. The name says it: a string made of nothing is made of nothing.
 def made_of(s, set)
   if length(s) == 0
     false
@@ -684,16 +544,12 @@ def ascii_letters()
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 end
 
-@doc """
-is_digit: ASCII, and said so rather than discovered.
-
-A Unicode-wide `is_digit` would accept the Devanagari and fullwidth digits,
-which `to_int` then fails to parse — so the predicate would promise something
-the parser does not honour. These answer the question a caller is really
-asking: "will this go through to_int / is it an identifier / is it a hash?"
-
-    is_digit("") #=> false
-"""
+# ASCII, and said so rather than discovered.
+#
+# A Unicode-wide `is_digit` would accept the Devanagari and fullwidth digits,
+# which `to_int` then fails to parse — so the predicate would promise something
+# the parser does not honour. These answer the question a caller is really
+# asking: "will this go through to_int / is it an identifier / is it a hash?"
 def is_digit(s)
   made_of(s, ascii_digits)
 end
@@ -710,16 +566,12 @@ def is_hex(s)
   made_of(s, "0123456789abcdefABCDEF")
 end
 
-@doc """
-is_upper: cased, and entirely in one case.
-
-`s == upcase(s)` alone is not enough: it is true of "123" and of "", neither
-of which is upper-case text. The second clause demands at least one character
-that HAS a case, which is what makes is_upper and is_lower both false for a
-string of digits instead of both true.
-
-    is_upper("") #=> false
-"""
+# Cased, and entirely in one case.
+#
+# `s == upcase(s)` alone is not enough: it is true of "123" and of "", neither
+# of which is upper-case text. The second clause demands at least one character
+# that HAS a case, which is what makes is_upper and is_lower both false for a
+# string of digits instead of both true.
 def is_upper(s)
   s == upcase(s) and s != downcase(s)
 end
@@ -730,24 +582,16 @@ end
 
 # ── ordering ───────────────────────────────────────────────────────
 
-@doc """
-same_text: case-insensitive equality, for the comparisons a human means by "the same".
-
-    same_text("", "") #=> true
-"""
+# Case-insensitive equality, for the comparisons a human means by "the same".
 def same_text(a, b)
   downcase(a) == downcase(b)
 end
 
-@doc """
-sorts_before: strict lexicographic order.
-
-`a < b` is a TYPE ERROR on strings in this runtime — `<` is numeric — so
-every string ordering has to go through the `compare` primitive, which does
-answer for strings and returns 0 - 1 / 0 / 1.
-
-    sorts_before("Z", "a") #=> true
-"""
+# Strict lexicographic order.
+#
+# `a < b` is a TYPE ERROR on strings in this runtime — `<` is numeric — so
+# every string ordering has to go through the `compare` primitive, which does
+# answer for strings and returns 0 - 1 / 0 / 1.
 def sorts_before(a, b)
   compare(a, b) < 0
 end
@@ -762,15 +606,11 @@ def insert_text(x, xs)
   end
 end
 
-@doc """
-sort_strings: sort a list of strings, stably.
-
-`junjo.sort` cannot do this: it is phrased in `<=`, which raises on strings.
-Insertion sort keeps equal elements in input order, so sorting by one key
-does not scramble an earlier sort by another.
-
-    sort_strings([]) #=> []
-"""
+# Sort a list of strings, stably.
+#
+# `junjo.sort` cannot do this: it is phrased in `<=`, which raises on strings.
+# Insertion sort keeps equal elements in input order, so sorting by one key
+# does not scramble an earlier sort by another.
 def sort_strings(xs)
   if is_empty(xs)
     []

@@ -1,18 +1,14 @@
-@moduledoc """
-rogu (ログ) — logging: one structured line per call, JSON on stderr.
-
-debug, info, warn and error each take a message and a record of fields and
-write {at, level, message, ...fields} as one JSON object per line, when the
-level is on. The level comes from BLUE_LOG (debug, info, warn or error;
-info when unset); `enabled?` asks it, `level` reads it. `with` binds base
-fields to a logger whose calls carry them on every line.
-
-    level_of("") #=> :info
-"""
-
 use("jisho", [:merge])
 use("retsu", [:first, :is_empty, :size])
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+
+# rogu (ログ) — logging: one structured line per call, JSON on stderr.
+#
+# debug, info, warn and error each take a message and a record of fields and
+# write {at, level, message, ...fields} as one JSON object per line, when the
+# level is on. The level comes from BLUE_LOG (debug, info, warn or error;
+# info when unset); `enabled?` asks it, `level` reads it. `with` binds base
+# fields to a logger whose calls carry them on every line.
 
 def levels()
   [:debug, :info, :warn, :error]
@@ -38,9 +34,6 @@ def level_of(raw)
   end
 end
 
-@doc """
-level: the active level from BLUE_LOG; info when unset.
-"""
 def level()
   level_of(getenv("BLUE_LOG"))
 end
@@ -49,11 +42,6 @@ def passes?(lvl, active)
   rank(lvl) >= rank(active)
 end
 
-@doc """
-enabled?: whether a line at this level would be written.
-
-    enabled?(:error) #=> true
-"""
 def enabled?(lvl)
   passes?(lvl, level)
 end
@@ -88,37 +76,22 @@ def emit(lvl, message, fields)
   nil
 end
 
-@doc """
-debug: write a structured line at debug level.
-"""
 def debug(message, fields)
   emit(:debug, message, fields)
 end
 
-@doc """
-info: write a structured line at info level.
-"""
 def info(message, fields)
   emit(:info, message, fields)
 end
 
-@doc """
-warn: write a structured line at warn level.
-"""
 def warn(message, fields)
   emit(:warn, message, fields)
 end
 
-@doc """
-error: write a structured line at error level; carries an error record.
-"""
 def error(message, fields)
   emit(:error, message, fields)
 end
 
-@doc """
-with: a logger that adds fields to every line.
-"""
 def with(base)
   carry = (fields) -> merge(plain(base), plain(fields))
   {

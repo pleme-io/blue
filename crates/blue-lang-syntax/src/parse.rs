@@ -180,6 +180,16 @@ pub fn parse_program_documented_with_depth(
     parsed
 }
 
+/// A doc example's expression or statement: part of its text's parse, so
+/// neither counted nor kept apart from it.
+pub(crate) fn parse_snippet(src: &str) -> Result<Vec<Spanned>, ParseError> {
+    let toks = lex(src).map_err(|e| ParseError::from(e).located(src))?;
+    Parser::over(src, toks, MAX_EXPR_DEPTH)
+        .program()
+        .map(crate::doc::strip)
+        .map_err(|e| e.located(src))
+}
+
 /// How many recent texts each thread keeps the parse of. One text is read
 /// by several views in one check (the stripped tree, its documentation, its
 /// doctests, the doc rules); they share one parse.

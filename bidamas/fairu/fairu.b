@@ -1,10 +1,5 @@
 use("moji", [:present, :starts_with, :strip_suffix])
 
-@doc """
-absolute: the path made absolute against the current directory.
-
-    absolute("/a/b") #=> "/a/b"
-"""
 def absolute(path)
   if starts_with(path, "/")
     path
@@ -13,11 +8,6 @@ def absolute(path)
   end
 end
 
-@doc """
-home: the home directory of the user.
-
-    home #=> getenv("HOME")
-"""
 def home()
   dir = getenv("HOME")
   if dir.nil? or dir == ""
@@ -27,11 +17,6 @@ def home()
   end
 end
 
-@doc """
-parts: the path split into its parts.
-
-    parts("") #=> []
-"""
 def parts(path)
   names = filter((s) -> present(s), split(path, "/"))
   if starts_with(path, "/")
@@ -41,11 +26,6 @@ def parts(path)
   end
 end
 
-@doc """
-stem: the name without its final extension.
-
-    stem("dir/") #=> "dir"
-"""
 def stem(path)
   name = path_basename(path)
   ext = path_extension(path)

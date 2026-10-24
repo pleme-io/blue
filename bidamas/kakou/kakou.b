@@ -1,31 +1,3 @@
-@moduledoc """
-kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
-
-Three part families, the ones a shop with shears, a manual brake, a saw and
-a TIG torch makes. Each gives the shop its instructions (a flat blank with
-bend lines, a cut length with end angles, a developed wire length) and the
-design pipeline its solid (a rittai mesh), from one description.
-
-Units: millimetres, degrees for bend and cut angles (what a shop reads),
-grams for mass. Written for nupastel docs/plans/design-pipeline.md, step 5.
-
-── the bend relations ───────────────────────────────────────────────
-A bent sheet stretches outside the bend and compresses inside it. The
-neutral surface, which keeps its length, sits a fraction K of the thickness
-in from the inside. With A the bend angle in radians, R the inside radius
-and T the thickness:
-  bend allowance   BA   = A (R + K T)        the neutral arc's length
-  outside setback  OSSB = tan(A / 2) (R + T) mould line to bend tangent
-  bend deduction   BD   = 2 OSSB - BA        what a bend takes off the sum
-                                              of the outside dimensions
-K depends on the material, the tooling and the ratio R / T, so the default
-(0.44, a common rule of thumb for stainless air-bent at R about T) is a
-placeholder until a test bend on the shop's own brake measures it:
-kk_k_from_test_bend.
-
-    nest_count([2100, 100], [1250, 2000], 5) #=> 0
-"""
-
 use("deeta", [:get_or])
 
 use(
@@ -92,6 +64,30 @@ legacy_names("0.1.1", "kk")
 
 legacy_names("0.1.2", [["opt", "deeta::get_or"]])
 
+# kakou (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
+#
+# Three part families, the ones a shop with shears, a manual brake, a saw and
+# a TIG torch makes. Each gives the shop its instructions (a flat blank with
+# bend lines, a cut length with end angles, a developed wire length) and the
+# design pipeline its solid (a rittai mesh), from one description.
+#
+# Units: millimetres, degrees for bend and cut angles (what a shop reads),
+# grams for mass. Written for nupastel docs/plans/design-pipeline.md, step 5.
+#
+# ── the bend relations ───────────────────────────────────────────────
+# A bent sheet stretches outside the bend and compresses inside it. The
+# neutral surface, which keeps its length, sits a fraction K of the thickness
+# in from the inside. With A the bend angle in radians, R the inside radius
+# and T the thickness:
+#   bend allowance   BA   = A (R + K T)        the neutral arc's length
+#   outside setback  OSSB = tan(A / 2) (R + T) mould line to bend tangent
+#   bend deduction   BD   = 2 OSSB - BA        what a bend takes off the sum
+#                                               of the outside dimensions
+# K depends on the material, the tooling and the ratio R / T, so the default
+# (0.44, a common rule of thumb for stainless air-bent at R about T) is a
+# placeholder until a test bend on the shop's own brake measures it:
+# kk_k_from_test_bend.
+
 def rad(deg)
   deg * pi / 180
 end
@@ -108,11 +104,9 @@ def bend_deduction(angle_deg, r, t, k)
   2 * outside_setback(angle_deg, r, t) - bend_allowance(angle_deg, r, t, k)
 end
 
-@doc """
-k_from_test_bend: k from a test bend: a coupon cut to flat_length, bent once to angle_deg on
-the shop's brake, its two outside legs measured. The legs overshoot the
-flat length by exactly one bend deduction.
-"""
+# K from a test bend: a coupon cut to flat_length, bent once to angle_deg on
+# the shop's brake, its two outside legs measured. The legs overshoot the
+# flat length by exactly one bend deduction.
 def k_from_test_bend(flat_length, leg1, leg2, angle_deg, r, t)
   bd = leg1 + leg2 - flat_length
   ba = 2 * outside_setback(angle_deg, r, t) - bd
@@ -121,9 +115,7 @@ end
 
 # ── materials ────────────────────────────────────────────────────────
 
-@doc """
-density: density in g/cm^3.
-"""
+# Density in g/cm^3.
 def density(material)
   table = {ss316l: 7.99, ss304: 7.93, al6061: 2.7, steel: 7.85}
   d = get(table, material)
@@ -197,9 +189,7 @@ def flange_on(part, side)
   find_first((f) -> get(f, :side) == side, get(part, :flanges))
 end
 
-@doc """
-side_setback: the setback a flange takes off its side of the flat base; 0 unflanged.
-"""
+# The setback a flange takes off its side of the flat base; 0 unflanged.
 def side_setback(part, side)
   f = flange_on(part, side)
   if f.nil?
@@ -209,10 +199,8 @@ def side_setback(part, side)
   end
 end
 
-@doc """
-side_extension: how far the flat blank reaches past the flat base on a side: the bend
-allowance, then the flange's straight run.
-"""
+# How far the flat blank reaches past the flat base on a side: the bend
+# allowance, then the flange's straight run.
 def side_extension(part, side)
   f = flange_on(part, side)
   if f.nil?
@@ -227,18 +215,14 @@ def side_extension(part, side)
   end
 end
 
-@doc """
-flange_run: the flange's straight run past its bend.
-"""
+# The flange's straight run past its bend.
 def flange_run(part, f)
   get(f, :length) -
     outside_setback(get(f, :angle), get(f, :radius), get(part, :thickness))
 end
 
-@doc """
-flat_base: the flat base: the outside rectangle less each flanged side's setback,
-as [x0, y0, x1, y1].
-"""
+# The flat base: the outside rectangle less each flanged side's setback,
+# as [x0, y0, x1, y1].
 def flat_base(part)
   [
     side_setback(part, :west),
@@ -248,10 +232,8 @@ def flat_base(part)
   ]
 end
 
-@doc """
-blank_outline: the flat blank's outline, counter-clockwise: the base with each flange's
-strip, the corners notched where two strips meet.
-"""
+# The flat blank's outline, counter-clockwise: the base with each flange's
+# strip, the corners notched where two strips meet.
 def blank_outline(part)
   b = flat_base(part)
   x0 = nth(0, b)
@@ -283,11 +265,9 @@ def strip(corner, out1, out2, e)
   end
 end
 
-@doc """
-flat_pattern: the flat pattern: the blank (a kikagaku region with the holes) and the
-bend lines, each with the side, where the bend zone starts and ends, the
-centre line, the angle, the radius and the direction.
-"""
+# The flat pattern: the blank (a kikagaku region with the holes) and the
+# bend lines, each with the side, where the bend zone starts and ends, the
+# centre line, the angle, the radius and the direction.
 def flat_pattern(part)
   {
     blank: region(blank_outline(part), get(part, :holes)),
@@ -318,9 +298,7 @@ def bend_line(part, f)
   }
 end
 
-@doc """
-base_edge: a side's edge of the flat base, as two 2-D points, and its outward normal.
-"""
+# A side's edge of the flat base, as two 2-D points, and its outward normal.
 def base_edge(b, side)
   x0 = nth(0, b)
   y0 = nth(1, b)
@@ -354,10 +332,8 @@ def blank_size(part)
   [px(nth(1, bb)) - px(nth(0, bb)), py(nth(1, bb)) - py(nth(0, bb))]
 end
 
-@doc """
-sheet_mass_g: mass from the blank: its area times the thickness is the part's volume,
-exactly for the flat and to within the neutral-axis shift at each bend.
-"""
+# Mass from the blank: its area times the thickness is the part's volume,
+# exactly for the flat and to within the neutral-axis shift at each bend.
 def sheet_mass_g(part)
   region_area(get(flat_pattern(part), :blank)) *
     get(part, :thickness) *
@@ -407,13 +383,11 @@ end
 # is centred at (0, T + R), so its inner arc starts on the base's top face
 # and its outer arc on its underside.
 
-@doc """
-folded_mesh: one solid, not a base with flanges resting against it: each flanged side's
-wall of the base and each flange's starting face are the same rectangle
-seen from both sides, so both are dropped and the seam welded. Left in,
-they are faces inside the solid, which rt_mesh_refusals refuses and a
-slicer or a physics engine misreads.
-"""
+# One solid, not a base with flanges resting against it: each flanged side's
+# wall of the base and each flange's starting face are the same rectangle
+# seen from both sides, so both are dropped and the seam welded. Left in,
+# they are faces inside the solid, which rt_mesh_refusals refuses and a
+# slicer or a physics engine misreads.
 def folded_mesh(part)
   b = flat_base(part)
   t = get(part, :thickness)
@@ -484,10 +458,8 @@ def flange_mesh(part, b, f)
   )
 end
 
-@doc """
-seam_edge: the section's edge on the base's side, a = 0 at both ends: where the
-flange meets the base.
-"""
+# The section's edge on the base's side, a = 0 at both ends: where the
+# flange meets the base.
 def seam_edge(section)
   pts = region_outline(section)
   n = size(pts)
@@ -584,10 +556,8 @@ def shape_refusals(part)
   )
 end
 
-@doc """
-hole_refusals: holes must sit inside the flat base, clear of each bend by hole_bend_t T
-plus the radius, and clear of each plain edge by hole_edge_t T.
-"""
+# Holes must sit inside the flat base, clear of each bend by hole_bend_t T
+# plus the radius, and clear of each plain edge by hole_edge_t T.
 def hole_refusals(part, rules)
   _t = get(part, :thickness)
   b = flat_base(part)
@@ -668,12 +638,8 @@ def fits(s, sheet)
     py(s) <= px(sheet) and px(s) <= py(sheet)
 end
 
-@doc """
-nest_count: how many blanks of size s come from one sheet, in rows and columns with a
-gap between them, taking the better of the two orientations.
-
-    nest_count([2100, 100], [1250, 2000], 5) #=> 0
-"""
+# How many blanks of size s come from one sheet, in rows and columns with a
+# gap between them, taking the better of the two orientations.
 def nest_count(s, sheet, gap)
   max(
     grid(px(s), py(s), px(sheet), py(sheet), gap),
@@ -714,9 +680,7 @@ def stock_name(stock)
   end
 end
 
-@doc """
-section: the stock's cross-section as a kikagaku region, centred on the origin.
-"""
+# The stock's cross-section as a kikagaku region, centred on the origin.
 def section(stock, n)
   k = get(stock, :kind)
   if k == :square_tube
@@ -759,10 +723,8 @@ def member_mesh(m, n)
   )
 end
 
-@doc """
-member_mass_g: the section's area is exact for the square tube; a round tube's is its
-tessellation's, so its mass comes out a hair under the true one.
-"""
+# The section's area is exact for the square tube; a round tube's is its
+# tessellation's, so its mass comes out a hair under the true one.
 def member_mass_g(m, n)
   region_area(section(get(m, :stock), n)) *
     member_length(m) *
@@ -770,9 +732,7 @@ def member_mass_g(m, n)
     1000
 end
 
-@doc """
-cut_list: one cut-list row per member.
-"""
+# One cut-list row per member.
 def cut_list(members)
   map(
     fn(m)

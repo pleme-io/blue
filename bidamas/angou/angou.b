@@ -1,21 +1,3 @@
-@moduledoc """
-angou (暗号) — number theory and the classical ciphers built on it.
-
-Classical, and labelled as such: nothing here is secure, and the point of
-shipping it is that the mathematics underneath — modular exponentiation,
-primality, Euler's totient — is the same mathematics modern cryptography
-uses. A caesar cipher is the readable end of that; do not deploy it.
-
-NONE OF THE CIPHERS BELOW ARE SECURE, and that is not a caveat, it is the
-curriculum. Every one of them is broken here, in this file, by code that is
-shorter than the cipher it breaks: `crack_caesar` recovers a caesar key with
-no key, and `letter_counts` is all it takes to see through the substitution
-cipher and the vigenere alike. Rail fence does not even change the letters.
-Use them to learn the shape of the problem; never to keep a secret.
-
-    factor(0) #=> []
-"""
-
 use("kazu", [:max])
 
 use(
@@ -34,6 +16,20 @@ use(
     :size
   ]
 )
+
+# angou (暗号) — number theory and the classical ciphers built on it.
+#
+# Classical, and labelled as such: nothing here is secure, and the point of
+# shipping it is that the mathematics underneath — modular exponentiation,
+# primality, Euler's totient — is the same mathematics modern cryptography
+# uses. A caesar cipher is the readable end of that; do not deploy it.
+#
+# NONE OF THE CIPHERS BELOW ARE SECURE, and that is not a caveat, it is the
+# curriculum. Every one of them is broken here, in this file, by code that is
+# shorter than the cipher it breaks: `crack_caesar` recovers a caesar key with
+# no key, and `letter_counts` is all it takes to see through the substitution
+# cipher and the vigenere alike. Rail fence does not even change the letters.
+# Use them to learn the shape of the problem; never to keep a secret.
 
 def is_prime(n)
   if n < 2
@@ -77,14 +73,10 @@ def factor_from(n, k)
   end
 end
 
-@doc """
-mod_pow: modular exponentiation by repeated squaring.
-
-The naive `expt(base, e) % m` overflows long before it is useful — this is
-the function that makes the exponent size irrelevant.
-
-    mod_pow(3, 0, 7) #=> 1
-"""
+# Modular exponentiation by repeated squaring.
+#
+# The naive `expt(base, e) % m` overflows long before it is useful — this is
+# the function that makes the exponent size irrelevant.
 def mod_pow(base, e, m)
   if e == 0
     1
@@ -99,16 +91,12 @@ def mod_pow(base, e, m)
   end
 end
 
-@doc """
-totient: euler's totient: how many integers below n are coprime to it.
-Euler's totient: how many integers in [1, n] are coprime to n.
-
-n = 1 is special-cased because the general count runs over [1, n), which is
-empty for 1 — and the convention is totient(1) = 1, since 1 is coprime to
-itself. Every table agrees; the formula does not.
-
-    totient(1) #=> 1
-"""
+# Euler's totient: how many integers below n are coprime to it.
+# Euler's totient: how many integers in [1, n] are coprime to n.
+#
+# n = 1 is special-cased because the general count runs over [1, n), which is
+# empty for 1 — and the convention is totient(1) = 1, since 1 is coprime to
+# itself. Every table agrees; the formula does not.
 def totient(n)
   if n == 1
     1
@@ -117,19 +105,15 @@ def totient(n)
   end
 end
 
-@doc """
-sieve: the sieve of Eratosthenes, in the only shape blue can express it.
-
-The textbook sieve mutates a board of flags; blue has no mutable array, so
-instead of crossing marks off in place we take the head as prime and drop
-its multiples from what is left. Be honest about what that costs: dropping
-the multiples of p means testing every survivor against p, so this is a
-sieve-shaped filter and not the near-linear sieve. What survives the change
-is the property that separates it from `primes_below` — that one asks
-`is_prime` of every candidate, this one never divides by a composite.
-
-    sieve(12) #=> [2, 3, 5, 7, 11]
-"""
+# The sieve of Eratosthenes, in the only shape blue can express it.
+#
+# The textbook sieve mutates a board of flags; blue has no mutable array, so
+# instead of crossing marks off in place we take the head as prime and drop
+# its multiples from what is left. Be honest about what that costs: dropping
+# the multiples of p means testing every survivor against p, so this is a
+# sieve-shaped filter and not the near-linear sieve. What survives the change
+# is the property that separates it from `primes_below` — that one asks
+# `is_prime` of every candidate, this one never divides by a composite.
 def sieve(n)
   sieve_from(range(2, n))
 end
@@ -143,11 +127,7 @@ def sieve_from(xs)
   end
 end
 
-@doc """
-nth_prime: 1-indexed, because "the first prime" is 2 and nobody means the zeroth.
-
-    nth_prime(1) #=> 2
-"""
+# 1-indexed, because "the first prime" is 2 and nobody means the zeroth.
 def nth_prime(k)
   if k < 1
     -1
@@ -168,12 +148,8 @@ def nth_prime_from(k, c)
   end
 end
 
-@doc """
-next_prime: strictly greater than n, so next_prime(7) is 11 and not 7 — otherwise
-iterating with it never terminates.
-
-    next_prime(0) #=> 2
-"""
+# Strictly greater than n, so next_prime(7) is 11 and not 7 — otherwise
+# iterating with it never terminates.
 def next_prime(n)
   if n < 2
     2
@@ -194,16 +170,12 @@ def is_coprime(a, b)
   gcd(a, b) == 1
 end
 
-@doc """
-extended_gcd: bezout: returns [g, x, y] with a*x + b*y == g and g == gcd(a, b).
-
-The x is the whole reason this exists — when g is 1 it is a's inverse mod b,
-which plain gcd computes and throws away. Written for non-negative a and b;
-blue's `%` and `floor(a / b)` agree on floor division, so the identity
-survives negatives too, but the tests only pin the non-negative domain.
-
-    extended_gcd(5, 0) #=> [5, 1, 0]
-"""
+# Bezout: returns [g, x, y] with a*x + b*y == g and g == gcd(a, b).
+#
+# The x is the whole reason this exists — when g is 1 it is a's inverse mod b,
+# which plain gcd computes and throws away. Written for non-negative a and b;
+# blue's `%` and `floor(a / b)` agree on floor division, so the identity
+# survives negatives too, but the tests only pin the non-negative domain.
 def extended_gcd(a, b)
   if b == 0
     [a, 1, 0]
@@ -213,14 +185,10 @@ def extended_gcd(a, b)
   end
 end
 
-@doc """
-mod_inverse: the inverse of a mod m, or 0-1 when there is none. An inverse exists exactly
-when gcd(a, m) == 1, so this doubles as a coprimality witness: a returned
-value is a proof, and 0-1 is the honest "no such number" rather than a
-plausible-looking wrong one.
-
-    mod_inverse(3, 7) #=> 5
-"""
+# The inverse of a mod m, or 0-1 when there is none. An inverse exists exactly
+# when gcd(a, m) == 1, so this doubles as a coprimality witness: a returned
+# value is a proof, and 0-1 is the honest "no such number" rather than a
+# plausible-looking wrong one.
 def mod_inverse(a, m)
   if m < 1
     -1
@@ -234,17 +202,13 @@ def mod_inverse(a, m)
   end
 end
 
-@doc """
-crt2: chinese remainder for exactly two congruences: the smallest non-negative x
-with x % n1 == a1 and x % n2 == a2, or 0-1 when no such x exists.
-
-Coprime moduli are the case everyone quotes, but the general one is barely
-more work and the difference is observable: x = 0 mod 2 and x = 1 mod 4 has
-no solution at all, and a version that assumes coprimality returns a wrong
-answer for it rather than saying so. The answer is unique mod lcm(n1, n2).
-
-    crt2(0, 2, 1, 4) #=> -1
-"""
+# Chinese remainder for exactly two congruences: the smallest non-negative x
+# with x % n1 == a1 and x % n2 == a2, or 0-1 when no such x exists.
+#
+# Coprime moduli are the case everyone quotes, but the general one is barely
+# more work and the difference is observable: x = 0 mod 2 and x = 1 mod 4 has
+# no solution at all, and a version that assumes coprimality returns a wrong
+# answer for it rather than saying so. The answer is unique mod lcm(n1, n2).
 def crt2(a1, n1, a2, n2)
   g = gcd(n1, n2)
   diff = a2 - a1
@@ -258,13 +222,9 @@ def crt2(a1, n1, a2, n2)
   end
 end
 
-@doc """
-divisors: every divisor of n, ascending, n included. Trial division over the whole
-range rather than pairing up at sqrt(n): the pairing version has to sort its
-two halves back together, and this package is read more than it is run.
-
-    divisors(1) #=> [1]
-"""
+# Every divisor of n, ascending, n included. Trial division over the whole
+# range rather than pairing up at sqrt(n): the pairing version has to sort its
+# two halves back together, and this package is read more than it is run.
 def divisors(n)
   if n < 1
     []
@@ -277,23 +237,15 @@ def proper_divisors(n)
   filter((k) -> k != n, divisors(n))
 end
 
-@doc """
-sum_of_divisors: sigma(n), counting n itself — the convention every table uses.
-
-    sum_of_divisors(6) #=> 12
-"""
+# sigma(n), counting n itself — the convention every table uses.
 def sum_of_divisors(n)
   reduce((a, b) -> a + b, 0, divisors(n))
 end
 
-@doc """
-is_perfect: perfect: equal to the sum of its PROPER divisors, which is sigma(n) == 2n.
-The pair of assertions that earns its keep is 6 and 1 together — an
-implementation that wrote sigma(n) == n instead calls 1 perfect and 6 not,
-and either one alone lets that through.
-
-    is_perfect(6) #=> true
-"""
+# Perfect: equal to the sum of its PROPER divisors, which is sigma(n) == 2n.
+# The pair of assertions that earns its keep is 6 and 1 together — an
+# implementation that wrote sigma(n) == n instead calls 1 perfect and 6 not,
+# and either one alone lets that through.
 def is_perfect(n)
   n > 0 and sum_of_divisors(n) == 2 * n
 end
@@ -306,14 +258,10 @@ def is_deficient(n)
   n > 0 and sum_of_divisors(n) < 2 * n
 end
 
-@doc """
-multiplicative_order: the smallest m >= 1 with a^m == 1 mod n, or 0-1 when a is not invertible.
-
-n < 2 answers 1 rather than looping: mod 1 everything is 0, so the loop's
-"did we reach 1 yet" test would never fire.
-
-    multiplicative_order(1, 7) #=> 1
-"""
+# The smallest m >= 1 with a^m == 1 mod n, or 0-1 when a is not invertible.
+#
+# n < 2 answers 1 rather than looping: mod 1 everything is 0, so the loop's
+# "did we reach 1 yet" test would never fire.
 def multiplicative_order(a, n)
   if n < 2
     1
@@ -332,16 +280,12 @@ def order_from(a, n, m, cur)
   end
 end
 
-@doc """
-carmichael_lambda: carmichael's lambda: the exponent of the group of units mod n, i.e. the
-smallest m with a^m == 1 mod n for EVERY a coprime to n.
-
-It divides totient(n) and is often strictly smaller — lambda(8) is 2 while
-totient(8) is 4 — which is exactly why RSA is stated with lambda in the
-modern formulation and totient in the original one.
-
-    carmichael_lambda(1) #=> 1
-"""
+# Carmichael's lambda: the exponent of the group of units mod n, i.e. the
+# smallest m with a^m == 1 mod n for EVERY a coprime to n.
+#
+# It divides totient(n) and is often strictly smaller — lambda(8) is 2 while
+# totient(8) is 4 — which is exactly why RSA is stated with lambda in the
+# modern formulation and totient in the original one.
 def carmichael_lambda(n)
   if n < 2
     1
@@ -354,12 +298,8 @@ def carmichael_lambda(n)
   end
 end
 
-@doc """
-fermat_probable_prime: fermat's test to base a. A `false` is a PROOF that n is composite; a `true`
-proves nothing at all, which is what is_carmichael below makes concrete.
-
-    fermat_probable_prime(97, 2) #=> true
-"""
+# Fermat's test to base a. A `false` is a PROOF that n is composite; a `true`
+# proves nothing at all, which is what is_carmichael below makes concrete.
 def fermat_probable_prime(n, a)
   if n < 2
     false
@@ -368,13 +308,9 @@ def fermat_probable_prime(n, a)
   end
 end
 
-@doc """
-is_carmichael: a Carmichael number is composite and yet passes Fermat's test for every base
-coprime to it — the reason the Fermat test is not a primality proof and the
-reason Miller-Rabin exists. 561 = 3 * 11 * 17 is the smallest.
-
-    is_carmichael(15) #=> false
-"""
+# A Carmichael number is composite and yet passes Fermat's test for every base
+# coprime to it — the reason the Fermat test is not a primality proof and the
+# reason Miller-Rabin exists. 561 = 3 * 11 * 17 is the smallest.
 def is_carmichael(n)
   if n < 2
     false
@@ -390,13 +326,9 @@ def is_carmichael(n)
   end
 end
 
-@doc """
-primitive_root: the smallest generator of the units mod a prime p — where Diffie-Hellman
-gets its base. Defined here only for prime p; 0-1 for anything else, since
-a composite modulus may have no primitive root at all (8 does not).
-
-    primitive_root(2) #=> 1
-"""
+# The smallest generator of the units mod a prime p — where Diffie-Hellman
+# gets its base. Defined here only for prime p; 0-1 for anything else, since
+# a composite modulus may have no primitive root at all (8 does not).
 def primitive_root(p)
   if is_prime(p) == false
     -1
@@ -452,12 +384,8 @@ def find_index_of(xs, v, i)
   end
 end
 
-@doc """
-caesar: shift each letter by n; anything that is not a lowercase letter passes
-through untouched, so punctuation and spacing survive a round trip.
-
-    caesar("a b", 1) #=> "b c"
-"""
+# Shift each letter by n; anything that is not a lowercase letter passes
+# through untouched, so punctuation and spacing survive a round trip.
 def caesar(text, n)
   join(map((ch) -> shift_char(ch, n), chars(text)), "")
 end
@@ -475,17 +403,13 @@ def rot13(text)
   caesar(text, 13)
 end
 
-@doc """
-vigenere: vigenere: a caesar whose shift is driven by a repeating key.
-
-The trap is the non-letter. A space must pass through WITHOUT advancing the
-key, or encrypt and decrypt fall out of step the moment the two texts have
-punctuation in different places — and the bug is invisible until then,
-because a text of pure letters round-trips either way. That is what
-`vigenere("at tack", "lemon")` pins in the tests.
-
-    vigenere("", "lemon") #=> ""
-"""
+# Vigenere: a caesar whose shift is driven by a repeating key.
+#
+# The trap is the non-letter. A space must pass through WITHOUT advancing the
+# key, or encrypt and decrypt fall out of step the moment the two texts have
+# punctuation in different places — and the bug is invisible until then,
+# because a text of pure letters round-trips either way. That is what
+# `vigenere("at tack", "lemon")` pins in the tests.
 def vigenere(text, key)
   vigenere_with(text, key, 1)
 end
@@ -503,10 +427,8 @@ def vigenere_with(text, key, dir)
   end
 end
 
-@doc """
-key_shifts: non-letters in the KEY are dropped rather than treated as shift zero, so
-"lemon" and "l e m o n" are the same key.
-"""
+# Non-letters in the KEY are dropped rather than treated as shift zero, so
+# "lemon" and "l e m o n" are the same key.
 def key_shifts(key)
   filter((i) -> i >= 0, map(letter_index, chars(downcase(key))))
 end
@@ -527,12 +449,8 @@ def vigenere_chars(cs, ks, ki, dir)
   end
 end
 
-@doc """
-atbash: atbash reverses the alphabet: a<->z, b<->y. It has no key at all, so the
-only property worth asserting is that it is its own inverse.
-
-    atbash("") #=> ""
-"""
+# Atbash reverses the alphabet: a<->z, b<->y. It has no key at all, so the
+# only property worth asserting is that it is its own inverse.
 def atbash(text)
   join(map(atbash_char, chars(text)), "")
 end
@@ -546,14 +464,10 @@ def atbash_char(ch)
   end
 end
 
-@doc """
-rail_fence: rail fence: write the text down and up across `rails` lines, then read the
-lines off in order. A transposition rather than a substitution — the letters
-are the same ones, which is why letter frequency cannot touch it and why
-anagramming can.
-
-    rail_fence("", 3) #=> ""
-"""
+# Rail fence: write the text down and up across `rails` lines, then read the
+# lines off in order. A transposition rather than a substitution — the letters
+# are the same ones, which is why letter frequency cannot touch it and why
+# anagramming can.
 def rail_fence(text, rails)
   if rails < 2
     text
@@ -565,14 +479,10 @@ def rail_fence(text, rails)
   end
 end
 
-@doc """
-rail_fence_decrypt: decryption is the inverse permutation. Building `rail_order` once and
-searching it is the whole trick: writing a second zigzag walk that fills the
-rails back in is where hand-written implementations get the ragged last
-rail wrong.
-
-    rail_fence_decrypt(rail_fence("abcdefg", 3), 3) #=> "abcdefg"
-"""
+# Decryption is the inverse permutation. Building `rail_order` once and
+# searching it is the whole trick: writing a second zigzag walk that fills the
+# rails back in is where hand-written implementations get the ragged last
+# rail wrong.
 def rail_fence_decrypt(text, rails)
   if rails < 2
     text
@@ -583,10 +493,8 @@ def rail_fence_decrypt(text, rails)
   end
 end
 
-@doc """
-rail_order: the positions of the original text, grouped by rail — i.e. cipher position
-j holds original character rail_order[j].
-"""
+# The positions of the original text, grouped by rail — i.e. cipher position
+# j holds original character rail_order[j].
 def rail_order(n, rails)
   flat_map(
     range(0, rails),
@@ -594,10 +502,8 @@ def rail_order(n, rails)
   )
 end
 
-@doc """
-rail_of: the zigzag has period 2*rails-2: down to the bottom rail and back up,
-without repeating either end.
-"""
+# The zigzag has period 2*rails-2: down to the bottom rail and back up,
+# without repeating either end.
 def rail_of(i, rails)
   cycle = 2 * rails - 2
   m = i % cycle
@@ -608,13 +514,9 @@ def rail_of(i, rails)
   end
 end
 
-@doc """
-letter_counts: counts of a..z in alphabet order, case-folded, ignoring everything that is
-not a letter. A plain 26-list rather than a map so it lines up with
-`alphabet()` by index — the shape a frequency attack actually consumes.
-
-    letter_counts(rail_fence("wearediscoveredfleeatonce", 4)) #=> letter_counts("wearediscoveredfleeatonce")
-"""
+# Counts of a..z in alphabet order, case-folded, ignoring everything that is
+# not a letter. A plain 26-list rather than a map so it lines up with
+# `alphabet()` by index — the shape a frequency attack actually consumes.
 def letter_counts(text)
   ls = filter((i) -> i >= 0, map(letter_index, chars(downcase(text))))
   map((i) -> count_of(ls, i), indexes(alphabet))
@@ -629,12 +531,8 @@ def letter_count(text, ch)
   end
 end
 
-@doc """
-most_common_letter: ties break toward the earlier letter, and a text with no letters at all
-answers "" rather than "a" — the vacuous case a max-index search gets wrong.
-
-    most_common_letter("ba") #=> "a"
-"""
+# Ties break toward the earlier letter, and a text with no letters at all
+# answers "" rather than "a" — the vacuous case a max-index search gets wrong.
 def most_common_letter(text)
   cnt = letter_counts(text)
   best = reduce((a, b) -> max(a, b), 0, cnt)
@@ -645,17 +543,13 @@ def most_common_letter(text)
   end
 end
 
-@doc """
-substitution: a simple substitution cipher: `key` is a 26-letter permutation, so plaintext
-'a' becomes the key's first letter and so on.
-
-The keyspace is 26! rather than caesar's 26, and it is still broken by
-`letter_counts` alone, because a substitution moves the frequency peak
-without flattening it. Anything the key does not cover passes through, so an
-empty key is the identity.
-
-    substitution("hello", join(alphabet, "")) #=> "hello"
-"""
+# A simple substitution cipher: `key` is a 26-letter permutation, so plaintext
+# 'a' becomes the key's first letter and so on.
+#
+# The keyspace is 26! rather than caesar's 26, and it is still broken by
+# `letter_counts` alone, because a substitution moves the frequency peak
+# without flattening it. Anything the key does not cover passes through, so an
+# empty key is the identity.
 def substitution(text, key)
   ks = chars(downcase(key))
   join(map((ch) -> substitute_char(ch, ks), chars(text)), "")
@@ -674,12 +568,8 @@ def substitution_decrypt(text, key)
   substitution(text, invert_key(key))
 end
 
-@doc """
-invert_key: the inverse permutation, or "" when `key` is not one — which then makes
-`substitution_decrypt` the identity rather than a lookup of index 0-1.
-
-    invert_key("abc") #=> ""
-"""
+# The inverse permutation, or "" when `key` is not one — which then makes
+# `substitution_decrypt` the identity rather than a lookup of index 0-1.
 def invert_key(key)
   if is_substitution_key(key) == false
     ""
@@ -700,13 +590,9 @@ def is_substitution_key(key)
   size(ks) == 26 and size(filter((c) -> contains(ks, c), alphabet)) == 26
 end
 
-@doc """
-keyword_key: the classical way a human generated a substitution key without memorising
-26 letters: write the keyword first, dropping repeats, then the rest of the
-alphabet in order. "zebras" gives the textbook zebrascdfghijklmnopqtuvwxy.
-
-    keyword_key("") #=> join(alphabet, "")
-"""
+# The classical way a human generated a substitution key without memorising
+# 26 letters: write the keyword first, dropping repeats, then the rest of the
+# alphabet in order. "zebras" gives the textbook zebrascdfghijklmnopqtuvwxy.
 def keyword_key(word)
   ws = dedupe_letters(chars(downcase(word)), [])
   join(concat_lists(ws, filter((c) -> contains(ws, c) == false, alphabet)), "")
@@ -725,21 +611,17 @@ def dedupe_letters(cs, seen)
   end
 end
 
-@doc """
-caesar_candidates: every decryption of a caesar text, indexed by the shift that produced it —
-candidate 0 is the input itself. Twenty-six is a keyspace you can exhaust
-by eye, which is the first half of why caesar is not a cipher.
-"""
+# Every decryption of a caesar text, indexed by the shift that produced it —
+# candidate 0 is the input itself. Twenty-six is a keyspace you can exhaust
+# by eye, which is the first half of why caesar is not a cipher.
 def caesar_candidates(text)
   map((n) -> caesar(text, -n), range(0, 26))
 end
 
-@doc """
-crack_caesar: the second half: you do not even have to look. Scoring each candidate
-against English letter frequencies picks the shift with no key and no
-guesswork, and this is the same attack that breaks the substitution cipher
-above once you let it work per-letter instead of per-shift.
-"""
+# The second half: you do not even have to look. Scoring each candidate
+# against English letter frequencies picks the shift with no key and no
+# guesswork, and this is the same attack that breaks the substitution cipher
+# above once you let it work per-letter instead of per-shift.
 def crack_caesar(text)
   scores = map((n) -> english_score(caesar(text, -n)), range(0, 26))
   index_of(scores, reduce((a, b) -> max(a, b), 0, scores))
@@ -754,11 +636,9 @@ def english_score(text)
   )
 end
 
-@doc """
-english_weights: english letter frequencies per 1000 characters, a..z, rounded to whole
-numbers so the score stays in integer arithmetic and never has to be
-compared with `near`.
-"""
+# English letter frequencies per 1000 characters, a..z, rounded to whole
+# numbers so the score stays in integer arithmetic and never has to be
+# compared with `near`.
 def english_weights()
   [
     82,
@@ -1067,45 +947,22 @@ test "caesar falls to a frequency attack with no key at all"
   assert nth(1, caesar_candidates("abc")) == "zab"
 end
 
-@doc """
-prime?: n is prime by trial division.
-"""
 def prime?(n)
   is_prime(n)
 end
 
-@doc """
-power_mod: modular exponentiation by repeated squaring.
-
-    power_mod(5, 0, 7) #=> 1
-"""
 def power_mod(base, exponent, modulus)
   mod_pow(base, exponent, modulus)
 end
 
-@doc """
-factor: prime factors with multiplicity.
-
-    factor(0) #=> []
-"""
 def factor(n)
   prime_factors(n)
 end
 
-@doc """
-frequency: letter counts a to z, case folded.
-
-    frequency("") #=> frequency("123")
-"""
 def frequency(text)
   letter_counts(text)
 end
 
-@doc """
-period: smallest power of a that equals one.
-
-    period(2, 7) #=> 3
-"""
 def period(a, modulus)
   multiplicative_order(a, modulus)
 end

@@ -1,55 +1,40 @@
-@moduledoc """
-kyohi (拒否) — refusals, as data.
-
-A refusal is `[kind, why]`: a keyword naming what was refused and the reason,
-usually text. A check that can fail several ways at once returns EVERY
-refusal it finds, as a list, instead of throwing on the first, so a caller
-sees the whole picture and can test for one kind. `check` returns that list
-(empty when the subject is sound); `enforce` is its raising form and turns
-the list into one thrown error when the caller wants to stop.
-
-kueri, kinji and nisshi each wrote this vocabulary. It lives here once;
-their names are bridges to these (`legacy_names`) until each package's 0.2.0.
-
-`refuse(found)` retired at 0.1.2: it is `enforce(found, [(fs) -> fs],
-{kind: :first})`, and the row below is the fixer `blue check --fix` reads.
-
-    kinds([]) #=> []
-"""
-
 use("retsu", [:contains, :find_first, :first, :flat_map, :is_empty, :size])
 
+# kyohi (拒否) — refusals, as data.
+#
+# A refusal is `[kind, why]`: a keyword naming what was refused and the reason,
+# usually text. A check that can fail several ways at once returns EVERY
+# refusal it finds, as a list, instead of throwing on the first, so a caller
+# sees the whole picture and can test for one kind. `check` returns that list
+# (empty when the subject is sound); `enforce` is its raising form and turns
+# the list into one thrown error when the caller wants to stop.
+#
+# kueri, kinji and nisshi each wrote this vocabulary. It lives here once;
+# their names are bridges to these (`legacy_names`) until each package's 0.2.0.
+#
+# `refuse(found)` retired at 0.1.2: it is `enforce(found, [(fs) -> fs],
+# {kind: :first})`, and the row below is the fixer `blue check --fix` reads.
 legacy_names(
   "0.1.2",
   [["refuse", "kyohi::enforce", "[(fs) -> fs], {kind: :first}"]]
 )
 
-@doc """
-refusal: a refusal of `kind`, because `why`.
-"""
+# A refusal of `kind`, because `why`.
 def refusal(kind, why)
   [kind, why]
 end
 
-@doc """
-kind: what was refused: the refusal's keyword.
-"""
+# What was refused: the refusal's keyword.
 def kind(r)
   first(r)
 end
 
-@doc """
-why: why it was refused.
-"""
+# Why it was refused.
 def why(r)
   nth(1, r)
 end
 
-@doc """
-kinds: the kind of each refusal, in order.
-
-    kinds([]) #=> []
-"""
+# The kind of each refusal, in order.
 def kinds(refusals)
   map(kind, refusals)
 end
@@ -58,9 +43,6 @@ def ledger_row(k, meaning, status, retry)
   {kind: k, meaning:, exit_status: status, retryable: retry}
 end
 
-@doc """
-ledger: the closed list of error kinds with status and retry.
-"""
 def ledger()
   [
     ledger_row(:usage, "the call or command line is wrong", 64, false),
@@ -102,29 +84,14 @@ def ledger_entry(k)
   e
 end
 
-@doc """
-exit_status: exit status the ledger gives a kind.
-
-    exit_status(:hold) #=> 75
-"""
 def exit_status(k)
   get(ledger_entry(k), :exit_status)
 end
 
-@doc """
-retryable?: the ledger marks the kind worth retrying.
-
-    retryable?(:timeout) #=> true
-"""
 def retryable?(k)
   get(ledger_entry(k), :retryable)
 end
 
-@doc """
-check: findings of a subject against rules; empty when sound.
-
-    check(2, []) #=> []
-"""
 def check(subject, rules)
   flat_map(rules, (rule) -> rule(subject))
 end
@@ -137,9 +104,6 @@ def raised_kind(want, found)
   end
 end
 
-@doc """
-enforce: raise one error carrying every finding of check; nil when sound.
-"""
 def enforce(subject, rules, opts?)
   opts = opts or {}
   found = check(subject, rules)
@@ -196,11 +160,6 @@ test "and_then runs the next step on a value and passes a refusal through untouc
   assert and_then(assoc(r, :scope, :stream), ok) == assoc(r, :scope, :stream)
 end
 
-@doc """
-standing: entries not refused.
-
-    standing([], []) #=> []
-"""
 def standing(xs, marks)
   map(
     (i) -> nth(i, xs),

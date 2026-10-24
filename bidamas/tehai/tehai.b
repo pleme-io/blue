@@ -1,26 +1,3 @@
-@moduledoc """
-tehai (手配) — which nix remote builders can take work right now: every declared machine checked, and only the live ones written where nix reads them.
-
-nix reads its remote builders from a machines file (`builders = @<path>`).
-Written by hand or by a system config, that file names machines whether
-they are up or not, so a dead builder costs a TCP timeout on every
-dispatch, and a builder switched off by hand ("offline") stays off after it
-comes back. tehai separates the two facts: the DECLARED set (a machines
-file, for example the one nix-darwin or NixOS renders to /etc/nix/machines)
-is config; which of them are LIVE is measured, each time tehai runs.
-
-One run: parse the declared file; for each machine, ssh to it with a short
-timeout and ask its nix for a version; write the live machines, unchanged,
-to the output with an atomic rename, so nix never reads a half-written list;
-write a state file saying which are up, since when, and why not. A timer
-(launchd's StartInterval, a systemd timer) runs it every few seconds.
-
-A malformed line is refused alone, named in the state, and never takes its
-valid siblings down with it.
-
-    probe(probe_target, 2, "") #=> [false, "ssh could not be started: "]
-"""
-
 use("deeta", [:as_json, :get_int, :get_str])
 use("moji", [:after_first, :before_first, :includes, :trim])
 
@@ -35,6 +12,25 @@ use(
 )
 
 legacy_names("0.1.1", "th")
+
+# tehai (手配) — which nix remote builders can take work right now: every declared machine checked, and only the live ones written where nix reads them.
+#
+# nix reads its remote builders from a machines file (`builders = @<path>`).
+# Written by hand or by a system config, that file names machines whether
+# they are up or not, so a dead builder costs a TCP timeout on every
+# dispatch, and a builder switched off by hand ("offline") stays off after it
+# comes back. tehai separates the two facts: the DECLARED set (a machines
+# file, for example the one nix-darwin or NixOS renders to /etc/nix/machines)
+# is config; which of them are LIVE is measured, each time tehai runs.
+#
+# One run: parse the declared file; for each machine, ssh to it with a short
+# timeout and ask its nix for a version; write the live machines, unchanged,
+# to the output with an atomic rename, so nix never reads a half-written list;
+# write a state file saying which are up, since when, and why not. A timer
+# (launchd's StartInterval, a systemd timer) runs it every few seconds.
+#
+# A malformed line is refused alone, named in the state, and never takes its
+# valid siblings down with it.
 
 # ── the machines format ──────────────────────────────────────────────
 # One machine per line, fields separated by spaces: URI, systems, SSH key,
@@ -53,10 +49,8 @@ def meaningful?(line)
   is_empty(t) == false and starts_with?(t, "#") == false
 end
 
-@doc """
-machine: a declared machine: its line as written, its URI, host and user, and its
-key, or a refusal naming the line.
-"""
+# A declared machine: its line as written, its URI, host and user, and its
+# key, or a refusal naming the line.
 def machine(line)
   fs = fields(line)
   uri = first(fs)
@@ -79,22 +73,17 @@ def machine(line)
   end
 end
 
-@doc """
-parse: declared remote builders from the machines file.
-"""
 def parse(text)
   map(machine, filter(meaningful?, split(text, "\n")))
 end
 
 # ── the check ────────────────────────────────────────────────────────
 
-@doc """
-probe_argv: the ssh command that checks one machine: non-interactive, a short connect
-timeout, a short keep-alive, and a trivial nix command on the far side, so
-"up" means nix answers, not merely that port 22 is open. `ssh` is the binary
-to run, by absolute path when the caller has one (services.tehai passes
-/usr/bin/ssh on macOS, openssh on NixOS), so the state can name which ssh ran.
-"""
+# The ssh command that checks one machine: non-interactive, a short connect
+# timeout, a short keep-alive, and a trivial nix command on the far side, so
+# "up" means nix answers, not merely that port 22 is open. `ssh` is the binary
+# to run, by absolute path when the caller has one (services.tehai passes
+# /usr/bin/ssh on macOS, openssh on NixOS), so the state can name which ssh ran.
 def probe_argv(m, timeout_s, ssh)
   key = if get(m, :key).nil?
     []
@@ -122,12 +111,8 @@ def probe_argv(m, timeout_s, ssh)
   )
 end
 
-@doc """
-probe: [up?, detail] for one machine. A failure to start ssh at all is a down
-machine with the reason, never an uncaught error for the whole run.
-
-    probe(probe_target, 2, "") #=> [false, "ssh could not be started: "]
-"""
+# [up?, detail] for one machine. A failure to start ssh at all is a down
+# machine with the reason, never an uncaught error for the whole run.
 def probe(m, timeout_s, ssh)
   cap = exec_capture(*probe_argv(m, timeout_s, ssh)) rescue nil
   if cap.nil?
@@ -141,9 +126,7 @@ end
 
 # ── what gets written ────────────────────────────────────────────────
 
-@doc """
-live_text: the live machines file: each live machine's declared line, unchanged.
-"""
+# The live machines file: each live machine's declared line, unchanged.
 def live_text(checked)
   join(
     map(
@@ -154,9 +137,7 @@ def live_text(checked)
   )
 end
 
-@doc """
-states: each machine's state, carrying `since` forward while up/down is unchanged.
-"""
+# Each machine's state, carrying `since` forward while up/down is unchanged.
 def states(checked, previous, now)
   map((c) -> state(c, previous_of(previous, get(c, :line)), now), checked)
 end
@@ -181,10 +162,8 @@ def state(c, prev, now)
   }
 end
 
-@doc """
-read_previous: a previous state file's machines, or [] when there is none or it is not
-JSON: a missing history only resets `since`.
-"""
+# A previous state file's machines, or [] when there is none or it is not
+# JSON: a missing history only resets `since`.
 def read_previous(path)
   text = read_or(path, "")
   if is_empty(text)
@@ -199,10 +178,8 @@ def read_previous(path)
   end
 end
 
-@doc """
-or_empty: a parsed JSON object is a key/value list, not a map, so its fields are read
-through deeta (as_json, get_str, get_int), never `get`.
-"""
+# A parsed JSON object is a key/value list, not a map, so its fields are read
+# through deeta (as_json, get_str, get_int), never `get`.
 def or_empty(xs)
   if xs.nil?
     []
@@ -220,10 +197,8 @@ def or_empty(xs)
   end
 end
 
-@doc """
-write_atomic: write through a temporary beside the target, then rename: atomic on one
-filesystem, so a reader sees the old file or the new one.
-"""
+# Write through a temporary beside the target, then rename: atomic on one
+# filesystem, so a reader sees the old file or the new one.
 def write_atomic(path, text)
   tmp = "#{path}.tehai-tmp"
   write_file(tmp, text)
@@ -232,10 +207,8 @@ end
 
 # ── one run ──────────────────────────────────────────────────────────
 
-@doc """
-run: check every declared machine once; write the live file and the state.
-Returns the state record.
-"""
+# Check every declared machine once; write the live file and the state.
+# Returns the state record.
 def run(declared_path, live_path, state_path, timeout_s, ssh)
   now = now_ms
   machines = parse(read_or(declared_path, ""))
@@ -270,10 +243,8 @@ def checked(m, result)
   }
 end
 
-@doc """
-main: the daemon's entry point: paths, timeout and the ssh binary from the
-environment. A bare "ssh" (PATH lookup) is the fallback, and the state says so.
-"""
+# The daemon's entry point: paths, timeout and the ssh binary from the
+# environment. A bare "ssh" (PATH lookup) is the fallback, and the state says so.
 def main()
   run(
     getenv("TEHAI_DECLARED", "/etc/nix/machines"),

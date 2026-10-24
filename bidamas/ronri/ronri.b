@@ -1,22 +1,13 @@
-@moduledoc """
-ronri (論理) — predicates, and the algebra over them.
-
-A predicate is a function to a boolean, and predicates compose the way
-booleans do. Building `all_of` from `every` rather than writing three
-recursive walks is the point: the combinators are the library.
-
-    every(equals(1), []) #=> true
-"""
-
 use("kansuu", [:compose])
 use("kazu", [:abs])
 use("retsu", [:first, :indexes, :is_empty, :rest, :size])
 
-@doc """
-every: whether f holds for all items.
+# ronri (論理) — predicates, and the algebra over them.
+#
+# A predicate is a function to a boolean, and predicates compose the way
+# booleans do. Building `all_of` from `every` rather than writing three
+# recursive walks is the point: the combinators are the library.
 
-    every(equals(1), []) #=> true
-"""
 def every(p, xs)
   if is_empty(xs)
     true
@@ -27,9 +18,6 @@ def every(p, xs)
   end
 end
 
-@doc """
-any: whether f holds for some item.
-"""
 def any(p, xs)
   if is_empty(xs)
     false
@@ -40,11 +28,6 @@ def any(p, xs)
   end
 end
 
-@doc """
-none: whether f holds for no item.
-
-    none(equals(9), [1, 2]) #=> true
-"""
 def none(p, xs)
   not any(p, xs)
 end
@@ -57,36 +40,26 @@ def complement(p)
   (x) -> not p(x)
 end
 
-@doc """
-both: predicate that holds when f and g hold.
-"""
 def both(p, q)
   (x) -> p(x) and q(x)
 end
 
-@doc """
-either: predicate that holds when f or g holds.
-"""
 def either(p, q)
   (x) -> p(x) or q(x)
 end
 
-@doc """
-xor: the rest of the connectives, so a caller never has to spell one out by hand.
-
-`xor` is `p(x) != q(x)` and nothing else; the hand-rolled
-`(p || q) && !(p && q)` is the same function written three times as long,
-and it is where a transcription error lands.
-"""
+# The rest of the connectives, so a caller never has to spell one out by hand.
+#
+# `xor` is `p(x) != q(x)` and nothing else; the hand-rolled
+# `(p || q) && !(p && q)` is the same function written three times as long,
+# and it is where a transcription error lands.
 def xor(p, q)
   (x) -> p(x) != q(x)
 end
 
-@doc """
-implies: material implication — FALSE antecedent makes it TRUE. That is the case
-readers guess wrong, which is the whole argument for it being a named
-combinator instead of an inlined `!p(x) || q(x)` at each site.
-"""
+# Material implication — FALSE antecedent makes it TRUE. That is the case
+# readers guess wrong, which is the whole argument for it being a named
+# combinator instead of an inlined `!p(x) || q(x)` at each site.
 def implies(p, q)
   (x) -> not p(x) or q(x)
 end
@@ -99,18 +72,16 @@ def nor(p, q)
   (x) -> not (p(x) or q(x))
 end
 
-@doc """
-all_of / any_of / none_of take a LIST of predicates and hand back a
-PREDICATE, so they extend both/either to n arguments rather than sitting
-beside them — `all_of([a, b, c])` is what `both(a, both(b, c))` was reaching
-for.
-
-Each is `every`/`any`/`none` run over the PREDICATES with the argument held
-fixed, which is the header's claim made literal. Two things fall out that a
-`reduce` would not give: the vacuous cases are inherited rather than chosen
-(an empty conjunction is true because `every` says so), and the walk stops at
-the first decisive predicate instead of calling all of them.
-"""
+# all_of / any_of / none_of take a LIST of predicates and hand back a
+# PREDICATE, so they extend both/either to n arguments rather than sitting
+# beside them — `all_of([a, b, c])` is what `both(a, both(b, c))` was reaching
+# for.
+#
+# Each is `every`/`any`/`none` run over the PREDICATES with the argument held
+# fixed, which is the header's claim made literal. Two things fall out that a
+# `reduce` would not give: the vacuous cases are inherited rather than chosen
+# (an empty conjunction is true because `every` says so), and the walk stops at
+# the first decisive predicate instead of calling all of them.
 def all_of(ps)
   (x) -> every((p) -> p(x), ps)
 end
@@ -123,14 +94,10 @@ def none_of(ps)
   (x) -> none((p) -> p(x), ps)
 end
 
-@doc """
-is_empty_pred: predicates ABOUT lists, so `count_if(is_nonempty_pred, rows)` reads without a
-lambda. The `_pred` suffix is not decoration: retsu exports `is_empty` as a
-plain question, and a `def is_empty` here would silently replace it for every
-call in this file.
-
-    is_empty_pred(blue::rest([1])) #=> true
-"""
+# Predicates ABOUT lists, so `count_if(is_nonempty_pred, rows)` reads without a
+# lambda. The `_pred` suffix is not decoration: retsu exports `is_empty` as a
+# plain question, and a `def is_empty` here would silently replace it for every
+# call in this file.
 def is_empty_pred(xs)
   is_empty(xs)
 end
@@ -139,13 +106,11 @@ def is_nonempty_pred(xs)
   not is_empty(xs)
 end
 
-@doc """
-exactly_n: the counting quantifiers, between `any` (n >= 1) and `every` (n == size).
-
-COUNT FIRST, then the predicate, then the list — `take(2, xs)` and
-`nth(0, xs)` put the number first, and a library that flips the convention
-per function is how a caller ends up passing a predicate as a count.
-"""
+# The counting quantifiers, between `any` (n >= 1) and `every` (n == size).
+#
+# COUNT FIRST, then the predicate, then the list — `take(2, xs)` and
+# `nth(0, xs)` put the number first, and a library that flips the convention
+# per function is how a caller ends up passing a predicate as a count.
 def exactly_n(n, p, xs)
   count_if(p, xs) == n
 end
@@ -158,36 +123,30 @@ def at_most_n(n, p, xs)
   count_if(p, xs) <= n
 end
 
-@doc """
-majority: strictly MORE than half — a tie is not a majority.
-
-Doubling rather than dividing is deliberate: `/` is float division here, so
-`count_if(p, xs) / size(xs) > 0.5` drags an exact question through a float,
-and it divides by zero on the empty list. `2 * k > n` is integer throughout
-and answers false for the empty list without a special case.
-"""
+# Strictly MORE than half — a tie is not a majority.
+#
+# Doubling rather than dividing is deliberate: `/` is float division here, so
+# `count_if(p, xs) / size(xs) > 0.5` drags an exact question through a float,
+# and it divides by zero on the empty list. `2 * k > n` is integer throughout
+# and answers false for the empty list without a special case.
 def majority(p, xs)
   2 * count_if(p, xs) > size(xs)
 end
 
 # Splitting a list ON a predicate.
 
-@doc """
-partition_by(p, xs) => [satisfying, not_satisfying].
-
-Two filters rather than one cons-recursion, because filter preserves order
-and a hand-rolled accumulate-then-return does not — the reversed half is the
-classic bug here, and it only shows on lists of three or more.
-"""
+# partition_by(p, xs) => [satisfying, not_satisfying].
+#
+# Two filters rather than one cons-recursion, because filter preserves order
+# and a hand-rolled accumulate-then-return does not — the reversed half is the
+# classic bug here, and it only shows on lists of three or more.
 def partition_by(p, xs)
   [filter(p, xs), filter(complement(p), xs)]
 end
 
-@doc """
-prefix_len: how many elements at the FRONT satisfy p. This is the only recursion in the
-take/drop family: the four functions below are each one call into it plus a
-total builtin, instead of four near-identical walks that can disagree.
-"""
+# How many elements at the FRONT satisfy p. This is the only recursion in the
+# take/drop family: the four functions below are each one call into it plus a
+# total builtin, instead of four near-identical walks that can disagree.
 def prefix_len(p, xs)
   if is_empty(xs)
     0
@@ -206,11 +165,9 @@ def drop_while_pred(p, xs)
   drop(prefix_len(p, xs), xs)
 end
 
-@doc """
-take_until stops BEFORE the first element that satisfies p, and stops for
-good — it is a prefix, not a filter, so a later element that fails p is NOT
-picked back up. That distinction is the whole reason it is not `filter`.
-"""
+# take_until stops BEFORE the first element that satisfies p, and stops for
+# good — it is a prefix, not a filter, so a later element that fails p is NOT
+# picked back up. That distinction is the whole reason it is not `filter`.
 def take_until(p, xs)
   take_while_pred(complement(p), xs)
 end
@@ -219,48 +176,40 @@ def drop_until(p, xs)
   drop_while_pred(complement(p), xs)
 end
 
-@doc """
-span_by(p, xs) => [prefix, remainder], the take_while_pred/drop_while_pred pair.
-
-The prefix sibling of partition_by, and both are worth having: on [1, 9, 1]
-they disagree, because partition_by scans the whole list and span_by stops.
-"""
+# span_by(p, xs) => [prefix, remainder], the take_while_pred/drop_while_pred pair.
+#
+# The prefix sibling of partition_by, and both are worth having: on [1, 9, 1]
+# they disagree, because partition_by scans the whole list and span_by stops.
 def span_by(p, xs)
   [take_while_pred(p, xs), drop_while_pred(p, xs)]
 end
 
 # Searching by a predicate.
 
-@doc """
-equals: lift a VALUE into a predicate — the constructor that lets the rest of this
-file be used without writing a lambda: count_if(equals(3), xs),
-find_index_by(equals("b"), xs), none(equals(nil), xs).
-"""
+# Lift a VALUE into a predicate — the constructor that lets the rest of this
+# file be used without writing a lambda: count_if(equals(3), xs),
+# find_index_by(equals("b"), xs), none(equals(nil), xs).
 def equals(v)
   (x) -> x == v
 end
 
-@doc """
-via(f, p) asks p about f(x) rather than about x — `count_if(via(abs,
-equals(2)), xs)` counts the twos of either sign, and `find_by(via(size,
-equals(0)), rows)` finds the first empty row, both without a lambda.
-
-It is kansuu's `compose` with the arguments named for this use: compose
-applies its SECOND argument first, so `compose(p, f)` is the right order and
-`compose(f, p)` would hand a boolean to f. Stating it once here is cheaper
-than getting it right at every call site.
-"""
+# via(f, p) asks p about f(x) rather than about x — `count_if(via(abs,
+# equals(2)), xs)` counts the twos of either sign, and `find_by(via(size,
+# equals(0)), rows)` finds the first empty row, both without a lambda.
+#
+# It is kansuu's `compose` with the arguments named for this use: compose
+# applies its SECOND argument first, so `compose(p, f)` is the right order and
+# `compose(f, p)` would hand a boolean to f. Stating it once here is cheaper
+# than getting it right at every call site.
 def via(f, p)
   compose(p, f)
 end
 
-@doc """
-find_index_from: the index of the first satisfying element, or 0 - 1 when there is none.
-
-0 - 1 rather than nil is the distribution's convention for a missing index
-(junjo's index_of_sorted, angou's find_index_of): nil would flow into
-arithmetic silently, whereas 0 - 1 is out of range for every list.
-"""
+# The index of the first satisfying element, or 0 - 1 when there is none.
+#
+# 0 - 1 rather than nil is the distribution's convention for a missing index
+# (junjo's index_of_sorted, angou's find_index_of): nil would flow into
+# arithmetic silently, whereas 0 - 1 is out of range for every list.
 def find_index_from(p, xs, i)
   if is_empty(xs)
     -1
@@ -275,10 +224,8 @@ def find_index_by(p, xs)
   find_index_from(p, xs, 0)
 end
 
-@doc """
-find_by: the first satisfying ELEMENT, or nil — nil here matches retsu's first([]),
-where "no such element" is genuinely absence rather than a position.
-"""
+# The first satisfying ELEMENT, or nil — nil here matches retsu's first([]),
+# where "no such element" is genuinely absence rather than a position.
 def find_by(p, xs)
   if is_empty(xs)
     nil
@@ -289,9 +236,7 @@ def find_by(p, xs)
   end
 end
 
-@doc """
-indexes_where: every index whose element satisfies p; find_index_by is its first entry.
-"""
+# Every index whose element satisfies p; find_index_by is its first entry.
 def indexes_where(p, xs)
   filter((i) -> p(nth(i, xs)), indexes(xs))
 end

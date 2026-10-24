@@ -1,9 +1,3 @@
-@moduledoc """
-kijun (基準) — the standard a private nix fleet repo is held to, as data: layout, expression and evaluated-tree rules, per-entry waivers, and a baseline ratchet.
-
-    nix_string("a\"b${c}\\") #=> "\"a\\\"b\\${c}\\\\\""
-"""
-
 use("deeta", [:as_json, :get_str])
 use("hadome")
 use("kyohi", [:refusal])
@@ -38,6 +32,8 @@ use("retsu", [:first, :flat_map, :is_empty, :last, :rest, :size, :take_n])
 
 use("shisutemu", [:read_or, :status_of, :stderr_of, :stdout_of])
 use("shuugou", [:frequencies, :unique])
+
+# kijun (基準) — the standard a private nix fleet repo is held to, as data: layout, expression and evaluated-tree rules, per-entry waivers, and a baseline ratchet.
 
 def fleet_repo(version)
   {
@@ -106,9 +102,6 @@ def configurations(cfg, names)
   assoc(cfg, :configurations, append(get(cfg, :configurations), names))
 end
 
-@doc """
-waive: exempt one path from one rule with a reason.
-"""
 def waive(cfg, rule, glob, reason)
   assoc(cfg, :waivers, append(get(cfg, :waivers), [{rule:, glob:, reason:}]))
 end

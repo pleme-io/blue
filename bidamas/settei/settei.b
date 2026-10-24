@@ -164,9 +164,6 @@ def resolve(app, defaults, doc, lookup)
   first(from_env)
 end
 
-@doc """
-file: where the config file of an app tier lives.
-"""
 def file(app, tier)
   if tier == :explicit
     getenv("#{env_prefix(app)}CONFIG")
@@ -206,9 +203,6 @@ def prescribed(app, path)
   json_read(read_file(path))
 end
 
-@doc """
-defaults: the built-in default record of an app.
-"""
 def defaults(app)
   prescribed(app, getenv("#{env_prefix(app)}DEFAULTS"))
 end
@@ -241,9 +235,6 @@ def file_doc(path, format)
   deeta::parse(read_file(path), format)
 end
 
-@doc """
-read: resolve defaults, then file, then environment into one record.
-"""
 def read(app, defaults, opts?)
   path = discovered_path(app)
   doc = if path.nil?
@@ -258,11 +249,6 @@ def load(app, opts?)
   read(app, defaults(app), opts)
 end
 
-@doc """
-merge: combine two records, b winning, deep for maps.
-
-    merge({}, {}) #=> {}
-"""
 def merge(a, b)
   reduce(
     fn(acc, e)
@@ -294,16 +280,10 @@ def lookup_path(config, parts)
   )
 end
 
-@doc """
-has?: whether a setting is defined.
-"""
 def has?(config, path)
   lookup_path(config, split(path, ".")) != nil
 end
 
-@doc """
-need: one setting by dotted path, raising not_found.
-"""
 def need(config, path)
   v = lookup_path(config, split(path, "."))
   if v.nil?

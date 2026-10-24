@@ -135,6 +135,15 @@ end
 
 # The entry for definition `e` ([name, signature, doc_lines, waivers]) of the
 # package `pkg` (a mokuroku record, or nil for the file's own script).
+def derived_of(pkg, name)
+  r = run_blue(
+    ["doc", name, "--file", "#{pkg_dir(pkg)}/#{pkg_name(pkg)}.b", "--derived"]
+  )
+  if nth(1, nth(0, r)) == 0
+    json_parse(nth(1, nth(1, r)))
+  end
+end
+
 def def_entry(pkg, e, text, tier)
   name = first(e)
   qualifier = if pkg.nil?
@@ -154,7 +163,12 @@ def def_entry(pkg, e, text, tier)
     topic: nil,
     signature: "#{qualifier}#{nth(1, e)}",
     doc: nth(2, e),
-    example: test_example(text, name)
+    example: test_example(text, name),
+    derived: if pkg.nil?
+      nil
+    else
+      derived_of(pkg, name)
+    end
   }
 end
 
@@ -235,9 +249,15 @@ def entry_text(e)
     "bidama #{get(e, :namespace)}"
   end
   example = get(e, :example)
+  derived = get(e, :derived)
   lines = append(
     [get(e, :signature), "  #{where} · tier: #{get(e, :tier)}"],
     map((l) -> "  #{l}", get(e, :doc)),
+    if derived.nil?
+      []
+    else
+      map((l) -> "  · #{l}", json_get(derived, "lines"))
+    end,
     if example.nil?
       []
     else

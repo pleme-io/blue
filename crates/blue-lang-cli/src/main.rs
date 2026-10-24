@@ -227,6 +227,11 @@ enum Cmd {
         /// `doc.b` reads a builtin's example from.
         #[arg(long, hide = true)]
         rows: bool,
+        /// What blue derives about NAME, defined in FILE, as one JSON object:
+        /// mondou's view (signature, rung, contract row, space, callers,
+        /// refusals), which `doc.b` renders beside the `@doc`.
+        #[arg(long, hide = true, requires = "file")]
+        derived: bool,
     },
     /// The verb graph (`bidamas/mokuroku/graph`): `import` region or merged
     /// TSVs into its row files, `export` them back to TSV (the only writer of
@@ -812,10 +817,35 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             file,
             json,
             rows,
+            derived,
         } => {
             if rows {
                 println!("{}", doc::rows_json()?);
                 return Ok(ExitCode::SUCCESS);
+            }
+            if derived {
+                let (Some(name), Some(file)) = (name, file) else {
+                    return Ok(ExitCode::FAILURE);
+                };
+                let text = read(&file)?;
+                let bidama = blue_lang_runtime::uses::Loader::entry_package(
+                    &blue_lang_pkg::load_path::LoadPath::for_entry(&file),
+                    &file,
+                );
+                return Ok(
+                    match blue_lang_lsp::docview::of_file(
+                        &text,
+                        Some(&file),
+                        bidama.as_deref(),
+                        &name,
+                    ) {
+                        Some(v) => {
+                            println!("{}", doc::derived_json(&v)?);
+                            ExitCode::SUCCESS
+                        }
+                        None => ExitCode::FAILURE,
+                    },
+                );
             }
             let mut args: Vec<String> = name.into_iter().collect();
             if let Some(f) = file {

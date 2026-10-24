@@ -32,11 +32,6 @@ def bezier_points(points)
   points
 end
 
-@doc """
-curve: declare an easing curve: bezier, steps or named.
-
-    curve(:linear, nil) #=> {kind: :linear}
-"""
 def curve(kind, params)
   if kind == :linear
     if params != nil
@@ -85,11 +80,6 @@ def solve(x1, x2, target, lo, hi, rounds)
   end
 end
 
-@doc """
-ease: progress from 0 to 1 along a curve at t.
-
-    ease(curve(:steps, 1), 0.99) #=> 0
-"""
 def ease(c, t)
   u = clamp(t, 0, 1)
   kind = get(c, :kind)
@@ -168,11 +158,6 @@ def mix_rotation(a, b, t)
   end
 end
 
-@doc """
-mix: blend two numbers, vectors, colors or rotations at t.
-
-    mix(10, 20, 0) #=> 10
-"""
 def mix(a, b, t)
   if number?(a) and number?(b)
     lerp(a, b, t)
@@ -195,9 +180,6 @@ def positive_seconds(opts)
   seconds
 end
 
-@doc """
-tween: declare a change of value over a duration.
-"""
 def tween(from, to, opts)
   checked(opts, [:seconds, :curve])
   mix(from, to, 0)
@@ -205,9 +187,6 @@ def tween(from, to, opts)
   {kind: :tween, from:, to:, seconds: positive_seconds(opts), curve: c}
 end
 
-@doc """
-spring: declare a damped spring motion.
-"""
 def spring(stiffness, damping, mass)
   if not number?(stiffness) or stiffness <= 0
     raise(:bad_option, "a spring takes a stiffness above 0")
@@ -247,18 +226,10 @@ def spring_at(m, t)
   end
 end
 
-@doc """
-duration: how long a motion runs; nil for a spring.
-
-    duration(tween(0, 1, {seconds: 3})) #=> 3
-"""
 def duration(m)
   get(m, :seconds)
 end
 
-@doc """
-sample: the value of a motion at time t.
-"""
 def sample(m, t)
   if get(m, :kind) == :tween
     mix(get(m, :from), get(m, :to), ease(get(m, :curve), t / get(m, :seconds)))
@@ -275,9 +246,6 @@ def elapsed(state)
   end
 end
 
-@doc """
-advance: move a motion state forward by dt.
-"""
 def advance(m, state, opts)
   checked(opts, [:seconds])
   dt = get(opts, :seconds)
@@ -288,11 +256,6 @@ def advance(m, state, opts)
   {t:, value: sample(m, t)}
 end
 
-@doc """
-settled?: whether a motion has come to rest.
-
-    settled?(spring(100, 0, 1), {t: 100}) #=> false
-"""
 def settled?(m, state)
   t = elapsed(state)
   if get(m, :kind) == :tween

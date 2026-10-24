@@ -1,122 +1,3 @@
-@moduledoc """
-kueri (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
-
-A query is blue DATA: maps built by `q_` constructors (the namespace is flat,
-so every name carries the prefix, as sabi's carry `rs_`). One renderer turns
-a model into SQL text, so quoting, literal typing, clause order and layout
-live in one place, and the same IR always renders the same bytes. SQL is a
-rendered artifact, never the authored source. The one piece of hand-written
-SQL is the escape hatch, `q_raw`, and it must declare the columns it returns.
-
-## The model
-
-  relations    q_source(opts: delimited or JSON Lines)  q_values(opts: literal
-               rows)  q_ref(x)  q_raw(opts)  q_model(opts)
-  stages       q_select(+ q_as)  q_derive  q_explode  q_filter  q_group(+
-               q_agg, q_agg_where)  q_join  q_left_join  q_asof_left_join
-               q_sort(+ q_desc)  q_limit
-               — and q_then(model, stages) composes by appending data
-  expressions  q_c  q_lit(q_int q_double q_str q_bool q_null)  q_add q_sub
-               q_mul q_div  q_eq q_ne q_lt q_le q_gt q_ge  q_and q_or q_not
-               q_is_null q_not_null  q_if  q_coalesce  q_get (a struct field)
-               q_round  q_cast  q_min q_max q_sum q_avg q_count q_count_all
-               q_filtered (FILTER-where)  q_string_agg  q_row_number  q_lead
-               q_lag  q_ordered (an order for an order-sensitive aggregate)
-  types        q_types() (scalars)  q_struct_of(cols)  q_list_of(t)
-
-A keyword is a column and a string is a value — `q_eq(:enforcement, 0)` —
-the HoneySQL rule. A pipeline is PRQL-shaped: each stage takes a relation to
-a relation. The lowering folds consecutive stages into one SELECT while SQL's
-clause order allows it (a filter becomes WHERE, HAVING or QUALIFY by its
-position) and opens a CTE (`step_1`, `step_2`, …) only when it must.
-A cycle is unrepresentable: a ref holds its upstream VALUE, which has to
-exist before the ref can be built.
-
-## Dialects are layers
-
-`:core` renders only what is portable across mainstream engines: CTE chains,
-WHERE / GROUP BY / HAVING, `CASE WHEN` conditional aggregates, CAST to the
-standard type names. `:duckdb` inherits every core arm and overrides where
-DuckDB is better: `agg FILTER (WHERE …)`, QUALIFY (one SELECT instead of an
-extra CTE), typed literals `0.9::DOUBLE`, `ORDER BY ALL`, `COPY … TO`, and
-`read_csv(… columns = {…})`. Core SQL is also valid DuckDB, which is how the
-tests prove the two layers compute the same rows. A construct with no core
-form — string_agg, a raw node not vouched portable, a COPY to a file,
-read_csv — has floor :duckdb.
-
-## Rungs — the blueshift, for SQL
-
-A model declares its posture, `posture: [reach, rigor]`, which mirrors blue's
-(theory/BLUE.md §V.19–V.20):
-
-  reach  :portable | :duckdb — like waku's REACH, what a model may NAME.
-         :portable is the narrower frame. Every construct has a floor, and a
-         floor above the declared reach is refused and named on both sides,
-         like a bidama posture conflict.
-  rigor  :loose | :locked — like the RIGOR rungs. :loose is `annotated`: a
-         contract that IS declared is still checked, on that model only.
-         :locked is `checked`: a contract is required, and the determinism
-         rules hold.
-
-The default is [:duckdb, :loose], blue's own default: declare nothing and pay
-nothing. `narrow` cannot widen: each stage re-checks what it receives, so
-`q_render` re-runs `q_check` and then the dialect floor, and the renderer's
-own arms refuse a DuckDB-only node in :core — a :core rendering cannot
-contain a DuckDB form whichever door it came through. `q_shift(model)`
-answers blue shift's second question: the lowest reach that holds this model,
-and which constructs hold it there.
-
-## Tiers — what throws, and what is only rendered
-
-THROWS, as `throw(error(:kueri_…, why))`, never a warning:
-  :kueri_reach     a construct above the declared reach
-  :kueri_locked    a locked model with no contract, an order-sensitive
-                   aggregate or window with no order, a limit with no sort
-                   right before it, or an upstream whose columns are unknown
-  :kueri_contract  a declared contract that differs from the inferred output
-  :kueri_shape     an unknown column (where the schema is known), an aggregate
-                   outside a group, a sort a later stage discards, a malformed
-                   node — refused where it is built when it is local
-  :kueri_dialect   rendering a construct below its floor
-RENDERED, by construction: a locked model's output is totally ordered —
-ORDER BY ALL in DuckDB, the contract's columns in core — so there is nothing
-to refuse.
-NOT CHECKED at M0: column TYPES and nullability (M1 binds each model against
-DuckDB with DESCRIBE rather than re-deriving DuckDB's type rules), a float
-SUM's order sensitivity (it needs types, then fsum), and whether a raw node's
-SQL returns the columns it declares or is deterministic: raw is trusted.
-`refusals` returns violations as data ([kind, why], read with kyohi::kind
-and kyohi::why); `check` throws them.
-
-## Around the query
-
-q_deps / q_closure walk ref nodes into the DAG, with no parsing.
-q_render_load binds a source to a delimited or JSON Lines file with its
-declared columns (the sniffer never decides a contract), or loads literal
-rows. q_render_materialize writes a model out (a file, a table or a view).
-q_write_sql writes the rendered statement with a @generated header, for a
-consumer to commit and gate fresh like blue's generate(...) files;
-q_render_script renders a whole database (every load, then every model as a
-view or table, upstream first). q_duckdb is the process seam to the `duckdb`
-binary (a program, not a linked library, so there is no C to contain; the
-Bluefile declares it with `tool("duckdb")`): a failure is [:error, stderr]
-and an empty result is [:ok, []], never confused. q_duckdb_at runs against
-a database file; q_rows / q_rows_at THROW :kueri_query on a failure, for
-callers that must never read one as no rows.
-
-A DAG node is identified by its NAME: q_closure and q_render_script keep the
-first node of each name, so two different relations given one name collapse
-silently. A generator names its relations uniquely (and checks it); content
-identity for nodes is not built.
-
-Design: the SQL-frameworks survey in the makoto lab (§5 sketch; this is its
-M0). Near-misses, deliberately not merged: dialeto's relational sub-IR
-(theory/DIALETO.md — design-tier, no types to compare) and sql-synthesizer
-(a Rust DDL AST with no SELECT algebra).
-
-    ident("Mean") #=> "\"Mean\""
-"""
-
 use("deeta", [:as_json])
 use("kazu")
 use("kyohi", [:enforce])
@@ -152,11 +33,124 @@ legacy_names(
   [["refusal_kind", "kyohi::kind"], ["refusal_why", "kyohi::why"]]
 )
 
+# kueri (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
+#
+# A query is blue DATA: maps built by `q_` constructors (the namespace is flat,
+# so every name carries the prefix, as sabi's carry `rs_`). One renderer turns
+# a model into SQL text, so quoting, literal typing, clause order and layout
+# live in one place, and the same IR always renders the same bytes. SQL is a
+# rendered artifact, never the authored source. The one piece of hand-written
+# SQL is the escape hatch, `q_raw`, and it must declare the columns it returns.
+#
+# ## The model
+#
+#   relations    q_source(opts: delimited or JSON Lines)  q_values(opts: literal
+#                rows)  q_ref(x)  q_raw(opts)  q_model(opts)
+#   stages       q_select(+ q_as)  q_derive  q_explode  q_filter  q_group(+
+#                q_agg, q_agg_where)  q_join  q_left_join  q_asof_left_join
+#                q_sort(+ q_desc)  q_limit
+#                — and q_then(model, stages) composes by appending data
+#   expressions  q_c  q_lit(q_int q_double q_str q_bool q_null)  q_add q_sub
+#                q_mul q_div  q_eq q_ne q_lt q_le q_gt q_ge  q_and q_or q_not
+#                q_is_null q_not_null  q_if  q_coalesce  q_get (a struct field)
+#                q_round  q_cast  q_min q_max q_sum q_avg q_count q_count_all
+#                q_filtered (FILTER-where)  q_string_agg  q_row_number  q_lead
+#                q_lag  q_ordered (an order for an order-sensitive aggregate)
+#   types        q_types() (scalars)  q_struct_of(cols)  q_list_of(t)
+#
+# A keyword is a column and a string is a value — `q_eq(:enforcement, 0)` —
+# the HoneySQL rule. A pipeline is PRQL-shaped: each stage takes a relation to
+# a relation. The lowering folds consecutive stages into one SELECT while SQL's
+# clause order allows it (a filter becomes WHERE, HAVING or QUALIFY by its
+# position) and opens a CTE (`step_1`, `step_2`, …) only when it must.
+# A cycle is unrepresentable: a ref holds its upstream VALUE, which has to
+# exist before the ref can be built.
+#
+# ## Dialects are layers
+#
+# `:core` renders only what is portable across mainstream engines: CTE chains,
+# WHERE / GROUP BY / HAVING, `CASE WHEN` conditional aggregates, CAST to the
+# standard type names. `:duckdb` inherits every core arm and overrides where
+# DuckDB is better: `agg FILTER (WHERE …)`, QUALIFY (one SELECT instead of an
+# extra CTE), typed literals `0.9::DOUBLE`, `ORDER BY ALL`, `COPY … TO`, and
+# `read_csv(… columns = {…})`. Core SQL is also valid DuckDB, which is how the
+# tests prove the two layers compute the same rows. A construct with no core
+# form — string_agg, a raw node not vouched portable, a COPY to a file,
+# read_csv — has floor :duckdb.
+#
+# ## Rungs — the blueshift, for SQL
+#
+# A model declares its posture, `posture: [reach, rigor]`, which mirrors blue's
+# (theory/BLUE.md §V.19–V.20):
+#
+#   reach  :portable | :duckdb — like waku's REACH, what a model may NAME.
+#          :portable is the narrower frame. Every construct has a floor, and a
+#          floor above the declared reach is refused and named on both sides,
+#          like a bidama posture conflict.
+#   rigor  :loose | :locked — like the RIGOR rungs. :loose is `annotated`: a
+#          contract that IS declared is still checked, on that model only.
+#          :locked is `checked`: a contract is required, and the determinism
+#          rules hold.
+#
+# The default is [:duckdb, :loose], blue's own default: declare nothing and pay
+# nothing. `narrow` cannot widen: each stage re-checks what it receives, so
+# `q_render` re-runs `q_check` and then the dialect floor, and the renderer's
+# own arms refuse a DuckDB-only node in :core — a :core rendering cannot
+# contain a DuckDB form whichever door it came through. `q_shift(model)`
+# answers blue shift's second question: the lowest reach that holds this model,
+# and which constructs hold it there.
+#
+# ## Tiers — what throws, and what is only rendered
+#
+# THROWS, as `throw(error(:kueri_…, why))`, never a warning:
+#   :kueri_reach     a construct above the declared reach
+#   :kueri_locked    a locked model with no contract, an order-sensitive
+#                    aggregate or window with no order, a limit with no sort
+#                    right before it, or an upstream whose columns are unknown
+#   :kueri_contract  a declared contract that differs from the inferred output
+#   :kueri_shape     an unknown column (where the schema is known), an aggregate
+#                    outside a group, a sort a later stage discards, a malformed
+#                    node — refused where it is built when it is local
+#   :kueri_dialect   rendering a construct below its floor
+# RENDERED, by construction: a locked model's output is totally ordered —
+# ORDER BY ALL in DuckDB, the contract's columns in core — so there is nothing
+# to refuse.
+# NOT CHECKED at M0: column TYPES and nullability (M1 binds each model against
+# DuckDB with DESCRIBE rather than re-deriving DuckDB's type rules), a float
+# SUM's order sensitivity (it needs types, then fsum), and whether a raw node's
+# SQL returns the columns it declares or is deterministic: raw is trusted.
+# `refusals` returns violations as data ([kind, why], read with kyohi::kind
+# and kyohi::why); `check` throws them.
+#
+# ## Around the query
+#
+# q_deps / q_closure walk ref nodes into the DAG, with no parsing.
+# q_render_load binds a source to a delimited or JSON Lines file with its
+# declared columns (the sniffer never decides a contract), or loads literal
+# rows. q_render_materialize writes a model out (a file, a table or a view).
+# q_write_sql writes the rendered statement with a @generated header, for a
+# consumer to commit and gate fresh like blue's generate(...) files;
+# q_render_script renders a whole database (every load, then every model as a
+# view or table, upstream first). q_duckdb is the process seam to the `duckdb`
+# binary (a program, not a linked library, so there is no C to contain; the
+# Bluefile declares it with `tool("duckdb")`): a failure is [:error, stderr]
+# and an empty result is [:ok, []], never confused. q_duckdb_at runs against
+# a database file; q_rows / q_rows_at THROW :kueri_query on a failure, for
+# callers that must never read one as no rows.
+#
+# A DAG node is identified by its NAME: q_closure and q_render_script keep the
+# first node of each name, so two different relations given one name collapse
+# silently. A generator names its relations uniquely (and checks it); content
+# identity for nodes is not built.
+#
+# Design: the SQL-frameworks survey in the makoto lab (§5 sketch; this is its
+# M0). Near-misses, deliberately not merged: dialeto's relational sub-IR
+# (theory/DIALETO.md — design-tier, no types to compare) and sql-synthesizer
+# (a Rust DDL AST with no SELECT algebra).
+
 # ── names and literals ─────────────────────────────────────────────────────
 
-@doc """
-name: a name as text: a keyword's name, or the string itself.
-"""
+# A name as text: a keyword's name, or the string itself.
 def name(x)
   if keyword?(x)
     to_s(x)
@@ -165,10 +159,8 @@ def name(x)
   end
 end
 
-@doc """
-reserved_words: words an engine will not read as a bare identifier: SQL's reserved words and
-DuckDB's own (qualify, pivot, asof, …). A name among them is quoted.
-"""
+# Words an engine will not read as a bare identifier: SQL's reserved words and
+# DuckDB's own (qualify, pivot, asof, …). A name among them is quoted.
 def reserved_words()
   [
     "all",
@@ -281,23 +273,17 @@ def reserved_words()
   ]
 end
 
-@doc """
-bare_ident?: lower-case ASCII, digits and underscore, not starting with a digit, and not
-reserved. Anything else is quoted, because engines fold unquoted case
-differently and a quoted name means the same thing everywhere.
-"""
+# Lower-case ASCII, digits and underscore, not starting with a digit, and not
+# reserved. Anything else is quoted, because engines fold unquoted case
+# differently and a quoted name means the same thing everywhere.
 def bare_ident?(s)
   made_of(s, "abcdefghijklmnopqrstuvwxyz_0123456789") and
     made_of(char_at(s, 0), "abcdefghijklmnopqrstuvwxyz_") and
     contains(reserved_words, s) == false
 end
 
-@doc """
-ident: an identifier as SQL: bare when safe, otherwise double-quoted with any
-embedded quote doubled.
-
-    ident("Mean") #=> "\"Mean\""
-"""
+# An identifier as SQL: bare when safe, otherwise double-quoted with any
+# embedded quote doubled.
 def ident(name)
   s = kueri::name(name)
   if bare_ident?(s)
@@ -307,17 +293,13 @@ def ident(name)
   end
 end
 
-@doc """
-quote_str: a string value as a SQL literal: single quotes, embedded quotes doubled.
-"""
+# A string value as a SQL literal: single quotes, embedded quotes doubled.
 def quote_str(s)
   "'#{replace(s, "'", "''")}'"
 end
 
-@doc """
-float_text: a float's digits, always with a decimal point: to_s(1.0) is "1", which an
-engine would read as an INTEGER.
-"""
+# A float's digits, always with a decimal point: to_s(1.0) is "1", which an
+# engine would read as an INTEGER.
 def float_text(x)
   s = to_s(x)
   if contains?(s, ".") or contains?(s, "e") or contains?(s, "E")
@@ -348,9 +330,7 @@ def type(t)
   end
 end
 
-@doc """
-composite?: a composite type: a map built by q_struct_of or q_list_of.
-"""
+# A composite type: a map built by q_struct_of or q_list_of.
 def composite?(t)
   t != nil and
     keyword?(t) == false and
@@ -361,10 +341,8 @@ def composite?(t)
     contains([:struct, :list], blue::get(t, :kind))
 end
 
-@doc """
-struct_of: a struct type: named fields, each declared with q_col. JSON objects load
-into it; read a field with q_get. DuckDB only.
-"""
+# A struct type: named fields, each declared with q_col. JSON objects load
+# into it; read a field with q_get. DuckDB only.
 def struct_of(cols)
   fs = as_list(cols)
   if is_empty(fs)
@@ -373,19 +351,15 @@ def struct_of(cols)
   {kind: :struct, fields: fs}
 end
 
-@doc """
-list_of: a list type: JSON arrays load into it; q_explode makes a row per element.
-DuckDB only.
-"""
+# A list type: JSON arrays load into it; q_explode makes a row per element.
+# DuckDB only.
 def list_of(t)
   {kind: :list, of: type(t)}
 end
 
-@doc """
-type_sql: a type's name in a dialect. DOUBLE is DuckDB's; the standard spells it
-DOUBLE PRECISION, which DuckDB also reads. Structs and lists are DuckDB's
-alone.
-"""
+# A type's name in a dialect. DOUBLE is DuckDB's; the standard spells it
+# DOUBLE PRECISION, which DuckDB also reads. Structs and lists are DuckDB's
+# alone.
 def type_sql(t, dialect)
   if composite?(t)
     composite_sql(t, dialect)
@@ -414,9 +388,7 @@ def composite_sql(t, dialect)
   end
 end
 
-@doc """
-col: a declared column: a source's input or a model's contract.
-"""
+# A declared column: a source's input or a model's contract.
 def col(name, t)
   {kind: :coldef, name: kueri::name(name), type: type(t)}
 end
@@ -427,9 +399,7 @@ end
 
 # ── expressions ────────────────────────────────────────────────────────────
 
-@doc """
-c: a column reference.
-"""
+# A column reference.
 def c(name)
   {kind: :col, name: kueri::name(name)}
 end
@@ -441,9 +411,7 @@ def int(n)
   {kind: :lit, type: :int, value: n}
 end
 
-@doc """
-double: a DOUBLE literal, typed on purpose: DuckDB reads a bare 1.0 as DECIMAL(2,1).
-"""
+# A DOUBLE literal, typed on purpose: DuckDB reads a bare 1.0 as DECIMAL(2,1).
 def double(x)
   if number?(x) == false
     raise(:kueri_shape, "q_double takes a number")
@@ -471,10 +439,8 @@ def value?(x)
   number?(x) or string?(x) or boolean?(x) or null?(x)
 end
 
-@doc """
-lit: a blue value as a literal, typed by what it is: an int stays an INTEGER and a
-float becomes a DOUBLE, never the DECIMAL an untyped 1.0 would be.
-"""
+# A blue value as a literal, typed by what it is: an int stays an INTEGER and a
+# float becomes a DOUBLE, never the DECIMAL an untyped 1.0 would be.
 def lit(v)
   if integer?(v)
     int(v)
@@ -491,10 +457,8 @@ def lit(v)
   end
 end
 
-@doc """
-expr: anything in expression position: a keyword is a column, a value is a
-literal, and a node is itself.
-"""
+# Anything in expression position: a keyword is a column, a value is a
+# literal, and a node is itself.
 def expr(x)
   if keyword?(x)
     c(x)
@@ -505,10 +469,8 @@ def expr(x)
   end
 end
 
-@doc """
-op: a binary operator. `prec` orders them for the renderer's parentheses:
-OR 1, AND 2, NOT 3, comparisons 4, + - 5, * / 6.
-"""
+# A binary operator. `prec` orders them for the renderer's parentheses:
+# OR 1, AND 2, NOT 3, comparisons 4, + - 5, * / 6.
 def op(op, prec, a, b)
   {kind: :op, op:, prec:, args: [expr(a), expr(b)]}
 end
@@ -578,16 +540,12 @@ def q_cast(x, t)
   {kind: :cast, type: type(t), args: [expr(x)]}
 end
 
-@doc """
-coalesce: the first of two values that is not NULL.
-"""
+# The first of two values that is not NULL.
 def coalesce(a, b)
   {kind: :fn, name: "coalesce", args: [expr(a), expr(b)]}
 end
 
-@doc """
-is_null: the value is NULL: absent, never a comparison (x = NULL is never true).
-"""
+# The value is NULL: absent, never a comparison (x = NULL is never true).
 def is_null(a)
   {kind: :postfix, op: "IS NULL", args: [expr(a)]}
 end
@@ -596,19 +554,15 @@ def not_null(a)
   {kind: :postfix, op: "IS NOT NULL", args: [expr(a)]}
 end
 
+# `a` where `cond` holds, else `b`: CASE WHEN … THEN … ELSE … END.
 # waive B0013: `if` is a reserved word, so the prefix stays; kueri::if names it too
-@doc """
-q_if: `a` where `cond` holds, else `b`: CASE WHEN … THEN … ELSE … END.
-"""
 def q_if(cond, a, b)
   {kind: :case, args: [expr(cond), expr(a), expr(b)]}
 end
 
+# A field of a struct value (a JSON object loaded as q_struct_of). DuckDB
+# only.
 # waive B0013: `get` is a builtin kueri also uses, so the prefix stays; kueri::get names it too
-@doc """
-q_get: a field of a struct value (a JSON object loaded as q_struct_of). DuckDB
-only.
-"""
 def q_get(x, field)
   {kind: :field, name: name(field), args: [expr(x)]}
 end
@@ -642,39 +596,29 @@ def q_count(x)
   agg_fn("count", [expr(x)])
 end
 
-@doc """
-count_all: count(*).
-"""
+# count(*).
 def count_all()
   agg_fn("count", [])
 end
 
-@doc """
-string_agg: joins the values with `sep`. Order-sensitive, and with no core form: MySQL,
-SQL Server and Snowflake each spell it differently.
-"""
+# Joins the values with `sep`. Order-sensitive, and with no core form: MySQL,
+# SQL Server and Snowflake each spell it differently.
 def string_agg(x, sep)
   agg_fn("string_agg", [expr(x), str(sep)])
 end
 
-@doc """
-row_number() OVER (PARTITION BY … ORDER BY …).
-"""
+# row_number() OVER (PARTITION BY … ORDER BY …).
 def row_number(partition, order)
   window("row_number", [], partition, order)
 end
 
-@doc """
-lead: the value of `x` in the next row of its partition, in `order`; NULL on the
-last. An order is required: without one the next row is arbitrary.
-"""
+# The value of `x` in the next row of its partition, in `order`; NULL on the
+# last. An order is required: without one the next row is arbitrary.
 def lead(x, partition, order)
   ordered_window("lead", x, partition, order)
 end
 
-@doc """
-lag: the value of `x` in the previous row; NULL on the first.
-"""
+# The value of `x` in the previous row; NULL on the first.
 def lag(x, partition, order)
   ordered_window("lag", x, partition, order)
 end
@@ -689,9 +633,6 @@ def ordered_window(f, x, partition, order)
   window(f, [expr(x)], partition, order)
 end
 
-@doc """
-window: columns computed over ordered partitions.
-"""
 def window(f, args, partition, order)
   {
     kind: :win,
@@ -702,10 +643,8 @@ def window(f, args, partition, order)
   }
 end
 
-@doc """
-filtered: an aggregate over only the rows where `pred` holds: FILTER (WHERE …) in
-DuckDB, CASE WHEN inside the aggregate in core.
-"""
+# An aggregate over only the rows where `pred` holds: FILTER (WHERE …) in
+# DuckDB, CASE WHEN inside the aggregate in core.
 def filtered(agg, pred)
   if blue::get(agg, :kind) != :agg
     raise(:kueri_shape, "q_filtered takes an aggregate")
@@ -713,9 +652,7 @@ def filtered(agg, pred)
   assoc(agg, :where, expr(pred))
 end
 
-@doc """
-ordered: an order for an order-sensitive aggregate or window.
-"""
+# An order for an order-sensitive aggregate or window.
 def ordered(node, keys)
   if blue::get(node, :kind) != :agg and blue::get(node, :kind) != :win
     raise(:kueri_shape, "q_ordered takes an aggregate or a window")
@@ -723,16 +660,12 @@ def ordered(node, keys)
   assoc(node, :order, map(key, keys))
 end
 
-@doc """
-order_sensitive_fns: functions whose result depends on the order rows arrive in.
-"""
+# Functions whose result depends on the order rows arrive in.
 def order_sensitive_fns()
   ["string_agg", "row_number", "lead", "lag"]
 end
 
-@doc """
-duckdb_only_fns: functions with no core form.
-"""
+# Functions with no core form.
 def duckdb_only_fns()
   ["string_agg"]
 end
@@ -757,15 +690,13 @@ end
 
 # ── relations ──────────────────────────────────────────────────────────────
 
-@doc """
-source: an input file with DECLARED columns. opts: name, file, columns (q_col
-list), format (:delimited, the default, or :jsonl), delim (:tab, the
-default, or :comma; delimited only).
-  :delimited  read_csv maps the columns by position and never sniffs.
-  :jsonl      JSON Lines: read_json maps them by key, a missing key is NULL,
-              and a value that is not of its column's type fails the load,
-              never reads as NULL. Columns may be q_struct_of / q_list_of.
-"""
+# An input file with DECLARED columns. opts: name, file, columns (q_col
+# list), format (:delimited, the default, or :jsonl), delim (:tab, the
+# default, or :comma; delimited only).
+#   :delimited  read_csv maps the columns by position and never sniffs.
+#   :jsonl      JSON Lines: read_json maps them by key, a missing key is NULL,
+#               and a value that is not of its column's type fails the load,
+#               never reads as NULL. Columns may be q_struct_of / q_list_of.
 def source(opts)
   cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
@@ -798,12 +729,10 @@ def source(opts)
   }
 end
 
-@doc """
-values: a relation of literal rows with declared scalar columns: data a program
-built (a definition's own tables, a lookup), loaded as a view in either
-dialect — never hand-written SQL. opts: name, columns (q_col list), rows
-(lists of numbers, strings, booleans or nil, one per column).
-"""
+# A relation of literal rows with declared scalar columns: data a program
+# built (a definition's own tables, a lookup), loaded as a view in either
+# dialect — never hand-written SQL. opts: name, columns (q_col list), rows
+# (lists of numbers, strings, booleans or nil, one per column).
 def values(opts)
   name = kueri::name(blue::get(opts, :name))
   cols = as_list(blue::get(opts, :columns))
@@ -844,12 +773,10 @@ def values(opts)
   }
 end
 
-@doc """
-raw: the escape hatch: hand-written SQL, which must declare the columns it
-returns. Its dialect is :duckdb unless the author vouches `dialect: :core` —
-kueri cannot read it, so it cannot prove it portable. opts: name, sql,
-columns (q_col list), dialect.
-"""
+# The escape hatch: hand-written SQL, which must declare the columns it
+# returns. Its dialect is :duckdb unless the author vouches `dialect: :core` —
+# kueri cannot read it, so it cannot prove it portable. opts: name, sql,
+# columns (q_col list), dialect.
 def raw(opts)
   cols = as_list(blue::get(opts, :columns))
   if is_empty(cols)
@@ -874,9 +801,7 @@ def raw(opts)
   }
 end
 
-@doc """
-ref: a reference to an upstream source or model. The DAG is these nodes.
-"""
+# A reference to an upstream source or model. The DAG is these nodes.
 def ref(x)
   k = blue::get(x, :kind)
   if k != :source and k != :model
@@ -885,10 +810,8 @@ def ref(x)
   {kind: :ref, target: x}
 end
 
-@doc """
-rel: a relation in from/join position: a source or model is referenced, a ref or
-raw node is itself.
-"""
+# A relation in from/join position: a source or model is referenced, a ref or
+# raw node is itself.
 def rel(x)
   k = blue::get(x, :kind)
   if k == :source or k == :model
@@ -918,10 +841,8 @@ def rigor_words()
   [:loose, :locked]
 end
 
-@doc """
-posture_of: the posture a model declares, as {reach, rigor}. Unknown words and two words
-on one axis are refused where the model is built.
-"""
+# The posture a model declares, as {reach, rigor}. Unknown words and two words
+# on one axis are refused where the model is built.
 def posture_of(words)
   ws = as_list(words)
   bad = blue::filter(
@@ -950,9 +871,7 @@ def posture_of(words)
   {reach: r, rigor: g}
 end
 
-@doc """
-reach_dialect: the dialect a reach allows: :portable holds a model to :core.
-"""
+# The dialect a reach allows: :portable holds a model to :core.
 def reach_dialect(reach)
   if reach == :portable
     :core
@@ -963,11 +882,9 @@ end
 
 # ── models and stages ──────────────────────────────────────────────────────
 
-@doc """
-model: a model is one SELECT with a name. opts: name, from, pipeline, posture,
-contract (q_col list), materialize (:parquet, :csv, :table or :view;
-optional).
-"""
+# A model is one SELECT with a name. opts: name, from, pipeline, posture,
+# contract (q_col list), materialize (:parquet, :csv, :table or :view;
+# optional).
 def model(opts)
   m = blue::get(opts, :materialize)
   if contains([nil, :parquet, :csv, :table, :view], m) == false
@@ -992,32 +909,26 @@ def model(opts)
   )
 end
 
-@doc """
-then: composition by data: the same model with more stages after its own.
-"""
+# Composition by data: the same model with more stages after its own.
 def then(model, stages)
   known(
     assoc(model, :pipeline, concat_lists(blue::get(model, :pipeline), stages))
   )
 end
 
-@doc """
-known: a model with the columns its walk infers stored in it, as :known (nil when
-an upstream's are unknown). A model is built only from relations that
-already exist, and each upstream model carries its own, so the walk reads
-them in one step instead of walking the graph again. Without it a view over
-a shared upstream re-walked that upstream once per path to it (anaritikusu's
-`steps` feeds some twenty views). Measured 2026-09-25 over NuPastel's 79
-generated views: q_check of all of them 1147 → 104 ms, q_output 1162 →
-102 ms, and the whole script 2.85 s → 0.47 s with moji's includes fix.
-"""
+# A model with the columns its walk infers stored in it, as :known (nil when
+# an upstream's are unknown). A model is built only from relations that
+# already exist, and each upstream model carries its own, so the walk reads
+# them in one step instead of walking the graph again. Without it a view over
+# a shared upstream re-walked that upstream once per path to it (anaritikusu's
+# `steps` feeds some twenty views). Measured 2026-09-25 over NuPastel's 79
+# generated views: q_check of all of them 1147 → 104 ms, q_output 1162 →
+# 102 ms, and the whole script 2.85 s → 0.47 s with moji's includes fix.
 def known(m)
   assoc(m, :known, blue::get(walk(m), :cols))
 end
 
-@doc """
-as: a named output: a select item or a group aggregate.
-"""
+# A named output: a select item or a group aggregate.
 def as(name, expr)
   {kind: :as, name: kueri::name(name), expr: kueri::expr(expr)}
 end
@@ -1026,9 +937,7 @@ def agg(name, expr)
   as(name, expr)
 end
 
-@doc """
-agg_where: an aggregate over only the rows where `pred` holds, named.
-"""
+# An aggregate over only the rows where `pred` holds, named.
 def agg_where(name, agg, pred)
   as(name, filtered(agg, pred))
 end
@@ -1041,73 +950,53 @@ def item(i)
   end
 end
 
-@doc """
-select: keep these columns (keywords) and computed ones (q_as), in this order.
-"""
+# Keep these columns (keywords) and computed ones (q_as), in this order.
 def select(items)
   {kind: :select, items: map(item, items)}
 end
 
-@doc """
-derive: add one computed column; every row stays.
-"""
+# Add one computed column; every row stays.
 def derive(name, expr)
   {kind: :derive, name: kueri::name(name), expr: kueri::expr(expr)}
 end
 
-@doc """
-explode: one row per element of a list: each row repeats once per element of
-`list_expr`, the element in the new column `name`, and a row whose list is
-empty or NULL is dropped (unnest). DuckDB only.
-"""
+# One row per element of a list: each row repeats once per element of
+# `list_expr`, the element in the new column `name`, and a row whose list is
+# empty or NULL is dropped (unnest). DuckDB only.
 def explode(name, list_expr)
   {kind: :explode, name: kueri::name(name), expr: expr(list_expr)}
 end
 
+# Keep the rows where `pred` holds.
 # waive B0013: `filter` is a builtin kueri also uses, so the prefix stays; kueri::filter names it too
-@doc """
-q_filter: keep the rows where `pred` holds.
-"""
 def q_filter(pred)
   {kind: :filter, pred: expr(pred)}
 end
 
-@doc """
-group: one row per distinct key; `aggs` are q_agg / q_agg_where outputs.
-"""
+# One row per distinct key; `aggs` are q_agg / q_agg_where outputs.
 def group(keys, aggs)
   {kind: :group, keys: map(name, as_list(keys)), aggs: as_list(aggs)}
 end
 
+# JOIN … USING (keys): the keys appear once, then the left's other columns,
+# then the right's.
 # waive B0013: `join` is a builtin kueri also uses, so the prefix stays; kueri::join names it too
-@doc """
-q_join: JOIN … USING (keys): the keys appear once, then the left's other columns,
-then the right's.
-"""
 def q_join(rel, keys)
   {kind: :join, how: :inner, rel: kueri::rel(rel), keys: map(name, keys)}
 end
 
-@doc """
-left_join: join that keeps every left row.
-"""
 def left_join(rel, keys)
   {kind: :join, how: :left, rel: kueri::rel(rel), keys: map(name, keys)}
 end
 
-@doc """
-asof_left_join: ASOF LEFT JOIN … USING (keys): the LAST key matches inexactly — each left
-row takes the right row whose key is the greatest at or below its own (the
-right side as of the left row's moment); the other keys match exactly. A
-left row with no match keeps NULLs. DuckDB only.
-"""
+# ASOF LEFT JOIN … USING (keys): the LAST key matches inexactly — each left
+# row takes the right row whose key is the greatest at or below its own (the
+# right side as of the left row's moment); the other keys match exactly. A
+# left row with no match keeps NULLs. DuckDB only.
 def asof_left_join(rel, keys)
   {kind: :join, how: :asof_left, rel: kueri::rel(rel), keys: map(name, keys)}
 end
 
-@doc """
-sort: order rows by keys.
-"""
 def sort(keys)
   {kind: :sort, keys: map(key, keys)}
 end
@@ -1148,9 +1037,7 @@ def kids(e)
   end
 end
 
-@doc """
-nodes: every node of an expression, the root first.
-"""
+# Every node of an expression, the root first.
 def nodes(e)
   cons(e, flat_map(kids(e), nodes))
 end
@@ -1172,9 +1059,7 @@ def node_refs(n)
   end
 end
 
-@doc """
-refs: the column names an expression reads.
-"""
+# The column names an expression reads.
 def refs(e)
   unique(flat_map(nodes(e), node_refs))
 end
@@ -1187,16 +1072,11 @@ def outside_aggs(e)
   end
 end
 
-@doc """
-bare_refs: the column names read OUTSIDE any aggregate — in a group, each must be a key.
-"""
+# The column names read OUTSIDE any aggregate — in a group, each must be a key.
 def bare_refs(e)
   unique(flat_map(outside_aggs(e), node_refs))
 end
 
-@doc """
-has?: whether the key is present. A plain map goes to jisho.
-"""
 def has?(e, kind)
   is_empty(nodes_of(e, kind)) == false
 end
@@ -1247,10 +1127,8 @@ def dup_refusals(names, where)
   end
 end
 
-@doc """
-expr_refusals: what no expression may hold outside a group: an aggregate. And the order
-rules every stage shares.
-"""
+# What no expression may hold outside a group: an aggregate. And the order
+# rules every stage shares.
 def expr_refusals(e, where, aggs_allowed, windows_allowed)
   a = if aggs_allowed == false and has?(e, :agg)
     [
@@ -1463,9 +1341,7 @@ def join_refusals(stage, cols, where)
   concat_lists(none, concat_lists(left, concat_lists(right, clash)))
 end
 
-@doc """
-stage_output: the columns a stage returns, or nil when its input's are unknown.
-"""
+# The columns a stage returns, or nil when its input's are unknown.
 def stage_output(stage, cols)
   k = blue::get(stage, :kind)
   if k == :derive or k == :explode
@@ -1506,9 +1382,7 @@ def next_kind(stages, i)
   end
 end
 
-@doc """
-walk: thread the schema through the pipeline: {cols, refusals}.
-"""
+# Thread the schema through the pipeline: {cols, refusals}.
 def walk(model)
   stages = blue::get(model, :pipeline)
   start = {cols: rel_columns(blue::get(model, :from)), refusals: []}
@@ -1530,18 +1404,14 @@ def walk_stage(acc, i, stage, next_kind)
   }
 end
 
-@doc """
-output: the column names a model returns, inferred through its pipeline; nil when an
-upstream's columns are unknown.
-"""
+# The column names a model returns, inferred through its pipeline; nil when an
+# upstream's columns are unknown.
 def output(model)
   blue::get(walk(model), :cols)
 end
 
-@doc """
-model_columns: what a downstream model sees: the contract when declared, the inference
-otherwise.
-"""
+# What a downstream model sees: the contract when declared, the inference
+# otherwise.
 def model_columns(model)
   cn = col_names(blue::get(model, :contract))
   if is_empty(cn) == false
@@ -1566,9 +1436,7 @@ def rel_columns(rel)
   end
 end
 
-@doc """
-duckdb_uses: constructs with no core form, as [what, where].
-"""
+# Constructs with no core form, as [what, where].
 def duckdb_uses(model)
   from_uses = rel_uses(blue::get(model, :from), "the from relation")
   stage_uses = flat_map(
@@ -1600,10 +1468,8 @@ def stage_uses(stage, where)
   end
 end
 
-@doc """
-duckdb_node?: an expression node with no core form: a DuckDB-only aggregate, or a struct
-field.
-"""
+# An expression node with no core form: a DuckDB-only aggregate, or a struct
+# field.
 def duckdb_node?(n)
   k = blue::get(n, :kind)
   k == :field or k == :agg and contains(duckdb_only_fns, blue::get(n, :fn))
@@ -1718,9 +1584,7 @@ def locked_limit(stages, i, stage)
   end
 end
 
-@doc """
-refusals: every violation, as data: [kind, why]. Empty when the model holds.
-"""
+# Every violation, as data: [kind, why]. Empty when the model holds.
 def refusals(model)
   walked = walk(model)
   out = blue::get(walked, :cols)
@@ -1738,9 +1602,7 @@ def refusals(model)
   )
 end
 
-@doc """
-check: the model, or a thrown error naming every violation (its kind is the first's).
-"""
+# The model, or a thrown error naming every violation (its kind is the first's).
 def check(model)
   enforce(model, [refusals], {kind: :first})
   model
@@ -1762,10 +1624,8 @@ def dialect_refusals(model, dialect)
   end
 end
 
-@doc """
-shift: blue shift's two questions for a model: the lowest reach that holds it, and
-what holds it there.
-"""
+# blue shift's two questions for a model: the lowest reach that holds it, and
+# what holds it there.
 def shift(model)
   uses = duckdb_uses(model)
   needs = if is_empty(uses)
@@ -1859,10 +1719,8 @@ def set(b, key, value, phase)
   assoc(assoc(b, key, value), :phase, phase)
 end
 
-@doc """
-pushable?: a filter that can join the WHERE of a block whose select list holds only
-row-wise derives it does not read.
-"""
+# A filter that can join the WHERE of a block whose select list holds only
+# row-wise derives it does not read.
 def pushable?(b, stage)
   blue::get(b, :phase) == 5 and
     blue::get(b, :items).nil? and
@@ -1873,10 +1731,8 @@ def pushable?(b, stage)
     )
 end
 
-@doc """
-subst: a filter after a group reads the aggregates by name; HAVING needs them
-spelled out.
-"""
+# A filter after a group reads the aggregates by name; HAVING needs them
+# spelled out.
 def subst(e, items)
   k = blue::get(e, :kind)
   if k == :col
@@ -1963,9 +1819,7 @@ def lower_stage(acc, stage, dialect)
   end
 end
 
-@doc """
-lower: the pipeline as closed CTE blocks ([name, block] pairs) and a final block.
-"""
+# The pipeline as closed CTE blocks ([name, block] pairs) and a final block.
 def lower(model, dialect)
   start = {done: [], cur: block(rel_name(blue::get(model, :from)))}
   reduce(
@@ -1975,11 +1829,9 @@ def lower(model, dialect)
   )
 end
 
-@doc """
-lock_order: a locked model's output order is made total: its own keys, then every other
-contract column. In DuckDB, when that is exactly the column order, it is
-ORDER BY ALL.
-"""
+# A locked model's output order is made total: its own keys, then every other
+# contract column. In DuckDB, when that is exactly the column order, it is
+# ORDER BY ALL.
 def lock_order(model, b, dialect)
   if blue::get(blue::get(model, :posture), :rigor) != :locked
     b
@@ -2020,11 +1872,9 @@ def prec(e)
   end
 end
 
-@doc """
-operand: a child in operator position. Lower precedence is parenthesized; so is equal
-precedence on the right (the tree's grouping is kept exactly, which matters
-for float arithmetic) and on either side of a comparison.
-"""
+# A child in operator position. Lower precedence is parenthesized; so is equal
+# precedence on the right (the tree's grouping is kept exactly, which matters
+# for float arithmetic) and on either side of a comparison.
 def operand(child, parent_prec, tie_wraps, dialect)
   s = render_expr(child, dialect)
   cp = prec(child)
@@ -2075,10 +1925,8 @@ def order_suffix(keys)
   end
 end
 
-@doc """
-render_agg: an aggregate. The FILTER-where form is DuckDB's; core moves the predicate
-into a CASE inside the aggregate, which every mainstream engine reads.
-"""
+# An aggregate. The FILTER-where form is DuckDB's; core moves the predicate
+# into a CASE inside the aggregate, which every mainstream engine reads.
 def render_agg(e, dialect)
   f = blue::get(e, :fn)
   if contains(duckdb_only_fns, f) and dialect != :duckdb
@@ -2124,11 +1972,7 @@ def render_win(e, dialect)
   "#{blue::get(e, :fn)}(#{args}) OVER (#{blue::join(concat_lists(part, ord), " ")})"
 end
 
-@doc """
-render_expr: one expression, in one dialect. The only place an expression becomes text.
-
-    render_expr(lit(1), :duckdb) #=> "1"
-"""
+# One expression, in one dialect. The only place an expression becomes text.
 def render_expr(e, dialect)
   k = blue::get(e, :kind)
   if k == :col
@@ -2165,10 +2009,8 @@ def render_expr(e, dialect)
   end
 end
 
-@doc """
-duckdb_floor: the renderer's own floor: a DuckDB-only construct never renders as core,
-whichever door it came through.
-"""
+# The renderer's own floor: a DuckDB-only construct never renders as core,
+# whichever door it came through.
 def duckdb_floor(dialect, what)
   if dialect != :duckdb
     raise(:kueri_dialect, "#{what} has no core form; render with :duckdb")
@@ -2202,9 +2044,7 @@ def select_texts(b, dialect)
   end
 end
 
-@doc """
-list_lines: `  item,` per line, the last without its comma.
-"""
+# `  item,` per line, the last without its comma.
 def list_lines(items)
   n = size(items)
   map(
@@ -2240,9 +2080,7 @@ def join_line(j, dialect)
   "#{word} #{ident(rel_name(blue::get(j, :rel)))} USING (#{blue::join(map(ident, blue::get(j, :keys)), ", ")})"
 end
 
-@doc """
-block_lines: one SELECT, as lines, clauses in SQL's order.
-"""
+# One SELECT, as lines, clauses in SQL's order.
 def block_lines(b, dialect)
   sel = select_texts(b, dialect)
   head = if size(sel) == 1
@@ -2318,9 +2156,7 @@ def render_raw(r, dialect)
   "#{ident(blue::get(r, :name))} AS (\n#{blue::get(r, :sql)}\n)"
 end
 
-@doc """
-render_query: the query text, unchecked: q_render is the door that checks first.
-"""
+# The query text, unchecked: q_render is the door that checks first.
 def render_query(model, dialect)
   low = lower(model, dialect)
   final = lock_order(model, blue::get(low, :cur), dialect)
@@ -2340,10 +2176,8 @@ def render_query(model, dialect)
   end
 end
 
-@doc """
-render: a model as one SQL query in `dialect` (:core or :duckdb), with no trailing
-semicolon. Checks first, then the dialect floor: it throws, never degrades.
-"""
+# A model as one SQL query in `dialect` (:core or :duckdb), with no trailing
+# semicolon. Checks first, then the dialect floor: it throws, never degrades.
 def render(model, dialect)
   if contains([:core, :duckdb], dialect) == false
     raise(:kueri_shape, "a dialect is :core or :duckdb")
@@ -2363,11 +2197,9 @@ def delim_sql(d)
   end
 end
 
-@doc """
-render_load: a view that loads a source with its declared columns: a delimited file
-(read_csv) or JSON Lines (read_json), DuckDB only; or literal rows
-(q_values), in either dialect, where `path` is not read.
-"""
+# A view that loads a source with its declared columns: a delimited file
+# (read_csv) or JSON Lines (read_json), DuckDB only; or literal rows
+# (q_values), in either dialect, where `path` is not read.
 def render_load(source, path, dialect)
   f = blue::get(source, :format)
   if f == :values
@@ -2402,10 +2234,8 @@ def render_load(source, path, dialect)
   end
 end
 
-@doc """
-render_values_load: literal rows as a view, each column cast to its declared type (so a column
-that is all NULL is still typed). No rows: the typed columns and no row.
-"""
+# Literal rows as a view, each column cast to its declared type (so a column
+# that is all NULL is still typed). No rows: the typed columns and no row.
 def render_values_load(source, dialect)
   cols = blue::get(source, :columns)
   typed = blue::join(
@@ -2432,9 +2262,7 @@ def render_values_load(source, dialect)
   "CREATE OR REPLACE VIEW #{ident(blue::get(source, :name))} AS\n#{body}"
 end
 
-@doc """
-materialize_target: where a model's materialization lands by default: <name>.parquet or .csv.
-"""
+# Where a model's materialization lands by default: <name>.parquet or .csv.
 def materialize_target(model)
   m = blue::get(model, :materialize)
   if m == :parquet
@@ -2444,11 +2272,9 @@ def materialize_target(model)
   end
 end
 
-@doc """
-render_materialize: the statement that writes a model out: COPY … TO a zstd Parquet or a headed
-CSV (DuckDB), or CREATE TABLE … AS / CREATE OR REPLACE VIEW … AS (both
-dialects).
-"""
+# The statement that writes a model out: COPY … TO a zstd Parquet or a headed
+# CSV (DuckDB), or CREATE TABLE … AS / CREATE OR REPLACE VIEW … AS (both
+# dialects).
 def render_materialize(model, dialect, target)
   m = blue::get(model, :materialize)
   sql = render(model, dialect)
@@ -2473,11 +2299,9 @@ def render_materialize(model, dialect, target)
   end
 end
 
-@doc """
-render_file: the file a consumer commits: a @generated header naming the blue program,
-then the model's statement — its materialization when it declares one, the
-query otherwise.
-"""
+# The file a consumer commits: a @generated header naming the blue program,
+# then the model's statement — its materialization when it declares one, the
+# query otherwise.
 def render_file(model, dialect, source)
   header = "-- @generated by #{source} (kueri, #{to_s(dialect)}). Do not edit: regenerate from the blue model."
   stmt = if blue::get(model, :materialize).nil?
@@ -2488,21 +2312,17 @@ def render_file(model, dialect, source)
   "#{header}\n#{stmt};\n"
 end
 
-@doc """
-write_sql: write the rendered file; returns the path.
-"""
+# Write the rendered file; returns the path.
 def write_sql(path, model, dialect, source)
   write_file(path, render_file(model, dialect, source))
   path
 end
 
-@doc """
-render_script: one script that builds a database: every source the models read, loaded
-(each from its own :file, or its literal rows), then every model, upstream
-before downstream, as its materialization; each once, by name. Every model
-in it materializes as a :view or a :table, because what reads a model names
-it. The same @generated header as q_render_file.
-"""
+# One script that builds a database: every source the models read, loaded
+# (each from its own :file, or its literal rows), then every model, upstream
+# before downstream, as its materialization; each once, by name. Every model
+# in it materializes as a :view or a :table, because what reads a model names
+# it. The same @generated header as q_render_file.
 def render_script(models, dialect, source)
   nodes = unique_by(
     (n) -> blue::get(n, :name),
@@ -2549,19 +2369,13 @@ def targets(model)
   )
 end
 
-@doc """
-deps: the names a model reads directly, first-seen order. Raw nodes are opaque and
-contribute none.
-
-    deps(example_leverage) #=> ["horizons"]
-"""
+# The names a model reads directly, first-seen order. Raw nodes are opaque and
+# contribute none.
 def deps(model)
   unique(map((t) -> blue::get(t, :name), targets(model)))
 end
 
-@doc """
-closure: every upstream source and model, each before anything that reads it.
-"""
+# Every upstream source and model, each before anything that reads it.
 def closure(model)
   unique_by((n) -> blue::get(n, :name), flat_map(targets(model), closure_of))
 end
@@ -2580,22 +2394,18 @@ end
 
 # ── the DuckDB seam ────────────────────────────────────────────────────────
 
-@doc """
-duckdb: run SQL through the `duckdb` binary on PATH: [:ok, rows] or [:error, stderr].
-Rows are JSON documents (read fields with q_row_values or deeta). Only
-statements that return rows print, so a script may load views first. The
-values are the CLI's DISPLAY rendering, whose types move with the DuckDB
-version (see q_rows); read values through q_rows, q_rows_at or
-q_script_rows, which convert with `to_json`.
-"""
+# Run SQL through the `duckdb` binary on PATH: [:ok, rows] or [:error, stderr].
+# Rows are JSON documents (read fields with q_row_values or deeta). Only
+# statements that return rows print, so a script may load views first. The
+# values are the CLI's DISPLAY rendering, whose types move with the DuckDB
+# version (see q_rows); read values through q_rows, q_rows_at or
+# q_script_rows, which convert with `to_json`.
 def duckdb(sql)
   duckdb_result(exec_capture("duckdb", "-json", "-c", sql))
 end
 
-@doc """
-duckdb_at: q_duckdb against a database file (created when absent), so what a script
-builds persists: [:ok, rows] or [:error, stderr].
-"""
+# q_duckdb against a database file (created when absent), so what a script
+# builds persists: [:ok, rows] or [:error, stderr].
 def duckdb_at(db, sql)
   duckdb_result(exec_capture("duckdb", db, "-json", "-c", sql))
 end
@@ -2614,50 +2424,38 @@ def duckdb_failed?(result)
   first(result) == :error
 end
 
-@doc """
-rows: the rows of ONE query, or a THROWN :kueri_query when it failed: a failed
-query never reads as no rows (the guarantee makoto's bunseki.strict_rows
-gives, here for the public distribution).
-
-Values are converted by DuckDB's `to_json`, never taken from the CLI's
-`-json` rendering. That rendering is a display format: since DuckDB 1.5 it
-prints HUGEINT, UHUGEINT and DECIMAL as strings, and `sum` over integers is a
-HUGEINT, so one query read 1780 under 1.4.3 and "1780" under 1.5.2
-(measured 2026-09-25). `to_json` is the conversion itself and gives the same
-values on both.
-
-    rows("SELECT 1 AS x WHERE false") #=> []
-"""
+# The rows of ONE query, or a THROWN :kueri_query when it failed: a failed
+# query never reads as no rows (the guarantee makoto's bunseki.strict_rows
+# gives, here for the public distribution).
+#
+# Values are converted by DuckDB's `to_json`, never taken from the CLI's
+# `-json` rendering. That rendering is a display format: since DuckDB 1.5 it
+# prints HUGEINT, UHUGEINT and DECIMAL as strings, and `sum` over integers is a
+# HUGEINT, so one query read 1780 under 1.4.3 and "1780" under 1.5.2
+# (measured 2026-09-25). `to_json` is the conversion itself and gives the same
+# values on both.
 def rows(sql)
   rows_of(duckdb(json_rows(sql)), sql)
 end
 
-@doc """
-rows_at: q_rows against a database file.
-"""
+# q_rows against a database file.
 def rows_at(db, sql)
   rows_of(duckdb_at(db, json_rows(sql)), sql)
 end
 
-@doc """
-script_rows: statements first (loads, views), then ONE query whose rows are read: one
-process, so what the statements made in memory is still there.
-"""
+# Statements first (loads, views), then ONE query whose rows are read: one
+# process, so what the statements made in memory is still there.
 def script_rows(statements, query)
   rows_of(duckdb(script_text(statements, query)), query)
 end
 
-@doc """
-script_rows_at: q_script_rows against a database file.
-"""
+# q_script_rows against a database file.
 def script_rows_at(db, statements, query)
   rows_of(duckdb_at(db, script_text(statements, query)), query)
 end
 
-@doc """
-run_at: a script run for what it builds in `db` (views, tables); throws
-:kueri_query when it failed. Nothing it prints is read.
-"""
+# A script run for what it builds in `db` (views, tables); throws
+# :kueri_query when it failed. Nothing it prints is read.
 def run_at(db, script)
   checked(duckdb_at(db, script), script)
   nil
@@ -2667,10 +2465,8 @@ def script_text(statements, query)
   blue::join(push(as_list(statements), json_rows(query)), ";\n")
 end
 
-@doc """
-json_rows: one query as one row per result row, each a JSON document of its columns.
-The newline before `)` keeps a trailing `--` comment from swallowing it.
-"""
+# One query as one row per result row, each a JSON document of its columns.
+# The newline before `)` keeps a trailing `--` comment from swallowing it.
 def json_rows(sql)
   "SELECT to_json(kueri_row) AS kueri_row FROM (\n#{strip_suffix(trim(sql), ";")}\n) AS kueri_row"
 end
@@ -2686,10 +2482,8 @@ def checked(result, sql)
   last(result)
 end
 
-@doc """
-row_values: the rows of a result as value lists, columns in `names` order; [] when it
-failed (ask q_duckdb_failed? first when a failure must not read as empty).
-"""
+# The rows of a result as value lists, columns in `names` order; [] when it
+# failed (ask q_duckdb_failed? first when a failure must not read as empty).
 def row_values(result, names)
   if duckdb_failed?(result)
     []
@@ -2703,10 +2497,8 @@ end
 # Two analysis models, authored the way a consumer writes them. The tests pin
 # their rendering in both dialects and run them end to end in DuckDB.
 
-@doc """
-example_horizons: worked example: per relationship length, the promise-keeping rate with and
-without enforcement (a flat table of replicate means and spreads).
-"""
+# Worked example: per relationship length, the promise-keeping rate with and
+# without enforcement (a flat table of replicate means and spreads).
 def example_horizons()
   source(
     {
@@ -2722,11 +2514,9 @@ def example_horizons()
   )
 end
 
-@doc """
-example_leverage: worked example: how much full enforcement lifts keeping, per length. Every
-aggregate is a FILTER-where aggregate, so the whole model is ONE SELECT, and
-it holds at [:portable, :locked].
-"""
+# Worked example: how much full enforcement lifts keeping, per length. Every
+# aggregate is a FILTER-where aggregate, so the whole model is ONE SELECT, and
+# it holds at [:portable, :locked].
 def example_leverage()
   without = filtered(q_max(:keep_mean), eq(:enforcement, 0))
   full = filtered(q_max(:keep_mean), eq(:enforcement, 1))
@@ -2759,9 +2549,7 @@ def example_leverage()
   )
 end
 
-@doc """
-example_curve_cells: worked example: which cell ran at which horizon and enforcement.
-"""
+# Worked example: which cell ran at which horizon and enforcement.
 def example_curve_cells()
   source(
     {
@@ -2776,9 +2564,7 @@ def example_curve_cells()
   )
 end
 
-@doc """
-example_curve_keep: worked example: each cell's replicate mean, min and max of keeping.
-"""
+# Worked example: each cell's replicate mean, min and max of keeping.
 def example_curve_keep()
   source(
     {
@@ -2794,11 +2580,9 @@ def example_curve_keep()
   )
 end
 
-@doc """
-example_tipping: worked example: the lowest enforcement at which a horizon keeps at least 90%
-(rounded to 3 places, as reported), and how many enforcement levels are
-bimodal (replicates more than 0.5 apart).
-"""
+# Worked example: the lowest enforcement at which a horizon keeps at least 90%
+# (rounded to 3 places, as reported), and how many enforcement levels are
+# bimodal (replicates more than 0.5 apart).
 def example_tipping()
   model(
     {
@@ -3604,10 +3388,8 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
   rm(pq)
 end
 
-@doc """
-example_records_text: a small JSON Lines stream in an event log's shape (a refusal object, a list
-of link objects, a payload object) and the source that declares it.
-"""
+# A small JSON Lines stream in an event log's shape (a refusal object, a list
+# of link objects, a payload object) and the source that declares it.
 def example_records_text()
   blue::join(
     [
@@ -3644,9 +3426,7 @@ def example_records(path)
   )
 end
 
-@doc """
-example_run: run a model over its loaded sources, in memory: its rows as value lists.
-"""
+# Run a model over its loaded sources, in memory: its rows as value lists.
 def example_run(m, names)
   loads = map((s) -> render_load(s, blue::get(s, :file), :duckdb), sources(m))
   map(
@@ -3820,9 +3600,7 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
   )
 end
 
-@doc """
-example_steps: steps of two entities as literal rows: entity, seq, time, phase.
-"""
+# Steps of two entities as literal rows: entity, seq, time, phase.
 def example_steps()
   values(
     {
@@ -3843,10 +3621,8 @@ def example_steps()
   )
 end
 
-@doc """
-example_intervals: each step's interval: until the entity's next step, or `now` (1000) when it
-is the last; the phase before it (or "start"); open or closed.
-"""
+# Each step's interval: until the entity's next step, or `now` (1000) when it
+# is the last; the phase before it (or "start"); open or closed.
 def example_intervals()
   model(
     {

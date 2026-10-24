@@ -1,272 +1,3 @@
-@moduledoc """
-nisshi (日誌) — an event log: append-only JSON Lines, hash-chained, optionally signed, replayed into lifecycle states.
-
-A logbook (日誌, as in 航海日誌, a ship's log): dated entries, in order,
-never rewritten. One stream (one file) per kind of entity; each line is one
-record of one event for one entity. `el_append` judges the event against a
-raifusaikuru lifecycle and writes it, admitted or refused; `el_read` replays
-a stream into every entity's state; `el_verify` walks the chain and names
-the first line that is not what was written. Nothing here knows any domain:
-a product declares its lifecycles and gets its telemetry from this.
-
-## The plan (stage 1 of the blue development cycle, written before the code)
-
-Reuse map, read from source on 2026-09-24:
-
-  judge and fold an event      raifusaikuru  lc_admit_step, lc_step, lc_initial
-  genesis, link, first break   shomei        chain_genesis, chain_link, chain_first_break
-  sign and verify a hash       shomei        sign_message, verify_message, is_hash_hex
-  read a field, totally        deeta         is_doc, get_str, get_int, as_json
-  order keys, look up pairs    junjo, shuugou  sort_stable_by, lookup, set_equal
-  JSON text of a scalar        runtime       json_stringify (escaping is its job)
-  parse a line                 runtime       json_parse
-  the file                     runtime       append_file, read_file, file_size, path_exists
-  an index by entity or name   runtime       a map: get, assoc
-
-Four primitives were FIXED where they live rather than routed around, each
-found by a measurement here:
-
-  range           blue-lang-runtime  was a Lisp recursion in tatara-lisp's stdlib
-                                     and aborted near 5,000 elements, so
-                                     chain_first_break could not verify a 5,000-line
-                                     chain; now native (destination: tatara-lisp's own
-                                     range becomes a loop, and blue's is deleted)
-  is_hash_hex     shomei             a lambda per character, 97% of every chain_link;
-                                     31 → 12 µs
-  contains,       retsu              a tail-copying recursion, quadratic; a five-name
-  index_of                           lookup 14.7 → 3.7 µs, and 20,000 elements
-                                     664 → 5 ms
-  lc_admit_step   raifusaikuru       NEW: admission and next state from one
-                                     judgement, so append judges an event once, not twice
-
-## The record
-
-One line per record, canonical JSON (below), keys in code-point order:
-
-  entity   the entity's id, a string
-  hash     the chain link: shomei's chain_link(prev, body), 64 hex
-  links    [{"id", "kind"}, …]: declared references to other entities, in
-           the order given, carried faithfully (duplicates kept)
-  payload  the event's payload, an object
-  prev     the hash of the line before, or the stream's genesis
-  refusal  null, or {"detail": [text], "kind": text} when refused
-  seq      the entity's record number: 0, 1, 2 … over ALL its records,
-           admitted and refused, so (entity, seq) names one line
-  sig      null, or Ed25519 over the hash's 64 hex characters (shomei)
-  status   "admitted" or "refused"
-  time     the event's time, a whole number on the caller's clock
-  type     the event's type
-
-The BODY is the record without prev, hash and sig: entity, links, payload,
-refusal, seq, status, time and type. The chain hashes the body's canonical
-text, so a change to any of them breaks the chain, and chain_link binds
-prev. The genesis is chain_genesis("nisshi/1\n" + label): the format and
-the stream's label are both in the first hash. Recomputable with any BLAKE3
-tool from shomei's two documented lines; the tests pin values from b3sum.
-
-Canonical JSON (`el_canon`): no whitespace; object keys in code-point
-order; strings, integers, finite floats, true/false and null as
-json_stringify writes them; a non-empty list of [name, value] pairs is an
-object and any other list an array, which is the runtime's own rule
-(json.rs `looks_like_object`). A line is canonical when it is exactly the
-rendering of the record it parses to, and el_verify checks that too.
-
-## The rules
-
-**append is the only function that writes, and read the only other I/O.**
-Everything else is pure, with time, keys and labels passed in.
-
-**A refused event is written, never dropped.** It carries its refusal (the
-kind lc_admit gave and the detail as text) and counts in its entity's seq.
-It is an attempt, not a fact of the lifecycle, so it is folded into no
-state: replay steps only admitted records.
-
-**An observed event is a fact, not an attempt** (`el_observe`, 2026-09-25).
-A load a fryer's current sensor saw while its controller reported locked
-happened; refusing it would erase the one record that says the guard was
-bypassed. So el_observe writes a gated event whose guard refuses as
-admitted, and every replay applies it and keeps it in lc_breaches, which is
-raifusaikuru's own rule for an event that happened anyway. What the fold
-itself cannot take (no row, an unknown type, a missing key) stays refused.
-The line is the same nisshi/1 record: a breach is a property of a record
-under a definition, found by replay, as a stricter reader's breaches are.
-
-**One fold, shared.** `el_absorb_record` is how append advances its log
-value and how read rebuilds one. read steps an entity with lc_step; append
-with the state lc_admit_step returned, which is lc_step's by construction
-(both are lc_apply over one lc_judge), so the two cannot disagree, and the
-identity test pins it. append returns the record exactly as a later read
-parses it: it renders the line, parses it back, and refuses to write a line
-that is not canonical or does not read back as the event it judged.
-
-**Names normalise; values must survive.** JSON has no keywords, so a type
-or payload key comes back as the definition's own name when the definition
-declares it, and as text when it does not (the fold never reads an
-undeclared one). A VALUE must be JSON already: a keyword, a map, a float
-that is not finite or a key given twice raises :eventlog_value before
-anything is written, because it would come back as something else and a
-guard comparing it would silently change its answer. A definition naming
-two events (or two keys of one event) with one text, :go and "go", is
-refused (:eventlog_use) when a log is made from it: both would be written
-"go".
-
-**A malformed call raises; a domain refusal is written.** An event the
-lifecycle refuses is data about the world and goes into the stream. An
-event that is not an lc_ev, an empty entity id, a link that is not
-[kind, id]: those are bugs in the caller, and raise before anything is
-written.
-
-**A stale log value cannot write.** A log value records the stream's size
-when it was read or last appended; append refuses (:eventlog_stale) when
-the file has changed since, so a second writer or an old value cannot fork
-the chain.
-
-**A broken stream cannot grow.** A line that is not a record marks the log's
-fault, and append refuses (:eventlog_broken). `el_open`, the writer's door,
-also verifies the chain and refuses a broken one: new valid records after a
-break would hide it.
-
-## Tiers
-
-DETECTED by el_verify, at the exact position: a changed line (:hash), a
-dropped or reordered line (:prev), bytes changed without changing meaning
-(:not_canonical), a wrong record number (:seq), a line that is not a record
-or a last line without its newline, which is a torn write (:unparseable),
-and with a public key a missing or wrong signature (:unsigned, :signature).
-
-DETECTED ONLY WITH A RECORDED HEAD: lines dropped from the END. A chain
-proves every line follows the one before; nothing in it says where it
-stops. Pass the head recorded elsewhere (a receipt, a second store, a
-signed checkpoint) to el_verify and a truncation is :head.
-
-NOT DETECTED without signatures: a stream rewritten from any line onward,
-every later hash recomputed, by someone who can write the file. Signatures
-(a forger lacks the key) and a head kept elsewhere are what close it.
-
-NOT CHECKED: that a refused record would still be refused, or an admitted
-one admitted, under the definition passed to read. Replay uses the
-definition you give it: an admitted record it cannot accept lands in the
-entity's lc_refused, and a tightened guard shows as a breach.
-
-ONE WRITER per stream, enforced by the size check at append, not by a lock.
-
-## What is deliberately absent
-
-No clock, no randomness, no key storage: time, labels and keys are the
-caller's. No analytics: `anaritikusu` loads the stream into DuckDB as it
-stands, writes el_history's per-record states beside it, and generates its
-models from the definitions. No encryption: shomei hashes and signs, and so
-does this.
-
-## The operations
-
-  read     el_read(path, label, def)           the stream, replayed
-           el_open(path, label, def, pub)      read + verify, or refuse
-           el_from_text(text, path, bytes, label, def)   the pure part of read
-  write    el_append(log, entity, event, links)  the log advanced; el_last is the record
-           el_observe(log, entity, event, links) the same for a fact a device saw:
-                                               a guard refusal is written admitted
-           el_signing(log, secret_hex)         appends through it are signed
-  verify   el_verify(log, pub, expected_head)  [:el_intact, count, head] or
-                                               [:el_broken, position, kind, why]
-  state    el_state(log, entity), el_seq_of, el_states, el_entities
-           el_history(log)                     [record, state after it], each record
-           el_state_at(log, entity, time)      the state as of a time (the fold's
-                                               twin of anaritikusu's as-of join)#   records  el_records(log), el_by_entity(records), el_rec_* accessors
-  pure     el_canon(value), el_canon_object(pairs), el_genesis(label),
-           el_texts / el_body_text / el_line_text (the record builders),
-           el_decode_line(def, position, line), el_lines / el_unlines
-
-## One line (the first of the b3sum test's stream, signed)
-
-  {"entity":"item-1","hash":"9172aea16c9c2cb304ee3d624c0a79be88ca7537769f3386b64aa55b273dc412",
-   "links":[],"payload":{"value":10},"prev":"0a42d546253d153e4253d118781c1b773338b3dd532373a12a83accd79e7cba2",
-   "refusal":null,"seq":0,"sig":"7b5e4034…a80b","status":"admitted","time":1000,"type":"reading"}
-
-(one line in the stream; wrapped and the signature shortened here.)
-
-## Tests, and the red run that turned each one red (2026-09-24)
-
-  the empty stream                        R8 read keeps the piece after the last newline
-  identity: append → read, read → read,   R1 refused dropped · R2 replay folds refused ·
-    and raifusaikuru's own fold as the     R14 groups newest first · R17 append skips
-    differential                           the step
-  a refused event is written and marked   R1 · R16 seq counts only admitted
-  values checked independently (b3sum,    R3 the hash leaves the payload out · R1 · R16
-    openssl)
-  controls, one row per break kind        R5 no :prev · R6 no signatures · R9 torn line
-                                           read whole · R10 no seq · R11 no canonical check
-  append raises on what JSON cannot hold  R12 no round-trip check (the keyword key was
-                                           written, 294 bytes)
-  stale, written-through, broken writers  R7 no size check · R18 two names of one text
-  links carried faithfully                R13 duplicate links merged
-  canonical JSON, and serde agrees        R4 keys left unsorted (caught by append's own
-                                           canonical guard) · R15 a key given twice
-  grouping by entity                      R14
-
-Added 2026-09-25 (NuPastel's measures, nupastel docs/plans/measures.md), 5
-of 5 mutations red through the same kind of driver:
-
-  an observed event is a fact             N1 a guard refusal written refused ·
-                                           N2 every refusal admitted · N5 the
-                                           state before the breach kept
-  the state as of a time                  N3 the record at the time left out ·
-                                           N4 refused records folded
-
-18 of 18 mutations red, each applied by a driver that refuses a mutation
-whose target text is absent. In the packages this one changed:
-raifusaikuru's lc_admit_step test red when it stopped stepping; shomei's
-tests red when is_hash_hex forgot a digit; the runtime's range test aborted
-with the Lisp range restored. retsu's contains/index_of change is speed
-only, which no behaviour test can turn red: its semantics tests pass on both.
-
-## The benchmark (2026-09-24)
-
-10,000 events (el_example_events(10000, 100): 100 items, 5,500 refused by
-the guard), appended signed through el_append_all, then el_read and
-el_verify with the public key and the recorded head. Apple M4 Pro, 14
-cores, 48 GB, macOS 26.7, release build of blue 0.0.39, under a load
-average of ~49 from other builds (times vary ±10% run to run; median of 3):
-
-                 first version   measured hot paths fixed
-  append         8.18 s          5.39 s    539 µs an event
-  read           3.53 s          1.85 s    185 µs a record
-  verify         2.22 s          1.79 s    179 µs a record (1.26 s unsigned)
-
-The stream: 4.26 MB, intact; DuckDB, reading it as JSON Lines, counts the
-same 10,000 lines, 100 entities, 5,500 refusals and a gapless seq per
-entity. What moved it, by measured share of an append: two judgements
-became one (lc_admit_step, ~180 µs); decoding read each field once and
-restored names through a map built once per log (218 → 62 µs); and the three
-primitive fixes above. What remains, in order: raifusaikuru's judgement (~144
-µs of an append; 16 µs per atomic rule, through shuugou's lookup), Ed25519
-verification (~52 µs a record), and shomei's chain_hashes, which builds
-its list with cons and is quadratic (~0.2 s at 10,000).
-
-## Words blue is missing (stage 5 candidates, not built)
-
-- A RECORD: a positional list plus one `nth` accessor per field is written by
-  hand here twice (a record of 13 fields, a log value of 14 slots rebuilt in
-  full to change four) and throughout raifusaikuru (lc_d_*, the state, the
-  permit). One declaration of named fields should give the constructor, the
-  predicate, the accessors and a `with` that changes some fields.
-- A CLOSED KIND SET with its coverage test: el_break_kinds and
-  el_refusal_kinds here, lc_problem_kinds in raifusaikuru, each with a
-  hand-written "every kind has a row" set_equal.
-- A GUARD: this file raises in 23 places, most of them
-  `if … throw(error(:kind, "…")) end`; as a function, its message would be
-  built even when the check passes.
-- DEFAULT ARGUMENTS: el_verify(log, nil, nil) and el_append(…, []) pass
-  "none" by position.
-- A RED-RUN WORD: the mutation driver that produced the table above
-  (package, [name, old, new] → which tests go red) was a scratch program;
-  stage 3 of the cycle asks for exactly this on every test.
-- An O(1) append: push and cons copy (AUTHORING.md, "Growing a list is
-  quadratic"); a runtime gap, not a word.
-
-    lines("") #=> []
-"""
-
 use("deeta", [:as_json, :get_int, :get_str, :is_doc])
 use("junjo", [:sort_stable_by])
 use("kyohi")
@@ -317,21 +48,280 @@ legacy_names(
   [["refusal_detail", "kyohi::why"], ["refusal_kind", "kyohi::kind"]]
 )
 
+# nisshi (日誌) — an event log: append-only JSON Lines, hash-chained, optionally signed, replayed into lifecycle states.
+#
+# A logbook (日誌, as in 航海日誌, a ship's log): dated entries, in order,
+# never rewritten. One stream (one file) per kind of entity; each line is one
+# record of one event for one entity. `el_append` judges the event against a
+# raifusaikuru lifecycle and writes it, admitted or refused; `el_read` replays
+# a stream into every entity's state; `el_verify` walks the chain and names
+# the first line that is not what was written. Nothing here knows any domain:
+# a product declares its lifecycles and gets its telemetry from this.
+#
+# ## The plan (stage 1 of the blue development cycle, written before the code)
+#
+# Reuse map, read from source on 2026-09-24:
+#
+#   judge and fold an event      raifusaikuru  lc_admit_step, lc_step, lc_initial
+#   genesis, link, first break   shomei        chain_genesis, chain_link, chain_first_break
+#   sign and verify a hash       shomei        sign_message, verify_message, is_hash_hex
+#   read a field, totally        deeta         is_doc, get_str, get_int, as_json
+#   order keys, look up pairs    junjo, shuugou  sort_stable_by, lookup, set_equal
+#   JSON text of a scalar        runtime       json_stringify (escaping is its job)
+#   parse a line                 runtime       json_parse
+#   the file                     runtime       append_file, read_file, file_size, path_exists
+#   an index by entity or name   runtime       a map: get, assoc
+#
+# Four primitives were FIXED where they live rather than routed around, each
+# found by a measurement here:
+#
+#   range           blue-lang-runtime  was a Lisp recursion in tatara-lisp's stdlib
+#                                      and aborted near 5,000 elements, so
+#                                      chain_first_break could not verify a 5,000-line
+#                                      chain; now native (destination: tatara-lisp's own
+#                                      range becomes a loop, and blue's is deleted)
+#   is_hash_hex     shomei             a lambda per character, 97% of every chain_link;
+#                                      31 → 12 µs
+#   contains,       retsu              a tail-copying recursion, quadratic; a five-name
+#   index_of                           lookup 14.7 → 3.7 µs, and 20,000 elements
+#                                      664 → 5 ms
+#   lc_admit_step   raifusaikuru       NEW: admission and next state from one
+#                                      judgement, so append judges an event once, not twice
+#
+# ## The record
+#
+# One line per record, canonical JSON (below), keys in code-point order:
+#
+#   entity   the entity's id, a string
+#   hash     the chain link: shomei's chain_link(prev, body), 64 hex
+#   links    [{"id", "kind"}, …]: declared references to other entities, in
+#            the order given, carried faithfully (duplicates kept)
+#   payload  the event's payload, an object
+#   prev     the hash of the line before, or the stream's genesis
+#   refusal  null, or {"detail": [text], "kind": text} when refused
+#   seq      the entity's record number: 0, 1, 2 … over ALL its records,
+#            admitted and refused, so (entity, seq) names one line
+#   sig      null, or Ed25519 over the hash's 64 hex characters (shomei)
+#   status   "admitted" or "refused"
+#   time     the event's time, a whole number on the caller's clock
+#   type     the event's type
+#
+# The BODY is the record without prev, hash and sig: entity, links, payload,
+# refusal, seq, status, time and type. The chain hashes the body's canonical
+# text, so a change to any of them breaks the chain, and chain_link binds
+# prev. The genesis is chain_genesis("nisshi/1\n" + label): the format and
+# the stream's label are both in the first hash. Recomputable with any BLAKE3
+# tool from shomei's two documented lines; the tests pin values from b3sum.
+#
+# Canonical JSON (`el_canon`): no whitespace; object keys in code-point
+# order; strings, integers, finite floats, true/false and null as
+# json_stringify writes them; a non-empty list of [name, value] pairs is an
+# object and any other list an array, which is the runtime's own rule
+# (json.rs `looks_like_object`). A line is canonical when it is exactly the
+# rendering of the record it parses to, and el_verify checks that too.
+#
+# ## The rules
+#
+# **append is the only function that writes, and read the only other I/O.**
+# Everything else is pure, with time, keys and labels passed in.
+#
+# **A refused event is written, never dropped.** It carries its refusal (the
+# kind lc_admit gave and the detail as text) and counts in its entity's seq.
+# It is an attempt, not a fact of the lifecycle, so it is folded into no
+# state: replay steps only admitted records.
+#
+# **An observed event is a fact, not an attempt** (`el_observe`, 2026-09-25).
+# A load a fryer's current sensor saw while its controller reported locked
+# happened; refusing it would erase the one record that says the guard was
+# bypassed. So el_observe writes a gated event whose guard refuses as
+# admitted, and every replay applies it and keeps it in lc_breaches, which is
+# raifusaikuru's own rule for an event that happened anyway. What the fold
+# itself cannot take (no row, an unknown type, a missing key) stays refused.
+# The line is the same nisshi/1 record: a breach is a property of a record
+# under a definition, found by replay, as a stricter reader's breaches are.
+#
+# **One fold, shared.** `el_absorb_record` is how append advances its log
+# value and how read rebuilds one. read steps an entity with lc_step; append
+# with the state lc_admit_step returned, which is lc_step's by construction
+# (both are lc_apply over one lc_judge), so the two cannot disagree, and the
+# identity test pins it. append returns the record exactly as a later read
+# parses it: it renders the line, parses it back, and refuses to write a line
+# that is not canonical or does not read back as the event it judged.
+#
+# **Names normalise; values must survive.** JSON has no keywords, so a type
+# or payload key comes back as the definition's own name when the definition
+# declares it, and as text when it does not (the fold never reads an
+# undeclared one). A VALUE must be JSON already: a keyword, a map, a float
+# that is not finite or a key given twice raises :eventlog_value before
+# anything is written, because it would come back as something else and a
+# guard comparing it would silently change its answer. A definition naming
+# two events (or two keys of one event) with one text, :go and "go", is
+# refused (:eventlog_use) when a log is made from it: both would be written
+# "go".
+#
+# **A malformed call raises; a domain refusal is written.** An event the
+# lifecycle refuses is data about the world and goes into the stream. An
+# event that is not an lc_ev, an empty entity id, a link that is not
+# [kind, id]: those are bugs in the caller, and raise before anything is
+# written.
+#
+# **A stale log value cannot write.** A log value records the stream's size
+# when it was read or last appended; append refuses (:eventlog_stale) when
+# the file has changed since, so a second writer or an old value cannot fork
+# the chain.
+#
+# **A broken stream cannot grow.** A line that is not a record marks the log's
+# fault, and append refuses (:eventlog_broken). `el_open`, the writer's door,
+# also verifies the chain and refuses a broken one: new valid records after a
+# break would hide it.
+#
+# ## Tiers
+#
+# DETECTED by el_verify, at the exact position: a changed line (:hash), a
+# dropped or reordered line (:prev), bytes changed without changing meaning
+# (:not_canonical), a wrong record number (:seq), a line that is not a record
+# or a last line without its newline, which is a torn write (:unparseable),
+# and with a public key a missing or wrong signature (:unsigned, :signature).
+#
+# DETECTED ONLY WITH A RECORDED HEAD: lines dropped from the END. A chain
+# proves every line follows the one before; nothing in it says where it
+# stops. Pass the head recorded elsewhere (a receipt, a second store, a
+# signed checkpoint) to el_verify and a truncation is :head.
+#
+# NOT DETECTED without signatures: a stream rewritten from any line onward,
+# every later hash recomputed, by someone who can write the file. Signatures
+# (a forger lacks the key) and a head kept elsewhere are what close it.
+#
+# NOT CHECKED: that a refused record would still be refused, or an admitted
+# one admitted, under the definition passed to read. Replay uses the
+# definition you give it: an admitted record it cannot accept lands in the
+# entity's lc_refused, and a tightened guard shows as a breach.
+#
+# ONE WRITER per stream, enforced by the size check at append, not by a lock.
+#
+# ## What is deliberately absent
+#
+# No clock, no randomness, no key storage: time, labels and keys are the
+# caller's. No analytics: `anaritikusu` loads the stream into DuckDB as it
+# stands, writes el_history's per-record states beside it, and generates its
+# models from the definitions. No encryption: shomei hashes and signs, and so
+# does this.
+#
+# ## The operations
+#
+#   read     el_read(path, label, def)           the stream, replayed
+#            el_open(path, label, def, pub)      read + verify, or refuse
+#            el_from_text(text, path, bytes, label, def)   the pure part of read
+#   write    el_append(log, entity, event, links)  the log advanced; el_last is the record
+#            el_observe(log, entity, event, links) the same for a fact a device saw:
+#                                                a guard refusal is written admitted
+#            el_signing(log, secret_hex)         appends through it are signed
+#   verify   el_verify(log, pub, expected_head)  [:el_intact, count, head] or
+#                                                [:el_broken, position, kind, why]
+#   state    el_state(log, entity), el_seq_of, el_states, el_entities
+#            el_history(log)                     [record, state after it], each record
+#            el_state_at(log, entity, time)      the state as of a time (the fold's
+#                                                twin of anaritikusu's as-of join)#   records  el_records(log), el_by_entity(records), el_rec_* accessors
+#   pure     el_canon(value), el_canon_object(pairs), el_genesis(label),
+#            el_texts / el_body_text / el_line_text (the record builders),
+#            el_decode_line(def, position, line), el_lines / el_unlines
+#
+# ## One line (the first of the b3sum test's stream, signed)
+#
+#   {"entity":"item-1","hash":"9172aea16c9c2cb304ee3d624c0a79be88ca7537769f3386b64aa55b273dc412",
+#    "links":[],"payload":{"value":10},"prev":"0a42d546253d153e4253d118781c1b773338b3dd532373a12a83accd79e7cba2",
+#    "refusal":null,"seq":0,"sig":"7b5e4034…a80b","status":"admitted","time":1000,"type":"reading"}
+#
+# (one line in the stream; wrapped and the signature shortened here.)
+#
+# ## Tests, and the red run that turned each one red (2026-09-24)
+#
+#   the empty stream                        R8 read keeps the piece after the last newline
+#   identity: append → read, read → read,   R1 refused dropped · R2 replay folds refused ·
+#     and raifusaikuru's own fold as the     R14 groups newest first · R17 append skips
+#     differential                           the step
+#   a refused event is written and marked   R1 · R16 seq counts only admitted
+#   values checked independently (b3sum,    R3 the hash leaves the payload out · R1 · R16
+#     openssl)
+#   controls, one row per break kind        R5 no :prev · R6 no signatures · R9 torn line
+#                                            read whole · R10 no seq · R11 no canonical check
+#   append raises on what JSON cannot hold  R12 no round-trip check (the keyword key was
+#                                            written, 294 bytes)
+#   stale, written-through, broken writers  R7 no size check · R18 two names of one text
+#   links carried faithfully                R13 duplicate links merged
+#   canonical JSON, and serde agrees        R4 keys left unsorted (caught by append's own
+#                                            canonical guard) · R15 a key given twice
+#   grouping by entity                      R14
+#
+# Added 2026-09-25 (NuPastel's measures, nupastel docs/plans/measures.md), 5
+# of 5 mutations red through the same kind of driver:
+#
+#   an observed event is a fact             N1 a guard refusal written refused ·
+#                                            N2 every refusal admitted · N5 the
+#                                            state before the breach kept
+#   the state as of a time                  N3 the record at the time left out ·
+#                                            N4 refused records folded
+#
+# 18 of 18 mutations red, each applied by a driver that refuses a mutation
+# whose target text is absent. In the packages this one changed:
+# raifusaikuru's lc_admit_step test red when it stopped stepping; shomei's
+# tests red when is_hash_hex forgot a digit; the runtime's range test aborted
+# with the Lisp range restored. retsu's contains/index_of change is speed
+# only, which no behaviour test can turn red: its semantics tests pass on both.
+#
+# ## The benchmark (2026-09-24)
+#
+# 10,000 events (el_example_events(10000, 100): 100 items, 5,500 refused by
+# the guard), appended signed through el_append_all, then el_read and
+# el_verify with the public key and the recorded head. Apple M4 Pro, 14
+# cores, 48 GB, macOS 26.7, release build of blue 0.0.39, under a load
+# average of ~49 from other builds (times vary ±10% run to run; median of 3):
+#
+#                  first version   measured hot paths fixed
+#   append         8.18 s          5.39 s    539 µs an event
+#   read           3.53 s          1.85 s    185 µs a record
+#   verify         2.22 s          1.79 s    179 µs a record (1.26 s unsigned)
+#
+# The stream: 4.26 MB, intact; DuckDB, reading it as JSON Lines, counts the
+# same 10,000 lines, 100 entities, 5,500 refusals and a gapless seq per
+# entity. What moved it, by measured share of an append: two judgements
+# became one (lc_admit_step, ~180 µs); decoding read each field once and
+# restored names through a map built once per log (218 → 62 µs); and the three
+# primitive fixes above. What remains, in order: raifusaikuru's judgement (~144
+# µs of an append; 16 µs per atomic rule, through shuugou's lookup), Ed25519
+# verification (~52 µs a record), and shomei's chain_hashes, which builds
+# its list with cons and is quadratic (~0.2 s at 10,000).
+#
+# ## Words blue is missing (stage 5 candidates, not built)
+#
+# - A RECORD: a positional list plus one `nth` accessor per field is written by
+#   hand here twice (a record of 13 fields, a log value of 14 slots rebuilt in
+#   full to change four) and throughout raifusaikuru (lc_d_*, the state, the
+#   permit). One declaration of named fields should give the constructor, the
+#   predicate, the accessors and a `with` that changes some fields.
+# - A CLOSED KIND SET with its coverage test: el_break_kinds and
+#   el_refusal_kinds here, lc_problem_kinds in raifusaikuru, each with a
+#   hand-written "every kind has a row" set_equal.
+# - A GUARD: this file raises in 23 places, most of them
+#   `if … throw(error(:kind, "…")) end`; as a function, its message would be
+#   built even when the check passes.
+# - DEFAULT ARGUMENTS: el_verify(log, nil, nil) and el_append(…, []) pass
+#   "none" by position.
+# - A RED-RUN WORD: the mutation driver that produced the table above
+#   (package, [name, old, new] → which tests go red) was a scratch program;
+#   stage 3 of the cycle asks for exactly this on every test.
+# - An O(1) append: push and cons copy (AUTHORING.md, "Growing a list is
+#   quadratic"); a runtime gap, not a word.
+
 # ── the format ─────────────────────────────────────────────────────────────
 
-@doc """
-format: the format tag, bound into every stream's genesis.
-"""
+# The format tag, bound into every stream's genesis.
 def format()
   "nisshi/1"
 end
 
-@doc """
-genesis: the first hash of the stream named `label`. Two streams with different
-labels, or of different formats, never share a first hash.
-
-    genesis("nisshi-doc") #=> "0a42d546253d153e4253d118781c1b773338b3dd532373a12a83accd79e7cba2"
-"""
+# The first hash of the stream named `label`. Two streams with different
+# labels, or of different formats, never share a first hash.
 def genesis(label)
   if string?(label) == false
     raise(
@@ -342,17 +332,13 @@ def genesis(label)
   chain_genesis("#{format}\n#{label}")
 end
 
-@doc """
-refusal_kinds: every refusal kind a record can carry: lc_admit's. Closed.
-"""
+# Every refusal kind a record can carry: lc_admit's. Closed.
 def refusal_kinds()
   [:unknown_event, :no_edge, :missing_payload, :bad_payload, :bad_field, :guard]
 end
 
-@doc """
-break_kinds: every break el_verify reports, in the order it prefers them when two fall on
-one line. Closed: a test row exercises each.
-"""
+# Every break el_verify reports, in the order it prefers them when two fall on
+# one line. Closed: a test row exercises each.
 def break_kinds()
   [
     :unparseable,
@@ -368,9 +354,7 @@ end
 
 # ── canonical JSON ─────────────────────────────────────────────────────────
 
-@doc """
-key_text: a key as JSON text: a string itself, a keyword's or symbol's name.
-"""
+# A key as JSON text: a string itself, a keyword's or symbol's name.
 def key_text(k)
   if string?(k)
     k
@@ -384,40 +368,30 @@ def key_text(k)
   end
 end
 
+# True for a [name, value] pair.
 # waive B0013: `pair?` is a builtin nisshi also uses, so the prefix stays; nisshi::pair? names it too
-@doc """
-el_pair?: true for a [name, value] pair.
-"""
 def el_pair?(p)
   list?(p) and
     size(p) == 2 and
     (string?(first(p)) or keyword?(first(p)) or symbol?(first(p)))
 end
 
-@doc """
-object?: true for a value JSON writes as an object: a non-empty list whose every
-element is a [name, value] pair, the runtime's own rule.
-"""
+# True for a value JSON writes as an object: a non-empty list whose every
+# element is a [name, value] pair, the runtime's own rule.
 def object?(v)
   list?(v) and
     is_empty(v) == false and
     count_where((p) -> el_pair?(p) == false, v) == 0
 end
 
-@doc """
-empty_object?: true for the value json_parse gives an empty object: a map that writes "{}".
-"""
+# True for the value json_parse gives an empty object: a map that writes "{}".
 def empty_object?(v)
   v != nil and list?(v) == false and json_stringify(v) == "{}"
 end
 
-@doc """
-canon: the canonical JSON text of a value. Raises :eventlog_value for what JSON
-would not give back as itself: a keyword, a map, a float that is not
-finite, a key given twice.
-
-    canon([]) #=> "[]"
-"""
+# The canonical JSON text of a value. Raises :eventlog_value for what JSON
+# would not give back as itself: a keyword, a map, a float that is not
+# finite, a key given twice.
 def canon(v)
   if v.nil?
     "null"
@@ -461,10 +435,8 @@ def canon_float(x)
   t
 end
 
-@doc """
-sorted_pairs: pairs ordered by key text, in code-point order (what `compare` gives).
-Raises when a pair is not [name, value] or two keys share one text.
-"""
+# Pairs ordered by key text, in code-point order (what `compare` gives).
+# Raises when a pair is not [name, value] or two keys share one text.
 def sorted_pairs(pairs)
   checked = map(require_pair, as_list(pairs))
   sorted = sort_stable_by((p) -> key_text(first(p)), checked)
@@ -492,11 +464,7 @@ def require_pair(p)
   p
 end
 
-@doc """
-canon_object: the canonical text of an object given as [name, value] pairs; "{}" for none.
-
-    canon_object([]) #=> "{}"
-"""
+# The canonical text of an object given as [name, value] pairs; "{}" for none.
 def canon_object(pairs)
   "{#{join(map(canon_member, sorted_pairs(pairs)), ",")}}"
 end
@@ -541,9 +509,7 @@ def require_distinct(texts, what)
   end
 end
 
-@doc """
-type_named: the type named by text `t`: the definition's own name, or the text itself.
-"""
+# The type named by text `t`: the definition's own name, or the text itself.
 def type_named(names, t)
   hit = get(names, t)
   if hit.nil?
@@ -553,10 +519,8 @@ def type_named(names, t)
   end
 end
 
-@doc """
-key_named: the payload key named by text `k` for type `ty`: the key the definition
-declares, or the text itself.
-"""
+# The payload key named by text `k` for type `ty`: the key the definition
+# declares, or the text itself.
 def key_named(names, ty, k)
   hit = get(names, raifusaikuru::text(ty))
   key = if hit.nil?
@@ -571,10 +535,8 @@ def key_named(names, ty, k)
   end
 end
 
-@doc """
-normal_event: the event as the log holds it: its type and payload keys as the definition
-names them (text where it names none), and every object in key order.
-"""
+# The event as the log holds it: its type and payload keys as the definition
+# names them (text where it names none), and every object in key order.
 def normal_event(names, ev)
   ty = type_named(names, raifusaikuru::text(raifusaikuru::ev_type(ev)))
   payload = map(
@@ -584,11 +546,9 @@ def normal_event(names, ev)
   raifusaikuru::ev(ty, raifusaikuru::ev_time(ev), payload)
 end
 
-@doc """
-normal_value: a value with every object in it put in key order, which is all canonical
-JSON changes about a value that survives it. Keys keep their kind, so a
-keyword key still fails the round trip it cannot survive.
-"""
+# A value with every object in it put in key order, which is all canonical
+# JSON changes about a value that survives it. Keys keep their kind, so a
+# keyword key still fails the round trip it cannot survive.
 def normal_value(v)
   if v.nil?
     nil
@@ -603,11 +563,9 @@ end
 
 # ── refusals and links ─────────────────────────────────────────────────────
 
-@doc """
-refusal_of: the refusal an admission verdict gives a record: nil when admitted, else
-[kind, detail], the detail as text (the legal events, the missing keys, the
-offending key or field, or the refusing rules).
-"""
+# The refusal an admission verdict gives a record: nil when admitted, else
+# [kind, detail], the detail as text (the legal events, the missing keys, the
+# offending key or field, or the refusing rules).
 def refusal_of(verdict)
   if raifusaikuru::admitted?(verdict)
     nil
@@ -642,9 +600,7 @@ def refusal_text(rf)
   end
 end
 
-@doc """
-normal_links: links as the log holds them: [kind, id] pairs, the kind as text, in order.
-"""
+# Links as the log holds them: [kind, id] pairs, the kind as text, in order.
 def normal_links(links)
   map(normal_link, as_list(links))
 end
@@ -673,10 +629,8 @@ end
 
 # ── the record builders ────────────────────────────────────────────────────
 
-@doc """
-texts: the canonical text of each body field, in key order: entity, links,
-payload, refusal, seq, status, time, type.
-"""
+# The canonical text of each body field, in key order: entity, links,
+# payload, refusal, seq, status, time, type.
 def texts(entity, links, payload, refusal, seq, status, at, ty)
   [
     json_stringify(entity),
@@ -690,16 +644,12 @@ def texts(entity, links, payload, refusal, seq, status, at, ty)
   ]
 end
 
-@doc """
-body_text: the text the chain hashes: the record without prev, hash and sig.
-"""
+# The text the chain hashes: the record without prev, hash and sig.
 def body_text(t)
   "{\"entity\":#{nth(0, t)},\"links\":#{nth(1, t)},\"payload\":#{nth(2, t)},\"refusal\":#{nth(3, t)},\"seq\":#{nth(4, t)},\"status\":#{nth(5, t)},\"time\":#{nth(6, t)},\"type\":#{nth(7, t)}}"
 end
 
-@doc """
-line_text: the line a stream holds: every field, keys in code-point order.
-"""
+# The line a stream holds: every field, keys in code-point order.
 def line_text(t, prev, hash, sig)
   "{\"entity\":#{nth(0, t)},\"hash\":\"#{hash}\",\"links\":#{nth(1, t)},\"payload\":#{nth(2, t)},\"prev\":\"#{prev}\",\"refusal\":#{nth(3, t)},\"seq\":#{nth(4, t)},\"sig\":#{sig_text(sig)},\"status\":#{nth(5, t)},\"time\":#{nth(6, t)},\"type\":#{nth(7, t)}}"
 end
@@ -722,11 +672,9 @@ end
 
 # ── records ────────────────────────────────────────────────────────────────
 
-@doc """
-record: a record as read: [:el_record, position, seq, time, entity, type, payload,
-links, status, refusal, prev, hash, sig, line]. position is the line's
-index in the stream, from 0.
-"""
+# A record as read: [:el_record, position, seq, time, entity, type, payload,
+# links, status, refusal, prev, hash, sig, line]. position is the line's
+# index in the stream, from 0.
 def record(
   position,
   seq,
@@ -764,10 +712,8 @@ def record?(x)
   first(x) == :el_record
 end
 
+# The index of a record or a bad line in its stream, from 0.
 # waive B0013: `position` is a builtin nisshi also uses, so the prefix stays; nisshi::position names it too
-@doc """
-el_position: the index of a record or a bad line in its stream, from 0.
-"""
 def el_position(x)
   nth(1, x)
 end
@@ -784,30 +730,22 @@ def rec_entity(r)
   nth(4, r)
 end
 
-@doc """
-rec_type: the type: the definition's own name when it declares it, else text.
-"""
+# The type: the definition's own name when it declares it, else text.
 def rec_type(r)
   nth(5, r)
 end
 
-@doc """
-rec_payload: the payload as [key, value] pairs in key order.
-"""
+# The payload as [key, value] pairs in key order.
 def rec_payload(r)
   nth(6, r)
 end
 
-@doc """
-rec_links: the links as [kind, id] pairs, in the order they were given.
-"""
+# The links as [kind, id] pairs, in the order they were given.
 def rec_links(r)
   nth(7, r)
 end
 
-@doc """
-rec_status: :admitted or :refused.
-"""
+# :admitted or :refused.
 def rec_status(r)
   nth(8, r)
 end
@@ -816,9 +754,7 @@ def rec_admitted?(r)
   nth(8, r) == :admitted
 end
 
-@doc """
-rec_refusal: nil, or [kind, detail] for a refused record.
-"""
+# nil, or [kind, detail] for a refused record.
 def rec_refusal(r)
   nth(9, r)
 end
@@ -831,23 +767,17 @@ def rec_hash(r)
   nth(11, r)
 end
 
-@doc """
-rec_sig: the signature's hex, or nil.
-"""
+# The signature's hex, or nil.
 def rec_sig(r)
   nth(12, r)
 end
 
-@doc """
-rec_line: the line exactly as the stream holds it.
-"""
+# The line exactly as the stream holds it.
 def rec_line(r)
   nth(13, r)
 end
 
-@doc """
-rec_event: the event a record holds, as raifusaikuru folds it.
-"""
+# The event a record holds, as raifusaikuru folds it.
 def rec_event(r)
   raifusaikuru::ev(rec_type(r), rec_time(r), rec_payload(r))
 end
@@ -865,23 +795,17 @@ def texts_of(r)
   )
 end
 
-@doc """
-body_of: the body text a record's hash covers, rendered from the record.
-"""
+# The body text a record's hash covers, rendered from the record.
 def body_of(r)
   body_text(texts_of(r))
 end
 
-@doc """
-line_of: the canonical line for a record: what its line must be, byte for byte.
-"""
+# The canonical line for a record: what its line must be, byte for byte.
 def line_of(r)
   line_text(texts_of(r), rec_prev(r), rec_hash(r), rec_sig(r))
 end
 
-@doc """
-bad: a line that is not a record: [:el_bad_line, position, line, why].
-"""
+# A line that is not a record: [:el_bad_line, position, line, why].
 def bad(position, line, why)
   [:el_bad_line, position, line, why]
 end
@@ -892,18 +816,14 @@ end
 
 # ── decoding a line ────────────────────────────────────────────────────────
 
-@doc """
-decode_line: a line read back as a record, or as a bad line saying why it is not one.
-Total: nothing here raises, whatever the line holds.
-"""
+# A line read back as a record, or as a bad line saying why it is not one.
+# Total: nothing here raises, whatever the line holds.
 def decode_line(d, position, line)
   decode_named(names(d), position, line)
 end
 
-@doc """
-decode_named: el_decode_line with the definition's names already indexed (el_names), as
-read and append hold them.
-"""
+# el_decode_line with the definition's names already indexed (el_names), as
+# read and append hold them.
 def decode_named(names, position, line)
   doc = json_parse(line) rescue :el_unreadable
   if doc == :el_unreadable
@@ -915,10 +835,8 @@ def decode_named(names, position, line)
   end
 end
 
-@doc """
-decode_doc: each field is read once, with deeta's total readers (nil for absent or of
-the wrong type), then checked in order, stopping at the first problem.
-"""
+# Each field is read once, with deeta's total readers (nil for absent or of
+# the wrong type), then checked in order, stopping at the first problem.
 def decode_doc(names, position, line, doc)
   entity = get_str(doc, "entity", nil)
   seq = get_int(doc, "seq", nil)
@@ -1001,9 +919,7 @@ def refusal_from(v)
   end
 end
 
-@doc """
-shape_problem: the first way a line's fields fail to make a record, as text, or nil.
-"""
+# The first way a line's fields fail to make a record, as text, or nil.
 def shape_problem(
   entity,
   seq,
@@ -1083,12 +999,10 @@ end
 
 # ── the log value ──────────────────────────────────────────────────────────
 
-@doc """
-new: [:el_log, path, label, def, head, count, bytes, entities, index, last,
- records, signer, fault, names]. index maps an entity to [state, next seq].
-records is the stream as read, or nil once the value has been appended to.
-names is el_names(def).
-"""
+# [:el_log, path, label, def, head, count, bytes, entities, index, last,
+#  records, signer, fault, names]. index maps an entity to [state, next seq].
+# records is the stream as read, or nil once the value has been appended to.
+# names is el_names(def).
 def new(path, label, d, bytes, records)
   [
     :el_log,
@@ -1119,9 +1033,7 @@ def path(log)
   nth(1, log)
 end
 
-@doc """
-label: the label the stream's genesis is made from.
-"""
+# The label the stream's genesis is made from.
 def label(log)
   nth(2, log)
 end
@@ -1131,31 +1043,23 @@ def el_def(log)
   nth(3, log)
 end
 
-@doc """
-head: the hash of the last record: what the next record's prev will be.
-"""
+# The hash of the last record: what the next record's prev will be.
 def head(log)
   nth(4, log)
 end
 
+# How many lines the stream holds.
 # waive B0013: `count` is a builtin nisshi also uses, so the prefix stays; nisshi::count names it too
-@doc """
-el_count: how many lines the stream holds.
-"""
 def el_count(log)
   nth(5, log)
 end
 
-@doc """
-bytes: the stream's size in bytes when this value was read or last appended.
-"""
+# The stream's size in bytes when this value was read or last appended.
 def bytes(log)
   nth(6, log)
 end
 
-@doc """
-entities: the entities in the order they first appear.
-"""
+# The entities in the order they first appear.
 def entities(log)
   nth(7, log)
 end
@@ -1164,18 +1068,14 @@ def index(log)
   nth(8, log)
 end
 
+# The last record: after el_append, the record it wrote.
 # waive B0013: `last` is a builtin nisshi also uses, so the prefix stays; nisshi::last names it too
-@doc """
-el_last: the last record: after el_append, the record it wrote.
-"""
 def el_last(log)
   nth(9, log)
 end
 
-@doc """
-records: the records as read, in stream order, bad lines included. Raises once the
-value has been appended to: a writer keeps no history, so read again.
-"""
+# The records as read, in stream order, bad lines included. Raises once the
+# value has been appended to: a writer keeps no history, so read again.
 def records(log)
   require_log(log)
   if nth(10, log).nil?
@@ -1191,9 +1091,7 @@ def signer(log)
   nth(11, log)
 end
 
-@doc """
-fault: the position of the first line that is not a record, or nil.
-"""
+# The position of the first line that is not a record, or nil.
 def fault(log)
   nth(12, log)
 end
@@ -1202,9 +1100,7 @@ def names_of(log)
   nth(13, log)
 end
 
-@doc """
-entry: an entity's [state, next seq]; an unseen entity is at its lifecycle's start.
-"""
+# An entity's [state, next seq]; an unseen entity is at its lifecycle's start.
 def entry(log, entity)
   have = get(index(log), entity)
   if have.nil?
@@ -1214,32 +1110,24 @@ def entry(log, entity)
   end
 end
 
-@doc """
-state: an entity's lifecycle state: its admitted records, folded.
-"""
+# An entity's lifecycle state: its admitted records, folded.
 def state(log, entity)
   first(entry(log, entity))
 end
 
-@doc """
-seq_of: the seq an entity's next record will carry.
-"""
+# The seq an entity's next record will carry.
 def seq_of(log, entity)
   nth(1, entry(log, entity))
 end
 
-@doc """
-states: every entity's state, [entity, state], in the order entities first appear.
-"""
+# Every entity's state, [entity, state], in the order entities first appear.
 def states(log)
   map((e) -> [e, state(log, e)], entities(log))
 end
 
-@doc """
-signing: the log with a signing key: every record appended through it carries an
-Ed25519 signature over its hash. The secret is a 32-byte seed in hex from
-the caller; the log holds it in memory only.
-"""
+# The log with a signing key: every record appended through it carries an
+# Ed25519 signature over its hash. The secret is a 32-byte seed in hex from
+# the caller; the log holds it in memory only.
 def signing(log, secret_hex)
   require_log(log)
   if is_hash_hex(secret_hex) == false
@@ -1253,11 +1141,9 @@ end
 
 # ── one fold, shared by append and read ────────────────────────────────────
 
-@doc """
-absorb: fold one line into the log, as read does. An admitted record steps its
-entity's state (lc_step); a refused one only counts in its entity's seq; a
-bad line marks the fault.
-"""
+# Fold one line into the log, as read does. An admitted record steps its
+# entity's state (lc_step); a refused one only counts in its entity's seq; a
+# bad line marks the fault.
 def absorb(log, x)
   if record?(x)
     absorb_record(
@@ -1270,11 +1156,9 @@ def absorb(log, x)
   end
 end
 
-@doc """
-absorb_record: advance the log past record `r`, its entity now in `state`. read passes
-lc_step's state; append passes lc_admit_step's, which is lc_step's by
-construction (both are lc_apply over one lc_judge), so they cannot differ.
-"""
+# Advance the log past record `r`, its entity now in `state`. read passes
+# lc_step's state; append passes lc_admit_step's, which is lc_step's by
+# construction (both are lc_apply over one lc_judge), so they cannot differ.
 def absorb_record(log, r, state)
   e = rec_entity(r)
   have = get(index(log), e)
@@ -1332,11 +1216,9 @@ end
 
 # ── read: the only I/O besides append ──────────────────────────────────────
 
-@doc """
-read: read the stream at `path` (a missing file is an empty stream) and replay
-every record into its entity's state. It verifies nothing; el_verify says
-whether to trust what was read.
-"""
+# Read the stream at `path` (a missing file is an empty stream) and replay
+# every record into its entity's state. It verifies nothing; el_verify says
+# whether to trust what was read.
 def read(path, label, d)
   raifusaikuru::name(d)
   if path_exists(path)
@@ -1346,10 +1228,8 @@ def read(path, label, d)
   end
 end
 
-@doc """
-from_text: the log a stream's text reads as: el_read's work after the file is read.
-Pure. A last line without its newline is a torn write, and a bad line.
-"""
+# The log a stream's text reads as: el_read's work after the file is read.
+# Pure. A last line without its newline is a torn write, and a bad line.
 def from_text(text, path, bytes, label, d)
   lines = nisshi::lines(text)
   n = size(lines)
@@ -1370,12 +1250,8 @@ def decode_at(names, i, line, is_torn)
   end
 end
 
-@doc """
-lines: a stream's lines: its text split on newlines, without the empty piece after
-the final one.
-
-    lines("") #=> []
-"""
+# A stream's lines: its text split on newlines, without the empty piece after
+# the final one.
 def lines(text)
   if text == ""
     []
@@ -1386,18 +1262,14 @@ def lines(text)
   end
 end
 
-@doc """
-unlines: lines back into a stream's text, each ended by a newline.
-"""
+# Lines back into a stream's text, each ended by a newline.
 def unlines(lines)
   join(map((l) -> "#{l}\n", lines), "")
 end
 
-@doc """
-open: the writer's door: read the stream, verify it (signatures too, given a
-public key), and return the log ready to append to. A broken stream raises
-:eventlog_broken naming the position and the kind of break.
-"""
+# The writer's door: read the stream, verify it (signatures too, given a
+# public key), and return the log ready to append to. A broken stream raises
+# :eventlog_broken naming the position and the kind of break.
 def open(path, label, d, public_hex)
   log = read(path, label, d)
   rep = verify(log, public_hex, nil)
@@ -1412,40 +1284,34 @@ end
 
 # ── append: the only function that writes ──────────────────────────────────
 
+# Append `event` (an lc_ev) for `entity`, with `links` ([kind, id] pairs, []
+# for none), and return the log advanced past it; el_last is the new record,
+# exactly as a later read returns it. An admitted event steps the entity's
+# state. A refused one is written too, marked refused with its reason, and
+# steps nothing. Raises before writing when the event is malformed
+# (:eventlog_value), the log value is stale (:eventlog_stale) or the stream is
+# broken (:eventlog_broken).
 # waive B0013: `append` is a builtin nisshi also uses, so the prefix stays; nisshi::append names it too
-@doc """
-el_append: append `event` (an lc_ev) for `entity`, with `links` ([kind, id] pairs, []
-for none), and return the log advanced past it; el_last is the new record,
-exactly as a later read returns it. An admitted event steps the entity's
-state. A refused one is written too, marked refused with its reason, and
-steps nothing. Raises before writing when the event is malformed
-(:eventlog_value), the log value is stale (:eventlog_stale) or the stream is
-broken (:eventlog_broken).
-"""
 def el_append(log, entity, event, links)
   write(log, entity, event, links, false)
 end
 
-@doc """
-observe: append an event a device OBSERVED: it happened, whatever the guard said. A
-fryer's current sensor that sees a load while the controller reports locked
-has not made an attempt the log may refuse; it has recorded a fact. So a
-gated event whose guard refuses is written ADMITTED, and every replay
-applies it and keeps it in lc_breaches, which is raifusaikuru's own rule for
-an event that happened anyway (lc_step). Everything else is el_append's:
-an event the lifecycle cannot take at all (no row from the current state, an
-unknown type, a missing key) is written refused, as the fold would refuse
-it on replay. el_last(log) is the record, as a later read returns it.
-"""
+# Append an event a device OBSERVED: it happened, whatever the guard said. A
+# fryer's current sensor that sees a load while the controller reports locked
+# has not made an attempt the log may refuse; it has recorded a fact. So a
+# gated event whose guard refuses is written ADMITTED, and every replay
+# applies it and keeps it in lc_breaches, which is raifusaikuru's own rule for
+# an event that happened anyway (lc_step). Everything else is el_append's:
+# an event the lifecycle cannot take at all (no row from the current state, an
+# unknown type, a missing key) is written refused, as the fold would refuse
+# it on replay. el_last(log) is the record, as a later read returns it.
 def observe(log, entity, event, links)
   write(log, entity, event, links, true)
 end
 
-@doc """
-write: the one writer behind el_append (an attempt: a guard refusal is written
-refused) and el_observe (a fact: a guard refusal is written admitted, and
-the state after it carries the breach).
-"""
+# The one writer behind el_append (an attempt: a guard refusal is written
+# refused) and el_observe (a fact: a guard refusal is written admitted, and
+# the state after it carries the breach).
 def write(log, entity, event, links, observed)
   require_writable(log)
   require_entity(entity)
@@ -1487,11 +1353,9 @@ def write(log, entity, event, links, observed)
   )
 end
 
-@doc """
-refusal_as: the refusal a record is written with: an attempt's is el_refusal_of's; an
-observed event's guard refusal is none, because the event happened (the
-step lc_admit_step took applied it and recorded the breach).
-"""
+# The refusal a record is written with: an attempt's is el_refusal_of's; an
+# observed event's guard refusal is none, because the event happened (the
+# step lc_admit_step took applied it and recorded the breach).
 def refusal_as(verdict, observed)
   if observed and
       raifusaikuru::admitted?(verdict) == false and
@@ -1502,10 +1366,8 @@ def refusal_as(verdict, observed)
   end
 end
 
-@doc """
-state_after: the entity's state after an append: the step's when admitted, unchanged
-when refused.
-"""
+# The entity's state after an append: the step's when admitted, unchanged
+# when refused.
 def state_after(state, judged, refusal)
   if refusal.nil?
     nth(1, judged)
@@ -1570,10 +1432,8 @@ def require_event(ev)
   end
 end
 
-@doc """
-require_round_trip: refuse to write a line that does not read back as the record it renders
-and the event that was judged.
-"""
+# Refuse to write a line that does not read back as the record it renders
+# and the event that was judged.
 def require_round_trip(r, line, ev)
   if record?(r) == false
     raise(
@@ -1594,14 +1454,12 @@ end
 
 # ── verify ─────────────────────────────────────────────────────────────────
 
-@doc """
-verify: walk the stream and report the first break, or that it is intact:
-  [:el_intact, count, head]
-  [:el_broken, position, kind, why]   kind is one of el_break_kinds()
-With `public_hex`, every record must carry a signature that verifies under
-it. With `expected_head` (a head recorded elsewhere), the stream must end
-exactly there: the only way a line dropped from the END can be seen. Pure.
-"""
+# Walk the stream and report the first break, or that it is intact:
+#   [:el_intact, count, head]
+#   [:el_broken, position, kind, why]   kind is one of el_break_kinds()
+# With `public_hex`, every record must carry a signature that verifies under
+# it. With `expected_head` (a head recorded elsewhere), the stream must end
+# exactly there: the only way a line dropped from the END can be seen. Pure.
 def verify(log, public_hex, expected_head)
   require_log(log)
   if public_hex != nil and is_hash_hex(public_hex) == false
@@ -1670,11 +1528,9 @@ def break_bad(bad)
   end
 end
 
-@doc """
-break_chain: the first record the chain does not reproduce (shomei's chain_first_break),
-named :prev when its prev is not the hash before it (a line is missing or
-out of order) and :hash when its content changed.
-"""
+# The first record the chain does not reproduce (shomei's chain_first_break),
+# named :prev when its prev is not the hash before it (a line is missing or
+# out of order) and :hash when its content changed.
 def break_chain(g, good, texts)
   p = chain_first_break(g, map(body_text, texts), map(rec_hash, good))
   if p.nil?
@@ -1773,16 +1629,12 @@ def sig_ok?(r, public_hex)
   end
 end
 
-@doc """
-intact?: true for a report of an intact stream.
-"""
+# True for a report of an intact stream.
 def intact?(rep)
   first(rep) == :el_intact
 end
 
-@doc """
-break_position: the position of a broken report's first break, from 0.
-"""
+# The position of a broken report's first break, from 0.
 def break_position(rep)
   nth(1, rep)
 end
@@ -1797,23 +1649,19 @@ end
 
 # ── history: the state after every record ──────────────────────────────────
 
-@doc """
-history: every record with its entity's state after it, [record, state], in stream
-order; bad lines are left out. The same fold as read (el_fold_record), so an
-entity's last state here is el_state's, and a refused record's state is the
-one before it. What a reader needs to see state change over time (an
-analytics layer) without folding a second way. Reads el_records, so it takes
-a value that was read, not one that was appended to.
-"""
+# Every record with its entity's state after it, [record, state], in stream
+# order; bad lines are left out. The same fold as read (el_fold_record), so an
+# entity's last state here is el_state's, and a refused record's state is the
+# one before it. What a reader needs to see state change over time (an
+# analytics layer) without folding a second way. Reads el_records, so it takes
+# a value that was read, not one that was appended to.
 def history(log)
   d = el_def(log)
   records = filter(record?, nisshi::records(log))
   retsu::last(reduce((acc, r) -> history_step(d, acc, r), [{}, []], records))
 end
 
-@doc """
-history_step: one record into the history: [states by entity, rows so far].
-"""
+# One record into the history: [states by entity, rows so far].
 def history_step(d, acc, r)
   e = rec_entity(r)
   have = get(first(acc), e)
@@ -1826,21 +1674,19 @@ def history_step(d, acc, r)
   [assoc(first(acc), e, state), push(nth(1, acc), [r, state])]
 end
 
-@doc """
-state_at: an entity's state AS OF `time`: its records at or before `time`, folded
-the way read folds them (el_fold_record: admitted records step, refused ones
-do not). What a reader needs to say what the log knew when something else
-happened (the oil's state when an order was fried), and the fold's twin of
-anaritikusu's as-of join, which answers the same question in SQL. An entity
-with no record by then is at its lifecycle's start. Like that join, it
-assumes an entity's times never decrease along its stream (neither checks
-it). Reads el_records, so it takes a value that was read.
-
-One question, one fold: a reader asking about many entities or times reads
-el_history once instead (the state after every record, folded once) and
-looks states up. Measured 2026-09-25 on NuPastel's journey lines, 200
-orders: re-folding per question 2.56 s, looking up in one history 0.27 s.
-"""
+# An entity's state AS OF `time`: its records at or before `time`, folded
+# the way read folds them (el_fold_record: admitted records step, refused ones
+# do not). What a reader needs to say what the log knew when something else
+# happened (the oil's state when an order was fried), and the fold's twin of
+# anaritikusu's as-of join, which answers the same question in SQL. An entity
+# with no record by then is at its lifecycle's start. Like that join, it
+# assumes an entity's times never decrease along its stream (neither checks
+# it). Reads el_records, so it takes a value that was read.
+#
+# One question, one fold: a reader asking about many entities or times reads
+# el_history once instead (the state after every record, folded once) and
+# looks states up. Measured 2026-09-25 on NuPastel's journey lines, 200
+# orders: re-folding per question 2.56 s, looking up in one history 0.27 s.
 def state_at(log, entity, time)
   d = el_def(log)
   records = filter(
@@ -1852,12 +1698,8 @@ end
 
 # ── grouping ───────────────────────────────────────────────────────────────
 
-@doc """
-by_entity: the records grouped by entity: [[entity, records]] in the order entities
-first appear, each group in stream order. Bad lines are left out.
-
-    by_entity([]) #=> []
-"""
+# The records grouped by entity: [[entity, records]] in the order entities
+# first appear, each group in stream order. Bad lines are left out.
 def by_entity(records)
   acc = reduce(group_add, [[], {}], filter(record?, as_list(records)))
   map((e) -> [e, reverse(get(nth(1, acc), e))], first(acc))
@@ -1875,14 +1717,12 @@ end
 
 # ── a worked stream ────────────────────────────────────────────────────────
 
-@doc """
-example_events: `n` events over `k` of raifusaikuru's example consumables, interleaved:
-event i is item (i mod k)'s (i div k)-th step. Each item is read, opened,
-then used, with a fresh reading every 25th step; every 10th event links a
-batch. The guard refuses a use once 40 are spent or the reading is 4 h old,
-so a long stream holds refusals as well as admissions. Time moves 10 s an
-event. Each element is [entity, event, links].
-"""
+# `n` events over `k` of raifusaikuru's example consumables, interleaved:
+# event i is item (i mod k)'s (i div k)-th step. Each item is read, opened,
+# then used, with a fresh reading every 25th step; every 10th event links a
+# batch. The guard refuses a use once 40 are spent or the reading is 4 h old,
+# so a long stream holds refusals as well as admissions. Time moves 10 s an
+# event. Each element is [entity, event, links].
 def example_events(n, k)
   map((i) -> example_event(i, k), range(0, n))
 end
@@ -1915,16 +1755,12 @@ def example_links(i)
   end
 end
 
-@doc """
-append_all: append every [entity, event, links] in order.
-"""
+# Append every [entity, event, links] in order.
 def append_all(log, items)
   reduce((l, x) -> el_append(l, first(x), nth(1, x), nth(2, x)), log, items)
 end
 
-@doc """
-test_path: a fresh path under TMPDIR for a test's stream.
-"""
+# A fresh path under TMPDIR for a test's stream.
 def test_path(name)
   path_join(getenv("TMPDIR", "/tmp"), "nisshi-#{name}-#{to_s(now_ns)}.jsonl")
 end
@@ -2039,10 +1875,8 @@ test "a refused event is written, marked with its reason, counted in seq, and fo
   assert retsu::last(back) == el_last(l3)
 end
 
-@doc """
-doc_stream: the stream the b3sum test pins: three events for one item, signed with RFC
-8032 TEST 1's key.
-"""
+# The stream the b3sum test pins: three events for one item, signed with RFC
+# 8032 TEST 1's key.
 def doc_stream(p)
   d = raifusaikuru::example_consumable
   log = signing(
@@ -2096,10 +1930,8 @@ test "values checked independently: the genesis and every hash by b3sum, the sig
   ) == [:el_intact, 3, head(log)]
 end
 
-@doc """
-control_lines: a signed stream of five records over two items, as its lines: the base the
-controls below damage one way each.
-"""
+# A signed stream of five records over two items, as its lines: the base the
+# controls below damage one way each.
 def control_lines(p, secret)
   log = signing(
     read(p, "nisshi-test", raifusaikuru::example_consumable),
@@ -2118,10 +1950,8 @@ def control_lines(p, secret)
   [lines, head(done)]
 end
 
-@doc """
-control_rows: one damaged copy per break kind: [kind, text, public key, expected head,
-position]. `k` and `other` are two keypairs; the stream is signed with `k`.
-"""
+# One damaged copy per break kind: [kind, text, public key, expected head,
+# position]. `k` and `other` are two keypairs; the stream is signed with `k`.
 def control_rows(lines, head, k, other)
   pub = keypair_public(k)
   line2 = nth(2, lines)
@@ -2174,10 +2004,8 @@ def control_rows(lines, head, k, other)
   ]
 end
 
-@doc """
-wrong_seq_lines: the stream with its last record rewritten to claim seq 1 for item-2's first
-record, re-hashed and re-signed: a writer's bug the chain alone accepts.
-"""
+# The stream with its last record rewritten to claim seq 1 for item-2's first
+# record, re-hashed and re-signed: a writer's bug the chain alone accepts.
 def wrong_seq_lines(lines, secret)
   d = raifusaikuru::example_consumable
   r = decode_line(d, 4, nth(4, lines))

@@ -463,6 +463,9 @@ pub struct Hover {
     /// Where it lives and how it resolved: `bidama \`retsu\``, `local`.
     pub namespace: String,
     pub doc: Option<String>,
+    /// What blue derives about a definition: its signature and rung, its
+    /// contract row, its space, callers and refusals. Never stored.
+    pub derived: Vec<String>,
 }
 
 /// Hover for the name at byte `offset` of document `id`.
@@ -474,10 +477,15 @@ pub fn hover_of(engine: &Engine, id: &str, offset: usize) -> Option<Hover> {
         Symbol::Def(ns, name) => {
             let at = a.definition_of(engine, &ns, &name)?;
             let item = engine.item_at(&a, &at)?;
+            let derived = engine
+                .doc_view(&a, &at, &ns, &name)
+                .map(|v| v.derived_lines())
+                .unwrap_or_default();
             Some(Hover {
                 signature: item.signature,
                 namespace: ns.to_string(),
                 doc: item.doc,
+                derived,
             })
         }
         Symbol::Builtin(name) => {
@@ -486,6 +494,7 @@ pub fn hover_of(engine: &Engine, id: &str, offset: usize) -> Option<Hover> {
                 signature: d.signature.to_string(),
                 namespace: "builtin".to_string(),
                 doc: Some(d.doc.to_string()),
+                derived: Vec::new(),
             })
         }
         Symbol::Local(b) => {
@@ -494,12 +503,14 @@ pub fn hover_of(engine: &Engine, id: &str, offset: usize) -> Option<Hover> {
                 signature: binding.name.clone(),
                 namespace: "local".to_string(),
                 doc: None,
+                derived: Vec::new(),
             })
         }
         Symbol::Package(p) => Some(Hover {
             signature: format!("use(\"{p}\")"),
             namespace: format!("bidama `{p}`"),
             doc: None,
+            derived: Vec::new(),
         }),
     }
 }

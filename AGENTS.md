@@ -71,6 +71,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
 | `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
 | `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |
+| `blue registry render [BACKEND]` | a Bluefile `registry` entry (sui first, FlakeHub optional) as its publish workflow; `--write` rewrites the committed files; `blue registry status` says whether sui serves each pin. The lock stays the truth: [`docs/REGISTRY.md`](docs/REGISTRY.md) |
 
 Sessions (`eval`, `repl`, `serve`) are pure: code that reaches the host
 (`read_file`, `now_ms`, `exec_capture`, …) is refused as volatile unless the

@@ -91,6 +91,18 @@ else
   concat_lists(written, map((w) -> json_get(last(w), "output"), workloads))
 end
 
+written = if json_get(manifest, "registries").nil?
+  written
+else
+  if exec_check("blue", "registry", "render", "--write") != 0
+    raise(:regen, "blue registry render --write failed")
+  end
+  concat_lists(
+    written,
+    map((r) -> json_get(last(r), "output"), json_get(manifest, "registries"))
+  )
+end
+
 lock_manifest = get(json_read(read_file("Bluefile.lock")), "manifest")
 
 written = if get(lock_manifest, "services").nil?

@@ -1,0 +1,56 @@
+[
+  {
+    "name": "an undeclared visibility is private",
+    "file": "touroku.b",
+    "find": "  if v.nil?\n    \"private\"",
+    "replace": "  if v.nil?\n    \"public\""
+  },
+  {
+    "name": "FlakeHub renders the package's visibility",
+    "file": "touroku.b",
+    "find": "\"visibility\" => flakehub_visibility(visibility_of(manifest))",
+    "replace": "\"visibility\" => \"public\""
+  },
+  {
+    "name": "a registry never sets visibility",
+    "file": "touroku.b",
+    "find": "elsif get(spec, \"visibility\") != nil",
+    "replace": "elsif false"
+  },
+  {
+    "name": "private on FlakeHub needs a paid plan",
+    "file": "touroku.b",
+    "find": "get(spec, \"plan\") != \"paid\"",
+    "replace": "false"
+  },
+  {
+    "name": "a yanked version is refused",
+    "file": "touroku.b",
+    "find": "elsif get(doc, \"yanked_at\") != nil",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a revision is 40 hex",
+    "file": "touroku.b",
+    "find": "length(r) == 40",
+    "replace": "true"
+  },
+  {
+    "name": "404 is absence",
+    "file": "touroku.b",
+    "find": "elsif status == 404",
+    "replace": "elsif false"
+  },
+  {
+    "name": "sui publish is gated by SUI_MODE",
+    "file": "touroku.b",
+    "find": "\"${{ vars.SUI_MODE == 'on' }}\"",
+    "replace": "true"
+  },
+  {
+    "name": "semver publishes on tags",
+    "file": "touroku.b",
+    "find": "semver = get(spec, \"tag\") == \"semver\"",
+    "replace": "semver = false"
+  }
+]

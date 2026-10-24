@@ -36,6 +36,7 @@
 //! blue image build [NAME]      build a Bluefile image through nix: tarball, size, layers
 //! blue workload render [NAME]  a workload's rendered objects; --write rewrites the files
 //! blue diff --context CTX      the committed workloads against a cluster, read-only
+//! blue registry render [B]    a registry entry as its publish workflow; status: sui per pin
 //! ```
 //!
 //! `blue deps` and `blue posture` read a **Bluefile**, which is itself a blue
@@ -74,6 +75,7 @@ mod doc;
 mod observe;
 mod prefetch;
 mod reference;
+mod registry;
 mod repl;
 mod replay;
 mod scaffold;
@@ -394,6 +396,13 @@ enum Cmd {
     /// when they agree, 1 when they differ, 2 when the comparison failed.
     /// There is no `blue apply`; a GitOps reconciler applies the commit.
     Diff(deploy::DiffArgs),
+    #[command(
+        about = "The Bluefile's `registry(...)` entries: each backend's publish workflow rendered from Bluefile.lock, and the sui state of every pin (docs/REGISTRY.md)"
+    )]
+    Registry {
+        #[command(subcommand)]
+        cmd: registry::RegistryCmd,
+    },
 }
 
 fn main() -> ExitCode {
@@ -449,6 +458,8 @@ enum CliError {
     Json(#[from] serde_json::Error),
     #[error("{0}")]
     Deploy(#[from] deploy::DeployError),
+    #[error("{0}")]
+    Registry(#[from] registry::RegistryCliError),
     #[error("no diagnostic code `{0}`; `blue explain --list` lists them")]
     UnknownCode(String),
     /// `--json` prints ONE manifest; several would need a container shape, and
@@ -1110,7 +1121,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // to pin must not leave half a directory tree relocked.
             let mut locks = Vec::with_capacity(dirs.len());
             for dir in &dirs {
-                let lock = blue_lang_pkg::lock::lock_dir(dir, &prefetch::NixPrefetch)?;
+                let (lock, notes) = blue_lang_pkg::lock::lock_dir_with(
+                    dir,
+                    &prefetch::NixPrefetch,
+                    Some(&registry::CurlFlakeHub::from_env()),
+                )?;
+                for note in notes {
+                    eprintln!("➖ {}: {note}", dir.display());
+                }
                 locks.push((dir.join(LOCK_FILE), lock));
             }
             for (path, lock) in &locks {
@@ -1150,6 +1168,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 
         Cmd::Image { cmd } => Ok(deploy::image(cmd)?),
         Cmd::Workload { cmd } => Ok(deploy::workload(cmd)?),
+        Cmd::Registry { cmd } => Ok(registry::run(cmd)?),
         Cmd::Diff(args) => Ok(deploy::diff(args)),
         Cmd::Reference => {
             println!("{}", serde_json::to_string_pretty(&reference::reference())?);

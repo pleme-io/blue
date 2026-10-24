@@ -118,6 +118,7 @@ use("tehai")
 use("tesuto")
 use("tokumei", [:suppress_small])
 use("toukei", [:mean, :median])
+use("touroku")
 use("tsuiseki")
 use("tsuushin")
 use("ugoki")
@@ -211,6 +212,7 @@ test "every bidama in the distribution answers through this one import"
   assert tajuu::error_code(:cancel) == 8
   assert outou::request(outou::fixture, "{ hero { id } }") ==
     {data: {"hero" => {"id" => "2001"}}}
+  assert touroku::visibility_of({}) == "private"
 end
 
 test "four packages compose without the consumer naming any of them"

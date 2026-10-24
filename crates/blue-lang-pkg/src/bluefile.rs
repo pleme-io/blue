@@ -170,6 +170,17 @@ pub struct Project {
     pub rules: BTreeMap<String, Rule>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub frontends: BTreeMap<String, crate::deploy::Frontend>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub registries: BTreeMap<String, serde_json::Value>,
+}
+
+pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
+
+#[must_use]
+pub fn registry_output(backend: &str) -> String {
+    format!(".github/workflows/registry-{backend}.yml")
 }
 
 /// A project check rule: a blue definition `blue check` calls on every
@@ -425,13 +436,25 @@ struct Word {
 const WORDS: &[Word] = &[
     Word {
         name: "package",
-        signature: "package(name, version)",
-        doc: "The project's or package's name and version; exactly once per Bluefile.",
+        signature: "package(name, version[, visibility])",
+        doc: "The project's or package's name and version; exactly once per Bluefile. `visibility` (public, unlisted or private; private when undeclared) is what every `registry` backend renders.",
         min: 2,
-        max: 2,
+        max: 3,
         record: |c, into| {
             let name = c.text(0, "name")?;
             let version = c.text(1, "version")?;
+            if c.args.len() > 2 {
+                let visibility = c.label(2, "visibility")?;
+                if !VISIBILITIES.contains(&visibility.as_str()) {
+                    return Err(Malformed::Choice {
+                        word: c.word,
+                        param: "visibility",
+                        expected: VISIBILITIES,
+                        got: visibility,
+                    });
+                }
+                into.project.visibility = Some(visibility);
+            }
             set_once(&mut into.package, c.word, name.clone(), (name, version))
         },
     },
@@ -664,6 +687,26 @@ const WORDS: &[Word] = &[
                 Ok(frontend) => insert_once(&mut into.project.frontends, c.word, name, frontend),
                 Err(error) => refuse(into, c.word, name, error),
             }
+        },
+    },
+    Word {
+        name: "registry",
+        signature: "registry(backend, spec)",
+        doc: "A registry backend the project publishes to (`sui`, `flakehub`): its workflow rendered to the committed `output` (default `.github/workflows/registry-<backend>.yml`) and gated fresh; `enabled: false` keeps it declared and off. The Bluefile and its lock stay the truth (docs/REGISTRY.md).",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let backend = c.label(0, "backend")?;
+            if !matches!(&c.args[1], Value::Map(_)) {
+                return Err(c.type_error(1, "spec", "a record"));
+            }
+            let mut spec = blue_lang_runtime::json::value_to_json(&c.args[1]);
+            if let Some(fields) = spec.as_object_mut() {
+                fields
+                    .entry("output")
+                    .or_insert_with(|| registry_output(&backend).into());
+            }
+            insert_once(&mut into.project.registries, c.word, backend, spec)
         },
     },
 ];
@@ -1082,6 +1125,7 @@ mod tests {
             // `rule`, 2026-10-10: a project's own check rules, written in blue.
             .chain(["rule"])
             .chain(["frontend"])
+            .chain(["registry"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

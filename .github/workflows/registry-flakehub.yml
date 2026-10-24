@@ -1,0 +1,16 @@
+jobs:
+  publish:
+    uses: "pleme-io/substrate/.github/workflows/reusable-flakehub.yml@main"
+    with:
+      directory: "."
+      rolling: true
+      visibility: "public"
+name: "registry-flakehub"
+"on":
+  push:
+    branches:
+      - "main"
+  workflow_dispatch: {}
+permissions:
+  contents: "read"
+  id-token: "write"

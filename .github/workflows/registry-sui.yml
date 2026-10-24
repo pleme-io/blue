@@ -1,0 +1,26 @@
+jobs:
+  publish:
+    if: "${{ vars.SUI_MODE == 'on' }}"
+    runs-on: "${{ vars.PRIVATE_BUILDER_RUNNER || 'pleme-private' }}"
+    steps:
+      - uses: "actions/checkout@v4"
+      - id: "build"
+        uses: "pleme-io/actions/nix-build@main"
+        with:
+          flake-ref: ".#${{ matrix.output }}"
+      - uses: "pleme-io/actions/sui-cache-push@main"
+        with:
+          paths: "${{ steps.build.outputs.out-path }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        output:
+          - "default"
+name: "registry-sui"
+"on":
+  push:
+    branches:
+      - "main"
+  workflow_dispatch: {}
+permissions:
+  contents: "read"

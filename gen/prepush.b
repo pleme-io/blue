@@ -66,7 +66,7 @@ def regenerates?(dir)
   m = manifest(dir)
   any?(
     (k) -> get(m, k) != nil,
-    ["catalog", "generated", "workloads", "services"]
+    ["catalog", "generated", "workloads", "registries", "services"]
   )
 end
 

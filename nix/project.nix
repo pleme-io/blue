@@ -52,6 +52,7 @@
 # | `workload(name, spec)` | configured off (refused) unless `legacy.rawWorkloads = true`; then `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
 # | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
 # | `frontend(name, spec)` | `checks.frontend-<name>-declared`: every `views`, `tokens` and `schema` path must exist in the project, and the declaration is written out as JSON; the renderers it lowers to come with FRONTEND-PLAN F11 |
+# | `registry(backend, spec)` | `packages.registry-<backend>` (`blue registry render`, judged by `touroku`), `checks.registry-<backend>-fresh` against the committed `output`; `package`'s `visibility` is recorded and read only by `touroku` (docs/REGISTRY.md) |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
 # | `posture(when)` | nothing: a runtime floor, not a build fact |
 #
@@ -102,6 +103,7 @@ let
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends"
+    "visibility" "registries"
   ];
 
   readLock = src:
@@ -386,6 +388,23 @@ let
 
       lockFile = builtins.path { path = src + "/Bluefile.lock"; name = "Bluefile.lock"; };
 
+      registries = m.registries or { };
+
+      registryPackages = lib.mapAttrs'
+        (b: _: lib.nameValuePair "registry-${b}" (pkgs.runCommand "registry-${b}.yml" { } ''
+          ${blue}/bin/blue registry render ${b} --lock ${lockFile} > $out
+        ''))
+        registries;
+
+      registryChecks = lib.mapAttrs'
+        (b: spec: lib.nameValuePair "registry-${b}-fresh" (bl.mkFreshCheck {
+          name = "registry-${b}-fresh";
+          regenerate = "blue registry render --write (or nix run .#regen)";
+          committed = src + "/${spec.output}";
+          generated = registryPackages."registry-${b}";
+        }))
+        registries;
+
       frontendChecks = lib.mapAttrs'
         (fname: spec:
           let
@@ -421,7 +440,7 @@ let
 
       packages = disjoint "package" runs
         (disjoint "package" (catalogue // generatedPackages)
-          (disjoint "package" (imagePackages // workloadPackages) lowered.packages));
+          (disjoint "package" (imagePackages // workloadPackages // registryPackages) lowered.packages));
 
       gates =
         lib.optionalAttrs (ownNames != [ ]) ({
@@ -471,6 +490,7 @@ let
           generated
         // imageChecks
         // workloadChecks
+        // registryChecks
         // frontendChecks
         // lowered.checks;
 
@@ -517,7 +537,7 @@ let
 
       apps = disjoint "app"
         (lib.mapAttrs (an: a: app an (programFile a.file)) m.apps)
-        (lowered.apps // lib.optionalAttrs (m.catalog != null || generated != { } || workloads != { } || lowered.services != { }) {
+        (lowered.apps // lib.optionalAttrs (m.catalog != null || generated != { } || workloads != { } || registries != { } || lowered.services != { }) {
           # gen/regen.b reads the project's Bluefile.lock from the directory
           # it is run in: `nix run .#regen` from the project root.
           regen = app "regen" ../gen/regen.b;

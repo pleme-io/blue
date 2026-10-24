@@ -17,7 +17,10 @@
 #
 # The package identity is this declaration's, not the crates'. Cargo.toml
 # carries the crate versions, and the release job bumps those.
-package("blue-repository", "1.0.0")
+package("blue-repository", "1.0.0", :public)
+
+registry(:sui, {outputs: ["default"]})
+registry(:flakehub, {tag: :rolling})
 
 packages("bidamas")
 catalog("bidamas/CATALOG.md")

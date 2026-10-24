@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f3299e8a1af78a3e6b20e0d33db43795358deb239dbf2a7ea7774cc246fdc69f",
+  "bluefile_b3": "b3:83f2b98f0265b210b4654b65e1a53484f00337de4dc27f6946b482fff972fd4e",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -97,6 +97,19 @@
         "file": "rules/conventions.b",
         "def": "nil_predicate",
         "severity": "error"
+      }
+    },
+    "visibility": "public",
+    "registries": {
+      "flakehub": {
+        "output": ".github/workflows/registry-flakehub.yml",
+        "tag": "rolling"
+      },
+      "sui": {
+        "output": ".github/workflows/registry-sui.yml",
+        "outputs": [
+          "default"
+        ]
       }
     }
   },

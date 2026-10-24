@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:a6309eb13d25791d54dc61c2ca1a6469d1a246fd43ae3096b670f71c3b1966ff",
+  "bluefile_b3": "b3:f6a33a4d502d2c2febd70e0b7863adef1c4b4c470fea41833ec995bd1431b9db",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -76,6 +76,7 @@
       "tesuto": "^0.1.0",
       "tokumei": "^0.1.0",
       "toukei": "^0.1.0",
+      "touroku": "^0.1.0",
       "tsuiseki": "^0.1.0",
       "tsuushin": "^0.1.0",
       "ugoki": "^0.1.0",

@@ -49,6 +49,7 @@ pub mod lock;
 pub mod needs;
 /// The project pass of `blue check`: the rules a project writes in blue.
 pub mod project_rules;
+pub mod registry;
 pub mod solve;
 pub mod version;
 

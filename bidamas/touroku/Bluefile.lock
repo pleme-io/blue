@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:f87b5aa885275f813e8c05c45c4e9aef919cebac7ea752ad1bba52f9efecdb3e",
+  "manifest": {
+    "schema": 1,
+    "name": "touroku",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kousei": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

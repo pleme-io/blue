@@ -47,6 +47,7 @@ use std::path::Path;
 
 use crate::bluefile::{read_bluefile, when_label, Bluefile, BluefileError, Project};
 use crate::needs::NeedsError;
+use crate::registry::{is_flakehub, FlakeHub, Refusal, Touroku};
 use crate::version::Range;
 
 /// The lock file, beside the Bluefile it locks.
@@ -116,6 +117,12 @@ pub struct Pin {
     pub rev: String,
     #[serde(rename = "narHash")]
     pub nar_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fetch: Option<String>,
+    #[serde(rename = "storePath", default, skip_serializing_if = "Option::is_none")]
+    pub store_path: Option<String>,
 }
 
 /// The whole lock.
@@ -128,6 +135,8 @@ pub struct Lock {
     pub manifest: ManifestRecord,
     /// One pin per `source(...)`, keyed by the source's name.
     pub sources: BTreeMap<String, Pin>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub refused: BTreeMap<String, String>,
 }
 
 /// How `blue lock` asks for a source's pin.
@@ -245,6 +254,12 @@ pub fn pin_of(name: &str, url: &str, json: &str) -> Result<Pin, LockError> {
         url: url.to_string(),
         rev,
         nar_hash,
+        version: None,
+        fetch: None,
+        store_path: value
+            .pointer(STORE_PATH)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
     })
 }
 
@@ -333,6 +348,14 @@ pub fn manifest_at(dir: &Path) -> Result<ManifestRecord, LockError> {
 }
 
 pub fn lock_dir(dir: &Path, prefetch: &dyn Prefetch) -> Result<Lock, LockError> {
+    lock_dir_with(dir, prefetch, None).map(|(lock, _)| lock)
+}
+
+pub fn lock_dir_with(
+    dir: &Path,
+    prefetch: &dyn Prefetch,
+    flakehub: Option<&dyn FlakeHub>,
+) -> Result<(Lock, Vec<String>), LockError> {
     let (src, bf) = bluefile_at(dir)?;
     let needs = derived_needs(dir, &bf)?;
     if crate::load_path::bidama_of(&bf).is_some() {
@@ -351,8 +374,86 @@ pub fn lock_dir(dir: &Path, prefetch: &dyn Prefetch) -> Result<Lock, LockError> 
             .into());
         }
     }
-    lock(&src, &needs, prefetch)
+    let previous =
+        read_text(&dir.join(LOCK_FILE))?.and_then(|t| serde_json::from_str::<Lock>(&t).ok());
+    let loader = crate::load_path::LoadPath::for_dir(dir);
+    lock_with(
+        &src,
+        &needs,
+        prefetch,
+        &Resolve {
+            flakehub,
+            loader: &loader,
+            previous: previous.as_ref(),
+        },
+    )
 }
+
+pub struct Resolve<'a> {
+    pub flakehub: Option<&'a dyn FlakeHub>,
+    pub loader: &'a dyn blue_lang_runtime::uses::Loader,
+    pub previous: Option<&'a Lock>,
+}
+
+fn refusal(kind: &str, why: String) -> Refusal {
+    Refusal {
+        kind: kind.to_string(),
+        why,
+    }
+}
+
+fn resolve_flakehub(
+    name: &str,
+    url: &str,
+    prefetch: &dyn Prefetch,
+    flakehub: &dyn FlakeHub,
+    touroku: &mut Touroku,
+) -> Result<Pin, Refusal> {
+    let judge = |e: crate::registry::RegistryError| refusal("judge", format!("{name}: {e}"));
+    let request = touroku.request(url).map_err(judge)??;
+    let answer = flakehub.get(&request.api);
+    let credential = flakehub.credential();
+    let resolved = touroku
+        .flakehub_pin(name, url, &answer, credential.as_deref())
+        .map_err(judge)??;
+    let json = prefetch.prefetch(&resolved.fetch).map_err(|e| {
+        refusal(
+            "unavailable",
+            format!("{name}: prefetch of {}: {e}", resolved.fetch),
+        )
+    })?;
+    let pin =
+        pin_of(name, &resolved.fetch, &json).map_err(|e| refusal("unreadable", e.to_string()))?;
+    if pin.rev != resolved.revision {
+        return Err(refusal(
+            "disagrees",
+            format!(
+                "{name}: FlakeHub names revision {} and the fetched tree is {}",
+                resolved.revision, pin.rev
+            ),
+        ));
+    }
+    let fetch = serde_json::from_str::<serde_json::Value>(&json)
+        .ok()
+        .and_then(|v| {
+            v.pointer(LOCKED_URL)
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or(resolved.fetch);
+    Ok(Pin {
+        url: url.to_string(),
+        rev: pin.rev,
+        nar_hash: pin.nar_hash,
+        version: Some(resolved.version),
+        fetch: Some(fetch),
+        store_path: pin.store_path,
+    })
+}
+
+pub const LOCKED_URL: &str = "/locked/url";
+
+pub const STORE_PATH: &str = "/storePath";
 
 pub fn confirm_dir(dir: &Path) -> Result<Freshness, LockError> {
     let (src, bf) = bluefile_at(dir)?;
@@ -379,9 +480,65 @@ pub fn lock(
     needs: &BTreeMap<String, Range>,
     prefetch: &dyn Prefetch,
 ) -> Result<Lock, LockError> {
+    let loader = crate::load_path::LoadPath::default();
+    lock_with(
+        bluefile_src,
+        needs,
+        prefetch,
+        &Resolve {
+            flakehub: None,
+            loader: &loader,
+            previous: None,
+        },
+    )
+    .map(|(lock, _)| lock)
+}
+
+pub fn lock_with(
+    bluefile_src: &str,
+    needs: &BTreeMap<String, Range>,
+    prefetch: &dyn Prefetch,
+    resolve: &Resolve<'_>,
+) -> Result<(Lock, Vec<String>), LockError> {
     let bluefile = read_bluefile(bluefile_src)?;
     let mut sources = BTreeMap::new();
+    let mut refused = BTreeMap::new();
+    let mut notes = Vec::new();
+    let mut touroku: Option<Result<Touroku, String>> = None;
     for (name, source) in &bluefile.project.sources {
+        if is_flakehub(&source.url) {
+            let outcome = match resolve.flakehub {
+                None => Err(refusal(
+                    "unavailable",
+                    format!("{name}: this blue lock has no FlakeHub seam"),
+                )),
+                Some(flakehub) => match touroku
+                    .get_or_insert_with(|| Touroku::load(resolve.loader).map_err(|e| e.to_string()))
+                {
+                    Ok(t) => resolve_flakehub(name, &source.url, prefetch, flakehub, t),
+                    Err(e) => Err(refusal("judge", format!("{name}: {e}"))),
+                },
+            };
+            match outcome {
+                Ok(pin) => {
+                    sources.insert(name.clone(), pin);
+                }
+                Err(r) => {
+                    let kept = resolve
+                        .previous
+                        .and_then(|p| p.sources.get(name))
+                        .filter(|p| p.url == source.url);
+                    if let Some(pin) = kept {
+                        notes.push(format!("{r}; kept the locked {}", pin.rev));
+                        sources.insert(name.clone(), pin.clone());
+                    } else {
+                        notes.push(format!("{r}; refused, no pin to keep"));
+                        refused.insert(name.clone(), r.to_string());
+                    }
+                }
+            }
+            continue;
+        }
         let json = prefetch
             .prefetch(&source.url)
             .map_err(|cause| LockError::Prefetch {
@@ -391,12 +548,16 @@ pub fn lock(
             })?;
         sources.insert(name.clone(), pin_of(name, &source.url, &json)?);
     }
-    Ok(Lock {
-        schema: LOCK_SCHEMA,
-        bluefile_b3: blue_lang_runtime::Inputs::hash_of(bluefile_src.as_bytes()),
-        manifest: ManifestRecord::with_needs(&bluefile, needs),
-        sources,
-    })
+    Ok((
+        Lock {
+            schema: LOCK_SCHEMA,
+            bluefile_b3: blue_lang_runtime::Inputs::hash_of(bluefile_src.as_bytes()),
+            manifest: ManifestRecord::with_needs(&bluefile, needs),
+            sources,
+            refused,
+        },
+        notes,
+    ))
 }
 
 /// The one rendering of a lock or a manifest record: pretty, keys in
@@ -526,12 +687,13 @@ pub fn confirm(
     let declared = &bluefile.project.sources;
     let unpinned: Vec<String> = declared
         .keys()
-        .filter(|n| !lock.sources.contains_key(*n))
+        .filter(|n| !lock.sources.contains_key(*n) && !lock.refused.contains_key(*n))
         .cloned()
         .collect();
     let stray: Vec<String> = lock
         .sources
         .keys()
+        .chain(lock.refused.keys())
         .filter(|n| !declared.contains_key(*n))
         .cloned()
         .collect();
@@ -645,7 +807,7 @@ mod tests {
     /// agreeing: the pin is identical.
     #[test]
     fn a_pin_survives_reordered_and_extra_keys() {
-        let shuffled = r#"{"storePath":"/nix/store/x-source","newField":[1,2,3],
+        let shuffled = r#"{"storePath":"/nix/store/zrhpyzzbmqg622gk1xx9sj03lvmymbrp-source","newField":[1,2,3],
             "locked":{"type":"github","narHash":"sha256-83hQT5WB0TIJVH71DYQAdCX4PYNKucSmJRvk5LkflzQ=","rev":"03ae6ac5c7b38a8bb82cea5cc92c8ab237750d27","repo":"blue"},
             "hash":"sha256-83hQT5WB0TIJVH71DYQAdCX4PYNKucSmJRvk5LkflzQ="}"#;
         assert_eq!(

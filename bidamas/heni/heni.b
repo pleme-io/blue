@@ -1,3 +1,33 @@
+@moduledoc """
+heni (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
+
+A mutation the tests survive is a behaviour nothing checks. This is the red
+run every gate is owed ("a gate that has never gone red proves nothing"),
+made a command instead of a hand-written shell loop.
+
+  heni <PACKAGE_DIR> <MUTATIONS.json> [--blue BIN] [--test FILE]
+
+The tests run under the blue that runs heni (`self_exe`), unless --blue names
+another: never a PATH lookup, which in a nix sandbox finds nothing.
+
+MUTATIONS.json is a list of {"name", "file", "find", "replace"}: in `file`
+(relative to the package), the text `find` becomes `replace`. `find` must
+occur EXACTLY ONCE, so a mutation cannot silently hit the wrong place or no
+place; one that does not is refused, and a refusal fails the run like a
+survivor does.
+
+Every mutation runs in its own fresh directory, first on BLUE_PATH, so an
+earlier mutated copy can never shadow the package under test (measured
+2026-09-27: a shared directory did exactly that). The unmutated copy runs
+first as the control: if the tests fail with no mutation, no "caught" means
+anything, and the run stops.
+
+Exits non-zero (an uncaught error) when the control fails, or any mutation
+survives, is refused, or is blind (its tests could not be started).
+
+    verdict({text: "t"}, 1) #=> :caught
+"""
+
 use("deeta", [:get_str])
 use("moji", [:occurrences, :replace_first, :strip_prefix])
 
@@ -10,36 +40,12 @@ use("shisutemu", [:read_or, :status_of])
 
 legacy_names("0.1.1", "hn")
 
-# heni (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
-#
-# A mutation the tests survive is a behaviour nothing checks. This is the red
-# run every gate is owed ("a gate that has never gone red proves nothing"),
-# made a command instead of a hand-written shell loop.
-#
-#   heni <PACKAGE_DIR> <MUTATIONS.json> [--blue BIN] [--test FILE]
-#
-# The tests run under the blue that runs heni (`self_exe`), unless --blue names
-# another: never a PATH lookup, which in a nix sandbox finds nothing.
-#
-# MUTATIONS.json is a list of {"name", "file", "find", "replace"}: in `file`
-# (relative to the package), the text `find` becomes `replace`. `find` must
-# occur EXACTLY ONCE, so a mutation cannot silently hit the wrong place or no
-# place; one that does not is refused, and a refusal fails the run like a
-# survivor does.
-#
-# Every mutation runs in its own fresh directory, first on BLUE_PATH, so an
-# earlier mutated copy can never shadow the package under test (measured
-# 2026-09-27: a shared directory did exactly that). The unmutated copy runs
-# first as the control: if the tests fail with no mutation, no "caught" means
-# anything, and the run stops.
-#
-# Exits non-zero (an uncaught error) when the control fails, or any mutation
-# survives, is refused, or is blind (its tests could not be started).
-
 # ── one mutation, pure ───────────────────────────────────────────────
 
-# {text} with `find` replaced, or {error} when it does not occur exactly once.
 # waive B0013: `apply` is a builtin heni also uses, so the prefix stays; heni::apply names it too
+@doc """
+hn_apply: {text} with `find` replaced, or {error} when it does not occur exactly once.
+"""
 def hn_apply(text, find, replace)
   n = occurrences(text, find)
   if length(find) == 0
@@ -51,9 +57,13 @@ def hn_apply(text, find, replace)
   end
 end
 
-# The verdict for one mutation from its test run's status. nil means the
-# tests could not be started at all: `blind`, never `caught`, because a run
-# that did not happen caught nothing.
+@doc """
+verdict: the verdict for one mutation from its test run's status. nil means the
+tests could not be started at all: `blind`, never `caught`, because a run
+that did not happen caught nothing.
+
+    verdict({text: "t"}, 1) #=> :caught
+"""
 def verdict(applied, status)
   if get(applied, :error) != nil
     :refused
@@ -68,7 +78,9 @@ end
 
 # ── the spec ─────────────────────────────────────────────────────────
 
-# Mutations from parsed JSON: [{name, file, find, replace}].
+@doc """
+mutations: mutations from parsed JSON: [{name, file, find, replace}].
+"""
 def mutations(parsed)
   if parsed.nil?
     []
@@ -87,14 +99,20 @@ def mutations(parsed)
   end
 end
 
-# The package's name: the last segment of its directory.
+@doc """
+package_name: the package's name: the last segment of its directory.
+
+    package_name("/a/b/kazu/") #=> "kazu"
+"""
 def package_name(dir)
   last(filter((s) -> not is_empty(s), split(dir, "/")))
 end
 
 # ── the fresh copy ───────────────────────────────────────────────────
 
-# Copy every file under `src` to `dest`, keeping relative paths.
+@doc """
+copy: copy every file under `src` to `dest`, keeping relative paths.
+"""
 def copy(src, dest)
   base = if ends_with?(src, "/")
     src
@@ -112,15 +130,19 @@ def copy(src, dest)
   dest
 end
 
-# A fresh root holding one copy of the package: <tmp>/heni-<now>-<tag>/<name>.
+@doc """
+fresh: a fresh root holding one copy of the package: <tmp>/heni-<now>-<tag>/<name>.
+"""
 def fresh(pkg_dir, tmp, tag)
   root = path_join(tmp, "heni-#{to_s(now_ms)}-#{tag}")
   copy(pkg_dir, path_join(root, package_name(pkg_dir)))
   root
 end
 
-# Run the copy's tests with the fresh root first on BLUE_PATH. The capture.
 # waive B0013: `test` is a reserved word, so the prefix stays; heni::test names it too
+@doc """
+hn_test: run the copy's tests with the fresh root first on BLUE_PATH. The capture.
+"""
 def hn_test(blue, root, name, test_file)
   path = "#{root}:#{getenv("BLUE_PATH", "")}"
   exec_with_env(
@@ -142,7 +164,9 @@ end
 
 # ── a whole run ──────────────────────────────────────────────────────
 
-# spec: {package, mutations, blue, test, tmp}. Returns the report.
+@doc """
+run: spec: {package, mutations, blue, test, tmp}. Returns the report.
+"""
 def run(spec)
   pkg = get(spec, :package)
   name = package_name(pkg)
@@ -224,6 +248,11 @@ def detail(x)
   end
 end
 
+@doc """
+ok?: whether every mutation was caught.
+
+    ok?({control: 0, survived: 0, refused: 0, blind: 0}) #=> true
+"""
 def ok?(r)
   get(r, :control) == 0 and
     get(r, :survived) == 0 and
@@ -231,7 +260,9 @@ def ok?(r)
     get(r, :blind) == 0
 end
 
-# {package, mutations_file, blue, test} from argv, or {error}.
+@doc """
+parse: {package, mutations_file, blue, test} from argv, or {error}.
+"""
 def parse(args)
   if size(args) < 2
     {error: "usage: heni PACKAGE_DIR MUTATIONS.json [--blue BIN] [--test FILE]"}

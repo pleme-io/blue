@@ -1,3 +1,13 @@
+@moduledoc """
+seimei (生命) — cellular automata: elementary rules, and Life.
+
+The most compute per line of code in the distribution. Rule 110 is
+Turing-complete, so this package is, in a real sense, a universal computer
+expressed in about forty lines of blue.
+
+    density([]) #=> 0
+"""
+
 use(
   "retsu",
   [
@@ -13,14 +23,10 @@ use(
   ]
 )
 
-# seimei (生命) — cellular automata: elementary rules, and Life.
-#
-# The most compute per line of code in the distribution. Rule 110 is
-# Turing-complete, so this package is, in a real sense, a universal computer
-# expressed in about forty lines of blue.
-
-# One cell's next state under an elementary rule, from its three-cell
-# neighbourhood read as a binary index.
+@doc """
+elementary_step_cell: one cell's next state under an elementary rule, from its three-cell
+neighbourhood read as a binary index.
+"""
 def elementary_step_cell(rule, l, c, r)
   idx = l * 4 + c * 2 + r
   bit_of(rule, idx)
@@ -30,8 +36,10 @@ def bit_of(n, i)
   floor(n / expt(2, i)) % 2
 end
 
-# One generation of an elementary automaton, with the row treated as a ring so
-# the ends have neighbours rather than a special case.
+@doc """
+elementary_step: one generation of an elementary automaton, with the row treated as a ring so
+the ends have neighbours rather than a special case.
+"""
 def elementary_step(rule, row)
   n = size(row)
   map(
@@ -55,7 +63,9 @@ def elementary_run(rule, row, gens)
   end
 end
 
-# Conway's Life on a bounded grid, cells outside counting as dead.
+@doc """
+cell_at: conway's Life on a bounded grid, cells outside counting as dead.
+"""
 def cell_at(grid, r, c)
   if r < 0 or c < 0
     0
@@ -158,8 +168,12 @@ end
 # ---------------------------------------------------------------------------
 # Grid shape and construction.
 
-# Dimensions, total on the empty grid: `size(first(grid))` is the expression
-# every function above inlines, and it reads nil on [] rather than 0.
+@doc """
+grid_rows: dimensions, total on the empty grid: `size(first(grid))` is the expression
+every function above inlines, and it reads nil on [] rather than 0.
+
+    grid_rows([]) #=> 0
+"""
 def grid_rows(grid)
   size(grid)
 end
@@ -176,10 +190,12 @@ def blank_grid(rows, cols)
   map((_r) -> map((_c) -> 0, range(0, cols)), range(0, rows))
 end
 
-# A grid from a sparse [[row, col], ...] list — how patterns are actually
-# published, and far less error-prone to read back than a wall of 0s and 1s.
-# Coordinates outside the grid are silently dropped rather than erroring, so a
-# pattern can be placed on a canvas too small for it without a special case.
+@doc """
+life_from_coords: a grid from a sparse [[row, col], ...] list — how patterns are actually
+published, and far less error-prone to read back than a wall of 0s and 1s.
+Coordinates outside the grid are silently dropped rather than erroring, so a
+pattern can be placed on a canvas too small for it without a special case.
+"""
 def life_from_coords(rows, cols, coords)
   map(
     fn(r)
@@ -198,11 +214,15 @@ def life_from_coords(rows, cols, coords)
   )
 end
 
-# The live coordinates of a grid — the inverse of life_from_coords, so the two
-# together are an identity a test can check.
-#
-# as_list because a dead grid folds `append([], [])`, which hands back nil: the
-# caller would otherwise get the OTHER empty from an all-dead universe.
+@doc """
+live_coords: the live coordinates of a grid — the inverse of life_from_coords, so the two
+together are an identity a test can check.
+
+as_list because a dead grid folds `append([], [])`, which hands back nil: the
+caller would otherwise get the OTHER empty from an all-dead universe.
+
+    live_coords(blank_grid(3, 3)) #=> []
+"""
 def live_coords(grid)
   as_list(
     flatten1(
@@ -228,8 +248,10 @@ def live_coords(grid)
   )
 end
 
-# Shift the contents by (dr, dc), keeping the frame the same size. Whatever
-# falls off the edge is gone: this is a view of the same universe, not a torus.
+@doc """
+translate: shift the contents by (dr, dc), keeping the frame the same size. Whatever
+falls off the edge is gone: this is a view of the same universe, not a torus.
+"""
 def translate(grid, dr, dc)
   map(
     (r) -> map((c) -> cell_at(grid, r - dr, c - dc), range(0, grid_cols(grid))),
@@ -237,10 +259,9 @@ def translate(grid, dr, dc)
   )
 end
 
-# The canonical glider, top-left, in phase 0:
-#   .#.
-#   ..#
-#   ###
+@doc """
+glider: the canonical glider, top-left, in phase 0:
+"""
 def glider(rows, cols)
   life_from_coords(rows, cols, [[0, 1], [1, 2], [2, 0], [2, 1], [2, 2]])
 end
@@ -248,10 +269,12 @@ end
 # ---------------------------------------------------------------------------
 # Running Life forward, and the questions asked of a running pattern.
 
-# Iteration, once, for every rule set in this package. A step function is the
-# whole of an automaton — Life, Life-on-a-torus, Seeds and Brian's Brain all
-# differ only in that one argument, so running, recording and period-finding
-# are written against `f` and never per rule.
+@doc """
+after_with: iteration, once, for every rule set in this package. A step function is the
+whole of an automaton — Life, Life-on-a-torus, Seeds and Brian's Brain all
+differ only in that one argument, so running, recording and period-finding
+are written against `f` and never per rule.
+"""
 def after_with(f, grid, gens)
   if gens < 1
     grid
@@ -268,8 +291,10 @@ def run_with(f, grid, gens)
   end
 end
 
-# The state after n generations. life_run keeps the history; this keeps only
-# the answer, which is what every identity test below actually compares.
+@doc """
+life_after: the state after n generations. life_run keeps the history; this keeps only
+the answer, which is what every identity test below actually compares.
+"""
 def life_after(grid, gens)
   after_with(life_step, grid, gens)
 end
@@ -282,11 +307,15 @@ def is_stable(grid)
   life_step(grid) == grid
 end
 
-# The period of the pattern, or 0 if it has not returned within max_period.
-#
-# 0 rather than nil so the answer is comparable, and a still life answers 1
-# rather than 0: a block IS an oscillator, of period one. A glider on a bounded
-# grid answers 0 — it leaves, and never comes back.
+@doc """
+is_oscillator: the period of the pattern, or 0 if it has not returned within max_period.
+
+0 rather than nil so the answer is comparable, and a still life answers 1
+rather than 0: a block IS an oscillator, of period one. A glider on a bounded
+grid answers 0 — it leaves, and never comes back.
+
+    is_oscillator(glider(8, 8), 8) #=> 0
+"""
 def is_oscillator(grid, max_period)
   period_with(life_step, grid, max_period)
 end
@@ -382,7 +411,9 @@ end
 # counts stay in life_cell, where a change to the rule reaches both variants.
 # The elementary rules above already ring; this is the same closing, in 2D.
 
-# The grid with a one-cell border copied from the opposite edge.
+@doc """
+wrap_row: the grid with a one-cell border copied from the opposite edge.
+"""
 def wrap_row(row)
   append(cons(last(row), row), [first(row)])
 end
@@ -396,10 +427,12 @@ def crop_border(grid)
   map((row) -> slice(row, 1, size(row) - 2), slice(grid, 1, size(grid) - 2))
 end
 
-# The interior of the padded grid sees exactly the toroidal neighbourhood, so
-# the bounded step computes the toroidal one and the crop throws the scaffolding
-# away. On a one-row or one-column grid the wrap makes a cell its own neighbour,
-# which is what a torus of that size genuinely is.
+@doc """
+life_step_toroidal: the interior of the padded grid sees exactly the toroidal neighbourhood, so
+the bounded step computes the toroidal one and the crop throws the scaffolding
+away. On a one-row or one-column grid the wrap makes a cell its own neighbour,
+which is what a torus of that size genuinely is.
+"""
 def life_step_toroidal(grid)
   crop_border(life_step(pad_toroidal(grid)))
 end
@@ -464,9 +497,13 @@ end
 # ---------------------------------------------------------------------------
 # Elementary automata from a seed, and the rules worth knowing by name.
 
-# A row of `width` cells with the middle one alive. Every published elementary
-# picture starts here, so the seed is a function rather than a literal a reader
-# has to count the zeros in.
+@doc """
+seed_row: a row of `width` cells with the middle one alive. Every published elementary
+picture starts here, so the seed is a function rather than a literal a reader
+has to count the zeros in.
+
+    seed_row(4) #=> [0, 0, 1, 0]
+"""
 def seed_row(width)
   map(
     fn(i)
@@ -484,8 +521,10 @@ def elementary_from_seed(rule, width, gens)
   elementary_run(rule, seed_row(width), gens)
 end
 
-# The elementary rules with an established character. The catalog is data, not
-# a chain of ifs, so a caller can also enumerate it.
+@doc """
+rule_catalog: the elementary rules with an established character. The catalog is data, not
+a chain of ifs, so a caller can also enumerate it.
+"""
 def rule_catalog()
   [
     [0, "extinction"],
@@ -550,9 +589,13 @@ end
 # ---------------------------------------------------------------------------
 # Measuring a universe.
 
-# Live fraction of the frame. Beware the runtime's division: an evenly divided
-# grid answers with an Int (a full grid is 1, not 1.0) and any other with a
-# Float, so a caller comparing to 1.0 is comparing to the wrong empty's cousin.
+@doc """
+density: live fraction of the frame. Beware the runtime's division: an evenly divided
+grid answers with an Int (a full grid is 1, not 1.0) and any other with a
+Float, so a caller comparing to 1.0 is comparing to the wrong empty's cousin.
+
+    density([]) #=> 0
+"""
 def density(grid)
   cells = grid_rows(grid) * grid_cols(grid)
   if cells == 0
@@ -562,9 +605,11 @@ def density(grid)
   end
 end
 
-# Where two generations disagree, as a grid — so population, live_coords and
-# render all work on it unchanged, instead of needing a diff-shaped sibling of
-# each. Cells outside `a` read as dead, so grids of different sizes still diff.
+@doc """
+diff_grid: where two generations disagree, as a grid — so population, live_coords and
+render all work on it unchanged, instead of needing a diff-shaped sibling of
+each. Cells outside `a` read as dead, so grids of different sizes still diff.
+"""
 def diff_grid(a, b)
   map(
     fn(r)
@@ -663,16 +708,20 @@ end
 # neighbourhood, the frame, the runner and the measures below are shared with
 # Life verbatim — only the cell function differs.
 
-# The eight offsets, as data. Life's `neighbours` writes them out longhand and
-# sums; a rule with more than two states has to ask WHICH neighbours, so the
-# count is folded over the offsets instead.
+@doc """
+neighbour_offsets: the eight offsets, as data. Life's `neighbours` writes them out longhand and
+sums; a rule with more than two states has to ask WHICH neighbours, so the
+count is folded over the offsets instead.
+"""
 def neighbour_offsets()
   [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
 end
 
-# Neighbours in state v. Outside the frame reads as 0, so asking for v == 0
-# counts the void as dead cells — right for a bounded universe, and the reason
-# this is not the way to ask "how many are not alive".
+@doc """
+neighbours_equal: neighbours in state v. Outside the frame reads as 0, so asking for v == 0
+counts the void as dead cells — right for a bounded universe, and the reason
+this is not the way to ask "how many are not alive".
+"""
 def neighbours_equal(grid, r, c, v)
   reduce(
     fn(a, d)
@@ -687,7 +736,9 @@ def neighbours_equal(grid, r, c, v)
   )
 end
 
-# Seeds — B2/S: born on exactly two neighbours, and NOTHING ever survives.
+@doc """
+seeds_cell: seeds — B2/S: born on exactly two neighbours, and NOTHING ever survives.
+"""
 def seeds_cell(grid, r, c)
   if cell_at(grid, r, c) == 1
     0
@@ -705,11 +756,13 @@ def seeds_step(grid)
   )
 end
 
-# Brian's Brain — three states: 0 off, 1 firing, 2 refractory. A firing cell
-# ALWAYS goes refractory and a refractory cell always goes off, whatever the
-# neighbours are doing; only an off cell looks around, and only for firing
-# neighbours. That is why the count here is neighbours_equal(.., 1) and not
-# `neighbours`, which would add the refractory 2s in as two live cells each.
+@doc """
+brain_cell: brian's Brain — three states: 0 off, 1 firing, 2 refractory. A firing cell
+ALWAYS goes refractory and a refractory cell always goes off, whatever the
+neighbours are doing; only an off cell looks around, and only for firing
+neighbours. That is why the count here is neighbours_equal(.., 1) and not
+`neighbours`, which would add the refractory 2s in as two live cells each.
+"""
 def brain_cell(grid, r, c)
   if cell_at(grid, r, c) == 1
     2

@@ -1,3 +1,13 @@
+@moduledoc """
+ongaku (音楽) — twelve-tone music theory, as arithmetic on semitones.
+
+Western harmony is modular arithmetic mod 12 with names attached, which
+makes it a genuinely good fit for a small library and a genuinely exotic
+thing to find in one. A pitch class is 0..11 with 0 = C.
+
+    flat_count(2) #=> 0
+"""
+
 use("kazu", [:abs, :floor_div, :max, :min, :near, :near_within, :sum])
 
 use(
@@ -18,12 +28,6 @@ use(
   ]
 )
 
-# ongaku (音楽) — twelve-tone music theory, as arithmetic on semitones.
-#
-# Western harmony is modular arithmetic mod 12 with names attached, which
-# makes it a genuinely good fit for a small library and a genuinely exotic
-# thing to find in one. A pitch class is 0..11 with 0 = C.
-
 def note_names()
   ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 end
@@ -36,7 +40,9 @@ def transpose_note(pc, semitones)
   ((pc + semitones) % 12 + 12) % 12
 end
 
-# Build a scale by walking a list of intervals from a root.
+@doc """
+scale_from: build a scale by walking a list of intervals from a root.
+"""
 def scale_from(root, steps)
   reduce((acc, s) -> push(acc, transpose_note(last(acc), s)), [root], steps)
 end
@@ -81,24 +87,30 @@ def interval_name(semitones)
   )
 end
 
-# MIDI note number to frequency in Hz. 69 is A4 = 440.
+@doc """
+midi_to_hz: MIDI note number to frequency in Hz. 69 is A4 = 440.
+"""
 def midi_to_hz(n)
   440 * expt(2, (n - 69) / 12)
 end
 
 # --- pitch classes and spelling ---------------------------------------------
 
-# The normaliser every function below shares. `%` is Euclidean on this runtime
-# — (0 - 5) % 12 is 7, not -5 — so the second fold is belt-and-braces rather
-# than load-bearing; it is kept because the three functions written before this
-# one already spell it out and disagreeing with them would be worse.
+@doc """
+pitch_class: the normaliser every function below shares. `%` is Euclidean on this runtime
+— (0 - 5) % 12 is 7, not -5 — so the second fold is belt-and-braces rather
+than load-bearing; it is kept because the three functions written before this
+one already spell it out and disagreeing with them would be worse.
+"""
 def pitch_class(n)
   (n % 12 + 12) % 12
 end
 
-# The same fold for a list of length n rather than for the twelve pitches:
-# degree 7 of a seven-note scale is degree 0 again, and degree 0 - 1 is the
-# seventh. Chord-building walks off both ends of a scale constantly.
+@doc """
+wrap_index: the same fold for a list of length n rather than for the twelve pitches:
+degree 7 of a seven-note scale is degree 0 again, and degree 0 - 1 is the
+seventh. Chord-building walks off both ends of a scale constantly.
+"""
 def wrap_index(i, n)
   if n < 1
     0
@@ -107,12 +119,14 @@ def wrap_index(i, n)
   end
 end
 
-# The same twelve pitches, spelled with flats.
-#
-# This is not a stylistic alternative: which spelling is CORRECT is a property
-# of the key, not of the pitch. Db major contains Db, and writing C# there
-# gives a scale with two D's and no C, which is wrong on paper even though it
-# sounds identical. Both tables exist so `note_name_for_key` can choose.
+@doc """
+note_names_flat: the same twelve pitches, spelled with flats.
+
+This is not a stylistic alternative: which spelling is CORRECT is a property
+of the key, not of the pitch. Db major contains Db, and writing C# there
+gives a scale with two D's and no C, which is wrong on paper even though it
+sounds identical. Both tables exist so `note_name_for_key` can choose.
+"""
 def note_names_flat()
   ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 end
@@ -129,9 +143,13 @@ def note_name_in(pc, use_flats)
   end
 end
 
-# Name -> pitch class. Returns 0 - 1 for a name it cannot place, matching
-# retsu's index_of convention: a negative sentinel a caller can compare,
-# where nil would not survive a `<`.
+@doc """
+pitch_class_of: name -> pitch class. Returns 0 - 1 for a name it cannot place, matching
+retsu's index_of convention: a negative sentinel a caller can compare,
+where nil would not survive a `<`.
+
+    pitch_class_of("B#") #=> 0
+"""
 def pitch_class_of(name)
   i = index_of(note_names, name)
   if i >= 0
@@ -146,14 +164,16 @@ def pitch_class_of(name)
   end
 end
 
-# The four spellings that cross a letter boundary. E#, Fb, B# and Cb are in
-# neither twelve-name table — each table holds exactly one name per pitch —
-# yet they occur in real key signatures (F# major genuinely has an E#). There
-# are only four, so they are listed rather than parsed.
-#
-# Written as two parallel lists and not as an if/elsif chain because `elsif`
-# is accepted by this parser and then dies at evaluation with
-# "unbound symbol: elsif". Nothing in this file may use it.
+@doc """
+crossing_names: the four spellings that cross a letter boundary. E#, Fb, B# and Cb are in
+neither twelve-name table — each table holds exactly one name per pitch —
+yet they occur in real key signatures (F# major genuinely has an E#). There
+are only four, so they are listed rather than parsed.
+
+Written as two parallel lists and not as an if/elsif chain because `elsif`
+is accepted by this parser and then dies at evaluation with
+"unbound symbol: elsif". Nothing in this file may use it.
+"""
 def crossing_names()
   ["E#", "Fb", "B#", "Cb"]
 end
@@ -167,9 +187,13 @@ def pitch_class_of_crossing(name)
   end
 end
 
-# The other spelling of the same pitch. A natural has only one spelling in
-# these tables, so it maps to itself — which is what makes this an involution
-# on every input rather than only on the accidentals.
+@doc """
+enharmonic_of: the other spelling of the same pitch. A natural has only one spelling in
+these tables, so it maps to itself — which is what makes this an involution
+on every input rather than only on the accidentals.
+
+    enharmonic_of("E") #=> "E"
+"""
 def enharmonic_of(name)
   pc = pitch_class_of(name)
   if pc < 0
@@ -191,8 +215,12 @@ end
 
 # --- chords -------------------------------------------------------------------
 
-# The two triads the existing pair leaves out. Together the four exhaust the
-# ways to stack two thirds: major+minor, minor+major, minor+minor, major+major.
+@doc """
+diminished_triad: the two triads the existing pair leaves out. Together the four exhaust the
+ways to stack two thirds: major+minor, minor+major, minor+minor, major+major.
+
+    diminished_triad(11) #=> [11, 2, 5]
+"""
 def diminished_triad(root)
   [root, transpose_note(root, 3), transpose_note(root, 6)]
 end
@@ -201,8 +229,10 @@ def augmented_triad(root)
   [root, transpose_note(root, 4), transpose_note(root, 8)]
 end
 
-# Suspensions are not a third quality — they have no third at all, which is the
-# point of them, and why they are here rather than in the quality list above.
+@doc """
+sus2_triad: suspensions are not a third quality — they have no third at all, which is the
+point of them, and why they are here rather than in the quality list above.
+"""
 def sus2_triad(root)
   [root, transpose_note(root, 2), transpose_note(root, 7)]
 end
@@ -219,20 +249,30 @@ def minor_seventh(root)
   push(minor_triad(root), transpose_note(root, 10))
 end
 
-# Minor triad, minor seventh, flat fifth — the ii of a minor key. Called
-# half-diminished because only the fifth is diminished; the seventh is not.
+@doc """
+half_diminished_seventh: minor triad, minor seventh, flat fifth — the ii of a minor key. Called
+half-diminished because only the fifth is diminished; the seventh is not.
+
+    half_diminished_seventh(0) #=> [0, 3, 6, 10]
+"""
 def half_diminished_seventh(root)
   push(diminished_triad(root), transpose_note(root, 10))
 end
 
-# Four minor thirds stacked, so it divides the octave evenly: every inversion
-# of it is another diminished seventh, and there are only three distinct ones.
+@doc """
+diminished_seventh: four minor thirds stacked, so it divides the octave evenly: every inversion
+of it is another diminished seventh, and there are only three distinct ones.
+
+    diminished_seventh(0) #=> [0, 3, 6, 9]
+"""
 def diminished_seventh(root)
   push(diminished_triad(root), transpose_note(root, 9))
 end
 
-# The tonic seventh of harmonic minor — minor triad under a MAJOR seventh,
-# which is the raised leading tone showing up as a chord tone.
+@doc """
+minor_major_seventh: the tonic seventh of harmonic minor — minor triad under a MAJOR seventh,
+which is the raised leading tone showing up as a chord tone.
+"""
 def minor_major_seventh(root)
   push(minor_triad(root), transpose_note(root, 11))
 end
@@ -245,9 +285,13 @@ def augmented_seventh(root)
   push(augmented_triad(root), transpose_note(root, 10))
 end
 
-# A chord reduced to its shape: the intervals of every note above the lowest.
-# Quality is a property of that shape and not of the pitches, so classifying
-# has to go through here first.
+@doc """
+chord_intervals: a chord reduced to its shape: the intervals of every note above the lowest.
+Quality is a property of that shape and not of the pitches, so classifying
+has to go through here first.
+
+    chord_intervals([]) #=> []
+"""
 def chord_intervals(notes)
   if is_empty(notes)
     []
@@ -260,9 +304,11 @@ def chord_from_root(root, intervals)
   map((s) -> transpose_note(root, s), intervals)
 end
 
-# Shape -> name, with "unknown" for anything unlisted. An unlisted shape is a
-# real answer here: most of the 4096 note sets have no traditional name, and
-# inventing one would be worse than admitting it.
+@doc """
+quality_of_shape: shape -> name, with "unknown" for anything unlisted. An unlisted shape is a
+real answer here: most of the 4096 note sets have no traditional name, and
+inventing one would be worse than admitting it.
+"""
 def quality_of_shape(shape, shapes, names)
   i = index_of(shapes, shape)
   if i < 0
@@ -318,9 +364,13 @@ def seventh_quality(notes)
   )
 end
 
-# Dispatches on how many notes there are, since a three-note shape and a
-# four-note shape are never the same chord and sharing one table would let
-# [0,4,7] match a seventh by accident.
+@doc """
+chord_quality: dispatches on how many notes there are, since a three-note shape and a
+four-note shape are never the same chord and sharing one table would let
+[0,4,7] match a seventh by accident.
+
+    chord_quality([0, 4]) #=> "unknown"
+"""
 def chord_quality(notes)
   n = size(notes)
   if n == 3
@@ -340,9 +390,13 @@ def chord_name(notes)
   end
 end
 
-# Inversion in pitch-class space is rotation: the notes are the same, the
-# bottom one changes. Voicing (which octave each note sits in) is not modelled
-# here, so this is the harmonic half of inversion, not the pianistic half.
+@doc """
+invert_chord: inversion in pitch-class space is rotation: the notes are the same, the
+bottom one changes. Voicing (which octave each note sits in) is not modelled
+here, so this is the harmonic half of inversion, not the pianistic half.
+
+    invert_chord([], 2) #=> []
+"""
 def invert_chord(notes, n)
   if is_empty(notes)
     []
@@ -353,11 +407,13 @@ end
 
 # --- modes and scales --------------------------------------------------------
 
-# The seven modes are ROTATIONS of one interval pattern, not seven patterns.
-# Spelling them that way is the whole content of the idea: dorian is what you
-# get by starting the major steps one place along, which is also why every mode
-# of C major uses only the white notes. Hard-coding seven lists would compile
-# and would lose the reason.
+@doc """
+major_steps: the seven modes are ROTATIONS of one interval pattern, not seven patterns.
+Spelling them that way is the whole content of the idea: dorian is what you
+get by starting the major steps one place along, which is also why every mode
+of C major uses only the white notes. Hard-coding seven lists would compile
+and would lose the reason.
+"""
 def major_steps()
   [2, 2, 1, 2, 2, 2, 1]
 end
@@ -375,9 +431,13 @@ def mode_steps(name)
   end
 end
 
-# An unrecognised mode name gives [] rather than a one-note scale, because
-# scale_from with no steps returns just the root and a caller cannot tell that
-# apart from a real answer.
+@doc """
+mode_scale: an unrecognised mode name gives [] rather than a one-note scale, because
+scale_from with no steps returns just the root and a caller cannot tell that
+apart from a real answer.
+
+    mode_scale(0, "not a mode") #=> []
+"""
 def mode_scale(root, name)
   if index_of(mode_names, name) < 0
     []
@@ -386,26 +446,34 @@ def mode_scale(root, name)
   end
 end
 
-# The other, equivalent definition: the mode you land on by starting a major
-# scale from its nth degree. mode_scale says WHICH steps; this says WHERE from.
-# The test pins them against each other, which is the only way either one is
-# checked by something other than itself.
+@doc """
+mode_of_major: the other, equivalent definition: the mode you land on by starting a major
+scale from its nth degree. mode_scale says WHICH steps; this says WHERE from.
+The test pins them against each other, which is the only way either one is
+checked by something other than itself.
+
+    mode_of_major(0, 1) #=> mode_scale(2, "dorian")
+"""
 def mode_of_major(root, degree)
   d = (degree % 7 + 7) % 7
   mode_scale(nth(d, major_scale(root)), nth(d, mode_names))
 end
 
-# Harmonic minor raises the seventh so the chord on V is major and can pull
-# home; the augmented second it leaves between the sixth and seventh (the 3 in
-# this list) is the sound the raise costs you.
+@doc """
+harmonic_minor_scale: harmonic minor raises the seventh so the chord on V is major and can pull
+home; the augmented second it leaves between the sixth and seventh (the 3 in
+this list) is the sound the raise costs you.
+"""
 def harmonic_minor_scale(root)
   scale_from(root, [2, 1, 2, 2, 1, 3, 1])
 end
 
-# Melodic minor, ascending form — sixth AND seventh raised, which is what
-# removes that augmented second. Classical practice descends in natural minor;
-# this returns the ascending form, since jazz treats it as a scale in its own
-# right and the descending form is already minor_scale.
+@doc """
+melodic_minor_scale: melodic minor, ascending form — sixth AND seventh raised, which is what
+removes that augmented second. Classical practice descends in natural minor;
+this returns the ascending form, since jazz treats it as a scale in its own
+right and the descending form is already minor_scale.
+"""
 def melodic_minor_scale(root)
   scale_from(root, [2, 1, 2, 2, 2, 2, 1])
 end
@@ -418,8 +486,10 @@ def minor_pentatonic_scale(root)
   scale_from(root, [3, 2, 2, 3, 2])
 end
 
-# The minor pentatonic with the flat fifth wedged in — one passing note, and
-# the reason this is six notes where the pentatonics are five.
+@doc """
+blues_scale: the minor pentatonic with the flat fifth wedged in — one passing note, and
+the reason this is six notes where the pentatonics are five.
+"""
 def blues_scale(root)
   scale_from(root, [3, 2, 1, 1, 3, 2])
 end
@@ -428,14 +498,20 @@ def chromatic_scale(root)
   scale_from(root, repeat(1, 12))
 end
 
-# Six equal whole steps. It divides the octave evenly, so it is one of the two
-# scales that transpose onto themselves — a fact the test uses.
+@doc """
+whole_tone_scale: six equal whole steps. It divides the octave evenly, so it is one of the two
+scales that transpose onto themselves — a fact the test uses.
+"""
 def whole_tone_scale(root)
   scale_from(root, repeat(2, 6))
 end
 
-# Every scale here ends on the octave restatement of its root, so `size` counts
-# one more than the number of distinct pitches. This drops it.
+@doc """
+scale_tones: every scale here ends on the octave restatement of its root, so `size` counts
+one more than the number of distinct pitches. This drops it.
+
+    scale_tones(chromatic_scale(0)) #=> range(0, 12)
+"""
 def scale_tones(scale)
   all_but_last(scale)
 end
@@ -444,14 +520,22 @@ def is_in_scale(pc, scale)
   contains(scale, pitch_class(pc))
 end
 
-# Zero-based degree — 0 is the tonic, so degree 4 is the dominant. 0 - 1 when
-# the note is not in the scale.
+@doc """
+scale_degree_of: zero-based degree — 0 is the tonic, so degree 4 is the dominant. 0 - 1 when
+the note is not in the scale.
+
+    scale_degree_of(0, major_scale(0)) #=> 0
+"""
 def scale_degree_of(pc, scale)
   index_of(scale_tones(scale), pitch_class(pc))
 end
 
-# Transposes any note list — a scale, a chord, a melody. Kept separate from
-# transpose_note so callers do not map by hand at every site.
+@doc """
+transpose_all: transposes any note list — a scale, a chord, a melody. Kept separate from
+transpose_note so callers do not map by hand at every site.
+
+    transpose_all(major_triad(0), 7) #=> major_triad(7)
+"""
 def transpose_all(notes, semitones)
   map((pc) -> transpose_note(pc, semitones), notes)
 end
@@ -462,9 +546,11 @@ end
 
 # --- chords built out of a scale ----------------------------------------------
 
-# The degree-th note of a scale, wrapping. Degrees are zero-based here to match
-# every other index in this distribution; musicians count the tonic as 1, so a
-# caller writing roman numerals subtracts one.
+@doc """
+scale_note: the degree-th note of a scale, wrapping. Degrees are zero-based here to match
+every other index in this distribution; musicians count the tonic as 1, so a
+caller writing roman numerals subtracts one.
+"""
 def scale_note(scale, degree)
   tones = scale_tones(scale)
   if is_empty(tones)
@@ -474,10 +560,14 @@ def scale_note(scale, degree)
   end
 end
 
-# A chord on a scale degree is thirds stacked WITHIN the scale — skip a note,
-# skip a note — so the quality falls out of where you are rather than being
-# chosen. That is why the seven triads of a major scale are three major, three
-# minor and one diminished without anyone deciding so.
+@doc """
+scale_triad: a chord on a scale degree is thirds stacked WITHIN the scale — skip a note,
+skip a note — so the quality falls out of where you are rather than being
+chosen. That is why the seven triads of a major scale are three major, three
+minor and one diminished without anyone deciding so.
+
+    scale_triad([], 0) #=> []
+"""
 def scale_triad(scale, degree)
   if is_empty(scale_tones(scale))
     []
@@ -499,8 +589,12 @@ def scale_seventh(scale, degree)
   end
 end
 
-# The quality of every degree's triad, in order — the "I ii iii IV V vi vii°"
-# of a key, derived rather than recited.
+@doc """
+scale_triad_qualities: the quality of every degree's triad, in order — the "I ii iii IV V vi vii°"
+of a key, derived rather than recited.
+
+    scale_triad_qualities(major_scale(0)) #=> ["major", "minor", "minor", "major", "major", "minor", "diminished"]
+"""
 def scale_triad_qualities(scale)
   map(
     (d) -> triad_quality(scale_triad(scale, d)),
@@ -525,20 +619,26 @@ def fifth_down(pc)
   transpose_note(pc, -7)
 end
 
-# Stepping by fifths visits all twelve pitches before repeating, because 7 and
-# 12 are coprime. That single fact is why the circle is a circle and why the
-# key signatures come out one accidental apart all the way round.
+@doc """
+circle_of_fifths: stepping by fifths visits all twelve pitches before repeating, because 7 and
+12 are coprime. That single fact is why the circle is a circle and why the
+key signatures come out one accidental apart all the way round.
+"""
 def circle_of_fifths(start)
   map((i) -> transpose_note(start, 7 * i), range(0, 12))
 end
 
-# Accidentals in a MAJOR key: positive counts sharps, negative counts flats.
-#
-# Position on the circle of fifths from C is exactly the sharp count, so the
-# whole thing is pc * 7 mod 12, folded into -5..6 so the far side of the circle
-# reads as flats rather than as seven-plus sharps. The fold has to break the
-# tie somewhere: 6 goes to F# with six sharps rather than Gb with six flats,
-# which is arbitrary in the same way the two names are.
+@doc """
+key_signature: accidentals in a MAJOR key: positive counts sharps, negative counts flats.
+
+Position on the circle of fifths from C is exactly the sharp count, so the
+whole thing is pc * 7 mod 12, folded into -5..6 so the far side of the circle
+reads as flats rather than as seven-plus sharps. The fold has to break the
+tie somewhere: 6 goes to F# with six sharps rather than Gb with six flats,
+which is arbitrary in the same way the two names are.
+
+    key_signature(0) #=> 0
+"""
 def key_signature(pc)
   n = pitch_class(pc * 7)
   if n > 6
@@ -560,28 +660,40 @@ def key_uses_flats(pc)
   key_signature(pc) < 0
 end
 
-# Spelling driven by the key rather than by preference — the reason both name
-# tables exist. Eb in Bb major, D# in E major, same pitch.
+@doc """
+note_name_for_key: spelling driven by the key rather than by preference — the reason both name
+tables exist. Eb in Bb major, D# in E major, same pitch.
+
+    note_name_for_key(0, 5) #=> "C"
+"""
 def note_name_for_key(pc, key)
   note_name_in(pc, key_uses_flats(key))
 end
 
-# The scale of a major key, spelled the way that key is written.
-#
-# Honest limit: a pitch class carries no letter name, so this cannot enforce
-# the real rule that a key uses each of the seven letters once. It is correct
-# for every key with five or fewer accidentals, and wrong in exactly one place
-# — F# major, whose seventh degree must be written E# and comes back as F.
-# Fixing that needs a letter+accidental type, not a bigger table; the test
-# pins the failure so it is a known edge and not a lurking one.
+@doc """
+key_note_names: the scale of a major key, spelled the way that key is written.
+
+Honest limit: a pitch class carries no letter name, so this cannot enforce
+the real rule that a key uses each of the seven letters once. It is correct
+for every key with five or fewer accidentals, and wrong in exactly one place
+— F# major, whose seventh degree must be written E# and comes back as F.
+Fixing that needs a letter+accidental type, not a bigger table; the test
+pins the failure so it is a known edge and not a lurking one.
+
+    key_note_names(5) #=> ["F", "G", "A", "Bb", "C", "D", "E"]
+"""
 def key_note_names(key)
   map((pc) -> note_name_for_key(pc, key), scale_tones(major_scale(key)))
 end
 
-# Sharps are added F C G D A E B and flats in the exact reverse. It is the same
-# order run backwards because each is a chain of fifths, one up and one down —
-# so writing the second list as reverse of the first is the statement, not a
-# shortcut.
+@doc """
+sharps_in_order: sharps are added F C G D A E B and flats in the exact reverse. It is the same
+order run backwards because each is a chain of fifths, one up and one down —
+so writing the second list as reverse of the first is the statement, not a
+shortcut.
+
+    sharps_in_order #=> ["F", "C", "G", "D", "A", "E", "B"]
+"""
 def sharps_in_order()
   ["F", "C", "G", "D", "A", "E", "B"]
 end
@@ -590,8 +702,12 @@ def flats_in_order()
   reverse(sharps_in_order)
 end
 
-# Which letters carry an accidental in this key, in the order a copyist writes
-# them on the staff.
+@doc """
+key_accidentals: which letters carry an accidental in this key, in the order a copyist writes
+them on the staff.
+
+    key_accidentals(0) #=> []
+"""
 def key_accidentals(pc)
   if key_uses_flats(pc)
     take(flat_count(pc), flats_in_order)
@@ -600,8 +716,12 @@ def key_accidentals(pc)
   end
 end
 
-# A major key and its relative minor share every note and every accidental;
-# they differ only in which note is home. Three semitones down, or nine up.
+@doc """
+relative_minor: a major key and its relative minor share every note and every accidental;
+they differ only in which note is home. Three semitones down, or nine up.
+
+    relative_minor(0) #=> 9
+"""
 def relative_minor(pc)
   transpose_note(pc, 9)
 end
@@ -610,16 +730,24 @@ def relative_major(pc)
   transpose_note(pc, 3)
 end
 
-# A minor key's signature is its relative major's, by definition rather than by
-# a second table — which is what keeps the two from ever disagreeing.
+@doc """
+minor_key_signature: a minor key's signature is its relative major's, by definition rather than by
+a second table — which is what keeps the two from ever disagreeing.
+
+    minor_key_signature(4) #=> 1
+"""
 def minor_key_signature(pc)
   key_signature(relative_major(pc))
 end
 
 # --- intervals ---------------------------------------------------------------
 
-# Semitones from a UP to b. Directed, so it is deliberately not symmetric:
-# C up to G is 7, G up to C is 5, and those two are different intervals.
+@doc """
+interval_between: semitones from a UP to b. Directed, so it is deliberately not symmetric:
+C up to G is 7, G up to C is 5, and those two are different intervals.
+
+    interval_between(0, 7) #=> 7
+"""
 def interval_between(a, b)
   pitch_class(b - a)
 end
@@ -628,9 +756,13 @@ def interval_name_between(a, b)
   interval_name(interval_between(a, b))
 end
 
-# The undirected distance, 0..6. A fifth up and a fourth down separate the same
-# two pitches, so both fold to 5. The tritone is 6 and is its own inversion,
-# which is exactly why it has no direction to lose.
+@doc """
+interval_class: the undirected distance, 0..6. A fifth up and a fourth down separate the same
+two pitches, so both fold to 5. The tritone is 6 and is its own inversion,
+which is exactly why it has no direction to lose.
+
+    interval_class(0, 6) #=> 6
+"""
 def interval_class(a, b)
   d = interval_between(a, b)
   min(d, 12 - d)
@@ -640,12 +772,16 @@ def invert_interval(semitones)
   pitch_class(-semitones)
 end
 
-# Consonance in the common-practice sense: unison, both thirds, both sixths,
-# the fifth and the fourth. The fourth is the contested one — it is a perfect
-# consonance in isolation and a dissonance against the bass — and it is counted
-# consonant here, which is the interval-in-isolation reading this function's
-# signature can actually support. A caller judging a fourth over a bass note
-# needs voicing information this does not have.
+@doc """
+is_consonant: consonance in the common-practice sense: unison, both thirds, both sixths,
+the fifth and the fourth. The fourth is the contested one — it is a perfect
+consonance in isolation and a dissonance against the bass — and it is counted
+consonant here, which is the interval-in-isolation reading this function's
+signature can actually support. A caller judging a fourth over a bass note
+needs voicing information this does not have.
+
+    is_consonant(0) #=> true
+"""
 def is_consonant(semitones)
   contains([0, 3, 4, 5, 7, 8, 9], pitch_class(semitones))
 end
@@ -1084,21 +1220,31 @@ end
 
 # --- MIDI numbers, frequency, and tuning --------------------------------------
 
-# Octave numbering follows scientific pitch notation, the convention the
-# existing midi_to_hz already commits to: A4 is 69, so middle C is 60 and is
-# called C4. Some hardware calls that same note C3; nothing here does.
+@doc """
+note_to_midi: octave numbering follows scientific pitch notation, the convention the
+existing midi_to_hz already commits to: A4 is 69, so middle C is 60 and is
+called C4. Some hardware calls that same note C3; nothing here does.
+
+    note_to_midi(0, -1) #=> 0
+"""
 def note_to_midi(pc, octave)
   (octave + 1) * 12 + pc
 end
 
-# floor_div rather than a bare division, so notes below C0 keep counting down
-# instead of collapsing toward zero: MIDI 0 is C-1 and MIDI 0 - 1 is B-2.
+@doc """
+midi_octave: floor_div rather than a bare division, so notes below C0 keep counting down
+instead of collapsing toward zero: MIDI 0 is C-1 and MIDI 0 - 1 is B-2.
+
+    midi_octave(-1) #=> -2
+"""
 def midi_octave(n)
   floor_div(n, 12) - 1
 end
 
-# The MIDI-facing name for the same fold, so the pair that decomposes a note
-# number — pitch class and octave — reads as a pair at the call site.
+@doc """
+midi_pitch_class: the MIDI-facing name for the same fold, so the pair that decomposes a note
+number — pitch class and octave — reads as a pair at the call site.
+"""
 def midi_pitch_class(n)
   pitch_class(n)
 end
@@ -1111,9 +1257,11 @@ def note_to_hz(pc, octave)
   midi_to_hz(note_to_midi(pc, octave))
 end
 
-# The inverse of midi_to_hz. Returns a FRACTIONAL note number on purpose — the
-# fraction is how sharp or flat the pitch is, and rounding it away here would
-# throw out the only thing a tuner wants.
+@doc """
+hz_to_midi: the inverse of midi_to_hz. Returns a FRACTIONAL note number on purpose — the
+fraction is how sharp or flat the pitch is, and rounding it away here would
+throw out the only thing a tuner wants.
+"""
 def hz_to_midi(hz)
   69 + 12 * log(hz / 440) / log(2)
 end
@@ -1122,15 +1270,19 @@ def nearest_midi(hz)
   round(hz_to_midi(hz))
 end
 
-# How far off the nearest tempered note a frequency is, in cents. Signed:
-# positive is sharp.
+@doc """
+cents_off: how far off the nearest tempered note a frequency is, in cents. Signed:
+positive is sharp.
+"""
 def cents_off(hz)
   100 * (hz_to_midi(hz) - nearest_midi(hz))
 end
 
-# Cents are a logarithmic unit — 1200 to the octave — which is what makes
-# intervals addable. Everything about tuning error is stated in them because
-# a ratio difference means nothing until it is put on this scale.
+@doc """
+cents_of_ratio: cents are a logarithmic unit — 1200 to the octave — which is what makes
+intervals addable. Everything about tuning error is stated in them because
+a ratio difference means nothing until it is put on this scale.
+"""
 def cents_of_ratio(ratio)
   1200 * log(ratio) / log(2)
 end
@@ -1139,17 +1291,21 @@ def cents_between(hz1, hz2)
   cents_of_ratio(hz2 / hz1)
 end
 
-# Equal temperament: the octave cut into twelve identical ratios. Every
-# interval is slightly wrong and every key is equally usable, which is the
-# trade the whole system is.
+@doc """
+equal_ratio: equal temperament: the octave cut into twelve identical ratios. Every
+interval is slightly wrong and every key is equally usable, which is the
+trade the whole system is.
+"""
 def equal_ratio(semitones)
   expt(2, semitones / 12)
 end
 
-# Five-limit just intonation: intervals as small whole-number ratios, which is
-# what makes them beat-free. The tritone is the weak entry — 45/32 is one of
-# several defensible choices (7/5 and 64/45 are others) and it is the one that
-# stays inside the same 5-limit lattice as its neighbours.
+@doc """
+just_ratio_table: five-limit just intonation: intervals as small whole-number ratios, which is
+what makes them beat-free. The tritone is the weak entry — 45/32 is one of
+several defensible choices (7/5 and 64/45 are others) and it is the one that
+stays inside the same 5-limit lattice as its neighbours.
+"""
 def just_ratio_table()
   [
     [1, 1],
@@ -1167,10 +1323,14 @@ def just_ratio_table()
   ]
 end
 
-# Ratio as exact numerator and denominator, octave-extended: an interval wider
-# than an octave doubles the numerator per octave rather than folding back to a
-# unison, so 19 semitones is 3/1 and not 3/2. Reduced by gcd so the answer is
-# canonical and two callers building the same interval two ways compare equal.
+@doc """
+just_ratio_parts: ratio as exact numerator and denominator, octave-extended: an interval wider
+than an octave doubles the numerator per octave rather than folding back to a
+unison, so 19 semitones is 3/1 and not 3/2. Reduced by gcd so the answer is
+canonical and two callers building the same interval two ways compare equal.
+
+    just_ratio_parts(0) #=> [1, 1]
+"""
 def just_ratio_parts(semitones)
   base = nth(pitch_class(semitones), just_ratio_table)
   octaves = floor_div(semitones, 12)
@@ -1195,9 +1355,11 @@ def just_hz(base_hz, semitones)
   base_hz * just_ratio(semitones)
 end
 
-# How far equal temperament sits from the pure interval, in cents. Signed, and
-# the sign is the point: the tempered fifth is narrow by two cents and nobody
-# minds, the tempered major third is wide by fourteen and everybody hears it.
+@doc """
+temperament_error_cents: how far equal temperament sits from the pure interval, in cents. Signed, and
+the sign is the point: the tempered fifth is narrow by two cents and nobody
+minds, the tempered major third is wide by fourteen and everybody hears it.
+"""
 def temperament_error_cents(semitones)
   cents_of_ratio(just_ratio(semitones) / equal_ratio(semitones))
 end
@@ -1313,6 +1475,11 @@ test "the commas — why twelve pure fifths cannot close the circle"
   assert near(cents_of_ratio(expt(equal_ratio(7), 12) / expt(2, 7)), 0) == true
 end
 
+@doc """
+transpose: notes moved by semitones.
+
+    transpose([], 3) #=> []
+"""
 def transpose(notes, semitones)
   transpose_all(notes, semitones)
 end

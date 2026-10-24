@@ -1,3 +1,16 @@
+@moduledoc """
+bougyo (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
+
+Three postures for `shisei`, one `kousei` kind each. `headers` and `request_id`
+only add to the response, so they run by default. `limits` can refuse a
+request, so it carries a `mode` and defaults to "audit": a violation is
+recorded and the request goes on until the operator sets "enforce".
+
+Request headers arrive as a list of [name, value] pairs with lowercase names;
+response headers are a map. The posture builders take no arguments, so a
+service lists them as `[headers_posture, request_id_posture, limits_posture]`.
+"""
+
 use("gamen")
 use("kousei", [:field, :int_in, :list_of, :off, :one_of, :text, :tune])
 use("kyuuji", [:header, :route_methods])
@@ -8,18 +21,9 @@ use("shisei", [:gated, :posture, :serving])
 
 legacy_names("0.1.1", [["request_header", "kyuuji::header"]])
 
-# bougyo (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
-#
-# Three postures for `shisei`, one `kousei` kind each. `headers` and `request_id`
-# only add to the response, so they run by default. `limits` can refuse a
-# request, so it carries a `mode` and defaults to "audit": a violation is
-# recorded and the request goes on until the operator sets "enforce".
-#
-# Request headers arrive as a list of [name, value] pairs with lowercase names;
-# response headers are a map. The posture builders take no arguments, so a
-# service lists them as `[headers_posture, request_id_posture, limits_posture]`.
-
-# Whether the response already sets a header, whatever the case of its name.
+@doc """
+has_header?: whether the response already sets a header, whatever the case of its name.
+"""
 def has_header?(headers, name)
   any?((p) -> lower(nth(0, p)) == lower(name), map_entries(headers))
 end
@@ -146,8 +150,10 @@ def id_chars()
   chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
 end
 
-# An inbound id is echoed only when it is short and made of safe characters, so
-# it cannot forge a log line or split a header.
+@doc """
+safe_id?: an inbound id is echoed only when it is short and made of safe characters, so
+it cannot forge a log line or split a header.
+"""
 def safe_id?(s, max)
   if not string?(s)
     false
@@ -192,7 +198,9 @@ def refusal_response(status, why)
   {status:, headers: {}, body: "#{why}\n"}
 end
 
-# The first limit a request breaks, as [status, why], or nil.
+@doc """
+broken_limit: the first limit a request breaks, as [status, why], or nil.
+"""
 def broken_limit(settings, req)
   body = get(req, :body)
   if not contains(get(settings, :methods), get(req, :method))

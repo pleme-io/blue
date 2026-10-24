@@ -1,3 +1,19 @@
+@moduledoc """
+shuusei (修正) — amending declared data: put a value at a path, delete it, merge into it, upsert a list element, and amend a keyed set of objects by judged patch entries.
+
+Everything is a pure function from data to data; the input is never changed.
+A path is deeta's dotted text, `spec.template.spec.containers.0.image`, where
+an integer segment indexes a list. The Kubernetes layer is one keying function,
+`object_key`, so the same calls amend Flux values or Terraform JSON.
+
+`amend` takes patch entries declared with `kousei`. Each is checked, can be
+configured off or tuned, and is refused alone: a bad op, a target that is not
+in the set, a second patch to a path another already took. The patches that
+stand are applied in order; a refused one changes nothing.
+
+    deep_merge(1, 2) #=> 2
+"""
+
 use("deeta", [:json_at])
 
 use(
@@ -21,23 +37,13 @@ use("kyohi", [:kinds])
 
 use("retsu", [:first, :rest, :size])
 
-# shuusei (修正) — amending declared data: put a value at a path, delete it, merge into it, upsert a list element, and amend a keyed set of objects by judged patch entries.
-#
-# Everything is a pure function from data to data; the input is never changed.
-# A path is deeta's dotted text, `spec.template.spec.containers.0.image`, where
-# an integer segment indexes a list. The Kubernetes layer is one keying function,
-# `object_key`, so the same calls amend Flux values or Terraform JSON.
-#
-# `amend` takes patch entries declared with `kousei`. Each is checked, can be
-# configured off or tuned, and is refused alone: a bad op, a target that is not
-# in the set, a second patch to a path another already took. The patches that
-# stand are applied in order; a refused one changes nothing.
-
 def segments(path)
   split(path, ".")
 end
 
-# A list index segment, or nil when the segment names a map key.
+@doc """
+index_of_segment: a list index segment, or nil when the segment names a map key.
+"""
 def index_of_segment(k)
   to_int(k)
 end
@@ -86,7 +92,9 @@ def put_keys(v, keys, value)
   end
 end
 
-# `doc` with `value` at `path`; absent map keys on the way are created.
+@doc """
+put: `doc` with `value` at `path`; absent map keys on the way are created.
+"""
 def put(doc, path, value)
   put_keys(doc, segments(path), value)
 end
@@ -122,12 +130,18 @@ def path_below(v, k)
   json_at(v, k)
 end
 
-# `doc` without the value at `path`; absent already is no change.
+@doc """
+delete: `doc` without the value at `path`; absent already is no change.
+"""
 def delete(doc, path)
   drop_keys(doc, segments(path))
 end
 
-# Maps merge key by key and everything else is replaced by `b`.
+@doc """
+deep_merge: maps merge key by key and everything else is replaced by `b`.
+
+    deep_merge(1, 2) #=> 2
+"""
 def deep_merge(a, b)
   if map?(a) and map?(b)
     reduce(
@@ -142,7 +156,9 @@ def deep_merge(a, b)
   end
 end
 
-# `patch` merged into the map at `path`, keeping the keys it does not name.
+@doc """
+merge: `patch` merged into the map at `path`, keeping the keys it does not name.
+"""
 def merge(doc, path, patch)
   put(doc, path, deep_merge(json_at(doc, path), patch))
 end
@@ -159,7 +175,9 @@ def position_of(xs, key, item)
   end
 end
 
-# The list at `path` with `item` in it: it replaces the element whose `key` field matches, or is appended. Doing it twice is doing it once.
+@doc """
+upsert: the list at `path` with `item` in it: it replaces the element whose `key` field matches, or is appended. Doing it twice is doing it once.
+"""
 def upsert(doc, path, key, item)
   current = json_at(doc, path)
   xs = if current.nil?
@@ -181,7 +199,11 @@ end
 
 # --- keyed sets of objects --------------------------------------------------
 
-# The identity of a Kubernetes object: [kind, namespace, name].
+@doc """
+object_key: the identity of a Kubernetes object: [kind, namespace, name].
+
+    object_key(web) #=> ["Deployment", "shop", "web"]
+"""
 def object_key(obj)
   ns = json_at(obj, "metadata.namespace")
   [
@@ -228,7 +250,9 @@ def target_of(v)
   ]
 end
 
-# What the field table cannot say: the ops that need a value or a key.
+@doc """
+shape_whys: what the field table cannot say: the ops that need a value or a key.
+"""
 def shape_whys(v)
   op = get(v, :op)
   if (op == "set" or op == "merge" or op == "upsert") and get(v, :value).nil?
@@ -317,8 +341,12 @@ def contains_claim?(claims, claim)
   size(filter((c) -> c == claim, claims)) > 0
 end
 
-# Patch entries are `entry(:patch, name, {kind:, name:, namespace:, op:, path:, value:, key:})` from kousei, with its `off` and `tune` laid over them.
-# Returns `objects` (patched, same order), `applied`, `off` and `refusals`.
+@doc """
+amend: patch entries are `entry(:patch, name, {kind:, name:, namespace:, op:, path:, value:, key:})` from kousei, with its `off` and `tune` laid over them.
+Returns `objects` (patched, same order), `applied`, `off` and `refusals`.
+
+    amend([web, svc], object_key, []) #=> {objects: [web, svc], applied: 0, off: [], refusals: []}
+"""
 def amend(objects, keyer, entries)
   judged = judge(patch_schema, entries)
   start = {objects:, claims: [], refusals: [], applied: 0}
@@ -341,7 +369,9 @@ def index_by(keyer, objects)
   reduce((acc, o) -> assoc(acc, to_s(keyer(o)), o), {}, objects)
 end
 
-# Which objects were added, removed or changed, as [key, change] pairs sorted by key.
+@doc """
+changed: which objects were added, removed or changed, as [key, change] pairs sorted by key.
+"""
 def changed(before, after, keyer)
   b = index_by(keyer, before)
   a = index_by(keyer, after)
@@ -365,7 +395,11 @@ def changed(before, after, keyer)
   )
 end
 
-# A `kind: List` document, or one object, read into the list of objects.
+@doc """
+read_objects: a `kind: List` document, or one object, read into the list of objects.
+
+    read_objects(json_stringify(web)) #=> [web]
+"""
 def read_objects(text)
   doc = json_read(text)
   if json_at(doc, "kind") == "List"
@@ -375,7 +409,9 @@ def read_objects(text)
   end
 end
 
-# The objects as one `kind: List` document, the committed shape.
+@doc """
+show_objects: the objects as one `kind: List` document, the committed shape.
+"""
 def show_objects(objects)
   json_stringify({"apiVersion" => "v1", "kind" => "List", "items" => objects})
 end

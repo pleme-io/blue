@@ -1,3 +1,19 @@
+@moduledoc """
+outou (応答) — a GraphQL request answered: a schema of blue resolvers, execution to {data, errors}, introspection and subscription events, over danpen's documents.
+
+Written to the GraphQL specification, October 2021 edition
+(https://spec.graphql.org/October2021/): the type system of §3,
+introspection of §4, execution of §6 and the response shape of §7.
+danpen parses the document and judges it against this schema's SDL (§2,
+§5); a parse or validation failure is a kyohi refusal whose why is the list
+of GraphQL errors with their locations, refused per document. A schema is
+a value built from type constructors, and a resolver is a blue function of
+(parent, args, context). No I/O happens here: host effects enter only
+through the resolvers a service supplies. `from_model` derives object types
+and the query root from an entity map, as a pure function, so a model
+renders straight into a schema.
+"""
+
 use("danpen")
 use("jisho", [:has?])
 use("kyohi", [:ok, :ok?, :refusal, :refusal_of, :refused, :value, :why])
@@ -20,20 +36,6 @@ use(
     :update_at
   ]
 )
-
-# outou (応答) — a GraphQL request answered: a schema of blue resolvers, execution to {data, errors}, introspection and subscription events, over danpen's documents.
-#
-# Written to the GraphQL specification, October 2021 edition
-# (https://spec.graphql.org/October2021/): the type system of §3,
-# introspection of §4, execution of §6 and the response shape of §7.
-# danpen parses the document and judges it against this schema's SDL (§2,
-# §5); a parse or validation failure is a kyohi refusal whose why is the list
-# of GraphQL errors with their locations, refused per document. A schema is
-# a value built from type constructors, and a resolver is a blue function of
-# (parent, args, context). No I/O happens here: host effects enter only
-# through the resolvers a service supplies. `from_model` derives object types
-# and the query root from an entity map, as a pure function, so a model
-# renders straight into a schema.
 
 def errors_of(result)
   why(refusal_of(result))

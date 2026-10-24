@@ -1,3 +1,14 @@
+@moduledoc """
+gyouretsu (行列) — vectors and matrices as nested lists.
+
+A matrix is a list of rows. No new type, for the same reason shuugou uses
+plain lists: a bespoke container would need its own map, its own equality
+and its own printer, and none of those would be better than the ones a list
+already has.
+
+    eye(0) #=> []
+"""
+
 use("kazu", [:abs, :clamp, :even, :min, :near, :near_within, :pow, :sum])
 
 use(
@@ -14,17 +25,20 @@ use(
   ]
 )
 
-# gyouretsu (行列) — vectors and matrices as nested lists.
-#
-# A matrix is a list of rows. No new type, for the same reason shuugou uses
-# plain lists: a bespoke container would need its own map, its own equality
-# and its own printer, and none of those would be better than the ones a list
-# already has.
+@doc """
+dot: inner product of two vectors.
 
+    dot([1, 2, 3], [4, 5, 6]) #=> 32
+"""
 def dot(a, b)
   reduce((acc, i) -> acc + nth(i, a) * nth(i, b), 0, range(0, length(a)))
 end
 
+@doc """
+scale: every entry multiplied by a number.
+
+    scale(3, [1, 2]) #=> [3, 6]
+"""
 def scale(k, v)
   map((x) -> k * x, v)
 end
@@ -41,20 +55,28 @@ def magnitude(v)
   sqrt(dot(v, v))
 end
 
-# Zero-length test by distance, never by `== 0`.
-#
-# `magnitude([0, 0])` is Float(0.0) and `Float(0.0) == Int(0)` is false in this
-# runtime, so the obvious guard lets a zero vector through into a division and
-# the interpreter aborts with `division by zero`. Every guard below routes
-# through here for that reason.
+@doc """
+is_zero_vector: zero-length test by distance, never by `== 0`.
+
+`magnitude([0, 0])` is Float(0.0) and `Float(0.0) == Int(0)` is false in this
+runtime, so the obvious guard lets a zero vector through into a division and
+the interpreter aborts with `division by zero`. Every guard below routes
+through here for that reason.
+
+    is_zero_vector([0, 0, 0]) #=> true
+"""
 def is_zero_vector(v)
   near(dot(v, v), 0)
 end
 
-# Element-wise approximate equality. Anything that has been through `/` or
-# `sqrt` comes back as a float, and `[0.6, 0.8] == [0.6, 0.8]` is only true when
-# both sides took the identical float path — so a caller comparing a computed
-# vector against a written-out literal needs this, not `==`.
+@doc """
+vector_near: element-wise approximate equality. Anything that has been through `/` or
+`sqrt` comes back as a float, and `[0.6, 0.8] == [0.6, 0.8]` is only true when
+both sides took the identical float path — so a caller comparing a computed
+vector against a written-out literal needs this, not `==`.
+
+    vector_near([], []) #=> true
+"""
 def vector_near(a, b)
   if size(a) == size(b)
     reduce((acc, i) -> acc and near(nth(i, a), nth(i, b)), true, indexes(a))
@@ -63,6 +85,11 @@ def vector_near(a, b)
   end
 end
 
+@doc """
+normalize: vector scaled to length one.
+
+    normalize([0, 0]) #=> [0, 0]
+"""
 def normalize(v)
   if is_zero_vector(v)
     v
@@ -71,23 +98,33 @@ def normalize(v)
   end
 end
 
-# Distance between two vectors of any arity. Named `vdistance` rather than
-# `distance` because kikagaku already owns `distance` for 2-D points, and a
-# program that imports both should not have one silently win.
+@doc """
+vdistance: distance between two vectors of any arity. Named `vdistance` rather than
+`distance` because kikagaku already owns `distance` for 2-D points, and a
+program that imports both should not have one silently win.
+"""
 def vdistance(a, b)
   magnitude(vsub(a, b))
 end
 
-# The same ordering without the square root — for sorting or comparing
-# distances, where the root costs precision and buys nothing.
+@doc """
+vdistance_squared: the same ordering without the square root — for sorting or comparing
+distances, where the root costs precision and buys nothing.
+
+    vdistance_squared([1, 1], [4, 5]) #=> 25
+"""
 def vdistance_squared(a, b)
   d = vsub(a, b)
   dot(d, d)
 end
 
-# The 3-D cross product only. There is no n-dimensional cross product, so this
-# takes 3-vectors and nothing else; passing anything shorter reads past the end
-# of the list rather than silently answering.
+@doc """
+cross_product: the 3-D cross product only. There is no n-dimensional cross product, so this
+takes 3-vectors and nothing else; passing anything shorter reads past the end
+of the list rather than silently answering.
+
+    cross_product([1, 0, 0], [0, 1, 0]) #=> [0, 0, 1]
+"""
 def cross_product(a, b)
   [
     nth(1, a) * nth(2, b) - nth(2, a) * nth(1, b),
@@ -96,9 +133,13 @@ def cross_product(a, b)
   ]
 end
 
-# Vector projection of a onto b. The denominator is dot(b, b) — using dot(a, a)
-# is the classic transposition, and it still returns a plausible vector, which
-# is why the test asserts the residual is orthogonal rather than just a value.
+@doc """
+projection: vector projection of a onto b. The denominator is dot(b, b) — using dot(a, a)
+is the classic transposition, and it still returns a plausible vector, which
+is why the test asserts the residual is orthogonal rather than just a value.
+
+    projection([1, 2], [0, 0]) #=> [0, 0]
+"""
 def projection(a, b)
   if is_zero_vector(b)
     b
@@ -107,12 +148,16 @@ def projection(a, b)
   end
 end
 
-# Arc cosine, total: an argument that has drifted just outside [-1, 1] by float
-# error (a dot product over its magnitudes, in angle_between) lands on 0 or pi
-# instead of being refused. The runtime's `acos` (tatara-lisp 0.3.59) refuses
-# such input by name, so the saturation that was the bisection's side effect is
-# stated here as a clamp. arccos_bisect stays for its callers; before `acos`
-# existed it was the only way to invert cos.
+@doc """
+arccos: arc cosine, total: an argument that has drifted just outside [-1, 1] by float
+error (a dot product over its magnitudes, in angle_between) lands on 0 or pi
+instead of being refused. The runtime's `acos` (tatara-lisp 0.3.59) refuses
+such input by name, so the saturation that was the bisection's side effect is
+stated here as a clamp. arccos_bisect stays for its callers; before `acos`
+existed it was the only way to invert cos.
+
+    arccos(1) #=> 0.0
+"""
 def arccos(x)
   acos(clamp(x, -1, 1))
 end
@@ -128,8 +173,12 @@ def arccos_bisect(x, lo, hi, n)
   end
 end
 
-# Angle in radians. A zero vector has no direction, so there is no angle to
-# report; 0 is returned rather than crashing in the division.
+@doc """
+angle_between: angle in radians. A zero vector has no direction, so there is no angle to
+report; 0 is returned rather than crashing in the division.
+
+    angle_between([0, 0], [1, 0]) #=> 0
+"""
 def angle_between(a, b)
   if is_zero_vector(a) or is_zero_vector(b)
     0
@@ -150,6 +199,9 @@ def col(m, j)
   map((r) -> nth(j, r), m)
 end
 
+@doc """
+transpose: rows and columns swapped.
+"""
 def transpose(m)
   map((j) -> col(m, j), range(0, cols(m)))
 end
@@ -179,10 +231,14 @@ end
 
 # --- matrix shape ------------------------------------------------------------
 
-# `rows`/`cols` above are the fast path and both go through `length`/`car`,
-# which abort on an empty matrix. `shape` is the total one: a matrix with no
-# rows is 0 by 0 rather than an error, so predicates can be written without a
-# separate emptiness branch at every call site.
+@doc """
+shape: `rows`/`cols` above are the fast path and both go through `length`/`car`,
+which abort on an empty matrix. `shape` is the total one: a matrix with no
+rows is 0 by 0 rather than an error, so predicates can be written without a
+separate emptiness branch at every call site.
+
+    shape([]) #=> [0, 0]
+"""
 def shape(m)
   if size(m) < 1
     [0, 0]
@@ -201,8 +257,12 @@ end
 
 # --- matrix comparison -------------------------------------------------------
 
-# Since okite D0001 and D0011 this agrees with `==` on every matrix (the empty
-# matrix is always []); it stays, as vocabulary, comparing by shape and index.
+@doc """
+matrix_equal: since okite D0001 and D0011 this agrees with `==` on every matrix (the empty
+matrix is always []); it stays, as vocabulary, comparing by shape and index.
+
+    matrix_equal([[1, 2]], [[1, 2]]) #=> true
+"""
 def matrix_equal(a, b)
   if shape(a) == shape(b)
     reduce(
@@ -222,7 +282,11 @@ def matrix_equal(a, b)
   end
 end
 
-# The one to reach for after a divide, a root or a solve — see vector_near.
+@doc """
+matrix_near: the one to reach for after a divide, a root or a solve — see vector_near.
+
+    matrix_near([[1]], [[1, 2]]) #=> false
+"""
 def matrix_near(a, b)
   if shape(a) == shape(b)
     reduce(
@@ -249,6 +313,9 @@ def filled(r, c, v)
   map((_i) -> map((_j) -> v, range(0, c)), range(0, r))
 end
 
+@doc """
+zeros: matrix of zeros.
+"""
 def zeros(r, c)
   filled(r, c, 0)
 end
@@ -265,16 +332,24 @@ def mscale(k, m)
   map((r) -> scale(k, r), m)
 end
 
-# Matrix times column vector. Written separately from `matmul` because wrapping
-# a vector as a one-column matrix and unwrapping the result is the step callers
-# get wrong — `matmul(m, [v])` multiplies by a one-ROW matrix and is a shape
-# error, not the answer.
+@doc """
+mvmul: matrix times column vector. Written separately from `matmul` because wrapping
+a vector as a one-column matrix and unwrapping the result is the step callers
+get wrong — `matmul(m, [v])` multiplies by a one-ROW matrix and is a shape
+error, not the answer.
+
+    mvmul(identity_matrix(2), [5, 6]) #=> [5, 6]
+"""
 def mvmul(m, v)
   map((r) -> dot(r, v), m)
 end
 
-# Outer product: an n-vector and an m-vector give an n-by-m rank-1 matrix.
-# The dual of `dot`, which contracts the same two vectors to a scalar.
+@doc """
+outer_product: outer product: an n-vector and an m-vector give an n-by-m rank-1 matrix.
+The dual of `dot`, which contracts the same two vectors to a scalar.
+
+    outer_product([1, 2], [3, 4]) #=> [[3, 4], [6, 8]]
+"""
 def outer_product(a, b)
   map((x) -> map((y) -> x * y, b), a)
 end
@@ -288,10 +363,12 @@ def trace(m)
   sum(diagonal(m))
 end
 
-# Entrywise product, which is NOT matrix multiplication. It exists here under
-# its own name precisely because `a * b` read aloud means this to most people
-# and `matmul` to linear algebra, and a package that offered only one of them
-# would let the wrong one be reached for silently.
+@doc """
+hadamard: entrywise product, which is NOT matrix multiplication. It exists here under
+its own name precisely because `a * b` read aloud means this to most people
+and `matmul` to linear algebra, and a package that offered only one of them
+would let the wrong one be reached for silently.
+"""
 def hadamard(a, b)
   map(
     fn(i)
@@ -301,9 +378,13 @@ def hadamard(a, b)
   )
 end
 
-# A matrix whose transpose is its inverse — rotations and reflections. Tested
-# with matrix_near rather than matrix_equal because any real rotation goes
-# through sin/cos and lands on floats.
+@doc """
+is_orthogonal: a matrix whose transpose is its inverse — rotations and reflections. Tested
+with matrix_near rather than matrix_equal because any real rotation goes
+through sin/cos and lands on floats.
+
+    is_orthogonal([[0, 1], [1, 0]]) #=> true
+"""
 def is_orthogonal(m)
   is_square(m) and
     matrix_near(matmul(m, transpose(m)), identity_matrix(size(m)))
@@ -315,16 +396,20 @@ def replace_col(m, j, v)
   map((i) -> update_at(row(m, i), j, nth(i, v)), indexes(m))
 end
 
-# The matrix with row i and column j struck out. `minor` is the DETERMINANT of
-# this, which is the usual source of confusion, so both names exist and each
-# means exactly what the textbook means.
+@doc """
+submatrix: the matrix with row i and column j struck out. `minor` is the DETERMINANT of
+this, which is the usual source of confusion, so both names exist and each
+means exactly what the textbook means.
+"""
 def submatrix(m, i, j)
   map((r) -> remove_at(r, j), remove_at(m, i))
 end
 
-# The checkerboard sign (-1)^(i+j) that turns a minor into a cofactor. Getting
-# it backwards flips the sign of every determinant of odd order, which a 2-by-2
-# test cannot see — hence the 3-by-3 and 4-by-4 cases in the tests.
+@doc """
+cofactor_sign: the checkerboard sign (-1)^(i+j) that turns a minor into a cofactor. Getting
+it backwards flips the sign of every determinant of odd order, which a 2-by-2
+test cannot see — hence the 3-by-3 and 4-by-4 cases in the tests.
+"""
 def cofactor_sign(i, j)
   if even(i + j)
     1
@@ -333,11 +418,15 @@ def cofactor_sign(i, j)
   end
 end
 
-# Laplace expansion along the first row, so this is general rather than a pair
-# of hard-coded 2-by-2 and 3-by-3 formulas. That costs n! multiplications and
-# is the wrong algorithm above about 8-by-8 — for those, row-reduce instead.
-# The empty determinant is 1, which is what makes the recursion bottom out
-# without a separate 2-by-2 base case.
+@doc """
+determinant: laplace expansion along the first row, so this is general rather than a pair
+of hard-coded 2-by-2 and 3-by-3 formulas. That costs n! multiplications and
+is the wrong algorithm above about 8-by-8 — for those, row-reduce instead.
+The empty determinant is 1, which is what makes the recursion bottom out
+without a separate 2-by-2 base case.
+
+    determinant([[7]]) #=> 7
+"""
 def determinant(m)
   if size(m) < 1
     1
@@ -363,18 +452,22 @@ def cofactor(m, i, j)
   cofactor_sign(i, j) * minor(m, i, j)
 end
 
-# The transpose of the cofactor matrix — note the transpose, which is the step
-# that gets dropped and leaves an "inverse" that is right only for symmetric
-# matrices.
+@doc """
+adjugate: the transpose of the cofactor matrix — note the transpose, which is the step
+that gets dropped and leaves an "inverse" that is right only for symmetric
+matrices.
+"""
 def adjugate(m)
   transpose(
     map((i) -> map((j) -> cofactor(m, i, j), indexes(row(m, i))), indexes(m))
   )
 end
 
-# The empty list means "no inverse", not "the empty matrix": a singular matrix
-# has no inverse to return, and returning one anyway — or dividing by the zero
-# determinant — is the alternative. Callers test with `size(inverse(m)) < 1`.
+@doc """
+inverse: the empty list means "no inverse", not "the empty matrix": a singular matrix
+has no inverse to return, and returning one anyway — or dividing by the zero
+determinant — is the alternative. Callers test with `size(inverse(m)) < 1`.
+"""
 def inverse(m)
   d = determinant(m)
   if near(d, 0)
@@ -384,9 +477,11 @@ def inverse(m)
   end
 end
 
-# Non-negative powers only. A negative power is spelled
-# `matrix_power(inverse(m), n)`, which forces the caller past the singular case
-# instead of hiding an empty inverse inside a loop.
+@doc """
+matrix_power: non-negative powers only. A negative power is spelled
+`matrix_power(inverse(m), n)`, which forces the caller past the singular case
+instead of hiding an empty inverse inside a loop.
+"""
 def matrix_power(m, n)
   if n < 1
     identity_matrix(size(m))
@@ -397,9 +492,11 @@ end
 
 # --- linear systems ----------------------------------------------------------
 
-# Cramer's rule for m * x = b, at any order. Returns [] when the system has no
-# unique solution, which is every singular matrix — both the no-solution and
-# the infinitely-many-solutions case, and Cramer's rule cannot tell them apart.
+@doc """
+solve_cramer: cramer's rule for m * x = b, at any order. Returns [] when the system has no
+unique solution, which is every singular matrix — both the no-solution and
+the infinitely-many-solutions case, and Cramer's rule cannot tell them apart.
+"""
 def solve_cramer(m, b)
   d = determinant(m)
   if near(d, 0)
@@ -409,17 +506,23 @@ def solve_cramer(m, b)
   end
 end
 
-# The 2-by-2 case by name, since it is the one that turns up by hand.
+@doc """
+solve2x2: the 2-by-2 case by name, since it is the one that turns up by hand.
+"""
 def solve2x2(m, b)
   solve_cramer(m, b)
 end
 
-# Gaussian elimination with partial pivoting for m * x = b. Returns [] when the
-# system has no unique solution, as solve_cramer does, but costs O(n^3) where
-# the Laplace expansion behind determinant costs O(n!): the one to reach for
-# past 3-by-3 (least squares, thermal networks). The pivot is the largest
-# remaining entry in its column, which keeps every multiplier at most 1 and is
-# what makes elimination stable in floating point.
+@doc """
+solve_gauss: gaussian elimination with partial pivoting for m * x = b. Returns [] when the
+system has no unique solution, as solve_cramer does, but costs O(n^3) where
+the Laplace expansion behind determinant costs O(n!): the one to reach for
+past 3-by-3 (least squares, thermal networks). The pivot is the largest
+remaining entry in its column, which keeps every multiplier at most 1 and is
+what makes elimination stable in floating point.
+
+    solve_gauss([], []) #=> []
+"""
 def solve_gauss(m, b)
   n = size(b)
   aug = map((i) -> push(nth(i, m), nth(i, b)), range(0, n))
@@ -431,7 +534,9 @@ def solve_gauss(m, b)
   end
 end
 
-# The row, from k down, whose entry in column k is largest in size.
+@doc """
+gauss_pivot_row: the row, from k down, whose entry in column k is largest in size.
+"""
 def gauss_pivot_row(a, k, n)
   reduce(
     fn(best, i)
@@ -446,8 +551,10 @@ def gauss_pivot_row(a, k, n)
   )
 end
 
-# One column of elimination: pivot, then clear the entries below it. An empty
-# matrix in means an earlier column found no pivot, and is passed on.
+@doc """
+gauss_eliminate: one column of elimination: pivot, then clear the entries below it. An empty
+matrix in means an earlier column found no pivot, and is passed on.
+"""
 def gauss_eliminate(a, k, n)
   if is_empty(a)
     []
@@ -475,7 +582,9 @@ def gauss_eliminate(a, k, n)
   end
 end
 
-# Back substitution over an upper-triangular augmented matrix, last row first.
+@doc """
+gauss_back_substitute: back substitution over an upper-triangular augmented matrix, last row first.
+"""
 def gauss_back_substitute(a, n)
   reduce((xs, i) -> push_front_solution(a, n, i, xs), [], reverse(range(0, n)))
 end
@@ -831,22 +940,47 @@ test "replace_col"
   assert replace_col(m, 1, col(m, 1)) == m
 end
 
+@doc """
+cross product of two 3-vectors.
+
+    cross([1, 0, 0], [0, 1, 0]) #=> [0, 0, 1]
+"""
 def cross(a, b)
   cross_product(a, b)
 end
 
+@doc """
+power: matrix times itself n times.
+
+    power([[1, 1], [0, 1]], 0) #=> [[1, 0], [0, 1]]
+"""
 def power(m, n)
   matrix_power(m, n)
 end
 
+@doc """
+multiply: matrix product.
+
+    multiply([[1, 2], [3, 4]], eye(2)) #=> [[1, 2], [3, 4]]
+"""
 def multiply(a, b)
   matmul(a, b)
 end
 
+@doc """
+eye: n by n identity matrix.
+
+    eye(0) #=> []
+"""
 def eye(n)
   identity_matrix(n)
 end
 
+@doc """
+diagsum: sum of the diagonal.
+
+    diagsum(eye(4)) #=> 4
+"""
 def diagsum(m)
   trace(m)
 end

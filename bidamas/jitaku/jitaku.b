@@ -1,3 +1,14 @@
+@moduledoc """
+jitaku (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
+
+A home is a list of entries: its site, delivery and exposure, components with
+their settings, Home Assistant integrations, speakers, lights by role, tones,
+moods, and mood sets (lists of moods). `lareira` gives the attribute set the
+nix module takes, from the entries that stand; `refusals` names the rest.
+
+    accepted([]) #=> []
+"""
+
 use(
   "kousei",
   [
@@ -19,13 +30,6 @@ use("moji", [:is_hex, :made_of, :strip_prefix])
 use("retsu", [:contains, :first, :flat_map, :index_of, :is_empty, :last, :size])
 
 legacy_names("0.1.1", [["unrefused", "kyohi::standing"]])
-
-# jitaku (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
-#
-# A home is a list of entries: its site, delivery and exposure, components with
-# their settings, Home Assistant integrations, speakers, lights by role, tones,
-# moods, and mood sets (lists of moods). `lareira` gives the attribute set the
-# nix module takes, from the entries that stand; `refusals` names the rest.
 
 # ── checks: a check is fn(value) answering nil, or why the value is wrong ──
 
@@ -65,12 +69,16 @@ def name_chars()
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
 end
 
-# A name a home gives a thing (a tone, a mood, a speaker, a role).
+@doc """
+name_text: a name a home gives a thing (a tone, a mood, a speaker, a role).
+"""
 def name_text()
   (v) -> verdict(string?(v) and made_of(v, name_chars), "#{v} is not a name")
 end
 
-# A Home Assistant entity id in `domain`: `light.hallway`.
+@doc """
+entity: a Home Assistant entity id in `domain`: `light.hallway`.
+"""
 def entity(domain)
   fn(v)
     verdict(
@@ -159,8 +167,10 @@ end
 
 # ── records: a table of fields, read once to check and once to project ─────
 
-# A field: its key in blue, its key in pleme.lareira (nil: blue's alone), the
-# check its value passes, and how its value is rendered.
+@doc """
+field: a field: its key in blue, its key in pleme.lareira (nil: blue's alone), the
+check its value passes, and how its value is rendered.
+"""
 def field(key, json, check)
   {key:, json:, check:, render: (v) -> v, required: false}
 end
@@ -189,8 +199,10 @@ def key_text(f)
   to_s(get(f, :key))
 end
 
-# The keys a map was written with, as text. Blue has no word that lists a
-# map's keys; JSON text does, so the map is read back through it.
+@doc """
+key_names: the keys a map was written with, as text. Blue has no word that lists a
+map's keys; JSON text does, so the map is read back through it.
+"""
 def key_names(m)
   map((p) -> first(p), json_parse(json_stringify(m)))
 end
@@ -233,8 +245,10 @@ def record_check(table)
   end
 end
 
-# The record in pleme.lareira's spelling: its declared fields only, so every
-# default stays the module's.
+@doc """
+project: the record in pleme.lareira's spelling: its declared fields only, so every
+default stays the module's.
+"""
 def project(table, m)
   reduce((acc, f) -> projected(acc, f, m), {}, table)
 end
@@ -333,7 +347,9 @@ def enable_field()
   field(:enable, "enable", flag)
 end
 
-# [name, host] or [name, host, port], one per ESPHome device.
+@doc """
+device_row: [name, host] or [name, host, port], one per ESPHome device.
+"""
 def device_row()
   fn(r)
     verdict(
@@ -359,7 +375,9 @@ def device_of(r)
   end
 end
 
-# [name, stream], one per Frigate camera; the stream is rtsp(s)://.
+@doc """
+camera_row: [name, stream], one per Frigate camera; the stream is rtsp(s)://.
+"""
 def camera_row()
   fn(r)
     verdict(
@@ -384,8 +402,10 @@ def rows_field(key, json, row_check, render)
   assoc(field(key, json, list_of(row_check)), :render, render)
 end
 
-# Every component the stack knows: its name here, its name in pleme.lareira,
-# its settings, and the radio it bridges (nil for none).
+@doc """
+components: every component the stack knows: its name here, its name in pleme.lareira,
+its settings, and the radio it bridges (nil for none).
+"""
 def components()
   [
     [:mosquitto, "mosquitto", [enable_field], nil],
@@ -465,12 +485,16 @@ end
 
 # ── entries: a home is a list of them; a mood set is a list inside it ─────
 
-# Which home this is, by its site name.
+@doc """
+site: which home this is, by its site name.
+"""
 def site(name)
   entry(:site, "site", {name:})
 end
 
-# A site with its true coordinates rather than the site's city-level point.
+@doc """
+site_at: a site with its true coordinates rather than the site's city-level point.
+"""
 def site_at(name, latitude, longitude, elevation)
   entry(
     :site,
@@ -479,38 +503,52 @@ def site_at(name, latitude, longitude, elevation)
   )
 end
 
-# How the stack runs: "systemd" or "engenho".
+@doc """
+delivery: how the stack runs: "systemd" or "engenho".
+"""
 def delivery(how)
   entry(:delivery, "delivery", how)
 end
 
-# Where human-facing UIs are reachable: "tailnet" or "lan".
+@doc """
+exposure: where human-facing UIs are reachable: "tailnet" or "lan".
+"""
 def exposure(where)
   entry(:exposure, "exposure", where)
 end
 
-# Where /run/secrets/lareira comes from: "sops" or "external".
+@doc """
+secrets_source: where /run/secrets/lareira comes from: "sops" or "external".
+"""
 def secrets_source(source)
   entry(:secrets_source, "secrets_source", source)
 end
 
-# Home Assistant's history database: "sqlite" or "postgres".
+@doc """
+recorder: home Assistant's history database: "sqlite" or "postgres".
+"""
 def recorder(kind)
   entry(:recorder, "recorder", kind)
 end
 
-# The address the speakers fetch tones from.
+@doc """
+media_base_url: the address the speakers fetch tones from.
+"""
 def media_base_url(url)
   entry(:media_base_url, "media_base_url", url)
 end
 
-# The address is the host's to supply (nix renders it from its own topology):
-# moods may play, and the projection leaves the field for the module to fill.
+@doc """
+media_base_url_from_host: the address is the host's to supply (nix renders it from its own topology):
+moods may play, and the projection leaves the field for the module to fill.
+"""
 def media_base_url_from_host()
   entry(:media_base_url, "media_base_url", :host)
 end
 
-# A component with its settings: component(:whisper, {enable: true, language: "pt"}).
+@doc """
+component: a component with its settings: component(:whisper, {enable: true, language: "pt"}).
+"""
 def component(name, settings)
   entry(:component, to_s(name), settings)
 end
@@ -519,12 +557,16 @@ def on(name)
   component(name, {enable: true})
 end
 
-# Declared, and configured off.
+@doc """
+off: declared, and configured off.
+"""
 def off(name)
   component(name, {enable: false})
 end
 
-# A Home Assistant integration to load, by domain.
+@doc """
+integration: a Home Assistant integration to load, by domain.
+"""
 def integration(domain)
   entry(:integration, domain, domain)
 end
@@ -533,28 +575,38 @@ def integrations(domains)
   map(integration, domains)
 end
 
-# A speaker by short name, as the media_player entity Home Assistant gives it.
+@doc """
+speaker: a speaker by short name, as the media_player entity Home Assistant gives it.
+"""
 def speaker(name, entity_id)
   entry(:speaker, name, entity_id)
 end
 
-# A named group of lights a mood can address without knowing the house.
+@doc """
+light_role: a named group of lights a mood can address without knowing the house.
+"""
 def light_role(role, lights)
   entry(:light_role, role, lights)
 end
 
-# A sound the house can play: tone("hz174", {frequency: 174}).
+@doc """
+tone: a sound the house can play: tone("hz174", {frequency: 174}).
+"""
 def tone(name, spec)
   entry(:tone, name, spec)
 end
 
-# A whole-house state (lights and sound), one script and one phone button.
+@doc """
+mood: a whole-house state (lights and sound), one script and one phone button.
+"""
 def mood(name, fields)
   entry(:mood, name, fields)
 end
 
-# The one-line mood: label, icon, colour, lights, then the tone it plays and
-# at what volume.
+@doc """
+mood_of: the one-line mood: label, icon, colour, lights, then the tone it plays and
+at what volume.
+"""
 def mood_of(name, label, icon_name, color, lights, tone_name, volume)
   mood(
     name,
@@ -562,7 +614,9 @@ def mood_of(name, label, icon_name, color, lights, tone_name, volume)
   )
 end
 
-# The entry with one more field: with(mood_of(…), :breathing, breathing(…)).
+@doc """
+with: the entry with one more field: with(mood_of(…), :breathing, breathing(…)).
+"""
 def with(e, key, v)
   entry(kind_of(e), name_of(e), assoc(value_of(e), key, v))
 end
@@ -583,7 +637,9 @@ def lights_off(seconds)
   {brightness_pct: 0, transition: seconds}
 end
 
-# Only the lights a role names; the home says which lights those are.
+@doc """
+on_role: only the lights a role names; the home says which lights those are.
+"""
 def on_role(role, lights)
   assoc(lights, :role, role)
 end
@@ -600,7 +656,9 @@ def sound(tone_name, volume)
   {tone: tone_name, volume:}
 end
 
-# Moods under one dashboard heading; a mood that names its own group keeps it.
+@doc """
+mood_set: moods under one dashboard heading; a mood that names its own group keeps it.
+"""
 def mood_set(group, moods)
   map(
     fn(m)
@@ -614,8 +672,10 @@ def mood_set(group, moods)
   )
 end
 
-# Fields laid over an entry declared earlier, so a home retunes or configures
-# off what a mood set gave it: tune(:mood, "relax", {enable: false}).
+@doc """
+tune: fields laid over an entry declared earlier, so a home retunes or configures
+off what a mood set gave it: tune(:mood, "relax", {enable: false}).
+"""
 def tune(kind, name, fields)
   {entry: :tune, name: "#{kind}/#{name}", target: kind, of: name, value: fields}
 end
@@ -802,7 +862,9 @@ def entry_id(e)
   "#{kind_of(e)}/#{name_of(e)}"
 end
 
-# A name is declared once: every later declaration of it is refused.
+@doc """
+duplicate_refusals: a name is declared once: every later declaration of it is refused.
+"""
 def duplicate_refusals(es)
   ids = map(entry_id, es)
   map(
@@ -855,7 +917,9 @@ def tune_refusals(t, es)
   end
 end
 
-# Every tune laid onto its entry, in order; each tune is checked first.
+@doc """
+apply_tunes: every tune laid onto its entry, in order; each tune is checked first.
+"""
 def apply_tunes(es)
   tunes = filter((e) -> kind_of(e) == :tune, es)
   base = filter((e) -> kind_of(e) != :tune, es)
@@ -920,7 +984,9 @@ def role_lights(es, role)
   end
 end
 
-# What one standing mood still lacks among the entries that stand with it.
+@doc """
+mood_needs: what one standing mood still lacks among the entries that stand with it.
+"""
 def mood_needs(m, es)
   v = value_of(m)
   s = get(v, :sound)
@@ -983,7 +1049,9 @@ def mood_needs(m, es)
   )
 end
 
-# [the refusal] when `fault` holds, else nothing.
+@doc """
+refused_if: [the refusal] when `fault` holds, else nothing.
+"""
 def refused_if(fault, kind, e, why)
   if fault
     [refuse_entry(kind, e, why)]
@@ -1000,8 +1068,10 @@ def needs(e, es)
   end
 end
 
-# Refuse whatever lacks what it names, and again over what is left, until
-# nothing more falls: a mood handing over to a refused mood falls with it.
+@doc """
+settle: refuse whatever lacks what it names, and again over what is left, until
+nothing more falls: a mood handing over to a refused mood falls with it.
+"""
 def settle(standing, refused)
   fresh = map((e) -> needs(e, standing), standing)
   falls = flat_map(fresh, (r) -> r)
@@ -1012,9 +1082,11 @@ def settle(standing, refused)
   end
 end
 
-# The home judged: `accepted`, the entries that stand (tunes applied), and
-# `refusals`, one or more per entry that does not, each naming it. A bad
-# entry is refused alone; its siblings stand.
+@doc """
+judge: the home judged: `accepted`, the entries that stand (tunes applied), and
+`refusals`, one or more per entry that does not, each naming it. A bad
+entry is refused alone; its siblings stand.
+"""
 def judge(entries)
   t = apply_tunes(flat(entries))
   es = get(t, :entries)
@@ -1051,7 +1123,9 @@ def of_kind(es, kind)
   filter((e) -> kind_of(e) == kind, es)
 end
 
-# A role-addressed mood's lights become the role's lights.
+@doc """
+resolved: a role-addressed mood's lights become the role's lights.
+"""
 def resolved(m, es)
   l = get(value_of(m), :lights)
   if l.nil? or get(l, :role).nil?
@@ -1075,9 +1149,11 @@ def component_into(acc, row, settings)
   assoc(acc, nth(1, row), project(nth(2, row), settings))
 end
 
-# A key of the projection: where it goes, the kind of entry it gathers, and
-# how those entries render. A kind with no standing entry leaves the key out,
-# so the module's default holds.
+@doc """
+slot: a key of the projection: where it goes, the kind of entry it gathers, and
+how those entries render. A kind with no standing entry leaves the key out,
+so the module's default holds.
+"""
 def slot(json, kind, render)
   [json, kind, render]
 end
@@ -1135,8 +1211,10 @@ def home_assistant(es)
   )
 end
 
-# The attribute set pleme.lareira takes, from the entries that stand:
-# `pleme.lareira = lib.importJSON ./home.json`.
+@doc """
+lareira: the attribute set pleme.lareira takes, from the entries that stand:
+`pleme.lareira = lib.importJSON ./home.json`.
+"""
 def lareira(entries)
   es = accepted(entries)
   out = filled(

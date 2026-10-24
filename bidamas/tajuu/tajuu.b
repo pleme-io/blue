@@ -1,21 +1,25 @@
+@moduledoc """
+tajuu (多重) — multiplexing: HTTP/2's frames and the streams they carry
+(RFC 9113).
+
+A frame is a map with a `type` and that type's fields, bytes as lists of
+integers. `decode` reads one frame from the front of the bytes received so
+far and answers one of three things: the frame and the rest, `need` (more
+bytes must arrive; not an error), or a refusal carrying the RFC's error code
+as its kind plus `scope` (:connection or :stream) and the stream, so a
+caller answers GOAWAY or RST_STREAM without re-deriving which. `encode`
+writes a frame and refuses one `decode` would refuse. `step` is the stream
+state machine of §5.1 as a pure function of a state and one event. A frame
+of an unknown type decodes as :unknown, for the caller to discard (§4.1).
+What needs a connection's memory (SETTINGS in force, CONTINUATION order,
+stream-id parity, flow-control windows) is not here.
+
+    error_name(99) #=> 99
+"""
+
 use("kyohi", [:ok, :ok?, :refusal, :refusal_of, :refused, :value])
 use("retsu", [:first, :is_empty, :size, :slice])
 use("shinsuu", [:be_bytes, :be_value, :bit_at, :bytes_hex, :hex_bytes])
-
-# tajuu (多重) — multiplexing: HTTP/2's frames and the streams they carry
-# (RFC 9113).
-#
-# A frame is a map with a `type` and that type's fields, bytes as lists of
-# integers. `decode` reads one frame from the front of the bytes received so
-# far and answers one of three things: the frame and the rest, `need` (more
-# bytes must arrive; not an error), or a refusal carrying the RFC's error code
-# as its kind plus `scope` (:connection or :stream) and the stream, so a
-# caller answers GOAWAY or RST_STREAM without re-deriving which. `encode`
-# writes a frame and refuses one `decode` would refuse. `step` is the stream
-# state machine of §5.1 as a pure function of a state and one event. A frame
-# of an unknown type decodes as :unknown, for the caller to discard (§4.1).
-# What needs a connection's memory (SETTINGS in force, CONTINUATION order,
-# stream-id parity, flow-control windows) is not here.
 
 preface = hex_bytes("505249202a20485454502f322e300d0a0d0a534d0d0a0d0a")
 

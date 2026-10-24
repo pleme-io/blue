@@ -1,3 +1,37 @@
+@moduledoc """
+mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
+
+Before anyone writes blue, the first question is "what do we already have?".
+Without this, the answer was a grep, and a grep cannot say what a function is
+for. mokuroku reads every package under the given roots: its manifest
+(package, version, needs), its gloss (the first line of its `@moduledoc`), its
+tests, and every top-level `def` with its `@doc`.
+The same scan serves three consumers:
+
+  render_markdown   the catalogue a person or agent reads. Committed as
+                    bidamas/CATALOG.md, so GitHub renders it and codesearch
+                    indexes it. This is the docs.rs / pkg.go.dev role, with
+                    no documentation server.
+  name_collisions   the flat-namespace gate. blue's namespace is flat across
+                    imports, so two packages defining one name break any
+                    program that imports both, far from the cause.
+  names_shadowing   the same question asked against a list of builtin names.
+
+Because the namespace is flat, this package's own names are deliberately
+specific (md_cell, pkg_name, name_collisions): a generic `cell` or `owners`
+here would be exactly the collision it exists to catch.
+
+How it reads source: as TEXT, line by line, the same view mk-bidama.nix takes
+of a Bluefile. Every def in the distribution is a top-level `def` line, so
+the text view is exact for today's corpus. A def produced by a macro would
+not be seen; the fix is a parser-backed scan, not a cleverer split.
+
+A package record is [name, version, needs, gloss, entries, tests], and an
+entry is [def_name, signature, doc_lines].
+
+    code_tokens("") #=> []
+"""
+
 use("deeta", [:get_or])
 
 use("hadome", [:failures, :measurement, :parse, :render, :shrunk])
@@ -31,39 +65,11 @@ use(
 
 use("shuugou", [:unique])
 
-# mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
-#
-# Before anyone writes blue, the first question is "what do we already have?".
-# Without this, the answer was a grep, and a grep cannot say what a function is
-# for. mokuroku reads every package under the given roots: its manifest
-# (package, version, needs), its gloss (the first line of its `@moduledoc`), its
-# tests, and every top-level `def` with its `@doc`.
-# The same scan serves three consumers:
-#
-#   render_markdown   the catalogue a person or agent reads. Committed as
-#                     bidamas/CATALOG.md, so GitHub renders it and codesearch
-#                     indexes it. This is the docs.rs / pkg.go.dev role, with
-#                     no documentation server.
-#   name_collisions   the flat-namespace gate. blue's namespace is flat across
-#                     imports, so two packages defining one name break any
-#                     program that imports both, far from the cause.
-#   names_shadowing   the same question asked against a list of builtin names.
-#
-# Because the namespace is flat, this package's own names are deliberately
-# specific (md_cell, pkg_name, name_collisions): a generic `cell` or `owners`
-# here would be exactly the collision it exists to catch.
-#
-# How it reads source: as TEXT, line by line, the same view mk-bidama.nix takes
-# of a Bluefile. Every def in the distribution is a top-level `def` line, so
-# the text view is exact for today's corpus. A def produced by a macro would
-# not be seen; the fix is a parser-backed scan, not a cleverer split.
-#
-# A package record is [name, version, needs, gloss, entries, tests], and an
-# entry is [def_name, signature, doc_lines].
-
 # ── manifests ──────────────────────────────────────────────────────────────
 
-# The first quoted field after `marker`, and the one after it, as a list.
+@doc """
+quoted_after: the first quoted field after `marker`, and the one after it, as a list.
+"""
 def quoted_after(text, marker)
   parts = split(text, marker)
   if size(parts) < 2
@@ -74,7 +80,9 @@ def quoted_after(text, marker)
   end
 end
 
-# [name, version, needs] from a Bluefile's text.
+@doc """
+parse_manifest: [name, version, needs] from a Bluefile's text.
+"""
 def parse_manifest(text)
   pkg = quoted_after(text, "package(\"")
   needs = map((part) -> first(split(part, "\"")), rest(split(text, "needs(\"")))
@@ -95,12 +103,16 @@ def comment_text(line)
   end
 end
 
-# The name a `def` line defines: everything up to "(" or a space.
+@doc """
+defined_name: the name a `def` line defines: everything up to "(" or a space.
+"""
 def defined_name(line)
   join(take_while((c) -> c != "(" and c != " ", drop(4, chars(line))), "")
 end
 
-# The code a `# waive CODE: reason` comment names, or nil for any other line.
+@doc """
+waived_code: the code a `# waive CODE: reason` comment names, or nil for any other line.
+"""
 def waived_code(line)
   body = comment_text(line)
   if starts_with?(body, "waive ")
@@ -164,9 +176,11 @@ def bare_signature(signature, name)
   end
 end
 
-# The prefix a `legacy_names(since, prefix)` declaration names, or nil. A
-# moves declaration (`legacy_names(since, [[old, "home::new"], …])`) names no
-# prefix: its line is not two strings.
+@doc """
+legacy_prefix_of_text: the prefix a `legacy_names(since, prefix)` declaration names, or nil. A
+moves declaration (`legacy_names(since, [[old, "home::new"], …])`) names no
+prefix: its line is not two strings.
+"""
 def legacy_prefix_of_text(text)
   line = find_first(
     (l) -> starts_with?(l, "legacy_names(") and size(split(l, "\"")) == 5,
@@ -179,10 +193,12 @@ def legacy_prefix_of_text(text)
   end
 end
 
-# The lines of a source, with each def header the formatter broke over several
-# lines (a parameter list too long for 80 columns: `def f(` / `  a,` / `  b` /
-# `)`) joined back onto one, so a signature reads as it would have been
-# written on one line. Without this the catalogue listed `el_record(`.
+@doc """
+joined_header_lines: the lines of a source, with each def header the formatter broke over several
+lines (a parameter list too long for 80 columns: `def f(` / `  a,` / `  b` /
+`)`) joined back onto one, so a signature reads as it would have been
+written on one line. Without this the catalogue listed `el_record(`.
+"""
 def joined_header_lines(lines)
   state = reduce(
     fn(acc, line)
@@ -221,8 +237,12 @@ def gloss_of_text(text)
   end
 end
 
-# [title, body_lines] for every top-level `test` block in a source text: a
-# block runs from its `test "…"` line to the first `end` at column 0.
+@doc """
+test_blocks_of_text: [title, body_lines] for every top-level `test` block in a source text: a
+block runs from its `test "…"` line to the first `end` at column 0.
+
+    test_blocks_of_text("") #=> []
+"""
 def test_blocks_of_text(text)
   state = reduce(
     fn(acc, line)
@@ -254,7 +274,9 @@ def blue_path_roots(blue_path)
   filter((r) -> r != "", split(blue_path, ":"))
 end
 
-# Package directories under a root: any directory holding a Bluefile.
+@doc """
+package_dirs: package directories under a root: any directory holding a Bluefile.
+"""
 def package_dirs(root)
   map(
     (p) -> path_dirname(p),
@@ -262,7 +284,9 @@ def package_dirs(root)
   )
 end
 
-# The text of every `.b` file directly in a package directory, joined.
+@doc """
+package_text: the text of every `.b` file directly in a package directory, joined.
+"""
 def package_text(dir)
   join(
     map(
@@ -291,8 +315,10 @@ def package_record(dir)
   ]
 end
 
-# Every package under the roots, sorted by name. When two roots hold the same
-# package, the earlier root wins, as it does for the loader.
+@doc """
+catalog_of: every package under the roots, sorted by name. When two roots hold the same
+package, the earlier root wins, as it does for the loader.
+"""
 def catalog_of(roots)
   records = flat_map(roots, (root) -> map(package_record, package_dirs(root)))
   firsts = reduce(
@@ -309,9 +335,11 @@ def catalog_of(roots)
   sort_by((r) -> first(r), firsts)
 end
 
-# The records whose package has a row in the name ledger (NAMES.md), so a
-# package that is untracked or still being named does not enter a catalogue
-# the ledger has not adjudicated.
+@doc """
+registered_only: the records whose package has a row in the name ledger (NAMES.md), so a
+package that is untracked or still being named does not enter a catalogue
+the ledger has not adjudicated.
+"""
 def registered_only(ledger, records)
   filter((r) -> contains?(ledger, "| `#{first(r)}` |"), records)
 end
@@ -340,14 +368,18 @@ def pkg_tests(r)
   nth(5, r)
 end
 
-# The prefix the package's definitions once carried (`legacy_names`), or nil.
+@doc """
+pkg_legacy_prefix: the prefix the package's definitions once carried (`legacy_names`), or nil.
+"""
 def pkg_legacy_prefix(r)
   if size(r) > 6
     nth(6, r)
   end
 end
 
-# The directory the package was read from, or nil for a record built by hand.
+@doc """
+pkg_dir: the directory the package was read from, or nil for a record built by hand.
+"""
 def pkg_dir(r)
   if size(r) > 7
     nth(7, r)
@@ -360,7 +392,9 @@ end
 
 # ── the namespace gates ────────────────────────────────────────────────────
 
-# [def_name, owner] for every definition, once per package.
+@doc """
+definition_owners: [def_name, owner] for every definition, once per package.
+"""
 def definition_owners(records)
   flat_map(
     records,
@@ -370,7 +404,9 @@ def definition_owners(records)
   )
 end
 
-# [def_name, [packages…]] for every name more than one package defines.
+@doc """
+name_collisions: [def_name, [packages…]] for every name more than one package defines.
+"""
 def name_collisions(records)
   pairs = definition_owners(records)
   names = unique(map((p) -> first(p), pairs))
@@ -381,8 +417,10 @@ def name_collisions(records)
   filter((g) -> size(last(g)) > 1, groups)
 end
 
-# The collisions that involve at least one of `owned` (a private distribution
-# checking itself against everything it composes with).
+@doc """
+name_collisions_touching: the collisions that involve at least one of `owned` (a private distribution
+checking itself against everything it composes with).
+"""
 def name_collisions_touching(records, owned)
   filter(
     (g) -> some((pkg) -> contains(owned, pkg), last(g)),
@@ -390,9 +428,11 @@ def name_collisions_touching(records, owned)
   )
 end
 
-# [package, def_name] for every name a package defines more than once: the
-# collision gate under per-bidama namespaces, where two packages may share a
-# name and one package may not.
+@doc """
+namespace_duplicates: [package, def_name] for every name a package defines more than once: the
+collision gate under per-bidama namespaces, where two packages may share a
+name and one package may not.
+"""
 def namespace_duplicates(records)
   flat_map(
     records,
@@ -406,14 +446,20 @@ def namespace_duplicates(records)
   )
 end
 
-# [def_name, package] for every definition that reuses one of `names`.
+@doc """
+names_shadowing: [def_name, package] for every definition that reuses one of `names`.
+"""
 def names_shadowing(records, names)
   filter((p) -> contains(names, first(p)), definition_owners(records))
 end
 
 # ── rendering ──────────────────────────────────────────────────────────────
 
-# Markdown table cells cannot hold a raw pipe.
+@doc """
+md_cell: markdown table cells cannot hold a raw pipe.
+
+    md_cell("a || b") #=> "a \\|\\| b"
+"""
 def md_cell(s)
   replace(s, "|", "\\|")
 end
@@ -438,9 +484,11 @@ def pkg_summary_row(r)
   "| [`#{pkg_name(r)}`](##{pkg_name(r)}) | #{pkg_version(r)} | #{md_cell(pkg_needs_text(r))} | #{to_s(pkg_tests(r))} | #{to_s(size(pkg_entries(r)))} | #{md_cell(pkg_gloss(r))} |"
 end
 
-# The definition's other name, from the package's `legacy_names`: the old,
-# prefixed spelling of a renamed definition (a bridge), or the stripped name
-# of one that kept its prefix (a second name, for good).
+@doc """
+other_name: the definition's other name, from the package's `legacy_names`: the old,
+prefixed spelling of a renamed definition (a bridge), or the stripped name
+of one that kept its prefix (a second name, for good).
+"""
 def other_name(r, e)
   prefix = pkg_legacy_prefix(r)
   name = first(e)
@@ -513,9 +561,11 @@ def render_markdown(records)
   "#{join(concat_lists(header, map(pkg_summary_row, records)), "\n")}\n\n#{join(body, "\n\n")}\n\n#{shared_names_section(records)}\n"
 end
 
-# The names several packages define: legal, since each is reached qualified
-# (`retsu::first`, `kueri::count`), and listed so an author finds the one
-# they mean.
+@doc """
+shared_names_section: the names several packages define: legal, since each is reached qualified
+(`retsu::first`, `kueri::count`), and listed so an author finds the one
+they mean.
+"""
 def shared_names_section(records)
   rows = map(
     fn(g)
@@ -537,7 +587,9 @@ def shared_names_section(records)
   )
 end
 
-# Write the catalogue of every root on BLUE_PATH to `path`.
+@doc """
+write_catalog: write the catalogue of every root on BLUE_PATH to `path`.
+"""
 def write_catalog(path)
   write_file(
     path,

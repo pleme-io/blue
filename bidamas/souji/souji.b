@@ -1,3 +1,26 @@
+@moduledoc """
+souji (掃除) — cleaning a node: Rust target/ directories nobody is building in, and nix store paths nothing refers to, with a dry run first.
+
+The two things that fill a developer node's disk (measured 2026-09-27: 29 GB
+of target/ directories, and a nix store every one of whose paths was still
+referenced). Both cleanings reclaim only what can be rebuilt or re-fetched.
+
+  souji rust [--dry-run] [--min-age-hours N] [ROOT...]   default ROOT ~/code
+  souji nix  [--dry-run] [--older-than-days N]           default 14
+  souji all  [--dry-run]                                 both, rust first
+
+A target/ directory counts only beside a Cargo.toml, and only when nothing
+inside it changed in the last N hours (default 6): a build writing there,
+or a binary running from it, is never pulled out from under. The nix
+cleaning deletes this user's profile generations older than N days and then
+every store path left unreferenced; run it as root to include the system's.
+
+Every tool it runs is at a process boundary (find, du, nix-collect-garbage);
+the logic is blue.
+
+    nix_argv({days: 14, dry_run: false}) #=> ["nix-collect-garbage", "--delete-older-than", "14d"]
+"""
+
 use(
   "retsu",
   [
@@ -17,28 +40,11 @@ use("shisutemu", [:last_nonempty_line, :status_of, :stderr_of, :stdout_of])
 
 legacy_names("0.1.1", "sj")
 
-# souji (掃除) — cleaning a node: Rust target/ directories nobody is building in, and nix store paths nothing refers to, with a dry run first.
-#
-# The two things that fill a developer node's disk (measured 2026-09-27: 29 GB
-# of target/ directories, and a nix store every one of whose paths was still
-# referenced). Both cleanings reclaim only what can be rebuilt or re-fetched.
-#
-#   souji rust [--dry-run] [--min-age-hours N] [ROOT...]   default ROOT ~/code
-#   souji nix  [--dry-run] [--older-than-days N]           default 14
-#   souji all  [--dry-run]                                 both, rust first
-#
-# A target/ directory counts only beside a Cargo.toml, and only when nothing
-# inside it changed in the last N hours (default 6): a build writing there,
-# or a binary running from it, is never pulled out from under. The nix
-# cleaning deletes this user's profile generations older than N days and then
-# every store path left unreferenced; run it as root to include the system's.
-#
-# Every tool it runs is at a process boundary (find, du, nix-collect-garbage);
-# the logic is blue.
-
 # ── arguments ────────────────────────────────────────────────────────
 
-# {command, dry_run, hours, days, roots} from argv, or {error: why}.
+@doc """
+parse: {command, dry_run, hours, days, roots} from argv, or {error: why}.
+"""
 def parse(args)
   if is_empty(args)
     {error: "a command: rust, nix or all"}
@@ -101,8 +107,10 @@ end
 
 # ── rust ─────────────────────────────────────────────────────────────
 
-# target/ directories under root, at most depth levels down, each beside a
-# Cargo.toml. find prunes at each target/ so it never walks inside one.
+@doc """
+targets: target/ directories under root, at most depth levels down, each beside a
+Cargo.toml. find prunes at each target/ so it never walks inside one.
+"""
 def targets(root, depth)
   cap = exec_capture(
     "find",
@@ -121,7 +129,9 @@ def targets(root, depth)
   )
 end
 
-# Kibibytes under dir, from du; 0 when du could not read it.
+@doc """
+size_kib: kibibytes under dir, from du; 0 when du could not read it.
+"""
 def size_kib(dir)
   cap = exec_capture("du", "-sk", dir)
   n = to_int(first(split(blue::trim(stdout_of(cap)), "\t")))
@@ -132,8 +142,10 @@ def size_kib(dir)
   end
 end
 
-# True when anything inside dir changed in the last `hours` hours: find stops
-# at the first such file.
+@doc """
+active?: true when anything inside dir changed in the last `hours` hours: find stops
+at the first such file.
+"""
 def active?(dir, hours)
   if hours == 0
     false
@@ -150,7 +162,9 @@ def active?(dir, hours)
   end
 end
 
-# One row per target/: {path, kib, active}.
+@doc """
+rust_survey: one row per target/: {path, kib, active}.
+"""
 def rust_survey(roots, hours)
   map(
     (d) -> {path: d, kib: size_kib(d), active: active?(d, hours)},
@@ -235,9 +249,11 @@ def verdict(row, verb)
   end
 end
 
-# The command's entry point. blue has no exit(), so a usage error is printed
-# to stderr and then thrown, which exits the process non-zero; a run that
-# completes returns nil.
+@doc """
+main: the command's entry point. blue has no exit(), so a usage error is printed
+to stderr and then thrown, which exits the process non-zero; a run that
+completes returns nil.
+"""
 def main()
   opts = parse(argv)
   if get(opts, :error) != nil

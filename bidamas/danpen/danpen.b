@@ -1906,6 +1906,9 @@ def document_text(ind, doc)
   end
 end
 
+@doc """
+parse: graphQL SDL or operation text to a document tree.
+"""
 def parse(text, opts?)
   opts = checked(opts, [:spans])
   toks = tokens(text)
@@ -1913,6 +1916,11 @@ def parse(text, opts?)
   document_of(p, 0, [])
 end
 
+@doc """
+render: a document tree to canonical GraphQL text.
+
+    render(parse("{ a }")) #=> "{\n  a\n}\n"
+"""
 def render(document, format?, opts?)
   checked(opts, [])
   f = format or :graphql
@@ -3335,6 +3343,9 @@ def schema_of(schema, opts?)
   end
 end
 
+@doc """
+check: masking, composition and entity-backed law findings for a program.
+"""
 def check(subject, rules?, opts?)
   opts = checked(opts, [:defaults])
   doc = as_document(subject)
@@ -3350,6 +3361,9 @@ def check(subject, rules?, opts?)
   end
 end
 
+@doc """
+validate: the document if every field and type is in the schema.
+"""
 def validate(document, schema?, opts?)
   found = check(document, schema, opts)
   if is_empty(found)
@@ -3411,6 +3425,9 @@ def flat_selections(items)
   )
 end
 
+@doc """
+fragment: declare a named field selection on one schema type.
+"""
 def fragment(name, spec)
   spec = checked(spec, [:on, :fields])
   on = get(spec, :on)
@@ -3462,6 +3479,9 @@ def operation_of(frag)
   }
 end
 
+@doc """
+compose: one operation from the union of the fragments a view uses.
+"""
 def compose(first, second)
   doc = if map?(first) and get(first, :kind) == :fragment
     {kind: :document, definitions: [operation_of(first), first]}
@@ -3564,10 +3584,18 @@ def select_into(value, sels, hooks?)
   end
 end
 
+@doc """
+select: only the fields a fragment declares, read from a value.
+"""
 def select(value, fragment)
   select_into(value, get(fragment, :selections))
 end
 
+@doc """
+hash: the persisted-operation id of an operation's canonical text.
+
+    hash(parse("query   Q {\n\n a }")) #=> hash(parse("query Q { a }"))
+"""
 def hash(operation, algorithm?)
   shomei::hash(render(as_document(operation)), algorithm or :sha256)
 end

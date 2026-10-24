@@ -1,111 +1,131 @@
+@moduledoc """
+shomei (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
+
+`angou` is the classical curriculum and says so: none of its ciphers is
+secure. This package is the other end. It signs, verifies and hashes with
+audited primitives, and it encrypts nothing, which is why its name is the
+word for a signature and not a cipher word.
+
+# What it stands on
+
+The runtime's crypto layer (blue-lang-runtime `crypto`, pure Rust, no C,
+installed in every interpreter including the wasm one):
+
+  blake3_hex(data)                             BLAKE3-256, 64 hex chars
+  ed25519_keypair(seed_hex)                    [secret_hex, public_hex]
+  ed25519_sign(secret_hex, message)            128 hex chars
+  ed25519_verify(public_hex, message, sig)     true / false
+
+A message is a string (its UTF-8 bytes) or a list of byte integers. Keys and
+signatures are hex. The runtime names say the ALGORITHM; this package's names
+say the ROLE (`sign_message`, `hash_message`), so a format written against
+it says what each field is for, and the header here says which algorithm.
+
+# Three rules this package holds
+
+**Bad input raises; only a bad signature is false.** `verify_message` is
+false for exactly one thing: a well-formed signature that does not verify.
+A key that is not hex, a signature of the wrong length or a public key that
+is not a curve point raises, from the runtime. A verifier that answered
+false for garbage would make a wiring bug look like a forgery caught.
+
+**The seed is the caller's.** `signing_keypair` takes 32 bytes of hex and
+draws no randomness, so the same seed is always the same key. That keeps
+the runtime layer pure and the RFC 8032 vectors checkable; it also means a
+weak seed is a weak key. Supply 32 bytes from a real entropy source or a
+secret store, never a password or a counter.
+
+**A chain link cannot be read two ways.** A link hashes a domain tag, the
+previous hash and the payload: `"blue-chain/v1/link\n" + prev + "\n" +
+payload`. The previous hash is refused unless it is exactly 64 lowercase
+hex characters, so where it ends is fixed and no (prev, payload) pair can
+collide with another by moving the boundary. The genesis has its own tag,
+`"blue-chain/v1/genesis\n" + label`, so two logs started with different
+labels never share a first hash, and a genesis is never mistaken for a link.
+Anyone can recompute a chain from those two lines with any BLAKE3 tool;
+the tests below pin values computed that way by `b3sum`.
+
+# What is deliberately absent
+
+**No encryption.** Nothing here hides a message; signatures prove who wrote
+it and hashes prove it did not change.
+
+**No key storage.** A secret key is a blue string while it is in use, and
+blue strings are ordinary memory. Where keys live is the caller's decision.
+
+**No clock and no sequence number.** A chain orders its payloads and proves
+none were changed, removed or reordered after the head was recorded. It does
+not say when anything happened; put a timestamp in the payload if it matters.
+
+    random(0) #=> []
+"""
+
 use("deeta", [:get_or])
 use("kazu", [:max])
 use("moji", [:checked])
 use("retsu", [:first, :is_empty, :size])
 use("tesuto", [:raises?])
 
-# shomei (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
-#
-# `angou` is the classical curriculum and says so: none of its ciphers is
-# secure. This package is the other end. It signs, verifies and hashes with
-# audited primitives, and it encrypts nothing, which is why its name is the
-# word for a signature and not a cipher word.
-#
-# # What it stands on
-#
-# The runtime's crypto layer (blue-lang-runtime `crypto`, pure Rust, no C,
-# installed in every interpreter including the wasm one):
-#
-#   blake3_hex(data)                             BLAKE3-256, 64 hex chars
-#   ed25519_keypair(seed_hex)                    [secret_hex, public_hex]
-#   ed25519_sign(secret_hex, message)            128 hex chars
-#   ed25519_verify(public_hex, message, sig)     true / false
-#
-# A message is a string (its UTF-8 bytes) or a list of byte integers. Keys and
-# signatures are hex. The runtime names say the ALGORITHM; this package's names
-# say the ROLE (`sign_message`, `hash_message`), so a format written against
-# it says what each field is for, and the header here says which algorithm.
-#
-# # Three rules this package holds
-#
-# **Bad input raises; only a bad signature is false.** `verify_message` is
-# false for exactly one thing: a well-formed signature that does not verify.
-# A key that is not hex, a signature of the wrong length or a public key that
-# is not a curve point raises, from the runtime. A verifier that answered
-# false for garbage would make a wiring bug look like a forgery caught.
-#
-# **The seed is the caller's.** `signing_keypair` takes 32 bytes of hex and
-# draws no randomness, so the same seed is always the same key. That keeps
-# the runtime layer pure and the RFC 8032 vectors checkable; it also means a
-# weak seed is a weak key. Supply 32 bytes from a real entropy source or a
-# secret store, never a password or a counter.
-#
-# **A chain link cannot be read two ways.** A link hashes a domain tag, the
-# previous hash and the payload: `"blue-chain/v1/link\n" + prev + "\n" +
-# payload`. The previous hash is refused unless it is exactly 64 lowercase
-# hex characters, so where it ends is fixed and no (prev, payload) pair can
-# collide with another by moving the boundary. The genesis has its own tag,
-# `"blue-chain/v1/genesis\n" + label`, so two logs started with different
-# labels never share a first hash, and a genesis is never mistaken for a link.
-# Anyone can recompute a chain from those two lines with any BLAKE3 tool;
-# the tests below pin values computed that way by `b3sum`.
-#
-# # What is deliberately absent
-#
-# **No encryption.** Nothing here hides a message; signatures prove who wrote
-# it and hashes prove it did not change.
-#
-# **No key storage.** A secret key is a blue string while it is in use, and
-# blue strings are ordinary memory. Where keys live is the caller's decision.
-#
-# **No clock and no sequence number.** A chain orders its payloads and proves
-# none were changed, removed or reordered after the head was recorded. It does
-# not say when anything happened; put a timestamp in the payload if it matters.
-
 # ── keys ───────────────────────────────────────────────────────────
 
-# The Ed25519 keypair for a 32-byte seed (64 hex characters): [secret, public].
-# Deterministic, so the same seed always gives the same key.
+@doc """
+signing_keypair: the Ed25519 keypair for a 32-byte seed (64 hex characters): [secret, public].
+Deterministic, so the same seed always gives the same key.
+"""
 def signing_keypair(seed_hex)
   ed25519_keypair(seed_hex)
 end
 
-# The secret half of a keypair: the seed, in lowercase hex. Never publish it.
+@doc """
+keypair_secret: the secret half of a keypair: the seed, in lowercase hex. Never publish it.
+"""
 def keypair_secret(kp)
   first(kp)
 end
 
-# The public half of a keypair, in lowercase hex. This is what a verifier holds.
+@doc """
+keypair_public: the public half of a keypair, in lowercase hex. This is what a verifier holds.
+"""
 def keypair_public(kp)
   nth(1, kp)
 end
 
 # ── signed messages ────────────────────────────────────────────────
 
-# The Ed25519 signature of a message (a string or a byte list), in hex.
-# Ed25519 is deterministic: one key and one message have one signature.
+@doc """
+sign_message: the Ed25519 signature of a message (a string or a byte list), in hex.
+Ed25519 is deterministic: one key and one message have one signature.
+"""
 def sign_message(secret_hex, message)
   ed25519_sign(secret_hex, message)
 end
 
-# True when the signature is valid for the message under the public key; false
-# when it is not. Malformed input raises rather than answering false.
+@doc """
+verify_message: true when the signature is valid for the message under the public key; false
+when it is not. Malformed input raises rather than answering false.
+"""
 def verify_message(public_hex, message, signature_hex)
   ed25519_verify(public_hex, message, signature_hex)
 end
 
 # ── hashes ─────────────────────────────────────────────────────────
 
-# The BLAKE3-256 hash of a string or a byte list, in lowercase hex.
+@doc """
+hash_message: the BLAKE3-256 hash of a string or a byte list, in lowercase hex.
+
+    hash_message([]) #=> hash_message("")
+"""
 def hash_message(data)
   blake3_hex(data)
 end
 
-# True for exactly 64 lowercase hex characters: the shape `hash_message` returns.
-# Deletes each of the 16 digits with the runtime's `replace` and asks whether
-# anything is left: 16 native calls instead of a lambda per character. Every
-# chain_link runs this, and the per-character form was 97% of a link's cost
-# (31 of 32 µs; now 12 µs. Measured 2026-09-24 by nisshi's profile).
+@doc """
+is_hash_hex: true for exactly 64 lowercase hex characters: the shape `hash_message` returns.
+Deletes each of the 16 digits with the runtime's `replace` and asks whether
+anything is left: 16 native calls instead of a lambda per character. Every
+chain_link runs this, and the per-character form was 97% of a link's cost
+(31 of 32 µs; now 12 µs. Measured 2026-09-24 by nisshi's profile).
+"""
 def is_hash_hex(s)
   if string?(s)
     length(s) == 64 and
@@ -138,7 +158,9 @@ end
 
 # ── hash chains ────────────────────────────────────────────────────
 
-# The first hash of a chain, from a label that names the log.
+@doc """
+chain_genesis: the first hash of a chain, from a label that names the log.
+"""
 def chain_genesis(label)
   if string?(label)
     hash_message("blue-chain/v1/genesis\n#{label}")
@@ -147,8 +169,10 @@ def chain_genesis(label)
   end
 end
 
-# The hash that follows `prev` when `payload` (a string) is appended.
-# Raises when `prev` is not a hash or `payload` is not a string.
+@doc """
+chain_link: the hash that follows `prev` when `payload` (a string) is appended.
+Raises when `prev` is not a hash or `payload` is not a string.
+"""
 def chain_link(prev, payload)
   chain_require_hash(prev, "the previous hash")
   if string?(payload)
@@ -158,15 +182,19 @@ def chain_link(prev, payload)
   end
 end
 
-# The hash after every payload is linked in order: the genesis for no payloads.
+@doc """
+chain_head: the hash after every payload is linked in order: the genesis for no payloads.
+"""
 def chain_head(genesis, payloads)
   chain_require_hash(genesis, "the genesis")
   reduce(chain_link, genesis, payloads)
 end
 
-# Every link hash in order, one per payload, as a log stores them beside its
-# entries. Built with `reduce`, not recursion, so a long log does not hit
-# blue's depth bound.
+@doc """
+chain_hashes: every link hash in order, one per payload, as a log stores them beside its
+entries. Built with `reduce`, not recursion, so a long log does not hit
+blue's depth bound.
+"""
 def chain_hashes(genesis, payloads)
   chain_require_hash(genesis, "the genesis")
   reverse(
@@ -178,23 +206,29 @@ def chain_hashes(genesis, payloads)
   )
 end
 
-# True when linking the payloads onto the genesis reproduces `head` exactly.
-# A changed, removed, added or reordered payload makes it false.
+@doc """
+chain_verify: true when linking the payloads onto the genesis reproduces `head` exactly.
+A changed, removed, added or reordered payload makes it false.
+"""
 def chain_verify(genesis, payloads, head)
   chain_require_hash(head, "the head")
   chain_head(genesis, payloads) == head
 end
 
-# The index of the first stored hash that the payloads do not reproduce, or nil
-# when every stored hash matches and the counts agree. A missing or extra entry
-# breaks at the first position only one side has.
+@doc """
+chain_first_break: the index of the first stored hash that the payloads do not reproduce, or nil
+when every stored hash matches and the counts agree. A missing or extra entry
+breaks at the first position only one side has.
+"""
 def chain_first_break(genesis, payloads, hashes)
   computed = chain_hashes(genesis, payloads)
   n = max(size(computed), size(hashes))
   find(range(0, n), (i) -> chain_at(i, computed) != chain_at(i, hashes))
 end
 
-# The most recent link in a reversed accumulator, or the genesis when empty.
+@doc """
+chain_prev: the most recent link in a reversed accumulator, or the genesis when empty.
+"""
 def chain_prev(acc, genesis)
   if is_empty(acc)
     genesis
@@ -203,15 +237,19 @@ def chain_prev(acc, genesis)
   end
 end
 
-# The i-th element, or nil past the end, so two lists of different lengths
-# compare position by position.
+@doc """
+chain_at: the i-th element, or nil past the end, so two lists of different lengths
+compare position by position.
+"""
 def chain_at(i, xs)
   if i < size(xs)
     nth(i, xs)
   end
 end
 
-# Raise unless `h` has the shape of a hash, naming which argument it was.
+@doc """
+chain_require_hash: raise unless `h` has the shape of a hash, naming which argument it was.
+"""
 def chain_require_hash(h, what)
   if not is_hash_hex(h)
     raise(:chain, "#{what} must be 64 lowercase hex characters")
@@ -235,7 +273,9 @@ end
 # replays it with b3sum and no blue. To write one as JSON, make each step an
 # object: blue's JSON reads a list of [text, value] pairs as an object.
 
-# The leaf hash of a payload (a string).
+@doc """
+merkle_leaf: the leaf hash of a payload (a string).
+"""
 def merkle_leaf(payload)
   if string?(payload)
     hash_message("blue-merkle/v1/leaf\n#{payload}")
@@ -244,14 +284,20 @@ def merkle_leaf(payload)
   end
 end
 
-# The node hash over two child hashes, left then right.
+@doc """
+merkle_node: the node hash over two child hashes, left then right.
+"""
 def merkle_node(left, right)
   chain_require_hash(left, "the left hash")
   chain_require_hash(right, "the right hash")
   hash_message("blue-merkle/v1/node\n#{left}\n#{right}")
 end
 
-# The root over the payloads in order; the empty root for none.
+@doc """
+merkle_root: the root over the payloads in order; the empty root for none.
+
+    merkle_root(["a"]) #=> merkle_leaf("a")
+"""
 def merkle_root(payloads)
   if is_empty(payloads)
     hash_message("blue-merkle/v1/empty")
@@ -260,7 +306,11 @@ def merkle_root(payloads)
   end
 end
 
-# The proof that payload `index` is in the tree: [side, hash] steps, leaf up.
+@doc """
+merkle_proof: the proof that payload `index` is in the tree: [side, hash] steps, leaf up.
+
+    merkle_proof(["a"], 0) #=> []
+"""
 def merkle_proof(payloads, index)
   if not (integer?(index) and index >= 0 and index < size(payloads))
     raise(:merkle, "the index must name one of the payloads")
@@ -268,14 +318,18 @@ def merkle_proof(payloads, index)
   merkle_path(map(merkle_leaf, payloads), index, [])
 end
 
-# True when the proof climbs from the payload's leaf to `root`. A step with a
-# side other than "L" or "R", or a hash of the wrong shape, raises.
+@doc """
+merkle_verify: true when the proof climbs from the payload's leaf to `root`. A step with a
+side other than "L" or "R", or a hash of the wrong shape, raises.
+"""
 def merkle_verify(root, payload, proof)
   chain_require_hash(root, "the root")
   reduce(merkle_climb, merkle_leaf(payload), proof) == root
 end
 
-# The one hash a level of one node is.
+@doc """
+merkle_top: the one hash a level of one node is.
+"""
 def merkle_top(level)
   if size(level) == 1
     first(level)
@@ -284,12 +338,16 @@ def merkle_top(level)
   end
 end
 
-# The next level up: each pair joined, an odd last node carried as it is.
+@doc """
+merkle_up: the next level up: each pair joined, an odd last node carried as it is.
+"""
 def merkle_up(level)
   map((i) -> merkle_pair(level, i), range(0, floor((size(level) + 1) / 2)))
 end
 
-# The parent of the pair starting at 2i, or the lone node when it has no pair.
+@doc """
+merkle_pair: the parent of the pair starting at 2i, or the lone node when it has no pair.
+"""
 def merkle_pair(level, i)
   right = chain_at(2 * i + 1, level)
   if right.nil?
@@ -299,7 +357,9 @@ def merkle_pair(level, i)
   end
 end
 
-# The proof steps from position `i` of `level` to the top, `acc` reversed.
+@doc """
+merkle_path: the proof steps from position `i` of `level` to the top, `acc` reversed.
+"""
 def merkle_path(level, i, acc)
   if size(level) == 1
     reverse(acc)
@@ -312,7 +372,9 @@ def merkle_path(level, i, acc)
   end
 end
 
-# The sibling of position `i` as a proof step, or nil when it has none.
+@doc """
+merkle_step: the sibling of position `i` as a proof step, or nil when it has none.
+"""
 def merkle_step(level, i)
   if i % 2 == 1
     ["L", nth(i - 1, level)]
@@ -335,7 +397,9 @@ def merkle_push(step, acc)
   end
 end
 
-# One step up a proof: the running hash joined with the step's sibling.
+@doc """
+merkle_climb: one step up a proof: the running hash joined with the step's sibling.
+"""
 def merkle_climb(h, step)
   if first(step) == "L"
     merkle_node(nth(1, step), h)
@@ -348,10 +412,14 @@ end
 
 # ── verbs ──────────────────────────────────────────────────────────
 
-# The hash of data as lowercase hex under a named algorithm: :sha1, :sha256,
-# :sha512 or :blake3; any other raises :bad_option. With key: it is the HMAC of
-# data under that key, for :sha1, :sha256 and :sha512 (:blake3 has no keyed
-# form here and raises :bad_option).
+@doc """
+hash: the hash of data as lowercase hex under a named algorithm: :sha1, :sha256,
+:sha512 or :blake3; any other raises :bad_option. With key: it is the HMAC of
+data under that key, for :sha1, :sha256 and :sha512 (:blake3 has no keyed
+form here and raises :bad_option).
+
+    hash("x", :blake3) #=> hash_message("x")
+"""
 def hash(data, algorithm, opts?)
   opts = checked(opts, [:key])
   key = get_or(opts, :key, nil)
@@ -367,8 +435,12 @@ def hash(data, algorithm, opts?)
   end
 end
 
-# The keyed digest (HMAC) of data under key, in lowercase hex, for :sha1,
-# :sha256 or :sha512; any other algorithm raises :bad_option.
+@doc """
+mac: the keyed digest (HMAC) of data under key, in lowercase hex, for :sha1,
+:sha256 or :sha512; any other algorithm raises :bad_option.
+
+    mac("x", "k", :sha1) #=> hash("x", :sha1, {key: "k"})
+"""
 def mac(data, key, algorithm)
   if member?(algorithm, [:sha1, :sha256, :sha512])
     hmac_hex(algorithm, key, data)
@@ -380,14 +452,20 @@ def mac(data, key, algorithm)
   end
 end
 
-# n random bytes from the system entropy source, as a list of integers 0..255;
-# n is an integer from 0 to 1048576.
+@doc """
+random: n random bytes from the system entropy source, as a list of integers 0..255;
+n is an integer from 0 to 1048576.
+
+    random(0) #=> []
+"""
 def random(n)
   random_bytes(n)
 end
 
-# Whether two strings or byte lists hold the same bytes. Every position is read
-# whether or not an earlier one differs; a difference in length is false.
+@doc """
+same?: whether two strings or byte lists hold the same bytes. Every position is read
+whether or not an earlier one differs; a difference in length is false.
+"""
 def same?(a, b)
   bytes_equal?(a, b)
 end
@@ -399,23 +477,33 @@ def sign(data, secret)
     raise(:bad_key, "sign: the secret must be 64 lowercase hex characters")
 end
 
-# Whether the signature holds for the data under the public key; false only
-# for a well-formed signature that does not verify.
+@doc """
+verify?: whether the signature holds for the data under the public key; false only
+for a well-formed signature that does not verify.
+"""
 def verify?(data, signature, public)
   verify_message(public, data, signature)
 end
 
-# Whether the payloads reproduce the stated head from the genesis.
+@doc """
+verify_chain: whether the payloads reproduce the stated head from the genesis.
+"""
 def verify_chain(genesis, payloads, head)
   intact?(genesis, payloads, head)
 end
 
-# The sibling path, leaf up, that shows payload `index` is in the tree.
+@doc """
+proof: the sibling path, leaf up, that shows payload `index` is in the tree.
+
+    proof(["a"], 0) #=> []
+"""
 def proof(payloads, index)
   prove(payloads, index)
 end
 
-# Whether a proof climbs from the payload to the root.
+@doc """
+verify_proof?: whether a proof climbs from the payload to the root.
+"""
 def verify_proof?(root, payload, proof)
   proves?(root, payload, proof)
 end
@@ -798,42 +886,74 @@ test "verify_chain and proof follow the chain and the tree"
   assert (verify_proof?("nope", "a", []) rescue :raised) == :raised
 end
 
+@doc """
+genesis: first hash of a named chain.
+"""
 def genesis(label)
   chain_genesis(label)
 end
 
+@doc """
+chain: hash that follows when a payload is appended.
+"""
 def chain(previous, payload)
   chain_link(previous, payload)
 end
 
+@doc """
+head: hash after all payloads are linked.
+"""
 def head(genesis, payloads)
   chain_head(genesis, payloads)
 end
 
+@doc """
+trail: every link hash in order.
+"""
 def trail(genesis, payloads)
   chain_hashes(genesis, payloads)
 end
 
+@doc """
+intact?: re-linking the payloads reproduces the head.
+"""
 def intact?(genesis, payloads, head)
   chain_verify(genesis, payloads, head)
 end
 
+@doc """
+first_break: index of the first stored hash the payloads miss.
+"""
 def first_break(genesis, payloads, hashes)
   chain_first_break(genesis, payloads, hashes)
 end
 
+@doc """
+root: merkle root over payloads in order.
+
+    root([]) #=> merkle_root([])
+"""
 def root(payloads)
   merkle_root(payloads)
 end
 
+@doc """
+prove: inclusion proof for one payload.
+"""
 def prove(payloads, index)
   merkle_proof(payloads, index)
 end
 
+@doc """
+proves?: proof climbs from payload to root.
+"""
 def proves?(root, payload, proof)
   merkle_verify(root, payload, proof)
 end
 
+@doc """
+public: the half a verifier holds.
+"""
 def public(keypair)
   keypair_public(keypair)
 end

@@ -70,10 +70,16 @@ def resolves(repo, ref)
   succeeds(repo, ["rev-parse", "--verify", "--quiet", "#{ref}^{commit}"])
 end
 
+@doc """
+exists?: whether the subject is there; in_space("gitto", repo) asks about a ref.
+"""
 def exists?(repo, ref)
   resolves(repo, ref)
 end
 
+@doc """
+get: one commit, nil when the ref is absent.
+"""
 def get(repo, ref, opts?)
   checked(opts, [])
   if resolves(repo, ref)
@@ -117,6 +123,9 @@ def require_repo(repo)
   end
 end
 
+@doc """
+info: the current state of the subject as a record: in_space("gitto", repo) is the repository's state.
+"""
 def info(repo)
   require_repo(repo)
   head = head_of(repo)
@@ -176,6 +185,9 @@ def limit_args(opts)
   end
 end
 
+@doc """
+list: branches, tags, commits, remotes or worktrees, chosen by of:
+"""
 def list(repo, opts?)
   o = checked(opts, [:of, :limit, :ref])
   require_repo(repo)
@@ -246,6 +258,9 @@ def list(repo, opts?)
   end
 end
 
+@doc """
+read: the whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler.
+"""
 def read(repo, path, opts?)
   o = checked(opts, [:at])
   at = get_or(o, :at, "HEAD")
@@ -273,6 +288,9 @@ def change_line(line)
   {path: nth(1, f), state: state_of(nth(0, f))}
 end
 
+@doc """
+diff: the differences between two values as change records, by the space of a: diff(in_space("gitto", repo), from, to) compares two refs.
+"""
 def diff(repo, a, b, opts?)
   o = checked(opts, [:paths])
   map(
@@ -299,6 +317,9 @@ def ref_of(key, kind)
   end
 end
 
+@doc """
+create: add a new entry, refusing to overwrite; in_space("gitto", repo) makes a branch or tag.
+"""
 def create(repo, key, value, opts?)
   o = checked(opts, [:kind])
   ref = ref_of(key, get_or(o, :kind, :branch))
@@ -312,6 +333,9 @@ def create(repo, key, value, opts?)
   value
 end
 
+@doc """
+delete: make an entry absent; absent counts as done. A plain map goes to jisho; in_space("gitto", repo) deletes a branch or tag.
+"""
 def delete(repo, key)
   ref = ref_of(key, :branch)
   if succeeds(repo, ["show-ref", "--verify", "--quiet", ref])

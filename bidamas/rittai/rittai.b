@@ -1,3 +1,20 @@
+@moduledoc """
+rittai (立体) — solids: poses, triangle meshes built by extrusion and sweep, their validity, volume and centroid, and STL.
+
+A point is [x, y, z]. A mesh is [vertices, faces]: each face is [i, j, k],
+indices into the vertices, wound counter-clockwise seen from OUTSIDE, so
+every normal points out and the divergence theorem gives a positive volume.
+Solids are generated rather than carved: an extrusion of a kikagaku region
+(a sheet with holes, a tube's cross-section) or a sweep of a profile along
+a path (a bent wire), because the parts they are for (folded sheet, welded
+tube, bent wire) are made that way. There are no 3D boolean operations.
+
+Units are the caller's; the design pipeline uses millimetres throughout.
+Written for nupastel docs/plans/design-pipeline.md, step 4.
+
+    turn(square_points, [0, 1, 2], 1) #=> 1
+"""
+
 use(
   "gyouretsu",
   [
@@ -69,19 +86,6 @@ use(
 
 legacy_names("0.1.1", "rt")
 
-# rittai (立体) — solids: poses, triangle meshes built by extrusion and sweep, their validity, volume and centroid, and STL.
-#
-# A point is [x, y, z]. A mesh is [vertices, faces]: each face is [i, j, k],
-# indices into the vertices, wound counter-clockwise seen from OUTSIDE, so
-# every normal points out and the divergence theorem gives a positive volume.
-# Solids are generated rather than carved: an extrusion of a kikagaku region
-# (a sheet with holes, a tube's cross-section) or a sweep of a profile along
-# a path (a bent wire), because the parts they are for (folded sheet, welded
-# tube, bent wire) are made that way. There are no 3D boolean operations.
-#
-# Units are the caller's; the design pipeline uses millimetres throughout.
-# Written for nupastel docs/plans/design-pipeline.md, step 4.
-
 # ── points and directions ────────────────────────────────────────────
 
 def x(p)
@@ -96,7 +100,9 @@ def z(p)
   nth(2, p)
 end
 
-# A 2-D point lifted onto the plane z.
+@doc """
+lift: a 2-D point lifted onto the plane z.
+"""
 def lift(p, z)
   [px(p), py(p), z]
 end
@@ -117,7 +123,9 @@ def rot_z(theta)
   [[cos(theta), -sin(theta), 0], [sin(theta), cos(theta), 0], [0, 0, 1]]
 end
 
-# Rotation by theta about a unit axis (Rodrigues' formula).
+@doc """
+rot_axis: rotation by theta about a unit axis (Rodrigues' formula).
+"""
 def rot_axis(axis, theta)
   k = normalize(axis)
   kx = x(k)
@@ -130,9 +138,11 @@ def rot_axis(axis, theta)
   )
 end
 
-# The rotation taking unit direction a onto unit direction b by the shortest
-# turn. Opposite directions have no unique shortest turn; a half-turn about
-# any axis perpendicular to a is chosen.
+@doc """
+rot_between: the rotation taking unit direction a onto unit direction b by the shortest
+turn. Opposite directions have no unique shortest turn; a half-turn about
+any axis perpendicular to a is chosen.
+"""
 def rot_between(a, b)
   ua = normalize(a)
   ub = normalize(b)
@@ -146,7 +156,9 @@ def rot_between(a, b)
   end
 end
 
-# Some unit vector perpendicular to v.
+@doc """
+perpendicular: some unit vector perpendicular to v.
+"""
 def perpendicular(v)
   trial = if abs(x(v)) < 0.9
     [1, 0, 0]
@@ -181,8 +193,10 @@ def rt_apply(pose, p)
   vadd(mvmul(pose_rotation(pose), p), pose_translation(pose))
 end
 
-# First b, then a: rt_apply(rt_compose(a, b), p) == rt_apply(a, rt_apply(b, p)).
 # waive B0013: `compose` is a builtin rittai also uses, so the prefix stays; rittai::compose names it too
+@doc """
+rt_compose: first b, then a: rt_apply(rt_compose(a, b), p) == rt_apply(a, rt_apply(b, p)).
+"""
 def rt_compose(a, b)
   pose(
     matmul(pose_rotation(a), pose_rotation(b)),
@@ -190,20 +204,27 @@ def rt_compose(a, b)
   )
 end
 
-# The inverse pose. A rotation's inverse is its transpose.
+@doc """
+inverse: the inverse pose. A rotation's inverse is its transpose.
+"""
 def inverse(pose)
   rt = transpose(pose_rotation(pose))
   rittai::pose(rt, scale(-1, mvmul(rt, pose_translation(pose))))
 end
 
-# The pose that stands a part built along +z on the segment from a to b: its
-# origin at a, its +z along b - a. This is how a tube member is placed.
+@doc """
+pose_along: the pose that stands a part built along +z on the segment from a to b: its
+origin at a, its +z along b - a. This is how a tube member is placed.
+"""
 def pose_along(a, b)
   pose(rot_between([0, 0, 1], vsub(b, a)), a)
 end
 
 # ── meshes ───────────────────────────────────────────────────────────
 
+@doc """
+mesh: solid made of triangles.
+"""
 def mesh(vertices, faces)
   [vertices, faces]
 end
@@ -220,7 +241,9 @@ def empty_mesh()
   mesh([], [])
 end
 
-# Several meshes as one, the later faces re-indexed past the earlier vertices.
+@doc """
+merge: several meshes as one, the later faces re-indexed past the earlier vertices.
+"""
 def merge(meshes)
   reduce(merge_two, empty_mesh, meshes)
 end
@@ -233,6 +256,9 @@ def merge_two(a, b)
   )
 end
 
+@doc """
+transform: mesh moved and turned by a pose.
+"""
 def transform(pose, m)
   mesh(map((p) -> rt_apply(pose, p), vertices(m)), faces(m))
 end
@@ -245,7 +271,9 @@ def face_points(m, f)
   map((i) -> nth(i, vertices(m)), f)
 end
 
-# The face's outward normal, unit length; zero for a degenerate face.
+@doc """
+face_normal: the face's outward normal, unit length; zero for a degenerate face.
+"""
 def face_normal(m, f)
   pts = face_points(m, f)
   n = cross_product(
@@ -269,6 +297,9 @@ def face_area(m, f)
   ) / 2
 end
 
+@doc """
+surface_area: total area of all faces.
+"""
 def surface_area(m)
   sum(map((f) -> face_area(m, f), faces(m)))
 end
@@ -282,10 +313,16 @@ def tet_volume(pts)
   dot(nth(0, pts), cross_product(nth(1, pts), nth(2, pts))) / 6
 end
 
+@doc """
+volume: enclosed volume of a closed mesh.
+"""
 def volume(m)
   sum(map((f) -> tet_volume(face_points(m, f)), faces(m)))
 end
 
+@doc """
+centroid: centre of mass of a mesh.
+"""
 def centroid(m)
   v = volume(m)
   moment = reduce(
@@ -308,12 +345,17 @@ def centroid_term(acc, pts)
   )
 end
 
-# Mass from volume and density. With lengths in mm and density in g/cm^3
-# (316L: 7.99), mm^3 * g/cm^3 / 1000 is grams.
+@doc """
+mass_g: mass from volume and density. With lengths in mm and density in g/cm^3
+(316L: 7.99), mm^3 * g/cm^3 / 1000 is grams.
+"""
 def mass_g(m, density_g_cm3)
   volume(m) * density_g_cm3 / 1000
 end
 
+@doc """
+bounds: smallest axis-aligned box around a mesh.
+"""
 def bounds(m)
   vs = vertices(m)
   [
@@ -432,7 +474,9 @@ def reverse_key(k)
   "#{nth(1, parts)}>#{nth(0, parts)}"
 end
 
-# The edge regardless of direction: its two indices, lower first.
+@doc """
+undirected_key: the edge regardless of direction: its two indices, lower first.
+"""
 def undirected_key(k)
   parts = map((s) -> to_int(s), split(k, ">"))
   "#{to_s(min(nth(0, parts), nth(1, parts)))}-#{to_s(max(nth(0, parts), nth(1, parts)))}"
@@ -440,16 +484,20 @@ end
 
 # ── welding and fusing ───────────────────────────────────────────────
 
-# A position as a key, to a millionth of the unit: two vertices closer than
-# that are one vertex.
+@doc """
+position_key: a position as a key, to a millionth of the unit: two vertices closer than
+that are one vertex.
+"""
 def position_key(p)
   "#{to_s(round(x(p) * 1_000_000))},#{to_s(round(y(p) * 1_000_000))},#{to_s(round(z(p) * 1_000_000))}"
 end
 
-# Vertices at the same position merged into one, faces re-indexed. An
-# assembly of parts that touch has a duplicate vertex at every seam; welded,
-# a seam either closes (the parts were fused properly) or shows as an edge
-# shared by more than two faces (they only touch).
+@doc """
+weld: vertices at the same position merged into one, faces re-indexed. An
+assembly of parts that touch has a duplicate vertex at every seam; welded,
+a seam either closes (the parts were fused properly) or shows as an edge
+shared by more than two faces (they only touch).
+"""
 def weld(m)
   vs = vertices(m)
   fin = reduce(weld_step, {index: {}, kept: [], count: 0, remap: []}, vs)
@@ -481,7 +529,9 @@ def weld_step(acc, p)
   end
 end
 
-# The mesh without the faces at the given positions in its face list.
+@doc """
+drop_faces: the mesh without the faces at the given positions in its face list.
+"""
 def drop_faces(m, drop)
   mesh(
     vertices(m),
@@ -492,11 +542,13 @@ def drop_faces(m, drop)
   )
 end
 
-# rt_extrude's face order is a contract: the side walls come first, two
-# triangles per loop edge, loop by loop (the outline, then each hole) and
-# edge by edge from each loop's first point; then the top cap, then the
-# bottom. These are the two wall faces of edge e of loop l, the edge from
-# point e to point e + 1, for a caller fusing a part onto that wall.
+@doc """
+extrude_wall_faces: rt_extrude's face order is a contract: the side walls come first, two
+triangles per loop edge, loop by loop (the outline, then each hole) and
+edge by edge from each loop's first point; then the top cap, then the
+bottom. These are the two wall faces of edge e of loop l, the edge from
+point e to point e + 1, for a caller fusing a part onto that wall.
+"""
 def extrude_wall_faces(r, l, e)
   sizes = concat_lists(
     [size(region_outline(r))],
@@ -506,7 +558,9 @@ def extrude_wall_faces(r, l, e)
   [2 * (before + e), 2 * (before + e) + 1]
 end
 
-# [key, count] for each distinct key.
+@doc """
+count_keys: [key, count] for each distinct key.
+"""
 def count_keys(keys)
   table = reduce((acc, k) -> assoc(acc, k, count_of(acc, k) + 1), {}, keys)
   map((k) -> [k, get(table, k)], rt_distinct(keys, table))
@@ -548,7 +602,9 @@ end
 # is triangles as index triples into the region's points: the outline's
 # first, then each hole's, in order.
 
-# All of a region's points, outline first, and each loop's index range.
+@doc """
+region_points: all of a region's points, outline first, and each loop's index range.
+"""
 def region_points(r)
   concat_lists(region_outline(r), flat_map(region_holes(r), (h) -> h))
 end
@@ -579,7 +635,9 @@ def region_loops(r)
   )
 end
 
-# Triangles for a region, or a refusal. Each triangle is counter-clockwise.
+@doc """
+triangulate: triangles for a region, or a refusal. Each triangle is counter-clockwise.
+"""
 def triangulate(r)
   pts = region_points(r)
   loops = region_loops(r)
@@ -588,9 +646,11 @@ def triangulate(r)
   ear_clip(pts, merged)
 end
 
-# Join hole h into polygon poly (both lists of point indices): from the
-# hole's rightmost vertex, a bridge to the nearest polygon vertex the
-# segment reaches without crossing any edge.
+@doc """
+bridge: join hole h into polygon poly (both lists of point indices): from the
+hole's rightmost vertex, a bridge to the nearest polygon vertex the
+segment reaches without crossing any edge.
+"""
 def bridge(pts, poly, h, holes)
   m = rightmost(pts, h)
   cands = sort_by((i) -> distance_squared(nth(i, pts), nth(m, pts)), poly)
@@ -624,7 +684,9 @@ def index_edges(loop)
   map((j) -> [nth(j, loop), nth((j + 1) % n, loop)], range(0, n))
 end
 
-# The segment from vertex m to vertex p crosses no edge except at its ends.
+@doc """
+visible: the segment from vertex m to vertex p crosses no edge except at its ends.
+"""
 def visible(pts, m, p, edges)
   a = nth(m, pts)
   b = nth(p, pts)
@@ -695,8 +757,12 @@ def clip_step(pts, acc)
   end
 end
 
-# The sign of the turn at position k: 1 convex (counter-clockwise), -1
-# reflex, 0 straight.
+@doc """
+turn: the sign of the turn at position k: 1 convex (counter-clockwise), -1
+reflex, 0 straight.
+
+    turn(square_points, [0, 1, 2], 1) #=> 1
+"""
 def turn(pts, poly, k)
   n = size(poly)
   c = cross(
@@ -713,9 +779,11 @@ def turn(pts, poly, k)
   end
 end
 
-# A convex corner whose triangle holds no other vertex of the polygon. A
-# vertex at the same place as a corner (the two ends of a bridge) does not
-# count as inside.
+@doc """
+is_ear: a convex corner whose triangle holds no other vertex of the polygon. A
+vertex at the same place as a corner (the two ends of a bridge) does not
+count as inside.
+"""
 def is_ear(pts, poly, k)
   if turn(pts, poly, k) != 1
     false
@@ -741,8 +809,10 @@ end
 
 # ── solids ───────────────────────────────────────────────────────────
 
-# A kikagaku region extruded from z = 0 to z = h: a sheet part's blank, or a
-# tube's cross-section run out to its length.
+@doc """
+extrude: a kikagaku region extruded from z = 0 to z = h: a sheet part's blank, or a
+tube's cross-section run out to its length.
+"""
 def extrude(r, h)
   pts = region_points(r)
   n = size(pts)
@@ -765,8 +835,10 @@ def why_of(refusals)
   join(map((r) -> nth(1, r), refusals), "; ")
 end
 
-# The two side triangles of each edge a -> b of a loop, facing out: bottom
-# a, bottom b, top b, then bottom a, top b, top a.
+@doc """
+loop_sides: the two side triangles of each edge a -> b of a loop, facing out: bottom
+a, bottom b, top b, then bottom a, top b, top a.
+"""
 def loop_sides(loop, n)
   flat_map(
     index_edges(loop),
@@ -783,15 +855,19 @@ def box(w, d, h)
   extrude(region(rect_polygon(0, 0, w, d), []), h)
 end
 
-# A cylinder of radius r and height h along +z, its base a regular n-gon.
+@doc """
+cylinder: a cylinder of radius r and height h along +z, its base a regular n-gon.
+"""
 def cylinder(r, h, n)
   extrude(region(circle_polygon([0, 0], r, n), []), h)
 end
 
-# A profile (a simple polygon, counter-clockwise in its own xy plane) swept
-# along a path of 3-D points, with a mitred joint at each interior point: the
-# shape of a bent wire or rod. The profile's x axis starts along a normal to
-# the first segment and is carried round each bend without twisting.
+@doc """
+sweep: a profile (a simple polygon, counter-clockwise in its own xy plane) swept
+along a path of 3-D points, with a mitred joint at each interior point: the
+shape of a bent wire or rod. The profile's x axis starts along a normal to
+the first segment and is carried round each bend without twisting.
+"""
 def sweep(profile, path)
   prof = ccw_polygon(profile)
   frames = sweep_frames(path)
@@ -810,8 +886,10 @@ def segment_dir(path, i)
   normalize(vsub(nth(i + 1, path), nth(i, path)))
 end
 
-# [normal, binormal] for each segment, carried by the rotation between
-# consecutive segment directions (parallel transport).
+@doc """
+sweep_frames: [normal, binormal] for each segment, carried by the rotation between
+consecutive segment directions (parallel transport).
+"""
 def sweep_frames(path)
   t0 = segment_dir(path, 0)
   n0 = perpendicular(t0)
@@ -831,9 +909,11 @@ def transport(path, acc, i)
   concat_lists([[mvmul(r, nth(0, prev)), mvmul(r, nth(1, prev))]], acc)
 end
 
-# The profile placed at path point i: on the end planes at the two ends,
-# and on the mitre plane (normal along the sum of the two directions) at a
-# joint, reached along the incoming direction.
+@doc """
+ring: the profile placed at path point i: on the end planes at the two ends,
+and on the mitre plane (normal along the sum of the two directions) at a
+joint, reached along the incoming direction.
+"""
 def ring(prof, path, frames, i)
   last_seg = size(path) - 2
   seg = min(i, last_seg)
@@ -891,7 +971,9 @@ def point_text(p)
   "#{to_s(x(p))} #{to_s(y(p))} #{to_s(z(p))}"
 end
 
-# ASCII STL: one facet per face, its normal included.
+@doc """
+stl: ASCII STL: one facet per face, its normal included.
+"""
 def stl(m, name)
   facets = map((f) -> stl_facet(m, f), faces(m))
   "solid #{name}\n#{join(facets, "")}endsolid #{name}\n"

@@ -1,3 +1,20 @@
+@moduledoc """
+shisei (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
+
+A posture is a record: name (the kousei kind), table (its field table),
+defaults (the settings it runs with when declared bare) and layer, a function
+of (settings, sink) that returns a middleware, a function from a handler to a
+handler. Every posture runs unless the declaration turns it off, and a bad
+entry is refused without touching its siblings.
+
+A posture that can refuse a request carries a `mode` setting, "audit" or
+"enforce". In audit the violation goes to the sink and the request proceeds;
+in enforce the request is refused. A blocking posture defaults to audit, so a
+new posture never turns a working service away until the operator says so.
+
+    defaults([]) #=> []
+"""
+
 use(
   "kousei",
   [
@@ -18,19 +35,11 @@ use("kyohi", [:kinds])
 
 use("retsu", [:first, :flat_map, :size])
 
-# shisei (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
-#
-# A posture is a record: name (the kousei kind), table (its field table),
-# defaults (the settings it runs with when declared bare) and layer, a function
-# of (settings, sink) that returns a middleware, a function from a handler to a
-# handler. Every posture runs unless the declaration turns it off, and a bad
-# entry is refused without touching its siblings.
-#
-# A posture that can refuse a request carries a `mode` setting, "audit" or
-# "enforce". In audit the violation goes to the sink and the request proceeds;
-# in enforce the request is refused. A blocking posture defaults to audit, so a
-# new posture never turns a working service away until the operator says so.
+@doc """
+posture: one named behaviour of a service with its fields.
 
+    posture(:k, [], {}, nil) #=> {name: :k, table: [], defaults: {}, layer: nil}
+"""
 def posture(name, table, defaults, layer)
   {name:, table:, defaults:, layer:}
 end
@@ -39,22 +48,32 @@ def table_of(p)
   get(p, :table)
 end
 
-# The kousei schema of a set of postures: each kind maps to its field table.
+@doc """
+schema: the kousei schema of a set of postures: each kind maps to its field table.
+"""
 def schema(postures)
   reduce((acc, p) -> assoc(acc, name_of(p), table_of(p)), {}, postures)
 end
 
-# One entry per posture, running its defaults: the stance of a bare service.
+@doc """
+defaults: one entry per posture, running its defaults: the stance of a bare service.
+
+    defaults([]) #=> []
+"""
 def defaults(postures)
   map((p) -> entry(name_of(p), "default", get(p, :defaults)), postures)
 end
 
-# The declaration laid over the defaults and judged: accepted, off and refusals.
+@doc """
+stance: the declaration laid over the defaults and judged: accepted, off and refusals.
+"""
 def stance(postures, declaration)
   judge(schema(postures), append(defaults(postures), declaration))
 end
 
-# The middlewares of every accepted entry, in the order the postures are given.
+@doc """
+layers: the middlewares of every accepted entry, in the order the postures are given.
+"""
 def layers(postures, accepted, sink)
   flat_map(
     postures,
@@ -67,12 +86,16 @@ def layers(postures, accepted, sink)
   )
 end
 
-# The first layer is outermost: it sees the request first and the response last.
+@doc """
+stack: the first layer is outermost: it sees the request first and the response last.
+"""
 def stack(ls, handler)
   reduce((h, l) -> l(h), handler, reverse(ls))
 end
 
-# The whole composition: the stance, its refusals and the handler it makes.
+@doc """
+serving: the whole composition: the stance, its refusals and the handler it makes.
+"""
 def serving(postures, declaration, sink, handler)
   s = stance(postures, declaration)
   {
@@ -82,7 +105,9 @@ def serving(postures, declaration, sink, handler)
   }
 end
 
-# The ladder. `deny` is the refusal to send; `allow` is a function that goes on.
+@doc """
+gated: the ladder. `deny` is the refusal to send; `allow` is a function that goes on.
+"""
 def gated(mode, sink, posture_name, why, deny, allow)
   if mode == "audit"
     sink(posture_name, why)
@@ -92,9 +117,11 @@ def gated(mode, sink, posture_name, why, deny, allow)
   end
 end
 
-# A sink that forgets. A sink that remembers is written where the cell is, since
-# `set!` rebinds the variable it names and a cell handed through a parameter is
-# a different binding.
+@doc """
+silent: a sink that forgets. A sink that remembers is written where the cell is, since
+`set!` rebinds the variable it names and a cell handed through a parameter is
+a different binding.
+"""
 def silent()
   (_name, _why) -> nil
 end

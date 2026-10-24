@@ -1,22 +1,36 @@
+@moduledoc """
+toukei (統計) — descriptive statistics.
+
+Integer-mean is the trap this avoids: `/` is float division in blue, so
+mean([1,2]) is 1.5 rather than 1. A statistics package that silently
+truncates is worse than none, because every number it returns is plausible.
+
+    iqr([]) #=> 0
+"""
+
 use("junjo", [:sort])
 use("kazu", [:abs, :min, :near, :pow])
 use("retsu", [:contains, :first, :indexes, :is_empty, :last, :size, :zip_with])
 use("shuugou", [:unique])
 
-# toukei (統計) — descriptive statistics.
-#
-# Integer-mean is the trap this avoids: `/` is float division in blue, so
-# mean([1,2]) is 1.5 rather than 1. A statistics package that silently
-# truncates is worse than none, because every number it returns is plausible.
-
 def total(xs)
   reduce((a, b) -> a + b, 0, xs)
 end
 
+@doc """
+mean: arithmetic average; empty raises.
+
+    mean([1, 2]) #=> 1.5
+"""
 def mean(xs)
   total(xs) / size(xs)
 end
 
+@doc """
+median: middle value.
+
+    median([5]) #=> 5
+"""
 def median(xs)
   s = sort(xs)
   n = size(s)
@@ -33,11 +47,19 @@ def spread(xs)
   last(s) - first(s)
 end
 
+@doc """
+variance: mean squared distance from the mean.
+
+    variance([5, 5, 5]) #=> 0
+"""
 def variance(xs)
   m = mean(xs)
   total(map((x) -> (x - m) * (x - m), xs)) / size(xs)
 end
 
+@doc """
+stddev: square root of the variance.
+"""
 def stddev(xs)
   sqrt(variance(xs))
 end
@@ -50,19 +72,25 @@ def largest(xs)
   last(sort(xs))
 end
 
-# The value below which the given fraction of the data falls.
+@doc """
+percentile: the value below which the given fraction of the data falls.
+
+    percentile([1, 2, 3, 4, 5], 0) #=> 1
+"""
 def percentile(xs, frac)
   s = sort(xs)
   idx = floor(frac * (size(s) - 1))
   nth(idx, s)
 end
 
-# The total sibling of `mean`: 0 rather than a 0/0 on the empty list.
-#
-# `mean` itself cannot be made total without changing a signature the rest of
-# the distribution reads, so the guarded version lives beside it. Everything
-# below that folds over deviations goes through this one, which is what makes
-# those functions total without each repeating the same empty check.
+@doc """
+mean_or_zero: the total sibling of `mean`: 0 rather than a 0/0 on the empty list.
+
+`mean` itself cannot be made total without changing a signature the rest of
+the distribution reads, so the guarded version lives beside it. Everything
+below that folds over deviations goes through this one, which is what makes
+those functions total without each repeating the same empty check.
+"""
 def mean_or_zero(xs)
   if is_empty(xs)
     0
@@ -71,28 +99,36 @@ def mean_or_zero(xs)
   end
 end
 
-# Σ(x - mean)², the numerator every variance shares.
-#
-# Named for the statistics meaning — squared deviations FROM THE MEAN — not
-# Σx². The two agree only when the mean is zero, so a reader who assumes the
-# other one still gets a plausible number out, which is the worst kind of
-# wrong. Every dispersion measure below is this divided by something.
+@doc """
+sum_of_squares: σ(x - mean)², the numerator every variance shares.
+
+Named for the statistics meaning — squared deviations FROM THE MEAN — not
+Σx². The two agree only when the mean is zero, so a reader who assumes the
+other one still gets a plausible number out, which is the worst kind of
+wrong. Every dispersion measure below is this divided by something.
+
+    sum_of_squares([]) #=> 0
+"""
 def sum_of_squares(xs)
   m = mean_or_zero(xs)
   total(map((x) -> (x - m) * (x - m), xs))
 end
 
-# The n-1 denominator: the variance of a POPULATION estimated from a SAMPLE.
-#
-# Dividing by n biases the estimate low, because the deviations are measured
-# about the sample's own mean rather than the true one, and the sample mean
-# sits closer to its own points than the true mean does. So this is always
-# LARGER than `variance` on the same input — the property the test pins,
-# because a copy-paste of the population formula still passes every other
-# assertion you would think to write.
-#
-# One point carries no spread information at all, so it answers 0 rather
-# than dividing by zero.
+@doc """
+sample_variance: the n-1 denominator: the variance of a POPULATION estimated from a SAMPLE.
+
+Dividing by n biases the estimate low, because the deviations are measured
+about the sample's own mean rather than the true one, and the sample mean
+sits closer to its own points than the true mean does. So this is always
+LARGER than `variance` on the same input — the property the test pins,
+because a copy-paste of the population formula still passes every other
+assertion you would think to write.
+
+One point carries no spread information at all, so it answers 0 rather
+than dividing by zero.
+
+    sample_variance([]) #=> 0
+"""
 def sample_variance(xs)
   if size(xs) < 2
     0
@@ -105,9 +141,13 @@ def sample_stddev(xs)
   sqrt(sample_variance(xs))
 end
 
-# Spread of the sample MEAN, not of the data: how far the mean itself would
-# wander if the sample were drawn again. Shrinks as sqrt(n), which is why
-# quadrupling a sample only halves it.
+@doc """
+standard_error: spread of the sample MEAN, not of the data: how far the mean itself would
+wander if the sample were drawn again. Shrinks as sqrt(n), which is why
+quadrupling a sample only halves it.
+
+    standard_error([]) #=> 0
+"""
 def standard_error(xs)
   if is_empty(xs)
     0
@@ -116,11 +156,15 @@ def standard_error(xs)
   end
 end
 
-# Mean distance from the mean, without the squaring.
-#
-# Kept alongside stddev rather than replaced by it: squaring lets one far
-# point dominate, so these two disagree on exactly the data where the
-# disagreement matters.
+@doc """
+mean_absolute_deviation: mean distance from the mean, without the squaring.
+
+Kept alongside stddev rather than replaced by it: squaring lets one far
+point dominate, so these two disagree on exactly the data where the
+disagreement matters.
+
+    mean_absolute_deviation([]) #=> 0
+"""
 def mean_absolute_deviation(xs)
   if is_empty(xs)
     0
@@ -130,12 +174,14 @@ def mean_absolute_deviation(xs)
   end
 end
 
-# The mean of RATIOS — growth rates, index numbers, anything multiplicative.
-#
-# Computed through logs rather than as the n-th root of the product, because
-# the product overflows long before the mean gets large. log is undefined at
-# and below zero, so the caller owns keeping every element positive; this
-# does not pretend otherwise by returning a number anyway.
+@doc """
+geometric_mean: the mean of RATIOS — growth rates, index numbers, anything multiplicative.
+
+Computed through logs rather than as the n-th root of the product, because
+the product overflows long before the mean gets large. log is undefined at
+and below zero, so the caller owns keeping every element positive; this
+does not pretend otherwise by returning a number anyway.
+"""
 def geometric_mean(xs)
   if is_empty(xs)
     0
@@ -144,10 +190,12 @@ def geometric_mean(xs)
   end
 end
 
-# The mean of RATES — speeds, prices per unit, anything "per something".
-#
-# n / Σ(1/x). Averaging 30 and 60 km/h over equal DISTANCES gives 40, not
-# 45, because more time is spent at the slower speed; that is the test.
+@doc """
+harmonic_mean: the mean of RATES — speeds, prices per unit, anything "per something".
+
+n / Σ(1/x). Averaging 30 and 60 km/h over equal DISTANCES gives 40, not
+45, because more time is spent at the slower speed; that is the test.
+"""
 def harmonic_mean(xs)
   if is_empty(xs)
     0
@@ -156,10 +204,14 @@ def harmonic_mean(xs)
   end
 end
 
-# Weights need not sum to 1 — they are normalised here, so counts, hours and
-# percentages all work as weights without the caller rescaling them first.
-# Pairs are taken up to the shorter list, so a mismatched pair drops the
-# tail rather than reading past the end.
+@doc """
+weighted_mean: weights need not sum to 1 — they are normalised here, so counts, hours and
+percentages all work as weights without the caller rescaling them first.
+Pairs are taken up to the shorter list, so a mismatched pair drops the
+tail rather than reading past the end.
+
+    weighted_mean([1, 2], [0, 0]) #=> 0
+"""
 def weighted_mean(xs, ws)
   w = total(ws)
   if near(w, 0)
@@ -169,10 +221,14 @@ def weighted_mean(xs, ws)
   end
 end
 
-# Midpoint of the extremes. Deliberately ignores everything in between,
-# which is the whole difference from `mean` and the only reason to have it:
-# it answers "where is the middle of the RANGE", not "where is the middle of
-# the DATA".
+@doc """
+midrange: midpoint of the extremes. Deliberately ignores everything in between,
+which is the whole difference from `mean` and the only reason to have it:
+it answers "where is the middle of the RANGE", not "where is the middle of
+the DATA".
+
+    midrange([]) #=> 0
+"""
 def midrange(xs)
   if is_empty(xs)
     0
@@ -181,10 +237,14 @@ def midrange(xs)
   end
 end
 
-# Stddev as a fraction of the mean, so spreads measured in different units
-# can be compared. Undefined at mean zero — guarded with `near` rather than
-# `== 0` because a float mean of 0.0 does not equal the integer 0 on this
-# runtime, and the naive guard would let an infinity through.
+@doc """
+coefficient_of_variation: stddev as a fraction of the mean, so spreads measured in different units
+can be compared. Undefined at mean zero — guarded with `near` rather than
+`== 0` because a float mean of 0.0 does not equal the integer 0 on this
+runtime, and the naive guard would let an infinity through.
+
+    coefficient_of_variation([]) #=> 0
+"""
 def coefficient_of_variation(xs)
   m = mean_or_zero(xs)
   if near(m, 0)
@@ -194,9 +254,11 @@ def coefficient_of_variation(xs)
   end
 end
 
-# median that answers 0 on the empty list instead of indexing off the end.
-# Exists so every quartile helper below can be total without repeating the
-# guard four times.
+@doc """
+median_or_zero: median that answers 0 on the empty list instead of indexing off the end.
+Exists so every quartile helper below can be total without repeating the
+guard four times.
+"""
 def median_or_zero(xs)
   if is_empty(xs)
     0
@@ -205,9 +267,11 @@ def median_or_zero(xs)
   end
 end
 
-# The two halves either side of the median, EXCLUDING the median itself when
-# there is an odd number of points. That exclusion is Tukey's convention and
-# it is what makes q1/q3 land where a boxplot draws them.
+@doc """
+lower_half: the two halves either side of the median, EXCLUDING the median itself when
+there is an odd number of points. That exclusion is Tukey's convention and
+it is what makes q1/q3 land where a boxplot draws them.
+"""
 def lower_half(xs)
   s = sort(xs)
   take(floor(size(s) / 2), s)
@@ -218,17 +282,19 @@ def upper_half(xs)
   drop(ceiling(size(s) / 2), s)
 end
 
-# Quartiles as medians of the halves — NOT `percentile(xs, 0.25)`.
-#
-# `percentile` is a nearest-rank index: it always returns an element that is
-# really in the list, so on [1,2,3,4] it answers 2 for the median where the
-# median is 2.5. Defining quartiles that way would make q2 disagree with
-# `median` on every even-length input, and the IQR fences below are drawn
-# against THIS convention, so mixing the two would quietly move them. The
-# identity the test pins is q2 == median(xs), for both parities.
-#
-# A one-element list has no half to take a median of; it falls back to the
-# whole list, so q1 == q3 == that element rather than an index error.
+@doc """
+q1: quartiles as medians of the halves — NOT `percentile(xs, 0.25)`.
+
+`percentile` is a nearest-rank index: it always returns an element that is
+really in the list, so on [1,2,3,4] it answers 2 for the median where the
+median is 2.5. Defining quartiles that way would make q2 disagree with
+`median` on every even-length input, and the IQR fences below are drawn
+against THIS convention, so mixing the two would quietly move them. The
+identity the test pins is q2 == median(xs), for both parities.
+
+A one-element list has no half to take a median of; it falls back to the
+whole list, so q1 == q3 == that element rather than an index error.
+"""
 def q1(xs)
   h = lower_half(xs)
   if is_empty(h)
@@ -251,18 +317,24 @@ def quartiles(xs)
   [q1(xs), median_or_zero(xs), q3(xs)]
 end
 
-# The middle half's width — the spread measure that a single wild point
-# cannot move, which is exactly why outliers are defined against it rather
-# than against stddev (a big enough outlier inflates stddev until it stops
-# looking like one).
+@doc """
+iqr: the middle half's width — the spread measure that a single wild point
+cannot move, which is exactly why outliers are defined against it rather
+than against stddev (a big enough outlier inflates stddev until it stops
+looking like one).
+
+    iqr([]) #=> 0
+"""
 def iqr(xs)
   q3(xs) - q1(xs)
 end
 
-# Tukey's 1.5×IQR cut points, returned as [low, high].
-#
-# Exposed rather than kept inside `outliers` because a caller usually needs
-# to know WHERE the line fell, not only which points crossed it.
+@doc """
+fences: tukey's 1.5×IQR cut points, returned as [low, high].
+
+Exposed rather than kept inside `outliers` because a caller usually needs
+to know WHERE the line fell, not only which points crossed it.
+"""
 def fences(xs)
   lo = q1(xs)
   hi = q3(xs)
@@ -270,9 +342,13 @@ def fences(xs)
   [lo - w, hi + w]
 end
 
-# Points outside the fences, in input order. Empty means "nothing unusual",
-# which is the answer for well-behaved data and the case a threshold-off-by
-# -one still gets wrong.
+@doc """
+outliers: points outside the fences, in input order. Empty means "nothing unusual",
+which is the answer for well-behaved data and the case a threshold-off-by
+-one still gets wrong.
+
+    outliers([]) #=> []
+"""
 def outliers(xs)
   f = fences(xs)
   lo = nth(0, f)
@@ -280,8 +356,12 @@ def outliers(xs)
   filter((x) -> x < lo or x > hi, xs)
 end
 
-# The inverse of `percentile`: what fraction of the data is at or below x.
-# Answers in [0, 1], so `percentile_rank(largest(xs), xs)` is always 1.
+@doc """
+percentile_rank: the inverse of `percentile`: what fraction of the data is at or below x.
+Answers in [0, 1], so `percentile_rank(largest(xs), xs)` is always 1.
+
+    percentile_rank(1, []) #=> 0
+"""
 def percentile_rank(x, xs)
   if is_empty(xs)
     0
@@ -290,12 +370,16 @@ def percentile_rank(x, xs)
   end
 end
 
-# Population covariance: the mean product of paired deviations.
-#
-# Pairs are taken up to the shorter list, and BOTH means are taken over that
-# same truncated prefix — computing a mean over the full list and a product
-# over the prefix is the mismatch that makes a covariance quietly wrong on
-# ragged input.
+@doc """
+covariance: population covariance: the mean product of paired deviations.
+
+Pairs are taken up to the shorter list, and BOTH means are taken over that
+same truncated prefix — computing a mean over the full list and a product
+over the prefix is the mismatch that makes a covariance quietly wrong on
+ragged input.
+
+    covariance([], []) #=> 0
+"""
 def covariance(xs, ys)
   n = min(size(xs), size(ys))
   if n == 0
@@ -307,13 +391,17 @@ def covariance(xs, ys)
   end
 end
 
-# Pearson r — covariance divided by both spreads, so it is unitless and
-# lands in [-1, 1].
-#
-# Answers 0 when either series is constant. r is genuinely undefined there
-# (the denominator is zero), and 0 reports "no linear relationship found"
-# rather than inventing an infinity or a NaN that then poisons everything
-# downstream.
+@doc """
+correlation: pearson r — covariance divided by both spreads, so it is unitless and
+lands in [-1, 1].
+
+Answers 0 when either series is constant. r is genuinely undefined there
+(the denominator is zero), and 0 reports "no linear relationship found"
+rather than inventing an infinity or a NaN that then poisons everything
+downstream.
+
+    correlation([1, 2, 3], [5, 5, 5]) #=> 0
+"""
 def correlation(xs, ys)
   d = stddev(xs) * stddev(ys)
   if near(d, 0)
@@ -323,9 +411,13 @@ def correlation(xs, ys)
   end
 end
 
-# How many standard deviations x sits from the mean — the transform that
-# makes two differently-scaled series comparable. Zero spread means every
-# point IS the mean, so every score is 0.
+@doc """
+z_score: how many standard deviations x sits from the mean — the transform that
+makes two differently-scaled series comparable. Zero spread means every
+point IS the mean, so every score is 0.
+
+    z_score(5, [5, 5, 5]) #=> 0
+"""
 def z_score(x, xs)
   s = stddev(xs)
   if near(s, 0)
@@ -339,12 +431,16 @@ def z_scores(xs)
   map((x) -> z_score(x, xs), xs)
 end
 
-# Min-max rescaling onto [0, 1].
-#
-# A constant list has no range to divide by; it maps to all zeros rather
-# than erroring, which keeps this total. Note this is a DIFFERENT rescaling
-# from `z_scores` — this one pins the extremes and lets the shape move,
-# z-scores pin the mean and spread and let the extremes move.
+@doc """
+rescale: min-max rescaling onto [0, 1].
+
+A constant list has no range to divide by; it maps to all zeros rather
+than erroring, which keeps this total. Note this is a DIFFERENT rescaling
+from `z_scores` — this one pins the extremes and lets the shape move,
+z-scores pin the mean and spread and let the extremes move.
+
+    rescale([]) #=> []
+"""
 def rescale(xs)
   if is_empty(xs)
     []
@@ -359,19 +455,27 @@ def rescale(xs)
   end
 end
 
-# Running totals, ONE PER INPUT ELEMENT — so the last entry is exactly
-# `total(xs)`. That identity is the thing to check: an off-by-one in the
-# window shows up there before it shows up anywhere else.
+@doc """
+cumulative_sum: running totals, ONE PER INPUT ELEMENT — so the last entry is exactly
+`total(xs)`. That identity is the thing to check: an off-by-one in the
+window shows up there before it shows up anywhere else.
+
+    cumulative_sum([]) #=> []
+"""
 def cumulative_sum(xs)
   map((i) -> total(take(i + 1, xs)), indexes(xs))
 end
 
-# Simple moving average, one value per COMPLETE window.
-#
-# The result is shorter than the input by w-1. The alternative — padding the
-# start with averages of partial windows — returns numbers that are not
-# averages of w points while looking exactly like ones that are, so the
-# short-and-honest result is the one worth having.
+@doc """
+moving_average: simple moving average, one value per COMPLETE window.
+
+The result is shorter than the input by w-1. The alternative — padding the
+start with averages of partial windows — returns numbers that are not
+averages of w points while looking exactly like ones that are, so the
+short-and-honest result is the one worth having.
+
+    moving_average([], 3) #=> []
+"""
 def moving_average(xs, w)
   if w < 1
     []
@@ -382,10 +486,14 @@ def moving_average(xs, w)
   end
 end
 
-# Population skewness: which tail is longer. Positive means the long tail is
-# to the RIGHT (a few large values), negative to the left, zero symmetric.
-# Negating every value must negate the answer — that is the test, and a
-# formula that squares where it should cube still fails it.
+@doc """
+skewness: population skewness: which tail is longer. Positive means the long tail is
+to the RIGHT (a few large values), negative to the left, zero symmetric.
+Negating every value must negate the answer — that is the test, and a
+formula that squares where it should cube still fails it.
+
+    skewness([]) #=> 0
+"""
 def skewness(xs)
   if is_empty(xs)
     0
@@ -400,13 +508,17 @@ def skewness(xs)
   end
 end
 
-# EXCESS kurtosis — the normal distribution scores 0, not 3.
-#
-# The bare fourth moment ratio scores 3 for a normal, and reporting that as
-# "kurtosis" is the classic off-by-three: every reader has to know which
-# convention was used before the number means anything. Subtracting the 3
-# here puts the answer on the scale where the sign alone is readable —
-# positive is heavier-tailed than normal, negative is lighter.
+@doc """
+excess_kurtosis: EXCESS kurtosis — the normal distribution scores 0, not 3.
+
+The bare fourth moment ratio scores 3 for a normal, and reporting that as
+"kurtosis" is the classic off-by-three: every reader has to know which
+convention was used before the number means anything. Subtracting the 3
+here puts the answer on the scale where the sign alone is readable —
+positive is heavier-tailed than normal, negative is lighter.
+
+    excess_kurtosis([]) #=> 0
+"""
 def excess_kurtosis(xs)
   if is_empty(xs)
     0
@@ -421,28 +533,38 @@ def excess_kurtosis(xs)
   end
 end
 
-# How many times x occurs. The counting primitive the three functions below
-# share, rather than three separate walks that can drift apart.
+@doc """
+tally: how many times x occurs. The counting primitive the three functions below
+share, rather than three separate walks that can drift apart.
+"""
 def tally(x, xs)
   size(filter((y) -> y == x, xs))
 end
 
-# Every distinct value paired with its count, ascending by value.
-#
-# `unique` is shuugou's — imported rather than rewritten, because a second
-# duplicate-removal in the distribution is a second place for first-seen
-# order to be got wrong. Sorting first makes the output order a property of
-# the DATA rather than of how the caller happened to build the list.
+@doc """
+frequency_table: every distinct value paired with its count, ascending by value.
+
+`unique` is shuugou's — imported rather than rewritten, because a second
+duplicate-removal in the distribution is a second place for first-seen
+order to be got wrong. Sorting first makes the output order a property of
+the DATA rather than of how the caller happened to build the list.
+
+    frequency_table([]) #=> []
+"""
 def frequency_table(xs)
   map((v) -> [v, tally(v, xs)], unique(sort(xs)))
 end
 
-# The most frequent value; nil for the empty list.
-#
-# Ties break to the SMALLEST of the tied values. Some rule is needed and
-# "whichever the input happened to list first" is the one to avoid: it makes
-# mode([1,1,2,2]) disagree with mode([2,2,1,1]) on data that is identical as
-# a multiset. When the tie itself is the finding, use `modes`.
+@doc """
+mode: the most frequent value; nil for the empty list.
+
+Ties break to the SMALLEST of the tied values. Some rule is needed and
+"whichever the input happened to list first" is the one to avoid: it makes
+mode([1,1,2,2]) disagree with mode([2,2,1,1]) on data that is identical as
+a multiset. When the tie itself is the finding, use `modes`.
+
+    mode([5]) #=> 5
+"""
 def mode(xs)
   if is_empty(xs)
     nil
@@ -461,11 +583,15 @@ def mode(xs)
   end
 end
 
-# Every value tied for most frequent, ascending.
-#
-# Exists because `mode` has to pick one, and a genuinely bimodal set has no
-# single answer — reporting one hides exactly the structure worth seeing.
-# A list with no repeats at all is ALL mode, which is the honest reading.
+@doc """
+modes: every value tied for most frequent, ascending.
+
+Exists because `mode` has to pick one, and a genuinely bimodal set has no
+single answer — reporting one hides exactly the structure worth seeing.
+A list with no repeats at all is ALL mode, which is the honest reading.
+
+    modes([]) #=> []
+"""
 def modes(xs)
   if is_empty(xs)
     []
@@ -475,11 +601,15 @@ def modes(xs)
   end
 end
 
-# The five-number summary a boxplot is drawn from, in the order it is drawn:
-# [min, q1, median, q3, max]. Grouped because these five are read together,
-# and answers [] rather than a list with nils in it for the empty input —
-# a nil inside a numeric list propagates into arithmetic somewhere later,
-# which is much harder to trace back than an obviously empty answer.
+@doc """
+five_number_summary: the five-number summary a boxplot is drawn from, in the order it is drawn:
+[min, q1, median, q3, max]. Grouped because these five are read together,
+and answers [] rather than a list with nils in it for the empty input —
+a nil inside a numeric list propagates into arithmetic somewhere later,
+which is much harder to trace back than an obviously empty answer.
+
+    five_number_summary([]) #=> []
+"""
 def five_number_summary(xs)
   if is_empty(xs)
     []
@@ -814,10 +944,20 @@ test "five_number_summary is the boxplot, in drawing order"
   assert five_number_summary([]) == []
 end
 
+@doc """
+correlate: how two series move together.
+
+    correlate([1, 1], [1, 2]) #=> 0
+"""
 def correlate(xs, ys)
   correlation(xs, ys)
 end
 
+@doc """
+zscore: distance from the mean in standard deviations.
+
+    zscore([]) #=> []
+"""
 def zscore(numbers)
   z_scores(numbers)
 end

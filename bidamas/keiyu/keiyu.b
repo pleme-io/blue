@@ -1,7 +1,10 @@
+@moduledoc """
+keiyu (経由) — by way of: run one command with a proxy set for it alone.
+"""
+
 use("retsu", [:first, :is_empty, :rest])
 use("shisutemu", [:status_of, :stdout_of])
 
-# keiyu (経由) — by way of: run one command with a proxy set for it alone.
 def proxy_names()
   [
     "ALL_PROXY",

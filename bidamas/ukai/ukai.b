@@ -1,10 +1,15 @@
+@moduledoc """
+ukai (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
+
+    infer_enforcement([], [], [], :relay) #=> :unknown
+"""
+
 use("deeta", [:as_json, :get_str])
 use("kyohi", [:ok])
 use("retsu", [:first, :is_empty, :last, :rest, :size])
 use("shisutemu", [:read_or, :status_of, :stderr_of, :stdout_of])
 use("shuugou", [:as_set, :difference, :unique])
 
-# ukai (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
 def axes()
   [
     [:corp, [:absent, :split, :full, :unread]],
@@ -71,6 +76,9 @@ def blind(what)
   {kind: :blind, unread: what}
 end
 
+@doc """
+decide: noop, bypass, refused or blind, over a total state.
+"""
 def decide(s)
   if not is_empty(unread_axes(s))
     blind(unread_axes(s))
@@ -705,6 +713,9 @@ def assemble(cfg, obs)
   )
 end
 
+@doc """
+observe: read routes and overlay status into one typed state.
+"""
 def observe(cfg)
   ts = get(cfg, :tailscale)
   host = get(cfg, :control_host)
@@ -733,6 +744,9 @@ def observe(cfg)
   end
 end
 
+@doc """
+plan: host routes or policy rules an outcome needs.
+"""
 def plan(o, cfg)
   if get(o, :kind) != :bypass
     []

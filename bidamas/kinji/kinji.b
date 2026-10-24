@@ -1,3 +1,21 @@
+@moduledoc """
+kinji (近似) — approximation: numerical methods: ODEs, roots, minimisation, least squares, interpolation and quadrature.
+
+A state is a list of numbers, so a scalar problem is a one-element list and
+every vector function in gyouretsu applies to it. Every method that iterates
+takes a limit and reports running out of it as a refusal instead of handing
+back a half-answer. A result is a map; its :refusals are data, each one
+[kind, why], so a caller can test for them, and kj_value(result, key) returns
+the value or throws the refusals.
+
+Written for the design pipeline (nupastel docs/plans/design-pipeline.md,
+step 2): the thermal networks integrate with kj_ode, their parameters are
+fitted to bench curves with kj_fit, and a thermal dose is kj_trapz over a
+measured temperature curve.
+
+    refusal_kinds(fit_line([2, 2, 2], [1, 2, 3])) #=> [:kinji_rank]
+"""
+
 use("deeta", [:get_or])
 
 use(
@@ -49,27 +67,15 @@ legacy_names(
   ]
 )
 
-# kinji (近似) — approximation: numerical methods: ODEs, roots, minimisation, least squares, interpolation and quadrature.
-#
-# A state is a list of numbers, so a scalar problem is a one-element list and
-# every vector function in gyouretsu applies to it. Every method that iterates
-# takes a limit and reports running out of it as a refusal instead of handing
-# back a half-answer. A result is a map; its :refusals are data, each one
-# [kind, why], so a caller can test for them, and kj_value(result, key) returns
-# the value or throws the refusals.
-#
-# Written for the design pipeline (nupastel docs/plans/design-pipeline.md,
-# step 2): the thermal networks integrate with kj_ode, their parameters are
-# fitted to bench curves with kj_fit, and a thermal dose is kj_trapz over a
-# measured temperature curve.
-
 # ── refusals ─────────────────────────────────────────────────────────
 
 def refusal_kinds(result)
   map((r) -> kyohi::kind(r), get(result, :refusals))
 end
 
-# A result's value, or a thrown error naming its refusals.
+@doc """
+value: a result's value, or a thrown error naming its refusals.
+"""
 def value(result, key)
   enforce(result, [(r) -> get(r, :refusals)], {kind: :first})
   get(result, key)
@@ -77,8 +83,10 @@ end
 
 # ── numbers ──────────────────────────────────────────────────────────
 
-# A real number: not NaN (NaN is the one value unequal to itself) and not
-# infinite. A sqrt of a negative or a blown-up ODE produces these silently.
+@doc """
+finite?: a real number: not NaN (NaN is the one value unequal to itself) and not
+infinite. A sqrt of a negative or a blown-up ODE produces these silently.
+"""
 def finite?(x)
   x == x and abs(x) < expt(10.0, 300)
 end
@@ -87,7 +95,9 @@ def all_finite?(v)
   reduce((acc, x) -> acc and finite?(x), true, v)
 end
 
-# A weighted sum of vectors: sum of ws[i] * ks[i].
+@doc """
+combo: a weighted sum of vectors: sum of ws[i] * ks[i].
+"""
 def combo(ks, ws)
   reduce(
     (acc, i) -> vadd(acc, scale(nth(i, ws), nth(i, ks))),
@@ -107,7 +117,9 @@ def sample_y(s)
   nth(1, s)
 end
 
-# One classical Runge–Kutta step of size h.
+@doc """
+rk4_step: one classical Runge–Kutta step of size h.
+"""
 def rk4_step(f, t, y, h)
   k1 = f(t, y)
   k2 = f(t + h / 2, vadd(y, scale(h / 2, k1)))
@@ -116,8 +128,10 @@ def rk4_step(f, t, y, h)
   vadd(y, scale(h / 6, combo([k1, k2, k3, k4], [1, 2, 2, 1])))
 end
 
-# n fixed steps of size h from (t0, y0): n + 1 samples. A state that stops
-# being finite ends the run with :kinji_diverged.
+@doc """
+rk4: n fixed steps of size h from (t0, y0): n + 1 samples. A state that stops
+being finite ends the run with :kinji_diverged.
+"""
 def rk4(f, t0, y0, h, n)
   start = {t: t0, y: y0, back: [[t0, y0]], refusals: []}
   fin = reduce((acc, _i) -> rk4_tick(f, h, acc), start, range(0, n))
@@ -148,8 +162,10 @@ def rk4_tick(f, h, acc)
   end
 end
 
-# The Dormand–Prince 5(4) pair: the fifth-order solution and the difference
-# from the embedded fourth-order one, which is the error estimate.
+@doc """
+dopri_step: the Dormand–Prince 5(4) pair: the fifth-order solution and the difference
+from the embedded fourth-order one, which is the error estimate.
+"""
 def dopri_step(f, t, y, h)
   k1 = f(t, y)
   k2 = f(t + h * 0.2, vadd(y, scale(h, combo([k1], [0.2]))))
@@ -218,7 +234,9 @@ def dopri_step(f, t, y, h)
   [y5, err]
 end
 
-# The scaled RMS error: at most 1 means the step met the tolerances.
+@doc """
+error_norm: the scaled RMS error: at most 1 means the step met the tolerances.
+"""
 def error_norm(err, y, ynew, rtol, atol)
   s = reduce(
     fn(acc, i)
@@ -233,11 +251,13 @@ def error_norm(err, y, ynew, rtol, atol)
   sqrt(s / size(y))
 end
 
-# Adaptive integration from (t0, y0) to t1. Options: :rtol (1e-6), :atol
-# (1e-9), :h0 (the first step, (t1 - t0) / 100), :hmin (1e-12 of the span),
-# :max_steps (100000). Refusals: :kinji_diverged (the state stopped being
-# finite), :kinji_step_underflow (the error could not be met above :hmin),
-# :kinji_steps (t1 not reached within :max_steps).
+@doc """
+ode: adaptive integration from (t0, y0) to t1. Options: :rtol (1e-6), :atol
+(1e-9), :h0 (the first step, (t1 - t0) / 100), :hmin (1e-12 of the span),
+:max_steps (100000). Refusals: :kinji_diverged (the state stopped being
+finite), :kinji_step_underflow (the error could not be met above :hmin),
+:kinji_steps (t1 not reached within :max_steps).
+"""
 def ode(f, t0, y0, t1, opts)
   span = t1 - t0
   if span <= 0
@@ -350,12 +370,16 @@ def ode_stop(acc, refusal)
   }
 end
 
-# The last sample's state.
+@doc """
+final: the last sample's state.
+"""
 def final(result)
   sample_y(last(value(result, :samples)))
 end
 
-# The state at time t, linearly interpolated between samples.
+@doc """
+state_at: the state at time t, linearly interpolated between samples.
+"""
 def state_at(samples, t)
   ts = map(sample_t, samples)
   i = segment(ts, t)
@@ -382,7 +406,9 @@ def bracket_refusals(flo, fhi, lo, hi)
   end
 end
 
-# Bisection: slow and certain, halving the bracket until it is under tol.
+@doc """
+bisect: bisection: slow and certain, halving the bracket until it is under tol.
+"""
 def bisect(f, lo, hi, tol, max_iter)
   flo = f(lo)
   bad = bracket_refusals(flo, f(hi), lo, hi)
@@ -435,9 +461,11 @@ def iter_refusals(done, max_iter)
   end
 end
 
-# Brent's method: inverse quadratic interpolation or the secant when they are
-# safe, bisection when they are not, so it converges as surely as bisection
-# and usually far faster.
+@doc """
+brent: brent's method: inverse quadratic interpolation or the secant when they are
+safe, bisection when they are not, so it converges as surely as bisection
+and usually far faster.
+"""
 def brent(f, lo, hi, tol, max_iter)
   fa = f(lo)
   fb = f(hi)
@@ -472,7 +500,9 @@ def brent(f, lo, hi, tol, max_iter)
   end
 end
 
-# b is kept as the better of the two bracket ends.
+@doc """
+brent_order: b is kept as the better of the two bracket ends.
+"""
 def brent_order(s)
   if abs(get(s, :fa)) < abs(get(s, :fb))
     {
@@ -508,7 +538,9 @@ def brent_candidate(s)
   end
 end
 
-# Whether the interpolated candidate must give way to bisection.
+@doc """
+brent_bisect?: whether the interpolated candidate must give way to bisection.
+"""
 def brent_bisect?(s, cand, tol)
   a = get(s, :a)
   b = get(s, :b)
@@ -655,8 +687,10 @@ def nm_tick(f, ftol, xtol, acc)
   end
 end
 
-# One move: reflect the worst vertex through the centroid of the rest, then
-# expand, contract or shrink by the standard coefficients (1, 2, 1/2, 1/2).
+@doc """
+nm_move: one move: reflect the worst vertex through the centroid of the rest, then
+expand, contract or shrink by the standard coefficients (1, 2, 1/2, 1/2).
+"""
 def nm_move(f, simplex)
   n = size(simplex)
   worst = last(simplex)
@@ -705,10 +739,12 @@ end
 
 # ── least squares and fitting ────────────────────────────────────────
 
-# The x minimising |A x - b|^2, through the normal equations A'A x = A'b. The
-# normal equations square the condition number, which is harmless for the
-# small, well-scaled fits this is for (a line, a few thermal constants); a
-# badly conditioned design matrix should be rescaled first.
+@doc """
+least_squares: the x minimising |A x - b|^2, through the normal equations A'A x = A'b. The
+normal equations square the condition number, which is harmless for the
+small, well-scaled fits this is for (a line, a few thermal constants); a
+badly conditioned design matrix should be rescaled first.
+"""
 def least_squares(a, b)
   at = transpose(a)
   x = solve_gauss(matmul(at, a), mvmul(at, b))
@@ -730,7 +766,9 @@ def least_squares(a, b)
   end
 end
 
-# The straight line y = intercept + slope * x through (xs, ys), by least squares.
+@doc """
+fit_line: the straight line y = intercept + slope * x through (xs, ys), by least squares.
+"""
 def fit_line(xs, ys)
   r = least_squares(map((x) -> [1, x], xs), ys)
   if is_empty(get(r, :refusals))
@@ -745,7 +783,9 @@ def fit_line(xs, ys)
   end
 end
 
-# The sum of squared errors of model(params, x) against (xs, ys).
+@doc """
+sse: the sum of squared errors of model(params, x) against (xs, ys).
+"""
 def sse(model, params, xs, ys)
   reduce(
     (acc, i) -> acc + square(model(params, nth(i, xs)) - nth(i, ys)),
@@ -754,10 +794,12 @@ def sse(model, params, xs, ys)
   )
 end
 
-# Fit a model's parameters to data by minimising the SSE with Nelder–Mead.
-# model(params, x) returns the prediction. The result carries the RMS error
-# and the point count, so every fitted constant reports how well it fits and
-# on how much data.
+@doc """
+fit: fit a model's parameters to data by minimising the SSE with Nelder–Mead.
+model(params, x) returns the prediction. The result carries the RMS error
+and the point count, so every fitted constant reports how well it fits and
+on how much data.
+"""
 def fit(model, p0, xs, ys, opts)
   if size(xs) != size(ys) or is_empty(xs)
     {
@@ -793,7 +835,9 @@ end
 
 # ── interpolation ────────────────────────────────────────────────────
 
-# The index i of the segment [xs[i], xs[i+1]] holding x, for ascending xs.
+@doc """
+segment: the index i of the segment [xs[i], xs[i+1]] holding x, for ascending xs.
+"""
 def segment(xs, x)
   clamp(upper_bound(xs, x) - 1, 0, size(xs) - 2)
 end
@@ -815,7 +859,9 @@ def interp_refusals(xs, ys, x)
   end
 end
 
-# Linear interpolation; outside the data it throws rather than extrapolate.
+@doc """
+interp: linear interpolation; outside the data it throws rather than extrapolate.
+"""
 def interp(xs, ys, x)
   enforce(x, [(v) -> interp_refusals(xs, ys, v)], {kind: :first})
   i = segment(xs, x)
@@ -826,22 +872,28 @@ def interp(xs, ys, x)
   )
 end
 
-# The same, holding the end values outside the data: for a curve that is
-# known to be flat beyond its ends, and chosen as such by the caller.
+@doc """
+interp_clamped: the same, holding the end values outside the data: for a curve that is
+known to be flat beyond its ends, and chosen as such by the caller.
+"""
 def interp_clamped(xs, ys, x)
   interp(xs, ys, clamp(x, first(xs), last(xs)))
 end
 
 # ── quadrature ───────────────────────────────────────────────────────
 
-# The trapezoid rule over n equal panels.
+@doc """
+trapezoid: the trapezoid rule over n equal panels.
+"""
 def trapezoid(f, a, b, n)
   h = (b - a) / n
   inner = reduce((acc, i) -> acc + f(a + i * h), 0.0, range(1, n))
   h * ((f(a) + f(b)) / 2 + inner)
 end
 
-# Simpson's rule over n equal panels, n even: exact for cubics.
+@doc """
+simpson: simpson's rule over n equal panels, n even: exact for cubics.
+"""
 def simpson(f, a, b, n)
   if n % 2 != 0
     raise(
@@ -865,7 +917,9 @@ def simpson(f, a, b, n)
   h / 3 * (f(a) + f(b) + inner)
 end
 
-# The trapezoid rule over samples (xs ascending), for a measured curve.
+@doc """
+trapz: the trapezoid rule over samples (xs ascending), for a measured curve.
+"""
 def trapz(xs, ys)
   reduce(
     fn(acc, i)

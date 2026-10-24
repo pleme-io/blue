@@ -1,10 +1,19 @@
-# kazu (数) — numbers.
-#
-# The arithmetic every language ships and blue did not: clamping, sign,
-# min/max, and integer power. Written in blue itself, not Rust, which is the
-# point of a bidama — the standard library grows in the language, so a user
-# reading it learns the language rather than an FFI boundary.
+@moduledoc """
+kazu (数) — numbers.
 
+The arithmetic every language ships and blue did not: clamping, sign,
+min/max, and integer power. Written in blue itself, not Rust, which is the
+point of a bidama — the standard library grows in the language, so a user
+reading it learns the language rather than an FFI boundary.
+
+    abs(0) #=> 0
+"""
+
+@doc """
+abs: distance from zero.
+
+    abs(0) #=> 0
+"""
 def abs(n)
   if n < 0
     -n
@@ -23,6 +32,11 @@ def sign(n)
   end
 end
 
+@doc """
+max: the greater of two numbers.
+
+    max(3, 7) #=> 7
+"""
 def max(a, b)
   if a > b
     a
@@ -31,6 +45,11 @@ def max(a, b)
   end
 end
 
+@doc """
+min: the lesser of two numbers.
+
+    min(3, 7) #=> 3
+"""
 def min(a, b)
   if a < b
     a
@@ -39,13 +58,22 @@ def min(a, b)
   end
 end
 
-# Clamp into [lo, hi]. Named `clamp` rather than `bound` because every
-# neighbouring language spells it this way, and a stdlib that renames familiar
-# operations taxes every reader for no gain.
+@doc """
+clamp: clamp into [lo, hi]. Named `clamp` rather than `bound` because every
+neighbouring language spells it this way, and a stdlib that renames familiar
+operations taxes every reader for no gain.
+
+    clamp(5, 1, 10) #=> 5
+"""
 def clamp(n, lo, hi)
   max(lo, min(n, hi))
 end
 
+@doc """
+pow: base raised to an exponent.
+
+    pow(5, 0) #=> 1
+"""
 def pow(base, exp)
   if exp < 1
     1
@@ -54,21 +82,29 @@ def pow(base, exp)
   end
 end
 
-# By the remainder, like `odd`. It was `n - n / 2 * 2 == 0`, which is right only
-# while `/` truncates: `/` is float division (okite D0008), so for 3 that is
-# `3 - 1.5 * 2`, `0.0`, and it read as odd ONLY because `0.0 == 0` was false.
-# Value equality (D0001) made even(3) true, and every determinant's cofactor
-# signs with it (gyouretsu, 2026-09-27).
+@doc """
+even: by the remainder, like `odd`. It was `n - n / 2 * 2 == 0`, which is right only
+while `/` truncates: `/` is float division (okite D0008), so for 3 that is
+`3 - 1.5 * 2`, `0.0`, and it read as odd ONLY because `0.0 == 0` was false.
+Value equality (D0001) made even(3) true, and every determinant's cofactor
+signs with it (gyouretsu, 2026-09-27).
+
+    even(0) #=> true
+"""
 def even(n)
   n % 2 == 0
 end
 
-# Approximate equality, for results that carry rounding error (0.1 + 0.2).
-#
-# Numbers compare by value across kinds (okite D0001), so `sqrt(25) == 5` holds
-# and `near` is not needed for that; until 2026-09-27 it was, which is why this
-# was written. Comparing by distance stays the answer where the float math
-# itself is inexact.
+@doc """
+near: approximate equality, for results that carry rounding error (0.1 + 0.2).
+
+Numbers compare by value across kinds (okite D0001), so `sqrt(25) == 5` holds
+and `near` is not needed for that; until 2026-09-27 it was, which is why this
+was written. Comparing by distance stays the answer where the float math
+itself is inexact.
+
+    near(1, 2) #=> false
+"""
 def near(a, b)
   near_within(a, b, 0.000001)
 end
@@ -84,15 +120,23 @@ end
 
 # --- predicates -------------------------------------------------------------
 
-# Odd via the remainder: blue's `%` is Euclidean (see mod_positive), so `n % 2`
-# is 1 for a negative odd number too, and `even` asks the same remainder. The
-# tests pin that the two agree.
+@doc """
+odd: odd via the remainder: blue's `%` is Euclidean (see mod_positive), so `n % 2`
+is 1 for a negative odd number too, and `even` asks the same remainder. The
+tests pin that the two agree.
+
+    odd(3) #=> true
+"""
 def odd(n)
   n % 2 == 1
 end
 
-# Zero by ordering. Since okite D0001 `n == 0` is the same question (a float
-# zero equals an int zero); this stays, as vocabulary, and agrees with it.
+@doc """
+is_zero: zero by ordering. Since okite D0001 `n == 0` is the same question (a float
+zero equals an int zero); this stays, as vocabulary, and agrees with it.
+
+    is_zero(0) #=> true
+"""
 def is_zero(n)
   not (n < 0) and not (n > 0)
 end
@@ -105,13 +149,21 @@ def is_negative(n)
   n < 0
 end
 
-# Inclusive on both ends, matching clamp: whatever clamp returns is in_range.
+@doc """
+in_range: inclusive on both ends, matching clamp: whatever clamp returns is in_range.
+
+    in_range(1, 1, 10) #=> true
+"""
 def in_range(n, lo, hi)
   n >= lo and n <= hi
 end
 
-# Zero divides nothing — the guard exists because `n % 0` is a runtime error,
-# so the naive one-liner crashes instead of answering.
+@doc """
+divides: zero divides nothing — the guard exists because `n % 0` is a runtime error,
+so the naive one-liner crashes instead of answering.
+
+    divides(3, 0) #=> true
+"""
 def divides(d, n)
   if is_zero(d)
     false
@@ -122,11 +174,15 @@ end
 
 # --- integer division -------------------------------------------------------
 
-# Division that rounds toward negative infinity, not toward zero.
-#
-# `floor_div(0 - 7, 2)` is 0 - 4, where a language truncating toward zero says
-# 0 - 3. Blue's `floor` already rounds down, so this is a naming of the intent
-# rather than a repair — but the intent is exactly what gets written wrongly.
+@doc """
+floor_div: division that rounds toward negative infinity, not toward zero.
+
+`floor_div(0 - 7, 2)` is 0 - 4, where a language truncating toward zero says
+0 - 3. Blue's `floor` already rounds down, so this is a naming of the intent
+rather than a repair — but the intent is exactly what gets written wrongly.
+
+    floor_div(6, 3) #=> 2
+"""
 def floor_div(a, b)
   floor(a / b)
 end
@@ -135,13 +191,17 @@ def ceil_div(a, b)
   ceiling(a / b)
 end
 
-# A remainder guaranteed to land in [0, abs(m)).
-#
-# Measured on this runtime, `%` is ALREADY Euclidean — `(0 - 7) % 3` is 2, not
-# 0 - 1 as C, Rust and JavaScript would give — which is the opposite of the
-# trap most readers arrive expecting. The tests below pin that fact so a
-# regression in the runtime is caught here rather than in a caller's clock
-# arithmetic. The `r < 0` branch keeps this function correct regardless.
+@doc """
+mod_positive: a remainder guaranteed to land in [0, abs(m)).
+
+Measured on this runtime, `%` is ALREADY Euclidean — `(0 - 7) % 3` is 2, not
+0 - 1 as C, Rust and JavaScript would give — which is the opposite of the
+trap most readers arrive expecting. The tests below pin that fact so a
+regression in the runtime is caught here rather than in a caller's clock
+arithmetic. The `r < 0` branch keeps this function correct regardless.
+
+    mod_positive(0, 5) #=> 0
+"""
 def mod_positive(a, m)
   d = abs(m)
   r = a % d
@@ -162,12 +222,16 @@ def cube(n)
   n * n * n
 end
 
-# Integer square root: the largest r with r * r <= n.
-#
-# `floor(sqrt(n))` alone is not it. `sqrt` returns a float, and a float that is
-# a hair under a perfect square floors to one less — so the answer is seeded
-# from `sqrt` and then walked to the true value. Negative input has no integer
-# root; 0 is returned rather than erroring, so callers can fold this.
+@doc """
+int_sqrt: integer square root: the largest r with r * r <= n.
+
+`floor(sqrt(n))` alone is not it. `sqrt` returns a float, and a float that is
+a hair under a perfect square floors to one less — so the answer is seeded
+from `sqrt` and then walked to the true value. Negative input has no integer
+root; 0 is returned rather than erroring, so callers can fold this.
+
+    int_sqrt(0) #=> 0
+"""
 def int_sqrt(n)
   if n < 1
     0
@@ -186,8 +250,12 @@ def int_sqrt_fix(n, r)
   end
 end
 
-# How many decimal digits the number is written with, sign ignored.
-# Zero is one digit, which is the case a `while n > 0` loop returns 0 for.
+@doc """
+digit_count: how many decimal digits the number is written with, sign ignored.
+Zero is one digit, which is the case a `while n > 0` loop returns 0 for.
+
+    digit_count(0) #=> 1
+"""
 def digit_count(n)
   m = abs(n)
   if m < 10
@@ -206,19 +274,32 @@ end
 # a cycle. `reduce` is the one list primitive that already handles nil, so
 # these stay total on both empties without borrowing anything.
 
+@doc """
+sum: total of a list.
+
+    sum([]) #=> 0
+"""
 def sum(xs)
   reduce((a, b) -> a + b, 0, xs)
 end
 
-# Seeded with 1, not 0 — the empty product is one, and a 0 seed makes every
-# answer zero.
+@doc """
+product: seeded with 1, not 0 — the empty product is one, and a 0 seed makes every
+answer zero.
+
+    product([]) #=> 1
+"""
 def product(xs)
   reduce((a, b) -> a * b, 1, xs)
 end
 
-# nil seeds the fold so that no sentinel can be mistaken for data. Seeding
-# with a large number instead makes min_of([]) report that number as the
-# minimum of nothing; here the empty list answers nil, which a caller can test.
+@doc """
+min_of: nil seeds the fold so that no sentinel can be mistaken for data. Seeding
+with a large number instead makes min_of([]) report that number as the
+minimum of nothing; here the empty list answers nil, which a caller can test.
+
+    min_of([5]) #=> 5
+"""
 def min_of(xs)
   reduce(
     fn(acc, x)
@@ -247,9 +328,13 @@ def max_of(xs)
   )
 end
 
-# The identity elements are the whole reason these read the way they do:
-# gcd(0, n) is n, so 0 seeds the gcd fold; lcm(1, n) is n, so 1 seeds the lcm
-# fold. Swapping them silently returns 1 from every gcd and 0 from every lcm.
+@doc """
+gcd_of: the identity elements are the whole reason these read the way they do:
+gcd(0, n) is n, so 0 seeds the gcd fold; lcm(1, n) is n, so 1 seeds the lcm
+fold. Swapping them silently returns 1 from every gcd and 0 from every lcm.
+
+    gcd_of([]) #=> 0
+"""
 def gcd_of(xs)
   reduce((a, b) -> gcd(a, b), 0, xs)
 end
@@ -260,33 +345,49 @@ end
 
 # --- interpolation, rounding, ratios ----------------------------------------
 
-# Linear interpolation, written `a + (b - a) * t` rather than
-# `a * (1 - t) + b * t` because this form returns `a` and `b` EXACTLY at t=0
-# and t=1 — no float creeps into an endpoint — and t outside [0,1]
-# extrapolates rather than being clamped, which is what callers reach for.
+@doc """
+lerp: linear interpolation, written `a + (b - a) * t` rather than
+`a * (1 - t) + b * t` because this form returns `a` and `b` EXACTLY at t=0
+and t=1 — no float creeps into an endpoint — and t outside [0,1]
+extrapolates rather than being clamped, which is what callers reach for.
+
+    lerp(0, 10, 0) #=> 0
+"""
 def lerp(a, b, t)
   a + (b - a) * t
 end
 
-# Round to a number of decimal places. `places` is a count, so 0 or more;
-# a negative count is not rejected but is not what this scales for.
+@doc """
+round_to: round to a number of decimal places. `places` is a count, so 0 or more;
+a negative count is not rejected but is not what this scales for.
+
+    round_to(5, 2) #=> 5
+"""
 def round_to(n, places)
   f = expt(10, places)
   round(n * f) / f
 end
 
-# `part` expressed as a percentage of `whole`.
-#
-# Multiplied before dividing on purpose: `part / whole * 100` rounds once more
-# than it needs to, and on this runtime it also throws away the exact-integer
-# result that `part * 100 / whole` keeps.
+@doc """
+percent: `part` expressed as a percentage of `whole`.
+
+Multiplied before dividing on purpose: `part / whole * 100` rounds once more
+than it needs to, and on this runtime it also throws away the exact-integer
+result that `part * 100 / whole` keeps.
+
+    percent(0, 5) #=> 0
+"""
 def percent(part, whole)
   part * 100 / whole
 end
 
-# Percentage change from one value to another. The denominator is the value
-# moved FROM, which is what makes the operation asymmetric: 200 up to 250 is
-# +25%, but 250 back down to 200 is -20%, not -25%.
+@doc """
+percent_change: percentage change from one value to another. The denominator is the value
+moved FROM, which is what makes the operation asymmetric: 200 up to 250 is
++25%, but 250 back down to 200 is -20%, not -25%.
+
+    percent_change(100, 100) #=> 0
+"""
 def percent_change(from, to)
   (to - from) * 100 / from
 end
@@ -535,6 +636,11 @@ test "percent and percent_change, where the denominator is the trap"
   assert percent_change(100, 200) == 100
 end
 
+@doc """
+signum: -1, 0 or 1 by the sign.
+
+    signum(0) #=> 0
+"""
 def signum(n)
   sign(n)
 end

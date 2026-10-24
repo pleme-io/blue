@@ -4604,15 +4604,15 @@ tesuto (テスト) — testing: errors and snapshots as assertions, and the poli
 | `tesuto::scratch` |  |  |  |  |
 | `tesuto::caught(f)` |  |  |  |  |
 | `tesuto::uncovered(coverage)` |  |  |  | uncovered: The definitions no test reached, from one record of |
-| `tesuto::levels` |  |  |  |  |
+| `tesuto::levels` |  |  |  | levels: The three levels a package can be held at, from weakest to strongest. |
 | `tesuto::level(scope, value, why)` |  |  |  | level: A policy entry: definitions in `scope` (a package name, or "*" for every |
 | `tesuto::waive(name, why, until)` |  |  |  | waive: A policy entry: the qualified definition `name` may go untested until the |
-| `tesuto::iso_date?(s)` |  |  |  |  |
-| `tesuto::before?(a, b)` |  |  |  |  |
+| `tesuto::iso_date?(s)` |  |  |  | iso_date?: True for a YYYY-MM-DD shaped string; anything else is false. |
+| `tesuto::before?(a, b)` |  |  |  | before?: True when date string `a` sorts strictly before `b`. |
 | `tesuto::entry_refusal(e, today)` |  |  |  | entry_refusal: Why one policy entry is refused, or nil when it stands. `today` is passed |
 | `tesuto::settle(entries, today)` |  |  |  | settle: Every entry judged alone: a refused entry is listed with its reason and |
 | `tesuto::level_of(settled, package)` |  |  |  | level_of: The level a package is held at: its own entry, else the "*" entry, else |
-| `tesuto::waived?(settled, name)` |  |  |  |  |
+| `tesuto::waived?(settled, name)` |  |  |  | waived?: True when a standing waiver in `settled` names the qualified definition `name`. |
 | `tesuto::beside(settled, package, names)` |  |  |  | beside: One package's judgement: its level, the untested names no waiver covers, |
 | `tesuto::stale(settled, names)` |  |  |  | stale: Waivers that cover no untested name: a stale waiver would hide the next |
 

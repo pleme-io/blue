@@ -90,6 +90,11 @@ def uncovered(coverage)
   names
 end
 
+@doc """
+levels: The three levels a package can be held at, from weakest to strongest.
+
+    levels #=> [:off, :audit, :enforce]
+"""
 def levels()
   [:off, :audit, :enforce]
 end
@@ -97,6 +102,8 @@ end
 @doc """
 level: A policy entry: definitions in `scope` (a package name, or "*" for every
 package) are held at `value`, one of `levels`.
+
+    get(level("*", :audit, "new gate"), :level) #=> :audit
 """
 def level(scope, value, why)
   {entry: :level, scope:, level: value, why:}
@@ -105,11 +112,19 @@ end
 @doc """
 waive: A policy entry: the qualified definition `name` may go untested until the
 date `until` (YYYY-MM-DD), for the reason `why`.
+
+    get(waive("kazu::clamp", "in review", "2026-12-01"), :until) #=> "2026-12-01"
 """
 def waive(name, why, until)
   {entry: :waive, name:, why:, until:}
 end
 
+@doc """
+iso_date?: True for a YYYY-MM-DD shaped string; anything else is false.
+
+    iso_date?("2026-10-24") #=> true
+    iso_date?(20261024) #=> false
+"""
 def iso_date?(s)
   cs = if string?(s)
     chars(s)
@@ -119,6 +134,12 @@ def iso_date?(s)
   length(cs) == 10 and nth(4, cs) == "-" and nth(7, cs) == "-"
 end
 
+@doc """
+before?: True when date string `a` sorts strictly before `b`.
+
+    before?("2026-01-01", "2026-10-24") #=> true
+    before?("2026-10-24", "2026-10-24") #=> false
+"""
 def before?(a, b)
   a != b and nth(0, sort_keyed((x) -> x, [a, b])) == a
 end
@@ -126,6 +147,9 @@ end
 @doc """
 entry_refusal: Why one policy entry is refused, or nil when it stands. `today` is passed
 in (YYYY-MM-DD); nil skips the expiry judgement.
+
+    entry_refusal(level("*", :audit, "new gate"), nil) #=> nil
+    entry_refusal(level("*", :audit, ""), nil) #=> "gives no why"
 """
 def entry_refusal(e, today)
   kind = if map?(e)
@@ -155,6 +179,8 @@ end
 @doc """
 settle: Every entry judged alone: a refused entry is listed with its reason and
 takes no effect, and its siblings stand.
+
+    length(get(settle([level("*", :audit, "x"), level("*", :loud, "y")], nil), :refused)) #=> 1
 """
 def settle(entries, today)
   judged = map((e) -> [e, entry_refusal(e, today)], entries)
@@ -187,6 +213,11 @@ def level_of(settled, package)
   end
 end
 
+@doc """
+waived?: True when a standing waiver in `settled` names the qualified definition `name`.
+
+    waived?(settle([waive("kazu::clamp", "in review", "2099-01-01")], nil), "kazu::clamp") #=> true
+"""
 def waived?(settled, name)
   member?(name, map((w) -> get(w, :name), get(settled, :waivers)))
 end
@@ -194,6 +225,8 @@ end
 @doc """
 beside: One package's judgement: its level, the untested names no waiver covers,
 and the names a waiver covers.
+
+    get(beside(settle([], nil), "kazu", ["kazu::clamp"]), :untested) #=> ["kazu::clamp"]
 """
 def beside(settled, package, names)
   {
@@ -207,6 +240,8 @@ end
 @doc """
 stale: Waivers that cover no untested name: a stale waiver would hide the next
 real gap, so it is a finding of its own.
+
+    length(stale(settle([waive("kazu::clamp", "in review", "2099-01-01")], nil), [])) #=> 1
 """
 def stale(settled, names)
   filter((w) -> not member?(get(w, :name), names), get(settled, :waivers))

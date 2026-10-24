@@ -450,6 +450,8 @@ enum CliError {
     Fmt(String),
     #[error("{0}")]
     Pkg(String),
+    #[error("{0}")]
+    Usage(String),
     /// blue compiles only canonical source; `blue_lang_pkg::canonical`.
     #[error("{0}")]
     Refused(#[from] blue_lang_pkg::canonical::Refusal),

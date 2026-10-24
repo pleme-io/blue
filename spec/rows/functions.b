@@ -240,8 +240,7 @@ row(
 row(
   "fn.pipe.data_first_trap",
   "[1, 2] |> map(fn(x) x end)",
-  fails(:eval, "expected list, got closure"),
-  pending("G18", "vm")
+  fails(:check, "B0062")
 )
 
 row("fn.no_blocks", "xs.map { |x| x }", fails(:parse, "fn(x)"))
@@ -321,11 +320,11 @@ row("fn.find.nil_is_empty", "find(nil, fn(_x) true end)", value("nil"))
 
 row(
   "fn.find.function_first_is_bridged",
-  "find(fn(x) x > 1 end, [1, 2, 3])",
+  "# waive B0062: the tatara-lisp callers pass the function first\nfind(fn(x) x > 1 end, [1, 2, 3])",
   value("2")
 )
 
-row("fn.find.not_a_list", "find(5, fn(_x) true end)", fails(:eval, "a list"))
+row("fn.find.not_a_list", "find(5, fn(_x) true end)", fails(:check, "B0062"))
 
 row(
   "fn.flat_map",
@@ -345,7 +344,7 @@ row("fn.flat_map.empty", "flat_map([], fn(x) [x] end)", value("[]"))
 row(
   "fn.flat_map.function_first_is_refused",
   "flat_map(fn(x) [x] end, [1])",
-  fails(:eval, "takes the collection first")
+  fails(:check, "B0062")
 )
 
 row(
@@ -366,7 +365,7 @@ row("fn.group_by.empty", "group_by([], fn(x) x end)", value("{}"))
 row(
   "fn.group_by.function_first_is_refused",
   "group_by(fn(x) x end, [1])",
-  fails(:eval, "takes the collection first")
+  fails(:check, "B0062")
 )
 
 row(

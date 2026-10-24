@@ -134,7 +134,7 @@ def probe(env, body)
   dir = path_join(getenv("TMPDIR", "/tmp"), "rogu-#{to_s(now_ns)}")
   mkdir_p(dir)
   prog = path_join(dir, "probe.b")
-  write_file(prog, "use(\"rogu\")\n#{body}\n")
+  write_program(prog, "use(\"rogu\")\n#{body}\n")
   cap = exec_with_env(env, self_exe, "run", "--quiet", prog)
   rm_rf(dir)
   cap

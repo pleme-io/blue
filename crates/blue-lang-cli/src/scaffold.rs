@@ -182,6 +182,12 @@ fn lock(dir: &Path) -> Result<(), String> {
 }
 
 fn write(path: &Path, text: &str) -> Result<(), String> {
+    let text = if path.extension().is_some_and(|e| e == "b") {
+        blue_lang_fmt::format_source_lossless(text)
+            .map_err(|e| format!("{}: {e}", path.display()))?
+    } else {
+        text.to_string()
+    };
     std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 

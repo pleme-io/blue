@@ -1644,7 +1644,7 @@ test "show writes stdout by default and stderr on request, each to its own strea
     dir = path_join(getenv("TMPDIR", "/tmp"), "gamen-#{to_s(now_ns)}")
     mkdir_p(dir)
     prog = path_join(dir, "probe.b")
-    write_file(
+    write_program(
       prog,
       "use(\"gamen\")\ngamen::show(\"out\", {color: false})\ngamen::show(\"err\", {to: :stderr, newline: false})\n"
     )

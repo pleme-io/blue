@@ -56,7 +56,7 @@ test "the proxy reaches the child and never this process"
     dir = path_join(getenv("TMPDIR", "/tmp"), "keiyu-#{to_s(now_ns)}")
     mkdir_p(dir)
     prog = path_join(dir, "child.b")
-    write_file(prog, "use(\"keiyu\", [:main])\nmain()\n")
+    write_program(prog, "use(\"keiyu\", [:main])\nmain()\n")
     cap = exec_with_env(
       [["KEIYU_RELAY", "socks5h://relay.test:11080"]],
       self_exe,

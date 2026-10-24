@@ -204,6 +204,7 @@ const PROCESS_NAMES: &[&str] = &[
 const FILESYSTEM_NAMES: &[&str] = &[
     "read_file",
     "write_file",
+    "write_program",
     "append_file",
     "file_size",
     "file_mtime_ms",

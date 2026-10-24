@@ -378,7 +378,7 @@ def end_to_end()
   pkg = path_join(tmp, "hnprobe")
   mkdir_p(pkg)
   write_file(path_join(pkg, "Bluefile"), "package(\"hnprobe\", \"0.1.0\")\n")
-  write_file(
+  write_program(
     path_join(pkg, "hnprobe.b"),
     "def hp_double(x)\n  x * 2\nend\n\ndef hp_unused()\n  7\nend\n\ntest \"double\"\n  assert hp_double(3) == 6\nend\n"
   )
@@ -407,7 +407,7 @@ def end_to_end()
     "1 caught, 1 survived, 1 refused, 0 blind"
   ) == true
   # Control: a package whose own tests fail stops the run before any mutation.
-  write_file(
+  write_program(
     path_join(pkg, "hnprobe.b"),
     "test \"broken\"\n  assert 1 == 2\nend\n"
   )

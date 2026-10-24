@@ -16,6 +16,11 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
     let shadowed = shadowed_names(&entry);
     for (i, form) in &entry {
         discarded(form, *i, &shadowed, &mut out);
+        if !shadowed.contains("write_file") {
+            let mut bound = HashMap::new();
+            program_paths(form, &mut bound);
+            unformatted_producer(form, *i, &bound, &mut out);
+        }
     }
     for (i, form) in &entry {
         swallowed(form, *i, &mut out);
@@ -310,6 +315,83 @@ fn discarded(form: &Spanned, top: usize, shadowed: &BTreeSet<String>, out: &mut 
     }
     for i in items {
         discarded(i, top, shadowed, out);
+    }
+}
+
+fn names_program(s: &Spanned, bound: &HashMap<String, bool>) -> bool {
+    if let Some(t) = s.as_string() {
+        return t.ends_with(".b");
+    }
+    if let Some(n) = s.as_symbol() {
+        return bound.get(n).copied().unwrap_or(false);
+    }
+    let Some(items) = s.as_list() else {
+        return false;
+    };
+    match items.first().and_then(Spanned::as_symbol) {
+        Some("concat" | "path_join") => items.last().is_some_and(|l| names_program(l, bound)),
+        _ => false,
+    }
+}
+
+fn program_paths(s: &Spanned, bound: &mut HashMap<String, bool>) {
+    let Some(items) = s.as_list() else {
+        return;
+    };
+    if items.first().and_then(Spanned::as_symbol) == Some("define") && items.len() == 3 {
+        if let Some(n) = items[1].as_symbol() {
+            let names = names_program(&items[2], bound);
+            bound
+                .entry(n.to_string())
+                .and_modify(|v| *v = false)
+                .or_insert(names);
+        }
+    }
+    for i in items {
+        program_paths(i, bound);
+    }
+}
+
+fn unformatted_producer(
+    form: &Spanned,
+    top: usize,
+    bound: &HashMap<String, bool>,
+    out: &mut Vec<Diagnostic>,
+) {
+    let SpannedForm::List(items) = &form.form else {
+        return;
+    };
+    if matches!(
+        items.first().and_then(Spanned::as_symbol),
+        Some("quote" | "quasiquote")
+    ) {
+        return;
+    }
+    if items.len() == 3
+        && items[0].as_symbol() == Some("write_file")
+        && names_program(&items[1], bound)
+    {
+        out.push(
+            Diagnostic::new(
+                Code::B0064,
+                "this writes a blue program with `write_file`, so its form is whatever the text happens to be",
+                items[0].span,
+            )
+            .at_top_level(top)
+            .with_help("write it with `write_program`, which formats the text first; the producer owns the form")
+            .with_fix(crate::Fix {
+                message: "write `write_program`".to_string(),
+                edits: vec![crate::Edit {
+                    span: items[0].span,
+                    original: "write_file".to_string(),
+                    replacement: "write_program".to_string(),
+                }],
+                applicability: crate::Applicability::MaybeIncorrect,
+            }),
+        );
+    }
+    for i in items {
+        unformatted_producer(i, top, bound, out);
     }
 }
 

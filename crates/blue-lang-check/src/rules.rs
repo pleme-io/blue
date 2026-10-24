@@ -1218,6 +1218,98 @@ that drifts the day the code changes.
 
 `blue check --fix` deletes the line; say what the definition is for instead.",
     }
+    B0061 {
+        slug: "undeclared-option",
+        severity: Error,
+        fix: Suggested,
+        law: "a function's option keys are a closed set: a call passes only keys the function reads, and a `checked(opts, [...])` list declares every key the function reads",
+        witness: "def prepared(opts)\n  get(opts, :vars)\nend\n\nprepared({variables: 1})\n",
+        waivable: true,
+        explanation: "\
+A record parameter's keys are the keys its function reads: `get(opts, :k)`,
+`opts.k`, and the keys of every function it passes `opts` to. A call that
+passes a map literal with a key outside that set passes a value nobody reads.
+The function then sees nil for the key it does read, and fails far from the
+call. outou's `prepared` read `opts[:vars]` while every caller passed
+`variables:`, and four of thirteen tests failed for that one silent reason
+(5f25221).
+
+A `checked(opts, [:a, :b])` call declares the set, as moji's `checked` does at
+run time; then a read of any other key is reported too. A parameter that
+escapes (returned, stored in a value, passed to a function the checker cannot
+resolve) has an open set and is not reported.
+
+To comply, spell the key the function reads (the help names the set), or read
+the new key in the function. `# waive B0061: reason` keeps one line.
+docs/SAFETY.md, row 18.",
+    }
+    B0062 {
+        slug: "argument-kind",
+        severity: Error,
+        fix: None,
+        law: "a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind",
+        witness: "def kind_of(schema)\n  get(schema, :kind)\nend\n\nkind_of(\"type Query { a: Int }\")\n",
+        waivable: true,
+        explanation: "\
+A builtin's signature names its parameters by kind: `m` is a map, `xs` a list,
+`s` a string, `n` a number, `f` a function (`blue reference`;
+`blue_lang_check::contracts::kinds_of_parameter`). A function's parameter
+takes what the builtins and functions it reaches take, unless the function
+tests its kind first (`string?(x)`, `map?(x)` and the other predicates).
+
+A literal passed where another kind is taken is a type error the runtime
+would raise later, far from the call. danpen's `schema_of` called
+`get(schema, :kind)` on SDL text, a string, and the error came at run time.
+
+To comply, pass the kind the parameter takes, or test the kind in the
+function. `# waive B0062: reason` keeps one line.
+docs/SAFETY.md, row 18.",
+    }
+    B0063 {
+        slug: "nullary-as-function",
+        severity: Error,
+        fix: Suggested,
+        law: "a zero-argument definition passed where a function is taken is written `() -> name`; a bare zero-argument name is a call",
+        witness: "def pin()\n  1\nend\n\ndef gate(f)\n  f()\nend\n\ngate(pin)\n",
+        waivable: true,
+        explanation: "\
+blue calls a zero-argument definition when its bare name is evaluated:
+`now_ms` is a number, not a clock. So `gate(\"pin\", gen_pin)` runs `gen_pin`
+at the call and passes its value; `gate` then calls that value and fails.
+The prepush gate died this way on every push (eb8f81a).
+
+A parameter takes a function when its function calls it (`f()`), or passes
+it where a builtin or another function takes one (`map(f, xs)`). A bare
+zero-argument name in that place is reported with the suggestion
+`() -> name`. `blue check --fix` leaves it, because it changes what the line
+does: the bare name was a call. A `&name` reference form was rejected: the lambda is already the
+one way to write a function value, and a second spelling would split the
+corpus. `# waive B0063: reason` keeps a line that means the value.
+docs/SAFETY.md, row 18.",
+    }
+    B0064 {
+        slug: "unformatted-producer",
+        severity: Error,
+        fix: Suggested,
+        law: "a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits",
+        witness: "write_file(\"gate.b\", \"x=1\")\n",
+        waivable: true,
+        explanation: "\
+A generated program is read by people, diffed in review and checked by every
+consumer. If its producer writes raw text, the first consumer that checks
+form fails, far from the producer: mk-bidama.nix wrote gate.b unformatted and
+bidama-collisions went red until fa7bfba formatted it (befbc13: the form is
+the producer's).
+
+`write_program(path, text)` formats `text` with blue's formatter and writes
+it, and raises when the text does not parse. A `write_file` whose path is a
+string ending in `.b`, an interpolation or `path_join` ending in one, or a
+local bound to such a path, is reported with the suggestion `write_program`.
+`blue check --fix` leaves it, because it changes the bytes written. `blue new` writes through the formatter, and the
+`blue-fmt` flake check holds every committed `.b` file canonical.
+`# waive B0064: reason` keeps a line that writes a malformed program on
+purpose, such as a fixture for a layout rule. docs/SAFETY.md, row 18.",
+    }
 }
 
 impl Code {

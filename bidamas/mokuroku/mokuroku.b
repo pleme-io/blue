@@ -1920,7 +1920,7 @@ def unbound_probe(g, exe)
     getenv("TMPDIR", "/tmp"),
     "blue-unbound-#{blake3_hex(src)}.b"
   )
-  write_file(path, src)
+  write_program(path, src)
   cap = exec_capture(exe, "check", path)
   rm_rf(path)
   out = "#{json_get(cap, :stdout)}#{json_get(cap, :stderr)}"
@@ -3274,7 +3274,7 @@ test "corpus_packages reads each package's name and text from a root, and the pr
   rm_rf(root)
   mkdir_p(path_join(root, "zed"))
   write_file(path_join(root, "zed/Bluefile"), "package(\"zed\", \"0.1.0\")\n")
-  write_file(
+  write_program(
     path_join(root, "zed/zed.b"),
     "def go(x)\n  x\nend\n\ntest \"go\"\n  assert go(1) == 1\nend\n"
   )

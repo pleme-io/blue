@@ -890,7 +890,7 @@ end
 def hanabi_double(reply)
   dir = tesuto::scratch
   mkdir_p(dir)
-  write_file(path_join(dir, "server.b"), server_text)
+  write_program(path_join(dir, "server.b"), server_text)
   write_file(path_join(dir, "reply.json"), reply)
   sh_exec(
     "'#{self_exe}' run '#{path_join(dir, "server.b")}' -- '#{dir}' >/dev/null 2>&1 &"

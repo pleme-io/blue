@@ -42,7 +42,7 @@ fn a_builtin_has_its_signature_doc_tier_and_spec_row_example() {
     assert_eq!(e["name"], "length");
     assert_eq!(e["namespace"], "blue");
     assert_eq!(e["tier"], "builtin");
-    assert_eq!(e["signature"], "length(xs)");
+    assert_eq!(e["signature"], "length(seq)");
     assert!(e["doc"][0].as_str().is_some_and(|d| !d.is_empty()), "{e}");
     assert!(
         e["example"]["from"]

@@ -228,6 +228,24 @@ gates = append(
   ),
   [
     ["gen is substrate's pin", () -> gen_pin],
+    [
+      "a retired word ships its fixer",
+      fn()
+        tested = exec_capture("#{bin}/blue", "test", "#{root}/gen/retired.b")
+        if status_of(tested) != 0
+          verdict(tested)
+        else
+          verdict(
+            exec_capture(
+              "#{bin}/blue",
+              "#{root}/gen/retired.b",
+              "origin/main",
+              "HEAD"
+            )
+          )
+        end
+      end
+    ],
     ["Cargo.gen.lock tied", () -> gen_tie],
     ["every member's test targets compile alone", () -> test_targets],
     [

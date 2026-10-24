@@ -117,7 +117,7 @@ def zed_root(tested)
   rm_rf(root)
   mkdir_p(path_join(root, "zed"))
   write_file(path_join(root, "zed/Bluefile"), "package(\"zed\", \"0.1.0\")\n")
-  write_file(
+  write_program(
     path_join(root, "zed/zed.b"),
     "def lower(s)\n  s\nend\n\ndef upper(s)\n  s\nend\n\ndef title(s)\n  s\nend\n\n#{tested}"
   )

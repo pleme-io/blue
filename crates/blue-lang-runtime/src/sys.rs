@@ -291,6 +291,80 @@ fn capture_result(out: &std::process::Output) -> Value {
     ])
 }
 
+static WRITE_ROOTS: std::sync::RwLock<Option<Vec<std::path::PathBuf>>> =
+    std::sync::RwLock::new(None);
+
+pub fn confine_writes(roots: Option<Vec<std::path::PathBuf>>) {
+    let roots = roots.map(|rs| rs.iter().map(|r| resolved(r)).collect());
+    if let Ok(mut w) = WRITE_ROOTS.write() {
+        *w = roots;
+    }
+}
+
+#[must_use]
+pub fn write_roots() -> Option<Vec<std::path::PathBuf>> {
+    WRITE_ROOTS.read().ok().and_then(|r| r.clone())
+}
+
+fn resolved(path: &std::path::Path) -> std::path::PathBuf {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir().unwrap_or_default().join(path)
+    };
+    let mut normal = std::path::PathBuf::new();
+    for c in absolute.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                normal.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => normal.push(other),
+        }
+    }
+    let mut existing = normal.clone();
+    let mut rest = Vec::new();
+    while !existing.exists() {
+        match (
+            existing.file_name().map(std::ffi::OsStr::to_os_string),
+            existing.parent(),
+        ) {
+            (Some(name), Some(parent)) => {
+                rest.push(name);
+                existing = parent.to_path_buf();
+            }
+            _ => return normal,
+        }
+    }
+    let mut out = existing.canonicalize().unwrap_or(existing);
+    for name in rest.into_iter().rev() {
+        out.push(name);
+    }
+    out
+}
+
+fn writable(path: &str, name: &'static str, span: tatara_lisp::Span) -> Result<(), EvalError> {
+    let Some(roots) = write_roots() else {
+        return Ok(());
+    };
+    if matches!(path, "/dev/null" | "/dev/stdout" | "/dev/stderr") {
+        return Ok(());
+    }
+    let at = resolved(std::path::Path::new(path));
+    if roots.iter().any(|r| at.starts_with(r)) {
+        return Ok(());
+    }
+    let shown: Vec<String> = roots.iter().map(|r| r.display().to_string()).collect();
+    Err(EvalError::native_fn(
+        name,
+        format!(
+            "{path}: refused, this run writes only under {} (blue test is hermetic; BLUE_TEST_WRITES=anywhere turns the confinement off)",
+            shown.join(", ")
+        ),
+        span,
+    ))
+}
+
 // ── filesystem ───────────────────────────────────────────────────────────
 
 fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
@@ -310,9 +384,30 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(2),
         |args: &[Value], _h: &mut H, span| {
             let path = arg_str(&args[0], "write_file", span)?;
+            writable(&path, "write_file", span)?;
             let contents = arg_str(&args[1], "write_file", span)?;
             std::fs::write(&*path, contents.as_bytes())
                 .map_err(|e| EvalError::native_fn("write_file", format!("{path}: {e}"), span))?;
+            Ok(Value::Nil)
+        },
+    );
+
+    interp.register_fn(
+        "write_program",
+        Arity::Exact(2),
+        |args: &[Value], _h: &mut H, span| {
+            let path = arg_str(&args[0], "write_program", span)?;
+            writable(&path, "write_program", span)?;
+            let source = arg_str(&args[1], "write_program", span)?;
+            let canonical = blue_lang_fmt::format_source_lossless(&source).map_err(|e| {
+                EvalError::native_fn(
+                    "write_program",
+                    format!("{path}: the program does not parse: {e}"),
+                    span,
+                )
+            })?;
+            std::fs::write(&*path, canonical.as_bytes())
+                .map_err(|e| EvalError::native_fn("write_program", format!("{path}: {e}"), span))?;
             Ok(Value::Nil)
         },
     );
@@ -323,6 +418,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         |args: &[Value], _h: &mut H, span| {
             use std::io::Write;
             let path = arg_str(&args[0], "append_file", span)?;
+            writable(&path, "append_file", span)?;
             let contents = arg_str(&args[1], "append_file", span)?;
             let mut f = std::fs::OpenOptions::new()
                 .create(true)
@@ -443,6 +539,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(1),
         |args: &[Value], _h: &mut H, span| {
             let path = arg_str(&args[0], "mkdir", span)?;
+            writable(&path, "mkdir", span)?;
             match std::fs::create_dir(&*path) {
                 Ok(()) => Ok(Value::Nil),
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(Value::Nil),
@@ -456,6 +553,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(1),
         |args: &[Value], _h: &mut H, span| {
             let path = arg_str(&args[0], "mkdir_p", span)?;
+            writable(&path, "mkdir_p", span)?;
             std::fs::create_dir_all(&*path)
                 .map_err(|e| EvalError::native_fn("mkdir_p", format!("{path}: {e}"), span))?;
             Ok(Value::Nil)
@@ -464,6 +562,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
 
     interp.register_fn("rm", Arity::Exact(1), |args: &[Value], _h: &mut H, span| {
         let path = arg_str(&args[0], "rm", span)?;
+        writable(&path, "rm", span)?;
         std::fs::remove_file(&*path)
             .map_err(|e| EvalError::native_fn("rm", format!("{path}: {e}"), span))?;
         Ok(Value::Nil)
@@ -479,6 +578,8 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         |args: &[Value], _h: &mut H, span| {
             let from = arg_str(&args[0], "rename_file", span)?;
             let to = arg_str(&args[1], "rename_file", span)?;
+            writable(&from, "rename_file", span)?;
+            writable(&to, "rename_file", span)?;
             std::fs::rename(&*from, &*to).map_err(|e| {
                 EvalError::native_fn("rename_file", format!("{from} -> {to}: {e}"), span)
             })?;
@@ -491,6 +592,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(1),
         |args: &[Value], _h: &mut H, span| {
             let path = arg_str(&args[0], "rm_rf", span)?;
+            writable(&path, "rm_rf", span)?;
             if Path::new(&*path).is_dir() {
                 std::fs::remove_dir_all(&*path)
                     .map_err(|e| EvalError::native_fn("rm_rf", format!("{path}: {e}"), span))?;

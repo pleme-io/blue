@@ -124,6 +124,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 15 | Injection | ⚠️ `exec_*` has no shell; `pg_query` binds params; `sh_exec` and `pg_execute` take text | rule: `sh_exec` / `pg_execute` with an interpolated argument | checked-at-expansion | on (`# waive`) |
 | 16 | Blue scripting parity | ⚠️ a script gets the check stage's errors; no warnings, no project rules, ambient capabilities | shebang `--allow` (landed); project rules on `run`; default flip | checked-at-expansion | on |
 | 17 | Module privacy: a package cannot rebind a name outside itself | ✅ runtime: definitions keyed `pkg/name`; ✅ check: a bidama definition never changes an importer's bare builtin call (B0012 only for listed flat-era names, inside their window) | `docs/NAMESPACES.md` | unrepresentable (runtime) + checked-at-expansion | on, no off; the flat-era refusal goes off per name when its `legacy_names` window closes |
+| 18 | Session-mistake hard blocks | ✅ B0061 undeclared-option, B0062 argument-kind, B0063 nullary-as-function, B0064 unformatted-producer (`write_program`); ✅ `gen/retired.b`: a retired word ships its `legacy_names` fixer (prepush); ✅ `blue test` scrubs the inherited git environment and writes only under the temporary root | registry witnesses, spec rows `safety.B0061*`–`safety.B0064*`, `crates/blue-lang-cli/tests/hermetic.rs` | checked-at-expansion (codes), runtime-refused (test writes) | on; `# waive <code>: reason`; `BLUE_TEST_ENV=inherit`, `BLUE_TEST_WRITES=anywhere` |
 
 **Count:** 16 rows. Sealed at their target tier today: 4 (rows 4, 5, 6,
 10; row 5 for memory, its `nil` half belongs to row 1). Partly sealed: 9
@@ -136,10 +137,6 @@ the same columns, when its gate lands. This document does not land them.
   case: a package `def` shadowed `read`).
 - Build hygiene: generated-file conflicts, gate speed, `gen` version skew,
   formatter drift across consumers.
-- Session-mistake hard blocks: closed option-key sets, builtin argument-kind
-  checks at check time, a zero-argument name passed as a function, a producer
-  that emits non-canonical `.b`, a word retired without a fixer, hermetic
-  test runs.
 
 ## 5. Row notes (measurements)
 

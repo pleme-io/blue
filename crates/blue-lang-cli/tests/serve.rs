@@ -193,7 +193,7 @@ fn load_then_eval_complete_and_doc_in_the_files_context() {
     assert_eq!(r["namespace"], "this file");
     let r = s.ask(json!({"id": 6, "op": "doc", "name": "length"}));
     assert_eq!(r["namespace"], "builtin", "{r}");
-    assert_eq!(r["signature"], "length(xs)");
+    assert_eq!(r["signature"], "length(seq)");
     let r = s.ask(json!({"id": 7, "op": "doc", "name": "no_such"}));
     assert_eq!(r["error"]["code"], "not-found", "{r}");
 }
@@ -255,7 +255,7 @@ fn the_repl_reads_multi_line_input_and_its_commands_from_a_pipe() {
     assert!(out.status.success());
     let text = String::from_utf8(out.stdout).unwrap();
     let expected = format!(
-        "=> nil\n=> 11\nhi\n=> nil\nloaded {}: from_file\n=> 42\n=> 1 + 1\nlength(xs)  (builtin)\n",
+        "=> nil\n=> 11\nhi\n=> nil\nloaded {}: from_file\n=> 42\n=> 1 + 1\nlength(seq)  (builtin)\n",
         path.display()
     );
     assert!(text.starts_with(&expected), "{text}");

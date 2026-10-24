@@ -71,6 +71,10 @@ it; `blue explain --list` lists them.
 | B0058 | undocumented-bidama | error | a bidama's file opens with a `@moduledoc` holding its purpose and one whole example |
 | B0059 | placeholder-doc | error | a `@doc` or `@moduledoc` says something: no empty text and no placeholder (`TODO`, `TBD`, `...`) |
 | B0060 | restated-doc | error | a `@doc` never restates a type, a signature or a contract field: blue derives them |
+| B0061 | undeclared-option | error | a function's option keys are a closed set: a call passes only keys the function reads, and a `checked(opts, [...])` list declares every key the function reads |
+| B0062 | argument-kind | error | a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind |
+| B0063 | nullary-as-function | error | a zero-argument definition passed where a function is taken is written `() -> name`; a bare zero-argument name is a call |
+| B0064 | unformatted-producer | error | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

@@ -31,6 +31,14 @@ row(
 )
 
 row(
+  "host.write_program",
+  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-wp\")\nrm_rf(d)\nmkdir_p(d)\nf = path_join(d, \"a.b\")\nwrite_program(f, \"x=1\")\nr = read_file(f)\nbad = write_program(f, \"def (\") rescue :refused\nrm_rf(d)\n[r, bad]",
+  value("[\"x = 1\\n\", :refused]"),
+  covers("builtin:write_program"),
+  host()
+)
+
+row(
   "host.write_read",
   "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-rw\")\nrm_rf(d)\nmkdir_p(d)\nf = path_join(d, \"a.txt\")\nwrite_file(f, \"one\")\nappend_file(f, \" two\")\nr = read_file(f)\nrm_rf(d)\nr",
   value("\"one two\""),
@@ -71,7 +79,7 @@ row(
 
 row(
   "host.glob",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-gl\")\nrm_rf(d)\nmkdir_p(d)\nwrite_file(path_join(d, \"x.b\"), \"\")\nr = length(glob(path_join(d, \"*.b\")))\nrm_rf(d)\nr",
+  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-gl\")\nrm_rf(d)\nmkdir_p(d)\nwrite_program(path_join(d, \"x.b\"), \"\")\nr = length(glob(path_join(d, \"*.b\")))\nrm_rf(d)\nr",
   value("0"),
   covers("builtin:glob"),
   host()

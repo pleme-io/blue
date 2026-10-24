@@ -102,7 +102,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-292 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+293 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -185,8 +185,8 @@ Higher binding power binds tighter.
 | `butlast` | `butlast(xs)` | 1 | All but the last; raises on []. |
 | `car` | `car(xs)` | 1 | The first element. Prefer first. |
 | `cdr` | `cdr(xs)` | 1 | All but the first ([] for a one-element list); raises on []. Prefer rest. |
-| `cons` | `cons(x, xs)` | 2 | A new list with x in front. Shares xs rather than copying it, and is in place when xs is held nowhere else. |
-| `count` | `count(xs)` | 1 | The number of elements; 0 for nil. |
+| `cons` | `cons(x, tail)` | 2 | A new list with x in front. Shares tail rather than copying it, and is in place when tail is held nowhere else. |
+| `count` | `count(x)` | 1 | The number of elements; 0 for nil. |
 | `distinct` | `distinct(xs)` | 1 | The elements with repeats removed, first occurrence kept, compared with ==. |
 | `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. |
 | `first` | `first(xs)` | 1 | The first element; raises on []. retsu's first answers nil. Also defined by `retsu` (`retsu::first`): a file that lists it gets that one. |
@@ -197,7 +197,7 @@ Higher binding power binds tighter.
 | `intersperse` | `intersperse(sep, xs)` | 2 | xs with sep between each pair. The SEPARATOR comes first. |
 | `iterate` | `iterate(f, x, n)` | 3 | [x, f(x), f(f(x)), …], n elements. |
 | `last` | `last(xs)` | 1 | The last element; raises on []. retsu's last answers nil. Also defined by `retsu` (`retsu::last`): a file that lists it gets that one. |
-| `length` | `length(xs)` | 1 | The length of a list or string. Raises on nil: retsu's size(xs) is total. |
+| `length` | `length(seq)` | 1 | The length of a list or string. Raises on nil: retsu's size(xs) is total. |
 | `list` | `list(xs...)` | any | A list of the arguments. Written [a, b]. Also defined by `gitto` (`gitto::list`): a file that lists it gets that one. |
 | `member?` | `member?(x, xs)` | 2 | Whether some element == x. The ELEMENT comes first. |
 | `next` | `next(xs)` | 1 | All but the first; raises on []. |
@@ -207,7 +207,7 @@ Higher binding power binds tighter.
 | `range` | `range(a[, b][, step])` | 1..3 | Ints from a up to but not including b by step; range(n) is 0 to n - 1. Native, so any length is safe. |
 | `repeatedly` | `repeatedly(f, n)` | 2 | A list of n calls to the zero-argument function f. The FUNCTION comes first. |
 | `rest` | `rest(xs)` | 1 | All but the first; raises on []. retsu's rest answers []. Also defined by `retsu` (`retsu::rest`): a file that lists it gets that one. |
-| `reverse` | `reverse(xs)` | 1 | The list or string backwards. Raises on nil. |
+| `reverse` | `reverse(seq)` | 1 | The list or string backwards. Raises on nil. |
 | `second` | `second(xs)` | 1 | The second element; raises when there is none. |
 | `sort_keyed` | `sort_keyed(key, xs)` | 2 | A stable sort by key(x), under compare's rules; native, so safe at any length. Mixed key kinds raise. |
 | `take` | `take(n, xs)` | 2 | The first n elements, or all of them. The COUNT comes first. |
@@ -364,6 +364,7 @@ Higher binding power binds tighter.
 | `rm_rf` | `rm_rf(path)` | 1 | Delete a file or a directory tree; nil when there is nothing. |
 | `walk_dir` | `walk_dir(root)` | 1 | Every file under root, as paths, in no fixed order: sort before comparing. |
 | `write_file` | `write_file(path, text)` | 2 | Replace the file's contents with text; nil. |
+| `write_program` | `write_program(path, text)` | 2 | Write a blue program in its canonical form: text through the formatter, then to the file; raises when text does not parse. Every producer of a .b file writes with it (B0064). |
 
 ### Processes
 
@@ -612,3 +613,7 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0058` | undocumented-bidama | a bidama's file opens with a `@moduledoc` holding its purpose and one whole example | autofix |
 | `B0059` | placeholder-doc | a `@doc` or `@moduledoc` says something: no empty text and no placeholder (`TODO`, `TBD`, `...`) | refused |
 | `B0060` | restated-doc | a `@doc` never restates a type, a signature or a contract field: blue derives them | autofix |
+| `B0061` | undeclared-option | a function's option keys are a closed set: a call passes only keys the function reads, and a `checked(opts, [...])` list declares every key the function reads | suggested |
+| `B0062` | argument-kind | a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind | refused |
+| `B0063` | nullary-as-function | a zero-argument definition passed where a function is taken is written `() -> name`; a bare zero-argument name is a call | suggested |
+| `B0064` | unformatted-producer | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits | suggested |

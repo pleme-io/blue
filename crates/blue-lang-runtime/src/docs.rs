@@ -223,8 +223,8 @@ pub const NAMES: &[NameDoc] = names! {
     Text: "bytes_text" "bytes_text(bytes)" "The string whose UTF-8 bytes these are (a byte list or a string); nil when they are not UTF-8. An element outside 0..255 raises.";
     // ── lists ─────────────────────────────────────────────────────────────
     List: "list" "list(xs...)" "A list of the arguments. Written [a, b].";
-    List: "length" "length(xs)" "The length of a list or string. Raises on nil: retsu's size(xs) is total.";
-    List: "count" "count(xs)" "The number of elements; 0 for nil.";
+    List: "length" "length(seq)" "The length of a list or string. Raises on nil: retsu's size(xs) is total.";
+    List: "count" "count(x)" "The number of elements; 0 for nil.";
     List: "nth" "nth(i, xs)" "The element at index i, from 0; nil past either end. The INDEX comes first.";
     List: "first" "first(xs)" "The first element; raises on []. retsu's first answers nil.";
     List: "second" "second(xs)" "The second element; raises when there is none.";
@@ -236,11 +236,11 @@ pub const NAMES: &[NameDoc] = names! {
     List: "butlast" "butlast(xs)" "All but the last; raises on [].";
     List: "car" "car(xs)" "The first element. Prefer first.";
     List: "cdr" "cdr(xs)" "All but the first ([] for a one-element list); raises on []. Prefer rest.";
-    List: "cons" "cons(x, xs)" "A new list with x in front. Shares xs rather than copying it, and is in place when xs is held nowhere else.";
+    List: "cons" "cons(x, tail)" "A new list with x in front. Shares tail rather than copying it, and is in place when tail is held nowhere else.";
     List: "append" "append(lists...)" "The lists joined, in order; nil counts as []. Persistent: O(log n), sharing structure with the operands, and in place when the first list is held nowhere else (an accumulator in a tail call), so building a list one element at a time is linear.";
     List: "take" "take(n, xs)" "The first n elements, or all of them. The COUNT comes first.";
     List: "drop" "drop(n, xs)" "All but the first n. The COUNT comes first.";
-    List: "reverse" "reverse(xs)" "The list or string backwards. Raises on nil.";
+    List: "reverse" "reverse(seq)" "The list or string backwards. Raises on nil.";
     List: "range" "range(a[, b][, step])" "Ints from a up to but not including b by step; range(n) is 0 to n - 1. Native, so any length is safe.";
     List: "flatten" "flatten(xs)" "Every nested list spliced in, to any depth.";
     List: "distinct" "distinct(xs)" "The elements with repeats removed, first occurrence kept, compared with ==.";
@@ -354,6 +354,7 @@ pub const NAMES: &[NameDoc] = names! {
     // ── files ─────────────────────────────────────────────────────────────
     File: "read_file" "read_file(path)" "The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not.";
     File: "write_file" "write_file(path, text)" "Replace the file's contents with text; nil.";
+    File: "write_program" "write_program(path, text)" "Write a blue program in its canonical form: text through the formatter, then to the file; raises when text does not parse. Every producer of a .b file writes with it (B0064).";
     File: "append_file" "append_file(path, text)" "Add text to the end of the file, creating it; nil.";
     File: "rename_file" "rename_file(from, to)" "Move a file, atomically on one filesystem: write a temporary beside to, then rename.";
     File: "rm" "rm(path)" "Delete a file; raises when it is absent.";
@@ -461,4 +462,32 @@ pub const NAMES: &[NameDoc] = names! {
 #[must_use]
 pub fn doc_of(name: &str) -> Option<&'static NameDoc> {
     NAMES.iter().find(|d| d.name == name)
+}
+
+#[must_use]
+pub fn signatures() -> &'static blue_lang_check::contracts::Signatures {
+    static SIGNATURES: std::sync::OnceLock<blue_lang_check::contracts::Signatures> =
+        std::sync::OnceLock::new();
+    SIGNATURES.get_or_init(|| {
+        let rows: Vec<blue_lang_check::contracts::BuiltinRow> = NAMES
+            .iter()
+            .map(|d| blue_lang_check::contracts::BuiltinRow {
+                name: d.name,
+                signature: d.signature,
+                kinded: d.topic.kinded(),
+                guard: d.topic == Topic::Predicate && !matches!(d.name, "nil?" | "some?"),
+            })
+            .collect();
+        blue_lang_check::contracts::Signatures::new(&rows)
+    })
+}
+
+impl Topic {
+    #[must_use]
+    pub const fn kinded(self) -> bool {
+        matches!(
+            self,
+            Topic::Number | Topic::Text | Topic::List | Topic::Map | Topic::Function
+        )
+    }
 }

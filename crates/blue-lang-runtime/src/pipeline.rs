@@ -511,6 +511,15 @@ pub(crate) fn check_stage(
             .retain(|d| !(d.code == blue_lang_check::Code::B0002 && silenced.contains(&d.span)));
         outcome.diagnostics.extend(found);
     }
+    outcome
+        .diagnostics
+        .extend(blue_lang_check::contracts::check(
+            forms,
+            &table,
+            &|i| namespace_of(program, i),
+            &is_entry,
+            crate::docs::signatures(),
+        ));
 
     outcome.diagnostics.extend(doc_diagnostics(program));
 
@@ -536,6 +545,9 @@ pub(crate) fn check_stage(
                 blue_lang_check::Code::B0023
                     | blue_lang_check::Code::B0036
                     | blue_lang_check::Code::B0037
+                    | blue_lang_check::Code::B0061
+                    | blue_lang_check::Code::B0062
+                    | blue_lang_check::Code::B0063
             )
         });
     }

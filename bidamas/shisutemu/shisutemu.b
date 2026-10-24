@@ -290,7 +290,7 @@ test "read_or is total over a missing file and honest about a directory"
 end
 
 test "read_or reads a real file"
-  p = "/tmp/blue-shisutemu-reador.txt"
+  p = path_join(getenv("TMPDIR", "/tmp"), "blue-shisutemu-reador.txt")
   write_file(p, "hello")
   assert read_or(p, "fallback") == "hello"
   rm(p)
@@ -299,7 +299,7 @@ end
 
 test "file_age_ms answers nil for a missing file and a small age for a real one"
   assert file_age_ms("/definitely/not/here/blue-test").nil?
-  p = "/tmp/blue-shisutemu-age.txt"
+  p = path_join(getenv("TMPDIR", "/tmp"), "blue-shisutemu-age.txt")
   write_file(p, "x")
   age = file_age_ms(p)
   assert integer?(age) == true

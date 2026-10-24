@@ -91,6 +91,12 @@ compile it, and say `blue: formatted <file>`. A checkout's bidamas override
 the compiled-in ones from `BLUE_PATH`:
 `BLUE_PATH=path/to/blue/bidamas blue test file.b`.
 
+`blue test` is hermetic. It drops the inherited `GIT_DIR`, `GIT_WORK_TREE`
+and their kin, so a fixture repository a test makes is its own, and it
+refuses a write outside the temporary directory (`TMPDIR`). The off switches
+are `BLUE_TEST_ENV=inherit` and `BLUE_TEST_WRITES=anywhere`. A test that
+writes a `.b` file writes it with `write_program`, which formats it (B0064).
+
 ## One way to write each thing
 
 blue reads every older or borrowed spelling and writes one: `a and b`, `not x`,

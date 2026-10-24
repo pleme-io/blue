@@ -47,6 +47,7 @@ pub(crate) fn test(
     coverage: bool,
     json: bool,
 ) -> Result<ExitCode, CliError> {
+    hermetic()?;
     let tree = path.is_dir();
     let files = if tree {
         test_files(path)
@@ -108,6 +109,45 @@ pub(crate) fn test(
     } else {
         ExitCode::FAILURE
     })
+}
+
+const REPOSITORY_ENV: &[&str] = &[
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+];
+
+fn hermetic() -> Result<(), CliError> {
+    match std::env::var("BLUE_TEST_ENV").as_deref() {
+        Err(_) | Ok("scrub") => {
+            for name in REPOSITORY_ENV {
+                std::env::remove_var(name);
+            }
+        }
+        Ok("inherit") => {}
+        Ok(other) => {
+            return Err(CliError::Usage(format!(
+                "BLUE_TEST_ENV is \"{other}\"; it takes scrub (the default) or inherit"
+            )))
+        }
+    }
+    match std::env::var("BLUE_TEST_WRITES").as_deref() {
+        Err(_) | Ok("temp") => {
+            blue_lang_runtime::sys::confine_writes(Some(vec![std::env::temp_dir()]));
+        }
+        Ok("anywhere") => blue_lang_runtime::sys::confine_writes(None),
+        Ok(other) => {
+            return Err(CliError::Usage(format!(
+                "BLUE_TEST_WRITES is \"{other}\"; it takes temp (the default) or anywhere"
+            )))
+        }
+    }
+    Ok(())
 }
 
 /// Every `.b` file under `root` with a top-level `test` block, in path order.

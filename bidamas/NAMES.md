@@ -112,6 +112,7 @@ replacement (`docs/COMPOUNDING.md`).
 | `kinji` | `refusal_why` | `kyohi::why` | 0.1.2 |
 | `kueri` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
 | `kueri` | `refusal_why` | `kyohi::why` | 0.1.2 |
+| `kyohi` | `findings` | `kyohi::check` | 0.1.2 |
 | `kyohi` | `refuse` | `kyohi::enforce` | 0.1.2 |
 | `nisshi` | `refusal_detail` | `kyohi::why` | 0.1.2 |
 | `nisshi` | `refusal_kind` | `kyohi::kind` | 0.1.2 |

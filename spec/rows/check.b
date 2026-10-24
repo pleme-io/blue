@@ -335,3 +335,61 @@ row(
   "# waive B0053: the join raises on a list that is not text\ndef put(xs)\n  join(xs, \",\")\n  xs\nend",
   diagnoses([])
 )
+
+row(
+  "safety.B0061",
+  "def prepared(opts)\n  get(opts, :vars)\nend\n\nprepared({variables: 1})",
+  diagnoses(["B0061"]),
+  covers("rule:B0061")
+)
+
+row(
+  "safety.B0061.checked",
+  "def checked(o, _ks)\n  o\nend\n\ndef prepared(opts)\n  opts = checked(opts, [:vars])\n  [get(opts, :vars), opts.b]\nend",
+  diagnoses(["B0061"])
+)
+
+row(
+  "safety.B0061.read_key",
+  "def prepared(opts)\n  get(opts, :vars)\nend\n\nprepared({vars: 1})",
+  diagnoses([])
+)
+
+row(
+  "safety.B0062",
+  "def kind_of(schema)\n  get(schema, :kind)\nend\n\nkind_of(\"type Query { a: Int }\")",
+  diagnoses(["B0062"]),
+  covers("rule:B0062")
+)
+
+row(
+  "safety.B0062.kind_tested",
+  "def kind_of(schema)\n  if map?(schema)\n    get(schema, :kind)\n  end\nend\n\nkind_of(\"type Query { a: Int }\")",
+  diagnoses([])
+)
+
+row(
+  "safety.B0063",
+  "def pin()\n  1\nend\n\ndef gate(f)\n  f()\nend\n\ngate(pin)",
+  diagnoses(["B0063"]),
+  covers("rule:B0063")
+)
+
+row(
+  "safety.B0063.lambda",
+  "def pin()\n  1\nend\n\ndef gate(f)\n  f()\nend\n\ngate(() -> pin)",
+  diagnoses([])
+)
+
+row(
+  "safety.B0064",
+  "write_file(\"gate.b\", \"x=1\")",
+  diagnoses(["B0064"]),
+  covers("rule:B0064")
+)
+
+row(
+  "safety.B0064.write_program",
+  "write_program(\"gate.b\", \"x=1\")",
+  diagnoses([])
+)

@@ -16,7 +16,8 @@ use std::collections::BTreeSet;
 use blue_lang_kiwari::spec::{Spec, Template};
 use blue_lang_syntax::kigou::OPERATOR_ALIASES;
 use blue_lang_syntax::{
-    BLOCK_KEYWORDS, INFIX, LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_MAP, SURFACE_KEYWORDS,
+    BLOCK_KEYWORDS, INFIX, LOWERED_ASSERT, LOWERED_CONCAT, LOWERED_KWARGS, LOWERED_MAP,
+    LOWERED_MERGE, LOWERED_SPLICE, SURFACE_KEYWORDS,
 };
 
 fn spec() -> Spec {
@@ -79,6 +80,7 @@ fn mentions(t: &Template, sym: &str) -> bool {
     match t {
         Template::Sym(s) => s == sym,
         Template::Interpolate { join, .. } => join == sym,
+        Template::Runs { head, .. } => head == sym,
         Template::List(ts) | Template::Seq(ts) => ts.iter().any(|t| mentions(t, sym)),
         Template::Field {
             default: Some(d), ..
@@ -104,6 +106,9 @@ fn the_lowered_names_are_the_parser_s() {
     for (kind, name) in [
         ("assert", LOWERED_ASSERT),
         ("map", LOWERED_MAP),
+        ("map", LOWERED_MERGE),
+        ("spread", LOWERED_SPLICE),
+        ("keyword_arguments", LOWERED_KWARGS),
         ("string", LOWERED_CONCAT),
     ] {
         let t = s

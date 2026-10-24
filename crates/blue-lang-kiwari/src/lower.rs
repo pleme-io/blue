@@ -348,6 +348,20 @@ impl<'a> Lowerer<'a> {
                     self.eval(otherwise, node)?
                 }
             }
+            Template::Runs { apart, head } => {
+                let mut out = Vec::new();
+                let mut run = Vec::new();
+                for n in Self::named(node) {
+                    if n.kind() == apart {
+                        flush(head, &mut run, &mut out);
+                        out.extend(self.lower(n)?);
+                    } else {
+                        run.extend(self.lower(n)?);
+                    }
+                }
+                flush(head, &mut run, &mut out);
+                out
+            }
         })
     }
 
@@ -370,6 +384,14 @@ impl<'a> Lowerer<'a> {
 
 fn sym(s: &str) -> Sexp {
     Sexp::Atom(Atom::Symbol(s.to_string()))
+}
+
+fn flush(head: &str, run: &mut Vec<Sexp>, out: &mut Vec<Sexp>) {
+    if !run.is_empty() {
+        let mut items = vec![sym(head)];
+        items.append(run);
+        out.push(Sexp::List(items));
+    }
 }
 
 fn one(mut v: Vec<Sexp>) -> Result<Sexp, usize> {

@@ -575,6 +575,14 @@ def comma_sep(item)
   opt(seq([item, nl, rep(seq([lit(","), nl, item, nl]))]))
 end
 
+def map_entry()
+  choice([ref("pair"), ref("pun_pair"), ref("rocket_pair")])
+end
+
+def positional()
+  choice([ref("_expression"), ref("splat")])
+end
+
 # Statements, one per line; the first may share the header's line
 # (`fn(x) x * 2 end`), and the block may end on a statement's own line.
 def lines(stmt)
@@ -963,6 +971,7 @@ def blue()
       [concat("#", "{"), "punctuation.special"],
       ["=", "operator"],
       ["=>", "operator"],
+      ["**", "operator"],
       ["->", "operator"],
       [":", ""],
       ["#", ""],
@@ -1188,7 +1197,21 @@ def blue()
             [
               lit("("),
               nl,
-              comma_sep(choice([ref("_expression"), ref("splat")])),
+              opt(
+                choice(
+                  [
+                    seq(
+                      [
+                        positional,
+                        nl,
+                        rep(seq([lit(","), nl, positional, nl])),
+                        opt(seq([lit(","), nl, ref("keyword_arguments")]))
+                      ]
+                    ),
+                    ref("keyword_arguments")
+                  ]
+                )
+              ),
               lit(")")
             ]
           )
@@ -1275,18 +1298,60 @@ def blue()
         ["list", ["sym", "list"], ["named"]]
       ),
       rule(
+        "keyword_arguments",
+        seq(
+          [
+            choice(
+              [
+                field("spread", ref("spread")),
+                seq(
+                  [
+                    choice([ref("pair"), ref("pun_pair")]),
+                    nl,
+                    rep(seq([lit(","), nl, map_entry, nl])),
+                    lit(","),
+                    nl,
+                    field("spread", ref("spread"))
+                  ]
+                )
+              ]
+            ),
+            nl,
+            rep(
+              seq(
+                [
+                  lit(","),
+                  nl,
+                  choice([field("spread", ref("spread")), map_entry]),
+                  nl
+                ]
+              )
+            )
+          ]
+        ),
+        ["list", ["sym", "blue-kwargs"], ["runs", "spread", "hash-map"]]
+      ),
+      rule(
+        "spread",
+        seq([lit("**"), field("map", ref("_expression"))]),
+        ["list", ["sym", "blue-splice"], ["field", "map"]]
+      ),
+      rule(
         "map",
         seq(
           [
             lit("{"),
             nl,
-            comma_sep(
-              choice([ref("pair"), ref("pun_pair"), ref("rocket_pair")])
-            ),
+            comma_sep(choice([field("spread", ref("spread")), map_entry])),
             lit("}")
           ]
         ),
-        ["list", ["sym", "hash-map"], ["named"]]
+        [
+          "if_any",
+          [["spread"]],
+          ["list", ["sym", "blue-merge"], ["runs", "spread", "hash-map"]],
+          ["list", ["sym", "hash-map"], ["named"]]
+        ]
       ),
       rule(
         "pun_pair",

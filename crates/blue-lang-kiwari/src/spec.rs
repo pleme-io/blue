@@ -198,6 +198,10 @@ pub enum Template {
         then: Box<Template>,
         otherwise: Box<Template>,
     },
+    Runs {
+        apart: String,
+        head: String,
+    },
 }
 
 fn s(v: &Value, what: &str) -> Result<String, String> {
@@ -382,6 +386,13 @@ impl Template {
                     kind: s(arg(0)?, "a node kind")?,
                     then: sub(1)?,
                     otherwise: sub(2)?,
+                }
+            }
+            "runs" => {
+                arity(2)?;
+                Self::Runs {
+                    apart: s(arg(0)?, "a node kind")?,
+                    head: s(arg(1)?, "the head symbol")?,
                 }
             }
             other => return Err(format!("unknown lowering op `{other}`")),

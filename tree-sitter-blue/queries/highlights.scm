@@ -23,7 +23,7 @@
 (typed_parameter name: (label) @variable.parameter)
 (type name: (identifier) @type)
 (defmacro name: (identifier) @function.macro)
-["=" "||" "∨" "&&" "∧" "==" "≡" "!=" "≠" "<" "<=" "≤" ">" ">=" "≥" "+" "-" "−" "*" "×" "/" "÷" "%" "|>" "!" "¬" "=>" "->"] @operator
+["=" "||" "∨" "&&" "∧" "==" "≡" "!=" "≠" "<" "<=" "≤" ">" ">=" "≥" "+" "-" "−" "*" "×" "/" "÷" "%" "|>" "!" "¬" "**" "=>" "->"] @operator
 ["rescue" "begin" "as" "ensure"] @keyword.exception
 ["or" "and" "not"] @keyword.operator
 ["." "," "::"] @punctuation.delimiter

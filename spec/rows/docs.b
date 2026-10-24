@@ -6,26 +6,20 @@ row(
   "docs.doc.documents_a_def",
   "@doc \"\"\"\ninc adds one to a number.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend\n\ninc(41)\n",
   value("42"),
-  covers(
-    "form:@doc \"\"\"\ninc adds one to a number.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend"
-  )
+  covers("form:@doc \"\"\"\ninc adds one to a number.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend")
 )
 
 row(
   "docs.moduledoc.documents_a_file",
   "@moduledoc \"\"\"\nm holds one value.\n\n    x #=> 1\n\"\"\"\n\nx = 1\nx\n",
   value("1"),
-  covers(
-    "form:@moduledoc \"\"\"\nkazu holds the number verbs.\n\n    kazu::clamp(9, 1, 5) #=> 5\n\"\"\""
-  )
+  covers("form:@moduledoc \"\"\"\nkazu holds the number verbs.\n\n    kazu::clamp(9, 1, 5) #=> 5\n\"\"\"")
 )
 
 row(
   "docs.doc.one_formatting",
   "@doc   \"\"\"\n    inc adds one.   \n\n        inc(1) #=> 2\n    \"\"\"\n\ndef inc(n)\n  n + 1\nend\n",
-  formats(
-    "@doc \"\"\"\ninc adds one.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend\n"
-  )
+  formats("@doc \"\"\"\ninc adds one.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend\n")
 )
 
 row(
@@ -101,8 +95,4 @@ row(
   bidama("kagi")
 )
 
-row(
-  "docs.a_script_is_not_judged",
-  "def kagi()\n  1\nend\n",
-  diagnoses([])
-)
+row("docs.a_script_is_not_judged", "def kagi()\n  1\nend\n", diagnoses([]))

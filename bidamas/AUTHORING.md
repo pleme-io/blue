@@ -208,7 +208,10 @@ with the first line of its doc comment. The `mokuroku` bidama generates it.
 `nix flake check` fails when the committed copy is stale, and
 `nix build .#bidama-catalog` produces a fresh one. A doc comment is the `#`
 block **directly above** a `def`: a blank line in between detaches it, so put
-the sentence that says what a function is for right above it.
+the sentence that says what a function is for right above it. This is today's
+mechanism. The decided one is `@doc` and `@moduledoc` with a doctested example
+(`theory/BLUE.md`, "The documentation requirement", DESIGN on 2026-10-24);
+`blue check --fix` will lift this line into `@doc`.
 
 ## Output, strings and control flow (measured)
 

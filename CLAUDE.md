@@ -37,7 +37,8 @@ Both are also read for real (`blue deps` → `Solver::with_max_steps`, every
 parsing subcommand → `parse_with_depth`), each with a red run recorded in the
 test that proves it.
 
-pending-tela: not a frontend. No `pending-urdume:` — blue is a language
+pending-tela: not a frontend app; blue hosts the frontend framework that
+retargets Tela (`theory/BLUE-FRONTEND.md`, `docs/FRONTEND-PLAN.md`). No `pending-urdume:` — blue is a language
 workspace, not a Rust service.
 
 > **★★★ CSE / Knowable Construction.** This repo operates under
@@ -454,7 +455,10 @@ is real; nothing fetches), **no self-hosting on the implementation axis**
 form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
 signs and verifies; a keypair comes from a seed the caller supplies),
 **no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
-NATS server requiring TLS are refused by name),
+NATS server requiring TLS are refused by name; planned in `docs/HTTP2.md` P4,
+rustls with ALPN `h2`), **no docstrings and no doctests** (`@doc` and
+`@moduledoc` are decided in `theory/BLUE.md`, "The documentation requirement",
+2026-10-24; the catalogue still reads the `#` line above a `def`),
 **no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
 derives the table from a frame — nothing puts an entry into a `.wasm`, and no
 engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`

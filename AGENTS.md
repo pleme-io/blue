@@ -50,6 +50,7 @@ declares them), then the distribution compiled into `blue`. First match wins.
 | `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time |
 | `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
+| `blue query '(reaches filesystem) (unannotated)' DIR` | every definition a code query matches: `(match PATTERN)` over the resolved tree with bindings, `(reaches CAP)`, `(calls retsu/first)`, `(package P)`, `(longer-than N)`; `--json`; a Bluefile's `query(name, text)` runs as `blue query NAME` ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue fmt file.b` | print the one formatting; `--write` rewrites, `--check` fails on drift |
 | `blue reference` | the language reference as JSON |

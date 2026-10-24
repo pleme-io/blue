@@ -70,7 +70,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-254 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 165 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+254 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 168 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -445,3 +445,4 @@ A Bluefile is a blue program that may call only these words.
 | `catalog(path)` | Where the mokuroku catalogue of the `packages` roots is committed; gated fresh. |
 | `image(name, spec)` | An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`. |
 | `workload(name, spec)` | A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster. |
+| `query(name, query)` | A named code query, run by `blue query NAME [PATH…]`: the query is tatara-lisp data as text, its clauses those of `blue query` ("(reaches filesystem) (unannotated)"). |

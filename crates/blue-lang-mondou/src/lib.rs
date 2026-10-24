@@ -26,6 +26,7 @@ mod items;
 mod locals;
 mod memo;
 mod navigate;
+mod query;
 mod signature;
 
 use std::cell::{OnceCell, RefCell};
@@ -44,6 +45,7 @@ pub use items::{Item, ItemKind};
 pub use locals::{LocalBinding, Locals};
 pub use memo::Stats;
 pub use navigate::{Located, Refusal, Symbol, WorkspaceSymbol};
+pub use query::{Hit, Query, QueryError, Reaches, MATCH_STEPS};
 pub use signature::Signature;
 
 /// A parse: the spanned tree, or why there is none.

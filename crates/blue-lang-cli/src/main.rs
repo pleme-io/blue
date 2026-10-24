@@ -14,6 +14,7 @@
 //! blue erase   FILE            the tatara-lisp form after type erasure
 //! blue check   FILE [--format json] [--fix]   every rule, the typing report
 //! blue explain CODE | --list   what a diagnostic code means
+//! blue query   QUERY [PATH...] [--json]   definitions a code query matches
 //! blue test    FILE|DIR [--filter P] [--coverage [--json]]   check, then run `test` blocks
 //! blue profile FILE [--top N]  calls and time per function
 //! blue trace   DEF FILE        every call of DEF, its arguments and its value
@@ -69,6 +70,7 @@ mod deploy;
 mod diagnostics;
 mod observe;
 mod prefetch;
+mod query;
 mod reference;
 mod repl;
 mod replay;
@@ -202,6 +204,28 @@ enum Cmd {
         root: PathBuf,
         #[arg(long)]
         findings: bool,
+    },
+    /// Every definition under PATH (files, or directories of `.b` files; `.`
+    /// when none) that satisfies QUERY, one line per hit:
+    /// `file:line:col: definition  name = value…`.
+    ///
+    /// QUERY is tatara-lisp data, or the name of a `query(name, …)` in the
+    /// Bluefile of this directory or above. Several clauses are their
+    /// conjunction: (match PATTERN) (reaches CAP) (annotated) (unannotated)
+    /// (calls NAME) (package NAME) (longer-than N) (kind function|macro|value)
+    /// (and …) (or …) (not C). CAP is process, filesystem, environment, clock,
+    /// network or host. A PATTERN is tatara's `match` pattern over the
+    /// resolved tree `blue ast` prints, every reference written as what it
+    /// resolved to: `(match `(retsu/first ,xs))` is every call to retsu's
+    /// first, with its argument bound to xs. A file that cannot be resolved is
+    /// named on stderr and the exit is 1.
+    Query {
+        query: String,
+        paths: Vec<PathBuf>,
+        /// One JSON object per hit per line: file, line, column, definition,
+        /// key, kind, bindings, reach.
+        #[arg(long)]
+        json: bool,
     },
     /// Explain a diagnostic code (`blue explain B0001`), or list them all.
     #[command(group(clap::ArgGroup::new("which").required(true).args(["code", "list"])))]
@@ -701,6 +725,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Check { file, format, fix } => check(&file, format, fix),
+
+        Cmd::Query { query, paths, json } => query::run(&query, &paths, json),
 
         Cmd::Migrate { files } => {
             blue_lang_runtime::sys::set_program_args(files);

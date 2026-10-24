@@ -47,7 +47,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -58,7 +58,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -205,6 +205,7 @@ dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
  "blue-lang-lsp",
+ "blue-lang-mondou",
  "blue-lang-pkg",
  "blue-lang-proc",
  "blue-lang-runtime",
@@ -253,6 +254,10 @@ dependencies = [
  "blue-lang-fmt",
  "blue-lang-runtime",
  "blue-lang-syntax",
+ "blue-lang-waku",
+ "serde_json",
+ "tatara-lisp",
+ "tatara-lisp-eval",
 ]
 
 [[package]]
@@ -262,6 +267,7 @@ dependencies = [
  "blue-lang-bidama",
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-mondou",
  "blue-lang-runtime",
  "blue-lang-syntax",
  "blue-lang-test",
@@ -567,7 +573,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -927,9 +933,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c8cd0bc3690d0fad40075463a1496dbe884695b9016336a5c4fe6740ddb9f7"
+checksum = "bc1c5f25723a60981fef5f616f712daa6bc6cc12871fc8dba3d5e88fd729e588"
 
 [[package]]
 name = "notify"
@@ -1195,7 +1201,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1383,7 +1389,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1422,18 +1428,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f82849b18df139631abab9626aad6aa6d1a924976437ef3db77627ad2f565bc3"
+checksum = "95af5ee8b81aa929e6a9468d6d47b45cb585f12e7be95902939344a874ab274e"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d18f6aca3680b3df393aab8bccf059cc40a410c677fa1163cf52d65c856b809"
+checksum = "bc17e8942bbaeddb4ae89c9231f543310d2934ac113c12908258e8c37b58081d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1442,9 +1448,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb3c154bb253406ffbf5610fe6127e2425875dca2a8efb88c649c83dcd05b0c4"
+checksum = "bb9e691ba2df27b6f754105c7d8bfd2cd293bc663081ab3d9b7b096bb774dba0"
 dependencies = [
  "blake3",
  "serde",
@@ -1456,9 +1462,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee24da5102576e5b102e8c8d0ccc83f1e4ff862290843c4e2c903e3887f74226"
+checksum = "27bc39c4289c4ad1f653bf71277f5940058a27542add639deace49c585b6db52"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1467,9 +1473,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "755d4c8ece1199640adf35dc73759707182c4e4aa49612db8c1a3c570355c23b"
+checksum = "2e0857b3ed50ab44301d7fa3828f18aab1518a75214084fd452a68a496f9e82c"
 dependencies = [
  "imbl",
  "monosashi",
@@ -1489,7 +1495,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1724,7 +1730,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -17,6 +17,7 @@ embedded = []
 
 [dependencies]
 blue-lang-runtime = { workspace = true }
+blue-lang-mondou = { workspace = true }
 blue-lang-syntax = { workspace = true }
 # blue compiles only canonical source (`canonical`): the loader formats a
 # writable package file before compiling it and refuses a read-only one.

@@ -361,17 +361,20 @@ pub fn apply_machine_fixes(
     outcome: &Outcome,
     project: &ProjectOutcome,
     text: &str,
+    only: &[blue_lang_check::Code],
 ) -> (String, usize) {
     blue_lang_check::fixes::apply_fixes(
         outcome
             .diagnostics
             .iter()
             .chain(&outcome.census)
+            .filter(|d| only.is_empty() || only.contains(&d.code))
             .map(|d| (d.top_level, d.fixes.as_slice()))
             .chain(
                 project
                     .findings
                     .iter()
+                    .filter(|_| only.is_empty())
                     .map(|f| (f.top_level, f.fixes.as_slice())),
             ),
         &|i| program.owner_of(i) == Some(ResolvedProgram::ENTRY),

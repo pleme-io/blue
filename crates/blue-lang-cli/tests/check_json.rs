@@ -150,6 +150,49 @@ fn fix_applies_only_machine_applicable_fixes() {
     assert_eq!(out.status.code(), Some(1));
 }
 
+/// `--fix --only CODE` applies that code's machine fixes to the file as
+/// written and leaves every other fix: the swap lands, the unused parameter
+/// keeps its name, and nothing is re-formatted.
+///
+/// Red run (2026-10-24), the `only` filter dropped from
+/// `apply_machine_fixes`: `def g(x, _y)` was written.
+#[test]
+fn fix_only_applies_one_codes_fixes_and_nothing_else() {
+    let p = fixture(
+        "fix-only",
+        "def g(x, y)\n  x\nend\n\ndef h(ys)\n  find(fn(x)\n    x > 1\n  end, ys)\nend\n\n[g(1, 2), h([1, 2])]\n",
+    );
+    let out = blue()
+        .args([
+            "check",
+            "--fix",
+            "--only",
+            "B0062",
+            p.to_str().expect("utf-8"),
+        ])
+        .output()
+        .expect("spawn");
+    let after = std::fs::read_to_string(&p).expect("read");
+    assert_eq!(
+        after,
+        "def g(x, y)\n  x\nend\n\ndef h(ys)\n  find(ys, fn(x)\n    x > 1\n  end)\nend\n\n[g(1, 2), h([1, 2])]\n",
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bad = blue()
+        .args([
+            "check",
+            "--fix",
+            "--only",
+            "B9999",
+            p.to_str().expect("utf-8"),
+        ])
+        .output()
+        .expect("spawn");
+    assert!(!bad.status.success());
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("B9999"));
+}
+
 /// **A cross-tier override is recorded**, after the diagnostics: an own
 /// `count` over the builtin's. Every field it uses is documented.
 ///

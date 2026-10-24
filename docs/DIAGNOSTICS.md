@@ -221,6 +221,11 @@ still match their `original`, skips overlapping ones, then re-formats and
 re-checks the file and reports what remains. Suggestions marked
 `maybe-incorrect` are never applied.
 
+`blue check --fix --only CODE FILE` (repeatable) applies only those codes'
+fixes, to the file as written: no re-format, no project-rule fix, no Bluefile
+edit. A project pinned to an older blue takes one rule's fix from a newer blue
+this way, then formats with its own (`blue fmt --write`).
+
 ## Project rules
 
 A project adds its own check rules, written in blue, by naming them in its

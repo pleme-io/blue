@@ -199,6 +199,12 @@ enum Cmd {
         /// check again. Suggestions marked maybe-incorrect are never applied.
         #[arg(long)]
         fix: bool,
+        /// With `--fix`: apply only these codes' machine fixes, to the file
+        /// as written, with no re-format and no Bluefile edit. A project
+        /// pinned to an older blue takes one rule's fix from this blue and
+        /// formats with its own (`blue check --fix --only B0062 FILE`).
+        #[arg(long, requires = "fix", value_name = "CODE")]
+        only: Vec<String>,
     },
     /// Make every reference each FILE makes to another bidama's definition
     /// explicit (`use("retsu", [:first])`, and the bidama's `needs`), keeping
@@ -811,7 +817,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Check { file, format, fix } => check(&file, format, fix),
+        Cmd::Check {
+            file,
+            format,
+            fix,
+            only,
+        } => check(&file, format, fix, &only),
 
         Cmd::Migrate { files } => {
             blue_lang_runtime::sys::set_program_args(files);
@@ -1332,8 +1343,18 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 }
 
 /// `blue check`: the pipeline's check stage over the file and its imports.
-fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
+fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<ExitCode, CliError> {
     use blue_lang_runtime::pipeline::{check_entry, render, syntax_diagnostic, Checking};
+    let only: Vec<blue_lang_check::Code> = only
+        .iter()
+        .map(|o| {
+            blue_lang_check::Code::ALL
+                .iter()
+                .copied()
+                .find(|c| c.as_str() == o)
+                .ok_or_else(|| CliError::Pkg(format!("--only {o}: no rule has that code")))
+        })
+        .collect::<Result<_, _>>()?;
     // A file that does not parse has no tree to check, and the compile door
     // below would refuse it with the formatter's message. Report it here as
     // B0006 instead, so a syntax error arrives in the same shape — code,
@@ -1357,7 +1378,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
         return Ok(ExitCode::FAILURE);
     }
     let loader = blue_lang_pkg::load_path::LoadPath::for_entry(file);
-    let mut src = if fix {
+    let mut src = if fix && only.is_empty() {
         blue_lang_pkg::canonical::read_layout(file)?
     } else {
         std::fs::read_to_string(file).map_err(|source| CliError::Read {
@@ -1389,8 +1410,13 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
     // A fix can expose the next one (a moved name's fix leaves the old
     // package's `use` unreached), so fix until nothing applies, bounded.
     for _ in 0..if fix { 4 } else { 0 } {
-        let (fixed, applied) =
-            diagnostics::apply_machine_fixes(&checked.program, &checked.outcome, &project, &src);
+        let (fixed, applied) = diagnostics::apply_machine_fixes(
+            &checked.program,
+            &checked.outcome,
+            &project,
+            &src,
+            &only,
+        );
         if applied == 0 {
             break;
         }
@@ -1402,12 +1428,19 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             eprintln!("blue: applied {applied} fix(es) to {}", file.display());
             // Re-format (`--fix` is an explicit write) and
             // re-check what is now on disk.
-            src = blue_lang_pkg::canonical::read_layout(file)?;
+            src = if only.is_empty() {
+                blue_lang_pkg::canonical::read_layout(file)?
+            } else {
+                fixed
+            };
             checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
             project = project_pass(&checked);
         }
     }
-    if fix && blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some() {
+    if fix
+        && only.is_empty()
+        && blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some()
+    {
         let dir = dir_of(file);
         let disagrees = checked
             .outcome
@@ -1448,7 +1481,7 @@ fn check(file: &Path, format: Format, fix: bool) -> Result<ExitCode, CliError> {
             project = project_pass(&checked);
         }
     }
-    if fix {
+    if fix && only.is_empty() {
         if let Ok(canonical) = blue_lang_pkg::canonical::format_resolved(file, &src) {
             if canonical.trim_end() != src.trim_end() {
                 std::fs::write(file, &canonical).map_err(|source| CliError::Write {

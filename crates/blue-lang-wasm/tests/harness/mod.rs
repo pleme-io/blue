@@ -37,7 +37,9 @@ pub fn build_wasm() -> PathBuf {
         "the wasm build must succeed:\n{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let path = root.join("target/wasm32-unknown-unknown/release/blue_lang_wasm.wasm");
+    let target =
+        std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| root.join("target"), |d| root.join(d));
+    let path = target.join("wasm32-unknown-unknown/release/blue_lang_wasm.wasm");
     assert!(
         path.exists(),
         "expected a wasm artifact at {}",

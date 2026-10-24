@@ -128,6 +128,18 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 10; row 5 for memory, its `nil` half belongs to row 1). Partly sealed: 9
 (rows 2, 7, 8, 9, 11, 12, 13, 15, 16). Open: 3 (rows 1, 3, 14).
 
+**Rows in flight with other owners.** Each owner adds its own row here, with
+the same columns, when its gate lands. This document does not land them.
+
+- Namespace leaks: a bidama definition that shadows a builtin (the measured
+  case: a package `def` shadowed `read`).
+- Build hygiene: generated-file conflicts, gate speed, `gen` version skew,
+  formatter drift across consumers.
+- Session-mistake hard blocks: closed option-key sets, builtin argument-kind
+  checks at check time, a zero-argument name passed as a function, a producer
+  that emits non-canonical `.b`, a word retired without a fixer, hermetic
+  test runs.
+
 ## 5. Row notes (measurements)
 
 **Row 1, null.** `nth(5, [1, 2])` is `nil`, `get({a: 1}, :b)` is `nil`,

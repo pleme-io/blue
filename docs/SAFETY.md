@@ -282,7 +282,7 @@ flowchart TB
     SEC["secret bidama (row 14, design)"]
   end
   subgraph C["checker (blue-lang-check)"]
-    RULES["RULES registry: B0001..B0053"]
+    RULES["RULES registry: B0001..B0060"]
     REACH["entry reach check (run_framed)"]
   end
   subgraph R["runtime (blue-lang-runtime, blue-lang-proc)"]

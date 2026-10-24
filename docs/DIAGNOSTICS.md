@@ -66,6 +66,11 @@ it; `blue explain --list` lists them.
 | B0051 | enum-mirror | error | a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels` |
 | B0052 | query-text | error | a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash |
 | B0053 | discarded-value | error | the value of a word that only returns a value is read: `assoc`, `append`, `to_s` and their kin are never a statement |
+| B0056 | undocumented-definition | error | a bidama's public definition has a `@doc` whose first sentence starts with its name |
+| B0057 | doc-without-example | error | a `@doc` holds at least one example, an indented `expr #=> value` line |
+| B0058 | undocumented-bidama | error | a bidama's file opens with a `@moduledoc` holding its purpose and one whole example |
+| B0059 | placeholder-doc | error | a `@doc` or `@moduledoc` says something: no empty text and no placeholder (`TODO`, `TBD`, `...`) |
+| B0060 | restated-doc | error | a `@doc` never restates a type, a signature or a contract field: blue derives them |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

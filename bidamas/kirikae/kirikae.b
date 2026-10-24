@@ -323,6 +323,45 @@ def checkout_of(dir, branch)
   }
 end
 
+@doc """
+fast_forwardable?: true when the checkout is clean, readable, and only behind origin's rev, so a fast-forward cannot lose work; `flag` "0" turns fast-forwarding off.
+
+    fast_forwardable?({head: "a", dirty: "", remote: "b", branch: "main"}, "1") #=> true
+    fast_forwardable?({head: "a", dirty: " M x", remote: "b", branch: "main"}, "1") #=> false
+    fast_forwardable?({head: "a", dirty: "", remote: "b", branch: "main"}, "0") #=> false
+"""
+def fast_forwardable?(c, flag)
+  flag != "0" and
+    get(c, :head) != nil and
+    get(c, :dirty) == "" and
+    get(c, :remote) != nil and
+    get(c, :remote) != "" and
+    get(c, :head) != get(c, :remote)
+end
+
+@doc """
+fast_forward: bring a clean checkout that is only behind origin up to origin's rev before the guard judges it, and say so; anything else is returned as it was.
+
+    fast_forward("/nonexistent", {head: "a", dirty: "", remote: "a", branch: "main"}) #=> {head: "a", dirty: "", remote: "a", branch: "main"}
+"""
+def fast_forward(dir, c)
+  if not fast_forwardable?(c, getenv("KIRIKAE_FAST_FORWARD", "1"))
+    c
+  elsif git_out(dir, ["fetch", "-q", "origin", get(c, :branch)]) != nil and
+      git_out(
+        dir,
+        ["merge-base", "--is-ancestor", get(c, :head), get(c, :remote)]
+      ) != nil and
+      git_out(dir, ["merge", "-q", "--ff-only", get(c, :remote)]) != nil
+    write_stderr(
+      "kirikae: fast-forwarded the checkout #{take_chars(get(c, :head), 8)} → #{take_chars(get(c, :remote), 8)} (origin's #{get(c, :branch)}); KIRIKAE_FAST_FORWARD=0 turns this off\n"
+    )
+    checkout_of(dir, get(c, :branch))
+  else
+    c
+  end
+end
+
 def checkout_refusal(c)
   if get(c, :head).nil?
     [:not_a_checkout, "the flake is not a git checkout kirikae can read"]
@@ -493,7 +532,7 @@ def survey(s)
   c = if dir.nil?
     nil
   else
-    checkout_of(dir, getenv("KIRIKAE_BRANCH", "main"))
+    fast_forward(dir, checkout_of(dir, getenv("KIRIKAE_BRANCH", "main")))
   end
   stale = if c.nil? or getenv("KIRIKAE_ALLOW_UNPUBLISHED", "") != ""
     nil

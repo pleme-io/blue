@@ -586,7 +586,7 @@ fn doc_diagnostics(program: &crate::uses::ResolvedProgram) -> Vec<blue_lang_chec
     blue_lang_check::doc_rules::check_file(
         &file.text,
         &forms,
-        true,
+        package,
         &blue_lang_check::doc_rules::Sources {
             meaning: &meaning,
             names_line: &names_line,

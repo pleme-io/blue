@@ -35,13 +35,14 @@ pub struct Sources<'a> {
 ///
 /// `forms` are the file's top-level forms as the check stage holds them
 /// (stripped, doctests excluded), each with its index in the program;
-/// `module_file` says whether this file is the bidama's own (`<name>.b`), the
-/// one its `@moduledoc` belongs to.
+/// `package` is the bidama's name: the comment block heading the file is its
+/// purpose when it stands apart or starts with that name, and then it is never
+/// a definition's.
 #[must_use]
 pub fn check_file(
     text: &str,
     forms: &[(usize, &Spanned)],
-    module_file: bool,
+    package: &str,
     sources: &Sources<'_>,
 ) -> Vec<Diagnostic> {
     let Ok(documented) = blue_lang_syntax::parse_program_documented(text) else {
@@ -49,12 +50,13 @@ pub fn check_file(
     };
     let comments = blue_lang_syntax::comments(text);
     let tests = TestAssertions::of(text, &documented);
+    let head = header(text, &documented, &comments, package);
+    let header_span = head
+        .as_ref()
+        .map(|b| Span::new(b[0].span.start, b[b.len() - 1].span.end));
     let mut out = Vec::new();
-    let first = forms.first().map(|(i, _)| *i);
-    if module_file {
-        if let Some(i) = first {
-            out.extend(module_rule(text, &documented, &comments, &tests, i));
-        }
+    if let Some(&(i, _)) = forms.first() {
+        out.extend(module_rule(text, &documented, head.as_deref(), &tests, i));
     }
     for f in &documented {
         let (doc, def) = match d::documented(f) {
@@ -77,7 +79,9 @@ pub fn check_file(
                 )
                 .at_top_level(top_level)
                 .with_help("write `@doc \"\"\"` above it: one sentence starting with its name, then an indented `expr #=> value` example");
-                if let Some(fix) = fill_definition(text, &comments, f, def, name, &tests, sources) {
+                if let Some(fix) =
+                    fill_definition(text, &comments, header_span, f, name, &tests, sources)
+                {
                     diag = diag.with_fix(fix);
                 }
                 out.push(diag);
@@ -275,7 +279,7 @@ fn doc_text_span(wrapper: &Spanned) -> Span {
 fn module_rule(
     text: &str,
     documented: &[Spanned],
-    comments: &[Comment],
+    head: Option<&[&Comment]>,
     tests: &TestAssertions,
     top_level: usize,
 ) -> Vec<Diagnostic> {
@@ -329,16 +333,7 @@ fn module_rule(
                 .with_help(
                     "open the file with `@moduledoc \"\"\"`: its purpose, then one whole example",
                 );
-            let code_starts = documented
-                .iter()
-                .find(|f| {
-                    f.as_list()
-                        .and_then(|i| i.first())
-                        .and_then(Spanned::as_symbol)
-                        != Some("use")
-                })
-                .map_or(text.len(), |f| f.span.start);
-            if let Some(fix) = fill_module(text, comments, tests, code_starts, &defined) {
+            if let Some(fix) = head.and_then(|h| fill_module(text, h, tests, &defined)) {
                 diag = diag.with_fix(fix);
             }
             vec![diag]
@@ -346,12 +341,29 @@ fn module_rule(
     }
 }
 
-/// The comment block that leads the file's prose: the first run of own-line
-/// comments, and whether a blank line or the end of the file follows it.
-fn leading_block<'c>(text: &str, comments: &'c [Comment]) -> Option<(Vec<&'c Comment>, bool)> {
+/// The comment block heading the file: the first run of own-line comments
+/// before its first definition, when a blank line follows it or its first
+/// line names the bidama (the CATALOG gloss, `kazu (数) — numbers.`).
+fn header<'c>(
+    text: &str,
+    documented: &[Spanned],
+    comments: &'c [Comment],
+    package: &str,
+) -> Option<Vec<&'c Comment>> {
+    let code_starts = documented
+        .iter()
+        .find(|f| {
+            !matches!(
+                f.as_list()
+                    .and_then(|i| i.first())
+                    .and_then(Spanned::as_symbol),
+                Some("use" | "legacy_names" | "blue-moduledoc")
+            )
+        })
+        .map_or(text.len(), |f| f.span.start);
     let first = comments
         .iter()
-        .position(|c| c.own_line && !is_waiver(&c.text))?;
+        .position(|c| c.own_line && !is_waiver(&c.text) && c.span.start < code_starts)?;
     let mut block = vec![&comments[first]];
     for c in &comments[first + 1..] {
         let prev = block[block.len() - 1];
@@ -365,7 +377,10 @@ fn leading_block<'c>(text: &str, comments: &'c [Comment]) -> Option<(Vec<&'c Com
     let last = block[block.len() - 1];
     let rest = &text[last.span.end..];
     let detached = rest.starts_with("\n\n") || rest.trim().is_empty();
-    Some((block, detached))
+    let named = comment_line(block[0])
+        .strip_prefix(package)
+        .is_some_and(|r| !r.starts_with(|c: char| c.is_alphanumeric() || c == '_'));
+    (detached || named).then_some(block)
 }
 
 fn is_waiver(comment: &str) -> bool {
@@ -386,15 +401,10 @@ fn heredoc(word: &str, text: &str) -> String {
 
 fn fill_module(
     text: &str,
-    comments: &[Comment],
+    block: &[&Comment],
     tests: &TestAssertions,
-    code_starts: usize,
     defined: &BTreeSet<String>,
 ) -> Option<Fix> {
-    let (block, detached) = leading_block(text, comments)?;
-    if !detached || block[0].span.start > code_starts {
-        return None;
-    }
     let lines: Vec<String> = block.iter().map(|c| comment_line(c)).collect();
     let purpose = lines.join("\n").trim().to_string();
     if purpose.is_empty() || purpose.contains("\"\"\"") || is_placeholder(&d::intent(&purpose)) {
@@ -409,6 +419,8 @@ fn fill_module(
     let end = block[block.len() - 1].span.end;
     let end = if text[end..].starts_with("\n\n") {
         end + 2
+    } else if text[end..].starts_with('\n') {
+        end + 1
     } else {
         end
     };
@@ -504,14 +516,18 @@ fn named(name: &str, source: &str) -> Option<String> {
 fn fill_definition(
     text: &str,
     comments: &[Comment],
+    header: Option<Span>,
     wrapper: &Spanned,
-    def: &Spanned,
     name: &str,
     tests: &TestAssertions,
     sources: &Sources<'_>,
 ) -> Option<Fix> {
-    let _ = def;
-    let above = comments_above(text, comments, wrapper.span.start);
+    let in_header =
+        |c: &&Comment| header.is_some_and(|h| c.span.start >= h.start && c.span.end <= h.end);
+    let above: Vec<&Comment> = comments_above(text, comments, wrapper.span.start)
+        .into_iter()
+        .filter(|c| !in_header(c))
+        .collect();
     let lifted: Vec<&Comment> = above
         .iter()
         .copied()
@@ -797,7 +813,7 @@ mod tests {
         check_file(
             text,
             &forms,
-            true,
+            "m",
             &Sources {
                 meaning: &|n| (n == "g").then(|| "the g of a thing".to_string()),
                 names_line: &none,
@@ -863,6 +879,20 @@ mod tests {
         assert_eq!(
             out,
             "@moduledoc \"\"\"\nm: the f package.\nIt adds.\n\n    f(1) #=> 2\n\"\"\"\n\nuse(\"retsu\", [:first])\n\n# waive B0002: kept\n@doc \"\"\"\nf: the successor of a number.\n\n    f(1) #=> 2\n\"\"\"\ndef f(n)\n  n + 1\nend\n\n@doc \"\"\"\ng: its own line.\n\"\"\"\ndef g()\n  1\nend\n\ndef h()\n  2\nend\n\ntest \"f\"\n  x = 3\n  assert f(x) == 4\n  assert f(10) == 11\n  assert f(1) == 2\nend\n",
+            "\n{out}"
+        );
+    }
+
+    /// Red run (2026-10-24): before `header` named the bidama, keiyu's
+    /// header, attached to its first `def`, became that def's `@doc`, and a
+    /// header after `legacy_names` was not lifted at all.
+    #[test]
+    fn a_header_naming_the_bidama_is_its_purpose_even_when_attached() {
+        let src = "use(\"retsu\", [:first])\n\nlegacy_names(\"0.1.1\", \"m\")\n\n# m (例) — one thing.\ndef f()\n  1\nend\n\ntest \"f\"\n  assert f == 1\nend\n";
+        let out = fixed(src);
+        assert_eq!(
+            out,
+            "@moduledoc \"\"\"\nm (例) — one thing.\n\n    f #=> 1\n\"\"\"\n\nuse(\"retsu\", [:first])\n\nlegacy_names(\"0.1.1\", \"m\")\n\ndef f()\n  1\nend\n\ntest \"f\"\n  assert f == 1\nend\n",
             "\n{out}"
         );
     }

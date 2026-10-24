@@ -37,6 +37,19 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 rescue :timeout as e
   wait(e)
 end` | `(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))` | Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin. |
+| `@doc """
+inc adds one to a number.
+
+    inc(1) #=> 2
+"""
+def inc(n)
+  n + 1
+end` | `(blue-doc "inc adds one to a number.\n\n    inc(1) #=> 2" (define (inc n) (+ n 1)))` | Documents the definition below it: one sentence of intent starting with its name, then an indented example whose `expr #=> value` lines `blue test` runs as tests. A heredoc: no escapes, no interpolation. Everything else about a definition is derived (B0056–B0060). |
+| `@moduledoc """
+kazu holds the number verbs.
+
+    kazu::clamp(9, 1, 5) #=> 5
+"""` | `(blue-moduledoc "kazu holds the number verbs.\n\n    kazu::clamp(9, 1, 5) #=> 5")` | Documents a whole file, a bidama: its purpose and one whole example. The first form of the file. |
 
 ## Operators
 
@@ -594,3 +607,8 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0051` | enum-mirror | a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels` | refused |
 | `B0052` | query-text | a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash | refused |
 | `B0053` | discarded-value | the value of a word that only returns a value is read: `assoc`, `append`, `to_s` and their kin are never a statement | refused |
+| `B0056` | undocumented-definition | a bidama's public definition has a `@doc` whose first sentence starts with its name | autofix |
+| `B0057` | doc-without-example | a `@doc` holds at least one example, an indented `expr #=> value` line | autofix |
+| `B0058` | undocumented-bidama | a bidama's file opens with a `@moduledoc` holding its purpose and one whole example | autofix |
+| `B0059` | placeholder-doc | a `@doc` or `@moduledoc` says something: no empty text and no placeholder (`TODO`, `TBD`, `...`) | refused |
+| `B0060` | restated-doc | a `@doc` never restates a type, a signature or a contract field: blue derives them | autofix |

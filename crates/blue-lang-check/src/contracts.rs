@@ -137,6 +137,21 @@ impl Signatures {
     fn kinds(&self, name: &str, i: usize) -> Option<&'static [Kind]> {
         self.params.get(name)?.get(i).copied().flatten()
     }
+
+    #[must_use]
+    pub fn collection_first(&self, name: &str) -> bool {
+        let collection = self
+            .kinds(name, 0)
+            .is_some_and(|k| k.iter().all(|k| matches!(k, Kind::List | Kind::Map)));
+        collection && self.kinds(name, 1) == Some(&[Kind::Fn])
+    }
+
+    pub fn collection_first_names(&self) -> impl Iterator<Item = &str> {
+        self.params
+            .keys()
+            .map(String::as_str)
+            .filter(|n| self.collection_first(n))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -748,11 +763,12 @@ fn analyse<'a>(
 }
 
 #[must_use]
-pub fn check(
+pub fn check<'t>(
     forms: &[Spanned],
     table: &NameTable,
     namespace_of: &dyn Fn(usize) -> Namespace,
     is_entry: &dyn Fn(usize) -> bool,
+    text_of: &dyn Fn(usize) -> Option<&'t str>,
     sigs: &Signatures,
 ) -> Vec<Diagnostic> {
     let program = analyse(forms, table, namespace_of, sigs);
@@ -780,6 +796,17 @@ pub fn check(
             }
         }
     }
+    let mut globals = BTreeMap::new();
+    for form in forms {
+        if let Some([head, name, value]) = form.as_list() {
+            if let (Some("define"), Some(n)) = (head.as_symbol(), name.as_symbol()) {
+                globals
+                    .entry(n.to_string())
+                    .and_modify(|v| *v = None)
+                    .or_insert(literal_kind(value));
+            }
+        }
+    }
     for (i, form) in forms.iter().enumerate() {
         if !is_entry(i) {
             continue;
@@ -802,6 +829,8 @@ pub fn check(
             program: &program,
             locals: &locals,
             known: &known,
+            globals: &globals,
+            text: text_of(i),
         };
         calls(form, &cx, false, &mut out);
     }
@@ -828,6 +857,8 @@ struct Site<'s> {
     program: &'s Program<'s>,
     locals: &'s BTreeSet<String>,
     known: &'s BTreeMap<String, Kind>,
+    globals: &'s BTreeMap<String, Option<Kind>>,
+    text: Option<&'s str>,
 }
 
 fn bound_literals(s: &Spanned, out: &mut BTreeMap<String, Option<Kind>>) {
@@ -868,8 +899,8 @@ fn calls(s: &Spanned, cx: &Site<'_>, in_test: bool, out: &mut Vec<Diagnostic>) {
     let in_test = in_test || h == Some("deftest");
     if let Some(h) = h {
         let callee = program.resolve(h, top, locals);
-        for (j, a) in items.iter().enumerate().skip(1) {
-            contract(h, &callee, j - 1, a, cx, out);
+        for j in 0..items.len() - 1 {
+            contract(h, &callee, j, &items[1..], cx, out);
         }
     }
     for i in items {
@@ -881,10 +912,11 @@ fn contract(
     head: &str,
     callee: &Callee<'_>,
     j: usize,
-    arg: &Spanned,
+    args: &[Spanned],
     cx: &Site<'_>,
     out: &mut Vec<Diagnostic>,
 ) {
+    let arg = &args[j];
     let (top, program, locals) = (cx.top, cx.program, cx.locals);
     let shown = head.replace('/', "::");
     if let Callee::Def(d) = callee {
@@ -933,23 +965,28 @@ fn contract(
     if let Some(kind) = literal_kind(arg).or(bound) {
         if !need.contains(&kind) {
             let want: Vec<&str> = need.iter().map(|k| k.word()).collect();
-            out.push(
-                Diagnostic::new(
-                    Code::B0062,
-                    format!(
-                        "argument {} of `{shown}` takes {}, and this is {}",
-                        j + 1,
-                        want.join(" or "),
-                        kind.word()
-                    ),
-                    arg.span,
-                )
-                .at_top_level(top)
-                .with_help(format!(
+            let found = Diagnostic::new(
+                Code::B0062,
+                format!(
+                    "argument {} of `{shown}` takes {}, and this is {}",
+                    j + 1,
+                    want.join(" or "),
+                    kind.word()
+                ),
+                arg.span,
+            )
+            .at_top_level(top);
+            out.push(match swap_fix(callee, j, args, cx) {
+                Some(fix) => found
+                    .with_help(format!(
+                        "`{shown}` takes the collection first: `blue check --fix` swaps the two arguments"
+                    ))
+                    .with_fix(fix),
+                None => found.with_help(format!(
                     "pass {}, or test the kind before the call",
                     want.join(" or ")
                 )),
-            );
+            });
         }
         return;
     }
@@ -993,6 +1030,77 @@ fn contract(
     );
 }
 
+fn swap_fix(callee: &Callee<'_>, j: usize, args: &[Spanned], cx: &Site<'_>) -> Option<Fix> {
+    let collection_first = match callee {
+        Callee::Builtin(b) => cx.program.sigs.collection_first(b),
+        Callee::Def(_) => {
+            cx.program.need_at(callee, 0).is_some_and(|k| {
+                !k.is_empty() && k.iter().all(|k| matches!(k, Kind::List | Kind::Map))
+            }) && cx.program.need_at(callee, 1).as_deref() == Some(&[Kind::Fn])
+        }
+        Callee::Unknown => false,
+    };
+    if j != 0 || !collection_first {
+        return None;
+    }
+    let (f, xs) = (args.first()?, args.get(1)?);
+    if literal_kind(f) != Some(Kind::Fn) || may_be_function(xs, cx) {
+        return None;
+    }
+    let text = cx.text?;
+    let (fs, xss) = (
+        text.get(f.span.start..f.span.end)?,
+        text.get(xs.span.start..xs.span.end)?,
+    );
+    if !reads_as(fs, f) || !reads_as(xss, xs) {
+        return None;
+    }
+    let between = text.get(f.span.end..xs.span.start)?;
+    let span = Span::new(f.span.start, xs.span.end);
+    Some(Fix {
+        message: "put the collection first".to_string(),
+        edits: vec![Edit {
+            span,
+            original: text.get(span.start..span.end)?.to_string(),
+            replacement: format!("{xss}{between}{fs}"),
+        }],
+        applicability: Applicability::MachineApplicable,
+    })
+}
+
+fn may_be_function(s: &Spanned, cx: &Site<'_>) -> bool {
+    if literal_kind(s).is_some_and(|k| k == Kind::Fn) {
+        return true;
+    }
+    let Some(name) = s.as_symbol() else {
+        return false;
+    };
+    if cx.known.get(name) == Some(&Kind::Fn) {
+        return true;
+    }
+    if cx.locals.contains(name) {
+        return false;
+    }
+    match cx.program.resolve(name, cx.top, cx.locals) {
+        Callee::Def(d) => {
+            let def = &cx.program.defs[d];
+            !def.params.is_empty() || def.rest_at.is_some() || !def.returns_value
+        }
+        Callee::Builtin(b) => cx
+            .globals
+            .get(b)
+            .is_none_or(|k| k.is_none_or(|k| k == Kind::Fn)),
+        Callee::Unknown => true,
+    }
+}
+
+fn reads_as(slice: &str, s: &Spanned) -> bool {
+    matches!(
+        blue_lang_syntax::parse_program_tree(slice).as_deref(),
+        Ok([one]) if one.to_sexp() == s.to_sexp()
+    )
+}
+
 fn map_literal(s: &Spanned) -> Option<Vec<(String, Span)>> {
     let items = s.as_list()?;
     if items.first()?.as_symbol()? != "hash-map" {
@@ -1025,6 +1133,12 @@ mod tests {
             guard: false,
         },
         BuiltinRow {
+            name: "find",
+            signature: "find(xs, f)",
+            kinded: true,
+            guard: false,
+        },
+        BuiltinRow {
             name: "string?",
             signature: "string?(x)",
             kinded: false,
@@ -1047,11 +1161,76 @@ mod tests {
             &table,
             &|_| Namespace::File("t.b".into()),
             &|_| true,
+            &|_| Some(src),
             &Signatures::new(ROWS),
         )
         .into_iter()
         .map(|d| (d.code, src[d.span.start..d.span.end].to_string()))
         .collect()
+    }
+
+    fn fixed(src: &str) -> String {
+        let forms = parse_program_tree(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let mut table = NameTable::new();
+        table.add_program(&forms, |_| Namespace::File("t.b".into()));
+        let found = check(
+            &forms,
+            &table,
+            &|_| Namespace::File("t.b".into()),
+            &|_| true,
+            &|_| Some(src),
+            &Signatures::new(ROWS),
+        );
+        crate::fixes::apply_machine_fixes(&found, &|_| true, src).0
+    }
+
+    #[test]
+    fn the_collection_first_builtins_are_read_from_the_signatures() {
+        let sigs = Signatures::new(ROWS);
+        let names: Vec<&str> = sigs.collection_first_names().collect();
+        assert_eq!(names, vec!["find"]);
+    }
+
+    #[test]
+    fn a_function_literal_before_the_collection_is_swapped() {
+        assert_eq!(
+            fixed("def big(ys)\n  find((x) -> x > 1, ys)\nend\n"),
+            "def big(ys)\n  find(ys, (x) -> x > 1)\nend\n"
+        );
+        assert_eq!(
+            fixed("find(fn(x)\n  x\nend, [1])\n"),
+            "find([1], fn(x)\n  x\nend)\n"
+        );
+    }
+
+    #[test]
+    fn a_definition_that_takes_the_collection_first_is_swapped_too() {
+        assert_eq!(
+            fixed("def fm(xs, f)\n  find(xs, f)\nend\n\nfm((x) -> x, [1])\n"),
+            "def fm(xs, f)\n  find(xs, f)\nend\n\nfm([1], (x) -> x)\n"
+        );
+    }
+
+    #[test]
+    fn a_global_list_is_swapped_in() {
+        assert_eq!(
+            fixed("ys = [1]\nfind((x) -> x, ys)\n"),
+            "ys = [1]\nfind(ys, (x) -> x)\n"
+        );
+    }
+
+    #[test]
+    fn a_swap_that_could_change_meaning_is_left_as_a_suggestion() {
+        for src in [
+            "def inc(x)\n  x + 1\nend\n\nfind((x) -> x, inc)\n",
+            "find((x) -> x, (y) -> y)\n",
+            "g = (y) -> y\nfind((x) -> x, g)\n",
+            "find(5, (x) -> x)\n",
+            "map([1], (x) -> x)\n",
+            "find((x) -> x, length)\n",
+        ] {
+            assert_eq!(fixed(src), src);
+        }
     }
 
     #[test]

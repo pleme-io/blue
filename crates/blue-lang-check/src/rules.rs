@@ -96,6 +96,10 @@ pub struct Rule {
     /// bidama's own file (the documentation rules): the witness is checked as
     /// `<package>.b` of that bidama.
     pub package: Option<&'static str>,
+    /// A program the machine-applicable fix a `Suggested` rule carries for
+    /// part of its class repairs: `blue check --fix` applies it, and the
+    /// rule no longer fires on the result.
+    pub fixes: Option<&'static str>,
 }
 
 impl Rule {
@@ -148,6 +152,15 @@ macro_rules! package {
     };
 }
 
+macro_rules! fixes {
+    () => {
+        None
+    };
+    ($t:literal) => {
+        Some($t)
+    };
+}
+
 /// Build [`Code`], `Code::ALL` and [`RULES`] from one list of rows.
 macro_rules! rules {
     ($(
@@ -162,6 +175,7 @@ macro_rules! rules {
             $(ratchet: $ratchet:expr,)?
             $(frontend: $frontend:literal,)?
             $(package: $package:literal,)?
+            $(fixes: $fixes:literal,)?
             explanation: $expl:literal $(,)?
         }
     )*) => {
@@ -195,6 +209,7 @@ macro_rules! rules {
                 ratchet: ratchet!($($ratchet)?),
                 frontend: frontend!($($frontend)?),
                 package: package!($($package)?),
+                fixes: fixes!($($fixes)?),
             }
         ),*];
     };
@@ -1246,10 +1261,11 @@ docs/SAFETY.md, row 18.",
     B0062 {
         slug: "argument-kind",
         severity: Error,
-        fix: None,
+        fix: Suggested,
         law: "a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind",
         witness: "def kind_of(schema)\n  get(schema, :kind)\nend\n\nkind_of(\"type Query { a: Int }\")\n",
         waivable: true,
+        fixes: "find((x) -> x > 1, [1, 2, 3])\n",
         explanation: "\
 A builtin's signature names its parameters by kind: `m` is a map, `xs` a list,
 `s` a string, `n` a number, `f` a function (`blue reference`;
@@ -1260,6 +1276,14 @@ tests its kind first (`string?(x)`, `map?(x)` and the other predicates).
 A literal passed where another kind is taken is a type error the runtime
 would raise later, far from the call. danpen's `schema_of` called
 `get(schema, :kind)` on SDL text, a string, and the error came at run time.
+
+A builtin that takes the collection first and a function second
+(`find(xs, f)`, `flat_map(xs, f)`, `group_by(xs, f)`: every signature whose
+first parameter is a list or map and whose second is a function), or a
+definition whose parameters take the same (`retsu::flat_map`), called with a
+function literal first and a value that is not a function second is fixed by
+`blue check --fix`: it swaps the two arguments. Every other case is left to
+you.
 
 To comply, pass the kind the parameter takes, or test the kind in the
 function. `# waive B0062: reason` keeps one line.

@@ -129,3 +129,65 @@ fn a_refused_rule_offers_no_rewrite_of_its_witness() {
         );
     }
 }
+
+fn diagnostics(src: &str, loader: &Imports) -> Vec<blue_lang_check::Diagnostic> {
+    check_entry(
+        Entry {
+            path: Some(Path::new("witness.b")),
+            text: src,
+        },
+        loader,
+        None,
+        Checking::WithTests,
+    )
+    .map(|c| c.outcome.diagnostics)
+    .unwrap_or_else(|e| panic!("{src:?}: {e}"))
+}
+
+#[test]
+fn every_carried_machine_fix_repairs_its_witness() {
+    let mut failures = Vec::new();
+    let mut seen = 0;
+    for r in RULES.iter().filter(|r| r.fixes.is_some()) {
+        seen += 1;
+        let src = r.fixes.unwrap_or_default();
+        let loader = Imports(r.imports, r.frontend, r.package);
+        let path = Path::new("witness.b");
+        let found = diagnostics(src, &loader);
+        let carried = found.iter().any(|d| {
+            d.code == r.code
+                && d.fixes
+                    .iter()
+                    .any(|f| f.applicability == blue_lang_check::Applicability::MachineApplicable)
+        });
+        if !carried {
+            failures.push(format!(
+                "{}: no machine fix on its fix witness: {found:?}",
+                r.code
+            ));
+            continue;
+        }
+        let (fixed, applied) = blue_lang_check::fixes::apply_machine_fixes(&found, &|_| true, src);
+        if applied == 0 {
+            failures.push(format!("{}: the fix did not apply", r.code));
+            continue;
+        }
+        let written = blue_lang_pkg::canonical::format_with(&loader, path, &fixed)
+            .unwrap_or_else(|e| panic!("{}: fmt refused the fixed witness: {e}\n{fixed}", r.code));
+        if written != fixed {
+            failures.push(format!(
+                "{}: the fixed witness is not canonical:\n{fixed}---\n{written}",
+                r.code
+            ));
+        }
+        let after = codes(&fixed, &loader);
+        if after.contains(&r.code) {
+            failures.push(format!(
+                "{}: still fires after --fix: {after:?}\n{fixed}",
+                r.code
+            ));
+        }
+    }
+    assert!(seen > 0, "no rule names a fix witness");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}

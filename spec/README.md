@@ -75,6 +75,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | `prints("hi\n")` | exactly this on stdout, and a clean exit | cli |
 | `diagnoses(["B0002"])` | exactly these check-stage codes, warnings included | static, cli |
 | `formats("x = 1\n")` | the one formatting of `SRC` | static, cli |
+| `fixes("find([1], (x) -> x)\n")` | what `blue check --fix` leaves of `SRC`: its machine-applicable fixes applied, formatted | static, cli |
 | `shifts("annotated", ["loose"])` | the blueshift rung, and the declarations holding it back | static, cli |
 
 - `OPTION`s:

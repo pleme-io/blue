@@ -32,7 +32,9 @@ fn meets(expect: &Expect, obs: &Obs) -> Result<(), String> {
         (Expect::Fails(..), Obs::Abi(got)) => *got == crate::eval::Abi::Error,
         (Expect::Prints(want), Obs::Printed { stdout, ok }) => *ok && want == stdout,
         (Expect::Diagnoses(want), Obs::Codes(got)) => want == got,
-        (Expect::Formats(want), Obs::Text(got)) => want.trim_end() == got.trim_end(),
+        (Expect::Formats(want) | Expect::Fixes(want), Obs::Text(got)) => {
+            want.trim_end() == got.trim_end()
+        }
         (
             Expect::Shifts(rung, holding),
             Obs::Shift {
@@ -56,6 +58,7 @@ pub fn describe(expect: &Expect) -> String {
         Expect::Prints(o) => format!("prints {o:?}"),
         Expect::Diagnoses(c) => format!("diagnoses {c:?}"),
         Expect::Formats(t) => format!("formats {t:?}"),
+        Expect::Fixes(t) => format!("fixes {t:?}"),
         Expect::Shifts(r, h) => format!("shifts {r} holding {h:?}"),
     }
 }
@@ -99,9 +102,10 @@ pub fn agrees(reference: &Obs, other: &Obs) -> bool {
 pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
     match (&row.expect, ev) {
         (Expect::Value(_) | Expect::Fails(..), Ev::Vm | Ev::Wasm | Ev::Cli) => Some(Ev::Walker),
-        (Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Shifts(..), Ev::Cli) => {
-            Some(Ev::Static)
-        }
+        (
+            Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
+            Ev::Cli,
+        ) => Some(Ev::Static),
         _ => None,
     }
 }

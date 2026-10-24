@@ -105,6 +105,8 @@ pub enum Expect {
     /// `formats("x = 1\n")`: the one formatting of the source is this text,
     /// and formatting it again changes nothing.
     Formats(String),
+    /// `fixes("find([1], (x) -> x)\n")`: `blue check --fix` leaves this text.
+    Fixes(String),
     /// `shifts("annotated", ["loose"])`: the blueshift reading is this rung,
     /// and these declarations are what hold it back.
     Shifts(String, Vec<String>),
@@ -118,6 +120,7 @@ impl Expect {
             Expect::Prints(_) => "prints",
             Expect::Diagnoses(_) => "diagnoses",
             Expect::Formats(_) => "formats",
+            Expect::Fixes(_) => "fixes",
             Expect::Shifts(..) => "shifts",
         }
     }
@@ -258,6 +261,7 @@ fn expect_of(s: &Sexp) -> Result<Expect, String> {
         "value" => Expect::Value(one_str("value", args)?.to_owned()),
         "prints" => Expect::Prints(one_str("prints", args)?.to_owned()),
         "formats" => Expect::Formats(one_str("formats", args)?.to_owned()),
+        "fixes" => Expect::Fixes(one_str("fixes", args)?.to_owned()),
         "fails" => match args {
             [Sexp::Atom(Atom::Keyword(k)), needle] => Expect::Fails(
                 Stage::parse(k).ok_or_else(|| {

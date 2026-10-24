@@ -336,6 +336,7 @@ pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
                 message: e.to_string(),
             },
         },
+        Expect::Fixes(_) => static_fixed(&row.src, roots),
         Expect::Shifts(..) => {
             let s = blue_lang_lsp::shift_of(&row.src);
             Obs::Shift {
@@ -424,6 +425,53 @@ fn static_codes(
     }
 }
 
+/// What `blue check --fix` writes: every machine-applicable fix of the entry
+/// file applied and the result formatted, until nothing applies (bounded as
+/// the CLI bounds it).
+fn static_fixed(src: &str, roots: &[PathBuf]) -> Obs {
+    use blue_lang_runtime::uses::ResolvedProgram;
+    let loader = blue_lang_pkg::load_path::LoadPath::new(roots.to_vec());
+    let mut text = src.to_owned();
+    for _ in 0..4 {
+        let entry = Entry {
+            path: Some(Path::new(ROW_FILE)),
+            text: &text,
+        };
+        let checked = match check_entry(entry, &loader as &dyn Loader, None, Checking::WithTests) {
+            Ok(c) => c,
+            Err(e) => {
+                return Obs::Failed {
+                    stage: Stage::Check,
+                    message: e.to_string(),
+                }
+            }
+        };
+        let (fixed, applied) = blue_lang_check::fixes::apply_fixes(
+            checked
+                .outcome
+                .diagnostics
+                .iter()
+                .chain(&checked.outcome.census)
+                .map(|d| (d.top_level, d.fixes.as_slice())),
+            &|i| checked.program.owner_of(i) == Some(ResolvedProgram::ENTRY),
+            &text,
+        );
+        if applied == 0 {
+            break;
+        }
+        text = match blue_lang_pkg::canonical::format_with(&loader, Path::new(ROW_FILE), &fixed) {
+            Ok(t) => t,
+            Err(e) => {
+                return Obs::Failed {
+                    stage: Stage::Parse,
+                    message: e.to_string(),
+                }
+            }
+        };
+    }
+    Obs::Text(text.trim_end().to_owned())
+}
+
 /// The measured blueshift rung of a program, or `none`.
 pub fn rung_of(src: &str) -> String {
     blue_lang_lsp::shift_of(src)
@@ -477,6 +525,9 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         Expect::Diagnoses(_) => {
             cmd.arg("check").arg("--format").arg("json").arg(&file);
         }
+        Expect::Fixes(_) => {
+            cmd.arg("check").arg("--fix").arg(&file);
+        }
         Expect::Shifts(..) => {
             cmd.arg("shift").arg(&file);
         }
@@ -523,6 +574,10 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
                 }
             }
         }
+        Expect::Fixes(_) => match std::fs::read_to_string(&file) {
+            Ok(t) => Obs::Text(t.trim_end().to_owned()),
+            Err(e) => Obs::Blind(format!("cannot read {}: {e}", file.display())),
+        },
         Expect::Diagnoses(_) => Obs::Codes(
             stdout
                 .lines()
@@ -686,9 +741,10 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
         (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm) => true,
         (Expect::Fails(..), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli) => true,
         (Expect::Prints(_), Ev::Cli) => true,
-        (Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Shifts(..), Ev::Static | Ev::Cli) => {
-            true
-        }
+        (
+            Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
+            Ev::Static | Ev::Cli,
+        ) => true,
         _ => false,
     }
 }

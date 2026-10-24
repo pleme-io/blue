@@ -533,6 +533,12 @@ pub(crate) fn check_stage(
             &table,
             &|i| namespace_of(program, i),
             &is_entry,
+            &|i| {
+                program
+                    .owner_of(i)
+                    .and_then(|f| program.file(f))
+                    .map(|f| f.text.as_str())
+            },
             crate::docs::signatures(),
         ));
 

@@ -369,6 +369,18 @@ row(
 )
 
 row(
+  "safety.B0062.collection_first_is_fixed",
+  "def pairs(ys)\n  flat_map((x) -> [x, x], ys)\nend\n\nfind((x) -> x > 1, [1, 2, 3])\ngroup_by((x) -> x % 2, pairs([1]))",
+  fixes("def pairs(ys)\n  flat_map(ys, (x) -> [x, x])\nend\n\nfind([1, 2, 3], (x) -> x > 1)\ngroup_by(pairs([1]), (x) -> x % 2)")
+)
+
+row(
+  "safety.B0062.a_function_second_is_left",
+  "def inc(x)\n  x + 1\nend\n\nfind((x) -> x, inc)\nfind(5, (x) -> x)",
+  fixes("def inc(x)\n  x + 1\nend\n\nfind((x) -> x, inc)\nfind(5, (x) -> x)")
+)
+
+row(
   "safety.B0063",
   "def pin()\n  1\nend\n\ndef gate(f)\n  f()\nend\n\ngate(pin)",
   diagnoses(["B0063"]),

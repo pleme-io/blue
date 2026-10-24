@@ -615,6 +615,6 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0059` | placeholder-doc | a `@doc` or `@moduledoc` says something: no empty text and no placeholder (`TODO`, `TBD`, `...`) | refused |
 | `B0060` | restated-doc | a `@doc` never restates a type, a signature or a contract field: blue derives them | autofix |
 | `B0061` | undeclared-option | a function's option keys are a closed set: a call passes only keys the function reads, and a `checked(opts, [...])` list declares every key the function reads | suggested |
-| `B0062` | argument-kind | a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind | refused |
+| `B0062` | argument-kind | a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind | suggested |
 | `B0063` | nullary-as-function | a zero-argument definition passed where a function is taken is written `() -> name`; a bare zero-argument name is a call | suggested |
 | `B0064` | unformatted-producer | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits | suggested |

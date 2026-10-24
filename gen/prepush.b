@@ -210,8 +210,8 @@ results = append(
     filter(regenerates?, dirs)
   ),
   [
-    gate("gen is substrate's pin", gen_pin),
-    gate("Cargo.gen.lock tied", gen_tie),
+    gate("gen is substrate's pin", () -> gen_pin),
+    gate("Cargo.gen.lock tied", () -> gen_tie),
     gate("every member's test targets compile alone", () -> test_targets),
     gate(
       "registry_graph, check_corpus, distribution, verb_graph",

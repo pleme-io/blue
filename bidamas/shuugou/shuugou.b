@@ -19,29 +19,16 @@ def member(xs, v)
 end
 
 @doc """
-unique: Keeps the FIRST occurrence of each element.
+unique: Keeps the FIRST occurrence of each element, compared with ==.
 
-Written as a left fold rather than the obvious tail-recursion, because the
-tail-recursive shape — unique the rest, then decide about the head — silently
-keeps the LAST occurrence instead: for [1,2,1,3,2] it yields [1,3,2]. Both
-are "duplicates removed"; only one matches what a caller reading
-first-seen-order expects, and the difference is invisible until a test names
-an ordered expectation. This one did.
+The builtin distinct, which keeps first-seen order in linear time. The fold
+over member it replaces was quadratic: regen spent most of a minute in it.
 
+    unique([1, 2, 1, 3, 2]) #=> [1, 2, 3]
     unique([]) #=> []
 """
 def unique(xs)
-  reduce(
-    fn(acc, x)
-      if member(acc, x)
-        acc
-      else
-        push(acc, x)
-      end
-    end,
-    [],
-    xs
-  )
+  distinct(xs)
 end
 
 @doc """

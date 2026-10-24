@@ -136,6 +136,86 @@ pub fn blue_equal(a: &Value, b: &Value) -> bool {
     }
 }
 
+#[derive(PartialEq, Eq, Hash)]
+enum EqualKey<'a> {
+    Nil,
+    Bool(bool),
+    Number(u64),
+    Str(&'a str),
+    Symbol(&'a str),
+    Keyword(&'a str),
+}
+
+fn number_key(n: f64) -> Option<EqualKey<'static>> {
+    (!n.is_nan()).then(|| EqualKey::Number(if n == 0.0 { 0 } else { n.to_bits() }))
+}
+
+fn equal_key(v: &Value) -> Option<EqualKey<'_>> {
+    match v {
+        Value::Nil => Some(EqualKey::Nil),
+        Value::Bool(b) => Some(EqualKey::Bool(*b)),
+        Value::Int(i) => number_key(*i as f64),
+        Value::Float(f) => number_key(*f),
+        Value::Str(s) => Some(EqualKey::Str(s)),
+        Value::Symbol(s) => Some(EqualKey::Symbol(s)),
+        Value::Keyword(s) => Some(EqualKey::Keyword(s)),
+        _ => None,
+    }
+}
+
+/// A map from each element to how many times it occurs, keyed as tatara's
+/// `hash-map` keys (an Int and a Float are two keys): the meaning of tatara's
+/// `frequencies`, built in one native pass.
+///
+/// # Errors
+///
+/// An element that cannot be a map key, as `hash-map` refuses it.
+pub fn frequencies<'a>(
+    xs: impl Iterator<Item = &'a Value>,
+    span: tatara_lisp::Span,
+) -> Result<Value, EvalError> {
+    let mut counts = tatara_lisp_eval::Map::new();
+    for x in xs {
+        let key = tatara_lisp_eval::value::MapKey::from_value(x).ok_or_else(|| {
+            EvalError::native_fn(
+                "hash-map",
+                format!("non-hashable key kind: {}", x.type_name()),
+                span,
+            )
+        })?;
+        let n = match counts.get(&key) {
+            Some(Value::Int(n)) => n + 1,
+            _ => 1,
+        };
+        counts.insert(key, Value::Int(n));
+    }
+    Ok(Value::Map(std::sync::Arc::new(counts)))
+}
+
+/// The elements with repeats removed under [`blue_equal`], first occurrence
+/// kept: the meaning of tatara's `distinct`, in linear time for the scalars.
+///
+/// Two values `blue_equal` calls equal always share a key, so a value is
+/// compared only with the kept values of its own key; values with no key
+/// (lists, maps, functions, NaN) are compared with every kept keyless value.
+pub fn distinct<'a>(xs: impl Iterator<Item = &'a Value>) -> Vec<Value> {
+    let mut kept: Vec<Value> = Vec::new();
+    let mut buckets: std::collections::HashMap<EqualKey<'a>, Vec<usize>> =
+        std::collections::HashMap::new();
+    let mut keyless: Vec<usize> = Vec::new();
+    for x in xs {
+        let seen = match equal_key(x) {
+            Some(k) => buckets.entry(k).or_default(),
+            None => &mut keyless,
+        };
+        if !seen.iter().any(|&i| blue_equal(&kept[i], x)) {
+            seen.push(kept.len());
+            kept.push(x.clone());
+        }
+    }
+    kept
+}
+
 /// `to_s` (okite D0005, D0006): text for a person. A string, symbol or keyword
 /// is its own text and nil is empty, as in Ruby; every other value is its blue
 /// literal. Until 2026-09-27 a map rendered as the word `map`, a list lost its
@@ -381,6 +461,24 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn("not=", Arity::Exact(2), |a: &[Value], _h: &mut H, _s| {
         Ok(Value::Bool(!blue_equal(&a[0], &a[1])))
     });
+    interp.register_fn(
+        "distinct",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, span| match &a[0] {
+            Value::Nil => Ok(Value::list(std::iter::empty())),
+            Value::List(xs) => Ok(Value::list(distinct(xs.iter()))),
+            other => Err(EvalError::type_mismatch("a list", other.type_name(), span)),
+        },
+    );
+    interp.register_fn(
+        "frequencies",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, span| match &a[0] {
+            Value::Nil => Ok(frequencies(std::iter::empty(), span)?),
+            Value::List(xs) => Ok(frequencies(xs.iter(), span)?),
+            other => Err(EvalError::type_mismatch("a list", other.type_name(), span)),
+        },
+    );
 
     // One predicate per kind, and exactly one holds of any value (D0010).
     // tatara's `nil?` is its Scheme alias for `null?`, true of `[]` as well,
@@ -915,6 +1013,64 @@ mod tests {
         // The empty case, and a refusal for keys that cannot be ordered.
         assert_eq!(ints("sort_keyed(fn(x) x end, [])"), Vec::<i64>::new());
         assert!(crate::run("sort_keyed(fn(x) x end, [1, \"a\"])").is_err());
+    }
+
+    #[test]
+    fn distinct_is_native_and_keeps_tataras_meaning() {
+        assert!(matches!(
+            crate::interpreter_hostless().lookup_global("distinct"),
+            Some(Value::NativeFn(_))
+        ));
+        let corpus = eval(
+            "[1, 1.0, 0, -0.0, 0.0, 9007199254740993, 9007199254740992, 9007199254740992.0, \
+             \"a\", :a, \"a\", nil, nil, true, false, true, [1, 2], [1, 2.0], [2], \
+             {a: 1}, {a: 1.0}, 2.5, 2.5, -1, -1.0, \"\", \"\"]",
+        );
+        let Value::List(xs) = &corpus else {
+            panic!("{corpus:?}")
+        };
+        let mut naive: Vec<Value> = Vec::new();
+        for x in xs.iter() {
+            if !naive.iter().any(|k| blue_equal(k, x)) {
+                naive.push(x.clone());
+            }
+        }
+        let fast = distinct(xs.iter());
+        assert_eq!(fast.len(), naive.len());
+        assert!(fast.iter().zip(&naive).all(|(a, b)| blue_equal(a, b)));
+        assert_eq!(
+            i("length(distinct(map((x) -> x % 997, range(300000))))"),
+            997
+        );
+        assert_eq!(i("length(distinct(nil))"), 0);
+    }
+
+    #[test]
+    fn frequencies_is_native_and_counts_as_tatara_does() {
+        assert!(matches!(
+            crate::interpreter_hostless().lookup_global("frequencies"),
+            Some(Value::NativeFn(_))
+        ));
+        let corpus = "(list 1 1.0 1 \"a\" 'a :a \"a\" #t #f #t 2.5 2.5 -0.0 0.0 0)";
+        let mut upstream = tatara_lisp_eval::Interpreter::<()>::new();
+        tatara_lisp_eval::install_full_stdlib_with(&mut upstream, &mut ());
+        let forms = tatara_lisp::read_spanned(&format!("(frequencies {corpus})")).expect("reads");
+        let expected = upstream
+            .eval_program(&forms, &mut ())
+            .expect("upstream counts");
+        let Value::List(xs) = upstream
+            .eval_program(&tatara_lisp::read_spanned(corpus).expect("reads"), &mut ())
+            .expect("corpus")
+        else {
+            panic!("a list")
+        };
+        let ours = frequencies(xs.iter(), tatara_lisp::Span::synthetic()).expect("counts");
+        assert!(blue_equal(&ours, &expected), "{ours:?} vs {expected:?}");
+        assert!(crate::run("frequencies([[1]])").is_err());
+        assert_eq!(
+            i("get(frequencies(map((x) -> x % 7, range(70000))), 3)"),
+            10000
+        );
     }
 
     fn eval(src: &str) -> Value {

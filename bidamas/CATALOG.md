@@ -4388,7 +4388,7 @@ shuugou (集合) — sets, over plain lists.
 | definition | other name | shares a builtin's name | waived | what it does |
 |---|---|---|---|---|
 | `shuugou::member(xs, v)` |  |  |  |  |
-| `shuugou::unique(xs)` |  |  |  | unique: Keeps the FIRST occurrence of each element. |
+| `shuugou::unique(xs)` |  |  |  | unique: Keeps the FIRST occurrence of each element, compared with ==. |
 | `shuugou::union(a, b)` |  |  |  | union: members of either set. |
 | `shuugou::intersection(a, b)` |  |  |  | intersection: members of both sets. |
 | `shuugou::difference(a, b)` |  |  |  | difference: members of a that are not in b. |

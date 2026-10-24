@@ -1984,7 +1984,7 @@ A	retsu	take	pure	take(list, n) -> list	-	tatara-lisp-script	partial:retsu	the f
 A	retsu	take_while	pure	take_while(list, f) -> list	-	-	exists:retsu	take_while stops at the FIRST failure and does not resume — the difference from `filter`, and the only reason both exist	0	take_while(list, f) -> list	yes
 A	retsu	tally	pure	tally(list) -> map	-	-	partial:toukei	How many times x occurs	0	tally(list) -> map	yes
 A	retsu	turn	pure	turn(list, n) -> list	-	-	partial:retsu	items moved n places, wrapping around	0	turn(list, n) -> list	yes
-A	retsu	unique	pure	unique(list) -> list	-	tatara-lisp-script	partial:shuugou	Keeps the FIRST occurrence of each element	0	unique(list) -> list	yes
+A	retsu	unique	pure	unique(list) -> list	-	tatara-lisp-script	partial:shuugou	Keeps the FIRST occurrence of each element, compared with ==	0	unique(list) -> list	yes
 A	retsu	unzip	pure	unzip(pairs) -> record	-	-	exists:retsu	The inverse of zip: a list of pairs back into [firsts, seconds]	0	unzip(pairs) -> record	yes
 A	retsu	update	pure	update(list, index, f) -> list	error	-	partial:retsu	new list with f applied at an index	0	update(list, index, f) -> list	yes
 A	retsu	windows	pure	windows(list, n) -> [list]	-	-	exists:retsu	Overlapping windows of width n — chunk's sliding sibling	0	windows(list, n) -> [list]	yes

@@ -78,6 +78,12 @@ row(
   covers("okite:D0003")
 )
 
+row(
+  "lists.distinct.keys",
+  "distinct([nil, \"a\", :a, \"a\", 0, -0.0, nil, [1], [1.0]])",
+  value("[nil, \"a\", :a, 0, [1]]")
+)
+
 row("lists.drop", "drop(1, [1, 2, 3])", value("[2, 3]"), covers("builtin:drop"))
 row("lists.drop.all", "drop(1, [1])", value("[]"))
 row("lists.first", "first([7, 8])", value("7"), covers("builtin:first"))

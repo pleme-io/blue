@@ -374,21 +374,43 @@ hit:
   the property. If the red run does not go red, the mutation is wrong or the
   gate is vacuous; find out which.
 
-**A push to `main` runs the local gates first.** `nix develop` sets
-`core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b` on the
-working tree: `cargo fmt --check`, every `Bluefile.lock` confirmed, `regen` in
-every project that generates (each red names the file it rewrote; commit it),
-`gen --version` against substrate's one gen pin (red names the nix lock bump),
-`gen confirm` (red runs `gen build .` and names the files to commit),
-each member's test targets compiled alone (`cargo test -p M --no-run`, since
-`--workspace` unifies features and hid a break), and the `registry_graph`,
-`check_corpus`, `distribution` and `verb_graph` tests. These caught
-four `main` reds on 2026-10-22 that CI found only after the push. About 4.5 min
-warm (2026-10-23): regen of the root 71 s, the per-member compile 44 s, the
-tests 136 s. A project whose declared
-`tool` is not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never
-green. The hook first calls the global `core.hooksPath` hook of the same
-name, so the fleet's commit gates still run. Off: `BLUE_PREPUSH_OFF=1`.
+**A push to `main` runs the local gates first.** `nix develop` adds
+`.githooks/config` to the clone's git config (`include.path`), and the gate
+adds it on its first run; it sets `core.hooksPath` to `.githooks` and declares
+the `blue-generated` merge driver. `pre-push` runs `gen/prepush.b` on the
+working tree: `cargo fmt --check` under the toolchain `flake.lock` pins,
+every `Bluefile.lock` confirmed, `regen` in every project that generates (each
+red names the file it rewrote; commit it), gen built from the substrate
+`flake.lock` pins (never the gen on PATH), `gen confirm` with that gen (red
+runs `gen build .` and names the files to commit), each member's test targets
+compiled alone (`cargo test -p M --no-run`, since `--workspace` unifies
+features and hid a break), and the `registry_graph`, `check_corpus`,
+`distribution` and `verb_graph` tests. These caught four `main` reds on
+2026-10-22 that CI found only after the push. **A gate runs only when its
+inputs changed**: each gate names its inputs as git pathspecs, its key is the
+hash of their index entries plus the tool that judges them, and a key that was
+green in this clone (`.git/blue-prepush/`) or in the fleet's sui cache (a
+content-addressed marker path, `BLUE_PREPUSH_SUI`, default `http://rio:5000`,
+`off` to stop asking; written when `BLUE_PREPUSH_SUI_KEY` names a signing key)
+is skipped. Prose (`*.md` at the root and under `docs/`) is no gate's input, so
+a docs-only push checks nothing. Numbers: `docs/COMPOUNDING.md`, R5 to R7. A
+project whose declared `tool` is not on PATH (`native`: `tatara-rust-emit`) is
+reported `➖`, never green. The hook first calls the global `core.hooksPath`
+hook of the same name, so the fleet's commit gates still run. Off:
+`BLUE_PREPUSH_OFF=1` (every gate), `BLUE_PREPUSH_SKIP=fmt,tests` (the gates
+named; the ids are `fmt`, `locks`, `regen`, `gen-pin`, `gen-tie`,
+`test-targets`, `tests`), `BLUE_PREPUSH_CACHE=off` (run every gate).
+
+**A generated file never needs a human merge.** `.gitattributes` (itself
+generated from `Bluefile.lock` by `gen/gitattributes.b`) marks every
+`generate` output, the catalogue and every `Bluefile.lock` `merge=blue-generated`.
+The driver (`gen/merge.b`) finds the other side of the merge (the rebase's
+current pick, or the merge's `GITHEAD_` head), computes the merged tree with
+`git merge-tree`, regenerates the one file there (`gen/regen.b -- <path>`, or
+`blue lock <dir>`), and writes it as the result. When it cannot (no commit
+named, a source conflict under the generator, no generator), it merges as text
+and says why, and the freshness gates stay the backstop. `bidamas/NAMES.md` is
+`merge=union`: two branches that append a row each keep both.
 
 ## Dependencies
 

@@ -12,11 +12,13 @@ def member(xs, v)
   any((x) -> x == v, xs)
 end
 
-# Keeps the FIRST occurrence of each element: the builtin distinct. The fold
-# this replaced copied the result list once per element, and the catalogue's
-# 4,103 definitions took 43 s in it (docs/COMPOUNDING.md, R7). A tail-recursive
-# shape would keep the LAST occurrence instead ([1,2,1,3,2] to [1,3,2]); the
-# ordered test below holds the first.
+# Keeps the FIRST occurrence of each element.
+#
+# It is the builtin distinct. The fold this replaced copied the result list
+# once per element, and the catalogue's 4,103 definitions took 43 s in it
+# (docs/COMPOUNDING.md, R6). A tail-recursive shape would keep the LAST
+# occurrence instead ([1,2,1,3,2] to [1,3,2]); the ordered test below holds
+# the first.
 def unique(xs)
   distinct(xs)
 end

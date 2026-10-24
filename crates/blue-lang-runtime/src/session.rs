@@ -112,20 +112,43 @@ pub enum Stop {
 }
 
 /// A request that failed, as a code and the rendered message.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct Failure {
     /// `parse`, `import`, `runtime`, `not-found`, or the check rule's code
     /// (`B0001`) when the check stage refused the code.
     pub code: String,
     pub message: String,
+    /// A runtime error's position and blue call stack, as `blue run` reports
+    /// them (`crate::observe::Fault`).
+    pub fault: Option<Box<crate::observe::Fault>>,
 }
+
+impl PartialEq for Failure {
+    fn eq(&self, other: &Self) -> bool {
+        self.code == other.code
+            && self.message == other.message
+            && self.fault.as_ref().map(|f| &f.stack) == other.fault.as_ref().map(|f| &f.stack)
+    }
+}
+
+impl Eq for Failure {}
 
 impl Failure {
     fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
+            fault: None,
         }
+    }
+
+    /// The call stack a runtime error unwound through, when it has one.
+    #[must_use]
+    pub fn stack(&self) -> Option<&crate::observe::Stack> {
+        self.fault
+            .as_ref()
+            .map(|f| &f.stack)
+            .filter(|s| !s.is_empty())
     }
 }
 
@@ -628,7 +651,8 @@ impl Session {
                 }
             }
         }
-        let stop = failed.map(|(i, e)| self.classify(&e, &erased, |span, msg| place(i, span, msg)));
+        let stop = failed
+            .map(|(i, e)| self.classify(&e, &program, i, &erased, |span, msg| place(i, span, msg)));
 
         match action {
             Action::Load => ctx.forms = forms.into_iter().map(Form::settled).collect(),
@@ -660,9 +684,13 @@ impl Session {
     fn classify(
         &self,
         e: &EvalError,
+        program: &ResolvedProgram,
+        top_level: usize,
         erased: &[Spanned],
         place: impl Fn(Span, &str) -> String,
     ) -> Stop {
+        // Taken on every stop, so the next request's error starts with none.
+        let trace = self.interp.take_trace();
         match e {
             EvalError::Halted => {
                 self.interrupt.store(false, Ordering::SeqCst);
@@ -676,7 +704,11 @@ impl Session {
             other => {
                 let at = other.span().unwrap_or_else(Span::synthetic);
                 let message = pipeline::display_keys(&crate::messages::describe(other, erased));
-                Stop::Error(Failure::new("runtime", place(at, &message)))
+                let mut failure = Failure::new("runtime", place(at, &message));
+                failure.fault = Some(Box::new(crate::observe::Fault::of(
+                    program, erased, top_level, other, &trace,
+                )));
+                Stop::Error(failure)
             }
         }
     }

@@ -13,7 +13,15 @@ blue-lang-syntax = { workspace = true }
 blue-lang-fmt = { workspace = true }
 blue-lang-check = { workspace = true }
 blue-lang-runtime = { workspace = true }
+blue-lang-waku = { workspace = true }
+tatara-lisp-eval = { workspace = true }
 
 # `def_hash` keys leave the process (the memo store), so they are BLAKE3, as
 # blue's build inputs are. Features pinned as in `blue-lang-runtime`: no C.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
+
+[dev-dependencies]
+# The reach tests check programs that name host primitives, which the check
+# stage resolves only when the interpreter binds them.
+# Path-only, like every sibling dev-dependency (`registry_graph.rs`).
+blue-lang-runtime = { path = "../blue-lang-runtime", features = ["sys"] }

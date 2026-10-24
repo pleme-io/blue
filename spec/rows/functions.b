@@ -232,6 +232,19 @@ row(
 )
 
 row(
+  "fn.volatile",
+  "def f(x)\n  x * 2\nend\nvolatile(f)\n[f(3), f(3)]",
+  value("[6, 6]"),
+  covers("builtin:volatile")
+)
+
+row(
+  "fn.volatile.not_a_function",
+  "volatile(3)",
+  fails(:eval, "expected function")
+)
+
+row(
   "fn.partial",
   "partial(fn(a, b) a - b end, 10)(3)",
   value("7"),

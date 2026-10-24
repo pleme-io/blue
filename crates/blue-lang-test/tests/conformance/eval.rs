@@ -81,6 +81,9 @@ pub struct Env {
     pub roots: Vec<PathBuf>,
     pub cli: Option<PathBuf>,
     pub scratch: PathBuf,
+    /// Calls the `memo` column's warm runs answered from disk, over the
+    /// whole suite: zero means the column compared nothing.
+    pub memo_disk_hits: u64,
     renderer: tatara_lisp_eval::Interpreter<()>,
     to_s: Value,
 }
@@ -96,6 +99,7 @@ impl Env {
             roots,
             cli,
             scratch,
+            memo_disk_hits: 0,
             renderer,
             to_s,
         }
@@ -234,6 +238,84 @@ pub fn walker(env: &mut Env, row: &Row) -> Obs {
         Ok(run) => Obs::Value(env.literal(&run.value)),
         Err(e) => failed(&e),
     }
+}
+
+/// The `memo` column: the walker under the memo, cold and then warm from the
+/// disk store the cold run wrote. A disagreement between the two is reported
+/// as a failure naming both, which stage 0 then disagrees with.
+pub fn memo(env: &mut Env, row: &Row) -> Obs {
+    if !runs(row) {
+        return Obs::Blind(format!(
+            "a {} row is observed by the front end",
+            row.expect.kind()
+        ));
+    }
+    let store: String = row
+        .id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let store = env.scratch.join("memo").join(store);
+    let _ = std::fs::remove_dir_all(&store);
+    let (cold, _) = memo_run(env, row, &store);
+    let (warm, from_disk) = memo_run(env, row, &store);
+    let _ = std::fs::remove_dir_all(&store);
+    env.memo_disk_hits += from_disk;
+    if cold == warm {
+        cold
+    } else {
+        Obs::Failed {
+            stage: Stage::Eval,
+            message: format!("memo: cold run {cold}, warm from disk {warm}"),
+        }
+    }
+}
+
+/// One memoized run over the store at `dir`, and how many calls the disk
+/// answered.
+fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64) {
+    use blue_lang_mondou::recall::{Memo, Plan, Policy};
+    use blue_lang_mondou::store::{Identity, Store, DEFAULT_MAX_BYTES};
+    use std::sync::Arc;
+    let loader = env.loader();
+    let entry = Entry {
+        path: Some(Path::new(ROW_FILE)),
+        text: &row.src,
+    };
+    let store = Store::open(
+        dir,
+        Identity::from_parts(&[b"conformance"]),
+        DEFAULT_MAX_BYTES,
+    )
+    .ok()
+    .map(Arc::new);
+    let policy = Policy {
+        store_min: std::time::Duration::ZERO,
+        window: u64::MAX,
+        ..Policy::default()
+    };
+    let mut held = None;
+    let observed =
+        blue_lang_runtime::pipeline::run_observed(entry, Inputs::new(), &loader, None, |w| {
+            let m = Arc::new(Memo::new(
+                Arc::clone(w.definitions),
+                Plan::of(w.definitions, w.lowered, w.erased),
+                store,
+                None,
+                policy,
+            ));
+            held = Some(Arc::clone(&m));
+            m
+        });
+    let from_disk = held.as_ref().map_or(0, |m| {
+        m.flush();
+        m.report().total().disk_hits
+    });
+    let obs = match observed.and_then(|o| o.outcome) {
+        Ok(run) => Obs::Value(env.literal(&run.value)),
+        Err(e) => failed(&e),
+    };
+    (obs, from_disk)
 }
 
 pub fn vm(env: &mut Env, row: &Row) -> Obs {
@@ -600,8 +682,8 @@ fn cli_failure(stderr: &str) -> Obs {
 /// design, not a gap).
 pub fn observes(ev: Ev, row: &Row) -> bool {
     match (&row.expect, ev) {
-        (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm) => true,
-        (Expect::Fails(..), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli) => true,
+        (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo) => true,
+        (Expect::Fails(..), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo) => true,
         (Expect::Prints(_), Ev::Cli) => true,
         (Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Shifts(..), Ev::Static | Ev::Cli) => {
             true

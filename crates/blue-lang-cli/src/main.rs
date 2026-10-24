@@ -67,6 +67,7 @@ const MIGRATE: &str = include_str!("../blue/migrate.b");
 mod config;
 mod deploy;
 mod diagnostics;
+mod memo;
 mod observe;
 mod prefetch;
 mod reference;
@@ -117,6 +118,10 @@ enum Cmd {
         /// its position and blue call stack.
         #[arg(long, value_enum, default_value_t = Format::Text)]
         format: Format,
+        /// Run every call, answering none from the memo (`BLUE_MEMO=off`
+        /// does the same for every command).
+        #[arg(long)]
+        no_memo: bool,
         /// The program's own arguments, after the file (use `--` before any
         /// that start with a dash): what `argv()` returns. Before 2026-09-27
         /// `run` refused any, so no blue program could take arguments.
@@ -226,6 +231,10 @@ enum Cmd {
         /// Print coverage as one JSON object per file.
         #[arg(long, requires = "coverage")]
         json: bool,
+        /// Run every call, answering none from the memo. Coverage always
+        /// does.
+        #[arg(long)]
+        no_memo: bool,
     },
     /// Run a program and report every function it called: calls, inclusive
     /// and exclusive time, most exclusive time first.
@@ -236,6 +245,10 @@ enum Cmd {
         top: usize,
         #[arg(long)]
         json: bool,
+        /// Profile the program with every call run, none answered from the
+        /// memo.
+        #[arg(long)]
+        no_memo: bool,
         /// The program's own arguments, after the file.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
@@ -522,6 +535,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             inputs,
             quiet,
             format,
+            no_memo,
             args,
         } => {
             blue_lang_runtime::sys::set_program_args(args);
@@ -571,15 +585,39 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // type error in the file the user named would report against
             // `<anonymous>` while an imported package's reported its real path
             // — the entry file being the one file the CLI always knows.
-            let out = match blue_lang_runtime::pipeline::run_in_surface(
-                blue_lang_runtime::uses::Entry {
-                    path: Some(&file),
-                    text: &src,
-                },
-                bind_inputs(&src, &inputs, &cfg)?,
-                &loader,
-                surface.as_ref(),
-            ) {
+            let entry = blue_lang_runtime::uses::Entry {
+                path: Some(&file),
+                text: &src,
+            };
+            let inputs = bind_inputs(&src, &inputs, &cfg)?;
+            // The memo answers the calls of every definition proven pure;
+            // what it stored is written once the run ends, error or not.
+            let ran = if memo::enabled(no_memo, &cfg) {
+                let mut held = None;
+                let observed = blue_lang_runtime::pipeline::run_observed(
+                    entry,
+                    inputs,
+                    &loader,
+                    surface.as_ref(),
+                    |w| {
+                        let m = memo::over(w.definitions, w.lowered, w.erased, None);
+                        held = Some(std::sync::Arc::clone(&m));
+                        m
+                    },
+                );
+                if let Some(m) = &held {
+                    memo::finish(m);
+                }
+                observed.and_then(|o| o.outcome)
+            } else {
+                blue_lang_runtime::pipeline::run_in_surface(
+                    entry,
+                    inputs,
+                    &loader,
+                    surface.as_ref(),
+                )
+            };
+            let out = match ran {
                 Err(e) if format == Format::Json => {
                     println!("{}", serde_json::to_string(&observe::error_json(&e))?);
                     return Ok(ExitCode::FAILURE);
@@ -835,13 +873,21 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             filter,
             coverage,
             json,
-        } => observe::test(&file, filter.as_deref(), coverage, json),
+            no_memo,
+        } => observe::test(
+            &file,
+            filter.as_deref(),
+            coverage,
+            json,
+            memo::enabled(no_memo, &cfg),
+        ),
         Cmd::Profile {
             file,
             top,
             json,
+            no_memo,
             args,
-        } => observe::profile(&file, top, json, args, &cfg),
+        } => observe::profile(&file, top, json, memo::enabled(no_memo, &cfg), args, &cfg),
         Cmd::Trace {
             def,
             file,

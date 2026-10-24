@@ -90,6 +90,39 @@ fn a_raise_is_a_runtime_error_and_the_session_survives_it() {
     assert_eq!(value(s.eval("2", None, None)), "2");
 }
 
+/// A runtime error carries the blue call stack, as `blue run` reports it,
+/// and the next error does not inherit this one's frames.
+#[test]
+fn a_runtime_error_carries_its_call_stack() {
+    let mut s = session();
+    let _ = s.eval(
+        "def inner(n)\n  n / 0\nend\ndef outer(n)\n  inner(n) + 1\nend",
+        None,
+        None,
+    );
+    let Stop::Error(f) = stop(s.eval("outer(2)", None, None)) else {
+        panic!("expected an error")
+    };
+    let names: Vec<&str> = f
+        .stack()
+        .expect("a stack")
+        .frames
+        .iter()
+        .map(|fr| fr.function.as_str())
+        .collect();
+    assert_eq!(names[..2], ["inner", "outer"], "{names:?}");
+    let Stop::Error(again) = stop(s.eval("1 / 0", None, None)) else {
+        panic!("expected an error")
+    };
+    assert!(
+        again
+            .stack()
+            .is_none_or(|st| st.frames.iter().all(|fr| fr.function != "inner")),
+        "{:?}",
+        again.stack()
+    );
+}
+
 #[test]
 fn a_parse_error_names_the_code() {
     let mut s = session();

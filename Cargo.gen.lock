@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "b18faa9031a73b44e2e3899024598f9468719cdbfbd3ca9617d5d4beb239b3d8",
+  "cargo_lock_sha256": "99f2b56040df3e9a5f0533959fc036c41554fbde2fdf686bc18ae505af62009f",
   "manifest_sha256": {
     "Cargo.toml": "2f26a9895823a93b555178bb86f2f8d07b6803d98c52c26cb57b1f82192c1926",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "e5ec2e0d527343aacfd6ea3cf2e861016eb2dd6f253b1d23d10679345c2be969",
+    "crates/blue-lang-cli/Cargo.toml": "2af564b672ce71b6b8d6c291b23d06a1ec59c156d79586f465862252303bb12d",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-lsp/Cargo.toml": "30bf68843371f73f426bb85bf8b183394cadce53bd42261dd46c4001a0b287b5",
-    "crates/blue-lang-mondou/Cargo.toml": "21bcf1305dd95a070e7b8940be3cbfb17477d8bd7cdc05d6c17d17bdf55c4614",
+    "crates/blue-lang-mondou/Cargo.toml": "06086605425e4c1e7e37bc7f100aeef6254cc1d332274ba2f185fb0a2b3399a8",
     "crates/blue-lang-pkg/Cargo.toml": "5b30f5432a1097812fd5f010ecbd8e6c172a2ce02f87c447f269f0591c81f825",
     "crates/blue-lang-proc/Cargo.toml": "a9702f9f855394147b0651eb89ae07fd8c787f8d1df4d47f1194fb858bce2fc1",
     "crates/blue-lang-runtime/Cargo.toml": "19b6e0415732c35b9ec3ecc3c676622644d795ed92fc4e8c0c2a5f39e4a350fa",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
-    "crates/blue-lang-test/Cargo.toml": "b5adfaccbe0253624d6ee8eca0164adfa1a3675023e0bb5275a6e2d7614ef042",
+    "crates/blue-lang-test/Cargo.toml": "0b03ee130fb9823150528ea48310e97c645ee625050167579105e2d28c033dd6",
     "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
     "crates/blue-lang-wasm/Cargo.toml": "7ab5e1b7832f36ce7932147f98e193c0d626813528f2d85280ac1aa8b070a1a0"
   },
@@ -398,6 +398,16 @@
             "tree": "target"
           },
           {
+            "name": "blue_lang_mondou",
+            "package_key": "blue-lang-mondou-0.0.66",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "blue_lang_pkg",
             "package_key": "blue-lang-pkg-0.0.66",
             "kind": "normal",
@@ -713,6 +723,26 @@
           {
             "name": "blue_lang_syntax",
             "package_key": "blue-lang-syntax-0.0.66",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_waku",
+            "package_key": "blue-lang-waku-0.0.66",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tatara_lisp_eval",
+            "package_key": "tatara-lisp-eval-0.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,

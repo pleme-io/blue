@@ -92,6 +92,26 @@ fn eval_answers_a_value_and_what_the_code_wrote() {
         .starts_with("<eval>:1:1:"));
 }
 
+/// A runtime error reports the blue call stack, in `blue run --format
+/// json`'s shape, innermost first.
+#[test]
+fn a_runtime_error_carries_the_call_stack() {
+    let mut s = Server::start(&[]);
+    s.ask(json!({"id": 1, "op": "eval",
+        "code": "def inner(n)\n  n / 0\nend\n\ndef outer(n)\n  inner(n) + 1\nend\n"}));
+    let r = s.ask(json!({"id": 2, "op": "eval", "code": "outer(3)"}));
+    assert_eq!(r["status"], "error", "{r}");
+    assert_eq!(r["error"]["code"], "runtime", "{r}");
+    let names: Vec<&str> = r["error"]["stack"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no stack: {r}"))
+        .iter()
+        .filter_map(|f| f["function"].as_str())
+        .collect();
+    assert_eq!(names[..2], ["inner", "outer"], "{r}");
+    assert!(r["error"]["stack_depth"].as_u64().unwrap_or(0) >= 2, "{r}");
+}
+
 #[test]
 fn a_function_redefined_in_the_session_changes_every_caller() {
     let mut s = Server::start(&[]);

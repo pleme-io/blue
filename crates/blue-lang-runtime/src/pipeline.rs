@@ -203,10 +203,20 @@ pub struct Observed {
     pub outcome: Result<Run, RunError>,
 }
 
+/// What a call observer is built from: the program past every stage before
+/// evaluation, its tree before erasure (what `def_hash` reads) and after it
+/// (what runs), and the definitions read off it.
+pub struct Watched<'a> {
+    pub definitions: &'a std::sync::Arc<crate::observe::Definitions>,
+    pub program: &'a crate::uses::ResolvedProgram,
+    pub lowered: &'a [tatara_lisp::Spanned],
+    pub erased: &'a [tatara_lisp::Spanned],
+}
+
 /// [`run_in_surface`] with a call observer installed for the evaluation.
-/// `watch` builds the observer from the program's definitions once every stage
-/// before evaluation has passed; the profiler, the tracer and coverage are
-/// all built this way (`crate::observe::Recorder`).
+/// `watch` builds the observer once every stage before evaluation has
+/// passed; the profiler, the tracer, coverage and the memo are all built this
+/// way (`crate::observe::Recorder`, `blue-lang-mondou`'s `recall::Memo`).
 ///
 /// # Errors
 ///
@@ -217,9 +227,7 @@ pub fn run_observed(
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
-    watch: impl FnOnce(
-        &std::sync::Arc<crate::observe::Definitions>,
-    ) -> std::sync::Arc<dyn crate::observe::CallObserver>,
+    watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
 ) -> Result<Observed, RunError> {
     let mut interp = crate::interpreter_hostless();
     crate::inputs::install_input_primitives(&mut interp, inputs);
@@ -228,7 +236,12 @@ pub fn run_observed(
         &prepared.program,
         &prepared.erased,
     ));
-    interp.set_call_observer(Some(watch(&definitions)));
+    interp.set_call_observer(Some(watch(&Watched {
+        definitions: &definitions,
+        program: &prepared.program,
+        lowered: &prepared.lowered,
+        erased: &prepared.erased,
+    })));
     let outcome = eval_prepared(&mut interp, &prepared, &mut ()).map(|value| Run {
         value,
         visited: prepared.visited,
@@ -248,6 +261,7 @@ pub fn run_observed(
 /// module exists to own is written once for both.
 pub(crate) struct Prepared {
     program: crate::uses::ResolvedProgram,
+    lowered: Vec<tatara_lisp::Spanned>,
     erased: Vec<tatara_lisp::Spanned>,
     visited: usize,
     typed_decls: usize,
@@ -339,10 +353,12 @@ pub(crate) fn prepare(
     //
     // No lowering step follows. The tree the evaluator receives IS the tree the
     // parser built, minus annotations, with the author's byte offsets intact.
-    let erased = erase_types(&lower(&program, &names));
+    let lowered = lower(&program, &names);
+    let erased = erase_types(&lowered);
 
     Ok(Prepared {
         program,
+        lowered,
         erased,
         visited: outcome.stats.visited,
         typed_decls: outcome.stats.typed_decls,

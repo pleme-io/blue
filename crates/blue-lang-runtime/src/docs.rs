@@ -113,6 +113,61 @@ impl Topic {
             Topic::Output => "Terminal output",
         }
     }
+
+    /// What calling a name of this topic may do besides compute its answer
+    /// from its arguments; `None` when that is all it does. Exhaustive, so a
+    /// new topic decides here. The memo (`blue-lang-mondou`'s `reach`) answers
+    /// a call from its cache only when nothing the definition reaches has an
+    /// effect.
+    #[must_use]
+    pub fn effect(self) -> Option<Effect> {
+        match self {
+            Topic::Form
+            | Topic::Lisp
+            | Topic::Number
+            | Topic::Text
+            | Topic::List
+            | Topic::Map
+            | Topic::Function
+            | Topic::Predicate
+            | Topic::Error
+            | Topic::Json
+            | Topic::Crypto
+            | Topic::Lazy => None,
+            Topic::File | Topic::Process | Topic::Environment | Topic::Clock | Topic::Network => {
+                Some(Effect::Host)
+            }
+            Topic::Output => Some(Effect::Output),
+            Topic::Concurrency => Some(Effect::Concurrency),
+            Topic::Actor => Some(Effect::Actor),
+        }
+    }
+}
+
+/// What a call can do besides answer ([`Topic::effect`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Effect {
+    /// Reaches the host: files, processes, the environment, the clock, the
+    /// network (`blue_lang_waku::Capability::host_effects`).
+    Host,
+    /// Writes to the terminal.
+    Output,
+    /// Talks to a channel or a fiber.
+    Concurrency,
+    /// Talks to a blue process.
+    Actor,
+}
+
+impl Effect {
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Effect::Host => "host",
+            Effect::Output => "output",
+            Effect::Concurrency => "concurrency",
+            Effect::Actor => "process",
+        }
+    }
 }
 
 /// One bound name, described.
@@ -274,6 +329,7 @@ pub const NAMES: &[NameDoc] = names! {
     Function: "juxt" "juxt(fs...)" "The function x -> [f(x), g(x), …].";
     Function: "tap" "tap(f, x)" "Call f(x) for its effect and return x.";
     Function: "memoize" "memoize(f)" "f, remembering each argument's answer.";
+    Function: "volatile" "volatile(f)" "Declares that f must run on every call: neither f nor any definition reaching it is answered from the memo. Nil; raises unless f is a function.";
     Function: "decorate" "decorate(f, keys-and-values...)" "f with metadata attached; it still calls as f.";
     Function: "visit" "visit(f, x)" "f(x).";
     // ── predicates ────────────────────────────────────────────────────────

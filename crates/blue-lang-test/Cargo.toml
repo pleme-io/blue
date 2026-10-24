@@ -31,6 +31,8 @@ blue-lang-check = { path = "../blue-lang-check" }
 blue-lang-lsp = { path = "../blue-lang-lsp" }
 blue-lang-pkg = { path = "../blue-lang-pkg" }
 blue-lang-wasm = { path = "../blue-lang-wasm" }
+# The `memo` column: every row under automatic memoization, cold and warm.
+blue-lang-mondou = { path = "../blue-lang-mondou" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

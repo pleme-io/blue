@@ -22,13 +22,17 @@
 //! rename, symbols, signatures — are computed from those queries in byte
 //! offsets ([`Span`]); a transport converts positions.
 
+pub mod canon;
 mod complete;
 pub mod def_hash;
 mod items;
 mod locals;
 mod memo;
 mod navigate;
+pub mod reach;
+pub mod recall;
 mod signature;
+pub mod store;
 
 use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, HashMap};
@@ -47,6 +51,7 @@ pub use items::{Item, ItemKind};
 pub use locals::{LocalBinding, Locals};
 pub use memo::Stats;
 pub use navigate::{Located, Refusal, Symbol, WorkspaceSymbol};
+pub use reach::{Reach, Volatility};
 pub use signature::Signature;
 
 /// A parse: the spanned tree, or why there is none.

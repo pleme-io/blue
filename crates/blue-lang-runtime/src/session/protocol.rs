@@ -216,7 +216,21 @@ fn reply<T>(outcome: Outcome<T>, field: &str, to_json: impl Fn(T) -> Json) -> Ma
 fn status<T>(result: &Result<T, Stop>) -> Map<String, Json> {
     match result {
         Ok(_) => ok(),
-        Err(Stop::Error(f)) => failure(&f.code, &f.message),
+        Err(Stop::Error(f)) => {
+            let mut m = failure(&f.code, &f.message);
+            // A runtime error carries the blue call stack, in the shape
+            // `blue run --format json` prints it (`Fault::json`). Its position
+            // stays the message's: one in the request's code reads `<eval>`.
+            if let (Some(fault), Some(Json::Object(error))) = (&f.fault, m.get_mut("error")) {
+                let mut full = fault.json();
+                for field in ["stack", "stack_depth"] {
+                    if let Some(v) = full.get_mut(field) {
+                        error.insert(field.into(), v.take());
+                    }
+                }
+            }
+            m
+        }
         Err(Stop::Volatile { reach, name }) => object(json!({
             "status": "volatile",
             "reach": reach.label(),

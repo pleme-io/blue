@@ -242,7 +242,7 @@ const PROGRAM: &str = "def fib(n)\n  if n < 2\n    n\n  else\n    fib(n - 1) + f
 fn profile_counts_every_call() {
     let d = dir("profile");
     let f = write(&d, "p.b", PROGRAM);
-    let o = run(&["profile", "--json", f.to_str().unwrap()]);
+    let o = run(&["profile", "--json", "--no-memo", f.to_str().unwrap()]);
     assert!(o.status.success(), "{}", err(&o));
     let v: serde_json::Value = serde_json::from_str(out(&o).trim()).expect("JSON");
     let calls = |name: &str| {
@@ -256,8 +256,9 @@ fn profile_counts_every_call() {
     // fib(10) is 177 activations; count(3, 0) is four, tail calls included.
     assert_eq!(calls("fib"), Some(177));
     assert_eq!(calls("count"), Some(4));
-    let text = run(&["profile", f.to_str().unwrap()]);
+    let text = run(&["profile", "--no-memo", f.to_str().unwrap()]);
     assert!(out(&text).contains("fib"), "{}", out(&text));
+    assert!(out(&text).contains("memo: off"), "{}", out(&text));
 }
 
 #[test]

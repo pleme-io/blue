@@ -98,7 +98,9 @@ pub fn agrees(reference: &Obs, other: &Obs) -> bool {
 /// Which observation a given evaluator is compared against.
 pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
     match (&row.expect, ev) {
-        (Expect::Value(_) | Expect::Fails(..), Ev::Vm | Ev::Wasm | Ev::Cli) => Some(Ev::Walker),
+        (Expect::Value(_) | Expect::Fails(..), Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo) => {
+            Some(Ev::Walker)
+        }
         (Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Shifts(..), Ev::Cli) => {
             Some(Ev::Static)
         }

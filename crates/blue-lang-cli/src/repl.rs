@@ -133,7 +133,10 @@ fn form_at(text: &str, line: usize, col: usize) -> Option<std::ops::Range<usize>
 /// A stop as one line a person reads.
 fn describe(stop: &Stop) -> String {
     match stop {
-        Stop::Error(f) => f.message.clone(),
+        Stop::Error(f) => match f.stack() {
+            Some(stack) => format!("{}\n{stack}", f.message),
+            None => f.message.clone(),
+        },
         Stop::Volatile { reach, name } => format!(
             "volatile: `{name}` reaches the host ({}), which this session does not allow; \
              pass --allow {} (or --allow host) to evaluate it",

@@ -197,6 +197,19 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             ))
         },
     );
+    // `volatile(f)`: a declaration, not a computation. The memo reads it off
+    // the program (`blue-lang-mondou`'s `reach`): f, and every definition
+    // that reaches it, runs on every call instead of being answered from the
+    // cache. Evaluated, it only checks that it names a function: a closure,
+    // a native function, or the VM's handle for a closure.
+    interp.register_fn(
+        "volatile",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
+            Value::Closure(_) | Value::NativeFn(_) | Value::Foreign(_) => Ok(Value::Nil),
+            other => Err(EvalError::type_mismatch("function", other.type_name(), s)),
+        },
+    );
     interp.register_fn("to_s", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
         Ok(Value::Str(render(&a[0]).into()))
     });

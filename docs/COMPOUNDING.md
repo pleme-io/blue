@@ -71,6 +71,22 @@ The gaps (`evolution::GAPS`), each a primitive still to build:
 | B0020 | package-as-value | a bidama written as a value has no single call it stands for |
 | B0022 | legacy-misuse | the producer's own declaration, fixed where it is declared |
 
+## The reuse ratchets
+
+Two counts over every distribution definition may only fall
+(`crates/blue-lang-pkg/tests/distribution.rs`). A move of a twin to one home
+lowers a count. A new copy raises it, and the test fails with the listing.
+
+| gate | what it counts | pin (2026-10-24) | off switch |
+|---|---|---|---|
+| `exact_duplicate_shapes_only_fall` | groups of definitions with the same tree, parameters numbered | 18 | none |
+| `near_duplicate_shapes_only_fall` | definitions in a group whose anti-unifier keeps at least 80% of the nodes with at most 2 holes (`blue_lang_check::shape::Near::DEFAULT`) | 257 in 105 groups | `NEAR.enabled = false` |
+
+The near gate prints each group's shared shape, with `%hN` for each hole.
+That shape is the candidate word, and its holes are the word's parameters.
+It is the mechanical form of a bidama's "words blue is missing" list.
+Theory: `theory/BLUE-SUPERCOMPILATION.md`.
+
 ## Receipts
 
 Each row is a break blue's evolution caused, measured on the day, and what

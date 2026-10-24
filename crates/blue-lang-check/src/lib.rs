@@ -43,6 +43,7 @@ pub mod namespace_rules;
 pub mod project;
 pub mod respell;
 pub mod rules;
+pub mod shape;
 pub mod suggest;
 pub mod waiver;
 

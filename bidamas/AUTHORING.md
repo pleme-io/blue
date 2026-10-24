@@ -193,6 +193,9 @@ the other, or a builtin, for anyone else.
   `blue check --fix`, which also adds the `use`). Record each move in
   `NAMES.md`'s moved-names table. `exact_duplicate_shapes_only_fall` pins the
   distribution's exact-duplicate count: a move lowers it, a copy fails it.
+  `near_duplicate_shapes_only_fall` does the same for near copies, and prints
+  each group's shared shape: that shape is the word to write, and each `%hN`
+  hole is one of its parameters.
 - `blue::name` names a builtin, and is needed only where a same-named
   definition would otherwise win (B0018 refuses a qualifier that changes
   nothing).

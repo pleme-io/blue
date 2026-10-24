@@ -444,32 +444,8 @@ fn every_legacy_prefix_is_in_the_ledger() {
 /// raises it and fails here. Lower the pin when a move lands; never raise it.
 const SHAPE_GROUPS: usize = 18;
 
-fn shape(pkg: &str, params: &[String], body: &tatara_lisp::Sexp) -> String {
-    use tatara_lisp::ast::{Atom, Sexp};
-    fn walk(pkg: &str, params: &[String], s: &Sexp) -> Sexp {
-        match s {
-            Sexp::Atom(Atom::Symbol(n)) => {
-                if let Some(i) = params.iter().position(|p| p == n) {
-                    Sexp::Atom(Atom::Symbol(format!("%p{i}")))
-                } else if let Some(rest) = n.strip_prefix(&format!("{pkg}/")) {
-                    Sexp::Atom(Atom::Symbol(format!("self/{rest}")))
-                } else {
-                    s.clone()
-                }
-            }
-            Sexp::List(xs) => Sexp::List(xs.iter().map(|x| walk(pkg, params, x)).collect()),
-            Sexp::Quote(x) => Sexp::Quote(Box::new(walk(pkg, params, x))),
-            Sexp::Quasiquote(x) => Sexp::Quasiquote(Box::new(walk(pkg, params, x))),
-            Sexp::Unquote(x) => Sexp::Unquote(Box::new(walk(pkg, params, x))),
-            Sexp::UnquoteSplice(x) => Sexp::UnquoteSplice(Box::new(walk(pkg, params, x))),
-            other => other.clone(),
-        }
-    }
-    format!("{}/{}", params.len(), walk(pkg, params, body))
-}
-
 /// Every package's definitions, keyed `pkg/name`, to their shape.
-fn shapes() -> std::collections::BTreeMap<String, String> {
+fn shapes() -> std::collections::BTreeMap<String, tatara_lisp::Sexp> {
     use blue_lang_check::names::Rule;
     let lp = LoadPath::new([dist()]);
     let mut out = std::collections::BTreeMap::new();
@@ -512,7 +488,14 @@ fn shapes() -> std::collections::BTreeMap<String, String> {
                 .filter_map(|p| p.as_symbol().map(str::to_owned))
                 .collect();
             let body = tatara_lisp::Sexp::List(items[2..].to_vec());
-            out.insert(key.to_owned(), shape(&name, &params, &body));
+            let tree = blue_lang_check::shape::normalize(&name, &params, &body);
+            out.insert(
+                key.to_owned(),
+                tatara_lisp::Sexp::List(vec![
+                    tatara_lisp::Sexp::Atom(tatara_lisp::Atom::Int(params.len() as i64)),
+                    tree,
+                ]),
+            );
         }
     }
     out
@@ -526,9 +509,10 @@ fn exact_duplicate_shapes_only_fall() {
         "only {} definitions measured; the scan is not seeing the distribution",
         shapes.len()
     );
-    let mut groups: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
+    let mut groups: std::collections::BTreeMap<String, Vec<&str>> =
+        std::collections::BTreeMap::new();
     for (key, s) in &shapes {
-        groups.entry(s).or_default().push(key);
+        groups.entry(s.to_string()).or_default().push(key);
     }
     let shared: Vec<&Vec<&str>> = groups.values().filter(|g| g.len() > 1).collect();
     let listing = shared
@@ -541,6 +525,30 @@ fn exact_duplicate_shapes_only_fall() {
         SHAPE_GROUPS,
         "exact-duplicate shape groups moved from {SHAPE_GROUPS} to {}:\n{listing}",
         shared.len()
+    );
+}
+
+const NEAR: blue_lang_check::shape::Near = blue_lang_check::shape::Near::DEFAULT;
+const NEAR_SHAPE_DEFINITIONS: usize = 257;
+
+#[test]
+fn near_duplicate_shapes_only_fall() {
+    let shapes = shapes();
+    let groups = NEAR.groups(&shapes);
+    let members: usize = groups.iter().map(|(keys, _)| keys.len()).sum();
+    let listing = groups
+        .iter()
+        .map(|(keys, g)| format!("{}\n    {}", keys.join(" "), g.tree))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        members,
+        if NEAR.enabled { NEAR_SHAPE_DEFINITIONS } else { 0 },
+        "definitions in near-duplicate shape groups moved from {NEAR_SHAPE_DEFINITIONS} to {members} \
+         ({} groups). Each group is listed with its shared shape; %hN is a hole, a parameter of the \
+         word the group wants. Move a group to one word and lower the pin; never raise it. \
+         NEAR.enabled = false turns this gate off.\n{listing}",
+        groups.len()
     );
 }
 

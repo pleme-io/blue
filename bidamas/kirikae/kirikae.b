@@ -228,7 +228,9 @@ def settings()
     policy: policy(
       to_int(getenv("KIRIKAE_BACKOFF_BASE_S", "0")),
       to_int(getenv("KIRIKAE_BACKOFF_CAP_S", "21600"))
-    )
+    ),
+    wait_s: to_int(getenv("KIRIKAE_WAIT_S", "0")),
+    poll_s: to_int(getenv("KIRIKAE_POLL_S", "15"))
   }
 end
 
@@ -471,9 +473,31 @@ def settings_for(cmd)
   end
 end
 
+def busy_hold?(p)
+  get(p, :action) == :hold and first(get(p, :refusal)) == :busy
+end
+
+def keep_waiting?(p, now, deadline_ms)
+  busy_hold?(p) and now < deadline_ms
+end
+
+def await_writers(s, p, deadline_ms, said)
+  if keep_waiting?(p, now_ms, deadline_ms)
+    if get(p, :why) != said
+      write_stderr(
+        "kirikae: waiting up to #{to_s(floor((deadline_ms - now_ms) / 1000))}s — #{get(p, :why)}\n"
+      )
+    end
+    sleep(get(s, :poll_s))
+    await_writers(s, plan_now(s), deadline_ms, get(p, :why))
+  else
+    p
+  end
+end
+
 def run(cmd)
   s = settings_for(cmd)
-  p = plan_now(s)
+  p = await_writers(s, plan_now(s), now_ms + get(s, :wait_s) * 1000, nil)
   write_stderr(summary(p))
   a = get(p, :action)
   if a == :noop and getenv("KIRIKAE_FORCE", "") == ""
@@ -787,6 +811,15 @@ test "a running evaluation or rebuild of this machine refuses the plan; others d
   h = busy_hold([:busy, "x"], 1000)
   assert get(h, :action) == :hold
   assert get(h, :until_ms) == 61000
+end
+
+test "a run waits out another writer only while its wait lasts, and never a backoff hold"
+  h = busy_hold([:busy, "x"], 1000)
+  assert keep_waiting?(h, 1000, 2000)
+  assert keep_waiting?(h, 2000, 2000) == false
+  assert keep_waiting?(h, 1000, 1000) == false
+  assert keep_waiting?({action: :hold, why: "backoff"}, 1000, 2000) == false
+  assert keep_waiting?({action: :switch}, 1000, 2000) == false
 end
 
 test "a loop that already runs the checkout's rev answers the plan without evaluating"

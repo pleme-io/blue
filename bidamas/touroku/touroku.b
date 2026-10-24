@@ -1,10 +1,14 @@
+@moduledoc """
+touroku (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
+
+    visibility_of(manifest_with(nil, {})) #=> "private"
+"""
+
 use("deeta", [:yaml])
 use("kousei", [:entry, :field, :flag, :judge, :list_of, :one_of, :text])
 use("kyohi", [:kinds, :refusal])
 use("moji", [:is_hex, :strip_prefix])
 use("retsu", [:contains, :first, :is_empty, :size])
-
-# touroku (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
 
 def visibilities()
   ["public", "unlisted", "private"]

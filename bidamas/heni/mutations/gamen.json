@@ -230,8 +230,8 @@
   {
     "name": "show returns",
     "file": "gamen.b",
-    "find": "  end\n  nil\nend\n\ndef close?",
-    "replace": "  end\n  text\nend\n\ndef close?"
+    "find": "    write(\"#{text}\\n\")\n  end\n  nil\nend\n",
+    "replace": "    write(\"#{text}\\n\")\n  end\n  text\nend\n"
   },
   {
     "name": "show theme",

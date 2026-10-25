@@ -945,8 +945,18 @@ def settings_for(cmd)
   end
 end
 
+@doc """
+busy_hold?: true when the guard's plan holds because another writer is busy; a nil plan, the guard's go, never holds.
+
+    busy_hold?(nil) #=> false
+    busy_hold?({action: :hold, refusal: [:busy, "x", "nix build"]}) #=> true
+"""
 def busy_hold?(p)
-  get(p, :action) == :hold and first(get(p, :refusal)) == :busy
+  if p.nil?
+    false
+  else
+    get(p, :action) == :hold and first(get(p, :refusal)) == :busy
+  end
 end
 
 def keep_waiting?(p, now, deadline_ms)

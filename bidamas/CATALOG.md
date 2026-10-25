@@ -2050,7 +2050,7 @@ kinji (近似) — approximation: numerical methods: ODEs, roots, minimisation, 
 | `kirikae::node_step(acc, a)` |  |  |  |  |
 | `kirikae::node_arg(cmd)` |  |  |  |  |
 | `kirikae::settings_for(cmd)` |  |  |  |  |
-| `kirikae::busy_hold?(p)` |  |  |  |  |
+| `kirikae::busy_hold?(p)` |  |  |  | busy_hold?: true when the guard's plan holds because another writer is busy; a nil plan, the guard's go, never holds. |
 | `kirikae::keep_waiting?(p, now, deadline_ms)` |  |  |  |  |
 | `kirikae::say_wait?(why, said, now, said_ms)` |  |  |  | say_wait?: true when the waiting line changed or a minute passed since it was printed, so a long wait shows it is alive. |
 | `kirikae::waiting_note(writer, left_ms)` |  |  |  | waiting_note: the line a long wait repeats: who holds the machine and how long kirikae will still wait. |

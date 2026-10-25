@@ -17,7 +17,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::rc::Rc;
 
 use blue_lang_syntax::doc as d;
 use blue_lang_syntax::{Atom, Spanned, SpannedForm};
@@ -65,11 +65,25 @@ pub fn of_file(
     of_forms(&forms, path, bidama, name)
 }
 
+fn parse_once(text: &str) -> Rc<crate::Parsed> {
+    Rc::new(blue_lang_syntax::parse_program_documented(text).map(d::strip))
+}
+
 /// [`of_file`] over a documented parse already in hand.
 #[must_use]
 pub fn of_forms(
     forms: &[Spanned],
     path: Option<&Path>,
+    bidama: Option<&str>,
+    name: &str,
+) -> Option<DocView> {
+    let data = path.map(|p| RepoData::load(&Sources::of(p), &parse_once));
+    view(forms, data.as_ref(), bidama, name)
+}
+
+fn view(
+    forms: &[Spanned],
+    data: Option<&RepoData>,
     bidama: Option<&str>,
     name: &str,
 ) -> Option<DocView> {
@@ -84,12 +98,11 @@ pub fn of_forms(
         .then(|| items.get(2).map(type_text))
         .flatten()
         .filter(|t| t != "dyn");
-    let data = path.map(repo_data);
-    let contract = data.as_ref().and_then(|r| r.contracts.get(name).cloned());
-    let verb = data.as_ref().and_then(|r| {
+    let contract = data.and_then(|r| r.contracts.get(name).cloned());
+    let verb = data.and_then(|r| {
         bidama.and_then(|b| r.verbs.get(&(b.to_string(), name.to_string())).cloned())
     });
-    let edges = match (&data, &verb) {
+    let edges = match (data, &verb) {
         (Some(r), Some(v)) => r
             .edges
             .get(&format!("{}::{name}", v.space))
@@ -102,7 +115,7 @@ pub fn of_forms(
     let refusals = kinds
         .into_iter()
         .map(|k| {
-            let meaning = data.as_ref().and_then(|r| r.ledger.get(&k).cloned());
+            let meaning = data.and_then(|r| r.ledger.get(&k).cloned());
             (k, meaning)
         })
         .collect();
@@ -243,40 +256,67 @@ impl DocView {
 
 /// The repository tables a view reads, found from a file's directory.
 #[derive(Default)]
-struct RepoData {
+pub(crate) struct RepoData {
     contracts: HashMap<String, BTreeMap<String, String>>,
     verbs: HashMap<(String, String), VerbRow>,
     edges: HashMap<String, Vec<String>>,
     ledger: HashMap<String, String>,
 }
 
-fn repo_data(path: &Path) -> Arc<RepoData> {
-    static CACHE: OnceLock<Mutex<HashMap<PathBuf, Arc<RepoData>>>> = OnceLock::new();
-    let dir = path.parent().unwrap_or(path).to_path_buf();
-    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(hit) = cache.lock().ok().and_then(|c| c.get(&dir).cloned()) {
-        return hit;
-    }
-    let mut data = RepoData::default();
-    for a in dir.ancestors() {
-        if data.contracts.is_empty() {
-            if let Ok(t) = std::fs::read_to_string(a.join("docs/verbs/contracts.tsv")) {
-                data.contracts = contracts(&t);
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub(crate) struct Sources {
+    contracts: Option<PathBuf>,
+    graph: Option<PathBuf>,
+    ledger: Option<PathBuf>,
+}
+
+impl Sources {
+    pub(crate) fn of(path: &Path) -> Self {
+        let dir = path.parent().unwrap_or(path);
+        let mut s = Self::default();
+        for a in dir.ancestors() {
+            let contracts = a.join("docs/verbs/contracts.tsv");
+            if s.contracts.is_none() && contracts.is_file() {
+                s.contracts = Some(contracts);
+            }
+            let graph = a.join("mokuroku").join("graph");
+            if s.graph.is_none() && graph.is_dir() {
+                s.graph = Some(graph);
+                s.ledger = Some(a.join("kyohi").join("kyohi.b"));
             }
         }
-        let graph = a.join("mokuroku").join("graph");
-        if data.verbs.is_empty() && graph.is_dir() {
-            graph_rows(&graph, &mut data);
-            if let Ok(t) = std::fs::read_to_string(a.join("kyohi").join("kyohi.b")) {
-                data.ledger = ledger(&t);
-            }
+        s
+    }
+
+    pub(crate) fn holds(&self, path: &Path) -> bool {
+        self.contracts.as_deref() == Some(path)
+            || self.ledger.as_deref() == Some(path)
+            || self.graph.as_deref().is_some_and(|g| path.starts_with(g))
+    }
+}
+
+impl RepoData {
+    fn load(sources: &Sources, parse: &dyn Fn(&str) -> Rc<crate::Parsed>) -> Self {
+        let mut data = Self::default();
+        if let Some(t) = sources
+            .contracts
+            .as_ref()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+        {
+            data.contracts = contracts(&t);
         }
+        if let Some(graph) = &sources.graph {
+            graph_rows(graph, &mut data, parse);
+        }
+        if let Some(t) = sources
+            .ledger
+            .as_ref()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+        {
+            data.ledger = ledger(&parse(&t));
+        }
+        data
     }
-    let data = Arc::new(data);
-    if let Ok(mut c) = cache.lock() {
-        c.insert(dir, data.clone());
-    }
-    data
 }
 
 fn contracts(text: &str) -> HashMap<String, BTreeMap<String, String>> {
@@ -301,7 +341,7 @@ fn str_of(s: &blue_lang_syntax::Sexp) -> Option<String> {
     s.as_string().or_else(|| s.as_keyword()).map(str::to_string)
 }
 
-fn graph_rows(dir: &Path, data: &mut RepoData) {
+fn graph_rows(dir: &Path, data: &mut RepoData, parse: &dyn Fn(&str) -> Rc<crate::Parsed>) {
     let Ok(rd) = std::fs::read_dir(dir) else {
         return;
     };
@@ -315,10 +355,11 @@ fn graph_rows(dir: &Path, data: &mut RepoData) {
         let Ok(text) = std::fs::read_to_string(&f) else {
             continue;
         };
-        let Ok(forms) = blue_lang_syntax::parse_program(&text) else {
+        let parsed = parse(&text);
+        let Ok(forms) = parsed.as_ref() else {
             continue;
         };
-        for form in forms {
+        for form in forms.iter().map(Spanned::to_sexp) {
             let Some(items) = form.as_list() else {
                 continue;
             };
@@ -381,9 +422,9 @@ fn graph_rows(dir: &Path, data: &mut RepoData) {
     }
 }
 
-fn ledger(text: &str) -> HashMap<String, String> {
+fn ledger(parsed: &crate::Parsed) -> HashMap<String, String> {
     let mut out = HashMap::new();
-    let Ok(forms) = blue_lang_syntax::parse_program(text) else {
+    let Ok(forms) = parsed else {
         return out;
     };
     fn walk(s: &blue_lang_syntax::Sexp, out: &mut HashMap<String, String>) {
@@ -400,8 +441,8 @@ fn ledger(text: &str) -> HashMap<String, String> {
             }
         }
     }
-    for f in &forms {
-        walk(f, &mut out);
+    for f in forms {
+        walk(&f.to_sexp(), &mut out);
     }
     out
 }
@@ -458,7 +499,7 @@ impl crate::Engine {
         ns: &blue_lang_check::Namespace,
         name: &str,
     ) -> Option<DocView> {
-        let (text, path) = match &l.file {
+        let (text, path): (String, Option<PathBuf>) = match &l.file {
             crate::FileRef::Document(id) => (
                 self.document_text(id)?.to_string(),
                 self.documents.get(id).and_then(|d| d.path.clone()),
@@ -470,6 +511,23 @@ impl crate::Engine {
             _ => None,
         };
         let forms = self.memo.documented(&text, true);
-        of_forms(forms.as_ref().as_ref().ok()?, path.as_deref(), bidama, name)
+        let data = path.as_deref().map(|p| self.repo_data(p));
+        view(forms.as_ref().as_ref().ok()?, data.as_deref(), bidama, name)
+    }
+
+    pub fn prepare_doc_views(&self, id: &str) {
+        if let Some(p) = self.documents.get(id).and_then(|d| d.path.clone()) {
+            self.repo_data(&p);
+        }
+    }
+
+    fn repo_data(&self, path: &Path) -> Rc<RepoData> {
+        let sources = Sources::of(&crate::canonical(path));
+        if let Some(hit) = self.repo.borrow().get(&sources) {
+            return hit.clone();
+        }
+        let data = Rc::new(RepoData::load(&sources, &|t| self.memo.parse(t, true)));
+        self.repo.borrow_mut().insert(sources, data.clone());
+        data
     }
 }

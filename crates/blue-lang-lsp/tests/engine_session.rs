@@ -205,7 +205,10 @@ fn one_parse_per_revision() {
     change(&mut s, &uri, &edited);
     let call = edited.find("first(xs)").expect("first") + 1;
     let r = request(&mut s, "textDocument/hover", at(&uri, &edited, call));
-    assert!(r["result"]["contents"]["value"].is_string(), "{r}");
+    let md = r["result"]["contents"]["value"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{r}"));
+    assert!(md.contains("space `retsu`"), "{md}");
     assert_eq!(blue_lang_syntax::parses_on_this_thread() - before, 1);
 
     let plain = "def add(a, b)\n  a + b\nend\nadd(1, 2)\n";

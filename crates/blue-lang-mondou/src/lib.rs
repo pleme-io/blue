@@ -90,6 +90,7 @@ pub struct Engine {
     last_good: RefCell<HashMap<String, Rc<Analysis>>>,
     builtins: OnceCell<NameTable>,
     overlay: RefCell<BTreeMap<PathBuf, Rc<str>>>,
+    repo: RefCell<HashMap<docview::Sources, Rc<docview::RepoData>>>,
 }
 
 impl Engine {
@@ -111,6 +112,7 @@ impl Engine {
             last_good: RefCell::new(HashMap::new()),
             builtins: OnceCell::new(),
             overlay: RefCell::new(BTreeMap::new()),
+            repo: RefCell::new(HashMap::new()),
         }
     }
 
@@ -168,6 +170,7 @@ impl Engine {
         self.scopes.set_workspace(folders);
         self.loaders.borrow_mut().clear();
         self.memo = memo::Memo::default();
+        self.repo.borrow_mut().clear();
         self.generation.set(self.generation.get() + 1);
     }
 
@@ -188,6 +191,8 @@ impl Engine {
     /// Forget every loaded bidama holding the file at `path`: it changed on
     /// disk or in a buffer, so its next load reads it again.
     pub fn invalidate_path(&mut self, path: &Path) {
+        let c = canonical(path);
+        self.repo.borrow_mut().retain(|s, _| !s.holds(&c));
         if self.memo.drop_packages_holding(path) {
             self.generation.set(self.generation.get() + 1);
         }
@@ -600,7 +605,7 @@ pub fn program_docs(program: &ResolvedProgram) -> HashMap<usize, String> {
     out
 }
 
-fn canonical(path: &Path) -> PathBuf {
+pub(crate) fn canonical(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 

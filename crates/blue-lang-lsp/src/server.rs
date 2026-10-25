@@ -153,6 +153,7 @@ impl Server {
             "textDocument/didOpen" => {
                 let text = str_at(&req.params, &["textDocument", "text"]).unwrap_or_default();
                 self.engine.set_document(&uri, path_of(&uri), &text);
+                self.engine.prepare_doc_views(&uri);
                 Response::Messages(vec![
                     self.diagnostics_notification(&uri),
                     self.shift_notification(&uri),

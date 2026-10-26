@@ -203,14 +203,7 @@ Each of these is a defect that shipped, not a style preference.
   process forever.
 - **Restart intensity is checked on the child that exited**, not on siblings a
   strategy sweeps up. A sibling restarted as collateral has not misbehaved.
-- **A formatter law passing is not the formatter being right.** All three laws
-  held while every call rendered as a method send — `fact(n - 1)` printed as
-  `(n - 1).fact`. A round-trip law measures the tree, never the readability.
-  **When you change rendering, read the output.**
-- **A corpus is only as strong as what is in it.** The annotated-`def`
-  rendering bug survived because the formatter corpus contained no annotated
-  defs. Add the case with the rule. `SURFACE_KEYWORDS` now makes the *omission*
-  the failure — adding a keyword forces the corpus entry.
+- **A passing formatter law is not a right formatter, and a corpus is only as strong as its contents.** When you change rendering, read the output. Add the case with the rule; adding a keyword forces its corpus entry. Detail: [docs/LESSONS.md](docs/LESSONS.md).
 - **A name blue lowers to must not be one tatara already binds.** `assert e`
   lowered to `(assert 'e e)`; the stdlib binds `assert` as a macro, a macro beats
   a primitive, and **every assertion in every test silently passed**. Lowered
@@ -235,80 +228,20 @@ Each of these is a defect that shipped, not a style preference.
   to it made every string/list/nil comparison a type error. The
   operator-coverage gate could not see it: it resolves callees with numeric
   operands, proving the callee is bound and nothing about the other classes.
-- **A round-trip law measures the tree, never the readability** — now with a
-  third citation. `x = 5` rendered as `define(x, 5)` and interpolation as
-  `concat(concat("a", x), "")`; both re-parse to the same tree, so all three
-  laws passed while `fmt --write` silently rewrote real files. **Ship the
-  formatter arm WITH the surface form, and read the output.**
-- **A span is a property of the tree that `to_sexp` throws away, so tree tests
-  cannot see it either** — the same lesson, fourth citation, now off the
-  formatter. Making the parser build `Spanned` landed two mis-anchored
-  productions (`body`'s synthesized `begin`, `case`'s `else`) that every one of
-  the 82 parser tests passed over, because both TREES were correct and the
-  spans were not compared to anything. The gate that found them walks each node
-  asserting it sits inside its parent's span. **A derived artifact needs a test
-  that reads the artifact, not the thing it was derived from.**
-- **A diagnostic without a span is a diagnostic the editor puts in the wrong
-  place.** `Diagnostic` carried only a message, so the LSP attached every type
-  error to `Range::default()` — line 0, column 0 — and drew the squiggle on the
-  first character of the file. It was not the LSP's bug: the parser had already
-  discarded the position, and a span discarded at the parser is unrecoverable.
-  **When a layer reports a location it does not have, look upstream for where
-  the location was dropped, not downstream for somewhere to invent one.**
-- **Isolation is the SEAL, not the rebuild.** The test runner and the process
-  supervisor both threw an interpreter away per child to get isolation, at
-  ~945µs each — essentially the entire cost of running a test, spent
-  re-evaluating the stdlib to reach an identical state. `Interpreter::fork`
-  shares the evaluated globals and seals them: a child's `define`s land in a
-  private frame, and a `set!` reaching an inherited binding raises `SetSealed`.
-  Same guarantee, 29µs. **Use `blue_lang_proc::forking` for `spawn`**, never a
-  factory that rebuilds. A plain `Clone` is NOT a fork — `Env::set` writes
-  through the `Arc`.
+- **A derived artifact needs a test that reads the artifact, not its source.** Ship the formatter arm WITH the surface form and read the output; a round-trip law measures the tree, never the readability. A span the parser drops is unrecoverable downstream: look upstream, never invent one. Detail: [docs/LESSONS.md](docs/LESSONS.md).
+- **Isolation is the SEAL, not the rebuild.** Use `blue_lang_proc::forking` for `spawn`, never a factory that rebuilds; a plain `Clone` is NOT a fork, because `Env::set` writes through the `Arc`. Detail: [docs/LESSONS.md](docs/LESSONS.md).
 - **A name has three arbiters, and an environment lookup sees one.** Special
   forms are `match` arms in no environment; a macro rewrites before evaluation
   and beats a same-named binding. `assert` was lost to the second, and the
   replacement gate was still blind to the first while blue lowers to `not`. Ask
   `Interpreter::resolve_head`, which answers *which* arbiter claims the name.
-- **Two doors to the formatter is one door too many.** `fmt --write` learned to
-  re-interleave comments; the LSP kept calling `format_forms`, so
-  `textDocument/formatting` returned 707 bytes for 1010 and **deleted all six
-  comments in the buffer**. Everything that shows a user their own file goes
-  through `format_source_lossless`; `format_source` is for comparing trees.
-- **A document built to be measured must give its comments back.** The
-  formatter claims a comment when a document takes it, and a lambda is built
-  as its inline and its block spelling while only one is printed; the rescue
-  modifier measures its operands before it picks `begin`. Each dropped its
-  comments with `Ok` and a green law, because the claim flag says a document
-  took the comment, not that it was printed. Measure through `Renderer::probe`,
-  decide on comments before building, and rely on the door's output check
-  (`format_tree_lossless` compares the comment texts it prints with the ones it
-  was given). A comment inside `#{}` code is invisible to the lexer's comment
-  list; `comment_count` counts it and the door refuses it by line.
-- **Printing code inside `#{}` can end the interpolation early.** The lexer
-  closed `#{` on the first unbalanced brace, strings included, so a printed
-  `"}"` cut the code short. It now reads a nested string whole; keep it that
-  way when touching `skip_interpolation`.
+- **One door to the formatter.** Everything that shows a user their own file goes through `format_source_lossless`; `format_source` is for comparing trees. A document built to be measured must give its comments back: measure through `Renderer::probe`, decide on comments before building, and keep the door's output check. Keep `skip_interpolation` reading a nested string whole. Detail: [docs/LESSONS.md](docs/LESSONS.md).
 - **A layout change is a change to every `.b` file.** `canonical::admit` refuses
   or rewrites a file that is not what the formatter prints, so a new layout
   lands with the reformatted corpus in the same commit (`tests/corpus.rs`
   reports the drift). `PROPTEST_CASES=20000 cargo test -p blue-lang-fmt` is the
   deep run; a failure it finds is saved beside the test file.
-- **`interpreter_hostless` is not hostless when the `sys` feature is on.** It
-  forks a base built by `interpreter(&mut ())`, and `interpreter` installs the
-  host layer under `#[cfg(feature = "sys")]` — so in `blue-lang-cli`, and in
-  every `cargo test --workspace` run through cargo's feature unification, the
-  "hostless" interpreter binds all 37 host primitives including `rm_rf`.
-  `bluefile`'s module doc credited the opposite for months: it said a manifest
-  was *"safe by absence of a binding"*. It is safe by the `check_reach` frame,
-  and by nothing else — which makes the frame load-bearing rather than
-  belt-and-braces. **A name that reads like a guarantee is not one; ask an
-  interpreter.** Pinned by `blue-lang-cli/tests/capability_surface.rs`.
-- **A capability is a bundle of NAMES, not a host effect.** `Reach` governs
-  *what may be named*, and blue's real frames grant `+`, `define` and `package`
-  — so a closed universe of host effects alone could not express a single frame
-  blue mints. `Capability` closes the whole nameable vocabulary; the host-effect
-  subset is what `imports_of` lowers. **Adding a variant is `E0004` at four
-  sites**, which is what makes the import table derived rather than maintained.
+- **A name that reads like a guarantee is not one; ask an interpreter.** `interpreter_hostless` binds the host layer under the `sys` feature, so `check_reach` is load-bearing. A capability is a bundle of NAMES, not a host effect; adding a variant is `E0004` at four sites. Pinned by `blue-lang-cli/tests/capability_surface.rs`. Detail: [docs/LESSONS.md](docs/LESSONS.md).
 - **Nix reads blue's evaluation of a Bluefile; it never re-derives it.**
   `mk-bidama.nix` used to split each manifest's text on `needs("`, and a
   computed `needs` was invisible to it — a facade closure one package short,
@@ -342,15 +275,7 @@ Each of these is a defect that shipped, not a style preference.
   interpreter in both directions (a bound name with no row, a row naming
   nothing, a signature disagreeing with the arity). A new operator, keyword,
   word or primitive arrives with its line, and `docs/REFERENCE.md` follows.
-- **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█`
-  across Nord's Frost band (`BrightCyan → Cyan → BrightBlue → Blue`), named by
-  ANSI slot so it tracks the reader's theme. The first version was `░▒▓█` — a
-  *density* ramp in one flat colour — which shipped and read as a blue box. It
-  was wrong twice: a shift with nothing shifting, and dither glyphs katsuji's own
-  docs warn "read as fuzz at cell size". **Quoting a warning and arguing past it
-  is not clearing it.** Theme colours are `irodori` lookups; blue carries no hex,
-  and a test enforces it.
-
+- **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█` across Nord's Frost band, named by ANSI slot. Never a density ramp or dither glyphs; theme colours are `irodori` lookups, blue carries no hex, and a test enforces it. Quoting a warning and arguing past it is not clearing it. Detail: [docs/LESSONS.md](docs/LESSONS.md).
 ## Every behaviour is a spec row
 
 A new builtin (`docs::NAMES`), form (`FORMS`), keyword, operator (`INFIX`),

@@ -339,3 +339,37 @@ fn the_surface_file_round_trips_through_the_check_stage_reader() {
     assert!(blue_lang_host::surface_fresh::<Shelf>(&file).is_err());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_posture_binds_every_refused_effect_so_a_program_naming_one_loads_and_the_call_raises() {
+    let src = "def pure()\n  1 + 1\nend\n\ndef writes()\n  write_file(\"/tmp/x\", \"y\")\nend\n";
+    let mut host = Ledger::default();
+    let without = Program::<Ledger>::builder(Entry::anonymous(src))
+        .loader(&NoLoader)
+        .load(&mut host);
+    assert!(matches!(without, Err(Error::Load(_))));
+    let mut p = Program::<Ledger>::builder(Entry::anonymous(src))
+        .loader(&NoLoader)
+        .posture(&[])
+        .load(&mut host)
+        .expect("a posture binds write_file as a refusal");
+    let two: i64 = p.call("pure", Vec::<Value>::new(), &mut host).unwrap();
+    assert_eq!(two, 2);
+    let refused = p
+        .call::<String>("writes", Vec::<Value>::new(), &mut host)
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("posture refuses filesystem"), "{refused}");
+}
+
+#[test]
+fn a_posture_refuses_every_host_effect_it_does_not_allow_and_no_other() {
+    use blue_lang_host::{refused_by, Capability};
+    assert!(refused_by(None).is_empty());
+    assert_eq!(refused_by(Some(&[])), Capability::host_effects());
+    let network_only = refused_by(Some(&[Capability::Network, Capability::Collections]));
+    assert!(!network_only.contains(&Capability::Network));
+    assert!(network_only.contains(&Capability::FileSystem));
+    assert_eq!(network_only.len(), Capability::host_effects().len() - 1);
+    assert!(network_only.iter().all(|c| c.is_host_effect()));
+}

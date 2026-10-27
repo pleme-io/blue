@@ -107,6 +107,7 @@ pub struct Load<'a, H: Host> {
     loader: &'a dyn Loader,
     extensions: Vec<Extension<'a, H>>,
     frame: Option<(&'a dyn Fn(&str) -> bool, Budget)>,
+    posture: Option<Vec<Capability>>,
     canonical: Canonical,
 }
 
@@ -140,6 +141,12 @@ impl<'a, H: Host> Load<'a, H> {
         self
     }
 
+    #[must_use]
+    pub fn posture(mut self, allowed: &[Capability]) -> Self {
+        self.posture = Some(allowed.to_vec());
+        self
+    }
+
     pub fn load(self, host: &mut H) -> Result<Program<H>, Error> {
         if self.canonical == Canonical::Required {
             let label = self.entry.path.map_or_else(
@@ -149,10 +156,22 @@ impl<'a, H: Host> Load<'a, H> {
             blue_lang_pkg::canonical::require(&label, self.entry.text)?;
         }
         let extensions = self.extensions;
+        let refused = refused_by(self.posture.as_deref());
         let install = move |interp: &mut Interpreter<H>| {
             H::install(interp);
             for extension in extensions {
                 extension(interp);
+            }
+            for capability in refused {
+                for name in capability.names() {
+                    interp.register_fn(name, Arity::Any, move |_: &[Value], _: &mut H, span| {
+                        Err(EvalError::native_fn(
+                            name.to_owned(),
+                            format!("this program's posture refuses {}", capability.label()),
+                            span,
+                        ))
+                    });
+                }
             }
         };
         let hosted = match self.frame {
@@ -168,6 +187,16 @@ impl<'a, H: Host> Load<'a, H> {
         };
         Ok(Program { hosted })
     }
+}
+
+#[must_use]
+pub fn refused_by(allowed: Option<&[Capability]>) -> Vec<Capability> {
+    allowed.map_or_else(Vec::new, |allowed| {
+        Capability::host_effects()
+            .into_iter()
+            .filter(|c| !allowed.contains(c))
+            .collect()
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -239,6 +268,7 @@ impl<H: Host> Program<H> {
             loader,
             extensions: Vec::new(),
             frame: None,
+            posture: None,
             canonical: Canonical::Required,
         }
     }

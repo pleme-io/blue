@@ -99,6 +99,8 @@ end
 
 @doc """
 otlp_endpoint: where spans ship: observe's otlp_endpoint, else OTEL_EXPORTER_OTLP_ENDPOINT; nil when observe turns traces off.
+
+    otlp_endpoint({traces: :off}) #=> nil
 """
 def otlp_endpoint(observe)
   if rogu::on?(observe, :traces)
@@ -123,6 +125,11 @@ def attribute(k, v)
   {key: to_s(k), value:}
 end
 
+@doc """
+otlp_status: a span's OTLP status: code 1 when ok, code 2 with the error's message.
+
+    otlp_status({status: :ok}) #=> {code: 1}
+"""
 def otlp_status(s)
   if get(s, :status) == :ok
     {code: 1}
@@ -133,6 +140,8 @@ end
 
 @doc """
 otlp_span: a closed span record as an OTLP/JSON span.
+
+    get(otlp_span({name: "a", trace_id: "t", id: "i", parent_id: nil, started_ns: 1, duration_ns: 2, attrs: {}, status: :ok}), :endTimeUnixNano) #=> "3"
 """
 def otlp_span(s)
   {
@@ -153,6 +162,8 @@ end
 
 @doc """
 otlp_body: the OTLP/JSON export request for spans of one service.
+
+    get(first(get(first(get(otlp_body("s", []), :resourceSpans)), :scopeSpans)), :spans) #=> []
 """
 def otlp_body(service, spans)
   {
@@ -167,6 +178,8 @@ end
 
 @doc """
 ship: POST spans to an OTLP/HTTP collector's /v1/traces; a failure is logged, never raised.
+
+    ship("http://127.0.0.1:1", "s", []) #=> false
 """
 def ship(url, service, spans)
   http_request(
@@ -184,6 +197,8 @@ end
 
 @doc """
 exporter: the span sink observe asks for: OTLP/HTTP when traces are on and an endpoint is known, a sink that drops when traces are :off, else nil (rogu).
+
+    exporter({traces: :off}, "s")(1) #=> nil
 """
 def exporter(observe, service)
   if not rogu::on?(observe, :traces)

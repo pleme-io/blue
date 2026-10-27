@@ -299,6 +299,11 @@ def read(i, opts)
   append(*map((r) -> series_samples(i, r), rows))
 end
 
+@doc """
+escaped: a label value with its backslashes, quotes and newlines escaped.
+
+    escaped("plain") #=> "plain"
+"""
 def escaped(v)
   replace(
     replace(replace(to_s(v), "\\", "\\\\"), "\"", "\\\""),
@@ -321,10 +326,20 @@ def label_text(labels)
   end
 end
 
+@doc """
+sample_line: one sample as a Prometheus exposition line.
+
+    sample_line({name: "n", labels: {}, value: 1}) #=> "n 1"
+"""
 def sample_line(s)
   "#{get(s, :name)}#{label_text(get(s, :labels))} #{to_s(get(s, :value))}"
 end
 
+@doc """
+instrument_lines: an instrument's HELP and TYPE lines and one line per series.
+
+    instrument_lines(counter("x_total", {})) #=> ["# HELP x_total ", "# TYPE x_total counter"]
+"""
 def instrument_lines(i)
   append(
     [
@@ -337,6 +352,8 @@ end
 
 @doc """
 exposition: instruments in the Prometheus text format, as /metrics serves them.
+
+    exposition([]) #=> ""
 """
 def exposition(instruments)
   unlines(append(*map(instrument_lines, instruments)))
@@ -344,6 +361,8 @@ end
 
 @doc """
 endpoint: a /metrics handler over instruments, or nil when observe turns metrics off.
+
+    endpoint({metrics: :off}, []) #=> nil
 """
 def endpoint(observe, instruments)
   if rogu::on?(observe, :metrics)

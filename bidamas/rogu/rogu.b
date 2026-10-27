@@ -128,6 +128,11 @@ def on?(observe, signal)
   v != :off and v != false
 end
 
+@doc """
+given: a value that is neither nil nor empty text, else nil.
+
+    given("") #=> nil
+"""
 def given(v)
   if v != nil and v != ""
     v
@@ -136,6 +141,8 @@ end
 
 @doc """
 vector_endpoint: where logs ship: observe's vector_endpoint, else VECTOR_ENDPOINT, else nil.
+
+    vector_endpoint({logs: :off, vector_endpoint: "http://v/"}) #=> nil
 """
 def vector_endpoint(observe)
   if on?(observe, :logs)
@@ -146,6 +153,8 @@ end
 
 @doc """
 ship: POST one JSON line to a Vector HTTP source; a failure is written to stderr, never raised.
+
+    ship("http://127.0.0.1:1/", "{}", 100) #=> false
 """
 def ship(url, text, wait_ms)
   http_request(
@@ -163,6 +172,11 @@ rescue e
   false
 end
 
+@doc """
+emit_to: write one line at a level when it is on, and ship it when a url is given.
+
+    emit_to(:debug, "m", {}, nil) #=> nil
+"""
 def emit_to(lvl, message, fields, url)
   if enabled?(lvl)
     text = line(lvl, message, fields)
@@ -174,6 +188,11 @@ def emit_to(lvl, message, fields, url)
   nil
 end
 
+@doc """
+logger: the logger record `with` and `exporting` build.
+
+    get(logger({}, nil), :endpoint) #=> nil
+"""
 def logger(base, url)
   carry = (fields) -> merge(plain(base), plain(fields))
   {
@@ -195,6 +214,8 @@ end
 
 @doc """
 exporting: a logger that adds fields to every line and ships each line to Vector, unless observe turns logs off.
+
+    get(exporting({logs: :off}, {}), :endpoint) #=> nil
 """
 def exporting(observe, base)
   logger(base, vector_endpoint(observe))
@@ -422,20 +443,6 @@ test "with carries fields in-process too: the logger's enabled follows the level
   assert get(with(nil), :enabled)(level) == true
 end
 
-def captured(observe, body)
-  l = http_listen("127.0.0.1:0")
-  url = "http://127.0.0.1:#{to_s(http_listener_port(l))}/"
-  me = self
-  spawn(
-    fn()
-      body(exporting(assoc(observe, :vector_endpoint, url), {svc: "api"}))
-      send(me, :done)
-    end
-  )
-  receive(:_, 2000, :none)
-  http_next_request(l, 500)
-end
-
 test "a signal is on unless observe sets it to :off"
   assert on?(nil, :logs) == true
   assert on?({}, :logs) == true
@@ -453,16 +460,26 @@ test "logs off leaves no endpoint even when one is named"
   ).nil?
 end
 
-test "an exporting logger POSTs each line to the Vector source as JSON"
+test "an exporting logger POSTs each line to Vector, and with logs off sends nothing"
+  captured = fn(observe, body)
+    l = http_listen("127.0.0.1:0")
+    url = "http://127.0.0.1:#{to_s(http_listener_port(l))}/"
+    me = self
+    spawn(
+      fn()
+        body(exporting(assoc(observe, :vector_endpoint, url), {svc: "api"}))
+        send(me, :done)
+      end
+    )
+    receive(:_, 2000, :none)
+    http_next_request(l, 500)
+  end
   req = captured({}, (log) -> get(log, :error)("down", {n: 1}))
   assert get(req, :method) == "POST"
   rec = json_read(get(req, :body))
   assert get(rec, "message") == "down"
   assert get(rec, "svc") == "api"
   assert get(rec, "n") == 1
-end
-
-test "an exporting logger with logs off sends nothing"
   assert captured({logs: :off}, (log) -> get(log, :error)("down", {})).nil?
 end
 

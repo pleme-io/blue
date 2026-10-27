@@ -24,6 +24,11 @@ def api(stream, verb)
   "$JS.API.STREAM.#{verb}.#{stream}"
 end
 
+@doc """
+name_ok?: whether a stream, consumer or table name has no dot, space or wildcard.
+
+    name_ok?("orders") #=> true
+"""
 def name_ok?(name)
   string?(name) and
     name != "" and
@@ -33,6 +38,11 @@ def name_ok?(name)
     not contains?(name, ">")
 end
 
+@doc """
+need_name: a name that is ok, else a :bad_option raise naming what it names.
+
+    need_name("stream", "orders") #=> "orders"
+"""
 def need_name(what, name)
   if not name_ok?(name)
     raise(:bad_option, "a #{what} name is text with no dot, space or wildcard")
@@ -57,12 +67,19 @@ def answer(text)
   r
 end
 
+@doc """
+stream_config: the JetStream config of a file-backed stream over subjects.
+
+    stream_config("s", ["s.>"]) #=> {name: "s", subjects: ["s.>"], storage: "file"}
+"""
 def stream_config(name, subjects)
   {name:, subjects:, storage: "file"}
 end
 
 @doc """
 ensure_stream: declare a stream over subjects, created when absent; its info.
+
+    raises?(:bad_option, () -> ensure_stream(nil, "a.b", ["x"])) #=> true
 """
 def ensure_stream(c, name, subjects)
   need_name("stream", name)
@@ -72,6 +89,9 @@ def ensure_stream(c, name, subjects)
   declared(c, name, json_stringify(stream_config(name, subjects)))
 end
 
+@doc """
+declared: create a stream, or update it when its name is already in use.
+"""
 def declared(c, name, body)
   answer(nats_request(c, api(name, "CREATE"), body, 5000))
 rescue e
@@ -90,6 +110,11 @@ def publish(c, subject, payload, wait_ms)
   {stream: get(r, "stream"), seq: get(r, "seq")}
 end
 
+@doc """
+consumer_config: the config of a durable consumer with explicit acks.
+
+    get(get(consumer_config("s", "d", "s.>", 1), :config), :ack_wait) #=> 1000000
+"""
 def consumer_config(stream, name, filter, ack_wait_ms)
   {
     stream_name: stream,
@@ -104,6 +129,8 @@ end
 
 @doc """
 durable: declare a durable pull consumer with explicit acks on a stream.
+
+    raises?(:bad_option, () -> durable(nil, "s", "a b", "s.>", 1000)) #=> true
 """
 def durable(c, stream, name, filter, ack_wait_ms)
   need_name("stream", stream)
@@ -137,6 +164,11 @@ def deliveries(reply)
   end
 end
 
+@doc """
+delivered: a pulled message with its delivery count.
+
+    get(delivered({subject: "s", payload: "p", reply: nil}), :deliveries) #=> nil
+"""
 def delivered(m)
   {
     subject: get(m, :subject),
@@ -146,10 +178,20 @@ def delivered(m)
   }
 end
 
+@doc """
+pull_request: the body of a pull for a batch, expiring after wait_ms.
+
+    json_read(pull_request(2, 1)) #=> {"batch" => 2, "expires" => 1000000}
+"""
 def pull_request(batch, wait_ms)
   json_stringify({batch:, expires: wait_ms * 1_000_000})
 end
 
+@doc """
+gather: messages read from a pull's inbox until the batch is full, a status arrives or time runs out.
+
+    gather(nil, 0, 10, []) #=> []
+"""
 def gather(sub, batch, wait_ms, got)
   if size(got) >= batch
     got
@@ -204,10 +246,18 @@ def outbox_ddl(table)
   "CREATE TABLE IF NOT EXISTS \"#{table}\" (id bigserial PRIMARY KEY, subject text NOT NULL, payload text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())"
 end
 
+@doc """
+outbox_insert: the statement that records one event in the outbox.
+
+    outbox_insert("ob") #=> "INSERT INTO \"ob\" (subject, payload) VALUES ($1, $2)"
+"""
 def outbox_insert(table)
   "INSERT INTO \"#{table}\" (subject, payload) VALUES ($1, $2)"
 end
 
+@doc """
+in_transaction: run f between BEGIN and COMMIT, rolling back and raising again when it raises.
+"""
 def in_transaction(pg, f)
   pg_execute(pg, "BEGIN")
   out = f()
@@ -220,6 +270,8 @@ end
 
 @doc """
 write_with_outbox: run a change and record its events in the same transaction; the change's rows.
+
+    raises?(:bad_option, () -> write_with_outbox(nil, "a b", ["SELECT 1", []], [])) #=> true
 """
 def write_with_outbox(pg, table, change, events)
   need_name("table", table)
@@ -236,16 +288,28 @@ def write_with_outbox(pg, table, change, events)
   )
 end
 
+@doc """
+drain_select: the statement that locks the next batch of outbox events.
+
+    contains?(drain_select("ob", 5), "LIMIT 5") #=> true
+"""
 def drain_select(table, batch)
   "SELECT id, subject, payload FROM \"#{table}\" ORDER BY id LIMIT #{to_s(batch)} FOR UPDATE SKIP LOCKED"
 end
 
+@doc """
+drain_delete: the statement that removes drained events by id.
+
+    drain_delete("ob", [3]) #=> "DELETE FROM \"ob\" WHERE id IN (3)"
+"""
 def drain_delete(table, ids)
   "DELETE FROM \"#{table}\" WHERE id IN (#{join(map(to_s, ids), ", ")})"
 end
 
 @doc """
 drain: publish up to batch outbox events to the stream, each acked, and delete them; how many moved.
+
+    raises?(:bad_option, () -> drain(nil, nil, "a.b", 10, 100)) #=> true
 """
 def drain(pg, js, table, batch, wait_ms)
   need_name("table", table)
@@ -265,6 +329,9 @@ def drain(pg, js, table, batch, wait_ms)
   )
 end
 
+@doc """
+settle: run the handler on one message and ack it; nak and raise again when the handler raises.
+"""
 def settle(c, handler, m)
   handler(m)
   ack(c, m)

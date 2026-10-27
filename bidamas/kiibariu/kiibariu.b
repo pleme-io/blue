@@ -21,6 +21,11 @@ use("moji", [:checked, :drop_chars])
 use("retsu", [:first, :is_empty, :size])
 use("tesuto", [:raises?])
 
+@doc """
+default_port: the port Valkey and Redis listen on.
+
+    default_port #=> 6379
+"""
 def default_port()
   6379
 end
@@ -53,6 +58,11 @@ def settings(opts)
   }
 end
 
+@doc """
+password: the password a password file holds, or nil when there is no file.
+
+    password(nil) #=> nil
+"""
 def password(file)
   if file.nil?
     nil
@@ -63,6 +73,8 @@ end
 
 @doc """
 connect: a connection opened from a settings record.
+
+    raises?(:bad_option, () -> connect({host: ""})) #=> true
 """
 def connect(opts)
   s = settings(opts)
@@ -89,6 +101,11 @@ def get_key(c, key)
   resp_command(c, ["GET", key])
 end
 
+@doc """
+ttl_ok?: whether a TTL is nil or a positive number of milliseconds.
+
+    ttl_ok?(500) #=> true
+"""
 def ttl_ok?(ttl_ms)
   ttl_ms.nil? or integer?(ttl_ms) and ttl_ms > 0
 end
@@ -111,6 +128,8 @@ end
 
 @doc """
 set_key: store text at a key, with a TTL in milliseconds or nil.
+
+    raises?(:bad_option, () -> set_key(nil, "k", "v", 0)) #=> true
 """
 def set_key(c, key, value, ttl_ms)
   resp_command(c, set_command(key, value, ttl_ms))
@@ -119,6 +138,8 @@ end
 
 @doc """
 del: remove keys; how many existed.
+
+    del(nil, []) #=> 0
 """
 def del(c, keys)
   if is_empty(keys)
@@ -144,6 +165,8 @@ end
 
 @doc """
 subscribe: turn a connection into a subscriber of channels.
+
+    raises?(:bad_option, () -> subscribe(nil, [])) #=> true
 """
 def subscribe(c, channels)
   if is_empty(channels)
@@ -154,6 +177,11 @@ def subscribe(c, channels)
   nil
 end
 
+@doc """
+pushed: a pushed pub/sub reply as {channel:, payload:}, nil for any other reply.
+
+    pushed(["message", "ch", "hi"]) #=> {channel: "ch", payload: "hi"}
+"""
 def pushed(reply)
   if list?(reply) and size(reply) == 3 and first(reply) == "message"
     {channel: nth(1, reply), payload: nth(2, reply)}
@@ -231,10 +259,20 @@ def prefix(namespace, version_hash, entity)
   "#{namespace}:v#{version_hash}:#{to_s(entity)}:"
 end
 
+@doc """
+field_types: the field types a strict schema names.
+
+    field_types #=> [:text, :int, :float, :bool, :list, :record, :any]
+"""
 def field_types()
   [:text, :int, :float, :bool, :list, :record, :any]
 end
 
+@doc """
+of_type?: whether a value is of a schema field type.
+
+    of_type?(:int, "1") #=> false
+"""
 def of_type?(type, v)
   if type == :text
     string?(v)
@@ -279,10 +317,20 @@ def check(schema, rec)
   rec
 end
 
+@doc """
+stored: a record checked against a schema and written as JSON.
+
+    json_read(stored({fields: {"n" => :int}}, {"n" => 1})) #=> {"n" => 1}
+"""
 def stored(schema, rec)
   json_stringify(check(schema, rec))
 end
 
+@doc """
+loaded: stored JSON read back and checked against a schema; nil stays nil.
+
+    loaded({fields: {}}, nil) #=> nil
+"""
 def loaded(schema, text)
   if text.nil?
     nil
@@ -293,6 +341,8 @@ end
 
 @doc """
 put: check a record against a schema and store it as JSON.
+
+    raises?(:bad_value, () -> put(nil, {fields: {"n" => :int}}, "k", {"n" => "1"}, nil)) #=> true
 """
 def put(c, schema, key, rec, ttl_ms)
   set_key(c, key, stored(schema, rec), ttl_ms)
@@ -305,6 +355,11 @@ def fetch(c, schema, key)
   loaded(schema, get_key(c, key))
 end
 
+@doc """
+plan_ok: an upgrade plan with two different key prefixes, else a :bad_option raise.
+
+    raises?(:bad_option, () -> plan_ok({old: "a:", new: "a:"})) #=> true
+"""
 def plan_ok(plan)
   checked(plan, [:from, :to, :old, :new, :transform])
   if not string?(get(plan, :old)) or
@@ -318,6 +373,11 @@ def plan_ok(plan)
   plan
 end
 
+@doc """
+kept_ttl: the TTL a rewrite keeps: a positive PTTL, else nil for no expiry.
+
+    kept_ttl(-1) #=> nil
+"""
 def kept_ttl(ttl)
   if ttl > 0
     ttl
@@ -333,6 +393,11 @@ def rewrite_commands(new_key, text, ttl, old_key)
   [set_command(new_key, text, kept_ttl(ttl)), ["DEL", old_key]]
 end
 
+@doc """
+upgraded: an old entry's JSON checked, transformed and checked against the new schema.
+
+    upgraded({from: {fields: {}}, to: {fields: {"v" => :int}}, transform: (r) -> assoc(r, "v", 2)}, "{}") #=> {"v" => 2}
+"""
 def upgraded(plan, text)
   check(
     get(plan, :to),
@@ -342,6 +407,8 @@ end
 
 @doc """
 read_upgrading: the record for an id under the new schema, upgrading an old entry on the way.
+
+    raises?(:bad_option, () -> read_upgrading(nil, {old: "a:", new: "a:"}, 1)) #=> true
 """
 def read_upgrading(c, plan, id)
   plan_ok(plan)
@@ -365,8 +432,17 @@ def read_upgrading(c, plan, id)
   end
 end
 
+@doc """
+batch_rewrite: one SCAN batch of old keys rewritten under the new prefix; how many moved.
+
+    batch_rewrite(nil, {}, []) #=> 0
+"""
 def batch_rewrite(c, plan, keys)
-  reads = resp_pipeline(c, append(*map((k) -> [["GET", k], ["PTTL", k]], keys)))
+  reads = if is_empty(keys)
+    []
+  else
+    resp_pipeline(c, append(*map((k) -> [["GET", k], ["PTTL", k]], keys)))
+  end
   rows = filter(
     (r) -> nth(1, r) != nil,
     map(
@@ -397,6 +473,8 @@ end
 
 @doc """
 upgrade_eager: rewrite every old entry to the new schema in SCAN batches, keeping each TTL; how many moved.
+
+    raises?(:bad_option, () -> upgrade_eager(nil, {old: "a:", new: "a:"}, 10)) #=> true
 """
 def upgrade_eager(c, plan, batch)
   plan_ok(plan)

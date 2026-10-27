@@ -32,7 +32,7 @@ model("orders", {
 })
 
 service("orders", {
-  database:  {provider: :cnpg, instances: 2, pitr: true, migrator: :seaorm},
+  database:  {provider: :cnpg, instances: 2, pitr: true, migrator: :keifu},
   cache:     {provider: :pleme_cache, uses: [:entity, :session, :queue, :pubsub]},
   events:    {stream: "orders", publish: ["order.created", "order.updated"],
               subscribe: {"payments.settled" => :settle}, cdc: :outbox},
@@ -70,7 +70,8 @@ chosen migrator reads. Nobody writes a migration by hand.
 | Destructive steps | `drop` and narrowing `retype` need `allow: :destructive` on that one step; everything else in the version still applies | a global unsafe flag |
 | Rendering | one blue renderer per migrator, chosen by `database.migrator`. The default is `:keifu`: a keifu changelog that shinka applies in process, with its ledger, checksums and witness. `:sqlx`, `:refinery`, `:diesel`, `:goose`, `:golang_migrate`, `:atlas`, `:dbmate`, `:flyway` and `:liquibase` each get their own directory or file form | a single SQL dialect for every tool |
 | Native per backend | each typed step lowers to the backend's own fastest safe form, never a lowest-common-denominator SQL. Postgres is the primary target: transactional DDL, `CREATE INDEX CONCURRENTLY` (outside the transaction), constraints added `NOT VALID` and then `VALIDATE`d, `ADD COLUMN` with a constant default (no table rewrite), batched keyset backfills, and `lock_timeout` on every step. MySQL renders to online `ALGORITHM=INSTANT` or `INPLACE` forms. A step a backend cannot do natively is refused for that backend by name | one portable SQL for every engine |
-| Valkey | no schema, so no migrations. Every cache key carries the hash of the model version it encodes (`orders:v<hash>:order:<id>`), so a model change reads new keys and the old ones expire by TTL. No flush, no migration step | a cache migration job |
+| Valkey, loose | the server has no schema. A cache entry carries the hash of the model version it encodes in its key (`orders:v<hash>:order:<id>`), so after a model change reads go to new keys and old keys expire by TTL. No flush and no migration step | a cache migration job |
+| Valkey, strict | a `kv_model(...)` (or `cache: {strict: true}` on an entity) is a schema at the blue layer: typed fields, the encoding (hash, JSON, stream entry), key pattern and TTL. Blue checks every write and every read against it and refuses a value that does not match. Evolution uses the same `teeburu::evolve` steps as Postgres. It renders to one of two Valkey forms: `upgrade: :on_read` (default; read the old version, transform it in blue, write the new version) or `upgrade: :eager` (a shinka job that walks the old keys with `SCAN` in batches, pipelines the rewrite and leaves the TTL as it was). Steps that Valkey cannot carry, such as indexes and relations, are refused for it by name | trusting whatever a key holds |
 | Accessors | typed blue accessors are rendered from the same version (`orders::order::find`, `insert`, `update`) | ORM entities written by hand |
 | Gate | `blue check` rejects a model change that has no version bump, a version with no lowering for the chosen migrator, or a lowering that changes once it has shipped (the checksum is pinned in the lock) | a review comment |
 

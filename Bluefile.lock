@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b9cb5bf08fc423ed8ac7a53b2e7261cd9c5d68afc0ed8dd739d04abd2136a985",
+  "bluefile_b3": "b3:33a030867934a07d884b3945274d85b3891e93cff98e18b9a59692d2bd2dab4a",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -27,6 +27,12 @@
       },
       "project-rules": {
         "file": "rules/conventions.b"
+      },
+      "regen-untracked": {
+        "file": "gen/regen_test.b",
+        "inputs": [
+          "gen/regen.b"
+        ]
       },
       "test-beside": {
         "file": "gen/test-beside.b"

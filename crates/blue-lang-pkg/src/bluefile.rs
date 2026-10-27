@@ -143,8 +143,8 @@ pub struct Project {
     pub runs: BTreeMap<String, Run>,
     /// `tool(name)`, in declaration order.
     pub tools: Vec<String>,
-    /// `check(name, file)`.
-    pub checks: BTreeMap<String, Program>,
+    /// `check(name, file[, inputs])`.
+    pub checks: BTreeMap<String, Check>,
     /// `app(name, file)`.
     pub apps: BTreeMap<String, Program>,
     /// `catalog(path)` — where the catalogue of `packages` is committed.
@@ -247,6 +247,14 @@ pub struct Run {
 #[serde(deny_unknown_fields)]
 pub struct Program {
     pub file: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Check {
+    pub file: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -533,16 +541,21 @@ const WORDS: &[Word] = &[
     },
     Word {
         name: "check",
-        signature: "check(name, file)",
-        doc: "A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails.",
+        signature: "check(name, file[, inputs])",
+        doc: "A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. `inputs` lists the project paths the tests read, found under $GEN_ROOT.",
         min: 2,
-        max: 2,
+        max: 3,
         record: |c, into| {
             let name = c.text(0, "name")?;
-            let program = Program {
+            let check = Check {
                 file: c.path(1, "file")?,
+                inputs: if c.args.len() > 2 {
+                    c.paths(2, "inputs")?
+                } else {
+                    Vec::new()
+                },
             };
-            insert_once(&mut into.project.checks, c.word, name, program)
+            insert_once(&mut into.project.checks, c.word, name, check)
         },
     },
     Word {
@@ -1409,6 +1422,20 @@ mod tests {
     fn check_records_a_test_file() {
         let p = project_of("check(\"unit\", \"tests/unit.b\")");
         assert_eq!(p.checks["unit"].file, "tests/unit.b");
+        assert!(p.checks["unit"].inputs.is_empty());
+    }
+
+    #[test]
+    fn check_records_the_project_paths_its_tests_read() {
+        let p = project_of("check(\"docs\", \"gen/docs.b\", [\"docs\", \"Bluefile.lock\"])");
+        assert_eq!(p.checks["docs"].inputs, vec!["docs", "Bluefile.lock"]);
+        let json = serde_json::to_string(&p.checks["docs"]).unwrap();
+        assert!(json.contains("\"inputs\""));
+        let bare = project_of("check(\"unit\", \"tests/unit.b\")");
+        assert_eq!(
+            serde_json::to_string(&bare.checks["unit"]).unwrap(),
+            "{\"file\":\"tests/unit.b\"}"
+        );
     }
 
     #[test]

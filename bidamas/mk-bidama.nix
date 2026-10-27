@@ -405,9 +405,9 @@ rec {
   # A test file as a check: `blue test`, whose status is the check's. A file
   # with no `test` blocks fails (`blue test` refuses it), so a check cannot
   # pass over nothing. The tally is the output, for reading after the fact.
-  mkTestCheck = { blue, bidamas, file, name, tools ? [ ] }:
+  mkTestCheck = { blue, bidamas, file, name, tools ? [ ], root ? null }:
     runCommand name { nativeBuildInputs = tools; } ''
-      BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue test ${file} > $out
+      ${lib.optionalString (root != null) "GEN_ROOT=${root} "}BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue test ${file} > $out
     '';
 
   # Fails when a committed generated file differs from a fresh generation. The

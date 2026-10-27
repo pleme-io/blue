@@ -543,7 +543,7 @@ A Bluefile is a blue program that may call only these words.
 | `packages(dir)` | A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions. |
 | `run(name, file[, reads])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. |
 | `tool(name)` | A nixpkgs attribute put on PATH for the project's runs, checks, apps and generators. |
-| `check(name, file)` | A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. |
+| `check(name, file[, inputs])` | A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. `inputs` lists the project paths the tests read, found under $GEN_ROOT. |
 | `app(name, file)` | A program exposed as `nix run .#<name>`. |
 | `generate(name, output, program[, inputs])` | A committed file and the program that writes it (to $GEN_OUT): `packages.generated-<name>` and a freshness check. `inputs` lists the project paths the program reads, found under $GEN_ROOT. |
 | `rule(code, file, def[, severity])` | A project check rule: `blue check` calls the blue definition `def` in `file` on each top-level form of every file under the project, under a pure frame, and reports its findings under `code` (letters then four digits, never B); severity "error" (default) or "warning". |

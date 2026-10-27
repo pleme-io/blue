@@ -1,6 +1,7 @@
 ; Generated from bidamas/kiwari by gen/kiwari/. Edit the spec and run `nix run .#regen`.
 ; The general first: neovim lets the last matching pattern win.
 (comment) @comment
+(moduledoc) @comment
 (doc) @comment
 (identifier) @variable
 (label) @property

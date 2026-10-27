@@ -960,7 +960,7 @@ def blue()
     description: "blue, emitted from its one grammar spec (kiwari)",
     repository: "https://github.com/pleme-io/blue",
     word: "identifier",
-    extras: [pat("[ \\t\\r]"), ref("comment"), ref("doc")],
+    extras: [pat("[ \\t\\r]"), ref("comment"), ref("moduledoc")],
     conflicts: [
       ["_primary", "_arrow_parameters"],
       ["_arrow_parameters", "_plain_parameters"],
@@ -1053,15 +1053,22 @@ def blue()
         :role,
         "comment"
       ),
-      # `@doc """` … `"""` and `@moduledoc`: a typed child of the definition
-      # in blue's tree, absent from the forms it compares, so an extra here.
-      # The text holds no `"""` (lex.rs `lex_doc`).
+      # `@moduledoc """` … `"""` documents the file and needs nothing after it,
+      # and blue's compared forms hold no node for it: an extra. Its text holds
+      # no `"""` (lex.rs `lex_doc`).
+      with(
+        rule(
+          "moduledoc",
+          token(pat("@moduledoc[ \\t]*\"\"\"([^\"]|\"[^\"]|\"\"[^\"])*\"\"\"")),
+          nil
+        ),
+        :role,
+        "comment"
+      ),
       with(
         rule(
           "doc",
-          token(
-            pat("@(module)?doc[ \\t]*\"\"\"([^\"]|\"[^\"]|\"\"[^\"])*\"\"\"")
-          ),
+          token(pat("@doc[ \\t]*\"\"\"([^\"]|\"[^\"]|\"\"[^\"])*\"\"\"")),
           nil
         ),
         :role,
@@ -1072,7 +1079,29 @@ def blue()
         :reference,
         true
       ),
-      rule("_statement", choice([ref("binding"), ref("_expression")]), nil),
+      rule(
+        "_statement",
+        choice([ref("documented"), ref("binding"), ref("_expression")]),
+        nil
+      ),
+      # `@doc` belongs to the definition below it (parse.rs: "documents the
+      # definition below it: a `def`, a `defmacro` or a top-level
+      # `name = value`"); it lowers to that definition, which is all blue's
+      # compared forms hold.
+      rule(
+        "documented",
+        seq(
+          [
+            field("doc", ref("doc")),
+            rep1(ref("_newline")),
+            field(
+              "definition",
+              choice([ref("def"), ref("defmacro"), ref("binding")])
+            )
+          ]
+        ),
+        ["field", "definition"]
+      ),
       # `x = v` is a statement, never an expression (parse.rs `statement`).
       rule(
         "binding",
@@ -1998,6 +2027,7 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
   assert parts ==
     [
       "comment",
+      "moduledoc",
       "doc",
       "rescue_clause",
       "rescue_all",

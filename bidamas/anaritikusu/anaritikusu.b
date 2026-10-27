@@ -2134,9 +2134,7 @@ end
 history_text: The history of a log value that was read: one line per record. Pure.
 """
 def history_text(log)
-  nisshi::unlines(
-    map((x) -> history_line(first(x), nth(1, x)), nisshi::history(log))
-  )
+  unlines(map((x) -> history_line(first(x), nth(1, x)), nisshi::history(log)))
 end
 
 @doc """

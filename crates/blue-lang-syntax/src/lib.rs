@@ -30,8 +30,8 @@ pub use lex::{lex, LexError, Span, Token, TokenKind};
 // Re-exported so a consumer walking blue trees does not have to depend on
 // tatara-lisp directly just to name the node types blue emits.
 pub use parse::{
-    comments, constant_text, is_callable_name, is_reserved_word, keyword_doc, parse_expr, parse_program,
-    parse_program_documented, parse_program_documented_with_depth, parse_program_in,
+    comments, constant_text, is_callable_name, is_reserved_word, keyword_doc, parse_expr,
+    parse_program, parse_program_documented, parse_program_documented_with_depth, parse_program_in,
     parse_program_spanned, parse_program_spanned_with_depth, parse_program_tree,
     parse_program_tree_in, parse_program_tree_with_depth, parse_program_with_depth,
     parses_on_this_thread, qualified, qualify, spelling_notes, Comment, Infix, ParseError,

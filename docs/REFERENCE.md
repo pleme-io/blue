@@ -177,7 +177,7 @@ Higher binding power binds tighter.
 | `text_last_index` | `text_last_index(s, sub, from)` | 3 | The character index of the last sub in s starting at or before from, or -1. One linear pass. |
 | `to_s` | `to_s(x)` | 1 | Text for any value (okite D0005, D0006): nil is "", 1.0 is "1.0", a list or map its blue literal, a keyword its name. |
 | `trim` | `trim(s[, opts])` | 1..2 | The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option. Also defined by `moji` (`moji::trim`): a file that lists it gets that one. |
-| `unlines` | `unlines(xs)` | 1 | The elements' text, each followed by a newline: text that ends in a line break (B0065). Also defined by `nisshi` (`nisshi::unlines`): a file that lists it gets that one. |
+| `unlines` | `unlines(xs)` | 1 | The elements' text, each followed by a newline: text that ends in a line break (B0065). |
 | `upcase` | `upcase(s)` | 1 | The string in upper case. Raises on nil. |
 
 ### Lists

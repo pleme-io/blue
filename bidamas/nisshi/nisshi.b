@@ -175,7 +175,8 @@ does this.
                                                twin of anaritikusu's as-of join)#   records  el_records(log), el_by_entity(records), el_rec_* accessors
   pure     el_canon(value), el_canon_object(pairs), el_genesis(label),
            el_texts / el_body_text / el_line_text (the record builders),
-           el_decode_line(def, position, line), el_lines / el_unlines
+           el_decode_line(def, position, line), el_lines (the builtin
+           unlines joins them back)
 
 ## One line (the first of the b3sum test's stream, signed)
 
@@ -1384,13 +1385,6 @@ def lines(text)
   else
     split(text, line_break)
   end
-end
-
-@doc """
-unlines: Lines back into a stream's text, each ended by a newline.
-"""
-def unlines(lines)
-  join(map((l) -> unlines([l]), lines), "")
 end
 
 @doc """

@@ -56,7 +56,7 @@
   {
     "name": "newline dropped",
     "file": "tesuto.b",
-    "find": "  actual = \"#{literal(value)}\\n\"",
-    "replace": "  actual = \"#{literal(value)}\""
+    "find": "  actual = unlines([literal(value)])",
+    "replace": "  actual = literal(value)"
   }
 ]

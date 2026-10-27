@@ -252,9 +252,30 @@ fn swallowed(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
 }
 
 const VALUE_ONLY: &[&str] = &[
-    "append", "assoc", "concat", "cons", "dissoc", "distinct", "downcase", "drop", "flatten",
-    "join", "join_lines", "range", "remove", "replace", "reverse", "split", "string", "take", "to_float",
-    "to_int", "to_s", "trim", "upcase", "zip",
+    "append",
+    "assoc",
+    "concat",
+    "cons",
+    "dissoc",
+    "distinct",
+    "downcase",
+    "drop",
+    "flatten",
+    "join",
+    "join_lines",
+    "range",
+    "remove",
+    "replace",
+    "reverse",
+    "split",
+    "string",
+    "take",
+    "to_float",
+    "to_int",
+    "to_s",
+    "trim",
+    "upcase",
+    "zip",
 ];
 
 fn shadowed_names(entry: &[(usize, &Spanned)]) -> BTreeSet<String> {

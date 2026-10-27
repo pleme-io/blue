@@ -586,8 +586,10 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         }
     });
 
-    interp.register_fn("join_lines", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        match &a[0] {
+    interp.register_fn(
+        "join_lines",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::List(items) => Ok(Value::Str(
                 items
                     .iter()
@@ -597,11 +599,13 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                     .into(),
             )),
             other => Err(EvalError::type_mismatch("a list", other.type_name(), s).into()),
-        }
-    });
+        },
+    );
 
-    interp.register_fn("unlines", Arity::Exact(1), |a: &[Value], _h: &mut H, s| {
-        match &a[0] {
+    interp.register_fn(
+        "unlines",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::List(items) => Ok(Value::Str(
                 items
                     .iter()
@@ -610,12 +614,14 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                     .into(),
             )),
             other => Err(EvalError::type_mismatch("a list", other.type_name(), s).into()),
-        }
-    });
+        },
+    );
 
-    interp.register_fn("line_break", Arity::Exact(0), |_a: &[Value], _h: &mut H, _s| {
-        Ok(Value::Str("\n".into()))
-    });
+    interp.register_fn(
+        "line_break",
+        Arity::Exact(0),
+        |_a: &[Value], _h: &mut H, _s| Ok(Value::Str("\n".into())),
+    );
 
     interp.register_fn(
         "contains?",

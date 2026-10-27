@@ -110,8 +110,8 @@
   {
     "name": "recover hides an unknown fault",
     "file": "kyuuji.b",
-    "find": "text(500, \"internal error\\n\")",
-    "replace": "text(500, \"#{message}\\n\")"
+    "find": "text(500, unlines([\"internal error\"]))",
+    "replace": "text(500, unlines([message]))"
   },
   {
     "name": "timeout deadline",

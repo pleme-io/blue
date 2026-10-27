@@ -220,7 +220,10 @@ pub fn constant_text(s: &Sexp) -> Option<String> {
                 if l.as_str() != "list" {
                     return None;
                 }
-                let texts = elems.iter().map(constant_text).collect::<Option<Vec<_>>>()?;
+                let texts = elems
+                    .iter()
+                    .map(constant_text)
+                    .collect::<Option<Vec<_>>>()?;
                 Some(if h.as_str() == "join_lines" {
                     texts.join("\n")
                 } else {
@@ -576,7 +579,17 @@ pub const LOWERED_ATTEMPTED: &str = "blue-attempted";
 pub const LOWERED_FAILED: &str = "blue-failed";
 
 pub const LOWERED_HEADS: &[&str] = &[
-    "list", "concat", "not", "apply", "equal?", "not=", "and", "or", "mod", "join_lines", "unlines",
+    "list",
+    "concat",
+    "not",
+    "apply",
+    "equal?",
+    "not=",
+    "and",
+    "or",
+    "mod",
+    "join_lines",
+    "unlines",
     "line_break",
 ];
 
@@ -1449,7 +1462,10 @@ impl Parser {
             "\"…\\n…\"",
             &format!("{head}([…])"),
         );
-        Ok(list_at(span, vec![sym_at(span, head), list_at(span, items)]))
+        Ok(list_at(
+            span,
+            vec![sym_at(span, head), list_at(span, items)],
+        ))
     }
 
     #[inline(never)]
@@ -3307,9 +3323,11 @@ mod tests {
         assert!(spelling_notes(r#""a\tb""#).unwrap().is_empty());
         let quoted = q("def f()\n  quote\n    \"x\\ny\"\n  end\nend\n");
         assert!(!quoted.contains("join_lines"), "{quoted}");
-        assert!(spelling_notes("def f()\n  quote\n    \"x\\ny\"\n  end\nend\n")
-            .unwrap()
-            .is_empty());
+        assert!(
+            spelling_notes("def f()\n  quote\n    \"x\\ny\"\n  end\nend\n")
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

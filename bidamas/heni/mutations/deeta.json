@@ -8,7 +8,7 @@
   {
     "name": "clip chomping drops the final line break",
     "file": "deeta.b",
-    "find": "  elsif has_body\n    \"#{text}\\n\"\n",
+    "find": "  elsif has_body\n    unlines([text])\n",
     "replace": "  elsif has_body\n    text\n"
   },
   {

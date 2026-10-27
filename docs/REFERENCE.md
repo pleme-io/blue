@@ -107,7 +107,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-297 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+302 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -246,7 +246,7 @@ Higher binding power binds tighter.
 | `in_space` | `in_space(space, value)` | 2 | The value as a subject of a space: {space: s, of: value}. Master verbs call the space's handler with the value itself. A value already in another space raises :usage. |
 | `info` | `info(subject, more...)` | 1+ | The current state of the subject as a record: in_space("gitto", repo) is the repository's state. Also defined by `gitto` (`gitto::info`), `rogu` (`rogu::info`): a file that lists it gets that one. |
 | `need` | `need(store, key, more...)` | 2+ | One entry, raising :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::need`), `settei` (`settei::need`): a file that lists it gets that one. |
-| `put` | `put(store, key, value, more...)` | 3+ | Create or replace an entry; a plain map goes to jisho, which returns a new map. Also defined by `jisho` (`jisho::put`), `keisoku` (`keisoku::put`), `raifusaikuru` (`raifusaikuru::put`), `shuusei` (`shuusei::put`): a file that lists it gets that one. |
+| `put` | `put(store, key, value, more...)` | 3+ | Create or replace an entry; a plain map goes to jisho, which returns a new map. Also defined by `jisho` (`jisho::put`), `keisoku` (`keisoku::put`), `kiibariu` (`kiibariu::put`), `raifusaikuru` (`raifusaikuru::put`), `shuusei` (`shuusei::put`): a file that lists it gets that one. |
 | `read` | `read(source, more...)` | 1+ | The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler. Also defined by `anaritikusu` (`anaritikusu::read`), `chokkan` (`chokkan::read`), `gitto` (`gitto::read`), `keisoku` (`keisoku::read`), `kyasshu` (`kyasshu::read`), `nikkusu` (`nikkusu::read`), `nisshi` (`nisshi::read`), `settei` (`settei::read`): a file that lists it gets that one. |
 | `space_for` | `space_for(kind, space)` | 2 | Name the space that owns untagged values of a kind: :map, :list, :string, :int, :float, :bool, :keyword or :function. A kind already owned by another space raises :usage. |
 | `space_of` | `space_of(value)` | 1 | The space a master verb would dispatch the value to (its tag, else the owner of its kind), or nil. |
@@ -429,6 +429,11 @@ Higher binding power binds tighter.
 | `pg_connect` | `pg_connect(url[, timeout_ms])` | 1..2 | A PostgreSQL connection to postgres://user@host[:port]/database (a password, when the server asks for one, rides in the url's userinfo after a colon), speaking the wire protocol over plain TCP: trust, password and SCRAM-SHA-256 authentication; md5 and TLS are refused by name. Raises when it cannot connect. |
 | `pg_execute` | `pg_execute(conn, sql)` | 2 | A script of statements, unparameterised: the list of their command tags. Raises naming the first failure. |
 | `pg_query` | `pg_query(conn, sql, params)` | 3 | One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text. |
+| `resp_close` | `resp_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
+| `resp_command` | `resp_command(conn, args)` | 2 | Send one command, a list of text or numbers, and return its reply: text, an integer, nil or a list. A server error raises. |
+| `resp_connect` | `resp_connect(host, port, password, tls[, timeout_ms])` | 4..5 | A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect. |
+| `resp_next` | `resp_next(conn, timeout_ms)` | 2 | The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came. |
+| `resp_pipeline` | `resp_pipeline(conn, commands)` | 2 | Send every command in one write and return their replies in order. Raises naming the first server error. |
 | `tcp_connect_ms` | `tcp_connect_ms(host, port, timeout_ms)` | 3 | Open one TCP connection to host:port and close it at once: the milliseconds the connect took, the handshake only (name resolution is not counted). A failed connect is an answer, not a raise: [:error, why, detail], why one of :unresolved, :timeout, :refused, :unreachable or :failed. A bad port or timeout raises. |
 
 ### Hashing and signatures

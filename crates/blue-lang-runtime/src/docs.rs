@@ -414,6 +414,11 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "pg_query" "pg_query(conn, sql, params)" "One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text.";
     Network: "pg_execute" "pg_execute(conn, sql)" "A script of statements, unparameterised: the list of their command tags. Raises naming the first failure.";
     Network: "pg_close" "pg_close(conn)" "Close the connection; every later call on it raises. nil.";
+    Network: "resp_connect" "resp_connect(host, port, password, tls[, timeout_ms])" "A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect.";
+    Network: "resp_command" "resp_command(conn, args)" "Send one command, a list of text or numbers, and return its reply: text, an integer, nil or a list. A server error raises.";
+    Network: "resp_pipeline" "resp_pipeline(conn, commands)" "Send every command in one write and return their replies in order. Raises naming the first server error.";
+    Network: "resp_next" "resp_next(conn, timeout_ms)" "The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came.";
+    Network: "resp_close" "resp_close(conn)" "Close the connection; every later call on it raises. nil.";
     Network: "http_listen" "http_listen(addr)" "A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound.";
     Network: "http_listener_port" "http_listener_port(listener)" "The TCP port the listener is bound to.";
     Network: "http_next_request" "http_next_request(listener, timeout_ms)" "{method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond.";

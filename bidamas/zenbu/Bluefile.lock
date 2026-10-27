@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:85ed96089a341954570c482ed6ee3ce11c03b6401a8b5fa800a2b91824077e5f",
+  "bluefile_b3": "b3:adbb602af15ff6a8da5aa5f1370e76447b1b3d06004b9af4d99eb4fdba4d3c49",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -31,6 +31,7 @@
       "kazu": "^0.1.0",
       "keisoku": "^0.1.0",
       "keiyu": "^0.1.0",
+      "kiibariu": "^0.1.0",
       "kijun": "^0.1.0",
       "kikagaku": "^0.1.0",
       "kinji": "^0.1.0",

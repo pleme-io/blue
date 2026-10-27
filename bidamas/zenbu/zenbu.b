@@ -73,6 +73,7 @@ use("kansuu", [:identity])
 use("kazu", [:clamp, :near])
 use("keisoku")
 use("keiyu", [:relay_env])
+use("kiibariu")
 use("kijun")
 use("kikagaku", [:manhattan])
 use("kinji")
@@ -221,6 +222,7 @@ test "every bidama in the distribution answers through this one import"
   assert outou::request(outou::fixture, "{ hero { id } }") ==
     {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"
+  assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
 end
 
 test "four packages compose without the consumer naming any of them"

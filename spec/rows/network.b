@@ -1,4 +1,4 @@
-# The network: NATS and HTTP over TCP. Each row is host(). A row runs with no
+# The network: NATS, HTTP, PostgreSQL and RESP over TCP. Each row is host(). A row runs with no
 # peer, so it states what blue promises without one: a refused connection
 # raises naming the primitive, a handle of the wrong kind is refused, and https
 # is refused rather than sent in the clear. The exchanges themselves run
@@ -145,5 +145,52 @@ row(
   "pg_close(:db)",
   fails(:eval, "expected a Postgres connection"),
   covers("builtin:pg_close"),
+  host()
+)
+
+row(
+  "network.resp_connect.tls_refused",
+  "resp_connect(\"127.0.0.1\", 6379, nil, true)",
+  fails(:eval, "no TLS transport"),
+  covers("builtin:resp_connect"),
+  host()
+)
+
+row(
+  "network.resp_connect.plaintext_only_on_loopback",
+  "resp_connect(\"10.0.0.1\", 6379, nil, false)",
+  fails(:eval, "only for 127.0.0.1"),
+  host()
+)
+
+row(
+  "network.resp_command.not_a_connection",
+  "resp_command(:cache, [\"PING\"])",
+  fails(:eval, "expected a RESP connection"),
+  covers("builtin:resp_command"),
+  host()
+)
+
+row(
+  "network.resp_pipeline.not_a_connection",
+  "resp_pipeline(:cache, [[\"PING\"]])",
+  fails(:eval, "expected a RESP connection"),
+  covers("builtin:resp_pipeline"),
+  host()
+)
+
+row(
+  "network.resp_next.not_a_connection",
+  "resp_next(:cache, 0)",
+  fails(:eval, "expected a RESP connection"),
+  covers("builtin:resp_next"),
+  host()
+)
+
+row(
+  "network.resp_close.not_a_connection",
+  "resp_close(:cache)",
+  fails(:eval, "expected a RESP connection"),
+  covers("builtin:resp_close"),
   host()
 )

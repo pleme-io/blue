@@ -1422,12 +1422,12 @@ def run_console(blue, root, here, steps, failing)
 end
 
 @doc """
-inspect_text: Text quoted for a failure message, its line breaks shown as `⏎`.
+inspect_text: Text shown in a failure message as the list of its lines, so a line break or a trailing space is visible.
 
-    inspect_text(join_lines(["a", "b"])) #=> "\"a⏎b\""
+    inspect_text(join_lines(["a", "b"])) #=> "[\"a\", \"b\"]"
 """
 def inspect_text(text)
-  "\"#{replace(text, line_break, "⏎")}\""
+  to_s(split(text, line_break))
 end
 
 @doc """
@@ -1889,7 +1889,7 @@ test "every block of a page runs, and a wrong output or a failing command is nam
     )
     found = run_blocks(self_exe, getenv("TMPDIR", "/tmp"), bad)
     assert length(found) == 2
-    assert contains?(first(found), "docs/b.md: `blue eval 1` printed \"1\"")
+    assert contains?(first(found), "docs/b.md: `blue eval 1` printed [\"1\"]")
     assert contains?(last(found), "blue block 1 failed")
   end
 end

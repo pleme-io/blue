@@ -1,6 +1,7 @@
 use("jisho")
-use("moji", [:checked])
+use("moji", [:checked, :lines])
 use("retsu", [:count_where, :enumerate, :first, :is_empty, :rest, :zip])
+use("rogu")
 use("tesuto", [:raises?])
 
 def name_ok?(name)
@@ -298,6 +299,64 @@ def read(i, opts)
   append(*map((r) -> series_samples(i, r), rows))
 end
 
+def escaped(v)
+  replace(
+    replace(replace(to_s(v), "\\", "\\\\"), "\"", "\\\""),
+    line_break,
+    "\\n"
+  )
+end
+
+@doc """
+label_text: a series' labels as Prometheus writes them.
+
+    label_text({"path" => "/a"}) #=> "{path=\"/a\"}"
+"""
+def label_text(labels)
+  es = map_entries(labels or {})
+  if is_empty(es)
+    ""
+  else
+    "{#{join(map((e) -> "#{to_s(first(e))}=\"#{escaped(nth(1, e))}\"", es), ",")}}"
+  end
+end
+
+def sample_line(s)
+  "#{get(s, :name)}#{label_text(get(s, :labels))} #{to_s(get(s, :value))}"
+end
+
+def instrument_lines(i)
+  append(
+    [
+      "# HELP #{get(i, :name)} #{get(i, :help)}",
+      "# TYPE #{get(i, :name)} #{to_s(get(i, :kind))}"
+    ],
+    map(sample_line, read(i, {}))
+  )
+end
+
+@doc """
+exposition: instruments in the Prometheus text format, as /metrics serves them.
+"""
+def exposition(instruments)
+  unlines(append(*map(instrument_lines, instruments)))
+end
+
+@doc """
+endpoint: a /metrics handler over instruments, or nil when observe turns metrics off.
+"""
+def endpoint(observe, instruments)
+  if rogu::on?(observe, :metrics)
+    fn(_req)
+      {
+        status: 200,
+        headers: {"Content-Type" => "text/plain; version=0.0.4; charset=utf-8"},
+        body: exposition(instruments)
+      }
+    end
+  end
+end
+
 def values_of(samples)
   map((s) -> get(s, :value), samples)
 end
@@ -509,4 +568,44 @@ test "read raises a timeout when the instrument does not answer"
   assert raises?(:timeout, () -> read(dead, {wait_ms: 1}))
   assert now_ms - started < 3000
   assert read(c, {wait_ms: 5000}) == []
+end
+
+test "exposition writes help, type and one line per series"
+  c = counter("hits_total", {help: "Hits.", labels: [:path]})
+  increase(c, 2, {path: "/a"})
+  g = gauge("depth", {})
+  put(g, 3, {})
+  text = exposition([c, g])
+  assert lines(text) ==
+    [
+      "# HELP hits_total Hits.",
+      "# TYPE hits_total counter",
+      "hits_total{path=\"/a\"} 2",
+      "# HELP depth ",
+      "# TYPE depth gauge",
+      "depth 3"
+    ]
+end
+
+test "a histogram exposes its buckets, sum and count"
+  h = histogram("lat", [1, 5], {})
+  observe(h, 3, {})
+  text = exposition([h])
+  assert contains?(text, "lat_bucket{le=\"1\"} 0") == true
+  assert contains?(text, "lat_bucket{le=\"5\"} 1") == true
+  assert contains?(text, "lat_bucket{le=\"+Inf\"} 1") == true
+  assert contains?(text, "lat_count 1") == true
+end
+
+test "label values escape quotes, backslashes and newlines"
+  assert label_text({"a" => "x\"y"}) == "{a=\"x\\\"y\"}"
+  assert label_text({}) == ""
+end
+
+test "endpoint serves the exposition, and metrics off leaves no route"
+  c = counter("n_total", {})
+  r = endpoint({}, [c])(nil)
+  assert get(r, :status) == 200
+  assert contains?(get(r, :body), "# TYPE n_total counter") == true
+  assert endpoint({metrics: :off}, [c]).nil?
 end
